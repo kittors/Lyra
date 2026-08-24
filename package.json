@@ -29,8 +29,8 @@
     "@types/node": "24.12.4",
     "knip": "^6.32.2",
     "lefthook": "^2.1.10",
-    "oxlint": "^1.78.0",
-    "typescript": "5.9.3"
+    "oxlint": "^1.79.0",
+    "typescript": "7.0.2"
   },
   "license": "MIT",
   "repository": {
