@@ -40,7 +40,7 @@ jobs:
       && !github.event.pull_request.draft
       && github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
 
