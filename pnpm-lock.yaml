@@ -55,8 +55,8 @@ importers:
   packages/desktop:
     dependencies:
       '@codemirror/commands':
-        specifier: ^6.10.4
-        version: 6.10.4
+        specifier: ^6.11.0
+        version: 6.11.0
       '@codemirror/lang-cpp':
         specifier: ^6.0.3
         version: 6.0.3
@@ -121,8 +121,8 @@ importers:
         specifier: ^6.7.1
         version: 6.7.1
       '@codemirror/view':
-        specifier: ^6.43.8
-        version: 6.43.8
+        specifier: ^6.43.9
+        version: 6.43.9
       '@fontsource-variable/fira-code':
         specifier: ^5.3.0
         version: 5.3.0
@@ -206,8 +206,8 @@ importers:
         specifier: 6.0.5
         version: 6.0.5(babel-plugin-react-compiler@1.0.0)(vite@8.2.1(@types/node@24.12.4)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(yaml@2.8.2))
       electron:
-        specifier: 43.3.0
-        version: 43.3.0
+        specifier: 43.4.1
+        version: 43.4.1
       electron-builder:
         specifier: 26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -706,8 +706,8 @@ packages:
   '@codemirror/autocomplete@6.20.3':
     resolution: {integrity: sha512-tlosUqb+3BbxCxZdu4tKeRghPFC+QM7q4X5YhKV2eCmPG+1r2F3f4AaSz5sCrFqUtX4Jh20VFTKecl16MgiV9g==}
 
-  '@codemirror/commands@6.10.4':
-    resolution: {integrity: sha512-Ryk9y9T0FFVF0cUGhAknveAyUOl/A1qReTFi+qPKtOh2Z9F4AUBz3XOrYD4ZEgZirdugVzHvd/2/Wcwy5OliTg==}
+  '@codemirror/commands@6.11.0':
+    resolution: {integrity: sha512-/K4Rl5BN0OtTiPWmJCdqODu38XnDMsDxKY5rgrPnCkutPTJf2wVbkoixLfealF5Kwse/s8P8M5jAiURiwSwnFA==}
 
   '@codemirror/lang-cpp@6.0.3':
     resolution: {integrity: sha512-URM26M3vunFFn9/sm6rzqrBzDgfWuDixp85uTY49wKudToc2jTHUrKIGGKs+QWND+YLofNNZpxcNGRynFJfvgA==}
@@ -775,8 +775,8 @@ packages:
   '@codemirror/state@6.7.1':
     resolution: {integrity: sha512-9QzNDgE4EYDnAHfrTlR2lwiPciiOymLtwKK+8yHQzCc7GXhAP9xdEbEJFy2IWB1j9UGUl9BsgMmTo/ImA02T7A==}
 
-  '@codemirror/view@6.43.8':
-    resolution: {integrity: sha512-qtItTDssZ/5GFfi94hrILu9j/VUeFPDPkhovEfmWFj2ipTxnzPB8DdHgfbb8HYTzLTYhrndKmyQxXUz/PDLenw==}
+  '@codemirror/view@6.43.9':
+    resolution: {integrity: sha512-sTuUzTpPMFebRhg6dawChoKKgndIwfjmJgKVxBefPElcU2NwQ6AFroupk0SFqEerQyZOGRfDNnSN8Dw/lMAsXw==}
 
   '@electron-internal/extract-zip@1.0.5':
     resolution: {integrity: sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==}
@@ -1143,8 +1143,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@expo-google-fonts/material-symbols@0.4.45':
-    resolution: {integrity: sha512-D5gd/uFa7KfMJX9S11hvej4GpQnBl27oKiUgyIq3cLTPtyDOWBwRgmeePIdV6+PGcedlDkaCND2BnRgAkxzNaA==}
+  '@expo-google-fonts/material-symbols@0.4.42':
+    resolution: {integrity: sha512-KZmHZRcthJ3KFZZlpzHjopA9guZgWR9fb3uVZlTR0BNlvG2pw1bnYBCpkze2PB0vRllwGhAM7lWXsfmcWCbXYg==}
 
   '@expo/cli@57.0.20':
     resolution: {integrity: sha512-ZjWz7SA5TBTyKq4+aFRUPgMFxmqHtKkDMv6d85J2UAAjdRhkNRf+B80t+rr5IFo2ywuTvyrPRBth4ei4w08olA==}
@@ -2515,8 +2515,8 @@ packages:
   '@types/yargs@17.0.35':
     resolution: {integrity: sha512-qUHkeCyQFxMXg79wQfTtfndEC+N9ZZg76HJftDJp+qH2tV7Gj4OJi7l+PiWwJ+pWtW8GwSmqsDj/oymhrTWXjg==}
 
-  '@ungap/structured-clone@1.4.0':
-    resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
+  '@ungap/structured-clone@1.3.3':
+    resolution: {integrity: sha512-60YRaenCQcVjYEKOcG824+DRGGIQ3VKErcBoAEDJZz5bKIs2ZG+X/H9Nk+Q6EVkwJk5QNApxbrc5QtBSwtrXAg==}
 
   '@vitejs/plugin-react@6.0.5':
     resolution: {integrity: sha512-BOVzne/NL162sMdResB25mUv+vWMF5NoAjNf09TeGlE7ZpszZWSD3winycicLJw72yeVsoCn/2kOhEuCvEShMA==}
@@ -2534,10 +2534,6 @@ packages:
   '@xmldom/xmldom@0.8.15':
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
-
-  '@xmldom/xmldom@0.9.12':
-    resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
-    engines: {node: '>=14.6'}
 
   '@xterm/addon-fit@0.11.0-beta.126':
     resolution: {integrity: sha512-ciULem4wd1vdy5cylYEoJgXmfMBg852fzoLM0luiLX5PZmCVPR820L+ens6ofoJSkP1HReVvP2500mSb1FngGA==}
@@ -3183,8 +3179,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@43.3.0:
-    resolution: {integrity: sha512-nLlvu0WFjftWsSaTkV2B/c4NDuJBspTyXu8vKSQ6vLvFt8uG3NgN49LLKcXddwX0GqVvAQDhciWp+4xOdTdhew==}
+  electron@43.4.1:
+    resolution: {integrity: sha512-5b+EuiwkgG5iRcsEL34rimgRpkYp15SsfZOa0pC5kXs0Tb82TH4n95rpQzTZa7yRCbA7tm0WoEbuBL6NaAhAcA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -4692,10 +4688,6 @@ packages:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
-  picomatch@4.0.7:
-    resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
-    engines: {node: '>=12'}
-
   pify@2.3.0:
     resolution: {integrity: sha512-udgsAY+fTnvv7kI7aaxbqwWNb0AHiB0qBO89PZKPkoTmGOgdbrHDKD+0B2X4uTfJ/FT1R09r9gTsjUjNJotuog==}
     engines: {node: '>=0.10.0'}
@@ -4714,10 +4706,6 @@ packages:
 
   plist@3.1.0:
     resolution: {integrity: sha512-uysumyrvkUX0rX/dEVqt8gC3sTBzd4zoWfLeS29nb53imdaXVvLINYXTI2GNqzaMuvacNx4uJQ8+b3zXR0pkgQ==}
-    engines: {node: '>=10.4.0'}
-
-  plist@3.1.1:
-    resolution: {integrity: sha512-ZIfcLJC+7E7FBFnDxm9MPmt7D+DidyQ26lewieO75AdhA2ayMtsJSES0iWzqJQbcVRSrTufQoy0DR94xHue0oA==}
     engines: {node: '>=10.4.0'}
 
   pngjs@3.4.0:
@@ -6289,14 +6277,14 @@ snapshots:
     dependencies:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
 
-  '@codemirror/commands@6.10.4':
+  '@codemirror/commands@6.11.0':
     dependencies:
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
 
   '@codemirror/lang-cpp@6.0.3':
@@ -6327,7 +6315,7 @@ snapshots:
       '@codemirror/lang-javascript': 6.2.5
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
       '@lezer/css': 1.3.6
       '@lezer/html': 1.3.13
@@ -6343,7 +6331,7 @@ snapshots:
       '@codemirror/language': 6.12.4
       '@codemirror/lint': 6.9.7
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
       '@lezer/javascript': 1.5.4
 
@@ -6366,7 +6354,7 @@ snapshots:
       '@codemirror/lang-html': 6.4.12
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
       '@lezer/markdown': 1.7.2
 
@@ -6422,7 +6410,7 @@ snapshots:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
       '@lezer/xml': 1.0.6
 
@@ -6439,7 +6427,7 @@ snapshots:
   '@codemirror/language@6.12.4':
     dependencies:
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.10
@@ -6452,20 +6440,20 @@ snapshots:
   '@codemirror/lint@6.9.7':
     dependencies:
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       crelt: 1.0.7
 
   '@codemirror/search@6.7.1':
     dependencies:
       '@codemirror/state': 6.7.1
-      '@codemirror/view': 6.43.8
+      '@codemirror/view': 6.43.9
       crelt: 1.0.7
 
   '@codemirror/state@6.7.1':
     dependencies:
       '@marijn/find-cluster-break': 1.0.3
 
-  '@codemirror/view@6.43.8':
+  '@codemirror/view@6.43.9':
     dependencies:
       '@codemirror/state': 6.7.1
       crelt: 1.0.7
@@ -6528,7 +6516,7 @@ snapshots:
       fs-extra: 10.1.0
       isbinaryfile: 4.0.10
       minimist: 1.2.8
-      plist: 3.1.1
+      plist: 3.1.0
     transitivePeerDependencies:
       - supports-color
 
@@ -6551,7 +6539,7 @@ snapshots:
       dir-compare: 4.2.0
       fs-extra: 11.4.0
       minimatch: 9.0.9
-      plist: 3.1.1
+      plist: 3.1.0
     transitivePeerDependencies:
       - supports-color
 
@@ -6738,7 +6726,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@expo-google-fonts/material-symbols@0.4.45': {}
+  '@expo-google-fonts/material-symbols@0.4.42': {}
 
   '@expo/cli@57.0.20(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.8)(expo-constants@57.0.16)(expo-font@57.0.2)(expo-router@57.0.17)(expo@57.0.18)(react-dom@19.2.3(react@19.2.3))(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:
@@ -6786,7 +6774,7 @@ snapshots:
       node-forge: 1.4.0
       npm-package-arg: 11.0.3
       ora: 3.4.0
-      picomatch: 4.0.7
+      picomatch: 4.0.5
       pretty-format: 29.7.0
       progress: 2.0.3
       prompts: 2.4.2
@@ -6969,7 +6957,7 @@ snapshots:
       hermes-parser: 0.36.1
       jsc-safe-url: 0.2.4
       lightningcss: 1.33.0
-      picomatch: 4.0.7
+      picomatch: 4.0.5
       postcss: 8.5.26
       resolve-from: 5.0.0
     optionalDependencies:
@@ -8156,7 +8144,7 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@ungap/structured-clone@1.4.0': {}
+  '@ungap/structured-clone@1.3.3': {}
 
   '@vitejs/plugin-react@6.0.5(babel-plugin-react-compiler@1.0.0)(vite@8.2.1(@types/node@24.12.4)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(yaml@2.8.2))':
     dependencies:
@@ -8166,8 +8154,6 @@ snapshots:
       babel-plugin-react-compiler: 1.0.0
 
   '@xmldom/xmldom@0.8.15': {}
-
-  '@xmldom/xmldom@0.9.12': {}
 
   '@xterm/addon-fit@0.11.0-beta.126(@xterm/xterm@5.6.0-beta.126)':
     dependencies:
@@ -8908,7 +8894,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@43.3.0:
+  electron@43.4.1:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0
@@ -9180,7 +9166,7 @@ snapshots:
 
   expo-symbols@57.0.2(expo-font@57.0.2)(expo@57.0.18)(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3):
     dependencies:
-      '@expo-google-fonts/material-symbols': 0.4.45
+      '@expo-google-fonts/material-symbols': 0.4.42
       expo: 57.0.18(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.8)(expo-router@57.0.17)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-worklets@0.12.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       expo-font: 57.0.2(expo@57.0.18)(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       react: 19.2.3
@@ -9199,7 +9185,7 @@ snapshots:
       '@expo/log-box': 57.0.4(@expo/dom-webview@57.0.1)(expo@57.0.18)(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       '@expo/metro': 56.0.2
       '@expo/metro-config': 57.0.12(expo@57.0.18)(typescript@5.9.3)
-      '@ungap/structured-clone': 1.4.0
+      '@ungap/structured-clone': 1.3.3
       babel-preset-expo: 57.0.9(@babel/core@7.29.7)(@babel/runtime@7.29.7)(expo@57.0.18)(react-refresh@0.14.2)
       expo-asset: 57.0.15(expo@57.0.18)(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       expo-constants: 57.0.16(expo@57.0.18)(react-native@0.87.1(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))
@@ -10109,7 +10095,7 @@ snapshots:
       metro-cache: 0.84.5
       metro-core: 0.84.5
       metro-runtime: 0.84.5
-      yaml: 2.9.0
+      yaml: 2.8.2
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -10697,8 +10683,6 @@ snapshots:
 
   picomatch@4.0.5: {}
 
-  picomatch@4.0.7: {}
-
   pify@2.3.0: {}
 
   pirates@4.0.7: {}
@@ -10717,12 +10701,6 @@ snapshots:
   plist@3.1.0:
     dependencies:
       '@xmldom/xmldom': 0.8.15
-      base64-js: 1.5.1
-      xmlbuilder: 15.1.1
-
-  plist@3.1.1:
-    dependencies:
-      '@xmldom/xmldom': 0.9.12
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
@@ -11327,7 +11305,7 @@ snapshots:
     dependencies:
       bplist-creator: 0.1.0
       bplist-parser: 0.3.1
-      plist: 3.1.1
+      plist: 3.1.0
 
   simple-swizzle@0.2.4:
     dependencies:

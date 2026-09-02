@@ -17,6 +17,7 @@ import {
 	type ContextBreakdown,
 	type SessionStorage,
 	type Settings,
+	type ThinkingLevel,
 	type UserContent,
 } from "@lyra/core";
 import { ipcMain } from "electron";
@@ -154,6 +155,29 @@ export function registerSessionsIpc({
 				const liveCwds = new Set(Array.from(sessions.values()).map((s) => s.cwd));
 				void cleanOldWorktrees(sessionMeta.cwd, appSettings, liveCwds).catch(() => {});
 			}
+		},
+	);
+
+	ipcMain.handle(
+		"sessions:rename",
+		async (_event, projectId: string, sessionId: string, title: string) => {
+			const cleanTitle = title.trim();
+			if (!cleanTitle) return null;
+			const live = sessions.get(sessionId);
+			if (live) {
+				await live.rename(cleanTitle);
+				return live.meta;
+			}
+			const meta = (await store.listSessions()).find((s) => s.id === sessionId);
+			if (!meta) return null;
+			const renamed = await store.append(meta, { type: "title", title: cleanTitle });
+			// Same flag the live path sets, or the name is lost to the first prompt after this
+			// session is woken up. See `SessionMeta.titleSetByUser`.
+			const updated = renamed.titleSetByUser
+				? renamed
+				: await store.append(renamed, { type: "meta", meta: { ...renamed, titleSetByUser: true } });
+			broadcast(sessionId, { type: "title", title: cleanTitle });
+			return updated;
 		},
 	);
 
@@ -383,6 +407,29 @@ export function registerSessionsIpc({
 			const meta = (await store.listSessions()).find((s) => s.id === sessionId);
 			if (meta && meta.messageCount === 0)
 				await store.append(meta, { type: "meta", meta: { ...meta, modelId } });
+		},
+	);
+
+	ipcMain.handle(
+		"agent:setThinking",
+		async (_event, sessionId: string, thinking: ThinkingLevel) => {
+			const live = sessions.get(sessionId);
+			if (live) {
+				await live.setThinking(thinking);
+				return;
+			}
+			/*
+			 * Not warm: write the choice straight to the log rather than starting an agent for it.
+			 *
+			 * No `messageCount` guard, unlike the model. Changing the model of a conversation that
+			 * has already run is the thing that needs care — the reasoning handles in its history
+			 * belong to the old provider. Effort has no such history to invalidate: it decides what
+			 * the next turn does, so setting it on a cold session with fifty messages is exactly as
+			 * safe as setting it on an empty one.
+			 */
+			const meta = (await store.listSessions()).find((s) => s.id === sessionId);
+			if (meta && meta.thinking !== thinking)
+				await store.append(meta, { type: "meta", meta: { ...meta, thinking } });
 		},
 	);
 }

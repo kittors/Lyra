@@ -3,6 +3,7 @@ import type {
   Message,
   SessionMeta,
   Settings,
+  ThinkingLevel,
   ToolResult,
   UserContent,
 } from "@lyra/core";
@@ -346,6 +347,8 @@ export interface AppState {
     decision: "once" | "always" | "reject",
   ): Promise<void>;
   setModel(modelId: string): Promise<void>;
+  /** How hard this conversation thinks. Stored on it; see `SessionMeta.thinking`. */
+  setThinking(thinking: ThinkingLevel): Promise<void>;
   refreshSync(): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error"): void;

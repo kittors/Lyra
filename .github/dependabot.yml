@@ -31,6 +31,20 @@ updates:
       # not a dependency bump.
       - dependency-name: electron
         update-types: [version-update:semver-major]
+      # The same rule, learned the same way. A grouped "tooling" bump arrived carrying TypeScript
+      # 5.9 → 7.0 — a different compiler, written in Go — alongside Tailwind 3 → 4, which is a
+      # different engine with a different config format. Both landed inside a pull request titled
+      # "bump the tooling group with 7 updates", next to a knip patch, and both broke the build.
+      #
+      # Neither is a bad upgrade. They are migrations: someone has to read the release notes, run
+      # the codemod and look at the result. Grouping them with the patches means the group is only
+      # as mergeable as its most disruptive member, so the five safe bumps sit red for weeks
+      # waiting on the two that need an afternoon. Ignoring the majors here is what keeps the
+      # weekly pull request the thing it is for — small, green and worth reading.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: tailwindcss
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

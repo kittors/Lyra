@@ -6,7 +6,7 @@
  * is created reads as broken — and the stored copy replaces it when the runtime confirms it.
  */
 
-import type { ApprovalDecision, Message, Usage, UserContent } from "@lyra/core";
+import type { ApprovalDecision, Message, ThinkingLevel, Usage, UserContent } from "@lyra/core";
 import { without } from "./derive.ts";
 import type { AppState } from "../store.ts";
 
@@ -247,6 +247,30 @@ export function turnSlice(set: Set, get: Get) {
         "warn",
       );
     }
+  },
+
+  /**
+   * Choose how hard this conversation thinks.
+   *
+   * Stored on the session, so the choice stays with the conversation it was made in: one window
+   * grinding through a migration at the top level no longer drags every other conversation — and
+   * the bill for them — up with it.
+   *
+   * `settings.thinking` is deliberately not written here, which is where this differs from
+   * `setModel`. Picking a model is a statement about what you want to use from now on, so carrying
+   * it into `defaultModelId` matches the intent. Turning the effort up is a statement about the
+   * problem in front of you, and writing it back to the default made every conversation opened
+   * afterwards inherit it — the same leak, one step removed, and the one you would notice last
+   * because it only shows up on the *next* session. The default moves in Settings, on purpose.
+   */
+  async setThinking(thinking: ThinkingLevel) {
+    const { activeSessionId, settings, meta } = get();
+    if (activeSessionId) await window.lyra.agent.setThinking(activeSessionId, thinking);
+    if (meta) set({ meta: { ...meta, thinking } });
+    // Remember the last real level so 「关闭思考」 has something to restore. Global, as it has
+    // always been: it is a memory of the last thing chosen, not a default anything runs at.
+    if (settings && thinking !== "off" && settings.lastThinking !== thinking)
+      await get().saveSettings({ ...settings, lastThinking: thinking });
   },
 
   async refreshSync() {

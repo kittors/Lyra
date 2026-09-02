@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
 import type { AgentEvent } from "../agent/events.ts";
-import type { Message, Usage } from "../types.ts";
+import type { Message, ThinkingLevel, Usage } from "../types.ts";
 import type { SessionStorage } from "./storage.ts";
 import { addUsage, emptyUsage } from "../types.ts";
 
@@ -42,6 +42,29 @@ export interface SessionMeta {
 	 * as before.
 	 */
 	modelSwitchedAt?: number;
+	/**
+	 * How hard this conversation thinks, when it differs from the global default.
+	 *
+	 * Effort belongs to the conversation, not to the app. One window is renaming a variable and the
+	 * next is working out why a migration deadlocks, and those want different settings — with a
+	 * single global level, turning one up turned the other up too, and the cost of the expensive
+	 * setting was paid by every session that never asked for it.
+	 *
+	 * Absent on sessions that never chose, which is every session written before this existed: they
+	 * read `settings.thinking` exactly as they used to. Storing the choice rather than defaulting it
+	 * at creation is what keeps that true — a session that has not chosen still follows the default
+	 * when the default moves.
+	 */
+	thinking?: ThinkingLevel;
+	/**
+	 * Someone typed this title, so nothing else gets to replace it.
+	 *
+	 * The first prompt names the conversation after itself, which is the right default for the
+	 * conversations nobody names — and wrong for every one somebody did. Naming a session before
+	 * asking anything is the ordinary way to use it, and the automatic title landed on top of the
+	 * name a moment later: the rename looked like it had worked, right up until the first message.
+	 */
+	titleSetByUser?: boolean;
 	/** Highest sequence number written. Sync clients compare against this. */
 	seq: number;
 }

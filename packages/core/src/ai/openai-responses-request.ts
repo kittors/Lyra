@@ -91,12 +91,47 @@ export function toResponsesInput(messages: Message[]): unknown[] {
 
 			for (const c of message.content) {
 				if (c.type === "thinking") {
-					// Replay requires the original item id; a summary alone is not accepted.
-					if (!c.signature) continue;
+					/*
+					 * With the provider's own item id, replayed exactly as it arrived. That id is what
+					 * lets the provider pick its own chain of thought back up, and a summary offered in
+					 * its place is not accepted as a substitute for it.
+					 */
+					if (c.signature) {
+						input.push({
+							type: "reasoning",
+							id: c.signature,
+							summary: c.thinking ? [{ type: "summary_text", text: c.thinking }] : [],
+							...(c.encrypted ? { encrypted_content: c.encrypted } : {}),
+						});
+						continue;
+					}
+					/*
+					 * No id — and the block still has to go back.
+					 *
+					 * This used to `continue`, on the reasoning that a reasoning item without the
+					 * provider's handle cannot be replayed. True of OpenAI's own endpoint, which always
+					 * names its items, so the branch never fired there. It fires on the relays that
+					 * translate Responses into Chat Completions, and several of them stream reasoning
+					 * without ever sending an `item.id` — dropping the block there does not degrade the
+					 * request, it breaks it outright:
+					 *
+					 *     The `reasoning_text` in the thinking mode must be passed back to the API.
+					 *
+					 * Upstreams like DeepSeek require the thinking they produced to come back with the
+					 * turn that followed it. With the block dropped there is nothing to send, so every
+					 * turn after the first fails with a 400 that no retry can clear, and the only way
+					 * out was to turn thinking off.
+					 *
+					 * So the text goes back without an id, as `reasoning_text` — `content` is where the
+					 * model's actual reasoning lives (`summary` is a summary of it, which is not what is
+					 * being asked for). Nothing is claimed about resuming a chain of thought; this is
+					 * the transcript, in the field that holds it.
+					 */
+					if (!c.thinking && !c.encrypted) continue;
 					input.push({
 						type: "reasoning",
-						id: c.signature,
-						summary: c.thinking ? [{ type: "summary_text", text: c.thinking }] : [],
+						summary: [],
+						...(c.thinking ? { content: [{ type: "reasoning_text", text: c.thinking }] } : {}),
 						...(c.encrypted ? { encrypted_content: c.encrypted } : {}),
 					});
 				} else if (c.type === "text") {

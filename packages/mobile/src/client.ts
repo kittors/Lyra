@@ -122,6 +122,13 @@ export class SyncClient {
 		});
 	}
 
+	rename(projectId: string, sessionId: string, title: string): Promise<{ ok: boolean; meta: SessionMeta }> {
+		return this.request(`/api/sessions/${projectId}/${sessionId}/rename`, {
+			method: "POST",
+			body: JSON.stringify({ title }),
+		});
+	}
+
 	createSession(cwd: string, modelId?: string): Promise<{ meta: SessionMeta }> {
 		return this.request("/api/sessions", { method: "POST", body: JSON.stringify({ cwd, modelId }) });
 	}

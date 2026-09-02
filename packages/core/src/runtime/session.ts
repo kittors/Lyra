@@ -230,6 +230,22 @@ export class AgentSession {
 		return true;
 	}
 
+	/**
+	 * Set how hard this conversation thinks, at any point in it.
+	 *
+	 * Persisted into the session log, so it survives a reload and follows the conversation rather
+	 * than the window it happens to be open in. Unlike a model change this needs no repair work on
+	 * the history: effort decides how much reasoning the *next* turn does, and says nothing about
+	 * the reasoning already in the transcript.
+	 */
+	async setThinking(thinking: ThinkingLevel): Promise<boolean> {
+		if (this.log.meta.thinking === thinking) return false;
+		const meta: SessionMeta = { ...this.log.meta, thinking };
+		this.log.meta = meta;
+		await this.log.append({ type: "meta", meta });
+		return true;
+	}
+
 	// -------------------------------------------------------------------------
 	// Running a turn
 	// -------------------------------------------------------------------------
@@ -318,7 +334,9 @@ export class AgentSession {
 		await this.emit({ type: "message_start", message });
 		await this.emit({ type: "message_end", message });
 
-		if (this.log.messages.filter((m) => m.role === "user").length === 1) {
+		// Names the conversation after its opening line — unless it already has a name someone
+		// chose, which this must not overwrite. See `SessionMeta.titleSetByUser`.
+		if (!this.log.meta.titleSetByUser && this.log.messages.filter((m) => m.role === "user").length === 1) {
 			await this.setTitleFromPrompt(content);
 		}
 
@@ -347,7 +365,12 @@ export class AgentSession {
 				provider: resolved.provider,
 				model: resolved.model,
 				signal: this.controller.signal,
-				thinking,
+				/*
+				 * What this turn was asked for, then what the conversation settled on, then the
+				 * global default. The caller's argument wins because it is a decision about this one
+				 * turn — the side chat asks for `off` regardless of what the conversation runs at.
+				 */
+				thinking: thinking ?? this.log.meta.thinking,
 				streamFn: this.streamFn,
 				scratchDir: scratchDir(this.log.meta.id),
 				requestApproval: (request) => this.requestApproval(request),
@@ -473,6 +496,26 @@ export class AgentSession {
 		const title = text.replace(/\s+/g, " ").trim().slice(0, 60) || "New session";
 		await this.log.append({ type: "title", title });
 		await this.emit({ type: "title", title });
+	}
+
+	/**
+	 * Name the conversation by hand, and have it stay named.
+	 *
+	 * The title record is what the store already understands, so this is only the writing half.
+	 * The other half is `titleSetByUser`: without it the first prompt renames the session after
+	 * itself and the name typed a moment earlier is gone. Recorded through a `meta` write of its
+	 * own so a phone syncing with `?since=N` learns it too.
+	 */
+	async rename(title: string): Promise<void> {
+		const cleanTitle = title.trim();
+		if (!cleanTitle) return;
+		await this.log.append({ type: "title", title: cleanTitle });
+		if (!this.log.meta.titleSetByUser) {
+			const meta: SessionMeta = { ...this.log.meta, titleSetByUser: true };
+			this.log.meta = meta;
+			await this.log.append({ type: "meta", meta });
+		}
+		await this.emit({ type: "title", title: cleanTitle });
 	}
 
 	async dispose(): Promise<void> {

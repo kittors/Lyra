@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "./RollingText.tsx";
 import { MenuBody, MenuItem, MenuLabel, MenuSeparator, Popover, type Anchor } from "./Popover.tsx";
+import { sessionThinking } from "./thinking-level.ts";
 import { useApp } from "../store.ts";
 
 export function formatWindow(tokens: number): string {
@@ -18,7 +19,7 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
 	const setModel = useApp((s) => s.setModel);
-	const saveSettings = useApp((s) => s.saveSettings);
+	const setThinking = useApp((s) => s.setThinking);
 	const setView = useApp((s) => s.setView);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const [showAll, setShowAll] = useState(false);
@@ -28,7 +29,8 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 	const flat = enabled.flatMap((provider) => provider.models.map((model) => ({ provider, model })));
 	const shortlist = flat.slice(0, SHORTLIST);
 	const rest = flat.slice(SHORTLIST);
-	const fastMode = settings?.thinking === "off";
+	// This conversation's level, not the app's — the same one the slider in `EffortMenu` moves.
+	const fastMode = sessionThinking(meta, settings) === "off";
 
 	const choose = (modelId: string) => {
 		void setModel(modelId);
@@ -133,11 +135,9 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 					}
 					onClick={() => {
 						if (!settings) return;
-						// Remember the previous level so turning fast mode off restores it.
-						void saveSettings({
-							...settings,
-							thinking: fastMode ? (settings.lastThinking ?? "medium") : "off",
-						});
+						// Remember the previous level so turning fast mode off restores it. `setThinking`
+						// keeps `lastThinking` up to date; here it is only read.
+						void setThinking(fastMode ? (settings.lastThinking ?? "medium") : "off");
 					}}
 				>
 					关闭思考

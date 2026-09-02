@@ -236,6 +236,18 @@ export class SyncServer {
 					return;
 				}
 
+				if (req.method === "POST" && action === "rename") {
+					const body = (await readJson(req)) as { title?: string };
+					const newTitle = (body.title ?? "").trim();
+					if (!newTitle) {
+						send(400, { error: "title_required" });
+						return;
+					}
+					await session.rename(newTitle);
+					send(200, { ok: true, meta: session.meta });
+					return;
+				}
+
 				if (req.method === "POST" && action === "approve") {
 					const body = (await readJson(req)) as { requestId?: string; decision?: "once" | "always" | "reject" };
 					const ok = session.resolveApproval(String(body.requestId), body.decision ?? "reject");

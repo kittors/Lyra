@@ -80,6 +80,7 @@ const api: LyraApi = {
 			ipcRenderer.invoke("sessions:setArchived", projectId, sessionId, archived),
 		removeArchived: () => ipcRenderer.invoke("sessions:removeArchived"),
 		capabilities: (sessionId) => ipcRenderer.invoke("sessions:capabilities", sessionId),
+		rename: (projectId, sessionId, title) => ipcRenderer.invoke("sessions:rename", projectId, sessionId, title),
 		compact: (sessionId) => ipcRenderer.invoke("sessions:compact", sessionId),
 		contextBreakdown: (sessionId) => ipcRenderer.invoke("sessions:contextBreakdown", sessionId),
 	},
@@ -90,6 +91,7 @@ const api: LyraApi = {
 		abort: (sessionId) => ipcRenderer.invoke("agent:abort", sessionId),
 		approve: (sessionId, requestId, decision) => ipcRenderer.invoke("agent:approve", sessionId, requestId, decision),
 		setModel: (sessionId, modelId) => ipcRenderer.invoke("agent:setModel", sessionId, modelId),
+		setThinking: (sessionId, thinking) => ipcRenderer.invoke("agent:setThinking", sessionId, thinking),
 		onEvent: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
 			ipcRenderer.on("agent:event", listener);
