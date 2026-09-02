@@ -60,7 +60,7 @@ import {
 	sessions,
 	sideChats,
 } from "./session-hub.ts";
-import { resolveInside } from "./file-ops.ts";
+import { containingRoot, resolveInside } from "./file-ops.ts";
 import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
@@ -166,11 +166,8 @@ function projectPath(target: string): string | null {
  * anything walking upward through directories needs in order to know when to stop.
  */
 function projectRoot(target: string): string | null {
-	const resolved = projectPath(target);
-	if (!resolved) return null;
 	const roots = (settings?.projects ?? []).map((project) => project.path);
-	// The longest match, so a project nested inside another resolves to the inner one.
-	return roots.filter((root) => resolved === root || resolved.startsWith(`${root}/`)).sort((a, b) => b.length - a.length)[0] ?? null;
+	return containingRoot(target, roots);
 }
 
 /** The predicate form, for the doorways that only need a yes or no. */

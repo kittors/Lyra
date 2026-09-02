@@ -10,6 +10,30 @@
 import { isAbsolute, relative, resolve } from "node:path";
 
 /**
+ * The deepest root containing `target`, with both sides resolved — or null.
+ *
+ * Returning the deepest match matters when one open project lives inside another: configuration
+ * searches belong to the inner project and must stop at its boundary. Containment is answered by
+ * `path.relative()`, not a string prefix, because Windows paths use backslashes and compare drive
+ * letters case-insensitively.
+ */
+export function containingRoot(target: string, roots: readonly string[]): string | null {
+	if (typeof target !== "string" || target === "" || !isAbsolute(target)) return null;
+	if (target.includes("\0")) return null;
+
+	const full = resolve(target);
+	let deepest: string | null = null;
+	for (const root of roots) {
+		if (!root || !isAbsolute(root) || root.includes("\0")) continue;
+		const base = resolve(root);
+		const rel = relative(base, full);
+		if (rel !== "" && (rel.startsWith("..") || isAbsolute(rel))) continue;
+		if (deepest === null || base.length > deepest.length) deepest = base;
+	}
+	return deepest;
+}
+
+/**
  * The path, normalised, if it lies inside one of the roots — otherwise null.
  *
  * Normalising *before* comparing is the whole job. The check this replaces compared the raw
@@ -24,18 +48,8 @@ import { isAbsolute, relative, resolve } from "node:path";
  * separators (`\` vs `/`) and drive letter casing (`C:` vs `c:`) differ.
  */
 export function resolveInside(target: string, roots: readonly string[]): string | null {
-	if (typeof target !== "string" || target === "" || !isAbsolute(target)) return null;
-	// A NUL truncates the path at the syscall boundary, so the bytes after it would be unchecked.
-	if (target.includes("\0")) return null;
-
-	const full = resolve(target);
-	for (const root of roots) {
-		if (!root || !isAbsolute(root)) continue;
-		const base = resolve(root);
-		const rel = relative(base, full);
-		if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return full;
-	}
-	return null;
+	if (containingRoot(target, roots) === null) return null;
+	return resolve(target);
 }
 
 /**

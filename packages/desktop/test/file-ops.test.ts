@@ -9,7 +9,14 @@
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { isDescendant, resolveInside, splitExtension, uniqueName, validateName } from "../electron/file-ops.ts";
+import {
+	containingRoot,
+	isDescendant,
+	resolveInside,
+	splitExtension,
+	uniqueName,
+	validateName,
+} from "../electron/file-ops.ts";
 
 /*
  * Built with `resolve`, not written out.
@@ -52,6 +59,18 @@ test("only absolute paths, and never one carrying a NUL", () => {
 
 test("with no projects open nothing is inside one", () => {
 	assert.equal(resolveInside("/work/app/src/main.ts", []), null);
+});
+
+test("the containing root follows the platform's path rules", () => {
+	assert.equal(containingRoot(join(ROOT, "src", "main.ts"), ROOTS), ROOT);
+	assert.equal(containingRoot(ROOT, ROOTS), ROOT, "the project root belongs to itself");
+	assert.equal(containingRoot(resolve("/work/app-secrets/key.pem"), ROOTS), null);
+});
+
+test("the deepest containing root wins when projects are nested", () => {
+	const inner = join(ROOT, "packages", "desktop");
+	const file = join(inner, "src", "main.ts");
+	assert.equal(containingRoot(file, [ROOT, inner]), inner);
 });
 
 test("a path is not its own descendant, and a sibling prefix is not one either", () => {
