@@ -20,6 +20,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { listWin32Windows } from "./screenshot-windows-win32.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -71,7 +72,10 @@ JSON.stringify(
  * convenience, not a broken one — so a failure here returns nothing and the overlay carries on as
  * a plain drag-to-select.
  */
-export async function listWindows(display: { x: number; y: number; width: number; height: number }): Promise<WindowRect[]> {
+export async function listWindows(display: { x: number; y: number; width: number; height: number; scaleFactor?: number }): Promise<WindowRect[]> {
+	if (process.platform === "win32") {
+		return listWin32Windows(display);
+	}
 	if (process.platform !== "darwin") return [];
 	try {
 		const { stdout } = await execFileAsync("osascript", ["-l", "JavaScript", "-e", SCRIPT], {

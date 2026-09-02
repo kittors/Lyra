@@ -909,7 +909,7 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	 */
 	const [snapshot, windows, win] = await Promise.all([
 		captureFullDisplaySnapshot(currentDisplay.id),
-		listWindows(bounds),
+		listWindows({ ...bounds, scaleFactor: currentDisplay.scaleFactor }),
 		ensureOverlay(),
 	]);
 	if (!snapshot || win.isDestroyed()) return;
