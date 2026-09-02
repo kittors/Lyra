@@ -26,7 +26,7 @@
     "test:e2e": "pnpm --filter @lyra/desktop test:e2e"
   },
   "devDependencies": {
-    "@types/node": "24.12.4",
+    "@types/node": "26.4.0",
     "knip": "^6.32.2",
     "lefthook": "^2.1.10",
     "oxlint": "^1.78.0",
