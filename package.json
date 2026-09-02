@@ -27,8 +27,8 @@
   },
   "devDependencies": {
     "@types/node": "24.13.3",
-    "knip": "^6.32.2",
-    "lefthook": "^2.1.10",
+    "knip": "^6.33.0",
+    "lefthook": "^2.1.12",
     "oxlint": "^1.78.0",
     "typescript": "5.9.3"
   },
