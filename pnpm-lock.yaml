@@ -151,8 +151,8 @@ importers:
         specifier: 1.30.0
         version: 1.30.0(zod@4.4.3)
       '@xterm/addon-fit':
-        specifier: 0.11.0-beta.126
-        version: 0.11.0-beta.126(@xterm/xterm@5.6.0-beta.126)
+        specifier: 0.11.0
+        version: 0.11.0
       '@xterm/xterm':
         specifier: 5.6.0-beta.126
         version: 5.6.0-beta.126
@@ -2535,10 +2535,8 @@ packages:
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
 
-  '@xterm/addon-fit@0.11.0-beta.126':
-    resolution: {integrity: sha512-ciULem4wd1vdy5cylYEoJgXmfMBg852fzoLM0luiLX5PZmCVPR820L+ens6ofoJSkP1HReVvP2500mSb1FngGA==}
-    peerDependencies:
-      '@xterm/xterm': ^5.6.0-beta.126
+  '@xterm/addon-fit@0.11.0':
+    resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
 
   '@xterm/xterm@5.6.0-beta.126':
     resolution: {integrity: sha512-5VLFQOsnXroik0+tO7QKB3jZ2LuNrQuxsjRrSnQhUc8oXgOlTuSCHq3PxQx4O6VHnN3pq7IbNkaq7O0Chvmg7w==}
@@ -8146,9 +8144,7 @@ snapshots:
 
   '@xmldom/xmldom@0.8.15': {}
 
-  '@xterm/addon-fit@0.11.0-beta.126(@xterm/xterm@5.6.0-beta.126)':
-    dependencies:
-      '@xterm/xterm': 5.6.0-beta.126
+  '@xterm/addon-fit@0.11.0': {}
 
   '@xterm/xterm@5.6.0-beta.126': {}
 
