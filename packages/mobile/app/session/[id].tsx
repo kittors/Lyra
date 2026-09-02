@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
 import {
 	ActivityIndicator,
 	KeyboardAvoidingView,
@@ -36,7 +36,16 @@ export default function SessionScreen() {
 	const [modelPickerOpen, setModelPickerOpen] = useState(false);
 	const setModel = useMobile((s) => s.setModel);
 	const models = useMobile((s) => s.settings?.models ?? []);
-	const scrollRef = useRef<ScrollView>(null);
+	/*
+	 * `ComponentRef`, not `ScrollView` itself.
+	 *
+	 * React Native 0.87 generates its types from Flow, and `ScrollView` became a function component
+	 * there — so the class no longer doubles as its own instance type and `useRef<ScrollView>` says
+	 * the ref holds the component, which has no `scrollToEnd` on it. `ComponentRef` asks the
+	 * question that was always meant: whatever this component hands to a ref. That answer is right
+	 * on either shape, so it does not need revisiting the next time the declaration moves.
+	 */
+	const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
 
 	// Deep-linking straight to a session id means the store may not have it loaded yet.
 	useEffect(() => {
