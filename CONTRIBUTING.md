@@ -22,7 +22,10 @@ pnpm dev:mobile  # 移动端
 | `pnpm lint` | oxlint，`--deny-warnings`，所以警告等同于失败 |
 | `pnpm lint:fix` | 能自动修的修掉 |
 | `pnpm typecheck` | 三个包一起 |
-| `pnpm test` | 单元测试 |
+| `pnpm test` | 单元测试，含组件测试 |
+| `pnpm --filter @lyra/desktop test:ui` | 只跑组件测试（happy-dom，不到一秒） |
+| `pnpm release:rehearse` | 触发一次 Release dry run |
+| `pnpm release patch` | 发版：版本号、CHANGELOG、tag、推送 |
 | `pnpm knip` | 未使用的导出、依赖、文件 |
 | `pnpm build` | core + 桌面端 |
 | `pnpm package` | 打出桌面端安装包 |
@@ -40,6 +43,9 @@ pnpm dev:mobile  # 移动端
 **单文件尽量不超过 300 行。** 判据不是行数本身，而是"拆开之后是不是更好读"。
 把一个东西对半切成两半、让两半互相伸手，比一个 400 行但只讲一件事的文件更糟。
 
+**第一次在新克隆里提交前，确认 `git config user.email` 是你自己。** 仓库级配置一旦被写错，
+之后每个提交都挂在错的人名下，而且改不回来——`.mailmap` 只能修显示。
+
 **提交信息用中文，说清楚为什么。** 主题一行，然后空行，然后正文讲清楚这次改动
 解决的是什么问题。改了行为就说改了什么行为。
 
@@ -54,6 +60,15 @@ cd packages/core && node --test --experimental-strip-types test/session-log.test
 
 新加的行为要有测试盖住。规则性的东西尤其值得测——它们是"只有出错时才会被注意到"的
 那类代码：分组规则、风险判定、日志去重。
+
+组件的测试在 `packages/desktop/test/ui/`，用 happy-dom 真的挂载再断言：
+
+```bash
+pnpm --filter @lyra/desktop test:ui
+```
+
+写法上用 `createElement` 而不是 JSX（测试文件是 `.ts`），`test/helpers/mount.ts` 提供 `mount`、
+`click`、`press`。断言要对着**用户能观察到的东西**——渲染出的属性、文字、可访问名——而不是内部状态。
 
 端到端测试跑真实的 Electron 窗口：
 

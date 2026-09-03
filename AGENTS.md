@@ -59,14 +59,23 @@ pnpm test        # 190 个单元测试
 
 打 tag 就是发版：推 `v*` 触发 `release.yml`，三平台各自构建，汇总成一个 release 并**直接发布**。
 
-**打 tag 之前，先在 GitHub Actions 上手动跑一次 `Release dry run`。** 它跑的东西和 release
+**打 tag 之前要跑一次 `Release dry run`**（`pnpm release:rehearse`，`pnpm release` 会验证它跑过）。 它跑的东西和 release
 一模一样（三平台 lint/typecheck/test + `pnpm package`），只是不创建 release。绿了再打 tag。
 
 为什么必须这一步：日常的 CI 不打包，而 `pnpm package` 是唯一会执行 electron-builder 的地
 方。0.2.0 第一次发版就栽在这里——`executableName` 在 Linux 上不合法，这个配置错误在仓库里
 待了很久，因为在此之前没有任何一条流程构建过 Linux 包。
 
-版本号在 6 个 package.json 里，要一起改（内部依赖走 `workspace:*`，不受影响）。
+发版是一条命令：
+
+```bash
+pnpm release:rehearse    # 触发 dry run 并等它跑完
+pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、推送
+```
+
+`pnpm release` 会自己检查「这个提交有没有绿色的 dry run」，没有就停下来——这一步以前靠记性。
+版本号写在 8 个地方（7 个 package.json 加手机的 `app.json`），脚本一起改，`test/version-sync.test.ts`
+守着它们不跑偏；新加一个包而忘了登记，那条测试会红。
 
 以前汇总成草稿，要再手动 Publish 一次——结果 0.4.0、0.4.1、0.5.0、0.6.1 全都躺在草稿里：产
 物齐全，客户端一个都收不到（更新检查跳过草稿和预发布）。手动的最后一步就是会被忘的一步。现
@@ -125,3 +134,15 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 ## 提交
 
 主题一行中文，说清楚解决了什么问题；正文讲为什么。不要写"修复若干问题"。
+
+格式是 conventional commits，`commit-msg` 钩子会拦不合规的：
+
+```
+<type>(<scope>): <中文主题>
+
+<为什么这次改动是必要的；踩过什么坑>
+```
+
+type 取 `feat` `fix` `perf` `refactor` `docs` `test` `chore` `ci` `build` `revert`；
+scope 取 `core` `desktop` `electron` `ui` `mobile` `relay` `cli` `registry` `sync` `release` `deps`，
+写错只警告不拦。前四个 type 会进 CHANGELOG，其余不进。

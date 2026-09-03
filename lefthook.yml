@@ -19,6 +19,15 @@ pre-commit:
       # Trailing whitespace and conflict markers, straight from git.
       run: git diff --cached --check
 
+# The message itself, checked before it becomes a commit.
+#
+# Cheap enough not to notice — commitlint on one line of text — and it is the only moment the
+# message can still be fixed without a rebase.
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: ./node_modules/.bin/commitlint --edit {1}
+
 pre-push:
   jobs:
     - name: typecheck
