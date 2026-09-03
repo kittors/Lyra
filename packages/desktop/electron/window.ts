@@ -7,10 +7,11 @@
  * size and position are restored from disk rather than guessed.
  */
 
+import { guardNavigation } from "./window-security.ts";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { lyraHome, type Settings } from "@lyra/core";
-import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
 
 /**
  * Where the icon file is, packaged or not.
@@ -209,11 +210,14 @@ export function createWindow(): void {
 	// The window can be restored into full screen, so the first frame has to be told as well.
 	mainWindow.webContents.on("did-finish-load", reportFullScreen);
 
-	// External links open in the user's browser, never inside the app shell.
-	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-		void shell.openExternal(url);
-		return { action: "deny" };
-	});
+	/*
+	 * External links open in the user's browser, and the window stays on our own page.
+	 *
+	 * Both halves matter and only one of them used to be here. Opening a link elsewhere is the
+	 * obvious part; refusing to *navigate* is the part that keeps an injected `location.href` from
+	 * loading a remote page into the window that holds the preload. See `window-security.ts`.
+	 */
+	guardNavigation(mainWindow.webContents);
 
 	const devServer = process.env.ELECTRON_RENDERER_URL;
 	if (devServer) void mainWindow.loadURL(devServer);

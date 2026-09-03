@@ -83,6 +83,7 @@ import {
 	useSettingsSource,
 } from "./window.ts";
 import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
+import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
 import { registerSideChatIpc } from "./ipc/side-chat.ts";
@@ -230,6 +231,15 @@ async function refreshRecentSessions(): Promise<void> {
  * instance would stop working the first time that happened. Both facts the first item depends on
  * are here: whether a window is on screen, and what has been talked about recently.
  */
+/*
+ * Every webContents, including the ones a `<webview>` is about to create.
+ *
+ * `will-attach-webview` fires on the *embedder*, so this has to be attached to the renderer rather
+ * than to the guest — and attaching it here rather than beside the window means a guest created by
+ * any future surface is covered by the same rule.
+ */
+app.on("web-contents-created", (_event, contents) => guardWebviews(contents));
+
 app.on("browser-window-created", (_event, window) => {
 	const track = () => void refreshRecentSessions();
 	window.on("show", track);
@@ -451,6 +461,14 @@ app.whenReady().then(async () => {
 	configureSync(() => store);
 	// Before the window exists, so its very first frame gets the right material.
 	applyNativeAppearance();
+
+	/*
+	 * Before any window exists, so no page can race the handler.
+	 *
+	 * Electron's default grants whatever a page asks for. That is wrong here: the browser panel
+	 * hosts other people's sites, and without a handler one of them can simply have the camera.
+	 */
+	installPermissionHandlers([BROWSER_PARTITION]);
 
 	registerPreviewProtocols({ browserPartition: BROWSER_PARTITION, insideAProject });
 
