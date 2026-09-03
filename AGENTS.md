@@ -18,11 +18,12 @@ pnpm install
 
 ```bash
 pnpm lint        # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck   # 三个包
-pnpm test        # 190 个单元测试
+pnpm typecheck   # 六个包
+pnpm test        # 2086 个单元测试，含组件测试
+pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 ```
 
-或者一条：`pnpm check`。
+前三条是一条：`pnpm check`。`arch` 另跑，两秒。
 
 ### 三条命令全绿 ≠ 做完了
 
@@ -86,7 +87,8 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 - **缩进 tab**，YAML/JSON 用 2 空格
 - **注释用英文，解释为什么**，不复述代码做了什么
 - **单文件尽量 300 行以内**，但拆分要有真实边界，不要对半切
-- **不要动 `docs/`**：那是本地笔记，已经在 `.gitignore` 里
+- **`docs/plan` 与 `docs/notes` 是本地笔记**，在 `.gitignore` 里，不要当成文档改。
+  `docs/architecture`、`docs/adr`、`docs/guide` 进仓库——改了行为要同步改它们
 - **不要提交任何密钥**。模型配置在 `~/.lyra/settings.json`，不在仓库里
 - 改了行为就补测试。规则性的代码（分组、风险判定、去重）尤其要测
 
@@ -121,6 +123,8 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 
 ## 目录
 
+先看 [ARCHITECTURE.md](ARCHITECTURE.md)——包与包的关系、五条边界规则、以及「要做某件事去哪」。
+
 | 路径 | 是什么 |
 | --- | --- |
 | `packages/core/src/agent/` | 一轮循环、工具执行、重复检测 |
@@ -129,7 +133,9 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 | `packages/core/src/kernel/` | 插件内核：服务、事件、十条缝 |
 | `packages/desktop/electron/` | 主进程：IPC、窗口、Git、同步服务 |
 | `packages/desktop/src/` | 渲染进程 |
-| `packages/mobile/` | Expo 应用 |
+| `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
+| `packages/mobile/` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView |
+| `packages/relay/` | 中转服务。单文件，零依赖 |
 
 ## 提交
 
