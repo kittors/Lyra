@@ -40,9 +40,10 @@ after(() => {
 });
 
 /** A client that records everything it is sent, so assertions read as a transcript. */
-function client(room: string, role: "host" | "guest") {
+/** `port` 只有需要一个干净 server 的测试会传——见「限流只挡新房间」那条。 */
+function client(room: string, role: "host" | "guest", port = PORT) {
 	const received: string[] = [];
-	const socket = new WebSocket(URL);
+	const socket = new WebSocket(`ws://127.0.0.1:${port}`);
 	const ready = new Promise<void>((resolve, reject) => {
 		socket.once("open", () => {
 			socket.send(JSON.stringify({ type: "hello", room, role }));
@@ -195,4 +196,69 @@ test("the health endpoint answers, for a deployment to point a check at", async 
 	assert.equal(response.status, 200);
 	const body = (await response.json()) as { app: string };
 	assert.equal(body.app, "lyra-relay");
+});
+
+test("建房太频繁会被限流，而不是把服务拖垮", async () => {
+	/*
+	 * 限流防的是失控，不是攻击。
+	 *
+	 * 这个中转不认识任何人——房间号是令牌的哈希，它既不知道两端是谁也不知道它们在说什么，所以
+	 * 唯一能做的判断就是「一个来源要了多少」。而这恰好够用：真正要挡的是一个重连循环跑飞的
+	 * 客户端，或者一个把房间当消息队列用的脚本。有针对性的攻击换个令牌就是换个房间，拦不住，
+	 * 那要靠令牌本身。
+	 *
+	 * 上限是每分钟 30 个房间，比任何正常用法宽得多——一次配对建一个。
+	 */
+	const opened: ReturnType<typeof client>[] = [];
+	let refused = "";
+
+	for (let i = 0; i < 34; i++) {
+		const c = client(roomFor(`flood-${i}`), "host");
+		opened.push(c);
+		await c.ready;
+		await new Promise((r) => setTimeout(r, 15));
+		const hit = c.received.find((l) => l.includes("rate-limited"));
+		if (hit) {
+			refused = hit;
+			break;
+		}
+	}
+
+	for (const c of opened) c.close();
+	assert.ok(refused, `连开 34 个房间应该被限流，实际全部放行`);
+	assert.match(refused, /rate-limited/);
+});
+
+test("限流只挡新房间，已经在房里的两端不受影响", async () => {
+	/*
+	 * 自己起一个 server。
+	 *
+	 * 限流是按来源地址算的，而同一个测试进程里所有连接都来自 127.0.0.1——上一条测试刚把这个
+	 * 地址的配额用光，这一条紧接着跑就会被自己的前一条挡住。第一版就是这么红的，而它红的原因
+	 * 和被测的行为无关。
+	 *
+	 * 与其在测试之间等一分钟，不如给它一个干净的进程。
+	 */
+	const port = PORT + 1;
+	const own = spawn(process.execPath, [SERVER], {
+		env: { ...process.env, PORT: String(port) },
+		stdio: "ignore",
+	});
+	await new Promise((r) => setTimeout(r, 400));
+
+	try {
+		const room = roomFor("still-working");
+		const host = client(room, "host", port);
+		const guest = client(room, "guest", port);
+		await Promise.all([host.ready, guest.ready]);
+		await host.until((lines) => lines.some((l) => l.includes("ready")), "ready");
+
+		host.send(JSON.stringify({ hello: "还在" }));
+		await guest.until((lines) => lines.some((l) => l.includes("还在")), "转发过去的消息");
+
+		host.close();
+		guest.close();
+	} finally {
+		own.kill();
+	}
 });

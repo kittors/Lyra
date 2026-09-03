@@ -30,6 +30,7 @@ import {
 	type ArgsError,
 	type Checked,
 } from "@lyra/contract/args";
+import { REMOTE_METHODS, methodFor } from "@lyra/contract";
 
 /**
  * Everything a call may reach, handed in rather than imported.
@@ -327,5 +328,37 @@ export async function callRpc(deps: RpcDeps, method: string, args: unknown[]): P
 	}
 }
 
-/** The methods the phone may call, for the bridge to expose and for tests to assert on. */
-export const allowedMethods = (): string[] => Object.keys(RPC).sort();
+/**
+ * The methods the phone may call.
+ *
+ * Read off `RPC`, then checked against the contract — the two are written separately (one is an
+ * implementation, one is a declaration) and this is where they have to agree.
+ *
+ * Checked at startup rather than only in a test, because the two ways they can disagree fail very
+ * differently. A method in `RPC` that the contract does not mark `remote` is a hole: the phone can
+ * call something nobody declared it could. A method the contract marks `remote` with no
+ * implementation is dead: the phone's interface offers it and the call comes back
+ * "method-not-allowed", silently, in a place nobody is looking.
+ *
+ * The first is a security question and throwing is the right answer — a desktop that would serve
+ * an undeclared method should not start its sync server at all. The second is a bug and is logged:
+ * refusing to start over it would take the whole feature down for something the user cannot act on.
+ */
+export function allowedMethods(): string[] {
+	const implemented = Object.keys(RPC).sort();
+
+	const undeclared = implemented.filter((method) => methodFor(method)?.remote !== true);
+	if (undeclared.length > 0) {
+		throw new Error(
+			`sync-rpc 实现了契约没有标 remote 的方法：${undeclared.join(", ")}。` +
+				`把它们加进 packages/contract/src/methods.ts 并写明为什么手机可以调，或者从 RPC 里去掉。`,
+		);
+	}
+
+	const unimplemented = REMOTE_METHODS.filter((method) => !(method in RPC));
+	if (unimplemented.length > 0) {
+		console.error(`[sync] 契约标了 remote 但没有实现：${unimplemented.join(", ")}——手机调用它们会静默失败`);
+	}
+
+	return implemented;
+}

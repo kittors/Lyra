@@ -15,10 +15,19 @@ import { useEffect } from "react";
 import { begin, drawerWidth, extend, progress, release, type Gesture } from "./drawer-gesture.ts";
 import { watchKeyboard } from "./keyboard.ts";
 
-/** True when the interface is being shown through the phone's bridge rather than in a window. */
-export function onPhone(): boolean {
-	return typeof window !== "undefined" && window.lyra?.host === "mobile";
-}
+/*
+ * Re-exported rather than defined here.
+ *
+ * There were two of these — one in `services/host.ts` and this one — with the same name and the
+ * same body. Two functions that answer "is this a phone" is one too many: the day they disagree,
+ * half the interface adapts and half does not, and nothing points at the cause.
+ *
+ * The definition lives with the rest of the host questions; this file keeps the name so its own
+ * callers read naturally.
+ */
+import { onPhone } from "../services/host.ts";
+
+export { onPhone };
 
 /**
  * Publish the height the keyboard is covering, as `--ly-keyboard`.
