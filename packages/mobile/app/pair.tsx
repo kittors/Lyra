@@ -2,7 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { SyncClient } from "../src/client";
+import { pingDesktop, pingRelay } from "../src/connection";
 import { parsePairingCode } from "../src/pairing";
 import { useMobile } from "../src/store";
 
@@ -63,8 +63,8 @@ export default function PairScreen() {
 			 * room opened, which is the only thing worth knowing before saving.
 			 */
 			const reachable = relay
-				? await SyncClient.pingRelay(host.trim(), parsedPort, tls, token.trim())
-				: await SyncClient.ping(host.trim(), parsedPort, tls);
+				? await pingRelay(host.trim(), parsedPort, tls, token.trim())
+				: await pingDesktop(host.trim(), parsedPort, tls);
 			if (!reachable) {
 				setMessage({
 					tone: "error",
