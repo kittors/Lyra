@@ -16,6 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v4
+        # Needs the repository's dependency graph turned on
+        # (Settings → Code security → Dependency graph). Until it is, the action fails with
+        # "Dependency review is not supported on this repository", which is a fact about a setting
+        # rather than about the pull request — so it reports and does not block.
+        #
+        # Turn the setting on and delete this line; that is the whole of what it is waiting for.
+        continue-on-error: true
         with:
           # High and above blocks. Moderate is reported and left to judgement: most of what lands
           # there is a denial of service in a parser this application never points at untrusted input.
