@@ -9,4 +9,13 @@
 
 export { Avatar } from "./Avatar.tsx";
 export { useAccountActions, useForgeAccounts } from "./useForgeAccounts.ts";
-export { PullRequestsView } from "./PullRequestsView.tsx";
+
+/*
+ * 顶层视图不在这张表上。
+ *
+ * `PullRequestsView` 只有 `app/App.tsx` 会用，而且是 `lazy()` 用的。放进出口会让它同时有一条静态引用
+ * 路径——出口本身被别的域引着——于是打包时整个域被并回主 chunk，`lazy()` 照常工作，代码却
+ * 已经在那里了。实测差了 630KB。
+ *
+ * 这不是「出口该薄一点」的偏好问题：一个只有壳会打开的整屏界面，本来就不是这个域对外的接口。
+ */

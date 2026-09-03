@@ -13,4 +13,13 @@ export { GhostButton, Toggle } from "./controls.tsx";
 export { TextInput } from "./inputs.tsx";
 export { NumberField, TimeField } from "./pickers.tsx";
 export { applyAppearance, watchSystemTheme } from "./theme.ts";
-export { SettingsShell } from "./SettingsShell.tsx";
+
+/*
+ * 顶层视图不在这张表上。
+ *
+ * `SettingsShell` 只有 `app/App.tsx` 会用，而且是 `lazy()` 用的。放进出口会让它同时有一条静态引用
+ * 路径——出口本身被别的域引着——于是打包时整个域被并回主 chunk，`lazy()` 照常工作，代码却
+ * 已经在那里了。实测差了 630KB。
+ *
+ * 这不是「出口该薄一点」的偏好问题：一个只有壳会打开的整屏界面，本来就不是这个域对外的接口。
+ */

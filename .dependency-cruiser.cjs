@@ -161,6 +161,11 @@ module.exports = {
 			from: { path: "^packages/desktop/src/features/([^/]+)/" },
 			to: {
 				path: "^packages/desktop/src/features/([^/]+)/",
+				/*
+				 * `index.ts` 是门。没有 index 的域是没有对外接口的域——`scheduled` 只有一个整屏
+				 * 视图，而那个视图只有壳会 `lazy()` 它，放进出口反而会让打包器把整个域并回主
+				 * chunk（实测差 630KB）。那种域不该被别人引，规则照常拦住。
+				 */
 				pathNot: "^packages/desktop/src/features/$1/|/index\\.ts$",
 			},
 		},

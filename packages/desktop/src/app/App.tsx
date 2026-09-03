@@ -40,13 +40,29 @@ import { useFileTreeStore } from "../store/fileTree.ts";
  * The phone is why this is worth doing at all. It loads the same bundle over the network, and
  * through a relay that crosses the public internet twice.
  */
-const PluginsView = lazy(() => import("../features/plugins/index.ts").then((m) => ({ default: m.PluginsView })));
-const PullRequestsView = lazy(() =>
-	import("../features/pull-requests/index.ts").then((m) => ({ default: m.PullRequestsView })),
+/*
+ * Pointed at the component file, not at the domain's `index.ts`.
+ *
+ * Going through the front door is the rule everywhere else, and here it silently undoes the split:
+ * the index is also imported statically from elsewhere, so Rollup sees the whole domain reachable
+ * from the entry and merges it back into the main chunk. The `lazy()` still works — the code is
+ * just already there, which is the thing it was meant to avoid.
+ *
+ * Measured: through the index the main chunk is 2.32MB, through the component file it is 1.69MB.
+ * `e2e/lazy-views.test.ts` opens each of these, and `scripts/bundle-report.mjs` watches the size,
+ * because this is the kind of regression that changes no behaviour at all.
+ */
+const PluginsView = lazy(() =>
+	import("../features/plugins/PluginsView.tsx").then((m) => ({ default: m.PluginsView })),
 );
-const ScheduledView = lazy(() => import("../features/scheduled/index.ts").then((m) => ({ default: m.ScheduledView })));
+const PullRequestsView = lazy(() =>
+	import("../features/pull-requests/PullRequestsView.tsx").then((m) => ({ default: m.PullRequestsView })),
+);
+const ScheduledView = lazy(() =>
+	import("../features/scheduled/ScheduledView.tsx").then((m) => ({ default: m.ScheduledView })),
+);
 const SettingsShell = lazy(() =>
-	import("../features/settings/index.ts").then((m) => ({ default: m.SettingsShell })),
+	import("../features/settings/SettingsShell.tsx").then((m) => ({ default: m.SettingsShell })),
 );
 import { useOpenFile } from "../store/openFile.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
