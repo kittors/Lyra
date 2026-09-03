@@ -173,7 +173,7 @@ export default {
 				"**/styles/scroll.css",
 				"**/styles/marquee.css",
 				"**/styles/thinking-ticker.css",
-				"**/styles/components.css",
+				"**/styles/markdown.css",
 				"**/styles/tabs.css",
 				"**/styles/base.css",
 				"**/styles/misc.css",

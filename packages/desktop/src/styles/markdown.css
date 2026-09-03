@@ -1,5 +1,12 @@
 /*
- * Assistant markdown rendering.
+ * Markdown, as the assistant renders it.
+ *
+ * 459 lines about one subject: the prose in a reply. Headings, lists, tables, code blocks, task
+ * boxes, collapsible sections, maths, images. It is over the 400-line guideline the other files
+ * keep to, and splitting it would make it worse — every part of it is `.prose-dw`, and a reader
+ * asking "how is a table in a reply styled" would then have to know which of three files to open.
+ *
+ * The guideline is about being able to find things, not about the number.
  *
  * On the scale like everything else. These were six absolute pixel values — 13.5 for the body,
  * 19/17/15/13.5 for the headings — which made a transcript the one surface in the app that

@@ -1,5 +1,5 @@
 import { Activity, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { useDock } from "../dock/index.ts";
 import { kinds } from "../dock/index.ts";
@@ -20,13 +20,24 @@ import { BranchesView } from "./BranchesView.tsx";
 import { ChangesView } from "./ChangesView.tsx";
 import { HistoryView } from "./HistoryView.tsx";
 import { PipelinesView } from "./PipelinesView.tsx";
-import { ReleaseModal } from "./ReleaseModal.tsx";
+
 import { RepoPicker } from "./RepoPicker.tsx";
 import { sameStatus } from "./sameStatus.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useNarrow } from "../../ui/hooks/useNarrow.ts";
 import { bridge } from "../../services/index.ts";
+
+/*
+ * The release dialog, fetched when it is opened.
+ *
+ * 620 lines — the version arithmetic, the workflow polling, the notes editor — for something that
+ * happens a few times a month and never on the path to reading a diff. It is already behind
+ * `releaseOpen`, so nothing about when it renders changes; this only stops it riding along in the
+ * main bundle.
+ */
+const ReleaseModal = lazy(() => import("./ReleaseModal.tsx").then((m) => ({ default: m.ReleaseModal })));
+
 
 type View = "changes" | "history" | "branches" | "pipelines";
 
@@ -729,6 +740,10 @@ export function GitPanel() {
       {releaseOpen && (
         // Same reason as `ChangesView`: release from the repository on screen, not from the folder
         // the workspace happens to be rooted at.
+        //
+        // No fallback: the dialog arrives within a frame or two off local disk, and a skeleton in
+        // the shape of a modal that is about to appear reads as a flicker rather than as progress.
+        <Suspense fallback={null}>
         <ReleaseModal
           cwd={cwd}
           onClose={() => {
@@ -736,6 +751,7 @@ export function GitPanel() {
             void read();
           }}
         />
+        </Suspense>
       )}
     </div>
   );
