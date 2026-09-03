@@ -16,6 +16,13 @@ on:
         description: Branch or commit to rehearse (defaults to the current branch)
         required: false
 
+# Read-only by default; a job that needs more says so itself.
+#
+# Without this the token carries whatever the repository's default is, which is a setting that can
+# change without anyone touching this file — and every job here only ever reads.
+permissions:
+  contents: read
+
 concurrency:
   group: release-dryrun-${{ github.ref }}
   cancel-in-progress: true
