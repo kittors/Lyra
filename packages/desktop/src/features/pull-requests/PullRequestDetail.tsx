@@ -9,7 +9,7 @@
 import { ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
-import { relativeTime } from "../git/relative-time.ts";
+import { relativeTime } from "../../lib/relative-time.ts";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { Markdown } from "../conversation/Markdown.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

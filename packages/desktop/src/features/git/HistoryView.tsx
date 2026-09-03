@@ -17,7 +17,7 @@ import { CommitGraph, CommitThroughGraph, LANE_WIDTH } from "./CommitGraph.tsx";
 import { withContents } from "./diff-merge.ts";
 import { FileDiffList } from "./FileDiffList.tsx";
 import { buildGraph, graphWidth } from "./graph.ts";
-import { relativeTime } from "./relative-time.ts";
+import { relativeTime } from "../../lib/relative-time.ts";
 import { bridge } from "../../services/index.ts";
 
 /** Fixed, because the graph has to know it to line its strokes up across rows. */

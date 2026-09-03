@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useApp } from "../../store/index.ts";
-import { groupNotices, TOAST_LIFETIME, TOAST_Z, visibleToasts, type ToastGroup } from "./toast-stack.ts";
+import { groupNotices, TOAST_LIFETIME, TOAST_Z, visibleToasts, type ToastGroup } from "./stack.ts";
 
 /** Matches `.ly-toast-out` in the stylesheet; the card is removed once it has played. */
 const LEAVE_MS = 170;

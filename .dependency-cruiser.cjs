@@ -128,6 +128,29 @@ module.exports = {
 		},
 
 		{
+			name: "ui-is-a-leaf",
+			comment:
+				"`ui/` is the part of the interface that would still make sense in another product: a " +
+				"button, a popover, a scroller. The moment one of them reads the store or calls a " +
+				"service it is not that any more — it is a feature that happens to look generic, and " +
+				"the next person to reuse it inherits a dependency they did not ask for.",
+			severity: "error",
+			from: { path: "^packages/desktop/src/ui/" },
+			to: { path: "^packages/desktop/src/(features|services|store|app)/" },
+		},
+
+		{
+			name: "lib-is-a-leaf",
+			comment:
+				"`lib/` is the logic with nothing around it — markdown parsing, syntax highlighting, " +
+				"how a model name is grouped. No React, no main process, no state. That is what makes " +
+				"it testable without a DOM, which is most of why it is separate at all.",
+			severity: "error",
+			from: { path: "^packages/desktop/src/lib/" },
+			to: { path: "^packages/desktop/src/(features|services|store|app|ui)/" },
+		},
+
+		{
 			name: "no-orphans",
 			comment: "A module nobody imports is either dead or was meant to be wired up and was not.",
 			severity: "warn",

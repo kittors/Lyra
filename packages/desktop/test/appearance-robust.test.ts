@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_APPEARANCE, type AppearanceSettings } from "@lyra/core";
-import { parseHex } from "../src/lib/theme.ts";
+import { parseHex } from "../src/features/settings/theme.ts";
 
 test("a colour that is not there reads as no colour, rather than throwing", () => {
 	// Every caller already handles null — they all carry a fallback — and none of them are wrapped

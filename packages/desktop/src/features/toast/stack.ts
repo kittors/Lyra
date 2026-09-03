@@ -10,7 +10,7 @@
  * Pure, so `node --test` can hold it to those claims.
  */
 
-import { explain } from "./toast-explain.ts";
+import { explain } from "./explain.ts";
 
 export type ToastLevel = "info" | "warn" | "error";
 

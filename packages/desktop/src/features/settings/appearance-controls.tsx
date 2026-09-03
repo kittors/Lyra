@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { NumberField } from "./pickers.tsx";
-import { contrastingInk, parseHex } from "../../lib/theme.ts";
+import { contrastingInk, parseHex } from "./theme.ts";
 
 export function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
 	const [draft, setDraft] = useState(value);

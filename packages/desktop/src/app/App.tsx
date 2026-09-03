@@ -14,7 +14,7 @@ import { EmptyState } from "../features/conversation/EmptyState.tsx";
 import { ImageViewer } from "../features/image/ImageViewer.tsx";
 import { InputMenu } from "../features/composer/InputMenu.tsx";
 import { SkeletonList } from "../ui/primitives/Skeleton.tsx";
-import { Toaster } from "../ui/overlay/Toaster.tsx";
+import { Toaster } from "../features/toast/Toaster.tsx";
 import { Sidebar } from "../features/sidebar/Sidebar.tsx";
 import { DragBand, PanelMenu, WindowButtons } from "./window/WindowToolbar.tsx";
 import { DockView } from "../features/dock/DockView.tsx";
@@ -50,7 +50,7 @@ const SettingsShell = lazy(() =>
 );
 import { useOpenFile } from "../store/openFile.ts";
 import { useTerminalPrewarm } from "../features/terminal/prewarm.ts";
-import { applyAppearance, watchSystemTheme } from "../lib/theme.ts";
+import { applyAppearance, watchSystemTheme } from "../features/settings/theme.ts";
 import { bridge } from "../services/index.ts";
 
 export function App() {

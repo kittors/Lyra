@@ -17,7 +17,7 @@
 import { ExternalLink, GitCommitHorizontal, GitPullRequest } from "lucide-react";
 import { useState } from "react";
 import { Markdown } from "../conversation/Markdown.tsx";
-import { relativeTime } from "../git/relative-time.ts";
+import { relativeTime } from "../../lib/relative-time.ts";
 import { type ActivityEntry, firstLine } from "./activity.ts";
 import { Avatar } from "./Avatar.tsx";
 import { bridge } from "../../services/index.ts";

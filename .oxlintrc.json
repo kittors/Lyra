@@ -142,6 +142,28 @@
       "rules": {
         "no-restricted-properties": "off"
       }
+    },
+    {
+      "files": [
+        "packages/desktop/src/lib/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "lib/ 是没有 React 的那一层——纯逻辑，不需要 DOM 就能测。要用 React 说明它是个组件，该在 ui/ 或 features/ 里。"
+              },
+              {
+                "name": "react-dom",
+                "message": "同上：lib/ 不碰渲染。"
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "ignorePatterns": [

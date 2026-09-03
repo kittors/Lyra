@@ -12,10 +12,10 @@
  */
 
 import type { AppearanceSettings } from "@lyra/core";
-import { sharedHighlightStyle } from "./code/highlight.ts";
-import { findCodeTheme } from "./code/themes.ts";
-import { contentMeasure } from "./content-width.ts";
-import { bridge } from "../services/index.ts";
+import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
+import { findCodeTheme } from "../../lib/code/themes.ts";
+import { contentMeasure } from "../../lib/content-width.ts";
+import { bridge } from "../../services/index.ts";
 
 interface Rgb {
 	r: number;
@@ -246,21 +246,6 @@ function mix(from: Rgb, to: Rgb, amount: number): Rgb {
 
 function toHex({ r, g, b }: Rgb): string {
 	return `#${[r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("")}`;
-}
-
-/**
- * Whether motion is currently switched off, for the animations CSS cannot express.
- *
- * The stylesheet handles its own under `:root[data-reduce-motion]`, but a rewrite that steps
- * through intermediate strings is state, not style — there is no duration to shorten, only frames
- * to not run. Read at the moment it matters rather than subscribed to: these are one-shot
- * animations, and one that has already started can finish.
- */
-export function motionReduced(): boolean {
-	const setting = document.documentElement.dataset.reduceMotion;
-	if (setting === "on") return true;
-	if (setting === "off") return false;
-	return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /** Readable text colour for a swatch, so a hex chip stays legible on any background. */
