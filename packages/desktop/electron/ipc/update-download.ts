@@ -199,8 +199,26 @@ export class UpdateDownload {
 		return verify(parseChecksums(text), basename(this.target.file), await sha256(this.partial));
 	}
 
+	/**
+	 * How many bytes are on disk, asked more than once when the answer is zero.
+	 *
+	 * The size is the authority — a counter in memory would survive an abort that the file did not,
+	 * and resuming from it would `Range` past bytes that were never written. But on Windows the
+	 * directory entry lags the write: `stat` right after aborting a stream reports the size from
+	 * before the last flush, and often reports 0.
+	 *
+	 * It showed up as `pausing keeps what came down` failing on Windows and nowhere else, roughly
+	 * one run in three — the shape of a race rather than a bug in what is being tested. Reading
+	 * again after a turn of the event loop is enough; the retries are cheap and only happen on the
+	 * answer that is worth doubting.
+	 */
 	private async have(): Promise<number> {
-		return (await stat(this.partial).catch(() => null))?.size ?? 0;
+		for (let attempt = 0; attempt < 5; attempt++) {
+			const size = (await stat(this.partial).catch(() => null))?.size ?? 0;
+			if (size > 0) return size;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+		return 0;
 	}
 
 	/**
