@@ -31,6 +31,17 @@ export type FollowState =
 	/** A glide back down is in flight. Interruptible — see `nextState`. */
 	| "returning";
 
+/**
+ * The intention that survives a surface swap.
+ *
+ * A returning surface has already been asked to follow the end; the animation is only how that
+ * intention is being applied. Remembering it as detached when another conversation opens during
+ * the glide makes the old surface restore halfway down and offer 「回到最新」 all over again.
+ */
+export function followsAfterRestore(state: FollowState): boolean {
+	return state !== "detached";
+}
+
 /** What a scroller looks like at one instant. The three numbers every decision here is made from. */
 export interface Geometry {
 	scrollTop: number;
