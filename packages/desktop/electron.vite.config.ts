@@ -102,7 +102,18 @@ export default defineConfig({
 		},
 		build: {
 			rollupOptions: {
-				input: { index: resolve("index.html") },
+				/*
+				 * The gallery is an extra entry, and only when asked for.
+				 *
+				 * `pnpm gallery` sets `LYRA_GALLERY`; `pnpm build` and `pnpm package` do not, so the
+				 * shipped application never carries it. An extra entry rather than a separate tool
+				 * because it has to be built the way the app is built — same Tailwind pass, same
+				 * tokens, same fonts — or it would be showing components that only look right in the
+				 * gallery.
+				 */
+				input: process.env.LYRA_GALLERY
+					? { index: resolve("index.html"), gallery: resolve("gallery/index.html") }
+					: { index: resolve("index.html") },
 				output: {
 					/*
 					 * What goes in its own file, and why any of it should.
