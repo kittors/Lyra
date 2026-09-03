@@ -564,10 +564,23 @@ function ensureOverlay(): Promise<BrowserWindow> {
 	win.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
 	captureLog("overlay: window built", { asked: bounds, got: win.getBounds() });
 
+	/*
+	 * The id is read now, not in the handler.
+	 *
+	 * By the time `closed` fires the window is gone, and `win.webContents` throws
+	 * `TypeError: Object has been destroyed` rather than returning null. It surfaced as an
+	 * `uncaughtException` on every quit — harmless, because nothing runs after it, but it also meant
+	 * `revealers` kept the entry for a page that no longer exists, and a process that opened the
+	 * overlay many times leaked one closure per capture.
+	 *
+	 * Nothing caught it because it happens during teardown: the tests have finished asserting, the
+	 * app is on its way out, and an unhandled rejection there costs nothing visible.
+	 */
+	const pageId = win.webContents.id;
 	win.on("closed", () => {
 		if (overlay === win) overlay = null;
 		overlayLoading = null;
-		revealers.delete(win.webContents.id);
+		revealers.delete(pageId);
 	});
 
 	const devServer = process.env.ELECTRON_RENDERER_URL;
