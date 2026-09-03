@@ -21,6 +21,7 @@ import { confirmLabel, controlsFor, fractionOf, mb, readyNote, type Phase } from
 import { Overlay } from "./Overlay.tsx";
 import { Scroller } from "../Scroller.tsx";
 import { Markdown } from "../Markdown.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function UpdateDialog({
 	info,
@@ -49,8 +50,8 @@ export function UpdateDialog({
 		// while Windows and Linux have an installer open in a window this app does not own.
 		if (phase.at === "ready") {
 			const done = phase.relaunch
-				? await window.lyra.updates.relaunch()
-				: await window.lyra.updates.reopen();
+				? await bridge.updates.relaunch()
+				: await bridge.updates.reopen();
 			if (!done) {
 				useApp
 					.getState()
@@ -58,7 +59,7 @@ export function UpdateDialog({
 			}
 			return;
 		}
-		void window.lyra.updates.download(info.latest);
+		void bridge.updates.download(info.latest);
 	};
 
 	return (
@@ -153,7 +154,7 @@ export function UpdateDialog({
 					{controls.cancel && (
 						<button
 							type="button"
-							onClick={() => void window.lyra.updates.cancel()}
+							onClick={() => void bridge.updates.cancel()}
 							className="flex h-[32px] items-center gap-1.5 rounded-lg px-2.5 text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
 							<X size={13} strokeWidth={2} />
@@ -166,7 +167,7 @@ export function UpdateDialog({
 					{controls.pause ? (
 						<button
 							type="button"
-							onClick={() => void window.lyra.updates.pause()}
+							onClick={() => void bridge.updates.pause()}
 							className="flex h-[32px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 						>
 							<Pause size={12} strokeWidth={2.2} fill="currentColor" />
@@ -203,7 +204,7 @@ export function UpdateDialog({
 						<button
 							type="button"
 							onClick={() => {
-								void window.lyra.updates.open(info.url);
+								void bridge.updates.open(info.url);
 								onClose();
 							}}
 							className="h-[32px] rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"

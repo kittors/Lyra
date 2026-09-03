@@ -18,6 +18,7 @@ import { useApp } from "../../store.ts";
 import { ContextMenu, useContextMenu } from "../ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../Menu.tsx";
 import { useRevealLabel } from "../../openTargets.ts";
+import { bridge } from "../../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -195,13 +196,13 @@ function TabMenu({
 			<MenuItem
 				icon={<Copy {...ICON} />}
 				onClick={() => {
-					void window.lyra.clipboard.write(tab.path);
+					void bridge.clipboard.write(tab.path);
 					notify("已复制路径");
 				}}
 			>
 				复制路径
 			</MenuItem>
-			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void window.lyra.workspace.reveal(tab.path)}>
+			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(tab.path)}>
 				{reveal}
 			</MenuItem>
 		</ContextMenu>

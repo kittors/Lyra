@@ -19,6 +19,7 @@ import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { useAccountActions } from "../pr/useForgeAccounts.ts";
 import { Field, GhostButton, PrimaryButton, SecretInput, TextInput } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Where a host keeps its token page, for the instance actually being signed in to.
@@ -122,7 +123,7 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 						{help && (
 							<button
 								type="button"
-								onClick={() => void window.lyra.system.openExternal(help)}
+								onClick={() => void bridge.system.openExternal(help)}
 								className="flex items-center gap-0.5 text-caption text-ink-faint transition-colors hover:text-ink"
 							>
 								去创建

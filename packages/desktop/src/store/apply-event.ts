@@ -17,6 +17,7 @@ import { useSide } from "../sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
 import type { AppState } from "../store.ts";
 import { settleTail } from "../transcript.ts";
+import { bridge } from "../services/index.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -209,7 +210,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     // A turn driven from the phone still has to move the session up the sidebar and
     // update its title, even though its transcript is not on screen.
     if (event.type === "agent_end" || event.type === "turn_end") {
-      void window.lyra.sessions
+      void bridge.sessions
         .list()
         .then((sessions) => set({ sessions }));
     }
@@ -474,7 +475,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         messages: settled,
         stopped: howItStopped(settled, event.reason),
       });
-      void window.lyra.sessions
+      void bridge.sessions
         .list()
         .then((sessions) => set({ sessions }));
       break;

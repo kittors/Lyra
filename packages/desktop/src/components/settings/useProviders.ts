@@ -14,6 +14,7 @@ import type { ModelConfig, ProviderConfig } from "@lyra/core";
 import { useEffect, useMemo, useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 
 export function useProviders() {
 	const settings = useApp((s) => s.settings);
@@ -120,7 +121,7 @@ export function useProviders() {
 		if (modelId) {
 			setTestingModelId(modelId);
 			try {
-				const res = await window.lyra.providers.test(selected.id, modelId);
+				const res = await bridge.providers.test(selected.id, modelId);
 				setModelTestResults((prev) => ({ ...prev, [modelId]: res }));
 			} finally {
 				setTestingModelId(null);
@@ -129,7 +130,7 @@ export function useProviders() {
 			setTesting(true);
 			setTestResult(null);
 			try {
-				setTestResult(await window.lyra.providers.test(selected.id));
+				setTestResult(await bridge.providers.test(selected.id));
 			} finally {
 				setTesting(false);
 			}
@@ -143,7 +144,7 @@ export function useProviders() {
 		setFetchingModels(true);
 		setFetchModelsError(null);
 		try {
-			const res = await window.lyra.providers.fetchModels(selected.id);
+			const res = await bridge.providers.fetchModels(selected.id);
 			if (!res.ok) {
 				setFetchModelsError(res.error || "获取模型列表失败");
 				return;

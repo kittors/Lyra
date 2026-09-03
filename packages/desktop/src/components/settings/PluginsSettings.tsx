@@ -22,6 +22,7 @@ import { SkeletonList, useSlowLoad } from "../Skeleton.tsx";
 import { settingsAfterToggle } from "../plugins/toggle.ts";
 import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function PluginsSettings({ filter = "" }: { filter?: string }) {
 	const settings = useApp((s) => s.settings);
@@ -31,7 +32,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 	const setPluginFocus = useApp((s) => s.setPluginFocus);
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
 	const bumpExtensions = useApp((s) => s.bumpExtensions);
-	const [scan, setScan] = useState<Awaited<ReturnType<typeof window.lyra.plugins.list>> | null>(null);
+	const [scan, setScan] = useState<Awaited<ReturnType<typeof bridge.plugins.list>> | null>(null);
 	/*
 	 * Declared here, above the early return, because hooks cannot be conditional.
 	 *
@@ -40,7 +41,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 	 */
 	const slow = useSlowLoad(scan === null);
 
-	const refresh = async () => setScan(await window.lyra.plugins.list(workspace?.path ?? ""));
+	const refresh = async () => setScan(await bridge.plugins.list(workspace?.path ?? ""));
 
 	useEffect(() => {
 		void refresh();
@@ -160,7 +161,7 @@ function PluginRow({
 
 	const uninstall = async () => {
 		setBusy(true);
-		await window.lyra.plugins.uninstall(plugin.id);
+		await bridge.plugins.uninstall(plugin.id);
 		setBusy(false);
 		onRemoved();
 	};
@@ -226,7 +227,7 @@ function PluginRow({
 								icon={<FolderOpen size={13} strokeWidth={1.8} />}
 								onClick={() => {
 									close();
-									void window.lyra.system.openPath(plugin.dir);
+									void bridge.system.openPath(plugin.dir);
 								}}
 							>
 								打开目录

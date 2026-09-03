@@ -18,6 +18,7 @@ import type { FileOpResult } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store.ts";
 import { useConfirmGate } from "../Confirm.tsx";
 import { baseName, dirName, joinPath, relativeTo } from "./paths.ts";
+import { bridge } from "../../services/index.ts";
 
 export type ClipMode = "copy" | "cut";
 
@@ -76,7 +77,7 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 
 	const create = useCallback(
 		async (dir: string, name: string, kind: "file" | "directory"): Promise<string | null> => {
-			const result = await window.lyra.files.create(dir, name, kind);
+			const result = await bridge.files.create(dir, name, kind);
 			if (!report(result)) return null;
 			await refresh([dir]);
 			return result.path ?? null;
@@ -90,7 +91,7 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 			const to = joinPath(dir, name);
 			if (to === path) return path;
 
-			const result = await withReplace(to, (overwrite) => window.lyra.files.rename(path, to, overwrite));
+			const result = await withReplace(to, (overwrite) => bridge.files.rename(path, to, overwrite));
 			if (!report(result)) return null;
 			await refresh([dir]);
 			onMoved(path, result.path ?? to);
@@ -102,10 +103,10 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 	const duplicate = useCallback(
 		async (path: string): Promise<string | null> => {
 			const dir = dirName(path);
-			const free = await window.lyra.files.uniquePath(dir, baseName(path));
+			const free = await bridge.files.uniquePath(dir, baseName(path));
 			if (!report(free) || !free.path) return null;
 
-			const result = await window.lyra.files.copy(path, free.path);
+			const result = await bridge.files.copy(path, free.path);
 			if (!report(result)) return null;
 			await refresh([dir]);
 			return result.path ?? free.path;
@@ -132,13 +133,13 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 				let to = joinPath(dir, baseName(path));
 				// Copying into the folder it came from is duplication, and duplication renames.
 				if (copying && from === dir) {
-					const free = await window.lyra.files.uniquePath(dir, baseName(path));
+					const free = await bridge.files.uniquePath(dir, baseName(path));
 					if (!report(free) || !free.path) continue;
 					to = free.path;
 				}
 
 				const result = await withReplace(to, (overwrite) =>
-					copying ? window.lyra.files.copy(path, to, overwrite) : window.lyra.files.rename(path, to, overwrite),
+					copying ? bridge.files.copy(path, to, overwrite) : bridge.files.rename(path, to, overwrite),
 				);
 				if (!report(result)) continue;
 				if (!copying) onMoved(path, result.path ?? to);
@@ -177,7 +178,7 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 			});
 			if (!agreed) return false;
 
-			const result = permanent ? await window.lyra.files.remove(paths) : await window.lyra.files.trash(paths);
+			const result = permanent ? await bridge.files.remove(paths) : await bridge.files.trash(paths);
 			if (!report(result)) return false;
 			onRemoved(paths);
 			await refresh(paths.map(dirName));
@@ -189,7 +190,7 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 	const importInto = useCallback(
 		async (sources: string[], dir: string): Promise<void> => {
 			if (sources.length === 0) return;
-			const result = await window.lyra.files.importInto(sources, dir);
+			const result = await bridge.files.importInto(sources, dir);
 			if (!report(result)) return;
 			await refresh([dir]);
 		},
@@ -199,7 +200,7 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 	const copyPath = useCallback(
 		async (paths: string[], relative: boolean): Promise<void> => {
 			const text = paths.map((path) => (relative && root ? relativeTo(root, path) : path)).join("\n");
-			await window.lyra.clipboard.write(text);
+			await bridge.clipboard.write(text);
 			notify(relative ? "已复制相对路径" : "已复制路径");
 		},
 		[root, notify],

@@ -18,6 +18,7 @@ import { PullRequestDetail, type PrTab } from "./pr/PullRequestDetail.tsx";
 import { PullRequestList } from "./pr/PullRequestList.tsx";
 import { ReviewBar } from "./pr/ReviewBar.tsx";
 import { usePullRequests } from "./pr/usePullRequests.ts";
+import { bridge } from "../services/index.ts";
 
 /** Wide enough for a title and a repository name without either becoming an ellipsis. */
 const LIST_WIDTH = 300;
@@ -73,7 +74,7 @@ export function PullRequestsView() {
 	 */
 	const openChat = async (detail: Detail, intent: "ask" | "review") => {
 		const projects = [...(settings?.projects ?? [])].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
-		const local = await window.lyra.git
+		const local = await bridge.git
 			.findLocalCheckout(
 				detail.repo,
 				projects.map((p) => p.path),
@@ -84,7 +85,7 @@ export function PullRequestsView() {
 			await openWorkspace(local);
 		} else {
 			// No project: a scratch directory with the pull request's facts written into it.
-			const cwd = await window.lyra.git
+			const cwd = await bridge.git
 				.scratchForPullRequest({
 					repo: detail.repo,
 					number: detail.number,
@@ -122,8 +123,8 @@ export function PullRequestsView() {
 		const { accountId, repo, number } = pr.selected;
 		const result =
 			verdict === "comment"
-				? await window.lyra.git.commentOnPullRequest(accountId, repo, number, body)
-				: await window.lyra.git.reviewPullRequest(accountId, repo, number, verdict, body);
+				? await bridge.git.commentOnPullRequest(accountId, repo, number, body)
+				: await bridge.git.reviewPullRequest(accountId, repo, number, verdict, body);
 		if (result.error) return result.error;
 		// What was just said is part of the pull request now; show it rather than claim it.
 		pr.refreshDetail();

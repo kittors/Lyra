@@ -20,6 +20,7 @@ import { Markdown } from "../Markdown.tsx";
 import { relativeTime } from "../git/relative-time.ts";
 import { type ActivityEntry, firstLine } from "./activity.ts";
 import { Avatar } from "./Avatar.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function PullRequestActivity({ accountId, entries }: { accountId: string; entries: ActivityEntry[] }) {
 	/*
@@ -138,7 +139,7 @@ export function ActivityLink({ url }: { url: string }) {
 			type="button"
 			data-ly-tip="在浏览器中查看全部"
 			aria-label="在浏览器中查看全部活动"
-			onClick={() => void window.lyra.system.openExternal(url)}
+			onClick={() => void bridge.system.openExternal(url)}
 			className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 		>
 			<ExternalLink size={12.5} strokeWidth={1.8} />

@@ -13,6 +13,7 @@
 
 import { useEffect } from "react";
 import { useApp } from "./store.ts";
+import { bridge } from "./services/index.ts";
 
 /** Where the last measured pane size is kept, so a prediction can be made at the right width. */
 const SIZE_KEY = "lyra.terminal.size";
@@ -83,10 +84,10 @@ export function useTerminalPrewarm(): void {
 		 */
 		const idle = window.requestIdleCallback?.bind(window);
 		if (!idle) {
-			const timer = window.setTimeout(() => window.lyra.terminal.prewarm(cwd, cols, rows), 400);
+			const timer = window.setTimeout(() => bridge.terminal.prewarm(cwd, cols, rows), 400);
 			return () => window.clearTimeout(timer);
 		}
-		const handle = idle(() => window.lyra.terminal.prewarm(cwd, cols, rows), { timeout: 2000 });
+		const handle = idle(() => bridge.terminal.prewarm(cwd, cols, rows), { timeout: 2000 });
 		return () => window.cancelIdleCallback?.(handle);
 	}, [ready]);
 }

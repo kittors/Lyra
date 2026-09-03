@@ -18,6 +18,7 @@ import { withContents } from "./diff-merge.ts";
 import { FileDiffList } from "./FileDiffList.tsx";
 import { buildGraph, graphWidth } from "./graph.ts";
 import { relativeTime } from "./relative-time.ts";
+import { bridge } from "../../services/index.ts";
 
 /** Fixed, because the graph has to know it to line its strokes up across rows. */
 const ROW_HEIGHT = 46;
@@ -69,7 +70,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
   const [expansion, setExpansion] = useState<Expansion | null>(null);
 
   useEffect(() => {
-    void window.lyra.git.log(cwd, 80).then(setCommits);
+    void bridge.git.log(cwd, 80).then(setCommits);
   }, [cwd]);
 
   /*
@@ -98,7 +99,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
       if (live) update((current) => ({ ...current, slow: true }));
     }, SLOW_ENOUGH_MS);
 
-    void window.lyra.git
+    void bridge.git
       .commitDiffSummary(cwd, openSha)
       .then((summary) => {
         // A small commit can have its diffs back first; the list must not overwrite them.
@@ -107,7 +108,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
       })
       .catch(() => {});
 
-    void window.lyra.git
+    void bridge.git
       .commitDiff(cwd, openSha)
       .then((result) => {
         if (!live) return;

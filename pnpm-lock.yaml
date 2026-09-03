@@ -168,6 +168,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
+      '@lyra/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@lyra/core':
         specifier: workspace:*
         version: link:../core

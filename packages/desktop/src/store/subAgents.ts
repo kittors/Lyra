@@ -14,6 +14,7 @@
 
 import { create } from "zustand";
 import type { Message, SubAgentSummary } from "@lyra/core";
+import { bridge } from "../services/index.ts";
 
 interface SubAgentState {
 	/** The roster, oldest first — the order a tab strip reads in. */
@@ -80,7 +81,7 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 		if (transcripts[id] || loading.includes(id)) return;
 		set({ loading: [...loading, id] });
 		try {
-			const detail = await window.lyra.subAgents.detail(sessionId, id);
+			const detail = await bridge.subAgents.detail(sessionId, id);
 			/*
 			 * Merged, not replaced.
 			 *

@@ -11,6 +11,7 @@ import { rememberTerminalSize } from "../terminal-prewarm.ts";
 import { CODE_DEFAULTS } from "./settings/code-defaults.ts";
 import { findCodeTheme } from "./code-themes.ts";
 import type { AppearanceSettings } from "@lyra/core";
+import { bridge } from "../services/index.ts";
 
 /**
  * A real shell, in the panel.
@@ -73,7 +74,7 @@ export function TerminalPane() {
 		 * runs a command.
 		 */
 		useSide.getState().commandTaken();
-		window.lyra.terminal.write(id, `${pending}\r`);
+		bridge.terminal.write(id, `${pending}\r`);
 		term.current?.focus();
 	}, [pending, ready]);
 
@@ -105,7 +106,7 @@ export function TerminalPane() {
 	 */
 	useEffect(() => {
 		let cancelled = false;
-		void window.lyra.terminal.listAll().then(async (tabs) => {
+		void bridge.terminal.listAll().then(async (tabs) => {
 			if (cancelled) return;
 			if (tabs.length > 0) {
 				useTerminals.getState().sync(tabs);
@@ -125,7 +126,7 @@ export function TerminalPane() {
 			 * takes to lose. `size` is what the last mounted terminal measured — see the layout
 			 * effect below — and 80×24 only stands in when nothing has been measured yet.
 			 */
-			const opened = await window.lyra.terminal.open(
+			const opened = await bridge.terminal.open(
 				useApp.getState().workspace?.path ?? "",
 				size.current.cols,
 				size.current.rows,
@@ -188,7 +189,7 @@ export function TerminalPane() {
 				return;
 			}
 			size.current = { cols: terminal.cols, rows: terminal.rows };
-			if (sessionId.current) window.lyra.terminal.resize(sessionId.current, terminal.cols, terminal.rows);
+			if (sessionId.current) bridge.terminal.resize(sessionId.current, terminal.cols, terminal.rows);
 		});
 		observer.observe(element);
 
@@ -227,14 +228,14 @@ export function TerminalPane() {
 		/** The keystroke handler, bound only once a shell is on the other end of it. */
 		let typing: { dispose(): void } | null = null;
 
-		void window.lyra.terminal.attach(active, terminal.cols, terminal.rows).then((connected) => {
+		void bridge.terminal.attach(active, terminal.cols, terminal.rows).then((connected) => {
 			// The shell can exit while the pane is away; the list effect above notices and moves
 			// the strip on, which brings us back here with a tab that does exist.
 			if (!connected) return;
 			const { id, epoch, replay } = connected;
 			// The panel can be closed before the shell finishes connecting.
 			if (disposed) {
-				window.lyra.terminal.detach(id, epoch);
+				bridge.terminal.detach(id, epoch);
 				return;
 			}
 			sessionId.current = id;
@@ -252,15 +253,15 @@ export function TerminalPane() {
 			if (replay) terminal.write(replay);
 			for (const chunk of early.get(id) ?? []) terminal.write(chunk);
 			early.clear();
-			typing = terminal.onData((data) => window.lyra.terminal.write(id, data));
+			typing = terminal.onData((data) => bridge.terminal.write(id, data));
 			terminal.focus();
 		});
 
-		const offData = window.lyra.terminal.onData(({ id, data }) => {
+		const offData = bridge.terminal.onData(({ id, data }) => {
 			if (id === sessionId.current) terminal.write(data);
 			else if (sessionId.current === null) early.set(id, [...(early.get(id) ?? []), data]);
 		});
-		const offExit = window.lyra.terminal.onExit(({ id, code }) => {
+		const offExit = bridge.terminal.onExit(({ id, code }) => {
 			if (id !== sessionId.current) return;
 			sessionId.current = null;
 			// The tab goes with the shell that backed it: a strip listing a shell that has exited
@@ -291,7 +292,7 @@ export function TerminalPane() {
 			 *
 			 * The shell is ended by the shell — `exit`, or the app quitting.
 			 */
-			if (sessionId.current) window.lyra.terminal.detach(sessionId.current, connection.current);
+			if (sessionId.current) bridge.terminal.detach(sessionId.current, connection.current);
 			sessionId.current = null;
 		};
 	}, [active]);
@@ -344,7 +345,7 @@ export function TerminalPane() {
 			if (next.cols === size.current.cols && next.rows === size.current.rows) return;
 			size.current = next;
 			rememberTerminalSize(next.cols, next.rows);
-			if (sessionId.current) window.lyra.terminal.resize(sessionId.current, next.cols, next.rows);
+			if (sessionId.current) bridge.terminal.resize(sessionId.current, next.cols, next.rows);
 		}, 140);
 		return () => clearTimeout(timer);
 	}, [appearance]);
@@ -385,7 +386,7 @@ export function TerminalPane() {
 						type="button"
 						onClick={() => {
 							// The measured size, like everywhere else a shell is started — see `size`.
-							void window.lyra.terminal.open(cwd, size.current.cols, size.current.rows).then((opened) => {
+							void bridge.terminal.open(cwd, size.current.cols, size.current.rows).then((opened) => {
 								useTerminals.getState().add({ id: opened.id, title: opened.title });
 							});
 						}}

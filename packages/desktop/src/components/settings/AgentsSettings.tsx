@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store.ts";
 import { Badge, Card, EmptyHint, SectionTitle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 const SOURCE_LABEL: Record<string, string> = { builtin: "内置", workspace: "项目", user: "用户" };
 
@@ -12,7 +13,7 @@ export function AgentsSettings() {
 
 	useEffect(() => {
 		if (!activeSessionId) return;
-		void window.lyra.sessions.capabilities(activeSessionId).then(setCapabilities);
+		void bridge.sessions.capabilities(activeSessionId).then(setCapabilities);
 	}, [activeSessionId]);
 
 	const agents = capabilities?.agents ?? [];

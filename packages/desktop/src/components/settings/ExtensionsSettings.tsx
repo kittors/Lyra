@@ -7,6 +7,7 @@ import { useApp } from "../../store.ts";
 import { McpSettings, newMcpServer } from "./McpSettings.tsx";
 import { PluginsSettings } from "./PluginsSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
+import { bridge } from "../../services/index.ts";
 
 type Tab = "plugins" | "skills" | "mcp";
 
@@ -36,8 +37,8 @@ export function ExtensionsSettings() {
 	/** Whichever directory this tab is about — the two tabs that have one ask the same question. */
 	const revealDir = (scope: "user" | "workspace") => {
 		const cwd = workspace?.path ?? "";
-		if (tab === "skills") return window.lyra.system.revealSkillsDir(scope, cwd);
-		return window.lyra.plugins.revealDir(scope, cwd);
+		if (tab === "skills") return bridge.system.revealSkillsDir(scope, cwd);
+		return bridge.plugins.revealDir(scope, cwd);
 	};
 
 	const addServer = (transport: "stdio" | "http") => {
@@ -57,7 +58,7 @@ export function ExtensionsSettings() {
 	const browse = () => setView("plugins");
 
 	useEffect(() => {
-		void window.lyra.plugins.list(workspace?.path ?? "").then((scan) => {
+		void bridge.plugins.list(workspace?.path ?? "").then((scan) => {
 			setCounts({ plugins: scan.plugins.length, skills: scan.skills.length });
 		});
 	}, [workspace?.path, settings?.disabledPlugins.length, extensionsNonce]);

@@ -51,6 +51,7 @@ const SettingsShell = lazy(() =>
 import { useOpenFile } from "./store/openFile.ts";
 import { useTerminalPrewarm } from "./terminal-prewarm.ts";
 import { applyAppearance, watchSystemTheme } from "./theme.ts";
+import { bridge } from "./services/index.ts";
 
 export function App() {
 	const ready = useApp((s) => s.ready);
@@ -85,7 +86,7 @@ export function App() {
 	 */
 	useEffect(
 		() =>
-			window.lyra.onMainError(({ message }) => {
+			bridge.onMainError(({ message }) => {
 				useApp.getState().notify(message.split("\n")[0] || "主进程出错", "error");
 			}),
 		[],

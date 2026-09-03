@@ -13,6 +13,7 @@
 
 import { Check, CircleDashed, ExternalLink, X } from "lucide-react";
 import type { PullRequestCheck } from "../../../electron/ipc-types.ts";
+import { bridge } from "../../services/index.ts";
 
 const RANK: Record<PullRequestCheck["state"], number> = { fail: 0, pending: 1, pass: 2 };
 
@@ -55,7 +56,7 @@ export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | und
 								type="button"
 								data-ly-tip="查看这项检查"
 								aria-label={`查看 ${check.name}`}
-								onClick={() => void window.lyra.system.openExternal(check.url as string)}
+								onClick={() => void bridge.system.openExternal(check.url as string)}
 								className="shrink-0 text-ink-faint opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/check:opacity-100 hover:text-ink"
 							>
 								<ExternalLink size={12} strokeWidth={1.9} />

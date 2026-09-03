@@ -117,6 +117,31 @@
         "react-hooks/rules-of-hooks": "off",
         "react-hooks/exhaustive-deps": "off"
       }
+    },
+    {
+      "files": [
+        "packages/desktop/src/**"
+      ],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "window",
+            "property": "lyra",
+            "message": "经 @/services 的 bridge 访问主进程。window.lyra 只在 services/bridge.ts 与 services/host.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」和「其中哪些在手机上能用」都无法回答。"
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/desktop/src/services/bridge.ts",
+        "packages/desktop/src/services/host.ts",
+        "packages/desktop/src/mobile/**"
+      ],
+      "rules": {
+        "no-restricted-properties": "off"
+      }
     }
   ],
   "ignorePatterns": [

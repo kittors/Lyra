@@ -16,6 +16,7 @@ import { Database, Table2 } from "lucide-react";
 import type { DocumentData } from "../../../electron/ipc-types.ts";
 import { Scroller } from "../Scroller.tsx";
 import { Text } from "../Text.tsx";
+import { bridge } from "../../services/index.ts";
 
 /** Numbers line up on the right; everything else reads from the left. */
 const NUMERIC = /^-?[\d,]+(\.\d+)?%?$/;
@@ -30,7 +31,7 @@ export function SheetView({ path }: { path: string }) {
 		setData(null);
 		setFailed(false);
 		setActive(0);
-		void window.lyra.files
+		void bridge.files
 			.document(path)
 			.then((result) => {
 				if (!live) return;

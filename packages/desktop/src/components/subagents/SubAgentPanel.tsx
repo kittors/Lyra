@@ -32,6 +32,7 @@ import { useFollowBottom } from "../scroll/useFollowBottom.ts";
 import { tailSignature } from "../scroll/signature.ts";
 import { ranFor, statusTone, statusWord } from "./format.ts";
 import { SubAgentTranscript } from "./SubAgentMessageRow.tsx";
+import { bridge } from "../../services/index.ts";
 
 interface SubAgentAttachment {
 	id: string;
@@ -160,7 +161,7 @@ function Dismiss({ agent }: { agent: SubAgentSummary }) {
 			aria-label={running ? `停止并关闭 ${agent.description}` : `关闭 ${agent.description}`}
 			onClick={async () => {
 				if (!sessionId) return;
-				const what = await window.lyra.subAgents.dismiss(sessionId, agent.id);
+				const what = await bridge.subAgents.dismiss(sessionId, agent.id);
 				// Stopping is not instant: the run files itself as aborted, and the row goes on the
 				// second press. Saying so beats a click that appears to do nothing.
 				if (what === "stopping") useApp.getState().notify("正在停止这个子 Agent…", "info");
@@ -318,7 +319,7 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 					type="button"
 					data-ly-tip="停止这个子 Agent（主 Agent 和其他子 Agent 不受影响）"
 					aria-label="停止这个子 Agent"
-					onClick={() => void window.lyra.subAgents.abort(sessionId, agent.id)}
+					onClick={() => void bridge.subAgents.abort(sessionId, agent.id)}
 					className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-danger"
 				>
 					<CircleStop size={12} strokeWidth={1.9} />
@@ -393,7 +394,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 		if (!finalMessage) return;
 
 		setSending(true);
-		const delivered = await window.lyra.subAgents.steer(sessionId, agent.id, finalMessage);
+		const delivered = await bridge.subAgents.steer(sessionId, agent.id, finalMessage);
 		setSending(false);
 		if (delivered) {
 			setText("");
@@ -493,7 +494,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 						running={sending}
 						disabled={!text.trim() && attachments.length === 0}
 						onSend={() => void send()}
-						onStop={() => void window.lyra.subAgents.abort(sessionId, agent.id)}
+						onStop={() => void bridge.subAgents.abort(sessionId, agent.id)}
 					/>
 				}
 			/>

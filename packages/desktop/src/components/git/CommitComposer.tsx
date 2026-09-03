@@ -12,6 +12,7 @@ import { useApp } from "../../store.ts";
 import { ComposerSend, ComposerShell } from "../ComposerShell.tsx";
 import { Spinner } from "../loaders.tsx";
 import { MenuBody, MenuItem, Popover, usePopover } from "../Popover.tsx";
+import { bridge } from "../../services/index.ts";
 import {
 	COMMIT_LANGUAGES,
 	commitLanguageLabel,
@@ -43,7 +44,7 @@ export function CommitComposer({
 		if (generating || disabled) return;
 		setGenerating(true);
 		try {
-			const result = await window.lyra.git.generateCommitMessage(cwd);
+			const result = await bridge.git.generateCommitMessage(cwd);
 			if (!result.ok || !result.message) {
 				notify(result.error ?? "生成提交说明失败", "error");
 				return;

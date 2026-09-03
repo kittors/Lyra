@@ -24,6 +24,7 @@ import {
 	useAnnotator,
 } from "./Annotator.tsx";
 import { ScreenshotLoupe, type LoupeReading } from "./ScreenshotLoupe.tsx";
+import { bridge } from "../../services/index.ts";
 import {
 	clampRect,
 	handlePoint,
@@ -222,7 +223,7 @@ export function ScreenshotOverlay() {
 		 * asked for and does not promise to return that size, which is exactly how that happens.
 		 */
 		const rect = canvas.getBoundingClientRect();
-		window.lyra?.screenshot?.debug?.("backdrop painted", {
+		bridge.screenshot?.debug?.("backdrop painted", {
 			snapshot: { w: img.width, h: img.height, aspect: img.width / img.height },
 			window: { w: window.innerWidth, h: window.innerHeight, aspect: window.innerWidth / window.innerHeight, dpr: window.devicePixelRatio },
 			canvasCss: { w: Math.round(rect.width), h: Math.round(rect.height) },
@@ -241,7 +242,7 @@ export function ScreenshotOverlay() {
 		 * later off the failsafe timer, every time. It is also unnecessary — `drawImage` has already
 		 * written the snapshot into the canvas's bitmap, so the first frame after `show()` has it.
 		 */
-		window.lyra?.screenshot?.ready?.();
+		bridge.screenshot?.ready?.();
 	}, [initData, snapshotReady, snapshotImage]);
 
 	/*
@@ -262,9 +263,9 @@ export function ScreenshotOverlay() {
 	const [toastLeaving, setToastLeaving] = useState(false);
 
 	useEffect(() => {
-		const cleanup = window.lyra?.screenshot?.onShown?.(() => {
+		const cleanup = bridge.screenshot?.onShown?.(() => {
 			setEntered(true);
-			window.lyra?.screenshot?.debug?.("shown", {
+			bridge.screenshot?.debug?.("shown", {
 				window: { w: window.innerWidth, h: window.innerHeight },
 				screen: { w: screen.width, h: screen.height },
 				at: Math.round(performance.now()),
@@ -298,8 +299,8 @@ export function ScreenshotOverlay() {
 			 */
 			const shownAt = performance.now();
 			requestAnimationFrame(() => {
-				window.lyra?.screenshot?.debug?.("first frame", { ms: Math.round(performance.now() - shownAt) });
-				window.lyra?.screenshot?.painted?.();
+				bridge.screenshot?.debug?.("first frame", { ms: Math.round(performance.now() - shownAt) });
+				bridge.screenshot?.painted?.();
 			});
 		});
 		/*
@@ -370,7 +371,7 @@ export function ScreenshotOverlay() {
 		leavingRef.current = false;
 	}, []);
 	useEffect(() => {
-		const cleanup = window.lyra?.screenshot?.onInit((data: ScreenshotInit) => {
+		const cleanup = bridge.screenshot?.onInit((data: ScreenshotInit) => {
 			resetSession();
 			setInitData(data);
 			// Before any movement: the overlay often opens under a pointer that is not going to move.
@@ -392,7 +393,7 @@ export function ScreenshotOverlay() {
 	 * the canvas, and doing that a moment early is a white flash over the desktop.
 	 */
 	useEffect(() => {
-		const cleanup = window.lyra?.screenshot?.onHidden?.(() => {
+		const cleanup = bridge.screenshot?.onHidden?.(() => {
 			resetSession();
 			setInitData(null);
 		});
@@ -401,7 +402,7 @@ export function ScreenshotOverlay() {
 
 	// Cancel / close screenshot
 	const handleCancel = useCallback(() => {
-		leaveThen(() => window.lyra?.screenshot?.cancel?.());
+		leaveThen(() => bridge.screenshot?.cancel?.());
 	}, [leaveThen]);
 
 	/**
@@ -422,9 +423,9 @@ export function ScreenshotOverlay() {
 		if (leavingRef.current) return;
 		leavingRef.current = true;
 		setLeaving(true);
-		window.lyra?.screenshot?.colourPicked?.();
+		bridge.screenshot?.colourPicked?.();
 		setTimeout(() => setToastLeaving(true), LEAVE_MS + TOAST_MS);
-		setTimeout(() => window.lyra?.screenshot?.cancel?.(), LEAVE_MS + TOAST_MS + TOAST_FADE_MS);
+		setTimeout(() => bridge.screenshot?.cancel?.(), LEAVE_MS + TOAST_MS + TOAST_FADE_MS);
 	}, []);
 
 	// Escape shortcut, and ⌘C while the loupe is reading a colour.
@@ -495,7 +496,7 @@ export function ScreenshotOverlay() {
 
 		// Rendered before the fade, so the picture is of the marks and not of them half faded out.
 		const png = out.toDataURL("image/png");
-		leaveThen(() => window.lyra?.screenshot?.finish?.(png, initData.settings));
+		leaveThen(() => bridge.screenshot?.finish?.(png, initData.settings));
 	}, [annotator, selection, initData, leaveThen]);
 
 	// Selection pointer events

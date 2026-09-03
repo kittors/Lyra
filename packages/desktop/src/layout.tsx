@@ -20,6 +20,7 @@ import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout
 import { freezeMotion } from "./motion-freeze.ts";
 import { useDrawerGesture, useKeyboardInset } from "./mobile/useMobileShell.ts";
 import { overlayReserved, titlebarInsets, type TitlebarInsets } from "./titlebar.ts";
+import { bridge, onPhone } from "./services/index.ts";
 
 /** Below this the sidebar and a readable content column no longer fit side by side. */
 const COMPACT_MAX = 760;
@@ -174,7 +175,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 	 * platform and for the ordinary windowed case.
 	 */
 	const [nativeFullScreen, setNativeFullScreen] = useState(false);
-	useEffect(() => window.lyra?.onFullScreenChange?.(setNativeFullScreen), []);
+	useEffect(() => bridge.onFullScreenChange?.(setNativeFullScreen), []);
 
 	const titlebar = useTitlebar(nativeFullScreen);
 
@@ -268,7 +269,7 @@ function useTitlebar(nativeFullScreen: boolean): TitlebarInsets {
 	}, [overlay]);
 
 	return useMemo(
-		() => titlebarInsets(window.lyra?.platform ?? "darwin", nativeFullScreen, reserved, window.lyra?.host !== "mobile"),
+		() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved, !onPhone()),
 		[nativeFullScreen, reserved],
 	);
 }

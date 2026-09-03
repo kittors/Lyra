@@ -11,10 +11,11 @@
 
 import { useEffect } from "react";
 import { useApp } from "./store.ts";
+import { bridge } from "./services/index.ts";
 
 export function useTrayCommands(): void {
 	useEffect(() => {
-		return window.lyra.onTrayCommand((command) => {
+		return bridge.onTrayCommand((command) => {
 			// Read at call time rather than closing over a snapshot: this listener outlives many
 			// renders, and a captured action would go on writing to a store state long replaced.
 			const app = useApp.getState();

@@ -3,6 +3,7 @@ import { FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { matchTarget, useOpenTargets } from "../../openTargets.ts";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 import {
   Card,
   InlineSelect,
@@ -27,7 +28,7 @@ export function GeneralSettings() {
   const targets = useOpenTargets();
 
   useEffect(() => {
-    void window.lyra.system.platform().then(setPlatform);
+    void bridge.system.platform().then(setPlatform);
   }, []);
 
   if (!settings) return null;

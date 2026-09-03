@@ -17,6 +17,7 @@ import { useLayout } from "../layout.tsx";
 import { useApp } from "../store.ts";
 import { Toggle } from "./settings/controls.tsx";
 import { sessionTitle } from "../sessionTitle.ts";
+import { bridge } from "../services/index.ts";
 
 export function ScheduledView() {
 	const settings = useApp((s) => s.settings);
@@ -153,7 +154,7 @@ function TaskCard({
 					onClick={async () => {
 						setRunning(true);
 						try {
-							await window.lyra.scheduler.runNow(task.id);
+							await bridge.scheduler.runNow(task.id);
 						} finally {
 							setTimeout(() => setRunning(false), 1500);
 						}

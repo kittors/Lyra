@@ -17,6 +17,7 @@ import { FileDiffList } from "./FileDiffList.tsx";
 import { BranchRow } from "./BranchRow.tsx";
 import { GroupHeader } from "./GroupHeader.tsx";
 import type { Act } from "./types.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Branches, and the diff between any two of them.
@@ -62,7 +63,7 @@ export function BranchesView({
   const checkouts = repos.flatMap((repo) => [repo, ...(trees[repo.path] ?? [])]);
 
   const load = useCallback(() => {
-    void window.lyra.git.branches(cwd).then(setBranches);
+    void bridge.git.branches(cwd).then(setBranches);
   }, [cwd]);
 
   useEffect(load, [load, status?.branch]);
@@ -70,7 +71,7 @@ export function BranchesView({
   useEffect(() => {
     if (!compare) return setDiff(null);
     let live = true;
-    void window.lyra.git
+    void bridge.git
       .diffRefs(cwd, compare.base, compare.head)
       .then((result) => live && setDiff(result));
     return () => {
@@ -181,7 +182,7 @@ export function BranchesView({
               onSubmit={(event) => {
                 event.preventDefault();
                 void act(() =>
-                  window.lyra.git.createBranch(cwd, name),
+                  bridge.git.createBranch(cwd, name),
                 ).then((ok) => {
                   if (ok) {
                     setCreating(false);
@@ -215,7 +216,7 @@ export function BranchesView({
               current={branch === current}
               busy={busy}
               onSwitch={() =>
-                void act(() => window.lyra.git.switchBranch(cwd, branch))
+                void act(() => bridge.git.switchBranch(cwd, branch))
               }
               onCompare={
                 current && branch !== current
@@ -240,7 +241,7 @@ export function BranchesView({
                         confirmLabel: "删除",
                         onConfirm: () =>
                           void act(() =>
-                            window.lyra.git.deleteBranch(cwd, branch),
+                            bridge.git.deleteBranch(cwd, branch),
                           ).then(load),
                       })
               }
@@ -264,7 +265,7 @@ export function BranchesView({
               busy={busy}
               remote
               onSwitch={() =>
-                void act(() => window.lyra.git.switchBranch(cwd, branch))
+                void act(() => bridge.git.switchBranch(cwd, branch))
               }
               onCompare={
                 current

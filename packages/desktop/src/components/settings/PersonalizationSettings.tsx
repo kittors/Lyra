@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Trash2 } from "lucide-react";
 import { useApp } from "../../store.ts";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function PersonalizationSettings() {
 	const settings = useApp((s) => s.settings);
@@ -27,7 +28,7 @@ export function PersonalizationSettings() {
 	const loadMemories = async () => {
 		try {
 			setLoadingMemory(true);
-			const res = await window.lyra.memory.load();
+			const res = await bridge.memory.load();
 			setMemoryEntries(res.entries ?? []);
 		} catch {
 			// silent fallback
@@ -89,7 +90,7 @@ export function PersonalizationSettings() {
 	const handleAddMemory = async () => {
 		if (!newMemory.trim()) return;
 		try {
-			const entry = await window.lyra.memory.add(newMemory.trim());
+			const entry = await bridge.memory.add(newMemory.trim());
 			setMemoryEntries((prev) => [entry, ...prev]);
 			setNewMemory("");
 		} catch {
@@ -99,7 +100,7 @@ export function PersonalizationSettings() {
 
 	const handleDeleteMemory = async (id: string) => {
 		try {
-			await window.lyra.memory.remove(id);
+			await bridge.memory.remove(id);
 			setMemoryEntries((prev) => prev.filter((m) => m.id !== id));
 		} catch {
 			// ignore
@@ -109,7 +110,7 @@ export function PersonalizationSettings() {
 	const handleClearAllMemory = async () => {
 		if (!confirm("确定要删除此电脑上保存的所有本地记忆吗？此操作不可撤销。")) return;
 		try {
-			await window.lyra.memory.clear();
+			await bridge.memory.clear();
 			setMemoryEntries([]);
 		} catch {
 			// ignore

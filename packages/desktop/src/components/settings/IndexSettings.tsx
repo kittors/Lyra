@@ -3,6 +3,7 @@ import { Scroller } from "../Scroller.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store.ts";
 import { Card, EmptyHint, GhostButton, Row, SectionTitle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 interface Stats {
 	exists: boolean;
@@ -21,7 +22,7 @@ export function IndexSettings() {
 
 	const refresh = useCallback(async () => {
 		if (!workspace) return;
-		setStats(await window.lyra.index.stats(workspace.path));
+		setStats(await bridge.index.stats(workspace.path));
 	}, [workspace]);
 
 	useEffect(() => {
@@ -35,7 +36,7 @@ export function IndexSettings() {
 			return;
 		}
 		let cancelled = false;
-		void window.lyra.index.search(workspace.path, query.trim()).then((result) => {
+		void bridge.index.search(workspace.path, query.trim()).then((result) => {
 			if (!cancelled) setHits(result);
 		});
 		return () => {
@@ -67,7 +68,7 @@ export function IndexSettings() {
 									onClick={async () => {
 										setBuilding(true);
 										try {
-											setStats(await window.lyra.index.rebuild(workspace.path));
+											setStats(await bridge.index.rebuild(workspace.path));
 										} finally {
 											setBuilding(false);
 										}
@@ -142,7 +143,7 @@ export function IndexSettings() {
 									<button
 										key={`${hit.file}:${hit.line}`}
 										type="button"
-										onClick={() => void window.lyra.system.openPath(`${workspace.path}/${hit.file}`)}
+										onClick={() => void bridge.system.openPath(`${workspace.path}/${hit.file}`)}
 										className="flex w-full items-center gap-2.5 border-b border-line-soft px-4 py-2 text-left transition-colors last:border-b-0 hover:bg-card-hover/50"
 									>
 										<Database size={12} strokeWidth={1.8} className="shrink-0 text-ink-faint" />

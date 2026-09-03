@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useSyncExternalStore } from "react";
+import { bridge } from "../../services/index.ts";
 
 const KEY = "lyra.avatars.v2";
 
@@ -98,7 +99,7 @@ async function flush(): Promise<void> {
 	queued = null;
 	if (!batch?.size) return;
 
-	const answer = await window.lyra.git.avatars([...batch.values()]).catch(() => null);
+	const answer = await bridge.git.avatars([...batch.values()]).catch(() => null);
 	if (!answer) return;
 
 	// Only what arrived is recorded. A miss leaves the login absent, which — behind the retry

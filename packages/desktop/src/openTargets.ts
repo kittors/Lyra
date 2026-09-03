@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import type { OpenTarget } from "../electron/ipc-types.ts";
 import { useApp } from "./store.ts";
+import { bridge } from "./services/index.ts";
 
 /** Revealing is the one target every platform has, and the one worth falling back to. */
 const REVEAL: OpenTarget = { id: "reveal", label: "在文件管理器中显示", aliases: [] };
@@ -22,7 +23,7 @@ let loaded: OpenTarget[] | null = null;
 const waiting = new Set<(targets: OpenTarget[]) => void>();
 
 function load(): Promise<OpenTarget[]> {
-	pending ??= window.lyra.system
+	pending ??= bridge.system
 		.openTargets()
 		.catch(() => [REVEAL])
 		.then((targets) => {

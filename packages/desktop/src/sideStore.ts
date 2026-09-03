@@ -13,6 +13,7 @@ import { useDock } from "./dock/store.ts";
 import { summarizeToolCall } from "./toolSummary.ts";
 import type { ToolRun } from "./store.ts";
 import { settleTail } from "./transcript.ts";
+import { bridge } from "./services/index.ts";
 
 /**
  * What can occupy a pane. One of each at a time — two diffs of one worktree is not a thing.
@@ -156,8 +157,8 @@ export const useSide = create<SideState>((set, get) => ({
 		if (!sessionId) return;
 
 		const [state, tasks] = await Promise.all([
-			window.lyra.sideChat.state(sessionId),
-			window.lyra.tasks.list(sessionId),
+			bridge.sideChat.state(sessionId),
+			bridge.tasks.list(sessionId),
 		]);
 		// A second switch while this was in flight wins.
 		if (get().sessionId !== sessionId) return;
@@ -194,7 +195,7 @@ export const useSide = create<SideState>((set, get) => ({
 		 */
 		const pending: Message = { role: "user", content, timestamp: Date.now() };
 		set({ messages: [...get().messages, pending], pending, running: true });
-		await window.lyra.sideChat.ask(sessionId, content);
+		await bridge.sideChat.ask(sessionId, content);
 	},
 
 	/**
@@ -210,19 +211,19 @@ export const useSide = create<SideState>((set, get) => ({
 		const kept = get().messages.slice(0, index);
 		const pending: Message = { role: "user", content, timestamp: Date.now() };
 		set({ messages: [...kept, pending], pending, running: true });
-		await window.lyra.sideChat.editAndResend(sessionId, index, content);
+		await bridge.sideChat.editAndResend(sessionId, index, content);
 	},
 
 	async abort() {
 		const sessionId = get().sessionId;
-		if (sessionId) await window.lyra.sideChat.abort(sessionId);
+		if (sessionId) await bridge.sideChat.abort(sessionId);
 		set({ running: false });
 	},
 
 	async reset() {
 		const sessionId = get().sessionId;
 		set({ ...EMPTY, tasks: get().tasks });
-		if (sessionId) await window.lyra.sideChat.reset(sessionId);
+		if (sessionId) await bridge.sideChat.reset(sessionId);
 	},
 
 	async cancelTask(taskId) {
@@ -232,7 +233,7 @@ export const useSide = create<SideState>((set, get) => ({
 		set({
 			tasks: get().tasks.map((t) => (t.id === taskId && t.status === "queued" ? { ...t, status: "cancelled" } : t)),
 		});
-		await window.lyra.tasks.cancel(sessionId, taskId);
+		await bridge.tasks.cancel(sessionId, taskId);
 	},
 
 	async resumeTask(taskId) {
@@ -242,7 +243,7 @@ export const useSide = create<SideState>((set, get) => ({
 		set({
 			tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, status: "queued" as const, cancelledBy: undefined } : t)),
 		});
-		await window.lyra.tasks.resume(sessionId, taskId);
+		await bridge.tasks.resume(sessionId, taskId);
 	},
 
 	async dismissTask(taskId) {
@@ -250,7 +251,7 @@ export const useSide = create<SideState>((set, get) => ({
 		if (!sessionId) return;
 		// Optimistic, same as cancelling: the row goes on the click.
 		set({ tasks: get().tasks.filter((t) => t.id !== taskId) });
-		await window.lyra.tasks.dismiss(sessionId, taskId);
+		await bridge.tasks.dismiss(sessionId, taskId);
 	},
 
 	/**

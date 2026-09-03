@@ -18,6 +18,7 @@ import { resolveAsset } from "./markdown-assets.ts";
 import { type Inline, parseInline } from "./markdown-inline.ts";
 import { renderMath } from "./markdown-math.ts";
 import { stripEmoji } from "./strip-emoji.ts";
+import { bridge } from "../services/index.ts";
 
 /**
  * What this text is, beyond the characters in it.
@@ -294,7 +295,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 			href={href}
 			onClick={(event) => {
 				event.preventDefault();
-				void window.lyra.system.openExternal(href);
+				void bridge.system.openExternal(href);
 			}}
 		>
 			{children}
@@ -324,7 +325,7 @@ function Image({ src, alt, width, height }: { src: string; alt: string; width?: 
 
 	const direct = src.startsWith("data:") || src.startsWith("blob:") ? src : null;
 	const onDisk = direct || remote ? null : resolveAsset(baseDir, src);
-	const resolved = direct ?? fetched ?? (onDisk ? window.lyra.files.mediaUrl(onDisk) : null);
+	const resolved = direct ?? fetched ?? (onDisk ? bridge.files.mediaUrl(onDisk) : null);
 
 	if (resolved) {
 		return (
@@ -373,7 +374,7 @@ function useRemoteImage(url: string | null): string | null | undefined {
 		if (!url) return;
 		let alive = true;
 		setData(undefined);
-		void window.lyra.system
+		void bridge.system
 			.remoteImage(url)
 			.then((result) => alive && setData(result))
 			.catch(() => alive && setData(null));

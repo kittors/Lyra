@@ -4,6 +4,7 @@ import { CountUp } from "./CountUp.tsx";
 import { useLiveRefresh } from "./useLiveRefresh.ts";
 import { useDock } from "../dock/store.ts";
 import { useApp } from "../store.ts";
+import { bridge } from "../services/index.ts";
 
 /**
  * How much is uncommitted, always in view.
@@ -37,7 +38,7 @@ export function ChangeBar() {
       setStat(null);
       return;
     }
-    const next = await window.lyra.git.stat(cwd);
+    const next = await bridge.git.stat(cwd);
     setStat({ added: next.added, removed: next.removed, files: next.files });
   }, [cwd, isRepo]);
 

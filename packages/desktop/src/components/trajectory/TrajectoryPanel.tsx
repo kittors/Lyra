@@ -21,6 +21,7 @@ import { useApp } from "../../store.ts";
 import { EntryRow } from "./EntryRow.tsx";
 import { SourceFilter } from "./SourceFilter.tsx";
 import { useTrajectory } from "./useTrajectory.ts";
+import { bridge } from "../../services/index.ts";
 
 /** Enough to fill any window; more arrive as you reach the end. */
 const WINDOW_STEP = 150;
@@ -53,7 +54,7 @@ export function TrajectoryPanel() {
 
 	async function fork(seq: number) {
 		if (!meta) return;
-		const result = await window.lyra.sessions.fork(meta.projectId, meta.id, seq);
+		const result = await bridge.sessions.fork(meta.projectId, meta.id, seq);
 		if (!result) {
 			notify("分叉失败", "error");
 			return;

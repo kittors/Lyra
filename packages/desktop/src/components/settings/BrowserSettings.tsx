@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../../store.ts";
 import { Card, EmptyHint, GhostButton, Row, SectionTitle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 const TOOLS = [
 	{
@@ -22,7 +23,7 @@ export function BrowserSettings() {
 	// observable through a live session's tool list.
 	const check = async () => {
 		if (!activeSessionId) return;
-		const caps = await window.lyra.sessions.capabilities(activeSessionId);
+		const caps = await bridge.sessions.capabilities(activeSessionId);
 		setTools(caps?.toolNames.filter((t) => t.startsWith("browser_")) ?? []);
 	};
 

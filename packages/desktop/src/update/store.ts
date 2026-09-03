@@ -15,8 +15,9 @@
 import { useSyncExternalStore } from "react";
 
 import type { Phase } from "./view.ts";
+import { bridge } from "../services/index.ts";
 
-export type Info = Awaited<ReturnType<typeof window.lyra.updates.check>>;
+export type Info = Awaited<ReturnType<typeof bridge.updates.check>>;
 
 export interface UpdateState {
 	info: Info | null;
@@ -52,7 +53,7 @@ function set(next: Partial<UpdateState>): void {
 export async function check(force = false): Promise<void> {
 	if (force) set({ checking: true });
 	try {
-		const info = await window.lyra.updates.check(force);
+		const info = await bridge.updates.check(force);
 		set({ info });
 	} catch {
 		// The check is the app's business; its failure is not the user's. Offline is a normal answer.
@@ -91,11 +92,11 @@ function start(): void {
 	 * *paused* one emits nothing ever, since only the user resumes it. A window that opened
 	 * mid-download and only listened would draw an idle badge over a running download.
 	 */
-	void window.lyra.updates
+	void bridge.updates
 		.state?.()
 		.then((phase) => set({ phase }))
 		.catch(() => {});
-	window.lyra.updates.onProgress((phase) => set({ phase }));
+	bridge.updates.onProgress((phase) => set({ phase }));
 }
 
 function subscribe(listener: () => void): () => void {

@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { countBySource, filterTrajectory, type Entry as TrajectoryEntry, type Source as TrajectorySourceKind } from "@lyra/core/trajectory-view";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 
 export interface TrajectoryView {
 	entries: TrajectoryEntry[];
@@ -37,7 +38,7 @@ export function useTrajectory(sources: TrajectorySourceKind[], query: string): T
 		}
 		let live = true;
 		setLoading(true);
-		void window.lyra.sessions
+		void bridge.sessions
 			.trajectory(projectId, sessionId)
 			.then((entries) => {
 				if (live) setAll(entries);

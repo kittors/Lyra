@@ -36,6 +36,7 @@ import { useConfirmer } from "../Confirm.tsx";
 import { Scroller } from "../Scroller.tsx";
 import { PluginIcon, safeColour } from "../settings/PluginIcon.tsx";
 import { isEnabled, isInstalled, type CatalogItem } from "./useCatalog.ts";
+import { bridge } from "../../services/index.ts";
 
 export function PluginDetail({
 	item,
@@ -80,7 +81,7 @@ export function PluginDetail({
 	const install = async () => {
 		if (!item.entry) return;
 		setBusy("install");
-		const result = await window.lyra.plugins.installFromRegistry(item.entry, item.from ?? undefined);
+		const result = await bridge.plugins.installFromRegistry(item.entry, item.from ?? undefined);
 		setBusy(null);
 		if (result.ok) onChanged();
 		else onError(`${item.name}：${result.message}`);
@@ -88,7 +89,7 @@ export function PluginDetail({
 
 	const uninstall = async () => {
 		setBusy("uninstall");
-		await window.lyra.plugins.uninstall(item.id);
+		await bridge.plugins.uninstall(item.id);
 		setBusy(null);
 		onBack();
 		onChanged();
@@ -141,7 +142,7 @@ export function PluginDetail({
 							type="button"
 							data-ly-tip="打开主页"
 							aria-label="打开主页"
-							onClick={() => void window.lyra.system.openExternal(website)}
+							onClick={() => void bridge.system.openExternal(website)}
 							className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
 							<ExternalLink size={13.5} strokeWidth={1.8} />
@@ -337,7 +338,7 @@ export function PluginDetail({
 							<InfoRow label="仓库">
 								<button
 									type="button"
-									onClick={() => void window.lyra.system.openExternal(repoUrl(item.entry!.repository))}
+									onClick={() => void bridge.system.openExternal(repoUrl(item.entry!.repository))}
 									className="inline-flex items-center gap-1 font-mono text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 								>
 									{item.entry.repository.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "")}
@@ -349,7 +350,7 @@ export function PluginDetail({
 							<InfoRow label="网站">
 								<button
 									type="button"
-									onClick={() => void window.lyra.system.openExternal(website)}
+									onClick={() => void bridge.system.openExternal(website)}
 									className="inline-flex items-center gap-1 text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 								>
 									{website.replace(/^https?:\/\//, "")}
@@ -361,7 +362,7 @@ export function PluginDetail({
 							<InfoRow label="目录">
 								<button
 									type="button"
-									onClick={() => void window.lyra.system.openPath(dir)}
+									onClick={() => void bridge.system.openPath(dir)}
 									className="inline-flex items-center gap-1 font-mono text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 								>
 									{dir.replace(/^\/Users\/[^/]+/, "~")}

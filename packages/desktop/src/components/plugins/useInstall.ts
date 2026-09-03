@@ -13,6 +13,7 @@
 import { useState } from "react";
 
 import type { CatalogItem } from "./catalog.ts";
+import { bridge } from "../../services/index.ts";
 
 /** Which operation is in flight, or null. Drives the spinner and disables the controls. */
 export type Busy = "install" | "update" | "uninstall" | null;
@@ -46,7 +47,7 @@ export function useInstall(
 	const run = async (replace: boolean) => {
 		if (!item.entry) return;
 		setBusy(replace ? "update" : "install");
-		const result = await window.lyra.plugins.installFromRegistry(item.entry, item.from ?? undefined, replace);
+		const result = await bridge.plugins.installFromRegistry(item.entry, item.from ?? undefined, replace);
 		setBusy(null);
 		if (!result.ok) {
 			onError(`${item.name}：${result.message}`);
@@ -85,7 +86,7 @@ export function useInstall(
 		update: () => run(true),
 		uninstall: async () => {
 			setBusy("uninstall");
-			await window.lyra.plugins.uninstall(item.id);
+			await bridge.plugins.uninstall(item.id);
 			setBusy(null);
 			onChanged();
 		},

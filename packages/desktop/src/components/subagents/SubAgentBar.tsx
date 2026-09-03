@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../store.ts";
 import { rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { elapsedSince, statusWord } from "./format.ts";
+import { bridge } from "../../services/index.ts";
 
 export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	const agents = useSubAgents((s) => s.agents);
@@ -92,7 +93,7 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 					aria-label="清掉已结束的子 Agent 记录"
 					onClick={() => {
 						const id = useApp.getState().activeSessionId;
-						if (id) void window.lyra.subAgents.dismissFinished(id);
+						if (id) void bridge.subAgents.dismissFinished(id);
 						useSubAgents.getState().clear();
 					}}
 					className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"

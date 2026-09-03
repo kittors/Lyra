@@ -10,6 +10,7 @@ import type { ApprovalDecision, Message, ThinkingLevel, Usage, UserContent } fro
 import { without } from "./derive.ts";
 import { relight } from "./turn-meter.ts";
 import type { AppState } from "../store.ts";
+import { bridge } from "../services/index.ts";
 
 const ZERO_USAGE: Usage = {
 	input: 0,
@@ -102,7 +103,7 @@ export function turnSlice(set: Set, get: Get) {
     // first thing worth storing, so it is also the first thing that creates a session.
     if (!sessionId) {
       try {
-        const snapshot = await window.lyra.sessions.create(
+        const snapshot = await bridge.sessions.create(
           cwd!,
           settings?.defaultModelId ?? "",
         );
@@ -147,7 +148,7 @@ export function turnSlice(set: Set, get: Get) {
            */
           sessions: [listed, ...get().sessions.filter((s) => s.id !== listed.id)],
         });
-        void window.lyra.sessions
+        void bridge.sessions
           .capabilities(sessionId)
           .then((capabilities) => {
             if (get().activeSessionId === sessionId) set({ capabilities });
@@ -171,7 +172,7 @@ export function turnSlice(set: Set, get: Get) {
       }
     }
 
-    await window.lyra.agent.prompt(sessionId, content, options);
+    await bridge.agent.prompt(sessionId, content, options);
   },
 
   /**
@@ -230,19 +231,19 @@ export function turnSlice(set: Set, get: Get) {
       sessionCache: without(get().sessionCache, sessionId),
     });
 
-    await window.lyra.agent.editMessage(sessionId, index, content);
+    await bridge.agent.editMessage(sessionId, index, content);
   },
 
   async abort() {
     const sessionId = get().activeSessionId;
-    if (sessionId) await window.lyra.agent.abort(sessionId);
+    if (sessionId) await bridge.agent.abort(sessionId);
   },
 
   async respondToApproval(id: string, decision: ApprovalDecision) {
     const sessionId = get().activeSessionId;
     if (!sessionId) return;
     set({ approvals: get().approvals.filter((a) => a.id !== id) });
-    await window.lyra.agent.approve(sessionId, id, decision);
+    await bridge.agent.approve(sessionId, id, decision);
   },
 
   /**
@@ -263,7 +264,7 @@ export function turnSlice(set: Set, get: Get) {
     const { activeSessionId, settings, meta } = get();
     const midConversation = get().messages.length > 0 && meta?.modelId !== modelId;
     if (activeSessionId)
-      await window.lyra.agent.setModel(activeSessionId, modelId);
+      await bridge.agent.setModel(activeSessionId, modelId);
     if (meta) set({ meta: { ...meta, modelId } });
     /*
      * The app default is a separate decision, and used to be made for you.
@@ -296,14 +297,14 @@ export function turnSlice(set: Set, get: Get) {
     const { activeSessionId, meta, settings } = get();
     if (activeSessionId) {
       if (meta) set({ meta: { ...meta, thinking } });
-      await window.lyra.agent.setThinking(activeSessionId, thinking);
+      await bridge.agent.setThinking(activeSessionId, thinking);
       return;
     }
     if (settings) await get().saveSettings({ ...settings, thinking });
   },
 
   async refreshSync() {
-    set({ sync: await window.lyra.sync.status() });
+    set({ sync: await bridge.sync.status() });
   },
   };
 }

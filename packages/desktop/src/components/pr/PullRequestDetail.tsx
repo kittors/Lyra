@@ -21,6 +21,7 @@ import { PullRequestChecks } from "./PullRequestChecks.tsx";
 import { PullRequestCode } from "./PullRequestCode.tsx";
 import { PullRequestMeta } from "./PullRequestMeta.tsx";
 import { DetailSkeleton } from "./PullRequestSkeleton.tsx";
+import { bridge } from "../../services/index.ts";
 
 export type PrTab = "summary" | "code";
 
@@ -132,7 +133,7 @@ export function PullRequestDetail({
 					<IconAction label="重新读取" onClick={onRefresh} spinning={loading}>
 						<RefreshCw size={13.5} strokeWidth={1.8} />
 					</IconAction>
-					<IconAction label="在浏览器中打开" onClick={() => void window.lyra.system.openExternal(detail.url)}>
+					<IconAction label="在浏览器中打开" onClick={() => void bridge.system.openExternal(detail.url)}>
 						<ExternalLink size={13.5} strokeWidth={1.8} />
 					</IconAction>
 

@@ -26,6 +26,7 @@ import { sameStatus } from "./sameStatus.ts";
 import { SkeletonList, useSlowLoad } from "../Skeleton.tsx";
 import { CountUp } from "../CountUp.tsx";
 import { useNarrow } from "../useNarrow.ts";
+import { bridge } from "../../services/index.ts";
 
 type View = "changes" | "history" | "branches" | "pipelines";
 
@@ -205,9 +206,9 @@ export function GitPanel() {
     let cancelled = false;
     setScanning(true);
     void (async () => {
-      const found = await window.lyra.git.repos(workspacePath);
+      const found = await bridge.git.repos(workspacePath);
       const lists = await Promise.all(
-        found.map(async (repo) => [repo.path, await window.lyra.git.worktrees(repo.path)] as const),
+        found.map(async (repo) => [repo.path, await bridge.git.worktrees(repo.path)] as const),
       );
       if (cancelled) return;
 
@@ -256,7 +257,7 @@ export function GitPanel() {
       setStatus(null);
       return;
     }
-    const next = await window.lyra.git.status(cwd);
+    const next = await bridge.git.status(cwd);
     setStatus((current) => (sameStatus(current, next) ? current : next));
   }, [cwd]);
 
@@ -345,7 +346,7 @@ export function GitPanel() {
     async (kind: "pull" | "push" | "fetch", call: (id: string) => Promise<{ ok: boolean; error?: string; cancelled?: boolean }>) => {
       // Already running: this press means stop, not start again.
       if (sync) {
-        if (token.current) void window.lyra.git.cancelRemote(token.current);
+        if (token.current) void bridge.git.cancelRemote(token.current);
         return;
       }
       const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -376,7 +377,7 @@ export function GitPanel() {
    */
   const quietFetch = useCallback(async () => {
     if (!cwd) return;
-    const result = await window.lyra.git.fetch(cwd, undefined, true);
+    const result = await bridge.git.fetch(cwd, undefined, true);
     if (result.ok) await read();
   }, [cwd, read]);
 
@@ -515,7 +516,7 @@ export function GitPanel() {
             type="button"
             disabled={busy}
             onClick={() => {
-              void act(() => window.lyra.git.init(workspace.path)).then((ok) => {
+              void act(() => bridge.git.init(workspace.path)).then((ok) => {
                 // Re-scan rather than assume: the new repository has to come back through the
                 // same path as any other, or the panel would be showing something it invented.
                 if (ok) setRescan((n) => n + 1);
@@ -605,7 +606,7 @@ export function GitPanel() {
           // Only the one that is running stays pressable, and pressing it again cancels it.
           disabled={plan.pull.disabled || busy || (sync !== null && sync !== "pull")}
           roomForWords={roomForWords}
-          onClick={() => void remote("pull", (id) => window.lyra.git.pull(cwd, id))}
+          onClick={() => void remote("pull", (id) => bridge.git.pull(cwd, id))}
         />
         <SyncControl
           icon={<ArrowUpFromLine size={12} strokeWidth={1.9} />}
@@ -614,7 +615,7 @@ export function GitPanel() {
           running={sync === "push"}
           disabled={plan.push.disabled || busy || (sync !== null && sync !== "push")}
           roomForWords={roomForWords}
-          onClick={() => void remote("push", (id) => window.lyra.git.push(cwd, id))}
+          onClick={() => void remote("push", (id) => bridge.git.push(cwd, id))}
         />
         <IconButton
           icon={<RefreshCw size={12} strokeWidth={1.9} className={sync === "fetch" ? "ly-spin" : undefined} />}
@@ -631,7 +632,7 @@ export function GitPanel() {
           disabled={busy || (sync !== null && sync !== "fetch")}
           onClick={() =>
             void remote("fetch", async (id) => {
-              const result = await window.lyra.git.fetch(cwd, id);
+              const result = await bridge.git.fetch(cwd, id);
               // `remote` re-reads afterwards either way, so a fetch that failed still refreshes
               // what is true locally.
               return result;
@@ -702,8 +703,8 @@ export function GitPanel() {
           busy={busy || sync !== null}
           act={act}
           plan={plan}
-          onPush={() => void remote("push", (id) => window.lyra.git.push(cwd, id))}
-          onPull={() => void remote("pull", (id) => window.lyra.git.pull(cwd, id))}
+          onPush={() => void remote("push", (id) => bridge.git.push(cwd, id))}
+          onPull={() => void remote("pull", (id) => bridge.git.pull(cwd, id))}
         />
       )}
       {view === "history" && <HistoryView cwd={cwd} />}

@@ -12,6 +12,7 @@
  */
 
 import { canFormat, formatCode, type FormatOptions } from "./format.ts";
+import { bridge } from "../../services/index.ts";
 
 export type FormatOutcome =
 	| { ok: true; text: string; changed: boolean; by: string; config?: string }
@@ -63,7 +64,7 @@ export async function formatFile(path: string, source: string, settings: FormatO
 		 * nothing to configure — so forwarding options to them would be at best ignored and at worst
 		 * a second, conflicting source of truth.
 		 */
-		const raw = await window.lyra.format.config(path).catch(() => null);
+		const raw = await bridge.format.config(path).catch(() => null);
 		const options = { ...settings, ...usableConfig(raw) };
 		try {
 			const text = await formatCode(path, source, options);
@@ -74,7 +75,7 @@ export async function formatFile(path: string, source: string, settings: FormatO
 		}
 	}
 
-	const external = await window.lyra.format.external(extension, source);
+	const external = await bridge.format.external(extension, source);
 	if (external.ok) return { ok: true, text: external.text, changed: external.text !== source, by: external.tool };
 	if (external.reason === "missing") return { ok: false, kind: "missing", tool: external.tool, install: external.install };
 	if (external.reason === "failed") return { ok: false, kind: "failed", message: external.message };

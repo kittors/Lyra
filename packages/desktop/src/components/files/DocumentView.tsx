@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Text } from "../Text.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function PdfView({ path, name }: { path: string; name: string }) {
 	/*
@@ -28,7 +29,7 @@ export function PdfView({ path, name }: { path: string; name: string }) {
 	 */
 	return (
 		<embed
-			src={window.lyra.files.mediaUrl(path)}
+			src={bridge.files.mediaUrl(path)}
 			type="application/pdf"
 			aria-label={name}
 			className="min-h-0 w-full flex-1"
@@ -60,7 +61,7 @@ export function WordView({ path }: { path: string }) {
 				 * or it fails with a bare "Failed to fetch", which is exactly what it did. The file
 				 * IPC already carries the project boundary and hands back the bytes directly.
 				 */
-				const bytes = await window.lyra.files.bytes(path);
+				const bytes = await bridge.files.bytes(path);
 				if (!bytes) throw new Error("读不到这个文件");
 				if (!live) return;
 				const blob = new Blob([bytes as unknown as BlobPart]);

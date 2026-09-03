@@ -20,6 +20,7 @@ import { Avatar } from "../pr/Avatar.tsx";
 import { useAccountActions, useForgeAccounts } from "../pr/useForgeAccounts.ts";
 import { Badge, Card, EmptyHint, GhostButton, ListRow, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { ForgeSignIn } from "./ForgeSignIn.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function ForgeSettings() {
 	const { accounts } = useForgeAccounts();
@@ -29,7 +30,7 @@ export function ForgeSettings() {
 	const [editing, setEditing] = useState<string | null>(null);
 
 	useEffect(() => {
-		void window.lyra.forge
+		void bridge.forge
 			.kinds()
 			.then((answer) => setKinds(answer.kinds ?? []))
 			.catch(() => {});

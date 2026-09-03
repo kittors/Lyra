@@ -13,6 +13,7 @@ import type { ContextBreakdown, ContextSegmentKey } from "../../electron/ipc-typ
 import { findModel } from "../models.ts";
 import { Popover, usePopover } from "./Popover.tsx";
 import { formatTokens } from "./RunningIndicator.tsx";
+import { bridge } from "../services/index.ts";
 
 /**
  * How much of the model's context window this conversation is using.
@@ -51,7 +52,7 @@ export function ContextMeter({
 	useEffect(() => {
 		if (!open || !sessionId) return;
 		let cancelled = false;
-		void window.lyra.sessions.contextBreakdown(sessionId).then((result) => {
+		void bridge.sessions.contextBreakdown(sessionId).then((result) => {
 			if (!cancelled) setDetail(result);
 		});
 		return () => {

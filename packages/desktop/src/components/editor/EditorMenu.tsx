@@ -4,7 +4,7 @@
  * Electron ships no default context menu, so until now right-clicking in a file did nothing —
  * not even copy. Everything here is a CodeMirror command driven from the outside, except the three
  * clipboard entries: the browser will not let a script cut or paste on its own, so those go through
- * the main process (`window.lyra.clipboard`) and edit the document by dispatching a transaction.
+ * the main process (`bridge.clipboard`) and edit the document by dispatching a transaction.
  *
  * Items that would change a read-only file are disabled rather than hidden. A menu whose shape
  * changes with the file is a menu you have to read every time; one where the same item is greyed
@@ -35,6 +35,7 @@ import {
 import { useRevealLabel } from "../../openTargets.ts";
 import { ContextMenu } from "../ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../Menu.tsx";
+import { bridge } from "../../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -68,7 +69,7 @@ export function EditorMenu({
 	/** Put the selection on the clipboard, and take it out of the document if this was a cut. */
 	const take = async (remove: boolean) => {
 		if (!hasSelection) return;
-		await window.lyra.clipboard.write(selected);
+		await bridge.clipboard.write(selected);
 		if (remove && !readOnly) {
 			view.dispatch({ changes: { from: selection.from, to: selection.to, insert: "" } });
 		}
@@ -76,7 +77,7 @@ export function EditorMenu({
 	};
 
 	const paste = async () => {
-		const text = await window.lyra.clipboard.read();
+		const text = await bridge.clipboard.read();
 		if (!text) return;
 		// Replaces the selection when there is one, which is what pasting over a selection means.
 		view.dispatch({
@@ -158,10 +159,10 @@ export function EditorMenu({
 
 			<MenuSeparator />
 
-			<MenuItem icon={<Link2 {...ICON} />} onClick={() => void window.lyra.clipboard.write(path)}>
+			<MenuItem icon={<Link2 {...ICON} />} onClick={() => void bridge.clipboard.write(path)}>
 				复制路径
 			</MenuItem>
-			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void window.lyra.workspace.reveal(path)}>
+			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(path)}>
 				{reveal}
 			</MenuItem>
 		</ContextMenu>

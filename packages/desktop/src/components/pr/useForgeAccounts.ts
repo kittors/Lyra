@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { ForgeAccount, ForgeKind } from "../../../electron/ipc-types.ts";
+import { bridge } from "../../services/index.ts";
 
 let accounts: ForgeAccount[] = [];
 let loaded = false;
@@ -50,7 +51,7 @@ function publish(next: ForgeAccount[]): ForgeAccount[] {
 
 /** Re-read the list from the main process. Concurrent callers share one round trip. */
 export function reloadAccounts(): Promise<ForgeAccount[]> {
-	inFlight ??= window.lyra.forge
+	inFlight ??= bridge.forge
 		.accounts()
 		.then((next) => {
 			loaded = true;
@@ -87,20 +88,20 @@ export function useForgeAccounts(): { accounts: ForgeAccount[]; ready: boolean }
 export function useAccountActions() {
 	return {
 		signIn: useCallback(async (input: { kind: ForgeKind; baseUrl: string; token: string; label?: string }) => {
-			const result = await window.lyra.forge.signIn(input);
+			const result = await bridge.forge.signIn(input);
 			if (result.account) await reloadAccounts();
 			return result;
 		}, []),
 		signOut: useCallback(async (id: string) => {
-			await window.lyra.forge.signOut(id);
+			await bridge.forge.signOut(id);
 			await reloadAccounts();
 		}, []),
 		setEnabled: useCallback(async (id: string, enabled: boolean) => {
-			await window.lyra.forge.setEnabled(id, enabled);
+			await bridge.forge.setEnabled(id, enabled);
 			await reloadAccounts();
 		}, []),
 		rename: useCallback(async (id: string, label: string) => {
-			await window.lyra.forge.rename(id, label);
+			await bridge.forge.rename(id, label);
 			await reloadAccounts();
 		}, []),
 	};

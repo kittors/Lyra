@@ -5,6 +5,7 @@ import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../Popo
 import { useRevealLabel } from "../../openTargets.ts";
 import { startProjectSession } from "../sidebar/newSession.ts";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Per-project actions, hung off the row they act on.
@@ -45,7 +46,7 @@ export function ProjectMenu({
 		const branch = draft.trim();
 		if (!branch || busy) return;
 		setBusy(true);
-		const result = await window.lyra.git.createWorktree(path, branch);
+		const result = await bridge.git.createWorktree(path, branch);
 		setBusy(false);
 		if (!result.ok) {
 			notify(result.error ?? "创建工作树失败", "error");
@@ -206,7 +207,7 @@ export function ProjectMenu({
 				<MenuItem
 					icon={<FolderOpen size={13} strokeWidth={1.8} />}
 					onClick={() => {
-						void window.lyra.workspace.reveal(path);
+						void bridge.workspace.reveal(path);
 						onClose();
 					}}
 				>

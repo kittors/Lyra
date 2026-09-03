@@ -5,6 +5,7 @@ import { SkillMark } from "./PluginIcon.tsx";
 import { useApp } from "../../store.ts";
 import { SkeletonList, useSlowLoad } from "../Skeleton.tsx";
 import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Where a skill came from, in one word.
@@ -24,13 +25,13 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	const workspace = useApp((s) => s.workspace);
 	// A plugin carries skills, so installing one moves this list without touching this page.
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
-	const [scan, setScan] = useState<Awaited<ReturnType<typeof window.lyra.plugins.list>> | null>(null);
+	const [scan, setScan] = useState<Awaited<ReturnType<typeof bridge.plugins.list>> | null>(null);
 	/** Only when the scan is slow enough to notice; below that the list simply appears. */
 	const slow = useSlowLoad(scan === null);
 
 	// Scanned directly so the page works before any session exists.
 	useEffect(() => {
-		void window.lyra.plugins.list(workspace?.path ?? "").then(setScan);
+		void bridge.plugins.list(workspace?.path ?? "").then(setScan);
 	}, [workspace?.path, extensionsNonce]);
 
 	// Name or description, because you remember a skill by either.
@@ -91,7 +92,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 						}
 						detail={skill.description}
 						control={<span className="text-detail whitespace-nowrap text-ink-faint">{originOf(skill)}</span>}
-						onOpen={() => void window.lyra.system.openPath(skill.path)}
+						onOpen={() => void bridge.system.openPath(skill.path)}
 						openLabel={`打开 ${skill.name}`}
 					/>
 				))

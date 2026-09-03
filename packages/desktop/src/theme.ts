@@ -15,6 +15,7 @@ import type { AppearanceSettings } from "@lyra/core";
 import { sharedHighlightStyle } from "./components/highlight.ts";
 import { findCodeTheme } from "./components/code-themes.ts";
 import { contentMeasure } from "./content-width.ts";
+import { bridge } from "./services/index.ts";
 
 interface Rgb {
 	r: number;
@@ -185,7 +186,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * that shows through whenever a resize outruns the renderer's reflow — dragging an edge
 	 * quickly is exactly that, and a stale colour there is the black frame that flashes.
 	 */
-	window.lyra?.setWindowTheme?.({ color: toHex(background), symbolColor: text(0.62) });
+	bridge.setWindowTheme?.({ color: toHex(background), symbolColor: text(0.62) });
 
 	root.classList.toggle("dark", dark);
 	root.classList.toggle("light", !dark);

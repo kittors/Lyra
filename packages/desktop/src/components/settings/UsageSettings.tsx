@@ -20,6 +20,7 @@ import { heatLevel, heatmapWeeks, monthLabels, type DayUsage } from "./usage-hea
 import { dayTotals, providerLabel, summarise, type Range } from "./usage-aggregate.ts";
 import { DailyBars, ModelBars } from "./usage-charts.tsx";
 import { formatCompact, formatCost } from "./usage-format.ts";
+import { bridge } from "../../services/index.ts";
 
 /** A year of the heatmap: the span over which a rhythm is actually visible. */
 const WEEKS = 52;
@@ -34,7 +35,7 @@ export function UsageSettings() {
 
 	useEffect(() => {
 		let live = true;
-		void window.lyra.usage
+		void bridge.usage
 			.scan()
 			.then((result) => {
 				if (live) setScan(result);

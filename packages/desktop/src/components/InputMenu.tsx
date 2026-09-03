@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 
 import { ContextMenu } from "./ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "./Menu.tsx";
+import { bridge } from "../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -83,13 +84,13 @@ export function InputMenu() {
 	};
 
 	const copy = async (remove: boolean) => {
-		await window.lyra.clipboard.write(aimed.selected);
+		await bridge.clipboard.write(aimed.selected);
 		restore();
 		if (remove) document.execCommand("delete");
 	};
 
 	const paste = async () => {
-		const text = await window.lyra.clipboard.read();
+		const text = await bridge.clipboard.read();
 		restore();
 		// Inserting over the restored selection is what replacing a selection by pasting means.
 		if (text) document.execCommand("insertText", false, text);

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { iconColour, lookFor } from "../fileIcon.tsx";
 import { Text } from "../Text.tsx";
+import { bridge } from "../../services/index.ts";
 
 /** Which sides exist for a given change, in reading order. */
 function sidesFor(status: WorkspaceDiffFile["status"]): ("head" | "work")[] {
@@ -38,7 +39,7 @@ export function BinaryDiff({ cwd, file }: { cwd: string | null; file: WorkspaceD
 		let live = true;
 		setSettled(false);
 		void Promise.all(
-			sides.map(async (side) => [side, (await window.lyra.diff.blob(cwd, file.path, side))?.dataUrl ?? null] as const),
+			sides.map(async (side) => [side, (await bridge.diff.blob(cwd, file.path, side))?.dataUrl ?? null] as const),
 		).then((pairs) => {
 			if (!live) return;
 			setBlobs(Object.fromEntries(pairs));

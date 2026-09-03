@@ -20,6 +20,7 @@ import { type Filter, groupFor } from "./pr-groups.ts";
 import { reloadAccounts, useForgeAccounts } from "./useForgeAccounts.ts";
 import { acknowledge, baseline, mergeLists, pruneSeen, sameDetail, sameSeen, unseenOf } from "./pr-sync.ts";
 import { type RefreshReason, useLiveRefresh } from "./useLiveRefresh.ts";
+import { bridge } from "../../services/index.ts";
 
 export type { Filter, Group } from "./pr-groups.ts";
 
@@ -163,7 +164,7 @@ export function usePullRequests({
 			if (stale && Date.now() - lastFetch < FRESH_MS) return;
 			setLoading(true);
 			try {
-				const result = await window.lyra.git.myPullRequests();
+				const result = await bridge.git.myPullRequests();
 				/*
 				 * The accounts are re-read on the same beat.
 				 *
@@ -247,7 +248,7 @@ export function usePullRequests({
 		// refresh and the content stays readable throughout.
 		setDetailLoading(!start);
 
-		void window.lyra.git
+		void bridge.git
 			.pullRequest(selected.accountId, selected.repo, selected.number)
 			.then((result) => {
 				if (cancelled) return;

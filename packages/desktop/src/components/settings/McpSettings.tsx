@@ -6,6 +6,7 @@ import { PluginIcon } from "./PluginIcon.tsx";
 import { useConfirmer } from "../Confirm.tsx";
 import { useApp } from "../../store.ts";
 import { Badge, Card, EmptyHint, Field, GhostButton, SectionTitle, Select, TextInput, Toggle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 /** Servers worth suggesting: widely used, no account needed to try. */
 const RECOMMENDED: { id: string; name: string; detail: string; server: McpServerConfig }[] = [
@@ -60,7 +61,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 
 	useEffect(() => {
 		if (!activeSessionId) return;
-		void window.lyra.sessions.capabilities(activeSessionId).then(setCapabilities);
+		void bridge.sessions.capabilities(activeSessionId).then(setCapabilities);
 	}, [activeSessionId]);
 
 	if (!settings) return null;
@@ -85,7 +86,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 	 */
 	const uninstallBundle = async (bundle: string) => {
 		if (!bundle) return;
-		await window.lyra.plugins.uninstall(bundle);
+		await bridge.plugins.uninstall(bundle);
 	};
 
 	return (

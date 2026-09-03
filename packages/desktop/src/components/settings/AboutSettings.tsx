@@ -12,6 +12,7 @@ import { versionNote } from "../../update/view.ts";
 import { UpdateDialog } from "../modals/UpdateDialog.tsx";
 import { Markdown } from "../Markdown.tsx";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function AboutSettings() {
 	const { info, phase, checking } = useUpdate();
@@ -21,7 +22,7 @@ export function AboutSettings() {
 	const saveSettings = useApp((s) => s.saveSettings);
 
 	useEffect(() => {
-		void window.lyra.system.platform().then(setPlatform);
+		void bridge.system.platform().then(setPlatform);
 	}, []);
 
 	const available = Boolean(info?.available);
@@ -136,7 +137,7 @@ export function AboutSettings() {
 					detail="访问 Lyra 的 GitHub 仓库提交反馈或贡献代码"
 					control={
 						<GhostButton
-							onClick={() => void window.lyra.system.openExternal("https://github.com/kittors/Lyra")}
+							onClick={() => void bridge.system.openExternal("https://github.com/kittors/Lyra")}
 							icon={<ArrowUpRight size={13} />}
 						>
 							GitHub 仓库
@@ -149,7 +150,7 @@ export function AboutSettings() {
 					control={
 						<GhostButton
 							onClick={() =>
-								void window.lyra.system.openExternal(info?.url || "https://github.com/kittors/Lyra/releases")
+								void bridge.system.openExternal(info?.url || "https://github.com/kittors/Lyra/releases")
 							}
 							icon={<ArrowUpRight size={13} />}
 						>

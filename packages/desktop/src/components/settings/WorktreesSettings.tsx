@@ -2,6 +2,7 @@ import { FolderGit2, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store.ts";
 import { Card, Row, SectionTitle } from "./controls.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function WorktreesSettings() {
 	const settings = useApp((s) => s.settings);
@@ -34,7 +35,7 @@ export function WorktreesSettings() {
 		try {
 			const all: { path: string; label: string; branch?: string; isMain?: boolean; repoPath: string }[] = [];
 			for (const p of projects) {
-				const trees = await window.lyra.git.worktrees(p.path).catch(() => []);
+				const trees = await bridge.git.worktrees(p.path).catch(() => []);
 				for (const t of trees) {
 					if (t.worktree) {
 						all.push({
@@ -57,7 +58,7 @@ export function WorktreesSettings() {
 		if (deletingPath) return;
 		setDeletingPath(treePath);
 		try {
-			const res = await window.lyra.git.removeWorktree(repoPath, treePath);
+			const res = await bridge.git.removeWorktree(repoPath, treePath);
 			if (res.ok) {
 				notify("已移除工作树");
 				await refreshList();
@@ -215,7 +216,7 @@ export function WorktreesSettings() {
 							<div className="flex items-center gap-2">
 								<button
 									type="button"
-									onClick={() => void window.lyra.workspace.reveal(tree.path)}
+									onClick={() => void bridge.workspace.reveal(tree.path)}
 									className="rounded-md px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 								>
 									在访达中显示

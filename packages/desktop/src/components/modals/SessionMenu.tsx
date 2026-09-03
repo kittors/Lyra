@@ -13,6 +13,7 @@ import { useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../Popover.tsx";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 
 export function SessionMenu({
 	anchor,
@@ -227,7 +228,7 @@ export function SessionMenu({
 				<MenuItem
 					icon={<ExternalLink size={13} strokeWidth={1.8} />}
 					onClick={() => {
-						void window.lyra.system.openExternal(`lyra://session/${session.id}`).catch(() => {});
+						void bridge.system.openExternal(`lyra://session/${session.id}`).catch(() => {});
 						notify("正在新窗口中打开…");
 						onClose();
 					}}

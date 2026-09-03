@@ -20,6 +20,7 @@ import { GroupHeader } from "./GroupHeader.tsx";
 import { SkeletonList } from "../Skeleton.tsx";
 import type { SyncPlan } from "./syncPlan.ts";
 import type { Act } from "./types.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Staged above unstaged, with the commit box under both.
@@ -71,8 +72,8 @@ export function ChangesView({
   useEffect(() => {
     let live = true;
     void Promise.all([
-      window.lyra.git.diffRefs(cwd, "HEAD", null),
-      window.lyra.diff.workspaceDiff(cwd),
+      bridge.git.diffRefs(cwd, "HEAD", null),
+      bridge.diff.workspaceDiff(cwd),
     ]).then(([indexDiff, treeDiff]) => {
       if (!live) return;
       setHunks({ staged: indexDiff.files, unstaged: treeDiff.files });
@@ -158,7 +159,7 @@ export function ChangesView({
               action="取消全部"
               disabled={busy}
               onAction={() =>
-                void act(() => window.lyra.git.unstage(cwd, stagedPaths))
+                void act(() => bridge.git.unstage(cwd, stagedPaths))
               }
             />
             <button
@@ -183,7 +184,7 @@ export function ChangesView({
                   size="sm"
                   disabled={busy}
                   onClick={() =>
-                    void act(() => window.lyra.git.unstage(cwd, [file.path]))
+                    void act(() => bridge.git.unstage(cwd, [file.path]))
                   }
                 />
               )}
@@ -199,7 +200,7 @@ export function ChangesView({
                   size="sm"
                   disabled={busy}
                   onClick={() =>
-                    void act(() => window.lyra.git.unstage(cwd, [file.path]))
+                    void act(() => bridge.git.unstage(cwd, [file.path]))
                   }
                 />
               )}
@@ -215,7 +216,7 @@ export function ChangesView({
               action="全部暂存"
               disabled={busy}
               onAction={() =>
-                void act(() => window.lyra.git.stage(cwd, unstagedPaths))
+                void act(() => bridge.git.stage(cwd, unstagedPaths))
               }
             />
             {stagedPaths.length === 0 && (
@@ -250,7 +251,7 @@ export function ChangesView({
                           "这个文件会回到上次提交的样子；没提交过的内容找不回来，git 里也没有它的副本。",
                         confirmLabel: "放弃改动",
                         onConfirm: () =>
-                          void act(() => window.lyra.git.discard(cwd, [file.path])),
+                          void act(() => bridge.git.discard(cwd, [file.path])),
                       })
                     }
                   />
@@ -260,7 +261,7 @@ export function ChangesView({
                     size="sm"
                     disabled={busy}
                     onClick={() =>
-                      void act(() => window.lyra.git.stage(cwd, [file.path]))
+                      void act(() => bridge.git.stage(cwd, [file.path]))
                     }
                   />
                 </>
@@ -285,7 +286,7 @@ export function ChangesView({
                           "这个文件会回到上次提交的样子；没提交过的内容找不回来，git 里也没有它的副本。",
                         confirmLabel: "放弃改动",
                         onConfirm: () =>
-                          void act(() => window.lyra.git.discard(cwd, [file.path])),
+                          void act(() => bridge.git.discard(cwd, [file.path])),
                       })
                     }
                   />
@@ -295,7 +296,7 @@ export function ChangesView({
                     size="sm"
                     disabled={busy}
                     onClick={() =>
-                      void act(() => window.lyra.git.stage(cwd, [file.path]))
+                      void act(() => bridge.git.stage(cwd, [file.path]))
                     }
                   />
                 </>
@@ -310,7 +311,7 @@ export function ChangesView({
         stagedCount={stagedPaths.length}
         busy={busy}
         disabled={nothing}
-        onCommit={(next) => act(() => window.lyra.git.commitStaged(cwd, next))}
+        onCommit={(next) => act(() => bridge.git.commitStaged(cwd, next))}
       />
 
       {confirm.element}

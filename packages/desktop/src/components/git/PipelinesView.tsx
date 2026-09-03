@@ -30,6 +30,7 @@ import { Scroller } from "../Scroller.tsx";
 import { SkeletonBar, SkeletonList, useSlowLoad } from "../Skeleton.tsx";
 import { readCachedDetail, readCachedRuns, writeCachedDetail, writeCachedRuns } from "./pipeline-cache.ts";
 import { relativeTime } from "./relative-time.ts";
+import { bridge } from "../../services/index.ts";
 
 interface PipelinesViewProps {
 	cwd: string;
@@ -150,7 +151,7 @@ export function PipelinesView({ cwd, onOpenRelease }: PipelinesViewProps) {
 			if (!silent && runs.length === 0) setLoading(true);
 			else setRefreshing(true);
 			try {
-				const list = await window.lyra.git.listWorkflowRuns(cwd, 30);
+				const list = await bridge.git.listWorkflowRuns(cwd, 30);
 				setRuns(list);
 				writeCachedRuns(cwd, list);
 			} finally {
@@ -172,7 +173,7 @@ export function PipelinesView({ cwd, onOpenRelease }: PipelinesViewProps) {
 				}
 			}
 			try {
-				const detail = await window.lyra.git.workflowRunStatus(cwd, runId);
+				const detail = await bridge.git.workflowRunStatus(cwd, runId);
 				setRunDetail(detail);
 				if (detail) writeCachedDetail(cwd, runId, detail);
 			} finally {

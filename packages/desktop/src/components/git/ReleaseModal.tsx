@@ -22,6 +22,7 @@ import { MenuBody, MenuItem } from "../Menu.tsx";
 import { Overlay } from "../modals/Overlay.tsx";
 import { Popover } from "../Popover.tsx";
 import { Scroller } from "../Scroller.tsx";
+import { bridge } from "../../services/index.ts";
 
 interface ReleaseModalProps {
 	cwd: string;
@@ -57,7 +58,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		setLoading(true);
 		setError(null);
 		try {
-			const res = await window.lyra.git.releaseInfo(cwd);
+			const res = await bridge.git.releaseInfo(cwd);
 			if (res) {
 				setInfo(res);
 				setCustomVersion(res.suggestedVersion.patch);
@@ -126,7 +127,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 			try {
 				const isZh = lang === "zh";
 				// Fetch fresh release info from repository
-				const freshInfo = await window.lyra.git.releaseInfo(cwd).catch(() => null);
+				const freshInfo = await bridge.git.releaseInfo(cwd).catch(() => null);
 				const targetInfo = freshInfo ?? info;
 				if (freshInfo) setInfo(freshInfo);
 
@@ -211,7 +212,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		if (!dryRunId) return;
 		let alive = true;
 		const interval = setInterval(async () => {
-			const status = await window.lyra.git.workflowRunStatus(cwd, dryRunId);
+			const status = await bridge.git.workflowRunStatus(cwd, dryRunId);
 			if (alive && status) {
 				setDryRunStatus(status);
 				if (status.status === "completed") {
@@ -231,7 +232,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		setDryRunNotice(null);
 		setTriggeringDryRun(true);
 		try {
-			const res = await window.lyra.git.triggerDryRun(cwd);
+			const res = await bridge.git.triggerDryRun(cwd);
 			if (!res.ok) {
 				setError(res.error ?? "触发 GitHub Actions 试运行失败");
 				return;
@@ -255,7 +256,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		setPublishing(true);
 
 		// 1. Bump version files
-		const bumpRes = await window.lyra.git.bumpVersion(cwd, currentTargetVersion);
+		const bumpRes = await bridge.git.bumpVersion(cwd, currentTargetVersion);
 		if (!bumpRes.ok) {
 			setPublishing(false);
 			setError(bumpRes.error ?? "更新 package.json 失败");
@@ -263,7 +264,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		}
 
 		// 2. Publish git tag & push
-		const pubRes = await window.lyra.git.publishReleaseTag(cwd, currentTargetVersion);
+		const pubRes = await bridge.git.publishReleaseTag(cwd, currentTargetVersion);
 		setPublishing(false);
 		if (!pubRes.ok) {
 			setError(pubRes.error ?? "发布 Git Tag 失败");

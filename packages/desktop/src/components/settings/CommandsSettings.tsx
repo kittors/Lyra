@@ -18,6 +18,7 @@ import { useApp } from "../../store.ts";
 import { EmptyHint, GhostButton, PrimaryButton } from "./controls.tsx";
 import { TextInput } from "./inputs.tsx";
 import { Card, ListRow, SectionTitle } from "./layout.tsx";
+import { bridge } from "../../services/index.ts";
 
 type Tab = "commands" | "tools";
 
@@ -74,7 +75,7 @@ function SlashCommands() {
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(() => {
-		void window.lyra.commands.list(cwd).then(setList);
+		void bridge.commands.list(cwd).then(setList);
 	}, [cwd]);
 
 	useEffect(refresh, [refresh]);
@@ -93,7 +94,7 @@ function SlashCommands() {
 
 	async function create() {
 		setError(null);
-		const result = await window.lyra.commands.create(scope, name.trim(), cwd);
+		const result = await bridge.commands.create(scope, name.trim(), cwd);
 		if (!result.ok) {
 			setError(result.error);
 			return;
@@ -101,7 +102,7 @@ function SlashCommands() {
 		setName("");
 		refresh();
 		// Straight into the editor: a new command is an empty file until somebody writes the prompt.
-		await window.lyra.commands.open(result.path);
+		await bridge.commands.open(result.path);
 	}
 
 	const commands = list?.commands ?? [];
@@ -177,12 +178,12 @@ function SlashCommands() {
 			<div className="mb-2 flex items-center justify-between">
 				<SectionTitle>可用命令（{commands.length}）</SectionTitle>
 				<div className="flex items-center gap-1">
-					<GhostButton onClick={() => void window.lyra.commands.reveal("user", cwd)}>
+					<GhostButton onClick={() => void bridge.commands.reveal("user", cwd)}>
 						<FolderOpen size={13} strokeWidth={1.9} />
 						个人目录
 					</GhostButton>
 					{cwd && (
-						<GhostButton onClick={() => void window.lyra.commands.reveal("workspace", cwd)}>
+						<GhostButton onClick={() => void bridge.commands.reveal("workspace", cwd)}>
 							<FolderOpen size={13} strokeWidth={1.9} />
 							项目目录
 						</GhostButton>
@@ -212,7 +213,7 @@ function SlashCommands() {
 								}
 								detail={command.description || command.path}
 								actions={<span className="text-detail text-ink-faint">{originOf(command)}</span>}
-								onOpen={() => void window.lyra.commands.open(command.path)}
+								onOpen={() => void bridge.commands.open(command.path)}
 								openLabel={`编辑 ${command.name}`}
 							/>
 						))}
@@ -230,7 +231,7 @@ function ToolInventory() {
 
 	useEffect(() => {
 		if (!activeSessionId) return;
-		void window.lyra.sessions.capabilities(activeSessionId).then(setCapabilities);
+		void bridge.sessions.capabilities(activeSessionId).then(setCapabilities);
 	}, [activeSessionId]);
 
 	const tools = capabilities?.toolNames ?? [];

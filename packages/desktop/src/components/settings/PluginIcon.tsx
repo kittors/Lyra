@@ -25,6 +25,7 @@ import { Blocks, FileText, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { BundleKind } from "@lyra/core";
+import { bridge } from "../../services/index.ts";
 
 /**
  * A colour we are willing to put in a stylesheet.
@@ -133,7 +134,7 @@ function useResolved(logo: string | undefined): string | null {
 	useEffect(() => {
 		if (!remote) return setResolved(null);
 		let alive = true;
-		void window.lyra.plugins
+		void bridge.plugins
 			.icon(remote)
 			.then((data) => alive && setResolved(data))
 			.catch(() => alive && setResolved(null));

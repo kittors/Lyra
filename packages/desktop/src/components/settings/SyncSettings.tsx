@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../../store.ts";
 import { Badge, Card, Field, GhostButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { pairingCode, parseEndpoint, routeLabel, type PairingRoute } from "./pairing.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Connecting a phone, as one thing to point a camera at.
@@ -82,7 +83,7 @@ export function SyncSettings() {
 						<Toggle
 							checked={running || settings.sync.enabled}
 							onChange={(on) => {
-								void (on ? window.lyra.sync.start() : window.lyra.sync.stop()).then(() => void refreshSync());
+								void (on ? bridge.sync.start() : bridge.sync.stop()).then(() => void refreshSync());
 							}}
 						/>
 					}
@@ -254,7 +255,7 @@ export function SyncSettings() {
 												<span className="text-detail text-ink-faint">配对令牌</span>
 												<GhostButton
 													onClick={() => {
-														void window.lyra.sync.rotateToken().then(() => void refreshSync());
+														void bridge.sync.rotateToken().then(() => void refreshSync());
 													}}
 												>
 													<span className="flex items-center gap-1.5">

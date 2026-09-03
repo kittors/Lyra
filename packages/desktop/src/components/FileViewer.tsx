@@ -11,6 +11,7 @@ import { directoryOf } from "./markdown-assets.ts";
 import { Scroller } from "./Scroller.tsx";
 import { useApp } from "../store.ts";
 import { useOpenFile } from "../store/openFile.ts";
+import { bridge } from "../services/index.ts";
 
 const IMAGE = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "svg"]);
 const VIDEO = new Set(["mp4", "webm", "mov", "mkv", "m4v"]);
@@ -102,7 +103,7 @@ export function FileViewer({
 	// Truncated files must not be saved: writing back the head would delete the rest.
 	const readOnly = contents.truncated;
 
-	const media = window.lyra.files.mediaUrl(path);
+	const media = bridge.files.mediaUrl(path);
 
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">

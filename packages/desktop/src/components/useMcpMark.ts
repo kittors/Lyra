@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 
 import { useApp } from "../store.ts";
 import { markFor, type BundleMarks, type McpMark } from "./mcp-marks.ts";
+import { bridge } from "../services/index.ts";
 
 /**
  * The installed bundles' marks, read once per window and re-read when something is installed.
@@ -24,7 +25,7 @@ let inFlight: Promise<unknown> | null = null;
 const listeners = new Set<() => void>();
 
 async function load(nonce: number, cwd: string): Promise<void> {
-	const scan = await window.lyra.plugins.list(cwd);
+	const scan = await bridge.plugins.list(cwd);
 	const marks: BundleMarks = {};
 	for (const bundle of scan.mcpBundles) {
 		marks[bundle.id] = { logo: bundle.manifest.interface?.logo, brandColor: bundle.manifest.interface?.brandColor };

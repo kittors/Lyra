@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { dirName, isDescendantPath } from "./paths.ts";
+import { bridge } from "../../services/index.ts";
 
 /** Our own type, so a drag from this tree is distinguishable from a drag out of the Finder. */
 const PATHS = "application/x-lyra-paths";
@@ -127,7 +128,7 @@ export function useTreeDrag({
 			}
 
 			// From outside: `File.path` was removed in Electron 32, so the preload resolves it.
-			const sources = [...event.dataTransfer.files].map((file) => window.lyra.files.pathForDrop(file)).filter(Boolean);
+			const sources = [...event.dataTransfer.files].map((file) => bridge.files.pathForDrop(file)).filter(Boolean);
 			if (sources.length > 0) onImport(sources, dir);
 		},
 		[allows, cancelSpring, onImport, onTransfer],

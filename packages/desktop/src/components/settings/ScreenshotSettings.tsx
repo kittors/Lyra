@@ -7,6 +7,7 @@
 
 import { Camera, FolderOpen } from "lucide-react";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 import {
 	Card,
 	GhostButton,
@@ -42,7 +43,7 @@ export function ScreenshotSettings() {
 	};
 
 	const pickDirectory = async () => {
-		const dir = await window.lyra.screenshot.pickDirectory();
+		const dir = await bridge.screenshot.pickDirectory();
 		if (dir) {
 			patch({ saveLocation: dir });
 		}
@@ -87,7 +88,7 @@ export function ScreenshotSettings() {
 					title="测试截图"
 					detail="立即触发一次屏幕区域截图"
 					control={
-						<GhostButton icon={<Camera size={14} />} onClick={() => void window.lyra.screenshot.start()}>
+						<GhostButton icon={<Camera size={14} />} onClick={() => void bridge.screenshot.start()}>
 							立即截屏
 						</GhostButton>
 					}

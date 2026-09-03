@@ -51,6 +51,7 @@ import { SearchSettings } from "./SearchSettings.tsx";
 import { SyncSettings } from "./SyncSettings.tsx";
 import { UsageSettings } from "./UsageSettings.tsx";
 import { WorktreesSettings } from "./WorktreesSettings.tsx";
+import { bridge, onPhone } from "../../services/index.ts";
 
 /**
  * Sections that fill the window and scroll their own panes.
@@ -117,22 +118,22 @@ export function SettingsShell() {
 	const [platform, setPlatform] = useState("darwin");
 
 	useEffect(() => {
-		void window.lyra.system.platform().then(setPlatform);
+		void bridge.system.platform().then(setPlatform);
 	}, []);
 
-	const onPhone = window.lyra?.host === "mobile";
+	const phone = onPhone();
 
-	const section = sectionFor(GROUPS, wanted, window.lyra?.host === "mobile");
+	const section = sectionFor(GROUPS, wanted, phone);
 
 	const groups = groupsFor(
 		GROUPS.map((group) => {
-			if (group.label !== "基础设置" || platform !== "darwin" || onPhone) return group;
+			if (group.label !== "基础设置" || platform !== "darwin" || phone) return group;
 			// Insert screenshot settings into 基础设置
 			const items = [...group.items];
 			items.splice(items.length - 1, 0, { id: "screenshot" as const, label: "屏幕截图", icon: Camera });
 			return { ...group, items };
 		}),
-		onPhone,
+		phone,
 	);
 
 	useEffect(() => {

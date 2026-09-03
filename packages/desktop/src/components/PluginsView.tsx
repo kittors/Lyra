@@ -35,6 +35,7 @@ import { RegistrySources } from "./plugins/RegistrySources.tsx";
 import { settingsAfterToggle } from "./plugins/toggle.ts";
 import { groupByCategory, isEnabled, isInstalled, UNFILED, useCatalog, type CatalogItem } from "./plugins/useCatalog.ts";
 import { RollingText } from "./RollingText.tsx";
+import { bridge } from "../services/index.ts";
 
 /**
  * Which of the three the page is showing.
@@ -658,7 +659,7 @@ function SkillList({ skills, needle }: { skills: Skill[]; needle: string }) {
 					key={`${skill.source}:${skill.name}`}
 					type="button"
 					data-ly-tip="打开目录"
-					onClick={() => void window.lyra.system.openPath(skill.dir)}
+					onClick={() => void bridge.system.openPath(skill.dir)}
 					className="flex items-start gap-3 rounded-xl p-3 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
 				>
 					<SkillMark size={36} />

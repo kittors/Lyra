@@ -28,6 +28,7 @@ import { PluginIcon } from "../settings/PluginIcon.tsx";
 import { FootprintLine, IdentityLine } from "./CardMeta.tsx";
 import { isEnabled, isInstalled, type CatalogItem } from "./catalog.ts";
 import { useInstall } from "./useInstall.ts";
+import { bridge } from "../../services/index.ts";
 
 export function CatalogCard({
 	item,
@@ -268,7 +269,7 @@ export function CatalogCard({
 							icon={<FolderOpen size={13} strokeWidth={1.8} />}
 							onClick={() => {
 								close();
-								void window.lyra.system.openPath(dir);
+								void bridge.system.openPath(dir);
 							}}
 						>
 							打开目录

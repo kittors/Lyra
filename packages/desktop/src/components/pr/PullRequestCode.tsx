@@ -14,6 +14,7 @@ import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { FileDiffList } from "../git/FileDiffList.tsx";
 import { Scroller } from "../Scroller.tsx";
 import { CodeSkeleton } from "./PullRequestSkeleton.tsx";
+import { bridge } from "../../services/index.ts";
 
 export function PullRequestCode({ accountId, repo, number }: { accountId: string; repo: string; number: number }) {
 	const [files, setFiles] = useState<WorkspaceDiffFile[] | null>(null);
@@ -23,7 +24,7 @@ export function PullRequestCode({ accountId, repo, number }: { accountId: string
 		let cancelled = false;
 		setFiles(null);
 		setError(null);
-		void window.lyra.git.pullRequestDiff(accountId, repo, number).then((result) => {
+		void bridge.git.pullRequestDiff(accountId, repo, number).then((result) => {
 			if (cancelled) return;
 			setFiles(result.files);
 			setError(result.error ?? null);

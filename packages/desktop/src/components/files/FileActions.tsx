@@ -19,6 +19,7 @@ import { openLabel, useOpenTarget } from "../../openTargets.ts";
 import { useApp } from "../../store.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { fileKind } from "../FileViewer.tsx";
+import { bridge } from "../../services/index.ts";
 
 /** How long 「已保存」 stays up: long enough to be read, gone before it is furniture. */
 const SAVED_NOTICE_MS = 1600;
@@ -116,7 +117,7 @@ export function FileActions() {
 			 * path in a named app was already there with no caller. This is the one place a file is
 			 * on screen with a path in hand, so it is where it belongs.
 			 */}
-			<Mark tip={openLabel(openTarget)} onClick={() => void window.lyra.system.openIn(openTarget.id, path)}>
+			<Mark tip={openLabel(openTarget)} onClick={() => void bridge.system.openIn(openTarget.id, path)}>
 				<ExternalLink size={12} strokeWidth={1.9} />
 			</Mark>
 		</>

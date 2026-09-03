@@ -9,6 +9,7 @@
 import type { SessionMeta } from "@lyra/core";
 import type { AppState } from "../store.ts";
 import { useSubAgents } from "./subAgents.ts";
+import { bridge } from "../services/index.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -16,13 +17,13 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
 export function workspaceSlice(set: Set, get: Get) {
   return {
   async pickWorkspace() {
-    const workspace = await window.lyra.workspace.pick();
+    const workspace = await bridge.workspace.pick();
     if (!workspace) return;
     await get().openWorkspace(workspace.path);
   },
 
   async openWorkspace(path: string) {
-    const workspace = await window.lyra.workspace.info(path);
+    const workspace = await bridge.workspace.info(path);
     if (!workspace) return;
 
     /*
@@ -73,7 +74,7 @@ export function workspaceSlice(set: Set, get: Get) {
   async refreshWorkspace() {
     const current = get().workspace;
     if (!current) return;
-    const workspace = await window.lyra.workspace.info(current.path);
+    const workspace = await bridge.workspace.info(current.path);
     if (workspace) set({ workspace });
   },
 
@@ -128,7 +129,7 @@ export function workspaceSlice(set: Set, get: Get) {
   },
 
   async clearWorkspace() {
-    const scratchCwd = await window.lyra.git.generalScratch().catch(() => null);
+    const scratchCwd = await bridge.git.generalScratch().catch(() => null);
     set({
       scratchCwd,
       workspace: null,
@@ -200,7 +201,7 @@ export function workspaceSlice(set: Set, get: Get) {
       ...(get().activeSessionId === session.id && get().meta ? { meta: { ...get().meta!, title: trimmed } } : {}),
     });
     try {
-      const updated = await window.lyra.sessions.rename(session.projectId, session.id, trimmed);
+      const updated = await bridge.sessions.rename(session.projectId, session.id, trimmed);
       if (updated) {
         set({
           sessions: get().sessions.map((s) => (s.id === session.id ? { ...s, ...updated } : s)),
@@ -295,7 +296,7 @@ export function workspaceSlice(set: Set, get: Get) {
     // Sequential rather than parallel: each call rewrites the shared session index.
     let latest = get().sessions;
     for (const session of targets) {
-      latest = await window.lyra.sessions.setArchived(
+      latest = await bridge.sessions.setArchived(
         session.projectId,
         session.id,
         true,

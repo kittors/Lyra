@@ -26,6 +26,7 @@ import { NewRow, TreeRow } from "./TreeRow.tsx";
 import { useFileActions } from "./useFileActions.ts";
 import { useFileTree } from "./useFileTree.ts";
 import { useTreeDrag } from "./useTreeDrag.ts";
+import { bridge } from "../../services/index.ts";
 
 export function FileTree({
 	root,
@@ -384,8 +385,8 @@ export function FileTree({
 					canPaste={actions.clipboard !== null}
 					actions={{
 						open: activate,
-						openWith: (path) => void window.lyra.system.openIn(openWith.id, path),
-						reveal: (path) => void window.lyra.workspace.reveal(path),
+						openWith: (path) => void bridge.system.openIn(openWith.id, path),
+						reveal: (path) => void bridge.workspace.reveal(path),
 						// Single-quoted so a space or a bracket in the path cannot become shell syntax.
 						openInTerminal: (dir) => runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`),
 						newFile: (dir) => startCreate(dir, "file"),

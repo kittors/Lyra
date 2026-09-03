@@ -4,6 +4,7 @@ import type { BranchList } from "../../../electron/ipc-types.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuLabel, MenuSearch, Popover, type Anchor } from "../Popover.tsx";
 import { ScrollText } from "../ScrollText.tsx";
 import { useApp } from "../../store.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * The last list seen for a workspace, so reopening the menu does not start from nothing.
@@ -35,7 +36,7 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 	useEffect(() => {
 		if (!workspace) return;
 		let live = true;
-		void window.lyra.git.branches(workspace.path).then((list) => {
+		void bridge.git.branches(workspace.path).then((list) => {
 			lastSeen.set(workspace.path, list);
 			if (live) setBranches(list);
 		});
@@ -86,7 +87,7 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 		onClose();
 		setSwitching(target);
 		try {
-			const result = await window.lyra.git.switchBranch(workspace.path, target);
+			const result = await bridge.git.switchBranch(workspace.path, target);
 			if (!result.ok) {
 				notify(result.error ?? "切换分支失败", "error");
 				return;

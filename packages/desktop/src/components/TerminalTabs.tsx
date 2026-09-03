@@ -21,6 +21,7 @@ import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import { useApp } from "../store.ts";
 import { useTerminals } from "../store/terminals.ts";
+import { bridge } from "../services/index.ts";
 
 export function TerminalTabs() {
 	const tabs = useTerminals((s) => s.tabs);
@@ -69,12 +70,12 @@ export function TerminalTabs() {
 	 * all and no way back to a shell that was still running.
 	 */
 	const openAnother = async () => {
-		const opened = await window.lyra.terminal.open(useApp.getState().workspace?.path ?? "", 80, 24);
+		const opened = await bridge.terminal.open(useApp.getState().workspace?.path ?? "", 80, 24);
 		useTerminals.getState().add({ id: opened.id, title: opened.title });
 	};
 
 	const close = (id: string) => {
-		window.lyra.terminal.kill(id);
+		bridge.terminal.kill(id);
 		useTerminals.getState().remove(id);
 	};
 

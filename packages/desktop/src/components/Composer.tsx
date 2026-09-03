@@ -28,6 +28,7 @@ import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } fr
 import { FileKindIcon } from "./attachments/FileKindIcon.tsx";
 import { useApp } from "../store.ts";
 import { sessionThinking } from "../thinking.ts";
+import { bridge } from "../services/index.ts";
 
 const PERMISSION_LABEL: Record<string, string> = {
 	ask: "请求批准",
@@ -194,7 +195,7 @@ export function Composer() {
 				origin: "内置",
 				run: async () => {
 					if (!activeSessionId) return;
-					const result = await window.lyra.sessions.compact(activeSessionId);
+					const result = await bridge.sessions.compact(activeSessionId);
 					if (result.ok) useApp.getState().notify("已把之前的对话压缩成摘要。");
 					else if (result.reason) useApp.getState().notify(result.reason, "warn");
 				},
@@ -288,7 +289,7 @@ export function Composer() {
 	useEffect(() => {
 		if (!commandMode) return;
 		let alive = true;
-		void window.lyra.commands.list(workspace?.path ?? "").then((result) => {
+		void bridge.commands.list(workspace?.path ?? "").then((result) => {
 			if (!alive) return;
 			setCommands(result.commands);
 			setSkills(result.skills ?? []);
@@ -388,7 +389,7 @@ export function Composer() {
 			const fresh =
 				commands.length > 0 || skills.length > 0
 					? { commands, skills }
-					: await window.lyra.commands
+					: await bridge.commands
 							.list(workspace?.path ?? "")
 							.catch(() => ({ commands: [] as typeof commands, skills: [] as SkillEntry[] }));
 			const command = fresh.commands.find((c) => c.name === invocation.name);
@@ -516,7 +517,7 @@ export function Composer() {
 	}
 
 	const takeScreenshot = useCallback(async () => {
-		await window.lyra.screenshot.start(settings?.screenshot);
+		await bridge.screenshot.start(settings?.screenshot);
 	}, [settings?.screenshot]);
 
 	return (
@@ -738,7 +739,7 @@ export function Composer() {
 							>
 								<Plus size={16} strokeWidth={1.9} />
 							</button>
-							{window.lyra?.platform === "darwin" && settings?.screenshot?.showInComposer && (
+							{bridge.platform === "darwin" && settings?.screenshot?.showInComposer && (
 								<button
 									type="button"
 									data-ly-tip={`屏幕截图 ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}

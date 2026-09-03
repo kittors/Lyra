@@ -21,6 +21,7 @@ import type {
   WorkspaceInfo,
 } from "../electron/ipc-types.ts";
 import { useSide } from "./sideStore.ts";
+import { bridge } from "./services/index.ts";
 
 /**
  * `plugins` is the catalogue, not the plugin *settings*.
@@ -435,20 +436,20 @@ export const useApp = create<AppState>((set, get) => ({
     booted = true;
 
     const [settings, sessions] = await Promise.all([
-      window.lyra.settings.get(),
-      window.lyra.sessions.list(),
+      bridge.settings.get(),
+      bridge.sessions.list(),
     ]);
     const lastProject = settings.projects
       .slice()
       .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)[0];
     const workspace = lastProject
-      ? await window.lyra.workspace.info(lastProject.path)
+      ? await bridge.workspace.info(lastProject.path)
       : null;
     // Where pull request conversations live, so the sidebar can leave them out. One call, at
     // boot: it is derived from the app's home and cannot change while running.
     // Where project-less conversations live, so the sidebar can leave them out. One call, at
     // boot: it is derived from the app's home and cannot change while running.
-    const scratchRoots = await window.lyra.git.scratchRoots().catch(() => []);
+    const scratchRoots = await bridge.git.scratchRoots().catch(() => []);
     set({ settings, sessions, workspace, scratchRoots, ready: true });
 
     /*
@@ -463,16 +464,16 @@ export const useApp = create<AppState>((set, get) => ({
      * Also bumps `extensionsNonce`, because a change to `mcpServers` usually means a directory
      * appeared or vanished as well, and the lists that scan disk have no other way to hear it.
      */
-    window.lyra.settings.onChanged((next) =>
+    bridge.settings.onChanged((next) =>
       set((state) => ({ settings: next, extensionsNonce: state.extensionsNonce + 1 })),
     );
 
-    window.lyra.agent.onEvent(({ sessionId, event }) =>
+    bridge.agent.onEvent(({ sessionId, event }) =>
       get().applyEvent(sessionId, event),
     );
     // The side chat is a separate conversation on a separate channel, for the same reason
     // it is a separate store: its replies must never land in the main transcript.
-    window.lyra.sideChat.onEvent(({ sessionId, event }) =>
+    bridge.sideChat.onEvent(({ sessionId, event }) =>
       useSide.getState().applyEvent(sessionId, event),
     );
     void get().refreshSync();
@@ -503,7 +504,7 @@ export const useApp = create<AppState>((set, get) => ({
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {
-    const saved = await window.lyra.settings.save(settings);
+    const saved = await bridge.settings.save(settings);
     set({ settings: saved });
   },
 

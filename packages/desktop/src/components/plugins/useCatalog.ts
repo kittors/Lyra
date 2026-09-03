@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useApp } from "../../store.ts";
 import { merge, type CatalogItem } from "./catalog.ts";
+import { bridge } from "../../services/index.ts";
 
 export interface Catalog {
 	items: CatalogItem[];
@@ -106,7 +107,7 @@ export function useCatalog(): Catalog {
 	// Both halves land independently; a slow registry must not hold back what is already on disk.
 	useEffect(() => {
 		let cancelled = false;
-		void window.lyra.plugins.list(cwd).then((scan) => {
+		void bridge.plugins.list(cwd).then((scan) => {
 			if (cancelled) return;
 			setLocal({
 				plugins: scan.plugins ?? [],
@@ -142,7 +143,7 @@ export function useCatalog(): Catalog {
 		 * and dressing it as one replaces what you were reading with a loading state.
 		 */
 		if (!seen.has(urlsKey)) setLoading(true);
-		void Promise.all(urls.map((url) => window.lyra.plugins.fetchRegistry(url, forced > 0))).then((results) => {
+		void Promise.all(urls.map((url) => bridge.plugins.fetchRegistry(url, forced > 0))).then((results) => {
 			if (cancelled) return;
 			const entries = results.flatMap((result) =>
 				result.ok ? result.registry.entries.map((entry) => ({ from: result.registry.name, entry })) : [],
@@ -202,7 +203,7 @@ export function useCatalog(): Catalog {
 	useEffect(() => {
 		if (!logosKey) return;
 		let cancelled = false;
-		void window.lyra.plugins
+		void bridge.plugins
 			// Optional, because the main process does not hot-reload: during a dev session where the
 			// renderer has this code and the main process does not, the logos simply stay unresolved
 			// and every card draws its own mark — which is what an unfetchable logo does anyway.
