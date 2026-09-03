@@ -55,7 +55,7 @@ import type { TrayCommand } from "./tray-menu.ts";
 export type { DocumentData, DocumentSheet } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
 import type { UsageScan } from "./usage-scan.ts";
-export type { DocumentKind } from "./document-kind.ts";
+export type { DocumentKind } from "../shared/document-kind.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
 

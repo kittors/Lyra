@@ -1,7 +1,7 @@
 import { FileWarning } from "lucide-react";
 import type { FileContents } from "../../electron/ipc-types.ts";
 import { CodeEditor } from "./CodeEditor.tsx";
-import { documentKind } from "../../electron/document-kind.ts";
+import { documentKind } from "../../shared/document-kind.ts";
 import { FileTabs } from "./files/FileTabs.tsx";
 import { PdfView, WordView } from "./files/DocumentView.tsx";
 import { ImagePane } from "./files/ImagePane.tsx";
@@ -49,7 +49,7 @@ export function fileKind(name: string, contents: FileContents | null): FileKind 
 	/*
 	 * Documents, before the NUL-byte check that would otherwise call all of them binary.
 	 *
-	 * `documentKind` is shared with the main process — see `electron/document-kind.ts` — because
+	 * `documentKind` is shared with the main process — see `shared/document-kind.ts` — because
 	 * the two have to agree about what a `.xlsx` is. The window decides which pane to draw and the
 	 * main process decides which reader to run; disagreement there is a file that opens as
 	 * mojibake in a pane that was expecting rows.

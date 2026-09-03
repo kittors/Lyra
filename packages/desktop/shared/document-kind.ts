@@ -6,6 +6,11 @@
  * spreadsheet to one and text to the other opens as mojibake.
  *
  * No Electron import, so it can be read and tested without one.
+ *
+ * In `shared/` rather than beside the main process, which is where it used to sit. The renderer
+ * imported it across that boundary — harmless in itself, since there is nothing to import *from*
+ * Electron here, but indistinguishable to any tool from the imports that are not harmless. A file
+ * both processes own belongs in neither.
  */
 
 export type DocumentKind = "workbook" | "database" | "pdf" | "document";

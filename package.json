@@ -25,12 +25,14 @@
     "prepare": "lefthook install",
     "test:e2e": "pnpm --filter @lyra/desktop test:e2e",
     "release": "node scripts/release.mjs",
-    "release:rehearse": "node scripts/release.mjs rehearse"
+    "release:rehearse": "node scripts/release.mjs rehearse",
+    "arch": "depcruise --config .dependency-cruiser.cjs packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/agent-cli/src packages/registry-shared/src"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
     "@types/node": "24.13.3",
+    "dependency-cruiser": "^18.2.0",
     "git-cliff": "^2.13.1",
     "knip": "^6.33.0",
     "lefthook": "^2.1.12",

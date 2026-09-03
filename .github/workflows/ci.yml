@@ -114,6 +114,22 @@ jobs:
       - run: pnpm build
       - run: pnpm test:e2e
 
+  arch:
+    # The dependency rules, checked. `.dependency-cruiser.cjs` says what each one is for.
+    #
+    # The rules that are `error` are the ones with no violations today: core stays platform-free, the
+    # renderer does not link against the main process, `shared/` belongs to neither, the relay stays
+    # dependency-free. Those cannot regress without this going red.
+    #
+    # Circular imports are `warn` — there are fifty-odd, the application works, and turning them red
+    # on arrival would have meant untangling all of them before any other rule could be enforced.
+    # The count is in the output; it is meant to go down.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm arch
+
   dead-code:
     # Reported, not enforced. Knip is right often enough to be worth reading and wrong often
     # enough that failing a pull request on it would teach people to ignore it.
@@ -159,7 +175,7 @@ jobs:
   # The single required check. Everything above must pass; `dead-code` is deliberately not here.
   all-green:
     if: always()
-    needs: [lint, typecheck, test, build, e2e, e2e-scope, mobile-bundle]
+    needs: [lint, typecheck, test, build, e2e, e2e-scope, mobile-bundle, arch]
     runs-on: ubuntu-latest
     steps:
       - name: Verdict

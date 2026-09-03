@@ -35,3 +35,8 @@ pre-push:
 
     - name: test
       run: pnpm test
+
+    - name: arch
+      # Two seconds, and it answers the one question a type checker cannot: not "does this compile"
+      # but "is this allowed to import that".
+      run: pnpm arch
