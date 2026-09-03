@@ -47,3 +47,20 @@
 
 有些测试在等固定的帧数或毫秒（`menu-usage-polish.test.ts` 里那条骨架屏的就是等 16 帧）。机器
 上同时跑着别的东西时它们会假红。**先单独重跑那个文件两次再定性**，不要直接当成回归。
+
+### 判断一条红线是不是自己弄的
+
+完整跑一次 20 分钟，而且它自己的失败数会随机器负载浮动——同一份代码测出 17 条和 29 条都见过。
+所以对照要在**同样的条件下**做，不是拿完整跑的总数去比：
+
+```bash
+# 同一个文件，两个分支各单跑一次
+pkill -f "remote-debugging-port"          # 上一次没退干净的实例会占住调试端口
+cd <你的分支>/packages/desktop && node --test --test-concurrency=1 --experimental-strip-types e2e/dock.test.ts
+cd <main 的工作树>/packages/desktop && node --test --test-concurrency=1 --experimental-strip-types e2e/dock.test.ts
+```
+
+数字一样就没有回归。用 git worktree 开一个 main 的工作树，两边可以并排跑。
+
+**端口占用是最常见的假红**，而且伪装得很好：四条测试在几毫秒内全部失败，看起来像启动就崩。
+错误信息里会写「调试端口 XXXX 已被占用」，但它在一堆断言失败中间，容易被略过。
