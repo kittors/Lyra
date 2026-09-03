@@ -132,7 +132,12 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 | `packages/core/src/tools/` | 内置工具。`risk*.ts` 判定哪些命令需要人来点头 |
 | `packages/core/src/kernel/` | 插件内核：服务、事件、十条缝 |
 | `packages/desktop/electron/` | 主进程：IPC、窗口、Git、同步服务 |
-| `packages/desktop/src/` | 渲染进程 |
+| `packages/desktop/src/` | 渲染进程。九个目录，见 ARCHITECTURE.md |
+| `packages/desktop/src/features/` | 21 个功能域，跨域只经对方的 index |
+| `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
+| `packages/desktop/src/lib/` | 纯逻辑，没有 React |
+| `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，157 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
 | `packages/mobile/` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView |
 | `packages/relay/` | 中转服务。单文件，零依赖 |

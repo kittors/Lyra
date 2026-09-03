@@ -17,5 +17,7 @@
 | [0008](0008-node-test-and-happy-dom.md) | 测试用 node:test，组件测试加 happy-dom |
 | [0009](0009-no-build-orchestrator.md) | 不引 turbo/nx |
 | [0010](0010-updates-are-verified.md) | 更新包核对摘要，验不了就不装 |
+| [0011](0011-renderer-is-nine-directories.md) | 渲染进程按域分九个目录，归属按依赖判断 |
+| [0012](0012-one-contract-not-three.md) | 进程边界写在一处，不是三处 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

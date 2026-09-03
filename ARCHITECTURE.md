@@ -34,9 +34,38 @@ Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，�
 
 见 [ADR-0001](docs/adr/0001-mobile-hosts-the-desktop-renderer.md)。
 
+## 渲染进程的九个目录
+
+```
+src/
+├── main.tsx      入口
+├── app/          窗口怎么装起来：布局、快捷键、启动屏、窗口按钮
+├── features/     21 个用户看得见的域，各自一个目录
+├── ui/           谁都能用的组件——换个产品也成立
+├── lib/          纯逻辑：没有 React，没有主进程，不需要 DOM 就能测
+├── services/     跟主进程说话的唯一出口
+├── store/        跨域共享的状态；只有一个域用的留在那个域里
+├── styles/       样式，一个主题一个文件
+├── mobile/       只在手机宿主下生效的适配：键盘避让、抽屉手势
+└── assets/
+```
+
+新文件该放哪，按依赖判断而不是按名字：
+
+| 它 | 就放 |
+| --- | --- |
+| 不引 React，不碰主进程 | `lib/` |
+| 是组件，但不读 store、不调 service | `ui/` |
+| 知道「会话」「分支」「插件」是什么 | `features/<域>/` |
+| 只有一个域读写的状态 | `features/<域>/store.ts` |
+| 两个以上域读写的状态 | `store/` |
+
+前两条由 `pnpm arch` 与 oxlint 强制。
+
 ## 边界
 
-五条，由 `.dependency-cruiser.cjs` 执行，`pnpm arch` 检查，CI 里是必过项：
+由 `.dependency-cruiser.cjs` 与 `.oxlintrc.json` 执行，`pnpm arch` 与 `pnpm lint` 检查，
+CI 里都是必过项：
 
 1. **`core` 不 import 任何端。** 它是两个前端共用的运行时，一旦引了其中一个就不再是。
 2. **渲染进程从 `core` 只能 `import type`**，白名单子入口除外。从根入口导入*值*会把整个
@@ -46,6 +75,10 @@ Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，�
 4. **`shared/` 谁也不依赖。** 它是两个进程共有的判断（比如「这个文件该用哪种查看器」），
    偏向任何一端就有一端用不了它。
 5. **`relay` 零依赖。** 它的全部安全性就在于：转发字节，别的什么都不知道。
+6. **`@lyra/contract` 零依赖。** 它有三个消费者——主进程按它注册、preload 按它生成、
+   `sync-rpc` 按它决定手机能调什么——依赖谁就把谁拖进另外两个的构建里。
+7. **`ui/` 与 `lib/` 是叶子。** 见上一节。
+8. **`window.lyra` 只在 `services/bridge.ts`。** 由 oxlint 守。
 
 循环依赖目前是 warn（53 条，见 `pnpm arch` 的输出），清零后转 error。
 
@@ -53,11 +86,13 @@ Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，�
 
 | 想做的 | 去 |
 | --- | --- |
-| 加一个 IPC | `electron/ipc/<域>.ts` 注册 → `electron/ipc-types.ts` 声明 → `electron/preload.ts` 暴露；手机也要能用就加进 `electron/sync-rpc.ts` |
+| 加一个 IPC | `packages/contract/src/methods.ts` 登记（含手机能不能用及为什么）→ `electron/ipc/<域>.ts` 注册 → `electron/preload.ts` 暴露；契约的测试会检查三处一致 |
 | 加一个内置工具 | `core/src/tools/`，经 `useToolRegistry` 那条缝 |
 | 加一个右侧面板 | `src/panels/registry.ts` 注册一条记录 |
 | 改设计 token | `src/styles.css` 的 `@theme` 段 |
-| 加一个基础组件 | `src/components/`，配一条 `test/ui/` 的测试 |
+| 加一个基础组件 | `src/ui/<组>/`，配一条 `test/ui/` 的测试 |
+| 加一个功能 | `src/features/<域>/`；跨域只经对方的 index |
+| 调主进程 | `import { bridge } from "@/services"`；手机上能不能用问 `available()` |
 | 判断命令危不危险 | `core/src/tools/risk*.ts` |
 | 发版 | `pnpm release:rehearse` 然后 `pnpm release patch` |
 
