@@ -30,22 +30,35 @@ function everyMethod(): string[] {
 	return Object.entries(METHODS).flatMap(([group, methods]) => Object.keys(methods).map((name) => `${group}.${name}`));
 }
 
-test("契约里的每个 channel 都真的被 preload 用着", async () => {
+test("preload 是从契约生成的，而不是另抄一份", async () => {
+	/*
+	 * 这两条测试原本比对的是「契约里的每个 channel 字符串是否出现在 preload 的源码里」，
+	 * 反过来也比一次。那在 preload 手写 157 个 `ipcRenderer.invoke("…")` 的时候是对的检查。
+	 *
+	 * 现在 preload 遍历 `METHODS` 生成它们，源码里一个 channel 字面量都没有——旧的比对方式
+	 * 会永远失败，而它要防的问题（两处名字不一致）已经不可能发生了：名字只有一处。
+	 *
+	 * 于是改为检查那个前提本身还成立：preload 确实在读契约，并且没有偷偷写死 channel。
+	 */
 	const preload = await source("preload.ts");
-	const missing = CHANNELS.filter((channel) => !preload.includes(`"${channel}"`));
-	assert.deepEqual(missing, [], "契约里有 preload 不认识的 channel——多半是改名之后忘了同步");
-});
 
-test("preload 里的每个 channel 都在契约里", async () => {
-	const preload = await source("preload.ts");
-	const used = [...preload.matchAll(/ipcRenderer\.invoke\("([^"]+)"/g)].map((m) => m[1] as string);
-	const unknown = [...new Set(used)].filter((channel) => !CHANNELS.includes(channel));
+	assert.match(preload, /from "@lyra\/contract"/, "preload 必须从契约读方法表");
+	assert.match(preload, /Object\.entries\(METHODS\)/, "并且是遍历它来生成 invoke");
+
+	/*
+	 * 手写的 channel 字面量。
+	 *
+	 * 事件订阅仍然是手写的（`ipcRenderer.on("terminal:data", …)`），那是有意的——推送不在
+	 * `METHODS` 里。所以这里只挑 `invoke` 的调用来看。
+	 */
+	const hardcoded = [...preload.matchAll(/ipcRenderer\.invoke\("([^"]+)"/g)].map((m) => m[1] as string);
 	assert.deepEqual(
-		unknown,
+		hardcoded,
 		[],
-		"preload 调了契约里没有的 channel。加方法时这里会红——把它加进 methods.ts，顺便决定手机能不能用",
+		"preload 里出现了写死的 invoke channel——那正是这次改动要消灭的第二处拼写",
 	);
 });
+
 
 test("契约说手机能用的，sync-rpc 里都有实现", async () => {
 	const rpc = await source("sync-rpc.ts");

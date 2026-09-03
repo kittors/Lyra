@@ -9,7 +9,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./thinking-options": "./src/ai/thinking-options.ts",
-    "./node": "./src/node.ts",
     "./tokens": "./src/tokens.ts",
     "./activity": "./src/activity.ts",
     "./trajectory-view": "./src/trajectory-view.ts",

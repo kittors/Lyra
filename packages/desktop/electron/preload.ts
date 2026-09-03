@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { METHODS } from "@lyra/contract";
 import type { LyraApi } from "./ipc-types.ts";
 
 /**
@@ -52,108 +53,88 @@ paintBootTheme();
  * The renderer gets exactly this surface and nothing else — no `ipcRenderer`, no `require`.
  * Every method maps to one named channel so a compromised renderer cannot invoke arbitrary IPC.
  */
-const api: LyraApi = {
+/**
+ * The invoke half of `window.lyra`, built from the contract.
+ *
+ * One line per method used to live here — 156 of them, each spelling out a channel name that also
+ * appears in the main process's handler and, for the ones a phone may call, a third time in
+ * `sync-rpc`. Three spellings of one string, and a typo in any of them fails differently: a wrong
+ * channel here is `undefined is not a function`, a wrong one there is a call that never returns.
+ *
+ * Now the name exists once, in `@lyra/contract`, and this walks it. A method cannot be missing
+ * from the preload, and a channel cannot be misspelt, because neither is written twice.
+ *
+ * What is *not* generated: anything that subscribes to a push (`ipcRenderer.on`), and the two
+ * places that need something only the preload has — `webUtils` for a dropped file's path, and
+ * `process.platform`. Those stay written out below, which is also why this is a merge rather than
+ * a replacement.
+ */
+function invokers(): Record<string, unknown> {
+	const built: Record<string, Record<string, unknown>> = {};
+	for (const [group, methods] of Object.entries(METHODS)) {
+		built[group] = {};
+		for (const [name, method] of Object.entries(methods)) {
+			built[group][name] = (...args: unknown[]) => ipcRenderer.invoke(method.channel, ...args);
+		}
+	}
+	return built;
+}
+
+/**
+ * The generated methods, then the hand-written ones on top.
+ *
+ * Order matters: a group defined below — `terminal`, say, which also carries `onData` — has to
+ * merge *into* its generated half rather than replace it, or the invoke methods vanish.
+ */
+function merge(generated: Record<string, unknown>, extra: Record<string, unknown>): Record<string, unknown> {
+	const out: Record<string, unknown> = { ...generated };
+	for (const [key, value] of Object.entries(extra)) {
+		const base = out[key];
+		out[key] =
+			base && typeof base === "object" && value && typeof value === "object" && !Array.isArray(value)
+				? { ...(base as object), ...(value as object) }
+				: value;
+	}
+	return out;
+}
+
+/*
+ * 手写的那部分，按 `LyraApi` 的形状检查，但每一组都是可选的。
+ *
+ * 直接标 `LyraApi` 不行——这里只有事件订阅和两三个特例，缺掉的方法由 `invokers()` 补上，
+ * 而类型系统看不到那次合并。`DeepPartial` 让参数仍然能从接口推断出类型（那正是上一版丢掉的
+ * 东西：没有标注时 `handler` 全都成了隐式 any），同时允许这张表是不完整的。
+ */
+type DeepPartial<T> = {
+	// 函数原样保留——递归下去会把参数拆成 unknown，那正是上一版每个 handler 都成了隐式 any 的原因。
+	[K in keyof T]?: T[K] extends (...args: never[]) => unknown ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K];
+};
+
+const extras: DeepPartial<LyraApi> = {
 	platform: process.platform,
 	settings: {
-		get: () => ipcRenderer.invoke("settings:get"),
-		save: (settings) => ipcRenderer.invoke("settings:save", settings),
 		onChanged: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
 			ipcRenderer.on("settings:changed", listener);
 			return () => ipcRenderer.removeListener("settings:changed", listener);
 		},
 	},
-	usage: {
-		scan: () => ipcRenderer.invoke("usage:scan"),
-	},
-	workspace: {
-		pick: () => ipcRenderer.invoke("workspace:pick"),
-		info: (path) => ipcRenderer.invoke("workspace:info", path),
-		reveal: (path) => ipcRenderer.invoke("workspace:reveal", path),
-	},
-	sessions: {
-		list: () => ipcRenderer.invoke("sessions:list"),
-		create: (cwd, modelId) => ipcRenderer.invoke("sessions:create", cwd, modelId),
-		open: (projectId, sessionId) => ipcRenderer.invoke("sessions:open", projectId, sessionId),
-		transcript: (projectId, sessionId) => ipcRenderer.invoke("sessions:transcript", projectId, sessionId),
-		trajectory: (projectId, sessionId) => ipcRenderer.invoke("sessions:trajectory", projectId, sessionId),
-		fork: (projectId, sessionId, seq) => ipcRenderer.invoke("sessions:fork", projectId, sessionId, seq),
-		remove: (projectId, sessionId) => ipcRenderer.invoke("sessions:remove", projectId, sessionId),
-		setArchived: (projectId, sessionId, archived) =>
-			ipcRenderer.invoke("sessions:setArchived", projectId, sessionId, archived),
-		removeArchived: () => ipcRenderer.invoke("sessions:removeArchived"),
-		capabilities: (sessionId) => ipcRenderer.invoke("sessions:capabilities", sessionId),
-		rename: (projectId, sessionId, title) => ipcRenderer.invoke("sessions:rename", projectId, sessionId, title),
-		compact: (sessionId) => ipcRenderer.invoke("sessions:compact", sessionId),
-		contextBreakdown: (sessionId) => ipcRenderer.invoke("sessions:contextBreakdown", sessionId),
-	},
 	agent: {
-		prompt: (sessionId, content, options) => ipcRenderer.invoke("agent:prompt", sessionId, content, options),
-		editMessage: (sessionId, messageIndex, content) =>
-			ipcRenderer.invoke("agent:editMessage", sessionId, messageIndex, content),
-		abort: (sessionId) => ipcRenderer.invoke("agent:abort", sessionId),
-		approve: (sessionId, requestId, decision) => ipcRenderer.invoke("agent:approve", sessionId, requestId, decision),
-		setModel: (sessionId, modelId) => ipcRenderer.invoke("agent:setModel", sessionId, modelId),
-		setThinking: (sessionId, thinking) => ipcRenderer.invoke("agent:setThinking", sessionId, thinking),
 		onEvent: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
 			ipcRenderer.on("agent:event", listener);
 			return () => ipcRenderer.removeListener("agent:event", listener);
 		},
 	},
-	subAgents: {
-		list: (sessionId) => ipcRenderer.invoke("subagents:list", sessionId),
-		detail: (sessionId, id) => ipcRenderer.invoke("subagents:detail", sessionId, id),
-		steer: (sessionId, id, text) => ipcRenderer.invoke("subagents:steer", sessionId, id, text),
-		abort: (sessionId, id) => ipcRenderer.invoke("subagents:abort", sessionId, id),
-		dismiss: (sessionId, id) => ipcRenderer.invoke("subagents:dismiss", sessionId, id),
-		dismissFinished: (sessionId) => ipcRenderer.invoke("subagents:dismissFinished", sessionId),
-	},
 	sideChat: {
-		state: (sessionId) => ipcRenderer.invoke("sidechat:state", sessionId),
-		ask: (sessionId, content) => ipcRenderer.invoke("sidechat:ask", sessionId, content),
-		editAndResend: (sessionId, index, content) => ipcRenderer.invoke("sidechat:editAndResend", sessionId, index, content),
-		abort: (sessionId) => ipcRenderer.invoke("sidechat:abort", sessionId),
-		reset: (sessionId) => ipcRenderer.invoke("sidechat:reset", sessionId),
 		onEvent: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
 			ipcRenderer.on("sidechat:event", listener);
 			return () => ipcRenderer.removeListener("sidechat:event", listener);
 		},
 	},
-	tasks: {
-		list: (sessionId) => ipcRenderer.invoke("tasks:list", sessionId),
-		cancel: (sessionId, taskId) => ipcRenderer.invoke("tasks:cancel", sessionId, taskId),
-		dismiss: (sessionId, taskId) => ipcRenderer.invoke("tasks:dismiss", sessionId, taskId),
-		resume: (sessionId, taskId) => ipcRenderer.invoke("tasks:resume", sessionId, taskId),
-	},
-	format: {
-		external: (extension, source) => ipcRenderer.invoke("format:external", extension, source),
-		available: (extension) => ipcRenderer.invoke("format:available", extension),
-		config: (file) => ipcRenderer.invoke("format:config", file),
-	},
 	files: {
-		list: (dir) => ipcRenderer.invoke("files:list", dir),
-		read: (path) => ipcRenderer.invoke("files:read", path),
-		document: (path) => ipcRenderer.invoke("files:document", path),
-		bytes: (path) => ipcRenderer.invoke("files:bytes", path),
-		write: (path, text) => ipcRenderer.invoke("files:write", path, text),
-		/*
-		 * One encoded segment under a fixed host.
-		 *
-		 * Not the host component: URL parsing lower-cases that, so `/Users/...` came back as
-		 * `/users/...` and failed the (case-sensitive) project check. The path component keeps
-		 * its case, and encoding it whole means a Windows `C:\` or a space survives too.
-		 */
 		mediaUrl: (path) => `ly-media://f/${encodeURIComponent(path)}`,
-		create: (dir, name, kind) => ipcRenderer.invoke("files:create", dir, name, kind),
-		rename: (from, to, overwrite) => ipcRenderer.invoke("files:rename", from, to, overwrite),
-		copy: (from, to, overwrite) => ipcRenderer.invoke("files:copy", from, to, overwrite),
-		trash: (paths) => ipcRenderer.invoke("files:trash", paths),
-		remove: (paths) => ipcRenderer.invoke("files:remove", paths),
-		uniquePath: (dir, name) => ipcRenderer.invoke("files:uniquePath", dir, name),
-		exists: (path) => ipcRenderer.invoke("files:exists", path),
-		importInto: (sources, dir) => ipcRenderer.invoke("files:import", sources, dir),
 		/*
 		 * The only thing in this bridge that is not an IPC call.
 		 *
@@ -163,16 +144,8 @@ const api: LyraApi = {
 		 */
 		pathForDrop: (file) => webUtils.getPathForFile(file),
 	},
-	clipboard: {
-		read: () => ipcRenderer.invoke("clipboard:read"),
-		write: (text) => ipcRenderer.invoke("clipboard:write", text),
-	},
 	terminal: {
-		list: (cwd) => ipcRenderer.invoke("terminal:list", cwd),
-		listAll: () => ipcRenderer.invoke("terminal:list-all"),
-		open: (cwd, cols, rows) => ipcRenderer.invoke("terminal:open", cwd, cols, rows),
 		prewarm: (cwd, cols, rows) => ipcRenderer.send("terminal:prewarm", cwd, cols, rows),
-		attach: (id, cols, rows) => ipcRenderer.invoke("terminal:attach", id, cols, rows),
 		detach: (id, epoch) => ipcRenderer.send("terminal:detach", id, epoch),
 		// `send`, not `invoke`: keystrokes must not wait for a round trip to echo.
 		write: (id, data) => ipcRenderer.send("terminal:write", id, data),
@@ -188,32 +161,6 @@ const api: LyraApi = {
 			ipcRenderer.on("terminal:exit", listener);
 			return () => ipcRenderer.removeListener("terminal:exit", listener);
 		},
-	},
-	providers: {
-		test: (providerId, modelId) => ipcRenderer.invoke("providers:test", providerId, modelId),
-		fetchModels: (providerId) => ipcRenderer.invoke("providers:fetchModels", providerId),
-	},
-	sync: {
-		status: () => ipcRenderer.invoke("sync:status"),
-		start: () => ipcRenderer.invoke("sync:start"),
-		stop: () => ipcRenderer.invoke("sync:stop"),
-		rotateToken: () => ipcRenderer.invoke("sync:rotateToken"),
-	},
-	commands: {
-		list: (cwd) => ipcRenderer.invoke("commands:list", cwd),
-		create: (scope, name, cwd) => ipcRenderer.invoke("commands:create", scope, name, cwd),
-		reveal: (scope, cwd) => ipcRenderer.invoke("commands:reveal", scope, cwd),
-		open: (path) => ipcRenderer.invoke("commands:open", path),
-	},
-	plugins: {
-		list: (cwd) => ipcRenderer.invoke("plugins:list", cwd),
-		revealDir: (scope, cwd) => ipcRenderer.invoke("plugins:revealDir", scope, cwd),
-		fetchRegistry: (url, force) => ipcRenderer.invoke("registry:fetch", url, force),
-		icon: (url) => ipcRenderer.invoke("registry:icon", url),
-		icons: (urls) => ipcRenderer.invoke("registry:icons", urls),
-		installFromRegistry: (entry, registryName, replace) =>
-			ipcRenderer.invoke("registry:install", entry, registryName, replace),
-		uninstall: (id) => ipcRenderer.invoke("registry:uninstall", id),
 	},
 	
 	setWindowTheme: (colors: { color: string; symbolColor: string }) =>
@@ -236,34 +183,13 @@ const api: LyraApi = {
 		return () => ipcRenderer.removeListener("tray:command", listener);
 	},
 	updates: {
-		check: (force) => ipcRenderer.invoke("updates:check", force),
-		state: () => ipcRenderer.invoke("updates:state"),
-		download: (version) => ipcRenderer.invoke("updates:download", version),
-		pause: () => ipcRenderer.invoke("updates:pause"),
-		cancel: () => ipcRenderer.invoke("updates:cancel"),
-		relaunch: () => ipcRenderer.invoke("updates:relaunch"),
-		reopen: () => ipcRenderer.invoke("updates:reopen"),
-		open: (url) => ipcRenderer.invoke("updates:open", url),
 		onProgress: (listener) => {
 			const handler = (_event: unknown, phase: Parameters<typeof listener>[0]) => listener(phase);
 			ipcRenderer.on("updates:progress", handler);
 			return () => ipcRenderer.off("updates:progress", handler);
 		},
 	},
-	system: {
-		openPath: (path) => ipcRenderer.invoke("system:openPath", path),
-		openExternal: (url) => ipcRenderer.invoke("system:openExternal", url),
-		openIn: (target, path) => ipcRenderer.invoke("system:openIn", target, path),
-		openTargets: () => ipcRenderer.invoke("system:openTargets"),
-		revealSkillsDir: (scope, cwd) => ipcRenderer.invoke("system:revealSkillsDir", scope, cwd),
-		platform: () => ipcRenderer.invoke("system:platform"),
-		remoteImage: (url) => ipcRenderer.invoke("system:remoteImage", url),
-	},
 	screenshot: {
-		start: (settings) => ipcRenderer.invoke("screenshot:start", settings),
-		finish: (dataUrl, settings) => ipcRenderer.invoke("screenshot:finish", dataUrl, settings),
-		cancel: () => ipcRenderer.invoke("screenshot:cancel"),
-		pickDirectory: () => ipcRenderer.invoke("screenshot:pickDirectory"),
 		onInit: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
 			ipcRenderer.on("screenshot:init", listener);
@@ -296,79 +222,6 @@ const api: LyraApi = {
 			return () => ipcRenderer.removeListener("screenshot:hidden", listener);
 		},
 	},
-	index: {
-		stats: (cwd) => ipcRenderer.invoke("index:stats", cwd),
-		rebuild: (cwd) => ipcRenderer.invoke("index:rebuild", cwd),
-		search: (cwd, query) => ipcRenderer.invoke("index:search", cwd, query),
-	},
-	scheduler: {
-		runNow: (taskId) => ipcRenderer.invoke("scheduler:runNow", taskId),
-	},
-	forge: {
-		kinds: () => ipcRenderer.invoke("forge:kinds"),
-		accounts: () => ipcRenderer.invoke("forge:accounts"),
-		signIn: (input) => ipcRenderer.invoke("forge:signIn", input),
-		signOut: (id) => ipcRenderer.invoke("forge:signOut", id),
-		setEnabled: (id, enabled) => ipcRenderer.invoke("forge:setEnabled", id, enabled),
-		rename: (id, label) => ipcRenderer.invoke("forge:rename", id, label),
-	},
-	git: {
-		myPullRequests: () => ipcRenderer.invoke("git:myPullRequests"),
-		pullRequest: (accountId, repo, number) => ipcRenderer.invoke("git:pullRequest", accountId, repo, number),
-		pullRequestDiff: (accountId, repo, number) => ipcRenderer.invoke("git:pullRequestDiff", accountId, repo, number),
-		scratchForPullRequest: (pr) => ipcRenderer.invoke("scratch:forPullRequest", pr),
-		generalScratch: () => ipcRenderer.invoke("scratch:general"),
-		scratchRoots: () => ipcRenderer.invoke("scratch:roots"),
-		findLocalCheckout: (repo, candidates) => ipcRenderer.invoke("git:findLocalCheckout", repo, candidates),
-		avatar: (login) => ipcRenderer.invoke("git:avatar", login),
-		avatars: (people) => ipcRenderer.invoke("git:avatars", people),
-		commentOnPullRequest: (accountId, repo, number, body) =>
-			ipcRenderer.invoke("git:commentOnPullRequest", accountId, repo, number, body),
-		reviewPullRequest: (accountId, repo, number, verdict, body) =>
-			ipcRenderer.invoke("git:reviewPullRequest", accountId, repo, number, verdict, body),
-		branches: (cwd) => ipcRenderer.invoke("git:branches", cwd),
-		switchBranch: (cwd, branch) => ipcRenderer.invoke("git:switchBranch", cwd, branch),
-		createWorktree: (cwd, branch, options) => ipcRenderer.invoke("git:createWorktree", cwd, branch, options),
-		removeWorktree: (cwd, worktreePath) => ipcRenderer.invoke("git:removeWorktree", cwd, worktreePath),
-		pruneWorktrees: (cwd) => ipcRenderer.invoke("git:pruneWorktrees", cwd),
-		stat: (cwd) => ipcRenderer.invoke("git:stat", cwd),
-		commit: (cwd, message) => ipcRenderer.invoke("git:commit", cwd, message),
-		status: (cwd) => ipcRenderer.invoke("git:status", cwd),
-		repos: (root) => ipcRenderer.invoke("git:repos", root),
-		worktrees: (cwd) => ipcRenderer.invoke("git:worktrees", cwd),
-		init: (cwd) => ipcRenderer.invoke("git:init", cwd),
-		log: (cwd, limit, ref) => ipcRenderer.invoke("git:log", cwd, limit, ref),
-		commitDiff: (cwd, sha) => ipcRenderer.invoke("git:commitDiff", cwd, sha),
-		commitDiffSummary: (cwd, sha) => ipcRenderer.invoke("git:commitDiffSummary", cwd, sha),
-		diffRefs: (cwd, base, head) => ipcRenderer.invoke("git:diffRefs", cwd, base, head),
-		stage: (cwd, paths) => ipcRenderer.invoke("git:stage", cwd, paths),
-		unstage: (cwd, paths) => ipcRenderer.invoke("git:unstage", cwd, paths),
-		discard: (cwd, paths) => ipcRenderer.invoke("git:discard", cwd, paths),
-		commitStaged: (cwd, message) => ipcRenderer.invoke("git:commitStaged", cwd, message),
-		generateCommitMessage: (cwd) => ipcRenderer.invoke("git:generateCommitMessage", cwd),
-		createBranch: (cwd, name, from) => ipcRenderer.invoke("git:createBranch", cwd, name, from),
-		deleteBranch: (cwd, name, force) => ipcRenderer.invoke("git:deleteBranch", cwd, name, force),
-		push: (cwd, token) => ipcRenderer.invoke("git:push", cwd, token),
-		pull: (cwd, token) => ipcRenderer.invoke("git:pull", cwd, token),
-		fetch: (cwd, token, quiet) => ipcRenderer.invoke("git:fetch", cwd, token, quiet),
-		cancelRemote: (token) => ipcRenderer.invoke("git:cancelRemote", token),
-		releaseInfo: (cwd) => ipcRenderer.invoke("git:releaseInfo", cwd),
-		bumpVersion: (cwd, newVersion) => ipcRenderer.invoke("git:bumpVersion", cwd, newVersion),
-		triggerDryRun: (cwd) => ipcRenderer.invoke("git:triggerDryRun", cwd),
-		listWorkflowRuns: (cwd, limit) => ipcRenderer.invoke("git:listWorkflowRuns", cwd, limit),
-		workflowRunStatus: (cwd, runId) => ipcRenderer.invoke("git:workflowRunStatus", cwd, runId),
-		publishReleaseTag: (cwd, version) => ipcRenderer.invoke("git:publishReleaseTag", cwd, version),
-	},
-	memory: {
-		load: () => ipcRenderer.invoke("memory:load"),
-		add: (content) => ipcRenderer.invoke("memory:add", content),
-		remove: (id) => ipcRenderer.invoke("memory:remove", id),
-		clear: () => ipcRenderer.invoke("memory:clear"),
-	},
-	diff: {
-		workspaceDiff: (cwd) => ipcRenderer.invoke("diff:workspace", cwd),
-		blob: (cwd, path, side) => ipcRenderer.invoke("diff:blob", cwd, path, side),
-	},
 };
 
-contextBridge.exposeInMainWorld("lyra", api);
+contextBridge.exposeInMainWorld("lyra", merge(invokers(), extras) as unknown as LyraApi);
