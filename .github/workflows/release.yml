@@ -191,6 +191,18 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # The digests every client checks before it installs.
+      #
+      # Written here rather than per-platform because this is the first point the artifacts are all
+      # in one place, and one file listing all of them is also what a person can check by hand.
+      # `update-checksum.ts` reads it back: a release without this file downloads and then refuses
+      # to install, which is the intended behaviour for a release nobody can verify.
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Notes from the log
         id: notes
         shell: bash

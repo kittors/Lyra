@@ -23,9 +23,10 @@
 
 import { createWriteStream } from "node:fs";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { parseChecksums, sha256, verify, type Verdict } from "../update-checksum.ts";
 
 /**
  * Where a download is, as one value.
@@ -82,6 +83,14 @@ export interface DownloadTarget {
 	size: number;
 	/** Sent as `User-Agent`; GitHub is happier with one and it identifies the client in logs. */
 	agent: string;
+	/**
+	 * Where the release published its `SHA256SUMS`, when it published one.
+	 *
+	 * Null for releases cut before that step existed. The download then completes and refuses to
+	 * install rather than installing unverified: this is the one file the application downloads that
+	 * ends in code being run, and "we could not check" is not a reason to skip checking.
+	 */
+	checksums: string | null;
 }
 
 /**
@@ -154,6 +163,40 @@ export class UpdateDownload {
 	/** The partial, which is where a paused download's bytes wait. */
 	private get partial(): string {
 		return `${this.target.file}.part`;
+	}
+
+	/**
+	 * Compare the downloaded bytes against the release's own digest.
+	 *
+	 * Fetched here rather than alongside the release metadata because this is the moment it is
+	 * needed, and because a checksum file fetched much earlier would have to be carried through the
+	 * pause/resume machinery for no benefit — it is a few hundred bytes.
+	 */
+	private async check(): Promise<Verdict> {
+		if (!this.target.checksums) {
+			return {
+				ok: false,
+				reason: "no-checksums",
+				message: "这个版本没有发布校验文件，无法确认安装包完整。请到发布页手动下载。",
+			};
+		}
+
+		let text: string;
+		try {
+			const response = await fetch(this.target.checksums, { headers: { "User-Agent": this.target.agent } });
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			text = await response.text();
+		} catch (error) {
+			// A digest we could not fetch is not a digest that failed; say which, or the report will
+			// be "the update is corrupt" for what is actually a network problem.
+			return {
+				ok: false,
+				reason: "no-checksums",
+				message: `没能取到校验文件（${error instanceof Error ? error.message : String(error)}），这次不安装。`,
+			};
+		}
+
+		return verify(parseChecksums(text), basename(this.target.file), await sha256(this.partial));
 	}
 
 	private async have(): Promise<number> {
@@ -253,6 +296,27 @@ export class UpdateDownload {
 			const written = await this.have();
 			if (written !== this.target.size) {
 				throw new Error(`下载不完整：拿到 ${written} 字节，应为 ${this.target.size}`);
+			}
+
+			/*
+			 * The bytes, before they are put where the installer will find them.
+			 *
+			 * Checked on the partial rather than after the rename, so a file that fails verification
+			 * never exists at the final path — there is no window in which something else could pick
+			 * it up, and no leftover for a later run to resume from.
+			 */
+			/*
+			 * Reported as `preparing` rather than as a phase of its own.
+			 *
+			 * Hashing a package takes a second or two, and "准备中" is a true description of it. A
+			 * fourth phase would have to be handled by every switch in `update/view.ts` to buy a word
+			 * the user reads once.
+			 */
+			this.set({ at: "preparing", received: written, total: this.target.size });
+			const verdict = await this.check();
+			if (!verdict.ok) {
+				await rm(this.partial, { force: true });
+				throw new Error(verdict.message);
 			}
 
 			await rename(this.partial, this.target.file);

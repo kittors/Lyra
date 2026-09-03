@@ -120,3 +120,20 @@ jobs:
       - name: What came out
         shell: bash
         run: ls -lh packages/desktop/release/ | grep -Ev '^total|\.blockmap|builder-' || true
+
+      # The same digest step the real release runs, on this platform's own artifacts.
+      #
+      # Rehearsed rather than assumed: the client refuses to install an update whose checksum it
+      # cannot verify, so a `sha256sum` that is missing or misbehaving here would surface as
+      # "更新装不上" after a tag is already pushed — which is exactly the class of failure this
+      # workflow exists to catch first.
+      - name: Checksums, as the release would write them
+        shell: bash
+        working-directory: packages/desktop/release
+        run: |
+          shopt -s nullglob
+          files=(*.dmg *.zip *.exe *.AppImage *.deb)
+          if [ ${#files[@]} -eq 0 ]; then echo "::error::没有产物可以校验"; exit 1; fi
+          sha256sum "${files[@]}" > SHA256SUMS
+          cat SHA256SUMS
+          sha256sum -c SHA256SUMS
