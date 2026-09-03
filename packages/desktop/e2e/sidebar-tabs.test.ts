@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { SIDEBAR_MIN } from "../src/layout-widths.ts";
+import { SIDEBAR_MIN } from "../src/app/layout-widths.ts";
 import { startApp, type RunningApp } from "./app.ts";
 
 let app: RunningApp;

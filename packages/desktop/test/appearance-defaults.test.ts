@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_APPEARANCE } from "@lyra/core";
-import { CODE_DEFAULTS } from "../src/components/settings/code-defaults.ts";
+import { CODE_DEFAULTS } from "../src/features/settings/code-defaults.ts";
 
 test("恢复默认 restores what the app actually defaults to", () => {
 	for (const [key, value] of Object.entries(CODE_DEFAULTS)) {

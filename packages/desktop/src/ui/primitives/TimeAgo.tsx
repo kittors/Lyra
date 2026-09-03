@@ -12,7 +12,7 @@
  */
 
 import { useSyncExternalStore } from "react";
-import { exactTime, shortRelativeTime } from "../../components/git/relative-time.ts";
+import { exactTime, shortRelativeTime } from "../../features/git/relative-time.ts";
 
 /**
  * Half the smallest unit shown, so nothing is ever a full unit behind.

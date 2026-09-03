@@ -8,9 +8,9 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LANGUAGES, searchLanguages, formatterCounts } from "../src/components/settings/format-catalog.ts";
+import { LANGUAGES, searchLanguages, formatterCounts } from "../src/features/settings/format-catalog.ts";
 import { GRAMMARS } from "../src/lib/code/highlight.ts";
-import { canFormat } from "../src/components/editor/format.ts";
+import { canFormat } from "../src/features/editor/format.ts";
 
 test("every entry points at a grammar that exists", () => {
 	// A bad key here is invisible until someone picks that language and gets a flat grey sample.

@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { canToggleMaximized, paneVisible, type DockVisibility } from "../src/dock/visibility.ts";
+import { canToggleMaximized, paneVisible, type DockVisibility } from "../src/features/dock/visibility.ts";
 
 /** The ordinary arrangement: conversation, tree and file all open, nothing maximised. */
 function dock(over: Partial<DockVisibility> = {}): DockVisibility {

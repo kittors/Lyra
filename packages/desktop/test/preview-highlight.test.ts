@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { highlightPieces, grammarFor } from "../src/components/settings/preview-highlight.ts";
+import { highlightPieces, grammarFor } from "../src/features/settings/preview-highlight.ts";
 
 test("a TypeScript sample is split into the kinds a theme has colours for", async () => {
 	const pieces = await highlightPieces('const x: string = "hi"; // 说明', "ts");

@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Plugin, Settings } from "@lyra/core";
 
-import { settingsAfterToggle } from "../src/components/plugins/toggle.ts";
+import { settingsAfterToggle } from "../src/features/plugins/toggle.ts";
 
 function plugin(id: string, name = id): Plugin {
 	return {

@@ -16,7 +16,7 @@ import {
 	titlebarInsets,
 	TOOLBAR_EDGE,
 	TRAFFIC_LIGHTS_WIDTH,
-} from "../src/titlebar.ts";
+} from "../src/app/window/titlebar.ts";
 
 test("macOS holds the corner open for its traffic lights, and nothing at the other end", () => {
 	assert.deepEqual(titlebarInsets("darwin", false, 0), { start: TRAFFIC_LIGHTS_WIDTH, end: 0 });

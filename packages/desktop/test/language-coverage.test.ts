@@ -12,8 +12,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LANGUAGES } from "../src/components/settings/format-catalog.ts";
-import { highlightPieces } from "../src/components/settings/preview-highlight.ts";
+import { LANGUAGES } from "../src/features/settings/format-catalog.ts";
+import { highlightPieces } from "../src/features/settings/preview-highlight.ts";
 
 /** Everything measured once, because parsing fifty grammars is the slow part. */
 const measured = await Promise.all(

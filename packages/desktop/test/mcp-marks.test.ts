@@ -10,7 +10,7 @@ import type { McpServerConfig } from "@lyra/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { markFor } from "../src/components/mcp-marks.ts";
+import { markFor } from "../src/features/conversation/mcp-marks.ts";
 
 function server(id: string, name = id, bundle?: string): McpServerConfig {
 	return {

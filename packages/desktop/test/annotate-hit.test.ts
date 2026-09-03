@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { hitShape, insideBounds, shapeBounds, type Shape } from "../src/components/image/annotate.ts";
+import { hitShape, insideBounds, shapeBounds, type Shape } from "../src/features/image/annotate.ts";
 
 const STROKE = 4;
 const TOLERANCE = 6;

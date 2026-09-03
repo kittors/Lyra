@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { heldBand, isPinned, pinnedDepth, type StickyRow } from "../src/components/sidebar/sticky.ts";
+import { heldBand, isPinned, pinnedDepth, type StickyRow } from "../src/features/sidebar/sticky.ts";
 
 const GAP = 6;
 const STRIP = 32;

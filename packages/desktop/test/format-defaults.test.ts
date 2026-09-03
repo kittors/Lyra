@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_FORMATTING } from "@lyra/core";
-import { FORMAT_DEFAULTS } from "../src/components/editor/format.ts";
+import { FORMAT_DEFAULTS } from "../src/features/editor/format.ts";
 
 test("the renderer's defaults are the same as the settings file's", () => {
 	// `onSave` is deliberately absent from the renderer's copy: it decides *whether* to format,

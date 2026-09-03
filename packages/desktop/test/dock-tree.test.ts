@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { MIN_FRACTION } from "../src/dock/geometry.ts";
+import { MIN_FRACTION } from "../src/features/dock/geometry.ts";
 import {
 	defaultTree,
 	has,
@@ -33,7 +33,7 @@ import {
 	type DockNode,
 	type DockSplit,
 	type PaneKind,
-} from "../src/dock/tree.ts";
+} from "../src/features/dock/tree.ts";
 
 function invariants(node: DockNode, what = "tree"): DockNode {
 	const seen = new Set<PaneKind>();

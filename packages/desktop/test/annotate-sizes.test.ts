@@ -12,8 +12,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { paintAll } from "../src/components/image/paint.ts";
-import type { Shape } from "../src/components/image/annotate.ts";
+import { paintAll } from "../src/features/image/paint.ts";
+import type { Shape } from "../src/features/image/annotate.ts";
 
 /** A canvas context that remembers the line widths it was given and the blits it was asked for. */
 function recorder() {

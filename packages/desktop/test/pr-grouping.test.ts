@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { groupFor } from "../src/components/pr/pr-groups.ts";
+import { groupFor } from "../src/features/pull-requests/pr-groups.ts";
 import { pr } from "./pr-fixtures.ts";
 
 test("groups come in the order they need attention", () => {

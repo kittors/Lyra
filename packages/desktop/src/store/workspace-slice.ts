@@ -7,7 +7,7 @@
  */
 
 import type { SessionMeta } from "@lyra/core";
-import type { AppState } from "../store.ts";
+import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 

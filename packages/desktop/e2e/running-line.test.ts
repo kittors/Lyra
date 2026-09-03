@@ -24,7 +24,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 // The app's own threshold, so tuning it moves this wait with it rather than quietly stranding it.
-import { STALL_MS } from "../src/components/conversation/answering.ts";
+import { STALL_MS } from "../src/features/conversation/answering.ts";
 
 let app: RunningApp;
 let model: Server;

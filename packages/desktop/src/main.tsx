@@ -1,8 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App.tsx";
+import { App } from "./app/App.tsx";
 import { ErrorBoundary } from "./ui/layout/ErrorBoundary.tsx";
-import { ScreenshotOverlay } from "./components/image/ScreenshotOverlay.tsx";
+import { ScreenshotOverlay } from "./features/image/ScreenshotOverlay.tsx";
 import { installTooltips } from "./ui/overlay/tooltip.ts";
 import "./styles.css";
 

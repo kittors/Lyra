@@ -27,7 +27,7 @@ import {
 	type FollowEvent,
 	type FollowState,
 	type Reading,
-} from "../src/components/scroll/follow.ts";
+} from "../src/ui/scroll/follow.ts";
 
 /**
  * A transcript of `content` pixels in a `view`-pixel window, scrolled to `top`.

@@ -20,7 +20,7 @@
 
 import { create } from "zustand";
 import type { FileEntry } from "../../electron/ipc-types.ts";
-import { isDescendantPath, joinPath, relativeTo } from "../components/files/paths.ts";
+import { isDescendantPath, joinPath, relativeTo } from "../features/files/paths.ts";
 import { bridge } from "../services/index.ts";
 
 interface FileTreeState {

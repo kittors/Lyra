@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { FIT_LEVELS, MAX_FIT_LEVEL, MIN_NAME_WIDTH, nextLevel, settle, tight } from "../src/components/composer/fit.ts";
+import { FIT_LEVELS, MAX_FIT_LEVEL, MIN_NAME_WIDTH, nextLevel, settle, tight } from "../src/features/composer/fit.ts";
 
 // ---------------------------------------------------------------------------
 // Reading the row

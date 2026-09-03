@@ -15,8 +15,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { defaultDrop } from "../src/dock/store.ts";
-import { defaultTree, has, insert, kinds, remove, type DockNode, type DockSplit, type PaneKind } from "../src/dock/tree.ts";
+import { defaultDrop } from "../src/features/dock/store.ts";
+import { defaultTree, has, insert, kinds, remove, type DockNode, type DockSplit, type PaneKind } from "../src/features/dock/tree.ts";
 
 /** What the panel menu does: open it where the layout says it goes, or leave it where it is. */
 function open(tree: DockNode, kind: PaneKind): DockNode {

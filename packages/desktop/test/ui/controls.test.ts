@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import { Badge, Segmented, Toggle } from "../../src/components/settings/controls.tsx";
+import { Badge, Segmented, Toggle } from "../../src/features/settings/controls.tsx";
 import { click, mount } from "../helpers/mount.ts";
 
 test("Toggle: 是 switch 角色，状态走 aria-checked 而不是靠颜色", async () => {

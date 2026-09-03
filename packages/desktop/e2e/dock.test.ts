@@ -14,7 +14,7 @@
 
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { PANEL_MIN_WIDTH_PX } from "../src/dock/geometry.ts";
+import { PANEL_MIN_WIDTH_PX } from "../src/features/dock/geometry.ts";
 import { startApp, type RunningApp } from "./app.ts";
 
 let app: RunningApp;

@@ -16,7 +16,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DiffHunk } from "@lyra/core";
-import { highlightHunks } from "../src/components/git/diff-highlight.ts";
+import { highlightHunks } from "../src/features/git/diff-highlight.ts";
 
 /** Stands in for the real tokenizer: one token per line, carrying that line's own text. */
 const oneTokenPerLine = (code: string) => code.split("\n").map((text) => [{ text, className: "" }]);

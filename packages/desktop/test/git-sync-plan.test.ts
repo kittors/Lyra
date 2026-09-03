@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { GitStatus } from "../electron/ipc-types.ts";
-import { syncPlan } from "../src/components/git/syncPlan.ts";
+import { syncPlan } from "../src/features/git/syncPlan.ts";
 
 function status(over: Partial<GitStatus> = {}): GitStatus {
 	return {

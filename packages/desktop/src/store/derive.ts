@@ -11,7 +11,7 @@
 import type { Message, TodoItem } from "@lyra/core";
 import type { SessionMeta } from "@lyra/core";
 import { summarizeToolCall } from "../lib/tool-summary.ts";
-import type { ToolRun } from "../store.ts";
+import type { ToolRun } from "./index.ts";
 
 export type Cache = Record<
   string,

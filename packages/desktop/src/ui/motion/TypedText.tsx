@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { motionReduced } from "../../theme.ts";
+import { motionReduced } from "../../lib/theme.ts";
 import { typingFrames } from "../../lib/typing.ts";
 
 /**

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildGraph } from "../src/components/git/graph.ts";
+import { buildGraph } from "../src/features/git/graph.ts";
 import type { GitCommit } from "../electron/ipc-types.ts";
 
 const commit = (sha: string, parents: string[]): GitCommit => ({

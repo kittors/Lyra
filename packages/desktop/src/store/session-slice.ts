@@ -9,7 +9,7 @@
 import type { SessionMeta } from "@lyra/core";
 import type { SessionActivity } from "@lyra/core/activity";
 import { howItStopped, prune, rebuildToolRuns, todosFrom, without } from "./derive.ts";
-import type { AppState } from "../store.ts";
+import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 

@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pairingCode, parseEndpoint, routeLabel } from "../src/components/settings/pairing.ts";
+import { pairingCode, parseEndpoint, routeLabel } from "../src/features/settings/pairing.ts";
 
 const TOKEN = "abc123";
 

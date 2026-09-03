@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { explain } from "../src/components/toast/explain.ts";
+import { explain } from "../src/ui/overlay/toast-explain.ts";
 
 test("the screen-recording refusal is left to macOS's own dialog", () => {
 	const result = explain("Failed to get sources.");

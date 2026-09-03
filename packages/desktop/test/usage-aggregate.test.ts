@@ -19,7 +19,7 @@ import {
 	summarise,
 	totalsFor,
 	withinRange,
-} from "../src/components/settings/usage-aggregate.ts";
+} from "../src/features/settings/usage-aggregate.ts";
 
 function bucket(day: string, key: string, over: Partial<UsageBucket> = {}): UsageBucket {
 	const [provider, model] = key.split("/");

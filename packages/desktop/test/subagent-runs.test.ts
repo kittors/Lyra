@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@lyra/core";
-import { subAgentRuns } from "../src/components/subagents/runs.ts";
+import { subAgentRuns } from "../src/features/subagents/runs.ts";
 
 const call = (id: string, name: string, args: Record<string, unknown>, at = 1000): Message => ({
 	role: "assistant",

@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { McpBundle, McpServerConfig, Plugin, RegistryEntry } from "@lyra/core";
 
-import { isEnabled, isInstalled, merge } from "../src/components/plugins/catalog.ts";
+import { isEnabled, isInstalled, merge } from "../src/features/plugins/catalog.ts";
 
 function plugin(id: string, extra: Partial<Plugin> = {}): Plugin {
 	return {

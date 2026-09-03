@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { proseLength } from "../src/components/conversation/answering.ts";
+import { proseLength } from "../src/features/conversation/answering.ts";
 import type { AssistantContent, Message } from "@lyra/core";
 
 /** A reply mid-flight, built from whatever blocks the case is about. */

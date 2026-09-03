@@ -32,7 +32,7 @@ const execFileAsync = promisify(execFile);
  */
 const unzip = (archive: string, into: string) => execFileAsync("ditto", ["-x", "-k", archive, into]);
 
-import { isNewer } from "../../src/update/version.ts";
+import { isNewer } from "../../src/features/update/version.ts";
 
 /** Where releases are published. */
 const REPO = "kittors/Lyra";

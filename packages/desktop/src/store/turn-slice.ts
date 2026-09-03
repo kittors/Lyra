@@ -9,7 +9,7 @@
 import type { ApprovalDecision, Message, ThinkingLevel, Usage, UserContent } from "@lyra/core";
 import { without } from "./derive.ts";
 import { relight } from "./turn-meter.ts";
-import type { AppState } from "../store.ts";
+import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 
 const ZERO_USAGE: Usage = {

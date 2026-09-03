@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Overlay } from "../../components/modals/Overlay.tsx";
+import { Overlay } from "./Overlay.tsx";
 
 /** Narrow enough to read as a question rather than as a form. */
 const CONFIRM_WIDTH = 400;

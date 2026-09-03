@@ -8,7 +8,7 @@
  */
 
 import type { AgentEvent, TodoItem } from "@lyra/core";
-import type { AppState } from "../store.ts";
+import type { AppState } from "./index.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;

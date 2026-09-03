@@ -36,8 +36,8 @@ const store: Record<string, string> = {};
 	removeEventListener: () => {},
 };
 
-const { useDock } = await import("../src/dock/store.ts");
-const { defaultTree, kinds } = await import("../src/dock/tree.ts");
+const { useDock } = await import("../src/features/dock/store.ts");
+const { defaultTree, kinds } = await import("../src/features/dock/tree.ts");
 
 /** How the file panel names the tree it belongs beside — see `BUILTIN_PANELS`. */
 const BESIDE_TREE = { kind: "files", side: "bottom" } as const;

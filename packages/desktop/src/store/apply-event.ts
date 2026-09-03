@@ -13,9 +13,9 @@ import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, without } from "./derive.ts";
 import { freeze, relight } from "./turn-meter.ts";
-import { useSide } from "../sideStore.ts";
+import { useSide } from "../features/dock/sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
-import type { AppState } from "../store.ts";
+import type { AppState } from "./index.ts";
 import { settleTail } from "../lib/transcript.ts";
 import { bridge } from "../services/index.ts";
 

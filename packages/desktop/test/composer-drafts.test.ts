@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { useApp } from "../src/store.ts";
+import { useApp } from "../src/store/index.ts";
 
 describe("composer drafts per session / blank context", () => {
 	it("saves and restores drafts per session and blank key", () => {

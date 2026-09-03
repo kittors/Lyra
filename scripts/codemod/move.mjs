@@ -79,11 +79,22 @@ for (const [wasAt, text] of before) {
 		 * be left pointing at a name that no longer exists.
 		 */
 		const pointsAt = resolve(dirname(wasAt), specifier);
-		const now = movedAbsolute.get(pointsAt);
+
+		/*
+		 * Two cases, and missing the second is what makes a move look like it worked.
+		 *
+		 * The target moved: point at where it went.
+		 *
+		 * The target did *not* move, but this file did: the specifier still names the right file and
+		 * is now written from the wrong place. `../store.ts` from `src/App.tsx` and from
+		 * `src/app/App.tsx` are two different files, and only one of them exists.
+		 */
+		const now = movedAbsolute.get(pointsAt) ?? (livesAt === wasAt ? undefined : pointsAt);
 		if (!now) return whole;
 
 		let rebuilt = relative(dirname(livesAt), now).replaceAll("\\", "/");
 		if (!rebuilt.startsWith(".")) rebuilt = `./${rebuilt}`;
+		if (rebuilt === specifier) return whole;
 		changed = true;
 		edits++;
 		return `${prefix}${rebuilt}"`;

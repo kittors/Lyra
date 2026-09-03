@@ -26,7 +26,7 @@ import {
 	shouldShow,
 	versionNote,
 	type Phase,
-} from "../src/update/view.ts";
+} from "../src/features/update/view.ts";
 
 const update = { available: true, latest: "0.3.2" };
 

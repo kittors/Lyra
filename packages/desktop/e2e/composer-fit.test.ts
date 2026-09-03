@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 
-import { MIN_NAME_WIDTH } from "../src/components/composer/fit.ts";
+import { MIN_NAME_WIDTH } from "../src/features/composer/fit.ts";
 
 let app: RunningApp;
 let model: Server;

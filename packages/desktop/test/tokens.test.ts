@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { tokenizeJson, tokenizeShell } from "../src/components/detail/tokens.ts";
+import { tokenizeJson, tokenizeShell } from "../src/features/conversation/detail/tokens.ts";
 
 const kinds = (text: string, of: "shell" | "json" = "shell") =>
 	(of === "shell" ? tokenizeShell(text) : tokenizeJson(text))

@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fileKind, isReadableAsText, looksBinary, KIND_LABEL } from "../src/components/attachments/file-kind.ts";
+import { fileKind, isReadableAsText, looksBinary, KIND_LABEL } from "../src/features/composer/attachments/file-kind.ts";
 
 test("the formats people actually attach are recognised", () => {
 	const expected: [string, string][] = [
