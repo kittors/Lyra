@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { stripEmoji } from "../src/components/strip-emoji.ts";
+import { stripEmoji } from "../src/lib/markdown/strip-emoji.ts";
 
 test("a plain emoji goes, and the sentence closes up behind it", () => {
 	assert.equal(stripEmoji("🤖 Generated with Claude Code"), "Generated with Claude Code");

@@ -10,7 +10,7 @@
 import { Search, X } from "lucide-react";
 import { createContext, useContext } from "react";
 
-import { ScrollText } from "./ScrollText.tsx";
+import { ScrollText } from "../scroll/ScrollText.tsx";
 
 /**
  * Whether rows in this menu keep a column for their mark, even the ones that have none.

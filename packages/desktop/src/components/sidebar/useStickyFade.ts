@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import { FADE_TOP } from "../Scroller.tsx";
+import { FADE_TOP } from "../../ui/scroll/Scroller.tsx";
 import { heldBand, isPinned, type StickyRow } from "./sticky.ts";
 
 /** Marks a row the browser is currently holding at its rail. `.ly-pin` fills only while it is set. */

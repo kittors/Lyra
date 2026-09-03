@@ -2,7 +2,7 @@ import type { Language } from "@codemirror/language";
 import { Check, Copy, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { loadFenceLanguage, sharedHighlightStyle, tokenize } from "./highlight.ts";
+import { loadFenceLanguage, sharedHighlightStyle, tokenize } from "../lib/code/highlight.ts";
 import { useSide } from "../sideStore.ts";
 
 /**

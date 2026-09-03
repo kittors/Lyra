@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type Inline, parseInline } from "../src/components/markdown-inline.ts";
+import { type Inline, parseInline } from "../src/lib/markdown/inline.ts";
 
 /** Tokens as a compact shape, so an assertion reads like the sentence it is about. */
 function shape(tokens: Inline[]): string {

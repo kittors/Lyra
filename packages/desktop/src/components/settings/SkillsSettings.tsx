@@ -3,7 +3,7 @@ import { TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SkillMark } from "./PluginIcon.tsx";
 import { useApp } from "../../store.ts";
-import { SkeletonList, useSlowLoad } from "../Skeleton.tsx";
+import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 

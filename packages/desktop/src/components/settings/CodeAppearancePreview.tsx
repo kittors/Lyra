@@ -23,8 +23,8 @@
 
 import { RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CodeThemeSpec } from "../code-themes.ts";
-import { OverlayScrollbar } from "../OverlayScrollbar.tsx";
+import type { CodeThemeSpec } from "../../lib/code/themes.ts";
+import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 import { highlightPieces, type Piece } from "./preview-highlight.ts";
 
 export interface CodeTypography {

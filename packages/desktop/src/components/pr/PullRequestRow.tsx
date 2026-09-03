@@ -18,8 +18,8 @@
 import { Check, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, TriangleAlert } from "lucide-react";
 import { memo } from "react";
 import type { PullRequestSummary } from "../../../electron/ipc-types.ts";
-import { ScrollText } from "../ScrollText.tsx";
-import { TimeAgo } from "../TimeAgo.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
 import { Avatar } from "./Avatar.tsx";
 
 export const PullRequestRow = memo(function PullRequestRow({

@@ -23,8 +23,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { setTooltipSuppressed } from "../tooltip.ts";
-import { Scroller } from "./Scroller.tsx";
+import { setTooltipSuppressed } from "./tooltip.ts";
+import { Scroller } from "../scroll/Scroller.tsx";
 
 /**
  * A point to hang a menu from, for right-click — where the thing being acted on is a whole

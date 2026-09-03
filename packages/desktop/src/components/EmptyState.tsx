@@ -1,6 +1,6 @@
 import { Bug, Hammer, RefreshCw, Telescope } from "lucide-react";
 import mark from "../assets/empty-mark.png?inline";
-import { Scroller } from "./Scroller.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
 import { Composer } from "./Composer.tsx";
 import { useLayout } from "../layout.tsx";
 import { useApp } from "../store.ts";

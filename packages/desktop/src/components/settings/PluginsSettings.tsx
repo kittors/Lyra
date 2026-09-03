@@ -15,10 +15,10 @@ import type { Plugin } from "@lyra/core";
 import { FolderOpen, MoreHorizontal, Settings2, TriangleAlert, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Confirm } from "../Confirm.tsx";
-import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../Popover.tsx";
+import { Confirm } from "../../ui/overlay/Confirm.tsx";
+import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { useApp } from "../../store.ts";
-import { SkeletonList, useSlowLoad } from "../Skeleton.tsx";
+import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { settingsAfterToggle } from "../plugins/toggle.ts";
 import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";

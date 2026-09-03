@@ -14,11 +14,11 @@ import { companionOf } from "../panels/definitions.tsx";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortMenu, effortLabel } from "./EffortMenu.tsx";
 import { ModelIcon } from "./ModelIcon.tsx";
-import { RollingText, useRolled } from "./RollingText.tsx";
-import { ScrollText } from "./ScrollText.tsx";
+import { RollingText, useRolled } from "../ui/motion/RollingText.tsx";
+import { ScrollText } from "../ui/scroll/ScrollText.tsx";
 import { ModelMenu, formatWindow } from "./ModelMenu.tsx";
-import { modelIdentity, modelTooltip } from "../modelGrouping.ts";
-import { usePopover } from "./Popover.tsx";
+import { modelIdentity, modelTooltip } from "../lib/model-grouping.ts";
+import { usePopover } from "../ui/overlay/Popover.tsx";
 import { BranchMenu } from "./modals/BranchMenu.tsx";
 import { PermissionPicker } from "./modals/PermissionPicker.tsx";
 import { ProjectPicker } from "./modals/ProjectPicker.tsx";
@@ -27,7 +27,7 @@ import { findModel } from "../models.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
 import { FileKindIcon } from "./attachments/FileKindIcon.tsx";
 import { useApp } from "../store.ts";
-import { sessionThinking } from "../thinking.ts";
+import { sessionThinking } from "../lib/thinking.ts";
 import { bridge } from "../services/index.ts";
 
 const PERMISSION_LABEL: Record<string, string> = {

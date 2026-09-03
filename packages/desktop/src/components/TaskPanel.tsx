@@ -1,13 +1,13 @@
 import { ListTodo } from "lucide-react";
 import { useState } from "react";
 
-import { PanelEmpty } from "./PanelEmpty.tsx";
+import { PanelEmpty } from "../ui/layout/PanelEmpty.tsx";
 import { Mark, lastTurnFailed } from "./task/Mark.tsx";
 import { DetailCard } from "./detail/DetailCard.tsx";
 import { RunDetail } from "./task/RunDetail.tsx";
-import { Scroller } from "./Scroller.tsx";
-import { ScrollText } from "./ScrollText.tsx";
-import { Text } from "./Text.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
+import { ScrollText } from "../ui/scroll/ScrollText.tsx";
+import { Text } from "../ui/primitives/Text.tsx";
 import { useApp } from "../store.ts";
 
 /**

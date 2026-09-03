@@ -3,7 +3,7 @@ import { Cable, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
-import { useConfirmer } from "../Confirm.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { useApp } from "../../store.ts";
 import { Badge, Card, EmptyHint, Field, GhostButton, SectionTitle, Select, TextInput, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";

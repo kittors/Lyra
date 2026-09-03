@@ -16,7 +16,7 @@ import { useCallback, useState } from "react";
 
 import type { FileOpResult } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store.ts";
-import { useConfirmGate } from "../Confirm.tsx";
+import { useConfirmGate } from "../../ui/overlay/Confirm.tsx";
 import { baseName, dirName, joinPath, relativeTo } from "./paths.ts";
 import { bridge } from "../../services/index.ts";
 

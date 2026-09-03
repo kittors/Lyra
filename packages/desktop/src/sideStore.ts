@@ -10,9 +10,9 @@
 import type { AgentEvent, Message, QueuedTask, UserContent } from "@lyra/core";
 import { create } from "zustand";
 import { useDock } from "./dock/store.ts";
-import { summarizeToolCall } from "./toolSummary.ts";
+import { summarizeToolCall } from "./lib/tool-summary.ts";
 import type { ToolRun } from "./store.ts";
-import { settleTail } from "./transcript.ts";
+import { settleTail } from "./lib/transcript.ts";
 import { bridge } from "./services/index.ts";
 
 /**

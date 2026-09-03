@@ -5,8 +5,8 @@ import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { BinaryDiff } from "./BinaryDiff.tsx";
 import { DiffView } from "../DiffView.tsx";
 import { iconColour, lookFor } from "../fileIcon.tsx";
-import { SkeletonBar } from "../Skeleton.tsx";
-import { Text } from "../Text.tsx";
+import { SkeletonBar } from "../../ui/primitives/Skeleton.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 /**
  * The last meaningful segment of a path.

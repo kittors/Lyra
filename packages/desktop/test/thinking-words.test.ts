@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { moodFor, phraseFor, type Mood } from "../src/components/thinking-words.ts";
+import { moodFor, phraseFor, type Mood } from "../src/lib/thinking-words.ts";
 
 /** Every state the orb can draw. A mood outside this set would not render. */
 const STATES: Mood[] = [

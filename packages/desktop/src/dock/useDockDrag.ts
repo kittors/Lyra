@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { freezeMotion, inertPanes } from "../motion-freeze.ts";
+import { freezeMotion, inertPanes } from "../ui/motion/freeze.ts";
 import { dropAt, sameDrop, type Rect } from "./drop.ts";
 import { DRAG_THRESHOLD, paneFloor } from "./geometry.ts";
 import { fitTree, layoutPanes } from "./layout.ts";

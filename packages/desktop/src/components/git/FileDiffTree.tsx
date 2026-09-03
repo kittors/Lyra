@@ -4,7 +4,7 @@ import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { BinaryDiff } from "./BinaryDiff.tsx";
 import { DiffView } from "../DiffView.tsx";
 import { iconColour, lookFor } from "../fileIcon.tsx";
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 interface TreeNode {
 	name: string;

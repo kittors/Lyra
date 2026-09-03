@@ -1,7 +1,7 @@
 import { ExternalLink, Maximize2, Minimize2, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { IconButton } from "./IconButton.tsx";
+import { IconButton } from "../ui/primitives/IconButton.tsx";
 import { useDock } from "../dock/store.ts";
 import { useSide } from "../sideStore.ts";
 

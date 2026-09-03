@@ -30,8 +30,8 @@ import {
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { openLabel, useOpenTarget, useRevealLabel } from "../../openTargets.ts";
-import { ContextMenu } from "../ContextMenu.tsx";
-import { MenuItem, MenuSeparator } from "../Menu.tsx";
+import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";
+import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 

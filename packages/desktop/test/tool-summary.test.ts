@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { summarizeToolCall } from "../src/toolSummary.ts";
+import { summarizeToolCall } from "../src/lib/tool-summary.ts";
 
 test("summarizeToolCall handles missing and alias arguments without displaying 'undefined'", () => {
 	// grep

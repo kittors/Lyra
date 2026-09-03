@@ -26,7 +26,7 @@ import { useEffect, useState } from "react";
 import { NavPane, useLayout } from "../../layout.tsx";
 import { groupsFor, sectionFor } from "./sections-for.ts";
 import type { SettingsSection } from "../../store.ts";
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store.ts";
 import { ToolbarButton } from "../WindowControls.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";

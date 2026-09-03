@@ -7,7 +7,7 @@
  */
 
 import { Bell, Search } from "lucide-react";
-import { SearchField } from "../SearchField.tsx";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
 
 export function SidebarHead({
 	searching,

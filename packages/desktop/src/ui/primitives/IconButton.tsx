@@ -1,4 +1,4 @@
-import { Tooltip } from "./Tooltip.tsx";
+import { Tooltip } from "../overlay/Tooltip.tsx";
 
 /**
  * A button whose label is an icon.

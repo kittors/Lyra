@@ -1,11 +1,11 @@
 import { Check, ChevronRight, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
-import { RollingText } from "./RollingText.tsx";
-import { ScrollText } from "./ScrollText.tsx";
-import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "./Popover.tsx";
+import { RollingText } from "../ui/motion/RollingText.tsx";
+import { ScrollText } from "../ui/scroll/ScrollText.tsx";
+import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../ui/overlay/Popover.tsx";
 import { useApp } from "../store.ts";
-import { sessionThinking } from "../thinking.ts";
+import { sessionThinking } from "../lib/thinking.ts";
 import {
 	ambiguousNames,
 	favouriteRows,
@@ -14,7 +14,7 @@ import {
 	groupModels,
 	toggleFavourite,
 	type ModelRow,
-} from "../modelGrouping.ts";
+} from "../lib/model-grouping.ts";
 
 export function formatWindow(tokens: number): string {
 	if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`;

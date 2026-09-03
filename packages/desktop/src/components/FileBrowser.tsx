@@ -15,7 +15,7 @@ import { Folder } from "lucide-react";
 import { useDock } from "../dock/store.ts";
 import { companionOf } from "../panels/definitions.tsx";
 import { FileTree } from "./files/FileTree.tsx";
-import { PanelEmpty } from "./PanelEmpty.tsx";
+import { PanelEmpty } from "../ui/layout/PanelEmpty.tsx";
 import { useApp } from "../store.ts";
 import { useOpenFile } from "../store/openFile.ts";
 

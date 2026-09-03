@@ -1,12 +1,12 @@
 import type { SessionMeta } from "@lyra/core";
 import { Archive, ArchiveRestore, Folder, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useConfirmer } from "../Confirm.tsx";
-import { SearchField } from "../SearchField.tsx";
-import { ScrollText } from "../ScrollText.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GhostButton, InlineSelect } from "./controls.tsx";
 import { useApp } from "../../store.ts";
-import { sessionTitle } from "../../sessionTitle.ts";
+import { sessionTitle } from "../../lib/session-title.ts";
 
 /**
  * The archive: everything filed away from the sidebar, grouped by project.

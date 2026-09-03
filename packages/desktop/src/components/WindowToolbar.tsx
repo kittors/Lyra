@@ -13,7 +13,7 @@ import { has } from "../dock/tree.ts";
 import { usePanelDefinitions } from "../panels/definitions.tsx";
 import type { PanelKind } from "../sideStore.ts";
 import { useLayout } from "../layout.tsx";
-import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "./Popover.tsx";
+import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
 
 /*

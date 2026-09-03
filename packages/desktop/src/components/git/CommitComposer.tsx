@@ -10,8 +10,8 @@ import { Check, Languages, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../../store.ts";
 import { ComposerSend, ComposerShell } from "../ComposerShell.tsx";
-import { Spinner } from "../loaders.tsx";
-import { MenuBody, MenuItem, Popover, usePopover } from "../Popover.tsx";
+import { Spinner } from "../../ui/motion/loaders.tsx";
+import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { bridge } from "../../services/index.ts";
 import {
 	COMMIT_LANGUAGES,

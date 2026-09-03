@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { OverlayScrollbar } from "../OverlayScrollbar.tsx";
+import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
 export function MessageEditor({
 	value,

@@ -12,9 +12,9 @@
  */
 
 import type { AppearanceSettings } from "@lyra/core";
-import { sharedHighlightStyle } from "./components/highlight.ts";
-import { findCodeTheme } from "./components/code-themes.ts";
-import { contentMeasure } from "./content-width.ts";
+import { sharedHighlightStyle } from "./lib/code/highlight.ts";
+import { findCodeTheme } from "./lib/code/themes.ts";
+import { contentMeasure } from "./lib/content-width.ts";
 import { bridge } from "./services/index.ts";
 
 interface Rgb {

@@ -17,7 +17,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { useLayout, useSidebarFit } from "../layout.tsx";
-import { freezeMotion } from "../motion-freeze.ts";
+import { freezeMotion } from "../ui/motion/freeze.ts";
 import { toolbarReserved } from "../components/WindowControls.tsx";
 import { useApp } from "../store.ts";
 import { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "../panels/definitions.tsx";

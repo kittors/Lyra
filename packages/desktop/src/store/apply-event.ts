@@ -16,7 +16,7 @@ import { freeze, relight } from "./turn-meter.ts";
 import { useSide } from "../sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
 import type { AppState } from "../store.ts";
-import { settleTail } from "../transcript.ts";
+import { settleTail } from "../lib/transcript.ts";
 import { bridge } from "../services/index.ts";
 
 type Get = () => AppState;

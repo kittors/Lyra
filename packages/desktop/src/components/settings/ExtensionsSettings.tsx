@@ -1,8 +1,8 @@
 import { Blocks, Cable, ChevronDown, FolderOpen, MoreHorizontal, Plus, Sparkles, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { MenuBody, MenuItem, Popover, usePopover } from "../Popover.tsx";
-import { SearchField } from "../SearchField.tsx";
+import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useApp } from "../../store.ts";
 import { McpSettings, newMcpServer } from "./McpSettings.tsx";
 import { PluginsSettings } from "./PluginsSettings.tsx";

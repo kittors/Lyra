@@ -13,10 +13,10 @@
 import { Check, CircleAlert, CloudDownload, Link2, Loader2, Pencil, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
-import { useConfirmer } from "../Confirm.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { ModelIcon } from "../ModelIcon.tsx";
 import { formatWindow } from "../ModelMenu.tsx";
-import { ScrollText } from "../ScrollText.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Badge, GhostButton } from "./controls.tsx";
 
 export function ProviderModels({

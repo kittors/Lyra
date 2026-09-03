@@ -5,7 +5,7 @@
  * without one.
  */
 
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 export function GroupHeader({
   label,

@@ -15,8 +15,8 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useOpenFile, type OpenFileTab } from "../../store/openFile.ts";
 import { useApp } from "../../store.ts";
-import { ContextMenu, useContextMenu } from "../ContextMenu.tsx";
-import { MenuItem, MenuSeparator } from "../Menu.tsx";
+import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
+import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 import { useRevealLabel } from "../../openTargets.ts";
 import { bridge } from "../../services/index.ts";
 

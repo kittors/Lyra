@@ -1,5 +1,5 @@
 import { Database, RefreshCw, Search } from "lucide-react";
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store.ts";
 import { Card, EmptyHint, GhostButton, Row, SectionTitle } from "./controls.tsx";

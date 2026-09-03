@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { FileDiffList } from "../git/FileDiffList.tsx";
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { CodeSkeleton } from "./PullRequestSkeleton.tsx";
 import { bridge } from "../../services/index.ts";
 

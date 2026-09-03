@@ -15,7 +15,7 @@
 import type { Language } from "@codemirror/language";
 import type { DiffHunk } from "@lyra/core";
 import { useEffect, useState } from "react";
-import { GRAMMARS, sharedHighlightStyle, type Token, tokenizeLines } from "../highlight.ts";
+import { GRAMMARS, sharedHighlightStyle, type Token, tokenizeLines } from "../../lib/code/highlight.ts";
 
 /** Colours for every rendered row, in render order, or null while nothing can be parsed. */
 export function useDiffHighlight(hunks: DiffHunk[], path?: string): Token[][] | null {

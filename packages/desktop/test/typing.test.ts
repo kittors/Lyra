@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { typingFrames } from "../src/typing.ts";
+import { typingFrames } from "../src/lib/typing.ts";
 
 test("nothing to animate when the text has not changed", () => {
 	assert.deepEqual(typingFrames("新对话", "新对话"), []);

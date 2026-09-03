@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { iconColour, lookFor } from "../fileIcon.tsx";
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
 
 /** Which sides exist for a given change, in reading order. */

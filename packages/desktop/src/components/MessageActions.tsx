@@ -1,7 +1,7 @@
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Text } from "./Text.tsx";
+import { Text } from "../ui/primitives/Text.tsx";
 
 /**
  * The row under a message: when it was written, and what you can do with it.

@@ -9,7 +9,7 @@
 
 import { Check, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
-import { MenuBody, MenuItem, Popover, usePopover } from "../Popover.tsx";
+import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 
 export function TextInput({
 	value,

@@ -1,19 +1,19 @@
 import { Activity, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLiveRefresh } from "../useLiveRefresh.ts";
+import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { useDock } from "../../dock/store.ts";
 import { kinds } from "../../dock/tree.ts";
 import { paneVisible } from "../../dock/visibility.ts";
 import { useLayout } from "../../layout.tsx";
 import { syncPlan, type SyncButton } from "./syncPlan.ts";
-import { Spinner } from "../loaders.tsx";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 
 import type { GitStatus } from "../../../electron/ipc-types.ts";
 import type { RepoRef } from "../../../electron/git.ts";
-import { IconButton } from "../IconButton.tsx";
-import { PanelEmpty } from "../PanelEmpty.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store.ts";
 
 import { BranchesView } from "./BranchesView.tsx";
@@ -23,9 +23,9 @@ import { PipelinesView } from "./PipelinesView.tsx";
 import { ReleaseModal } from "./ReleaseModal.tsx";
 import { RepoPicker } from "./RepoPicker.tsx";
 import { sameStatus } from "./sameStatus.ts";
-import { SkeletonList, useSlowLoad } from "../Skeleton.tsx";
-import { CountUp } from "../CountUp.tsx";
-import { useNarrow } from "../useNarrow.ts";
+import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
+import { CountUp } from "../../ui/primitives/CountUp.tsx";
+import { useNarrow } from "../../ui/hooks/useNarrow.ts";
 import { bridge } from "../../services/index.ts";
 
 type View = "changes" | "history" | "branches" | "pipelines";

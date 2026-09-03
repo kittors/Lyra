@@ -7,7 +7,7 @@
 
 import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
-import { ATOM } from "../highlight.ts";
+import { ATOM } from "../../lib/code/highlight.ts";
 
 /**
  * Chrome colours, taken from the app's own tokens.

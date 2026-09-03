@@ -7,10 +7,10 @@ import { useCallback, useEffect, useState } from "react";
 import type { GitStatus, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import type { BranchList, RepoRef } from "../../../electron/git.ts";
 
-import { useConfirmer } from "../Confirm.tsx";
-import { Scroller } from "../Scroller.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 import { FileDiffList } from "./FileDiffList.tsx";
 

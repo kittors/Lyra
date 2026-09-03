@@ -1,5 +1,5 @@
 import type { ModelConfig } from "@lyra/core";
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useState } from "react";
 import { Overlay } from "../modals/Overlay.tsx";
 import { Field, GhostButton, PrimaryButton, TextInput, Toggle } from "./controls.tsx";

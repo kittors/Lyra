@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { SessionMeta } from "@lyra/core";
-import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../Popover.tsx";
+import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useApp } from "../../store.ts";
 import { bridge } from "../../services/index.ts";
 

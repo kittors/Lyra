@@ -19,7 +19,7 @@ import { useApp } from "../../store.ts";
 import type { Info } from "../../update/store.ts";
 import { confirmLabel, controlsFor, fractionOf, mb, readyNote, type Phase } from "../../update/view.ts";
 import { Overlay } from "./Overlay.tsx";
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Markdown } from "../Markdown.tsx";
 import { bridge } from "../../services/index.ts";
 

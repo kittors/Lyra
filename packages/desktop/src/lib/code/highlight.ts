@@ -11,7 +11,7 @@ import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import { highlightTree, tags as t } from "@lezer/highlight";
-import { findCodeTheme } from "./code-themes.ts";
+import { findCodeTheme } from "./themes.ts";
 
 /**
  * Token colours.

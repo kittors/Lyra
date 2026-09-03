@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import { ConfirmBody } from "../../src/components/Confirm.tsx";
+import { ConfirmBody } from "../../src/ui/overlay/Confirm.tsx";
 import { click, mount } from "../helpers/mount.ts";
 
 function open(overrides: Record<string, unknown> = {}) {

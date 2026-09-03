@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { OverlayScrollbar } from "./OverlayScrollbar.tsx";
+import { OverlayScrollbar } from "../ui/scroll/OverlayScrollbar.tsx";
 import { FIT_LEVELS, FIT_PROBE, settle, tight } from "./composer/fit.ts";
-import { ROLL_VALUE } from "./RollingText.tsx";
+import { ROLL_VALUE } from "../ui/motion/RollingText.tsx";
 
 /**
  * The surface you type into, wherever you are typing.

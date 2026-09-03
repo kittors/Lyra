@@ -12,8 +12,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
-import { IconButton } from "../IconButton.tsx";
-import { Text } from "../Text.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 /** Far enough in to inspect a single pixel, far enough out to see a poster whole. */
 const MIN_SCALE = 0.05;

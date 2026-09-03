@@ -17,8 +17,8 @@
 import { ClipboardPaste, Copy, Scissors, TextSelect } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { ContextMenu } from "./ContextMenu.tsx";
-import { MenuItem, MenuSeparator } from "./Menu.tsx";
+import { ContextMenu } from "../ui/overlay/ContextMenu.tsx";
+import { MenuItem, MenuSeparator } from "../ui/overlay/Menu.tsx";
 import { bridge } from "../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;

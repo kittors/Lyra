@@ -11,7 +11,7 @@ import { ChevronRight } from "lucide-react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { iconColour, lookFor } from "../fileIcon.tsx";
-import { ScrollText } from "../ScrollText.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { NameEditor } from "./NameEditor.tsx";
 
 /** Indent per level, and where the first one starts. Kept together so they stay in proportion. */

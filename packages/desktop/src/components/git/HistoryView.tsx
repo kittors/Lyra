@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { GitCommit, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 
-import { PanelEmpty } from "../PanelEmpty.tsx";
-import { SkeletonBar } from "../Skeleton.tsx";
+import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
+import { SkeletonBar } from "../../ui/primitives/Skeleton.tsx";
 
-import { Scroller } from "../Scroller.tsx";
-import { ScrollText } from "../ScrollText.tsx";
-import { Text } from "../Text.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 import { CommitGraph, CommitThroughGraph, LANE_WIDTH } from "./CommitGraph.tsx";
 import { withContents } from "./diff-merge.ts";

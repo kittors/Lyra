@@ -1,7 +1,7 @@
 import { Box } from "lucide-react";
 import { useId } from "react";
 
-import { brandOf, type Brand } from "../modelBrand.ts";
+import { brandOf, type Brand } from "../lib/model-brand.ts";
 
 /**
  * The mark of whoever made the model, beside its name.

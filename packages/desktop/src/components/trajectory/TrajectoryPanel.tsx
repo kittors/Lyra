@@ -14,9 +14,9 @@ import { History, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Source as TrajectorySourceKind } from "@lyra/core/trajectory-view";
 
-import { PanelEmpty } from "../PanelEmpty.tsx";
-import { Scroller } from "../Scroller.tsx";
-import { Text } from "../Text.tsx";
+import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store.ts";
 import { EntryRow } from "./EntryRow.tsx";
 import { SourceFilter } from "./SourceFilter.tsx";

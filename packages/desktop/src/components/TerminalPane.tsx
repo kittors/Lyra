@@ -9,7 +9,7 @@ import { useSide } from "../sideStore.ts";
 import { useTerminals } from "../store/terminals.ts";
 import { rememberTerminalSize } from "../terminal-prewarm.ts";
 import { CODE_DEFAULTS } from "./settings/code-defaults.ts";
-import { findCodeTheme } from "./code-themes.ts";
+import { findCodeTheme } from "../lib/code/themes.ts";
 import type { AppearanceSettings } from "@lyra/core";
 import { bridge } from "../services/index.ts";
 

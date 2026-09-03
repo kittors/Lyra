@@ -24,7 +24,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultHighlightStyle } from "@codemirror/language";
-import { loadFenceLanguage, tokenize, type Token } from "../src/components/highlight.ts";
+import { loadFenceLanguage, tokenize, type Token } from "../src/lib/code/highlight.ts";
 
 interface Case {
 	/** The fence name, as someone would write it. */

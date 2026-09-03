@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import { IconButton } from "../../src/components/IconButton.tsx";
+import { IconButton } from "../../src/ui/primitives/IconButton.tsx";
 import { click, mount } from "../helpers/mount.ts";
 
 const ICON = h("svg", { "data-icon": "true" });

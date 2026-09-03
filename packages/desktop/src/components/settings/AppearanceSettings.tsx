@@ -2,7 +2,7 @@ import type { AppearanceSettings as Appearance } from "@lyra/core";
 import { useState } from "react";
 import { useApp } from "../../store.ts";
 import { Card, GhostButton, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } from "./controls.tsx";
-import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../code-themes.ts";
+import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/code/themes.ts";
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { CODE_DEFAULTS } from "./code-defaults.ts";
 import { CODE_FONTS, fontAvailable, matchCodeFont } from "./code-fonts.ts";
@@ -12,7 +12,7 @@ import {
 	CONTENT_MAX,
 	CONTENT_MIN,
 	contentPreset,
-} from "../../content-width.ts";
+} from "../../lib/content-width.ts";
 
 /** The sentinel the font menu uses for 「自定义…」; never stored as a font stack. */
 const CUSTOM_FONT = "__custom__";

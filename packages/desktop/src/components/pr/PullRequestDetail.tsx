@@ -10,10 +10,10 @@ import { ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, Ref
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { relativeTime } from "../git/relative-time.ts";
-import { Disclosure } from "../Disclosure.tsx";
+import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { Markdown } from "../Markdown.tsx";
-import { ScrollText } from "../ScrollText.tsx";
-import { Scroller } from "../Scroller.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { activityOf } from "./activity.ts";
 import { Avatar } from "./Avatar.tsx";
 import { ActivityLink, PullRequestActivity } from "./PullRequestActivity.tsx";

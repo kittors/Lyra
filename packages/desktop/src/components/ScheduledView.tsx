@@ -10,13 +10,13 @@ import type { ScheduledTask } from "@lyra/core";
 import { nextRunAt } from "@lyra/core/schedule";
 import { Clock, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useConfirmer } from "./Confirm.tsx";
-import { Scroller } from "./Scroller.tsx";
+import { useConfirmer } from "../ui/overlay/Confirm.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
 import { NumberField, TimeField } from "./settings/pickers.tsx";
 import { useLayout } from "../layout.tsx";
 import { useApp } from "../store.ts";
 import { Toggle } from "./settings/controls.tsx";
-import { sessionTitle } from "../sessionTitle.ts";
+import { sessionTitle } from "../lib/session-title.ts";
 import { bridge } from "../services/index.ts";
 
 export function ScheduledView() {

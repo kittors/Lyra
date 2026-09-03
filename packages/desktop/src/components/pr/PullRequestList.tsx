@@ -14,7 +14,7 @@
 import { ChevronRight, RefreshCw, Search, UserPlus } from "lucide-react";
 import { useState } from "react";
 import type { ForgeAccount, PullRequestSummary } from "../../../electron/ipc-types.ts";
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { AccountTabs } from "./AccountTabs.tsx";
 import { rowId } from "./pr-cache.ts";
 import { PullRequestRow } from "./PullRequestRow.tsx";

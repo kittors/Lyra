@@ -1,5 +1,5 @@
 import type { DiffHunk, ToolResult } from "@lyra/core";
-import { Scroller } from "./Scroller.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
 import {
 	Cable,
 	ChevronRight,

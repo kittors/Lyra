@@ -1,7 +1,7 @@
 import { Archive, ArrowRight, FolderOpen, GitBranch, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
 import { useState } from "react";
-import { Confirm } from "../Confirm.tsx";
-import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../Popover.tsx";
+import { Confirm } from "../../ui/overlay/Confirm.tsx";
+import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useRevealLabel } from "../../openTargets.ts";
 import { startProjectSession } from "../sidebar/newSession.ts";
 import { useApp } from "../../store.ts";

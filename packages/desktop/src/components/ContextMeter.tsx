@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import type { ContextBreakdown, ContextSegmentKey } from "../../electron/ipc-types.ts";
 import { findModel } from "../models.ts";
-import { Popover, usePopover } from "./Popover.tsx";
+import { Popover, usePopover } from "../ui/overlay/Popover.tsx";
 import { formatTokens } from "./RunningIndicator.tsx";
 import { bridge } from "../services/index.ts";
 

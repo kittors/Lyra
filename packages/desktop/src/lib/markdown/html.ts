@@ -9,7 +9,7 @@
  * turns `a < b` into an unterminated element, so anything not named here is left as it was typed.
  */
 
-import type { Inline } from "./markdown-inline.ts";
+import type { Inline } from "./inline.ts";
 
 /** HTML we draw as itself. Everything here has a meaning we can honour. */
 export type InlineTag = "kbd" | "sub" | "sup" | "mark";

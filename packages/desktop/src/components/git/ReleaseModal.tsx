@@ -18,10 +18,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReleaseInfo, WorkflowRunStatus } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store.ts";
 import { Markdown } from "../Markdown.tsx";
-import { MenuBody, MenuItem } from "../Menu.tsx";
+import { MenuBody, MenuItem } from "../../ui/overlay/Menu.tsx";
 import { Overlay } from "../modals/Overlay.tsx";
-import { Popover } from "../Popover.tsx";
-import { Scroller } from "../Scroller.tsx";
+import { Popover } from "../../ui/overlay/Popover.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { bridge } from "../../services/index.ts";
 
 interface ReleaseModalProps {

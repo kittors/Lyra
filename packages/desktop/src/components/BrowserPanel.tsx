@@ -1,9 +1,9 @@
 import { ArrowLeft, ArrowRight, Globe, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { IconButton } from "./IconButton.tsx";
-import { PanelEmpty } from "./PanelEmpty.tsx";
-import { Text } from "./Text.tsx";
+import { IconButton } from "../ui/primitives/IconButton.tsx";
+import { PanelEmpty } from "../ui/layout/PanelEmpty.tsx";
+import { Text } from "../ui/primitives/Text.tsx";
 import { useSide } from "../sideStore.ts";
 
 /**

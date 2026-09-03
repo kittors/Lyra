@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { ResizeHandle } from "./components/ResizeHandle.tsx";
+import { ResizeHandle } from "./ui/layout/ResizeHandle.tsx";
 import { useFocusTrap, useLayout } from "./layout.tsx";
 import { drawerWidth } from "./mobile/drawer-gesture.ts";
 import { onPhone } from "./mobile/useMobileShell.ts";

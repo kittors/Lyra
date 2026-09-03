@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describeRetry, type Retrying } from "../src/components/retry-line.ts";
+import { describeRetry, type Retrying } from "../src/lib/retry-line.ts";
 
 const NOW = 1_700_000_000_000;
 

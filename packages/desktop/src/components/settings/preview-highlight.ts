@@ -16,8 +16,8 @@
 
 import { tagHighlighter, tags as t } from "@lezer/highlight";
 import type { Language } from "@codemirror/language";
-import type { CodeThemeSpec } from "../code-themes.ts";
-import { GRAMMARS, grammarKeyFor } from "../highlight.ts";
+import type { CodeThemeSpec } from "../../lib/code/themes.ts";
+import { GRAMMARS, grammarKeyFor } from "../../lib/code/highlight.ts";
 
 /** The token names a theme declares a colour for. */
 export type TokenName = keyof CodeThemeSpec["tokens"];

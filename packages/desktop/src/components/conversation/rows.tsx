@@ -15,8 +15,8 @@ import { ThinkingBlock } from "../ThinkingBlock.tsx";
 import { UserMessage } from "../UserMessage.tsx";
 import { useApp } from "../../store.ts";
 import { ChevronDown, RotateCcw, TriangleAlert } from "lucide-react";
-import { Text } from "../Text.tsx";
-import { useConfirmer } from "../Confirm.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 

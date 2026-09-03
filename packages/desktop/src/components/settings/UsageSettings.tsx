@@ -15,7 +15,7 @@ import { useApp } from "../../store.ts";
 import type { UsageScan } from "../../../electron/usage-scan.ts";
 import { Card, EmptyHint, SectionTitle } from "./controls.tsx";
 import { Segmented } from "./controls.tsx";
-import { SkeletonBar, useSlowLoad } from "../Skeleton.tsx";
+import { SkeletonBar, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { heatLevel, heatmapWeeks, monthLabels, type DayUsage } from "./usage-heatmap.ts";
 import { dayTotals, providerLabel, summarise, type Range } from "./usage-aggregate.ts";
 import { DailyBars, ModelBars } from "./usage-charts.tsx";

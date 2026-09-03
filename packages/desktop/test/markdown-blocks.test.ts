@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type Block, parseMarkdown } from "../src/components/markdown-blocks.ts";
+import { type Block, parseMarkdown } from "../src/lib/markdown/blocks.ts";
 
 function only(blocks: Block[], kind: Block["kind"]): Block {
 	const found = blocks.find((block) => block.kind === kind);

@@ -18,14 +18,14 @@ import { visibleActivity } from "@lyra/core/activity";
 import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useLayout } from "../../layout.tsx";
-import { sessionTitle } from "../../sessionTitle.ts";
+import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store.ts";
 import { SessionCard, useSessionCard } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/SessionMenu.tsx";
-import { usePopover } from "../Popover.tsx";
-import { ScrollText } from "../ScrollText.tsx";
+import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SessionStatus } from "../SessionStatus.tsx";
-import { useTypedText } from "../TypedText.tsx";
+import { useTypedText } from "../../ui/motion/TypedText.tsx";
 
 /**
  * How recently a conversation must have been created for its row to drop in.

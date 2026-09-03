@@ -20,14 +20,14 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { useApp } from "../store.ts";
-import { GRAMMARS, grammarKeyFor, highlightStyle } from "./highlight.ts";
+import { GRAMMARS, grammarKeyFor, highlightStyle } from "../lib/code/highlight.ts";
 import { editorTheme } from "./editor/theme.ts";
 import { applyFormat } from "./editor/apply-format.ts";
 import { FORMAT_DEFAULTS } from "./editor/format.ts";
 import { CHEVRON_DOWN, CHEVRON_RIGHT, OPTION_ICONS, SEARCH_ICONS, SEARCH_PHRASES, SEARCH_TIPS } from "./editor/chrome.ts";
 import { EditorMenu } from "./editor/EditorMenu.tsx";
-import { useContextMenu } from "./ContextMenu.tsx";
-import { OverlayScrollbar } from "./OverlayScrollbar.tsx";
+import { useContextMenu } from "../ui/overlay/ContextMenu.tsx";
+import { OverlayScrollbar } from "../ui/scroll/OverlayScrollbar.tsx";
 
 /**
  * Format the buffer and say what happened, in one line.

@@ -28,7 +28,7 @@ import { kinds } from "../../dock/tree.ts";
 import { paneVisible } from "../../dock/visibility.ts";
 import { useApp } from "../../store.ts";
 import { useOpenFile } from "../../store/openFile.ts";
-import { MENU_MAX_HEIGHT, Popover, usePopover } from "../Popover.tsx";
+import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { FileTree } from "./FileTree.tsx";
 
 /**

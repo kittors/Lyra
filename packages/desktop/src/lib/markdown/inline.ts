@@ -12,9 +12,9 @@
  * Plain `.ts` so it can be tested — this is the half that can be wrong.
  */
 
-import { type InlineTag, matchHtml } from "./markdown-html.ts";
+import { type InlineTag, matchHtml } from "./html.ts";
 
-export type { InlineTag } from "./markdown-html.ts";
+export type { InlineTag } from "./html.ts";
 
 export type Inline =
 	| { kind: "text"; text: string }

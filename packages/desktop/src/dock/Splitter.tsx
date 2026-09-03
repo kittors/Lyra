@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { freezeMotion } from "../motion-freeze.ts";
+import { freezeMotion } from "../ui/motion/freeze.ts";
 import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP } from "./geometry.ts";
 import { shareFromPointer, type SplitterBox } from "./layout.ts";
 import { pct } from "./css.ts";

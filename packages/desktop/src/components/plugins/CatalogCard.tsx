@@ -22,8 +22,8 @@
 
 import { ArrowUp, Download, FolderOpen, Loader2, MoreHorizontal, Play, Settings2, Trash2 } from "lucide-react";
 
-import { Confirm } from "../Confirm.tsx";
-import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../Popover.tsx";
+import { Confirm } from "../../ui/overlay/Confirm.tsx";
+import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { PluginIcon } from "../settings/PluginIcon.tsx";
 import { FootprintLine, IdentityLine } from "./CardMeta.tsx";
 import { isEnabled, isInstalled, type CatalogItem } from "./catalog.ts";

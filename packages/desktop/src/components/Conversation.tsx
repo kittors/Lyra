@@ -5,7 +5,7 @@ import { Composer } from "./Composer.tsx";
 import { ResumeRow } from "./ResumeRow.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "./TaskList.tsx";
-import { Scroller } from "./Scroller.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
 import { useAnswering } from "./conversation/useAnswering.ts";
 import { isNudge, runs } from "./conversation/grouping.ts";
 import { ToolRun as ToolRunGroup, WINDOW_STEP } from "./conversation/runs.tsx";

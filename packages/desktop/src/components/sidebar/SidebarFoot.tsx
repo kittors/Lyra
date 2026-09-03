@@ -13,7 +13,7 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../layout.tsx";
 import { useApp } from "../../store.ts";
-import { ScrollText } from "../ScrollText.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { UpdateBadge } from "../UpdateBadge.tsx";
 import { activeProviderLabel } from "./grouping.ts";
 

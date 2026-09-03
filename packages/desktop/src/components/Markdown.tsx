@@ -12,12 +12,12 @@
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { createContext, Fragment, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
-import type { Block, ListItem } from "./markdown-blocks.ts";
-import { parseMarkdown } from "./markdown-blocks.ts";
-import { resolveAsset } from "./markdown-assets.ts";
-import { type Inline, parseInline } from "./markdown-inline.ts";
-import { renderMath } from "./markdown-math.ts";
-import { stripEmoji } from "./strip-emoji.ts";
+import type { Block, ListItem } from "../lib/markdown/blocks.ts";
+import { parseMarkdown } from "../lib/markdown/blocks.ts";
+import { resolveAsset } from "../lib/markdown/assets.ts";
+import { type Inline, parseInline } from "../lib/markdown/inline.ts";
+import { renderMath } from "../lib/markdown/math.ts";
+import { stripEmoji } from "../lib/markdown/strip-emoji.ts";
 import { bridge } from "../services/index.ts";
 
 /**

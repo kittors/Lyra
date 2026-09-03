@@ -14,8 +14,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Database, Table2 } from "lucide-react";
 import type { DocumentData } from "../../../electron/ipc-types.ts";
-import { Scroller } from "../Scroller.tsx";
-import { Text } from "../Text.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
 
 /** Numbers line up on the right; everything else reads from the left. */

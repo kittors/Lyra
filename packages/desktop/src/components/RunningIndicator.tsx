@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
-import { describeRetry } from "./retry-line.ts";
-import { useCountUp } from "./useCountUp.ts";
-import { moodFor, phraseFor } from "./thinking-words.ts";
+import { describeRetry } from "../lib/retry-line.ts";
+import { useCountUp } from "../ui/primitives/useCountUp.ts";
+import { moodFor, phraseFor } from "../lib/thinking-words.ts";
 import { useApp } from "../store.ts";
 
 /**

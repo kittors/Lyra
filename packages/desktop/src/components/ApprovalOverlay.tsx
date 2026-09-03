@@ -1,5 +1,5 @@
 import { Terminal, TriangleAlert } from "lucide-react";
-import { Scroller } from "./Scroller.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
 import { useLayout } from "../layout.tsx";
 import { useApp } from "../store.ts";
 

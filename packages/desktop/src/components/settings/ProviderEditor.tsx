@@ -14,10 +14,10 @@ import type { ApiFormat, ModelConfig, ProviderConfig } from "@lyra/core";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
-import { useConfirmer } from "../Confirm.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Badge, Field, GhostButton, SecretInput, Select, TextInput } from "./controls.tsx";
 import { ProviderModels } from "./ProviderModels.tsx";
-import { RollingText } from "../RollingText.tsx";
+import { RollingText } from "../../ui/motion/RollingText.tsx";
 
 const API_OPTIONS: { value: ApiFormat; label: string }[] = [
 	{ value: "openai-responses", label: "Responses (/responses)" },

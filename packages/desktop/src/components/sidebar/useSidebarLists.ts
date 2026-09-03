@@ -13,9 +13,9 @@
 
 import type { SessionMeta } from "@lyra/core";
 import { useMemo } from "react";
-import { sessionTitle } from "../../sessionTitle.ts";
+import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store.ts";
-import { useConfirmer } from "../Confirm.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { groupSessions, listableSessions, type Grouped } from "./grouping.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { bandByRecency, type RecencyBand } from "./recency.ts";

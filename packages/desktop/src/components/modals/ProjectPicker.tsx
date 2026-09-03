@@ -1,6 +1,6 @@
 import { Check, Folder, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuSearch, Popover, type Anchor } from "../Popover.tsx";
+import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useLayout } from "../../layout.tsx";
 import { useApp } from "../../store.ts";
 

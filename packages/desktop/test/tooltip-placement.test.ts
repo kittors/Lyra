@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { tipPlacement } from "../src/tooltip.ts";
+import { tipPlacement } from "../src/ui/overlay/tooltip.ts";
 
 const VIEW = { width: 1200, height: 800 };
 const TIP = { width: 100, height: 24 };

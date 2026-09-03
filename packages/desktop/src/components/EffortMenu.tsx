@@ -10,10 +10,10 @@ import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
 import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
 import { CircleHelp } from "lucide-react";
 import { useState } from "react";
-import { Popover, type Anchor } from "./Popover.tsx";
-import { RollingText } from "./RollingText.tsx";
+import { Popover, type Anchor } from "../ui/overlay/Popover.tsx";
+import { RollingText } from "../ui/motion/RollingText.tsx";
 import { useApp } from "../store.ts";
-import { sessionThinking } from "../thinking.ts";
+import { sessionThinking } from "../lib/thinking.ts";
 
 export function effortLabel(level: ThinkingLevel, model?: ModelConfig | null): string {
 	const options = resolveModelThinkingOptions(model);

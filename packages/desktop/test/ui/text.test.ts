@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import { Text } from "../../src/components/Text.tsx";
+import { Text } from "../../src/ui/primitives/Text.tsx";
 import { mount } from "../helpers/mount.ts";
 
 test("Text: 七级字阶各自映射到自己的类，且没有绝对像素", async () => {

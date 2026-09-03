@@ -1,5 +1,5 @@
 import { useLayout } from "../../layout.tsx";
-import { RollingText } from "../RollingText.tsx";
+import { RollingText } from "../../ui/motion/RollingText.tsx";
 
 /**
  * The pager under a run of conversation rows.

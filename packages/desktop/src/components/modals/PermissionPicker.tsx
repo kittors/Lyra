@@ -14,9 +14,9 @@ import {
   MenuLabel,
   Popover,
   type Anchor,
-} from "../Popover.tsx";
+} from "../../ui/overlay/Popover.tsx";
 import { Overlay } from "./Overlay.tsx";
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store.ts";
 
 const MODES: {

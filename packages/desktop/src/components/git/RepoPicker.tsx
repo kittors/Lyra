@@ -5,9 +5,9 @@ import { Check, ChevronDown, Folder, GitBranchPlus } from "lucide-react";
 
 import type { RepoRef } from "../../../electron/git.ts";
 
-import { MENU_MAX_HEIGHT, MenuBody, MenuItem, Popover, usePopover } from "../Popover.tsx";
-import { ScrollText } from "../ScrollText.tsx";
-import { Text } from "../Text.tsx";
+import { MENU_MAX_HEIGHT, MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 
 /**

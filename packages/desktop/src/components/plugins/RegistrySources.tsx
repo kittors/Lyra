@@ -14,7 +14,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import { useConfirmer } from "../Confirm.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Overlay } from "../modals/Overlay.tsx";
 import { GhostButton } from "../settings/controls.tsx";
 import { TextInput } from "../settings/inputs.tsx";

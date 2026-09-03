@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import { Tooltip } from "../../src/components/Tooltip.tsx";
+import { Tooltip } from "../../src/ui/overlay/Tooltip.tsx";
 import { mount } from "../helpers/mount.ts";
 
 /*
@@ -80,7 +80,7 @@ test("Tooltip: 子元素原有的属性与内容不被吞掉", async () => {
 
 test("IconButton 经 Tooltip 之后仍然带得动提示——两个组件的接缝", async () => {
 	// IconButton 内部就是用 Tooltip 包自己的；这条守的是那层包装没有在重构里被拆掉。
-	const { IconButton } = await import("../../src/components/IconButton.tsx");
+	const { IconButton } = await import("../../src/ui/primitives/IconButton.tsx");
 	const view = await mount(h(IconButton, { label: "新建会话", icon: h("svg"), onClick: () => {} }));
 
 	const el = view.host.querySelector<HTMLElement>(LISTENER_SELECTOR);

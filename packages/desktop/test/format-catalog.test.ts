@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LANGUAGES, searchLanguages, formatterCounts } from "../src/components/settings/format-catalog.ts";
-import { GRAMMARS } from "../src/components/highlight.ts";
+import { GRAMMARS } from "../src/lib/code/highlight.ts";
 import { canFormat } from "../src/components/editor/format.ts";
 
 test("every entry points at a grammar that exists", () => {

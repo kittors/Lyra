@@ -17,7 +17,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout-widths.ts";
-import { freezeMotion } from "./motion-freeze.ts";
+import { freezeMotion } from "./ui/motion/freeze.ts";
 import { useDrawerGesture, useKeyboardInset } from "./mobile/useMobileShell.ts";
 import { overlayReserved, titlebarInsets, type TitlebarInsets } from "./titlebar.ts";
 import { bridge, onPhone } from "./services/index.ts";

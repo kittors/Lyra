@@ -1,6 +1,6 @@
 import type { SessionActivity } from "@lyra/core/activity";
 
-import { BreatheLoader } from "./loaders.tsx";
+import { BreatheLoader } from "../ui/motion/loaders.tsx";
 
 const LABEL: Record<SessionActivity, string> = {
 	running: "正在执行",

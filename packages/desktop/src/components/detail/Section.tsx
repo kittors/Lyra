@@ -19,7 +19,7 @@
  * and a heading that never changes never animates.
  */
 
-import { RollingText } from "../RollingText.tsx";
+import { RollingText } from "../../ui/motion/RollingText.tsx";
 
 export function Section({
 	title,

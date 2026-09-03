@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { freezeMotion } from "../motion-freeze.ts";
+import { freezeMotion } from "../motion/freeze.ts";
 
 /**
  * How far the pointer can wander from the edge and still be grabbing it.

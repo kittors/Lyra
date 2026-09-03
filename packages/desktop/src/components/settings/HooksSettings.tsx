@@ -1,8 +1,8 @@
 import type { HookConfig } from "@lyra/core";
-import { ScrollText } from "../ScrollText.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Anchor, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useConfirmer } from "../Confirm.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { useApp } from "../../store.ts";
 import {
   Badge,

@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { X } from "lucide-react";
-import { Spinner } from "./loaders.tsx";
+import { Spinner } from "../motion/loaders.tsx";
 
 /**
  * The middle of an empty panel body.

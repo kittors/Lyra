@@ -19,7 +19,7 @@ import { SOURCE_LABEL, matchRanges, type Entry as TrajectoryEntry } from "@lyra/
 import { CodeText } from "../detail/CodeText.tsx";
 import { DetailCard } from "../detail/DetailCard.tsx";
 import { Section } from "../detail/Section.tsx";
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 /**
  * How each kind of entry is set.

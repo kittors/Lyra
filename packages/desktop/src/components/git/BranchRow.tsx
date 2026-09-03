@@ -3,8 +3,8 @@
  */
 
 import { GitBranch, GitCompare, Trash2 } from "lucide-react";
-import { IconButton } from "../IconButton.tsx";
-import { Text } from "../Text.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 export function BranchRow({
   name,

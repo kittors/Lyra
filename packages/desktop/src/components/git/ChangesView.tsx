@@ -6,18 +6,18 @@ import { useEffect, useState } from "react";
 
 import type { GitStatus, GitStatusFile, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 
-import { useConfirmer } from "../Confirm.tsx";
-import { IconButton } from "../IconButton.tsx";
-import { PanelEmpty } from "../PanelEmpty.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 
-import { Scroller } from "../Scroller.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 
 import { CommitComposer } from "./CommitComposer.tsx";
 import { FileDiffList } from "./FileDiffList.tsx";
 import { FileDiffTree } from "./FileDiffTree.tsx";
 
 import { GroupHeader } from "./GroupHeader.tsx";
-import { SkeletonList } from "../Skeleton.tsx";
+import { SkeletonList } from "../../ui/primitives/Skeleton.tsx";
 import type { SyncPlan } from "./syncPlan.ts";
 import type { Act } from "./types.ts";
 import { bridge } from "../../services/index.ts";

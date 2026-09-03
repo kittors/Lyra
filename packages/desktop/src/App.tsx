@@ -13,13 +13,13 @@ import { Conversation, ConversationSkeleton } from "./components/Conversation.ts
 import { EmptyState } from "./components/EmptyState.tsx";
 import { ImageViewer } from "./components/image/ImageViewer.tsx";
 import { InputMenu } from "./components/InputMenu.tsx";
-import { SkeletonList } from "./components/Skeleton.tsx";
+import { SkeletonList } from "./ui/primitives/Skeleton.tsx";
 import { Toaster } from "./components/toast/Toaster.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { DragBand, PanelMenu, WindowButtons } from "./components/WindowToolbar.tsx";
 import { DockView } from "./dock/DockView.tsx";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
-import { sessionTitle } from "./sessionTitle.ts";
+import { sessionTitle } from "./lib/session-title.ts";
 import { useShortcuts } from "./shortcuts.ts";
 import { useSide } from "./sideStore.ts";
 import { useApp } from "./store.ts";

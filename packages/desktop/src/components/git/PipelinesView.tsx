@@ -25,9 +25,9 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkflowRunStatus, WorkflowRunSummary } from "../../../electron/ipc-types.ts";
-import { IconButton } from "../IconButton.tsx";
-import { Scroller } from "../Scroller.tsx";
-import { SkeletonBar, SkeletonList, useSlowLoad } from "../Skeleton.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { SkeletonBar, SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { readCachedDetail, readCachedRuns, writeCachedDetail, writeCachedRuns } from "./pipeline-cache.ts";
 import { relativeTime } from "./relative-time.ts";
 import { bridge } from "../../services/index.ts";

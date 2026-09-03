@@ -6,7 +6,7 @@
  * a full-width input needs. Both are here, side by side, where the choice between them is visible.
  */
 
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 
 /** Section heading above a card group, as used by the reference settings pages. */
 export function SectionTitle({ children }: { children: React.ReactNode }) {

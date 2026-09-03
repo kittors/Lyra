@@ -9,8 +9,8 @@
 import type { ModelConfig } from "@lyra/core";
 import { Box, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { Scroller } from "../Scroller.tsx";
-import { ScrollText } from "../ScrollText.tsx";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GhostButton } from "./controls.tsx";
 import { FetchModelsModal } from "./FetchModelsModal.tsx";
 import { ModelEditor } from "./ModelEditor.tsx";

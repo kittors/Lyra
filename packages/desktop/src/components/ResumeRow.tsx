@@ -1,7 +1,7 @@
 import { useSide } from "../sideStore.ts";
 import { CARRY_ON_PROMPTS } from "./conversation/grouping.ts";
 import { useApp } from "../store.ts";
-import { useConfirmer } from "./Confirm.tsx";
+import { useConfirmer } from "../ui/overlay/Confirm.tsx";
 import { hasRetryPoint } from "../store/derive.ts";
 
 /**

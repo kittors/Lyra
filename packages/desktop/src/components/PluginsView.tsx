@@ -24,17 +24,17 @@ import { Blocks, Cable, ChevronDown, RefreshCw, Settings as SettingsIcon, Sparkl
 import { useMemo, useState } from "react";
 
 import { useApp } from "../store.ts";
-import { MenuBody, MenuItem, Popover, usePopover } from "./Popover.tsx";
-import { Scroller } from "./Scroller.tsx";
-import { SkeletonGrid, useSlowLoad } from "./Skeleton.tsx";
-import { SearchField } from "./SearchField.tsx";
+import { MenuBody, MenuItem, Popover, usePopover } from "../ui/overlay/Popover.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
+import { SkeletonGrid, useSlowLoad } from "../ui/primitives/Skeleton.tsx";
+import { SearchField } from "../ui/inputs/SearchField.tsx";
 import { PluginIcon, SkillMark } from "./settings/PluginIcon.tsx";
 import { CatalogCard } from "./plugins/CatalogCard.tsx";
 import { PluginDetail } from "./plugins/PluginDetail.tsx";
 import { RegistrySources } from "./plugins/RegistrySources.tsx";
 import { settingsAfterToggle } from "./plugins/toggle.ts";
 import { groupByCategory, isEnabled, isInstalled, UNFILED, useCatalog, type CatalogItem } from "./plugins/useCatalog.ts";
-import { RollingText } from "./RollingText.tsx";
+import { RollingText } from "../ui/motion/RollingText.tsx";
 import { bridge } from "../services/index.ts";
 
 /**

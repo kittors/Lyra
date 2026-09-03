@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { motionReduced } from "../theme.ts";
-import { typingFrames } from "../typing.ts";
+import { motionReduced } from "../../theme.ts";
+import { typingFrames } from "../../lib/typing.ts";
 
 /**
  * How long one character sits on screen before the next one moves.

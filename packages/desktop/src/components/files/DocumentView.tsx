@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Text } from "../Text.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
 
 export function PdfView({ path, name }: { path: string; name: string }) {

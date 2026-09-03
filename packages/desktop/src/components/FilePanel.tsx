@@ -12,7 +12,7 @@
 
 import { FileText } from "lucide-react";
 import { FileViewer } from "./FileViewer.tsx";
-import { PanelEmpty } from "./PanelEmpty.tsx";
+import { PanelEmpty } from "../ui/layout/PanelEmpty.tsx";
 import { useOpenFile } from "../store/openFile.ts";
 
 export function FilePanel() {

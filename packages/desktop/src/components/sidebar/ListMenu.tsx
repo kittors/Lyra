@@ -11,7 +11,7 @@
  */
 
 import { CalendarPlus, ChevronsDownUp, ChevronsUpDown, Clock, Check } from "lucide-react";
-import { MenuBody, MenuItem, MenuLabel, MenuSeparator, Popover, type Anchor } from "../Popover.tsx";
+import { MenuBody, MenuItem, MenuLabel, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import type { SidebarTab } from "./SidebarTabs.tsx";
 
 /** Which timestamp orders the list, and bands it. */

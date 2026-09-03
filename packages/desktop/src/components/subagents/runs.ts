@@ -13,7 +13,7 @@
  */
 
 import type { Message } from "@lyra/core";
-import { summarizeToolCall } from "../../toolSummary.ts";
+import { summarizeToolCall } from "../../lib/tool-summary.ts";
 import type { ToolRun } from "../../store.ts";
 
 export function subAgentRuns(messages: Message[]): Record<string, ToolRun> {

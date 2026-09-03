@@ -2,9 +2,9 @@ import type { TodoItem } from "@lyra/core";
 import { ChevronDown, ListTodo, Pause, Play, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Scroller } from "./Scroller.tsx";
-import { ScrollText } from "./ScrollText.tsx";
-import { Text } from "./Text.tsx";
+import { Scroller } from "../ui/scroll/Scroller.tsx";
+import { ScrollText } from "../ui/scroll/ScrollText.tsx";
+import { Text } from "../ui/primitives/Text.tsx";
 import { useApp } from "../store.ts";
 import { Mark, lastTurnFailed } from "./task/Mark.tsx";
 
