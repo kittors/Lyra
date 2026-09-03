@@ -24,5 +24,6 @@
 | [0015](0015-styles-are-checked-not-agreed.md) | 样式的三分法是检查，不是约定 |
 | [0016](0016-look-at-it.md) | 视觉改动必须看一眼，并且逐像素对照 |
 | [0017](0017-front-door-versus-code-splitting.md) | 整屏视图不进功能域的出口 |
+| [0018](0018-fuses-not-yet.md) | Electron fuses 暂不启用——配了但验证不了 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。
