@@ -387,8 +387,7 @@
    * the column rather than be broken across lines, which changes what it means.
    */
   .prose-dw .ly-math-block {
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: auto hidden;
     padding: 2px 0;
   }
 

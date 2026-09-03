@@ -168,7 +168,7 @@
   display: flex;
   justify-content: center;
   padding: 16px 0 24px;
-  transition: opacity 120ms linear;
+  transition: opacity var(--ly-t-quick) linear;
 }
 
 .ly-docx-host .docx {

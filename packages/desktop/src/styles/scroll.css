@@ -22,9 +22,9 @@
   pointer-events: auto;
   /* Width and offset animate too, for the thickening under the pointer below. */
   transition:
-    opacity 200ms ease-out,
-    width 120ms ease-out,
-    right 120ms ease-out;
+    opacity var(--ly-t-base) var(--ly-e-out),
+    width var(--ly-t-quick) var(--ly-e-out),
+    right var(--ly-t-quick) var(--ly-e-out);
 }
 
 /*
@@ -50,7 +50,7 @@
 }
 
 .ly-hthumb::after {
-  inset: -9px -4px -2px -4px;
+  inset: -9px -4px -2px;
 }
 
 .ly-scroll-host:hover .ly-thumb {
@@ -115,9 +115,9 @@
   opacity: 0;
   pointer-events: auto;
   transition:
-    opacity 200ms ease-out,
-    height 120ms ease-out,
-    bottom 120ms ease-out;
+    opacity var(--ly-t-base) var(--ly-e-out),
+    height var(--ly-t-quick) var(--ly-e-out),
+    bottom var(--ly-t-quick) var(--ly-e-out);
 }
 
 .ly-diff-host:hover .ly-hthumb,
@@ -160,13 +160,13 @@
 @property --ly-fade-top {
   syntax: "<length>";
   inherits: false;
-  initial-value: 0px;
+  initial-value: 0;
 }
 
 @property --ly-fade-bottom {
   syntax: "<length>";
   inherits: false;
-  initial-value: 0px;
+  initial-value: 0;
 }
 
 /*
@@ -191,7 +191,7 @@
 @property --ly-fade-inset {
   syntax: "<length>";
   inherits: false;
-  initial-value: 0px;
+  initial-value: 0;
 }
 
 /*
@@ -207,7 +207,7 @@
 @property --ly-hold-top {
   syntax: "<length>";
   inherits: false;
-  initial-value: 0px;
+  initial-value: 0;
 }
 
 .ly-fade-y {

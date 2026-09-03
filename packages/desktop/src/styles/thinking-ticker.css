@@ -32,8 +32,8 @@
     transparent 100%
   );
   transition:
-    --ly-fade-left 140ms ease-out,
-    --ly-fade-right 150ms ease-out;
+    --ly-fade-left var(--ly-t-quick) var(--ly-e-out),
+    --ly-fade-right var(--ly-t-quick) var(--ly-e-out);
 }
 
 /*
@@ -44,7 +44,7 @@
   display: inline-flex;
   padding-right: 16px;
   white-space: nowrap;
-  transition: transform 320ms var(--ly-e-out);
+  transition: transform var(--ly-t-slow) var(--ly-e-out);
   will-change: transform;
 }
 

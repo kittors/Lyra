@@ -15,6 +15,11 @@ pre-commit:
       run: ./node_modules/.bin/oxlint --fix {staged_files}
       stage_fixed: true
 
+    - name: style
+      glob: "*.css"
+      run: ./node_modules/.bin/stylelint --fix {staged_files}
+      stage_fixed: true
+
     - name: whitespace
       # Trailing whitespace and conflict markers, straight from git.
       run: git diff --cached --check

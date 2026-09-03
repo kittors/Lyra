@@ -34,6 +34,8 @@ jobs:
       # Relative links in the committed Markdown. README pointed at three files that had never
       # been written, on the front page of a public repository, for months.
       - run: pnpm check:links
+      # 样式的三条硬规则：颜色、过渡时长、类名。见 stylelint.config.mjs 里各自的理由。
+      - run: pnpm style
 
   typecheck:
     runs-on: ubuntu-latest

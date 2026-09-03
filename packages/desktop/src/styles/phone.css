@@ -185,7 +185,7 @@
 
 [data-lyra-host="mobile"] .ly-composer-dock {
   padding-bottom: calc(var(--ly-keyboard) + env(safe-area-inset-bottom) + 8px);
-  transition: padding-bottom 180ms ease-out;
+  transition: padding-bottom var(--ly-t-base) var(--ly-e-out);
 }
 
 /*

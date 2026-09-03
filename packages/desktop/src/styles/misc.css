@@ -72,8 +72,8 @@
   border-radius: 7px;
   color: var(--color-ink);
   transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out;
+    background-color var(--ly-t-quick) var(--ly-e-out),
+    color var(--ly-t-quick) var(--ly-e-out);
 }
 
 /*
