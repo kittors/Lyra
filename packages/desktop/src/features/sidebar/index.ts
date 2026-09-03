@@ -8,3 +8,4 @@
  */
 
 export { startProjectSession } from "./newSession.ts";
+export { Sidebar } from "./Sidebar.tsx";

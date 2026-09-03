@@ -13,8 +13,8 @@
  */
 
 import { useEffect } from "react";
-import { useDock } from "../features/dock/store.ts";
-import type { PanelKind } from "../features/dock/sideStore.ts";
+import { useDock } from "../features/dock/index.ts";
+import type { PanelKind } from "../features/dock/index.ts";
 
 export interface ShortcutDeps {
 	/**

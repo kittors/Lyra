@@ -9,3 +9,4 @@
 
 export { TerminalPane } from "./TerminalPane.tsx";
 export { TerminalTabs } from "./TerminalTabs.tsx";
+export { useTerminalPrewarm } from "./prewarm.ts";

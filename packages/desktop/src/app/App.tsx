@@ -9,19 +9,19 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-react";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
-import { Conversation, ConversationSkeleton } from "../features/conversation/Conversation.tsx";
-import { EmptyState } from "../features/conversation/EmptyState.tsx";
-import { ImageViewer } from "../features/image/ImageViewer.tsx";
-import { InputMenu } from "../features/composer/InputMenu.tsx";
+import { Conversation, ConversationSkeleton } from "../features/conversation/index.ts";
+import { EmptyState } from "../features/conversation/index.ts";
+import { ImageViewer } from "../features/image/index.ts";
+import { InputMenu } from "../features/composer/index.ts";
 import { SkeletonList } from "../ui/primitives/Skeleton.tsx";
-import { Toaster } from "../features/toast/Toaster.tsx";
-import { Sidebar } from "../features/sidebar/Sidebar.tsx";
+import { Toaster } from "../features/toast/index.ts";
+import { Sidebar } from "../features/sidebar/index.ts";
 import { DragBand, PanelMenu, WindowButtons } from "./window/WindowToolbar.tsx";
-import { DockView } from "../features/dock/DockView.tsx";
+import { DockView } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
 import { sessionTitle } from "../lib/session-title.ts";
 import { useShortcuts } from "./shortcuts.ts";
-import { useSide } from "../features/dock/sideStore.ts";
+import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
 import { useFileTreeStore } from "../store/fileTree.ts";
@@ -40,17 +40,17 @@ import { useFileTreeStore } from "../store/fileTree.ts";
  * The phone is why this is worth doing at all. It loads the same bundle over the network, and
  * through a relay that crosses the public internet twice.
  */
-const PluginsView = lazy(() => import("../features/plugins/PluginsView.tsx").then((m) => ({ default: m.PluginsView })));
+const PluginsView = lazy(() => import("../features/plugins/index.ts").then((m) => ({ default: m.PluginsView })));
 const PullRequestsView = lazy(() =>
-	import("../features/pull-requests/PullRequestsView.tsx").then((m) => ({ default: m.PullRequestsView })),
+	import("../features/pull-requests/index.ts").then((m) => ({ default: m.PullRequestsView })),
 );
-const ScheduledView = lazy(() => import("../features/scheduled/ScheduledView.tsx").then((m) => ({ default: m.ScheduledView })));
+const ScheduledView = lazy(() => import("../features/scheduled/index.ts").then((m) => ({ default: m.ScheduledView })));
 const SettingsShell = lazy(() =>
-	import("../features/settings/SettingsShell.tsx").then((m) => ({ default: m.SettingsShell })),
+	import("../features/settings/index.ts").then((m) => ({ default: m.SettingsShell })),
 );
 import { useOpenFile } from "../store/openFile.ts";
-import { useTerminalPrewarm } from "../features/terminal/prewarm.ts";
-import { applyAppearance, watchSystemTheme } from "../features/settings/theme.ts";
+import { useTerminalPrewarm } from "../features/terminal/index.ts";
+import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
 
 export function App() {

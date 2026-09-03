@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { nameProblem, splitExtension } from "./paths.ts";
+import { nameProblem, splitExtension } from "../../lib/paths.ts";
 
 export function NameEditor({
 	initial,

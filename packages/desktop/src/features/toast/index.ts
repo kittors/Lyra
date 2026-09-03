@@ -1,5 +1,5 @@
 /**
- * 拉取请求，对外的那一面。
+ * 浮层提示，对外的那一面。
  *
  * 别的域只能从这里拿东西，不能伸进这个目录里的文件——那条规则由 `pnpm arch` 执行。
  *
@@ -7,6 +7,4 @@
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
  */
 
-export { Avatar } from "./Avatar.tsx";
-export { useAccountActions, useForgeAccounts } from "./useForgeAccounts.ts";
-export { PullRequestsView } from "./PullRequestsView.tsx";
+export { Toaster } from "./Toaster.tsx";

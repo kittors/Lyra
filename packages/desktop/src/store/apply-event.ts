@@ -13,6 +13,17 @@ import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, without } from "./derive.ts";
 import { freeze, relight } from "./turn-meter.ts";
+/*
+ * `sideStore.ts` directly, not the domain's index.
+ *
+ * The index re-exports the dock's panels, which are `.tsx`, and the store is imported by tests that
+ * run under `--experimental-strip-types` — which does not handle JSX. Going through the front door
+ * here would drag a component tree into a module that only wants one atom of state, and the failure
+ * is `Unknown file extension ".tsx"` in a test that has nothing to do with the dock.
+ *
+ * The rule this bends is `features-through-the-front-door`, and it is bent knowingly: `store/` is
+ * below the features rather than beside them, so it is not one domain reaching into another.
+ */
 import { useSide } from "../features/dock/sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
 import type { AppState } from "./index.ts";

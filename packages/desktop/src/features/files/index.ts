@@ -15,3 +15,4 @@ export { PreviewCard } from "./PreviewCard.tsx";
 export type { PreviewInfo } from "./PreviewCard.tsx";
 export { iconColour, lookFor } from "./fileIcon.tsx";
 export { matchTarget, useOpenTargets, useRevealLabel } from "./open-targets.ts";
+export { isDescendantPath, joinPath, relativeTo } from "../../lib/paths.ts";

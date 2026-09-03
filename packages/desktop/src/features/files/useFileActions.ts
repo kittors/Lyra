@@ -17,7 +17,7 @@ import { useCallback, useState } from "react";
 import type { FileOpResult } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmGate } from "../../ui/overlay/Confirm.tsx";
-import { baseName, dirName, joinPath, relativeTo } from "./paths.ts";
+import { baseName, dirName, joinPath, relativeTo } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
 
 export type ClipMode = "copy" | "cut";

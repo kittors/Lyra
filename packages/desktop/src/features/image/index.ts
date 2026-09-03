@@ -8,3 +8,4 @@
  */
 
 export { openFromEvent, openViewer } from "./viewer-store.ts";
+export { ImageViewer } from "./ImageViewer.tsx";

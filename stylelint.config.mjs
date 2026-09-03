@@ -74,6 +74,19 @@ export default {
 			"/^transition-timing-function$/": ["/cubic-bezier/"],
 		},
 
+		/*
+		 * `@import "tailwindcss"`, never `@import url("tailwindcss")`.
+		 *
+		 * `--fix` rewrote it into the `url()` form once. Both are valid CSS; only the first is a
+		 * form Tailwind's own parser recognises, so the second produced a build with no utilities in
+		 * it at all and every layout in the application collapsed into one unstyled column.
+		 *
+		 * Nothing else caught it: the build succeeded, types passed, 2105 unit tests passed, and the
+		 * end-to-end tests passed because unstyled buttons still click. Turning the autofix off here
+		 * is cheap; the failure was not.
+		 */
+		"import-notation": null,
+
 		"declaration-no-important": null,
 
 		/*

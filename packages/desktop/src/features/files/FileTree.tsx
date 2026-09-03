@@ -21,7 +21,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { FileMenu } from "./FileMenu.tsx";
-import { baseName, dirName } from "./paths.ts";
+import { baseName, dirName } from "../../lib/paths.ts";
 import { NewRow, TreeRow } from "./TreeRow.tsx";
 import { useFileActions } from "./useFileActions.ts";
 import { useFileTree } from "./useFileTree.ts";

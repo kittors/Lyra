@@ -8,10 +8,10 @@
  */
 
 import { Check, MoreVertical } from "lucide-react";
-import { useDock } from "../../features/dock/store.ts";
-import { has } from "../../features/dock/tree.ts";
-import { usePanelDefinitions } from "../../features/dock/panels/definitions.tsx";
-import type { PanelKind } from "../../features/dock/sideStore.ts";
+import { useDock } from "../../features/dock/index.ts";
+import { has } from "../../features/dock/index.ts";
+import { usePanelDefinitions } from "../../features/dock/index.ts";
+import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";

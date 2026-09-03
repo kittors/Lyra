@@ -18,41 +18,41 @@
  * landed inside a comment block; the script found it.
  */
 
-@import url("tailwindcss");
+@import "tailwindcss";
 
 /*
  * KaTeX's own stylesheet, which is not optional — its layout is achieved with the class names in
  * here, so the markup it emits is meaningless without them. Its fonts are bundled by the build
  * alongside ours rather than fetched, so a formula renders the same offline.
  */
-@import url("katex/dist/katex.min.css");
+@import "katex/dist/katex.min.css";
 
 /* Faces first: `@font-face` has to be seen before anything asks for the family. */
-@import url("./styles/fonts.css");
+@import "./styles/fonts.css";
 
 /* Then the vocabulary the rest is written in. */
-@import url("./styles/tokens.css");
-@import url("./styles/base.css");
-@import url("./styles/components.css");
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/components.css";
 
 /* Components, in the order they were written. */
-@import url("./styles/composer.css");
-@import url("./styles/working.css");
-@import url("./styles/loading.css");
-@import url("./styles/scroll.css");
-@import url("./styles/motion.css");
-@import url("./styles/update-badge.css");
-@import url("./styles/overlay.css");
-@import url("./styles/code-tokens.css");
-@import url("./styles/glide.css");
-@import url("./styles/rail.css");
-@import url("./styles/misc.css");
-@import url("./styles/tabs.css");
-@import url("./styles/marquee.css");
-@import url("./styles/thinking-ticker.css");
-@import url("./styles/skeleton.css");
-@import url("./styles/dock.css");
-@import url("./styles/pull-requests.css");
+@import "./styles/composer.css";
+@import "./styles/working.css";
+@import "./styles/loading.css";
+@import "./styles/scroll.css";
+@import "./styles/motion.css";
+@import "./styles/update-badge.css";
+@import "./styles/overlay.css";
+@import "./styles/code-tokens.css";
+@import "./styles/glide.css";
+@import "./styles/rail.css";
+@import "./styles/misc.css";
+@import "./styles/tabs.css";
+@import "./styles/marquee.css";
+@import "./styles/thinking-ticker.css";
+@import "./styles/skeleton.css";
+@import "./styles/dock.css";
+@import "./styles/pull-requests.css";
 
 /* Last, so it can override anything above when the interface is on a phone. */
-@import url("./styles/phone.css");
+@import "./styles/phone.css";

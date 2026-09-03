@@ -8,3 +8,4 @@
  */
 
 export { settingsAfterToggle } from "./toggle.ts";
+export { PluginsView } from "./PluginsView.tsx";

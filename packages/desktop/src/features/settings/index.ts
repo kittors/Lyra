@@ -12,3 +12,5 @@ export { CODE_DEFAULTS } from "./code-defaults.ts";
 export { GhostButton, Toggle } from "./controls.tsx";
 export { TextInput } from "./inputs.tsx";
 export { NumberField, TimeField } from "./pickers.tsx";
+export { applyAppearance, watchSystemTheme } from "./theme.ts";
+export { SettingsShell } from "./SettingsShell.tsx";

@@ -12,3 +12,7 @@ export { useSide } from "./sideStore.ts";
 export { useDock } from "./store.ts";
 export { kinds } from "./tree.ts";
 export { paneVisible } from "./visibility.ts";
+export { DockView } from "./DockView.tsx";
+export { usePanelDefinitions } from "./panels/definitions.tsx";
+export type { PanelKind } from "./sideStore.ts";
+export { has } from "./tree.ts";

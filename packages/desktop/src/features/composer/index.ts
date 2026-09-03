@@ -9,3 +9,4 @@
 
 export { Composer } from "./Composer.tsx";
 export { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
+export { InputMenu } from "./InputMenu.tsx";

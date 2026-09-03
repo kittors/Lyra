@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
-import { dirName, isDescendantPath } from "./paths.ts";
+import { dirName, isDescendantPath } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
 
 /** Our own type, so a drag from this tree is distinguishable from a drag out of the Finder. */

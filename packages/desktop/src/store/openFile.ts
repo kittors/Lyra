@@ -14,7 +14,7 @@
 
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
-import { isDescendantPath } from "../features/files/paths.ts";
+import { isDescendantPath } from "../lib/paths.ts";
 import { bridge } from "../services/index.ts";
 
 /** One file the pane has had open, as its tab strip lists it. */
