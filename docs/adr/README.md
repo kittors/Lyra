@@ -25,5 +25,6 @@
 | [0016](0016-look-at-it.md) | 视觉改动必须看一眼，并且逐像素对照 |
 | [0017](0017-front-door-versus-code-splitting.md) | 整屏视图不进功能域的出口 |
 | [0018](0018-fuses-not-yet.md) | Electron fuses 暂不启用——配了但验证不了 |
+| [0019](0019-no-virtual-list-yet.md) | 长会话不上虚拟列表——量过了，不需要 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。
