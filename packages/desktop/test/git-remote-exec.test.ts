@@ -91,9 +91,8 @@ test("a refusal comes back as a reason, not as the command that failed", async (
 
 test("a remote that needs a login fails immediately rather than waiting for one", async () => {
 	/*
-	 * `GIT_TERMINAL_PROMPT=0` is what makes this a clean failure with a clear reason. Worth pinning
-	 * that it is *fast*: the widespread assumption is that a GUI process hangs waiting for
-	 * credentials, and the real risk — the one the timeout is for — is the network, not the prompt.
+	 * Git and its credential helper have separate prompt controls. Worth pinning that this is *fast*:
+	 * on Windows, GCM otherwise opens a dialog that can outlive the git process killed by the timeout.
 	 */
 	const { createServer: createHttpServer } = await import("node:http");
 	const server = createHttpServer((_req, res) => {
