@@ -1,11 +1,12 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Platform, Pressable, Text, ToastAndroid, View } from "react-native";
+import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, Text, ToastAndroid, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { StatusBar } from "expo-status-bar";
 import { backPress, type BackState } from "../src/back";
 import { bridgeScript } from "../src/bridge";
+import { keyboardOverlap, type ScreenFrame } from "../src/keyboard";
 import { useMobile } from "../src/store";
 
 /**
@@ -47,6 +48,47 @@ export default function DeskScreen() {
 	 * around rather than patched.
 	 */
 	const webview = useRef<WebView<object>>(null);
+	const webviewHost = useRef<View>(null);
+	const keyboardFrame = useRef<ScreenFrame | null>(null);
+	const [nativeKeyboardInset, setNativeKeyboardInset] = useState(0);
+
+	/*
+	 * Android edge-to-edge windows do not consistently pass IME resizing through a WebView. Measure
+	 * the real screen overlap here: adjustResize produces zero, while an overlaid keyboard shortens
+	 * the WebView without guessing a device- or keyboard-specific height.
+	 */
+	const measureKeyboardOverlap = useCallback(() => {
+		const keyboard = keyboardFrame.current;
+		if (!keyboard) {
+			setNativeKeyboardInset(0);
+			return;
+		}
+		webviewHost.current?.measureInWindow((x, y, width, height) => {
+			if (keyboardFrame.current !== keyboard) return;
+			setNativeKeyboardInset(keyboardOverlap({ x, y, width, height }, keyboard));
+		});
+	}, []);
+
+	useEffect(() => {
+		if (Platform.OS !== "android") return;
+		const shown = Keyboard.addListener("keyboardDidShow", ({ endCoordinates }) => {
+			keyboardFrame.current = {
+				x: endCoordinates.screenX,
+				y: endCoordinates.screenY,
+				width: endCoordinates.width,
+				height: endCoordinates.height,
+			};
+			requestAnimationFrame(measureKeyboardOverlap);
+		});
+		const hidden = Keyboard.addListener("keyboardDidHide", () => {
+			keyboardFrame.current = null;
+			setNativeKeyboardInset(0);
+		});
+		return () => {
+			shown.remove();
+			hidden.remove();
+		};
+	}, [measureKeyboardOverlap]);
 
 	const reload = useCallback(() => {
 		setFailed(null);
@@ -131,10 +173,16 @@ export default function DeskScreen() {
 
 	return (
 		<View
+			ref={webviewHost}
 			className="flex-1"
+			onLayout={measureKeyboardOverlap}
 			// The page's own background, so the safe areas read as part of it rather than as a frame
 			// around it. `bg-shell` was right for exactly one of the two themes.
-			style={{ backgroundColor: theme.shell, paddingTop: insets.top, paddingBottom: insets.bottom }}
+			style={{
+				backgroundColor: theme.shell,
+				paddingTop: insets.top,
+				paddingBottom: Math.max(insets.bottom, nativeKeyboardInset),
+			}}
 		>
 			<StatusBar style={theme.dark ? "light" : "dark"} />
 			<WebView<object>
@@ -192,7 +240,7 @@ export default function DeskScreen() {
 				// makes the whole interface feel detached from the phone.
 				bounces={false}
 				overScrollMode="never"
-				// Keyboard handling belongs to the page's own layout, which already reserves for it.
+				// Native layout handles Android IME overlap; the page still covers visualViewport cases.
 				automaticallyAdjustContentInsets={false}
 				contentInsetAdjustmentBehavior="never"
 				// The app is one origin; anything else is a link someone tapped, and belongs in a
