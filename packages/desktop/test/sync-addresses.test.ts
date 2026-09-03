@@ -38,6 +38,22 @@ test("virtual adapters go last however plausible their address looks", () => {
 	assert.deepEqual(found.slice(1).sort(), ["172.20.0.1", "192.168.56.1"]);
 });
 
+test("Mihomo's fake-IP network cannot outrank the Wi-Fi address", () => {
+	const found = addressesWith({
+		Mihomo: [ipv4("198.18.0.1")],
+		WLAN: [ipv4("172.17.9.120")],
+	});
+	assert.deepEqual(found, ["172.17.9.120", "198.18.0.1"]);
+});
+
+test("the benchmarking range stays last even under an unfamiliar adapter name", () => {
+	const found = addressesWith({
+		"Local Area Connection 9": [ipv4("198.19.4.2")],
+		WiFi: [ipv4("10.0.0.42")],
+	});
+	assert.deepEqual(found, ["10.0.0.42", "198.19.4.2"]);
+});
+
 test("loopback and link-local are not addresses anything can pair on", () => {
 	// 169.254.x is what an interface assigns itself when DHCP never answered — a symptom of no
 	// network, and it would otherwise sort above a Docker bridge.

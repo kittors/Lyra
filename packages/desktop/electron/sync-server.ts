@@ -518,7 +518,9 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
  * is silent and confusing: the QR code is fine, the token is fine, the address is simply on a
  * network that exists only inside this computer.
  */
-const VIRTUAL_INTERFACE = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|ppp|zt|wg|Loopback|vEthernet|Hyper-V|VMware|VirtualBox|Npcap|Bluetooth)/i;
+const VIRTUAL_INTERFACE = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|ppp|zt|wg|Loopback|vEthernet|Hyper-V|VMware|VirtualBox|Npcap|Bluetooth|Mihomo|Clash|sing-box)/i;
+/** RFC 2544 benchmarking space, commonly claimed by system proxy TUN adapters such as Mihomo. */
+const BENCHMARK_NETWORK = /^198\.(?:18|19)\./;
 
 /**
  * Ranked so the first one is the address most likely to work.
@@ -531,7 +533,7 @@ const VIRTUAL_INTERFACE = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|pp
  * default.
  */
 function rank(address: string, name: string): number {
-	if (VIRTUAL_INTERFACE.test(name)) return 3;
+	if (VIRTUAL_INTERFACE.test(name) || BENCHMARK_NETWORK.test(address)) return 3;
 	if (address.startsWith("192.168.")) return 0;
 	if (address.startsWith("10.")) return 1;
 	return 2;
