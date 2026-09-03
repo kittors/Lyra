@@ -207,10 +207,13 @@ export class UpdateDownload {
 	 * directory entry lags the write: `stat` right after aborting a stream reports the size from
 	 * before the last flush, and often reports 0.
 	 *
-	 * It showed up as `pausing keeps what came down` failing on Windows and nowhere else, roughly
-	 * one run in three — the shape of a race rather than a bug in what is being tested. Reading
-	 * again after a turn of the event loop is enough; the retries are cheap and only happen on the
-	 * answer that is worth doubting.
+	 * Belt and braces rather than the fix. The reason `pausing keeps what came down` was failing on
+	 * Windows turned out to be the write stream being destroyed with data still buffered — see the
+	 * note beside `pipeline`. This retry was written first, on the theory that `stat` was lagging,
+	 * and it did not help: the bytes genuinely were not there.
+	 *
+	 * Kept because the lag is real even though it was not this, and re-reading an answer of zero
+	 * costs nothing on the path where it is already zero.
 	 */
 	private async have(): Promise<number> {
 		for (let attempt = 0; attempt < 5; attempt++) {
@@ -301,7 +304,26 @@ export class UpdateDownload {
 				this.set({ at: "downloading", received, total });
 			});
 
-			await pipeline(body, createWriteStream(this.partial, { flags: plan.append ? "a" : "w" }));
+			/*
+			 * The write stream is held so that an abort can close it rather than destroy it.
+			 *
+			 * `pipeline` tears both ends down when the signal fires, and tearing down a write stream
+			 * discards whatever it has buffered — on Windows that was the entire pause, every time:
+			 * 20,000 bytes reported as received, a `.part` of zero bytes, and a resume that started
+			 * over. It looked like `stat` lagging (Windows updates a directory entry late, which is
+			 * a real thing) and it was not: the bytes were never written.
+			 *
+			 * Closing it instead flushes what is buffered first. The `catch` is for the abort itself,
+			 * which `pipeline` reports as an error on a path where it is the expected outcome.
+			 */
+			const sink = createWriteStream(this.partial, { flags: plan.append ? "a" : "w" });
+			try {
+				await pipeline(body, sink);
+			} catch (error) {
+				// Let go of the reader, then let the writer finish with what it already has.
+				await new Promise<void>((resolve) => sink.end(() => resolve()));
+				throw error;
+			}
 
 			/*
 			 * A short file is a failure, not a finished download.
