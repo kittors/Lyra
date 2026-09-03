@@ -1,5 +1,7 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
+
+import { App } from "./app/App.tsx";
 import { ErrorBoundary } from "./ui/layout/ErrorBoundary.tsx";
 import { installTooltips } from "./ui/overlay/tooltip.ts";
 import "./styles.css";
@@ -7,13 +9,18 @@ import "./styles.css";
 installTooltips();
 
 /*
- * The two things this entry can be, each fetched only if it is the one.
+ * The overlay, fetched only when this window is one.
  *
  * A screenshot overlay window and the main window are mutually exclusive — the hash decides, at
- * load, and neither ever becomes the other. Importing both statically meant every screenshot
- * window paid for the whole application, and every application window paid for the annotator.
+ * load, and neither ever becomes the other. Importing the overlay statically meant every
+ * application window carried the annotator it will never open.
+ *
+ * `App` is *not* lazy, and that is deliberate. It is what this window is unless the hash says
+ * otherwise, so deferring it buys nothing — the bytes move to another chunk and arrive a moment
+ * later. What it cost was real: the dock mounts after Suspense resolves rather than in the first
+ * commit, and `dock-settle.test.ts` caught a pane replaying its entrance animation because of it.
+ * A pane already on screen is not supposed to fade in again.
  */
-const App = lazy(() => import("./app/App.tsx").then((m) => ({ default: m.App })));
 const ScreenshotOverlay = lazy(() =>
 	import("./features/image/ScreenshotOverlay.tsx").then((m) => ({ default: m.ScreenshotOverlay })),
 );
