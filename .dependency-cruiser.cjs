@@ -151,6 +151,21 @@ module.exports = {
 		},
 
 		{
+			name: "features-through-the-front-door",
+			comment:
+				"A domain is reached through its `index.ts` and not by naming a file inside it. The " +
+				"export list is the domain's public promise: what is on it, other domains depend on; " +
+				"what is not, it can move or rename freely. Without the rule there is no such thing " +
+				"as an internal file, and every domain's whole directory is its API.",
+			severity: "error",
+			from: { path: "^packages/desktop/src/features/([^/]+)/" },
+			to: {
+				path: "^packages/desktop/src/features/([^/]+)/",
+				pathNot: "^packages/desktop/src/features/$1/|/index\\.ts$",
+			},
+		},
+
+		{
 			name: "no-orphans",
 			comment: "A module nobody imports is either dead or was meant to be wired up and was not.",
 			severity: "warn",

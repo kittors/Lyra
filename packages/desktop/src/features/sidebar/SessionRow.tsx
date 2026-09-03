@@ -21,10 +21,10 @@ import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { SessionCard, useSessionCard } from "./SessionCard.tsx";
-import { SessionMenu } from "../modals/SessionMenu.tsx";
+import { SessionMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { SessionStatus } from "../conversation/SessionStatus.tsx";
+import { SessionStatus } from "../conversation/index.ts";
 import { useTypedText } from "../../ui/motion/TypedText.tsx";
 
 /**

@@ -12,10 +12,10 @@ import { Clock, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { NumberField, TimeField } from "../settings/pickers.tsx";
+import { NumberField, TimeField } from "../settings/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
-import { Toggle } from "../settings/controls.tsx";
+import { Toggle } from "../settings/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { bridge } from "../../services/index.ts";
 

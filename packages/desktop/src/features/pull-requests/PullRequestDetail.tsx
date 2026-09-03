@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { relativeTime } from "../../lib/relative-time.ts";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
-import { Markdown } from "../conversation/Markdown.tsx";
+import { Markdown } from "../conversation/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { activityOf } from "./activity.ts";

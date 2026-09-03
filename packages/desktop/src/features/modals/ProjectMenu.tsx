@@ -2,8 +2,8 @@ import { Archive, ArrowRight, FolderOpen, GitBranch, Pencil, PinOff, Pin, Square
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
-import { useRevealLabel } from "../files/open-targets.ts";
-import { startProjectSession } from "../sidebar/newSession.ts";
+import { useRevealLabel } from "../files/index.ts";
+import { startProjectSession } from "../sidebar/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 

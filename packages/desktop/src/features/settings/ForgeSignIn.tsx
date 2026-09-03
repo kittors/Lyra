@@ -17,7 +17,7 @@
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
-import { useAccountActions } from "../pull-requests/useForgeAccounts.ts";
+import { useAccountActions } from "../pull-requests/index.ts";
 import { Field, GhostButton, PrimaryButton, SecretInput, TextInput } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 

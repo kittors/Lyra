@@ -14,7 +14,7 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { UpdateBadge } from "../update/UpdateBadge.tsx";
+import { UpdateBadge } from "../update/index.ts";
 import { activeProviderLabel } from "./grouping.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {

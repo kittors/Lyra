@@ -2,7 +2,7 @@ import { GitCommitVertical } from "lucide-react";
 import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
-import { useDock } from "../dock/store.ts";
+import { useDock } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 

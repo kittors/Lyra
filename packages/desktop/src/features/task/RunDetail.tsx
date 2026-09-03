@@ -11,8 +11,8 @@
  */
 
 import type { ToolRun } from "../../store/index.ts";
-import { CodeText } from "../conversation/detail/CodeText.tsx";
-import { Section } from "../conversation/detail/Section.tsx";
+import { CodeText } from "../conversation/index.ts";
+import { Section } from "../conversation/index.ts";
 
 /** Past this, output is trimmed with a note rather than made scrollable. */
 const MAX_OUTPUT = 4000;

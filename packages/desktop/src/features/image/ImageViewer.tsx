@@ -21,7 +21,6 @@
 
 import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";
 import { AnnotateCanvas, AnnotateToolbar, STAGE_FIT, useAnnotator } from "./Annotator.tsx";
@@ -29,6 +28,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { EASING } from "../../ui/motion/tokens.ts";
 import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-store.ts";
+import { portal } from "../../ui/overlay/portal.ts";
 
 /**
  * Longer than `--ly-t-base`, on purpose.
@@ -465,8 +465,7 @@ export function ImageViewer() {
 		setPanning(false);
 	};
 
-	return createPortal(
-		<div
+	return portal(<div
 			role="dialog"
 			aria-modal
 			aria-label="图片预览"
@@ -701,9 +700,7 @@ export function ImageViewer() {
 					}}
 				/>
 			)}
-		</div>,
-		document.body,
-	);
+		</div>);
 }
 
 function ViewerButton({

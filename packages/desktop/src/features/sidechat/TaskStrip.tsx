@@ -13,7 +13,7 @@
 
 import type { QueuedTask } from "@lyra/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
-import { useSide } from "../dock/sideStore.ts";
+import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 
 const TASK_ICON: Record<QueuedTask["status"], typeof Clock> = {

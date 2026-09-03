@@ -9,12 +9,12 @@
 import type { UserContent } from "@lyra/core";
 import { FileText, Plus, RotateCcw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { findModel } from "../models/models.ts";
-import { useSide } from "../dock/sideStore.ts";
+import { findModel } from "../models/index.ts";
+import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
-import { openViewer } from "../image/viewer-store.ts";
-import { ComposerSend, ComposerShell } from "../composer/ComposerShell.tsx";
-import { ModelIcon } from "../models/ModelIcon.tsx";
+import { openViewer } from "../image/index.ts";
+import { ComposerSend, ComposerShell } from "../composer/index.ts";
+import { ModelIcon } from "../models/index.ts";
 
 interface SideAttachment {
 	id: string;

@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { BinaryDiff } from "./BinaryDiff.tsx";
 import { DiffView } from "./DiffView.tsx";
-import { iconColour, lookFor } from "../files/fileIcon.tsx";
+import { iconColour, lookFor } from "../files/index.ts";
 import { Text } from "../../ui/primitives/Text.tsx";
 
 interface TreeNode {

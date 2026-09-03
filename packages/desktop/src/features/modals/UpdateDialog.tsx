@@ -16,11 +16,11 @@
 import { Pause, Play, Sparkles, X } from "lucide-react";
 
 import { useApp } from "../../store/index.ts";
-import type { Info } from "../update/store.ts";
-import { confirmLabel, controlsFor, fractionOf, mb, readyNote, type Phase } from "../update/view.ts";
+import type { Info } from "../update/index.ts";
+import { confirmLabel, controlsFor, fractionOf, mb, readyNote, type Phase } from "../update/index.ts";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { Markdown } from "../conversation/Markdown.tsx";
+import { Markdown } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
 
 export function UpdateDialog({

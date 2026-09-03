@@ -7,10 +7,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { check, useUpdate } from "../update/store.ts";
-import { versionNote } from "../update/view.ts";
-import { UpdateDialog } from "../modals/UpdateDialog.tsx";
-import { Markdown } from "../conversation/Markdown.tsx";
+import { check, useUpdate } from "../update/index.ts";
+import { versionNote } from "../update/index.ts";
+import { UpdateDialog } from "../modals/index.ts";
+import { Markdown } from "../conversation/index.ts";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 
@@ -34,7 +34,7 @@ export function AboutSettings() {
 			...settings,
 			updateCheckIntervalHours: hours,
 		});
-		import("../update/store.ts").then(({ restartCheckTimer }) => {
+		import("../update/index.ts").then(({ restartCheckTimer }) => {
 			restartCheckTimer(hours);
 		}).catch(() => {});
 	};

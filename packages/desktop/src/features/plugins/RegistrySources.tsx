@@ -16,8 +16,8 @@ import { useState } from "react";
 
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
-import { GhostButton } from "../settings/controls.tsx";
-import { TextInput } from "../settings/inputs.tsx";
+import { GhostButton } from "../settings/index.ts";
+import { TextInput } from "../settings/index.ts";
 import { useApp } from "../../store/index.ts";
 
 export function RegistrySources({

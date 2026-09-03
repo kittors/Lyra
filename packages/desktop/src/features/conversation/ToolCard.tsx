@@ -20,9 +20,9 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { CodeText } from "./detail/CodeText.tsx";
 import { Section } from "./detail/Section.tsx";
-import { DiffView } from "../git/DiffView.tsx";
+import { DiffView } from "../git/index.ts";
 import type { McpMark } from "./mcp-marks.ts";
-import { safeColour } from "../settings/PluginIcon.tsx";
+import { safeColour } from "../settings/index.ts";
 import { useMcpMark } from "./useMcpMark.ts";
 
 const ICONS: Record<string, typeof FileText> = {

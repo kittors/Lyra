@@ -3,7 +3,7 @@ import { Check, Copy, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { loadFenceLanguage, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
-import { useSide } from "../dock/sideStore.ts";
+import { useSide } from "../dock/index.ts";
 
 /**
  * Fences that are commands rather than code.

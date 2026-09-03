@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { portal } from "./portal.ts";
 
 /** Matches `ly-dialog-out`; the unmount has to be timed against it. */
 const EXIT_MS = 130;
@@ -50,8 +50,7 @@ export function Overlay({
    * was positioned and clipped by that popover instead of covering the window. A portal puts
    * it where it means to be, whoever opened it.
    */
-  return createPortal(
-    <div
+  return portal(<div
       /*
        * Above the menus, below the toasts.
        *
@@ -84,7 +83,5 @@ export function Overlay({
       >
         {children}
       </div>
-    </div>,
-    document.body,
-  );
+    </div>);
 }

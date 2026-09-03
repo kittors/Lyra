@@ -34,7 +34,7 @@ import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { PluginIcon, safeColour } from "../settings/PluginIcon.tsx";
+import { PluginIcon, safeColour } from "../settings/index.ts";
 import { isEnabled, isInstalled, type CatalogItem } from "./useCatalog.ts";
 import { bridge } from "../../services/index.ts";
 

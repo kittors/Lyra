@@ -14,8 +14,8 @@ import { Check, CircleAlert, CloudDownload, Link2, Loader2, Pencil, Play, Plus, 
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { ModelIcon } from "../models/ModelIcon.tsx";
-import { formatWindow } from "../models/ModelMenu.tsx";
+import { ModelIcon } from "../models/index.ts";
+import { formatWindow } from "../models/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Badge, GhostButton } from "./controls.tsx";
 

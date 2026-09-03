@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
-import { useSide } from "../dock/sideStore.ts";
+import { useSide } from "../dock/index.ts";
 
 /**
  * What to call the page at the bottom of the panel.

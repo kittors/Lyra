@@ -4,7 +4,7 @@
 
 import { Check, CheckSquare, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { ModelIcon } from "../models/ModelIcon.tsx";
+import { ModelIcon } from "../models/index.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { GhostButton } from "./controls.tsx";

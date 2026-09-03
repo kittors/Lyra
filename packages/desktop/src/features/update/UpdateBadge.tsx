@@ -33,7 +33,7 @@ import { useState } from "react";
 
 import { useUpdate } from "./store.ts";
 import { fractionOf, labelFor, shouldShow, type Phase } from "./view.ts";
-import { UpdateDialog } from "../modals/UpdateDialog.tsx";
+import { UpdateDialog } from "../modals/index.ts";
 
 export function UpdateBadge({ compact = false }: { compact?: boolean }) {
 	const { info, phase } = useUpdate();

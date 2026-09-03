@@ -10,9 +10,9 @@ import type { Message, Settings } from "@lyra/core";
 import { useEffect, useState } from "react";
 
 import type { ContextBreakdown, ContextSegmentKey } from "../../../electron/ipc-types.ts";
-import { findModel } from "../models/models.ts";
+import { findModel } from "../models/index.ts";
 import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { formatTokens } from "../conversation/RunningIndicator.tsx";
+import { formatTokens } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
 
 /**

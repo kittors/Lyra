@@ -15,7 +15,7 @@ import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { useOpenTarget } from "./open-targets.ts";
-import { useSide } from "../dock/sideStore.ts";
+import { useSide } from "../dock/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";

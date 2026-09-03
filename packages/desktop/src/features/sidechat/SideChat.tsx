@@ -12,13 +12,13 @@
 import { MessageCirclePlus } from "lucide-react";
 import type { Message } from "@lyra/core";
 import { useEffect, useState } from "react";
-import { useSide } from "../dock/sideStore.ts";
-import { BackToLatest } from "../conversation/BackToLatest.tsx";
+import { useSide } from "../dock/index.ts";
+import { BackToLatest } from "../conversation/index.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
-import { ThinkingLine } from "../conversation/message/ThinkingLine.tsx";
+import { ThinkingLine } from "../conversation/index.ts";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { lastIsSettled, MessageRow, rowKey } from "./MessageRow.tsx";
 import { SideComposer } from "./SideComposer.tsx";

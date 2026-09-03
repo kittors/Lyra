@@ -21,10 +21,10 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { createPortal } from "react-dom";
 
 import { setTooltipSuppressed } from "./tooltip.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
+import { portal } from "./portal.ts";
 
 /**
  * A point to hang a menu from, for right-click — where the thing being acted on is a whole
@@ -498,8 +498,7 @@ export function Popover({
 	 * as well. Both problems are the same problem — a transient layer that belongs on top of the
 	 * window should not be a descendant of anything in it.
 	 */
-	return createPortal(
-		/* Everything drawn in here is inside this popover, and so must not close it. */
+	return portal(/* Everything drawn in here is inside this popover, and so must not close it. */
 		<PopoverChain.Provider value={chain}>
 			<div
 				ref={ref}
@@ -541,9 +540,7 @@ export function Popover({
 					<div className="shrink-0 border-t border-line-soft">{footer}</div>
 				)}
 			</div>
-		</PopoverChain.Provider>,
-		document.body,
-	);
+		</PopoverChain.Provider>);
 }
 
 function rectOf(anchor: Anchor): DOMRect | null {

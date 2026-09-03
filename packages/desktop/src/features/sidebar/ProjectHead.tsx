@@ -16,7 +16,7 @@
 
 import { ChevronRight, Folder, MoreHorizontal, SquarePen } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
-import { ProjectMenu } from "../modals/ProjectMenu.tsx";
+import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import type { Group } from "./grouping.ts";

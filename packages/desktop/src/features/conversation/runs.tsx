@@ -7,7 +7,7 @@
 
 import { memo } from "react";
 import type { AssistantContent, AssistantMessage } from "@lyra/core";
-import { PreviewCard, type PreviewInfo } from "../files/PreviewCard.tsx";
+import { PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
 import { describeRun } from "./ToolGroup.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";

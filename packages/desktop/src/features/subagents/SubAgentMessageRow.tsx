@@ -10,11 +10,11 @@
 
 import { memo, useMemo } from "react";
 import type { Message, UserContent } from "@lyra/core";
-import { openFromEvent } from "../image/viewer-store.ts";
-import { runs } from "../conversation/grouping.ts";
-import { ToolRun } from "../conversation/runs.tsx";
-import { Markdown } from "../conversation/Markdown.tsx";
-import { ThinkingBlock } from "../conversation/ThinkingBlock.tsx";
+import { openFromEvent } from "../image/index.ts";
+import { runs } from "../conversation/index.ts";
+import { ToolRun } from "../conversation/index.ts";
+import { Markdown } from "../conversation/index.ts";
+import { ThinkingBlock } from "../conversation/index.ts";
 import { subAgentRuns } from "./runs.ts";
 
 export const SubAgentTranscript = memo(function SubAgentTranscript({

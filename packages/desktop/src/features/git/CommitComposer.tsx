@@ -9,7 +9,7 @@
 import { Check, Languages, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { ComposerSend, ComposerShell } from "../composer/ComposerShell.tsx";
+import { ComposerSend, ComposerShell } from "../composer/index.ts";
 import { Spinner } from "../../ui/motion/loaders.tsx";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { bridge } from "../../services/index.ts";

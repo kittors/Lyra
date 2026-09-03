@@ -15,9 +15,9 @@
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
-import { check, useUpdate } from "../update/store.ts";
-import { versionNote } from "../update/view.ts";
-import { UpdateDialog } from "../modals/UpdateDialog.tsx";
+import { check, useUpdate } from "../update/index.ts";
+import { versionNote } from "../update/index.ts";
+import { UpdateDialog } from "../modals/index.ts";
 import { Card, GhostButton, PrimaryButton, Row, SectionTitle } from "./controls.tsx";
 
 export function UpdateSection() {

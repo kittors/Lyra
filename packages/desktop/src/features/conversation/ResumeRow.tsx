@@ -1,4 +1,4 @@
-import { useSide } from "../dock/sideStore.ts";
+import { useSide } from "../dock/index.ts";
 import { CARRY_ON_PROMPTS } from "./grouping.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";

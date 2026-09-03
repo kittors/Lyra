@@ -19,7 +19,7 @@ import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
-import { settingsAfterToggle } from "../plugins/toggle.ts";
+import { settingsAfterToggle } from "../plugins/index.ts";
 import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { bridge } from "../../services/index.ts";

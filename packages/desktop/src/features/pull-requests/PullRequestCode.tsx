@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
-import { FileDiffList } from "../git/FileDiffList.tsx";
+import { FileDiffList } from "../git/index.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { CodeSkeleton } from "./PullRequestSkeleton.tsx";
 import { bridge } from "../../services/index.ts";

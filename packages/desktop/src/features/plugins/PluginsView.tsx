@@ -28,7 +28,7 @@ import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popove
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SkeletonGrid, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
-import { PluginIcon, SkillMark } from "../settings/PluginIcon.tsx";
+import { PluginIcon, SkillMark } from "../settings/index.ts";
 import { CatalogCard } from "./CatalogCard.tsx";
 import { PluginDetail } from "./PluginDetail.tsx";
 import { RegistrySources } from "./RegistrySources.tsx";

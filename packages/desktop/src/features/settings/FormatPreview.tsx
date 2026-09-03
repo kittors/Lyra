@@ -26,7 +26,7 @@ import { findCodeTheme, type CodeThemeSpec } from "../../lib/code/themes.ts";
 import { MenuBody, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
-import { formatCode } from "../editor/format.ts";
+import { formatCode } from "../editor/index.ts";
 import { highlightPieces, type Piece } from "./preview-highlight.ts";
 import { LANGUAGES, searchLanguages, type LanguageEntry } from "./format-catalog.ts";
 

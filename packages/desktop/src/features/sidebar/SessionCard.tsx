@@ -15,10 +15,10 @@
 
 import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import type { SessionMeta } from "@lyra/core";
-import { formatTokens } from "../conversation/RunningIndicator.tsx";
+import { formatTokens } from "../conversation/index.ts";
+import { portal } from "../../ui/overlay/portal.ts";
 
 /**
  * How long the pointer has to rest before this appears.
@@ -150,8 +150,7 @@ export function SessionCard({
 	const usage = session.usage;
 	const hit = cacheHitRate(usage);
 
-	return createPortal(
-		<div
+	return portal(<div
 			ref={card}
 			role="tooltip"
 			style={{ zIndex: CARD_Z, left: at?.left ?? -9999, top: at?.top ?? -9999, opacity: at ? undefined : 0 }}
@@ -191,9 +190,7 @@ export function SessionCard({
 					<Stat icon={<Coins size={11} strokeWidth={2} />} label="缓存" value={`${Math.round(hit * 100)}%`} />
 				)}
 			</div>
-		</div>,
-		document.body,
-	);
+		</div>);
 }
 
 /**

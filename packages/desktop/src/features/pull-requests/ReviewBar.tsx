@@ -15,7 +15,7 @@
 
 import { Check, X } from "lucide-react";
 import { useState } from "react";
-import { ComposerSend, ComposerShell } from "../composer/ComposerShell.tsx";
+import { ComposerSend, ComposerShell } from "../composer/index.ts";
 
 export type Verdict = "approve" | "request-changes" | "comment";
 

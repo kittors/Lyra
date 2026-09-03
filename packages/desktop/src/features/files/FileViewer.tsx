@@ -1,12 +1,12 @@
 import { FileWarning } from "lucide-react";
 import type { FileContents } from "../../../electron/ipc-types.ts";
-import { CodeEditor } from "../editor/CodeEditor.tsx";
+import { CodeEditor } from "../editor/index.ts";
 import { documentKind } from "../../../shared/document-kind.ts";
 import { FileTabs } from "./FileTabs.tsx";
 import { PdfView, WordView } from "./DocumentView.tsx";
 import { ImagePane } from "./ImagePane.tsx";
 import { SheetView } from "./SheetView.tsx";
-import { Markdown } from "../conversation/Markdown.tsx";
+import { Markdown } from "../conversation/index.ts";
 import { directoryOf } from "../../lib/markdown/assets.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";

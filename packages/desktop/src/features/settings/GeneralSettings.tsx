@@ -1,7 +1,7 @@
 import type { PermissionMode } from "@lyra/core";
 import { FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
-import { matchTarget, useOpenTargets } from "../files/open-targets.ts";
+import { matchTarget, useOpenTargets } from "../files/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import {

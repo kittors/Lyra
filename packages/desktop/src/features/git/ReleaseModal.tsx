@@ -17,7 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReleaseInfo, WorkflowRunStatus } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
-import { Markdown } from "../conversation/Markdown.tsx";
+import { Markdown } from "../conversation/index.ts";
 import { MenuBody, MenuItem } from "../../ui/overlay/Menu.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";

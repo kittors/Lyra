@@ -1,9 +1,9 @@
 import { Activity, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
-import { useDock } from "../dock/store.ts";
-import { kinds } from "../dock/tree.ts";
-import { paneVisible } from "../dock/visibility.ts";
+import { useDock } from "../dock/index.ts";
+import { kinds } from "../dock/index.ts";
+import { paneVisible } from "../dock/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { syncPlan, type SyncButton } from "./syncPlan.ts";
 import { Spinner } from "../../ui/motion/loaders.tsx";

@@ -16,8 +16,8 @@
 import { Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ForgeAccount, ForgeKindInfo } from "../../../electron/ipc-types.ts";
-import { Avatar } from "../pull-requests/Avatar.tsx";
-import { useAccountActions, useForgeAccounts } from "../pull-requests/useForgeAccounts.ts";
+import { Avatar } from "../pull-requests/index.ts";
+import { useAccountActions, useForgeAccounts } from "../pull-requests/index.ts";
 import { Badge, Card, EmptyHint, GhostButton, ListRow, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { ForgeSignIn } from "./ForgeSignIn.tsx";
 import { bridge } from "../../services/index.ts";

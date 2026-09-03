@@ -24,7 +24,7 @@ import { ArrowUp, Download, FolderOpen, Loader2, MoreHorizontal, Play, Settings2
 
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { PluginIcon } from "../settings/PluginIcon.tsx";
+import { PluginIcon } from "../settings/index.ts";
 import { FootprintLine, IdentityLine } from "./CardMeta.tsx";
 import { isEnabled, isInstalled, type CatalogItem } from "./catalog.ts";
 import { useInstall } from "./useInstall.ts";

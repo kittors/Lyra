@@ -22,10 +22,10 @@
 import { ChevronDown, FileText, PanelLeft } from "lucide-react";
 
 import { useLayout } from "../../app/layout.tsx";
-import { useDock } from "../dock/store.ts";
-import { companionOf } from "../dock/panels/definitions.tsx";
-import { kinds } from "../dock/tree.ts";
-import { paneVisible } from "../dock/visibility.ts";
+import { useDock } from "../dock/index.ts";
+import { companionOf } from "../dock/index.ts";
+import { kinds } from "../dock/index.ts";
+import { paneVisible } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";

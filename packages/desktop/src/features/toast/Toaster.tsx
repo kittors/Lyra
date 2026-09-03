@@ -20,10 +20,10 @@
 
 import { CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { useApp } from "../../store/index.ts";
 import { groupNotices, TOAST_LIFETIME, TOAST_Z, visibleToasts, type ToastGroup } from "./stack.ts";
+import { portal } from "../../ui/overlay/portal.ts";
 
 /** Matches `.ly-toast-out` in the stylesheet; the card is removed once it has played. */
 const LEAVE_MS = 170;
@@ -160,8 +160,7 @@ export function Toaster() {
 
 	if (shown.length === 0) return null;
 
-	return createPortal(
-		/*
+	return portal(/*
 		 * `TOAST_Z` puts this over the panel (50), the menus (60), the toolbar (61) and the image
 		 * viewer (100/120). `no-drag` in case the stack ever grows up into the title bar's band, and
 		 * `pointer-events-none` on the column so only the cards themselves take the pointer.
@@ -256,7 +255,5 @@ export function Toaster() {
 					</div>
 				);
 			})}
-		</div>,
-		document.body,
-	);
+		</div>);
 }

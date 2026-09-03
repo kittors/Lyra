@@ -1,10 +1,10 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
-import { Composer } from "../composer/Composer.tsx";
+import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
-import { TaskList } from "../task/TaskList.tsx";
+import { TaskList } from "../task/index.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useAnswering } from "./useAnswering.ts";
 import { isNudge, runs } from "./grouping.ts";

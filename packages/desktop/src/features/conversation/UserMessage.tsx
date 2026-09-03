@@ -3,7 +3,7 @@ import type {
   UserMessage as UserMessageType,
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil } from "lucide-react";
-import { openFromEvent } from "../image/viewer-store.ts";
+import { openFromEvent } from "../image/index.ts";
 import { useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";

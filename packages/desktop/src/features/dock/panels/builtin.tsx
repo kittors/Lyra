@@ -7,18 +7,18 @@
 
 import { Bot, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal } from "lucide-react";
 
-import { BrowserPanel } from "../../browser/BrowserPanel.tsx";
-import { FileBrowser } from "../../files/FileBrowser.tsx";
-import { FilePanel } from "../../files/FilePanel.tsx";
-import { SubAgentPanel } from "../../subagents/SubAgentPanel.tsx";
-import { FileActions } from "../../files/FileActions.tsx";
-import { FileTitle } from "../../files/FileTitle.tsx";
-import { GitPanel } from "../../git/GitPanel.tsx";
-import { SideChat } from "../../sidechat/SideChat.tsx";
-import { TaskPanel } from "../../task/TaskPanel.tsx";
-import { TerminalPane } from "../../terminal/TerminalPane.tsx";
-import { TerminalTabs } from "../../terminal/TerminalTabs.tsx";
-import { TrajectoryPanel } from "../../conversation/trajectory/TrajectoryPanel.tsx";
+import { BrowserPanel } from "../../browser/index.ts";
+import { FileBrowser } from "../../files/index.ts";
+import { FilePanel } from "../../files/index.ts";
+import { SubAgentPanel } from "../../subagents/index.ts";
+import { FileActions } from "../../files/index.ts";
+import { FileTitle } from "../../files/index.ts";
+import { GitPanel } from "../../git/index.ts";
+import { SideChat } from "../../sidechat/index.ts";
+import { TaskPanel } from "../../task/index.ts";
+import { TerminalPane } from "../../terminal/index.ts";
+import { TerminalTabs } from "../../terminal/index.ts";
+import { TrajectoryPanel } from "../../conversation/index.ts";
 import { registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**

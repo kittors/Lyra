@@ -11,15 +11,15 @@
  */
 
 import type { AssistantMessage, Message, UserContent } from "@lyra/core";
-import { openFromEvent } from "../image/viewer-store.ts";
+import { openFromEvent } from "../image/index.ts";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
-import { MessageActions } from "../conversation/MessageActions.tsx";
-import { MessageEditor } from "../conversation/message/MessageEditor.tsx";
-import { useSide } from "../dock/sideStore.ts";
-import { Markdown } from "../conversation/Markdown.tsx";
-import { ThinkingBlock } from "../conversation/ThinkingBlock.tsx";
-import { ToolCard } from "../conversation/ToolCard.tsx";
+import { MessageActions } from "../conversation/index.ts";
+import { MessageEditor } from "../conversation/index.ts";
+import { useSide } from "../dock/index.ts";
+import { Markdown } from "../conversation/index.ts";
+import { ThinkingBlock } from "../conversation/index.ts";
+import { ToolCard } from "../conversation/index.ts";
 
 export function MessageRow({ message, index }: { message: Message; index: number }) {
 	if (message.role === "toolResult") return null;

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
-import { DetailCard } from "../conversation/detail/DetailCard.tsx";
+import { DetailCard } from "../conversation/index.ts";
 import { RunDetail } from "./RunDetail.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
