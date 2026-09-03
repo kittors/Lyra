@@ -23,24 +23,6 @@
   animation: ly-track 1.4s linear infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root[data-reduce-motion="system"] *,
-  :root[data-reduce-motion="system"] *::before,
-  :root[data-reduce-motion="system"] *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-:root[data-reduce-motion="on"] *,
-:root[data-reduce-motion="on"] *::before,
-:root[data-reduce-motion="on"] *::after {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-}
-
 /* Diff rows can be marked by colour (default) or by a leading +/- for colour-blind users. */
 :root[data-diff-markers="symbols"] .ly-diff-add::before {
   content: "+";

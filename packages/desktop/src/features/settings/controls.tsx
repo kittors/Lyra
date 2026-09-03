@@ -6,6 +6,8 @@
  */
 
 
+import { Button } from "../../ui/primitives/Button.tsx";
+
 export * from "./inputs.tsx";
 export * from "./layout.tsx";
 
@@ -83,6 +85,14 @@ export function Badge({ tone, children }: { tone: "ok" | "muted" | "danger" | "a
  * list verbatim rather than use this, and one of them had drifted: a different height, and a
  * press animation the others did not have.
  */
+/**
+ * The two buttons this file used to define, now `Button` with a variant chosen.
+ *
+ * Kept as names rather than replaced at 40-odd call sites, because these two *are* the right words
+ * at a settings page: `GhostButton` is the outlined one, `PrimaryButton` is the one to press. What
+ * they no longer are is a second definition of what a button looks like — the height, the radius
+ * and the press feedback come from `ui/primitives/Button.tsx` along with everything else's.
+ */
 export function GhostButton({
 	children,
 	icon,
@@ -91,13 +101,6 @@ export function GhostButton({
 	disabled,
 	title,
 }: {
-	/**
-	 * Omit it for an icon-only button.
-	 *
-	 * A label beside an icon says the same thing twice, and a row of them turns a toolbar into a
-	 * sentence. Where the icon carries the meaning the label is dropped and `title` becomes both the
-	 * tooltip and the accessible name — so nothing is lost to a screen reader, only to the eye.
-	 */
 	children?: React.ReactNode;
 	icon?: React.ReactNode;
 	onClick: () => void;
@@ -105,33 +108,16 @@ export function GhostButton({
 	disabled?: boolean;
 	title?: string;
 }) {
-	// Square when there is nothing to read, so a row of them is a row of equal squares.
-	const bare = children === undefined || children === null || children === false;
 	return (
-		<button
-			type="button"
-			disabled={disabled}
+		<Button
+			variant={tone === "danger" ? "danger" : "ghost"}
+			icon={icon}
 			onClick={onClick}
-			data-ly-tip={title}
-			aria-label={bare ? title : undefined}
-			/*
-			 * 32px, the same as `PrimaryButton`.
-			 *
-			 * These two stand side by side at the foot of every dialog, and they were 26 and 32 — near
-			 * enough to look like a mistake rather than a distinction. A row of buttons that do not
-			 * share a baseline reads as two different toolbars pushed together.
-			 */
-			className={`flex h-[32px] shrink-0 items-center rounded-lg border border-line text-label transition-colors duration-[var(--ly-t-quick)] disabled:opacity-45 cursor-pointer ${
-				bare ? "w-[32px] justify-center" : "gap-1.5 px-3 font-medium"
-			} ${
-				tone === "danger"
-					? "text-danger hover:border-danger/50 hover:bg-danger/10"
-					: "text-ink hover:border-ink-faint hover:bg-card-hover"
-			}`}
+			disabled={disabled}
+			label={title}
 		>
-			{icon}
 			{children}
-		</button>
+		</Button>
 	);
 }
 
@@ -147,14 +133,9 @@ export function PrimaryButton({
 	className?: string;
 }) {
 	return (
-		<button
-			type="button"
-			disabled={disabled}
-			onClick={onClick}
-			className={`flex h-[32px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-ink px-3 text-label font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer ${className}`}
-		>
+		<Button variant="primary" onClick={onClick} disabled={disabled} className={className}>
 			{children}
-		</button>
+		</Button>
 	);
 }
 

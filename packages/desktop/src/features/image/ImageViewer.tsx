@@ -27,20 +27,30 @@ import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./
 import { AnnotateCanvas, AnnotateToolbar, STAGE_FIT, useAnnotator } from "./Annotator.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
+import { EASING } from "../../ui/motion/tokens.ts";
 import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-store.ts";
 
-/** Matches `--ly-t-base`; kept as a number because the unmount has to be timed against it. */
+/**
+ * Longer than `--ly-t-base`, on purpose.
+ *
+ * The comment here used to say it *matched* that token. It does not, and has not for a while:
+ * `--ly-t-base` is 220ms and this is 260. The number is right — a picture crossing the whole window
+ * is travelling further than any panel and 220 makes it look thrown — but the claim was wrong, and
+ * nothing would ever have said so. That is what two written-down copies of a value do.
+ *
+ * Kept as a number because the unmount has to be timed against it.
+ */
 const DURATION = 260;
 
 /**
- * The same curve as `--ly-e-out`, spelled out because these transitions are written in JS.
+ * The app's `out` curve, from the one place it is defined.
  *
  * A picture flying from a thumbnail to the middle of the screen is the most conspicuous motion in
  * the app, and the browser's `ease-out` is a shallow curve that spends its whole length slowing
  * down — which at this size reads as the image being dragged rather than released. This one leaves
  * quickly and settles late, which is what makes it feel like the picture was let go of.
  */
-const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const EASE = EASING.out;
 
 /** The flight's transition, as a string: FLIP has to restore this exact value after suppressing it. */
 const FLIGHT = `transform ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`;

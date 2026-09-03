@@ -80,3 +80,38 @@
     transform: translateX(100%);
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * 「减少动态效果」的总开关
+ *
+ * 三档：跟随系统、强制开、强制关，由 `<html data-reduce-motion>` 决定。这里是它唯一生效的
+ * 地方——它曾经躺在 `rail.css` 里，夹在进度轨的两条规则中间，与那个文件毫无关系。放错位置的
+ * 全局规则最坏的一点不是难找，是**没人知道它在**：改进度轨的人不会想到自己删掉的是全应用的
+ * 无障碍开关。
+ *
+ * 用 `!important` 压时长而不是 `animation: none`：动画照常声明、照常结束，只是快到看不出中间
+ * 帧。这样依赖 `animationend` 的组件仍然会收到事件——把动画整个去掉，那些组件会永远等下去。
+ *
+ * 0.01ms 而不是 0：有些浏览器把 0 当作「没有动画」，于是事件也不发。
+ *
+ * 单个组件在减速时需要换一种样子（不是「不动」而是「另一副模样」）的，写在自己的文件里，
+ * 比如 `glide.css` 把扫光换成静态的灰字。那是组件自己的事，不是这个开关的事。
+ * ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] *,
+  :root[data-reduce-motion="system"] *::before,
+  :root[data-reduce-motion="system"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
