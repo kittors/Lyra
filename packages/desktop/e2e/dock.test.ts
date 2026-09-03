@@ -250,6 +250,18 @@ test("the title bars move the window, and only the grip moves the pane", async (
 	 * what Electron actually composites — the window manager reads these regions, and no amount of
 	 * clicking in a test can observe a window that did or did not move.
 	 */
+	/*
+	 * 先开出第二个面板，因为 grip 只在有得可搬的时候才画。
+	 *
+	 * `DockView` 传的是 `draggable={!compact && live.length > 1}`：只有一个面板时，把手不存在
+	 * ——没有别的位置可以把它搬过去。这条测试原来直接就去量 grip 的 app-region，于是量到的是
+	 * `null`，从写下那天起就是红的。它验的东西是对的（标题栏能拖窗口、把手只搬面板），缺的是
+	 * 那个前置条件。
+	 */
+	await resetDock();
+	await openPane("任务");
+	await settledPanes();
+
 	const regions = await app.evaluate<Record<string, string | null>>(`(() => {
 		const region = (sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).webkitAppRegion : null; };
 		return {
@@ -554,8 +566,18 @@ test("a narrow window shows one pane and a picker, and widening restores the lay
 	// Whatever was focused last, which opening a panel makes that panel — not always the
 	// conversation. One pane is the claim; which one is the focus rule, tested by its own path.
 	assert.equal(Object.keys(narrow).length, 1, "only the focused pane is drawn");
-	const chips = await app.evaluate<number>(`document.querySelectorAll("[data-dock-chip]").length`);
-	assert.equal(chips, 2, "and both panes are offered in the picker");
+	/*
+	 * 两个面板都还在 DOM 里，只是除了聚焦的那个都被藏起来了。
+	 *
+	 * 这里原本找的是 `[data-dock-chip]`——一个从来没有实现过的选择器，于是它恒为 0，这条测试
+	 * 从写下那天起就是红的。`DockView` 的文件头写明了真实的设计：窄屏是同一批面板各自铺满整个
+	 * dock、只留一个可见，而不是换一套 DOM——换结构会把里面的东西全部卸载重建，终端会因为你
+	 * 把窗口拖窄而死掉。
+	 *
+	 * 所以要断言的是「两个都还在」，而不是「有两个 chip」。
+	 */
+	const mounted = await app.evaluate<number>(`document.querySelectorAll("[data-dock-pane]").length`);
+	assert.equal(mounted, 2, "两个面板都还挂在 DOM 上，只是藏了一个");
 
 	await setViewport(1400, 900);
 

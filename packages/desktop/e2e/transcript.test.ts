@@ -234,7 +234,16 @@ async function runTurn(): Promise<Frame[]> {
 			const frame = sample();
 			frames.push(frame);
 			if (frame.turning) started = true;
-			if (started && frames.slice(-8).every((f) => !f.turning) && frames.length > 8) break;
+			/*
+			 * 静默多久才算这一轮真的结束。
+			 *
+			 * 原来是 8 帧（约 640ms）。而模型桩每个 block 之间等 700ms——两批工具之间的间隙
+			 * 必然比 640ms 长，于是循环在第二批开始之前就退出了，测试量到的永远只有第一批。
+			 * 这条测试从写下那天起就是红的，而它红的原因和被测的代码无关。
+			 *
+			 * 24 帧约 1.9 秒，比一个 block 的间隔宽裕，又远短于 40 秒的总超时。
+			 */
+			if (started && frames.slice(-24).every((f) => !f.turning) && frames.length > 24) break;
 		}
 		return frames;
 	})()`);
