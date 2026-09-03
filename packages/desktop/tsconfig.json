@@ -11,5 +11,12 @@
       "@lyra/core": ["../core/src/index.ts"]
     }
   },
-  "include": ["electron/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "electron.vite.config.ts"]
+  "include": [
+    "electron/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/ui/**/*.ts",
+    "test/helpers/**/*.ts",
+    "electron.vite.config.ts"
+  ]
 }
