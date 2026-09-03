@@ -1,17 +1,19 @@
 {
   "name": "@lyra/mobile",
-  "version": "0.8.35",
+  "version": "0.8.36",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --experimental-strip-types test/*.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
     "expo": "~57.0.19",
+    "expo-camera": "^57.0.4",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.17",
     "expo-linking": "~57.0.9",
@@ -28,6 +30,7 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1",
     "tailwindcss": "3.4.18",
     "zustand": "5.0.14"

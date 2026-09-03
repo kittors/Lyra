@@ -23,7 +23,16 @@
       "edgeToEdgeEnabled": true,
       "usesCleartextTraffic": true
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "扫描桌面端的二维码，一步完成配对。"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

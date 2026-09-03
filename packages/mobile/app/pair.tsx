@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SyncClient } from "../src/client";
+import { parsePairingCode } from "../src/pairing";
 import { useMobile } from "../src/store";
 
 export default function PairScreen() {
@@ -14,22 +15,36 @@ export default function PairScreen() {
 	const [host, setHost] = useState(connection?.host ?? "");
 	const [port, setPort] = useState(String(connection?.port ?? 4517));
 	const [token, setToken] = useState(connection?.token ?? "");
+	const [tls, setTls] = useState(Boolean(connection?.tls));
+	/*
+	 * Whether this address is a relay rather than the desktop itself.
+	 *
+	 * Only a pairing code can say so — the three fields below describe a host, and a relay is not
+	 * one. It is kept in state rather than derived because it changes what "connect" even means:
+	 * against a relay there is no sync server to ask, only a room to be let into.
+	 */
+	const [relay, setRelay] = useState(Boolean(connection?.relay));
 	const [busy, setBusy] = useState(false);
 	const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
 	async function pastePairingUrl() {
 		const text = await Clipboard.getStringAsync().catch(() => "");
-		// The desktop copies a lyra://pair?host=…&port=…&token=… payload.
-		const match = /lyra:\/\/pair\?(.*)/.exec(text.trim());
-		if (!match) {
-			setMessage({ tone: "error", text: "剪贴板里没有找到配对链接" });
+		// The same parser the camera uses, so a pasted code and a scanned one cannot disagree
+		// about what a code means — including the relay and tls shapes the fields cannot show.
+		const parsed = parsePairingCode(text);
+		if (!parsed.ok) {
+			setMessage({ tone: "error", text: `剪贴板里没有配对链接（${parsed.reason}）` });
 			return;
 		}
-		const params = new URLSearchParams(match[1]);
-		setHost(params.get("host") ?? "");
-		setPort(params.get("port") ?? "4517");
-		setToken(params.get("token") ?? "");
-		setMessage({ tone: "ok", text: "已从剪贴板读取配对信息" });
+		setHost(parsed.connection.host);
+		setPort(String(parsed.connection.port));
+		setToken(parsed.connection.token);
+		setTls(Boolean(parsed.connection.tls));
+		setRelay(Boolean(parsed.connection.relay));
+		setMessage({
+			tone: "ok",
+			text: parsed.connection.relay ? "已从剪贴板读取配对信息（经中转）" : "已从剪贴板读取配对信息",
+		});
 	}
 
 	async function testAndSave() {
@@ -42,13 +57,26 @@ export default function PairScreen() {
 				return;
 			}
 
-			if (!(await SyncClient.ping(host.trim(), parsedPort))) {
-				setMessage({ tone: "error", text: `无法连接到 ${host}:${port}，请确认电脑和手机在同一网络，且同步服务已启用。` });
+			/*
+			 * A relay is checked differently, because it is not a sync server: it answers none of
+			 * the app's routes and has no opinion about the token. All it can say is whether the
+			 * room opened, which is the only thing worth knowing before saving.
+			 */
+			const reachable = relay
+				? await SyncClient.pingRelay(host.trim(), parsedPort, tls, token.trim())
+				: await SyncClient.ping(host.trim(), parsedPort, tls);
+			if (!reachable) {
+				setMessage({
+					tone: "error",
+					text: relay
+						? `连不上中转 ${host}:${port}，请确认地址无误、服务在运行。`
+						: `无法连接到 ${host}:${port}，请确认电脑和手机在同一网络，且同步服务已启用。`,
+				});
 				return;
 			}
 
-			const ok = await pair({ host: host.trim(), port: parsedPort, token: token.trim() });
-			if (ok) router.back();
+			const ok = await pair({ host: host.trim(), port: parsedPort, token: token.trim(), tls, relay });
+			if (ok) router.replace("/desk");
 			else setMessage({ tone: "error", text: "令牌不正确，请在桌面端重新复制。" });
 		} finally {
 			setBusy(false);
@@ -59,15 +87,30 @@ export default function PairScreen() {
 		<KeyboardAvoidingView className="flex-1 bg-shell" behavior={Platform.OS === "ios" ? "padding" : undefined}>
 			<ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
 				<Text className="text-[13.5px] leading-6 text-ink-muted">
-					在桌面端打开「设置 → 移动端同步」，启用服务后复制配对链接，或手动填写下面三项。
+					在桌面端打开「设置 → 移动端同步」并启用服务，那里会出现一张二维码。
 				</Text>
+
+				{/*
+				 * The scan button is the method; everything under it is the fallback.
+				 *
+				 * Typing a thirty-two character token on a phone keyboard is where pairing went
+				 * wrong, and a mistyped one fails without saying which character was wrong.
+				 */}
+				<Pressable
+					onPress={() => router.push("/scan")}
+					className="mt-4 flex-row items-center justify-center gap-2 rounded-xl bg-ink py-3.5 active:opacity-85"
+				>
+					<Text className="text-[15px] font-medium text-shell">扫码连接</Text>
+				</Pressable>
 
 				<Pressable
 					onPress={() => void pastePairingUrl()}
-					className="mt-4 items-center rounded-xl border border-dashed border-line py-3 active:bg-card-hover"
+					className="mt-2.5 items-center rounded-xl border border-dashed border-line py-3 active:bg-card-hover"
 				>
-					<Text className="text-[13px] text-ink-muted">从剪贴板粘贴配对链接</Text>
+					<Text className="text-[13px] text-ink-muted">或从剪贴板粘贴配对链接</Text>
 				</Pressable>
+
+				<Text className="mt-5 text-[12px] text-ink-faint">扫不了的话，手动填下面三项也一样。</Text>
 
 				<Field label="局域网地址">
 					<TextInput

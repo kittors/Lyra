@@ -6,6 +6,7 @@ import { ResumeRow } from "./ResumeRow.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "./TaskList.tsx";
 import { Scroller } from "./Scroller.tsx";
+import { useAnswering } from "./conversation/useAnswering.ts";
 import { isNudge, runs } from "./conversation/grouping.ts";
 import { ToolRun as ToolRunGroup, WINDOW_STEP } from "./conversation/runs.tsx";
 import { MessageRow, messageKey } from "./conversation/rows.tsx";
@@ -85,17 +86,15 @@ export const Conversation = memo(function Conversation() {
    */
   const [swapping, setSwapping] = useState(false);
   /**
-   * The final answer has started arriving.
+   * The final answer is arriving right now.
    *
-   * Text in the last assistant message while it is still streaming — tool calls and reasoning do
-   * not count, because neither is the thing being waited for. This is the moment the running
-   * indicator stops being informative and starts being noise.
+   * This is the moment the running indicator stops being informative and starts being noise — and
+   * it lasts exactly as long as words are actually landing. Asked of the tail of the transcript and
+   * of the clock, because the two ways it comes apart from "this reply has some text in it" are
+   * both ordinary: a call appended after a sentence, and a stream that goes quiet. Both left the
+   * line folded for the rest of a turn that was still running. See `conversation/answering.ts`.
    */
-  const answering = useMemo(() => {
-    const last = messages[messages.length - 1];
-    if (last?.role !== "assistant" || last.stopReason !== "pending") return false;
-    return last.content.some((block) => block.type === "text" && block.text.trim().length > 0);
-  }, [messages]);
+  const answering = useAnswering(messages);
 
   /*
    * Following the bottom, and everything that decides whether to.

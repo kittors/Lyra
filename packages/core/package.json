@@ -1,6 +1,6 @@
 {
   "name": "@lyra/core",
-  "version": "0.8.35",
+  "version": "0.8.36",
   "private": true,
   "type": "module",
   "description": "Lyra agent kernel: providers, agent loop, tools, skills, MCP, sessions",

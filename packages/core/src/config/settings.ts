@@ -321,6 +321,27 @@ export interface Settings {
 		port: number;
 		/** Shared secret a mobile client presents to pair. Regenerated on demand. */
 		token: string | null;
+		/**
+		 * Where the phone should be told to connect, when that is not a LAN address.
+		 *
+		 * The addresses this machine can enumerate are the ones it holds itself, and none of them
+		 * mean anything to a phone on mobile data or on the other side of a NAT. Someone reaching
+		 * this desktop through a reverse proxy, a tunnel or a port forward knows the name it answers
+		 * to and this machine cannot; it is the one fact about the connection that has to be typed.
+		 *
+		 * A host, optionally with a scheme and a port — `lyra.example.com`, `https://lyra.example.com`,
+		 * `203.0.113.9:8443`. Empty means pair over the LAN, which is the ordinary case.
+		 */
+		publicUrl?: string;
+		/**
+		 * The relay to reach this desktop through when neither side can hear the other.
+		 *
+		 * Distinct from `publicUrl`, which assumes something out there already routes to this
+		 * machine. A relay assumes nothing: the desktop dials *out* to it and the phone dials out
+		 * to it too, so it works from behind the kind of NAT that has no port to forward. Empty
+		 * means no relay, and the pairing code carries a LAN or public address instead.
+		 */
+		relayUrl?: string;
 	};
 	editor: {
 		defaultOpenTarget: string;

@@ -1,0 +1,14 @@
+{
+  "name": "@lyra/relay",
+  "version": "0.8.36",
+  "private": true,
+  "type": "module",
+  "description": "A rendezvous for a phone and a desktop that cannot reach each other.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test --experimental-strip-types test/*.test.ts"
+  },
+  "devDependencies": {
+    "ws": "8.21.3"
+  }
+}

@@ -22,7 +22,18 @@ interface Rgb {
 	b: number;
 }
 
-export function applyAppearance(appearance: AppearanceSettings): void {
+export function applyAppearance(input: AppearanceSettings): void {
+	/*
+	 * The defaults are *not* merged in here, deliberately.
+	 *
+	 * That would mean importing a value from "@lyra/core", and the package root reaches `node:fs`
+	 * — see the note in `ScheduledView.tsx`. The bundle would load and then throw on the first Node
+	 * builtin, which is a worse failure than the one it set out to fix. Completeness is guaranteed
+	 * at the two doors instead: `migrateAppearance` for settings read off disk, and `sync-rpc.ts`
+	 * for settings arriving from a phone. What is left here is `parseHex` refusing to throw, so a
+	 * field that slips through both is a wrong colour rather than a blank screen.
+	 */
+	const appearance = input;
 	const root = document.documentElement;
 	const dark = resolveDark(appearance.theme);
 
@@ -208,7 +219,10 @@ function resolveDark(theme: AppearanceSettings["theme"]): boolean {
 	return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-export function parseHex(hex: string): Rgb | null {
+export function parseHex(hex: string | undefined | null): Rgb | null {
+	// Null rather than a throw for anything that is not a colour, including nothing at all: every
+	// caller already has a fallback for an unparseable one, and none of them expect an exception.
+	if (typeof hex !== "string") return null;
 	const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
 	if (!match) return null;
 	let value = match[1];

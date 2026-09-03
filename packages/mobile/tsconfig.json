@@ -3,9 +3,23 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
+    // Metro compiles this, not tsc — and `node --test` resolves the same imports, where an
+    // extensionless path does not exist. Both ends need the `.ts` to be written out.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "nativewind-env.d.ts"]
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "nativewind-env.d.ts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

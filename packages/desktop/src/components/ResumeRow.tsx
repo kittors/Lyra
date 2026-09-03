@@ -126,7 +126,20 @@ export function ResumeRow() {
 						void resumeTask(interrupted.id);
 						return;
 					}
-					void send([{ type: "text", text: carryOn }], { synthetic: true });
+					/*
+					 * `carryOn` is what keeps the turn's clock and its tokens whole across the pause.
+					 *
+					 * `synthetic` alone was not enough, and the note above is what it looked like when it was
+					 * thought to be: the flag keeps the sentence out of the transcript and out of the walk
+					 * that computes a finished turn's stats, but the live meter lives in the store and `send`
+					 * reset it on every call regardless. So this row described the pause correctly while the
+					 * running line under it counted the second leg from zero.
+					 *
+					 * A flag rather than matching the wording again: `grouping.ts` has to recognise these
+					 * sentences because a transcript read back from disk is all it has, but here we know —
+					 * this is the button.
+					 */
+					void send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true });
 				}}
 				className="rounded px-1 text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
 			>

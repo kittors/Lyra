@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { OverlayScrollbar } from "./OverlayScrollbar.tsx";
+import { FIT_LEVELS, FIT_PROBE, settle, tight } from "./composer/fit.ts";
 
 /**
  * The surface you type into, wherever you are typing.
@@ -61,6 +62,53 @@ export function ComposerShell({
 }) {
   const own = useRef<HTMLTextAreaElement>(null);
   const field = fieldRef ?? own;
+
+  /*
+   * How much of the toolbar has had to be given up for what is in it to fit.
+   *
+   * The walk is done against the live DOM in one synchronous pass rather than one level per render.
+   * Rendering each step and re-measuring is the tidier-looking version and it does not work: the
+   * thing that changes here is usually a width, and a width changing does not re-render anything.
+   * The observer would set the level back to zero, React would see zero where zero already was, skip
+   * the render, and the effect that does the measuring would never run again. The row simply stopped
+   * adapting after its first layout.
+   *
+   * So `settle` puts the row into each level itself — the attribute is what the CSS keys off, and
+   * reading `scrollWidth` straight after setting it forces the layout to be up to date — and hands
+   * React only the answer. The attribute is left as it was found; the state below is what really
+   * sets it.
+   */
+  const bar = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<number>(FIT_LEVELS.all);
+
+  const remeasure = useCallback(() => {
+    const row = bar.current;
+    const probe = row?.querySelector(`.${FIT_PROBE}`) ?? null;
+    if (!row || !probe) return;
+    const was = row.getAttribute("data-ly-fit");
+    const level = settle((at) => {
+      row.setAttribute("data-ly-fit", String(at));
+      return tight(probe);
+    });
+    if (was !== null) row.setAttribute("data-ly-fit", was);
+    setFit(level);
+  }, []);
+
+  useEffect(() => {
+    const row = bar.current;
+    if (!row) return;
+    const observer = new ResizeObserver(remeasure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [remeasure]);
+
+  /*
+   * And after every render, because the row can also outgrow itself without changing size: picking
+   * a longer model name is the ordinary way. No dependency array — `remeasure` only calls `setFit`
+   * with the level it measured, so a render that changes nothing settles on the same answer and
+   * stops.
+   */
+  useLayoutEffect(remeasure);
 
   /*
    * Grow with the text, but never past a third of the window.
@@ -163,12 +211,24 @@ export function ComposerShell({
       </div>
 
       {/*
-       * Both sides shrink. `right` used to be `shrink-0`, which is why a long model name
-       * beside a narrow column pushed the row wider than the field and every control ended
-       * up drawn on top of the next.
+       * One side yields, and it is the side with something that can yield.
+       *
+       * Both used to shrink, which is a way of saying neither did: everything in `left` is
+       * `shrink-0`, so flex squeezed the *box* down to 73px while its contents stayed 124px wide
+       * and simply hung out of it — over the model chip, by 47px on a 424px field. That is the
+       * overlap, and it is not what it looks like: nothing is being drawn on top of anything, the
+       * left group is just narrower than what is inside it.
+       *
+       * `right` is where the give is, because the model's name is the one thing in this row that
+       * can be shorter without being wrong. It shrinks, and when it has shrunk past being readable
+       * the row starts dropping the parts that marked themselves droppable.
+       *
+       * `data-ly-fit` is how much of the row has been given up; the rules in `styles.css` hide the
+       * parts that marked themselves droppable. Measured rather than guessed from a width — see
+       * `composer/fit.ts`.
        */}
-      <div className="flex items-center justify-between gap-1 px-3 pt-0 pb-2.5">
-        <div className="flex min-w-0 shrink items-center gap-1">{left}</div>
+      <div ref={bar} data-ly-fit={fit} className="flex items-center justify-between gap-1 px-3 pt-0 pb-2.5">
+        <div className="flex shrink-0 items-center gap-1">{left}</div>
         <div className="flex min-w-0 shrink items-center gap-1">{right}</div>
       </div>
     </div>

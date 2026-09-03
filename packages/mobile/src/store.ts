@@ -94,10 +94,20 @@ export const useMobile = create<MobileState>((set, get) => ({
 	},
 
 	async pair(connection) {
-		const client = new SyncClient(connection);
-		if (!(await client.verify())) {
-			set({ error: "地址或令牌不正确，请检查桌面端的「移动端同步」页面。" });
-			return false;
+		/*
+		 * A relayed connection is verified before it gets here, and cannot be verified the same way.
+		 *
+		 * `verify` asks the sync server a question over HTTP; a relay answers no HTTP the app knows.
+		 * What stands in for it is the room: both ends derive it from the token, so meeting in one
+		 * already proves the token matches — see `SyncClient.pingRelay`, which waits for the desktop
+		 * to actually be in there rather than settling for an empty room.
+		 */
+		if (!connection.relay) {
+			const client = new SyncClient(connection);
+			if (!(await client.verify())) {
+				set({ error: "地址或令牌不正确，请检查桌面端的「移动端同步」页面。" });
+				return false;
+			}
 		}
 		// Keychain writes can fail (locked device, web preview); pairing should still work
 		// for the current session rather than dropping the user back to the pairing screen.

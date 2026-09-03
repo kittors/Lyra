@@ -28,6 +28,18 @@ export default function RootLayout() {
 				>
 					<Stack.Screen name="index" options={{ title: "Lyra" }} />
 					<Stack.Screen name="pair" options={{ title: "连接桌面端", presentation: "modal" }} />
+					{/*
+					 * Full screen, and no header: the viewfinder is the instruction, and a title bar
+					 * over a camera reads as a form that happens to have a picture in it.
+					 */}
+					{/*
+					 * The desktop's interface, full screen and chrome-free.
+					 *
+					 * No header: the page draws its own — the same top row the desktop has — and a
+					 * native title bar above it would be the app announcing itself twice.
+					 */}
+					<Stack.Screen name="desk" options={{ headerShown: false }} />
+					<Stack.Screen name="scan" options={{ title: "扫码连接", headerShown: false, presentation: "fullScreenModal" }} />
 					<Stack.Screen name="session/[id]" options={{ title: "会话" }} />
 				</Stack>
 			</SafeAreaProvider>

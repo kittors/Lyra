@@ -55,7 +55,17 @@ export function titlebarInsets(
 	nativeFullScreen: boolean,
 	/** What the system's own buttons take at the trailing end; see `overlayReserved`. */
 	overlayEnd: number,
+	/**
+	 * Whether this is a window at all.
+	 *
+	 * On a phone it is not: the interface fills the screen, there are no traffic lights and no
+	 * minimise button, and the notch is handled outside the page. Reserving for controls that do
+	 * not exist left 78px of nothing at the top left — the toggle sat marooned in the middle of the
+	 * row instead of at the edge where every other mark below it lines up.
+	 */
+	windowed = true,
 ): TitlebarInsets {
+	if (!windowed) return { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE };
 	// macOS keeps its controls at the leading end and puts nothing at the other one.
 	if (platform === "darwin") {
 		return { start: nativeFullScreen ? TOOLBAR_EDGE : TRAFFIC_LIGHTS_WIDTH, end: 0 };

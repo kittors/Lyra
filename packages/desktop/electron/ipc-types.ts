@@ -145,6 +145,19 @@ export interface LyraApi {
 	 * corrects itself is a visible jump on every launch.
 	 */
 	platform: NodeJS.Platform;
+	/**
+	 * What is displaying this interface.
+	 *
+	 * `"desktop"` — the Electron window, which has traffic lights, a mouse and a keyboard with
+	 * modifiers. `"mobile"` — a WebView on a phone, which has none of those and a thumb instead.
+	 * Absent means desktop, so nothing outside the phone has to be changed to read it.
+	 *
+	 * Deliberately not derived from the viewport. A narrow desktop window is still a desktop
+	 * window: it keeps its window controls and its hover states, and treating it as a phone would
+	 * take away both. This says which *device* is holding the app, which is a different question
+	 * from how much room it has.
+	 */
+	host?: "desktop" | "mobile";
 	settings: {
 		get(): Promise<Settings>;
 		save(settings: Settings): Promise<Settings>;

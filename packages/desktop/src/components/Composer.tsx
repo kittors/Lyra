@@ -520,7 +520,12 @@ export function Composer() {
 	}, [settings?.screenshot]);
 
 	return (
-		<div className={`shrink-0 pt-2 pb-5 ${compact ? "px-4" : "px-8"}`}>
+		/*
+		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the phone can
+		 * find it. It is the one thing that has to move when a keyboard slides over the window —
+		 * the transcript above it stays put and keeps its scroll position. See `--ly-keyboard`.
+		 */
+		<div className={`ly-composer-dock shrink-0 pt-2 pb-5 ${compact ? "px-4" : "px-8"}`}>
 			<div className="mx-auto w-full max-w-[var(--ly-content)]">
 				{/*
 				 * That work has been delegated, above everything else the composer says.
@@ -764,7 +769,7 @@ export function Composer() {
 								onClick={permissionMenu.toggle}
 								aria-haspopup="menu"
 								aria-expanded={permissionMenu.open}
-								className={`flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
+								className={`ly-composer-control flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
 									permissionMode === "full"
 										? // Red, not the accent: this is the one mode that hands over the machine.
 											`text-danger ${permissionMenu.open ? "bg-danger/10" : "hover:bg-danger/10"}`
@@ -784,11 +789,14 @@ export function Composer() {
 								 * word for anyone unsure.
 								 *
 								 * Measured against the field rather than the window: with a sidebar
-								 * and a panel open, a roomy-looking window still leaves this row
-								 * about 350px, and the label has to go long before the layout is
-								 * "compact".
+								 * It was `@max-[420px]:hidden` — a width standing in for 「does this fit」,
+								 * which it cannot: what fits depends on how long the model's name is, and
+								 * those run from `gpt-5` to `claude-opus-4-6-thinking`. The words went at
+								 * 419px with clear air still in the row, and having gone they freed width
+								 * that nothing then claimed. The row is measured now, and this is the last
+								 * thing it gives up — see `composer/fit.ts`.
 								 */}
-								<span className="@max-[420px]:hidden">
+								<span data-ly-fit-drop="2" className="shrink-0 whitespace-nowrap">
 									<RollingText>{PERMISSION_LABEL[permissionMode]}</RollingText>
 								</span>
 							</button>
@@ -796,9 +804,15 @@ export function Composer() {
 					}
 					right={
 						<>
-							{/* Beside the model it is measured against — the window is a property of that model.
-							    Disappears gracefully on narrow composer widths to prevent overflowing tools. */}
-							<div className="@max-[480px]:hidden flex shrink-0 items-center">
+							{/*
+							 * Beside the model it is measured against — the window is a property of that model.
+							 *
+							 * The first thing the row gives up, and it used to be given up at a fixed
+							 * `@max-[480px]`: on a real window that dropped it while the two halves of the row
+							 * still had 54px of clear air between them. It costs about 24px, so it now goes
+							 * only when those 24px are the ones missing.
+							 */}
+							<div data-ly-fit-drop="1" className="flex shrink-0 items-center">
 								<ContextMeter messages={messages} settings={settings} modelId={modelId} sessionId={activeSessionId} />
 							</div>
 
@@ -808,7 +822,7 @@ export function Composer() {
 								data-ly-tip={modelTooltip(identity, formatWindow)}
 								aria-haspopup="menu"
 								aria-expanded={modelMenu.open}
-								className={`flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors ${
+								className={`ly-composer-control flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors ${
 									modelMenu.open ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
 								}`}
 							>
@@ -820,7 +834,13 @@ export function Composer() {
 									name={modelName}
 									className={modelRolls ? "ly-roll" : ""}
 								/>
-								<RollingText className="min-w-0 truncate">{modelName ?? "选择模型"}</RollingText>
+								{/*
+								 * The one thing in the row that yields, so it is also what says the row is out of
+								 * room: everything else is `shrink-0`, and this truncating is exactly the moment
+								 * there was not enough width to go round. `fit.ts` reads this element — the class is the handle — which is why a short
+								 * name keeps its meter at any width.
+								 */}
+								<RollingText className="ly-fit-probe min-w-0 truncate">{modelName ?? "选择模型"}</RollingText>
 							</button>
 							<button
 								type="button"
@@ -828,7 +848,7 @@ export function Composer() {
 								aria-haspopup="menu"
 								aria-expanded={effortMenu.open}
 								data-ly-tip={`推理强度：${effortLabel(sessionThinking(meta, settings), model)}`}
-								className={`mr-1.5 flex h-7 shrink-0 items-center rounded-md px-2 text-label transition-colors ${
+								className={`ly-composer-control mr-1.5 flex h-7 shrink-0 items-center rounded-md px-2 text-label transition-colors ${
 									effortMenu.open ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
 								}`}
 							>

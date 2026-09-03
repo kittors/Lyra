@@ -62,7 +62,7 @@ async function commit(dir: string, file: string, body = file): Promise<void> {
 async function tracked(): Promise<{ dir: string; remote: string }> {
 	const root = await scratch();
 	const remote = join(root, "remote.git");
-	await execFileAsync("git", ["init", "-q", "--bare", remote]);
+	await execFileAsync("git", ["init", "-q", "--bare", "-b", "main", remote]);
 	const dir = join(root, "work");
 	await execFileAsync("git", ["init", "-q", "-b", "main", dir]);
 	await git(dir, "config", "user.email", "t@example.com");
@@ -104,7 +104,7 @@ test("a remote, but this branch has never been pushed", async () => {
 	 */
 	const root = await scratch();
 	const remote = join(root, "remote.git");
-	await execFileAsync("git", ["init", "-q", "--bare", remote]);
+	await execFileAsync("git", ["init", "-q", "--bare", "-b", "main", remote]);
 	const dir = await repo();
 	await commit(dir, "a.txt");
 	await git(dir, "remote", "add", "origin", remote);
@@ -242,7 +242,7 @@ test("the operation probe reads the worktree's own git dir, not the shared one",
 test("a remote that is not called origin", async () => {
 	const root = await scratch();
 	const remote = join(root, "remote.git");
-	await execFileAsync("git", ["init", "-q", "--bare", remote]);
+	await execFileAsync("git", ["init", "-q", "--bare", "-b", "main", remote]);
 	const dir = await repo();
 	await commit(dir, "a.txt");
 	await git(dir, "remote", "add", "fork", remote);
@@ -259,7 +259,7 @@ test("publishing an untracked branch goes to the remote the repository has", asy
 	// The old code ran `push -u origin <branch>` regardless, which fails outright here.
 	const root = await scratch();
 	const remote = join(root, "remote.git");
-	await execFileAsync("git", ["init", "-q", "--bare", remote]);
+	await execFileAsync("git", ["init", "-q", "--bare", "-b", "main", remote]);
 	const dir = await repo();
 	await commit(dir, "a.txt");
 	await git(dir, "remote", "add", "fork", remote);
@@ -276,7 +276,7 @@ test("publishing an untracked branch goes to the remote the repository has", asy
 test("with several remotes and no origin, push declines instead of guessing", async () => {
 	const root = await scratch();
 	for (const name of ["one.git", "two.git"]) {
-		await execFileAsync("git", ["init", "-q", "--bare", join(root, name)]);
+		await execFileAsync("git", ["init", "-q", "--bare", "-b", "main", join(root, name)]);
 	}
 	const dir = await repo();
 	await commit(dir, "a.txt");

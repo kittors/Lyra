@@ -12,6 +12,7 @@ import { nextActivity } from "@lyra/core/activity";
 import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, without } from "./derive.ts";
+import { freeze, relight } from "./turn-meter.ts";
 import { useSide } from "../sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
 import type { AppState } from "../store.ts";
@@ -100,21 +101,62 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      */
     const meter = get().turns[sessionId];
     let next: { startedAt: number; tokens: number } | undefined = meter;
+    /*
+     * What a turn that stopped part-way leaves behind for 继续 to pick up.
+     *
+     * `undefined` means "do not touch what is stored", which is every event but the one that ends a
+     * turn; `null` means "there is nothing to carry", which is how a turn that finished properly
+     * clears the one before it.
+     */
+    let carriedNext: { elapsedMs: number; tokens: number } | null | undefined;
     if (event.type === "agent_start") {
       // Kept if it is already running: a continuation is the same turn, not a new one.
       next = { startedAt: meter?.startedAt ?? Date.now(), tokens: meter?.tokens ?? 0 };
-    } else if (event.type === "message_start" && event.message.role === "assistant") {
-      // Usage lands per assistant reply, so a turn with several tool rounds accumulates.
+    } else if (event.type === "message_end" && event.message.role === "assistant") {
+      /*
+       * Counted when the reply ends, because that is when there is anything to count.
+       *
+       * This used to read `message_start`, where `usage.total` is always zero: the adapters fill in
+       * `input`/`output` as they go and total them once the stream closes. So the map's count never
+       * moved off zero — and since the map is mirrored onto the pair the running line reads, every
+       * new reply in a turn overwrote the real figure with it. A turn doing five rounds of tool work
+       * counted up to 31.4k, blinked back to 0, counted up again, blinked back: the number was not
+       * merely wrong, it was unreadable.
+       *
+       * One accumulator now, here, for every session rather than only the one on screen. The
+       * mirroring below is what carries it to the line.
+       */
       if (meter) next = { ...meter, tokens: meter.tokens + event.message.usage.total };
     } else if (event.type === "retry" && event.resume) {
       /*
        * A turn being picked back up after the connection died, which arrives *after* `agent_end`
        * has already stood the clock down. Start it again rather than leaving the line blank for
        * the whole wait — the same reading the running row takes of `resume`.
+       *
+       * `carried` is what makes it the same turn rather than a new one: `agent_end` has just frozen
+       * this meter, and relighting from the frozen copy carries the minutes and the tokens the turn
+       * had already spent before the socket died. Without it a turn that dropped twice reported the
+       * length of whichever leg happened to be last.
        */
-      next = { startedAt: meter?.startedAt ?? Date.now(), tokens: meter?.tokens ?? 0 };
+      next = meter ?? relight(get().carried[sessionId], Date.now());
     } else if (event.type === "agent_end") {
       next = undefined;
+      /*
+       * Frozen for 继续, but only for the two endings 继续 is offered for.
+       *
+       * `aborted` and `error` are the stops that leave a piece of work half done — the same two
+       * `grouping.ts` reads off the transcript when it decides that a 继续 belongs to the turn
+       * before it. Keeping the pair in step is the point: they are the live and the settled account
+       * of one number, and if they disagreed the elapsed time would jump the moment the turn ended.
+       *
+       * `done`, `max_turns` and `stalled` clear it instead. A turn that reached its own end is over;
+       * anything carried past it would be added to whatever ran next, under a total nobody could
+       * account for.
+       */
+      const stoppedShort = event.reason === "aborted" || event.reason === "error";
+      // The map is the only account of this turn — the line's pair is mirrored from it — so what is
+      // frozen here is exactly the elapsed time and the count the reader was looking at.
+      carriedNext = stoppedShort ? freeze(meter, Date.now()) : null;
     }
 
     if (next !== meter) {
@@ -126,6 +168,13 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       if (sessionId === get().activeSessionId) {
         set({ turnStartedAt: next?.startedAt ?? null, turnTokens: next?.tokens ?? 0 });
       }
+    }
+
+    if (carriedNext !== undefined) {
+      const carried = { ...get().carried };
+      if (carriedNext) carried[sessionId] = carriedNext;
+      else delete carried[sessionId];
+      set({ carried });
     }
   }
 
@@ -197,7 +246,15 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         // the elapsed time jump backwards. A turn driven from the phone or the
         // scheduler has no composer, so it starts the clock here instead.
         turnStartedAt: get().turnStartedAt ?? Date.now(),
-        turnTokens: 0,
+        /*
+         * The count is the meter's to set, and it has already set it, a few lines up.
+         *
+         * A flat zero here was the third place this turn's tokens were decided and the last one to
+         * run, so it quietly undid the others: the block above deliberately keeps a continuation's
+         * total — "a continuation is the same turn, not a new one" — and this threw that away on
+         * the very next statement. A turn resumed after a pause went back to zero however carefully
+         * the total had been carried to it.
+         */
       });
       break;
 
@@ -267,15 +324,15 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       const index = findMessageSlot(messages, event.message);
       if (index >= 0) messages[index] = event.message;
       else messages.push(event.message);
-      set({
-        messages,
-        // Usage lands on the finished message; a turn with several tool rounds bills
-        // once per assistant reply, so they accumulate.
-        turnTokens:
-          event.message.role === "assistant"
-            ? get().turnTokens + event.message.usage.total
-            : get().turnTokens,
-      });
+      /*
+       * The tokens are not added here any more; the meter block at the top of this function does it.
+       *
+       * There used to be two accumulators for one number — this one, and the per-session map — kept
+       * by different events and disagreeing by an entire turn's output. Whichever wrote last won,
+       * and the map wrote last on every new reply. Counting in the place that serves every session
+       * is also what makes the count right for conversations that are running off screen.
+       */
+      set({ messages });
       break;
     }
 

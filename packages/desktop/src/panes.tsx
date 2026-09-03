@@ -13,6 +13,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ResizeHandle } from "./components/ResizeHandle.tsx";
 import { useFocusTrap, useLayout } from "./layout.tsx";
+import { drawerWidth } from "./mobile/drawer-gesture.ts";
+import { onPhone } from "./mobile/useMobileShell.ts";
 
 /**
  * The shell's navigation pane, in whichever form the window can afford.
@@ -40,7 +42,7 @@ export function NavPane({
 	maxWidth?: number;
 	children: React.ReactNode;
 }) {
-	const { compact, navOpen, setSidebarWidth, resetSidebarWidth, bounds } = useLayout();
+	const { compact, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds } = useLayout();
 	const ref = useRef<HTMLElement>(null);
 	/**
 	 * Suppresses the transition for one beat after the breakpoint moves.
@@ -59,6 +61,17 @@ export function NavPane({
 		return () => window.clearTimeout(id);
 	}, [compact]);
 
+	/*
+	 * On a phone the drawer stops short of the full width and lays a scrim over what is left.
+	 *
+	 * Covering everything would make it a page, and a page needs a button to leave. The strip of
+	 * conversation still showing says the drawer is *over* the session rather than instead of it —
+	 * so tapping outside is the obvious way back, and the drag that opened it visibly has somewhere
+	 * to return to. In a narrow desktop window it stays full-width: there is no thumb to drag it
+	 * with and no edge gesture to discover it by, so the strip would be decoration.
+	 */
+	const phone = onPhone();
+
 	const pane = (
 		<aside
 			ref={ref}
@@ -73,16 +86,55 @@ export function NavPane({
 			 * over the transcript and has to cover what is under it.
 			 */
 			data-pane={compact ? "drawer" : "beside"}
-			className={`${compact ? "fixed inset-0 z-30 shadow-2xl shadow-black/60" : "h-full w-full overflow-hidden"} ${
+			className={`${compact ? `fixed inset-y-0 left-0 z-30 shadow-2xl shadow-black/60 ${phone ? "ly-drawer" : "right-0"}` : "h-full w-full overflow-hidden"} ${
 				snap ? "transition-none" : "transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
 			}`}
-			style={compact ? { transform: navOpen ? "none" : "translateX(-100%)", opacity: navOpen ? 1 : 0 } : undefined}
+			style={
+				compact
+					? phone
+						? {
+								width: drawerWidth(window.innerWidth),
+								/*
+								 * The fallback is the whole mechanism: with no finger down `--ly-drawer`
+								 * is unset, so this reads the open/closed value and animates like any
+								 * other state change. During a drag the variable exists and overrides
+								 * it, frame by frame, without React hearing about it.
+								 */
+								transform: `translateX(calc((var(--ly-drawer, ${navOpen ? 1 : 0}) - 1) * 100%))`,
+							}
+						: { transform: navOpen ? "none" : "translateX(-100%)", opacity: navOpen ? 1 : 0 }
+					: undefined
+			}
 		>
 			{children}
 		</aside>
 	);
 
-	if (compact) return pane;
+	if (compact)
+		return phone ? (
+			<>
+				{/*
+				 * The scrim, which is both the way out and the thing that says there is one.
+				 *
+				 * Its opacity tracks the same variable as the drawer, so during a drag the page
+				 * darkens under the finger at exactly the rate the drawer emerges — that coupling is
+				 * most of what makes the drawer feel attached to the hand rather than triggered by
+				 * it. `inert` while closed so it cannot swallow a tap on the conversation.
+				 */}
+				<div
+					aria-hidden
+					inert={!navOpen}
+					onClick={dismissNav}
+					className={`ly-drawer-scrim fixed inset-0 z-20 bg-black/45 ${
+						snap ? "transition-none" : "transition-opacity duration-[var(--ly-t-base)] ease-out"
+					}`}
+					style={{ opacity: `var(--ly-drawer, ${navOpen ? 1 : 0})` }}
+				/>
+				{pane}
+			</>
+		) : (
+			pane
+		);
 
 	return (
 		/*

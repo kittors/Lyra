@@ -8,6 +8,7 @@
 
 import type { ApprovalDecision, Message, ThinkingLevel, Usage, UserContent } from "@lyra/core";
 import { without } from "./derive.ts";
+import { relight } from "./turn-meter.ts";
 import type { AppState } from "../store.ts";
 
 const ZERO_USAGE: Usage = {
@@ -24,7 +25,7 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
 
 export function turnSlice(set: Set, get: Get) {
   return {
-  async send(content: UserContent[], options: { synthetic?: boolean } = {}) {
+  async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean } = {}) {
     const { workspace, settings, scratchCwd } = get();
     let sessionId = get().activeSessionId;
     /*
@@ -58,12 +59,28 @@ export function turnSlice(set: Set, get: Get) {
       // Composed by the app rather than typed — 「继续」. The transcript hides these; see `rows.tsx`.
       ...(options.synthetic ? { synthetic: true } : {}),
     };
+    /*
+     * 继续 carries the clock and the tokens across the pause; anything else starts them at zero.
+     *
+     * `relight` handles both, which is why it is called unconditionally: with nothing carried it is
+     * an ordinary start. The frozen copy is consumed here — a resume happens once, and leaving it
+     * in place would add the same minutes to the turn after this one as well.
+     *
+     * Written into `turns` and not only into the pair the running line reads, because `agent_start`
+     * decides whether a turn is a continuation by looking there ("kept if it is already running").
+     * Setting only the mirror is what let the event that arrives two seconds later overwrite the
+     * carried clock with `Date.now()` and put the count back to zero.
+     */
+    const meter = relight(options.carryOn && sessionId ? get().carried[sessionId] : null, Date.now());
     set({
       messages: [...get().messages, pending],
       pendingUserMessage: pending,
       running: true,
-      turnStartedAt: Date.now(),
-      turnTokens: 0,
+      turnStartedAt: meter.startedAt,
+      turnTokens: meter.tokens,
+      ...(sessionId
+        ? { turns: { ...get().turns, [sessionId]: meter }, carried: without(get().carried, sessionId) }
+        : {}),
       /*
        * Touched now, so the sidebar moves it now.
        *
@@ -200,6 +217,15 @@ export function turnSlice(set: Set, get: Get) {
       running: true,
       turnStartedAt: Date.now(),
       turnTokens: 0,
+      /*
+       * From zero, and the carried meter goes with the reply it belonged to.
+       *
+       * 重试 is the opposite of 继续: it throws away what the turn did and asks again, paying for it
+       * a second time. Carrying the paused turn's minutes and tokens into that would report the
+       * discarded work as part of the work that replaced it.
+       */
+      turns: { ...get().turns, [sessionId]: { startedAt: Date.now(), tokens: 0 } },
+      carried: without(get().carried, sessionId),
       // The cached copy is now wrong; it will be rebuilt from the events that follow.
       sessionCache: without(get().sessionCache, sessionId),
     });

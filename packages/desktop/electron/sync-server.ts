@@ -16,6 +16,9 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { AgentEvent, AgentSession, SessionStorage, Settings, ThinkingLevel, UserContent } from "@lyra/core";
 import type { SyncStatus } from "./ipc-types.ts";
+import { callRpc, type RpcDeps } from "./sync-rpc.ts";
+import { RelayLink, relaySocketUrl } from "./sync-relay.ts";
+import { serveApp } from "./sync-app.ts";
 
 export interface SyncServerDeps {
 	getSettings(): Settings;
@@ -23,12 +26,28 @@ export interface SyncServerDeps {
 	store: SessionStorage;
 	resolveSession(projectId: string, sessionId: string): Promise<AgentSession | null>;
 	createSession(cwd: string, modelId: string): Promise<AgentSession>;
+	/**
+	 * What the renderer asks about a project directory.
+	 *
+	 * Injected rather than imported: it reaches Electron's `BrowserWindow` through its own imports,
+	 * and this server is otherwise plain Node — importing it here made the whole module unloadable
+	 * outside Electron, which is where its tests run.
+	 */
+	workspaceInfo(path: string): Promise<unknown>;
+	/** The session hub's own functions, handed in for the same reason; see `sync-rpc.ts`. */
+	live(sessionId: string): AgentSession | undefined;
+	activate(projectId: string, sessionId: string): Promise<AgentSession | null>;
+	getOrCreate(cwd: string, modelId: string): Promise<AgentSession>;
+	snapshot(session: AgentSession): Promise<unknown>;
+	touch(sessionId: string): void;
 }
 
 export class SyncServer {
 	private deps: SyncServerDeps;
 	private http: Server | null = null;
 	private wss: WebSocketServer | null = null;
+	/** The outbound half, when a relay is configured. See `sync-relay.ts`. */
+	private relay: RelayLink | null = null;
 	private clients = new Set<WebSocket>();
 	private token: string | null = null;
 	private port = 4517;
@@ -42,14 +61,20 @@ export class SyncServer {
 	}
 
 	async start(port: number, token: string | null): Promise<SyncStatus> {
+		/*
+		 * Already serving what was asked for, so there is nothing to do.
+		 *
+		 * Turning the service on reaches here twice. The IPC handler writes `sync.enabled: true`
+		 * and *that* is what starts the server — the settings hook in `main.ts` watches the flag —
+		 * and then the handler starts it again itself. Without this, the second call tore down a
+		 * working listener to rebind an identical one.
+		 *
+		 * A token of `null` means "keep whatever you have", so it does not count as a change.
+		 */
+		if (this.http && this.port === port && (!token || this.token === token)) return this.status();
 		if (this.http) await this.stop();
 		this.port = port;
 		this.token = token ?? randomUUID().replace(/-/g, "");
-
-		if (!token) {
-			const settings = this.deps.getSettings();
-			await this.deps.saveSettings({ ...settings, sync: { ...settings.sync, token: this.token } });
-		}
 
 		const server = createServer((req, res) => void this.handleHttp(req, res));
 		this.wss = new WebSocketServer({ noServer: true });
@@ -77,6 +102,8 @@ export class SyncServer {
 				this.clients.add(ws);
 				ws.on("close", () => this.clients.delete(ws));
 				ws.on("error", () => this.clients.delete(ws));
+				// Calls can arrive here as well as over HTTP — see `onSocketMessage`.
+				ws.on("message", (data) => void this.onSocketMessage(ws, data));
 				ws.send(JSON.stringify({ type: "hello", version: 1 }));
 			});
 		});
@@ -88,12 +115,33 @@ export class SyncServer {
 		});
 
 		this.http = server;
+		this.linkRelay();
+
+		/*
+		 * The generated token is stored *after* the socket is bound, and the order is load-bearing.
+		 *
+		 * Saving settings runs the settings hook, and that hook starts the sync server when it sees
+		 * `sync.enabled` — so persisting the token from in here re-enters this method. Do it before
+		 * binding and the re-entrant call finds `this.http` still null, sails past the check above,
+		 * binds the port itself, and then the original call reaches its own `listen` and fails with
+		 * `EADDRINUSE` on a port that nothing outside this process holds. Which is what the toggle
+		 * reported: "address already in use" about the service it had just started.
+		 *
+		 * Bound first, the re-entrant call sees a running server on the same port and returns.
+		 */
+		if (!token) {
+			const settings = this.deps.getSettings();
+			await this.deps.saveSettings({ ...settings, sync: { ...settings.sync, token: this.token } });
+		}
+
 		return this.status();
 	}
 
 	async stop(): Promise<void> {
 		for (const client of this.clients) client.close();
 		this.clients.clear();
+		this.relay?.stop();
+		this.relay = null;
 		this.wss?.close();
 		this.wss = null;
 		await new Promise<void>((resolve) => {
@@ -103,9 +151,100 @@ export class SyncServer {
 		this.http = null;
 	}
 
+	/**
+	 * Open the outbound link, if one is configured, and treat it as another client.
+	 *
+	 * A relayed phone is added to `clients` exactly like a direct one, so `broadcast` reaches it
+	 * without knowing the difference and calls arriving through it go to the same allowlist. The
+	 * only asymmetry is who dialled.
+	 */
+	private linkRelay(): void {
+		this.relay?.stop();
+		this.relay = null;
+
+		const configured = this.deps.getSettings().sync.relayUrl;
+		const url = configured ? relaySocketUrl(configured) : null;
+		if (!url || !this.token) return;
+
+		this.relay = new RelayLink(url, this.token, {
+			joined: (socket) => {
+				this.clients.add(socket);
+				socket.send(JSON.stringify({ type: "hello", version: 1 }));
+			},
+			left: (socket) => this.clients.delete(socket),
+			message: (socket, data) => void this.onSocketMessage(socket, JSON.stringify(data)),
+		});
+		this.relay.start();
+	}
+
+	/** What the allowlist needs, in one place: it is asked for from two transports now. */
+	private rpcDeps(): RpcDeps {
+		return {
+			store: () => this.deps.store,
+			settings: () => this.deps.getSettings(),
+			saveSettings: (next) => this.deps.saveSettings(next),
+			workspaceInfo: (path) => this.deps.workspaceInfo(path),
+			live: (id) => this.deps.live(id),
+			activate: (projectId, id) => this.deps.activate(projectId, id),
+			getOrCreate: (cwd, modelId) => this.deps.getOrCreate(cwd, modelId),
+			snapshot: (session) => this.deps.snapshot(session),
+			touch: (id) => this.deps.touch(id),
+		};
+	}
+
+	/**
+	 * A call that arrived over the socket rather than as a POST.
+	 *
+	 * The two are the same call — same allowlist, same handlers — and the socket exists because a
+	 * relay can only carry frames. A relay joins two WebSockets and copies bytes; an HTTP request
+	 * has nowhere to go through one. So everything the phone needs has to fit down this pipe, and
+	 * `/api/rpc` stays for the direct case and for anything already speaking it.
+	 *
+	 * Errors answer rather than throw, for the same reason the HTTP route returns 200 on a refusal:
+	 * this connection is the phone's only one, and an exception in a message handler takes it down.
+	 */
+	private async onSocketMessage(ws: WebSocket, raw: unknown): Promise<void> {
+		let message: { type?: unknown; id?: unknown; method?: unknown; args?: unknown };
+		try {
+			message = JSON.parse(String(raw)) as typeof message;
+		} catch {
+			return;
+		}
+		if (message.type !== "rpc" || typeof message.id !== "string") return;
+
+		const method = typeof message.method === "string" ? message.method : "";
+		const args = Array.isArray(message.args) ? message.args : [];
+		let result: Awaited<ReturnType<typeof callRpc>>;
+		try {
+			result = await callRpc(this.rpcDeps(), method, args);
+		} catch (error) {
+			result = { ok: false, error: error instanceof Error ? error.message : String(error) };
+		}
+		if (ws.readyState === 1) ws.send(JSON.stringify({ type: "rpc_result", id: message.id, ...result }));
+	}
+
 	broadcast(sessionId: string, event: AgentEvent): void {
+		this.send(JSON.stringify({ type: "agent_event", sessionId, event }));
+	}
+
+	/**
+	 * Tell the phone the settings changed.
+	 *
+	 * Without this the two halves agree only until someone changes something: the phone reads the
+	 * settings once at boot and would go on showing the old model, the old theme and the old
+	 * permission mode until it was restarted. The renderer already subscribes — this is the end that
+	 * was missing.
+	 *
+	 * The whole object, not a diff. It is small, it is sent rarely, and a diff would need the two
+	 * ends to agree on how to apply one.
+	 */
+	broadcastSettings(settings: Settings): void {
+		this.send(JSON.stringify({ type: "settings_changed", settings }));
+	}
+
+	/** To every client still connected. A closing socket is not an error worth reporting. */
+	private send(payload: string): void {
 		if (this.clients.size === 0) return;
-		const payload = JSON.stringify({ type: "agent_event", sessionId, event });
 		for (const client of this.clients) {
 			if (client.readyState === 1) client.send(payload);
 		}
@@ -113,6 +252,7 @@ export class SyncServer {
 
 	status(): SyncStatus {
 		const addresses = localAddresses();
+		const sync = this.deps.getSettings().sync;
 		return {
 			running: this.running,
 			port: this.port,
@@ -123,6 +263,10 @@ export class SyncServer {
 				this.running && this.token && addresses[0]
 					? `lyra://pair?host=${addresses[0]}&port=${this.port}&token=${this.token}`
 					: null,
+			// Passed through rather than resolved here: which of the three a pairing code should
+			// carry is the person's choice in front of the picker, not this server's.
+			publicUrl: sync.publicUrl?.trim() || null,
+			relayUrl: sync.relayUrl?.trim() || null,
 		};
 	}
 
@@ -147,6 +291,34 @@ export class SyncServer {
 			return;
 		}
 
+		/*
+		 * The interface itself, served before the token check.
+		 *
+		 * A browser loading `<script src>` and `<link href>` attaches no Authorization header, so
+		 * gating these would leave the page unable to fetch the things it is made of. They are safe
+		 * to serve openly because they carry none of your data: it is the same bundle anyone can
+		 * build from this repository. Everything under `/api/` still needs the token, and that is
+		 * where the sessions are.
+		 */
+		if (req.method === "GET" && (url.pathname === "/app" || url.pathname.startsWith("/app/"))) {
+			/*
+			 * The trailing slash is load-bearing.
+			 *
+			 * The page references its bundle as `./assets/…`, and a browser resolves that against
+			 * the *directory* of the current URL. At `/app` that directory is `/`, so every asset
+			 * is requested from `/assets/…` — which is not this route, falls through to the token
+			 * check, and comes back 401. The page then renders as a blank screen with no error on
+			 * it, because the HTML loaded perfectly and nothing inside it did.
+			 */
+			if (url.pathname === "/app") {
+				res.writeHead(302, { location: "/app/" });
+				res.end();
+				return;
+			}
+			if (await serveApp(url.pathname, res)) return;
+			send(404, { error: "not-found" });
+			return;
+		}
 		// Unauthenticated: lets the phone confirm it found a Lyra host before pairing.
 		if (url.pathname === "/api/ping") {
 			send(200, { app: "lyra", version: 1, requiresToken: true });
@@ -164,6 +336,24 @@ export class SyncServer {
 
 			if (req.method === "GET" && url.pathname === "/api/sessions") {
 				send(200, { sessions: await this.deps.store.listSessions() });
+				return;
+			}
+
+			/*
+			 * One endpoint for everything the phone's renderer asks of the desktop.
+			 *
+			 * It runs the desktop's own React app, which talks to `window.lyra` — 177 methods. A
+			 * route per method would be 177 routes that drift; an allowlist in one file is both the
+			 * dispatch and the security boundary. See `sync-rpc.ts` for what is on it and why.
+			 */
+			if (req.method === "POST" && url.pathname === "/api/rpc") {
+				const body = (await readJson(req)) as { method?: unknown; args?: unknown };
+				const method = typeof body.method === "string" ? body.method : "";
+				const args = Array.isArray(body.args) ? body.args : [];
+				const result = await callRpc(this.rpcDeps(), method, args);
+				// 200 either way: a refused method is an answer, not a transport failure, and the
+				// phone keeps one long-lived connection that a 4xx would make it re-examine.
+				send(200, result);
 				return;
 			}
 
@@ -319,12 +509,63 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 	return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function localAddresses(): string[] {
-	const out: string[] = [];
-	for (const entries of Object.values(networkInterfaces())) {
+/**
+ * Interface names that belong to something other than the network the phone is on.
+ *
+ * A developer machine is full of these — Docker's bridge, VirtualBox's host-only adapter, WSL's
+ * vEthernet, a VPN's tun — and every one of them has a perfectly valid private IPv4 that the
+ * phone cannot reach. Listed first in the picker, they are what someone scans, and the failure
+ * is silent and confusing: the QR code is fine, the token is fine, the address is simply on a
+ * network that exists only inside this computer.
+ */
+const VIRTUAL_INTERFACE = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|ppp|zt|wg|Loopback|vEthernet|Hyper-V|VMware|VirtualBox|Npcap|Bluetooth)/i;
+
+/**
+ * Ranked so the first one is the address most likely to work.
+ *
+ * `localAddresses()[0]` is what the pairing URL uses and what the picker preselects, so the order
+ * is the whole difference between "scan it and you are connected" and "scan it, wait, and try the
+ * next one". Ordinary home and office networks (192.168.x, 10.x) come first, then the rest of the
+ * private space, and anything on a virtual adapter goes last rather than being dropped — a machine
+ * whose only route to the phone genuinely is a bridge should still be able to pair, just not by
+ * default.
+ */
+function rank(address: string, name: string): number {
+	if (VIRTUAL_INTERFACE.test(name)) return 3;
+	if (address.startsWith("192.168.")) return 0;
+	if (address.startsWith("10.")) return 1;
+	return 2;
+}
+
+/** Just the fields the ranking reads, so a test can describe a machine without inventing one. */
+export interface InterfaceEntry {
+	address: string;
+	family: string;
+	internal: boolean;
+}
+
+/**
+ * The ranking, over a set of interfaces given to it.
+ *
+ * Takes the interfaces rather than reading them so the interesting half — which of a laptop's six
+ * addresses leads — can be tested against a described machine instead of whichever one the tests
+ * happen to run on.
+ */
+export function rankAddresses(interfaces: Record<string, InterfaceEntry[] | undefined>): string[] {
+	const found: { address: string; score: number }[] = [];
+	for (const [name, entries] of Object.entries(interfaces)) {
 		for (const entry of entries ?? []) {
-			if (entry.family === "IPv4" && !entry.internal) out.push(entry.address);
+			// `169.254.x` is what an interface gives itself when DHCP never answered: it is a
+			// symptom of no network, not an address anything can be reached on.
+			if (entry.family !== "IPv4" || entry.internal || entry.address.startsWith("169.254.")) continue;
+			found.push({ address: entry.address, score: rank(entry.address, name) });
 		}
 	}
-	return out;
+	found.sort((a, b) => a.score - b.score);
+	// Distinct: one adapter can hold the same address twice across aliases.
+	return [...new Set(found.map((entry) => entry.address))];
+}
+
+export function localAddresses(): string[] {
+	return rankAddresses(networkInterfaces());
 }

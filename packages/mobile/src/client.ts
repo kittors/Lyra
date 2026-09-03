@@ -6,12 +6,36 @@
  * sequence number it saw, so a dropped connection never loses a turn.
  */
 
+import { roomFor } from "./sha256.ts";
 import type { AgentEvent, RemoteSettings, SessionMeta, SessionRecord, UserContent } from "./protocol";
 
 export interface Connection {
 	host: string;
 	port: number;
 	token: string;
+	/**
+	 * Speak https/wss rather than http/ws.
+	 *
+	 * A desktop on the LAN is plain http — it is on the same network and there is no certificate
+	 * to have. Anything reached through a reverse proxy or a tunnel is almost always TLS, and
+	 * guessing wrong is not a degraded connection but no connection: http against a TLS port hangs
+	 * until it times out, and the error names neither cause.
+	 */
+	tls?: boolean;
+	/**
+	 * This endpoint is a relay to meet at, not the desktop itself.
+	 *
+	 * Kept so the UI can say which way it is connected — "通过中转" is worth showing, because it
+	 * explains both the extra hop of latency and why it still works away from home.
+	 */
+	relay?: boolean;
+	/**
+	 * The desktop's platform, learned when pairing.
+	 *
+	 * The renderer reads it before its first paint to decide where the window controls go and which
+	 * shortcut glyphs to print. It describes the machine the session runs on, not this phone.
+	 */
+	platform?: string;
 }
 
 export class SyncClient {
@@ -27,7 +51,7 @@ export class SyncClient {
 	}
 
 	get baseUrl(): string {
-		return `http://${this.connection.host}:${this.connection.port}`;
+		return `${this.connection.tls ? "https" : "http"}://${this.connection.host}:${this.connection.port}`;
 	}
 
 	// -------------------------------------------------------------------------
@@ -50,9 +74,9 @@ export class SyncClient {
 		return (await response.json()) as T;
 	}
 
-	static async ping(host: string, port: number): Promise<boolean> {
+	static async ping(host: string, port: number, tls = false): Promise<boolean> {
 		try {
-			const response = await fetch(`http://${host}:${port}/api/ping`, {
+			const response = await fetch(`${tls ? "https" : "http"}://${host}:${port}/api/ping`, {
 				signal: AbortSignal.timeout(5000),
 			});
 			if (!response.ok) return false;
@@ -61,6 +85,59 @@ export class SyncClient {
 		} catch {
 			return false;
 		}
+	}
+
+	/**
+	 * Whether a relay is reachable and will let us into our room.
+	 *
+	 * Not `ping`: a relay is not a sync server. It answers no HTTP route the app knows and has no
+	 * opinion about the token, so the question it *can* answer is whether the desktop is in the room
+	 * — which is `ready`, and is a stronger answer than either half alone. It says the relay works,
+	 * that the desktop is dialled in, and that both ends derived the same room, which they can only
+	 * do from the same token. That last part is why this doubles as the token check on this path.
+	 *
+	 * `waiting` is not enough: it means the room opened and nobody else is in it, which is equally
+	 * what a wrong token looks like — a room of one, belonging to nobody.
+	 */
+	static pingRelay(host: string, port: number, tls: boolean, token: string): Promise<boolean> {
+		return new Promise((resolve) => {
+			let socket: WebSocket;
+			try {
+				socket = new WebSocket(`${tls ? "wss" : "ws"}://${host}:${port}`);
+			} catch {
+				resolve(false);
+				return;
+			}
+
+			const done = (ok: boolean) => {
+				clearTimeout(timer);
+				try {
+					socket.close();
+				} catch {
+					/* already gone */
+				}
+				resolve(ok);
+			};
+			// Longer than the direct ping: this crosses the internet twice, and the relay itself
+			// allows ten seconds before it hangs up on a socket that has said nothing.
+			const timer = setTimeout(() => done(false), 8000);
+
+			socket.onopen = () => socket.send(JSON.stringify({ type: "hello", room: roomFor(token) }));
+			socket.onerror = () => done(false);
+			socket.onclose = () => done(false);
+			socket.onmessage = (event) => {
+				let message: { type?: string };
+				try {
+					message = JSON.parse(String(event.data)) as typeof message;
+				} catch {
+					return;
+				}
+				if (message.type === "ready") done(true);
+				// `waiting` is not an answer yet — the desktop may still be dialling in — so it is
+				// left to the timeout. `refused` (room-full, bad hello) is a definite no.
+				else if (message.type === "refused") done(false);
+			};
+		});
 	}
 
 	async verify(): Promise<boolean> {
@@ -153,7 +230,7 @@ export class SyncClient {
 		this.emitState("connecting");
 
 		const socket = new WebSocket(
-			`ws://${this.connection.host}:${this.connection.port}/ws?token=${encodeURIComponent(this.connection.token)}`,
+			`${this.connection.tls ? "wss" : "ws"}://${this.connection.host}:${this.connection.port}/ws?token=${encodeURIComponent(this.connection.token)}`,
 		);
 		this.socket = socket;
 

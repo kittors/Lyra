@@ -19,6 +19,10 @@ export function idleSyncStatus(): SyncStatus {
 		addresses: [],
 		clients: 0,
 		pairingUrl: null,
+		// Configured rather than discovered, so they are known even while the server is stopped —
+		// the settings page shows the fields either way.
+		publicUrl: settings?.sync.publicUrl?.trim() || null,
+		relayUrl: settings?.sync.relayUrl?.trim() || null,
 	};
 }
 

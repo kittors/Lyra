@@ -129,10 +129,21 @@ export interface SyncStatus {
 	running: boolean;
 	port: number;
 	token: string | null;
+	/**
+	 * This machine's own IPv4 addresses, best-first.
+	 *
+	 * Ranked rather than merely listed: a development machine holds several, and the ones belonging
+	 * to Docker bridges and VPN adapters are unreachable from the phone while looking exactly as
+	 * plausible as the real one. See `localAddresses`.
+	 */
 	addresses: string[];
 	clients: number;
-	/** Ready-to-scan pairing payload for the mobile app. */
+	/** Ready-to-scan pairing payload for the mobile app, over the LAN. */
 	pairingUrl: string | null;
+	/** A reverse proxy or port forward that routes to this desktop, as configured. */
+	publicUrl: string | null;
+	/** A relay both sides dial out to, as configured. See `Settings.sync.relayUrl`. */
+	relayUrl: string | null;
 }
 
 /**

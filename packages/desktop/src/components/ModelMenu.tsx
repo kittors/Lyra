@@ -90,6 +90,20 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 	 */
 	const clashes = useMemo(() => ambiguousNames(groups), [groups]);
 	const total = useMemo(() => flattenGroups(groups).length, [groups]);
+	/*
+	 * Whether this list is long enough to be searched, which decides who owns the number keys.
+	 *
+	 * They cannot both have them. A search field takes focus the moment the menu opens, and model
+	 * names are mostly version numbers — `claude-opus-4`, `gemini-3.7`, `grok-4.6` — so typing a
+	 * digit is an ordinary way to start looking for one. While the shortcut also claimed them, the
+	 * first digit of a query picked the model on that row and shut the menu, which does not make
+	 * searching awkward so much as impossible: you never get to the second character.
+	 *
+	 * So the field wins wherever there is a field, and the digits are not drawn on the rows when
+	 * they are not there to be pressed. A shortcut you cannot use is worse than no shortcut: it is
+	 * the menu telling you about a key that does something else entirely.
+	 */
+	const searchable = total >= SEARCH_FROM;
 	const fastMode = sessionThinking(meta, settings) === "off";
 	const isDefault = settings?.defaultModelId === current;
 
@@ -146,10 +160,25 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 
 	// Number keys pick from the first rows, matching the digits drawn on them.
 	useEffect(() => {
+		// A searchable list has given the digits to the field; see `searchable`.
+		if (searchable) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (event.metaKey || event.ctrlKey || event.altKey) return;
-			// Not while the filter has focus: there, a digit is part of a model name.
-			if (query) return;
+			/*
+			 * Anything being typed into owns what is typed into it.
+			 *
+			 * This used to read 「is the query non-empty」, which is a different question and false for
+			 * the first character of every query — the field opens focused and empty, so the 「4」 of
+			 * `claude-opus-4` picked the model on row four and shut the menu before a second character
+			 * could be typed. `searchable` above is what settles the general case; this stays as the
+			 * rule it was always meant to be, and covers any field a menu grows later.
+			 */
+			const target = event.target;
+			if (
+				target instanceof HTMLElement &&
+				(target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+			)
+				return;
 			const index = Number(event.key) - 1;
 			if (!Number.isInteger(index) || index < 0 || index >= Math.min(SHORTCUTS, reachable.length)) return;
 			event.preventDefault();
@@ -178,7 +207,7 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 			 */
 			maxHeight={MODEL_MENU_MAX_HEIGHT}
 			header={
-				total >= SEARCH_FROM ? (
+				searchable ? (
 					<MenuSearch value={query} onChange={setQuery} placeholder="搜索模型或供应商" />
 				) : undefined
 			}
@@ -265,7 +294,8 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 											starred={Boolean(favourites?.includes(row.model.id))}
 											// Two houses offering one name: say which, on both rows.
 											showProvider={clashes.has(row.model.name.trim().toLowerCase())}
-											shortcut={!query && at >= 0 && at < SHORTCUTS ? at + 1 : null}
+											// Drawn only where the key it names actually does this; see `searchable`.
+											shortcut={!searchable && !query && at >= 0 && at < SHORTCUTS ? at + 1 : null}
 											onChoose={() => choose(row.model.id)}
 											onStar={() => star(row.model.id)}
 										/>
@@ -378,9 +408,18 @@ function ModelItem({
 	const { model, provider } = row;
 
 	return (
-		// `data-model` is the handle the end-to-end tests aim at, the same way session rows carry
-		// `data-ly-row`: a menu row is otherwise indistinguishable from the switches below it.
-		<div data-model={model.id} className="ly-item group/model flex h-[28px] items-center">
+		/*
+		 * `data-model` is the handle the end-to-end tests aim at, the same way session rows carry
+		 * `data-ly-row`: a menu row is otherwise indistinguishable from the switches below it.
+		 *
+		 * `ly-scroll` is what makes the name read itself out on hover. The `ScrollText` below has
+		 * always been able to — it measures its own overflow and lays out the second copy that makes
+		 * the loop seamless — but the animation is keyed off a hovered ancestor carrying this class,
+		 * and this row never carried it. So every name too long for the row simply sat there faded
+		 * at the edge, with no way to see the rest of it: `claude-opus-4-…` and `claude-opus-4-…`
+		 * being two different models you could not tell apart.
+		 */
+		<div data-model={model.id} className="ly-scroll ly-item group/model flex h-[28px] items-center">
 			<button
 				type="button"
 				role="menuitem"
@@ -396,8 +435,17 @@ function ModelItem({
 				<span className="min-w-0 flex-1">
 					<ScrollText text={showProvider ? `${model.name} · ${provider.name}` : model.name} />
 				</span>
+				{/*
+				 * The window, and nothing else.
+				 *
+				 * 「视觉 · 」 used to sit in front of it on every model that takes images, which is most
+				 * of them — so it was four characters of near-constant text charged to the one column
+				 * that is always short of room. The name is what tells two models apart and it was
+				 * being truncated to pay for a word that rarely varies. Image support is still on the
+				 * model in settings, where it is a property being managed rather than a label being
+				 * skimmed.
+				 */}
 				<span className="shrink-0 font-mono text-caption text-ink-faint">
-					{model.supportsImages ? "视觉 · " : ""}
 					{formatWindow(model.contextWindow)}
 				</span>
 			</button>

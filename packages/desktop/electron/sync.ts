@@ -7,12 +7,15 @@
  */
 
 import { AgentSession, type SessionStorage } from "@lyra/core";
-import { applySettings, settings } from "./app-settings.ts";
+import { workspaceInfo } from "./workspace-info.ts";
+import { applySettings, onSettingsChanged, settings } from "./app-settings.ts";
 import type { SyncStatus } from "./ipc-types.ts";
-import { broadcast, getOrCreateSession, sessions } from "./session-hub.ts";
+import { activateSession, broadcast, getOrCreateSession, sessions, snapshot, touchSession } from "./session-hub.ts";
 import { SyncServer } from "./sync-server.ts";
 
 let syncServer: SyncServer | null = null;
+/** Whether the settings listener is already attached; see `startSync`. */
+let watchingSettings = false;
 
 /** The running server, or null. Read by the handlers that report status. */
 export function syncStatusSource(): SyncServer | null {
@@ -37,6 +40,12 @@ export async function startSync(): Promise<SyncStatus> {
 			getSettings: settings,
 			saveSettings: async (next) => void (await applySettings(next)),
 			store: readStore(),
+			workspaceInfo: (path) => workspaceInfo(path),
+			live: (id) => sessions.get(id),
+			activate: (projectId, id) => activateSession(projectId, id),
+			getOrCreate: (cwd, modelId) => getOrCreateSession(cwd, modelId),
+			snapshot: (session) => snapshot(session),
+			touch: (id) => touchSession(id),
 			resolveSession: async (projectId, sessionId) => {
 				const existing = sessions.get(sessionId);
 				if (existing) return existing;
@@ -57,5 +66,17 @@ export async function startSync(): Promise<SyncStatus> {
 			createSession: (cwd, modelId) => getOrCreateSession(cwd, modelId),
 		});
 	}
+	/*
+	 * Forward every settings change to whatever phones are connected.
+	 *
+	 * Registered once, on the first start, and left in place: the listener is cheap, it does nothing
+	 * while no server is running, and unsubscribing on stop would mean a phone that reconnects to a
+	 * restarted server silently stops hearing about changes.
+	 */
+	if (!watchingSettings) {
+		watchingSettings = true;
+		onSettingsChanged((next) => syncServer?.broadcastSettings(next));
+	}
+
 	return syncServer.start(settings().sync.port, settings().sync.token);
 }

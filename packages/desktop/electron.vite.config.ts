@@ -65,10 +65,18 @@ export default defineConfig({
 				 * Windows package, where the sandbox that depends on it cannot load. External, it
 				 * resolves at runtime on the machine that is actually running.
 				 *
+				 * The `@koromix/*` pattern is the same rule reaching one level further. `koffi`
+				 * does not contain the binary itself — it requires whichever of four
+				 * `@koromix/koffi-<platform>` packages matches the machine, and naming only the
+				 * parent leaves the bundler to follow that require into all four. It then tries to
+				 * read a `.node` binary as source and stops with 「stream did not contain valid
+				 * UTF-8」, four times over. Latent until something in `electron/` changes, because
+				 * until then the main bundle is served from cache and never re-resolved.
+				 *
 				 * Listed here rather than left to the plugin because assigning `external`
 				 * replaces what the plugin contributes instead of adding to it.
 				 */
-				external: ["electron", "node-pty", "koffi"],
+				external: ["electron", "node-pty", "koffi", /^@koromix\//],
 			},
 		},
 		resolve: {

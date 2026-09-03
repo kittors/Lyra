@@ -75,6 +75,9 @@ export function ToolbarButton({
 		<button
 			type="button"
 			data-ly-tip={label}
+			// A hook the mobile stylesheet can reach: a 28px square is a comfortable mouse target
+			// and a poor thumb one, and that is a difference in hit area rather than in markup.
+			data-ly-toolbar-button
 			aria-label={label}
 			aria-pressed={active}
 			onClick={onClick}
