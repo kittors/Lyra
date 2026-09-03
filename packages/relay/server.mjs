@@ -19,6 +19,52 @@ import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.PORT ?? 8787);
+
+/*
+ * 限流，防的是失控而不是攻击。
+ *
+ * 这个中转不认识任何人——房间号是配对令牌的 SHA-256，它既不知道两端是谁，也不知道它们在说
+ * 什么。所以这里能做的判断只有「一个来源要了多少」，而这恰好也够用：真正要挡的是一个重连循环
+ * 跑飞的客户端，或者一个把房间当消息队列用的脚本，而不是一次有针对性的攻击——那种情况下换个
+ * 令牌就是换个房间，限流拦不住，靠的是令牌本身。
+ *
+ * 三个数都取得比任何正常用法宽得多。一次配对建一个房间；一个会话的一天也到不了 1GB。
+ */
+const MAX_ROOMS_PER_MINUTE = 30;
+const MAX_BYTES_PER_CONNECTION = 1024 * 1024 * 1024;
+const RATE_WINDOW_MS = 60_000;
+
+/** 每个来源最近一分钟建了几次房。键是 IP，值是时间戳数组。 */
+const recentJoins = new Map();
+
+/** 这个来源现在还能不能建房。顺手把过期的记录清掉，免得表无限长。 */
+function withinRate(address) {
+	const now = Date.now();
+	const seen = (recentJoins.get(address) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+	if (seen.length >= MAX_ROOMS_PER_MINUTE) {
+		recentJoins.set(address, seen);
+		return false;
+	}
+	seen.push(now);
+	recentJoins.set(address, seen);
+	return true;
+}
+
+/*
+ * 记录只在有人来的时候清。
+ *
+ * 不用定时器：一个每分钟醒一次的进程，在没有连接的时候也醒着，而这个服务大部分时间没有连接。
+ * 表的大小与最近一分钟的来源数同阶，那本来就是有界的。
+ */
+function forgetStale() {
+	const now = Date.now();
+	for (const [address, times] of recentJoins) {
+		const live = times.filter((t) => now - t < RATE_WINDOW_MS);
+		if (live.length === 0) recentJoins.delete(address);
+		else recentJoins.set(address, live);
+	}
+}
+
 /** Rooms hold at most two: a host and a guest. `Map<room, Set<socket>>`. */
 const rooms = new Map();
 
@@ -53,6 +99,10 @@ server.on("upgrade", (req, socket) => {
 		room: null,
 		/** Bytes not yet forming a whole frame. */
 		buffer: Buffer.alloc(0),
+		/** 这条连接转发过多少字节，用来对上上限。 */
+		bytes: 0,
+		/** 建房限流按它算。反代后面这会是反代的地址——那种部署下限流该由反代做。 */
+		address: socket.remoteAddress ?? "unknown",
 	};
 
 	socket.on("data", (chunk) => onData(client, chunk));
@@ -98,6 +148,18 @@ function onData(client, chunk) {
 		 * whatever it becomes later. Re-encoding as text would corrupt a binary frame the day one
 		 * is sent, and this has no business knowing which is which.
 		 */
+		/*
+		 * 转发之前先记账。
+		 *
+		 * 超过上限就断开这一条，而不是丢帧继续——一个只转发一半的连接，两端都不会知道它坏了，
+		 * 而同步协议靠 seq 补齐，缺帧的表现是「手机上少了一条消息」，比断开难查得多。
+		 */
+		client.bytes += frame.payload.length;
+		if (client.bytes > MAX_BYTES_PER_CONNECTION) {
+			refuse(client, "quota-exceeded");
+			return;
+		}
+
 		for (const peer of rooms.get(client.room) ?? []) {
 			if (peer !== client && !peer.socket.destroyed) peer.socket.write(encode(frame.payload, frame.opcode));
 		}
@@ -114,6 +176,9 @@ function join(client, payload) {
 	if (hello?.type !== "hello" || typeof hello.room !== "string" || !/^[a-f0-9]{64}$/.test(hello.room)) {
 		return refuse(client, "bad-hello");
 	}
+
+	if (!withinRate(client.address)) return refuse(client, "rate-limited");
+	forgetStale();
 
 	const members = rooms.get(hello.room) ?? new Set();
 	/*

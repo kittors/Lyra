@@ -16,7 +16,7 @@ import {
 	TOAST_Z,
 	visibleToasts,
 	type Notice,
-} from "../src/components/toast/stack.ts";
+} from "../src/features/toast/stack.ts";
 
 const notice = (id: string, message: string, level: Notice["level"] = "error"): Notice => ({ id, level, message });
 

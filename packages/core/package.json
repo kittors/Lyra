@@ -9,7 +9,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./thinking-options": "./src/ai/thinking-options.ts",
-    "./node": "./src/node.ts",
     "./tokens": "./src/tokens.ts",
     "./activity": "./src/activity.ts",
     "./trajectory-view": "./src/trajectory-view.ts",
@@ -25,7 +24,7 @@
   "dependencies": {
     "@lyra/registry-shared": "workspace:*",
     "@modelcontextprotocol/sdk": "1.30.0",
-    "yaml": "2.8.2",
+    "yaml": "2.8.3",
     "koffi": "^3.1.6"
   },
   "devDependencies": {

@@ -18,6 +18,25 @@ allowBuilds:
   # so without this the platform can only be tested by deploying it.
   workerd: true
 
+# Transitive dependencies pinned past a published advisory.
+#
+# Every one of these is something we do not depend on directly — they arrive under the MCP SDK and
+# under Expo — so there is no version of ours to bump. An override is the only lever, and it is the
+# right one: these are patch-level fixes to packages whose API we never touch.
+#
+# `fast-uri` is the one that matters most here. It parses URLs under ajv, two of its three
+# advisories are server-side request forgery, and this application both fetches URLs the model
+# produced and speaks to a relay. The others are denial-of-service in parsers reached by paths that
+# a desktop app does not expose, but they are free to fix.
+#
+# Reviewed when a dependency bump lands: an override that outlives the vulnerable range is a pin
+# nobody asked for. `pnpm audit --prod` says when one can go.
+overrides:
+  fast-uri: ">=3.1.6"
+  qs: ">=6.15.4"
+  uuid: ">=11.1.1"
+  decode-uri-component: ">=0.4.3"
+
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20260818.1'
 

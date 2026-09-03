@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GitStatus, GitStatusFile } from "../electron/git-status.ts";
-import { sameStatus } from "../src/components/git/sameStatus.ts";
+import { sameStatus } from "../src/features/git/sameStatus.ts";
 
 function file(path: string, over: Partial<GitStatusFile> = {}): GitStatusFile {
 	return { path, status: "modified", staged: false, unstaged: true, added: 3, removed: 1, ...over };

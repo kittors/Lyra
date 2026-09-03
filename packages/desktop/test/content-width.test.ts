@@ -15,7 +15,7 @@ import {
 	CONTENT_MIN,
 	contentMeasure,
 	contentPreset,
-} from "../src/content-width.ts";
+} from "../src/lib/content-width.ts";
 
 describe("contentMeasure", () => {
 	it("a settings file written before this existed keeps the width it always had", () => {

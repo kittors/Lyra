@@ -19,7 +19,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { installedAppBundle, scheduleSwap } from "./install-update.ts";
 import { downloadDir, sweepDownloads, UpdateDownload, type DownloadPhase } from "./update-download.ts";
-import { pickAsset, type ReleaseAsset } from "../update-asset.ts";
+import { pickAsset, pickChecksums, type ReleaseAsset } from "../update-asset.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,7 +32,7 @@ const execFileAsync = promisify(execFile);
  */
 const unzip = (archive: string, into: string) => execFileAsync("ditto", ["-x", "-k", archive, into]);
 
-import { isNewer } from "../../src/update/version.ts";
+import { isNewer } from "../../src/features/update/version.ts";
 
 /** Where releases are published. */
 const REPO = "kittors/Lyra";
@@ -62,6 +62,14 @@ export interface UpdateInfo {
 	publishedAt: number | null;
 	/** The installer for this machine, when the release has one. */
 	asset: { name: string; url: string; size: number } | null;
+	/**
+	 * Where the release published its `SHA256SUMS`, when it published one.
+	 *
+	 * Null for releases cut before the workflow uploaded it. The download refuses to install in that
+	 * case rather than installing something it could not check — this is the one file the app
+	 * fetches that ends in code being run.
+	 */
+	checksums: string | null;
 }
 
 let cached: { at: number; info: UpdateInfo } | null = null;
@@ -111,6 +119,9 @@ async function fetchLatest(current: string): Promise<UpdateInfo> {
 			url: release.html_url ?? `https://github.com/${REPO}/releases/latest`,
 			publishedAt: release.published_at ? Date.parse(release.published_at) : null,
 			asset: pickAsset(release.assets ?? []),
+			// Null for releases published before the workflow started uploading it; the download
+			// then refuses rather than installing something it could not check.
+			checksums: pickChecksums(release.assets ?? [])?.url ?? null,
 		};
 	} finally {
 		clearTimeout(timer);
@@ -127,6 +138,7 @@ const nothing = (current: string): UpdateInfo => ({
 	url: `https://github.com/${REPO}/releases`,
 	publishedAt: null,
 	asset: null,
+	checksums: null,
 });
 
 export function registerUpdateIpc(): void {
@@ -225,6 +237,7 @@ export function registerUpdateIpc(): void {
 			file: join(dir, asset.name),
 			size: asset.size,
 			agent: `Lyra/${info.current}`,
+			checksums: info.checksums ?? null,
 		});
 		const unwatch = download.watch(broadcast);
 		active = { version, download, unwatch };

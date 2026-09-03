@@ -1,0 +1,118 @@
+# Building and packaging the desktop app on all three platforms.
+#
+# Called by `release.yml` and by `release-dryrun.yml`, which differ in exactly two things: whether a
+# missing signing certificate is fatal, and whether anything is published afterwards. Everything
+# else — the runners, the verification, the packaging, the signature check — has to be identical, or
+# the rehearsal stops rehearsing the thing it is for.
+#
+# It used to be identical by copy: a hundred lines of keychain handling in each file, with a comment
+# in one saying "Kept identical to release.yml". That is a promise, not a mechanism, and the reason
+# this workflow exists is that promises like it are kept until the day they are not.
+name: Desktop build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: What to build. Defaults to whatever the caller is on.
+        type: string
+        required: false
+      require-signing:
+        description: |
+          Whether a missing certificate stops the build.
+
+          True for a release: an ad-hoc build revokes every permission on every machine that
+          installs it, and a published release cannot be withdrawn. False for a rehearsal, which
+          should still rehearse packaging when the secrets are not available.
+        type: boolean
+        default: false
+    secrets:
+      MAC_CERTIFICATE_P12:
+        required: false
+      MAC_CERTIFICATE_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: mac
+          - os: windows-latest
+            artifact: win
+          - os: ubuntu-latest
+            artifact: linux
+    runs-on: ${{ matrix.os }}
+    # A packaging job that hangs would otherwise sit until GitHub's 360-minute default. The e2e job
+    # learned this the expensive way; see its comment in `ci.yml`.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: ./.github/actions/setup
+        with:
+          # Packaging needs Electron's binary, so it must not depend on which job warmed the store.
+          cache: "false"
+          electron: "true"
+
+      - name: Verify before building
+        run: pnpm lint && pnpm typecheck && pnpm test
+
+      - name: Prepare the signing identity
+        if: matrix.os == 'macos-latest'
+        # Every command in the script is seconds' work. A limit exists because one of them can hang
+        # instead of failing — a trust setting in the user domain waits on a dialog no runner will
+        # ever show — and a step that hangs burns the job's whole allowance without saying anything.
+        timeout-minutes: 5
+        env:
+          REQUIRE_SIGNING: ${{ inputs.require-signing }}
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: bash .github/scripts/prepare-signing.sh
+
+      - name: Build and package
+        run: pnpm package
+        env:
+          # electron-builder publishes by itself when it sees a token; we want the artifacts
+          # collected and released once, at the end, from one place.
+          GH_TOKEN: ""
+
+      - name: Check the macOS build signed durably
+        if: matrix.os == 'macos-latest'
+        env:
+          REQUIRE_SIGNING: ${{ inputs.require-signing }}
+          HAVE_CERT: ${{ secrets.MAC_CERTIFICATE_P12 != '' }}
+        run: bash .github/scripts/check-signature.sh
+
+      - name: The digests this platform's artifacts should have
+        shell: bash
+        working-directory: packages/desktop/release
+        # Rehearsed on every build, not only on a release: the client refuses to install an update
+        # whose checksum it cannot verify, so a `sha256sum` that is missing or misbehaving would
+        # surface as 「更新装不上」 after a tag is already pushed.
+        run: |
+          shopt -s nullglob
+          files=(*.dmg *.zip *.exe *.AppImage *.deb)
+          if [ ${#files[@]} -eq 0 ]; then echo "::error::没有产物可以校验"; exit 1; fi
+          sha256sum "${files[@]}" > SHA256SUMS
+          cat SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lyra-${{ matrix.artifact }}
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.exe
+            packages/desktop/release/*.AppImage
+            packages/desktop/release/*.deb
+          if-no-files-found: error
+          retention-days: 14

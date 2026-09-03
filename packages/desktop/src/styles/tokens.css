@@ -1,0 +1,169 @@
+/*
+ * Design tokens lifted from the reference screenshots. Every surface in the app picks one of
+ * these rather than an ad-hoc hex, so the two settings layouts and the chat shell stay in sync.
+ */
+@theme {
+  --color-shell: #171717;
+  --color-sidebar: #1c1c1c;
+  --color-panel: #202020;
+  --color-card: #242424;
+  --color-card-hover: #2a2a2a;
+  --color-input: #1f1f1f;
+  --color-elevated: #2c2c2c;
+  /*
+   * Declared here as well as at runtime, so Tailwind emits a `bg-float` utility for it.
+   * The theme overwrites the value; without this line the class would not exist at all and
+   * anything using it would come out fully transparent.
+   */
+  --color-float: #1f1f1f;
+
+  --color-line: #2e2e2e;
+  --color-line-soft: #262626;
+
+  --color-ink: #ededed;
+  --color-ink-muted: #9a9a9a;
+  --color-ink-faint: #6e6e6e;
+
+  /* Overwritten from Settings at boot; this is only what the first frame paints with. */
+  --color-accent: #339cff;
+  --color-ok: #3ecf8e;
+  --color-info: #5aa2f5;
+  --color-violet: #b18cf5;
+  --color-danger: #f2555a;
+
+  /* -------------------------------------------------------------------------
+   * Motion
+   *
+   * Three durations and three curves, because the alternative — and what this app had — is a
+   * number typed at each call site. Twenty of those drift: 150 here, 160 there, 200 somewhere
+   * else, none of them different on purpose, and no way to change the feel of the app without
+   * finding all of them.
+   *
+   * The durations are a scale of *what is moving*, not of how important it is:
+   *
+   *   quick   a state, not a position — hover, press, a colour changing under your finger.
+   *           Long enough to be a transition rather than a jump, short enough to feel immediate.
+   *           150 because that is what fifty-one call sites had already converged on by hand.
+   *   base    something moving or resizing: a pane, a slider handle, a column giving up its
+   *           width. The one most things want.
+   *   slow    something arriving that was not there — a section unfolding. Longer because there
+   *           is more distance and more to read.
+   *
+   * The curves say which direction the thing is going. `out` decelerates into place, which is
+   * what makes an arrival look like it settled rather than stopped; `in` is its mirror, for
+   * things leaving, where the eye should not be asked to track the last few pixels.
+   * ---------------------------------------------------------------------- */
+  --ly-t-quick: 150ms;
+  --ly-t-base: 220ms;
+  --ly-t-slow: 340ms;
+
+  --ly-e-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ly-e-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ly-e-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --radius-panel: 12px;
+  --radius-field: 10px;
+
+  /*
+   * "Lyra CJK" ahead of the platform stack, so the size-adjusted face above is the one that
+   * actually gets the Chinese. Left to `-apple-system` the system picks PingFang itself, at its
+   * own unadjusted scale, and the correction never applies.
+   */
+  /*
+   * `Lyra CJK` leads both stacks.
+   *
+   * It carries a CJK-only `unicode-range`, so latin never reaches it and the face after it is what
+   * actually draws the text. Anywhere it sat further down, a western face that happens to include
+   * a few CJK punctuation glyphs claimed them first — Menlo and `-apple-system` both do — and a
+   * full-width comma set by a western face floats at mid-height instead of sitting at the bottom
+   * left of its box. It also skipped the 104% size match, leaving Chinese a size smaller than the
+   * latin beside it.
+   */
+  --font-sans: "Lyra CJK", "Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Lyra CJK", "JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
+    "PingFang SC", monospace;
+
+  /* -------------------------------------------------------------------------
+   * The type scale
+   *
+   * Seven steps, derived from the one size the user actually sets. Two things were wrong before
+   * and both are fixed by that derivation.
+   *
+   * The first is spacing. Sizes were written at the call site and there were nineteen of them,
+   * six crowded into the 2.5px between 11 and 13.5 — a gap no one can see, so the differences
+   * did not read as hierarchy, only as inconsistency. These steps are at least 1px apart at the
+   * default and carry their own leading and tracking, which is what makes two levels look
+   * deliberately different rather than accidentally unequal.
+   *
+   * The second is that "界面字号" in Settings did almost nothing: it set the body size, and then
+   * 351 absolute `text-[Npx]` at the call sites overrode it everywhere that mattered. Those are
+   * all gone now — every size in the app resolves to one of these steps, and every step is
+   * `calc()` off `--ly-ui-size`, so moving that one slider moves the whole scale together.
+   *
+   * Deliberately no `--font-weight` on any step. Tailwind would emit it inside the same rule as
+   * the size, and whether a later `font-medium` wins then depends on utility ordering; keeping
+   * weight in its own class means the override is always just cascade. Weight is paired with
+   * size once, in `Text.tsx` — see DEFAULT_WEIGHT, which is what stops hierarchy from resting on
+   * size alone.
+   *
+   * Tracking follows Inter's own optical curve — near zero at reading sizes, tightening as the
+   * type grows, because letterfit that looks right at 13px looks loose at 26px.
+   * ---------------------------------------------------------------------- */
+  --text-caption: calc(var(--ly-ui-size, 13px) - 2px);
+  --text-caption--line-height: 1.45;
+
+  --text-detail: calc(var(--ly-ui-size, 13px) - 1px);
+  --text-detail--line-height: 1.5;
+
+  /* The working size: rows, controls, table cells — most of the app. */
+  --text-label: var(--ly-ui-size, 13px);
+  --text-label--line-height: 1.5;
+
+  /* Prose. Looser than a control, because a sentence is tracked along rather than glanced at. */
+  --text-body: calc(var(--ly-ui-size, 13px) + 1px);
+  --text-body--line-height: 1.7;
+
+  --text-title: calc(var(--ly-ui-size, 13px) + 3px);
+  --text-title--line-height: 1.4;
+  --text-title--letter-spacing: -0.01em;
+
+  --text-heading: calc(var(--ly-ui-size, 13px) + 7px);
+  --text-heading--line-height: 1.3;
+  --text-heading--letter-spacing: -0.015em;
+
+  --text-display: calc(var(--ly-ui-size, 13px) + 13px);
+  --text-display--line-height: 1.2;
+  --text-display--letter-spacing: -0.022em;
+
+  /*
+   * Code is its own step, off its own setting.
+   *
+   * Not part of the scale above, and deliberately: code is set in another face, at another
+   * measure, and read down a column rather than along a line. Settings has always offered it as
+   * a separate control for that reason.
+   *
+   * What was wrong is that only half the app listened. Markdown's blocks and inline spans read
+   * `--ly-code-size`; the diff viewer was on the UI scale with a hand-written `leading-[1.65]`
+   * on top. So "代码字号" moved a chat transcript and left every review untouched, and the same
+   * function read two sizes depending on which screen you opened it from. Naming it as a step
+   * here is what lets every code surface ask for one thing.
+   *
+   * 1.6 rather than prose's 1.7: indentation and bracket columns are the shape being read, and
+   * prose leading pulls that shape apart. Rather than 1.55, which is tight once line numbers and
+   * +/- markers share the row.
+   */
+  --text-code: var(--ly-code-size, 12.5px);
+  /*
+   * Set from 外观 → 代码外观, with the long-standing values as the fallback.
+   *
+   * These are variables rather than constants because they are settings now: weight matters most on
+   * a dark theme, where a light face thins out; line height is the difference between a diff you can
+   * scan and a wall; tracking is the one people with a particular face in mind ask for. The
+   * fallbacks are exactly what the app rendered before any of them existed, so a settings file
+   * written earlier looks unchanged.
+   */
+  --text-code--line-height: var(--ly-code-line-height, 1.6);
+  --text-code--weight: var(--ly-code-weight, 400);
+  --text-code--tracking: var(--ly-code-tracking, 0em);
+}

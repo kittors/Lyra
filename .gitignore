@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# tsc -b 的增量信息，机器本地的
+*.tsbuildinfo
 out/
 build/
 # …except the desktop app's build resources, which are sources, not output: the icon, the tray
@@ -33,10 +35,16 @@ packages/core/dist/
 signing/
 *.p12
 
-# Working notes, checklists and internal design docs.
-# Deliberately not published: they are written for us and for the agent working in this repo,
-# not for anyone reading the project from outside.
-docs/
+# Working notes, checklists and internal design docs stay local; three directories do not.
+#
+# The split is by audience. `plan/` and `notes/` are written for us and for the agent working in
+# this repository — half-finished thinking, and worth nothing to a reader from outside.
+# `architecture/`, `adr/` and `guide/` are written for whoever opens the repository next, which
+# includes us in six months. README already links to two of them.
+docs/*
+!docs/architecture/
+!docs/adr/
+!docs/guide/
 
 # 本机的工作约定，不进仓库
 AGENTS.local.md

@@ -36,7 +36,7 @@ import {
 	zoomAt,
 	type Point,
 	type Shape,
-} from "../src/components/image/annotate.ts";
+} from "../src/features/image/annotate.ts";
 
 const pen = (...points: [number, number][]): Shape => ({
 	tool: "pen",

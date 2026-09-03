@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { directoryOf, isAbsolutePath, resolveAsset } from "../src/components/markdown-assets.ts";
+import { directoryOf, isAbsolutePath, resolveAsset } from "../src/lib/markdown/assets.ts";
 
 test("a relative path lands beside the file", () => {
 	assert.equal(resolveAsset("/home/me/repo", "assets/logo.png"), "/home/me/repo/assets/logo.png");

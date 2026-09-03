@@ -63,10 +63,17 @@ test("every hover-revealed control in the tree is covered by the rule", async ()
 	 * The real check: read the components and confirm the rule reaches what it claims to. A rule
 	 * written against three remembered examples is a rule that silently stops covering the fourth.
 	 */
-	const root = fileURLToPath(new URL("../src/components/", import.meta.url));
+	/*
+	 * The whole renderer, not one directory.
+	 *
+	 * It used to read `src/components/`, which was where every component lived. They are in
+	 * `features/` and `ui/` now, and a check scoped to a directory that no longer holds them would
+	 * have quietly passed over nothing — which is worse than the failure that led here.
+	 */
+	const root = fileURLToPath(new URL("../src/", import.meta.url));
 	const files: string[] = [];
 	for await (const entry of glob("**/*.tsx", { cwd: root })) files.push(entry);
-	assert.ok(files.length > 40, "组件目录应当被扫到");
+	assert.ok(files.length > 40, `渲染进程的组件应当被扫到，实际只找到 ${files.length} 个`);
 
 	const missed: string[] = [];
 	let found = 0;

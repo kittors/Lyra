@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { brandOf } from "../src/modelBrand.ts";
+import { brandOf } from "../src/lib/model-brand.ts";
 
 test("recognises each house from an ordinary model id", () => {
 	assert.equal(brandOf("deepseek-v4-flash"), "deepseek");

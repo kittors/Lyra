@@ -1,0 +1,226 @@
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--color-shell);
+    color: var(--color-ink);
+    /*
+     * `Lyra CJK` first, ahead of whatever font is configured.
+     *
+     * It is safe there — the face carries a CJK-only `unicode-range`, so every latin glyph falls
+     * straight past it to the chosen font — and it has to be there, because the chosen font is a
+     * whole stack that replaces this one. `--font-sans` lists `Lyra CJK`; the default `uiFont` in
+     * Appearance does not, and since that value is always set the fallback in `var()` never runs.
+     * So the adjustment was reachable only by users who had never opened the settings.
+     *
+     * What that cost: Chinese lost its 104% size match and rendered a size down from the latin
+     * beside it, and CJK punctuation fell through to `-apple-system` — which is a western face, so
+     * it sets a full-width comma the western way, floating at mid-height instead of sitting at the
+     * bottom-left of its box. 「加德克拉斯，123」 with the comma halfway up the line.
+     */
+    font-family: "Lyra CJK", var(--ly-ui-font, var(--font-sans));
+    font-size: var(--ly-ui-size, 13px);
+    line-height: 1.6;
+    /*
+     * Inter's disambiguating alternates, which are what make it legible at 12px rather than
+     * merely tidy: `cv05` gives lowercase l a tail and `cv08` gives uppercase I a serif, so
+     * 1 / l / I stop being three drawings of the same stroke. `ss03` turns the quotes round.
+     * Tabular figures keep numbers from shuffling as they tick — token counts, timers, diffs.
+     */
+    font-feature-settings:
+      "cv05" 1,
+      "cv08" 1,
+      "ss03" 1;
+    font-variant-numeric: tabular-nums;
+    /*
+     * No `text-rendering: optimizeLegibility`.
+     *
+     * On Chromium it does not buy the kerning and ligatures it is usually cited for — both are
+     * already on by default — and what it does do is force the whole run through the slow
+     * shaping path, which on a transcript of several thousand nodes is measurable at every
+     * repaint. It also has no effect at all on the CJK that makes up most of this UI.
+     */
+    overflow: hidden;
+    /* The window chrome is drawn by the renderer; nothing should rubber-band. */
+    overscroll-behavior: none;
+  }
+
+  /*
+   * Thinner strokes, and only where they are an improvement.
+   *
+   * `antialiased` turns off subpixel rendering: every glyph is drawn in grey levels on one
+   * channel instead of three, which costs about a third of the horizontal resolution the LCD
+   * actually has. On a dark theme that is a good trade — subpixel rendering on light-on-dark
+   * fringes the stems with colour and fattens them — but on a light theme it is pure loss.
+   * Black-on-white is where subpixel AA is at its best, and switching it off there is exactly
+   * what makes text look thin, grey and slightly out of focus next to an app that left it on.
+   *
+   * So it is scoped to the dark class rather than applied to `body` outright. The setting still
+   * decides *whether* to smooth; the theme decides whether smoothing is the right answer.
+   */
+  :root.dark[data-font-smoothing="true"] body {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* macOS shows a text cursor over buttons by default; some users want a pointer. */
+  :root[data-pointer-cursor="true"] button:not(:disabled),
+  :root[data-pointer-cursor="true"] a,
+  :root[data-pointer-cursor="true"] summary,
+  :root[data-pointer-cursor="true"] label:has(input:not(:disabled)),
+  :root[data-pointer-cursor="true"] input[type="checkbox"]:not(:disabled),
+  :root[data-pointer-cursor="true"] input[type="radio"]:not(:disabled),
+  :root[data-pointer-cursor="true"] [role="tab"],
+  :root[data-pointer-cursor="true"] [role="switch"] {
+    cursor: pointer;
+  }
+
+  /*
+   * Nothing here stops text being selected during a drag; `motion-freeze.ts` does, by refusing
+   * `selectstart`. `user-select` inherits, so setting it anywhere above the transcript invalidates
+   * the whole of it — 49ms per drag, measured — to express something an event listener says for
+   * free. See the note above `[data-ly-frozen]`.
+   */
+
+  /*
+   * A reply is laid out on its own, so a change to its width cannot reach the rows around it.
+   */
+  .group\/msg {
+    contain: layout paint style;
+  }
+
+  /*
+   * Rows off screen are not drawn.
+   *
+   * The transcript keeps its recent tail mounted — sixty runs, which on a real session is 8,300
+   * elements — and every one of them was being styled, laid out and painted whenever the pane
+   * holding them changed width. That is what dragging a boundary does, sixty times a second.
+   *
+   * Measured on a session of 8,948 messages, dragging the boundary between the conversation and
+   * the Git panel:
+   *
+   *   as it was                       65ms blocked, one frame of 50ms
+   *   transcript not rendered at all    0ms blocked, longest frame 18ms
+   *   with this rule                    0ms blocked, longest frame 18ms
+   *
+   * The middle line is the floor — the drag with the transcript taken out of the picture entirely
+   * — and this reaches it, because a row nobody is looking at costs the same either way.
+   *
+   * `auto` on the intrinsic size, not a fixed guess: the browser remembers what each row actually
+   * measured once it has been on screen, so the scrollbar settles to the truth rather than to
+   * however wrong 200px was. Rows are wildly uneven — a one-line answer and a thousand-line diff
+   * are both one row — and a fixed number is wrong for nearly all of them.
+   */
+  .ly-transcript > * {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
+  }
+
+  /*
+   * Except the tail, which is where rows arrive.
+   *
+   * A row the browser has not sized yet gets the 200px above for its first frame and its real
+   * height the frame after — so every row that arrived at the bottom of a running turn landed as
+   * a 200px block and snapped to its 24px a frame later, with everything under it flinching by
+   * the difference. Measured at 177px on the running line, once per tool call.
+   *
+   * The last few children are the ones still arriving. They are on screen anyway, so skipping
+   * them saves nothing, and laying them out from their first frame is what lets a turn grow
+   * without a twitch. A row that later slides out of this window has been measured by then, and
+   * `auto` above keeps that measurement.
+   */
+  .ly-transcript > :nth-last-child(-n + 4) {
+    content-visibility: visible;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-info) 35%, transparent);
+  }
+
+  input,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input:focus,
+  textarea:focus,
+  button:focus {
+    outline: none;
+  }
+
+  /*
+   * No native scrollbars anywhere.
+   *
+   * Scrolling goes through <Scroller>, which draws its own overlay thumb. The native bar
+   * reserves a gutter, so content shifted sideways the instant a list grew past its box, and
+   * it ignores the app's own palette. Hiding it globally rather than per-element means a
+   * surface that forgets to use <Scroller> is visibly wrong rather than subtly inconsistent.
+   */
+  * {
+    scrollbar-width: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+/*
+ * Keeps toolbar buttons clear of the system's own window controls.
+ *
+ * Windows paints minimise/maximise/close over the right of the title bar via the Controls
+ * Overlay, and `titlebar-area-width` is the strip it leaves for the app. macOS puts its
+ * lights on the left and defines none of these, so the fallbacks collapse the whole
+ * expression to a plain 12px inset there.
+ */
+@utility toolbar-right {
+  right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px);
+}
+
+@utility drag-region {
+  -webkit-app-region: drag;
+}
+
+@utility no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * A region nobody can reach punches no hole.
+ *
+ * `-webkit-app-region` is composited from geometry and nothing else. Electron walks the document
+ * in order, adds every `drag` rectangle and subtracts every `no-drag` one, and never asks whether
+ * the element is visible, interactive, or even inside the window. So a pane that has slid out
+ * still cuts its buttons out of the title bar — at whatever coordinates it happens to be parked
+ * at. The pull request list is the case that found this: expanded, it sits at x=-16 with
+ * `opacity: 0`, and its filter row went on holding a 178px hole open right beside the traffic
+ * lights, where the window could then neither be dragged nor double-clicked to zoom.
+ *
+ * `inert` already says exactly the thing that makes a hole pointless: nothing in here can be
+ * interacted with. Saying it once, here, beats teaching every pane that slides away to also
+ * withdraw its own controls — and the panes that already do this correctly are the ones that
+ * happened to park outside the window rather than the ones that got it right.
+ *
+ * `initial`, not `none`. Chromium's parser takes only `drag` and `no-drag` for this property, so
+ * the obvious spelling is dropped as invalid and the region survives — silently, and only
+ * observable by reading the computed value back. The CSS-wide keyword is honoured because that
+ * is handled before the property's own grammar ever runs.
+ */
+[inert] .drag-region,
+[inert] .no-drag,
+[inert].drag-region,
+[inert].no-drag {
+  -webkit-app-region: initial;
+}

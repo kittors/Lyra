@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultHighlightStyle } from "@codemirror/language";
-import { loadFenceLanguage, tokenize } from "../src/components/highlight.ts";
+import { loadFenceLanguage, tokenize } from "../src/lib/code/highlight.ts";
 
 /** Everything a fence in this app's own docs and transcripts plausibly says. */
 const FENCES = [
@@ -83,7 +83,7 @@ test("an unknown language is null rather than a broken grammar", async () => {
  * bit hardest: `.env` was handled and `.env.local` was not, which is the file people actually open.
  */
 test("a project's unextensioned files still get a grammar", async () => {
-	const { grammarKeyFor } = await import("../src/components/highlight.ts");
+	const { grammarKeyFor } = await import("../src/lib/code/highlight.ts");
 	const expected: [string, string][] = [
 		["Dockerfile", "dockerfile"],
 		["Dockerfile.dev", "dockerfile"],
@@ -112,7 +112,7 @@ test("a project's unextensioned files still get a grammar", async () => {
 });
 
 test("every grammar a filename maps to actually exists", async () => {
-	const { BY_FILENAME, loadFenceLanguage } = await import("../src/components/highlight.ts");
+	const { BY_FILENAME, loadFenceLanguage } = await import("../src/lib/code/highlight.ts");
 	const missing: string[] = [];
 	for (const [name, grammar] of Object.entries(BY_FILENAME)) {
 		if (!(await loadFenceLanguage(grammar).catch(() => null))) missing.push(`${name}→${grammar}`);

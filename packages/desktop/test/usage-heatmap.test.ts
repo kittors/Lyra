@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dayKey, heatLevel, heatmapWeeks, monthLabels } from "../src/components/settings/usage-heatmap.ts";
+import { dayKey, heatLevel, heatmapWeeks, monthLabels } from "../src/features/settings/usage-heatmap.ts";
 
 /**
  * One already-totalled day, as the log scan hands them over.

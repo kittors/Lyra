@@ -7,6 +7,8 @@
  * gets nine of them wrong on some machine or other.
  */
 
+import { CHECKSUM_ASSET } from "./update-checksum.ts";
+
 export interface ReleaseAsset {
 	name?: string;
 	browser_download_url?: string;
@@ -83,4 +85,16 @@ export function pickAsset(
 	}
 
 	return null;
+}
+
+/**
+ * The release's checksum file, if it published one.
+ *
+ * Matched by exact name rather than by extension: it is written by `sha256sum *` in the release
+ * workflow and there is only ever one. Releases from before that step existed have none, and the
+ * caller decides what to do about it — see `update-checksum.ts`.
+ */
+export function pickChecksums(assets: ReleaseAsset[]): { url: string } | null {
+	const found = assets.find((asset) => asset.name === CHECKSUM_ASSET && asset.browser_download_url);
+	return found ? { url: found.browser_download_url as string } : null;
 }

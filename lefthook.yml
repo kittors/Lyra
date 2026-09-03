@@ -15,9 +15,23 @@ pre-commit:
       run: ./node_modules/.bin/oxlint --fix {staged_files}
       stage_fixed: true
 
+    - name: style
+      glob: "*.css"
+      run: ./node_modules/.bin/stylelint --fix {staged_files}
+      stage_fixed: true
+
     - name: whitespace
       # Trailing whitespace and conflict markers, straight from git.
       run: git diff --cached --check
+
+# The message itself, checked before it becomes a commit.
+#
+# Cheap enough not to notice — commitlint on one line of text — and it is the only moment the
+# message can still be fixed without a rebase.
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: ./node_modules/.bin/commitlint --edit {1}
 
 pre-push:
   jobs:
@@ -26,3 +40,8 @@ pre-push:
 
     - name: test
       run: pnpm test
+
+    - name: arch
+      # Two seconds, and it answers the one question a type checker cannot: not "does this compile"
+      # but "is this allowed to import that".
+      run: pnpm arch

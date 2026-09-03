@@ -6,7 +6,7 @@ import type { AssistantMessage, Message } from "@lyra/core";
 import { emptyUsage } from "@lyra/core";
 
 import { hasRetryPoint, howItStopped, rebuildToolRuns, wasCutShort } from "../src/store/derive.ts";
-import { settleTail } from "../src/transcript.ts";
+import { settleTail } from "../src/lib/transcript.ts";
 
 function reply(stopReason: AssistantMessage["stopReason"], text = "你好！"): AssistantMessage {
 	return {

@@ -102,7 +102,56 @@ export default defineConfig({
 		},
 		build: {
 			rollupOptions: {
-				input: { index: resolve("index.html") },
+				/*
+				 * The gallery is an extra entry, and only when asked for.
+				 *
+				 * `pnpm gallery` sets `LYRA_GALLERY`; `pnpm build` and `pnpm package` do not, so the
+				 * shipped application never carries it. An extra entry rather than a separate tool
+				 * because it has to be built the way the app is built — same Tailwind pass, same
+				 * tokens, same fonts — or it would be showing components that only look right in the
+				 * gallery.
+				 */
+				input: process.env.LYRA_GALLERY
+					? { index: resolve("index.html"), gallery: resolve("gallery/index.html") }
+					: { index: resolve("index.html") },
+				output: {
+					/*
+					 * What goes in its own file, and why any of it should.
+					 *
+					 * Everything used to land in one 4.4MB chunk. On a desktop that is a slow first
+					 * paint and nothing worse — the file is on the same disk. On a phone it is the
+					 * whole story: the interface is served over the network now, and through a relay
+					 * it crosses the public internet twice, so those megabytes are the difference
+					 * between an app that opens and one that appears not to.
+					 *
+					 * Split by *when it is needed* rather than by size. Each of these is either
+					 * something the first screen cannot do without (react), or something a whole
+					 * class of screens never touches (the editor, the terminal, maths).
+					 */
+					manualChunks(id) {
+						if (!id.includes("node_modules")) return;
+
+						// The framework. Needed before anything renders, and changes least often —
+						// so it is the one chunk worth caching hardest.
+						if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "vendor-react";
+
+						// The code editor. Reached by opening a file, which most sessions never do.
+						if (/[\\/]node_modules[\\/](@codemirror|@lezer)[\\/]/.test(id)) return "editor";
+
+						// The terminal emulator, same reasoning.
+						if (/[\\/]node_modules[\\/]@xterm[\\/]/.test(id)) return "terminal";
+
+						/*
+						 * Maths typesetting, and the largest thing here that most people never see.
+						 * It loads when a reply contains a formula, which is a minority of replies in
+						 * a minority of sessions.
+						 */
+						if (/[\\/]node_modules[\\/]katex[\\/]/.test(id)) return "katex";
+
+						// Icons. Tree-shaken to what is imported, but that is still a few hundred.
+						if (/[\\/]node_modules[\\/]lucide-react[\\/]/.test(id)) return "icons";
+					},
+				},
 			},
 		},
 	},

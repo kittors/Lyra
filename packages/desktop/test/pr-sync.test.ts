@@ -18,7 +18,7 @@ import {
 	sameDetail,
 	sameSeen,
 	unseenOf,
-} from "../src/components/pr/pr-sync.ts";
+} from "../src/features/pull-requests/pr-sync.ts";
 import { pr } from "./pr-fixtures.ts";
 
 test("a refresh that changed nothing hands back the very same list", () => {

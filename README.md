@@ -106,10 +106,11 @@ pnpm dev:mobile
 ## 扩展与机制
 
 插件、技能、MCP、子智能体的目录结构与文件格式，以及浏览器、索引库、钩子、移动端同步
-的工作方式，都在 [`docs/`](docs/README.md)：
+的工作方式：
 
-- [扩展 Lyra](docs/extending.md)：插件目录结构、`SKILL.md` 格式、MCP 服务、子智能体定义
-- [内置能力](docs/capabilities.md)：浏览器与其安全边界、索引库、钩子、移动端同步
+- [扩展 Lyra](docs/guide/extending.md)：插件目录结构、`SKILL.md` 格式、MCP 服务、子智能体定义
+- [内置能力](docs/guide/capabilities.md)：浏览器与其安全边界、索引库、钩子、移动端同步的三条路径
+- [架构](ARCHITECTURE.md)：包与包的关系、五条边界规则、决策记录
 
 要点：**插件是一组技能的打包，不含 MCP 服务。** 一个只有 `.mcp.json` 的目录不是插件，它是
 一个 MCP 服务——目录页把两者分开列，装 MCP 服务会把它的声明写进「设置 › MCP」，那里是这台

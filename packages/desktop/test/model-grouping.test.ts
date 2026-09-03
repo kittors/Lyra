@@ -18,7 +18,7 @@ import {
 	modelIdentity,
 	modelTooltip,
 	toggleFavourite,
-} from "../src/modelGrouping.ts";
+} from "../src/lib/model-grouping.ts";
 
 function model(providerId: string, modelId: string, name: string, extra: Partial<ModelConfig> = {}): ModelConfig {
 	return {

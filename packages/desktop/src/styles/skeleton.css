@@ -1,0 +1,47 @@
+/* ---------------------------------------------------------------------------
+ * Skeletons
+ *
+ * A placeholder for something that is on its way, shaped like what will land there. It exists so
+ * a first load reads as "this is filling in" instead of as an empty page followed by a jump — the
+ * layout is already correct, only the content is missing.
+ *
+ * Deliberately dim and slow. A skeleton that shimmers brightly competes for attention with the
+ * content it is standing in for, and it is on screen precisely when there is nothing to look at.
+ * ------------------------------------------------------------------------- */
+
+.ly-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-ink) 7%, transparent);
+}
+
+.ly-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-ink) 5%, transparent),
+    transparent
+  );
+  animation: ly-skeleton 1.5s ease-in-out infinite;
+}
+
+@keyframes ly-skeleton {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Without motion the block simply sits there, which still says "not yet" without moving. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] .ly-skeleton::after {
+    animation: none;
+  }
+}
+
+:root[data-reduce-motion="on"] .ly-skeleton::after {
+  animation: none;
+}

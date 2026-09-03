@@ -20,7 +20,8 @@
 
 import { create } from "zustand";
 import type { FileEntry } from "../../electron/ipc-types.ts";
-import { isDescendantPath, joinPath, relativeTo } from "../components/files/paths.ts";
+import { isDescendantPath, joinPath, relativeTo } from "../lib/paths.ts";
+import { bridge } from "../services/index.ts";
 
 interface FileTreeState {
 	/** The project these paths belong to, so a change of project can throw them away. */
@@ -61,7 +62,7 @@ export const useFileTreeStore = create<FileTreeState>((set, get) => ({
 	},
 
 	async load(dir) {
-		const entries = await window.lyra.files.list(dir);
+		const entries = await bridge.files.list(dir);
 		set((current) => ({ children: { ...current.children, [dir]: entries } }));
 		return entries;
 	},

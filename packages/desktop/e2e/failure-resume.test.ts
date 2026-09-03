@@ -119,6 +119,7 @@ after(async () => {
 async function ask(text: string): Promise<void> {
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");
+		if (!field) throw new Error("找不到输入框——选择器过时了，这条测试在测别的东西");
 		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
 		setter.call(field, ${JSON.stringify(text)});
 		field.dispatchEvent(new Event("input", { bubbles: true }));
@@ -140,7 +141,18 @@ async function until(text: string, tries = 60): Promise<boolean> {
 
 test("a failed request offers to carry on, not only to start over", async () => {
 	await ask("读一下这个项目");
-	assert.ok(await until("model_unavailable"), `the failure is reported (asked ${requests} time(s))`);
+	/*
+	 * 按界面上真的会出现的字找，不是按错误码。
+	 *
+	 * 这里原本等的是 `model_unavailable`——供应商返回的那个 code。它从来没有被显示给用户看：
+	 * 界面说的是「这一轮出错了」和「上次请求失败，进度已保留」，而那才是这条测试关心的东西
+	 * （失败被报告了，且报告的方式让人知道进度还在）。这条测试从写下那天起就是红的，红的原因
+	 * 与被测的行为无关。
+	 */
+	assert.ok(
+		await until("这一轮出错了"),
+		`the failure is reported (asked ${requests} time(s))`,
+	);
 
 	const offer = await transcript();
 	/*
@@ -153,7 +165,7 @@ test("a failed request offers to carry on, not only to start over", async () => 
 
 test("重试 asks before throwing the turn away", async () => {
 	const before = await transcript();
-	assert.ok(before.includes("model_unavailable"), "the failed turn is still on screen");
+	assert.ok(before.includes("这一轮出错了"), "the failed turn is still on screen");
 
 	// The inline 重试, the one that sits under the error text.
 	const pressed = await app.evaluate<boolean>(`(() => {
@@ -178,5 +190,6 @@ test("重试 asks before throwing the turn away", async () => {
 	})()`);
 	await new Promise((r) => setTimeout(r, 400));
 	assert.equal(requests, asked, "cancelling asked the model nothing");
-	assert.ok((await transcript()).includes("model_unavailable"), "and the turn is still there to carry on from");
+	// 同上：按界面上真的写着的字找，而不是按供应商返回的错误码。
+	assert.ok((await transcript()).includes("这一轮出错了"), "and the turn is still there to carry on from");
 });

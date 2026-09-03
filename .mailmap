@@ -1,0 +1,11 @@
+# One person, three spellings.
+#
+# `Test <test@example.com>` is not a contributor — it is what a repository-level `git config` said
+# for a while, so nineteen commits carry it. The history is public and tagged, so rewriting it would
+# invalidate every published tag to fix an attribution nobody was misled by; this fixes what `git
+# shortlog`, `git blame` and GitHub display instead, which is the part anyone actually reads.
+#
+# The remedy for the cause is one line in CONTRIBUTING: check `git config user.email` before the
+# first commit in a fresh clone.
+kittors <yuan364299311@gmail.com> Test <test@example.com>
+kittors <yuan364299311@gmail.com> yr <44192482+kittors@users.noreply.github.com>

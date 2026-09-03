@@ -13,7 +13,7 @@ import { test } from "node:test";
 import type { AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@lyra/core";
 import { emptyUsage } from "@lyra/core";
 
-import { computeTurnStats, runs, type Run } from "../src/components/conversation/grouping.ts";
+import { computeTurnStats, runs, type Run } from "../src/features/conversation/grouping.ts";
 
 function user(text: string): Message {
 	return { role: "user", content: [{ type: "text", text }], timestamp: 1 };

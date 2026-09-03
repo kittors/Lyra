@@ -18,7 +18,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DARK_CODE_THEMES, LIGHT_CODE_THEMES, type CodeThemeSpec } from "../src/components/code-themes.ts";
+import { DARK_CODE_THEMES, LIGHT_CODE_THEMES, type CodeThemeSpec } from "../src/lib/code/themes.ts";
 
 const CORE = ["keyword", "string", "number", "comment", "function", "type", "variable"] as const;
 

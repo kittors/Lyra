@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { thinkingRuns } from "../src/components/thinking-ticker.ts";
+import { thinkingRuns } from "../src/features/conversation/thinking-ticker.ts";
 
 test("every line is a run; blank lines are not", () => {
 	assert.deepEqual(thinkingRuns("I need to:\n\n1. Read the diff\n2. Check the tests\n"), [

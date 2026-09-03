@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sessionTitle } from "../src/sessionTitle.ts";
+import { sessionTitle } from "../src/lib/session-title.ts";
 
 test("the placeholder becomes the interface's own word for it", () => {
 	assert.equal(sessionTitle("New session"), "新对话");

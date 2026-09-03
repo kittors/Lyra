@@ -8,7 +8,7 @@
  * never work.
  */
 
-import type { Connection } from "./client";
+import type { Connection } from "./connection.ts";
 
 export type ScanResult =
 	| { ok: true; connection: Connection }

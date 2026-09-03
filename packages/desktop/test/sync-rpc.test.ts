@@ -109,11 +109,14 @@ test("a successful call carries the value back, and null rather than undefined",
 	assert.deepEqual(nothing, { ok: true, value: null });
 });
 
-test("arguments that are not strings do not reach the session layer as such", async () => {
-	// The body arrives from the network: a caller can send anything, including objects where a
-	// session id is expected.
+test("非字符串的参数被拒，而不是折成空串传下去", async () => {
+	/*
+	 * 这条测试以前断言的是相反的事：一个对象会被 `s()` 折成 `""` 然后传给会话层。那是当时的
+	 * 实现，也是一个坏行为——请求没有被拒绝，只是变成了「查找 id 为空的会话」，失败发生在
+	 * 离调用者很远的地方。现在它在分发层就被挡住。
+	 */
 	let asked: unknown = "untouched";
-	await callRpc(
+	const result = await callRpc(
 		deps({
 			live: (id) => {
 				asked = id;
@@ -123,19 +126,58 @@ test("arguments that are not strings do not reach the session layer as such", as
 		"agent.abort",
 		[{ evil: true }],
 	);
-	assert.equal(asked, "", "非字符串的 sessionId 被折成空串，而不是原样传下去");
+
+	assert.equal(result.ok, false, "对象不是一个 sessionId");
+	assert.match(String(result.error), /invalid-args/);
+	assert.equal(asked, "untouched", "handler 根本不该被调用");
 });
 
-test("a call with no arguments at all does not throw", async () => {
-	// `args` is whatever was in the body; an empty array is the honest reading of a missing one.
+test("参数缺失同样被拒", async () => {
+	// 空数组是「body 里没有参数」的诚实读法，而 agent.abort 需要一个 sessionId。
 	const result = await callRpc(deps(), "agent.abort", []);
-	assert.equal(result.ok, true);
+	assert.equal(result.ok, false);
+	assert.match(String(result.error), /invalid-args.*sessionId/);
 });
 
-test("every handler is reachable through callRpc", async () => {
-	// A method in the table but unreachable would be a hole in this file's own coverage.
+test("参数合法时照常执行", async () => {
+	// 上面两条都在验拒绝，这条验没有把正常调用一起挡掉。
+	const result = await callRpc(deps({ live: () => undefined }), "agent.abort", ["s1"]);
+	assert.deepEqual(result, { ok: true, value: null });
+});
+
+test("每个 handler 都能经 callRpc 到达", async () => {
+	/*
+	 * 表里有而够不到的方法，是这个文件自己的覆盖漏洞。
+	 *
+	 * 现在参数要合法才到得了 handler，所以按方法给合适的实参——「够得到」的判据从「不是
+	 * method-not-allowed」变成「不是 invalid-args」，这也更准确：前者只证明它在表里。
+	 */
+	const sample: Record<string, unknown[]> = {
+		"workspace.info": ["/tmp/p"],
+		"sessions.create": ["/tmp/p"],
+		"sessions.open": ["p1", "s1"],
+		"sessions.transcript": ["p1", "s1"],
+		"sessions.remove": ["p1", "s1"],
+		"sessions.capabilities": ["s1"],
+		"sessions.setArchived": ["p1", "s1", true],
+		"sessions.rename": ["p1", "s1", "标题"],
+		"agent.prompt": ["s1", "你好"],
+		"agent.editMessage": ["s1", 0, "改过的"],
+		"agent.abort": ["s1"],
+		"agent.approve": ["s1", "r1", { allow: true }],
+		"agent.setModel": ["s1", "m1"],
+		"agent.setThinking": ["s1", { effort: "low" }],
+		"settings.save": [{}],
+		"subAgents.list": ["s1"],
+	};
+
 	for (const method of Object.keys(RPC)) {
-		const result = await callRpc(deps(), method, ["", "", ""]);
+		const result = await callRpc(deps(), method, sample[method] ?? []);
 		assert.notEqual(result.error, "method-not-allowed", `${method} 应当可达`);
+		assert.doesNotMatch(
+			String(result.error ?? ""),
+			/invalid-args/,
+			`${method} 的实参被自己的规格拒了——要么规格写错，要么这里的样例该更新`,
+		);
 	}
 });

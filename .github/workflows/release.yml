@@ -28,155 +28,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Everything up to and including the artifacts. Identical to what the dry run rehearses, because
+  # it is literally the same file — see `_desktop-build.yml`.
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            artifact: mac
-          - os: windows-latest
-            artifact: win
-          - os: ubuntu-latest
-            artifact: linux
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-
-      - uses: ./.github/actions/setup
-        with:
-          # Packaging needs Electron's binary, so it must not depend on which job warmed the store.
-          cache: "false"
-          electron: "true"
-
-      - name: Verify before building
-        run: pnpm lint && pnpm typecheck && pnpm test
-
-      # A keychain holding the signing identity, for the packaging step to find.
-      #
-      # Without it the macOS build is ad-hoc signed, which ties the app's identity to a hash of its
-      # own executable — so every release looks like a different application to macOS and every
-      # permission the previous one held is revoked. See `packages/desktop/electron-builder.yml`.
-      #
-      # Built here rather than handed to electron-builder as `CSC_LINK`.
-      #
-      # That path is broken in electron-builder 26.15.3: it creates the temporary keychain with a
-      # random password and then unlocks it with the certificate's password, which fails with "The
-      # user name or passphrase you entered is not correct" about a password that is correct. Doing
-      # it here is also the only way to `add-trusted-cert`, which a self-signed certificate needs
-      # before `codesign` will touch it at all.
-      #
-      # The absence of the secret is handled inside the script, not in `if:` — the `secrets` context
-      # is not available to a step's condition, so `secrets.X != ''` there is not false when the
-      # secret is missing, it is a workflow that does not do what it reads as doing.
-      #
-      # And missing is fatal *here*, unlike in the dry run. Shipping an ad-hoc build to people
-      # already running a signed one revokes every permission they have granted, on every machine,
-      # and a published release cannot be taken back. A secret that expires, gets renamed, or is
-      # lost with the repository settings would otherwise produce exactly that — as a yellow
-      # warning in a job that goes green, which is the shape of a mistake nobody catches.
-      #
-      # If a deliberately unsigned release is ever wanted, the honest way is to say so in this file
-      # rather than to let a missing secret decide it quietly.
-      - name: Prepare the signing identity
-        if: matrix.os == 'macos-latest'
-        # Every command here is seconds' work. A limit exists because one of them can hang instead
-        # of failing — a trust setting in the user domain waits on a dialog no runner will ever
-        # show — and a step that hangs burns the job's whole allowance without saying anything.
-        timeout-minutes: 5
-        run: |
-          if [ -z "$MAC_CERTIFICATE_P12" ]; then
-            echo "::error::MAC_CERTIFICATE_P12 is not set. An ad-hoc signed release resets every permission on every machine that installs it, and cannot be withdrawn. Set MAC_CERTIFICATE_P12 and MAC_CERTIFICATE_PASSWORD in the repository secrets — see packages/desktop/scripts/make-signing-cert.sh."
-            exit 1
-          fi
-
-          KEYCHAIN="$RUNNER_TEMP/lyra-signing.keychain"
-          # Local to this runner and thrown away with it, so its password protects nothing that
-          # outlives the job.
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
-
-          echo "$MAC_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          # Without this the keychain relocks on a timer and a long build signs nothing.
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$MAC_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-
-          # A self-signed certificate is listed by `find-identity` but reported
-          # CSSMERR_TP_NOT_TRUSTED, and codesign then answers "no identity found" — so it has to be
-          # trusted explicitly, which takes the certificate on its own rather than the .p12.
-          openssl pkcs12 -legacy -in "$RUNNER_TEMP/certificate.p12" -passin "pass:$MAC_CERTIFICATE_PASSWORD" \
-            -clcerts -nokeys -out "$RUNNER_TEMP/certificate.pem"
-          #
-          # `sudo` and the system keychain, not the user domain.
-          #
-          # Writing a trust setting into the *user* domain asks for authorisation through the
-          # window server — a dialog nobody is there to click, so the step does not fail, it hangs
-          # until the job's time limit. Observed: 15 minutes and still spinning. The admin domain
-          # takes the same decision through sudo, which a runner has without a password.
-          #
-          sudo security add-trusted-cert -d -r trustRoot \
-            -k /Library/Keychains/System.keychain "$RUNNER_TEMP/certificate.pem"
-          # `codesign:` in the partition list, or reaching the private key waits on a GUI prompt
-          # that no one will ever click.
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-          # codesign searches the user's keychain list, not a keychain it has never been told about.
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-
-          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/certificate.pem"
-          security find-identity -v -p codesigning "$KEYCHAIN"
-        env:
-          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
-          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-
-      - name: Build and package
-        run: pnpm package
-        env:
-          # electron-builder publishes by itself when it sees a token; we want the artifacts
-          # collected here and released once, at the end, from one place.
-          GH_TOKEN: ""
-
-      # What the artifact will actually claim to be, read back off the bundle.
-      #
-      # The failure this catches is silent by nature: a certificate that did not import, or an
-      # identity that did not match, leaves a perfectly working ad-hoc build — and nobody finds out
-      # until the release is installed and the permissions are gone. `cdhash` in the requirement is
-      # the tell.
-      - name: Check the macOS build signed durably
-        if: matrix.os == 'macos-latest'
-        run: |
-          APP=$(find packages/desktop/release -maxdepth 2 -name 'Lyra.app' -print -quit)
-          if [ -z "$APP" ]; then echo "::error::no Lyra.app in the release output"; exit 1; fi
-          REQUIREMENT=$(codesign -d -r- "$APP" 2>&1 | tail -1)
-          echo "$REQUIREMENT"
-          # Unconditional, because the step above already refused to continue without a
-          # certificate: anything but a certificate-bound identity here is a build that would
-          # revoke permissions on every machine it reaches.
-          case "$REQUIREMENT" in
-            *"certificate leaf"*)
-              echo "signed with a durable identity: updates keep their permissions" ;;
-            *cdhash*)
-              echo "::error::ad-hoc signed despite a certificate being present — the import or the identity name is wrong, and this build would reset every permission"
-              exit 1 ;;
-            *)
-              echo "::error::unrecognised designated requirement — refusing to ship a build whose identity cannot be read"
-              exit 1 ;;
-          esac
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: lyra-${{ matrix.artifact }}
-          path: |
-            packages/desktop/release/*.dmg
-            packages/desktop/release/*.zip
-            packages/desktop/release/*.exe
-            packages/desktop/release/*.AppImage
-            packages/desktop/release/*.deb
-          if-no-files-found: error
-          retention-days: 14
+    uses: ./.github/workflows/_desktop-build.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
+      # Fatal here, unlike in the rehearsal. An ad-hoc build revokes every permission on every
+      # machine that installs it, and a published release cannot be taken back.
+      require-signing: true
+    secrets: inherit
 
   publish:
     needs: build
@@ -191,26 +52,40 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Notes from the log
+      # The digests every client checks before it installs.
+      #
+      # Not the same file the build job wrote — that one covers a single platform's output and is
+      # there to prove the step works. This is the one that ships: every artifact from all three
+      # runners, in one list a person can also check by hand.
+      #
+      # `update-checksum.ts` reads it back. A release without it downloads and then refuses to
+      # install, which is the intended behaviour for a release nobody can verify.
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      # The notes, out of CHANGELOG.md.
+      #
+      # They used to be `git log` piped into the release body: every commit, in full, including the
+      # ones about lockfiles and CI. That is a log, not notes — and it made the notes worth skipping,
+      # which is a shame for the entries that did matter.
+      #
+      # `pnpm release` writes that section before it tags, so the file people edit is the file
+      # people see. The tag message carries the same text; falling back to it covers a tag pushed by
+      # hand.
+      - name: Notes from the changelog
         id: notes
         shell: bash
-        # Extract full release notes from commit bodies or tag message.
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
-          previous=$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || echo "")
           {
-            echo "notes<<EOF"
-            tag_msg=$(git tag -l --format='%(contents)' "$tag" | sed '/^$/d')
-            if [ -n "$tag_msg" ]; then
-              echo "$tag_msg"
-            elif [ -n "$previous" ]; then
-              echo "### 自 ${previous} 以来的更新"
-              echo
-              git log --no-merges --pretty=format:"#### %s%n%n%b" "${previous}..${tag}" | sed '/^[[:space:]]*$/N;/^[[:space:]]*\n[[:space:]]*$/D'
-            else
-              git log -1 --pretty=format:"#### %s%n%n%b" "$tag"
-            fi
-            echo "EOF"
+            echo "notes<<LYRA_EOF"
+            node scripts/changelog-section.mjs "$tag" 2>/dev/null \
+              || git tag -l --format='%(contents)' "$tag" \
+              || echo "见提交历史。"
+            echo "LYRA_EOF"
           } >> "$GITHUB_OUTPUT"
 
       - uses: softprops/action-gh-release@v3

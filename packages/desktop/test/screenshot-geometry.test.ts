@@ -20,7 +20,7 @@ import {
 	resizeRect,
 	toolbarPosition,
 	HANDLES,
-} from "../src/components/image/screenshot-geometry.ts";
+} from "../src/features/image/screenshot-geometry.ts";
 
 const rect = { x: 100, y: 100, width: 200, height: 100 };
 const screen = { width: 1000, height: 800 };

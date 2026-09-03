@@ -16,7 +16,7 @@ import {
 	joinPath,
 	relativeTo,
 	splitExtension,
-} from "../src/components/files/paths.ts";
+} from "../src/lib/paths.ts";
 
 test("the name is the last segment, with or without a trailing slash", () => {
 	assert.equal(baseName("/work/app/src/main.ts"), "main.ts");

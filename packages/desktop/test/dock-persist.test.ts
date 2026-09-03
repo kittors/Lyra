@@ -14,8 +14,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { sanitize, serialize, storageKey } from "../src/dock/persist.ts";
-import { defaultTree, has, kinds, leafOf, type DockNode, type DockSplit, type PaneKind } from "../src/dock/tree.ts";
+import { sanitize, serialize, storageKey } from "../src/features/dock/persist.ts";
+import { defaultTree, has, kinds, leafOf, type DockNode, type DockSplit, type PaneKind } from "../src/features/dock/tree.ts";
 
 /**
  * What the registry would report as loadable in a normal session.

@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { parseNumstat } from "../electron/git-history.ts";
-import { withContents } from "../src/components/git/diff-merge.ts";
+import { withContents } from "../src/features/git/diff-merge.ts";
 import type { WorkspaceDiffFile } from "../electron/ipc-types.ts";
 
 /** `--numstat -z` terminates every field with a NUL, including the last. */

@@ -1,0 +1,113 @@
+/* ---------------------------------------------------------------------------
+ * Overflowing single-line labels
+ *
+ * Two separate things soften the ends of a title, and for a while they did it by each writing
+ * their own `mask-image`: `ly-fade-edge` for text too long for its box, `ly-fade-tail` for text
+ * about to have a hover control land on top of it. A session row has both, so on hover the
+ * second simply replaced the first — and the left-hand fade that catches the line as it starts
+ * scrolling vanished exactly when it was needed, leaving the text emerging from a hard edge.
+ *
+ * One mask now, two lengths. Neither rule owns the shape; each says how deep its own side goes,
+ * and they compose because a length is not a declaration to be overridden. Registered so they
+ * interpolate — an unregistered custom property would jump between shapes rather than ease.
+ * ------------------------------------------------------------------------- */
+@property --ly-fade-left {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --ly-fade-right {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.ly-fade-edge,
+.ly-fade-tail {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--ly-fade-left),
+    #000 calc(100% - var(--ly-fade-right)),
+    transparent 100%
+  );
+  /* Order matches the properties: the left fade waits for the scroll, the right one tracks the
+     control appearing over it. No delay on the way out — the line snaps back to its start. */
+  transition:
+    --ly-fade-left var(--ly-t-quick) var(--ly-e-out),
+    --ly-fade-right var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * The right edge dissolves rather than ending in an ellipsis. At rest the left edge is hard,
+ * because that is where the text begins; once the text starts scrolling it runs off that side
+ * too, so a matching fade appears to catch it.
+ */
+.ly-fade-edge {
+  --ly-fade-right: 22px;
+}
+
+/*
+ * One direction, continuously, with a trailing copy so the loop is seamless.
+ *
+ * This used to sweep left and right (`alternate`), which reads as the row twitching — the eye
+ * keeps having to reacquire the start of the line. Travelling one way at a steady pace is what
+ * reading looks like. `linear` on purpose: an eased marquee appears to stutter at both ends of
+ * every cycle.
+ *
+ * The delay is there so a pointer crossing the list on its way somewhere else does not set
+ * every row it touches in motion.
+ *
+ * One rule per selector on purpose. Lightning CSS prunes rules it considers unsupported by the
+ * build targets, and `:has()` took a whole comma-separated group with it once — including the
+ * `:hover` half, which silently killed the effect outright.
+ */
+.ly-marquee-track {
+  display: inline-flex;
+  gap: 44px;
+  white-space: nowrap;
+}
+
+.ly-scroll:hover .ly-marquee-track {
+  animation: ly-marquee var(--ly-scroll, 8s) linear 300ms infinite;
+}
+
+.ly-scroll:has(:focus-visible) .ly-marquee-track {
+  animation: ly-marquee var(--ly-scroll, 8s) linear 300ms infinite;
+}
+
+/*
+ * The left fade waits for the marquee it exists to catch; the right one must not.
+ *
+ * Two delays, in the order the properties are declared. A single value would delay both, and the
+ * right-hand side is answering the archive button appearing over the text — a control that is
+ * already there while the title is still deciding whether to move.
+ */
+.ly-scroll:hover .ly-fade-edge {
+  --ly-fade-left: 13px;
+  transition-delay: 320ms, 0ms;
+}
+
+.ly-scroll:has(:focus-visible) .ly-fade-edge {
+  --ly-fade-left: 13px;
+  transition-delay: 320ms, 0ms;
+}
+
+/* One cycle carries the first copy off the left, leaving the second exactly where it began. */
+@keyframes ly-marquee {
+  to {
+    transform: translateX(var(--ly-marquee, 0));
+  }
+}
+
+/* Reduced motion needs the scroll gone, not sped up. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] .ly-scroll:hover .ly-marquee-track {
+    animation: none !important;
+  }
+}
+
+:root[data-reduce-motion="on"] .ly-scroll:hover .ly-marquee-track {
+  animation: none !important;
+}

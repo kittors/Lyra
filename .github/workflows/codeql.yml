@@ -1,0 +1,42 @@
+# Static analysis, weekly and on every pull request.
+#
+# Free for a public repository, and it looks for a different class of thing than oxlint does: oxlint
+# is about how the code reads, CodeQL is about how data flows through it — a value from a request
+# reaching a shell, a path from a message reaching the filesystem.
+#
+# `packages/relay` is the reason the schedule matters. It is the one part of this repository meant
+# to be deployed on a server facing the internet, and it is the part nobody runs locally.
+name: CodeQL
+
+on:
+  pull_request:
+  schedule:
+    # Monday morning UTC, so the result is waiting rather than interrupting.
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          # Beyond the default set: the quality queries catch the dead branches and impossible
+          # conditions that a reader skims past.
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"

@@ -54,8 +54,8 @@ const saved: Settings[] = [];
 	},
 };
 
-const { useApp } = await import("../src/store.ts");
-const { sessionThinking, THINKING_FALLBACK } = await import("../src/thinking.ts");
+const { useApp } = await import("../src/store/index.ts");
+const { sessionThinking, THINKING_FALLBACK } = await import("../src/lib/thinking.ts");
 
 const SETTINGS = { thinking: "medium", defaultModelId: "relay/a" } as unknown as Settings;
 const META = { id: "s-1", modelId: "relay/a" } as unknown as SessionMeta;

@@ -14,7 +14,8 @@
 
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
-import { isDescendantPath } from "../components/files/paths.ts";
+import { isDescendantPath } from "../lib/paths.ts";
+import { bridge } from "../services/index.ts";
 
 /** One file the pane has had open, as its tab strip lists it. */
 export interface OpenFileTab {
@@ -140,7 +141,7 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		 */
 		set({ opening: entry.path, loading: true, tabs: withTab(get(), entry) });
 		try {
-			const read = await window.lyra.files.read(entry.path);
+			const read = await bridge.files.read(entry.path);
 			// A second click while this was in flight wins.
 			if (get().opening !== entry.path) return;
 			// Together, so the pane never shows one file's name over another file's contents.
@@ -151,7 +152,7 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 	},
 
 	async reread(path) {
-		const read = await window.lyra.files.read(path);
+		const read = await bridge.files.read(path);
 		if (read && get().path === path) set({ contents: read });
 	},
 
@@ -251,7 +252,7 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		if (text === undefined || text === contents.text) return null;
 		// Truncated files must not be saved: writing back the head would delete the rest.
 		if (contents.truncated) return "文件过大，只读";
-		const result = await window.lyra.files.write(path, text);
+		const result = await bridge.files.write(path, text);
 		if (!result.ok) return result.error ?? "写入失败";
 		get().setDraft(path, undefined);
 		await get().reread(path);

@@ -11,7 +11,7 @@
  * first thing the app does is read this object.
  */
 
-import type { Connection } from "./client";
+import type { Connection } from "./connection.ts";
 import { roomFor } from "./sha256.ts";
 
 /**

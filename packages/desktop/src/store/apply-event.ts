@@ -13,10 +13,22 @@ import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, without } from "./derive.ts";
 import { freeze, relight } from "./turn-meter.ts";
-import { useSide } from "../sideStore.ts";
+/*
+ * `sideStore.ts` directly, not the domain's index.
+ *
+ * The index re-exports the dock's panels, which are `.tsx`, and the store is imported by tests that
+ * run under `--experimental-strip-types` — which does not handle JSX. Going through the front door
+ * here would drag a component tree into a module that only wants one atom of state, and the failure
+ * is `Unknown file extension ".tsx"` in a test that has nothing to do with the dock.
+ *
+ * The rule this bends is `features-through-the-front-door`, and it is bent knowingly: `store/` is
+ * below the features rather than beside them, so it is not one domain reaching into another.
+ */
+import { useSide } from "../features/dock/sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
-import type { AppState } from "../store.ts";
-import { settleTail } from "../transcript.ts";
+import type { AppState } from "./index.ts";
+import { settleTail } from "../lib/transcript.ts";
+import { bridge } from "../services/index.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -209,7 +221,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     // A turn driven from the phone still has to move the session up the sidebar and
     // update its title, even though its transcript is not on screen.
     if (event.type === "agent_end" || event.type === "turn_end") {
-      void window.lyra.sessions
+      void bridge.sessions
         .list()
         .then((sessions) => set({ sessions }));
     }
@@ -474,7 +486,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         messages: settled,
         stopped: howItStopped(settled, event.reason),
       });
-      void window.lyra.sessions
+      void bridge.sessions
         .list()
         .then((sessions) => set({ sessions }));
       break;

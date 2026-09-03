@@ -12,7 +12,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { documentKind } from "../electron/document-kind.ts";
+import { documentKind } from "../shared/document-kind.ts";
 import { readDatabase, readWorkbook } from "../electron/documents.ts";
 
 let dir: string;

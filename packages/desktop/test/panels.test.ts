@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allPanels, registerPanels, type PanelDefinition } from "../src/panels/registry.ts";
+import { allPanels, registerPanels, type PanelDefinition } from "../src/features/dock/panels/registry.ts";
 
 const stub = (kind: string, label: string): PanelDefinition =>
 	({ kind, label, icon: (() => null) as never, shortcut: "⌘0", render: () => null }) as unknown as PanelDefinition;

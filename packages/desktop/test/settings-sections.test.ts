@@ -10,8 +10,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { groupsFor, sectionFor, HIDDEN_ON_MOBILE } from "../src/components/settings/sections-for.ts";
-import type { SettingsSection } from "../src/store.ts";
+import { groupsFor, sectionFor, HIDDEN_ON_MOBILE } from "../src/features/settings/sections-for.ts";
+import type { SettingsSection } from "../src/store/index.ts";
 
 const item = (id: SettingsSection) => ({ id });
 

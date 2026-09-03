@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bandByRecency } from "../src/components/sidebar/recency.ts";
+import { bandByRecency } from "../src/features/sidebar/recency.ts";
 
 type Session = Parameters<typeof bandByRecency>[0][number];
 

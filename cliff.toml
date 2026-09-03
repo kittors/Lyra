@@ -1,0 +1,44 @@
+# How the changelog gets written, so that nobody writes it by hand.
+#
+# Release notes used to be `git log` piped into the release body: every commit, in full, including
+# the ones about lockfiles and CI. That is a log, not notes — and it made the notes worth skipping,
+# which is a shame for the entries that did matter.
+#
+# Here the conventional-commit type decides both whether an entry appears and which heading it lands
+# under. `chore`, `ci`, `build` and `test` are dropped: they are true, and they are not news.
+
+[changelog]
+header = """
+# 更新日志
+
+这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
+
+"""
+body = """
+## [{{ version | trim_start_matches(pat="v") }}](https://github.com/kittors/Lyra/releases/tag/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.message | split(pat="\n") | first | trim }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/kittors/Lyra/commit/{{ commit.id }}))
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+# 不符合规范的提交直接不进：0.8.0 之前的历史是混着写的，勉强解析出来的条目比没有更误导。
+filter_unconventional = true
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->新功能" },
+  { message = "^fix", group = "<!-- 1 -->修复" },
+  { message = "^perf", group = "<!-- 2 -->性能" },
+  { message = "^refactor", group = "<!-- 3 -->重构" },
+  { message = "^docs", group = "<!-- 4 -->文档" },
+  { message = "^revert", group = "<!-- 1 -->修复" },
+  # 版本提交本身不是内容。
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^(chore|ci|build|test|merge)", skip = true },
+]
+tag_pattern = "v[0-9].*"
+sort_commits = "newest"

@@ -1,0 +1,466 @@
+/*
+ * Markdown, as the assistant renders it.
+ *
+ * 459 lines about one subject: the prose in a reply. Headings, lists, tables, code blocks, task
+ * boxes, collapsible sections, maths, images. It is over the 400-line guideline the other files
+ * keep to, and splitting it would make it worse — every part of it is `.prose-dw`, and a reader
+ * asking "how is a table in a reply styled" would then have to know which of three files to open.
+ *
+ * The guideline is about being able to find things, not about the number.
+ *
+ * On the scale like everything else. These were six absolute pixel values — 13.5 for the body,
+ * 19/17/15/13.5 for the headings — which made a transcript the one surface in the app that
+ * ignored 界面字号 entirely, and put its h4 at the same size as its own body text.
+ *
+ * The bottom two levels land on the same step now and separate by weight instead. Four heading
+ * sizes inside a chat bubble was never four levels of anything; past h3, markdown nesting is
+ * deeper than the container is tall.
+ */
+@layer components {
+  .prose-dw {
+    font-size: var(--text-body);
+    line-height: 1.75;
+    color: var(--color-ink);
+  }
+
+  .prose-dw > * + * {
+    margin-top: 0.75em;
+  }
+
+  .prose-dw h1,
+  .prose-dw h2,
+  .prose-dw h3,
+  .prose-dw h4 {
+    font-weight: 600;
+    line-height: 1.4;
+    margin-top: 1.6em;
+    margin-bottom: 0.6em;
+  }
+
+  .prose-dw h1 {
+    font-size: var(--text-heading);
+  }
+  .prose-dw h2 {
+    font-size: var(--text-title);
+  }
+  .prose-dw h3 {
+    font-size: var(--text-body);
+  }
+  .prose-dw h4 {
+    font-size: var(--text-body);
+    font-weight: 500;
+  }
+
+  .prose-dw ul,
+  .prose-dw ol {
+    padding-left: 1.35em;
+  }
+
+  .prose-dw ul {
+    list-style: disc;
+  }
+  .prose-dw ul ul {
+    list-style: circle;
+  }
+  .prose-dw ol {
+    list-style: decimal;
+  }
+
+  .prose-dw li {
+    margin-top: 0.3em;
+  }
+
+  .prose-dw li > ul,
+  .prose-dw li > ol {
+    margin-top: 0.3em;
+  }
+
+  /*
+   * A block that lives inside a bullet.
+   *
+   * The spacing rule above only reaches direct children of `.prose-dw`, so a table or a fence
+   * written under a bullet had none at all and sat flush against the sentence introducing it.
+   */
+  .prose-dw li > .ly-table,
+  .prose-dw li > pre,
+  .prose-dw li > blockquote,
+  .prose-dw li > p {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  .prose-dw li > *:last-child {
+    margin-bottom: 0;
+  }
+
+  /*
+   * Derived, not fixed.
+   *
+   * These were hard-coded dark hexes, so on a light theme every inline snippet turned into a
+   * black slab and a paragraph of prose about code became unreadable. The surface tokens step
+   * away from whatever background is in force, in whichever direction that background needs.
+   */
+  code,
+  pre,
+  .ly-cm,
+  .cm-editor,
+  .xterm {
+    font-variant-ligatures: none;
+    font-feature-settings: normal;
+    /* The typography settings reach the editor and the terminal too, not only prose code blocks —
+       they are the same text set the same way, and a weight that applied to one and not the others
+       would look like a rendering bug. */
+    font-weight: var(--text-code--weight);
+    letter-spacing: var(--text-code--tracking);
+    /*
+     * No synthesised italics, which is what made comments look wrong.
+     *
+     * Comments are set in italic, and the bundled mono faces ship upright only — so the browser
+     * slanted the upright glyphs geometrically to fake it. That is passable for latin and bad for
+     * Chinese, which has no italic tradition and no design that survives being sheared: a comment
+     * reading 「// 滚动条默认样式」 came out visibly skewed and slightly broken, right next to
+     * upright code.
+     *
+     * With synthesis off, a face that has real italics uses them and a face that does not stays
+     * upright. Comments are still told apart by colour, which is how most editors do it anyway.
+     */
+    font-synthesis: none;
+    /*
+     * Tighter than prose.
+     *
+     * Body text is set at 1.6 because a paragraph needs air between lines to track along. Code
+     * is read down a column — indentation, brackets, the shape of a block — and the same
+     * leading pulls that shape apart. 1.55 is where JetBrains Mono's own metrics sit; the
+     * editor and the prose blocks restate it, since both bring their own cascade.
+     */
+    line-height: var(--text-code--line-height);
+  }
+
+  .prose-dw pre {
+    /*
+     * The code theme's surface, so a fenced block matches the editor.
+     *
+     * `--color-card` is the app's own tint, which meant picking Solarized Light coloured the
+     * tokens inside the block and left the block itself the same grey as every other card —
+     * the one difference people actually look at. Falls back to the card colour for the moment
+     * before the theme is applied, so a block never renders on nothing.
+     */
+    background: var(--ly-code-bg, var(--color-card));
+    color: var(--ly-code-fg, var(--color-ink));
+    border: 1px solid color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 12%, transparent);
+    border-radius: 10px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .prose-dw pre code {
+    background: transparent;
+    /* Inherited from `pre`, which now carries the theme's foreground. */
+    color: inherit;
+    padding: 0;
+    font-size: var(--text-code);
+    line-height: var(--text-code--line-height);
+    font-weight: var(--text-code--weight);
+    letter-spacing: var(--text-code--tracking);
+    white-space: pre;
+    word-break: normal;
+  }
+
+  .prose-dw code {
+    /* Same reasoning as `body`: CJK-only range, so it only catches what the mono face gets wrong. */
+    font-family: "Lyra CJK", var(--ly-code-font, var(--font-mono));
+    font-size: var(--text-code);
+    font-weight: var(--text-code--weight);
+    letter-spacing: var(--text-code--tracking);
+    background: var(--color-card-hover);
+    color: var(--color-ink);
+    border-radius: 5px;
+    padding: 1.5px 5px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  .prose-dw a {
+    color: var(--color-info);
+    text-decoration: none;
+  }
+
+  .prose-dw a:hover {
+    text-decoration: underline;
+  }
+
+  .prose-dw blockquote {
+    border-left: 2px solid var(--color-line);
+    padding-left: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  /*
+   * A table is rows of facts, not graph paper.
+   *
+   * Every cell used to be boxed in on all four sides, which draws sixty lines to separate twelve
+   * numbers and makes the grid louder than anything in it. Horizontal rules only: the eye already
+   * tracks columns by alignment, so the vertical lines were paying for nothing.
+   *
+   * The wrapper carries the frame because it is the element that scrolls — a border on the table
+   * would slide out of view with the content and leave the right edge open.
+   */
+  /*
+   * Wide enough for its contents and no wider.
+   *
+   * Stretched to the column, a three-column table hands every spare pixel to its last column and
+   * opens a gap the eye has to jump — the columns stop looking related. Sized to fit, the frame
+   * lands where the data ends, and the table reads as one object instead of a full-width band.
+   */
+  .prose-dw .ly-table {
+    overflow-x: auto;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid var(--color-line-soft);
+    border-radius: 10px;
+  }
+
+  .prose-dw table {
+    border-collapse: collapse;
+    font-size: var(--text-label);
+    line-height: 1.55;
+  }
+
+  .prose-dw th,
+  .prose-dw td {
+    padding: 7px 12px;
+    text-align: left;
+    vertical-align: top;
+    /* Wrapping a cell mid-word is worse than a little scrolling. */
+    white-space: nowrap;
+  }
+
+  .prose-dw thead th {
+    background: var(--color-card);
+    font-weight: 550;
+    color: var(--color-ink-muted);
+    /* The header's rule is the one line worth keeping: it separates labels from data. */
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .prose-dw tbody tr + tr td {
+    border-top: 1px solid var(--color-line-soft);
+  }
+
+  /* Figures line up when their digits are one width. */
+  .prose-dw td {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .prose-dw hr {
+    border: 0;
+    border-top: 1px solid var(--color-line);
+    margin: 1.5em 0;
+  }
+
+  /*
+   * A checklist.
+   *
+   * The bullet goes: a box already says "this is an item", and a disc beside it says it twice. The
+   * box sits on the first line's optical centre rather than its box centre, so it lines up with
+   * the x-height of the text instead of floating above it.
+   */
+  /*
+   * The marker is dropped per item, not per list.
+   *
+   * A checklist routinely has an ordinary bullet in the middle of it — a note between two boxes —
+   * and turning off markers for the whole list leaves that line with nothing at all, floating at a
+   * different indent from its neighbours. Only the rows that have a box give theirs up, and the
+   * negative margin puts the box exactly where the disc would have been, so the text of every row
+   * still starts on the same vertical.
+   */
+  .prose-dw .ly-task {
+    list-style: none;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+    margin-left: -1.35em;
+  }
+
+  .ly-task-box {
+    flex: none;
+    width: 13px;
+    height: 13px;
+    margin-top: calc((1.75em - 13px) / 2);
+    border: 1px solid var(--color-line);
+    border-radius: 4px;
+    color: transparent;
+    transition:
+      background-color var(--ly-t-quick) var(--ly-e-soft),
+      border-color var(--ly-t-quick) var(--ly-e-soft);
+  }
+
+  .ly-task[data-done="true"] .ly-task-box {
+    background: var(--color-ok);
+    border-color: var(--color-ok);
+    color: #fff;
+  }
+
+  /* Done text stays readable — struck through it becomes a puzzle rather than a record. */
+  .ly-task[data-done="true"] > span:last-child {
+    color: var(--color-ink-muted);
+  }
+
+  /*
+   * A folded section.
+   *
+   * Borrowed motion from the app's own disclosures rather than the browser's `<details>`, which
+   * snaps open with no transition and draws a system triangle we do not use anywhere else.
+   */
+  .prose-dw .ly-details {
+    border: 1px solid var(--color-line-soft);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .ly-details-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 7px 11px;
+    text-align: left;
+    color: var(--color-ink-muted);
+    transition: color var(--ly-t-quick) var(--ly-e-soft);
+  }
+
+  .ly-details-summary:hover {
+    color: var(--color-ink);
+  }
+
+  .ly-details-chevron {
+    flex: none;
+    transition: transform var(--ly-t-base) var(--ly-e-out);
+  }
+
+  .ly-details[data-open="true"] .ly-details-chevron {
+    transform: rotate(90deg);
+  }
+
+  .ly-details-body {
+    padding: 2px 11px 11px;
+  }
+
+  /*
+   * A key, drawn as one.
+   *
+   * `<kbd>Cmd</kbd>` is an instruction to press something, and the browser's default — italic
+   * monospace, indistinguishable from a code span — loses that. A cap with a bottom edge reads as
+   * a physical key at a glance, which is the whole point of the element.
+   */
+  .prose-dw kbd {
+    display: inline-block;
+    min-width: 1.5em;
+    padding: 1px 5px;
+    border: 1px solid var(--color-line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: var(--color-card);
+    font-family: var(--font-sans);
+    font-size: 0.86em;
+    line-height: 1.5;
+    text-align: center;
+    /* Keys sit on the text baseline; without this the cap's border pushes the line apart. */
+    vertical-align: 1px;
+  }
+
+  .prose-dw sub,
+  .prose-dw sup {
+    font-size: 0.75em;
+    line-height: 0;
+  }
+
+  .prose-dw mark {
+    padding: 0 2px;
+    border-radius: 3px;
+    background: color-mix(in oklab, var(--color-accent) 26%, transparent);
+    color: inherit;
+  }
+
+  /*
+   * Formulas.
+   *
+   * KaTeX sizes itself in `em`, so it inherits the surrounding text size and needs no scale of its
+   * own. A display formula gets room and a horizontal scroll: a wide equation should extend past
+   * the column rather than be broken across lines, which changes what it means.
+   */
+  .prose-dw .ly-math-block {
+    overflow: auto hidden;
+    padding: 2px 0;
+  }
+
+  .prose-dw .ly-math-raw {
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
+    color: var(--color-ink-muted);
+    white-space: pre-wrap;
+  }
+
+  /* KaTeX ships a `\text` colour of its own; ours is the one that matches the page. */
+  .prose-dw .katex {
+    color: inherit;
+    font-size: 1.06em;
+  }
+
+  /*
+   * A picture we cannot draw, named rather than dropped.
+   *
+   * `img-src` does not admit remote hosts, so this is the reference — the reader still learns a
+   * screenshot exists and can open it.
+   */
+  .ly-md-image-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: baseline;
+  }
+
+  .prose-dw .ly-md-image {
+    max-width: 100%;
+    /*
+     * Inline, because that is what an `<img>` between two links is.
+     *
+     * A badge row is three anchors separated by spaces. Making the pictures blocks would break the
+     * row into three lines — which is the layout this change exists to stop — and the baseline
+     * alignment is what lets a badge sit next to a word without riding above it.
+     */
+    display: inline-block;
+    vertical-align: middle;
+    border-radius: 8px;
+  }
+
+  /*
+   * A block-level HTML element from the document — a `<p align="center">` around a logo.
+   *
+   * The spacing rule at the top of this layer only reaches direct children of `.prose-dw`, so
+   * without this the paragraphs inside a `<div>` would sit flush against each other while the ones
+   * outside it breathe. Same 0.75em, so a document does not change rhythm when it enters a box.
+   */
+  .prose-dw .ly-md-html > * + * {
+    margin-top: 0.75em;
+  }
+
+  /*
+   * A centred box does not centre a bullet list.
+   *
+   * `text-align` inherits into everything, and a `<div align="center">` holding a feature list —
+   * common at the top of a README — would centre every bullet against a marker still hanging off
+   * the left. Lists inside one keep their own alignment; the box still centres the prose, the
+   * pictures and the badge rows it was written for.
+   */
+  .prose-dw .ly-md-html ul,
+  .prose-dw .ly-md-html ol,
+  .prose-dw .ly-md-html pre,
+  .prose-dw .ly-md-html .ly-table {
+    text-align: left;
+  }
+}

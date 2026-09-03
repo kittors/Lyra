@@ -9,8 +9,9 @@
 import type { SessionMeta } from "@lyra/core";
 import type { SessionActivity } from "@lyra/core/activity";
 import { howItStopped, prune, rebuildToolRuns, todosFrom, without } from "./derive.ts";
-import type { AppState } from "../store.ts";
+import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
+import { bridge } from "../services/index.ts";
 
 /**
  * The transcript read that is currently in flight, and the one queued behind it.
@@ -106,7 +107,7 @@ export function sessionSlice(set: Set, get: Get) {
      * reads `scratchCwd` between here and then.
      */
     if (!get().workspace) {
-      void window.lyra.git.generalScratch().then(
+      void bridge.git.generalScratch().then(
         (general) => {
           // Only if nothing has moved on in the meantime — a conversation opened during the round
           // trip owns this field now, and overwriting it would point it at the wrong directory.
@@ -237,7 +238,7 @@ export function sessionSlice(set: Set, get: Get) {
      * can only ever replace the record with an identical copy.
      */
     if (!projectLess && get().workspace?.path !== meta.cwd) {
-      void window.lyra.workspace.info(meta.cwd).then((workspace) => {
+      void bridge.workspace.info(meta.cwd).then((workspace) => {
         // Null stays null: `?? get().workspace` would put back the project that was open before.
         if (workspace && get().activeSessionId === meta.id) set({ workspace });
       });
@@ -260,9 +261,9 @@ export function sessionSlice(set: Set, get: Get) {
     }
     reading = meta.id;
 
-    let snapshot: Awaited<ReturnType<typeof window.lyra.sessions.transcript>>;
+    let snapshot: Awaited<ReturnType<typeof bridge.sessions.transcript>>;
     try {
-      snapshot = await window.lyra.sessions.transcript(meta.projectId, meta.id);
+      snapshot = await bridge.sessions.transcript(meta.projectId, meta.id);
     } finally {
       reading = null;
       // Whatever was clicked last while this was running is the one that still wants reading.
@@ -307,7 +308,7 @@ export function sessionSlice(set: Set, get: Get) {
     });
 
     // Restore sub-agents for this session if available
-    void window.lyra.subAgents.list(snapshot.meta.id).then((subAgentsList) => {
+    void bridge.subAgents.list(snapshot.meta.id).then((subAgentsList) => {
       if (get().activeSessionId === snapshot.meta.id && Array.isArray(subAgentsList)) {
         useSubAgents.getState().sync(subAgentsList);
       }
@@ -315,7 +316,7 @@ export function sessionSlice(set: Set, get: Get) {
 
     // Capabilities describe a running agent; a transcript read from disk has none until the
     // session is activated, which the first message does.
-    const capabilities = await window.lyra.sessions.capabilities(
+    const capabilities = await bridge.sessions.capabilities(
       snapshot.meta.id,
     );
     if (get().activeSessionId === meta.id) set({ capabilities });
@@ -326,8 +327,8 @@ export function sessionSlice(set: Set, get: Get) {
       sessionCache: without(get().sessionCache, meta.id),
       drafts: without(get().drafts, meta.id),
     });
-    await window.lyra.sessions.remove(meta.projectId, meta.id);
-    const sessions = await window.lyra.sessions.list();
+    await bridge.sessions.remove(meta.projectId, meta.id);
+    const sessions = await bridge.sessions.list();
     set({ sessions });
     if (get().activeSessionId === meta.id) {
       set({
@@ -369,7 +370,7 @@ export function sessionSlice(set: Set, get: Get) {
       useSubAgents.getState().clear();
     }
     set({
-      sessions: await window.lyra.sessions.setArchived(
+      sessions: await bridge.sessions.setArchived(
         meta.projectId,
         meta.id,
         archived,
@@ -378,7 +379,7 @@ export function sessionSlice(set: Set, get: Get) {
   },
 
   async deleteArchivedSessions() {
-    set({ sessions: await window.lyra.sessions.removeArchived() });
+    set({ sessions: await bridge.sessions.removeArchived() });
   },
 
   /**
@@ -398,7 +399,7 @@ export function sessionSlice(set: Set, get: Get) {
    * it, to show a fresher number, would be a worse trade than the stale number.
    */
   async refreshSessionStats(sessionId: string) {
-    const latest = (await window.lyra.sessions.list()).find((s) => s.id === sessionId);
+    const latest = (await bridge.sessions.list()).find((s) => s.id === sessionId);
     if (!latest) return;
     set({
       sessions: get().sessions.map((s) =>

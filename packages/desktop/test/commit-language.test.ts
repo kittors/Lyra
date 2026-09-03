@@ -14,7 +14,7 @@ import {
 	COMMIT_LANGUAGES,
 	DEFAULT_COMMIT_LANGUAGE,
 	resolveCommitLanguage,
-} from "../src/components/git/commit-language.ts";
+} from "../src/features/git/commit-language.ts";
 
 test("every language the menu offers has a prompt instruction", () => {
 	for (const language of COMMIT_LANGUAGES) {

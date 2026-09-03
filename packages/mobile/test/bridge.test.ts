@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bridgeScript } from "../src/bridge.ts";
 import { roomFor } from "../src/sha256.ts";
-import type { Connection } from "../src/client.ts";
+import type { Connection } from "../src/connection.ts";
 
 const LAN: Connection = { host: "192.168.1.5", port: 4517, token: "tok", platform: "darwin" };
 

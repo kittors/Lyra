@@ -152,4 +152,22 @@ linux:
     - target: deb
       arch: [x64]
 
+# Electron 的 fuses：**试过，没能验证，所以没有开。**
+#
+# `electronFuses:` 写进这个文件之后，electron-builder 确实执行了（日志里有
+# `executing @electron/fuses`），但打出来的包用 `@electron/fuses` 的 API 读回去，八个位全是
+# 关——包括配成 `true` 的那三个。而与此同时 `ELECTRON_RUN_AS_NODE=1 ./Lyra` 仍然能起 Node，
+# 说明那些位根本没写进二进制，读到的「全关」是未初始化的默认值，不是生效后的状态。
+#
+# 也就是说：配了它，既得不到保护，也没有办法确认得到了什么。而 fuse 是一次性的——发出去的版本
+# 里若有一位错了，只能靠发下一个版本盖掉。这种东西不能凭「配置看起来对」就交付。
+#
+# 真要开的话，缺的是这两步：查清 electron-builder 26.15.3 与 Electron 43 在 fuse wire 长度上
+# 的对应关系（`the fuse wire in this version of Electron is not long enough` 是这一带已知的
+# 报错），以及三平台各自读回验证。
+#
+# 另外 `runAsNode` 无论如何要保持开着：`core/src/sandbox/backend.ts` 用
+# `ELECTRON_RUN_AS_NODE=1` + `process.execPath` 起沙箱 runner，Windows 的受限令牌沙箱建在它
+# 上面。关掉它不是削弱沙箱，是沙箱起不来。见 ADR-0018。
+
 publish: null

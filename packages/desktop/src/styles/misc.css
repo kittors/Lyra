@@ -1,0 +1,344 @@
+/*
+ * Held back before fading in, for placeholders that usually are not needed.
+ *
+ * A cached transcript arrives in a few milliseconds, and a skeleton that appears and vanishes
+ * inside one blink reads as a glitch rather than as progress. `both` keeps it fully
+ * transparent through the delay, so a fast load shows nothing at all.
+ */
+.ly-defer-in {
+  animation: ly-fade-in 220ms ease-out 170ms both;
+}
+
+/*
+ * Popovers grow from the point nearest their trigger, so the link between them reads.
+ *
+ * One keyframe, not three. The direction was only ever carried by `transform-origin` — the scale
+ * and fade were byte-identical in all three — and three copies of one animation is three chances
+ * for one of them to drift. The origin is measured during placement and handed over inline, since
+ * the constant `center` these classes used was wrong for every menu not centred on its trigger,
+ * which is most of them: a right-aligned menu grew out of its own middle.
+ *
+ * `transform-origin` here is the fallback for the one caller outside React — CodeMirror's find
+ * panel, which is created by the editor and only ever drops downwards.
+ */
+@keyframes ly-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ly-pop-in {
+  transform-origin: top center;
+  animation: ly-pop-in 130ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/*
+ * Leaving is quicker than arriving — a menu you have finished with should get out of the way.
+ * Both directions scale rather than travel: a small panel that slides even a few pixels reads
+ * as a twitch, and an overshooting curve on top of that reads as a bounce.
+ */
+@keyframes ly-pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.ly-pop-out {
+  animation: ly-pop-out 120ms ease-in forwards;
+  pointer-events: none;
+}
+
+/*
+ * Frosted panel for menus.
+ *
+ * A flat fill reads as pasted onto the list behind it; letting that list blur through says
+ * "floating above" without needing a heavier shadow. The colour is mixed from the same
+ * surface token, so it follows the theme — and the fallback below keeps menus opaque where
+ * backdrop-filter is unavailable, since a translucent menu over unblurred text is unreadable.
+ */
+/*
+ * Shared menu-row states.
+ *
+ * Kept as a class rather than repeated utility strings so every menu in the app highlights
+ * identically — and so a row with a non-standard shape can still pick up the same states.
+ */
+.ly-item {
+  border-radius: 7px;
+  color: var(--color-ink);
+  transition:
+    background-color var(--ly-t-quick) var(--ly-e-out),
+    color var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * Hover fills; selected does not.
+ *
+ * The checkmark already says which one is chosen. Filling it as well made the selected row
+ * look permanently hovered — so with the pointer on a different row, two rows appeared active
+ * at once and it stopped being obvious which one the next click would take.
+ */
+.ly-item:hover:not(:disabled) {
+  background: var(--color-card-hover);
+}
+
+.ly-item:active:not(:disabled) {
+  background: var(--color-elevated);
+}
+
+.ly-item:disabled {
+  opacity: 0.4;
+}
+
+.ly-item[data-danger="true"] {
+  color: var(--color-danger);
+}
+
+.ly-item[data-danger="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.ly-glass,
+.ly-glass-solid {
+  box-shadow:
+    /* A hairline along the top edge, as if the panel had thickness — enough to read as glass,
+       not so much that it becomes a stripe. */
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    0 6px 20px -6px rgb(0 0 0 / 0.13),
+    0 1px 5px -2px rgb(0 0 0 / 0.09);
+}
+
+.ly-glass {
+  /*
+   * `--color-float` and not `--color-elevated`: the elevated token steps toward the
+   * foreground, which on a light theme makes a menu darker than the page it floats over — and
+   * blurring a dark translucent panel over a light page just yields grey.
+   */
+  background: color-mix(in srgb, var(--color-float) 52%, transparent);
+  backdrop-filter: blur(34px) saturate(200%);
+}
+
+/*
+ * The same surface, for the places that cannot blur.
+ *
+ * `backdrop-filter` samples only what has been painted inside the nearest *backdrop root*, and
+ * `mask`, `filter`, `clip-path` and `opacity` each make an element one. Every scroller in this app
+ * that softens its edges carries a mask — so a frosted panel inside one blurs that scroller's own
+ * transparent background rather than the page, and comes out with its tint and its shadow but no
+ * blur at all, with whatever is beneath it still sharp.
+ *
+ * A popover escapes by rendering into `<body>`; something pinned to a card that scrolls cannot.
+ * That is what this is for: the same border, shadow and shape, an opaque fill instead of a blurred
+ * one. Reach for it when the surface is part of scrolling content — never for a menu, which should
+ * be portalled out instead and keep the real thing.
+ */
+.ly-glass-solid {
+  background: var(--color-float);
+}
+
+:root.dark .ly-glass,
+:root.dark .ly-glass-solid {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 8px 24px -6px rgb(0 0 0 / 0.5),
+    0 1px 6px -2px rgb(0 0 0 / 0.38);
+}
+
+:root.dark .ly-glass {
+  background: color-mix(in srgb, var(--color-float) 62%, transparent);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .ly-glass {
+    background: var(--color-float);
+  }
+}
+
+/*
+ * While an edge is being dragged, the things that move do not ease.
+ *
+ * A drag is a stream of events, and any transition started by one is overridden by the next — so
+ * the pane chases the pointer rather than following it, and the composited layers leave trails
+ * across regions that have already repainted.
+ *
+ * **On the element itself, never a flag on an ancestor.** This was written `:root[data-resizing]
+ * *`; narrowing the universal to a named descendant helped and did not fix it, because an
+ * attribute on the root is still a question about the whole document. An attribute on the element
+ * invalidates that element. See `motion-freeze.ts` for the measurements and for what applies this.
+ *
+ * `.ly-freeze` marks what may need holding; `[data-ly-frozen]` is it being held. An attribute for
+ * the held state rather than a class, because React owns `className` on the panes and rewrites it
+ * as one string — see `motion-freeze.ts` for the flicker that caused. Mark an element that eases
+ * while it is dragged, and nothing else: every element carrying a colour or opacity transition was
+ * surveyed to reach the four that matter, which is the cost this replaces.
+ */
+[data-ly-frozen] {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
+/*
+ * The editor fills its pane and scrolls inside it.
+ *
+ * CodeMirror sizes itself to its content by default, which inside a flex column means it grows
+ * the column instead of scrolling within it — the file's last line ends up below the panel and
+ * unreachable.
+ */
+.ly-cm .cm-editor {
+  height: 100%;
+}
+
+/*
+ * Checkerboard behind image previews.
+ *
+ * A transparent PNG on a white pane looks like a PNG with a white background, and the
+ * difference matters exactly when you are checking an asset's transparency.
+ */
+.ly-checker {
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--color-ink) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--color-ink) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--color-ink) 6%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--color-ink) 6%, transparent) 75%);
+  background-size: 14px 14px;
+  background-position:
+    0 0,
+    0 7px,
+    7px -7px,
+    -7px 0;
+}
+
+/*
+ * The same idea at swatch size, on a dark bar.
+ *
+ * `.ly-checker` is tuned for a pane: 14px squares in 6% ink, which on an 18px button over a near
+ * black toolbar is one and a bit squares of something nearly invisible. This is the same convention
+ * — a chequerboard means "nothing here" — scaled to be read at a glance in a row of colours.
+ */
+.ly-checker-xs {
+  background-color: rgb(255 255 255 / 0.16);
+  background-image:
+    linear-gradient(45deg, rgb(255 255 255 / 0.55) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 0.55) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 0.55) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 0.55) 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0;
+}
+
+/* Controls that belong to one tool, arriving when it is chosen rather than sitting there greyed. */
+@keyframes ly-tool-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The diff gutter, pinned to the left while code scrolls under it.
+ *
+ * An opaque fill is what makes that possible: the row's own tint is 8% ink, so a transparent
+ * gutter would have the code sliding through the line numbers. Each variant is the row's tint
+ * already flattened against the surface, which looks identical while giving something to
+ * scroll behind.
+ */
+/*
+ * The diff sits on the code theme's surface, like every other place code is read.
+ *
+ * These three were mixed against `--color-shell` — the app's own panel colour — so a diff shown
+ * under Solarized Light had warm code on a white gutter with a hard seam down the middle. The
+ * tint stays proportional because only the base changed.
+ */
+.ly-diff-scroll {
+  background: var(--ly-code-bg, var(--color-shell));
+  color: var(--ly-code-fg, var(--color-ink));
+}
+
+.ly-diff-gutter {
+  background: var(--ly-code-bg, var(--color-shell));
+}
+
+.ly-diff-add .ly-diff-gutter {
+  background: color-mix(in srgb, var(--color-ok) 8%, var(--ly-code-bg, var(--color-shell)));
+}
+
+.ly-diff-remove .ly-diff-gutter {
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--ly-code-bg, var(--color-shell)));
+}
+
+/* The rail beside it is pinned too, so it needs the same treatment on context lines. */
+.ly-diff-rail {
+  background: var(--color-shell);
+}
+
+.ly-diff-add .ly-diff-rail,
+.ly-diff-remove .ly-diff-rail {
+  background: transparent;
+}
+
+/*
+ * The sideways scrollbar is drawn, not native — see HorizontalThumb in DiffView.
+ *
+ * The native one here is an overlay that macOS hides until something moves, which on a diff is
+ * backwards: a long line running off the edge with no visible bar reads as truncated. The
+ * global rule already hides it; the last row needs room so the thumb does not sit on the code.
+ */
+.ly-diff-scroll[data-hscroll="on"] > * {
+  padding-bottom: 10px;
+}
+
+/*
+ * The effort slider's handle.
+ *
+ * A knob resting on a track, so it follows "raised", not "ink". Bound to the text colour it
+ * inherited the foreground's direction — near-white on a dark theme, which reads correctly as a
+ * lit control, and near-black on a light one, which reads as a hole punched in the track.
+ *
+ * Light: the classic white knob, told apart from the pale track by its edge and its shadow.
+ * Dark: a mid grey, because a raised object on a dark surface catches light rather than losing
+ * it, and the panel behind it is too close to black for anything darker to be findable.
+ */
+.ly-sidebar-fill {
+  background: var(--color-sidebar);
+  /*
+   * What a pinned row in this pane is drawn on — see `.ly-pin`.
+   *
+   * The pane's own colour, exactly, which is the whole of the requirement: a held row is then
+   * invisible except for the list disappearing behind it. This pane was translucent for a while
+   * and that exactness was the thing it cost — an opaque fill over a pane showing the desktop
+   * through cannot match it, because nothing in CSS can sample what is behind a window. The
+   * sidebar is opaque again and the fill is the pane again.
+   */
+  --ly-behind: var(--color-sidebar);
+}
+
+/*
+ * A row here fills only while it is actually being held.
+ *
+ * The fill hides the list passing underneath a pinned row, and a row travelling with the list has
+ * nothing passing underneath it — so an unconditional fill is paint that covers nothing. It is
+ * invisible here now that the colour matches the pane, but it is still a lie about what the row is
+ * doing, and it is what made every project name a visible grey slab back when the pane was glass.
+ *
+ * CSS has no way to ask whether a `sticky` element is currently stuck, and `useStickyFade` is
+ * already measuring exactly that on every frame for the fade — so it marks the rows it finds held
+ * and this reads the mark. `sidebar/sticky.ts` has the reasoning for why that measurement is
+ * allowed to be a frame late while the placement is not.
+ */
+.ly-sidebar-fill .ly-pin:not([data-ly-stuck]) {
+  background: transparent;
+}

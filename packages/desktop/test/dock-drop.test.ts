@@ -13,8 +13,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { EDGE_BAND, ROOT_BAND } from "../src/dock/geometry.ts";
-import { dropAt, edgeOf, rootEdge, sameDrop, type Rect } from "../src/dock/drop.ts";
+import { EDGE_BAND, ROOT_BAND } from "../src/features/dock/geometry.ts";
+import { dropAt, edgeOf, rootEdge, sameDrop, type Rect } from "../src/features/dock/drop.ts";
 
 /** 1000 × 500 at the origin, so a share of the box is a round number of pixels. */
 const box: Rect = { left: 0, top: 0, width: 1000, height: 500 };

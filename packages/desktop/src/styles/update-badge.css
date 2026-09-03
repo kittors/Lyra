@@ -1,0 +1,170 @@
+/*
+ * The update dot, and the version it opens to show.
+ *
+ * Solid rather than a wash: this started as a 14%-opacity glyph up among the window controls, on
+ * the reasoning that a new version is "there is something", not "look at me", and a release then
+ * went a full cycle with it sitting there being reported as "I see no update at all". A pale mark
+ * the size of a window control, placed among window controls, is a window control.
+ *
+ * What it does *not* do any more is carry the version in the toolbar. Legibility was the fix, and
+ * a permanent 「新版本 0.3.0」 in the window's corner was overshooting it — so the dot moved down
+ * beside the settings row, and the version is a hover away. Colour says there is news; the width
+ * is only spent when someone asks what it is.
+ *
+ * The open is a grid column from 0fr to 1fr, the same trick the folding sections use for height:
+ * it interpolates against the text's real width, so 0.3.0 and 0.10.0-beta.2 both take the same
+ * time and neither is clipped early. `overflow: hidden` goes on the child — the track is what
+ * shrinks, and the content has to be willing to be narrower than itself for that to show.
+ */
+/*
+ * The update dot, and the phases it goes through.
+ *
+ * Colour carries the phase, because the badge is 20px and there is no room for a word until it is
+ * hovered: blue while there is something to fetch, quiet while it is paused, green once it is ready
+ * to restart, red when it failed. Someone glancing at the corner of the window gets the state
+ * without reading anything, which is the entire job of a thing this size.
+ *
+ * A wash of the colour with the glyph drawn in it, rather than a solid disc with a white glyph.
+ * That was the version people kept reporting as "too big" while the diameter was already down to
+ * 22px, and they were describing weight rather than size: it shares its row with a 16px hairline
+ * settings glyph and a 16px outlined `?`, and a saturated fill outweighs both at any diameter. The
+ * wash keeps the colour — which is the announcement, and the reason this is not a grey glyph — and
+ * gives back the contrast that made it the loudest thing in the sidebar. It is the same treatment
+ * as `Badge` in settings, which is the register a notice belongs in.
+ *
+ * The percentages are a compromise the theme forces: `--color-ink` is near-white on dark, so a
+ * fixed alpha that reads as a tint on one theme reads as a spotlight on the other. These are the
+ * pair that hold up in both.
+ */
+.ly-update-dot {
+  background: color-mix(in srgb, var(--color-info) 16%, transparent);
+  color: var(--color-info);
+  /*
+   * Width is not in the list, deliberately.
+   *
+   * The width comes from the grid column inside, which animates on its own; naming `width` here as
+   * well means two transitions on the same measurement with different curves, and the label ends up
+   * arriving slightly out of step with the pill that is supposed to contain it.
+   */
+  transition:
+    background-color var(--ly-t-base) var(--ly-e-soft),
+    color var(--ly-t-base) var(--ly-e-soft);
+}
+
+/* Hover deepens the wash rather than fading the whole control: this is the one moment the badge is
+   being addressed, and a control that dims when pressed towards reads as going away. */
+.ly-update-dot:hover {
+  background: color-mix(in srgb, var(--color-info) 28%, transparent);
+}
+
+/* Paused: still there, plainly not working. Reads as a state rather than as an announcement. */
+.ly-update-dot[data-phase="paused"] {
+  background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  color: var(--color-ink-muted);
+}
+
+.ly-update-dot[data-phase="paused"]:hover {
+  background: color-mix(in srgb, var(--color-ink) 16%, transparent);
+}
+
+/* Downloaded and waiting on a restart — the one phase where the next move is the user's. */
+.ly-update-dot[data-phase="ready"] {
+  background: color-mix(in srgb, var(--color-ok) 18%, transparent);
+  color: var(--color-ok);
+}
+
+.ly-update-dot[data-phase="ready"]:hover {
+  background: color-mix(in srgb, var(--color-ok) 30%, transparent);
+}
+
+.ly-update-dot[data-phase="failed"] {
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  color: var(--color-danger);
+}
+
+.ly-update-dot[data-phase="failed"]:hover {
+  background: color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+
+/*
+ * The label, revealed by widening a grid column from nothing.
+ *
+ * `0fr → 1fr` is how you animate to a width nobody measured — the alternative is a hard-coded pixel
+ * value per phase, which would have to be re-guessed every time the wording changes and would be
+ * wrong in any language but this one.
+ */
+.ly-update-version {
+  display: grid;
+  grid-template-columns: 0fr;
+  transition: grid-template-columns var(--ly-t-base) var(--ly-e-out);
+}
+
+/* Keyboard reaches it too: a hover-only affordance is one the keyboard cannot read. */
+.ly-update-dot:hover .ly-update-version,
+.ly-update-dot:focus-visible .ly-update-version {
+  grid-template-columns: 1fr;
+}
+
+.ly-update-version > span {
+  overflow: hidden;
+}
+
+/*
+ * Deliberately *not* held open while downloading.
+ *
+ * It was, for one build: a percentage nobody sees is a percentage that may as well not exist, and
+ * a download is the one thing worth glancing at from across the desk. But the badge shares its row
+ * with the settings button, so an expanded pill squeezes 「未配置模型供应商」 down to 「未配置模型供」
+ * for as long as the download lasts — trading a permanent disfigurement of the row for a number
+ * that changes too fast to read anyway.
+ *
+ * The ring carries the progress instead. It is a shape rather than a value, which is what a glance
+ * can actually take in, and it costs the row nothing because it is drawn inside the dot. The exact
+ * percentage is a hover away, where it always was, and the dialog has it to a tenth of a megabyte.
+ */
+
+/*
+ * While a download runs the fill steps back and the ring carries the message.
+ *
+ * A solid blue disc with a ring drawn on it in the same blue is a disc; dimming the fill is what
+ * lets the arc read as an arc. `color` drives the glyph and the ring together, so they stay one
+ * object rather than two things that happen to overlap.
+ */
+.ly-update-dot[data-phase="downloading"],
+.ly-update-dot[data-phase="preparing"] {
+  background-color: color-mix(in srgb, var(--color-info) 22%, transparent);
+  color: var(--color-info);
+}
+
+.ly-update-dot[data-phase="paused"] {
+  background-color: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  color: color-mix(in srgb, var(--color-ink) 50%, transparent);
+}
+
+/*
+ * The row's label steps aside rather than being run into.
+ *
+ * The badge shares its row with the settings button, so opening it takes width the label was
+ * using — and a `ScrollText` that suddenly overflows answers by fading its edge and sliding a
+ * second copy in behind the first. What you saw was two overlapping renderings of 「未配置模型供应商」
+ * for the length of the hover.
+ *
+ * Fading it is the honest version of what the layout is already doing: the label is giving way,
+ * so it should look like giving way rather than like a rendering fault. `:has()` because the badge
+ * comes *after* the label in the DOM and CSS has no way to look backwards.
+ */
+.ly-sidebar-foot:has(.ly-update-dot:hover) .ly-sidebar-foot-label,
+.ly-sidebar-foot:has(.ly-update-dot:focus-visible) .ly-sidebar-foot-label {
+  opacity: 0.25;
+}
+
+.ly-sidebar-foot-label {
+  transition: opacity var(--ly-t-base) var(--ly-e-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ly-update-version,
+  .ly-sidebar-foot-label {
+    transition: none;
+  }
+}

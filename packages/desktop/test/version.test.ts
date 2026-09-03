@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compareVersions, isNewer, parseVersion } from "../src/update/version.ts";
+import { compareVersions, isNewer, parseVersion } from "../src/features/update/version.ts";
 
 test("ordinary ordering", () => {
 	assert.equal(isNewer("0.2.0", "0.1.0"), true);

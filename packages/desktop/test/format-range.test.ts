@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { changedRange } from "../src/components/editor/apply-format.ts";
+import { changedRange } from "../src/features/editor/apply-format.ts";
 
 /** Apply a range the way CodeMirror would, so the assertions are about the real outcome. */
 function apply(before: string, change: { from: number; to: number; insert: string } | null): string {

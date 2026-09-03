@@ -13,6 +13,7 @@
  * check the actual contents.
  */
 
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -28,6 +29,8 @@ const BODY = Buffer.from(Array.from({ length: 200_000 }, (_, i) => i % 251));
 
 interface Harness {
 	url: string;
+	/** Where the harness serves the digests, handed to every download. */
+	sums: string;
 	/** How many requests arrived, so "it resumed" can be told from "it started over". */
 	requests: { range: string | undefined }[];
 	close(): Promise<void>;
@@ -40,11 +43,24 @@ interface Harness {
  * download genuinely in flight rather than one that has already finished by the time the test's
  * next line runs.
  */
-async function serve(options: { ranges?: boolean; hold?: boolean; cut?: boolean } = {}): Promise<Harness> {
+async function serve(options: { ranges?: boolean; hold?: boolean; cut?: boolean; sums?: string } = {}): Promise<Harness> {
 	const requests: { range: string | undefined }[] = [];
 	const sockets = new Set<import("node:net").Socket>();
 
 	const server: Server = createServer((request, response) => {
+		/*
+		 * The release's digests, served alongside the artifact.
+		 *
+		 * Part of the harness rather than of each test because every download now verifies before it
+		 * lands: a server that serves the file but not its checksum is not a scenario these tests are
+		 * about, it is a broken fixture. The one test that *is* about a bad checksum overrides it.
+		 */
+		if (request.url === "/SHA256SUMS") {
+			response.writeHead(200, { "content-type": "text/plain" });
+			response.end(options.sums ?? `${createHash("sha256").update(BODY).digest("hex")}  Lyra.zip\n`);
+			return;
+		}
+
 		const range = request.headers.range;
 		requests.push({ range: typeof range === "string" ? range : undefined });
 
@@ -111,6 +127,7 @@ async function serve(options: { ranges?: boolean; hold?: boolean; cut?: boolean 
 
 	return {
 		url: `http://127.0.0.1:${port}/Lyra.zip`,
+		sums: `http://127.0.0.1:${port}/SHA256SUMS`,
 		requests,
 		close: () =>
 			new Promise<void>((resolve) => {
@@ -118,6 +135,14 @@ async function serve(options: { ranges?: boolean; hold?: boolean; cut?: boolean 
 				server.close(() => resolve());
 			}),
 	};
+}
+
+/** Whether a path is there, as a question rather than as an exception. */
+async function exists(path: string): Promise<boolean> {
+	return stat(path).then(
+		() => true,
+		() => false,
+	);
 }
 
 const dirs: string[] = [];
@@ -131,8 +156,15 @@ after(async () => {
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true }).catch(() => {});
 });
 
-function downloadInto(dir: string, url: string): UpdateDownload {
-	return new UpdateDownload({ url, file: join(dir, "Lyra.zip"), size: BODY.length, agent: "Lyra/test" });
+function downloadInto(dir: string, url: string, checksums?: string | null): UpdateDownload {
+	/*
+	 * The digests default to the harness's own, derived from `BODY`.
+	 *
+	 * So these tests stay about what they were about — ranges, pauses, dropped connections — while
+	 * still going through the verification every real download does.
+	 */
+	const sums = checksums === undefined ? url.replace(/\/Lyra\.zip$/, "/SHA256SUMS") : checksums;
+	return new UpdateDownload({ url, file: join(dir, "Lyra.zip"), size: BODY.length, agent: "Lyra/test", checksums: sums });
 }
 
 /** Wait until the phase satisfies a predicate, so nothing here races the event loop. */
@@ -499,4 +531,35 @@ test("sweeping really removes the directories, and leaves the current one alone"
 test("sweeping a directory that does not exist is not an error", async () => {
 	// Runs on every check, including the first one on a machine that has never downloaded anything.
 	await sweepDownloads(join(await workdir(), "nope"), "0.3.1");
+});
+
+test("摘要对不上的包不会落地，也不会留下残片", async () => {
+	// 一个完整、长度正确、来自正确地址的文件——只是内容不是发布出去的那个。
+	const harness = await serve({ sums: `${"0".repeat(64)}  Lyra.zip\n` });
+	const dir = await workdir();
+	const download = downloadInto(dir, harness.url);
+
+	const phase = await download.start();
+	assert.equal(phase.at, "failed", "校验不过就不能算完成");
+	assert.match(phase.at === "failed" ? phase.error : "", /校验和与发布的不一致/);
+
+	// 两个文件都不能在：最终路径上没有假包，`.part` 也不能留着让下次续传出同一个东西。
+	assert.equal(await exists(join(dir, "Lyra.zip")), false, "不完整可信的包不该出现在最终位置");
+	assert.equal(await exists(join(dir, "Lyra.zip.part")), false, "残片也要清掉，否则下次会从它续");
+
+	await harness.close();
+});
+
+test("发布没有带校验文件时，宁可不装", async () => {
+	const harness = await serve();
+	const dir = await workdir();
+	// checksums 为 null，就是 0.8.36 之前那些 release 的样子。
+	const download = downloadInto(dir, harness.url, null);
+
+	const phase = await download.start();
+	assert.equal(phase.at, "failed");
+	assert.match(phase.at === "failed" ? phase.error : "", /没有发布校验文件/);
+	assert.equal(await exists(join(dir, "Lyra.zip")), false);
+
+	await harness.close();
 });

@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SyncClient } from "../src/client";
+import { pingDesktop } from "../src/connection";
 import { parsePairingCode } from "../src/pairing";
 import { useMobile } from "../src/store";
 
@@ -63,7 +63,7 @@ export default function ScanScreen() {
 
 			setState({ kind: "checking", text: "正在连接…" });
 			const { host, port, tls } = parsed.connection;
-			if (!(await SyncClient.ping(host, port, tls))) {
+			if (!(await pingDesktop(host, port, tls))) {
 				setState({ kind: "error", text: `连不上 ${host}:${port}，检查两台设备是否在同一网络` });
 				setTimeout(() => {
 					busy.current = false;

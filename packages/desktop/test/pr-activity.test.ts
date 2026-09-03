@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activityOf } from "../src/components/pr/activity.ts";
+import { activityOf } from "../src/features/pull-requests/activity.ts";
 
 const at = (iso: string) => new Date(iso).toISOString();
 

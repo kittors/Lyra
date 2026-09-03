@@ -4,7 +4,6 @@
     "packages/core": {
       "entry": [
         "src/index.ts",
-        "src/node.ts",
         "src/tokens.ts",
         "src/activity.ts",
         "src/trajectory-view.ts",

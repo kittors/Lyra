@@ -1,0 +1,117 @@
+/* ---------------------------------------------------------------------------
+ * Motion
+ *
+ * Everything that appears, changes state or runs has a matching cue. Durations stay
+ * short (140–260ms) so the UI reads as responsive rather than animated, and every
+ * animation is disabled under prefers-reduced-motion.
+ * ------------------------------------------------------------------------- */
+
+@keyframes ly-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ly-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A light sweeping across a running tool card. */
+@keyframes ly-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Status icon settling in once a tool finishes. */
+@keyframes ly-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ly-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Working indicator: a dot travelling along a track, used while a command runs. */
+/*
+ * One band of light, crossing at a constant speed.
+ *
+ * It used to animate `left` and `right` independently, which had two consequences: the band
+ * stretched to nearly half the card at the midpoint and shrank again — reading as a breath
+ * rather than a movement — and at the end of each cycle it vanished at the right edge and
+ * reappeared at the left, so the loop had a visible seam.
+ *
+ * Translating a full-width gradient fixes both. The band keeps its shape, and both ends of the
+ * cycle are off-card, so there is nothing to see at the join. `linear`, because a thing moving
+ * past you does not slow down at the edges of the window.
+ */
+@keyframes ly-track {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 「减少动态效果」的总开关
+ *
+ * 三档：跟随系统、强制开、强制关，由 `<html data-reduce-motion>` 决定。这里是它唯一生效的
+ * 地方——它曾经躺在 `rail.css` 里，夹在进度轨的两条规则中间，与那个文件毫无关系。放错位置的
+ * 全局规则最坏的一点不是难找，是**没人知道它在**：改进度轨的人不会想到自己删掉的是全应用的
+ * 无障碍开关。
+ *
+ * 用 `!important` 压时长而不是 `animation: none`：动画照常声明、照常结束，只是快到看不出中间
+ * 帧。这样依赖 `animationend` 的组件仍然会收到事件——把动画整个去掉，那些组件会永远等下去。
+ *
+ * 0.01ms 而不是 0：有些浏览器把 0 当作「没有动画」，于是事件也不发。
+ *
+ * 单个组件在减速时需要换一种样子（不是「不动」而是「另一副模样」）的，写在自己的文件里，
+ * 比如 `glide.css` 把扫光换成静态的灰字。那是组件自己的事，不是这个开关的事。
+ * ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] *,
+  :root[data-reduce-motion="system"] *::before,
+  :root[data-reduce-motion="system"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

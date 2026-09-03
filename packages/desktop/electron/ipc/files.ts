@@ -11,7 +11,7 @@
 
 import { ipcMain } from "electron";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { documentKind } from "../document-kind.ts";
+import { documentKind } from "../../shared/document-kind.ts";
 import { readDatabase, readWorkbook, type DocumentData } from "../documents.ts";
 import { join } from "node:path";
 import type { FileContents, FileEntry } from "../ipc-types.ts";

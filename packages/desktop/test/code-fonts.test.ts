@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CODE_FONTS, matchCodeFont } from "../src/components/settings/code-fonts.ts";
+import { CODE_FONTS, matchCodeFont } from "../src/features/settings/code-fonts.ts";
 
 test("every preset ends in a generic family", () => {
 	for (const font of CODE_FONTS) {
@@ -55,7 +55,7 @@ test("names are unique, or the menu would have two rows that look the same", () 
  * the font it was rendering with at that moment.
  */
 test("the bundled face is treated as present without asking the browser", async () => {
-	const { CODE_FONTS: fonts, fontAvailable } = await import("../src/components/settings/code-fonts.ts");
+	const { CODE_FONTS: fonts, fontAvailable } = await import("../src/features/settings/code-fonts.ts");
 	const bundled = fonts.find((f) => f.bundled);
 	assert.ok(bundled, "至少要有一个随应用打包的字体");
 	// No `document` in this runtime at all; a check that reached for one would throw.
@@ -72,8 +72,11 @@ test("the bundled face is treated as present without asking the browser", async 
  */
 test("the bundled set is what the stylesheet actually ships", async () => {
 	const { readFile } = await import("node:fs/promises");
-	const { CODE_FONTS: fonts } = await import("../src/components/settings/code-fonts.ts");
-	const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+	const { CODE_FONTS: fonts } = await import("../src/features/settings/code-fonts.ts");
+	// `styles/fonts.css`, not `styles.css`: the stylesheet was split by subject and the `@font-face`
+	// rules went with the faces. The entry point is imports now, and matching against it would pass
+	// vacuously — the regex would find nothing and the assertion would be about the wrong file.
+	const css = await readFile(new URL("../src/styles/fonts.css", import.meta.url), "utf8");
 
 	for (const font of fonts.filter((f) => f.bundled)) {
 		assert.match(

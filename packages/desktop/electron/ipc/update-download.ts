@@ -23,9 +23,10 @@
 
 import { createWriteStream } from "node:fs";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { parseChecksums, sha256, verify, type Verdict } from "../update-checksum.ts";
 
 /**
  * Where a download is, as one value.
@@ -82,6 +83,14 @@ export interface DownloadTarget {
 	size: number;
 	/** Sent as `User-Agent`; GitHub is happier with one and it identifies the client in logs. */
 	agent: string;
+	/**
+	 * Where the release published its `SHA256SUMS`, when it published one.
+	 *
+	 * Null for releases cut before that step existed. The download then completes and refuses to
+	 * install rather than installing unverified: this is the one file the application downloads that
+	 * ends in code being run, and "we could not check" is not a reason to skip checking.
+	 */
+	checksums: string | null;
 }
 
 /**
@@ -156,8 +165,63 @@ export class UpdateDownload {
 		return `${this.target.file}.part`;
 	}
 
+	/**
+	 * Compare the downloaded bytes against the release's own digest.
+	 *
+	 * Fetched here rather than alongside the release metadata because this is the moment it is
+	 * needed, and because a checksum file fetched much earlier would have to be carried through the
+	 * pause/resume machinery for no benefit — it is a few hundred bytes.
+	 */
+	private async check(): Promise<Verdict> {
+		if (!this.target.checksums) {
+			return {
+				ok: false,
+				reason: "no-checksums",
+				message: "这个版本没有发布校验文件，无法确认安装包完整。请到发布页手动下载。",
+			};
+		}
+
+		let text: string;
+		try {
+			const response = await fetch(this.target.checksums, { headers: { "User-Agent": this.target.agent } });
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			text = await response.text();
+		} catch (error) {
+			// A digest we could not fetch is not a digest that failed; say which, or the report will
+			// be "the update is corrupt" for what is actually a network problem.
+			return {
+				ok: false,
+				reason: "no-checksums",
+				message: `没能取到校验文件（${error instanceof Error ? error.message : String(error)}），这次不安装。`,
+			};
+		}
+
+		return verify(parseChecksums(text), basename(this.target.file), await sha256(this.partial));
+	}
+
+	/**
+	 * How many bytes are on disk, asked more than once when the answer is zero.
+	 *
+	 * The size is the authority — a counter in memory would survive an abort that the file did not,
+	 * and resuming from it would `Range` past bytes that were never written. But on Windows the
+	 * directory entry lags the write: `stat` right after aborting a stream reports the size from
+	 * before the last flush, and often reports 0.
+	 *
+	 * Belt and braces rather than the fix. The reason `pausing keeps what came down` was failing on
+	 * Windows turned out to be the write stream being destroyed with data still buffered — see the
+	 * note beside `pipeline`. This retry was written first, on the theory that `stat` was lagging,
+	 * and it did not help: the bytes genuinely were not there.
+	 *
+	 * Kept because the lag is real even though it was not this, and re-reading an answer of zero
+	 * costs nothing on the path where it is already zero.
+	 */
 	private async have(): Promise<number> {
-		return (await stat(this.partial).catch(() => null))?.size ?? 0;
+		for (let attempt = 0; attempt < 5; attempt++) {
+			const size = (await stat(this.partial).catch(() => null))?.size ?? 0;
+			if (size > 0) return size;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+		return 0;
 	}
 
 	/**
@@ -240,7 +304,26 @@ export class UpdateDownload {
 				this.set({ at: "downloading", received, total });
 			});
 
-			await pipeline(body, createWriteStream(this.partial, { flags: plan.append ? "a" : "w" }));
+			/*
+			 * The write stream is held so that an abort can close it rather than destroy it.
+			 *
+			 * `pipeline` tears both ends down when the signal fires, and tearing down a write stream
+			 * discards whatever it has buffered — on Windows that was the entire pause, every time:
+			 * 20,000 bytes reported as received, a `.part` of zero bytes, and a resume that started
+			 * over. It looked like `stat` lagging (Windows updates a directory entry late, which is
+			 * a real thing) and it was not: the bytes were never written.
+			 *
+			 * Closing it instead flushes what is buffered first. The `catch` is for the abort itself,
+			 * which `pipeline` reports as an error on a path where it is the expected outcome.
+			 */
+			const sink = createWriteStream(this.partial, { flags: plan.append ? "a" : "w" });
+			try {
+				await pipeline(body, sink);
+			} catch (error) {
+				// Let go of the reader, then let the writer finish with what it already has.
+				await new Promise<void>((resolve) => sink.end(() => resolve()));
+				throw error;
+			}
 
 			/*
 			 * A short file is a failure, not a finished download.
@@ -253,6 +336,27 @@ export class UpdateDownload {
 			const written = await this.have();
 			if (written !== this.target.size) {
 				throw new Error(`下载不完整：拿到 ${written} 字节，应为 ${this.target.size}`);
+			}
+
+			/*
+			 * The bytes, before they are put where the installer will find them.
+			 *
+			 * Checked on the partial rather than after the rename, so a file that fails verification
+			 * never exists at the final path — there is no window in which something else could pick
+			 * it up, and no leftover for a later run to resume from.
+			 */
+			/*
+			 * Reported as `preparing` rather than as a phase of its own.
+			 *
+			 * Hashing a package takes a second or two, and "准备中" is a true description of it. A
+			 * fourth phase would have to be handled by every switch in `update/view.ts` to buy a word
+			 * the user reads once.
+			 */
+			this.set({ at: "preparing", received: written, total: this.target.size });
+			const verdict = await this.check();
+			if (!verdict.ok) {
+				await rm(this.partial, { force: true });
+				throw new Error(verdict.message);
 			}
 
 			await rename(this.partial, this.target.file);

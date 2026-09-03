@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BY_FILENAME, GRAMMARS, grammarKeyFor } from "../src/components/highlight.ts";
+import { BY_FILENAME, GRAMMARS, grammarKeyFor } from "../src/lib/code/highlight.ts";
 
 test("configuration files that are named rather than suffixed are recognised", () => {
 	// Its own grammar now. This said `sh` for as long as there was no `dockerfile` entry in
@@ -81,7 +81,7 @@ test("every grammar loads without throwing", async () => {
 test("a .gitignore is coloured by what each line means, not left as one flat run", async () => {
 	// The claim under test is that the parts are *told apart*: a comment, a negation, a glob and a
 	// literal must not all come back as the same token, which is what "one colour" was.
-	const { ignoreLanguage } = await import("../src/components/ignore-mode.ts");
+	const { ignoreLanguage } = await import("../src/lib/code/ignore-mode.ts");
 	const source = ["# 构建产物", "dist/", "*.log", "!build/icon.icns", "[Dd]ebug/"].join("\n");
 	const tree = ignoreLanguage.parser.parse(source);
 

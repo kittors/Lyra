@@ -19,8 +19,8 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { flushTree, serialize, storageKey } from "../src/dock/persist.ts";
-import { defaultTree, has, kinds, leafOf, type DockNode, type PaneKind } from "../src/dock/tree.ts";
+import { flushTree, serialize, storageKey } from "../src/features/dock/persist.ts";
+import { defaultTree, has, kinds, leafOf, type DockNode, type PaneKind } from "../src/features/dock/tree.ts";
 
 const ALLOWED: PaneKind[] = ["conversation", "chat", "files", "terminal", "review", "browser"];
 
@@ -40,7 +40,7 @@ Object.defineProperty(globalThis, "window", {
 	},
 });
 
-const { useDock } = await import("../src/dock/store.ts");
+const { useDock } = await import("../src/features/dock/store.ts");
 
 const withPanel = (kind: PaneKind): DockNode => ({
 	type: "split",

@@ -1,12 +1,29 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App.tsx";
-import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
-import { ScreenshotOverlay } from "./components/image/ScreenshotOverlay.tsx";
-import { installTooltips } from "./tooltip.ts";
+
+import { App } from "./app/App.tsx";
+import { ErrorBoundary } from "./ui/layout/ErrorBoundary.tsx";
+import { installTooltips } from "./ui/overlay/tooltip.ts";
 import "./styles.css";
 
 installTooltips();
+
+/*
+ * The overlay, fetched only when this window is one.
+ *
+ * A screenshot overlay window and the main window are mutually exclusive — the hash decides, at
+ * load, and neither ever becomes the other. Importing the overlay statically meant every
+ * application window carried the annotator it will never open.
+ *
+ * `App` is *not* lazy, and that is deliberate. It is what this window is unless the hash says
+ * otherwise, so deferring it buys nothing — the bytes move to another chunk and arrive a moment
+ * later. What it cost was real: the dock mounts after Suspense resolves rather than in the first
+ * commit, and `dock-settle.test.ts` caught a pane replaying its entrance animation because of it.
+ * A pane already on screen is not supposed to fade in again.
+ */
+const ScreenshotOverlay = lazy(() =>
+	import("./features/image/ScreenshotOverlay.tsx").then((m) => ({ default: m.ScreenshotOverlay })),
+);
 
 const isOverlay = window.location.hash.startsWith("#/screenshot-overlay");
 
@@ -30,7 +47,9 @@ createRoot(document.getElementById("root")!).render(
 		{/* Outside `App`, so a throw during its own setup is caught too — that is the case where
 		    the window would otherwise be empty grey with nothing to read at all. */}
 		<ErrorBoundary>
-			{isOverlay ? <ScreenshotOverlay /> : <App />}
+			{/* No fallback: the boot screen is already painted underneath by the preload, and a
+			    second loading state on top of it would be a flash rather than an answer. */}
+			<Suspense fallback={null}>{isOverlay ? <ScreenshotOverlay /> : <App />}</Suspense>
 		</ErrorBoundary>
 	</StrictMode>,
 );

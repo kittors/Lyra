@@ -10,16 +10,14 @@ import { join } from "node:path";
 import { lyraHome } from "@lyra/core";
 import { clipboard, ipcMain, shell } from "electron";
 import { remoteImage } from "../avatars.ts";
+import { openExternalSafely } from "../window-security.ts";
 import { openTargets, openWith, type OpenTarget } from "../open-targets.ts";
 
 export function registerSystemIpc(): void {
 	ipcMain.handle("system:openPath", async (_event, path: string) => void shell.openPath(path));
 
-	ipcMain.handle("system:openExternal", async (_event, url: string) => {
-		// Only ever hand http(s) to the OS handler; a file:// or custom scheme would be an escape hatch.
-		const parsed = new URL(url);
-		if (parsed.protocol === "http:" || parsed.protocol === "https:") await shell.openExternal(url);
-	});
+	// One door for every external link; see `window-security.ts` for what it lets through and why.
+	ipcMain.handle("system:openExternal", async (_event, url: string) => openExternalSafely(url));
 
 	/*
 	 * 「用什么打开」, which is a different question on every platform — see `open-targets.ts`.

@@ -1,0 +1,130 @@
+/* ---------------------------------------------------------------------------
+ * The thinking line's ticker
+ *
+ * Two motions on one box. While the reasoning is arriving the track is moved by hand — left by
+ * however much does not fit, so the newest word sits at the right edge, with a transition that
+ * turns each arrival into a slide. `ly-marquee` would be wrong for that: it loops a finished
+ * title past the eye at a steady pace, and this line is not finished. Once it is, hovering the
+ * line reads it back with exactly that marquee, and the track swaps classes to say so.
+ *
+ * The mask is the one `ly-fade-edge` draws, with both depths set by the component while text
+ * arrives: the fades exist only once there is text under them. A class of its own rather than
+ * `ly-fade-edge`, because that one is wired to `.ly-scroll:hover` for the read-back, and the
+ * live line must not change shape because a pointer crossed it.
+ * ------------------------------------------------------------------------- */
+.ly-think-ticker {
+  display: block;
+  min-width: 0;
+  max-width: 480px;
+  overflow: hidden;
+  white-space: nowrap;
+  /*
+   * Fades in without moving. `ly-enter` rises 4px into place, and this box is remounted the
+   * moment the reasoning finishes — right under a run of tools, in a transcript that is only
+   * allowed to grow downwards. A rise there reads as the line jumping.
+   */
+  animation: ly-fade-in var(--ly-t-quick) var(--ly-e-out);
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--ly-fade-left),
+    #000 calc(100% - var(--ly-fade-right)),
+    transparent 100%
+  );
+  transition:
+    --ly-fade-left var(--ly-t-quick) var(--ly-e-out),
+    --ly-fade-right var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * The padding on the right keeps the newest word mostly clear of the fade — the fade says the
+ * line continues; it should not dim the one word actually being written.
+ */
+.ly-think-track {
+  display: inline-flex;
+  padding-right: 16px;
+  white-space: nowrap;
+  transition: transform var(--ly-t-slow) var(--ly-e-out);
+  will-change: transform;
+}
+
+/* One run per line the model wrote, with a gap between them wide enough to read as a break. */
+.ly-think-runs {
+  display: inline-flex;
+  gap: 28px;
+  white-space: nowrap;
+}
+
+/* Lit columns breathe at the top effort level — the one setting worth flagging as costly. */
+/*
+ * The lit track at full effort: a wave running backwards from the handle.
+ *
+ * Every column carries the same pulse with a delay set by its distance from the handle, so what
+ * you see is a single front travelling away from it rather than the whole bar breathing at once.
+ * Which is the difference between "this is on" and "this is spending something" — and full effort
+ * is the one setting worth saying that about.
+ *
+ * Brightness overshoots to 1 well before the midpoint and falls off slowly, so the leading edge
+ * is sharp and the tail drags: an exhaust plume, not a sine wave.
+ */
+@keyframes ly-thrust {
+  0% {
+    opacity: var(--ly-matrix-low, 0.35);
+    transform: scale(1);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+  70% {
+    opacity: var(--ly-matrix-low, 0.35);
+    transform: scale(1);
+  }
+  100% {
+    opacity: var(--ly-matrix-low, 0.35);
+    transform: scale(1);
+  }
+}
+
+.ly-thrust {
+  animation: ly-thrust 1.5s var(--ly-e-soft) infinite;
+}
+
+/*
+ * Text that gets out of the way where a control is about to appear.
+ *
+ * The hover controls in the sidebar used to sit on a gradient of `--color-card-hover`, painted
+ * over the end of the title. That worked while the token was an opaque grey; once it became a
+ * translucent veil — so that hover would read on the translucent sidebar — the gradient stopped
+ * covering anything and the archive icon landed on top of the last characters.
+ *
+ * The mask that replaced it is shared with `ly-fade-edge` above; all this does is deepen the
+ * right-hand side, which is why the two can now be on the same title at once.
+ */
+/*
+ * `:focus-visible`, not `:focus-within`.
+ *
+ * The fade is as wide as the controls that land on the title, so it belongs on exactly the states
+ * that bring those controls out. `:focus-within` is not one of them: clicking a row focuses its
+ * button and the focus stays, so the pointer would leave, the controls would go, and the title
+ * would keep a fade over its last characters with nothing there to justify it. Keyboard focus does
+ * bring the controls out, and `:has(:focus-visible)` is that and only that.
+ */
+.group\/session:hover .ly-fade-tail,
+.group\/session:has(:focus-visible) .ly-fade-tail,
+.group\/project:hover .ly-fade-tail,
+.group\/project:has(:focus-visible) .ly-fade-tail {
+  /* As wide as the controls that are landing on it — the row says how many it has. */
+  --ly-fade-right: var(--ly-row-controls, 30px);
+}
+
+/*
+ * The drawer carries the sidebar's own fill rather than inheriting the page's.
+ *
+ * Beside the content the pane is a column with the transcript next to it; as a drawer it lies
+ * *over* the transcript, and anything less than opaque puts every line of the conversation
+ * through the navigation.
+ */
+[data-pane="drawer"] .ly-sidebar-fill {
+  background: var(--color-sidebar);
+}
