@@ -64,3 +64,21 @@ cd <main 的工作树>/packages/desktop && node --test --test-concurrency=1 --ex
 
 **端口占用是最常见的假红**，而且伪装得很好：四条测试在几毫秒内全部失败，看起来像启动就崩。
 错误信息里会写「调试端口 XXXX 已被占用」，但它在一堆断言失败中间，容易被略过。
+
+### CI 上的 e2e 有它自己的红线
+
+比本地多，而且不是同一批——runner 的分辨率、字体、时序都和开发机不同。2026-09-03 观察到的是
+**稳定 15 条**，在几个互不相关的 PR 上完全一致（`33713618484`、`33705889789` 与本次）。
+
+所以判断 CI 上是不是回归，同样是比清单而不是比数量：
+
+```bash
+# 自己这次的
+gh run view --job <你的 e2e job id> --log | grep '✖' | sed 's/.*✖/✖/;s/ ([0-9.]*ms)//' | sort -u > mine.txt
+# 另一个近期 PR 的，作为基线
+gh run view --job <别的 PR 的 e2e job id> --log | grep '✖' | sed 's/.*✖/✖/;s/ ([0-9.]*ms)//' | sort -u > base.txt
+comm -23 mine.txt base.txt     # 只在你这边失败的，才需要看
+```
+
+差集里的每一条，先在本地单跑那个文件两次。`tree row not found` 这类「等某个元素出现」的失败在
+CI 上尤其容易假红。
