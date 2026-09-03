@@ -55,7 +55,14 @@ test("契约说手机能用的，sync-rpc 里都有实现", async () => {
 
 test("sync-rpc 实现的，契约里都标了 remote", async () => {
 	const rpc = await source("sync-rpc.ts");
-	const implemented = [...rpc.matchAll(/^\t"([a-z]+\.[a-zA-Z]+)":/gm)].map((m) => m[1] as string);
+	/*
+	 * `[a-zA-Z]` on both halves, not `[a-z]` on the first.
+	 *
+	 * The original pattern required a lowercase-only group name and so never saw `subAgents.list` —
+	 * a method the phone could call that the contract had no entry for. The test passed for months
+	 * by not looking at it. Any regex that decides *what to check* is itself worth checking.
+	 */
+	const implemented = [...rpc.matchAll(/^\t"([a-zA-Z]+\.[a-zA-Z]+)":/gm)].map((m) => m[1] as string);
 	const undeclared = implemented.filter((path) => methodFor(path)?.remote !== true);
 	assert.deepEqual(
 		undeclared,

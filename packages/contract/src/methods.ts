@@ -83,12 +83,19 @@ export const METHODS = {
 		setThinking: { channel: "agent:setThinking", remote: true },
 	},
 	subAgents: {
-		list: { channel: "subagents:list", remote: false, why: "桌面端专有" },
-		detail: { channel: "subagents:detail", remote: false, why: "桌面端专有" },
-		steer: { channel: "subagents:steer", remote: false, why: "桌面端专有" },
-		abort: { channel: "subagents:abort", remote: false, why: "桌面端专有" },
-		dismiss: { channel: "subagents:dismiss", remote: false, why: "桌面端专有" },
-		dismissFinished: { channel: "subagents:dismissFinished", remote: false, why: "桌面端专有" },
+		/*
+		 * 只读的那一个给手机，其余不给。
+		 *
+		 * 这一条曾经写着 `remote: false`，而 `sync-rpc.ts` 里一直实现着它——两边不一致了很久，
+		 * 而检查一致性的那条测试因为正则写成 `[a-z]+` 匹配不到 `subAgents` 的大写 A，从来没看
+		 * 见过它。以实现为准：手机上要显示一个回合里派出了哪些子智能体，那是只读的。
+		 */
+		list: { channel: "subagents:list", remote: true },
+		detail: { channel: "subagents:detail", remote: false, why: "详情面板只在桌面端，手机上没有展开它的位置" },
+		steer: { channel: "subagents:steer", remote: false, why: "给正在跑的子智能体插话，是编辑动作" },
+		abort: { channel: "subagents:abort", remote: false, why: "中止别人的回合，不该由一部可能丢失的手机发起" },
+		dismiss: { channel: "subagents:dismiss", remote: false, why: "同上，且不可撤销" },
+		dismissFinished: { channel: "subagents:dismissFinished", remote: false, why: "批量关闭，同上" },
 	},
 	sideChat: {
 		state: { channel: "sidechat:state", remote: false, why: "桌面端专有" },

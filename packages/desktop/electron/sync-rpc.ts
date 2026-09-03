@@ -17,6 +17,19 @@
 
 import type { AgentSession, SessionStorage, Settings } from "@lyra/core";
 import { settingsFromPhone } from "./phone-settings.ts";
+import {
+	all,
+	bool,
+	content,
+	index,
+	optionalStr,
+	path,
+	record,
+	str,
+	text,
+	type ArgsError,
+	type Checked,
+} from "@lyra/contract";
 
 /**
  * Everything a call may reach, handed in rather than imported.
@@ -233,9 +246,80 @@ export interface RpcResult {
  * connection alone — the phone is a long-lived client and one bad call should not cost it the
  * WebSocket and the resync that follows.
  */
+/**
+ * What each method's arguments have to be, checked before the handler sees them.
+ *
+ * These are the only arguments in the application that did not come from our own renderer — they
+ * arrived on a WebSocket. Until now the only handling was `s(value)`, which turns anything that is
+ * not a string into `""`; a number, an object or a null went through as empty string and became a
+ * lookup for a session named "". The request was never refused, it just failed later somewhere
+ * that had nothing to do with the caller.
+ *
+ * A method missing from this table is refused outright rather than allowed through unchecked, so
+ * adding to `RPC` without adding here fails closed. `test/sync-rpc-args.test.ts` asserts the two
+ * lists match.
+ */
+const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
+	"settings.get": () => null,
+	"sessions.list": () => null,
+	"git.generalScratch": () => null,
+	"git.scratchRoots": () => null,
+
+	"workspace.info": ([path_]) => fail(path(path_, "path")),
+	"sessions.create": ([cwd, modelId]) => fail(all(path(cwd, "cwd"), optionalStr(modelId, "modelId"))),
+	"sessions.open": ([projectId, sessionId]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
+	"sessions.transcript": ([projectId, sessionId]) =>
+		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
+	"sessions.remove": ([projectId, sessionId]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
+	"sessions.capabilities": ([sessionId]) => fail(str(sessionId, "sessionId")),
+	"sessions.setArchived": ([projectId, sessionId, archived]) =>
+		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), bool(archived, "archived"))),
+	"sessions.rename": ([projectId, sessionId, title]) =>
+		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), text(title, "title"))),
+
+	"agent.prompt": ([sessionId, content_, options]) =>
+		fail(all(str(sessionId, "sessionId"), content(content_, "content"), optionalRecord(options, "options"))),
+	"agent.editMessage": ([sessionId, messageIndex, content_]) =>
+		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), content(content_, "content"))),
+	"agent.abort": ([sessionId]) => fail(str(sessionId, "sessionId")),
+	"agent.approve": ([sessionId, requestId, decision]) =>
+		fail(all(str(sessionId, "sessionId"), str(requestId, "requestId"), record(decision, "decision"))),
+	"agent.setModel": ([sessionId, modelId]) => fail(all(str(sessionId, "sessionId"), str(modelId, "modelId"))),
+	"agent.setThinking": ([sessionId, thinking]) => fail(all(str(sessionId, "sessionId"), record(thinking, "thinking"))),
+
+	/*
+	 * `settings.save` takes the whole settings object, and `phone-settings.ts` is what decides
+	 * which fields of it are actually applied — that allowlist is the security boundary here, and
+	 * it stays where it is. This only checks that an object arrived at all.
+	 */
+	"settings.save": ([next]) => fail(record(next, "settings")),
+	"subAgents.list": ([sessionId]) => fail(str(sessionId, "sessionId")),
+};
+
+/** `undefined` is fine, anything else has to be an object. */
+function optionalRecord(value: unknown, name: string) {
+	return value === undefined || value === null ? ({ ok: true, value: undefined } as const) : record(value, name);
+}
+
+/** Unwrap a check into "the error, or nothing". */
+function fail(checked: Checked<unknown>): ArgsError | null {
+	return checked.ok ? null : checked;
+}
+
 export async function callRpc(deps: RpcDeps, method: string, args: unknown[]): Promise<RpcResult> {
 	const handler = RPC[method];
 	if (!handler) return { ok: false, error: "method-not-allowed" };
+
+	/*
+	 * Checked before the handler runs, and a method with no entry is refused rather than trusted —
+	 * so a new method in `RPC` without a matching spec fails closed instead of silently accepting
+	 * whatever is on the wire.
+	 */
+	const check = ARGS[method];
+	if (!check) return { ok: false, error: "invalid-args" };
+	const problem = check(args);
+	if (problem) return { ok: false, error: `invalid-args: ${problem.detail}` };
+
 	try {
 		return { ok: true, value: (await handler(deps, args)) ?? null };
 	} catch (cause) {
