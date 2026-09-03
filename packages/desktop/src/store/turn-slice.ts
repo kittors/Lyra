@@ -262,9 +262,31 @@ export function turnSlice(set: Set, get: Get) {
   async setModel(modelId: string, options: { asDefault?: boolean } = {}) {
     const { activeSessionId, settings, meta } = get();
     const midConversation = get().messages.length > 0 && meta?.modelId !== modelId;
-    if (activeSessionId)
-      await window.lyra.agent.setModel(activeSessionId, modelId);
-    if (meta) set({ meta: { ...meta, modelId } });
+    if (activeSessionId) {
+      /*
+       * Paint this conversation's choice before the write crosses IPC.
+       *
+       * Writing it after `await` let the old conversation's meta arrive after `newSession` had
+       * cleared it, making a blank conversation display the model that belonged to the one left
+       * behind. A failed write is rolled back only while that same conversation and choice are
+       * still on screen, so neither path can overwrite a conversation opened in the meantime.
+       */
+      if (meta) set({ meta: { ...meta, modelId } });
+      try {
+        await window.lyra.agent.setModel(activeSessionId, modelId);
+      } catch (cause) {
+        const current = get();
+        if (
+          meta &&
+          current.activeSessionId === activeSessionId &&
+          current.meta?.id === meta.id &&
+          current.meta.modelId === modelId
+        ) {
+          set({ meta });
+        }
+        throw cause;
+      }
+    }
     /*
      * The app default is a separate decision, and used to be made for you.
      *
@@ -275,7 +297,8 @@ export function turnSlice(set: Set, get: Get) {
      */
     if (settings && (options.asDefault || !activeSessionId))
       await get().saveSettings({ ...settings, defaultModelId: modelId });
-    if (midConversation) {
+    // A warning about a conversation already left behind must not appear in the blank one.
+    if (midConversation && get().activeSessionId === activeSessionId) {
       get().notify(
         "已切换模型。之前的推理上下文无法跨模型沿用，接下来的回答可能变差；重开一个对话效果最好。",
         "warn",
