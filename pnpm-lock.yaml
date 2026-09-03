@@ -48,6 +48,15 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/contract:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@lyra/registry-shared':

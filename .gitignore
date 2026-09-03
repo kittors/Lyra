@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# tsc -b 的增量信息，机器本地的
+*.tsbuildinfo
 out/
 build/
 # …except the desktop app's build resources, which are sources, not output: the icon, the tray

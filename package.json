@@ -26,7 +26,7 @@
     "test:e2e": "pnpm --filter @lyra/desktop test:e2e",
     "release": "node scripts/release.mjs",
     "release:rehearse": "node scripts/release.mjs rehearse",
-    "arch": "depcruise --config .dependency-cruiser.cjs packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/agent-cli/src packages/registry-shared/src",
+    "arch": "depcruise --config .dependency-cruiser.cjs packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/agent-cli/src packages/registry-shared/src",
     "check:links": "node scripts/check-links.mjs"
   },
   "devDependencies": {

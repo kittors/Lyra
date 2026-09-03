@@ -115,6 +115,19 @@ module.exports = {
 		},
 
 		{
+			name: "contract-is-a-leaf",
+			comment:
+				"`@lyra/contract` has three consumers — the main process registers by it, the preload " +
+				"builds from it, and `sync-rpc` decides what the phone may call by it. Whatever it " +
+				"imports is dragged into all three builds, including the phone's. It depends on " +
+				"nothing, and that is the point of it being a package rather than a directory.",
+			severity: "error",
+			from: { path: "^packages/contract/src" },
+			// Its own modules are fine; anything from another package is not.
+			to: { path: "^packages/(?!contract/)" },
+		},
+
+		{
 			name: "no-orphans",
 			comment: "A module nobody imports is either dead or was meant to be wired up and was not.",
 			severity: "warn",

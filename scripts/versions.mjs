@@ -24,6 +24,7 @@ export const MANIFESTS = [
 	"packages/desktop/package.json",
 	"packages/mobile/package.json",
 	"packages/agent-cli/package.json",
+	"packages/contract/package.json",
 	"packages/registry-shared/package.json",
 	"packages/relay/package.json",
 ];

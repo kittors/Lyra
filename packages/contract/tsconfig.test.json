@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The tests read the desktop's source off disk, so they do need Node. The source does not.
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "composite": true
+  },
+  "include": ["test/**/*.ts", "src/**/*.ts"]
+}
