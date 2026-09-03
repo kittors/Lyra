@@ -25,6 +25,7 @@ export default function DeskScreen() {
 	const router = useRouter();
 	const insets = useSafeAreaInsets();
 	const connection = useMobile((s) => s.connection);
+	const error = useMobile((s) => s.error);
 
 	const [loading, setLoading] = useState(true);
 	const [failed, setFailed] = useState<string | null>(null);
@@ -85,9 +86,9 @@ export default function DeskScreen() {
 	if (!connection) {
 		return (
 			<View className="flex-1 items-center justify-center bg-shell px-8" style={{ paddingTop: insets.top }}>
-				<Text className="text-center text-[15px] text-ink">还没有连接桌面端</Text>
+				<Text className="text-center text-[15px] text-ink">{error ?? "还没有连接桌面端"}</Text>
 				<Pressable onPress={() => router.replace("/pair")} className="mt-5 rounded-xl bg-ink px-5 py-3 active:opacity-85">
-					<Text className="text-[14px] font-medium text-shell">去配对</Text>
+					<Text className="text-[14px] font-medium text-shell">重新配对</Text>
 				</Pressable>
 			</View>
 		);

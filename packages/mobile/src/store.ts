@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
-import { SyncClient, type Connection } from "./client";
+import { SyncClient, type Connection, type SocketState } from "./client";
 import { summarizeToolCall } from "./toolSummary";
 import type {
 	AgentEvent,
@@ -33,7 +33,7 @@ interface MobileState {
 	hydrated: boolean;
 	connection: Connection | null;
 	client: SyncClient | null;
-	socketState: "connecting" | "open" | "closed";
+	socketState: SocketState;
 
 	sessions: SessionMeta[];
 	settings: RemoteSettings | null;
@@ -262,7 +262,19 @@ function attach(connection: Connection, set: Setter, get: Getter): void {
 	get().client?.disconnect();
 	const client = new SyncClient(connection);
 
-	client.onStateChange((socketState) => set({ socketState }));
+	client.onStateChange((socketState) => {
+		if (socketState !== "unauthorized") {
+			set({ socketState });
+			return;
+		}
+		/*
+		 * A rotated token will never recover by reconnecting. Drop only that stale credential;
+		 * ordinary network closes still take the reconnect path in SyncClient.
+		 */
+		void get()
+			.unpair()
+			.then(() => set({ error: "桌面端配对令牌已更新，请重新配对。" }));
+	});
 	client.onEvent((sessionId, event) => applyEvent(sessionId, event, set, get));
 	client.connect();
 	set({ client });

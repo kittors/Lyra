@@ -9,6 +9,9 @@
 import { roomFor } from "./sha256.ts";
 import type { AgentEvent, RemoteSettings, SessionMeta, SessionRecord, UserContent } from "./protocol";
 
+export type SocketState = "connecting" | "open" | "closed" | "unauthorized";
+export type VerificationStatus = "verified" | "unauthorized" | "unreachable";
+
 export interface Connection {
 	host: string;
 	port: number;
@@ -38,11 +41,20 @@ export interface Connection {
 	platform?: string;
 }
 
+class HttpStatusError extends Error {
+	readonly status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.status = status;
+	}
+}
+
 export class SyncClient {
 	private connection: Connection;
 	private socket: WebSocket | null = null;
 	private listeners = new Set<(sessionId: string, event: AgentEvent) => void>();
-	private stateListeners = new Set<(state: "connecting" | "open" | "closed") => void>();
+	private stateListeners = new Set<(state: SocketState) => void>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private closedByUser = false;
 
@@ -69,7 +81,10 @@ export class SyncClient {
 		});
 		if (!response.ok) {
 			const detail = await response.text().catch(() => "");
-			throw new Error(`HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+			throw new HttpStatusError(
+				response.status,
+				`HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`,
+			);
 		}
 		return (await response.json()) as T;
 	}
@@ -140,13 +155,20 @@ export class SyncClient {
 		});
 	}
 
-	async verify(): Promise<boolean> {
+	async verifyStatus(): Promise<VerificationStatus> {
 		try {
-			await this.listSessions();
-			return true;
-		} catch {
-			return false;
+			await this.request("/api/sessions", { signal: AbortSignal.timeout(5000) });
+			return "verified";
+		} catch (error) {
+			if (error instanceof HttpStatusError && (error.status === 401 || error.status === 403)) {
+				return "unauthorized";
+			}
+			return "unreachable";
 		}
+	}
+
+	async verify(): Promise<boolean> {
+		return (await this.verifyStatus()) === "verified";
 	}
 
 	listSessions(): Promise<{ sessions: SessionMeta[] }> {
@@ -219,7 +241,7 @@ export class SyncClient {
 		return () => this.listeners.delete(listener);
 	}
 
-	onStateChange(listener: (state: "connecting" | "open" | "closed") => void): () => void {
+	onStateChange(listener: (state: SocketState) => void): () => void {
 		this.stateListeners.add(listener);
 		return () => this.stateListeners.delete(listener);
 	}
@@ -250,7 +272,7 @@ export class SyncClient {
 		socket.onclose = () => {
 			this.socket = null;
 			this.emitState("closed");
-			if (!this.closedByUser) this.scheduleReconnect();
+			if (!this.closedByUser) void this.reconnectOrReportAuth();
 		};
 
 		socket.onerror = () => socket.close();
@@ -264,6 +286,17 @@ export class SyncClient {
 		this.socket = null;
 	}
 
+	/** A rejected handshake looks like an ordinary close, so ask HTTP before treating it as an outage. */
+	private async reconnectOrReportAuth(): Promise<void> {
+		const verification = await this.verifyStatus();
+		if (this.closedByUser || this.socket) return;
+		if (verification === "unauthorized") {
+			this.emitState("unauthorized");
+			return;
+		}
+		this.scheduleReconnect();
+	}
+
 	private scheduleReconnect(): void {
 		if (this.reconnectTimer) return;
 		this.reconnectTimer = setTimeout(() => {
@@ -272,7 +305,7 @@ export class SyncClient {
 		}, 3000);
 	}
 
-	private emitState(state: "connecting" | "open" | "closed"): void {
+	private emitState(state: SocketState): void {
 		for (const listener of this.stateListeners) listener(state);
 	}
 }

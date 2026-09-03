@@ -15,6 +15,7 @@ import { useMobile } from "../src/store";
 export default function HomeScreen() {
 	const hydrated = useMobile((s) => s.hydrated);
 	const connection = useMobile((s) => s.connection);
+	const error = useMobile((s) => s.error);
 
 	// The stored connection is read from secure storage, so there is a moment with no answer yet.
 	// Deciding during it would flash the pairing screen at someone who is already paired.
@@ -32,12 +33,18 @@ export default function HomeScreen() {
 		<View className="flex-1 items-center justify-center bg-shell px-8">
 			<Text className="text-center text-[22px] font-semibold text-ink">连接你的桌面端</Text>
 			<Text className="mt-3 text-center text-[13.5px] leading-6 text-ink-muted">
-				Lyra 的文件、终端和 MCP 都跑在电脑上。{"\n"}
-				手机连上以后，看到的就是电脑上那个 Lyra。
+				{error ? (
+					error
+				) : (
+					<>
+						Lyra 的文件、终端和 MCP 都跑在电脑上。{"\n"}
+						手机连上以后，看到的就是电脑上那个 Lyra。
+					</>
+				)}
 			</Text>
 			<Link href="/pair" asChild>
 				<Pressable className="mt-8 rounded-xl bg-ink px-5 py-3 active:opacity-85">
-					<Text className="text-[14px] font-medium text-shell">开始配对</Text>
+					<Text className="text-[14px] font-medium text-shell">{error ? "重新配对" : "开始配对"}</Text>
 				</Pressable>
 			</Link>
 			<Text className="mt-6 text-center text-[12px] leading-5 text-ink-faint">
