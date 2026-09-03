@@ -121,7 +121,7 @@ export const METHODS = {
 		document: { channel: "files:document", remote: false, why: "读写任意路径" },
 		bytes: { channel: "files:bytes", remote: false, why: "读写任意路径" },
 		write: { channel: "files:write", remote: false, why: "读写任意路径" },
-		mediaUrl: { channel: "files:create", remote: false, why: "读写任意路径" },
+		create: { channel: "files:create", remote: false, why: "在任意位置建文件" },
 		rename: { channel: "files:rename", remote: false, why: "读写任意路径" },
 		copy: { channel: "files:copy", remote: false, why: "读写任意路径" },
 		trash: { channel: "files:trash", remote: false, why: "读写任意路径" },
@@ -138,7 +138,7 @@ export const METHODS = {
 		list: { channel: "terminal:list", remote: false, why: "开的是这台机器上的 shell" },
 		listAll: { channel: "terminal:list-all", remote: false, why: "开的是这台机器上的 shell" },
 		open: { channel: "terminal:open", remote: false, why: "开的是这台机器上的 shell" },
-		prewarm: { channel: "terminal:attach", remote: false, why: "开的是这台机器上的 shell" },
+		attach: { channel: "terminal:attach", remote: false, why: "开的是这台机器上的 shell" },
 	},
 	providers: {
 		test: { channel: "providers:test", remote: false, why: "会拿着 API key 去请求供应商，密钥不出桌面端" },
