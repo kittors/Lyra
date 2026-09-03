@@ -6,19 +6,16 @@
  * mostly rules that were learned the hard way and are worth reading on their own.
  */
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-react";
 import { BootScreen, MIN_BOOT_MS } from "./components/BootScreen.tsx";
 import { Conversation, ConversationSkeleton } from "./components/Conversation.tsx";
 import { EmptyState } from "./components/EmptyState.tsx";
 import { ImageViewer } from "./components/image/ImageViewer.tsx";
 import { InputMenu } from "./components/InputMenu.tsx";
+import { SkeletonList } from "./components/Skeleton.tsx";
 import { Toaster } from "./components/toast/Toaster.tsx";
-import { PluginsView } from "./components/PluginsView.tsx";
-import { PullRequestsView } from "./components/PullRequestsView.tsx";
-import { ScheduledView } from "./components/ScheduledView.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
-import { SettingsShell } from "./components/settings/SettingsShell.tsx";
 import { DragBand, PanelMenu, WindowButtons } from "./components/WindowToolbar.tsx";
 import { DockView } from "./dock/DockView.tsx";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
@@ -28,6 +25,29 @@ import { useSide } from "./sideStore.ts";
 import { useApp } from "./store.ts";
 import { useTrayCommands } from "./tray-commands.ts";
 import { useFileTreeStore } from "./store/fileTree.ts";
+
+/*
+ * The screens that are not a conversation, fetched when they are first opened.
+ *
+ * All four are reachable from the sidebar and none of them is where the window opens. Settings is
+ * the largest by a distance — the appearance page alone carries the code themes and every font
+ * preview — and until now all of it was in the bundle before the first message rendered.
+ *
+ * `lazy` rather than a hand-rolled dynamic import: React already knows how to hold the tree still
+ * while a chunk arrives, and doing it by hand means a second state machine that has to agree with
+ * the first about what "loading" means.
+ *
+ * The phone is why this is worth doing at all. It loads the same bundle over the network, and
+ * through a relay that crosses the public internet twice.
+ */
+const PluginsView = lazy(() => import("./components/PluginsView.tsx").then((m) => ({ default: m.PluginsView })));
+const PullRequestsView = lazy(() =>
+	import("./components/PullRequestsView.tsx").then((m) => ({ default: m.PullRequestsView })),
+);
+const ScheduledView = lazy(() => import("./components/ScheduledView.tsx").then((m) => ({ default: m.ScheduledView })));
+const SettingsShell = lazy(() =>
+	import("./components/settings/SettingsShell.tsx").then((m) => ({ default: m.SettingsShell })),
+);
 import { useOpenFile } from "./store/openFile.ts";
 import { useTerminalPrewarm } from "./terminal-prewarm.ts";
 import { applyAppearance, watchSystemTheme } from "./theme.ts";
@@ -158,9 +178,27 @@ function Shell() {
 			<div className={settings ? "pointer-events-none invisible absolute inset-0" : "h-full"}>
 				<ChatShell settings={settings} />
 			</div>
-			{settings && <SettingsShell />}
+			{settings && (
+				<LazyScreen>
+					<SettingsShell />
+				</LazyScreen>
+			)}
 		</>
 	);
+}
+
+/**
+ * The gap between asking for a screen and having it.
+ *
+ * A skeleton rather than a spinner, and rather than nothing. Nothing is worse than it sounds here:
+ * the pane keeps its old contents until the chunk lands, so clicking 「插件」 would leave the
+ * conversation on screen and look like the click was missed. A skeleton says the click was heard.
+ *
+ * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
+ * phone, loading the same bundle across a relay, that this is for.
+ */
+function LazyScreen({ children }: { children: React.ReactNode }) {
+	return <Suspense fallback={<SkeletonList count={6} label="正在打开" />}>{children}</Suspense>;
 }
 
 /**
@@ -187,13 +225,13 @@ function useMainPane() {
 	 * not merely empty on those screens, they are about somewhere else, and they step aside.
 	 */
 	if (view === "pull-requests") {
-		return { title: "拉取请求", icon: <GitPullRequest size={12.5} strokeWidth={1.8} />, body: <PullRequestsView />, solo: true };
+		return { title: "拉取请求", icon: <GitPullRequest size={12.5} strokeWidth={1.8} />, body: <LazyScreen>{<PullRequestsView />}</LazyScreen>, solo: true };
 	}
 	if (view === "plugins") {
-		return { title: "插件", icon: <Puzzle size={12.5} strokeWidth={1.8} />, body: <PluginsView />, solo: true };
+		return { title: "插件", icon: <Puzzle size={12.5} strokeWidth={1.8} />, body: <LazyScreen>{<PluginsView />}</LazyScreen>, solo: true };
 	}
 	if (view === "scheduled") {
-		return { title: "计划任务", icon: <CalendarClock size={12.5} strokeWidth={1.8} />, body: <ScheduledView />, solo: true };
+		return { title: "计划任务", icon: <CalendarClock size={12.5} strokeWidth={1.8} />, body: <LazyScreen>{<ScheduledView />}</LazyScreen>, solo: true };
 	}
 	return {
 		title: sessionTitle(meta?.title),
