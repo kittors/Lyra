@@ -18,6 +18,8 @@
  */
 
 /** Why a call was refused. The wire only ever sees this shape, never an exception. */
+import { posix, win32 } from "node:path";
+
 export interface ArgsError {
 	ok: false;
 	error: "invalid-args";
@@ -53,12 +55,24 @@ export function optionalStr(value: unknown, name: string, max = MAX_ID): Checked
 	return str(value, name, max);
 }
 
-/** An absolute path. Relative paths are refused here rather than resolved somewhere surprising. */
+/**
+ * An absolute path. Relative paths are refused here rather than resolved somewhere surprising.
+ *
+ * Both platforms' rules, always — not this machine's. The phone may be paired with a Windows
+ * desktop while this check happens to be compiled for it either way, and a path is absolute
+ * according to the machine that will open it.
+ *
+ * `isAbsolute` rather than a regular expression, and that is a repository-specific rule with a
+ * history: `risk.ts` once identified absolute paths by hand and every such check was simply false
+ * on Windows, so the risk classifier let things through it was written to stop. Anything that
+ * decides what a path *is* asks `node:path`.
+ */
 export function path(value: unknown, name: string): Checked<string> {
 	const checked = str(value, name, MAX_PATH);
 	if (!checked.ok) return checked;
-	// `/` on posix, `C:\` or `\\server\share` on Windows.
-	if (!/^(\/|[A-Za-z]:[\\/]|\\\\)/.test(checked.value)) return bad(`${name} 必须是绝对路径`);
+	if (!posix.isAbsolute(checked.value) && !win32.isAbsolute(checked.value)) {
+		return bad(`${name} 必须是绝对路径`);
+	}
 	return checked;
 }
 

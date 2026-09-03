@@ -14,5 +14,11 @@
     "noEmit": true,
     "composite": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  /*
+   * `args.ts` is excluded on purpose — it is the one file here that needs `node:path`, and letting
+   * it into this project would mean adding `"types": ["node"]` above, which is exactly the thing
+   * this configuration exists to prevent. It has `tsconfig.node.json` to itself.
+   */
+  "exclude": ["src/args.ts"]
 }

@@ -29,7 +29,7 @@ import {
 	text,
 	type ArgsError,
 	type Checked,
-} from "@lyra/contract";
+} from "@lyra/contract/args";
 
 /**
  * Everything a call may reach, handed in rather than imported.

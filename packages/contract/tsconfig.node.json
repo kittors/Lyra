@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /*
+     * The one part of this package that may use `node:`.
+     *
+     * `args.ts` validates what arrives from the phone, and deciding whether a path is absolute is
+     * `node:path`'s job — this repository learned that the hard way when `risk.ts` did it by hand
+     * and every such check was silently false on Windows.
+     *
+     * It is reachable only as `@lyra/contract/args`, so the renderer — which loads the package's
+     * main entry, on a phone as well as on the desktop — never pulls it in.
+     */
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "composite": true
+  },
+  "include": ["src/args.ts"]
+}
