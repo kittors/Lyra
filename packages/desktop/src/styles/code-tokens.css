@@ -1,0 +1,106 @@
+/*
+ * Token colours for the detail panes.
+ *
+ * The same palette the editor uses, expressed as classes so a small scanner can reach it without
+ * loading a grammar. `light-dark()` keeps one definition for both themes, as everywhere else.
+ */
+.ly-tok-command {
+  color: light-dark(#2b62c6, #79b8ff);
+}
+
+.ly-tok-flag {
+  color: light-dark(#b07d0d, #e3c07b);
+}
+
+.ly-tok-string {
+  color: light-dark(#2f7d4f, #7fc98a);
+}
+
+.ly-tok-number {
+  color: light-dark(#a3562a, #dd9160);
+}
+
+.ly-tok-operator {
+  color: light-dark(#6a6d70, #9a9d9f);
+}
+
+.ly-tok-variable {
+  color: light-dark(#8a45a5, #c39ac9);
+}
+
+.ly-tok-key {
+  color: light-dark(#2b62c6, #79b8ff);
+}
+
+.ly-tok-comment {
+  color: light-dark(#8a8d90, #7e8184);
+  font-style: italic;
+}
+
+/*
+ * What a pinned row is drawn on.
+ *
+ * A rounded corner only shows when something else shows through it, and a pinned row's corners have
+ * whatever it is pinned over behind them — its own body, a diff's coloured rows. Square, in other
+ * words, or worse: a red row tint poking out of the corner. This is the opaque, square backing that
+ * pins in the row's place, so the corners have the panel behind them wherever the row stops.
+ *
+ * Put it on the element that sticks, and let the row inside it keep the radius.
+ *
+ * The variable is there for a panel that is not the usual colour: set `--ly-behind` on the scroll
+ * container and the backing follows it, rather than every such panel needing its own rule.
+ *
+ * Unconditional here because the panels that use it — a diff's file headings, a detail card — are
+ * opaque, so a backing that matches them is invisible whether the row is held or not. The sidebar
+ * is the one place that is not true; it narrows this to the moment the row is actually held, and
+ * the rule is with the rest of that pane.
+ */
+.ly-pin {
+  background: var(--ly-behind, var(--color-shell));
+}
+
+.ly-breathe {
+  animation: ly-breathe 1.6s ease-in-out infinite;
+}
+
+/*
+ * Both at once.
+ *
+ * `animation` is one property: two classes each declaring it means the later one replaces the
+ * earlier, and the mark would only ever turn or only ever breathe. Listing both here is the only
+ * way to have them compose.
+ */
+.ly-spin.ly-breathe {
+  animation:
+    ly-spin 900ms linear infinite,
+    ly-breathe 1.6s ease-in-out infinite;
+}
+
+.ly-pulse {
+  animation: ly-pulse 1.4s ease-in-out infinite;
+}
+
+.ly-pop {
+  animation: ly-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/*
+ * A highlight travelling along a line that is still being worked on.
+ *
+ * The first attempt at this made the text itself the gradient and let it fade to transparent, so
+ * the words were invisible except in the instant the band crossed them — a line that blinked and
+ * could never be read. The mistake was the direction: the sweep lightened the text toward the
+ * background.
+ *
+ * Here the text is always its own colour, and the band only makes a stretch of it *darker* as it
+ * passes. Nothing ever fades out; the line stays legible at every moment, and what moves is
+ * emphasis rather than existence.
+ */
+@keyframes ly-glide {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}

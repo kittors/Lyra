@@ -1,0 +1,25 @@
+/* ---------------------------------------------------------------------------
+ * Working mark
+ *
+ * A slow turn plus rays breathing out of phase: alive without being busy, and legible at
+ * 14px where a spinner just smears.
+ * ------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+ * Working indicator
+ *
+ * One shape at every size: a faint track with a quarter-arc travelling round it. It replaced
+ * eight rays that blinked out of phase under a slow rotation — three animations arguing over
+ * one 14px mark, which at that size reads as flicker rather than as motion.
+ *
+ * Drawn as SVG strokes rather than a masked conic gradient. The gradient version was the more
+ * elegant construction and looked it at 64px, but the app only ever shows this at 13–17px,
+ * where a gradient spread over 300° leaves nothing bright enough to see and the mask edge goes
+ * to mush. A stroked arc stays crisp at any size, and the track behind it gives the mark a
+ * shape even at the instant the arc is furthest away.
+ * ------------------------------------------------------------------------- */
+
+.ly-spin {
+  animation: ly-spin 900ms linear infinite;
+  transform-origin: center;
+}

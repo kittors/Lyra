@@ -1,0 +1,177 @@
+/* ---------------------------------------------------------------------------
+ * The pull request list
+ *
+ * Two lines that have to read as one row — what changed on top, whose it is and how big
+ * underneath. What is here rather than in utility classes is the part that cannot be written as
+ * one: a mark drawn over the icon's corner that has to cut itself out of whatever colour the row
+ * happens to be, and a highlight for a row that changed while the reader was looking elsewhere.
+ * ------------------------------------------------------------------------- */
+
+.ly-pr-row {
+  /*
+   * What this row is sitting on.
+   *
+   * Tracked as a variable because the status dot overlaps the icon and needs a ring in the row's
+   * own colour to read as being on top of it rather than merged into it. Hover and selection move
+   * this one value, and the ring follows without a rule of its own.
+   */
+  --ly-row: var(--color-shell);
+  position: relative;
+  transition: background-color var(--ly-t-quick) var(--ly-e-soft);
+}
+
+.ly-pr-row:hover {
+  --ly-row: color-mix(in srgb, var(--color-card-hover) 60%, var(--color-shell));
+  background: var(--ly-row);
+}
+
+.ly-pr-row[data-active="true"] {
+  --ly-row: var(--color-card-hover);
+  background: var(--ly-row);
+}
+
+/*
+ * CI's answer, on the icon it is an answer about.
+ *
+ * A dot on the corner rather than another icon in the row: it is a fact about the thing the icon
+ * already stands for, and at this size a coloured circle is legible from further away than any
+ * glyph would be. Three colours, the same three the detail pane uses.
+ */
+.ly-pr-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--ly-row);
+}
+
+.ly-pr-dot[data-state="pass"] {
+  background: var(--color-ok);
+}
+
+.ly-pr-dot[data-state="fail"] {
+  background: var(--color-danger);
+}
+
+/*
+ * Still running, and it is the one state that will change on its own — so it is the one state
+ * that moves. Grey rather than amber, because the detail pane already draws pending in grey and a
+ * second colour for it would be a second vocabulary.
+ */
+.ly-pr-dot[data-state="pending"] {
+  background: var(--color-ink-faint);
+  animation: ly-breathe 2.4s ease-in-out infinite;
+}
+
+/*
+ * A row that moved while you were reading something else.
+ *
+ * An overlay rather than a background, so it can wash over a row that is already selected or
+ * hovered instead of fighting the colour that row has. One pass and gone: this says "look here",
+ * which is a moment, not a state — the dot beside the title is what stays until it is read.
+ */
+.ly-pr-row::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--color-accent);
+  opacity: 0;
+}
+
+.ly-pr-row[data-touched="true"]::after {
+  animation: ly-pr-touched 1200ms var(--ly-e-out);
+}
+
+@keyframes ly-pr-touched {
+  from {
+    opacity: 0.16;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * A spreadsheet, drawn the way spreadsheets are drawn.
+ *
+ * The rules here are the ones that make a grid scannable rather than merely tabular: the header and
+ * the row-number gutter stay put while the body scrolls, every cell is one line tall, and long text
+ * is clipped rather than wrapped. Wrapping is the tempting default and it is wrong — a column of
+ * rows at four different heights cannot be read down, which is the only way anybody reads a sheet.
+ *
+ * `position: sticky` on both axes at once is what pins the corner cell; without the corner, the
+ * gutter scrolls out from under the header and the two overlap.
+ */
+.ly-sheet {
+  --sheet-line: color-mix(in srgb, var(--color-ink) 12%, transparent);
+  --sheet-head: color-mix(in srgb, var(--color-ink) 5%, var(--color-card));
+}
+
+.ly-sheet th,
+.ly-sheet td {
+  border-right: 1px solid var(--sheet-line);
+  border-bottom: 1px solid var(--sheet-line);
+  padding: 3px 8px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ly-sheet-head,
+.ly-sheet-corner {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sheet-head);
+  color: var(--color-ink-muted);
+  font-weight: 500;
+  text-align: center;
+  min-width: 64px;
+}
+
+.ly-sheet-corner {
+  left: 0;
+  z-index: 3;
+  min-width: 44px;
+}
+
+/* The row numbers: a gutter, not data — same fill as the header, never selected as content. */
+.ly-sheet-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--sheet-head);
+  color: var(--color-ink-faint);
+  text-align: right;
+  min-width: 44px;
+  user-select: none;
+}
+
+.ly-sheet-cell {
+  color: var(--color-ink);
+}
+
+/*
+ * A Word document, on its own paper.
+ *
+ * `docx-preview` emits real page boxes with the document's own margins, and those pages are white
+ * — they are paper. Tinting them to match a dark app would be redrawing the author's document, so
+ * the pages stay as written and the surface behind them carries the theme instead.
+ */
+.ly-docx-host {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 24px;
+  transition: opacity 120ms linear;
+}
+
+.ly-docx-host .docx {
+  box-shadow: 0 2px 14px rgb(0 0 0 / 28%);
+  border-radius: 2px;
+}

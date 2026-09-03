@@ -1,0 +1,104 @@
+.ly-glide {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-ink-faint) 0%,
+    var(--color-ink-faint) 42%,
+    var(--color-ink) 50%,
+    var(--color-ink-faint) 58%,
+    var(--color-ink-faint) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ly-glide 2.6s linear infinite;
+}
+
+/* Without motion it is simply the line in its ordinary colour. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] .ly-glide {
+    animation: none;
+    background: none;
+    color: var(--color-ink-faint);
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+  }
+}
+
+:root[data-reduce-motion="on"] .ly-glide {
+  animation: none;
+  background: none;
+  color: var(--color-ink-faint);
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+}
+
+
+/*
+ * The boot screen's mark, and the rail under it.
+ *
+ * Two problems, one of which only exists on a light theme. The artwork is mostly white — the
+ * rabbit, the dress, the fill inside the letters — and on a pale page those parts stop having an
+ * edge, so the whole thing reads as a blue smear with bits missing. A soft shadow underneath puts
+ * the boundary back. Dark themes need none of it: the drawing already carries a white rim, which
+ * is its own separation there, and a shadow in `--color-ink` would come out as a glow.
+ *
+ * The drift is four pixels over three and a half seconds — slow enough that it is never something
+ * you watch, present enough that a screen held for two seconds is not a still image. Startup
+ * should look unhurried, not busy.
+ */
+.ly-boot-mark {
+  animation: ly-boot-drift 3.6s ease-in-out infinite;
+  /* A dragged-out ghost of the logo is the one interaction this screen must not have. */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+:root.light .ly-boot-mark {
+  filter: drop-shadow(0 5px 16px color-mix(in srgb, var(--color-ink) 15%, transparent));
+}
+
+@keyframes ly-boot-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/*
+ * The same sweep the tool cards run, standing on its own.
+ *
+ * Deliberately the app's vocabulary rather than a spinner: this is the first thing the app draws,
+ * and it should already be the app. Accent rather than the cards' info blue — at launch the only
+ * thing in progress is Lyra itself.
+ *
+ * Indeterminate, because it is honest. Boot has no measurable steps to report, and a bar that
+ * fills to a made-up percentage is a worse lie the faster the launch is.
+ */
+.ly-boot-rail {
+  position: relative;
+  width: 128px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 9%, transparent);
+}
+
+.ly-boot-rail::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Soft at both ends, so the segment arrives and leaves rather than snapping at the edges. */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-accent) 40%, transparent) 30%,
+    var(--color-accent) 50%,
+    color-mix(in srgb, var(--color-accent) 40%, transparent) 70%,
+    transparent 100%
+  );
+  animation: ly-track 1.5s linear infinite;
+}

@@ -1,0 +1,125 @@
+/*
+ * Two typefaces, shipped with the app rather than borrowed from the OS.
+ *
+ * A system stack renders differently on every machine, and on macOS its text weight shifts with
+ * the wallpaper behind a translucent window. Inter and JetBrains Mono are drawn for screens:
+ * open apertures, unambiguous 1/l/I and 0/O, and a large x-height that stays crisp at the 12–13px
+ * this app lives at.
+ *
+ * Only the latin subsets are bundled — 86KB for both. Chinese falls through to PingFang SC, which
+ * is already on the machine and better than anything we could ship for it.
+ */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Three more monospace faces, shipped rather than hoped for.
+ *
+ * The font menu in 外观 lists a dozen; most of them are only there if you happen to have installed
+ * them, and the menu says so. These three are the ones people ask for by name often enough to be
+ * worth the download size — all variable, all latin-only (CJK falls through to "Lyra CJK" exactly
+ * as it does for the default), and all under the SIL Open Font License.
+ *
+ * The same unicode-range as above on purpose: these cover the latin block and nothing else, so a
+ * Chinese comment in a code block is drawn by the CJK face beside them rather than by whatever
+ * fallback each of these happens to carry.
+ */
+@font-face {
+  font-family: "Fira Code";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 700;
+  src: url("@fontsource-variable/fira-code/files/fira-code-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Source Code Pro";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 900;
+  src: url("@fontsource-variable/source-code-pro/files/source-code-pro-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * IBM Plex Mono is not variable, so it comes as two weights rather than a range.
+ *
+ * 400 and 600 are what the weight control above actually selects; the browser synthesises 300 and
+ * 500 from the nearer of the two, which for a mono face at these sizes is indistinguishable.
+ */
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Chinese, scaled to match the latin beside it.
+ *
+ * Inter and PingFang draw to different proportions inside the same em: PingFang's glyphs fill
+ * about 4% less of the box, so at one `font-size` the Chinese in a mixed line lands visibly
+ * smaller than the English next to it, and a sidebar of mostly-Chinese rows reads a size down
+ * from the rest of the app. That gap is what "不够清晰" mostly is — not blur, but two scripts
+ * set at two effective sizes and the eye refocusing between them.
+ *
+ * `size-adjust` fixes it where it belongs, at the face rather than at every call site, and
+ * because the family is only reached through the CJK `unicode-range` no latin glyph is touched.
+ * The fallbacks are listed as separate faces rather than one `local()` list: a missing family
+ * inside `local()` invalidates the whole rule, so Windows would lose the adjustment entirely.
+ */
+@font-face {
+  font-family: "Lyra CJK";
+  font-style: normal;
+  font-weight: 100 900;
+  src: local("PingFang SC"), local("PingFangSC-Regular");
+  size-adjust: 104%;
+  unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF,
+    U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
+}
+
+@font-face {
+  font-family: "Lyra CJK";
+  font-style: normal;
+  font-weight: 100 900;
+  src: local("Microsoft YaHei"), local("Noto Sans SC"), local("Source Han Sans SC");
+  size-adjust: 100%;
+  unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF,
+    U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
+}

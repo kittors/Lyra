@@ -1,0 +1,182 @@
+/* ---------------------------------------------------------------------------
+ * The sidebar's tab strip: a track with something floating in it.
+ *
+ * Written here rather than with utility classes because the obvious pair of tokens is wrong on one
+ * of the two themes, and that is worth stating once where it cannot be undone by accident.
+ * `bg-card` under `bg-elevated` — what the settings pages' `Segmented` uses — reads as a knob
+ * sitting *in* a slot on dark and as a knob sitting *in a hole* on light: every surface token steps
+ * from the background toward the foreground, so on a light theme "elevated" is darker than the card
+ * under it, and the selected tab came out as the recessed one.
+ *
+ * So the track is a veil of the foreground — a film that darkens a light pane and lightens a dark
+ * one, correct on both by construction — and the knob is `--color-float`, the one token that
+ * genuinely means "above the surface" in both directions: near-white on light, a step brighter than
+ * the page on dark.
+ * ------------------------------------------------------------------------- */
+
+.ly-tabs {
+  background: color-mix(in srgb, var(--color-ink) 7%, transparent);
+}
+
+.ly-tabs-knob {
+  background: var(--color-float);
+  /*
+   * A hairline and a short drop, which is most of what makes this read as lifted rather than as a
+   * differently-coloured rectangle. On light the fill is near-white on near-white, so without an
+   * edge the knob has no shape at all.
+   */
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.09),
+    0 2px 5px -2px rgb(0 0 0 / 0.06);
+}
+
+/* Dark themes carry it with the shadow alone: an outline over a dark page reads as a seam. */
+:root.dark .ly-tabs-knob {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 2px 6px -2px rgb(0 0 0 / 0.3);
+}
+
+.ly-shell {
+  background: var(--color-shell);
+}
+
+.ly-opaque {
+  background: var(--color-shell);
+}
+
+/*
+ * Tooltip surface.
+ *
+ * Inverted rather than another floating card: a tip is a transient annotation, and at this size
+ * a bordered panel in the same palette as everything else reads as one more piece of UI to
+ * parse. Dark-on-light and light-on-dark both stay legible over whatever it covers.
+ */
+.ly-tooltip {
+  max-width: 260px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  /*
+   * Wrapping, not `nowrap`, or the max-width above means nothing: a sentence-length tip — "开一个新
+   * 会话，原会话不受影响" — ran the full width of the window as one line. Short labels are still one
+   * line, because the bubble is positioned rather than laid out in a column that can squeeze it.
+   */
+  text-wrap: pretty;
+  /*
+   * Line breaks in the tip are respected; runs of spaces are not.
+   *
+   * A tip is usually one phrase and stays one line. A few carry more than that — a conversation
+   * row says which project and when, on their own lines — and without this they arrived as one
+   * run-on sentence with the newlines collapsed. `pre-line` keeps the breaks the caller wrote and
+   * still wraps anything too long, which `pre` would not.
+   */
+  white-space: pre-line;
+  background: color-mix(in srgb, var(--color-ink) 92%, transparent);
+  color: var(--color-shell);
+  box-shadow: 0 4px 14px -4px rgb(0 0 0 / 0.3);
+  /*
+   * Two animations, because leaving is not entering played backwards.
+   *
+   * Arriving overshoots very slightly out of nothing and settles — the easing is the one used for
+   * things that appear under the pointer elsewhere in the app. Leaving is quicker and does not
+   * scale: a bubble that shrinks on the way out draws attention to itself at the exact moment it
+   * has stopped being relevant.
+   */
+  animation: ly-tip-in 150ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  will-change: opacity, transform;
+}
+
+.ly-tooltip[data-leaving] {
+  animation: ly-tip-out 110ms ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes ly-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ly-tip-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.ly-knob {
+  background: #ffffff;
+  border-color: rgb(0 0 0 / 0.14);
+  box-shadow: 0 1px 2.5px rgb(0 0 0 / 0.16);
+}
+
+:root.dark .ly-knob {
+  background: var(--color-ink-muted);
+  border-color: rgb(0 0 0 / 0.28);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+
+/*
+ * The inset side panel.
+ *
+ * Depth, not a divider. The panel sits on the same background as the conversation, so what
+ * separates them is that one is lifted off the page — a border alone reads as a seam in a
+ * single surface.
+ *
+ * The first shadow is a hairline ring rather than a blur. On a light theme the panel surface
+ * lands *darker* than the page behind it, which without a defined edge reads as a dent in one
+ * sheet rather than a card resting on it; the ring gives the edge, and the two blurs underneath
+ * give the lift that says which of the two is on top.
+ */
+/*
+ * Diffuse only — no ring.
+ *
+ * The hairline ring that used to be the first layer here was doing the work of a border on top
+ * of an actual border, and at two overlapping edges it read as a thick, hard outline. Depth
+ * alone is enough to say which surface is on top, and it says it without drawing anything.
+ */
+/*
+ * The panel no longer lifts off the page.
+ *
+ * A drop shadow between two surfaces of the same colour is visible as a grey band and nothing
+ * else — there is no depth to read, only a dirty seam. The panel is continuous with the
+ * transcript now and divided from it by a hairline, so there is nothing left to cast a shadow.
+ */
+
+
+@theme {
+  /*
+   * Max width of the chat column.
+   *
+   * Sized to fit the main column at the default window with the sidebar open, so toggling the
+   * sidebar never changes it. Applied as a max — a hard width overflowed the window and cut
+   * the send button in half once the padding was added, and it leaves the column free to
+   * shrink with a compact window instead of running off the edge.
+   */
+  --ly-content: 640px;
+}
+
+/*
+ * A 10px scrollbar is a meaningful slice of a 380pt window, and the gutter it reserves shows
+ * up as the transcript jumping sideways whenever content starts overflowing.
+ */
+:root[data-layout="compact"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+:root[data-layout="compact"] ::-webkit-scrollbar-thumb {
+  border-width: 1.5px;
+}

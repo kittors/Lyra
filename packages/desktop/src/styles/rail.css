@@ -1,0 +1,99 @@
+/* Indeterminate progress rail shown on a running tool card. */
+.ly-rail {
+  position: relative;
+  overflow: hidden;
+}
+
+.ly-rail::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  /* Soft at both ends so it fades in and out of the card rather than arriving as an edge. */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-info) 45%, transparent) 35%,
+    var(--color-info) 50%,
+    color-mix(in srgb, var(--color-info) 45%, transparent) 65%,
+    transparent 100%
+  );
+  animation: ly-track 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] *,
+  :root[data-reduce-motion="system"] *::before,
+  :root[data-reduce-motion="system"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Diff rows can be marked by colour (default) or by a leading +/- for colour-blind users. */
+:root[data-diff-markers="symbols"] .ly-diff-add::before {
+  content: "+";
+}
+
+:root[data-diff-markers="symbols"] .ly-diff-remove::before {
+  content: "-";
+}
+
+:root[data-diff-markers="symbols"] .ly-diff-add,
+:root[data-diff-markers="symbols"] .ly-diff-remove {
+  background: transparent !important;
+}
+
+@keyframes ly-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ly-slide-up {
+  animation: ly-slide-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ly-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ly-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ly-slide-in {
+  animation: ly-slide-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ly-fade-in {
+  animation: ly-fade-in 180ms ease-out;
+}

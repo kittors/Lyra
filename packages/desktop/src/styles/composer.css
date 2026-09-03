@@ -1,0 +1,76 @@
+/* ---------------------------------------------------------------------------
+ * Composer
+ *
+ * Two shadows: a tight one that sits the field on the page, and a wide soft one that lifts it
+ * off. Split by theme because a black shadow does nothing on a dark background — there the
+ * depth has to come from a heavier drop plus a slightly brighter edge.
+ * ------------------------------------------------------------------------- */
+
+.ly-composer {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 10px 30px -14px rgb(0 0 0 / 0.16);
+}
+
+.ly-composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 14px 36px -14px rgb(0 0 0 / 0.22);
+}
+
+/*
+ * What the toolbar gives up when the row runs out of room.
+ *
+ * The level is measured rather than guessed from a breakpoint — see `composer/fit.ts` for why a
+ * width cannot answer this — and each part says which step it goes at. Written here rather than as
+ * a conditional class in the component because the parts live in `Composer` while the measuring
+ * lives in `ComposerShell`, and passing a number through `left`/`right` would mean turning two
+ * plain nodes into render props for the sake of one integer.
+ *
+ * `display: none` rather than visibility or opacity: this is about width, and a hidden element that
+ * still occupies its column would give back nothing.
+ */
+[data-ly-fit="1"] [data-ly-fit-drop="1"],
+[data-ly-fit="2"] [data-ly-fit-drop="1"],
+[data-ly-fit="2"] [data-ly-fit-drop="2"] {
+  display: none;
+}
+
+/*
+ * A rolling label inside a parent that truncates has to truncate too.
+ *
+ * `truncate` puts the ellipsis on inline content that overflows its block. `RollingText` wraps its
+ * value in an inline-block — it has to, or the roll has nothing to transform — and an inline-block
+ * is an atomic box: `text-overflow` does not apply to it, so `overflow: hidden` cut it off mid-glyph
+ * and no ellipsis was ever drawn. The model name in the composer is where this showed:
+ * `gemini-3.8-flas`, sliced, with nothing to say there was more.
+ *
+ * `block` rather than keeping `inline-block` and adding the elision to it. An inline-block with
+ * `overflow: hidden` takes its baseline from its bottom edge instead of from its text, which drops
+ * the descender's worth of space into the line box above it and lifts the label a pixel or two off
+ * where every other control in the row sits. A block has no baseline to lose.
+ *
+ * A child combinator, not a descendant one. The rule is meant for a `RollingText` that was itself
+ * told to truncate — that is the wrapper, and the box is its only child. Matching any truncating
+ * ancestor would catch the other twelve rolling labels in the app the moment one of them was placed
+ * inside a clipped title, and none of those overflow or should be width-bound.
+ */
+.truncate > .ly-roll-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:root.dark .ly-composer {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 14px 34px -16px rgb(0 0 0 / 0.55);
+}
+
+:root.dark .ly-composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-ink-faint) 70%, transparent);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 18px 40px -16px rgb(0 0 0 / 0.65);
+}

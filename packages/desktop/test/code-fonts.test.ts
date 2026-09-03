@@ -73,7 +73,10 @@ test("the bundled face is treated as present without asking the browser", async 
 test("the bundled set is what the stylesheet actually ships", async () => {
 	const { readFile } = await import("node:fs/promises");
 	const { CODE_FONTS: fonts } = await import("../src/components/settings/code-fonts.ts");
-	const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+	// `styles/fonts.css`, not `styles.css`: the stylesheet was split by subject and the `@font-face`
+	// rules went with the faces. The entry point is imports now, and matching against it would pass
+	// vacuously — the regex would find nothing and the assertion would be about the wrong file.
+	const css = await readFile(new URL("../src/styles/fonts.css", import.meta.url), "utf8");
 
 	for (const font of fonts.filter((f) => f.bundled)) {
 		assert.match(

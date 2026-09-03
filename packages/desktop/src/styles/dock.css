@@ -1,0 +1,276 @@
+/* ---------------------------------------------------------------------------
+ * The dock
+ *
+ * Every pane in the window except the navigation, arranged by a tree of splits. The panes are
+ * positioned absolutely from percentages the tree computes, which is what makes a rearrangement
+ * animate: four numbers change and CSS interpolates them, with nothing recreated.
+ *
+ * The panes share one surface and are divided by their splitters' hairlines rather than each
+ * being a floating card. With one panel a card read as something placed beside the conversation;
+ * with five it would read as five, and a window full of gaps and shadows is a window you have to
+ * pick apart before you can read it.
+ * ------------------------------------------------------------------------- */
+
+.ly-dock {
+  background: var(--color-shell);
+}
+
+/*
+ * A panel's card, floated off the conversation by the gap it holds back inside its own box.
+ *
+ * Only panels get this. The conversation runs flush to the window and carries no border, because
+ * it is the page rather than a thing placed on the page — see the note in `DockPane`. Cards rather
+ * than one surface divided by hairlines: with five panes a hairline grid reads as a spreadsheet
+ * and the eye has to trace lines to work out which region is which, where a card says it at a
+ * glance. The gap between two of them is where the splitter lives.
+ */
+/*
+ * A pane that shows code is themed as one object, not as chrome with code inside it.
+ *
+ * Header, tab strip, tree and content share the code theme's surface, which is what makes an
+ * editor look like an editor rather than a titled box containing one. Every real editor does
+ * this: the file tree, the tab bar and the text are one continuous surface.
+ *
+ * The tree is in the list deliberately. It shows names, not code — but it is the editor's
+ * companion pane, sitting flush against it, and leaving it on the app's white put a hard seam
+ * down the middle of what reads as a single tool.
+ *
+ * The mechanism is the point. Rather than restating a colour for every control inside — the
+ * search box, the hover states, the separators, the muted labels — the pane redefines the *UI
+ * tokens themselves* against the code surface. Everything below inherits: `bg-input`, `text-ink`,
+ * `border-line` and the rest resolve to values mixed from this theme, including controls added
+ * later that nobody thought to add to a list. Listing them one at a time is how the search box
+ * stayed white after the pane around it went warm.
+ *
+ * Semantic colours are deliberately left alone. `--color-accent`, `--color-ok` and
+ * `--color-danger` mean "selected", "added" and "wrong" — they are not part of a palette that a
+ * syntax theme gets to reassign, and a diff whose additions stopped being green would be lying.
+ */
+.ly-dock-pane[data-pane="file"] .ly-dock-card,
+.ly-dock-pane[data-pane="files"] .ly-dock-card,
+.ly-dock-pane[data-pane="terminal"] .ly-dock-card,
+.ly-dock-pane[data-pane="review"] .ly-dock-card {
+  --color-shell: var(--ly-code-bg, var(--color-shell));
+  --color-panel: var(--ly-code-bg, var(--color-shell));
+  --color-card: color-mix(in srgb, var(--ly-code-fg) 4%, var(--ly-code-bg));
+  --color-card-hover: color-mix(in srgb, var(--ly-code-fg) 9%, var(--ly-code-bg));
+  --color-input: color-mix(in srgb, var(--ly-code-fg) 4%, var(--ly-code-bg));
+  --color-elevated: color-mix(in srgb, var(--ly-code-fg) 7%, var(--ly-code-bg));
+  --color-line: color-mix(in srgb, var(--ly-code-fg) 15%, transparent);
+  --color-line-soft: color-mix(in srgb, var(--ly-code-fg) 9%, transparent);
+  --color-ink: var(--ly-code-fg);
+  --color-ink-muted: color-mix(in srgb, var(--ly-code-fg) 72%, var(--ly-code-bg));
+  --color-ink-faint: color-mix(in srgb, var(--ly-code-fg) 48%, var(--ly-code-bg));
+
+  background: var(--ly-code-bg, var(--color-shell));
+  color: var(--ly-code-fg, var(--color-ink));
+}
+
+.ly-dock-card {
+  background: var(--color-shell);
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-panel);
+  /*
+   * A shadow small enough to be felt rather than seen.
+   *
+   * It is what makes a panel read as resting *on* the conversation instead of merely next to it —
+   * the border alone puts them on the same plane. Anything heavier and five open panels would each
+   * be casting their own weather over the page.
+   */
+  box-shadow: 0 1px 3px -1px rgb(0 0 0 / 0.16);
+}
+
+.ly-dock-pane {
+  opacity: 1;
+  transition:
+    left var(--ly-t-base) var(--ly-e-out),
+    top var(--ly-t-base) var(--ly-e-out),
+    width var(--ly-t-base) var(--ly-e-out),
+    height var(--ly-t-base) var(--ly-e-out),
+    opacity var(--ly-t-quick) var(--ly-e-soft);
+}
+
+/*
+ * A pane arriving.
+ *
+ * Its neighbours ease into their new sizes — that is the `transition` above — but the new pane
+ * itself has no previous size to ease from, so it simply appeared. Next to three edges gliding
+ * into place, one box blinking into existence is the thing the eye reports, and it made the whole
+ * rearrangement read as not animated at all.
+ *
+ * Opacity only. A pane may be carrying a transform of its own while it is dragged, and scaling a
+ * box that holds a terminal or a webview re-rasterises its whole subtree for the length of the
+ * animation.
+ *
+ * `@starting-style`, not an `animation`, and the difference is the whole point. An animation is
+ * bound to the element by *name*, so suppressing it with `animation: none` and then letting the
+ * name come back is a new animation — which meant `data-dock-settling`, the flag whose entire job
+ * is to stop panes animating while a conversation is adopted, replayed the entrance of every pane
+ * in the dock two frames after every switch. Measured, from `opacity`: 0 → 1 over eleven frames,
+ * on the conversation as well as the panels. The flag was causing the thing it exists to prevent.
+ *
+ * A starting style only ever applies to an element being inserted, so nothing that happens to it
+ * afterwards can replay it. Suppression is then just `transition-duration: 0s` below, which lands
+ * the fade instantly and — unlike a name — leaves nothing to re-trigger when it is lifted.
+ */
+@starting-style {
+  .ly-dock-pane {
+    opacity: 0;
+  }
+}
+
+/*
+ * Nothing arrives mid-drag, and nothing eases.
+ *
+ * Two reasons this matters for a pane. The carried one is re-inserted into the tree on every
+ * preview, so its entrance would otherwise play at every region the pointer crossed. And the
+ * rearrangement is committed as the pointer crosses, so an easing pane would still be travelling
+ * when the next commit arrives — the layout would trail the pointer by a fifth of a second and
+ * never quite settle. Landing immediately is what makes the preview read as the answer rather
+ * than as an animation of it. The ghost is the one thing still moving.
+ *
+ * Applied by `[data-ly-frozen]` above wherever the panes already exist — which is every case but one.
+ *
+ * The exception is a pane the *adoption* brings in. Loading a conversation's saved layout inserts
+ * panes that were not there a moment ago, and a pane arriving has an `@starting-style` that fades
+ * it up from nothing: every switch between conversations ended with the dock assembling itself in
+ * front of you. A class cannot reach an element that does not exist yet, so this one stays keyed
+ * on a flag, which applies to whatever is inserted while it is raised.
+ *
+ * It is kept to this single case on purpose. A flag on the root is resolved against the subtree
+ * beneath it — 44ms on a long transcript, measured — and that is why the drag no longer uses one.
+ * An adoption is already reading a transcript off disk and rebuilding the rows; a drag is sixty
+ * frames of nothing but this.
+ */
+:root[data-dock-settling] .ly-dock-pane {
+  transition-duration: 0s;
+}
+
+/*
+ * And nothing inside a pane can take the pointer.
+ *
+ * A pane may hold a <webview>, which is a separate process: it swallows the pointer the moment
+ * the drag crosses it, and pointer capture — which handles same-document iframes — cannot reach
+ * it. Declining hit tests on the panes for the length of the drag is what covers that case. The
+ * drag itself listens on the window, so it is unaffected.
+ */
+[data-ly-inert] {
+  pointer-events: none;
+}
+
+/*
+ * The pane being carried — which is the pane itself, lifted, not a stand-in for it.
+ *
+ * Off the surface rather than tinted: a shadow says "this is above everything and on its way
+ * somewhere", which is exactly the state, and needs no legend to be understood. It is already a
+ * card when docked, so picking it up only adds the lift.
+ *
+ * `!important` on the position because the docked rule is `absolute` from a utility class and this
+ * is the same element in a different mode — one element, two positioning models, and the carried
+ * one has to win for the length of the drag.
+ */
+.ly-dock-pane-carried {
+  position: fixed !important;
+  z-index: 70;
+}
+
+.ly-dock-pane-carried .ly-dock-card {
+  box-shadow:
+    0 18px 40px -12px rgb(0 0 0 / 0.38),
+    0 2px 8px -2px rgb(0 0 0 / 0.22);
+}
+
+/*
+ * Only on the way home.
+ *
+ * The carry itself is untransitioned — a pane that eased towards the pointer would lag it by the
+ * length of the easing, which reads as the app being slow rather than as the card having weight.
+ * The class arrives one frame before the destination does, so the two cannot be batched into a
+ * single style recalculation and land as a hard cut.
+ *
+ * It flies to the box the tree already puts it at, so handing it back to `absolute` at the end of
+ * this moves it by nothing.
+ */
+.ly-dock-pane-landing {
+  transition:
+    transform var(--ly-t-base) var(--ly-e-out),
+    left var(--ly-t-base) var(--ly-e-out),
+    top var(--ly-t-base) var(--ly-e-out),
+    width var(--ly-t-base) var(--ly-e-out),
+    height var(--ly-t-base) var(--ly-e-out) !important;
+}
+
+/*
+ * The grip appears as the pointer comes near, and states itself more clearly the nearer it gets.
+ *
+ * Ordered by how specific the approach is — in the pane, on the grip, carrying it — and written as
+ * plain rules rather than utilities so that order is the one thing deciding which wins. Three
+ * classes with equal specificity fighting over one property is not something to leave to whichever
+ * happened to be emitted last.
+ *
+ * Keyed to the *pane* rather than to the title bar it sits on: the bar is a `drag-region`, and the
+ * window manager takes its mouse events, so `:hover` there never fires.
+ */
+.ly-dock-grip {
+  opacity: 0;
+  transition: opacity var(--ly-t-quick) var(--ly-e-soft);
+}
+
+.ly-dock-pane:hover .ly-dock-grip {
+  opacity: 0.35;
+}
+
+.ly-dock-grip:hover,
+.ly-dock-grip:focus-visible {
+  opacity: 0.75;
+}
+
+/* In the air, it stays plainly visible: the hand is on it. */
+.ly-dock-pane-carried .ly-dock-grip {
+  opacity: 0.85;
+}
+
+/*
+ * Where a carried pane would land.
+ *
+ * A filled outline in the accent, not a dashed border or a grey block: the point is to be read
+ * instantly and unambiguously as "here", from the corner of the eye, while the hand is busy. It
+ * animates between destinations for the same reason the panes do — the target sliding from one
+ * region to the next is what makes the drag feel continuous rather than like a series of guesses.
+ */
+.ly-dock-drop {
+  z-index: 10;
+  border-radius: var(--radius-panel);
+  background: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 42%, transparent);
+  transition:
+    left var(--ly-t-quick) var(--ly-e-out),
+    top var(--ly-t-quick) var(--ly-e-out),
+    width var(--ly-t-quick) var(--ly-e-out),
+    height var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * The splitter is the gap between two cards, so it draws nothing until you reach for it.
+ *
+ * It used to paint a hairline down the boundary. The cards' own edges say where that is now, and a
+ * third line between two borders was one more edge in a frame meant to read as a few sheets of
+ * paper. What is left is the nine-pixel target and a mark that appears under the pointer — the
+ * same bargain the sidebar's handle makes.
+ */
+.ly-splitter-line {
+  opacity: 0;
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-soft),
+    background-color var(--ly-t-quick) var(--ly-e-soft);
+}
+
+.ly-splitter:hover .ly-splitter-line,
+.ly-splitter:focus-visible .ly-splitter-line {
+  opacity: 1;
+}
+
+/* The narrow layout's pane picker, above the one pane on show. */
+.ly-dock-bar {
+  border-bottom: 1px solid var(--color-line-soft);
+}

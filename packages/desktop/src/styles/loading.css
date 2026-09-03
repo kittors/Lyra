@@ -1,0 +1,113 @@
+/* ---------------------------------------------------------------------------
+ * Loading
+ *
+ * Two of them, because the two places they appear are asking different questions. In the sidebar
+ * a row says "this conversation is working" — it is one mark in a column of marks, and it has to
+ * stay legible at 11px. In the transcript the indicator says "your turn is running" and sits at
+ * the head of a line of text, where three dots read as a sentence continuing.
+ *
+ * Both take their easing from SpinKit (tobiasahlin), whose numbers are worth copying rather than
+ * reinventing: every one of its animations is on a sine curve rather than `linear`. An earlier
+ * pass at this was written from scratch with linear timing and evenly-spaced geometry, and read as
+ * mechanical for exactly that reason.
+ * ------------------------------------------------------------------------- */
+
+/*
+ * A pulse leaving a still centre, cycling through the palette as it goes.
+ *
+ * For the sidebar, where a row may sit working for a long time in a column of other rows. Nothing
+ * rotates and nothing travels, which is what makes it bearable at the edge of vision — a spinner
+ * there pulls the eye every time it comes round, and there may be several of them.
+ *
+ * The colour is the part that says how long it has been going. One breath is 2.4s and the hue
+ * moves accent → info → violet → accent across it, so a glance tells you it is alive and a longer
+ * look tells you it is *still* alive — without anything getting faster or louder. All three are
+ * already in the palette; this introduces no new colour, it walks the ones there are.
+ */
+@keyframes ly-breathe-wave {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/*
+ * The core walks the palette; what it must not do is change size much.
+ *
+ * It sits in a column of marks that are all 7px — waiting, done, failed — and the slot it is drawn
+ * in is 12px, so every 0.1 of scale here is 1.2px against neighbours that never move. The first
+ * numbers peaked at 0.86, which is 10.3px: half again the size of the dot above it, on the one row
+ * in the list that is already the most conspicuous. The comment in `SessionStatus` claimed the core
+ * stayed the size of the other dots, and that was true only of the two frames it rests on.
+ *
+ * 0.58 → 0.62 keeps 7px as the size it reads at, and spends the breath on colour instead.
+ */
+@keyframes ly-breathe-core {
+  0%,
+  100% {
+    transform: scale(0.58);
+    background: var(--color-accent);
+  }
+  33% {
+    transform: scale(0.62);
+    background: var(--color-info);
+  }
+  66% {
+    transform: scale(0.6);
+    background: var(--color-violet);
+  }
+}
+
+@keyframes ly-breathe-hue {
+  0%,
+  100% {
+    border-color: var(--color-accent);
+  }
+  33% {
+    border-color: var(--color-info);
+  }
+  66% {
+    border-color: var(--color-violet);
+  }
+}
+
+.ly-breathe {
+  position: relative;
+  display: block;
+}
+
+/*
+ * The rings and the core share a period but not a curve.
+ *
+ * The wave eases out — it is thrown, and slows as it goes. The colour walk is `ease-in-out`, so it
+ * lingers on each hue rather than sliding evenly between them. Two rings half a period apart, so
+ * there is always one on its way out.
+ */
+.ly-breathe i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border: 1.5px solid var(--color-accent);
+  border-radius: 50%;
+  animation:
+    ly-breathe-wave 2.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite,
+    ly-breathe-hue 2.4s ease-in-out infinite;
+}
+
+.ly-breathe i:nth-of-type(2) {
+  animation-delay: -1.2s;
+}
+
+.ly-breathe b {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transform: scale(0.62);
+  animation: ly-breathe-core 2.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}

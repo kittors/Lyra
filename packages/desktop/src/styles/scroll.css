@@ -1,0 +1,277 @@
+/* ---------------------------------------------------------------------------
+ * Scrolling
+ *
+ * The thumb belongs to the surface it scrolls: invisible until the pointer is over that
+ * surface, so a still window shows no chrome at all.
+ * ------------------------------------------------------------------------- */
+
+/*
+ * Invisible, but still there to be grabbed.
+ *
+ * It used to take clicks only while its scroller was hovered, back when the resize handle sat on
+ * the same pixels and something had to give. That rule was the bug rather than the fix: reaching
+ * the thumb means putting the pointer on it, and the pointer being on it is what the rule was
+ * waiting for — so whether the scrollbar could be dragged depended on whether the approach
+ * happened to cross the list on the way. The handle has since moved off this strip entirely
+ * (see `ResizeHandle`), so the thumb can simply be what it is.
+ */
+.ly-thumb {
+  opacity: 0;
+  /* Explicit, because the track it sits in is `none` and this property inherits. Invisible is not
+     the same as absent: the thumb is what you reach for, and it has to be there before you do. */
+  pointer-events: auto;
+  /* Width and offset animate too, for the thickening under the pointer below. */
+  transition:
+    opacity 200ms ease-out,
+    width 120ms ease-out,
+    right 120ms ease-out;
+}
+
+/*
+ * A grab area wider than the mark, reaching inwards.
+ *
+ * The bar is 6px because 6px is what it should look like. Six pixels is not what it should be
+ * asked to *hit*: it sits against the edge of a pane, on macOS the outermost pixels of a window
+ * belong to the OS resize border, and what is left is a target most attempts miss. Measured in
+ * `e2e/scrollbar.test.ts` — the press did reach the thumb, so nothing was broken in the sense of
+ * throwing or being covered, and it was still unusable.
+ *
+ * Extended inwards rather than outwards for the same reason: outwards is the window frame. Taller
+ * than the thumb as well, so the grab does not slip off the ends of a short one.
+ */
+.ly-thumb::after,
+.ly-hthumb::after {
+  content: "";
+  position: absolute;
+}
+
+.ly-thumb::after {
+  inset: -4px -2px -4px -9px;
+}
+
+.ly-hthumb::after {
+  inset: -9px -4px -2px -4px;
+}
+
+.ly-scroll-host:hover .ly-thumb {
+  opacity: 0.5;
+}
+
+/*
+ * The browser does not get to move this one on its own.
+ *
+ * Scroll anchoring keeps whatever you were looking at still when content above it changes size.
+ * That is the right instinct for a document, and the wrong one for a pane whose content is replaced
+ * wholesale: switching the sidebar between its two lists sets `scrollTop` to zero — a depth into one
+ * list means nothing in another — and anchoring restored the old offset a frame later, having found
+ * the row you were "looking at" in a list you had just left. It did the same on launch, when the
+ * session list arrives and the pane goes from empty to full.
+ *
+ * The sidebar only, deliberately. The transcript wants exactly what anchoring gives: a thinking
+ * block folding open above where you are reading is the case it exists for.
+ */
+.ly-sidebar-fill .ly-scroll-view {
+  overflow-anchor: none;
+}
+
+/*
+ * Thicker under the pointer, the way the platform's own does it.
+ *
+ * Two things at once: it is easier to hold, and it says the thing is grabbable before you commit
+ * to grabbing it — which for a bar that is otherwise a flat 6px mark is the only feedback there
+ * was. It grows leftwards (`right` shrinks by as much as the width gains), so the outer edge stays
+ * where it is and the bar does not appear to shift.
+ */
+.ly-scroll-host .ly-thumb:hover,
+.ly-thumb.ly-thumb-active {
+  opacity: 0.85;
+  width: 9px;
+  right: 1px;
+}
+
+.ly-hthumb:hover,
+.ly-hthumb.ly-hthumb-active {
+  height: 9px;
+  bottom: 1px;
+}
+
+/* Dragging the thumb must not select the text it passes over. */
+.ly-scroll-host:has(.ly-thumb-active),
+.ly-scroll-host:has(.ly-hthumb-active),
+.ly-diff-host:has(.ly-hthumb-active) {
+  user-select: none;
+}
+
+/*
+ * Both thumbs fade out when the pointer leaves.
+ *
+ * The sideways one used to stay visible on the reasoning that horizontal overflow does not
+ * announce itself — a line that runs off to the right looks like a line that ended there. True,
+ * but the cost is a permanent grey bar under every wide file, and a scrollbar that is always
+ * there stops being a signal. Both directions now behave the same way, which is also what the
+ * platform does.
+ */
+.ly-hthumb {
+  opacity: 0;
+  pointer-events: auto;
+  transition:
+    opacity 200ms ease-out,
+    height 120ms ease-out,
+    bottom 120ms ease-out;
+}
+
+.ly-diff-host:hover .ly-hthumb,
+.ly-scroll-host:hover .ly-hthumb {
+  opacity: 0.55;
+}
+
+.ly-hthumb:hover,
+.ly-hthumb.ly-hthumb-active {
+  opacity: 0.85;
+}
+
+/* ---------------------------------------------------------------------------
+ * The soft edge of a scrolling list
+ *
+ * A mask on the content, not a wash of colour over it — and that is the whole difference between
+ * this working and this being the reason the sidebar had no fade at all.
+ *
+ * The old fade was a strip painted in the pane's own colour, handed in by every caller. That is
+ * only ever right where the caller's guess at the colour is right, and on a surface that is not a
+ * flat fill — a card, a diff's tinted rows, a pane that was translucent for a while — it is a band
+ * with a boundary of its own laid across the top of the list. It read as a rendering fault, which
+ * is what it was, and the conclusion drawn at the time was that the sidebar wanted a hairline
+ * instead of a fade. The conclusion was wrong; the paint was.
+ *
+ * Taking the content's own alpha down has no colour in it to be wrong. It is correct over glass,
+ * over a card, over whatever the desktop happens to be showing through, and it needs nothing
+ * passed in from the caller.
+ *
+ * The stops trace an ease-out curve rather than a straight ramp. A linear ramp in alpha does not
+ * look linear — the eye is far more sensitive at the sparse end, so the fade appears to hold and
+ * then stop, and where it stops reads as a faint rule somebody drew. That "虚线" above the
+ * composer was never a border; it was the end of a two-stop gradient.
+ *
+ * Both depths default to zero, which collapses every stop onto one of the two ends and leaves a
+ * mask that is opaque throughout — so "no fade" is the same declaration with different numbers,
+ * and appearing is a length interpolating rather than a second layer fading in over the first.
+ * ------------------------------------------------------------------------- */
+
+@property --ly-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --ly-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/*
+ * How far down the top the softening starts, rather than starting at the edge.
+ *
+ * For a list with rows pinned over it — `position: sticky`, so they are inside this element and the
+ * mask applies to them too. Fading from the edge fades the pinned rows themselves; the first
+ * version of this feature dodged that by placing them outside the mask entirely, and paid for it by
+ * lagging the compositor a frame (`sidebar/sticky.ts` has the account). So instead the band they
+ * occupy is left at full strength and the fade begins at their undersides, where the list starts.
+ *
+ * What hides the list *behind* a pinned row is the row's own fill, not this. This only decides
+ * where the rows below it begin to soften.
+ *
+ * Left at zero — every other scroller in the app — every stop below collapses back onto the plain
+ * two-ended fade this used to be.
+ *
+ * Never interpolated, unlike the two depths above. It tracks rows the browser is placing on the
+ * compositor, so a transition would put the fade a frame behind the row it is supposed to start
+ * under; and it does not need one, because it moves with the scroll rather than between states.
+ */
+@property --ly-fade-inset {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/*
+ * Where the held band *starts*, for the stretch of list still above it.
+ *
+ * Zero for every scroller in the app and for the sidebar whenever a row has actually reached its
+ * rail — the band runs to the top edge then, and every stop below collapses onto it. It is only
+ * non-zero while a row is on its way in: the softening reaches a few dozen pixels down from the
+ * top, a row travelling to its rail passes through exactly that, and without this the strip
+ * dissolved on approach and snapped back the moment it landed. The list above it still fades; what
+ * changed is that the fade now ends where the row begins instead of running through it.
+ */
+@property --ly-hold-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.ly-fade-y {
+  mask-image: linear-gradient(
+    to bottom,
+    /* Above the held band: the list, softened into the top edge as it always was. Collapses to
+       nothing when `--ly-hold-top` is zero, which is every case except a row on its way in. */
+    transparent 0,
+    rgb(0 0 0 / 0.06) calc(var(--ly-hold-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-hold-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-hold-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-hold-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-hold-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-hold-top) * 0.86),
+    /* The held band, kept at full strength: the rows held there are inside this element, so
+       softening it would fade the very rows it is supposed to start below. What hides the list
+       behind them is their own fill, not this. */ #000 var(--ly-hold-top),
+    #000 var(--ly-fade-inset),
+    transparent var(--ly-fade-inset),
+    rgb(0 0 0 / 0.06) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.86),
+    #000 calc(var(--ly-fade-inset) + var(--ly-fade-top)),
+    #000 calc(100% - var(--ly-fade-bottom)),
+    rgb(0 0 0 / 0.94) calc(100% - var(--ly-fade-bottom) * 0.86),
+    rgb(0 0 0 / 0.8) calc(100% - var(--ly-fade-bottom) * 0.72),
+    rgb(0 0 0 / 0.6) calc(100% - var(--ly-fade-bottom) * 0.57),
+    rgb(0 0 0 / 0.38) calc(100% - var(--ly-fade-bottom) * 0.41),
+    rgb(0 0 0 / 0.19) calc(100% - var(--ly-fade-bottom) * 0.26),
+    rgb(0 0 0 / 0.06) calc(100% - var(--ly-fade-bottom) * 0.12),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(0 0 0 / 0.06) calc(var(--ly-hold-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-hold-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-hold-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-hold-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-hold-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-hold-top) * 0.86),
+    #000 var(--ly-hold-top),
+    #000 var(--ly-fade-inset),
+    transparent var(--ly-fade-inset),
+    rgb(0 0 0 / 0.06) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-fade-inset) + var(--ly-fade-top) * 0.86),
+    #000 calc(var(--ly-fade-inset) + var(--ly-fade-top)),
+    #000 calc(100% - var(--ly-fade-bottom)),
+    rgb(0 0 0 / 0.94) calc(100% - var(--ly-fade-bottom) * 0.86),
+    rgb(0 0 0 / 0.8) calc(100% - var(--ly-fade-bottom) * 0.72),
+    rgb(0 0 0 / 0.6) calc(100% - var(--ly-fade-bottom) * 0.57),
+    rgb(0 0 0 / 0.38) calc(100% - var(--ly-fade-bottom) * 0.41),
+    rgb(0 0 0 / 0.19) calc(100% - var(--ly-fade-bottom) * 0.26),
+    rgb(0 0 0 / 0.06) calc(100% - var(--ly-fade-bottom) * 0.12),
+    transparent 100%
+  );
+  transition:
+    --ly-fade-top var(--ly-t-base) var(--ly-e-out),
+    --ly-fade-bottom var(--ly-t-base) var(--ly-e-out);
+}
