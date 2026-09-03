@@ -19,5 +19,10 @@
 | [0010](0010-updates-are-verified.md) | 更新包核对摘要，验不了就不装 |
 | [0011](0011-renderer-is-nine-directories.md) | 渲染进程按域分九个目录，归属按依赖判断 |
 | [0012](0012-one-contract-not-three.md) | 进程边界写在一处，不是三处 |
+| [0013](0013-one-button-two-heights.md) | 一个按钮组件，两种高度 |
+| [0014](0014-motion-tokens-in-two-places.md) | 动效 token 写两遍，用测试守住 |
+| [0015](0015-styles-are-checked-not-agreed.md) | 样式的三分法是检查，不是约定 |
+| [0016](0016-look-at-it.md) | 视觉改动必须看一眼，并且逐像素对照 |
+| [0017](0017-front-door-versus-code-splitting.md) | 整屏视图不进功能域的出口 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。
