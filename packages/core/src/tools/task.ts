@@ -1,5 +1,5 @@
 import { errorResult } from "../agent/tool-run.ts";
-import type { Tool, ToolResult } from "../types.ts";
+import type { JsonSchema, Tool, ToolResult } from "../types.ts";
 
 export interface AgentDefinition {
 	/** Identifier used in the `subagent_type` argument. */
@@ -12,6 +12,31 @@ export interface AgentDefinition {
 	tools: string[] | "*";
 	model?: string;
 	source: "builtin" | "workspace" | "user";
+	/**
+	 * The shape of what this agent returns.
+	 *
+	 * Present means the run gets a `yield` tool whose parameters are this schema, and the parent
+	 * receives a validated object rather than the last paragraph the sub-agent happened to write.
+	 * Absent keeps the old behaviour, which is right for agents whose answer genuinely is prose.
+	 */
+	output?: JsonSchema;
+	/**
+	 * What to do when the returned object does not match `output` after the retries are used up.
+	 *
+	 * `permissive` (the default) takes it anyway and attaches the problems; a result that is 90%
+	 * right beats no result. `strict` fails the dispatch, for agents whose output feeds something
+	 * that cannot cope with a missing field.
+	 */
+	schemaMode?: "permissive" | "strict";
+	/**
+	 * Which agents this one may dispatch. Default: none.
+	 *
+	 * The opposite of omp's default, which grants it to anything holding the `task` tool. Recursive
+	 * dispatch is the most expensive switch in the system and the hardest to reason about after the
+	 * fact, so it is off unless a definition asks for it — which also means you can tell whether an
+	 * agent spawns others by reading its frontmatter instead of its prompt.
+	 */
+	spawns?: string[] | "*";
 }
 
 export const AGENTS_KEY = "agents";
@@ -78,9 +103,23 @@ export const taskTool: Tool<TaskArgs> = {
 				prompt: args.prompt,
 				agentType: requested,
 			});
+			/*
+			 * The object rides in `details`, never flattened into the text.
+			 *
+			 * `content` is what the model reads and `details` is what the UI renders and what
+			 * `agent://<id>/<field>` indexes into. Serialising the object into the text as well
+			 * would put it in the parent's context twice — once as prose, once as JSON — which is
+			 * the cost delegation exists to avoid.
+			 */
 			return {
-				content: [{ type: "text", text: answer || "(the sub-agent returned no output)" }],
-				details: { kind: "task", description: args.description, agentType: requested },
+				content: [{ type: "text", text: answer.text || "(the sub-agent returned no output)" }],
+				details: {
+					kind: "task",
+					description: args.description,
+					agentType: requested,
+					output: answer.output,
+					warnings: answer.warnings?.length ? answer.warnings : undefined,
+				},
 			};
 		} catch (error) {
 			return errorResult(`Sub-agent failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -103,19 +142,72 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		description: "Read-only search agent. Use it to locate code across many files without polluting your context.",
 		systemPrompt:
 			"You are a read-only exploration agent. Search broadly, read only what you need, and never modify files. " +
-			"Reply with the file paths and line numbers that answer the question, plus a two-sentence summary. " +
 			"Do not paste large file contents.",
 		tools: ["read", "glob", "grep", "ls", "bash"],
 		source: "builtin",
+		/*
+		 * `summary` and `report` are separate on purpose, and the split is the whole design.
+		 *
+		 * `summary` is what the parent reads to decide what to do next, so it has to stay short
+		 * enough to be worth delegating for. `report` is the deliverable a person reads, and it is
+		 * as long as the task needs. One field trying to be both is either too long to be a summary
+		 * or too short to be the answer.
+		 */
+		output: {
+			type: "object",
+			required: ["summary", "files"],
+			properties: {
+				summary: { type: "string", description: "The conclusion, in two or three sentences. Written for the agent that dispatched you." },
+				files: {
+					type: "array",
+					description: "The files that answer the question. Leave empty only if there genuinely are none.",
+					items: {
+						type: "object",
+						required: ["path", "why"],
+						properties: {
+							path: { type: "string", description: "Project-relative path, optionally with a `:12-34` line range." },
+							why: { type: "string", description: "What is in this file that matters here." },
+						},
+					},
+				},
+				architecture: { type: "string", description: "How these pieces connect, when that is part of the answer." },
+				report: {
+					type: "string",
+					description:
+						"The full deliverable, when the task asked for a report, a table or a list — written out at the depth asked for. " +
+						"Not a summary of it; `summary` already does that. Omit for a quick lookup.",
+				},
+			},
+		},
 	},
 	{
 		name: "review",
 		description: "Code review agent that reports defects with file and line references.",
 		systemPrompt:
 			"You are a code review agent. Inspect the changes you are pointed at and report concrete defects: " +
-			"correctness bugs, missing error handling, security issues. For each finding give file:line, what breaks, " +
-			"and a concrete failing input. Do not report style preferences. If you find nothing, say so.",
+			"correctness bugs, missing error handling, security issues. Do not report style preferences.",
 		tools: ["read", "glob", "grep", "ls", "bash"],
 		source: "builtin",
+		output: {
+			type: "object",
+			required: ["summary", "findings"],
+			properties: {
+				summary: { type: "string", description: "What you looked at and what you concluded, in two or three sentences." },
+				findings: {
+					type: "array",
+					description: "One entry per concrete defect. Empty when you found none — say so in `summary` rather than inventing one.",
+					items: {
+						type: "object",
+						required: ["file", "problem", "failure"],
+						properties: {
+							file: { type: "string", description: "Path with line, as `src/auth.ts:42`." },
+							severity: { type: "string", enum: ["high", "medium", "low"], description: "How much it matters." },
+							problem: { type: "string", description: "What is wrong, in one sentence." },
+							failure: { type: "string", description: "Concrete inputs or state that make it go wrong. Not a restatement of the problem." },
+						},
+					},
+				},
+			},
+		},
 	},
 ];

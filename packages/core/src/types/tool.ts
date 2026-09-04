@@ -10,6 +10,12 @@ import type { SandboxMode } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { UserContent } from "./message.ts";
 
+export interface SubAgentAnswer {
+	text: string;
+	output?: Record<string, unknown>;
+	warnings?: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
@@ -62,8 +68,14 @@ export interface ToolContext {
 	sandboxMode?: SandboxMode;
 	/** Internal hosts the user allowed by name; see `Settings.allowedHosts`. */
 	allowedHosts?: readonly string[];
-	/** Run a nested agent (used by the `task` tool). */
-	spawnSubAgent?: (input: SubAgentInput) => Promise<string>;
+	/**
+	 * Run a nested agent (used by the `task` tool).
+	 *
+	 * Returns prose plus, when the agent declared an output schema and yielded against it, the same
+	 * answer as an object. The parent tool passes the object through in `details` rather than
+	 * flattening it, so the renderer and `agent://` can both index into it.
+	 */
+	spawnSubAgent?: (input: SubAgentInput) => Promise<SubAgentAnswer>;
 	/** Shared per-session scratch space (todo list, file read cache, ...). */
 	state: Map<string, unknown>;
 	/**

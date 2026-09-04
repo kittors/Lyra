@@ -159,7 +159,7 @@ test("what comes back replaces the history the sub-agent carries on with", async
 test("compacting does not derail the run — it still answers", async () => {
 	const { answer, registry } = await dispatch([callsNoop(), says("在 auth.ts:42")], { squash: true });
 
-	assert.equal(answer, "在 auth.ts:42");
+	assert.equal(answer.text, "在 auth.ts:42");
 	assert.equal(registry.list()[0].status, "done");
 });
 

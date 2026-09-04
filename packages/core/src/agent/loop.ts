@@ -22,7 +22,6 @@ import type {
 	Message,
 	ModelConfig,
 	ProviderConfig,
-	SubAgentInput,
 	ThinkingLevel,
 	Tool,
 	ToolContext,
@@ -54,7 +53,7 @@ export interface AgentRunConfig {
 	allowedHosts?: ToolContext["allowedHosts"];
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
-	spawnSubAgent?: (input: SubAgentInput) => Promise<string>;
+	spawnSubAgent?: ToolContext["spawnSubAgent"];
 	/** The session's address space; see `ToolContext.resources`. */
 	resources?: ToolContext["resources"];
 	/** Where `scratch://` writes; see `ToolContext.scratchDir`. */

@@ -26,6 +26,7 @@ import { compactWith } from "./compaction.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import { writePreview } from "./previews.ts";
+import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
@@ -39,6 +40,21 @@ async function pathExists(path: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+/**
+ * What a delegated run hands back.
+ *
+ * `text` is what goes in the transcript and what the parent model reads. `output` is the same
+ * answer as data, present only when the agent declared a schema and yielded against it — the
+ * parent tool puts it in `details` so the UI can render it and `agent://<id>/<field>` can index
+ * into it without the parent re-reading anything.
+ */
+export interface SubAgentAnswer {
+	text: string;
+	output?: Record<string, unknown>;
+	/** Schema problems that were accepted rather than rejected. */
+	warnings?: string[];
 }
 
 export interface SubAgentOptions {
@@ -75,10 +91,33 @@ export async function runSubAgent(
 	provider: ProviderConfig,
 	model: ModelConfig,
 	_parentSystemPrompt: string,
-): Promise<string> {
+): Promise<SubAgentAnswer> {
 	const definition = options.agents.find((a) => a.name === (input.agentType ?? "general")) ?? BUILTIN_AGENTS[0];
-	const allowed =
+	const fromSession =
 		definition.tools === "*" ? options.tools : options.tools.filter((t) => (definition.tools as string[]).includes(t.name));
+
+	/*
+	 * Recursive dispatch is off unless the definition asks for it.
+	 *
+	 * Removing `task` from the list rather than refusing the call later is deliberate: a model
+	 * cannot want a tool it has not been shown, and an error after the fact costs a turn to
+	 * discover something that was never going to work.
+	 */
+	const maySpawn = definition.spawns === "*" || (Array.isArray(definition.spawns) && definition.spawns.length > 0);
+	const withoutTask = maySpawn ? fromSession : fromSession.filter((tool) => tool.name !== "task");
+
+	/*
+	 * A declared output shape turns the reply into an object.
+	 *
+	 * Built per run because the tool carries the attempt counter — a fresh one each dispatch, so a
+	 * sub-agent that used up its retries does not hand a spent budget to the next one.
+	 */
+	const yieldTool = definition.output ? makeYieldTool(definition.output, { mode: definition.schemaMode }) : undefined;
+	const allowed = yieldTool ? [...withoutTask, yieldTool as unknown as Tool] : withoutTask;
+	const subState = new Map<string, unknown>([
+		[SKILLS_KEY, options.skills],
+		[AGENTS_KEY, options.agents],
+	]);
 
 	// The sub-agent gets its own message list and its own state map, so its file reads and
 	// todo list cannot leak into the parent's.
@@ -127,7 +166,9 @@ export async function runSubAgent(
 		modelName: model.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
 		today: new Date().toISOString().slice(0, 10),
-		appendSystemPrompt: definition.systemPrompt,
+		appendSystemPrompt: definition.output
+			? `${definition.systemPrompt}\n${yieldInstruction(definition.output)}`
+			: definition.systemPrompt,
 	});
 
 	let result: Awaited<ReturnType<typeof runTurn>>;
@@ -151,10 +192,7 @@ export async function runSubAgent(
 				thinking: options.settings.thinking,
 				retryAttempts: options.settings.retryAttempts,
 				signal: controller.signal,
-				state: new Map<string, unknown>([
-					[SKILLS_KEY, options.skills],
-					[AGENTS_KEY, options.agents],
-				]),
+				state: subState,
 				requestApproval: (request) => options.requestApproval(request),
 				/*
 				 * The session's policy, which does not stop applying because the work was delegated.
@@ -239,8 +277,16 @@ export async function runSubAgent(
 		options.signal?.removeEventListener("abort", stopWithParent);
 	}
 
+	/*
+	 * A yielded object is the answer; the last paragraph is the fallback.
+	 *
+	 * The fallback still matters. An agent with no declared schema returns prose by design, and one
+	 * that was aborted or ran out of turns before yielding has said something worth passing up
+	 * rather than nothing at all.
+	 */
+	const yielded = subState.get(YIELD_KEY) as YieldOutcome | undefined;
 	const last = [...result.messages].reverse().find((m) => m.role === "assistant");
-	const answer =
+	const prose =
 		last?.role === "assistant"
 			? last.content
 					.filter((c) => c.type === "text")
@@ -248,6 +294,7 @@ export async function runSubAgent(
 					.join("\n")
 					.trim()
 			: "";
+	const answer = yielded ? renderYield(yielded) : prose;
 
 	/*
 	 * Aborted is not failed.
@@ -257,5 +304,5 @@ export async function runSubAgent(
 	 */
 	registry?.finish(id, controller.signal.aborted ? { status: "aborted" } : { status: "done", answer });
 	await options.emit({ type: "subagent_done", id, steps, answer });
-	return answer;
+	return { text: answer, output: yielded?.value, warnings: yielded?.warnings };
 }
