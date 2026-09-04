@@ -9,6 +9,10 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { RuleSet } from "../rules/types.ts";
+import { formatRules } from "../rules/session.ts";
+import { concurrencyNote } from "../runtime/dispatch-guard.ts";
+import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
@@ -17,6 +21,13 @@ export interface SystemPromptInput {
 	cwd: string;
 	tools: Tool[];
 	skills: Skill[];
+	/**
+	 * Rules the user wrote.
+	 *
+	 * Only two of the three buckets reach the prompt: always-apply bodies and the rulebook's
+	 * listing. Stream rules stay out on purpose — their whole value is costing nothing here.
+	 */
+	rules?: RuleSet;
 	/** Sub-agents the `task` tool can dispatch to. */
 	agents?: AgentDefinition[];
 	/** Contents of the project's instruction file, if one exists. */
@@ -25,6 +36,14 @@ export interface SystemPromptInput {
 	customInstructions?: string;
 	/** User's persistent memory entries. */
 	memorySnippet?: string;
+	/**
+	 * What was learned in this project, already rendered.
+	 *
+	 * Separate from `memorySnippet` because they have different scopes and different trust: the
+	 * global one is what the user typed about themselves, this one is what happened here. Merging
+	 * them would apply "this repository uses pnpm" to every other repository on the machine.
+	 */
+	projectMemory?: string;
 	/** Preferred personality tone. */
 	tone?: string;
 	platform: string;
@@ -41,6 +60,27 @@ export interface SystemPromptInput {
 	 * user's repository, shows up in `git status`, and has to be cleaned out by hand.
 	 */
 	scratchDir?: string;
+	/**
+	 * The address schemes this session actually has.
+	 *
+	 * Passed in rather than hard-coded so that a session without sub-agents is not told about
+	 * `agent://`, and an extension that registers its own namespace gets a line without editing
+	 * this file. A prompt that advertises an address which does not resolve teaches the model to
+	 * try things that fail.
+	 */
+	resources?: { scheme: string; describe: string; writable: boolean }[];
+	/** How many sub-agents may run at once, and how deep dispatch may nest. */
+	dispatchLimits?: { maxConcurrent: number; maxDepth: number };
+	/**
+	 * A replacement for the identity paragraph, from `.lyra/prompts/identity.md`.
+	 *
+	 * The first thing this project's prompts become files for, and the one worth doing first: it is
+	 * the block people most often want to change, and until now the only way was `appendSystemPrompt`
+	 * — which adds a second, contradicting voice rather than replacing the first.
+	 *
+	 * Rendered as a template, so it can say things like `{{#has tools "bash"}}`.
+	 */
+	identityOverride?: string;
 }
 
 const IDENTITY = `You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files. You are judged on whether the code works, not on how the answer reads.`;
@@ -90,7 +130,17 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<strin
 		guidelines.push(normalized);
 	}
 
-	let prompt = `${IDENTITY}
+	/*
+	 * A project's own identity, when it has one.
+	 *
+	 * Replaced rather than appended: two identity statements in one prompt is a model being told
+	 * who it is twice, and the second one does not cancel the first.
+	 */
+	const identity = input.identityOverride?.trim()
+		? renderTemplate(input.identityOverride, { tools: input.tools.map((tool) => tool.name), cwd, model: input.modelName })
+		: IDENTITY;
+
+	let prompt = `${identity}
 
 Available tools:
 ${toolList}
@@ -131,9 +181,12 @@ Environment:
 		prompt += `\n\n${input.memorySnippet.trim()}`;
 	}
 
+	if (input.projectMemory?.trim()) prompt += input.projectMemory;
+
 	prompt += formatSkills(input.skills);
+	if (input.rules) prompt += formatRules(input.rules);
 	// Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
-	if (input.tools.some((tool) => tool.name === "task")) prompt += formatSubagents(input.agents ?? []);
+	if (input.tools.some((tool) => tool.name === "task")) prompt += formatSubagents(input.agents ?? [], input.dispatchLimits);
 
 	if (input.projectInstructions.length > 0) {
 		prompt += "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n";
@@ -150,6 +203,8 @@ This is where anything that is not part of the project goes. It is removed with 
 
 Decide by asking who the file is for. Something the user will keep, run or commit — source, tests, config, documentation they asked for — goes in the working directory. Something that exists only to get this answer written — a script to check a hypothesis, downloaded sample data, a converted file, output you needed to read once — goes here, whether or not the user thought to say so. When a demo is the answer itself, prefer the \`preview\` tool over writing files at all.`;
 	}
+
+	prompt += formatAddresses(input.resources);
 
 	return prompt;
 }
@@ -188,7 +243,7 @@ function formatSkills(skills: Skill[]): string {
  * Without this list the model has no way to know which `subagent_type` values exist, so it
  * falls back to `general` even when the user names a specific agent.
  */
-function formatSubagents(agents: AgentDefinition[]): string {
+function formatSubagents(agents: AgentDefinition[], limits?: { maxConcurrent: number; maxDepth: number }): string {
 	if (agents.length === 0) return "";
 
 	const lines = [
@@ -210,6 +265,27 @@ function formatSubagents(agents: AgentDefinition[]): string {
 	}
 
 	lines.push("</available_subagents>");
+
+	if (limits) {
+		/*
+		 * The limit has to be stated, because a queue is invisible from inside the model.
+		 *
+		 * Dispatch eight with a limit of four and half of them sit waiting; from the model's side
+		 * that is indistinguishable from the work being slow, and the natural response to slow is
+		 * to dispatch more.
+		 */
+		lines.push("", concurrencyNote(limits.maxConcurrent, limits.maxDepth));
+		/*
+		 * The two preconditions for parallel dispatch, both of which come from watching this go
+		 * wrong rather than from theory.
+		 */
+		lines.push(
+			"",
+			"并发派活之前，两件事必须先做完：",
+			"1. 每个任务都要跳过验证（构建、lint、测试）。跑到一半的验证会让它们互相阻塞——A 的测试跑在 B 改了一半的代码上。最后统一验证一次。",
+			"2. 跨任务的契约（A 实现、B 消费的那个接口）必须在派活之前定好，写进各自的 prompt 里。子代理之间看不见对方，没法协商。",
+		);
+	}
 	return lines.join("\n");
 }
 
@@ -236,4 +312,24 @@ export async function loadProjectInstructions(cwd: string): Promise<{ path: stri
 		if (content?.trim()) return [{ path, content: content.trim() }];
 	}
 	return [];
+}
+
+/**
+ * The address space, described only where it exists.
+ *
+ * Written as "these work anywhere a path does" because that is the claim worth making: the model
+ * already knows `read`, and the whole point of an address space over a tool per namespace is that
+ * nothing new has to be learned.
+ */
+function formatAddresses(schemes: { scheme: string; describe: string; writable: boolean }[] | undefined): string {
+	if (!schemes || schemes.length === 0) return "";
+	const lines = schemes.map((s) => `- \`${s.scheme}://\` ${s.describe}${s.writable ? "（可写）" : ""}`);
+	return (
+		"\n\n## Addresses\n\n" +
+		"These work anywhere a file path does, in `read` and — where marked writable — in `write`:\n" +
+		`${lines.join("\n")}\n\n` +
+		"A trailing `:10-40` selects lines, the same as for a file. A bare `scheme://` lists what is in it.\n" +
+		"These are the way to reach these things. Do not guess at filenames on disk to find something " +
+		"an address already names — if an address returns a listing, read one of the entries it gave you."
+	);
 }

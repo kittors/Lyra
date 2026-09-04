@@ -16,10 +16,12 @@ import { join } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
 import type { AgentRunConfig } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
-import type { streamAssistant } from "../ai/index.ts";
+import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { formatMemoryForPrompt, loadMemory } from "./memory.ts";
+import { readExtractedMemory } from "./memory-extract.ts";
+import { formatProjectMemory, readLessons } from "./project-memory.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
 import type {
@@ -36,6 +38,10 @@ import { droppedMessage, lastRequest, summaryMessages } from "./compaction.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
+import { SUBAGENTS_KEY } from "../resources/handlers.ts";
+import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
+import { readPromptOverride } from "../prompt/overrides.ts";
+import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -80,6 +86,24 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		resuming: (info) => input.emit({ type: "retry", ...info, resume: true }),
 		// So that pressing stop during a minute-long wait is felt immediately.
 		signal: input.signal,
+	});
+
+	/*
+	 * After the work, never during it.
+	 *
+	 * A choice presented in the middle of an action is one people dismiss to get it out of the way,
+	 * and this one is worth reading. It is also the reason this is awaited rather than left running:
+	 * an offer that arrives after the next prompt has started would be about the wrong exchange.
+	 */
+	await offerRuleFromCorrection({
+		messages: input.log.messages,
+		settings: input.settings,
+		provider: input.provider,
+		model: input.model,
+		stream: summaryStream(input.streamFn, input.provider, input.model) ?? streamAssistant,
+		budget: input.can.correctionBudget,
+		signal: input.signal,
+		emit: input.emit,
 	});
 }
 
@@ -140,6 +164,16 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig; systemPrompt: string }> {
 	const { cwd, can, log, settings } = input;
 
+	/*
+	 * Where `agent://` finds the sub-agents this session dispatched.
+	 *
+	 * Put in the state map rather than handed to the router, because the router is built once per
+	 * session while the registry arrives per turn — and a session with no registry (the CLI, a
+	 * test) should leave `agent://` resolving to "this session has no sub-agents" rather than to
+	 * a stale one.
+	 */
+	if (input.subAgents) can.state.set(SUBAGENTS_KEY, input.subAgents);
+
 	let memorySnippet = "";
 	if (settings.personalization?.enableMemory !== false) {
 		try {
@@ -149,6 +183,17 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			// Memory loading is resilient and silent
 		}
 	}
+
+	/*
+	 * Read once per turn from disk, not cached in the session.
+	 *
+	 * `learn` writes the file, and a session that cached this at startup would keep telling the
+	 * model it had not learned the thing it just learned. Reading it is one small file.
+	 */
+	const projectMemory =
+		settings.personalization?.enableMemory === false
+			? ""
+			: formatProjectMemory(await readLessons(cwd).catch(() => []), await readExtractedMemory(cwd).catch(() => ""));
 
 	const turn = await prepareTurn({
 		cwd,
@@ -163,11 +208,16 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			customInstructions: settings.personalization?.customInstructions,
 			tone: settings.personalization?.tone,
 			memorySnippet,
+			projectMemory,
 			platform: platform(),
 			modelName: input.model.name,
 			isGitRepo: await pathExists(join(cwd, ".git")),
 			today: new Date().toISOString().slice(0, 10),
 			scratchDir: input.scratchDir,
+				rules: can.rules,
+				resources: can.resources.schemes(),
+				dispatchLimits: { maxConcurrent: settings.maxConcurrentSubAgents, maxDepth: DEFAULT_MAX_DEPTH },
+				identityOverride: await readPromptOverride(cwd, "identity"),
 		}),
 	});
 
@@ -188,6 +238,9 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			tools: can.tools,
 			skills: can.skills,
 			agents: can.agents,
+			ruleMonitor: can.ruleMonitor,
+			resources: can.resources,
+			scratchDir: input.scratchDir,
 			// Where anything this turn delegates registers itself, so it can be watched and steered.
 			subAgents: input.subAgents,
 			signal: input.signal,
@@ -195,7 +248,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			requestApproval: input.requestApproval,
 			emit: input.emit,
 			summaryStream: (provider) => summaryStream(input.streamFn, provider, input.model),
-			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal),
+			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal, can.extensions),
 			afterToolCall: makeAfterToolCall(settings.hooks, cwd, input.signal),
 			drainSteering: input.drainSteering,
 		},

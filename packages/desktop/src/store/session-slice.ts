@@ -79,6 +79,7 @@ export function sessionSlice(set: Set, get: Get) {
       // resume a blank conversation on the strength of a pause in the last one.
       retrying: null,
       stopped: null,
+      ruleOffer: null,
       loadingSession: false,
       pendingUserMessage: null,
       capabilities: null,
@@ -202,6 +203,8 @@ export function sessionSlice(set: Set, get: Get) {
       // Belongs to the turn being left behind; see the note in `newSession`.
       retrying: null,
       stopped: null,
+      // Asked about a correction in the conversation being left, and about nothing in this one.
+      ruleOffer: null,
       // Only a session with nothing to show is "loading"; a cached one is already on screen
       // and re-reads quietly behind it.
       loadingSession: !cached,

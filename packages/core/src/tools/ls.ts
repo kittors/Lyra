@@ -57,6 +57,7 @@ export const lsTool: Tool<LsArgs> = {
 
 		return {
 			content: [{ type: "text", text: (body || "(empty directory)") + footer }],
+			uneventful: body === "",
 			details: {
 				kind: "ls",
 				path: displayPath(ctx.cwd, absolute),

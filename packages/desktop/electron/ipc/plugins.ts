@@ -12,7 +12,7 @@ import { ipcMain, shell } from "electron";
 import { mkdir, rename } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { McpBundle, Settings } from "@lyra/core";
-import { lyraHome, fetchRegistry, installEntry, loadPlugins, loadSkills, uninstallEntry } from "@lyra/core";
+import { collectSkills, lyraHome, fetchRegistry, installEntry, loadPlugins, uninstallEntry } from "@lyra/core";
 import { remoteImage } from "../avatars.ts";
 import { dropShared } from "../registry-icons.ts";
 import { settingsAfterInstall, settingsAfterReconcile, settingsAfterUninstall } from "./plugin-actions.ts";
@@ -118,22 +118,23 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 	};
 
 	ipcMain.handle("plugins:list", async (_event, cwd: string) => {
-		const [plugins, skills] = await Promise.all([
-			loadPlugins(
-				[
-					...(cwd ? [{ dir: join(cwd, ".lyra", "plugins"), source: "workspace" as const }] : []),
-					{ dir: join(lyraHome(), "plugins"), source: "user" as const },
-					// Both roots, because a bundle is sorted by what it holds — one installed before
-					// the split is still filed under `plugins` and still has to come back as MCP.
-					{ dir: join(lyraHome(), "mcp"), source: "user" as const },
-				],
-				disabledPlugins(),
-			),
-			loadSkills([
-				...(cwd ? [{ dir: join(cwd, ".lyra", "skills"), source: "workspace" as const }] : []),
-				{ dir: join(lyraHome(), "skills"), source: "user" as const },
-			]),
-		]);
+		/*
+		 * Sequential, because skills depend on which plugins loaded.
+		 *
+		 * These used to run in parallel, with skills read straight from `loadSkills` — so the
+		 * settings page and the agent walked different code to answer the same question, and the
+		 * page had no way to know that a skill it could not find had in fact been shadowed.
+		 */
+		const plugins = await loadPlugins(
+			[
+				...(cwd ? [{ dir: join(cwd, ".lyra", "plugins"), source: "workspace" as const }] : []),
+				{ dir: join(lyraHome(), "plugins"), source: "user" as const },
+				// Both roots, because a bundle is sorted by what it holds — one installed before
+				// the split is still filed under `plugins` and still has to come back as MCP.
+				{ dir: join(lyraHome(), "mcp"), source: "user" as const },
+			],
+			disabledPlugins(),
+		);
 		/*
 		 * Done on the way out of a read, which is not where side effects usually belong.
 		 *
@@ -145,19 +146,14 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 		await reconcile(plugins.mcpBundles);
 		void tidy(plugins.mcpBundles);
 
-		const looseNames = new Set(skills.skills.map((skill) => skill.name));
+		const collected = await collectSkills(cwd ?? process.cwd(), plugins.plugins);
 		return {
 			plugins: plugins.plugins,
 			mcpBundles: plugins.mcpBundles,
 			pluginDiagnostics: plugins.diagnostics,
-			skills: [
-				...skills.skills,
-				...plugins.plugins
-					.filter((plugin) => plugin.enabled)
-					.flatMap((plugin) => plugin.skills)
-					.filter((skill) => !looseNames.has(skill.name)),
-			],
-			skillDiagnostics: skills.diagnostics,
+			skills: collected.skills,
+			skillDiagnostics: collected.diagnostics,
+			shadowedSkills: collected.shadowed,
 		};
 	});
 

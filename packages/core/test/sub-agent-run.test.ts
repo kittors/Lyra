@@ -120,7 +120,8 @@ test("a dispatched sub-agent is registered before it starts, and finished when i
 		assert.equal(one.agent, "general");
 		assert.equal(one.status, "done");
 		assert.equal(one.answer, "在 auth.ts:42");
-		assert.equal(answer, "在 auth.ts:42", "and the parent gets the same thing");
+		assert.equal(answer.text, "在 auth.ts:42", "and the parent gets the same thing");
+		assert.equal(answer.output, undefined, "an agent with no declared schema returns prose, as it always did");
 		assert.equal(registry.running, 0);
 	});
 });

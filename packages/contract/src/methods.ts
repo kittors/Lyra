@@ -198,6 +198,25 @@ export const METHODS = {
 	scheduler: {
 		runNow: { channel: "scheduler:runNow", remote: false, why: "定时任务在桌面端执行" },
 	},
+	/*
+	 * 回答「要把这次纠正变成一条规则吗」那张卡片。
+	 *
+	 * 手机能调：卡片跟着转录一起出现在手机上，而一张按不动的卡片比没有卡片更糟——
+	 * 它出现在正确的时刻，然后什么也不做。落盘仍然发生在桌面端的项目目录里。
+	 */
+	rules: {
+		preview: { channel: "rules:preview", remote: true },
+		keep: { channel: "rules:keep", remote: true },
+		decline: { channel: "rules:decline", remote: true },
+		/*
+		 * 规则管理页在桌面端。
+		 *
+		 * 它回答的是「我写的规则为什么没生效」——被谁盖掉了、在哪个文件里、条件长什么样——
+		 * 而这些问题的下一步动作是去改那个文件，那件事只能在有编辑器的那台机器上做。
+		 */
+		list: { channel: "rules:list", remote: false, why: "规则管理在桌面端，改完要去编辑那个文件" },
+		setDisabled: { channel: "rules:setDisabled", remote: false, why: "规则管理在桌面端" },
+	},
 	forge: {
 		kinds: { channel: "forge:kinds", remote: false, why: "代码托管的令牌不出桌面端" },
 		accounts: { channel: "forge:accounts", remote: false, why: "代码托管的令牌不出桌面端" },
@@ -256,6 +275,16 @@ export const METHODS = {
 		add: { channel: "memory:add", remote: false, why: "手机上没有编辑记忆的界面" },
 		remove: { channel: "memory:remove", remote: false, why: "手机上没有编辑记忆的界面" },
 		clear: { channel: "memory:clear", remote: false, why: "手机上没有编辑记忆的界面" },
+	},
+	projectMemory: {
+		/*
+		 * 后台抽取由桌面端跑，手机不参与。
+		 *
+		 * 它读的是那台机器上的会话文件、写的是那台机器上的记忆目录，而且是「空闲时跑一遍」的
+		 * 后台活——手机端连着的时候，那台机器并不空闲。
+		 */
+		status: { channel: "projectMemory:status", remote: false, why: "后台抽取跑在桌面端" },
+		extract: { channel: "projectMemory:extract", remote: false, why: "后台抽取跑在桌面端" },
 	},
 	diff: {
 		workspaceDiff: { channel: "diff:workspace", remote: false, why: "手机上没有审阅改动的界面" },

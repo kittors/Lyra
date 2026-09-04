@@ -10,6 +10,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { normalizeKeys } from "../capability/fs.ts";
 
 export interface Skill {
 	name: string;
@@ -63,8 +64,17 @@ export async function loadSkills(
 				diagnostics.push({ path: file, message: "Frontmatter is not valid YAML." });
 				continue;
 			}
+			if (parsed.problem) diagnostics.push({ path: file, message: parsed.problem });
 
-			const { frontmatter, body } = parsed;
+			/*
+			 * 两种拼写当成同一个键。
+			 *
+			 * `disable-model-invocation` 和 `disableModelInvocation` 在外面都有人写——启发这些
+			 * 格式的那几个工具彼此就不一致——而这里原本只认连字符那一种。写了驼峰的人得到的是一个
+			 * 被静默忽略的字段：技能照常加载、照常出现在列表里，只是那个开关不起作用。
+			 */
+			const { body } = parsed;
+			const frontmatter = normalizeKeys(parsed.frontmatter);
 			const name = typeof frontmatter.name === "string" && frontmatter.name ? frontmatter.name : entry.name;
 			const description = typeof frontmatter.description === "string" ? frontmatter.description.trim() : "";
 
@@ -97,7 +107,7 @@ export async function loadSkills(
 				allowedTools: Array.isArray(frontmatter["allowed-tools"])
 					? (frontmatter["allowed-tools"] as unknown[]).filter((t): t is string => typeof t === "string")
 					: undefined,
-				disableModelInvocation: frontmatter["disable-model-invocation"] === true,
+				disableModelInvocation: frontmatter["disable-model-invocation"] === true || frontmatter.disableModelInvocation === true,
 			});
 		}
 	}
@@ -105,11 +115,31 @@ export async function loadSkills(
 	return { skills, diagnostics };
 }
 
-export function parseFrontmatter(raw: string): { frontmatter: Record<string, unknown>; body: string } | null {
+export interface ParsedFrontmatter {
+	frontmatter: Record<string, unknown>;
+	body: string;
+	/**
+	 * Set when the document opened a frontmatter block and never closed it.
+	 *
+	 * The parse still succeeds — the whole document becomes the body, which is the only reading
+	 * left once the delimiters are unusable. But that reading injects `name:` and `description:`
+	 * into the model's context as prose, and the author is looking at a file that appears to have
+	 * metadata and behaves as if it has none. Callers surface this; nothing depends on it.
+	 */
+	problem?: string;
+}
+
+export function parseFrontmatter(raw: string): ParsedFrontmatter | null {
 	const normalized = raw.replace(/\r\n/g, "\n");
 	if (!normalized.startsWith("---\n")) return { frontmatter: {}, body: normalized };
 	const end = normalized.indexOf("\n---", 3);
-	if (end === -1) return { frontmatter: {}, body: normalized };
+	if (end === -1) {
+		return {
+			frontmatter: {},
+			body: normalized,
+			problem: "Frontmatter opens with `---` but is never closed, so the whole file is being treated as body text.",
+		};
+	}
 	try {
 		const frontmatter = (parseYaml(normalized.slice(4, end)) ?? {}) as Record<string, unknown>;
 		return { frontmatter, body: normalized.slice(end + 4).replace(/^\n+/, "") };

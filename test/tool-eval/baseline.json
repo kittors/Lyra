@@ -1,0 +1,51 @@
+{
+  "note": "编辑格式基线。production = 产品代码（hunk 形态），str-replace = 改造前。",
+  "at": "2026-09-04",
+  "runs": [
+    {
+      "model": "relay/gemini-2.5-flash-lite",
+      "format": "production",
+      "cases": 45,
+      "firstAttemptPass": 44,
+      "eventualPass": 45,
+      "outputTokens": 2532,
+      "avgCalls": 1.022,
+      "firstFailures": {
+        "wrong-result": 1
+      }
+    },
+    {
+      "model": "relay/gemini-2.5-flash-lite",
+      "format": "str-replace",
+      "cases": 45,
+      "firstAttemptPass": 34,
+      "eventualPass": 37,
+      "outputTokens": 5558,
+      "avgCalls": 1.489,
+      "firstFailures": {
+        "wrong-result": 8,
+        "apply-failed": 3
+      }
+    },
+    {
+      "model": "relay/gemini-3.7-flash-high",
+      "format": "production",
+      "cases": 45,
+      "firstAttemptPass": 45,
+      "eventualPass": 45,
+      "outputTokens": 2430,
+      "avgCalls": 1.0,
+      "firstFailures": {}
+    },
+    {
+      "model": "relay/gemini-3.7-flash-high",
+      "format": "str-replace",
+      "cases": 45,
+      "firstAttemptPass": 45,
+      "eventualPass": 45,
+      "outputTokens": 8170,
+      "avgCalls": 1.0,
+      "firstFailures": {}
+    }
+  ]
+}

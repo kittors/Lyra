@@ -36,13 +36,40 @@ export const writeTool: Tool<WriteArgs> = {
 	summarize: (args) => `Write ${args.path}`,
 
 	async execute(args, ctx): Promise<ToolResult> {
+		if (typeof args.content !== "string") return errorResult("`content` must be a string.");
+
+		/*
+		 * Writable addresses, of which there is exactly one.
+		 *
+		 * The refusal for everything else is the point rather than a gap. A model that could
+		 * `write rule://no-force-push` could rewrite the constraint that stops it force-pushing,
+		 * and the rewrite would look like any other tool call. Changing a rule goes through the
+		 * filesystem, where the user's own review of a diff applies.
+		 */
+		if (ctx.resources?.canResolve(args.path)) {
+			try {
+				await ctx.resources.write(args.path, args.content, {
+					cwd: ctx.cwd,
+					sessionId: ctx.sessionId,
+					scratchDir: ctx.scratchDir,
+					state: ctx.state,
+					signal: ctx.signal,
+				});
+				return {
+					content: [{ type: "text", text: `Wrote ${args.path} (${args.content.length} characters).` }],
+					details: { kind: "resource", url: args.path },
+				};
+			} catch (error) {
+				return errorResult(error instanceof Error ? error.message : String(error));
+			}
+		}
+
 		let absolute: string;
 		try {
 			absolute = resolveWorkspacePath(ctx.cwd, args.path);
 		} catch (error) {
 			return errorResult(error instanceof Error ? error.message : String(error));
 		}
-		if (typeof args.content !== "string") return errorResult("`content` must be a string.");
 
 		const alreadyExists = await exists(absolute);
 		// Overwriting a file the agent has not read is how unrelated work gets destroyed.

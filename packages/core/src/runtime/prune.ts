@@ -33,6 +33,15 @@ export const PRUNE_THRESHOLD_CHARS = 8192;
 export const PRUNE_HEAD_CHARS = 4096;
 /** Kept from the back, where it puts totals, errors and "N more matches". */
 export const PRUNE_TAIL_CHARS = 1024;
+/**
+ * Below this, cutting a result costs more than it saves.
+ *
+ * The marker itself is prose — it runs to a couple of hundred characters. Cutting a 300-character
+ * result to insert it saves nothing at all, and pays for that nothing by rewriting the middle of
+ * the conversation, which invalidates the provider's prefix cache from that point on. The next
+ * request then re-bills every token above it.
+ */
+export const PRUNE_FLOOR_CHARS = 200;
 
 /** Says what happened, in the model's own reading order, and how much is missing. */
 function marker(omitted: number): string {
@@ -50,6 +59,14 @@ function marker(omitted: number): string {
 export function pruneText(text: string, threshold = PRUNE_THRESHOLD_CHARS): string | null {
 	const points = [...text];
 	if (points.length <= threshold) return null;
+	/*
+	 * A threshold below the marker's own length would make cutting a net loss.
+	 *
+	 * Reachable only through a caller passing a small threshold, which the recovery path does. The
+	 * marker runs to a couple of hundred characters, so cutting a 300-character result to insert
+	 * it saves nothing and rewrites the middle of the conversation to do it.
+	 */
+	if (points.length <= PRUNE_FLOOR_CHARS) return null;
 
 	const head = points.slice(0, PRUNE_HEAD_CHARS).join("");
 	const tail = points.slice(points.length - PRUNE_TAIL_CHARS).join("");
@@ -140,6 +157,75 @@ export function stripOversizedToolResults(messages: Message[], threshold = PRUNE
 				},
 			],
 		} as ToolResultMessage;
+	});
+	return changed ? next : messages;
+}
+
+/**
+ * How long a conversation must have been idle before rewriting its middle is free.
+ *
+ * Editing history invalidates a provider's prefix cache from the edit onwards, so a prune that
+ * saves tokens this turn can cost more than it saved on the next one. Once the cache has expired
+ * on its own there is nothing left to invalidate.
+ *
+ * Five minutes is the conservative reading: Anthropic's default TTL is five minutes and OpenAI's
+ * automatic caching is a few. A session using a longer TTL loses nothing by this — it only means
+ * the other condition (a small suffix) is what lets a prune through.
+ */
+export const CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * How much may sit below a prune before the lost cache outweighs it.
+ *
+ * Everything after the edit has to be re-sent uncached. A short tail is cheap to re-send; a long
+ * one is the whole saving handed back.
+ */
+export const CHEAP_SUFFIX_CHARS = 32_000;
+
+export interface PruneTiming {
+	/** When the last request went out, for judging whether the cache is still warm. */
+	lastRequestAt?: number;
+	/** Now, injectable for tests. */
+	now?: number;
+}
+
+/**
+ * Whether rewriting history at `index` is worth what it breaks.
+ *
+ * Two ways to say yes, and they are the same reason twice: either the cache below the edit is
+ * small, or it is already gone.
+ */
+export function worthPruning(messages: Message[], index: number, timing: PruneTiming = {}): boolean {
+	const now = timing.now ?? Date.now();
+	if (timing.lastRequestAt !== undefined && now - timing.lastRequestAt >= CACHE_TTL_MS) return true;
+
+	let suffix = 0;
+	for (let at = index + 1; at < messages.length; at += 1) {
+		for (const block of messages[at].content) {
+			if (block.type === "text") suffix += block.text.length;
+			if (suffix > CHEAP_SUFFIX_CHARS) return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Empty out the results that were never going to be read again.
+ *
+ * Emptied in place, never removed. A `tool_use` whose `tool_result` is missing makes Anthropic
+ * reject the request — and not just that request: every later one carrying the same history, which
+ * includes the one sent to recover from it. One orphan does not spoil a turn, it spoils the
+ * conversation.
+ */
+export function dropUneventful(messages: Message[], timing: PruneTiming = {}): Message[] {
+	let changed = false;
+	const next = messages.map((message, index) => {
+		if (message.role !== "toolResult" || !message.uneventful) return message;
+		const size = message.content.reduce((sum, block) => sum + (block.type === "text" ? block.text.length : 0), 0);
+		if (size <= PRUNE_FLOOR_CHARS) return message;
+		if (!worthPruning(messages, index, timing)) return message;
+		changed = true;
+		return { ...message, content: [{ type: "text" as const, text: "[无结果]" }] } as ToolResultMessage;
 	});
 	return changed ? next : messages;
 }

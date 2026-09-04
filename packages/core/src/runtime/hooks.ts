@@ -12,6 +12,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { systemShell } from "../platform.ts";
+import type { ExtensionHost } from "../extensions/host.ts";
 import type { HookConfig } from "../config/settings.ts";
 import type { ToolResult } from "../types.ts";
 
@@ -132,8 +133,20 @@ export async function runHook(
 }
 
 /** Build the loop's `beforeToolCall` from the configured hooks. */
-export function makeBeforeToolCall(hooks: HookConfig[], cwd: string, signal?: AbortSignal) {
+export function makeBeforeToolCall(hooks: HookConfig[], cwd: string, signal?: AbortSignal, extensions?: ExtensionHost) {
 	return async ({ toolName, args }: { toolName: string; args: Record<string, unknown> }) => {
+		/*
+		 * Extensions are asked before shell hooks, and the order is deliberate.
+		 *
+		 * A hook is a command the user wrote for this machine; an extension is code somebody else
+		 * wrote and they installed. If both would stop a call, the one whose reason is worth showing
+		 * is the one the user did not write — they already know what their own hook does.
+		 */
+		if (extensions) {
+			const verdict = await extensions.intercept("tool_call", { toolName, args, cwd });
+			if (verdict.block) return { block: true, reason: `一个扩展拦下了 "${toolName}"：${verdict.block}` };
+		}
+
 		for (const hook of hooksFor(hooks, "before-tool", toolName)) {
 			const result = await runHook(hook, cwd, { toolName, args, event: "before-tool" }, signal);
 			if (result.spawnError) {

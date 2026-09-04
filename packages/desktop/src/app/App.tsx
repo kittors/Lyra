@@ -6,7 +6,7 @@
  * mostly rules that were learned the hard way and are worth reading on their own.
  */
 
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-react";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
 import { Conversation, ConversationSkeleton } from "../features/conversation/index.ts";
@@ -25,6 +25,8 @@ import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
 import { useFileTreeStore } from "../store/fileTree.ts";
+import { useConfirmer } from "../ui/overlay/Confirm.tsx";
+import { useMemoryPass, type MemoryPassAsk } from "../features/memory/useMemoryPass.ts";
 
 /*
  * The screens that are not a conversation, fetched when they are first opened.
@@ -113,6 +115,36 @@ export function App() {
 	useTrayCommands();
 
 	/*
+	 * 后台抽取，以及它欠的那一次征询。
+	 *
+	 * 挂在这里而不是挂在对话里：它是窗口级的空闲行为，跟当下打开的是哪一个会话无关——问的是
+	 * 「这个项目的历史会话里有没有值得记的」。
+	 */
+	const memoryConsent = useConfirmer();
+	const askMemoryConsent = useCallback(
+		({ onAnswer }: MemoryPassAsk) =>
+			memoryConsent.ask({
+				title: "让 Lyra 从这个项目的历史会话里总结经验？",
+				detail: (
+					<>
+						它会在空闲时读最近的几次对话（12 小时前到 30 天内的），提炼出这个仓库的约定和踩过的坑，
+						写进项目记忆，之后每一轮对话都带上。
+						<br />
+						这需要把那些对话的内容发给你配置的模型。随时可以在 设置 › 个性化 里改。
+					</>
+				),
+				confirmLabel: "可以",
+				cancelLabel: "不用",
+				tone: "normal",
+				onConfirm: () => onAnswer(true),
+				// 取消也是一个回答：不写下来，下一次空闲还会问同一个问题。
+				onCancel: () => onAnswer(false),
+			}),
+		[memoryConsent],
+	);
+	useMemoryPass(askMemoryConsent);
+
+	/*
 	 * The boot screen has a floor as well as a ceiling.
 	 *
 	 * `ready` arrives in a few hundred milliseconds, which meant the screen it gates was mounted and
@@ -157,6 +189,8 @@ export function App() {
 			 * window rather than to any one view.
 			 */}
 			<Toaster />
+			{/* 征询：一个停下一切来问的问题，用的就是那个停下一切的面。 */}
+			{memoryConsent.element}
 		</LayoutProvider>
 	);
 }

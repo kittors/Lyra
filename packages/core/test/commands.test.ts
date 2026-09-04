@@ -87,6 +87,35 @@ test("commands written for Claude Code are found too, and lose only on a name co
 	assert.equal(review?.description, "审查改动", "ours wins the collision, and the other is simply shadowed");
 });
 
+test("the shadowed command is reported, and the report names the file that won", async () => {
+	/*
+	 * Shadowing silently is how someone ends up staring at a `/review` that behaves like a stranger
+	 * wrote it. The list shows one entry, and nothing on screen says a second file lost.
+	 */
+	const { diagnostics } = await loadCommands(sources());
+	const shadowed = diagnostics.find((d) => d.path.includes(join(".claude", "commands", "review.md")));
+	assert.ok(shadowed, `the losing file is named (${diagnostics.map((d) => d.path).join("; ")})`);
+	assert.match(shadowed.message, /review/, "the message says which command");
+	assert.match(shadowed.message, /\.lyra/, "and points at the file that took it");
+});
+
+test("frontmatter that opens and never closes is reported instead of becoming prose", async () => {
+	/*
+	 * The parse still succeeds — the whole file becomes the body, which is all that is left once
+	 * the delimiters are unusable. What must not happen is doing that in silence: the author sees a
+	 * file that looks like it has metadata, and the model gets `description:` injected as text.
+	 */
+	await put("home/commands/unterminated.md", "---\ndescription: 忘了闭合\n\n正文在这里。");
+
+	const { commands, diagnostics } = await loadCommands(sources());
+	const loaded = commands.find((c) => c.name === "unterminated");
+	assert.ok(loaded, "it still loads — refusing the file would cost the user a command");
+	assert.ok(
+		diagnostics.some((d) => d.path.includes("unterminated") && /闭合/.test(d.message)),
+		`and the problem is named (${diagnostics.map((d) => d.message).join("; ")})`,
+	);
+});
+
 test("a name that is not kebab-case is reported rather than silently skipped", async () => {
 	await put("home/commands/Bad Name.md", "内容");
 

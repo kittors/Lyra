@@ -14,6 +14,9 @@ import type { AgentRunConfig } from "../agent/loop.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
+import { ruleHooks } from "../rules/session.ts";
+import { DispatchGate, rootDispatch } from "./dispatch-guard.ts";
+import type { StreamRuleMonitor } from "../rules/stream.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
 	ApprovalDecision,
@@ -58,6 +61,15 @@ export interface TurnConfigDeps {
 	beforeToolCall: AgentRunConfig["beforeToolCall"];
 	afterToolCall: AgentRunConfig["afterToolCall"];
 	drainSteering: AgentRunConfig["drainSteering"];
+	/**
+	 * Watches the stream for rule violations. Session-scoped, not per turn: repeat policy is
+	 * counted in turns, so a monitor rebuilt each turn would let a `once` rule fire forever.
+	 */
+	ruleMonitor?: StreamRuleMonitor;
+	/** The session's address space. Session-scoped for the same reason the monitor is. */
+	resources?: AgentRunConfig["resources"];
+	/** Where `scratch://` writes for this session. */
+	scratchDir?: string;
 }
 
 export function buildTurnConfig(
@@ -98,31 +110,53 @@ export function buildTurnConfig(
 			 */
 			sandboxMode: sandboxModeFor(deps.settings.permissionMode),
 			allowedHosts: deps.settings.allowedHosts,
+			/*
+			 * Queued rather than run on demand.
+			 *
+			 * A model asked to look at eight things dispatches eight, which is a reasonable thought
+			 * and an unreasonable amount of concurrency — eight simultaneous runs each with their
+			 * own context and their own model calls. The gate turns "do these eight" into "do these
+			 * eight, four at a time", which is what was wanted; the prompt says the number so the
+			 * model does not read the queue as slowness and try harder.
+			 */
 			spawnSubAgent: (input) =>
-				runSubAgent(
-					{
-						sessionId: deps.sessionId,
-						cwd: deps.cwd,
-						settings: deps.settings,
-						tools: deps.tools,
-						skills: deps.skills,
-						agents: deps.agents,
-						signal: deps.signal,
-						streamFn: deps.streamFn,
-						requestApproval: (request) => deps.requestApproval(request),
-						emit: (event) => deps.emit(event),
-						// Where the run registers itself so it can be watched and steered. Absent for
-						// hosts that only want the answer — see `SubAgentOptions.registry`.
-						registry: deps.subAgents,
-						// So a delegated run compacts through the same model call this session does.
-						summaryStream: deps.summaryStream(deps.provider),
-					},
-					input,
-					deps.provider,
-					deps.model,
-					systemPrompt,
+				dispatchGate(deps).run(() =>
+					runSubAgent(
+						{
+							sessionId: deps.sessionId,
+							cwd: deps.cwd,
+							settings: deps.settings,
+							tools: deps.tools,
+							skills: deps.skills,
+							agents: deps.agents,
+							signal: deps.signal,
+							streamFn: deps.streamFn,
+							requestApproval: (request) => deps.requestApproval(request),
+							emit: (event) => deps.emit(event),
+							// Where the run registers itself so it can be watched and steered. Absent for
+							// hosts that only want the answer — see `SubAgentOptions.registry`.
+							registry: deps.subAgents,
+							// So a delegated run compacts through the same model call this session does.
+							summaryStream: deps.summaryStream(deps.provider),
+							/*
+							 * 整棵派生树共用同一个闸门和同一条链。
+							 *
+							 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
+							 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
+							 */
+							gate: dispatchGate(deps),
+							dispatch: rootDispatch(),
+						},
+						input,
+						deps.provider,
+						deps.model,
+						systemPrompt,
+					),
 				),
 			drainSteering: deps.drainSteering,
+			resources: deps.resources,
+			scratchDir: deps.scratchDir,
+			rules: deps.ruleMonitor?.active ? ruleHooks(deps.ruleMonitor) : undefined,
 			beforeToolCall: deps.beforeToolCall,
 			afterToolCall: deps.afterToolCall,
 			// The session's own stream override applies here too; summarising is a model call.
@@ -145,4 +179,21 @@ export function buildTurnConfig(
 				),
 			streamFn: deps.streamFn,
 	};
+}
+
+/**
+ * One gate per session, found through the session's own state map.
+ *
+ * Not a module-level singleton: two windows on two projects would then share a limit and slow each
+ * other down for no reason anybody could see. The state map is already the session-scoped place
+ * where things like this live.
+ */
+const GATE_KEY = "dispatchGate";
+
+function dispatchGate(deps: TurnConfigDeps): DispatchGate {
+	const existing = deps.state.get(GATE_KEY);
+	if (existing instanceof DispatchGate) return existing;
+	const gate = new DispatchGate(deps.settings.maxConcurrentSubAgents);
+	deps.state.set(GATE_KEY, gate);
+	return gate;
 }

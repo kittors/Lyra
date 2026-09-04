@@ -55,6 +55,16 @@ export interface SubAgentSummary {
 	lastActivity?: string;
 	/** Set on `done`; the only part the parent ever sees. */
 	answer?: string;
+	/**
+	 * The validated object, when this agent declared an output schema and yielded against it.
+	 *
+	 * Kept beside the prose rather than instead of it, because they answer different questions:
+	 * the text is what a person reads in the pane, and this is what `agent://<id>/<field>` indexes
+	 * into so the parent can take one value without re-reading the whole reply.
+	 */
+	output?: Record<string, unknown>;
+	/** Schema problems that were accepted rather than rejected. */
+	warnings?: string[];
 	/** Set on `failed`. */
 	error?: string;
 }
@@ -148,12 +158,23 @@ export class SubAgentRegistry {
 		this.onChange();
 	}
 
-	finish(id: string, outcome: { status: Exclude<SubAgentStatus, "running">; answer?: string; error?: string }): void {
+	finish(
+		id: string,
+		outcome: {
+			status: Exclude<SubAgentStatus, "running">;
+			answer?: string;
+			error?: string;
+			output?: Record<string, unknown>;
+			warnings?: string[];
+		},
+	): void {
 		const found = this.records.get(id);
 		if (!found) return;
 		found.status = outcome.status;
 		found.endedAt = Date.now();
 		found.answer = outcome.answer;
+		found.output = outcome.output;
+		found.warnings = outcome.warnings;
 		found.error = outcome.error;
 		// The levers go with the run: a finished sub-agent must not look steerable.
 		found.steering.length = 0;

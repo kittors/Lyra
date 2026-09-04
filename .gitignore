@@ -54,3 +54,6 @@ AGENTS.local.md
 # branch where everything is committed — and every tool that walks the tree reads the copy as a
 # second set of sources.
 .claude/worktrees/
+
+# 评测的逐次结果：过程数据，本地留存即可。基线在 test/tool-eval/baseline.json
+test/tool-eval/results/

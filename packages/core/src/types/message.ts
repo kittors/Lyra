@@ -121,6 +121,23 @@ export interface UserMessage {
 	 * of writing, in your own voice, with no way to tell where it came from.
 	 */
 	origin?: "side-chat";
+	/**
+	 * What a rule matched, when this message is a rule correction.
+	 *
+	 * Carried as data rather than left for the renderer to pull out of the injected text. The text
+	 * is written for the model and is deliberately blunt XML; a UI that parsed it would break the
+	 * next time that wording is improved, and every consumer would have to parse it separately.
+	 *
+	 * Without this the correction is invisible: synthetic messages render as nothing, so a rule
+	 * that stopped the model mid-sentence shows up as the model simply having said something
+	 * different — which is the one thing a person needs explained.
+	 */
+	ruleMatch?: {
+		/** One entry per rule that fired on the same stream position. */
+		rules: { name: string; path: string; excerpt: string; source: string; toolName?: string }[];
+		/** False when the turn was allowed to finish and this rode the next one. */
+		interrupted: boolean;
+	};
 }
 
 export interface AssistantMessage {
@@ -159,6 +176,8 @@ export interface ToolResultMessage {
 	/** Structured payload for rich UI rendering; never sent to the model. */
 	details?: unknown;
 	isError: boolean;
+	/** See `ToolResult.uneventful`. Carried on the message so compaction can see it. */
+	uneventful?: boolean;
 	timestamp: number;
 }
 

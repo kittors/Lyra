@@ -14,6 +14,7 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GhostButton } from "./controls.tsx";
 import { FetchModelsModal } from "./FetchModelsModal.tsx";
 import { ModelEditor } from "./ModelEditor.tsx";
+import { ModelRoles } from "./ModelRoles.tsx";
 import { ProviderEditor } from "./ProviderEditor.tsx";
 import { useProviders } from "./useProviders.ts";
 
@@ -25,7 +26,14 @@ export function ModelSettings() {
   } | null>(null);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    /*
+     * 整页可滚，因为它不再只有那一块两栏了。
+     *
+     * 两栏原本是 `flex-1` 独占整个高度，模型角色接在它下面之后，在 680px 高的窗口里把它压成了
+     * 一条——供应商列表还在，右边的编辑器一点不剩。给两栏一个下限、让页面自己滚，是这两块
+     * 都能好好待着的唯一排法。
+     */
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <header className="flex shrink-0 items-start justify-between pt-8 pb-6">
         <div>
           <h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
@@ -61,7 +69,7 @@ export function ModelSettings() {
        */}
       {/* The query element and the queried element cannot be the same one: a container is
 				    sized by its contents, so it is only ever asked about by its descendants. */}
-      <div className="@container flex min-h-0 flex-1">
+      <div className="@container flex min-h-[340px] flex-1">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-card/30 @2xl:flex-row">
           {/* Each pane scrolls on its own, so a long provider list never moves the editor. */}
           <Scroller
@@ -146,6 +154,18 @@ export function ModelSettings() {
           </Scroller>
         </div>
       </div>
+
+      {/*
+       * 角色排在供应商列表下面。
+       *
+       * 它问的是「已经配好的这些模型，分别派什么用场」——放在一个还空着的列表上面，
+       * 就是在问一个还没有答案的问题。
+       */}
+      {p.providers.length > 0 && (
+        <div className="shrink-0 pt-8 pb-2">
+          <ModelRoles />
+        </div>
+      )}
 
       {editingModel && (
         <ModelEditor

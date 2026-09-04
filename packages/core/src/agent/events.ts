@@ -31,6 +31,53 @@ export type AgentEvent =
 	| { type: "agent_end"; reason: "done" | "aborted" | "error" | "max_turns" | "stalled"; error?: string }
 	| { type: "notice"; level: "info" | "warn" | "error"; message: string }
 	/**
+	 * A rule matched the model's output and the turn was restarted.
+	 *
+	 * Carries what matched as well as which rule, because the useful question when a rule fires is
+	 * not "which rule" but "on what" — a pattern written too broadly is only visible next to the
+	 * text it caught.
+	 */
+	| {
+			type: "rule_triggered";
+			rules: {
+				name: string;
+				path: string;
+				excerpt: string;
+				source: "text" | "thinking" | "tool";
+				toolName?: string;
+				/** True when the turn was not interrupted and the reminder rides the next one. */
+				deferred?: boolean;
+			}[];
+	  }
+	/**
+	 * A correction the runtime thinks could become a rule.
+	 *
+	 * Emitted after a turn, never during one. The offer is not part of the work, and a choice
+	 * presented mid-action is one people dismiss to get it out of the way.
+	 */
+	| {
+			type: "rule_suggested";
+			name: string;
+			body: string;
+			condition?: string;
+			scope?: string;
+	  }
+	/**
+	 * 磁盘上的技能、规则或子代理定义变了，这个会话已经重新读过了。
+	 *
+	 * 说清楚变了什么，而不只是「有变化」：一次 `git checkout` 会换掉半个目录，一句
+	 * 「能力已更新」对着那种情况说了等于没说。数字是重载前后的差，所以「改了一个文件的内容」
+	 * 三个数都是 0——那也是对的，因为改的确实不是名单。
+	 */
+	| {
+			type: "capabilities_changed";
+			skills: number;
+			rules: number;
+			agents: number;
+			/** 新出现的名字，最多几个，给通知用。 */
+			added: string[];
+	  }
+	/**
 	 * What the model was given at the start of a turn.
 	 *
 	 * The transcript records what the model said; this records what it was told — the system

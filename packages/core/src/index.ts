@@ -212,7 +212,7 @@ export {
 } from "./runtime/previews.ts";
 
 export type { SubAgentDetail, SubAgentStatus, SubAgentSummary } from "./runtime/sub-agents.ts";
-export { collectSkills } from "./runtime/session-setup.ts";
+export { collectRules, collectSkills, type RuleEntry } from "./runtime/session-setup.ts";
 export {
 	resolveModelThinkingOptions,
 	resolveReasoningEffort,
@@ -222,3 +222,14 @@ export {
 	GPT_5_6_SOL_OPTIONS,
 	FAST_3_LEVEL_OPTIONS,
 } from "./ai/thinking-options.ts";
+export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory-pass.ts";
+export {
+	MODEL_ROLES,
+	ROLE_DESCRIPTIONS,
+	parseModelRef,
+	resolveModelRef,
+	roleStatus,
+	type ModelRole,
+} from "./config/model-roles.ts";
+export { renderRuleFile, type CorrectionSuggestion } from "./rules/from-correction.ts";
+export { ruleDir, saveRule, type RuleDestination } from "./rules/save.ts";

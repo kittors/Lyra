@@ -296,6 +296,41 @@ export interface Settings {
 	 */
 	disabledPlugins: string[];
 	/**
+	 * Rules switched off by name, built-in or discovered.
+	 *
+	 * By name rather than by path so that turning one off survives it moving between `.lyra/rules`
+	 * and, say, `.cursor/rules` — the user turned off an idea, not a file.
+	 */
+	disabledRules: string[];
+	/**
+	 * How many sub-agents may run at once. Beyond this they queue.
+	 *
+	 * A limit rather than a refusal, because wanting to look at eight things is a reasonable thought
+	 * and running eight at once is what is not — each carries its own context and its own model
+	 * calls. The number reaches the prompt too: a queue is invisible from the inside, and a model
+	 * that reads the wait as slowness responds by dispatching more.
+	 */
+	maxConcurrentSubAgents: number;
+	/**
+	 * Which model answers to `@fast`, `@deep` and `@review`.
+	 *
+	 * Lets a sub-agent definition name what it needs rather than a specific model — the definition
+	 * then works on a machine with a different set of providers, which is what makes one shareable
+	 * at all. Empty entries fall through to the session's own model.
+	 */
+	modelRoles?: Partial<Record<"default" | "fast" | "deep" | "review", string>>;
+	/**
+	 * Whether finished sessions may be read by a model to build project memory.
+	 *
+	 * Off until somebody says yes. Extraction sends conversation content to a provider, and an app
+	 * that otherwise only talks to one when asked must not quietly start doing it on a timer — a
+	 * tool people run locally has to be conservative about exactly this.
+	 *
+	 * `undefined` is "never asked", which the host distinguishes from `false` ("asked, declined")
+	 * so it knows whether the prompt is still owed.
+	 */
+	memoryExtraction?: boolean;
+	/**
 	 * Plugin registry index URLs the user has added, browsed from the plugins page.
 	 *
 	 * Ours is preset. The argument against shipping one was that it would point at a collection
@@ -435,6 +470,16 @@ export const DEFAULT_SETTINGS: Settings = {
 	hooks: [],
 	scheduledTasks: [],
 	disabledPlugins: [],
+	disabledRules: [],
+	maxConcurrentSubAgents: 4,
+	modelRoles: {},
+	/*
+	 * `memoryExtraction` is deliberately absent rather than `undefined`.
+	 *
+	 * Its whole point is that "never asked" is a third state, and an absent key is how that is
+	 * spelled. Written out as `undefined` it becomes a key that exists and holds nothing, which
+	 * reads to `Object.keys` — and so to the phone-settings merge — as a field somebody deleted.
+	 */
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
@@ -487,6 +532,50 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 /**
+ * The settings a particular project sees: the global file with `<cwd>/.lyra/config.json` over it.
+ *
+ * Separate from `loadSettings` rather than folded into it, because most callers have no project —
+ * the settings page, a migration, the CLI before a directory is chosen — and giving them a `cwd`
+ * they do not have would be inventing one.
+ *
+ * The project layer cannot carry credentials or providers (`sanitizeProjectConfig`): that file is
+ * checked into the repository, so anything in it is shared with everyone who clones it.
+ */
+export async function loadSettingsFor(cwd: string | null): Promise<{ settings: Settings; refused: string[]; error?: string }> {
+	return layerProjectSettings(await loadSettings(), cwd);
+}
+
+/**
+ * Put a project's layer over settings that are already in hand.
+ *
+ * Split out from `loadSettingsFor` because a running session gets its global settings handed to it
+ * — the desktop keeps one copy and pushes changes down — and re-reading the file to apply the
+ * project layer would race with whatever change was being pushed.
+ */
+export async function layerProjectSettings(
+	global: Settings,
+	cwd: string | null,
+): Promise<{ settings: Settings; refused: string[]; error?: string }> {
+	if (!cwd) return { settings: global, refused: [] };
+
+	const { loadProjectLayer, mergeLayer } = await import("./layers.ts");
+	const project = await loadProjectLayer(cwd);
+	if (Object.keys(project.config).length === 0) {
+		return { settings: global, refused: project.refused, error: project.error };
+	}
+
+	/*
+	 * Merged as data and then re-normalised, rather than assigned field by field.
+	 *
+	 * `normalizeSettings` is where every bound and fallback lives — a project setting
+	 * `maxConcurrentSubAgents: 500` has to meet the same ceiling a global one does, and a field-by-
+	 * field merge would be a second place those rules have to be kept in step.
+	 */
+	const merged = mergeLayer(global as unknown as Record<string, unknown>, project.config);
+	return { settings: normalizeSettings(merged), refused: project.refused, error: project.error };
+}
+
+/**
  * Settings exactly as written, with whatever `apiKey` the file happens to hold.
  *
  * Separate from `loadSettings` because the migration needs to see the plaintext that is still on
@@ -497,7 +586,21 @@ async function readSettingsFile(): Promise<Settings> {
 	const raw = await readFile(settingsPath(), "utf8").catch(() => null);
 	if (!raw) return { ...DEFAULT_SETTINGS };
 	try {
-		const parsed = JSON.parse(raw) as Partial<Settings>;
+		return normalizeSettings(JSON.parse(raw) as Partial<Settings>);
+	} catch {
+		return { ...DEFAULT_SETTINGS };
+	}
+}
+
+/**
+ * A settings object as written, brought up to the shape the app expects.
+ *
+ * Split out of `readSettingsFile` so that every layer goes through it. A project's
+ * `.lyra/config.json` setting `maxConcurrentSubAgents: 500` has to meet the same ceiling a global
+ * one does, and merging layers field by field would put those bounds in a second place that has to
+ * be kept in step with this one.
+ */
+export function normalizeSettings(parsed: Partial<Settings>): Settings {
 		// Merge against defaults so a settings file written by an older build keeps working.
 		return {
 			...DEFAULT_SETTINGS,
@@ -513,6 +616,29 @@ async function readSettingsFile(): Promise<Settings> {
 			hooks: parsed.hooks ?? [],
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
+			disabledRules: parsed.disabledRules ?? [],
+			maxConcurrentSubAgents:
+				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
+					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
+					: 4,
+			/*
+			 * Spread rather than assigned, so "never asked" is an absent key rather than a present
+			 * one holding `undefined`.
+			 *
+			 * The two are the same to every reader — `settings.memoryExtraction` is undefined either
+			 * way — and different to `Object.keys`, which is what the merge that keeps a phone from
+			 * dropping fields walks. A key that is always there and always undefined reads to that
+			 * merge as a field the phone deleted.
+			 */
+			...(typeof parsed.memoryExtraction === "boolean" ? { memoryExtraction: parsed.memoryExtraction } : {}),
+			modelRoles:
+				parsed.modelRoles && typeof parsed.modelRoles === "object"
+					? Object.fromEntries(
+							Object.entries(parsed.modelRoles as Record<string, unknown>).filter(
+								([key, value]) => ["default", "fast", "deep", "review"].includes(key) && typeof value === "string" && value,
+							),
+						)
+					: {},
 			/*
 			 * A missing list gets the default; an empty one is left empty.
 			 *
@@ -535,9 +661,6 @@ async function readSettingsFile(): Promise<Settings> {
 			projects: parsed.projects ?? [],
 			alwaysAllow: parsed.alwaysAllow ?? [],
 		};
-	} catch {
-		return { ...DEFAULT_SETTINGS };
-	}
 }
 
 /**
@@ -631,20 +754,11 @@ export async function migrateSecrets(): Promise<number> {
 	return plaintext.length;
 }
 
-/** Find a model across all configured providers by its `${providerId}/${modelId}` id. */
-export function resolveModel(settings: Settings, id: string | null) {
-	if (!id) return null;
-	for (const provider of settings.providers) {
-		if (!provider.enabled) continue;
-		const model = provider.models.find((m) => m.id === id);
-		if (model) return { provider, model };
-	}
-	return null;
-}
-
-/** Every enabled model, flattened for the model picker. */
-export function availableModels(settings: Settings) {
-	return settings.providers
-		.filter((p) => p.enabled)
-		.flatMap((p) => p.models.map((m) => ({ provider: p, model: m })));
-}
+/*
+ * 找模型的那两个函数住在 `models.ts`，从这里再导出。
+ *
+ * 它们是纯的，而这个文件顶上就是 `node:fs` 和 `node:os`。渲染器要用它们，从这里导入会把整条
+ * 依赖链拉进浏览器包——窗口一片空白，报的是 `node:os.homedir` 不能在客户端访问。搬过去之后
+ * 这里仍然导出同一个名字，所以原来的调用点一个字都不用改。
+ */
+export { availableModels, resolveModel } from "./models.ts";

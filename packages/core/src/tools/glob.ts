@@ -96,7 +96,11 @@ export const globTool: Tool<GlobArgs> = {
 		const shown = matches.slice(0, limit);
 
 		if (shown.length === 0) {
-			return { content: [{ type: "text", text: `No files match ${pattern}.` }], details: { kind: "glob", count: 0 } };
+			return {
+				content: [{ type: "text", text: `No files match ${pattern}.` }],
+				details: { kind: "glob", count: 0 },
+				uneventful: true,
+			};
 		}
 
 		const footer = matches.length > shown.length ? `\n\n[${matches.length - shown.length} more matches not shown]` : "";

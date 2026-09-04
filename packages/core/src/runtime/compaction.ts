@@ -26,7 +26,7 @@
 import type { CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
-import { pruneToolResults } from "./prune.ts";
+import { dropUneventful, pruneToolResults } from "./prune.ts";
 import { measureTotal } from "./context.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../types.ts";
 
@@ -269,8 +269,20 @@ export async function compactIfNeeded(
 	 * already been cut — so an estimate over the uncut text and a measurement of cut text are not
 	 * comparable, and subtracting one from the other books a saving that was banked turns ago.
 	 */
-	const pruned = pruneToolResults(messages);
-	if (pruned !== messages) {
+	/*
+	 * Results with nothing in them go first, before anything with content is touched.
+	 *
+	 * A search that matched nothing and a listing of an empty directory take up room and answer no
+	 * question that will be asked again. Emptying them is free in a way that cutting a real result
+	 * is not — nothing is lost, so there is no judgement about what the model might need later.
+	 *
+	 * `worthPruning` is bypassed here on purpose: by the time compaction runs, the window is nearly
+	 * full and the alternative is a model call. The prefix cache is worth protecting against
+	 * routine per-turn tidying, not against the thing that stops the conversation ending.
+	 */
+	const tidied = dropUneventful(messages, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
+	const pruned = pruneToolResults(tidied);
+	if (pruned !== tidied || tidied !== messages) {
 		const rawPruned = estimateTokens(pruned);
 		const factor = measured.measured && rawPruned > 0 ? Math.max(0, used - overhead) / rawPruned : 1;
 		const next = rawPruned * factor + overhead;

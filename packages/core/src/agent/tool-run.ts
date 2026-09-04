@@ -11,6 +11,7 @@ import type { AgentEventSink } from "./events.ts";
 import type { AgentEvent } from "./events.ts";
 import type { AgentRunConfig } from "./loop.ts";
 import { runTool } from "./tool-pipeline.ts";
+import { skillRefusal } from "../skills/tool.ts";
 import type {
 	AssistantContent,
 	Tool,
@@ -58,6 +59,8 @@ export async function runTools(
 			content: result.content,
 			details: result.details,
 			isError: result.isError === true,
+			/* An error is always worth keeping, whatever else the tool said about itself. */
+			uneventful: result.isError !== true && result.uneventful === true,
 			timestamp: Date.now(),
 		};
 		await emit({ type: "message_start", message });
@@ -99,6 +102,16 @@ async function executeOne(
 ): Promise<ToolResult> {
 	if (!tool) return errorResult(`Tool "${call.name}" is not available in this session.`);
 
+	/*
+	 * A loaded skill's `allowed-tools`, enforced.
+	 *
+	 * Checked here rather than by filtering the tool list, because the restriction arrives in the
+	 * middle of a turn — the model already has the schemas — and a tool that vanishes mid-turn is
+	 * harder to explain than one that refuses with a reason.
+	 */
+	const refusal = skillRefusal(state, call.name);
+	if (refusal) return errorResult(refusal);
+
 	// A tool call whose JSON never parsed would silently run with no arguments.
 	if (call.argumentsText && Object.keys(call.arguments).length === 0 && call.argumentsText.trim() !== "{}") {
 		return errorResult(
@@ -116,6 +129,8 @@ async function executeOne(
 		allowedHosts: config.allowedHosts,
 		writePreview: config.writePreview,
 		spawnSubAgent: config.spawnSubAgent,
+		resources: config.resources,
+		scratchDir: config.scratchDir,
 		onProgress: (partial) => void emit({ type: "tool_update", toolCallId: call.id, partial }),
 	};
 

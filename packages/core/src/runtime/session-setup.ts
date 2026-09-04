@@ -5,20 +5,25 @@
  * the session because it is a pure "read the world and report what is there" step — which is what
  * makes it possible to re-run after settings change without touching anything else.
  *
- * Precedence is the theme: what the workspace carries beats what the user installed globally, and
- * loose files beat what a plugin bundled. The most specific statement of intent wins.
+ * Precedence used to be the theme here, and now it is not. Which directories are read and who wins
+ * a name collision belong to `capability/`, where the rule is written once instead of once per
+ * loader — five copies of "most specific wins" had drifted apart in exactly the ways you would
+ * expect, and one of them had the comparison backwards. What is left in this file is assembly.
  */
 
 import { join } from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { createRegistry, type CapabilityRegistry } from "../capability/index.ts";
+import { pluginProvider } from "../capability/providers/plugins.ts";
 import type { Settings } from "../config/settings.ts";
 import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
-import { loadSkills, parseFrontmatter, type Skill, type SkillDiagnostic } from "../skills/loader.ts";
+import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
+import type { Rule, RuleSet } from "../rules/types.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
-import { BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
+import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
 
 export interface LoadedCapabilities {
@@ -29,6 +34,9 @@ export interface LoadedCapabilities {
 	agents: AgentDefinition[];
 	mcpStatuses: McpServerStatus[];
 	tools: Tool[];
+	rules: RuleSet;
+	/** 这次加载实际读过的目录，用来建立监听。 */
+	watched: string[];
 }
 
 /**
@@ -46,21 +54,121 @@ export interface LoadedCapabilities {
 export async function collectSkills(
 	cwd: string,
 	plugins: { enabled: boolean; skills: Skill[] }[],
-): Promise<{ skills: Skill[]; diagnostics: Awaited<ReturnType<typeof loadSkills>>["diagnostics"] }> {
-	const loaded = await loadSkills([
-		{ dir: join(cwd, ".lyra", "skills"), source: "workspace" as const },
-		{ dir: join(lyraHome(), "skills"), source: "user" as const },
-	]);
-	const looseNames = new Set(loaded.skills.map((skill) => skill.name));
-	const pluginSkills = plugins
-		.filter((plugin) => plugin.enabled)
-		.flatMap((plugin) => plugin.skills)
-		.filter((skill) => !looseNames.has(skill.name));
+): Promise<{ skills: Skill[]; diagnostics: SkillDiagnostic[]; shadowed: ShadowedSkill[] }> {
+	const result = await sessionRegistry(plugins).load<Skill>("skill", { cwd });
+	/*
+	 * The losers, for the settings page.
+	 *
+	 * "Why is the skill I wrote not running" is the question that page exists to answer, and it
+	 * cannot be answered from the winners alone — a shadowed skill is absent from the list, which
+	 * looks exactly like one that failed to load or was never found.
+	 */
+	const shadowed = result.all
+		.filter((item): item is typeof item & { shadowedBy: NonNullable<typeof item.shadowedBy> } => item.shadowedBy !== undefined)
+		.map((item) => ({
+			name: item.name,
+			path: item.provenance.path,
+			by: item.shadowedBy.path,
+			byLabel: item.shadowedBy.providerLabel,
+		}));
+	return { skills: result.items, diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })), shadowed };
+}
 
-	const known = new Set([...looseNames, ...pluginSkills.map((skill) => skill.name)]);
-	const fromPlugins = registeredSkills().filter((skill) => !known.has(skill.name));
+/** 一条规则在设置页里该说清楚的全部。 */
+export interface RuleEntry {
+	name: string;
+	description?: string;
+	path: string;
+	/** 来源在人话里叫什么：「项目」「个人」「Cursor」「内置」…… */
+	sourceLabel: string;
+	/** 常驻 / 规则库 / 流规则——决定它什么时候花上下文。 */
+	bucket: "always" | "book" | "stream";
+	/**
+	 * 流规则的触发条件，按它编译成的样子给出。
+	 *
+	 * 计划里点名说了：写错的正则是这套系统最大的挫败来源。一条不触发的规则跟一条不存在的规则
+	 * 在界面上长得一模一样，而看见 `/:\s*any\b/i` 这个东西本身，是唯一能让人发现自己写错了的
+	 * 办法——所以这里给的是**编译后**的源文本，包括那些内联标志。
+	 */
+	condition?: string[];
+	/** 关掉了没有。`disabledRules` 按名字记，所以同名的一起关。 */
+	disabled: boolean;
+	/** 被同名的哪一条盖掉了。设置页要回答的正是「我写的规则为什么没生效」。 */
+	shadowedBy?: { path: string; label: string };
+}
 
-	return { skills: [...loaded.skills, ...pluginSkills, ...fromPlugins], diagnostics: loaded.diagnostics };
+/**
+ * 这个项目现在有哪些规则，包括被盖掉的和被关掉的。
+ *
+ * 跟 `loadRules` 分开，因为要的东西不同：会话要的是**生效的那些**（关掉的已经过滤掉了），
+ * 而这一份要的是**全部**——一条被关掉的规则从会话的角度不存在，而设置页正是那个把它打开的
+ * 地方；一条被同名文件盖掉的规则，从列表里消失跟从没写过一模一样。
+ */
+export async function collectRules(
+	cwd: string,
+	settings: Settings,
+	plugins: Plugin[],
+): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }> {
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd });
+	const off = new Set(settings.disabledRules ?? []);
+
+	return {
+		rules: result.all.map((item) => ({
+			name: item.name,
+			description: item.description,
+			path: item.provenance.path,
+			sourceLabel: item.provenance.providerLabel,
+			bucket: item.bucket,
+			condition: item.conditions?.map((pattern) => String(pattern)),
+			disabled: off.has(item.name),
+			shadowedBy: item.shadowedBy ? { path: item.shadowedBy.path, label: item.shadowedBy.providerLabel } : undefined,
+		})),
+		diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })),
+	};
+}
+
+/** A skill that was found and lost, with what beat it. */
+export interface ShadowedSkill {
+	name: string;
+	/** Where the losing copy is. */
+	path: string;
+	/** Where the winning copy is. */
+	by: string;
+	/** Which source the winner came from, in words. */
+	byLabel: string;
+}
+
+/**
+ * A registry for this session, with the plugin provider bound to what this session loaded.
+ *
+ * Built per call rather than held in a module because what it supplies is session state: two
+ * windows on two projects have different plugins enabled, and a shared registry would give one
+ * window the other's.
+ */
+function sessionRegistry(plugins: { enabled: boolean; skills: Skill[] }[]): CapabilityRegistry {
+	const registry = createRegistry({ home: lyraHome(), userHome: homedir() });
+	registry.register(
+		pluginProvider(
+			plugins.filter((plugin) => plugin.enabled).flatMap((plugin) => plugin.skills),
+			registeredSkills(),
+		),
+	);
+	return registry;
+}
+
+/**
+ * The rules alone, for when one is written while a session is running.
+ *
+ * Saving a rule from a correction has to make it apply. A rule that only takes effect after a
+ * restart is indistinguishable from one that was not saved — and the whole promise of the offer is
+ * that next time the mistake is about to happen, something stops it.
+ *
+ * Reloading everything would do it too, and would also reconnect every MCP server and reload every
+ * extension worker as a side effect of writing one small markdown file.
+ */
+export async function loadRules(cwd: string, settings: Settings, plugins: Plugin[]): Promise<RuleSet> {
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd });
+	return groupRules(result.items, settings.disabledRules ?? [], result.diagnostics);
 }
 
 /** Load skills, agents and MCP tools. Safe to call again after settings change. */
@@ -86,9 +194,31 @@ export async function loadCapabilities(
 	const plugins = loadedPlugins.plugins;
 	const pluginDiagnostics = loadedPlugins.diagnostics;
 
-	const { skills, diagnostics: skillDiagnostics } = await collectSkills(cwd, plugins);
+	const registry = sessionRegistry(plugins);
 
-	const agents = [...BUILTIN_AGENTS, ...(await loadAgentDefinitions(cwd))];
+	const skillResult = await registry.load<Skill>("skill", { cwd });
+	const skills = skillResult.items;
+	const skillDiagnostics = skillResult.diagnostics.map((d) => ({ path: d.path, message: d.message }));
+
+	/*
+	 * Agents through the registry, which is where the precedence defect gets fixed.
+	 *
+	 * The old line was `[...BUILTIN_AGENTS, ...custom]` consumed with `.find()`, so a definition
+	 * written to replace a built-in of the same name was found second and never used — the file
+	 * loaded, appeared in listings, and did nothing. Built-ins now arrive from a provider with a
+	 * priority of 1 and lose by name like anything else.
+	 */
+	const agentResult = await registry.load<AgentDefinition>("agent", { cwd });
+	const agents = agentResult.items;
+
+	/*
+	 * Rules come back as one list ordered by precedence and are regrouped into the three buckets the
+	 * rest of the system reads. Regrouping here rather than teaching the registry about buckets keeps
+	 * the merge rules the same for every capability: a bucket is a property of a rule, not a
+	 * dimension the merge has to understand.
+	 */
+	const ruleResult = await registry.load<Rule>("rule", { cwd });
+	const rules = groupRules(ruleResult.items, settings.disabledRules ?? [], ruleResult.diagnostics);
 
 	/*
 	 * Settings is the only place a session reads MCP servers from.
@@ -101,42 +231,38 @@ export async function loadCapabilities(
 	const mcpStatuses = await mcp.connectAll(settings.mcpServers);
 	const tools = [...builtinTools(), ...extraTools, ...mcp.allTools()];
 
-	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools };
+	/*
+	 * 实际读过的目录，交给监听器。
+	 *
+	 * 这份名单一直被收集着——每个 provider 都老老实实地报了 `watched`，注册表也把它们合起来了
+	 * ——而 `LoadedCapabilities` 从来没带上它，所以谁也拿不到。收集原料收集了很久，工厂一直
+	 * 没建。
+	 *
+	 * 只监听**贡献过条目的目录**，不是所有可能的位置：后者是几十个 watcher，而其中绝大多数
+	 * 指向的目录在这台机器上根本不存在。
+	 */
+	const watched = [...new Set([...skillResult.watched, ...agentResult.watched, ...ruleResult.watched])];
+
+	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, rules, watched };
 }
 
-
 /**
- * Load custom sub-agent definitions from `.lyra/agents/*.md`, mirroring the skill format:
- * YAML frontmatter for metadata, markdown body for the system prompt.
+ * Sort merged rules back into the three buckets, honouring the user's off-switches.
+ *
+ * `disabledRules` is applied here rather than passed to the registry as `disabledItems` because it
+ * is keyed by bare name — that is what the setting has always held and what the settings UI writes
+ * — while the registry keys items as `rule:<name>`. Translating at the boundary keeps the stored
+ * shape stable; a migration would be the only other option and would buy nothing.
  */
-async function loadAgentDefinitions(cwd: string): Promise<AgentDefinition[]> {
-	const out: AgentDefinition[] = [];
-
-	for (const [dir, source] of [
-		[join(cwd, ".lyra", "agents"), "workspace"],
-		[join(lyraHome(), "agents"), "user"],
-	] as const) {
-		const entries = await readdir(dir).catch(() => []);
-		for (const entry of entries) {
-			if (!entry.endsWith(".md")) continue;
-			const raw = await readFile(join(dir, entry), "utf8").catch(() => null);
-			if (!raw) continue;
-			const parsed = parseFrontmatter(raw);
-			if (!parsed) continue;
-			const { frontmatter, body } = parsed;
-			const name = typeof frontmatter.name === "string" ? frontmatter.name : entry.replace(/\.md$/, "");
-			if (out.some((a) => a.name === name)) continue;
-			out.push({
-				name,
-				description: typeof frontmatter.description === "string" ? frontmatter.description : name,
-				systemPrompt: body,
-				tools: Array.isArray(frontmatter.tools)
-					? (frontmatter.tools as unknown[]).filter((t): t is string => typeof t === "string")
-					: "*",
-				model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
-				source,
-			});
-		}
+function groupRules(rules: Rule[], disabled: string[], diagnostics: { path: string; message: string; severity: string }[]): RuleSet {
+	const off = new Set(disabled);
+	const set: RuleSet = { always: [], book: [], stream: [], diagnostics: [] };
+	for (const rule of rules) {
+		if (off.has(rule.name)) continue;
+		set[rule.bucket].push(rule);
 	}
-	return out;
+	set.diagnostics = diagnostics
+		.filter((d) => d.severity !== "info")
+		.map((d) => ({ path: d.path, message: d.message, severity: d.severity === "warning" ? "warning" : "error" }));
+	return set;
 }

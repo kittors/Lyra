@@ -45,13 +45,14 @@ const SKIP_DIRS = new Set([
 	"__pycache__", ".venv", "venv", ".turbo", ".cache", "Pods", ".gradle", ".expo", "coverage",
 ]);
 
-const EXTENSIONS = new Set([
+/** Extensions whose declarations these patterns understand. Shared with the `read` outline. */
+export const CODE_EXTENSIONS = new Set([
 	".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs", ".java", ".kt", ".swift",
 	".rb", ".php", ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".scala", ".sh", ".sql", ".vue", ".svelte",
 ]);
 
 /** Declaration forms, in priority order. The first capture group is the symbol name. */
-const PATTERNS: { kind: string; re: RegExp }[] = [
+export const PATTERNS: { kind: string; re: RegExp }[] = [
 	{ kind: "function", re: /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/ },
 	{ kind: "class", re: /^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/ },
 	{ kind: "interface", re: /^\s*(?:export\s+)?interface\s+([A-Za-z_$][\w$]*)/ },
@@ -91,7 +92,7 @@ export async function buildIndex(cwd: string, signal?: AbortSignal): Promise<Sym
 			if (!entry.isFile()) continue;
 
 			const dot = entry.name.lastIndexOf(".");
-			if (dot === -1 || !EXTENSIONS.has(entry.name.slice(dot).toLowerCase())) continue;
+			if (dot === -1 || !CODE_EXTENSIONS.has(entry.name.slice(dot).toLowerCase())) continue;
 
 			const info = await stat(full).catch(() => null);
 			if (!info || info.size > MAX_FILE_BYTES) {

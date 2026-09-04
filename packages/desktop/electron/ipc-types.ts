@@ -66,11 +66,14 @@ import type {
 	ApprovalDecision,
 	BundleKind,
 	ContextBreakdown,
+	CorrectionSuggestion,
 	McpBundle,
 	Registry,
 	RegistryEntry,
 	Plugin,
 	QueuedTask,
+	RuleDestination,
+	RuleEntry,
 	ScreenshotSettings,
 	SessionMeta,
 	Settings,
@@ -493,6 +496,14 @@ export interface LyraApi {
 			pluginDiagnostics: { path: string; message: string }[];
 			skills: Skill[];
 			skillDiagnostics: { path: string; message: string }[];
+			/**
+			 * Skills that were found and lost to another of the same name.
+			 *
+			 * "Why is the skill I wrote not running" cannot be answered from the list of the ones
+			 * that are: a shadowed skill is simply absent, which looks the same as one that failed
+			 * to parse or was never found at all.
+			 */
+			shadowedSkills: { name: string; path: string; by: string; byLabel: string }[];
 		}>;
 		/** Absolute path to the plugins directory, created if missing. */
 		revealDir(scope: "workspace" | "user", cwd: string): Promise<string>;
@@ -717,6 +728,25 @@ export interface LyraApi {
 		runNow(taskId: string): Promise<{ ok: boolean; error?: string }>;
 	};
 	/**
+	 * Answering the card that offers to turn a correction into a rule.
+	 *
+	 * `preview` renders in the main process on purpose: the card shows the exact text that will be
+	 * written, produced by the same function that writes it. A second renderer in the window would
+	 * drift, and it would drift in the direction where somebody approves text that is not what
+	 * lands on disk.
+	 */
+	rules: {
+		/** 这个项目现在有哪些规则，包括被关掉的和被同名文件盖掉的。 */
+		list(cwd: string): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }>;
+		/** 关掉或打开一条。已经开着的会话会立刻跟上。 */
+		setDisabled(name: string, disabled: boolean): Promise<void>;
+		preview(suggestion: CorrectionSuggestion): Promise<string>;
+		/** Save it and make it apply from the next turn. `renamed` when the name was taken. */
+		keep(sessionId: string, scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }>;
+		/** They said no. Two in a row and this session stops offering. */
+		decline(sessionId: string): Promise<void>;
+	};
+	/**
 	 * The code hosts this app is signed in to.
 	 *
 	 * Note what is not here: there is no way to read a token back. They go in through `signIn`,
@@ -889,6 +919,23 @@ export interface LyraApi {
 		add(content: string): Promise<{ id: string; content: string; createdAt: number; updatedAt: number }>;
 		remove(id: string): Promise<boolean>;
 		clear(): Promise<void>;
+	};
+	/**
+	 * 这个项目的记忆——跟上面那个跨项目的偏好库是两回事。
+	 *
+	 * 上面那个是「我这个人的习惯」，存在 `~/.lyra/memory.json`；这个是「这个仓库怎么回事」，
+	 * 由后台抽取从历史会话里读出来，存在项目自己的记忆目录。
+	 */
+	projectMemory: {
+		/**
+		 * 现在该不该跑一遍抽取。
+		 *
+		 * `never-asked` 不是「不跑」——它是**去问**的信号。窗口拿到这个才弹征询，
+		 * 而不是每次空闲都弹。
+		 */
+		status(cwd: string): Promise<{ run: boolean; reason?: string }>;
+		/** 跑一遍。返回写了什么、读了几个会话，或者为什么没跑。 */
+		extract(cwd: string): Promise<{ memory: string; sessions: number; skipped?: string }>;
 	};
 	diff: {
 		/** Uncommitted changes for the review panel. */

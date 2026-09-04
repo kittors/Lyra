@@ -220,6 +220,8 @@ function formatMatches(lines: string[], args: GrepArgs, limit: number, literal =
 		return {
 			content: [{ type: "text", text }],
 			details: { kind: "grep", pattern: args.pattern, count: 0, literal },
+			/* A search that found nothing says nothing that will be asked again. */
+			uneventful: true,
 		};
 	}
 	const shown = lines.slice(0, limit);

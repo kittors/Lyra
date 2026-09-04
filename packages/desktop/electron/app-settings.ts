@@ -65,10 +65,24 @@ export function onSettingsChanged(listener: Listener): () => void {
  *
  * The in-memory value moves first so that a listener reading `settings()` sees the new one, which
  * is what anything reacting to the change would expect.
+ *
+ * **一个监听器出错，不能把「保存」变成失败。** 它们跑在 `persist` 之后——文件已经写完了，改动
+ * 已经生效了。让异常冒出去，调用方拿到的是一个 rejected promise，于是窗口回滚显示旧值，
+ * 而磁盘上是新值：一次成功的保存，看起来像一次失败，两边还对不上。
+ *
+ * 撞到的那次是同步服务：端口被另一个进程占着，`startSync` 抛了 EADDRINUSE，于是在设置页
+ * **改任何一项**都会失败——改主题、换模型、开个开关，全都一样，而屏幕上只有那个控件默默弹回去。
  */
 export async function applySettings(next: Settings): Promise<Settings> {
 	current = next;
 	await persist(next);
-	for (const listener of listeners) await listener(next);
+	for (const listener of listeners) {
+		try {
+			await listener(next);
+		} catch (error) {
+			// 报给主进程的错误通道，跟别的后台失败走同一条路，而不是消失。
+			console.error("[settings] 应用改动时有一个监听器失败了：", error);
+		}
+	}
 	return next;
 }

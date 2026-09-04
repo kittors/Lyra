@@ -7,7 +7,14 @@
  */
 
 import type { SandboxMode } from "../sandbox/policy.ts";
+import type { ResourceRouter } from "../resources/router.ts";
 import type { UserContent } from "./message.ts";
+
+export interface SubAgentAnswer {
+	text: string;
+	output?: Record<string, unknown>;
+	warnings?: string[];
+}
 
 // ---------------------------------------------------------------------------
 // Tools
@@ -38,6 +45,18 @@ export interface ToolResult {
 	/** What the UI renders. Never serialized into the provider payload. */
 	details?: unknown;
 	isError?: boolean;
+	/**
+	 * This result carries no information for later reasoning.
+	 *
+	 * A search with no matches, an empty directory, a command that exited 0 and said nothing. They
+	 * take up room in the window and answer nothing that will be asked again, so compaction drops
+	 * them first — the pair is emptied in place rather than removed, because a `tool_use` without
+	 * its `tool_result` makes the provider reject every later request in the conversation.
+	 *
+	 * Mutually exclusive with `isError` in practice: an error is always worth keeping, and a tool
+	 * that sets both should be read as an error.
+	 */
+	uneventful?: boolean;
 	/** End the agent turn after this tool, even if the model wanted to keep going. */
 	terminate?: boolean;
 }
@@ -61,10 +80,28 @@ export interface ToolContext {
 	sandboxMode?: SandboxMode;
 	/** Internal hosts the user allowed by name; see `Settings.allowedHosts`. */
 	allowedHosts?: readonly string[];
-	/** Run a nested agent (used by the `task` tool). */
-	spawnSubAgent?: (input: SubAgentInput) => Promise<string>;
+	/**
+	 * Run a nested agent (used by the `task` tool).
+	 *
+	 * Returns prose plus, when the agent declared an output schema and yielded against it, the same
+	 * answer as an object. The parent tool passes the object through in `details` rather than
+	 * flattening it, so the renderer and `agent://` can both index into it.
+	 */
+	spawnSubAgent?: (input: SubAgentInput) => Promise<SubAgentAnswer>;
 	/** Shared per-session scratch space (todo list, file read cache, ...). */
 	state: Map<string, unknown>;
+	/**
+	 * The session's address space: `skill://`, `rule://`, `scratch://`, `lyra://`.
+	 *
+	 * Per session rather than a module singleton, because a sub-agent has its own skill set and a
+	 * shared router would resolve `skill://x` against whichever session touched it last.
+	 *
+	 * Optional so a bare context — the CLI, a test — still works: with no router, `read` treats
+	 * every argument as a file path, which is what it did before addresses existed.
+	 */
+	resources?: ResourceRouter;
+	/** Where `scratch://` writes. Absent in sessions with no scratch space. */
+	scratchDir?: string;
 	/**
 	 * Store a web preview and return where it went.
 	 *

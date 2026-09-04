@@ -36,7 +36,24 @@ export interface ConfirmOptions {
 	detail?: React.ReactNode;
 	/** The verb, on the button that does it. */
 	confirmLabel: string;
+	/** 取消按钮上的字，默认「取消」。 */
+	cancelLabel?: string;
+	/**
+	 * `danger` 是默认，因为这个东西本来是给删除用的。
+	 *
+	 * `normal` 留给另一类问题：不是「这个删了拿不回来」，而是「以后要不要自动做这件事」。
+	 * 两种都该停下一切来问，但只有前一种该是红的——把每个问题都画成危险，等于没画过危险。
+	 */
+	tone?: "danger" | "normal";
 	onConfirm: () => void;
+	/**
+	 * 取消也要做点什么的时候。
+	 *
+	 * 绝大多数确认框的取消就是「什么都别发生」，所以这是可选的。但有一种问题不是这样：
+	 * 「以后要不要自动做这件事」——那里的取消是一个回答（不要），把它当成没问过，
+	 * 意思就是下次还问。
+	 */
+	onCancel?: () => void;
 }
 
 /**
@@ -49,6 +66,8 @@ export function ConfirmBody({
 	title,
 	detail,
 	confirmLabel,
+	cancelLabel,
+	tone = "danger",
 	onConfirm,
 	onCancel,
 }: ConfirmOptions & { onCancel: () => void }) {
@@ -63,12 +82,20 @@ export function ConfirmBody({
 					onClick={onCancel}
 					className="h-[28px] rounded-lg border border-line px-2.5 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 				>
-					取消
+					{cancelLabel ?? "取消"}
 				</button>
 				<button
 					type="button"
 					onClick={onConfirm}
-					className="h-[28px] rounded-lg bg-danger px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
+					/*
+					 * 红色属于删除，不属于「要不要开启」。
+					 *
+					 * 一个把每个问题都画成危险的窗口，等于没有画过危险——真正删东西的那一次，
+					 * 看起来跟这次一模一样。
+					 */
+					className={`h-[28px] rounded-lg px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 ${
+						tone === "danger" ? "bg-danger" : "bg-ink"
+					}`}
 				>
 					{confirmLabel}
 				</button>
@@ -111,11 +138,17 @@ export function useConfirmer() {
 				title={pending.title}
 				detail={pending.detail}
 				confirmLabel={pending.confirmLabel}
+				cancelLabel={pending.cancelLabel}
+				tone={pending.tone}
 				onConfirm={() => {
 					setPending(null);
 					pending.onConfirm();
 				}}
-				onCancel={() => setPending(null)}
+				/* 取消也可能是一个回答——见 `onCancel` 上的说明。 */
+				onCancel={() => {
+					setPending(null);
+					pending.onCancel?.();
+				}}
 			/>
 		) : null,
 	};
