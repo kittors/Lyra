@@ -58,7 +58,7 @@ export interface Diagnostic {
 }
 
 /** An item with its origin attached. */
-export type Sourced<T> = T & { readonly source: SourceMeta };
+export type Sourced<T> = T & { readonly provenance: SourceMeta };
 
 /**
  * A kind of capability: what we are looking for, and how two of them are told apart.

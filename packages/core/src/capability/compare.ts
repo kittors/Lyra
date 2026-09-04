@@ -74,7 +74,7 @@ export function compareCapabilitySets<T extends { name: string }>(
 			drift.push({
 				kind: "extra",
 				name: item.name,
-				detail: `新路径多出来的，来自 ${item.source.providerLabel}（${item.source.path}）`,
+				detail: `新路径多出来的，来自 ${item.provenance.providerLabel}（${item.provenance.path}）`,
 			});
 		}
 	}

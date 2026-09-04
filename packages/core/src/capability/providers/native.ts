@@ -35,7 +35,7 @@ function meta(path: string, scope: SourceMeta["scope"]): SourceMeta {
 }
 
 function attach<T>(items: T[], path: (item: T) => string, scope: (item: T) => SourceMeta["scope"]): Sourced<T>[] {
-	return items.map((item) => ({ ...item, source: meta(path(item), scope(item)) }) as Sourced<T>);
+	return items.map((item) => ({ ...item, provenance: meta(path(item), scope(item)) }) as Sourced<T>);
 }
 
 function upgrade(diagnostics: { path: string; message: string; severity?: string }[]): Diagnostic[] {
@@ -157,7 +157,7 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 					? (frontmatter.tools as unknown[]).filter((t): t is string => typeof t === "string")
 					: "*",
 				model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
-				source: meta(file, scope),
+				provenance: meta(file, scope),
 			} as Sourced<AgentDefinition>);
 		}
 	}

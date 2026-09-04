@@ -36,7 +36,7 @@ export function pluginProvider(bundled: Skill[], registered: Skill[]): Capabilit
 				(skill) =>
 					({
 						...skill,
-						source: {
+						provenance: {
 							provider: ID,
 							providerLabel: LABEL,
 							path: skill.path,

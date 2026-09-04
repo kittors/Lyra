@@ -42,7 +42,7 @@ function fake(
 						({
 							name,
 							body: id,
-							source: { provider: id, providerLabel: id, path: `/${id}/${name}.md`, scope: extra?.scope ?? "project" },
+							provenance: { provider: id, providerLabel: id, path: `/${id}/${name}.md`, scope: extra?.scope ?? "project" },
 						}) as Sourced<Named>,
 				),
 			};
@@ -58,8 +58,8 @@ test("the higher priority provider wins, and the loser points at the winner", as
 	const result = await reg.load<Named>("skill", { cwd: "/p" });
 
 	assert.equal(result.items.length, 1);
-	assert.equal(result.items[0].source.provider, "high");
-	const loser = result.all.find((item) => item.source.provider === "low");
+	assert.equal(result.items[0].provenance.provider, "high");
+	const loser = result.all.find((item) => item.provenance.provider === "low");
 	assert.ok(loser, "the loser is still listed");
 	assert.equal(loser.shadowedBy?.provider, "high", "and names who took it");
 	assert.equal(loser.shadowedBy?.path, "/high/deploy.md", "by path, not just by provider");
@@ -71,7 +71,7 @@ test("equal priorities keep registration order", async () => {
 	reg.register(fake("second", 10, ["x"]));
 
 	const result = await reg.load<Named>("skill", { cwd: "/p" });
-	assert.equal(result.items[0].source.provider, "first");
+	assert.equal(result.items[0].provenance.provider, "first");
 });
 
 test("switching off an item id switches off the name, not one file of that name", async () => {
@@ -100,17 +100,17 @@ test("exclude releases the name; suppress holds it", async () => {
 	const a = registry();
 	a.register(fake("low", 10, ["deploy"]));
 	a.register(fake("high", 100, ["deploy"]));
-	const viaExclude = await a.load<Named>("skill", { cwd: "/p", exclude: (item) => item.source.provider === "high" });
+	const viaExclude = await a.load<Named>("skill", { cwd: "/p", exclude: (item) => item.provenance.provider === "high" });
 	assert.equal(viaExclude.items.length, 1, "the runner-up serves");
-	assert.equal(viaExclude.items[0].source.provider, "low");
+	assert.equal(viaExclude.items[0].provenance.provider, "low");
 
 	const b = registry();
 	b.register(fake("low", 10, ["deploy"]));
 	b.register(fake("high", 100, ["deploy"]));
-	const viaSuppress = await b.load<Named>("skill", { cwd: "/p", suppress: (item) => item.source.provider === "high" });
+	const viaSuppress = await b.load<Named>("skill", { cwd: "/p", suppress: (item) => item.provenance.provider === "high" });
 	assert.equal(viaSuppress.items.length, 0, "the name stays spoken for, so nothing takes its place");
 	assert.ok(
-		viaSuppress.all.some((item) => item.source.provider === "low" && item.shadowedBy?.provider === "high"),
+		viaSuppress.all.some((item) => item.provenance.provider === "low" && item.shadowedBy?.provider === "high"),
 		"and the runner-up is recorded as shadowed by the suppressed one",
 	);
 });
@@ -204,7 +204,7 @@ test("a native provider always reads its user-level directory", async () => {
 	assert.equal(seen, true, "our own home directory is not an import from a foreign tool");
 });
 
-test("an item with no source is dropped and reported rather than crashing the merge", async () => {
+test("an item with no provenance is dropped and reported rather than crashing the merge", async () => {
 	const reg = registry();
 	reg.register({
 		id: "sloppy",
@@ -219,7 +219,7 @@ test("an item with no source is dropped and reported rather than crashing the me
 
 	const result = await reg.load<Named>("skill", { cwd: "/p" });
 	assert.equal(result.items.length, 0);
-	assert.ok(result.diagnostics.some((d) => /没有 source/.test(d.message)));
+	assert.ok(result.diagnostics.some((d) => /没有 provenance/.test(d.message)));
 });
 
 test("an invalid item is reported and still holds its name", async () => {
@@ -250,7 +250,7 @@ test("an invalid item is reported and still holds its name", async () => {
 	assert.ok(reported, "the invalid one is named by path");
 	assert.equal(reported.severity, "error");
 	assert.ok(
-		result.all.some((item) => item.source.provider === "low" && item.shadowedBy?.provider === "high"),
+		result.all.some((item) => item.provenance.provider === "low" && item.shadowedBy?.provider === "high"),
 		"and the runner-up is listed as shadowed by it, so the settings page can explain the silence",
 	);
 });
@@ -265,7 +265,7 @@ test("contributors, timings and watched directories come back", async () => {
 		supplies: ["skill"],
 		async load() {
 			return {
-				items: [{ name: "a", source: { provider: "native", providerLabel: "Lyra", path: "/a", scope: "project" } } as Sourced<Named>],
+				items: [{ name: "a", provenance: { provider: "native", providerLabel: "Lyra", path: "/a", scope: "project" } } as Sourced<Named>],
 				watched: ["/p/.lyra/skills"],
 			};
 		},

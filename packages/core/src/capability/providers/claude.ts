@@ -47,7 +47,7 @@ export const claudeProvider: CapabilityProvider = {
 
 			const { commands, diagnostics } = await loadCommands(sources);
 			return {
-				items: commands.map((c) => ({ ...c, source: meta(c.path, c.scope === "workspace" ? "project" : "user") }) as Sourced<unknown>),
+				items: commands.map((c) => ({ ...c, provenance: meta(c.path, c.scope === "workspace" ? "project" : "user") }) as Sourced<unknown>),
 				diagnostics: diagnostics.map((d) => ({ path: d.path, message: d.message, severity: "error" as const })),
 				watched: sources.map((s) => s.dir),
 			};
@@ -61,7 +61,7 @@ export const claudeProvider: CapabilityProvider = {
 
 			const { skills, diagnostics } = await loadSkills(dirs);
 			return {
-				items: skills.map((s) => ({ ...s, source: meta(s.path, s.source === "workspace" ? "project" : "user") }) as Sourced<Skill>),
+				items: skills.map((s) => ({ ...s, provenance: meta(s.path, s.source === "workspace" ? "project" : "user") }) as Sourced<Skill>),
 				diagnostics: diagnostics.map((d) => ({ path: d.path, message: d.message, severity: "error" as const })),
 				watched: dirs.map((d) => d.dir),
 			};

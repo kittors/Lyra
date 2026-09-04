@@ -100,7 +100,7 @@ function foreignProvider(spec: ForeignSpec): CapabilityProvider<Rule> {
 					(rule) =>
 						({
 							...rule,
-							source: {
+							provenance: {
 								provider: spec.id,
 								providerLabel: spec.label,
 								path: rule.path,

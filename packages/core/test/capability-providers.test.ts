@@ -78,10 +78,10 @@ test("a custom agent replaces the built-in of the same name", async () => {
 
 	const general = result.items.filter((a) => a.name === "general");
 	assert.equal(general.length, 1, "there is exactly one `general`");
-	assert.equal(general[0].source.provider, "native", "and it is the one on disk");
+	assert.equal(general[0].provenance.provider, "native", "and it is the one on disk");
 	assert.equal(general[0].description, "覆盖内置的 general");
 
-	const shadowed = result.all.find((a) => a.name === "general" && a.source.provider === "builtin");
+	const shadowed = result.all.find((a) => a.name === "general" && a.provenance.provider === "builtin");
 	assert.ok(shadowed, "the built-in is still listed");
 	assert.equal(shadowed.shadowedBy?.provider, "native", "and says who replaced it");
 });
@@ -89,7 +89,7 @@ test("a custom agent replaces the built-in of the same name", async () => {
 test("the other built-in agents are untouched", async () => {
 	const result = await registry().load<AgentDefinition>("agent", { cwd: project });
 	assert.ok(result.items.length > 1, "replacing one does not drop the rest");
-	assert.ok(result.items.some((a) => a.source.provider === "builtin"), "the ones nobody overrode are still ours");
+	assert.ok(result.items.some((a) => a.provenance.provider === "builtin"), "the ones nobody overrode are still ours");
 });
 
 test("our command wins a name collision with Claude Code's, and the loser names the winner", async () => {
@@ -99,7 +99,7 @@ test("our command wins a name collision with Claude Code's, and the loser names 
 	assert.equal(review.length, 1);
 	assert.equal(review[0].description, "我们的审查");
 
-	const loser = result.all.find((c) => c.name === "review" && c.source.provider === "claude");
+	const loser = result.all.find((c) => c.name === "review" && c.provenance.provider === "claude");
 	assert.ok(loser, "Claude Code's copy is listed");
 	assert.equal(loser.shadowedBy?.provider, "native");
 
@@ -113,12 +113,12 @@ test("skills come from both directories", async () => {
 	const result = await registry().load<Skill>("skill", { cwd: project });
 	const names = result.items.map((s) => s.name).sort();
 	assert.deepEqual(names, ["deploy", "pdf"]);
-	assert.equal(result.items.find((s) => s.name === "pdf")?.source.provider, "claude");
+	assert.equal(result.items.find((s) => s.name === "pdf")?.provenance.provider, "claude");
 });
 
 test("four ecosystems' rules are all read, and ours wins the shared name", async () => {
 	const result = await registry().load<Rule>("rule", { cwd: project });
-	const byProvider = new Map(result.items.map((r) => [r.name, r.source.provider]));
+	const byProvider = new Map(result.items.map((r) => [r.name, r.provenance.provider]));
 
 	assert.equal(byProvider.get("style"), "native");
 	assert.equal(byProvider.get("imports"), "cursor");
@@ -127,7 +127,7 @@ test("four ecosystems' rules are all read, and ours wins the shared name", async
 	assert.equal(byProvider.get("tests"), "copilot");
 	assert.equal(byProvider.get("shared"), "native", "a name we also define is ours");
 
-	const loser = result.all.find((r) => r.name === "shared" && r.source.provider === "cursor");
+	const loser = result.all.find((r) => r.name === "shared" && r.provenance.provider === "cursor");
 	assert.equal(loser?.shadowedBy?.provider, "native");
 });
 
@@ -145,7 +145,7 @@ test("a foreign user-level directory is not read until it is asked for", async (
 test("a project-level foreign directory is always read", async () => {
 	const result = await registry().load<Rule>("rule", { cwd: project });
 	assert.ok(
-		result.items.some((r) => r.source.provider === "cursor" && r.source.scope === "project"),
+		result.items.some((r) => r.provenance.provider === "cursor" && r.provenance.scope === "project"),
 		"what the team committed for this repository applies without a setting",
 	);
 });
@@ -165,7 +165,7 @@ test("a broken rule file does not cost the healthy ones", async () => {
 test("built-in rules are present and can be replaced by name", async () => {
 	const result = await registry().load<Rule>("rule", { cwd: project });
 	assert.ok(
-		result.items.some((r) => r.name === "no-secret-in-code" && r.source.provider === "builtin"),
+		result.items.some((r) => r.name === "no-secret-in-code" && r.provenance.provider === "builtin"),
 		"the shipped rules arrive through the registry like anything else",
 	);
 });
@@ -174,7 +174,7 @@ test("only: native reduces the result to our own directories", async () => {
 	const result = await registry().load<Rule>("rule", { cwd: project, only: new Set(["native"]) });
 	assert.ok(result.items.length > 0);
 	assert.ok(
-		result.items.every((r) => r.source.provider === "native"),
+		result.items.every((r) => r.provenance.provider === "native"),
 		"nothing else contributed",
 	);
 });
@@ -182,16 +182,16 @@ test("only: native reduces the result to our own directories", async () => {
 test("disabling a provider removes its contribution and promotes what it was hiding", async () => {
 	const result = await registry().load<Rule>("rule", { cwd: project, disabledProviders: new Set(["native"]) });
 	const shared = result.items.find((r) => r.name === "shared");
-	assert.equal(shared?.source.provider, "cursor", "with ours switched off, Cursor's version of that name serves");
+	assert.equal(shared?.provenance.provider, "cursor", "with ours switched off, Cursor's version of that name serves");
 });
 
 test("no working directory still yields the user-level and built-in layers", async () => {
 	const result = await registry().load<Rule>("rule", { cwd: null });
 	assert.ok(
-		result.items.every((r) => r.source.scope !== "project"),
+		result.items.every((r) => r.provenance.scope !== "project"),
 		"nothing project-scoped, because there is no project",
 	);
-	assert.ok(result.items.some((r) => r.source.provider === "builtin"));
+	assert.ok(result.items.some((r) => r.provenance.provider === "builtin"));
 });
 
 test("contributors and watched directories describe what actually happened", async () => {

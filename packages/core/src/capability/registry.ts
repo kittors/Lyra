@@ -163,10 +163,10 @@ export class CapabilityRegistry {
 
 		for (const { provider, items: found } of results) {
 			for (const item of found) {
-				if (!item?.source) {
+				if (!item?.provenance) {
 					diagnostics.push({
 						path: provider.id,
-						message: `来源“${provider.label}”返回了一个没有 source 的条目，已丢弃。`,
+						message: `来源“${provider.label}”返回了一个没有 provenance 的条目，已丢弃。`,
 						severity: "error",
 					});
 					continue;
@@ -192,10 +192,10 @@ export class CapabilityRegistry {
 					}
 					const twin = [...items, ...held].find((existing) => capability.equivalent?.(existing as never, item as never));
 					if (twin) {
-						all.push({ ...item, shadowedBy: twin.source });
+						all.push({ ...item, shadowedBy: twin.provenance });
 						continue;
 					}
-					owners.set(key, item.source);
+					owners.set(key, item.provenance);
 				}
 
 				if (suppressed) {
@@ -211,7 +211,7 @@ export class CapabilityRegistry {
 					 * letting a lower-priority one take its place would answer "why is my broken
 					 * skill not running" with a different skill running instead.
 					 */
-					diagnostics.push({ path: item.source.path, message: invalid, severity: "error" });
+					diagnostics.push({ path: item.provenance.path, message: invalid, severity: "error" });
 					all.push(item);
 					continue;
 				}

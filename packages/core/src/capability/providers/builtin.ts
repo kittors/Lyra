@@ -32,12 +32,12 @@ export const builtinProvider: CapabilityProvider = {
 	async load(kind: CapabilityId, _ctx: DiscoveryContext): Promise<ProviderResult> {
 		if (kind === "agent") {
 			return {
-				items: BUILTIN_AGENTS.map((agent) => ({ ...agent, source: meta(`builtin:${agent.name}`) }) as Sourced<AgentDefinition>),
+				items: BUILTIN_AGENTS.map((agent) => ({ ...agent, provenance: meta(`builtin:${agent.name}`) }) as Sourced<AgentDefinition>),
 			};
 		}
 		if (kind === "rule") {
 			return {
-				items: BUILTIN_RULES.map((rule) => ({ ...rule, source: meta(rule.path) }) as Sourced<Rule>),
+				items: BUILTIN_RULES.map((rule) => ({ ...rule, provenance: meta(rule.path) }) as Sourced<Rule>),
 			};
 		}
 		return { items: [] };

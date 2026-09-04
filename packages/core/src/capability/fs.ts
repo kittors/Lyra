@@ -95,7 +95,7 @@ export async function readMarkdownDir<T>(
 				});
 			}
 
-			const source: SourceMeta = {
+			const provenance: SourceMeta = {
 				provider: provider.id,
 				providerLabel: provider.label,
 				path: file,
@@ -104,13 +104,13 @@ export async function readMarkdownDir<T>(
 			};
 
 			try {
-				const built = build(file, normalizeKeys(parsed.frontmatter), parsed.body, source);
+				const built = build(file, normalizeKeys(parsed.frontmatter), parsed.body, provenance);
 				if (!built) continue;
 				if (typeof built === "object" && built !== null && "diagnostic" in built) {
 					diagnostics.push((built as { diagnostic: Diagnostic }).diagnostic);
 					continue;
 				}
-				items.push({ ...(built as T), source } as Sourced<T>);
+				items.push({ ...(built as T), provenance } as Sourced<T>);
 			} catch (error) {
 				diagnostics.push({
 					path: file,
