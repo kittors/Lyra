@@ -73,8 +73,21 @@ export interface TurnInputs {
  * request in any sense the log or the user would recognise.
  */
 export async function driveTurn(input: TurnInputs): Promise<void> {
+	const { cwd, can, log } = input;
 	const onEvent = (event: AgentEvent) => recordTurnEvent(input.log, event);
 	const { config, systemPrompt } = await assembleTurn(input);
+
+	/*
+	 * 扩展的 `turn_start` / `turn_end`。
+	 *
+	 * 这两个事件（连同 `tool_result`、`session_start`）在清单里认得、校验过、存下来了，
+	 * **而从来没有被派发过**——扩展宿主此前只有一个调用点，就是工具调用前的那次拦截。
+	 * 一个声明了 `events: ["turn_end"]` 的扩展装上去、加载成功、然后什么也收不到。
+	 *
+	 * `dispatch` 不是 `intercept`：这两个事件是观察，不接受 `block`。一个能否决整轮开始的
+	 * 扩展，跟一个能让会话卡住的扩展是同一个东西。
+	 */
+	void can.extensions.dispatch("turn_start", { cwd, sessionId: log.meta.id }).catch(() => {});
 
 	const first = await runTurn(config, onEvent);
 	await continueWhileWorkRemains(first, {
@@ -89,6 +102,8 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		// So that pressing stop during a minute-long wait is felt immediately.
 		signal: input.signal,
 	});
+
+	void can.extensions.dispatch("turn_end", { cwd, sessionId: log.meta.id, messages: log.messages.length }).catch(() => {});
 
 	/*
 	 * After the work, never during it.
@@ -260,7 +275,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
 			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal, can.extensions),
-			afterToolCall: makeAfterToolCall(settings.hooks, cwd, input.signal),
+			afterToolCall: makeAfterToolCall(settings.hooks, cwd, input.signal, can.extensions),
 			drainSteering: input.drainSteering,
 		},
 		turn,

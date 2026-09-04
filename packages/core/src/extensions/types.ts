@@ -27,8 +27,20 @@
  * 所以那个字段删掉了，换成这一段。
  */
 
-/** The events an extension can subscribe to. */
+/**
+ * 扩展能订阅的事件。
+ *
+ * 五个，不是 omp 的三十个。三十是它的实现细节，不是需求——而这五个各自对应一个真实的用途：
+ * 拦一次工具调用、看一次结果、在回合前后做点什么、会话起来时初始化。
+ *
+ * **每一个都必须有地方真的派发它**（`test/extension-events.test.ts` 拿这份名单去对代码）。
+ * 这条约束是这个类型存在的一半意义：清单里认得、而永远不会到达的事件，比没有这个事件更糟
+ * ——扩展装上了、加载成功了、然后什么也收不到，而屏幕上没有任何东西说得出为什么。
+ */
 export type ExtensionEvent = "tool_call" | "tool_result" | "turn_start" | "turn_end" | "session_start";
+
+/** 全部事件，给校验和那条「每个都有人发」的测试用。 */
+export const ALL_EXTENSION_EVENTS: ExtensionEvent[] = ["tool_call", "tool_result", "turn_start", "turn_end", "session_start"];
 
 /**
  * What an extension declares about itself.
@@ -114,7 +126,7 @@ export function validateManifest(raw: unknown): { manifest: ExtensionManifest } 
 	const events = record.events;
 	if (events !== undefined) {
 		if (!Array.isArray(events)) return { error: "`events` 必须是数组。" };
-		const known: ExtensionEvent[] = ["tool_call", "tool_result", "turn_start", "turn_end", "session_start"];
+		const known = ALL_EXTENSION_EVENTS;
 		const bad = events.find((e) => typeof e !== "string" || !known.includes(e as ExtensionEvent));
 		if (bad !== undefined) return { error: `不认识的事件 “${String(bad)}”。可用的是：${known.join("、")}` };
 	}
