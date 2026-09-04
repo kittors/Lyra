@@ -57,14 +57,17 @@ module.exports = {
 				"Importing a *value* from core's root index pulls the whole index into a browser bundle, " +
 				"and the index reaches `node:fs` and `node:child_process` — the bundle then throws on the " +
 				"first Node built-in and the window is blank. Types are erased at compile time and cost " +
-				"nothing. The listed sub-entries are the ones written to be browser-safe.",
+				"nothing. The listed sub-entries are the ones written to be browser-safe. " +
+				"加进这份名单前要真的确认：`config/models` 是把 `resolveModel`/`availableModels` 从 " +
+				"`settings.ts`（顶上就是 node:fs、node:os）里抽出来才安全的，`config/model-roles` 只依赖它。" +
+				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
 			to: {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|plugins/install-record|ai/thinking-options)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|plugins/install-record|ai/thinking-options)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},
