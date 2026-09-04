@@ -35,6 +35,14 @@ export interface SystemPromptInput {
 	customInstructions?: string;
 	/** User's persistent memory entries. */
 	memorySnippet?: string;
+	/**
+	 * What was learned in this project, already rendered.
+	 *
+	 * Separate from `memorySnippet` because they have different scopes and different trust: the
+	 * global one is what the user typed about themselves, this one is what happened here. Merging
+	 * them would apply "this repository uses pnpm" to every other repository on the machine.
+	 */
+	projectMemory?: string;
 	/** Preferred personality tone. */
 	tone?: string;
 	platform: string;
@@ -151,6 +159,8 @@ Environment:
 	if (input.memorySnippet?.trim()) {
 		prompt += `\n\n${input.memorySnippet.trim()}`;
 	}
+
+	if (input.projectMemory?.trim()) prompt += input.projectMemory;
 
 	prompt += formatSkills(input.skills);
 	if (input.rules) prompt += formatRules(input.rules);

@@ -10,6 +10,7 @@ import { recallTool } from "./recall.ts";
 import { symbolTool } from "./symbol.ts";
 import { taskTool } from "./task.ts";
 import { previewTool } from "./preview.ts";
+import { learnTool } from "./learn.ts";
 import { ruleTool } from "./rule.ts";
 import { todoTool } from "./todo.ts";
 import { webSearchTool } from "./search.ts";
@@ -52,6 +53,7 @@ function staticTools(): Tool[] {
 		skillTool,
 		ruleTool,
 		recallTool,
+		learnTool,
 		webFetchTool,
 		webSearchTool,
 		previewTool,
