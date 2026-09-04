@@ -67,7 +67,13 @@ export function renderRuleInterrupt(matches: RuleMatch[]): Message {
 		);
 	});
 
-	return { role: "user", content: [{ type: "text", text: blocks.join("\n\n") }], timestamp: Date.now(), synthetic: true };
+	return {
+		role: "user",
+		content: [{ type: "text", text: blocks.join("\n\n") }],
+		timestamp: Date.now(),
+		synthetic: true,
+		ruleMatch: { rules: matches.map(describeMatch), interrupted: true },
+	};
 }
 
 /**
@@ -90,7 +96,24 @@ export function renderRuleReminder(matches: RuleMatch[]): Message {
 		);
 	});
 
-	return { role: "user", content: [{ type: "text", text: blocks.join("\n\n") }], timestamp: Date.now(), synthetic: true };
+	return {
+		role: "user",
+		content: [{ type: "text", text: blocks.join("\n\n") }],
+		timestamp: Date.now(),
+		synthetic: true,
+		ruleMatch: { rules: matches.map(describeMatch), interrupted: false },
+	};
+}
+
+/** The parts of a match a reader needs: which rule, on what, and where it was watching. */
+function describeMatch(match: RuleMatch) {
+	return {
+		name: match.rule.name,
+		path: match.rule.path,
+		excerpt: match.excerpt,
+		source: match.source,
+		toolName: match.toolName,
+	};
 }
 
 /** Adapt a monitor into the shape `runAgent` expects. */

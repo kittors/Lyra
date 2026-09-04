@@ -342,3 +342,15 @@
 .ly-sidebar-fill .ly-pin:not([data-ly-stuck]) {
   background: transparent;
 }
+
+/*
+ * A rule correction in the transcript.
+ *
+ * Only the code surface is here; the layout is Tailwind on the component, like every other card in
+ * this app. The excerpt reads as code and belongs on the code theme's own background, so that a
+ * light syntax theme does not put warm text on the app's panel colour.
+ */
+.ly-rule-excerpt {
+  background: var(--ly-code-bg, var(--color-shell));
+  color: var(--ly-code-fg, var(--color-ink));
+}

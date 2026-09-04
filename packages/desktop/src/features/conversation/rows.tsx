@@ -12,6 +12,7 @@ import type { AssistantMessage, Message } from "@lyra/core";
 import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
+import { RuleCard } from "./RuleCard.tsx";
 import { UserMessage } from "./UserMessage.tsx";
 import { useApp } from "../../store/index.ts";
 import { ChevronDown, RotateCcw, TriangleAlert } from "lucide-react";
@@ -98,6 +99,15 @@ export const MessageRow = memo(function MessageRow({
      * this is the latch rather than the rule. Getting it wrong puts words in someone's mouth,
      * which is the one failure worth checking for twice.
      */
+    /*
+     * One synthetic message is worth showing: a rule correction.
+     *
+     * The rest of them are machinery — the nudge that continues a stalled turn, the resume note —
+     * and drawing a line through work that never stopped reads worse than silence. A rule is not
+     * machinery: it changed what the model said, and without a mark here that change looks like
+     * the model having thought better of it on its own.
+     */
+    if (message.ruleMatch) return <RuleCard match={message.ruleMatch} />;
     if (message.synthetic || isNudge(message)) return null;
     return <UserMessage message={message} index={index} />;
   }
