@@ -1,5 +1,5 @@
 import type { Skill } from "@lyra/core";
-import { TriangleAlert } from "lucide-react";
+import { Layers, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SkillMark } from "./PluginIcon.tsx";
 import { useApp } from "../../store/index.ts";
@@ -40,6 +40,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 		(s) => !needle || `${s.name} ${s.description}`.toLowerCase().includes(needle),
 	);
 	const diagnostics = scan?.skillDiagnostics ?? [];
+	const shadowed = scan?.shadowedSkills ?? [];
 
 	return (
 		<div>
@@ -55,6 +56,35 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 						{diagnostics.map((diagnostic) => (
 							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							</div>
+						))}
+					</div>
+				</Card>
+			)}
+
+			{/*
+			 * Shadowing, said out loud.
+			 *
+			 * A shadowed skill is missing from the list above, which looks identical to one that
+			 * failed to parse or was never found — and the person looking is usually the author of
+			 * the copy that lost. Naming both paths is the whole answer: it is not broken, another
+			 * file of the same name is more specific than yours.
+			 *
+			 * Not styled as a warning. This is how overriding is supposed to work; someone dropping
+			 * a skill into their project to replace a bundled one wants exactly this, and colouring
+			 * it like a fault would make a working feature look like a problem.
+			 */}
+			{shadowed.length > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 py-3">
+						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
+							<Layers size={13} strokeWidth={1.9} />
+							{shadowed.length} 个同名技能被覆盖
+						</div>
+						{shadowed.map((entry) => (
+							<div key={entry.path} className="py-0.5 text-detail text-ink-faint">
+								<span className="font-mono">{entry.path}</span> 被 {entry.byLabel} 的{" "}
+								<span className="font-mono">{entry.by}</span> 覆盖
 							</div>
 						))}
 					</div>

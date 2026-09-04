@@ -493,6 +493,14 @@ export interface LyraApi {
 			pluginDiagnostics: { path: string; message: string }[];
 			skills: Skill[];
 			skillDiagnostics: { path: string; message: string }[];
+			/**
+			 * Skills that were found and lost to another of the same name.
+			 *
+			 * "Why is the skill I wrote not running" cannot be answered from the list of the ones
+			 * that are: a shadowed skill is simply absent, which looks the same as one that failed
+			 * to parse or was never found at all.
+			 */
+			shadowedSkills: { name: string; path: string; by: string; byLabel: string }[];
 		}>;
 		/** Absolute path to the plugins directory, created if missing. */
 		revealDir(scope: "workspace" | "user", cwd: string): Promise<string>;

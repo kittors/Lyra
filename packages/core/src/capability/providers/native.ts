@@ -68,12 +68,25 @@ async function loadNativeSkills(ctx: DiscoveryContext): Promise<ProviderResult<S
 		{ dir: join(ctx.home, "skills"), source: "user" as const },
 	].filter((d): d is { dir: string; source: "workspace" | "user" } => d !== null);
 
-	const { skills, diagnostics } = await loadSkills(dirs);
-	return {
-		items: attach(skills, (s) => s.path, (s) => scopeOf(s.source)),
-		diagnostics: upgrade(diagnostics),
-		watched: dirs.map((d) => d.dir),
-	};
+	/*
+	 * One call per directory, not one call with both.
+	 *
+	 * `loadSkills` deduplicates internally, so handing it both directories returns one `pdf` and
+	 * silently drops the other — and the registry, which is the thing that knows how to report
+	 * shadowing, never learns the second one existed. The settings page then shows a user-level
+	 * skill as simply missing, which is indistinguishable from one that failed to parse.
+	 *
+	 * Loading them separately hands every candidate up and lets the merge happen in one place. It
+	 * costs a second directory read of a directory that is almost always small.
+	 */
+	const items: Sourced<Skill>[] = [];
+	const diagnostics: Diagnostic[] = [];
+	for (const spec of dirs) {
+		const loaded = await loadSkills([spec]);
+		items.push(...attach(loaded.skills, (s) => s.path, (s) => scopeOf(s.source)));
+		diagnostics.push(...upgrade(loaded.diagnostics));
+	}
+	return { items, diagnostics, watched: dirs.map((d) => d.dir) };
 }
 
 async function loadNativeCommands(ctx: DiscoveryContext): Promise<ProviderResult> {

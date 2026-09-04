@@ -52,9 +52,35 @@ export interface LoadedCapabilities {
 export async function collectSkills(
 	cwd: string,
 	plugins: { enabled: boolean; skills: Skill[] }[],
-): Promise<{ skills: Skill[]; diagnostics: SkillDiagnostic[] }> {
+): Promise<{ skills: Skill[]; diagnostics: SkillDiagnostic[]; shadowed: ShadowedSkill[] }> {
 	const result = await sessionRegistry(plugins).load<Skill>("skill", { cwd });
-	return { skills: result.items, diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })) };
+	/*
+	 * The losers, for the settings page.
+	 *
+	 * "Why is the skill I wrote not running" is the question that page exists to answer, and it
+	 * cannot be answered from the winners alone — a shadowed skill is absent from the list, which
+	 * looks exactly like one that failed to load or was never found.
+	 */
+	const shadowed = result.all
+		.filter((item): item is typeof item & { shadowedBy: NonNullable<typeof item.shadowedBy> } => item.shadowedBy !== undefined)
+		.map((item) => ({
+			name: item.name,
+			path: item.provenance.path,
+			by: item.shadowedBy.path,
+			byLabel: item.shadowedBy.providerLabel,
+		}));
+	return { skills: result.items, diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })), shadowed };
+}
+
+/** A skill that was found and lost, with what beat it. */
+export interface ShadowedSkill {
+	name: string;
+	/** Where the losing copy is. */
+	path: string;
+	/** Where the winning copy is. */
+	by: string;
+	/** Which source the winner came from, in words. */
+	byLabel: string;
 }
 
 /**
