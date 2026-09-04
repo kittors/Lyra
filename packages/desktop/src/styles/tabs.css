@@ -122,10 +122,18 @@
   box-shadow: 0 1px 2.5px rgb(0 0 0 / 0.16);
 }
 
+/*
+ * 深色下也是白的。
+ *
+ * 这里曾经用 `--color-ink-muted`——一个中灰。放在关闭状态的深色轨道上还算得体，一旦打开，
+ * 灰旋钮压在强调色上就不是「亮起来」而是「脏了一块」：开关最重要的那一刻反而最不清楚。
+ *
+ * 白色在两种轨道上都成立，只是深色下需要压暗一点边框和更深的投影，才不会在深底上发光过头。
+ */
 :root.dark .ly-knob {
-  background: var(--color-ink-muted);
-  border-color: rgb(0 0 0 / 0.28);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  background: #fff;
+  border-color: rgb(0 0 0 / 0.32);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
 }
 
 /*

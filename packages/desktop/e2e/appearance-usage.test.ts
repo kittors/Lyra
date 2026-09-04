@@ -272,8 +272,17 @@ test("a tab's menu closes the ones it says it will", async () => {
 
 	assert.deepEqual(outcome.opened, ["one.ts", "two.ts", "three.ts"], "three files open, three tabs");
 	assert.equal(outcome.rightDisabled, false, "with tabs to the right, the row is live");
-	assert.deepEqual(outcome.afterRight, [], "关闭右侧 left only the first, so the strip is gone below two tabs");
-	assert.deepEqual(outcome.afterOthers, [], "关闭其他 left one tab, which the strip does not draw");
+	/*
+	 * 这两条以前期望的是空数组，注释写着「the strip is gone below two tabs」。
+	 *
+	 * 也就是说，它读到的空不是「标签关光了」，而是「标签行不画了」——剩一个标签时整条行会消失，
+	 * 于是数 `[data-file-tab]` 数出来是零。测试因此对两个不同的结果给出同一个答案：关掉右边的两个
+	 * 和关掉全部三个，在它眼里一模一样。屏幕上也一模一样，这正是当初被当成 bug 报上来的东西。
+	 *
+	 * 行现在留着了，这两条也就能问出它们本来想问的：关闭右侧留下了哪个，关闭其他又留下了哪个。
+	 */
+	assert.deepEqual(outcome.afterRight, ["one.ts"], "关闭右侧 closes what is to the right, and leaves the one you asked from");
+	assert.deepEqual(outcome.afterOthers, ["two.ts"], "关闭其他 leaves exactly the tab it was asked from");
 });
 
 test("the usage page reports what is in the logs", async () => {

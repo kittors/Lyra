@@ -173,6 +173,17 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--ly-diff-removed-bg": dark ? darkTheme.removedBg : lightTheme.removedBg,
 	};
 
+	/*
+	 * 关掉过渡，写变量，两帧后再放开——见 `motion.css` 里的 `data-theme-switching`。
+	 *
+	 * 不这样的话，一批变量瞬间写完，界面却分两拨响应：没有 transition 的地方立刻翻过去，带
+	 * `transition-colors` 的控件用 150ms 慢慢爬。中间那段时间屏幕上同时有两个主题，这就是切换
+	 * 深浅色时那股「卡卡的、不自然」。
+	 *
+	 * `beginRepaint` 里也顺手把窗口自己的底色一起换了，那同样是一处会晚到的颜色。
+	 */
+	beginRepaint(root);
+
 	for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
 
 	// Update shared highlight style in DOM
@@ -202,6 +213,30 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
+}
+
+/**
+ * 把界面按住，直到新主题整个画完。
+ *
+ * 属性写在 `:root` 上，CSS 那边一条 `transition: none !important` 覆盖全部后代，所以不管有多少
+ * 元素在过渡中，它们都会在这一帧直接落到新颜色上。
+ *
+ * 两帧才摘：第一帧是变量生效的那一帧，第二帧确认它已经上屏。只等一帧的话，浏览器有时候会把摘除
+ * 和上色并到同一帧里处理，过渡又跑起来了——那正是要避免的东西。
+ *
+ * 一直挂着不摘也不行：`transition: none` 会顺带干掉悬停、聚焦这些跟主题无关的过渡，整个界面从此
+ * 硬邦邦的。它只该管切换的那一下。
+ */
+let releaseRepaint = 0;
+
+function beginRepaint(root: HTMLElement): void {
+	root.dataset.themeSwitching = "";
+	cancelAnimationFrame(releaseRepaint);
+	releaseRepaint = requestAnimationFrame(() => {
+		releaseRepaint = requestAnimationFrame(() => {
+			delete root.dataset.themeSwitching;
+		});
+	});
 }
 
 /** Re-apply on system scheme changes while the theme is set to follow the system. */

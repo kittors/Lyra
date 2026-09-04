@@ -135,8 +135,14 @@ export function ListRow({
 				)}
 			</div>
 
+			{/*
+			 * 动作与开关在同一条中线上。
+			 *
+			 * `control` 之前没有 `items-center`，于是一个 22px 的开关和一排 32px 的按钮各自按自己的
+			 * 高度落位，差出来的几像素在一行里看得很清楚。两边都居中，行有多高就都对着那条中线。
+			 */}
 			{actions && <div className="relative flex shrink-0 items-center gap-1">{actions}</div>}
-			{control && <div className="relative shrink-0">{control}</div>}
+			{control && <div className="relative flex shrink-0 items-center">{control}</div>}
 		</div>
 	);
 }

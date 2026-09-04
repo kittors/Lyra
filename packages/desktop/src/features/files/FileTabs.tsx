@@ -14,6 +14,7 @@ import { Copy, CornerUpRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useOpenFile, type OpenFileTab } from "../../store/openFile.ts";
+import { useDock } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
@@ -21,6 +22,19 @@ import { useRevealLabel } from "./open-targets.ts";
 import { bridge } from "../../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
+
+/**
+ * 关到一个不剩，面板自己退场。
+ *
+ * 一个没有文件的「文件内容」面板是一块占着位置的空白：它没什么可显示，也没有办法从里面打开
+ * 任何东西——真正能打开文件的是旁边的树。全部关闭之后还杵在那儿，等于这个动作只做了一半。
+ *
+ * 只在明确的关闭动作之后调用，不是看到 tabs 空了就关。从菜单里点开这个面板时它本来就是空的，
+ * 那时候自己关掉，这个面板就永远打不开了。
+ */
+function retire(): void {
+	if (useOpenFile.getState().tabs.length === 0) useDock.getState().close("file");
+}
 
 export function FileTabs() {
 	const tabs = useOpenFile((s) => s.tabs);
@@ -48,9 +62,16 @@ export function FileTabs() {
 		(paths: string[]) => {
 			const kept = useOpenFile.getState().closeTabs(paths);
 			if (kept > 0) notify(`${kept} 个标签有未保存的修改，已保留`);
+			retire();
 		},
 		[notify],
 	);
+
+	/** One tab, by its ✕ or by 关闭 — same landing rule, and the same clean-up if it was the last. */
+	const closeOne = useCallback((path: string) => {
+		useOpenFile.getState().closeTab(path);
+		retire();
+	}, []);
 
 	/*
 	 * Fade whichever end has more tabs beyond it, and only that end.
@@ -80,8 +101,16 @@ export function FileTabs() {
 		markEdges();
 	}, [open, markEdges]);
 
-	// One file is not a choice, and a row offering it is a row of noise taking height from the file.
-	if (tabs.length < 2) return null;
+	/*
+	 * 只有一个文件时也留着这一行。
+	 *
+	 * 这里曾经是 `< 2`：一个文件不算选择，那条 22px 的行就是白占高度。道理成立，代价却是关闭这件事
+	 * 整个说不清楚了——三个标签时「关闭其他」和「关闭右侧」都只剩一个，而剩一个就等于整条行消失，
+	 * 屏幕上的结果和「全部关闭」一模一样。三个菜单项里有两个看起来干了第四个的事。
+	 *
+	 * 何况这行早就不只是用来切换的：✕ 和右键菜单都长在上面，最后一个标签同样需要它们。
+	 */
+	if (tabs.length === 0) return null;
 
 	return (
 		<>
@@ -101,7 +130,10 @@ export function FileTabs() {
 							data-file-tab={tab.path}
 							onContextMenu={(event) => menu.show(event, tab)}
 							className={`group/tab flex h-[22px] shrink-0 items-center gap-1 rounded-md pr-0.5 pl-2 transition-colors duration-[var(--ly-t-quick)] ${
-								current ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"
+								current
+									? "bg-card-hover text-ink"
+									// 指到哪个标签哪个就亮起来——不然一排文件名里看不出鼠标停在谁身上。
+									: "text-ink-faint hover:bg-card-hover/60 hover:text-ink"
 							}`}
 						>
 							<button
@@ -134,7 +166,7 @@ export function FileTabs() {
 							<button
 								type="button"
 								aria-label={`关闭 ${tab.name}`}
-								onClick={() => useOpenFile.getState().closeTab(tab.path)}
+								onClick={() => closeOne(tab.path)}
 								className={`rounded p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
 									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
 								} ${unsaved ? "hidden group-hover/tab:block" : ""}`}
@@ -147,7 +179,14 @@ export function FileTabs() {
 			</div>
 
 			{menu.target && (
-				<TabMenu anchor={menu.anchor} tab={menu.target} tabs={tabs} onClose={menu.close} onCloseMany={closeMany} />
+				<TabMenu
+					anchor={menu.anchor}
+					tab={menu.target}
+					tabs={tabs}
+					onClose={menu.close}
+					onCloseOne={closeOne}
+					onCloseMany={closeMany}
+				/>
 			)}
 		</>
 	);
@@ -156,36 +195,49 @@ export function FileTabs() {
 /**
  * What right-clicking a tab offers.
  *
- * The four closes in the order every editor puts them, then the two things you want a path for.
- * 关闭右侧 disables itself on the last tab rather than disappearing: a row that comes and goes as
- * you move along the strip is harder to aim at than one that is simply grey.
+ * The five closes in the order every editor puts them, then the two things you want a path for.
+ *
+ * 关闭左侧 and 关闭右侧 grey themselves out at the ends of the strip rather than disappearing: a
+ * menu whose rows come and go as you move along the strip is harder to aim at than one that is
+ * always the same shape. It is also the only thing that tells you where in the strip you are —
+ * right-click the first tab and the greyed row *is* the answer to "is there anything left of this".
+ *
+ * 关闭左侧 is here because the strip scrolls. Once it does, the tabs off the left edge are exactly
+ * the ones nobody is coming back to, and 关闭其他 was the only way to be rid of them — which also
+ * threw away everything to the right, including whatever was opened next.
  */
 function TabMenu({
 	anchor,
 	tab,
 	tabs,
 	onClose,
+	onCloseOne,
 	onCloseMany,
 }: {
 	anchor: { x: number; y: number } | null;
 	tab: OpenFileTab;
 	tabs: OpenFileTab[];
 	onClose: () => void;
+	onCloseOne: (path: string) => void;
 	onCloseMany: (paths: string[]) => void;
 }) {
 	const reveal = useRevealLabel();
 	const notify = useApp((s) => s.notify);
 	const at = tabs.findIndex((each) => each.path === tab.path);
+	const toLeft = tabs.slice(0, at).map((each) => each.path);
 	const toRight = tabs.slice(at + 1).map((each) => each.path);
 	const others = tabs.filter((each) => each.path !== tab.path).map((each) => each.path);
 
 	return (
 		<ContextMenu anchor={anchor} onClose={onClose} width="default">
-			<MenuItem icon={<X {...ICON} />} onClick={() => useOpenFile.getState().closeTab(tab.path)}>
+			<MenuItem icon={<X {...ICON} />} onClick={() => onCloseOne(tab.path)}>
 				关闭
 			</MenuItem>
 			<MenuItem disabled={others.length === 0} onClick={() => onCloseMany(others)}>
 				关闭其他
+			</MenuItem>
+			<MenuItem disabled={toLeft.length === 0} onClick={() => onCloseMany(toLeft)}>
+				关闭左侧
 			</MenuItem>
 			<MenuItem disabled={toRight.length === 0} onClick={() => onCloseMany(toRight)}>
 				关闭右侧

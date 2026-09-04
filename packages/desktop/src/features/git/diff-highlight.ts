@@ -14,12 +14,14 @@
 
 import type { Language } from "@codemirror/language";
 import type { DiffHunk } from "@lyra/core";
-import { useEffect, useState } from "react";
-import { GRAMMARS, sharedHighlightStyle, type Token, tokenizeLines } from "../../lib/code/highlight.ts";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { GRAMMARS, highlightGeneration, onHighlightChange, sharedHighlightStyle, type Token, tokenizeLines } from "../../lib/code/highlight.ts";
 
 /** Colours for every rendered row, in render order, or null while nothing can be parsed. */
 export function useDiffHighlight(hunks: DiffHunk[], path?: string): Token[][] | null {
 	const [lines, setLines] = useState<Token[][] | null>(null);
+	// 换代码主题就是换一整套类名，存下来的这份于是指向一批不存在的规则——跟 `CodeBlock` 一样要重算。
+	const generation = useSyncExternalStore(onHighlightChange, highlightGeneration, highlightGeneration);
 
 	useEffect(() => {
 		const load = path ? GRAMMARS[extensionOf(path)] : undefined;
@@ -43,7 +45,8 @@ export function useDiffHighlight(hunks: DiffHunk[], path?: string): Token[][] | 
 		return () => {
 			cancelled = true;
 		};
-	}, [hunks, path]);
+		// oxlint-disable-next-line exhaustive-deps -- `generation` 不出现在函数体里，它就是「重算」的信号
+	}, [hunks, path, generation]);
 
 	return lines;
 }
