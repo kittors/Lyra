@@ -312,6 +312,14 @@ export interface Settings {
 	 */
 	maxConcurrentSubAgents: number;
 	/**
+	 * Which model answers to `@fast`, `@deep` and `@review`.
+	 *
+	 * Lets a sub-agent definition name what it needs rather than a specific model — the definition
+	 * then works on a machine with a different set of providers, which is what makes one shareable
+	 * at all. Empty entries fall through to the session's own model.
+	 */
+	modelRoles?: Partial<Record<"default" | "fast" | "deep" | "review", string>>;
+	/**
 	 * Plugin registry index URLs the user has added, browsed from the plugins page.
 	 *
 	 * Ours is preset. The argument against shipping one was that it would point at a collection
@@ -453,6 +461,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	disabledPlugins: [],
 	disabledRules: [],
 	maxConcurrentSubAgents: 4,
+	modelRoles: {},
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
@@ -536,6 +545,14 @@ async function readSettingsFile(): Promise<Settings> {
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
 					: 4,
+			modelRoles:
+				parsed.modelRoles && typeof parsed.modelRoles === "object"
+					? Object.fromEntries(
+							Object.entries(parsed.modelRoles as Record<string, unknown>).filter(
+								([key, value]) => ["default", "fast", "deep", "review"].includes(key) && typeof value === "string" && value,
+							),
+						)
+					: {},
 			/*
 			 * A missing list gets the default; an empty one is left empty.
 			 *

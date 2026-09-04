@@ -10,7 +10,17 @@ export interface AgentDefinition {
 	systemPrompt: string;
 	/** Tool names the sub-agent may use. `"*"` means every tool the parent has. */
 	tools: string[] | "*";
-	model?: string;
+	/**
+	 * Which model runs this agent: a role (`@fast`), a model id, or a priority list of either.
+	 *
+	 * A list is what makes a definition portable. `["@fast", "anthropic/claude-haiku-4-5"]` says
+	 * "whatever this machine calls fast, and failing that, this specific one" — a definition naming
+	 * only a concrete model works where it was written and nowhere else.
+	 *
+	 * This field existed and was read by nothing: every sub-agent ran on the dispatching session's
+	 * model regardless of what its definition asked for.
+	 */
+	model?: string | string[];
 	source: "builtin" | "workspace" | "user";
 	/**
 	 * The shape of what this agent returns.
@@ -146,6 +156,14 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		tools: ["read", "glob", "grep", "ls", "bash"],
 		source: "builtin",
 		/*
+		 * Fan-out work, so `@fast` if the machine has one configured.
+		 *
+		 * Exploration is the case the role exists for: several of these run at once, each reading
+		 * many files, and none of them is doing the reasoning that justifies an expensive model.
+		 * Unset roles fall through to the session's model, so this costs nothing by default.
+		 */
+		model: "@fast",
+		/*
 		 * `summary` and `report` are separate on purpose, and the split is the whole design.
 		 *
 		 * `summary` is what the parent reads to decide what to do next, so it has to stay short
@@ -188,6 +206,12 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 			"correctness bugs, missing error handling, security issues. Do not report style preferences.",
 		tools: ["read", "glob", "grep", "ls", "bash"],
 		source: "builtin",
+		/*
+		 * `@review` is meant to point at a different model family from the one that wrote the code.
+		 * A model's blind spots correlate with its own output — asking it to review its own work
+		 * gets agreement rather than review.
+		 */
+		model: "@review",
 		output: {
 			type: "object",
 			required: ["summary", "findings"],

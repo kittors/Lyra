@@ -23,6 +23,7 @@ import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts"
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
+import { resolveModelRef } from "../config/model-roles.ts";
 import { compactWith } from "./compaction.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
@@ -113,6 +114,17 @@ export async function runSubAgent(
 	 * Built per run because the tool carries the attempt counter — a fresh one each dispatch, so a
 	 * sub-agent that used up its retries does not hand a spent budget to the next one.
 	 */
+	/*
+	 * The definition's own model, if it asked for one and this machine has it.
+	 *
+	 * Falls back to what the dispatching session is using, which is what happened unconditionally
+	 * before — the field was read by nothing. Falling back rather than failing matters for shared
+	 * definitions: one naming three models none of which are configured here should still run.
+	 */
+	const chosen = resolveModelRef(options.settings, definition.model, { provider, model });
+	const runProvider = chosen.provider;
+	const runModel = chosen.model;
+
 	const yieldTool = definition.output ? makeYieldTool(definition.output, { mode: definition.schemaMode }) : undefined;
 	const allowed = yieldTool ? [...withoutTask, yieldTool as unknown as Tool] : withoutTask;
 	const subState = new Map<string, unknown>([
@@ -164,7 +176,7 @@ export async function runSubAgent(
 		agents: options.agents,
 		projectInstructions: await loadProjectInstructions(options.cwd),
 		platform: platform(),
-		modelName: model.name,
+		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
 		today: new Date().toISOString().slice(0, 10),
 		appendSystemPrompt: definition.output
@@ -178,8 +190,8 @@ export async function runSubAgent(
 			{
 				sessionId: id,
 				cwd: options.cwd,
-				provider,
-				model,
+				provider: runProvider,
+				model: runModel,
 				systemPrompt: subAgentPrompt,
 				tools: allowed,
 				messages: [{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }],
@@ -242,7 +254,7 @@ export async function runSubAgent(
 				 * the tools, which is not what the parent carries.
 				 */
 				compact: (messages, model) =>
-					compactWith(messages, model, provider, options.summaryStream, textTokens(subAgentPrompt) + toolTokens(allowed)),
+					compactWith(messages, model, runProvider, options.summaryStream, textTokens(subAgentPrompt) + toolTokens(allowed)),
 				maxTurns: 60,
 			},
 			(event) => {
