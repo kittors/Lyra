@@ -45,6 +45,18 @@ export interface ToolResult {
 	/** What the UI renders. Never serialized into the provider payload. */
 	details?: unknown;
 	isError?: boolean;
+	/**
+	 * This result carries no information for later reasoning.
+	 *
+	 * A search with no matches, an empty directory, a command that exited 0 and said nothing. They
+	 * take up room in the window and answer nothing that will be asked again, so compaction drops
+	 * them first — the pair is emptied in place rather than removed, because a `tool_use` without
+	 * its `tool_result` makes the provider reject every later request in the conversation.
+	 *
+	 * Mutually exclusive with `isError` in practice: an error is always worth keeping, and a tool
+	 * that sets both should be read as an error.
+	 */
+	uneventful?: boolean;
 	/** End the agent turn after this tool, even if the model wanted to keep going. */
 	terminate?: boolean;
 }

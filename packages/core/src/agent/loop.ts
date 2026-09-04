@@ -11,7 +11,7 @@ import type { RuleMatch } from "../rules/stream.ts";
 import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { streamAssistant } from "../ai/index.ts";
-import { stripOversizedToolResults } from "../runtime/prune.ts";
+import { dropUneventful, stripOversizedToolResults } from "../runtime/prune.ts";
 import { clearActiveSkill } from "../skills/tool.ts";
 import { readTodos } from "../tools/todo.ts";
 import type { Compaction } from "../runtime/compaction.ts";
@@ -152,6 +152,13 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	let nudges = 0;
 	/** Watches for a turn that has stopped learning anything; see `repetition.ts`. */
 	const repetition = new RepetitionWatch();
+	/**
+	 * When the last request went out, for judging whether the provider's prefix cache is still warm.
+	 *
+	 * Undefined on the first turn, which reads as "no cache to protect" — correct, since there has
+	 * been no request to cache anything from.
+	 */
+	let lastRequestAt: number | undefined;
 
 	await emit({ type: "agent_start", sessionId: config.sessionId });
 
@@ -199,6 +206,25 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			await emit({ type: "message_end", message: steered });
 		}
 
+		/*
+		 * Tidy away the results that were never going to be read again, when it is free to do so.
+		 *
+		 * Different from the pass inside compaction, which runs when the window is nearly full and
+		 * takes the cache hit because the alternative is a model call.
+		 *
+		 * Worth knowing what the cache check actually guards here, because it is not what it looks
+		 * like. Within a running turn the result being cleared is almost always the newest message,
+		 * with nothing under it — no cache has ever included it, so clearing it costs nothing and
+		 * `worthPruning` says yes every time. Where it earns its place is a *resumed* conversation:
+		 * the history loaded from the log carries empty results from turns that ended before this
+		 * process started, and those do sit under everything that came after.
+		 */
+		const tidied = dropUneventful(messages, { lastRequestAt });
+		if (tidied !== messages) {
+			messages.length = 0;
+			messages.push(...tidied);
+		}
+
 		if (config.compact) {
 			const before = messages.length;
 			const compaction = await config.compact(messages, config.model);
@@ -227,6 +253,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			tools: config.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 		};
 
+		lastRequestAt = Date.now();
 		let { message: assistant, ruleMatches, deferredMatches } = await streamTurn(config, context, emit);
 
 		/*

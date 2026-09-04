@@ -176,6 +176,8 @@ export interface ToolResultMessage {
 	/** Structured payload for rich UI rendering; never sent to the model. */
 	details?: unknown;
 	isError: boolean;
+	/** See `ToolResult.uneventful`. Carried on the message so compaction can see it. */
+	uneventful?: boolean;
 	timestamp: number;
 }
 
