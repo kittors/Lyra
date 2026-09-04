@@ -212,7 +212,7 @@ export {
 } from "./runtime/previews.ts";
 
 export type { SubAgentDetail, SubAgentStatus, SubAgentSummary } from "./runtime/sub-agents.ts";
-export { collectSkills } from "./runtime/session-setup.ts";
+export { collectRules, collectSkills, type RuleEntry } from "./runtime/session-setup.ts";
 export {
 	resolveModelThinkingOptions,
 	resolveReasoningEffort,

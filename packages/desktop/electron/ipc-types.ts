@@ -73,6 +73,7 @@ import type {
 	Plugin,
 	QueuedTask,
 	RuleDestination,
+	RuleEntry,
 	ScreenshotSettings,
 	SessionMeta,
 	Settings,
@@ -735,6 +736,10 @@ export interface LyraApi {
 	 * lands on disk.
 	 */
 	rules: {
+		/** 这个项目现在有哪些规则，包括被关掉的和被同名文件盖掉的。 */
+		list(cwd: string): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }>;
+		/** 关掉或打开一条。已经开着的会话会立刻跟上。 */
+		setDisabled(name: string, disabled: boolean): Promise<void>;
 		preview(suggestion: CorrectionSuggestion): Promise<string>;
 		/** Save it and make it apply from the next turn. `renamed` when the name was taken. */
 		keep(sessionId: string, scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }>;

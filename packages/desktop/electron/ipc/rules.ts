@@ -11,10 +11,45 @@
  */
 
 import { ipcMain } from "electron";
-import { renderRuleFile, type CorrectionSuggestion, type RuleDestination } from "@lyra/core";
+import { join } from "node:path";
+import { collectRules, loadPlugins, lyraHome, renderRuleFile, type CorrectionSuggestion, type RuleDestination } from "@lyra/core";
+import { applySettings, settings } from "../app-settings.ts";
 import { sessions } from "../session-hub.ts";
 
 export function registerRulesIpc(): void {
+	/**
+	 * 这个项目现在有哪些规则——包括被关掉的和被同名文件盖掉的。
+	 *
+	 * 直接扫盘而不是问会话：这一页在第一个会话存在之前就能打开，而「打开设置看看有什么规则」
+	 * 不该先付出加载技能、连 MCP 的代价。
+	 */
+	ipcMain.handle("rules:list", async (_event, cwd: string) => {
+		const loaded = await loadPlugins(
+			[
+				{ dir: join(cwd, ".lyra", "plugins"), source: "workspace" as const },
+				{ dir: join(lyraHome(), "plugins"), source: "user" as const },
+			],
+			settings().disabledPlugins,
+		);
+		return collectRules(cwd, settings(), loaded.plugins);
+	});
+
+	/** 关掉或打开一条规则。按名字记，所以同名的一起。 */
+	ipcMain.handle("rules:setDisabled", async (_event, name: string, disabled: boolean) => {
+		const current = settings();
+		const off = new Set(current.disabledRules ?? []);
+		if (disabled) off.add(name);
+		else off.delete(name);
+		await applySettings({ ...current, disabledRules: [...off] });
+		/*
+		 * 已经开着的会话要立刻跟上。
+		 *
+		 * 不这样的话，在设置里关掉一条规则，正在跑的那个对话还会继续被它拦——而人刚刚做的
+		 * 动作明确就是「别再拦我了」。
+		 */
+		for (const session of sessions.values()) await session.can.reloadRules(session.cwd, settings()).catch(() => {});
+	});
+
 	/** The markdown a suggestion becomes — what the card shows, and what gets saved. */
 	ipcMain.handle("rules:preview", async (_event, suggestion: CorrectionSuggestion) => renderRuleFile(suggestion));
 

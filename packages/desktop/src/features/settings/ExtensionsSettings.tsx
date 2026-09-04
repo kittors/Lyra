@@ -1,4 +1,4 @@
-import { Blocks, Cable, ChevronDown, FolderOpen, MoreHorizontal, Plus, Sparkles, Store } from "lucide-react";
+import { Blocks, Cable, ChevronDown, FolderOpen, MoreHorizontal, Plus, Scale, Sparkles, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -6,10 +6,11 @@ import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useApp } from "../../store/index.ts";
 import { McpSettings, newMcpServer } from "./McpSettings.tsx";
 import { PluginsSettings } from "./PluginsSettings.tsx";
+import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
 
-type Tab = "plugins" | "skills" | "mcp";
+type Tab = "plugins" | "skills" | "rules" | "mcp";
 
 /**
  * Plugins, skills and MCP servers, in one place.
@@ -29,7 +30,7 @@ export function ExtensionsSettings() {
 	const setView = useApp((s) => s.setView);
 	const [tab, setTab] = useState<Tab>("plugins");
 	const [query, setQuery] = useState("");
-	const [counts, setCounts] = useState({ plugins: 0, skills: 0 });
+	const [counts, setCounts] = useState({ plugins: 0, skills: 0, rules: 0 });
 	const add = usePopover();
 	const more = usePopover();
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
@@ -58,8 +59,19 @@ export function ExtensionsSettings() {
 	const browse = () => setView("plugins");
 
 	useEffect(() => {
-		void bridge.plugins.list(workspace?.path ?? "").then((scan) => {
-			setCounts({ plugins: scan.plugins.length, skills: scan.skills.length });
+		const cwd = workspace?.path ?? "";
+		/*
+		 * 两次扫描，各自到达。
+		 *
+		 * 规则和插件读的是不同的目录，用 `Promise.all` 会让先回来的那个等着后回来的——而这里
+		 * 是两个 tab 上的两个数字，谁也不依赖谁。
+		 */
+		void bridge.plugins.list(cwd).then((scan) => {
+			setCounts((was) => ({ ...was, plugins: scan.plugins.length, skills: scan.skills.length }));
+		});
+		void bridge.rules.list(cwd).then((scan) => {
+			// 生效的那些——被同名文件盖掉的不算，它们在那一页里单列一段说明。
+			setCounts((was) => ({ ...was, rules: scan.rules.filter((rule) => !rule.shadowedBy).length }));
 		});
 	}, [workspace?.path, settings?.disabledPlugins.length, extensionsNonce]);
 
@@ -69,6 +81,13 @@ export function ExtensionsSettings() {
 		{ id: "plugins", label: "插件", count: counts.plugins, icon: Blocks },
 		{ id: "mcp", label: "MCP", count: settings?.mcpServers.length ?? 0, icon: Cable },
 		{ id: "skills", label: "技能", count: counts.skills, icon: Sparkles },
+		/*
+		 * 规则跟技能并列，因为它们是同一类东西：磁盘上的 markdown，按同名覆盖，影响模型怎么做事。
+		 *
+		 * 数字不在这里显示。技能和插件的数量是「装了多少」，看一眼就有用；规则的数量里混着六个
+		 * 来源和三种代价，一个总数说不清任何事——要看的是那张表本身。
+		 */
+		{ id: "rules", label: "规则", count: counts.rules, icon: Scale },
 	];
 
 	return (
@@ -234,6 +253,7 @@ export function ExtensionsSettings() {
 			<div className="min-h-0 flex-1 overflow-y-auto pb-10">
 				{tab === "plugins" && <PluginsSettings filter={query} />}
 				{tab === "skills" && <SkillsSettings filter={query} />}
+				{tab === "rules" && <RulesSettings filter={query} />}
 				{tab === "mcp" && <McpSettings filter={query} />}
 			</div>
 

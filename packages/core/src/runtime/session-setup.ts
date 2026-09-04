@@ -74,6 +74,59 @@ export async function collectSkills(
 	return { skills: result.items, diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })), shadowed };
 }
 
+/** 一条规则在设置页里该说清楚的全部。 */
+export interface RuleEntry {
+	name: string;
+	description?: string;
+	path: string;
+	/** 来源在人话里叫什么：「项目」「个人」「Cursor」「内置」…… */
+	sourceLabel: string;
+	/** 常驻 / 规则库 / 流规则——决定它什么时候花上下文。 */
+	bucket: "always" | "book" | "stream";
+	/**
+	 * 流规则的触发条件，按它编译成的样子给出。
+	 *
+	 * 计划里点名说了：写错的正则是这套系统最大的挫败来源。一条不触发的规则跟一条不存在的规则
+	 * 在界面上长得一模一样，而看见 `/:\s*any\b/i` 这个东西本身，是唯一能让人发现自己写错了的
+	 * 办法——所以这里给的是**编译后**的源文本，包括那些内联标志。
+	 */
+	condition?: string[];
+	/** 关掉了没有。`disabledRules` 按名字记，所以同名的一起关。 */
+	disabled: boolean;
+	/** 被同名的哪一条盖掉了。设置页要回答的正是「我写的规则为什么没生效」。 */
+	shadowedBy?: { path: string; label: string };
+}
+
+/**
+ * 这个项目现在有哪些规则，包括被盖掉的和被关掉的。
+ *
+ * 跟 `loadRules` 分开，因为要的东西不同：会话要的是**生效的那些**（关掉的已经过滤掉了），
+ * 而这一份要的是**全部**——一条被关掉的规则从会话的角度不存在，而设置页正是那个把它打开的
+ * 地方；一条被同名文件盖掉的规则，从列表里消失跟从没写过一模一样。
+ */
+export async function collectRules(
+	cwd: string,
+	settings: Settings,
+	plugins: Plugin[],
+): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }> {
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd });
+	const off = new Set(settings.disabledRules ?? []);
+
+	return {
+		rules: result.all.map((item) => ({
+			name: item.name,
+			description: item.description,
+			path: item.provenance.path,
+			sourceLabel: item.provenance.providerLabel,
+			bucket: item.bucket,
+			condition: item.conditions?.map((pattern) => String(pattern)),
+			disabled: off.has(item.name),
+			shadowedBy: item.shadowedBy ? { path: item.shadowedBy.path, label: item.shadowedBy.providerLabel } : undefined,
+		})),
+		diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })),
+	};
+}
+
 /** A skill that was found and lost, with what beat it. */
 export interface ShadowedSkill {
 	name: string;

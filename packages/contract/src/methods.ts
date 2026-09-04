@@ -208,6 +208,14 @@ export const METHODS = {
 		preview: { channel: "rules:preview", remote: true },
 		keep: { channel: "rules:keep", remote: true },
 		decline: { channel: "rules:decline", remote: true },
+		/*
+		 * 规则管理页在桌面端。
+		 *
+		 * 它回答的是「我写的规则为什么没生效」——被谁盖掉了、在哪个文件里、条件长什么样——
+		 * 而这些问题的下一步动作是去改那个文件，那件事只能在有编辑器的那台机器上做。
+		 */
+		list: { channel: "rules:list", remote: false, why: "规则管理在桌面端，改完要去编辑那个文件" },
+		setDisabled: { channel: "rules:setDisabled", remote: false, why: "规则管理在桌面端" },
 	},
 	forge: {
 		kinds: { channel: "forge:kinds", remote: false, why: "代码托管的令牌不出桌面端" },
