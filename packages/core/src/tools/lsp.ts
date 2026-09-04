@@ -35,8 +35,17 @@ const SEARCHABLE = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"
 export const lspTool: Tool<LspArgs> = {
 	name: "lsp",
 	snippet: "Find references, definitions and type errors",
+	/*
+	 * Worded as a replacement for grep, not as an addition to the toolbox.
+	 *
+	 * The first version said "before changing an exported symbol, use lsp references", and in a
+	 * session with nineteen tools the model read that, reached for `grep`, and read the matching
+	 * files to work the rest out. On a three-file project that arrives at the right answer; on a
+	 * real one it is the silent-miss failure with extra steps. Naming the tool it should be used
+	 * *instead of* is what makes the choice concrete.
+	 */
 	guidelines: [
-		"Before changing an exported symbol, use `lsp references` to find every callsite. A grep misses aliased imports and re-export chains, and the rename will look finished while some callers are broken.",
+		"To find who uses a symbol, use `lsp references` — not `grep`. Grep cannot see aliased imports (`import { a as b }`, then `b(...)`) or re-export chains, so a rename driven by grep looks complete and leaves callers broken with no error.",
 	],
 	description:
 		"Ask the language server about a symbol.\n\n" +
