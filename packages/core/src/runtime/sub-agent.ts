@@ -22,6 +22,7 @@ import type { Settings } from "../config/settings.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { lyraHome } from "../session/store.ts";
+import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { compactWith } from "./compaction.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
@@ -275,6 +276,16 @@ export async function runSubAgent(
 		throw error;
 	} finally {
 		options.signal?.removeEventListener("abort", stopWithParent);
+		/*
+		 * A delegated run has its own state map, so anything heavy it started is its own to stop.
+		 *
+		 * The session's `dispose` cannot reach this one — it looks at the session's map, and a
+		 * sub-agent's is deliberately separate so its file reads and todo list stay out of the
+		 * parent's. Which means a sub-agent that called `lsp` would leave a language server running
+		 * for the life of the process, once per dispatch.
+		 */
+		const codeIntel = subState.get(CODE_INTEL_KEY);
+		if (codeIntel instanceof CodeIntelManager) await codeIntel.dispose().catch(() => {});
 	}
 
 	/*

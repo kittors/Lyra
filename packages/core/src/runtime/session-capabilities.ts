@@ -10,6 +10,7 @@
  * the todo list and the skill catalogue — things a tool wrote down for the next tool to read.
  */
 
+import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
 import { ResourceRouter } from "../resources/router.ts";
@@ -94,6 +95,13 @@ export class SessionCapabilities {
 
 	async dispose(): Promise<void> {
 		await this.mcp.closeAll();
+		/*
+		 * Language servers are hundreds of megabytes each and outlive the session that started them
+		 * unless something kills them. The manager is created lazily by the `lsp` tool and parked in
+		 * this state map, so this is the only place that knows whether there is one to stop.
+		 */
+		const codeIntel = this.state.get(CODE_INTEL_KEY);
+		if (codeIntel instanceof CodeIntelManager) await codeIntel.dispose().catch(() => {});
 	}
 }
 
