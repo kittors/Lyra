@@ -23,6 +23,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path";
 import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
 import type { streamAssistant } from "../ai/index.ts";
+import { proposeSkill } from "./managed-skills.ts";
 import { projectMemoryDir } from "./project-memory.ts";
 
 /**
@@ -53,6 +54,13 @@ export interface ExtractionResult {
 	sessions: number;
 	/** Set when the pass did not run, with the reason. */
 	skipped?: string;
+	/**
+	 * 这几次会话里看出来的一段流程，已经写进待确认区。
+	 *
+	 * **待确认，不是已启用。** 一个自动生成的技能会改变这个 agent 以后的行为，而看到它生效的
+	 * 人多半不记得自己批准过什么——所以它先躺在 `.pending` 里等人点头。见 `managed-skills.ts`。
+	 */
+	proposedSkill?: string;
 }
 
 /**
@@ -110,6 +118,58 @@ export function extractionPrompt(): string {
 		"",
 		"输出 markdown 列表，每条一行，一两句话，具体可执行。确实没有值得记的就输出「（没有）」。",
 	].join("\n");
+}
+
+/**
+ * 除了记忆条目，还问一句：这里面有没有一段值得做成技能的流程。
+ *
+ * 一条记忆是「记住这件事」，一个技能是「下次照着做」。「改完 core 之后要跑 `pnpm arch` 和
+ * `pnpm typecheck`」写成记忆，模型每轮读到它、然后自己决定要不要照做；写成技能，它在需要
+ * 的时候被整段调出来。
+ *
+ * 分成两次请求而不是一次问两件事：一次请求要两种格式的输出，模型会把两者混在一起，而解析
+ * 失败的那一半是静默丢掉的。两次都是便宜模型上的小请求。
+ */
+export function skillProposalPrompt(): string {
+	return [
+		"你在读一个项目最近的几次会话记录，找**一段反复出现、下次可以照着做的流程**。",
+		"",
+		"算的：",
+		"- 「改完 X 之后总要跑 Y 和 Z」这种检查清单",
+		"- 一件事的固定做法，步骤明确、换个人也能照做",
+		"",
+		"**不算的：**",
+		"- 只出现过一次的事",
+		"- 一句约定（那是记忆，不是技能）——「用 pnpm 不用 npm」不该做成技能",
+		"- 需要判断力才能执行的事（「审查代码质量」）",
+		"",
+		"**宁可什么都不给。** 一个自动生成的技能会改变这个 agent 以后的行为，而看到它的人多半",
+		"不记得自己批准过什么。只有在你能写出具体步骤时才给。",
+		"",
+		"有的话按这个格式输出，只输出这三行加正文：",
+		"NAME: <小写连字符的名字，三四个词>",
+		"DESCRIPTION: <一句话，说清什么时候该用它>",
+		"BODY:",
+		"<正文，步骤列表>",
+		"",
+		"没有就只输出「（没有）」。",
+	].join("\n");
+}
+
+/**
+ * 读模型的技能提案。
+ *
+ * 任何一处不完整都返回 null：一个缺了步骤的技能会以一个人不知道的方式改变 agent 的行为，
+ * 而「少一个候选」这件事没有任何代价。
+ */
+export function parseSkillProposal(text: string): { name: string; description: string; body: string } | null {
+	if (text.includes("（没有）") || text.includes("(没有)")) return null;
+	const name = /^NAME:\s*(.+)$/m.exec(text)?.[1]?.trim().toLowerCase();
+	const description = /^DESCRIPTION:\s*(.+)$/m.exec(text)?.[1]?.trim();
+	const body = text.split(/^BODY:\s*$/m)[1]?.trim();
+	if (!name || !description || !body) return null;
+	if (!/^[a-z][a-z0-9-]{1,40}$/.test(name)) return null;
+	return { name, description, body };
 }
 
 /** Render sessions compactly enough that several fit in one request. */
@@ -224,10 +284,58 @@ export async function extractMemory(options: ExtractOptions): Promise<Extraction
 
 		await mkdir(dir, { recursive: true });
 		await writeFile(join(dir, "MEMORY.md"), body, "utf8");
-		return { memory: text, sessions: options.candidates.length };
+
+		/*
+		 * 再问一次：这里面有没有一段值得做成技能的流程。
+		 *
+		 * 第二次请求而不是一次问两件事——一次要两种格式的输出，模型会把它们混在一起，而解析
+		 * 失败的那一半是静默丢掉的。两次都是便宜模型上的小请求。
+		 *
+		 * 失败当没有：这一步是锦上添花，而记忆已经写下来了。让它把整次抽取拖失败，是拿一个
+		 * 可有可无的东西去赌一个有用的东西。
+		 */
+		const proposed = await proposeFromSessions(options).catch(() => null);
+		return { memory: text, sessions: options.candidates.length, ...(proposed ? { proposedSkill: proposed } : {}) };
 	} finally {
 		await release();
 	}
+}
+
+/**
+ * 问一次「有没有值得做成技能的流程」，有就写进待确认区。
+ *
+ * 返回技能名，或者 null——而 null 是常态：绝大多数会话里没有那样的东西，而提示词里特意写了
+ * 「宁可什么都不给」。一个被逼着找出来的流程，就是那种会被批准一次然后困扰一年的东西。
+ */
+async function proposeFromSessions(options: ExtractOptions): Promise<string | null> {
+	const stream = options.stream(
+		options.provider,
+		options.model,
+		{
+			systemPrompt: skillProposalPrompt(),
+			messages: [{ role: "user", content: [{ type: "text", text: renderSessions(options.candidates) }], timestamp: Date.now() }],
+			tools: [],
+		},
+		{ signal: options.signal, thinking: "off" },
+	);
+
+	let final: Awaited<ReturnType<typeof stream.next>>;
+	do {
+		final = await stream.next();
+	} while (!final.done);
+
+	const reply = final.value;
+	if (reply.stopReason === "error" || reply.stopReason === "aborted") return null;
+
+	const text = reply.content
+		.filter((block): block is { type: "text"; text: string } => block.type === "text")
+		.map((block) => block.text)
+		.join("\n");
+
+	const proposal = parseSkillProposal(text);
+	if (!proposal) return null;
+	const written = await proposeSkill(options.cwd, proposal);
+	return written ? proposal.name : null;
 }
 
 /** What was extracted last time, for injection alongside `learned.md`. */

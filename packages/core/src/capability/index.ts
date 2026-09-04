@@ -11,6 +11,7 @@ import { CapabilityRegistry, type RegistryDeps } from "./registry.ts";
 import { builtinProvider } from "./providers/builtin.ts";
 import { claudeProvider } from "./providers/claude.ts";
 import { FOREIGN_PROVIDERS } from "./providers/foreign.ts";
+import { managedProvider } from "./providers/managed.ts";
 export { FOREIGN_USER_SOURCES } from "./providers/foreign.ts";
 import { nativeProvider } from "./providers/native.ts";
 import type { CapabilityProvider } from "./types.ts";
@@ -23,6 +24,7 @@ export const BUILTIN_PROVIDERS: CapabilityProvider[] = [
 	nativeProvider,
 	claudeProvider,
 	...(FOREIGN_PROVIDERS as CapabilityProvider[]),
+	managedProvider as CapabilityProvider,
 	builtinProvider,
 ];
 

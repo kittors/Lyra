@@ -12,7 +12,18 @@
 
 import { ipcMain } from "electron";
 import { join } from "node:path";
-import { collectRules, FOREIGN_USER_SOURCES, loadPlugins, lyraHome, renderRuleFile, type CorrectionSuggestion, type RuleDestination } from "@lyra/core";
+import {
+	approveSkill,
+	collectRules,
+	FOREIGN_USER_SOURCES,
+	loadPlugins,
+	lyraHome,
+	pendingSkills,
+	rejectSkill,
+	renderRuleFile,
+	type CorrectionSuggestion,
+	type RuleDestination,
+} from "@lyra/core";
 import { applySettings, settings } from "../app-settings.ts";
 import { sessions } from "../session-hub.ts";
 
@@ -69,6 +80,24 @@ export function registerRulesIpc(): void {
 		 */
 		for (const session of sessions.values()) await session.can.reloadRules(session.cwd, settings()).catch(() => {});
 	});
+
+	/*
+	 * 从会话里总结出来的技能候选：列出、批准、否决。
+	 *
+	 * 跟规则建议放在同一个文件里，因为它们是同一件事的两半——都是这个 agent 提议给自己加一条
+	 * 规矩，而两者共有的那条铁律是：**人不点头就不生效**。一个会自己给自己加规矩的 agent，
+	 * 只有在那些规矩每一条都经过人点头时才是能用的。
+	 */
+	ipcMain.handle("skills:pending", async (_event, cwd: string) => (cwd ? pendingSkills(cwd) : []));
+
+	ipcMain.handle("skills:approve", async (_event, cwd: string, name: string, content?: string) => {
+		const path = await approveSkill(cwd, name, content);
+		// 批准之后立刻能用：一个要重启才生效的批准，跟没批准分不出来。
+		if (path) for (const session of sessions.values()) await session.initialize().catch(() => {});
+		return path;
+	});
+
+	ipcMain.handle("skills:reject", async (_event, cwd: string, name: string) => rejectSkill(cwd, name));
 
 	/** The markdown a suggestion becomes — what the card shows, and what gets saved. */
 	ipcMain.handle("rules:preview", async (_event, suggestion: CorrectionSuggestion) => renderRuleFile(suggestion));

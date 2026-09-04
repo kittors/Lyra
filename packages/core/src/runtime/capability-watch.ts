@@ -29,6 +29,14 @@ export interface WatchOptions {
 	/** 现在能不能替换。false 时改动排队，等 `resume()` 被调用。 */
 	idle(): boolean;
 	debounceMs?: number;
+	/**
+	 * 怎么建立监听。默认 `fs.watch`，测试可以换掉。
+	 *
+	 * 换掉它之后测的是「收到事件之后做什么」——防抖、忙时排队、重载出错不带走监听——而那才是
+	 * 这个文件里的代码。「`fs.watch` 会不会发事件」是 Node 的责任，而在负载高的机器上它可能
+	 * 要等十几秒；一条本该确定的测试因此变成了一场关于 FSEvents 延迟的赌博，而它输过三次。
+	 */
+	watchFactory?: typeof watch;
 }
 
 /**
@@ -57,7 +65,7 @@ export class CapabilityWatcher {
 			 * 监听整个项目根。
 			 */
 			try {
-				const watcher = watch(dir, { recursive: true }, () => this.touched());
+				const watcher = (options.watchFactory ?? watch)(dir, { recursive: true }, () => this.touched());
 				watcher.on("error", () => {});
 				/*
 				 * `unref` 让它不成为进程退出的理由。

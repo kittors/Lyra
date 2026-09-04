@@ -215,6 +215,15 @@ export const METHODS = {
 		 * 而这些问题的下一步动作是去改那个文件，那件事只能在有编辑器的那台机器上做。
 		 */
 		list: { channel: "rules:list", remote: false, why: "规则管理在桌面端，改完要去编辑那个文件" },
+		/*
+		 * 从会话里总结出来的技能候选。
+		 *
+		 * 批准一个技能是在给这个 agent 加一条以后一直生效的规矩，而手机上没有能看清它正文的
+		 * 位置——一个在小屏上被顺手点掉的「启用」，正是这个功能最该防的那种批准。
+		 */
+		pendingSkills: { channel: "skills:pending", remote: false, why: "批准一个自动生成的技能要看清正文，那是桌面端的事" },
+		approveSkill: { channel: "skills:approve", remote: false, why: "同上" },
+		rejectSkill: { channel: "skills:reject", remote: false, why: "同上" },
 		setDisabled: { channel: "rules:setDisabled", remote: false, why: "规则管理在桌面端" },
 		setForeignUser: { channel: "rules:setForeignUser", remote: false, why: "规则管理在桌面端" },
 	},

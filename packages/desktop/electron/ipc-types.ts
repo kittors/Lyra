@@ -75,6 +75,7 @@ import type {
 	QueuedTask,
 	RuleDestination,
 	RuleEntry,
+	SkillCandidate,
 	ScreenshotSettings,
 	SessionMeta,
 	Settings,
@@ -752,6 +753,12 @@ export interface LyraApi {
 		setDisabled(name: string, disabled: boolean): Promise<void>;
 		/** 勾或取消一个外部工具的个人规则目录。 */
 		setForeignUser(id: string, enabled: boolean): Promise<void>;
+		/** 从会话里总结出来、等着人点头的技能候选。 */
+		pendingSkills(cwd: string): Promise<SkillCandidate[]>;
+		/** 批准一个。`content` 是人编辑过的版本——「编辑后启用」跟「启用」是同一个动作。 */
+		approveSkill(cwd: string, name: string, content?: string): Promise<string | null>;
+		/** 否决一个。文件删掉，下次不再问。 */
+		rejectSkill(cwd: string, name: string): Promise<boolean>;
 		preview(suggestion: CorrectionSuggestion): Promise<string>;
 		/** Save it and make it apply from the next turn. `renamed` when the name was taken. */
 		keep(sessionId: string, scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }>;

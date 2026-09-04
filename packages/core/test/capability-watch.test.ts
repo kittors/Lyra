@@ -42,6 +42,24 @@ async function until(check: () => boolean, ms = 20_000): Promise<boolean> {
 	return check();
 }
 
+/**
+ * 一个不碰文件系统的 `fs.watch` 替身。
+ *
+ * 这几条测的是「收到事件之后做什么」——防抖、忙时排队、重载出错不带走监听。而「`fs.watch`
+ * 会不会发事件」是 Node 的责任：在负载高的机器上 FSEvents 可能要等十几秒，而那让这些测试
+ * 变成一场关于延迟的赌博。它输过三次，每次的修法都是把超时再调大一点，那不是修。
+ *
+ * 真的接了 `fs.watch` 由 `watching` 那条断言和最后一条真实测试守着。
+ */
+function fakeWatch() {
+	const fired: (() => void)[] = [];
+	const factory = ((_dir: string, _opts: unknown, listener: () => void) => {
+		fired.push(listener);
+		return { on: () => {}, close: () => {}, unref: () => {} };
+	}) as never;
+	return { factory, fire: () => fired.forEach((f) => f()) };
+}
+
 async function scratch(name: string): Promise<string> {
 	const dir = join(root, name);
 	await mkdir(dir, { recursive: true });
@@ -51,12 +69,29 @@ async function scratch(name: string): Promise<string> {
 test("目录里的文件变了，会重载", async () => {
 	const dir = await scratch("live");
 	let reloads = 0;
-	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => true, reload: async () => void (reloads += 1), debounceMs: 30 });
+	const fake = fakeWatch();
+	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => true, reload: async () => void (reloads += 1), debounceMs: 30, watchFactory: fake.factory });
 
 	try {
+		assert.equal(watcher.watching, 1, "监听建起来了");
+		fake.fire();
+		assert.ok(await until(() => reloads > 0), "收到事件之后该重载一次");
+	} finally {
+		watcher.close();
+	}
+});
+
+test("真的用的是 fs.watch，不只是我们自己的替身", async () => {
+	/*
+	 * 上面那些用替身，所以需要这一条来证明产品里接的是真东西——否则一整个文件的绿色，
+	 * 可能只是在测一个假对象。
+	 *
+	 * 只断言监听建立了，不等事件：等事件就是在赌 FSEvents 的延迟，而那正是替身要绕开的。
+	 */
+	const dir = await scratch("real");
+	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => true, reload: async () => {} });
+	try {
 		assert.equal(watcher.watching, 1);
-		await writeFile(join(dir, "SKILL.md"), "---\nname: x\n---\n", "utf8");
-		assert.ok(await until(() => reloads > 0), "写了文件之后该重载一次");
 	} finally {
 		watcher.close();
 	}
@@ -70,10 +105,11 @@ test("一轮跑到一半，改动排队而不是替换", async () => {
 	const dir = await scratch("busy");
 	let reloads = 0;
 	let busy = true;
-	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => !busy, reload: async () => void (reloads += 1), debounceMs: 30 });
+	const fake = fakeWatch();
+	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => !busy, reload: async () => void (reloads += 1), debounceMs: 30, watchFactory: fake.factory });
 
 	try {
-		await writeFile(join(dir, "a.md"), "1", "utf8");
+		fake.fire();
 		await new Promise((resolve) => setTimeout(resolve, 250));
 		assert.equal(reloads, 0, "跑着的时候不换");
 		assert.equal(watcher.waiting, true, "但记着有东西等着换");
@@ -107,10 +143,11 @@ test("一串改动只重载一次", async () => {
 	 */
 	const dir = await scratch("burst");
 	let reloads = 0;
-	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => true, reload: async () => void (reloads += 1), debounceMs: 80 });
+	const fake = fakeWatch();
+	const watcher = new CapabilityWatcher({ dirs: [dir], idle: () => true, reload: async () => void (reloads += 1), debounceMs: 80, watchFactory: fake.factory });
 
 	try {
-		for (let i = 0; i < 12; i += 1) await writeFile(join(dir, `f${i}.md`), "x", "utf8");
+		for (let i = 0; i < 12; i += 1) fake.fire();
 		assert.ok(await until(() => reloads > 0));
 		await new Promise((resolve) => setTimeout(resolve, 200));
 		assert.equal(reloads, 1, `十二个文件应该合成一次重载，实际 ${reloads} 次`);
@@ -141,6 +178,7 @@ test("重载抛错不会带走监听", async () => {
 	 * 人在听了——而人正等着看它生效。
 	 */
 	const dir = await scratch("throws");
+	const fake = fakeWatch();
 	let calls = 0;
 	const watcher = new CapabilityWatcher({
 		dirs: [dir],
@@ -150,12 +188,13 @@ test("重载抛错不会带走监听", async () => {
 			if (calls === 1) throw new Error("frontmatter 写了一半");
 		},
 		debounceMs: 30,
+		watchFactory: fake.factory,
 	});
 
 	try {
-		await writeFile(join(dir, "a.md"), "1", "utf8");
+		fake.fire();
 		assert.ok(await until(() => calls >= 1));
-		await writeFile(join(dir, "a.md"), "2", "utf8");
+		fake.fire();
 		assert.ok(await until(() => calls >= 2), "第一次抛了错，第二次还得听得见");
 	} finally {
 		watcher.close();
