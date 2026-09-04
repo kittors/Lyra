@@ -35,6 +35,8 @@ export interface LoadedCapabilities {
 	mcpStatuses: McpServerStatus[];
 	tools: Tool[];
 	rules: RuleSet;
+	/** 这次加载实际读过的目录，用来建立监听。 */
+	watched: string[];
 }
 
 /**
@@ -153,7 +155,8 @@ export async function loadCapabilities(
 	 * loaded, appeared in listings, and did nothing. Built-ins now arrive from a provider with a
 	 * priority of 1 and lose by name like anything else.
 	 */
-	const agents = (await registry.load<AgentDefinition>("agent", { cwd })).items;
+	const agentResult = await registry.load<AgentDefinition>("agent", { cwd });
+	const agents = agentResult.items;
 
 	/*
 	 * Rules come back as one list ordered by precedence and are regrouped into the three buckets the
@@ -175,7 +178,19 @@ export async function loadCapabilities(
 	const mcpStatuses = await mcp.connectAll(settings.mcpServers);
 	const tools = [...builtinTools(), ...extraTools, ...mcp.allTools()];
 
-	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, rules };
+	/*
+	 * 实际读过的目录，交给监听器。
+	 *
+	 * 这份名单一直被收集着——每个 provider 都老老实实地报了 `watched`，注册表也把它们合起来了
+	 * ——而 `LoadedCapabilities` 从来没带上它，所以谁也拿不到。收集原料收集了很久，工厂一直
+	 * 没建。
+	 *
+	 * 只监听**贡献过条目的目录**，不是所有可能的位置：后者是几十个 watcher，而其中绝大多数
+	 * 指向的目录在这台机器上根本不存在。
+	 */
+	const watched = [...new Set([...skillResult.watched, ...agentResult.watched, ...ruleResult.watched])];
+
+	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, rules, watched };
 }
 
 /**

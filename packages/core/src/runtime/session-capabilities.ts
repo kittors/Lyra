@@ -40,6 +40,13 @@ export class SessionCapabilities {
 	/** Discovered rules, already sorted into always-apply, rulebook and stream buckets. */
 	rules: RuleSet = EMPTY_RULE_SET;
 	/**
+	 * 这次加载实际读过的目录。
+	 *
+	 * 热重载监听的就是这份名单——不是「所有可能放技能的地方」，而是「这台机器上真的放了东西
+	 * 的地方」。前者是几十个 watcher，其中大多数指向不存在的目录。
+	 */
+	watched: string[] = [];
+	/**
 	 * Watches the stream for the rules that have conditions.
 	 *
 	 * Lives here rather than being built per turn because repeat policy counts turns: a monitor
@@ -114,6 +121,7 @@ export class SessionCapabilities {
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
 		this.state.set(RULES_KEY, this.rules);
+		this.watched = loaded.watched;
 	}
 
 	/**

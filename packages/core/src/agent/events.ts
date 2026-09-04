@@ -63,6 +63,21 @@ export type AgentEvent =
 			scope?: string;
 	  }
 	/**
+	 * 磁盘上的技能、规则或子代理定义变了，这个会话已经重新读过了。
+	 *
+	 * 说清楚变了什么，而不只是「有变化」：一次 `git checkout` 会换掉半个目录，一句
+	 * 「能力已更新」对着那种情况说了等于没说。数字是重载前后的差，所以「改了一个文件的内容」
+	 * 三个数都是 0——那也是对的，因为改的确实不是名单。
+	 */
+	| {
+			type: "capabilities_changed";
+			skills: number;
+			rules: number;
+			agents: number;
+			/** 新出现的名字，最多几个，给通知用。 */
+			added: string[];
+	  }
+	/**
 	 * What the model was given at the start of a turn.
 	 *
 	 * The transcript records what the model said; this records what it was told — the system

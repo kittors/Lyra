@@ -21,6 +21,7 @@ import type { ApprovalDecision, ApprovalRequest, Message, ThinkingLevel, Tool, U
 import { ApprovalGate, sessionApprovalGate } from "./approvals.ts";
 import type { ContextBreakdown } from "./context.ts";
 import { describeContext, describeSession, type SessionFacts, type SessionStatus } from "./reporting.ts";
+import { CapabilityWatcher } from "./capability-watch.ts";
 import { SessionCapabilities } from "./session-capabilities.ts";
 import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
@@ -64,6 +65,8 @@ export class AgentSession {
 	 * 拿已经叠过的结果再叠一次，项目的值会被当成全局的值固化下来。
 	 */
 	private globalSettings: Settings;
+	/** 盯着技能和规则目录的那个，没有可听的目录时是 null。 */
+	private watcher: CapabilityWatcher | null = null;
 	private streamFn?: AgentRunConfig["streamFn"];
 	private controller: AbortController | null = null;
 	private steering: Message[] = [];
@@ -139,6 +142,57 @@ export class AgentSession {
 		}
 		await this.applyProjectConfig();
 		await this.can.load(this.cwd, this.settings);
+		this.startWatching();
+	}
+
+	/**
+	 * 盯着那些真的放了东西的目录，改了就重读。
+	 *
+	 * 编辑技能和规则是这套系统里最高频的动作之一：写一条、试一句、再改一版。要求每一版都重启
+	 * 窗口，等于要求每一版都重新加载全部插件、重连全部 MCP、丢掉正在看的那个对话。
+	 *
+	 * `watched` 这份名单一直被收集着——每个 provider 都老实报了，注册表也合并了——只是从来
+	 * 没有人接。
+	 */
+	private startWatching(): void {
+		this.watcher?.close();
+		if (this.can.watched.length === 0) return;
+		this.watcher = new CapabilityWatcher({
+			dirs: this.can.watched,
+			// 一轮跑到一半绝不换：模型正按当前那份清单做决策。
+			idle: () => !this.running,
+			reload: () => this.reloadCapabilities(),
+		});
+	}
+
+	/**
+	 * 重读一遍，然后说清楚变了什么。
+	 *
+	 * 「能力已更新」对着一次 `git checkout` 说了等于没说——那会换掉半个目录。所以报的是数量差
+	 * 和新出现的名字。三个数都是 0 也是一个诚实的答案：有人改了某个规则的正文，而名单没变。
+	 */
+	private async reloadCapabilities(): Promise<void> {
+		const before = {
+			skills: this.can.skills.length,
+			rules: this.can.rules.always.length + this.can.rules.book.length + this.can.rules.stream.length,
+			agents: this.can.agents.length,
+			names: new Set([...this.can.skills.map((s) => s.name), ...this.can.agents.map((a) => a.name)]),
+		};
+
+		await this.can.load(this.cwd, this.settings);
+		// 目录名单本身也会变——新建了 `.lyra/rules/` 之后，它才第一次出现在 `watched` 里。
+		this.startWatching();
+
+		const rules = this.can.rules.always.length + this.can.rules.book.length + this.can.rules.stream.length;
+		await this.emit({
+			type: "capabilities_changed",
+			skills: this.can.skills.length - before.skills,
+			rules: rules - before.rules,
+			agents: this.can.agents.length - before.agents,
+			added: [...this.can.skills.map((s) => s.name), ...this.can.agents.map((a) => a.name)]
+				.filter((name) => !before.names.has(name))
+				.slice(0, 4),
+		});
 	}
 
 	/**
@@ -472,6 +526,14 @@ export class AgentSession {
 			this.approvals.rejectAll();
 		}
 
+		/*
+		 * 这一轮跑的时候磁盘上改过的东西，现在换进来。
+		 *
+		 * 「流式中不替换」那条约束的另一半：排了队就得有人放出来，否则那次改动会一直等到下一次
+		 * 文件事件——而人保存完文件就等着看效果，不会再去动它一次。
+		 */
+		void this.watcher?.resume();
+
 		// The queue moves the moment the workspace is free again. Skipped while draining,
 		// because that loop is already the thing calling us.
 		void this.tasks.drain();
@@ -608,6 +670,9 @@ export class AgentSession {
 
 	async dispose(): Promise<void> {
 		this.abort();
+		// 没人关的 fs.watch 会一直拿着描述符，而一天里会开关几十个会话。
+		this.watcher?.close();
+		this.watcher = null;
 		await this.can.dispose();
 	}
 }
