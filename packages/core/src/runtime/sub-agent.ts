@@ -19,6 +19,7 @@ import type { AgentRunConfig } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
+import { withEnvironment } from "../prompt/environment.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { lyraHome } from "../session/store.ts";
@@ -201,7 +202,6 @@ export async function runSubAgent(
 		platform: platform(),
 		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
-		today: new Date().toISOString().slice(0, 10),
 		appendSystemPrompt: definition.output
 			? `${definition.systemPrompt}\n${yieldInstruction(definition.output)}`
 			: definition.systemPrompt,
@@ -217,7 +217,8 @@ export async function runSubAgent(
 				model: runModel,
 				systemPrompt: subAgentPrompt,
 				tools: allowed,
-				messages: [{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }],
+				// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
+				messages: withEnvironment([{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }]),
 				/*
 				 * The app default, deliberately — not the dispatching conversation's level.
 				 *

@@ -171,8 +171,10 @@ test("a message steered mid-run reaches the sub-agent's own history", async () =
 			emit: async () => {},
 			streamFn: async (context) => {
 				seen.push(
+					// 只收人说的：末尾那条 `<env>` 是运行时接上去的日期块（`prompt/environment.ts`），
+					// 它每一轮都在，而这几条断言问的是「这一轮收到了哪些请求」。
 					context.messages.flatMap((m) =>
-						m.role === "user" ? m.content.filter((c) => c.type === "text").map((c) => c.text) : [],
+						m.role === "user" && !m.synthetic ? m.content.filter((c) => c.type === "text").map((c) => c.text) : [],
 					),
 				);
 				if (turn === 0) registry.steer(registry.list()[0].id, "别看测试目录");

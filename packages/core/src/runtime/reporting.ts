@@ -94,7 +94,6 @@ export async function describeContext(session: SessionFacts): Promise<ContextBre
 			platform: platform(),
 			modelName: resolved.model.name,
 			isGitRepo: await pathExists(join(session.cwd, ".git")),
-			today: new Date().toISOString().slice(0, 10),
 			scratchDir: session.scratchDir(),
 		}),
 		builtinTools: session.tools.filter((tool) => !mcpNames.has(tool.name)),

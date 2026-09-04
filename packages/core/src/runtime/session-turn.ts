@@ -40,6 +40,7 @@ import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
+import { withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
 import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
@@ -78,7 +79,8 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 	const first = await runTurn(config, onEvent);
 	await continueWhileWorkRemains(first, {
 		run: (messages) => runTurn({ ...config, messages, systemPrompt }, onEvent),
-		messages: () => modelHistory(input.log, input.provider, input.model),
+		// 续跑重建历史时也要带上——少了末尾那条，前缀就跟上一次不一样，缓存反而白丢一次。
+		messages: () => withEnvironment(modelHistory(input.log, input.provider, input.model)),
 		todos: () => (input.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 		aborted: () => input.signal.aborted,
 		notify: (message) => input.emit({ type: "notice", level: "info", message }),
@@ -198,7 +200,14 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	const turn = await prepareTurn({
 		cwd,
 		tools: can.tools,
-		messages: modelHistory(log, input.provider, input.model),
+		/*
+		 * 日期接在末尾，而不是写在 system prompt 里。
+		 *
+		 * 前缀缓存从最前面逐段匹配，system prompt 正是最前面那一段——里面放一个每天变一次的
+		 * 字符串，等于每天头一次请求要为整个对话重付一次全额。放末尾，跨天时只失效这一小块。
+		 * 见 `prompt/environment.ts`。
+		 */
+		messages: withEnvironment(modelHistory(log, input.provider, input.model)),
 		systemPrompt: await buildSystemPrompt({
 			cwd,
 			tools: can.tools,
@@ -212,7 +221,6 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			platform: platform(),
 			modelName: input.model.name,
 			isGitRepo: await pathExists(join(cwd, ".git")),
-			today: new Date().toISOString().slice(0, 10),
 			scratchDir: input.scratchDir,
 				rules: can.rules,
 				resources: can.resources.schemes(),

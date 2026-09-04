@@ -82,7 +82,8 @@ async function harness(duringTurn?: (session: AgentSession) => void): Promise<Ha
 			events.push(event);
 		},
 		streamFn: async (context) => {
-			const last = [...context.messages].reverse().find((m) => m.role === "user");
+			// 最后一条**人说的**——末尾那条 `<env>` 是运行时接上去的，见 `prompt/environment.ts`。
+			const last = [...context.messages].reverse().find((m) => m.role === "user" && !m.synthetic);
 			turns.push(last && last.role === "user" ? textOf(last.content) : "");
 			duringTurn?.(session);
 			return reply("ok");

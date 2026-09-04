@@ -7,8 +7,8 @@
  * session without `bash` never sees advice about shell commands.
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { RuleSet } from "../rules/types.ts";
 import { formatRules } from "../rules/session.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
@@ -49,8 +49,6 @@ export interface SystemPromptInput {
 	platform: string;
 	modelName: string;
 	isGitRepo: boolean;
-	/** Today's date, so the model does not fall back on its training cutoff. */
-	today: string;
 	/** Appended verbatim after the built-in prompt. */
 	appendSystemPrompt?: string;
 	/**
@@ -156,7 +154,6 @@ ${BOUNDARIES.map((b) => `- ${b}`).join("\n")}
 Environment:
 - Platform: ${input.platform}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}
-- Today's date: ${input.today}
 - Model: ${input.modelName}`;
 
 	if (input.appendSystemPrompt) prompt += `\n\n${input.appendSystemPrompt}`;
@@ -300,18 +297,70 @@ function escapeXml(text: string): string {
 const INSTRUCTION_FILES = ["LYRA.md", "AGENTS.md", "CLAUDE.md"];
 
 /**
- * Load project instruction files.
+ * 往上找到多少层为止。
  *
- * Only the first file that exists is used, in the listed priority order, so a project with
- * both LYRA.md and AGENTS.md does not get contradictory instructions injected twice.
+ * 一个防病态路径的上限，不是一个语义。真实的停点是仓库根——十层深还没走到根的目录树，
+ * 已经不是这个上限该操心的问题了。
+ */
+const MAX_ANCESTORS = 10;
+
+/**
+ * 从 cwd 一路向上，把每一层的项目指令都收起来。
+ *
+ * **只读 cwd 一层，在 monorepo 里就是错的**：在 `packages/core` 里开的会话读不到仓库根的
+ * AGENTS.md，而那份文件里通常写着整个仓库的约定——提交格式、包管理器、跑测试的方式。
+ * 这个仓库自己就是 monorepo，所以这条一直在影响我们自己。
+ *
+ * 三条规则：
+ *
+ *   **每层最多一个。** 同一个目录里 `LYRA.md` 和 `AGENTS.md` 都在时只取前者——两份为同一个
+ *   目录写的指令，第二份多半是从别的工具迁过来没删的旧版本，一起注入会自相矛盾。
+ *
+ *   **停在仓库根。** 再往上就是 `~` 和 `/`，那里的 `AGENTS.md` 是别的项目的、或者是这个人
+ *   给另一个工具写的。不在 git 仓库里时只读 cwd 自己。
+ *
+ *   **从远到近。** 根的约定先出现，子包的后出现——后面的更具体，模型读到冲突时按后者办，
+ *   而这正是「子包可以覆盖仓库约定」该有的样子。
  */
 export async function loadProjectInstructions(cwd: string): Promise<{ path: string; content: string }[]> {
-	for (const name of INSTRUCTION_FILES) {
-		const path = join(cwd, name);
-		const content = await readFile(path, "utf8").catch(() => null);
-		if (content?.trim()) return [{ path, content: content.trim() }];
+	const found: { path: string; content: string }[] = [];
+	const stop = await repoRoot(cwd);
+
+	let dir = cwd;
+	for (let depth = 0; depth < MAX_ANCESTORS; depth += 1) {
+		for (const name of INSTRUCTION_FILES) {
+			const path = join(dir, name);
+			const content = await readFile(path, "utf8").catch(() => null);
+			if (content?.trim()) {
+				found.push({ path, content: content.trim() });
+				break;
+			}
+		}
+
+		if (stop === null || dir === stop) break;
+		const parent = dirname(dir);
+		// `dirname("/")` 还是 `"/"`——没有这一步，走到文件系统根就是死循环。
+		if (parent === dir) break;
+		dir = parent;
 	}
-	return [];
+
+	return found.reverse();
+}
+
+/** 含 `.git` 的最近祖先，没有就返回 null（那时只读 cwd 一层）。 */
+async function repoRoot(cwd: string): Promise<string | null> {
+	let dir = cwd;
+	for (let depth = 0; depth < MAX_ANCESTORS; depth += 1) {
+		/*
+		 * `.git` 在 worktree 里是文件不是目录，所以用 `access` 而不是 `stat` + `isDirectory`。
+		 * 这个仓库自己就在用 worktree 干活，这条不是假设。
+		 */
+		if (await access(join(dir, ".git")).then(() => true).catch(() => false)) return dir;
+		const parent = dirname(dir);
+		if (parent === dir) return null;
+		dir = parent;
+	}
+	return null;
 }
 
 /**

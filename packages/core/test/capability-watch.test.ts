@@ -26,8 +26,14 @@ after(async () => {
 });
 
 /** 等到 `check()` 为真，或者超时。轮询而不是定时，因为文件事件的延迟在各平台上差别很大。 */
-// 5 秒而不是 3：文件事件的延迟在机器忙的时候能到好几秒，而这里等的从来不是「快」。
-async function until(check: () => boolean, ms = 5000): Promise<boolean> {
+/*
+ * 10 秒。这个数字调过两次，每次都是同一个原因：全量测试并发跑的时候，文件事件要等好几秒。
+ *
+ * 等的从来不是「快」——这几条问的是「改了文件之后到底会不会重载」，而不是「多久之内重载」。
+ * 上限只该防死等，把它压到跟真实延迟同一个量级，换来的是一条会偶发变红的测试，
+ * 而偶发变红的测试比没有测试更糟：它教人重跑一次就走。
+ */
+async function until(check: () => boolean, ms = 10_000): Promise<boolean> {
 	const deadline = Date.now() + ms;
 	while (Date.now() < deadline) {
 		if (check()) return true;
