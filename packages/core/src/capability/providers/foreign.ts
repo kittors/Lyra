@@ -117,6 +117,3 @@ function foreignProvider(spec: ForeignSpec): CapabilityProvider<Rule> {
 }
 
 export const FOREIGN_PROVIDERS: CapabilityProvider<Rule>[] = SPECS.map(foreignProvider);
-
-/** Provider ids whose user-level directories are opt-in, for the settings page. */
-export const FOREIGN_PROVIDER_IDS: string[] = SPECS.filter((s) => s.userDir).map((s) => s.id);

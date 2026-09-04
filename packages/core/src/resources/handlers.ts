@@ -6,8 +6,8 @@
  * counts as escaping.
  */
 
-import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { findRule } from "../rules/session.ts";
 import type { RuleSet } from "../rules/types.ts";
 import { RULES_KEY } from "../tools/rule.ts";
@@ -293,17 +293,6 @@ export const lyraResource: ResourceHandler = {
 		return Object.entries(TOPICS).map(([key, value]) => ({ value: `lyra://${key}`, description: value.title }));
 	},
 };
-
-/** Remove a session's scratch directory. */
-export async function clearScratch(dir: string): Promise<void> {
-	await rm(dir, { recursive: true, force: true }).catch(() => {});
-}
-
-
-/** Where the scratch directory for a session lives, given the app's home. */
-export function scratchPath(home: string, sessionId: string): string {
-	return join(home, "scratch", sessionId);
-}
 
 /**
  * `agent://<id>` is a sub-agent's structured result; `agent://<id>/<path>` is one field of it.

@@ -11,7 +11,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { loadProjectLayer, mergeLayer, PROJECT_FORBIDDEN, projectConfigPath, readConfigFile, resolveLayers, sanitizeProjectConfig } from "../src/config/layers.ts";
+import { loadProjectLayer, mergeLayer, PROJECT_FORBIDDEN, projectConfigPath, readConfigFile, sanitizeProjectConfig } from "../src/config/layers.ts";
 
 let root: string;
 
@@ -82,39 +82,6 @@ test("every forbidden key is actually enforced", () => {
 	const { config, refused } = sanitizeProjectConfig({ ...attempt, allowed: 1 });
 	assert.deepEqual(Object.keys(config), ["allowed"]);
 	assert.equal(refused.length, PROJECT_FORBIDDEN.length);
-});
-
-test("the global layer is not sanitised — that is where credentials belong", () => {
-	const { config } = resolveLayers([{ layer: "global", config: { providers: [{ apiKey: "sk-x" }] } }]);
-	assert.ok(config.providers, "a global file may hold what a shared one may not");
-});
-
-// ---------------------------------------------------------------------------
-// Provenance
-// ---------------------------------------------------------------------------
-
-test("each key records which layer set it", () => {
-	/*
-	 * "Why is this project using that model" is answered by naming the file. Without this the
-	 * settings page can show a value and nothing else, leaving three files to search.
-	 */
-	const { config, report } = resolveLayers([
-		{ layer: "default", config: { defaultModelId: "p/default", theme: "dark" } },
-		{ layer: "global", config: { defaultModelId: "p/global" } },
-		{ layer: "project", config: { defaultModelId: "p/project" } },
-	]);
-
-	assert.equal(config.defaultModelId, "p/project");
-	assert.equal(report.origin.defaultModelId, "project");
-	assert.equal(report.origin.theme, "default", "an untouched key still says where it came from");
-});
-
-test("refusals from the project layer surface in the report", () => {
-	const { report } = resolveLayers([
-		{ layer: "global", config: {} },
-		{ layer: "project", config: { mcpServers: [] } },
-	]);
-	assert.deepEqual(report.refused, ["mcpServers"]);
 });
 
 // ---------------------------------------------------------------------------

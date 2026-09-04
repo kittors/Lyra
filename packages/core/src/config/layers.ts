@@ -6,24 +6,20 @@
  * switch. And the failure is not the editing: it is forgetting to edit back, which makes the next
  * project's session run under the previous project's rules with nothing on screen saying so.
  *
- * Five layers, each more specific than the last:
+ * 两层，全局在下、项目在上：`~/.lyra/settings.json` → `<cwd>/.lyra/config.json`。
  *
- *   built-in defaults → global (`~/.lyra`) → project (`<cwd>/.lyra`) → one-shot → runtime
+ * 计划里画的是五层（内置默认 → 全局 → 项目 → 一次性 → 运行时），这里也曾经有一个
+ * `resolveLayers` 按那五层合并、并记录每个键来自哪一层。**而实际接线走的是两层**——会话拿到
+ * 全局那份、叠上项目那份，一次性和运行时那两层没有入口，「哪个键来自哪个文件」也没有界面。
  *
- * The interesting decisions are two: how the layers merge, and what a project file is *not*
- * allowed to carry.
+ * 所以那个函数删掉了：一个更通用、而没有任何调用者的 API，比现在这两层还危险——
+ * 下一个人会以为那才是该走的路。真需要五层的时候，git 历史里有。
+ *
+ * 剩下的两个决定还是原来那两个：怎么合并，以及项目文件**不**许带什么。
  */
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
-/** Where a value came from, so the settings page can say which file to edit. */
-export type ConfigLayer = "default" | "global" | "project" | "session";
-
-export interface LayeredValue<T> {
-	value: T;
-	from: ConfigLayer;
-}
 
 /**
  * Keys a project file may not set, whatever it says.
@@ -38,13 +34,6 @@ export interface LayeredValue<T> {
  * catches.
  */
 export const PROJECT_FORBIDDEN = ["providers", "apiKey", "credentials", "githubToken", "mcpServers"] as const;
-
-export interface MergeReport {
-	/** Keys a project file tried to set and was refused. */
-	refused: string[];
-	/** Which layer each top-level key ended up coming from. */
-	origin: Record<string, ConfigLayer>;
-}
 
 type Plain = Record<string, unknown>;
 
@@ -82,28 +71,6 @@ export function sanitizeProjectConfig(config: Plain): { config: Plain; refused: 
 		out[key] = value;
 	}
 	return { config: out, refused };
-}
-
-/**
- * Apply every layer in order and record where each key ended up coming from.
- *
- * The provenance is not decoration. "Why is this project using that model" is answered by naming
- * the file, and without it the settings page can only show a value and leave the person to search
- * three files for whichever one set it.
- */
-export function resolveLayers(layers: { layer: ConfigLayer; config: Plain }[]): { config: Plain; report: MergeReport } {
-	let config: Plain = {};
-	const origin: Record<string, ConfigLayer> = {};
-	const refused: string[] = [];
-
-	for (const { layer, config: raw } of layers) {
-		const { config: clean, refused: rejected } = layer === "project" ? sanitizeProjectConfig(raw) : { config: raw, refused: [] };
-		refused.push(...rejected);
-		for (const key of Object.keys(clean)) origin[key] = layer;
-		config = mergeLayer(config, clean);
-	}
-
-	return { config, report: { refused, origin } };
 }
 
 /** Read a JSON config file. A missing file is not an error; a malformed one is reported. */

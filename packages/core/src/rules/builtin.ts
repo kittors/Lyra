@@ -105,5 +105,10 @@ export const BUILTIN_RULES: Rule[] = [
 	}),
 ];
 
-/** Built-in rule names, for the settings UI and for `disabledRules`. */
-export const BUILTIN_RULE_NAMES = BUILTIN_RULES.map((rule) => rule.name);
+/*
+ * 这里曾经有一个 `BUILTIN_RULE_NAMES`，注释写着「给设置页和 `disabledRules` 用」。
+ *
+ * 设置页现在有了（设置 › 插件 › 规则），而它一条也用不上这个常量——那一页列的是
+ * `collectRules` 读回来的**全部**规则，内置的跟从磁盘读到的走同一条路、同一份数据。
+ * 一个为想象中的调用方准备的名单，在真的调用方出现时通常是不合身的。
+ */

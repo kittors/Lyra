@@ -16,12 +16,26 @@
  * a forked process on this machine: p99 0.032ms against 0.074ms for a thousand empty round trips,
  * both far under the 5ms the plan set as the bar. The one thing it does not isolate is memory —
  * a worker that exhausts the heap takes the process with it — which is why `memoryLimitMb` exists.
+ *
+ * **隔离的是崩溃，不是能力。** 一个扩展跑在 worker 里，而 worker 里有完整的 Node：它能
+ * `import("node:fs")` 读写任何文件、能联网、能起子进程。装一个第三方扩展 = 在这台机器上以
+ * 你的身份运行别人的代码，跟装一个 npm 包是同一件事。
+ *
+ * 这里曾经有一个 `permissions` 字段，声明「这个扩展需要哪些能力」，解析得很仔细、校验得很
+ * 完整——而**宿主从来不看它**。`worker_threads` 里没有能给出这种保证的原语：你无法给一个
+ * worker「只读文件、不能联网」。一个不执行的权限声明比没有更糟，它让人以为装扩展是安全的，
+ * 所以那个字段删掉了，换成这一段。
  */
 
 /** The events an extension can subscribe to. */
 export type ExtensionEvent = "tool_call" | "tool_result" | "turn_start" | "turn_end" | "session_start";
 
-/** What an extension declares about itself. Everything here is a promise the host enforces. */
+/**
+ * What an extension declares about itself.
+ *
+ * 每一条都是宿主真的会执行的——这句话以前不成立（`permissions` 从来没被读过），所以现在
+ * 只留下真的会执行的那几条。
+ */
 export interface ExtensionManifest {
 	name: string;
 	version?: string;
@@ -39,23 +53,9 @@ export interface ExtensionManifest {
 	 * that decision if the manifest states it.
 	 */
 	intercepts?: boolean;
-	/** Capabilities it needs, shown at install time. */
-	permissions?: ExtensionPermission[];
 	/** Hard ceiling for the worker. Beyond this Node kills it rather than the process running out. */
 	memoryLimitMb?: number;
 }
-
-export type ExtensionPermission = "read-files" | "write-files" | "network" | "run-commands" | "read-settings";
-
-export const ALL_PERMISSIONS: ExtensionPermission[] = ["read-files", "write-files", "network", "run-commands", "read-settings"];
-
-export const PERMISSION_LABELS: Record<ExtensionPermission, string> = {
-	"read-files": "读取工作区里的文件",
-	"write-files": "修改工作区里的文件",
-	network: "访问网络",
-	"run-commands": "执行 shell 命令",
-	"read-settings": "读取你的设置（不含凭证）",
-};
 
 /** A message from the host to an extension. */
 export interface HostMessage {
@@ -119,12 +119,12 @@ export function validateManifest(raw: unknown): { manifest: ExtensionManifest } 
 		if (bad !== undefined) return { error: `不认识的事件 “${String(bad)}”。可用的是：${known.join("、")}` };
 	}
 
-	const permissions = record.permissions;
-	if (permissions !== undefined) {
-		if (!Array.isArray(permissions)) return { error: "`permissions` 必须是数组。" };
-		const bad = permissions.find((p) => typeof p !== "string" || !ALL_PERMISSIONS.includes(p as ExtensionPermission));
-		if (bad !== undefined) return { error: `不认识的权限 “${String(bad)}”。` };
-	}
+	/*
+	 * 清单里写了 `permissions` 也不报错，只是不作数。
+	 *
+	 * 这个字段以前存在，装过它的扩展的清单里还留着。为一个已经不看的字段报错，等于让那些扩展
+	 * 装不上——而它们本来就没有因为写了它而受到过任何限制。见文件头。
+	 */
 
 	return {
 		manifest: {
@@ -134,7 +134,6 @@ export function validateManifest(raw: unknown): { manifest: ExtensionManifest } 
 			main: record.main,
 			events: (events as ExtensionEvent[] | undefined) ?? [],
 			intercepts: record.intercepts === true,
-			permissions: (permissions as ExtensionPermission[] | undefined) ?? [],
 			memoryLimitMb: typeof record.memoryLimitMb === "number" ? Math.min(512, Math.max(32, record.memoryLimitMb)) : 128,
 		},
 	};

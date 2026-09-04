@@ -15,7 +15,6 @@ import { nativeProvider } from "./providers/native.ts";
 import type { CapabilityProvider } from "./types.ts";
 
 export { CapabilityRegistry } from "./registry.ts";
-export { FOREIGN_PROVIDER_IDS } from "./providers/foreign.ts";
 export * from "./types.ts";
 
 /** Every provider that ships, highest priority first. */

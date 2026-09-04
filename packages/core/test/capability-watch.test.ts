@@ -26,7 +26,8 @@ after(async () => {
 });
 
 /** 等到 `check()` 为真，或者超时。轮询而不是定时，因为文件事件的延迟在各平台上差别很大。 */
-async function until(check: () => boolean, ms = 3000): Promise<boolean> {
+// 5 秒而不是 3：文件事件的延迟在机器忙的时候能到好几秒，而这里等的从来不是「快」。
+async function until(check: () => boolean, ms = 5000): Promise<boolean> {
 	const deadline = Date.now() + ms;
 	while (Date.now() < deadline) {
 		if (check()) return true;
