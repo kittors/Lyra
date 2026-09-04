@@ -8,6 +8,7 @@
 
 import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { findRule } from "../rules/session.ts";
 import type { RuleSet } from "../rules/types.ts";
 import { RULES_KEY } from "../tools/rule.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -104,10 +105,11 @@ export const ruleResource: ResourceHandler = {
 
 	async resolve(url: ParsedUrl, ctx: ResourceContext): Promise<Resource> {
 		const set = ctx.state.get(RULES_KEY) as RuleSet | undefined;
-		const all = set ? [...set.always, ...set.book, ...set.stream] : [];
 		const name = url.segments.join("/");
-		const rule = all.find((r) => r.name === name);
+		// 走 `findRule`——它就是给这里和 `rule` 工具写的，而两边原本各拼了一遍同样的三段。
+		const rule = set ? findRule(set, name) : undefined;
 		if (!rule) {
+			const all = set ? [...set.always, ...set.book, ...set.stream] : [];
 			const available = all.map((r) => r.name).join("、");
 			throw new ResourceError(`没有叫“${name}”的规则。现有的是：${available || "（一条都没有）"}`);
 		}

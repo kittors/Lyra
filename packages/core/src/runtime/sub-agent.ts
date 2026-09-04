@@ -25,6 +25,7 @@ import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import { compactWith } from "./compaction.ts";
+import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import { writePreview } from "./previews.ts";
@@ -85,6 +86,20 @@ export interface SubAgentOptions {
 	 * old behaviour exactly. Delegation works the same either way; the registry only adds a window.
 	 */
 	registry?: SubAgentRegistry;
+	/**
+	 * Where the run doing the dispatching sits in the tree. Absent means the main conversation.
+	 *
+	 * Carried rather than counted, because the two limits need different things from it: depth is
+	 * a number, and self-recursion needs the names on the path.
+	 */
+	dispatch?: DispatchContext;
+	/**
+	 * The concurrency semaphore, shared by the whole tree.
+	 *
+	 * One per session, passed down: a limit of four that each level enforced separately would be
+	 * four at the top and four under each of those.
+	 */
+	gate?: DispatchGate;
 }
 
 export async function runSubAgent(
@@ -99,14 +114,20 @@ export async function runSubAgent(
 		definition.tools === "*" ? options.tools : options.tools.filter((t) => (definition.tools as string[]).includes(t.name));
 
 	/*
-	 * Recursive dispatch is off unless the definition asks for it.
+	 * Recursive dispatch is off unless the definition asks for it, and off again at the depth limit.
 	 *
 	 * Removing `task` from the list rather than refusing the call later is deliberate: a model
 	 * cannot want a tool it has not been shown, and an error after the fact costs a turn to
 	 * discover something that was never going to work.
+	 *
+	 * Both halves were previously missing their other half. `spawns` kept `task` in the list, and
+	 * nothing was ever passed for `spawnSubAgent` — so a definition that declared it could delegate
+	 * got the tool and a refusal from it. The depth the prompt promised was not enforced anywhere.
 	 */
+	const here = childDispatch(options.dispatch ?? rootDispatch(), definition.name);
 	const maySpawn = definition.spawns === "*" || (Array.isArray(definition.spawns) && definition.spawns.length > 0);
-	const withoutTask = maySpawn ? fromSession : fromSession.filter((tool) => tool.name !== "task");
+	const deepEnough = here.depth < DEFAULT_MAX_DEPTH;
+	const withoutTask = maySpawn && deepEnough ? fromSession : fromSession.filter((tool) => tool.name !== "task");
 
 	/*
 	 * A declared output shape turns the reply into an object.
@@ -130,6 +151,8 @@ export async function runSubAgent(
 	const subState = new Map<string, unknown>([
 		[SKILLS_KEY, options.skills],
 		[AGENTS_KEY, options.agents],
+		// So the `task` tool one level down knows where it is, and can refuse a cycle by name.
+		[DISPATCH_KEY, here],
 	]);
 
 	// The sub-agent gets its own message list and its own state map, so its file reads and
@@ -206,6 +229,39 @@ export async function runSubAgent(
 				retryAttempts: options.settings.retryAttempts,
 				signal: controller.signal,
 				state: subState,
+				/*
+				 * How a sub-agent delegates further — and until now, it could not.
+				 *
+				 * `spawns` kept the `task` tool in its list and nothing was ever passed here, so a
+				 * definition that declared it could orchestrate got the tool and, from it, "sub-agents
+				 * are not available in this session". The field parsed, the tool appeared, the feature
+				 * did not exist.
+				 *
+				 * Undefined rather than a function that refuses, when this run may not spawn: the tool
+				 * is already gone from `allowed` in that case, and leaving the capability behind it
+				 * would be a second answer to the same question.
+				 */
+				spawnSubAgent: allowed.some((tool) => tool.name === "task")
+					? (nested) => {
+							/*
+							 * `spawns: ["scout", "reviewer"]` 是一份名单，不只是一个开关。
+							 *
+							 * 计划里它的作用是「读 agent 定义的人一眼看出这是个编排者，以及它会派谁」。
+							 * 只把它当布尔用，那份名单就成了注释。
+							 */
+							const allowedNames = definition.spawns;
+							const wanted = nested.agentType ?? "general";
+							if (Array.isArray(allowedNames) && !allowedNames.includes(wanted)) {
+								throw new Error(
+									`\`${definition.name}\` 只被允许派生 ${allowedNames.join("、")}，不包括 \`${wanted}\`。` +
+										`要放开，请在它的定义里把 \`${wanted}\` 加进 spawns。`,
+								);
+							}
+							return (options.gate ?? new DispatchGate(options.settings.maxConcurrentSubAgents)).run(() =>
+								runSubAgent({ ...options, dispatch: here }, nested, runProvider, runModel, subAgentPrompt),
+							);
+						}
+					: undefined,
 				requestApproval: (request) => options.requestApproval(request),
 				/*
 				 * The session's policy, which does not stop applying because the work was delegated.

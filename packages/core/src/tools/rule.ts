@@ -10,6 +10,7 @@
  */
 
 import { errorResult } from "../agent/tool-run.ts";
+import { findRule } from "../rules/session.ts";
 import type { RuleSet } from "../rules/types.ts";
 import type { Tool, ToolResult } from "../types.ts";
 
@@ -36,8 +37,9 @@ export const ruleTool: Tool<RuleArgs> = {
 
 	async execute(args, ctx): Promise<ToolResult> {
 		const rules = ctx.state.get(RULES_KEY) as RuleSet | undefined;
-		const all = [...(rules?.book ?? []), ...(rules?.always ?? []), ...(rules?.stream ?? [])];
-		const found = all.find((rule) => rule.name === args.name);
+		// 查找收敛到一处。这里和 `rule://` 各自写过一遍同样的三段拼接，而 `findRule` 的注释里
+		// 点名了它们两个——然后谁也没用它。
+		const found = rules ? findRule(rules, args.name) : undefined;
 
 		if (!found) {
 			/*

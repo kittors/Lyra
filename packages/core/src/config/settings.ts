@@ -542,7 +542,20 @@ export async function loadSettings(): Promise<Settings> {
  * checked into the repository, so anything in it is shared with everyone who clones it.
  */
 export async function loadSettingsFor(cwd: string | null): Promise<{ settings: Settings; refused: string[]; error?: string }> {
-	const global = await loadSettings();
+	return layerProjectSettings(await loadSettings(), cwd);
+}
+
+/**
+ * Put a project's layer over settings that are already in hand.
+ *
+ * Split out from `loadSettingsFor` because a running session gets its global settings handed to it
+ * — the desktop keeps one copy and pushes changes down — and re-reading the file to apply the
+ * project layer would race with whatever change was being pushed.
+ */
+export async function layerProjectSettings(
+	global: Settings,
+	cwd: string | null,
+): Promise<{ settings: Settings; refused: string[]; error?: string }> {
 	if (!cwd) return { settings: global, refused: [] };
 
 	const { loadProjectLayer, mergeLayer } = await import("./layers.ts");

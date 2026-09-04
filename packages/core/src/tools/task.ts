@@ -1,4 +1,5 @@
 import { errorResult } from "../agent/tool-run.ts";
+import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
 import type { JsonSchema, Tool, ToolResult } from "../types.ts";
 
 export interface AgentDefinition {
@@ -106,6 +107,18 @@ export const taskTool: Tool<TaskArgs> = {
 			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
 			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);
 		}
+
+		/*
+		 * 深度与自递归，在这里拦。
+		 *
+		 * 深度的主路径是把 `task` 从工具表里拿掉（见 `sub-agent.ts`）——模型不会想要一个没见过的
+		 * 工具。这里是兜底，而且是**自递归**唯一能拦的地方：`explore → reviewer → explore` 这条
+		 * 链只有在派生的那一刻才看得见，工具表看不出来。
+		 *
+		 * 没有链就是主会话——`undefined` 在这里的意思是「第 0 层」，不是「不检查」。
+		 */
+		const refusal = refuseDispatch((ctx.state.get(DISPATCH_KEY) as DispatchContext | undefined) ?? rootDispatch(), requested);
+		if (refusal) return errorResult(refusal);
 
 		try {
 			const answer = await ctx.spawnSubAgent({

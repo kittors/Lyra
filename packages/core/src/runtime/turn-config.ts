@@ -15,7 +15,7 @@ import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
 import { ruleHooks } from "../rules/session.ts";
-import { DispatchGate } from "./dispatch-guard.ts";
+import { DispatchGate, rootDispatch } from "./dispatch-guard.ts";
 import type { StreamRuleMonitor } from "../rules/stream.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
@@ -138,6 +138,14 @@ export function buildTurnConfig(
 							registry: deps.subAgents,
 							// So a delegated run compacts through the same model call this session does.
 							summaryStream: deps.summaryStream(deps.provider),
+							/*
+							 * 整棵派生树共用同一个闸门和同一条链。
+							 *
+							 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
+							 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
+							 */
+							gate: dispatchGate(deps),
+							dispatch: rootDispatch(),
 						},
 						input,
 						deps.provider,

@@ -13,7 +13,7 @@
 import type { AgentEvent, AgentEventSink, QueuedTask } from "../agent/events.ts";
 import type { AgentRunConfig } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
-import { resolveModel } from "../config/settings.ts";
+import { layerProjectSettings, resolveModel } from "../config/settings.ts";
 import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
@@ -57,6 +57,13 @@ export class AgentSession {
 	cwd: string;
 
 	private settings: Settings;
+	/**
+	 * 应用给的那一份，没有叠过项目层。
+	 *
+	 * 留着它，是因为项目层要能重新叠：设置一变，主进程推下来的是全局的那一份，
+	 * 拿已经叠过的结果再叠一次，项目的值会被当成全局的值固化下来。
+	 */
+	private globalSettings: Settings;
 	private streamFn?: AgentRunConfig["streamFn"];
 	private controller: AbortController | null = null;
 	private steering: Message[] = [];
@@ -80,6 +87,7 @@ export class AgentSession {
 	constructor(options: AgentSessionOptions) {
 		this.cwd = options.cwd;
 		this.settings = options.settings;
+		this.globalSettings = options.settings;
 		this.store = options.store;
 		this.streamFn = options.streamFn;
 		this.log = new SessionLog(options.store, options.emit, options.meta);
@@ -129,7 +137,38 @@ export class AgentSession {
 		if (!this.log.meta) {
 			this.log.meta = await this.store.create(this.cwd, this.settings.defaultModelId ?? "");
 		}
+		await this.applyProjectConfig();
 		await this.can.load(this.cwd, this.settings);
+	}
+
+	/**
+	 * 把 `<cwd>/.lyra/config.json` 叠到全局设置上。
+	 *
+	 * 这一层以前只有一个模块和一份测试，产品里没有任何东西读那个文件——「A 项目用便宜模型加
+	 * 严格审批、B 项目用强模型加宽松审批」在这个分支上一直只是一段注释。
+	 *
+	 * 在会话上叠而不是在应用上叠，是因为项目本来就是会话的属性：一个窗口可以同时开着两个项目的
+	 * 对话，而设置页只有一个。
+	 */
+	private async applyProjectConfig(): Promise<void> {
+		const layered = await layerProjectSettings(this.globalSettings, this.cwd).catch(() => null);
+		if (!layered) return;
+		this.settings = layered.settings;
+
+		/*
+		 * 被拒的键要说出来，而且要说得像一次拒绝。
+		 *
+		 * `.lyra/config.json` 是要提交进仓库的，落在里面的凭证就是已公开的凭证。安静地忽略它，
+		 * 写的人会以为它生效了——那正是「能正常工作、只是把密钥共享了」的那种错误。
+		 */
+		if (layered.refused.length > 0) {
+			await this.emit({
+				type: "notice",
+				level: "warn",
+				message: `.lyra/config.json 里的 ${layered.refused.join("、")} 被忽略了——这个文件会进仓库，凭证和供应商只能写在全局设置里。`,
+			});
+		}
+		if (layered.error) await this.emit({ type: "notice", level: "warn", message: layered.error });
 	}
 
 	async status(): Promise<SessionStatus> {
@@ -226,8 +265,16 @@ export class AgentSession {
 	}
 
 	updateSettings(settings: Settings): void {
+		this.globalSettings = settings;
 		this.settings = settings;
 		for (const subject of settings.alwaysAllow) this.approvals.allow(subject);
+		/*
+		 * 项目层重新叠一遍，不等这次调用。
+		 *
+		 * 它要读一次盘，而这个方法是同步的（每一个改设置的路径都在调它）。不重新叠的话，
+		 * 在设置页改任何一项，都会把这个会话的项目配置默默清掉——而屏幕上没有任何东西说这件事。
+		 */
+		void this.applyProjectConfig();
 	}
 
 	/**
