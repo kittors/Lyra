@@ -16,7 +16,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { AgentEvent, AgentSession, SessionStorage, Settings, ThinkingLevel, UserContent } from "@lyra/core";
 import type { SyncStatus } from "./ipc-types.ts";
-import { callRpc, type RpcDeps } from "./sync-rpc.ts";
+import { allowedMethods, callRpc, type RpcDeps } from "./sync-rpc.ts";
 import { RelayLink, relaySocketUrl } from "./sync-relay.ts";
 import { serveApp } from "./sync-app.ts";
 
@@ -73,6 +73,18 @@ export class SyncServer {
 		 */
 		if (this.http && this.port === port && (!token || this.token === token)) return this.status();
 		if (this.http) await this.stop();
+
+		/*
+		 * 契约和实现先对上，再开始监听。
+		 *
+		 * `allowedMethods` 自己的注释写着「在启动时检查，而不是只在测试里检查」，理由也写清楚了：
+		 * `RPC` 里有、而契约没标 `remote` 的方法是一个洞——谁拿到配对令牌，就能调一个没有人声明过
+		 * 的方法。而这个函数**从来没有被调用过**，那句「在启动时」一直只是一句话。
+		 *
+		 * 抛出去，是它自己给的答案：一台愿意提供未声明方法的桌面端，不该把服务起起来。
+		 */
+		allowedMethods();
+
 		this.port = port;
 		this.token = token ?? randomUUID().replace(/-/g, "");
 

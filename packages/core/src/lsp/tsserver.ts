@@ -21,7 +21,6 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
-import { extname } from "node:path";
 import type { CodeIntelBackend, CodeLocation, Diagnostic, TextEdit } from "./types.ts";
 
 const EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
@@ -237,8 +236,4 @@ export class TsServerBackend implements CodeIntelBackend {
 		this.child = null;
 		this.started = false;
 	}
-}
-
-export function handlesExtension(file: string): boolean {
-	return EXTENSIONS.includes(extname(file).toLowerCase());
 }

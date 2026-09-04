@@ -85,3 +85,31 @@ test("a skill with unterminated frontmatter loads but is reported", async () => 
 		"the consequence: with no metadata there is no description",
 	);
 });
+
+test("两种拼写的 disable-model-invocation 都算数", async () => {
+	/*
+	 * 连字符和驼峰在外面都有人写——启发这些格式的那几个工具彼此就不一致。原本只认连字符那一种，
+	 * 写了驼峰的人得到的是一个被静默忽略的字段：技能照常加载、照常出现在列表里，只是那个开关
+	 * 不起作用。这类失败没有任何迹象。
+	 */
+	const dir = await mkdtemp(join(tmpdir(), "ly-skill-keys-"));
+	try {
+		for (const [name, key] of [
+			["hyphen", "disable-model-invocation"],
+			["camel", "disableModelInvocation"],
+		]) {
+			await mkdir(join(dir, name), { recursive: true });
+			await writeFile(
+				join(dir, name, "SKILL.md"),
+				`---\nname: ${name}\ndescription: 一个技能\n${key}: true\n---\n正文\n`,
+				"utf8",
+			);
+		}
+
+		const { skills } = await loadSkills([{ dir, source: "workspace" }]);
+		assert.equal(skills.length, 2);
+		for (const skill of skills) assert.equal(skill.disableModelInvocation, true, `${skill.name} 的开关该生效`);
+	} finally {
+		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
