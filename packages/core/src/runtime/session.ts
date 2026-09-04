@@ -229,7 +229,14 @@ export class AgentSession {
 	 * 「能力已更新」对着一次 `git checkout` 说了等于没说——那会换掉半个目录。所以报的是数量差
 	 * 和新出现的名字。三个数都是 0 也是一个诚实的答案：有人改了某个规则的正文，而名单没变。
 	 */
-	private async reloadCapabilities(): Promise<void> {
+	/**
+	 * 重新发现能力，并把变化说出来。
+	 *
+	 * 公开的，因为它是监听器的动作本身——而测试要验的是「重载会更新 `can` 并且发出通知」，
+	 * 不是「`fs.watch` 在这台机器上多久发一次事件」。后者是 Node 的事，在负载高时要等十几秒，
+	 * 而一条等它的测试是在赌延迟：`capability-watch.test.ts` 为此把超时调大过三次。
+	 */
+	async reloadCapabilities(): Promise<void> {
 		const before = {
 			skills: this.can.skills.length,
 			rules: this.can.rules.always.length + this.can.rules.book.length + this.can.rules.stream.length,

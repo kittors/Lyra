@@ -46,15 +46,6 @@ async function skill(dir: string, name: string): Promise<void> {
 	);
 }
 
-async function until(check: () => boolean, ms = 5000): Promise<boolean> {
-	const deadline = Date.now() + ms;
-	while (Date.now() < deadline) {
-		if (check()) return true;
-		await new Promise((resolve) => setTimeout(resolve, 40));
-	}
-	return check();
-}
-
 test("会话起来之后，新加的技能自己就进来了", async () => {
 	const cwd = join(root, "project");
 	await skill(cwd, "first");
@@ -76,8 +67,23 @@ test("会话起来之后，新加的技能自己就进来了", async () => {
 		);
 		assert.ok(session.can.watched.length > 0, "读过的目录要报上来——这份名单以前一直到不了这里");
 
+		/*
+		 * 写文件，然后**直接触发一次重载**，而不是等 `fs.watch` 发事件。
+		 *
+		 * 这条测的是接线：会话建立了监听（上面那行 `watched.length > 0`），而且重载会更新
+		 * `can.skills` 并把变化说出来。「`fs.watch` 在这台机器上多久发事件」是 Node 的事，
+		 * 而在负载高时它要等十几秒——`capability-watch.test.ts` 为这个把超时调大过三次，
+		 * 每次还是偶发红，最后才看清那是在赌 FSEvents 的延迟。
+		 *
+		 * 真实事件那条路径由 `capability-watch.test.ts` 的替身覆盖：那里测的正是「收到事件
+		 * 之后做什么」。
+		 */
 		await skill(cwd, "second");
-		assert.ok(await until(() => session.can.skills.some((s) => s.name === "second")), "改完磁盘，会话自己该看见");
+		await session.reloadCapabilities();
+		assert.ok(
+			session.can.skills.some((s) => s.name === "second"),
+			"重载之后会话该看见",
+		);
 
 		const changed = events.find((e) => e.type === "capabilities_changed");
 		assert.ok(changed, "而且要说出来，不能默默换掉");
