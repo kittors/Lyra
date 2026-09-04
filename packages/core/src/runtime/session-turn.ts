@@ -40,6 +40,7 @@ import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
+import { readPromptOverride } from "../prompt/overrides.ts";
 import { prepareTurn } from "./turn.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -197,6 +198,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 				rules: can.rules,
 				resources: can.resources.schemes(),
 				dispatchLimits: { maxConcurrent: settings.maxConcurrentSubAgents, maxDepth: DEFAULT_MAX_DEPTH },
+				identityOverride: await readPromptOverride(cwd, "identity"),
 		}),
 	});
 
