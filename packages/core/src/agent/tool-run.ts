@@ -11,6 +11,7 @@ import type { AgentEventSink } from "./events.ts";
 import type { AgentEvent } from "./events.ts";
 import type { AgentRunConfig } from "./loop.ts";
 import { runTool } from "./tool-pipeline.ts";
+import { skillRefusal } from "../skills/tool.ts";
 import type {
 	AssistantContent,
 	Tool,
@@ -98,6 +99,16 @@ async function executeOne(
 	emit: AgentEventSink,
 ): Promise<ToolResult> {
 	if (!tool) return errorResult(`Tool "${call.name}" is not available in this session.`);
+
+	/*
+	 * A loaded skill's `allowed-tools`, enforced.
+	 *
+	 * Checked here rather than by filtering the tool list, because the restriction arrives in the
+	 * middle of a turn — the model already has the schemas — and a tool that vanishes mid-turn is
+	 * harder to explain than one that refuses with a reason.
+	 */
+	const refusal = skillRefusal(state, call.name);
+	if (refusal) return errorResult(refusal);
 
 	// A tool call whose JSON never parsed would silently run with no arguments.
 	if (call.argumentsText && Object.keys(call.arguments).length === 0 && call.argumentsText.trim() !== "{}") {

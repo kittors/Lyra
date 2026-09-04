@@ -12,6 +12,7 @@ import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { stripOversizedToolResults } from "../runtime/prune.ts";
+import { clearActiveSkill } from "../skills/tool.ts";
 import { readTodos } from "../tools/todo.ts";
 import type { Compaction } from "../runtime/compaction.ts";
 import type {
@@ -178,7 +179,17 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		turn += 1;
 		await emit({ type: "turn_start", turn });
 
-		const steering = [...reminders, ...carried, ...(config.drainSteering?.() ?? [])];
+		const drained = config.drainSteering?.() ?? [];
+		/*
+		 * Something the person just said ends the previous skill's tool restriction.
+		 *
+		 * Their message is a new instruction, and a restriction left standing across it would
+		 * silently refuse work they had just asked for — with an explanation naming a skill they
+		 * may not remember loading.
+		 */
+		if (drained.some((message) => message.role === "user" && !message.synthetic)) clearActiveSkill(state);
+
+		const steering = [...reminders, ...carried, ...drained];
 		reminders = [];
 		carried = [];
 		for (const steered of steering) {
