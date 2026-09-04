@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createRegistry } from "../src/capability/index.ts";
-import { approvedSkills, approveSkill, managedSkillsDir, pendingSkills, pendingSkillsDir, proposeSkill, rejectSkill } from "../src/runtime/managed-skills.ts";
+import { approveSkill, managedSkillsDir, pendingSkills, pendingSkillsDir, proposeSkill, rejectSkill } from "../src/runtime/managed-skills.ts";
 import { parseSkillProposal } from "../src/runtime/memory-extract.ts";
 import type { Skill } from "../src/skills/loader.ts";
 
@@ -145,6 +145,6 @@ test("待确认区不是一个技能目录", async () => {
 	 * `.pending` 跟已批准的那些是兄弟目录。它被当成技能读进来的话，「等人点头」就绕过去了。
 	 */
 	await proposeSkill(project, { ...CANDIDATE, name: "still-waiting" });
-	assert.ok(!(await approvedSkills(project)).includes(".pending"));
 	assert.ok(pendingSkillsDir(project).startsWith(managedSkillsDir(project)), "确实是兄弟目录，所以这条才有意义");
+	assert.ok(!(await skillNames()).includes("still-waiting"), "待确认的不该被当成技能读进来");
 });

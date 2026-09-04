@@ -216,7 +216,6 @@ export type { SubAgentDetail, SubAgentStatus, SubAgentSummary } from "./runtime/
 export { collectRules, collectSkills, type RuleEntry } from "./runtime/session-setup.ts";
 export { FOREIGN_USER_SOURCES } from "./capability/providers/foreign.ts";
 export {
-	approvedSkills,
 	approveSkill,
 	managedSkillsDir,
 	pendingSkills,

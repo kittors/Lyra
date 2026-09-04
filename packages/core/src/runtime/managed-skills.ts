@@ -95,12 +95,13 @@ export async function rejectSkill(cwd: string, name: string): Promise<boolean> {
 	return true;
 }
 
-/** 已经批准的托管技能有哪些名字，给设置页。 */
-export async function approvedSkills(cwd: string): Promise<string[]> {
-	const entries = await readdir(managedSkillsDir(cwd), { withFileTypes: true }).catch(() => []);
-	// `.pending` 是同一个目录下的兄弟，不是一个技能。
-	return entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name);
-}
+/*
+ * 这里曾经有一个 `approvedSkills`，注释写着「给设置页用」。
+ *
+ * 设置页不需要它：已经批准的技能由 `managedProvider` 供应，跟人写的那些走同一个列表、显示在
+ * 同一个地方。为想象中的调用方准备的函数，在真的调用方出现时通常是不合身的——这次是扫描器
+ * 在同一个提交里当场抓到的，而不是三个月后。
+ */
 
 function renderSkill(candidate: SkillCandidate): string {
 	return `---\nname: ${candidate.name}\ndescription: ${JSON.stringify(candidate.description.trim())}\n---\n\n${candidate.body.trim()}\n`;
