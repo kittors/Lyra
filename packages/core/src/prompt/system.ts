@@ -9,6 +9,8 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { RuleSet } from "../rules/types.ts";
+import { formatRules } from "../rules/session.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
@@ -17,6 +19,13 @@ export interface SystemPromptInput {
 	cwd: string;
 	tools: Tool[];
 	skills: Skill[];
+	/**
+	 * Rules the user wrote.
+	 *
+	 * Only two of the three buckets reach the prompt: always-apply bodies and the rulebook's
+	 * listing. Stream rules stay out on purpose — their whole value is costing nothing here.
+	 */
+	rules?: RuleSet;
 	/** Sub-agents the `task` tool can dispatch to. */
 	agents?: AgentDefinition[];
 	/** Contents of the project's instruction file, if one exists. */
@@ -132,6 +141,7 @@ Environment:
 	}
 
 	prompt += formatSkills(input.skills);
+	if (input.rules) prompt += formatRules(input.rules);
 	// Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
 	if (input.tools.some((tool) => tool.name === "task")) prompt += formatSubagents(input.agents ?? []);
 

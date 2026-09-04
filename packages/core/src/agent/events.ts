@@ -31,6 +31,17 @@ export type AgentEvent =
 	| { type: "agent_end"; reason: "done" | "aborted" | "error" | "max_turns" | "stalled"; error?: string }
 	| { type: "notice"; level: "info" | "warn" | "error"; message: string }
 	/**
+	 * A rule matched the model's output and the turn was restarted.
+	 *
+	 * Carries what matched as well as which rule, because the useful question when a rule fires is
+	 * not "which rule" but "on what" — a pattern written too broadly is only visible next to the
+	 * text it caught.
+	 */
+	| {
+			type: "rule_triggered";
+			rules: { name: string; path: string; excerpt: string; source: "text" | "thinking" | "tool"; toolName?: string }[];
+	  }
+	/**
 	 * What the model was given at the start of a turn.
 	 *
 	 * The transcript records what the model said; this records what it was told — the system

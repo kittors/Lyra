@@ -16,6 +16,8 @@ import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
 import { loadSkills, parseFrontmatter, type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
+import { loadRules, ruleSources } from "../rules/loader.ts";
+import type { RuleSet } from "../rules/types.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
 import { BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
@@ -29,6 +31,7 @@ export interface LoadedCapabilities {
 	agents: AgentDefinition[];
 	mcpStatuses: McpServerStatus[];
 	tools: Tool[];
+	rules: RuleSet;
 }
 
 /**
@@ -90,6 +93,8 @@ export async function loadCapabilities(
 
 	const agents = [...BUILTIN_AGENTS, ...(await loadAgentDefinitions(cwd))];
 
+	const rules = await loadRules(ruleSources(cwd, lyraHome()));
+
 	/*
 	 * Settings is the only place a session reads MCP servers from.
 	 *
@@ -101,7 +106,7 @@ export async function loadCapabilities(
 	const mcpStatuses = await mcp.connectAll(settings.mcpServers);
 	const tools = [...builtinTools(), ...extraTools, ...mcp.allTools()];
 
-	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools };
+	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, rules };
 }
 
 

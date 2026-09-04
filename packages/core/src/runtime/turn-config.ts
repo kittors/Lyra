@@ -14,6 +14,8 @@ import type { AgentRunConfig } from "../agent/loop.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
+import { ruleHooks } from "../rules/session.ts";
+import type { StreamRuleMonitor } from "../rules/stream.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
 	ApprovalDecision,
@@ -58,6 +60,11 @@ export interface TurnConfigDeps {
 	beforeToolCall: AgentRunConfig["beforeToolCall"];
 	afterToolCall: AgentRunConfig["afterToolCall"];
 	drainSteering: AgentRunConfig["drainSteering"];
+	/**
+	 * Watches the stream for rule violations. Session-scoped, not per turn: repeat policy is
+	 * counted in turns, so a monitor rebuilt each turn would let a `once` rule fire forever.
+	 */
+	ruleMonitor?: StreamRuleMonitor;
 }
 
 export function buildTurnConfig(
@@ -123,6 +130,7 @@ export function buildTurnConfig(
 					systemPrompt,
 				),
 			drainSteering: deps.drainSteering,
+			rules: deps.ruleMonitor?.active ? ruleHooks(deps.ruleMonitor) : undefined,
 			beforeToolCall: deps.beforeToolCall,
 			afterToolCall: deps.afterToolCall,
 			// The session's own stream override applies here too; summarising is a model call.

@@ -14,8 +14,11 @@ import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
+import { StreamRuleMonitor } from "../rules/stream.ts";
+import { EMPTY_RULE_SET, type RuleSet } from "../rules/types.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { invalidateIndex } from "../tools/index.ts";
+import { RULES_KEY } from "../tools/rule.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
 import { loadCapabilities } from "./session-setup.ts";
@@ -28,6 +31,15 @@ export class SessionCapabilities {
 	pluginDiagnostics: PluginDiagnostic[] = [];
 	mcpStatuses: McpServerStatus[] = [];
 	agents: AgentDefinition[] = [...BUILTIN_AGENTS];
+	/** Discovered rules, already sorted into always-apply, rulebook and stream buckets. */
+	rules: RuleSet = EMPTY_RULE_SET;
+	/**
+	 * Watches the stream for the rules that have conditions.
+	 *
+	 * Lives here rather than being built per turn because repeat policy counts turns: a monitor
+	 * rebuilt every turn would let a `once` rule fire on every one of them.
+	 */
+	ruleMonitor = new StreamRuleMonitor([]);
 
 	/** Shared scratch space for tools that need to remember something across calls. */
 	readonly state = new Map<string, unknown>();
@@ -54,11 +66,14 @@ export class SessionCapabilities {
 		this.skills = loaded.skills;
 		this.skillDiagnostics = loaded.skillDiagnostics;
 		this.agents = loaded.agents;
+		this.rules = loaded.rules;
+		this.ruleMonitor = new StreamRuleMonitor(loaded.rules.stream);
 		this.mcpStatuses = loaded.mcpStatuses;
 		this.tools = loaded.tools;
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
+		this.state.set(RULES_KEY, this.rules);
 	}
 
 	/** Drop the cached symbol index so the next lookup re-reads it from disk. */
