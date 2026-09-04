@@ -5,22 +5,25 @@
  * the session because it is a pure "read the world and report what is there" step — which is what
  * makes it possible to re-run after settings change without touching anything else.
  *
- * Precedence is the theme: what the workspace carries beats what the user installed globally, and
- * loose files beat what a plugin bundled. The most specific statement of intent wins.
+ * Precedence used to be the theme here, and now it is not. Which directories are read and who wins
+ * a name collision belong to `capability/`, where the rule is written once instead of once per
+ * loader — five copies of "most specific wins" had drifted apart in exactly the ways you would
+ * expect, and one of them had the comparison backwards. What is left in this file is assembly.
  */
 
 import { join } from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { createRegistry, type CapabilityRegistry } from "../capability/index.ts";
+import { pluginProvider } from "../capability/providers/plugins.ts";
 import type { Settings } from "../config/settings.ts";
 import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
-import { loadSkills, parseFrontmatter, type Skill, type SkillDiagnostic } from "../skills/loader.ts";
+import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
-import { loadRules, ruleSources } from "../rules/loader.ts";
-import type { RuleSet } from "../rules/types.ts";
+import type { Rule, RuleSet } from "../rules/types.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
-import { BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
+import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
 
 export interface LoadedCapabilities {
@@ -49,21 +52,27 @@ export interface LoadedCapabilities {
 export async function collectSkills(
 	cwd: string,
 	plugins: { enabled: boolean; skills: Skill[] }[],
-): Promise<{ skills: Skill[]; diagnostics: Awaited<ReturnType<typeof loadSkills>>["diagnostics"] }> {
-	const loaded = await loadSkills([
-		{ dir: join(cwd, ".lyra", "skills"), source: "workspace" as const },
-		{ dir: join(lyraHome(), "skills"), source: "user" as const },
-	]);
-	const looseNames = new Set(loaded.skills.map((skill) => skill.name));
-	const pluginSkills = plugins
-		.filter((plugin) => plugin.enabled)
-		.flatMap((plugin) => plugin.skills)
-		.filter((skill) => !looseNames.has(skill.name));
+): Promise<{ skills: Skill[]; diagnostics: SkillDiagnostic[] }> {
+	const result = await sessionRegistry(plugins).load<Skill>("skill", { cwd });
+	return { skills: result.items, diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })) };
+}
 
-	const known = new Set([...looseNames, ...pluginSkills.map((skill) => skill.name)]);
-	const fromPlugins = registeredSkills().filter((skill) => !known.has(skill.name));
-
-	return { skills: [...loaded.skills, ...pluginSkills, ...fromPlugins], diagnostics: loaded.diagnostics };
+/**
+ * A registry for this session, with the plugin provider bound to what this session loaded.
+ *
+ * Built per call rather than held in a module because what it supplies is session state: two
+ * windows on two projects have different plugins enabled, and a shared registry would give one
+ * window the other's.
+ */
+function sessionRegistry(plugins: { enabled: boolean; skills: Skill[] }[]): CapabilityRegistry {
+	const registry = createRegistry({ home: lyraHome(), userHome: homedir() });
+	registry.register(
+		pluginProvider(
+			plugins.filter((plugin) => plugin.enabled).flatMap((plugin) => plugin.skills),
+			registeredSkills(),
+		),
+	);
+	return registry;
 }
 
 /** Load skills, agents and MCP tools. Safe to call again after settings change. */
@@ -89,11 +98,30 @@ export async function loadCapabilities(
 	const plugins = loadedPlugins.plugins;
 	const pluginDiagnostics = loadedPlugins.diagnostics;
 
-	const { skills, diagnostics: skillDiagnostics } = await collectSkills(cwd, plugins);
+	const registry = sessionRegistry(plugins);
 
-	const agents = [...BUILTIN_AGENTS, ...(await loadAgentDefinitions(cwd))];
+	const skillResult = await registry.load<Skill>("skill", { cwd });
+	const skills = skillResult.items;
+	const skillDiagnostics = skillResult.diagnostics.map((d) => ({ path: d.path, message: d.message }));
 
-	const rules = await loadRules(ruleSources(cwd, lyraHome()), { disabled: settings.disabledRules });
+	/*
+	 * Agents through the registry, which is where the precedence defect gets fixed.
+	 *
+	 * The old line was `[...BUILTIN_AGENTS, ...custom]` consumed with `.find()`, so a definition
+	 * written to replace a built-in of the same name was found second and never used — the file
+	 * loaded, appeared in listings, and did nothing. Built-ins now arrive from a provider with a
+	 * priority of 1 and lose by name like anything else.
+	 */
+	const agents = (await registry.load<AgentDefinition>("agent", { cwd })).items;
+
+	/*
+	 * Rules come back as one list ordered by precedence and are regrouped into the three buckets the
+	 * rest of the system reads. Regrouping here rather than teaching the registry about buckets keeps
+	 * the merge rules the same for every capability: a bucket is a property of a rule, not a
+	 * dimension the merge has to understand.
+	 */
+	const ruleResult = await registry.load<Rule>("rule", { cwd });
+	const rules = groupRules(ruleResult.items, settings.disabledRules ?? [], ruleResult.diagnostics);
 
 	/*
 	 * Settings is the only place a session reads MCP servers from.
@@ -109,39 +137,23 @@ export async function loadCapabilities(
 	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, rules };
 }
 
-
 /**
- * Load custom sub-agent definitions from `.lyra/agents/*.md`, mirroring the skill format:
- * YAML frontmatter for metadata, markdown body for the system prompt.
+ * Sort merged rules back into the three buckets, honouring the user's off-switches.
+ *
+ * `disabledRules` is applied here rather than passed to the registry as `disabledItems` because it
+ * is keyed by bare name — that is what the setting has always held and what the settings UI writes
+ * — while the registry keys items as `rule:<name>`. Translating at the boundary keeps the stored
+ * shape stable; a migration would be the only other option and would buy nothing.
  */
-async function loadAgentDefinitions(cwd: string): Promise<AgentDefinition[]> {
-	const out: AgentDefinition[] = [];
-
-	for (const [dir, source] of [
-		[join(cwd, ".lyra", "agents"), "workspace"],
-		[join(lyraHome(), "agents"), "user"],
-	] as const) {
-		const entries = await readdir(dir).catch(() => []);
-		for (const entry of entries) {
-			if (!entry.endsWith(".md")) continue;
-			const raw = await readFile(join(dir, entry), "utf8").catch(() => null);
-			if (!raw) continue;
-			const parsed = parseFrontmatter(raw);
-			if (!parsed) continue;
-			const { frontmatter, body } = parsed;
-			const name = typeof frontmatter.name === "string" ? frontmatter.name : entry.replace(/\.md$/, "");
-			if (out.some((a) => a.name === name)) continue;
-			out.push({
-				name,
-				description: typeof frontmatter.description === "string" ? frontmatter.description : name,
-				systemPrompt: body,
-				tools: Array.isArray(frontmatter.tools)
-					? (frontmatter.tools as unknown[]).filter((t): t is string => typeof t === "string")
-					: "*",
-				model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
-				source,
-			});
-		}
+function groupRules(rules: Rule[], disabled: string[], diagnostics: { path: string; message: string; severity: string }[]): RuleSet {
+	const off = new Set(disabled);
+	const set: RuleSet = { always: [], book: [], stream: [], diagnostics: [] };
+	for (const rule of rules) {
+		if (off.has(rule.name)) continue;
+		set[rule.bucket].push(rule);
 	}
-	return out;
+	set.diagnostics = diagnostics
+		.filter((d) => d.severity !== "info")
+		.map((d) => ({ path: d.path, message: d.message, severity: d.severity === "warning" ? "warning" : "error" }));
+	return set;
 }
