@@ -2,6 +2,7 @@ import type { Stats } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
+import { snapshotTag } from "./hunk.ts";
 import { displayPath, imageMimeType, looksBinary, resolveWorkspacePath } from "./paths.ts";
 
 const DEFAULT_LIMIT = 2000;
@@ -14,17 +15,62 @@ interface ReadArgs {
 	limit?: number;
 }
 
-/** Tracks which files the agent has read, so `edit` can refuse to patch unseen files. */
+/**
+ * What the agent has seen of each file: the fingerprint it saw, and which lines.
+ *
+ * This used to be a `Set<string>` answering only "was this read at all", which is enough to stop
+ * a blind edit and not enough for anything else. Two things need more:
+ *
+ *   - The fingerprint turns "the file changed since you looked at it" from a silent overwrite into
+ *     a rejection. A formatter, another agent, or the user can touch a file between the read and
+ *     the edit, and a byte anchor would happily match anyway.
+ *   - The ranges stop an edit to lines that were never displayed. Reading lines 1–200 of a
+ *     900-line file says nothing about line 700.
+ */
 const READ_FILES_KEY = "readFiles";
 
-export function markRead(ctx: ToolContext, absolute: string): void {
-	const seen = (ctx.state.get(READ_FILES_KEY) as Set<string> | undefined) ?? new Set<string>();
-	seen.add(absolute);
-	ctx.state.set(READ_FILES_KEY, seen);
+export interface ReadRecord {
+	/** Fingerprint of the whole file at the moment it was read. */
+	tag: string;
+	/** Inclusive 1-indexed line ranges actually shown. */
+	ranges: [number, number][];
+}
+
+type ReadState = Map<string, ReadRecord>;
+
+function readState(ctx: ToolContext): ReadState {
+	const existing = ctx.state.get(READ_FILES_KEY);
+	if (existing instanceof Map) return existing as ReadState;
+	const fresh: ReadState = new Map();
+	ctx.state.set(READ_FILES_KEY, fresh);
+	return fresh;
+}
+
+export function markRead(ctx: ToolContext, absolute: string, content?: string, from = 1, to?: number): void {
+	const state = readState(ctx);
+	const previous = state.get(absolute);
+	const tag = content === undefined ? (previous?.tag ?? "") : snapshotTag(content);
+	// A changed file invalidates what was shown before: the old line numbers no longer mean anything.
+	const ranges = previous && previous.tag === tag ? [...previous.ranges] : [];
+	if (to !== undefined) ranges.push([from, to]);
+	state.set(absolute, { tag, ranges });
 }
 
 export function hasRead(ctx: ToolContext, absolute: string): boolean {
-	return (ctx.state.get(READ_FILES_KEY) as Set<string> | undefined)?.has(absolute) === true;
+	return readState(ctx).has(absolute);
+}
+
+/** What the agent last saw of this file, or undefined if it has not read it. */
+export function readRecord(ctx: ToolContext, absolute: string): ReadRecord | undefined {
+	return readState(ctx).get(absolute);
+}
+
+/** Whether every line in `[from, to]` was actually displayed. */
+export function wasShown(record: ReadRecord, from: number, to: number): boolean {
+	for (let line = from; line <= to; line++) {
+		if (!record.ranges.some(([a, b]) => line >= a && line <= b)) return false;
+	}
+	return true;
 }
 
 export const readTool: Tool<ReadArgs> = {
@@ -129,12 +175,21 @@ export const readTool: Tool<ReadArgs> = {
 				? `\n\n[showing lines ${offset}-${shownEnd} of ${allLines.length}; call read again with offset=${shownEnd + 1} for more]`
 				: "";
 
-		markRead(ctx, absolute);
+		/*
+		 * The header carries the fingerprint the model quotes back when it edits.
+		 *
+		 * It names the whole file, not the slice: line numbers are absolute either way, and an
+		 * edit has to be rejected when *any* part of the file moved, not only the part on screen.
+		 */
+		const shown = displayPath(ctx.cwd, absolute);
+		const tag = snapshotTag(text);
+		markRead(ctx, absolute, text, offset, shownEnd);
 		return {
-			content: [{ type: "text", text: body + footer }],
+			content: [{ type: "text", text: `[${shown}#${tag}]\n${body}${footer}` }],
 			details: {
 				kind: "text",
-				path: displayPath(ctx.cwd, absolute),
+				path: shown,
+				tag,
 				totalLines: allLines.length,
 				shownFrom: offset,
 				shownTo: shownEnd,
