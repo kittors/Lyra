@@ -19,6 +19,7 @@ import { ResourceRouter } from "../resources/router.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
+import { ARTIFACTS_KEY, MCP_KEY, PLUGINS_KEY, type Artifact, type McpLookup } from "../resources/more-handlers.ts";
 import { OfferBudget } from "../rules/from-correction.ts";
 import { StreamRuleMonitor } from "../rules/stream.ts";
 import { EMPTY_RULE_SET, type RuleSet } from "../rules/types.ts";
@@ -28,6 +29,14 @@ import { RULES_KEY } from "../tools/rule.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
 import { loadCapabilities, loadRules } from "./session-setup.ts";
+
+/**
+ * 最多留多少份折叠内容。
+ *
+ * 三十份的量级已经远超「模型会回头去看」的范围，而它挡住的是另一件事：一个跑了一天、
+ * 搜了几百次的会话，把每一次的完整输出都留在内存里。
+ */
+const MAX_ARTIFACTS = 30;
 
 export class SessionCapabilities {
 	tools: Tool[] = [];
@@ -81,6 +90,14 @@ export class SessionCapabilities {
 	 */
 	readonly correctionBudget = new OfferBudget();
 
+	/**
+	 * 被剪枝折叠掉的大块输出，按 id 存着，`artifact://` 从这里取。
+	 *
+	 * 跟会话一起活在内存里，也跟会话一起消失。落盘是另一个决定：那些内容动辄几十万字符，
+	 * 而它们的用处几乎全部集中在产生它的那一个回合之后的几分钟里。
+	 */
+	readonly artifacts = new Map<string, Artifact>();
+
 	/** Shared scratch space for tools that need to remember something across calls. */
 	readonly state = new Map<string, unknown>();
 	readonly mcp = new McpManager();
@@ -121,6 +138,18 @@ export class SessionCapabilities {
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
 		this.state.set(RULES_KEY, this.rules);
+		this.state.set(ARTIFACTS_KEY, this.artifacts);
+		/*
+		 * `plugin://` 和 `mcp://` 的数据源。
+		 *
+		 * 放进 state 而不是交给路由：路由每个会话建一次，而这两样每次 `load` 都会变——
+		 * 装了一个插件、开了一台服务器之后，地址该指向新的那份。
+		 */
+		this.state.set(PLUGINS_KEY, this.plugins);
+		this.state.set(MCP_KEY, {
+			resources: () => this.mcp.allResources(),
+			read: (server: string, uri: string) => this.mcp.readResource(server, uri),
+		} satisfies McpLookup);
 		this.watched = loaded.watched;
 	}
 
@@ -136,6 +165,26 @@ export class SessionCapabilities {
 		this.ruleMonitor = new StreamRuleMonitor(this.rules.stream);
 		this.state.set(RULES_KEY, this.rules);
 	}
+
+	/**
+	 * 剪枝往这里存原文，换回一个 `artifact://` 地址。
+	 *
+	 * 有上限：折叠下来的东西每一份都是几十万字符，一个跑了一天的会话能攒出几百兆。超过之后
+	 * 丢最旧的——最近折叠的那几份才是模型可能回头去看的，而一天前那次搜索的完整输出，
+	 * 它早就不记得自己搜过了。
+	 */
+	keepArtifact(tool: string, content: string): string {
+		const id = `a${(this.artifactSeq += 1).toString(36)}`;
+		this.artifacts.set(id, { id, tool, content, at: Date.now() });
+		while (this.artifacts.size > MAX_ARTIFACTS) {
+			const oldest = this.artifacts.keys().next().value;
+			if (oldest === undefined) break;
+			this.artifacts.delete(oldest);
+		}
+		return `artifact://${id}`;
+	}
+
+	private artifactSeq = 0;
 
 	/** Drop the cached symbol index so the next lookup re-reads it from disk. */
 	invalidateSymbolIndex(): void {

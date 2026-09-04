@@ -43,9 +43,17 @@ export const PRUNE_TAIL_CHARS = 1024;
  */
 export const PRUNE_FLOOR_CHARS = 200;
 
-/** Says what happened, in the model's own reading order, and how much is missing. */
-function marker(omitted: number): string {
-	return `\n\n… [${omitted.toLocaleString("en-US")} characters omitted by Lyra to fit the context window; the full result is kept in the session and shown in the transcript. Narrow the search or read a specific file if you need the middle.] …\n\n`;
+/**
+ * Says what happened, in the model's own reading order, and how much is missing.
+ *
+ * `address` 是那段被剪掉的内容的地址。有它的时候这句话从「完整结果留在会话里」变成
+ * 「完整结果在这儿，自己去取」——前者对模型来说等于没有，它读不到转录。
+ */
+function marker(omitted: number, address?: string): string {
+	const where = address
+		? `the full result is at \`${address}\` — \`read ${address}\` if you need the middle`
+		: "the full result is kept in the session and shown in the transcript. Narrow the search or read a specific file if you need the middle";
+	return `\n\n… [${omitted.toLocaleString("en-US")} characters omitted by Lyra to fit the context window; ${where}.] …\n\n`;
 }
 
 /**
@@ -56,7 +64,7 @@ function marker(omitted: number): string {
  * that costs one malformed emoji at a boundary, where the alternative is a scan of the whole
  * string for a saving nobody can see.
  */
-export function pruneText(text: string, threshold = PRUNE_THRESHOLD_CHARS): string | null {
+export function pruneText(text: string, threshold = PRUNE_THRESHOLD_CHARS, address?: string): string | null {
 	const points = [...text];
 	if (points.length <= threshold) return null;
 	/*
@@ -71,7 +79,7 @@ export function pruneText(text: string, threshold = PRUNE_THRESHOLD_CHARS): stri
 	const head = points.slice(0, PRUNE_HEAD_CHARS).join("");
 	const tail = points.slice(points.length - PRUNE_TAIL_CHARS).join("");
 	const omitted = points.length - PRUNE_HEAD_CHARS - PRUNE_TAIL_CHARS;
-	return `${head}${marker(omitted)}${tail}`;
+	return `${head}${marker(omitted, address)}${tail}`;
 }
 
 /**
@@ -80,7 +88,17 @@ export function pruneText(text: string, threshold = PRUNE_THRESHOLD_CHARS): stri
  * Identity is the signal callers use to decide whether anything happened, so it matters that an
  * untouched message comes back as itself rather than as an equal copy.
  */
-function pruneMessage(message: Message, threshold: number): Message {
+/**
+ * 把剪掉的原文存起来，换回一个地址。
+ *
+ * 传进来而不是在这里建：存在哪儿是会话的事，而这个模块是纯的——它现在唯一的副作用就是这个
+ * 回调，而它是可选的。没有它的时候剪枝的行为跟以前一模一样。
+ */
+export interface ArtifactSink {
+	keep(tool: string, content: string): string;
+}
+
+function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactSink): Message {
 	if (message.role !== "toolResult") return message;
 
 	/*
@@ -96,7 +114,14 @@ function pruneMessage(message: Message, threshold: number): Message {
 	let cut = false;
 	const content = message.content.map((block) => {
 		if (block.type !== "text") return block;
-		const pruned = pruneText(block.text, threshold);
+		/*
+		 * 先存原文，再剪。
+		 *
+		 * 反过来的话存进去的就是剪过的那份，而那正是模型已经有的东西——一个取回来跟手上一样的
+		 * 地址，比没有这个地址更浪费。
+		 */
+		const address = artifacts ? artifacts.keep(message.toolName ?? "工具", block.text) : undefined;
+		const pruned = pruneText(block.text, threshold, address);
 		if (pruned === null) return block;
 		cut = true;
 		return { ...block, text: pruned };
@@ -111,10 +136,10 @@ function pruneMessage(message: Message, threshold: number): Message {
  * Returns the same array when nothing needed cutting, so the common case allocates nothing and a
  * caller can tell at a glance whether this pass did anything.
  */
-export function pruneToolResults(messages: Message[], threshold = PRUNE_THRESHOLD_CHARS): Message[] {
+export function pruneToolResults(messages: Message[], threshold = PRUNE_THRESHOLD_CHARS, artifacts?: ArtifactSink): Message[] {
 	let changed = false;
 	const next = messages.map((message) => {
-		const pruned = pruneMessage(message, threshold);
+		const pruned = pruneMessage(message, threshold, artifacts);
 		if (pruned !== message) changed = true;
 		return pruned;
 	});

@@ -13,6 +13,7 @@ import type { RuleSet } from "../rules/types.ts";
 import { RULES_KEY } from "../tools/rule.ts";
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
+import { artifactResource, mcpResource, pluginResource, sessionResource } from "./more-handlers.ts";
 import { resolveInside, stillInside } from "./router.ts";
 import { ResourceError, type Completion, type ParsedUrl, type Resource, type ResourceContext, type ResourceHandler } from "./types.ts";
 
@@ -414,4 +415,14 @@ function pickPath(root: unknown, segments: string[]): unknown {
  * which is what keeps it out of the prompt for sessions that cannot dispatch — an advertised
  * address that never resolves teaches the model to try things that fail.
  */
-export const BUILTIN_RESOURCES: ResourceHandler[] = [skillResource, ruleResource, scratchResource, lyraResource, agentResource];
+export const BUILTIN_RESOURCES: ResourceHandler[] = [
+	skillResource,
+	ruleResource,
+	scratchResource,
+	lyraResource,
+	agentResource,
+	sessionResource,
+	pluginResource,
+	mcpResource,
+	artifactResource,
+];

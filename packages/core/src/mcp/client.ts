@@ -146,6 +146,52 @@ export class McpManager {
 		return [...this.connections.values()].flatMap((c) => c.tools);
 	}
 
+	/**
+	 * 每台服务器声明的资源，给 `mcp://`。
+	 *
+	 * MCP 有 tools 和 resources 两半，而我们一直只接了前一半——一台提供「当前值班表」
+	 * 「昨天的构建日志」的服务器，它的工具能调，它的资源读不了。
+	 *
+	 * 一台服务器不支持 resources 是**正常**的（协议里它是可选的），所以拿不到就当没有：
+	 * 一台服务器把整个列表变成错误，会让另外三台的资源也跟着不可见。
+	 */
+	async allResources(): Promise<{ server: string; uri: string; name?: string; description?: string }[]> {
+		const perServer = await Promise.all(
+			[...this.connections.values()].map(async (connection) => {
+				const listed = await withTimeout(connection.client.listResources(), CONNECT_TIMEOUT_MS, `Listing resources of "${connection.config.name}"`).catch(
+					() => null,
+				);
+				return (listed?.resources ?? []).map((resource) => ({
+					server: connection.config.id,
+					uri: String(resource.uri),
+					name: typeof resource.name === "string" ? resource.name : undefined,
+					description: typeof resource.description === "string" ? resource.description : undefined,
+				}));
+			}),
+		);
+		return perServer.flat();
+	}
+
+	/**
+	 * 读一个资源。
+	 *
+	 * 一个资源可以有多段内容（协议允许），拼起来给模型——挑第一段会静默丢掉后面的，
+	 * 而「只读到了一部分」是这里最难被发现的一种错。二进制段跳过：它进不了文本上下文，
+	 * 而把 base64 塞进去只会烧掉一屏 token。
+	 */
+	async readResource(serverId: string, uri: string): Promise<string> {
+		const connection = this.connections.get(serverId);
+		if (!connection) throw new Error(`没有连着叫 "${serverId}" 的 MCP 服务器。`);
+
+		const result = await withTimeout(connection.client.readResource({ uri }), CONNECT_TIMEOUT_MS, `Reading ${uri}`);
+		const parts = (result.contents ?? [])
+			.map((part) => (typeof (part as { text?: unknown }).text === "string" ? ((part as { text: string }).text) : null))
+			.filter((text): text is string => text !== null);
+
+		if (parts.length === 0) throw new Error(`${uri} 没有可读的文本内容（可能是二进制资源）。`);
+		return parts.join("\n\n");
+	}
+
 	statuses(): McpServerStatus[] {
 		const out: McpServerStatus[] = [];
 		for (const connection of this.connections.values()) {

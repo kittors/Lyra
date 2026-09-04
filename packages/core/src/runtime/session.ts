@@ -14,6 +14,7 @@ import type { AgentEvent, AgentEventSink, QueuedTask } from "../agent/events.ts"
 import type { AgentRunConfig } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
 import { layerProjectSettings, resolveModel } from "../config/settings.ts";
+import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
 import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
@@ -49,6 +50,28 @@ export interface AgentSessionOptions {
 	 * queue, in particular — can be exercised without a network round trip.
 	 */
 	streamFn?: AgentRunConfig["streamFn"];
+}
+
+/**
+ * 一条消息渲染成一行给人读的文本。
+ *
+ * 转录里工具调用占绝大多数，而对「上次我们怎么解决这个的」这个问题，有用的是**说过的话**。
+ * 工具调用留一行名字：完全不提会让对话看起来像凭空得出结论，而把参数和结果都铺开，
+ * 读一次别人的会话就要花掉这次会话的上下文。
+ */
+function renderMessage(message: Message): string {
+	const text = message.content
+		.filter((block): block is { type: "text"; text: string } => block.type === "text")
+		.map((block) => block.text)
+		.join("\n")
+		.trim();
+
+	if (message.role === "user") return message.synthetic ? "" : `用户：${text}`;
+	if (message.role !== "assistant") return "";
+
+	const calls = message.content.flatMap((block) => (block.type === "toolCall" ? [block.name] : []));
+	const parts = [text && `助手：${text}`, calls.length > 0 && `（调用了 ${calls.join("、")}）`].filter(Boolean);
+	return parts.join("\n");
 }
 
 export class AgentSession {
@@ -142,6 +165,27 @@ export class AgentSession {
 		}
 		await this.applyProjectConfig();
 		await this.can.load(this.cwd, this.settings);
+		/*
+		 * `session://` 的数据源。
+		 *
+		 * 在这里而不是 `SessionCapabilities` 里，因为它要的是 store——而能力层刻意不知道会话
+		 * 是怎么存的。给的是两个方法而不是整个 store：这个地址要读转录，不该顺手获得删除会话
+		 * 的能力。
+		 */
+		this.can.state.set(SESSIONS_KEY, {
+			recent: async (limit) =>
+				(await this.store.listSessions())
+					.filter((meta) => !meta.archived)
+					.sort((a, b) => b.updatedAt - a.updatedAt)
+					.slice(0, limit)
+					.map((meta) => ({ id: meta.id, title: meta.title ?? "", updatedAt: meta.updatedAt })),
+			transcript: async (id) => {
+				const meta = (await this.store.listSessions()).find((entry) => entry.id === id);
+				if (!meta) return null;
+				const messages = await this.store.messages(meta.projectId, id);
+				return { title: meta.title ?? "", lines: messages.map(renderMessage).filter(Boolean) };
+			},
+		} satisfies SessionLookup);
 		this.startWatching();
 	}
 
@@ -264,6 +308,8 @@ export class AgentSession {
 			summaryStream(this.streamFn, resolved.provider, resolved.model),
 			0,
 			true,
+			// 剪掉的原文存下来，占位标记里给出 `artifact://` 地址。
+			{ keep: (tool, content) => this.can.keepArtifact(tool, content) },
 		);
 		/*
 		 * Two different outcomes, and they used to say the same thing.

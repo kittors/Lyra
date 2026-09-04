@@ -257,6 +257,8 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			requestApproval: input.requestApproval,
 			emit: input.emit,
 			summaryStream: (provider) => summaryStream(input.streamFn, provider, input.model),
+			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
+			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
 			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal, can.extensions),
 			afterToolCall: makeAfterToolCall(settings.hooks, cwd, input.signal),
 			drainSteering: input.drainSteering,

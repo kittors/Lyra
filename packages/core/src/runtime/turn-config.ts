@@ -28,6 +28,7 @@ import type {
 } from "../types.ts";
 import { lyraHome } from "../session/store.ts";
 import { compactWith } from "./compaction.ts";
+import type { ArtifactSink } from "./prune.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { writePreview } from "./previews.ts";
 import { runSubAgent } from "./sub-agent.ts";
@@ -58,6 +59,12 @@ export interface TurnConfigDeps {
 	emit(event: AgentEvent): Promise<void>;
 	/** The session's stream override, in the shape compaction expects. */
 	summaryStream(provider: ProviderConfig): typeof streamAssistant | undefined;
+	/**
+	 * 压缩剪掉的原文往哪儿存，让 `artifact://` 能取回。
+	 *
+	 * 可选：不给的时候剪掉就是没了，跟以前一样。
+	 */
+	artifacts?: ArtifactSink;
 	beforeToolCall: AgentRunConfig["beforeToolCall"];
 	afterToolCall: AgentRunConfig["afterToolCall"];
 	drainSteering: AgentRunConfig["drainSteering"];
@@ -176,6 +183,8 @@ export function buildTurnConfig(
 					deps.provider,
 					deps.summaryStream(deps.provider),
 					textTokens(systemPrompt) + toolTokens(turn.tools),
+					// 自动压缩剪掉的原文也存下来——它剪掉的量比手动压缩多得多。
+					deps.artifacts,
 				),
 			streamFn: deps.streamFn,
 	};

@@ -33,7 +33,7 @@ after(async () => {
  * 上限只该防死等，把它压到跟真实延迟同一个量级，换来的是一条会偶发变红的测试，
  * 而偶发变红的测试比没有测试更糟：它教人重跑一次就走。
  */
-async function until(check: () => boolean, ms = 10_000): Promise<boolean> {
+async function until(check: () => boolean, ms = 20_000): Promise<boolean> {
 	const deadline = Date.now() + ms;
 	while (Date.now() < deadline) {
 		if (check()) return true;

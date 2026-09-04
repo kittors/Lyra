@@ -26,7 +26,7 @@
 import type { CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
-import { dropUneventful, pruneToolResults } from "./prune.ts";
+import { dropUneventful, pruneToolResults, type ArtifactSink } from "./prune.ts";
 import { measureTotal } from "./context.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../types.ts";
 
@@ -208,9 +208,10 @@ export function compactWith(
 	provider: ProviderConfig,
 	streamFn?: typeof streamAssistant,
 	overhead = 0,
+	artifacts?: ArtifactSink,
 ): Promise<Compaction | null> {
 	if (strategy) return strategy.compact(messages, model, provider, streamFn);
-	return compactIfNeeded(messages, model, provider, streamFn ?? streamAssistant, overhead);
+	return compactIfNeeded(messages, model, provider, streamFn ?? streamAssistant, overhead, false, artifacts);
 }
 
 export async function compactIfNeeded(
@@ -242,6 +243,13 @@ export async function compactIfNeeded(
 	 * the new work along with the old.
 	 */
 	force = false,
+	/**
+	 * 剪掉的原文往哪儿存，让 `artifact://` 能取回。
+	 *
+	 * 可选：不给的时候剪枝的行为跟以前完全一样，剪掉就是没了。给了之后，占位标记里那句
+	 * 「完整结果留在会话里」才第一次对模型成立——它读不到转录，读得到地址。
+	 */
+	artifacts?: ArtifactSink,
 ): Promise<Compaction | null> {
 	/*
 	 * The provider's own count, not our estimate of it.
@@ -281,7 +289,7 @@ export async function compactIfNeeded(
 	 * routine per-turn tidying, not against the thing that stops the conversation ending.
 	 */
 	const tidied = dropUneventful(messages, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
-	const pruned = pruneToolResults(tidied);
+	const pruned = pruneToolResults(tidied, undefined, artifacts);
 	if (pruned !== tidied || tidied !== messages) {
 		const rawPruned = estimateTokens(pruned);
 		const factor = measured.measured && rawPruned > 0 ? Math.max(0, used - overhead) / rawPruned : 1;
