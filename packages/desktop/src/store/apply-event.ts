@@ -12,7 +12,7 @@ import { nextActivity } from "@lyra/core/activity";
 import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, without } from "./derive.ts";
-import { freeze, relight } from "./turn-meter.ts";
+import { freeze, relight, saveCarried } from "./turn-meter.ts";
 /*
  * `sideStore.ts` directly, not the domain's index.
  *
@@ -186,6 +186,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       const carried = { ...get().carried };
       if (carriedNext) carried[sessionId] = carriedNext;
       else delete carried[sessionId];
+      saveCarried(sessionId, carriedNext);
       set({ carried });
     }
   }

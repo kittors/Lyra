@@ -34,3 +34,12 @@ test("an underscore inside an identifier is not emphasis", () => {
 test("runs of whitespace collapse to one space", () => {
 	assert.deepEqual(thinkingRuns("a   b\t\tc  "), ["a b c"]);
 });
+
+test("consecutive duplicate runs are deduplicated", () => {
+	assert.deepEqual(
+		thinkingRuns(
+			"### Verifying Tailwind Version Adoption\n### Verifying Tailwind Version Adoption\nChecking packages\n### Verifying Tailwind Version Adoption\n",
+		),
+		["Verifying Tailwind Version Adoption", "Checking packages", "Verifying Tailwind Version Adoption"],
+	);
+});

@@ -8,7 +8,7 @@
 
 import type { ApprovalDecision, Message, ThinkingLevel, Usage, UserContent } from "@lyra/core";
 import { without } from "./derive.ts";
-import { relight } from "./turn-meter.ts";
+import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 
@@ -72,7 +72,9 @@ export function turnSlice(set: Set, get: Get) {
      * Setting only the mirror is what let the event that arrives two seconds later overwrite the
      * carried clock with `Date.now()` and put the count back to zero.
      */
-    const meter = relight(options.carryOn && sessionId ? get().carried[sessionId] : null, Date.now());
+    const carriedMeter = sessionId ? (get().carried[sessionId] ?? loadCarried(sessionId)) : null;
+    const meter = relight(options.carryOn && sessionId ? carriedMeter : null, Date.now());
+    if (sessionId) saveCarried(sessionId, null);
     set({
       messages: [...get().messages, pending],
       pendingUserMessage: pending,
@@ -230,6 +232,7 @@ export function turnSlice(set: Set, get: Get) {
       // The cached copy is now wrong; it will be rebuilt from the events that follow.
       sessionCache: without(get().sessionCache, sessionId),
     });
+    saveCarried(sessionId, null);
 
     await bridge.agent.editMessage(sessionId, index, content);
   },

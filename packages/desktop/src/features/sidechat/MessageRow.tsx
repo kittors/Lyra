@@ -160,7 +160,7 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 		.join("\n");
 
 	return (
-		<div className="group/msg ly-enter mb-4">
+		<div className="group/msg ly-enter mb-2.5">
 			{message.content.map((block, index) => {
 				if (block.type === "thinking") {
 					return (
@@ -177,7 +177,7 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 						// The same rhythm as the main transcript — see `rows.tsx`. Two conversations
 						// showing the same kind of answer at two different spacings is the drift this
 						// panel keeps accumulating.
-						<div key={index} className="mb-2.5">
+						<div key={index} className="mb-2.5 last:mb-0">
 							<Markdown text={block.text} />
 						</div>
 					) : null;

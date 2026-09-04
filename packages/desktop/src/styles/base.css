@@ -92,9 +92,26 @@
 
   /*
    * A reply is laid out on its own, so a change to its width cannot reach the rows around it.
+   * Because `contain: layout` creates an independent formatting context (BFC), the last child's
+   * bottom margin does not collapse with the container's `mb-2.5`. Zeroing the trailing child's
+   * bottom margin ensures the container's outer 10px margin remains the sole row separator.
    */
   .group\/msg {
     contain: layout paint style;
+  }
+
+  .group\/msg > :last-child {
+    margin-bottom: 0;
+  }
+
+  /*
+   * When MessageActions renders as the trailing child of .group/msg, its immediate previous
+   * sibling should have its bottom margin zeroed out so that only MessageActions' own mt-1
+   * defines the gap between content and action row, preventing double padding.
+   */
+  .group\/msg > :has(+ [data-ly-hover-reveal]),
+  .group\/msg > :has(+ .ly-actions-row) {
+    margin-bottom: 0;
   }
 
   /*

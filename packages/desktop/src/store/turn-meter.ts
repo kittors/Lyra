@@ -29,6 +29,42 @@ export interface CarriedTurn {
 	tokens: number;
 }
 
+const STORAGE_PREFIX = "ly:carried:";
+
+/**
+ * Load a frozen turn meter from local storage for cold restart or page reload persistence.
+ */
+export function loadCarried(sessionId: string): CarriedTurn | null {
+	if (typeof window === "undefined" || !window.localStorage) return null;
+	try {
+		const raw = window.localStorage.getItem(`${STORAGE_PREFIX}${sessionId}`);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw) as Partial<CarriedTurn>;
+		if (typeof parsed.elapsedMs === "number" && typeof parsed.tokens === "number") {
+			return { elapsedMs: Math.max(0, parsed.elapsedMs), tokens: Math.max(0, parsed.tokens) };
+		}
+	} catch {
+		// Invalid JSON or storage error is treated as empty
+	}
+	return null;
+}
+
+/**
+ * Persist a frozen turn meter to local storage, or clear it if null.
+ */
+export function saveCarried(sessionId: string, carried: CarriedTurn | null): void {
+	if (typeof window === "undefined" || !window.localStorage) return;
+	try {
+		if (carried) {
+			window.localStorage.setItem(`${STORAGE_PREFIX}${sessionId}`, JSON.stringify(carried));
+		} else {
+			window.localStorage.removeItem(`${STORAGE_PREFIX}${sessionId}`);
+		}
+	} catch {
+		// Storage quota exceeded or unavailable
+	}
+}
+
 /**
  * Freeze a running meter at the moment the turn stopped.
  *

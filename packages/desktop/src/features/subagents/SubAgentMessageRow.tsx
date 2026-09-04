@@ -102,7 +102,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 								}
 								if (block.type === "text" && block.text.trim()) {
 									return (
-										<div key={bIdx} className="mb-2 min-w-0 max-w-full overflow-hidden">
+										<div key={bIdx} className="mb-2 last:mb-0 min-w-0 max-w-full overflow-hidden">
 											<Markdown text={block.text} className="min-w-0 max-w-full break-words" />
 										</div>
 									);

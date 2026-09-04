@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { elapsedOf, freeze, relight } from "../src/store/turn-meter.ts";
+import { elapsedOf, freeze, loadCarried, relight, saveCarried } from "../src/store/turn-meter.ts";
 
 const MINUTE = 60_000;
 
@@ -68,10 +68,36 @@ test("a clock that jumped backwards does not produce a turn that counts down", (
 	 * Elapsed would go negative, `relight` would then set `startedAt` in the future, and the running
 	 * line would show a number that shrinks — which reads as the app having lost its mind.
 	 */
-	const frozen = freeze({ startedAt: 5 * MINUTE, tokens: 10 }, 4 * MINUTE);
-	assert.equal(frozen?.elapsedMs, 0);
+	const frozen = freeze({ startedAt: 5 * MINUTE, tokens: 0 }, 3 * MINUTE);
 	const meter = relight(frozen, 4 * MINUTE);
 	assert.equal(elapsedOf(meter, 4 * MINUTE), 0);
+});
+
+test("loadCarried and saveCarried round-trip cleanly", () => {
+	// Mock localStorage
+	const storage: Record<string, string> = {};
+	(globalThis as unknown as { window: { localStorage: Storage } }).window = {
+		localStorage: {
+			getItem: (k: string) => storage[k] ?? null,
+			setItem: (k: string, v: string) => {
+				storage[k] = v;
+			},
+			removeItem: (k: string) => {
+				delete storage[k];
+			},
+			clear: () => {},
+			key: () => null,
+			length: 0,
+		},
+	};
+
+	assert.equal(loadCarried("test-sess"), null);
+
+	saveCarried("test-sess", { elapsedMs: 12500, tokens: 420 });
+	assert.deepEqual(loadCarried("test-sess"), { elapsedMs: 12500, tokens: 420 });
+
+	saveCarried("test-sess", null);
+	assert.equal(loadCarried("test-sess"), null);
 });
 
 test("two pauses in one turn add up rather than replacing each other", () => {

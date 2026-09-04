@@ -182,7 +182,7 @@ function AssistantRow({
           }
           if (block.type === "text") {
             return block.text ? (
-              <div key={at} className="mb-2.5">
+              <div key={at} className="mb-2.5 last:mb-0">
                 <Markdown text={block.text} />
               </div>
             ) : null;

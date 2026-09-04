@@ -19,10 +19,19 @@
  * as a typo and a `#` as a heading whose shape nobody can see.
  */
 export function thinkingRuns(text: string): string[] {
-	return text
+	const rawRuns = text
 		.split("\n")
 		.map((line) => plain(line).replace(/\s+/g, " ").trim())
 		.filter((line) => line.length > 0);
+
+	// Deduplicate consecutive identical runs so repeated headings/thoughts don't stack in the ticker.
+	const deduped: string[] = [];
+	for (const run of rawRuns) {
+		if (deduped.length === 0 || deduped[deduped.length - 1] !== run) {
+			deduped.push(run);
+		}
+	}
+	return deduped;
 }
 
 function plain(line: string): string {

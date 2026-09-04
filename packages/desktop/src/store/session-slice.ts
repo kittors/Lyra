@@ -12,6 +12,7 @@ import { howItStopped, prune, rebuildToolRuns, todosFrom, without } from "./deri
 import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
+import { loadCarried } from "./turn-meter.ts";
 
 /**
  * The transcript read that is currently in flight, and the one queued behind it.
@@ -196,8 +197,15 @@ export function sessionSlice(set: Set, get: Get) {
        * two: the one thing a long turn needs to say is how long it has been going.
        *
        * So it is read back from `turns`, which `apply-event` keeps for every session including the
-       * ones off screen. Absent means no turn is in flight here, which is the honest null.
+      /*
+       * Load in-memory carried or persisted carried meter across restarts so continued turns work.
        */
+      carried: {
+        ...get().carried,
+        ...(get().carried[meta.id] || !loadCarried(meta.id)
+          ? {}
+          : { [meta.id]: loadCarried(meta.id)! }),
+      },
       turnStartedAt: get().turns[meta.id]?.startedAt ?? null,
       turnTokens: get().turns[meta.id]?.tokens ?? 0,
       // Belongs to the turn being left behind; see the note in `newSession`.

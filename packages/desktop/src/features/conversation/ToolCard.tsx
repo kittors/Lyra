@@ -76,7 +76,7 @@ export function ToolCard({ toolName, summary, args, status, result }: ToolCardPr
 
 	return (
 		<div
-			className={`ly-enter mb-2 overflow-hidden rounded-[10px] border transition-colors duration-[var(--ly-t-base)] ${
+			className={`ly-enter mb-2.5 overflow-hidden rounded-[10px] border transition-colors duration-[var(--ly-t-base)] ${
 				running ? "ly-rail border-info/30 bg-card/60" : "border-line-soft bg-card/45"
 			}`}
 		>

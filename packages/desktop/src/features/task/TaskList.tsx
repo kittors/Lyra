@@ -1,7 +1,6 @@
 import type { TodoItem } from "@lyra/core";
 import { ChevronDown, ListTodo, Pause, Play, RotateCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-
+import { useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
@@ -48,34 +47,14 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	const action = running
 		? { icon: Pause, label: "暂停", run: () => void abort() }
 		: failed
-			? { icon: RotateCw, label: "重试这一步", run: () => void send([{ type: "text", text: "重试刚才失败的那一步。" }]) }
-			: { icon: Play, label: "继续", run: () => void send([{ type: "text", text: "继续，从暂停的地方接着做。" }]) };
+			? { icon: RotateCw, label: "重试这一步", run: () => void send([{ type: "text", text: "重试刚才失败的那一步。" }], { synthetic: true }) }
+			: { icon: Play, label: "继续", run: () => void send([{ type: "text", text: "继续，从暂停的地方接着做。" }], { synthetic: true, carryOn: true }) };
 
 	const [open, setOpen] = useState(false);
-	const body = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState(0);
 
 	const active = todos.find((todo) => todo.status === "in_progress");
 	const done = todos.filter((todo) => todo.status === "completed").length;
 	const pending = todos.length - done - (active ? 1 : 0);
-
-	/*
-	 * Measured, then animated to that measurement.
-	 *
-	 * `height: auto` cannot be transitioned, and the usual workaround — animating to a max-height
-	 * guess — either clips a long list or spends most of the animation covering empty space, so
-	 * the movement finishes early and stops dead. Measuring the content each time the list or the
-	 * open state changes keeps the motion honest at any length.
-	 */
-	useEffect(() => {
-		const element = body.current;
-		if (!element) return;
-		const measure = () => setHeight(element.scrollHeight);
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, [todos, open]);
 
 	if (todos.length === 0) return null;
 	/*
@@ -162,17 +141,14 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 			</button>
 
 			{/*
-			 * The list, always mounted so its height is always known.
-			 *
-			 * Mounting it on open would mean measuring at the moment it becomes visible, which is
-			 * one frame too late — the box would jump to its full size and then animate from there.
+			 * CSS grid transition via ly-reveal avoids ResizeObserver layout thrashing and reflows.
 			 */}
-			{/* `ly-freeze` for the same reason as `ToolGroup`: the height follows what fits. */}
 			<div
-				style={{ height: open ? height : 0 }}
-				className="ly-freeze overflow-hidden transition-[height] duration-[var(--ly-t-base)] ease-out"
+				className="ly-reveal"
+				data-open={open}
+				aria-hidden={!open}
 			>
-				<div ref={body} className="border-t border-line-soft">
+				<div className="border-t border-line-soft">
 					<Scroller className="max-h-[min(280px,38vh)]" contentClassName="px-1.5 py-1.5">
 						{todos.map((todo, index) => (
 							<Row
