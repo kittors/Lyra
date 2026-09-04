@@ -12,6 +12,7 @@ import { join } from "node:path";
 import type { RuleSet } from "../rules/types.ts";
 import { formatRules } from "../rules/session.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
+import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
@@ -70,6 +71,16 @@ export interface SystemPromptInput {
 	resources?: { scheme: string; describe: string; writable: boolean }[];
 	/** How many sub-agents may run at once, and how deep dispatch may nest. */
 	dispatchLimits?: { maxConcurrent: number; maxDepth: number };
+	/**
+	 * A replacement for the identity paragraph, from `.lyra/prompts/identity.md`.
+	 *
+	 * The first thing this project's prompts become files for, and the one worth doing first: it is
+	 * the block people most often want to change, and until now the only way was `appendSystemPrompt`
+	 * — which adds a second, contradicting voice rather than replacing the first.
+	 *
+	 * Rendered as a template, so it can say things like `{{#has tools "bash"}}`.
+	 */
+	identityOverride?: string;
 }
 
 const IDENTITY = `You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files. You are judged on whether the code works, not on how the answer reads.`;
@@ -119,7 +130,17 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<strin
 		guidelines.push(normalized);
 	}
 
-	let prompt = `${IDENTITY}
+	/*
+	 * A project's own identity, when it has one.
+	 *
+	 * Replaced rather than appended: two identity statements in one prompt is a model being told
+	 * who it is twice, and the second one does not cancel the first.
+	 */
+	const identity = input.identityOverride?.trim()
+		? renderTemplate(input.identityOverride, { tools: input.tools.map((tool) => tool.name), cwd, model: input.modelName })
+		: IDENTITY;
+
+	let prompt = `${identity}
 
 Available tools:
 ${toolList}
