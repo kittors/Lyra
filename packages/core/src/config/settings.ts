@@ -303,6 +303,15 @@ export interface Settings {
 	 */
 	disabledRules: string[];
 	/**
+	 * How many sub-agents may run at once. Beyond this they queue.
+	 *
+	 * A limit rather than a refusal, because wanting to look at eight things is a reasonable thought
+	 * and running eight at once is what is not — each carries its own context and its own model
+	 * calls. The number reaches the prompt too: a queue is invisible from the inside, and a model
+	 * that reads the wait as slowness responds by dispatching more.
+	 */
+	maxConcurrentSubAgents: number;
+	/**
 	 * Plugin registry index URLs the user has added, browsed from the plugins page.
 	 *
 	 * Ours is preset. The argument against shipping one was that it would point at a collection
@@ -443,6 +452,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	scheduledTasks: [],
 	disabledPlugins: [],
 	disabledRules: [],
+	maxConcurrentSubAgents: 4,
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
@@ -522,6 +532,10 @@ async function readSettingsFile(): Promise<Settings> {
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
 			disabledRules: parsed.disabledRules ?? [],
+			maxConcurrentSubAgents:
+				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
+					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
+					: 4,
 			/*
 			 * A missing list gets the default; an empty one is left empty.
 			 *

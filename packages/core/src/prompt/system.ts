@@ -11,6 +11,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RuleSet } from "../rules/types.ts";
 import { formatRules } from "../rules/session.ts";
+import { concurrencyNote } from "../runtime/dispatch-guard.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
@@ -59,6 +60,8 @@ export interface SystemPromptInput {
 	 * try things that fail.
 	 */
 	resources?: { scheme: string; describe: string; writable: boolean }[];
+	/** How many sub-agents may run at once, and how deep dispatch may nest. */
+	dispatchLimits?: { maxConcurrent: number; maxDepth: number };
 }
 
 const IDENTITY = `You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files. You are judged on whether the code works, not on how the answer reads.`;
@@ -152,7 +155,7 @@ Environment:
 	prompt += formatSkills(input.skills);
 	if (input.rules) prompt += formatRules(input.rules);
 	// Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
-	if (input.tools.some((tool) => tool.name === "task")) prompt += formatSubagents(input.agents ?? []);
+	if (input.tools.some((tool) => tool.name === "task")) prompt += formatSubagents(input.agents ?? [], input.dispatchLimits);
 
 	if (input.projectInstructions.length > 0) {
 		prompt += "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n";
@@ -209,7 +212,7 @@ function formatSkills(skills: Skill[]): string {
  * Without this list the model has no way to know which `subagent_type` values exist, so it
  * falls back to `general` even when the user names a specific agent.
  */
-function formatSubagents(agents: AgentDefinition[]): string {
+function formatSubagents(agents: AgentDefinition[], limits?: { maxConcurrent: number; maxDepth: number }): string {
 	if (agents.length === 0) return "";
 
 	const lines = [
@@ -231,6 +234,27 @@ function formatSubagents(agents: AgentDefinition[]): string {
 	}
 
 	lines.push("</available_subagents>");
+
+	if (limits) {
+		/*
+		 * The limit has to be stated, because a queue is invisible from inside the model.
+		 *
+		 * Dispatch eight with a limit of four and half of them sit waiting; from the model's side
+		 * that is indistinguishable from the work being slow, and the natural response to slow is
+		 * to dispatch more.
+		 */
+		lines.push("", concurrencyNote(limits.maxConcurrent, limits.maxDepth));
+		/*
+		 * The two preconditions for parallel dispatch, both of which come from watching this go
+		 * wrong rather than from theory.
+		 */
+		lines.push(
+			"",
+			"并发派活之前，两件事必须先做完：",
+			"1. 每个任务都要跳过验证（构建、lint、测试）。跑到一半的验证会让它们互相阻塞——A 的测试跑在 B 改了一半的代码上。最后统一验证一次。",
+			"2. 跨任务的契约（A 实现、B 消费的那个接口）必须在派活之前定好，写进各自的 prompt 里。子代理之间看不见对方，没法协商。",
+		);
+	}
 	return lines.join("\n");
 }
 

@@ -36,6 +36,7 @@ import { droppedMessage, lastRequest, summaryMessages } from "./compaction.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
+import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
 import { prepareTurn } from "./turn.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -170,6 +171,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			scratchDir: input.scratchDir,
 				rules: can.rules,
 				resources: can.resources.schemes(),
+				dispatchLimits: { maxConcurrent: settings.maxConcurrentSubAgents, maxDepth: DEFAULT_MAX_DEPTH },
 		}),
 	});
 

@@ -15,6 +15,7 @@ import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
 import { ruleHooks } from "../rules/session.ts";
+import { DispatchGate } from "./dispatch-guard.ts";
 import type { StreamRuleMonitor } from "../rules/stream.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
@@ -109,29 +110,40 @@ export function buildTurnConfig(
 			 */
 			sandboxMode: sandboxModeFor(deps.settings.permissionMode),
 			allowedHosts: deps.settings.allowedHosts,
+			/*
+			 * Queued rather than run on demand.
+			 *
+			 * A model asked to look at eight things dispatches eight, which is a reasonable thought
+			 * and an unreasonable amount of concurrency — eight simultaneous runs each with their
+			 * own context and their own model calls. The gate turns "do these eight" into "do these
+			 * eight, four at a time", which is what was wanted; the prompt says the number so the
+			 * model does not read the queue as slowness and try harder.
+			 */
 			spawnSubAgent: (input) =>
-				runSubAgent(
-					{
-						sessionId: deps.sessionId,
-						cwd: deps.cwd,
-						settings: deps.settings,
-						tools: deps.tools,
-						skills: deps.skills,
-						agents: deps.agents,
-						signal: deps.signal,
-						streamFn: deps.streamFn,
-						requestApproval: (request) => deps.requestApproval(request),
-						emit: (event) => deps.emit(event),
-						// Where the run registers itself so it can be watched and steered. Absent for
-						// hosts that only want the answer — see `SubAgentOptions.registry`.
-						registry: deps.subAgents,
-						// So a delegated run compacts through the same model call this session does.
-						summaryStream: deps.summaryStream(deps.provider),
-					},
-					input,
-					deps.provider,
-					deps.model,
-					systemPrompt,
+				dispatchGate(deps).run(() =>
+					runSubAgent(
+						{
+							sessionId: deps.sessionId,
+							cwd: deps.cwd,
+							settings: deps.settings,
+							tools: deps.tools,
+							skills: deps.skills,
+							agents: deps.agents,
+							signal: deps.signal,
+							streamFn: deps.streamFn,
+							requestApproval: (request) => deps.requestApproval(request),
+							emit: (event) => deps.emit(event),
+							// Where the run registers itself so it can be watched and steered. Absent for
+							// hosts that only want the answer — see `SubAgentOptions.registry`.
+							registry: deps.subAgents,
+							// So a delegated run compacts through the same model call this session does.
+							summaryStream: deps.summaryStream(deps.provider),
+						},
+						input,
+						deps.provider,
+						deps.model,
+						systemPrompt,
+					),
 				),
 			drainSteering: deps.drainSteering,
 			resources: deps.resources,
@@ -159,4 +171,21 @@ export function buildTurnConfig(
 				),
 			streamFn: deps.streamFn,
 	};
+}
+
+/**
+ * One gate per session, found through the session's own state map.
+ *
+ * Not a module-level singleton: two windows on two projects would then share a limit and slow each
+ * other down for no reason anybody could see. The state map is already the session-scoped place
+ * where things like this live.
+ */
+const GATE_KEY = "dispatchGate";
+
+function dispatchGate(deps: TurnConfigDeps): DispatchGate {
+	const existing = deps.state.get(GATE_KEY);
+	if (existing instanceof DispatchGate) return existing;
+	const gate = new DispatchGate(deps.settings.maxConcurrentSubAgents);
+	deps.state.set(GATE_KEY, gate);
+	return gate;
 }
