@@ -39,7 +39,15 @@ export type AgentEvent =
 	 */
 	| {
 			type: "rule_triggered";
-			rules: { name: string; path: string; excerpt: string; source: "text" | "thinking" | "tool"; toolName?: string }[];
+			rules: {
+				name: string;
+				path: string;
+				excerpt: string;
+				source: "text" | "thinking" | "tool";
+				toolName?: string;
+				/** True when the turn was not interrupted and the reminder rides the next one. */
+				deferred?: boolean;
+			}[];
 	  }
 	/**
 	 * What the model was given at the start of a turn.

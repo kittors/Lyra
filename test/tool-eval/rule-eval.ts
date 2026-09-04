@@ -191,6 +191,73 @@ async function checkBuiltins(modelId: string): Promise<void> {
 	console.log(`${ok}/${cases.length} 正确`);
 }
 
+/**
+ * `interrupt: never`: the rule matches, the turn is NOT cut short, and the reminder rides the
+ * next turn.
+ *
+ * Worth its own probe because the failure mode is invisible: a setting that silently disables the
+ * rule looks exactly like a setting that works, right up until someone checks.
+ */
+async function checkDeferred(modelId: string): Promise<void> {
+	const settings = await loadSettings();
+	const resolved = resolveModel(settings, modelId);
+	if (!resolved) throw new Error(`Model not found: ${modelId}`);
+
+	const cwd = await mkdtemp(join(tmpdir(), "lyra-deferred-"));
+	const dir = join(cwd, ".lyra", "rules");
+	await mkdir(dir, { recursive: true });
+	await writeFile(
+		join(dir, "prefer-const.md"),
+		["---", "condition: '\\bvar\\s+\\w'", "scope: text", "interrupt: never", "---", "这个仓库不用 var。"].join("\n"),
+		"utf8",
+	);
+	const set = await loadRules([{ dir, source: "workspace", dialect: "lyra" }], { builtin: false });
+	const monitor = new StreamRuleMonitor(set.stream);
+
+	let fired = 0;
+	let deferred = 0;
+	let aborted = false;
+	let injectedText = "";
+
+	const result = await runAgent(
+		{
+			sessionId: "deferred-eval",
+			cwd,
+			provider: resolved.provider,
+			model: resolved.model,
+			systemPrompt: "You are a coding assistant. Answer with code only.",
+			tools: [],
+			messages: [
+				{ role: "user", content: [{ type: "text", text: "用 JavaScript 写一个循环累加 1 到 10。用最传统的老式写法。直接给代码。" }], timestamp: Date.now() },
+				{ role: "user", content: [{ type: "text", text: "（写完之后再说一句你用了什么关键字声明变量。）" }], timestamp: Date.now() },
+			],
+			maxTurns: 3,
+			temperature: 0,
+			rules: ruleHooks(monitor),
+		},
+		async (event: AgentEvent) => {
+			if (event.type === "rule_triggered") {
+				fired += event.rules.length;
+				deferred += event.rules.filter((r) => r.deferred).length;
+			}
+			if (event.type === "agent_end" && event.reason === "aborted") aborted = true;
+		},
+	);
+
+	for (const message of result.messages) {
+		if (message.role !== "user" || !(message as { synthetic?: boolean }).synthetic) continue;
+		for (const part of message.content) if (part.type === "text") injectedText += part.text;
+	}
+
+	console.log(`\ninterrupt: never · ${modelId}\n`);
+	console.log(`  规则命中          ${fired > 0 ? "是 ✓" : "否 ✗"}`);
+	console.log(`  标记为延后投递     ${deferred > 0 ? "是 ✓" : "否 ✗"}`);
+	console.log(`  轮次被中止        ${aborted ? "是 ✗（不该中止）" : "否 ✓"}`);
+	console.log(`  注入的是提醒措辞   ${injectedText.includes("没有被丢弃") ? "是 ✓" : injectedText ? "否 ✗（用了中断措辞）" : "没有注入 ✗"}`);
+	const ok = fired > 0 && deferred > 0 && !aborted && injectedText.includes("没有被丢弃");
+	console.log(ok ? "\n✓ interrupt: never 按设计工作" : "\n✗ 有问题");
+}
+
 async function main(): Promise<void> {
 	const modelId = process.argv[2] ?? "relay/gemini-3.7-flash-high";
 	console.log(`模型 ${modelId}\n`);
@@ -230,6 +297,7 @@ async function main(): Promise<void> {
 	console.log(counted === 0 ? "没有一条探针在基线上违规——需要更容易触发的任务" : `有效探针 ${counted} 条，规则纠正了 ${effective} 条`);
 
 	await checkBuiltins(modelId);
+	await checkDeferred(modelId);
 }
 
 await main();

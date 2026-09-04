@@ -70,6 +70,29 @@ export function renderRuleInterrupt(matches: RuleMatch[]): Message {
 	return { role: "user", content: [{ type: "text", text: blocks.join("\n\n") }], timestamp: Date.now(), synthetic: true };
 }
 
+/**
+ * Render the message delivered at the end of a turn for a rule that chose not to interrupt.
+ *
+ * The wording has to differ from the interrupt form, because what happened differs: nothing was
+ * discarded and nothing is being redone. Telling the model its output was thrown away when it was
+ * not would make it re-emit work that already landed.
+ */
+export function renderRuleReminder(matches: RuleMatch[]): Message {
+	const blocks = matches.map((match) => {
+		const where = match.source === "tool" ? `tool:${match.toolName ?? "?"}` : match.source;
+		return (
+			`<system-reminder reason="rule" rule="${escapeAttribute(match.rule.name)}" source="${escapeAttribute(where)}">\n` +
+			`上一轮里有内容触发了这条规则。那一轮已经完成，没有被丢弃——请在接下来的工作中遵守它，` +
+			`并在已经写下的内容需要修正时主动改回来。\n\n` +
+			`触发的内容：${JSON.stringify(match.excerpt)}\n\n` +
+			`${match.rule.content.trim()}\n` +
+			`</system-reminder>`
+		);
+	});
+
+	return { role: "user", content: [{ type: "text", text: blocks.join("\n\n") }], timestamp: Date.now(), synthetic: true };
+}
+
 /** Adapt a monitor into the shape `runAgent` expects. */
 export function ruleHooks(monitor: StreamRuleMonitor) {
 	return {
@@ -79,6 +102,7 @@ export function ruleHooks(monitor: StreamRuleMonitor) {
 			for (const match of matches) monitor.markFired(match.rule);
 		},
 		render: renderRuleInterrupt,
+		renderReminder: renderRuleReminder,
 	};
 }
 

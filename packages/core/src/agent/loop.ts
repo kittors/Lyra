@@ -86,6 +86,8 @@ export interface AgentRunConfig {
 		markFired(matches: RuleMatch[]): void;
 		/** The hidden message injected before the retry. */
 		render(matches: RuleMatch[]): Message;
+		/** The hidden message delivered at the end of a turn, for rules that did not interrupt. */
+		renderReminder(matches: RuleMatch[]): Message;
 	};
 
 	beforeToolCall?: (call: {
@@ -157,6 +159,15 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	 * prompting the model with no new input.
 	 */
 	let carried: Message[] = [];
+	/**
+	 * Reminders from rules that matched without interrupting.
+	 *
+	 * Delivered at the start of the next turn rather than folded into the tool result that tripped
+	 * them. That is later than it could be, and it is the honest place for it: `interrupt: never`
+	 * means "this is not urgent enough to stop for", and a message that arrives with the next turn
+	 * says exactly that. It also leaves tool results the shape every renderer expects.
+	 */
+	let reminders: Message[] = [];
 
 	while (true) {
 		if (config.signal?.aborted) return finish("aborted");
@@ -164,7 +175,8 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		turn += 1;
 		await emit({ type: "turn_start", turn });
 
-		const steering = [...carried, ...(config.drainSteering?.() ?? [])];
+		const steering = [...reminders, ...carried, ...(config.drainSteering?.() ?? [])];
+		reminders = [];
 		carried = [];
 		for (const steered of steering) {
 			messages.push(steered);
@@ -201,7 +213,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			tools: config.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 		};
 
-		let { message: assistant, ruleMatches } = await streamTurn(config, context, emit);
+		let { message: assistant, ruleMatches, deferredMatches } = await streamTurn(config, context, emit);
 
 		/*
 		 * The far end refused the request itself. Try once more without the biggest thing in it.
@@ -228,7 +240,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				});
 				messages.length = 0;
 				messages.push(...stripped);
-				({ message: assistant, ruleMatches } = await streamTurn(config, { ...context, messages }, emit));
+				({ message: assistant, ruleMatches, deferredMatches } = await streamTurn(config, { ...context, messages }, emit));
 			}
 		}
 		/*
@@ -259,6 +271,22 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				})),
 			});
 			continue;
+		}
+
+		if (deferredMatches.length > 0 && config.rules && assistant.stopReason !== "aborted" && assistant.stopReason !== "error") {
+			config.rules.markFired(deferredMatches);
+			reminders.push(config.rules.renderReminder(deferredMatches));
+			await emit({
+				type: "rule_triggered",
+				rules: deferredMatches.map((m) => ({
+					name: m.rule.name,
+					path: m.rule.path,
+					excerpt: m.excerpt,
+					source: m.source,
+					toolName: m.toolName,
+					deferred: true,
+				})),
+			});
 		}
 
 		messages.push(assistant);
@@ -424,6 +452,25 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		error?: string,
 		retryable?: boolean,
 	): Promise<AgentRunResult> {
+		/*
+		 * A reminder that never got a turn to ride on still has to land somewhere.
+		 *
+		 * Non-interrupting matches are delivered at the start of the next turn — and when the match
+		 * happens on the last turn there is no next one, so it was silently dropped. Measured: a
+		 * rule with `interrupt: never` fired, was marked deferred, and the model never saw it.
+		 *
+		 * Persisting it into the produced messages is the right home rather than a consolation
+		 * prize: the reminder is about what to do *going forward*, and the conversation continues
+		 * the next time the user types. It is not pushed into `messages`, which belongs to a run
+		 * that is over.
+		 */
+		for (const reminder of reminders) {
+			produced.push(reminder);
+			await emit({ type: "message_start", message: reminder });
+			await emit({ type: "message_end", message: reminder });
+		}
+		reminders = [];
+
 		await emit({ type: "agent_end", reason, error });
 		return { messages: produced, reason, error, ...(retryable ? { retryable } : {}) };
 	}
@@ -442,7 +489,10 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
  */
 interface TurnResult {
 	message: AssistantMessage;
+	/** Rules that asked to interrupt: the stream was aborted and the turn should be redone. */
 	ruleMatches: RuleMatch[];
+	/** Rules that matched but did not interrupt: delivered once this turn has finished. */
+	deferredMatches: RuleMatch[];
 }
 
 async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: AgentEventSink): Promise<TurnResult> {
@@ -450,7 +500,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		const message = await config.streamFn(context, config);
 		await emit({ type: "message_start", message });
 		await emit({ type: "message_end", message });
-		return { message, ruleMatches: [] };
+		return { message, ruleMatches: [], deferredMatches: [] };
 	}
 
 	/*
@@ -473,6 +523,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 	 */
 	const ruleAbort = new AbortController();
 	const pendingMatches: RuleMatch[] = [];
+	const deferredMatches: RuleMatch[] = [];
 	const signal = config.signal ? AbortSignal.any([config.signal, ruleAbort.signal]) : ruleAbort.signal;
 
 	const stream = streamAssistant(config.provider, config.model, context, {
@@ -498,7 +549,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 
 	while (true) {
 		const next = await stream.next();
-		if (next.done) return { message: next.value, ruleMatches: pendingMatches };
+		if (next.done) return { message: next.value, ruleMatches: pendingMatches, deferredMatches };
 		const event = next.value;
 
 		switch (event.type) {
@@ -511,7 +562,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			case "toolcall_delta":
 			case "toolcall_end":
 				await emit({ type: "message_update", message: event.partial, delta: event });
-				if (config.rules && event.type !== "toolcall_end") observeDelta(config.rules, event, pendingMatches, ruleAbort);
+				if (config.rules && event.type !== "toolcall_end") observeDelta(config.rules, event, pendingMatches, deferredMatches, ruleAbort);
 				break;
 			case "done":
 			case "error": {
@@ -520,7 +571,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 				await emit({ type: "message_end", message });
 				// Drain the generator so its `return` value is the authoritative final message.
 				const tail = await stream.next();
-				return { message: tail.done ? tail.value : message, ruleMatches: pendingMatches };
+				return { message: tail.done ? tail.value : message, ruleMatches: pendingMatches, deferredMatches };
 			}
 			default:
 				break;
@@ -539,6 +590,7 @@ function observeDelta(
 	rules: NonNullable<AgentRunConfig["rules"]>,
 	event: { type: string; delta: string; index: number; partial: AssistantMessage },
 	pending: RuleMatch[],
+	deferred: RuleMatch[],
 	abort: AbortController,
 ): void {
 	let chunk: Parameters<typeof rules.observe>[0];
@@ -557,18 +609,25 @@ function observeDelta(
 	const matches = rules.observe(chunk);
 	if (matches.length === 0) return;
 
-	// `interrupt` decides whether this is worth stopping mid-sentence. A rule set to `never`, or
-	// scoped away from this source, still matched — it just gets delivered the ordinary way.
-	const interrupting = matches.filter((match) => {
-		if (match.rule.interrupt === "never") return false;
-		if (match.rule.interrupt === "prose-only") return chunk.source !== "tool";
-		if (match.rule.interrupt === "tool-only") return chunk.source === "tool";
-		return true;
-	});
-	if (interrupting.length === 0) return;
-
-	for (const match of interrupting) {
-		if (!pending.some((existing) => existing.rule.name === match.rule.name)) pending.push(match);
+	/*
+	 * `interrupt` decides whether this is worth stopping mid-sentence.
+	 *
+	 * A rule set to `never`, or scoped away from this source, still matched — it is delivered at
+	 * the end of the turn instead. Dropping it would make `interrupt: never` a setting that
+	 * silently disables the rule, which is the worst thing a setting can do.
+	 */
+	for (const match of matches) {
+		const interrupts =
+			match.rule.interrupt === "never"
+				? false
+				: match.rule.interrupt === "prose-only"
+					? chunk.source !== "tool"
+					: match.rule.interrupt === "tool-only"
+						? chunk.source === "tool"
+						: true;
+		const bucket = interrupts ? pending : deferred;
+		if (!bucket.some((existing) => existing.rule.name === match.rule.name)) bucket.push(match);
 	}
-	if (!abort.signal.aborted) abort.abort();
+
+	if (pending.length > 0 && !abort.signal.aborted) abort.abort();
 }
