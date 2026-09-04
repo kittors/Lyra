@@ -13,7 +13,7 @@ import { Conversation, ConversationSkeleton } from "../features/conversation/ind
 import { EmptyState } from "../features/conversation/index.ts";
 import { ImageViewer } from "../features/image/index.ts";
 import { InputMenu } from "../features/composer/index.ts";
-import { SkeletonList } from "../ui/primitives/Skeleton.tsx";
+import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
 import { DragBand, PanelMenu, WindowButtons } from "./window/WindowToolbar.tsx";
@@ -196,7 +196,7 @@ function Shell() {
 				<ChatShell settings={settings} />
 			</div>
 			{settings && (
-				<LazyScreen>
+				<LazyScreen shape="settings">
 					<SettingsShell />
 				</LazyScreen>
 			)}
@@ -214,8 +214,61 @@ function Shell() {
  * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
  * phone, loading the same bundle across a relay, that this is for.
  */
-function LazyScreen({ children }: { children: React.ReactNode }) {
-	return <Suspense fallback={<SkeletonList count={6} label="正在打开" />}>{children}</Suspense>;
+function LazyScreen({ children, shape = "list" }: { children: React.ReactNode; shape?: "settings" | "list" | "grid" }) {
+	const fallback =
+		shape === "settings" ? <SettingsFallback /> : shape === "grid" ? <SkeletonGrid count={6} label="正在打开" /> : <SkeletonList count={6} label="正在打开" />;
+	return <Suspense fallback={fallback}>{children}</Suspense>;
+}
+
+/**
+ * 设置页还没到的那一下，先把它的外壳摆出来。
+ *
+ * 这里原本和另外三个视图共用一个 `SkeletonList`：满宽的六行「方块 + 两行字 + 开关」。那三个是塞在
+ * 主面板里的内容区，这个形状还算说得过去；设置页不是——它自己就是一整块外壳，左边一根带底色的导航
+ * 柱，右边留出 44px 标题栏、内容居中收在 900px 里。于是占位画的是满屏六行列表，内容一到，导航柱、
+ * 标题栏、居中的边距一起冒出来，整页重排一次。骨架屏本来是用来防止这一下的，结果它自己造了一下。
+ *
+ * 所以照着 `SettingsShell` 的骨架摆：同宽的柱子、同样的 44px、同样的 900px 和 px-9。内容落位时该在
+ * 哪儿就已经在哪儿了。
+ *
+ * 窄窗口里导航是盖上来的抽屉而不是并排的柱子，那就只画右边——画一根这时候根本不存在的柱子，等于把
+ * 重排换了个方向。
+ */
+function SettingsFallback() {
+	const { compact, sidebarWidth } = useLayout();
+
+	return (
+		<div className="ly-shell relative flex h-full" role="status" aria-label="正在打开">
+			{!compact && (
+				<div className="ly-sidebar-fill flex h-full shrink-0 flex-col" style={{ width: sidebarWidth }}>
+					<div className="h-[44px] shrink-0" />
+					<div className="px-2.5 pb-2">
+						<SkeletonBar width="96px" height={11} className="mx-2 my-[10px]" />
+					</div>
+					<div className="flex flex-col gap-[2px] px-2.5">
+						{[68, 84, 56, 92, 72, 60, 80].map((width, index) => (
+							<SkeletonBar key={index} width={`${width}px`} height={10} className="mx-2 my-[11px]" />
+						))}
+					</div>
+				</div>
+			)}
+
+			<div className="ly-opaque flex min-w-0 flex-1 flex-col">
+				<div className="h-[44px] shrink-0" />
+				<div className={`mx-auto w-full max-w-[900px] ${compact ? "px-4" : "px-9"}`}>
+					{/* 标题、副标题、第一组卡片——每张设置页开头都是这三样。 */}
+					<div className="pt-8">
+						<SkeletonBar width="132px" height={20} />
+						<SkeletonBar width="min(420px, 70%)" height={10} className="mt-3.5" />
+						<SkeletonBar width="min(300px, 52%)" height={10} className="mt-2" />
+					</div>
+					<div className="pt-7">
+						<SkeletonList count={4} label="正在打开" />
+					</div>
+				</div>
+			</div>
+		</div>
+	);
 }
 
 /**
@@ -245,7 +298,7 @@ function useMainPane() {
 		return { title: "拉取请求", icon: <GitPullRequest size={12.5} strokeWidth={1.8} />, body: <LazyScreen>{<PullRequestsView />}</LazyScreen>, solo: true };
 	}
 	if (view === "plugins") {
-		return { title: "插件", icon: <Puzzle size={12.5} strokeWidth={1.8} />, body: <LazyScreen>{<PluginsView />}</LazyScreen>, solo: true };
+		return { title: "插件", icon: <Puzzle size={12.5} strokeWidth={1.8} />, body: <LazyScreen shape="grid">{<PluginsView />}</LazyScreen>, solo: true };
 	}
 	if (view === "scheduled") {
 		return { title: "计划任务", icon: <CalendarClock size={12.5} strokeWidth={1.8} />, body: <LazyScreen>{<ScheduledView />}</LazyScreen>, solo: true };

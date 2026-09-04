@@ -197,10 +197,10 @@ export const GRAMMARS: Record<string, () => Promise<Extension>> = {
 	 *
 	 * Loaded on demand like the rest, so opening a `.ts` file never pays for any of them.
 	 */
-	sh: async () => stream((await import("@codemirror/legacy-modes/mode/shell")).shell),
-	bash: async () => stream((await import("@codemirror/legacy-modes/mode/shell")).shell),
-	zsh: async () => stream((await import("@codemirror/legacy-modes/mode/shell")).shell),
-	fish: async () => stream((await import("@codemirror/legacy-modes/mode/shell")).shell),
+	sh: async () => stream(shellWithOperators((await import("@codemirror/legacy-modes/mode/shell")).shell)),
+	bash: async () => stream(shellWithOperators((await import("@codemirror/legacy-modes/mode/shell")).shell)),
+	zsh: async () => stream(shellWithOperators((await import("@codemirror/legacy-modes/mode/shell")).shell)),
+	fish: async () => stream(shellWithOperators((await import("@codemirror/legacy-modes/mode/shell")).shell)),
 	toml: async () => stream((await import("@codemirror/legacy-modes/mode/toml")).toml),
 	/*
 	 * Dockerfile has its own grammar, and was reachable only by filename.
@@ -273,6 +273,39 @@ export const GRAMMARS: Record<string, () => Promise<Extension>> = {
 /** A legacy stream mode, wrapped as the extension CodeMirror 6 wants. */
 function stream(mode: Parameters<typeof StreamLanguage.define>[0]): Extension {
 	return StreamLanguage.define(mode);
+}
+
+/**
+ * 一段里除了这些什么都没有——那它就是个操作符。
+ *
+ * 管道、逻辑连接、重定向、分组、条件括号。它们在 shell 里是结构，不是标点：`a | b` 和 `a > b` 是
+ * 两件完全不同的事，而这个区别全落在那一个字符上。
+ */
+const SHELL_OPERATOR = /^[|&;<>()[\]]+$/;
+
+/**
+ * shell 的结构符号，legacy 语法自己不标。
+ *
+ * `@codemirror/legacy-modes` 的 shell 模式认得命令、参数、变量、字符串、关键字和注释，但对
+ * `|`、`&&`、`>`、`[[` 一律返回 null——一条 `grep … | awk … && rm …` 因此在语义最重的几个地方
+ * 反而是没有颜色的。其他语言里这些位置（JSON 的 `:`、TS 的 `=`）都是上了色的。
+ *
+ * 补在原模式**之后**而不是之前，这是安全的关键：只有原模式明确表示「这段我不认」时才接手，所以
+ * 字符串里的 `|`、注释里的 `>` 都碰不到——那些段落早被标成 string 和 comment 了。跨行的字符串
+ * 同理，模式自己的 state 记着，轮不到这里。
+ *
+ * 整段必须全是操作符字符才算。`>&2` 会切成 `>` 和 `&2` 两段，前者上色后者不上——`&2` 里有数字，
+ * 而宁可少标一个也不要把一段普通文字误判成结构。
+ */
+function shellWithOperators(mode: Parameters<typeof StreamLanguage.define>[0]): Parameters<typeof StreamLanguage.define>[0] {
+	return {
+		...mode,
+		token(input, state) {
+			const named = mode.token(input, state);
+			if (named) return named;
+			return SHELL_OPERATOR.test(input.current()) ? "operator" : named;
+		},
+	};
 }
 
 /**
@@ -580,15 +613,54 @@ let currentDarkId: string | undefined;
  * `HighlightStyle.define` generates a fresh set of class names on every call, and
  * `mountHighlightStyles` updates the rules in the document so changes to the light/dark code theme
  * propagate to every CodeBlock, DiffView, and FileViewer.
+ *
+ * 不带参数是在问「现在用的是哪套」，不是在说「换成默认那套」。
+ *
+ * 这个区别过去不存在，代价是代码块会整块变黑。三个地方调它：`applyAppearance` 带着用户选的代码
+ * 主题调，`CodeBlock` 和 diff 高亮不带参数调。而缓存键就是这两个参数——于是不带参数的那次判定为
+ * 「和当前不一样」，重新生成一整套类名，把文档里的规则换掉；下一次 `applyAppearance` 再换回来。
+ * 两边来回踢。
+ *
+ * 类名是 `HighlightStyle.define` 每次现编的（ͼo、ͼ1f、ͼ26…），所以被踢掉的那一方留在页面上的
+ * span，带的类在文档里已经没有定义了——一整块代码于是回到默认字色。改一次字号、拖一下对比度、切
+ * 一次深浅色，都会触发 `applyAppearance`，也就都会让屏幕上已经上好色的代码块失色。
+ *
+ * 所以：只有显式给了主题 id 才更新，其余人拿的都是同一套。
  */
 export function sharedHighlightStyle(lightThemeId?: string, darkThemeId?: string): HighlightStyle {
+	if (lightThemeId === undefined && darkThemeId === undefined && shared) return shared;
 	if (!shared || currentLightId !== lightThemeId || currentDarkId !== darkThemeId) {
 		currentLightId = lightThemeId;
 		currentDarkId = darkThemeId;
 		shared = highlightStyle(lightThemeId, darkThemeId);
 		mountHighlightStyles(shared);
+		generation += 1;
+		for (const listener of listeners) listener();
 	}
 	return shared;
+}
+
+/**
+ * 这套类名换过几代了。
+ *
+ * 上过色的地方把 token 和类名一起算好存着（`CodeBlock` 的 `useMemo`、diff 的缓存），而换一次代码
+ * 主题就是换一整套类名——存着的那份于是指向一批不再存在的规则。这个数字变了就是「你手上那份过期
+ * 了，重算一次」。
+ *
+ * 只在样式真的重建时才动。改字号、改对比度同样会走 `applyAppearance`，但主题 id 没变，这里就不动，
+ * 谁也不用白算一遍。
+ */
+let generation = 0;
+const listeners = new Set<() => void>();
+
+export function highlightGeneration(): number {
+	return generation;
+}
+
+/** 订阅换代，形状对着 `useSyncExternalStore`。 */
+export function onHighlightChange(listener: () => void): () => void {
+	listeners.add(listener);
+	return () => listeners.delete(listener);
 }
 
 let highlightStyleEl: HTMLStyleElement | null = null;

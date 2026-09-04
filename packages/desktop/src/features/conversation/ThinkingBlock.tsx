@@ -39,7 +39,14 @@ export function ThinkingBlock({ text, redacted, live }: { text: string; redacted
 				aria-label="思考过程"
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
-				className="ly-scroll flex max-w-full items-center gap-1.5 rounded-md py-0.5 text-detail text-ink-faint transition-colors hover:text-ink-muted"
+				/*
+				 * `text-label`，和 `ToolGroup` 那一行一样——这两个是同一种东西。
+				 *
+				 * 一条工具行和一条思考行在文稿里是并排出现的同类：一行灰字、点开有内容。它们过去
+				 * 一个 13px 一个 12px，行高就差 1.5px，于是连着几条摘要排下来，行距一宽一窄，看着
+				 * 像是没对齐。外边距早就是一样的 `mb-2.5` 了，不齐的是字本身。
+				 */
+				className="ly-scroll flex max-w-full items-center gap-1.5 rounded-md py-0.5 text-label text-ink-faint transition-colors hover:text-ink-muted"
 			>
 				<Brain size={13} strokeWidth={1.8} className={`shrink-0 ${live ? "ly-pulse" : ""}`} />
 				{redacted ? (

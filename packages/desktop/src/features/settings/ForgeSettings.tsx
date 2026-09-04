@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import type { ForgeAccount, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { Avatar } from "../pull-requests/index.ts";
 import { useAccountActions, useForgeAccounts } from "../pull-requests/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { Badge, Card, EmptyHint, GhostButton, ListRow, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { ForgeSignIn } from "./ForgeSignIn.tsx";
 import { bridge } from "../../services/index.ts";
@@ -102,13 +103,28 @@ export function ForgeSettings() {
 						}
 						actions={
 							editing === account.id ? null : (
+								/*
+								 * 无边框，因为这一行已经有一个边框了。
+								 *
+								 * 每个图标各自带一个方框，加上右边开关的轨道，一行里三个圆角矩形排着——
+								 * 画出来的结构比这行的内容还多。`subtle` 只在悬停时给底色，指到哪里哪里
+								 * 亮，这一行剩下的边框就只有开关那一个，而它是真的在表示状态。
+								 */
 								<>
-									<GhostButton title="重命名" icon={<Pencil size={13} strokeWidth={1.8} />} onClick={() => setEditing(account.id)} />
-									<GhostButton
-										title="退出登录并删除令牌"
-										tone="danger"
+									<Button
+										variant="subtle"
+										size="sm"
+										label="重命名"
+										icon={<Pencil size={13} strokeWidth={1.8} />}
+										onClick={() => setEditing(account.id)}
+									/>
+									<Button
+										variant="subtle"
+										size="sm"
+										label="退出登录并删除令牌"
 										icon={<Trash2 size={13} strokeWidth={1.8} />}
 										onClick={() => void signOut(account.id)}
+										className="hover:text-danger"
 									/>
 								</>
 							)

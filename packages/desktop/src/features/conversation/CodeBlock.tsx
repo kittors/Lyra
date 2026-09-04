@@ -1,8 +1,8 @@
 import type { Language } from "@codemirror/language";
 import { Check, Copy, Play } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { loadFenceLanguage, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
+import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
 import { useSide } from "../dock/index.ts";
 
 /**
@@ -46,6 +46,14 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 		};
 	}, [lang]);
 
+	/*
+	 * 换了代码主题就得重算，因为类名整套都换了。
+	 *
+	 * token 和它的类名是一起算出来存进 `useMemo` 的，而换主题会重新生成一整套类名——存着的那份
+	 * 于是指向一批不存在的规则，整块代码掉回默认字色。依赖里带上代数，换代就重算。
+	 */
+	const generation = useSyncExternalStore(onHighlightChange, highlightGeneration, highlightGeneration);
+
 	const tokens = useMemo(() => {
 		if (!language) return null;
 		try {
@@ -54,7 +62,8 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 			// A half-written fence mid-stream is not a reason to lose the text.
 			return null;
 		}
-	}, [code, language]);
+		// oxlint-disable-next-line exhaustive-deps -- `generation` 不出现在函数体里，它就是「重算」的信号
+	}, [code, language, generation]);
 
 	return (
 		<div className="group relative">
