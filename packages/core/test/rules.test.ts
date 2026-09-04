@@ -485,10 +485,20 @@ test("the secret rule catches published key prefixes and leaves ordinary hex alo
 	assert.ok(hits("const key = \"sk-abcdefghij0123456789\""));
 	assert.ok(hits("ghp_abcdefghij0123456789xy"));
 	assert.ok(hits("AKIAIOSFODNN7EXAMPLE"));
+	/*
+	 * The hyphenated shapes. These are the formats currently issued, and the first version of this
+	 * pattern matched none of them — found by watching a real session write one into a real file.
+	 */
+	assert.ok(hits("apiKey: \"sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwxyzABC\""));
+	assert.ok(hits("sk-svcacct-abcdefghij0123456789"));
+	assert.ok(hits("sk-ant-api03-abcdefghij0123456789"));
 	// The ones a generic entropy heuristic would ruin: hashes, UUIDs, obvious placeholders.
 	assert.ok(!hits("const hash = \"a3f9c2e1b8d7f0a1\""));
 	assert.ok(!hits("id: 550e8400-e29b-41d4-a716-446655440000"));
 	assert.ok(!hits("apiKey: 'sk-example'"));
+	// Hyphens alone must not carry a match: the long opaque run is what makes a key a key.
+	assert.ok(!hits("apiKey: 'sk-your-api-key-here'"));
+	assert.ok(!hits("apiKey: 'sk-replace-me'"));
 });
 
 test("the force-push rule lets --force-with-lease through", async () => {

@@ -41,8 +41,19 @@ export const BUILTIN_RULES: Rule[] = [
 		 * A generic high-entropy-string pattern fires on hashes, UUIDs, base64 fixtures and minified
 		 * code — which is most of what an agent writes into a file on a normal day. These prefixes
 		 * are published, unambiguous, and worth stopping mid-sentence for.
+		 *
+		 * The `sk-` arm allows hyphenated segments before the payload, because the current OpenAI
+		 * and Anthropic formats put one there: `sk-proj-`, `sk-svcacct-`, `sk-ant-api03-`. A pattern
+		 * of `sk-[A-Za-z0-9]{16,}` — which is what this shipped with — matches none of them, since
+		 * the hyphen ends the character class four characters in. That is the most common key shape
+		 * in existence today, and it walked straight through.
+		 *
+		 * The length floor stays on the *last* segment, so the giveaway is still a long opaque run
+		 * and not the hyphens: `sk-example` and `sk-your-api-key-here` remain unmatched.
 		 */
-		conditions: [/\b(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,})/],
+		conditions: [
+			/\b(sk-(?:[A-Za-z0-9]+-)*[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,})/,
+		],
 		scopes: [{ kind: "tool" }, { kind: "text" }],
 		interrupt: "always",
 		repeat: "always",
