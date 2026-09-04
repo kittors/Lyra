@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { snapshotTag } from "./hunk.ts";
+import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary, resolveWorkspacePath } from "./paths.ts";
 
 const DEFAULT_LIMIT = 2000;
@@ -47,12 +48,22 @@ function readState(ctx: ToolContext): ReadState {
 }
 
 export function markRead(ctx: ToolContext, absolute: string, content?: string, from = 1, to?: number): void {
+	markReadRanges(ctx, absolute, content, to === undefined ? [] : [[from, to]]);
+}
+
+/**
+ * Record several disjoint ranges at once.
+ *
+ * The outline view shows scattered lines rather than one window, and the ranges have to reflect
+ * that: an edit to a folded body must be refused, and it can only be refused if we remember that
+ * the body was never on screen.
+ */
+export function markReadRanges(ctx: ToolContext, absolute: string, content: string | undefined, added: [number, number][]): void {
 	const state = readState(ctx);
 	const previous = state.get(absolute);
 	const tag = content === undefined ? (previous?.tag ?? "") : snapshotTag(content);
 	// A changed file invalidates what was shown before: the old line numbers no longer mean anything.
-	const ranges = previous && previous.tag === tag ? [...previous.ranges] : [];
-	if (to !== undefined) ranges.push([from, to]);
+	const ranges = previous && previous.tag === tag ? [...previous.ranges, ...added] : [...added];
 	state.set(absolute, { tag, ranges });
 }
 
@@ -152,6 +163,36 @@ export const readTool: Tool<ReadArgs> = {
 		// A trailing newline produces a final empty element that is not a real line.
 		if (allLines.length > 1 && allLines[allLines.length - 1] === "") allLines.pop();
 
+		const shownPath = displayPath(ctx.cwd, absolute);
+		const tag = snapshotTag(text);
+
+		/*
+		 * A bare read of a long source file returns its shape, not its bytes.
+		 *
+		 * Only when no window was asked for: `offset`/`limit` is the caller saying it already knows
+		 * where to look, and folding what it pointed at would be perverse. `outline` returns null
+		 * whenever the original is the better answer — short files, data files, anything whose
+		 * declarations it cannot see — so this is a fast path, not a gamble.
+		 */
+		if (args.offset === undefined && args.limit === undefined) {
+			const shape = outline(shownPath, text, allLines);
+			if (shape) {
+				markReadRanges(ctx, absolute, text, shape.shownRanges);
+				return {
+					content: [{ type: "text", text: `[${shownPath}#${tag}]\n${shape.text}${outlineFooter(shownPath, shape, allLines.length)}` }],
+					details: {
+						kind: "text",
+						path: shownPath,
+						tag,
+						totalLines: allLines.length,
+						outlined: true,
+						shownLines: shape.shownLines,
+						foldedLines: shape.foldedLines,
+					},
+				};
+			}
+		}
+
 		const offset = Math.max(1, args.offset ?? 1);
 		const limit = Math.max(1, args.limit ?? DEFAULT_LIMIT);
 		const slice = allLines.slice(offset - 1, offset - 1 + limit);
@@ -181,14 +222,12 @@ export const readTool: Tool<ReadArgs> = {
 		 * It names the whole file, not the slice: line numbers are absolute either way, and an
 		 * edit has to be rejected when *any* part of the file moved, not only the part on screen.
 		 */
-		const shown = displayPath(ctx.cwd, absolute);
-		const tag = snapshotTag(text);
 		markRead(ctx, absolute, text, offset, shownEnd);
 		return {
-			content: [{ type: "text", text: `[${shown}#${tag}]\n${body}${footer}` }],
+			content: [{ type: "text", text: `[${shownPath}#${tag}]\n${body}${footer}` }],
 			details: {
 				kind: "text",
-				path: shown,
+				path: shownPath,
 				tag,
 				totalLines: allLines.length,
 				shownFrom: offset,
