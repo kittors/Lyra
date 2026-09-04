@@ -296,6 +296,13 @@ export interface Settings {
 	 */
 	disabledPlugins: string[];
 	/**
+	 * Rules switched off by name, built-in or discovered.
+	 *
+	 * By name rather than by path so that turning one off survives it moving between `.lyra/rules`
+	 * and, say, `.cursor/rules` — the user turned off an idea, not a file.
+	 */
+	disabledRules: string[];
+	/**
 	 * Plugin registry index URLs the user has added, browsed from the plugins page.
 	 *
 	 * Ours is preset. The argument against shipping one was that it would point at a collection
@@ -435,6 +442,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	hooks: [],
 	scheduledTasks: [],
 	disabledPlugins: [],
+	disabledRules: [],
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
@@ -513,6 +521,7 @@ async function readSettingsFile(): Promise<Settings> {
 			hooks: parsed.hooks ?? [],
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
+			disabledRules: parsed.disabledRules ?? [],
 			/*
 			 * A missing list gets the default; an empty one is left empty.
 			 *

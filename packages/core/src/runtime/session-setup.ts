@@ -93,7 +93,7 @@ export async function loadCapabilities(
 
 	const agents = [...BUILTIN_AGENTS, ...(await loadAgentDefinitions(cwd))];
 
-	const rules = await loadRules(ruleSources(cwd, lyraHome()));
+	const rules = await loadRules(ruleSources(cwd, lyraHome()), { disabled: settings.disabledRules });
 
 	/*
 	 * Settings is the only place a session reads MCP servers from.

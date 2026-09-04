@@ -12,9 +12,11 @@
  * quietly was not there. Nothing is more discouraging than a feature that ignores you.
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseFrontmatter } from "../skills/loader.ts";
+import { BUILTIN_RULES } from "./builtin.ts";
+import { type Dialect, normalizeFrontmatter } from "./dialects.ts";
 import type { Rule, RuleDiagnostic, RuleScope, RuleSet } from "./types.ts";
 
 const MAX_DESCRIPTION = 400;
@@ -24,55 +26,142 @@ const MAX_CONDITION_LENGTH = 500;
 export interface RuleSource {
 	dir: string;
 	source: Rule["source"];
+	/** Whose frontmatter conventions this directory follows. */
+	dialect: Dialect;
+	/** Which file extensions count here. */
+	extensions?: RegExp;
 }
 
+/**
+ * Every directory a rule could come from, in the order that decides collisions.
+ *
+ * Project before user, ours before everyone else's. The first is the ordinary rule for layered
+ * configuration; the second is a tie-break that lets a rule written for Lyra deliberately shadow
+ * one of the same name found elsewhere.
+ *
+ * Other tools' PROJECT directories are always read: they are what the team wrote for this
+ * repository, and they should work the moment you open it. Their USER directories are not, and
+ * that asymmetry is deliberate — your private `~/.cursor` rules following you into someone else's
+ * repository would mean you and your colleague get different agents on the same code, with
+ * nothing on screen to explain why.
+ */
 export function ruleSources(cwd: string | null, home: string): RuleSource[] {
 	const sources: RuleSource[] = [];
-	if (cwd) sources.push({ dir: join(cwd, ".lyra", "rules"), source: "workspace" });
-	sources.push({ dir: join(home, "rules"), source: "user" });
+	if (cwd) {
+		sources.push({ dir: join(cwd, ".lyra", "rules"), source: "workspace", dialect: "lyra" });
+		sources.push({ dir: join(cwd, ".cursor", "rules"), source: "workspace", dialect: "cursor", extensions: /\.mdc?$/i });
+		sources.push({ dir: join(cwd, ".windsurf", "rules"), source: "workspace", dialect: "windsurf" });
+		sources.push({ dir: join(cwd, ".clinerules"), source: "workspace", dialect: "cline" });
+		sources.push({ dir: join(cwd, ".github", "instructions"), source: "workspace", dialect: "copilot", extensions: /\.instructions\.md$/i });
+	}
+	sources.push({ dir: join(home, "rules"), source: "user", dialect: "lyra" });
 	return sources;
 }
 
-export async function loadRules(sources: RuleSource[]): Promise<RuleSet> {
+export interface LoadRulesOptions {
+	/** Rule names the user switched off. Applies to built-ins and discovered rules alike. */
+	disabled?: string[];
+	/** Set false to drop the shipped rules entirely. */
+	builtin?: boolean;
+}
+
+export async function loadRules(sources: RuleSource[], options: LoadRulesOptions = {}): Promise<RuleSet> {
 	const diagnostics: RuleDiagnostic[] = [];
 	const seen = new Set<string>();
 	const rules: Rule[] = [];
 
-	for (const { dir, source } of sources) {
+	for (const source of sources) {
+		const dir = source.dir;
+
+		/*
+		 * `.clinerules` is a file about as often as it is a directory.
+		 *
+		 * Both spellings are in the wild and Cline reads either, so a loader that only calls
+		 * readdir silently ignores half of them — the worst kind of compatibility, because the
+		 * user sees no error and no rule.
+		 */
+		const info = await stat(dir).catch(() => null);
+		if (info?.isFile()) {
+			const raw = await readFile(dir, "utf8").catch(() => null);
+			if (raw !== null) {
+				const name = dir.split(/[/\\]/).pop()?.replace(/^\./, "") ?? "rules";
+				const built = await buildFromFile(name, dir, source, raw, seen, diagnostics);
+				if (built) rules.push(built);
+			}
+			continue;
+		}
+
 		const entries = await readdir(dir, { withFileTypes: true }).catch(() => null);
 		if (!entries) continue;
 
 		for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-			if (!entry.isFile() || !/\.mdc?$/i.test(entry.name)) continue;
+			if (!entry.isFile()) continue;
+			const extensions = source.extensions ?? /\.mdc?$/i;
+			if (!extensions.test(entry.name)) continue;
 			const path = join(dir, entry.name);
 			const raw = await readFile(path, "utf8").catch(() => null);
 			if (raw === null) continue;
 
-			const name = entry.name.replace(/\.mdc?$/i, "");
-			if (seen.has(name)) {
-				diagnostics.push({ path, severity: "warning", message: `规则 "${name}" 已由更高优先级的来源提供，这一份未生效。` });
-				continue;
-			}
+			// Copilot's double extension has to come off in one piece, or the name keeps `.instructions`.
+			const name = entry.name.replace(/\.instructions\.md$/i, "").replace(/\.mdc?$/i, "");
 
-			const parsed = parseFrontmatter(raw);
-			if (!parsed) {
-				diagnostics.push({ path, severity: "error", message: "文件开头的 YAML 无法解析，这条规则未加载。" });
-				continue;
-			}
-
-			const built = buildRule(name, path, source, parsed.frontmatter, parsed.body, diagnostics);
-			if (!built) continue;
-			seen.add(name);
-			rules.push(built);
+			const built = await buildFromFile(name, path, source, raw, seen, diagnostics);
+			if (built) rules.push(built);
 		}
 	}
 
+	/*
+	 * Built-ins go last, so a user or project rule of the same name simply replaces one.
+	 *
+	 * That is the whole override mechanism: no precedence field, no "extends". If you do not like
+	 * `no-force-push`, write your own `no-force-push.md` — or name it in `disabledRules`.
+	 */
+	if (options.builtin !== false) {
+		for (const rule of BUILTIN_RULES) {
+			if (seen.has(rule.name)) continue;
+			seen.add(rule.name);
+			rules.push(rule);
+		}
+	}
+
+	const disabled = new Set(options.disabled ?? []);
+	const live = disabled.size > 0 ? rules.filter((rule) => !disabled.has(rule.name)) : rules;
+
 	return {
-		always: rules.filter((r) => r.bucket === "always"),
-		book: rules.filter((r) => r.bucket === "book"),
-		stream: rules.filter((r) => r.bucket === "stream"),
+		always: live.filter((r) => r.bucket === "always"),
+		book: live.filter((r) => r.bucket === "book"),
+		stream: live.filter((r) => r.bucket === "stream"),
 		diagnostics,
 	};
+}
+
+/** One file → one rule, shared by the directory walk and the single-file `.clinerules` case. */
+async function buildFromFile(
+	name: string,
+	path: string,
+	source: RuleSource,
+	raw: string,
+	seen: Set<string>,
+	diagnostics: RuleDiagnostic[],
+): Promise<Rule | null> {
+	if (seen.has(name)) {
+		diagnostics.push({ path, severity: "warning", message: `规则 "${name}" 已由更高优先级的来源提供，这一份未生效。` });
+		return null;
+	}
+
+	const parsed = parseFrontmatter(raw);
+	if (!parsed) {
+		diagnostics.push({ path, severity: "error", message: "文件开头的 YAML 无法解析，这条规则未加载。" });
+		return null;
+	}
+
+	const normalized = normalizeFrontmatter(source.dialect, parsed.frontmatter, name);
+	if (normalized.note) diagnostics.push({ path, severity: "warning", message: normalized.note });
+
+	const built = buildRule(name, path, source.source, normalized.frontmatter, parsed.body, diagnostics);
+	if (!built) return null;
+	seen.add(name);
+	return built;
 }
 
 function buildRule(

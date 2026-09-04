@@ -86,15 +86,21 @@ export function wasShown(record: ReadRecord, from: number, to: number): boolean 
 
 export const readTool: Tool<ReadArgs> = {
 	name: "read",
-	snippet: "Read file contents, with line numbers",
+	snippet: "Read a file, or its structure",
 	guidelines: [
 		"Use read to examine files instead of `cat`, `head`, `sed` or `tail`.",
 		"Read a file before editing it, and read enough of it to understand the surrounding code.",
+		"A long source file comes back as an outline: declarations shown, bodies folded as `⋯ N lines (from-to)`. " +
+			"When you need what is inside one, read that range with offset/limit. NEVER guess at folded content, and " +
+			"NEVER edit a line you have not seen — the edit will be refused.",
 	],
 	description:
-		"Read a file from the workspace. Text files come back with 1-indexed line numbers in `NNNN→content` form. " +
-		"Images are returned to you as actual images. Use `offset` and `limit` to page through long files; " +
-		"reading without them returns the first 2000 lines.",
+		"Read a file from the workspace. Text files come back with a `[path#TAG]` header — quote that TAG when you " +
+		"edit — and 1-indexed line numbers in `NNNN→content` form.\n\n" +
+		"Reading a long source file with no `offset`/`limit` returns its STRUCTURE: imports, declarations and their " +
+		"doc comments, with each body replaced by `⋯ N lines (from-to)`. To see a folded body, read that range. " +
+		"Short files, data files and explicit `offset`/`limit` windows always come back verbatim.\n\n" +
+		"Images are returned to you as actual images.",
 	parameters: {
 		type: "object",
 		properties: {

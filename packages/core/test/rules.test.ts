@@ -11,7 +11,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { loadRules } from "../src/rules/loader.ts";
+import { loadRules, ruleSources } from "../src/rules/loader.ts";
 import { formatRules, renderRuleInterrupt } from "../src/rules/session.ts";
 import { extractPaths, matchGlob, StreamRuleMonitor } from "../src/rules/stream.ts";
 import { ruleTool, RULES_KEY } from "../src/tools/rule.ts";
@@ -25,9 +25,16 @@ async function rulesDir(files: Record<string, string>): Promise<string> {
 	return root;
 }
 
+/**
+ * Load only the rules the test wrote.
+ *
+ * Built-ins are off here on purpose: a test about bucketing should assert on its own two files,
+ * not on however many rules the product happens to ship this month. The built-ins have their own
+ * section further down, where they are the subject rather than the background.
+ */
 const load = async (files: Record<string, string>) => {
 	const root = await rulesDir(files);
-	return await loadRules([{ dir: join(root, ".lyra", "rules"), source: "workspace" }]);
+	return await loadRules([{ dir: join(root, ".lyra", "rules"), source: "workspace", dialect: "lyra" }], { builtin: false });
 };
 
 // ---------------------------------------------------------------------------
@@ -81,10 +88,13 @@ test("an inline (?i) flag is honoured", async () => {
 test("higher-precedence sources shadow same-named rules and say so", async () => {
 	const project = await rulesDir({ "x.md": "---\nalwaysApply: true\n---\n项目版本。" });
 	const user = await rulesDir({ "x.md": "---\nalwaysApply: true\n---\n用户版本。" });
-	const set = await loadRules([
-		{ dir: join(project, ".lyra", "rules"), source: "workspace" },
-		{ dir: join(user, ".lyra", "rules"), source: "user" },
-	]);
+	const set = await loadRules(
+		[
+			{ dir: join(project, ".lyra", "rules"), source: "workspace", dialect: "lyra" },
+			{ dir: join(user, ".lyra", "rules"), source: "user", dialect: "lyra" },
+		],
+		{ builtin: false },
+	);
 	assert.equal(set.always.length, 1);
 	assert.equal(set.always[0].content, "项目版本。");
 	assert.ok(set.diagnostics.some((d) => /已由更高优先级的来源提供/.test(d.message)));
@@ -315,4 +325,194 @@ test("the rule tool says something useful when a project has no readable rules",
 	const state = new Map<string, unknown>([[RULES_KEY, set]]);
 	const res = await ruleTool.execute({ name: "anything" }, { cwd: "/tmp", sessionId: "t", state });
 	assert.match(res.content[0].type === "text" ? res.content[0].text : "", /没有可按需读取的规则/);
+});
+
+// ---------------------------------------------------------------------------
+// Other tools' rule files
+//
+// A team's repository usually already has these. Requiring a rewrite before they do anything
+// asks for work with no payoff — and that is where people stop.
+// ---------------------------------------------------------------------------
+
+async function ecosystem(files: Record<string, string>): Promise<string> {
+	const root = await mkdtemp(join(tmpdir(), "lyra-eco-"));
+	for (const [rel, body] of Object.entries(files)) {
+		const full = join(root, rel);
+		await mkdir(join(full, ".."), { recursive: true });
+		await writeFile(full, body, "utf8");
+	}
+	return root;
+}
+
+test("a Cursor .mdc rule loads", async () => {
+	const root = await ecosystem({ ".cursor/rules/style.mdc": "---\ndescription: 代码风格\nglobs:\n  - '**/*.ts'\n---\n用 tab 缩进。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")), { builtin: false });
+	assert.equal(set.book.length, 1);
+	assert.equal(set.book[0].name, "style");
+	assert.deepEqual(set.book[0].globs, ["**/*.ts"]);
+});
+
+test("Cursor's alwaysApply is only true when it is literally true", async () => {
+	// Cursor's UI writes this key out for every rule. A truthy reading would turn a directory of
+	// conditional rules into a directory of rules that are always in the prompt.
+	const root = await ecosystem({
+		".cursor/rules/a.mdc": "---\ndescription: A\nalwaysApply: false\n---\nA。",
+		".cursor/rules/b.mdc": "---\ndescription: B\nalwaysApply: 'yes'\n---\nB。",
+		".cursor/rules/c.mdc": "---\ndescription: C\nalwaysApply: true\n---\nC。",
+	});
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.deepEqual(set.always.map((r) => r.name), ["c"]);
+	assert.deepEqual(set.book.map((r) => r.name).sort(), ["a", "b"]);
+});
+
+test("a Cursor rule with globs but no description still gets one", async () => {
+	const root = await ecosystem({ ".cursor/rules/css.mdc": "---\nglobs: '**/*.css'\n---\n颜色走 token。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.book.length, 1, "it must not fall through as a rule that does nothing");
+	assert.match(set.book[0].description!, /\*\*\/\*\.css/);
+});
+
+test(".clinerules works as a directory", async () => {
+	const root = await ecosystem({ ".clinerules/general.md": "总是写测试。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.always.length, 1);
+	assert.equal(set.always[0].content, "总是写测试。");
+});
+
+test(".clinerules works as a single file", async () => {
+	// Both spellings are in the wild; a loader that only calls readdir ignores half of them.
+	const root = await ecosystem({ ".clinerules": "不要改生成的文件。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.always.length, 1);
+	assert.equal(set.always[0].name, "clinerules");
+	assert.equal(set.always[0].content, "不要改生成的文件。");
+});
+
+test("Copilot applyTo: '**' becomes an always-apply rule with no globs", async () => {
+	const root = await ecosystem({ ".github/instructions/all.instructions.md": "---\napplyTo: '**'\n---\n提交信息用中文。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.always.length, 1);
+	assert.equal(set.always[0].name, "all", "the double extension must come off in one piece");
+	assert.equal(set.always[0].globs, undefined);
+});
+
+test("Copilot applyTo with a real glob becomes a rulebook entry", async () => {
+	const root = await ecosystem({ ".github/instructions/api.instructions.md": "---\napplyTo: 'src/api/**,src/lib/**'\n---\nAPI 约定。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.book.length, 1);
+	assert.deepEqual(set.book[0].globs, ["src/api/**", "src/lib/**"]);
+});
+
+test("Copilot with no applyTo still loads, and says why it was guessed at", async () => {
+	const root = await ecosystem({ ".github/instructions/x.instructions.md": "---\n---\n没写 applyTo。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.book.length, 1);
+	assert.ok(set.diagnostics.some((d) => /缺少 applyTo/.test(d.message)));
+});
+
+test("a Windsurf rule with no metadata is a standing instruction", async () => {
+	const root = await ecosystem({ ".windsurf/rules/g.md": "不要用 var。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.always.length, 1);
+});
+
+test("our own rules win over everyone else's on a name collision", async () => {
+	const root = await ecosystem({
+		".lyra/rules/style.md": "---\nalwaysApply: true\n---\nLyra 的版本。",
+		".cursor/rules/style.mdc": "---\nalwaysApply: true\n---\nCursor 的版本。",
+	});
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.equal(set.always.length, 1);
+	assert.equal(set.always[0].content, "Lyra 的版本。");
+	assert.ok(set.diagnostics.some((d) => /更高优先级/.test(d.message)));
+});
+
+test("four dialects coexist in one repository", async () => {
+	const root = await ecosystem({
+		".lyra/rules/ours.md": "---\ncondition: 'FIXME'\n---\n别留 FIXME。",
+		".cursor/rules/cursor.mdc": "---\ndescription: 来自 Cursor\n---\n正文。",
+		".clinerules": "来自 Cline。",
+		".github/instructions/gh.instructions.md": "---\napplyTo: '**'\n---\n来自 Copilot。",
+		".windsurf/rules/ws.md": "来自 Windsurf。",
+	});
+	const set = await loadRules(ruleSources(root, join(root, "home")), { builtin: false });
+	const all = [...set.always, ...set.book, ...set.stream].map((r) => r.name).sort();
+	assert.deepEqual(all, ["clinerules", "cursor", "gh", "ours", "ws"]);
+	assert.equal(set.stream.length, 1, "our condition rule is the only stream rule");
+});
+
+// ---------------------------------------------------------------------------
+// Built-in rules
+//
+// These apply to everybody, so the bar is: catches something a good model still does, does not
+// duplicate an existing guard, and is right nearly always.
+// ---------------------------------------------------------------------------
+
+test("built-in rules are present by default and are all stream rules", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-empty-"));
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.deepEqual(set.stream.map((r) => r.name).sort(), ["no-force-push", "no-placeholder-delivery", "no-secret-in-code"]);
+	// Costing nothing in the prompt is the point: a built-in that took context would be resented.
+	assert.equal(formatRules(set), "");
+});
+
+test("built-ins can be switched off by name", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-empty-"));
+	const set = await loadRules(ruleSources(root, join(root, "home")), { disabled: ["no-force-push"] });
+	assert.ok(!set.stream.some((r) => r.name === "no-force-push"));
+	assert.ok(set.stream.some((r) => r.name === "no-secret-in-code"));
+});
+
+test("built-ins can be dropped wholesale", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-empty-"));
+	const set = await loadRules(ruleSources(root, join(root, "home")), { builtin: false });
+	assert.equal(set.stream.length, 0);
+});
+
+test("a user rule of the same name replaces a built-in outright", async () => {
+	const root = await ecosystem({ ".lyra/rules/no-force-push.md": "---\nalwaysApply: true\n---\n我自己的版本。" });
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	assert.ok(!set.stream.some((r) => r.name === "no-force-push"), "the built-in must be gone, not merged");
+	assert.ok(set.always.some((r) => r.content === "我自己的版本。"));
+});
+
+test("the secret rule catches published key prefixes and leaves ordinary hex alone", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-empty-"));
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	const rule = set.stream.find((r) => r.name === "no-secret-in-code")!;
+	const hits = (text: string) => rule.conditions.some((c) => c.test(text));
+
+	assert.ok(hits("const key = \"sk-abcdefghij0123456789\""));
+	assert.ok(hits("ghp_abcdefghij0123456789xy"));
+	assert.ok(hits("AKIAIOSFODNN7EXAMPLE"));
+	// The ones a generic entropy heuristic would ruin: hashes, UUIDs, obvious placeholders.
+	assert.ok(!hits("const hash = \"a3f9c2e1b8d7f0a1\""));
+	assert.ok(!hits("id: 550e8400-e29b-41d4-a716-446655440000"));
+	assert.ok(!hits("apiKey: 'sk-example'"));
+});
+
+test("the force-push rule lets --force-with-lease through", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-empty-"));
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	const rule = set.stream.find((r) => r.name === "no-force-push")!;
+	const hits = (text: string) => rule.conditions.some((c) => c.test(text));
+
+	assert.ok(hits("git push --force origin main"));
+	assert.ok(hits("git push -f"));
+	assert.ok(!hits("git push --force-with-lease origin main"), "the careful form must not be caught");
+	assert.ok(!hits("git push origin main"));
+});
+
+test("the placeholder rule ignores a plain TODO", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-empty-"));
+	const set = await loadRules(ruleSources(root, join(root, "home")));
+	const rule = set.stream.find((r) => r.name === "no-placeholder-delivery")!;
+	const hits = (text: string) => rule.conditions.some((c) => c.test(text));
+
+	assert.ok(hits("// TODO: implement this"));
+	assert.ok(hits("throw new Error('not implemented')"));
+	assert.ok(hits("// ... rest of the function"));
+	// Ordinary in real code; flagging it would make this rule the boy who cried wolf.
+	assert.ok(!hits("// TODO: revisit once the API stabilises"));
+	assert.ok(!hits("const todo = items.filter(isPending);"));
 });

@@ -45,6 +45,7 @@ export const editTool: Tool<EditArgs> = {
 		"Edit with `tag` and `patch`: name the original line numbers and write only the replacement lines. Never retype lines you are keeping.",
 		"Copy `tag` from the `[path#TAG]` header of the read output. If the file changed since you read it the edit is rejected — re-read and redo it.",
 		"Put every change to one file in a single patch. Several operations in one call is normal.",
+		"You may only edit lines you have actually seen. If `read` folded the region away as `⋯`, read that range first.",
 	],
 	description:
 		"Edit a file. Preferred form: `tag` + `patch`, naming the ORIGINAL line numbers from the read output " +
