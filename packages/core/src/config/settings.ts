@@ -320,6 +320,17 @@ export interface Settings {
 	 */
 	modelRoles?: Partial<Record<"default" | "fast" | "deep" | "review", string>>;
 	/**
+	 * Whether finished sessions may be read by a model to build project memory.
+	 *
+	 * Off until somebody says yes. Extraction sends conversation content to a provider, and an app
+	 * that otherwise only talks to one when asked must not quietly start doing it on a timer — a
+	 * tool people run locally has to be conservative about exactly this.
+	 *
+	 * `undefined` is "never asked", which the host distinguishes from `false` ("asked, declined")
+	 * so it knows whether the prompt is still owed.
+	 */
+	memoryExtraction?: boolean;
+	/**
 	 * Plugin registry index URLs the user has added, browsed from the plugins page.
 	 *
 	 * Ours is preset. The argument against shipping one was that it would point at a collection
@@ -462,6 +473,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	disabledRules: [],
 	maxConcurrentSubAgents: 4,
 	modelRoles: {},
+	memoryExtraction: undefined,
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
@@ -590,6 +602,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
 					: 4,
+			memoryExtraction: typeof parsed.memoryExtraction === "boolean" ? parsed.memoryExtraction : undefined,
 			modelRoles:
 				parsed.modelRoles && typeof parsed.modelRoles === "object"
 					? Object.fromEntries(

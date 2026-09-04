@@ -20,6 +20,7 @@ import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { formatMemoryForPrompt, loadMemory } from "./memory.ts";
+import { readExtractedMemory } from "./memory-extract.ts";
 import { formatProjectMemory, readLessons } from "./project-memory.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
@@ -169,7 +170,10 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	 * `learn` writes the file, and a session that cached this at startup would keep telling the
 	 * model it had not learned the thing it just learned. Reading it is one small file.
 	 */
-	const projectMemory = settings.personalization?.enableMemory === false ? "" : formatProjectMemory(await readLessons(cwd).catch(() => []));
+	const projectMemory =
+		settings.personalization?.enableMemory === false
+			? ""
+			: formatProjectMemory(await readLessons(cwd).catch(() => []), await readExtractedMemory(cwd).catch(() => ""));
 
 	const turn = await prepareTurn({
 		cwd,

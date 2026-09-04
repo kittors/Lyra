@@ -196,15 +196,26 @@ export function parseLessons(raw: string): Lesson[] {
  * Empty when there is nothing, because an empty `<project_memory>` is a few tokens of noise plus
  * an invitation to wonder what happened to the memory.
  */
-export function formatProjectMemory(lessons: Lesson[]): string {
-	if (lessons.length === 0) return "";
+export function formatProjectMemory(lessons: Lesson[], extracted = ""): string {
+	if (lessons.length === 0 && !extracted.trim()) return "";
 	const lines = lessons.map((lesson) => (lesson.context ? `- ${lesson.text}（${lesson.context}）` : `- ${lesson.text}`));
-	return [
+	const parts = [
 		"",
 		"",
 		"<project_memory>",
 		"以前在这个项目里学到的，按新旧排。如果其中一条和你现在看到的代码矛盾，以代码为准，并考虑用 `learn` 更新它。",
 		...lines,
-		"</project_memory>",
-	].join("\n");
+	];
+	/*
+	 * The extracted half is marked as inferred, because it was.
+	 *
+	 * `learned.md` is what somebody wrote on purpose; this is what a model concluded from reading
+	 * old sessions, and it is wrong more often. Presenting both at the same confidence would let a
+	 * guess from three weeks ago outrank something a person typed yesterday.
+	 */
+	if (extracted.trim()) {
+		parts.push("", "从过去的会话里推断出来的（可信度低于上面几条，与代码冲突时以代码为准）：", extracted.trim());
+	}
+	parts.push("</project_memory>");
+	return parts.join("\n");
 }
