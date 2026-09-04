@@ -55,10 +55,21 @@ export const taskTool: Tool<TaskArgs> = {
 		if (!ctx.spawnSubAgent) return errorResult("Sub-agents are not available in this session.");
 		if (typeof args.prompt !== "string" || !args.prompt.trim()) return errorResult("`prompt` is required.");
 
-		const agents = (ctx.state.get(AGENTS_KEY) as AgentDefinition[] | undefined) ?? [];
+		/*
+		 * `undefined` and `[]` mean different things, and conflating them switched the check off.
+		 *
+		 * `undefined` is a session that never registered a roster — a CLI path, a test — where
+		 * refusing every name would break a caller doing its own resolution. `[]` is a session that
+		 * registered one and it is empty, where the only honest answer to any name is that it does
+		 * not exist. The old `agents.length > 0` guard read the two the same way, so in the empty
+		 * case every name passed and a typo came back as a `general` sub-agent doing something
+		 * adjacent to what was asked.
+		 */
+		const agents = ctx.state.get(AGENTS_KEY) as AgentDefinition[] | undefined;
 		const requested = args.subagent_type ?? "general";
-		if (agents.length > 0 && !agents.some((a) => a.name === requested)) {
-			return errorResult(`Unknown subagent_type "${requested}". Available: ${agents.map((a) => a.name).join(", ")}.`);
+		if (agents && !agents.some((a) => a.name === requested)) {
+			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
+			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);
 		}
 
 		try {

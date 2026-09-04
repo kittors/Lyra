@@ -99,7 +99,8 @@ export async function loadCommands(
 ): Promise<{ commands: SlashCommand[]; diagnostics: CommandDiagnostic[] }> {
 	const commands: SlashCommand[] = [];
 	const diagnostics: CommandDiagnostic[] = [];
-	const seen = new Set<string>();
+	/** name → the file that won it, so a shadowing diagnostic can name the winner. */
+	const seen = new Map<string, string>();
 
 	for (const source of sources) {
 		for (const file of await walk(source.dir, MAX_DEPTH)) {
@@ -111,6 +112,7 @@ export async function loadCommands(
 				diagnostics.push({ path: file, message: "文件开头的 YAML 无法解析。" });
 				continue;
 			}
+			if (parsed.problem) diagnostics.push({ path: file, message: "开头的 `---` 没有闭合，整个文件都被当成了正文。" });
 			const { frontmatter, body } = parsed;
 
 			const name =
@@ -136,9 +138,19 @@ export async function loadCommands(
 					: firstLine(body);
 			const description = described.length > MAX_DESCRIPTION ? `${described.slice(0, MAX_DESCRIPTION - 1)}…` : described;
 
-			// Earlier sources win; a later file of the same name is shadowed rather than an error.
-			if (seen.has(name)) continue;
-			seen.add(name);
+			/*
+			 * Earlier sources win; a later file of the same name is shadowed rather than an error.
+			 *
+			 * The shadowing is right and stays. Doing it in silence was not: someone whose `/deploy`
+			 * started behaving like someone else's had nothing to look at — the command list showed
+			 * exactly one `/deploy`, and it was not theirs.
+			 */
+			const winner = seen.get(name);
+			if (winner) {
+				diagnostics.push({ path: file, message: `命令“${name}”已由 ${winner} 定义，这一个被遮蔽了。` });
+				continue;
+			}
+			seen.set(name, file);
 
 			const hint = frontmatter["argument-hint"];
 			commands.push({

@@ -63,6 +63,7 @@ export async function loadSkills(
 				diagnostics.push({ path: file, message: "Frontmatter is not valid YAML." });
 				continue;
 			}
+			if (parsed.problem) diagnostics.push({ path: file, message: parsed.problem });
 
 			const { frontmatter, body } = parsed;
 			const name = typeof frontmatter.name === "string" && frontmatter.name ? frontmatter.name : entry.name;
@@ -105,11 +106,31 @@ export async function loadSkills(
 	return { skills, diagnostics };
 }
 
-export function parseFrontmatter(raw: string): { frontmatter: Record<string, unknown>; body: string } | null {
+export interface ParsedFrontmatter {
+	frontmatter: Record<string, unknown>;
+	body: string;
+	/**
+	 * Set when the document opened a frontmatter block and never closed it.
+	 *
+	 * The parse still succeeds — the whole document becomes the body, which is the only reading
+	 * left once the delimiters are unusable. But that reading injects `name:` and `description:`
+	 * into the model's context as prose, and the author is looking at a file that appears to have
+	 * metadata and behaves as if it has none. Callers surface this; nothing depends on it.
+	 */
+	problem?: string;
+}
+
+export function parseFrontmatter(raw: string): ParsedFrontmatter | null {
 	const normalized = raw.replace(/\r\n/g, "\n");
 	if (!normalized.startsWith("---\n")) return { frontmatter: {}, body: normalized };
 	const end = normalized.indexOf("\n---", 3);
-	if (end === -1) return { frontmatter: {}, body: normalized };
+	if (end === -1) {
+		return {
+			frontmatter: {},
+			body: normalized,
+			problem: "Frontmatter opens with `---` but is never closed, so the whole file is being treated as body text.",
+		};
+	}
 	try {
 		const frontmatter = (parseYaml(normalized.slice(4, end)) ?? {}) as Record<string, unknown>;
 		return { frontmatter, body: normalized.slice(end + 4).replace(/^\n+/, "") };
