@@ -17,7 +17,7 @@ export interface ProjectMemoryIpcDeps {
 }
 
 export function registerProjectMemoryIpc({ store }: ProjectMemoryIpcDeps): void {
-	ipcMain.handle("projectMemory:status", async (_event, cwd: string) => {
+	ipcMain.handle("memory:projectStatus", async (_event, cwd: string) => {
 		const verdict = shouldRunPass(settings(), await lastPassAt(cwd));
 		return verdict.run ? { run: true } : { run: false, reason: verdict.reason };
 	});
@@ -27,7 +27,7 @@ export function registerProjectMemoryIpc({ store }: ProjectMemoryIpcDeps): void 
 	 *
 	 * 它跑在主进程里，一次请求，几秒。真正保证它不打扰人的是调用时机（空闲），不是异步与否。
 	 */
-	ipcMain.handle("projectMemory:extract", async (_event, cwd: string) =>
+	ipcMain.handle("memory:projectExtract", async (_event, cwd: string) =>
 		runMemoryPass({ cwd, settings: settings(), storage: store() }),
 	);
 }

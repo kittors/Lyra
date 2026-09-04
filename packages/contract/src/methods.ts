@@ -276,6 +276,15 @@ export const METHODS = {
 		remove: { channel: "memory:remove", remote: false, why: "手机上没有编辑记忆的界面" },
 		clear: { channel: "memory:clear", remote: false, why: "手机上没有编辑记忆的界面" },
 	},
+	/*
+	 * 分组叫 `projectMemory`，channel 却在 `memory:` 域下。
+	 *
+	 * 不是不一致。channel 的形状是 `域:动作`，而域必须是一个小写词——`methods.test.ts` 在管这件
+	 * 事，它的注释写得很好：「已知的一处例外」和「随便怎么写都行」是两回事。而项目记忆和用户
+	 * 偏好记忆读写的是不同的地方、有各自的开关，在 `window.lyra` 上分开才说得清。
+	 *
+	 * 于是域共用、动作带前缀。这条测试是在 `git push` 的钩子里抓到我的——它值这个位置。
+	 */
 	projectMemory: {
 		/*
 		 * 后台抽取由桌面端跑，手机不参与。
@@ -283,8 +292,8 @@ export const METHODS = {
 		 * 它读的是那台机器上的会话文件、写的是那台机器上的记忆目录，而且是「空闲时跑一遍」的
 		 * 后台活——手机端连着的时候，那台机器并不空闲。
 		 */
-		status: { channel: "projectMemory:status", remote: false, why: "后台抽取跑在桌面端" },
-		extract: { channel: "projectMemory:extract", remote: false, why: "后台抽取跑在桌面端" },
+		status: { channel: "memory:projectStatus", remote: false, why: "后台抽取跑在桌面端" },
+		extract: { channel: "memory:projectExtract", remote: false, why: "后台抽取跑在桌面端" },
 	},
 	diff: {
 		workspaceDiff: { channel: "diff:workspace", remote: false, why: "手机上没有审阅改动的界面" },
