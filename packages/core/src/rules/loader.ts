@@ -84,7 +84,14 @@ export async function loadRules(sources: RuleSource[], options: LoadRulesOptions
 		if (info?.isFile()) {
 			const raw = await readFile(dir, "utf8").catch(() => null);
 			if (raw !== null) {
-				const name = dir.split(/[/\\]/).pop()?.replace(/^\./, "") ?? "rules";
+				/*
+				 * 去掉开头的点，也去掉扩展名。
+				 *
+				 * `.clinerules` → `clinerules`，`GEMINI.md` → `GEMINI`。规则名是去重键，也是用户在
+				 * `disabledRules` 里关掉它时写的那个词——目录里的规则一直是去过扩展名的，单文件这条
+				 * 路径漏了，于是同一份东西按放在哪儿会有两个名字。
+				 */
+				const name = dir.split(/[/\\]/).pop()?.replace(/^\./, "").replace(/\.mdc?$/i, "") ?? "rules";
 				const built = await buildFromFile(name, dir, source, raw, seen, diagnostics);
 				if (built) rules.push(built);
 			}

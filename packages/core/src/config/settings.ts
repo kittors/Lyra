@@ -303,6 +303,17 @@ export interface Settings {
 	 */
 	disabledRules: string[];
 	/**
+	 * 哪些外部工具的**个人**规则也读进来，按 provider id（`cursor`、`windsurf`、`gemini`…）。
+	 *
+	 * 项目里的 `.cursor/rules` 永远读——那是团队对这份代码做出的声明，提交在仓库里。而
+	 * `~/.cursor/rules` 是你自己的：让它跟着你进别人的仓库，会做出一个跟同事在同一份代码上
+	 * 行为不同的 agent，而屏幕上没有任何东西解释为什么。所以默认不读，要读得自己勾。
+	 *
+	 * 这个开关的另一半（`enabledUserSources`）在能力层里写好很久了，而**从来没有产品代码传过
+	 * 它**——所有外部工具的用户级目录一直都是读不到的。设置 › 插件 › 规则 现在把它接上了。
+	 */
+	enabledForeignUserRules: string[];
+	/**
 	 * How many sub-agents may run at once. Beyond this they queue.
 	 *
 	 * A limit rather than a refusal, because wanting to look at eight things is a reasonable thought
@@ -471,6 +482,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	scheduledTasks: [],
 	disabledPlugins: [],
 	disabledRules: [],
+	enabledForeignUserRules: [],
 	maxConcurrentSubAgents: 4,
 	modelRoles: {},
 	/*
@@ -617,6 +629,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
 			disabledRules: parsed.disabledRules ?? [],
+			enabledForeignUserRules: parsed.enabledForeignUserRules ?? [],
 			maxConcurrentSubAgents:
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))

@@ -109,7 +109,7 @@ export async function collectRules(
 	settings: Settings,
 	plugins: Plugin[],
 ): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }> {
-	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd });
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings) });
 	const off = new Set(settings.disabledRules ?? []);
 
 	return {
@@ -125,6 +125,16 @@ export async function collectRules(
 		})),
 		diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })),
 	};
+}
+
+/**
+ * 用户勾了哪些外部工具的个人规则。
+ *
+ * 三个读规则的入口共用一份答案。少传一处的后果不是报错，是那条入口安静地读不到用户级目录
+ * ——而这正是这个开关此前的状态：能力层认得它，没有任何产品代码传过它。
+ */
+function foreignUserSources(settings: Settings): ReadonlySet<string> {
+	return new Set(settings.enabledForeignUserRules ?? []);
 }
 
 /** A skill that was found and lost, with what beat it. */
@@ -167,7 +177,7 @@ function sessionRegistry(plugins: { enabled: boolean; skills: Skill[] }[]): Capa
  * extension worker as a side effect of writing one small markdown file.
  */
 export async function loadRules(cwd: string, settings: Settings, plugins: Plugin[]): Promise<RuleSet> {
-	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd });
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings) });
 	return groupRules(result.items, settings.disabledRules ?? [], result.diagnostics);
 }
 
@@ -217,7 +227,7 @@ export async function loadCapabilities(
 	 * the merge rules the same for every capability: a bucket is a property of a rule, not a
 	 * dimension the merge has to understand.
 	 */
-	const ruleResult = await registry.load<Rule>("rule", { cwd });
+	const ruleResult = await registry.load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings) });
 	const rules = groupRules(ruleResult.items, settings.disabledRules ?? [], ruleResult.diagnostics);
 
 	/*

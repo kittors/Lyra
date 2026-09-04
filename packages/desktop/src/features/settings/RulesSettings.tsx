@@ -59,6 +59,7 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 	const live = all.filter((rule) => !rule.shadowedBy);
 	const shadowed = all.filter((rule) => rule.shadowedBy);
 	const diagnostics = data?.diagnostics ?? [];
+	const enabled = new Set(data?.enabledForeignUserRules ?? []);
 
 	const toggle = async (rule: RuleEntry, on: boolean) => {
 		await bridge.rules.setDisabled(rule.name, !on);
@@ -99,6 +100,42 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 							</div>
 						))}
 					</div>
+				</Card>
+			)}
+
+			{/*
+			 * 别家工具的**个人**规则，默认不读。
+			 *
+			 * 项目里的 `.cursor/rules` 永远读——那是团队对这份代码做出的声明，提交在仓库里。而
+			 * `~/.cursor/rules` 是你自己的：让它跟着你进别人的仓库，会做出一个跟同事在同一份
+			 * 代码上行为不同的 agent，而屏幕上没有任何东西解释为什么。
+			 *
+			 * 逐个勾而不是一个总开关：一个人可能想让 Cursor 的个人规则跟着走，同时不想让三年前
+			 * 配的 Windsurf 也跟着。
+			 */}
+			{(data?.foreignUserSources.length ?? 0) > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 pt-3 pb-1">
+						<div className="text-label text-ink-muted">也读别家工具的个人规则</div>
+						<p className="mt-0.5 text-detail text-ink-faint">
+							项目里的那些一直都读。这里勾的是你自己主目录下的那份——它会跟着你进每一个仓库。
+						</p>
+					</div>
+					{data?.foreignUserSources.map((source) => (
+						<ListRow
+							key={source.id}
+							title={source.label}
+							detail={source.describe}
+							control={
+								<Toggle
+									checked={enabled.has(source.id)}
+									onChange={(on) => {
+										void bridge.rules.setForeignUser(source.id, on).then(reload);
+									}}
+								/>
+							}
+						/>
+					))}
 				</Card>
 			)}
 

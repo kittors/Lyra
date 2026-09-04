@@ -216,6 +216,7 @@ export const METHODS = {
 		 */
 		list: { channel: "rules:list", remote: false, why: "规则管理在桌面端，改完要去编辑那个文件" },
 		setDisabled: { channel: "rules:setDisabled", remote: false, why: "规则管理在桌面端" },
+		setForeignUser: { channel: "rules:setForeignUser", remote: false, why: "规则管理在桌面端" },
 	},
 	forge: {
 		kinds: { channel: "forge:kinds", remote: false, why: "代码托管的令牌不出桌面端" },

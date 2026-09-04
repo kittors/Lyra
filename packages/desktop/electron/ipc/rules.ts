@@ -12,7 +12,7 @@
 
 import { ipcMain } from "electron";
 import { join } from "node:path";
-import { collectRules, loadPlugins, lyraHome, renderRuleFile, type CorrectionSuggestion, type RuleDestination } from "@lyra/core";
+import { collectRules, FOREIGN_USER_SOURCES, loadPlugins, lyraHome, renderRuleFile, type CorrectionSuggestion, type RuleDestination } from "@lyra/core";
 import { applySettings, settings } from "../app-settings.ts";
 import { sessions } from "../session-hub.ts";
 
@@ -31,7 +31,27 @@ export function registerRulesIpc(): void {
 			],
 			settings().disabledPlugins,
 		);
-		return collectRules(cwd, settings(), loaded.plugins);
+		return {
+			...(await collectRules(cwd, settings(), loaded.plugins)),
+			/*
+			 * 有哪些外部工具的个人规则可以勾，跟着列表一起回去。
+			 *
+			 * 从 core 的 `SPECS` 派生，界面不再抄一份——一个只在 core 里加了、界面上没有的
+			 * 工具，等于一个永远勾不上的开关。
+			 */
+			foreignUserSources: FOREIGN_USER_SOURCES,
+			enabledForeignUserRules: settings().enabledForeignUserRules ?? [],
+		};
+	});
+
+	/** 勾或取消一个外部工具的个人规则目录。 */
+	ipcMain.handle("rules:setForeignUser", async (_event, id: string, enabled: boolean) => {
+		const current = settings();
+		const on = new Set(current.enabledForeignUserRules ?? []);
+		if (enabled) on.add(id);
+		else on.delete(id);
+		await applySettings({ ...current, enabledForeignUserRules: [...on] });
+		for (const session of sessions.values()) await session.can.reloadRules(session.cwd, settings()).catch(() => {});
 	});
 
 	/** 关掉或打开一条规则。按名字记，所以同名的一起。 */

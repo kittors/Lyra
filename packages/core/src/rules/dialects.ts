@@ -12,7 +12,7 @@
  * They are normalised here, in one place, so `loader.ts` only ever sees our own shape.
  */
 
-export type Dialect = "lyra" | "cursor" | "windsurf" | "cline" | "copilot";
+export type Dialect = "lyra" | "cursor" | "windsurf" | "cline" | "copilot" | "plain";
 
 export interface Normalized {
 	frontmatter: Record<string, unknown>;
@@ -34,6 +34,8 @@ export function normalizeFrontmatter(dialect: Dialect, raw: Record<string, unkno
 			return normalizeWindsurf(raw);
 		case "cline":
 			return normalizeCline(raw, name);
+		case "plain":
+			return normalizePlain(raw);
 		case "copilot":
 			return normalizeCopilot(raw, name);
 		default:
@@ -82,6 +84,20 @@ function normalizeWindsurf(raw: Record<string, unknown>): Normalized {
 
 /** Cline. `.clinerules` files carry no frontmatter at all: the whole file is a standing instruction. */
 function normalizeCline(raw: Record<string, unknown>, _name: string): Normalized {
+	const out: Record<string, unknown> = { ...raw };
+	if (!out.description && out.alwaysApply !== true) out.alwaysApply = true;
+	return { frontmatter: out };
+}
+
+/**
+ * 纯 markdown，没有 frontmatter：Gemini CLI 的 `GEMINI.md`、Codex 的 `AGENTS.md`。
+ *
+ * 这类文件整份就是一段指令，作者写它的时候没有「什么时候生效」这个概念——所以是常驻。
+ *
+ * 跟 `cline` 的处理一样，而没有复用它：方言名会出现在诊断里，说「这份 GEMINI.md 的 cline
+ * 格式有问题」是在告诉人一件不成立的事。
+ */
+function normalizePlain(raw: Record<string, unknown>): Normalized {
 	const out: Record<string, unknown> = { ...raw };
 	if (!out.description && out.alwaysApply !== true) out.alwaysApply = true;
 	return { frontmatter: out };
