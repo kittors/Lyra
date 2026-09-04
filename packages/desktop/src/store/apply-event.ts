@@ -253,6 +253,14 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         running: true,
         retrying: null,
         stopped: null,
+        /*
+         * An unanswered offer does not survive into the next turn.
+         *
+         * It is about the exchange that had just happened. Left up, it would sit under a reply to
+         * a different question — still offering to save a rule about something the conversation
+         * has moved past, and still looking like it is about what is on screen now.
+         */
+        ruleOffer: null,
         // The composer already started the clock when it sent, and the ~2s of session
         // setup before the agent starts is part of the wait. Overwriting it here made
         // the elapsed time jump backwards. A turn driven from the phone or the
@@ -465,6 +473,20 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
             message: event.message,
           },
         ],
+      });
+      break;
+
+    case "rule_suggested":
+      /*
+       * A question, not a record — which is why it is state rather than a message.
+       *
+       * Everything above this point has already returned for sessions that are not on screen, and
+       * that is the behaviour this one needs: an offer about a conversation somebody is not
+       * looking at would be answered with no idea what it referred to. The session spends its
+       * budget either way, which is the honest cost — it did ask.
+       */
+      set({
+        ruleOffer: { name: event.name, body: event.body, condition: event.condition, scope: event.scope },
       });
       break;
 

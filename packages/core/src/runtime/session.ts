@@ -14,6 +14,7 @@ import type { AgentEvent, AgentEventSink, QueuedTask } from "../agent/events.ts"
 import type { AgentRunConfig } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
 import { resolveModel } from "../config/settings.ts";
+import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
 import type { ApprovalDecision, ApprovalRequest, Message, ThinkingLevel, Tool, UserContent } from "../types.ts";
@@ -200,6 +201,28 @@ export class AgentSession {
 	/** Drop the cached symbol index so the next `symbol` lookup re-reads it from disk. */
 	invalidateSymbolIndex(): void {
 		this.can.invalidateSymbolIndex();
+	}
+
+	/**
+	 * Keep a suggested rule, and make it apply from the next turn on.
+	 *
+	 * The reload is the part that must not be skipped. Writing the file and leaving the session
+	 * with the rules it loaded at startup gives the worst version of this feature: somebody accepts
+	 * the offer, watches the same mistake happen in the very next message, and concludes the whole
+	 * thing does nothing.
+	 *
+	 * Accepting also clears the refusal streak — they want these, they just did not want those two.
+	 */
+	async keepSuggestedRule(scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }> {
+		const saved = await saveRule(scope, this.cwd, name, content);
+		this.can.correctionBudget.recordAcceptance();
+		await this.can.reloadRules(this.cwd, this.settings);
+		return saved;
+	}
+
+	/** They said no. Two in a row and this session stops asking. */
+	declineSuggestedRule(): void {
+		this.can.correctionBudget.recordRefusal();
 	}
 
 	updateSettings(settings: Settings): void {

@@ -198,6 +198,17 @@ export const METHODS = {
 	scheduler: {
 		runNow: { channel: "scheduler:runNow", remote: false, why: "定时任务在桌面端执行" },
 	},
+	/*
+	 * 回答「要把这次纠正变成一条规则吗」那张卡片。
+	 *
+	 * 手机能调：卡片跟着转录一起出现在手机上，而一张按不动的卡片比没有卡片更糟——
+	 * 它出现在正确的时刻，然后什么也不做。落盘仍然发生在桌面端的项目目录里。
+	 */
+	rules: {
+		preview: { channel: "rules:preview", remote: true },
+		keep: { channel: "rules:keep", remote: true },
+		decline: { channel: "rules:decline", remote: true },
+	},
 	forge: {
 		kinds: { channel: "forge:kinds", remote: false, why: "代码托管的令牌不出桌面端" },
 		accounts: { channel: "forge:accounts", remote: false, why: "代码托管的令牌不出桌面端" },

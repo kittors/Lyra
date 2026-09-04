@@ -473,7 +473,13 @@ export const DEFAULT_SETTINGS: Settings = {
 	disabledRules: [],
 	maxConcurrentSubAgents: 4,
 	modelRoles: {},
-	memoryExtraction: undefined,
+	/*
+	 * `memoryExtraction` is deliberately absent rather than `undefined`.
+	 *
+	 * Its whole point is that "never asked" is a third state, and an absent key is how that is
+	 * spelled. Written out as `undefined` it becomes a key that exists and holds nothing, which
+	 * reads to `Object.keys` — and so to the phone-settings merge — as a field somebody deleted.
+	 */
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
@@ -602,7 +608,16 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
 					: 4,
-			memoryExtraction: typeof parsed.memoryExtraction === "boolean" ? parsed.memoryExtraction : undefined,
+			/*
+			 * Spread rather than assigned, so "never asked" is an absent key rather than a present
+			 * one holding `undefined`.
+			 *
+			 * The two are the same to every reader — `settings.memoryExtraction` is undefined either
+			 * way — and different to `Object.keys`, which is what the merge that keeps a phone from
+			 * dropping fields walks. A key that is always there and always undefined reads to that
+			 * merge as a field the phone deleted.
+			 */
+			...(typeof parsed.memoryExtraction === "boolean" ? { memoryExtraction: parsed.memoryExtraction } : {}),
 			modelRoles:
 				parsed.modelRoles && typeof parsed.modelRoles === "object"
 					? Object.fromEntries(

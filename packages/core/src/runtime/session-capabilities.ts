@@ -19,6 +19,7 @@ import { ResourceRouter } from "../resources/router.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
+import { OfferBudget } from "../rules/from-correction.ts";
 import { StreamRuleMonitor } from "../rules/stream.ts";
 import { EMPTY_RULE_SET, type RuleSet } from "../rules/types.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
@@ -26,7 +27,7 @@ import { invalidateIndex } from "../tools/index.ts";
 import { RULES_KEY } from "../tools/rule.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
-import { loadCapabilities } from "./session-setup.ts";
+import { loadCapabilities, loadRules } from "./session-setup.ts";
 
 export class SessionCapabilities {
 	tools: Tool[] = [];
@@ -63,6 +64,15 @@ export class SessionCapabilities {
 	 * with none pays nothing.
 	 */
 	readonly extensions = new ExtensionHost();
+
+	/**
+	 * How many times this session may still offer to turn a correction into a rule.
+	 *
+	 * Session-scoped, and deliberately not persisted: "you have said no twice" is a fact about a
+	 * conversation, not about a person. Somebody who dismissed two offers on Monday should not find
+	 * the feature permanently gone on Tuesday.
+	 */
+	readonly correctionBudget = new OfferBudget();
 
 	/** Shared scratch space for tools that need to remember something across calls. */
 	readonly state = new Map<string, unknown>();
@@ -103,6 +113,19 @@ export class SessionCapabilities {
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
+		this.state.set(RULES_KEY, this.rules);
+	}
+
+	/**
+	 * Re-read the rules and nothing else, for a rule written while this session is running.
+	 *
+	 * The monitor is rebuilt, which resets what has fired — a `once` rule that already fired may
+	 * fire once more. That is the honest trade: the alternative is carrying counters for rules that
+	 * may no longer exist, and a rule saved thirty seconds ago has not used up its one turn yet.
+	 */
+	async reloadRules(cwd: string, settings: Settings): Promise<void> {
+		this.rules = await loadRules(cwd, settings, this.plugins);
+		this.ruleMonitor = new StreamRuleMonitor(this.rules.stream);
 		this.state.set(RULES_KEY, this.rules);
 	}
 

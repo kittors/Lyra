@@ -297,6 +297,14 @@ export interface AppState {
   /** Where history was summarised, by position in the transcript. */
   compactions: { at: number; before: number; after: number }[];
   notices: { id: string; level: "info" | "warn" | "error"; message: string }[];
+  /**
+   * A correction the runtime thinks could become a rule, waiting to be answered.
+   *
+   * One at a time and not kept in the transcript. An offer is about the exchange that just
+   * happened, and one still sitting there three turns later would be asking about something the
+   * person has moved on from — so a new turn clears it whether or not it was answered.
+   */
+  ruleOffer: { name: string; body: string; condition?: string; scope?: string } | null;
   capabilities: AgentCapabilities | null;
   sync: SyncStatus | null;
 
@@ -430,6 +438,7 @@ export const useApp = create<AppState>((set, get) => ({
   compactions: [],
   todos: [],
   notices: [],
+  ruleOffer: null,
   capabilities: null,
   sync: null,
 

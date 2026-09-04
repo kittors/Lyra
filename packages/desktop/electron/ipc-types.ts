@@ -66,11 +66,13 @@ import type {
 	ApprovalDecision,
 	BundleKind,
 	ContextBreakdown,
+	CorrectionSuggestion,
 	McpBundle,
 	Registry,
 	RegistryEntry,
 	Plugin,
 	QueuedTask,
+	RuleDestination,
 	ScreenshotSettings,
 	SessionMeta,
 	Settings,
@@ -723,6 +725,21 @@ export interface LyraApi {
 	scheduler: {
 		/** Run a scheduled task immediately, through the same path the timer uses. */
 		runNow(taskId: string): Promise<{ ok: boolean; error?: string }>;
+	};
+	/**
+	 * Answering the card that offers to turn a correction into a rule.
+	 *
+	 * `preview` renders in the main process on purpose: the card shows the exact text that will be
+	 * written, produced by the same function that writes it. A second renderer in the window would
+	 * drift, and it would drift in the direction where somebody approves text that is not what
+	 * lands on disk.
+	 */
+	rules: {
+		preview(suggestion: CorrectionSuggestion): Promise<string>;
+		/** Save it and make it apply from the next turn. `renamed` when the name was taken. */
+		keep(sessionId: string, scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }>;
+		/** They said no. Two in a row and this session stops offering. */
+		decline(sessionId: string): Promise<void>;
 	};
 	/**
 	 * The code hosts this app is signed in to.

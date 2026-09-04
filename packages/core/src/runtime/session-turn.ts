@@ -16,7 +16,7 @@ import { join } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
 import type { AgentRunConfig } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
-import type { streamAssistant } from "../ai/index.ts";
+import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { formatMemoryForPrompt, loadMemory } from "./memory.ts";
@@ -41,6 +41,7 @@ import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
+import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -85,6 +86,24 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		resuming: (info) => input.emit({ type: "retry", ...info, resume: true }),
 		// So that pressing stop during a minute-long wait is felt immediately.
 		signal: input.signal,
+	});
+
+	/*
+	 * After the work, never during it.
+	 *
+	 * A choice presented in the middle of an action is one people dismiss to get it out of the way,
+	 * and this one is worth reading. It is also the reason this is awaited rather than left running:
+	 * an offer that arrives after the next prompt has started would be about the wrong exchange.
+	 */
+	await offerRuleFromCorrection({
+		messages: input.log.messages,
+		settings: input.settings,
+		provider: input.provider,
+		model: input.model,
+		stream: summaryStream(input.streamFn, input.provider, input.model) ?? streamAssistant,
+		budget: input.can.correctionBudget,
+		signal: input.signal,
+		emit: input.emit,
 	});
 }
 

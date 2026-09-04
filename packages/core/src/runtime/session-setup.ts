@@ -101,6 +101,21 @@ function sessionRegistry(plugins: { enabled: boolean; skills: Skill[] }[]): Capa
 	return registry;
 }
 
+/**
+ * The rules alone, for when one is written while a session is running.
+ *
+ * Saving a rule from a correction has to make it apply. A rule that only takes effect after a
+ * restart is indistinguishable from one that was not saved — and the whole promise of the offer is
+ * that next time the mistake is about to happen, something stops it.
+ *
+ * Reloading everything would do it too, and would also reconnect every MCP server and reload every
+ * extension worker as a side effect of writing one small markdown file.
+ */
+export async function loadRules(cwd: string, settings: Settings, plugins: Plugin[]): Promise<RuleSet> {
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd });
+	return groupRules(result.items, settings.disabledRules ?? [], result.diagnostics);
+}
+
 /** Load skills, agents and MCP tools. Safe to call again after settings change. */
 export async function loadCapabilities(
 	cwd: string,

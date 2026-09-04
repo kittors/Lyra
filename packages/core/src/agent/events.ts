@@ -50,6 +50,19 @@ export type AgentEvent =
 			}[];
 	  }
 	/**
+	 * A correction the runtime thinks could become a rule.
+	 *
+	 * Emitted after a turn, never during one. The offer is not part of the work, and a choice
+	 * presented mid-action is one people dismiss to get it out of the way.
+	 */
+	| {
+			type: "rule_suggested";
+			name: string;
+			body: string;
+			condition?: string;
+			scope?: string;
+	  }
+	/**
 	 * What the model was given at the start of a turn.
 	 *
 	 * The transcript records what the model said; this records what it was told — the system

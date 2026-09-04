@@ -15,7 +15,7 @@
  * you can read top to bottom rather than a rule spread across the handlers.
  */
 
-import type { AgentSession, SessionStorage, Settings } from "@lyra/core";
+import { renderRuleFile, type AgentSession, type CorrectionSuggestion, type SessionStorage, type Settings } from "@lyra/core";
 import { settingsFromPhone } from "./phone-settings.ts";
 import {
 	all,
@@ -221,6 +221,29 @@ export const RPC: Record<string, Handler> = {
 			toolNames: status.toolNames,
 		};
 	},
+
+	/*
+	 * Answering the card that offers to keep a correction as a rule.
+	 *
+	 * The card rides the transcript, so it reaches the phone whether or not the buttons do — and a
+	 * card that cannot be answered is worse than no card: it appears at the right moment and then
+	 * does nothing. What the file *is* does not change because the answer came over a socket; it
+	 * still lands in the desktop's project directory.
+	 *
+	 * `keep` needs a warm session and will not start one. There is nothing to save a rule into
+	 * otherwise — the destination is that session's own cwd — and an offer is only ever answered in
+	 * the minutes after it appears, while its session is still up.
+	 */
+	"rules.preview": async (_deps, [suggestion]) => renderRuleFile(suggestion as CorrectionSuggestion),
+	"rules.keep": async (deps, [sessionId, scope, name, content_]) => {
+		const session = deps.live(s(sessionId));
+		if (!session) throw new Error("这个会话已经关掉了，规则没有保存。");
+		return session.keepSuggestedRule(scope === "user" ? "user" : "project", s(name), s(content_));
+	},
+	"rules.decline": async (deps, [sessionId]) => {
+		deps.live(s(sessionId))?.declineSuggestedRule();
+		return null;
+	},
 };
 
 /** The session for an id, starting it from disk if it is only stored. */
@@ -295,6 +318,15 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 	 */
 	"settings.save": ([next]) => fail(record(next, "settings")),
 	"subAgents.list": ([sessionId]) => fail(str(sessionId, "sessionId")),
+
+	/*
+	 * The rule's own text is checked as `text`, not `str`: it is prose with a frontmatter block on
+	 * top, and the id-sized bound the default carries would refuse a perfectly ordinary rule.
+	 */
+	"rules.preview": ([suggestion]) => fail(record(suggestion, "suggestion")),
+	"rules.keep": ([sessionId, scope, name, content_]) =>
+		fail(all(str(sessionId, "sessionId"), str(scope, "scope"), str(name, "name"), text(content_, "content"))),
+	"rules.decline": ([sessionId]) => fail(str(sessionId, "sessionId")),
 };
 
 /** `undefined` is fine, anything else has to be an object. */
