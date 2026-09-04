@@ -297,9 +297,130 @@ export async function clearScratch(dir: string): Promise<void> {
 	await rm(dir, { recursive: true, force: true }).catch(() => {});
 }
 
-export const BUILTIN_RESOURCES: ResourceHandler[] = [skillResource, ruleResource, scratchResource, lyraResource];
 
 /** Where the scratch directory for a session lives, given the app's home. */
 export function scratchPath(home: string, sessionId: string): string {
 	return join(home, "scratch", sessionId);
 }
+
+/**
+ * `agent://<id>` is a sub-agent's structured result; `agent://<id>/<path>` is one field of it.
+ *
+ * The reason for the path half: in an orchestration with eight sub-agents, a parent that wants one
+ * value has to re-read a whole reply to get it, and does that eight times. `agent://sub-a1b2/
+ * files.0.path` is the value.
+ *
+ * The path syntax is `a.b.0.c` and nothing more. JSONPath expressions (`$..[?(@.x)]`) are a second
+ * language, and the cost of a model learning it exceeds what it buys over reading one more field.
+ */
+export const agentResource: ResourceHandler = {
+	scheme: "agent",
+	describe: "`agent://<id>` 子代理交回的结构化结果；`agent://<id>/<字段路径>` 取其中一个字段（如 `files.0.path`）",
+
+	async resolve(url: ParsedUrl, ctx: ResourceContext): Promise<Resource> {
+		const registry = ctx.state.get(SUBAGENTS_KEY) as SubAgentLookup | undefined;
+		if (!registry) throw new ResourceError("这个会话没有子代理。");
+
+		const [id, ...rest] = url.segments;
+		/*
+		 * Accept a suffix as well as the full id.
+		 *
+		 * The id is `<session>:sub:<8 hex>`, and what appears in the transcript and what a person
+		 * types is the short tail. Resolving through `detail` in both cases matters: `list` returns
+		 * summaries, which carry no structured output, and taking one of those would report every
+		 * short-form address as having no result.
+		 */
+		const match = registry.detail(id) ?? (() => {
+			const found = registry.list().find((r) => r.id.endsWith(id));
+			return found ? registry.detail(found.id) : null;
+		})();
+		const record = match;
+		if (!record) {
+			const known = registry.list().map((r) => r.id).join("、");
+			throw new ResourceError(`没有 id 是“${id}”的子代理。现有的是：${known || "（一个都没有）"}`);
+		}
+		if (!record.output) {
+			/*
+			 * A sub-agent without a declared schema returns prose, and that is not a failure — so the
+			 * text is handed over rather than an error. Saying "this one has no structured output"
+			 * and stopping would send the parent looking for a way to get it, and there is not one.
+			 */
+			return {
+				url: url.raw,
+				content: record.answer ?? "（这个子代理还没有结果）",
+				contentType: "text/plain",
+				label: `子代理 ${record.agent} 的回复（这个 agent 没有声明结构化输出，所以是文本）`,
+				meta: { id: record.id, agent: record.agent, status: record.status },
+			};
+		}
+
+		if (rest.length === 0) {
+			return {
+				url: url.raw,
+				content: JSON.stringify(record.output, null, 2),
+				contentType: "application/json",
+				label: `子代理 ${record.agent} 的完整结果`,
+				meta: { id: record.id, agent: record.agent, status: record.status, warnings: record.warnings },
+			};
+		}
+
+		const picked = pickPath(record.output, rest.join("/").split("."));
+		if (picked === undefined) {
+			throw new ResourceError(`子代理 ${record.id} 的结果里没有 \`${rest.join("/")}\`。可用的顶层字段：${Object.keys(record.output).join("、")}`);
+		}
+		return {
+			url: url.raw,
+			content: typeof picked === "string" ? picked : JSON.stringify(picked, null, 2),
+			contentType: typeof picked === "string" ? "text/plain" : "application/json",
+			label: `子代理 ${record.agent} 结果里的 ${rest.join("/")}`,
+			meta: { id: record.id, agent: record.agent },
+		};
+	},
+
+	async list(ctx: ResourceContext): Promise<Completion[]> {
+		const registry = ctx.state.get(SUBAGENTS_KEY) as SubAgentLookup | undefined;
+		if (!registry) return [];
+		return registry.list().map((r) => ({ value: `agent://${r.id}`, description: `${r.agent} · ${r.description} · ${r.status}` }));
+	},
+};
+
+/** Only what `agent://` needs, so this file does not depend on the registry's whole shape. */
+interface SubAgentLookup {
+	list(): { id: string; agent: string; description: string; status: string }[];
+	detail(id: string): {
+		id: string;
+		agent: string;
+		status: string;
+		answer?: string;
+		output?: Record<string, unknown>;
+		warnings?: string[];
+	} | null;
+}
+
+export const SUBAGENTS_KEY = "subAgentRegistry";
+
+/** Walk `a.b.0.c`. Anything the path does not fit returns undefined rather than throwing. */
+function pickPath(root: unknown, segments: string[]): unknown {
+	let current: unknown = root;
+	for (const segment of segments) {
+		if (current === null || current === undefined) return undefined;
+		if (Array.isArray(current)) {
+			const index = Number(segment);
+			if (!Number.isInteger(index)) return undefined;
+			current = current.at(index);
+			continue;
+		}
+		if (typeof current !== "object") return undefined;
+		current = (current as Record<string, unknown>)[segment];
+	}
+	return current;
+}
+
+/**
+ * The shipped schemes.
+ *
+ * `agent://` is in the list but contributes nothing until a session registers a sub-agent registry,
+ * which is what keeps it out of the prompt for sessions that cannot dispatch — an advertised
+ * address that never resolves teaches the model to try things that fail.
+ */
+export const BUILTIN_RESOURCES: ResourceHandler[] = [skillResource, ruleResource, scratchResource, lyraResource, agentResource];

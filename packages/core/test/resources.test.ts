@@ -278,3 +278,79 @@ test("resolveInside uses path.relative rather than string prefixes", () => {
 	 */
 	assert.equal(resolveInside("/a/b", "../bc/d"), null);
 });
+
+// ---------------------------------------------------------------------------
+// agent://
+// ---------------------------------------------------------------------------
+
+/** Only the two methods the handler uses, holding one finished run. */
+function registryWith(record: Record<string, unknown>) {
+	return {
+		list: () => [{ id: "s1:sub:a1b2c3d4", agent: "explore", description: "找登录", status: "done" }],
+		detail: (id: string) => (id === "s1:sub:a1b2c3d4" ? record : null),
+	};
+}
+
+const FINISHED = {
+	id: "s1:sub:a1b2c3d4",
+	agent: "explore",
+	status: "done",
+	answer: "渲染过的文本",
+	output: {
+		summary: "登录分三段。",
+		files: [
+			{ path: "src/auth/login.ts:42", why: "入口" },
+			{ path: "src/db/users.ts", why: "查用户" },
+		],
+	},
+};
+
+function agentCtx(record: Record<string, unknown> = FINISHED): ResourceContext {
+	const map = state();
+	map.set("subAgentRegistry", registryWith(record));
+	return { cwd: root, sessionId: "s1", scratchDir, state: map };
+}
+
+test("agent:// returns the whole structured result", async () => {
+	const resource = await router().resolve("agent://s1:sub:a1b2c3d4", agentCtx());
+	assert.match(resource.content, /登录分三段/);
+	assert.equal(resource.contentType, "application/json");
+});
+
+test("a field path takes one value out, as a bare string", async () => {
+	/*
+	 * The point of the whole scheme: in an orchestration with eight sub-agents, a parent that wants
+	 * one path re-reads eight whole replies to get eight values.
+	 */
+	const resource = await router().resolve("agent://s1:sub:a1b2c3d4/files.0.path", agentCtx());
+	assert.equal(resource.content, "src/auth/login.ts:42", "no JSON quoting around a string leaf");
+	assert.equal(resource.contentType, "text/plain");
+});
+
+test("an array index that is out of range is an error naming what exists", async () => {
+	await assert.rejects(() => router().resolve("agent://s1:sub:a1b2c3d4/files.9.path", agentCtx()), /没有/);
+});
+
+test("a short id resolves, and still finds the structured output", async () => {
+	/*
+	 * The regression this pins: matching a suffix through `list()` returns a summary, which carries
+	 * no `output` — so every short-form address reported "this agent returned prose" for an agent
+	 * that had in fact yielded an object.
+	 */
+	const resource = await router().resolve("agent://a1b2c3d4/summary", agentCtx());
+	assert.equal(resource.content, "登录分三段。");
+});
+
+test("an agent that returned prose hands over the prose rather than erroring", async () => {
+	/*
+	 * No schema is not a failure. Refusing here would send the parent looking for a way to get
+	 * structured output from an agent that was never going to produce any.
+	 */
+	const resource = await router().resolve("agent://s1:sub:a1b2c3d4", agentCtx({ ...FINISHED, output: undefined }));
+	assert.equal(resource.content, "渲染过的文本");
+	assert.match(resource.label ?? "", /没有声明结构化输出/);
+});
+
+test("a session with no sub-agents says so", async () => {
+	await assert.rejects(() => router().resolve("agent://whatever", ctx()), /没有子代理/);
+});

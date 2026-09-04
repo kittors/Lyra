@@ -302,7 +302,12 @@ export async function runSubAgent(
 	 * A sub-agent stopped on purpose has done exactly what was asked of it, and recording that as a
 	 * failure would put an error in the parent's transcript for a button the user pressed.
 	 */
-	registry?.finish(id, controller.signal.aborted ? { status: "aborted" } : { status: "done", answer });
+	registry?.finish(
+		id,
+		controller.signal.aborted
+			? { status: "aborted" }
+			: { status: "done", answer, output: yielded?.value, warnings: yielded?.warnings },
+	);
 	await options.emit({ type: "subagent_done", id, steps, answer });
 	return { text: answer, output: yielded?.value, warnings: yielded?.warnings };
 }

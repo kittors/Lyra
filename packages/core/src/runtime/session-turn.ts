@@ -36,6 +36,7 @@ import { droppedMessage, lastRequest, summaryMessages } from "./compaction.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
+import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
 import { prepareTurn } from "./turn.ts";
 import { buildTurnConfig } from "./turn-config.ts";
@@ -140,6 +141,16 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 
 async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig; systemPrompt: string }> {
 	const { cwd, can, log, settings } = input;
+
+	/*
+	 * Where `agent://` finds the sub-agents this session dispatched.
+	 *
+	 * Put in the state map rather than handed to the router, because the router is built once per
+	 * session while the registry arrives per turn — and a session with no registry (the CLI, a
+	 * test) should leave `agent://` resolving to "this session has no sub-agents" rather than to
+	 * a stale one.
+	 */
+	if (input.subAgents) can.state.set(SUBAGENTS_KEY, input.subAgents);
 
 	let memorySnippet = "";
 	if (settings.personalization?.enableMemory !== false) {
