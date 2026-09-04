@@ -20,6 +20,7 @@ import { runTurn } from "../agent/runner.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { withEnvironment } from "../prompt/environment.ts";
+import { readPromptOverride } from "../prompt/overrides.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { lyraHome } from "../session/store.ts";
@@ -199,6 +200,14 @@ export async function runSubAgent(
 		skills: options.skills,
 		agents: options.agents,
 		projectInstructions: await loadProjectInstructions(options.cwd),
+		/*
+		 * 行为准则跟着走，身份不跟。
+		 *
+		 * 「注释一律中文」「匹配周围代码风格」对子代理写的代码同样成立——这些约定管的是产出，
+		 * 而子代理的产出最后进的是同一个仓库。而 `identity` 不读：子代理的身份由它自己的定义
+		 * 写着（「你是一个只读的代码审查者」），用项目的身份段盖掉它，等于把派它出去的理由抹掉。
+		 */
+		guidelinesOverride: await readPromptOverride(options.cwd, "guidelines"),
 		platform: platform(),
 		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),

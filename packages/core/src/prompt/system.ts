@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import type { RuleSet } from "../rules/types.ts";
 import { formatRules } from "../rules/session.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
+import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
@@ -79,6 +80,13 @@ export interface SystemPromptInput {
 	 * Rendered as a template, so it can say things like `{{#has tools "bash"}}`.
 	 */
 	identityOverride?: string;
+	/**
+	 * 换掉内置的行为准则，来自 `.lyra/prompts/guidelines.md`。
+	 *
+	 * 换的只是内置那十二条，**工具贡献的仍然照常追加**——`bash` 关于 shell 的几句是那个工具的
+	 * 说明书，不是一条可以被别人的偏好删掉的意见。`boundaries` 不在可换之列。
+	 */
+	guidelinesOverride?: string;
 }
 
 const IDENTITY = `You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files. You are judged on whether the code works, not on how the answer reads.`;
@@ -121,7 +129,8 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<strin
 	// Deduplicate while preserving order: two tools may contribute the same rule.
 	const guidelines: string[] = [];
 	const seen = new Set<string>();
-	for (const guideline of [...BASE_GUIDELINES, ...input.tools.flatMap((tool) => tool.guidelines ?? [])]) {
+	const base = input.guidelinesOverride?.trim() ? parseGuidelines(input.guidelinesOverride) : BASE_GUIDELINES;
+	for (const guideline of [...base, ...input.tools.flatMap((tool) => tool.guidelines ?? [])]) {
 		const normalized = guideline.trim();
 		if (!normalized || seen.has(normalized)) continue;
 		seen.add(normalized);

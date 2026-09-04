@@ -226,6 +226,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 				resources: can.resources.schemes(),
 				dispatchLimits: { maxConcurrent: settings.maxConcurrentSubAgents, maxDepth: DEFAULT_MAX_DEPTH },
 				identityOverride: await readPromptOverride(cwd, "identity"),
+				guidelinesOverride: await readPromptOverride(cwd, "guidelines"),
 		}),
 	});
 
