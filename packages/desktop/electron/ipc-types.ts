@@ -915,6 +915,23 @@ export interface LyraApi {
 		remove(id: string): Promise<boolean>;
 		clear(): Promise<void>;
 	};
+	/**
+	 * 这个项目的记忆——跟上面那个跨项目的偏好库是两回事。
+	 *
+	 * 上面那个是「我这个人的习惯」，存在 `~/.lyra/memory.json`；这个是「这个仓库怎么回事」，
+	 * 由后台抽取从历史会话里读出来，存在项目自己的记忆目录。
+	 */
+	projectMemory: {
+		/**
+		 * 现在该不该跑一遍抽取。
+		 *
+		 * `never-asked` 不是「不跑」——它是**去问**的信号。窗口拿到这个才弹征询，
+		 * 而不是每次空闲都弹。
+		 */
+		status(cwd: string): Promise<{ run: boolean; reason?: string }>;
+		/** 跑一遍。返回写了什么、读了几个会话，或者为什么没跑。 */
+		extract(cwd: string): Promise<{ memory: string; sessions: number; skipped?: string }>;
+	};
 	diff: {
 		/** Uncommitted changes for the review panel. */
 		workspaceDiff(cwd: string): Promise<{ files: WorkspaceDiffFile[]; added: number; removed: number; branch: string | null }>;

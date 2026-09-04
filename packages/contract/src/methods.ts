@@ -268,6 +268,16 @@ export const METHODS = {
 		remove: { channel: "memory:remove", remote: false, why: "手机上没有编辑记忆的界面" },
 		clear: { channel: "memory:clear", remote: false, why: "手机上没有编辑记忆的界面" },
 	},
+	projectMemory: {
+		/*
+		 * 后台抽取由桌面端跑，手机不参与。
+		 *
+		 * 它读的是那台机器上的会话文件、写的是那台机器上的记忆目录，而且是「空闲时跑一遍」的
+		 * 后台活——手机端连着的时候，那台机器并不空闲。
+		 */
+		status: { channel: "projectMemory:status", remote: false, why: "后台抽取跑在桌面端" },
+		extract: { channel: "projectMemory:extract", remote: false, why: "后台抽取跑在桌面端" },
+	},
 	diff: {
 		workspaceDiff: { channel: "diff:workspace", remote: false, why: "手机上没有审阅改动的界面" },
 		blob: { channel: "diff:blob", remote: false, why: "手机上没有审阅改动的界面" },

@@ -222,5 +222,6 @@ export {
 	GPT_5_6_SOL_OPTIONS,
 	FAST_3_LEVEL_OPTIONS,
 } from "./ai/thinking-options.ts";
+export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory-pass.ts";
 export { renderRuleFile, type CorrectionSuggestion } from "./rules/from-correction.ts";
 export { ruleDir, saveRule, type RuleDestination } from "./rules/save.ts";
