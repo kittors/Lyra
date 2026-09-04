@@ -10,6 +10,8 @@
  * the todo list and the skill catalogue — things a tool wrote down for the next tool to read.
  */
 
+import { ExtensionHost } from "../extensions/host.ts";
+import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
@@ -53,6 +55,15 @@ export class SessionCapabilities {
 	 */
 	readonly resources = buildRouter();
 
+	/**
+	 * Third-party extensions, each in its own worker.
+	 *
+	 * Session-scoped like everything else here, and disposed with the session — a worker left
+	 * running is a thread nobody owns. Empty until `load` finds extension directories, so a session
+	 * with none pays nothing.
+	 */
+	readonly extensions = new ExtensionHost();
+
 	/** Shared scratch space for tools that need to remember something across calls. */
 	readonly state = new Map<string, unknown>();
 	readonly mcp = new McpManager();
@@ -82,6 +93,13 @@ export class SessionCapabilities {
 		this.ruleMonitor = new StreamRuleMonitor(loaded.rules.stream);
 		this.mcpStatuses = loaded.mcpStatuses;
 		this.tools = loaded.tools;
+		/*
+		 * Extensions load after everything else, because they can only affect what already exists.
+		 *
+		 * Failures here are diagnostics rather than exceptions: a broken extension must not stop a
+		 * session from starting, which is the same reason a broken skill does not.
+		 */
+		for (const dir of await extensionDirs(cwd)) await this.extensions.load(dir).catch(() => false);
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
@@ -95,6 +113,7 @@ export class SessionCapabilities {
 
 	async dispose(): Promise<void> {
 		await this.mcp.closeAll();
+		await this.extensions.dispose().catch(() => {});
 		/*
 		 * Language servers are hundreds of megabytes each and outlive the session that started them
 		 * unless something kills them. The manager is created lazily by the `lsp` tool and parked in
@@ -110,4 +129,22 @@ function buildRouter(): ResourceRouter {
 	const router = new ResourceRouter();
 	for (const handler of BUILTIN_RESOURCES) router.register(handler);
 	return router;
+}
+
+/**
+ * Where extensions live: `<cwd>/.lyra/extensions/*` and `~/.lyra/extensions/*`.
+ *
+ * One directory per extension, each with its own `extension.json`. Missing directories are the
+ * normal case and are not reported — most projects have none.
+ */
+async function extensionDirs(cwd: string): Promise<string[]> {
+	const { readdir } = await import("node:fs/promises");
+	const { join } = await import("node:path");
+	const roots = [join(cwd, ".lyra", "extensions"), join(lyraHome(), "extensions")];
+	const found: string[] = [];
+	for (const root of roots) {
+		const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+		for (const entry of entries) if (entry.isDirectory()) found.push(join(root, entry.name));
+	}
+	return found;
 }

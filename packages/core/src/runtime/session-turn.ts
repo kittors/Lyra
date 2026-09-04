@@ -227,7 +227,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			requestApproval: input.requestApproval,
 			emit: input.emit,
 			summaryStream: (provider) => summaryStream(input.streamFn, provider, input.model),
-			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal),
+			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal, can.extensions),
 			afterToolCall: makeAfterToolCall(settings.hooks, cwd, input.signal),
 			drainSteering: input.drainSteering,
 		},
