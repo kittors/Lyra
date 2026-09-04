@@ -754,20 +754,11 @@ export async function migrateSecrets(): Promise<number> {
 	return plaintext.length;
 }
 
-/** Find a model across all configured providers by its `${providerId}/${modelId}` id. */
-export function resolveModel(settings: Settings, id: string | null) {
-	if (!id) return null;
-	for (const provider of settings.providers) {
-		if (!provider.enabled) continue;
-		const model = provider.models.find((m) => m.id === id);
-		if (model) return { provider, model };
-	}
-	return null;
-}
-
-/** Every enabled model, flattened for the model picker. */
-export function availableModels(settings: Settings) {
-	return settings.providers
-		.filter((p) => p.enabled)
-		.flatMap((p) => p.models.map((m) => ({ provider: p, model: m })));
-}
+/*
+ * 找模型的那两个函数住在 `models.ts`，从这里再导出。
+ *
+ * 它们是纯的，而这个文件顶上就是 `node:fs` 和 `node:os`。渲染器要用它们，从这里导入会把整条
+ * 依赖链拉进浏览器包——窗口一片空白，报的是 `node:os.homedir` 不能在客户端访问。搬过去之后
+ * 这里仍然导出同一个名字，所以原来的调用点一个字都不用改。
+ */
+export { availableModels, resolveModel } from "./models.ts";

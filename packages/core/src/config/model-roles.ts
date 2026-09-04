@@ -14,7 +14,16 @@
 
 import type { ModelConfig, ProviderConfig } from "../types.ts";
 import type { Settings } from "./settings.ts";
-import { resolveModel } from "./settings.ts";
+/*
+ * 从 `models.ts` 而不是 `settings.ts`。
+ *
+ * 这个文件是设置页的模型角色那一段要用的，而那段代码跑在渲染器里。`settings.ts` 顶上就是
+ * `node:fs`——从它那里导入一个值，会把整条依赖链拉进浏览器包，窗口一片空白。
+ * 这也是 `@lyra/core/model-roles` 这个子入口存在的原因：它自己就是浏览器安全的。
+ */
+import { resolveModel } from "./models.ts";
+
+export { availableModels } from "./models.ts";
 
 export type ModelRole = "default" | "fast" | "deep" | "review";
 
@@ -28,8 +37,11 @@ export const ROLE_DESCRIPTIONS: Record<ModelRole, string> = {
 	 * `review` is the one worth a sentence. Pointing it at a different model family is the whole
 	 * point of having it: a model's blind spots correlate with its own output, so asking Claude to
 	 * review what Claude wrote gets agreement rather than review.
+	 *
+	 * 纯文本，没有 markdown：这几句话现在直接显示在设置页的行里，`**` 会原样露出来。
+	 * 强调靠语序，不靠星号。
 	 */
-	review: "审查与顾问。**建议指到另一个模型家族**——同家族模型的盲点是相关的，让它审自己写的代码，它会同意自己",
+	review: "最好指到另一个模型家族——同家族模型的盲点是相关的，让它审自己写的代码，它会同意自己",
 };
 
 /** `@fast`, `@deep:high`, or a plain model id. */
