@@ -514,6 +514,37 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 /**
+ * The settings a particular project sees: the global file with `<cwd>/.lyra/config.json` over it.
+ *
+ * Separate from `loadSettings` rather than folded into it, because most callers have no project —
+ * the settings page, a migration, the CLI before a directory is chosen — and giving them a `cwd`
+ * they do not have would be inventing one.
+ *
+ * The project layer cannot carry credentials or providers (`sanitizeProjectConfig`): that file is
+ * checked into the repository, so anything in it is shared with everyone who clones it.
+ */
+export async function loadSettingsFor(cwd: string | null): Promise<{ settings: Settings; refused: string[]; error?: string }> {
+	const global = await loadSettings();
+	if (!cwd) return { settings: global, refused: [] };
+
+	const { loadProjectLayer, mergeLayer } = await import("./layers.ts");
+	const project = await loadProjectLayer(cwd);
+	if (Object.keys(project.config).length === 0) {
+		return { settings: global, refused: project.refused, error: project.error };
+	}
+
+	/*
+	 * Merged as data and then re-normalised, rather than assigned field by field.
+	 *
+	 * `normalizeSettings` is where every bound and fallback lives — a project setting
+	 * `maxConcurrentSubAgents: 500` has to meet the same ceiling a global one does, and a field-by-
+	 * field merge would be a second place those rules have to be kept in step.
+	 */
+	const merged = mergeLayer(global as unknown as Record<string, unknown>, project.config);
+	return { settings: normalizeSettings(merged), refused: project.refused, error: project.error };
+}
+
+/**
  * Settings exactly as written, with whatever `apiKey` the file happens to hold.
  *
  * Separate from `loadSettings` because the migration needs to see the plaintext that is still on
@@ -524,7 +555,21 @@ async function readSettingsFile(): Promise<Settings> {
 	const raw = await readFile(settingsPath(), "utf8").catch(() => null);
 	if (!raw) return { ...DEFAULT_SETTINGS };
 	try {
-		const parsed = JSON.parse(raw) as Partial<Settings>;
+		return normalizeSettings(JSON.parse(raw) as Partial<Settings>);
+	} catch {
+		return { ...DEFAULT_SETTINGS };
+	}
+}
+
+/**
+ * A settings object as written, brought up to the shape the app expects.
+ *
+ * Split out of `readSettingsFile` so that every layer goes through it. A project's
+ * `.lyra/config.json` setting `maxConcurrentSubAgents: 500` has to meet the same ceiling a global
+ * one does, and merging layers field by field would put those bounds in a second place that has to
+ * be kept in step with this one.
+ */
+export function normalizeSettings(parsed: Partial<Settings>): Settings {
 		// Merge against defaults so a settings file written by an older build keeps working.
 		return {
 			...DEFAULT_SETTINGS,
@@ -575,9 +620,6 @@ async function readSettingsFile(): Promise<Settings> {
 			projects: parsed.projects ?? [],
 			alwaysAllow: parsed.alwaysAllow ?? [],
 		};
-	} catch {
-		return { ...DEFAULT_SETTINGS };
-	}
 }
 
 /**
