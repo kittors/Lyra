@@ -116,6 +116,8 @@ async function executeOne(
 		allowedHosts: config.allowedHosts,
 		writePreview: config.writePreview,
 		spawnSubAgent: config.spawnSubAgent,
+		resources: config.resources,
+		scratchDir: config.scratchDir,
 		onProgress: (partial) => void emit({ type: "tool_update", toolCallId: call.id, partial }),
 	};
 

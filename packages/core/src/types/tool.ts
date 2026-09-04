@@ -7,6 +7,7 @@
  */
 
 import type { SandboxMode } from "../sandbox/policy.ts";
+import type { ResourceRouter } from "../resources/router.ts";
 import type { UserContent } from "./message.ts";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +66,18 @@ export interface ToolContext {
 	spawnSubAgent?: (input: SubAgentInput) => Promise<string>;
 	/** Shared per-session scratch space (todo list, file read cache, ...). */
 	state: Map<string, unknown>;
+	/**
+	 * The session's address space: `skill://`, `rule://`, `scratch://`, `lyra://`.
+	 *
+	 * Per session rather than a module singleton, because a sub-agent has its own skill set and a
+	 * shared router would resolve `skill://x` against whichever session touched it last.
+	 *
+	 * Optional so a bare context — the CLI, a test — still works: with no router, `read` treats
+	 * every argument as a file path, which is what it did before addresses existed.
+	 */
+	resources?: ResourceRouter;
+	/** Where `scratch://` writes. Absent in sessions with no scratch space. */
+	scratchDir?: string;
 	/**
 	 * Store a web preview and return where it went.
 	 *

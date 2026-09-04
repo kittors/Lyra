@@ -55,6 +55,10 @@ export interface AgentRunConfig {
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
 	spawnSubAgent?: (input: SubAgentInput) => Promise<string>;
+	/** The session's address space; see `ToolContext.resources`. */
+	resources?: ToolContext["resources"];
+	/** Where `scratch://` writes; see `ToolContext.scratchDir`. */
+	scratchDir?: string;
 	/** Messages the user typed while the agent was mid-turn. Drained between turns. */
 	drainSteering?: () => Message[];
 	/**

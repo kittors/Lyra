@@ -65,6 +65,10 @@ export interface TurnConfigDeps {
 	 * counted in turns, so a monitor rebuilt each turn would let a `once` rule fire forever.
 	 */
 	ruleMonitor?: StreamRuleMonitor;
+	/** The session's address space. Session-scoped for the same reason the monitor is. */
+	resources?: AgentRunConfig["resources"];
+	/** Where `scratch://` writes for this session. */
+	scratchDir?: string;
 }
 
 export function buildTurnConfig(
@@ -130,6 +134,8 @@ export function buildTurnConfig(
 					systemPrompt,
 				),
 			drainSteering: deps.drainSteering,
+			resources: deps.resources,
+			scratchDir: deps.scratchDir,
 			rules: deps.ruleMonitor?.active ? ruleHooks(deps.ruleMonitor) : undefined,
 			beforeToolCall: deps.beforeToolCall,
 			afterToolCall: deps.afterToolCall,

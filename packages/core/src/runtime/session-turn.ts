@@ -168,7 +168,8 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			isGitRepo: await pathExists(join(cwd, ".git")),
 			today: new Date().toISOString().slice(0, 10),
 			scratchDir: input.scratchDir,
-					rules: can.rules,
+				rules: can.rules,
+				resources: can.resources.schemes(),
 		}),
 	});
 
@@ -190,6 +191,8 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			skills: can.skills,
 			agents: can.agents,
 			ruleMonitor: can.ruleMonitor,
+			resources: can.resources,
+			scratchDir: input.scratchDir,
 			// Where anything this turn delegates registers itself, so it can be watched and steered.
 			subAgents: input.subAgents,
 			signal: input.signal,

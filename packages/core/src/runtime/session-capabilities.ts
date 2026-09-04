@@ -11,6 +11,8 @@
  */
 
 import { McpManager, type McpServerStatus } from "../mcp/client.ts";
+import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
+import { ResourceRouter } from "../resources/router.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
@@ -40,6 +42,15 @@ export class SessionCapabilities {
 	 * rebuilt every turn would let a `once` rule fire on every one of them.
 	 */
 	ruleMonitor = new StreamRuleMonitor([]);
+
+	/**
+	 * The session's address space: `skill://`, `rule://`, `scratch://`, `lyra://`.
+	 *
+	 * One per session, never a module singleton. A sub-agent has its own skill set, and a shared
+	 * router would resolve `skill://x` against whichever session touched it last — a bug that only
+	 * shows up under concurrency and looks like a skill occasionally holding someone else's text.
+	 */
+	readonly resources = buildRouter();
 
 	/** Shared scratch space for tools that need to remember something across calls. */
 	readonly state = new Map<string, unknown>();
@@ -84,4 +95,11 @@ export class SessionCapabilities {
 	async dispose(): Promise<void> {
 		await this.mcp.closeAll();
 	}
+}
+
+/** A router with the shipped schemes on it. */
+function buildRouter(): ResourceRouter {
+	const router = new ResourceRouter();
+	for (const handler of BUILTIN_RESOURCES) router.register(handler);
+	return router;
 }

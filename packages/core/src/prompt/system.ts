@@ -50,6 +50,15 @@ export interface SystemPromptInput {
 	 * user's repository, shows up in `git status`, and has to be cleaned out by hand.
 	 */
 	scratchDir?: string;
+	/**
+	 * The address schemes this session actually has.
+	 *
+	 * Passed in rather than hard-coded so that a session without sub-agents is not told about
+	 * `agent://`, and an extension that registers its own namespace gets a line without editing
+	 * this file. A prompt that advertises an address which does not resolve teaches the model to
+	 * try things that fail.
+	 */
+	resources?: { scheme: string; describe: string; writable: boolean }[];
 }
 
 const IDENTITY = `You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files. You are judged on whether the code works, not on how the answer reads.`;
@@ -161,6 +170,8 @@ This is where anything that is not part of the project goes. It is removed with 
 Decide by asking who the file is for. Something the user will keep, run or commit — source, tests, config, documentation they asked for — goes in the working directory. Something that exists only to get this answer written — a script to check a hypothesis, downloaded sample data, a converted file, output you needed to read once — goes here, whether or not the user thought to say so. When a demo is the answer itself, prefer the \`preview\` tool over writing files at all.`;
 	}
 
+	prompt += formatAddresses(input.resources);
+
 	return prompt;
 }
 
@@ -246,4 +257,24 @@ export async function loadProjectInstructions(cwd: string): Promise<{ path: stri
 		if (content?.trim()) return [{ path, content: content.trim() }];
 	}
 	return [];
+}
+
+/**
+ * The address space, described only where it exists.
+ *
+ * Written as "these work anywhere a path does" because that is the claim worth making: the model
+ * already knows `read`, and the whole point of an address space over a tool per namespace is that
+ * nothing new has to be learned.
+ */
+function formatAddresses(schemes: { scheme: string; describe: string; writable: boolean }[] | undefined): string {
+	if (!schemes || schemes.length === 0) return "";
+	const lines = schemes.map((s) => `- \`${s.scheme}://\` ${s.describe}${s.writable ? "（可写）" : ""}`);
+	return (
+		"\n\n## Addresses\n\n" +
+		"These work anywhere a file path does, in `read` and — where marked writable — in `write`:\n" +
+		`${lines.join("\n")}\n\n` +
+		"A trailing `:10-40` selects lines, the same as for a file. A bare `scheme://` lists what is in it.\n" +
+		"These are the way to reach these things. Do not guess at filenames on disk to find something " +
+		"an address already names — if an address returns a listing, read one of the entries it gave you."
+	);
 }
