@@ -24,7 +24,7 @@ import { join } from "node:path";
 import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import { proposeSkill } from "./managed-skills.ts";
-import { projectMemoryDir } from "./project-memory.ts";
+import { projectMemoryDir, redactSecrets } from "./project-memory.ts";
 
 /**
  * Sessions younger than this are left alone.
@@ -192,7 +192,13 @@ export function renderSessions(candidates: ExtractionCandidate[]): string {
 		}
 		blocks.push(lines.join("\n"));
 	}
-	return blocks.join("\n\n");
+	/*
+	 * 发给模型之前先脱敏——这是两道里更要紧的一道。
+	 *
+	 * 写盘前再脱一次是兜底；而模型根本没见过的密钥，它回显不出来，也编不进技能提案里。
+	 * 一个人在会话里贴过 `sk-proj-…` 排查问题，那串东西不该以任何形式离开那次会话。
+	 */
+	return redactSecrets(blocks.join("\n\n"));
 }
 
 function textOf(message: Message): string {
@@ -272,13 +278,19 @@ export async function extractMemory(options: ExtractOptions): Promise<Extraction
 		 */
 		if (!text || /^（?没有）?$/.test(text)) return { memory: "", sessions: options.candidates.length, skipped: "这些会话里没有值得记的" };
 
+		/*
+		 * 写盘前再脱一次。输入侧已经脱过，这里防的是另一种事：模型凭形状重构出一个像密钥的串，
+		 * 或者输入侧的正则漏了某种新格式。记忆会每轮注入提示词，一次漏网就是永久泄漏。
+		 */
+		const clean = redactSecrets(text);
+
 		const body = [
 			"# 从会话里总结的",
 			"",
 			`由后台抽取生成，读了 ${options.candidates.length} 次会话。可以手改，但下一次抽取会整份重写这个文件——`,
 			"要保留的内容请移到 `learned.md`，那个文件抽取永远不碰。",
 			"",
-			text,
+			clean,
 			"",
 		].join("\n");
 
@@ -295,7 +307,7 @@ export async function extractMemory(options: ExtractOptions): Promise<Extraction
 		 * 可有可无的东西去赌一个有用的东西。
 		 */
 		const proposed = await proposeFromSessions(options).catch(() => null);
-		return { memory: text, sessions: options.candidates.length, ...(proposed ? { proposedSkill: proposed } : {}) };
+		return { memory: clean, sessions: options.candidates.length, ...(proposed ? { proposedSkill: proposed } : {}) };
 	} finally {
 		await release();
 	}

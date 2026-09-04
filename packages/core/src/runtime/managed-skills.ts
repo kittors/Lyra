@@ -13,7 +13,7 @@
 
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { projectMemoryDir } from "./project-memory.ts";
+import { projectMemoryDir, redactSecrets } from "./project-memory.ts";
 
 /** 待确认的候选放这儿；批准之后才搬进 `skills/`。 */
 export function pendingSkillsDir(cwd: string): string {
@@ -49,7 +49,11 @@ export async function proposeSkill(cwd: string, candidate: SkillCandidate): Prom
 	const dir = pendingSkillsDir(cwd);
 	await mkdir(dir, { recursive: true });
 	const path = join(dir, `${candidate.name}.md`);
-	await writeFile(path, renderSkill(candidate), "utf8");
+	/*
+	 * 写盘前脱敏。技能正文会在被批准后整段注入，而它是模型从会话里总结出来的——
+	 * 「先 export API_KEY=sk-…」是一段完全可能被当成「步骤」写进去的话。
+	 */
+	await writeFile(path, renderSkill({ ...candidate, description: redactSecrets(candidate.description), body: redactSecrets(candidate.body) }), "utf8");
 	return path;
 }
 
