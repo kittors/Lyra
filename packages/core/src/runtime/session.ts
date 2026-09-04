@@ -94,6 +94,13 @@ export class AgentSession {
 	private controller: AbortController | null = null;
 	private steering: Message[] = [];
 	/**
+	 * 说了「等这一轮做完再说」的那些消息。
+	 *
+	 * 跟 `steering` 分开的理由就是它们的区别：`steering` 会被塞进正在跑的那一轮，而这些要等
+	 * 那一轮结束。合成一个队列的话，两种意思里必然有一种表达不出来。
+	 */
+	private readonly pending: { message: Message; thinking?: ThinkingLevel }[] = [];
+	/**
 	 * Every sub-agent this session has dispatched, live and finished.
 	 *
 	 * Owned by the session rather than by the turn that spawned one: a delegated run is worth
@@ -496,6 +503,16 @@ export class AgentSession {
 			 * see past it to the request it is continuing.
 			 */
 			synthetic?: boolean;
+			/**
+			 * 会话正忙时怎么办。默认 `steer`——插进正在跑的那一轮。
+			 *
+			 * `followUp` 是另一种意思：**不打断，排到这一轮后面**。「跑完之后顺手把测试也跑一遍」
+			 * 属于后者，而现在说出来跟等五分钟再说出来的区别，是要不要一直守在这儿。
+			 *
+			 * 空闲时两者一样，都是开一个新回合——差别只存在于有东西正在跑的时候，而这正是它
+			 * 唯一需要被区分的时候。
+			 */
+			deliver?: "steer" | "followUp";
 		} = {},
 	): Promise<void> {
 		const message: Message = {
@@ -507,7 +524,15 @@ export class AgentSession {
 		};
 
 		if (this.running) {
-			this.steering.push(message);
+			/*
+			 * 插话，还是排队。
+			 *
+			 * 插话是默认，因为绝大多数在回合中途说的话都是「等等，不是那样」——那种话晚说
+			 * 五分钟就白说了。而 `followUp` 说的是「这一轮做完再说」，把它插进去反而会打断
+			 * 那件本来就该先做完的事。
+			 */
+			if (options.deliver === "followUp") this.pending.push({ message, thinking: options.thinking });
+			else this.steering.push(message);
 			return;
 		}
 
@@ -522,6 +547,25 @@ export class AgentSession {
 		}
 
 		await this.run(options.thinking);
+		await this.drainPending();
+	}
+
+	/**
+	 * 排在这一轮后面的那些，按进来的顺序发。
+	 *
+	 * 一条 `followUp` 跑完可能又带出下一条，所以是循环而不是一次——而 `run` 本身在跑的时候
+	 * `this.running` 为真，所以循环里不会有第二个回合同时开始。
+	 */
+	private async drainPending(): Promise<void> {
+		while (this.pending.length > 0) {
+			const next = this.pending.shift();
+			if (!next) break;
+			if (this.controller?.signal.aborted) break;
+			await this.log.commit(next.message);
+			await this.emit({ type: "message_start", message: next.message });
+			await this.emit({ type: "message_end", message: next.message });
+			await this.run(next.thinking);
+		}
 	}
 
 	/**
@@ -597,6 +641,13 @@ export class AgentSession {
 		 */
 		this.subAgents.abortAll();
 		this.approvals.rejectAll();
+		/*
+		 * 排队等着的那些也一并取消。
+		 *
+		 * 「停止」说的是这个对话现在停下，而不是「停下当前这一轮，然后把我排的三条接着跑完」
+		 * ——后者会在人按下按钮之后继续花钱，而屏幕上刚刚显示了已停止。
+		 */
+		this.pending.length = 0;
 		// Stop means stop. Letting the queue carry on after the button was pressed would be
 		// the opposite of what pressing it asks for.
 		void this.tasks.cancelAll();

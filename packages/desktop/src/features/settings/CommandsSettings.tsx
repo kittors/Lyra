@@ -10,6 +10,7 @@
  * sidebar already carries fifteen destinations.
  */
 
+import type { BuiltinCommand } from "@lyra/core/commands-builtin";
 import type { SlashCommand } from "@lyra/core/commands-view";
 import { FolderOpen, Plus, SquareTerminal, TriangleAlert, Wrench } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -67,7 +68,7 @@ function originOf(command: SlashCommand): string {
 function SlashCommands() {
 	const workspace = useApp((s) => s.workspace);
 	const cwd = workspace?.path ?? "";
-	const [list, setList] = useState<{ commands: SlashCommand[]; diagnostics: { path: string; message: string }[] } | null>(
+	const [list, setList] = useState<{ commands: SlashCommand[]; builtins: BuiltinCommand[]; diagnostics: { path: string; message: string }[] } | null>(
 		null,
 	);
 	const [name, setName] = useState("");
@@ -106,6 +107,7 @@ function SlashCommands() {
 	}
 
 	const commands = list?.commands ?? [];
+	const builtins = list?.builtins ?? [];
 	const diagnostics = list?.diagnostics ?? [];
 
 	return (
@@ -190,6 +192,36 @@ function SlashCommands() {
 					)}
 				</div>
 			</div>
+			{/*
+			 * 内建的在最前面，而且不可编辑。
+			 *
+			 * 这一页回答的是「有哪些命令可以用」，而它此前漏掉了用得最多的三条——那三条写在
+			 * `/` 菜单那个组件里，只有那一个界面知道。一个漏掉三分之一答案的列表，比没有列表
+			 * 更误导人。
+			 *
+			 * 单列一段而不是混进下面：它们没有文件可以打开，而下面每一行点开都是编辑器。
+			 */}
+			{builtins.length > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 pt-3 pb-1 text-label text-ink-muted">内置命令</div>
+					<div className="p-2 pt-0">
+						{builtins.map((command) => (
+							<ListRow
+								key={command.name}
+								title={
+									<span className="font-mono">
+										<span className="text-ink-faint">/</span>
+										{command.name}
+									</span>
+								}
+								detail={command.description}
+								actions={<span className="text-detail text-ink-faint">内置</span>}
+							/>
+						))}
+					</div>
+				</Card>
+			)}
+
 			<Card>
 				{commands.length === 0 ? (
 					<EmptyHint>

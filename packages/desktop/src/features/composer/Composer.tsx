@@ -26,6 +26,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { findModel } from "../models/index.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
 import { FileKindIcon } from "./attachments/FileKindIcon.tsx";
+import { builtinCommandsFor, type CommandAction } from "@lyra/core/commands-builtin";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { bridge } from "../../services/index.ts";
@@ -187,39 +188,39 @@ export function Composer() {
 	 */
 	const skillCommandName = (skill: SkillEntry) => (skill.pluginId ? `${skill.pluginId}:${skill.name}` : skill.name);
 
-	const builtins = useMemo(
-		() => [
-			{
-				name: "compact",
-				description: "把之前的对话压缩成摘要，腾出上下文",
-				origin: "内置",
-				run: async () => {
-					if (!activeSessionId) return;
-					const result = await bridge.sessions.compact(activeSessionId);
-					if (result.ok) useApp.getState().notify("已把之前的对话压缩成摘要。");
-					else if (result.reason) useApp.getState().notify(result.reason, "warn");
-				},
+	/*
+	 * 名单从 core 来，动作在这里。
+	 *
+	 * 这三条以前整个写在这个组件里，于是只有这一个界面知道它们存在——CLI 里没有 `/compact`，
+	 * 设置 › 命令 那一页也列不出它们，而那一页正是回答「有哪些命令可以用」的地方。
+	 *
+	 * 现在 core 拥有词汇表（名字、说明），这里拥有动作。宿主没实现的动作不会出现在名单里，
+	 * 而不是出现了按下去没反应。
+	 */
+	type Builtin = { name: string; description: string; origin: string; run: () => void | Promise<void> };
+	const builtins: Builtin[] = useMemo(() => {
+		const run: Record<CommandAction, () => void | Promise<void>> = {
+			compact: async () => {
+				if (!activeSessionId) return;
+				const result = await bridge.sessions.compact(activeSessionId);
+				if (result.ok) useApp.getState().notify("已把之前的对话压缩成摘要。");
+				else if (result.reason) useApp.getState().notify(result.reason, "warn");
 			},
-			{
-				name: "clear",
-				description: "开一个新对话",
-				origin: "内置",
-				run: async () => {
-					await useApp.getState().newSession();
-				},
+			clear: async () => {
+				await useApp.getState().newSession();
 			},
-			{
-				name: "commands",
-				description: "管理斜杠命令，或新建一个",
-				origin: "内置",
-				run: () => {
-					useApp.getState().setSettingsSection("commands");
-					useApp.getState().setView("settings");
-				},
+			"manage-commands": () => {
+				useApp.getState().setSettingsSection("commands");
+				useApp.getState().setView("settings");
 			},
-		],
-		[activeSessionId],
-	);
+		};
+		return builtinCommandsFor(["compact", "clear", "manage-commands"]).map((command) => ({
+			name: command.name,
+			description: command.description,
+			origin: "内置",
+			run: run[command.action],
+		}));
+	}, [activeSessionId]);
 
 	/*
 	 * Built-ins first, so a file command cannot quietly take one of their names.
@@ -368,6 +369,8 @@ export function Composer() {
 		 * write paths and a composer that rejected them would be wrong far more often than right.
 		 */
 		let outgoing = trimmed;
+		/* 命令可以声明会话正忙时怎么送——见 `SlashCommand.deliver`。 */
+		let deliver: "steer" | "followUp" | undefined;
 		const invocation = parseInvocation(trimmed);
 
 		/*
@@ -393,7 +396,16 @@ export function Composer() {
 							.list(workspace?.path ?? "")
 							.catch(() => ({ commands: [] as typeof commands, skills: [] as SkillEntry[] }));
 			const command = fresh.commands.find((c) => c.name === invocation.name);
-			if (command) outgoing = expandCommand(command, invocation.rest);
+			if (command) {
+				outgoing = expandCommand(command, invocation.rest);
+				/*
+				 * 命令自己说了怎么送，就按它说的送。
+				 *
+				 * `followUp` 是这里唯一真正改变行为的一个：会话正忙时不插话，排到这一轮后面。
+				 * 空闲时三种都一样，都是开一个新回合。
+				 */
+				if (command.deliver === "followUp" || command.deliver === "steer") deliver = command.deliver;
+			}
 			else {
 				/*
 				 * A skill, asked for by name.
@@ -438,7 +450,7 @@ export function Composer() {
 		setText("");
 		setAttachments([]);
 		setDraft(draftKey, null);
-		await send(content);
+		await send(content, deliver ? { deliver } : {});
 	}
 
 	/**

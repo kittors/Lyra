@@ -9,10 +9,12 @@
 import { ipcMain, shell } from "electron";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { collectSkills, commandSources, loadCommands, loadPlugins, lyraHome, type SlashCommand } from "@lyra/core";
+import { builtinCommandsFor, collectSkills, commandSources, loadCommands, loadPlugins, lyraHome, type BuiltinCommand, type SlashCommand } from "@lyra/core";
 
 export interface CommandsList {
 	commands: SlashCommand[];
+	/** 内建命令。名字和说明在 core，动作由各个宿主实现。 */
+	builtins: BuiltinCommand[];
 	diagnostics: { path: string; message: string }[];
 	/**
 	 * The skills the same project can use, offered in the same menu.
@@ -85,6 +87,14 @@ export function registerCommandsIpc(): void {
 		return {
 			commands,
 			diagnostics,
+			/*
+			 * 内建命令跟着一起回去。
+			 *
+			 * 这一页回答的是「有哪些命令可以用」，而在此之前它的答案漏了 `/compact` `/clear`
+			 * `/commands` ——那三条只有 `/` 菜单知道，因为它们写在那个组件里。一个列表漏掉了
+			 * 用得最多的三条，比没有这个列表更误导。
+			 */
+			builtins: builtinCommandsFor(["compact", "clear", "manage-commands"]),
 			skills: skills.map((skill) => ({
 				name: skill.name,
 				description: skill.description,

@@ -169,6 +169,7 @@ export {
 	type SessionMeta,
 	type SessionRecord,
 } from "./session/store.ts";
+export { builtinCommandsFor, BUILTIN_COMMANDS, type BuiltinCommand, type CommandAction } from "./commands/builtin.ts";
 export {
 	commandSources,
 	loadCommands,

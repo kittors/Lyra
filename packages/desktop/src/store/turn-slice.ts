@@ -26,7 +26,7 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
 
 export function turnSlice(set: Set, get: Get) {
   return {
-  async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean } = {}) {
+  async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp" } = {}) {
     const { workspace, settings, scratchCwd } = get();
     let sessionId = get().activeSessionId;
     /*

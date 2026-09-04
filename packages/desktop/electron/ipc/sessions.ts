@@ -276,7 +276,7 @@ export function registerSessionsIpc({
 			_event,
 			sessionId: string,
 			content: UserContent[],
-			options?: { synthetic?: boolean },
+			options?: { synthetic?: boolean; deliver?: "steer" | "followUp" },
 		) => {
 			const session = await ensureSession(sessionId);
 			if (!session) throw new Error(`Session ${sessionId} is not open.`);

@@ -64,6 +64,7 @@ export type UpdatePhase = DownloadPhase;
 import type {
 	AgentEvent,
 	ApprovalDecision,
+	BuiltinCommand,
 	BundleKind,
 	ContextBreakdown,
 	CorrectionSuggestion,
@@ -219,7 +220,7 @@ export interface LyraApi {
 		 * `synthetic` marks a message the app composed on the user's behalf — 「继续」 — so the
 		 * transcript does not show it as something they typed. See `Session.prompt`.
 		 */
-		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean }): Promise<void>;
+		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp" }): Promise<void>;
 		/** Replace a message and re-run from there, discarding everything after it. */
 		editMessage(sessionId: string, messageIndex: number, content: UserContent[]): Promise<void>;
 		abort(sessionId: string): Promise<void>;
@@ -465,6 +466,8 @@ export interface LyraApi {
 		 */
 		list(cwd: string): Promise<{
 			commands: SlashCommand[];
+			/** 内建命令：名字和说明在 core，动作由各个宿主实现。 */
+			builtins: BuiltinCommand[];
 			diagnostics: { path: string; message: string }[];
 			/**
 			 * The skills the same project can use, for the same menu.

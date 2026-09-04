@@ -67,7 +67,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|plugins/install-record|ai/thinking-options)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|commands/builtin|plugins/install-record|ai/thinking-options)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

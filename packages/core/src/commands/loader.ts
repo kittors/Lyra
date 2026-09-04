@@ -48,7 +48,25 @@ export interface SlashCommand {
 	origin: "lyra" | "claude";
 	/** From frontmatter `argument-hint`. Shown as a placeholder once the command is chosen. */
 	argumentHint?: string;
+	/**
+	 * 展开后的文本怎么送出去。默认 `prompt`。
+	 *
+	 * 三种投递方式对应三个真实的场景，而在此之前只有第一种：
+	 *
+	 *   `prompt`   开一个新回合。绝大多数命令是这个——「帮我审一下这个 diff」。
+	 *   `steer`    插进正在跑的那个回合。`/focus 只看 src/` 是在模型已经跑偏的时候说的，
+	 *              等它停下来再说，那一轮的钱已经花完了。
+	 *   `followUp` 排在当前回合之后。「跑完之后顺手把测试也跑一遍」——不打断，但也不用人守着。
+	 *
+	 * 会话空闲时三者等价（都是开一个新回合），差别只在有东西正在跑的时候。
+	 */
+	deliver?: CommandDelivery;
 }
+
+/** 一条命令展开后怎么送出去。 */
+export type CommandDelivery = "prompt" | "steer" | "followUp";
+
+const DELIVERIES: CommandDelivery[] = ["prompt", "steer", "followUp"];
 
 export interface CommandDiagnostic {
 	path: string;
@@ -139,6 +157,21 @@ export async function loadCommands(
 			const description = described.length > MAX_DESCRIPTION ? `${described.slice(0, MAX_DESCRIPTION - 1)}…` : described;
 
 			/*
+			 * 写错的投递方式当没写，并且说出来。
+			 *
+			 * 静默退回 `prompt` 的话，一条写着 `deliver: steering`（少个 -ing 的拼法）的命令
+			 * 会安静地变成普通命令——而它跟正确的那条唯一的区别，是在模型跑偏时不起作用，
+			 * 那正是写它的人最不会去测的时刻。
+			 */
+			const rawDeliver = frontmatter.deliver ?? frontmatter["delivery"];
+			let deliver: CommandDelivery | undefined;
+			if (typeof rawDeliver === "string" && rawDeliver.trim()) {
+				const value = rawDeliver.trim() as CommandDelivery;
+				if (DELIVERIES.includes(value)) deliver = value;
+				else diagnostics.push({ path: file, message: `\`deliver\` 只能是 ${DELIVERIES.join("、")}；当前是“${rawDeliver}”，已按 prompt 处理。` });
+			}
+
+			/*
 			 * Earlier sources win; a later file of the same name is shadowed rather than an error.
 			 *
 			 * The shadowing is right and stays. Doing it in silence was not: someone whose `/deploy`
@@ -161,6 +194,7 @@ export async function loadCommands(
 				scope: source.scope,
 				origin: source.origin,
 				argumentHint: typeof hint === "string" && hint.trim() ? hint.trim() : undefined,
+				deliver,
 			});
 		}
 	}
