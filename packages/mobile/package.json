@@ -13,6 +13,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
     "expo": "~57.0.19",
+    "expo-build-properties": "~57.0.16",
     "expo-camera": "^57.0.4",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.17",
