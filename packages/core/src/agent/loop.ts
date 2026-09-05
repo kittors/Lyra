@@ -142,6 +142,10 @@ const DEFAULT_MAX_TURNS = 200;
  */
 const MAX_NUDGES = 3;
 
+/** Appended to a lone todo_write's result. The wording names the cost, not just the rule. */
+export const SOLO_TODO_NOTE =
+	"（这一轮只调了 todo_write，没有做任何实际工作。从下一轮起，把清单更新和真正的下一步——读文件、改代码、跑命令——放在同一次回复里；单独更新清单是浪费一次往返。）";
+
 export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Promise<AgentRunResult> {
 	const messages = [...config.messages];
 	/** Messages produced by this run, so the caller can append them to the persisted session. */
@@ -446,6 +450,18 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			assistant.stopReason === "length"
 				? await failTruncatedCalls(toolCalls, emit)
 				: await runTools(toolCalls, config, state, emit);
+
+		/*
+		 * A reply that only updated the list did nothing else, and will spend another round trip
+		 * doing it. Said in the result of that very call — where the model reads next, about the
+		 * thing it just did — rather than in a prompt it has already skimmed past. Measured before
+		 * this: nearly half the tool turns on a three-step task were a lone todo_write (06 §6.3).
+		 */
+		if (toolCalls.length === 1 && toolCalls[0].name === "todo_write" && config.tools.length > 1) {
+			for (const result of toolResults) {
+				if (result.role === "toolResult" && !result.isError) result.content.push({ type: "text", text: SOLO_TODO_NOTE });
+			}
+		}
 
 		for (const result of toolResults) {
 			messages.push(result);

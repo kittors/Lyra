@@ -196,14 +196,32 @@ export function parseLessons(raw: string): Lesson[] {
  * Empty when there is nothing, because an empty `<project_memory>` is a few tokens of noise plus
  * an invitation to wonder what happened to the memory.
  */
-export function formatProjectMemory(lessons: Lesson[], extracted = ""): string {
+/**
+ * How long ago a lesson was written, in the coarsest unit that is still true.
+ *
+ * Shown beside each one because age is what lets a model discount it. Measured without it: told
+ * "this repository uses npm" three months ago, a model ran `npm install` against a `pnpm-lock.yaml`
+ * without looking — memory outranked the files. A date is the cheapest thing that says "this was
+ * then".
+ */
+export function lessonAge(at: number, now = Date.now()): string {
+	const days = Math.floor((now - at) / 86_400_000);
+	if (days < 1) return "今天记下";
+	if (days < 30) return `${days} 天前记下`;
+	if (days < 365) return `${Math.floor(days / 30)} 个月前记下`;
+	return `${Math.floor(days / 365)} 年前记下`;
+}
+
+export function formatProjectMemory(lessons: Lesson[], extracted = "", now = Date.now()): string {
 	if (lessons.length === 0 && !extracted.trim()) return "";
-	const lines = lessons.map((lesson) => (lesson.context ? `- ${lesson.text}（${lesson.context}）` : `- ${lesson.text}`));
+	const lines = lessons.map((lesson) => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""} · ${lessonAge(lesson.at, now)}`);
 	const parts = [
 		"",
 		"",
 		"<project_memory>",
-		"以前在这个项目里学到的，按新旧排。如果其中一条和你现在看到的代码矛盾，以代码为准，并考虑用 `learn` 更新它。",
+		"以前在这个项目里学到的，按新旧排，每条标了记下的时间。它们说的是当时，不一定是现在：" +
+			"凡是能从仓库里核实的（配置文件、lockfile、脚本、README），动手前先看一眼再用；" +
+			"和你看到的代码或文件矛盾时，以代码为准，并考虑用 `learn` 更新它。",
 		...lines,
 	];
 	/*

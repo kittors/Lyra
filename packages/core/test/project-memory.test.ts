@@ -171,4 +171,22 @@ test("the injected block tells the model what to do when memory and code disagre
 	const block = formatProjectMemory([{ text: "用 pnpm", at: 1 }]);
 	assert.match(block, /<project_memory>/);
 	assert.match(block, /以代码为准/, "a stale entry has to lose to what is actually there");
+	assert.match(block, /先看一眼再用/, "and what can be checked in the repository is checked before it is trusted");
+});
+
+test("each lesson carries how long ago it was written — age is what lets a model discount it", () => {
+	const now = Date.parse("2026-09-05T00:00:00Z");
+	const block = formatProjectMemory(
+		[
+			{ text: "用 pnpm", at: now - 90 * 86_400_000 },
+			{ text: "跑 e2e 前先 build", context: "只在 CI", at: now - 3 * 86_400_000 },
+			{ text: "今天学的", at: now },
+		],
+		"",
+		now,
+	);
+	assert.match(block, /- 用 pnpm · 3 个月前记下/);
+	assert.match(block, /- 跑 e2e 前先 build（只在 CI） · 3 天前记下/);
+	assert.match(block, /- 今天学的 · 今天记下/);
+	assert.match(block, /每条标了记下的时间/);
 });
