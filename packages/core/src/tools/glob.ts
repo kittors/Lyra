@@ -165,7 +165,7 @@ function escapeRegex(text: string): string {
 /** Extract a glob pattern when the model embeds it in a description string. */
 export function extractPattern(desc: unknown): string {
 	if (typeof desc !== "string" || !desc.trim()) return "";
-	const labeled = desc.match(/(?:pattern|glob|query)[:=\s]+[`'"]?([^`'")\s]+)/i);
+	const labeled = desc.match(/(?:pattern|glob|query)[:=]\s*[`'"]?([^`'")\s]+)/i);
 	if (labeled?.[1]) return labeled[1].replace(/[`'"]+$/, "").trim();
 	const quoted = desc.match(/[`'"]([^`'"]*[*?{}][^`'"]*)[`'"]/);
 	if (quoted?.[1]) return quoted[1].trim();
