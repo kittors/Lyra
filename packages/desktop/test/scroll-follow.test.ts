@@ -16,6 +16,7 @@ import {
 	atBottom,
 	distanceToBottom,
 	fitsInView,
+	followsAfterRestore,
 	isAway,
 	isDegenerate,
 	marker,
@@ -195,6 +196,24 @@ test("a swap is decided even from a hidden pane", () => {
 	// has not been laid out yet is ordinary, and it still has to arrive following.
 	const hidden = { scrollTop: 0, scrollHeight: 0, clientHeight: 0 };
 	assert.equal(nextState("detached", { kind: "surface-swap", following: true }, hidden), "following");
+});
+
+test("a return in flight is remembered as an intention to follow", () => {
+	/*
+	 * Opening another conversation during the 420ms glide used to collapse `returning` to false.
+	 * Coming back then restored the intermediate scrollTop as detached and offered the same button
+	 * again, even though the reader had already asked to return.
+	 */
+	assert.equal(followsAfterRestore("following"), true);
+	assert.equal(followsAfterRestore("returning"), true);
+
+	const interrupted = nextState("returning", { kind: "user-scroll", direction: "up" }, at(1800));
+	assert.equal(interrupted, "detached");
+	assert.equal(
+		followsAfterRestore(interrupted),
+		false,
+		"an interrupted return still preserves the reader's position",
+	);
 });
 
 // ---------------------------------------------------------------------------

@@ -22,7 +22,9 @@
  *      re-raise it;
  *   4. leaving a conversation and returning — by view and by opening another conversation — keeps
  *      the position and does not claim new content that never arrived;
- *   5. the panels that share the hook mount and draw.
+ *   5. switching conversations during the ride back completes the reader's return instead of
+ *      restoring an intermediate position and offering the same button again;
+ *   6. the panels that share the hook mount and draw.
  *
  * And one measurement of a browser fact the design was written against: does `display: none` keep
  * a scroll position? Two comments in this repository disagree, and it is reported rather than
@@ -483,6 +485,29 @@ async function switchingBetweenTwoConversations(): Promise<void> {
 		"在两个对话之间切换后位置还在",
 		Math.abs(back.scrollTop - parked.scrollTop) < 40,
 		`离开前 scrollTop=${parked.scrollTop}，回来后 scrollTop=${back.scrollTop}`,
+	);
+
+	/*
+	 * Start the ride and switch in the same task. That deterministically lands inside the 420ms
+	 * window which made the reported symptom seem random by hand: the old snapshot encoded
+	 * `returning` as detached and kept whichever intermediate scrollTop the last frame had reached.
+	 */
+	await app.evaluate(`(() => {
+		const back = [...document.querySelectorAll("main button")].find((b) => /回到最新|有新内容/.test(b.textContent || ""));
+		const row = [...document.querySelectorAll("aside button, nav button")].find((b) => (b.textContent || "").trim() === ${JSON.stringify(other)});
+		if (back && row) {
+			back.click();
+			row.click();
+		}
+	})()`);
+	await settle(900);
+	await click("第二个对话");
+	await settle(900);
+	const returned = await look();
+	check(
+		"归位动画期间切走，回来后仍完成归位",
+		returned.distance < 4 && !returned.button && returned.unread === 0,
+		`回来后 distance=${returned.distance}，按钮=${returned.button ? "显示" : "隐藏"}，未读=${returned.unread}`,
 	);
 }
 

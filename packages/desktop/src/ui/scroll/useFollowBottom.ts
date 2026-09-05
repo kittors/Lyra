@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
+	followsAfterRestore,
 	isAway,
 	isDegenerate,
 	marker as makeMarker,
@@ -457,6 +458,9 @@ export function useFollowBottom({
 		}
 
 		return () => {
+			// A glide belongs to the outgoing surface. Its intention is saved below, while its frames
+			// must stop before the incoming surface reuses the same state and element refs.
+			cancelAnimationFrame(glide.current);
 			/*
 			 * The position comes from `lastTop`, not from the element.
 			 *
@@ -469,7 +473,7 @@ export function useFollowBottom({
 			 * degenerate measurement, so it is the last position this surface was actually at.
 			 */
 			writeFollow(namespace, surfaceId, {
-				following: state.current === "following",
+				following: followsAfterRestore(state.current),
 				scrollTop: lastTop.current,
 				seen: seen.current,
 			} satisfies FollowSnapshot);
