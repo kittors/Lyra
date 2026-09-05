@@ -86,6 +86,18 @@ export class StreamRuleMonitor {
 		return this.#rules.length > 0;
 	}
 
+	/**
+	 * Characters held across every buffer right now — what a text stream costs in memory.
+	 *
+	 * Exposed so the claim "no `text` scope, no buffering" is a number a test can read rather than
+	 * a comment to trust: with no rule watching prose, a long reply must leave this at zero.
+	 */
+	get bufferedChars(): number {
+		let total = 0;
+		for (const buffer of this.#buffers.values()) total += buffer.length;
+		return total;
+	}
+
 	/** Call at the start of each turn: buffers are per-turn, counters are per-session. */
 	startTurn(): void {
 		this.#turn += 1;

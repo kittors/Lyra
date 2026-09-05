@@ -10,12 +10,5 @@
  * `SlashCommand` comes along as a type only, which erases at compile time and pulls nothing in.
  */
 
-export {
-	expandCommand,
-	parseInvocation,
-	rankCommands,
-	resolveCommand,
-	splitArguments,
-	type Invocation,
-} from "./commands/expand.ts";
+export { expandCommand, parseInvocation, parseSkillMention, rankCommands, resolveCommand, skillNameOf, splitArguments, type Invocation } from "./commands/expand.ts";
 export type { SlashCommand } from "./commands/loader.ts";

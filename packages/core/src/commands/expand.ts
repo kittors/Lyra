@@ -39,6 +39,26 @@ export function parseInvocation(text: string): Invocation | null {
  * `C:\Users\x` that silently lost its separators would be a worse failure than a quote that has
  * to be typed twice.
  */
+/**
+ * `/skill:<name>` embedded in prose — 「帮我 /skill:pdf 处理一下这个文件」 (07 §4).
+ *
+ * The token is lifted out and the rest of the sentence is the ask. Only when the draft does not
+ * itself start with a slash: `/commit 用了 /skill:x 的产物` is a `/commit`, and the mention inside
+ * it is part of that command's arguments, not a second invocation.
+ */
+export function parseSkillMention(text: string): Invocation | null {
+	if (text.trimStart().startsWith("/")) return null;
+	const match = /(^|\s)\/skill:([a-z0-9:-]+)(?=\s|$)/i.exec(text);
+	if (!match) return null;
+	const rest = `${text.slice(0, match.index)} ${text.slice(match.index + match[0].length)}`.replace(/\s+/g, " ").trim();
+	return { name: `skill:${match[2].toLowerCase()}`, rest };
+}
+
+/** The skill a `/skill:<name>` names, or the name itself when it was written bare (`/pdf`). */
+export function skillNameOf(invocation: Invocation): string {
+	return invocation.name.replace(/^skill:/, "");
+}
+
 export function splitArguments(rest: string): string[] {
 	const out: string[] = [];
 	let current = "";
