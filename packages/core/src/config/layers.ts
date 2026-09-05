@@ -59,6 +59,41 @@ export function mergeLayer(base: Plain, over: Plain): Plain {
 	return out;
 }
 
+/** One value the project layer replaces outright, with what it replaced. */
+export interface LayerOverride {
+	/** Dotted path: `disabledRules`, `approval.bash`. */
+	key: string;
+	kind: "array" | "scalar";
+	project: unknown;
+	global: unknown;
+}
+
+/**
+ * Every value the project layer replaces rather than merges — what the settings page has to say
+ * out loud (14 §3).
+ *
+ * Objects deepen, so they are walked; arrays and scalars replace, so they are reported, with the
+ * global value that stopped applying. A key the global layer never set is not an override — nothing
+ * was lost there — and neither is a value identical on both sides. The list is the difference the
+ * user would otherwise discover by toggling something on the settings page and seeing no effect.
+ */
+export function layerOverrides(global: Plain, project: Plain, prefix = ""): LayerOverride[] {
+	const out: LayerOverride[] = [];
+	for (const [key, value] of Object.entries(project)) {
+		if (value === undefined) continue;
+		const path = prefix ? `${prefix}.${key}` : key;
+		const was = global[key];
+		if (isPlainObject(value) && isPlainObject(was)) {
+			out.push(...layerOverrides(was, value, path));
+			continue;
+		}
+		if (was === undefined) continue;
+		if (JSON.stringify(was) === JSON.stringify(value)) continue;
+		out.push({ key: path, kind: Array.isArray(value) ? "array" : "scalar", project: value, global: was });
+	}
+	return out;
+}
+
 /** Strip what a project file is not allowed to carry, reporting what was taken out. */
 export function sanitizeProjectConfig(config: Plain): { config: Plain; refused: string[] } {
 	const refused: string[] = [];

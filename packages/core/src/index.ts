@@ -244,6 +244,7 @@ export {
 export { renderRuleFile, type CorrectionSuggestion } from "./rules/from-correction.ts";
 export { ruleDir, saveRule, type RuleDestination } from "./rules/save.ts";
 export { BUILTIN_RULES } from "./rules/builtin.ts";
+export { layerOverrides, loadProjectLayer, projectConfigPath, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";
 export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory-injected.ts";
