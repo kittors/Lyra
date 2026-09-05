@@ -83,7 +83,8 @@
     "react/purity": "off",
     "react/preserve-manual-memoization": "off",
     "react/hooks": "off",
-    "react/no-deriving-state-in-effects": "off"
+    "react/no-deriving-state-in-effects": "off",
+    "react/globals": "off"
   },
   "overrides": [
     {
