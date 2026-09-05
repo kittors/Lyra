@@ -39,6 +39,11 @@ export class TsServerBackend implements CodeIntelBackend {
 	readonly extensions = EXTENSIONS;
 
 	private child: ChildProcess | null = null;
+
+	/** 子进程的 pid，没起来是 null。给「空闲之后进程真的没了」那条测试用——它数的是进程，不是标志位。 */
+	get pid(): number | null {
+		return this.child?.pid ?? null;
+	}
 	private seq = 1;
 	private buffer = "";
 	private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
