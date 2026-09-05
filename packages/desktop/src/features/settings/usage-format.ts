@@ -24,8 +24,14 @@ export function formatCompact(value: number): string {
 	return Math.round(value).toLocaleString();
 }
 
-/** What a cost is worth saying. Below a tenth of a cent, nothing — 「$0.0000」 is noise. */
+/**
+ * What a cost is worth saying. Below a hundredth of a cent, nothing — 「$0.0000」 is noise.
+ *
+ * Between that and half a cent it says 「<$0.01」 rather than 「$0.00」: a sub-agent that read
+ * three files costs a fraction of a cent, and printing that as zero reads as free, which it is not.
+ */
 export function formatCost(value: number): string | null {
 	if (!(value > 0.0001)) return null;
+	if (value < 0.005) return "<$0.01";
 	return value >= 100 ? `$${value.toFixed(0)}` : `$${value.toFixed(2)}`;
 }

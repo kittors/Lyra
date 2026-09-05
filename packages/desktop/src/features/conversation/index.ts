@@ -10,7 +10,7 @@
 export { BackToLatest } from "./BackToLatest.tsx";
 export { Markdown } from "./Markdown.tsx";
 export { MessageActions } from "./MessageActions.tsx";
-export { formatTokens } from "./RunningIndicator.tsx";
+export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";
 export { ToolCard } from "./ToolCard.tsx";

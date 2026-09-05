@@ -16,13 +16,22 @@ import { Bot, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
-import { rosterOrder, useSubAgents } from "../../store/subAgents.ts";
-import { elapsedSince, statusWord } from "./format.ts";
+import { figuresOf, rosterOrder, rosterTotal, useSubAgents } from "../../store/subAgents.ts";
+import { elapsedSince, figuresWord, statusWord } from "./format.ts";
 import { bridge } from "../../services/index.ts";
 
 export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	const agents = useSubAgents((s) => s.agents);
 	const running = agents.filter((one) => one.status === "running").length;
+	/*
+	 * The bar opens the pane when work is delegated, not only when clicked.
+	 *
+	 * Written with the pane and never called from anywhere: the hook below was exported for a
+	 * caller that did not exist, so for a month the first dispatch of a run surfaced nothing but
+	 * this line. Hooked here because this is the component that is always mounted while a
+	 * conversation is, and the one whose whole job is announcing delegated work.
+	 */
+	useAnnounceSubAgents(onOpen);
 	/*
 	 * A clock, so 「已运行 2m 14s」 is true rather than true-when-last-rendered.
 	 *
@@ -46,13 +55,17 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	 * enough to give in full. Running ones first, each with what it was asked to do and how long it
 	 * has been at it; the rest with how they ended.
 	 */
-	const tip = ordered
-		.map((one) => {
+	const total = figuresWord(rosterTotal(agents));
+	const tip = [
+		...ordered.map((one) => {
 			const state = one.status === "running" ? `运行中 · ${elapsedSince(one.startedAt)}` : statusWord(one.status);
 			const activity = one.status === "running" && one.lastActivity ? ` · ${one.lastActivity}` : "";
-			return `${one.description}（${one.agent}）— ${state}${activity}`;
-		})
-		.join("\n");
+			const spent = figuresWord(figuresOf(one));
+			return `${one.description}（${one.agent}）— ${state}${activity}${spent ? ` · ${spent}` : ""}`;
+		}),
+		// The bill for the whole batch, on the line everyone sees while it runs — the brake.
+		...(total ? [`本次编排合计 ${total}`] : []),
+	].join("\n");
 
 	return (
 		<div className="ly-enter group/bar mb-1.5 flex w-full items-center justify-between rounded-lg bg-card/60 px-2 py-0.5 border border-line-soft transition-colors hover:bg-card">
@@ -75,6 +88,11 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 				{running > 0 && (
 					<span className="shrink-0 text-caption text-ink-faint tabular-nums">
 						{elapsedSince(Math.min(...ordered.filter((one) => one.status === "running").map((one) => one.startedAt)))}
+					</span>
+				)}
+				{total && (
+					<span data-sub-total className="shrink-0 text-caption text-ink-faint tabular-nums">
+						{total}
 					</span>
 				)}
 			</button>
@@ -121,7 +139,7 @@ function headline(ordered: ReturnType<typeof rosterOrder>, running: number): str
  * re-opened itself after being closed would be unusable. The first dispatch of a run is worth
  * surfacing; after that the bar is enough.
  */
-export function useAnnounceSubAgents(open: () => void): void {
+function useAnnounceSubAgents(open: () => void): void {
 	const agents = useSubAgents((s) => s.agents);
 	const seen = useRef(0);
 	const session = useApp((s) => s.activeSessionId);

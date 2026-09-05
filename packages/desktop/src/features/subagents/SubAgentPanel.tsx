@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
-import { rosterOrder, useSubAgents } from "../../store/subAgents.ts";
+import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { openViewer } from "../image/index.ts";
 import { BackToLatest } from "../conversation/index.ts";
 import { ComposerSend, ComposerShell } from "../composer/index.ts";
@@ -30,7 +30,8 @@ import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
-import { ranFor, statusTone, statusWord } from "./format.ts";
+import { figuresWord, ranFor, statusTone } from "./format.ts";
+import { SubAgentRoster } from "./SubAgentRoster.tsx";
 import { SubAgentTranscript } from "./SubAgentMessageRow.tsx";
 import { bridge } from "../../services/index.ts";
 
@@ -72,7 +73,12 @@ export function SubAgentPanel() {
 
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<Tabs agents={ordered} current={current?.id ?? null} />
+			<SubAgentRoster
+				agents={ordered}
+				current={current?.id ?? null}
+				onFocus={(id) => useSubAgents.getState().focus(id)}
+				trailing={(one) => <Dismiss agent={one} />}
+			/>
 			{/*
 			 * No `key`, deliberately.
 			 *
@@ -83,70 +89,6 @@ export function SubAgentPanel() {
 			 * does when you switch sessions.
 			 */}
 			{current && <Transcript agent={current} sessionId={sessionId} />}
-		</div>
-	);
-}
-
-function Tabs({ agents, current }: { agents: SubAgentSummary[]; current: string | null }) {
-	const strip = useRef<HTMLDivElement>(null);
-
-	// Keep the open one in view: the pane can be focused from the bar, which may scroll it in
-	// from either end.
-	useEffect(() => {
-		if (!current) return;
-		strip.current?.querySelector(`[data-sub-tab="${CSS.escape(current)}"]`)?.scrollIntoView({
-			block: "nearest",
-			inline: "nearest",
-		});
-	}, [current]);
-
-	if (agents.length < 2) return null;
-
-	return (
-		<div
-			ref={strip}
-			role="tablist"
-			aria-label="子 Agent"
-			className="ly-fade-tail flex h-7 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line px-1"
-		>
-			{agents.map((one) => {
-				const active = one.id === current;
-				return (
-					<div
-						key={one.id}
-						data-sub-tab={one.id}
-						className={`group/subtab flex h-[22px] shrink-0 items-center gap-1.5 rounded-md pr-0.5 pl-2 transition-colors duration-[var(--ly-t-quick)] ${
-							active ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"
-						}`}
-					>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={active}
-							data-ly-tip={`${one.agent} · ${statusWord(one.status)} · ${ranFor(one)}`}
-							onClick={() => useSubAgents.getState().focus(one.id)}
-							className="flex min-w-0 items-center gap-1.5 text-detail"
-						>
-							{/* The dot carries the state, so the name does not have to spell it out. */}
-							<span
-								className={`size-[5px] shrink-0 rounded-full ${statusTone(one.status)} ${
-									one.status === "running" ? "ly-pulse" : ""
-								}`}
-							/>
-							<span className="max-w-[140px] truncate whitespace-nowrap">{one.description}</span>
-						</button>
-						{/*
-						 * Closing a row, which for a running sub-agent means stopping it first.
-						 *
-						 * The label says which, because the two are different acts: one is putting a
-						 * record away, the other ends work that is in progress and costs whatever it
-						 * had spent. Never a silent un-listing — a sub-agent removed while running
-						 * would go on running with nothing able to steer or stop it.
-						 */}
-						<Dismiss agent={one} />
-					</div>
-				);
-			})}
 		</div>
 	);
 }
@@ -307,6 +249,15 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 				<>
 					<span className="text-line">·</span>
 					<span className="shrink-0 tabular-nums">{agent.toolCalls} 次调用</span>
+				</>
+			)}
+			{/* What it has cost so far — the number that decides whether delegating this was worth it. */}
+			{figuresWord(figuresOf(agent)) && (
+				<>
+					<span className="text-line">·</span>
+					<span data-sub-figures data-ly-tip="这个子 Agent 用掉的 token 与估算费用" className="shrink-0 tabular-nums">
+						{figuresWord(figuresOf(agent))}
+					</span>
 				</>
 			)}
 			{/* The newest thing it did, which is what answers "is this stuck?". */}

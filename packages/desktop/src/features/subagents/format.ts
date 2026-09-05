@@ -6,6 +6,8 @@
  */
 
 import type { SubAgentStatus } from "@lyra/core";
+import { formatTokens } from "../../lib/format-tokens.ts";
+import { formatCost } from "../settings/index.ts";
 
 /** `18s`, `2m 14s`, `1h 3m` — the same shape the running turn's own meter uses. */
 export function elapsed(ms: number): string {
@@ -48,4 +50,18 @@ export function statusTone(status: SubAgentStatus): string {
 	if (status === "done") return "bg-ok";
 	if (status === "failed") return "bg-danger";
 	return "bg-ink-faint";
+}
+
+/**
+ * `12.3k · $0.04` — or the tokens alone when the model has no pricing, and nothing before it has
+ * spent any.
+ *
+ * Tokens and dollars are formatted by the same two functions the context meter and the usage page
+ * use, so a figure here is the same figure there. Unpriced is shown as no price rather than as
+ * 「$0.00」: a model without a rate is not free, it is unknown.
+ */
+export function figuresWord(figures: { tokens: number; cost: number }): string | null {
+	if (!(figures.tokens > 0)) return null;
+	const cost = formatCost(figures.cost);
+	return cost ? `${formatTokens(figures.tokens)} · ${cost}` : formatTokens(figures.tokens);
 }
