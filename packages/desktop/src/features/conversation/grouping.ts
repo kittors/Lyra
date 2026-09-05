@@ -37,7 +37,7 @@ export type Run =
 	 * here it is derived from the messages alone, which is what it is a fact about, and its
 	 * identity changes exactly when the transcript does.
 	 */
-	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; turnStats?: TurnStats }
+	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; turnStats?: TurnStats; key?: string }
 	/**
 	 * A stretch of tool work, and whether it is the stretch being worked on right now.
 	 *
@@ -51,6 +51,12 @@ export type Run =
 export function isNudge(message: Message | undefined): boolean {
 	if (message?.role !== "user") return false;
 	return message.content.some((c) => c.type === "text" && c.text.startsWith("（自动继续）"));
+}
+
+/** A split reply has two identities; neither identity changes when more text arrives. */
+export function runKey(run: Exclude<Run, { kind: "compaction" }>): string {
+	if (run.kind === "tools") return `tools-${run.calls[0].block.id}`;
+	return run.key ?? `${run.message.role}-${run.message.timestamp}-${run.index}`;
 }
 
 export type TurnStats = {
@@ -475,7 +481,12 @@ export function runs(messages: Message[], compactions: { at: number }[] = []): R
 		 */
 		if (think > 0 && (work >= 0 || own < 0)) {
 			const at = work >= 0 ? work : out.length;
-			out.splice(at, 0, { kind: "message", message: shown, index: reasoningRow, upTo: think, turnStats: turn });
+			let start = live;
+			while (start > 0 && !opensTurn(messages[start])) start--;
+			out.splice(at, 0, {
+				kind: "message", message: shown, index: reasoningRow, upTo: think, turnStats: turn,
+				key: `thinking-${messages[start].timestamp}-${start}`,
+			});
 			if (working >= at) working += 1;
 			// And the reply's own row now starts after the reasoning drawn above. See `Run.from`.
 			if (own >= 0) {

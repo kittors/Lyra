@@ -8,9 +8,10 @@ import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { isNudge, runs } from "./grouping.ts";
+import { isNudge, runs, runKey } from "./grouping.ts";
 import { ToolRun as ToolRunGroup, WINDOW_STEP } from "./runs.tsx";
-import { MessageRow, messageKey } from "./rows.tsx";
+import { MessageRow } from "./rows.tsx";
+import { useTranscriptWindow } from "./view-state.ts";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
 import { useLayout } from "../../app/layout.tsx";
@@ -33,17 +34,9 @@ export const Conversation = memo(function Conversation() {
   const compactions = useApp((s) => s.compactions);
   const toolRunCount = useApp((s) => Object.keys(s.toolRuns).length);
   const activeSessionId = useApp((s) => s.activeSessionId);
-  /**
-   * How many messages are mounted. Grows when asked, resets with the conversation.
-   *
-   * Derived during render rather than reset in an effect, and the difference is not cosmetic. As an
-   * effect it ran *after* paint, so a conversation opened while the previous one had been expanded
-   * to 180 rows was laid out at 180, had its scroll position restored against that height, and only
-   * then dropped back to 60 — at which point the browser clamped the offset it had just been given.
-   * Reading the size from the session it belongs to means the first frame is already right.
-   */
-  const [expanded, setExpanded] = useState<{ id: string | null; size: number }>({ id: activeSessionId, size: WINDOW_STEP });
-  const windowSize = expanded.id === activeSessionId ? expanded.size : WINDOW_STEP;
+  const loadingSession = useApp((s) => s.loadingSession);
+  // Resolve the incoming session's history range before restoring its scroll position.
+  const [windowSize, showEarlier] = useTranscriptWindow(activeSessionId, WINDOW_STEP);
   const { compact } = useLayout();
   /*
    * The floating card needs its own width plus a readable column left over beside it.
@@ -78,15 +71,6 @@ export const Conversation = memo(function Conversation() {
     };
   }, []);
   /**
-   * True for the first frame after a session change.
-   *
-   * Swapping the transcript remounts every row, and each row's entrance animation would fire
-   * at once — fifty messages sliding up together, which is what "the content jumps around"
-   * turned out to be. They are suppressed for that one frame; messages arriving afterwards
-   * animate normally.
-   */
-  const [swapping, setSwapping] = useState(false);
-  /**
    * The final answer is arriving right now.
    *
    * This is the moment the running indicator stops being informative and starts being noise — and
@@ -110,6 +94,7 @@ export const Conversation = memo(function Conversation() {
   const follow = useFollowBottom({
     surfaceId: activeSessionId,
     namespace: "transcript",
+    ready: !loadingSession,
     count: messages.length,
     /*
      * What "something arrived" means here.
@@ -136,15 +121,6 @@ export const Conversation = memo(function Conversation() {
     returnToBottom();
   }, [pending, returnToBottom]);
 
-  useLayoutEffect(() => {
-    setSwapping(true);
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    if (!swapping) return;
-    const frame = requestAnimationFrame(() => setSwapping(false));
-    return () => cancelAnimationFrame(frame);
-  }, [swapping]);
 
   /*
    * Recomputed when the transcript changes, not on every render.
@@ -198,24 +174,10 @@ export const Conversation = memo(function Conversation() {
         onScroll={follow.onScroll}
         onResize={follow.onResize}
       >
-        {/*
-         * Keyed on the session so switching plays a short fade rather than swapping one
-         * wall of text for another between frames — the transition is what tells you the
-         * content changed at all when two transcripts look alike.
-         *
-         * Opacity only. The fade-up used here before translated the whole transcript by
-         * 4px, and because that transform counts toward scrollHeight the browser dragged
-         * the scroll position along with it as the animation settled.
-         */}
-        {/*
-         * `ly-transcript`: every direct child of this is one row, and rows off screen are not
-         * drawn. See the rule in `styles.css` — it is what keeps the window responsive while a
-         * pane is being resized, and it has to be applied here because this is the only element
-         * that knows its children are rows.
-         */}
+        {/* Historical rows must never replay entrance motion when revisited. */}
         <div
-          key={activeSessionId ?? "blank"}
-          className={`ly-transcript ly-fade-in mx-auto w-full max-w-[var(--ly-content)] py-5 ${swapping ? "ly-no-enter" : ""}`}
+          className="ly-transcript ly-no-enter mx-auto w-full max-w-[var(--ly-content)] py-5"
+          aria-busy={loadingSession}
         >
           {/*
            * Runs of tool calls are gathered across messages, not just inside one.
@@ -235,17 +197,18 @@ export const Conversation = memo(function Conversation() {
            * end is what anyone is reading; the rest is one click away and stays unmounted until
            * then.
            */}
+          {loadingSession && <div role="status" className="text-label text-ink-faint">正在加载对话…</div>}
           {hidden > 0 && (
             <button
               type="button"
-              onClick={() => setExpanded({ id: activeSessionId, size: windowSize + WINDOW_STEP })}
+              onClick={showEarlier}
               className="mb-4 flex h-7 w-full items-center justify-center rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
             >
               显示更早的 {Math.min(hidden, WINDOW_STEP)} 条（共 {hidden} 条）
             </button>
           )}
 
-          {visibleRuns.map((run, index) =>
+          {visibleRuns.map((run) =>
             /*
              * Compaction leaves no mark in the transcript.
              *
@@ -258,7 +221,8 @@ export const Conversation = memo(function Conversation() {
              */
             run.kind === "compaction" ? null : run.kind === "message" ? (
               <MessageRow
-                key={messageKey(run.message, run.index)}
+                key={`${activeSessionId}:${runKey(run)}`}
+                viewKey={runKey(run)}
                 message={run.message}
                 index={run.index}
                 upTo={run.upTo}
@@ -273,7 +237,7 @@ export const Conversation = memo(function Conversation() {
               /* Keyed on the first call, not the position: inserting anything above must not
                * make React tear this run down and build it again. */
               <ToolRunGroup
-                key={`run-${run.calls[0]?.block.id ?? index}`}
+                key={`${activeSessionId}:${runKey(run)}`}
                 calls={run.calls}
                 /*
                  * The run being worked on keeps its highlight moving — and only that one, so the
@@ -410,4 +374,3 @@ export function ConversationSkeleton() {
     </div>
   );
 }
-

@@ -8,29 +8,13 @@
 
 import type { SessionMeta } from "@lyra/core";
 import type { SessionActivity } from "@lyra/core/activity";
-import { howItStopped, prune, rebuildToolRuns, todosFrom, without } from "./derive.ts";
+import { prune, without, type CachedSessionState } from "./derive.ts";
 import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { loadCarried } from "./turn-meter.ts";
-
-/**
- * The transcript read that is currently in flight, and the one queued behind it.
- *
- * Clicking down a list of conversations used to send one `sessions:transcript` per click. Each of
- * those reads the whole session log from disk in the main process, parses it into objects, and
- * structured-clones the result across the IPC boundary — for a long session that is several
- * megabytes, three times over. The renderer already discarded every arrival but the last; the cost
- * had been paid by then. Eighteen clicks took the main process from 156MB to 1.5GB, and a few
- * rounds of that is the "Lyra 意外退出" crash: `JavaScript heap out of memory`.
- *
- * So the clicks are folded together instead. The first one goes immediately — a single click must
- * not wait — and any that arrive while it is in flight replace each other, so exactly one more
- * request follows for wherever the user actually stopped. Two reads instead of eighteen, and the
- * selection still moves on every click because that is painted from the sidebar's own meta.
- */
-let reading: string | null = null;
-let queued: SessionMeta | null = null;
+import { flushCoalesced } from "./coalesce.ts";
+import { readSelectedSession } from "./session-read.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -60,10 +44,21 @@ export function sessionSlice(set: Set, get: Get) {
    * object; `send` turns it into one the moment there is something to store.
    */
   async newSession() {
+    flushCoalesced();
     // A scratch directory counts: a conversation with no project is still a conversation.
     if (!get().workspace && !get().scratchCwd) {
       await get().pickWorkspace();
       return;
+    }
+    const previous = get();
+    if (previous.meta && previous.activeSessionId && !previous.loadingSession) {
+      set({ sessionCache: prune({
+        ...without(previous.sessionCache, previous.activeSessionId),
+        [previous.activeSessionId]: {
+          meta: previous.meta, messages: previous.messages, toolRuns: previous.toolRuns,
+          state: cachedState(previous),
+        },
+      }, previous.activeSessionId) });
     }
     set({
       activeSessionId: null,
@@ -73,6 +68,7 @@ export function sessionSlice(set: Set, get: Get) {
       approvals: [],
       running: false,
       todos: [],
+      compactions: [],
       turnStartedAt: null,
       turnTokens: 0,
       // Belongs to the turn being left behind; carrying it over would report this conversation's
@@ -122,6 +118,7 @@ export function sessionSlice(set: Set, get: Get) {
 
 
   async openSession(meta: SessionMeta) {
+    flushCoalesced();
     /*
      * Select first, load second.
      *
@@ -140,18 +137,24 @@ export function sessionSlice(set: Set, get: Get) {
       leaving &&
       leaving !== meta.id &&
       leavingMeta &&
-      get().messages.length > 0
+      get().messages.length > 0 && !get().loadingSession
     ) {
+      delete cache[leaving];
       cache[leaving] = {
         meta: leavingMeta,
         messages: get().messages,
         toolRuns: get().toolRuns,
+        state: cachedState(get()),
         scrollTop: cache[leaving]?.scrollTop,
         pinnedToBottom: cache[leaving]?.pinnedToBottom,
       };
     }
 
     const cached = cache[meta.id];
+    if (cached) {
+      delete cache[meta.id];
+      cache[meta.id] = cached;
+    }
     /*
      * Which mode this conversation is in, decided from its own directory.
      *
@@ -184,9 +187,11 @@ export function sessionSlice(set: Set, get: Get) {
       meta: cached?.meta ?? meta,
       messages: cached?.messages ?? [],
       toolRuns: cached?.toolRuns ?? {},
-      approvals: [],
-      running: false,
-      todos: [],
+      approvals: cached?.state?.approvals ?? [],
+      running: cached?.state?.running ?? false,
+      todos: cached?.state?.todos ?? [],
+      compactions: cached?.state?.compactions ?? [],
+      capabilities: cached?.state?.capabilities ?? null,
       /*
        * This conversation's own meter, not whichever one last started a turn.
        *
@@ -209,8 +214,8 @@ export function sessionSlice(set: Set, get: Get) {
       turnStartedAt: get().turns[meta.id]?.startedAt ?? null,
       turnTokens: get().turns[meta.id]?.tokens ?? 0,
       // Belongs to the turn being left behind; see the note in `newSession`.
-      retrying: null,
-      stopped: null,
+      retrying: cached?.state?.retrying ?? null,
+      stopped: cached?.state?.stopped ?? null,
       // Asked about a correction in the conversation being left, and about nothing in this one.
       ruleOffer: null,
       // Only a session with nothing to show is "loading"; a cached one is already on screen
@@ -266,71 +271,7 @@ export function sessionSlice(set: Set, get: Get) {
      * read in flight will pick this up when it finishes. What is skipped is only the megabytes of
      * duplicated work.
      */
-    if (reading !== null) {
-      queued = meta;
-      return;
-    }
-    reading = meta.id;
-
-    let snapshot: Awaited<ReturnType<typeof bridge.sessions.transcript>>;
-    try {
-      snapshot = await bridge.sessions.transcript(meta.projectId, meta.id);
-    } finally {
-      reading = null;
-      // Whatever was clicked last while this was running is the one that still wants reading.
-      const next = queued;
-      queued = null;
-      if (next && next.id !== meta.id) void get().openSession(next);
-    }
-
-    // A second click while this was in flight wins; discard the stale arrival.
-    if (get().activeSessionId !== meta.id) return;
-    if (!snapshot) {
-      set({ loadingSession: false });
-      return;
-    }
-
-    const toolRuns = rebuildToolRuns(snapshot.messages);
-    set({
-      meta: snapshot.meta,
-      messages: snapshot.messages,
-      // Replayed from the log rather than the event stream: reopening a conversation does not
-      // re-run its tools, so the plan has to be recovered from where the tool wrote it.
-      todos: todosFrom(snapshot.messages),
-      // Replayed from the log: the summary itself is not in the transcript, only the fact.
-      compactions: (snapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
-      // No event to go on here, so the transcript answers on its own: a reply the log records as
-      // `aborted` was stopped by hand, however long ago.
-      stopped: snapshot.running ? null : howItStopped(snapshot.messages),
-      running: snapshot.running,
-      approvals: snapshot.pendingApprovals,
-      toolRuns,
-      loadingSession: false,
-      sessionCache: {
-        ...get().sessionCache,
-        [meta.id]: {
-          meta: snapshot.meta,
-          messages: snapshot.messages,
-          toolRuns,
-          scrollTop: get().sessionCache[meta.id]?.scrollTop,
-          pinnedToBottom: get().sessionCache[meta.id]?.pinnedToBottom,
-        },
-      },
-    });
-
-    // Restore sub-agents for this session if available
-    void bridge.subAgents.list(snapshot.meta.id).then((subAgentsList) => {
-      if (get().activeSessionId === snapshot.meta.id && Array.isArray(subAgentsList)) {
-        useSubAgents.getState().sync(subAgentsList);
-      }
-    });
-
-    // Capabilities describe a running agent; a transcript read from disk has none until the
-    // session is activated, which the first message does.
-    const capabilities = await bridge.sessions.capabilities(
-      snapshot.meta.id,
-    );
-    if (get().activeSessionId === meta.id) set({ capabilities });
+    await readSelectedSession(meta, set, get);
   },
 
   async deleteSession(meta: SessionMeta) {
@@ -438,4 +379,12 @@ function readOutcome(
   const next = { ...activity };
   delete next[id];
   return next;
+}
+
+function cachedState(state: AppState): CachedSessionState {
+  return {
+    running: state.running, todos: state.todos, compactions: state.compactions,
+    approvals: state.approvals, stopped: state.stopped, retrying: state.retrying,
+    capabilities: state.capabilities,
+  };
 }

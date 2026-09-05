@@ -103,16 +103,16 @@ export function Scroller({
 	useLayoutEffect(() => {
 		const el = viewport.current;
 		if (!el) return;
-		measure();
 		onResize?.(el);
+		measure();
 
 		let frame = 0;
 		const scheduleMeasure = () => {
 			if (frame) return;
 			frame = requestAnimationFrame(() => {
 				frame = 0;
-				measure();
 				if (viewport.current) onResize?.(viewport.current);
+				measure();
 			});
 		};
 
@@ -179,6 +179,10 @@ export function Scroller({
 			}
 		};
 		const onUp = () => {
+			if (frame) {
+				cancelAnimationFrame(frame);
+				updateScroll();
+			}
 			drag.current = null;
 			setActive(false);
 			if (frame) cancelAnimationFrame(frame);

@@ -77,6 +77,7 @@ export function useFollowBottom({
 	count,
 	tail,
 	namespace,
+	ready = true,
 }: {
 	/** Which conversation, side chat or delegate this is. `null` while there is nothing to show. */
 	surfaceId: string | null;
@@ -86,6 +87,8 @@ export function useFollowBottom({
 	tail: string;
 	/** Which family of surfaces to remember against; see `memory.ts`. */
 	namespace: string;
+	/** A restored offset is meaningful only after this surface's content has arrived. */
+	ready?: boolean;
 }): FollowBottom {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	/*
@@ -127,6 +130,10 @@ export function useFollowBottom({
 	const written = useRef<number | null>(null);
 	const lastTop = useRef(0);
 	const glide = useRef(0);
+	const restoredSurface = useRef<string | null | undefined>(undefined);
+	const selectedSurface = useRef<string | null | undefined>(undefined);
+	const restore = useRef<FollowSnapshot | undefined>(undefined);
+	const clearWritten = useRef(0);
 
 	/**
 	 * 最近一次确实来自人的动作，以及手指/鼠标是不是还按着。
@@ -159,7 +166,8 @@ export function useFollowBottom({
 		// just shrunk.
 		written.current = el.scrollTop;
 		lastTop.current = el.scrollTop;
-		requestAnimationFrame(() => {
+		cancelAnimationFrame(clearWritten.current);
+		clearWritten.current = requestAnimationFrame(() => {
 			written.current = null;
 		});
 	}, []);
@@ -208,6 +216,8 @@ export function useFollowBottom({
 
 		const onWheel = (event: WheelEvent) => {
 			if (event.deltaY === 0) return;
+			// A tool result or code block can scroll independently inside the transcript.
+			if (event.target instanceof Element && event.target.closest(".ly-scroll-view") !== el) return;
 			mark();
 			intend(event.deltaY < 0 ? "up" : "down");
 		};
@@ -228,6 +238,12 @@ export function useFollowBottom({
 		const onDown = () => {
 			dragging.current = true;
 			mark();
+		};
+		const onKey = (event: KeyboardEvent) => {
+			if (event.target instanceof Element && event.target.closest("textarea, input, [contenteditable=true]")) return;
+			if (!["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) return;
+			mark();
+			intend(["ArrowUp", "PageUp", "Home"].includes(event.key) || (event.key === " " && event.shiftKey) ? "up" : "down");
 		};
 		const onUp = () => {
 			dragging.current = false;
@@ -250,7 +266,10 @@ export function useFollowBottom({
 		el.addEventListener("wheel", onWheel, { passive: true });
 		el.addEventListener("touchstart", onTouch, { passive: true });
 		el.addEventListener("touchmove", mark, { passive: true });
-		el.addEventListener("pointerdown", onDown, { passive: true });
+		// The overlay thumb is a sibling of the viewport, so its gesture belongs to the host.
+		const host = el.parentElement;
+		host?.addEventListener("pointerdown", onDown, { passive: true });
+		el.addEventListener("keydown", onKey);
 		window.addEventListener("pointermove", onMove, { passive: true });
 		window.addEventListener("pointerup", onUp, { passive: true });
 		window.addEventListener("pointercancel", onUp, { passive: true });
@@ -258,7 +277,8 @@ export function useFollowBottom({
 			el.removeEventListener("wheel", onWheel);
 			el.removeEventListener("touchstart", onTouch);
 			el.removeEventListener("touchmove", mark);
-			el.removeEventListener("pointerdown", onDown);
+			host?.removeEventListener("pointerdown", onDown);
+			el.removeEventListener("keydown", onKey);
 			window.removeEventListener("pointermove", onMove);
 			window.removeEventListener("pointerup", onUp);
 			window.removeEventListener("pointercancel", onUp);
@@ -271,6 +291,7 @@ export function useFollowBottom({
 
 	const onScroll = useCallback(
 		(el: HTMLDivElement) => {
+			if (!ready || restoredSurface.current !== surfaceId) return;
 			const reading = read(el);
 			const previous = lastTop.current;
 			lastTop.current = reading.scrollTop;
@@ -309,7 +330,7 @@ export function useFollowBottom({
 
 			publish(reading);
 		},
-		[publish],
+		[publish, ready, surfaceId],
 	);
 
 	/**
@@ -322,13 +343,18 @@ export function useFollowBottom({
 	 */
 	const onResize = useCallback(
 		(el: HTMLDivElement) => {
+			if (!ready || selectedSurface.current !== surfaceId) return;
 			const reading = read(el);
 			if (isDegenerate(reading)) return;
+			if (restoredSurface.current !== surfaceId) {
+				restoredSurface.current = surfaceId;
+				if (state.current === "detached" && restore.current) write(el, restore.current.scrollTop);
+			}
 			const target = targetScrollTop(state.current, reading);
 			if (target !== null) write(el, target);
 			publish(read(el));
 		},
-		[publish, write],
+		[publish, write, ready, surfaceId],
 	);
 
 	// ---------------------------------------------------------------------------
@@ -381,7 +407,10 @@ export function useFollowBottom({
 		setAway(false);
 	}, [publish, write]);
 
-	useEffect(() => () => cancelAnimationFrame(glide.current), []);
+	useEffect(() => () => {
+		cancelAnimationFrame(glide.current);
+		cancelAnimationFrame(clearWritten.current);
+	}, []);
 
 	// ---------------------------------------------------------------------------
 	// Catching up
@@ -428,34 +457,19 @@ export function useFollowBottom({
 	 * request view does to the whole transcript.
 	 */
 	useLayoutEffect(() => {
-		const el = scrollRef.current;
-		// The marker for this commit, taken from props rather than the ref: the swap effect runs
-		// before the content effect below has had a chance to update it.
+		cancelAnimationFrame(glide.current);
+		cancelAnimationFrame(clearWritten.current);
+		written.current = null;
+		dragging.current = false;
+		lastInput.current = -Infinity;
+		restoredSurface.current = undefined;
+		selectedSurface.current = surfaceId;
 		current.current = makeMarker(count, tail);
-
-		if (!surfaceId) {
-			state.current = "following";
-			seen.current = null;
-			setUnread(0);
-			setAway(false);
-			return;
-		}
-
-		const snapshot = readFollow(namespace, surfaceId);
-		state.current = snapshot?.following === false ? "detached" : "following";
-		seen.current = snapshot?.seen ?? null;
-
-		if (el && !isDegenerate(read(el))) {
-			// Following means "the end", whatever the end is now — a conversation that ran while you
-			// were away has a different one, and going there is the point of having followed it.
-			if (state.current === "following") write(el, visualBottom(read(el)));
-			else if (snapshot) write(el, snapshot.scrollTop);
-			setUnread(unreadSince(seen.current, current.current));
-			publish(read(el));
-		} else {
-			setUnread(0);
-			setAway(false);
-		}
+		restore.current = surfaceId ? readFollow(namespace, surfaceId) : undefined;
+		state.current = restore.current?.following === false ? "detached" : "following";
+		seen.current = restore.current?.seen ?? null;
+		setUnread(0);
+		setAway(false);
 
 		return () => {
 			// A glide belongs to the outgoing surface. Its intention is saved below, while its frames
@@ -472,6 +486,8 @@ export function useFollowBottom({
 			 * opened it. `lastTop` is written by every scroll and every write we make, and never by a
 			 * degenerate measurement, so it is the last position this surface was actually at.
 			 */
+			// A loading placeholder must never replace a real reading position.
+			if (!surfaceId || restoredSurface.current !== surfaceId) return;
 			writeFollow(namespace, surfaceId, {
 				following: followsAfterRestore(state.current),
 				scrollTop: lastTop.current,
@@ -496,20 +512,25 @@ export function useFollowBottom({
 	useLayoutEffect(() => {
 		current.current = makeMarker(count, tail);
 		const el = scrollRef.current;
-		if (!el) return;
+		if (!el || !ready) return;
 		const reading = read(el);
 		if (isDegenerate(reading)) return;
+		if (restoredSurface.current !== surfaceId) {
+			restoredSurface.current = surfaceId;
+			if (state.current === "detached" && restore.current) write(el, restore.current.scrollTop);
+		}
 
 		if (state.current === "following") {
 			const target = targetScrollTop("following", reading);
 			if (target !== null) write(el, target);
 			seen.current = current.current;
 			setUnread(0);
+
 		} else {
 			setUnread(unreadSince(seen.current, current.current));
 		}
 		publish(read(el));
-	}, [count, tail, publish, write]);
+	}, [count, tail, publish, write, ready, surfaceId]);
 
 	return { scrollRef, tailRef, away, unread, returnToBottom, onScroll, onResize };
 }

@@ -156,7 +156,7 @@ export {
 	type MemoryStore,
 } from "./runtime/memory.ts";
 export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compaction.ts";
-export type { ContextBreakdown, ContextSegment, ContextSegmentKey } from "./runtime/context.ts";
+export type { ContextBreakdown, ContextSegment, ContextSegmentKey, MemoryFileItem } from "./runtime/context.ts";
 export { estimateTokens } from "./tokens.ts";
 export { hooksFor, makeAfterToolCall, makeBeforeToolCall, runHook } from "./runtime/hooks.ts";
 export type { SessionStatus } from "./runtime/reporting.ts";

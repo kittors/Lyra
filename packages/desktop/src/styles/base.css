@@ -101,7 +101,7 @@
   }
 
   .group\/msg > :last-child {
-    margin-bottom: 0;
+    margin-bottom: 0 !important;
   }
 
   /*
@@ -111,53 +111,12 @@
    */
   .group\/msg > :has(+ [data-ly-hover-reveal]),
   .group\/msg > :has(+ .ly-actions-row) {
-    margin-bottom: 0;
+    margin-bottom: 0 !important;
   }
 
-  /*
-   * Rows off screen are not drawn.
-   *
-   * The transcript keeps its recent tail mounted — sixty runs, which on a real session is 8,300
-   * elements — and every one of them was being styled, laid out and painted whenever the pane
-   * holding them changed width. That is what dragging a boundary does, sixty times a second.
-   *
-   * Measured on a session of 8,948 messages, dragging the boundary between the conversation and
-   * the Git panel:
-   *
-   *   as it was                       65ms blocked, one frame of 50ms
-   *   transcript not rendered at all    0ms blocked, longest frame 18ms
-   *   with this rule                    0ms blocked, longest frame 18ms
-   *
-   * The middle line is the floor — the drag with the transcript taken out of the picture entirely
-   * — and this reaches it, because a row nobody is looking at costs the same either way.
-   *
-   * `auto` on the intrinsic size, not a fixed guess: the browser remembers what each row actually
-   * measured once it has been on screen, so the scrollbar settles to the truth rather than to
-   * however wrong 200px was. Rows are wildly uneven — a one-line answer and a thousand-line diff
-   * are both one row — and a fixed number is wrong for nearly all of them.
-   */
-  .ly-transcript > * {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 200px;
-  }
-
-  /*
-   * Except the tail, which is where rows arrive.
-   *
-   * A row the browser has not sized yet gets the 200px above for its first frame and its real
-   * height the frame after — so every row that arrived at the bottom of a running turn landed as
-   * a 200px block and snapped to its 24px a frame later, with everything under it flinching by
-   * the difference. Measured at 177px on the running line, once per tool call.
-   *
-   * The last few children are the ones still arriving. They are on screen anyway, so skipping
-   * them saves nothing, and laying them out from their first frame is what lets a turn grow
-   * without a twitch. A row that later slides out of this window has been measured by then, and
-   * `auto` above keeps that measurement.
-   */
-  .ly-transcript > :nth-last-child(-n + 4) {
-    content-visibility: visible;
-  }
-
+  /* The transcript mounts a bounded tail and tool details mount only when opened.
+   * Every mounted row needs its real height: an intrinsic guess changes scroll range
+   * during a wheel gesture and invalidates saved reading positions. */
   ::selection {
     background: color-mix(in srgb, var(--color-info) 35%, transparent);
   }

@@ -20,9 +20,10 @@ export interface RefDiff {
 export type { BranchList };
 import type {
 	ContextBreakdown,
+	ContextSegmentKey,
+	MemoryFileItem,
 	Registry,
 	RegistryEntry,
-	ContextSegmentKey,
 	McpServerStatus,
 	Plugin,
 	QueuedTask,
@@ -30,7 +31,7 @@ import type {
 	Skill,
 } from "@lyra/core";
 
-export type { ContextBreakdown, ContextSegmentKey, QueuedTask, Registry, RegistryEntry };
+export type { ContextBreakdown, ContextSegmentKey, MemoryFileItem, QueuedTask, Registry, RegistryEntry };
 
 /**
  * Which project the window is pointed at.

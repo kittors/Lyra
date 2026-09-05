@@ -15,37 +15,22 @@
  *   而「问过、拒绝了」和「还没问过」是两种状态，合成一个布尔就必然坏掉一边。
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { bridge } from "../../services/host.ts";
 import { useApp } from "../../store/index.ts";
 
 /** 一轮结束之后，等多久算「空闲」。 */
 export const IDLE_MS = 5 * 60 * 1000;
 
-export interface MemoryPassAsk {
-	/** 弹征询用的：同意 / 拒绝，两个都是回答。 */
-	onAnswer(yes: boolean): void;
-}
-
 /**
  * 挂一次，管整个窗口。
- *
- * `ask` 交给调用方，是因为「怎么问」属于界面而「什么时候问」属于这里——而且问出去的那个框
- * 要停下一切，不能由一个 hook 自己长出来。
+ * 默认在空闲时静默执行抽取，不再弹出模态框打扰用户。
  */
-export function useMemoryPass(ask: (options: MemoryPassAsk) => void): void {
+export function useMemoryPass(): void {
 	const cwd = useApp((s) => s.workspace?.path ?? null);
 	const running = useApp((s) => s.running);
 	const notify = useApp((s) => s.notify);
 	const saveSettings = useApp((s) => s.saveSettings);
-
-	/*
-	 * 一个窗口的一生里最多问一次。
-	 *
-	 * 拒绝会写进设置，所以本来也不会再问；这道保险挡的是另一种情况——征询还开着的时候，
-	 * 下一个空闲又到了。
-	 */
-	const asked = useRef(false);
 
 	useEffect(() => {
 		if (!cwd || running) return;
@@ -54,17 +39,13 @@ export function useMemoryPass(ask: (options: MemoryPassAsk) => void): void {
 			const status = await bridge.projectMemory.status(cwd).catch(() => null);
 			if (!status) return;
 
-			if (!status.run) {
-				if (status.reason !== "never-asked" || asked.current) return;
-				asked.current = true;
-				ask({
-					onAnswer: (yes) => {
-						const current = useApp.getState().settings;
-						if (current) void saveSettings({ ...current, memoryExtraction: yes });
-					},
-				});
-				return;
-			}
+				if (status.reason === "declined" || status.reason === "too-soon" || status.reason === "no-model") return;
+				// 默认允许抽取：不再弹窗打扰用户，静默记录并直接执行
+				const current = useApp.getState().settings;
+				if (current && current.memoryExtraction !== true) {
+					void saveSettings({ ...current, memoryExtraction: true });
+				}
+				// 紧接着继续走后续的 extract 逻辑
 
 			const result = await bridge.projectMemory.extract(cwd).catch(() => null);
 			/*
@@ -77,5 +58,5 @@ export function useMemoryPass(ask: (options: MemoryPassAsk) => void): void {
 		}, IDLE_MS);
 
 		return () => window.clearTimeout(timer);
-	}, [cwd, running, ask, notify, saveSettings]);
+	}, [cwd, running, notify, saveSettings]);
 }

@@ -3,6 +3,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Markdown } from "./Markdown.tsx";
 import { thinkingRuns } from "./thinking-ticker.ts";
+import { useTranscriptDisclosure } from "./view-state.ts";
 
 /** How deep the ticker's mask goes at each end while the text is arriving. */
 const FADE = 24;
@@ -24,14 +25,14 @@ const SPEED = 46;
  * Clicking the line unfolds the whole text beneath it, as it always has. Once opened it stays
  * open, including as the text keeps arriving.
  */
-export function ThinkingBlock({ text, redacted, live }: { text: string; redacted: boolean; live?: boolean }) {
-	const [open, setOpen] = useState(false);
+export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string; redacted: boolean; live?: boolean; stateKey?: string }) {
+	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 
 	if (!text && !redacted) return null;
 	const mode = live ? "follow" : "loop";
 
 	return (
-		<div data-ly-thinking="" className="mb-2.5">
+		<div data-ly-thinking="" className="mb-2.5 last:mb-0">
 			{/* `ly-scroll` is what sets a finished line's read-back moving on hover — see styles.css. */}
 			<button
 				type="button"

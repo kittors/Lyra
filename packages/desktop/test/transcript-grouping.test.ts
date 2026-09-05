@@ -13,7 +13,7 @@ import { test } from "node:test";
 import type { AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@lyra/core";
 import { emptyUsage } from "@lyra/core";
 
-import { computeTurnStats, runs, type Run } from "../src/features/conversation/grouping.ts";
+import { computeTurnStats, runs, runKey, type Run } from "../src/features/conversation/grouping.ts";
 
 function user(text: string): Message {
 	return { role: "user", content: [{ type: "text", text }], timestamp: 1 };
@@ -169,6 +169,16 @@ test("the reply whose reasoning is drawn above the work does not draw it again",
 	assert.deepEqual(above.kind === "message" && [above.from ?? 0, above.upTo], [0, 1], "the reasoning, and only it");
 	assert.equal(below.kind === "message" && below.index, 3);
 	assert.deepEqual(below.kind === "message" && [below.from, below.upTo], [1, 2], "the answer, starting after the reasoning");
+	const keys = rows.filter(row => row.kind !== "compaction").map(runKey);
+	assert.equal(new Set(keys).size, keys.length, "split content must also have distinct React identities");
+});
+
+test("one turn keeps its reasoning identity as replies and final text arrive", () => {
+	const base: Message[] = [user("work"), assistant([thinking("first"), call("a")], "toolUse"), answered("a")];
+	const before = runs(base)[1];
+	const after = runs([...base, assistant([thinking("next"), text("done")], "stop")])[1];
+	assert.ok(before.kind === "message" && after.kind === "message");
+	assert.equal(runKey(before), runKey(after));
 });
 
 test("a turn that never called a tool keeps its reasoning with its answer", () => {

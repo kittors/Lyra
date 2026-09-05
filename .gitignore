@@ -57,3 +57,6 @@ AGENTS.local.md
 
 # 评测的逐次结果：过程数据，本地留存即可。基线在 test/tool-eval/baseline.json
 test/tool-eval/results/
+
+# pnpm 有时在仓库里留下的空 store 桩
+.pnpm-store/

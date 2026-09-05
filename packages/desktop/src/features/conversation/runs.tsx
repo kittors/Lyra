@@ -85,6 +85,7 @@ export function LiveToolCard({
   if (preview) return <PreviewCard preview={preview} />;
   return (
     <ToolCard
+      stateKey={runs ? undefined : `tool-${block.id}`}
       toolName={block.name}
       args={block.arguments}
       summary={run?.summary ?? block.name}
@@ -164,7 +165,7 @@ const ToolRunGroup = function ToolRun({
   ));
 
   return (
-    <ToolGroup summary={summary} added={added} removed={removed} running={Boolean(live)}>
+    <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}>
       {cards}
     </ToolGroup>
   );

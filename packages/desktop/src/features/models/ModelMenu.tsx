@@ -5,6 +5,7 @@ import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useApp } from "../../store/index.ts";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import {
 	ambiguousNames,
@@ -70,7 +71,9 @@ interface Section {
 export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => void }) {
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
+	const messages = useApp((s) => s.messages);
 	const setModel = useApp((s) => s.setModel);
+	const confirmer = useConfirmer();
 	const setThinking = useApp((s) => s.setThinking);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const setView = useApp((s) => s.setView);
@@ -133,8 +136,33 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 		[sections, collapsed],
 	);
 
-	const choose = (modelId: string) => {
-		void setModel(modelId);
+	const choose = (modelId: string, options?: { asDefault?: boolean }) => {
+		const midConversation = messages.length > 0 && current !== modelId;
+		if (midConversation) {
+			confirmer.ask({
+				title: "确定要中途切换模型吗？",
+				detail: (
+					<>
+						当前会话已产生对话记录。各家模型的上下文格式、推理习惯与工具调用规范存在差异：
+						<br />
+						1. 之前的推理上下文和思维链无法跨模型沿用，后续回答效果可能变差；
+						<br />
+						2. 原有 Prompt Cache（提示词缓存）将失效，导致首轮延迟和 Token 消耗上升；
+						<br />
+						3. 若遇到意外格式异常，建议开启新对话体验最佳效果。
+					</>
+				),
+				confirmLabel: "确认切换",
+				cancelLabel: "取消",
+				tone: "danger",
+				onConfirm: () => {
+					void setModel(modelId, options);
+					onClose();
+				},
+			});
+			return;
+		}
+		void setModel(modelId, options);
 		onClose();
 	};
 
@@ -161,7 +189,6 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 	// Number keys pick from the first rows, matching the digits drawn on them.
 	useEffect(() => {
 		// A searchable list has given the digits to the field; see `searchable`.
-		if (searchable) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (event.metaKey || event.ctrlKey || event.altKey) return;
 			/*
@@ -189,6 +216,7 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 	});
 
 	return (
+		<>
 		<Popover
 			anchor={anchor}
 			onClose={onClose}
@@ -320,7 +348,7 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 							icon={<Star size={13} strokeWidth={1.8} className={isDefault ? "fill-current" : ""} />}
 							disabled={isDefault}
 							onClick={() => {
-								void setModel(current, { asDefault: true });
+								void choose(current, { asDefault: true });
 								onClose();
 							}}
 						>
@@ -330,6 +358,8 @@ export function ModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => 
 				)}
 			</MenuBody>
 		</Popover>
+		{confirmer.element}
+		</>
 	);
 }
 

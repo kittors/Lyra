@@ -32,11 +32,6 @@ function settled(stopReason: AssistantMessage["stopReason"]): boolean {
 }
 
 
-export function messageKey(message: Message, index: number): string {
-  if (message.role === "toolResult") return `tr-${message.toolCallId}`;
-  return `${message.role}-${message.timestamp}-${index}`;
-}
-
 /**
  * A row only changes when its own message does.
  *
@@ -51,6 +46,7 @@ export const MessageRow = memo(function MessageRow({
   from,
   continued,
   turnStats,
+  viewKey,
 }: {
   message: Message;
   index: number;
@@ -73,6 +69,7 @@ export const MessageRow = memo(function MessageRow({
   continued?: boolean;
   /** Accumulated statistics for the turn this message concludes. */
   turnStats?: TurnStats;
+  viewKey?: string;
 }) {
   if (message.role === "user") {
     /*
@@ -116,7 +113,7 @@ export const MessageRow = memo(function MessageRow({
   if (message.role === "toolResult") return null;
 
   return (
-    <AssistantRow message={message} index={index} upTo={upTo} from={from} continued={continued} turnStats={turnStats} />
+    <AssistantRow message={message} index={index} upTo={upTo} from={from} continued={continued} turnStats={turnStats} viewKey={viewKey} />
   );
 });
 
@@ -127,6 +124,7 @@ function AssistantRow({
   from = 0,
   continued,
   turnStats,
+  viewKey,
 }: {
   message: AssistantMessage;
   index: number;
@@ -134,6 +132,7 @@ function AssistantRow({
   from?: number;
   continued?: boolean;
   turnStats?: TurnStats;
+  viewKey?: string;
 }) {
   const running = useApp((s) => s.running);
   const retryFrom = useApp((s) => s.retryFrom);
@@ -174,6 +173,7 @@ function AssistantRow({
             return (
               <ThinkingBlock
                 key={at}
+                stateKey={viewKey ? `${viewKey}:thinking:${at}` : undefined}
                 text={block.thinking}
                 redacted={block.redacted === true}
                 live={message.stopReason === "pending" && at === message.content.length - 1}

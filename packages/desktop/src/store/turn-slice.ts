@@ -265,7 +265,6 @@ export function turnSlice(set: Set, get: Get) {
    */
   async setModel(modelId: string, options: { asDefault?: boolean } = {}) {
     const { activeSessionId, settings, meta } = get();
-    const midConversation = get().messages.length > 0 && meta?.modelId !== modelId;
     if (activeSessionId) {
       /*
        * Paint this conversation's choice before the write crosses IPC.
@@ -301,13 +300,7 @@ export function turnSlice(set: Set, get: Get) {
      */
     if (settings && (options.asDefault || !activeSessionId))
       await get().saveSettings({ ...settings, defaultModelId: modelId });
-    // A warning about a conversation already left behind must not appear in the blank one.
-    if (midConversation && get().activeSessionId === activeSessionId) {
-      get().notify(
-        "已切换模型。之前的推理上下文无法跨模型沿用，接下来的回答可能变差；重开一个对话效果最好。",
-        "warn",
-      );
-    }
+
   },
 
   /**

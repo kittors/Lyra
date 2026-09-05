@@ -11,7 +11,9 @@
 import type { Message, TodoItem } from "@lyra/core";
 import type { SessionMeta } from "@lyra/core";
 import { summarizeToolCall } from "../lib/tool-summary.ts";
-import type { ToolRun } from "./index.ts";
+import type { AppState, ToolRun } from "./index.ts";
+
+export type CachedSessionState = Pick<AppState, "running" | "todos" | "compactions" | "approvals" | "stopped" | "retrying" | "capabilities">;
 
 export type Cache = Record<
   string,
@@ -19,6 +21,7 @@ export type Cache = Record<
     meta: SessionMeta;
     messages: Message[];
     toolRuns: Record<string, ToolRun>;
+    state?: CachedSessionState;
     scrollTop?: number;
     pinnedToBottom?: boolean;
   }
@@ -33,8 +36,13 @@ export function prune(cache: Cache, keep: string): Cache {
   if (ids.length <= CACHE_LIMIT) return cache;
   const next = { ...cache };
   // Insertion order is recency order here: entries are re-added as sessions are visited.
-  for (const id of ids.slice(0, ids.length - CACHE_LIMIT))
-    if (id !== keep) delete next[id];
+  let excess = ids.length - CACHE_LIMIT;
+  for (const id of ids) {
+    if (excess === 0) break;
+    if (id === keep) continue;
+    delete next[id];
+    excess--;
+  }
   return next;
 }
 

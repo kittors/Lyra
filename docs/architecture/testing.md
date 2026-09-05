@@ -27,6 +27,12 @@
 
 ## 端到端
 
+对话滚动与切换的回归约束见 [对话渲染与阅读位置](conversation-rendering.md)。聚焦验证可运行：
+
+```bash
+pnpm --filter @lyra/desktop exec node --test --experimental-strip-types e2e/transcript-stability.test.ts
+```
+
 `packages/desktop/e2e/`，跑真实的 Electron 窗口，经 DevTools 协议驱动。一次一个应用
 （`--test-concurrency=1`）：三个窗口抢一台笔记本会让量布局的测试失败，而那是最糟的红——被测
 的代码本身没问题。

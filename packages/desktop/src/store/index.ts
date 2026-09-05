@@ -9,7 +9,7 @@ import type {
 } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
-import type { TurnStop } from "./derive.ts";
+import type { Cache, TurnStop } from "./derive.ts";
 import { sessionSlice } from "./session-slice.ts";
 import { turnSlice } from "./turn-slice.ts";
 import { workspaceSlice } from "./workspace-slice.ts";
@@ -191,16 +191,7 @@ export interface AppState {
    * shows up — but the cached copy goes on screen straight away, so switching back to
    * somewhere you have already been does not flash a skeleton at you.
    */
-  sessionCache: Record<
-    string,
-    {
-      meta: SessionMeta;
-      messages: Message[];
-      toolRuns: Record<string, ToolRun>;
-      scrollTop?: number;
-      pinnedToBottom?: boolean;
-    }
-  >;
+  sessionCache: Cache;
   running: boolean;
   /**
    * When the turn in progress began, and what it has spent so far.

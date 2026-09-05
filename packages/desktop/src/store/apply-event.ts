@@ -313,6 +313,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     case "message_update": {
       // Held until the next frame; see `coalesce`. The newest update is the only one worth having.
       coalesce(() => {
+        // The next animation frame may belong to a different conversation.
+        if (get().activeSessionId !== sessionId) return;
         const messages = [...get().messages];
         const index = messages.length - 1;
         if (index >= 0 && messages[index].role === "assistant") messages[index] = event.message;

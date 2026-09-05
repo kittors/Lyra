@@ -24,6 +24,7 @@ import { DiffView } from "../git/index.ts";
 import type { McpMark } from "./mcp-marks.ts";
 import { safeColour } from "../settings/index.ts";
 import { useMcpMark } from "./useMcpMark.ts";
+import { useTranscriptDisclosure } from "./view-state.ts";
 
 const ICONS: Record<string, typeof FileText> = {
 	read: FileText,
@@ -41,6 +42,7 @@ const ICONS: Record<string, typeof FileText> = {
 };
 
 interface ToolCardProps {
+	stateKey?: string;
 	toolName: string;
 	summary: string;
 	args: Record<string, unknown>;
@@ -48,8 +50,8 @@ interface ToolCardProps {
 	result?: ToolResult;
 }
 
-export function ToolCard({ toolName, summary, args, status, result }: ToolCardProps) {
-	const [open, setOpen] = useState(false);
+export function ToolCard({ toolName, summary, args, status, result, stateKey }: ToolCardProps) {
+	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const [elapsed, setElapsed] = useState(0);
 	const mcpMark = useMcpMark()(toolName);
 	/*
@@ -82,6 +84,7 @@ export function ToolCard({ toolName, summary, args, status, result }: ToolCardPr
 		>
 			<button
 				type="button"
+				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
 				className="ly-scroll flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/50"
 			>

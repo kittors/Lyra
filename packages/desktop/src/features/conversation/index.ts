@@ -17,7 +17,7 @@ export { ToolCard } from "./ToolCard.tsx";
 export { CodeText } from "./detail/CodeText.tsx";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { Section } from "./detail/Section.tsx";
-export { runs } from "./grouping.ts";
+export { runs, runKey } from "./grouping.ts";
 export { MessageEditor } from "./message/MessageEditor.tsx";
 export { ThinkingLine } from "./message/ThinkingLine.tsx";
 export { ToolRun } from "./runs.tsx";

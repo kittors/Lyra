@@ -1,3 +1,4 @@
+import { ChevronRight, FileText } from "lucide-react";
 /*
  * The subpath, not the package root.
  *
@@ -9,11 +10,13 @@ import { estimateTokens } from "@lyra/core/tokens";
 import type { Message, Settings } from "@lyra/core";
 import { useEffect, useState } from "react";
 
-import type { ContextBreakdown, ContextSegmentKey } from "../../../electron/ipc-types.ts";
+import type { ContextBreakdown, ContextSegmentKey, MemoryFileItem } from "../../../electron/ipc-types.ts";
 import { findModel } from "../models/index.ts";
 import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { formatTokens } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
+import { useOpenFile } from "../../store/openFile.ts";
+import { companionOf, useDock } from "../dock/index.ts";
 
 /**
  * How much of the model's context window this conversation is using.
@@ -41,6 +44,7 @@ export function ContextMeter({
 }) {
 	const popover = usePopover();
 	const [detail, setDetail] = useState<ContextBreakdown | null>(null);
+	const [memoryExpanded, setMemoryExpanded] = useState(false);
 	const open = popover.open;
 
 	/*
@@ -128,15 +132,43 @@ export function ContextMeter({
 
 						{detail ? (
 							<div className="mt-2.5 flex flex-col gap-[3px]">
-								{detail.segments.map((segment, index) => (
-									<Row
-										key={segment.key}
-										swatch={shadeOf(index)}
-										label={SEGMENT_LABEL[segment.key]}
-										tokens={segment.tokens}
-										share={segment.tokens / limit}
-									/>
-								))}
+								{detail.segments.map((segment, index) => {
+									const isMemory = segment.key === "memory" && (detail.memoryFiles?.length ?? 0) > 0;
+									return (
+										<div key={segment.key} className="flex flex-col">
+											<Row
+												swatch={shadeOf(index)}
+												label={SEGMENT_LABEL[segment.key]}
+												tokens={segment.tokens}
+												share={segment.tokens / limit}
+												expandable={isMemory}
+												expanded={memoryExpanded}
+												onToggleExpand={isMemory ? () => setMemoryExpanded((e) => !e) : undefined}
+											/>
+											{isMemory && memoryExpanded && detail.memoryFiles && (
+												<div className="mt-1 ml-4 flex flex-col gap-[2px] border-l border-line-soft pl-2">
+													{detail.memoryFiles.map((file) => (
+														<MemoryFileRow
+															key={file.path}
+															file={file}
+															limit={limit}
+															onPreview={() => {
+																popover.close();
+																void useOpenFile.getState().open({
+																	path: file.path,
+																	name: file.path.split("/").pop() || file.path,
+																	isDirectory: false,
+																	size: 0,
+																});
+																useDock.getState().open("file", companionOf("file"));
+															}}
+														/>
+													))}
+												</div>
+											)}
+										</div>
+									);
+								})}
 								<Row
 									swatch="var(--color-line)"
 									label="剩余空间"
@@ -221,13 +253,70 @@ function Bar({
 	);
 }
 
-function Row({ swatch, label, tokens, share }: { swatch: string; label: string; tokens: number; share: number }) {
+function Row({
+	swatch,
+	label,
+	tokens,
+	share,
+	expandable,
+	expanded,
+	onToggleExpand,
+}: {
+	swatch: string;
+	label: string;
+	tokens: number;
+	share: number;
+	expandable?: boolean;
+	expanded?: boolean;
+	onToggleExpand?: () => void;
+}) {
 	return (
-		<div className="flex items-center gap-2 text-detail">
-			<span className="h-[8px] w-[8px] shrink-0 rounded-[2px]" style={{ background: swatch }} />
+		<div
+			onClick={onToggleExpand}
+			className={`flex items-center gap-2 rounded px-1 py-0.5 text-detail transition-colors ${
+				expandable ? "cursor-pointer hover:bg-card-hover" : ""
+			}`}
+		>
+			{expandable ? (
+				<ChevronRight
+					size={11}
+					className={`shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-quick)] ${
+						expanded ? "rotate-90 text-ink" : ""
+					}`}
+				/>
+			) : (
+				<span className="h-[8px] w-[8px] shrink-0 rounded-[2px]" style={{ background: swatch }} />
+			)}
 			<span className="min-w-0 flex-1 truncate text-ink-muted">{label}</span>
 			<span className="shrink-0 tabular-nums text-ink-muted">{formatTokens(tokens)}</span>
 			<span className="w-[44px] shrink-0 text-right tabular-nums text-ink-faint">{(share * 100).toFixed(1)}%</span>
+		</div>
+	);
+}
+
+function MemoryFileRow({
+	file,
+	limit,
+	onPreview,
+}: {
+	file: MemoryFileItem;
+	limit: number;
+	onPreview: () => void;
+}) {
+	return (
+		<div
+			onClick={onPreview}
+			data-ly-tip="点击在文件容器中预览"
+			className="group/file flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 text-detail transition-colors hover:bg-card-hover"
+		>
+			<FileText size={12} className="shrink-0 text-ink-faint group-hover/file:text-accent" />
+			<span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-muted group-hover/file:text-ink">
+				{file.path}
+			</span>
+			<span className="shrink-0 tabular-nums text-[11px] text-ink-faint">{formatTokens(file.tokens)}</span>
+			<span className="w-[40px] shrink-0 text-right tabular-nums text-[11px] text-ink-faint/70">
+				{((file.tokens / limit) * 100).toFixed(1)}%
+			</span>
 		</div>
 	);
 }

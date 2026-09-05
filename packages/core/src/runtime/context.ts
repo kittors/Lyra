@@ -22,6 +22,11 @@ export interface ContextSegment {
 	tokens: number;
 }
 
+export interface MemoryFileItem {
+	path: string;
+	tokens: number;
+}
+
 export interface ContextBreakdown {
 	/** The model's window, so the caller does not have to look it up again to compute a share. */
 	limit: number;
@@ -30,6 +35,8 @@ export interface ContextBreakdown {
 	used: number;
 	/** True once the numbers come from the provider rather than from a characters-per-token guess. */
 	measured: boolean;
+	/** Individual memory / instruction files making up the 'memory' segment. */
+	memoryFiles?: MemoryFileItem[];
 }
 
 /** What a tool costs on the wire: the schema the provider is given, every single request. */
@@ -56,7 +63,11 @@ export function buildContextBreakdown(input: {
 	projectInstructions: { path: string; content: string }[];
 }): ContextBreakdown {
 	const skills = textTokens(input.skillCatalogue);
-	const memory = textTokens(input.projectInstructions.map((file) => file.content).join(""));
+	const memoryFiles: MemoryFileItem[] = input.projectInstructions.map((file) => ({
+		path: file.path,
+		tokens: textTokens(file.content),
+	}));
+	const memory = memoryFiles.reduce((acc, f) => acc + f.tokens, 0);
 	/*
 	 * The prompt minus the two parts listed separately.
 	 *
@@ -97,6 +108,7 @@ export function buildContextBreakdown(input: {
 		segments,
 		used: messages + overhead,
 		measured: total.measured,
+		memoryFiles: memoryFiles.length > 0 ? memoryFiles : undefined,
 	};
 }
 

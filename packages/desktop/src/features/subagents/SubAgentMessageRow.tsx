@@ -11,7 +11,7 @@
 import { memo, useMemo } from "react";
 import type { Message, UserContent } from "@lyra/core";
 import { openFromEvent } from "../image/index.ts";
-import { runs } from "../conversation/index.ts";
+import { runs, runKey } from "../conversation/index.ts";
 import { ToolRun } from "../conversation/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
@@ -29,13 +29,13 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 
 	return (
 		<div className="flex flex-col">
-			{transcriptRuns.map((run, idx) => {
+			{transcriptRuns.map((run) => {
 				if (run.kind === "compaction") return null;
 
 				if (run.kind === "tools") {
 					// Which run is being worked on is `grouping.ts`'s answer; whether anyone is working on
 					// it at all is this panel's. The same pair as in `Conversation`.
-					return <ToolRun key={`sub-run-${idx}`} calls={run.calls} live={Boolean(isLive && run.live)} runs={toolRuns} />;
+					return <ToolRun key={runKey(run)} calls={run.calls} live={Boolean(isLive && run.live)} runs={toolRuns} />;
 				}
 
 				const { message, upTo } = run;
@@ -51,7 +51,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 						(block): block is Extract<UserContent, { type: "image" }> => block.type === "image",
 					);
 					return (
-						<div key={`user-${idx}`} className="ly-enter mb-3 flex justify-end">
+						<div key={runKey(run)} className="ly-enter mb-3 flex justify-end">
 							<div className="max-w-[88%] rounded-[13px] rounded-br-[5px] bg-card px-3 py-2 text-label leading-relaxed text-ink">
 								{text && <div className="whitespace-pre-wrap">{text}</div>}
 								{images.length > 0 && (
@@ -87,7 +87,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 				if (message.role === "assistant") {
 					const visibleBlocks = message.content.slice(from, upTo);
 					return (
-						<div key={`assistant-${idx}`} className="ly-enter mb-3">
+						<div key={runKey(run)} className="ly-enter mb-3">
 							{visibleBlocks.map((block, offset) => {
 								const bIdx = from + offset;
 								if (block.type === "thinking") {

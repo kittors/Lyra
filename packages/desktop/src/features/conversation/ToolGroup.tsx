@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { useTranscriptDisclosure } from "./view-state.ts";
 
 
 /**
@@ -20,6 +21,7 @@ export function ToolGroup({
 	removed,
 	running,
 	children,
+	stateKey,
 }: {
 	/** What this run did, in words — see `describeRun`. */
 	summary: string;
@@ -28,14 +30,16 @@ export function ToolGroup({
 	removed?: number;
 	running?: boolean;
 	children: React.ReactNode;
+	stateKey?: string;
 }) {
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useTranscriptDisclosure(stateKey);
+	const [visited, setVisited] = useState(open);
 	const body = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState(0);
+	const [height, setHeight] = useState<number | null>(null);
 
 	// Measured rather than guessed, for the same reason as the task list: an animation to a
 	// max-height that is not the real one either clips the list or finishes early.
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const element = body.current;
 		if (!element) return;
 		const measure = () => setHeight(element.scrollHeight);
@@ -64,7 +68,10 @@ export function ToolGroup({
 		<div className="mb-2.5" data-ly-run={running ? "running" : "done"}>
 			<button
 				type="button"
-				onClick={() => setOpen((value) => !value)}
+				onClick={() => {
+					setVisited(true);
+					setOpen((value) => !value);
+				}}
 				aria-expanded={open}
 				className="ly-scroll group/run flex w-full items-center gap-1.5 rounded-md py-0.5 text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
 			>
@@ -107,11 +114,13 @@ export function ToolGroup({
 			{/* `ly-freeze`: an open group's height follows what fits, so a boundary being dragged
 			    keeps changing it — and an eased height would trail the pointer. See `styles.css`. */}
 			<div
-				style={{ height: open ? height : 0 }}
+				style={{ height: open ? height ?? "auto" : 0 }}
+				inert={!open}
+				aria-hidden={!open}
 				className="ly-freeze overflow-hidden transition-[height] duration-[var(--ly-t-base)] ease-out"
 			>
 				<div ref={body} className="pt-1">
-					{children}
+					{(open || visited) && children}
 				</div>
 			</div>
 		</div>
