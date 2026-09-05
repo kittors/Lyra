@@ -17,7 +17,8 @@ import { loadRules, ruleSources } from "../../rules/loader.ts";
 import type { Rule } from "../../rules/types.ts";
 import { loadSkills, parseFrontmatter, type Skill } from "../../skills/loader.ts";
 import type { AgentDefinition } from "../../tools/task.ts";
-import { walkFiles } from "../fs.ts";
+import type { JsonSchema } from "../../types.ts";
+import { normalizeKeys, walkFiles } from "../fs.ts";
 import type { CapabilityId, CapabilityProvider, ContextFile, Diagnostic, DiscoveryContext, ProviderResult, SourceMeta, Sourced } from "../types.ts";
 
 const ID = "native";
@@ -157,7 +158,9 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 					hint: "在元数据后面补一行 `---`。",
 				});
 			}
-			const { frontmatter, body } = parsed;
+			// `schema-mode` and `schemaMode` are the same key, as they are for skills and commands.
+			const frontmatter = normalizeKeys(parsed.frontmatter);
+			const { body } = parsed;
 			const name =
 				typeof frontmatter.name === "string" && frontmatter.name.trim()
 					? frontmatter.name.trim()
@@ -171,6 +174,23 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 					? (frontmatter.tools as unknown[]).filter((t): t is string => typeof t === "string")
 					: "*",
 				model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+				/*
+				 * Who it may dispatch — `"*"` or a list of names. Declared on the type, enforced in
+				 * `runSubAgent`, tested with definitions built in memory, and never read from a file:
+				 * no definition anyone wrote could delegate, so the tree the pane draws could not occur.
+				 */
+				spawns:
+					frontmatter.spawns === "*"
+						? "*"
+						: Array.isArray(frontmatter.spawns)
+							? (frontmatter.spawns as unknown[]).filter((t): t is string => typeof t === "string")
+							: undefined,
+				// Same story as `spawns`: the two fields that make a reply an object were never read.
+				output:
+					frontmatter.output && typeof frontmatter.output === "object" && !Array.isArray(frontmatter.output)
+						? (frontmatter.output as JsonSchema)
+						: undefined,
+				schemaMode: frontmatter.schemaMode === "strict" || frontmatter.schemaMode === "permissive" ? frontmatter.schemaMode : undefined,
 				provenance: meta(file, scope),
 			} as Sourced<AgentDefinition>);
 		}

@@ -41,6 +41,11 @@ before(async () => {
 	await put("project/.lyra/commands/review.md", "---\ndescription: 我们的审查\n---\n审查改动");
 	await put("project/.lyra/rules/style.md", "---\ndescription: 我们的风格\nglobs: ['**/*.ts']\n---\n用 tab 缩进。");
 	await put("project/.lyra/agents/general.md", "---\nname: general\ndescription: 覆盖内置的 general\n---\n我是自定义的。");
+	await put("project/.lyra/agents/boss.md", "---\nname: boss\ndescription: 编排者\nspawns: \"*\"\n---\n派活。");
+	await put(
+		"project/.lyra/agents/lead.md",
+		"---\nname: lead\ndescription: 组长\nspawns: [scout, reviewer]\nschema-mode: strict\noutput:\n  type: object\n  properties:\n    where:\n      type: string\n---\n带队。",
+	);
 
 	// Claude Code's, one of which collides with ours.
 	await put("project/.claude/commands/review.md", "---\ndescription: Claude 的审查\n---\n别的内容");
@@ -84,6 +89,27 @@ test("a custom agent replaces the built-in of the same name", async () => {
 	const shadowed = result.all.find((a) => a.name === "general" && a.provenance.provider === "builtin");
 	assert.ok(shadowed, "the built-in is still listed");
 	assert.equal(shadowed.shadowedBy?.provider, "native", "and says who replaced it");
+});
+
+test("an agent file can say whom it dispatches and what it must return", async () => {
+	/*
+	 * `spawns`, `output` and `schemaMode` were declared on the type, enforced in `runSubAgent`
+	 * and tested with definitions built in memory — and never read from a file. No definition
+	 * anyone could write was able to delegate or to promise an object, so the lineage the pane
+	 * draws and the schema-rendered reply could not occur outside a test.
+	 */
+	const result = await registry().load<AgentDefinition>("agent", { cwd: project });
+	const boss = result.items.find((a) => a.name === "boss");
+	const lead = result.items.find((a) => a.name === "lead");
+	const general = result.items.find((a) => a.name === "general");
+	assert.ok(boss && lead && general);
+	assert.equal(boss.spawns, "*");
+	assert.deepEqual(lead.spawns, ["scout", "reviewer"], "a list is a list, not a switch");
+	assert.equal(lead.schemaMode, "strict", "`schema-mode` reaches the camelCase field");
+	assert.equal(lead.output?.type, "object");
+	assert.deepEqual(Object.keys((lead.output as { properties: Record<string, unknown> }).properties), ["where"]);
+	assert.equal(general.spawns, undefined, "the default stays: nobody dispatches unless the file says so");
+	assert.equal(general.output, undefined);
 });
 
 test("the other built-in agents are untouched", async () => {
