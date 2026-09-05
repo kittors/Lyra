@@ -32,3 +32,26 @@ test("symbolTool accepts query and symbol aliases", async () => {
 	const res = await symbolTool.execute({ query: "grepTool", path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
 	assert.equal(res.isError, undefined);
 });
+
+test("globTool falls back to extracting pattern from description when pattern is missing", async () => {
+	const res = await globTool.execute({ description: "Find security config files (pattern: **/*Security*.java)", path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
+	assert.equal(res.isError, undefined);
+});
+
+test("globTool extracts quoted pattern or wildcard from description", async () => {
+	const res = await globTool.execute({ description: "Find all *.ts files in directory", path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
+	assert.equal(res.isError, undefined);
+	assert.match(res.content[0].text, /tool-aliases\.test\.ts/);
+});
+
+test("grepTool falls back to extracting pattern from description when pattern is missing", async () => {
+	const res = await grepTool.execute({ description: "Search for (pattern: grepTool)", path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
+	assert.equal(res.isError, undefined);
+	assert.match(res.content[0].text, /grepTool/);
+});
+
+test("grepTool extracts quoted pattern from description", async () => {
+	const res = await grepTool.execute({ description: "Search \"grepTool\" in files", path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
+	assert.equal(res.isError, undefined);
+	assert.match(res.content[0].text, /grepTool/);
+});
