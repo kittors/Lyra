@@ -70,10 +70,22 @@ export function gitEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 /**
+ * Remote operations run inside the app, where there is nowhere appropriate to ask for credentials.
+ *
+ * Git's terminal switch does not cover credential helpers: on Windows, Git Credential Manager may
+ * open its own window before Git falls back to a terminal prompt. Both switches are required so a
+ * fetch fails promptly instead of leaving an orphaned credentials dialog behind after its timeout.
+ */
+export function remoteGitEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	return { ...gitEnvironment(base), GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "0" };
+}
+
+/**
  * Built once. `process.env` does not change under us, and rebuilding it per call would put this
  * work on the path of every `git show` in a two-hundred-file diff.
  */
 const GIT_ENV = gitEnvironment(process.env);
+const REMOTE_GIT_ENV = remoteGitEnvironment(process.env);
 
 export const MAX_FILES = 200;
 export const MAX_BLOB_BYTES = 400_000;
@@ -168,10 +180,9 @@ export interface RemoteResult {
  * without a way to cancel, that is a panel someone is locked inside.
  *
  * **It must not wait for a person.** `GIT_TERMINAL_PROMPT=0` turns git's own prompt into an
- * immediate failure with a clear reason. Worth knowing what this is *not* protecting against:
- * missing credentials never hang here — a process with no tty fails in milliseconds either way.
- * What the variable buys is the wording. Without it git reports `Device not configured`, which
- * describes the tty rather than the problem.
+ * immediate failure with a clear reason, while `GCM_INTERACTIVE=0` prevents Git Credential Manager
+ * from opening a separate GUI prompt first. The latter matters on Windows because killing the git
+ * process on timeout does not necessarily close the credential helper it launched.
  *
  * Deliberately does not set `GIT_ASKPASS`. Pointing it at a helper that answers with nothing makes
  * git complete an authentication attempt using an empty username, and the failure changes from
@@ -187,7 +198,7 @@ export async function runRemote(
 		await execFileAsync("git", args, {
 			cwd,
 			maxBuffer: 32 * 1024 * 1024,
-			env: { ...GIT_ENV, GIT_TERMINAL_PROMPT: "0" },
+			env: REMOTE_GIT_ENV,
 			timeout: timeoutMs,
 			signal,
 		});
