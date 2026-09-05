@@ -61,3 +61,25 @@ export function normalizeKeys(frontmatter: Record<string, unknown>): Record<stri
 	}
 	return out;
 }
+
+/**
+ * 含 `.git` 的最近祖先，没有就返回 null。
+ *
+ * 「向上遍历到仓库根」是好几种能力共有的边界——context-file、`.agent(s)` 目录、将来的
+ * `.mcp.json`——而边界只该算一次。再往上就是 `~` 和 `/`，那里的 AGENTS.md 属于别的项目。
+ *
+ * `.git` 在 worktree 里是文件不是目录，所以用 `access` 而不是 `stat().isDirectory()`。
+ * 这个仓库自己就在用 worktree 干活，这条不是假设。十层是防病态路径的上限，不是语义。
+ */
+export async function findRepoRoot(cwd: string): Promise<string | null> {
+	const { access } = await import("node:fs/promises");
+	const { dirname, join } = await import("node:path");
+	let dir = cwd;
+	for (let depth = 0; depth < 10; depth += 1) {
+		if (await access(join(dir, ".git")).then(() => true).catch(() => false)) return dir;
+		const parent = dirname(dir);
+		if (parent === dir) return null;
+		dir = parent;
+	}
+	return null;
+}

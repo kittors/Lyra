@@ -18,7 +18,7 @@ import type { Rule } from "../../rules/types.ts";
 import { loadSkills, parseFrontmatter, type Skill } from "../../skills/loader.ts";
 import type { AgentDefinition } from "../../tools/task.ts";
 import { walkFiles } from "../fs.ts";
-import type { CapabilityId, CapabilityProvider, Diagnostic, DiscoveryContext, ProviderResult, SourceMeta, Sourced } from "../types.ts";
+import type { CapabilityId, CapabilityProvider, ContextFile, Diagnostic, DiscoveryContext, ProviderResult, SourceMeta, Sourced } from "../types.ts";
 
 const ID = "native";
 const LABEL = "Lyra";
@@ -51,13 +51,14 @@ export const nativeProvider: CapabilityProvider = {
 	label: LABEL,
 	describe: "读取项目里的 .lyra/ 与 ~/.lyra/",
 	priority: 100,
-	supplies: ["skill", "command", "rule", "agent"],
+	supplies: ["skill", "command", "rule", "agent", "context-file"],
 
 	async load(kind: CapabilityId, ctx: DiscoveryContext): Promise<ProviderResult> {
 		if (kind === "skill") return loadNativeSkills(ctx);
 		if (kind === "command") return loadNativeCommands(ctx);
 		if (kind === "rule") return loadNativeRules(ctx);
 		if (kind === "agent") return loadNativeAgents(ctx);
+		if (kind === "context-file") return loadNativeContextFiles(ctx);
 		return { items: [] };
 	},
 };
@@ -188,4 +189,52 @@ async function readFileSafe(file: string, diagnostics: Diagnostic[]): Promise<st
 		});
 		return null;
 	});
+}
+
+/** 同一个目录里的优先级。两份都在时，前者赢——后者多半是从别的工具迁过来没删的旧版本。 */
+const CONTEXT_FILE_NAMES = ["LYRA.md", "AGENTS.md", "CLAUDE.md"];
+
+/**
+ * 项目指令，从 cwd 一路往上收到仓库根。
+ *
+ * 这条优先级规则此前住在 `prompt/system.ts` 里——「按目录找、每层留一个」的第六份副本，
+ * 而注册表存在的理由就是这种规则只写一次。`context-file` 这个 kind 在 `kinds.ts` 里连去重
+ * 规则都定义好了，只是一直没有 provider 供应它。
+ *
+ * **同一层的候选全部返回，让注册表去重。** provider 自己挑一份会让第二份静默消失；经注册表
+ * 走，第二份是「被遮蔽」——带着是谁盖的它、在哪儿——设置页能说出「CLAUDE.md 被 AGENTS.md
+ * 盖掉了」，而不是让人对着一份不生效的文件发呆。
+ *
+ * 不在 git 仓库里时只读 cwd 自己：没有边界时收窄，不是放开。
+ */
+async function loadNativeContextFiles(ctx: DiscoveryContext): Promise<ProviderResult<ContextFile>> {
+	if (!ctx.cwd) return { items: [] };
+	const { readFile } = await import("node:fs/promises");
+	const { dirname, relative } = await import("node:path");
+
+	const items: Sourced<ContextFile>[] = [];
+	const watched: string[] = [];
+	const stop = ctx.repoRoot;
+	let dir = ctx.cwd;
+	for (let depth = 0; depth < 10; depth += 1) {
+		watched.push(dir);
+		for (const name of CONTEXT_FILE_NAMES) {
+			const path = join(dir, name);
+			const content = await readFile(path, "utf8").catch(() => null);
+			if (!content?.trim()) continue;
+			const file: ContextFile = {
+				name: stop ? relative(stop, path) || name : name,
+				path,
+				content: content.trim(),
+				scope: "project",
+				depth,
+			};
+			items.push({ ...file, provenance: { provider: ID, providerLabel: LABEL, path, scope: "project", depth } } as Sourced<ContextFile>);
+		}
+		if (stop === null || dir === stop) break;
+		const parent = dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	return { items, watched };
 }

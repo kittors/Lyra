@@ -37,6 +37,20 @@ export type CapabilityId =
 export type ProviderId = string;
 
 /** Where an item came from. Carried on every item so that "why is this here" has an answer. */
+/**
+ * 一份项目指令文件：`AGENTS.md`、`CLAUDE.md`、`LYRA.md`。
+ *
+ * `name` 是相对仓库根的路径，`depth` 是离 cwd 几层。注册表按 `scope:depth` 去重——同一层
+ * 只留一份、跨层都留，见 `kinds.ts` 里那段关于 monorepo 根 AGENTS.md 静默失效的注释。
+ */
+export interface ContextFile {
+	name: string;
+	path: string;
+	content: string;
+	scope: "project";
+	depth: number;
+}
+
 export interface SourceMeta {
 	provider: ProviderId;
 	providerLabel: string;
