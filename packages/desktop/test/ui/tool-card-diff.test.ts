@@ -21,7 +21,7 @@ const RESULT = {
 
 test("an edit result opens into a diff with the changed lines, not the tool's sentence", async () => {
 	const view = await mount(
-		h(ToolCard, { toolName: "edit", summary: "编辑 src/a.ts", args: { path: "src/a.ts" }, status: "done", result: RESULT as never, stateKey: "t1" }),
+		h(ToolCard, { toolName: "edit", summary: "编辑 src/a.ts", args: { path: "src/a.ts" }, status: "done", result: RESULT as never }),
 	);
 	await click(view.find("button"));
 	const text = view.text();
