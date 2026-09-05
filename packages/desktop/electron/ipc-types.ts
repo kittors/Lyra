@@ -73,6 +73,8 @@ import type {
 	RegistryEntry,
 	Plugin,
 	DiffHunk,
+	ExtensionDiagnostic,
+	ExtensionStats,
 	PluginDiagnostic,
 	QueuedTask,
 	RuleDestination,
@@ -744,6 +746,14 @@ export interface LyraApi {
 	 * drift, and it would drift in the direction where somebody approves text that is not what
 	 * lands on disk.
 	 */
+	extensions: {
+		/**
+		 * 扩展的可观测：有会话就是那个会话宿主里的数字，没有就只有磁盘上的清单（`live: false`）。
+		 * 每个事件一行，包括一次都没派到过的——「0 次」是在说处理器没被够到。
+		 */
+		stats(sessionId: string | null, cwd: string): Promise<{ live: boolean; extensions: ExtensionStats[]; diagnostics: ExtensionDiagnostic[] }>;
+	};
+
 	capabilities: {
 		/** 两份同名能力的差异，赢家在前输家在后；hunk 直接交给 DiffView。 */
 		diff(

@@ -1,16 +1,17 @@
-import { Blocks, Cable, ChevronDown, FolderOpen, MoreHorizontal, Plus, Scale, Sparkles, Store } from "lucide-react";
+import { Blocks, Cable, ChevronDown, FolderOpen, MoreHorizontal, Plus, Puzzle, Scale, Sparkles, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useApp } from "../../store/index.ts";
+import { ExtensionHostSettings } from "./ExtensionHostSettings.tsx";
 import { McpSettings, newMcpServer } from "./McpSettings.tsx";
 import { PluginsSettings } from "./PluginsSettings.tsx";
 import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
 
-type Tab = "plugins" | "skills" | "rules" | "mcp";
+type Tab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
 
 /**
  * Plugins, skills and MCP servers, in one place.
@@ -30,7 +31,7 @@ export function ExtensionsSettings() {
 	const setView = useApp((s) => s.setView);
 	const [tab, setTab] = useState<Tab>("plugins");
 	const [query, setQuery] = useState("");
-	const [counts, setCounts] = useState({ plugins: 0, skills: 0, rules: 0 });
+	const [counts, setCounts] = useState({ plugins: 0, skills: 0, rules: 0, extensions: 0 });
 	const add = usePopover();
 	const more = usePopover();
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
@@ -69,6 +70,10 @@ export function ExtensionsSettings() {
 		void bridge.plugins.list(cwd).then((scan) => {
 			setCounts((was) => ({ ...was, plugins: scan.plugins.length, skills: scan.skills.length }));
 		});
+		void bridge.extensions
+			.stats(null, cwd)
+			.then((scan) => setCounts((was) => ({ ...was, extensions: scan.extensions.length })))
+			.catch(() => {});
 		void bridge.rules.list(cwd).then((scan) => {
 			// 生效的那些——被同名文件盖掉的不算，它们在那一页里单列一段说明。
 			setCounts((was) => ({ ...was, rules: scan.rules.filter((rule) => !rule.shadowedBy).length }));
@@ -88,6 +93,11 @@ export function ExtensionsSettings() {
 		 * 来源和三种代价，一个总数说不清任何事——要看的是那张表本身。
 		 */
 		{ id: "rules", label: "规则", count: counts.rules, icon: Scale },
+		/*
+		 * 扩展在最后：它不是「给模型的东西」，是「看着模型的东西」——跑在 worker 里的代码，
+		 * 收事件、可以拦截。这一页答的是它有没有在跑、跑得多慢（10 §7.3）。
+		 */
+		{ id: "extensions", label: "扩展", count: counts.extensions, icon: Puzzle },
 	];
 
 	return (
@@ -255,6 +265,7 @@ export function ExtensionsSettings() {
 				{tab === "skills" && <SkillsSettings filter={query} />}
 				{tab === "rules" && <RulesSettings filter={query} />}
 				{tab === "mcp" && <McpSettings filter={query} />}
+				{tab === "extensions" && <ExtensionHostSettings filter={query} />}
 			</div>
 
 		</div>
