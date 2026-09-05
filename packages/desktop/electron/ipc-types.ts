@@ -72,6 +72,7 @@ import type {
 	Registry,
 	RegistryEntry,
 	Plugin,
+	DiffHunk,
 	PluginDiagnostic,
 	QueuedTask,
 	RuleDestination,
@@ -743,6 +744,17 @@ export interface LyraApi {
 	 * drift, and it would drift in the direction where somebody approves text that is not what
 	 * lands on disk.
 	 */
+	capabilities: {
+		/** 两份同名能力的差异，赢家在前输家在后；hunk 直接交给 DiffView。 */
+		diff(
+			kind: "rule" | "skill",
+			winner: string,
+			loser: string,
+		): Promise<{ hunks: DiffHunk[]; added: number; removed: number; winner: string; loser: string }>;
+		/** 「改用那个」：让 `path` 这一份赢下 `kind:name`。返回写到了哪个文件。 */
+		prefer(kind: "rule" | "skill", name: string, path: string): Promise<{ wroteTo: string }>;
+	};
+
 	rules: {
 		/** 这个项目现在有哪些规则，包括被关掉的和被同名文件盖掉的。 */
 		list(cwd: string): Promise<{

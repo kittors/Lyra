@@ -204,6 +204,10 @@ export const METHODS = {
 	 * 手机能调：卡片跟着转录一起出现在手机上，而一张按不动的卡片比没有卡片更糟——
 	 * 它出现在正确的时刻，然后什么也不做。落盘仍然发生在桌面端的项目目录里。
 	 */
+	capabilities: {
+		diff: { channel: "capabilities:diff", remote: false, why: "读任意路径，且只在桌面端有画 diff 的地方" },
+		prefer: { channel: "capabilities:prefer", remote: false, why: "改本机的配置文件" },
+	},
 	rules: {
 		preview: { channel: "rules:preview", remote: true },
 		keep: { channel: "rules:keep", remote: true },

@@ -146,7 +146,7 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 		await reconcile(plugins.mcpBundles);
 		void tidy(plugins.mcpBundles);
 
-		const collected = await collectSkills(cwd ?? process.cwd(), plugins.plugins);
+		const collected = await collectSkills(cwd ?? process.cwd(), plugins.plugins, settings());
 		return {
 			plugins: plugins.plugins,
 			mcpBundles: plugins.mcpBundles,

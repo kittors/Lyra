@@ -21,13 +21,15 @@
  */
 
 import type { RuleEntry } from "@lyra/core";
-import { FileText, Layers, TriangleAlert, Zap } from "lucide-react";
+import { FileText, TriangleAlert, Zap } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Badge, Card, EmptyHint, ListRow, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 import { RuleTryPanel } from "./RuleTryPanel.tsx";
+import { DiffView } from "../git/index.ts";
+import { ShadowedList } from "./ShadowedList.tsx";
 
 /** 三种规则，三种代价。 */
 const BUCKETS = {
@@ -94,35 +96,15 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 				</Card>
 			)}
 
-			{shadowed.length > 0 && (
-				<Card className="mb-6">
-					<div className="px-4 py-3">
-						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
-							<Layers size={13} strokeWidth={1.9} />
-							{shadowed.length} 条同名规则被覆盖
-						</div>
-						{/* 不画成警告色：覆盖本来就是它该有的工作方式，在项目里放一条同名的去盖掉全局那条，
-						    要的正是这个。 */}
-						{shadowed.map((rule) => (
-							<div key={rule.path} className="py-0.5 text-detail text-ink-faint">
-								<span className="font-mono">{rule.path}</span> 被 {rule.shadowedBy?.label} 的{" "}
-								<span className="font-mono">{rule.shadowedBy?.path}</span> 覆盖
-							</div>
-						))}
-					</div>
-				</Card>
-			)}
+			<ShadowedList
+				kind="rule"
+				entries={shadowed.map((rule) => ({ name: rule.name, path: rule.path, by: rule.shadowedBy?.path ?? "", byLabel: rule.shadowedBy?.label ?? "" }))}
+				diff={(winner, loser) => bridge.capabilities.diff("rule", winner, loser)}
+				prefer={(name, path) => bridge.capabilities.prefer("rule", name, path)}
+				onChanged={reload}
+				renderDiff={(hunks, path) => <DiffView hunks={hunks} path={path} />}
+			/>
 
-			{/*
-			 * 别家工具的**个人**规则，默认不读。
-			 *
-			 * 项目里的 `.cursor/rules` 永远读——那是团队对这份代码做出的声明，提交在仓库里。而
-			 * `~/.cursor/rules` 是你自己的：让它跟着你进别人的仓库，会做出一个跟同事在同一份
-			 * 代码上行为不同的 agent，而屏幕上没有任何东西解释为什么。
-			 *
-			 * 逐个勾而不是一个总开关：一个人可能想让 Cursor 的个人规则跟着走，同时不想让三年前
-			 * 配的 Windsurf 也跟着。
-			 */}
 			{(data?.foreignUserSources.length ?? 0) > 0 && (
 				<Card className="mb-6">
 					<div className="px-4 pt-3 pb-1">

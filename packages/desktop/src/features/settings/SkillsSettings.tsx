@@ -1,10 +1,12 @@
 import type { Skill, SkillCandidate } from "@lyra/core";
-import { Layers, Sparkles, TriangleAlert } from "lucide-react";
+import { Sparkles, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SkillMark } from "./PluginIcon.tsx";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
+import { DiffView } from "../git/index.ts";
+import { ShadowedList } from "./ShadowedList.tsx";
 import { bridge } from "../../services/index.ts";
 
 /**
@@ -43,10 +45,13 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	}, [workspace?.path]);
 
 	// Scanned directly so the page works before any session exists.
-	useEffect(() => {
+	const reloadScan = useCallback(() => {
 		void bridge.plugins.list(workspace?.path ?? "").then(setScan);
+	}, [workspace?.path]);
+	useEffect(() => {
+		reloadScan();
 		reloadPending();
-	}, [workspace?.path, extensionsNonce, reloadPending]);
+	}, [reloadScan, extensionsNonce, reloadPending]);
 
 	// Name or description, because you remember a skill by either.
 	const needle = filter.trim().toLowerCase();
@@ -158,22 +163,14 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 			 * a skill into their project to replace a bundled one wants exactly this, and colouring
 			 * it like a fault would make a working feature look like a problem.
 			 */}
-			{shadowed.length > 0 && (
-				<Card className="mb-6">
-					<div className="px-4 py-3">
-						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
-							<Layers size={13} strokeWidth={1.9} />
-							{shadowed.length} 个同名技能被覆盖
-						</div>
-						{shadowed.map((entry) => (
-							<div key={entry.path} className="py-0.5 text-detail text-ink-faint">
-								<span className="font-mono">{entry.path}</span> 被 {entry.byLabel} 的{" "}
-								<span className="font-mono">{entry.by}</span> 覆盖
-							</div>
-						))}
-					</div>
-				</Card>
-			)}
+			<ShadowedList
+				kind="skill"
+				entries={shadowed}
+				diff={(winner, loser) => bridge.capabilities.diff("skill", winner, loser)}
+				prefer={(name, path) => bridge.capabilities.prefer("skill", name, path)}
+				onChanged={reloadScan}
+				renderDiff={(hunks, path) => <DiffView hunks={hunks} path={path} />}
+			/>
 
 			{slow ? (
 				<SkeletonList count={6} label="正在读取技能" />

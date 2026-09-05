@@ -10,6 +10,7 @@ import { ipcMain, shell } from "electron";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { builtinCommandsFor, collectSkills, commandSources, loadCommands, loadPlugins, lyraHome, type BuiltinCommand, type SlashCommand } from "@lyra/core";
+import { settings } from "../app-settings.ts";
 
 export interface CommandsList {
 	commands: SlashCommand[];
@@ -83,7 +84,7 @@ export function registerCommandsIpc(): void {
 			],
 			[],
 		).catch(() => ({ plugins: [] }));
-		const { skills } = await collectSkills(cwd || lyraHome(), bundles.plugins).catch(() => ({ skills: [] }));
+		const { skills } = await collectSkills(cwd || lyraHome(), bundles.plugins, settings()).catch(() => ({ skills: [] }));
 		return {
 			commands,
 			diagnostics,
