@@ -57,6 +57,8 @@ export const METHODS = {
 	},
 	workspace: {
 		pick: { channel: "workspace:pick", remote: false, why: "开的是本机的文件选择对话框" },
+		foreignConfigs: { channel: "workspace:foreignConfigs", remote: false, why: "读本机仓库目录；手机上没有这个提示" },
+		markForeignConfigsSeen: { channel: "workspace:markForeignConfigsSeen", remote: false, why: "同上" },
 		info: { channel: "workspace:info", remote: true },
 		reveal: { channel: "workspace:reveal", remote: false, why: "在本机的访达/资源管理器里定位" },
 	},

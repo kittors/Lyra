@@ -75,6 +75,7 @@ import type {
 	DiffHunk,
 	ExtensionDiagnostic,
 	ExtensionStats,
+	ForeignConfigLine,
 	LayerOverride,
 	PluginDiagnostic,
 	QueuedTask,
@@ -208,6 +209,12 @@ export interface LyraApi {
 		scan(): Promise<UsageScan>;
 	};
 	workspace: {
+		/**
+		 * 这个仓库里其他 AI 工具的配置，按「哪家 · 哪个目录 · 哪类 · 几条」——数字来自注册表实际
+		 * 读到的条目，不是目录在不在。`seen` 是这个项目里这条提示看过没有。
+		 */
+		foreignConfigs(cwd: string): Promise<{ lines: ForeignConfigLine[]; seen: boolean }>;
+		markForeignConfigsSeen(cwd: string): Promise<void>;
 		/** Show the project directory in the OS file manager. */
 		reveal(path: string): Promise<void>;
 		pick(): Promise<WorkspaceInfo | null>;
