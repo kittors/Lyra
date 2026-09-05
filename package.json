@@ -38,7 +38,7 @@
     "git-cliff": "^2.13.1",
     "knip": "^6.33.0",
     "lefthook": "^2.1.12",
-    "oxlint": "^1.78.0",
+    "oxlint": "^1.80.0",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0",
     "typescript": "5.9.3"
