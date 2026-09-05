@@ -247,4 +247,93 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 			},
 		},
 	},
+	/*
+	 * `verify` 值得单列：验证的输出通常很长——一整段测试日志——放在主会话里挤掉别的东西。
+	 * 委派出去，父代理只拿到「过没过 + 失败的那几条」。这是计划 09 §7 的原话，也是这个 agent
+	 * 存在的全部理由：它不是为了并行，是为了**上下文隔离**。
+	 *
+	 * 只给 read 和 bash：一个会修东西的验证者，在报告失败之前就会顺手把失败修掉，而父代理
+	 * 问的是「现在是什么状态」，不是「你觉得该怎么改」。
+	 */
+	{
+		name: "verify",
+		description: "Run tests, a typecheck, a build or a lint and report the outcome. Never fixes anything — the parent decides what to do with a failure.",
+		systemPrompt:
+			"You run one verification — a test suite, a typecheck, a build, a lint — and report what happened. " +
+			"You do not fix anything, and you do not speculate about causes beyond what the output states. " +
+			"Run the command, read its output, then yield. The full log stays with you; the parent only needs " +
+			"whether it passed and, if not, each failure on its own: what failed, where, and the assertion or error " +
+			"message. Keep `summary` to one sentence.\n\n" +
+			/*
+			 * 第一次评测抓到的：模型跑 `npm test`，输出被 npm 的错误包装裹住，它报了「0 passed,
+			 * 1 failed」——实际是 3 过 1 挂——而且 failures 里没点出是哪条。一个说错的摘要比
+			 * 完整日志更糟：父代理会照着它做决定。所以把「去哪儿找数字」说死。
+			 */
+			"Read the numbers from the runner itself, never from a wrapper around it: `ℹ pass N` / `ℹ fail M` " +
+			"(node --test), `Tests: N passed, M failed` (jest/vitest), `N passed, M failed` (pytest). If the command " +
+			"went through `npm test` or `pnpm test` and the runner's own summary is buried in wrapper noise, run the " +
+			"underlying command directly. Each entry in `failures` takes its `name` from the runner's own failure line " +
+			"(the `✖` line, the `FAIL` line, the `FAILED` line) — the test's name as the runner printed it, not your " +
+			"paraphrase of it.",
+		tools: ["read", "bash"],
+		model: "@fast",
+		output: {
+			type: "object",
+			required: ["passed", "summary", "failures"],
+			properties: {
+				passed: { type: "boolean", description: "Whether the verification succeeded." },
+				summary: { type: "string", description: "One sentence: what was run and the count — e.g. `node --test: 41 passed, 2 failed`." },
+				command: { type: "string", description: "The exact command that was run." },
+				failures: {
+					type: "array",
+					description: "One entry per failure. Empty when it passed.",
+					items: {
+						type: "object",
+						required: ["name", "message"],
+						properties: {
+							name: { type: "string", description: "The failing test, file, or check." },
+							location: { type: "string", description: "`path:line` when the output gives one." },
+							message: { type: "string", description: "The assertion or error message, trimmed to the line that says what went wrong." },
+						},
+					},
+				},
+			},
+		},
+		source: "builtin",
+	},
+	/*
+	 * 只读规划。`@deep`——这是四个角色里唯一一个「贵一点值得」的场合：规划错了，后面每一步
+	 * 都在错的方向上花钱。不给写工具，所以它没法「顺手先改一点」。
+	 */
+	{
+		name: "plan",
+		description: "Read-only planning. Reads the code and returns steps, risks and open questions — never touches a file.",
+		systemPrompt:
+			"You plan a change without making it. Read what you need to understand the task, then yield a plan: " +
+			"ordered steps each naming the files it touches, the risks you can see, and what you could not determine " +
+			"from the code alone. Do not write or edit anything. Do not pad: three real steps beat ten vague ones.",
+		tools: ["read", "glob", "grep", "ls"],
+		model: "@deep",
+		output: {
+			type: "object",
+			required: ["steps", "risks", "unknowns"],
+			properties: {
+				steps: {
+					type: "array",
+					description: "In order. Each one is a change somebody could make without asking a follow-up question.",
+					items: {
+						type: "object",
+						required: ["what"],
+						properties: {
+							what: { type: "string", description: "The change, concretely." },
+							files: { type: "array", items: { type: "string" }, description: "Project-relative paths this step touches." },
+						},
+					},
+				},
+				risks: { type: "array", items: { type: "string" }, description: "What could go wrong, and where. Empty is a valid answer." },
+				unknowns: { type: "array", items: { type: "string" }, description: "What you could not determine from the code and would need to ask about." },
+			},
+		},
+		source: "builtin",
+	},
 ];
