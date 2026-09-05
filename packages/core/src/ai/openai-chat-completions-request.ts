@@ -37,10 +37,14 @@ export function toChatCompletionsMessages(systemPrompt: string, messages: Messag
 		if (message.role === "user") {
 			const hasImages = message.content.some((c) => c.type === "image");
 			if (!hasImages) {
-				const text = message.content
+				let text = message.content
 					.filter((c) => c.type === "text")
 					.map((c) => (c.type === "text" ? c.text : ""))
 					.join("\n");
+				const prevMsg = index > 0 ? messages[index - 1] : undefined;
+				if (prevMsg?.role === "assistant" && prevMsg.stopReason === "aborted" && !message.synthetic) {
+					text = `[System note: Your previous response was interrupted by the user to provide new instructions. Abandon the interrupted thought and focus entirely on the latest user request below.]\n\n${text}`;
+				}
 				out.push({ role: "user", content: text });
 			} else {
 				out.push({
@@ -86,8 +90,15 @@ export function toChatCompletionsMessages(systemPrompt: string, messages: Messag
 			}
 
 			const msg: Record<string, unknown> = { role: "assistant" };
-			if (text) msg.content = text;
-			else if (toolCalls.length > 0) msg.content = null;
+			if (text) {
+				msg.content = text;
+			} else if (toolCalls.length > 0) {
+				msg.content = null;
+			} else if (message.stopReason === "aborted") {
+				msg.content = "[Turn interrupted by user]";
+			} else {
+				msg.content = "";
+			}
 			if (toolCalls.length > 0) msg.tool_calls = toolCalls;
 
 			out.push(msg);
