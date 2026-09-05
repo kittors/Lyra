@@ -16,7 +16,7 @@
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"test": "pnpm test:unit && pnpm test:ui",
 		"test:unit": "node --test --import ./test/setup.ts --experimental-strip-types test/*.test.ts",
-		"test:ui": "node --import tsx --import ./test/helpers/dom.ts --test test/ui/*.test.ts",
+		"test:ui": "node --import tsx --import ./test/helpers/dom.ts --import ./test/helpers/assets.mjs --test test/ui/*.test.ts",
 		"postinstall": "node scripts/rebuild-pty.mjs && node scripts/brand-dev-electron.mjs",
 		"rebuild:pty": "node scripts/rebuild-pty.mjs",
 		"package": "node scripts/brand-dev-electron.mjs --restore && electron-vite build && node scripts/package.mjs",

@@ -1,6 +1,6 @@
 import type { UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
-import { expandCommand, parseInvocation, rankCommands, resolveCommand, type SlashCommand } from "@lyra/core/commands-view";
+import { expandCommand, parseInvocation, parseSkillMention, rankCommands, resolveCommand, skillNameOf, type SlashCommand } from "@lyra/core/commands-view";
 import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -372,7 +372,11 @@ export function Composer() {
 		let outgoing = trimmed;
 		/* 命令可以声明会话正忙时怎么送——见 `SlashCommand.deliver`。 */
 		let deliver: "steer" | "followUp" | undefined;
-		const invocation = parseInvocation(trimmed);
+		/*
+		 * 行首的 `/x`，或者嵌在句中的 `/skill:x`（07 §4）。后者只在草稿不以别的命令开头时算数：
+		 * `/commit 用了 /skill:x 的产物` 是一次 `/commit`，里面那个是它的参数。
+		 */
+		const invocation = parseInvocation(trimmed) ?? parseSkillMention(trimmed);
 
 		/*
 		 * A built-in acts on the session and sends nothing.
@@ -426,7 +430,8 @@ export function Composer() {
 				 * `disableModelInvocation` means "do not choose this yourself", not "never run
 				 * this" — the tool looks skills up by name and has never filtered on that flag.
 				 */
-				const skill = fresh.skills?.find((entry) => skillCommandName(entry) === invocation.name);
+				// `/pdf` and `/skill:pdf` name the same skill; the prefix is how the plan spells it.
+				const skill = fresh.skills?.find((entry) => skillCommandName(entry) === skillNameOf(invocation));
 				if (skill) {
 					outgoing = [
 						`使用 \`${skill.name}\` 技能${skill.pluginId ? `（来自插件 ${skill.pluginId}）` : ""}。`,

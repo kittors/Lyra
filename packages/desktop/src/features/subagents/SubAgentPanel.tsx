@@ -32,6 +32,7 @@ import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
 import { figuresWord, ranFor, statusTone } from "./format.ts";
 import { SubAgentRoster } from "./SubAgentRoster.tsx";
+import { StructuredOutput } from "./StructuredOutput.tsx";
 import { SubAgentTranscript } from "./SubAgentMessageRow.tsx";
 import { bridge } from "../../services/index.ts";
 
@@ -162,6 +163,19 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				{agent.status === "done" && agent.answer && (
 					<div className="mt-2 min-w-0 max-w-full overflow-hidden rounded-lg border border-line-soft bg-card/50 px-3 py-2">
 						<p className="mb-1 text-caption text-ink-faint">回报给主 Agent</p>
+						{/*
+						 * The object first, drawn by its shape, when the agent declared one.
+						 *
+						 * It is what the parent indexes into (`agent://<id>/passed`), and printing it as
+						 * JSON would make the one structured thing on this pane the hardest to read.
+						 * The prose below it is still shown: the report and the object answer
+						 * different questions.
+						 */}
+						{agent.output && (
+							<div className="mb-2 border-b border-line-soft pb-2">
+								<StructuredOutput output={agent.output} />
+							</div>
+						)}
 						{/*
 						 * Rendered, not printed.
 						 *
