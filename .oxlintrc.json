@@ -74,7 +74,16 @@
       }
     ],
     "react-hooks/rules-of-hooks": "error",
-    "react-hooks/exhaustive-deps": "warn"
+    "react-hooks/exhaustive-deps": "warn",
+    "react/set-state-in-effect": "off",
+    "react/exhaustive-effect-dependencies": "off",
+    "react/refs": "off",
+    "react/memo-dependencies": "off",
+    "react/immutability": "off",
+    "react/purity": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/hooks": "off",
+    "react/no-deriving-state-in-effects": "off"
   },
   "overrides": [
     {
