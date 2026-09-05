@@ -33,14 +33,22 @@ export interface DispatchContext {
 	depth: number;
 	/** Agent names from the root down to and including this run. */
 	chain: string[];
+	/**
+	 * The registry id of the run this context belongs to; the main conversation has none.
+	 *
+	 * `chain` says what kind of agent dispatched this one; this says which. Two `explore` runs
+	 * fanned out by the same orchestrator have the same chain, and the lineage the pane draws
+	 * needs to tell them apart.
+	 */
+	id?: string;
 }
 
 export function rootDispatch(): DispatchContext {
 	return { depth: 0, chain: [] };
 }
 
-export function childDispatch(parent: DispatchContext, agent: string): DispatchContext {
-	return { depth: parent.depth + 1, chain: [...parent.chain, agent] };
+export function childDispatch(parent: DispatchContext, agent: string, id?: string): DispatchContext {
+	return { depth: parent.depth + 1, chain: [...parent.chain, agent], ...(id ? { id } : {}) };
 }
 
 /**

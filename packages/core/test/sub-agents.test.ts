@@ -16,9 +16,11 @@ import { test } from "node:test";
 
 import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
 import type { Message } from "../src/types/message.ts";
+import { emptyUsage } from "../src/types.ts";
 
 function said(text: string): Message {
-	return { role: "assistant", content: [{ type: "text", text }], timestamp: 0 } as Message;
+	// `usage` is required on a real one, and the registry adds it up — a double without it would crash the sum.
+	return { role: "assistant", content: [{ type: "text", text }], timestamp: 0, usage: emptyUsage() } as Message;
 }
 
 /** A registry plus a count of how many times it announced a change. */

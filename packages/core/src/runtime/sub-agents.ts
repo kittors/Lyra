@@ -23,7 +23,7 @@
  * reachable.
  */
 
-import type { Message } from "../types/message.ts";
+import { addUsage, emptyUsage, type Message, type Usage } from "../types/message.ts";
 
 /**
  * Where a sub-agent is in its life.
@@ -53,6 +53,22 @@ export interface SubAgentSummary {
 	 * is thirty lines of "读取文件" that say less than the newest one alone.
 	 */
 	lastActivity?: string;
+	/**
+	 * The sub-agent that dispatched this one, by registry id; absent when the main conversation did.
+	 *
+	 * Enough to draw the lineage: every record names its parent, so the tree is a fold over the
+	 * list rather than a second structure to keep in step with it.
+	 */
+	parentId?: string;
+	/** 1 for a sub-agent the main conversation dispatched; each nested dispatch adds one. */
+	depth: number;
+	/**
+	 * Tokens and cost across every request this sub-agent has made, summed as its messages arrive.
+	 *
+	 * Cost is the brake on orchestration. Fanning out eight sub-agents feels free from the
+	 * parent's side — none of their context comes back — and this is where the bill for it shows.
+	 */
+	usage: Usage;
 	/** Set on `done`; the only part the parent ever sees. */
 	answer?: string;
 	/**
@@ -125,7 +141,15 @@ export class SubAgentRegistry {
 	}
 
 	/** Called by `runSubAgent` as it starts one. */
-	start(input: { id: string; agent: string; description: string; abort: () => void }): void {
+	start(input: {
+		id: string;
+		agent: string;
+		description: string;
+		abort: () => void;
+		parentId?: string;
+		/** Defaults to 1: dispatched by the main conversation. */
+		depth?: number;
+	}): void {
 		this.retire();
 		this.records.set(input.id, {
 			id: input.id,
@@ -134,6 +158,9 @@ export class SubAgentRegistry {
 			status: "running",
 			startedAt: Date.now(),
 			toolCalls: 0,
+			...(input.parentId ? { parentId: input.parentId } : {}),
+			depth: input.depth ?? 1,
+			usage: emptyUsage(),
 			messages: [],
 			steering: [],
 			abort: input.abort,
@@ -146,6 +173,8 @@ export class SubAgentRegistry {
 		const found = this.records.get(id);
 		if (!found) return;
 		found.messages.push(message);
+		// Each assistant message is one request, and arrives once — see `message_end` in `runSubAgent`.
+		if (message.role === "assistant") found.usage = addUsage(found.usage, message.usage);
 		this.onChange();
 	}
 

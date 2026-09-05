@@ -126,7 +126,9 @@ export async function runSubAgent(
 	 * nothing was ever passed for `spawnSubAgent` — so a definition that declared it could delegate
 	 * got the tool and a refusal from it. The depth the prompt promised was not enforced anywhere.
 	 */
-	const here = childDispatch(options.dispatch ?? rootDispatch(), definition.name);
+	// Its registry id, minted before the dispatch context so a run one level down can name its parent.
+	const id = `${options.sessionId}:sub:${randomUUID().slice(0, 8)}`;
+	const here = childDispatch(options.dispatch ?? rootDispatch(), definition.name, id);
 	const maySpawn = definition.spawns === "*" || (Array.isArray(definition.spawns) && definition.spawns.length > 0);
 	const deepEnough = here.depth < DEFAULT_MAX_DEPTH;
 	const withoutTask = maySpawn && deepEnough ? fromSession : fromSession.filter((tool) => tool.name !== "task");
@@ -159,7 +161,6 @@ export async function runSubAgent(
 
 	// The sub-agent gets its own message list and its own state map, so its file reads and
 	// todo list cannot leak into the parent's.
-	const id = `${options.sessionId}:sub:${randomUUID().slice(0, 8)}`;
 	const steps: string[] = [];
 	/*
 	 * Its own controller, chained to the parent's.
@@ -173,7 +174,15 @@ export async function runSubAgent(
 	const stopWithParent = () => controller.abort();
 	options.signal?.addEventListener("abort", stopWithParent, { once: true });
 	const registry = options.registry;
-	registry?.start({ id, agent: definition.name, description: input.description, abort: () => controller.abort() });
+	registry?.start({
+		id,
+		agent: definition.name,
+		description: input.description,
+		abort: () => controller.abort(),
+		// Who asked, and how far down this is — the two things a lineage is made of.
+		parentId: options.dispatch?.id,
+		depth: here.depth,
+	});
 	/*
 	 * What it was asked to do, as the first line of its transcript.
 	 *
