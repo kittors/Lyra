@@ -226,7 +226,7 @@ function buildRouter(): ResourceRouter {
  * One directory per extension, each with its own `extension.json`. Missing directories are the
  * normal case and are not reported — most projects have none.
  */
-async function extensionDirs(cwd: string): Promise<string[]> {
+export async function extensionDirs(cwd: string): Promise<string[]> {
 	const { readdir } = await import("node:fs/promises");
 	const { join } = await import("node:path");
 	const roots = [join(cwd, ".lyra", "extensions"), join(lyraHome(), "extensions")];

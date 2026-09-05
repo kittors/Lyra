@@ -156,7 +156,7 @@ export {
 	type MemoryStore,
 } from "./runtime/memory.ts";
 export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compaction.ts";
-export type { ContextBreakdown, ContextSegment, ContextSegmentKey, MemoryFileItem } from "./runtime/context.ts";
+export type { ContextBreakdown, ContextSegment, ContextSegmentKey } from "./runtime/context.ts";
 export { estimateTokens } from "./tokens.ts";
 export { hooksFor, makeAfterToolCall, makeBeforeToolCall, runHook } from "./runtime/hooks.ts";
 export type { SessionStatus } from "./runtime/reporting.ts";
@@ -244,6 +244,8 @@ export {
 export { renderRuleFile, type CorrectionSuggestion } from "./rules/from-correction.ts";
 export { ruleDir, saveRule, type RuleDestination } from "./rules/save.ts";
 export { BUILTIN_RULES } from "./rules/builtin.ts";
+export { extensionDirs } from "./runtime/session-capabilities.ts";
+export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";
 export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory-injected.ts";
 export { readLessons } from "./runtime/project-memory.ts";
 export { readExtractedMemory } from "./runtime/memory-extract.ts";

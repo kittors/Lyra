@@ -17,15 +17,7 @@
 import { Worker } from "node:worker_threads";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-	FAILURE_LIMIT,
-	HANDLER_TIMEOUT_MS,
-	validateManifest,
-	type ExtensionDiagnostic,
-	type ExtensionEvent,
-	type ExtensionManifest,
-	type ExtensionReply,
-} from "./types.ts";
+import { FAILURE_LIMIT, HANDLER_TIMEOUT_MS, validateManifest, type ExtensionDiagnostic, type ExtensionEvent, type ExtensionManifest, type ExtensionReply, type ExtensionStats } from "./types.ts";
 
 interface Pending {
 	resolve: (reply: ExtensionReply) => void;
@@ -66,15 +58,42 @@ parentPort.on("message", async (message) => {
 `;
 }
 
+/** How many recent durations a percentile is taken over. Enough to be a distribution, small enough to forget. */
+const DURATION_WINDOW = 200;
+
+interface Tally {
+	calls: number;
+	errors: number;
+	timeouts: number;
+	durations: number[];
+}
+
+/** The value `share` of `values` fall at or below; null for nothing measured. */
+export function percentile(values: number[], share: number): number | null {
+	if (values.length === 0) return null;
+	const sorted = [...values].sort((a, b) => a - b);
+	const at = Math.min(sorted.length - 1, Math.max(0, Math.ceil(share * sorted.length) - 1));
+	return sorted[at];
+}
+
 export class ExtensionHost {
 	private readonly workers = new Map<string, Worker>();
 	private readonly pending = new Map<number, Pending>();
 	private readonly failures = new Map<string, number>();
 	private readonly disabled = new Set<string>();
 	private readonly loaded = new Map<string, LoadedExtension>();
+	/** name → event → what it has been through. Read by `stats()`, for the settings page. */
+	private readonly tallies = new Map<string, Map<ExtensionEvent, Tally>>();
+	private readonly lastErrors = new Map<string, { event: ExtensionEvent; message: string; at: number }>();
+	private readonly timeoutMs: number;
 	private seq = 0;
 
 	readonly diagnostics: ExtensionDiagnostic[] = [];
+
+	/** `timeoutMs` is for tests; a real host waits the documented two seconds. */
+	constructor(options: { timeoutMs?: number } = {}) {
+		this.timeoutMs = options.timeoutMs ?? HANDLER_TIMEOUT_MS;
+	}
 
 	/** Load one extension directory. Returns false when it could not be started. */
 	async load(dir: string): Promise<boolean> {
@@ -181,13 +200,15 @@ export class ExtensionHost {
 				if (!worker) return { id: -1 } satisfies ExtensionReply;
 
 				const id = ++this.seq;
+				const started = performance.now();
 				const reply = await new Promise<ExtensionReply>((resolve) => {
 					const timer = setTimeout(() => {
 						this.pending.delete(id);
-						this.diagnostics.push({ extension: entry.manifest.name, message: `${HANDLER_TIMEOUT_MS}ms 内没有响应 ${event}。`, severity: "warning" });
-						this.fail(entry.manifest.name);
+						this.diagnostics.push({ extension: entry.manifest.name, message: `${this.timeoutMs}ms 内没有响应 ${event}。`, severity: "warning" });
+						// Counted once, below, like any other failed reply — this used to count twice,
+						// so two timeouts tripped a breaker documented as three.
 						resolve({ id, error: "timeout" });
-					}, HANDLER_TIMEOUT_MS);
+					}, this.timeoutMs);
 					this.pending.set(id, { resolve, timer });
 					/*
 					 * `worker_threads`'s postMessage, not `window.postMessage`: there is no origin to
@@ -197,6 +218,7 @@ export class ExtensionHost {
 					worker.postMessage({ id, event, payload });
 				});
 
+				this.record(entry.manifest.name, event, performance.now() - started, reply.error);
 				if (reply.error) this.fail(entry.manifest.name);
 				/*
 				 * An extension that did not declare `intercepts` may still answer — its answer just
@@ -223,6 +245,60 @@ export class ExtensionHost {
 		if (blocked?.block) return { block: blocked.block.reason };
 		const replaced = replies.find((reply) => reply.replace !== undefined);
 		return replaced ? { replace: replaced.replace } : {};
+	}
+
+	private record(name: string, event: ExtensionEvent, ms: number, error: string | undefined): void {
+		let byEvent = this.tallies.get(name);
+		if (!byEvent) {
+			byEvent = new Map();
+			this.tallies.set(name, byEvent);
+		}
+		let tally = byEvent.get(event);
+		if (!tally) {
+			tally = { calls: 0, errors: 0, timeouts: 0, durations: [] };
+			byEvent.set(event, tally);
+		}
+		tally.calls += 1;
+		tally.durations.push(ms);
+		if (tally.durations.length > DURATION_WINDOW) tally.durations.shift();
+		if (error === "timeout") tally.timeouts += 1;
+		else if (error) tally.errors += 1;
+		if (error) this.lastErrors.set(name, { event, message: error, at: Date.now() });
+	}
+
+	/**
+	 * What each extension has been through this session — the settings page (10 §7.3).
+	 *
+	 * Rows for every event it subscribed to, even the ones never delivered: 「0 次」 beside an event
+	 * it asked for is the fact that says a handler is not being reached, which a missing row would
+	 * hide.
+	 */
+	stats(): ExtensionStats[] {
+		return [...this.loaded.values()].map(({ manifest, dir }) => {
+			const byEvent = this.tallies.get(manifest.name);
+			const events = manifest.events ?? [];
+			return {
+				name: manifest.name,
+				version: manifest.version,
+				description: manifest.description,
+				dir,
+				events,
+				intercepts: manifest.intercepts === true,
+				state: this.disabled.has(manifest.name) ? "tripped" : this.workers.has(manifest.name) ? "running" : "exited",
+				failures: this.failures.get(manifest.name) ?? 0,
+				perEvent: events.map((event) => {
+					const tally = byEvent?.get(event);
+					return {
+						event,
+						calls: tally?.calls ?? 0,
+						errors: tally?.errors ?? 0,
+						timeouts: tally?.timeouts ?? 0,
+						p95Ms: tally ? percentile(tally.durations, 0.95) : null,
+					};
+				}),
+				lastError: this.lastErrors.get(manifest.name),
+			};
+		});
 	}
 
 	names(): string[] {

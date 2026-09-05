@@ -103,6 +103,40 @@ export const HANDLER_TIMEOUT_MS = 2000;
  */
 export const FAILURE_LIMIT = 3;
 
+/** One event's tally for one extension — what the settings page shows per row. */
+export interface ExtensionEventStats {
+	event: ExtensionEvent;
+	calls: number;
+	/** Replies that carried an error, timeouts not included. */
+	errors: number;
+	timeouts: number;
+	/** Over the most recent calls; null until there has been one. */
+	p95Ms: number | null;
+}
+
+/**
+ * Everything the settings page says about one extension (10 §7.3): what it is, what it asked
+ * for, what it has been through, and whether it is still being called.
+ */
+export interface ExtensionStats {
+	name: string;
+	version?: string;
+	description?: string;
+	dir: string;
+	events: ExtensionEvent[];
+	intercepts: boolean;
+	/**
+	 * `running` while its worker is up; `tripped` once the breaker switched it off for the
+	 * session; `exited` if the worker went away on its own; `idle` when there is no session to
+	 * run it in and this is only the manifest.
+	 */
+	state: "running" | "tripped" | "exited" | "idle";
+	/** Failures counted toward the breaker. */
+	failures: number;
+	perEvent: ExtensionEventStats[];
+	lastError?: { event: ExtensionEvent; message: string; at: number };
+}
+
 export interface ExtensionDiagnostic {
 	extension: string;
 	message: string;
