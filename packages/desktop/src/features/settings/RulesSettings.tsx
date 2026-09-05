@@ -27,6 +27,7 @@ import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Badge, Card, EmptyHint, ListRow, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
+import { RuleTryPanel } from "./RuleTryPanel.tsx";
 
 /** 三种规则，三种代价。 */
 const BUCKETS = {
@@ -37,7 +38,16 @@ const BUCKETS = {
 
 export function RulesSettings({ filter = "" }: { filter?: string }) {
 	const workspace = useApp((s) => s.workspace);
+	const messages = useApp((s) => s.messages);
 	const [data, setData] = useState<Awaited<ReturnType<typeof bridge.rules.list>> | null>(null);
+	/*
+	 * What the try-panel is holding: one pattern per input.
+	 *
+	 * Starts as a single empty box for a pattern that has not been written yet; a stream rule's
+	 * 「试一下」 replaces it with that rule's conditions, one box each, because the file's
+	 * `condition` is a list and the monitor fires on whichever matches first.
+	 */
+	const [tryPatterns, setTryPatterns] = useState<string[]>([""]);
 	const slow = useSlowLoad(data === null);
 
 	const reload = useCallback(() => {
@@ -139,6 +149,13 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 				</Card>
 			)}
 
+			{/*
+			 * Above the list rather than inside an editor, because there is no editor: rules are
+			 * files, and the page sends you to the file. What the file cannot do is meet the
+			 * conversation — this can, and it is the one check the plan says people need most.
+			 */}
+			<RuleTryPanel patterns={tryPatterns} onChange={setTryPatterns} messages={messages} />
+
 			{slow ? (
 				<SkeletonList count={5} label="正在读取规则" />
 			) : live.length === 0 ? (
@@ -176,6 +193,16 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 								actions={
 									/* 路径在提示里，不在行上：它很长，而且只在你打算去改它的时候才需要。 */
 									<span className="flex items-center gap-1.5" data-ly-tip={rule.path}>
+										{rule.condition && rule.condition.length > 0 && (
+											<button
+												type="button"
+												data-rule-try-fill={rule.name}
+												onClick={() => setTryPatterns([...(rule.condition ?? [])])}
+												className="text-caption text-ink-faint underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
+											>
+												试一下
+											</button>
+										)}
 										<Badge tone="muted">{bucket.label}</Badge>
 										<Badge tone="muted">{rule.sourceLabel}</Badge>
 									</span>
