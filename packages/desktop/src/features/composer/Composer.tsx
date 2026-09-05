@@ -1,6 +1,6 @@
 import type { UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
-import { expandCommand, parseInvocation, rankCommands, type SlashCommand } from "@lyra/core/commands-view";
+import { expandCommand, parseInvocation, rankCommands, resolveCommand, type SlashCommand } from "@lyra/core/commands-view";
 import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -395,7 +395,13 @@ export function Composer() {
 					: await bridge.commands
 							.list(workspace?.path ?? "")
 							.catch(() => ({ commands: [] as typeof commands, skills: [] as SkillEntry[] }));
-			const command = fresh.commands.find((c) => c.name === invocation.name);
+			/*
+			 * 精确命中优先，否则唯一的末段匹配——`/commit` 找到 `git:commit`。
+			 *
+			 * 菜单那边早就这么匹配了（`rankCommands` 的 rank 2），而这里一直是精确匹配：
+			 * 列表里看得见、回车却找不到。
+			 */
+			const command = resolveCommand(fresh.commands, invocation.name);
 			if (command) {
 				outgoing = expandCommand(command, invocation.rest);
 				/*

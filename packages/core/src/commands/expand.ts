@@ -139,3 +139,26 @@ export function rankCommands<T extends { name: string; description: string }>(co
 		.sort((a, b) => a.rank - b.rank || a.command.name.localeCompare(b.command.name))
 		.map((entry) => entry.command);
 }
+
+/**
+ * 按名字找命令：精确命中优先，否则**唯一**的末段匹配。
+ *
+ * `git/commit.md` 的名字是 `git:commit`，而人打的是 `/commit`。菜单那边 `rankCommands` 早就
+ * 让末段能匹配到——于是列表里看得见 `git:commit`，回车却找不到：分派用的是精确匹配。
+ * 「菜单里有、按下去没反应」是这个项目里反复出现的一种断线。
+ *
+ * 唯一才算。`git:commit` 和 `svn:commit` 同时在，`/commit` 不该悄悄选一个——它原样发给
+ * 模型，跟任何不认识的 `/xxx` 一样。歧义时不猜，是这里唯一的规则。
+ */
+export function resolveCommand<T extends { name: string }>(commands: T[], name: string): T | undefined {
+	const wanted = name.toLowerCase();
+	const exact = commands.find((c) => c.name.toLowerCase() === wanted);
+	if (exact) return exact;
+	if (wanted.includes(":")) return undefined;
+
+	const byTail = commands.filter((c) => {
+		const segments = c.name.toLowerCase().split(":");
+		return segments.length > 1 && segments[segments.length - 1] === wanted;
+	});
+	return byTail.length === 1 ? byTail[0] : undefined;
+}

@@ -14,6 +14,7 @@ export {
 	expandCommand,
 	parseInvocation,
 	rankCommands,
+	resolveCommand,
 	splitArguments,
 	type Invocation,
 } from "./commands/expand.ts";
