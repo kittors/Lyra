@@ -80,6 +80,7 @@ import type {
 	SessionMeta,
 	Settings,
 	Skill,
+	SkillDiagnostic,
 	SlashCommand,
 	SubAgentDetail,
 	SubAgentSummary,
@@ -499,7 +500,8 @@ export interface LyraApi {
 			mcpBundles: McpBundle[];
 			pluginDiagnostics: { path: string; message: string }[];
 			skills: Skill[];
-			skillDiagnostics: { path: string; message: string }[];
+			/** 带 `severity`：设置页按它把「没加载」和「加载了但描述太短」分成两段。 */
+			skillDiagnostics: SkillDiagnostic[];
 			/**
 			 * Skills that were found and lost to another of the same name.
 			 *

@@ -71,7 +71,15 @@ export async function collectSkills(
 			by: item.shadowedBy.path,
 			byLabel: item.shadowedBy.providerLabel,
 		}));
-	return { skills: result.items, diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })), shadowed };
+	/*
+	 * `severity` 要带过去。设置页按它把「没加载」和「加载了但描述太短」分成两段——剥掉它，
+	 * 一条 warning 就混进「N 个技能未能加载」那句话里，而那句话数的正是没加载的。
+	 */
+	return {
+		skills: result.items,
+		diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message, ...(d.severity === "warning" ? { severity: "warning" as const } : {}) })),
+		shadowed,
+	};
 }
 
 /** 一条规则在设置页里该说清楚的全部。 */
