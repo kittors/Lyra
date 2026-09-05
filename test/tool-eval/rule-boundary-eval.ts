@@ -70,7 +70,7 @@ function recordingTools(poisonedRead: string | undefined, calls: { name: string;
 			snippet,
 			description: snippet,
 			parameters: { type: "object", properties: params, required: Object.keys(params) },
-			run: async (args: Record<string, unknown>) => {
+			execute: async (args: Record<string, unknown>) => {
 				calls.push({ name, args });
 				return { content: [{ type: "text", text: reply(args) }] };
 			},

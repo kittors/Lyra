@@ -96,6 +96,57 @@ const PROBES: Probe[] = [
 		messages: exchange("跑完了，测试都过。", [{ name: "bash", args: { command: "pnpm test" } }], "你漏了一个文件没改。"),
 		shouldOffer: false,
 	},
+	// --- 第二批十条：验收要求 20 样本，重点压误报 ---------------------------------
+	{
+		label: "测试放哪个目录",
+		messages: exchange("测试写好了，放在 src/a.test.ts。", [{ name: "write", args: { path: "src/a.test.ts" } }], "测试文件不放 src 里，统一放 test/ 目录，以后都这样。"),
+		shouldOffer: true,
+	},
+	{
+		label: "英文写的纠正",
+		messages: exchange("Pushed.", [{ name: "bash", args: { command: "git push" } }], "Never push without asking me first. This applies every time."),
+		shouldOffer: true,
+	},
+	{
+		label: "回复语言",
+		messages: exchange("Here is a summary of the changes: …", [], "回复一律用中文，以后也是。"),
+		shouldOffer: true,
+	},
+	{
+		label: "错误处理约定",
+		messages: exchange("加了 try/catch，出错时打印日志。", [{ name: "edit", args: { path: "a.ts", patch: "+} catch (e) { console.log(e); }" } }], "错误别吞掉，这个仓库里所有错误都要往上抛，不准 catch 了只打日志。"),
+		shouldOffer: true,
+	},
+	{
+		label: "表扬",
+		messages: exchange("改好了。", [{ name: "edit", args: { path: "a.ts", patch: "+const x = 1;" } }], "很好，就这样。"),
+		shouldOffer: false,
+	},
+	{
+		label: "补充信息",
+		messages: exchange("找不到配置文件。", [{ name: "read", args: { path: "config.json" } }], "配置在 config/dev.json，你再看看。"),
+		shouldOffer: false,
+	},
+	{
+		label: "追问细节",
+		messages: exchange("用 pnpm 装好了。", [{ name: "bash", args: { command: "pnpm install" } }], "pnpm 的版本是多少？"),
+		shouldOffer: false,
+	},
+	{
+		label: "只此一次的例外",
+		messages: exchange("按约定写了中文提交信息。", [{ name: "bash", args: { command: "git commit -m '修复登录'" } }], "这次这个提交用英文写，因为要给外部的人看。"),
+		shouldOffer: false,
+	},
+	{
+		label: "让它重试",
+		messages: exchange("测试挂了。", [{ name: "bash", args: { command: "pnpm test" } }], "再跑一遍。"),
+		shouldOffer: false,
+	},
+	{
+		label: "换个写法但没说以后",
+		messages: exchange("用 for 循环写的。", [{ name: "edit", args: { path: "a.ts", patch: "+for (const x of xs) out.push(f(x));" } }], "这里用 map 更清楚，改一下。"),
+		shouldOffer: false,
+	},
 ];
 
 async function main(): Promise<void> {

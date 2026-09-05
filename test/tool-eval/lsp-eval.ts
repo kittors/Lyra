@@ -121,57 +121,78 @@ async function main(): Promise<void> {
 	// -------------------------------------------------------------------------
 	// Behaviour: given both tools, which does a model reach for?
 	// -------------------------------------------------------------------------
-	say(`\n${BOLD}行为：模型会不会去用它${OFF}\n`);
+	say(`\n${BOLD}行为：模型会不会去用它——以及没有它时会不会漏${OFF}\n`);
 
 	const settings = await loadSettings();
 	const resolved = resolveModel(settings, modelId);
 	if (!resolved) throw new Error(`Model not found: ${modelId}`);
 
-	const tools = [readTool, grepTool, globTool, lspTool] as unknown as Tool[];
-	const systemPrompt = await buildSystemPrompt({
-		cwd,
-		tools,
-		skills: [],
-		agents: [],
-		projectInstructions: [],
-		platform: "darwin",
-		modelName: resolved.model.name,
-		isGitRepo: false,
-		today: new Date().toISOString().slice(0, 10),
-	});
-
+	/*
+	 * 对照：同一个任务、同一个仓库，一组有 lsp 工具、一组没有，各跑三次。
+	 *
+	 * 「成功率提升」是相对的说法，只有对照能给出。没有 lsp 时模型只能 grep，而 grep 找不到
+	 * 别名导入 `pc(text)`——那正是这个工具存在的理由。三次而不是一次，是因为单次的对错说不清
+	 * 是工具的功劳还是模型那天的心情。
+	 */
 	const task = "我要把 src/core.ts 里导出的 parseConfig 改个名字。先告诉我一共有哪些地方在用它，一个都不能漏。";
-	const calls: string[] = [];
-	const result = await runAgent(
-		{
-			sessionId: "lsp-behaviour",
+	const REPS = 3;
+	const tally = { with: { alias: 0, usedLsp: 0 }, without: { alias: 0, usedLsp: 0 } };
+	for (const withLsp of [true, false]) {
+		const tools = (withLsp ? [readTool, grepTool, globTool, lspTool] : [readTool, grepTool, globTool]) as unknown as Tool[];
+		const systemPrompt = await buildSystemPrompt({
 			cwd,
-			provider: resolved.provider,
-			model: resolved.model,
-			systemPrompt,
 			tools,
-			messages: [{ role: "user", content: [{ type: "text", text: task }], timestamp: Date.now() }],
-			maxTurns: 6,
-			temperature: 0,
-			state: new Map<string, unknown>(),
-		},
-		async (event: AgentEvent) => {
-			if (event.type === "tool_start") calls.push(event.toolName);
-		},
-	);
-
-	const answer = result.messages
-		.filter((m) => m.role === "assistant")
-		.flatMap((m) => m.content)
-		.filter((c) => c.type === "text")
-		.map((c) => c.text)
-		.join("\n");
-
-	const usedLsp = calls.includes("lsp");
-	const mentionedAlias = /aliased\.ts|\bpc\b/.test(answer);
-	say(`  ${"调用了 lsp".padEnd(24)} ${usedLsp ? `${GREEN}是${OFF}` : `${RED}否 — 用了 ${calls.join(", ") || "(什么都没用)"}${OFF}`}`);
-	say(`  ${"答案里包含别名调用点".padEnd(22)} ${mentionedAlias ? `${GREEN}是${OFF}` : `${RED}否 — 漏掉了 pc(text)${OFF}`}`);
-	say(`  ${DIM}工具序列：${calls.join(" → ") || "(无)"}${OFF}\n`);
+			skills: [],
+			agents: [],
+			projectInstructions: [],
+			platform: "darwin",
+			modelName: resolved.model.name,
+			isGitRepo: false,
+			today: new Date().toISOString().slice(0, 10),
+		});
+		for (let rep = 1; rep <= REPS; rep++) {
+			const calls: string[] = [];
+			const runState = new Map<string, unknown>();
+			const result = await runAgent(
+				{
+					sessionId: `lsp-behaviour-${withLsp ? "with" : "without"}-${rep}`,
+					cwd,
+					provider: resolved.provider,
+					model: resolved.model,
+					systemPrompt,
+					tools,
+					messages: [{ role: "user", content: [{ type: "text", text: task }], timestamp: Date.now() }],
+					maxTurns: 6,
+					temperature: 0,
+					state: runState,
+				},
+				async (event: AgentEvent) => {
+					if (event.type === "tool_start") calls.push(event.toolName);
+				},
+			);
+			const answer = result.messages
+				.filter((m) => m.role === "assistant")
+				.flatMap((m) => m.content)
+				.filter((c) => c.type === "text")
+				.map((c) => c.text)
+				.join("\n");
+			const usedLsp = calls.includes("lsp");
+			const mentionedAlias = /aliased\.ts|\bpc\b/.test(answer);
+			const arm = withLsp ? tally.with : tally.without;
+			if (usedLsp) arm.usedLsp += 1;
+			if (mentionedAlias) arm.alias += 1;
+			say(
+				`  ${(withLsp ? "有 lsp" : "无 lsp").padEnd(8)} #${rep}  ${(mentionedAlias ? `${GREEN}找到别名调用点${OFF}` : `${RED}漏了 pc(text)${OFF}`).padEnd(28)} ${DIM}${calls.join(" → ") || "(无)"}${OFF}`,
+			);
+			const manager = runState.get(CODE_INTEL_KEY);
+			if (manager instanceof CodeIntelManager) await manager.dispose();
+		}
+	}
+	say("");
+	say(`  有 lsp：${tally.with.alias}/${REPS} 次找到别名调用点（${tally.with.usedLsp} 次真的调了 lsp）`);
+	say(`  无 lsp：${tally.without.alias}/${REPS} 次找到别名调用点`);
+	if (tally.with.alias <= tally.without.alias) say(`  ${DIM}这个模型不用 lsp 也能找到，或者有了也没用——工具带来的提升在这里量不出来。${OFF}`);
+	say("");
 
 	const manager = state.get(CODE_INTEL_KEY);
 	if (manager instanceof CodeIntelManager) await manager.dispose();
