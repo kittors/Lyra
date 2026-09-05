@@ -62,6 +62,7 @@ export function CommandsSettings() {
 /** Where a command came from, said the same way the composer says it. */
 function originOf(command: SlashCommand): string {
 	if (command.origin === "claude") return command.scope === "workspace" ? "Claude · 项目" : "Claude · 个人";
+	if (command.origin === "agents") return command.scope === "workspace" ? "Agents 标准 · 项目" : "Agents 标准 · 个人";
 	return command.scope === "workspace" ? "项目" : "个人";
 }
 

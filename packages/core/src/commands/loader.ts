@@ -45,7 +45,7 @@ export interface SlashCommand {
 	 * Worth surfacing rather than hiding: someone who cannot find the file they are looking at is
 	 * usually looking in the wrong one of two directories that both exist.
 	 */
-	origin: "lyra" | "claude";
+	origin: "lyra" | "claude" | "agents";
 	/** From frontmatter `argument-hint`. Shown as a placeholder once the command is chosen. */
 	argumentHint?: string;
 	/**

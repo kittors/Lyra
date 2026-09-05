@@ -153,8 +153,11 @@ export const FOREIGN_PROVIDERS: CapabilityProvider<Rule>[] = SPECS.map(foreignPr
  * 从 `SPECS` 派生而不是在界面里再列一遍：一个只在这里加了、界面上没有的工具，等于一个
  * 永远勾不上的开关——而那正是这份名单上一次存在时的结局。
  */
-export const FOREIGN_USER_SOURCES: { id: string; label: string; describe: string }[] = SPECS.filter((s) => s.userDir).map((s) => ({
-	id: s.id,
-	label: s.label,
-	describe: s.describe,
-}));
+export const FOREIGN_USER_SOURCES: { id: string; label: string; describe: string }[] = [
+	...SPECS.filter((s) => s.userDir).map((s) => ({ id: s.id, label: s.label, describe: s.describe })),
+	/*
+	 * `.agent(s)/` 不在 SPECS 里——它供应四种能力，不只是规则，是另一个 provider——但它的
+	 * 个人目录同样要勾。列在这里，设置页那个开关才有它。
+	 */
+	{ id: "agents-dir", label: "Agents 标准", describe: "读取 ~/.agent/ 与 ~/.agents/ 里的规则、技能、命令" },
+];
