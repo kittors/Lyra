@@ -66,6 +66,13 @@ const globals: Record<string, unknown> = {
 			return [];
 		}
 	},
+	MutationObserver: class {
+		observe() {}
+		disconnect() {}
+		takeRecords() {
+			return [];
+		}
+	},
 	matchMedia: (query: string) => ({
 		matches: false,
 		media: query,

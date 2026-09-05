@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
-import { useApp } from "../../store/index.ts";
+import { type ExtensionsTab, useApp } from "../../store/index.ts";
 import { ExtensionHostSettings } from "./ExtensionHostSettings.tsx";
 import { McpSettings, newMcpServer } from "./McpSettings.tsx";
 import { PluginsSettings } from "./PluginsSettings.tsx";
@@ -11,7 +11,7 @@ import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
 
-type Tab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
+type Tab = ExtensionsTab;
 
 /**
  * Plugins, skills and MCP servers, in one place.
@@ -29,8 +29,19 @@ export function ExtensionsSettings() {
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const setView = useApp((s) => s.setView);
-	const [tab, setTab] = useState<Tab>("plugins");
-	const [query, setQuery] = useState("");
+	const wanted = useApp((s) => s.extensionsFocus);
+	const setExtensionsFocus = useApp((s) => s.setExtensionsFocus);
+	const [tab, setTab] = useState<Tab>(() => useApp.getState().extensionsFocus?.tab ?? "plugins");
+	const [query, setQuery] = useState(() => useApp.getState().extensionsFocus?.query ?? "");
+	/* Whoever sent someone here said which tab they meant, and perhaps what to look for. Honoured
+	   once and forgotten, so the next visit opens on whatever was chosen by hand rather than on
+	   the last thing somebody linked to. */
+	useEffect(() => {
+		if (!wanted) return;
+		setTab(wanted.tab);
+		if (wanted.query !== undefined) setQuery(wanted.query);
+		setExtensionsFocus(null);
+	}, [wanted, setExtensionsFocus]);
 	const [counts, setCounts] = useState({ plugins: 0, skills: 0, rules: 0, extensions: 0 });
 	const add = usePopover();
 	const more = usePopover();

@@ -34,10 +34,10 @@ const KINDS: CapabilityId[] = ["rule", "skill", "command", "agent", "context-fil
 
 /**
  * Context files are read by the native provider whichever tool wrote them; the file name says
- * whose convention it is. `LYRA.md` is ours and is not listed.
+ * whose convention it is. `LYRA.md` and `AGENTS.md` are ours — AGENTS.md is the project
+ * instruction file this product asks for by default — and are not listed.
  */
 const CONTEXT_OWNERS: Record<string, { provider: string; label: string }> = {
-	"AGENTS.md": { provider: "codex", label: "Codex / Agents 标准" },
 	"CLAUDE.md": { provider: "claude", label: "Claude Code" },
 	"GEMINI.md": { provider: "gemini", label: "Gemini CLI" },
 };

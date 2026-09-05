@@ -70,6 +70,9 @@ export type SettingsSection =
   | "about"
   | "archived";
 
+/** The tabs on the 插件 page; the page itself is the `plugins` section. */
+export type ExtensionsTab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
+
 export interface ToolRun {
   toolCallId: string;
   toolName: string;
@@ -104,6 +107,17 @@ export interface AppState {
    * cannot hand a parameter to a view it is not rendering.
    */
   pluginFocus: string | null;
+  /**
+   * Which tab the 插件 page should open on, and what to have typed into its search — or null for
+   * whichever it was on.
+   *
+   * Set by whoever sends someone there for a reason. The notice above the composer says 「查看」
+   * about a `.cursor/rules/`, and landing that click on the list of installed plugins answered a
+   * question nobody had asked; landing it on the rules tab with 「Cursor」 in the search box shows
+   * exactly those rules, and the box says why. Read once by the page and cleared, so a later visit
+   * opens on whatever was chosen by hand.
+   */
+  extensionsFocus: { tab: ExtensionsTab; query?: string } | null;
   /**
    * Bumped whenever something was installed, uninstalled, or written to disk under the extension
    * directories — the signal every list that scans disk re-reads on.
@@ -304,6 +318,7 @@ export interface AppState {
   setSettingsSection(section: SettingsSection): void;
   /** Open one bundle's page in the catalogue, or return to the grid with null. */
   setPluginFocus(key: string | null): void;
+  setExtensionsFocus(focus: { tab: ExtensionsTab; query?: string } | null): void;
   /** Say that what is installed has changed, so every list showing it re-reads. */
   bumpExtensions(): void;
   saveSettings(settings: Settings): Promise<void>;
@@ -399,6 +414,7 @@ export const useApp = create<AppState>((set, get) => ({
   view: "chat",
   settingsSection: "models",
   pluginFocus: null,
+  extensionsFocus: null,
   extensionsNonce: 0,
   settings: null,
   sessions: [],
@@ -512,6 +528,7 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
+  setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {

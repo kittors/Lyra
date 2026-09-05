@@ -30,10 +30,11 @@ before(async () => {
 	await put(".cursor/rules/b.mdc", "---\ndescription: B\n---\n乙。");
 	await put(".claude/commands/review.md", "---\ndescription: 审查\n---\n审。");
 	await put(".claude/skills/pdf/SKILL.md", "---\nname: pdf\ndescription: 读 PDF，抽取表格与正文，用于总结长文档\n---\n正文");
-	await put("AGENTS.md", "# 约定\n\n用 pnpm。");
-	// 我们自己的，不该出现在「其他工具」里
+	await put("CLAUDE.md", "# Claude 的约定\n\n用 pnpm。");
+	// 我们自己的，不该出现在「其他工具」里——AGENTS.md 是这个产品默认要的项目规则文件
 	await put(".lyra/rules/ours.md", "---\ndescription: 我们的\n---\n自家。");
 	await put("LYRA.md", "# 自家上下文");
+	await put("AGENTS.md", "# 约定\n\n用 pnpm。");
 });
 after(async () => {
 	delete process.env.LYRA_HOME;
@@ -48,9 +49,9 @@ test("每家工具一行一处，带真实数量；自家的不算", async () =>
 		".claude/commands/ command x1 (Claude Code)",
 		".claude/skills/ skill x1 (Claude Code)",
 		".cursor/rules/ rule x2 (Cursor)",
-		"AGENTS.md context-file x1 (Codex / Agents 标准)",
+		"CLAUDE.md context-file x1 (Claude Code)",
 	]);
-	assert.ok(!lines.some((l) => l.where.startsWith(".lyra/") || l.where === "LYRA.md"), "ours is not another tool's");
+	assert.ok(!lines.some((l) => l.where.startsWith(".lyra/") || l.where === "LYRA.md" || l.where === "AGENTS.md"), "ours is not another tool's");
 });
 
 test("一个只有自家配置的仓库，一行都没有", async () => {
