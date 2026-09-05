@@ -19,6 +19,7 @@ interface Call {
 const setThinkingCalls: Call[] = [];
 const setModelCalls: Call[] = [];
 const saved: Settings[] = [];
+let setModelGate: Promise<void> | null = null;
 
 /*
  * Enough of a window for the store's own imports.
@@ -43,6 +44,7 @@ const saved: Settings[] = [];
 			},
 			setModel: async (sessionId: string, modelId: string) => {
 				setModelCalls.push({ sessionId, value: modelId });
+				await setModelGate;
 			},
 		},
 		settings: {
@@ -86,7 +88,14 @@ describe("where a change is written", () => {
 		setThinkingCalls.length = 0;
 		setModelCalls.length = 0;
 		saved.length = 0;
-		useApp.setState({ settings: SETTINGS, meta: META, activeSessionId: "s-1", messages: [] });
+		setModelGate = null;
+		useApp.setState({
+			settings: SETTINGS,
+			meta: META,
+			activeSessionId: "s-1",
+			messages: [],
+			workspace: { path: "/project", name: "project", isGitRepo: false, branch: null },
+		});
 	});
 
 	it("a level chosen inside a conversation goes to that conversation only", async () => {
@@ -108,6 +117,23 @@ describe("where a change is written", () => {
 		assert.deepEqual(setModelCalls, [{ sessionId: "s-1", value: "relay/b" }]);
 		assert.equal(saved.length, 0, "`defaultModelId` is a separate decision");
 		assert.equal(useApp.getState().meta?.modelId, "relay/b");
+	});
+
+	it("a late model write cannot leak the old conversation into a new one", async () => {
+		let release!: () => void;
+		setModelGate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		const switching = useApp.getState().setModel("relay/b");
+		assert.equal(useApp.getState().meta?.modelId, "relay/b", "the original conversation updates immediately");
+		await useApp.getState().newSession();
+		assert.equal(useApp.getState().meta, null);
+
+		release();
+		await switching;
+		assert.equal(useApp.getState().meta, null, "the completed write does not restore the previous meta");
+		assert.equal(useApp.getState().settings?.defaultModelId, "relay/a", "the blank conversation uses the app default");
 	});
 
 	it("asking for it explicitly does set the default", async () => {

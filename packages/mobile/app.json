@@ -3,6 +3,7 @@
     "name": "Lyra",
     "slug": "lyra",
     "version": "0.8.36",
+    "icon": "../../assets/lyra.png",
     "orientation": "portrait",
     "scheme": "lyra",
     "userInterfaceStyle": "dark",
@@ -20,6 +21,11 @@
     },
     "android": {
       "package": "dev.lyra.app",
+      "icon": "../../assets/lyra.png",
+      "adaptiveIcon": {
+        "foregroundImage": "../../assets/lyra.png",
+        "backgroundColor": "#171717"
+      },
       "edgeToEdgeEnabled": true,
       "usesCleartextTraffic": true
     },

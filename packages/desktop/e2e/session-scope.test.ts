@@ -50,6 +50,17 @@ async function seed(home: string): Promise<void> {
 							supportsImages: false,
 							supportsTools: true,
 						},
+						{
+							id: "relay/quick",
+							providerId: "relay",
+							modelId: "quick",
+							name: "quick",
+							contextWindow: 64000,
+							maxOutputTokens: 4096,
+							supportsThinking: false,
+							supportsImages: false,
+							supportsTools: true,
+						},
 					],
 				},
 			],
@@ -188,6 +199,36 @@ test("the composer shows the level of the conversation on screen", async () => {
 	assert.equal(seen.opened, "高", "the conversation set to high says 高");
 	assert.equal(seen.switched, "关闭", "switching conversations moves the label with it");
 	assert.equal(seen.blank, "中", "a new conversation starts on the app default");
+});
+
+test("a model change finishing late cannot replace a new conversation's default", async () => {
+	const outcome = await ui<{ chip: string | null; appDefault: string | null }>(`
+		const made = await conversation();
+		await openRow(made);
+
+		const modelChip = () => [...document.querySelectorAll('button[aria-haspopup="menu"]')].find((x) =>
+			(x.dataset.lyTip || "").endsWith("上下文"),
+		);
+		const chip = modelChip();
+		if (!chip) throw new Error("model chip not found");
+		click(chip);
+		await wait(200);
+
+		const quick = document.querySelector('[data-model="relay/quick"] button[role="menuitem"]');
+		if (!quick) throw new Error("quick model row not found");
+		// Do not wait for the IPC write: this is the click sequence that used to leak the old meta.
+		click(quick);
+		const fresh = [...document.querySelectorAll("button")].find((b) => label(b).startsWith("新对话"));
+		if (!fresh) throw new Error("新对话 button not found");
+		click(fresh);
+		await wait(500);
+
+		const settings = await window.lyra.settings.get();
+		return { chip: modelChip()?.dataset.lyTip ?? null, appDefault: settings.defaultModelId };
+	`);
+
+	assert.match(String(outcome.chip), /grok-4\.6/, "the blank conversation visibly returns to the default model");
+	assert.equal(outcome.appDefault, "relay/grok-4.6", "the old conversation did not change the app default");
 });
 
 test("changing the level from the menu writes to the conversation, not to the settings", async () => {
