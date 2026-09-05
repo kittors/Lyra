@@ -72,6 +72,7 @@ import type {
 	Registry,
 	RegistryEntry,
 	Plugin,
+	PluginDiagnostic,
 	QueuedTask,
 	RuleDestination,
 	RuleEntry,
@@ -498,7 +499,8 @@ export interface LyraApi {
 			plugins: Plugin[];
 			/** Directories that turned out to be MCP servers rather than plugins. */
 			mcpBundles: McpBundle[];
-			pluginDiagnostics: { path: string; message: string }[];
+			/** 同样带 `severity`：插件里一个描述太短的技能是提醒，不是「没能加载」。 */
+			pluginDiagnostics: PluginDiagnostic[];
 			skills: Skill[];
 			/** 带 `severity`：设置页按它把「没加载」和「加载了但描述太短」分成两段。 */
 			skillDiagnostics: SkillDiagnostic[];

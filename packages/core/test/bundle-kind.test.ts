@@ -111,9 +111,11 @@ test("a bundle claiming to be both is loaded as a plugin and told off for it", a
 		assert.equal(plugins.length, 1, "the skills are what it is");
 		assert.equal(mcpBundles.length, 0);
 		// Silence here would be the ambiguity the split exists to remove: the servers are not
-		// loaded, and the only way anyone finds that out is being told.
-		assert.equal(diagnostics.length, 1);
-		assert.match(diagnostics[0].message, /MCP/);
+		// loaded, and the only way anyone finds that out is being told. Warnings ride in the same
+		// list (the fixture's one-line skill description earns one) and are not that telling.
+		const problems = diagnostics.filter((diagnostic) => diagnostic.severity !== "warning");
+		assert.equal(problems.length, 1, JSON.stringify(diagnostics));
+		assert.match(problems[0].message, /MCP/);
 	});
 });
 

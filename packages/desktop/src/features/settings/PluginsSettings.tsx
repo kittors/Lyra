@@ -57,7 +57,13 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 				.toLowerCase()
 				.includes(needle),
 	);
-	const diagnostics = scan?.pluginDiagnostics ?? [];
+	/*
+	 * Two lists, because they answer different questions. A problem is a plugin that did not load;
+	 * a warning is one that did, with a skill the model may pass over. Counted together, a short
+	 * description read as a broken plugin.
+	 */
+	const diagnostics = (scan?.pluginDiagnostics ?? []).filter((diagnostic) => diagnostic.severity !== "warning");
+	const warnings = (scan?.pluginDiagnostics ?? []).filter((diagnostic) => diagnostic.severity === "warning");
 
 	/* `*` means "none of them" and is still shown to the user below; the rule for clearing it lives
 	   in `settingsAfterToggle`, because the catalogue card switches plugins too. */
@@ -85,6 +91,22 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 						{diagnostics.map((diagnostic) => (
 							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							</div>
+						))}
+					</div>
+				</Card>
+			)}
+
+			{warnings.length > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 py-3">
+						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
+							<TriangleAlert size={13} strokeWidth={1.9} />
+							{warnings.length} 个插件技能的描述太短，模型可能不会选它
+						</div>
+						{warnings.map((warning) => (
+							<div key={warning.path} className="py-0.5 text-detail text-ink-faint">
+								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
 					</div>

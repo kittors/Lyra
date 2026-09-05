@@ -108,6 +108,14 @@ export interface McpBundle {
 export interface PluginDiagnostic {
 	path: string;
 	message: string;
+	/**
+	 * Set when the plugin loaded and this is advice about it, not a reason it did not.
+	 *
+	 * Carried through from the skill loader, where a description too short for the model to pick
+	 * the skill is a warning. Without this the settings page counted it among the plugins that
+	 * failed to load — an error it was not.
+	 */
+	severity?: "warning";
 }
 
 const MANIFEST_LOCATIONS = [
@@ -307,7 +315,11 @@ async function readContents(
 	const skillsDir = resolveInside(dir, manifest.skills ?? "./skills/");
 	const loaded = skillsDir ? await loadSkills([{ dir: skillsDir, source }]) : { skills: [], diagnostics: [] };
 	for (const diagnostic of loaded.diagnostics) {
-		diagnostics.push({ path: diagnostic.path, message: diagnostic.message });
+		diagnostics.push(
+			diagnostic.severity
+				? { path: diagnostic.path, message: diagnostic.message, severity: diagnostic.severity }
+				: { path: diagnostic.path, message: diagnostic.message },
+		);
 	}
 
 	const mcp = manifest.mcpServers
