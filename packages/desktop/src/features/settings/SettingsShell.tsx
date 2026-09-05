@@ -24,6 +24,7 @@ import {
 	Wand2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { groupsFor, sectionFor } from "./sections-for.ts";
 import type { SettingsSection } from "../../store/index.ts";
@@ -163,7 +164,7 @@ export function SettingsShell() {
 			<NavPane width={sidebarWidth} label="设置导航">
 				{/* Same as the workspace sidebar: separated by its tint, not by a rule. */}
 				<nav className="ly-sidebar-fill flex h-full w-full flex-col">
-					<div className="h-[44px] shrink-0" />
+					<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 
 					{/*
 					 * Filled on hover, like the section rows below it. The outlined variant used
@@ -236,7 +237,7 @@ export function SettingsShell() {
 			</NavPane>
 
 			<main className="ly-opaque flex min-w-0 flex-1 flex-col">
-				<div className="h-[44px] shrink-0" />
+				<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 				{/*
 				 * Most sections are a column of settings and scroll as one page. A few are
 				 * two-pane layouts whose halves scroll independently — putting those inside a page
@@ -257,8 +258,8 @@ export function SettingsShell() {
 			</main>
 
 			{/* Last child, for the same DOM-order reason as the chat shell's toolbar. */}
-			<div className="drag-region absolute inset-x-0 top-0 z-40 h-[44px]">
-				<div className="no-drag absolute top-0 flex h-[44px] items-center gap-0.5" style={{ left: titlebar.start }}>
+			<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
+				<div className="no-drag absolute top-0 flex items-center gap-0.5" style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}>
 					{/*
 					 * Settings shares the shell's nav state, so a sidebar collapsed in the workspace
 					 * arrives collapsed here too. Without this button there would be no way back to

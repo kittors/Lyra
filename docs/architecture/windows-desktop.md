@@ -8,6 +8,11 @@ Lyra 共用一份渲染界面，窗口按钮继续由 Electron 的原生 Window 
 `app/window/titlebar.ts` 根据 overlay 的实际 CSS 几何计算右侧预留区；布局订阅
 `geometrychange`。原生按钮区域与应用标题栏的空间只计算一次。
 
+主进程的 Window Controls Overlay、工作区和设置页的工具栏、Dock 标题栏共用
+`shared/window-chrome.ts` 的 44px 高度，图标中心线为 y=22。macOS 原生红绿灯直径为
+14pt，顶部位置由同一高度计算为 y=15；不能按 12pt 定位，否则原生按钮会低 1pt。
+浮动面板继续补偿卡片的边框和外间距，保持与同排对话工具栏对齐。
+
 `PaneHeader` 负责标题控件可用宽度：可以拖动面板时，为居于整个标题栏中心的 grip 留出
 命中区；只有一个面板或窄窗口时，标题使用系统按钮和面板动作之外的剩余空间。
 `TerminalTabs` 不再把这个空间折半，新增终端按钮始终位于横向滚动区域外。

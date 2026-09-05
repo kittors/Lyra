@@ -85,12 +85,12 @@ export const ROOT_BAND = 26;
 /**
  * The pane title bar, which is also the window's top row.
  *
- * 44 because that is where the traffic lights are: their centre line is at y=22, and a pane in the
+ * The traffic lights' centre line is at y=22, and a pane in the
  * top row has to put its own title on that same line or the window reads as two misaligned strips.
  * There is no separate toolbar above the dock any more — the top row *is* the first row of panes,
  * so this number belongs to both.
  */
-export const HEADER_HEIGHT = 44;
+export { WINDOW_HEADER_HEIGHT as HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 
 /**
  * The gap around each pane, which is what makes them read as separate cards.

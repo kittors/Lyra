@@ -21,6 +21,31 @@ async function click(app: RunningApp, selector: string): Promise<void> {
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
 }
 
+async function headerAlignment(app: RunningApp): Promise<void> {
+	const geometry = await app.evaluate<{ controls: number; maxError: number; overlayCenter: number | null }>(`(() => {
+		const errors = [];
+		const measure = (el, center) => {
+			const r = el.getBoundingClientRect();
+			if (r.height > 0 && r.right > 0 && r.left < innerWidth) errors.push(Math.abs(r.y + r.height / 2 - center));
+		};
+		for (const pane of document.querySelectorAll('[data-dock-pane]')) {
+			const center = pane.getBoundingClientRect().top + 22;
+			for (const icon of pane.querySelectorAll('[data-dock-header] svg')) measure(icon, center);
+			for (const button of pane.querySelectorAll('[data-dock-header] button:not([data-dock-grip])')) measure(button, center);
+		}
+		for (const button of document.querySelectorAll('button[aria-label*="侧边栏 "], button[aria-label*="设置导航 "]')) {
+			measure(button, 22); measure(button.querySelector('svg'), 22);
+		}
+		const overlay = navigator.windowControlsOverlay;
+		const rect = overlay?.visible ? overlay.getTitlebarAreaRect() : null;
+		return { controls: errors.length, maxError: Math.max(...errors), overlayCenter: rect ? rect.y + rect.height / 2 : null };
+	})()`);
+	assert.ok(geometry.controls >= 2, "header controls are visible");
+	// Chromium quantizes a card's 1px border at fractional DPI; allow at most half a CSS pixel.
+	assert.ok(geometry.maxError <= 0.5, `header centre-line drift: ${JSON.stringify(geometry)}`);
+	if (geometry.overlayCenter !== null) assert.ok(Math.abs(geometry.overlayCenter - 22) <= 0.5, "native overlay shares the header centre line");
+}
+
 for (const [scale, width, height, theme] of [
 	[1, 380, 440, "dark"], [1.25, 768, 600, "light"],
 	[1.5, 980, 640, "dark"], [2, 640, 480, "light"],
@@ -38,6 +63,7 @@ for (const [scale, width, height, theme] of [
 		} });
 		try {
 			await frames(app);
+			await headerAlignment(app);
 			const geometry = await app.evaluate<{
 				width: number; height: number; dpr: number; overflow: number; composerVisible: boolean;
 				controlsClear: boolean; overlayVisible: boolean; overlayRight: number; hints: string[];
@@ -84,6 +110,7 @@ for (const [scale, width, height, theme] of [
 				}; step();
 			})`);
 			await frames(app);
+			await headerAlignment(app);
 			const terminal = await app.evaluate<{ visibleTabWidth: number; tabWidth: number; addHit: boolean; closeHit: boolean }>(`(() => {
 				const header = document.querySelector('[data-dock-header="terminal"]');
 				const tab = header.querySelector('[data-tab]'); const r = tab.getBoundingClientRect();
@@ -100,6 +127,10 @@ for (const [scale, width, height, theme] of [
 			await click(app, '[data-dock-header="terminal"] button[aria-label="新建终端"]');
 			await frames(app, 60);
 			assert.equal(await app.evaluate("document.querySelectorAll('[data-tab]').length"), 2);
+			await headerAlignment(app);
+			await click(app, 'button[aria-label*="侧边栏 "]');
+			await frames(app);
+			await headerAlignment(app);
 		} finally {
 			try {
 				const dir = process.env.LYRA_E2E_ARTIFACTS;

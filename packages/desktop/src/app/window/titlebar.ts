@@ -21,9 +21,8 @@
 /**
  * Where the first window control sits on macOS, measured from the window's left edge.
  *
- * The three traffic lights are 12pt wide on a 20pt pitch starting at x=16, so they end at 68.5;
- * 78 leaves the ~10pt gap the reference screenshots have, and 70 put the button flush against the
- * green one.
+ * The three traffic lights are 14pt wide on a 23pt pitch starting at x=16, ending at x=76.
+ * The 28px toggle starts at 78; its centred 15px icon leaves an 8.5pt visual gap after the green light.
  */
 export const TRAFFIC_LIGHTS_WIDTH = 78;
 

@@ -51,6 +51,7 @@ CI 的 `windows-ui` 在 push、PR 和手动执行时运行真实 Windows Electro
 
 - 100%、125%、150%、200% Chromium 显示缩放，深浅主题和 380px 起的窗口宽度。
 - 从 Window Controls Overlay API 读取系统按钮区域，验证应用按钮没有进入它。
+- 检查原生 overlay 与工具栏中心线，以及侧栏切换前后、终端标签增多后的图标和按钮对齐。
 - 输入框边界、Tab 焦点标记、Windows 快捷键提示、终端标签和新建/关闭入口。
 - 长对话滚动范围、思考行去重、历史展开状态、会话切换首帧和阅读位置。
 
@@ -67,6 +68,13 @@ pnpm --filter @lyra/desktop exec node --test --test-concurrency=1 --experimental
 macOS 上运行这些测试可验证共享 Chromium 布局，不能证明 Windows 的 DirectWrite、GPU 驱动、
 原生 IME 或多屏 DPI 切换都正常。Windows CI 的强制缩放也不替代跨显示器拖动的实机测试。
 平台行为约束见 [Windows 桌面适配](windows-desktop.md)。
+
+### macOS 原生标题栏
+
+CDP 截图不包含原生红绿灯，无法发现它们与 HTML 图标之间的 1pt 偏差。有屏幕录制权限的
+macOS 环境可运行 `pnpm --filter @lyra/desktop exec node --experimental-strip-types e2e/header-native-probe.ts`。
+它启动隔离窗口，用系统截图取原生灯像素，与真实 DOM 图标中心线比较；截图中的灯高度也必须
+落在有效范围，避免截图缺失产生假绿。`LYRA_E2E_ARTIFACTS` 可保留原始截图，临时 profile 自动清理。
 
 ### 干净 main 上的既有红线
 

@@ -15,6 +15,7 @@ import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
+import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 
 /*
  * The update chip used to have a slot of its own here, just past the sidebar toggle.
@@ -38,7 +39,7 @@ export function DragBand({ navOpen, sidebarWidth }: { navOpen: boolean; sidebarW
 	const { titlebar } = useLayout();
 	return (
 		<div
-			className="drag-region absolute top-0 left-0 z-40 h-[44px]"
+			className="drag-region absolute top-0 left-0 z-40"
 			/*
 			 * Closed, this is only the corner the system's own controls need — which is the traffic
 			 * lights on macOS and nothing at all elsewhere, where they are at the other end. The
@@ -46,7 +47,7 @@ export function DragBand({ navOpen, sidebarWidth }: { navOpen: boolean; sidebarW
 			 * no draggable pixels; a little more than the toggle's own start is what makes the
 			 * corner grabbable without claiming the pane title next to it.
 			 */
-			style={{ width: navOpen ? sidebarWidth : titlebar.start + TOOLBAR_BUTTON }}
+			style={{ height: WINDOW_HEADER_HEIGHT, width: navOpen ? sidebarWidth : titlebar.start + TOOLBAR_BUTTON }}
 		/>
 	);
 }
@@ -172,13 +173,13 @@ export function WindowButtons({
 	const { titlebar } = useLayout();
 	return (
 		<div
-			className="no-drag absolute top-0 z-[60] flex h-[44px] items-center gap-0.5"
+			className="no-drag absolute top-0 z-[60] flex items-center gap-0.5"
 			/*
 			 * Past whatever the system drew in this corner: the traffic lights on macOS, nothing on
 			 * Windows and Linux — where this used to sit 78px in anyway, out of line with the marks
 			 * directly below it and adrift from the edge. `useTitlebar` is the whole rule.
 			 */
-			style={{ left: titlebar.start }}
+			style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}
 		>
 			<WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />
 		</div>

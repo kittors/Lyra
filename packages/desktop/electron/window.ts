@@ -12,6 +12,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { lyraHome, type Settings } from "@lyra/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
+import { MAC_TRAFFIC_LIGHT_POSITION, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 
 /**
  * Where the icon file is, packaged or not.
@@ -140,13 +141,11 @@ export function createWindow(): void {
 		backgroundColor: resolvedBackground(),
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-		// Centres the 12pt lights on the 46px toolbar row the renderer draws, matching the
-		// reference where the lights line up with the sidebar toggle and nav arrows.
-		trafficLightPosition: { x: 16, y: 16 },
+		trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
 		// Windows/Linux draw their own controls into this strip. The colours are a starting
 		// point; the renderer sends the real ones once the theme is resolved.
 		...(process.platform !== "darwin"
-			? { titleBarOverlay: { color: resolvedBackground(), symbolColor: "#9a9a9a", height: 44 } }
+			? { titleBarOverlay: { color: resolvedBackground(), symbolColor: "#9a9a9a", height: WINDOW_HEADER_HEIGHT } }
 			: {}),
 		webPreferences: {
 			preload: join(import.meta.dirname, "../preload/index.js"),
@@ -311,7 +310,7 @@ export function registerWindowIpc(): void {
 		 */
 		if (process.platform === "darwin") return;
 		try {
-			window.setTitleBarOverlay({ ...colors, height: 44 });
+			window.setTitleBarOverlay({ ...colors, height: WINDOW_HEADER_HEIGHT });
 		} catch {}
 	});
 }

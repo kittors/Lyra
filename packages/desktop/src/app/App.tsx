@@ -26,6 +26,7 @@ import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
 import { useFileTreeStore } from "../store/fileTree.ts";
 import { useMemoryPass } from "../features/memory/useMemoryPass.ts";
+import { WINDOW_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 
 /*
  * The screens that are not a conversation, fetched when they are first opened.
@@ -250,7 +251,7 @@ function SettingsFallback() {
 		<div className="ly-shell relative flex h-full" role="status" aria-label="正在打开">
 			{!compact && (
 				<div className="ly-sidebar-fill flex h-full shrink-0 flex-col" style={{ width: sidebarWidth }}>
-					<div className="h-[44px] shrink-0" />
+					<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 					<div className="px-2.5 pb-2">
 						<SkeletonBar width="96px" height={11} className="mx-2 my-[10px]" />
 					</div>
@@ -263,7 +264,7 @@ function SettingsFallback() {
 			)}
 
 			<div className="ly-opaque flex min-w-0 flex-1 flex-col">
-				<div className="h-[44px] shrink-0" />
+				<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 				<div className={`mx-auto w-full max-w-[900px] ${compact ? "px-4" : "px-9"}`}>
 					{/* 标题、副标题、第一组卡片——每张设置页开头都是这三样。 */}
 					<div className="pt-8">
