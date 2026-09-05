@@ -163,6 +163,15 @@ export interface LoadOptions<T = unknown> {
 	/** Item ids the user switched off. Dropped items do NOT hold their key. */
 	disabledItems?: ReadonlySet<string>;
 	/**
+	 * Which file should win a name, as `kind:name` → path. Written by 「改用那个」 on the settings
+	 * page, where the loser of a same-name conflict is one click from becoming the winner.
+	 *
+	 * By path, because that is the only thing that tells two files of one name apart — provider
+	 * and scope both repeat. A preference naming a path that is not among the candidates does
+	 * nothing, so preferring `~/.claude/skills/pdf` changes nothing in a project with no `pdf`.
+	 */
+	preferred?: ReadonlyMap<string, string>;
+	/**
 	 * Items to drop that DO hold their key, so nothing of the same name takes their place.
 	 *
 	 * The distinction matters and is the reason both exist. Turning off a project skill called

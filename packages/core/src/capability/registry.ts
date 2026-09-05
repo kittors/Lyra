@@ -186,9 +186,30 @@ export class CapabilityRegistry {
 
 				if (key !== undefined) {
 					const owner = owners.get(key);
-					if (owner) {
+					const asked = options.preferred?.get(`${kind}:${key}`) === item.provenance.path;
+					if (owner && !asked) {
 						all.push({ ...item, shadowedBy: owner });
 						continue;
+					}
+					if (owner && asked) {
+						/*
+						 * The user named this file. Providers arrive in priority order, so the holder
+						 * is already filed as the winner: take it back out, file it as beaten by this
+						 * one, and repoint every loser that was told the old holder had won.
+						 */
+						const demote = (list: Sourced<T>[]) => {
+							const at = list.findIndex((existing) => capability.key(existing as never) === key);
+							if (at === -1) return;
+							const [beaten] = list.splice(at, 1);
+							const shown = all.indexOf(beaten);
+							if (shown !== -1) all.splice(shown, 1);
+							all.push({ ...beaten, shadowedBy: item.provenance });
+						};
+						demote(items);
+						demote(held);
+						for (const entry of all) {
+							if (entry.shadowedBy && capability.key(entry as never) === key) entry.shadowedBy = item.provenance;
+						}
 					}
 					const twin = [...items, ...held].find((existing) => capability.equivalent?.(existing as never, item as never));
 					if (twin) {

@@ -55,8 +55,9 @@ export interface LoadedCapabilities {
 export async function collectSkills(
 	cwd: string,
 	plugins: { enabled: boolean; skills: Skill[] }[],
+	settings?: Pick<Settings, "capabilityPreferences">,
 ): Promise<{ skills: Skill[]; diagnostics: SkillDiagnostic[]; shadowed: ShadowedSkill[] }> {
-	const result = await sessionRegistry(plugins).load<Skill>("skill", { cwd });
+	const result = await sessionRegistry(plugins).load<Skill>("skill", { cwd, preferred: preferredSources(settings) });
 	/*
 	 * The losers, for the settings page.
 	 *
@@ -118,7 +119,7 @@ export async function collectRules(
 	settings: Settings,
 	plugins: Plugin[],
 ): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }> {
-	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings) });
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
 	const off = new Set(settings.disabledRules ?? []);
 
 	return {
@@ -145,6 +146,16 @@ export async function collectRules(
  */
 function foreignUserSources(settings: Settings): ReadonlySet<string> {
 	return new Set(settings.enabledForeignUserRules ?? []);
+}
+
+/**
+ * 「改用那个」写下的偏好：`kind:name` → 该赢的那个文件。
+ *
+ * 跟 `foreignUserSources` 一样，每个读能力的入口都要传——少传一处，那处就安静地按默认优先级来，
+ * 而设置页上明明写着「已改用」。
+ */
+function preferredSources(settings: Pick<Settings, "capabilityPreferences"> | undefined): ReadonlyMap<string, string> {
+	return new Map(Object.entries(settings?.capabilityPreferences ?? {}));
 }
 
 /** A skill that was found and lost, with what beat it. */
@@ -187,7 +198,7 @@ function sessionRegistry(plugins: { enabled: boolean; skills: Skill[] }[]): Capa
  * extension worker as a side effect of writing one small markdown file.
  */
 export async function loadRules(cwd: string, settings: Settings, plugins: Plugin[]): Promise<RuleSet> {
-	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings) });
+	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
 	return groupRules(result.items, settings.disabledRules ?? [], result.diagnostics);
 }
 
@@ -216,7 +227,7 @@ export async function loadCapabilities(
 
 	const registry = sessionRegistry(plugins);
 
-	const skillResult = await registry.load<Skill>("skill", { cwd });
+	const skillResult = await registry.load<Skill>("skill", { cwd, preferred: preferredSources(settings) });
 	const skills = skillResult.items;
 	const skillDiagnostics = skillResult.diagnostics.map((d) => ({ path: d.path, message: d.message }));
 
@@ -228,7 +239,7 @@ export async function loadCapabilities(
 	 * loaded, appeared in listings, and did nothing. Built-ins now arrive from a provider with a
 	 * priority of 1 and lose by name like anything else.
 	 */
-	const agentResult = await registry.load<AgentDefinition>("agent", { cwd });
+	const agentResult = await registry.load<AgentDefinition>("agent", { cwd, preferred: preferredSources(settings) });
 	const agents = agentResult.items;
 
 	/*
@@ -237,7 +248,7 @@ export async function loadCapabilities(
 	 * the merge rules the same for every capability: a bucket is a property of a rule, not a
 	 * dimension the merge has to understand.
 	 */
-	const ruleResult = await registry.load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings) });
+	const ruleResult = await registry.load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
 	const rules = groupRules(ruleResult.items, settings.disabledRules ?? [], ruleResult.diagnostics);
 
 	/*

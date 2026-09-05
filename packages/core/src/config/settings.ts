@@ -314,6 +314,13 @@ export interface Settings {
 	 */
 	enabledForeignUserRules: string[];
 	/**
+	 * Which file wins a same-name conflict, as `kind:name` → path — 「改用那个」 on the settings page.
+	 *
+	 * Here rather than in `.lyra/config.json` because the value is a path on this machine, and
+	 * that file is the one checked into the repository.
+	 */
+	capabilityPreferences: Record<string, string>;
+	/**
 	 * 裸的 `cat` / `grep` / `find` / `ls` 改道到专用工具。默认开。
 	 *
 	 * 关掉的理由只有一个：有人就是想用 shell。而开着的理由是，提示词里那句「用 read 别用
@@ -490,6 +497,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	disabledPlugins: [],
 	disabledRules: [],
 	enabledForeignUserRules: [],
+	capabilityPreferences: {},
 	rerouteShellCommands: true,
 	maxConcurrentSubAgents: 4,
 	modelRoles: {},
@@ -638,6 +646,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			disabledPlugins: parsed.disabledPlugins ?? [],
 			disabledRules: parsed.disabledRules ?? [],
 			enabledForeignUserRules: parsed.enabledForeignUserRules ?? [],
+			capabilityPreferences: parsed.capabilityPreferences ?? {},
 			rerouteShellCommands: parsed.rerouteShellCommands !== false,
 			maxConcurrentSubAgents:
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
