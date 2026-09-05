@@ -8,6 +8,7 @@ import { useApp } from "../../store/index.ts";
 import { useSide } from "../dock/index.ts";
 import { useTerminals } from "../../store/terminals.ts";
 import { rememberTerminalSize } from "./prewarm.ts";
+import { type CodeTypography, terminalTypography } from "./typography.ts";
 import { CODE_DEFAULTS } from "../settings/index.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import type { AppearanceSettings } from "@lyra/core";
@@ -161,6 +162,16 @@ export function TerminalPane() {
 
 		const terminal = new Terminal({
 			...typography(useApp.getState().settings?.appearance),
+			/*
+			 * A bar, not a block.
+			 *
+			 * The block was the default, and at a tall cell it was the largest thing on screen — a
+			 * filled rectangle sitting where the next character goes, which reads as a selection
+			 * rather than as a place. A bar marks the position without covering a cell; unfocused
+			 * it becomes an outline, which is how every terminal on the machine says "not here".
+			 */
+			cursorStyle: "bar",
+			cursorInactiveStyle: "outline",
 			cursorBlink: true,
 			// The panel draws its own edges; the terminal should sit flush inside them.
 			theme: paletteFromTheme(useApp.getState().settings?.appearance),
@@ -410,25 +421,21 @@ function readVar(name: string): string {
 }
 
 /**
- * 代码外观, translated into the four options xterm understands.
+ * 代码外观, translated into the options xterm understands — see `typography.ts` for which of the
+ * five settings the terminal follows and which it must not.
  *
  * One function for both uses — building the terminal and updating it — because they had drifted
  * apart in exactly the way two copies do: the constructor hard-coded `lineHeight: 1.35` and knew
- * nothing about weight or tracking, so three of the five settings had no path here at all.
- *
- * `letterSpacing` is the one that needs converting. The setting is in `em`, like CSS, because that
- * is what the preview and every other surface use; xterm wants whole pixels, and rounds anyway —
- * so the same 0.05em is a wider gap at 18px than at 12px, which is the point of the unit.
+ * nothing about weight, so the settings had no path here at all. The fallbacks come from the live
+ * CSS variables, which is what the rest of the app renders with before settings have loaded.
  */
-function typography(appearance: { codeFont?: string; codeFontSize?: number; codeFontWeight?: number; codeLineHeight?: number; codeLetterSpacing?: number } | undefined) {
-	const size = appearance?.codeFontSize ?? (Number.parseFloat(readVar("--text-code")) || CODE_DEFAULTS.codeFontSize);
-	return {
-		fontFamily: appearance?.codeFont || readVar("--ly-code-font") || CODE_DEFAULTS.codeFont,
-		fontSize: size,
-		fontWeight: (appearance?.codeFontWeight ?? CODE_DEFAULTS.codeFontWeight) as FontWeight,
-		lineHeight: appearance?.codeLineHeight ?? CODE_DEFAULTS.codeLineHeight,
-		letterSpacing: Math.round((appearance?.codeLetterSpacing ?? CODE_DEFAULTS.codeLetterSpacing) * size),
-	};
+function typography(appearance: CodeTypography | undefined) {
+	const options = terminalTypography(appearance, {
+		font: readVar("--ly-code-font") || CODE_DEFAULTS.codeFont,
+		size: Number.parseFloat(readVar("--text-code")) || CODE_DEFAULTS.codeFontSize,
+		weight: CODE_DEFAULTS.codeFontWeight,
+	});
+	return { ...options, fontWeight: options.fontWeight as FontWeight };
 }
 
 /**

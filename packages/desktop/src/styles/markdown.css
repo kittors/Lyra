@@ -103,8 +103,7 @@
   code,
   pre,
   .ly-cm,
-  .cm-editor,
-  .xterm {
+  .cm-editor {
     font-variant-ligatures: none;
     font-feature-settings: normal;
     /* The typography settings reach the editor and the terminal too, not only prose code blocks —
@@ -134,6 +133,21 @@
      * editor and the prose blocks restate it, since both bring their own cascade.
      */
     line-height: var(--text-code--line-height);
+  }
+
+  /*
+   * The terminal is not in the list above, on purpose.
+   *
+   * xterm sets its own font, size, weight, leading and tracking from options, and it measures a
+   * `W` in the DOM to learn how wide a cell is. A `letter-spacing` inherited from here went into
+   * that measurement: with 字距 at 0.09em the cell came out a pixel wider than the glyph, xterm
+   * then set −1.17px on the rows to make the two agree, and every character on screen was drawn
+   * a pixel into the next one. The ligature and synthesis rules are all it shares with code.
+   */
+  .xterm {
+    font-variant-ligatures: none;
+    font-feature-settings: normal;
+    font-synthesis: none;
   }
 
   .prose-dw pre {
