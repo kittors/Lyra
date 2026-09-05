@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { motionReduced } from "../motion/reduced.ts";
 
 /** Long enough to read as movement, short enough that a burst of updates does not queue up. */
 const TRAVEL_MS = 520;
@@ -43,7 +44,7 @@ export function useCountUp(target: number, ms = TRAVEL_MS): number {
 		 * changes. Animating that would show the number counting *down* through values it never
 		 * had, which says something false about what happened.
 		 */
-		if (target <= from.current) {
+		if (target <= from.current || motionReduced()) {
 			from.current = target;
 			setShown(target);
 			return;

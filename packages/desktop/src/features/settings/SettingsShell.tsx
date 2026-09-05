@@ -1,3 +1,4 @@
+import { composingKey } from "../../ui/keyboard.ts";
 import {
 	Anchor,
 	Archive,
@@ -138,7 +139,8 @@ export function SettingsShell() {
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+			if (event.defaultPrevented || event.repeat || composingKey(event)) return;
+			if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.code === "KeyB") {
 				event.preventDefault();
 				toggleNav();
 			} else if (event.key === "Escape" && compact && navOpen) {

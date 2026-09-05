@@ -15,6 +15,7 @@
 import { useEffect } from "react";
 import { useDock } from "../features/dock/index.ts";
 import type { PanelKind } from "../features/dock/index.ts";
+import { composingKey } from "../ui/keyboard.ts";
 
 export interface ShortcutDeps {
 	/**
@@ -43,9 +44,10 @@ export function useShortcuts(deps: ShortcutDeps): void {
 		};
 
 		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.repeat || composingKey(event)) return;
 			const mod = event.metaKey || event.ctrlKey;
 			// ⌘B is the conventional shortcut, and it makes the transition easy to feel.
-			if (mod && !event.altKey && event.key.toLowerCase() === "b") {
+			if (mod && !event.altKey && !event.shiftKey && event.code === "KeyB") {
 				event.preventDefault();
 				toggleNav();
 				return;
@@ -56,12 +58,12 @@ export function useShortcuts(deps: ShortcutDeps): void {
 			 * Option is a dead-key modifier on macOS: ⌥S arrives as "ß", so matching on `key`
 			 * would never fire. The physical key is what the shortcut is written as.
 			 */
-			if (mod && event.altKey && event.code === "KeyS") {
+			if (mod && event.altKey && !event.shiftKey && event.code === "KeyS") {
 				event.preventDefault();
 				panel("chat", activeSessionId);
 				return;
 			}
-			if (mod && event.shiftKey && event.code === "KeyR") {
+			if (mod && event.shiftKey && !event.altKey && event.code === "KeyR") {
 				event.preventDefault();
 				panel("review", workspace);
 				return;
@@ -72,9 +74,19 @@ export function useShortcuts(deps: ShortcutDeps): void {
 				return;
 			}
 			// ⌥⌘P for the file itself — the tree's ⌘P with the modifier that means "the other one".
-			if (mod && event.altKey && event.code === "KeyP") {
+			if (mod && event.altKey && !event.shiftKey && event.code === "KeyP") {
 				event.preventDefault();
 				panel("file", workspace);
+				return;
+			}
+			if (mod && event.altKey && !event.shiftKey && event.code === "KeyA") {
+				event.preventDefault();
+				panel("subagents", activeSessionId);
+				return;
+			}
+			if (mod && !event.altKey && !event.shiftKey && (event.code === "KeyT" || event.code === "KeyJ")) {
+				event.preventDefault();
+				panel(event.code === "KeyT" ? "browser" : "tasks", true);
 				return;
 			}
 			// ⌘L for the trajectory: the log of what actually happened, beside the conversation.
@@ -84,9 +96,9 @@ export function useShortcuts(deps: ShortcutDeps): void {
 				return;
 			}
 			// ⌃` is what every terminal-bearing editor uses, and it is not a ⌘ shortcut.
-			if (event.ctrlKey && !event.metaKey && event.code === "Backquote") {
+			if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.code === "Backquote") {
 				event.preventDefault();
-				panel("terminal", workspace);
+				panel("terminal", true);
 				return;
 			}
 			/*

@@ -80,13 +80,8 @@ export function TerminalTabs() {
 	};
 
 	return (
-		/*
-		 * Half the header, less the grip's reach.
-		 *
-		 * The grip is centred and absolutely positioned, so it does not push anything aside — a
-		 * strip free to grow simply ran under it and then under the buttons past that.
-		 */
-		<div className="no-drag flex min-w-0 max-w-[calc(50%-2.25rem)] items-center gap-0.5">
+		// The header owns the space left by the grip and native controls; do not halve it again.
+		<div className="no-drag flex min-w-0 flex-1 items-center gap-0.5">
 			<div
 				ref={strip}
 				onScroll={markEdges}

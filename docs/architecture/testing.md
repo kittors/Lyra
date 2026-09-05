@@ -30,12 +30,43 @@
 对话滚动与切换的回归约束见 [对话渲染与阅读位置](conversation-rendering.md)。聚焦验证可运行：
 
 ```bash
+pnpm build
 pnpm --filter @lyra/desktop exec node --test --experimental-strip-types e2e/transcript-stability.test.ts
 ```
 
 `packages/desktop/e2e/`，跑真实的 Electron 窗口，经 DevTools 协议驱动。一次一个应用
 （`--test-concurrency=1`）：三个窗口抢一台笔记本会让量布局的测试失败，而那是最糟的红——被测
 的代码本身没问题。
+
+测试直接启动 Electron 二进制，由 desktop 的 `package.json` 定位 `out/main/index.js`，保留
+原来的 `app.getAppPath()`。运行前先 `pnpm build`；每个测试文件
+不会再经 `electron-vite preview` 重建，因而测的是同一个构建，Windows 也不需要通过 shell
+启动 `pnpm.cmd`。退出时 Windows 用 `taskkill /T` 回收 Electron 的进程树，启动失败同样清理
+临时 profile。
+
+### Windows 桌面回归
+
+CI 的 `windows-ui` 在 push、PR 和手动执行时运行真实 Windows Electron，并纳入 `all-green`。
+它跑 `desktop-compatibility.test.ts` 与 `transcript-stability.test.ts`：
+
+- 100%、125%、150%、200% Chromium 显示缩放，深浅主题和 380px 起的窗口宽度。
+- 从 Window Controls Overlay API 读取系统按钮区域，验证应用按钮没有进入它。
+- 输入框边界、Tab 焦点标记、Windows 快捷键提示、终端标签和新建/关闭入口。
+- 长对话滚动范围、思考行去重、历史展开状态、会话切换首帧和阅读位置。
+
+设置 `LYRA_E2E_ARTIFACTS` 可以保存真实应用截图；CI 保留 7 天。测试使用临时项目和合成会话
+日志，经真实应用加载，退出后清理。它不发送模型请求。
+
+本地聚焦运行：
+
+```bash
+pnpm build
+pnpm --filter @lyra/desktop exec node --test --test-concurrency=1 --experimental-strip-types e2e/desktop-compatibility.test.ts e2e/transcript-stability.test.ts
+```
+
+macOS 上运行这些测试可验证共享 Chromium 布局，不能证明 Windows 的 DirectWrite、GPU 驱动、
+原生 IME 或多屏 DPI 切换都正常。Windows CI 的强制缩放也不替代跨显示器拖动的实机测试。
+平台行为约束见 [Windows 桌面适配](windows-desktop.md)。
 
 ### 干净 main 上的既有红线
 

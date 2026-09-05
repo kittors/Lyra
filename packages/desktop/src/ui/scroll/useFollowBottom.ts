@@ -28,6 +28,7 @@ import {
 	type Reading,
 } from "./follow.ts";
 import { readFollow, writeFollow, type FollowSnapshot } from "./memory.ts";
+import { motionReduced } from "../motion/reduced.ts";
 
 /** How long the ride back down takes. The curve matches `--ly-e-out`, like everything else here. */
 const GLIDE_MS = 420;
@@ -380,7 +381,7 @@ export function useFollowBottom({
 		};
 
 		// Already there, or asked not to be moved around. Either way the unread mark still clears.
-		if (state.current !== "returning" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+		if (state.current !== "returning" || motionReduced()) {
 			land();
 			return;
 		}

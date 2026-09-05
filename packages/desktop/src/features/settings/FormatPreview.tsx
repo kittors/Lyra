@@ -18,6 +18,7 @@
  *     anything else it would not be a preview of anything.
  */
 
+import { macKeyboard } from "../../ui/keyboard.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, RotateCcw, Wand2 } from "lucide-react";
 import type { FormattingSettings } from "@lyra/core";
@@ -157,7 +158,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 							entry.formatter === "prettier"
 								? "用下面的设置格式化一遍"
 								: entry.formatter === "external"
-									? `${entry.label} 交给 ${entry.tool}，在编辑器里按 ⇧⌘F 用它格式化`
+									? `${entry.label} 交给 ${entry.tool}，在编辑器里按 ${macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} 用它格式化`
 									: `${entry.label} 还没有可用的格式化工具`
 						}
 						primary

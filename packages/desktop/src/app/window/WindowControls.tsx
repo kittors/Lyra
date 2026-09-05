@@ -8,6 +8,8 @@
  */
 
 /** A toolbar button, and the gap after it. Shared so what sits beside one can clear it. */
+import { shortcutLabel } from "../../ui/keyboard.ts";
+
 export const TOOLBAR_BUTTON = 28;
 export const TOOLBAR_GAP = 10;
 
@@ -74,11 +76,11 @@ export function ToolbarButton({
 	return (
 		<button
 			type="button"
-			data-ly-tip={label}
+			data-ly-tip={shortcutLabel(label)}
 			// A hook the mobile stylesheet can reach: a 28px square is a comfortable mouse target
 			// and a poor thumb one, and that is a difference in hit area rather than in markup.
 			data-ly-toolbar-button
-			aria-label={label}
+			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
 			onClick={onClick}
 			className={`no-drag flex h-7 w-7 items-center justify-center rounded-md transition-all duration-[var(--ly-t-quick)] ${

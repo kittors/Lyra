@@ -1,3 +1,4 @@
+import { macKeyboard, shortcutLabel } from "../../ui/keyboard.ts";
 import type { FormattingSettings as Formatting } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./layout.tsx";
@@ -66,7 +67,7 @@ export function FormattingSettings() {
 				<Card>
 					<Row
 						title="保存时格式化"
-						detail="按 ⌘S 时先整理再写入。关闭时仍可随时按 ⇧⌥F 手动格式化。"
+						detail={shortcutLabel(`按 ⌘S 时先整理再写入。关闭时仍可随时按 ${macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} 手动格式化。`)}
 						control={<Toggle checked={formatting.onSave} onChange={(onSave) => patch({ onSave })} />}
 					/>
 					<Row

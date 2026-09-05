@@ -26,6 +26,7 @@
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { GRIP_REACH, GRIP_WIDTH, HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
+import { shortcutLabel } from "../../ui/keyboard.ts";
 
 /** ⌥ plus an arrow moves the pane. Mapped here so the key and the meaning sit together. */
 const ARROWS: Record<string, DropSide> = {
@@ -144,12 +145,18 @@ export function PaneHeader({
 			 * A panel may put a control here instead of its name — the terminal's tab strip does,
 			 * because once a pane holds several of something, choosing between them *is* the title.
 			 */}
-			{title ?? (
+			{title ? (
+				<div className="flex min-w-0 flex-1" style={{
+					// The grip is centered on the full header, including the OS control insets.
+					maxWidth: draggable
+						? `calc(50% + ${((insetEnd ?? 0) + 6 - (inset ?? 0) - HEADER_PAD - GRIP_WIDTH) / 2 - 6}px)`
+						: undefined,
+				}}>{title}</div>
+			) : (
 				<span className="min-w-0 flex-1 truncate text-detail text-ink-muted select-none">
 					{hideTitle ? "" : label}
 				</span>
 			)}
-			{title && <span className="min-w-0 flex-1" />}
 
 			{/*
 			 * The grip: a short bar near the top edge, centred, and the only thing that moves the pane.
@@ -171,7 +178,7 @@ export function PaneHeader({
 				<button
 					type="button"
 					data-dock-grip={kind}
-					aria-label={`移动${label}：拖动，或 ⌥ 加方向键`}
+					aria-label={shortcutLabel(`移动${label}：拖动，或 ⌥ 加方向键`)}
 					data-ly-tip="移动"
 					onPointerDown={onDragStart}
 					onKeyDown={(event) => {
@@ -196,7 +203,7 @@ export function PaneHeader({
 			 * — which does not visibly break anything, but leaves the pane lifted for the length
 			 * of the click and the layout flickering under it.
 			 */}
-			<div className="no-drag flex shrink-0 items-center gap-0.5">
+			<div className="no-drag ml-auto flex shrink-0 items-center gap-0.5">
 				{actions}
 				{/*
 				 * Only where there is something to maximise *from*.

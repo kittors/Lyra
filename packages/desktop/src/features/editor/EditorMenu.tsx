@@ -11,6 +11,7 @@
  * says why nothing happened.
  */
 
+import { macKeyboard } from "../../ui/keyboard.ts";
 import { redo, selectAll, undo } from "@codemirror/commands";
 import { foldAll, unfoldAll } from "@codemirror/language";
 import { gotoLine } from "@codemirror/search";
@@ -98,7 +99,7 @@ export function EditorMenu({
 			<MenuItem icon={<Undo2 {...ICON} />} hint="⌘Z" disabled={readOnly} onClick={() => run(undo)}>
 				撤销
 			</MenuItem>
-			<MenuItem icon={<Redo2 {...ICON} />} hint="⇧⌘Z" disabled={readOnly} onClick={() => run(redo)}>
+			<MenuItem icon={<Redo2 {...ICON} />} hint={macKeyboard() ? "⇧⌘Z" : "Ctrl+Y"} disabled={readOnly} onClick={() => run(redo)}>
 				重做
 			</MenuItem>
 
@@ -131,7 +132,7 @@ export function EditorMenu({
 			 * which reads as the feature being missing rather than the language being unsupported.
 			 * Pressing it says which — see `formatNow` in `CodeEditor.tsx`.
 			 */}
-			<MenuItem icon={<Wand2 {...ICON} />} hint="⇧⌘F" disabled={readOnly} onClick={() => void onFormat()}>
+			<MenuItem icon={<Wand2 {...ICON} />} hint={macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} disabled={readOnly} onClick={() => void onFormat()}>
 				格式化
 			</MenuItem>
 

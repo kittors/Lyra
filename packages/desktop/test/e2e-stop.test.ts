@@ -47,3 +47,32 @@ test("closeListeningServer returns even if a client is still connected", async (
 	assert.ok(Date.now() - started < 2_000, `closeListeningServer took ${Date.now() - started}ms`);
 	socket.destroy();
 });
+
+test("stopping the app reaps its child processes too", async () => {
+	const parent = spawn(process.execPath, ["-e", `
+		const { spawn } = require('node:child_process');
+		const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+		process.stdout.write(String(child.pid) + '\\n');
+		setInterval(() => {}, 1000);
+	`], { detached: true, stdio: ["ignore", "pipe", "pipe"] });
+	let descendant = 0;
+	try {
+		descendant = await new Promise<number>((resolve, reject) => {
+			parent.once("error", reject);
+			parent.stdout?.once("data", (data: Buffer) => resolve(Number(data.toString().trim())));
+		});
+		assert.ok(Number.isInteger(descendant) && descendant > 0);
+		await stopProcessGroup(parent, 400);
+		let alive = true;
+		for (let i = 0; i < 40 && alive; i++) {
+			try { process.kill(descendant, 0); } catch { alive = false; }
+			if (alive) await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		assert.equal(alive, false, "the renderer child must not outlive the test app");
+	} finally {
+		if (parent.exitCode === null && parent.signalCode === null) await stopProcessGroup(parent, 400);
+		if (descendant > 0) {
+			try { process.kill(descendant, "SIGKILL"); } catch { /* Already reaped. */ }
+		}
+	}
+});

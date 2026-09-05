@@ -11,6 +11,7 @@ import { Search, X } from "lucide-react";
 import { createContext, useContext } from "react";
 
 import { ScrollText } from "../scroll/ScrollText.tsx";
+import { shortcutLabel } from "../keyboard.ts";
 
 /**
  * Whether rows in this menu keep a column for their mark, even the ones that have none.
@@ -122,7 +123,9 @@ export function MenuItem({
 				{detail && <span className="mt-0.5 block truncate text-caption leading-snug opacity-65">{detail}</span>}
 			</span>
 			{hint !== undefined && (
-				<span className={`shrink-0 font-mono text-caption text-ink-faint ${detail ? "mt-[3px]" : ""}`}>{hint}</span>
+				<span className={`shrink-0 font-mono text-caption text-ink-faint ${detail ? "mt-[3px]" : ""}`}>
+					{typeof hint === "string" ? shortcutLabel(hint) : hint}
+				</span>
 			)}
 			{trailing}
 		</button>

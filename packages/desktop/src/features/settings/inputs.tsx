@@ -9,6 +9,7 @@
 
 import { Check, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { acceleratorLabel, composingKey, recordAccelerator } from "../../ui/keyboard.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 
 export function TextInput({
@@ -179,21 +180,9 @@ export function ShortcutRecorder({
 }) {
 	const [recording, setRecording] = useState(false);
 
-	const formatDisplay = (acc: string) => {
-		if (!acc) return placeholder;
-		return acc
-			.replace(/CommandOrControl/gi, "⌘")
-			.replace(/Control/gi, "⌃")
-			.replace(/Meta/gi, "⌘")
-			.replace(/Cmd/gi, "⌘")
-			.replace(/Alt/gi, "⌥")
-			.replace(/Option/gi, "⌥")
-			.replace(/Shift/gi, "⇧")
-			.replace(/\+/g, " ");
-	};
-
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (!recording) return;
+		if (composingKey(e.nativeEvent)) return;
 		e.preventDefault();
 		e.stopPropagation();
 
@@ -208,25 +197,8 @@ export function ShortcutRecorder({
 			return;
 		}
 
-		// Ignore standalone modifier presses
-		if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) {
-			return;
-		}
-
-		const modifiers: string[] = [];
-		if (e.metaKey || e.ctrlKey) modifiers.push("CommandOrControl");
-		if (e.altKey) modifiers.push("Alt");
-		if (e.shiftKey) modifiers.push("Shift");
-
-		let key = e.key.toUpperCase();
-		if (key === " ") key = "Space";
-		else if (key === "ARROWUP") key = "Up";
-		else if (key === "ARROWDOWN") key = "Down";
-		else if (key === "ARROWLEFT") key = "Left";
-		else if (key === "ARROWRIGHT") key = "Right";
-
-		// Form canonical Electron accelerator: "CommandOrControl+Alt+A"
-		const result = [...modifiers, key].join("+");
+		const result = recordAccelerator(e.nativeEvent);
+		if (!result) return;
 		onChange(result);
 		setRecording(false);
 	};
@@ -245,7 +217,7 @@ export function ShortcutRecorder({
 						: "border-dashed border-line bg-card/50 text-ink-muted hover:border-ink-faint"
 			}`}
 		>
-			<span>{recording ? "请在键盘上按下快捷键..." : formatDisplay(value ?? "")}</span>
+			<span>{recording ? "请在键盘上按下快捷键..." : value ? acceleratorLabel(value) : placeholder}</span>
 		</button>
 	);
 }

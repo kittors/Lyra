@@ -15,7 +15,8 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,10 +47,27 @@ export async function stopProcessGroup(
 		}
 		child.once("exit", () => resolve());
 	});
+	if (process.platform === "win32") {
+		// Node's child.kill only terminates the parent on Windows; Electron owns renderer/GPU children.
+		await new Promise<void>((resolve, reject) => {
+			const killer = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore", timeout: 5_000 });
+			killer.once("error", reject);
+			killer.once("exit", (code) => {
+				if (code !== 0 && child.exitCode === null && child.signalCode === null) {
+					reject(new Error(`taskkill failed for test process ${pid} (exit ${code})`));
+				} else resolve();
+			});
+		});
+		await Promise.race([exited, new Promise<void>((resolve) => setTimeout(resolve, 1_000))]);
+		child.stdout?.destroy();
+		child.stderr?.destroy();
+		child.unref();
+		return;
+	}
+
 	const signal = (sig: NodeJS.Signals) => {
 		try {
-			if (process.platform === "win32") child.kill(sig);
-			else process.kill(-pid, sig);
+			process.kill(-pid, sig);
 		} catch {
 			try {
 				child.kill(sig);
@@ -133,10 +151,13 @@ export interface RunningApp {
 export async function startApp({
 	port,
 	seed,
+	scaleFactor,
 }: {
 	/** A port per test file: two suites running at once must not share a debugger. */
 	port: number;
 	seed?: (home: string) => Promise<void>;
+	/** Exercise Chromium's actual DIP conversion, including native overlay geometry on Windows. */
+	scaleFactor?: number;
 }): Promise<RunningApp> {
 	/*
 	 * Refuse to start while something is already on this port.
@@ -164,15 +185,11 @@ export async function startApp({
 		probe.listen(port, "127.0.0.1", () => probe.close(() => resolve()));
 	});
 
-	// A profile of its own: this must not read, or write to, whatever is on the machine already.
-	const home = await mkdtemp(join(tmpdir(), "lyra-e2e-"));
-	await seed?.(home);
-
 	/** Kept so a failure to start can show what the app said on its way down. */
 	const output: string[] = [];
 
 	/*
-	 * The built bundle when `LYRA_E2E_APP` names one, and the dev preview otherwise.
+	 * The built bundle when `LYRA_E2E_APP` names one, and the built development app otherwise.
 	 *
 	 * They are not the same program in the ways that have bitten hardest. A packaged build runs out
 	 * of an asar, resolves `app.getAppPath()` somewhere else entirely, and has whatever
@@ -181,17 +198,35 @@ export async function startApp({
 	 * thing that ships is the only way to see that class of fault.
 	 */
 	const bundle = process.env.LYRA_E2E_APP;
-	const executable = bundle ? join(bundle, "Contents", "MacOS", "Lyra") : "pnpm";
+	const entry = join(ROOT, "out", "main", "index.js");
+	if (!bundle) {
+		await access(entry).catch((cause: unknown) => {
+			throw new Error("Build the desktop app with pnpm build before running Electron e2e tests", { cause });
+		});
+	}
+	const electron: unknown = bundle ? join(bundle, "Contents", "MacOS", "Lyra") : createRequire(import.meta.url)("electron");
+	if (typeof electron !== "string") throw new Error("Electron's executable path is unavailable");
+	const executable = electron;
 	const argv = bundle
 		? [`--remote-debugging-port=${port}`]
-		: ["exec", "electron-vite", "preview", "--", `--remote-debugging-port=${port}`];
+		// Keep app.getAppPath() at the package root, exactly as electron-vite's `electron .` does.
+		: [ROOT, `--remote-debugging-port=${port}`];
+	if (scaleFactor !== undefined) argv.push(`--force-device-scale-factor=${scaleFactor}`);
+
+	// Validate the executable before creating a profile, so failed setup leaves no test data.
+	const home = await mkdtemp(join(tmpdir(), "lyra-e2e-"));
+	try {
+		await seed?.(home);
+	} catch (error) {
+		await rm(home, { recursive: true, force: true });
+		throw error;
+	}
 
 	/*
 	 * Its own process group.
 	 *
-	 * `electron-vite preview` spawns Electron as a child, so killing the one we started leaves the
-	 * window running and the test runner waiting on a handle that never closes — which shows up as
-	 * a suite that passes and then hangs for ten minutes.
+	 * Launch the binary directly: Windows cannot spawn a pnpm.cmd shim without a shell, and
+	 * electron-vite preview silently rebuilds per suite instead of testing the requested build.
 	 */
 	const app: ChildProcess = spawn(executable, argv, {
 		cwd: ROOT,
@@ -207,7 +242,14 @@ export async function startApp({
 	app.stderr?.on("data", record);
 	app.on("error", (error) => output.push(`spawn failed: ${error.message}`));
 
-	const target = await waitForWindow(port, output);
+	let target: string;
+	try {
+		target = await waitForWindow(port, output);
+	} catch (error) {
+		await stopProcessGroup(app);
+		await rm(home, { recursive: true, force: true });
+		throw error;
+	}
 	const evaluate = <T>(expression: string) =>
 		call<T>(target, "Runtime.evaluate", {
 			expression,
@@ -219,7 +261,13 @@ export async function startApp({
 			if (answer.exceptionDetails) throw new Error(answer.exceptionDetails.text);
 			return answer.result?.value as T;
 		});
-	await waitForShell(evaluate);
+	try {
+		await waitForShell(evaluate);
+	} catch (error) {
+		await stopProcessGroup(app);
+		await rm(home, { recursive: true, force: true });
+		throw error;
+	}
 
 	return {
 		home,

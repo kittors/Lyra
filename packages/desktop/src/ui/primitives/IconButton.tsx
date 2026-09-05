@@ -1,4 +1,5 @@
 import { Tooltip } from "../overlay/Tooltip.tsx";
+import { shortcutLabel } from "../keyboard.ts";
 
 /**
  * A button whose label is an icon.
@@ -60,7 +61,7 @@ export function IconButton({
 	const button = (
 		<button
 			type="button"
-			aria-label={label}
+			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
 			disabled={disabled}
 			onClick={onClick}

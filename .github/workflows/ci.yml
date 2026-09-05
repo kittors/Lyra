@@ -126,6 +126,29 @@ jobs:
       - run: pnpm build
       - run: pnpm test:e2e
 
+  windows-ui:
+    # Unit tests cannot see native caption buttons, DirectWrite metrics or a running ConPTY.
+    # Keep this focused so Windows UI verification also fits the ordinary push budget.
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          cache: "false"
+          electron: "true"
+      - run: pnpm build
+      - name: Windows desktop and transcript regression
+        env:
+          LYRA_E2E_ARTIFACTS: ${{ runner.temp }}/lyra-windows-ui
+        run: pnpm --filter @lyra/desktop exec node --test --test-concurrency=1 --test-timeout=120000 --experimental-strip-types e2e/desktop-compatibility.test.ts e2e/transcript-stability.test.ts
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-ui
+          path: ${{ runner.temp }}/lyra-windows-ui
+          retention-days: 7
+
   audit:
     # Known vulnerabilities in what actually ships.
     #
@@ -228,7 +251,7 @@ jobs:
   # The single required check. Everything above must pass; `dead-code` is deliberately not here.
   all-green:
     if: always()
-    needs: [lint, typecheck, test, build, e2e, e2e-scope, mobile-bundle, arch, audit, pr-title]
+    needs: [lint, typecheck, test, build, e2e, e2e-scope, windows-ui, mobile-bundle, arch, audit, pr-title]
     runs-on: ubuntu-latest
     steps:
       - name: Verdict
@@ -237,6 +260,7 @@ jobs:
         run: |
           echo "lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }}"
           echo "test=${{ needs.test.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }} e2e-scope=${{ needs.e2e-scope.result }}"
+          echo "windows-ui=${{ needs.windows-ui.result }}"
           echo "mobile-bundle=${{ needs.mobile-bundle.result }} arch=${{ needs.arch.result }}"
           echo "audit=${{ needs.audit.result }} pr-title=${{ needs.pr-title.result }}"
           [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false" ]

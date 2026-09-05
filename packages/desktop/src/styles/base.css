@@ -134,6 +134,14 @@
     outline: none;
   }
 
+  /* Keyboard focus must remain visible when Chromium's default button outline is removed. */
+  button:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   /*
    * No native scrollbars anywhere.
    *

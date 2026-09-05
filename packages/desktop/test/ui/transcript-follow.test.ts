@@ -109,3 +109,16 @@ test("keyboard scrolling detaches from future content growth", async () => {
 	await view.unmount();
 	contentHeight = 2400;
 });
+
+test("the app's reduce-motion preference makes return to bottom immediate", async () => {
+	document.documentElement.dataset.reduceMotion = "on";
+	writeFollow("follow-test", "reduced", { following: false, scrollTop: 600, seen: null });
+	const view = await mount(h(Harness, { id: "reduced" }));
+	try {
+		await act(async () => controls.returnToBottom());
+		assert.equal(view.find(".ly-scroll-view").scrollTop, 2000);
+	} finally {
+		await view.unmount();
+		delete document.documentElement.dataset.reduceMotion;
+	}
+});

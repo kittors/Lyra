@@ -199,8 +199,11 @@ export function TerminalPane() {
 			} catch {
 				return;
 			}
-			size.current = { cols: terminal.cols, rows: terminal.rows };
-			if (sessionId.current) bridge.terminal.resize(sessionId.current, terminal.cols, terminal.rows);
+			const next = { cols: terminal.cols, rows: terminal.rows };
+			// A pixel resize rarely crosses a cell boundary; ConPTY only needs changes to its grid.
+			if (next.cols === size.current.cols && next.rows === size.current.rows) return;
+			size.current = next;
+			if (sessionId.current) bridge.terminal.resize(sessionId.current, next.cols, next.rows);
 		});
 		observer.observe(element);
 

@@ -10,6 +10,8 @@
  * single listener on the document rather than a component per target.
  */
 
+import { shortcutLabel } from "../keyboard.ts";
+
 const DELAY_MS = 420;
 /** Long enough to be seen leaving, short enough not to trail the pointer. Matches `ly-tip-out`. */
 const EXIT_MS = 110;
@@ -89,7 +91,7 @@ function place(el: HTMLElement) {
 	// Cancel a departure in progress, or the bubble would vanish mid-arrival.
 	window.clearTimeout(leaving);
 	delete tip.dataset.leaving;
-	tip.textContent = el.dataset.lyTip ?? "";
+	tip.textContent = shortcutLabel(el.dataset.lyTip ?? "");
 	tip.hidden = false;
 
 	const a = el.getBoundingClientRect();

@@ -5,6 +5,7 @@
  * clipboard copy preference, and whether to open the annotator immediately.
  */
 
+import { shortcutLabel } from "../../ui/keyboard.ts";
 import { Camera, FolderOpen } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
@@ -139,7 +140,7 @@ export function ScreenshotSettings() {
 				/>
 				<Row
 					title="完成编辑后复制到剪贴板"
-					detail="点击完成/保存标注时将图片写入系统剪贴板，方便随时 ⌘V 粘贴到其他应用"
+					detail={shortcutLabel("点击完成/保存标注时将图片写入系统剪贴板，方便随时 ⌘V 粘贴到其他应用")}
 					control={
 						<Toggle
 							checked={config.copyToClipboard !== false}
