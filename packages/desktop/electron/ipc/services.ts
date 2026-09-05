@@ -6,7 +6,7 @@
  * or not anything is running.
  */
 
-import { addMemoryEntry, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, removeMemoryEntry, saveIndex, searchIndex } from "@lyra/core";
+import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@lyra/core";
 import { ipcMain } from "electron";
 import type { ProviderTestResult, SyncStatus } from "../ipc-types.ts";
 import { applySettings, settings } from "../app-settings.ts";
@@ -104,7 +104,8 @@ export function registerServicesIpc(deps: ServicesIpcDeps): void {
 
 	ipcMain.handle("memory:load", async () => {
 		const store = await loadMemory();
-		return { entries: store.entries };
+		// With when each one last reached the model — the sidecar, so the store itself stays untouched.
+		return { entries: annotateInjected(store.entries, await readInjected(userInjectedPath())) };
 	});
 
 	ipcMain.handle("memory:add", async (_event, content: string) => {

@@ -950,7 +950,8 @@ export interface LyraApi {
 		publishReleaseTag(cwd: string, version: string): Promise<{ ok: boolean; tag?: string; error?: string }>;
 	};
 	memory: {
-		load(): Promise<{ entries: { id: string; content: string; createdAt: number; updatedAt: number }[] }>;
+		/** 每条带来源与最后一次注入提示词的时间（没注入过就没有）。 */
+		load(): Promise<{ entries: { id: string; content: string; createdAt: number; updatedAt: number; source?: "user" | "auto" | "session"; lastInjectedAt?: number }[] }>;
 		add(content: string): Promise<{ id: string; content: string; createdAt: number; updatedAt: number }>;
 		remove(id: string): Promise<boolean>;
 		clear(): Promise<void>;
@@ -971,6 +972,11 @@ export interface LyraApi {
 		status(cwd: string): Promise<{ run: boolean; reason?: string }>;
 		/** 跑一遍。返回写了什么、读了几个会话，或者为什么没跑。 */
 		extract(cwd: string): Promise<{ memory: string; sessions: number; skipped?: string }>;
+		/** 这个项目记住的：`learn` 写的每一条，和抽取出来的那一份，各带写入时间与最后注入时间。 */
+		list(cwd: string): Promise<{
+			lessons: { text: string; context?: string; at: number; lastInjectedAt?: number }[];
+			extracted: { text: string; updatedAt?: number; lastInjectedAt?: number } | null;
+		}>;
 	};
 	diff: {
 		/** Uncommitted changes for the review panel. */

@@ -7,6 +7,7 @@ import { Brain, Check, Info, Plus, Trash2 } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
+import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
 
 export function PersonalizationSettings() {
 	const settings = useApp((s) => s.settings);
@@ -21,7 +22,16 @@ export function PersonalizationSettings() {
 
 	const [customInstructions, setCustomInstructions] = useState(personalization.customInstructions ?? "");
 	const [savedNotice, setSavedNotice] = useState(false);
-	const [memoryEntries, setMemoryEntries] = useState<{ id: string; content: string; createdAt: number }[]>([]);
+	const [memoryEntries, setMemoryEntries] = useState<{ id: string; content: string; createdAt: number; source?: MemorySource; lastInjectedAt?: number }[]>([]);
+	/*
+	 * This project's memory, beside the user's own.
+	 *
+	 * Two stores, two scopes: the user's preferences follow the person, the lessons and the
+	 * extracted file follow the repository. Shown together because the question is the same for
+	 * both — what does the model know about me, and is it actually reaching it.
+	 */
+	const workspace = useApp((s) => s.workspace);
+	const [projectMemory, setProjectMemory] = useState<Awaited<ReturnType<typeof bridge.projectMemory.list>> | null>(null);
 	const [newMemory, setNewMemory] = useState("");
 	const [loadingMemory, setLoadingMemory] = useState(false);
 
@@ -40,6 +50,11 @@ export function PersonalizationSettings() {
 	useEffect(() => {
 		void loadMemories();
 	}, []);
+
+	useEffect(() => {
+		if (!workspace?.path) return;
+		void bridge.projectMemory.list(workspace.path).then(setProjectMemory).catch(() => setProjectMemory(null));
+	}, [workspace?.path]);
 
 	const handleSaveInstructions = async () => {
 		if (!settings) return;
@@ -255,7 +270,10 @@ export function PersonalizationSettings() {
 									>
 										<div className="flex items-start gap-2.5 min-w-0">
 											<Brain size={15} strokeWidth={1.8} className="text-accent shrink-0 mt-0.5" />
-											<span className="text-detail text-ink leading-relaxed break-words">{m.content}</span>
+											<div className="min-w-0">
+												<span className="text-detail text-ink leading-relaxed break-words">{m.content}</span>
+												<MemoryMeta source={m.source ?? "user"} createdAt={m.createdAt} lastInjectedAt={m.lastInjectedAt} />
+											</div>
 										</div>
 										<button
 											type="button"
@@ -271,6 +289,33 @@ export function PersonalizationSettings() {
 						) : (
 							<div className="rounded-xl border border-line/60 bg-card/40 py-8 text-center text-caption text-ink-faint">
 								{loadingMemory ? "正在读取记忆..." : "暂无持久化记忆条目，可在此手动添加或在对话中自动沉淀。"}
+							</div>
+						)}
+
+						{workspace?.path && projectMemory && (projectMemory.lessons.length > 0 || projectMemory.extracted) && (
+							<div className="pt-2" data-project-memory>
+								<p className="mb-1.5 text-caption text-ink-muted">
+									这个项目记住的（<span className="font-mono">{workspace.name ?? workspace.path}</span>）
+								</p>
+								<div className="space-y-1.5">
+									{projectMemory.lessons.map((lesson) => (
+										<div key={`${lesson.at}-${lesson.text}`} className="rounded-xl border border-line bg-card p-3" data-project-lesson>
+											<span className="text-detail text-ink leading-relaxed break-words">{lesson.text}</span>
+											{lesson.context && <span className="block text-caption text-ink-muted">适用于：{lesson.context}</span>}
+											<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
+										</div>
+									))}
+									{projectMemory.extracted && (
+										<div className="rounded-xl border border-line bg-card p-3" data-project-extracted>
+											<pre className="whitespace-pre-wrap font-sans text-detail text-ink leading-relaxed break-words">{projectMemory.extracted.text}</pre>
+											<MemoryMeta
+												source="extracted"
+												createdAt={projectMemory.extracted.updatedAt ?? Date.now()}
+												lastInjectedAt={projectMemory.extracted.lastInjectedAt}
+											/>
+										</div>
+									)}
+								</div>
 							</div>
 						)}
 					</div>

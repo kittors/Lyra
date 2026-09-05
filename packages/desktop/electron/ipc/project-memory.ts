@@ -9,7 +9,20 @@
  */
 
 import { ipcMain } from "electron";
-import { lastPassAt, runMemoryPass, shouldRunPass, type SessionStorage } from "@lyra/core";
+import { stat } from "node:fs/promises";
+import { join } from "node:path";
+import {
+	EXTRACTED_KEY,
+	lastPassAt,
+	projectInjectedPath,
+	projectMemoryDir,
+	readExtractedMemory,
+	readInjected,
+	readLessons,
+	runMemoryPass,
+	shouldRunPass,
+	type SessionStorage,
+} from "@lyra/core";
 import { settings } from "../app-settings.ts";
 
 export interface ProjectMemoryIpcDeps {
@@ -17,6 +30,23 @@ export interface ProjectMemoryIpcDeps {
 }
 
 export function registerProjectMemoryIpc({ store }: ProjectMemoryIpcDeps): void {
+	/**
+	 * What this project remembers, for the page: each lesson with when it was written and when it
+	 * last reached the model, and the extracted file as one item with the same two times.
+	 */
+	ipcMain.handle("memory:projectList", async (_event, cwd: string) => {
+		const [lessons, injected, extracted] = await Promise.all([
+			readLessons(cwd).catch(() => []),
+			readInjected(projectInjectedPath(cwd)),
+			readExtractedMemory(cwd).catch(() => ""),
+		]);
+		const updatedAt = extracted ? await stat(join(projectMemoryDir(cwd), "MEMORY.md")).then((s) => s.mtimeMs).catch(() => undefined) : undefined;
+		return {
+			lessons: lessons.map((lesson) => ({ ...lesson, lastInjectedAt: injected[lesson.text] })),
+			extracted: extracted ? { text: extracted, updatedAt, lastInjectedAt: injected[EXTRACTED_KEY] } : null,
+		};
+	});
+
 	ipcMain.handle("memory:projectStatus", async (_event, cwd: string) => {
 		const verdict = shouldRunPass(settings(), await lastPassAt(cwd));
 		return verdict.run ? { run: true } : { run: false, reason: verdict.reason };
