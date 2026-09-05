@@ -10,6 +10,7 @@
  * something you can reason about after the fact rather than only watch happen.
  */
 
+import { gatherMemory } from "./memory-inject.ts";
 import { platform } from "node:os";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
@@ -19,9 +20,6 @@ import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
-import { formatMemoryForPrompt, loadMemory } from "./memory.ts";
-import { readExtractedMemory } from "./memory-extract.ts";
-import { formatProjectMemory, readLessons } from "./project-memory.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
 import type {
@@ -191,26 +189,8 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	 */
 	if (input.subAgents) can.state.set(SUBAGENTS_KEY, input.subAgents);
 
-	let memorySnippet = "";
-	if (settings.personalization?.enableMemory !== false) {
-		try {
-			const memoryStore = await loadMemory();
-			memorySnippet = formatMemoryForPrompt(memoryStore.entries);
-		} catch {
-			// Memory loading is resilient and silent
-		}
-	}
-
-	/*
-	 * Read once per turn from disk, not cached in the session.
-	 *
-	 * `learn` writes the file, and a session that cached this at startup would keep telling the
-	 * model it had not learned the thing it just learned. Reading it is one small file.
-	 */
-	const projectMemory =
-		settings.personalization?.enableMemory === false
-			? ""
-			: formatProjectMemory(await readLessons(cwd).catch(() => []), await readExtractedMemory(cwd).catch(() => ""));
+	// Both memories, read from disk this turn, and each entry stamped as having reached the model.
+	const { memorySnippet, projectMemory } = await gatherMemory(cwd, settings.personalization?.enableMemory !== false);
 
 	const turn = await prepareTurn({
 		cwd,
