@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { matchTarget, useOpenTargets } from "../files/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
+import { ProjectLayerCard } from "./ProjectOverrideNotice.tsx";
 import {
   Card,
   InlineSelect,
@@ -54,6 +55,7 @@ export function GeneralSettings() {
         常规
       </h1>
 
+      <ProjectLayerCard />
       <SectionTitle>权限</SectionTitle>
       <Card className="mb-9">
         {/*

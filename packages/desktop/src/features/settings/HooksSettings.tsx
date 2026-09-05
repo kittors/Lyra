@@ -15,6 +15,7 @@ import {
   TextInput,
   Toggle,
 } from "./controls.tsx";
+import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 
 const PRESETS: { label: string; hook: Omit<HookConfig, "id"> }[] = [
   {
@@ -102,6 +103,7 @@ export function HooksSettings() {
         </div>
       </header>
 
+      <ProjectOverrideNotice keys={["hooks"]} />
       <SectionTitle>快速添加</SectionTitle>
       <Card className="mb-7">
         {PRESETS.map((preset) => (

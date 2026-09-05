@@ -50,6 +50,7 @@ export const METHODS = {
 	settings: {
 		get: { channel: "settings:get", remote: true },
 		save: { channel: "settings:save", remote: true },
+		layers: { channel: "settings:layers", remote: false, why: "读的是本机项目里的配置文件；手机只看有效值" },
 	},
 	usage: {
 		scan: { channel: "usage:scan", remote: false, why: "读本机日志" },

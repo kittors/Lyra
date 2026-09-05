@@ -89,6 +89,7 @@ import { registerUsageIpc } from "./ipc/usage.ts";
 import { registerRulesIpc } from "./ipc/rules.ts";
 import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
 import { registerExtensionsIpc } from "./ipc/extensions.ts";
+import { registerLayersIpc } from "./ipc/layers.ts";
 import { registerProjectMemoryIpc } from "./ipc/project-memory.ts";
 import { registerSideChatIpc } from "./ipc/side-chat.ts";
 import { registerUpdateIpc } from "./ipc/updates.ts";
@@ -711,5 +712,6 @@ function registerIpc(): void {
 	registerRulesIpc();
 	registerCapabilitiesIpc();
 	registerExtensionsIpc();
+	registerLayersIpc();
 	registerProjectMemoryIpc({ store: () => store });
 }

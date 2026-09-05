@@ -30,6 +30,7 @@ import { bridge } from "../../services/index.ts";
 import { RuleTryPanel } from "./RuleTryPanel.tsx";
 import { DiffView } from "../git/index.ts";
 import { ShadowedList } from "./ShadowedList.tsx";
+import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 
 /** 三种规则，三种代价。 */
 const BUCKETS = {
@@ -80,6 +81,7 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 
 	return (
 		<div>
+			<ProjectOverrideNotice keys={["disabledRules", "enabledForeignUserRules", "capabilityPreferences"]} />
 			{diagnostics.length > 0 && (
 				<Card className="mb-6 border-accent/35 bg-accent/6">
 					<div className="px-4 py-3">

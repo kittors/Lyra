@@ -6,6 +6,7 @@ import { PluginIcon } from "./PluginIcon.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { useApp } from "../../store/index.ts";
 import { Badge, Card, EmptyHint, Field, GhostButton, SectionTitle, Select, TextInput, Toggle } from "./controls.tsx";
+import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { bridge } from "../../services/index.ts";
 
 /** Servers worth suggesting: widely used, no account needed to try. */
@@ -91,6 +92,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 
 	return (
 		<div>
+			<ProjectOverrideNotice keys={["mcpServers"]} />
 			{/* Adding a server is in the page's ⋯ now, beside the other two tabs' directory actions. */}
 			<SectionTitle>推荐</SectionTitle>
 			<Card className="mb-7">

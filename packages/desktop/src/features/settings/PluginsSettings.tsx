@@ -22,6 +22,7 @@ import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { settingsAfterToggle } from "../plugins/index.ts";
 import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
+import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { bridge } from "../../services/index.ts";
 
 export function PluginsSettings({ filter = "" }: { filter?: string }) {
@@ -81,6 +82,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 
 	return (
 		<div>
+			<ProjectOverrideNotice keys={["disabledPlugins"]} />
 			{diagnostics.length > 0 && (
 				<Card className="mb-6 border-accent/35 bg-accent/6">
 					<div className="px-4 py-3">

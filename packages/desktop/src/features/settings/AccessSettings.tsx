@@ -21,6 +21,7 @@ import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { TextInput } from "./inputs.tsx";
 import { Card, SectionTitle } from "./layout.tsx";
+import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { EmptyHint, GhostButton } from "./controls.tsx";
 
 export function AccessSettings() {
@@ -47,6 +48,7 @@ export function AccessSettings() {
 				你点过「始终允许」的，和你允许 agent 访问的内网地址。都可以随时收回。
 			</p>
 
+			<ProjectOverrideNotice keys={["alwaysAllow", "permissionMode"]} />
 			<SectionTitle>始终允许</SectionTitle>
 			<Card className="mb-6">
 				{allowed.length === 0 ? (

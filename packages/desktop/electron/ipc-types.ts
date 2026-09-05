@@ -75,6 +75,7 @@ import type {
 	DiffHunk,
 	ExtensionDiagnostic,
 	ExtensionStats,
+	LayerOverride,
 	PluginDiagnostic,
 	QueuedTask,
 	RuleDestination,
@@ -122,6 +123,15 @@ import type { SkillEntry } from "./ipc/commands.ts";
 export type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 
 /** One shell in a directory, as the tab strip lists it. */
+/** What `settings.layers` answers; see there. */
+export interface ProjectLayerView {
+	path: string;
+	exists: boolean;
+	error?: string;
+	refused: string[];
+	overrides: LayerOverride[];
+}
+
 export interface TerminalTab {
 	id: string;
 	title: string;
@@ -171,6 +181,12 @@ export interface LyraApi {
 	settings: {
 		get(): Promise<Settings>;
 		save(settings: Settings): Promise<Settings>;
+		/**
+		 * 项目层相对全局的差别：哪些键被 `<cwd>/.lyra/config.json` 整体替换（数组与标量；对象深合并
+		 * 后只报叶子）、两侧的值各是什么，以及那个文件里被拒绝的键。设置页读写的是全局文件，
+		 * 被替换的键在这一页拨了也不生效，页面要把这句话说出来。
+		 */
+		layers(cwd: string): Promise<ProjectLayerView>;
 		/**
 		 * Settings changed on the other side of the boundary.
 		 *
