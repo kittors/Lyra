@@ -116,8 +116,17 @@ function nativeModules(dir, found = []) {
  * A package that declares them is a per-platform prebuilt: six of them sit in every build, and five
  * being "wrong" is not a fault — it is how `koffi` ships. What matters is that the sixth is there.
  * A package that declares neither is compiled for this build alone, and must match.
+ *
+ * The other way a prebuilt says who it is for is its directory. `node-pty` ships one package with
+ * a `prebuilds/darwin-arm64/`, a `prebuilds/win32-x64/` and so on, declares nothing in its
+ * manifest, and loads `build/Release` — compiled here, for this build — before it looks at any of
+ * them. Read the same way as a manifest declaration: the copy for this platform must be right,
+ * the others are simply not for this machine. Without this, every mac build failed on the Windows
+ * prebuilts inside it, and the check that exists to catch a wrong binary was crying wolf.
  */
 function owningPackage(file, root) {
+	const prebuilt = /[\\/]prebuilds[\\/]([a-z0-9]+)-([a-z0-9]+)[\\/]/.exec(file.slice(root.length));
+	if (prebuilt) return { name: `prebuilds/${prebuilt[1]}-${prebuilt[2]}`, os: [prebuilt[1]], cpu: [prebuilt[2]] };
 	for (let dir = join(file, ".."); dir.startsWith(root); dir = join(dir, "..")) {
 		try {
 			const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));

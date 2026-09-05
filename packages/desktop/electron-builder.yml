@@ -64,9 +64,16 @@ extraResources:
 # These are `!` patterns, which is what reaches node_modules at all: positive patterns there are
 # ignored, since production dependencies are included by default. `scripts/check-native-arch.mjs`
 # runs after packaging and fails the build if a pattern here ever excludes the copy that was needed.
+#
+# `node-pty` is the other shape of the same thing: one package carrying `prebuilds/<os>-<cpu>/` for
+# every platform it supports. Its loader tries `build/Release` first — which electron-builder
+# compiles for the architecture being packaged — and only then the prebuilt for the running
+# machine, so the other platforms' copies are dead weight that the arch check would otherwise have
+# to explain away.
 mac:
   files:
     - "!**/node_modules/@koromix/koffi-!(darwin-${arch})/**"
+    - "!**/node_modules/node-pty/prebuilds/!(darwin-${arch})/**"
   category: public.app-category.developer-tools
   # Relative to `buildResources`, not to the project.
   #
@@ -130,6 +137,7 @@ win:
   # See the note above `mac`.
   files:
     - "!**/node_modules/@koromix/koffi-!(win32-${arch})/**"
+    - "!**/node_modules/node-pty/prebuilds/!(win32-${arch})/**"
   icon: icon.png
   target:
     - target: nsis
@@ -144,6 +152,7 @@ linux:
   # See the note above `mac`.
   files:
     - "!**/node_modules/@koromix/koffi-!(linux-${arch})/**"
+    - "!**/node_modules/node-pty/prebuilds/!(linux-${arch})/**"
   icon: icon.png
   category: Development
   target:
