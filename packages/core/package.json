@@ -16,6 +16,7 @@
 		"./schedule": "./src/config/schedule.ts",
 		"./model-roles": "./src/config/model-roles.ts",
 		"./commands-builtin": "./src/commands/builtin.ts",
+		"./rules-condition": "./src/rules/condition.ts",
 		"./install-record": "./src/plugins/install-record.ts"
 	},
 	"scripts": {

@@ -21,6 +21,7 @@ import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/load
 import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
 import type { Rule, RuleSet } from "../rules/types.ts";
+import { conditionSource } from "../rules/condition.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
 import type { AgentDefinition } from "../tools/task.ts";
@@ -127,7 +128,8 @@ export async function collectRules(
 			path: item.provenance.path,
 			sourceLabel: item.provenance.providerLabel,
 			bucket: item.bucket,
-			condition: item.conditions?.map((pattern) => String(pattern)),
+			// As the file spells it, so the page can show it and try it — not `/todo/i`.
+			condition: item.conditions?.map(conditionSource),
 			disabled: off.has(item.name),
 			shadowedBy: item.shadowedBy ? { path: item.shadowedBy.path, label: item.shadowedBy.providerLabel } : undefined,
 		})),

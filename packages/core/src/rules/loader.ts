@@ -16,13 +16,12 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseFrontmatter } from "../skills/loader.ts";
 import { BUILTIN_RULES } from "./builtin.ts";
+import { compileCondition } from "./condition.ts";
 import { type Dialect, normalizeFrontmatter } from "./dialects.ts";
 import type { Rule, RuleDiagnostic, RuleScope, RuleSet } from "./types.ts";
 
 const MAX_DESCRIPTION = 400;
 /** Above this a regex is refused: pathological backtracking would stall every stream chunk. */
-const MAX_CONDITION_LENGTH = 500;
-
 export interface RuleSource {
 	dir: string;
 	source: Rule["source"];
@@ -233,9 +232,10 @@ function buildRule(
 /**
  * Compile the regex triggers.
  *
- * A bad regex disables its own rule and says so; it never takes the others down with it. The
- * length cap is the cheap half of ReDoS defence — the other half is the per-match time budget in
- * `stream.ts`, because a short pattern can still backtrack catastrophically.
+ * A bad regex disables its own rule and says so; it never takes the others down with it. What
+ * counts as bad lives in `condition.ts`, shared with the settings page — the length cap and the
+ * nested-quantifier refusal are the cheap half of ReDoS defence, the per-match time budget in
+ * `stream.ts` is the other half, because a short pattern can still backtrack catastrophically.
  */
 function compileConditions(raw: unknown, path: string, diagnostics: RuleDiagnostic[]): RegExp[] {
 	const patterns = parseStringList(raw);
@@ -243,45 +243,9 @@ function compileConditions(raw: unknown, path: string, diagnostics: RuleDiagnost
 
 	const out: RegExp[] = [];
 	for (const pattern of patterns) {
-		if (pattern.length > MAX_CONDITION_LENGTH) {
-			diagnostics.push({ path, severity: "warning", message: `condition 超过 ${MAX_CONDITION_LENGTH} 字符，已忽略。` });
-			continue;
-		}
-		/*
-		 * Refuse nested quantifiers outright.
-		 *
-		 * `(a+)+`, `(a*)*`, `(\w+\s?)+` and friends are the classic catastrophic-backtracking
-		 * shapes, and they cannot be defended against after the fact — a JS regex runs to
-		 * completion with nothing able to interrupt it. The matcher also caps how much text it
-		 * sees, but refusing the pattern is the honest answer: a rule that cannot be evaluated
-		 * safely should say so at load time, not stall a stream months later.
-		 */
-		if (/\([^)]*[+*]\s*\)\s*[+*]/.test(pattern)) {
-			diagnostics.push({
-				path,
-				severity: "warning",
-				message: `condition 里有嵌套量词（形如 (a+)+），这类正则可能指数级回溯，已忽略：${pattern.slice(0, 60)}`,
-			});
-			continue;
-		}
-
-		// `(?i)` and friends are how the pattern would be written in most other tools.
-		let flags = "";
-		let body = pattern;
-		const inline = /^\(\?([ims]+)\)/.exec(body);
-		if (inline) {
-			flags = inline[1].replace("s", "s");
-			body = body.slice(inline[0].length);
-		}
-		try {
-			out.push(new RegExp(body, flags));
-		} catch (error) {
-			diagnostics.push({
-				path,
-				severity: "warning",
-				message: `condition 不是合法正则，已忽略：${error instanceof Error ? error.message : String(error)}`,
-			});
-		}
+		const compiled = compileCondition(pattern);
+		if (compiled.ok) out.push(compiled.regex);
+		else diagnostics.push({ path, severity: "warning", message: compiled.reason });
 	}
 	return out;
 }
