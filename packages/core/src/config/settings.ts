@@ -314,6 +314,13 @@ export interface Settings {
 	 */
 	enabledForeignUserRules: string[];
 	/**
+	 * 裸的 `cat` / `grep` / `find` / `ls` 改道到专用工具。默认开。
+	 *
+	 * 关掉的理由只有一个：有人就是想用 shell。而开着的理由是，提示词里那句「用 read 别用
+	 * cat」模型看了照样 cat——一个错误结果比一句劝告有效得多。管道和重定向永远放行。
+	 */
+	rerouteShellCommands?: boolean;
+	/**
 	 * How many sub-agents may run at once. Beyond this they queue.
 	 *
 	 * A limit rather than a refusal, because wanting to look at eight things is a reasonable thought
@@ -483,6 +490,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	disabledPlugins: [],
 	disabledRules: [],
 	enabledForeignUserRules: [],
+	rerouteShellCommands: true,
 	maxConcurrentSubAgents: 4,
 	modelRoles: {},
 	/*
@@ -630,6 +638,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			disabledPlugins: parsed.disabledPlugins ?? [],
 			disabledRules: parsed.disabledRules ?? [],
 			enabledForeignUserRules: parsed.enabledForeignUserRules ?? [],
+			rerouteShellCommands: parsed.rerouteShellCommands !== false,
 			maxConcurrentSubAgents:
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))

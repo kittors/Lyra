@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { rerouteShellCommand, TOOL_NAMES_KEY } from "./reroute.ts";
 import { getSandbox, looksDenied } from "../sandbox/index.ts";
 import {
 	approveEscalation,
@@ -118,6 +119,15 @@ export const bashTool: Tool<BashArgs> = {
 		if (typeof args.command !== "string" || !args.command.trim()) {
 			return errorResult("`command` is required.");
 		}
+
+		/*
+		 * 裸的 `cat` / `grep` / `find` / `ls` 改道到专用工具。
+		 *
+		 * 在提权和审批之前：一条要被改道的命令不该先问用户「允许吗」再说「其实别用这个」。
+		 * 见 `reroute.ts`——有管道、重定向、串联的一律放行，那是真的在组合。
+		 */
+		const reroute = rerouteShellCommand(args.command, ctx.state.get(TOOL_NAMES_KEY) as ReadonlySet<string> | undefined);
+		if (reroute) return errorResult(reroute.message);
 
 		/*
 		 * The escalation, resolved before anything runs.

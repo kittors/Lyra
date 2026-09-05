@@ -25,6 +25,7 @@ import { StreamRuleMonitor } from "../rules/stream.ts";
 import { EMPTY_RULE_SET, type RuleSet } from "../rules/types.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { invalidateIndex } from "../tools/index.ts";
+import { TOOL_NAMES_KEY } from "../tools/reroute.ts";
 import { RULES_KEY } from "../tools/rule.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
@@ -138,6 +139,14 @@ export class SessionCapabilities {
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
 		this.state.set(RULES_KEY, this.rules);
+		/*
+		 * `bash` 的改道靠这个 key 知道「建议的工具在不在」。
+		 *
+		 * 开关关了就不填——`rerouteShellCommand` 见到 undefined 一律放行。用「不填」而不是
+		 * 「填个空集」：空集会让每条 `cat` 都去查一次表然后放行，而不填是一次 map miss。
+		 */
+		if (settings.rerouteShellCommands !== false) this.state.set(TOOL_NAMES_KEY, new Set(this.tools.map((tool) => tool.name)));
+		else this.state.delete(TOOL_NAMES_KEY);
 		this.state.set(ARTIFACTS_KEY, this.artifacts);
 		/*
 		 * `plugin://` 和 `mcp://` 的数据源。
