@@ -118,15 +118,35 @@ export function Sidebar() {
 
 	const viewport = useRef<HTMLDivElement>(null);
 	/*
-	 * A different list starts at its own top.
+	 * A different list starts at its own top — the *list's* top, not the pane's.
 	 *
 	 * The scroller is shared by all four combinations, so without this, switching to a list that
 	 * happens to be shorter than how far you had scrolled the last one lands you somewhere in its
 	 * middle — or, if it is shorter still, at its end with a blank pane. A depth into one list means
 	 * nothing in another.
+	 *
+	 * It used to go to zero, and zero is further up than the list begins. Above it in the same
+	 * scroller sit the destinations and the strip, which are the same in all four combinations and
+	 * did not change — so opening the archive from a scrolled list threw those back on screen, drove
+	 * the strip out of its rail and shoved everything down by their height. Nothing in that band had
+	 * become a different thing; it moved because the list under it did. What is replaced is the list,
+	 * so what returns to its top is the list.
+	 *
+	 * Measured off the element before the strip rather than read from `offsetTop`: the strip is
+	 * `sticky`, so once it is held its own box says where it is being *drawn*, not where it lives in
+	 * the flow — and the flow position is the whole question. Its predecessor is in the flow at every
+	 * scroll position, and the bottom of it is exactly the offset at which the strip comes to rest.
 	 */
 	useEffect(() => {
-		if (viewport.current) viewport.current.scrollTop = 0;
+		const view = viewport.current;
+		if (!view) return;
+		const above = view.querySelector<HTMLElement>("[data-ly-rail]")?.previousElementSibling;
+		const anchor = above
+			? Math.max(0, view.scrollTop + above.getBoundingClientRect().bottom - view.getBoundingClientRect().top)
+			: 0;
+		// Only ever upwards. Below the anchor the strip is not held yet and there is nothing to keep
+		// still; the browser's own clamp handles a new list too short to reach even that far.
+		if (view.scrollTop > anchor) view.scrollTop = anchor;
 	}, [tab, archiveOpen]);
 
 	/*

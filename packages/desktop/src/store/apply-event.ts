@@ -173,12 +173,26 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        *
        * `done`, `max_turns` and `stalled` clear it instead. A turn that reached its own end is over;
        * anything carried past it would be added to whatever ran next, under a total nobody could
-       * account for.
+       * account for — unless what runs next was already spoken, which is the case below.
        */
       const stoppedShort = event.reason === "aborted" || event.reason === "error";
+      /*
+       * And the other kind of unfinished: what is still waiting on the queue.
+       *
+       * Those were spoken while this turn was running — a requirement added, an instruction
+       * sharpened — so they are the back half of the same piece of work, held back only because
+       * delivery waits for the turn to finish (see `queue-slice`). The turn reached its own end;
+       * the work did not. Clearing the meter here makes the one that goes out next start counting
+       * from zero, while the person asking has been waiting on one thing the whole time.
+       *
+       * Being on the queue is the test, not what the message says: the only way onto it is to
+       * speak while the session is busy — an idle composer sends straight out, see `Composer`.
+       * What collects this is the send that takes the entry off the queue, in `queue-slice`.
+       */
+      const awaited = (get().queued[sessionId]?.length ?? 0) > 0;
       // The map is the only account of this turn — the line's pair is mirrored from it — so what is
       // frozen here is exactly the elapsed time and the count the reader was looking at.
-      carriedNext = stoppedShort ? freeze(meter, Date.now()) : null;
+      carriedNext = stoppedShort || awaited ? freeze(meter, Date.now()) : null;
     }
 
     if (next !== meter) {

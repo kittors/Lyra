@@ -42,9 +42,10 @@ const JUST_CREATED_MS = 1500;
 /**
  * What a row can do, as one thing rather than four callbacks threaded through every list.
  *
- * Which of them exist is what tells a row where it is: a conversation in the sidebar can be
- * archived, one in the archive can be restored or deleted, and neither list needs to be told which
- * one it is beyond being handed the right set.
+ * Which of them exist is most of what tells a row where it is — only the archive offers to delete —
+ * but no longer all of it. Taking something out is offered by both lists, because the conversation
+ * you have open keeps its place in the live list even while it is filed. A row picks between putting
+ * away and taking out by reading its own session; see `filing` below.
  */
 export interface RowActions {
 	onOpen: (session: SessionMeta) => void;
@@ -85,10 +86,11 @@ export function SessionRow({
 	 */
 	project?: string;
 	onOpen: () => void;
-	/** Absent in the archive, where a row is already filed away. */
+	/** Put it away. Absent in the archive, where every row is already filed. */
 	onArchive?: () => void;
-	/** Both present only in the archive: put it back, or end it. */
+	/** Take it back out. Passed by both lists; see `filing`. */
 	onRestore?: () => void;
+	/** End it. The archive's alone, which is what makes it say where this row is. */
 	onDelete?: () => void;
 }) {
 	/*
@@ -134,7 +136,18 @@ export function SessionRow({
 	const reorder = useSidebarReorderContext();
 	const isDraggingThisSession = reorder?.dragging?.kind === "session" && reorder.dragging.id === session.id;
 	const isTargetThisSession = reorder?.dropTarget?.kind === "session" && reorder.dropTarget.id === session.id;
-	const actionsCount = onRestore && onDelete ? 2 : (onArchive ? 1 : 0) + 1;
+	/** Only the archive can offer to delete, which makes it the answer to "which list is this". */
+	const inArchive = Boolean(onDelete);
+	/*
+	 * Put away or take out — one of the two, never both, chosen by what this row *is* rather than
+	 * by which list it is in.
+	 *
+	 * Nearly every row in the live list is unfiled and gets 归档. The open conversation is the
+	 * exception: `listableSessions` keeps it listed whether or not it is archived, so that row may
+	 * already be filed — and offering it 归档 is a button that does nothing when pressed.
+	 */
+	const filing = session.archived ? onRestore : onArchive;
+	const actionsCount = (inArchive ? Boolean(onRestore) : Boolean(filing)) ? 2 : 1;
 
 	return (
 		<div
@@ -223,49 +236,59 @@ export function SessionRow({
 			    the button above reserves its space on. Two conditions that differ by a millimetre is
 			    what left a gap with nothing in it; see the note there. */}
 			<span data-ly-hover-reveal className="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-lg pr-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/session:opacity-100 group-has-[:focus-visible]/session:opacity-100">
-				{onRestore && (
-					<button
-						type="button"
-						data-ly-tip="取消归档"
-						aria-label={`取消归档「${sessionTitle(session.title)}」`}
-						onClick={onRestore}
-						className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-					>
-						<ArchiveRestore size={12.5} strokeWidth={1.8} />
-					</button>
-				)}
-				{onDelete && (
-					<button
-						type="button"
-						data-ly-tip="删除"
-						aria-label={`删除「${sessionTitle(session.title)}」`}
-						onClick={onDelete}
-						className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
-					>
-						<Trash2 size={12.5} strokeWidth={1.8} />
-					</button>
-				)}
-				{!onRestore && !onDelete && (
-					<button
-						type="button"
-						data-ly-tip={isPinned ? "取消置顶" : "置顶会话"}
-						aria-label={isPinned ? "取消置顶" : "置顶会话"}
-						onClick={() => void setSessionPinned(session.id, !isPinned)}
-						className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-					>
-						{isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
-					</button>
-				)}
-				{onArchive && (
-					<button
-						type="button"
-						data-ly-tip="归档会话"
-						aria-label={`归档会话「${sessionTitle(session.title)}」`}
-						onClick={onArchive}
-						className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-					>
-						<Archive size={12.5} strokeWidth={1.8} />
-					</button>
+				{inArchive ? (
+					<>
+						{onRestore && (
+							<button
+								type="button"
+								data-ly-tip="取消归档"
+								aria-label={`取消归档「${sessionTitle(session.title)}」`}
+								onClick={onRestore}
+								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+							>
+								<ArchiveRestore size={12.5} strokeWidth={1.8} />
+							</button>
+						)}
+						{onDelete && (
+							<button
+								type="button"
+								data-ly-tip="删除"
+								aria-label={`删除「${sessionTitle(session.title)}」`}
+								onClick={onDelete}
+								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
+							>
+								<Trash2 size={12.5} strokeWidth={1.8} />
+							</button>
+						)}
+					</>
+				) : (
+					<>
+						<button
+							type="button"
+							data-ly-tip={isPinned ? "取消置顶" : "置顶会话"}
+							aria-label={isPinned ? "取消置顶" : "置顶会话"}
+							onClick={() => void setSessionPinned(session.id, !isPinned)}
+							className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+						>
+							{isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
+						</button>
+						{/* One button, one claim: filed rows offer to come out, the rest offer to go in. */}
+						{filing && (
+							<button
+								type="button"
+								data-ly-tip={session.archived ? "取消归档" : "归档会话"}
+								aria-label={`${session.archived ? "取消归档" : "归档会话"}「${sessionTitle(session.title)}」`}
+								onClick={filing}
+								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+							>
+								{session.archived ? (
+									<ArchiveRestore size={12.5} strokeWidth={1.8} />
+								) : (
+									<Archive size={12.5} strokeWidth={1.8} />
+								)}
+							</button>
+						)}
+					</>
 				)}
 			</span>
 		</div>

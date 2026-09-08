@@ -644,8 +644,10 @@ async function refreshRemoteState(
 		const active = get().meta;
 		if (active && get().activeSessionId === active.id) {
 			const current = sessions.find((session) => session.id === active.id);
-			if (!current || current.archived) {
-				applySessionChange({ id: active.id, projectId: active.projectId, meta: current ?? null }, set, get);
+			// Gone, and only gone. A conversation that was archived elsewhere is still one you can be
+			// in — see the note in `session-changes`, which is where leaving it is decided.
+			if (!current) {
+				applySessionChange({ id: active.id, projectId: active.projectId, meta: null }, set, get);
 				return;
 			}
 			await readSelectedSession(current, set, get, true);

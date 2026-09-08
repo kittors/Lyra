@@ -8,7 +8,16 @@ export function applySessionChange(change: SessionChange, set: Set, get: () => A
 	const { id, meta } = change;
 	const previous = get().sessions.find((session) => session.id === id);
 	if (meta && previous && meta.seq < previous.seq) return;
-	if ((!meta || meta.archived) && get().activeSessionId === id) void get().newSession();
+	/*
+	 * Only a conversation that is *gone* takes you off it.
+	 *
+	 * Being archived used to count too, which meant filing the conversation you were in threw you
+	 * out of it — and, once the archive let you open a row without unfiling it, meant you could not
+	 * stay in one at all: the first change to reach the sidebar put you back on a blank composer.
+	 * Archiving is a filing decision, not a closing one. The pane keeps showing you where you are
+	 * either way; see `listableSessions`.
+	 */
+	if (!meta && get().activeSessionId === id) void get().newSession();
 	set((state) => {
 		const sessions = state.sessions.filter((session) => session.id !== id);
 		if (meta) sessions.push(meta);

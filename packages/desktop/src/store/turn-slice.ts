@@ -47,8 +47,25 @@ export function turnSlice(set: Set, get: Get) {
 			...(options.skillRef ? { skillRef: options.skillRef } : {}),
 			...(options.sessionRefs?.length ? { sessionRefs: options.sessionRefs } : {}),
 		};
+		/*
+		 * 这一轮的表：接着走，还是从零起。
+		 *
+		 * 三种接法，一种起法。会话正跑着的时候说的话——插进去的那句，或者排着的那条被人自己送了
+		 * 出去——用的就是台上那块表。话是在这件事进行当中说出口的，它是同一件事的一部分：把需求
+		 * 堆上去、把要求改一改，都不是另起一件。从前每一次发送都重新点一块表，于是屏幕上那行字
+		 * 报的是「补这一句之后过了多久」，而人问的是「我这件事等了多久」。
+		 *
+		 * 「继续」接的是冻在 `carried` 里的那份，跨过中间那段停顿。排着的话轮到自己出队时接的也
+		 * 是它——`agent_end` 看见队上还有话就替它留着，见 `apply-event`。
+		 *
+		 * 只有一种情况从零开始：会话闲着的时候有人开口。那才是新的一件事。
+		 *
+		 * `activity` 一起问，是因为 `turns` 里的表只有 `agent_end` 会收走：那一条要是没送到，
+		 * 留下来的表会让下一次发送继承一个几小时前的起点，报出一个没人跑过的时长。
+		 */
+		const running = sessionId && get().activity[sessionId] === "running" ? get().turns[sessionId] : undefined;
 		const carriedMeter = sessionId ? (get().carried[sessionId] ?? loadCarried(sessionId)) : null;
-		const meter = relight(options.carryOn && sessionId ? carriedMeter : null, Date.now());
+		const meter = running ?? relight(options.carryOn && sessionId ? carriedMeter : null, Date.now());
 		if (sessionId) saveCarried(sessionId, null);
 		if (ownsSelection()) set({
 			messages: [...get().messages, pending], pendingUserMessage: { sessionId: sessionId ?? null, message: pending },

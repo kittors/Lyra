@@ -148,3 +148,80 @@ test("会话被删掉，排着的跟草稿一起走", () => {
 	assert.equal(useApp.getState().queued.a, undefined);
 	assert.equal(useApp.getState().drafts.a, undefined);
 });
+
+/*
+ * 忙的时候说的话，和那块表。
+ *
+ * 运行行上那个时长回答的是「我这件事等了多久」。从前每一次发送都重新点一块表，于是正跑着的时候补
+ * 一句需求，屏幕上的数字就退回 0s——它改成回答「补这一句之后过了多久」，而那不是任何人问的问题。
+ * 两条路都要堵：插进这一轮的那句用台上那块表，排着等下一轮的那条接 `agent_end` 替它冻下来的那份。
+ * 见 `turn-meter.ts`。
+ */
+
+const MINUTE = 60_000;
+
+/** 一轮已经跑了这么久，台上摆着表。 */
+function running(elapsedMs: number, tokens: number): number {
+	const startedAt = Date.now() - elapsedMs;
+	useApp.setState({
+		running: true, activity: { a: "running" },
+		turns: { a: { startedAt, tokens } }, turnStartedAt: startedAt, turnTokens: tokens,
+	});
+	return startedAt;
+}
+
+test("正跑着的时候插一句，表接着走", async () => {
+	const startedAt = running(10 * MINUTE, 31_400);
+	await useApp.getState().send([{ type: "text", text: "再补一句" }], { deliver: "steer" });
+	assert.equal(useApp.getState().turns.a?.startedAt, startedAt, "补一句需求不是另起一件事");
+	assert.equal(useApp.getState().turnStartedAt, startedAt, "运行行读的是同一块表");
+	assert.equal(useApp.getState().turnTokens, 31_400, "用量也接着数，否则每秒字数是一段没人跑过的速率");
+});
+
+test("排着的那条出队时，接上这一轮已经跑掉的时间", async () => {
+	running(10 * MINUTE, 31_400);
+	useApp.getState().enqueue("a", entry("忙的时候补的一句"));
+	useApp.getState().applyEvent("a", { type: "agent_end", reason: "done" });
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	assert.deepEqual(prompted.map((one) => one.text), ["忙的时候补的一句"]);
+	const meter = useApp.getState().turns.a;
+	assert.ok(meter, "出队的那次发送重新点起了表");
+	// 起点被推回到十分钟前：读出来的是人从开口到现在等的总时长，不是这一段的长度。
+	assert.ok(meter.startedAt <= Date.now() - 10 * MINUTE, `表应当从十分钟前起算，实际差 ${Date.now() - meter.startedAt}ms`);
+	assert.equal(meter.tokens, 31_400, "这一轮花掉的也一起带过去");
+	assert.equal(useApp.getState().carried.a, undefined, "接走之后那份账就不该再留着，否则会被记第二次");
+});
+
+test("没有人排队，一轮干净收尾就把表收走", () => {
+	running(10 * MINUTE, 31_400);
+	useApp.getState().applyEvent("a", { type: "agent_end", reason: "done" });
+	assert.equal(useApp.getState().turns.a, undefined, "这一轮到了自己的终点");
+	assert.equal(useApp.getState().carried.a, undefined, "没有下一句要接，就没有账要留");
+	assert.equal(useApp.getState().turnStartedAt, null, "运行行也该收掉");
+});
+
+test("会话闲着的时候开口，才是新的一件事", async () => {
+	useApp.setState({ activity: {}, turns: {}, carried: {}, running: false });
+	const before = Date.now();
+	await useApp.getState().send([{ type: "text", text: "新的一件事" }]);
+	const meter = useApp.getState().turns.a;
+	assert.ok(meter && meter.startedAt >= before, "闲着的时候说的话从零开始数");
+	assert.equal(meter.tokens, 0);
+});
+
+test("表已经没人收走了，也不许被下一次发送继承", async () => {
+	/*
+	 * `turns` 里的表只有 `agent_end` 收得走，那一条要是没送到就会留在原地。光看「有没有表」会让
+	 * 下一次发送继承一个几小时前的起点，报出一个没人跑过的时长——所以还要问 `activity`。
+	 */
+	useApp.setState({
+		running: false, activity: { a: "done" },
+		turns: { a: { startedAt: Date.now() - 3 * 60 * MINUTE, tokens: 999_999 } }, carried: {},
+	});
+	const before = Date.now();
+	await useApp.getState().send([{ type: "text", text: "隔了三小时才说的下一件事" }]);
+	const meter = useApp.getState().turns.a;
+	assert.ok(meter && meter.startedAt >= before, "会话已经不在跑了，留下的表不作数");
+	assert.equal(meter.tokens, 0);
+});

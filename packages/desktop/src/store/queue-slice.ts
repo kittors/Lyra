@@ -121,6 +121,16 @@ export function queueSlice(set: Set, get: Get): QueueSlice {
 		try {
 			const accepted = await get().send(taken.entry.content, {
 				sessionId,
+				/*
+				 * 接着上一轮的表走，而不是重新点一块。
+				 *
+				 * 这条是人在上一轮跑着的时候说出口的，所以从他开口到现在是同一段等待。上一轮收尾时
+				 * `apply-event` 看见队上还有话，把表冻了下来；这里把它接走。
+				 *
+				 * 没东西可接的时候这就是一次普通的发送——接不到就是从零开始，见 `turn-meter` 的
+				 * `relight`。所以不必在这里分情况，也不该分：该不该接的判断只写在冻结那一头。
+				 */
+				carryOn: true,
 				...(deliver ? { deliver } : {}),
 				...(taken.entry.displayText !== undefined ? { displayText: taken.entry.displayText } : {}),
 				...(taken.entry.skillRef ? { skillRef: taken.entry.skillRef } : {}),

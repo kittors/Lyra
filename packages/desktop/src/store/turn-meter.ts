@@ -1,11 +1,19 @@
 /**
- * Keeping a turn's clock and its token count across a pause.
+ * Keeping a turn's clock and its token count across a pause, and across a person interrupting.
  *
  * Stopping a turn and pressing 继续 is one piece of work with a gap in the middle, and it was being
  * reported as two. `agent_end` threw the meter away and the next send started a fresh one, so a task
  * that ran twenty minutes and was paused once reported the length of its second half — and the
  * tokens of its second half, which makes the tokens-per-second a rate for a stretch of work nobody
  * ran. The number was not merely reset; it described something untrue.
+ *
+ * Speaking while it runs is the same shape of mistake. Adding a requirement to a task in flight, or
+ * sharpening one, does not begin a second task — but every send used to light a fresh meter, so the
+ * line went back to `0s` and answered "how long since you added that", when what is being asked is
+ * "how long have I been waiting on this". Two ways in, one rule: an interruption delivered into the
+ * running turn keeps the meter that is already lit (`turn-slice`'s `send`), and one held back on the
+ * queue picks up the meter `agent_end` froze for it (`apply-event`, then `queue-slice`). Only a
+ * person opening their mouth to an idle session starts a new one.
  *
  * What survives the gap is *elapsed*, not the start time. Keeping `startedAt` would be the obvious
  * fix and it is the wrong one: the pause is time the user spent reading, and charging a turn for the
@@ -15,6 +23,13 @@
  * `grouping.ts` does the same arithmetic for the finished record on disk — a 继续 belongs to the turn
  * it continues, and its stats are added to it. This is the live half of that, and the two have to
  * agree or the number jumps the moment the turn ends.
+ *
+ * It does *not* follow on the interruption, and should not: that is where the two part company on
+ * purpose. What it counts is what the model spent — streaming time, tokens out — printed under the
+ * reply it belongs to, and cutting that at each thing a person said is what makes the figure match
+ * the reply it sits beneath. This counts the wall clock from the moment somebody asked. Neither is
+ * an approximation of the other, so the added message being a boundary there and not here is two
+ * questions answered correctly rather than one answered twice.
  */
 
 /** A turn in flight: when its clock was lit, and what it has spent since. */

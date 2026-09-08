@@ -93,20 +93,30 @@ export function useSidebarLists({
 	);
 
 	/*
-	 * Opening an archived conversation takes it out of the archive first.
+	 * Opening an archived conversation opens it. That is the whole of what it does.
 	 *
-	 * Archiving is how you put something away and opening it is how you take it back out; leaving it
-	 * filed while you talk in it would mean the conversation on screen is not in the sidebar.
+	 * It used to take it out of the archive on the way in, on the reasoning that opening something is
+	 * how you take it back out — and leaving it filed while you talk in it would mean the conversation
+	 * on screen is not in the sidebar. The second half was a real problem and the first half was the
+	 * wrong answer to it: a row that files and unfiles depending on where you click is a state change
+	 * nobody asked for, made invisibly, next to a button that exists to make exactly that change.
+	 * Whether a conversation is archived is now said in one place only — the archive button on the
+	 * row — and clicking a row means what it means everywhere else in the pane.
+	 *
+	 * What makes that safe is `listableSessions`, which lets the conversation you have open through
+	 * whether or not it is filed. It is in the sidebar the whole time; the row simply offers to take
+	 * it out instead of offering to put it away. See `grouping.ts`.
 	 */
 	const confirm = useConfirmer();
 	const open = (meta: SessionMeta) => {
 		void openSession(meta);
 		onOpened();
 	};
+	const restore = (meta: SessionMeta) => void setSessionArchived(meta, false);
 	const actions: RowActions = archiveOpen
 		? {
-				onOpen: (meta) => void setSessionArchived(meta, false).then(() => open(meta)),
-				onRestore: (meta) => void setSessionArchived(meta, false),
+				onOpen: open,
+				onRestore: restore,
 				onDelete: (meta) =>
 					confirm.ask({
 						title: "删除这个会话？",
@@ -115,7 +125,17 @@ export function useSidebarLists({
 						onConfirm: () => void deleteSession(meta),
 					}),
 			}
-		: { onOpen: open, onArchive: (meta) => void setSessionArchived(meta, true) };
+		: {
+				onOpen: open,
+				onArchive: (meta) => void setSessionArchived(meta, true),
+				/*
+				 * Both directions in the live list, because one row there can be filed: the conversation
+				 * you have open. It keeps its place until you leave it, and offering it 归档 — the thing
+				 * it already is — would be a button that does nothing. The row picks by what it is; see
+				 * `SessionRow`.
+				 */
+				onRestore: restore,
+			};
 
 	return { archived, groups, matching, bands, actions, confirm: confirm.element };
 }
