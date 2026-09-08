@@ -57,6 +57,7 @@ import { ColorRow, PixelField, ThemePreview } from "./appearance-controls.tsx";
 import { ComposerHeightPreview } from "./ComposerHeightPreview.tsx";
 import { NumberField } from "./pickers.tsx";
 import { Slider } from "./pickers.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 /** 输入框默认高度的两头。1 行是它一直以来的样子；10 行已经占掉一个矮窗口的三分之一。 */
 const COMPOSER_LINES_MIN = 1;
@@ -78,6 +79,7 @@ export function AppearanceSettings() {
 	 * 快捷键、再广播回来重渲一遍。一格一趟，从 1 拖到 10 就是这套东西跑九遍，卡的就是这个。
 	 * 所以拖动期间只动这个草稿，松手时才存——中途那些格子是路过，不是选择。
 	 */
+	const { t } = useI18n();
 	const [linesDraft, setLinesDraft] = useState<number | null>(null);
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
@@ -96,9 +98,9 @@ export function AppearanceSettings() {
 
 	return (
 		<div className="pt-8">
-			<h1 className="pb-6 text-display leading-tight font-semibold tracking-tight text-ink">外观</h1>
+			<h1 className="pb-6 text-display leading-tight font-semibold tracking-tight text-ink">{t("appearance.title")}</h1>
 
-			<SectionTitle>主题</SectionTitle>
+			<SectionTitle>{t("appearance.theme")}</SectionTitle>
 			<div className="mb-8 grid grid-cols-3 gap-3">
 				{(["system", "light", "dark"] as const).map((theme) => (
 					<button
@@ -113,16 +115,16 @@ export function AppearanceSettings() {
 					>
 						<ThemePreview variant={theme} accent={appearance.accent} />
 						<span className="mt-2 mb-1 block text-label text-ink">
-							{{ system: "系统", light: "浅色", dark: "深色" }[theme]}
+							{{ system: t("common.system"), light: t("appearance.light"), dark: t("appearance.dark") }[theme]}
 						</span>
 					</button>
 				))}
 			</div>
 
-			<SectionTitle>{isDark ? "深色主题" : "浅色主题"}</SectionTitle>
+			<SectionTitle>{isDark ? t("appearance.darkTheme") : t("appearance.lightTheme")}</SectionTitle>
 			<Card className="mb-8">
 				<div className="flex items-center justify-between border-b border-line-soft px-4 py-2.5">
-					<span className="text-label text-ink-muted">预设</span>
+					<span className="text-label text-ink-muted">{t("appearance.preset")}</span>
 					<div className="flex gap-1.5">
 						{PRESETS.map((preset) => (
 							<button
@@ -137,20 +139,20 @@ export function AppearanceSettings() {
 					</div>
 				</div>
 
-				<ColorRow label="强调色" value={appearance.accent} onChange={(accent) => patch({ accent })} />
+				<ColorRow label={t("appearance.accent")} value={appearance.accent} onChange={(accent) => patch({ accent })} />
 				<ColorRow
-					label="背景"
+					label={t("appearance.background")}
 					value={isDark ? appearance.darkBackground : appearance.lightBackground}
 					onChange={(value) => patch(isDark ? { darkBackground: value } : { lightBackground: value })}
 				/>
 				<ColorRow
-					label="前景"
+					label={t("appearance.foreground")}
 					value={isDark ? appearance.darkForeground : appearance.lightForeground}
 					onChange={(value) => patch(isDark ? { darkForeground: value } : { lightForeground: value })}
 				/>
 
 				<Row
-					title="UI 字体"
+					title={t("appearance.uiFont")}
 					control={
 						<TextInput
 							value={appearance.uiFont}
@@ -160,7 +162,7 @@ export function AppearanceSettings() {
 					}
 				/>
 				<Row
-					title="对比度"
+					title={t("appearance.contrast")}
 					control={
 						<div className="flex items-center gap-3">
 							<Slider
@@ -168,7 +170,7 @@ export function AppearanceSettings() {
 								onChange={(contrast) => patch({ contrast })}
 								min={0}
 								max={100}
-								label="对比度"
+								label={t("appearance.contrast")}
 							/>
 							{/* 同样按字号算：24px 只够三位数在 13px 下勉强站住，字号一调大就得断行。 */}
 							<span className="min-w-[2.2em] shrink-0 text-right font-mono text-label whitespace-nowrap text-ink tabular-nums">{appearance.contrast}</span>
@@ -186,20 +188,20 @@ export function AppearanceSettings() {
 			 * theme, the accent and the fonts above are a separate decision.
 			 */}
 			<div className="flex items-baseline justify-between">
-				<SectionTitle>代码外观 (Code appearance)</SectionTitle>
+				<SectionTitle>{t("appearance.codeSection")}</SectionTitle>
 				<GhostButton
 					onClick={() =>
 						patch({ ...CODE_DEFAULTS })
 					}
 				>
-					恢复默认
+					{t("appearance.resetDefaults")}
 				</GhostButton>
 			</div>
 			<Card className="mb-8 p-4 space-y-4">
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">浅色代码高亮</span>
-						<span className="block text-caption text-ink-muted">浅色模式下文件预览与代码块的高亮主题</span>
+						<span className="block text-label font-medium text-ink">{t("appearance.lightSyntax")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.lightSyntaxDetail")}</span>
 					</div>
 					<InlineSelect
 						value={appearance.codeLightTheme ?? CODE_DEFAULTS.codeLightTheme}
@@ -210,8 +212,8 @@ export function AppearanceSettings() {
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">深色代码高亮</span>
-						<span className="block text-caption text-ink-muted">深色模式下文件预览与代码块的高亮主题</span>
+						<span className="block text-label font-medium text-ink">{t("appearance.darkSyntax")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.darkSyntaxDetail")}</span>
 					</div>
 					<InlineSelect
 						value={appearance.codeDarkTheme ?? CODE_DEFAULTS.codeDarkTheme}
@@ -247,8 +249,8 @@ export function AppearanceSettings() {
 				 */}
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">代码字体 (Code font)</span>
-						<span className="block text-caption text-ink-muted">用于文件预览、代码编辑器与终端的等宽字体</span>
+						<span className="block text-label font-medium text-ink">{t("appearance.codeFont")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.codeFontDetail")}</span>
 					</div>
 					<InlineSelect
 						value={matchCodeFont(appearance.codeFont)?.stack ?? CUSTOM_FONT}
@@ -263,9 +265,9 @@ export function AppearanceSettings() {
 						options={[
 							...CODE_FONTS.map((font) => ({
 								value: font.stack,
-								label: fontAvailable(font) ? font.label : `${font.label}（未安装）`,
+								label: fontAvailable(font) ? font.label : t("appearance.fontNotInstalled", { name: font.label }),
 							})),
-							{ value: CUSTOM_FONT, label: "自定义…" },
+							{ value: CUSTOM_FONT, label: t("appearance.custom") },
 						]}
 					/>
 				</div>
@@ -273,7 +275,7 @@ export function AppearanceSettings() {
 				{(customFont || !matchCodeFont(appearance.codeFont)) && (
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 						<div className="flex-1 min-w-0">
-							<span className="block text-label font-medium text-ink">自定义字体栈</span>
+							<span className="block text-label font-medium text-ink">{t("appearance.customStack")}</span>
 							<span className="block text-caption text-ink-muted">
 								按 CSS 写法，逗号分隔，带空格的名字要加引号；靠后的是装不上时的退路
 							</span>
@@ -290,8 +292,8 @@ export function AppearanceSettings() {
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">字重 (Weight)</span>
-						<span className="block text-caption text-ink-muted">深色主题下细字容易发虚，可以调粗一档</span>
+						<span className="block text-label font-medium text-ink">{t("appearance.weightSection")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.weightDetail")}</span>
 					</div>
 					{/* Presets for the common answers, a field for the one you actually want. The two
 					    stay in step: typing 550 leaves every preset unselected, which is honest. */}
@@ -300,10 +302,10 @@ export function AppearanceSettings() {
 							value={String(appearance.codeFontWeight ?? 400)}
 							onChange={(weight) => patch({ codeFontWeight: Number(weight) })}
 							options={[
-								{ value: "300", label: "细" },
-								{ value: "400", label: "常规" },
-								{ value: "500", label: "中" },
-								{ value: "600", label: "粗" },
+								{ value: "300", label: t("appearance.thin") },
+								{ value: "400", label: t("appearance.regular") },
+								{ value: "500", label: t("appearance.medium") },
+								{ value: "600", label: t("appearance.bold") },
 							]}
 						/>
 						<NumberField
@@ -312,7 +314,7 @@ export function AppearanceSettings() {
 							max={900}
 							step={50}
 							width={72}
-							label="字重"
+							label={t("appearance.weight")}
 							onChange={(codeFontWeight) => patch({ codeFontWeight })}
 						/>
 					</div>
@@ -320,18 +322,18 @@ export function AppearanceSettings() {
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">行高 (Line height)</span>
-						<span className="block text-caption text-ink-muted">倍数，不是像素——换字号时不用重调</span>
+						<span className="block text-label font-medium text-ink">{t("appearance.lineHeightSection")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.lineHeightDetail")}</span>
 					</div>
 					<div className="flex items-center gap-2">
 						<Segmented
 							value={String(appearance.codeLineHeight ?? 1.6)}
 							onChange={(height) => patch({ codeLineHeight: Number(height) })}
 							options={[
-								{ value: "1.4", label: "紧凑" },
-								{ value: "1.6", label: "标准" },
-								{ value: "1.8", label: "宽松" },
-								{ value: "2", label: "最宽" },
+								{ value: "1.4", label: t("appearance.compact") },
+								{ value: "1.6", label: t("common.standard") },
+								{ value: "1.8", label: t("appearance.relaxed") },
+								{ value: "2", label: t("appearance.widest") },
 							]}
 						/>
 						<NumberField
@@ -340,7 +342,7 @@ export function AppearanceSettings() {
 							max={3}
 							step={0.05}
 							width={72}
-							label="行高"
+							label={t("appearance.lineHeight")}
 							onChange={(codeLineHeight) => patch({ codeLineHeight })}
 						/>
 					</div>
@@ -348,18 +350,18 @@ export function AppearanceSettings() {
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">字距 (Tracking)</span>
-						<span className="block text-caption text-ink-muted">以 em 为单位，跟着字号缩放</span>
+						<span className="block text-label font-medium text-ink">{t("appearance.trackingSection")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.trackingDetail")}</span>
 					</div>
 					<div className="flex items-center gap-2">
 						<Segmented
 							value={String(appearance.codeLetterSpacing ?? 0)}
 							onChange={(spacing) => patch({ codeLetterSpacing: Number(spacing) })}
 							options={[
-								{ value: "-0.02", label: "收紧" },
-								{ value: "0", label: "默认" },
-								{ value: "0.02", label: "放宽" },
-								{ value: "0.04", label: "更宽" },
+								{ value: "-0.02", label: t("appearance.tighten") },
+								{ value: "0", label: t("common.default") },
+								{ value: "0.02", label: t("appearance.loosen") },
+								{ value: "0.04", label: t("appearance.wider") },
 							]}
 						/>
 						<NumberField
@@ -368,47 +370,47 @@ export function AppearanceSettings() {
 							max={0.2}
 							step={0.01}
 							width={72}
-							label="字距"
+							label={t("appearance.tracking")}
 							onChange={(codeLetterSpacing) => patch({ codeLetterSpacing })}
 						/>
 					</div>
 				</div>
 			</Card>
 
-			<SectionTitle>偏好设置</SectionTitle>
+			<SectionTitle>{t("appearance.preferences")}</SectionTitle>
 			<Card>
 				<Row
-					title="使用指针光标"
-					detail="悬停交互元素时切换为指针光标"
+					title={t("appearance.pointerCursor")}
+					detail={t("appearance.pointerCursorDetail")}
 					control={
 						<Toggle checked={appearance.pointerCursor} onChange={(pointerCursor) => patch({ pointerCursor })} />
 					}
 				/>
 				<Row
-					title="减少动态效果"
-					detail="减少动画效果或匹配系统设置"
+					title={t("appearance.reduceMotion")}
+					detail={t("appearance.reduceMotionDetail")}
 					control={
 						<Segmented
 							value={appearance.reduceMotion}
 							onChange={(reduceMotion) => patch({ reduceMotion })}
 							options={[
-								{ value: "system", label: "系统" },
-								{ value: "on", label: "开启" },
-								{ value: "off", label: "关闭" },
+								{ value: "system", label: t("common.system") },
+								{ value: "on", label: t("common.on") },
+								{ value: "off", label: t("common.off") },
 							]}
 						/>
 					}
 				/>
 				<Row
-					title="UI 字号"
-					detail="调整 Lyra 界面使用的基准字号"
+					title={t("appearance.uiScale")}
+					detail={t("appearance.uiScaleDetail")}
 					control={
 						<PixelField
 							value={appearance.uiFontSize}
 							min={11}
 							max={20}
 							onChange={(uiFontSize) => patch({ uiFontSize })}
-							label="UI 字号"
+							label={t("appearance.uiScale")}
 						/>
 					}
 				/>
@@ -421,18 +423,18 @@ export function AppearanceSettings() {
 				 * not offered.
 				 */}
 				<Row
-					title="对话宽度"
-					detail="正文和输入框的最大宽度。窗口很宽时，加宽可以少一些两侧留白"
+					title={t("appearance.chatWidth")}
+					detail={t("appearance.chatWidthDetail")}
 					control={
 						<div className="flex items-center gap-2">
 							<Segmented
 								value={contentPreset(appearance.contentWidth)}
 								onChange={(choice) => patch({ contentWidth: Number(choice) })}
 								options={[
-									{ value: String(CONTENT_DEFAULT), label: "标准" },
-									{ value: "800", label: "宽" },
-									{ value: "960", label: "超宽" },
-									{ value: String(CONTENT_FILL), label: "铺满" },
+									{ value: String(CONTENT_DEFAULT), label: t("common.standard") },
+									{ value: "800", label: t("appearance.wide") },
+									{ value: "960", label: t("appearance.extraWide") },
+									{ value: String(CONTENT_FILL), label: t("appearance.full") },
 								]}
 							/>
 							{appearance.contentWidth !== CONTENT_FILL && (
@@ -441,7 +443,7 @@ export function AppearanceSettings() {
 									min={CONTENT_MIN}
 									max={CONTENT_MAX}
 									onChange={(contentWidth) => patch({ contentWidth })}
-									label="对话宽度"
+									label={t("appearance.chatWidth")}
 								/>
 							)}
 						</div>
@@ -454,8 +456,8 @@ export function AppearanceSettings() {
 				 * 东西。滑一格看一眼，比反复退出设置去试要短得多。
 				 */}
 				<Row
-					title="输入框默认高度"
-					detail="空的输入框有几行高。写长一点的需求时，不必每次都从一行开始往下撑"
+					title={t("appearance.composerLines")}
+					detail={t("appearance.composerLinesDetail")}
 					control={
 						<div className="flex items-center gap-3">
 							<Slider
@@ -474,7 +476,7 @@ export function AppearanceSettings() {
 								}}
 								min={COMPOSER_LINES_MIN}
 								max={COMPOSER_LINES_MAX}
-								label="输入框默认高度"
+								label={t("appearance.composerLines")}
 							/>
 							{/*
 							 * 宽度按字号算，不按像素算。
@@ -492,56 +494,56 @@ export function AppearanceSettings() {
 					<ComposerHeightPreview lines={composerLines} />
 				</Row>
 				<Row
-					title="代码字体大小"
-					detail="调整聊天和差异视图中代码使用的基础字号"
+					title={t("appearance.codeFontSize")}
+					detail={t("appearance.codeFontSizeDetail")}
 					control={
 						<PixelField
 							value={appearance.codeFontSize}
 							min={10}
 							max={20}
 							onChange={(codeFontSize) => patch({ codeFontSize })}
-							label="代码字体大小"
+							label={t("appearance.codeFontSize")}
 						/>
 					}
 				/>
 				<Row
-					title="差异标记"
-					detail="使用颜色或 +/− 标记显示更改"
+					title={t("appearance.diffMarks")}
+					detail={t("appearance.diffMarksDetail")}
 					control={
 						<Segmented
 							value={appearance.diffMarkers}
 							onChange={(diffMarkers) => patch({ diffMarkers })}
 							options={[
-								{ value: "color", label: "颜色" },
+								{ value: "color", label: t("appearance.colour") },
 								{ value: "symbols", label: "+/-" },
 							]}
 						/>
 					}
 				/>
 				<Row
-					title="出错时显示"
-					detail="一轮出错后，在对话里说多少。常见的失败是网络抖动，措辞是一串 JSON"
+					title={t("appearance.errorDisplay")}
+					detail={t("appearance.errorDisplayDetail")}
 					control={
 						<Segmented
 							value={appearance.errorDetail ?? "compact"}
 							onChange={(errorDetail) => patch({ errorDetail })}
 							options={[
-								{ value: "compact", label: "一行" },
-								{ value: "full", label: "完整" },
+								{ value: "compact", label: t("appearance.oneLine") },
+								{ value: "full", label: t("appearance.complete") },
 							]}
 						/>
 					}
 				/>
 				<Row
-					title="字体平滑"
-					detail="使用 macOS 原生字体抗锯齿"
+					title={t("appearance.fontSmoothing")}
+					detail={t("appearance.fontSmoothingDetail")}
 					control={<Toggle checked={appearance.fontSmoothing} onChange={(fontSmoothing) => patch({ fontSmoothing })} />}
 				/>
 				<Row
-					title="恢复默认"
-					detail="把外观设置还原为出厂配置"
+					title={t("appearance.resetDefaults")}
+					detail={t("appearance.resetDefaultsDetail")}
 					control={
-						<GhostButton onClick={() => patch(FACTORY_APPEARANCE)}>恢复</GhostButton>
+						<GhostButton onClick={() => patch(FACTORY_APPEARANCE)}>{t("common.restore")}</GhostButton>
 					}
 				/>
 			</Card>

@@ -120,7 +120,6 @@
 	"features/settings/AccessSettings.tsx": 8,
 	"features/settings/AgentDefinitionEditor.tsx": 25,
 	"features/settings/AgentsSettings.tsx": 45,
-	"features/settings/AppearanceSettings.tsx": 81,
 	"features/settings/ArchivedSettings.tsx": 18,
 	"features/settings/BrowserSettings.tsx": 21,
 	"features/settings/CodeAppearancePreview.tsx": 5,
