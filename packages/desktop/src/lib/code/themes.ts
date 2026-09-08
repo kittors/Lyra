@@ -3,11 +3,21 @@
  * Inspired by Claude Code theme selections and modern editor palettes.
  */
 
-import { translate } from "../../i18n/translate.ts";
+import type { MessageKey } from "../../i18n/messages/index.ts";
 
 export interface CodeThemeSpec {
 	id: string;
+	/**
+	 * What the picker shows.
+	 *
+	 * Most of these are the names their authors gave them — 「GitHub Light」 stays 「GitHub Light」 in
+	 * every language, because that is what it is called. Only the pair this app ships itself has a
+	 * word in it that belongs to the reader, so only that pair carries a key; `labelKey` wins when
+	 * it is there. Looked up by the picker rather than here, since this table is built at import
+	 * time and the language is not settled yet.
+	 */
 	label: string;
+	labelKey?: MessageKey;
 	mode: "light" | "dark";
 	/**
 	 * The surface code is drawn on, and the colour of text no rule claimed.
@@ -63,7 +73,8 @@ export const LIGHT_CODE_THEMES: CodeThemeSpec[] = [
 		 * repainting the window. Anything else is a choice the user made.
 		 */
 		id: "lyra-light",
-		label: translate("theme.lyraDefault"),
+		label: "Lyra",
+		labelKey: "theme.lyraDefault",
 		mode: "light",
 		inherit: true,
 		background: "#ffffff",
@@ -266,7 +277,8 @@ export const DARK_CODE_THEMES: CodeThemeSpec[] = [
 	{
 		// The dark half of the pair above — the same ANSI slots, dark-theme values.
 		id: "lyra-dark",
-		label: translate("theme.lyraDefault"),
+		label: "Lyra",
+		labelKey: "theme.lyraDefault",
 		mode: "dark",
 		inherit: true,
 		background: "#171717",

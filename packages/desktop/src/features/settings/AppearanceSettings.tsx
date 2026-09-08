@@ -207,7 +207,7 @@ export function AppearanceSettings() {
 					<InlineSelect
 						value={appearance.codeLightTheme ?? CODE_DEFAULTS.codeLightTheme}
 						onChange={(codeLightTheme) => patch({ codeLightTheme })}
-						options={LIGHT_CODE_THEMES.map((t) => ({ value: t.id, label: t.label }))}
+						options={LIGHT_CODE_THEMES.map((theme) => ({ value: theme.id, label: theme.labelKey ? t(theme.labelKey) : theme.label }))}
 					/>
 				</div>
 
@@ -219,7 +219,7 @@ export function AppearanceSettings() {
 					<InlineSelect
 						value={appearance.codeDarkTheme ?? CODE_DEFAULTS.codeDarkTheme}
 						onChange={(codeDarkTheme) => patch({ codeDarkTheme })}
-						options={DARK_CODE_THEMES.map((t) => ({ value: t.id, label: t.label }))}
+						options={DARK_CODE_THEMES.map((theme) => ({ value: theme.id, label: theme.labelKey ? t(theme.labelKey) : theme.label }))}
 					/>
 				</div>
 

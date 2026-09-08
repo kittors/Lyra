@@ -21,6 +21,7 @@
  *     the same metrics, so the caret is real and the colours are real.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -208,7 +209,7 @@ function CodeSnippetBox({
 							<RotateCcw size={11} strokeWidth={2} />
 						</button>
 					)}
-					<span className="truncate text-[11px]">{theme.label}</span>
+					<span className="truncate text-[11px]">{theme.labelKey ? translate(theme.labelKey) : theme.label}</span>
 				</div>
 			</div>
 
