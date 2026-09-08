@@ -24,6 +24,12 @@ pre-commit:
       # Trailing whitespace and conflict markers, straight from git.
       run: git diff --cached --check
 
+    - name: i18n
+      # 界面文案写死在代码里，切了语言也不跟着变。基线只能变小，见 scripts/check-i18n.mjs。
+      # 全量扫一遍 renderer 才两百毫秒，比按 staged_files 判断「这个文件的基线是多少」简单得多。
+      glob: "packages/desktop/src/**/*.{ts,tsx}"
+      run: node scripts/check-i18n.mjs
+
 # The message itself, checked before it becomes a commit.
 #
 # Cheap enough not to notice — commitlint on one line of text — and it is the only moment the

@@ -2,6 +2,7 @@ import type { UiLocale } from "@lyra/core";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { resolveUiLocale } from "./locales.ts";
 import { MESSAGE_CATALOGS, type MessageKey, type ResolvedUiLocale } from "./messages/index.ts";
+import { setActiveLocale } from "./translate.ts";
 
 type MessageVariables = Readonly<Record<string, string | number>>;
 
@@ -51,6 +52,16 @@ export function I18nProvider({ locale, children }: { locale: UiLocale; children:
 	}, [locale]);
 
 	const value = useMemo(() => makeValue(locale, languages), [locale, languages]);
+	/*
+	 * The same answer, told to the code that cannot hold a hook.
+	 *
+	 * A store raising a notice and `hiccup.ts` describing a dropped connection are read by the same
+	 * person as everything above them, so they have to change language at the same moment. Written
+	 * during render rather than in the effect below: the store can speak before effects have run —
+	 * a session restoring on launch does — and a notice a frame early in the previous language is
+	 * the bug this exists to close. See `i18n/translate.ts`.
+	 */
+	setActiveLocale(value.resolvedLocale);
 	useEffect(() => {
 		document.documentElement.lang = value.resolvedLocale;
 	}, [value.resolvedLocale]);

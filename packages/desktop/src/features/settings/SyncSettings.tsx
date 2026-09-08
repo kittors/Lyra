@@ -6,6 +6,7 @@ import { useApp } from "../../store/index.ts";
 import { Badge, Card, Field, GhostButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { pairingCode, parseEndpoint, routeLabel, type PairingRoute } from "./pairing.ts";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 /**
  * Connecting a phone, as one thing to point a camera at.
@@ -20,6 +21,7 @@ import { bridge } from "../../services/index.ts";
  * likely, and when that guess is wrong the fix is one click rather than a support question.
  */
 export function SyncSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const sync = useApp((s) => s.sync);
@@ -70,16 +72,16 @@ export function SyncSettings() {
 
 	return (
 		<div className="pt-8">
-			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">移动端同步</h1>
+			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("sync.title")}</h1>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
-				手机与桌面端实时同步：随时查看正在进行的回合、批准操作、继续追问，两端状态毫秒级响应。
+				{t("sync.intro")}
 			</p>
 
-			<SectionTitle>服务</SectionTitle>
+			<SectionTitle>{t("sync.service")}</SectionTitle>
 			<Card className="mb-6">
 				<Row
-					title="启用同步服务"
-					detail="在局域网启动 HTTP 与 WebSocket 同步服务，需安全令牌配对后方可访问。"
+					title={t("sync.enable")}
+						detail={t("sync.enableDetail")}
 					control={
 						<Toggle
 							checked={running || settings.sync.enabled}
@@ -90,12 +92,12 @@ export function SyncSettings() {
 					}
 				/>
 				<Row
-					title="服务状态"
-					detail={running ? `${sync?.clients ?? 0} 个设备正在同步中` : "未运行"}
-					control={<Badge tone={running ? "ok" : "muted"}>{running ? "运行中" : "已停止"}</Badge>}
+					title={t("sync.status")}
+						detail={running ? t("sync.clients", { count: sync?.clients ?? 0 }) : t("sync.notRunning")}
+						control={<Badge tone={running ? "ok" : "muted"}>{running ? t("sync.running") : t("sync.stopped")}</Badge>}
 				/>
 				<div className="px-4 py-3.5">
-					<Field label="监听端口">
+					<Field label={t("sync.port")}>
 						<TextInput
 							value={port}
 							onChange={setPort}
@@ -112,10 +114,10 @@ export function SyncSettings() {
 				</div>
 			</Card>
 
-			<SectionTitle>移动端配对</SectionTitle>
+			<SectionTitle>{t("sync.pairing")}</SectionTitle>
 			<Card>
 				{!running ? (
-					<div className="px-4 py-10 text-center text-label text-ink-faint">先启用同步服务，再进行配对</div>
+					<div className="px-4 py-10 text-center text-label text-ink-faint">{t("sync.enableFirst")}</div>
 				) : (
 					<div className="p-5">
 						<div className="flex flex-col gap-6 min-[900px]:flex-row min-[900px]:items-start">
@@ -132,36 +134,34 @@ export function SyncSettings() {
 										<QRCodeSVG value={code} size={248} level="M" marginSize={0} />
 									) : (
 										<div className="flex h-[248px] w-[248px] items-center justify-center px-6 text-center text-label text-[#6e6e6e]">
-											还没有可用于配对的地址
+											{t("sync.noAddress")}
 										</div>
 									)}
 								</div>
 								<div className="mt-2.5 flex items-center justify-center gap-1.5 text-detail text-ink-faint">
 									<QrCode size={12} strokeWidth={1.8} />
-									使用手机 Lyra 扫码
+									{t("sync.scanWith")}
 								</div>
 							</div>
 
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-1.5 text-label font-medium text-ink">
 									<Smartphone size={14} strokeWidth={1.9} className="text-info" />
-									手机一键扫码连接
+									{t("sync.oneTap")}
 								</div>
 								<ol className="mt-3 space-y-2">
-									<Step index={1}>
-										打开手机端 Lyra，在「连接桌面端」页面点击顶部 <Strong>「扫码连接」</Strong>。
-									</Step>
-									<Step index={2}>对准左侧二维码，即可自动识别协议并完成安全配对。</Step>
+									<Step index={1}>{emphasise(t("sync.step1"), t("sync.step1Strong"))}</Step>
+										<Step index={2}>{t("sync.step2")}</Step>
 								</ol>
 
 								<div className="mt-5 flex items-baseline justify-between gap-3">
-									<div className="text-detail text-ink-faint">二维码配对地址源</div>
+									<div className="text-detail text-ink-faint">{t("sync.addressSource")}</div>
 									<button
 										type="button"
 										onClick={() => setRemoteOpen((open) => !open)}
 										className="shrink-0 cursor-pointer text-detail text-info transition-opacity hover:opacity-80"
 									>
-										使用公网反代 / 中转服务器
+										{t("sync.useRemote")}
 									</button>
 								</div>
 
@@ -184,7 +184,7 @@ export function SyncSettings() {
 											</button>
 										);
 									})}
-									{routes.length === 0 && <span className="text-detail text-ink-faint">未检测到可用地址</span>}
+									{routes.length === 0 && <span className="text-detail text-ink-faint">{t("sync.noRoutes")}</span>}
 								</div>
 
 								{/*
@@ -195,9 +195,9 @@ export function SyncSettings() {
 									<div>
 										<div className="mt-4 space-y-3 rounded-xl border border-line bg-shell/50 p-3.5">
 											<RemoteField
-												label="公网地址 / 反向代理"
-												hint="已有域名或端口转发能打到这台电脑时填。留空则只用局域网。"
-												placeholder="lyra.example.com 或 https://lyra.example.com:8443"
+												label={t("sync.publicLabel")}
+														hint={t("sync.publicHint")}
+														placeholder={t("sync.publicPlaceholder")}
 												value={publicDraft}
 												onChange={setPublicDraft}
 												onCommit={(next) =>
@@ -207,9 +207,9 @@ export function SyncSettings() {
 												}
 											/>
 											<RemoteField
-												label="中转服务器"
-												hint="两端都连不上对方时用。电脑和手机都主动连它，NAT 后面也能配对。"
-												placeholder="relay.example.com 或 wss://relay.example.com:9000"
+												label={t("sync.relayLabel")}
+														hint={t("sync.relayHint")}
+														placeholder={t("sync.relayPlaceholder")}
 												value={relayDraft}
 												onChange={setRelayDraft}
 												onCommit={(next) =>
@@ -225,20 +225,20 @@ export function SyncSettings() {
 						</div>
 
 						<div className="mt-5 border-t border-line-soft">
-							<Disclosure title="无法扫描？查看手动连接信息与令牌" open={manualOpen} onToggle={() => setManualOpen((open) => !open)}>
+							<Disclosure title={t("sync.manual")} open={manualOpen} onToggle={() => setManualOpen((open) => !open)}>
 								<div className="space-y-4 pt-1">
 									<div>
-										<div className="mb-1.5 text-detail text-ink-faint">在手机上填写这个地址</div>
+										<div className="mb-1.5 text-detail text-ink-faint">{t("sync.addressOnPhone")}</div>
 										<div className="flex items-center gap-2 rounded-[10px] border border-line bg-input px-3.5 py-2.5">
 											<span className="min-w-0 flex-1 truncate font-mono text-label text-ink">
-												{active ? routeLabel(active) : "未检测到可用地址"}
+												{active ? routeLabel(active) : t("sync.noRoutes")}
 											</span>
 										</div>
 									</div>
 
 									<div>
 										<div className="mb-1.5 flex items-center gap-2">
-											<span className="text-detail text-ink-faint">配对令牌</span>
+											<span className="text-detail text-ink-faint">{t("sync.token")}</span>
 											<GhostButton
 												onClick={() => {
 													void bridge.sync.rotateToken().then(() => void refreshSync());
@@ -246,7 +246,7 @@ export function SyncSettings() {
 											>
 												<span className="flex items-center gap-1.5">
 													<RotateCw size={11} strokeWidth={2} />
-													重置
+													{t("common.reset")}
 												</span>
 											</GhostButton>
 										</div>
@@ -266,7 +266,7 @@ export function SyncSettings() {
 									{code && (
 										<div>
 											<div className="mb-1.5 text-detail text-ink-faint">
-												配对链接，复制后在手机上粘贴也可以
+												{t("sync.pairingLink")}
 											</div>
 											<div className="flex items-center gap-2 rounded-[10px] border border-line bg-input px-3.5 py-2.5">
 												<code className="min-w-0 flex-1 truncate font-mono text-detail text-ink-muted">{code}</code>
@@ -311,12 +311,32 @@ function Strong({ children }: { children: React.ReactNode }) {
 	return <span className="font-medium text-ink">{children}</span>;
 }
 
+/**
+ * 一句话里嵌一段要强调的字，位置由译文说了算。
+ *
+ * 拆成「前半句」「加粗的词」「后半句」三个 key 是行不通的：语序换一种语言就换一个样，
+ * 而三段式把中文的语序写死进了结构。整句一个 key、留一个 `{strong}` 占位，译者把它摆在
+ * 哪儿就在哪儿。占位符不在句子里时原样返回——那也是一句完整的话。
+ */
+function emphasise(text: string, mark: React.ReactNode): React.ReactNode {
+	const [before, after] = text.split("{strong}");
+	if (after === undefined) return text;
+	return (
+		<>
+			{before}
+			<Strong>{mark}</Strong>
+			{after}
+		</>
+	);
+}
+
 function CopyButton({ done, onCopy }: { done: boolean; onCopy: () => void }) {
+	const { t } = useI18n();
 	return (
 		<button
 			type="button"
-			data-ly-tip={done ? "已复制" : "复制"}
-			aria-label={done ? "已复制" : "复制"}
+			data-ly-tip={done ? t("common.copied") : t("common.copy")}
+			aria-label={done ? t("common.copied") : t("common.copy")}
 			onClick={onCopy}
 			className="shrink-0 cursor-pointer text-ink-faint transition-colors hover:text-ink"
 		>
@@ -348,6 +368,7 @@ function RemoteField({
 	onChange: (next: string) => void;
 	onCommit: (next: string) => void;
 }) {
+	const { t } = useI18n();
 	const invalid = value.trim().length > 0 && parseEndpoint(value) === null;
 	return (
 		<div>
@@ -363,7 +384,7 @@ function RemoteField({
 				}}
 			/>
 			<div className={`mt-1 text-detail ${invalid ? "text-danger" : "text-ink-faint"}`}>
-				{invalid ? "这个地址看不明白，检查一下拼写" : hint}
+				{invalid ? t("sync.badAddress") : hint}
 			</div>
 		</div>
 	);
