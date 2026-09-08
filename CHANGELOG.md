@@ -5,6 +5,120 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.3](https://github.com/kittors/Lyra/releases/tag/v0.9.3) - 2026-09-08
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **输入框默认高度可以自己定**。外观 › 偏好设置里一条滑条，1 到 10 行，底下配一块实时预览——预览用的是真输入框的同一套边框、字号、行高和算式，滑到哪一格看到的就是那一格的实物。写长需求时不必每次都从一行开始往下撑。
+- **子智能体派不派，你说了算**。设置 › 子智能体调度，四档：跟随思考等级（默认，也是以前唯一的行为）、积极、保守、关闭。关闭挡的是模型自作主张，你在消息里 @ 点名的那次照派。
+- **发版说明跟着界面语言走**。把 Lyra 切成哪种语言，「关于」页里这段说明就是哪种语言。
+
+### 修复
+
+- **文件预览的滚动条**。短文件底下那条永远存在、又推不动几十像素的横条没了——它是内容盒被多算了一个行号槽的宽度造成的，同一个原因还把长行锁死在视口宽，四百字符的一行永远看不到后半截，现在真能滚到最右。滑块也跟着内容走了：此前换过一个文件之后它就僵在原地，内容滚到最后一行、滑块还贴在顶端。两条滚动条在右下角不再互相压着，拖得到底、也拖得到最右。
+- **设置页的控件回到中线上**。带说明文字的行——设置里绝大多数行都带——开关和下拉此前一律停在上半截，一整张卡片摞起来就是右边一列全体偏上。侧边栏座右铭输入框底下那行重复的预览也去掉了。
+- **一次失败只判一次**。「该不该重试」以前在四个地方各判一次，四份名单互不知情，于是同一个故障在这一层算可以再试、在下一层算没救了，设置里写着「无限重试」而请求在第一次就放弃。现在只有明确「再问一百遍也是这个答复」的才不重试，没见过的错法一律再试一次。界面上，一次自己好了的连接抖动留一行灰字，而不是一片红。
+- **截图里的标注文字不再丢**。写在标注框里、还没点别处提交的那几个字，按「完成」时会一起进到图里；「置顶」和「下载」走的是同一次裁剪，一并修好。
+- **能点的看起来能点，滚得动的滚起来不留白**。任务面板往下滚不再撞上一大片空白——它的虚拟列表从来没挂上滚动监听，可见区间一直停在最初的四十行；快速拖动滚动条不再闪出白屏；滚动条不再压住最右边几个字符；菜单项、树行这些此前被漏掉的元素，现在也跟着「使用指针光标」显示手型。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **輸入框預設高度可以自己定**。外觀 › 偏好設定裡一條滑桿，1 到 10 行，下面配一塊即時預覽——預覽用的是真輸入框的同一套邊框、字級、行高和算式，滑到哪一格看到的就是那一格的實物。寫長需求時不必每次都從一行開始往下撐。
+- **子智慧體派不派，你說了算**。設定 › 子智慧體調度，四檔：跟隨思考等級（預設，也是以前唯一的行為）、積極、保守、關閉。關閉擋的是模型自作主張，你在訊息裡 @ 點名的那次照派。
+- **發版說明跟著介面語言走**。把 Lyra 切成哪種語言，「關於」頁裡這段說明就是哪種語言。
+
+### 修復
+
+- **檔案預覽的捲軸**。短檔案下面那條永遠存在、又推不動幾十像素的橫條沒了——它是內容盒被多算了一個行號槽的寬度造成的，同一個原因還把長行鎖死在視窗寬，四百字元的一行永遠看不到後半截，現在真能捲到最右。捲軸滑塊也跟著內容走了：此前換過一個檔案之後它就僵在原地，內容捲到最後一行、滑塊還貼在頂端。兩條捲軸在右下角不再互相壓著，拖得到底、也拖得到最右。
+- **設定頁的控制項回到中線上**。帶說明文字的列——設定裡絕大多數列都帶——開關和下拉此前一律停在上半截，一整張卡片疊起來就是右邊一欄全體偏上。側邊欄座右銘輸入框下面那行重複的預覽也拿掉了。
+- **一次失敗只判一次**。「該不該重試」以前在四個地方各判一次，四份名單互不知情，於是同一個故障在這一層算可以再試、在下一層算沒救了，設定裡寫著「無限重試」而請求在第一次就放棄。現在只有明確「再問一百遍也是這個答覆」的才不重試，沒見過的錯法一律再試一次。介面上，一次自己好了的連線抖動留一行灰字，而不是一片紅。
+- **截圖裡的標註文字不再遺失**。寫在標註框裡、還沒點別處提交的那幾個字，按「完成」時會一起進到圖裡；「置頂」和「下載」走的是同一次裁切，一併修好。
+- **能點的看起來能點，捲得動的捲起來不留白**。任務面板往下捲不再撞上一大片空白——它的虛擬清單從來沒掛上捲動監聽，可見區間一直停在最初的四十列；快速拖動捲軸不再閃出白屏；捲軸不再壓住最右邊幾個字元；選單項、樹狀列這些此前被漏掉的元素，現在也跟著「使用指標游標」顯示手型。
+
+<!-- lyra:notes en -->
+
+### New
+
+- **The composer starts as tall as you want it.** Appearance › Preferences now has a slider from 1 to 10 lines, with a live preview under it — the preview borrows the real composer's border, type size, line height and sizing formula, so whatever you see at a given notch is the actual thing. Long prompts no longer begin life in a one-line slot.
+- **You decide how eagerly subagents get spawned.** Settings › Delegation, four levels: follow the thinking level (the default, and the only behaviour there used to be), eager, conservative, and off. "Off" stops the model from deciding on its own; agents you @-mention by name still run.
+- **Release notes follow your interface language.** Whichever language Lyra is set to, that is the language these notes appear in.
+
+### Fixed
+
+- **File preview scrollbars.** The horizontal bar that sat under every short file — always there, and movable by only a few dozen pixels — is gone. It came from the content box being measured a gutter's width too wide, and the same cause pinned long lines to the viewport width, so the back half of a 400-character line was unreachable. It now really does scroll to the end. The thumb tracks the content again, too: it used to freeze after you switched files, leaving it stuck at the top while the content sat on the last line. And the two bars no longer overlap in the corner, so you can drag all the way to the bottom and to the right.
+- **Settings controls sit on the centre line.** In rows that carry description text — which is most of them — switches and dropdowns used to stop in the upper half, so a whole card read as a right-hand column floating high. The duplicate preview under the sidebar motto field is gone as well.
+- **One failure, judged once.** Whether something was worth retrying used to be decided in four separate places with four lists that knew nothing of each other, so the same fault could be retryable at one layer and fatal at the next — the setting said "retry forever" while the request gave up on the first try. Now only what will definitely give the same answer a hundred times over is fatal; an error shape nobody has seen before gets retried. On screen, a connection hiccup that resolves itself leaves a single grey line instead of a wall of red.
+- **Annotation text no longer falls out of screenshots.** Words still sitting in the annotation field — not yet committed by clicking away — now make it into the image when you press Done. Pin and Download share the same crop and were fixed along with it.
+- **What looks clickable is clickable, and what scrolls no longer goes blank.** Scrolling the task panel no longer runs into a wall of empty space: its virtual list never had its scroll listener attached, so the visible range stayed at the first forty rows forever. Dragging a scrollbar quickly no longer flashes empty. Scrollbars no longer sit on top of the rightmost characters. And menu items, tree rows and other elements that "Use pointer cursor" had missed now show the hand as well.
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **入力欄の初期の高さを自分で決められます。** 外観 › 環境設定にスライダーを追加しました。1 行から 10 行まで、下にはライブプレビューが付きます。プレビューは実際の入力欄と同じ枠線・文字サイズ・行高・計算式を使っているので、目盛りを動かして見えるものがそのまま実物です。長い依頼を書くときに、毎回 1 行から広げていく必要はもうありません。
+- **サブエージェントをどれだけ積極的に使うか、指定できます。** 設定 › サブエージェント配分に 4 段階。思考レベルに従う（既定であり、これまで唯一の挙動）、積極的、控えめ、オフ。「オフ」が止めるのはモデルの独断だけで、メッセージ内で @ で名指ししたものは従来どおり動きます。
+- **リリースノートが表示言語に追従します。** Lyra をどの言語にしていても、「バージョン情報」のこの説明はその言語で表示されます。
+
+### 修正
+
+- **ファイルプレビューのスクロールバー。** 短いファイルの下に常に居座り、しかも数十ピクセルしか動かなかった横バーがなくなりました。原因は内容ボックスの幅が行番号欄のぶんだけ余計に測られていたことで、同じ原因で長い行がビューポート幅に固定され、400 文字の行の後半には決して届きませんでした。今は本当に右端までスクロールします。つまみも再び内容に追従します。以前はファイルを切り替えたあとで固まってしまい、内容が最終行にあるのにつまみは上端に貼り付いたままでした。2 本のバーが隅で重ならなくなったので、いちばん下にも右端にもドラッグで届きます。
+- **設定画面のコントロールが行の中心線に揃いました。** 説明文のある行——設定のほとんどの行がそうです——では、スイッチやドロップダウンが上半分で止まっており、カード全体では右側の列がまとめて上に浮いて見えていました。サイドバーのモットー入力欄の下にあった重複表示も削除しました。
+- **失敗の判定を一箇所に。** 「再試行すべきか」はこれまで 4 箇所で別々に判断され、4 つのリストは互いを知りませんでした。同じ障害がある層では再試行可能、次の層では致命的となり、設定に「無制限に再試行」と書いてあっても最初の一度で諦めていました。今は「百回聞いても同じ答えが返る」と明確に分かるものだけを致命的とし、見たことのないエラーの形は再試行します。画面上では、自然に復旧した接続の乱れは赤一色ではなく灰色の 1 行だけを残します。
+- **注釈の文字がスクリーンショットから消えなくなりました。** 注釈欄に入力したまま、まだ他所をクリックして確定していない文字も、「完了」を押せば画像に入ります。「最前面に固定」と「ダウンロード」は同じ切り出しを使っているので、あわせて直りました。
+- **押せそうなものは押せて、スクロールするものは白くなりません。** タスクパネルを下にスクロールしても広い空白に突き当たらなくなりました——仮想リストにスクロールリスナーが一度も付いておらず、表示範囲が最初の 40 行から動かなかったためです。スクロールバーを速くドラッグしても白く飛ばなくなり、スクロールバーが右端の文字に重ならなくなりました。メニュー項目やツリーの行など「ポインタカーソルを使う」が取りこぼしていた要素も、手の形になります。
+
+<!-- lyra:notes ko -->
+
+### 새 기능
+
+- **입력창의 기본 높이를 직접 정할 수 있습니다.** 외관 › 환경설정에 1행부터 10행까지의 슬라이더를 넣고, 아래에 실시간 미리보기를 붙였습니다. 미리보기는 실제 입력창과 같은 테두리·글자 크기·줄 높이·계산식을 쓰므로, 눈금을 옮겨 보이는 것이 곧 실물입니다. 긴 요청을 쓸 때 매번 한 줄에서부터 늘려갈 필요가 없습니다.
+- **서브에이전트를 얼마나 적극적으로 쓸지 고를 수 있습니다.** 설정 › 서브에이전트 배분에 네 단계 — 사고 수준을 따름(기본값이자 지금까지의 유일한 동작), 적극, 보수, 끔. '끔'이 막는 것은 모델의 독단이며, 메시지에서 @로 직접 지목한 것은 그대로 실행됩니다.
+- **릴리스 노트가 인터페이스 언어를 따라갑니다.** Lyra를 어떤 언어로 쓰든, '정보' 화면의 이 설명은 그 언어로 나옵니다.
+
+### 수정
+
+- **파일 미리보기의 스크롤바.** 짧은 파일 아래에 늘 자리 잡고 있으면서 수십 픽셀밖에 움직이지 않던 가로 막대가 사라졌습니다. 내용 상자의 너비가 줄 번호 칸만큼 더 크게 측정된 탓이었고, 같은 원인으로 긴 줄이 뷰포트 너비에 묶여 400자짜리 줄의 뒷부분에는 결코 닿을 수 없었습니다. 이제는 정말 오른쪽 끝까지 스크롤됩니다. 손잡이도 다시 내용을 따라갑니다. 이전에는 파일을 바꾼 뒤 그대로 굳어, 내용은 마지막 줄에 있는데 손잡이는 맨 위에 붙어 있었습니다. 두 막대가 모서리에서 겹치지 않게 되어 맨 아래와 맨 오른쪽까지 끌 수 있습니다.
+- **설정 화면의 컨트롤이 행의 중심선에 놓입니다.** 설명 문구가 있는 행 — 설정의 대부분이 그렇습니다 — 에서 토글과 드롭다운이 위쪽 절반에 멈춰 있어, 카드 전체로 보면 오른쪽 열이 통째로 떠 보였습니다. 사이드바 좌우명 입력란 아래에 같은 문장을 한 번 더 보여주던 미리보기도 없앴습니다.
+- **실패는 한 번만 판단합니다.** '다시 시도할 만한가'를 지금까지 네 곳에서 따로 판단했고, 네 목록은 서로를 몰랐습니다. 같은 장애가 한 계층에서는 재시도 가능, 다음 계층에서는 치명으로 갈렸고, 설정에 '무한 재시도'라고 적혀 있어도 요청은 첫 번째에 포기했습니다. 이제는 '백 번을 물어도 같은 답'이 분명한 것만 치명으로 보고, 처음 보는 오류 형태는 다시 시도합니다. 화면에서는 스스로 회복된 연결 끊김이 붉은 화면 대신 회색 한 줄만 남깁니다.
+- **주석 글자가 스크린샷에서 사라지지 않습니다.** 주석 입력란에 남아 있고 아직 다른 곳을 눌러 확정하지 않은 글자도 '완료'를 누르면 이미지에 함께 들어갑니다. '항상 위'와 '다운로드'는 같은 잘라내기를 쓰므로 함께 고쳐졌습니다.
+- **눌릴 것처럼 보이면 눌리고, 스크롤되는 것은 비지 않습니다.** 작업 패널을 아래로 스크롤해도 넓은 빈 공간에 부딪히지 않습니다 — 가상 목록에 스크롤 리스너가 한 번도 붙은 적이 없어 표시 범위가 처음 40행에 머물러 있었습니다. 스크롤바를 빠르게 끌어도 흰 화면이 스치지 않고, 스크롤바가 오른쪽 끝 글자를 덮지 않습니다. 메뉴 항목과 트리 행처럼 '포인터 커서 사용'이 놓쳤던 요소들도 이제 손 모양이 됩니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **La hauteur initiale du champ de saisie vous appartient.** Apparence › Préférences reçoit un curseur de 1 à 10 lignes, avec un aperçu en direct en dessous — l'aperçu emprunte au vrai champ sa bordure, sa taille de texte, son interligne et sa formule de calcul, si bien que ce que vous voyez à un cran donné est la chose elle-même. Les demandes longues ne commencent plus dans une fente d'une ligne.
+- **C'est vous qui décidez de l'empressement à déléguer.** Réglages › Délégation, quatre niveaux : suivre le niveau de réflexion (le défaut, et le seul comportement qui existait), empressé, prudent, désactivé. « Désactivé » empêche le modèle de décider seul ; les agents que vous nommez avec @ s'exécutent toujours.
+- **Les notes de version suivent la langue de l'interface.** Quelle que soit la langue de Lyra, c'est dans cette langue que ces notes s'affichent.
+
+### Corrections
+
+- **Les barres de défilement de l'aperçu de fichier.** La barre horizontale installée sous chaque fichier court — toujours présente, et ne se déplaçant que de quelques dizaines de pixels — a disparu. Elle venait d'une boîte de contenu mesurée trop large de la largeur de la gouttière, et la même cause bloquait les longues lignes à la largeur de la fenêtre : la seconde moitié d'une ligne de 400 caractères restait inatteignable. Elle défile désormais vraiment jusqu'au bout. Le curseur suit à nouveau le contenu : il se figeait après un changement de fichier, restant collé en haut alors que le contenu était à la dernière ligne. Et les deux barres ne se chevauchent plus dans le coin, on peut donc glisser jusqu'en bas et jusqu'à droite.
+- **Les contrôles des réglages reviennent sur la ligne médiane.** Dans les lignes accompagnées d'un texte explicatif — c'est-à-dire la plupart — interrupteurs et menus s'arrêtaient dans la moitié supérieure, si bien qu'une carte entière donnait l'impression d'une colonne de droite flottant vers le haut. L'aperçu qui répétait la devise sous son propre champ a également été retiré.
+- **Un échec, jugé une seule fois.** « Faut-il réessayer » se décidait jusqu'ici en quatre endroits, avec quatre listes qui s'ignoraient : la même panne pouvait être réessayable à une couche et fatale à la suivante — le réglage annonçait « réessayer indéfiniment » pendant que la requête abandonnait au premier essai. Désormais, seul ce qui donnera assurément la même réponse cent fois de suite est fatal ; une forme d'erreur jamais vue est réessayée. À l'écran, un accroc de connexion qui se résout tout seul laisse une seule ligne grise au lieu d'un mur rouge.
+- **Le texte d'annotation ne disparaît plus des captures.** Les mots encore présents dans le champ d'annotation — pas encore validés par un clic ailleurs — entrent désormais dans l'image quand vous appuyez sur Terminé. Épingler et Télécharger utilisent le même recadrage et ont été corrigés avec.
+- **Ce qui semble cliquable l'est, et ce qui défile ne devient plus blanc.** Faire défiler le panneau des tâches ne se heurte plus à une large zone vide : sa liste virtuelle n'avait jamais reçu son écouteur de défilement, la plage visible restait donc aux quarante premières lignes. Tirer rapidement une barre de défilement ne provoque plus d'éclair blanc. Les barres ne recouvrent plus les derniers caractères à droite. Enfin, les éléments de menu, les lignes d'arborescence et d'autres éléments oubliés par « Utiliser le curseur pointeur » affichent désormais la main eux aussi.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **Высоту поля ввода задаёте вы.** В «Оформление › Предпочтения» появился ползунок от 1 до 10 строк и живой предпросмотр под ним — предпросмотр берёт у настоящего поля ту же рамку, кегль, интерлиньяж и ту же формулу расчёта, так что на любом делении вы видите именно то, что получите. Длинные запросы больше не начинаются в щели высотой в одну строку.
+- **Насколько охотно порождать субагентов — решаете вы.** «Настройки › Делегирование», четыре ступени: следовать уровню рассуждения (по умолчанию, и единственное прежнее поведение), охотно, сдержанно, выключено. «Выключено» останавливает самодеятельность модели; агенты, названные вами через @, запускаются по-прежнему.
+- **Примечания к выпуску следуют языку интерфейса.** На каком языке у вас Lyra — на том языке и этот текст в разделе «О программе».
+
+### Исправлено
+
+- **Полосы прокрутки в просмотре файлов.** Горизонтальная полоса, постоянно сидевшая под каждым коротким файлом и сдвигавшаяся лишь на несколько десятков пикселей, исчезла. Причина — блок содержимого измерялся шире на ширину поля с номерами строк; та же причина запирала длинные строки шириной окна, и вторая половина строки в 400 символов оставалась недостижимой. Теперь прокрутка действительно доходит до конца. Ползунок снова следует за содержимым: раньше он застывал после переключения файла — содержимое на последней строке, а ползунок прижат к верху. И две полосы больше не перекрываются в углу, так что дотянуть перетаскиванием можно и до низа, и до правого края.
+- **Элементы управления в настройках вернулись на среднюю линию.** В строках с пояснительным текстом — а таких в настройках большинство — переключатели и списки останавливались в верхней половине, и вся карточка читалась как правый столбец, всплывший вверх. Убран и повтор девиза под его же полем ввода.
+- **Одна неудача — одно решение.** «Стоит ли повторять» решалось в четырёх местах по четырём спискам, которые не знали друг о друге: один и тот же сбой на одном слое считался повторяемым, а на следующем — фатальным; в настройках значилось «повторять бесконечно», а запрос сдавался с первой попытки. Теперь фатально лишь то, что заведомо ответит так же и на сотый раз, а незнакомая форма ошибки повторяется. На экране самостоятельно устранившийся сбой связи оставляет одну серую строку вместо красной стены.
+- **Текст аннотации больше не пропадает со снимков.** Слова, ещё стоящие в поле аннотации и не подтверждённые щелчком в стороне, теперь попадают в изображение при нажатии «Готово». «Закрепить» и «Скачать» используют ту же обрезку и исправлены вместе с ним.
+- **То, что выглядит нажимаемым, нажимается, а прокручиваемое не белеет.** Прокрутка панели задач больше не упирается в широкую пустоту: её виртуальный список так и не получил обработчика прокрутки, и видимый диапазон навсегда оставался на первых сорока строках. Быстрое перетаскивание полосы прокрутки больше не даётбелой вспышки. Полосы больше не накрывают крайние правые символы. А пункты меню, строки дерева и прочие элементы, которые пропускала настройка «Указательный курсор», теперь тоже показывают руку.
+
 ## [0.9.2](https://github.com/kittors/Lyra/releases/tag/v0.9.2) - 2026-09-07
 
 ### 修复

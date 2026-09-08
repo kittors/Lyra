@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lyra",
     "slug": "lyra",
-    "version": "0.9.2",
+    "version": "0.9.3",
     "icon": "../../assets/lyra.png",
     "orientation": "default",
     "scheme": "lyra",
