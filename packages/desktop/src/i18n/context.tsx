@@ -39,7 +39,15 @@ function makeValue(locale: UiLocale, languages: readonly string[]): I18nValue {
 	};
 }
 
-const I18nContext = createContext<I18nValue>(makeValue("system", []));
+/*
+ * 没有 Provider 时，回到目录的源语言。
+ *
+ * 从前默认是 `makeValue("system", [])`——而 `system` 配上一份空的语言列表会落到英文（见
+ * `resolveUiLocale` 的兜底）。窗口里这从不发生，`App` 永远带着 Provider；发生的地方是测试，
+ * 于是每一个直接挂载组件的用例都在断言一种没人选过的语言。`zh-CN` 是 `MessageKey` 的出处，
+ * 也是 `translate` 的默认，回到它至少让两条路答得一样。
+ */
+const I18nContext = createContext<I18nValue>(makeValue("zh-CN", []));
 
 export function I18nProvider({ locale, children }: { locale: UiLocale; children: React.ReactNode }) {
 	const [languages, setLanguages] = useState(browserLanguages);

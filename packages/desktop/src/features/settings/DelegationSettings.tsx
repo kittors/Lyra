@@ -27,6 +27,7 @@ import { Input } from "../../ui/inputs/NativeField.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle, Toggle } from "./controls.tsx";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /**
  * 五档，从不派到放开派。
@@ -36,37 +37,43 @@ import { Card, Row, SectionTitle, Toggle } from "./controls.tsx";
  * 不是同一个问题的两个刻度。措辞跟提示词里写给模型的那几段是同一套词，这样界面上读到的和模型
  * 真正收到的对得上。
  */
-const TIERS: { id: DelegationTier; name: string; detail: string; levels?: string }[] = [
+/*
+ * 四档，存的是 key。
+ *
+ * 和下面的 `THINKING_LABELS` 同一个道理：这张表在模块加载时就成型，那会儿窗口还没说自己是
+ * 哪种语言，之后换语言它也不会重算。译发生在渲染的时候。
+ */
+const TIERS: { id: DelegationTier; nameKey: MessageKey; detailKey: MessageKey; levelsKey?: MessageKey }[] = [
 	{
 		id: "off",
-		name: "从不派",
-		detail: "所有活自己做完。你在消息里 @ 点名的那一个仍然会派，只派那一个。",
+		nameKey: "delegation.never",
+		detailKey: "delegation.neverDetail",
 		// 自动模式永远推不出这一档：推理等级再低也只是「少派」，「不派」得有人明说。
-		levels: "仅自定义",
+		levelsKey: "delegation.customOnly",
 	},
 	{
 		id: "sparing",
-		name: "省着派",
-		detail: "除非你点名要求，或者要读的东西明显装不进上下文，否则自己做完。",
-		levels: "关 · 极简 · 低",
+		nameKey: "delegation.sparing",
+		detailKey: "delegation.sparingDetail",
+		levelsKey: "delegation.sparingLevels",
 	},
 	{
 		id: "selective",
-		name: "挑着派",
-		detail: "只把中间过程你用不上的活派出去——翻几十个文件找一个答案这种。",
-		levels: "中",
+		nameKey: "delegation.selective",
+		detailKey: "delegation.selectiveDetail",
+		levelsKey: "common.medium",
 	},
 	{
 		id: "ready",
-		name: "主动派",
-		detail: "互相独立的子任务并行派出去，自己留着做拆分、串联和收口。",
-		levels: "高",
+		nameKey: "delegation.active",
+		detailKey: "delegation.activeDetail",
+		levelsKey: "common.high",
 	},
 	{
 		id: "eager",
-		name: "放开派",
-		detail: "能拆就拆，把并发用满，自己专心做编排和最后的验证。",
-		levels: "超高 · 最高 · 极致",
+		nameKey: "delegation.max",
+		detailKey: "delegation.maxDetail",
+		levelsKey: "delegation.maxLevels",
 	},
 ];
 
@@ -74,6 +81,7 @@ const TIERS: { id: DelegationTier; name: string; detail: string; levels?: string
 const MAX_CONCURRENCY = 16;
 
 export function DelegationSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
 	const [error, setError] = useState("");
@@ -104,10 +112,10 @@ export function DelegationSettings() {
 
 	return (
 		<div className="pt-8" data-delegation-settings>
-			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">子智能体调度</h1>
+			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("delegation.title")}</h1>
 			{/* 一句话，长度对齐隔壁「智能体」页——为什么值得省着派，档位自己的说明里已经写了。 */}
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
-				决定什么时候派子智能体、一次最多派几个。对所有会话生效，改动立即生效。
+				{t("delegation.intro")}
 			</p>
 
 			{error && (
@@ -116,18 +124,18 @@ export function DelegationSettings() {
 				</p>
 			)}
 
-			<SectionTitle>调用积极性</SectionTitle>
+			<SectionTitle>{t("delegation.eagerness")}</SectionTitle>
 			<Card className="mb-9">
 				<Row
-					title="跟随思考等级"
+					title={t("delegation.followThinking")}
 					detail={
 						auto
-							? `思考等级越高越主动派活——这一轮是「${THINKING_LABELS[thinking] ?? thinking}」，落在下面标着「当前」的那一档。`
-							: "已关闭。派活的积极程度由你在下面钉死，思考等级不再影响它。"
+							? t("delegation.followThinkingDetail", { level: THINKING_LABELS[thinking] ? t(THINKING_LABELS[thinking]) : thinking })
+							: t("delegation.pinnedDetail")
 					}
 					control={
 						<Toggle
-							ariaLabel="跟随思考等级"
+							ariaLabel={t("delegation.followThinking")}
 							checked={auto}
 							/*
 							 * 关掉时把推断出的那一档写下来，而不是回落到某个默认值。
@@ -139,7 +147,7 @@ export function DelegationSettings() {
 						/>
 					}
 				/>
-				<div role="radiogroup" aria-label="调用积极性" aria-disabled={auto} className="px-2 py-2">
+				<div role="radiogroup" aria-label={t("delegation.eagerness")} aria-disabled={auto} className="px-2 py-2">
 					{TIERS.map((option) => {
 						const selected = option.id === tier;
 						return (
@@ -169,22 +177,22 @@ export function DelegationSettings() {
 								/>
 								<span className="min-w-0 flex-1">
 									<span className="flex flex-wrap items-center gap-2">
-										<span className={`text-body ${auto && !selected ? "text-ink-faint" : "text-ink"}`}>{option.name}</span>
-										{option.id === "selective" && <span className="text-detail text-ink-faint">默认</span>}
+										<span className={`text-body ${auto && !selected ? "text-ink-faint" : "text-ink"}`}>{t(option.nameKey)}</span>
+										{option.id === "selective" && <span className="text-detail text-ink-faint">{t("common.default")}</span>}
 										{auto && selected && (
-											<span className="rounded-full bg-accent/15 px-2 py-0.5 text-detail leading-[18px] text-accent">当前</span>
+											<span className="rounded-full bg-accent/15 px-2 py-0.5 text-detail leading-[18px] text-accent">{t("common.current")}</span>
 										)}
 									</span>
 									<span className={`mt-0.5 block text-label leading-relaxed ${auto && !selected ? "text-ink-faint" : "text-ink-muted"}`}>
-										{option.detail}
+										{t(option.detailKey)}
 									</span>
 								</span>
 								{/*
 								 * 只有跟随等级时才说哪些等级落在这一档——钉死之后，等级跟这里再无关系，
 								 * 继续显示它就是在指一条已经断掉的因果。
 								 */}
-								{auto && option.levels && (
-									<span className="shrink-0 pt-0.5 text-detail whitespace-nowrap text-ink-faint">{option.levels}</span>
+								{auto && option.levelsKey && (
+									<span className="shrink-0 pt-0.5 text-detail whitespace-nowrap text-ink-faint">{t(option.levelsKey)}</span>
 								)}
 							</button>
 						);
@@ -192,7 +200,7 @@ export function DelegationSettings() {
 				</div>
 			</Card>
 
-			<SectionTitle>并发上限</SectionTitle>
+			<SectionTitle>{t("delegation.concurrencyLimit")}</SectionTitle>
 			<Card>
 				{/*
 				 * 一句静态的说明，不报「这一轮实际几个」。
@@ -202,8 +210,8 @@ export function DelegationSettings() {
 				 * 张卡片的事，在这里说只会让人对着一个跟着别处变的数字发愣。
 				 */}
 				<Row
-					title="最多同时运行"
-					detail="超出的排队，不会被拒绝——一次派十个不会更快，只会更晚到齐。积极性低的档位会在这个上限底下再收一道。"
+					title={t("delegation.concurrency")}
+					detail={t("delegation.overflowDetail")}
 					control={
 						<ConcurrencyField
 							value={settings.maxConcurrentSubAgents}
@@ -216,16 +224,21 @@ export function DelegationSettings() {
 	);
 }
 
-/** 标准等级的中文名，跟推理强度菜单里用的是同一套词。自定义等级按原样显示。 */
-const THINKING_LABELS: Record<string, string> = {
-	off: "关",
-	minimal: "极简",
-	low: "低",
-	medium: "中",
-	high: "高",
-	xhigh: "超高",
-	max: "最高",
-	ultra: "极致",
+/*
+ * 标准等级的名字，存 key 而不是存译好的字。
+ *
+ * 跟推理强度菜单里用的是同一套词。这张表在模块加载时成型，那会儿窗口还没说自己是哪种语言，
+ * 之后换语言也不会重算——所以译不能发生在这里。自定义等级不在表里，按原样显示。
+ */
+const THINKING_LABELS: Record<string, MessageKey> = {
+	off: "thinking.off",
+	minimal: "thinking.minimal",
+	low: "thinking.low",
+	medium: "thinking.medium",
+	high: "thinking.high",
+	xhigh: "thinking.xhigh",
+	max: "thinking.max",
+	ultra: "thinking.ultra",
 };
 
 /**
@@ -236,6 +249,7 @@ const THINKING_LABELS: Record<string, string> = {
  * 文本是本地的，停手三分之一秒后落盘，失焦时立刻落盘并回到存下来的规范值。
  */
 function ConcurrencyField({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
+	const { t } = useI18n();
 	const [typed, setTyped] = useState<string | null>(null);
 	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 	useEffect(() => () => clearTimeout(timer.current), []);
@@ -253,7 +267,7 @@ function ConcurrencyField({ value, onCommit }: { value: number; onCommit: (value
 		<div className="flex items-center gap-2">
 			<Input
 				type="number"
-				aria-label="最多同时运行的子智能体数量"
+				aria-label={t("delegation.concurrencyAria")}
 				min={1}
 				max={MAX_CONCURRENCY}
 				step={1}
@@ -268,7 +282,7 @@ function ConcurrencyField({ value, onCommit }: { value: number; onCommit: (value
 				}}
 				className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-label text-ink tabular-nums"
 			/>
-			<span className="text-label text-ink-muted">个</span>
+			<span className="text-label text-ink-muted">{t("common.countUnit")}</span>
 		</div>
 	);
 }

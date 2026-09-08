@@ -44,7 +44,7 @@ const seconds = (ms: number) => Math.round(ms / 1000);
 
 /** What the rule does, in the words someone would use to describe it — the row's right-hand side. */
 function summarize(rule: RetryRule): string {
-	const count = rule.retries === null ? translate("retry.forever") : rule.retries === 0 ? translate("retry.never") : translate("retry.count", { n: rule.retries });
+	const count = rule.retries === null ? translate("retry.forever") : rule.retries === 0 ? translate("retry.never") : translate("retry.count", { count: rule.retries });
 	if (rule.retries === 0) return count;
 	const pace = rule.strategy === "fixed"
 		? translate("retry.everyN", { n: seconds(rule.intervalMs) })

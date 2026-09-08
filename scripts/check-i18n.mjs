@@ -14,6 +14,7 @@
  *   node scripts/check-i18n.mjs             # 报告，非零退出表示有新增
  *   node scripts/check-i18n.mjs --list      # 把每一条打出来，改的时候看
  *   node scripts/check-i18n.mjs --update    # 把当前状况写回基线（只允许变小）
+ *   node scripts/check-i18n.mjs --rebase    # 脚本认得更多了，重新记账（允许变大）
  *
  * The baseline is a count per file, not a list of strings: a list would have to be regenerated on
  * every rewording and would turn into a file nobody reads. A count catches the two things that
@@ -75,9 +76,20 @@ export function findings(source) {
 	for (const match of stripped.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g)) {
 		if (HAN.test(match[0])) found.push({ line: at(match.index), text: match[0].trim().slice(0, 80) });
 	}
-	// JSX text: between tags, with no braces of its own to be an expression.
-	for (const match of stripped.matchAll(/>[^<>{}\n]*[一-鿿][^<>{}]*</g)) {
-		found.push({ line: at(match.index), text: match[0].slice(1, -1).trim().slice(0, 80) });
+	/*
+	 * JSX text, including the half of it that sits beside an expression.
+	 *
+	 * `<span>{n} 个活跃日</span>` is a sentence with a number in the middle of it, and the first
+	 * version of this looked only for runs with no braces at all — so every count, every duration,
+	 * every "N files changed" in the app was invisible to it. Those are exactly the strings most
+	 * likely to be written inline and never translated, because they do not look like labels.
+	 *
+	 * The expressions are blanked rather than skipped: what is left is the text a reader sees, and
+	 * a `{...}` between two Chinese words must not join them into one finding.
+	 */
+	for (const match of stripped.matchAll(/>([^<>]*)</g)) {
+		const text = match[1].replace(/\{[^{}]*\}/g, " ");
+		if (HAN.test(text)) found.push({ line: at(match.index), text: text.trim().replace(/\s+/g, " ").slice(0, 80) });
 	}
 	return found;
 }
@@ -110,15 +122,24 @@ const baseline = JSON.parse(await readFile(BASELINE, "utf8").catch(() => "{}"));
 const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
 const was = Object.values(baseline).reduce((sum, n) => sum + n, 0);
 
-if (args.has("--update")) {
-	// 第一次是记账，不是放行：基线还空着的时候没有「变多」可言。之后只准变小。
+if (args.has("--update") || args.has("--rebase")) {
+	/*
+	 * 三种写基线的理由，只有一种不需要解释。
+	 *
+	 * `--update` 是清掉了一批，数字只能变小。第一次是记账，那时还没有「变多」可言。
+	 *
+	 * `--rebase` 是这个脚本自己变严了——比如学会认 `{n} 个活跃日` 这种夹着表达式的句子之后，
+	 * 一夜之间多出两百多条。那些不是新写的债，是一直都在、只是看不见。它必须单独一个开关，
+	 * 因为「检查变严」和「代码变差」在数字上长得一模一样，而混用会让基线失去意义。
+	 */
 	const fresh = Object.keys(baseline).length === 0;
-	if (!fresh && total > was) {
-		console.error(`\n✖ 基线只能变小：现在 ${total} 条，基线 ${was} 条。先把新增的翻译掉。\n`);
+	if (!fresh && total > was && !args.has("--rebase")) {
+		console.error(`\n✖ 基线只能变小：现在 ${total} 条，基线 ${was} 条。先把新增的翻译掉。\n` +
+			`（如果是这个脚本认得更多了，用 --rebase 重新记账。）\n`);
 		process.exit(1);
 	}
 	await writeFile(BASELINE, `${JSON.stringify(counts, null, "\t")}\n`);
-	console.log(fresh ? `\n✓ 基线记下 ${total} 条，从这里开始只能变少\n` : `\n✓ 基线 ${was} → ${total} 条，少了 ${was - total} 条\n`);
+	console.log(fresh ? `\n✓ 基线记下 ${total} 条，从这里开始只能变少\n` : total > was ? `\n✓ 基线重记为 ${total} 条（原 ${was}），多出来的是这次才认得的\n` : `\n✓ 基线 ${was} → ${total} 条，少了 ${was - total} 条\n`);
 	process.exit(0);
 }
 
