@@ -68,24 +68,58 @@ export function isPinned(row: StickyRow): boolean {
  * landed yet. It is zero once anything has actually reached its rail, and the band then reaches the
  * top edge the way it always did.
  */
+/**
+ * One band is not enough, and the second one is the whole of this.
+ *
+ * Two rows can be held at once — the strip against the top edge, a project heading on its way to
+ * the rail beneath it — and between them there is *list*: rows sliding up towards the strip, which
+ * are exactly the thing the fade exists for. Treating the pair as one band from the first row's top
+ * to the last row's bottom protects that stretch too, and the moment the strip landed the list
+ * stopped dissolving into it and started sliding under it hard-edged. Measured on a three-project
+ * sidebar: the softening jumped from 44px (flush under the strip) to 108px (past a heading still
+ * 33px short of its rail), and the rows in between went from faded to fully lit in one frame.
+ *
+ * So the rows are grouped into runs of touching held rows instead. `bottom` is the underside of the
+ * run against the top of the pane, `next` is the one below it — with the gap between them left for
+ * the mask to soften, which is what puts the fade back where it belongs.
+ *
+ * More than two runs cannot happen here: there are two rails, so at most one strip and one heading
+ * can be held, and anything beyond the second run is far enough down to be ordinary list. If a
+ * third rail is ever added this needs to grow a loop; the mask would need one too.
+ */
 export interface HeldBand {
 	top: number;
 	bottom: number;
+	/** Where the second run starts, or `bottom` when there is only one. */
+	nextTop: number;
+	/** And where it ends. Equal to `nextTop` when there is no second run. */
+	next: number;
 }
 
 export function heldBand(rows: StickyRow[], fade: number): HeldBand {
-	let top = 0;
-	let bottom = 0;
-	let found = false;
-	for (const row of rows) {
-		if (row.top > row.rail + fade + EPSILON) continue;
+	// Sorted, because the runs below are built by walking down the pane and the callers hand these
+	// over in DOM order — which is the same thing right up until a heading is being pushed out.
+	const held = rows
+		.filter((row) => row.top <= row.rail + fade + EPSILON)
 		// Clamped: a row being pushed out sits above the viewport, and the band starts at its edge.
-		const at = Math.max(row.top, 0);
-		top = found ? Math.min(top, at) : at;
-		bottom = Math.max(bottom, row.bottom);
-		found = true;
+		.map((row) => ({ top: Math.max(row.top, 0), bottom: row.bottom }))
+		.sort((a, b) => a.top - b.top);
+	if (held.length === 0) return { top: 0, bottom: 0, nextTop: 0, next: 0 };
+
+	const top = held[0].top;
+	let bottom = held[0].bottom;
+	let at = 1;
+	// The first run: everything that touches what is already in it.
+	for (; at < held.length && held[at].top <= bottom + EPSILON; at++) {
+		bottom = Math.max(bottom, held[at].bottom);
 	}
-	return found ? { top, bottom } : { top: 0, bottom: 0 };
+	if (at >= held.length) return { top, bottom, nextTop: bottom, next: bottom };
+
+	// And the second, which starts below a stretch of list and ends where its own rows stop.
+	const nextTop = held[at].top;
+	let next = held[at].bottom;
+	for (at++; at < held.length; at++) next = Math.max(next, held[at].bottom);
+	return { top, bottom, nextTop, next };
 }
 
 /**
@@ -95,5 +129,7 @@ export function heldBand(rows: StickyRow[], fade: number): HeldBand {
  * the one the tests are written against and the one `isPinned` agrees with row by row.
  */
 export function pinnedDepth(rows: StickyRow[]): number {
-	return heldBand(rows, 0).bottom;
+	// The lower of the two runs, on the rare frame where landed rows are not touching.
+	const band = heldBand(rows, 0);
+	return Math.max(band.bottom, band.next);
 }

@@ -24,7 +24,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	/** Found once per change to the list rather than once per frame. */
 	const rows = useRef<{ node: HTMLElement; rail: number }[]>([]);
 	const stale = useRef(true);
-	const written = useRef({ top: -1, bottom: -1 });
+	const written = useRef({ top: -1, bottom: -1, next: -1, under: -1 });
 	const frame = useRef(0);
 
 	const measure = useCallback(() => {
@@ -59,11 +59,26 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		 * protecting from it, and a strip sitting a hundred pixels down is not "nearly held".
 		 */
 		const band = heldBand(measured, view.scrollTop > 0 ? FADE_TOP : 0);
+		/*
+		 * The gap between the two held runs, softened — and folded away when there is only one.
+		 *
+		 * `gap` is how deep the fade under the first run reaches: a full `FADE_TOP` when there is
+		 * room, and only as far as the next held row when there is not, so the softening stops
+		 * where that row begins instead of eating into it. With one run there is nothing below to
+		 * stop for, so it is the full depth and the stops after it collapse onto each other —
+		 * `nextFade` of zero is what makes the mask's second half disappear rather than draw a
+		 * second fade nobody asked for. See `.ly-fade-y`.
+		 */
+		const under = Math.min(FADE_TOP, Math.max(0, band.nextTop - band.bottom));
+		const nextFade = band.next > band.bottom ? FADE_TOP : 0;
 
-		if (written.current.top !== band.top || written.current.bottom !== band.bottom) {
+		if (written.current.top !== band.top || written.current.bottom !== band.bottom || written.current.next !== band.next || written.current.under !== under) {
 			view.style.setProperty("--ly-hold-top", `${band.top}px`);
 			view.style.setProperty("--ly-fade-inset", `${band.bottom}px`);
-			written.current = band;
+			view.style.setProperty("--ly-hold-gap", `${under}px`);
+			view.style.setProperty("--ly-hold-next", `${Math.max(band.next, band.bottom + under)}px`);
+			view.style.setProperty("--ly-hold-next-fade", `${nextFade}px`);
+			written.current = { top: band.top, bottom: band.bottom, next: band.next, under };
 		}
 
 		/*

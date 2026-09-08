@@ -96,7 +96,7 @@ test("a row is held once it reaches its rail, and not one pixel before", () => {
 const FADE = 36;
 
 test("a row still well clear of the rail is nothing but list", () => {
-	assert.deepEqual(heldBand([strip(120), head(400)], FADE), { top: 0, bottom: 0 });
+	assert.deepEqual(heldBand([strip(120), head(400)], FADE), { top: 0, bottom: 0, nextTop: 0, next: 0 });
 });
 
 test("a row within a fade of its rail is held whole, and the list above it still fades", () => {
@@ -111,15 +111,31 @@ test("landing takes the band up to the edge it rests against", () => {
 	assert.equal(band.bottom, GAP + STRIP);
 });
 
-test("a heading arriving under a held strip joins the same band", () => {
+test("a heading touching a held strip is the same band", () => {
+	// Landed, it rests flush against the strip's underside: one run, and nothing between them.
+	const band = heldBand([strip(GAP), head(GAP + STRIP)], FADE);
+	assert.equal(band.top, GAP);
+	assert.equal(band.bottom, GAP + STRIP + HEAD, "the band reaches the heading's underside");
+	assert.equal(band.next, band.bottom, "there is no second run to protect");
+});
+
+test("a heading still short of the strip is a band of its own, and the list between them fades", () => {
 	/*
-	 * The one that makes this recursive rather than per-row. With the strip held, the fade would
-	 * restart at its underside — and a project name arriving there is inside it, so it has to
-	 * extend the band rather than be softened by it.
+	 * The case the whole two-run shape exists for.
+	 *
+	 * A heading within a fade of its rail must not be softened — it would dissolve on approach and
+	 * snap back on landing, which is the defect the allowance above was added for. But treating it
+	 * and the strip as one band from the strip's top to the heading's bottom protects the ten pixels
+	 * of *list* between them too, and those rows are precisely what the fade is for: they are sliding
+	 * up under the strip and have to dissolve doing it. Reported as the softening disappearing the
+	 * instant the strip landed.
 	 */
 	const band = heldBand([strip(GAP), head(GAP + STRIP + 10)], FADE);
 	assert.equal(band.top, GAP);
-	assert.equal(band.bottom, GAP + STRIP + 10 + HEAD, "the band reaches the heading's underside");
+	assert.equal(band.bottom, GAP + STRIP, "the first run ends at the strip, not at the heading");
+	assert.equal(band.nextTop, GAP + STRIP + 10, "and the second starts where the heading does");
+	assert.equal(band.next, GAP + STRIP + 10 + HEAD, "ending at its underside");
+	assert.ok(band.nextTop > band.bottom, "the gap between them is list, and list is what fades");
 });
 
 test("a row pushed above the viewport starts the band at the edge, not off it", () => {
@@ -131,6 +147,20 @@ test("a row pushed above the viewport starts the band at the edge, not off it", 
 
 test("with no fade to allow for, the band is exactly what has landed", () => {
 	// What every other scroller in the app gets, and what `pinnedDepth` is.
-	assert.deepEqual(heldBand([strip(20), head(400)], 0), { top: 0, bottom: 0 }, "20 is not landed");
+	assert.deepEqual(heldBand([strip(20), head(400)], 0), { top: 0, bottom: 0, nextTop: 0, next: 0 }, "20 is not landed");
 	assert.equal(heldBand([strip(GAP), head(400)], 0).bottom, pinnedDepth([strip(GAP), head(400)]));
+	// And `pinnedDepth` still reaches the lower of the two, on the frame where they are apart.
+	assert.equal(pinnedDepth([strip(GAP), head(GAP + STRIP + 10)]), GAP + STRIP, "only the strip has landed");
+});
+
+test("a row pushed above the viewport does not detach the one below it", () => {
+	/*
+	 * A heading on its way out travels up past its rail and off the top, and its top is clamped to
+	 * zero — so it and the strip overlap rather than touch. They are still one run: the clamp is
+	 * what makes that true, and a fade started between two overlapping rows would be drawn inside
+	 * them both.
+	 */
+	const band = heldBand([strip(-4), head(-30)], FADE);
+	assert.equal(band.top, 0);
+	assert.equal(band.next, band.bottom, "one run, not two");
 });
