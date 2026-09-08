@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
@@ -86,18 +87,34 @@ export function rankMentions(
 	const lower = term.toLowerCase().trim();
 	const items: MentionItem[] = [];
 
-	// Action entry: Pick file / folder
-	if (options.allowAction && (!lower || "文件".includes(lower) || "文件夹".includes(lower) || "file".includes(lower) || "folder".includes(lower))) {
+	/*
+	 * Matched against the words on screen, plus the English ones underneath.
+	 *
+	 * Typing 「文件」 should find 选择文件 while the window is in Chinese, and typing `file` should
+	 * find "Pick a file" in English — but `file` should keep working either way, because the id and
+	 * every piece of writing about this app call it that.
+	 */
+	const pickFile = translate("mention.pickFile");
+	const pickFolder = translate("mention.pickFolder");
+	const compact = translate("mention.compact");
+	if (
+		options.allowAction &&
+		(!lower ||
+			pickFile.toLowerCase().includes(lower) ||
+			pickFolder.toLowerCase().includes(lower) ||
+			"file".includes(lower) ||
+			"folder".includes(lower))
+	) {
 		items.push({
 			id: "action:pick-file",
-			title: "选择文件",
+			title: pickFile,
 			kind: "action",
 		});
-		items.push({ id: "action:pick-directory", title: "选择文件夹", kind: "action" });
+		items.push({ id: "action:pick-directory", title: pickFolder, kind: "action" });
 	}
 
-	if (options.allowAction && (!lower || "compact".includes(lower) || "压缩上下文".includes(lower))) {
-		items.push({ id: "action:compact", title: "compact", description: "压缩上下文", kind: "action" });
+	if (options.allowAction && (!lower || "compact".includes(lower) || compact.toLowerCase().includes(lower))) {
+		items.push({ id: "action:compact", title: "compact", description: compact, kind: "action" });
 	}
 
 	// Subagents
@@ -109,7 +126,7 @@ export function rankMentions(
 				description: sub.description,
 				kind: "subagent",
 				data: { subagentId: sub.id },
-				origin: "智能体",
+				origin: translate("mention.agents"),
 			});
 		}
 	}
@@ -122,10 +139,10 @@ export function rankMentions(
 				items.push({
 					id: `skill:${fullName}`,
 					title: fullName,
-					description: skill.description || "插件技能扩展",
+					description: skill.description || translate("mention.pluginSkills"),
 					kind: "plugin",
 					data: { skillId: skill.name, pluginId: skill.pluginId },
-					origin: skill.pluginId ?? (skill.source === "workspace" ? "项目" : "内置"),
+					origin: skill.pluginId ?? translate(skill.source === "workspace" ? "sessionMenu.project" : "common.builtin"),
 				});
 			}
 		}
@@ -134,7 +151,7 @@ export function rankMentions(
 	// Sessions
 	if (options.sessions) {
 		for (const s of options.sessions) {
-			const title = s.title || "未命名会话";
+			const title = s.title || translate("mention.untitled");
 			if (!lower || title.toLowerCase().includes(lower) || s.id.toLowerCase().includes(lower)) {
 				items.push({
 					id: `session:${s.id}`,
@@ -142,7 +159,7 @@ export function rankMentions(
 					description: [s.projectName, s.updatedAt ? new Date(s.updatedAt).toLocaleDateString("zh-CN") : ""].filter(Boolean).join(" · "),
 					kind: "session",
 					data: { sessionId: s.id },
-					origin: "历史会话",
+					origin: translate("mention.pastSessions"),
 				});
 			}
 		}
@@ -155,10 +172,10 @@ export function rankMentions(
 				items.push({
 					id: `file:${path}`,
 					title: path,
-					description: "项目路径",
+					description: translate("mention.projectPaths"),
 					kind: "file",
 					data: { path },
-					origin: "工作区",
+					origin: translate("common.workspace"),
 				});
 			}
 		}

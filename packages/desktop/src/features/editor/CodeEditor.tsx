@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import {
 	bracketMatching,
@@ -51,22 +52,28 @@ async function formatNow(view: EditorView, path: string, options?: { quiet?: boo
 		case "formatted":
 			// Named, because which engine ran is the thing people are unsure about — and when a
 			// project config decided the style, that outranked the settings page and should say so.
-			if (!options?.quiet) notify(result.config ? `已按 ${result.config} 格式化（${result.by}）` : `已用 ${result.by} 格式化`, "info");
+			if (!options?.quiet)
+				notify(
+					result.config
+						? translate("format.byConfig", { config: result.config, by: result.by })
+						: translate("format.by", { by: result.by }),
+					"info",
+				);
 			return;
 		case "unchanged":
-			if (!options?.quiet) notify("已经是格式化后的样子", "info");
+			if (!options?.quiet) notify(translate("format.alreadyClean"), "info");
 			return;
 		case "unsupported":
-			if (!options?.quiet) notify("这种文件还没有对应的格式化工具", "info");
+			if (!options?.quiet) notify(translate("format.noFormatter"), "info");
 			return;
 		case "missing":
 			// Always shown, even on save: this is the one the user can act on.
-			notify(`需要 ${result.tool} 才能格式化：${result.install}`, "error");
+			notify(translate("format.needsTool", { tool: result.tool, install: result.install }), "error");
 			return;
 		case "failed":
 			// Always shown. The message is the formatter's own and names the line that will not parse,
 			// which is the most useful thing formatting does on a broken file.
-			notify(`格式化失败：${result.message.split("\n")[0]}`, "error");
+			notify(translate("format.failed", { reason: result.message.split("\n")[0] }), "error");
 	}
 }
 
@@ -283,13 +290,13 @@ export function CodeEditor({
 				const toggle = document.createElement("button");
 				toggle.setAttribute("name", "ly-replace-toggle");
 				toggle.setAttribute("type", "button");
-				toggle.setAttribute("aria-label", "显示替换");
-				toggle.dataset.dwTip = "显示替换";
+				toggle.setAttribute("aria-label", translate("find.showReplace"));
+				toggle.dataset.dwTip = translate("find.showReplace");
 				toggle.innerHTML = CHEVRON_RIGHT;
 				toggle.addEventListener("click", () => {
 					const open = panel.classList.toggle("ly-replace-open");
-					toggle.setAttribute("aria-label", open ? "隐藏替换" : "显示替换");
-					toggle.dataset.dwTip = open ? "隐藏替换" : "显示替换";
+					toggle.setAttribute("aria-label", translate(open ? "find.hideReplace" : "find.showReplace"));
+					toggle.dataset.dwTip = translate(open ? "find.hideReplace" : "find.showReplace");
 					toggle.innerHTML = open ? CHEVRON_DOWN : CHEVRON_RIGHT;
 					if (open) panel.querySelector<HTMLInputElement>("input[name=replace]")?.focus();
 				});
@@ -306,7 +313,8 @@ export function CodeEditor({
 			}
 			// The options are labels, and their text is hidden, so they need one too.
 			const options = element.querySelectorAll<HTMLElement>(".cm-search label");
-			for (const [i, hint] of ["区分大小写", "正则表达式", "全词匹配"].entries()) {
+			const optionHints = [translate("find.matchCase"), translate("find.regexFull"), translate("find.wholeWord")];
+			for (const [i, hint] of optionHints.entries()) {
 				const option = options[i];
 				if (!option || option.querySelector("svg")) continue;
 				option.setAttribute("aria-label", hint);

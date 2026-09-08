@@ -11,6 +11,8 @@
  * truncated to a line and the whole of it is a tooltip, which is what a narrow panel can afford.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import type { QueuedTask } from "@lyra/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { useSide } from "../dock/index.ts";
@@ -65,20 +67,21 @@ export function TaskStrip() {
 function statusOf(task: QueuedTask): string {
 	switch (task.status) {
 		case "queued":
-			return "排队中";
+			return translate("taskStrip.queued");
 		case "running":
-			return "主会话执行中";
+			return translate("taskStrip.mainBusy");
 		case "done":
-			return "已完成";
+			return translate("taskStrip.done");
 		case "failed":
-			return task.error ? `失败 · ${task.error} · 可重试` : "失败 · 可重试";
+			return task.error ? translate("taskStrip.failedWith", { error: task.error }) : translate("taskStrip.failed");
 		case "cancelled":
 			// The two cancellations, told apart — see `cancelledBy`.
-			return task.cancelledBy === "stop" ? "主会话已暂停，任务一并中断 · 可继续" : "已撤回";
+			return translate(task.cancelledBy === "stop" ? "taskStrip.interrupted" : "taskStrip.withdrawn");
 	}
 }
 
 function TaskRow({ task }: { task: QueuedTask }) {
+	const { t } = useI18n();
 	const cancelTask = useSide((s) => s.cancelTask);
 	const dismissTask = useSide((s) => s.dismissTask);
 	const resumeTask = useSide((s) => s.resumeTask);
@@ -132,25 +135,25 @@ function TaskRow({ task }: { task: QueuedTask }) {
 					<>
 						<button
 							type="button"
-							data-ly-tip="立即执行"
+							data-ly-tip={t("taskStrip.runNow")}
 							onClick={() => {
 								void cancelTask(task.id);
 								void send([{ type: "text", text: task.text }]);
 							}}
 							className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
-							aria-label="立即执行"
+							aria-label={t("taskStrip.runNow")}
 						>
 							<Play size={11} strokeWidth={2} />
 						</button>
 						<button
 							type="button"
-							data-ly-tip="撤回，内容回到输入框"
+							data-ly-tip={t("taskStrip.withdraw")}
 							onClick={() => {
 								void cancelTask(task.id);
 								seedDraft(task.text);
 							}}
 							className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
-							aria-label="撤回这个任务，内容回到输入框"
+							aria-label={t("taskStrip.withdrawOne")}
 						>
 							<RotateCcw size={11} strokeWidth={2} />
 						</button>
@@ -167,10 +170,10 @@ function TaskRow({ task }: { task: QueuedTask }) {
 				{resumable && (
 					<button
 						type="button"
-						data-ly-tip={task.status === "failed" ? "重试这个任务" : "继续这个任务"}
+						data-ly-tip={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
 						onClick={() => void resumeTask(task.id)}
 						className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
-						aria-label={task.status === "failed" ? "重试这个任务" : "继续这个任务"}
+						aria-label={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
 					>
 						<Play size={11} strokeWidth={2} />
 					</button>
@@ -178,10 +181,10 @@ function TaskRow({ task }: { task: QueuedTask }) {
 				{over && (
 					<button
 						type="button"
-						data-ly-tip="从列表移除"
+						data-ly-tip={t("taskStrip.remove")}
 						onClick={() => void dismissTask(task.id)}
 						className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-danger"
-						aria-label="把这条从列表移除"
+						aria-label={t("taskStrip.removeOne")}
 					>
 						<X size={11} strokeWidth={2} />
 					</button>

@@ -19,6 +19,8 @@
  * disappears on the click and animates nothing is the thing this replaced.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -69,6 +71,7 @@ const SLIDE_MS = 300;
 const SLIDE_GAP = 56;
 
 export function ImageViewer() {
+	const { t } = useI18n();
 	const state = useViewer();
 	// What the system took at the top right, which this overlay has to clear on its own.
 	const { titlebar } = useLayout();
@@ -468,7 +471,7 @@ export function ImageViewer() {
 	return portal(<div
 			role="dialog"
 			aria-modal
-			aria-label="图片预览"
+			aria-label={t("viewer.title")}
 			/*
 			 * `no-drag` over the whole overlay.
 			 *
@@ -495,7 +498,7 @@ export function ImageViewer() {
 			 */}
 			<button
 				type="button"
-				aria-label="关闭预览"
+				aria-label={t("viewer.close")}
 				tabIndex={-1}
 				onClick={dismiss}
 				className="absolute inset-0 cursor-default bg-black/72"
@@ -615,13 +618,13 @@ export function ImageViewer() {
 					>
 						{/* Offered for every image: one that cannot be replaced can still be annotated and
 						    kept, which is the more common reason to mark up something already sent. */}
-						<ViewerButton label="标注" onClick={() => setEditing(true)}>
+						<ViewerButton label={t("viewer.annotate")} onClick={() => setEditing(true)}>
 							<Pencil size={15} strokeWidth={1.9} />
 						</ViewerButton>
-						<ViewerButton label="另存为" onClick={() => download(image.src)}>
+						<ViewerButton label={t("viewer.saveAs")} onClick={() => download(image.src)}>
 							<Download size={15} strokeWidth={1.9} />
 						</ViewerButton>
-						<ViewerButton label="关闭 Esc" onClick={dismiss}>
+						<ViewerButton label={t("viewer.closeEsc")} onClick={dismiss}>
 							<X size={16} strokeWidth={1.9} />
 						</ViewerButton>
 					</div>
@@ -632,23 +635,23 @@ export function ImageViewer() {
 				 * zooming in to place a mark precisely is the same need as zooming in to read one.
 				 */}
 				<div className="pointer-events-auto absolute bottom-6 left-6 flex items-center gap-0.5 rounded-xl border border-white/12 bg-[#1c1c1e]/92 px-1.5 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-					<ViewerButton label="缩小" small disabled={zoom <= ZOOM_MIN} onClick={() => zoomTo(zoom / ZOOM_STEP)}>
+					<ViewerButton label={t("viewer.zoomOut")} small disabled={zoom <= ZOOM_MIN} onClick={() => zoomTo(zoom / ZOOM_STEP)}>
 						<Minus size={14} strokeWidth={2} />
 					</ViewerButton>
 					<button
 						type="button"
-						data-ly-tip="恢复原始大小"
+						data-ly-tip={t("viewer.actualSize")}
 						data-ly-tip-side="top"
-						aria-label={`当前缩放 ${Math.round(zoom * 100)}%，点击恢复`}
+						aria-label={t("viewer.zoomIs", { percent: Math.round(zoom * 100) })}
 						onClick={resetView}
 						className="min-w-[46px] rounded-lg px-1 py-1 text-center text-detail text-white/75 tabular-nums transition-colors duration-[var(--ly-t-quick)] hover:bg-white/12 hover:text-white"
 					>
 						{Math.round(zoom * 100)}%
 					</button>
-					<ViewerButton label="放大" small disabled={zoom >= ZOOM_MAX} onClick={() => zoomTo(zoom * ZOOM_STEP)}>
+					<ViewerButton label={t("viewer.zoomIn")} small disabled={zoom >= ZOOM_MAX} onClick={() => zoomTo(zoom * ZOOM_STEP)}>
 						<Plus size={14} strokeWidth={2} />
 					</ViewerButton>
-					<ViewerButton label="适应窗口" small onClick={resetView}>
+					<ViewerButton label={t("viewer.fit")} small onClick={resetView}>
 						<Maximize2 size={13} strokeWidth={2} />
 					</ViewerButton>
 				</div>
@@ -656,12 +659,12 @@ export function ImageViewer() {
 				{shown.images.length > 1 && !editing && (
 					<>
 						<div className="pointer-events-auto absolute top-1/2 left-4 -translate-y-1/2">
-							<ViewerButton label="上一张 ←" onClick={() => step(-1)}>
+							<ViewerButton label={t("viewer.prev")} onClick={() => step(-1)}>
 								<ChevronLeft size={18} strokeWidth={1.9} />
 							</ViewerButton>
 						</div>
 						<div className="pointer-events-auto absolute top-1/2 right-4 -translate-y-1/2">
-							<ViewerButton label="下一张 →" onClick={() => step(1)}>
+							<ViewerButton label={t("viewer.next")} onClick={() => step(1)}>
 								<ChevronRight size={18} strokeWidth={1.9} />
 							</ViewerButton>
 						</div>
@@ -756,12 +759,12 @@ function ViewerButton({
 async function toClipboard(dataUrl: string) {
 	try {
 		await navigator.clipboard.write([new ClipboardItem({ "image/png": decode(dataUrl) })]);
-		useApp.getState().notify("已复制到剪贴板，可以直接粘贴");
+		useApp.getState().notify(translate("viewer.copied"));
 	} catch {
 		// The clipboard refuses while the window is not focused, and refuses entirely on some
 		// platforms. Losing the annotation to that would be the worst of the outcomes.
 		download(dataUrl);
-		useApp.getState().notify("剪贴板不可用，已改为下载", "warn");
+		useApp.getState().notify(translate("viewer.clipboardUnavailable"), "warn");
 	}
 }
 

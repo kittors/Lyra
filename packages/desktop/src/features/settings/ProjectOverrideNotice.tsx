@@ -11,6 +11,7 @@
  * workspace and kept in a small store so five pages do not make five calls.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import type { ProjectLayerView } from "../../../electron/ipc-types.ts";
 import { TriangleAlert } from "lucide-react";
 import { useEffect } from "react";
@@ -59,6 +60,7 @@ export function ProjectOverrideNotice({ keys }: { keys: string[] }) {
 
 /** The notice, given its data — what a test mounts. */
 export function OverrideNotice({ view, keys }: { view: ProjectLayerView; keys: string[] }) {
+	const { t } = useI18n();
 	const hits = view.overrides.filter((one) => keys.some((key) => one.key === key || one.key.startsWith(`${key}.`)));
 	const refused = view.refused.filter((key) => keys.includes(key));
 	if (hits.length === 0 && refused.length === 0) return null;
@@ -67,22 +69,24 @@ export function OverrideNotice({ view, keys }: { view: ProjectLayerView; keys: s
 			<div className="px-4 py-3" data-project-override>
 				<div className="mb-1.5 flex items-center gap-1.5 text-label text-accent">
 					<TriangleAlert size={13} strokeWidth={1.9} />
-					这个项目的配置文件改写了这一页的设置
+					{t("override.title")}
 				</div>
 				{hits.map((one) => (
 					<div key={one.key} className="py-0.5 text-detail" data-project-override-key={one.key}>
 						<span className="font-mono text-ink">{one.key}</span>
 						<span className="text-ink-muted">
 							{" "}
-							在这里改的全局值 <span className="font-mono">{brief(one.global)}</span> 在这个项目里
-							<span className="text-accent">不生效</span>——被项目值{one.kind === "array" ? "整体替换" : "覆盖"}为{" "}
+							{t("override.globalHere")} <span className="font-mono">{brief(one.global)}</span>{" "}
+							{t("override.inThisProject")}
+							<span className="text-accent">{t("override.hasNoEffect")}</span>
+							{t("override.setTo", { mode: t(one.kind === "array" ? "override.replaced" : "override.overrode") })}{" "}
 							<span className="font-mono">{brief(one.project)}</span>
 						</span>
 					</div>
 				))}
 				{refused.map((key) => (
 					<div key={key} className="py-0.5 text-detail text-ink-muted" data-project-refused-key={key}>
-						<span className="font-mono text-ink">{key}</span> 出现在项目文件里，但这个键不允许放在仓库里，已被忽略
+						<span className="font-mono text-ink">{key}</span> {t("override.notAllowed")}
 					</div>
 				))}
 				<p className="mt-1 font-mono text-caption text-ink-faint" data-project-override-path>
@@ -101,30 +105,33 @@ export function ProjectLayerCard() {
 }
 
 export function LayerCard({ view }: { view: ProjectLayerView }) {
+	const { t } = useI18n();
 	return (
 		<Card className="mb-6">
 			<div className="px-4 py-3" data-project-layer>
-				<div className="mb-1 text-label text-ink">这个项目的配置</div>
+				<div className="mb-1 text-label text-ink">{t("override.projectConfig")}</div>
 				<p className="mb-2 font-mono text-caption text-ink-faint">{view.path}</p>
 				{view.error && <p className="mb-2 text-detail text-danger">{view.error}</p>}
 				{view.overrides.length === 0 && view.refused.length === 0 && !view.error && (
-					<p className="text-detail text-ink-muted">它没有改写任何全局值——里面的键要么全局没设过，要么两边一样。</p>
+					<p className="text-detail text-ink-muted">{t("override.nothingOverridden")}</p>
 				)}
 				{view.overrides.map((one) => (
 					<div key={one.key} className="py-0.5 text-detail" data-project-layer-key={one.key}>
 						<span className="font-mono text-ink">{one.key}</span>
 						<div className="ml-3 text-ink-muted">
-							项目值 <span className="font-mono">{brief(one.project)}</span>
+							{t("override.projectValue")} <span className="font-mono">{brief(one.project)}</span>
 						</div>
 						<div className="ml-3 text-ink-muted">
-							全局值 <span className="font-mono">{brief(one.global)}</span>{" "}
-							<span className="text-accent">⚠ 被项目值{one.kind === "array" ? "整体替换" : "覆盖"}，不生效</span>
+							{t("override.globalValue")} <span className="font-mono">{brief(one.global)}</span>{" "}
+							<span className="text-accent">
+								{t("override.overriddenNote", { mode: t(one.kind === "array" ? "override.replaced" : "override.overrode") })}
+							</span>
 						</div>
 					</div>
 				))}
 				{view.refused.map((key) => (
 					<div key={key} className="py-0.5 text-detail text-ink-muted" data-project-layer-refused={key}>
-						<span className="font-mono text-ink">{key}</span> 不允许放在仓库文件里，已被忽略
+						<span className="font-mono text-ink">{key}</span> {t("override.repoBanned")}
 					</div>
 				))}
 			</div>

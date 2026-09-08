@@ -12,6 +12,7 @@
  * which reads as ordinary sequential code and is the only way it stays readable.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { useCallback, useState } from "react";
 
 import type { FileOpResult } from "../../../electron/ipc-types.ts";
@@ -32,6 +33,7 @@ export interface FileActionDeps {
 }
 
 export function useFileActions({ root, refresh, onMoved, onRemoved }: FileActionDeps) {
+	const { t } = useI18n();
 	const notify = useApp((s) => s.notify);
 	const [clipboard, setClipboard] = useState<{ paths: string[]; mode: ClipMode } | null>(null);
 	/*
@@ -66,13 +68,13 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 			if (first.ok || first.code !== "exists") return first;
 
 			const replace = await ask({
-				title: `「${baseName(target)}」已存在`,
-				detail: "替换会覆盖那里已有的内容，无法撤销。",
-				confirmLabel: "替换",
+				title: t("fileAction.exists", { name: baseName(target) }),
+				detail: t("fileAction.replaceDetail"),
+				confirmLabel: t("common.replace"),
 			});
 			return replace ? attempt(true) : { ok: false };
 		},
-		[ask],
+		[ask, t],
 	);
 
 	const create = useCallback(
@@ -162,7 +164,10 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 	const remove = useCallback(
 		async (paths: string[], permanent: boolean): Promise<boolean> => {
 			if (paths.length === 0) return false;
-			const what = paths.length === 1 ? `「${baseName(paths[0])}」` : `这 ${paths.length} 项`;
+			const what =
+				paths.length === 1
+					? t("fileAction.one", { name: baseName(paths[0]) })
+					: t("fileMenu.theseN", { n: paths.length });
 			/*
 			 * Confirmed even for the trash, which the OS can undo.
 			 *
@@ -172,9 +177,9 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 			 * in different words so the two cannot be told apart only by the button.
 			 */
 			const agreed = await ask({
-				title: permanent ? `永久删除${what}？` : `删除${what}？`,
-				detail: permanent ? "无法恢复。" : "移到废纸篓，可以在访达里找回。",
-				confirmLabel: permanent ? "永久删除" : "移到废纸篓",
+				title: t(permanent ? "fileAction.deleteForeverConfirm" : "fileAction.deleteConfirm", { what }),
+				detail: t(permanent ? "fileAction.noUndo" : "fileAction.toTrash"),
+				confirmLabel: t(permanent ? "fileAction.deleteForever" : "fileAction.moveToTrash"),
 			});
 			if (!agreed) return false;
 
@@ -184,7 +189,7 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 			await refresh(paths.map(dirName));
 			return true;
 		},
-		[ask, refresh, report, onRemoved],
+		[ask, refresh, report, onRemoved, t],
 	);
 
 	const importInto = useCallback(
@@ -201,9 +206,9 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 		async (paths: string[], relative: boolean): Promise<void> => {
 			const text = paths.map((path) => (relative && root ? relativeTo(root, path) : path)).join("\n");
 			await bridge.clipboard.write(text);
-			notify(relative ? "已复制相对路径" : "已复制路径");
+			notify(t(relative ? "fileAction.relativePathCopied" : "fileAction.pathCopied"));
 		},
-		[root, notify],
+		[root, notify, t],
 	);
 
 	return {
