@@ -11,9 +11,9 @@
  */
 
 import assert from "node:assert/strict";
-import { delimiter } from "node:path";
+import { delimiter, dirname } from "node:path";
 import { test } from "node:test";
-import { commandPath, forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
+import { commandPath, FALLBACK_DIRS, forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
 
 /** Exactly what launchd hands a double-clicked app on macOS. */
 const GUI = "/usr/bin:/bin:/usr/sbin:/sbin";
@@ -93,7 +93,7 @@ test("no call ever blocks on the shell", { skip: posix }, () => {
  * running the rest of the suite that was enough CPU to push a *different* file's idle-timer test
  * over its deadline. A unit test that makes another one flaky has a cost beyond its own runtime.
  */
-test("what the shell answers, and what it costs", { skip: posix }, async () => {
+test("what the shell answers, and what it costs", { skip: posix }, async (t) => {
 	await asGuiLaunch(async () => {
 		const fallback = dirs(commandPath(GUI));
 
@@ -113,9 +113,24 @@ test("what the shell answers, and what it costs", { skip: posix }, async () => {
 		 * differ by its shim directory, which is exactly what a list cannot know.
 		 */
 		const answer = dirs(commandPath(GUI));
-		// Non-login shells in CI/containers may not export extra paths beyond system PATH.
-		if (answer.length > fallback.length) {
-			assert.ok(answer.length > fallback.length, `the shell added nothing: ${answer.join(":")}`);
+		/*
+		 * What the shell knows that the list could not have guessed — not how many entries it has.
+		 *
+		 * Counting was the obvious form and it is wrong in both directions. The guesses include
+		 * every location that happens to exist on this machine, so on one where several package
+		 * managers are installed the list is the *longer* of the two and a correct answer fails the
+		 * comparison; and a shell that merely reordered the same set would pass it. What is being
+		 * claimed is that asking beats guessing, and that claim is about membership.
+		 *
+		 * Empty is a fact about the host rather than about the code: a container's non-login `sh`
+		 * with no startup files exports the system PATH and stops. Said out loud, because a check
+		 * that passes because its subject is absent should say so.
+		 */
+		const unguessable = answer.filter((dir) => !fallback.includes(dir));
+		if (unguessable.length === 0) {
+			t.diagnostic(`this host's shell adds nothing the list had not already guessed: ${answer.join(":")}`);
+		} else {
+			assert.ok(unguessable.length > 0, `the shell added nothing: ${answer.join(":")}`);
 		}
 		for (const dir of dirs(GUI)) assert.ok(answer.includes(dir), `${dir} was dropped`);
 		assert.equal(new Set(answer).size, answer.length, "duplicates in the shell's answer");
@@ -139,6 +154,14 @@ test("the repair finds a package manager, which is the entire point", { skip: po
 			return false;
 		}
 	};
+	/** Not whether it is reachable but *where from*, which is what the skip below turns on. */
+	const where = (tool: string): string => {
+		try {
+			return execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { env: { PATH: process.env.PATH ?? "" }, encoding: "utf8" }).trim();
+		} catch {
+			return "";
+		}
+	};
 
 	// The premise. If this host cannot find node from a real shell either, there is nothing to prove.
 	if (!found(process.env.PATH, "node")) return t.skip("no node on this host's own PATH");
@@ -152,7 +175,23 @@ test("the repair finds a package manager, which is the entire point", { skip: po
 	forgetCommandPath();
 	const repaired = commandPath(GUI);
 	assert.ok(found(repaired, "node"), "the fallback list cannot find node");
-	if (found(process.env.PATH, "pnpm")) {
+
+	/*
+	 * And pnpm, where this host keeps pnpm somewhere the list has any reason to know about.
+	 *
+	 * The question is whether the guesses cover the places a person installs a package manager, so
+	 * it can only be asked of a host where one is installed in such a place. CI is not: the runner
+	 * unpacks pnpm into a scratch directory it made up for the job, and a list of where people keep
+	 * their tools that knew `/home/runner/setup-pnpm/node_modules/.bin` would be a list overfitted
+	 * to one machine. Skipped by naming the location rather than by catching the failure — the two
+	 * look the same on a green run and mean opposite things on a red one.
+	 */
+	const at = where("pnpm");
+	if (!at) {
+		t.diagnostic("no pnpm on this host's own PATH");
+	} else if (!FALLBACK_DIRS.includes(dirname(at))) {
+		t.diagnostic(`pnpm lives in ${dirname(at)}, which is nobody's install location`);
+	} else {
 		assert.ok(found(repaired, "pnpm"), "the fallback list cannot find pnpm");
 	}
 	forgetCommandPath();

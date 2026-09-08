@@ -64,6 +64,17 @@ const LIKELY = [
 ];
 
 /**
+ * The guesses, readable from outside, so a test can ask whether this host is one they cover.
+ *
+ * "The fallback can find pnpm" is only a question worth asking where pnpm is installed somewhere a
+ * person would install it. CI puts it under a scratch directory of the runner's own making —
+ * `/home/runner/setup-pnpm/node_modules/.bin` — and a list of the places people keep tools has no
+ * reason to know that one. Without this the test could only be written as "skip when it fails",
+ * which is not a test; with it, the skip states what is actually missing.
+ */
+export const FALLBACK_DIRS: readonly string[] = LIKELY;
+
+/**
  * Wraps the answer so it survives a talkative startup file.
  *
  * An interactive shell is within its rights to print things — a greeting, a version notice, an
