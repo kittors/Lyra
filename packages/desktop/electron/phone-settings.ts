@@ -73,6 +73,7 @@ export const PHONE_WRITABLE = [
 	"retryPolicy",
 	"editor",
 	"maxConcurrentSubAgents",
+	"subAgentDelegation",
 	"modelRoles",
 	"subAgentProfiles",
 ] as const satisfies readonly (keyof Settings)[];

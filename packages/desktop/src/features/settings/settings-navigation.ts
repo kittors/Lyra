@@ -19,6 +19,7 @@ import {
 	Sparkles,
 	SquareTerminal,
 	Wand2,
+	Workflow,
 } from "lucide-react";
 import type { SettingsSection } from "../../store/index.ts";
 import { groupsFor } from "./sections-for.ts";
@@ -47,6 +48,8 @@ const GROUPS: { label: string; labelKey: MessageKey; items: { id: SettingsSectio
 		items: [
 			{ id: "plugins", label: "插件", labelKey: "settings.extensions", icon: Blocks },
 			{ id: "agents", label: "智能体", labelKey: "settings.agents", icon: Bot },
+			// 紧挨着智能体，因为它们是同一件事的两半：那一页说有谁，这一页说什么时候派他们出去。
+			{ id: "delegation", label: "子智能体调度", labelKey: "settings.delegation", icon: Workflow },
 			{ id: "commands", label: "命令", labelKey: "settings.commands", icon: SquareTerminal },
 			{ id: "hooks", label: "钩子", labelKey: "settings.hooks", icon: Anchor },
 			{ id: "search", label: "网页搜索", labelKey: "settings.search", icon: Search },

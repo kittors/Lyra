@@ -1,4 +1,5 @@
 import { errorResult } from "../agent/tool-run.ts";
+import { DELEGATION_KEY, dispatchAllowed, type DelegationDecision } from "../runtime/delegation.ts";
 import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
 import type { Tool, ToolResult } from "../types.ts";
 
@@ -75,6 +76,26 @@ export const taskTool: Tool<TaskArgs> = {
 		 */
 		const refusal = refuseDispatch((ctx.state.get(DISPATCH_KEY) as DispatchContext | undefined) ?? rootDispatch(), requested);
 		if (refusal) return errorResult(refusal);
+
+		/*
+		 * 关掉派活的那一档，第二道。
+		 *
+		 * 第一道是工具表：没人点名的那一轮 `task` 根本不在里面。这一道挡的是工具**在**桌上的那种
+		 * 情况——用户点名了 `@explore`，工具因此留着，而模型顺手又派了两个没人点过的。没有这道，
+		 * 「只派点名的那个」就只是提示词里的一句请求，而这一档的用户恰恰是最不希望它只是一句请求
+		 * 的人。
+		 *
+		 * 没登记过决定的会话（CLI、测试）一律放行：`undefined` 在这里的意思是「这个宿主不管这件
+		 * 事」，不是「什么都不许派」。
+		 */
+		const decision = ctx.state.get(DELEGATION_KEY) as DelegationDecision | undefined;
+		if (!dispatchAllowed(decision, requested)) {
+			const named = decision?.mentioned ?? [];
+			return errorResult(
+				`用户把子代理关掉了，这一轮只放行他自己点名的${named.length > 0 ? `（${named.map((name) => `\`${name}\``).join("、")}）` : "那些，而这一轮他一个也没点"}。` +
+					`\`${requested}\` 不在其中——这件事自己做完，或者告诉用户为什么需要它，让他写 \`@${requested}\`。`,
+			);
+		}
 
 		try {
 			const answer = await ctx.spawnSubAgent({

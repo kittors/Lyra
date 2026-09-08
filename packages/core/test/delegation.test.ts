@@ -13,7 +13,15 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { delegationConcurrency, delegationNote, delegationTier } from "../src/runtime/delegation.ts";
+import {
+	DELEGATION_POLICIES,
+	delegationConcurrency,
+	delegationNote,
+	delegationTier,
+	dispatchAllowed,
+	mentionedAgents,
+	normalizeDelegationPolicy,
+} from "../src/runtime/delegation.ts";
 import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
 import type { ThinkingLevel } from "../src/types/provider.ts";
 
@@ -75,6 +83,129 @@ test("上限至少是 1，无论传进来的是什么", () => {
 		for (const level of LADDER) assert.ok(delegationConcurrency(limit, level) >= 1, `${limit} / ${level}`);
 	}
 	assert.equal(delegationConcurrency(1, "medium"), 1, "向上取整，不能把 1 收成 0");
+});
+
+// ---------------------------------------------------------------------------
+// 用户钉死一档之后，等级说了不算
+// ---------------------------------------------------------------------------
+
+test("钉死一档，八个等级都得听它的", () => {
+	for (const level of LADDER) {
+		assert.equal(delegationTier(level, "sparing"), "sparing", `${level} 不该越过用户钉的档`);
+		assert.equal(delegationTier(level, "eager"), "eager", `${level} 不该把用户钉的档往回收`);
+	}
+	// 这正是「自定义」要解决的那件事：等级拉满只是想让它自己多想一会儿，不是想要一棵子代理树。
+	assert.equal(delegationConcurrency(8, "ultra", "sparing"), 1);
+	assert.match(delegationNote("ultra", { policy: "sparing" }), /省着来/);
+	// 反过来也一样：等级压到最低，钉死的高档照样放开。
+	assert.equal(delegationConcurrency(8, "off", "eager"), 8);
+	assert.match(delegationNote("off", { policy: "eager" }), /放开编排/);
+});
+
+test("`auto` 就是这个字段出现之前的行为，一个字都不能差", () => {
+	for (const level of [...LADDER, "deep-custom" as ThinkingLevel, undefined]) {
+		assert.equal(delegationTier(level, "auto"), delegationTier(level), `${level} 的 auto 应该等同于不传`);
+		assert.equal(delegationConcurrency(6, level, "auto"), delegationConcurrency(6, level));
+		assert.equal(delegationNote(level, { policy: "auto" }), delegationNote(level));
+	}
+});
+
+test("关掉之后并发是 1，不是 0——点名派的那次还得过得去", () => {
+	for (const level of LADDER) {
+		assert.equal(delegationTier(level, "off"), "off");
+		/*
+		 * 0 会把一道排队用的闸门变成一堵谁也过不去的墙，而这一档下**仍然有合法的派发**：用户
+		 * 自己点名的那次。挡住模型自作主张的是工具表和 `task` 的兜底，不是这个数字。
+		 */
+		assert.equal(delegationConcurrency(8, level, "off"), 1, `${level} 关掉时闸门至少要放一个进去`);
+	}
+});
+
+test("关掉时说的话，取决于用户这一轮点没点名", () => {
+	const silent = delegationNote("high", { policy: "off" });
+	assert.match(silent, /不要派活/);
+	assert.match(silent, /`task` 也不在你的工具表里/, "工具确实被摘了，就该说出来——省得它花一轮去找");
+	assert.match(silent, /@智能体名/, "唯一的出路是让用户点名，那就得告诉模型怎么点");
+
+	const named = delegationNote("high", { policy: "off", mentioned: ["explore"] });
+	assert.match(named, /`explore`/);
+	assert.match(named, /只派它/);
+	assert.doesNotMatch(named, /不要派活/, "点了名还劝退，就是自相矛盾");
+
+	// 点了两个就得说两个——只说一个会让模型以为另一个不算数。
+	const two = delegationNote("high", { policy: "off", mentioned: ["explore", "reviewer"] });
+	assert.match(two, /`explore`/);
+	assert.match(two, /`reviewer`/);
+});
+
+test("关掉的那一档不该带上并发的前置条件", () => {
+	// 一次只放一个进去的档位，读到「并发之前要先……」只是一段用不上的字。
+	assert.doesNotMatch(delegationNote("ultra", { policy: "off" }), /并发派活之前/);
+	assert.doesNotMatch(delegationNote("ultra", { policy: "off", mentioned: ["explore"] }), /并发派活之前/);
+});
+
+test("磁盘上的值认不出来就当 auto，绝不当成关掉", () => {
+	for (const value of [undefined, null, "", "yes", "sparing ", 3, {}, ["off"], true]) {
+		assert.equal(normalizeDelegationPolicy(value), "auto", `${JSON.stringify(value)} 应该退回 auto`);
+	}
+	for (const value of DELEGATION_POLICIES) assert.equal(normalizeDelegationPolicy(value), value);
+	/*
+	 * 方向是有讲究的：认不出来退回 `auto`（原来的行为），不退回 `off`。一个打错的配置项让子代理
+	 * 集体消失，是个没人能从症状猜到原因的故障。
+	 */
+});
+
+// ---------------------------------------------------------------------------
+// @ 点名：关掉之后唯一还通的那条路
+// ---------------------------------------------------------------------------
+
+const AGENTS = ["general", "explore", "reviewer", "claude-code-guide"];
+
+test("认得出点名，也认得出一句话里点了好几个", () => {
+	assert.deepEqual(mentionedAgents("@explore 看看这个", AGENTS), ["explore"]);
+	assert.deepEqual(mentionedAgents("让 @explore 和 @reviewer 一起来", AGENTS).sort(), ["explore", "reviewer"]);
+	// 中文用户不打空格是常态，而那确确实实是一次点名。
+	assert.deepEqual(mentionedAgents("用@explore查一下", AGENTS), ["explore"]);
+	// 名字里带连字符的要一路吃到底，不能在第一个 `-` 上断掉。
+	assert.deepEqual(mentionedAgents("问问 @claude-code-guide", AGENTS), ["claude-code-guide"]);
+	// 同一个名字点两次是一次点名，不是两次。
+	assert.deepEqual(mentionedAgents("@explore 然后再 @explore 一次", AGENTS), ["explore"]);
+});
+
+test("邮箱和路径不是点名——这条错了，关掉的开关就会被一封邮件打开", () => {
+	assert.deepEqual(mentionedAgents("我的邮箱是 yuan364299311@general.com", AGENTS), []);
+	assert.deepEqual(mentionedAgents("路径在 ./@explore 底下", AGENTS), []);
+	assert.deepEqual(mentionedAgents("看 src/@reviewer/index.ts", AGENTS), []);
+	assert.deepEqual(mentionedAgents("windows 路径 C:\\tmp\\@explore", AGENTS), []);
+	// 连着的两个 @ 不是点名，是别的东西（`user@@host`、装饰性的分隔）。
+	assert.deepEqual(mentionedAgents("a@@explore", AGENTS), []);
+});
+
+test("名单之外的名字不算点名", () => {
+	assert.deepEqual(mentionedAgents("@nobody 来干活", AGENTS), []);
+	// 前缀相同也不行：`@general` 存在不代表 `@generalist` 就是它。
+	assert.deepEqual(mentionedAgents("@generalist 你好", AGENTS), []);
+	assert.deepEqual(mentionedAgents("随便说点什么", AGENTS), []);
+	assert.deepEqual(mentionedAgents("", AGENTS), []);
+	assert.deepEqual(mentionedAgents("@explore", []), [], "没有名单时谁都认不出来");
+});
+
+test("大小写不一致也认，但认回名单里的那个写法", () => {
+	// 打字打成 `@Explore` 就装作没看见，是拿用户的手滑当规则用。
+	assert.deepEqual(mentionedAgents("@Explore 看看", AGENTS), ["explore"]);
+	assert.deepEqual(mentionedAgents("@REVIEWER", AGENTS), ["reviewer"]);
+});
+
+test("放行只认名字，而且只在关掉的那一档上认", () => {
+	assert.equal(dispatchAllowed({ tier: "off", mentioned: ["explore"] }, "explore"), true);
+	assert.equal(dispatchAllowed({ tier: "off", mentioned: ["explore"] }, "reviewer"), false, "点名之外的一个都不放");
+	assert.equal(dispatchAllowed({ tier: "off", mentioned: [] }, "general"), false);
+	// 其余四档不参与判断——它们靠提示词和闸门，不靠拒绝。
+	for (const tier of ["sparing", "selective", "ready", "eager"] as const) {
+		assert.equal(dispatchAllowed({ tier, mentioned: [] }, "explore"), true, `${tier} 不该在这里拦人`);
+	}
+	// 没登记过决定的宿主（CLI、测试）一律放行：`undefined` 是「这个宿主不管这件事」。
+	assert.equal(dispatchAllowed(undefined, "explore"), true);
 });
 
 test("闸门在对话中途收窄：正在跑的不打断，新的要排队", async () => {

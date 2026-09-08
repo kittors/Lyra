@@ -11,6 +11,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
+import { DelegationSettings } from "./DelegationSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
 import { AboutSettings } from "./AboutSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
@@ -234,6 +235,8 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <SkillsSettings />;
 		case "agents":
 			return <AgentsSettings />;
+		case "delegation":
+			return <DelegationSettings />;
 		case "mcp":
 			return <McpSettings />;
 		case "plugins":

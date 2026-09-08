@@ -29,7 +29,12 @@ import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveSubAgentModel } from "../config/model-roles.ts";
 import { compactWith } from "./compaction.ts";
 import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
-import { delegationConcurrency } from "./delegation.ts";
+import {
+	DELEGATION_KEY,
+	delegationConcurrency,
+	normalizeDelegationPolicy,
+	type DelegationDecision,
+} from "./delegation.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import { writePreview } from "./previews.ts";
@@ -137,7 +142,18 @@ export async function runSubAgent(
 	const here = childDispatch(options.dispatch ?? rootDispatch(), definition.name, id);
 	const maySpawn = definition.spawns === "*" || (Array.isArray(definition.spawns) && definition.spawns.length > 0);
 	const deepEnough = here.depth < DEFAULT_MAX_DEPTH;
-	const withoutTask = maySpawn && deepEnough ? fromSession : fromSession.filter((tool) => tool.name !== "task");
+	/*
+	 * 用户把派活关掉时，这一层也到头了。
+	 *
+	 * 走到这里的子代理是用户自己点名派的——他点的是**它**，不是它到时候想拉来的一串。一个
+	 * `spawns: "*"` 的编排型定义，在关掉的设置下仍然能铺开一整棵树，那这个开关就只挡住了第一层，
+	 * 而第一层恰恰是最便宜的那一层。
+	 *
+	 * 只看 policy 不看等级：`off` 是用户钉死的档，跟这个子代理自己用什么推理等级跑无关。
+	 */
+	const delegationOff = normalizeDelegationPolicy((options.getSettings?.() ?? options.settings).subAgentDelegation) === "off";
+	const withoutTask =
+		maySpawn && deepEnough && !delegationOff ? fromSession : fromSession.filter((tool) => tool.name !== "task");
 
 	/*
 	 * A declared output shape turns the reply into an object.
@@ -159,6 +175,14 @@ export async function runSubAgent(
 		// So the `task` tool one level down knows where it is, and can refuse a cycle by name.
 		[DISPATCH_KEY, here],
 	]);
+	/*
+	 * 状态图是新建的，所以这一条要自己带下去。
+	 *
+	 * 上面已经把 `task` 从工具表里摘了，这是同一件事的第二道——挡的是别的路子把工具放回去的情况
+	 * （`definition.output` 拼 `allowed` 时、插件改工具表时）。`mentioned` 是空的：点名放行的是
+	 * 这个子代理本身，那次已经用掉了，它不继承任何人的通行证。
+	 */
+	if (delegationOff) subState.set(DELEGATION_KEY, { tier: "off", mentioned: [] } satisfies DelegationDecision);
 
 	// The sub-agent gets its own message list and its own state map, so its file reads and
 	// todo list cannot leak into the parent's.
@@ -306,7 +330,16 @@ export async function runSubAgent(
 							 * 等级在决定划不划算，用天花板开一道全宽的闸门，等于在唯一没人看着的地方把这个
 							 * 设置关掉。
 							 */
-							return (options.gate ?? new DispatchGate(delegationConcurrency(options.settings.maxConcurrentSubAgents, chosen.thinking))).nested(() =>
+							return (
+								options.gate ??
+								new DispatchGate(
+									delegationConcurrency(
+										options.settings.maxConcurrentSubAgents,
+										chosen.thinking,
+										normalizeDelegationPolicy(options.settings.subAgentDelegation),
+									),
+								)
+							).nested(() =>
 								runSubAgent({ ...options, dispatch: here }, nested, runProvider, runModel, subAgentPrompt),
 							);
 						}

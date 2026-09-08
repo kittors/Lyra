@@ -14,7 +14,7 @@ import { lyraHome } from "../session/store.ts";
 import type { RuleSet } from "../rules/types.ts";
 import { formatRules } from "../rules/session.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
-import { delegationNote } from "../runtime/delegation.ts";
+import { delegationNote, type DelegationDecision } from "../runtime/delegation.ts";
 import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -81,6 +81,13 @@ export interface SystemPromptInput {
 	 * 成本收益，恰恰随这一轮值多少钱而变。见 `runtime/delegation.ts`。
 	 */
 	thinking?: ThinkingLevel;
+	/**
+	 * 这一轮派活的档位，以及关掉时用户点名要派的那几个。
+	 *
+	 * 跟 `thinking` 并排而不是合成一个：等级是推断的来源，这个是最终的答案。用户钉死一档之后
+	 * 等级就不再参与，而提示词要说的始终是最终那个答案。见 `runtime/delegation.ts`。
+	 */
+	delegation?: DelegationDecision;
 	/**
 	 * A replacement for the identity paragraph, from `.lyra/prompts/identity.md`.
 	 *
@@ -203,9 +210,18 @@ Environment:
 
 	prompt += formatSkills(input.skills);
 	if (input.rules) prompt += formatRules(input.rules);
-	// Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
-	if (input.tools.some((tool) => tool.name === "task"))
-		prompt += formatSubagents(input.agents ?? [], input.dispatchLimits, input.thinking);
+	/*
+	 * Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
+	 *
+	 * 除了一种情况：用户把派活关掉了。那一轮 `task` 也不在工具表里，但沉默是最坏的处理——模型
+	 * 会拿一个它记得存在的工具去调，撞一次错才发现；而这一档唯一的出路是「让用户 `@` 点名」，
+	 * 说这句话就得同时给出有哪些名字可点。所以名单照给，只是开头那句换成实话。
+	 *
+	 * 子代理不受影响：它那边不传 `delegation`（见 `sub-agent.ts`），条件退回原来那半句。它手里
+	 * 没有 `task` 是因为深度或者定义不许，而它也没有一个可以去点名的用户。
+	 */
+	if (input.tools.some((tool) => tool.name === "task") || input.delegation?.tier === "off")
+		prompt += formatSubagents(input.agents ?? [], input.dispatchLimits, input.thinking, input.delegation);
 
 	if (input.projectInstructions.length > 0) {
 		prompt += "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n";
@@ -266,13 +282,27 @@ function formatSubagents(
 	agents: AgentDefinition[],
 	limits?: { maxConcurrent: number; maxDepth: number },
 	thinking?: ThinkingLevel,
+	delegation?: DelegationDecision,
 ): string {
 	if (agents.length === 0) return "";
 
+	/*
+	 * 关掉且没人点名的那一轮，`task` 不在工具表里——名单却仍然要给。
+	 *
+	 * 因为这一档下唯一的出路是让用户点名，而 `delegationNote` 正是这么告诉模型的：「让他写
+	 * `@智能体名`」。没有名单，那句话就成了一句没法照做的建议——模型既说不出有哪些名字可点，
+	 * 也没法判断用户写下的那个名字存不存在。
+	 *
+	 * 开头那句得换掉。「available to the `task` tool」在工具已经被收走的这一轮里是句假话，而
+	 * 提示词里的假话模型会当真，然后花一次调用去找一个不存在的工具。
+	 */
+	const dormant = delegation?.tier === "off" && delegation.mentioned.length === 0;
 	const lines = [
 		"",
 		"",
-		"These sub-agents are available to the `task` tool. Pass the one whose description fits as `subagent_type`. When the user explicitly requests @name from this list, dispatch that named agent for the requested task.",
+		dormant
+			? "These sub-agents exist in this workspace, but the user has switched delegation off, so the `task` tool is not in your list this turn. They are listed only so you can tell the user which names exist — dispatch happens when they name one with @name themselves."
+			: "These sub-agents are available to the `task` tool. Pass the one whose description fits as `subagent_type`. When the user explicitly requests @name from this list, dispatch that named agent for the requested task.",
 		"",
 		"<available_subagents>",
 	];
@@ -297,9 +327,16 @@ function formatSubagents(
 	 *
 	 * 跟着推理等级变，理由见 `runtime/delegation.ts`。
 	 */
-	lines.push("", delegationNote(thinking));
+	lines.push("", delegationNote(thinking, { policy: delegation?.tier, mentioned: delegation?.mentioned }));
 
-	if (limits) {
+	/*
+	 * 一个都派不了的那一轮，不谈上限。
+	 *
+	 * 「最多 1 个同时跑」在这里不是一句收紧的话，而是一句放行的话——它默认了「有得派」，而这一轮
+	 * 的事实是一个都派不了。上面那段刚说完这条路不通，紧接着报一个并发数，等于把刚说清楚的事又
+	 * 打开一条缝。
+	 */
+	if (limits && !dormant) {
 		/*
 		 * The limit has to be stated, because a queue is invisible from inside the model.
 		 *

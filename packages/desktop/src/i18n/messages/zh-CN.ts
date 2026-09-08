@@ -43,6 +43,7 @@ export const zhCN = {
 	"settings.browser": "浏览器",
 	"settings.extensions": "插件",
 	"settings.agents": "智能体",
+	"settings.delegation": "子智能体调度",
 	"settings.commands": "命令",
 	"settings.hooks": "钩子",
 	"settings.search": "网页搜索",

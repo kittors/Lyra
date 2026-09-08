@@ -1,5 +1,6 @@
 import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./retry-policy.ts";
 import { withCatalogDefaults } from "../model-catalog.ts";
+import { normalizeDelegationPolicy, type DelegationPolicy } from "../runtime/delegation.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -392,6 +393,17 @@ export interface Settings {
 	 */
 	maxConcurrentSubAgents: number;
 	/**
+	 * 派活的积极程度：跟着推理等级走，还是钉死一档。
+	 *
+	 * 默认 `auto`，也就是这个字段出现之前唯一的行为——等级越高越爱派。存在的理由是那个推断只是
+	 * 一个很好的猜测：把等级开满的人可能只是想让模型自己多想一会儿，并不想要一棵子代理树，而在
+	 * 此之前他没有任何地方可以说出这件事。
+	 *
+	 * `off` 挡的是模型自作主张，不是这个功能本身——用户在消息里 `@` 点名的那次照派。见
+	 * `runtime/delegation.ts` 里的 `mentionedAgents`。
+	 */
+	subAgentDelegation?: DelegationPolicy;
+	/**
 	 * Which model answers to `@compact`, `@fast`, `@deep` and `@review`.
 	 *
 	 * Lets a sub-agent definition name what it needs rather than a specific model — the definition
@@ -568,6 +580,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	rerouteShellCommands: true,
 	autoSummarizeTitle: true,
 	maxConcurrentSubAgents: 4,
+	subAgentDelegation: "auto",
 	modelRoles: {},
 	/*
 	 * `memoryExtraction` is deliberately absent rather than `undefined`.
@@ -723,6 +736,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
 					: 4,
+			subAgentDelegation: normalizeDelegationPolicy(parsed.subAgentDelegation),
 			/*
 			 * Spread rather than assigned, so "never asked" is an absent key rather than a present
 			 * one holding `undefined`.

@@ -61,6 +61,10 @@ module.exports = {
 				"加进这份名单前要真的确认：`config/models` 是把 `resolveModel`/`availableModels` 从 " +
 				"`settings.ts`（顶上就是 node:fs、node:os）里抽出来才安全的，`config/model-roles` 只依赖它，" +
 				"`config/retry-policy` 一个 import 都没有——两个接口、两个常量和三个纯函数。" +
+				"`runtime/delegation` 同样只有一个 `import type`，进名单是因为设置页要算「这一轮实际几个」，" +
+				"而那个数字必须跟闸门真正拦人的那个来自同一份代码——界面自己算一遍，迟早会跟运行时说的不一样。" +
+				"它住在 `runtime/` 而名单上其余的都在 `config/`，所以往里加依赖之前先想一下：" +
+				"这个文件是靠「除了类型什么都不 import」才留在这儿的。" +
 				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
@@ -68,7 +72,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/retry-policy|commands/builtin|plugins/install-record|ai/thinking-options|rules/condition)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/retry-policy|commands/builtin|plugins/install-record|ai/thinking-options|rules/condition|runtime/delegation)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

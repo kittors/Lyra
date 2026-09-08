@@ -16,7 +16,7 @@ import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
 import { ruleHooks } from "../rules/session.ts";
 import { DispatchGate, rootDispatch } from "./dispatch-guard.ts";
-import { delegationConcurrency } from "./delegation.ts";
+import { delegationConcurrency, normalizeDelegationPolicy } from "./delegation.ts";
 import type { StreamRuleMonitor } from "../rules/stream.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
@@ -223,9 +223,12 @@ const GATE_KEY = "dispatchGate";
  * 只影响下一轮的提示词、不影响真正拦人的那道闸门的话，这个设置就只剩半个。见 `delegation.ts`。
  */
 function dispatchGate(deps: TurnConfigDeps, thinking?: ThinkingLevel): DispatchGate {
+	// 现读，不用组装这一轮时的副本：宽度和档位都能在对话中途改，而这两个正是要跟上的东西。
+	const live = deps.getSettings?.() ?? deps.settings;
 	const width = delegationConcurrency(
-		(deps.getSettings?.() ?? deps.settings).maxConcurrentSubAgents,
+		live.maxConcurrentSubAgents,
 		thinking ?? deps.settings.thinking,
+		normalizeDelegationPolicy(live.subAgentDelegation),
 	);
 	const existing = deps.state.get(GATE_KEY);
 	if (existing instanceof DispatchGate) {

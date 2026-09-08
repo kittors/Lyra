@@ -16,6 +16,7 @@
 		"./schedule": "./src/config/schedule.ts",
 		"./model-roles": "./src/config/model-roles.ts",
 		"./retry-policy": "./src/config/retry-policy.ts",
+		"./delegation": "./src/runtime/delegation.ts",
 		"./agents-builtin": "./src/agents-builtin.ts",
 		"./model-catalog": "./src/model-catalog.ts",
 		"./commands-builtin": "./src/commands/builtin.ts",

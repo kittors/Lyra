@@ -89,7 +89,8 @@ test("the hidden list is about capability, not taste", () => {
 	]) {
 		assert.ok(HIDDEN_ON_MOBILE.has(id as SettingsSection), `${id} 应在隐藏列表里`);
 	}
-	for (const id of ["general", "appearance", "agents", "personalization", "archived", "about"]) {
+	// `delegation` 跟 `agents` 一起：两页都只是偏好，跟这台机器的硬件和磁盘没有关系。
+	for (const id of ["general", "appearance", "agents", "delegation", "personalization", "archived", "about"]) {
 		assert.ok(!HIDDEN_ON_MOBILE.has(id as SettingsSection), `${id} 不该被隐藏`);
 	}
 });
