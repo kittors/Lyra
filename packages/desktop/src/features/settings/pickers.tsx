@@ -12,6 +12,7 @@
  * `aria-valuenow`, none of which is worth reimplementing badly.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type JSX } from "react";
@@ -208,10 +209,10 @@ export function NumberField({
 				className="w-full min-w-0 bg-transparent px-2 text-center font-mono text-label text-ink"
 			/>
 			<div className="flex shrink-0 flex-col pr-[3px]">
-				<Stepper label={`${label}：增加`} disabled={value >= max} onClick={() => onChange(clamp(value + step))}>
+				<Stepper label={translate("picker.increase", { label })} disabled={value >= max} onClick={() => onChange(clamp(value + step))}>
 					<Plus size={10} strokeWidth={2.4} />
 				</Stepper>
-				<Stepper label={`${label}：减少`} disabled={value <= min} onClick={() => onChange(clamp(value - step))}>
+				<Stepper label={translate("picker.decrease", { label })} disabled={value <= min} onClick={() => onChange(clamp(value - step))}>
 					<Minus size={10} strokeWidth={2.4} />
 				</Stepper>
 			</div>
@@ -284,14 +285,14 @@ export function TimeField({
 				value={hour}
 				options={HOURS}
 				onChange={(next) => onChange(`${next}:${last.current.minute}`)}
-				ariaLabel={`${label}：小时`}
+				ariaLabel={translate("picker.hours", { label })}
 			/>
 			<span className="text-label text-ink-faint">:</span>
 			<InlineSelect
 				value={minute}
 				options={MINUTES}
 				onChange={(next) => onChange(`${last.current.hour}:${next}`)}
-				ariaLabel={`${label}：分钟`}
+				ariaLabel={translate("picker.minutes", { label })}
 			/>
 		</div>
 	);

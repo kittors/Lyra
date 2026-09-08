@@ -1,3 +1,4 @@
+import { translate } from "../i18n/translate.ts";
 import type { CommandRun } from "@lyra/core";
 /**
  * Reading state back out of a transcript.
@@ -240,7 +241,7 @@ export function rebuildToolRuns(messages: Message[]): Record<string, ToolRun> {
     for (const run of Object.values(runs)) {
       if (run.status !== "running") continue;
       run.status = "error";
-      run.result = { content: [{ type: "text", text: "这次调用没有结果：应用在它结束之前退出了。" }], isError: true };
+      run.result = { content: [{ type: "text", text: translate("derive.noResult") }], isError: true };
       run.finishedAt = run.startedAt;
     }
   }

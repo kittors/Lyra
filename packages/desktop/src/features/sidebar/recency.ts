@@ -11,6 +11,8 @@
  * night lands in it at breakfast and out of it by lunch without anyone touching it.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 
 export interface RecencyBand {
@@ -26,14 +28,15 @@ export interface RecencyBand {
  * `within` is inclusive, and the list is walked in order, so the first band a conversation fits is
  * the one it lands in. Anything past the last cut falls through to 「更早」.
  */
-const BANDS: { key: string; label: string; within: number }[] = [
-	{ key: "today", label: "今天", within: 0 },
-	{ key: "yesterday", label: "昨天", within: 1 },
-	{ key: "week", label: "过去 7 天", within: 7 },
-	{ key: "month", label: "过去 30 天", within: 30 },
+/** Labels are keys — the table is built at import time; `bandByRecency` looks them up. */
+const BANDS: { key: string; label: MessageKey; within: number }[] = [
+	{ key: "today", label: "recency.today", within: 0 },
+	{ key: "yesterday", label: "recency.yesterday", within: 1 },
+	{ key: "week", label: "recency.week", within: 7 },
+	{ key: "month", label: "recency.month", within: 30 },
 ];
 
-const OLDER = { key: "older", label: "更早" };
+const OLDER = { key: "older", label: "recency.older" } as const;
 
 const DAY_MS = 86_400_000;
 
@@ -79,5 +82,5 @@ export function bandByRecency(
 
 	return [...BANDS, OLDER]
 		.filter((band) => bands.has(band.key))
-		.map((band) => ({ key: band.key, label: band.label, sessions: bands.get(band.key) ?? [] }));
+		.map((band) => ({ key: band.key, label: translate(band.label), sessions: bands.get(band.key) ?? [] }));
 }

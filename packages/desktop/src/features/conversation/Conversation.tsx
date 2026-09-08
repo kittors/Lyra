@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
@@ -281,14 +282,14 @@ export const Conversation = memo(function Conversation() {
            * end is what anyone is reading; the rest is one click away and stays unmounted until
            * then.
            */}
-          {loadingSession && <div role="status" className="text-label text-ink-faint">正在加载对话…</div>}
+          {loadingSession && <div role="status" className="text-label text-ink-faint">{translate("conversation.loading")}</div>}
           {hidden > 0 && (
             <button
               type="button"
               onClick={range.earlier}
               className="mb-4 flex h-7 w-full items-center justify-center rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
             >
-              显示更早的 {Math.min(hidden, WINDOW_STEP)} 条（共 {hidden} 条）
+              {translate("conversation.showEarlier", { n: Math.min(hidden, WINDOW_STEP), total: hidden })}
             </button>
           )}
 

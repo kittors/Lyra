@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useLayoutEffect, useRef, useState } from "react";
 import { questionWindow, type questionsIn } from "./question-navigation.ts";
 import { markdownExcerpt } from "../../lib/markdown/excerpt.ts";
@@ -111,7 +112,7 @@ export function QuestionNav({ questions, viewport, edge, onSelect }: {
 	 */
 	return (
 		<nav ref={nav} className={`ly-question-nav absolute inset-y-3 z-20 flex w-7 items-center ${edge ? "left-0" : "left-3"}`} aria-label="用户问题导航">
-			<div ref={rail} role="toolbar" tabIndex={-1} aria-label="选择问题" className="ly-question-rail relative w-full"
+			<div ref={rail} role="toolbar" tabIndex={-1} aria-label={translate("questionNav.pick")} className="ly-question-rail relative w-full"
 			onMouseLeave={() => { engaged.current = false; setHovered(null); setClickedWidths(null); setCenter(position); }}
 			onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) { engaged.current = false; setHovered(null); setClickedWidths(null); setCenter(position); } }}
 				onKeyDown={(event) => {
@@ -123,7 +124,7 @@ export function QuestionNav({ questions, viewport, edge, onSelect }: {
 					const at = window.start + slot;
 					const distance = hovered === null ? 5 : Math.abs(at - hovered);
 					return <button key={question.index} type="button" data-position={at} className="ly-question-mark rounded-sm flex h-3 w-7 items-center pl-1.5"
-						aria-label={`跳转到第 ${at + 1} 个问题：${question.text}`} aria-current={active === question.index ? "location" : undefined}
+						aria-label={translate("questionNav.goTo", { n: at + 1, text: question.text })} aria-current={active === question.index ? "location" : undefined}
 						onMouseEnter={() => show(at)} onFocus={() => { if (focusTarget.current !== at) show(at); }} onClick={() => select(at)}>
 						<span style={{ width: clickedWidths?.get(at) ?? (distance < 4 ? 24 - distance * 5 : hovered === null && active === question.index ? 12 : 6), transition: dismissed ? "none" : undefined }} className={`block h-[2px] rounded-full transition-[width,background-color,opacity] duration-[var(--ly-t-quick)] ${distance === 0 ? "bg-ink" : active === question.index ? "bg-ink-muted" : "bg-ink-faint/40"}`} />
 					</button>;

@@ -5,6 +5,7 @@
  * and the same clock, and two spellings of 「已结束」 would be two answers to one question.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { SubAgentStatus } from "@lyra/core";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { formatCost } from "../settings/index.ts";
@@ -38,10 +39,10 @@ export function ranFor(one: { startedAt: number; endedAt?: number }): string {
 
 /** One word for a terminal state — running has a clock instead, which says more. */
 export function statusWord(status: SubAgentStatus): string {
-	if (status === "done") return "已完成";
-	if (status === "failed") return "失败";
-	if (status === "aborted") return "已停止";
-	return "运行中";
+	if (status === "done") return translate("subAgentStatus.done");
+	if (status === "failed") return translate("subAgentStatus.failed");
+	if (status === "aborted") return translate("subAgentStatus.aborted");
+	return translate("subAgentStatus.running");
 }
 
 /** The dot's colour, matched to the app's own semantics for the same three outcomes. */

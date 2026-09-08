@@ -19,7 +19,15 @@ export function skillCommandName(skill: SkillEntry): string {
 export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): CommandEntry[] {
 	const entries: CommandEntry[] = [
 		...builtinCommandsFor(["compact", "clear", "manage-commands"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
-		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: command.origin === "claude" ? command.scope === "workspace" ? "Claude · 项目" : "Claude · 个人" : command.scope === "workspace" ? "项目" : "个人" })),
+		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: translate(
+				command.origin === "claude"
+					? command.scope === "workspace"
+						? "command.claudeProject"
+						: "command.claudePersonal"
+					: command.scope === "workspace"
+						? "common.project"
+						: "common.personal",
+			) })),
 		...skills.map((skill): CommandEntry => ({ name: skillCommandName(skill), description: skill.description, kind: "skill",
 			origin: skill.pluginId ?? translate(skill.source === "workspace" ? "common.project" : "common.personal"),
 			argumentHint: translate("command.optionalTask") })),

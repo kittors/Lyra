@@ -9,6 +9,7 @@
  * decided in `markdown-blocks.ts` and `markdown-inline.ts`, where they can be tested.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { FileText, ExternalLink } from "lucide-react";
 import { createContext, Fragment, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
@@ -311,7 +312,7 @@ function Image({ src, alt, width, height }: { src: string; alt: string; width?: 
 	const onDisk = direct || remote ? null : resolveAsset(baseDir, src);
 	const resolved = direct ?? fetched ?? (onDisk ? bridge.files.mediaUrl(onDisk) : null);
 
-	if (preview) return <span>{alt || "图片"}</span>;
+	if (preview) return <span>{alt || translate("markdown.image")}</span>;
 
 	if (resolved) {
 		return (
@@ -334,7 +335,7 @@ function Image({ src, alt, width, height }: { src: string; alt: string; width?: 
 	// In flight: a gap, not a link that is about to be replaced by the picture underneath it.
 	if (remote && fetched === undefined) return null;
 
-	const name = alt || decodeURIComponent(src.split("/").pop()?.split("?")[0] || "图片");
+	const name = alt || decodeURIComponent(src.split("/").pop()?.split("?")[0] || translate("markdown.image"));
 	return (
 		<Link href={src}>
 			<span className="ly-md-image-link">

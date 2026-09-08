@@ -16,6 +16,7 @@
  * middle of a turn.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
@@ -23,7 +24,6 @@ import { TextInput } from "./inputs.tsx";
 import { Card, SectionTitle } from "./layout.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { EmptyHint, GhostButton } from "./controls.tsx";
-import { useI18n } from "../../i18n/index.ts";
 
 export function AccessSettings() {
 	const { t } = useI18n();
@@ -47,7 +47,7 @@ export function AccessSettings() {
 		<div className="pt-8">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("access.title")}</h1>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
-				你点过「始终允许」的，和你允许 agent 访问的内网地址。都可以随时收回。
+				{t("access.intro")}
 			</p>
 
 			<ProjectOverrideNotice keys={["alwaysAllow", "permissionMode"]} />
@@ -85,8 +85,8 @@ export function AccessSettings() {
 
 			<SectionTitle>{t("access.intranet")}</SectionTitle>
 			<p className="mb-2 max-w-[600px] text-detail leading-relaxed text-ink-faint">
-				私有网段和云元数据地址默认一律拒绝，不会来问你 —— 那种地址光看 URL 判断不了好坏。
-				如果你确实有自建服务要让 agent 访问，在这里按主机名加进来。
+				{t("access.privateDenied")}
+				{t("access.addYourOwn")}
 			</p>
 			<Card className="mb-6">
 				<div className="flex items-center gap-2 px-4 py-3">
@@ -103,7 +103,7 @@ export function AccessSettings() {
 					/>
 					<GhostButton onClick={addHost} disabled={!host.trim()}>
 						<Plus size={13} strokeWidth={2} />
-						添加
+						{t("mcp.add")}
 					</GhostButton>
 				</div>
 
@@ -136,7 +136,7 @@ export function AccessSettings() {
 			 * general override, and somebody would use it as one.
 			 */}
 			<p className="max-w-[600px] pb-8 text-detail leading-relaxed text-ink-faint">
-				按主机名匹配。一个公网域名如果解析到私有地址，仍然会被拒绝 —— 那是攻击的形状，不是配置的形状。
+				{t("access.hostOnly")}
 			</p>
 		</div>
 	);

@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { Brain } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -69,7 +70,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 			<button
 				type="button"
 				disabled={redacted}
-				aria-label="思考过程"
+				aria-label={translate("thinking.process")}
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
 				/*
@@ -82,7 +83,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 				className="ly-scroll flex max-w-full items-center gap-1.5 rounded-md py-0.5 text-label text-ink-faint transition-colors hover:text-ink-muted"
 			>
 				<Brain size={13} strokeWidth={1.8} className={`shrink-0 ${live ? "ly-pulse" : ""}`} />
-				{redacted ? "思考内容已被安全过滤" : <Ticker text={text} live={live === true} />}
+				{redacted ? translate("thinking.redacted") : <Ticker text={text} live={live === true} />}
 			</button>
 
 			{open && !redacted && (

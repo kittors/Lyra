@@ -465,7 +465,7 @@ export function GitPanel() {
   if (!workspace) {
     return (
       <PanelEmpty icon={GitBranch} title="Git">
-        打开项目后查看
+        {t("gitPanel.needProject")}
       </PanelEmpty>
     );
   }
@@ -518,7 +518,7 @@ export function GitPanel() {
           className="mt-3 flex h-[28px] items-center gap-1.5 rounded-md bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           <Sparkles size={13} strokeWidth={2} />
-          诊断并修复
+          {t("gitPanel.diagnose")}
         </button>
       </PanelEmpty>
     );
@@ -541,7 +541,7 @@ export function GitPanel() {
             className="flex h-[28px] items-center gap-1.5 rounded-md bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             <GitBranch size={13} strokeWidth={1.8} />
-            初始化仓库
+            {t("gitPanel.initRepo")}
           </button>
           <button
             type="button"
@@ -557,7 +557,7 @@ export function GitPanel() {
             className="flex h-[28px] items-center gap-1.5 rounded-md border border-line bg-card px-3 text-detail font-medium text-ink transition-colors hover:bg-card-hover disabled:opacity-40"
           >
             <Sparkles size={13} strokeWidth={2} className="text-accent" />
-            让 Agent 处理
+            {t("gitPanel.letAgent")}
           </button>
         </div>
       </PanelEmpty>

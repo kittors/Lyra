@@ -18,6 +18,7 @@
  * transcript is worse than no button.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ArrowDown } from "lucide-react";
 
 export function BackToLatest({ show, unread, onClick }: { show: boolean; unread: number; onClick: () => void }) {
@@ -64,7 +65,7 @@ export function BackToLatest({ show, unread, onClick }: { show: boolean; unread:
 				 */}
 				{unread > 0 && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-accent" />}
 				<ArrowDown size={13} strokeWidth={2} />
-				{unread > 0 ? "有新内容" : "回到最新"}
+				{translate(unread > 0 ? "backToLatest.unread" : "backToLatest.latest")}
 			</button>
 		</div>
 	);

@@ -1,12 +1,15 @@
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import type { SessionActivity } from "@lyra/core/activity";
 
 import { BreatheLoader } from "../../ui/motion/loaders.tsx";
 
-const LABEL: Record<SessionActivity, string> = {
-	running: "正在执行",
-	waiting: "等待你的批准",
-	done: "已完成 · 未查看",
-	failed: "执行失败 · 未查看",
+/** Keys, looked up when the row is drawn — this table is built at import time. */
+const LABEL: Record<SessionActivity, MessageKey> = {
+	running: "sessionStatus.running",
+	waiting: "sessionStatus.waiting",
+	done: "sessionStatus.done",
+	failed: "sessionStatus.failed",
 };
 
 /**
@@ -26,9 +29,9 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 	return (
 		<span
 			className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-visible"
-			data-ly-tip={activity ? LABEL[activity] : undefined}
+			data-ly-tip={activity ? translate(LABEL[activity]) : undefined}
 			data-ly-tip-side="right"
-			aria-label={activity ? LABEL[activity] : undefined}
+			aria-label={activity ? translate(LABEL[activity]) : undefined}
 			role={activity ? "img" : undefined}
 		>
 			{activity === "running" ? (

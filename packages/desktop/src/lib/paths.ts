@@ -11,6 +11,8 @@
  * path never ends up with one of each.
  */
 
+import { translate } from "../i18n/translate.ts";
+
 const TRAILING = /[/\\]+$/;
 
 /** The index of the last separator, whichever kind it is; -1 when there is none. */
@@ -93,9 +95,9 @@ export function splitExtension(name: string): [stem: string, extension: string] 
  * Copying the rest down would be two lists of rules with one chance each to be updated.
  */
 export function nameProblem(name: string): string | null {
-	if (name.trim() === "") return "名字不能为空";
-	if (name === "." || name === "..") return "不能用 . 或 .. 作为名字";
-	if (name.includes("/") || name.includes("\\")) return "名字里不能有 / 或 \\";
-	if (name !== name.trim()) return "名字前后不能有空格";
+	if (name.trim() === "") return translate("path.emptyName");
+	if (name === "." || name === "..") return translate("path.dotName");
+	if (name.includes("/") || name.includes("\\")) return translate("path.slashInName");
+	if (name !== name.trim()) return translate("path.spaceAround");
 	return null;
 }

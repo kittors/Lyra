@@ -14,6 +14,7 @@
  * dispatching anything, so a controlled field would repaint the old text on the next render.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ClipboardPaste, Copy, Scissors, TextSelect } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -112,10 +113,10 @@ export function InputMenu() {
 				disabled={!has || !aimed.editable}
 				onClick={() => void copy(true)}
 			>
-				剪切
+				{translate("common.cut")}
 			</MenuItem>
 			<MenuItem icon={<Copy {...ICON} />} hint="⌘C" disabled={!has} onClick={() => void copy(false)}>
-				复制
+				{translate("common.copy")}
 			</MenuItem>
 			<MenuItem
 				icon={<ClipboardPaste {...ICON} />}
@@ -123,11 +124,11 @@ export function InputMenu() {
 				disabled={!aimed.editable}
 				onClick={() => void paste()}
 			>
-				粘贴
+				{translate("common.paste")}
 			</MenuItem>
 			<MenuSeparator />
 			<MenuItem icon={<TextSelect {...ICON} />} hint="⌘A" onClick={selectAll}>
-				全选
+				{translate("common.selectAll")}
 			</MenuItem>
 		</ContextMenu>
 	);

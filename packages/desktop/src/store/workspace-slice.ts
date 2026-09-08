@@ -6,6 +6,7 @@
  * few pieces of state, and they are together because forgetting one of them is the bug.
  */
 
+import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
@@ -239,7 +240,7 @@ export function workspaceSlice(set: Set, get: Get) {
         sessions: get().sessions.map((s) => (s.id === session.id ? { ...s, title: previous } : s)),
         ...(get().activeSessionId === session.id && get().meta ? { meta: { ...get().meta!, title: previous } } : {}),
       });
-      get().notify("改名没能存下来，已经改回原来的名字。", "error");
+      get().notify(translate("workspace.renameFailed"), "error");
     }
   },
 
@@ -247,7 +248,7 @@ export function workspaceSlice(set: Set, get: Get) {
     const targetProject = get().settings?.projects.find((p) => p.path === targetPath);
     const segments = targetPath.split(/[/\\]/);
     const lastSegment = segments.length > 0 ? segments[segments.length - 1] : "";
-    const projectName = targetProject?.name ?? (lastSegment || "项目");
+    const projectName = targetProject?.name ?? (lastSegment || translate("common.project"));
     // In our sessions metadata, cwd and projectName determine where it is filed.
     // If targetPath is empty, it moves to loose/scratch.
     const isLoose = !targetPath;
@@ -277,7 +278,7 @@ export function workspaceSlice(set: Set, get: Get) {
           }
         : {}),
     });
-    get().notify(`已将对话移动至「${nextProjectName}」`);
+    get().notify(translate("workspace.movedTo", { name: nextProjectName }));
   },
 
   async removeProject(path: string) {
@@ -322,7 +323,7 @@ export function workspaceSlice(set: Set, get: Get) {
       );
     }
     set({ sessions: latest });
-    get().notify(`已归档 ${targets.length} 个聊天`);
+    get().notify(translate("workspace.archived", { n: targets.length }));
   },
   };
 }

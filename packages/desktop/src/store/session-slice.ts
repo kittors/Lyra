@@ -1,3 +1,4 @@
+import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 /**
  * Choosing, opening and removing conversations.
@@ -133,11 +134,11 @@ export function sessionSlice(set: Set, get: Get) {
 				if (target && !get().sessions.some((session) => session.id === id)) set({ sessions: [...get().sessions, target] });
 			} catch (cause) {
 				if (get().selectionEpoch !== epoch) return false;
-				get().notify(`无法打开会话：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+				get().notify(translate("sessionSlice.openFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return false;
 			}
 		}
-		if (!target) { get().notify("会话已不存在", "warn"); return false; }
+		if (!target) { get().notify(translate("sessionSlice.gone"), "warn"); return false; }
 		await get().openSession(target);
 		return true;
 	},
@@ -309,7 +310,7 @@ export function sessionSlice(set: Set, get: Get) {
 			await bridge.sessions.remove(meta.projectId, meta.id);
 			applySessionChange({ id: meta.id, projectId: meta.projectId, meta: null }, set, get);
 		} catch (cause) {
-			get().notify(`删除失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			get().notify(translate("sessionSlice.deleteFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
   },
 
@@ -319,7 +320,7 @@ export function sessionSlice(set: Set, get: Get) {
 			const saved = sessions.find((session) => session.id === meta.id);
 			applySessionChange({ id: meta.id, projectId: meta.projectId, meta: saved ?? null }, set, get);
 		} catch (cause) {
-			get().notify(`归档操作失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			get().notify(translate("sessionSlice.archiveFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
   },
 

@@ -121,7 +121,8 @@ export async function buildOutgoing(
 				const restText = invocation.rest.trim();
 				displayText = restText;
 				outgoing = [
-					`使用 \`${skill.name}\` 技能${skill.pluginId ? `（来自插件 ${skill.pluginId}）` : ""}。`,
+					// Written for the model, so it stays in English whatever the window is set to — see `Composer`.
+			`Use the \`${skill.name}\` skill${skill.pluginId ? ` (from the ${skill.pluginId} plugin)` : ""}.`,
 					restText,
 				]
 					.filter(Boolean)
@@ -138,12 +139,12 @@ export async function buildOutgoing(
 		if (displayText === undefined) {
 			displayText = outgoing;
 		}
-		outgoing = `${outgoing}\n\n[上下文引用提示]\n${sessionPrompts.join("\n")}`;
+		outgoing = `${outgoing}\n\n[Referenced context]\n${sessionPrompts.join("\n")}`;
 	}
 	if (draft.attachments.length > 0) {
 		const textFiles = draft.attachments.filter((a) => a.isText && a.text);
 		if (textFiles.length > 0) {
-			const attachedTexts = textFiles.map((f) => `### 附件文件: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
+			const attachedTexts = textFiles.map((f) => `### Attached file: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
 			outgoing = outgoing ? `${outgoing}\n\n${attachedTexts.join("\n\n")}` : attachedTexts.join("\n\n");
 		}
 	}

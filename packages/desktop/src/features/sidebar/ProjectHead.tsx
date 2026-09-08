@@ -14,6 +14,7 @@
  * to press this".
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ChevronRight, Folder, MoreHorizontal, SquarePen } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectMenu } from "../modals/index.ts";
@@ -125,8 +126,8 @@ export function ProjectHead({
 			<span data-ly-hover-reveal className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-0.5 rounded-r-lg pr-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/project:opacity-100 group-has-[:focus-visible]/project:opacity-100">
 				<button
 					type="button"
-					data-ly-tip="在这个项目里新建会话"
-					aria-label={`在「${group.name}」里新建会话`}
+					data-ly-tip={translate("projectHead.newSession")}
+					aria-label={translate("projectHead.newSessionIn", { name: group.name })}
 					onClick={() => void startProjectSession(group.path, collapsed ? onToggleCollapsed : undefined)}
 					className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 				>
@@ -134,8 +135,8 @@ export function ProjectHead({
 				</button>
 				<button
 					type="button"
-					data-ly-tip="项目操作"
-					aria-label={`「${group.name}」的项目操作`}
+					data-ly-tip={translate("projectHead.actions")}
+					aria-label={translate("projectHead.actionsFor", { name: group.name })}
 					aria-haspopup="menu"
 					onClick={menu.toggle}
 					className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"

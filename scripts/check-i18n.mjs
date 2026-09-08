@@ -50,6 +50,10 @@ const HAN = /[一-鿿]/;
  * to the window's language would mean an English window could no longer publish Chinese notes,
  * which is the whole point of that control.
  *
+ * `commit-language` is a list of languages, each written in itself — 「简体中文」, 「日本語」,
+ * 「Русский」. That is how a language picker is supposed to read, and translating an entry would
+ * make it name a language in a language its speaker may not read.
+ *
  * Nothing else belongs here. Other text going *to* a model would qualify on the same reasoning —
  * the language a prompt is written in is a property of the prompt — but the renderer has none of
  * it; what looked like it (`lib/thinking-words`) is the phrase beside the timer, which is exactly
@@ -60,6 +64,7 @@ const EXEMPT = [
 	"i18n/translate.ts",
 	"features/settings/format-catalog.ts",
 	"features/git/release-notes.ts",
+	"features/git/commit-language.ts",
 ];
 
 /** Strip comments, so the reasoning this codebase writes in Chinese is not a finding. */

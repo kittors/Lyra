@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -138,7 +139,7 @@ export function ResumeRow() {
 				}}
 				className="rounded px-1 text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
 			>
-				继续
+				{translate("resume.continueLabel")}
 			</button>
 			{/*
 			 * Not a second kind of "carry on": this one throws the reply away and asks again.
@@ -168,10 +169,10 @@ export function ResumeRow() {
 							title: t("resume.regenerateConfirm"),
 							detail: (
 								<>
-									这会丢掉本轮已经做过的工作——读过的文件、跑过的命令、写到一半的回答——
-									并从你最后一条消息重新开始，重新消耗一次 token。
+									{translate("resume.retryDetail1")}
+									{translate("resume.retryDetail2")}
 									<br />
-									想保留这些、只把没做完的做完，请选「继续」。
+									{translate("resume.retryDetail3")}
 								</>
 							),
 							confirmLabel: t("resume.regenerate"),
@@ -180,7 +181,7 @@ export function ResumeRow() {
 					}
 					className="rounded px-1 text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
 				>
-					重试
+					{translate("common.retry2")}
 				</button>
 			)}
 			{confirm.element}

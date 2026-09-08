@@ -1,6 +1,7 @@
 /**
  * What has already happened, with the graph beside it.
  */
+import { translate } from "../../i18n/translate.ts";
 import { GitCommitHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -136,11 +137,11 @@ export function HistoryView({ cwd }: { cwd: string }) {
   const widths = useMemo(() => graphWidths(rows, LANE_WIDTH), [rows]);
 
   const slow = useSlowLoad(commits === null);
-  if (commits === null) return slow ? <SkeletonList count={5} label="正在读取提交" /> : null;
+  if (commits === null) return slow ? <SkeletonList count={5} label={translate("history.reading")} /> : null;
   if (commits.length === 0) {
     return (
-      <PanelEmpty icon={GitCommitHorizontal} title="没有提交">
-        提交后显示历史
+      <PanelEmpty icon={GitCommitHorizontal} title={translate("history.noCommits")}>
+        {translate("history.afterCommit")}
       </PanelEmpty>
     );
   }
@@ -251,7 +252,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
                     <FileDiffList
                       files={state.files}
                       loadingContent={state.reading}
-                      emptyLabel="这次提交没有文件改动"
+                      emptyLabel={translate("history.noFiles")}
                     />
                   )}
                 </div>

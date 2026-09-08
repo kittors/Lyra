@@ -112,7 +112,8 @@ export function RuleSuggestion() {
          */}
         {offer.condition ? (
           <p className="text-detail text-ink-muted">
-            <span className="text-ink-faint">{t("rule.trigger")}</span>　{where(offer.scope)}出现{" "}
+            <span className="text-ink-faint">{t("rule.trigger")}</span>　{where(offer.scope)}
+						{t("ruleSuggestion.appears")}{" "}
             <code className="ly-rule-excerpt rounded px-1 py-0.5 font-mono">{offer.condition}</code>
           </p>
         ) : (
@@ -141,7 +142,7 @@ export function RuleSuggestion() {
             onClick={() => keep("project")}
             className="flex h-7 items-center rounded-lg bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
           >
-            保存到项目
+            {t("ruleSuggestion.saveToProject")}
           </button>
           <button
             type="button"
@@ -150,7 +151,7 @@ export function RuleSuggestion() {
             onClick={() => keep("user")}
             className="h-7 rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40"
           >
-            保存到我的
+            {t("ruleSuggestion.saveToMine")}
           </button>
           <button
             type="button"
@@ -158,7 +159,7 @@ export function RuleSuggestion() {
             aria-expanded={open}
             className="flex h-7 items-center gap-1 rounded-lg px-2 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
           >
-            编辑
+            {t("common.edit")}
             <ChevronDown size={11} aria-hidden className={`transition-transform${open ? " rotate-180" : ""}`} />
           </button>
           <button
@@ -166,7 +167,7 @@ export function RuleSuggestion() {
             onClick={dismiss}
             className="ml-auto h-7 rounded-lg px-2 text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
           >
-            不用
+            {t("ruleSuggestion.reject")}
           </button>
         </div>
       </div>

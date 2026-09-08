@@ -10,6 +10,7 @@
  * a place to invent any.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -149,15 +150,15 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 
 			{/* The controls, and the two numbers worth knowing: how big it is, and how big you made it. */}
 			<div className="flex shrink-0 items-center gap-1 border-t border-line px-2 py-1.5">
-				<IconButton icon={<Minus size={12} strokeWidth={1.9} />} label="缩小" size="sm" onClick={() => zoomAt(1 / 1.4)} />
-				<IconButton icon={<Plus size={12} strokeWidth={1.9} />} label="放大" size="sm" onClick={() => zoomAt(1.4)} />
+				<IconButton icon={<Minus size={12} strokeWidth={1.9} />} label={translate("common.zoomOut")} size="sm" onClick={() => zoomAt(1 / 1.4)} />
+				<IconButton icon={<Plus size={12} strokeWidth={1.9} />} label={translate("common.zoomIn")} size="sm" onClick={() => zoomAt(1.4)} />
 				<IconButton
 					icon={<Maximize2 size={12} strokeWidth={1.9} />}
-					label="实际大小"
+					label={translate("common.actualSize")}
 					size="sm"
 					onClick={() => setScale(1)}
 				/>
-				<IconButton icon={<RotateCcw size={12} strokeWidth={1.9} />} label="适应窗口" size="sm" onClick={reset} />
+				<IconButton icon={<RotateCcw size={12} strokeWidth={1.9} />} label={translate("common.fitWindow")} size="sm" onClick={reset} />
 				<span className="ml-1">
 					<Text size="caption" tone="faint" numeric>
 						{Math.round(effective * 100)}%

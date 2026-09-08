@@ -174,7 +174,7 @@ function SlashCommands() {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{diagnostics.length} 个命令没能加载
+							{t("commandsSettings.failedToLoad", { n: diagnostics.length })}
 						</div>
 						{diagnostics.map((diagnostic) => (
 							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
@@ -186,7 +186,7 @@ function SlashCommands() {
 			)}
 
 			<div className="mb-2 flex items-center justify-between">
-				<SectionTitle>可用命令（{commands.length}）</SectionTitle>
+				<SectionTitle>{t("commandsSettings.available", { n: commands.length })}</SectionTitle>
 				<div className="flex items-center gap-1">
 					<IconButton label={t("commands.openPersonalDir")} icon={<FolderOpen size={14} />} onClick={() => void bridge.commands.reveal("user", cwd)} />
 					{cwd && (
@@ -275,7 +275,7 @@ function ToolInventory() {
 
 	return (
 		<div>
-			<SectionTitle>内置工具（{builtin.length}）</SectionTitle>
+			<SectionTitle>{t("commandsSettings.builtinTools", { n: builtin.length })}</SectionTitle>
 			<Card className="mb-6">
 				{builtin.length === 0 ? (
 					<EmptyHint>{t("commands.openSessionFirst")}</EmptyHint>
@@ -290,7 +290,7 @@ function ToolInventory() {
 				)}
 			</Card>
 
-			<SectionTitle>MCP 工具（{external.length}）</SectionTitle>
+			<SectionTitle>{t("commandsSettings.mcpTools", { n: external.length })}</SectionTitle>
 			<Card>
 				{external.length === 0 ? (
 					<EmptyHint>{t("commands.noMcp")}</EmptyHint>

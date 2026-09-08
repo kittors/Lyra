@@ -10,6 +10,7 @@
  * and what is open is the store's.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { FileText } from "lucide-react";
 import { FileViewer } from "./FileViewer.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
@@ -25,8 +26,8 @@ export function FilePanel() {
 
 	if (!path && !opening) {
 		return (
-			<PanelEmpty icon={FileText} title="文件内容">
-				选择一个文件查看内容
+			<PanelEmpty icon={FileText} title={translate("dock.fileContents")}>
+				{translate("filePanel.pickOne")}
 			</PanelEmpty>
 		);
 	}
@@ -39,8 +40,8 @@ export function FilePanel() {
 	 * every tab click flash: the placeholder has none of the code theme's colours, so the pane
 	 * went warm, white, warm.
 	 */
-	if (loading && !contents) return <p className="ly-pulse p-6 text-center text-detail text-ink-faint">读取中…</p>;
-	if (!contents || !path) return <p className="p-6 text-center text-detail text-ink-faint">读不到这个文件</p>;
+	if (loading && !contents) return <p className="ly-pulse p-6 text-center text-detail text-ink-faint">{translate("common.loadingShort")}</p>;
+	if (!contents || !path) return <p className="p-6 text-center text-detail text-ink-faint">{translate("filePanel.unreadable")}</p>;
 
 	return (
 		<FileViewer

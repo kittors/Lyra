@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n/translate.ts";
 import { onPhone } from "../../../services/index.ts";
 import { ArrowDown, ChevronRight } from "lucide-react";
 import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -59,7 +60,7 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 	const focusedIndex = rows.findIndex(row => row.id === focused);
 	if (focusedIndex >= 0 && !indices.includes(focusedIndex)) indices.push(focusedIndex);
 	return <div className="relative flex min-h-0 flex-1 flex-col"><Scroller scrollRef={viewport} className="min-h-0 flex-1" contentClassName="pl-2 pr-3" onScroll={el => { follow.current = !paused && el.scrollHeight - el.clientHeight - el.scrollTop < 4; onFollowing?.(follow.current); if (follow.current) setSeen(entries.length); }}>
-		<div data-trace-list role="list" aria-label="轨迹记录" className="relative" style={{ height: rows.length * height }}>
+		<div data-trace-list role="list" aria-label={translate("traceList.label")} className="relative" style={{ height: rows.length * height }}>
 			{indices.map(index => {
 				const row = rows[index];
 				return <div key={row.id} role="listitem" aria-posinset={index + 1} aria-setsize={rows.length} className="absolute inset-x-0" style={{ top: index * height, height: height }}>
@@ -78,8 +79,11 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 						className={`ly-scroll flex h-full w-full items-center gap-2 rounded-md px-1.5 text-left text-caption ${selected === row.id ? "bg-card-hover text-ink" : timeFocus?.has(row.id) ? "bg-info/10 text-ink" : "text-ink-muted hover:bg-card-hover/50"}`} style={{ paddingLeft: row.entry.parentId ? 18 : undefined }}>
 						<span className={`flex shrink-0 items-center ${row.entry.status === "running" ? "ly-pulse text-info" : row.entry.status === "error" ? "text-danger" : "text-ink-faint"}`} data-ly-tip={row.entry.status ? STATUS_LABEL[row.entry.status] : SOURCE_LABEL[row.entry.source]}><SourceIcon source={row.entry.source} /></span>
 						<ScrollText text={row.entry.summary} className="min-w-0 flex-1" />
-						<span className="shrink-0 text-ink-faint tabular-nums" data-ly-tip={`步骤 ${row.entry.step ?? "—"} · ${row.entry.durationMs === undefined ? "未记录耗时" : `${row.entry.durationMs} ms`}`}>{row.entry.durationMs === undefined ? `#${row.entry.seq}` : row.entry.durationMs < 1000 ? `${row.entry.durationMs}ms` : `${(row.entry.durationMs / 1000).toFixed(1)}s`}</span>
-					</button> : <button type="button" aria-expanded={!collapsed.has(row.turn)} onClick={() => onCollapse(row.turn)} className="flex h-full w-full items-center gap-1.5 px-1.5 text-left text-caption text-ink-faint"><ChevronRight size={12} style={{ transform: collapsed.has(row.turn) ? undefined : "rotate(90deg)" }} /><span>第 {row.turn} 轮</span><span className="ml-auto tabular-nums">{row.count}</span></button>}
+						<span className="shrink-0 text-ink-faint tabular-nums" data-ly-tip={translate("traceList.step", {
+							step: row.entry.step ?? "—",
+							duration: row.entry.durationMs === undefined ? translate("traceList.noDuration") : `${row.entry.durationMs} ms`,
+						})}>{row.entry.durationMs === undefined ? `#${row.entry.seq}` : row.entry.durationMs < 1000 ? `${row.entry.durationMs}ms` : `${(row.entry.durationMs / 1000).toFixed(1)}s`}</span>
+					</button> : <button type="button" aria-expanded={!collapsed.has(row.turn)} onClick={() => onCollapse(row.turn)} className="flex h-full w-full items-center gap-1.5 px-1.5 text-left text-caption text-ink-faint"><ChevronRight size={12} style={{ transform: collapsed.has(row.turn) ? undefined : "rotate(90deg)" }} /><span>{translate("traceList.turn", { n: row.turn })}</span><span className="ml-auto tabular-nums">{row.count}</span></button>}
 				</div>;
 			})}
 		</div>
@@ -90,7 +94,7 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 	    transcript's `BackToLatest`, which does this job one panel over. */}
 	{entries.length > seen && !paused && <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
 		<button type="button" className="ly-composer ly-enter pointer-events-auto flex h-7 items-center gap-1.5 rounded-full border border-line-soft bg-float px-3 text-caption text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink" onClick={() => { follow.current = true; onFollowing?.(true); setSeen(entries.length); if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; }}>
-			<span className="h-[6px] w-[6px] shrink-0 rounded-full bg-accent" /><ArrowDown size={12} strokeWidth={2} />{entries.length - seen} 条新记录
+			<span className="h-[6px] w-[6px] shrink-0 rounded-full bg-accent" /><ArrowDown size={12} strokeWidth={2} />{translate("traceList.newEntries", { n: entries.length - seen })}
 		</button>
 	</div>}
 	</div>;
