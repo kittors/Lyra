@@ -23,6 +23,7 @@ import type { BundleKind, Skill } from "@lyra/core";
 import { Blocks, Cable, ChevronDown, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -57,6 +58,7 @@ type Tab = "plugins" | "mcp" | "skills";
 type Scope = "public" | "personal";
 
 export function PluginsView() {
+	const { t } = useI18n();
 	const setView = useApp((s) => s.setView);
 	const setSettingsSection = useApp((s) => s.setSettingsSection);
 	const setComposerDraft = useApp((s) => s.setComposerDraft);
@@ -219,9 +221,9 @@ export function PluginsView() {
 				<div className="no-drag flex items-center gap-1">
 					{(
 						[
-							{ id: "plugins" as const, label: "插件", icon: Blocks },
-							{ id: "mcp" as const, label: "MCP 服务", icon: Cable },
-							{ id: "skills" as const, label: "技能", icon: Sparkles },
+							{ id: "plugins" as const, label: t("common.plugins"), icon: Blocks },
+							{ id: "mcp" as const, label: t("market.mcp"), icon: Cable },
+							{ id: "skills" as const, label: t("common.skills"), icon: Sparkles },
 						] satisfies { id: Tab; label: string; icon: typeof Blocks }[]
 					).map((entry) => (
 						<button
@@ -246,11 +248,11 @@ export function PluginsView() {
 				<div className="flex-1" />
 
 				<div className="no-drag flex items-center gap-1">
-					<HeaderButton label="重新读取" onClick={catalog.refresh}>
+					<HeaderButton label={t("market.reload")} onClick={catalog.refresh}>
 						<RefreshCw size={13.5} strokeWidth={1.8} className={catalog.loading ? "ly-spin" : undefined} />
 					</HeaderButton>
 					<HeaderButton
-						label={tab === "mcp" ? "MCP 设置" : "插件设置"}
+						label={tab === "mcp" ? t("market.mcpSettings") : t("market.pluginSettings")}
 						onClick={() => openSettings(tab === "mcp" ? "mcp" : "plugins")}
 					>
 						<SettingsIcon size={13.5} strokeWidth={1.8} />
@@ -262,7 +264,7 @@ export function PluginsView() {
 						aria-expanded={add.open}
 						className="ml-1 flex h-[26px] items-center gap-1.5 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 					>
-						添加
+						{t("mcp.add")}
 						<ChevronDown size={12} strokeWidth={2} />
 					</button>
 				</div>
@@ -278,7 +280,7 @@ export function PluginsView() {
 								setSourcesOpen(true);
 							}}
 						>
-							添加插件市场
+							{t("market.addRegistry")}
 						</MenuItem>
 						<MenuItem
 							icon={<Cable size={14} strokeWidth={1.8} />}
@@ -288,7 +290,7 @@ export function PluginsView() {
 								setSettingsSection("mcp");
 							}}
 						>
-							添加 MCP 服务器
+							{t("market.addMcpServer")}
 						</MenuItem>
 						</MenuBody>
 				</Popover>
@@ -299,7 +301,7 @@ export function PluginsView() {
 				    the sidebar and the panel both take from it. */}
 				<div className="@container mx-auto w-full max-w-[860px]">
 					<h1 className="pt-6 text-display leading-tight font-semibold tracking-tight text-ink">
-						<RollingText>{tab === "plugins" ? "插件" : tab === "mcp" ? "MCP 服务" : "技能"}</RollingText>
+						<RollingText>{tab === "plugins" ? t("common.plugins") : tab === "mcp" ? t("market.mcp") : t("common.skills")}</RollingText>
 					</h1>
 					{/*
 					 * Each one says what it is, because they are three different things.
@@ -311,17 +313,17 @@ export function PluginsView() {
 					 */}
 					<p className="pt-2 pb-6 text-label leading-relaxed text-ink-muted">
 						{tab === "plugins"
-							? "一个插件是一组技能。装上之后，新开的会话就带着它们。"
+							? t("market.pluginsIntro")
 							: tab === "mcp"
-								? "一个 MCP 服务是一个对外的程序，装上之后它的工具就出现在 agent 的工具表里。装完默认关着，去设置 › MCP 里开。"
-								: "技能是一份写给 agent 的说明书。它们随插件一起来，也可以自己放一份。"}
+								? t("market.mcpIntro")
+								: t("market.skillsIntro")}
 					</p>
 
 					<SearchField
 						size="comfortable"
 						value={query}
 						onChange={setQuery}
-						placeholder={tab === "plugins" ? "搜索插件" : tab === "mcp" ? "搜索 MCP 服务" : "搜索技能"}
+						placeholder={tab === "plugins" ? t("market.searchPlugins") : tab === "mcp" ? t("market.searchMcp") : t("market.searchSkills")}
 						className="w-full"
 					/>
 
@@ -336,11 +338,11 @@ export function PluginsView() {
 							{installed.length > 0 && (
 								<section className="pt-8">
 									<div className="flex items-center gap-2 pb-3">
-										<h2 className="text-body font-medium text-ink">已安装</h2>
+										<h2 className="text-body font-medium text-ink">{t("common.installed")}</h2>
 										<span className="text-detail text-ink-faint tabular-nums">{installed.length}</span>
 										<div className="flex-1" />
 										<HeaderButton
-											label={tab === "mcp" ? "管理已安装的 MCP 服务" : "管理已安装的插件"}
+											label={tab === "mcp" ? t("market.manageMcp") : t("market.managePlugins")}
 											onClick={() => openSettings(tab === "mcp" ? "mcp" : "plugins")}
 										>
 											<SettingsIcon size={13} strokeWidth={1.8} />
@@ -351,7 +353,7 @@ export function PluginsView() {
 											<button
 												key={item.key}
 												type="button"
-												data-ly-tip={isEnabled(item) ? item.name : `${item.name}（未启用）`}
+												data-ly-tip={isEnabled(item) ? item.name : t("market.notEnabled", { name: item.name })}
 												aria-label={item.name}
 												onClick={() => setOpenKey(item.key)}
 												className={`flex h-[52px] w-[52px] items-center justify-center rounded-xl transition-[background-color,opacity] duration-[var(--ly-t-quick)] hover:bg-card-hover/60 ${
@@ -373,10 +375,10 @@ export function PluginsView() {
 
 							<div className="flex items-center gap-1 pt-8 pb-1">
 								<ScopeTab active={current === "public"} count={published.length} onClick={() => setScope("public")}>
-									公开
+									{t("common.public")}
 								</ScopeTab>
 								<ScopeTab active={current === "personal"} count={personal.length} onClick={() => setScope("personal")}>
-									个人
+									{t("common.personal")}
 								</ScopeTab>
 							</div>
 
@@ -393,7 +395,7 @@ export function PluginsView() {
 
 							{catalog.loading && groups.length === 0 ? (
 								/* Shaped like the grid it precedes, so nothing moves when the answer lands. */
-								slow ? <SkeletonGrid count={6} label="正在读取插件市场" /> : null
+								slow ? <SkeletonGrid count={6} label={t("market.readingPlugins")} /> : null
 							) : groups.length === 0 ? (
 								<Empty
 									kind={tab === "mcp" ? "mcp" : "plugin"}
@@ -411,7 +413,7 @@ export function PluginsView() {
 										 */}
 										{!(group.category === UNFILED && groups.length === 1) && (
 											<h2 className="pb-1 text-body font-medium text-ink">
-												{group.category === UNFILED ? "其他" : group.category}
+												{group.category === UNFILED ? t("common.other") : group.category}
 											</h2>
 										)}
 										<div className="grid grid-cols-1 gap-x-4 @2xl:grid-cols-2">
@@ -453,14 +455,14 @@ export function PluginsView() {
 
 							{slow && collections.length === 0 && (
 								<section className="pt-6">
-									<h2 className="pb-1 text-body font-medium text-ink">技能集合</h2>
-									<SkeletonGrid count={4} label="正在读取技能市场" />
+									<h2 className="pb-1 text-body font-medium text-ink">{t("market.skillPacks")}</h2>
+									<SkeletonGrid count={4} label={t("market.readingSkills")} />
 								</section>
 							)}
 
 							{collections.length > 0 && (
 								<section className="pt-6">
-									<h2 className="pb-1 text-body font-medium text-ink">技能集合</h2>
+									<h2 className="pb-1 text-body font-medium text-ink">{t("market.skillPacks")}</h2>
 									<div className="grid grid-cols-1 gap-x-4 @2xl:grid-cols-2">
 										{collections.map((item) => (
 											<div key={item.key} data-item={item.key}>
@@ -483,10 +485,10 @@ export function PluginsView() {
 
 							<section className="pt-8">
 								<div className="flex items-baseline gap-2 pb-1">
-									<h2 className="text-body font-medium text-ink">这台机器上的技能</h2>
+									<h2 className="text-body font-medium text-ink">{t("market.localSkills")}</h2>
 									<span className="text-detail text-ink-faint tabular-nums">{catalog.localLoading ? "" : catalog.skills.length}</span>
 								</div>
-								{catalog.localLoading ? (slowLocal ? <SkeletonGrid count={4} label="正在读取本地技能" /> : null) : <SkillList skills={catalog.skills} needle={needle} />}
+								{catalog.localLoading ? (slowLocal ? <SkeletonGrid count={4} label={t("market.readingLocal")} /> : null) : <SkillList skills={catalog.skills} needle={needle} />}
 							</section>
 						</>
 					)}
@@ -494,7 +496,7 @@ export function PluginsView() {
 					{catalog.diagnostics.length > 0 && (
 						<div className="mt-8 rounded-[10px] border border-accent/35 bg-accent/6 px-3 py-2">
 							<p className="pb-1 text-detail font-medium text-accent">
-								{catalog.diagnostics.length} 个插件读不出来
+								{t("market.unreadable", { n: catalog.diagnostics.length })}
 							</p>
 							{catalog.diagnostics.map((diagnostic) => (
 								<p key={diagnostic.path} className="py-0.5 text-detail leading-relaxed text-accent/85">
@@ -588,28 +590,29 @@ function Empty({
 	sources: number;
 	onAddSource: () => void;
 }) {
-	const noun = kind === "mcp" ? "MCP 服务" : "插件";
+	const { t } = useI18n();
+	const mcp = kind === "mcp";
 	if (searching) {
-		return <p className="py-16 text-center text-label text-ink-faint">没有匹配的{noun}</p>;
+		return <p className="py-16 text-center text-label text-ink-faint">{mcp ? t("mcp.noMatch") : t("plugins.noMatch")}</p>;
 	}
 	if (scope === "personal") {
 		return (
 			<p className="py-16 text-center text-label leading-relaxed text-ink-faint">
-				{kind === "mcp" ? "暂无本地 MCP 服务，可在设置中添加" : "暂无本地插件"}
+				{mcp ? t("market.noLocalMcp") : t("market.noLocalPlugins")}
 			</p>
 		);
 	}
 	return (
 		<div className="py-16 text-center">
 			<p className="text-label leading-relaxed text-ink-faint">
-				{sources === 0 ? "尚未添加插件市场" : `市场中暂无${noun}`}
+				{sources === 0 ? t("market.noRegistry") : mcp ? t("market.emptyMcp") : t("market.emptyPlugins")}
 			</p>
 			<button
 				type="button"
 				onClick={onAddSource}
 				className="mt-4 h-8 rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 			>
-				<RollingText>{sources === 0 ? "添加插件市场" : "管理插件市场"}</RollingText>
+				<RollingText>{sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}</RollingText>
 			</button>
 		</div>
 	);
@@ -623,6 +626,7 @@ function Empty({
  * source is on the row for the one moment it matters — working out which directory to edit.
  */
 function SkillList({ skills, needle }: { skills: Skill[]; needle: string }) {
+	const { t } = useI18n();
 	const filtered = needle
 		? skills.filter((skill) => `${skill.name} ${skill.description}`.toLowerCase().includes(needle))
 		: skills;
@@ -630,7 +634,7 @@ function SkillList({ skills, needle }: { skills: Skill[]; needle: string }) {
 	if (filtered.length === 0) {
 		return (
 			<p className="py-16 text-center text-label text-ink-faint">
-				<RollingText>{needle ? "没有匹配的技能" : "暂无技能"}</RollingText>
+				<RollingText>{needle ? t("common.noMatchingSkills") : t("skills.empty")}</RollingText>
 			</p>
 		);
 	}
@@ -641,7 +645,7 @@ function SkillList({ skills, needle }: { skills: Skill[]; needle: string }) {
 				<button
 					key={`${skill.source}:${skill.name}`}
 					type="button"
-					data-ly-tip="打开目录"
+					data-ly-tip={t("common.openFolder")}
 					onClick={() => void bridge.system.openPath(skill.dir)}
 					className="flex items-start gap-3 rounded-xl p-3 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
 				>

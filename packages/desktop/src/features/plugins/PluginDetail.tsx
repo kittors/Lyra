@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -52,6 +53,7 @@ export function PluginDetail({
 	/** Starts a conversation with this prompt already in the composer. */
 	onTry: (prompt: string) => void;
 }) {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const setView = useApp((s) => s.setView);
@@ -128,7 +130,7 @@ export function PluginDetail({
 						onClick={onBack}
 						className="rounded-lg px-2 py-1 text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 					>
-						{isMcp ? "MCP 服务" : "插件"}
+						{isMcp ? t("market.mcp") : t("common.plugins")}
 					</button>
 					<ChevronRight size={13} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
 					<span className="max-w-[280px] truncate px-1 text-ink">{item.name}</span>
@@ -140,8 +142,8 @@ export function PluginDetail({
 					<div className="no-drag flex items-center gap-1">
 						<button
 							type="button"
-							data-ly-tip="打开主页"
-							aria-label="打开主页"
+							data-ly-tip={t("pluginDetail.homepage")}
+							aria-label={t("pluginDetail.homepage")}
 							onClick={() => void bridge.system.openExternal(website)}
 							className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
@@ -169,7 +171,7 @@ export function PluginDetail({
 						<div className="min-w-0 flex-1">
 							<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">{item.name}</h1>
 							<p className="pt-1 text-label leading-relaxed text-ink-muted">
-								{item.description || "（没有描述）"}
+								{item.description || t("plugins.noDescription")}
 							</p>
 						</div>
 
@@ -188,7 +190,7 @@ export function PluginDetail({
 											onClick={toggleEnabled}
 											className="flex h-[30px] items-center rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 										>
-											{plugin.enabled ? "停用" : "启用"}
+											{plugin.enabled ? t("common.disable") : t("common.enable")}
 										</button>
 									) : (
 										<button
@@ -197,21 +199,21 @@ export function PluginDetail({
 											className="flex h-[30px] items-center gap-1.5 rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 										>
 											<Cable size={12.5} strokeWidth={1.8} />
-											{item.servers.some((server) => server.enabled) ? "在设置里管理" : "去设置里启用"}
+											{item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
 										</button>
 									)}
 									<button
 										type="button"
-										data-ly-tip={workspaceOwned ? "项目目录里的，从那里删" : "卸载"}
-										aria-label="卸载"
+										data-ly-tip={workspaceOwned ? t("pluginDetail.projectScoped") : t("mcp.uninstall")}
+										aria-label={t("mcp.uninstall")}
 										disabled={busy !== null || workspaceOwned}
 										onClick={() =>
 											confirm.ask({
-												title: `卸载 ${item.name}？`,
+												title: t("plugins.uninstallConfirm", { name: item.name }),
 												detail: isMcp
-													? `它的目录会被删除，它在设置 › MCP 里的 ${item.servers.length} 条配置也一起清掉——包括你在那里改过的参数。`
-													: "它的目录会被删除，随它安装的技能也一起消失。重新安装可以拿回来。",
-												confirmLabel: "卸载",
+													? t("pluginDetail.uninstallMcpDetail", { n: item.servers.length })
+													: t("plugins.uninstallDetail"),
+												confirmLabel: t("mcp.uninstall"),
 												onConfirm: () => void uninstall(),
 											})
 										}
@@ -237,7 +239,7 @@ export function PluginDetail({
 										) : (
 											<Download size={12.5} strokeWidth={1.9} />
 										)}
-										安装
+										{t("common.install")}
 									</button>
 								)
 							)}
@@ -307,7 +309,7 @@ export function PluginDetail({
 					 * read, so the page says what installing will do instead.
 					 */}
 					{isMcp && item.servers.length > 0 && (
-						<Section title="MCP 服务" count={item.servers.length}>
+						<Section title={t("market.mcp")} count={item.servers.length}>
 							{item.servers.map((server) => (
 								<ServerRow key={server.id} server={server} />
 							))}
@@ -315,7 +317,7 @@ export function PluginDetail({
 					)}
 
 					{plugin && plugin.skills.length > 0 && (
-						<Section title="技能" count={plugin.skills.length}>
+						<Section title={t("common.skills")} count={plugin.skills.length}>
 							{plugin.skills.map((skill) => (
 								<div key={skill.name} className="flex items-start gap-3 py-2.5">
 									<Sparkles size={15} strokeWidth={1.8} className="mt-0.5 shrink-0 text-violet" />
@@ -328,14 +330,14 @@ export function PluginDetail({
 						</Section>
 					)}
 
-					<Section title="信息">
-						{developer && <InfoRow label="开发者">{developer}</InfoRow>}
-						{item.category !== " unfiled" && <InfoRow label="类别">{item.category}</InfoRow>}
-						{plugin?.manifest.version && <InfoRow label="版本">{plugin.manifest.version}</InfoRow>}
-						{plugin?.manifest.license && <InfoRow label="许可">{plugin.manifest.license}</InfoRow>}
-						{item.from && <InfoRow label="来源">{item.from}</InfoRow>}
+					<Section title={t("common.info")}>
+						{developer && <InfoRow label={t("pluginDetail.developer")}>{developer}</InfoRow>}
+						{item.category !== " unfiled" && <InfoRow label={t("pluginDetail.category")}>{item.category}</InfoRow>}
+						{plugin?.manifest.version && <InfoRow label={t("common.version")}>{plugin.manifest.version}</InfoRow>}
+						{plugin?.manifest.license && <InfoRow label={t("pluginDetail.license")}>{plugin.manifest.license}</InfoRow>}
+						{item.from && <InfoRow label={t("pluginDetail.source")}>{item.from}</InfoRow>}
 						{item.entry?.repository && (
-							<InfoRow label="仓库">
+							<InfoRow label={t("common.repository")}>
 								<button
 									type="button"
 									onClick={() => void bridge.system.openExternal(repoUrl(item.entry!.repository))}
@@ -347,7 +349,7 @@ export function PluginDetail({
 							</InfoRow>
 						)}
 						{website && (
-							<InfoRow label="网站">
+							<InfoRow label={t("pluginDetail.website")}>
 								<button
 									type="button"
 									onClick={() => void bridge.system.openExternal(website)}
@@ -359,7 +361,7 @@ export function PluginDetail({
 							</InfoRow>
 						)}
 						{dir && (
-							<InfoRow label="目录">
+							<InfoRow label={t("pluginDetail.folder")}>
 								<button
 									type="button"
 									onClick={() => void bridge.system.openPath(dir)}
@@ -382,8 +384,8 @@ export function PluginDetail({
 					{!installed && item.entry && (
 						<p className="pt-8 text-detail leading-relaxed text-ink-faint">
 							{isMcp
-								? "安装会把这个仓库克隆下来，并把它声明的服务写进设置 › MCP——默认关着，开之前请看清楚那条命令：它会在你的机器上以你的权限运行。市场只是一份索引，不做审核。"
-								: "安装会把这个仓库克隆到本地插件目录。它带来的是技能，也就是一份写给 agent 的说明书。市场只是一份索引，不做审核——装之前请自己看一眼它的仓库。"}
+								? t("pluginDetail.installMcpWarning")
+								: t("pluginDetail.installPluginWarning")}
 						</p>
 					)}
 				</div>
@@ -423,6 +425,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
  * you already have. Shown as-is, in mono, rather than summarised.
  */
 function ServerRow({ server }: { server: McpServerConfig }) {
+	const { t } = useI18n();
 	const how =
 		server.transport === "stdio"
 			? `${server.command} ${(server.args ?? []).join(" ")}`.trim()
@@ -435,7 +438,7 @@ function ServerRow({ server }: { server: McpServerConfig }) {
 				<div className="flex items-center gap-2">
 					<span className="text-label text-ink">{server.name}</span>
 					<span className="text-caption text-ink-faint">{server.transport}</span>
-					{!server.enabled && <span className="text-caption text-ink-faint">默认关闭</span>}
+					{!server.enabled && <span className="text-caption text-ink-faint">{t("pluginDetail.offByDefault")}</span>}
 				</div>
 				{how && <p className="mt-0.5 truncate font-mono text-detail text-ink-muted">{how}</p>}
 			</div>

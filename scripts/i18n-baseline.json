@@ -94,8 +94,6 @@
 	"features/models/ModelSelect.tsx": 2,
 	"features/plugins/CardMeta.tsx": 5,
 	"features/plugins/CatalogCard.tsx": 22,
-	"features/plugins/PluginDetail.tsx": 32,
-	"features/plugins/PluginsView.tsx": 46,
 	"features/plugins/RegistrySources.tsx": 10,
 	"features/plugins/useInstall.ts": 3,
 	"features/pull-requests/AccountTabs.tsx": 2,
