@@ -23,6 +23,7 @@
  * second line a few pixels inside the first.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { GRIP_REACH, GRIP_WIDTH, HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
@@ -177,8 +178,8 @@ export function PaneHeader({
 					type="button"
 					data-dock-grip={kind}
 					data-dock-heading
-					aria-label={shortcutLabel(`移动${label}：拖动，或 ⌥ 加方向键`)}
-					data-ly-tip="移动"
+					aria-label={shortcutLabel(translate("pane.moveHint", { label }))}
+					data-ly-tip={translate("common.move")}
 					onPointerDown={onDragStart}
 					onKeyDown={(event) => {
 						const side = event.altKey ? ARROWS[event.key] : undefined;
@@ -214,15 +215,15 @@ export function PaneHeader({
 				 */}
 				{onToggleMaximized && (
 					<HeaderButton
-						tip={maximized ? "退出全屏（Esc）" : "全屏"}
-						label={maximized ? `退出全屏：${label}` : `全屏：${label}`}
+						tip={translate(maximized ? "pane.exitFullScreen" : "common.fullScreen")}
+						label={translate(maximized ? "pane.exitFullScreenOne" : "pane.fullScreenOne", { label })}
 						onClick={onToggleMaximized}
 					>
 						{maximized ? <Minimize2 size={12} strokeWidth={2} /> : <Maximize2 size={12} strokeWidth={2} />}
 					</HeaderButton>
 				)}
 				{onClose && (
-					<HeaderButton tip={`关闭${label}`} label={`关闭${label}`} onClick={onClose}>
+					<HeaderButton tip={translate("pane.closeOne", { label })} label={translate("pane.closeOne", { label })} onClick={onClose}>
 						<X size={12} strokeWidth={2.2} />
 					</HeaderButton>
 				)}

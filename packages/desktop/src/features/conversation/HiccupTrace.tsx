@@ -12,6 +12,7 @@
  * 是一块限高、可滚的地方，而不是把一页 JSON 铺进转录里。
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import { ChevronRight, CircleAlert, CircleCheck, RotateCw } from "lucide-react";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
@@ -101,7 +102,7 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 						className="flex shrink-0 items-center gap-0.5 rounded text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 					>
 						<ChevronRight size={10} strokeWidth={2} className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />
-						{open ? "收起" : "详情"}
+						{translate(open ? "common.collapse" : "common.details")}
 					</button>
 				)}
 				{failed && <Next hint={hiccup.hint} />}
@@ -162,7 +163,7 @@ function Next({ hint }: { hint?: string }) {
 				}}
 				className="shrink-0 rounded px-1 text-detail text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
 			>
-				去设置
+				{translate("common.goSettings")}
 			</button>
 		);
 	}
@@ -170,11 +171,11 @@ function Next({ hint }: { hint?: string }) {
 	return (
 		<button
 			type="button"
-			data-ly-tip="接着做完没做完的部分"
-			onClick={() => void send([{ type: "text", text: "继续" }], { synthetic: true, carryOn: true })}
+			data-ly-tip={translate("composer.finishUnfinished")}
+			onClick={() => void send([{ type: "text", text: translate("common.continue") }], { synthetic: true, carryOn: true })}
 			className="shrink-0 rounded px-1 text-detail text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
 		>
-			继续
+			{translate("common.continue")}
 		</button>
 	);
 }

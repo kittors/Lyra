@@ -6,6 +6,7 @@
  * and what a provider looks like is in `ProviderEditor`. Three files, three questions.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import type { ModelConfig } from "@lyra/core";
 import { Box, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
@@ -18,6 +19,7 @@ import { ProviderEditor } from "./ProviderEditor.tsx";
 import { useProviders } from "./useProviders.ts";
 
 export function ModelSettings() {
+	const { t } = useI18n();
   const p = useProviders();
   const [editingModel, setEditingModel] = useState<{
     providerId: string;
@@ -30,16 +32,16 @@ export function ModelSettings() {
       <header className="flex shrink-0 items-start justify-between pt-8 pb-6">
         <div>
           <h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
-            模型设置
+            {t("modelSettings.title")}
           </h1>
           <p className="mt-2 text-label text-ink-muted">
-            管理自定义模型供应商，配置后可在聊天时选择使用。
+            {t("modelSettings.intro")}
           </p>
         </div>
         <button
           type="button"
-          data-ly-tip="测试当前供应商连接"
-          aria-label="测试当前供应商连接"
+          data-ly-tip={t("modelSettings.testConnection")}
+          aria-label={t("modelSettings.testConnection")}
           onClick={() => void p.test()}
           className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
         >
@@ -70,7 +72,7 @@ export function ModelSettings() {
             contentClassName="p-2.5"
           >
             <div className="px-2 pt-1.5 pb-1 text-detail text-ink-faint">
-              自定义供应商
+              {t("modelSettings.customProviders")}
             </div>
             {p.providers.map((provider) => (
               <button
@@ -104,7 +106,7 @@ export function ModelSettings() {
               className="flex h-[38px] w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
             >
               <Plus size={15} strokeWidth={1.9} className="shrink-0" />
-              添加供应商
+              {t("modelSettings.addProvider")}
             </button>
           </Scroller>
 
@@ -112,10 +114,10 @@ export function ModelSettings() {
             {!p.selected ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="text-label text-ink-muted">
-                  还没有配置任何供应商
+                  {t("modelSettings.noProviders")}
                 </p>
                 <GhostButton onClick={() => void p.add()}>
-                  添加第一个供应商
+                  {t("modelSettings.addFirst")}
                 </GhostButton>
               </div>
             ) : (

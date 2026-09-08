@@ -11,6 +11,7 @@
  * the one thing you need somewhere in the middle of nineteen greens.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Check, CircleDashed, ExternalLink, X } from "lucide-react";
 import type { PullRequestCheck } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
@@ -18,9 +19,9 @@ import { bridge } from "../../services/index.ts";
 const RANK: Record<PullRequestCheck["state"], number> = { fail: 0, pending: 1, pass: 2 };
 
 const LOOK: Record<PullRequestCheck["state"], { icon: typeof Check; tone: string; label: string }> = {
-	pass: { icon: Check, tone: "text-ok", label: "已通过" },
-	fail: { icon: X, tone: "text-danger", label: "失败" },
-	pending: { icon: CircleDashed, tone: "text-ink-faint", label: "进行中" },
+	pass: { icon: Check, tone: "text-ok", label: translate("prChecks.passed") },
+	fail: { icon: X, tone: "text-danger", label: translate("common.failed") },
+	pending: { icon: CircleDashed, tone: "text-ink-faint", label: translate("common.inProgress") },
 };
 
 export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | undefined }) {
@@ -33,7 +34,7 @@ export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | und
 	 */
 	const ordered = [...(checks ?? [])].sort((a, b) => RANK[a.state] - RANK[b.state] || a.name.localeCompare(b.name));
 
-	if (ordered.length === 0) return <p className="px-1 text-detail text-ink-faint">这次没有拿到明细，刷新可以重新读取。</p>;
+	if (ordered.length === 0) return <p className="px-1 text-detail text-ink-faint">{translate("prChecks.noDetail")}</p>;
 
 	return (
 		<div className="flex flex-col">
@@ -54,8 +55,8 @@ export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | und
 						{check.url && (
 							<button
 								type="button"
-								data-ly-tip="查看这项检查"
-								aria-label={`查看 ${check.name}`}
+								data-ly-tip={translate("prChecks.viewOne")}
+								aria-label={translate("prChecks.viewNamed", { name: check.name })}
 								onClick={() => void bridge.system.openExternal(check.url as string)}
 								className="shrink-0 text-ink-faint opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/check:opacity-100 hover:text-ink"
 							>

@@ -132,7 +132,7 @@ export function ExtensionsSettings() {
 						className="flex h-[30px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 					>
 						<Store size={13} strokeWidth={1.8} />
-						浏览市场
+						{t("extensions.browseMarket")}
 					</button>
 					<button
 						type="button"
@@ -141,7 +141,7 @@ export function ExtensionsSettings() {
 						aria-expanded={add.open}
 						className="flex h-[30px] items-center gap-1.5 rounded-lg bg-ink px-3 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 					>
-						添加
+						{t("mcp.add")}
 						<ChevronDown size={13} strokeWidth={2} />
 					</button>
 				</div>
@@ -157,7 +157,7 @@ export function ExtensionsSettings() {
 								browse();
 							}}
 						>
-							添加插件市场
+							{t("market.addRegistry")}
 						</MenuItem>
 						{/* Adds one and lands on it, rather than only switching tab — the label says 添加,
 						    and a menu item that navigates instead of doing the thing it names is a lie. */}
@@ -168,7 +168,7 @@ export function ExtensionsSettings() {
 								addServer("stdio");
 							}}
 						>
-							添加 MCP 服务器
+							{t("market.addMcpServer")}
 						</MenuItem>
 					</MenuBody>
 				</Popover>
@@ -235,7 +235,7 @@ export function ExtensionsSettings() {
 										addServer("stdio");
 									}}
 								>
-									添加 stdio 服务
+									{t("extensions.addStdio")}
 								</MenuItem>
 								<MenuItem
 									icon={<Plus size={13} strokeWidth={1.9} />}
@@ -244,7 +244,7 @@ export function ExtensionsSettings() {
 										addServer("http");
 									}}
 								>
-									添加 HTTP 服务
+									{t("extensions.addHttp")}
 								</MenuItem>
 							</>
 						) : (
@@ -256,7 +256,7 @@ export function ExtensionsSettings() {
 										void revealDir("user");
 									}}
 								>
-									用户目录
+									{t("extensions.userDir")}
 								</MenuItem>
 								<MenuItem
 									icon={<FolderOpen size={13} strokeWidth={1.8} />}
@@ -267,7 +267,7 @@ export function ExtensionsSettings() {
 										void revealDir("workspace");
 									}}
 								>
-									项目目录
+									{t("extensions.projectDir")}
 								</MenuItem>
 							</>
 						)}

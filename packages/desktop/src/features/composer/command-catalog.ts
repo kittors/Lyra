@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { builtinCommandsFor, type CommandAction } from "@lyra/core/commands-builtin";
 import { parseInvocation, resolveCommand, type SlashCommand } from "@lyra/core/commands-view";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
@@ -17,10 +18,11 @@ export function skillCommandName(skill: SkillEntry): string {
 
 export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): CommandEntry[] {
 	const entries: CommandEntry[] = [
-		...builtinCommandsFor(["compact", "clear", "manage-commands"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: "内置" })),
+		...builtinCommandsFor(["compact", "clear", "manage-commands"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
 		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: command.origin === "claude" ? command.scope === "workspace" ? "Claude · 项目" : "Claude · 个人" : command.scope === "workspace" ? "项目" : "个人" })),
 		...skills.map((skill): CommandEntry => ({ name: skillCommandName(skill), description: skill.description, kind: "skill",
-			origin: skill.pluginId ?? (skill.source === "workspace" ? "项目" : "个人"), argumentHint: "可选：这次需要完成的任务" })),
+			origin: skill.pluginId ?? translate(skill.source === "workspace" ? "common.project" : "common.personal"),
+			argumentHint: translate("command.optionalTask") })),
 	];
 	const seen = new Set<string>();
 	return entries.filter((entry) => {

@@ -19,6 +19,7 @@
  * time. See `paneVisible`.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { ChevronDown, FileText, PanelLeft } from "lucide-react";
 
 import { useLayout } from "../../app/layout.tsx";
@@ -44,6 +45,7 @@ const TREE_HEIGHT = MENU_MAX_HEIGHT;
 const TREE_WIDTH = 320;
 
 export function FileTitle() {
+	const { t } = useI18n();
 	const root = useApp((s) => s.workspace?.path ?? null);
 	const path = useOpenFile((s) => s.path);
 	const name = useOpenFile((s) => s.name);
@@ -64,8 +66,8 @@ export function FileTitle() {
 		return (
 			<span className="flex min-w-0 items-center gap-1 py-0.5 pl-1 text-detail" data-ly-tip={path ?? undefined}>
 				<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
-				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? "文件内容"}</span>
-				{unsaved && <span aria-label="未保存" className="size-[5px] shrink-0 rounded-full bg-accent" />}
+				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? t("dock.fileContents")}</span>
+				{unsaved && <span aria-label={t("tabs.unsaved")} className="size-[5px] shrink-0 rounded-full bg-accent" />}
 			</span>
 		);
 	}
@@ -82,14 +84,14 @@ export function FileTitle() {
 				onClick={menu.toggle}
 			>
 				<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
-				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? "文件内容"}</span>
+				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? t("dock.fileContents")}</span>
 				{/*
 				 * Unsaved edits, as the dot the tree uses for the same thing.
 				 *
 				 * The name is the only place this pane says which file it is, so it is the only place
 				 * that can say the file has changed since it was read.
 				 */}
-				{unsaved && <span aria-label="未保存" className="size-[5px] shrink-0 rounded-full bg-accent" />}
+				{unsaved && <span aria-label={t("tabs.unsaved")} className="size-[5px] shrink-0 rounded-full bg-accent" />}
 				<ChevronDown
 					size={11}
 					strokeWidth={2}
@@ -107,7 +109,7 @@ export function FileTitle() {
 					align="start"
 					width={TREE_WIDTH}
 					role="group"
-					label="项目文件"
+					label={t("fileTree.projectFiles")}
 					// The tree brings its own scroller and its own padding.
 					bodyClassName="p-0"
 					/*
@@ -132,7 +134,7 @@ export function FileTitle() {
 							className="flex w-full items-center gap-1.5 px-3 py-2 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
 							<PanelLeft size={12} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
-							在面板中打开
+							{t("fileTitle.openInPanel")}
 						</button>
 					}
 				>
@@ -157,7 +159,7 @@ export function FileTitle() {
 								onRemoved={(paths) => useOpenFile.getState().removed(paths)}
 							/>
 						) : (
-							<p className="px-3 py-6 text-center text-detail text-ink-faint">先打开一个项目。</p>
+							<p className="px-3 py-6 text-center text-detail text-ink-faint">{t("fileTitle.needProject")}</p>
 						)}
 					</div>
 				</Popover>

@@ -1,15 +1,18 @@
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { Minimize2, Bot, FileCode, FolderArchive, MessageSquare, Paperclip, Puzzle } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import type { MentionItem, MentionKind } from "./mention-catalog.ts";
 
-const GROUPS: Record<MentionKind, string> = {
-	action: "操作",
-	file: "文件和文件夹",
-	subagent: "智能体",
-	plugin: "插件与技能",
-	session: "会话",
+/** Section headings, as keys — this table is built at import time. */
+const GROUPS: Record<MentionKind, MessageKey> = {
+	action: "mention.actions",
+	file: "mention.filesAndFolders",
+	subagent: "mention.agents",
+	plugin: "mention.pluginsAndSkills",
+	session: "mention.sessions",
 };
 
 export function MentionMenu({
@@ -77,7 +80,7 @@ export function MentionMenu({
 			ref={panel}
 			id={id}
 			role={open ? "listbox" : undefined}
-			aria-label="提及菜单"
+			aria-label={translate("mention.menu")}
 			aria-hidden={!open}
 			inert={!open}
 			data-open={open}
@@ -105,7 +108,7 @@ export function MentionMenu({
 							<div key={item.id}>
 								{isFirstOfGroup && (
 									<div className="px-3 pb-1 pt-2 text-detail text-ink-faint">
-										{GROUPS[item.kind]}
+										{translate(GROUPS[item.kind])}
 									</div>
 								)}
 								<button

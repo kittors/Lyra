@@ -8,6 +8,7 @@
  */
 
 /** A toolbar button, and the gap after it. Shared so what sits beside one can clear it. */
+import { translate } from "../../i18n/translate.ts";
 import { shortcutLabel } from "../../ui/keyboard.ts";
 import { useApp } from "../../store/index.ts";
 import { unreadActivity } from "../../lib/session-notifications.ts";
@@ -50,10 +51,21 @@ export function WindowControls({
 	active?: boolean;
 }) {
 	const unread = useApp((s) => navOpen ? null : unreadActivity(s.activity, s.activeSessionId));
-	const status = unread === "waiting" ? "有任务等待处理" : unread === "failed" ? "有任务执行失败" : unread === "done" ? "有任务已完成" : "";
+	const status =
+		unread === "waiting"
+			? translate("windowControls.waiting")
+			: unread === "failed"
+				? translate("windowControls.failed")
+				: unread === "done"
+					? translate("windowControls.done")
+					: "";
 	return (
 		<>
-			<ToolbarButton label={navOpen ? "隐藏侧边栏 ⌘B" : `显示侧边栏${status ? ` · ${status}` : ""} ⌘B`} onClick={onToggleNav} active={active}>
+			<ToolbarButton label={
+					navOpen
+						? translate("windowControls.hideSidebar")
+						: translate("windowControls.showSidebar", { status: status ? ` · ${status}` : "" })
+				} onClick={onToggleNav} active={active}>
 				<span className="relative flex items-center justify-center">
 					<SidebarIcon open={navOpen} />
 					{unread && (

@@ -12,6 +12,7 @@
  * it shows, and 「本次编排 $2.40」 is what makes someone ask whether all eight were needed.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { ReactNode, RefObject } from "react";
 import { useEffect, useRef } from "react";
 
@@ -49,7 +50,8 @@ export function SubAgentRoster(props: SubAgentRosterProps) {
 	return <Strip {...props} hostRef={host} />;
 }
 
-const TOTAL_TIP = "本次编排的合计：所有子 Agent 用掉的 token 与估算费用";
+/** Looked up per render rather than at import: this file loads before the language is settled. */
+const totalTip = () => translate("roster.totalTip");
 
 function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
 	const total = figuresWord(rosterTotal(agents));
@@ -58,7 +60,7 @@ function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
 			<div
 				ref={hostRef}
 				role="tablist"
-				aria-label="子 Agent"
+				aria-label={translate("subAgent.title")}
 				className="ly-fade-tail flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-1"
 			>
 				{agents.map((one) => {
@@ -88,8 +90,8 @@ function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
 				})}
 			</div>
 			{total && (
-				<span data-sub-total data-ly-tip={TOTAL_TIP} className="shrink-0 px-2 text-caption tabular-nums text-ink-faint">
-					合计 {total}
+				<span data-sub-total data-ly-tip={totalTip()} className="shrink-0 px-2 text-caption tabular-nums text-ink-faint">
+					{translate("roster.total", { total })}
 				</span>
 			)}
 		</div>
@@ -100,17 +102,17 @@ function Tree({ agents, current, onFocus, trailing, hostRef }: Shape) {
 	const rows = rosterRows(agents);
 	const total = figuresWord(rosterTotal(agents));
 	return (
-		<div ref={hostRef} role="tree" aria-label="子 Agent 派生树" className="shrink-0 border-b border-line py-0.5">
+		<div ref={hostRef} role="tree" aria-label={translate("roster.tree")} className="shrink-0 border-b border-line py-0.5">
 			{rows.map((node) => (
 				<Branch key={node.agent.id} node={node} active={node.agent.id === current} onFocus={onFocus} trailing={trailing} />
 			))}
 			{total && (
 				<div
 					data-sub-total
-					data-ly-tip={TOTAL_TIP}
+					data-ly-tip={totalTip()}
 					className="flex h-[20px] items-center justify-end px-2 text-caption tabular-nums text-ink-faint"
 				>
-					本次编排 · {agents.length} 个子 Agent · {total}
+					{translate("roster.summary", { n: agents.length, total })}
 				</div>
 			)}
 		</div>
@@ -161,8 +163,8 @@ function Branch({
 					data-sub-figures
 					data-ly-tip={
 						children.length > 0
-							? `含它派生的子 Agent 在内；它自己：${figuresWord(node.own) ?? "还没有"}`
-							: "这个子 Agent 用掉的 token 与估算费用"
+							? translate("roster.withDescendants", { own: figuresWord(node.own) ?? translate("roster.none") })
+							: translate("subAgent.figuresTip")
 					}
 					className="shrink-0 text-caption tabular-nums text-ink-faint"
 				>

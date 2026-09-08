@@ -11,6 +11,7 @@
  * cannot be scanned at all.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useMemo, useState } from "react";
 import { Database, Table2 } from "lucide-react";
 import type { DocumentData } from "../../../electron/ipc-types.ts";
@@ -61,7 +62,7 @@ export function SheetView({ path }: { path: string }) {
 		return (
 			<Centred>
 				<Text size="label" tone="muted">
-					{data?.error ?? "读不到这个文件。"}
+					{data?.error ?? translate("sheet.unreadable")}
 				</Text>
 			</Centred>
 		);
@@ -71,7 +72,7 @@ export function SheetView({ path }: { path: string }) {
 		return (
 			<Centred>
 				<Text size="label" tone="muted">
-					{data.kind === "tables" ? "这个数据库里没有表。" : "这个工作簿里没有工作表。"}
+					{translate(data.kind === "tables" ? "sheet.noTables" : "sheet.noSheets")}
 				</Text>
 			</Centred>
 		);
@@ -139,8 +140,8 @@ export function SheetView({ path }: { path: string }) {
 					<Text size="caption" tone="faint" numeric>
 						{sheet
 							? sheet.total > sheet.rows.length
-								? `${sheet.rows.length} / ${sheet.total} 行`
-								: `${sheet.total} 行`
+								? translate("sheet.rowsOf", { shown: sheet.rows.length, total: sheet.total })
+								: translate("sheet.rows", { n: sheet.total })
 							: ""}
 					</Text>
 				</span>

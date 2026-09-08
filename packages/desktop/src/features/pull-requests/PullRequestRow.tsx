@@ -15,6 +15,7 @@
  * one row — and with it, one marquee measurement and one avatar lookup instead of sixty.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Check, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, TriangleAlert } from "lucide-react";
 import { memo } from "react";
 import type { PullRequestSummary } from "../../../electron/ipc-types.ts";
@@ -66,7 +67,7 @@ export const PullRequestRow = memo(function PullRequestRow({
 					{unseen && (
 						<span
 							aria-hidden
-							data-ly-tip="上次打开之后有新动静"
+							data-ly-tip={translate("prRow.unseen")}
 							className="h-[5px] w-[5px] shrink-0 rounded-full bg-accent"
 						/>
 					)}
@@ -107,7 +108,7 @@ export const PullRequestRow = memo(function PullRequestRow({
 function DiffStat({ additions, deletions }: { additions: number | null; deletions: number | null }) {
 	if (additions === null && deletions === null) return null;
 	return (
-		<span className="shrink-0 font-mono text-caption tabular-nums" data-ly-tip="改动行数">
+		<span className="shrink-0 font-mono text-caption tabular-nums" data-ly-tip={translate("prRow.lineCount")}>
 			<span className="text-ok">+{additions ?? 0}</span>
 			<span className="pl-1 text-danger">-{deletions ?? 0}</span>
 		</span>
@@ -122,10 +123,10 @@ function DiffStat({ additions, deletions }: { additions: number | null; deletion
  */
 function Verdict({ decision }: { decision: string | null }) {
 	if (decision === "APPROVED") {
-		return <Check size={11.5} strokeWidth={2.6} className="shrink-0 text-ok" data-ly-tip="已批准" />;
+		return <Check size={11.5} strokeWidth={2.6} className="shrink-0 text-ok" data-ly-tip={translate("prRow.approved")} />;
 	}
 	if (decision === "CHANGES_REQUESTED") {
-		return <TriangleAlert size={11} strokeWidth={2.2} className="shrink-0 text-danger" data-ly-tip="有人请求修改" />;
+		return <TriangleAlert size={11} strokeWidth={2.2} className="shrink-0 text-danger" data-ly-tip={translate("prRow.changesRequested")} />;
 	}
 	return null;
 }
@@ -136,8 +137,8 @@ function Verdict({ decision }: { decision: string | null }) {
  * still holding after the search that produced them stopped returning them.
  */
 function lookOf(pr: PullRequestSummary): { Icon: typeof GitPullRequest; tone: string; label: string } {
-	if (pr.state === "MERGED") return { Icon: GitMerge, tone: "text-violet", label: "已合并" };
-	if (pr.state === "CLOSED") return { Icon: GitPullRequestClosed, tone: "text-danger", label: "已关闭" };
-	if (pr.isDraft) return { Icon: GitPullRequestDraft, tone: "text-ink-faint", label: "草稿" };
-	return { Icon: GitPullRequest, tone: "text-ok", label: "开放中" };
+	if (pr.state === "MERGED") return { Icon: GitMerge, tone: "text-violet", label: translate("prMeta.merged") };
+	if (pr.state === "CLOSED") return { Icon: GitPullRequestClosed, tone: "text-danger", label: translate("prMeta.closed") };
+	if (pr.isDraft) return { Icon: GitPullRequestDraft, tone: "text-ink-faint", label: translate("prMeta.draft") };
+	return { Icon: GitPullRequest, tone: "text-ok", label: translate("prRow.open") };
 }

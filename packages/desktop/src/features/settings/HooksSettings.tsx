@@ -82,10 +82,10 @@ export function HooksSettings() {
       <header className="flex items-start justify-between pb-7">
         <div>
           <h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
-            钩子
+            {t("hooks.title")}
           </h1>
           <p className="mt-2 max-w-[580px] text-label leading-relaxed text-ink-muted">
-            在工具调用前后运行一段命令。
+            {t("hooks.intro")}
           </p>
         </div>
         <div className="shrink-0 pt-1">
@@ -102,7 +102,7 @@ export function HooksSettings() {
           >
             <span className="flex items-center gap-1.5">
               <Plus size={12} strokeWidth={2} />
-              新建
+              {t("common.new")}
             </span>
           </GhostButton>
         </div>
@@ -145,7 +145,7 @@ export function HooksSettings() {
         ))}
       </Card>
 
-      <SectionTitle>已配置（{hooks.length}）</SectionTitle>
+      <SectionTitle>{t("hooks.configured", { n: hooks.length })}</SectionTitle>
       {hooks.length === 0 ? (
         <Card>
           <EmptyHint>{t("hooks.empty")}</EmptyHint>
@@ -272,11 +272,11 @@ function HookCard({
           <label className="flex items-center justify-between rounded-[10px] border border-line px-3.5 py-2.5">
             <span className="min-w-0 flex-1">
               <span className="block text-label text-ink">
-                非零退出时阻断调用
+                {t("hooks.blockOnNonZero")}
               </span>
               <span className="block text-detail text-ink-muted">
-                退出码不为 0
-                时，这次工具调用会变成一条错误结果交给模型，而不是直接执行
+                {t("hooks.nonZeroCode")}
+                {t("hooks.blockDetail")}
               </span>
             </span>
             <Toggle

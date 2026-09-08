@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { Check, GitBranch } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { BranchList } from "../../../electron/ipc-types.ts";
@@ -89,7 +90,7 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 		try {
 			const result = await bridge.git.switchBranch(workspace.path, target);
 			if (!result.ok) {
-				notify(result.error ?? "切换分支失败", "error");
+				notify(result.error ?? translate("branchMenu.switchFailed"), "error");
 				return;
 			}
 			await refreshWorkspace();
@@ -106,8 +107,8 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 			align="start"
 			width="wide"
 			maxHeight={MENU_MAX_HEIGHT}
-			label="切换分支"
-			header={<MenuSearch value={query} onChange={setQuery} placeholder="搜索分支" />}
+			label={translate("branchMenu.title")}
+			header={<MenuSearch value={query} onChange={setQuery} placeholder={translate("branchMenu.search")} />}
 		>
 			<MenuBody>
 				{/*
@@ -131,7 +132,7 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 
 				{branches && local.length === 0 && remote.length === 0 && (
 					<p className="px-2.5 py-5 text-center text-detail text-ink-faint">
-						{branches.local.length === 0 ? "当前项目不是 Git 仓库" : "没有匹配的分支"}
+						{translate(branches.local.length === 0 ? "branchMenu.notARepo" : "branchMenu.noMatch")}
 					</p>
 				)}
 
@@ -155,7 +156,7 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 
 				{remote.length > 0 && (
 					<>
-						<MenuLabel>远程</MenuLabel>
+						<MenuLabel>{translate("common.remote")}</MenuLabel>
 						{remote.map((branch) => (
 							<Row key={branch} name={branch} onSelect={() => void switchTo(branch)} />
 						))}

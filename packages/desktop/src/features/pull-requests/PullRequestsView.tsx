@@ -9,6 +9,7 @@
  * A 300px list beside a 300px diff is worse than either alone.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
@@ -119,7 +120,7 @@ export function PullRequestsView() {
 	};
 
 	const submit = async (verdict: "approve" | "request-changes" | "comment", body: string): Promise<string | null> => {
-		if (!pr.selected) return "没有选中的 Pull Request";
+		if (!pr.selected) return translate("prView.noneSelected");
 		const { accountId, repo, number } = pr.selected;
 		const result =
 			verdict === "comment"
@@ -189,7 +190,7 @@ export function PullRequestsView() {
 							className="ly-item flex h-9 shrink-0 items-center gap-1.5 px-3 text-label text-ink-muted"
 						>
 							<ArrowLeft size={13.5} strokeWidth={1.9} />
-							全部 Pull Request
+							{translate("prView.all")}
 						</button>
 						{detail}
 					</>
@@ -259,10 +260,17 @@ export function PullRequestsView() {
  * be checked out reads as an instruction the agent then has to refuse.
  */
 function draftFor(detail: Detail, intent: "ask" | "review", local: string | null): string {
-	const where = local ? `本地仓库就是当前项目，分支 ${detail.headRefName} → ${detail.baseRefName}。` : "";
+	const where = local
+		? translate("prView.localRepo", { head: detail.headRefName, base: detail.baseRefName })
+		: "";
 
 	if (intent === "review") {
-		return `审查 Pull Request #${detail.number}：${detail.title}\n${detail.url}\n\n${where}先拿到改动，再指出其中的缺陷和风险，按严重程度排序。只读，不要改动仓库。`;
+		return translate("prView.reviewPrompt", { number: detail.number, title: detail.title, url: detail.url, where });
 	}
-	return `帮我了解 Pull Request #${detail.number}：${detail.title}\n${detail.url}${where ? `\n\n${where}` : ""}`;
+	return translate("prView.explainPrompt", {
+		number: detail.number,
+		title: detail.title,
+		url: detail.url,
+		where: where ? `\n\n${where}` : "",
+	});
 }

@@ -2,10 +2,13 @@
  * How long ago, in the units a person would use.
  */
 
+import { translate } from "../i18n/translate.ts";
+
 /** Coarse on purpose: the exact minute of a commit is never the question in a list. */
 export function relativeTime(iso: string, now = Date.now()): string {
   const span = spanOf(iso, now);
-  return span && span !== "刚刚" ? `${span}前` : span;
+  // 「刚刚」 is already a whole answer; 「刚刚前」 is not a sentence in any of the seven.
+  return span && span !== translate("time.justNow") ? translate("time.ago", { span }) : span;
 }
 
 /**
@@ -40,12 +43,12 @@ function spanOf(iso: string, now: number): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
   const minutes = Math.round((now - then) / 60_000);
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes} 分钟`;
+  if (minutes < 1) return translate("time.justNow");
+  if (minutes < 60) return translate("time.minutes", { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} 小时`;
+  if (hours < 24) return translate("time.hours", { n: hours });
   const days = Math.round(hours / 24);
-  if (days < 30) return `${days} 天`;
+  if (days < 30) return translate("time.days", { n: days });
   /*
    * Months and years, not a date.
    *
@@ -54,8 +57,8 @@ function spanOf(iso: string, now: number): string {
    * which is what pushed the titles next to it into an ellipsis.
    */
   const months = Math.round(days / 30);
-  if (months < 12) return `${months} 个月`;
-  return `${Math.round(months / 12)} 年`;
+  if (months < 12) return translate("time.months", { n: months });
+  return translate("time.years", { n: Math.round(months / 12) });
 }
 
 /**
