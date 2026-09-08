@@ -10,6 +10,7 @@
  * `FileActions` — which is what freed this row for something that changes as you work.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Copy, CornerUpRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
@@ -37,6 +38,7 @@ function retire(): void {
 }
 
 export function FileTabs() {
+	const { t } = useI18n();
 	const tabs = useOpenFile((s) => s.tabs);
 	/*
 	 * The tab being opened wins over the one on screen, for the moment they differ.
@@ -61,10 +63,10 @@ export function FileTabs() {
 	const closeMany = useCallback(
 		(paths: string[]) => {
 			const kept = useOpenFile.getState().closeTabs(paths);
-			if (kept > 0) notify(`${kept} 个标签有未保存的修改，已保留`);
+			if (kept > 0) notify(t("tabs.keptUnsaved", { n: kept }));
 			retire();
 		},
-		[notify],
+		[notify, t],
 	);
 
 	/** One tab, by its ✕ or by 关闭 — same landing rule, and the same clean-up if it was the last. */
@@ -118,7 +120,7 @@ export function FileTabs() {
 				ref={strip}
 				onScroll={markEdges}
 				role="tablist"
-				aria-label="打开的文件"
+				aria-label={t("tabs.openFiles")}
 				className="ly-file-tabs ly-fade-tail flex h-7 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line px-1"
 			>
 				{tabs.map((tab) => {
@@ -159,14 +161,14 @@ export function FileTabs() {
 							 */}
 							{unsaved ? (
 								<span
-									aria-label="未保存"
+									aria-label={t("tabs.unsaved")}
 									className="mr-1 size-[5px] shrink-0 rounded-full bg-accent group-hover/tab:hidden"
 								/>
 							) : null}
 							<button
 								type="button"
 								data-ly-hover-reveal
-								aria-label={`关闭 ${tab.name}`}
+								aria-label={t("tabs.closeOne", { name: tab.name })}
 								onClick={() => closeOne(tab.path)}
 								className={`rounded p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
 									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
@@ -222,6 +224,7 @@ function TabMenu({
 	onCloseOne: (path: string) => void;
 	onCloseMany: (paths: string[]) => void;
 }) {
+	const { t } = useI18n();
 	const reveal = useRevealLabel();
 	const notify = useApp((s) => s.notify);
 	const at = tabs.findIndex((each) => each.path === tab.path);
@@ -232,28 +235,28 @@ function TabMenu({
 	return (
 		<ContextMenu anchor={anchor} onClose={onClose} width="default">
 			<MenuItem icon={<X {...ICON} />} onClick={() => onCloseOne(tab.path)}>
-				关闭
+				{t("common.close")}
 			</MenuItem>
 			<MenuItem disabled={others.length === 0} onClick={() => onCloseMany(others)}>
-				关闭其他
+				{t("tabs.closeOthers")}
 			</MenuItem>
 			<MenuItem disabled={toLeft.length === 0} onClick={() => onCloseMany(toLeft)}>
-				关闭左侧
+				{t("tabs.closeLeft")}
 			</MenuItem>
 			<MenuItem disabled={toRight.length === 0} onClick={() => onCloseMany(toRight)}>
-				关闭右侧
+				{t("tabs.closeRight")}
 			</MenuItem>
-			<MenuItem onClick={() => onCloseMany(tabs.map((each) => each.path))}>全部关闭</MenuItem>
+			<MenuItem onClick={() => onCloseMany(tabs.map((each) => each.path))}>{t("tabs.closeAll")}</MenuItem>
 
 			<MenuSeparator />
 			<MenuItem
 				icon={<Copy {...ICON} />}
 				onClick={() => {
 					void bridge.clipboard.write(tab.path);
-					notify("已复制路径");
+					notify(t("fileAction.pathCopied"));
 				}}
 			>
-				复制路径
+				{t("fileMenu.copyPath")}
 			</MenuItem>
 			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(tab.path)}>
 				{reveal}

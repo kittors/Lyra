@@ -33,6 +33,7 @@ export function UpdateDialog({
 	phase: Phase;
 	onClose: () => void;
 }) {
+	const { t } = useI18n();
 	const fraction = fractionOf(phase);
 	// Which of the four controls belong in this phase — the rules, and their tests, are in `view.ts`.
 	const controls = controlsFor(phase);
@@ -59,7 +60,7 @@ export function UpdateDialog({
 			if (!done) {
 				useApp
 					.getState()
-					.notify(phase.relaunch ? "更新没有准备好，重新下载一次再试" : "没找到下载好的安装包，重新下载一次", "warn");
+					.notify(t(phase.relaunch ? "updateDialog.notReady" : "updateDialog.installerMissing"), "warn");
 			}
 			return;
 		}
@@ -80,7 +81,7 @@ export function UpdateDialog({
 					<div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink/5 text-ink">
 						<Sparkles size={16} strokeWidth={2} />
 					</div>
-					<h2 className="text-label font-semibold text-ink">有新版本可以更新</h2>
+					<h2 className="text-label font-semibold text-ink">{t("updateDialog.available")}</h2>
 				</div>
 				<p className="mt-2 text-detail text-ink-muted">
 					<span className="font-medium text-ink-muted">v{info.current}</span> → <span className="font-semibold text-ink">v{info.latest}</span>
@@ -108,9 +109,9 @@ export function UpdateDialog({
 					<div className="mb-3">
 						<div className="mb-1.5 flex items-baseline justify-between text-detail">
 							<span className="text-ink-muted">
-								{phase.at === "downloading" && "正在下载"}
-								{phase.at === "paused" && "已暂停"}
-								{phase.at === "preparing" && "正在准备…"}
+								{phase.at === "downloading" && t("updateDialog.downloading")}
+								{phase.at === "paused" && t("updateDialog.paused")}
+								{phase.at === "preparing" && t("updateDialog.preparing")}
 							</span>
 							{(phase.at === "downloading" || phase.at === "paused") && (
 								<span className="tabular-nums text-ink-faint">
@@ -144,7 +145,7 @@ export function UpdateDialog({
 						{phase.error}
 						{/* Said out loud, because "retry" otherwise reads as "start the 130MB again". */}
 						{phase.received > 0 && (
-							<span className="pl-1 text-ink-faint tabular-nums">（已下 {mb(phase.received)}）</span>
+							<span className="pl-1 text-ink-faint tabular-nums">{t("updateDialog.downloadedSoFar", { size: mb(phase.received) })}</span>
 						)}
 					</p>
 				)}
@@ -162,7 +163,7 @@ export function UpdateDialog({
 							className="flex h-[32px] items-center gap-1.5 rounded-lg px-2.5 text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
 							<X size={13} strokeWidth={2} />
-							取消下载
+							{t("updateDialog.cancel")}
 						</button>
 					)}
 
@@ -175,7 +176,7 @@ export function UpdateDialog({
 							className="flex h-[32px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 						>
 							<Pause size={12} strokeWidth={2.2} fill="currentColor" />
-							暂停
+							{t("updateDialog.pause")}
 						</button>
 					) : (
 						<button
@@ -183,7 +184,7 @@ export function UpdateDialog({
 							onClick={() => dismiss()}
 							className="h-[32px] rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 						>
-							关闭
+							{t("common.close")}
 						</button>
 					)}
 
@@ -213,7 +214,7 @@ export function UpdateDialog({
 							}}
 							className="h-[32px] rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 						>
-							查看发布页
+							{t("updateDialog.releasePage")}
 						</button>
 					)}
 				</div>

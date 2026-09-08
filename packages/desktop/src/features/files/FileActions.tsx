@@ -12,6 +12,7 @@
  * it is not drawn.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Braces, Check, ExternalLink, Eye, Pencil, Save, WrapText } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -25,6 +26,7 @@ import { available, bridge } from "../../services/index.ts";
 const SAVED_NOTICE_MS = 1600;
 
 export function FileActions() {
+	const { t } = useI18n();
 	const path = useOpenFile((s) => s.path);
 	const name = useOpenFile((s) => s.name);
 	const contents = useOpenFile((s) => s.contents);
@@ -62,7 +64,9 @@ export function FileActions() {
 		try {
 			useOpenFile.getState().setDraft(path, `${JSON.stringify(JSON.parse(text), null, 2)}\n`);
 		} catch (cause) {
-			useApp.getState().notify(`不是合法的 JSON：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			useApp
+				.getState()
+				.notify(t("fileActions.badJson", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
 	};
 
@@ -80,19 +84,19 @@ export function FileActions() {
 				</span>
 			)}
 			{dirty && !readOnly && (
-				<Mark tip={saving ? "保存中…" : "保存 ⌘S"} onClick={() => void save()} disabled={saving} accent>
+				<Mark tip={t(saving ? "fileActions.saving" : "fileActions.save")} onClick={() => void save()} disabled={saving} accent>
 					<Save size={12} strokeWidth={1.9} />
 				</Mark>
 			)}
 			{readOnly && (
-				<span data-ly-tip={contents.readOnly ? "上下文文件，只读" : "文件过大，只读"} className="shrink-0 px-1 text-caption text-ink-faint">
-					只读
+				<span data-ly-tip={t(contents.readOnly ? "fileActions.contextReadOnly" : "fileActions.tooBig")} className="shrink-0 px-1 text-caption text-ink-faint">
+					{t("common.readOnly")}
 				</span>
 			)}
 
 			{kind === "markdown" && (
 				<Mark
-					tip={showSource ? "预览" : readOnly ? "查看源码" : "编辑源码"}
+					tip={showSource ? t("common.preview") : t(readOnly ? "fileActions.viewSource" : "fileActions.editSource")}
 					active={showSource}
 					onClick={() => useOpenFile.getState().setShowSource(!showSource)}
 				>
@@ -100,13 +104,13 @@ export function FileActions() {
 				</Mark>
 			)}
 			{kind === "json" && !readOnly && (
-				<Mark tip="格式化" onClick={formatJson}>
+				<Mark tip={t("common.format")} onClick={formatJson}>
 					<Braces size={12} strokeWidth={1.9} />
 				</Mark>
 			)}
 			{/* Not for the Markdown preview, which is prose and wraps regardless. */}
 			{editable && !(kind === "markdown" && !showSource) && (
-				<Mark tip="自动换行" active={wrap} onClick={() => useOpenFile.getState().setWrap(!wrap)}>
+				<Mark tip={t("fileActions.wrap")} active={wrap} onClick={() => useOpenFile.getState().setWrap(!wrap)}>
 					<WrapText size={12} strokeWidth={1.9} />
 				</Mark>
 			)}

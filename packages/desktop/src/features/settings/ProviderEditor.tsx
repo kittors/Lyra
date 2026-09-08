@@ -10,6 +10,7 @@
  * least willing to believe the answer.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import type { ApiFormat, ModelConfig, ProviderConfig } from "@lyra/core";
 import { Pencil, Trash2 } from "lucide-react";
@@ -61,6 +62,7 @@ export function ProviderEditor({
 	onRemoveModel: (modelId: string) => void;
 	onSetDefault: (modelId: string) => void;
 }) {
+	const { t } = useI18n();
 	const [baseUrl, setBaseUrl] = useState(provider.baseUrl);
 	const [apiKey, setApiKey] = useState(provider.apiKey);
 
@@ -93,8 +95,8 @@ export function ProviderEditor({
 				</Field>
 
 				<Field
-					label="API 格式"
-					hint="Lyra 只对接 Responses 与 Anthropic Messages，不支持 Chat Completions。"
+					label={t("provider.apiFormat")}
+					hint={t("provider.apiFormatDetail")}
 				>
 					<Select value={provider.api} onChange={(api) => onChange({ api })} options={API_OPTIONS} />
 				</Field>
@@ -141,6 +143,7 @@ function ProviderHeading({
 	onChange: (patch: Partial<ProviderConfig>) => void;
 	onRemove: () => void;
 }) {
+	const { t } = useI18n();
 	const [name, setName] = useState(provider.name);
 	const [renaming, setRenaming] = useState(false);
 	const confirm = useConfirmer();
@@ -164,8 +167,8 @@ function ProviderHeading({
 					<h2 className="text-title font-semibold tracking-tight text-ink">{provider.name}</h2>
 					<button
 						type="button"
-						data-ly-tip="重命名"
-						aria-label="重命名供应商"
+						data-ly-tip={t("common.rename")}
+						aria-label={t("provider.rename")}
 						onClick={() => setRenaming(true)}
 						className="text-ink-faint transition-colors hover:text-ink"
 					>
@@ -175,22 +178,22 @@ function ProviderHeading({
 			)}
 
 			<Badge tone={provider.enabled ? "ok" : "muted"}>
-				<RollingText>{provider.enabled ? "已启用" : "已禁用"}</RollingText>
+				<RollingText>{t(provider.enabled ? "common.enabled" : "common.disabled")}</RollingText>
 			</Badge>
 			<GhostButton onClick={() => onChange({ enabled: !provider.enabled })}>
-				<RollingText>{provider.enabled ? "禁用" : "启用"}</RollingText>
+				<RollingText>{t(provider.enabled ? "provider.disable" : "provider.enable")}</RollingText>
 			</GhostButton>
 
 			<div className="flex-1" />
 			<button
 				type="button"
-				data-ly-tip="删除供应商"
-				aria-label="删除供应商"
+				data-ly-tip={t("provider.delete")}
+				aria-label={t("provider.delete")}
 				onClick={() =>
 					confirm.ask({
-						title: `删除 ${provider.name}？`,
-						detail: `它的地址、密钥，以及配置在它下面的 ${provider.models.length} 个模型都会一起删掉。`,
-						confirmLabel: "删除",
+						title: t("provider.deleteConfirm", { name: provider.name }),
+						detail: t("provider.deleteDetail", { n: provider.models.length }),
+						confirmLabel: t("common.delete"),
 						onConfirm: onRemove,
 					})
 				}

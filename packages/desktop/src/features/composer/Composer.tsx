@@ -1,4 +1,5 @@
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
+import { translate } from "../../i18n/translate.ts";
 import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
 import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
@@ -158,7 +159,7 @@ export function Composer() {
 	useEffect(() => {
 		if (!browserAttachment || browserAttachment.draftKey !== draftKey) return;
 		setText((current) => current.trim() ? `${current.trimEnd()}\n\n${browserAttachment.text}` : browserAttachment.text);
-		setAttachments((current) => [...current, { id: crypto.randomUUID(), name: "页面区域.png", mimeType: "image/png", isText: false, data: browserAttachment.dataUrl.split(",")[1] }]);
+		setAttachments((current) => [...current, { id: crypto.randomUUID(), name: translate("composer.regionShot"), mimeType: "image/png", isText: false, data: browserAttachment.dataUrl.split(",")[1] }]);
 		useApp.setState({ browserAttachment: null });
 	}, [browserAttachment, draftKey]);
 	const field = useRef<HTMLTextAreaElement>(null);
@@ -192,7 +193,9 @@ export function Composer() {
 			if (!paths.length || draftKeyRef.current !== draftKey) return null;
 			return formatMention(paths[0]);
 		} catch (err) {
-			useApp.getState().notify(`选择文件失败：${err instanceof Error ? err.message : String(err)}`, "error");
+			useApp
+				.getState()
+				.notify(translate("composer.pickFailed", { reason: err instanceof Error ? err.message : String(err) }), "error");
 			return null;
 		}
 	}, [draftKey]);
@@ -246,7 +249,9 @@ export function Composer() {
 		submitting.current.set(draftKey, submission);
 		const release = () => { if (submitting.current.get(draftKey) === submission) submitting.current.delete(draftKey); };
 		try { await submitOnce(release); }
-		catch (cause) { useApp.getState().notify(`命令或消息发送失败：${cause instanceof Error ? cause.message : String(cause)}`, "error"); }
+		catch (cause) { useApp
+				.getState()
+				.notify(translate("composer.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error"); }
 		finally { release(); }
 	}
 
@@ -281,9 +286,9 @@ export function Composer() {
 		 */
 		const builtin = invocation ? commandEntries([], []).find((entry) => entry.name === invocation.name) : undefined;
 		if (builtin) {
-			if (attachments.length || sessionRefs.length) { useApp.getState().notify("这条内置命令不接收附件，请先移除附件或单独发送消息。", "warn"); return; }
-			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify("当前还没有可压缩的会话。", "warn"); return; }
-			if (builtin.action !== "compact" && invocation?.rest) { useApp.getState().notify("这条命令不接收参数，输入内容已保留。", "warn"); return; }
+			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
+			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }
+			if (builtin.action !== "compact" && invocation?.rest) { useApp.getState().notify(translate("composer.commandNoArgs"), "warn"); return; }
 			setText("");
 			setDraft(draftKey, null);
 			// The guard covers draft resolution; runtime execution must not block subsequent messages.
@@ -399,7 +404,7 @@ export function Composer() {
 				if (looksBinary(buffer)) {
 					// Named like text, and is not. Same treatment as the known kinds above.
 					next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind: "binary" });
-					refused.push(`${file.name}（二进制文件）`);
+					refused.push(translate("composer.binaryFile", { name: file.name }));
 					continue;
 				}
 				next.push({
@@ -411,7 +416,7 @@ export function Composer() {
 					kind,
 				});
 			} catch {
-				useApp.getState().notify(`无法读取文件 ${file.name} 的内容`, "warn");
+				useApp.getState().notify(translate("subAgent.fileUnreadable", { name: file.name }), "warn");
 			}
 		}
 
@@ -426,7 +431,7 @@ export function Composer() {
 		if (refused.length > 0) {
 			useApp
 				.getState()
-				.notify(`${refused.join("、")} 的内容无法作为文本读取，只附上了文件名`, "warn");
+				.notify(translate("composer.unreadableAsText", { names: refused.join("、") }), "warn");
 		}
 		if (next.length > 0) setAttachments((prev) => [...prev, ...next]);
 	}
@@ -582,7 +587,7 @@ export function Composer() {
 					attachments={
 						attachments.length > 0 || sessionRefs.length > 0 ? (
 							<div className="flex flex-wrap gap-2 px-4 pt-3.5">
-								{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={`移除会话引用：${session.title}`} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex max-w-full items-center gap-1.5 rounded-lg border border-line-soft bg-card px-2 py-1 text-caption text-ink-muted"><MessageSquare size={12} className="shrink-0" /><span className="truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
+								{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex max-w-full items-center gap-1.5 rounded-lg border border-line-soft bg-card px-2 py-1 text-caption text-ink-muted"><MessageSquare size={12} className="shrink-0" /><span className="truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
 								{attachments.map((attachment) => (
 									<div key={attachment.id} className="relative">
 										{/*
@@ -618,7 +623,7 @@ export function Composer() {
 										) : (
 											<button
 												type="button"
-												aria-label={`预览 ${attachment.name}`}
+												aria-label={translate("subAgent.previewOne", { name: attachment.name })}
 												onClick={(event) =>
 													openFromEvent(
 														event,
@@ -797,7 +802,7 @@ export function Composer() {
 								running={running}
 								continueReady={continueReady}
 								// 说的和转录下面那行「继续」一样，因为按下去是同一件事。
-								tip={continueReady ? "接着做完没做完的部分" : undefined}
+								tip={continueReady ? translate("composer.finishUnfinished") : undefined}
 								disabled={!continueReady && !text.trim() && attachments.length === 0 && sessionRefs.length === 0}
 								onSend={() => void submit()}
 								onStop={() => void abort()}

@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/index.ts";
 import { Copy, ExternalLink, Globe, Server, Square, X, CircleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { SessionServices as Services } from "../../../shared/session-services.ts";
@@ -10,6 +11,7 @@ import { commandBrowser } from "../browser/index.ts";
 
 const cache = new Map<string, Services>();
 export function SessionServices() {
+	const { t } = useI18n();
 	const sessionId = useApp((state) => state.activeSessionId);
 	const [snapshot, setSnapshot] = useState<{ id: string; value: Services } | null>(null);
 	const [busy, setBusy] = useState<string | null>(null);
@@ -37,27 +39,27 @@ export function SessionServices() {
 		if (!sessionId) return;
 		setBusy(id);
 		try {
-			if (!await bridge.services.stop(sessionId, id, force)) throw new Error("服务已经退出");
+			if (!await bridge.services.stop(sessionId, id, force)) throw new Error(t("services.exited"));
 			const value = await bridge.services.list(sessionId); cache.set(sessionId, value); setSnapshot({ id: sessionId, value });
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 		finally { setBusy(null); }
 	};
 	return <div ref={root} data-session-services>
-		{jobs.length > 0 && <div className="flex items-center gap-1.5 px-1.5 pt-3 pb-1 text-caption text-ink-faint"><Server size={12} />运行服务<span className="ml-auto tabular-nums">{jobs.length}</span>{value?.discoveryError && <span data-ly-tip={`端口查询失败：${value.discoveryError}`}><CircleAlert size={12} /></span>}</div>}
+		{jobs.length > 0 && <div className="flex items-center gap-1.5 px-1.5 pt-3 pb-1 text-caption text-ink-faint"><Server size={12} />{t("services.title")}<span className="ml-auto tabular-nums">{jobs.length}</span>{value?.discoveryError && <span data-ly-tip={t("services.portFailed", { reason: value.discoveryError })}><CircleAlert size={12} /></span>}</div>}
 		{jobs.map((job) => <div key={job.id} data-service-id={job.id} className="group/service rounded-lg px-1.5 py-1.5">
 			<div className="flex items-center gap-1.5">
 				<span className={`h-1.5 w-1.5 shrink-0 rounded-full ${job.status === "failed" ? "bg-danger" : "bg-ok/70"}`} />
 				<ScrollText text={job.command} className="min-w-0 flex-1 text-detail text-ink-muted" />
-				<span className="text-caption text-ink-faint tabular-nums" data-ly-tip={`PID ${job.pid ?? "未知"}`}>{job.status === "stopping" ? "停止中" : job.pid}</span>
+				<span className="text-caption text-ink-faint tabular-nums" data-ly-tip={t("services.pid", { pid: job.pid ?? t("common.unknown") })}>{job.status === "stopping" ? t("services.stopping") : job.pid}</span>
 				<div className="flex shrink-0 opacity-0 transition-opacity group-hover/service:opacity-100 group-focus-within/service:opacity-100">
-					<IconButton size="sm" label="停止服务" disabled={busy === job.id || job.status === "stopping"} icon={<Square size={12} />} onClick={() => void stop(job.id, false)} />
-					<IconButton size="sm" label="强制结束服务" disabled={busy === job.id} tone="danger" icon={<X size={13} />} onClick={() => confirm.ask({ title: "强制结束这个服务？", detail: job.command, confirmLabel: "强制结束", onConfirm: () => void stop(job.id, true) })} />
+					<IconButton size="sm" label={t("services.stop")} disabled={busy === job.id || job.status === "stopping"} icon={<Square size={12} />} onClick={() => void stop(job.id, false)} />
+					<IconButton size="sm" label={t("services.kill")} disabled={busy === job.id} tone="danger" icon={<X size={13} />} onClick={() => confirm.ask({ title: t("services.killConfirm"), detail: job.command, confirmLabel: t("services.killLabel"), onConfirm: () => void stop(job.id, true) })} />
 				</div>
 			</div>
 			{job.endpoints.map((endpoint) => <div key={`${endpoint.pid}:${endpoint.address}:${endpoint.port}`} className="flex items-center gap-1.5 pl-3 text-caption text-ink-faint">
 				<ScrollText text={`${endpoint.address}:${endpoint.port}`} className="min-w-0 flex-1 font-mono" />
-				{endpoint.url && <><IconButton size="sm" label="在内置浏览器打开" icon={<Globe size={12} />} onClick={() => void commandBrowser({ type: "open", url: endpoint.url!, sessionId, newTab: true })} /><IconButton size="sm" label="在系统浏览器打开" icon={<ExternalLink size={12} />} onClick={() => void bridge.system.openExternal(endpoint.url!)} /></>}
-				<IconButton size="sm" label="复制服务地址" icon={<Copy size={12} />} onClick={() => void bridge.clipboard.write(endpoint.url ?? `${endpoint.address}:${endpoint.port}`)} />
+				{endpoint.url && <><IconButton size="sm" label={t("services.openBuiltin")} icon={<Globe size={12} />} onClick={() => void commandBrowser({ type: "open", url: endpoint.url!, sessionId, newTab: true })} /><IconButton size="sm" label={t("services.openSystem")} icon={<ExternalLink size={12} />} onClick={() => void bridge.system.openExternal(endpoint.url!)} /></>}
+				<IconButton size="sm" label={t("services.copyUrl")} icon={<Copy size={12} />} onClick={() => void bridge.clipboard.write(endpoint.url ?? `${endpoint.address}:${endpoint.port}`)} />
 			</div>)}
 			{job.error && <p className="pl-3 text-caption text-danger">{job.error}</p>}
 		</div>)}

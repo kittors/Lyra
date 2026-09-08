@@ -14,6 +14,8 @@
  * button does, rather than guessing.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import type { ForeignConfigLine } from "@lyra/core";
 import { Blocks, ChevronDown, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -107,11 +109,11 @@ export function ForeignConfigNotice() {
 
 /** What a place says about itself, after the path: 「2 条规则」, 「项目上下文」. */
 export function describeLine(line: ForeignConfigLine): string {
-	if (line.kind === "rule") return `${line.count} 条规则`;
-	if (line.kind === "skill") return `${line.count} 个技能`;
-	if (line.kind === "command") return `${line.count} 个命令`;
-	if (line.kind === "agent") return `${line.count} 个子 Agent 定义`;
-	return "项目上下文";
+	if (line.kind === "rule") return translate("foreign.rules", { n: line.count });
+	if (line.kind === "skill") return translate("foreign.skills", { n: line.count });
+	if (line.kind === "command") return translate("foreign.commands", { n: line.count });
+	if (line.kind === "agent") return translate("foreign.subAgents", { n: line.count });
+	return translate("foreign.projectContext");
 }
 
 /**
@@ -137,6 +139,7 @@ export function ForeignConfigBanner({
 	onLook: (line: ForeignConfigLine) => void;
 	onOk: () => void;
 }) {
+	const { t } = useI18n();
 	const { tools, places } = summarize(lines);
 	const menu = usePopover();
 	return (
@@ -146,11 +149,12 @@ export function ForeignConfigBanner({
 		>
 			<Blocks size={13} strokeWidth={1.8} className="shrink-0 text-accent" />
 			<span className="min-w-0 flex-1 truncate py-1 text-detail text-ink-muted" data-foreign-config-summary>
-				已在用 <span className="text-ink">{tools}</span> 的配置
+				{t("foreign.inUse")} <span className="text-ink">{tools}</span>
+				{t("foreign.theirConfig")}
 			</span>
 			{places > 1 && (
 				<span className="shrink-0 text-caption tabular-nums text-ink-faint" data-foreign-config-count>
-					{places} 处
+					{t("foreign.placeCount", { n: places })}
 				</span>
 			)}
 			{/* One place: go there. Several: ask which — a button cannot land on all of them. */}
@@ -162,22 +166,22 @@ export function ForeignConfigBanner({
 				aria-expanded={places > 1 ? menu.open : undefined}
 				className="flex shrink-0 items-center gap-0.5 text-caption text-ink-muted underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
 			>
-				查看
+				{t("common.look")}
 				{places > 1 && <ChevronDown size={11} strokeWidth={2} className="opacity-70" />}
 			</button>
 			<button
 				type="button"
 				onClick={onOk}
 				data-foreign-config-ok
-				data-ly-tip="知道了，这个项目不再提示"
-				aria-label="知道了，这个项目不再提示"
+				data-ly-tip={t("foreign.dismiss")}
+				aria-label={t("foreign.dismiss")}
 				className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 			>
 				<X size={12} strokeWidth={2} />
 			</button>
 			{menu.open && (
 				/* Wider than a menu: a path on the left and what it holds on the right must not meet. */
-				<Popover anchor={menu.anchor} onClose={menu.close} placement="top" align="end" width={360} role="menu" label="在用的配置">
+				<Popover anchor={menu.anchor} onClose={menu.close} placement="top" align="end" width={360} role="menu" label={t("foreign.configInUse")}>
 					<MenuBody>
 						{lines.map((line) => (
 							<MenuItem

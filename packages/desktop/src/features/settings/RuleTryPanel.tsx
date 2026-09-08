@@ -8,6 +8,8 @@
  * its conditions, one input per condition, because a file's `condition` is a list.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import type { Message } from "@lyra/core";
 import { Card } from "./controls.tsx";
 import { TextInput } from "./inputs.tsx";
@@ -24,16 +26,17 @@ export function RuleTryPanel({
 	/** The active conversation; only its assistant messages are looked at. */
 	messages: Message[];
 }) {
+	const { t } = useI18n();
 	const outcomes = patterns.map((pattern) => tryCondition(pattern, messages));
 	const checked = outcomes[0]?.checked ?? 0;
 
 	return (
 		<Card className="mb-6">
 			<div className="px-4 py-3" data-rule-try>
-				<div className="mb-1 text-label text-ink">拿最近的对话试一下</div>
+				<div className="mb-1 text-label text-ink">{t("ruleTry.title")}</div>
 				<p className="mb-3 text-detail leading-relaxed text-ink-muted">
-					对当前会话最近 {RECENT_LIMIT} 条助手消息跑一遍这个正则，列出它会命中的地方——直接回答「我写宽了吗」。
-					{checked === 0 && " 现在没有可试的消息：打开一个有过回复的会话。"}
+					{t("ruleTry.intro", { n: RECENT_LIMIT })}
+					{checked === 0 && t("ruleTry.noMessages")}
 				</p>
 				{patterns.map((pattern, i) => {
 					const outcome = outcomes[i];
@@ -45,8 +48,8 @@ export function RuleTryPanel({
 								mono
 								value={pattern}
 								invalid={typed && outcome.reason !== undefined}
-								placeholder="condition 正则，例如 (?i)rm -rf"
-								aria-label="要试的正则"
+								placeholder={t("ruleTry.placeholder")}
+								aria-label={t("ruleTry.label")}
 								onChange={(value) => onChange(patterns.map((p, j) => (j === i ? value : p)))}
 							/>
 							{typed &&
@@ -57,10 +60,10 @@ export function RuleTryPanel({
 								) : (
 									<p data-rule-try-status={outcome.hits.length > 0 ? "hit" : "miss"} className="mt-1 text-detail text-ink-muted">
 										{outcome.hits.length > 0
-											? `会命中 ${outcome.hits.length} 处`
+											? t("ruleTry.hits", { n: outcome.hits.length })
 											: outcome.checked > 0
-												? `最近 ${outcome.checked} 条里一处都不命中`
-												: "正则没问题；有了对话再来试命中"}
+												? t("ruleTry.noHits", { n: outcome.checked })
+												: t("ruleTry.validNoMessages")}
 									</p>
 								))}
 							{outcome.hits.length > 0 && (
@@ -68,7 +71,8 @@ export function RuleTryPanel({
 									{outcome.hits.map((hit, k) => (
 										<li key={k} data-rule-try-hit className="text-detail text-ink-faint">
 											<span className="text-ink-muted">
-												倒数第 {hit.nth} 条 · {sourceWord(hit)}
+												{t("ruleTry.nthFromEnd", { n: hit.nth })}
+												{sourceWord(hit)}
 											</span>{" "}
 											<span className="font-mono">{hit.snippet}</span>
 										</li>
@@ -84,7 +88,7 @@ export function RuleTryPanel({
 }
 
 function sourceWord(hit: TryHit): string {
-	if (hit.source === "text") return "正文";
-	if (hit.source === "thinking") return "思考";
-	return `工具 ${hit.toolName ?? ""} 的参数`;
+	if (hit.source === "text") return translate("ruleTry.body");
+	if (hit.source === "thinking") return translate("ruleTry.thinking");
+	return translate("ruleTry.toolArgs", { tool: hit.toolName ?? "" });
 }
