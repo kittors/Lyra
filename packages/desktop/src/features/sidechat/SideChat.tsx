@@ -9,6 +9,7 @@
  * `sidechat/TaskStrip`, and the field is `sidechat/SideComposer`.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus } from "lucide-react";
 import type { Message } from "@lyra/core";
 import { useEffect, useState } from "react";
@@ -55,14 +56,14 @@ export function SideChat() {
 			{!sessionId ? (
 				// It reads the conversation it is attached to; without one there is nothing to be
 				// beside.
-				<PanelEmpty icon={MessageCirclePlus} title="侧边聊天">
-					先打开一个对话
+				<PanelEmpty icon={MessageCirclePlus} title={translate("dock.sideChat")}>
+					{translate("sideChat.needSession")}
 				</PanelEmpty>
 			) : loading && messages.length === 0 ? (
-				<div role="status" className="flex flex-1 items-center justify-center text-label text-ink-faint">正在读取侧边聊天…</div>
+				<div role="status" className="flex flex-1 items-center justify-center text-label text-ink-faint">{translate("sideChat.loading")}</div>
 			) : messages.length === 0 ? (
 				<PanelEmpty icon={MessageCirclePlus} title="侧边聊天">
-					围绕当前对话聊一聊
+					{translate("sideChat.empty")}
 				</PanelEmpty>
 			) : (
 				<div className="relative flex min-h-0 flex-1 flex-col">

@@ -7,6 +7,7 @@
  * you commit to it, and the bookmarks that match what you have typed so far.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Bookmark, CornerDownLeft, Globe, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { browserOmnibox, browserSearchLabel, type BrowserSearchSettings } from "../../../shared/browser.ts";
@@ -70,8 +71,8 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 		if (!typed || !value.trim()) return [];
 		const head: Choice[] = target
 			? [target.kind === "search"
-				? { kind: "search", url: target.url, label: target.query, detail: `用${engine}搜索` }
-				: { kind: "open", url: target.url, label: target.url, detail: "打开网址" }]
+				? { kind: "search", url: target.url, label: target.query, detail: translate("address.searchWith", { engine }) }
+				: { kind: "open", url: target.url, label: target.url, detail: translate("address.openUrl") }]
 			: [];
 		return [...head, ...matchingBookmarks(value.trim(), bookmarks, head[0]?.url ?? "")];
 	}, [typed, value, target, bookmarks, engine]);
@@ -102,14 +103,14 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 		<Input
 			ref={inputRef}
 			role="combobox"
-			aria-label="地址栏或搜索"
+			aria-label={translate("address.label")}
 			aria-expanded={open}
 			aria-controls={listId}
 			aria-autocomplete="list"
 			aria-activedescendant={open ? `${listId}-${index}` : undefined}
 			value={value}
 			spellCheck={false}
-			placeholder={`用${engine}搜索，或输入网址`}
+			placeholder={translate("address.placeholder", { engine })}
 			onChange={(event) => { setValue(event.target.value); setTyped(true); setActive(0); }}
 			// Selected on arrival, so the next keystroke replaces the address instead of appending
 			// to it — the one thing every other address bar does.
@@ -131,7 +132,7 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 		{open && <div
 			id={listId}
 			role="listbox"
-			aria-label="地址栏建议"
+			aria-label={translate("address.suggestions")}
 			data-omnibox-list
 			/*
 			 * Opaque, not frosted: the thing underneath is a `<webview>`, which composites outside

@@ -24,6 +24,7 @@
  * second table of these names would be a second thing to update when a client is added, and the
  * one that drifts is always the copy nobody compiles against the platform.
  */
+import { translate } from "../../i18n/translate.ts";
 import { CLIENT_LABEL } from "@lyra/registry-shared";
 
 import type { CatalogItem } from "./catalog.ts";
@@ -39,7 +40,7 @@ export function IdentityLine({ item }: { item: CatalogItem }): React.ReactNode {
 
 	// Which half of the catalogue it belongs to. The card can be reached from either scope, and the
 	// distinction survives being installed: something from a registry stays "公开" once you have it.
-	parts.push(<span key="scope">{item.entry ? "公开" : "个人"}</span>);
+	parts.push(<span key="scope">{translate(item.entry ? "common.public" : "common.personal")}</span>);
 	if (item.version) {
 		parts.push(
 			<span key="version" className="tabular-nums">
@@ -101,8 +102,8 @@ export function FootprintLine({ item }: { item: CatalogItem }): React.ReactNode 
 	 * `skillCount` is what the loader counted once it is installed and what the index claimed before.
 	 */
 	const skills = item.collected > 0 ? item.collected : item.skillCount;
-	if (skills) counts.push(`${skills} 个技能`);
-	if (item.serverCount) counts.push(`${item.serverCount} 个服务`);
+	if (skills) counts.push(translate("cardMeta.skills", { n: skills }));
+	if (item.serverCount) counts.push(translate("cardMeta.servers", { n: item.serverCount }));
 
 	const clients = item.clients ?? [];
 	if (counts.length === 0 && clients.length === 0 && !item.downloads) return null;

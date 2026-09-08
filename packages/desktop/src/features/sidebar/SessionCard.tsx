@@ -17,6 +17,7 @@
  * beside a row would be cut off at the pane's edge — which is exactly where it needs to be.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -45,8 +46,8 @@ function when(at: number): string {
 	if (days === 0) {
 		return new Date(at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 	}
-	if (days === 1) return "昨天";
-	if (days < 30) return `${days} 天前`;
+	if (days === 1) return translate("sessionCard.yesterday");
+	if (days < 30) return translate("sessionCard.daysAgo", { n: days });
 	return new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
 }
 
@@ -198,10 +199,10 @@ export function SessionCard({
 			 * first. What is left is the number the hit rate is a comment on.
 			 */}
 			<div className="flex items-start justify-between gap-2 px-3 py-2">
-				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label="消息" value={String(session.messageCount)} />
-				<Stat icon={<Zap size={11} strokeWidth={2} />} label="用量" value={formatTokens(freshTokens(usage))} />
+				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label={translate("sessionCard.messages")} value={String(session.messageCount)} />
+				<Stat icon={<Zap size={11} strokeWidth={2} />} label={translate("sessionCard.usage")} value={formatTokens(freshTokens(usage))} />
 				{hit !== null && (
-					<Stat icon={<Coins size={11} strokeWidth={2} />} label="缓存" value={`${Math.round(hit * 100)}%`} />
+					<Stat icon={<Coins size={11} strokeWidth={2} />} label={translate("sessionCard.cache")} value={`${Math.round(hit * 100)}%`} />
 				)}
 			</div>
 		</div>);

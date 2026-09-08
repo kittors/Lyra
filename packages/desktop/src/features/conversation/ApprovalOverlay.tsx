@@ -1,3 +1,5 @@
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { MessageCircle, TriangleAlert } from "lucide-react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useLayout } from "../../app/layout.tsx";
@@ -6,8 +8,13 @@ import { QuestionChoices } from "./QuestionChoices.tsx";
 import { PermissionChoices } from "./PermissionChoices.tsx";
 import { approvalReason } from "./approval-content.ts";
 
-const KIND_LABEL: Record<string, string> = {
-	bash: "执行命令", write: "写入文件", edit: "修改文件", mcp: "调用 MCP 工具", network: "访问网络",
+/** What is being asked for, by kind. Keys — this table is built at import time. */
+const KIND_LABEL: Record<string, MessageKey> = {
+	bash: "approval.bash",
+	write: "approval.write",
+	edit: "approval.edit",
+	mcp: "approval.mcp",
+	network: "approval.network",
 };
 
 /** Keep the transcript readable while a decision blocks only the composer. */
@@ -26,7 +33,7 @@ export function ApprovalOverlay() {
 			<div className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-1.5">
 				<Icon size={15} strokeWidth={1.8} className="shrink-0 text-accent" />
 				<span className="min-w-0 flex-1 break-words text-label font-medium text-ink">{request.title}</span>
-				{!interactive && <span className="shrink-0 text-caption text-ink-faint">{KIND_LABEL[request.kind] ?? request.kind}</span>}
+				{!interactive && <span className="shrink-0 text-caption text-ink-faint">{KIND_LABEL[request.kind] ? translate(KIND_LABEL[request.kind]) : request.kind}</span>}
 				{approvals.length > 1 && <span className="shrink-0 text-caption text-ink-faint">+{approvals.length - 1}</span>}
 			</div>
 			<Scroller className={`ly-approval-scroll mx-2 ${interactive ? "max-h-[min(480px,60vh)]" : "max-h-[min(280px,30vh)]"}`} contentClassName="px-2 py-2">

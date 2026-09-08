@@ -45,15 +45,21 @@ const HAN = /[一-鿿]/;
  * dataclass. Those are the sample's subject matter, not labels: translating them would leave the
  * samples doing the same job in a different alphabet, and nobody reads them as sentences.
  *
- * Nothing else belongs here. Text going *to* a model would qualify on the same reasoning — the
- * language a prompt is written in is a property of the prompt — but the renderer has none of it;
- * what looked like it (`lib/thinking-words`) is the phrase beside the timer, which is exactly the
- * kind of thing a person reads.
+ * `release-notes` writes the changelog, and its `lang` is the language of the *release* — the user
+ * picks it in the release panel with a control of its own, separately from the interface. Wiring it
+ * to the window's language would mean an English window could no longer publish Chinese notes,
+ * which is the whole point of that control.
+ *
+ * Nothing else belongs here. Other text going *to* a model would qualify on the same reasoning —
+ * the language a prompt is written in is a property of the prompt — but the renderer has none of
+ * it; what looked like it (`lib/thinking-words`) is the phrase beside the timer, which is exactly
+ * the kind of thing a person reads.
  */
 const EXEMPT = [
 	"i18n/messages/",
 	"i18n/translate.ts",
 	"features/settings/format-catalog.ts",
+	"features/git/release-notes.ts",
 ];
 
 /** Strip comments, so the reasoning this codebase writes in Chinese is not a finding. */

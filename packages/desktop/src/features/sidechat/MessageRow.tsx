@@ -10,6 +10,7 @@
  * model reading both — which is precisely how a side chat loses the thread it was opened to follow.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { AssistantMessage, Message, UserContent } from "@lyra/core";
 import { openFromEvent } from "../image/index.ts";
 import { Pencil } from "lucide-react";
@@ -84,7 +85,7 @@ function UserRow({
 						setDraft(text);
 						setEditing(false);
 					}}
-					confirmLabel="重新提问"
+					confirmLabel={translate("sideMessage.reask")}
 					// The panel is a couple of hundred pixels wide; 320 would swallow it.
 					maxHeight={220}
 				/>
@@ -102,7 +103,7 @@ function UserRow({
 							<button
 								key={i}
 								type="button"
-								aria-label="预览图片"
+								aria-label={translate("sideMessage.previewImage")}
 								onClick={(event) =>
 									openFromEvent(
 										event,
@@ -114,7 +115,7 @@ function UserRow({
 							>
 								<img
 									src={`data:${block.mimeType};base64,${block.data}`}
-									alt="附图"
+									alt={translate("sideMessage.attachedImage")}
 									className="h-14 w-20 object-cover"
 								/>
 							</button>
@@ -135,8 +136,8 @@ function UserRow({
 			<MessageActions timestamp={timestamp} text={text} className="pr-1">
 				<button
 					type="button"
-					data-ly-tip={running ? "回答进行中，无法编辑" : "编辑并重新提问"}
-					aria-label="编辑并重新提问"
+					data-ly-tip={translate(running ? "sideMessage.busy" : "sideMessage.editAndReask")}
+					aria-label={translate("sideMessage.editAndReask")}
 					disabled={running}
 					onClick={() => {
 						setDraft(text);

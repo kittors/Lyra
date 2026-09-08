@@ -94,10 +94,10 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 pt-3 pb-1">
 						<div className="flex items-center gap-1.5 text-label text-accent">
 							<Sparkles size={13} strokeWidth={1.9} />
-							从最近的会话里总结出 {pending?.length} 个技能，等你决定
+							{t("skillsSettings.pending", { n: pending?.length ?? 0 })}
 						</div>
 						<p className="mt-0.5 text-detail text-ink-muted">
-							这些还没有生效。启用之后，它们会像你自己写的技能一样被用上。
+							{t("skillsSettings.pendingDetail")}
 						</p>
 					</div>
 					{pending.map((candidate) => (
@@ -120,14 +120,14 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 									onClick={() => void decide(candidate.name, true)}
 									className="flex h-7 items-center rounded-lg bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90"
 								>
-									启用
+									{t("common.enable")}
 								</button>
 								<button
 									type="button"
 									onClick={() => void decide(candidate.name, false)}
 									className="h-7 rounded-lg px-2 text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
 								>
-									不要
+									{t("skillsSettings.reject")}
 								</button>
 							</div>
 						</div>
@@ -139,7 +139,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{diagnostics.length} 个技能未能加载
+							{t("skillsSettings.failedToLoad", { n: diagnostics.length })}
 						</div>
 						{diagnostics.map((diagnostic) => (
 							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
@@ -155,7 +155,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{warnings.length} 个技能的描述太短，模型可能不会选它
+							{t("skillsSettings.shortDescriptions", { n: warnings.length })}
 						</div>
 						{warnings.map((warning) => (
 							<div key={warning.path} className="py-0.5 text-detail text-ink-faint">

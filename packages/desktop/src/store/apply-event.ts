@@ -7,6 +7,7 @@
  * the event belongs to the conversation on screen.
  */
 
+import { translate } from "../i18n/translate.ts";
 import type { AgentEvent } from "@lyra/core";
 import { freshTokens } from "@lyra/core/tokens";
 import { nextActivity } from "@lyra/core/activity";
@@ -218,7 +219,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   if (sessionId !== get().activeSessionId) {
 		if (completion) {
 			const target = get().sessions.find((session) => session.id === sessionId);
-			get().notify(`${target ? `「${sessionTitle(target.title)}」` : "任务"}${completion.text}`, completion.level, sessionId);
+			const who = target ? translate("applyEvent.named", { title: sessionTitle(target.title) }) : translate("applyEvent.task");
+			get().notify(`${who}${completion.text}`, completion.level, sessionId);
 		}
     const cached = get().sessionCache[sessionId];
     if (cached) {
@@ -240,7 +242,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       void bridge.sessions
         .list()
 				.then((sessions) => set({ sessions }))
-				.catch((cause: unknown) => get().notify(`会话列表刷新失败：${cause instanceof Error ? cause.message : String(cause)}`, "error"));
+				.catch((cause: unknown) =>
+				get().notify(translate("applyEvent.refreshFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error"),
+			);
     }
     return;
   }
@@ -465,9 +469,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * 因为「改的东西已经生效了」并不值得打断谁。
        */
       const parts = [
-        event.skills !== 0 ? `技能 ${event.skills > 0 ? "+" : ""}${event.skills}` : null,
-        event.rules !== 0 ? `规则 ${event.rules > 0 ? "+" : ""}${event.rules}` : null,
-        event.agents !== 0 ? `子代理 ${event.agents > 0 ? "+" : ""}${event.agents}` : null,
+        event.skills !== 0 ? translate("applyEvent.skillsDelta", { delta: `${event.skills > 0 ? "+" : ""}${event.skills}` }) : null,
+        event.rules !== 0 ? translate("applyEvent.rulesDelta", { delta: `${event.rules > 0 ? "+" : ""}${event.rules}` }) : null,
+        event.agents !== 0 ? translate("applyEvent.agentsDelta", { delta: `${event.agents > 0 ? "+" : ""}${event.agents}` }) : null,
       ].filter(Boolean);
       if (parts.length > 0) {
         const named = event.added.length > 0 ? `：${event.added.join("、")}` : "";

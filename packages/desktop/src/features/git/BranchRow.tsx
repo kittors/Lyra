@@ -2,6 +2,7 @@
  * One branch, with what it is ahead and behind by.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { GitBranch, GitCompare, GitPullRequestArrow, ArrowRightLeft, Trash2 } from "lucide-react";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -35,7 +36,7 @@ export function BranchRow({
       <ScrollText text={name} className={`min-w-0 flex-1 text-label ${current ? "text-ink" : "text-ink-muted"}`} />
       {current ? (
         <Text size="caption" tone="faint" className="w-9 shrink-0 text-right">
-          当前
+          {translate("branchRow.current")}
         </Text>
       ) : (
         /*
@@ -46,7 +47,7 @@ export function BranchRow({
           {onCompare && (
             <IconButton
               icon={<GitCompare size={12} strokeWidth={1.9} />}
-              label="与当前分支比较"
+              label={translate("branchRow.compare")}
               size="sm"
               onClick={onCompare}
             />
@@ -54,7 +55,7 @@ export function BranchRow({
           {onDelete && (
             <IconButton
               icon={<Trash2 size={12} strokeWidth={1.9} />}
-              label="删除分支"
+              label={translate("branchRow.delete")}
               size="sm"
               tone="danger"
               onClick={onDelete}
@@ -63,7 +64,7 @@ export function BranchRow({
           <IconButton
             size="sm"
             icon={remote ? <GitPullRequestArrow size={13} strokeWidth={1.9} /> : <ArrowRightLeft size={13} strokeWidth={1.9} />}
-            label={remote ? "检出远程分支" : "切换到此分支"}
+            label={translate(remote ? "branchRow.checkoutRemote" : "branchRow.switchTo")}
             disabled={busy}
             onClick={onSwitch}
           />

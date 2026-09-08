@@ -15,6 +15,7 @@
  * codebase and this is the reason.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Disclosure } from "./Disclosure.tsx";
 
@@ -44,9 +45,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 		return (
 			<div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-shell px-8">
 				<div className="w-full max-w-[560px]">
-					<h1 className="text-title font-semibold text-ink">这个界面崩了</h1>
+					<h1 className="text-title font-semibold text-ink">{translate("errorBoundary.title")}</h1>
 					<p className="mt-1.5 text-label leading-relaxed text-ink-muted">
-						渲染进程抛了一个没人接住的错误。会话和设置都还在，重新加载这个窗口就能回去。
+						{translate("errorBoundary.detail")}
 					</p>
 
 					{/*
@@ -61,7 +62,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
 					{componentStack && (
 						<div className="mt-2">
-							<Disclosure variant="compact" title="组件栈">
+							<Disclosure variant="compact" title={translate("errorBoundary.stack")}>
 								<pre className="mt-1 max-h-[220px] overflow-auto rounded-[10px] border border-line bg-card/40 px-3 py-2.5 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
 									{componentStack.trim()}
 								</pre>
@@ -75,14 +76,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 							onClick={() => window.location.reload()}
 							className="h-8 rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 						>
-							重新加载
+							{translate("errorBoundary.reload")}
 						</button>
 						{/*
 						 * Worth saying out loud, because it is the answer surprisingly often during
 						 * development: the main process does not hot-reload, so a renderer built
 						 * against a newer IPC shape than the one answering it will throw right here.
 						 */}
-						<span className="text-detail text-ink-faint">改过主进程或 core 的话，要重启 dev server</span>
+						<span className="text-detail text-ink-faint">{translate("errorBoundary.devHint")}</span>
 					</div>
 				</div>
 			</div>

@@ -1,3 +1,4 @@
+import { activeLocale } from "../../i18n/translate.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
 	ArrowUpRight,
@@ -53,7 +54,7 @@ export function AboutSettings() {
 			<div>
 				<h2 className="text-title font-semibold text-ink">{t("about.title")}</h2>
 				<p className="mt-1 text-label text-ink-muted">
-					查看当前应用版本、更新日志、手动检查与配置自动更新频率。
+					{t("about.intro")}
 				</p>
 			</div>
 
@@ -66,7 +67,7 @@ export function AboutSettings() {
 							<span>{versionNote(info, phase)}</span>
 							{info?.publishedAt && (
 								<span className="text-caption text-ink-faint">
-									发布于 {new Date(info.publishedAt).toLocaleDateString()}
+									{t("about.publishedOn", { date: new Date(info.publishedAt).toLocaleDateString(activeLocale()) })}
 								</span>
 							)}
 						</div>
@@ -83,7 +84,7 @@ export function AboutSettings() {
 							{available && (
 								<PrimaryButton onClick={() => setOpenDialog(true)}>
 									<DownloadCloud size={13} className="mr-1.5 inline" />
-									立即更新到 v{info?.latest}
+									{t("about.updateNow", { version: info?.latest ?? "" })}
 								</PrimaryButton>
 							)}
 						</div>
@@ -149,7 +150,7 @@ export function AboutSettings() {
 							onClick={() => void bridge.system.openExternal("https://github.com/kittors/Lyra")}
 							icon={<ArrowUpRight size={13} />}
 						>
-							GitHub 仓库
+							{t("about.repo")}
 						</GhostButton>
 					}
 				/>
@@ -163,7 +164,7 @@ export function AboutSettings() {
 							}
 							icon={<ArrowUpRight size={13} />}
 						>
-							Releases 页面
+							{t("about.releases")}
 						</GhostButton>
 					}
 				/>

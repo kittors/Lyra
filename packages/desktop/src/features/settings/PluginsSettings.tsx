@@ -11,6 +11,7 @@
  * behind the ⋯, where you look for it when you already know you want it.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import type { Plugin } from "@lyra/core";
 import { FolderOpen, MoreHorizontal, Settings2, TriangleAlert, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,7 +25,6 @@ import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { bridge } from "../../services/index.ts";
-import { useI18n } from "../../i18n/index.ts";
 
 export function PluginsSettings({ filter = "" }: { filter?: string }) {
 	const { t } = useI18n();
@@ -90,7 +90,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{diagnostics.length} 个插件问题
+							{t("pluginsSettings.problems", { n: diagnostics.length })}
 						</div>
 						{diagnostics.map((diagnostic) => (
 							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
@@ -106,7 +106,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{warnings.length} 个插件技能的描述太短，模型可能不会选它
+							{t("pluginsSettings.shortDescriptions", { n: warnings.length })}
 						</div>
 						{warnings.map((warning) => (
 							<div key={warning.path} className="py-0.5 text-detail text-ink-faint">
@@ -247,7 +247,7 @@ function PluginRow({
 									onManage();
 								}}
 							>
-								管理
+								{t("common.manage")}
 							</MenuItem>
 							<MenuItem
 								icon={<FolderOpen size={13} strokeWidth={1.8} />}
@@ -256,7 +256,7 @@ function PluginRow({
 									void bridge.system.openPath(plugin.dir);
 								}}
 							>
-								打开目录
+								{t("common.openFolder")}
 							</MenuItem>
 
 							<MenuSeparator />
@@ -272,7 +272,7 @@ function PluginRow({
 									setConfirming(true);
 								}}
 							>
-								卸载
+								{t("mcp.uninstall")}
 							</MenuItem>
 						</MenuBody>
 				</Popover>

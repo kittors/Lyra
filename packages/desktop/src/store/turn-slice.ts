@@ -6,6 +6,7 @@
  * is created reads as broken — and the stored copy replaces it when the runtime confirms it.
  */
 
+import { translate } from "../i18n/translate.ts";
 import type { ApprovalDecision, Message, ThinkingLevel, UserContent } from "@lyra/core";
 import { prune, without } from "./derive.ts";
 import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
@@ -107,7 +108,7 @@ export function turnSlice(set: Set, get: Get) {
 				});
 			} catch (cause) {
 				if (ownsSelection()) set({ running: false, stopped: "error", turnStartedAt: null, pendingUserMessage: null });
-				get().notify(`新建会话失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+				get().notify(translate("turn.newSessionFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return false;
 			} finally { creating.delete(epoch); }
 		}
@@ -134,12 +135,12 @@ export function turnSlice(set: Set, get: Get) {
 		} catch (cause) {
 			// Once acknowledged, a failed follow-up read must not invite a duplicate submission.
 			if (accepted) {
-				get().notify(`消息已发送，刷新会话状态失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+				get().notify(translate("turn.sentButStale", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return true;
 			}
 			// A later prompt owns this session even after its optimistic message is acknowledged.
 			if (prompting.get(id) !== submission) {
-				get().notify(`发送失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+				get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return false;
 			}
 			const cached = get().sessionCache[id];
@@ -147,7 +148,7 @@ export function turnSlice(set: Set, get: Get) {
 				...(cached?.state ? { sessionCache: { ...get().sessionCache, [id]: { ...cached, state: { ...cached.state, running: false, stopped: "error", pendingUserMessage: null } } } } : {}),
 			});
 			if (get().activeSessionId === id) set({ running: false, stopped: "error", pendingUserMessage: null, turnStartedAt: null });
-			get().notify(`发送失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 			return false;
 		} finally { if (prompting.get(id) === submission) prompting.delete(id); }
 		return true;
@@ -227,7 +228,7 @@ export function turnSlice(set: Set, get: Get) {
 			if (get().sessionCache[sessionId]?.messages.includes(pending)) {
 				set({ sessionCache: without(get().sessionCache, sessionId) });
 			}
-			get().notify(`编辑重发失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			get().notify(translate("turn.resendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
   },
 
@@ -321,7 +322,7 @@ export function turnSlice(set: Set, get: Get) {
 				await bridge.agent.setThinking(activeSessionId, thinking);
 			} catch (cause) {
 				if (get().activeSessionId === activeSessionId && get().meta === optimistic) set({ meta });
-				get().notify(`推理等级设置失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+				get().notify(translate("turn.thinkingFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 			}
       return;
     }

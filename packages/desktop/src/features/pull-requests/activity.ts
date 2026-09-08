@@ -9,6 +9,7 @@
  * honest shape for it: this is a data question, and the component next door is the drawing.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { PullRequestDetail } from "../../../electron/ipc-types.ts";
 
 /**
@@ -35,11 +36,11 @@ export interface ActivityEntry {
 
 /** GitHub's review states, in the words a reviewer would use. */
 export function verdictLabel(state: string): string {
-	if (state === "APPROVED") return "已批准";
-	if (state === "CHANGES_REQUESTED") return "请求修改";
-	if (state === "REQUESTED") return "待审查";
-	if (state === "DISMISSED") return "已忽略";
-	return "已评论";
+	if (state === "APPROVED") return translate("prRow.approved");
+	if (state === "CHANGES_REQUESTED") return translate("reviewBar.requestChanges");
+	if (state === "REQUESTED") return translate("prActivity.requested");
+	if (state === "DISMISSED") return translate("prActivity.dismissed");
+	return translate("prActivity.commented");
 }
 
 export function activityOf(

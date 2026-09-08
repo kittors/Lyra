@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { ExternalLink, Maximize2, Minimize2, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -257,7 +258,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					{/* Solid, not frosted: this card scrolls inside the transcript, and a masked scroller
 					    is a backdrop root — the blur would never arrive. See `.ly-glass-solid`. */}
 					<span className="ly-glass-solid rounded-full px-2.5 py-1 text-detail text-ink-muted transition-colors hover:text-ink">
-						内容更长 · 在侧栏中查看
+						{translate("preview.longer")}
 					</span>
 				</button>
 			)}
@@ -275,14 +276,14 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				 */}
 				<IconButton
 					icon={tall ? <Minimize2 size={12} strokeWidth={1.9} /> : <Maximize2 size={12} strokeWidth={1.9} />}
-					label={tall ? "自适应高度" : "放到最大"}
+					label={translate(tall ? "preview.fitHeight" : "preview.maximise")}
 					size="sm"
 					tipSide="top"
 					onClick={() => setTall((value) => !value)}
 				/>
 				<IconButton
 					icon={<RotateCw size={12} strokeWidth={1.9} />}
-					label="重新运行"
+					label={translate("preview.rerun")}
 					size="sm"
 					tipSide="top"
 					onClick={() => {
@@ -296,7 +297,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				/>
 				<IconButton
 					icon={<ExternalLink size={12} strokeWidth={1.9} />}
-					label="在侧栏中打开"
+					label={translate("preview.openInPanel")}
 					size="sm"
 					tipSide="top"
 					onClick={() => {

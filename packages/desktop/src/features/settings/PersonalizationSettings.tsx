@@ -2,6 +2,7 @@
  * Personalization settings: custom global instructions, local persistent memory management, and tone.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Textarea, Input } from "../../ui/inputs/NativeField.tsx";
 import { useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Trash2 } from "lucide-react";
@@ -10,7 +11,6 @@ import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Togg
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
 import { SidebarMotto } from "./SidebarMotto.tsx";
-import { useI18n } from "../../i18n/index.ts";
 
 export function PersonalizationSettings() {
 	const { t } = useI18n();
@@ -160,7 +160,7 @@ export function PersonalizationSettings() {
 					<div>
 						<SectionTitle>{t("tone.customInstructions")}</SectionTitle>
 						<p className="text-caption text-ink-muted mt-0.5">
-							向 Agent 提供适用于此主机上所有聊天的额外说明和全局规则，会自动与项目中的 AGENTS.md / CLAUDE.md 组合生效。
+							{t("personalization.globalRules")}
 						</p>
 					</div>
 					<GhostButton
@@ -199,7 +199,7 @@ export function PersonalizationSettings() {
 					<div>
 						<SectionTitle>{t("memory.title")}</SectionTitle>
 						<p className="text-caption text-ink-muted mt-0.5">
-							设置在此电脑上如何收集、保留和整合本地记忆，跨会话保留开发习惯与核心决策。
+							{t("personalization.memoryIntro")}
 						</p>
 					</div>
 					{memoryEntries.length > 0 && (
@@ -208,7 +208,7 @@ export function PersonalizationSettings() {
 							onClick={handleClearAllMemory}
 							className="rounded-lg px-2.5 py-1 text-caption text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
 						>
-							清除所有记忆
+							{t("personalization.clearMemory")}
 						</button>
 					)}
 				</div>
@@ -314,13 +314,13 @@ export function PersonalizationSettings() {
 				{workspace?.path && projectMemory && (projectMemory.lessons.length > 0 || projectMemory.extracted) && (
 					<div className="pt-2" data-project-memory>
 						<p className="mb-1.5 text-caption text-ink-muted">
-							这个项目记住的（<span className="font-mono">{workspace.name ?? workspace.path}</span>）
+							{t("personalization.rememberedFor", { name: workspace.name ?? workspace.path })}
 						</p>
 						<div className="space-y-1.5">
 							{projectMemory.lessons.map((lesson) => (
 								<div key={`${lesson.at}-${lesson.text}`} className="rounded-xl border border-line bg-card p-3" data-project-lesson>
 									<span className="text-detail text-ink leading-relaxed break-words">{lesson.text}</span>
-									{lesson.context && <span className="block text-caption text-ink-muted">适用于：{lesson.context}</span>}
+									{lesson.context && <span className="block text-caption text-ink-muted">{t("personalization.appliesTo", { context: lesson.context })}</span>}
 									<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
 								</div>
 							))}
@@ -344,7 +344,7 @@ export function PersonalizationSettings() {
 				<div className="mb-2">
 					<SectionTitle>{t("tone.section")}</SectionTitle>
 					<p className="text-caption text-ink-muted mt-0.5">
-						调整 Agent 回复的默认语调与工程风格。
+						{t("personalization.toneIntro")}
 					</p>
 				</div>
 				<Card>

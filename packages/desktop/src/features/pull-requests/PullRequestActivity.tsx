@@ -14,6 +14,7 @@
  * whole at one line — giving them a chevron would promise something behind it.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ExternalLink, GitCommitHorizontal, GitPullRequest } from "lucide-react";
 import { useState } from "react";
 import { Markdown } from "../conversation/index.ts";
@@ -72,7 +73,7 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
 			/>
 
 			<span className="min-w-0 flex-1 truncate text-label text-ink-muted">
-				{entry.kind === "opened" ? `${entry.author} 打开了此 Pull Request` : entry.body}
+				{entry.kind === "opened" ? translate("prActivity.opened", { author: entry.author }) : entry.body}
 			</span>
 
 			{entry.kind === "commit" && entry.author && (
@@ -115,7 +116,7 @@ function ProseRow({
 				{!open && !empty && (
 					<span className="min-w-0 flex-1 truncate text-detail text-ink-faint">{firstLine(entry.body)}</span>
 				)}
-				{empty && <span className="min-w-0 flex-1 text-detail text-ink-faint">（没有留下文字）</span>}
+				{empty && <span className="min-w-0 flex-1 text-detail text-ink-faint">{translate("prActivity.noText")}</span>}
 				{open && <div className="flex-1" />}
 
 				<span className="shrink-0 text-detail text-ink-faint tabular-nums">{relativeTime(entry.at)}</span>
@@ -137,8 +138,8 @@ export function ActivityLink({ url }: { url: string }) {
 	return (
 		<button
 			type="button"
-			data-ly-tip="在浏览器中查看全部"
-			aria-label="在浏览器中查看全部活动"
+			data-ly-tip={translate("prActivity.allInBrowser")}
+			aria-label={translate("prActivity.allInBrowserLong")}
 			onClick={() => void bridge.system.openExternal(url)}
 			className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 		>

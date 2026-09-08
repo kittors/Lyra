@@ -56,7 +56,7 @@ export function ScreenshotSettings() {
 	return (
 		<div className="pt-8">
 			<h1 className="pb-7 text-display leading-tight font-semibold tracking-tight text-ink">
-				截图设置
+				{t("screenshot.title")}
 			</h1>
 
 			<SectionTitle>{t("shot.shortcutSection")}</SectionTitle>
@@ -77,7 +77,7 @@ export function ScreenshotSettings() {
 							/>
 							{config.shortcut && (
 								<GhostButton onClick={() => patch({ shortcut: "" })}>
-									清除
+									{t("common.clear")}
 								</GhostButton>
 							)}
 						</div>
@@ -98,7 +98,7 @@ export function ScreenshotSettings() {
 					detail={t("shot.testDetail")}
 					control={
 						<GhostButton disabled={config.enabled === false} icon={<Camera size={14} />} onClick={() => void bridge.screenshot.start().catch((error: unknown) => useApp.getState().notify(String(error), "error"))}>
-							立即截屏
+							{t("screenshot.now")}
 						</GhostButton>
 					}
 				/>
@@ -117,7 +117,7 @@ export function ScreenshotSettings() {
 						<div className="flex items-center gap-2">
 							{config.saveLocation?.trim() && (
 								<GhostButton onClick={() => patch({ saveLocation: "" })}>
-									清除
+									{t("common.clear")}
 								</GhostButton>
 							)}
 							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("saveLocation")}>
@@ -145,7 +145,7 @@ export function ScreenshotSettings() {
 						<div className="flex items-center gap-2">
 							{config.downloadLocation?.trim() && (
 								<GhostButton onClick={() => patch({ downloadLocation: "" })}>
-									恢复默认
+									{t("common.restoreDefault")}
 								</GhostButton>
 							)}
 							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("downloadLocation")}>

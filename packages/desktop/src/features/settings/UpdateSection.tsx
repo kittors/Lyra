@@ -12,6 +12,7 @@
  * feature was rewritten for.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
@@ -35,12 +36,12 @@ export function UpdateSection() {
 
 	return (
 		<>
-			<SectionTitle>关于</SectionTitle>
+			<SectionTitle>{translate("common.about")}</SectionTitle>
 			<Card>
 				{/* Three statements in one sentence — up to date, an update waiting, or a check that
 				    never reached GitHub. The rules, and their tests, are in `update/view.ts`. */}
 				<Row
-					title="版本"
+					title={translate("updateSection.version")}
 					detail={versionNote(info, phase)}
 					control={
 						<div className="flex items-center gap-2">
@@ -49,13 +50,13 @@ export function UpdateSection() {
 								disabled={checking}
 								icon={<RefreshCw size={13} strokeWidth={2} className={checking ? "ly-spin" : ""} />}
 							>
-								{checking ? "检查中" : "检查更新"}
+								{translate(checking ? "updateSection.checking" : "updateSection.check")}
 							</GhostButton>
 							{/*
 							 * Only when there is one. An update dialog for a version you already have would
 							 * open onto a release note about the app you are reading it in.
 							 */}
-							{available && <PrimaryButton onClick={() => setOpen(true)}>查看更新</PrimaryButton>}
+							{available && <PrimaryButton onClick={() => setOpen(true)}>{translate("updateSection.view")}</PrimaryButton>}
 						</div>
 					}
 				/>

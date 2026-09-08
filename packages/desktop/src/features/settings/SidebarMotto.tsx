@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
@@ -23,12 +24,12 @@ export function SidebarMotto() {
 	};
 	return (
 		<section>
-			<SectionTitle>侧边栏座右铭</SectionTitle>
+			<SectionTitle>{translate("motto.title")}</SectionTitle>
 			<Card className="p-3.5">
 				<div className="flex items-center gap-2">
-					<TextInput value={draft} onChange={setDraft} placeholder="写一句喜欢的话，留空显示模型供应商" aria-label="侧边栏座右铭" maxLength={500} />
-					<IconButton disabled={saving || draft === stored} label="保存座右铭" onClick={() => void save(draft)} icon={<Save size={15} strokeWidth={1.8} />} />
-					<IconButton disabled={saving || (!stored && !draft)} label="恢复默认座右铭" onClick={() => void save("")} icon={<RotateCcw size={15} strokeWidth={1.8} />} />
+					<TextInput value={draft} onChange={setDraft} placeholder={translate("motto.placeholder")} aria-label={translate("motto.title")} maxLength={500} />
+					<IconButton disabled={saving || draft === stored} label={translate("motto.save")} onClick={() => void save(draft)} icon={<Save size={15} strokeWidth={1.8} />} />
+					<IconButton disabled={saving || (!stored && !draft)} label={translate("motto.restore")} onClick={() => void save("")} icon={<RotateCcw size={15} strokeWidth={1.8} />} />
 				</div>
 			</Card>
 		</section>

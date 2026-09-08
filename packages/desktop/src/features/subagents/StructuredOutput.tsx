@@ -12,6 +12,7 @@
  * sub-agent; the person looking at the pane did not sign it and should not have to.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
@@ -50,7 +51,7 @@ function Field({ name, value }: { name: string; value: unknown }) {
 		return (
 			<div className="flex items-center gap-2 text-detail" data-field={name} data-kind="flag">
 				<Key name={name} />
-				<span className={`rounded px-1.5 text-caption ${value ? "bg-ok/15 text-ok" : "bg-danger/15 text-danger"}`}>{value ? "是" : "否"}</span>
+				<span className={`rounded px-1.5 text-caption ${value ? "bg-ok/15 text-ok" : "bg-danger/15 text-danger"}`}>{translate(value ? "common.yes" : "common.no")}</span>
 			</div>
 		);
 	}
@@ -78,7 +79,7 @@ function Field({ name, value }: { name: string; value: unknown }) {
 			return (
 				<div className="flex items-center gap-2 text-detail" data-field={name} data-kind="empty">
 					<Key name={name} />
-					<span className="text-ink-faint">无</span>
+					<span className="text-ink-faint">{translate("common.nothing")}</span>
 				</div>
 			);
 		}
@@ -199,7 +200,7 @@ function Table({ name, rows }: { name?: string; rows: Plain[] }) {
 
 function Cell({ value }: { value: unknown }) {
 	if (value === null || value === undefined) return <span className="text-ink-faint">—</span>;
-	if (typeof value === "boolean") return <span>{value ? "是" : "否"}</span>;
+	if (typeof value === "boolean") return <span>{translate(value ? "common.yes" : "common.no")}</span>;
 	if (Array.isArray(value)) return <span>{value.map((item) => (isPlain(item) ? JSON.stringify(item) : String(item))).join("、")}</span>;
 	if (isPlain(value)) return <StructuredOutput output={value} />;
 	return <span className="break-words">{String(value)}</span>;
