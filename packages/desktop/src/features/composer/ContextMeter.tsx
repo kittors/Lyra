@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n/index.ts";
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import type { Message, Settings } from "@lyra/core";
 import { useEffect, useState } from "react";
 
@@ -33,6 +35,7 @@ export function ContextMeter({
 	modelId: string | null;
 	sessionId: string | null;
 }) {
+	const { t } = useI18n();
 	const popover = usePopover();
 	const [snapshot, setSnapshot] = useState<{ sessionId: string; modelId: string | null; detail: ContextBreakdown | null; error?: string } | null>(null);
 	const current = snapshot?.sessionId === sessionId && snapshot.modelId === modelId ? snapshot : null;
@@ -48,14 +51,14 @@ export function ContextMeter({
 		if (!sessionId || !hasMessages) return;
 		let cancelled = false;
 		void bridge.sessions.contextBreakdown(sessionId).then((result) => {
-			if (!cancelled) setSnapshot({ sessionId, modelId, detail: result, error: result ? undefined : "当前模型的上下文用量不可用" });
+			if (!cancelled) setSnapshot({ sessionId, modelId, detail: result, error: result ? undefined : t("context.unavailable") });
 		}, (error: unknown) => {
 			if (!cancelled) setSnapshot({ sessionId, modelId, detail: null, error: error instanceof Error ? error.message : String(error) });
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [open, sessionId, modelId, hasMessages, revision, compacted, running, settings]);
+	}, [open, sessionId, modelId, hasMessages, revision, compacted, running, settings, t]);
 
 	const model = findModel(settings, modelId);
 	if (!model || model.contextWindow <= 0) return null;
@@ -76,13 +79,17 @@ export function ContextMeter({
 	// The runtime starts compacting well before the window is actually full, so "nearly full"
 	// has to mean something earlier than 100 to be a useful warning.
 	const tight = ratio >= 0.8;
+	/* One sentence for both the tooltip and the label — they were two copies of the same ternary. */
+	const reading = detail
+		? t(detail.measured ? "context.usedPercent" : "context.usedPercentEstimated", { percent })
+		: (current?.error ?? t("context.reading"));
 
 	return (
 		<>
 			<button
 				type="button"
-				data-ly-tip={detail ? `上下文占用 ${percent}%${detail.measured ? "" : "（估算）"}` : current?.error ?? "正在读取上下文用量"}
-				aria-label={detail ? `上下文占用 ${percent}%${detail.measured ? "" : "（估算）"}` : current?.error ?? "正在读取上下文用量"}
+				data-ly-tip={reading}
+				aria-label={reading}
 				aria-haspopup="dialog"
 				aria-expanded={open}
 				onClick={popover.toggle}
@@ -110,13 +117,17 @@ export function ContextMeter({
 					align="center"
 					width="panel"
 					role="group"
-					label="上下文窗口用量"
+					label={t("context.windowUsage")}
 				>
 					<div className="px-3.5 py-3">
 						<div className="flex items-baseline justify-between gap-4">
-							<span className="text-label text-ink">上下文窗口</span>
+							<span className="text-label text-ink">{t("context.window")}</span>
 							<span className={`text-label tabular-nums ${tight ? "text-danger" : "text-ink-muted"}`}>
-								{detail ? `${formatTokens(used)} / ${formatTokens(limit)}（${percent}%）` : current?.error ? "暂时无法读取" : "正在读取…"}
+								{detail
+									? `${formatTokens(used)} / ${formatTokens(limit)}（${percent}%）`
+									: current?.error
+										? t("context.unreadable")
+										: t("context.loading")}
 							</span>
 						</div>
 
@@ -124,20 +135,20 @@ export function ContextMeter({
 
 						{tight && (
 							<p className="mt-2.5 border-t border-line-soft pt-2 text-detail leading-relaxed text-ink-faint">
-								接近上限，较早的消息会被自动摘要压缩。开新对话可以拿回全部窗口。
+								{t("context.nearLimit")}
 							</p>
 						)}
 
 						{detail ? (
 							<div className="mt-2.5 flex flex-col gap-[3px]">
-								{detail.segments.filter((segment) => segment.key !== "memory" && segment.key !== "projectMemory").map((segment) => <Row key={segment.key} swatch={shadeOf(detail.segments.indexOf(segment))} label={SEGMENT_LABEL[segment.key]} tokens={segment.tokens} share={segment.tokens / limit} />)}
+								{detail.segments.filter((segment) => segment.key !== "memory" && segment.key !== "projectMemory").map((segment) => <Row key={segment.key} swatch={shadeOf(detail.segments.indexOf(segment))} label={t(SEGMENT_LABEL[segment.key])} tokens={segment.tokens} share={segment.tokens / limit} />)}
 								<Row
 									swatch="var(--color-line)"
-									label="剩余空间"
+									label={t("context.remaining")}
 									tokens={Math.max(0, limit - used)}
 									share={Math.max(0, limit - used) / limit}
 								/>
-								{!detail.measured && <p className="text-micro text-ink-faint">按当前模型上下文估算；下次响应后校准。</p>}
+								{!detail.measured && <p className="text-micro text-ink-faint">{t("context.estimateNote")}</p>}
 								<ContextMemoryFiles detail={detail} onOpen={popover.close} />
 
 							</div>
@@ -159,14 +170,15 @@ export function ContextMeter({
 	);
 }
 
-const SEGMENT_LABEL: Record<ContextSegmentKey, string> = {
-	messages: "对话消息",
-	systemTools: "内置工具",
-	mcpTools: "MCP 工具",
-	skills: "技能目录",
-	systemPrompt: "系统提示词",
-	memory: "项目指令",
-	projectMemory: "项目记忆",
+/** What each slice of the window is called. Keys, looked up per render — see `translate`. */
+const SEGMENT_LABEL: Record<ContextSegmentKey, MessageKey> = {
+	messages: "context.messages",
+	systemTools: "context.builtinTools",
+	mcpTools: "context.mcpTools",
+	skills: "context.skillCatalog",
+	systemPrompt: "context.systemPrompt",
+	memory: "context.projectInstructions",
+	projectMemory: "context.projectMemory",
 };
 
 /**

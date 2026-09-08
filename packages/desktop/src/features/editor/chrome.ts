@@ -1,25 +1,17 @@
 /**
- * The find/replace panel, in Chinese and with icons.
+ * Making CodeMirror look — and read — like the rest of the app.
  *
- * CodeMirror ships an English panel of text buttons. Replacing the strings is a lookup table;
- * replacing the buttons means drawing them, because the panel gives no other way in.
+ * Two jobs: restyling every surface it draws (gutters, the search panel, the completion popup)
+ * onto the app's own tokens, and replacing its English chrome with whatever language the window is
+ * set to. Both are long and mechanical, and neither is worth reading while trying to understand
+ * the editor itself.
+ *
+ * The panel gives no way to hand it a React child, so the buttons are drawn as markup here and the
+ * words come from the same catalogue as everything else.
  */
 
-/**
- * Making CodeMirror look like the rest of the app.
- *
- * Two jobs: restyling every surface it draws — gutters, the search panel, the completion popup —
- * onto the app's own tokens, and replacing its English chrome with Chinese. Both are long and
- * mechanical, and neither is worth reading while trying to understand the editor itself.
- */
+import { translate } from "../../i18n/translate.ts";
 
-
-/**
- * The find/replace panel's wording.
- *
- * Keys are CodeMirror's own English strings; anything not listed keeps the original.
- */
-/** Hover text for the icon-only buttons, keyed by CodeMirror's own `name` attribute. */
 /**
  * The find bar's icons, as markup.
  *
@@ -62,29 +54,44 @@ export const OPTION_ICONS = [
 export const CHEVRON_RIGHT = icon('<path d="m9 18 6-6-6-6"/>');
 export const CHEVRON_DOWN = icon('<path d="m6 9 6 6 6-6"/>');
 
-export const SEARCH_TIPS: Record<string, string> = {
-	next: "下一个",
-	prev: "上一个",
-	select: "选中全部匹配",
-	replace: "替换当前",
-	replaceAll: "全部替换",
-	close: "关闭 (Esc)",
-};
+/**
+ * The find bar's own words, looked up when the bar is built rather than when this file loads.
+ *
+ * Functions rather than tables: a module-level object would freeze whatever language the window
+ * happened to be in at import time, which for a file imported at startup is the fallback and not
+ * the choice. `CodeEditor` calls these inside the effect that installs the search extension, so a
+ * language change rebuilds them.
+ *
+ * `searchTips` is hover text for the icon-only buttons, keyed by CodeMirror's own `name` attribute.
+ */
+export function searchTips(): Record<string, string> {
+	return {
+		next: translate("common.next"),
+		prev: translate("common.previous"),
+		select: translate("find.selectAll"),
+		replace: translate("find.replaceOne"),
+		replaceAll: translate("find.replaceAll"),
+		close: translate("find.closeEsc"),
+	};
+}
 
-export const SEARCH_PHRASES: Record<string, string> = {
-	Find: "查找",
-	Replace: "替换",
-	next: "下一个",
-	previous: "上一个",
-	all: "全部",
-	"match case": "区分大小写",
-	"by word": "全词匹配",
-	regexp: "正则",
-	replace: "替换",
-	"replace all": "全部替换",
-	close: "关闭",
-	"current match": "当前匹配",
-	"replaced $ matches": "已替换 $ 处",
-	"replaced match on line $": "已替换第 $ 行的匹配",
-	"on line": "行",
-};
+/** What CodeMirror's own search UI says, in the window's language. `$` is its placeholder. */
+export function searchPhrases(): Record<string, string> {
+	return {
+		Find: translate("find.find"),
+		Replace: translate("find.replace"),
+		next: translate("common.next"),
+		previous: translate("common.previous"),
+		all: translate("common.all"),
+		"match case": translate("find.matchCase"),
+		"by word": translate("find.wholeWord"),
+		regexp: translate("find.regex"),
+		replace: translate("find.replace"),
+		"replace all": translate("find.replaceAll"),
+		close: translate("common.close"),
+		"current match": translate("find.currentMatch"),
+		"replaced $ matches": translate("find.replacedN"),
+		"replaced match on line $": translate("find.replacedOnLine"),
+		"on line": translate("common.line"),
+	};
+}

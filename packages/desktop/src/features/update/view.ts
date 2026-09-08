@@ -11,6 +11,7 @@
  */
 
 import type { UpdatePhase } from "../../../electron/ipc-types.ts";
+import { translate } from "../../i18n/translate.ts";
 
 export type Phase = UpdatePhase;
 
@@ -30,7 +31,9 @@ export const PHASES: Phase[] = [
 	{ at: "preparing", received: 100, total: 100 },
 	{ at: "ready", relaunch: true },
 	{ at: "ready", relaunch: false },
-	{ at: "failed", error: "下载中断了。", received: 45, total: 100 },
+	// Whatever the main process threw, verbatim — this field is not ours to translate, and the
+	// sample says so by not being a sentence this app would ever write.
+	{ at: "failed", error: "net::ERR_CONNECTION_RESET", received: 45, total: 100 },
 ];
 
 /**
@@ -56,19 +59,19 @@ export function labelFor(phase: Phase, version: string): string {
 	const percent = Math.round((fractionOf(phase) ?? 0) * 100);
 	switch (phase.at) {
 		case "downloading":
-			return `下载中 ${percent}%`;
+			return translate("update.downloadingPercent", { percent });
 		case "paused":
-			return `已暂停 ${percent}%`;
+			return translate("update.pausedPercent", { percent });
 		case "preparing":
-			return "准备中";
+			return translate("common.preparing");
 		case "ready":
 			// Two endings, two words: one restarts into the new version, the other points at an
 			// installer that is already open and waiting to be told to go ahead.
-			return phase.relaunch ? "重启更新" : "去安装";
+			return phase.relaunch ? translate("update.restartToUpdate") : translate("update.goInstall");
 		case "failed":
-			return "下载失败";
+			return translate("update.failed");
 		default:
-			return `新版本 ${version}`;
+			return translate("update.newVersion", { version });
 	}
 }
 
@@ -76,17 +79,17 @@ export function labelFor(phase: Phase, version: string): string {
 export function confirmLabel(phase: Phase): string {
 	switch (phase.at) {
 		case "downloading":
-			return "下载中";
+			return translate("update.downloading");
 		case "paused":
-			return "继续下载";
+			return translate("update.resume");
 		case "preparing":
-			return "准备中";
+			return translate("common.preparing");
 		case "ready":
-			return phase.relaunch ? "立即重启" : "重新打开安装包";
+			return phase.relaunch ? translate("update.restartNow") : translate("update.reopenInstaller");
 		case "failed":
-			return "重试";
+			return translate("common.retry");
 		default:
-			return "下载安装";
+			return translate("update.download");
 	}
 }
 
@@ -100,8 +103,8 @@ export function confirmLabel(phase: Phase): string {
  */
 export function readyNote(relaunch: boolean): string {
 	return relaunch
-		? "已下载完成。重启 Lyra 即可用上新版本，正在进行的对话会中断。"
-		: "已下载完成，安装程序已经打开。按它的提示装完，再重新启动 Lyra 就是新版本了。";
+		? translate("update.readyRestart")
+		: translate("update.readyInstaller");
 }
 
 /**
@@ -164,12 +167,12 @@ export function versionNote(
 	info: { current: string; latest: string; available: boolean; checked: boolean } | null,
 	phase: Phase,
 ): string {
-	if (!info) return "正在读取版本…";
+	if (!info) return translate("update.reading");
 	// The phase said in words, so the row means something *during* a download and not only before
 	// one: 「新版本 0.3.2」, 「下载中 45%」, 「已暂停 45%」, 「重启更新」…
-	if (info.available) return `当前 ${info.current}，${labelFor(phase, info.latest)}`;
-	if (!info.checked) return `当前 ${info.current}，没能连上 GitHub，检查一下网络再试`;
-	return `当前 ${info.current}，已经是最新版本`;
+	if (info.available) return translate("update.currentAnd", { current: info.current, what: labelFor(phase, info.latest) });
+	if (!info.checked) return translate("update.offline", { current: info.current });
+	return translate("update.upToDate", { current: info.current });
 }
 
 /** Bytes as something a person reads at a glance. One decimal: 90.4MB, not 90.37MB. */

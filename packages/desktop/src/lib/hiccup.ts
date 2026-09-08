@@ -10,6 +10,9 @@
  * 就是它自然的样子：等待时它在数秒，接上了它变成一行灰字，真没救了才换成一句失败。
  */
 
+import type { MessageKey } from "../i18n/messages/index.ts";
+import { translate } from "../i18n/translate.ts";
+
 /** 摘要在一行里放不下时截到多少——再长的原文进悬停和展开。 */
 const LINE_MAX = 40;
 
@@ -153,29 +156,34 @@ export function settleHiccups(
  */
 export function describeHiccup(hiccup: Hiccup, now: number): string {
 	if (hiccup.outcome === "recovered") {
-		return hiccup.attempts === 1 ? "断了一下，已恢复" : `重连 ${hiccup.attempts} 次后恢复`;
+		return hiccup.attempts === 1
+			? translate("hiccup.recovered")
+			: translate("hiccup.recoveredAfter", { n: hiccup.attempts });
 	}
 	if (hiccup.outcome === "gave_up") {
 		return clip(hiccup.summary, LINE_MAX);
 	}
 	const left = Math.ceil((hiccup.until - now) / 1000);
-	const wait = left > 0 ? `${left} 秒后重连` : "正在重连";
+	const wait = left > 0 ? translate("hiccup.reconnectIn", { n: left }) : translate("hiccup.reconnecting");
 	/*
 	 * 等的时候，「还要等多久」比「什么错」要紧。
 	 *
 	 * 这里一度直接截服务商的原话，于是屏幕上是一句 `upstream tempor…`——半个英文单词，对读的人
 	 * 什么也没说，还占掉了倒计时的位置。具体原因不会丢：它在悬停里，也在展开里。
 	 */
-	const what = hiccup.kind === "network" ? "连接中断" : "服务端故障";
-	if (hiccup.resume) return `${what}，进度已保留，${left > 0 ? `${left} 秒后继续` : "正在继续"}`;
+	const what = translate(hiccup.kind === "network" ? "hiccup.dropped" : "hiccup.serverFault");
+	if (hiccup.resume) {
+		const state = left > 0 ? translate("hiccup.continueIn", { n: left }) : translate("hiccup.continuing");
+		return translate("hiccup.progressKept", { what, state });
+	}
 	/*
 	 * 一直是同一个错误的时候，次数比原因重要。
 	 *
 	 * 三次以上、指纹一模一样，说明这不是在排队等一个会好起来的东西。这句话不需要认识那个错误就能
 	 * 说出口，而它正是无限重试唯一可能骗人的地方。
 	 */
-	if (hiccup.repeated >= 3) return `${what}，已重连 ${hiccup.attempts} 次，一直是同一个错误`;
-	return `${what}，${wait}（第 ${hiccup.attempts} 次）`;
+	if (hiccup.repeated >= 3) return translate("hiccup.sameErrorEvery", { what, n: hiccup.attempts });
+	return translate("hiccup.attemptN", { what, wait, n: hiccup.attempts });
 }
 
 /**
@@ -189,18 +197,20 @@ export function hiccupTip(hiccup: Hiccup): string | undefined {
 	// 等待时行内只写「还要等多久」，所以那句原因得在这儿说，否则它就无处可看了。
 	if (hiccup.summary) lines.push(clip(hiccup.summary, TIP_MAX));
 	if (hiccup.detail && hiccup.detail !== hiccup.summary) lines.push(clip(hiccup.detail, TIP_MAX));
-	if (hiccup.outcome === "recovered" && hiccup.attempts > 1) lines.push(`重试了 ${hiccup.attempts} 次才接上。`);
-	if (hiccup.hint) lines.push(HINTS[hiccup.hint] ?? "");
+	if (hiccup.outcome === "recovered" && hiccup.attempts > 1)
+		lines.push(translate("hiccup.tookNTries", { n: hiccup.attempts }));
+	const hint = hiccup.hint ? HINTS[hiccup.hint] : undefined;
+	if (hint) lines.push(translate(hint));
 	const text = lines.filter(Boolean).join("\n");
 	return text || undefined;
 }
 
-const HINTS: Record<string, string> = {
-	"check-key": "去「设置 → 服务商」确认这个服务商的密钥。",
-	"check-model": "去「设置 → 服务商」确认模型名和接口地址。",
-	"check-billing": "多半是账户余额或额度，去服务商后台看一眼。",
-	"check-request": "这次请求本身不被接受，换个说法或先压缩上下文。",
-	blocked: "内容被服务商的安全策略拦下了。",
+const HINTS: Record<string, MessageKey> = {
+	"check-key": "hiccup.hintKey",
+	"check-model": "hiccup.hintModel",
+	"check-billing": "hiccup.hintQuota",
+	"check-request": "hiccup.hintRequest",
+	blocked: "hiccup.hintSafety",
 };
 
 /** 一行放得下的长度，超了就截，末尾留一个省略号说明还有。 */

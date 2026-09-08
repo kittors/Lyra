@@ -24,7 +24,7 @@ import { GRAMMARS, grammarKeyFor, highlightStyle } from "../../lib/code/highligh
 import { editorTheme } from "./theme.ts";
 import { applyFormat } from "./apply-format.ts";
 import { FORMAT_DEFAULTS } from "./format.ts";
-import { CHEVRON_DOWN, CHEVRON_RIGHT, OPTION_ICONS, SEARCH_ICONS, SEARCH_PHRASES, SEARCH_TIPS } from "./chrome.ts";
+import { CHEVRON_DOWN, CHEVRON_RIGHT, OPTION_ICONS, SEARCH_ICONS, searchPhrases, searchTips } from "./chrome.ts";
 import { EditorMenu } from "./EditorMenu.tsx";
 import { useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
@@ -173,7 +173,7 @@ export function CodeEditor({
 				 * translate it from the outside — `phrases` is the hook it provides for exactly
 				 * this. Missing keys fall through to the English original rather than blanking.
 				 */
-				EditorState.phrases.of(SEARCH_PHRASES),
+				EditorState.phrases.of(searchPhrases()),
 				highlightCompartment.current.of(syntaxHighlighting(highlightStyle(codeLightTheme, codeDarkTheme))),
 				...editorAccess(Boolean(readOnly)),
 				wrapping.current.of(wrap ? EditorView.lineWrapping : []),
@@ -296,7 +296,7 @@ export function CodeEditor({
 				panel.prepend(toggle);
 			}
 
-			for (const [name, hint] of Object.entries(SEARCH_TIPS)) {
+			for (const [name, hint] of Object.entries(searchTips())) {
 				const button = element.querySelector<HTMLElement>(`.cm-search button[name=${name}]`);
 				if (!button || button.querySelector("svg")) continue;
 				// The icon replaces the word, so the word has to survive as the accessible name.

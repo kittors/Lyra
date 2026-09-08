@@ -14,6 +14,9 @@
  * Pure, so `node --test` can hold it to every case below.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
+
 export interface Explained {
 	/** The headline, in the reader's language. */
 	message: string;
@@ -29,10 +32,19 @@ export interface Explained {
 	silent?: boolean;
 }
 
-/** One rule: what it recognises, and what it says instead. */
+/**
+ * One rule: what it recognises, and what it says instead.
+ *
+ * Keys rather than sentences, because this table is built once at module load and read for years
+ * afterwards — a sentence baked in here would be whatever language the window was set to on the
+ * first import, which is nothing anybody chose. `explain` looks them up at the moment of asking.
+ */
 interface Rule {
 	match: RegExp;
-	explain: Explained;
+	message: MessageKey;
+	hint?: MessageKey;
+	/** See `Explained.silent`. */
+	silent?: boolean;
 }
 
 const RULES: Rule[] = [
@@ -46,35 +58,44 @@ const RULES: Rule[] = [
 		 * than as a permission that has not been granted.
 		 */
 		match: /failed to get sources/i,
-		explain: { message: "截图需要屏幕录制权限", hint: "在系统设置 › 隐私与安全性 › 屏幕录制里勾选 Lyra，然后重启应用", silent: true },
+		message: "toastHelp.screenRecording",
+		hint: "toastHelp.screenRecordingFix",
+		silent: true,
 	},
 	{
 		match: /\bEACCES\b|\bEPERM\b|operation not permitted/i,
-		explain: { message: "没有权限访问这个文件", hint: "检查文件的读写权限，或换一个位置" },
+		message: "toastHelp.noAccess",
+		hint: "toastHelp.noAccessFix",
 	},
 	{
 		match: /\bENOENT\b|no such file or directory/i,
-		explain: { message: "找不到这个文件或目录", hint: "它可能已经被移动或删除" },
+		message: "toastHelp.notFound",
+		hint: "toastHelp.notFoundFix",
 	},
 	{
 		match: /\bENOSPC\b|no space left/i,
-		explain: { message: "磁盘空间不足", hint: "腾出一些空间后再试" },
+		message: "toastHelp.diskFull",
+		hint: "toastHelp.diskFullFix",
 	},
 	{
 		match: /\bECONNREFUSED\b/i,
-		explain: { message: "连接被拒绝", hint: "对方服务可能没有启动，或者地址和端口不对" },
+		message: "toastHelp.refused",
+		hint: "toastHelp.refusedFix",
 	},
 	{
 		match: /\bETIMEDOUT\b|\bESOCKETTIMEDOUT\b|timed? ?out/i,
-		explain: { message: "请求超时", hint: "网络或中继不稳定，稍后会自动重试" },
+		message: "toastHelp.timeout",
+		hint: "toastHelp.timeoutFix",
 	},
 	{
 		match: /\bENOTFOUND\b|getaddrinfo/i,
-		explain: { message: "域名解析失败", hint: "检查网络连接，或确认地址拼写正确" },
+		message: "toastHelp.dns",
+		hint: "toastHelp.dnsFix",
 	},
 	{
 		match: /\bECONNRESET\b|\bEPIPE\b|socket hang up/i,
-		explain: { message: "连接被中断", hint: "网络抖动，稍后会自动重试" },
+		message: "toastHelp.reset",
+		hint: "toastHelp.resetFix",
 	},
 	{
 		/*
@@ -84,15 +105,18 @@ const RULES: Rule[] = [
 		 * transcript's error line where it can be expanded, not in a toast.
 		 */
 		match: /HTTP 5\d\d|internal_server_error|"type"\s*:\s*"server_error"/i,
-		explain: { message: "模型服务暂时不可用", hint: "对方返回了服务端错误，稍后会自动重试" },
+		message: "toastHelp.upstream",
+		hint: "toastHelp.upstreamFix",
 	},
 	{
 		match: /HTTP 429|rate.?limit/i,
-		explain: { message: "请求太频繁，被限流了", hint: "等一会儿再试，或换一个供应商" },
+		message: "toastHelp.rateLimited",
+		hint: "toastHelp.rateLimitedFix",
 	},
 	{
 		match: /HTTP 401|HTTP 403|invalid.?api.?key|unauthorized/i,
-		explain: { message: "凭证被拒绝", hint: "检查设置里这个供应商的 API Key 是否正确、是否过期" },
+		message: "toastHelp.badKey",
+		hint: "toastHelp.badKeyFix",
 	},
 ];
 
@@ -104,7 +128,12 @@ const RULES: Rule[] = [
 export function explain(message: string): Explained {
 	const text = message.trim();
 	for (const rule of RULES) {
-		if (rule.match.test(text)) return rule.explain;
+		if (!rule.match.test(text)) continue;
+		return {
+			message: translate(rule.message),
+			...(rule.hint ? { hint: translate(rule.hint) } : {}),
+			...(rule.silent ? { silent: true } : {}),
+		};
 	}
 	return { message: text };
 }
