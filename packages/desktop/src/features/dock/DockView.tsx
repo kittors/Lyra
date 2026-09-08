@@ -14,6 +14,7 @@
  * you make the window small.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { useLayout, useSidebarFit } from "../../app/layout.tsx";
@@ -262,7 +263,7 @@ export function DockView({
 	const describe = (kind: PaneKind) => {
 		if (kind === "conversation") return { label: title, icon };
 		const def = definitions.find((entry) => entry.kind === kind);
-		return { label: def?.label ?? kind, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined };
+		return { label: def ? translate(def.label) : kind, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined };
 	};
 
 	/*

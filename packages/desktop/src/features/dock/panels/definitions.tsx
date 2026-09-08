@@ -6,6 +6,7 @@
  * and the chooser and the add menu all disable the same things for the same stated reason.
  */
 
+import type { MessageKey } from "../../../i18n/messages/index.ts";
 import { allPanels, panelsForHost, type PanelDefinition } from "./registry.ts";
 import type { PanelKind } from "../sideStore.ts";
 import { useApp } from "../../../store/index.ts";
@@ -13,7 +14,7 @@ import { onPhone } from "../../../services/host.ts";
 import "./builtin.tsx";
 
 /** A panel with its availability already decided, which is all a view needs. */
-export type ResolvedPanel = Omit<PanelDefinition, "unavailable"> & { unavailable?: string };
+export type ResolvedPanel = Omit<PanelDefinition, "unavailable"> & { unavailable?: MessageKey };
 
 export function usePanelDefinitions(): ResolvedPanel[] {
 	const workspace = useApp((s) => s.workspace);

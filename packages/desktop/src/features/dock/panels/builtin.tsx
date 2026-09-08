@@ -29,13 +29,13 @@ import { registerPanels, type PanelDefinition } from "./registry.ts";
  */
 const TREE_SHARE = 0.3;
 
-const needsWorkspace = (state: { workspace: boolean }) => (state.workspace ? undefined : "先打开一个项目");
-const needsSession = (state: { session: boolean }) => (state.session ? undefined : "先开始一个对话");
+const needsWorkspace = (state: { workspace: boolean }) => (state.workspace ? undefined : "dock.needProject");
+const needsSession = (state: { session: boolean }) => (state.session ? undefined : "dock.needSession");
 
 const BUILTIN_PANELS: PanelDefinition[] = [
 	{
 		kind: "files",
-		label: "文件",
+		label: "common.files",
 		icon: Folder,
 		shortcut: "⌘P",
 		mobile: true,
@@ -66,7 +66,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 	 */
 	{
 		kind: "file",
-		label: "文件内容",
+		label: "dock.fileContents",
 		icon: FileText,
 		shortcut: "⌥⌘P",
 		mobile: true,
@@ -105,7 +105,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 	 */
 	{
 		kind: "subagents",
-		label: "子 Agent",
+		label: "subAgent.title",
 		icon: Bot,
 		shortcut: "⌥⌘A",
 		mobile: true,
@@ -114,7 +114,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 	},
 	{
 		kind: "chat",
-		label: "侧边聊天",
+		label: "dock.sideChat",
 		icon: MessageCirclePlus,
 		shortcut: "⌥⌘S",
 		mobile: true,
@@ -123,7 +123,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 	},
 	{
 		kind: "terminal",
-		label: "终端",
+		label: "common.terminal",
 		icon: SquareTerminal,
 		shortcut: "⌃`",
 		/*
@@ -135,18 +135,18 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		render: TerminalPane,
 		header: TerminalTabs,
 	},
-	{ kind: "tasks", label: "任务", icon: ListTodo, shortcut: "⌘J", mobile: true, render: TaskPanel },
+	{ kind: "tasks", label: "common.tasks", icon: ListTodo, shortcut: "⌘J", mobile: true, render: TaskPanel },
 	{
 		kind: "trajectory",
-		label: "轨迹",
+		label: "trajectory.title",
 		icon: History,
 		shortcut: "⌘L",
 		mobile: true,
 		unavailable: needsSession,
 		render: TrajectoryPanel,
 	},
-	{ kind: "browser", label: "浏览器", icon: Globe, shortcut: "⌘T", render: BrowserPanel },
-	{ kind: "review", label: "Git", icon: GitCompare, shortcut: "⌘⇧R", unavailable: needsWorkspace, render: GitPanel },
+	{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "⌘T", render: BrowserPanel },
+	{ kind: "review", label: "common.git", icon: GitCompare, shortcut: "⌘⇧R", unavailable: needsWorkspace, render: GitPanel },
 ];
 
 registerPanels(BUILTIN_PANELS);

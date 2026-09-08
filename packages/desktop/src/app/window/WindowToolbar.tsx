@@ -7,6 +7,7 @@
  * the buttons are separate elements rather than one.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "lucide-react";
 import { useDock } from "../../features/dock/index.ts";
 import { has } from "../../features/dock/index.ts";
@@ -75,6 +76,7 @@ const QUICK: PanelKind[] = ["terminal", "browser", "review"];
  * — there is no panel to open or collapse, and no full screen distinct from a pane being large.
  */
 export function PanelMenu() {
+	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
 	const phone = onPhone();
@@ -96,7 +98,7 @@ export function PanelMenu() {
 					return (
 						<ToolbarButton
 							key={kind}
-							label={phone ? def.label : `${def.label} ${def.shortcut}`}
+							label={phone ? t(def.label) : `${t(def.label)} ${def.shortcut}`}
 							active={has(tree, kind)}
 							onClick={() => toggle(kind)}
 						>
@@ -143,7 +145,7 @@ export function PanelMenu() {
 										menu.close();
 									}}
 								>
-									{def.label}
+									{t(def.label)}
 								</MenuItem>
 							);
 						})}

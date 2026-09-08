@@ -395,7 +395,7 @@ export function Composer() {
 			if (!isReadableAsText(kind)) {
 				// Known not to be text: attached, but its bytes stay out of the prompt.
 				next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind });
-				refused.push(`${file.name}（${KIND_LABEL[kind]}）`);
+				refused.push(`${file.name}（${translate(KIND_LABEL[kind])}）`);
 				continue;
 			}
 
@@ -610,14 +610,14 @@ export function Composer() {
 											   See `addFiles`. */
 											<div
 												className="flex h-[68px] w-[110px] flex-col justify-between rounded-lg border border-line bg-card p-2.5 text-left shadow-xs"
-											data-ly-tip={`${attachment.name}\n${KIND_LABEL[attachment.kind ?? "binary"]} · ${t("composer.filenameOnly")}`}
+											data-ly-tip={`${attachment.name}\n${t(KIND_LABEL[attachment.kind ?? "binary"])} · ${t("composer.filenameOnly")}`}
 											>
 												<div className="flex items-center gap-1.5 text-ink-muted">
 													<FileKindIcon kind={attachment.kind ?? "binary"} size={15} />
 													<span className="truncate text-xs font-medium text-ink">{attachment.name}</span>
 												</div>
 												<span className="text-[10px] text-ink-faint">
-											{KIND_LABEL[attachment.kind ?? "binary"]} · {t("composer.filenameOnly")}
+											{t(KIND_LABEL[attachment.kind ?? "binary"])} · {t("composer.filenameOnly")}
 												</span>
 											</div>
 										) : (

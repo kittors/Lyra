@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/index.ts";
 import { SessionServices } from "./SessionServices.tsx";
 import { ListTodo } from "lucide-react";
 import { memo, useDeferredValue, useMemo, useRef, useState } from "react";
@@ -25,6 +26,7 @@ import { useApp } from "../../store/index.ts";
  * value here is entirely in having them in one column, in order.
  */
 export const TaskPanel = memo(function TaskPanel() {
+	const { t } = useI18n();
 	const todos = useApp((s) => s.todos);
 	const toolRuns = useApp((s) => s.toolRuns);
 	const running = useApp((s) => s.running);
@@ -50,10 +52,10 @@ export const TaskPanel = memo(function TaskPanel() {
 	return (
 		<Scroller scrollRef={scrollRef} className="flex-1 pt-2" contentClassName="relative px-2 pb-3">
 			<SessionServices />
-			{todos.length === 0 && runs.length === 0 && <PanelEmpty icon={ListTodo} title="任务">暂无执行记录</PanelEmpty>}
+			{todos.length === 0 && runs.length === 0 && <PanelEmpty icon={ListTodo} title={t("common.tasks")}>{t("taskPanel.emptyRuns")}</PanelEmpty>}
 			{todos.length > 0 && (
 				<>
-					<Header label="计划" hint={`${done}/${todos.length}`} />
+					<Header label={t("taskPanel.plan")} hint={`${done}/${todos.length}`} />
 					{todos.map((todo, index) => (
 						<div key={`${index}-${todo.content}`} className="ly-scroll flex items-center gap-2 rounded-md px-1.5 py-[5px]">
 							<Mark status={todo.status} paused={!running && !failed} failed={failed} />
@@ -70,9 +72,9 @@ export const TaskPanel = memo(function TaskPanel() {
 
 			{runs.length > 0 && (
 				<>
-					<Header label="执行记录" hint={`${matched.length}/${runs.length}`} />
+					<Header label={t("taskPanel.runs")} hint={`${matched.length}/${runs.length}`} />
 					<div className="mb-2 flex items-center gap-1">
-						<SearchField value={query} onChange={setQuery} placeholder="搜索命令、参数、完整结果…" className="flex-1" />
+						<SearchField value={query} onChange={setQuery} placeholder={t("taskPanel.search")} className="flex-1" />
 						{/*
 						 * 这里曾是全项目最后一个 `<select>`。
 						 *
@@ -80,10 +82,15 @@ export const TaskPanel = memo(function TaskPanel() {
 						 * 触发器。应用里其它给你选东西的地方都走 `Popover`——模型选择器、力度选择器、分支菜单，
 						 * 这个也一样，顺带继承它们的键盘操作和关闭规则。
 						 */}
-						<InlineSelect ariaLabel="筛选任务执行状态" value={status} onChange={setStatus}
-							options={[{ value: "", label: "全部" }, { value: "running", label: "进行中" }, { value: "error", label: "失败" }, { value: "done", label: "完成" }]} />
+						<InlineSelect ariaLabel={t("taskPanel.filterStatus")} value={status} onChange={setStatus}
+							options={[
+						{ value: "", label: t("common.all") },
+						{ value: "running", label: t("common.inProgress") },
+						{ value: "error", label: t("common.failed") },
+						{ value: "done", label: t("common.done") },
+					]} />
 					</div>
-					{!matched.length && <p className="px-2 py-2 text-caption text-ink-faint">没有匹配的执行记录</p>}
+					{!matched.length && <p className="px-2 py-2 text-caption text-ink-faint">{t("taskPanel.noMatch")}</p>}
 					<TaskRuns key={`${sessionId}:${search}:${status}`} runs={matched} scrollRef={scrollRef} query={search} />
 				</>
 			)}

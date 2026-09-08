@@ -15,6 +15,8 @@
  * Pure, so `node --test` can hold it to every case.
  */
 
+import type { MessageKey } from "../../../i18n/messages/index.ts";
+
 export type FileKind =
 	| "image"
 	| "video"
@@ -120,16 +122,17 @@ export function looksBinary(bytes: Uint8Array): boolean {
 }
 
 /** What to call this kind of file, in a sentence. */
-export const KIND_LABEL: Record<FileKind, string> = {
-	image: "图片",
-	video: "视频",
-	audio: "音频",
-	pdf: "PDF",
-	word: "Word 文档",
-	excel: "表格",
-	powerpoint: "演示文稿",
-	archive: "压缩包",
-	font: "字体",
-	binary: "二进制文件",
-	text: "文本",
+/** What each kind is called. Keys, looked up when drawn — the table is built at import time. */
+export const KIND_LABEL: Record<FileKind, MessageKey> = {
+	image: "fileKind.image",
+	video: "fileKind.video",
+	audio: "fileKind.audio",
+	pdf: "fileKind.pdf",
+	word: "fileKind.word",
+	excel: "fileKind.spreadsheet",
+	powerpoint: "fileKind.slides",
+	archive: "fileKind.archive",
+	font: "fileKind.font",
+	binary: "fileKind.binary",
+	text: "fileKind.text",
 };

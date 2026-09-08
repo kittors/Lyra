@@ -18,6 +18,8 @@
  * the pointer.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -38,6 +40,7 @@ const TONE = {
 } as const;
 
 export function Toaster() {
+	const { t } = useI18n();
 	const notices = useApp((s) => s.notices);
 	const remove = useApp((s) => s.dismissNotice);
 	const newSession = useApp((s) => s.newSession);
@@ -62,16 +65,16 @@ export function Toaster() {
 		async (message: string) => {
 			const { workspace } = useApp.getState();
 			const context = [
-				workspace?.name ? `项目：${workspace.name}` : null,
-				workspace?.branch ? `分支：${workspace.branch}` : null,
+				workspace?.name ? translate("toaster.project", { name: workspace.name }) : null,
+				workspace?.branch ? translate("toaster.branch", { name: workspace.branch }) : null,
 			].filter(Boolean);
 
 			await newSession();
 			setComposerDraft(
 				[
-					"Lyra 界面报了一个错误，帮我查清原因并给出可执行的解决办法。",
+					translate("toaster.investigate"),
 					"",
-					"错误信息：",
+					translate("toaster.errorLabel"),
 					message,
 					...(context.length > 0 ? ["", ...context] : []),
 				].join("\n"),
@@ -214,10 +217,10 @@ export function Toaster() {
 									if (group.sessionId) void openSessionById(group.sessionId).then((opened) => { if (opened) dismiss(group); });
 								}}
 								className="flex h-[18px] shrink-0 items-center gap-1 rounded px-1 text-caption text-accent transition-colors hover:bg-card-hover"
-								data-ly-tip="跳转到该会话"
-								aria-label="跳转到该会话"
+								data-ly-tip={t("toaster.goToSession")}
+								aria-label={t("toaster.goToSession")}
 							>
-								<span>查看</span>
+								<span>{t("common.look")}</span>
 							</button>
 						)}
 						{/*
@@ -236,8 +239,8 @@ export function Toaster() {
 									dismiss(group);
 								}}
 								className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-								data-ly-tip="新开一个对话来排查"
-								aria-label="新开一个对话来排查"
+								data-ly-tip={t("toaster.newSessionToDebug")}
+								aria-label={t("toaster.newSessionToDebug")}
 							>
 								<MessageCirclePlus size={12} strokeWidth={2} />
 							</button>
@@ -260,8 +263,8 @@ export function Toaster() {
 							type="button"
 							onClick={() => dismiss(group)}
 							className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-							data-ly-tip="关闭"
-							aria-label="关闭"
+							data-ly-tip={t("common.close")}
+							aria-label={t("common.close")}
 						>
 							<X size={12} strokeWidth={2} />
 						</button>

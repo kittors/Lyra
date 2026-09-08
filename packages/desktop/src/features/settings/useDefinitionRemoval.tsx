@@ -1,9 +1,12 @@
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { useRef, useState } from "react";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 
-const LABELS = { command: "命令", skill: "技能", rule: "规则" };
+/** Keys, so the word matches the window rather than the moment this file loaded. */
+const LABELS = { command: "removal.command", skill: "removal.skill", rule: "removal.rule" } as const satisfies Record<string, MessageKey>;
 
 export function useDefinitionRemoval(kind: keyof typeof LABELS, cwd: string, reload: () => void) {
 	const confirm = useConfirmer();
@@ -18,7 +21,7 @@ export function useDefinitionRemoval(kind: keyof typeof LABELS, cwd: string, rel
 			useApp.getState().bumpExtensions();
 			reload();
 		} catch (cause) {
-			useApp.getState().notify(`删除失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			useApp.getState().notify(translate("removal.failed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		} finally {
 			inflight.current.delete(path);
 			setPending(new Set(inflight.current));
@@ -29,9 +32,9 @@ export function useDefinitionRemoval(kind: keyof typeof LABELS, cwd: string, rel
 		element: confirm.element,
 		ask(name: string, path: string) {
 			confirm.ask({
-				title: `删除${LABELS[kind]}「${name}」？`,
-				detail: <><span>{kind === "skill" ? "技能目录及其资源会移入系统废纸篓，可从那里恢复。" : "定义文件会移入系统废纸篓，可从那里恢复。"}</span><span className="mt-2 block break-all font-mono">{path}</span></>,
-				confirmLabel: "移入废纸篓",
+				title: translate("removal.confirm", { kind: translate(LABELS[kind]), name }),
+				detail: <><span>{kind === "skill" ? translate("removal.skillDetail") : translate("removal.fileDetail")}</span><span className="mt-2 block break-all font-mono">{path}</span></>,
+				confirmLabel: translate("removal.toTrash"),
 				onConfirm: () => void remove(path),
 			});
 		},

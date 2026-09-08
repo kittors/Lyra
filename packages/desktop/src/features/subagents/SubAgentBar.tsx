@@ -12,6 +12,8 @@
  * there is something to say and takes a single line when it does.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { Bot, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -21,6 +23,7 @@ import { elapsedSince, figuresWord, statusWord } from "./format.ts";
 import { bridge } from "../../services/index.ts";
 
 export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
+	const { t } = useI18n();
 	const agents = useSubAgents((s) => s.agents);
 	const running = agents.filter((one) => one.status === "running").length;
 	/*
@@ -58,13 +61,13 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	const total = figuresWord(rosterTotal(agents));
 	const tip = [
 		...ordered.map((one) => {
-			const state = one.status === "running" ? `运行中 · ${elapsedSince(one.startedAt)}` : statusWord(one.status);
+			const state = one.status === "running" ? translate("subAgentBar.runningFor", { elapsed: elapsedSince(one.startedAt) }) : statusWord(one.status);
 			const activity = one.status === "running" && one.lastActivity ? ` · ${one.lastActivity}` : "";
 			const spent = figuresWord(figuresOf(one));
 			return `${one.description}（${one.agent}）— ${state}${activity}${spent ? ` · ${spent}` : ""}`;
 		}),
 		// The bill for the whole batch, on the line everyone sees while it runs — the brake.
-		...(total ? [`本次编排合计 ${total}`] : []),
+		...(total ? [translate("subAgentBar.totalCost", { total })] : []),
 	].join("\n");
 
 	return (
@@ -74,7 +77,7 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 				onClick={onOpen}
 				data-ly-tip={tip}
 				data-ly-subagent-bar
-				aria-label={`子 Agent ${agents.length} 个，${running} 个运行中`}
+				aria-label={t("subAgentBar.countAndRunning", { n: agents.length, running })}
 				className="flex min-w-0 flex-1 items-center gap-2 py-1 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 			>
 				<Bot size={13} strokeWidth={1.8} className={`shrink-0 ${running > 0 ? "text-accent" : "text-ink-faint"}`} />
@@ -107,8 +110,8 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 			{running === 0 && (
 				<button
 					type="button"
-					data-ly-tip="清掉这些记录"
-					aria-label="清掉已结束的子 Agent 记录"
+					data-ly-tip={t("subAgentBar.clear")}
+					aria-label={t("subAgentBar.clearFinished")}
 					onClick={() => {
 						const id = useApp.getState().activeSessionId;
 						if (id) void bridge.subAgents.dismissFinished(id);
@@ -124,12 +127,12 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 }
 
 function headline(ordered: ReturnType<typeof rosterOrder>, running: number): string {
-	if (running === 0) return `${ordered.length} 个子 Agent 已结束`;
+	if (running === 0) return translate("subAgentBar.allFinished", { n: ordered.length });
 	if (running === 1) {
 		const one = ordered.find((each) => each.status === "running");
-		return one ? `${one.description}` : "子 Agent 运行中";
+		return one ? `${one.description}` : translate("subAgentBar.oneRunning");
 	}
-	return `${running} 个子 Agent 运行中`;
+	return translate("subAgentBar.nRunning", { n: running });
 }
 
 /**

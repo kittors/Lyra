@@ -11,6 +11,7 @@
  * conversation, and both arrive after the panel list is first built.
  */
 
+import type { MessageKey } from "../../../i18n/messages/index.ts";
 import type { ComponentType } from "react";
 import type { GitCompare } from "lucide-react";
 import type { DropSide } from "../tree.ts";
@@ -32,13 +33,14 @@ interface PanelAvailability {
 
 export interface PanelDefinition {
 	kind: PanelKind;
-	label: string;
+	/** Looked up when the panel is drawn — see `translate`. */
+	label: MessageKey;
 	icon: typeof GitCompare;
 	shortcut: string;
 	/** Expose this panel in the phone renderer. Absent stays desktop-only. */
 	mobile?: boolean;
 	/** Why it cannot be opened right now, given the current state. */
-	unavailable?(state: PanelAvailability): string | undefined;
+	unavailable?(state: PanelAvailability): MessageKey | undefined;
 	/**
 	 * A panel this one belongs beside, and which side of it.
 	 *

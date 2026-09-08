@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/index.ts";
 import type { TodoItem } from "@lyra/core";
 import { ChevronDown, ListTodo, Pause, Play, RotateCw } from "lucide-react";
 import { useState } from "react";
@@ -20,6 +21,7 @@ import { Mark, lastTurnFailed } from "./Mark.tsx";
  * must not push the conversation off the screen.
  */
 export function TaskList({ placement }: { placement: "floating" | "inline" }) {
+	const { t } = useI18n();
 	const todos = useApp((s) => s.todos);
 	/*
 	 * Nothing is working on the current step.
@@ -45,10 +47,18 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 
 	/** What the control on the current step does, which is also what its mark shows. */
 	const action = running
-		? { icon: Pause, label: "暂停", run: () => void abort() }
+		? { icon: Pause, label: t("taskList.pause"), run: () => void abort() }
 		: failed
-			? { icon: RotateCw, label: "重试这一步", run: () => void send([{ type: "text", text: "重试刚才失败的那一步。" }], { synthetic: true }) }
-			: { icon: Play, label: "继续", run: () => void send([{ type: "text", text: "继续，从暂停的地方接着做。" }], { synthetic: true, carryOn: true }) };
+			? {
+						icon: RotateCw,
+						label: t("taskList.retryStep"),
+						run: () => void send([{ type: "text", text: t("taskList.retryStepDetail") }], { synthetic: true }),
+					}
+			: {
+						icon: Play,
+						label: t("taskList.resume"),
+						run: () => void send([{ type: "text", text: t("taskList.resumeDetail") }], { synthetic: true, carryOn: true }),
+					};
 
 	const [open, setOpen] = useState(false);
 
@@ -91,11 +101,11 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 					text={
 						active
 							? paused
-								? `已暂停 · ${active.content}`
+								? t("taskList.pausedAt", { step: active.content })
 								: (active.activeForm ?? active.content)
 							: todos.length === done
-								? "全部完成"
-								: "待开始"
+								? t("taskList.allDone")
+								: t("taskList.notStarted")
 					}
 					className="ly-fade-tail min-w-0 flex-1 text-label"
 				/>
@@ -163,7 +173,7 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 				</div>
 			</div>
 
-			{!open && pending > 0 && <span className="sr-only">{pending} 项待处理</span>}
+			{!open && pending > 0 && <span className="sr-only">{t("taskList.pending", { n: pending })}</span>}
 		</div>
 	);
 }

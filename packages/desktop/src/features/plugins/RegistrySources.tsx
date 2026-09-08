@@ -11,6 +11,7 @@
  * and back to answer that is three screens for one line of text.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { Plus, CircleAlert, Library, X } from "lucide-react";
 import { useState } from "react";
 
@@ -33,6 +34,7 @@ export function RegistrySources({
 	errors: { url: string; message: string }[];
 	onClose: () => void;
 }) {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const [adding, setAdding] = useState("");
@@ -56,7 +58,7 @@ export function RegistrySources({
 			<Scroller contentClassName="px-5 py-4">
 				<div className="flex items-center justify-between"><h2 className="flex items-center gap-2.5 text-body font-semibold text-ink"><Library size={20} className="text-accent" />插件市场</h2><button type="button" aria-label="关闭插件市场" data-ly-tip="关闭" onClick={() => dismiss()} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint hover:bg-card-hover hover:text-ink"><X size={16} /></button></div>
 				<p className="mt-1 text-detail leading-relaxed text-ink-muted">
-					添加市场地址，浏览其中的插件。
+					{t("registry.intro")}
 				</p>
 
 				<div className="mt-4 flex flex-col gap-1.5">
@@ -67,14 +69,14 @@ export function RegistrySources({
 								<span className={`min-w-0 flex-1 font-mono ${failed ? "text-danger" : "text-ink-faint"}`}>
 									<ScrollText text={url} />
 								</span>
-								{failed && <button type="button" aria-label="市场读取失败" data-ly-tip={failed.message} className="shrink-0 text-danger"><CircleAlert size={14} /></button>}
+								{failed && <button type="button" aria-label={t("registry.readFailed")} data-ly-tip={failed.message} className="shrink-0 text-danger"><CircleAlert size={14} /></button>}
 								<RowDeleteButton
-									label={`移除 ${url}`}
+									label={t("registry.removeOne", { url })}
 									onClick={() =>
 										confirm.ask({
-											title: "移除这个插件市场？",
-											detail: "从它装过的插件都留在本地，只是以后不会再从这里看到新的。",
-											confirmLabel: "移除",
+											title: t("registry.removeConfirm"),
+											detail: t("registry.removeDetail"),
+											confirmLabel: t("common.remove"),
 											onConfirm: () => remove(url),
 										})
 									}
@@ -93,7 +95,7 @@ export function RegistrySources({
 							className="h-[30px] flex-1 text-detail"
 						/>
 						<GhostButton onClick={add} icon={<Plus size={12} strokeWidth={2} />}>
-							添加
+							{t("mcp.add")}
 						</GhostButton>
 					</div>
 

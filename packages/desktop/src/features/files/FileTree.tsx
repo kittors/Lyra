@@ -10,6 +10,7 @@
  * `treeitem`s, which is what lets ↑↓ mean "next row" instead of "next control".
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { ChevronsDownUp, FilePlus2, FolderPlus, X } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 
@@ -44,6 +45,7 @@ export function FileTree({
 	onMoved(from: string, to: string): void;
 	onRemoved(paths: string[]): void;
 }) {
+	const { t } = useI18n();
 	const tree = useFileTree(root);
 	const actions = useFileActions({ root, refresh: tree.refresh, onMoved, onRemoved });
 	const openWith = useOpenTarget();
@@ -273,7 +275,7 @@ export function FileTree({
 				<SearchField
 					value={tree.filter}
 					onChange={tree.setFilter}
-					placeholder={`搜索 ${baseName(home)} 内的文件`}
+					placeholder={t("fileTree.searchIn", { name: baseName(home) })}
 					className="min-w-0 flex-1"
 					onEscape={() => tree.setScope(null)}
 				/>
@@ -281,13 +283,13 @@ export function FileTree({
 					<>
 						<IconButton
 							size="sm"
-							label="新建文件"
+							label={t("fileMenu.newFile")}
 							icon={<FilePlus2 size={12.5} strokeWidth={1.8} />}
 							onClick={() => startCreate(targetDir, "file")}
 						/>
 						<IconButton
 							size="sm"
-							label="新建文件夹"
+							label={t("fileMenu.newFolder")}
 							icon={<FolderPlus size={12.5} strokeWidth={1.8} />}
 							onClick={() => startCreate(targetDir, "directory")}
 						/>
@@ -296,7 +298,7 @@ export function FileTree({
 				{tree.expanded.size > 0 && (
 					<IconButton
 						size="sm"
-						label="全部折叠"
+						label={t("fileMenu.collapseAll")}
 						icon={<ChevronsDownUp size={12.5} strokeWidth={1.8} />}
 						onClick={tree.collapseAll}
 					/>
@@ -310,7 +312,7 @@ export function FileTree({
 					onClick={() => tree.setScope(null)}
 					className="mx-1 mb-1 flex h-[20px] shrink-0 items-center gap-1 rounded-md bg-accent/12 px-1.5 text-caption text-accent transition-colors hover:bg-accent/20"
 				>
-					<span className="min-w-0 truncate">{`只看 ${baseName(tree.scope)}`}</span>
+					<span className="min-w-0 truncate">{t("fileTree.onlyThis", { name: baseName(tree.scope) })}</span>
 					<X size={9.5} strokeWidth={2.4} className="shrink-0" />
 				</button>
 			)}
@@ -320,7 +322,7 @@ export function FileTree({
 				<div
 					ref={rowsHost}
 					role="tree"
-					aria-label="项目文件"
+					aria-label={t("fileTree.projectFiles")}
 					tabIndex={0}
 					data-ly-tree
 					onKeyDown={onKeyDown}
@@ -376,7 +378,7 @@ export function FileTree({
 
 					{tree.rows.length === 0 && !creating && (
 						<p className="px-2 py-6 text-center text-detail text-ink-faint">
-							{tree.filter ? "没有匹配的文件" : "这个目录是空的"}
+							{tree.filter ? t("fileTree.noMatch") : t("fileTree.emptyDir")}
 						</p>
 					)}
 				</div>

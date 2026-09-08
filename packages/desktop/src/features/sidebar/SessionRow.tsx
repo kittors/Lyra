@@ -13,6 +13,7 @@
  * characters and cannot go wrong; the full title is a hover away in the scroller either way.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import type { SessionMeta } from "@lyra/core";
 import { visibleActivity } from "@lyra/core/activity";
 import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";
@@ -93,6 +94,7 @@ export function SessionRow({
 	/** End it. The archive's alone, which is what makes it say where this row is. */
 	onDelete?: () => void;
 }) {
+	const { t } = useI18n();
 	/*
 	 * Subscribed here rather than threaded through: it changes for reasons this row's other props
 	 * know nothing about — a turn ending in a conversation nobody has open.
@@ -241,8 +243,8 @@ export function SessionRow({
 						{onRestore && (
 							<button
 								type="button"
-								data-ly-tip="取消归档"
-								aria-label={`取消归档「${sessionTitle(session.title)}」`}
+								data-ly-tip={t("sessionRow.unarchive")}
+								aria-label={t("sessionRow.unarchiveOne", { title: sessionTitle(session.title) })}
 								onClick={onRestore}
 								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 							>
@@ -252,8 +254,8 @@ export function SessionRow({
 						{onDelete && (
 							<button
 								type="button"
-								data-ly-tip="删除"
-								aria-label={`删除「${sessionTitle(session.title)}」`}
+								data-ly-tip={t("common.delete")}
+								aria-label={t("sessionRow.deleteOne", { title: sessionTitle(session.title) })}
 								onClick={onDelete}
 								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
 							>
@@ -265,8 +267,8 @@ export function SessionRow({
 					<>
 						<button
 							type="button"
-							data-ly-tip={isPinned ? "取消置顶" : "置顶会话"}
-							aria-label={isPinned ? "取消置顶" : "置顶会话"}
+							data-ly-tip={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
+							aria-label={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
 							onClick={() => void setSessionPinned(session.id, !isPinned)}
 							className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 						>
@@ -276,8 +278,11 @@ export function SessionRow({
 						{filing && (
 							<button
 								type="button"
-								data-ly-tip={session.archived ? "取消归档" : "归档会话"}
-								aria-label={`${session.archived ? "取消归档" : "归档会话"}「${sessionTitle(session.title)}」`}
+								data-ly-tip={t(session.archived ? "sessionRow.unarchive" : "sessionRow.archive")}
+								aria-label={t("sessionRow.fileOne", {
+					what: t(session.archived ? "sessionRow.unarchive" : "sessionRow.archive"),
+					title: sessionTitle(session.title),
+				})}
 								onClick={filing}
 								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 							>
