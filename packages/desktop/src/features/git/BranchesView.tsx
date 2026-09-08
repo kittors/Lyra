@@ -22,6 +22,7 @@ import { BranchRow } from "./BranchRow.tsx";
 import { GroupHeader } from "./GroupHeader.tsx";
 import type { Act } from "./types.ts";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 /**
  * Branches, and the diff between any two of them.
@@ -47,6 +48,7 @@ export function BranchesView({
   trees: Record<string, RepoRef[]>;
   onSelectRepo: (path: string) => void;
 }) {
+	const { t } = useI18n();
   const [branches, setBranches] = useState<BranchList | null>(null);
   const slow = useSlowLoad(branches === null);
   const [revision, setRevision] = useState(0);
@@ -83,7 +85,7 @@ export function BranchesView({
     };
   }, [cwd, compare]);
 
-  if (branches === null) return slow ? <SkeletonList count={5} label="正在读取分支" /> : null;
+  if (branches === null) return slow ? <SkeletonList count={5} label={t("branches.reading")} /> : null;
   const current = branches.current;
   /*
    * The upstream belongs in this list even though the switcher filters it out.
@@ -108,7 +110,7 @@ export function BranchesView({
               <span className="px-1 text-ink-faint">→</span>
               <span className="text-ink">{compare.head}</span>
             </Text>
-			<IconButton size="sm" icon={<ArrowLeft size={13} />} label="返回分支列表" onClick={() => setCompare(null)} />
+			<IconButton size="sm" icon={<ArrowLeft size={13} />} label={t("branches.back")} onClick={() => setCompare(null)} />
             {diff && (
               <Text size="caption" mono numeric className="ml-auto shrink-0">
                 <span className="text-ok">+{diff.added}</span>{" "}
@@ -118,7 +120,7 @@ export function BranchesView({
           </div>
           <FileDiffList
             files={diff?.files ?? []}
-            emptyLabel={diff ? "两个分支没有差异" : "正在比较…"}
+            emptyLabel={diff ? t("branches.identical") : t("branches.comparing")}
           />
         </>
       ) : (
@@ -134,7 +136,7 @@ export function BranchesView({
            */}
           {checkouts.length > 1 && (
             <>
-							<GroupHeader label="工作区" count={checkouts.length} />
+							<GroupHeader label={t("common.workspace")} count={checkouts.length} />
               {checkouts.map((entry) => (
                 <button
                   key={entry.path}
@@ -154,7 +156,7 @@ export function BranchesView({
                   {/* The name identifies the checkout; the branch qualifies it. Names keep their
                    * width and branches give theirs up, or `CliRelay-wt-audit` becomes `CliR…`. */}
                   <ScrollText text={entry.label} className={`min-w-0 shrink text-label ${entry.path === cwd ? "text-accent" : "text-ink-muted"}`} />
-                  <ScrollText text={entry.branch ?? "游离 HEAD"} className={`ml-auto min-w-0 shrink-[4] text-caption ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`} />
+                  <ScrollText text={entry.branch ?? t("sync.detached")} className={`ml-auto min-w-0 shrink-[4] text-caption ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`} />
 
                 </button>
               ))}
@@ -162,11 +164,11 @@ export function BranchesView({
           )}
 
           <GroupHeader
-            label="本地"
+            label={t("common.local")}
             count={branches.local.length}
 						actions={
 							<IconButton
-								label={creating ? "取消新建分支" : "新建分支"}
+								label={creating ? t("branches.cancelNew") : t("branches.new")}
 								icon={creating ? <X size={13} strokeWidth={1.9} /> : <GitBranchPlus size={13} strokeWidth={1.9} />}
 								size="sm"
 								disabled={busy}
@@ -198,13 +200,13 @@ export function BranchesView({
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="新分支名"
+                placeholder={t("branches.namePlaceholder")}
                 className="h-[26px] min-w-0 flex-1 rounded-md border border-line bg-input px-2 text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint"
               />
               <button
                 type="submit"
-                aria-label="创建并切换分支"
-                data-ly-tip="创建并切换分支"
+                aria-label={t("branches.createAndSwitch")}
+                data-ly-tip={t("branches.createAndSwitch")}
                 disabled={busy || !name.trim()}
                 className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md bg-ink text-detail font-medium text-shell disabled:opacity-40"
               >
@@ -239,10 +241,10 @@ export function BranchesView({
                   ? undefined
                   : () =>
                       confirm.ask({
-                        title: `删除分支 ${branch}？`,
+                        title: t("branches.deleteConfirm", { branch }),
                         detail:
-                          "只删本地这一份。没有合并进别的分支的提交会跟着消失，除非你还记得它们的哈希。",
-                        confirmLabel: "删除",
+                          t("branches.deleteDetail"),
+                        confirmLabel: t("common.delete"),
                         onConfirm: () =>
                           void act(() =>
                             bridge.git.deleteBranch(cwd, branch),
@@ -253,7 +255,7 @@ export function BranchesView({
           ))}
 
           {remotes.length > 0 && (
-						<GroupHeader label="远程" count={remotes.length} />
+						<GroupHeader label={t("common.remote")} count={remotes.length} />
           )}
           {remotes.map((branch) => (
             <BranchRow

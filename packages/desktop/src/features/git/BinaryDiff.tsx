@@ -15,6 +15,7 @@ import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { iconColour, lookFor } from "../files/index.ts";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /** Which sides exist for a given change, in reading order. */
 function sidesFor(status: WorkspaceDiffFile["status"]): ("head" | "work")[] {
@@ -23,9 +24,11 @@ function sidesFor(status: WorkspaceDiffFile["status"]): ("head" | "work")[] {
 	return ["head", "work"];
 }
 
-const SIDE_LABEL: Record<"head" | "work", string> = { head: "改动前", work: "改动后" };
+/* 模块级，所以存 key——加载时窗口还没说自己是哪种语言。 */
+const SIDE_LABEL: Record<"head" | "work", MessageKey> = { head: "binaryDiff.before", work: "binaryDiff.after" };
 
 export function BinaryDiff({ cwd, file }: { cwd: string | null; file: WorkspaceDiffFile }) {
+	const { t } = useI18n();
 	// Memoised so the effect below depends on a value that only changes when the status does.
 	const sides = useMemo(() => sidesFor(file.status), [file.status]);
 	const [blobs, setBlobs] = useState<Partial<Record<"head" | "work", string | null>>>({});
@@ -67,14 +70,14 @@ export function BinaryDiff({ cwd, file }: { cwd: string | null; file: WorkspaceD
 					<div className="ly-checker rounded-lg border border-line p-2">
 						<img
 							src={blobs[side] ?? ""}
-							alt={`${file.path} ${SIDE_LABEL[side]}`}
+							alt={`${file.path} ${t(SIDE_LABEL[side])}`}
 							className="max-h-[220px] max-w-[260px] object-contain"
 						/>
 					</div>
 					{/* Only worth labelling when there are two of them to tell apart. */}
 					{drawn.length > 1 && (
 						<Text size="caption" tone="faint">
-							{SIDE_LABEL[side]}
+							{t(SIDE_LABEL[side])}
 						</Text>
 					)}
 				</figure>
@@ -85,6 +88,7 @@ export function BinaryDiff({ cwd, file }: { cwd: string | null; file: WorkspaceD
 
 /** The file's own mark and its size, for everything that is not a picture. */
 function Mark({ file }: { file: WorkspaceDiffFile }) {
+	const { t } = useI18n();
 	const name = file.path.slice(file.path.lastIndexOf("/") + 1);
 	const look = lookFor(name, false);
 
@@ -95,7 +99,7 @@ function Mark({ file }: { file: WorkspaceDiffFile }) {
 				{name}
 			</Text>
 			<Text size="caption" tone="faint">
-				{file.bytes ? `二进制文件 · ${formatBytes(file.bytes)}` : "二进制文件"}
+				{file.bytes ? t("binaryDiff.sized", { size: formatBytes(file.bytes) }) : t("binaryDiff.binary")}
 			</Text>
 		</div>
 	);

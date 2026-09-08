@@ -8,6 +8,7 @@ import type { RepoRef } from "../../../electron/git.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 
 /**
@@ -34,6 +35,7 @@ export function RepoPicker({
   selected: string | null;
   onSelect: (path: string) => void;
 }) {
+	const { t } = useI18n();
   const menu = usePopover();
   const everything = repos.flatMap((repo) => [repo, ...(trees[repo.path] ?? [])]);
   const current = everything.find((entry) => entry.path === selected) ?? repos[0];
@@ -46,9 +48,10 @@ export function RepoPicker({
         onClick={menu.toggle}
         aria-haspopup="menu"
         aria-expanded={menu.open}
-        data-ly-tip={`${repos.length} 个仓库${
-          total > repos.length ? ` · ${total - repos.length} 个工作树` : ""
-        } · 点击切换`}
+        data-ly-tip={t("repoPicker.count", {
+          n: repos.length,
+          more: total > repos.length ? t("repoPicker.worktrees", { n: total - repos.length }) : "",
+        })}
         data-ly-tip-side="bottom"
         className={`ly-scroll flex h-8 shrink-0 items-center gap-1.5 border-b border-line-soft px-2.5 text-left transition-colors ${
           menu.open ? "bg-card-hover" : "hover:bg-card-hover"
@@ -59,7 +62,7 @@ export function RepoPicker({
         ) : (
           <Folder size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
         )}
-        <ScrollText text={current?.label ?? "仓库"} className="ly-fade-tail min-w-0 flex-1 text-label" />
+        <ScrollText text={current?.label ?? t("common.repository")} className="ly-fade-tail min-w-0 flex-1 text-label" />
         {/* A bare total says nothing about what it counts; the split does. */}
         <Text size="caption" tone="faint" className="shrink-0 tabular-nums">
           {repos.length}
@@ -76,7 +79,7 @@ export function RepoPicker({
           align="start"
           width="wide"
           maxHeight={MENU_MAX_HEIGHT}
-          label="切换仓库"
+          label={t("repoPicker.switch")}
         >
           {/*
            * The app's own menu parts, not a hand-rolled list.
@@ -91,7 +94,7 @@ export function RepoPicker({
               <div key={repo.path}>
                 <MenuItem
                   icon={<Folder size={13} strokeWidth={1.8} />}
-                  detail={repo.branch ?? "游离 HEAD"}
+                  detail={repo.branch ?? t("sync.detached")}
                   selected={repo.path === selected}
                   title={repo.path}
                   trailing={repo.path === selected ? <Check size={12.5} strokeWidth={2.2} /> : undefined}
@@ -107,7 +110,7 @@ export function RepoPicker({
                     key={tree.path}
                     // A worktree is a checkout of the repository above it; the mark says which.
                     icon={<GitBranchPlus size={13} strokeWidth={1.8} />}
-                    detail={tree.branch ?? "游离 HEAD"}
+                    detail={tree.branch ?? t("sync.detached")}
                     selected={tree.path === selected}
                     title={tree.path}
                     trailing={tree.path === selected ? <Check size={12.5} strokeWidth={2.2} /> : undefined}

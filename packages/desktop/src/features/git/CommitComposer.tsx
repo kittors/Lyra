@@ -18,6 +18,7 @@ import {
 	commitLanguageLabel,
 	resolveCommitLanguage,
 } from "./commit-language.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 export function CommitComposer({
 	cwd,
@@ -32,6 +33,7 @@ export function CommitComposer({
 	disabled: boolean;
 	onCommit: (message: string) => Promise<boolean>;
 }) {
+	const { t } = useI18n();
 	const [message, setMessage] = useState("");
 	const [generating, setGenerating] = useState(false);
 	const settings = useApp((s) => s.settings);
@@ -46,7 +48,7 @@ export function CommitComposer({
 		try {
 			const result = await bridge.git.generateCommitMessage(cwd);
 			if (!result.ok || !result.message) {
-				notify(result.error ?? "生成提交说明失败", "error");
+				notify(result.error ?? t("commit.generateFailed"), "error");
 				return;
 			}
 			setMessage(result.message);
@@ -74,14 +76,14 @@ export function CommitComposer({
 				value={message}
 				onChange={setMessage}
 				onSubmit={() => void commit()}
-				placeholder="输入提交信息…"
+				placeholder={t("commit.placeholder")}
 				left={
 					<>
 						<button
 							type="button"
-							data-ly-tip={generating ? "正在生成提交说明…" : "用当前模型写提交说明"}
+							data-ly-tip={generating ? t("commit.generating") : t("commit.generate")}
 							data-ly-tip-side="top"
-							aria-label={generating ? "正在生成提交说明…" : "用当前模型写提交说明"}
+							aria-label={generating ? t("commit.generating") : t("commit.generate")}
 							disabled={generating || disabled}
 							onClick={() => void generate()}
 							className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
@@ -90,9 +92,9 @@ export function CommitComposer({
 						</button>
 						<button
 							type="button"
-							data-ly-tip={`提交说明语言：${commitLanguageLabel(language)}`}
+							data-ly-tip={t("commit.languageIs", { language: commitLanguageLabel(language) })}
 							data-ly-tip-side="top"
-							aria-label={`提交说明语言：${commitLanguageLabel(language)}`}
+							aria-label={t("commit.languageIs", { language: commitLanguageLabel(language) })}
 							aria-haspopup="menu"
 							aria-expanded={languageMenu.open}
 							onClick={languageMenu.toggle}
@@ -110,7 +112,7 @@ export function CommitComposer({
 								placement="top"
 								align="start"
 								width="compact"
-								label="提交说明语言"
+								label={t("commit.language")}
 							>
 								<MenuBody>
 									{COMMIT_LANGUAGES.map((entry) => (
@@ -136,7 +138,7 @@ export function CommitComposer({
 					<ComposerSend
 						running={false}
 						disabled={busy || generating || stagedCount === 0 || !message.trim()}
-						tip="提交"
+						tip={t("commit.commit")}
 						onSend={() => void commit()}
 						onStop={() => {}}
 					/>

@@ -31,6 +31,7 @@ import { SkeletonBar, SkeletonList, useSlowLoad } from "../../ui/primitives/Skel
 import { readCachedDetail, readCachedRuns, writeCachedDetail, writeCachedRuns } from "./pipeline-cache.ts";
 import { relativeTime } from "../../lib/relative-time.ts";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 interface PipelinesViewProps {
 	cwd: string;
@@ -41,10 +42,11 @@ interface PipelinesViewProps {
 
 /** Specific pipeline skeleton matching run list row structure */
 function PipelineSkeletonList({ count = 6 }: { count?: number }) {
+	const { t } = useI18n();
 	const titles = [80, 110, 65, 95, 75, 100];
 	const messages = [90, 70, 85, 60, 78, 88];
 	return (
-		<div className="space-y-1" role="status" aria-label="正在读取流水线">
+		<div className="space-y-1" role="status" aria-label={t("pipelines.reading")}>
 			{Array.from({ length: count }, (_, i) => {
 				const titleW = titles[i % titles.length] ?? 80;
 				const msgW = messages[i % messages.length] ?? 75;
@@ -118,6 +120,7 @@ function StatusIcon({
 }
 
 export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: PipelinesViewProps) {
+	const { t } = useI18n();
 	const [result, setResult] = useState(() => readCachedRuns(cwd));
 	const runs = result ?? [];
 	const loading = result === null;
@@ -241,11 +244,11 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 
 	const controls = <div className="flex shrink-0 items-center gap-1">
 		<IconButton size="sm" icon={<RefreshCw size={13.5} className={(inspectRun ? detailLoading : refreshing) ? "ly-spin" : undefined} />}
-			label={inspectRun ? "刷新详情" : "刷新流水线"} disabled={inspectRun ? detailLoading : refreshing}
+			label={inspectRun ? t("pipelines.refreshRun") : t("pipelines.refresh")} disabled={inspectRun ? detailLoading : refreshing}
 			onClick={() => void (inspectRun ? fetchDetail(inspectRun.id) : fetchRuns())} />
-		{inspectRun?.url ? <a href={inspectRun.url} target="_blank" rel="noreferrer" aria-label="在浏览器中查看" data-ly-tip="在浏览器中查看"
+		{inspectRun?.url ? <a href={inspectRun.url} target="_blank" rel="noreferrer" aria-label={t("common.openInBrowser")} data-ly-tip={t("common.openInBrowser")}
 			className="flex h-6 w-6 items-center justify-center rounded-md text-ink-muted hover:bg-card-hover hover:text-ink"><ExternalLink size={13.5} /></a> :
-			onOpenRelease && <IconButton size="sm" icon={<Tag size={13.5} />} label="打开发版中心" onClick={onOpenRelease} />}
+			onOpenRelease && <IconButton size="sm" icon={<Tag size={13.5} />} label={t("pipelines.openReleases")} onClick={onOpenRelease} />}
 	</div>;
 	const actions = !active ? null : toolbar ? createPortal(controls, toolbar) : toolbar === undefined ? controls : null;
 
@@ -265,7 +268,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 				{actions}
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 pb-8 text-center">
 					<Activity size={28} strokeWidth={1.5} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">{error ? "无法读取流水线" : "暂无运行记录"}</p>
+					<p className="text-label text-ink-muted">{error ? t("pipelines.unreadable") : t("pipelines.empty")}</p>
 					{error && <p role="alert" className="max-w-full break-words text-detail text-danger">{error}</p>}
 				</div>
 			</div>
@@ -284,12 +287,12 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 							type="button"
 							onClick={() => setInspectRun(null)}
 							className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
-							data-ly-tip="返回流水线列表"
+							data-ly-tip={t("pipelines.back")}
 						>
 							<ArrowLeft size={15} />
 						</button>
 						<span className="text-ui font-medium text-ink truncate">
-							{inspectRun.name || "工作流详情"}
+							{inspectRun.name || t("pipelines.workflowDetail")}
 						</span>
 					</div>
 				</div>
@@ -431,7 +434,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 							type="button"
 							onClick={() => setInspectRun(run)}
 							className="w-full text-left p-2.5 rounded-xl transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover group/run cursor-pointer"
-							data-ly-tip={`点击查看构建任务详情 · ${run.displayTitle || run.name}`}
+							data-ly-tip={t("pipelines.jobsHint", { title: run.displayTitle || run.name })}
 						>
 							<div className="flex items-center justify-between gap-2 mb-1">
 								<div className="flex items-center gap-2 min-w-0">
