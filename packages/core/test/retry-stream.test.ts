@@ -51,7 +51,14 @@ test("a stream that dies part way through starts over", async () => {
 	// The failed attempt's output was still emitted; the caller replaces rather than appends.
 	assert.deepEqual(seen, ["start-1", "start-2", "finished"]);
 	assert.equal(retries.length, 1);
-	assert.equal(retries[0].reason, "UND_ERR_SOCKET", "the cause is named, not just 'terminated'");
+	/*
+	 * `reason` 现在是给人看的那句话，原始的码在 `failure.detail` 里。
+	 *
+	 * 这条断言原本要的是「说清是什么原因，不能只说 terminated」——那个意思没变，只是分了两处：
+	 * 界面上那行读 `reason`，要排查的时候展开看 `detail`。断言两个都在。
+	 */
+	assert.equal(retries[0].reason, "连接中断");
+	assert.match(retries[0].failure?.detail ?? "", /UND_ERR_SOCKET/, "the cause is named, not just 'terminated'");
 });
 
 test("state is cleared before every attempt", async () => {

@@ -14,11 +14,12 @@ import type {
 	StreamEvent,
 	ToolCallContent,
 } from "../types.ts";
-import { emptyUsage } from "../types.ts";
+import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
-import { RetryBudget, fetchWithRetry, isRetryableError, retryStream, toolCallId } from "./retry.ts";
+import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
+import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSse } from "../utils/sse.ts";
-import { describeFetchError, joinUrl, truncate } from "./anthropic-messages.ts";
+import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 
 export const openaiChatCompletionsProvider: Provider = {
@@ -69,7 +70,10 @@ async function* streamChatCompletions(
 	const doFetch = options.fetch ?? globalThis.fetch;
 	let firstTokenTime: number | null = null;
 	const inventedIds = new Map<number, string>();
-	let refused = false;
+	/** 收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。 */
+	let framesSeen = 0;
+	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
+	let spentOnRetries = emptyUsage();
 
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
@@ -96,14 +100,17 @@ async function* streamChatCompletions(
 				);
 
 				if (!response.ok) {
+					// 带着结论抛：`fetchWithRetry` 已经判过了，上面那层不该拿一个字符串重新猜。
 					const detail = await response.text().catch(() => "");
-					throw new Error(`HTTP ${response.status}: ${truncate(detail, 800)}`);
+					throw new FailureError(classifyFailure({ from: "status", status: response.status, body: detail }));
 				}
 
 				yield { type: "start", partial: { ...partial } } as StreamEvent;
 
 				let currentTextIndex = -1;
 				let currentThinkingIndex = -1;
+				/** 这次尝试里没能解析的帧，留一份原文，空回答时用来说明收到的到底是什么。 */
+				let unparsable = "";
 
 				for await (const frame of readSse(response, options.signal)) {
 					if (frame.data === "[DONE]") break;
@@ -111,7 +118,28 @@ async function* streamChatCompletions(
 					try {
 						event = JSON.parse(frame.data);
 					} catch {
+						if (!unparsable) unparsable = frame.data.slice(0, 500);
 						continue;
+					}
+					framesSeen += 1;
+
+					/*
+					 * 错误也可能写在帧里，而不是状态码上。
+					 *
+					 * 这个适配器面对的多半是中转，而中转最爱的一种答法就是 200 加一个 `{"error":{…}}`
+					 * 帧。从前没有任何一处认这种形状：`choices` 是空的，于是 `continue`，流结束时留下
+					 * 一条空回答——不报错，不重试，屏幕上什么都没有。
+					 */
+					if (event.error && !event.choices) {
+						const said = event.error?.message;
+						throw new FailureError(
+							classifyFailure({
+								from: "stream",
+								message: typeof said === "string" ? said : undefined,
+								raw: JSON.stringify(event).slice(0, 4000),
+								spent: partial.usage.output > 0 || partial.content.length > 0,
+							}),
+						);
 					}
 
 					if (event.usage) {
@@ -256,25 +284,41 @@ async function* streamChatCompletions(
 						yield { type: "toolcall_end", index: i, partial: { ...partial } };
 					}
 				}
+
+				// 空回答也是失败，不是「模型没话说」——见 Responses 适配器里同一段的说明。
+				if (partial.content.length === 0) {
+					throw new FailureError(
+						classifyFailure({
+							from: "empty",
+							why: unparsable ? "unparsable" : framesSeen === 0 ? "no-frames" : "no-content",
+							body: unparsable || undefined,
+						}),
+					);
+				}
 			},
 			{
 				budget: retryBudget,
 				signal: options.signal,
 				onRetry: options.onRetry,
 				reset: () => {
+					// 已经花掉的 token 不清零，见 Responses 适配器里同一段。
+					spentOnRetries = addUsage(spentOnRetries, partial.usage);
 					partial.content = [];
 					partial.usage = emptyUsage();
 					inventedIds.clear();
+					framesSeen = 0;
 					firstTokenTime = null;
 				},
 			},
 		);
-		if (refused) return partial;
 	} catch (error) {
 		const aborted = options.signal?.aborted;
+		const failure = aborted ? undefined : failureOf(error);
 		partial.stopReason = aborted ? "aborted" : "error";
-		partial.errorMessage = aborted ? "Aborted by user" : describeFetchError(error, options.signal);
-		partial.errorRetryable = !aborted && isRetryableError(error);
+		partial.errorMessage = aborted ? "Aborted by user" : (failure?.summary ?? describeFetchError(error, options.signal));
+		partial.errorRetryable = failure ? worthRetrying(failure) : false;
+		partial.failure = failure;
+		partial.usage = addUsage(partial.usage, spentOnRetries);
 		partial.usage = computeCost(partial.usage, model);
 		partial.durationMs = Math.max(1, Date.now() - startTime);
 		if (firstTokenTime !== null) {
@@ -296,6 +340,8 @@ async function* streamChatCompletions(
 		const hasToolCalls = partial.content.some((c) => c.type === "toolCall");
 		partial.stopReason = hasToolCalls ? "toolUse" : "stop";
 	}
+	// 成功了，但失败的那几次也是花过钱的——账上要有。
+	partial.usage = computeCost(addUsage(partial.usage, spentOnRetries), model);
 
 	yield { type: "done", message: partial };
 	return partial;

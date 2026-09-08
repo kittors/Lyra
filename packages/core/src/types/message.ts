@@ -8,6 +8,7 @@
 
 // A reply records which wire format produced it, so it can be replayed to the right adapter.
 import type { ApiFormat } from "./provider.ts";
+import type { Failure } from "../ai/failure.ts";
 
 // ---------------------------------------------------------------------------
 // Content blocks
@@ -204,6 +205,14 @@ export interface AssistantMessage {
 	 * fact.
 	 */
 	errorRetryable?: boolean;
+	/**
+	 * 这次失败是什么——分类的结果，不是一串给人猜的字符串。
+	 *
+	 * `errorMessage` 留着是为了读得懂旧会话，但它把一次失败压成了一行字，之后每个想知道「这该不该
+	 * 重试」「这句话该怎么说给人听」「有没有下一步可给」的地方，都只能对着那行字做模式匹配。结论
+	 * 在 `failure.ts` 里只产生一次，然后一路带着走。
+	 */
+	failure?: Failure;
 	/** Provider response id, used for Responses-API conversation chaining. */
 	responseId?: string;
 	/** Latency in milliseconds from request start to completion */

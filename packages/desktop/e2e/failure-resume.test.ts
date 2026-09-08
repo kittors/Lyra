@@ -93,8 +93,18 @@ async function seed(home: string): Promise<void> {
 			defaultModelId: "local/scripted",
 			permissionMode: "full",
 			thinking: "off",
-			// One attempt: this is about what is offered after it fails, not about the retrying.
-			retryAttempts: 1,
+			/*
+			 * 一次就够：这条测试问的是失败之后给什么，不是重试本身。
+			 *
+			 * 从前写的是 `retryAttempts: 1`，那个老字段只管得住 `upstream` 一条规则（见
+			 * `normalizeRetryPolicy`），而且这个 503 的正文里写着 `reset_seconds: 54`——服务器说的
+			 * 等待时间现在真的生效了，于是第一次重试就等五十四秒，测试等不到结果。两条规则都写死
+			 * 成不重试，问的才是它想问的那件事。
+			 */
+			retryPolicy: {
+				network: { retries: 0, strategy: "fixed", intervalMs: 1000, maxIntervalMs: 1000 },
+				upstream: { retries: 0, strategy: "fixed", intervalMs: 1000, maxIntervalMs: 1000 },
+			},
 			hooks: [],
 			scheduledTasks: [],
 			disabledPlugins: [],
@@ -144,13 +154,12 @@ test("a failed request offers to carry on, not only to start over", async () => 
 	/*
 	 * 按界面上真的会出现的字找，不是按错误码。
 	 *
-	 * 这里原本等的是 `model_unavailable`——供应商返回的那个 code。它从来没有被显示给用户看：
-	 * 界面说的是「这一轮出错了」和「上次请求失败，进度已保留」，而那才是这条测试关心的东西
-	 * （失败被报告了，且报告的方式让人知道进度还在）。这条测试从写下那天起就是红的，红的原因
-	 * 与被测的行为无关。
+	 * 这里原本等的是 `model_unavailable`——供应商返回的那个 code，从来没有显示给用户看过。后来
+	 * 改成等「这一轮出错了」，而那句话现在也没有了：失败和「正在重连」合成了同一条记录，由
+	 * `HiccupTrace` 一个人说完。503 落进分类器的 `upstream`，说出来是「服务暂时不可用」。
 	 */
 	assert.ok(
-		await until("这一轮出错了"),
+		await until("服务暂时不可用"),
 		`the failure is reported (asked ${requests} time(s))`,
 	);
 
@@ -160,7 +169,9 @@ test("a failed request offers to carry on, not only to start over", async () => 
 	 * turn that had done real work it is the wrong half of the offer to be given alone.
 	 */
 	assert.ok(offer.includes("继续"), `继续 is offered after a failure:\n${offer.slice(-400)}`);
-	assert.ok(offer.includes("上次请求失败"), "and the row says what happened rather than calling it an interruption");
+	// 同一件事只说一遍：`ResumeRow` 的那行让位给了上面那条记录，否则屏幕上又是两行讲同一件事。
+	assert.ok(!offer.includes("上次请求失败"), `失败只由一条记录来说：\n${offer.slice(-400)}`);
+	assert.ok(!offer.includes("这一轮出错了"), "红字加展开箭头那一套已经撤了");
 
 	/*
 	 * 输入框右下角那个按钮，说的必须是同一件事。
@@ -183,33 +194,28 @@ test("a failed request offers to carry on, not only to start over", async () => 
 	assert.ok(!button.d.includes("M12 19V5"), `而不是那支向上的发送箭头：${JSON.stringify(button)}`);
 });
 
-test("重试 asks before throwing the turn away", async () => {
+/**
+ * 一句失败旁边不该站着一个「丢掉重来」。
+ *
+ * 从前这里测的是那个内联的「重试」会先问一句再动手——问得对，可它根本不该在那儿：它和「继续」
+ * 并排、长得像同一类东西，而两者是相反的，按错就是把一轮已经花掉几十万 token 的工作再买一次。
+ * 现在那条记录上只有一个动作，就是安全的那个；重新生成仍然在，在消息自己的操作里。
+ */
+test("一句失败旁边只有一个动作，而且是安全的那个", async () => {
 	const before = await transcript();
-	assert.ok(before.includes("这一轮出错了"), "the failed turn is still on screen");
+	assert.ok(before.includes("服务暂时不可用"), "the failed turn is still on screen");
 
-	// The inline 重试, the one that sits under the error text.
-	const pressed = await app.evaluate<boolean>(`(() => {
-		const buttons = [...document.querySelectorAll("main button")].filter((b) => b.textContent?.trim() === "重试");
-		if (buttons.length === 0) return false;
-		buttons[0].click();
-		return true;
+	const actions = await app.evaluate<string[]>(`(() => {
+		const trace = document.querySelector("[data-hiccup-trace]");
+		if (!trace) return [];
+		return [...trace.querySelectorAll("button")].map((b) => b.textContent?.trim() ?? "");
 	})()`);
-	assert.ok(pressed, "重试 is on screen");
+	assert.ok(actions.includes("继续"), `记录上给的是「继续」：${JSON.stringify(actions)}`);
+	assert.ok(!actions.includes("重试"), `而不是并排的「重试」：${JSON.stringify(actions)}`);
 
-	await new Promise((r) => setTimeout(r, 400));
-	const asking = await app.evaluate<string>(`document.body.innerText`);
-	assert.ok(asking.includes("重新生成这次回答"), `it asks first:\n${asking.slice(-300)}`);
-	assert.ok(asking.includes("token"), "and says what it costs");
-
-	// Backing out leaves everything exactly as it was.
+	// 问过之后什么都没发生：这一轮还在，可以接着做。
 	const asked = requests;
-	await app.evaluate(`(() => {
-		const buttons = [...document.querySelectorAll("button")].filter((b) => b.textContent?.trim() === "取消");
-		buttons[buttons.length - 1]?.click();
-		return true;
-	})()`);
-	await new Promise((r) => setTimeout(r, 400));
-	assert.equal(requests, asked, "cancelling asked the model nothing");
-	// 同上：按界面上真的写着的字找，而不是按供应商返回的错误码。
-	assert.ok((await transcript()).includes("这一轮出错了"), "and the turn is still there to carry on from");
+	await new Promise((r) => setTimeout(r, 300));
+	assert.equal(requests, asked, "光是看着不会让它再问一次模型");
+	assert.ok((await transcript()).includes("服务暂时不可用"), "and the turn is still there to carry on from");
 });

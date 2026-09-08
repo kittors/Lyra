@@ -76,6 +76,7 @@ export function sessionSlice(set: Set, get: Get) {
       // connection as broken on the strength of another one's — or, for `stopped`, offer to
       // resume a blank conversation on the strength of a pause in the last one.
       retrying: null,
+      hiccups: [],
       stopped: null,
       ruleOffer: null,
       loadingSession: false,
@@ -243,6 +244,7 @@ export function sessionSlice(set: Set, get: Get) {
       turnTokens: get().turns[meta.id]?.tokens ?? 0,
       // Belongs to the turn being left behind; see the note in `newSession`.
       retrying: cached?.state?.retrying ?? null,
+      hiccups: cached?.state?.hiccups ?? [],
       stopped: cached?.state?.stopped ?? null,
       // Asked about a correction in the conversation being left, and about nothing in this one.
       ruleOffer: null,
@@ -375,7 +377,7 @@ function readOutcome(
 function cachedState(state: AppState): CachedSessionState {
   return {
     running: state.running, todos: state.todos, compactions: state.compactions, commandRuns: state.commandRuns,
-    approvals: state.approvals, stopped: state.stopped, retrying: state.retrying,
+    approvals: state.approvals, stopped: state.stopped, retrying: state.retrying, hiccups: state.hiccups,
 		capabilities: state.capabilities, pendingUserMessage: state.pendingUserMessage,
   };
 }

@@ -18,9 +18,10 @@ import type {
 	StreamEvent,
 	Usage,
 } from "../types.ts";
-import { emptyUsage } from "../types.ts";
+import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
-import { RetryBudget, fetchWithRetry, isRetryableError, retryStream, toolCallId } from "./retry.ts";
+import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
+import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSse } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 
@@ -112,8 +113,10 @@ async function* streamAnthropic(
 		}
 	>();
 	let stopReason: string | undefined;
-	/** The provider answered with an error of its own, which no amount of retrying will change. */
-	let refused = false;
+	/** 收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。见空回答那一段。 */
+	let framesSeen = 0;
+	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
+	let spentOnRetries = emptyUsage();
 
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
@@ -144,19 +147,24 @@ async function* streamAnthropic(
 				);
 
 				if (!response.ok) {
+					// 带着结论抛：`fetchWithRetry` 已经判过了，上面那层不该拿一个字符串重新猜。
 					const detail = await response.text().catch(() => "");
-					throw new Error(`HTTP ${response.status}: ${truncate(detail, 800)}`);
+					throw new FailureError(classifyFailure({ from: "status", status: response.status, body: detail }));
 				}
 
 				yield { type: "start", partial: { ...partial } } as StreamEvent;
 
+				/** 这次尝试里没能解析的帧，留一份原文，空回答时用来说明收到的到底是什么。 */
+				let unparsable = "";
 				for await (const frame of readSse(response, options.signal)) {
 					let event: Record<string, any>;
 					try {
 						event = JSON.parse(frame.data);
 					} catch {
+						if (!unparsable) unparsable = frame.data.slice(0, 500);
 						continue;
 					}
+					framesSeen += 1;
 
 					switch (event.type) {
 						case "message_start": {
@@ -279,20 +287,34 @@ async function* streamAnthropic(
 						}
 
 						case "error": {
-							const message = event.error?.message ?? "Unknown provider error";
-							partial.stopReason = "error";
-							partial.errorMessage = message;
-							partial.usage = computeCost(partial.usage, model);
-							yield {
-								type: "error",
-								error: message,
-								message: { ...partial },
-							} as StreamEvent;
-							// The provider itself refused; asking again would be told the same thing.
-							refused = true;
-							return;
+							/*
+							 * 抛出去，由分类器决定，而不是当场放弃。
+							 *
+							 * 和 Responses 适配器里那一处是同一个毛病、同一个修法：中转把上游的临时
+							 * 故障塞进这个事件，从前一律按「服务商本人拒绝」处理，绕过全部三层重试。
+							 */
+							const said = event.error?.message;
+							throw new FailureError(
+								classifyFailure({
+									from: "stream",
+									message: typeof said === "string" ? said : undefined,
+									raw: JSON.stringify(event).slice(0, 4000),
+									spent: partial.usage.output > 0 || partial.content.length > 0,
+								}),
+							);
 						}
 					}
+				}
+
+				// 空回答也是失败，不是「模型没话说」——见 Responses 适配器里同一段的说明。
+				if (partial.content.length === 0) {
+					throw new FailureError(
+						classifyFailure({
+							from: "empty",
+							why: unparsable ? "unparsable" : framesSeen === 0 ? "no-frames" : "no-content",
+							body: unparsable || undefined,
+						}),
+					);
 				}
 			},
 			{
@@ -300,21 +322,26 @@ async function* streamAnthropic(
 				signal: options.signal,
 				onRetry: options.onRetry,
 				reset: () => {
+					// 已经花掉的 token 不清零，见 Responses 适配器里同一段。
+					spentOnRetries = addUsage(spentOnRetries, partial.usage);
 					partial.content = [];
 					partial.usage = emptyUsage();
 					blocks.clear();
 					stopReason = undefined;
+					framesSeen = 0;
 					firstTokenTime = null;
 				},
 			},
 		);
-		if (refused) return partial;
 	} catch (error) {
 		const aborted = options.signal?.aborted;
+		const failure = aborted ? undefined : failureOf(error);
 		partial.stopReason = aborted ? "aborted" : "error";
-		partial.errorMessage = aborted ? "Aborted by user" : describeFetchError(error, options.signal);
+		partial.errorMessage = aborted ? "Aborted by user" : (failure?.summary ?? describeFetchError(error, options.signal));
 		// Recorded here because here is the last place it is knowable; see `errorRetryable`.
-		partial.errorRetryable = !aborted && isRetryableError(error);
+		partial.errorRetryable = failure ? worthRetrying(failure) : false;
+		partial.failure = failure;
+		partial.usage = addUsage(partial.usage, spentOnRetries);
 		partial.usage = computeCost(partial.usage, model);
 		partial.durationMs = Math.max(1, Date.now() - startTime);
 		if (firstTokenTime !== null) {
@@ -334,6 +361,8 @@ async function* streamAnthropic(
 	}
 	partial.stopReason = mapStopReason(stopReason, partial.content);
 	partial.usage.total = partial.usage.input + partial.usage.output + partial.usage.cacheRead + partial.usage.cacheWrite;
+	// 成功了，但失败的那几次也是花过钱的——账上要有。
+	partial.usage = addUsage(partial.usage, spentOnRetries);
 	partial.usage = computeCost(partial.usage, model);
 	yield { type: "done", message: { ...partial } };
 	return partial;

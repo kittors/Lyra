@@ -38,6 +38,8 @@ export function ResumeRow() {
 	 */
 	const interrupted = useSide((s) => s.tasks.find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
 	const resumeTask = useSide((s) => s.resumeTask);
+	/** 上面那条记录是不是已经把这次失败讲完了——讲完了这一行就不必再讲一遍。 */
+	const failedAlready = useApp((s) => s.hiccups.some((hiccup) => hiccup.outcome === "gave_up"));
 
 	const unfinished = todos.filter((todo) => todo.status !== "completed").length;
 	/*
@@ -53,6 +55,14 @@ export function ResumeRow() {
 	 */
 	const carryOn = carryOnPrompt(stopped, unfinished);
 	if (running || !carryOn) return null;
+	/*
+	 * 失败这件事，上面那条记录已经说过了。
+	 *
+	 * `HiccupTrace` 现在管着一次中断从开始到收场的全过程，包括没救回来的那一种——它自己带着「继续」。
+	 * 这一行要是再说一遍，屏幕上就又变回两行讲同一件事、四个可点的东西，正是这次要改掉的样子。暂停、
+	 * 被中断、清单没做完，仍然归这里：那几种不是失败，也没有记录会提到它们。
+	 */
+	if (stopped === "error" && failedAlready) return null;
 
 	/*
 	 * What happened, in the fewest words that are true.

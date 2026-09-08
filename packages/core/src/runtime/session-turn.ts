@@ -39,7 +39,15 @@ import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
-import { delegationConcurrency } from "./delegation.ts";
+import {
+	DELEGATION_KEY,
+	delegationConcurrency,
+	delegationTier,
+	mentionedAgents,
+	normalizeDelegationPolicy,
+	type DelegationDecision,
+} from "./delegation.ts";
+import { RENAMED_AGENTS, resolveAgentName } from "../agents-builtin.ts";
 import { withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
 import { offerRuleFromCorrection } from "./rule-offer.ts";
@@ -103,6 +111,18 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		resuming: (info) => input.emit({ type: "retry", ...info, resume: true }),
 		// So that pressing stop during a minute-long wait is felt immediately.
 		signal: input.signal,
+		/*
+		 * 无条件为真，也就是说 `continueWhileWorkRemains` 里那半段「连接断了就整轮重来」在这里
+		 * 从来不会执行。这是有意的，值得写下来，因为光读那个文件会以为它在工作。
+		 *
+		 * 会话永远带着一份重试策略——`normalizeRetryPolicy` 在没有配置时也会给出默认值——所以请求
+		 * 那一层总是受设置管着，而且现在覆盖了每一种失败（见 `failure.ts`）。再让外面这层加码，
+		 * 「重试 10 次」就会变成 10 次请求重试 × 3 轮 resume 一共四十次，跟设置页上写的数字对不上。
+		 * 设成无限重试时它更是永远轮不到：请求那层根本不会放弃。
+		 *
+		 * 那半段代码留着是因为 `continueWhileWorkRemains` 本身是通用的，`resume.test.ts` 也仍然
+		 * 覆盖着它；换个不带重试预算的调用者就该打开。
+		 */
 		requestRetriesHandled: true,
 	});
 
@@ -183,11 +203,66 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 	return [...head.map((message) => ({ ...message, timestamp: at })), ...tail];
 }
 
+/**
+ * 这一轮到底派不派、派谁。
+ *
+ * 只在 `off` 档下才去读用户写了什么——其余四档的答案跟消息内容无关，而扫一遍历史找 `@` 是白花的
+ * 工夫。这也让「关掉」成为唯一一个会因为用户措辞而改变工具表的档位，那正是它的定义。
+ *
+ * 看的是「上一条助手消息之后的所有用户消息」，而不是最后一条。用户常常分两次说完一件事——先
+ * 「@explore 看看这个」，再补一句「先别改代码」——只读最后一条会把点名读丢，而那一条恰恰是他
+ * 唯一一次明确表示要派活。
+ *
+ * 已知的边界：中途插话（steering）到达时这一轮的工具表已经定了，所以插话里的点名要等下一轮才
+ * 算数。改成每次请求前重算是可以的，但那意味着一轮之内工具表会变，模型看到的世界在自己说话的
+ * 过程中被换掉——那个代价比等一轮大。
+ */
+function delegationDecision(input: TurnInputs): DelegationDecision {
+	const policy = normalizeDelegationPolicy(input.settings.subAgentDelegation);
+	const tier = delegationTier(input.thinking ?? input.settings.thinking, policy);
+	if (tier !== "off") return { tier, mentioned: [] };
+
+	const messages = input.log.messages;
+	const lastReply = messages.findLastIndex((message) => message.role === "assistant");
+	// 旧名也认：三天前的会话里那句 `@fast` 指的人还在，见 `RENAMED_AGENTS`。
+	const known = [...input.can.agents.map((agent) => agent.name), ...Object.keys(RENAMED_AGENTS)];
+	const mentioned = new Set<string>();
+	for (const message of messages.slice(lastReply + 1)) {
+		// 运行时自己注入的那些（环境说明、规则纠正）不算点名——它们不是用户说的话。
+		if (message.role !== "user" || message.synthetic) continue;
+		const text = message.content
+			.filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
+			.map((part) => part.text)
+			.join("\n");
+		for (const name of mentionedAgents(text, known)) {
+			const resolved = resolveAgentName(name, input.can.agents);
+			// 旧名指向一个已经不存在的定义时不放行：留着它只会让 `task` 拿一个查无此人的名字去派。
+			if (input.can.agents.some((agent) => agent.name === resolved)) mentioned.add(resolved);
+		}
+	}
+	return { tier, mentioned: [...mentioned] };
+}
+
 async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig; systemPrompt: string }> {
 	const { cwd, can, log, settings } = input;
 	const memoryEnabled = projectMemoryEnabled(settings);
 	can.state.set(PROJECT_MEMORY_ENABLED_KEY, memoryEnabled);
-	const tools = can.tools.filter((tool) => tool.name !== "learn" || memoryEnabled);
+
+	/*
+	 * 派活关掉的时候，`task` 这一轮在不在桌上，取决于用户有没有点名。
+	 *
+	 * 摘掉工具是主路径——模型不会想要一个没见过的工具，而事后报错要花掉一整轮才让它发现这条路
+	 * 本来就不通。但「关掉」在这里的意思是「别自作主张」，不是「这个功能没了」：`@explore` 在
+	 * 输入框里只是一段纯文本，模型读到它之后走的仍然是 `task`，所以一刀摘掉会把用户自己点的名
+	 * 一起摘掉。于是按轮决定——认出点名就把工具留下，认不出就收走。见 `delegation.ts`。
+	 */
+	const delegation = delegationDecision(input);
+	can.state.set(DELEGATION_KEY, delegation);
+	const tools = can.tools.filter(
+		(tool) =>
+			(tool.name !== "learn" || memoryEnabled) &&
+			(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0),
+	);
 
 	/*
 	 * Where `agent://` finds the sub-agents this session dispatched.
@@ -237,8 +312,14 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 				 * 自己告诉模型的一个假数。
 				 */
 				thinking: input.thinking ?? settings.thinking,
+				// 这一轮的档位和点名，提示词那一段照着它写。见 `delegationDecision`。
+				delegation,
 				dispatchLimits: {
-					maxConcurrent: delegationConcurrency(settings.maxConcurrentSubAgents, input.thinking ?? settings.thinking),
+					maxConcurrent: delegationConcurrency(
+						settings.maxConcurrentSubAgents,
+						input.thinking ?? settings.thinking,
+						normalizeDelegationPolicy(settings.subAgentDelegation),
+					),
 					maxDepth: DEFAULT_MAX_DEPTH,
 				},
 				identityOverride: await readPromptOverride(cwd, "identity"),

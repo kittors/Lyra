@@ -2,17 +2,27 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { fetchWithRetry, isRetryableError, isRetryableStatus, retryDelay, serverDelay, toolCallId } from "../src/ai/retry.ts";
+import { FailureError } from "../src/ai/failure.ts";
 
 const socketError = () => Object.assign(new Error("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
 const noSleep = async () => {};
 
-test("transport failures are retryable, request mistakes are not", () => {
+test("认不出来的也重试，只有确定不会变的才拒绝", () => {
 	assert.equal(isRetryableError(socketError()), true);
 	assert.equal(isRetryableError(Object.assign(new Error("x"), { cause: { code: "ECONNRESET" } })), true);
-	// A bad request body is not going to become good on the second try.
-	assert.equal(isRetryableError(new TypeError("Invalid JSON")), false);
+	/*
+	 * 这一行从前断言的是 `false`，理由写着「a bad request body is not going to become good on the
+	 * second try」——可 `new TypeError("Invalid JSON")` 并不是请求体有问题，它只是一个白名单没收录
+	 * 的异常，而白名单外一律不重试正是这次要改掉的东西。默认翻过来之后，认不出来的会被重试，
+	 * 真正该拒绝的由 `failure.ts` 那份短黑名单挡住。
+	 */
+	assert.equal(isRetryableError(new TypeError("Invalid JSON")), true);
+	assert.equal(isRetryableError(Object.assign(new Error("bad cert"), { cause: { code: "CERT_HAS_EXPIRED" } })), false);
 	assert.equal(isRetryableStatus(429), true);
 	assert.equal(isRetryableStatus(503), true);
+	// 白名单时代这两个是漏网的：没见过的状态码等于不重试。
+	assert.equal(isRetryableStatus(520), true);
+	assert.equal(isRetryableStatus(530), true);
 	assert.equal(isRetryableStatus(400), false);
 	assert.equal(isRetryableStatus(401), false);
 });
@@ -50,19 +60,33 @@ test("giving up rethrows the last error rather than inventing one", async () => 
 	assert.equal(calls, 2);
 });
 
-test("a 4xx is returned as-is, without a second attempt", async () => {
+/**
+ * 4xx 带着结论抛出来，而不是原样交回去。
+ *
+ * 从前它是「返回，让调用方自己报」。三个调用方拿到之后做的第一件事都是 `if (!response.ok) throw`，
+ * 抛出去的是一个 `HTTP 401: ...` 字符串——那个结论在路上被重新猜了一遍，而流那一层看不懂字符串，
+ * 只能把它当成「没见过的连接问题」再重试一遍。判断走到哪儿都带着自己。
+ */
+test("一个 4xx 带着分类结果抛出来，且不会有第二次尝试", async () => {
 	let calls = 0;
-	const response = await fetchWithRetry(
-		async () => {
-			calls++;
-			return new Response("nope", { status: 401 });
+	await assert.rejects(
+		fetchWithRetry(
+			async () => {
+				calls++;
+				return new Response("nope", { status: 401 });
+			},
+			"https://example.test",
+			{},
+			{ attempts: 3, sleep: noSleep },
+		),
+		(error: unknown) => {
+			assert.ok(error instanceof FailureError, "抛的是带结论的那种异常");
+			assert.equal(error.failure.kind, "fatal");
+			assert.equal(error.failure.hint, "check-key", "并且说得出下一步该去哪儿");
+			return true;
 		},
-		"https://example.test",
-		{},
-		{ attempts: 3, sleep: noSleep },
 	);
 	assert.equal(calls, 1);
-	assert.equal(response.status, 401);
 });
 
 test("a 429 is retried, and the caller is told each time", async () => {
@@ -79,7 +103,8 @@ test("a 429 is retried, and the caller is told each time", async () => {
 	);
 	assert.equal(calls, 2);
 	assert.equal(response.status, 200);
-	assert.deepEqual(notices, ["HTTP 429"]);
+	// 说的是给人看的话，不是状态码——这一行最后会出现在界面上。
+	assert.deepEqual(notices, ["被限流"]);
 });
 
 test("an aborted turn during backoff wait stops immediately without waiting", async () => {

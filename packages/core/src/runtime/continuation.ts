@@ -62,7 +62,13 @@ const MAX_RESUMES = 3;
 const RESUME_DELAYS_MS = [5_000, 20_000, 60_000];
 
 export interface ContinuationDeps {
-	/** A configured request budget must not be restarted by the outer turn continuation. */
+	/**
+	 * A configured request budget must not be restarted by the outer turn continuation.
+	 *
+	 * 注意这在桌面会话里恒为真——`session-turn.ts` 无条件传 `true`，那里写了为什么——所以下面那段
+	 * 连接恢复的逻辑在真实运行中不会执行。读到这里不必困惑：它没有被遗忘，是被请求那一层接管了，
+	 * 而那一层受设置页管着。
+	 */
 	requestRetriesHandled?: boolean;
 	/** Start another turn with the accumulated history. */
 	run(messages: Message[]): Promise<AgentRunResult>;

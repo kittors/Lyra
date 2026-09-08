@@ -7,7 +7,7 @@
  * person said, and showing it where a person's messages go is a lie about who is talking.
  */
 
-import { memo, useState } from "react";
+import { memo } from "react";
 import type { AssistantMessage, Message } from "@lyra/core";
 import { TurnDeliveryCard } from "./TurnDelivery.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -17,9 +17,6 @@ import { RuleCard } from "./RuleCard.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
 import { useApp } from "../../store/index.ts";
-import { ChevronDown, RotateCcw, TriangleAlert } from "lucide-react";
-import { Text } from "../../ui/primitives/Text.tsx";
-import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 
@@ -129,13 +126,12 @@ export const MessageRow = memo(function MessageRow({
   if (message.role === "toolResult") return null;
 
   return (
-    <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
+    <AssistantRow message={message} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
   );
 });
 
 function AssistantRow({
   message,
-  index,
   upTo,
   from = 0,
   lead,
@@ -145,7 +141,6 @@ function AssistantRow({
   viewKey,
 }: {
   message: AssistantMessage;
-  index: number;
   upTo: number;
   from?: number;
   lead?: boolean;
@@ -155,14 +150,6 @@ function AssistantRow({
   viewKey?: string;
 }) {
   const running = useApp((s) => s.running);
-  const retryFrom = useApp((s) => s.retryFrom);
-  /*
-   * Whether a failure states itself in full or waits to be asked. See the error block below and
-   * 外观 → 出错时显示. Undefined counts as compact, which is what a fresh install gets.
-   */
-  const compactErrors = useApp((s) => s.settings?.appearance?.errorDetail !== "full");
-  const [errorOpen, setErrorOpen] = useState(false);
-  const confirm = useConfirmer();
 
   const own = message.content.slice(from, upTo);
 
@@ -221,74 +208,17 @@ function AssistantRow({
         return <ToolRunGroup key={`group-${position}`} calls={calls} />;
       })}
 
-      {!lead && message.stopReason === "error" && message.errorMessage && (
-        /*
-         * Stated, not staged.
-         *
-         * The first version of this put a bordered button under the message, which made a
-         * dropped socket look like the most important thing on the screen. A failure is worth
-         * one line — what went wrong, and the word that undoes it — set at the same weight as
-         * the timestamp under every other reply.
-         *
-         * Compact goes further, and is the default: the wording of the common failure is a stack
-         * of provider JSON that nobody reads, and a long session where the connection wobbled a
-         * few times reads as a wall of red for something that fixed itself. So it says how many
-         * words it is withholding and opens on a click. Set by 外观 → 出错时显示.
-         */
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          {compactErrors && !errorOpen ? (
-            <button
-              type="button"
-              onClick={() => setErrorOpen(true)}
-              className="flex items-center gap-1 rounded text-caption text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-            >
-              <TriangleAlert size={10.5} strokeWidth={1.9} className="text-danger" />
-              这一轮出错了
-              <ChevronDown size={10} strokeWidth={2} />
-            </button>
-          ) : (
-            <Text
-              size="caption"
-              tone="danger"
-              className="break-words whitespace-pre-wrap"
-            >
-              {message.errorMessage}
-            </Text>
-          )}
-          <button
-            type="button"
-            disabled={running}
-            /*
-             * Asked first: this discards the turn rather than resuming it.
-             *
-             * The word sits at the end of a failure message, where it reads as "undo the error" —
-             * and what it actually does is throw away everything the turn had done and pay for the
-             * whole thing again. The row underneath offers 继续, which is what most people mean
-             * here; see `ResumeRow`.
-             */
-            onClick={() =>
-              confirm.ask({
-                title: "重新生成这次回答？",
-                detail: (
-                  <>
-                    这会丢掉本轮已经做过的工作——读过的文件、跑过的命令——并从你最后一条消息重新开始，
-                    重新消耗一次 token。
-                    <br />
-                    想保留这些、从中断处接着做，请用下面那行的「继续」。
-                  </>
-                ),
-                confirmLabel: "重新生成",
-                onConfirm: () => void retryFrom(index),
-              })
-            }
-            className="flex items-center gap-1 rounded text-caption text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink disabled:opacity-40"
-          >
-            <RotateCcw size={10.5} strokeWidth={1.9} />
-            重试
-          </button>
-          {confirm.element}
-        </div>
-      )}
+      {/*
+       * 失败不在这里说了——它和「正在重连」是同一件事的两个阶段，一起搬到了 `HiccupTrace`。
+       *
+       * 这里从前是一个红三角、一句「这一轮出错了」、一个展开箭头，外加一个「重试」；底下 `ResumeRow`
+       * 再来一行「上次请求失败 · 继续 · 重试」。两行、四个可点的东西、一个红标，说的是一件多半几秒
+       * 钟后自己就好了的事——而真自己好了的那些，一点痕迹都不留。轻重反了。
+       *
+       * 那个「重试」也一并撤了。它做的是丢掉整轮重新生成，在一轮已经花掉几十万 token 之后按错就是
+       * 再花一次，而它当时正并排站在「继续」旁边、长得像同一类东西。重新生成仍在——在消息自己的
+       * 操作里，见 `MessageActions`——只是不再摆在一句失败旁边勾着人点。
+       */}
 
       {/*
        * Only where the reply actually ends.

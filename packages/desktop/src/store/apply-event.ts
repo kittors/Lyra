@@ -32,6 +32,7 @@ import { useSide } from "../features/dock/sideStore.ts";
 import { useSubAgents } from "./subAgents.ts";
 import type { AppState } from "./index.ts";
 import { settleTail } from "../lib/transcript.ts";
+import { foldRetry, settleHiccups } from "../lib/hiccup.ts";
 import { bridge } from "../services/index.ts";
 import { sessionTitle } from "../lib/session-title.ts";
 import { completionNotice } from "../lib/session-notifications.ts";
@@ -238,6 +239,13 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       set({
         running: true,
         retrying: null,
+        /*
+         * 上一轮的波折不带进这一轮。
+         *
+         * 记录挂在转录末尾，说的是「这一轮发生了什么」。留着上一轮的，它就会显示在一段跟它无关的
+         * 回答下面——而那一轮的事，读的人已经在当时看过了。
+         */
+        hiccups: [],
         stopped: null,
         /*
          * An unanswered offer does not survive into the next turn.
@@ -354,6 +362,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
           reason: event.reason,
           resume: event.resume === true,
         },
+        // 同一次中断折进同一条记录，次数往上加；见 `hiccup.ts`。
+        hiccups: foldRetry(get().hiccups, event, Date.now()),
         /*
          * A resume arrives after `agent_end`, which has already stood the window down.
          *
@@ -366,6 +376,16 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
           ? { running: true, turnStartedAt: get().turnStartedAt ?? Date.now() }
           : {}),
       });
+      break;
+
+    /*
+     * 那次中断收场了——接上了，还是没接上。
+     *
+     * `retrying` 之所以还要单独清一次，是因为它管的是运行行上那句「N 秒后重连」：接上之后那句话
+     * 必须立刻消失，而记录要留下。两件事，两个字段，同一个事件喂。
+     */
+    case "retry_settled":
+      set({ hiccups: settleHiccups(get().hiccups, event), retrying: null });
       break;
 
 		case "command_status":

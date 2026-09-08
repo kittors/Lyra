@@ -3,6 +3,7 @@ import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
+import { HiccupTrace } from "./HiccupTrace.tsx";
 import { RuleSuggestion } from "./RuleSuggestion.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
@@ -351,6 +352,13 @@ export const Conversation = memo(function Conversation() {
               <div>{running && !compacting && <RunningIndicator />}</div>
             </div>
           </div>
+          {/*
+           * 这一轮里连接抖过没有，以及最后怎么了。
+           *
+           * 在运行行下面、`ResumeRow` 上面：等待时它紧挨着那句「正在思考」，属于同一件正在发生的
+           * 事；收场之后它留在原地，成为这一轮末尾的一条脚注。见 `HiccupTrace`。
+           */}
+          <HiccupTrace />
           {/* Where the running indicator would have been, saying why it is not there. */}
           <ResumeRow />
           {/*

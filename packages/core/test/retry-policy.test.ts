@@ -17,7 +17,13 @@ test("linear delays reach the configured ceiling; fixed ignores server hints", a
 	const policy = { ...DEFAULT_RETRY_RULE, strategy: "linear" as const };
 	assert.deepEqual([1, 2, 3, 6, 100].map(n => policyDelay(policy, n)), [5000, 10000, 15000, 30000, 30000]);
 	const waits: number[] = []; let calls = 0;
-	await fetchWithRetry(async () => { calls++; return new Response("busy", { status: 503, headers: { "retry-after": "60" } }); }, "https://example.test", {}, { budget: new RetryBudget({ ...DEFAULT_RETRY_POLICY, upstream: { ...DEFAULT_RETRY_RULE, retries: 2 } }), sleep: async ms => { waits.push(ms); } });
+	/*
+	 * 预算用尽之后抛出来，而不是把那个 503 交回去——见 `fetchWithRetry` 的说明。
+	 *
+	 * `retry-after: 60` 依然被无视，这条测试的后半句问的就是这个：设置页上写着固定间隔「不受服务端
+	 * 建议或随机抖动影响」，那是用户明确要求的事。
+	 */
+	await assert.rejects(fetchWithRetry(async () => { calls++; return new Response("busy", { status: 503, headers: { "retry-after": "60" } }); }, "https://example.test", {}, { budget: new RetryBudget({ ...DEFAULT_RETRY_POLICY, upstream: { ...DEFAULT_RETRY_RULE, retries: 2 } }), sleep: async ms => { waits.push(ms); } }));
 	assert.equal(calls, 3); assert.deepEqual(waits, [5000, 5000]);
 });
 
@@ -86,8 +92,9 @@ test("an explicit low-level attempt count still bounds both categories, whatever
 test("fault categories keep independent limits, and certificate errors are not transient network outages", async () => {
 	const policy = { network: { ...DEFAULT_RETRY_RULE, retries: 2, intervalMs: 1000 }, upstream: { ...DEFAULT_RETRY_RULE, retries: 1, intervalMs: 3000 } };
 	const budget = new RetryBudget(policy); let calls = 0; const waits: number[] = [];
-	const response = await fetchWithRetry(async () => { calls++; if (calls === 1 || calls === 3) throw socket(); return new Response("busy", { status: 503 }); }, "https://example.test", {}, { budget, sleep: async ms => { waits.push(ms); } });
-	assert.equal(response.status, 503); assert.equal(calls, 4); assert.deepEqual(waits, [1000, 3000, 1000]);
+	// 两类交替耗着各自的额度，各用各的间隔；upstream 先见底，于是最后那个 503 带着分类结果抛出来。
+	await assert.rejects(fetchWithRetry(async () => { calls++; if (calls === 1 || calls === 3) throw socket(); return new Response("busy", { status: 503 }); }, "https://example.test", {}, { budget, sleep: async ms => { waits.push(ms); } }));
+	assert.equal(calls, 4); assert.deepEqual(waits, [1000, 3000, 1000]);
 	assert.equal(isRetryableError(new Error("fetch failed", { cause: { code: "CERT_HAS_EXPIRED" } })), false);
 	assert.equal(isRetryableError(new Error("fetch failed", { cause: { code: "ENETUNREACH" } })), true);
 });

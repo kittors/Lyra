@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
-import { describeRetry } from "../../lib/retry-line.ts";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { useApp } from "../../store/index.ts";
@@ -202,12 +201,14 @@ export function RunningIndicator() {
 					<span className="ly-fade-in truncate text-ink-faint">已压缩较早的对话</span>
 				</>
 			)}
-			{retrying && (
-				<>
-					<span className="text-ink-faint">·</span>
-					<span className="text-ink-faint tabular-nums">{describeRetry(retrying, now)}</span>
-				</>
-			)}
+			{/*
+			 * 「N 秒后重连」不在这里说了——它就在下面那条记录上，而且一直待到这一轮结束。
+			 *
+			 * 从前两处都说，于是屏幕上是两行讲同一件事：这一行倒计时，下一行也倒计时。它们的寿命
+			 * 还不一样——这一行随运行指示器一起消失，那条记录留下来变成「重连 2 次后恢复」。留下
+			 * 会留的那个。`retrying` 本身还在用：它让上面那句话变成「正在重连」，而不是继续假装
+			 * 模型在思考。见 `thinking-words.ts`。
+			 */}
 		</div>
 	);
 }

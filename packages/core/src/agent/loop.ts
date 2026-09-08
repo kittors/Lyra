@@ -132,6 +132,14 @@ export interface AgentRunResult {
  */
 function rejectedContent(assistant: AssistantMessage): boolean {
 	if (assistant.stopReason !== "error" || assistant.errorRetryable) return false;
+	/*
+	 * 问分类的结果，而不是对着一行字做模式匹配。
+	 *
+	 * 从前这里读的是 `errorMessage` 的开头像不像 `HTTP 400`——而那行字是给人看的，措辞一变这条
+	 * 判断就悄悄失效。`check-request` 是同一件事被写下来的样子：请求体本身不被接受，值得裁掉历史
+	 * 再试一次。旧会话里没有 `failure`，所以正则留着兜底。
+	 */
+	if (assistant.failure) return assistant.failure.hint === "check-request";
 	return /^HTTP (400|413|422)\b/.test(assistant.errorMessage ?? "");
 }
 
@@ -602,17 +610,45 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		 * silence is indistinguishable from a stall. One line naming the cause turns it into
 		 * something that is visibly being handled.
 		 */
-		onRetry: ({ delayMs, reason }) => {
+		onRetry: ({ delayMs, reason, failure }) => {
 			retries += 1;
-			void emit({ type: "retry", attempt: retries, delayMs, reason });
+			void emit({ type: "retry", attempt: retries, delayMs, reason, failure });
 		},
 	});
 
 	let started = false;
 
+	/**
+	 * 那次中断怎么收的场，说一句。
+	 *
+	 * 这里是唯一同时知道两件事的地方：重试了几次（数在上面），以及最后那条消息是什么样子。少了这
+	 * 一句，界面上的「正在重连」就没有下文——它只能等着被下一轮清掉，于是「重连成功」和「窗口
+	 * 闲着」在屏幕上长得一模一样。
+	 */
+	const settle = async (message: AssistantMessage) => {
+		const failed = message.stopReason === "error";
+		/*
+		 * 一次都没重试过的成功没什么可说的，别的都要说。
+		 *
+		 * 尤其是一次都没重试过的**失败**——密钥不对、模型名写错，分类器判成 `fatal` 当场停下，一条
+		 * retry 事件都不会有。要是这里也不说，界面上就只剩一片安静：转录里那句话没了，而它本来是
+		 * 唯一说明发生过什么的东西。
+		 */
+		if (retries === 0 && !failed) return;
+		await emit({
+			type: "retry_settled",
+			outcome: failed ? "gave_up" : "recovered",
+			attempts: retries,
+			failure: message.failure,
+		});
+	};
+
 	while (true) {
 		const next = await stream.next();
-		if (next.done) return { message: next.value, ruleMatches: pendingMatches, deferredMatches };
+		if (next.done) {
+			await settle(next.value);
+			return { message: next.value, ruleMatches: pendingMatches, deferredMatches };
+		}
 		const event = next.value;
 
 		switch (event.type) {
@@ -634,7 +670,9 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 				await emit({ type: "message_end", message });
 				// Drain the generator so its `return` value is the authoritative final message.
 				const tail = await stream.next();
-				return { message: tail.done ? tail.value : message, ruleMatches: pendingMatches, deferredMatches };
+				const settled = tail.done ? tail.value : message;
+				await settle(settled);
+				return { message: settled, ruleMatches: pendingMatches, deferredMatches };
 			}
 			default:
 				break;

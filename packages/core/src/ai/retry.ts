@@ -1,5 +1,6 @@
 /** Shared request/stream budget prevents nested retry loops from multiplying the configured limit. */
 import { normalizeRetryPolicy, policyDelay, type RetryPolicy, type RetryPolicySource, type RetryFailure } from "../config/retry-policy.ts";
+import { classifyFailure, failureOf, FailureError, worthRetrying, type Failure } from "./failure.ts";
 
 /** Explicit low-level attempt overrides (e.g. commit titles) retain their bounded lifetime. */
 function resolvePolicy(policy: RetryPolicy | undefined, legacyAttempts: number | undefined): RetryPolicy {
@@ -34,63 +35,29 @@ export class RetryBudget {
 	next(kind: RetryFailure): { attempt: number; delayMs: number } { this.used[kind]++; return { attempt: this.used.network + this.used.upstream, delayMs: policyDelay(this.policy[kind], this.used[kind]) }; }
 }
 
-/** Transport-level failures, none of which mean the request itself was bad. */
-const RETRYABLE_CAUSES = new Set([
-	"UND_ERR_SOCKET",
-	"UND_ERR_CONNECT_TIMEOUT",
-	"UND_ERR_HEADERS_TIMEOUT",
-	"UND_ERR_BODY_TIMEOUT",
-	"ECONNRESET",
-	"ECONNREFUSED",
-	"ETIMEDOUT",
-	"EPIPE",
-	"EAI_AGAIN",
-	"ENOTFOUND",
-	"ENETUNREACH",
-	"EHOSTUNREACH",
-]);
-
-/**
- * Status codes worth a second attempt.
- *
- * 429 is the server asking to be asked later. The 5xx range here is the set that means "not
- * right now" rather than "not ever" — a 500 from a relay is usually one bad upstream node, and
- * 501 or 505 are excluded because repeating them changes nothing.
- *
- * 529 is Anthropic's "overloaded", which is not in any RFC and was therefore falling through to
- * "report it and stop" — the one status in the list that most literally means "ask again shortly".
- */
-const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504, 522, 524, 529]);
-
 export interface RetryOptions {
 	budget?: RetryBudget;
 	/** Total attempts, including the first. */
 	attempts?: number;
 	signal?: AbortSignal;
 	/** Called before each wait, so a caller can tell the user what is happening. */
-	onRetry?: (info: { attempt: number; delayMs: number; reason: string }) => void;
+	onRetry?: (info: { attempt: number; delayMs: number; reason: string; failure?: Failure }) => void;
 	/** Injected in tests so they do not sleep. */
 	sleep?: (ms: number) => Promise<void>;
 }
 
+/**
+ * 值得再试一次吗——问的是 `failure.ts`，不是这里。
+ *
+ * 这两个函数从前各自守着一份白名单，是四份互不知情的判断里的两份。留下这层薄壳是因为调用点还在
+ * 用它们的名字，而壳里已经换成了同一个分类器：认不出来的东西现在会被重试，而不是被拒之门外。
+ */
 export function isRetryableError(error: unknown): boolean {
-	if (!(error instanceof Error)) return false;
-	const cause = (error as { cause?: { code?: string } }).cause;
-	if (cause?.code && RETRYABLE_CAUSES.has(cause.code)) return true;
-	if (cause?.code && ["ERR_TLS_CERT_ALTNAME_INVALID", "CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "ERR_INVALID_URL"].includes(cause.code)) return false;
-	// undici reports a bare "fetch failed" with the cause attached; some runtimes lose the cause.
-	const msg = error.message.toLowerCase();
-	return (
-		error.message === "fetch failed" ||
-		msg.includes("socket hang up") ||
-		msg.includes("stream_read_error") ||
-		msg.includes("premature close") ||
-		msg.includes("terminated")
-	);
+	return worthRetrying(failureOf(error));
 }
 
-export function isRetryableStatus(status: number): boolean {
-	return RETRYABLE_STATUS.has(status);
+export function isRetryableStatus(status: number, body?: string): boolean {
+	return worthRetrying(classifyFailure({ from: "status", status, body }));
 }
 
 /**
@@ -184,10 +151,12 @@ function abortableSleep(ms: number, signal?: AbortSignal, customSleep?: (ms: num
 }
 
 /**
- * Perform a request, retrying only what is safe to retry.
+ * Perform a request, retrying everything except what is certain not to change.
  *
- * Returns the response as soon as one arrives with a status worth keeping — including a 4xx,
- * which the caller reports as-is. Throws the last transport error if every attempt failed.
+ * 成功的响应原样返回。其余一律抛 `FailureError`——包括 4xx：从前它们是被「原样返回，由调用方
+ * 自己去报」的，而三个调用方拿到之后做的第一件事都是 `if (!response.ok) throw`，于是那个结论在
+ * 路上被重新猜了一遍，猜出来的东西还不如原来准（一个 `HTTP 401: ...` 字符串在流那一层看起来像
+ * 「没见过的连接问题」）。判断带着结论一起走。
  */
 export async function fetchWithRetry(
 	doFetch: typeof globalThis.fetch,
@@ -202,37 +171,59 @@ export async function fetchWithRetry(
 		if (options.signal?.aborted) break;
 		try {
 			const response = await doFetch(url, init);
-			if ((options.budget ? options.budget.available("upstream") : attempt < attempts) && isRetryableStatus(response.status)) {
-				/*
-				 * The body is read, off a clone, purely to find out how long to wait.
-				 *
-				 * It used to be skipped on the grounds that nothing had been shown to anyone and a
-				 * fresh attempt replaces it entirely — true of the *content*, and it cost us the one
-				 * number that mattered. The relay puts `reset_seconds` in there and no `Retry-After`
-				 * header, so without this every 503 was retried on the blind curve and the budget was
-				 * gone long before the outage was. A clone, so the response the caller may still
-				 * return is untouched; failures here fall back to the curve rather than throwing.
-				 */
-				const body = options.budget ? undefined : await response
-					.clone()
-					.text()
-					.catch(() => undefined);
-				const retry = options.budget?.next("upstream") ?? { attempt, delayMs: retryDelay(attempt, response, body) };
-				const delay = retry.delayMs;
-				// Release each failed response before an unlimited wait can accumulate connections.
+			if (response.ok) return response;
+
+			/*
+			 * The body is read, off a clone, purely to find out what happened and how long to wait.
+			 *
+			 * 从前这一行写的是 `options.budget ? undefined : await response.clone().text()`——也就是
+			 * 说下面这段讲「不读正文会把重试预算在几秒内烧光」的道理，只在没配重试策略的时候才作数，
+			 * 而配了策略的人反而拿不到服务器自己说的等待时间。The relay puts `reset_seconds` in there
+			 * and no `Retry-After` header. 用克隆读，调用方可能还要用的那个响应一个字节不动。
+			 */
+			const body = await response.clone().text().catch(() => undefined);
+			const failure = classifyFailure({ from: "status", status: response.status, body });
+			const canRetry = options.budget ? options.budget.available("upstream") : attempt < attempts;
+
+			if (!worthRetrying(failure) || !canRetry) {
+				// 判断带着结论一起往上走，免得流那一层拿到一个字符串又重新猜一遍——猜错的那次会把
+				// 一个 401 当成没见过的连接问题，然后无限重试下去。
 				await response.body?.cancel().catch(() => undefined);
-				options.onRetry?.({ ...retry, reason: `HTTP ${response.status}` });
-				await abortableSleep(delay, options.signal, options.sleep);
-				continue;
+				throw new FailureError(failure);
 			}
-			return response;
+
+			/*
+			 * 服务器说的等待时间只在没有配策略时作数。
+			 *
+			 * 一度写成「服务器比我们准，取两者的大值」——那是把设置页上的话当成了建议。那一页写着
+			 * 「每次等待相同时间，不受服务端建议或随机抖动影响」，配了固定间隔的人是在明确要求这
+			 * 件事。`retryDelay` 是没人配置时的兜底曲线，它才该听服务器的；`policyDelay` 是用户说
+			 * 的数，不该被谁覆盖。正文照读不误——分类要用它。
+			 */
+			const retry = options.budget?.next("upstream") ?? { attempt, delayMs: retryDelay(attempt, response, body) };
+			const delay = retry.delayMs;
+			// Release each failed response before an unlimited wait can accumulate connections.
+			await response.body?.cancel().catch(() => undefined);
+			options.onRetry?.({ ...retry, delayMs: delay, reason: failure.summary, failure });
+			await abortableSleep(delay, options.signal, options.sleep);
+			continue;
 		} catch (error) {
 			lastError = error;
+			/*
+			 * 上面那几行自己抛的，直接放走——它已经判过了，判的结果就是不再重试。
+			 *
+			 * 少了这一句是个死循环，而且是默认配置下就会撞上的那种：状态码那一路把 `FailureError`
+			 * 抛在 `try` 里，于是被这个 `catch` 接住，而下面那行查的是 **network** 预算——它默认
+			 * 是无限的。一个 upstream 预算已经用尽的 503 就这样被 network 的无限额度接着重试，永远
+			 * 转下去。`retry-policy.test.ts` 整个文件挂住，一条都跑不出来。
+			 */
+			if (error instanceof FailureError) throw error;
+			const failure = failureOf(error);
 			// A cancelled turn is not a failed one; stop immediately rather than waiting to retry.
-			if (options.signal?.aborted || !isRetryableError(error) || (options.budget ? !options.budget.available("network") : attempt === attempts)) throw error;
+			if (options.signal?.aborted || !worthRetrying(failure) || (options.budget ? !options.budget.available("network") : attempt === attempts)) throw error;
 			const retry = options.budget?.next("network") ?? { attempt, delayMs: retryDelay(attempt) };
 			const delay = retry.delayMs;
-			options.onRetry?.({ ...retry, reason: describeCause(error) });
+			options.onRetry?.({ ...retry, reason: failure.summary, failure });
 			await abortableSleep(delay, options.signal, options.sleep);
 		}
 	}
@@ -243,17 +234,14 @@ export async function fetchWithRetry(
 	 * Without it a failure after five tries and a failure on the first look identical in the
 	 * transcript, and they call for opposite things: one is a wobble worth continuing through, the
 	 * other is something that is not going to work no matter how long you wait.
+	 *
+	 * 只在次数确切的时候说。配了预算时 `attempts` 是 `Infinity`，而在重试等待中按下停止正好会走到
+	 * 这里——从前拼出来的是一句「已重试 Infinity 次」。
 	 */
-	if (lastError instanceof Error && attempts > 1) {
+	if (lastError instanceof Error && Number.isFinite(attempts) && attempts > 1) {
 		lastError.message = `${lastError.message}（已重试 ${attempts} 次）`;
 	}
 	throw lastError ?? new Error("请求已取消");
-}
-
-function describeCause(error: unknown): string {
-	if (!(error instanceof Error)) return String(error);
-	const cause = (error as { cause?: { code?: string } }).cause;
-	return cause?.code ?? error.message;
 }
 
 /**
@@ -303,7 +291,7 @@ export async function* retryStream<T>(
 		attempts?: number;
 		signal?: AbortSignal;
 		reset: () => void;
-		onRetry?: (info: { attempt: number; delayMs: number; reason: string }) => void;
+		onRetry?: (info: { attempt: number; delayMs: number; reason: string; failure?: Failure }) => void;
 		sleep?: (ms: number) => Promise<void>;
 	},
 ): AsyncGenerator<T, void> {
@@ -316,18 +304,22 @@ export async function* retryStream<T>(
 			yield* attempt(number);
 			return;
 		} catch (error) {
-			const last = options.budget ? !options.budget.available("network") : number === attempts;
-			if (last || options.signal?.aborted || !isRetryableError(error)) throw error;
-			const retry = options.budget?.next("network") ?? { attempt: number, delayMs: retryDelay(number) };
+			const failure = failureOf(error);
+			/*
+			 * 哪一条规则，由失败自己说了算。
+			 *
+			 * 从前这里一律记在 `network` 头上——流断了嘛。可流里跑的不止是断线：一个 503、一个流内
+			 * error 事件、一次空回答，全都从这里经过，而它们该走的是「上游故障」那条规则。记错了账，
+			 * 界面上两行设置就有一行永远不生效。
+			 */
+			const rule = failure.kind === "upstream" ? "upstream" : "network";
+			const last = options.budget ? !options.budget.available(rule) : number === attempts;
+			if (last || options.signal?.aborted || !worthRetrying(failure)) throw error;
+			// 同上：配了策略就按策略的数走，服务器的建议只喂给兜底曲线。
+			const retry = options.budget?.next(rule) ?? { attempt: number, delayMs: retryDelay(number) };
 			const delayMs = retry.delayMs;
-			options.onRetry?.({ ...retry, reason: describeError(error) });
+			options.onRetry?.({ ...retry, delayMs, reason: failure.summary, failure });
 			await abortableSleep(delayMs, options.signal, options.sleep);
 		}
 	}
-}
-
-function describeError(error: unknown): string {
-	const cause = (error as { cause?: { code?: string } })?.cause?.code;
-	if (cause) return cause;
-	return error instanceof Error ? error.message : String(error);
 }

@@ -3,6 +3,7 @@ import { settleTail } from "../lib/transcript.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, rebuildToolRuns, todosFrom, type Cache, type CachedSessionState } from "./derive.ts";
 import { messageEvent } from "./message-event.ts";
+import { foldRetry, settleHiccups } from "../lib/hiccup.ts";
 
 /** Cache entries have history, so unlike never-visited sessions they can consume live events. */
 export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[string] {
@@ -27,7 +28,8 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			}, () => ({ toolRuns, todos: state.todos }));
 			break;
 		case "agent_start":
-			state = { ...state, running: true, stopped: null, retrying: null };
+			// 上一轮的波折不带进这一轮，理由见 `apply-event.ts` 里的同一处。
+			state = { ...state, running: true, stopped: null, retrying: null, hiccups: [] };
 			break;
 		case "agent_end":
 			messages = settleTail(messages, event);
@@ -51,7 +53,11 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			state = { ...state, compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }] };
 			break;
 		case "retry":
-			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true } };
+			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now()) };
+			break;
+		// 后台那个会话抖过什么、最后怎么了，切回去时得还在——见 `apply-event.ts` 里的同一对分支。
+		case "retry_settled":
+			state = { ...state, retrying: null, hiccups: settleHiccups(state.hiccups ?? [], event) };
 			break;
 		default: return cached;
 	}

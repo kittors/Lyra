@@ -23,7 +23,7 @@ import type { Message } from "../types.ts";
  * Token deltas and repeated partial output stay live-only; execution boundaries and nested
  * transcripts survive without bloating the model history.
  */
-const PERSISTED_EVENTS = new Set<AgentEvent["type"]>(["command_status", "compacted", "context", "subagent", "subagent_done", "subagent_message", "subagent_event", "agent_start", "agent_end", "turn_start", "tool_start", "request", "approval_request", "retry", "notice", "rule_triggered"]);
+const PERSISTED_EVENTS = new Set<AgentEvent["type"]>(["command_status", "compacted", "context", "subagent", "subagent_done", "subagent_message", "subagent_event", "agent_start", "agent_end", "turn_start", "tool_start", "request", "approval_request", "retry", "retry_settled", "notice", "rule_triggered"]);
 
 export class SessionLog {
 	/**

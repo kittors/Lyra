@@ -20,11 +20,12 @@ import type {
 	StreamEvent,
 	Usage,
 } from "../types.ts";
-import { emptyUsage } from "../types.ts";
+import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
-import { RetryBudget, fetchWithRetry, isRetryableError, retryStream, toolCallId } from "./retry.ts";
+import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
+import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSse } from "../utils/sse.ts";
-import { describeFetchError, joinUrl, truncate } from "./anthropic-messages.ts";
+import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 
 export const openaiResponsesProvider: Provider = {
@@ -103,8 +104,10 @@ async function* streamResponses(
 	/** Stand-in ids for calls the provider did not name, keyed by output index. */
 	const inventedIds = new Map<number, string>();
 	let incompleteReason: string | undefined;
-	/** The provider answered with an error of its own, which no amount of retrying will change. */
-	let refused = false;
+	/** 这次尝试收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。 */
+	let framesSeen = 0;
+	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
+	let spentOnRetries = emptyUsage();
 
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
@@ -139,22 +142,26 @@ async function* streamResponses(
 				);
 
 				if (!response.ok) {
+					// 走到这里说明 `fetchWithRetry` 已经判过并且决定不再重试；带着结论抛，别让上面
+					// 那层拿一个 `HTTP 401: ...` 字符串重新猜。
 					const detail = await response.text().catch(() => "");
-					// A plain Error, so the stream retry leaves it alone: the server said no, and
-					// saying it again would get the same answer.
-					throw new Error(`HTTP ${response.status}: ${truncate(detail, 800)}`);
+					throw new FailureError(classifyFailure({ from: "status", status: response.status, body: detail }));
 				}
 
 				yield { type: "start", partial: { ...partial } } as StreamEvent;
 
+				/** 这次尝试里没能解析的帧，留一份原文，空回答时用来说明收到的到底是什么。 */
+				let unparsable = "";
 				for await (const frame of readSse(response, options.signal)) {
 					if (frame.data === "[DONE]") break;
 					let event: Record<string, any>;
 					try {
 						event = JSON.parse(frame.data);
 					} catch {
+						if (!unparsable) unparsable = frame.data.slice(0, 500);
 						continue;
 					}
+					framesSeen += 1;
 
 					const type: string = event.type ?? frame.event ?? "";
 					const outputIndex: number = event.output_index ?? 0;
@@ -303,20 +310,48 @@ async function* streamResponses(
 
 						case "response.failed":
 						case "error": {
-							const message = event.response?.error?.message ?? event.message ?? "Unknown provider error";
-							partial.stopReason = "error";
-							partial.errorMessage = message;
-							partial.usage = computeCost(partial.usage, model);
-							yield {
-								type: "error",
-								error: message,
-								message: { ...partial },
-							} as StreamEvent;
-							// The provider itself refused; asking again would be told the same thing.
-							refused = true;
-							return;
+							/*
+							 * 从前这里直接放弃，理由写在一行注释里：「服务商自己拒绝了，再问也是同样
+							 * 答复」。对官方直连大致成立，对中转完全不成立——中转把上游的过载、限流、
+							 * 断流全塞进这个事件里，而且经常连 message 都不给，于是只能显示成
+							 * `Unknown provider error`，三层重试全部绕过，设置页上的「无限重试」形同
+							 * 虚设。
+							 *
+							 * 现在它抛出去，由 `retryStream` 按分类决定。真正该拒绝的（内容策略、
+							 * 额度）会被判成 `fatal` 原样抛到最外面，和从前的行为一模一样——区别只是
+							 * 这个结论现在来自事件的内容，而不是来自「它出现在流里」这个位置。
+							 */
+							const said = event.response?.error?.message ?? event.message;
+							throw new FailureError(
+								classifyFailure({
+									from: "stream",
+									message: typeof said === "string" ? said : undefined,
+									raw: JSON.stringify(event).slice(0, 4000),
+									// 流已经吐过字，这次的 token 服务商已经收过钱了。
+									spent: partial.usage.output > 0 || partial.content.length > 0,
+								}),
+							);
 						}
 					}
+				}
+
+				/*
+				 * 空回答也是失败，不是「模型没话说」。
+				 *
+				 * 从前流正常结束而一个字都没有时，这里什么都不做，最后以 `stopReason: "stop"` 收场
+				 * ——屏幕上是一条空白的回答，既不报错也不重试。故障真值表里有三种故障长这样：一个
+				 * 把错误写成 JSON 却回 200 的中转、一个空流、一串非法 JSON。它们和真正的空回答在结局
+				 * 上完全无法区分，而后者本来就不该发生：模型即使无话可说也会给出 `response.completed`
+				 * 和至少一个 item。
+				 */
+				if (partial.content.length === 0 && !incompleteReason) {
+					throw new FailureError(
+						classifyFailure({
+							from: "empty",
+							why: unparsable ? "unparsable" : framesSeen === 0 ? "no-frames" : "no-content",
+							body: unparsable || undefined,
+						}),
+					);
 				}
 			},
 			{
@@ -331,23 +366,35 @@ async function* streamResponses(
 				 * disappears the moment the new one starts arriving.
 				 */
 				reset: () => {
+					/*
+					 * 已经花掉的不清零。
+					 *
+					 * 内容要清——重试会把整条回答重新写一遍，留着上一半就成了两半拼在一起。可 token
+					 * 是另一回事：上一次尝试吐到一半才失败，那些 token 服务商已经收过钱了，清零只是
+					 * 让账面上看不见。开着无限重试的窗口于是可以安静地烧穿账单，而界面上的用量始终
+					 * 只显示最后成功那一次。
+					 */
+					spentOnRetries = addUsage(spentOnRetries, partial.usage);
 					partial.content = [];
 					partial.usage = emptyUsage();
 					partial.responseId = undefined;
 					items.clear();
 					inventedIds.clear();
 					incompleteReason = undefined;
+					framesSeen = 0;
 					firstTokenTime = null;
 				},
 			},
 		);
-		if (refused) return partial;
 	} catch (error) {
 		const aborted = options.signal?.aborted;
+		const failure = aborted ? undefined : failureOf(error);
 		partial.stopReason = aborted ? "aborted" : "error";
-		partial.errorMessage = aborted ? "Aborted by user" : describeFetchError(error, options.signal);
+		partial.errorMessage = aborted ? "Aborted by user" : (failure?.summary ?? describeFetchError(error, options.signal));
 		// Recorded here because here is the last place it is knowable; see `errorRetryable`.
-		partial.errorRetryable = !aborted && isRetryableError(error);
+		partial.errorRetryable = failure ? worthRetrying(failure) : false;
+		partial.failure = failure;
+		partial.usage = addUsage(partial.usage, spentOnRetries);
 		partial.usage = computeCost(partial.usage, model);
 		partial.durationMs = Math.max(1, Date.now() - startTime);
 		if (firstTokenTime !== null) {
@@ -372,6 +419,8 @@ async function* streamResponses(
 				? "toolUse"
 				: "stop";
 	partial.usage.total = partial.usage.input + partial.usage.output + partial.usage.cacheRead + partial.usage.cacheWrite;
+	// 成功了，但失败的那几次也是花过钱的——账上要有。
+	partial.usage = addUsage(partial.usage, spentOnRetries);
 	partial.usage = computeCost(partial.usage, model);
 	yield { type: "done", message: { ...partial } };
 	return partial;

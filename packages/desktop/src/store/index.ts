@@ -39,6 +39,7 @@ import { useSide } from "../features/dock/sideStore.ts";
 import { bridge } from "../services/index.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
+import type { Hiccup } from "../lib/hiccup.ts";
 
 /**
  * `plugins` is the catalogue, not the plugin *settings*.
@@ -63,6 +64,7 @@ export type SettingsSection =
   | "plugins"
   | "skills"
   | "agents"
+  | "delegation"
   | "mcp"
   | "commands"
   | "hooks"
@@ -278,6 +280,17 @@ export interface AppState {
    */
   retrying: { attempt: number; until: number; reason: string; resume: boolean } | null;
   /**
+   * 这一轮里连接出过的岔子，以及每一次最后怎么了。
+   *
+   * `retrying` 说的是「此刻在等」，重连上就没了——它是运行行的状态，用完即弃。可用户要的是另一件
+   * 事：抖过就该留下痕迹，哪怕最后接上了。两者由同一批事件喂，所以不会各说各话；分开是因为一个
+   * 是瞬时的、一个是留档的。
+   *
+   * 一次中断只占一条，次数往上加。截图里 Codex 每重连一次留一行，是因为它只试五次；这里可以配成
+   * 无限重试，一次一行会把整条转录冲垮。中间接上了又断，才算新的一条。
+   */
+  hiccups: Hiccup[];
+  /**
    * The agent's own plan for this piece of work, as it last wrote it.
    *
    * `todo_write` replaces the whole list every call, so the newest result is the whole truth and
@@ -448,6 +461,7 @@ export const useApp = create<AppState>((set, get) => ({
   approvals: [],
   activity: {},
   retrying: null,
+  hiccups: [],
   stopped: null,
   compactions: [],
 	commandRuns: [],

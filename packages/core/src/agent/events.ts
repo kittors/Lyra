@@ -1,5 +1,6 @@
 import type { AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
 import type { SubAgentSummary } from "../runtime/sub-agents.ts";
+import type { Failure } from "../ai/failure.ts";
 
 /**
  * Everything the UI needs to render a live session. The desktop renderer, the mobile app
@@ -170,7 +171,18 @@ export type AgentEvent =
 	 * It also arrives *after* `agent_end`, which is the one thing a client must not read as "so
 	 * nothing is running".
 	 */
-	| { type: "retry"; attempt: number; delayMs: number; reason: string; resume?: boolean }
+	| { type: "retry"; attempt: number; delayMs: number; reason: string; resume?: boolean; failure?: Failure }
+	/**
+	 * 那次中断最后怎么了。
+	 *
+	 * 没有它，一次抖动在界面上永远停在「正在重连」——重连成功这件事从前只能靠「又有内容流进来了」
+	 * 反推（见桌面端 `apply-event.ts` 的 `RECONNECTED`），而那是个只活在内存里的推断：日志里躺着
+	 * 五条 retry，谁也说不出它们最后是接上了还是没接上。
+	 *
+	 * 于是那条记录能安静地收尾：重连成功就变成一行「重连 3 次后恢复」，灰的，不再动；真的没救了
+	 * 才换成一句失败。用户要的「重试解决了就别报错，留个轻微的痕迹」，落到数据上就是这个事件。
+	 */
+	| { type: "retry_settled"; outcome: "recovered" | "gave_up"; attempts: number; failure?: Failure }
 	/**
 	 * The session got its name from the first prompt.
 	 *

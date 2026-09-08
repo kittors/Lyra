@@ -1,4 +1,5 @@
 import type { RetryPolicySource } from "../config/retry-policy.ts";
+import type { Failure } from "../ai/failure.ts";
 /**
  * Models, providers, and the stream a request comes back as.
  *
@@ -108,7 +109,7 @@ export interface RequestOptions {
 	retryAttempts?: number;
 	retryPolicy?: RetryPolicySource;
 	/** Told about each wait, so the UI can say why a turn is taking longer than usual. */
-	onRetry?: (info: { attempt: number; delayMs: number; reason: string }) => void;
+	onRetry?: (info: { attempt: number; delayMs: number; reason: string; failure?: Failure }) => void;
 }
 
 export interface LlmContext {
