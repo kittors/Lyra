@@ -13,15 +13,16 @@
  * commit was sitting unpushed.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { GitOperation, GitStatus, RemoteState } from "../../../electron/ipc-types.ts";
 
 /** What to call each unfinished operation in a sentence. */
 const OPERATION: Record<GitOperation, string> = {
-	rebase: "变基",
-	merge: "合并",
-	"cherry-pick": "拣选",
-	revert: "回滚",
-	bisect: "二分查找",
+	rebase: translate("sync.rebase"),
+	merge: translate("sync.merge"),
+	"cherry-pick": translate("sync.cherryPick"),
+	revert: translate("sync.revert"),
+	bisect: translate("sync.bisect"),
 };
 
 export interface SyncButton {
@@ -68,30 +69,30 @@ function blocked(reason: string): { pull: SyncButton; push: SyncButton } {
 export function syncPlan(status: GitStatus | null, { running = false }: { running?: boolean } = {}): SyncPlan {
 	const branch = status?.branch ?? "—";
 	const state: RemoteState = status?.remoteState ?? "none";
-	const clean = "没有未提交的改动。";
+	const clean = translate("sync.clean");
 
 	if (!status) {
-		return { branch, detail: null, ...blocked("没有仓库"), empty: { body: clean, action: null } };
+		return { branch, detail: null, ...blocked(translate("sync.noRepo")), empty: { body: clean, action: null } };
 	}
 
 	if (state === "in-progress") {
 		const what = OPERATION[status.operation ?? "merge"];
 		return {
 			branch,
-			detail: `正在${what}`,
-			...blocked("先完成或中止当前操作"),
-			empty: { body: `${what}进行中，先完成或中止。`, action: null },
+			detail: translate("sync.inProgress", { what }),
+			...blocked(translate("sync.finishFirst")),
+			empty: { body: translate("sync.finishFirstOf", { what }), action: null },
 		};
 	}
 
 	if (state === "detached") {
 		return {
-			branch: "游离 HEAD",
+			branch: translate("sync.detached"),
 			// The commit it is sitting on: 「游离 HEAD」 on its own says you are lost without saying
 			// where, and the sha is what you would need to get back.
 			detail: status.head,
-			...blocked("当前不在任何分支上"),
-			empty: { body: "当前不在任何分支上。", action: null },
+			...blocked(translate("sync.notOnBranch")),
+			empty: { body: translate("sync.notOnBranchDot"), action: null },
 		};
 	}
 
@@ -99,8 +100,8 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 		return {
 			branch,
 			detail: null,
-			...blocked("还没有任何提交"),
-			empty: { body: "还没有任何提交。", action: null },
+			...blocked(translate("sync.noCommits")),
+			empty: { body: translate("sync.noCommitsDot"), action: null },
 		};
 	}
 
@@ -108,8 +109,8 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 		// A local-only repository is a normal way to work, so this says nothing about publishing.
 		return {
 			branch,
-			detail: "无远端",
-			...blocked("仓库没有配置远端"),
+			detail: translate("sync.noRemote"),
+			...blocked(translate("sync.noRemoteDetail")),
 			empty: { body: clean, action: null },
 		};
 	}
@@ -117,14 +118,14 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 	if (state === "no-upstream") {
 		// Pull needs an upstream to pull *from*; without one git refuses with "no tracking
 		// information", which is a worse way to learn it than a disabled button that says so.
-		const noUpstream: SyncButton = { disabled: true, tip: "当前分支没有上游", emphasis: false, count: null };
+		const noUpstream: SyncButton = { disabled: true, tip: translate("sync.noUpstream"), emphasis: false, count: null };
 		if (!status.remote) {
 			return {
 				branch,
-				detail: "未跟踪远端",
+				detail: translate("sync.untracked"),
 				pull: noUpstream,
-				push: { disabled: true, tip: "有多个远端，请先设置上游分支", emphasis: false, count: null },
-				empty: { body: "有多个远端，请先设置上游分支。", action: null },
+				push: { disabled: true, tip: translate("sync.manyRemotes"), emphasis: false, count: null },
+				empty: { body: translate("sync.manyRemotesDot"), action: null },
 			};
 		}
 		/*
@@ -139,19 +140,19 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 		const count = status.unpushed ?? 0;
 		return {
 			branch,
-			detail: "未跟踪远端",
+			detail: translate("sync.untracked"),
 			pull: noUpstream,
 			push: {
 				disabled: false,
-				tip: never ? `发布到 ${status.remote}` : `推送到 ${status.remote}/${branch}`,
+				tip: never ? translate("sync.publishTo", { remote: status.remote }) : translate("sync.pushTo", { remote: status.remote, branch }),
 				emphasis: true,
 				count: never ? null : count,
 			},
 			empty: {
 				body: never
-					? `这个分支还没有发布到 ${status.remote}`
-					: `${count} 个提交尚未推送到 ${status.remote}/${branch}`,
-				action: running ? null : { label: never ? "发布分支" : "推送", kind: "push" },
+					? translate("sync.notPublished", { remote: status.remote })
+					: translate("sync.unpushedTo", { count, remote: status.remote, branch }),
+				action: running ? null : { label: never ? translate("sync.publishBranch") : translate("common.push"), kind: "push" },
 			},
 		};
 	}
@@ -163,13 +164,13 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 
 	const pull: SyncButton = {
 		disabled: false,
-		tip: behind > 0 ? `拉取 ${behind} 个提交（--ff-only）` : `已与 ${upstream} 同步`,
+		tip: behind > 0 ? translate("sync.pullFf", { behind }) : translate("sync.upToDate", { upstream }),
 		emphasis: behind > 0,
 		count: behind > 0 ? behind : null,
 	};
 	const push: SyncButton = {
 		disabled: false,
-		tip: ahead > 0 ? `推送到 ${upstream}` : `已与 ${upstream} 同步`,
+		tip: ahead > 0 ? translate("sync.pushToUpstream", { upstream }) : translate("sync.upToDate", { upstream }),
 		emphasis: ahead > 0,
 		count: ahead > 0 ? ahead : null,
 	};
@@ -182,19 +183,19 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 	 */
 	const body =
 		ahead > 0 && behind > 0
-			? `本地超前 ${ahead}，远端领先 ${behind}`
+			? translate("sync.diverged", { ahead, behind })
 			: ahead > 0
-				? `${ahead} 个提交尚未推送到 ${upstream}`
+				? translate("sync.unpushed", { ahead, upstream })
 				: behind > 0
-					? `远端领先 ${behind} 个提交`
+					? translate("sync.behindBy", { behind })
 					: clean;
 	const action =
 		running || (ahead > 0 && behind > 0)
 			? null
 			: ahead > 0
-				? ({ label: "推送", kind: "push" } as const)
+				? ({ label: translate("common.push"), kind: "push" } as const)
 				: behind > 0
-					? ({ label: "拉取", kind: "pull" } as const)
+					? ({ label: translate("common.pull"), kind: "pull" } as const)
 					: null;
 
 	return { branch, detail: upstream || null, pull, push, empty: { body, action } };

@@ -28,6 +28,7 @@ import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useNarrow } from "../../ui/hooks/useNarrow.ts";
 import { bridge } from "../../services/index.ts";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /*
  * The release dialog, fetched when it is opened.
@@ -77,8 +78,9 @@ function SyncControl({
 	roomForWords: boolean;
 	onClick: () => void;
 }) {
+	const { t } = useI18n();
 	const [hovered, setHovered] = useState(false);
-	const label = running ? `取消${word}` : state.tip;
+	const label = running ? t("git.cancelAction", { word }) : state.tip;
 	const currentIcon = running ? (hovered ? <X size={12} strokeWidth={2} className="text-ink" /> : <Spinner size={12} />) : icon;
 
 	// Words only for the emphasised control, only when it is idle, and only when the row is wide
@@ -143,11 +145,12 @@ function useGitPaneOnScreen(): boolean {
   });
 }
 
-const VIEWS: { id: View; label: string; icon: typeof GitCompare }[] = [
-  { id: "changes", label: "改动", icon: GitCompare },
-  { id: "history", label: "历史", icon: GitCommitHorizontal },
-  { id: "branches", label: "分支", icon: GitBranch },
-  { id: "pipelines", label: "流水线", icon: Activity },
+/* 四个视图，存 key——这张表在模块加载时成型，那会儿还不知道窗口是哪种语言。 */
+const VIEWS: { id: View; labelKey: MessageKey; icon: typeof GitCompare }[] = [
+  { id: "changes", labelKey: "git.changes", icon: GitCompare },
+  { id: "history", labelKey: "git.history", icon: GitCommitHorizontal },
+  { id: "branches", labelKey: "common.branches", icon: GitBranch },
+  { id: "pipelines", labelKey: "git.pipelines", icon: Activity },
 ];
 
 /**
@@ -164,6 +167,7 @@ const VIEWS: { id: View; label: string; icon: typeof GitCompare }[] = [
  * whether the change is uncommitted, a commit old, or the distance between two branches.
  */
 export function GitPanel() {
+	const { t } = useI18n();
   const workspace = useApp((s) => s.workspace);
   const running = useApp((s) => s.running);
   const [view, setView] = useState<View>("changes");
@@ -252,7 +256,7 @@ export function GitPanel() {
    *
    * Falling back to the folder meant every panel below this had something to work with, so a
    * directory with no version control at all rendered as a repository with no branch: a dash
-   * where the name goes, pull and push buttons that could not do anything, and "工作区干净"
+   * where the name goes, pull and push buttons that could not do anything, and t("changes.clean")
    * announcing that nothing had changed in a history that did not exist.
    */
   const cwd = selected;
@@ -336,7 +340,7 @@ export function GitPanel() {
       setBusy(true);
       setError(null);
       const result = await operation();
-      if (!result.ok) setError(result.error ?? "操作失败");
+      if (!result.ok) setError(result.error ?? t("common.actionFailed"));
       // `read`, not `refresh`: this one has to see what the operation just did — see above.
       await read();
       setBusy(false);
@@ -369,7 +373,7 @@ export function GitPanel() {
       const result = await call(id);
       token.current = null;
       // A cancellation says nothing: the person watching is the one who stopped it.
-      if (!result.ok && !result.cancelled) setError(result.error ?? "操作失败");
+      if (!result.ok && !result.cancelled) setError(result.error ?? t("common.actionFailed"));
       await read();
       setSync(null);
     },
@@ -480,7 +484,7 @@ export function GitPanel() {
   if (unread) {
     return slowUnread ? (
       <div className="ly-enter flex-1 px-1.5 pt-2">
-        <SkeletonList count={5} label="正在读取仓库" />
+        <SkeletonList count={5} label={t("git.reading")} />
       </div>
     ) : (
       <div className="flex-1" />
@@ -498,7 +502,7 @@ export function GitPanel() {
    */
   if (workspace.gitProblem) {
     return (
-      <PanelEmpty icon={GitBranch} title="Git 仓库异常">
+      <PanelEmpty icon={GitBranch} title={t("git.brokenRepo")}>
         <span className="block text-ink-muted">{workspace.gitProblem}</span>
         <button
           type="button"
@@ -507,7 +511,7 @@ export function GitPanel() {
             useApp
               .getState()
               .setComposerDraft(
-                `当前项目的 Git 状态异常，无法正常读取仓库信息。\n报错详情：${workspace.gitProblem}\n\n请帮我分析原因并修复此 Git 问题（例如检查 PATH、目录安全配置 safe.directory、或者修复损坏的索引等）。`,
+                t("git.brokenRepoPrompt", { error: workspace.gitProblem ?? "" }),
                 true,
               );
           }}
@@ -522,7 +526,7 @@ export function GitPanel() {
 
   if (!cwd) {
     return (
-      <PanelEmpty icon={GitBranch} title="未检测到 Git 仓库">
+      <PanelEmpty icon={GitBranch} title={t("git.noRepo")}>
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
@@ -546,7 +550,7 @@ export function GitPanel() {
               useApp
                 .getState()
                 .setComposerDraft(
-                  `请帮我检查当前目录（${workspace.path}）的 Git 仓库状态，并协助我完成 Git 版本控制的初始化与初始提交配置。`,
+                  t("git.noRepoPrompt", { path: workspace.path }),
                   true,
                 );
             }}
@@ -615,7 +619,7 @@ export function GitPanel() {
         {view === "changes" && <>
         <SyncControl
           icon={<ArrowDownToLine size={12} strokeWidth={1.9} />}
-          word="拉取"
+          word={t("common.pull")}
           state={plan.pull}
           running={sync === "pull"}
           // Only the one that is running stays pressable, and pressing it again cancels it.
@@ -625,7 +629,7 @@ export function GitPanel() {
         />
         <SyncControl
           icon={<ArrowUpFromLine size={12} strokeWidth={1.9} />}
-          word={plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream" ? "发布" : "推送"}
+          word={plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream" ? t("git.publish") : t("common.push")}
           state={plan.push}
           running={sync === "push"}
           disabled={plan.push.disabled || busy || (sync !== null && sync !== "push")}
@@ -643,7 +647,7 @@ export function GitPanel() {
            * is the half that was already here and still matters: `useLiveRefresh` only polls while
            * a turn is running, so an edit made in another editor is invisible until something asks.
            */
-          label={sync === "fetch" ? "取消刷新" : "刷新（询问远端）"}
+          label={sync === "fetch" ? t("git.cancelRefresh") : t("git.refresh")}
           size="sm"
           disabled={busy || (sync !== null && sync !== "fetch")}
           onClick={() =>
@@ -665,9 +669,9 @@ export function GitPanel() {
           <button
             key={entry.id}
             type="button"
-            aria-label={entry.label}
+            aria-label={t(entry.labelKey)}
             aria-pressed={view === entry.id}
-            data-ly-tip={narrowNav ? `${entry.label}${entry.id === "changes" && changeCount > 0 ? ` (${changeCount})` : ""}` : undefined}
+            data-ly-tip={narrowNav ? `${t(entry.labelKey)}${entry.id === "changes" && changeCount > 0 ? ` (${changeCount})` : ""}` : undefined}
             onClick={() => setView(entry.id)}
             className={`flex h-[26px] shrink-0 items-center gap-1.5 rounded-md text-detail transition-colors duration-[var(--ly-t-quick)] ${
               narrowNav ? "px-2" : "px-2.5"
@@ -678,7 +682,7 @@ export function GitPanel() {
             }`}
           >
             <entry.icon size={12.5} strokeWidth={1.8} className="shrink-0" />
-            {!narrowNav && <span className="truncate">{entry.label}</span>}
+            {!narrowNav && <span className="truncate">{t(entry.labelKey)}</span>}
             {entry.id === "changes" && changeCount > 0 && (
               <CountUp value={changeCount} className="text-ink-faint tabular-nums" />
             )}

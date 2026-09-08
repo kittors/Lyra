@@ -15,6 +15,12 @@
  *
  * The catalogue is the same one the hook reads, so a key cannot mean two different things depending
  * on which of the two found it, and `MessageKey` still makes a missing translation a type error.
+ *
+ * **Import this file directly from a `.ts` module — not `i18n/index.ts`.** The barrel re-exports
+ * `context.tsx`, and a plain-TypeScript module that pulls it in stops being loadable by
+ * `node --test --experimental-strip-types`, which does not know what to do with a `.tsx`. It shows
+ * up as `ERR_UNKNOWN_FILE_EXTENSION` in a test that has nothing to do with i18n — `syncPlan.ts`'s
+ * suite went red that way. Type-only imports from the barrel are fine: they leave no runtime trace.
  */
 
 import { MESSAGE_CATALOGS, type MessageKey, type ResolvedUiLocale } from "./messages/index.ts";

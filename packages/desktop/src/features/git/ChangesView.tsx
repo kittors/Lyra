@@ -21,6 +21,7 @@ import { SkeletonList } from "../../ui/primitives/Skeleton.tsx";
 import type { SyncPlan } from "./syncPlan.ts";
 import type { Act } from "./types.ts";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 /**
  * Staged above unstaged, with the commit box under both.
@@ -50,6 +51,7 @@ export function ChangesView({
   onPush: () => void;
   onPull: () => void;
 }) {
+	const { t } = useI18n();
   const [treeView, setTreeView] = useState(false);
   const confirm = useConfirmer();
   /** The hunks, once they arrive. The rows themselves do not wait for them — see `rowsFor`. */
@@ -112,7 +114,7 @@ export function ChangesView({
   if (loading) {
     return (
       <div className="ly-enter flex-1 px-1.5 pt-2">
-        <SkeletonList count={5} label="正在读取改动" />
+        <SkeletonList count={5} label={t("changes.reading")} />
       </div>
     );
   }
@@ -130,7 +132,7 @@ export function ChangesView({
     return (
       <PanelEmpty
         icon={Check}
-        title="工作区干净"
+        title={t("changes.clean")}
         action={
           plan.empty.action
             ? {
@@ -154,18 +156,18 @@ export function ChangesView({
       <Scroller className="ly-enter flex-1" contentClassName="px-2 pb-2" top="fade" bottom="fade">
         {stagedPaths.length > 0 && (
 					<GroupHeader
-						label="已暂存"
+						label={t("changes.staged")}
 						count={stagedPaths.length}
 						actions={
 							<>
 								<IconButton
-									label={treeView ? "切换为扁平列表" : "切换为树状视图"}
+									label={treeView ? t("changes.flatView") : t("changes.treeView")}
 									icon={treeView ? <List size={13} strokeWidth={1.9} /> : <FolderTree size={13} strokeWidth={1.9} />}
 									size="sm"
 									onClick={() => setTreeView((v) => !v)}
 								/>
 								<IconButton
-									label="全部取消暂存"
+									label={t("changes.unstageAll")}
 									icon={<Minus size={13} strokeWidth={1.9} />}
 									size="sm"
 									disabled={busy}
@@ -183,7 +185,7 @@ export function ChangesView({
               actions={(file) => (
                 <IconButton
                   icon={<Minus size={12} strokeWidth={1.9} />}
-                  label="取消暂存"
+                  label={t("changes.unstage")}
                   size="sm"
                   disabled={busy}
                   onClick={() =>
@@ -199,7 +201,7 @@ export function ChangesView({
               actions={(file) => (
                 <IconButton
                   icon={<Minus size={12} strokeWidth={1.9} />}
-                  label="取消暂存"
+                  label={t("changes.unstage")}
                   size="sm"
                   disabled={busy}
                   onClick={() =>
@@ -213,20 +215,20 @@ export function ChangesView({
 
         {unstagedPaths.length > 0 && (
 					<GroupHeader
-						label="未暂存"
+						label={t("changes.unstaged")}
 						count={unstagedPaths.length}
 						actions={
 							<>
 								{stagedPaths.length === 0 && (
 									<IconButton
-										label={treeView ? "切换为扁平列表" : "切换为树状视图"}
+										label={treeView ? t("changes.flatView") : t("changes.treeView")}
 										icon={treeView ? <List size={13} strokeWidth={1.9} /> : <FolderTree size={13} strokeWidth={1.9} />}
 										size="sm"
 										onClick={() => setTreeView((v) => !v)}
 									/>
 								)}
 								<IconButton
-									label="全部暂存"
+									label={t("changes.stageAll")}
 									icon={<Plus size={13} strokeWidth={1.9} />}
 									size="sm"
 									disabled={busy}
@@ -245,16 +247,16 @@ export function ChangesView({
                 <>
                   <IconButton
                     icon={<RotateCcw size={12} strokeWidth={1.9} />}
-                    label="放弃改动"
+                    label={t("common.discard")}
                     size="sm"
                     tone="danger"
                     disabled={busy}
                     onClick={() =>
                       confirm.ask({
-                        title: `放弃 ${file.path.split("/").pop()} 的改动？`,
+                        title: t("changes.discardConfirm", { name: file.path.split("/").pop() ?? "" }),
                         detail:
-                          "这个文件会回到上次提交的样子；没提交过的内容找不回来，git 里也没有它的副本。",
-                        confirmLabel: "放弃改动",
+                          t("changes.discardDetail"),
+                        confirmLabel: t("common.discard"),
                         onConfirm: () =>
                           void act(() => bridge.git.discard(cwd, [file.path])),
                       })
@@ -262,7 +264,7 @@ export function ChangesView({
                   />
                   <IconButton
                     icon={<Plus size={12} strokeWidth={1.9} />}
-                    label="暂存"
+                    label={t("changes.stage")}
                     size="sm"
                     disabled={busy}
                     onClick={() =>
@@ -280,16 +282,16 @@ export function ChangesView({
                 <>
                   <IconButton
                     icon={<RotateCcw size={12} strokeWidth={1.9} />}
-                    label="放弃改动"
+                    label={t("common.discard")}
                     size="sm"
                     tone="danger"
                     disabled={busy}
                     onClick={() =>
                       confirm.ask({
-                        title: `放弃 ${file.path.split("/").pop()} 的改动？`,
+                        title: t("changes.discardConfirm", { name: file.path.split("/").pop() ?? "" }),
                         detail:
-                          "这个文件会回到上次提交的样子；没提交过的内容找不回来，git 里也没有它的副本。",
-                        confirmLabel: "放弃改动",
+                          t("changes.discardDetail"),
+                        confirmLabel: t("common.discard"),
                         onConfirm: () =>
                           void act(() => bridge.git.discard(cwd, [file.path])),
                       })
@@ -297,7 +299,7 @@ export function ChangesView({
                   />
                   <IconButton
                     icon={<Plus size={12} strokeWidth={1.9} />}
-                    label="暂存"
+                    label={t("changes.stage")}
                     size="sm"
                     disabled={busy}
                     onClick={() =>
