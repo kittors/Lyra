@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReleaseInfo, WorkflowRunStatus } from "../../../electron/ipc-types.ts";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { releaseNotes } from "./release-notes.ts";
@@ -32,6 +33,7 @@ interface ReleaseModalProps {
 }
 
 export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
+	const { t } = useI18n();
 	const [info, setInfo] = useState<ReleaseInfo | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [selectedType, setSelectedType] = useState<"patch" | "minor" | "major" | "custom">("patch");
@@ -62,7 +64,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		setError(null);
 		try {
 			const res = await bridge.git.releaseInfo(cwd);
-			if (!res) throw new Error("无法读取仓库的发布信息");
+			if (!res) throw new Error(t("release.infoUnreadable"));
 			{
 				setInfo(res);
 				setCustomVersion(res.suggestedVersion.patch);
@@ -73,7 +75,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		} finally {
 			setLoading(false);
 		}
-	}, [cwd]);
+	}, [cwd, t]);
 
 	// Fetch repository release status on mount
 	useEffect(() => {
@@ -92,19 +94,19 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 			setGeneratingNotes(true);
 			try {
 				const freshInfo = await bridge.git.releaseInfo(cwd);
-				if (!freshInfo) throw new Error("无法读取仓库的发布信息");
+				if (!freshInfo) throw new Error(t("release.infoUnreadable"));
 				setInfo(freshInfo);
 				if (revision === notesRevision.current) setNotes(releaseNotes(freshInfo.commitsSinceTag, lang));
-				if (showToast) notify(`已根据 ${freshInfo.commitsSinceTag.length} 条提交生成更新日志`, "info");
+				if (showToast) notify(t("release.notesFrom", { n: freshInfo.commitsSinceTag.length }), "info");
 			} catch (err) {
 				if (showToast) {
-					notify(err instanceof Error ? err.message : "提取日志失败", "error");
+					notify(err instanceof Error ? err.message : t("release.notesFailed"), "error");
 				}
 			} finally {
 				setGeneratingNotes(false);
 			}
 		},
-		[cwd, notesLang, notify],
+		[cwd, notesLang, notify, t],
 	);
 
 	// Poll dry run status if dryRunId is set
@@ -134,14 +136,14 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		try {
 			const res = await bridge.git.triggerDryRun(cwd);
 			if (!res.ok) {
-				setError(res.error ?? "触发 GitHub Actions 试运行失败");
+				setError(res.error ?? t("release.dryRunFailed"));
 				return;
 			}
 			if (res.runId) {
 				setDryRunId(res.runId);
-				setDryRunNotice("已成功触发 GitHub Actions 跨平台打包试运行！正在实时监听进度…");
+				setDryRunNotice(t("release.dryRunWatching"));
 			} else {
-				setDryRunNotice("已触发 GitHub Actions release-dryrun.yml，等待调度排队中…");
+				setDryRunNotice(t("release.dryRunQueued"));
 			}
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
@@ -159,7 +161,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		const bumpRes = await bridge.git.bumpVersion(cwd, currentTargetVersion);
 		if (!bumpRes.ok) {
 			setPublishing(false);
-			setError(bumpRes.error ?? "更新 package.json 失败");
+			setError(bumpRes.error ?? t("release.bumpFailed"));
 			return;
 		}
 
@@ -167,7 +169,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 		const pubRes = await bridge.git.publishReleaseTag(cwd, currentTargetVersion);
 		setPublishing(false);
 		if (!pubRes.ok) {
-			setError(pubRes.error ?? "发布 Git Tag 失败");
+			setError(pubRes.error ?? t("release.tagFailed"));
 			return;
 		}
 
@@ -184,14 +186,14 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 							<Tag size={15} strokeWidth={2} />
 						</div>
 						<div>
-							<h2 className="text-label font-semibold text-ink leading-none">发版中心</h2>
-							<p className="text-caption text-ink-faint mt-0.5">选择版本并准备发布</p>
+							<h2 className="text-label font-semibold text-ink leading-none">{t("release.title")}</h2>
+							<p className="text-caption text-ink-faint mt-0.5">{t("release.subtitle")}</p>
 						</div>
 					</div>
 					<button
 						type="button"
 						onClick={() => dismiss()}
-						aria-label="关闭发版中心" data-ly-tip="关闭"
+						aria-label={t("release.close")} data-ly-tip={t("common.off")}
 						className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
 					>
 						<X size={15} />
@@ -210,17 +212,17 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 						<div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center space-y-2">
 							<div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
 								<CheckCircle2 size={18} />
-								<span>版本 {publishSuccess} 已成功打 Tag 并推送到远程！</span>
+								<span>{t("release.tagged", { tag: publishSuccess })}</span>
 							</div>
 							<p className="text-detail text-ink-muted">
-								GitHub Actions Release 正在自动多平台打包并发布产物。
+								{t("release.actionsTakingOver")}
 							</p>
 							<button
 								type="button"
 								onClick={() => dismiss()}
 								className="mt-2 rounded-lg bg-ink px-4 py-1.5 text-detail font-medium text-shell hover:opacity-90 cursor-pointer"
 							>
-								完成
+								{t("common.done")}
 							</button>
 						</div>
 					)}
@@ -231,18 +233,18 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 							<div className="rounded-xl bg-card p-3.5 space-y-3">
 								<div className="flex items-center justify-between gap-2 flex-wrap text-detail text-ink-muted">
 									<span>
-										当前: <span className="font-mono text-ink font-medium">{info.currentVersion}</span>
+										{t("release.current")} <span className="font-mono text-ink font-medium">{info.currentVersion}</span>
 									</span>
 									<span>
-										最新 Tag: <span className="font-mono text-ink font-medium">{info.latestTag ?? "无"}</span>
+										{t("release.latestTag")} <span className="font-mono text-ink font-medium">{info.latestTag ?? t("release.noTag")}</span>
 									</span>
 									<span>
-										待发提交: <span className="font-mono text-ink font-semibold">{info.commitsSinceTag.length}</span>
+										{t("release.pending")} <span className="font-mono text-ink font-semibold">{info.commitsSinceTag.length}</span>
 									</span>
 								</div>
 
 								<div>
-									<div className="text-caption font-medium text-ink-muted mb-2">选择目标版本号</div>
+									<div className="text-caption font-medium text-ink-muted mb-2">{t("release.pickVersion")}</div>
 									<div className="grid grid-cols-4 gap-2">
 										{(["patch", "minor", "major"] as const).map((type) => (
 											<button
@@ -271,13 +273,13 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 											}`}
 										>
 											<span className="uppercase text-[9.5px] font-semibold tracking-wider opacity-60">
-												自定义
+												{t("common.custom")}
 											</span>
 											<span className="font-mono mt-0.5 text-detail font-medium">{customVersion || "x.y.z"}</span>
 										</button>
 									</div>
 
-									<div className="mt-2 h-7">{selectedType === "custom" ? <Input aria-label="自定义版本" value={customVersion} onChange={(event) => setCustomVersion(event.target.value)} placeholder="x.y.z" className="h-7 w-full rounded-lg border border-line bg-input px-3 font-mono text-detail" /> : <p className="flex h-7 items-center text-caption text-ink-faint">{selectedType === "patch" ? "问题修复" : selectedType === "minor" ? "兼容的新功能" : "包含不兼容变更"}</p>}</div>
+									<div className="mt-2 h-7">{selectedType === "custom" ? <Input aria-label={t("release.customVersion")} value={customVersion} onChange={(event) => setCustomVersion(event.target.value)} placeholder="x.y.z" className="h-7 w-full rounded-lg border border-line bg-input px-3 font-mono text-detail" /> : <p className="flex h-7 items-center text-caption text-ink-faint">{selectedType === "patch" ? t("release.patchHint") : selectedType === "minor" ? t("release.minorHint") : t("release.majorHint")}</p>}</div>
 								</div>
 							</div>
 
@@ -285,7 +287,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 							<div className="group/notes space-y-1.5">
 								<div className="flex items-center justify-between px-0.5">
 									<span className="text-caption font-medium text-ink-muted">
-										更新日志
+										{t("release.changelog")}
 									</span>
 									<div data-open={langMenuOpen} className="ly-notes-actions flex items-center gap-1 opacity-0 transition-opacity group-hover/notes:opacity-100 group-focus-within/notes:opacity-100">
 										{/* Language Dropdown */}
@@ -295,7 +297,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 												disabled={generatingNotes}
 												type="button"
 												onClick={() => setLangMenuOpen((v) => !v)}
-												aria-label="更新日志语言" data-ly-tip={`语言：${notesLang === "zh" ? "中文" : "English"}`}
+												aria-label={t("release.notesLanguage")} data-ly-tip={t("release.languageIs", { language: notesLang === "zh" ? t("common.chinese") : "English" })}
 												className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 											>
 												<Globe size={14} className="text-ink-muted" />
@@ -317,7 +319,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 																void handleGenerateNotes("zh", true);
 															}}
 														>
-															中文
+															{t("common.chinese")}
 														</MenuItem>
 														<MenuItem
 															selected={notesLang === "en"}
@@ -334,10 +336,10 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 											)}
 										</div>
 
-										<button type="button" onClick={() => setPreviewMode(!previewMode)} aria-label={previewMode ? "编辑更新日志" : "预览更新日志"} data-ly-tip={previewMode ? "编辑" : "预览"} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink">
+										<button type="button" onClick={() => setPreviewMode(!previewMode)} aria-label={previewMode ? t("release.editNotes") : t("release.previewNotes")} data-ly-tip={previewMode ? t("common.edit") : t("common.preview")} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink">
 											{previewMode ? <Edit3 size={14} /> : <Eye size={14} />}
 										</button>
-										<button type="button" onClick={() => void handleGenerateNotes(notesLang, true)} disabled={generatingNotes} aria-label="重新生成更新日志" data-ly-tip="重新生成" className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50">
+										<button type="button" onClick={() => void handleGenerateNotes(notesLang, true)} disabled={generatingNotes} aria-label={t("release.regenerateNotes")} data-ly-tip={t("resume.regenerate")} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50">
 											<RefreshCw size={14} className={generatingNotes ? "ly-spin" : ""} />
 										</button>
 									</div>
@@ -345,15 +347,15 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 
 								{previewMode ? (
 									<Scroller className="h-[180px] rounded-xl border border-line-soft bg-card" contentClassName="p-3.5 text-detail text-ink leading-relaxed">
-										<Markdown text={notes || "*(无内容)*"} />
+										<Markdown text={notes || t("release.notesEmpty")} />
 									</Scroller>
 								) : (
 									<Textarea
 										value={notes}
 										onChange={(e) => { notesRevision.current++; setNotes(e.target.value); }}
-										aria-label="更新日志内容"
+										aria-label={t("release.notesBody")}
 										className="block h-[180px] w-full rounded-xl border border-line-soft bg-card p-3.5 text-detail font-mono text-ink focus:border-primary focus:outline-none resize-none leading-relaxed"
-										placeholder="在此编辑发版说明..."
+										placeholder={t("release.notesPlaceholder")}
 									/>
 								)}
 							</div>
@@ -363,7 +365,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 								<div className="flex items-center justify-between">
 									<div className="flex items-center gap-2">
 										<span className="text-detail font-medium text-ink">
-											打包试运行
+											{t("release.dryRun")}
 										</span>
 									</div>
 									<button
@@ -379,10 +381,10 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 										)}
 										<span>
 											{triggeringDryRun
-												? "触发中…"
+												? t("release.triggering")
 												: dryRunStatus?.status === "in_progress"
-													? "正在构建..."
-													: "触发 Dry Run"}
+													? t("release.building")
+													: t("release.triggerDryRun")}
 										</span>
 									</button>
 								</div>
@@ -398,13 +400,13 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 									<div className="rounded-lg bg-card-hover/50 p-2.5 text-detail space-y-2">
 										<div className="flex items-center justify-between text-caption">
 											<span className="text-ink-muted">
-												状态:{" "}
+												{t("common.status")}{" "}
 												<span className="font-medium text-ink">
 													{dryRunStatus.status === "completed"
 														? dryRunStatus.conclusion === "success"
-															? "全部平台构建成功 ✓"
-															: "构建失败 ✗"
-														: "正在构建各平台产物..."}
+															? t("release.buildOk")
+															: t("release.buildFailed")
+														: t("release.buildingAll")}
 												</span>
 											</span>
 											{dryRunStatus.url && (
@@ -414,7 +416,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 													rel="noreferrer"
 													className="flex items-center gap-1 text-ink-muted hover:text-ink transition-colors"
 												>
-													<span>查看 Actions 日志</span>
+													<span>{t("release.actionsLog")}</span>
 													<ExternalLink size={10.5} />
 												</a>
 											)}
@@ -455,7 +457,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 				{!publishSuccess && (
 					<div className="flex items-center justify-between border-t border-line-soft px-5 py-3 bg-card-hover/20">
 						<div className="text-detail text-ink-muted">
-							<button type="button" aria-label="发布操作说明" data-ly-tip="发布会更新版本文件、创建 Tag 并推送到远程。"><Info size={12} className="mr-1 inline-block" /></button>目标: <span className="font-mono font-semibold text-ink">v{currentTargetVersion}</span>
+							<button type="button" aria-label={t("release.whatHappens")} data-ly-tip={t("release.whatHappensDetail")}><Info size={12} className="mr-1 inline-block" /></button>{t("release.target")} <span className="font-mono font-semibold text-ink">v{currentTargetVersion}</span>
 						</div>
 						<div className="flex items-center gap-2">
 							<button
@@ -463,7 +465,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 								onClick={() => dismiss()}
 								className="rounded-lg px-3 py-1.5 text-detail text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
 							>
-								取消
+								{t("common.cancel")}
 							</button>
 							<button
 								type="button"
@@ -474,11 +476,11 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 								{publishing ? (
 									<>
 										<Loader2 size={13} className="animate-spin" />
-										<span>发布中...</span>
+										<span>{t("release.publishing")}</span>
 									</>
 								) : (
 									<>
-										<span>发布版本</span>
+										<span>{t("release.publish")}</span>
 										<ChevronRight size={13} />
 									</>
 								)}

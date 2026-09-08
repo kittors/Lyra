@@ -346,7 +346,7 @@ export function GitPanel() {
       setBusy(false);
       return result.ok;
     },
-    [read],
+    [read, t],
   );
 
   /*
@@ -377,7 +377,7 @@ export function GitPanel() {
       await read();
       setSync(null);
     },
-    [read, sync],
+    [read, sync, t],
   );
 
   /*

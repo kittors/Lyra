@@ -5,6 +5,7 @@ import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useRevealLabel } from "../files/index.ts";
 import { startProjectSession } from "../sidebar/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -25,6 +26,7 @@ export function ProjectMenu({
 	name: string;
 	onClose: () => void;
 }) {
+	const { t } = useI18n();
 	const openWorkspace = useApp((s) => s.openWorkspace);
 	const settings = useApp((s) => s.settings);
 	const sessions = useApp((s) => s.sessions);
@@ -50,10 +52,10 @@ export function ProjectMenu({
 		const result = await bridge.git.createWorktree(path, branch);
 		setBusy(false);
 		if (!result.ok) {
-			notify(result.error ?? "创建工作树失败", "error");
+			notify(result.error ?? t("projectMenu.worktreeFailed"), "error");
 			return;
 		}
-		notify(`已创建工作树 ${result.path}`);
+		notify(t("projectMenu.worktreeMade", { path: result.path ?? "" }));
 		await refreshWorkspace();
 		onClose();
 	}
@@ -72,9 +74,9 @@ export function ProjectMenu({
 	if (mode === "remove") {
 		return (
 			<Confirm
-				title={`移除 ${name}？`}
-				detail="只是从列表里去掉，磁盘上的目录和里面的文件都不动。置顶、改过的名字这些会丢。"
-				confirmLabel="移除"
+				title={t("projectMenu.removeConfirm", { name })}
+				detail={t("projectMenu.removeDetail")}
+				confirmLabel={t("common.remove")}
 				onCancel={onClose}
 				onConfirm={() => {
 					void removeProject(path);
@@ -95,7 +97,7 @@ export function ProjectMenu({
 				placement="right"
 				width="panel"
 				role="dialog"
-				label={worktree ? "新建工作树" : "编辑项目"}
+				label={worktree ? t("projectMenu.newWorktree") : t("projectMenu.editProject")}
 			>
 				<form
 					className="p-2.5"
@@ -109,7 +111,7 @@ export function ProjectMenu({
 					}}
 				>
 					<label className="block pb-1.5 text-detail text-ink-faint">
-						{worktree ? "新工作树的分支名" : "项目名称"}
+						{worktree ? t("projectMenu.branchName") : t("projectMenu.projectName")}
 					</label>
 					<Input
 						autoFocus
@@ -127,7 +129,7 @@ export function ProjectMenu({
 					/>
 					{worktree && (
 						<p className="pt-1.5 text-caption leading-relaxed text-ink-faint">
-							会在项目同级目录新建一个工作树，独立分支，不影响当前签出的内容。
+							{t("projectMenu.worktreeHint")}
 						</p>
 					)}
 					<div className="flex justify-end gap-1.5 pt-2.5">
@@ -139,14 +141,14 @@ export function ProjectMenu({
 							}}
 							className="h-7 rounded-lg px-2.5 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
-							取消
+							{t("common.cancel")}
 						</button>
 						<button
 							type="submit"
 							disabled={busy || !draft.trim()}
 							className="h-7 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
 						>
-							{busy ? "创建中…" : worktree ? "创建" : "保存"}
+							{busy ? t("common.creating") : worktree ? t("common.create") : t("common.save")}
 						</button>
 					</div>
 				</form>
@@ -155,7 +157,7 @@ export function ProjectMenu({
 	}
 
 	return (
-		<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={`${name} 的操作`}>
+		<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("projectMenu.actionsFor", { name })}>
 			<MenuBody>
 				{/*
 				 * The two ways of going somewhere, before the ways of changing something.
@@ -172,7 +174,7 @@ export function ProjectMenu({
 						onClose();
 					}}
 				>
-					在这里新建会话
+					{t("projectMenu.newSessionHere")}
 				</MenuItem>
 				<MenuItem
 					icon={<ArrowRight size={13} strokeWidth={1.8} />}
@@ -181,7 +183,7 @@ export function ProjectMenu({
 						onClose();
 					}}
 				>
-					切换到这个项目
+					{t("projectMenu.switchTo")}
 				</MenuItem>
 
 				<MenuSeparator />
@@ -190,11 +192,11 @@ export function ProjectMenu({
 					icon={pinned ? <PinOff size={13} strokeWidth={1.8} /> : <Pin size={13} strokeWidth={1.8} />}
 					onClick={() => {
 						void setPinned(path, !pinned);
-						notify(pinned ? "已取消置顶项目" : "已置顶项目");
+						notify(pinned ? t("projectMenu.unpinned") : t("projectMenu.pinned"));
 						onClose();
 					}}
 				>
-					{pinned ? "取消置顶项目" : "置顶项目"}
+					{pinned ? t("projectMenu.unpin") : t("projectMenu.pin")}
 				</MenuItem>
 				<MenuItem
 					icon={<Pencil size={13} strokeWidth={1.8} />}
@@ -203,7 +205,7 @@ export function ProjectMenu({
 						setMode("rename");
 					}}
 				>
-					重命名
+					{t("common.rename")}
 				</MenuItem>
 				<MenuItem
 					icon={<FolderOpen size={13} strokeWidth={1.8} />}
@@ -221,7 +223,7 @@ export function ProjectMenu({
 						setMode("worktree");
 					}}
 				>
-					创建永久工作树
+					{t("projectMenu.permanentWorktree")}
 				</MenuItem>
 
 				<MenuSeparator />
@@ -235,10 +237,10 @@ export function ProjectMenu({
 						onClose();
 					}}
 				>
-					归档聊天
+					{t("projectMenu.archiveChats")}
 				</MenuItem>
 				<MenuItem icon={<X size={13} strokeWidth={1.9} />} danger onClick={() => setMode("remove")}>
-					移除
+					{t("common.remove")}
 				</MenuItem>
 			</MenuBody>
 		</Popover>

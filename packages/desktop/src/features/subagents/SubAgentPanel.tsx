@@ -20,6 +20,7 @@ import { Bot, CircleStop, FileText, Plus, RotateCcw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { openViewer } from "../image/index.ts";
@@ -46,6 +47,7 @@ interface SubAgentAttachment {
 }
 
 export function SubAgentPanel() {
+	const { t } = useI18n();
 	const sessionId = useApp((s) => s.activeSessionId);
 	const agents = useSubAgents((s) => s.agents);
 	const focused = useSubAgents((s) => s.focused);
@@ -66,8 +68,8 @@ export function SubAgentPanel() {
 
 	if (agents.length === 0) {
 		return (
-			<PanelEmpty icon={Bot} title="子 Agent">
-				暂无委派任务
+			<PanelEmpty icon={Bot} title={t("subAgent.title")}>
+				{t("subAgent.empty")}
 			</PanelEmpty>
 		);
 	}
@@ -95,20 +97,21 @@ export function SubAgentPanel() {
 }
 
 function Dismiss({ agent }: { agent: SubAgentSummary }) {
+	const { t } = useI18n();
 	const sessionId = useApp((s) => s.activeSessionId);
 	const running = agent.status === "running";
 	return (
 		<button
 			type="button"
 			data-ly-hover-reveal
-			data-ly-tip={running ? "停止并关闭（会中断它正在做的事）" : "关闭"}
-			aria-label={running ? `停止并关闭 ${agent.description}` : `关闭 ${agent.description}`}
+			data-ly-tip={running ? t("subAgent.stopAndClose") : t("common.close")}
+			aria-label={running ? t("subAgent.stopAndCloseOne", { name: agent.description }) : t("subAgent.closeOne", { name: agent.description })}
 			onClick={async () => {
 				if (!sessionId) return;
 				const what = await bridge.subAgents.dismiss(sessionId, agent.id);
 				// Stopping is not instant: the run files itself as aborted, and the row goes on the
 				// second press. Saying so beats a click that appears to do nothing.
-				if (what === "stopping") useApp.getState().notify("正在停止这个子 Agent…", "info");
+				if (what === "stopping") useApp.getState().notify(t("subAgent.stopping"), "info");
 			}}
 			className="rounded p-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/subtab:opacity-60 hover:!opacity-100 hover:bg-elevated"
 		>
@@ -118,6 +121,7 @@ function Dismiss({ agent }: { agent: SubAgentSummary }) {
 }
 
 function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string | null }) {
+	const { t } = useI18n();
 	const messages = useSubAgents((s) => s.transcripts[agent.id]);
 	const loading = useSubAgents((s) => s.loading.includes(agent.id));
 
@@ -151,7 +155,7 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 			>
 				{!messages || messages.length === 0 ? (
 					<p className="px-2 py-8 text-center text-detail text-ink-faint">
-						{loading || agent.status === "running" ? "等待输出…" : "暂无输出"}
+						{loading || agent.status === "running" ? t("subAgent.waiting") : t("subAgent.noOutput")}
 					</p>
 				) : (
 					<SubAgentTranscript messages={messages} isLive={agent.status === "running"} />
@@ -165,7 +169,7 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				 */}
 				{agent.status === "done" && agent.answer && (
 					<div className="mt-2 min-w-0 max-w-full overflow-hidden rounded-lg border border-line-soft bg-card/50 px-3 py-2">
-						<p className="mb-1 text-caption text-ink-faint">回报给主 Agent</p>
+						<p className="mb-1 text-caption text-ink-faint">{t("subAgent.reportedBack")}</p>
 						{/*
 						 * The object first, drawn by its shape, when the agent declared one.
 						 *
@@ -217,12 +221,13 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 }
 
 function Redispatch({ agent }: { agent: SubAgentSummary }) {
+	const { t } = useI18n();
 	const [asked, setAsked] = useState(false);
 	return (
 		<button
 			type="button"
 			disabled={asked}
-			data-ly-tip="让主 Agent 重新派发一个同样的子任务"
+			data-ly-tip={t("subAgent.redispatchTip")}
 			onClick={() => {
 				/*
 				 * Through the composer, not straight to the model.
@@ -234,7 +239,9 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
 				useApp
 					.getState()
 					.setComposerDraft(
-						`刚才那个子任务「${agent.description}」${agent.status === "failed" ? "失败了" : "被停掉了"}，重新派发一个同样的子 agent 去做。`,
+						t(agent.status === "failed" ? "subAgent.redispatchDraftFailed" : "subAgent.redispatchDraftAborted", {
+							name: agent.description,
+						}),
 						true,
 					);
 				setAsked(true);
@@ -242,12 +249,13 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
 			className="mt-2 flex items-center gap-1.5 rounded-lg border border-line-soft px-2.5 py-1.5 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-50"
 		>
 			<RotateCcw size={11.5} strokeWidth={1.9} />
-			{asked ? "已填入输入框" : "让主 Agent 重新派发"}
+			{asked ? t("subAgent.drafted") : t("subAgent.redispatch")}
 		</button>
 	);
 }
 
 function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string | null }) {
+	const { t } = useI18n();
 	/* A clock while it runs, frozen at the end once it has. */
 	const [, tick] = useState(0);
 	useEffect(() => {
@@ -265,14 +273,14 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 			{agent.toolCalls > 0 && (
 				<>
 					<span className="text-line">·</span>
-					<span className="shrink-0 tabular-nums">{agent.toolCalls} 次调用</span>
+					<span className="shrink-0 tabular-nums">{t("subAgent.calls", { n: agent.toolCalls })}</span>
 				</>
 			)}
 			{/* What it has cost so far — the number that decides whether delegating this was worth it. */}
 			{figuresWord(figuresOf(agent)) && (
 				<>
 					<span className="text-line">·</span>
-					<span data-sub-figures data-ly-tip="这个子 Agent 用掉的 token 与估算费用" className="shrink-0 tabular-nums">
+					<span data-sub-figures data-ly-tip={t("subAgent.figuresTip")} className="shrink-0 tabular-nums">
 						{figuresWord(figuresOf(agent))}
 					</span>
 				</>
@@ -285,8 +293,8 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 			{agent.status === "running" && sessionId && (
 				<button
 					type="button"
-					data-ly-tip="停止这个子 Agent（主 Agent 和其他子 Agent 不受影响）"
-					aria-label="停止这个子 Agent"
+					data-ly-tip={t("subAgent.stopTip")}
+					aria-label={t("subAgent.stop")}
 					onClick={() => void bridge.subAgents.abort(sessionId, agent.id)}
 					className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-danger"
 				>
@@ -304,6 +312,7 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
  * Supports text, multi-format attachments (images, code files, logs, docs), and unified buttons.
  */
 function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string }) {
+	const { t } = useI18n();
 	const [text, setText] = useState("");
 	const [attachments, setAttachments] = useState<SubAgentAttachment[]>([]);
 	const [sending, setSending] = useState(false);
@@ -335,7 +344,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 						isText: true,
 					});
 				} catch {
-					useApp.getState().notify(`无法读取文件 ${file.name} 的内容`, "warn");
+					useApp.getState().notify(t("subAgent.fileUnreadable", { name: file.name }), "warn");
 				}
 			}
 		}
@@ -351,7 +360,8 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 		let finalMessage = trimmed;
 		if (attachments.length > 0) {
 			const textFiles = attachments.filter((a) => a.isText && a.text);
-			const attachedTexts = textFiles.map((f) => `### 附件文件: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
+			// Written for the model that reads it, so it stays in English whatever the window is set to.
+			const attachedTexts = textFiles.map((f) => `### Attached file: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
 			if (attachedTexts.length > 0) {
 				finalMessage = finalMessage
 					? `${finalMessage}\n\n${attachedTexts.join("\n\n")}`
@@ -368,7 +378,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 			setText("");
 			setAttachments([]);
 		} else {
-			useApp.getState().notify("这个子 Agent 已经结束了，消息没有送达。", "error");
+			useApp.getState().notify(t("subAgent.gone"), "error");
 		}
 	};
 
@@ -379,7 +389,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 				onChange={setText}
 				onSubmit={() => void send()}
 				disabled={sending}
-				placeholder="纠偏、补充信息，或让它收尾…"
+				placeholder={t("subAgent.steerPlaceholder")}
 				onFiles={(files) => void addFiles(files)}
 				attachments={
 					attachments.length > 0 ? (
@@ -392,12 +402,12 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 												<FileText size={13} className="shrink-0" />
 												<span className="truncate text-[11px] font-medium text-ink">{attachment.name}</span>
 											</div>
-											<span className="text-[9.5px] text-ink-faint">文件附件</span>
+											<span className="text-[9.5px] text-ink-faint">{t("subAgent.fileAttachment")}</span>
 										</div>
 									) : (
 										<button
 											type="button"
-											aria-label={`预览 ${attachment.name}`}
+											aria-label={t("subAgent.previewOne", { name: attachment.name })}
 											onClick={(event) => {
 												const images = attachments
 													.filter((a) => !a.isText && a.data)
@@ -434,8 +444,8 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 					<>
 						<button
 							type="button"
-							data-ly-tip="添加附件文件或图片"
-							aria-label="添加附件文件或图片"
+							data-ly-tip={t("subAgent.attach")}
+							aria-label={t("subAgent.attach")}
 							onClick={() => fileInputRef.current?.click()}
 							className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
@@ -453,7 +463,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 						/>
 						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-caption text-ink-faint">
 							<span className={`size-[5px] shrink-0 rounded-full ${statusTone(agent.status)}`} />
-							<span className="truncate">定向纠偏</span>
+							<span className="truncate">{t("subAgent.steering")}</span>
 						</span>
 					</>
 				}
