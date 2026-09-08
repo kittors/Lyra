@@ -278,8 +278,14 @@ export function PersonalizationSettings() {
 										key={m.id}
 										className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card p-3 transition-colors hover:border-line-soft"
 									>
-										<div className="flex items-start gap-2.5 min-w-0">
-											<Brain size={15} strokeWidth={1.8} className="text-accent shrink-0 mt-0.5" />
+										{/*
+										 * 脑图标对着这条记忆的中线，跟右边的删除按钮同高。
+										 *
+										 * 它原本贴着第一行文字，而删除按钮是居中的——一条记忆两行高，左右两个图标就差
+										 * 出半行，看着像哪一边没放正。
+										 */}
+										<div className="flex items-center gap-2.5 min-w-0">
+											<Brain size={15} strokeWidth={1.8} className="text-accent shrink-0" />
 											<div className="min-w-0">
 												<span className="text-detail text-ink leading-relaxed break-words">{m.content}</span>
 												<MemoryMeta source={m.source ?? "user"} createdAt={m.createdAt} lastInjectedAt={m.lastInjectedAt} />

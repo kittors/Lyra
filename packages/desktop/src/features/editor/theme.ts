@@ -41,14 +41,18 @@ export function editorTheme(): Extension {
 			fontWeight: "var(--text-code--weight)",
 			letterSpacing: "var(--text-code--tracking)",
 			/*
-			 * At least as wide as the pane, so the active line's band reaches the right edge.
+			 * 这里曾经写着 `minWidth: "100%"`，为的是让当前行的高亮带铺到右边——短文件在宽窗格里
+			 * 只有前三分之一有底色，看着像没画完。要的效果是对的，写法造出了一条假滚动条。
 			 *
-			 * Without it the content box is only as wide as its longest line, and the current-line
-			 * highlight stops there — a short file in a wide pane gets a stripe across the first
-			 * third and bare background after it, which reads as a rendering fault rather than as
-			 * a highlight.
+			 * `.cm-scroller` 是 flex 行，里面并排放着 `.cm-gutters` 和这一块。`100%` 解析成的是
+			 * 整条 scroller 的宽度，不是行号槽之外剩下的那段——于是内容盒永远比容纳它的地方宽出
+			 * 一个行号槽，`scrollWidth` 恒大于 `clientWidth` 30 到 40 像素。任何文件、任何时候，
+			 * 底下都挂着一条几乎占满、只能推动几十像素的横向滚动条：那正是「滚动条怪怪的、又滚不
+			 * 到最右」的来源，而文件本身根本没有一行是超宽的。
+			 *
+			 * 不用换成别的写法。CodeMirror 自己给这一块设了 `flex-grow: 2`，剩下多少它就占多少，
+			 * 高亮带照样到边——少写一行，两个毛病一起没了。
 			 */
-			minWidth: "100%",
 			padding: "6px 0 40px",
 			caretColor: "var(--color-ink)",
 		},

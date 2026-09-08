@@ -2,7 +2,6 @@ import { RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Card, SectionTitle, TextInput } from "./controls.tsx";
 
 export function SidebarMotto() {
@@ -31,7 +30,6 @@ export function SidebarMotto() {
 					<IconButton disabled={saving || draft === stored} label="保存座右铭" onClick={() => void save(draft)} icon={<Save size={15} strokeWidth={1.8} />} />
 					<IconButton disabled={saving || (!stored && !draft)} label="恢复默认座右铭" onClick={() => void save("")} icon={<RotateCcw size={15} strokeWidth={1.8} />} />
 				</div>
-				{draft.trim() && <ScrollText text={draft.trim()} className="mt-2 text-caption text-ink-muted" />}
 			</Card>
 		</section>
 	);

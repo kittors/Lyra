@@ -45,7 +45,16 @@ export function Row({
 		 * broken rather than as compact. Measured against the row, so a wide window is unchanged.
 		 */
 		<div className="@container border-b border-line-soft px-4 py-3.5 last:border-b-0">
-			<div className="flex flex-col gap-2 @md:flex-row @md:items-start @md:gap-4">
+			{/*
+			 * 控件落在这一行的中线上，不是贴着标题那一行。
+			 *
+			 * 之前是 `items-start` 加半格 padding 去凑齐标题的基线，于是凡是带说明文字的行——设置
+			 * 里绝大多数行都带——开关和下拉都停在上半截，底下空出说明文字那一行的高度。一行里只有
+			 * 一个控件时看不太出来，一整张卡片摞起来就是右边一列全体偏上。
+			 *
+			 * 只在同一行并排时才谈得上居中：窄窗口下控件掉到文字下面，那是另一种排法，不套这条。
+			 */}
+			<div data-settings-row className="flex flex-col gap-2 @md:flex-row @md:items-center @md:gap-4">
 				<div className="min-w-0 flex-1">
 					<Text as="div" size="body">
 						{title}
@@ -56,7 +65,7 @@ export function Row({
 						</Text>
 					)}
 				</div>
-				{control && <div className="shrink-0 @md:pt-0.5">{control}</div>}
+				{control && <div className="flex shrink-0 items-center">{control}</div>}
 			</div>
 			{children}
 		</div>
