@@ -12,22 +12,24 @@ import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
 import { DiffView } from "../git/index.ts";
 import { ShadowedList } from "./ShadowedList.tsx";
 import { bridge } from "../../services/index.ts";
+import { translate, useI18n } from "../../i18n/index.ts";
 
 /**
  * Where a skill came from, in one word.
  *
  * A plugin's name beats the directory it happens to sit in: `~/.lyra/skills` is where a collection
- * flattens its skills too, so "个人" there would be false in the way that matters — it would say
+ * flattens its skills too, so t("common.personal") there would be false in the way that matters — it would say
  * "you wrote this" about something that arrives and leaves with the plugin.
  */
 function originOf(skill: Skill): string {
 	if (skill.pluginId) return skill.pluginId;
-	if (skill.source === "workspace") return "项目";
-	if (skill.source === "builtin") return "内置";
-	return "个人";
+	if (skill.source === "workspace") return translate("common.project");
+	if (skill.source === "builtin") return translate("common.builtin");
+	return translate("common.personal");
 }
 
 export function SkillsSettings({ filter = "" }: { filter?: string }) {
+	const { t } = useI18n();
 	const workspace = useApp((s) => s.workspace);
 	// A plugin carries skills, so installing one moves this list without touching this page.
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
@@ -103,8 +105,8 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 							<div className="ly-scroll"><ScrollText text={candidate.name} className="font-mono text-body" /></div>
 							<p className="mt-0.5 text-detail text-ink-muted">{candidate.description}</p>
 							<p className="mt-1 text-caption text-ink-faint">
-								{candidate.scope === "portable" ? "可复用流程 · 保存在当前项目" : "当前项目的候选技能"}
-								{candidate.sourceSessions && ` · 来源 ${candidate.sourceSessions.length} 个会话`}
+								{candidate.scope === "portable" ? t("skills.reusable") : t("skills.candidates")}
+								{candidate.sourceSessions && t("skills.fromSessions", { n: candidate.sourceSessions.length })}
 							</p>
 							{/* 正文全文摆出来。批准一段自己没读过的指令，跟没有这个确认步骤是一回事。 */}
 							<Scroller className="ly-rule-excerpt mt-2 max-h-52 rounded" contentClassName="p-2">
@@ -186,9 +188,9 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 			/>
 
 			{slow ? (
-				<SkeletonList count={6} label="正在读取技能" />
+				<SkeletonList count={6} label={t("skills.reading")} />
 			) : scan === null || pending === null ? null : skills.length === 0 ? (
-				<EmptyHint>{needle ? "没有匹配的技能" : "暂无技能"}</EmptyHint>
+				<EmptyHint>{needle ? t("common.noMatchingSkills") : t("skills.empty")}</EmptyHint>
 			) : (
 				/*
 				 * The same row as the plugin list, because it is the same kind of thing: a mark, a
@@ -207,16 +209,16 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 						title={
 							<span className="flex min-w-0 items-center gap-2">
 								<ScrollText text={skill.name} className="min-w-0 font-mono" />
-								{skill.disableModelInvocation && <Badge tone="accent">仅手动调用</Badge>}
+								{skill.disableModelInvocation && <Badge tone="accent">{t("skills.manualOnly")}</Badge>}
 							</span>
 						}
 						detail={skill.description}
 						actions={<>
 							<span className="text-detail whitespace-nowrap text-ink-faint">{originOf(skill)}</span>
-							{skill.source !== "builtin" && !skill.pluginId && <RowDeleteButton label={`删除技能 ${skill.name}`} pending={removal.pending.has(skill.path)} onClick={() => removal.ask(skill.name, skill.path)} />}
+							{skill.source !== "builtin" && !skill.pluginId && <RowDeleteButton label={t("skills.deleteNamed", { name: skill.name })} pending={removal.pending.has(skill.path)} onClick={() => removal.ask(skill.name, skill.path)} />}
 						</>}
 						onOpen={() => void bridge.system.openPath(skill.path)}
-						openLabel={`打开 ${skill.name}`}
+						openLabel={t("skills.openNamed", { name: skill.name })}
 					/>
 				))
 			)}
