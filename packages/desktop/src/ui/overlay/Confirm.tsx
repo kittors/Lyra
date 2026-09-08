@@ -22,6 +22,7 @@
  * a confirmation on those teaches people to click through the ones that matter.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CircleHelp, TriangleAlert } from "lucide-react";
@@ -83,7 +84,7 @@ export function ConfirmBody({
 					onClick={onCancel}
 					className="ly-dialog-action ly-dialog-action-secondary"
 				>
-					{cancelLabel ?? "取消"}
+					{cancelLabel ?? translate("common.cancel")}
 				</button>
 				<button
 					type="button"

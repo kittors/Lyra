@@ -1,3 +1,4 @@
+import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { SessionChange } from "../../electron/ipc-types.ts";
 import type {
@@ -654,6 +655,6 @@ async function refreshRemoteState(
 			await useSide.getState().attach(active.id, true);
 		}
 	} catch (cause) {
-		get().notify(`重新同步失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+		get().notify(translate("store.resyncFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 	}
 }

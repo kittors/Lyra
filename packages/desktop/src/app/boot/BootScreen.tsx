@@ -10,6 +10,7 @@
  * it this screen was always dark, and a light-theme app began every launch by flashing.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 /*
  * Inlined, not linked.
@@ -53,7 +54,7 @@ export function BootScreen() {
 	}, []);
 
 	return (
-		<div className="flex h-full items-center justify-center bg-shell" aria-busy aria-label="Lyra 正在启动">
+		<div className="flex h-full items-center justify-center bg-shell" aria-busy aria-label={translate("boot.starting")}>
 			<div
 				className="flex flex-col items-center gap-8 transition-opacity duration-[520ms] ease-out"
 				style={{ opacity: shown ? 1 : 0 }}

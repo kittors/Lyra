@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { GitCommitVertical } from "lucide-react";
 import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
@@ -50,7 +51,7 @@ export function ChangeBar() {
     <>
       <button
         type="button"
-        data-ly-tip={`${stat.files} 个文件有未提交的改动 · 点击查看`}
+        data-ly-tip={translate("changeBar.uncommitted", { n: stat.files })}
         onClick={() => openPane("review")}
         className="ly-scroll flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
       >
@@ -80,12 +81,12 @@ export function ChangeBar() {
 
       <button
         type="button"
-        data-ly-tip="在 Git 面板中查看并提交"
+        data-ly-tip={translate("changeBar.openGit")}
         onClick={() => openPane("review")}
         className="flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
       >
         <GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" />
-        提交
+        {translate("commit.commit")}
       </button>
     </>
   );

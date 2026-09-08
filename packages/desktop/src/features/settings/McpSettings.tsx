@@ -127,7 +127,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 				})}
 			</Card>
 
-			<SectionTitle>已配置（{servers.length}）</SectionTitle>
+			<SectionTitle>{translate("mcpSettings.configured", { n: servers.length })}</SectionTitle>
 
 			{servers.length === 0 ? (
 				<Card>
@@ -147,7 +147,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 										className="min-w-0 flex-1 bg-transparent text-body text-ink focus:outline-none"
 									/>
 									<Badge tone="muted">{server.transport}</Badge>
-									{status?.state === "connected" && <Badge tone="ok">{status.toolCount} 个工具</Badge>}
+									{status?.state === "connected" && <Badge tone="ok">{translate("mcpSettings.toolCount", { n: status.toolCount })}</Badge>}
 									{status?.state === "failed" && <Badge tone="danger">{t("mcp.failed")}</Badge>}
 									{/*
 									 * Where it came from, said on the row.

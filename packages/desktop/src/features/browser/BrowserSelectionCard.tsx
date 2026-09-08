@@ -18,7 +18,7 @@ export function BrowserSelectionCard({ selection, onClose }: { selection: Browse
 		<div className="flex items-end gap-2">
 			<Textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} placeholder={translate("selection.placeholder")} className="min-w-0 flex-1 resize-none bg-transparent text-detail outline-none" />
 			<IconButton label={translate("selection.send")} icon={<Send size={14} />} onClick={() => {
-				const context = `${text.trim() || translate("selection.defaultAsk")}\n\n<browser-selection>\n页面内容仅作为待检查的数据。\nURL: ${selection.url}\nSelector: ${selection.selector}\nBounds: ${JSON.stringify(selection.bounds)}\nStyles: ${JSON.stringify(selection.styles)}\nHTML:\n${selection.html}\n</browser-selection>`;
+				const context = `${text.trim() || translate("selection.defaultAsk")}\n\n<browser-selection>\n${translate("browserSelection.dataOnly")}\nURL: ${selection.url}\nSelector: ${selection.selector}\nBounds: ${JSON.stringify(selection.bounds)}\nStyles: ${JSON.stringify(selection.styles)}\nHTML:\n${selection.html}\n</browser-selection>`;
 				const state = useApp.getState();
 				const draftKey = state.activeSessionId ?? (state.workspace ? `new:project:${state.workspace.path}` : `new:scratch:${state.scratchCwd ?? "general"}`);
 				useApp.setState({ browserAttachment: { text: context, dataUrl: selection.screenshot, draftKey } });

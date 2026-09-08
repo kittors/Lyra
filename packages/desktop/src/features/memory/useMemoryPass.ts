@@ -1,5 +1,6 @@
 /** Idle extraction runs only when explicitly enabled in settings. */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect } from "react";
 import { bridge } from "../../services/host.ts";
 import { useApp } from "../../store/index.ts";
@@ -32,7 +33,7 @@ export function useMemoryPass(): void {
 			 * 「这几次会话里没什么值得记的」是一个正确的结果，而且是最常见的那个——把它也报出来，
 			 * 就是每天一条关于什么都没发生的通知。
 			 */
-			if (!cancelled && result?.memory) notify(`更新了这个项目的记忆，读了 ${result.sessions} 次会话`);
+			if (!cancelled && result?.memory) notify(translate("memoryPass.updated", { n: result.sessions }));
 		}, IDLE_MS);
 
 		return () => { cancelled = true; window.clearTimeout(timer); };

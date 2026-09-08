@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { FontWeight } from "@xterm/xterm";
@@ -395,7 +396,7 @@ export function TerminalPane() {
 			{empty && (
 				<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-7 pb-6 text-center">
 					<SquareTerminal size={30} strokeWidth={1.35} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">这里没有终端了。</p>
+					<p className="text-label text-ink-muted">{translate("terminal.gone")}</p>
 					<button
 						type="button"
 						onClick={() => {
@@ -406,13 +407,13 @@ export function TerminalPane() {
 						}}
 						className="rounded-lg border border-hairline px-3 py-1.5 text-label text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
 					>
-						新建终端
+						{translate("terminal.new")}
 					</button>
 				</div>
 			)}
 			{exited !== null && (
 				<div className="shrink-0 px-3 pb-2 text-detail text-ink-faint">
-					shell 已退出（代码 {exited}）。
+					{translate("terminal.shellExitedCode", { code: exited })}
 				</div>
 			)}
 		</div>

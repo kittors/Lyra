@@ -8,6 +8,7 @@
  * measuring it would put a heading nobody can see at the top of the pane.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { GroupActivity } from "./GroupActivity.tsx";
 import { ChevronRight } from "lucide-react";
@@ -78,7 +79,7 @@ export function ProjectList({
 			{hasPinned && (
 				<>
 					<SectionLabel sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
-						置顶
+						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[4px]"}`}>
@@ -127,7 +128,7 @@ export function ProjectList({
 						collapsed={collapsed.includes(RECENT)}
 						onToggle={() => onToggleCollapsed(RECENT)}
 					>
-						最近
+						{translate("projectList.recent")}
 					</SectionLabel>
 					{/* Flat rows, the same ones a project shows — the section is what differs, not the
 					    conversation. Same gap as inside a project, so the two read as one list. */}

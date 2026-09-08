@@ -82,9 +82,9 @@ export type TurnStop = "user" | "interrupt" | "error" | null;
  * waiting for the day somebody improves the wording.
  */
 export const CARRY_ON_PROMPTS = [
-	"继续，从暂停的地方接着做。",
-	"继续，从中断的地方接着做。",
-	"继续，把清单里没做完的做完。",
+	translate("derive.resumePaused"),
+	translate("derive.resumeInterrupted"),
+	translate("derive.resumeChecklist"),
 ] as const;
 
 /**

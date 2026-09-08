@@ -123,7 +123,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 			 */}
 			{allOff && plugins.length > 0 && (
 				<p className="mb-3 rounded-[10px] border border-line-soft px-3 py-2 text-detail leading-relaxed text-ink-muted">
-					设置里写着 <code className="font-mono">disabledPlugins: ["*"]</code>{t("plugins.allOffDetail")}
+					{t("plugins.settingsSays")} <code className="font-mono">disabledPlugins: ["*"]</code>{t("plugins.allOffDetail")}
 				</p>
 			)}
 

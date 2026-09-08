@@ -2,6 +2,7 @@
  * Modal to select and import discovered models from a provider's /v1/models endpoint.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Check, CheckSquare, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ModelIcon } from "../models/index.ts";
@@ -69,7 +70,7 @@ export function FetchModelsModal({
 					<div className="flex items-center gap-2">
 						<span className="text-body font-semibold text-ink">{t("fetchModels.title")}</span>
 						<span className="rounded-full bg-card-hover px-2 py-0.5 text-micro font-medium text-ink-muted">
-							共 {models.length} 个
+							{translate("fetchModels.totalCount", { n: models.length })}
 						</span>
 					</div>
 					<button
@@ -151,7 +152,7 @@ export function FetchModelsModal({
 												<span className="font-mono text-label text-ink truncate">{modelId}</span>
 												{isExisting && (
 													<span className="shrink-0 rounded bg-ink-faint/10 px-1 py-0.2 text-micro text-ink-faint">
-														已添加
+														{translate("fetchModels.added")}
 													</span>
 												)}
 											</div>
@@ -181,7 +182,7 @@ export function FetchModelsModal({
 							className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-3.5 text-caption font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
 						>
 							<Check size={13} strokeWidth={2.2} />
-							<span>导入所选 ({selected.size})</span>
+							<span>{translate("fetchModels.importSelected", { n: selected.size })}</span>
 						</button>
 					</div>
 				</div>

@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { ToolRun } from "../../store/index.ts";
 import { DetailCard } from "../conversation/index.ts";
@@ -102,7 +103,7 @@ export function TaskRuns({ runs, scrollRef, query = "" }: { runs: ToolRun[]; que
 					summary={<ScrollText text={run.summary} className="ly-fade-tail min-w-0 flex-1 text-detail" />}
 					trailing={<>
 						<span className={`h-[6px] w-[6px] shrink-0 rounded-full ${run.status === "running" ? "ly-pulse bg-info" : run.status === "error" ? "bg-danger" : "bg-ok/70"}`} />
-						<Text size="caption" tone="faint" numeric className="shrink-0">{run.finishedAt ? formatSpan(run.finishedAt - run.startedAt) : "进行中"}</Text>
+						<Text size="caption" tone="faint" numeric className="shrink-0">{run.finishedAt ? formatSpan(run.finishedAt - run.startedAt) : translate("common.inProgress")}</Text>
 					</>}>
 					<RunDetail run={run} query={query} />
 				</DetailCard>

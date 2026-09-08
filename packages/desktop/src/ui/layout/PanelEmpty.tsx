@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { X } from "lucide-react";
@@ -57,8 +58,8 @@ export function PanelEmpty({
 					onClick={action.onClick}
 					onMouseEnter={() => setHovered(true)}
 					onMouseLeave={() => setHovered(false)}
-					data-ly-tip={isLoading ? (action.cancelLabel ?? `取消${action.label}`) : undefined}
-					aria-label={isLoading ? (action.cancelLabel ?? `取消${action.label}`) : action.label}
+					data-ly-tip={isLoading ? (action.cancelLabel ?? translate("panelEmpty.cancelAction", { action: action.label })) : undefined}
+					aria-label={isLoading ? (action.cancelLabel ?? translate("panelEmpty.cancelAction", { action: action.label })) : action.label}
 					className="absolute right-2.5 top-1.5 flex h-[26px] items-center justify-center gap-1.5 rounded-md px-2 text-detail font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
 				>
 					{isLoading ? (

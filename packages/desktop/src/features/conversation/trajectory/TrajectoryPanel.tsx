@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n/translate.ts";
 import { History, Coins, Terminal, Zap } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { freshTokens } from "@lyra/core/tokens";
@@ -102,7 +103,7 @@ function SessionTrajectory() {
 			<span className="flex items-center gap-1" data-ly-tip={`${totals.tokens.toLocaleString()} tokens`}><Zap size={11} />{formatTokens(totals.tokens)}</span>
 			{totals.cost > 0 && <span className="flex items-center gap-1" data-ly-tip={t("trajectory.estimatedCost", { cost: totals.cost.toFixed(4) })}><Coins size={11} />${totals.cost.toFixed(2)}</span>}
 		</div>
-		{error && <p role="alert" className="px-3 py-1 text-caption text-danger">读取失败：{error}</p>}
+		{error && <p role="alert" className="px-3 py-1 text-caption text-danger">{translate("trajectory.readFailedWith", { reason: error })}</p>}
 		{loading ? <p role="status" className="px-3 py-2 text-caption text-ink-faint">{t("trajectory.loading")}</p> : !entries.length && <p className="px-3 py-2 text-caption text-ink-faint">{all.length ? t("trajectory.noMatch") : t("trajectory.empty")}</p>}
 		{picked && !matches.has(entryKey(picked)) && <div className="px-3 py-1 text-caption text-ink-muted">{t("trajectory.filteredOut")} <button type="button" className="text-info" onClick={() => { setSources([]); setQuery(""); setStatus(undefined); navigate(picked); }}>{t("trajectory.locateAndClear")}</button></div>}
 		<div className="ly-trace-body" data-has-detail={Boolean(picked)}>

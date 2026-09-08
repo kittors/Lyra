@@ -7,6 +7,7 @@
  * by accident.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Input } from "../inputs/NativeField.tsx";
 import { Search, X } from "lucide-react";
 import { createContext, useContext } from "react";
@@ -183,7 +184,7 @@ export function MenuSearch({
 			{value && (
 				<button
 					type="button"
-					aria-label="清除搜索"
+					aria-label={translate("common.clearSearch")}
 					onClick={() => onChange("")}
 					className="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 				>

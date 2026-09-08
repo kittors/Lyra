@@ -13,6 +13,7 @@
  * message per frame and keeps both.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { bridge } from "../../services/index.ts";
@@ -149,7 +150,7 @@ export function PinnedShot() {
 		>
 			<img
 				src={image.dataUrl}
-				alt="置顶截图"
+				alt={translate("pinnedShot.title")}
 				draggable={false}
 				data-pinned-image
 				/*
@@ -190,7 +191,7 @@ export function PinnedShot() {
 			<button
 				type="button"
 				data-pinned-close
-				aria-label="关闭置顶截图"
+				aria-label={translate("pinnedShot.close")}
 				onPointerDown={(event) => event.stopPropagation()}
 				onClick={() => bridge.pinnedShot?.close?.()}
 				className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] backdrop-blur-md transition-[opacity,transform] duration-[var(--ly-t-quick)] hover:bg-black/85"

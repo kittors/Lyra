@@ -40,12 +40,12 @@ export function MemoryMeta({
 		<span data-memory-meta className="flex flex-wrap items-center gap-x-1.5 text-caption text-ink-faint">
 			<span data-memory-source>{t(SOURCE_WORD[source])}</span>
 			<span className="text-line">·</span>
-			<span>{when(createdAt)}写下</span>
+			<span>{t("memoryMeta.writtenAt", { when: when(createdAt) })}</span>
 			<span className="text-line">·</span>
 			{lastInjectedAt === undefined ? (
 				<span data-memory-injected="never">{t("memoryMeta.neverUsed")}</span>
 			) : (
-				<span data-memory-injected="at">最后注入 {when(lastInjectedAt)}</span>
+				<span data-memory-injected="at">{t("memoryMeta.injectedAt", { when: when(lastInjectedAt) })}</span>
 			)}
 		</span>
 	);

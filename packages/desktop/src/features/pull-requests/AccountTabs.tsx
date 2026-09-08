@@ -15,6 +15,7 @@
  * have no pull requests" when the two GitHub accounts beside it answered perfectly well.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { ForgeAccount } from "../../../electron/ipc-types.ts";
 import { Avatar } from "./Avatar.tsx";
 
@@ -45,10 +46,10 @@ export function AccountTabs({
 		 */
 		<div
 			role="group"
-			aria-label="账号"
+			aria-label={translate("accountTabs.account")}
 			className="flex shrink-0 items-center gap-1 overflow-x-auto px-3 pb-1.5"
 		>
-			<Tab label="全部" active={active === null} onClick={() => onSelect(null)} />
+			<Tab label={translate("common.all")} active={active === null} onClick={() => onSelect(null)} />
 			{shown.map((account) => (
 				<Tab
 					key={account.id}

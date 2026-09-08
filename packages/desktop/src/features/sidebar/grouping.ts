@@ -7,6 +7,7 @@
  * projects they belong to.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { orderedSessions, type SessionSortKey } from "../../lib/sidebar-order.ts";
 
@@ -147,7 +148,7 @@ export function listableSessions(sessions: SessionMeta[], activeSessionId: strin
 /** What the settings row says it will take you to. */
 export function activeProviderLabel(providers: { name: string; enabled: boolean; models: unknown[] }[]): string {
 	const enabled = providers.filter((p) => p.enabled);
-	if (enabled.length === 0) return "未配置模型供应商";
+	if (enabled.length === 0) return translate("sidebarGrouping.noProvider");
 	const models = enabled.reduce((sum, p) => sum + p.models.length, 0);
-	return `${enabled.map((p) => p.name).join(" · ")} · ${models} 个模型`;
+	return translate("sidebarGrouping.providers", { providers: enabled.map((p) => p.name).join(" · "), n: models });
 }

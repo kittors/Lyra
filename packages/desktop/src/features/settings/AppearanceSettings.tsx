@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type { AppearanceSettings as Appearance } from "@lyra/core";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
@@ -277,7 +278,7 @@ export function AppearanceSettings() {
 						<div className="flex-1 min-w-0">
 							<span className="block text-label font-medium text-ink">{t("appearance.customStack")}</span>
 							<span className="block text-caption text-ink-muted">
-								按 CSS 写法，逗号分隔，带空格的名字要加引号；靠后的是装不上时的退路
+								{translate("appearance.fontStack")}
 							</span>
 						</div>
 						<TextInput
@@ -486,7 +487,7 @@ export function AppearanceSettings() {
 							 * 调大也不会重演；`nowrap` 是最后一道，宁可挤出去也不断开。
 							 */}
 							<span className="min-w-[3.6em] shrink-0 text-right font-mono text-label whitespace-nowrap text-ink tabular-nums">
-								{composerLines} 行
+								{composerLines} {translate("appearance.linesUnit")}
 							</span>
 						</div>
 					}

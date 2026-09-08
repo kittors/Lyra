@@ -6,6 +6,7 @@
  * Inspecting a workflow opens an inline floating detail view or expands as a clean inspect container.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import {
 	Activity,
 	AlertCircle,
@@ -324,7 +325,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 							)}
 							{(runDetail?.event ?? inspectRun.event) && (
 								<span className="text-caption text-ink-faint">
-									事件: {runDetail?.event ?? inspectRun.event}
+									{translate("pipelines.eventIs", { event: runDetail?.event ?? inspectRun.event })}
 								</span>
 							)}
 						</div>
@@ -333,7 +334,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 					{/* Matrix & Jobs */}
 					<div className="pt-3.5 space-y-1.5">
 						<div className="px-1 text-caption font-medium text-ink-faint">
-							构建任务与矩阵 ({runDetail?.jobs?.length ?? 0})
+							{translate("pipelines.jobsAndMatrix", { n: runDetail?.jobs?.length ?? 0 })}
 						</div>
 
 						{detailLoading && !runDetail?.jobs?.length ? (
@@ -342,7 +343,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 							</div>
 						) : !runDetail?.jobs?.length ? (
 							<div className="py-6 text-center text-detail text-ink-muted rounded-xl bg-card">
-								暂无任务
+								{translate("pipelines.noJobs")}
 							</div>
 						) : (
 							<div className="space-y-1.5">

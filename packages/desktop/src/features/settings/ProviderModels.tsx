@@ -10,6 +10,7 @@
  * about to compare it against.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Check, CircleAlert, CloudDownload, Link2, Loader2, Pencil, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -115,7 +116,7 @@ export function ProviderModels({
 					className="flex h-[38px] items-center gap-2 rounded-[10px] border border-line px-3 text-label text-ink-muted transition-colors hover:border-ink-faint hover:text-ink cursor-pointer"
 				>
 					<Plus size={14} strokeWidth={1.9} />
-					添加模型
+					{translate("providerModels.add")}
 				</button>
 			</div>
 

@@ -11,6 +11,7 @@
  * people rename files in the Finder instead.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { useEffect, useRef, useState } from "react";
 
@@ -64,7 +65,7 @@ export function NameEditor({
 			value={value}
 			spellCheck={false}
 			data-ly-tip={problem ?? undefined}
-			aria-label="名字"
+			aria-label={translate("nameEditor.name")}
 			aria-invalid={problem ? true : undefined}
 			onChange={(event) => setValue(event.target.value)}
 			/*

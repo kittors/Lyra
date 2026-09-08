@@ -13,6 +13,7 @@
  * the floor, come back, and the boundary is short by however far past it you went.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP } from "./geometry.ts";
@@ -184,7 +185,7 @@ export function Splitter({
 			}}
 			role="separator"
 			aria-orientation={row ? "vertical" : "horizontal"}
-			aria-label="调整面板大小"
+			aria-label={translate("splitter.resizePane")}
 			aria-valuenow={Math.round((handle.share / handle.pair) * 100)}
 			aria-valuemin={0}
 			aria-valuemax={100}

@@ -7,6 +7,7 @@
  * they are here rather than inline in a component.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { PullRequestSummary } from "../../../electron/ipc-types.ts";
 
 /** Which pull requests the list is narrowed to. Mirrors the relations the search buckets produce. */
@@ -19,9 +20,9 @@ export interface Group {
 }
 
 const GROUP_LABELS: Record<PullRequestSummary["relation"], string> = {
-	reviewing: "等你审查",
-	authored: "由我创建",
-	reviewed: "之前已审查",
+	reviewing: translate("prGroups.forYou"),
+	authored: translate("prGroups.mine"),
+	reviewed: translate("prGroups.reviewed"),
 };
 
 /** The order the groups appear in, which is the order they need attention. */

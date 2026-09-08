@@ -11,6 +11,7 @@
  * it all live in `files/`.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Folder } from "lucide-react";
 import { useDock } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
@@ -33,8 +34,8 @@ export function FileBrowser() {
 
 	if (!workspace || !root) {
 		return (
-			<PanelEmpty icon={Folder} title="文件">
-				先打开一个项目
+			<PanelEmpty icon={Folder} title={translate("common.files")}>
+				{translate("fileBrowser.needProject")}
 			</PanelEmpty>
 		);
 	}

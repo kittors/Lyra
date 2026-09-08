@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { availableModels } from "@lyra/core/model-roles";
 import { Box, ChevronDown } from "lucide-react";
 import { useApp } from "../../store/index.ts";
@@ -15,7 +16,7 @@ export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSo
 	const models = settings ? availableModels(settings) : [];
 	const selected = models.find(({ model }) => model.id === (selection.value || inheritedModelId));
 	const ambiguous = selected && models.filter(({ model }) => model.name.trim().toLowerCase() === selected.model.name.trim().toLowerCase()).length > 1;
-	const label = selected ? ambiguous ? `${selected.model.name} · ${selected.provider.name}` : selected.model.name : selection.value || inheritedModelId ? t("model.unavailable") : inheritedSource ? "未配置模型" : selection.inheritLabel;
+	const label = selected ? ambiguous ? `${selected.model.name} · ${selected.provider.name}` : selected.model.name : selection.value || inheritedModelId ? t("model.unavailable") : inheritedSource ? translate("sideChat.noModel") : selection.inheritLabel;
 	return <>
 		<button type="button" aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={menu.open} disabled={disabled}
 			onClick={menu.toggle} data-ly-tip={selected ? `${selected.provider.name} · ${selected.model.name}${!selection.value ? ` · ${selection.inheritDetail ?? selection.inheritLabel}` : ""}` : selection.value || selection.inheritDetail}

@@ -14,6 +14,8 @@
  * picked.
  */
 
+import { translate } from "../../i18n/translate.ts";
+
 export interface CodeFontOption {
 	/** What the menu calls it. */
 	label: string;
@@ -75,7 +77,7 @@ export const CODE_FONTS: CodeFontOption[] = [
 	},
 	{ label: "Consolas", family: "Consolas", stack: 'Consolas, ui-monospace, Menlo, "PingFang SC", monospace' },
 	{
-		label: "系统等宽",
+		label: translate("codeFonts.systemMono"),
 		family: "ui-monospace",
 		stack: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "PingFang SC", monospace',
 	},

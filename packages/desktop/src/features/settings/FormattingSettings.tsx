@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { macKeyboard, shortcutLabel } from "../../ui/keyboard.ts";
 import type { FormattingSettings as Formatting } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
@@ -58,7 +59,7 @@ export function FormattingSettings() {
 				<div className="mb-2 flex items-center justify-between px-1">
 					<SectionTitle>{t("common.preview")}</SectionTitle>
 					<GhostButton onClick={() => patch(DEFAULTS)} icon={<RotateCcw size={13} strokeWidth={1.6} />}>
-						恢复默认
+						{translate("common.restoreDefault")}
 					</GhostButton>
 				</div>
 				<FormatPreview options={formatting} />
@@ -170,9 +171,8 @@ export function FormattingSettings() {
 			</div>
 
 			<p className="px-1 text-detail text-ink-faint">
-				项目自带的 .prettierrc、.editorconfig 或 package.json 里的 prettier 字段优先于以上设置——
-				仓库已经定好的风格不会被这里覆盖。Go、Rust、Python 等语言交给它们各自的官方工具（gofmt、rustfmt、ruff/black），
-				这些设置对它们不起作用。
+				{translate("formatting.projectWinsInline")}
+				{translate("formatting.otherLanguages")}
 			</p>
 		</div>
 	);

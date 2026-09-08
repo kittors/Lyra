@@ -11,6 +11,7 @@
  * about layout.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { useMemo } from "react";
 import { sessionTitle } from "../../lib/session-title.ts";
@@ -119,9 +120,9 @@ export function useSidebarLists({
 				onRestore: restore,
 				onDelete: (meta) =>
 					confirm.ask({
-						title: "删除这个会话？",
-						detail: `「${sessionTitle(meta.title)}」的 ${meta.messageCount} 条消息会被永久删除，拿不回来。`,
-						confirmLabel: "删除",
+						title: translate("sidebarList.deleteConfirm"),
+						detail: translate("sidebarList.deleteDetail", { title: sessionTitle(meta.title), n: meta.messageCount }),
+						confirmLabel: translate("common.delete"),
 						onConfirm: () => void deleteSession(meta),
 					}),
 			}

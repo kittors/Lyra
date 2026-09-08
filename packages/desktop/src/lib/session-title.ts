@@ -14,11 +14,13 @@
  */
 
 /** The placeholders `core` uses; see `SessionStore.create` and `setTitleFromPrompt`. */
+import { translate } from "../i18n/translate.ts";
+
 const PLACEHOLDERS = new Set(["New session", "New Session", "Untitled"]);
 
 /** The name to show, which is the stored one unless nothing has named it yet. */
 export function sessionTitle(title: string | null | undefined): string {
 	const stored = title?.trim() ?? "";
-	if (!stored || PLACEHOLDERS.has(stored)) return "新对话";
+	if (!stored || PLACEHOLDERS.has(stored)) return translate("sessionTitle.untitled");
 	return stored;
 }

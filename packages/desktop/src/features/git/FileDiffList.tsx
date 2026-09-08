@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
@@ -41,7 +42,7 @@ export function isDirectory(path: string): boolean {
 export function FileDiffList({
   files,
   actions,
-  emptyLabel = "没有匹配的文件",
+  emptyLabel = translate("diffList.noMatch"),
   initiallyOpen,
   cwd = null,
   loadingContent = false,
@@ -167,7 +168,7 @@ export function FileDiffList({
                     tone="faint"
                     className="px-3 py-4 text-center"
                   >
-                    整个目录都还没有被 Git 跟踪，暂时没有可对比的内容。
+                    {translate("diffList.untracked")}
                   </Text>
                 ) : file.binary ? (
                   // An image is shown, not described — see `BinaryDiff`.
@@ -185,7 +186,7 @@ export function FileDiffList({
                     tone="faint"
                     className="px-3 py-4 text-center"
                   >
-                    这个文件没有可以按行对比的内容。
+                    {translate("diffList.noLineDiff")}
                   </Text>
                 ) : (
                   <DiffView hunks={file.hunks} path={file.path} />

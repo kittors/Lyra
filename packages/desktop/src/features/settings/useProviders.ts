@@ -10,6 +10,7 @@
  * only a layout.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
 import { modelConfigFromCatalog } from "@lyra/core/model-catalog";
 import { useEffect, useMemo, useState } from "react";
@@ -60,7 +61,7 @@ export function useProviders() {
 		const id = `provider-${Date.now().toString(36)}`;
 		const provider: ProviderConfig = {
 			id,
-			name: "新供应商",
+			name: translate("providers.newProvider"),
 			baseUrl: "https://",
 			api: "openai-responses",
 			apiKey: "",
@@ -147,11 +148,11 @@ export function useProviders() {
 		try {
 			const res = await bridge.providers.fetchModels(selected.id);
 			if (!res.ok) {
-				setFetchModelsError(res.error || "获取模型列表失败");
+				setFetchModelsError(res.error || translate("providers.fetchFailed"));
 				return;
 			}
 			if (res.models.length === 0) {
-				setFetchModelsError("该端点未返回任何模型");
+				setFetchModelsError(translate("providers.noModels"));
 				return;
 			}
 

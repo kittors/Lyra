@@ -6,6 +6,7 @@
  * mostly rules that were learned the hard way and are worth reading on their own.
  */
 
+import { translate } from "../i18n/translate.ts";
 import { Activity, lazy, Suspense, useEffect, useState } from "react";
 import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-react";
 import { RetainedViews } from "../ui/layout/RetainedViews.tsx";
@@ -109,7 +110,7 @@ export function App() {
 	useEffect(
 		() =>
 			bridge.onMainError(({ message }) => {
-				useApp.getState().notify(message.split("\n")[0] || "主进程出错", "error");
+				useApp.getState().notify(message.split("\n")[0] || translate("app.mainProcessError"), "error");
 			}),
 		[],
 	);

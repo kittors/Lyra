@@ -11,6 +11,7 @@
  * what has arrived only ever grows.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@lyra/core";
 import { CARRY_ON_PROMPTS } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
@@ -56,7 +57,7 @@ export type Run =
 /** The runtime's "carry on" message, recognised by what it says as well as by its flag. */
 export function isNudge(message: Message | undefined): boolean {
 	if (message?.role !== "user") return false;
-	return message.content.some((c) => c.type === "text" && c.text.startsWith("（自动继续）"));
+	return message.content.some((c) => c.type === "text" && c.text.startsWith(translate("grouping.autoContinue")));
 }
 
 /** A split reply has two identities; neither identity changes when more text arrives. */

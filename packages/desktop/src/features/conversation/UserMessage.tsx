@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type {
   UserContent,
   UserMessage as UserMessageType,
@@ -92,7 +93,7 @@ export function UserMessage({
       {message.origin === "side-chat" && (
         <span className="mb-1 flex items-center gap-1 pr-1 text-caption text-ink-faint">
           <MessageSquarePlus size={11} strokeWidth={1.9} />
-          来自侧边聊天
+          {translate("userMessage.fromSideChat")}
         </span>
       )}
 

@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { Input } from "./NativeField.tsx";
 import { Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -64,8 +65,8 @@ export function SearchField({
 			{value && (
 				<button
 					type="button"
-					data-ly-tip="清除"
-					aria-label="清除搜索"
+					data-ly-tip={translate("common.clear")}
+					aria-label={translate("common.clearSearch")}
 					onClick={() => {
 						onChange("");
 						input.current?.focus();

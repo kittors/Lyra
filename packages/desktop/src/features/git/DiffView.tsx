@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { DiffHunk } from "@lyra/core";
@@ -114,7 +115,7 @@ export function DiffView({
 
 					{emitted >= maxLines && (
 						<div className="sticky left-0 w-max px-3 py-1.5 text-caption text-ink-faint">
-							… 差异过长，已截断显示
+							{translate("diffView.truncated")}
 						</div>
 					)}
 				</div>

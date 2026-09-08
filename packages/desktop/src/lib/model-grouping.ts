@@ -10,6 +10,7 @@
  * does the search match" are rules, and a rule that is only expressed as JSX cannot be tested.
  */
 
+import { translate } from "../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig, Settings } from "@lyra/core";
 
 export interface ModelGroup {
@@ -140,6 +141,6 @@ export function modelTooltip(
 	identity: { model: ModelConfig; provider: ProviderConfig } | null,
 	window: (tokens: number) => string,
 ): string {
-	if (!identity) return "选择模型";
-	return `${identity.provider.name} · ${identity.model.name} · ${window(identity.model.contextWindow)} 上下文`;
+	if (!identity) return translate("modelGrouping.pick");
+	return `${identity.provider.name} · ${identity.model.name} · ${window(identity.model.contextWindow)} ${translate("modelGrouping.contextSuffix")}`;
 }

@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import type { SortKey } from "./ListMenu.tsx";
@@ -89,7 +90,7 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 					: active.projectPath && await store.reorderProjectSessions(active.projectPath, active.id, target.id, target.placement, sort);
 				if (changed && active.kind === "session") onReordered?.();
 			} catch (cause) {
-				useApp.getState().notify(`排序未能保存：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+				useApp.getState().notify(translate("reorder.saveFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 			} finally { saving.current = false; }
 		};
 		const handlePointerUp = (event: PointerEvent) => {

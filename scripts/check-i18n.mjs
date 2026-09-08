@@ -50,6 +50,14 @@ const HAN = /[一-鿿]/;
  * to the window's language would mean an English window could no longer publish Chinese notes,
  * which is the whole point of that control.
  *
+ * `markdown/inline` holds one CJK *character range* inside a regular expression — the check that
+ * decides where a bare URL ends. Those are code points, not words, and the scanner has no way to
+ * tell a range apart from a string without lexing regex literals, which is a lot of machinery for
+ * one line.
+ *
+ * `locales` is the same thing for the interface language, down to the single-character mark each
+ * one is drawn with — 「中」, 「繁」, 「日」. Those are the writing systems naming themselves.
+ *
  * `commit-language` is a list of languages, each written in itself — 「简体中文」, 「日本語」,
  * 「Русский」. That is how a language picker is supposed to read, and translating an entry would
  * make it name a language in a language its speaker may not read.
@@ -65,6 +73,8 @@ const EXEMPT = [
 	"features/settings/format-catalog.ts",
 	"features/git/release-notes.ts",
 	"features/git/commit-language.ts",
+	"i18n/locales.ts",
+	"lib/markdown/inline.ts",
 ];
 
 /** Strip comments, so the reasoning this codebase writes in Chinese is not a finding. */

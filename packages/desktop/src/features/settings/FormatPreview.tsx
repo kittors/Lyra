@@ -18,6 +18,7 @@
  *     anything else it would not be a preview of anything.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { macKeyboard } from "../../ui/keyboard.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -151,7 +152,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 					{edited && (
 						<CodeButton onClick={restore} tip={t("formatPreview.restore")}>
 							<RotateCcw size={11} strokeWidth={2} />
-							还原
+							{translate("formatPreview.revert")}
 						</CodeButton>
 					)}
 					<CodeButton
@@ -167,7 +168,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 						primary
 					>
 						<Wand2 size={11} strokeWidth={2} />
-						格式化
+						{translate("common.format")}
 					</CodeButton>
 				</div>
 			</div>

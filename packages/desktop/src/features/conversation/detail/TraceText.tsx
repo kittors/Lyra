@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n/translate.ts";
 import { Check, ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "../Markdown.tsx";
@@ -21,8 +22,8 @@ export function TraceText({ title, text, kind = "text", query = "", markdown = f
 	return <Section title={title} mono>
 		<div className="mb-1 flex h-[22px] items-center justify-end gap-1 font-sans text-caption text-ink-faint">
 			<span className="mr-auto tabular-nums">{text.length.toLocaleString()} 字符{pages > 1 ? ` · ${current + 1}/${pages}` : ""}</span>
-			{pages > 1 && <><IconButton size="sm" label={`${title}上一页`} icon={<ChevronLeft size={12} />} disabled={current === 0} onClick={() => setPage(current - 1)} /><IconButton size="sm" label={`${title}下一页`} icon={<ChevronRight size={12} />} disabled={current === pages - 1} onClick={() => setPage(current + 1)} /></>}
-			<IconButton size="sm" label={`复制完整${title}`} icon={copied ? <Check size={12} /> : <Copy size={12} />} onClick={() => { void navigator.clipboard.writeText(text).then(() => { setCopied(true); setError(""); }).catch((error: unknown) => setError(String(error))); }} />
+			{pages > 1 && <><IconButton size="sm" label={translate("traceText.prevPage", { title })} icon={<ChevronLeft size={12} />} disabled={current === 0} onClick={() => setPage(current - 1)} /><IconButton size="sm" label={translate("traceText.nextPage", { title })} icon={<ChevronRight size={12} />} disabled={current === pages - 1} onClick={() => setPage(current + 1)} /></>}
+			<IconButton size="sm" label={translate("traceText.copyAll", { title })} icon={copied ? <Check size={12} /> : <Copy size={12} />} onClick={() => { void navigator.clipboard.writeText(text).then(() => { setCopied(true); setError(""); }).catch((error: unknown) => setError(String(error))); }} />
 		</div>
 		{markdown && !query && pages === 1 ? <div className="font-sans"><Markdown text={text} /></div> : <CodeText text={text.slice(current * PAGE, (current + 1) * PAGE)} kind={kind} query={query} />}
 		{error && <span role="alert" className="text-danger">{error}</span>}

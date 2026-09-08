@@ -10,6 +10,7 @@
  * conversation is now a leaf in one tree, and a tree needs no arbitration between its branches.
  */
 
+import { translate } from "../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { ResizeHandle } from "../ui/layout/ResizeHandle.tsx";
 import { useFocusTrap, useLayout } from "./layout.tsx";
@@ -181,7 +182,7 @@ export function NavPane({
 					max={Math.min(bounds.sidebar.max, maxWidth ?? bounds.sidebar.max)}
 					onResize={setSidebarWidth}
 					onReset={resetSidebarWidth}
-					label="调整侧边栏宽度"
+					label={translate("panes.resizeSidebar")}
 				/>
 			)}
 		</div>

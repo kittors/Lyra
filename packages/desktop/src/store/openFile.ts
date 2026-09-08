@@ -12,6 +12,7 @@
  * dock remembers that the pane was open and the pane comes back empty.
  */
 
+import { translate } from "../i18n/translate.ts";
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
 import { isDescendantPath } from "../lib/paths.ts";
@@ -251,10 +252,10 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		const text = drafts[path];
 		if (text === undefined || text === contents.text) return null;
 		// Truncated files must not be saved: writing back the head would delete the rest.
-		if (contents.truncated) return "文件过大，只读";
-		if (contents.readOnly) return "上下文文件，只读";
+		if (contents.truncated) return translate("fileActions.tooBig");
+		if (contents.readOnly) return translate("fileActions.contextReadOnly");
 		const result = await bridge.files.write(path, text);
-		if (!result.ok) return result.error ?? "写入失败";
+		if (!result.ok) return result.error ?? translate("openFile.writeFailed");
 		get().setDraft(path, undefined);
 		await get().reread(path);
 		return null;

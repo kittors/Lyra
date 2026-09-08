@@ -13,6 +13,7 @@
  * otherwise would be the one thing here worth being angry about.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ForgeAccount, ForgeKindInfo } from "../../../electron/ipc-types.ts";
@@ -45,7 +46,7 @@ export function ForgeSettings() {
 		<div className="pt-8">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("forge.title")}</h1>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
-				连接代码托管账号，统一查看和审查 Pull Request。支持自建实例。
+				{translate("forge.intro")}
 			</p>
 
 			<SectionTitle>{t("common.account")}</SectionTitle>
@@ -142,7 +143,7 @@ export function ForgeSettings() {
 				<ForgeSignIn kinds={kinds} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
 			) : (
 				<GhostButton icon={<Plus size={14} strokeWidth={2} />} onClick={() => setAdding(true)}>
-					添加账号
+					{translate("prList.addAccount")}
 				</GhostButton>
 			)}
 
@@ -158,8 +159,7 @@ export function ForgeSettings() {
 			 */}
 			<p className="mt-8 flex max-w-[600px] items-start gap-2 pb-8 text-detail leading-relaxed text-ink-faint">
 				<ShieldCheck size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" />
-				令牌加密后存在 ~/.lyra/forges.json（权限
-				0600），密钥在同目录的 vault.key，不会写进 settings.json，也不会同步到移动端。界面永远不会把它读回来。能读到你主目录的程序也能解开它——介意的话，给令牌设一个短一点的有效期。
+				{translate("forge.tokenStorageInline")}
 			</p>
 		</div>
 	);

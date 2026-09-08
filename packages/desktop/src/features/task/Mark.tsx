@@ -6,6 +6,7 @@
  * looked identical whether the run was working, paused or dead.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Check } from "lucide-react";
 import type { TodoItem } from "@lyra/core";
 
@@ -26,7 +27,7 @@ function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?:
 	if (status === "in_progress" && failed) {
 		// Stopped, and not by choice — so the offer is "again" rather than "carry on".
 		return (
-			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center" aria-label="失败">
+			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center" aria-label={translate("mark.failed")}>
 				<span className="block h-[7px] w-[7px] rounded-full bg-danger" />
 			</span>
 		);
@@ -34,7 +35,7 @@ function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?:
 	if (status === "in_progress" && paused) {
 		// Two bars: stopped where it stands, rather than finished or failed.
 		return (
-			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center gap-[2px]" aria-label="已暂停">
+			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center gap-[2px]" aria-label={translate("mark.paused")}>
 				<span className="block h-[8px] w-[2px] rounded-[1px] bg-ink-faint" />
 				<span className="block h-[8px] w-[2px] rounded-[1px] bg-ink-faint" />
 			</span>

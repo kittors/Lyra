@@ -10,13 +10,14 @@
  * and asking each time would shell out to `mdfind` on each of them.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import type { OpenTarget } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
 import { available, bridge } from "../../services/index.ts";
 
 /** Revealing is the one target every platform has, and the one worth falling back to. */
-const REVEAL: OpenTarget = { id: "reveal", label: "在文件管理器中显示", aliases: [] };
+const REVEAL: OpenTarget = { id: "reveal", label: translate("openTarget.reveal"), aliases: [] };
 
 let pending: Promise<OpenTarget[]> | null = null;
 let loaded: OpenTarget[] | null = null;
@@ -78,7 +79,7 @@ export function matchTarget(targets: OpenTarget[], stored: string | undefined): 
  * came out as 「在 在访达中显示 中打开」. Its own label is already the whole phrase.
  */
 export function openLabel(target: OpenTarget): string {
-	return target.id === "reveal" ? target.label : `在 ${target.label} 中打开`;
+	return target.id === "reveal" ? target.label : translate("openTarget.openIn", { app: target.label });
 }
 
 /** The target the settings currently name, ready to be shown and acted on. */

@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type { Language } from "@codemirror/language";
 import { Check, Copy, Play } from "lucide-react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -75,7 +76,7 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 			{SHELL.has(lang.toLowerCase()) && commandFrom(code) && (
 				<button
 					type="button"
-					data-ly-tip="在终端运行"
+					data-ly-tip={translate("codeBlock.runInTerminal")}
 					onClick={() => useSide.getState().runInTerminal(commandFrom(code))}
 					className="absolute top-2 right-8 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
 				>
@@ -84,7 +85,7 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 			)}
 			<button
 				type="button"
-				data-ly-tip="复制"
+				data-ly-tip={translate("common.copy")}
 				onClick={() => {
 					void navigator.clipboard.writeText(code);
 					setCopied(true);

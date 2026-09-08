@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { FileWarning } from "lucide-react";
 import type { FileContents } from "../../../electron/ipc-types.ts";
 import { CodeEditor } from "../editor/index.ts";
@@ -114,8 +115,8 @@ export function FileViewer({
 			{!richPreview && ["image", "video", "audio", "sheet", "pdf", "document"].includes(kind) ? (
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
 					<FileWarning size={26} strokeWidth={1.4} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">手机端暂不预览这种文件。</p>
-					<p className="text-detail text-ink-faint">可以查看项目里的文本和代码文件。</p>
+					<p className="text-label text-ink-muted">{translate("fileViewer.mobileNoPreview")}</p>
+					<p className="text-detail text-ink-faint">{translate("fileViewer.textAndCode")}</p>
 				</div>
 			) : kind === "image" ? (
 				// Zoom and pan, because an icon and a screenshot are both images and neither is
@@ -140,7 +141,7 @@ export function FileViewer({
 			) : kind === "binary" ? (
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
 					<FileWarning size={26} strokeWidth={1.4} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">二进制文件，无法以文本显示。</p>
+					<p className="text-label text-ink-muted">{translate("fileViewer.binary")}</p>
 					<p className="text-detail text-ink-faint">{formatBytes(contents.bytes)}</p>
 				</div>
 			) : kind === "markdown" && !showSource ? (

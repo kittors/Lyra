@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -79,8 +80,8 @@ export function MessageActions({
 			)}
 			<button
 				type="button"
-				data-ly-tip="复制"
-				aria-label="复制这条消息"
+				data-ly-tip={translate("common.copy")}
+				aria-label={translate("messageActions.copyThis")}
 				onClick={() => {
 					void navigator.clipboard.writeText(text).then(() => setCopied(true));
 				}}

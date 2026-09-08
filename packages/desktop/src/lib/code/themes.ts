@@ -3,6 +3,8 @@
  * Inspired by Claude Code theme selections and modern editor palettes.
  */
 
+import { translate } from "../../i18n/translate.ts";
+
 export interface CodeThemeSpec {
 	id: string;
 	label: string;
@@ -61,7 +63,7 @@ export const LIGHT_CODE_THEMES: CodeThemeSpec[] = [
 		 * repainting the window. Anything else is a choice the user made.
 		 */
 		id: "lyra-light",
-		label: "Lyra 默认",
+		label: translate("theme.lyraDefault"),
 		mode: "light",
 		inherit: true,
 		background: "#ffffff",
@@ -264,7 +266,7 @@ export const DARK_CODE_THEMES: CodeThemeSpec[] = [
 	{
 		// The dark half of the pair above — the same ANSI slots, dark-theme values.
 		id: "lyra-dark",
-		label: "Lyra 默认",
+		label: translate("theme.lyraDefault"),
 		mode: "dark",
 		inherit: true,
 		background: "#171717",

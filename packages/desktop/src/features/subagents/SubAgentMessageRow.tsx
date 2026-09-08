@@ -8,6 +8,7 @@
  * - ThinkingBlock
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { memo, useMemo } from "react";
 import type { Message, UserContent } from "@lyra/core";
 import { openFromEvent } from "../image/index.ts";
@@ -60,7 +61,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 											<button
 												key={i}
 												type="button"
-												aria-label="预览图片"
+												aria-label={translate("sideMessage.previewImage")}
 												onClick={(event) =>
 													openFromEvent(
 														event,
@@ -72,7 +73,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 											>
 												<img
 													src={`data:${block.mimeType};base64,${block.data}`}
-													alt="附图"
+													alt={translate("sideMessage.attachedImage")}
 													className="h-14 w-20 object-cover"
 												/>
 											</button>

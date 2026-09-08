@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 
@@ -46,7 +47,7 @@ export function ShowMore({
 				>
 					{/* The count is the part that changes on each press, and it is what the roll is for:
 					    five more rows appeared, and this is the line that says how many are left. */}
-					<RollingText>{`展开显示 (${hidden})`}</RollingText>
+					<RollingText>{translate("showMore.expand", { n: hidden })}</RollingText>
 				</button>
 			)}
 			{canCollapse && (
@@ -55,7 +56,7 @@ export function ShowMore({
 					onClick={onCollapse}
 					className="text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
 				>
-					收起
+					{translate("common.collapse")}
 				</button>
 			)}
 		</div>

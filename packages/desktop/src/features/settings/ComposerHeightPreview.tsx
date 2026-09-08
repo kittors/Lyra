@@ -11,6 +11,7 @@
  * 影响。
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ArrowUp, Camera, Plus } from "lucide-react";
 
 export function ComposerHeightPreview({ lines }: { lines: number }) {
@@ -40,7 +41,7 @@ export function ComposerHeightPreview({ lines }: { lines: number }) {
 				className="ly-composer-text text-ink-faint transition-[min-height] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 				style={{ minHeight: `calc(${lines} * 1.625em + 24px)` }}
 			>
-				输入消息，/ 命令，@ 引用
+				{translate("composerPreview.placeholder")}
 			</div>
 			<div className="flex items-center justify-between gap-1 px-3 pt-0 pb-2.5">
 				<div className="flex shrink-0 items-center gap-1 text-ink-faint">

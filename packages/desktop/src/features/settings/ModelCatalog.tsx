@@ -1,3 +1,4 @@
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import { MODEL_CATALOG_PROVIDERS, MODEL_CATALOG_SOURCE, type CatalogMatch } from "@lyra/core/model-catalog";
 import { useMemo, useState } from "react";
 import { TextInput } from "./inputs.tsx";
@@ -38,7 +39,10 @@ export function ModelCatalog({ match, onApply }: { match: CatalogMatch | null; o
 					</button>
 				))}
 			</div>}
-			<p className="text-detail text-ink-faint">models.dev · {new Date(MODEL_CATALOG_SOURCE.updatedAt).toLocaleDateString()} · {MODEL_CATALOG_PROVIDERS.length} 个供应商。目录价用于估算，中转实际账单以供应商为准。</p>
+			<p className="text-detail text-ink-faint">{translate("modelCatalog.line", {
+					date: new Date(MODEL_CATALOG_SOURCE.updatedAt).toLocaleDateString(activeLocale()),
+					n: MODEL_CATALOG_PROVIDERS.length,
+				})}</p>
 		</div>
 	);
 }

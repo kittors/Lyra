@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useId, useMemo, useState } from "react";
 import { rankCommands, resolveCommand } from "@lyra/core/commands-view";
 import { bridge } from "../../services/index.ts";
@@ -20,7 +21,7 @@ export function useCommands(text: string, cwd: string, field: React.RefObject<HT
 		void bridge.commands.list(cwd).then((result) => {
 			if (alive) setCatalog({ cwd, entries: commandEntries(result.commands, result.skills ?? []) });
 		}).catch((cause) => {
-			if (alive) useApp.getState().notify(`读取命令失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			if (alive) useApp.getState().notify(translate("commands.readFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		});
 		return () => { alive = false; };
 	}, [cwd, nonce, commandMode]);

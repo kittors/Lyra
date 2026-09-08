@@ -12,6 +12,8 @@
  */
 
 /** A day's total, keyed `YYYY-MM-DD` in local time. */
+import { translate } from "../../i18n/translate.ts";
+
 export interface DayUsage {
 	key: string;
 	date: Date;
@@ -125,7 +127,7 @@ export function monthLabels(grid: DayUsage[][]): { column: number; text: string 
 			seen = month;
 			return;
 		}
-		labels.push({ column: index, text: `${month + 1}月` });
+		labels.push({ column: index, text: translate("heatmap.month", { n: month + 1 }) });
 		seen = month;
 		lastAt = index;
 	});

@@ -111,7 +111,7 @@ export function QuestionNav({ questions, viewport, edge, onSelect }: {
 	 * margins, which is what `Conversation` pads to at that width.
 	 */
 	return (
-		<nav ref={nav} className={`ly-question-nav absolute inset-y-3 z-20 flex w-7 items-center ${edge ? "left-0" : "left-3"}`} aria-label="用户问题导航">
+		<nav ref={nav} className={`ly-question-nav absolute inset-y-3 z-20 flex w-7 items-center ${edge ? "left-0" : "left-3"}`} aria-label={translate("questionNav.label")}>
 			<div ref={rail} role="toolbar" tabIndex={-1} aria-label={translate("questionNav.pick")} className="ly-question-rail relative w-full"
 			onMouseLeave={() => { engaged.current = false; setHovered(null); setClickedWidths(null); setCenter(position); }}
 			onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) { engaged.current = false; setHovered(null); setClickedWidths(null); setCenter(position); } }}

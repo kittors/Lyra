@@ -51,7 +51,7 @@ export function IndexSettings() {
 		<div className="pt-8">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("index.title")}</h1>
 			<p className="mt-2 max-w-[580px] pb-7 text-label leading-relaxed text-ink-muted">
-				索引记录函数、类、接口、类型和常量的<strong className="font-medium text-ink">{t("index.definitions")}</strong>{t("index.definitionsDetail")}
+				{t("index.recordsWhat")}<strong className="font-medium text-ink">{t("index.definitions")}</strong>{t("index.definitionsDetail")}
 			</p>
 
 			{!workspace ? (

@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
@@ -198,7 +199,7 @@ export function RunningIndicator() {
 			{!retrying && compactedAt !== null && now - compactedAt < COMPACTED_NOTICE_MS && (
 				<>
 					<span className="text-ink-faint">·</span>
-					<span className="ly-fade-in truncate text-ink-faint">已压缩较早的对话</span>
+					<span className="ly-fade-in truncate text-ink-faint">{translate("running.compacted")}</span>
 				</>
 			)}
 			{/*

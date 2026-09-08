@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { FolderGit2, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -85,7 +86,7 @@ export function WorktreesSettings() {
 			<div>
 				<h2 className="text-title font-semibold text-ink">Worktrees</h2>
 				<p className="mt-1 text-label text-ink-muted">
-					管理与配置 Git 工作树（Worktrees），使主会话与子任务可以在完全独立的代码分支和目录中并行工作。
+					{translate("worktrees.intro")}
 				</p>
 			</div>
 
@@ -192,7 +193,7 @@ export function WorktreesSettings() {
 					className="flex items-center gap-1 text-detail text-ink-muted hover:text-ink"
 				>
 					<RefreshCw size={12} className={refreshing ? "ly-spin" : ""} />
-					刷新
+					{translate("common.refresh")}
 				</button>
 			</div>
 			{worktrees.length === 0 ? (
@@ -222,7 +223,7 @@ export function WorktreesSettings() {
 									onClick={() => void bridge.workspace.reveal(tree.path)}
 									className="rounded-md px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 								>
-									在访达中显示
+									{translate("worktrees.revealInFinder")}
 								</button>
 								<button
 									type="button"

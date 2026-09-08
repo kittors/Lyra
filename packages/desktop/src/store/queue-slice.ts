@@ -14,6 +14,7 @@
  * 那几条仍旧留在条上，等人自己决定还发不发。
  */
 
+import { translate } from "../i18n/translate.ts";
 import type { UserContent } from "@lyra/core";
 import type { AppState } from "./index.ts";
 
@@ -139,7 +140,7 @@ export function queueSlice(set: Set, get: Get): QueueSlice {
 			if (!accepted) putBack(sessionId, taken.entry, taken.at);
 		} catch (cause) {
 			putBack(sessionId, taken.entry, taken.at);
-			get().notify(`排队的消息没能发出去：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			get().notify(translate("queue.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		} finally {
 			sending.delete(sessionId);
 		}

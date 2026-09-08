@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { Archive, ArchiveRestore, Folder, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -63,7 +64,7 @@ export function ArchivedSettings() {
 				<div className="min-w-0">
 					<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">{t("archived.title")}</h1>
 					<p className="mt-1.5 text-label leading-relaxed text-ink-muted">
-						归档只是把会话移出侧边栏，记录和用量都还在。取消归档即可放回原来的项目下。
+						{translate("archived.intro")}
 					</p>
 				</div>
 
@@ -123,7 +124,7 @@ export function ArchivedSettings() {
 							<div className="flex items-center gap-2 pb-2">
 								<Folder size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
 								<ScrollText text={group.name} className="min-w-0 text-label text-ink" />
-								<span className="shrink-0 text-detail text-ink-faint">{group.sessions.length} 个聊天</span>
+								<span className="shrink-0 text-detail text-ink-faint">{t("archived.chatCount", { n: group.sessions.length })}</span>
 							</div>
 
 							<div className="overflow-hidden rounded-[12px] border border-line">
@@ -183,7 +184,8 @@ function Row({
 			<button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" data-ly-tip={t("common.open")}>
 				<ScrollText text={sessionTitle(session.title)} className="text-label text-ink" />
 				<span className="mt-0.5 block text-detail text-ink-faint">
-					{formatDate(session.updatedAt)} · {session.messageCount} 条消息
+					{formatDate(session.updatedAt)}
+					{t("archived.messageCount", { n: session.messageCount })}
 				</span>
 			</button>
 

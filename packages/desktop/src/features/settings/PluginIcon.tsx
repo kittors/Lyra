@@ -21,6 +21,7 @@
  * as much a part of what they shipped as the name. Where none was declared the mark stays grey,
  * which is the difference — nothing is being made up to fill the gap.
  */
+import { translate } from "../../i18n/translate.ts";
 import { Blocks, FileText, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -42,9 +43,9 @@ export function safeColour(raw: string | undefined): string | null {
 
 /** Which glyph stands for each kind, and what it is called when the mark needs a name. */
 const MARKS: Record<BundleKind, { Glyph: typeof Blocks; label: string }> = {
-	mcp: { Glyph: Server, label: "MCP 服务" },
-	plugin: { Glyph: Blocks, label: "插件" },
-	skill: { Glyph: FileText, label: "技能" },
+	mcp: { Glyph: Server, label: translate("pluginIcon.mcp") },
+	plugin: { Glyph: Blocks, label: translate("pluginIcon.plugin") },
+	skill: { Glyph: FileText, label: translate("pluginIcon.skill") },
 };
 
 /**
@@ -79,7 +80,7 @@ function KindMark({ kind, brandColor, size }: { kind: BundleKind; brandColor?: s
 			/*
 			 * Named for a screen reader and silent to everyone else. No tooltip: the mark always sits
 			 * beside the bundle's name, under a heading that already says which of the three kinds is
-			 * being listed, so a hover saying "MCP 服务" is a third copy of something nobody asked.
+			 * being listed, so a hover saying translate("pluginIcon.mcp") is a third copy of something nobody asked.
 			 */
 			aria-label={label}
 			style={{

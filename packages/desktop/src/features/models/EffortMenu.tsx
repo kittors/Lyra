@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
 /*
  * From the leaf, not the barrel.
@@ -20,7 +21,7 @@ type Translate = (key: MessageKey) => string;
 
 export function effortLabel(level: ThinkingLevel, model?: ModelConfig | null, t?: Translate): string {
 	const options = resolveModelThinkingOptions(model);
-	if (options.length === 0 || level === "off") return t?.("thinking.off") ?? "关闭";
+	if (options.length === 0 || level === "off") return t?.("thinking.off") ?? translate("common.close");
 	const selected = options.find((option: ThinkingOption) => option.id === level)
 		?? options.find((option: ThinkingOption) => option.isDefault)
 		?? options[0];
@@ -265,7 +266,7 @@ function DotSlider({
 				step={1}
 				value={value}
 				disabled={disabled}
-				aria-label="推理强度"
+				aria-label={translate("effort.title")}
 				onChange={(e) => onChange(Number(e.target.value))}
 				className="absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0 disabled:cursor-not-allowed"
 			/>

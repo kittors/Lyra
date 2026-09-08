@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { FileText } from "lucide-react";
 import { useState } from "react";
 import type { ContextBreakdown } from "../../../electron/ipc-types.ts";
@@ -14,7 +15,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 	const tokens = detail.segments.filter((segment) => segment.key === "memory" || segment.key === "projectMemory")
 		.reduce((total, segment) => total + segment.tokens, 0);
 	return (
-		<Disclosure variant="compact" title="记忆文件" open={open} onToggle={() => setOpen(!open)} trailing={
+		<Disclosure variant="compact" title={translate("memoryFiles.title")} open={open} onToggle={() => setOpen(!open)} trailing={
 			<span className="flex gap-2 text-detail tabular-nums text-ink-faint">
 				<span>{formatTokens(tokens)}</span><span className="w-[44px] text-right">{files.length}</span>
 			</span>
@@ -31,7 +32,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 					<span className="shrink-0 tabular-nums">{formatTokens(file.tokens)}</span>
 				</button>
 			))}
-			{!files.length && <p className="py-1 text-detail text-ink-faint">当前未加载项目指令或项目记忆</p>}
+			{!files.length && <p className="py-1 text-detail text-ink-faint">{translate("memoryFiles.none")}</p>}
 		</Disclosure>
 	);
 }

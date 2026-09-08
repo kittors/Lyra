@@ -7,6 +7,8 @@
  * cannot load `.tsx` — so the answerable half lives in a file the test runner can import.
  */
 
+import { translate } from "../../i18n/translate.ts";
+
 export type Block =
 	| { kind: "heading"; level: number; text: string; align?: Align }
 	| { kind: "paragraph"; text: string }
@@ -412,7 +414,7 @@ function parseDetails(lines: string[], start: number): { block: Block; next: num
 		.replace(/<\/details>\s*$/i, "");
 
 	const summaryMatch = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(body);
-	const summary = summaryMatch ? summaryMatch[1].trim() : "详情";
+	const summary = summaryMatch ? summaryMatch[1].trim() : translate("common.details");
 	const inner = summaryMatch ? body.replace(summaryMatch[0], "") : body;
 
 	return { block: { kind: "details", summary, children: parseBlocks(inner.split("\n")) }, next: end + 1 };

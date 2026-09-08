@@ -10,6 +10,7 @@
  * drawing of it — a revalidation behind real content must leave that content alone.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 
 /**
@@ -85,7 +86,7 @@ export function SkeletonRow({ index = 0 }: { index?: number }) {
  *
  * `label` is what a screen reader is told instead of the shapes, which mean nothing to it.
  */
-export function SkeletonGrid({ count = 6, label = "正在读取" }: { count?: number; label?: string }) {
+export function SkeletonGrid({ count = 6, label = translate("common.reading") }: { count?: number; label?: string }) {
 	return (
 		<div className="pt-6" role="status" aria-label={label}>
 			<div className="grid grid-cols-1 gap-x-4 @2xl:grid-cols-2">
@@ -98,7 +99,7 @@ export function SkeletonGrid({ count = 6, label = "正在读取" }: { count?: nu
 }
 
 /** A stack of settings rows, matching the list they stand in for. */
-export function SkeletonList({ count = 5, label = "正在读取" }: { count?: number; label?: string }) {
+export function SkeletonList({ count = 5, label = translate("common.reading") }: { count?: number; label?: string }) {
 	return (
 		<div role="status" aria-label={label}>
 			{Array.from({ length: count }, (_, index) => (

@@ -11,6 +11,7 @@
  * and back to answer that is three screens for one line of text.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Plus, CircleAlert, Library, X } from "lucide-react";
 import { useState } from "react";
@@ -56,7 +57,7 @@ export function RegistrySources({
 	return (
 		<Overlay onClose={onClose} width={520}>{(dismiss) => <>
 			<Scroller contentClassName="px-5 py-4">
-				<div className="flex items-center justify-between"><h2 className="flex items-center gap-2.5 text-body font-semibold text-ink"><Library size={20} className="text-accent" />插件市场</h2><button type="button" aria-label="关闭插件市场" data-ly-tip="关闭" onClick={() => dismiss()} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint hover:bg-card-hover hover:text-ink"><X size={16} /></button></div>
+				<div className="flex items-center justify-between"><h2 className="flex items-center gap-2.5 text-body font-semibold text-ink"><Library size={20} className="text-accent" />{translate("registry.title")}</h2><button type="button" aria-label={translate("registry.close")} data-ly-tip={translate("common.close")} onClick={() => dismiss()} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint hover:bg-card-hover hover:text-ink"><X size={16} /></button></div>
 				<p className="mt-1 text-detail leading-relaxed text-ink-muted">
 					{t("registry.intro")}
 				</p>

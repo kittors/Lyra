@@ -356,7 +356,7 @@ export const Conversation = memo(function Conversation() {
            * Folded rather than removed, so the height goes continuously — which is the whole
            * reason it was made to stay put in the first place.
            */}
-          {range.end < allRuns.length && <button type="button" onClick={range.later} className="my-3 flex h-7 w-full items-center justify-center rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted">显示后面的 {Math.min(WINDOW_STEP, allRuns.length - range.end)} 条</button>}
+          {range.end < allRuns.length && <button type="button" onClick={range.later} className="my-3 flex h-7 w-full items-center justify-center rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted">{translate("conversation.showLaterN", { n: Math.min(WINDOW_STEP, allRuns.length - range.end) })}</button>}
           {range.end === allRuns.length && <>
           <div className="ly-reveal" data-open={running && !answering && !compacting} aria-hidden={!running || answering || compacting}>
             <div>

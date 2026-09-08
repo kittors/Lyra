@@ -18,6 +18,8 @@
  */
 
 /** Prettier's own options, restated as the subset we expose and persist. */
+import { translate } from "../../i18n/translate.ts";
+
 export interface FormatOptions {
 	tabWidth: number;
 	useTabs: boolean;
@@ -118,7 +120,7 @@ function loadPlugin(name: string): Promise<unknown> {
 				case "graphql":
 					return import("prettier/plugins/graphql");
 				default:
-					return Promise.reject(new Error(`未知的格式化插件：${name}`));
+					return Promise.reject(new Error(translate("format.unknownPlugin", { name })));
 			}
 		})();
 		loaded.set(name, pending);

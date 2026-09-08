@@ -17,6 +17,7 @@
  * difference — that is the whole design. What *does* differ is which methods answer: see `host.ts`.
  */
 
+import { translate } from "../i18n/translate.ts";
 import type { LyraApi } from "../../electron/ipc-types.ts";
 
 /**
@@ -39,8 +40,8 @@ function bridgeOrThrow(): LyraApi {
 	const api = scope.lyra ?? scope.window?.lyra;
 	if (!api) {
 		throw new Error(
-			"window.lyra 不存在——preload 没有跑起来。在浏览器里直接打开渲染进程会这样；" +
-				"应用里出现这个则说明 preload 加载失败，看主进程的日志。",
+			translate("bridge.missing1") +
+				translate("bridge.missing2"),
 		);
 	}
 	return api;

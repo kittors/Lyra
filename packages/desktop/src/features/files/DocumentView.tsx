@@ -15,6 +15,7 @@
  * throws away the layout, which for a Word document is most of what the author did.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
@@ -62,7 +63,7 @@ export function WordView({ path }: { path: string }) {
 				 * IPC already carries the project boundary and hands back the bytes directly.
 				 */
 				const bytes = await bridge.files.bytes(path);
-				if (!bytes) throw new Error("读不到这个文件");
+				if (!bytes) throw new Error(translate("document.unreadable"));
 				if (!live) return;
 				const blob = new Blob([bytes as unknown as BlobPart]);
 
@@ -95,7 +96,7 @@ export function WordView({ path }: { path: string }) {
 		<div className="relative min-h-0 flex-1 overflow-auto bg-[var(--color-card)]">
 			{error && (
 				<div className="flex h-full items-center justify-center px-6 text-center">
-					<Text size="label" tone="muted">{`打不开这个文档：${error}`}</Text>
+					<Text size="label" tone="muted">{translate("document.cannotOpen", { error })}</Text>
 				</div>
 			)}
 			<div ref={host} className={`ly-docx-host ${ready ? "" : "opacity-0"}`} />

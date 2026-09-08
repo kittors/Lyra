@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
@@ -172,7 +173,7 @@ export function FileDiffTree({
 							<BinaryDiff cwd={cwd} file={file} />
 						) : file.hunks.length === 0 ? (
 							<Text as="p" size="detail" tone="faint" className="px-3 py-4 text-center">
-								这个文件没有可以按行对比的内容。
+								{translate("diffList.noLineDiff")}
 							</Text>
 						) : (
 							<DiffView hunks={file.hunks} path={file.path} />

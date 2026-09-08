@@ -14,6 +14,7 @@
  * an empty list.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
@@ -128,11 +129,11 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 								onClick={() => void bridge.system.openExternal(help)}
 								className="flex items-center gap-0.5 text-caption text-ink-faint transition-colors hover:text-ink"
 							>
-								去创建
+								{translate("forgeSignIn.create")}
 								<ExternalLink size={10} strokeWidth={2} />
 							</button>
 						)}
-						{info?.scopes && <span className="text-caption text-ink-faint">需要 {info.scopes}</span>}
+						{info?.scopes && <span className="text-caption text-ink-faint">{translate("forgeSignIn.needsScopes")} {info.scopes}</span>}
 					</div>
 					<SecretInput value={token} onChange={setToken} placeholder={t("forge.pasteToken")} />
 				</div>

@@ -1,3 +1,4 @@
+import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import type { AppState } from "./index.ts";
 import { howItStopped, prune, rebuildToolRuns, todosFrom, type Cache } from "./derive.ts";
@@ -30,7 +31,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	} catch (cause) {
 		if (get().activeSessionId === meta.id) {
 			set({ loadingSession: false });
-			get().notify(`读取会话失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			get().notify(translate("sessionRead.failed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
 		return;
 	} finally {

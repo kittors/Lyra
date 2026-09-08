@@ -10,6 +10,7 @@
  * The list is separate from the fetching so a test can mount it with numbers of its own.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import type { ExtensionDiagnostic, ExtensionStats } from "@lyra/core";
 import { TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -81,7 +82,7 @@ export function ExtensionStatsList({
 							<span className="min-w-2 flex-1" />
 							{one.failures > 0 && (
 								<span className="text-caption text-ink-faint" data-extension-failures>
-									已失败 {one.failures} 次
+									{translate("extHost.failedTimes", { n: one.failures })}
 								</span>
 							)}
 						</div>
@@ -119,7 +120,8 @@ export function ExtensionStatsList({
 						)}
 						{one.lastError && (
 							<p className="mt-2 text-detail text-danger" data-extension-last-error>
-								最近一次出错：<span className="font-mono">{one.lastError.event}</span> — {one.lastError.message}
+								{translate("extHost.lastError")}
+								<span className="font-mono">{one.lastError.event}</span> — {one.lastError.message}
 							</p>
 						)}
 					</div>
@@ -130,7 +132,7 @@ export function ExtensionStatsList({
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							宿主记下的 {diagnostics.length} 条
+							{translate("extHost.recorded", { n: diagnostics.length })}
 						</div>
 						{diagnostics.map((diagnostic, i) => (
 							// Diagnostics are an append-only log; position is identity.

@@ -11,6 +11,7 @@
  * nothing, and reports nothing.
  */
 
+import { translate } from "../i18n/translate.ts";
 import { methodFor } from "@lyra/contract";
 
 import { bridge } from "./bridge.ts";
@@ -53,7 +54,7 @@ export function available(group: string, method: string): boolean {
  */
 export function unavailableBecause(group: string, method: string): string | undefined {
 	const entry = methodFor(`${group}.${method}`);
-	if (!entry) return `未知的方法 ${group}.${method}`;
+	if (!entry) return translate("host.unknownMethod", { group, method });
 	if (host() === "desktop" || entry.remote) return undefined;
 	return entry.why;
 }

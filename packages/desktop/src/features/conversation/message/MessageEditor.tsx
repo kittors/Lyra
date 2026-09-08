@@ -15,6 +15,7 @@
  * is fixed here on purpose — a size prop would be an invitation for them to drift again.
  */
 
+import { translate } from "../../../i18n/translate.ts";
 import { Textarea } from "../../../ui/inputs/NativeField.tsx";
 import { useEffect, useRef } from "react";
 import { OverlayScrollbar } from "../../../ui/scroll/OverlayScrollbar.tsx";
@@ -24,7 +25,7 @@ export function MessageEditor({
 	onChange,
 	onSubmit,
 	onCancel,
-	confirmLabel = "发送",
+	confirmLabel = translate("common.send"),
 	/**
 	 * How tall it may grow before it scrolls.
 	 *
@@ -82,7 +83,7 @@ export function MessageEditor({
 					onClick={onCancel}
 					className="h-7 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 				>
-					取消
+					{translate("common.cancel")}
 				</button>
 				<button
 					type="button"

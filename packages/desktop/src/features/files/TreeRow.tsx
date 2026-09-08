@@ -7,6 +7,7 @@
  * where the browser's own text-drag keeps trying to take over.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { ChevronRight } from "lucide-react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
@@ -117,7 +118,7 @@ export function TreeRow({
 
 			{dirty && !renaming && (
 				// The dot is the only trace an unsaved file leaves in the tree.
-				<span data-ly-tip="有未保存的修改" className="h-[5px] w-[5px] shrink-0 rounded-full bg-info" />
+				<span data-ly-tip={translate("treeRow.unsaved")} className="h-[5px] w-[5px] shrink-0 rounded-full bg-info" />
 			)}
 		</div>
 	);

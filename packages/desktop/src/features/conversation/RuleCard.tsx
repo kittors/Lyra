@@ -59,7 +59,7 @@ export function RuleCard({ match }: { match: RuleMatch }) {
           {match.rules.map((rule) => (
             <div key={`${rule.name}-${rule.excerpt}`} className="flex flex-col gap-1">
               <p className="text-detail text-ink-muted">
-                <code>{rule.name}</code> · 监视{where(rule)}
+                <code>{rule.name}</code> {translate("ruleCard.watches", { what: where(rule) })}
               </p>
               {/*
                * The excerpt is the reason to open this at all. Wrapping rather than scrolling:

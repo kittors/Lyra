@@ -1,3 +1,4 @@
+import { translate } from "../../i18n/translate.ts";
 import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import type { Settings } from "@lyra/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@lyra/core/model-roles";
@@ -78,9 +79,9 @@ export function AgentsSettings() {
 		<div className="pt-8">
 			<div className="flex items-center justify-between gap-3"><h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1>{catalogue.enabled && <button type="button" className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-label text-white" onClick={() => setEditor({ projectId: catalogue.projectId })}><Plus size={16} />{t("agents.add")}</button>}</div>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
-				创建和管理通过 @ 调用的智能体。模型与思考等级即时保存，用于下一次执行。
+				{translate("agentsSettings.intro")}
 			</p>
-			<SectionTitle>可用（{agents.length}）</SectionTitle>
+			<SectionTitle>{translate("agents.availableCount", { n: agents.length })}</SectionTitle>
 			{catalogue.error && <p role="alert" className="mb-3 text-label text-danger">{catalogue.error} <button type="button" onClick={() => void catalogue.refresh()}>{t("common.reload")}</button></p>}
 			{notice && <p role="status" className="mb-3 text-label text-ink-muted">{notice} {undo && <button type="button" className="text-info" onClick={() => { void bridge.agentDefinitions.restore(undo.projectId, undo.token).then(() => { setUndo(null); setNotice(t("agents.restored")); return catalogue.refresh(); }).catch(cause => setError(String(cause))); }}>{t("common.undo")}</button>}</p>}
 			{error && <p role="alert" className="mb-3 text-label text-danger">{error}</p>}

@@ -7,6 +7,7 @@
  * the buttons are separate elements rather than one.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "lucide-react";
 import { useDock } from "../../features/dock/index.ts";
@@ -108,7 +109,7 @@ export function PanelMenu() {
 				})}
 
 				{/* The overflow mark every toolbar uses for "the rest of it". */}
-				<ToolbarButton label="面板" onClick={menu.toggle} active={menu.open}>
+				<ToolbarButton label={translate("toolbar.panels")} onClick={menu.toggle} active={menu.open}>
 					<MoreVertical size={15} strokeWidth={2} />
 				</ToolbarButton>
 			</div>
@@ -116,7 +117,7 @@ export function PanelMenu() {
 			{menu.open && (
 				<Popover anchor={menu.anchor} onClose={menu.close} placement="bottom" align="end" width="default">
 					<MenuBody>
-						<MenuLabel>面板</MenuLabel>
+						<MenuLabel>{t("toolbar.panels")}</MenuLabel>
 						{/*
 						 * Absent, not greyed.
 						 *

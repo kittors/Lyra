@@ -17,6 +17,7 @@
  * cannot click because the window slid out from under you is worse than no strip.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import { useApp } from "../../store/index.ts";
@@ -113,7 +114,7 @@ export function TerminalTabs() {
 							 */}
 							<button
 								type="button"
-								aria-label={`关闭 ${tab.title}`}
+								aria-label={translate("terminal.closeOne", { name: tab.title })}
 								onClick={() => close(tab.id)}
 								className={`rounded p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
 									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
@@ -129,8 +130,8 @@ export function TerminalTabs() {
 			{/* Outside the scroller: "open another" must not be the thing that scrolls out of reach. */}
 			<button
 				type="button"
-				aria-label="新建终端"
-				data-ly-tip="新建终端"
+				aria-label={translate("terminal.new")}
+				data-ly-tip={translate("terminal.new")}
 				onClick={() => void openAnother()}
 				className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 			>

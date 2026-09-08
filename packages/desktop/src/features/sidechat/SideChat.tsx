@@ -62,7 +62,7 @@ export function SideChat() {
 			) : loading && messages.length === 0 ? (
 				<div role="status" className="flex flex-1 items-center justify-center text-label text-ink-faint">{translate("sideChat.loading")}</div>
 			) : messages.length === 0 ? (
-				<PanelEmpty icon={MessageCirclePlus} title="侧边聊天">
+				<PanelEmpty icon={MessageCirclePlus} title={translate("dock.sideChat")}>
 					{translate("sideChat.empty")}
 				</PanelEmpty>
 			) : (
