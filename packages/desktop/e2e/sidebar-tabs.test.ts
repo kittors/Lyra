@@ -535,12 +535,30 @@ test("a band heading pins the same way a project name does", async () => {
 	);
 });
 
-test("switching tab starts the new list at its own top", async () => {
+test("switching tab starts the new list at its own top, and leaves the strip where it was", async () => {
+	/*
+	 * The list's top, not the pane's — and the difference is the whole of this.
+	 *
+	 * A depth into one list means nothing in another, so the new one starts at its beginning. But
+	 * zero is further up than the list begins: above it in the same scroller sit the destinations
+	 * and the strip, which are the same in all four combinations and did not change. Going to zero
+	 * threw those back on screen and shoved everything down by their height — a jump of the band's
+	 * whole height for a switch that replaced nothing in it.
+	 */
 	await selectTab("chats");
 	await scrollTo(600);
+	assert.equal((await state()).strip?.y, 0, "the strip is held before the switch");
+
 	await selectTab("projects");
 	const at = await state();
-	assert.equal(at.scrollTop, 0, `a depth into one list means nothing in another: ${JSON.stringify(at)}`);
+	assert.equal(at.strip?.y, 0, `and still held after it: ${JSON.stringify(at)}`);
+	assert.ok(at.scrollTop > 0, "which costs an offset — the switch keeps one rather than zeroing it");
+
+	// And it is exactly the offset that holds the strip: read where the strip lives in the flow by
+	// going to the actual top, which is the one place the two are the same number.
+	const kept = at.scrollTop;
+	const top = await scrollTo(0);
+	assert.equal(kept, top.railInList, `the new list starts at its own first row: ${JSON.stringify(top)}`);
 });
 
 test("the archive is the same two lists over the conversations you filed away", async () => {
@@ -596,7 +614,10 @@ test("the archive pins its headings too, and closing returns to the live list", 
 		(await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='归档会话']").length`)) > 0,
 		"and the live list is back, offering to archive again",
 	);
-	assert.equal(back.scrollTop, 0, "at its own top");
+	// At the list's own top, with the band above it untouched — see the tab switch above for why
+	// those are two different offsets and why this is the one that does not jump.
+	assert.equal(back.strip?.y, 0, `the strip does not fall out of its rail on the way back: ${JSON.stringify(back)}`);
+	assert.equal(back.scrollTop, (await scrollTo(0)).railInList, "and the live list starts at its own first row");
 });
 
 /**

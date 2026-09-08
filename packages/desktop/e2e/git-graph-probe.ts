@@ -119,6 +119,32 @@ try {
 	check("历史列表渲染出了提交行", opened > 0, `${opened} 行提交`);
 
 	/*
+	 * 图占的宽度，从上往下。
+	 *
+	 * 从前是全表最宽那一行说了算：仓库里但凡有过一处八条分支并行，最上面那几条笔直的提交也要陪着让
+	 * 出八条车道，一百来像素的空白，右边的标题被挤到截断——而定这个宽度的那次合并可能在三周以前。
+	 * 现在每一行只和它上面的一样宽。见 `git/graph.ts` 的 `graphWidths`。
+	 */
+	const widths = await app.evaluate<number[]>(
+		'(() => {' +
+			'const pane = document.querySelector(\'[data-pane="review"]\');' +
+			'if (!pane) return [];' +
+			'return [...pane.querySelectorAll("[data-ly-graph]")].map((s) => Number(s.getAttribute("width")));' +
+		'})()',
+	);
+	const widest = Math.max(...widths, 0);
+	check(
+		"最上面那几条笔直的提交，没有为下面的合并让出车道",
+		widths.length > 2 && widths[0] < widest,
+		`第一行 ${widths[0]}px，全表最宽 ${widest}px，省下 ${(widest - widths[0]).toFixed(0)}px 留给标题`,
+	);
+	check(
+		"宽度只增不减，标题不会随滚动左右走",
+		widths.every((w, i) => i === 0 || w >= widths[i - 1]),
+		`取值依次为 ${[...new Set(widths)].join(", ")}`,
+	);
+
+	/*
 	 * Expand a commit and watch what the loading state looks like before the diff arrives.
 	 *
 	 * Sampled immediately rather than after settling, because the skeleton is only up while the

@@ -57,6 +57,9 @@ export function CommitGraph({
   return (
     <svg
       aria-hidden
+      /* Marked so its width can be read from outside: an icon is an `svg` too, and the width is
+         the thing `graphWidths` is about. See `e2e/git-graph-probe.ts`. */
+      data-ly-graph
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
