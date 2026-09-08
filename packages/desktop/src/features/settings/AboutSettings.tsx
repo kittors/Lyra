@@ -9,7 +9,8 @@ import {
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { check, useUpdate } from "../update/index.ts";
-import { versionNote } from "../update/index.ts";
+import { notesForLocale, versionNote } from "../update/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 import { UpdateDialog } from "../modals/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle } from "./controls.tsx";
@@ -21,6 +22,12 @@ export function AboutSettings() {
 	const [platform, setPlatform] = useState("darwin");
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
+	/*
+	 * 发版说明按读的人的语言挑一段——整份说明七种语言写在同一个 release 正文里，见 `notesForLocale`。
+	 * 界面本来就跟着系统语言走，这一屏是它唯一还在讲中文的地方。
+	 */
+	const { resolvedLocale } = useI18n();
+	const notes = info?.notes ? notesForLocale(info.notes, resolvedLocale) : "";
 
 	useEffect(() => {
 		void bridge.system.platform().then(setPlatform);
@@ -112,15 +119,15 @@ export function AboutSettings() {
 			<SectionTitle>当前版本更新内容</SectionTitle>
 			<Card className="mb-6">
 				<div className="p-4">
-					{info?.notes ? (
+					{notes ? (
 						<Scroller className="max-h-[380px]" contentClassName="pr-2">
 							<div className="mb-3 flex items-center gap-2">
 								<Sparkles size={16} className="text-accent" />
 								<span className="font-medium text-ink">
-									{info.available ? `v${info.latest} 更新详情` : `v${info.current} 发版说明`}
+									{info?.available ? `v${info.latest} 更新详情` : `v${info?.current} 发版说明`}
 								</span>
 							</div>
-							<Markdown text={info.notes} className="text-label" />
+							<Markdown text={notes} className="text-label" />
 						</Scroller>
 					) : (
 						<div className="flex flex-col items-center justify-center py-6 text-center text-ink-faint">

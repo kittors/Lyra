@@ -8,6 +8,7 @@
  */
 
 export { UpdateBadge } from "./UpdateBadge.tsx";
+export { notesForLocale } from "./notes-locale.ts";
 export { check, restartCheckTimer, useUpdate } from "./store.ts";
 export type { Info } from "./store.ts";
 export { confirmLabel, controlsFor, fractionOf, mb, readyNote, versionNote } from "./view.ts";

@@ -17,7 +17,8 @@ import { Pause, Play, Sparkles, X } from "lucide-react";
 
 import { useApp } from "../../store/index.ts";
 import type { Info } from "../update/index.ts";
-import { confirmLabel, controlsFor, fractionOf, mb, readyNote, type Phase } from "../update/index.ts";
+import { confirmLabel, controlsFor, fractionOf, mb, notesForLocale, readyNote, type Phase } from "../update/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Markdown } from "../conversation/index.ts";
@@ -35,6 +36,9 @@ export function UpdateDialog({
 	const fraction = fractionOf(phase);
 	// Which of the four controls belong in this phase — the rules, and their tests, are in `view.ts`.
 	const controls = controlsFor(phase);
+	// 跟「关于」页同一段说明、同一种挑法——见 `notesForLocale`。两处显示的是同一份东西。
+	const { resolvedLocale } = useI18n();
+	const notes = info.notes ? notesForLocale(info.notes, resolvedLocale) : "";
 
 	/**
 	 * The main button, in whichever phase it was pressed.
@@ -91,10 +95,10 @@ export function UpdateDialog({
 			{/*
 			 * The release notes rendered with Markdown.
 			 */}
-			{info.notes && (
+			{notes && (
 				<Scroller className="max-h-[260px] border-t border-line-soft bg-surface-alt/40" contentClassName="px-5 py-3.5">
 					<div className="text-label leading-relaxed text-ink/90">
-						<Markdown text={info.notes} />
+						<Markdown text={notes} />
 					</div>
 				</Scroller>
 			)}
