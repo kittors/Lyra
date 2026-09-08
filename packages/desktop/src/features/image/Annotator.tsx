@@ -191,7 +191,30 @@ export interface Annotator {
 	removeSelected: () => void;
 	/** The annotated image as a PNG data URL, or null before the source has decoded. */
 	render: () => string | null;
+	/**
+	 * Commit the caption being typed right now, if there is one. Returns whether there was.
+	 *
+	 * Anything that turns the drawing into a picture has to call this first. A caption lives in a
+	 * `<textarea>` until it is committed, and what commits it is the field losing focus — but the
+	 * toolbar deliberately does not take focus (`onMouseDown` → `preventDefault`), because pressing
+	 * 粗 while writing a caption must resize that caption rather than end it. So pressing 完成 with
+	 * the cursor still in a caption committed nothing at all: the text was on screen, in a field
+	 * over the canvas, and the canvas is what gets cropped. The picture came out without it.
+	 *
+	 * `true` means something was committed and the canvas has *not* been repainted yet — the repaint
+	 * is an effect, so it lands after React has flushed the state change. Callers wait a frame; see
+	 * `withText` in `ScreenshotOverlay`.
+	 */
+	flushText: () => boolean;
 	// Internals the canvas needs; not for callers.
+	/**
+	 * How `flushText` reaches the caption, which lives in `AnnotateCanvas` rather than here.
+	 *
+	 * A ref rather than state: the canvas fills it in while a caption is being typed and empties it
+	 * afterwards, and nothing renders differently because of it. Lifting the whole editing state up
+	 * here instead would move several hundred lines for one call.
+	 */
+	pendingText: React.RefObject<(() => void) | null>;
 	shapes: Shape[];
 	canvas: React.RefObject<HTMLCanvasElement | null>;
 	setHistory: React.Dispatch<React.SetStateAction<History>>;
@@ -271,6 +294,8 @@ export interface RawPixels {
 export function useAnnotator(src: string | RawPixels | null, options?: AnnotatorOptions): Annotator {
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const image = useRef<Decoded | null>(null);
+	/** Filled in by `AnnotateCanvas` while a caption is being typed. See `flushText`. */
+	const pendingText = useRef<(() => void) | null>(null);
 	const [tool, setTool] = useState<Tool>(options?.initialTool ?? "pen");
 	const [colour, setColour] = useState(options?.initialColour ?? COLOURS[0]!);
 	const [backdrop, setBackdrop] = useState<string | undefined>(undefined);
@@ -526,6 +551,13 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 			setSelected(null);
 		}, [selected]),
 		render: useCallback(() => canvas.current?.toDataURL("image/png") ?? null, []),
+		flushText: useCallback(() => {
+			const commit = pendingText.current;
+			if (!commit) return false;
+			commit();
+			return true;
+		}, []),
+		pendingText,
 		shapes,
 		canvas,
 		setHistory,
@@ -809,6 +841,27 @@ export function AnnotateCanvas({
 		});
 		setTyping(null);
 	}, [typing, setHistory, colour, typeSize, backdrop, display]);
+
+	/*
+	 * Lend the caption to whoever is about to turn this drawing into a picture.
+	 *
+	 * A caption lives in a `<textarea>` over the canvas until something commits it, and what commits
+	 * it is that field losing focus. The toolbar never takes focus — deliberately, so that pressing
+	 * 粗 while writing resizes the caption instead of ending it — so 完成 pressed mid-caption
+	 * committed nothing, and the text the user could plainly see was not in the file. It was on
+	 * screen, in a field; the canvas underneath had never heard of it.
+	 *
+	 * Registered on every change of `typing`, because `commitText` closes over it. Cleared when
+	 * there is nothing being typed, so `flushText` can answer "there was nothing" honestly rather
+	 * than committing a stale closure.
+	 */
+	const { pendingText } = annotator;
+	useEffect(() => {
+		pendingText.current = typing ? commitText : null;
+		return () => {
+			pendingText.current = null;
+		};
+	}, [typing, commitText, pendingText]);
 
 	/** Put an existing caption back into the field it came from. */
 	const editText = useCallback(

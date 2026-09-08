@@ -692,6 +692,72 @@ try {
 	const over = await run<boolean>(`document.querySelector('[data-capture="active"]') === null`).catch(() => true);
 	note(`  下载之后截图${over ? "已退出" : "还开着"}`);
 	if (!over) problems.push("下载完成之后截图没有自动退出");
+
+	// ---- 6. 正在输入的文字也要进图 ---------------------------------------
+	await beat();
+	note("\n【6】还在输入框里的文字，点下载时也要画进图里");
+	/*
+	 * The failure this looks for is silent and total: a caption lives in a `<textarea>` over the
+	 * canvas until it is committed, and what commits it is that field losing focus — which the
+	 * toolbar deliberately never causes, because pressing 粗 while writing has to resize the caption
+	 * rather than end it. So 完成 pressed with the cursor still in a caption produced a picture
+	 * without the words that were plainly on screen, and nothing said so.
+	 *
+	 * Counted in pixels of the caption's own colour, because the state was right the whole time —
+	 * only the bitmap was wrong. `#ef4444` is the default, and a Lyra window has almost none of it.
+	 */
+	const seen = new Set(await readdir(downloads).catch(() => [] as string[]));
+	const justSaved = async (): Promise<string | null> => {
+		const fresh = (await readdir(downloads)).filter((name) => name.endsWith(".png") && !seen.has(name));
+		if (fresh.length !== 1) return null;
+		seen.add(fresh[0]!);
+		return join(downloads, fresh[0]!);
+	};
+	const redPixels = async (file: string): Promise<number> => {
+		const { readFile } = await import("node:fs/promises");
+		const png = await readFile(file);
+		// Through a data URL, because the overlay's `img-src` is `self data: blob:` and stays that
+		// way — and its canvas is the only PNG decoder to hand.
+		return run<number>(`(async () => {
+			const img = new Image();
+			img.src = "data:image/png;base64,${png.toString("base64")}";
+			await img.decode();
+			const c = document.createElement("canvas");
+			c.width = img.width; c.height = img.height;
+			const ctx = c.getContext("2d");
+			ctx.drawImage(img, 0, 0);
+			const d = ctx.getImageData(0, 0, c.width, c.height).data;
+			let n = 0;
+			for (let i = 0; i < d.length; i += 4) if (d[i] > 200 && d[i + 1] < 100 && d[i + 2] < 100) n++;
+			return n;
+		})()`);
+	};
+
+	await pause(900);
+	await app.evaluate(`window.lyra.screenshot.start()`);
+	await pause(1_200);
+	await drag(socket, [region[0], region[1]], [region[2], region[3]]);
+	await pause(400);
+	await pressTip(socket, run, "文字");
+	await pause(300);
+	// Inside the region, clear of its resize grips.
+	await click(socket, region[0] + Math.round((region[2] - region[0]) * 0.3), region[1] + Math.round((region[3] - region[1]) * 0.4));
+	await pause(500);
+	const field = await run<boolean>(`document.querySelector("textarea") !== null`);
+	note(`  选了文字工具并点进选区 → ${field ? "输入框出现了" : "没有输入框"}`);
+	if (!field) problems.push("选了文字工具在选区里点一下，没有出现输入框");
+	await call(socket, "Input.insertText", { text: "测试文字ABC" });
+	await pause(700);
+	const written = await run<string>(`document.querySelector("textarea")?.value ?? ""`);
+	note(`  输入框里 → 「${written}」（不点别处，直接按下载）`);
+	await pressTip(socket, run, "下载截图");
+	await pause(2_800);
+	const saved = await justSaved();
+	const reds = saved ? await redPixels(saved) : -1;
+	note(`  下载下来的图里 → ${reds} 个红色像素（修之前是 0：文字还在输入框里，没进画布）`);
+	if (reds < 200) {
+		problems.push(`正在输入的文字没有画进图里（红色像素 ${reds}）——按下「下载」时输入框里的字还没提交到画布上`);
+	}
 } finally {
 	await stopRecording();
 	await app.stop();

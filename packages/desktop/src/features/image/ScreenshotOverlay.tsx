@@ -584,11 +584,38 @@ export function ScreenshotOverlay() {
 		return out.toDataURL("image/png");
 	}, [annotator, selection, initData]);
 
+	/**
+	 * Commit whatever is being typed, then do the thing that needs the picture.
+	 *
+	 * A caption is a `<textarea>` over the canvas until something commits it, and what commits it is
+	 * that field losing focus — which the toolbar deliberately never causes, so that pressing 粗
+	 * while writing resizes the caption instead of ending it. The cost, reported: type a caption,
+	 * press 完成 without clicking away first, and the picture comes out without the words that were
+	 * plainly on screen. Same for 置顶 and 下载, which take the same crop.
+	 *
+	 * The frame is not optional. `flushText` is a state change, and the canvas is repainted by an
+	 * effect — so at the moment it returns, the caption exists in the history and not yet in any
+	 * bitmap. Two frames rather than one: the repaint is a passive effect, which React runs after
+	 * the commit that schedules it, and cropping in the same frame reads the canvas before it.
+	 */
+	const withText = useCallback(
+		(then: () => void) => {
+			if (!annotator.flushText()) {
+				then();
+				return;
+			}
+			requestAnimationFrame(() => requestAnimationFrame(then));
+		},
+		[annotator],
+	);
+
 	const handleFinish = useCallback(() => {
-		const png = crop();
-		if (!png || !initData) return;
-		leaveThen(() => bridge.screenshot?.finish?.(png, initData.settings));
-	}, [crop, initData, leaveThen]);
+		withText(() => {
+			const png = crop();
+			if (!png || !initData) return;
+			leaveThen(() => bridge.screenshot?.finish?.(png, initData.settings));
+		});
+	}, [withText, crop, initData, leaveThen]);
 
 	/**
 	 * Leave the region on the desktop as a window of its own.
@@ -601,16 +628,18 @@ export function ScreenshotOverlay() {
 	 * standing: a message on top of it would say something the screen has already said.
 	 */
 	const handlePin = useCallback(() => {
-		const png = crop();
-		if (!png || !selection || !initData) return;
-		const at = {
-			x: Math.round(initData.bounds.x + selection.x),
-			y: Math.round(initData.bounds.y + selection.y),
-			width: Math.round(selection.width),
-			height: Math.round(selection.height),
-		};
-		leaveThen(() => void bridge.screenshot?.pin?.(png, at));
-	}, [crop, selection, initData, leaveThen]);
+		withText(() => {
+			const png = crop();
+			if (!png || !selection || !initData) return;
+			const at = {
+				x: Math.round(initData.bounds.x + selection.x),
+				y: Math.round(initData.bounds.y + selection.y),
+				width: Math.round(selection.width),
+				height: Math.round(selection.height),
+			};
+			leaveThen(() => void bridge.screenshot?.pin?.(png, at));
+		});
+	}, [withText, crop, selection, initData, leaveThen]);
 
 	/**
 	 * Write the picture to the download directory, and confirm it in one line.
@@ -625,13 +654,15 @@ export function ScreenshotOverlay() {
 	 * to a local folder is a few milliseconds.
 	 */
 	const handleDownload = useCallback(() => {
-		const png = crop();
-		if (!png || !initData) return;
-		void bridge.screenshot?.download?.(png, initData.settings).then(
-			(result) => leaveWithToast(result?.ok ? { text: "已保存" } : { text: "保存失败", failed: true }),
-			() => leaveWithToast({ text: "保存失败", failed: true }),
-		);
-	}, [crop, initData, leaveWithToast]);
+		withText(() => {
+			const png = crop();
+			if (!png || !initData) return;
+			void bridge.screenshot?.download?.(png, initData.settings).then(
+				(result) => leaveWithToast(result?.ok ? { text: "已保存" } : { text: "保存失败", failed: true }),
+				() => leaveWithToast({ text: "保存失败", failed: true }),
+			);
+		});
+	}, [withText, crop, initData, leaveWithToast]);
 
 	/**
 	 * Begin dragging the toolbar, from wherever it is now.

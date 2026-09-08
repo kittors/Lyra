@@ -92,10 +92,12 @@ function evaluator(socket: string) {
  * the very same page answers instantly. It showed up on the pinned shot, right after a drag, in
  * roughly two runs out of three.
  *
- * It is the protocol, not the app, and that was established rather than assumed — the same window
- * in the same state reveals its close button to the *real* pointer, with Lyra not even frontmost.
- * See the 「真实鼠标」 check in the pinning section. So a move that goes unanswered is retried once
- * and then let go: a duplicate move changes nothing, where a duplicate press would.
+ * It is the protocol, not the app, and that was established rather than assumed: the same window in
+ * the same state reveals its close button to the *real* pointer, with Lyra not even frontmost —
+ * `screenshot-toolbar-probe.ts` warps the system cursor onto it and checks. So an event that goes
+ * unanswered is sent again and then let go. Duplicates are safe here because every assertion in
+ * this file is about a settled end state — the window moved, the window closed — rather than about
+ * a count of events.
  */
 async function mouse(socket: string, type: string, x: number, y: number, buttons = 1): Promise<unknown> {
 	const send = (timeoutMs: number) =>
@@ -112,8 +114,7 @@ async function mouse(socket: string, type: string, x: number, y: number, buttons
 			},
 			timeoutMs,
 		);
-	if (type !== "mouseMoved") return send(30_000);
-	return send(6_000).catch(() => send(6_000).catch(() => undefined));
+	return send(8_000).catch(() => send(8_000).catch(() => undefined));
 }
 
 async function drag(socket: string, from: [number, number], to: [number, number], steps = 10): Promise<void> {
@@ -129,6 +130,36 @@ async function click(socket: string, x: number, y: number): Promise<void> {
 	await mouse(socket, "mousePressed", x, y);
 	await pause(30);
 	await mouse(socket, "mouseReleased", x, y, 0);
+}
+
+/**
+ * Move the *real* pointer into a corner, and say whether it worked.
+ *
+ * Every press in this file is a synthetic event delivered to a window; the system pointer stays
+ * wherever the person at the keyboard left it. That matters for exactly one assertion — a pinned
+ * shot's close button is supposed to be invisible until the pointer arrives — because a real cursor
+ * already sitting where the window opens makes it visible before anything here has touched it. On a
+ * CI runner nothing moves the cursor and it is a no-op; on a developer's machine it is the
+ * difference between a real check and a coin toss.
+ *
+ * `CGWarpMouseCursorPosition` through the Python that ships with the developer tools: no compiler,
+ * no accessibility grant, nothing left on disk. Anywhere it does not work, the caller relaxes the
+ * assertion rather than failing on the environment.
+ */
+async function parkCursor(): Promise<boolean> {
+	if (process.platform !== "darwin") return false;
+	const { execFile } = await import("node:child_process");
+	const { promisify } = await import("node:util");
+	return promisify(execFile)("python3", [
+		"-c",
+		[
+			"import ctypes, ctypes.util",
+			"lib = ctypes.cdll.LoadLibrary(ctypes.util.find_library('ApplicationServices'))",
+			"class P(ctypes.Structure): _fields_ = [('x', ctypes.c_double), ('y', ctypes.c_double)]",
+			"lib.CGWarpMouseCursorPosition.argtypes = [P]",
+			"lib.CGWarpMouseCursorPosition(P(8.0, 8.0))",
+		].join("\n"),
+	]).then(() => true, () => false);
 }
 
 /** Press the control whose tooltip starts with `tip`, at its real coordinates. */
@@ -329,11 +360,24 @@ test("工具栏可以拖到别处，按钮跟着一起走", async () => {
 
 test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖能关", async () => {
 	const region = await frameRegion();
+	// Out of the way first: the window opens where the selection was, and a real cursor already
+	// sitting there reveals the close button before this test has pressed anything.
+	const parked = await parkCursor();
 	assert.ok(await pressTip(overlay, "置顶在桌面"), "工具栏上没有「置顶在桌面」按钮");
 
 	const pinned = await pageFor("pinned-shot");
 	assert.ok(pinned, "按了置顶之后没有出现置顶窗口");
 	const pin = evaluator(pinned);
+	/*
+	 * Front it before driving it.
+	 *
+	 * A pinned shot is shown with `showInactive` — it must not steal the foreground from whatever the
+	 * user turned back to — so it is not the key window, and synthesised input into a window that is
+	 * neither key nor under the system cursor is where `Input.dispatchMouseEvent` hangs. A real hand
+	 * fronts it by pressing on it, which is the first thing it does anyway.
+	 */
+	await call(pinned, "Page.bringToFront").catch(() => {});
+	await pause(300);
 	/*
 	 * A moment later, which is the failure this is really for.
 	 *
@@ -357,7 +401,7 @@ test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖�
 		const b = document.querySelector("[data-pinned-close]");
 		return b ? getComputedStyle(b).opacity : "没有这个按钮";
 	})()`);
-	assert.equal(await closeOpacity(), "0", "鼠标还没放上去，关闭按钮就已经显示了");
+	if (parked) assert.equal(await closeOpacity(), "0", "鼠标还没放上去，关闭按钮就已经显示了");
 	await mouse(pinned, "mouseMoved", state.w / 2, state.h / 2, 0);
 	await pause(400);
 	assert.equal(await closeOpacity(), "1", "鼠标放上去之后关闭按钮没有出现");
@@ -391,11 +435,21 @@ test("下载截图：文件落在设置好的目录里，界面确认它保存�
 	await frameRegion();
 	assert.ok(await pressTip(overlay, "下载截图"), "工具栏上没有「下载截图」按钮");
 
-	await pause(600);
-	const said = await evaluator(overlay)<string>(`(() => {
-		const el = document.querySelector("[data-screenshot-toast]");
-		return el ? el.textContent.replace(/\\s+/g, " ").trim() : "没有提示";
-	})()`).catch(() => "读不到");
+	/*
+	 * Polled, not slept at.
+	 *
+	 * The confirmation goes up only once the file is written — deliberately, so it never says
+	 * 「已保存」 about a write that failed — and how long that takes is the disk's business. A fixed
+	 * 600ms was enough almost every time, which is the worst kind of enough.
+	 */
+	let said = "没有提示";
+	for (let i = 0; i < 20 && !said.includes("已保存"); i++) {
+		await pause(200);
+		said = await evaluator(overlay)<string>(`(() => {
+			const el = document.querySelector("[data-screenshot-toast]");
+			return el ? el.textContent.replace(/\\s+/g, " ").trim() : "没有提示";
+		})()`).catch(() => "读不到");
+	}
 	assert.ok(said.includes("已保存"), `下载之后没有出现「已保存」的提示：「${said}」`);
 
 	await pause(2_000);
@@ -406,4 +460,94 @@ test("下载截图：文件落在设置好的目录里，界面确认它保存�
 	// something the user is already done with.
 	const over = await evaluator(overlay)<boolean>(`document.querySelector('[data-capture="active"]') === null`).catch(() => true);
 	assert.ok(over, "下载完成之后截图没有自动退出");
+});
+
+/**
+ * A caption still being typed when the capture is confirmed.
+ *
+ * The failure this defends against is quiet and total: the text is on screen, in a `<textarea>`
+ * over the canvas, and the picture is cut out of the canvas — so 完成 pressed with the cursor still
+ * in a caption produced a screenshot without the words the user had just written, and nothing
+ * anywhere said so. The field only commits itself on blur, and the toolbar deliberately never takes
+ * focus (pressing 粗 while writing has to resize that caption rather than end it).
+ *
+ * Measured in pixels of the caption's own colour rather than by reading state, because state is
+ * exactly what was right the whole time. The default is `#ef4444`; a Lyra window has almost none of
+ * it, so a control run with no caption gives the floor to compare against.
+ */
+async function redPixels(file: string): Promise<number> {
+	const { readFile } = await import("node:fs/promises");
+	const png = await readFile(file);
+	// Through a data URL: the overlay's `img-src` is `self data: blob:` and stays that way, and this
+	// is the only decoder to hand that knows how to read a PNG.
+	return evaluator(overlay)<number>(`(async () => {
+		const img = new Image();
+		img.src = "data:image/png;base64,${png.toString("base64")}";
+		await img.decode();
+		const c = document.createElement("canvas");
+		c.width = img.width;
+		c.height = img.height;
+		const ctx = c.getContext("2d");
+		ctx.drawImage(img, 0, 0);
+		const d = ctx.getImageData(0, 0, c.width, c.height).data;
+		let n = 0;
+		for (let i = 0; i < d.length; i += 4) {
+			if (d[i] > 200 && d[i + 1] < 100 && d[i + 2] < 100) n++;
+		}
+		return n;
+	})()`);
+}
+
+/** Frame a region, write a caption into it, and leave the cursor in that caption. */
+async function typeCaption(text: string): Promise<void> {
+	const region = await frameRegion();
+	assert.ok(await pressTip(overlay, "文字"), "工具栏上没有「文字」工具");
+	await pause(200);
+	// Inside the region, where the caption goes. Far enough from the edges not to hit a resize grip.
+	await click(overlay, region.x + Math.round(region.width * 0.3), region.y + Math.round(region.height * 0.4));
+	await pause(400);
+
+	const field = await evaluator(overlay)<boolean>(`document.querySelector("textarea") !== null`);
+	assert.ok(field, "选了文字工具并在选区里点了一下，却没有出现输入框");
+	await call(overlay, "Input.insertText", { text });
+	await pause(300);
+	const written = await evaluator(overlay)<string>(`document.querySelector("textarea")?.value ?? ""`);
+	assert.equal(written, text, "输入框里没有拿到文字");
+}
+
+/*
+ * Driven through 下载 rather than 完成, and it covers both.
+ *
+ * The report was about 完成, but that hands the picture to Lyra — to the clipboard and the composer
+ * — where checking it means reading a clipboard image out of the main process. 下载 ends in a file
+ * this test can open, and the two share one line: `withText(() => { crop(); … })`. What is being
+ * defended is that line running before the crop, not which button reached it.
+ */
+test("正在输入的文字，点下载时也会进到图里", async () => {
+	/** The PNG this step produced, remembered so the next step's is the next one. */
+	const seen = new Set(await readdir(downloads).catch(() => [] as string[]));
+	const justSaved = async () => {
+		const fresh = (await readdir(downloads)).filter((name) => name.endsWith(".png") && !seen.has(name));
+		assert.equal(fresh.length, 1, `这一步应该只产出一张 PNG，实际 ${fresh.length} 张：${fresh.join(", ")}`);
+		seen.add(fresh[0]!);
+		return join(downloads, fresh[0]!);
+	};
+
+	// The control: the same region, no caption. Whatever red this picture has is the picture's own.
+	await frameRegion();
+	assert.ok(await pressTip(overlay, "下载截图"), "工具栏上没有「下载截图」按钮");
+	await pause(2_500);
+	const plain = await redPixels(await justSaved());
+
+	// And now with a caption that has never been committed — no click away, straight to 下载.
+	await typeCaption("测试文字ABC");
+	assert.ok(await pressTip(overlay, "下载截图"), "工具栏上没有「下载截图」按钮");
+	await pause(2_500);
+	const captioned = await redPixels(await justSaved());
+
+	assert.ok(
+		captioned > plain + 200,
+		`正在输入的文字没有画进图里：有文字的图 ${captioned} 个红色像素，没文字的 ${plain} 个——` +
+			`说明按下「下载」时输入框里的字还没提交到画布上`,
+	);
 });

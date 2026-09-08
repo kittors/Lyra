@@ -687,16 +687,29 @@ export function ImageViewer() {
 						 * file in the downloads folder is that same errand with two more steps. 另存为
 						 * is still there for when a file is what you actually wanted.
 						 */
-						const dataUrl = annotator.render();
-						if (!dataUrl) return;
-						if (image.onReplace) {
-							image.onReplace(dataUrl);
-						}
-						// Always copy marked-up result to clipboard on save if it's not a pure in-place replacement
-						// or if user wants clipboard integration
-						void toClipboard(dataUrl);
-						setEditing(false);
-						dismiss();
+						const save = () => {
+							const dataUrl = annotator.render();
+							if (!dataUrl) return;
+							if (image.onReplace) {
+								image.onReplace(dataUrl);
+							}
+							// Always copy marked-up result to clipboard on save if it's not a pure in-place replacement
+							// or if user wants clipboard integration
+							void toClipboard(dataUrl);
+							setEditing(false);
+							dismiss();
+						};
+						/*
+						 * A caption still being typed is committed first, and the canvas given a frame
+						 * to take it.
+						 *
+						 * The toolbar never takes focus — that is what lets you change the size of the
+						 * caption you are writing — so pressing save with the cursor still in one used
+						 * to produce a copy without it. `render()` reads the canvas, and until the
+						 * repaint effect has run the caption is only in a `<textarea>` above it.
+						 */
+						if (annotator.flushText()) requestAnimationFrame(() => requestAnimationFrame(save));
+						else save();
 					}}
 				/>
 			)}
