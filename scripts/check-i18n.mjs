@@ -37,13 +37,23 @@ const HAN = /[一-鿿]/;
 /**
  * Where Chinese is the content rather than the interface.
  *
- * `i18n/messages` is the translations themselves. `lib/thinking-words` and the prompts the runtime
- * sends are text going *to* a model, not text coming to a reader — translating those would change
- * what the agent is asked, which is a different decision from what language the window is in.
+ * `i18n/messages` is the translations themselves — the one place the words are supposed to be in
+ * seven languages at once.
+ *
+ * `format-catalog` is code samples. Each entry exists to put something on every colour a syntax
+ * theme declares, so its strings are `"你好"` inside a Go function and `"匿名"` inside a Python
+ * dataclass. Those are the sample's subject matter, not labels: translating them would leave the
+ * samples doing the same job in a different alphabet, and nobody reads them as sentences.
+ *
+ * Nothing else belongs here. Text going *to* a model would qualify on the same reasoning — the
+ * language a prompt is written in is a property of the prompt — but the renderer has none of it;
+ * what looked like it (`lib/thinking-words`) is the phrase beside the timer, which is exactly the
+ * kind of thing a person reads.
  */
 const EXEMPT = [
 	"i18n/messages/",
 	"i18n/translate.ts",
+	"features/settings/format-catalog.ts",
 ];
 
 /** Strip comments, so the reasoning this codebase writes in Chinese is not a finding. */

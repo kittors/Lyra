@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Field, GhostButton, PrimaryButton, TextInput, Toggle } from "./controls.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 export function ModelEditor({
 	provider,
@@ -18,6 +19,7 @@ export function ModelEditor({
 	onSave: (model: ModelConfig) => void;
 	onCancel: () => void;
 }) {
+	const { t } = useI18n();
 	const model = savedModel ? withCatalogDefaults(provider, savedModel) : null;
 	const [catalogRef, setCatalogRef] = useState(model?.catalogRef);
 	const [metadataSource, setMetadataSource] = useState<ModelConfig["metadataSource"]>(model?.metadataSource ?? "manual");
@@ -133,63 +135,63 @@ export function ModelEditor({
 					<div className="border-b border-line px-5 py-3.5">
 						<h3 className="flex items-center gap-2.5 text-body font-semibold text-ink">
 							<Box size={20} className="text-accent" />
-							{model ? "编辑模型" : "添加模型"}
+							{model ? t("modelEditor.edit") : t("modelEditor.add")}
 						</h3>
 					</div>
 
 					<Scroller className="max-h-[64vh]" contentClassName="space-y-4 px-5 py-4">
-						<Field label="模型 ID" hint="发送给供应商的实际模型名，例如 deepseek-v4-flash">
+						<Field label={t("modelEditor.id")} hint={t("modelEditor.idDetail")}>
 							<TextInput value={modelId} onChange={changeModelId} placeholder="deepseek-v4-flash" mono spellCheck={false} />
 						</Field>
 
-						<Field label="显示名称" hint="留空则使用模型 ID">
+						<Field label={t("modelEditor.displayName")} hint={t("modelEditor.displayNameDetail")}>
 							<TextInput value={name} onChange={setName} placeholder="DeepSeek V4 Flash" />
 						</Field>
 
 						<ModelCatalog match={catalog} onApply={applyCatalog} />
 
 						<div className="grid grid-cols-2 gap-3">
-							<Field label="上下文窗口（token）" hint={windowOk ? undefined : "正整数，最大 1 亿"}>
+							<Field label={t("modelEditor.context")} hint={windowOk ? undefined : t("modelEditor.contextDetail")}>
 								<TextInput value={contextWindow} onChange={(value) => changeMetadata(setContextWindow, value)} invalid={!windowOk} mono inputMode="numeric" />
 							</Field>
-							<Field label="最大输出（token）" hint={outputOk ? undefined : "正整数，且不超过上下文窗口"}>
+							<Field label={t("modelEditor.maxOutput")} hint={outputOk ? undefined : t("modelEditor.maxOutputDetail")}>
 								<TextInput value={maxOutput} onChange={(value) => changeMetadata(setMaxOutput, value)} invalid={!outputOk} mono inputMode="numeric" />
 							</Field>
 						</div>
 
 						<div className="grid grid-cols-2 gap-3">
-							<Field label="输入价格（$/百万 token）" hint={!pricingOk && !pricingComplete ? "输入、输出价格需同时填写" : undefined}>
-								<TextInput value={priceIn} onChange={(value) => changePrice(setPriceIn, value)} placeholder="未设置" mono inputMode="decimal" invalid={!pricingOk} />
+							<Field label={t("modelEditor.inputPrice")} hint={!pricingOk && !pricingComplete ? t("modelEditor.priceBothDetail") : undefined}>
+								<TextInput value={priceIn} onChange={(value) => changePrice(setPriceIn, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
 							</Field>
-							<Field label="输出价格（$/百万 token）">
-								<TextInput value={priceOut} onChange={(value) => changePrice(setPriceOut, value)} placeholder="未设置" mono inputMode="decimal" invalid={!pricingOk} />
+							<Field label={t("modelEditor.outputPrice")}>
+								<TextInput value={priceOut} onChange={(value) => changePrice(setPriceOut, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
 							</Field>
-							<Field label="缓存命中价格（$/百万 token）">
-								<TextInput value={priceCacheRead} onChange={(value) => changePrice(setPriceCacheRead, value)} placeholder="未设置" mono inputMode="decimal" invalid={!pricingOk} />
+							<Field label={t("modelEditor.cacheReadPrice")}>
+								<TextInput value={priceCacheRead} onChange={(value) => changePrice(setPriceCacheRead, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
 							</Field>
-							<Field label="缓存写入价格（$/百万 token）">
-								<TextInput value={priceCacheWrite} onChange={(value) => changePrice(setPriceCacheWrite, value)} placeholder="未设置" mono inputMode="decimal" invalid={!pricingOk} />
+							<Field label={t("modelEditor.cacheWritePrice")}>
+								<TextInput value={priceCacheWrite} onChange={(value) => changePrice(setPriceCacheWrite, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
 							</Field>
 						</div>
 						<p className="-mt-2 text-detail text-ink-faint">
 							{pricingEmpty
-								? "未设置价格；未匹配的模型只统计 token，不估算费用"
+								? t("modelEditor.noPriceDetail")
 								: pricingSource === "catalog"
-									? `价格来自 models.dev 离线快照（参考估算）${catalog?.model.tiers?.length ? `，含 ${catalog.model.tiers.length} 档长上下文价格` : ""}`
-									: "当前使用手动价格，优先于离线目录"}
+									? `${t("modelEditor.catalogPrice")}${catalog?.model.tiers?.length ? t("modelEditor.catalogTiers", { n: catalog.model.tiers.length }) : ""}`
+									: t("modelEditor.manualPrice")}
 						</p>
 
-						{!catalog && <p className="text-detail text-ink-muted">该型号的上下文、输出上限与能力尚未核实，请按供应商说明配置。</p>}
+						{!catalog && <p className="text-detail text-ink-muted">{t("modelEditor.unverified")}</p>}
 						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
-							<Capability label="支持思考 / 推理" checked={supportsThinking} onChange={(value) => changeMetadata(setSupportsThinking, value)} />
-							<Capability label="支持图片输入" checked={supportsImages} onChange={(value) => changeMetadata(setSupportsImages, value)} />
-							<Capability label="支持工具调用" checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />
+							<Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={(value) => changeMetadata(setSupportsThinking, value)} />
+							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={(value) => changeMetadata(setSupportsImages, value)} />
+							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />
 						</div>
 					</Scroller>
 
 					<div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-						<GhostButton onClick={() => dismiss()}>取消</GhostButton>
-						<PrimaryButton onClick={() => dismiss(submit)} disabled={!valid}>保存</PrimaryButton>
+						<GhostButton onClick={() => dismiss()}>{t("common.cancel")}</GhostButton>
+						<PrimaryButton onClick={() => dismiss(submit)} disabled={!valid}>{t("common.save")}</PrimaryButton>
 					</div>
 				</>
 			)}

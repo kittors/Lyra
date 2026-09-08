@@ -17,6 +17,7 @@ import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle } fro
 import { bridge } from "../../services/index.ts";
 
 export function AboutSettings() {
+	const { t } = useI18n();
 	const { info, phase, checking } = useUpdate();
 	const [openDialog, setOpenDialog] = useState(false);
 	const [platform, setPlatform] = useState("darwin");
@@ -50,16 +51,16 @@ export function AboutSettings() {
 	return (
 		<div className="space-y-6">
 			<div>
-				<h2 className="text-title font-semibold text-ink">关于 Lyra</h2>
+				<h2 className="text-title font-semibold text-ink">{t("about.title")}</h2>
 				<p className="mt-1 text-label text-ink-muted">
 					查看当前应用版本、更新日志、手动检查与配置自动更新频率。
 				</p>
 			</div>
 
-			<SectionTitle>版本与更新</SectionTitle>
+			<SectionTitle>{t("about.versionSection")}</SectionTitle>
 			<Card className="mb-6">
 				<Row
-					title="当前版本"
+					title={t("about.currentVersion")}
 					detail={
 						<div className="flex flex-col gap-1">
 							<span>{versionNote(info, phase)}</span>
@@ -77,7 +78,7 @@ export function AboutSettings() {
 								disabled={checking}
 								icon={<RefreshCw size={13} strokeWidth={2} className={checking ? "ly-spin" : ""} />}
 							>
-								{checking ? "正在检查…" : "检查更新"}
+								{checking ? t("about.checking") : t("about.checkUpdate")}
 							</GhostButton>
 							{available && (
 								<PrimaryButton onClick={() => setOpenDialog(true)}>
@@ -90,33 +91,33 @@ export function AboutSettings() {
 				/>
 
 				<Row
-					title="自动检查更新周期"
-					detail="应用在后台定期检查 GitHub 最新版本。无论如何设置，每次启动应用时均会自动检查一次。"
+					title={t("about.checkInterval")}
+					detail={t("about.checkIntervalDetail")}
 					control={
 						<InlineSelect
 							value={String(interval)}
 							onChange={(v) => setIntervalHours(Number(v))}
 							options={[
-								{ value: "1", label: "每 1 小时" },
-								{ value: "4", label: "每 4 小时" },
-								{ value: "6", label: "每 6 小时（默认）" },
-								{ value: "8", label: "每 8 小时" },
-								{ value: "12", label: "每 12 小时" },
-								{ value: "24", label: "每 24 小时" },
+								{ value: "1", label: t("about.every1h") },
+								{ value: "4", label: t("about.every4h") },
+								{ value: "6", label: t("about.every6h") },
+								{ value: "8", label: t("about.every8h") },
+								{ value: "12", label: t("about.every12h") },
+								{ value: "24", label: t("about.every24h") },
 							]}
 						/>
 					}
 				/>
 
 				<Row
-					title="运行环境"
-					detail={`系统架构与平台环境: ${platform}`}
+					title={t("about.environment")}
+					detail={t("about.environmentDetail", { platform })}
 					control={<span className="font-mono text-label text-ink-faint">{platform}</span>}
 				/>
 			</Card>
 
 			{/* Release notes section */}
-			<SectionTitle>当前版本更新内容</SectionTitle>
+			<SectionTitle>{t("about.whatsNew")}</SectionTitle>
 			<Card className="mb-6">
 				<div className="p-4">
 					{notes ? (
@@ -124,7 +125,7 @@ export function AboutSettings() {
 							<div className="mb-3 flex items-center gap-2">
 								<Sparkles size={16} className="text-accent" />
 								<span className="font-medium text-ink">
-									{info?.available ? `v${info.latest} 更新详情` : `v${info?.current} 发版说明`}
+									{info?.available ? t("about.updateDetails", { version: info.latest }) : t("about.releaseNotes", { version: info?.current ?? "" })}
 								</span>
 							</div>
 							<Markdown text={notes} className="text-label" />
@@ -132,17 +133,17 @@ export function AboutSettings() {
 					) : (
 						<div className="flex flex-col items-center justify-center py-6 text-center text-ink-faint">
 							<Info size={20} className="mb-2 opacity-60" />
-							<div className="text-label">点击上方「检查更新」获取最新版本详情与更新日志</div>
+							<div className="text-label">{t("about.checkPrompt")}</div>
 						</div>
 					)}
 				</div>
 			</Card>
 
-			<SectionTitle>项目与支持</SectionTitle>
+			<SectionTitle>{t("about.projectSection")}</SectionTitle>
 			<Card>
 				<Row
-					title="开源仓库"
-					detail="访问 Lyra 的 GitHub 仓库提交反馈或贡献代码"
+					title={t("about.repository")}
+					detail={t("about.repositoryDetail")}
 					control={
 						<GhostButton
 							onClick={() => void bridge.system.openExternal("https://github.com/kittors/Lyra")}
@@ -153,8 +154,8 @@ export function AboutSettings() {
 					}
 				/>
 				<Row
-					title="更新日志与发布页面"
-					detail="浏览所有历史版本发布与离线安装包"
+					title={t("about.changelog")}
+					detail={t("about.changelogDetail")}
 					control={
 						<GhostButton
 							onClick={() =>

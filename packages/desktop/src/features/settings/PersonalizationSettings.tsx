@@ -10,8 +10,10 @@ import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Togg
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
 import { SidebarMotto } from "./SidebarMotto.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 export function PersonalizationSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 
@@ -140,7 +142,7 @@ export function PersonalizationSettings() {
 	};
 
 	const handleClearAllMemory = async () => {
-		if (!confirm("确定要删除此电脑上保存的所有本地记忆吗？此操作不可撤销。")) return;
+		if (!confirm(t("memory.confirmClear"))) return;
 		try {
 			await bridge.memory.clear();
 			setMemoryEntries([]);
@@ -156,7 +158,7 @@ export function PersonalizationSettings() {
 			<div>
 				<div className="mb-2 flex items-center justify-between">
 					<div>
-						<SectionTitle>自定义指令</SectionTitle>
+						<SectionTitle>{t("tone.customInstructions")}</SectionTitle>
 						<p className="text-caption text-ink-muted mt-0.5">
 							向 Agent 提供适用于此主机上所有聊天的额外说明和全局规则，会自动与项目中的 AGENTS.md / CLAUDE.md 组合生效。
 						</p>
@@ -168,10 +170,10 @@ export function PersonalizationSettings() {
 						{savedNotice ? (
 							<>
 								<Check size={13} className="text-emerald-500" strokeWidth={2.2} />
-								<span className="text-emerald-500">已保存</span>
+								<span className="text-emerald-500">{t("common.saved")}</span>
 							</>
 						) : (
-							<span>保存</span>
+							<span>{t("common.save")}</span>
 						)}
 					</GhostButton>
 				</div>
@@ -180,13 +182,13 @@ export function PersonalizationSettings() {
 					<Textarea
 						value={customInstructions}
 						onChange={(e) => setCustomInstructions(e.target.value)}
-						placeholder="# 全局 Agent 规则与偏好&#10;&#10;- 默认使用中文回答；代码、命令与错误日志保留原文。&#10;- 遵循最小改动原则，标准库与原生依赖优先，不做过度抽象。&#10;- 遇到问题主动检索本地代码与文档，给出经过验证的方案。"
+						placeholder={t("tone.sampleRules")}
 						rows={7}
 						className="w-full rounded-xl border border-line-soft bg-card-hover/20 p-3 font-mono text-detail text-ink leading-relaxed placeholder:text-ink-faint focus:border-ink-faint focus:outline-none resize-none"
 					/>
 					<div className="flex items-center gap-1.5 text-micro text-ink-faint px-1">
 						<Info size={12} strokeWidth={1.8} />
-						<span>支持 Markdown 格式。系统会自动读取项目根目录的 AGENTS.md / LYRA.md / CLAUDE.md 作为项目级指令。</span>
+						<span>{t("tone.customDetail")}</span>
 					</div>
 				</Card>
 			</div>
@@ -195,7 +197,7 @@ export function PersonalizationSettings() {
 			<div>
 				<div className="mb-2 flex items-center justify-between">
 					<div>
-						<SectionTitle>记忆</SectionTitle>
+						<SectionTitle>{t("memory.title")}</SectionTitle>
 						<p className="text-caption text-ink-muted mt-0.5">
 							设置在此电脑上如何收集、保留和整合本地记忆，跨会话保留开发习惯与核心决策。
 						</p>
@@ -213,8 +215,8 @@ export function PersonalizationSettings() {
 
 				<Card>
 					<Row
-						title="用户记忆"
-						detail="根据此电脑上的聊天与工程任务沉淀关键记忆，并用于个性化此电脑上的后续会话"
+						title={t("memory.user")}
+						detail={t("memory.userDetail")}
 						control={
 							<Toggle
 								checked={personalization.enableMemory !== false}
@@ -223,8 +225,8 @@ export function PersonalizationSettings() {
 						}
 					/>
 					<Row
-						title="允许基于工具辅助聊天生成本地记忆"
-						detail="从使用过 MCP 工具、搜索或文件分析的工程交互中提炼重要决策和上下文"
+						title={t("memory.fromTools")}
+						detail={t("memory.fromToolsDetail")}
 						control={
 							<Toggle
 								checked={personalization.enableToolAssistedMemory !== false}
@@ -240,13 +242,13 @@ export function PersonalizationSettings() {
 					 * 第一次弹窗里说一次。
 					 */}
 					<Row
-						title="项目记忆"
-						detail="在后续对话中使用项目约定、决策与排障经验。关闭后停止读取和记录，保留已有记忆。"
+						title={t("memory.project")}
+						detail={t("memory.projectDetail")}
 						control={<Toggle checked={(personalization.enableProjectMemory ?? personalization.enableMemory) !== false} onChange={(checked) => { if (settings) void saveSettings({ ...settings, personalization: { ...personalization, enableProjectMemory: checked } }); }} />}
 					/>
 					<Row
-						title="自动沉淀项目记忆"
-						detail="空闲时读最近几次对话（12 小时前到 30 天内），提炼这个仓库的约定和踩过的坑，写进项目记忆。会把那些对话内容发给你配置的模型；默认关闭，每天最多一次。"
+						title={t("memory.autoProject")}
+						detail={t("memory.autoProjectDetail")}
 						control={<Toggle checked={settings?.memoryExtraction === true} onChange={handleToggleExtraction} />}
 					/>
 				</Card>
@@ -262,12 +264,12 @@ export function PersonalizationSettings() {
 								onKeyDown={(e) => {
 									if (e.key === "Enter" && newMemory.trim()) void handleAddMemory();
 								}}
-								placeholder="手动添加一条用户记忆（例如：习惯使用 bun 进行包管理，项目打包目标为 ES2024）..."
+								placeholder={t("memory.addPlaceholder")}
 								className="h-[32px] flex-1 rounded-lg border border-line bg-input px-3 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
 							/>
 							<PrimaryButton disabled={!newMemory.trim()} onClick={handleAddMemory}>
 								<Plus size={14} strokeWidth={2} />
-								<span>添加记忆</span>
+								<span>{t("memory.add")}</span>
 							</PrimaryButton>
 						</div>
 
@@ -294,7 +296,7 @@ export function PersonalizationSettings() {
 										<button
 											type="button"
 											onClick={() => handleDeleteMemory(m.id)}
-											data-ly-tip="删除此条记忆"
+											data-ly-tip={t("memory.deleteOne")}
 											className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
 										>
 											<Trash2 size={13.5} strokeWidth={1.8} />
@@ -304,7 +306,7 @@ export function PersonalizationSettings() {
 							</div>
 						) : (
 							<div className="rounded-xl border border-line/60 bg-card/40 py-8 text-center text-caption text-ink-faint">
-								{loadingMemory ? "正在读取记忆..." : "暂无用户记忆"}
+								{loadingMemory ? t("memory.reading") : t("memory.empty")}
 							</div>
 						)}
 					</div>
@@ -340,25 +342,25 @@ export function PersonalizationSettings() {
 			{/* Personality / Tone */}
 			<div>
 				<div className="mb-2">
-					<SectionTitle>个性与语气偏好</SectionTitle>
+					<SectionTitle>{t("tone.section")}</SectionTitle>
 					<p className="text-caption text-ink-muted mt-0.5">
 						调整 Agent 回复的默认语调与工程风格。
 					</p>
 				</div>
 				<Card>
 					<Row
-						title="语气风格"
-						detail="选择适合您开发习惯的助手交流风格"
+						title={t("tone.title")}
+						detail={t("tone.detail")}
 						control={
 							<InlineSelect
 								value={personalization.tone ?? "friendly"}
 								onChange={(val) => void handleToneChange(val as any)}
 								options={[
-									{ value: "friendly", label: "亲和温和 (默认)" },
-									{ value: "professional", label: "专业严谨" },
-									{ value: "concise", label: "极度精炼 (少废话)" },
-									{ value: "candid", label: "直接坦率 (直指缺陷)" },
-									{ value: "humorous", label: "幽默风趣" },
+									{ value: "friendly", label: t("tone.warm") },
+									{ value: "professional", label: t("tone.professional") },
+									{ value: "concise", label: t("tone.terse") },
+									{ value: "candid", label: t("tone.blunt") },
+									{ value: "humorous", label: t("tone.playful") },
 								]}
 							/>
 						}
