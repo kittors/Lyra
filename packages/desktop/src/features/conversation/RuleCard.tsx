@@ -15,17 +15,19 @@
 import { useState } from "react";
 import { ChevronDown, ShieldCheck } from "lucide-react";
 import type { Message } from "@lyra/core";
+import { translate, useI18n } from "../../i18n/index.ts";
 
 type RuleMatch = NonNullable<Extract<Message, { role: "user" }>["ruleMatch"]>;
 
 /** Where the rule was watching, in words rather than in the scope's own vocabulary. */
 function where(rule: RuleMatch["rules"][number]): string {
-  if (rule.source === "tool") return rule.toolName ? `${rule.toolName} 的参数里` : "工具调用里";
-  if (rule.source === "thinking") return "思考里";
-  return "回复里";
+  if (rule.source === "tool") return rule.toolName ? translate("rule.inToolArgs", { tool: rule.toolName }) : translate("rule.inToolCall");
+  if (rule.source === "thinking") return translate("rule.inThinking");
+  return translate("rule.inReply");
 }
 
 export function RuleCard({ match }: { match: RuleMatch }) {
+	const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const names = match.rules.map((rule) => rule.name).join("、");
 
@@ -43,7 +45,7 @@ export function RuleCard({ match }: { match: RuleMatch }) {
          * discarded what was being written; a deferred match did not, and saying "已重来" there
          * would describe something that never happened.
          */}
-        <span>{match.interrupted ? `规则 ${names} 中止了这段输出，已重来` : `规则 ${names} 命中，提醒已带到下一轮`}</span>
+        <span>{match.interrupted ? t("ruleCard.aborted", { names }) : t("ruleCard.noted", { names })}</span>
         <ChevronDown
           size={12}
           aria-hidden

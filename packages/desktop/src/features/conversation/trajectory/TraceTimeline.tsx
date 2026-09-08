@@ -2,11 +2,11 @@ import { ChevronDown, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { entryKey, SOURCE_LABEL, type Entry } from "@lyra/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
+import { useI18n } from "../../../i18n/index.ts";
 import { draggedRange, LANE_HEIGHT, timelineDomain, timelineHit, timelineLane, type TimeRange } from "./timeline-geometry.ts";
 export type { TimeRange } from "./timeline-geometry.ts";
 
 const HEIGHT = LANE_HEIGHT * 3;
-const hint = "点击查看记录 · 拖选范围 · 方向键浏览，Enter 查看";
 const offset = (ms: number) => ms < 1000 ? `${Math.round(ms)}ms` : ms < 60_000 ? `${(ms / 1000).toFixed(1)}s` : `${(ms / 60_000).toFixed(1)}m`;
 
 /** Preview the brush locally; committing it once keeps the ledger still under the pointer. */
@@ -23,6 +23,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 	const canvas = useRef<HTMLCanvasElement>(null);
 	const drag = useRef<number | null>(null);
 	const [draft, setDraft] = useState<TimeRange | null>(null);
+	const { t } = useI18n();
 	const [view, setView] = useState<TimeRange | null>(null);
 	const [hover, setHover] = useState<Entry | undefined>();
 	const [preview, setPreview] = useState<string | null>(null);
@@ -107,9 +108,9 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 		return () => { observer.disconnect(); theme.disconnect(); };
 	}, [points, shown, brush, selected, hover, preview, visible, matches]);
 	const point = (el: HTMLCanvasElement, clientX: number, clientY: number) => { const bounds = el.getBoundingClientRect(); return { x: clientX - bounds.left, y: clientY - bounds.top, width: bounds.width }; };
-	return <section ref={root} hidden={cramped} className="shrink-0 px-3 pb-1" aria-label="时间概览" data-trace-timeline>
+	return <section ref={root} hidden={cramped} className="shrink-0 px-3 pb-1" aria-label={t("timeline.overview")} data-trace-timeline>
 		<div className="flex h-8 items-center gap-1 text-caption text-ink-muted">
-			<button type="button" aria-label="时间概览" aria-expanded={visible} className="mr-auto flex items-center gap-1 rounded py-1 hover:text-ink" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }}><ChevronDown size={12} style={{ transform: expanded ? undefined : "rotate(-90deg)" }} />{short ? "时间轴 · 放大面板查看" : expanded ? "时间轴" : "展开时间轴"}</button>
+			<button type="button" aria-label={t("timeline.overview")} aria-expanded={visible} className="mr-auto flex items-center gap-1 rounded py-1 hover:text-ink" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }}><ChevronDown size={12} style={{ transform: expanded ? undefined : "rotate(-90deg)" }} />{short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")}</button>
 			{/*
 			 * 收起的时候，这三个不在。
 			 *
@@ -118,17 +119,17 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 			 * 按得下去的按钮，按了什么也不发生。禁用留给「展开了，但这一段没有可缩放的范围」。
 			 */}
 			{visible && <>
-				<IconButton explainDisabled size="sm" label="缩小时间范围" icon={<ZoomOut size={12} />} onClick={() => zoom(2)} disabled={!view} />
-				<IconButton explainDisabled size="sm" label="放大时间范围" icon={<ZoomIn size={12} />} onClick={() => zoom(0.5)} disabled={!points.length || shown.end - shown.start <= 1} />
-				<IconButton explainDisabled size="sm" label="重置时间范围" icon={<RotateCcw size={12} />} onClick={reset} disabled={!range && !view} />
+				<IconButton explainDisabled size="sm" label={t("timeline.zoomOut")} icon={<ZoomOut size={12} />} onClick={() => zoom(2)} disabled={!view} />
+				<IconButton explainDisabled size="sm" label={t("timeline.zoomIn")} icon={<ZoomIn size={12} />} onClick={() => zoom(0.5)} disabled={!points.length || shown.end - shown.start <= 1} />
+				<IconButton explainDisabled size="sm" label={t("timeline.reset")} icon={<RotateCcw size={12} />} onClick={reset} disabled={!range && !view} />
 			</>}
 		</div>
 		<div hidden={!visible}>
-		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? `聚焦 ${offset(brush.start - domain.start)} 至 ${offset(brush.end - domain.start)}` : "点击记录 · 拖选聚焦"}</span>{brush && <button type="button" className="rounded px-1 hover:bg-hover" onClick={() => { setDraft(null); onRange(null); }}>清除范围</button>}</div>
+		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? t("timeline.focusRange", { from: offset(brush.start - domain.start), to: offset(brush.end - domain.start) }) : t("timeline.clickHint")}</span>{brush && <button type="button" className="rounded px-1 hover:bg-hover" onClick={() => { setDraft(null); onRange(null); }}>{t("timeline.clearRange")}</button>}</div>
 
 		<div className="flex items-start gap-2">
-			<div aria-hidden className="flex w-7 shrink-0 flex-col text-caption text-ink-faint" style={{ lineHeight: `${LANE_HEIGHT}px` }}><span>模型</span><span>工具</span><span>协作</span></div>
-			<canvas ref={canvas} className="block min-w-0 flex-1 touch-none rounded bg-card/30 outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent" style={{ height: HEIGHT }} tabIndex={0} role="slider" aria-label={hint} aria-valuemin={0} aria-valuemax={Math.max(0, points.length - 1)} aria-valuenow={Math.max(0, current)} aria-valuetext={activeEntry ? `#${activeEntry.seq} ${SOURCE_LABEL[activeEntry.source]} ${activeEntry.summary}` : undefined} data-ly-tip={described ? `#${described.seq} ${SOURCE_LABEL[described.source]} · ${described.summary}\n${described.durationMs === undefined ? "未记录耗时" : offset(described.durationMs)}` : hint}
+			<div aria-hidden className="flex w-7 shrink-0 flex-col text-caption text-ink-faint" style={{ lineHeight: `${LANE_HEIGHT}px` }}><span>{t("common.model")}</span><span>{t("common.tools")}</span><span>{t("timeline.collab")}</span></div>
+			<canvas ref={canvas} className="block min-w-0 flex-1 touch-none rounded bg-card/30 outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent" style={{ height: HEIGHT }} tabIndex={0} role="slider" aria-label={t("timeline.hint")} aria-valuemin={0} aria-valuemax={Math.max(0, points.length - 1)} aria-valuenow={Math.max(0, current)} aria-valuetext={activeEntry ? `#${activeEntry.seq} ${SOURCE_LABEL[activeEntry.source]} ${activeEntry.summary}` : undefined} data-ly-tip={described ? `#${described.seq} ${SOURCE_LABEL[described.source]} · ${described.summary}\n${described.durationMs === undefined ? t("timeline.noDuration") : offset(described.durationMs)}` : t("timeline.hint")}
 				onPointerDown={event => { if (event.button !== 0) return; drag.current = point(event.currentTarget, event.clientX, event.clientY).x; event.currentTarget.setPointerCapture(event.pointerId); }}
 				onPointerMove={event => {
 					const { x, y, width } = point(event.currentTarget, event.clientX, event.clientY);
@@ -166,7 +167,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 				}} />
 		</div>
 		<div aria-hidden className="mt-0.5 flex justify-between pl-9 text-caption text-ink-faint tabular-nums"><span>{offset(shown.start - domain.start)}</span><span>{offset(shown.end - domain.start)}</span></div>
-	<input type="range" aria-label="平移时间视口" className="ly-trace-pan block h-3 w-full" min={domain.start} max={Math.max(domain.start, domain.end - (shown.end - shown.start))} step={1} value={shown.start} disabled={!view} onChange={event => { manualView.current = true; const start = Number(event.target.value); setView({ start, end: start + shown.end - shown.start }); }} />
+	<input type="range" aria-label={t("timeline.pan")} className="ly-trace-pan block h-3 w-full" min={domain.start} max={Math.max(domain.start, domain.end - (shown.end - shown.start))} step={1} value={shown.start} disabled={!view} onChange={event => { manualView.current = true; const start = Number(event.target.value); setView({ start, end: start + shown.end - shown.start }); }} />
 		</div>
 	</section>;
 });

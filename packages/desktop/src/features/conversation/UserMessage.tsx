@@ -12,6 +12,7 @@ import { useOpenFile } from "../../store/openFile.ts";
 import { useDock } from "../dock/index.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
+import { useI18n } from "../../i18n/index.ts";
 /**
  * A message you sent, with the two things you want from one afterwards: to copy it, and to
  * take it back.
@@ -28,6 +29,7 @@ export function UserMessage({
   message: UserMessageType;
   index: number;
 }) {
+	const { t } = useI18n();
   const running = useApp((s) => s.running);
   const editMessage = useApp((s) => s.editMessage);
 
@@ -113,7 +115,7 @@ export function UserMessage({
               <button
                 key={i}
                 type="button"
-                aria-label="预览图片"
+                aria-label={t("userMessage.previewImage")}
                 onClick={(event) =>
                   openFromEvent(
                     event,
@@ -140,7 +142,7 @@ export function UserMessage({
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              data-ly-tip="在侧边栏打开技能文件"
+              data-ly-tip={t("userMessage.openSkill")}
               onClick={async () => {
                 const cmdCwd = useApp.getState().workspace?.path ?? useApp.getState().scratchCwd ?? "";
                 const list = await bridge.commands.list(cmdCwd).catch(() => null);
@@ -155,7 +157,7 @@ export function UserMessage({
                   });
                   useDock.getState().open("file", { kind: "conversation", side: "right", share: 0.45 });
                 } else {
-                  useApp.getState().notify(`无法找到技能「${skillRef?.name}」的定义文件`, "warn");
+                  useApp.getState().notify(t("userMessage.skillMissing", { name: skillRef?.name ?? "" }), "warn");
                 }
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-card-hover/80 px-2.5 py-1 text-label font-medium text-accent transition-colors hover:bg-card-hover active:scale-[0.98]"
@@ -173,13 +175,13 @@ export function UserMessage({
               <button
                 key={sRef.id}
                 type="button"
-                data-ly-tip="点击切换至该会话"
+                data-ly-tip={t("userMessage.jumpToSession")}
                 onClick={() => {
                   const target = useApp.getState().sessions.find((s) => s.id === sRef.id);
                   if (target) {
                     void useApp.getState().openSession(target);
                   } else {
-                    useApp.getState().notify(`无法找到会话：${sRef.title}`, "warn");
+                    useApp.getState().notify(t("userMessage.sessionMissing", { title: sRef.title }), "warn");
                   }
                 }}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-card-hover/80 px-2 py-0.5 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink active:scale-[0.98]"
@@ -202,8 +204,8 @@ export function UserMessage({
       >
         <button
           type="button"
-          data-ly-tip={running ? "回合进行中，无法编辑" : "编辑并重新发送"}
-          aria-label="编辑并重新发送"
+          data-ly-tip={running ? t("userMessage.turnRunning") : t("userMessage.editResend")}
+          aria-label={t("userMessage.editResend")}
           disabled={running}
           onClick={() => {
             setDraft(text);

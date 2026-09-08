@@ -16,13 +16,16 @@ import { TraceInspector } from "./TraceInspector.tsx";
 import { TraceTimeline, type TimeRange } from "./TraceTimeline.tsx";
 import { consumeTraceFocus, useTraceFocus } from "./navigation.ts";
 import { available, bridge } from "../../../services/index.ts";
+import { useI18n } from "../../../i18n/index.ts";
 
 export function TrajectoryPanel() {
+	const { t } = useI18n();
 	const meta = useApp(state => state.meta);
-	return meta ? <SessionTrajectory key={meta.id} /> : <PanelEmpty icon={History} title="轨迹">打开对话查看记录</PanelEmpty>;
+	return meta ? <SessionTrajectory key={meta.id} /> : <PanelEmpty icon={History} title={t("trajectory.title")}>{t("trajectory.openConversation")}</PanelEmpty>;
 }
 
 function SessionTrajectory() {
+	const { t } = useI18n();
 	const meta = useApp(state => state.meta);
 	const { all, loading, refreshing, error, refresh } = useTrajectory();
 	const controls = useRef<HTMLDivElement>(null);
@@ -75,7 +78,7 @@ function SessionTrajectory() {
 	};
 	const fork = async () => {
 		if (!meta || !picked) return;
-		try { const result = await bridge.sessions.fork(meta.projectId, meta.id, picked.seq); if (result) await useApp.getState().openSession(result.meta); else throw new Error("分叉失败"); }
+		try { const result = await bridge.sessions.fork(meta.projectId, meta.id, picked.seq); if (result) await useApp.getState().openSession(result.meta); else throw new Error(t("trajectory.forkFailed")); }
 		catch (error) { useApp.getState().notify(String(error), "error"); }
 	};
 	const selectedIndex = entries.findIndex(entry => entryKey(entry) === selected);
@@ -87,21 +90,21 @@ function SessionTrajectory() {
 		});
 	};
 	return <div className="ly-trajectory flex min-h-0 min-w-0 flex-1 flex-col" data-trajectory onKeyDown={event => { if (event.key === "Escape" && selected && !event.defaultPrevented) { event.stopPropagation(); closeDetails(); } }}>
-		<div ref={controls} className="flex shrink-0 items-center gap-1 px-2 pt-1.5 pb-1" role="toolbar" aria-label="轨迹工具栏">
-			<SearchField value={query} onChange={setQuery} placeholder="搜索轨迹" className="min-w-0 flex-1" />
+		<div ref={controls} className="flex shrink-0 items-center gap-1 px-2 pt-1.5 pb-1" role="toolbar" aria-label={t("trajectory.toolbar")}>
+			<SearchField value={query} onChange={setQuery} placeholder={t("trajectory.search")} className="min-w-0 flex-1" />
 			<SourceFilter selected={sources} counts={counts} status={status} onStatus={setStatus} onToggle={source => setSources(current => current.includes(source) ? current.filter(value => value !== source) : [...current, source])} onClear={() => setSources([])} />
 			<TraceActions refreshing={refreshing} collapsed={collapsed.size > 0} onRefresh={refresh} onExport={available("sessions", "exportTrajectory") ? format => void exportFile(format) : undefined} onCollapse={() => setCollapsed(collapsed.size ? new Set() : new Set(all.flatMap(entry => entry.turn === undefined ? [] : [entry.turn])))} />
 		</div>
 		<TraceTimeline entries={all} range={time} selected={selected} onRange={setTime} onSelect={navigate} matches={matches} paused={!following || Boolean(picked)} />
 		<div className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 text-caption text-ink-faint tabular-nums" data-trace-count aria-live="polite">
-			<span data-ly-tip={`${entries.length}/${all.length} 条记录`}>{focused ? `聚焦 ${focused.size} 条` : `${entries.length}/${all.length}`}</span>
-			<span className="ml-auto flex items-center gap-1" data-ly-tip={`${totals.tools} 次工具`}><Terminal size={11} />{formatTokens(totals.tools)}</span>
+			<span data-ly-tip={t("trajectory.countOf", { shown: entries.length, total: all.length })}>{focused ? t("trajectory.focused", { n: focused.size }) : `${entries.length}/${all.length}`}</span>
+			<span className="ml-auto flex items-center gap-1" data-ly-tip={t("trajectory.toolCalls", { n: totals.tools })}><Terminal size={11} />{formatTokens(totals.tools)}</span>
 			<span className="flex items-center gap-1" data-ly-tip={`${totals.tokens.toLocaleString()} tokens`}><Zap size={11} />{formatTokens(totals.tokens)}</span>
-			{totals.cost > 0 && <span className="flex items-center gap-1" data-ly-tip={`估算费用 $${totals.cost.toFixed(4)}`}><Coins size={11} />${totals.cost.toFixed(2)}</span>}
+			{totals.cost > 0 && <span className="flex items-center gap-1" data-ly-tip={t("trajectory.estimatedCost", { cost: totals.cost.toFixed(4) })}><Coins size={11} />${totals.cost.toFixed(2)}</span>}
 		</div>
 		{error && <p role="alert" className="px-3 py-1 text-caption text-danger">读取失败：{error}</p>}
-		{loading ? <p role="status" className="px-3 py-2 text-caption text-ink-faint">读取中…</p> : !entries.length && <p className="px-3 py-2 text-caption text-ink-faint">{all.length ? "没有匹配的记录" : "暂无记录"}</p>}
-		{picked && !matches.has(entryKey(picked)) && <div className="px-3 py-1 text-caption text-ink-muted">不在当前筛选结果中 <button type="button" className="text-info" onClick={() => { setSources([]); setQuery(""); setStatus(undefined); navigate(picked); }}>定位并清除筛选</button></div>}
+		{loading ? <p role="status" className="px-3 py-2 text-caption text-ink-faint">{t("trajectory.loading")}</p> : !entries.length && <p className="px-3 py-2 text-caption text-ink-faint">{all.length ? t("trajectory.noMatch") : t("trajectory.empty")}</p>}
+		{picked && !matches.has(entryKey(picked)) && <div className="px-3 py-1 text-caption text-ink-muted">{t("trajectory.filteredOut")} <button type="button" className="text-info" onClick={() => { setSources([]); setQuery(""); setStatus(undefined); navigate(picked); }}>{t("trajectory.locateAndClear")}</button></div>}
 		<div className="ly-trace-body" data-has-detail={Boolean(picked)}>
 			<div className="ly-trace-ledger">
 				<TraceList entries={entries} selected={selected} onSelect={select} resetKey={JSON.stringify([sources, deferredQuery, status])} collapsed={collapsed} onCollapse={collapse} target={target} focused={focused} paused={Boolean(picked || time)} onFollowing={setFollowing} />

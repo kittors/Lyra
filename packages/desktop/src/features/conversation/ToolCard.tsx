@@ -25,6 +25,7 @@ import type { McpMark } from "./mcp-marks.ts";
 import { safeColour } from "../settings/index.ts";
 import { useMcpMark } from "./useMcpMark.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
+import { translate, useI18n } from "../../i18n/index.ts";
 
 const ICONS: Record<string, typeof FileText> = {
 	read: FileText,
@@ -60,6 +61,7 @@ interface ToolCardProps {
 }
 
 export function ToolCard({ toolName, summary, args, status, result, stateKey, startedAt }: ToolCardProps) {
+	const { t } = useI18n();
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const [elapsed, setElapsed] = useState(0);
 	const mcpMark = useMcpMark()(toolName);
@@ -147,13 +149,13 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 							 * JSON below, because for every other tool that is the honest shape.
 							 */}
 							{typeof args.command === "string" && (
-								<Section title="命令" mono tone="ink">
+								<Section title={t("commands.title")} mono tone="ink">
 									<span className="mr-2 select-none text-ink-faint">$</span>
 									<CodeText text={args.command} kind="shell" />
 								</Section>
 							)}
 							{Object.keys(rest).length > 0 && (
-								<Section title="参数" mono>
+								<Section title={t("mcp.args")} mono>
 									<CodeText text={JSON.stringify(rest, null, 2)} kind="json" />
 								</Section>
 							)}
@@ -165,13 +167,13 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 							 * output. Saying so is the difference between waiting and wondering.
 							 */}
 							{!result && running && (
-								<Section title="输出（进行中）" mono>
-									<span className="text-ink-faint">等待输出…</span>
+								<Section title={t("toolCard.outputRunning")} mono>
+									<span className="text-ink-faint">{t("toolCard.waiting")}</span>
 								</Section>
 							)}
 							{result && (
 								<Section
-									title={status === "error" ? "错误" : running ? "输出（进行中）" : "结果"}
+									title={status === "error" ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
 									mono
 									tone={status === "error" ? "danger" : "muted"}
 								>
@@ -229,7 +231,7 @@ function ToolMark({ mark, Icon, running }: { mark: McpMark | null; Icon: typeof 
 
 function resultText(result: ToolResult): string {
 	return result.content
-		.map((block) => (block.type === "text" ? block.text : `[图片 ${block.mimeType}]`))
+		.map((block) => (block.type === "text" ? block.text : translate("toolCard.image", { mime: block.mimeType })))
 		.join("\n")
 		.slice(0, 20000);
 }
