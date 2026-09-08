@@ -5,6 +5,20 @@ import { browserUrl, browserViewport, browserZoom, type BrowserCommand, type Bro
 interface Tab { size?: {width: number; height: number}; scale?: number; state: BrowserTab; contents?: WebContents; ready: Promise<WebContents>; resolve: (contents: WebContents) => void; reject: (error: Error) => void }
 const tabs = new Map<string, Tab>();
 let activeId: string | null = null;
+/**
+ * The tab each conversation is on, keyed by session id (`""` for none).
+ *
+ * `activeId` is one value for the whole app — the last tab anybody selected — and reusing it for
+ * "the tab to load into" meant an agent whose conversation was off screen either wrote over the
+ * tab the user was looking at, or, once tabs were scoped per conversation, opened a new one on
+ * every call. A conversation's current tab is a property of that conversation.
+ */
+const activeBySession = new Map<string, string>();
+const sessionKey = (sessionId: string | null): string => sessionId ?? "";
+function selectTab(tab: Tab): void {
+	activeId = tab.state.id;
+	activeBySession.set(sessionKey(tab.state.sessionId), tab.state.id);
+}
 let host: (() => BrowserWindow | null) = () => null;
 let preferences: () => { defaultZoom?: number } = () => ({});
 export function configureBrowser(window: () => BrowserWindow | null, settings: () => { defaultZoom?: number }): void { host = window; preferences = settings; }
@@ -19,6 +33,24 @@ export function browserContents(id: string, sessionId?: string): WebContents {
 	if (sessionId !== undefined && tab.state.sessionId !== sessionId) throw new Error("这个浏览器标签属于其他会话");
 	return tab.contents;
 }
+
+/**
+ * The same page, waited for rather than demanded.
+ *
+ * A tab whose conversation is off screen has no page behind it — the panel drops those to give the
+ * renderer processes back — so an agent working in one would otherwise be told its own tab was
+ * closed. Asking marks it `wanted`, which is the panel's cue to mount it again; the page comes back
+ * at the address the tab still holds, which is the same recovery a discarded tab gets anywhere else.
+ */
+export async function awakeBrowser(id: string, sessionId?: string): Promise<WebContents> {
+	const tab = tabs.get(id);
+	if (!tab) throw new Error("浏览器标签已关闭");
+	if (sessionId !== undefined && tab.state.sessionId !== sessionId) throw new Error("这个浏览器标签属于其他会话");
+	if (tab.contents && !tab.contents.isDestroyed()) return tab.contents;
+	tab.state.wanted = true;
+	publish();
+	return readyBrowser(tab);
+}
 function refresh(tab: Tab): void {
 	const contents = tab.contents;
 	if (!contents) return;
@@ -30,11 +62,15 @@ function refresh(tab: Tab): void {
 
 export async function openBrowser(url: string, sessionId: string | null, newTab = false): Promise<string> {
 	const location = browserUrl(url);
-	const active = activeId ? tabs.get(activeId) : undefined;
-	const existing = !newTab && active?.state.sessionId === sessionId ? active : undefined;
+	const current = tabs.get(activeBySession.get(sessionKey(sessionId)) ?? "");
+	const existing = !newTab && current?.state.sessionId === sessionId ? current : undefined;
 	if (existing) {
 		existing.state.error = undefined;
 		existing.state.url = location;
+		// `wanted`, because this tab may be asleep: nothing mounts it while its conversation is off
+		// screen, and `readyBrowser` below would wait out its full timeout for a page nobody built.
+		existing.state.wanted = true;
+		selectTab(existing);
 		publish(true);
 		const contents = await readyBrowser(existing);
 		await contents.loadURL(location);
@@ -47,9 +83,9 @@ export async function openBrowser(url: string, sessionId: string | null, newTab 
 	const ready = new Promise<WebContents>((done, fail) => { resolve = done; reject = fail; });
 	// A closed pending tab may have no waiter after an open timeout.
 	void ready.catch(() => {});
-	const tab: Tab = { resolve, reject, ready, state: { id, sessionId, url: location, title: "新标签页", loading: true, canGoBack: false, canGoForward: false, zoom: browserZoom(preferences().defaultZoom ?? 1), viewport: null } };
+	const tab: Tab = { resolve, reject, ready, state: { id, sessionId, url: location, title: "新标签页", loading: true, canGoBack: false, canGoForward: false, zoom: browserZoom(preferences().defaultZoom ?? 1), viewport: null, wanted: true } };
 	tabs.set(id, tab);
-	activeId = id;
+	selectTab(tab);
 	publish(true);
 	await readyBrowser(tab);
 	return id;
@@ -71,6 +107,8 @@ export function attachBrowser(id: string, contentsId: number, sender: WebContent
 	if (tab.contents === contents) return;
 	if (tab.contents && !tab.contents.isDestroyed()) throw new Error("标签已经连接另一个页面");
 	tab.contents = contents;
+	// The page exists; from here the panel decides on its own how long to keep it.
+	tab.state.wanted = undefined;
 	contents.on("did-start-loading", () => refresh(tab));
 	contents.on("did-stop-loading", () => refresh(tab));
 	contents.on("did-navigate", () => refresh(tab));
@@ -113,10 +151,10 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
 		if (!Number.isFinite(command.width) || !Number.isFinite(command.height) || command.width <= 0 || command.height <= 0) throw new Error("无效的页面尺寸");
 		tab.size = { width: command.width, height: command.height }; fitViewport(tab); return browserState();
 	}
-	const contents = browserContents(command.id);
+	const contents = await awakeBrowser(command.id);
 	switch (command.type) {
 		// Chromium shares zoom by origin; restore this tab's preference when bringing it forward.
-		case "select": activeId = command.id; contents.setZoomFactor(tab.state.zoom); fitViewport(tab); publish(true); break;
+		case "select": selectTab(tab); contents.setZoomFactor(tab.state.zoom); fitViewport(tab); publish(true); break;
 		case "back": if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack(); break;
 		case "forward": if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward(); break;
 		case "reload": tab.state.error = undefined; contents.reload(); break;
@@ -143,6 +181,13 @@ export function closeBrowser(id: string): void {
 	const tab = tabs.get(id);
 	if (!tab) return;
 	tabs.delete(id);
+	// The conversation falls back to its own remaining tab, not to whatever tab is newest overall.
+	const key = sessionKey(tab.state.sessionId);
+	if (activeBySession.get(key) === id) {
+		const fallback = [...tabs.values()].findLast((entry) => sessionKey(entry.state.sessionId) === key);
+		if (fallback) activeBySession.set(key, fallback.state.id);
+		else activeBySession.delete(key);
+	}
 	if (activeId === id) activeId = [...tabs.keys()].at(-1) ?? null;
 	if (tab.contents && !tab.contents.isDestroyed()) tab.contents.close();
 	else tab.reject(new Error("浏览器标签已关闭"));

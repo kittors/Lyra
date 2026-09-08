@@ -196,10 +196,15 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 */}
 		{review && <Overlay onClose={() => setReview(null)} width={850}>
 			<div className="shrink-0 border-b border-line px-4 py-3"><h2 data-dialog-title className="text-body text-ink">文件变更</h2></div>
-			<Scroller className="ly-scroll-gutter min-h-0 flex-auto" top="line" bottom="none">
+			<Scroller className="min-h-0 flex-auto" top="line" bottom="none">
 				{data.files.filter((file) => review === true || review === file.path).map((file) => <div key={file.path} className="border-t border-line first:border-t-0">
-					{/* Above the diff's own pinned columns and its sideways bar — see `DiffView`. */}
-					<div className="sticky top-0 z-[3] flex items-center gap-3 border-b border-line-soft bg-float px-3 py-2 text-label"><FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={file.canUndo ? "撤销此文件的改动" : "无法自动撤销，请核对后续修改"} explainDisabled disabled={!file.canUndo || undoing} onClick={() => askUndo(file)} /></div>
+					{/*
+					 * Above the diff's own pinned columns and its sideways bar — see `DiffView`.
+					 *
+					 * 右边比左边多让 10px：代码那一列自带 `px-2.5` 的留白供滑块落脚，这一行没有，而它
+					 * 右端正是「撤销」。滑块画在 z-40 上、自己吃点击，压上去就是按钮看得见、按不着。
+					 */}
+					<div className="sticky top-0 z-[3] flex items-center gap-3 border-b border-line-soft bg-float py-2 pr-[22px] pl-3 text-label"><FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={file.canUndo ? "撤销此文件的改动" : "无法自动撤销，请核对后续修改"} explainDisabled disabled={!file.canUndo || undoing} onClick={() => askUndo(file)} /></div>
 					<DiffView path={file.path} hunks={file.hunks} maxLines={Infinity} />
 				</div>)}
 			</Scroller>

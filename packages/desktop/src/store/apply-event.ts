@@ -87,6 +87,22 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   }
 
   /*
+   * 排在输入框上的那几条，这一轮干净收尾之后轮到下一条。
+   *
+   * 在这里而不是在下面的 `agent_end` 分支里，理由和上面那段活动状态一样：那个分支只处理屏幕上的
+   * 那个对话，而人排完队走开、去看另一个对话，正是排队最常见的用法。
+   *
+   * 推到微任务里，是因为这一轮的收尾还没写完——下面那个分支才会把 `running` 落成 false，而出队要
+   * 在那之后才算数。同步调它，发出去的消息会被紧随其后的收尾覆盖成「没在跑」。
+   *
+   * 只认 done。中断、报错、卡住都不接着发：按下停止之后继续把排着的灌进去，而屏幕上刚说完「已停
+   * 止」，是这个功能最不该做的事。那几条仍旧留在条上，发不发由人决定。
+   */
+  if (event.type === "agent_end" && event.reason === "done") {
+    queueMicrotask(() => void get().flushQueue(sessionId));
+  }
+
+  /*
    * The same, for the turn meter: every conversation's clock, not just the one on screen.
    *
    * It lives here rather than in the branches below because those return early for anything that

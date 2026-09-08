@@ -26,7 +26,7 @@ export {
 	type TurnPipeline,
 	type ToolRegistry,
 } from "./kernel/index.ts";
-export { getSandbox, useSandbox, LocalSandbox } from "./sandbox/index.ts";
+export { getSandbox, useSandbox, LocalSandbox, primeCommandPath } from "./sandbox/index.ts";
 export { WINDOWS_RUNNER_FLAG, runSandboxRunner, workspaceWriteSid, tempWriteSid } from "./sandbox/index.ts";
 export {
 	registerSearchProvider,

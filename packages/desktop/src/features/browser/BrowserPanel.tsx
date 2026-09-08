@@ -8,17 +8,33 @@ import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Popover, MenuBody, MenuItem, MenuSeparator, usePopover } from "../../ui/overlay/Popover.tsx";
+import { AddressBar } from "./AddressBar.tsx";
 import { BrowserPage } from "./BrowserPage.tsx";
 import { BrowserSelectionCard } from "./BrowserSelectionCard.tsx";
-import { commandBrowser, useBrowser } from "./browser-store.ts";
+import { browserChose, browserMounted, browserOwner, browserVisited, commandBrowser, useBrowser, useBrowserView } from "./browser-store.ts";
 
 export function BrowserPanel() {
-	const tabs = useBrowser((state) => state.tabs);
+	const all = useBrowser((state) => state.tabs);
 	const activeId = useBrowser((state) => state.activeId);
-	const tab = tabs.find((entry) => entry.id === activeId);
+	const sessionId = useApp((state) => state.activeSessionId);
+	const turns = useApp((state) => state.turns);
+	const recent = useBrowserView((state) => state.recent);
+	const chosen = useBrowserView((state) => state.chosen);
+	const owner = browserOwner(sessionId);
+	useEffect(() => { browserVisited(sessionId); }, [sessionId]);
+	/*
+	 * A conversation sees its own tabs, and only its own.
+	 *
+	 * They were always owned by one — that is what scopes the agent's tools — but the panel showed
+	 * every tab there was, so switching conversations left the same page on screen and made the
+	 * ownership invisible. The tab on screen is this conversation's current one: what the main
+	 * process last selected if that belongs here, else the one this conversation was left on.
+	 */
+	const tabs = all.filter((entry) => browserOwner(entry.sessionId) === owner);
+	const tab = tabs.find((entry) => entry.id === activeId) ?? tabs.find((entry) => entry.id === chosen[owner]) ?? tabs.at(-1);
+	const mounted = browserMounted(all, owner, recent, turns);
 	const settings = useApp((state) => state.settings);
 	const saveSettings = useApp((state) => state.saveSettings);
-	const [address, setAddress] = useState("");
 	const addressInput = useRef<HTMLInputElement>(null);
 	const [selection, setSelection] = useState<BrowserSelection | null>(null);
 	const [inspecting, setInspecting] = useState<string | null>(null);
@@ -28,7 +44,7 @@ export function BrowserPanel() {
 	const options = usePopover();
 	const [menu, setMenu] = useState<"actions" | "bookmarks" | "viewport">("actions");
 	const blank = !tab || tab.url === "about:blank";
-	useEffect(() => { setAddress(tab?.url === "about:blank" ? "" : tab?.url ?? ""); setSelection(null); setInspecting(null); }, [tab?.id, tab?.url]);
+	useEffect(() => { setSelection(null); setInspecting(null); }, [tab?.id, tab?.url]);
 	const command = (type: "back" | "forward" | "reload" | "devtools") => { if (tab) void commandBrowser({ type, id: tab.id }); };
 	const open = (url: string, newTab = false) => void commandBrowser({ type: "open", url, sessionId: useApp.getState().activeSessionId, newTab });
 	const mark = async () => {
@@ -48,8 +64,8 @@ export function BrowserPanel() {
 	return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-browser-panel>
 		{tabs.length > 1 && <div className="flex h-8 shrink-0 items-center gap-1 px-2" role="tablist" aria-label="浏览器标签">
 			<div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto ly-scrollbar-hidden">
-				{tabs.map((entry) => <div key={entry.id} className={`group/tab flex min-w-[70px] max-w-[170px] flex-1 items-center rounded-md ${entry.id === activeId ? "bg-card-hover text-ink" : "text-ink-faint"}`}>
-					<button type="button" role="tab" aria-selected={entry.id === activeId} onClick={() => void commandBrowser({ type: "select", id: entry.id })} className="ly-scroll flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-detail">
+				{tabs.map((entry) => <div key={entry.id} className={`group/tab flex min-w-[70px] max-w-[170px] flex-1 items-center rounded-md ${entry.id === tab?.id ? "bg-card-hover text-ink" : "text-ink-faint"}`}>
+					<button type="button" role="tab" aria-selected={entry.id === tab?.id} onClick={() => { browserChose(sessionId, entry.id); void commandBrowser({ type: "select", id: entry.id }); }} className="ly-scroll flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-detail">
 						<Globe size={12} className={`shrink-0 ${entry.loading ? "ly-pulse" : ""}`} /><ScrollText text={entry.title || "新标签页"} className="min-w-0 flex-1 text-left" />
 					</button>
 					<IconButton size="sm" label={`关闭 ${entry.title || "标签页"}`} icon={<X size={11} />} onClick={() => void commandBrowser({ type: "close", id: entry.id })} />
@@ -61,9 +77,7 @@ export function BrowserPanel() {
 			<IconButton size="sm" label="后退" icon={<ArrowLeft size={13} />} disabled={!tab?.canGoBack} onClick={() => command("back")} />
 			<IconButton size="sm" label="前进" icon={<ArrowRight size={13} />} disabled={!tab?.canGoForward} onClick={() => command("forward")} />
 			<IconButton size="sm" label="刷新" icon={<RotateCw size={13} className={tab?.loading ? "ly-pulse" : ""} />} disabled={!tab} onClick={() => command("reload")} />
-			<form className="min-w-0 flex-1" onSubmit={(event) => { event.preventDefault(); open(address); }}>
-				<Input ref={addressInput} aria-label="浏览器地址" value={address} onChange={(event) => setAddress(event.target.value)} spellCheck={false} placeholder="输入网址" className="h-[26px] w-full rounded-md border border-line bg-input px-2.5 text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint" />
-			</form>
+			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={(url) => open(url)} inputRef={addressInput} />
 			<button type="button" aria-label="浏览器菜单" aria-haspopup="menu" aria-expanded={options.open} onClick={(event) => { setMenu("actions"); options.toggle(event); }} className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md hover:bg-card-hover ${options.open || inspecting ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"}`}>
 				<Ellipsis size={16} />
 			</button>
@@ -73,8 +87,8 @@ export function BrowserPanel() {
 		</div>}
 		{tab?.error && <p role="status" className="px-3 py-2 text-detail text-danger">{tab.error}</p>}
 		<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-shell">
-			{tabs.map((entry) => <BrowserPage key={entry.id} tab={entry} active={entry.id === activeId} />)}
-			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title="打开一个网页">在上方输入网址，按 Enter 开始浏览<button type="button" className="mx-auto mt-3 block rounded px-3 py-1 text-info hover:bg-hover" onClick={() => addressInput.current?.focus()}>输入网址</button></PanelEmpty></div>}
+			{mounted.map((entry) => <BrowserPage key={entry.id} tab={entry} active={entry.id === tab?.id} />)}
+			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title="打开一个网页">在上方输入网址，或直接输入要搜的东西<button type="button" className="mx-auto mt-3 block rounded px-3 py-1 text-info hover:bg-hover" onClick={() => addressInput.current?.focus()}>输入网址或搜索</button></PanelEmpty></div>}
 		</div>
 		{selection && <BrowserSelectionCard selection={selection} onClose={() => setSelection(null)} />}
 		{options.open && <Popover anchor={options.anchor} onClose={options.close} placement="bottom" width="default" maxHeight={340} label="浏览器菜单"

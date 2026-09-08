@@ -15,12 +15,15 @@ export function applySessionChange(change: SessionChange, set: Set, get: () => A
 		sessions.sort((a, b) => b.updatedAt - a.updatedAt);
 		const sessionCache = { ...state.sessionCache };
 		const drafts = { ...state.drafts };
+		// 排着的那几条跟草稿一起走：它们本来就是没发出去的草稿，而要说给它听的那个对话已经没了。
+		const queued = { ...state.queued };
 		if (!meta) {
 			delete sessionCache[id];
 			delete drafts[id];
+			delete queued[id];
 		} else if (sessionCache[id]) {
 			sessionCache[id] = { ...sessionCache[id], meta, dirty: true };
 		}
-		return { sessions, sessionCache, drafts, ...(state.activeSessionId === id && meta ? { meta } : {}) };
+		return { sessions, sessionCache, drafts, queued, ...(state.activeSessionId === id && meta ? { meta } : {}) };
 	});
 }

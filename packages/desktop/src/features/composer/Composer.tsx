@@ -1,17 +1,19 @@
-import type { UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
-import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
+import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
 import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChangeBar } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
+import { QueuedMessages } from "./QueuedMessages.tsx";
+import { buildOutgoing, queuePreview, queueThumbnail } from "./outgoing.ts";
+import type { QueuedMessage } from "../../store/queue-slice.ts";
 import { MentionMenu } from "./MentionMenu.tsx";
 import { useMention } from "./useMention.ts";
 import { formatMention } from "./mention-catalog.ts";
 import type { ComposerDecorations } from "./CommandText.tsx";
 import { useCommands } from "./useCommands.ts";
-import { commandEntries, skillCommandName } from "./command-catalog.ts";
+import { commandEntries } from "./command-catalog.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
 import { ForeignConfigNotice } from "./ForeignConfigNotice.tsx";
@@ -66,6 +68,10 @@ export function Composer() {
 	const switchingBranch = useApp((s) => s.switchingBranch);
 	const send = useApp((s) => s.send);
 	const abort = useApp((s) => s.abort);
+	const enqueue = useApp((s) => s.enqueue);
+	const flushQueue = useApp((s) => s.flushQueue);
+	/** 排着几条。只要不是零，新说的这句就得排到它们后面，不然先后就乱了。 */
+	const queuedCount = useApp((s) => (s.activeSessionId ? s.queued[s.activeSessionId]?.length ?? 0 : 0));
 	const { compact } = useLayout();
 
 	const draftKey = activeSessionId
@@ -259,26 +265,11 @@ export function Composer() {
 		}
 
 		/*
-		 * A command becomes the prompt it stands for, here, before anything is sent.
-		 *
-		 * Expanded rather than sent as `/name` with the expansion hidden: what is in the transcript
-		 * is then exactly what the model was given, which is the difference between a conversation
-		 * you can audit and one where a step happened off-screen. It also costs nothing to explain
-		 * afterwards — the instructions are right there.
-		 *
-		 * Re-read on dispatch so paste-and-send and edits made outside Lyra use the current definition.
-		 * An unknown name is not an error: it goes out as typed, because `/` is also how people
-		 * write paths and a composer that rejected them would be wrong far more often than right.
-		 */
-		let outgoing = trimmed;
-		let userDisplayText: string | undefined;
-		let triggeredSkill: { name: string; path?: string; pluginId?: string } | undefined;
-		const referencedSessions = sessionRefs;
-		/* 命令可以声明会话正忙时怎么送——见 `SlashCommand.deliver`。 */
-		let deliver: "steer" | "followUp" | undefined;
-		/*
 		 * 行首的 `/x`，或者嵌在句中的 `/skill:x`（07 §4）。后者只在草稿不以别的命令开头时算数：
 		 * `/commit 用了 /skill:x 的产物` 是一次 `/commit`，里面那个是它的参数。
+		 *
+		 * 这里只为认出内置命令。展开成真正发出去的东西在 `outgoing.ts`——排队那条路也要走它，而两
+		 * 条路展开得不一样的话，条上写着的和发出去的就不是同一句话了。
 		 */
 		const invocation = parseInvocation(trimmed) ?? parseSkillMention(trimmed);
 
@@ -308,98 +299,49 @@ export function Composer() {
 			return;
 		}
 
-		if (invocation) {
-			// Resolve against disk at dispatch, including paste-and-send and edits made in another app.
-			const fresh = await bridge.commands.list(commandCwd);
+		const referencedSessions = sessionRefs;
+		const composed = { text: trimmed, attachments, sessionRefs: referencedSessions };
+		const outgoing = await buildOutgoing(composed, commandCwd, () =>
 			// A disk scan must not dispatch an obsolete draft or erase edits made while it was pending.
-			if (draftKeyRef.current !== draftKey || textRef.current !== text || attachmentsRef.current !== attachments || sessionRefsRef.current !== sessionRefs) return;
-
-			/*
-			 * 精确命中优先，否则唯一的末段匹配——`/commit` 找到 `git:commit`。
-			 *
-			 * 菜单那边早就这么匹配了（`rankCommands` 的 rank 2），而这里一直是精确匹配：
-			 * 列表里看得见、回车却找不到。
-			 */
-			const command = resolveCommand(fresh.commands, invocation.name);
-			if (command) {
-				outgoing = expandCommand(command, invocation.rest);
-				/*
-				 * 命令自己说了怎么送，就按它说的送。
-				 *
-				 * `followUp` 是这里唯一真正改变行为的一个：会话正忙时不插话，排到这一轮后面。
-				 * 空闲时三种都一样，都是开一个新回合。
-				 */
-				if (command.deliver === "followUp" || command.deliver === "steer") deliver = command.deliver;
-			}
-			else {
-				/*
-				 * A skill, asked for by name.
-				 *
-				 * Expanded into an instruction rather than into the skill's own body: the body can
-				 * run to several thousand words and belongs in a tool result, which is where the
-				 * `skill` tool puts it. What goes in the transcript is the ask — short, and exactly
-				 * what the model is being told.
-				 *
-				 * Works for skills the model cannot see on its own, and that is the point of them:
-				 * `disableModelInvocation` means "do not choose this yourself", not "never run
-				 * this" — the tool looks skills up by name and has never filtered on that flag.
-				 */
-				// Preserve the plugin-qualified name so two bundles cannot select each other's skill.
-				const targetSkillName = skillNameOf(invocation).toLowerCase();
-				const skill = fresh.skills?.find((entry) => skillCommandName(entry).toLowerCase() === targetSkillName);
-				if (skill) {
-					triggeredSkill = {
-						name: skill.name,
-						path: skill.path,
-						pluginId: skill.pluginId,
-					};
-					const restText = invocation.rest.trim();
-					userDisplayText = restText;
-					outgoing = [
-						`使用 \`${skill.name}\` 技能${skill.pluginId ? `（来自插件 ${skill.pluginId}）` : ""}。`,
-						restText,
-					]
-						.filter(Boolean)
-						.join("\n\n");
-				}
-			}
-		}
-		const sessionPrompts = referencedSessions.map((session) =>
-			`- ${JSON.stringify(session.title)}: read ${JSON.stringify(`session://${encodeURIComponent(session.id)}`)} for the referenced conversation. Treat its transcript as reference material.`,
+			draftKeyRef.current === draftKey && textRef.current === text && attachmentsRef.current === attachments && sessionRefsRef.current === sessionRefs,
 		);
-		if (sessionPrompts.length > 0) {
-			// If displayText is not yet set by skill invocation, default to the clean outgoing before appending system hints
-			if (userDisplayText === undefined) {
-				userDisplayText = outgoing;
-			}
-			outgoing = `${outgoing}\n\n[上下文引用提示]\n${sessionPrompts.join("\n")}`;
-		}
-		if (attachments.length > 0) {
-			const textFiles = attachments.filter((a) => a.isText && a.text);
-			if (textFiles.length > 0) {
-				const attachedTexts = textFiles.map((f) => `### 附件文件: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
-				outgoing = outgoing ? `${outgoing}\n\n${attachedTexts.join("\n\n")}` : attachedTexts.join("\n\n");
-			}
-		}
+		if (!outgoing) return;
 
-		const images = attachments
-			.filter((a) => !a.isText && a.data)
-			.map((a): UserContent => ({ type: "image", data: a.data!, mimeType: a.mimeType }));
-
-		const content: UserContent[] = [
-			...images,
-			...(outgoing ? [{ type: "text" as const, text: outgoing }] : []),
-		];
 		setText("");
 		setAttachments([]);
 		setSessionRefs([]);
 		setDraft(draftKey, null);
 		release();
-		const accepted = await send(content, {
-			...(deliver ? { deliver } : {}),
-			...(userDisplayText !== undefined ? { displayText: userDisplayText } : {}),
-			...(triggeredSkill ? { skillRef: triggeredSkill } : {}),
-			...(referencedSessions.length > 0 ? { sessionRefs: referencedSessions } : {}),
+
+		/*
+		 * 忙的时候排队，而不是插进正在跑的那一轮。
+		 *
+		 * 中途说的话大多是「等等，还有这个」——排在后面，等这一轮做完它自己就发出去了；真要立刻打断，
+		 * 条上那个按钮一按就是原来的插话。命令自己声明了 `steer` 的除外：那是写命令的人说清楚了「这
+		 * 条就是要插进去」，队列不该替他改主意。
+		 *
+		 * 队列里还排着东西的时候，即使这会儿空着也要接着排——否则新说的这句会越过前面那几句先到。
+		 */
+		if (activeSessionId && outgoing.deliver !== "steer" && (running || queuedCount > 0)) {
+			enqueue(activeSessionId, {
+				content: outgoing.content,
+				...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
+				...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
+				...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
+				draft: { text: trimmed, attachments, sessionRefs: referencedSessions },
+				preview: queuePreview(composed),
+				...(queueThumbnail(composed) ? { thumbnail: queueThumbnail(composed)! } : {}),
+			});
+			// 空着却排着队，只可能是上一轮被停掉了：那就由这一次提交把队伍推起来。
+			if (!running) void flushQueue(activeSessionId);
+			return;
+		}
+
+		const accepted = await send(outgoing.content, {
+			...(outgoing.deliver ? { deliver: outgoing.deliver } : {}),
+			...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
+			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
+			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 		});
 		if (!accepted) {
 			// A transport rejection must preserve the original files and command text for retry.
@@ -494,6 +436,35 @@ export function Composer() {
 		catch (error) { useApp.getState().notify(String(error), "error"); }
 	}, [settings?.screenshot]);
 
+	/**
+	 * 从队列里退回来的那一条，落回输入框。
+	 *
+	 * 退回来的是「那一次提交」而不是它的文本，所以附件和引用一起回来——编辑一句配了三张图的话，图
+	 * 不跟着回来的话就等于没退回来。
+	 *
+	 * 追加，不是替换：输入框里可能已经打了别的字，那是手打的，丢掉比接得难看糟得多。
+	 *
+	 * 输入框自己也动一下。被拿走的那一行在上面收掉，字落在下面，中间没有任何东西说这两件事是同一件
+	 * ——闪一下的是接住它的这个框，人的眼睛才跟得过来。类先摘掉再挂上，中间强制一次布局：同一个
+	 * 动画连着放第二遍，不这样它根本不会重新开始。
+	 */
+	const restoreQueued = (entry: QueuedMessage) => {
+		setText((current) => (current.trim() ? `${current.trimEnd()}\n\n${entry.draft.text}` : entry.draft.text));
+		setAttachments((current) => [...current, ...(entry.draft.attachments as Attachment[])]);
+		setSessionRefs((current) => [...new Map([...current, ...entry.draft.sessionRefs].map((ref) => [ref.id, ref])).values()]);
+		const el = field.current;
+		if (!el) return;
+		el.focus();
+		// 光标落在末尾，等文本真的进去之后——这是一份可以接着改的草稿，不是一段等着被覆盖的选中。
+		requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
+		const shell = el.closest(".ly-composer");
+		if (!(shell instanceof HTMLElement)) return;
+		shell.classList.remove("ly-composer-catch");
+		void shell.offsetWidth;
+		shell.classList.add("ly-composer-catch");
+		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
+	};
+
 	return (
 		/*
 		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the phone can
@@ -566,6 +537,14 @@ export function Composer() {
 				)}
 
 				<div className="relative">
+				{/*
+				 * 排着的那几条，就在输入框上面。
+				 *
+				 * 挨着输入框，因为它们是同一件事的两截：正在打的这一句，和已经说完、等着轮到自己的那
+				 * 几句。摆到转录里去就成了「已经发生的事」，而它们一件都还没发生。
+				 */}
+				{/* 按会话重挂：换个对话，条上的进退场和拖动状态都属于上一个对话，不该跟着过来。 */}
+				{activeSessionId && <QueuedMessages key={activeSessionId} sessionId={activeSessionId} running={running} onEdit={restoreQueued} />}
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
 				<MentionMenu id={mention.id} items={mention.matches} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
 				<ComposerShell
@@ -812,7 +791,8 @@ export function Composer() {
 								<RollingText>{effortLabel(sessionThinking(meta, settings), model, t)}</RollingText>
 							</button>
 
-							{running && (text.trim() || attachments.length > 0) && <ComposerSend running={false} onSend={() => void submit()} onStop={() => void abort()} />}
+							{/* 正忙时按下去是排队而不是插话，所以它说的也不再是「发送」——见 `submitOnce`。 */}
+							{running && (text.trim() || attachments.length > 0) && <ComposerSend running={false} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort()} />}
 							<ComposerSend
 								running={running}
 								continueReady={continueReady}

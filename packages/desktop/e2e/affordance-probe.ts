@@ -11,6 +11,10 @@
  * `.group:hover .child` 去掉之后是 `.group .child`，匹配的是被影响的那一个。两种都算数。
  *
  * 只跑不断言：名单是给人看的，哪些「本来就不该有 hover」需要人判断。
+ *
+ * 反过来的那一问也在这里：能打字的框，光标得说「这里能打字」。同一个开关，同一份名单，错的方向
+ * 相反——`[role=combobox]` 曾经把输入框和地址栏一起判成「能按」，于是应用最想让人写字的那个框，
+ * 鼠标压上去变成一只手。这一面不用人判断：`合格: false` 就是一处缺陷，没有例外。
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -45,7 +49,13 @@ const SCAN = `(()=>{
 		return /(?:^|\\s)hover:/.test(cls)||named.some(name=>node.classList?.contains(name))};
 	const hasHover=el=>own(el)||/(?:^|\\s)group-hover:/.test(String(el.className||''))
 		||[...el.querySelectorAll('*')].some(child=>/(?:^|\\s)group-hover:/.test(String(child.className||''))||own(child));
-	const roles='[role=tab],[role=switch],[role=button],[role=link],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=option],[role=radio],[role=checkbox],[role=combobox],[role=treeitem]';
+	/*
+	 * 能打字的 combobox 不在这一扫的范围里。
+	 *
+	 * 输入框和地址栏都挂着 role=combobox——那是给读屏用的，说的是「这个框上面会浮一张列表」，不是
+	 * 「这个框能按」。它们该有的光标是 text，扫进来只会年年报同一条假账。
+	 */
+	const roles='[role=tab],[role=switch],[role=button],[role=link],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=option],[role=radio],[role=checkbox],[role=combobox]:not(input,textarea),[role=treeitem]';
 	const seen=new Map();
 	for(const el of document.querySelectorAll('button,select,a[href],summary,'+roles)){
 		if(!el.checkVisibility())continue;
@@ -64,6 +74,18 @@ const SCAN = `(()=>{
 		seen.get(key).个数++;
 	}
 	return {名单:[...seen.values()].sort((a,b)=>b.个数-a.个数)}})()`;
+
+/*
+ * 能打字的框，量的是同一个东西的另一头。
+ *
+ * `text` 和 `auto` 都算过：UA 样式表给输入框的是 `cursor: auto`，Blink 在文本上把它画成竖线，
+ * `getComputedStyle` 却照原样报 `auto`——两个值说的是同一件事，只有第三个值才是问题。
+ */
+const TYPING = `(()=>[...document.querySelectorAll('textarea,input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file])')]
+	.filter(el=>el.checkVisibility()&&!el.disabled&&!el.readOnly)
+	.map(el=>{const cursor=getComputedStyle(el).cursor;
+		return {何处:el.tagName.toLowerCase()+'['+(el.getAttribute('role')||'')+'] '+(el.getAttribute('aria-label')||el.placeholder||'').slice(0,24),
+			光标:cursor,合格:cursor==='text'||cursor==='auto'}}))()`;
 
 async function main() {
 	app = await startApp({
@@ -89,6 +111,7 @@ async function main() {
 		if (open) { await app.evaluate(open); await frames(20); await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim().startsWith('任务'))?.click()`); await frames(30); }
 		console.log(`\n=== ${name} ===`);
 		console.log(JSON.stringify(await app.evaluate(SCAN), null, 1));
+		console.log("能打字的框：", JSON.stringify(await app.evaluate(TYPING), null, 1));
 		console.log("真鼠标复核后，确实一动不动的：", JSON.stringify(await confirmNoHover(), null, 1));
 	}
 

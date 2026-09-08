@@ -15,6 +15,7 @@ import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
 import { sessionSlice } from "./session-slice.ts";
 import { readSelectedSession } from "./session-read.ts";
+import { queueSlice, type QueueSlice } from "./queue-slice.ts";
 import { turnSlice } from "./turn-slice.ts";
 import { workspaceSlice } from "./workspace-slice.ts";
 import type { TodoItem } from "@lyra/core";
@@ -95,7 +96,7 @@ export interface PendingApproval {
   allowCustomInput?: boolean;
 }
 
-export interface AppState {
+export interface AppState extends QueueSlice {
   ready: boolean;
   view: View;
   settingsSection: SettingsSection;
@@ -398,7 +399,13 @@ export interface AppState {
    * `carryOn` says this send continues a turn that stopped rather than starting a new one, so its
    * clock and token count are picked up from where the pause left them. See `turn-meter.ts`.
    */
-	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }> }): Promise<boolean>;
+  /**
+   * `sessionId` 指定发给哪个会话，默认是屏幕上这个。
+   *
+   * 队列才需要它：排队的消息等的是「那一轮结束」，而那一轮结束时人可能已经切到别的对话去了——
+   * 没有它，出队要么发错对话，要么只能等人切回来。
+   */
+	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; sessionId?: string }): Promise<boolean>;
   /** Replace a message and re-run from there; everything after it is discarded. */
   editMessage(index: number, content: UserContent[]): Promise<void>;
   /** Re-send the user message that produced the reply at `index`. */
@@ -500,7 +507,10 @@ export const useApp = create<AppState>((set, get) => ({
 		 * no reason to postpone the listeners until after they answer.
 		 */
 		bridge.settings.onChanged((next) =>
-			set((state) => ({ settings: next, extensionsNonce: state.extensionsNonce + 1 })),
+			set((state) => ({
+				settings: next,
+				extensionsNonce: state.extensionsNonce + (scanKey(state.settings) === scanKey(next) ? 0 : 1),
+			})),
 		);
 		bridge.agent.onEvent(({ sessionId, event }) =>
 			get().applyEvent(sessionId, event),
@@ -589,6 +599,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   ...workspaceSlice(set, get),
   ...sessionSlice(set, get),
+  ...queueSlice(set, get),
   ...turnSlice(set, get),
 
   dismissNotice: (id) =>
@@ -606,6 +617,20 @@ export const useApp = create<AppState>((set, get) => ({
     applyAgentEvent(sessionId, event, set, get);
   },
 }));
+
+/**
+ * 这次设置改动会不会让磁盘上的东西变样。
+ *
+ * `extensionsNonce` 一动，命令、技能、插件、MCP 那几张扫盘的列表就全部重扫一遍。装一个 MCP 包
+ * 会让目录长出来，那确实得重扫——广播里加这一下就是为了它。可广播是所有设置改动共用的一条路，
+ * 于是拖一格滑条也重扫一遍，从 1 拖到 10 是九轮，每轮都要走一趟主进程去读目录。
+ *
+ * 所以只认真正会改变磁盘布局的那两项。第一次（还没有设置）返回一个对不上的键，让它照扫不误。
+ */
+function scanKey(settings: Settings | null | undefined): string {
+	if (!settings) return "";
+	return JSON.stringify([settings.mcpServers, settings.disabledPlugins]);
+}
 
 async function refreshRemoteState(
 	set: (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void,

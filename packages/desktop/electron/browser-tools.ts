@@ -1,6 +1,6 @@
 import type { Tool, ToolResult } from "@lyra/core";
 import { actBrowser, readBrowser, type BrowserAction } from "./browser-actions.ts";
-import { browserContents, browserCommand, browserState, closeSessionBrowser, openBrowser } from "./browser-workspace.ts";
+import { awakeBrowser, browserContents, browserCommand, browserState, closeSessionBrowser, openBrowser } from "./browser-workspace.ts";
 
 function result(value: unknown): ToolResult {
 	return { content: [{ type: "text", text: `<browser-data untrusted="true">\n${JSON.stringify(value, null, 2)}\n</browser-data>` }], details: { kind: "browser" } };
@@ -14,10 +14,12 @@ function actionName(value: unknown): value is BrowserAction["action"] { return A
 /** All tools operate the same visible tabs as the user, scoped by the trusted runtime context. */
 export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 	const owners = new Set<string>();
-	const current = (id: unknown, sessionId: string) => {
+	// Awaited, not asserted: this session's tab may be asleep because the user is looking elsewhere,
+	// and an agent's own tab has to come back rather than report itself closed.
+	const current = async (id: unknown, sessionId: string) => {
 		const tab = typeof id === "string" ? browserState().tabs.find((entry) => entry.id === id) : browserState().tabs.find((entry) => entry.id === browserState().activeId && entry.sessionId === sessionId) ?? browserState().tabs.findLast((entry) => entry.sessionId === sessionId);
 		if (!tab) throw new Error("先调用 browser_open 打开一个页面");
-		browserContents(tab.id, sessionId);
+		await awakeBrowser(tab.id, sessionId);
 		return tab.id;
 	};
 	const tools: Tool[] = [
@@ -51,7 +53,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 					const action: BrowserAction = { action: args.action };
 					for (const name of ["selector", "text", "expression"] as const) { const value = args[name]; if (value !== undefined) { if (typeof value !== "string") throw new Error(`${name} 必须是文本`); action[name] = value; } }
 					for (const name of ["x", "y"] as const) { const value = args[name]; if (value !== undefined) { if (typeof value !== "number") throw new Error(`${name} 必须是数字`); action[name] = value; } }
-					return result(await actBrowser(current(args.tabId, ctx.sessionId), action, ctx.sessionId));
+					return result(await actBrowser(await current(args.tabId, ctx.sessionId), action, ctx.sessionId));
 				} catch (error) { return fail(error); }
 			},
 		},
@@ -61,7 +63,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 			parameters: { type: "object", properties: { action: { type: "string", enum: ["list", "select", "close"] }, tabId: { type: "string" } }, required: ["action"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {
-					if (args.action === "select" || args.action === "close") await browserCommand({ type: args.action, id: current(args.tabId, ctx.sessionId) });
+					if (args.action === "select" || args.action === "close") await browserCommand({ type: args.action, id: await current(args.tabId, ctx.sessionId) });
 					else if (args.action !== "list") throw new Error("未知标签操作");
 					return result(browserState().tabs.filter((entry) => entry.sessionId === ctx.sessionId));
 				} catch (error) { return fail(error); }
@@ -73,7 +75,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 			parameters: { type: "object", properties: { tabId: { type: "string" }, zoom: { type: "number" }, width: { type: "number" }, height: { type: "number" }, reset: { type: "boolean" } }, additionalProperties: false },
 			async execute(args, ctx) {
 				try {
-					const id = current(args.tabId, ctx.sessionId);
+					const id = await current(args.tabId, ctx.sessionId);
 					if (typeof args.zoom === "number") await browserCommand({ type: "zoom", id, factor: args.zoom });
 					if (args.reset === true) await browserCommand({ type: "viewport", id, viewport: null });
 					else if (args.width !== undefined || args.height !== undefined) {
@@ -90,7 +92,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 			parameters: { type: "object", properties: { tabId: { type: "string" } }, additionalProperties: false },
 			async execute(args, ctx) {
 				try {
-					const contents = browserContents(current(args.tabId, ctx.sessionId), ctx.sessionId);
+					const contents = browserContents(await current(args.tabId, ctx.sessionId), ctx.sessionId);
 					return { content: [{ type: "image", data: (await contents.capturePage()).toPNG().toString("base64"), mimeType: "image/png" }] };
 				} catch (error) { return fail(error); }
 			},

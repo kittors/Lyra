@@ -39,6 +39,7 @@ import {
 	STORAGE,
 	TOOLS,
 	SessionStore,
+	primeCommandPath,
 	type AgentLoop,
 	type ApprovalPolicy,
 	type CompactionStrategy,
@@ -370,6 +371,17 @@ process.on("uncaughtException", (error) => reportToTopLevel(error, "uncaughtExce
 process.on("unhandledRejection", (reason) => reportToTopLevel(reason, "unhandledRejection"));
 
 app.whenReady().then(async () => {
+	/*
+	 * Started here and never awaited, because the answer is wanted long before it is needed.
+	 *
+	 * A GUI launch inherits `/usr/bin:/bin:/usr/sbin:/sbin` from launchd and nothing else, so
+	 * `pnpm`, `node` and every version manager's shim are missing from every command the agent
+	 * runs — see `core/sandbox/login-path.ts`. Recovering them means asking the user's shell, which
+	 * costs one to two seconds; kicking it off at the top of startup means it has long since
+	 * finished by the time anyone types anything, and nothing waits on it if it has not.
+	 */
+	void primeCommandPath();
+
 	/*
 	 * Before anything reads or writes it: the home directory was called `.deepwise` until the app
 	 * was renamed, and to someone who had been using it, a fresh empty one is indistinguishable

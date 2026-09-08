@@ -1,21 +1,49 @@
 import { ExternalLink, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BROWSER_SEARCH_ENGINES, browserSearchCustom, type BrowserSearchEngine } from "../../../shared/browser.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { Card, InlineSelect, Row, SectionTitle } from "./controls.tsx";
+import { Card, InlineSelect, Row, SectionTitle, TextInput } from "./controls.tsx";
+
+const ENGINE_OPTIONS: { value: BrowserSearchEngine; label: string }[] = [
+	...BROWSER_SEARCH_ENGINES.map((engine) => ({ value: engine.id as BrowserSearchEngine, label: engine.label })),
+	{ value: "custom", label: "自定义" },
+];
 
 export function BrowserSettings() {
 	const settings = useApp((state) => state.settings);
 	const saveSettings = useApp((state) => state.saveSettings);
+	const config = settings?.browser ?? {};
+	/*
+	 * The template is a draft until it can carry a query.
+	 *
+	 * Saved on every keystroke it would be written half-typed — `https://example.com/?q=` with the
+	 * `%s` still to come — and the address bar would silently fall back to Bing for as long as it
+	 * took to finish the word. Committed on blur, and only if it parses.
+	 */
+	const [draft, setDraft] = useState(config.searchUrl ?? "");
+	const [error, setError] = useState<string | null>(null);
+	useEffect(() => { setDraft(config.searchUrl ?? ""); setError(null); }, [config.searchUrl]);
 	if (!settings) return null;
-	const config = settings.browser ?? {};
 	const patch = (next: Partial<NonNullable<typeof settings.browser>>) => void saveSettings({ ...settings, browser: { ...config, ...next } });
+	const commit = () => {
+		if (!draft.trim()) { setError(null); patch({ searchUrl: "" }); return; }
+		try { patch({ searchUrl: browserSearchCustom(draft) }); setError(null); }
+		catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
+	};
 	return <div className="pt-8">
 		<h1 className="pb-7 text-display leading-tight font-semibold tracking-tight text-ink">浏览器</h1>
 		<SectionTitle>浏览习惯</SectionTitle>
 		<Card className="mb-7">
 			<Row title="默认打开链接" control={<InlineSelect value={config.openLinks ?? "system"} options={[{ value: "system", label: "系统浏览器" }, { value: "builtin", label: "内置浏览器" }]} onChange={(openLinks) => patch({ openLinks })} />} />
+			<Row title="地址栏搜索" detail="地址栏里输入的不是网址时，交给它搜索。" control={<InlineSelect value={config.searchEngine ?? "bing"} options={ENGINE_OPTIONS} onChange={(searchEngine) => patch({ searchEngine })} ariaLabel="搜索引擎" />}>
+				{config.searchEngine === "custom" && <div className="mt-3" data-search-custom>
+					<TextInput mono value={draft} onChange={setDraft} onBlur={commit} invalid={Boolean(error)} placeholder="https://example.com/search?q=%s" aria-label="自定义搜索地址" spellCheck={false} />
+					<p className={`mt-1.5 text-caption ${error ? "text-danger" : "text-ink-faint"}`}>{error ?? "把搜索结果页的地址粘进来，把里面的搜索词换成 %s。"}</p>
+				</div>}
+			</Row>
 			<Row title="新页面缩放" control={<InlineSelect value={String(config.defaultZoom ?? 1)} options={[0.75,1,1.25,1.5,2].map((factor) => ({ value: String(factor), label: `${factor * 100}%` }))} onChange={(factor) => patch({ defaultZoom: Number(factor) })} />} />
 			<Row title="Agent 操作" detail="直接操作同一页面，显示实时光标；各会话的标签独立。" />
 			<Row title="页面检查" detail="在浏览器工具栏选取元素或框选区域，附上截图和修改要求发给 Agent。" />

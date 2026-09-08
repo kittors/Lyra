@@ -479,6 +479,15 @@ export interface Settings {
 	browser?: {
 		defaultZoom?: number;
 		openLinks?: "system" | "builtin";
+		/**
+		 * Which engine the address bar hands words to, when what was typed is not an address.
+		 *
+		 * Absent means Bing, which is the one that answers from everywhere this app runs without
+		 * asking the user to reach a network they may not have.
+		 */
+		searchEngine?: "bing" | "google" | "baidu" | "duckduckgo" | "custom";
+		/** The template behind `searchEngine: "custom"`, with `%s` where the query goes. */
+		searchUrl?: string;
 		bookmarks?: { url: string; title: string }[];
 	};
 	/**

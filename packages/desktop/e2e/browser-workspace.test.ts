@@ -219,7 +219,7 @@ test("one navigation row, a compact menu and a icon empty state at wide and 375p
 		await until(`document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`);
 		const emptyStyle = await app.evaluate(`(()=>{const empty=document.querySelector('[data-browser-empty]'),toolbar=document.querySelector('[data-browser-toolbar]');return {background:getComputedStyle(empty).backgroundColor,container:getComputedStyle(empty.parentElement).backgroundColor,divider:getComputedStyle(toolbar).borderBottomWidth,icons:empty.querySelectorAll('svg').length};})()`);
 		assert.equal(emptyStyle.background, emptyStyle.container); assert.equal(emptyStyle.divider, "0px"); assert.equal(emptyStyle.icons, 1);
-		await click('[data-browser-empty] button'); assert.equal(await app.evaluate(`document.activeElement.getAttribute('aria-label')`), "浏览器地址");
+		await click('[data-browser-empty] button'); assert.equal(await app.evaluate(`document.activeElement.getAttribute('aria-label')`), "地址栏或搜索");
 		if(directory){const shot=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(directory,`browser-empty-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));}
 	}
 	await app.send("Emulation.clearDeviceMetricsOverride");

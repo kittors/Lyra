@@ -605,7 +605,7 @@ export function Popover({
 				 * a native bar; making it the surface's job is what makes the answer the same everywhere.
 				 */}
 				<Scroller
-					className={`${kind === "menu" ? "ly-menu-scroll" : "ly-scroll-gutter"} min-h-0 flex-auto`}
+					className={`${kind === "menu" ? "ly-menu-scroll " : ""}min-h-0 flex-auto`}
 					contentClassName={`overflow-x-hidden ${bodyClassName}`}
 					/*
 					 * A panel ends where the card ends.

@@ -99,6 +99,7 @@ export function LiveToolCard({
        */
       status={run?.status ?? (stopReason === "pending" ? "running" : "error")}
       result={run?.result}
+      startedAt={run?.startedAt}
     />
   );
 }

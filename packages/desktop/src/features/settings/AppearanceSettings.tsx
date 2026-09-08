@@ -71,6 +71,14 @@ export function AppearanceSettings() {
 	 * from before this menu existed is still editable without picking 自定义 first.
 	 */
 	const [customFont, setCustomFont] = useState(false);
+	/*
+	 * 拖动中的行数，还没存进设置里的那个。
+	 *
+	 * 预览和读数要立刻跟着手走，而每存一次设置是一趟主进程：两次原子写盘、重建菜单、重注册全局
+	 * 快捷键、再广播回来重渲一遍。一格一趟，从 1 拖到 10 就是这套东西跑九遍，卡的就是这个。
+	 * 所以拖动期间只动这个草稿，松手时才存——中途那些格子是路过，不是选择。
+	 */
+	const [linesDraft, setLinesDraft] = useState<number | null>(null);
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	if (!settings) return null;
@@ -80,6 +88,11 @@ export function AppearanceSettings() {
 	const patch = (next: Partial<Appearance>) =>
 		void saveSettings({ ...settings, appearance: { ...appearance, ...next } });
 	const isDark = appearance.theme === "dark" || (appearance.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+
+	/* 设置追上草稿了就把控制权交还——松手之后这两个数必然汇合，不需要另一个作废的时机。 */
+	const savedLines = appearance.composerLines ?? COMPOSER_LINES_MIN;
+	if (linesDraft !== null && linesDraft === savedLines) setLinesDraft(null);
+	const composerLines = linesDraft ?? savedLines;
 
 	return (
 		<div className="pt-8">
@@ -157,7 +170,8 @@ export function AppearanceSettings() {
 								max={100}
 								label="对比度"
 							/>
-							<span className="w-6 text-right font-mono text-label text-ink">{appearance.contrast}</span>
+							{/* 同样按字号算：24px 只够三位数在 13px 下勉强站住，字号一调大就得断行。 */}
+							<span className="min-w-[2.2em] shrink-0 text-right font-mono text-label whitespace-nowrap text-ink tabular-nums">{appearance.contrast}</span>
 						</div>
 					}
 				/>
@@ -445,19 +459,37 @@ export function AppearanceSettings() {
 					control={
 						<div className="flex items-center gap-3">
 							<Slider
-								value={appearance.composerLines ?? COMPOSER_LINES_MIN}
-								onChange={(composerLines) => patch({ composerLines })}
+								value={composerLines}
+								onChange={setLinesDraft}
+								/*
+								 * 不走 `patch`，为的是那个 `catch`。
+								 *
+								 * 存不下去的时候草稿得作废，否则屏幕上留着一个磁盘上并不存在的行数——只
+								 * 有它自己知道那次保存没成。以前不会这样：值一直来自设置，存不下去就自己
+								 * 弹回去了；把画面交给草稿之后，这条退路得自己铺。
+								 */
+								onCommit={(lines) => {
+									void saveSettings({ ...settings, appearance: { ...appearance, composerLines: lines } })
+										.catch(() => setLinesDraft(null));
+								}}
 								min={COMPOSER_LINES_MIN}
 								max={COMPOSER_LINES_MAX}
 								label="输入框默认高度"
 							/>
-							<span className="w-9 text-right font-mono text-label text-ink tabular-nums">
-								{appearance.composerLines ?? COMPOSER_LINES_MIN} 行
+							{/*
+							 * 宽度按字号算，不按像素算。
+							 *
+							 * 这里原来是 36px，正好够「1 行」，差 0.4px 就装不下「10 行」——于是滑到两位数
+							 * 那一格，数字和「行」被拆到上下两行。写成 em 之后它跟着 UI 字号一起缩放，字号
+							 * 调大也不会重演；`nowrap` 是最后一道，宁可挤出去也不断开。
+							 */}
+							<span className="min-w-[3.6em] shrink-0 text-right font-mono text-label whitespace-nowrap text-ink tabular-nums">
+								{composerLines} 行
 							</span>
 						</div>
 					}
 				>
-					<ComposerHeightPreview lines={appearance.composerLines ?? COMPOSER_LINES_MIN} />
+					<ComposerHeightPreview lines={composerLines} />
 				</Row>
 				<Row
 					title="代码字体大小"

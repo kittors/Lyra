@@ -83,6 +83,13 @@
    * `[aria-disabled="true"]` rather than `:disabled` for the role-based ones: a div with a role
    * has no `disabled` property to match, and a control that cannot be pressed must not claim it
    * can. Two ways of saying the same thing, because the elements are two kinds.
+   *
+   * The `combobox` line excludes `input` and `textarea`, which is the one role here that is not
+   * about pressing. A text field that has a list floating over it is still a text field — the
+   * composer with its slash menu, the address bar with its suggestions — and both carry the role
+   * for the screen reader's sake. A pointer over them said *button*, over the very box the app is
+   * asking you to type into, and took away the one thing the caret was there to promise: click
+   * here and the insertion point lands here.
    */
   :root[data-pointer-cursor="true"] button:not(:disabled),
   :root[data-pointer-cursor="true"] select:not(:disabled),
@@ -101,7 +108,7 @@
   :root[data-pointer-cursor="true"] [role="option"]:not([aria-disabled="true"]),
   :root[data-pointer-cursor="true"] [role="radio"]:not([aria-disabled="true"]),
   :root[data-pointer-cursor="true"] [role="checkbox"]:not([aria-disabled="true"]),
-  :root[data-pointer-cursor="true"] [role="combobox"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="combobox"]:not([aria-disabled="true"], input, textarea),
   :root[data-pointer-cursor="true"] [role="treeitem"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }

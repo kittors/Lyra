@@ -14,7 +14,7 @@
 
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Minus, Plus } from "lucide-react";
-import { useRef, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 
 import { InlineSelect } from "./inputs.tsx";
 
@@ -23,10 +23,17 @@ import { InlineSelect } from "./inputs.tsx";
  *
  * The native input stays on top at zero opacity, so every interaction — drag, click-to-jump, arrow
  * keys, page up/down — is the browser's own, and the drawn part underneath only follows `value`.
+ *
+ * `onCommit` is for the callers whose `onChange` is expensive. A settings slider's value goes to
+ * the main process, gets written to disk and comes back; doing that once per notch turns a drag
+ * into a queue of round trips. Those callers keep the cheap half in `onChange` — the preview, the
+ * readout — and put the write in `onCommit`, which fires on the range's own `change`: once per
+ * decision, not once per notch.
  */
 export function Slider({
 	value,
 	onChange,
+	onCommit,
 	min = 0,
 	max = 100,
 	step = 1,
@@ -35,13 +42,61 @@ export function Slider({
 }: {
 	value: number;
 	onChange: (value: number) => void;
+	/** Called on the range's own `change` — the drag let go, the track clicked, a key pressed. */
+	onCommit?: (value: number) => void;
 	min?: number;
 	max?: number;
 	step?: number;
 	width?: number;
 	label: string;
 }): JSX.Element {
-	const ratio = max === min ? 0 : (value - min) / (max - min);
+	/*
+	 * 拖动中先认自己刚给出的值，不等 `value` 从外面回来。
+	 *
+	 * 这是个受控 input：`value` 来自设置，而设置要走一趟主进程——存盘、通知、再回来。那一趟没
+	 * 回来之前，每一次重渲染都会按旧的 `value` 把 DOM 复位一次，于是拖动变成「往前一点、弹回
+	 * 去、再跳过来」。实测拖一次 1 → 10，十二帧里有九帧显示的是落后一两格的旧值。
+	 *
+	 * 外面追上来了就把控制权交还——两个数汇合，草稿作废。松手之后它们必然会汇合，所以这里不需要
+	 * 另一个「什么时候清掉」的时机。
+	 */
+	const [draft, setDraft] = useState<number | null>(null);
+	const [dragging, setDragging] = useState(false);
+	if (draft !== null && draft === value) setDraft(null);
+	const shown = draft ?? value;
+	const ratio = max === min ? 0 : (shown - min) / (max - min);
+	/*
+	 * 拖动时不做缓动。
+	 *
+	 * 150ms 的过渡对「点一下轨道跳过去」是对的，对拖动是错的：手指每一帧都给一个新位置，把手却
+	 * 每一帧都从头开始爬一段 150ms 的曲线，永远停在光标后面。手上感觉不是「慢」，是「黏」。
+	 */
+	const glide = dragging ? "none" : "var(--ly-t-quick) var(--ly-e-out)";
+
+	/*
+	 * 「选定了」这个信号，用滑条自己的 `change`。
+	 *
+	 * range 的 `input` 是拖动途中每一格都发，`change` 只在松手、点轨道、按方向键这些「这一下算
+	 * 数了」的时刻发一次——落盘要挂的正是后者。自己拿 `pointerup` 拼一个也能对付鼠标，但会漏掉
+	 * 键盘，也漏掉浏览器在失焦时补发的那一次。React 把 `onChange` 接到了原生的 `input` 上，所以
+	 * 真的 `change` 只能自己听。
+	 *
+	 * 挂一次就不再重挂：回调从 ref 里现取，省得每次渲染都拆装一遍监听。
+	 *
+	 * 这里**不加**「值变了吗」的守卫。滑条自己已经守过了——原生 `change` 只在值确实动过之后才
+	 * 发，点回原处不发。而这里能拿来比的 `value` 早已经是拖动中的草稿值（调用方把草稿喂回来画
+	 * 预览），拿它比就永远相等，于是一次也提交不出去：预览跟着滑，读数跟着滑，磁盘上一动不动。
+	 */
+	const field = useRef<HTMLInputElement>(null);
+	const latest = useRef(onCommit);
+	latest.current = onCommit;
+	useEffect(() => {
+		const el = field.current;
+		if (!el) return;
+		const commit = () => latest.current?.(Number(el.value));
+		el.addEventListener("change", commit);
+		return () => el.removeEventListener("change", commit);
+	}, []);
 
 	return (
 		<div className="relative h-[18px]" style={{ width }}>
@@ -49,7 +104,7 @@ export function Slider({
 			<div className="absolute top-1/2 h-[3px] w-full -translate-y-1/2 overflow-hidden rounded-full bg-line">
 				<div
 					className="h-full rounded-full bg-info"
-					style={{ width: `${ratio * 100}%`, transition: "width var(--ly-t-quick) var(--ly-e-out)" }}
+					style={{ width: `${ratio * 100}%`, transition: `width ${glide}` }}
 				/>
 			</div>
 
@@ -59,17 +114,29 @@ export function Slider({
 			 */}
 			<div
 				className="ly-knob pointer-events-none absolute top-1/2 h-[14px] w-[14px] -translate-x-1/2 -translate-y-1/2 rounded-full border"
-				style={{ left: `calc(7px + ${ratio} * (100% - 14px))`, transition: "left var(--ly-t-quick) var(--ly-e-out)" }}
+				style={{ left: `calc(7px + ${ratio} * (100% - 14px))`, transition: `left ${glide}` }}
 			/>
 
 			<input
+				ref={field}
 				type="range"
 				min={min}
 				max={max}
 				step={step}
-				value={value}
+				value={shown}
 				aria-label={label}
-				onChange={(event) => onChange(Number(event.target.value))}
+				onChange={(event) => {
+					const next = Number(event.target.value);
+					setDraft(next);
+					onChange(next);
+				}}
+				/*
+				 * `pointerdown` 而不是 `mousedown`：触摸板和触摸屏走的是同一个事件。键盘到不了这里，
+				 * 所以按方向键时把手照旧带着缓动挪过去——那正是它该有的样子。
+				 */
+				onPointerDown={() => setDragging(true)}
+				onPointerUp={() => setDragging(false)}
+				onPointerCancel={() => setDragging(false)}
 				className="absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0"
 			/>
 		</div>

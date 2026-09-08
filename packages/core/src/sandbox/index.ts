@@ -24,6 +24,7 @@ export function getSandbox(): Sandbox {
 }
 
 export { LocalSandbox } from "./local.ts";
+export { primeCommandPath } from "./login-path.ts";
 export { sandboxModeFor } from "./mode-for.ts";
 export { confine, looksDenied, selectRunner, resetProbeCache, SandboxUnavailableError, WINDOWS_RUNNER_FLAG } from "./backend.ts";
 export { main as runSandboxRunner } from "./windows/runner.ts";

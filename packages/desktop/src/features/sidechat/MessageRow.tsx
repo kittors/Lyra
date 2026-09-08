@@ -191,6 +191,7 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 						summary={run?.summary ?? block.name}
 						status={run?.status ?? (message.stopReason === "pending" ? "running" : "error")}
 						result={run?.result}
+						startedAt={run?.startedAt}
 					/>
 				);
 			})}

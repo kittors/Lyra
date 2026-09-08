@@ -17,6 +17,8 @@ import type { Tool, ToolContext, ToolResult } from "../types.ts";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 600_000;
 const MAX_OUTPUT_CHARS = 60_000;
+/** How often streaming output is forwarded to whoever is watching. See `execute`'s ticker. */
+const PROGRESS_INTERVAL_MS = 100;
 
 interface BashArgs {
 	command: string;
@@ -171,15 +173,48 @@ export const bashTool: Tool<BashArgs> = {
 
 			let output = "";
 			let settled = false;
+			/*
+			 * Progress is coalesced rather than forwarded per chunk.
+			 *
+			 * Every one of these crosses a process boundary and replaces the whole card: the payload
+			 * is the accumulated output, so a command that prints steadily sends `MAX_OUTPUT_CHARS`
+			 * again for each chunk. A build printing its asset list a line at a time — 192 KB over
+			 * 2000 chunks — put 193 MB through the bridge to say 192 KB, a 515× amplification, and
+			 * the window spent it re-rendering 60,000 characters of monospace text two thousand
+			 * times. That is what "the command is stuck" looked like: the command was fine, the
+			 * window could not keep up with being told about it.
+			 *
+			 * Ten frames a second is faster than anyone reads and bounds the cost by wall-clock
+			 * instead of by how chatty the command is. The trailing edge matters as much as the
+			 * rate: without it the last chunk before exit is the one nobody sees.
+			 */
+			let pending = false;
+			let ticker: ReturnType<typeof setInterval> | undefined;
+			const flush = () => {
+				if (!pending) return;
+				pending = false;
+				ctx.onProgress?.({ content: [{ type: "text", text: output }] });
+			};
+			const stopTicking = () => {
+				if (ticker === undefined) return;
+				clearInterval(ticker);
+				ticker = undefined;
+			};
 			child.onOutput((chunk) => {
 				outputLog?.append(chunk);
 				output = clip(output + chunk);
-				ctx.onProgress?.({ content: [{ type: "text", text: clip(output) }] });
+				pending = true;
+				if (ticker === undefined && ctx.onProgress) {
+					ticker = setInterval(flush, PROGRESS_INTERVAL_MS);
+					// Never a reason to hold the process open: the result is what the turn waits on.
+					ticker.unref?.();
+				}
 			});
 
 			const timer = setTimeout(() => {
 				if (settled) return;
 				settled = true;
+				stopTicking();
 				child.kill();
 				resolve({
 					content: [{ type: "text", text: `${clip(output)}\n\n[timed out after ${timeout}ms]` }],
@@ -192,6 +227,7 @@ export const bashTool: Tool<BashArgs> = {
 				if (settled) return;
 				settled = true;
 				clearTimeout(timer);
+				stopTicking();
 				child.kill();
 				resolve({
 					content: [{ type: "text", text: `${clip(output)}\n\n[cancelled]` }],
@@ -205,6 +241,7 @@ export const bashTool: Tool<BashArgs> = {
 				if (settled) return;
 				settled = true;
 				clearTimeout(timer);
+				stopTicking();
 				ctx.signal?.removeEventListener("abort", onAbort);
 				resolve(errorResult(`Failed to start command: ${error.message}`));
 			});
@@ -213,6 +250,7 @@ export const bashTool: Tool<BashArgs> = {
 				if (settled) return;
 				settled = true;
 				clearTimeout(timer);
+				stopTicking();
 				ctx.signal?.removeEventListener("abort", onAbort);
 				const text = clip(output).trim();
 				/*

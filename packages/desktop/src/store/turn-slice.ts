@@ -19,9 +19,9 @@ export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }> } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; sessionId?: string } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
-		let sessionId = get().activeSessionId;
+		let sessionId = options.sessionId ?? get().activeSessionId;
 		const cwd = workspace?.path ?? scratchCwd;
 		if (!sessionId && !cwd) { await get().pickWorkspace(); return false; }
 		// A second submission in the same draft shares its identity, never its title as a key.
@@ -30,7 +30,14 @@ export function turnSlice(set: Set, get: Get) {
 			try { sessionId = (await inFlight).meta.id; }
 			catch { return false; }
 		}
-		const ownsSelection = () => get().selectionEpoch === epoch;
+		/*
+		 * 这次提交还归不归屏幕上这个对话。
+		 *
+		 * 两件事一起问。选择没被切走——新建会话那一段等待里，人可能已经开了另一个对话；以及这条
+		 * 消息发的就是屏幕上这个——队列出队时是指名会话的（见 `queue-slice`），而那一刻人常常已经
+		 * 在看别的对话了，乐观地把消息画进转录会画进别人的转录。
+		 */
+		const ownsSelection = () => get().selectionEpoch === epoch && (!options.sessionId || options.sessionId === get().activeSessionId);
 		const pending: Message = {
 			role: "user",
 			content,

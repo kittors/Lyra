@@ -86,7 +86,7 @@ async function serve(options: { ranges?: boolean; hold?: boolean; cut?: boolean;
 			 * delivered anything rather than one that died halfway.
 			 */
 			response.write(slice.subarray(0, Math.floor(slice.length / 2)), () => {
-				setTimeout(() => response.destroy(), 60);
+				setTimeout(() => response.destroy(), 120);
 			});
 			return;
 		}

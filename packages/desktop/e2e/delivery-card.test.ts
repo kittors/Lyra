@@ -93,10 +93,12 @@ test("real file changes produce one temporary card with internal expansion and s
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-delivery-file]').getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2}})()`);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
 		await until(`document.querySelector('[aria-label="文件变更预览"]')?.textContent.includes('export const')`); await frames();
-		const metrics = await app.evaluate<{ preview: DOMRect; row: DOMRect; card: DOMRect; overflow: number; cards: number; inset: { left: number; right: number; bottom: number }; gap: number; rail: number | null }>(`(()=>{const e=document.querySelector('[aria-label="文件变更预览"]'),p=e.getBoundingClientRect(),d=e.querySelector('.ly-diff-scroll').getBoundingClientRect(),row=document.querySelector('[data-delivery-file]').getBoundingClientRect();
+		const metrics = await app.evaluate<{ preview: DOMRect; row: DOMRect; card: DOMRect; overflow: number; cards: number; inset: { left: number; right: number; bottom: number }; gap: number; fill: number; codePad: number; rowFill: number }>(`(()=>{const e=document.querySelector('[aria-label="文件变更预览"]'),p=e.getBoundingClientRect(),s=e.querySelector('.ly-diff-scroll'),d=s.getBoundingClientRect(),row=document.querySelector('[data-delivery-file]').getBoundingClientRect(),view=e.querySelector('.ly-scroll-view');
 			return {preview:p.toJSON(),row:row.toJSON(),card:document.querySelector('[data-turn-delivery]').getBoundingClientRect().toJSON(),overflow:Math.max(0,p.right-innerWidth),cards:document.querySelectorAll('[data-turn-delivery]').length,
 			 inset:{left:d.left-p.left,right:p.right-d.right,bottom:p.bottom-Math.min(d.bottom,p.bottom)},gap:row.top-p.bottom,
-			 rail:(()=>{const t=e.querySelector('.ly-thumb');return t?Math.round(t.getBoundingClientRect().left-d.right):null})()}})()`);
+			 fill:Math.round(view.clientWidth-d.width),
+			 rowFill:(()=>{const r=s.querySelector('.ly-diff-add');return r?Math.round(d.width-r.getBoundingClientRect().width):null})(),
+			 codePad:(()=>{const c=s.querySelector('.ly-diff-add > span:last-child');return c?Math.round(parseFloat(getComputedStyle(c).paddingRight)):null})()}})()`);
 		t.diagnostic(JSON.stringify({ theme, ...metrics })); assert.equal(metrics.overflow, 0); assert.ok(metrics.preview.x >= 0 && metrics.preview.y >= 0); assert.equal(metrics.cards, 1);
 		/*
 		 * 预览是从这一行里拉出来的，所以它就是这一行的宽度和这一行的左边缘，并且贴着它。
@@ -113,18 +115,26 @@ test("real file changes produce one temporary card with internal expansion and s
 		assert.ok(metrics.gap >= 0 && metrics.gap <= 12, `预览要贴着这一行，而不是飘在半张卡片以外：${metrics.gap}px`);
 		assert.ok(metrics.preview.width <= metrics.card.width, `预览不该宽过卡片：${JSON.stringify({ preview: metrics.preview.width, card: metrics.card.width })}`);
 		/*
-		 * 代码铺满它所在的卡片——铺到滚动条为止。
+		 * 代码铺满它所在的卡片，滑块浮在它上面。
 		 *
 		 * 这块面板自带底色，而浮层的滚动体原本是按菜单来的：上下 6px 外边距、右侧 4px，出了滚动条
 		 * 再让开 20px。菜单项没有底色，看不出来；一整块 diff 摆进去，右边就空出 25px 玻璃色、顶上
 		 * 空出 6px，代码像是嵌在一张比它大的卡片里。
 		 *
-		 * 但也不能反过来铺过头：内衬全拆掉之后，滚动条就直接压在最右边那几个字符上。所以右边界不是
-		 * 量到卡片边缘，而是量到滑块——够不着它，也别离它太远。
+		 * 后来只剩滚动条那 10px 还在让——量到滑块边上是 2px，读起来很像「刚刚好」，而看到的是另一
+		 * 回事：那 10px 既不是代码底色也不是增删行的底色，是浮层的玻璃透出来，一条从顶贯到底、跟着
+		 * 滚动条走的竖带，像滚动条自带了一条轨道背景。所以量的不再是「代码离滑块多远」，而是「代码
+		 * 铺没铺满」——连同每一行的增删底色，右边不许露出任何别的颜色。
+		 *
+		 * 让位仍然要有，只是归代码那一列自己：它有 10px 的右留白，滑块就落在这段留白上，横向滚到
+		 * 最右也压不到字。
 		 */
 		assert.ok(metrics.inset.left <= 2, `代码左边要贴着浮层，只留描边：${JSON.stringify(metrics.inset)}`);
-		if (metrics.rail === null) assert.ok(metrics.inset.right <= 2, `没有滚动条时右边也该贴着：${JSON.stringify(metrics.inset)}`);
-		else assert.ok(metrics.rail >= 0 && metrics.rail <= 6, `代码要一直铺到滚动条边上，既不被它压住也不空一条：距滑块 ${metrics.rail}px`);
+		assert.ok(metrics.inset.right <= 2, `代码右边要贴着浮层，只留描边：${JSON.stringify(metrics.inset)}`);
+		assert.equal(metrics.fill, 0, `代码要铺满滚动区，右边不许留下一条别的底色：还差 ${metrics.fill}px`);
+		// 行只能更宽（长行往右滚出去），不能更窄——窄了就是滚动条底下那条淡一号的竖带。
+		assert.ok(metrics.rowFill !== null && metrics.rowFill <= 0, `增删行的底色也要铺满：还差 ${metrics.rowFill}px`);
+		assert.ok(metrics.codePad >= 8, `代码那一列要留出滑块的落脚处，否则最右边几个字符会被压住：${metrics.codePad}px`);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: metrics.preview.x + 40, y: metrics.preview.y + 35 });
 		await frames();
 		assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]')?.checkVisibility()`), "the diff remains readable when moving into its popup");
@@ -179,11 +189,16 @@ test("real file changes produce one temporary card with internal expansion and s
 	await until(`document.querySelector('[data-ly-modal] .ly-diff-scroll')`);
 	await frames();
 	const read = `(()=>{const modal=document.querySelector('[data-ly-modal]'),m=modal.getBoundingClientRect(),view=modal.querySelector('.ly-scroll-view'),v=view.getBoundingClientRect(),
-		t=modal.querySelector('[data-dialog-title]').getBoundingClientRect(),n=modal.querySelector('.sticky').getBoundingClientRect(),d=modal.querySelector('.ly-diff-scroll').getBoundingClientRect();
-		const thumb=modal.querySelector('.ly-thumb');
+		t=modal.querySelector('[data-dialog-title]').getBoundingClientRect(),head=modal.querySelector('.sticky'),n=head.getBoundingClientRect(),s=modal.querySelector('.ly-diff-scroll'),d=s.getBoundingClientRect();
+		const thumb=modal.querySelector('.ly-thumb'),undo=head.querySelector('button');
 		return {title:Math.round(t.top),held:Math.abs(n.top-v.top)<1,inset:{left:Math.round(d.left-m.left),right:Math.round(m.right-d.right)},
-			rail:thumb?Math.round(thumb.getBoundingClientRect().left-d.right):null,scrollTop:Math.round(view.scrollTop)}})()`;
-	const before = await app.evaluate<{ title: number; held: boolean; inset: { left: number; right: number }; rail: number | null; scrollTop: number }>(read);
+			fill:Math.round(view.clientWidth-d.width),
+			rowFill:(()=>{const r=s.querySelector('.ly-diff-add');return r?Math.round(d.width-r.getBoundingClientRect().width):null})(),
+			clear:thumb&&undo?Math.round(thumb.getBoundingClientRect().left-undo.getBoundingClientRect().right):null,
+			scrollTop:Math.round(view.scrollTop)}})()`;
+	const before = await app.evaluate<{ title: number; held: boolean; inset: { left: number; right: number }; fill: number; rowFill: number | null; clear: number | null; scrollTop: number }>(read);
+	// 留一张：代码铺没铺满、「撤销」让没让开滑块，量得出来，也该看得见。
+	await screenshot("delivery-review");
 	await app.evaluate(`(()=>{document.querySelector('[data-ly-modal] .ly-scroll-view').scrollTop=520})()`);
 	await frames();
 	const after = await app.evaluate<typeof before>(read);
@@ -192,9 +207,18 @@ test("real file changes produce one temporary card with internal expansion and s
 	assert.equal(after.title, before.title, "标题是固定的一条，不该跟着内容滚走");
 	assert.ok(after.held, "滚动时文件名要吸在滚动区顶部，否则读到一半不知道在看哪个文件");
 	assert.ok(before.inset.left <= 2, `代码左边要贴着弹窗，只留描边：${JSON.stringify(before.inset)}`);
-	// 右边界量到滑块而不是弹窗边缘：铺到滚动条为止，既不被它压住也不空一条。同上面预览里的那条。
-	if (before.rail === null) assert.ok(before.inset.right <= 2, `没有滚动条时右边也该贴着：${JSON.stringify(before.inset)}`);
-	else assert.ok(before.rail >= 0 && before.rail <= 6, `代码要一直铺到滚动条边上：距滑块 ${before.rail}px`);
+	// 两边都贴着，中间铺满：滑块浮在代码上，底下不许是另一种颜色。同上面预览里的那几条。
+	assert.ok(before.inset.right <= 2, `代码右边要贴着弹窗，只留描边：${JSON.stringify(before.inset)}`);
+	assert.equal(before.fill, 0, `代码要铺满滚动区，右边不许留下一条别的底色：还差 ${before.fill}px`);
+	// 同上：行只能更宽，不能更窄。
+	assert.ok(before.rowFill !== null && before.rowFill <= 0, `增删行的底色也要铺满：还差 ${before.rowFill}px`);
+	/*
+	 * 钉住的那一行让开滑块，因为它右端是「撤销」。
+	 *
+	 * 代码那一列有自己的留白，这一行没有——它跟着让位一起被拆掉之后，滑块正落在这个按钮上，
+	 * 而滑块画在 z-40 上并且自己吃点击：按钮看得见、按不着。
+	 */
+	assert.ok(before.clear !== null && before.clear >= 0, `文件名那一行的「撤销」要让开滑块：${before.clear}px`);
 	for (const type of ["keyDown", "keyUp"] as const) await app.send("Input.dispatchKeyEvent", { type, key: "Escape", windowsVirtualKeyCode: 27 });
 	await until(`!document.querySelector('[data-ly-modal]')`);
 });

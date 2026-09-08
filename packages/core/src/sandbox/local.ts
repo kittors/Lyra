@@ -15,6 +15,7 @@ import { execFile, spawn } from "node:child_process";
 import { systemShell } from "../platform.ts";
 import type { Sandbox, SandboxProcess } from "../kernel/services.ts";
 import { confine } from "./backend.ts";
+import { commandPath } from "./login-path.ts";
 import type { SandboxMode } from "./policy.ts";
 
 /**
@@ -28,7 +29,21 @@ const QUIET_ENV = { TERM: "dumb", NO_COLOR: "1", GIT_PAGER: "cat", PAGER: "cat" 
 export class LocalSandbox implements Sandbox {
 	run(command: string, options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode }): SandboxProcess {
 		const shell = systemShell();
-		const env = { ...process.env, ...QUIET_ENV, ...options.env };
+		// Annotated: spreading `process.env` into a literal drops its index signature, and with it
+		// every variable whose name is not one of the four below.
+		const env: NodeJS.ProcessEnv = { ...process.env, ...QUIET_ENV, ...options.env };
+		/*
+		 * `PATH` is repaired here, because without it the shell below is handed launchd's four
+		 * directories and every `pnpm`, `node` or `npx` in the command is a `command not found`.
+		 * See `login-path.ts` for why the inherited one is wrong and how the real one is found.
+		 *
+		 * Assigned only when it actually changed, rather than unconditionally: Windows spells this
+		 * variable `Path`, and `{ ...process.env }` loses the case-insensitive proxy that makes the
+		 * two the same key. Writing `PATH` onto that object would leave the child with both, and
+		 * the one that wins is not ours to predict.
+		 */
+		const repaired = commandPath(env.PATH);
+		if (repaired !== undefined && repaired !== env.PATH) env.PATH = repaired;
 
 		/*
 		 * The wrapper takes the shell as an argument instead of `spawn`'s `shell: true`.

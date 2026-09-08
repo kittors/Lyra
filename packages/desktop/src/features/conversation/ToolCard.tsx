@@ -48,9 +48,18 @@ interface ToolCardProps {
 	args: Record<string, unknown>;
 	status: "running" | "done" | "error";
 	result?: ToolResult;
+	/**
+	 * When the call actually started, from the record rather than from this component's lifetime.
+	 *
+	 * Timing from mount is only the same thing while the card is mounted for the whole call, and it
+	 * is not: scrolling away and back, or any re-key of the list, restarts the count from zero. A
+	 * command seven minutes in would say `142s` — under the turn's own elapsed time, in the same
+	 * screenshot, which is how it was noticed.
+	 */
+	startedAt?: number;
 }
 
-export function ToolCard({ toolName, summary, args, status, result, stateKey }: ToolCardProps) {
+export function ToolCard({ toolName, summary, args, status, result, stateKey, startedAt }: ToolCardProps) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const [elapsed, setElapsed] = useState(0);
 	const mcpMark = useMcpMark()(toolName);
@@ -69,12 +78,14 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey }: 
 	const { command: _command, ...rest } = args as Record<string, unknown>;
 
 	// A visible timer is the honest signal that a long command is still going.
-	const startedAt = useRef(Date.now());
+	const mountedAt = useRef(Date.now());
+	const since = startedAt ?? mountedAt.current;
 	useEffect(() => {
 		if (!running) return;
-		const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt.current) / 1000)), 250);
+		setElapsed(Math.floor((Date.now() - since) / 1000));
+		const timer = setInterval(() => setElapsed(Math.floor((Date.now() - since) / 1000)), 250);
 		return () => clearInterval(timer);
-	}, [running]);
+	}, [running, since]);
 
 	return (
 		<div

@@ -188,8 +188,31 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * 深浅色时那股「卡卡的、不自然」。
 	 *
 	 * `beginRepaint` 里也顺手把窗口自己的底色一起换了，那同样是一处会晚到的颜色。
+	 *
+	 * **只在颜色真的变了的时候按。** 这个函数每一次外观设置改动都会跑——调字号、拖对话宽度、
+	 * 改输入框行数，全都进来。而按住过渡的代价是 `transition: none !important` 落在每一个后代
+	 * 上，两帧后才松开：拖一个滑条的时候新值一格接一格地来，它就一直挂着，整个界面在拖动期间
+	 * 是没有过渡的。实测拖「输入框默认高度」，九十帧里有十帧被冻住，而那正是预览要长高的十帧。
+	 *
+	 * 名单是「会让屏幕上某处换颜色」的那几项，外加 `dark` 本身——跟随系统时它自己会翻。字号、
+	 * 字体、宽度、行数不在其中：它们改的是尺寸，尺寸没有「两拨颜色分头到达」的问题。
 	 */
-	beginRepaint(root);
+	const palette = [
+		dark,
+		appearance.theme,
+		appearance.accent,
+		appearance.contrast,
+		appearance.lightBackground,
+		appearance.lightForeground,
+		appearance.darkBackground,
+		appearance.darkForeground,
+		appearance.codeLightTheme,
+		appearance.codeDarkTheme,
+	].join("|");
+	if (palette !== lastPalette) {
+		lastPalette = palette;
+		beginRepaint(root);
+	}
 
 	for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
 
@@ -235,6 +258,8 @@ export function applyAppearance(input: AppearanceSettings): void {
  * 硬邦邦的。它只该管切换的那一下。
  */
 let releaseRepaint = 0;
+/** 上一次按住过渡时屏幕上是哪套颜色。空串保证第一次上色照按不误。 */
+let lastPalette = "";
 
 function beginRepaint(root: HTMLElement): void {
 	root.dataset.themeSwitching = "";

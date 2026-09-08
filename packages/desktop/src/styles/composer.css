@@ -74,3 +74,94 @@
     0 1px 2px rgb(0 0 0 / 0.4),
     0 18px 40px -16px rgb(0 0 0 / 0.65);
 }
+
+/* ---------------------------------------------------------------------------
+ * 排在输入框上的那几条
+ *
+ * 一条进来、一条走掉、几条互相让位，三件事都要看得见——排队这件事的全部意义就是「还没发生，还改
+ * 得动」，而看不见过程的列表，改动就只是一次闪烁。
+ *
+ * 高度用 `grid-template-rows` 从 0fr 长到 1fr，理由和 `.ly-reveal` 那边一样：没人量过这一行有多
+ * 高，而 `max-height` 得先猜一个数——猜小了裁掉，猜大了动画的后半段什么也没发生。
+ *
+ * 行与行之间没有间距，因为它们在同一张卡片里挨着（见 `QueuedMessages`）：收拢的是行本身的高度，
+ * 卡片跟着一起矮下去，中间不会剩下一道空缝要单独去收。
+ * ------------------------------------------------------------------------- */
+
+@keyframes ly-queue-in {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ly-queue-row {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: ly-queue-in var(--ly-t-base) var(--ly-e-out);
+  /* 让位的那几条走这条；被拖着的那一条在下面把它关掉。 */
+  transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+/* 收到 0fr 的时候，里面的东西要被裁掉而不是溢出来。 */
+.ly-queue-row > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/*
+ * 走掉的那一条，收起来而不是消失。
+ *
+ * 包括不是人点走的那一次：这一轮结束时队首自己就发出去了，行要在同一处收拢，队伍才是「往前走了
+ * 一格」而不是「少了一行」。`animation: none` 是必要的——入场那段动画结束后并不留在元素上，但若
+ * 一条刚进来就被撤掉，两者会撞在一起。
+ */
+.ly-queue-row[data-leaving] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  animation: none;
+  transition:
+    grid-template-rows var(--ly-t-base) var(--ly-e-in),
+    opacity var(--ly-t-quick) var(--ly-e-in);
+}
+
+/* 拖着的那一条紧跟指针，不补间——补间的是给它让开的那几条。 */
+.ly-queue-row[data-dragging] {
+  position: relative;
+  z-index: 1;
+  animation: none;
+  transition: none;
+  cursor: grabbing;
+}
+
+.ly-queue-row[data-dragging] [data-queue-grip] {
+  cursor: grabbing;
+}
+
+/*
+ * 输入框接住了一条退回来的消息。
+ *
+ * 「编辑」是两个地方同时发生的一件事：上面那一行收掉，字落进下面这个框。中间隔着十几个像素和一次
+ * 眨眼，没有任何东西说这两件事是同一件——所以接住它的框自己也亮一下，把这段距离连起来。
+ *
+ * 描边而不是底色：底色一闪，读的人会先去找是不是哪里出错了；描边是这个框本来就会因为聚焦而变的
+ * 那一处，亮过头之后落回聚焦态，正好是它接下来该有的样子。
+ */
+@keyframes ly-composer-catch {
+  from {
+    border-color: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  }
+  to {
+    border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+  }
+}
+
+.ly-composer-catch {
+  animation: ly-composer-catch var(--ly-t-slow) var(--ly-e-out);
+}
