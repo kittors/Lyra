@@ -5,6 +5,141 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.4](https://github.com/kittors/Lyra/releases/tag/v0.9.4) - 2026-09-08
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **忙的时候说出口的话，排着队等**。模型正在跑的时候按回车，那句话不再硬插进当前这一轮把它打断，而是落在输入框上方的队列条里：拖着能调先后，整份草稿连同附件和引用能退回输入框重改，也可以把某一条现在就插进当前轮，或者删掉。一轮干净收尾之后队首自动发出；被中止或出错时队伍停住，等人来决定还发不发。
+- **地址栏里打一句话，就去搜**。普通词句不再被当成主机名去解析、然后在控制台留下一串报错，而是认成搜索。引擎可选必应、Google、百度、DuckDuckGo，也可以自定义 `%s` 模板；打字时下拉会先说清这次是搜索还是导航，并结合书签补全。
+- **浏览器标签跟着会话走**。每个会话各管各的标签和页面状态，切走再切回还是原来那张网页。最近三个会话常驻渲染进程以控制内存，后台还在跑任务或被智能体调用时会自动唤醒。
+
+### 修复
+
+- **忙的时候补的那一句，不再让时间从头数起**。任务跑到第四十分钟，你想起来还要交代一句，发出去——运行行上的时长退回 `0s`。它改成回答「补这一句之后过了多久」，而你问的是「我这件事等了多久」。原因是每一次发送都重新点一块表。现在插进这一轮的那句用台上那块表，排着等下一轮的那条接上这一轮冻下来的账；只有在会话闲着的时候开口，才算新的一件事。用量也一样，不再跟着归零。
+- **归档里点开一个对话，不等于把它取出来**。那一行上本来就有一个「取消归档」的按钮，可点行本身也会顺手改掉归档状态——一次看不见的、没人要求的改动。现在点开就只是点开，归不归档只由那个按钮说了算。发消息也不再把你弹回普通列表。让这件事成立的是另一半：正开着的那个对话，不管归没归档，任何时候都留在侧边栏里，行上给的是「取消归档」，而不是一个按下去什么也不会发生的「归档」。
+- **切进归档，侧边栏不再整体往下跳一截**。滚动位置被打回 0，而 0 比列表的开头还要靠上——上面隔着一整条没换过的导航和标签栏，于是它们重新冒出来，把底下的一切往下推。换掉的只是列表，所以现在只退到标签栏落位的那个位置，上面那截一动不动。
+- **标签栏贴到顶之后，底下那段列表继续淡出**。往下滚，标签栏一落位，它下面的会话行就不再淡出，而是硬邦邦地滑进它底下。遮罩里那块「不许虚化」的保护区，是从第一个被按住的行的顶一路算到最后一个的底的——可顶上同时被按住的可能有两行：贴着边的标签栏，和正走向自己轨道的分组标题，两者之间夹着的是列表，正是渐隐存在的理由。量到的是标签栏落位那一帧，保护区从 44px 跳到 108px。现在按「挨没挨着」分成两片，中间那段留给渐隐；还在接近的分组标题因此仍然完好。
+- **断线的记录，画在它断的地方**。一轮跑四十分钟、中间断过两次又接上，那句「重连 2 次后恢复」贴在最后一行 loading 下面——它说的是四十分钟里某个时刻的事，站的却是「此刻」的位置。现在它记下自己发生时转录有多长，和压缩标记、命令边界一样按位置插进去。还在等的那一条仍然落在末尾，因为它确实正在此刻发生。
+- **提交图不再为三周前的合并留一片空白**。图的宽度从前是全表最宽那一行说了算：仓库里但凡有过一处八条分支并行，最上面那几条笔直的提交也要陪着让出八条车道的位置——在这个仓库上量到的是 104px，而它们真正需要的是 13px，九十来像素的空白，右边的提交标题被挤到截断。现在每一行只和它上面的一样宽。车道的横坐标本来就不依赖这个宽度，所以线照旧首尾相接；宽度只增不减，滚动时标题不会左右走。
+- **从 Dock 启动时，不再满屏 command not found**。图形界面启动的应用拿到的是 launchd 那份极简 PATH，而 `$SHELL -c` 不读 `~/.zshrc`，于是每一个 `pnpm`、`node`、`npx` 都是找不到命令——在一次真实的会话记录里出现过五十次。现在启动时先问登录 shell，问不到就用一份兜底清单，而清单这次补上了 pnpm 自己的 `~/.pnpm`、nvm 的 `current` 软链和 asdf 的 shims。
+- **万行构建日志不再刷爆窗口**。bash 工具的输出按 100ms 合批之后再过 IPC，一次 `pnpm build` 的刷屏不再把渲染进程压住。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **忙的時候說出口的話，排著隊等**。模型正在跑的時候按 Enter，那句話不再硬插進當前這一輪把它打斷，而是落在輸入框上方的佇列條裡：拖著能調先後，整份草稿連同附件和引用能退回輸入框重改，也可以把某一條現在就插進當前輪，或者刪掉。一輪乾淨收尾之後隊首自動送出；被中止或出錯時隊伍停住，等人來決定還發不發。
+- **網址列裡打一句話，就去搜**。普通詞句不再被當成主機名去解析、然後在主控台留下一串報錯，而是認成搜尋。引擎可選 Bing、Google、百度、DuckDuckGo，也可以自訂 `%s` 範本；打字時下拉會先說清這次是搜尋還是導覽，並結合書籤補全。
+- **瀏覽器分頁跟著對話走**。每個對話各管各的分頁和頁面狀態，切走再切回還是原來那張網頁。最近三個對話常駐算繪處理程序以控制記憶體，背景還在跑任務或被智慧體呼叫時會自動喚醒。
+
+### 修復
+
+- **忙的時候補的那一句，不再讓時間從頭數起**。任務跑到第四十分鐘，你想起來還要交代一句，送出去——執行列上的時長退回 `0s`。它改成回答「補這一句之後過了多久」，而你問的是「我這件事等了多久」。原因是每一次傳送都重新點一塊錶。現在插進這一輪的那句用台上那塊錶，排著等下一輪的那條接上這一輪凍下來的帳；只有在對話閒著的時候開口，才算新的一件事。用量也一樣，不再跟著歸零。
+- **封存裡點開一個對話，不等於把它取出來**。那一列上本來就有一個「取消封存」的按鈕，可點列本身也會順手改掉封存狀態——一次看不見的、沒人要求的改動。現在點開就只是點開，封不封存只由那個按鈕說了算。傳訊息也不再把你彈回一般清單。讓這件事成立的是另一半：正開著的那個對話，不管封沒封存，任何時候都留在側邊欄裡，列上給的是「取消封存」，而不是一個按下去什麼也不會發生的「封存」。
+- **切進封存，側邊欄不再整體往下跳一截**。捲動位置被打回 0，而 0 比清單的開頭還要靠上——上面隔著一整條沒換過的導覽和標籤列，於是它們重新冒出來，把底下的一切往下推。換掉的只是清單，所以現在只退到標籤列落位的那個位置，上面那截一動不動。
+- **標籤列貼到頂之後，底下那段清單繼續淡出**。往下捲，標籤列一落位，它下面的對話列就不再淡出，而是硬邦邦地滑進它底下。遮罩裡那塊「不許虛化」的保護區，是從第一個被按住的列的頂一路算到最後一個的底的——可頂上同時被按住的可能有兩列：貼著邊的標籤列，和正走向自己軌道的分組標題，兩者之間夾著的是清單，正是漸隱存在的理由。量到的是標籤列落位那一格，保護區從 44px 跳到 108px。現在按「挨沒挨著」分成兩片，中間那段留給漸隱；還在接近的分組標題因此仍然完好。
+- **斷線的紀錄，畫在它斷的地方**。一輪跑四十分鐘、中間斷過兩次又接上，那句「重連 2 次後恢復」貼在最後一列 loading 下面——它說的是四十分鐘裡某個時刻的事，站的卻是「此刻」的位置。現在它記下自己發生時轉錄有多長，和壓縮標記、命令邊界一樣按位置插進去。還在等的那一條仍然落在末尾，因為它確實正在此刻發生。
+- **提交圖不再為三週前的合併留一片空白**。圖的寬度從前是全表最寬那一列說了算：儲存庫裡但凡有過一處八條分支並行，最上面那幾條筆直的提交也要陪著讓出八條軌道的位置——在這個儲存庫上量到的是 104px，而它們真正需要的是 13px，九十來像素的空白，右邊的提交標題被擠到截斷。現在每一列只和它上面的一樣寬。軌道的橫座標本來就不依賴這個寬度，所以線照舊首尾相接；寬度只增不減，捲動時標題不會左右走。
+- **從 Dock 啟動時，不再滿螢幕 command not found**。圖形介面啟動的應用拿到的是 launchd 那份極簡 PATH，而 `$SHELL -c` 不讀 `~/.zshrc`，於是每一個 `pnpm`、`node`、`npx` 都是找不到命令——在一次真實的對話紀錄裡出現過五十次。現在啟動時先問登入 shell，問不到就用一份兜底清單，而清單這次補上了 pnpm 自己的 `~/.pnpm`、nvm 的 `current` 軟連結和 asdf 的 shims。
+- **萬行建置日誌不再刷爆視窗**。bash 工具的輸出按 100ms 合批之後再過 IPC，一次 `pnpm build` 的刷屏不再把算繪處理程序壓住。
+
+<!-- lyra:notes en -->
+
+### New
+
+- **What you say while it is busy waits its turn.** Press enter while the model is working and the message no longer barges into the running turn and interrupts it — it lands on a queue above the composer instead. Drag to reorder, hand a whole draft back to the composer with its attachments and references intact, push one into the current turn right now, or drop it. When a turn finishes cleanly the head of the queue goes out on its own; when one is stopped or fails the queue holds, and the decision stays yours.
+- **Type a phrase into the address bar and it searches.** Ordinary words are no longer parsed as a hostname and left as a row of console errors — they are read as a search. Bing, Google, Baidu and DuckDuckGo, or a `%s` template of your own; the dropdown says whether this will search or navigate before you commit, and completes against your bookmarks.
+- **Browser tabs belong to their conversation.** Each one keeps its own tabs and page state, so leaving and coming back finds the same page. The three most recent conversations keep their renderers alive to bound memory, and one running a task in the background — or being driven by an agent — wakes on its own.
+
+### Fixed
+
+- **Adding a requirement to a running task no longer restarts its clock.** Forty minutes into a task you remember one more thing, send it — and the elapsed time on the running line drops back to `0s`. It had started answering "how long since you added that", when the question is "how long have I been waiting on this". Every send used to light a fresh meter. Now an interruption delivered into the running turn keeps the meter already lit, and one held on the queue picks up the meter that turn froze for it; only speaking to an idle session begins something new. The token count stops resetting too.
+- **Opening a conversation in the archive no longer takes it out.** The row already had a button for that — and clicking the row itself changed the filing as well, invisibly, without being asked. Opening now only opens; whether a conversation is archived is said in one place. Sending a message no longer throws you back to the live list either. What makes that safe is the other half: the conversation you have open stays in the sidebar whether or not it is filed, and its row offers to take it out rather than offering it the thing it already is.
+- **Opening the archive no longer shoves the whole sidebar down.** The scroll position went to zero, and zero is further up than the list begins — above it sit the destinations and the tab strip, neither of which changed, so they came back on screen and pushed everything below them down. What is replaced is the list, so the scroll now stops at the offset that holds the strip in place, and the band above it does not move.
+- **Once the tab strip lands, the list under it keeps dissolving.** Scrolling down, the moment the strip reached the top edge the rows beneath it stopped fading and began sliding under it hard-edged. The mask's protected band ran from the first held row's top to the last one's bottom — but two rows can be held at once, the strip against the edge and a project heading arriving at the rail below it, and between them there is list, which is exactly what the fade is for. Measured: the protection jumped from 44px to 108px on the frame the strip landed. Held rows are now grouped by whether they touch, and the gap between them is left to soften — the heading still on its way stays whole.
+- **A dropped connection is drawn where it dropped.** Forty minutes into a turn that lost its connection twice and recovered, "reconnected twice" sat under the last loading line — describing a moment from half an hour ago while standing in the position that means "now". It now records how long the transcript was when it happened and is placed by that, like a compaction marker or a command boundary. The one still waiting stays at the end, because that one really is happening now.
+- **The commit graph no longer leaves a gap for a merge from three weeks ago.** Its width was set by the widest row in the whole list: a repository that ever had eight branches open at once gave eight lanes' worth of column to the straight run of commits at the top as well — 104px measured on this repository, where 13px was all they needed, with the subjects on the right cut off mid-word. Each row is now only as wide as the widest thing at or above it. Lane positions never depended on that width, so the lines still meet across rows; and the width only ever grows, so subjects do not walk sideways as you scroll.
+- **No more screenfuls of `command not found` when launched from the Dock.** An app started from an icon inherits launchd's four-directory PATH, and `$SHELL -c` never reads `~/.zshrc`, so every `pnpm`, `node` and `npx` came back as a missing command — fifty of them in one real session's history. The login shell is now asked at startup, and where it cannot be, a fallback list stands in — one that has gained pnpm's own `~/.pnpm`, nvm's `current` symlink and asdf's shims.
+- **A ten-thousand-line build log no longer floods the window.** Output from the bash tool is batched on a 100ms tick before it crosses IPC, so one `pnpm build` cannot bury the renderer.
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **実行中に言ったことは、順番を待ちます。** モデルが動いている最中に Enter を押しても、そのメッセージが実行中のターンに割り込んで中断させることはなくなりました。入力欄の上のキューに並びます。ドラッグで順序を変え、下書きを添付や参照ごと入力欄に戻して書き直し、今すぐ現在のターンに差し込むことも、破棄することもできます。ターンがきれいに終わればキューの先頭が自動的に送られます。中断や失敗で終わったときはキューは止まったまま、判断はあなたに残ります。
+- **アドレスバーに言葉を打てば、検索します。** 普通の語句がホスト名として解釈され、コンソールにエラーの列を残すことはなくなりました。検索として読み取ります。Bing、Google、百度、DuckDuckGo、あるいは自分の `%s` テンプレート。入力中のドロップダウンが、これが検索なのか移動なのかを先に伝え、ブックマークから補完します。
+- **ブラウザのタブは対話ごとに独立します。** それぞれの対話が自分のタブとページの状態を保つので、離れて戻っても同じページです。直近 3 つの対話はレンダラーを保持してメモリを抑え、背後でタスクを実行中のもの、あるいはエージェントに操作されているものは自動的に起きます。
+
+### 修正
+
+- **実行中のタスクに一言足しても、時間が最初から数え直されなくなりました。** 40 分走っているタスクに、もう一つ伝えたいことを思い出して送る——実行行の経過時間が `0s` に戻ります。「それを足してから何分経ったか」に答えるようになっていたわけですが、知りたいのは「この件をどれだけ待っているか」です。送信のたびに新しい計測が始まっていました。今は、実行中のターンに割り込んだ発言はすでに点いている計測をそのまま使い、キューで待っていたものはそのターンが凍結して残した計測を引き継ぎます。新しく始まるのは、待機中のセッションに話しかけたときだけです。トークン数も同様に、リセットされなくなりました。
+- **アーカイブの中の対話を開いても、取り出されなくなりました。** その行にはもともと「アーカイブ解除」のボタンがあり、それとは別に、行そのものをクリックしただけでアーカイブ状態が書き換わっていました——誰も頼んでいない、目に見えない変更です。開くことは開くだけになりました。アーカイブされているかどうかを言うのは、あのボタン一箇所です。メッセージを送っても通常の一覧に引き戻されません。それを可能にしているのがもう半分です。開いている対話は、アーカイブされていてもいなくてもサイドバーに残り、その行はすでにそうであることを勧める代わりに「取り出す」を差し出します。
+- **アーカイブを開いても、サイドバー全体が下にずれなくなりました。** スクロール位置がゼロに戻っていたのですが、ゼロは一覧の先頭よりさらに上です——その上には移動先とタブの帯があり、どちらも変わっていないのに画面に戻ってきて、下のすべてを押し下げていました。差し替わるのは一覧なので、スクロールは帯が定位置に留まる分だけ戻るようになり、その上の部分は動きません。
+- **タブの帯が上端に着いたあとも、その下の一覧は溶けるように消えます。** 下にスクロールして帯が上端に着いた瞬間、その下の行はフェードをやめ、硬い輪郭のまま帯の下へ滑り込んでいました。マスクの保護帯が、最初に保持された行の上端から最後の行の下端まで通しで引かれていたためです。しかし上端で同時に保持されうる行は二つあります。端に着いた帯と、その下のレールへ向かっているプロジェクト名。その間にあるのは一覧そのもので、まさにフェードが存在する理由です。計測では、帯が着いたフレームで保護が 44px から 108px に跳ねていました。今は保持された行を「接しているかどうか」でまとめ、間の隙間はぼかしに残します。近づいている見出しはそのまま無傷です。
+- **接続が切れた記録は、切れた場所に描かれます。** 40 分のターンの途中で二度切れて復帰した場合、「2 回再接続して復旧」は最後のローディング行の下に貼り付いていました——半時間前の出来事を語りながら、「今」を意味する位置に立っていたわけです。今は発生時点で記録がどれだけの長さだったかを控え、圧縮マーカーやコマンドの区切りと同じように、その位置に置かれます。まだ待っている一件は末尾のままです。それは本当に今起きているからです。
+- **コミットグラフが、三週間前のマージのために余白を空けなくなりました。** 幅は一覧全体で最も広い行が決めていました。かつて八本のブランチが並走したことのあるリポジトリでは、上端のまっすぐ続くコミットにも八レーン分の桁が与えられます——このリポジトリで計測した値は 104px、実際に必要だったのは 13px で、右側のコミット件名は語の途中で切れていました。今は各行が、そこから上で最も広いものと同じ幅になります。レーンの横位置はもともとこの幅に依存しないので、線は従来どおり行をまたいで繋がります。幅は増えるだけなので、スクロールしても件名が左右に動きません。
+- **Dock から起動したときの `command not found` の山がなくなりました。** アイコンから起動したアプリは launchd の 4 ディレクトリだけの PATH を受け取り、`$SHELL -c` は `~/.zshrc` を読みません。その結果、`pnpm` も `node` も `npx` もコマンドが見つからない扱いでした——実際のセッション記録では 50 回。今は起動時にログインシェルへ問い合わせ、それができない場合はフォールバックの一覧で補います。その一覧に pnpm 自身の `~/.pnpm`、nvm の `current` シンボリックリンク、asdf の shims が加わりました。
+- **一万行のビルドログでウィンドウが埋まらなくなりました。** bash ツールの出力は IPC を渡る前に 100ms 単位でまとめられるので、一度の `pnpm build` がレンダラーを押し潰すことはありません。
+
+<!-- lyra:notes ko -->
+
+### 새로운 기능
+
+- **실행 중에 한 말은 차례를 기다립니다.** 모델이 도는 중에 엔터를 눌러도 그 메시지가 진행 중인 턴에 끼어들어 끊지 않습니다. 입력창 위의 대기열에 놓입니다. 끌어서 순서를 바꾸고, 초안을 첨부와 참조까지 통째로 입력창에 되돌려 고쳐 쓰고, 지금 바로 현재 턴에 밀어 넣거나 버릴 수 있습니다. 턴이 깨끗하게 끝나면 대기열의 맨 앞이 알아서 나갑니다. 중단되거나 실패로 끝났을 때는 대기열이 멈춘 채로, 결정은 당신에게 남습니다.
+- **주소창에 문장을 치면 검색합니다.** 평범한 낱말이 호스트 이름으로 해석되어 콘솔에 오류를 줄줄이 남기는 일이 없어졌습니다. 검색으로 읽습니다. Bing, Google, 바이두, DuckDuckGo, 또는 직접 만든 `%s` 템플릿. 입력하는 동안 드롭다운이 이번 것이 검색인지 이동인지 먼저 알려주고, 북마크로 자동완성합니다.
+- **브라우저 탭은 대화마다 따로입니다.** 각 대화가 자기 탭과 페이지 상태를 지니므로, 떠났다 돌아와도 같은 페이지입니다. 최근 세 개의 대화는 렌더러를 살려 두어 메모리를 묶어 두고, 뒤에서 작업을 돌리고 있거나 에이전트가 조작 중인 것은 알아서 깨어납니다.
+
+### 수정
+
+- **실행 중인 작업에 한마디 덧붙여도 시간이 처음부터 다시 세지 않습니다.** 40분째 돌고 있는 작업에 한 가지가 더 생각나 보내면, 실행 줄의 경과 시간이 `0s`로 돌아갔습니다. "그걸 덧붙인 뒤로 얼마나 지났는가"에 답하게 된 셈인데, 묻고 있는 것은 "이 일을 얼마나 기다렸는가"입니다. 전송할 때마다 새 계측이 시작되고 있었습니다. 이제 실행 중인 턴에 끼어든 말은 이미 켜져 있는 계측을 그대로 쓰고, 대기열에서 기다리던 것은 그 턴이 얼려 남긴 계측을 이어받습니다. 새로 시작되는 것은 쉬고 있는 세션에 말을 걸 때뿐입니다. 토큰 수도 마찬가지로 더 이상 초기화되지 않습니다.
+- **보관함에서 대화를 열어도 꺼내지지 않습니다.** 그 행에는 이미 "보관 해제" 버튼이 있었는데, 행 자체를 눌러도 보관 상태가 함께 바뀌었습니다 — 아무도 요청하지 않은, 보이지 않는 변경입니다. 이제 여는 것은 여는 것일 뿐이고, 보관 여부를 말하는 곳은 그 버튼 하나입니다. 메시지를 보내도 일반 목록으로 되돌려지지 않습니다. 이를 가능하게 한 나머지 절반은 이것입니다. 열려 있는 대화는 보관되었든 아니든 사이드바에 남고, 그 행은 이미 그러한 상태를 다시 권하는 대신 "꺼내기"를 내놓습니다.
+- **보관함으로 전환할 때 사이드바 전체가 아래로 밀리지 않습니다.** 스크롤 위치가 0으로 돌아갔는데, 0은 목록이 시작되는 곳보다 더 위입니다 — 그 위에는 이동 항목과 탭 띠가 있고 둘 다 바뀌지 않았는데도 화면에 다시 나타나 아래의 모든 것을 밀어냈습니다. 교체되는 것은 목록이므로, 스크롤은 띠가 제자리에 머무는 만큼만 되돌아가고 그 위쪽은 움직이지 않습니다.
+- **탭 띠가 상단에 닿은 뒤에도 그 아래 목록은 계속 흐려집니다.** 아래로 스크롤해 띠가 상단에 닿는 순간, 그 아래 행들은 페이드를 멈추고 또렷한 채로 띠 밑으로 미끄러져 들어갔습니다. 마스크의 보호 구간이 처음 고정된 행의 위쪽부터 마지막 행의 아래쪽까지 통째로 그어졌기 때문입니다. 하지만 상단에서 동시에 고정될 수 있는 행은 둘입니다. 가장자리에 닿은 띠와, 그 아래 레일로 향하는 프로젝트 제목. 그 사이에 있는 것이 목록이고, 그것이 바로 페이드가 존재하는 이유입니다. 측정값으로는 띠가 닿는 프레임에서 보호 구간이 44px에서 108px로 뛰었습니다. 이제 고정된 행은 서로 맞닿아 있는지로 묶이고, 사이의 간격은 흐려짐에 맡깁니다. 다가오는 중인 제목은 그대로 온전합니다.
+- **끊긴 연결의 기록은 끊긴 자리에 그려집니다.** 40분짜리 턴 도중 두 번 끊겼다 복구되면, "2회 재연결 후 복구"가 마지막 로딩 줄 아래에 붙어 있었습니다 — 반 시간 전의 일을 말하면서 "지금"을 뜻하는 자리에 서 있었던 셈입니다. 이제 발생 시점의 기록 길이를 적어 두고, 압축 표시나 명령 경계와 같은 방식으로 그 위치에 놓입니다. 아직 기다리는 중인 한 건은 끝에 남습니다. 그건 정말로 지금 일어나는 일이기 때문입니다.
+- **커밋 그래프가 3주 전 병합을 위해 여백을 비워두지 않습니다.** 너비는 목록 전체에서 가장 넓은 행이 정했습니다. 한때 여덟 갈래가 나란히 있었던 저장소라면, 맨 위의 곧게 이어지는 커밋들도 여덟 레인짜리 열을 함께 내주어야 했습니다 — 이 저장소에서 측정한 값은 104px, 실제로 필요한 것은 13px였고, 오른쪽 커밋 제목은 단어 중간에서 잘렸습니다. 이제 각 행은 그 위쪽에서 가장 넓은 것과 같은 너비입니다. 레인의 가로 위치는 원래 이 너비에 기대지 않으므로 선은 여전히 행을 넘어 이어집니다. 너비는 늘기만 하므로 스크롤할 때 제목이 좌우로 움직이지 않습니다.
+- **Dock에서 실행했을 때 `command not found`가 화면을 채우지 않습니다.** 아이콘에서 시작한 앱은 launchd의 네 디렉터리짜리 PATH를 물려받고, `$SHELL -c`는 `~/.zshrc`를 읽지 않습니다. 그래서 `pnpm`도 `node`도 `npx`도 명령을 찾을 수 없었습니다 — 실제 세션 기록에서 쉰 번. 이제 시작할 때 로그인 셸에 묻고, 물을 수 없을 때는 폴백 목록이 대신합니다. 그 목록에 pnpm 자신의 `~/.pnpm`, nvm의 `current` 심볼릭 링크, asdf의 shims가 더해졌습니다.
+- **만 줄짜리 빌드 로그가 창을 덮치지 않습니다.** bash 도구의 출력은 IPC를 건너기 전에 100ms 단위로 묶이므로, `pnpm build` 한 번이 렌더러를 짓누르지 않습니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **Ce que vous dites pendant qu'il travaille attend son tour.** Appuyer sur entrée pendant que le modèle tourne ne fait plus irruption dans le tour en cours pour l'interrompre : le message se range dans une file au-dessus du champ de saisie. On peut y changer l'ordre par glisser-déposer, renvoyer un brouillon entier au champ avec ses pièces jointes et ses références, en pousser un tout de suite dans le tour courant, ou le supprimer. Quand un tour s'achève proprement, la tête de file part d'elle-même ; quand il est arrêté ou échoue, la file s'immobilise et la décision vous revient.
+- **Tapez une phrase dans la barre d'adresse et elle cherche.** Des mots ordinaires ne sont plus analysés comme un nom d'hôte en laissant une rangée d'erreurs dans la console — ils sont lus comme une recherche. Bing, Google, Baidu et DuckDuckGo, ou votre propre modèle `%s` ; la liste déroulante annonce s'il s'agira d'une recherche ou d'une navigation avant que vous ne validiez, et complète depuis vos marque-pages.
+- **Les onglets du navigateur appartiennent à leur conversation.** Chacune garde ses propres onglets et l'état de ses pages : on part et on revient sur la même. Les trois conversations les plus récentes gardent leur moteur de rendu en vie pour borner la mémoire, et celle qui exécute une tâche en arrière-plan — ou qu'un agent pilote — se réveille d'elle-même.
+
+### Corrections
+
+- **Ajouter une consigne à une tâche en cours ne remet plus le chronomètre à zéro.** Quarante minutes après le début d'une tâche, vous vous rappelez une chose de plus, vous l'envoyez — et la durée sur la ligne d'exécution retombe à `0s`. Elle s'était mise à répondre « combien de temps depuis cet ajout », alors que la question est « depuis combien de temps j'attends ceci ». Chaque envoi allumait un nouveau compteur. Désormais, une interruption livrée dans le tour en cours garde le compteur déjà allumé, et celle retenue dans la file reprend celui que ce tour avait gelé pour elle ; seule une parole adressée à une session au repos commence quelque chose de neuf. Le décompte de jetons cesse lui aussi de repartir de zéro.
+- **Ouvrir une conversation archivée ne l'en sort plus.** La ligne avait déjà un bouton pour cela — et cliquer sur la ligne elle-même modifiait aussi le classement, invisiblement, sans que personne l'ait demandé. Ouvrir se contente désormais d'ouvrir ; l'état d'archivage se dit en un seul endroit. Envoyer un message ne vous renvoie plus non plus vers la liste courante. Ce qui rend cela possible est l'autre moitié : la conversation ouverte reste dans la barre latérale, archivée ou non, et sa ligne propose de l'en sortir plutôt que de lui proposer ce qu'elle est déjà.
+- **Ouvrir les archives ne pousse plus toute la barre latérale vers le bas.** La position de défilement revenait à zéro, et zéro est plus haut que le début de la liste — au-dessus se trouvent les destinations et la bande d'onglets, dont aucune n'a changé, si bien qu'elles revenaient à l'écran en repoussant tout le reste. Ce qui est remplacé, c'est la liste : le défilement s'arrête maintenant à l'endroit qui maintient la bande en place, et ce qui la surmonte ne bouge pas.
+- **Une fois la bande d'onglets arrivée en haut, la liste en dessous continue de se dissoudre.** En descendant, à l'instant où la bande atteignait le bord supérieur, les lignes en dessous cessaient de s'estomper et glissaient sous elle à contours nets. La zone protégée du masque allait du haut de la première ligne retenue au bas de la dernière — mais deux lignes peuvent être retenues à la fois, la bande contre le bord et un nom de projet en route vers son rail, et entre les deux il y a de la liste, ce pour quoi le fondu existe. Mesuré : la protection passait de 44 px à 108 px sur l'image où la bande se posait. Les lignes retenues sont désormais groupées selon qu'elles se touchent, et l'écart entre elles est laissé au fondu — le titre encore en approche reste entier.
+- **Une coupure de connexion est dessinée là où elle a eu lieu.** Sur un tour de quarante minutes coupé deux fois puis rétabli, « reconnecté 2 fois » se tenait sous la dernière ligne de chargement — décrivant un instant d'une demi-heure plus tôt depuis la place qui signifie « maintenant ». La note retient désormais la longueur de la transcription au moment des faits et se place en conséquence, comme un repère de compactage ou une frontière de commande. Celle qui attend encore reste à la fin, parce que celle-là se passe vraiment maintenant.
+- **Le graphe des commits ne réserve plus d'espace pour une fusion d'il y a trois semaines.** Sa largeur était fixée par la ligne la plus large de toute la liste : un dépôt ayant connu huit branches en parallèle donnait huit couloirs de colonne à la suite de commits rectilignes du haut également — 104 px mesurés sur ce dépôt, là où 13 px suffisaient, et les sujets à droite coupés en plein mot. Chaque ligne est maintenant aussi large que ce qu'il y a de plus large au-dessus d'elle. La position des couloirs n'a jamais dépendu de cette largeur, donc les traits se rejoignent toujours d'une ligne à l'autre ; et la largeur ne fait que croître, si bien que les sujets ne se déplacent pas latéralement au défilement.
+- **Fini les écrans entiers de `command not found` au lancement depuis le Dock.** Une application démarrée par son icône hérite du PATH à quatre répertoires de launchd, et `$SHELL -c` ne lit jamais `~/.zshrc` : chaque `pnpm`, `node` et `npx` revenait donc en commande introuvable — cinquante fois dans l'historique d'une session réelle. Le shell de connexion est maintenant interrogé au démarrage, et là où il ne peut pas l'être, une liste de secours prend le relais — elle a gagné le `~/.pnpm` de pnpm, le lien `current` de nvm et les shims d'asdf.
+- **Un journal de compilation de dix mille lignes ne submerge plus la fenêtre.** La sortie de l'outil bash est regroupée par tranches de 100 ms avant de traverser l'IPC, si bien qu'un seul `pnpm build` ne peut plus enterrer le moteur de rendu.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **Сказанное во время работы ждёт своей очереди.** Нажатие Enter, пока модель работает, больше не вклинивается в идущий ход и не прерывает его — сообщение становится в очередь над полем ввода. Порядок меняется перетаскиванием, черновик целиком возвращается в поле вместе с вложениями и ссылками, любую запись можно прямо сейчас втолкнуть в текущий ход или удалить. Когда ход завершается чисто, первая в очереди уходит сама; когда он прерван или упал, очередь замирает, и решение остаётся за вами.
+- **Наберите фразу в адресной строке — и она будет искать.** Обычные слова больше не разбираются как имя хоста, оставляя вереницу ошибок в консоли, — они читаются как поиск. Bing, Google, Baidu и DuckDuckGo или собственный шаблон с `%s`; выпадающий список заранее говорит, будет это поиск или переход, и дополняет по закладкам.
+- **Вкладки браузера принадлежат своему разговору.** Каждый хранит собственные вкладки и состояние страниц, так что уйти и вернуться — значит найти ту же страницу. Три последних разговора держат свои процессы отрисовки живыми, чтобы ограничить память, а тот, что выполняет задачу в фоне — или которым управляет агент, — просыпается сам.
+
+### Исправления
+
+- **Уточнение, добавленное к идущей задаче, больше не обнуляет счётчик времени.** На сороковой минуте вы вспоминаете ещё одну деталь, отправляете её — и время в строке выполнения возвращается к `0s`. Оно начинало отвечать на вопрос «сколько прошло с момента этого добавления», тогда как спрашивают «сколько я уже жду это». Каждая отправка зажигала новый счётчик. Теперь реплика, доставленная в идущий ход, использует уже зажжённый счётчик, а та, что ждала в очереди, подхватывает счётчик, замороженный для неё этим ходом; заново всё начинается только тогда, когда вы обращаетесь к свободной сессии. Счёт токенов тоже перестал обнуляться.
+- **Открытие разговора в архиве больше не достаёт его оттуда.** У строки и так была кнопка для этого — а клик по самой строке тоже менял состояние архива, незаметно и без всякой просьбы. Теперь открыть значит просто открыть; о том, в архиве ли разговор, говорит одно место. Отправка сообщения тоже не выбрасывает вас обратно в обычный список. Возможным это делает вторая половина: открытый разговор остаётся в боковой панели независимо от того, убран ли он в архив, и его строка предлагает достать его, а не предлагает ему то, чем он уже является.
+- **Переход в архив больше не сдвигает всю боковую панель вниз.** Позиция прокрутки уходила в ноль, а ноль выше, чем начало списка — над ним находятся пункты перехода и полоса вкладок, и ни то ни другое не менялось, но они возвращались на экран и продавливали вниз всё остальное. Заменяется список, поэтому прокрутка теперь останавливается там, где полоса удерживается на месте, и всё, что над ней, не двигается.
+- **После того как полоса вкладок встала наверху, список под ней продолжает растворяться.** При прокрутке вниз, в момент, когда полоса достигала верхнего края, строки под ней переставали растворяться и уходили под неё с резким контуром. Защищённая полоса маски шла от верха первой удержанной строки до низа последней — но наверху одновременно могут удерживаться две: полоса у самого края и название проекта, идущее к своей направляющей, а между ними находится список, ради которого растворение и существует. Измерено: на кадре приземления полосы защита прыгала с 44px до 108px. Теперь удержанные строки группируются по тому, соприкасаются ли они, а промежуток между ними оставлен растворению — заголовок на подходе остаётся целым.
+- **Обрыв связи рисуется там, где он произошёл.** В сорокаминутном ходе, дважды прерванном и восстановленном, «переподключено 2 раза» держалось под последней строкой загрузки — рассказывая о моменте получасовой давности с позиции, которая означает «сейчас». Теперь запись сохраняет длину расшифровки на момент события и ставится по ней, как отметка сжатия или граница команды. Та, что ещё ждёт, остаётся в конце — потому что она действительно происходит сейчас.
+- **Граф коммитов больше не оставляет пустоту ради слияния трёхнедельной давности.** Ширину задавала самая широкая строка всего списка: репозиторий, в котором когда-то было восемь параллельных веток, отдавал колонку на восемь дорожек и верхним прямым коммитам тоже — 104px, измеренные на этом репозитории, там где хватало 13px, а темы коммитов справа обрывались посреди слова. Теперь каждая строка настолько широка, насколько широко самое широкое на ней и выше. Положение дорожек никогда не зависело от этой ширины, поэтому линии по-прежнему смыкаются между строками; а ширина только растёт, так что темы не ходят влево-вправо при прокрутке.
+- **Больше никаких экранов `command not found` при запуске из Dock.** Приложение, запущенное по значку, наследует PATH из четырёх каталогов от launchd, а `$SHELL -c` никогда не читает `~/.zshrc` — поэтому каждый `pnpm`, `node` и `npx` возвращался как ненайденная команда: пятьдесят раз в истории одной реальной сессии. Теперь при запуске опрашивается логин-шелл, а там, где это невозможно, его заменяет запасной список — в нём появились собственный `~/.pnpm` у pnpm, ссылка `current` у nvm и shims у asdf.
+- **Десятитысячестрочный лог сборки больше не заливает окно.** Вывод инструмента bash собирается пачками по 100 мс перед тем, как пройти через IPC, так что одна `pnpm build` не может похоронить отрисовку.
+
 ## [0.9.3](https://github.com/kittors/Lyra/releases/tag/v0.9.3) - 2026-09-08
 
 <!-- lyra:notes zh-CN -->

@@ -1,6 +1,6 @@
 {
   "name": "@lyra/contract",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "type": "module",
   "description": "The boundary between the renderer and the main process: what can be called, and from where",
