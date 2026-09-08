@@ -386,6 +386,17 @@
 	tab-size: 8;
 }
 
+/*
+ * 空框有多高，由设置说了算——外观里的「输入框默认高度」。
+ *
+ * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
+ * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
+ * 24px 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
+ */
+textarea.ly-composer-text {
+	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + 24px);
+}
+
 textarea.ly-composer-text[data-highlighted="true"] {
 	color: transparent;
 	caret-color: var(--color-ink);

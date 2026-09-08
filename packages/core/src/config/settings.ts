@@ -92,6 +92,17 @@ export interface AppearanceSettings {
 	 * existed keeps the 640 it has always rendered at.
 	 */
 	contentWidth?: number;
+	/**
+	 * 空输入框有多少行高。
+	 *
+	 * 输入框一直是从一行开始、随着打字往下长，这对「跑一下测试」是对的，对写一段带步骤和约束的
+	 * 需求就不是——开头那几行永远挤在一条缝里，写到第四行才看得见自己在写什么。多高算合适跟人
+	 * 写多长的东西有关，所以交给用户定。
+	 *
+	 * 只是下限：超过这个高度照旧继续长，到窗口三分之一处停下来改为滚动。可选，老配置文件保持
+	 * 它一直以来的一行。
+	 */
+	composerLines?: number;
 	pointerCursor: boolean;
 	reduceMotion: "system" | "on" | "off";
 	/** Whether diffs are shown by colour or by leading +/- markers. */
@@ -129,6 +140,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	contrast: 60,
 	// What the app has always rendered at; see `contentWidth`.
 	contentWidth: 640,
+	// 一行，也是这个输入框一直以来的样子；见 `composerLines`。
+	composerLines: 1,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",

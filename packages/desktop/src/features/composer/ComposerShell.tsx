@@ -150,16 +150,21 @@ export function ComposerShell({
    * Measured against the window rather than a fixed ceiling because the same component now
    * runs inside a 368px panel and across a full-width column; a 300px field in a short window
    * would leave no transcript above it in either.
+   *
+   * 下限不在这里定：`min-height` 读设置里的行数，见 `misc.css` 的 `.ly-composer-text`。这里只
+   * 需要认得它——`height: auto` 之后量到的 `clientHeight` 就是那条线，上限再低也不能低过它，
+   * 否则一个还没打字的框自己就在滚。
    */
   useEffect(() => {
     const el = field.current;
     if (!el) return;
     const resize = () => {
       el.style.height = "auto";
-      const maxHeight = Math.min(300, window.innerHeight * 0.34);
-      const nextHeight = Math.min(el.scrollHeight, maxHeight);
-      el.style.height = `${nextHeight}px`;
-      el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+      const floor = el.clientHeight;
+      const ceiling = Math.max(floor, Math.min(300, window.innerHeight * 0.34));
+      el.style.maxHeight = `${ceiling}px`;
+      el.style.height = `${Math.min(el.scrollHeight, ceiling)}px`;
+      el.style.overflowY = el.scrollHeight > ceiling ? "auto" : "hidden";
     };
     resize();
     window.addEventListener("resize", resize);

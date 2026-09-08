@@ -39,6 +39,7 @@ const FACTORY_APPEARANCE: Appearance = {
 	codeFontSize: 12,
 	contrast: 60,
 	contentWidth: 640,
+	composerLines: 1,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",
@@ -53,8 +54,13 @@ const PRESETS: { id: string; label: string; patch: Partial<Appearance> }[] = [
 ];
 
 import { ColorRow, PixelField, ThemePreview } from "./appearance-controls.tsx";
+import { ComposerHeightPreview } from "./ComposerHeightPreview.tsx";
 import { NumberField } from "./pickers.tsx";
 import { Slider } from "./pickers.tsx";
+
+/** 输入框默认高度的两头。1 行是它一直以来的样子；10 行已经占掉一个矮窗口的三分之一。 */
+const COMPOSER_LINES_MIN = 1;
+const COMPOSER_LINES_MAX = 10;
 
 export function AppearanceSettings() {
 	/*
@@ -427,6 +433,32 @@ export function AppearanceSettings() {
 						</div>
 					}
 				/>
+				{/*
+				 * 带预览，因为「4 行」这个数没法在脑子里换算成一个框。
+				 *
+				 * 跟这一页上代码外观的那两块specimen是同一个道理：字重和行高也是没人能凭数字想象的
+				 * 东西。滑一格看一眼，比反复退出设置去试要短得多。
+				 */}
+				<Row
+					title="输入框默认高度"
+					detail="空的输入框有几行高。写长一点的需求时，不必每次都从一行开始往下撑"
+					control={
+						<div className="flex items-center gap-3">
+							<Slider
+								value={appearance.composerLines ?? COMPOSER_LINES_MIN}
+								onChange={(composerLines) => patch({ composerLines })}
+								min={COMPOSER_LINES_MIN}
+								max={COMPOSER_LINES_MAX}
+								label="输入框默认高度"
+							/>
+							<span className="w-9 text-right font-mono text-label text-ink tabular-nums">
+								{appearance.composerLines ?? COMPOSER_LINES_MIN} 行
+							</span>
+						</div>
+					}
+				>
+					<ComposerHeightPreview lines={appearance.composerLines ?? COMPOSER_LINES_MIN} />
+				</Row>
 				<Row
 					title="代码字体大小"
 					detail="调整聊天和差异视图中代码使用的基础字号"
