@@ -18,10 +18,12 @@ import {
   Toggle,
 } from "./controls.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
-const PRESETS: { label: string; hook: Omit<HookConfig, "id"> }[] = [
+/* 预设表在模块加载时成型，那会儿还不知道窗口是哪种语言——所以存 key，渲染时才译。 */
+const PRESETS: { labelKey: MessageKey; hook: Omit<HookConfig, "id"> }[] = [
   {
-    label: "记录所有命令",
+    labelKey: "hooks.presetLog",
     hook: {
       command:
         'echo "$(date -u +%FT%TZ) $DW_TOOL $DW_ARGS" >> .lyra/tool-audit.log',
@@ -32,10 +34,10 @@ const PRESETS: { label: string; hook: Omit<HookConfig, "id"> }[] = [
     },
   },
   {
-    label: "禁止改动 lockfile",
+    labelKey: "hooks.presetLockfile",
     hook: {
       command:
-        'case "$DW_ARGS" in *lock*) echo "lockfile 受保护" >&2; exit 1 ;; esac',
+        'case "$DW_ARGS" in *lock*) echo t("hooks.lockfileProtected") >&2; exit 1 ;; esac',
       tools: ["edit", "write"],
       event: "before-tool",
       enabled: true,
@@ -43,7 +45,7 @@ const PRESETS: { label: string; hook: Omit<HookConfig, "id"> }[] = [
     },
   },
   {
-    label: "写入后跑格式化",
+    labelKey: "hooks.presetFormat",
     hook: {
       command:
         "command -v prettier >/dev/null && prettier --write . >/dev/null 2>&1 || true",
@@ -56,6 +58,7 @@ const PRESETS: { label: string; hook: Omit<HookConfig, "id"> }[] = [
 ];
 
 export function HooksSettings() {
+	const { t } = useI18n();
   const settings = useApp((s) => s.settings);
   const saveSettings = useApp((s) => s.saveSettings);
   if (!settings) return null;
@@ -106,7 +109,7 @@ export function HooksSettings() {
       </header>
 
       <ProjectOverrideNotice keys={["hooks"]} />
-      <SectionTitle>快速添加</SectionTitle>
+      <SectionTitle>{t("hooks.quickAdd")}</SectionTitle>
       <Card className="mb-7">
         {PRESETS.map((preset) => (
           /*
@@ -117,7 +120,7 @@ export function HooksSettings() {
            * truncate *to* and pushed the whole row past the edge instead.
            */
           <div
-            key={preset.label}
+            key={t(preset.labelKey)}
             data-row-actions
             className="@container border-b border-line-soft px-4 py-3 last:border-b-0"
           >
@@ -129,13 +132,13 @@ export function HooksSettings() {
                   className="shrink-0 text-ink-muted"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-label text-ink">{preset.label}</div>
+                  <div className="text-label text-ink">{t(preset.labelKey)}</div>
                   <ScrollText text={preset.hook.command} className="mt-0.5 font-mono text-detail text-ink-faint" />
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <span data-ly-tip={`${preset.hook.event === "before-tool" ? "工具调用前" : "工具调用后"}${preset.hook.blocking ? "，非零退出码阻断调用" : ""}`} className="text-ink-faint"><Info size={13} /></span>
-                <IconButton className="ly-row-action" label={`添加钩子：${preset.label}`} icon={<Plus size={14} />} onClick={() => add(preset.hook)} />
+                <span data-ly-tip={`${preset.hook.event === "before-tool" ? t("hooks.beforeTool") : t("hooks.afterTool")}${preset.hook.blocking ? t("hooks.blockingSuffix") : ""}`} className="text-ink-faint"><Info size={13} /></span>
+                <IconButton className="ly-row-action" label={t("hooks.addPreset", { label: t(preset.labelKey) })} icon={<Plus size={14} />} onClick={() => add(preset.hook)} />
               </div>
             </div>
           </div>
@@ -145,7 +148,7 @@ export function HooksSettings() {
       <SectionTitle>已配置（{hooks.length}）</SectionTitle>
       {hooks.length === 0 ? (
         <Card>
-          <EmptyHint>还没有钩子。</EmptyHint>
+          <EmptyHint>{t("hooks.empty")}</EmptyHint>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -172,6 +175,7 @@ function HookCard({
   onChange: (patch: Partial<HookConfig>) => void;
   onRemove: () => void;
 }) {
+	const { t } = useI18n();
   const [command, setCommand] = useState(hook.command);
   const confirm = useConfirmer();
 
@@ -184,9 +188,9 @@ function HookCard({
           className="shrink-0 text-ink-muted"
         />
         <Badge tone="muted">
-          {hook.event === "before-tool" ? "调用前" : "调用后"}
+          {hook.event === "before-tool" ? t("hooks.before") : t("hooks.after")}
         </Badge>
-        {hook.blocking && <Badge tone="accent">可阻断</Badge>}
+        {hook.blocking && <Badge tone="accent">{t("hooks.blocking")}</Badge>}
         <ScrollText
           text={hook.command}
           className="min-w-0 flex-1 font-mono text-detail text-ink-muted"
@@ -196,12 +200,12 @@ function HookCard({
           onChange={(enabled) => onChange({ enabled })}
         />
 				<RowDeleteButton
-					label="删除这个钩子"
+					label={t("hooks.deleteOne")}
           onClick={() =>
             confirm.ask({
-              title: "删除这个钩子？",
+              title: t("hooks.deleteConfirm"),
               detail: hook.command,
-              confirmLabel: "删除",
+              confirmLabel: t("common.delete"),
               onConfirm: onRemove,
             })
           }
@@ -219,9 +223,9 @@ function HookCard({
          * one that approves everything. The field keeps what you typed and says why.
          */}
         <Field
-          label="命令"
+          label={t("commands.title")}
           hint={
-            command.trim() ? "在工作区目录下用你的默认 shell 执行" : "不能为空"
+            command.trim() ? t("hooks.commandDetail") : t("hooks.required")
           }
         >
           <TextInput
@@ -237,17 +241,17 @@ function HookCard({
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="时机">
+          <Field label={t("hooks.when")}>
             <Select
               value={hook.event}
               onChange={(event) => onChange({ event })}
               options={[
-                { value: "before-tool", label: "工具调用前" },
-                { value: "after-tool", label: "工具调用后" },
+                { value: "before-tool", label: t("hooks.beforeTool") },
+                { value: "after-tool", label: t("hooks.afterTool") },
               ]}
             />
           </Field>
-          <Field label="限定工具" hint="逗号分隔，留空表示全部">
+          <Field label={t("hooks.limitTools")} hint={t("hooks.limitToolsDetail")}>
             <TextInput
               value={hook.tools.join(", ")}
               onChange={(value) =>

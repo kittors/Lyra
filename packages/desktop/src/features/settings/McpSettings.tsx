@@ -11,13 +11,15 @@ import { useApp } from "../../store/index.ts";
 import { Badge, Card, EmptyHint, Field, GhostButton, SectionTitle, Select, TextInput, Toggle } from "./controls.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { bridge } from "../../services/index.ts";
+import { translate, useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /** Servers worth suggesting: widely used, no account needed to try. */
-const RECOMMENDED: { id: string; name: string; detail: string; server: McpServerConfig }[] = [
+/* 推荐目录在模块加载时成型，那会儿还不知道窗口是哪种语言——存 key，渲染时才译。 */
+const RECOMMENDED: { id: string; name: string; detailKey: MessageKey; server: McpServerConfig }[] = [
 	{
 		id: "context7",
 		name: "Context7",
-		detail: "按库名拉取最新的官方文档与 API 用法，避免模型凭记忆编 API。",
+		detailKey: "mcp.context7",
 		server: {
 			id: "context7",
 			name: "Context7",
@@ -30,7 +32,7 @@ const RECOMMENDED: { id: string; name: string; detail: string; server: McpServer
 	{
 		id: "filesystem",
 		name: "Filesystem",
-		detail: "官方文件系统服务，把可访问目录限制在白名单内。",
+		detailKey: "mcp.filesystem",
 		server: {
 			id: "filesystem",
 			name: "Filesystem",
@@ -52,11 +54,12 @@ const RECOMMENDED: { id: string; name: string; detail: string; server: McpServer
 export function newMcpServer(transport: "stdio" | "http"): McpServerConfig {
 	const id = `mcp-${Date.now().toString(36)}`;
 	return transport === "stdio"
-		? { id, name: "新建 stdio 服务", transport: "stdio", command: "npx", args: [], enabled: true }
-		: { id, name: "新建 HTTP 服务", transport: "http", url: "https://", enabled: true };
+		? { id, name: translate("mcp.newStdio"), transport: "stdio", command: "npx", args: [], enabled: true }
+		: { id, name: translate("mcp.newHttp"), transport: "http", url: "https://", enabled: true };
 }
 
 export function McpSettings({ filter = "" }: { filter?: string }) {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const activeSessionId = useApp((s) => s.activeSessionId);
@@ -97,7 +100,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 		<div>
 			<ProjectOverrideNotice keys={["mcpServers"]} />
 			{/* Adding a server is in the page's ⋯ now, beside the other two tabs' directory actions. */}
-			<SectionTitle>推荐</SectionTitle>
+			<SectionTitle>{t("mcp.recommended")}</SectionTitle>
 			<Card className="mb-7">
 				{RECOMMENDED.map((entry) => {
 					const installed = servers.some((s) => s.id === entry.id);
@@ -106,7 +109,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 							<Cable size={15} strokeWidth={1.8} className="shrink-0 text-info" />
 							<div className="min-w-0 flex-1">
 								<div className="text-body text-ink">{entry.name}</div>
-								<div className="mt-0.5 text-label text-ink-muted">{entry.detail}</div>
+								<div className="mt-0.5 text-label text-ink-muted">{t(entry.detailKey)}</div>
 								<div className="mt-1 font-mono text-detail text-ink-faint">
 									{entry.server.transport === "stdio"
 										? `${entry.server.command} ${(entry.server.args ?? []).join(" ")}`
@@ -117,7 +120,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 								disabled={installed}
 								onClick={() => void saveSettings({ ...settings, mcpServers: [...settings.mcpServers, entry.server] })}
 							>
-								{installed ? "已添加" : "添加"}
+								{installed ? t("mcp.added") : t("mcp.add")}
 							</GhostButton>
 						</div>
 					);
@@ -128,7 +131,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 
 			{servers.length === 0 ? (
 				<Card>
-					<EmptyHint>{needle ? "没有匹配的 MCP 服务" : "尚未配置 MCP 服务"}</EmptyHint>
+					<EmptyHint>{needle ? t("mcp.noMatch") : t("mcp.empty")}</EmptyHint>
 				</Card>
 			) : (
 				<div className="space-y-3">
@@ -145,7 +148,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 									/>
 									<Badge tone="muted">{server.transport}</Badge>
 									{status?.state === "connected" && <Badge tone="ok">{status.toolCount} 个工具</Badge>}
-									{status?.state === "failed" && <Badge tone="danger">连接失败</Badge>}
+									{status?.state === "failed" && <Badge tone="danger">{t("mcp.failed")}</Badge>}
 									{/*
 									 * Where it came from, said on the row.
 									 *
@@ -155,22 +158,22 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 									 * server to drop, an installed one has a directory that has to go with
 									 * it — otherwise the next scan writes the row straight back.
 									 */}
-									{server.origin && <Badge tone="muted">来自市场</Badge>}
+									{server.origin && <Badge tone="muted">{t("mcp.fromMarket")}</Badge>}
 									<Toggle checked={server.enabled} onChange={(enabled) => update(server.id, { enabled })} />
 									<RowDeleteButton
-										label={`${server.origin ? "卸载" : "删除"} ${server.name}`}
+										label={t("mcp.removeNamed", { action: server.origin ? t("mcp.uninstall") : t("common.delete"), name: server.name })}
 										onClick={() =>
 											confirm.ask(server.origin
 													? {
-															title: `卸载 ${server.name}？`,
-															detail: `它是从市场装的。卸载会删掉 ${server.origin.bundle} 的目录，你在这里改过的参数也一起清掉。`,
-															confirmLabel: "卸载",
+															title: t("mcp.uninstallConfirm", { name: server.name }),
+															detail: t("mcp.uninstallDetail", { bundle: server.origin.bundle }),
+															confirmLabel: t("mcp.uninstall"),
 															onConfirm: () => void uninstallBundle(server.origin?.bundle ?? ""),
 														}
 													: {
-															title: `删除 ${server.name}？`,
-															detail: "这条服务的配置会从设置里消失，包括它的命令和参数。",
-															confirmLabel: "删除",
+															title: t("mcp.deleteConfirm", { name: server.name }),
+															detail: t("mcp.deleteDetail"),
+															confirmLabel: t("common.delete"),
 															onConfirm: () => remove(server.id),
 														},
 											)
@@ -181,7 +184,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 								<div className="space-y-3 px-4 py-3.5">
 									{server.transport === "stdio" ? (
 										<>
-											<Field label="命令">
+											<Field label={t("commands.title")}>
 												<TextInput
 													value={server.command}
 													onChange={(command) => update(server.id, { command })}
@@ -189,7 +192,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 													placeholder="npx"
 												/>
 											</Field>
-											<Field label="参数" hint="空格分隔">
+											<Field label={t("mcp.args")} hint={t("mcp.argsDetail")}>
 												<TextInput
 													value={(server.args ?? []).join(" ")}
 													onChange={(value) =>
@@ -210,7 +213,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 													placeholder="https://mcp.example.com/mcp"
 												/>
 											</Field>
-											<Field label="传输方式">
+											<Field label={t("mcp.transport")}>
 												<Select
 													value={server.transport}
 													onChange={(transport) => update(server.id, { transport })}
@@ -230,7 +233,7 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 									)}
 
 									{status?.tools && status.tools.length > 0 && (
-										<Disclosure variant="compact" title="工具" count={status.tools.length}>
+										<Disclosure variant="compact" title={t("common.tools")} count={status.tools.length}>
 											<div className="space-y-1 py-1">
 												{status.tools.map((tool) => (
 													<div key={tool.name} className="text-detail">

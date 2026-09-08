@@ -16,13 +16,16 @@ import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, SectionTitle } from "./layout.tsx";
 import { SecretInput } from "./inputs.tsx";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 interface Choice {
 	id: string;
-	name: string;
-	/** What using it costs you, in one line. */
-	cost: string;
-	detail: string;
+	/** 有译名的用 key；牌子名（Tavily、Brave）不翻译，直接写在 name 上。 */
+	name?: string;
+	nameKey?: MessageKey;
+	/** What using it costs you, in one line — as a key, so the table can be module-level. */
+	costKey: MessageKey;
+	detailKey: MessageKey;
 	/** Absent for the keyless one. */
 	key?: "tavily" | "exa" | "brave";
 	signup?: string;
@@ -32,44 +35,66 @@ const CHOICES: Choice[] = [
 	{
 		id: "tavily",
 		name: "Tavily",
-		cost: "需要 API key · 每月 1000 次免费",
-		detail: "为 agent 设计的搜索，会连带返回一段总结，通常是这里最省事的选择。",
+		costKey: "search.needsKey1000",
+		detailKey: "search.tavily",
 		key: "tavily",
 		signup: "https://tavily.com",
 	},
 	{
 		id: "brave",
 		name: "Brave Search",
-		cost: "需要 API key · 每月 2000 次免费",
-		detail: "独立索引，不转手给别家。免费额度是这几个里最大的。",
+		costKey: "search.needsKey2000",
+		detailKey: "search.brave",
 		key: "brave",
 		signup: "https://brave.com/search/api/",
 	},
 	{
 		id: "exa",
 		name: "Exa",
-		cost: "需要 API key · 有免费额度",
-		detail: "语义检索，找概念和相似内容比找关键词强。",
+		costKey: "search.needsKeyFree",
+		detailKey: "search.exa",
 		key: "exa",
 		signup: "https://exa.ai",
 	},
 	{
 		id: "ddg-instant",
-		name: "DuckDuckGo 速答",
-		cost: "免配置 · 稳定",
-		detail:
-			"官方接口，不用注册也不会被限流。但只有百科式答案，不是网页结果列表，而且**基本只对英文词条有效** —— 中文提问多半查不到东西。",
+		nameKey: "search.ddgInstant",
+		costKey: "search.noSetupStable",
+		detailKey: "search.ddgInstantDetail",
 	},
 	{
 		id: "duckduckgo",
 		name: "DuckDuckGo",
-		cost: "免配置 · 经常被限流",
-		detail:
-			"不用注册任何账号，直接抓它的无脚本页面。但它会挡自动访问 —— 拿不到结果时不是这里坏了，是对方在限流，隔一阵子才好。当正经搜索用不可靠。",
+		costKey: "search.noSetupLimited",
+		detailKey: "search.ddgScrapeDetail",
 	},
 ];
 
+/**
+ * 一句话里嵌两段有样式的片段，位置由译文说了算。
+ *
+ * `{tool}` 是工具名，等宽；`{strong}` 是那句要强调的话。拆成前中后三个 key 会把中文的语序
+ * 写死进结构——英语里那句强调落在句子的另一头。整句一个 key、两个占位符，译者摆在哪儿就在
+ * 哪儿。切分保留分隔符，所以不认识的片段原样穿过去。
+ */
+function intro(text: string, strong: string): React.ReactNode {
+	return text.split(/(\{tool\}|\{strong\})/).map((part, at) =>
+		part === "{tool}" ? (
+			<code key={at} className="font-mono text-detail">
+				web_search
+			</code>
+		) : part === "{strong}" ? (
+			<strong key={at} className="font-medium text-ink">
+				{strong}
+			</strong>
+		) : (
+			part
+		),
+	);
+}
+
 export function SearchSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const [saved, setSaved] = useState<string | null>(null);
@@ -87,14 +112,12 @@ export function SearchSettings() {
 
 	return (
 		<div className="pt-8">
-			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">网页搜索</h1>
+			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("search.title")}</h1>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
-				给 agent 一个 <code className="font-mono text-detail">web_search</code> 工具。
-				说实话：<strong className="font-medium text-ink">中文搜索想好用，得填一个 key</strong> ——
-				免配置那两个要么被限流，要么只认英文词条。下面三家都有免费额度，日常用量够。
+				{intro(t("search.intro"), t("search.introStrong"))}
 			</p>
 
-			<SectionTitle>用哪一个</SectionTitle>
+			<SectionTitle>{t("search.which")}</SectionTitle>
 			<Card className="mb-6">
 				{CHOICES.map((choice, index) => {
 					const configured = choice.key ? Boolean(keys[choice.key]?.trim()) : true;
@@ -115,17 +138,17 @@ export function SearchSettings() {
 								</span>
 								<span className="min-w-0 flex-1">
 									<span className="flex flex-wrap items-center gap-2">
-										<span className="text-label font-medium text-ink">{choice.name}</span>
-										<span className="text-caption text-ink-faint">{choice.cost}</span>
+										<span className="text-label font-medium text-ink">{choice.nameKey ? t(choice.nameKey) : choice.name}</span>
+										<span className="text-caption text-ink-faint">{t(choice.costKey)}</span>
 										{/* Says whether it *could* run, which is the thing that is easy to get
 										    wrong: a selected provider with no key is a search that fails later. */}
 										{choice.key && (
 											<span className={`text-caption ${configured ? "text-ok" : "text-ink-faint"}`}>
-												{configured ? "已填 key" : "未填 key"}
+												{configured ? t("search.keySet") : t("search.keyMissing")}
 											</span>
 										)}
 									</span>
-									<span className="mt-1 block text-detail leading-relaxed text-ink-muted">{choice.detail}</span>
+									<span className="mt-1 block text-detail leading-relaxed text-ink-muted">{t(choice.detailKey)}</span>
 								</span>
 							</button>
 						</div>
@@ -138,7 +161,7 @@ export function SearchSettings() {
 				{CHOICES.filter((c) => c.key).map((choice, index) => (
 					<div key={choice.id} className={index === 0 ? "px-4 py-3.5" : "border-t border-line-soft px-4 py-3.5"}>
 						<div className="mb-1.5 flex items-center gap-2">
-							<span className="text-label text-ink">{choice.name}</span>
+							<span className="text-label text-ink">{choice.nameKey ? t(choice.nameKey) : choice.name}</span>
 							{choice.signup && (
 								<a
 									href={choice.signup}
@@ -150,12 +173,12 @@ export function SearchSettings() {
 									<ExternalLink size={10} strokeWidth={2} />
 								</a>
 							)}
-							{saved === choice.key && <span className="text-caption text-ok">已保存</span>}
+							{saved === choice.key && <span className="text-caption text-ok">{t("common.saved")}</span>}
 						</div>
 						<SecretInput
 							value={keys[choice.key!] ?? ""}
 							onChange={(value) => setKey(choice.key!, value)}
-							placeholder="粘贴 API key"
+							placeholder={t("search.pasteKey")}
 						/>
 					</div>
 				))}
