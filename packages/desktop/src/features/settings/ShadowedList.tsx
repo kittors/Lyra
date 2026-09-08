@@ -12,6 +12,7 @@
  * which is also what lets this mount in a test with nothing behind it.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import type { DiffHunk } from "@lyra/core";
 import { Layers } from "lucide-react";
 import type { ReactNode } from "react";
@@ -61,9 +62,9 @@ export function ShadowedList({
 	 * rows: the file that was shadowed is now the winner and leaves this list, and the row that
 	 * replaces it is the other file, freshly mounted. State on the row would vanish with it.
 	 */
+	const { t } = useI18n();
 	const [wrote, setWrote] = useState<Record<string, { chosen: string; wroteTo: string }>>({});
 	if (entries.length === 0) return null;
-	const noun = kind === "rule" ? "条同名规则" : "个同名技能";
 	return (
 		<Card className="mb-6">
 			<div className="px-4 py-3">
@@ -74,7 +75,7 @@ export function ShadowedList({
 				 */}
 				<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 					<Layers size={13} strokeWidth={1.9} />
-					{entries.length} {noun}被覆盖
+					{t(kind === "rule" ? "shadowed.headerRules" : "shadowed.headerSkills", { n: entries.length })}
 				</div>
 				{entries.map((entry) => (
 					<Row
@@ -109,6 +110,7 @@ function Row({
 	wrote?: { chosen: string; wroteTo: string };
 	renderDiff: (hunks: DiffHunk[], path: string) => ReactNode;
 }) {
+	const { t } = useI18n();
 	const [open, setOpen] = useState(false);
 	const [shown, setShown] = useState<ShadowedDiff | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -132,32 +134,34 @@ function Row({
 		<div className="py-0.5 text-detail text-ink-faint" data-shadowed={entry.name}>
 			<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 				<span className="min-w-0">
-					<span className="font-mono">{entry.path}</span> 被 {entry.byLabel} 的 <span className="font-mono">{entry.by}</span> 覆盖
+					<span className="font-mono">{entry.path}</span> {t("shadowed.byPrefix", { where: entry.byLabel })}{" "}
+						<span className="font-mono">{entry.by}</span> {t("shadowed.bySuffix")}
 				</span>
 				<button type="button" data-shadowed-diff onClick={() => void toggle()} className={link}>
-					{open ? "收起差异" : "看差异"}
+					{t(open ? "shadowed.hideDiff" : "shadowed.showDiff")}
 				</button>
 				{/* Still offered after a switch: by then this row is the other file, and this is the way back. */}
 				<button type="button" data-shadowed-prefer disabled={busy} onClick={() => void switchTo()} className={link}>
-					改用那个
+					{t("shadowed.useThat")}
 				</button>
 			</div>
 			{/* Where it went, so it can be found again — and undone, which is the same button, now on this row. */}
 			{wrote && (
 				<p data-shadowed-wrote className="mt-0.5 text-caption text-ink-muted">
-					已改用 <span className="font-mono">{wrote.chosen}</span>，偏好写在 <span className="font-mono">{wrote.wroteTo}</span>
+					{t("shadowed.nowUsing")} <span className="font-mono">{wrote.chosen}</span>
+					{t("shadowed.preferenceIn")} <span className="font-mono">{wrote.wroteTo}</span>
 				</p>
 			)}
 			{open && (
 				<div className="mt-1.5 overflow-hidden rounded-lg border border-line-soft" data-shadowed-hunks>
 					{shown === null ? (
-						<p className="px-3 py-2 text-caption text-ink-faint">正在读两份文件…</p>
+						<p className="px-3 py-2 text-caption text-ink-faint">{t("shadowed.readingBoth")}</p>
 					) : shown.hunks.length === 0 ? (
-						<p className="px-3 py-2 text-caption text-ink-faint">两份内容一模一样——改用哪个都没有区别。</p>
+						<p className="px-3 py-2 text-caption text-ink-faint">{t("shadowed.identical")}</p>
 					) : (
 						<>
 							<p className="px-3 pt-2 text-caption text-ink-faint">
-								「+」是改用那份会多出来的：+{shown.added} −{shown.removed}
+								{t("shadowed.diffLegend", { added: shown.added, removed: shown.removed })}
 							</p>
 							{renderDiff(shown.hunks, entry.path)}
 						</>

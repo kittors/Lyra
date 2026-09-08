@@ -11,6 +11,7 @@
  * says why nothing happened.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { macKeyboard } from "../../ui/keyboard.ts";
 import { redo, selectAll, undo } from "@codemirror/commands";
 import { foldAll, unfoldAll } from "@codemirror/language";
@@ -59,6 +60,7 @@ export function EditorMenu({
 	onFind: (withReplace: boolean) => void;
 	onFormat: () => Promise<void>;
 }) {
+	const { t } = useI18n();
 	// Before the early return: a hook that only sometimes runs is a hook that runs out of order.
 	const reveal = useRevealLabel();
 	if (!view) return null;
@@ -97,10 +99,10 @@ export function EditorMenu({
 	return (
 		<ContextMenu anchor={anchor} onClose={onClose} width="default">
 			<MenuItem icon={<Undo2 {...ICON} />} hint="⌘Z" disabled={readOnly} onClick={() => run(undo)}>
-				撤销
+				{t("common.undo")}
 			</MenuItem>
 			<MenuItem icon={<Redo2 {...ICON} />} hint={macKeyboard() ? "⇧⌘Z" : "Ctrl+Y"} disabled={readOnly} onClick={() => run(redo)}>
-				重做
+				{t("common.redo")}
 			</MenuItem>
 
 			<MenuSeparator />
@@ -111,16 +113,16 @@ export function EditorMenu({
 				disabled={!hasSelection || readOnly}
 				onClick={() => void take(true)}
 			>
-				剪切
+				{t("common.cut")}
 			</MenuItem>
 			<MenuItem icon={<Copy {...ICON} />} hint="⌘C" disabled={!hasSelection} onClick={() => void take(false)}>
-				复制
+				{t("common.copy")}
 			</MenuItem>
 			<MenuItem icon={<ClipboardPaste {...ICON} />} hint="⌘V" disabled={readOnly} onClick={() => void paste()}>
-				粘贴
+				{t("common.paste")}
 			</MenuItem>
 			<MenuItem icon={<TextSelect {...ICON} />} hint="⌘A" onClick={() => run(selectAll)}>
-				全选
+				{t("common.selectAll")}
 			</MenuItem>
 
 			<MenuSeparator />
@@ -133,35 +135,35 @@ export function EditorMenu({
 			 * Pressing it says which — see `formatNow` in `CodeEditor.tsx`.
 			 */}
 			<MenuItem icon={<Wand2 {...ICON} />} hint={macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} disabled={readOnly} onClick={() => void onFormat()}>
-				格式化
+				{t("common.format")}
 			</MenuItem>
 
 			<MenuSeparator />
 
 			<MenuItem icon={<Search {...ICON} />} hint="⌘F" onClick={() => onFind(false)}>
-				查找
+				{t("find.find")}
 			</MenuItem>
 			<MenuItem icon={<Replace {...ICON} />} hint="⌥⌘F" disabled={readOnly} onClick={() => onFind(true)}>
-				替换
+				{t("find.replace")}
 			</MenuItem>
 			{/* ⌥⌘G is CodeMirror's own binding for this, from `searchKeymap`. */}
 			<MenuItem icon={<ListOrdered {...ICON} />} hint="⌥⌘G" onClick={() => run(gotoLine)}>
-				跳转到行
+				{t("common.goToLine")}
 			</MenuItem>
 
 			<MenuSeparator />
 
 			<MenuItem icon={<ChevronsDownUp {...ICON} />} onClick={() => run(foldAll)}>
-				全部折叠
+				{t("fileMenu.collapseAll")}
 			</MenuItem>
 			<MenuItem icon={<ChevronsUpDown {...ICON} />} onClick={() => run(unfoldAll)}>
-				全部展开
+				{t("common.expandAll")}
 			</MenuItem>
 
 			<MenuSeparator />
 
 			<MenuItem icon={<Link2 {...ICON} />} onClick={() => void bridge.clipboard.write(path)}>
-				复制路径
+				{t("fileMenu.copyPath")}
 			</MenuItem>
 			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(path)}>
 				{reveal}

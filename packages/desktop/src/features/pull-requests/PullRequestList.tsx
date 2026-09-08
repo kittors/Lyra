@@ -11,6 +11,8 @@
  * about how you work rather than about this visit.
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { ChevronRight, RefreshCw, Search, UserPlus } from "lucide-react";
 import { useState } from "react";
@@ -22,10 +24,11 @@ import { PullRequestRow } from "./PullRequestRow.tsx";
 import { ListSkeleton } from "./PullRequestSkeleton.tsx";
 import type { Filter, Group } from "./usePullRequests.ts";
 
-const FILTERS: { key: Filter; label: string }[] = [
-	{ key: "all", label: "全部" },
-	{ key: "reviewing", label: "正在审查" },
-	{ key: "authored", label: "由我创建" },
+/** The three lists, by key. Labels are looked up per render — see `translate`. */
+const FILTERS: { key: Filter; label: MessageKey }[] = [
+	{ key: "all", label: "prList.all" },
+	{ key: "reviewing", label: "prList.reviewing" },
+	{ key: "authored", label: "prList.mine" },
 ];
 
 const FOLD_KEY = "lyra.pull-requests.folded.v1";
@@ -84,6 +87,7 @@ export function PullRequestList({
 	onAddAccount: () => void;
 	onRefresh: () => void;
 }) {
+	const { t } = useI18n();
 	const [folded, setFolded] = useState<Set<string>>(readFolded);
 	const empty = groups.length === 0;
 	/*
@@ -146,7 +150,7 @@ export function PullRequestList({
 								filter === option.key ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
 							}`}
 						>
-							{option.label}
+							{t(option.label)}
 						</button>
 					))}
 				</div>
@@ -154,8 +158,8 @@ export function PullRequestList({
 				<div className="flex-1" />
 				<button
 					type="button"
-					data-ly-tip="刷新"
-					aria-label="刷新"
+					data-ly-tip={t("common.refresh")}
+					aria-label={t("common.refresh")}
 					onClick={onRefresh}
 					className="no-drag flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 				>
@@ -179,7 +183,7 @@ export function PullRequestList({
 					<Input
 						value={query}
 						onChange={(event) => onQuery(event.target.value)}
-						placeholder="搜索 Pull Request"
+						placeholder={t("prList.search")}
 						spellCheck={false}
 						className="min-w-0 flex-1 bg-transparent text-label text-ink placeholder:text-ink-faint focus:outline-none"
 					/>
@@ -206,12 +210,10 @@ export function PullRequestList({
 				{empty && !error && !loading && (
 					<p className="px-3 py-16 text-center text-label text-ink-faint">
 						{query
-							? "没有匹配的 Pull Request"
+							? t("prList.noMatch")
 							: accountErrors[account ?? ""]
 								? accountErrors[account ?? ""]
-								: account
-									? "当前账号暂无相关 Pull Request"
-									: "暂无相关 Pull Request"}
+								: t(account ? "prList.emptyForAccount" : "prList.empty")}
 					</p>
 				)}
 
@@ -278,6 +280,7 @@ function GroupHeading({
 	open: boolean;
 	onToggle: () => void;
 }) {
+	const { t } = useI18n();
 	return (
 		<button
 			type="button"
@@ -294,7 +297,7 @@ function GroupHeading({
 			/>
 			<span className="flex-1" />
 			{!open && unseen > 0 && (
-				<span aria-hidden data-ly-tip={`折起来的这 ${unseen} 条有新动静`} className="h-[5px] w-[5px] rounded-full bg-accent" />
+				<span aria-hidden data-ly-tip={t("prList.unseenFolded", { n: unseen })} className="h-[5px] w-[5px] rounded-full bg-accent" />
 			)}
 			<span className="tabular-nums opacity-60">{count}</span>
 		</button>
@@ -309,14 +312,15 @@ function GroupHeading({
  * told a GitLab user that the app did not work rather than that they were one token away.
  */
 function SignedOut({ onAddAccount }: { onAddAccount: () => void }) {
+	const { t } = useI18n();
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			{/* The strip the window controls live in, kept empty so this content clears them. */}
 			<div className="h-11 shrink-0" />
 			<div className="flex flex-1 flex-col items-center justify-center px-6 pb-10 text-center">
-				<p className="text-label text-ink">未添加代码托管账号</p>
+				<p className="text-label text-ink">{t("prList.noAccount")}</p>
 				<p className="mt-2 max-w-[240px] text-detail leading-relaxed text-ink-faint">
-					支持 GitHub、GitLab、Gitee、Gitea
+					{t("prList.hostsSupported")}
 				</p>
 				<button
 					type="button"
@@ -324,7 +328,7 @@ function SignedOut({ onAddAccount }: { onAddAccount: () => void }) {
 					className="mt-5 flex h-[30px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors hover:border-ink-faint hover:bg-card-hover hover:text-ink"
 				>
 					<UserPlus size={13} strokeWidth={1.8} />
-					添加账号
+					{t("prList.addAccount")}
 				</button>
 			</div>
 		</div>

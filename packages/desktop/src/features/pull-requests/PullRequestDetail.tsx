@@ -6,6 +6,7 @@
  * a diff is read top to bottom, and it should not start four screens down.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
@@ -60,6 +61,7 @@ export function PullRequestDetail({
 	tab: PrTab;
 	onTab: (tab: PrTab) => void;
 }) {
+	const { t } = useI18n();
 	/*
 	 * Which sections are open, as one object rather than three booleans.
 	 *
@@ -82,7 +84,7 @@ export function PullRequestDetail({
 	if (!detail) {
 		// Loading gets the shape of a pull request; having nothing selected is not a load.
 		if (loading) return <DetailSkeleton />;
-		return <Centered>选中左边的一个 Pull Request</Centered>;
+		return <Centered>{t("prDetail.pickOne")}</Centered>;
 	}
 
 	return (
@@ -121,7 +123,7 @@ export function PullRequestDetail({
 								tab === key ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
 							}`}
 						>
-							{key === "summary" ? "摘要" : "代码"}
+							{t(key === "summary" ? "prDetail.summary" : "prDetail.code")}
 						</button>
 					))}
 				</div>
@@ -130,10 +132,10 @@ export function PullRequestDetail({
 				<div className="flex-1" />
 
 				<div className="no-drag flex items-center gap-1">
-					<IconAction label="重新读取" onClick={onRefresh} spinning={loading}>
+					<IconAction label={t("prDetail.reload")} onClick={onRefresh} spinning={loading}>
 						<RefreshCw size={13.5} strokeWidth={1.8} />
 					</IconAction>
-					<IconAction label="在浏览器中打开" onClick={() => void bridge.system.openExternal(detail.url)}>
+					<IconAction label={t("common.openInBrowser")} onClick={() => void bridge.system.openExternal(detail.url)}>
 						<ExternalLink size={13.5} strokeWidth={1.8} />
 					</IconAction>
 
@@ -151,16 +153,16 @@ export function PullRequestDetail({
 						className="ml-1 flex h-[26px] items-center gap-1.5 rounded-lg px-2.5 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 					>
 						<MessagesSquare size={12.5} strokeWidth={1.8} />
-						聊天
+						{t("prDetail.chat")}
 					</button>
 					<button
 						type="button"
 						onClick={() => onOpenChat(detail, "review")}
 						className="flex h-[26px] items-center gap-1.5 rounded-lg border border-line px-2.5 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
 					>
-						让 Agent 审查
+						{t("prDetail.askAgent")}
 					</button>
-					<IconAction label={expanded ? "显示列表" : "展开占满"} onClick={onToggleExpanded}>
+					<IconAction label={t(expanded ? "prDetail.showList" : "prDetail.fillWidth")} onClick={onToggleExpanded}>
 						{expanded ? <Minimize2 size={13} strokeWidth={1.9} /> : <Maximize2 size={13} strokeWidth={1.9} />}
 					</IconAction>
 				</div>
@@ -212,17 +214,17 @@ export function PullRequestDetail({
 					 * about *this* change rather than about its state.
 					 */}
 					<div className="mt-4">
-						<Disclosure title="描述" open={open.body} onToggle={() => toggle("body")}>
+						<Disclosure title={t("prDetail.description")} open={open.body} onToggle={() => toggle("body")}>
 							{detail.body.trim() ? (
 								<Markdown text={detail.body} className="text-label" />
 							) : (
-								<p className="text-label text-ink-faint">作者没有写描述。</p>
+								<p className="text-label text-ink-faint">{t("prDetail.noDescription")}</p>
 							)}
 						</Disclosure>
 
 						{detail.checks && (
 							<Disclosure
-								title="检查"
+								title={t("prMeta.checks")}
 								count={detail.checks.total}
 								open={open.checks}
 								onToggle={() => toggle("checks")}
@@ -233,7 +235,7 @@ export function PullRequestDetail({
 
 						{activity.length > 0 && (
 							<Disclosure
-								title="活动"
+								title={t("prDetail.activity")}
 								count={activity.length}
 								open={open.activity}
 								onToggle={() => toggle("activity")}

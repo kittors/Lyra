@@ -20,6 +20,8 @@
  *   正是那个输了的副本的作者。
  */
 
+import { useI18n } from "../../i18n/index.ts";
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import type { RuleEntry } from "@lyra/core";
 import { FileText, TriangleAlert, Zap } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -34,14 +36,15 @@ import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
 
-/** 三种规则，三种代价。 */
+/** 三种规则，三种代价。名字和说明是 key——这张表在模块加载时就建好，语言那时还没定。 */
 const BUCKETS = {
-	always: { label: "常驻", detail: "每一轮都在提示词里", icon: FileText },
-	book: { label: "规则库", detail: "只占一行名字，模型按需读正文", icon: FileText },
-	stream: { label: "流规则", detail: "平时零成本，命中才注入", icon: Zap },
-} as const;
+	always: { label: "rules.always", detail: "rules.alwaysDetail", icon: FileText },
+	book: { label: "rules.library", detail: "rules.libraryDetail", icon: FileText },
+	stream: { label: "rules.flow", detail: "rules.flowDetail", icon: Zap },
+} as const satisfies Record<string, { label: MessageKey; detail: MessageKey; icon: typeof FileText }>;
 
 export function RulesSettings({ filter = "" }: { filter?: string }) {
+	const { t } = useI18n();
 	const workspace = useApp((s) => s.workspace);
 	const messages = useApp((s) => s.messages);
 	const [data, setData] = useState<Awaited<ReturnType<typeof bridge.rules.list>> | null>(null);
@@ -90,7 +93,7 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{diagnostics.length} 条规则没能读进来
+							{t("rules.unreadable", { n: diagnostics.length })}
 						</div>
 						{diagnostics.map((diagnostic) => (
 							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
@@ -113,9 +116,9 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 			{(data?.foreignUserSources.length ?? 0) > 0 && (
 				<Card className="mb-6">
 					<div className="px-4 pt-3 pb-1">
-						<div className="text-label text-ink-muted">也读别家工具的个人规则</div>
+						<div className="text-label text-ink-muted">{t("rules.foreignPersonal")}</div>
 						<p className="mt-0.5 text-detail text-ink-faint">
-							项目里的那些一直都读。这里勾的是你自己主目录下的那份——它会跟着你进每一个仓库。
+							{t("rules.foreignPersonalDetail")}
 						</p>
 					</div>
 					{data?.foreignUserSources.map((source) => (
@@ -144,9 +147,9 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 			<RuleTryPanel patterns={tryPatterns} onChange={setTryPatterns} messages={messages} />
 
 			{slow ? (
-				<SkeletonList count={5} label="正在读取规则" />
+				<SkeletonList count={5} label={t("rules.reading")} />
 			) : data === null ? null : live.length === 0 ? (
-				<EmptyHint>{needle ? "没有匹配的规则" : "暂无可用规则"}</EmptyHint>
+				<EmptyHint>{t(needle ? "rules.noMatch" : "rules.empty")}</EmptyHint>
 			) : (
 				<Card>
 					{live.map((rule) => {
@@ -168,7 +171,7 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 									rule.condition && rule.condition.length > 0 ? (
 										<span className="font-mono">{rule.condition.join("   ")}</span>
 									) : (
-										(rule.description ?? bucket.detail)
+										(rule.description ?? t(bucket.detail))
 									)
 								}
 								actions={
@@ -181,16 +184,16 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 												onClick={() => setTryPatterns([...(rule.condition ?? [])])}
 												className="text-caption text-ink-faint underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
 											>
-												试一下
+												{t("rules.tryIt")}
 											</button>
 										)}
-										<Badge tone="muted">{bucket.label}</Badge>
+										<Badge tone="muted">{t(bucket.label)}</Badge>
 										<Badge tone="muted">{rule.sourceLabel}</Badge>
 									</span>
 								}
 								control={<div className="flex items-center gap-2">
 									<Toggle checked={!rule.disabled} onChange={(on) => void toggle(rule, on)} />
-									{!rule.path.startsWith("builtin:") && <RowDeleteButton label={`删除规则 ${rule.name}`} pending={removal.pending.has(rule.path)} onClick={() => removal.ask(rule.name, rule.path)} />}
+									{!rule.path.startsWith("builtin:") && <RowDeleteButton label={t("rules.deleteOne", { name: rule.name })} pending={removal.pending.has(rule.path)} onClick={() => removal.ask(rule.name, rule.path)} />}
 								</div>}
 							/>
 						);
