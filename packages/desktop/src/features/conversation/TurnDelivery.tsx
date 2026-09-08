@@ -12,6 +12,7 @@ import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 const PREVIEW_FILES = 3;
 
@@ -57,6 +58,7 @@ function FileName({ path }: { path: string }) {
 }
 
 function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: number }) {
+	const { t } = useI18n();
 	const workspace = useApp((state) => state.workspace?.path);
 	const [data, setData] = useState<TurnDelivery | null>(null);
 	const [expanded, setExpanded] = useState(false);
@@ -88,13 +90,13 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			await bridge.delivery.undo(sessionId, timestamp, path);
 			const value = await bridge.delivery.get(sessionId, timestamp);
 			if (live.current) setData(value);
-			useApp.getState().notify("已撤销改动", "info");
+			useApp.getState().notify(t("delivery.reverted"), "info");
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 		finally { undoLock.current = false; if (live.current) setUndoing(false); }
 	};
 	const askUndo = (file?: DeliveryFile) => {
 		hideHover();
-		confirm.ask({ title: file ? "撤销这个文件的改动？" : "撤销这次文件改动？", detail: "仅撤销已记录的改动；后续修改会保留。", confirmLabel: "撤销改动", onConfirm: () => undo(file?.path) });
+		confirm.ask({ title: file ? t("delivery.revertFileConfirm") : t("delivery.revertAllConfirm"), detail: t("delivery.revertDetail"), confirmLabel: t("delivery.revertChanges"), onConfirm: () => undo(file?.path) });
 	};
 	// Reports, warnings and commands cannot manufacture an empty file-change card.
 	if (!data?.files.length) return null;
@@ -123,7 +125,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 * card, and a `section` is not something a pointer listener may hang on.
 		 */}
 		<div className="mt-3" onMouseLeave={closeHover}>
-			<section data-turn-delivery aria-label="文件变更" className="rounded-xl border border-line bg-card/30 text-label">
+			<section data-turn-delivery aria-label={t("delivery.fileChanges")} className="rounded-xl border border-line bg-card/30 text-label">
 				<div className="flex min-h-16 flex-wrap items-center gap-3 px-3 py-3">
 					<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card-hover text-ink-muted"><FileDiff size={21} strokeWidth={1.7} /></span>
 					<div className="min-w-0 flex-1"><p className="font-medium text-ink">已编辑 {data.files.length} 个文件</p><Counts added={added} removed={removed} /></div>
@@ -142,8 +144,8 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 						 * is per file and does carry its reason.
 						 */}
 						{data.files.every((file) => file.canUndo) &&
-							<Button size="sm" variant="subtle" icon={<Undo2 size={14} />} loading={undoing} label="撤销这次文件改动" onClick={() => askUndo()}>撤销</Button>}
-						<Button size="sm" icon={<Files size={14} />} label="审核全部文件改动" onClick={() => { hideHover(); setReview(true); }}>审核</Button>
+							<Button size="sm" variant="subtle" icon={<Undo2 size={14} />} loading={undoing} label={t("delivery.revertThis")} onClick={() => askUndo()}>{t("common.revert")}</Button>}
+						<Button size="sm" icon={<Files size={14} />} label={t("delivery.reviewAll")} onClick={() => { hideHover(); setReview(true); }}>{t("common.review")}</Button>
 					</div>
 				</div>
 				<div className="px-1 pb-1">
@@ -151,7 +153,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 					{remaining > 0 && <>
 						<div id={"delivery-" + timestamp + "-more"} className="ly-reveal" data-open={expanded} aria-hidden={!expanded} inert={!expanded}><div>{data.files.slice(PREVIEW_FILES).map(row)}</div></div>
 						<button type="button" aria-expanded={expanded} aria-controls={"delivery-" + timestamp + "-more"} onClick={() => { hideHover(); setExpanded(!expanded); }} className="flex h-9 items-center gap-2 rounded-md px-3 text-ink-muted hover:bg-card-hover hover:text-ink">
-							{expanded ? "收起文件" : "再显示 " + remaining + " 个文件"}<ChevronDown size={14} className="transition-transform duration-[var(--ly-t-quick)]" style={{ transform: expanded ? "rotate(180deg)" : undefined }} />
+							{expanded ? t("delivery.collapse") : t("delivery.showMore", { n: remaining })}<ChevronDown size={14} className="transition-transform duration-[var(--ly-t-quick)]" style={{ transform: expanded ? "rotate(180deg)" : undefined }} />
 						</button>
 					</>}
 				</div>
@@ -175,7 +177,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 * between, and nothing about it said which file it belonged to. Staying still is what
 		 * `HOVER_OPEN_MS` is for — time, not distance.
 		 */}
-		{hover && <Popover anchor={hover.anchor} onClose={hideHover} role="group" label="文件变更预览" placement="top" align="start" width={hover.anchor.offsetWidth} maxHeight={420}
+		{hover && <Popover anchor={hover.anchor} onClose={hideHover} role="group" label={t("delivery.previewChanges")} placement="top" align="start" width={hover.anchor.offsetWidth} maxHeight={420}
 			surface="panel" onMouseEnter={keepHover} onMouseLeave={closeHover}
 			header={<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label"><FileName path={relative(hover.file.path)} /><Counts added={hover.file.added} removed={hover.file.removed} /></div>}>
 			<DiffView path={hover.file.path} hunks={hover.file.hunks} maxLines={Infinity} />
@@ -195,7 +197,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 * dissolving into the window — and a fade would have softened the very names being held.
 		 */}
 		{review && <Overlay onClose={() => setReview(null)} width={850}>
-			<div className="shrink-0 border-b border-line px-4 py-3"><h2 data-dialog-title className="text-body text-ink">文件变更</h2></div>
+			<div className="shrink-0 border-b border-line px-4 py-3"><h2 data-dialog-title className="text-body text-ink">{t("delivery.fileChanges")}</h2></div>
 			<Scroller className="min-h-0 flex-auto" top="line" bottom="none">
 				{data.files.filter((file) => review === true || review === file.path).map((file) => <div key={file.path} className="border-t border-line first:border-t-0">
 					{/*
@@ -204,7 +206,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 					 * 右边比左边多让 10px：代码那一列自带 `px-2.5` 的留白供滑块落脚，这一行没有，而它
 					 * 右端正是「撤销」。滑块画在 z-40 上、自己吃点击，压上去就是按钮看得见、按不着。
 					 */}
-					<div className="sticky top-0 z-[3] flex items-center gap-3 border-b border-line-soft bg-float py-2 pr-[22px] pl-3 text-label"><FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={file.canUndo ? "撤销此文件的改动" : "无法自动撤销，请核对后续修改"} explainDisabled disabled={!file.canUndo || undoing} onClick={() => askUndo(file)} /></div>
+					<div className="sticky top-0 z-[3] flex items-center gap-3 border-b border-line-soft bg-float py-2 pr-[22px] pl-3 text-label"><FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={file.canUndo ? t("delivery.revertOne") : t("delivery.cannotRevert")} explainDisabled disabled={!file.canUndo || undoing} onClick={() => askUndo(file)} /></div>
 					<DiffView path={file.path} hunks={file.hunks} maxLines={Infinity} />
 				</div>)}
 			</Scroller>

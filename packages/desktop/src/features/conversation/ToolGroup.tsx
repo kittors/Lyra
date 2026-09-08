@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
+import { translate, type MessageKey } from "../../i18n/index.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
 
@@ -137,14 +138,17 @@ export function ToolGroup({
 export function describeRun(calls: { toolName: string; subject?: string }[]): string {
 	const buckets = new Map<string, string[]>();
 	for (const call of calls) {
-		const kind = KIND[call.toolName] ?? "使用工具";
+		const kind = KIND[call.toolName] ? translate(KIND[call.toolName]) : translate("tools.using");
 		const list = buckets.get(kind) ?? [];
 		if (call.subject) list.push(call.subject);
 		buckets.set(kind, list);
 	}
 
 	const counts = new Map<string, number>();
-	for (const call of calls) counts.set(KIND[call.toolName] ?? "使用工具", (counts.get(KIND[call.toolName] ?? "使用工具") ?? 0) + 1);
+	for (const call of calls) {
+		const kind = KIND[call.toolName] ? translate(KIND[call.toolName]) : translate("tools.using");
+		counts.set(kind, (counts.get(kind) ?? 0) + 1);
+	}
 
 	const parts: string[] = [];
 	for (const [kind, count] of counts) {
@@ -153,25 +157,29 @@ export function describeRun(calls: { toolName: string; subject?: string }[]): st
 		if (count === 1 && subjects.length === 1) parts.push(`${kind} ${subjects[0]}`);
 		// One of a kind with nothing to name — "执行命令 1 个" counts to one, which is just noise.
 		else if (count === 1) parts.push(kind);
-		else parts.push(`${kind} ${count} 个`);
+		else parts.push(translate("tools.countOf", { kind, count }));
 	}
 	return parts.join("、");
 }
 
-/** Tool names to the plain verb for what they do. */
-const KIND: Record<string, string> = {
-	write: "创建文件",
-	edit: "修改文件",
-	read: "读取文件",
-	bash: "执行命令",
-	bash_output: "查看输出",
-	glob: "查找文件",
-	grep: "搜索内容",
-	ls: "列出目录",
-	todo_write: "更新清单",
-	web_fetch: "抓取网页",
-	web_search: "搜索网络",
-	task: "派发子任务",
-	preview: "生成预览",
-	symbol: "查找符号",
+/*
+ * 工具名到「它在做什么」的那个说法，存 key。
+ *
+ * 这张表在模块加载时成型，那会儿窗口还没说自己是哪种语言。译发生在读它的地方。
+ */
+const KIND: Record<string, MessageKey> = {
+	write: "tools.create",
+	edit: "tools.edit",
+	read: "tools.read",
+	bash: "tools.bash",
+	bash_output: "tools.output",
+	glob: "tools.find",
+	grep: "tools.grep",
+	ls: "tools.ls",
+	todo_write: "tools.todo",
+	web_fetch: "tools.fetch",
+	web_search: "tools.webSearch",
+	task: "tools.delegate",
+	preview: "tools.preview",
+	symbol: "tools.symbol",
 };

@@ -21,17 +21,19 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { bridge } from "../../services/host.ts";
 import { useApp } from "../../store/index.ts";
+import { translate, useI18n } from "../../i18n/index.ts";
 
 /** 触发条件说的是「在哪儿看」，把 scope 翻成人话。 */
 function where(scope: string | undefined): string {
-  if (!scope || scope === "text") return "回复里";
-  if (scope === "thinking") return "思考里";
-  if (scope === "tool") return "工具调用里";
-  if (scope.startsWith("tool:")) return `${scope.slice(5)} 的参数里`;
+  if (!scope || scope === "text") return translate("rule.inReply");
+  if (scope === "thinking") return translate("rule.inThinking");
+  if (scope === "tool") return translate("rule.inToolCall");
+  if (scope.startsWith("tool:")) return translate("rule.inToolArgs", { tool: scope.slice(5) });
   return scope;
 }
 
 export function RuleSuggestion() {
+	const { t } = useI18n();
   const offer = useApp((s) => s.ruleOffer);
   const sessionId = useApp((s) => s.activeSessionId);
   const notify = useApp((s) => s.notify);
@@ -85,10 +87,10 @@ export function RuleSuggestion() {
          * 同名规则不覆盖，改存成 `-2`。人以为自己更新了一条规则、实际上多了一条并存的，是这里
          * 唯一一种「看起来成功了的失败」。
          */
-        notify(saved.renamed ? `规则已存为 ${saved.renamed}（同名的那条没动）：${saved.path}` : `规则已保存：${saved.path}`);
+        notify(saved.renamed ? t("rule.savedRenamed", { name: saved.renamed, path: saved.path }) : t("rule.saved", { path: saved.path }));
       })
       .catch((error: unknown) => {
-        notify(`规则没能保存：${error instanceof Error ? error.message : String(error)}`, "error");
+        notify(t("rule.saveFailed", { reason: error instanceof Error ? error.message : String(error) }), "error");
       })
       .finally(() => setSaving(false));
   };
@@ -97,7 +99,7 @@ export function RuleSuggestion() {
     <div className="ly-enter my-2 overflow-hidden rounded-md border border-line-soft">
       <div className="flex items-center gap-2 px-3 py-2 text-detail text-ink-muted">
         <Sparkles size={13} className="shrink-0 text-ink-faint" aria-hidden />
-        <span>要把这次纠正变成一条规则吗？</span>
+        <span>{t("rule.question")}</span>
       </div>
 
       <div className="flex flex-col gap-1.5 pr-3 pb-2 pl-[2.0625rem]">
@@ -110,14 +112,14 @@ export function RuleSuggestion() {
          */}
         {offer.condition ? (
           <p className="text-detail text-ink-muted">
-            <span className="text-ink-faint">触发条件</span>　{where(offer.scope)}出现{" "}
+            <span className="text-ink-faint">{t("rule.trigger")}</span>　{where(offer.scope)}出现{" "}
             <code className="ly-rule-excerpt rounded px-1 py-0.5 font-mono">{offer.condition}</code>
           </p>
         ) : (
-          <p className="text-detail text-ink-faint">没有触发条件，会作为规则库条目由模型按需读取</p>
+          <p className="text-detail text-ink-faint">{t("rule.noTrigger")}</p>
         )}
         <p className="text-detail text-ink-muted">
-          <span className="text-ink-faint">规则正文</span>　{offer.body}
+          <span className="text-ink-faint">{t("rule.body")}</span>　{offer.body}
         </p>
 
         {/* 展开的是完整文件，包括 frontmatter：批准的和写进去的必须是同一段文本。 */}
@@ -134,7 +136,7 @@ export function RuleSuggestion() {
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            data-ly-tip="存到 .lyra/rules/，会跟着仓库走"
+            data-ly-tip={t("rule.scopeProject")}
             disabled={!draft || saving}
             onClick={() => keep("project")}
             className="flex h-7 items-center rounded-lg bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
@@ -143,7 +145,7 @@ export function RuleSuggestion() {
           </button>
           <button
             type="button"
-            data-ly-tip="存到 ~/.lyra/rules/，只对你生效"
+            data-ly-tip={t("rule.scopePersonal")}
             disabled={!draft || saving}
             onClick={() => keep("user")}
             className="h-7 rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40"
