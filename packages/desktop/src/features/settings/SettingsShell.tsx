@@ -117,7 +117,7 @@ export function SettingsShell() {
 						{groups.map((group) => (
 							// Spaced for the same reason as the session list: adjacent filled rows
 							// would otherwise merge into one block on hover.
-							<div key={group.label} className="flex flex-col gap-[2px]">
+							<div key={group.labelKey} className="flex flex-col gap-[2px]">
 								<div className="px-2 pt-4 pb-1 text-detail text-ink-faint">{t(group.labelKey)}</div>
 								{group.items.map((item) => (
 									<button

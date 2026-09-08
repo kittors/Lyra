@@ -17,8 +17,10 @@ import {
 	ShortcutRecorder,
 	Toggle,
 } from "./controls.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 export function ScreenshotSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 
@@ -57,16 +59,16 @@ export function ScreenshotSettings() {
 				截图设置
 			</h1>
 
-			<SectionTitle>快捷键与入口</SectionTitle>
+			<SectionTitle>{t("shot.shortcutSection")}</SectionTitle>
 			<Card className="mb-9">
 				<Row
-					title="启用屏幕截图"
-					detail="关闭后释放全局快捷键，方便使用其他截图工具。"
+					title={t("shot.enable")}
+					detail={t("shot.enableDetail")}
 					control={<Toggle checked={config.enabled !== false} onChange={(enabled) => patch({ enabled })} />}
 				/>
 				<Row
-					title="截图全局快捷键"
-					detail="在任意界面按下该快捷键即可触发系统交互式区域截图（点击后直接按键盘设置）"
+					title={t("shot.shortcut")}
+					detail={t("shot.shortcutDetail")}
 					control={
 						<div className="flex items-center gap-2">
 							<ShortcutRecorder
@@ -82,8 +84,8 @@ export function ScreenshotSettings() {
 					}
 				/>
 				<Row
-					title="在对话输入框中显示截图按钮"
-					detail="开启后，输入框左侧附件加号旁将常驻截图相机图标"
+					title={t("shot.composerButton")}
+					detail={t("shot.composerButtonDetail")}
 					control={
 						<Toggle
 							checked={config.showInComposer === true}
@@ -92,8 +94,8 @@ export function ScreenshotSettings() {
 					}
 				/>
 				<Row
-					title="测试截图"
-					detail="立即触发一次屏幕区域截图"
+					title={t("shot.test")}
+					detail={t("shot.testDetail")}
 					control={
 						<GhostButton disabled={config.enabled === false} icon={<Camera size={14} />} onClick={() => void bridge.screenshot.start().catch((error: unknown) => useApp.getState().notify(String(error), "error"))}>
 							立即截屏
@@ -102,14 +104,14 @@ export function ScreenshotSettings() {
 				/>
 			</Card>
 
-			<SectionTitle>保存与动作</SectionTitle>
+			<SectionTitle>{t("shot.saveSection")}</SectionTitle>
 			<Card className="mb-9">
 				<Row
-					title="截图保存位置"
+					title={t("shot.saveLocation")}
 					detail={
 						config.saveLocation?.trim()
-							? `已保存至: ${config.saveLocation}`
-							: "未指定目录（仅保留在内存与剪贴板中，不占用磁盘文件）"
+							? t("shot.savedTo", { path: config.saveLocation })
+							: t("shot.noDirectory")
 					}
 					control={
 						<div className="flex items-center gap-2">
@@ -119,7 +121,7 @@ export function ScreenshotSettings() {
 								</GhostButton>
 							)}
 							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("saveLocation")}>
-								{config.saveLocation?.trim() ? "更改目录" : "选择保存目录"}
+								{config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")}
 							</GhostButton>
 						</div>
 					}
@@ -133,11 +135,11 @@ export function ScreenshotSettings() {
 				 * says so instead of leaving the user to press it and go looking.
 				 */}
 				<Row
-					title="下载截图保存到"
+					title={t("shot.downloadLocation")}
 					detail={
 						config.downloadLocation?.trim()
-							? `截图工具栏的「下载」按钮会存到: ${config.downloadLocation}`
-							: "截图工具栏的「下载」按钮会存到系统桌面"
+							? t("shot.downloadTo", { path: config.downloadLocation })
+							: t("shot.downloadToDesktop")
 					}
 					control={
 						<div className="flex items-center gap-2">
@@ -147,14 +149,14 @@ export function ScreenshotSettings() {
 								</GhostButton>
 							)}
 							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("downloadLocation")}>
-								{config.downloadLocation?.trim() ? "更改目录" : "选择下载目录"}
+								{config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")}
 							</GhostButton>
 						</div>
 					}
 				/>
 				<Row
-					title="截图后打开图片编辑/标注"
-					detail="截取屏幕后立即打开图片标注工具，支持箭头、矩形、文字和画笔"
+					title={t("shot.annotate")}
+					detail={t("shot.annotateDetail")}
 					control={
 						<Toggle
 							checked={config.openEditor !== false}
@@ -163,8 +165,8 @@ export function ScreenshotSettings() {
 					}
 				/>
 				<Row
-					title="自动插入到对话框"
-					detail="截图完成后将截图作为图片附件添加到当前的对话输入框（默认关闭）"
+					title={t("shot.autoInsert")}
+					detail={t("shot.autoInsertDetail")}
 					control={
 						<Toggle
 							checked={config.insertIntoComposer === true}
@@ -173,8 +175,8 @@ export function ScreenshotSettings() {
 					}
 				/>
 				<Row
-					title="完成编辑后复制到剪贴板"
-					detail={shortcutLabel("点击完成/保存标注时将图片写入系统剪贴板，方便随时 ⌘V 粘贴到其他应用")}
+					title={t("shot.copyOnDone")}
+					detail={shortcutLabel(t("shot.copyOnDoneDetail"))}
 					control={
 						<Toggle
 							checked={config.copyToClipboard !== false}

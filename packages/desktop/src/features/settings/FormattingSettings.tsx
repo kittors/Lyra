@@ -6,6 +6,7 @@ import { Segmented, Toggle, GhostButton } from "./controls.tsx";
 import { NumberField } from "./pickers.tsx";
 import { RotateCcw } from "lucide-react";
 import { FormatPreview } from "./FormatPreview.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 /**
  * 代码格式化 — the settings that change the bytes, kept apart from the ones that change the pixels.
@@ -34,6 +35,7 @@ const DEFAULTS: Formatting = {
 };
 
 export function FormattingSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const formatting = { ...DEFAULTS, ...settings?.formatting };
@@ -54,7 +56,7 @@ export function FormattingSettings() {
 			 */}
 			<div>
 				<div className="mb-2 flex items-center justify-between px-1">
-					<SectionTitle>预览</SectionTitle>
+					<SectionTitle>{t("common.preview")}</SectionTitle>
 					<GhostButton onClick={() => patch(DEFAULTS)} icon={<RotateCcw size={13} strokeWidth={1.6} />}>
 						恢复默认
 					</GhostButton>
@@ -63,31 +65,31 @@ export function FormattingSettings() {
 			</div>
 
 			<div>
-				<SectionTitle>代码格式化</SectionTitle>
+				<SectionTitle>{t("format.title")}</SectionTitle>
 				<Card>
 					<Row
-						title="保存时格式化"
-						detail={shortcutLabel(`按 ⌘S 时先整理再写入。关闭时仍可随时按 ${macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} 手动格式化。`)}
+						title={t("format.onSave")}
+						detail={shortcutLabel(t("format.onSaveDetail", { shortcut: macKeyboard() ? "⇧⌘F" : "Shift+Alt+F" }))}
 						control={<Toggle checked={formatting.onSave} onChange={(onSave) => patch({ onSave })} />}
 					/>
 					<Row
-						title="缩进"
-						detail="制表符还是空格，以及一级缩进有多宽。"
+						title={t("format.indent")}
+						detail={t("format.indentDetail")}
 						control={
 							<div className="flex items-center gap-2">
 								<Segmented
 									value={formatting.useTabs ? "tab" : "space"}
 									onChange={(value) => patch({ useTabs: value === "tab" })}
 									options={[
-										{ value: "tab", label: "制表符" },
-										{ value: "space", label: "空格" },
+										{ value: "tab", label: t("format.tabs") },
+										{ value: "space", label: t("format.spaces") },
 									]}
 								/>
 								<NumberField
 									value={formatting.tabWidth}
 									min={1}
 									max={8}
-									label="缩进宽度"
+									label={t("format.indentWidth")}
 									width={60}
 									onChange={(tabWidth) => patch({ tabWidth })}
 								/>
@@ -95,71 +97,71 @@ export function FormattingSettings() {
 						}
 					/>
 					<Row
-						title="每行最大宽度"
-						detail="超过这个字符数就换行。不是硬性上限——一个不能拆的长字符串仍会超出。"
+						title={t("format.printWidth")}
+						detail={t("format.printWidthDetail")}
 						control={
 							<NumberField
 								value={formatting.printWidth}
 								min={40}
 								max={400}
 								step={10}
-								label="每行最大宽度"
+								label={t("format.printWidth")}
 								width={72}
 								onChange={(printWidth) => patch({ printWidth })}
 							/>
 						}
 					/>
 					<Row
-						title="分号"
-						detail="在语句末尾加上分号。"
+						title={t("format.semicolons")}
+						detail={t("format.semicolonsDetail")}
 						control={<Toggle checked={formatting.semi} onChange={(semi) => patch({ semi })} />}
 					/>
 					<Row
-						title="引号"
-						detail="字符串用哪种引号。含有该引号的字符串会自动改用另一种，不会转义。"
+						title={t("format.quotes")}
+						detail={t("format.quotesDetail")}
 						control={
 							<Segmented
 								value={formatting.singleQuote ? "single" : "double"}
 								onChange={(value) => patch({ singleQuote: value === "single" })}
 								options={[
-									{ value: "double", label: "双引号" },
-									{ value: "single", label: "单引号" },
+									{ value: "double", label: t("format.double") },
+									{ value: "single", label: t("format.single") },
 								]}
 							/>
 						}
 					/>
 					<Row
-						title="尾随逗号"
-						detail="多行的数组、对象和参数列表末尾是否留一个逗号。留着的好处是新增一行时 diff 只有一行。"
+						title={t("format.trailingComma")}
+						detail={t("format.trailingCommaDetail")}
 						control={
 							<Segmented
 								value={formatting.trailingComma}
 								onChange={(trailingComma) => patch({ trailingComma })}
 								options={[
-									{ value: "none", label: "不加" },
+									{ value: "none", label: t("common.none") },
 									{ value: "es5", label: "ES5" },
-									{ value: "all", label: "全部" },
+									{ value: "all", label: t("common.all") },
 								]}
 							/>
 						}
 					/>
 					<Row
-						title="花括号内侧空格"
-						detail="写成 { a: 1 } 还是 {a: 1}。"
+						title={t("format.bracketSpacing")}
+						detail={t("format.bracketSpacingDetail")}
 						control={
 							<Toggle checked={formatting.bracketSpacing} onChange={(bracketSpacing) => patch({ bracketSpacing })} />
 						}
 					/>
 					<Row
-						title="箭头函数的括号"
-						detail="只有一个参数时是否保留括号。保留的好处是加类型标注或第二个参数时不用先补括号。"
+						title={t("format.arrowParens")}
+						detail={t("format.arrowParensDetail")}
 						control={
 							<Segmented
 								value={formatting.arrowParens}
 								onChange={(arrowParens) => patch({ arrowParens })}
 								options={[
-									{ value: "always", label: "总是" },
-									{ value: "avoid", label: "省略" },
+									{ value: "always", label: t("common.always") },
+									{ value: "avoid", label: t("format.omit") },
 								]}
 							/>
 						}

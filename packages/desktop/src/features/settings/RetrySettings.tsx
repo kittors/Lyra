@@ -27,25 +27,33 @@ import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { useApp } from "../../store/index.ts";
 import { Card, InlineSelect, SectionTitle, Toggle } from "./controls.tsx";
+import { translate, useI18n, type MessageKey } from "../../i18n/index.ts";
 
-const FAULTS: { kind: RetryFailure; title: string; detail: string }[] = [
-	{ kind: "network", title: "网络中断", detail: "连接失败、超时、传输中断" },
-	{ kind: "upstream", title: "上游故障", detail: "限流、服务过载、暂时不可用" },
+/*
+ * 两种故障，用 key 记着，不是用译好的字记着。
+ *
+ * 这张表在模块加载时就成型了——那会儿窗口还没说自己是哪种语言，而且之后换语言它也不会重算。
+ * 存 key，让每次渲染自己去译，是唯一能跟着语言走的形式。
+ */
+const FAULTS: { kind: RetryFailure; titleKey: MessageKey; detailKey: MessageKey }[] = [
+	{ kind: "network", titleKey: "retry.network", detailKey: "retry.networkDetail" },
+	{ kind: "upstream", titleKey: "retry.upstream", detailKey: "retry.upstreamDetail" },
 ];
 
 const seconds = (ms: number) => Math.round(ms / 1000);
 
 /** What the rule does, in the words someone would use to describe it — the row's right-hand side. */
 function summarize(rule: RetryRule): string {
-	const count = rule.retries === null ? "无限重试" : rule.retries === 0 ? "不重试" : `重试 ${rule.retries} 次`;
+	const count = rule.retries === null ? translate("retry.forever") : rule.retries === 0 ? translate("retry.never") : translate("retry.count", { n: rule.retries });
 	if (rule.retries === 0) return count;
 	const pace = rule.strategy === "fixed"
-		? `每 ${seconds(rule.intervalMs)} 秒`
-		: `${seconds(rule.intervalMs)} 秒起递增，最长 ${seconds(rule.maxIntervalMs)} 秒`;
+		? translate("retry.everyN", { n: seconds(rule.intervalMs) })
+		: translate("retry.backoff", { from: seconds(rule.intervalMs), max: seconds(rule.maxIntervalMs) });
 	return `${count} · ${pace}`;
 }
 
 export function RetrySettings({ settings }: { settings: Settings }) {
+	const { t } = useI18n();
 	const policy = normalizeRetryPolicy(settings.retryPolicy, settings.retryAttempts);
 	const [open, setOpen] = useState<RetryFailure | null>(null);
 
@@ -65,7 +73,7 @@ export function RetrySettings({ settings }: { settings: Settings }) {
 
 	return (
 		<div data-retry-settings>
-			<SectionTitle>请求重试</SectionTitle>
+			<SectionTitle>{t("retry.title")}</SectionTitle>
 			{/* Said once, above both rules, rather than twice inside them. */}
 			<p className="-mt-1 mb-3 max-w-[62ch] text-label leading-relaxed text-ink-muted">
 				网络中断、限流或服务暂时不可用时自动重试，次数不含首次请求。改动立即生效，正在重试的请求从下一次等待起就用新值；
@@ -83,8 +91,8 @@ export function RetrySettings({ settings }: { settings: Settings }) {
 							onToggle={() => setOpen((was) => (was === fault.kind ? null : fault.kind))}
 							title={
 								<span className="block font-normal">
-									<span className="block text-body text-ink">{fault.title}</span>
-									<span className="mt-0.5 block text-label text-ink-faint">{fault.detail}</span>
+									<span className="block text-body text-ink">{t(fault.titleKey)}</span>
+									<span className="mt-0.5 block text-label text-ink-faint">{t(fault.detailKey)}</span>
 								</span>
 							}
 							trailing={
@@ -96,52 +104,52 @@ export function RetrySettings({ settings }: { settings: Settings }) {
 							{/* Indented to the title rather than to the chevron, so the fold reads as one block. */}
 							<div className="flex flex-wrap items-start gap-x-6 gap-y-3 pb-1 pl-5">
 								<NumberField
-									label="重试次数"
-									ariaLabel={`${fault.title}重试次数`}
+									label={t("retry.times")}
+									ariaLabel={t("retry.timesAria", { fault: t(fault.titleKey) })}
 									value={rule.retries}
 									min={0}
 									max={1_000_000}
-									unit="次"
+									unit={t("common.times")}
 									onCommit={(retries) => patch({ retries })}
 								>
 									{/* Beside the number it replaces, because it is the same decision. */}
 									<Toggle
-										ariaLabel={`${fault.title}不限次数`}
+										ariaLabel={t("retry.unlimitedAria", { fault: t(fault.titleKey) })}
 										checked={rule.retries === null}
 										onChange={(on) => patch({ retries: on ? null : 10 })}
 									/>
-									<span className="text-label text-ink-muted">不限</span>
+									<span className="text-label text-ink-muted">{t("common.unlimited")}</span>
 								</NumberField>
 								{rule.retries !== 0 && (
 									<>
-										<Labeled label="间隔方式">
+										<Labeled label={t("retry.spacing")}>
 											<InlineSelect
-												ariaLabel={`${fault.title}间隔方式`}
+												ariaLabel={t("retry.spacingAria", { fault: t(fault.titleKey) })}
 												value={rule.strategy}
 												options={[
-													{ value: "fixed", label: "固定间隔" },
-													{ value: "linear", label: "逐次递增" },
+													{ value: "fixed", label: t("retry.fixed") },
+													{ value: "linear", label: t("retry.growing") },
 												]}
 												onChange={(strategy) => patch({ strategy })}
 											/>
 										</Labeled>
 										<NumberField
-											label={linear ? "初始间隔" : "间隔"}
-											ariaLabel={`${fault.title}重试间隔秒数`}
+											label={linear ? t("retry.firstWait") : t("retry.interval")}
+											ariaLabel={t("retry.intervalAria", { fault: t(fault.titleKey) })}
 											value={seconds(rule.intervalMs)}
 											min={1}
 											max={3600}
-											unit="秒"
+											unit={t("common.seconds")}
 											onCommit={(value) => patch({ intervalMs: value * 1000, maxIntervalMs: Math.max(rule.maxIntervalMs, value * 1000) })}
 										/>
 										{linear && (
 											<NumberField
-												label="最长间隔"
-												ariaLabel={`${fault.title}最长间隔秒数`}
+												label={t("retry.maxWait")}
+												ariaLabel={t("retry.maxWaitAria", { fault: t(fault.titleKey) })}
 												value={seconds(rule.maxIntervalMs)}
 												min={seconds(rule.intervalMs)}
 												max={3600}
-												unit="秒"
+												unit={t("common.seconds")}
 												onCommit={(value) => patch({ maxIntervalMs: value * 1000 })}
 											/>
 										)}
@@ -150,10 +158,10 @@ export function RetrySettings({ settings }: { settings: Settings }) {
 							</div>
 							<p className="pl-5 text-detail leading-relaxed text-ink-faint">
 								{rule.retries === 0
-									? "失败后立即报错。"
+									? t("retry.failFast")
 									: linear
-										? `等待按初始间隔逐次增加——${seconds(rule.intervalMs)}、${seconds(rule.intervalMs) * 2}、${seconds(rule.intervalMs) * 3} 秒——到 ${seconds(rule.maxIntervalMs)} 秒后保持不变。`
-										: "每次等待相同时间，不受服务端建议或随机抖动影响。"}
+										? t("retry.growingDetail", { a: seconds(rule.intervalMs), b: seconds(rule.intervalMs) * 2, c: seconds(rule.intervalMs) * 3, max: seconds(rule.maxIntervalMs) })
+										: t("retry.fixedDetail")}
 							</p>
 						</Disclosure>
 					);

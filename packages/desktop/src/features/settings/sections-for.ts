@@ -45,8 +45,15 @@ export const HIDDEN_ON_MOBILE: ReadonlySet<SettingsSection> = new Set<SettingsSe
 	"usage",
 ]);
 
+/**
+ * Only the items, because the items are all this file has an opinion about.
+ *
+ * It used to require a `label` as well, which neither function here ever read — and requiring it
+ * meant the caller had to keep one, so the navigation carried a hardcoded Chinese name beside the
+ * message key it actually renders. Narrowing the constraint is what let that go; the caller's own
+ * type still carries whatever else it needs, and the generic passes it through.
+ */
 export interface SettingsGroup<T> {
-	label: string;
 	items: T[];
 }
 
