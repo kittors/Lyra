@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 export function WorktreesSettings() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const notify = useApp((s) => s.notify);
@@ -61,13 +63,13 @@ export function WorktreesSettings() {
 		try {
 			const res = await bridge.git.removeWorktree(repoPath, treePath);
 			if (res.ok) {
-				notify("已移除工作树");
+				notify(t("worktrees.removed"));
 				await refreshList();
 			} else {
-				notify(res.error ?? "移除工作树失败", "error");
+				notify(res.error ?? t("worktrees.removeFailed"), "error");
 			}
 		} catch (err) {
-			notify(err instanceof Error ? err.message : "移除工作树失败", "error");
+			notify(err instanceof Error ? err.message : t("worktrees.removeFailed"), "error");
 		} finally {
 			setDeletingPath(null);
 		}
@@ -87,11 +89,11 @@ export function WorktreesSettings() {
 				</p>
 			</div>
 
-			<SectionTitle>工作树配置</SectionTitle>
+			<SectionTitle>{t("worktrees.config")}</SectionTitle>
 			<Card className="mb-6">
 				<Row
-					title="工作树根目录"
-					detail="ChatGPT / Agent 创建托管工作树的目录。留空则默认保存在项目同级目录下"
+					title={t("worktrees.root")}
+					detail={t("worktrees.rootDetail")}
 					control={
 						<Input
 							type="text"
@@ -103,8 +105,8 @@ export function WorktreesSettings() {
 					}
 				/>
 				<Row
-					title="新建会话时自动创建独立工作树"
-					detail="为每个新开启的对话会话自动创建专属的 Git 工作树与分支，避免破坏主工作区状态。"
+					title={t("worktrees.autoCreate")}
+					detail={t("worktrees.autoCreateDetail")}
 					control={
 						<button
 							type="button"
@@ -124,8 +126,8 @@ export function WorktreesSettings() {
 					}
 				/>
 				<Row
-					title="创建工作树前始终获取上游更新"
-					detail="通常会在常规 Git 操作中获取分支更新。此设置还会在创建每个新工作树前自动获取上游更新。"
+					title={t("worktrees.fetchFirst")}
+					detail={t("worktrees.fetchFirstDetail")}
 					control={
 						<button
 							type="button"
@@ -145,8 +147,8 @@ export function WorktreesSettings() {
 					}
 				/>
 				<Row
-					title="自动删除旧工作树"
-					detail="推荐大多数用户启用。仅当你需要手动管理旧工作树和磁盘使用空间时，再关闭此功能。"
+					title={t("worktrees.autoPrune")}
+					detail={t("worktrees.autoPruneDetail")}
 					control={
 						<button
 							type="button"
@@ -166,8 +168,8 @@ export function WorktreesSettings() {
 					}
 				/>
 				<Row
-					title="自动删除限制"
-					detail="要保留的托管工作树数量；超过后，较旧的工作树会自动被清理。"
+					title={t("worktrees.keepLimit")}
+					detail={t("worktrees.keepLimitDetail")}
 					control={
 						<Input
 							type="number"
@@ -182,7 +184,7 @@ export function WorktreesSettings() {
 			</Card>
 
 			<div className="mb-3 flex items-center justify-between">
-				<SectionTitle>活跃工作树</SectionTitle>
+				<SectionTitle>{t("worktrees.active")}</SectionTitle>
 				<button
 					type="button"
 					onClick={() => void refreshList()}
@@ -196,8 +198,8 @@ export function WorktreesSettings() {
 			{worktrees.length === 0 ? (
 				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line py-10 text-center">
 					<FolderGit2 size={24} className="text-ink-faint" />
-					<div className="mt-2 text-label text-ink-faint">尚无活跃工作树</div>
-					<div className="mt-1 text-caption text-ink-faint">创建的托管 Git 工作树将显示在此处</div>
+					<div className="mt-2 text-label text-ink-faint">{t("worktrees.empty")}</div>
+					<div className="mt-1 text-caption text-ink-faint">{t("worktrees.emptyDetail")}</div>
 				</div>
 			) : (
 				<div className="divide-y divide-line/60 rounded-lg border border-line bg-card">
@@ -227,8 +229,8 @@ export function WorktreesSettings() {
 									disabled={deletingPath === tree.path}
 									onClick={() => void removeTree(tree.repoPath, tree.path)}
 									className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-card-hover hover:text-red-500 disabled:opacity-50"
-									aria-label="删除工作树"
-									data-ly-tip="删除工作树"
+									aria-label={t("worktrees.delete")}
+									data-ly-tip={t("worktrees.delete")}
 								>
 									<Trash2 size={14} />
 								</button>

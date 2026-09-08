@@ -7,6 +7,7 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GhostButton, InlineSelect } from "./controls.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 /**
  * The archive: everything filed away from the sidebar, grouped by project.
@@ -16,6 +17,7 @@ import { sessionTitle } from "../../lib/session-title.ts";
  * the archive button is.
  */
 export function ArchivedSettings() {
+	const { t } = useI18n();
 	const sessions = useApp((s) => s.sessions);
 	const setArchived = useApp((s) => s.setSessionArchived);
 	const deleteSession = useApp((s) => s.deleteSession);
@@ -59,7 +61,7 @@ export function ArchivedSettings() {
 		<div className="pt-8">
 			<header className="flex flex-wrap items-start justify-between gap-3 pb-6">
 				<div className="min-w-0">
-					<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">已归档的聊天</h1>
+					<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">{t("archived.title")}</h1>
 					<p className="mt-1.5 text-label leading-relaxed text-ink-muted">
 						归档只是把会话移出侧边栏，记录和用量都还在。取消归档即可放回原来的项目下。
 					</p>
@@ -70,14 +72,14 @@ export function ArchivedSettings() {
 						type="button"
 						onClick={() =>
 							confirm.ask({
-								title: `删除全部 ${archived.length} 个归档会话？`,
-								detail: "所有记录和它们的用量统计会被永久删除，拿不回来。取消归档只能一个一个来，这个不能。",
-								confirmLabel: `删除 ${archived.length} 个`,
+								title: t("archived.deleteAllConfirm", { n: archived.length }),
+								detail: t("archived.deleteAllDetail"),
+								confirmLabel: t("archived.deleteN", { n: archived.length }),
 								onConfirm: () => void deleteAll(),
 							})
 						}
-						data-ly-tip={`删除全部 ${archived.length} 个归档会话`}
-						aria-label={`删除全部 ${archived.length} 个归档会话`}
+						data-ly-tip={t("archived.deleteAll", { n: archived.length })}
+						aria-label={t("archived.deleteAll", { n: archived.length })}
 						className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-danger/40 text-danger transition-colors hover:bg-danger/10"
 					>
 						<Trash2 size={13} strokeWidth={2} />
@@ -88,8 +90,8 @@ export function ArchivedSettings() {
 			{archived.length === 0 ? (
 				<div className="flex flex-col items-center rounded-[12px] border border-dashed border-line py-14">
 					<Archive size={26} strokeWidth={1.5} className="text-ink-faint" />
-					<p className="mt-3 text-label text-ink-muted">还没有归档的聊天</p>
-					<p className="mt-1 text-detail text-ink-faint">在侧边栏把鼠标移到某个会话上，点归档图标即可</p>
+					<p className="mt-3 text-label text-ink-muted">{t("archived.empty")}</p>
+					<p className="mt-1 text-detail text-ink-faint">{t("archived.emptyDetail")}</p>
 				</div>
 			) : (
 				<>
@@ -99,21 +101,21 @@ export function ArchivedSettings() {
 							size="comfortable"
 							value={query}
 							onChange={setQuery}
-							placeholder="搜索已归档的聊天"
+							placeholder={t("archived.search")}
 							className="min-w-[180px] flex-1"
 						/>
 						<InlineSelect
 							value={project}
 							onChange={setProject}
 							options={[
-								{ value: "all", label: "所有项目" },
+								{ value: "all", label: t("common.allProjects") },
 								...projects.map((p) => ({ value: p.path, label: `${p.name}（${p.count}）` })),
 							]}
 						/>
 					</div>
 
 					{groups.length === 0 && (
-						<p className="py-10 text-center text-label text-ink-faint">没有匹配的聊天</p>
+						<p className="py-10 text-center text-label text-ink-faint">{t("archived.noMatch")}</p>
 					)}
 
 					{groups.map((group) => (
@@ -131,11 +133,15 @@ export function ArchivedSettings() {
 										session={session}
 										first={index === 0}
 										onOpen={() => {
-											// Opening it puts it back in circulation, so it comes out of the archive too.
-											void setArchived(session, false).then(() => {
-												void openSession(session);
-												setView("chat");
-											});
+											/*
+											 * 打开就是打开。
+											 *
+											 * 从前这里顺手把它取消归档——理由是「开着的对话不该在侧边栏里找不到」。
+											 * 那个顾虑已经由 `listableSessions` 接手：当前会话不管归没归档都在列表
+											 * 里。归不归档只由旁边那个按钮说了算，两处一致。
+											 */
+											void openSession(session);
+											setView("chat");
 										}}
 										onRestore={() => void setArchived(session, false)}
 										onDelete={() => void deleteSession(session)}
@@ -165,6 +171,7 @@ function Row({
 	onRestore: () => void;
 	onDelete: () => void;
 }) {
+	const { t } = useI18n();
 	const confirm = useConfirmer();
 
 	return (
@@ -173,7 +180,7 @@ function Row({
 				first ? "" : "border-t border-line-soft"
 			}`}
 		>
-			<button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" data-ly-tip="打开并取消归档">
+			<button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" data-ly-tip={t("common.open")}>
 				<ScrollText text={sessionTitle(session.title)} className="text-label text-ink" />
 				<span className="mt-0.5 block text-detail text-ink-faint">
 					{formatDate(session.updatedAt)} · {session.messageCount} 条消息
@@ -190,13 +197,13 @@ function Row({
 			<div className="flex shrink-0 items-center gap-1">
 				<button
 					type="button"
-					data-ly-tip="删除"
-					aria-label={`删除「${session.title}」`}
+					data-ly-tip={t("common.delete")}
+					aria-label={t("archived.deleteNamed", { title: session.title })}
 					onClick={() =>
 						confirm.ask({
-							title: "删除这个会话？",
-							detail: `「${session.title}」的 ${session.messageCount} 条消息会被永久删除，拿不回来。`,
-							confirmLabel: "删除",
+							title: t("archived.deleteOneConfirm"),
+							detail: t("archived.deleteOneDetail", { title: session.title, n: session.messageCount }),
+							confirmLabel: t("common.delete"),
 							onConfirm: onDelete,
 						})
 					}
@@ -204,7 +211,7 @@ function Row({
 				>
 					<Trash2 size={13.5} strokeWidth={1.8} />
 				</button>
-				<GhostButton onClick={onRestore} icon={<ArchiveRestore size={13} strokeWidth={1.8} />} title="取消归档" />
+				<GhostButton onClick={onRestore} icon={<ArchiveRestore size={13} strokeWidth={1.8} />} title={t("common.unarchive")} />
 			</div>
 
 			{confirm.element}
