@@ -8,15 +8,17 @@
  */
 
 import { relativeTime } from "../../lib/relative-time.ts";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 export type MemorySource = "user" | "auto" | "session" | "learn" | "extracted";
 
-const SOURCE_WORD: Record<MemorySource, string> = {
-	user: "手动添加",
-	auto: "自动沉淀",
-	session: "对话中记下",
-	learn: "learn 工具",
-	extracted: "后台抽取",
+/* 这张表在模块加载时成型，那会儿还不知道窗口是哪种语言——存 key，渲染时才译。 */
+const SOURCE_WORD: Record<MemorySource, MessageKey> = {
+	user: "memoryMeta.manual",
+	auto: "memoryMeta.auto",
+	session: "memoryMeta.inChat",
+	learn: "memoryMeta.learnTool",
+	extracted: "memoryMeta.background",
 };
 
 export function MemoryMeta({
@@ -32,15 +34,16 @@ export function MemoryMeta({
 	lastInjectedAt?: number;
 	now?: number;
 }) {
+	const { t } = useI18n();
 	const when = (at: number) => relativeTime(new Date(at).toISOString(), now);
 	return (
 		<span data-memory-meta className="flex flex-wrap items-center gap-x-1.5 text-caption text-ink-faint">
-			<span data-memory-source>{SOURCE_WORD[source]}</span>
+			<span data-memory-source>{t(SOURCE_WORD[source])}</span>
 			<span className="text-line">·</span>
 			<span>{when(createdAt)}写下</span>
 			<span className="text-line">·</span>
 			{lastInjectedAt === undefined ? (
-				<span data-memory-injected="never">还没进过提示词</span>
+				<span data-memory-injected="never">{t("memoryMeta.neverUsed")}</span>
 			) : (
 				<span data-memory-injected="at">最后注入 {when(lastInjectedAt)}</span>
 			)}

@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Badge, Card, EmptyHint } from "./controls.tsx";
+import { useI18n } from "../../i18n/index.ts";
 
 const POLL_MS = 2000;
 
@@ -58,15 +59,16 @@ export function ExtensionStatsList({
 	extensions: ExtensionStats[];
 	diagnostics: ExtensionDiagnostic[];
 }) {
+	const { t } = useI18n();
 	if (extensions.length === 0 && diagnostics.length === 0) {
 		return (
-			<EmptyHint>暂无扩展</EmptyHint>
+			<EmptyHint>{t("extHost.empty")}</EmptyHint>
 		);
 	}
 	return (
 		<div data-extension-stats={live ? "live" : "idle"}>
 			{!live && (
-				<p className="mb-3 text-detail text-ink-muted">现在没有打开的会话，下面只是磁盘上的清单；数字要等一个会话跑起来。</p>
+				<p className="mb-3 text-detail text-ink-muted">{t("extHost.noSession")}</p>
 			)}
 			{extensions.map((one) => (
 				<Card key={one.dir} className="mb-3">
@@ -75,7 +77,7 @@ export function ExtensionStatsList({
 							<span className="text-label text-ink">{one.name}</span>
 							{one.version && <span className="text-caption text-ink-faint">v{one.version}</span>}
 							<StateBadge state={one.state} />
-							<Badge tone="muted">{one.intercepts ? "可拦截" : "只观察"}</Badge>
+							<Badge tone="muted">{one.intercepts ? t("extHost.blocking") : t("extHost.observing")}</Badge>
 							<span className="min-w-2 flex-1" />
 							{one.failures > 0 && (
 								<span className="text-caption text-ink-faint" data-extension-failures>
@@ -88,15 +90,15 @@ export function ExtensionStatsList({
 							{one.dir}
 						</p>
 						{one.perEvent.length === 0 ? (
-							<p className="mt-2 text-detail text-ink-faint">没有订阅任何事件——它什么都收不到。</p>
+							<p className="mt-2 text-detail text-ink-faint">{t("extHost.noEvents")}</p>
 						) : (
 							<table className="mt-2 w-full text-detail tabular-nums" data-extension-events>
 								<thead>
 									<tr className="text-caption text-ink-faint">
-										<th className="py-0.5 text-left font-normal">事件</th>
-										<th className="py-0.5 text-right font-normal">调用</th>
-										<th className="py-0.5 text-right font-normal">错误</th>
-										<th className="py-0.5 text-right font-normal">超时</th>
+										<th className="py-0.5 text-left font-normal">{t("extHost.events")}</th>
+										<th className="py-0.5 text-right font-normal">{t("extHost.calls")}</th>
+										<th className="py-0.5 text-right font-normal">{t("common.error")}</th>
+										<th className="py-0.5 text-right font-normal">{t("common.timeout")}</th>
 										<th className="py-0.5 text-right font-normal">p95</th>
 									</tr>
 								</thead>
@@ -144,10 +146,11 @@ export function ExtensionStatsList({
 }
 
 function StateBadge({ state }: { state: ExtensionStats["state"] }) {
-	if (state === "running") return <Badge tone="ok">运行中</Badge>;
-	if (state === "tripped") return <Badge tone="danger">已熔断</Badge>;
-	if (state === "exited") return <Badge tone="danger">已退出</Badge>;
-	return <Badge tone="muted">未加载</Badge>;
+	const { t } = useI18n();
+	if (state === "running") return <Badge tone="ok">{t("common.running")}</Badge>;
+	if (state === "tripped") return <Badge tone="danger">{t("extHost.tripped")}</Badge>;
+	if (state === "exited") return <Badge tone="danger">{t("extHost.exited")}</Badge>;
+	return <Badge tone="muted">{t("extHost.notLoaded")}</Badge>;
 }
 
 /** `0.4 ms`, `12 ms`, `1.8 s` — one shape per scale, which is how a column stays readable. */

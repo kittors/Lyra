@@ -22,8 +22,10 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Badge, Card, EmptyHint, GhostButton, ListRow, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { ForgeSignIn } from "./ForgeSignIn.tsx";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 export function ForgeSettings() {
+	const { t } = useI18n();
 	const { accounts } = useForgeAccounts();
 	const { setEnabled, signOut, rename } = useAccountActions();
 	const [kinds, setKinds] = useState<ForgeKindInfo[]>([]);
@@ -41,16 +43,16 @@ export function ForgeSettings() {
 
 	return (
 		<div className="pt-8">
-			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">代码托管</h1>
+			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("forge.title")}</h1>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
 				连接代码托管账号，统一查看和审查 Pull Request。支持自建实例。
 			</p>
 
-			<SectionTitle>账号</SectionTitle>
+			<SectionTitle>{t("common.account")}</SectionTitle>
 			<div className="mb-3">
 				{accounts.length === 0 && !adding && (
 					<Card>
-						<EmptyHint>暂无代码托管账号</EmptyHint>
+						<EmptyHint>{t("forge.empty")}</EmptyHint>
 					</Card>
 				)}
 
@@ -96,7 +98,7 @@ export function ForgeSettings() {
 							account.lastError && account.enabled ? (
 								<span className="text-danger">{account.lastError}</span>
 							) : (
-								`${account.login || "未知用户"} · ${host(account.baseUrl)}`
+								`${account.login || t("forge.unknownUser")} · ${host(account.baseUrl)}`
 							)
 						}
 						actions={
@@ -112,14 +114,14 @@ export function ForgeSettings() {
 									<IconButton
 										className="ly-row-action"
 										size="sm"
-										label="重命名"
+										label={t("common.rename")}
 										icon={<Pencil size={13} strokeWidth={1.8} />}
 										onClick={() => setEditing(account.id)}
 									/>
 									<IconButton
 										className="ly-row-action"
 										size="sm"
-										label="退出登录并删除令牌"
+										label={t("forge.signOut")}
 										icon={<Trash2 size={13} strokeWidth={1.8} />}
 										onClick={() => void signOut(account.id)}
 										tone="danger"

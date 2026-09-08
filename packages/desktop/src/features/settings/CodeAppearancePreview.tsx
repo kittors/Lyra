@@ -27,6 +27,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CodeThemeSpec } from "../../lib/code/themes.ts";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 import { highlightPieces, type Piece } from "./preview-highlight.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 export interface CodeTypography {
 	fontFamily?: string;
@@ -75,6 +76,7 @@ export function CodeAppearancePreview({
 	darkTheme: CodeThemeSpec;
 	type: CodeTypography;
 }) {
+	const { t } = useI18n();
 	/*
 	 * One draft for both boxes.
 	 *
@@ -106,7 +108,7 @@ export function CodeAppearancePreview({
 			<CodeSnippetBox
 				theme={lightTheme}
 				type={type}
-				label="浅色预览"
+				label={t("codePreview.light")}
 				code={code}
 				pieces={pieces}
 				stock={draft === null}
@@ -115,7 +117,7 @@ export function CodeAppearancePreview({
 			<CodeSnippetBox
 				theme={darkTheme}
 				type={type}
-				label="深色预览"
+				label={t("codePreview.dark")}
 				code={code}
 				pieces={pieces}
 				stock={draft === null}
@@ -143,6 +145,7 @@ function CodeSnippetBox({
 	stock: boolean;
 	onDraft: (next: string | null) => void;
 }) {
+	const { t } = useI18n();
 	const body = useRef<HTMLDivElement>(null);
 
 	/*
@@ -197,8 +200,8 @@ function CodeSnippetBox({
 					{!stock && (
 						<button
 							type="button"
-							data-ly-tip="还原示例内容"
-							aria-label="还原示例内容"
+							data-ly-tip={t("codePreview.restore")}
+							aria-label={t("codePreview.restore")}
 							onClick={() => onDraft(null)}
 							className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/spec:opacity-70 hover:!opacity-100 group-has-[:focus-visible]/spec:opacity-70"
 						>
@@ -257,7 +260,7 @@ function CodeSnippetBox({
 							value={code}
 							onChange={(event) => onDraft(event.target.value)}
 							spellCheck={false}
-							aria-label={`${label}——可以改成你自己的代码`}
+							aria-label={t("codePreview.editable", { label })}
 							className="absolute inset-0 h-full w-full resize-none overflow-hidden bg-transparent px-3 text-transparent outline-none"
 							style={{ ...metrics, caretColor: theme.foreground }}
 						/>

@@ -24,8 +24,10 @@ import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 export function PluginsSettings({ filter = "" }: { filter?: string }) {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const workspace = useApp((s) => s.workspace);
@@ -121,8 +123,7 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 			 */}
 			{allOff && plugins.length > 0 && (
 				<p className="mb-3 rounded-[10px] border border-line-soft px-3 py-2 text-detail leading-relaxed text-ink-muted">
-					设置里写着 <code className="font-mono">disabledPlugins: ["*"]</code>，所以下面所有插件都不生效。
-					把任意一个拨回「开」会解除这条总开关，其余插件保持当前状态。
+					设置里写着 <code className="font-mono">disabledPlugins: ["*"]</code>{t("plugins.allOffDetail")}
 				</p>
 			)}
 
@@ -134,11 +135,11 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 			 * tabs, which made the tabs look like they had not changed anything.
 			 */}
 			{slow ? (
-				<SkeletonList count={5} label="正在读取已安装的插件" />
+				<SkeletonList count={5} label={t("plugins.reading")} />
 			) : scan === null ? null : plugins.length === 0 ? (
 				<div className="py-10 text-center">
 					<p className="text-label leading-relaxed text-ink-muted">
-						{needle ? "没有匹配的插件" : "暂无已安装插件"}
+						{needle ? t("plugins.noMatch") : t("plugins.empty")}
 					</p>
 				</div>
 			) : (
@@ -170,6 +171,7 @@ function PluginRow({
 	onManage: () => void;
 	onRemoved: () => void;
 }) {
+	const { t } = useI18n();
 	const [busy, setBusy] = useState(false);
 	const menu = usePopover();
 	const [confirming, setConfirming] = useState(false);
@@ -195,13 +197,13 @@ function PluginRow({
 			<ListRow
 				icon={<PluginIcon name={name} logo={ui?.logo} brandColor={ui?.brandColor} kind="plugin" size={28} />}
 				title={name}
-				detail={ui?.shortDescription ?? plugin.manifest.description ?? "（无描述）"}
+				detail={ui?.shortDescription ?? plugin.manifest.description ?? t("plugins.noDescription")}
 				onOpen={onManage}
-				openLabel={`打开 ${name}`}
+				openLabel={t("plugins.openNamed", { name })}
 				actions={
 					<button
 						type="button"
-						aria-label={`${name} 的更多操作`}
+						aria-label={t("plugins.moreFor", { name })}
 						aria-haspopup="menu"
 						aria-expanded={menu.open}
 						onClick={menu.toggle}
@@ -216,9 +218,9 @@ function PluginRow({
 			{/* The question is a modal now, so the menu is only ever a menu — see `Confirm`. */}
 			{confirming && (
 				<Confirm
-					title={`卸载 ${name}？`}
-					detail="它的目录会被删除，随它安装的技能也一起消失。重新安装可以拿回来。"
-					confirmLabel="卸载"
+					title={t("plugins.uninstallConfirm", { name })}
+					detail={t("plugins.uninstallDetail")}
+					confirmLabel={t("mcp.uninstall")}
 					onCancel={() => setConfirming(false)}
 					onConfirm={() => {
 						setConfirming(false);
@@ -263,7 +265,7 @@ function PluginRow({
 								danger
 								icon={<Trash2 size={13} strokeWidth={1.8} />}
 								disabled={busy || !removable}
-								title={removable ? undefined : "项目里的插件，从项目目录里删"}
+								title={removable ? undefined : t("plugins.projectScoped")}
 								onClick={() => {
 									// The menu gives way to the question rather than sitting behind it.
 									menu.close();

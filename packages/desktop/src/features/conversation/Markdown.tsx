@@ -12,6 +12,7 @@
 import { FileText, ExternalLink } from "lucide-react";
 import { createContext, Fragment, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
+import { MarkdownTable } from "./MarkdownTable.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
 import { parseMarkdown } from "../../lib/markdown/blocks.ts";
@@ -165,32 +166,7 @@ function renderBlock(block: Block, preview = false): ReactNode {
 			);
 		}
 		case "table":
-			return (
-				<div className="ly-table">
-					<table>
-						<thead>
-							<tr>
-								{block.header.map((cell, index) => (
-									<th key={index} style={{ textAlign: block.align[index] ?? "left" }}>
-										{inline(cell)}
-									</th>
-								))}
-							</tr>
-						</thead>
-						<tbody>
-							{block.rows.map((row, rowIndex) => (
-								<tr key={rowIndex}>
-									{row.map((cell, cellIndex) => (
-										<td key={cellIndex} style={{ textAlign: block.align[cellIndex] ?? "left" }}>
-											{inline(cell)}
-										</td>
-									))}
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			);
+			return <MarkdownTable block={block} inline={inline} preview={preview} />;
 		default:
 			return null;
 	}

@@ -12,6 +12,7 @@ import { PluginsSettings } from "./PluginsSettings.tsx";
 import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 type Tab = ExtensionsTab;
 
@@ -27,6 +28,7 @@ type Tab = ExtensionsTab;
  * much is installed, and of what.
  */
 export function ExtensionsSettings() {
+	const { t } = useI18n();
 	const workspace = useApp((s) => s.workspace);
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
@@ -96,31 +98,31 @@ export function ExtensionsSettings() {
 	// Same order as the catalogue's tabs. They are the two halves of one subject, and a page where
 	// 技能 is second and another where it is third is two orders for one list.
 	const tabs: { id: Tab; label: string; count: number; icon: typeof Blocks }[] = [
-		{ id: "plugins", label: "插件", count: counts.plugins, icon: Blocks },
+		{ id: "plugins", label: t("common.plugins"), count: counts.plugins, icon: Blocks },
 		{ id: "mcp", label: "MCP", count: settings?.mcpServers.length ?? 0, icon: Cable },
-		{ id: "skills", label: "技能", count: counts.skills, icon: Sparkles },
+		{ id: "skills", label: t("common.skills"), count: counts.skills, icon: Sparkles },
 		/*
 		 * 规则跟技能并列，因为它们是同一类东西：磁盘上的 markdown，按同名覆盖，影响模型怎么做事。
 		 *
 		 * 数字不在这里显示。技能和插件的数量是「装了多少」，看一眼就有用；规则的数量里混着六个
 		 * 来源和三种代价，一个总数说不清任何事——要看的是那张表本身。
 		 */
-		{ id: "rules", label: "规则", count: counts.rules, icon: Scale },
+		{ id: "rules", label: t("common.rules"), count: counts.rules, icon: Scale },
 		/*
 		 * 扩展在最后：它不是「给模型的东西」，是「看着模型的东西」——跑在 worker 里的代码，
 		 * 收事件、可以拦截。这一页答的是它有没有在跑、跑得多慢（10 §7.3）。
 		 */
-		{ id: "extensions", label: "扩展", count: counts.extensions, icon: Puzzle },
+		{ id: "extensions", label: t("extensions.title"), count: counts.extensions, icon: Puzzle },
 	];
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col pt-8">
 			<header className="flex shrink-0 items-start justify-between pb-5">
 				<div className="min-w-0">
-					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">插件</h1>
+					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("common.plugins")}</h1>
 					{/* One line under the title, because the word 插件 is doing three jobs on this page —
 					    and the tabs below only make sense once you know it contains the other two. */}
-					<p className="pt-1 text-label text-ink-muted">管理插件、技能和 MCP</p>
+					<p className="pt-1 text-label text-ink-muted">{t("extensions.intro")}</p>
 				</div>
 
 				<div className="flex shrink-0 items-center gap-2 pt-1">
@@ -196,7 +198,7 @@ export function ExtensionsSettings() {
 					size="comfortable"
 					value={query}
 					onChange={setQuery}
-					placeholder="搜索"
+					placeholder={t("common.search")}
 					className="w-[220px]"
 				/>
 
@@ -211,7 +213,7 @@ export function ExtensionsSettings() {
 				 */}
 				<button
 					type="button"
-					aria-label="更多操作"
+					aria-label={t("common.more")}
 					aria-haspopup="menu"
 					aria-expanded={more.open}
 					onClick={more.toggle}
@@ -259,7 +261,7 @@ export function ExtensionsSettings() {
 								<MenuItem
 									icon={<FolderOpen size={13} strokeWidth={1.8} />}
 									disabled={!workspace}
-									title={workspace ? undefined : "当前没有打开项目"}
+									title={workspace ? undefined : t("extensions.noProject")}
 									onClick={() => {
 										more.close();
 										void revealDir("workspace");

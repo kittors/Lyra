@@ -31,6 +31,7 @@ import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 import { formatCode } from "../editor/index.ts";
 import { highlightPieces, type Piece } from "./preview-highlight.ts";
 import { LANGUAGES, searchLanguages, type LanguageEntry } from "./format-catalog.ts";
+import { useI18n } from "../../i18n/index.ts";
 
 /**
  * Fixed height, whatever is in it.
@@ -42,6 +43,7 @@ import { LANGUAGES, searchLanguages, type LanguageEntry } from "./format-catalog
 const BOX_HEIGHT = 260;
 
 export function FormatPreview({ options }: { options: FormattingSettings }) {
+	const { t } = useI18n();
 	const [entry, setEntry] = useState<LanguageEntry>(() => LANGUAGES[0]);
 	/** What is in the box: the language's sample until someone types, then theirs. */
 	const [code, setCode] = useState(entry.sample);
@@ -147,7 +149,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 				<LanguagePicker entry={entry} onPick={pick} />
 				<div className="flex shrink-0 items-center gap-1">
 					{edited && (
-						<CodeButton onClick={restore} tip="把示例代码放回来">
+						<CodeButton onClick={restore} tip={t("formatPreview.restore")}>
 							<RotateCcw size={11} strokeWidth={2} />
 							还原
 						</CodeButton>
@@ -157,10 +159,10 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 						disabled={entry.formatter !== "prettier"}
 						tip={
 							entry.formatter === "prettier"
-								? "用下面的设置格式化一遍"
+								? t("formatPreview.run")
 								: entry.formatter === "external"
-									? `${entry.label} 交给 ${entry.tool}，在编辑器里按 ${macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} 用它格式化`
-									: `${entry.label} 还没有可用的格式化工具`
+									? t("formatPreview.tool", { label: entry.label, tool: entry.tool ?? "", shortcut: macKeyboard() ? "⇧⌘F" : "Shift+Alt+F" })
+									: t("formatPreview.noTool", { label: entry.label })
 						}
 						primary
 					>
@@ -215,7 +217,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 								}
 							}}
 							spellCheck={false}
-							aria-label="试一段代码，然后按格式化"
+							aria-label={t("formatPreview.tryIt")}
 							className="absolute inset-0 h-full w-full resize-none overflow-hidden bg-transparent px-3 text-transparent outline-none"
 							style={{ ...metrics, caretColor: "var(--ly-code-fg)" }}
 						/>
@@ -294,6 +296,7 @@ function CodeButton({
  * 「gofmt」 finds Go.
  */
 function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next: LanguageEntry) => void }) {
+	const { t } = useI18n();
 	const menu = usePopover();
 	const [query, setQuery] = useState("");
 	const found = useMemo(() => searchLanguages(query), [query]);
@@ -338,13 +341,13 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 					align="start"
 					width={340}
 					maxHeight={380}
-					label="选择语言"
+					label={t("formatPreview.pickLanguage")}
 					header={
 						<div className="px-2 pt-2 pb-1.5">
 							<SearchField
 								value={query}
 								onChange={setQuery}
-								placeholder="按语言、扩展名或工具搜索"
+								placeholder={t("formatPreview.searchLanguage")}
 								autoFocus
 								onEscape={() => {
 									menu.close();
@@ -356,7 +359,7 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 				>
 					<MenuBody>
 						{found.length === 0 ? (
-							<p className="px-3 py-4 text-center text-detail text-ink-faint">没有匹配的语言</p>
+							<p className="px-3 py-4 text-center text-detail text-ink-faint">{t("formatPreview.noLanguage")}</p>
 						) : (
 							found.map((candidate) => (
 								<button
