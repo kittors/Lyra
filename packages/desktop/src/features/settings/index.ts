@@ -11,7 +11,7 @@ export { PluginIcon, SkillMark, safeColour } from "./PluginIcon.tsx";
 export { CODE_DEFAULTS } from "./code-defaults.ts";
 export { formatCost } from "./usage-format.ts";
 export { GhostButton, Toggle } from "./controls.tsx";
-export { TextInput } from "./inputs.tsx";
+export { TextInput, InlineSelect } from "./inputs.tsx";
 export { NumberField, TimeField } from "./pickers.tsx";
 export { applyAppearance, watchSystemTheme } from "./theme.ts";
 

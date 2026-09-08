@@ -110,9 +110,18 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 	return <section ref={root} hidden={cramped} className="shrink-0 px-3 pb-1" aria-label="时间概览" data-trace-timeline>
 		<div className="flex h-8 items-center gap-1 text-caption text-ink-muted">
 			<button type="button" aria-label="时间概览" aria-expanded={visible} className="mr-auto flex items-center gap-1 rounded py-1 hover:text-ink" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }}><ChevronDown size={12} style={{ transform: expanded ? undefined : "rotate(-90deg)" }} />{short ? "时间轴 · 放大面板查看" : expanded ? "时间轴" : "展开时间轴"}</button>
-			<IconButton explainDisabled size="sm" label="缩小时间范围" icon={<ZoomOut size={12} />} onClick={() => zoom(2)} disabled={!view || !visible} />
-			<IconButton explainDisabled size="sm" label="放大时间范围" icon={<ZoomIn size={12} />} onClick={() => zoom(0.5)} disabled={!visible || !points.length || shown.end - shown.start <= 1} />
-			<IconButton explainDisabled size="sm" label="重置时间范围" icon={<RotateCcw size={12} />} onClick={reset} disabled={!range && !view} />
+			{/*
+			 * 收起的时候，这三个不在。
+			 *
+			 * 它们缩放的是下面那条时间轴，所以时间轴收起时它们无事可做——原先是画成禁用留在原地，而禁用
+			 * 只是 40% 不透明度，落在本来就是 `text-ink-faint` 的图标上和可用状态几乎看不出分别：三个
+			 * 按得下去的按钮，按了什么也不发生。禁用留给「展开了，但这一段没有可缩放的范围」。
+			 */}
+			{visible && <>
+				<IconButton explainDisabled size="sm" label="缩小时间范围" icon={<ZoomOut size={12} />} onClick={() => zoom(2)} disabled={!view} />
+				<IconButton explainDisabled size="sm" label="放大时间范围" icon={<ZoomIn size={12} />} onClick={() => zoom(0.5)} disabled={!points.length || shown.end - shown.start <= 1} />
+				<IconButton explainDisabled size="sm" label="重置时间范围" icon={<RotateCcw size={12} />} onClick={reset} disabled={!range && !view} />
+			</>}
 		</div>
 		<div hidden={!visible}>
 		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? `聚焦 ${offset(brush.start - domain.start)} 至 ${offset(brush.end - domain.start)}` : "点击记录 · 拖选聚焦"}</span>{brush && <button type="button" className="rounded px-1 hover:bg-hover" onClick={() => { setDraft(null); onRange(null); }}>清除范围</button>}</div>

@@ -2,8 +2,8 @@ import { errorResult } from "../agent/tool-run.ts";
 import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
 import type { Tool, ToolResult } from "../types.ts";
 
-export { BUILTIN_AGENTS, type AgentDefinition } from "../agents-builtin.ts";
-import type { AgentDefinition } from "../agents-builtin.ts";
+export { BUILTIN_AGENTS, RENAMED_AGENTS, resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
+import { resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
 
 export const AGENTS_KEY = "agents";
 
@@ -57,7 +57,8 @@ export const taskTool: Tool<TaskArgs> = {
 		 * adjacent to what was asked.
 		 */
 		const agents = ctx.state.get(AGENTS_KEY) as AgentDefinition[] | undefined;
-		const requested = args.subagent_type ?? "general";
+		// 旧名先翻译一次：三天前的会话里那条 `task` 写的还是 `fast`，它指的人还在。见 `RENAMED_AGENTS`。
+		const requested = resolveAgentName(args.subagent_type ?? "general", agents ?? []);
 		if (agents && !agents.some((a) => a.name === requested)) {
 			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
 			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);

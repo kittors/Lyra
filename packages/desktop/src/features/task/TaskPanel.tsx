@@ -5,6 +5,7 @@ import { memo, useDeferredValue, useMemo, useRef, useState } from "react";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { InlineSelect } from "../settings/index.ts";
 import { filterRuns } from "./filter-runs.ts";
 import { TaskRuns } from "./TaskRuns.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -72,7 +73,15 @@ export const TaskPanel = memo(function TaskPanel() {
 					<Header label="执行记录" hint={`${matched.length}/${runs.length}`} />
 					<div className="mb-2 flex items-center gap-1">
 						<SearchField value={query} onChange={setQuery} placeholder="搜索命令、参数、完整结果…" className="flex-1" />
-						<select aria-label="筛选任务执行状态" value={status} onChange={event => setStatus(event.target.value)} className="max-w-20 bg-transparent text-caption text-ink-faint"><option value="">全部</option><option value="running">进行中</option><option value="error">失败</option><option value="done">完成</option></select>
+						{/*
+						 * 这里曾是全项目最后一个 `<select>`。
+						 *
+						 * 原生下拉的列表是系统画的：不认主题、不认字号、不认圆角，在 macOS 上还会盖住它自己的
+						 * 触发器。应用里其它给你选东西的地方都走 `Popover`——模型选择器、力度选择器、分支菜单，
+						 * 这个也一样，顺带继承它们的键盘操作和关闭规则。
+						 */}
+						<InlineSelect ariaLabel="筛选任务执行状态" value={status} onChange={setStatus}
+							options={[{ value: "", label: "全部" }, { value: "running", label: "进行中" }, { value: "error", label: "失败" }, { value: "done", label: "完成" }]} />
 					</div>
 					{!matched.length && <p className="px-2 py-2 text-caption text-ink-faint">没有匹配的执行记录</p>}
 					<TaskRuns key={`${sessionId}:${search}:${status}`} runs={matched} scrollRef={scrollRef} query={search} />

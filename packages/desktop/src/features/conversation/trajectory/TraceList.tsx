@@ -6,7 +6,7 @@ import { SourceIcon } from "./SourceIcon.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../../ui/scroll/ScrollText.tsx";
 
-const OVERSCAN = 8;
+import { overscanFor } from "../../../lib/overscan.ts";
 type Row = { id: string; entry: Entry } | { id: string; turn: number; count: number };
 
 export const TraceList = memo(function TraceList({ entries, selected, onSelect, resetKey, collapsed, onCollapse, target, focused: timeFocus, paused = false, onFollowing }: {
@@ -22,6 +22,8 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 	const previous = useRef(resetKey);
 	const consumedTarget = useRef<string | null>(null);
 	const [range, setRange] = useState({ start: 0, end: 40 });
+	/** 上一次量到的滚动位置，用来知道这一帧滚了多快——见 `overscanFor`。 */
+	const lastTop = useRef(0);
 	const [focused, setFocused] = useState<string | null>(null);
 	const rows = useMemo(() => {
 		const result: Row[] = []; let last: number | undefined = -1;
@@ -40,7 +42,9 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 		if (follow.current && !paused) { el.scrollTop = el.scrollHeight; setSeen(entries.length); }
 		const measure = () => {
 			if (!el.clientHeight) return;
-			setRange({ start: Math.max(0, Math.floor(el.scrollTop / height) - OVERSCAN), end: Math.min(rows.length, Math.ceil((el.scrollTop + el.clientHeight) / height) + OVERSCAN) });
+			const pad = overscanFor(el.scrollTop - lastTop.current, Math.ceil(el.clientHeight / height), height);
+			lastTop.current = el.scrollTop;
+			setRange({ start: Math.max(0, Math.floor(el.scrollTop / height) - pad), end: Math.min(rows.length, Math.ceil((el.scrollTop + el.clientHeight) / height) + pad) });
 		};
 		measure(); const observer = new ResizeObserver(measure); observer.observe(el);
 		el.addEventListener("scroll", measure, { passive: true });

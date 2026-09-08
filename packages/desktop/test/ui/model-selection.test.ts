@@ -40,15 +40,25 @@ test("configuration picker shares favourites/search and never selects the active
 test("a failed role save leaves the explicit unavailable model visible", async () => {
 	const original = useApp.getState().saveSettings;
 	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) } } });
-	useApp.setState({ activeSessionId: null, capabilities: null, settings: { ...settings, modelRoles: { fast: "missing/model" } }, saveSettings: async () => { throw new Error("disk full"); } });
+	/*
+	 * 给一个具体的智能体钉死一个不存在的模型，而不是借道同名的模型角色。
+	 *
+	 * 这条原来写的是 `modelRoles: { fast: … }`，靠的是「智能体 `fast`」和「模型角色 `fast`」恰好同名
+	 * ——`agentProfile` 会把同名角色的旧绑定当成这个智能体的配置。智能体改叫 `simple` 之后那层巧合
+	 * 没了，而这条要测的从来不是巧合，是「显式选了一个用不了的模型，保存又失败时，界面还得照实说」。
+	 * 旧名下的配置能不能被新名读到，是 core 的 `agent-rename` 在管。
+	 */
+	const agent = BUILTIN_AGENTS.find((definition) => definition.model === "@fast");
+	assert.ok(agent, "应该有一个内置智能体跟着 @fast 角色走");
+	useApp.setState({ activeSessionId: null, capabilities: null, settings: { ...settings, subAgentProfiles: { [agent.name]: { modelId: "missing/model" } } }, saveSettings: async () => { throw new Error("disk full"); } });
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 	try {
-		const trigger = view.find('[aria-label="fast 模型"]');
+		const trigger = view.find(`[aria-label="${agent.name} 模型"]`);
 		assert.match(trigger.textContent ?? "", /模型不可用/);
 		await click(trigger);
 		const target = document.querySelector('[data-model="qa/9"] button'); assert.ok(target); await click(target);
 		assert.match(view.find('[role="alert"]').textContent ?? "", /disk full/);
-		assert.equal(useApp.getState().settings?.modelRoles?.fast, "missing/model");
+		assert.equal(useApp.getState().settings?.subAgentProfiles?.[agent.name]?.modelId, "missing/model");
 	} finally { await view.unmount(); useApp.setState({ saveSettings: original }); }
 });
 

@@ -37,9 +37,16 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 		finally { setBusy(false); }
 	};
 	return <form className="max-w-[800px] pt-8" data-agent-editor onSubmit={event => { event.preventDefault(); void save(); }}>
+		{/*
+		 * 两个一样高的盒子，才谈得上居中。
+		 *
+		 * 原先是 `p-2` 包一个 18px 图标（盒高 34）挨着一个 `text-title` 的标题，两个高度不一样的盒子
+		 * 靠 `items-center` 对齐——盒子的中线是齐的，可标题的行盒比字形高出一截，字看着就比箭头低。
+		 * 让按钮和标题都是 36px（`h-9` 配 `leading-9`），中线和字形就落在同一条线上。
+		 */}
 		<div className="sticky top-0 z-10 flex items-center gap-3 bg-shell py-3">
-			<button type="button" aria-label="返回智能体" className="rounded p-2 hover:bg-hover" disabled={busy} onClick={() => dirty ? setLeaving(true) : onClose()}><ArrowLeft size={18} /></button>
-			<h1 className="min-w-0 flex-1 text-title font-semibold">{record && !copy ? `编辑 @${record.definition.name}` : "新增智能体"}</h1>
+			<button type="button" aria-label="返回智能体" className="flex h-9 w-9 shrink-0 items-center justify-center rounded hover:bg-hover" disabled={busy} onClick={() => dirty ? setLeaving(true) : onClose()}><ArrowLeft size={18} /></button>
+			<h1 className="min-w-0 flex-1 truncate text-title leading-9 font-semibold">{record && !copy ? `编辑 @${record.definition.name}` : "新增智能体"}</h1>
 			<button type="submit" disabled={busy} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-label text-white disabled:opacity-50"><Save size={15} />{busy ? "保存中" : "保存"}</button>
 		</div>
 		{leaving && <div role="alert" className="my-3 flex flex-wrap items-center gap-3 rounded-lg border border-line p-3 text-label">尚有未保存的修改<button type="button" className="text-info" onClick={() => setLeaving(false)}>继续编辑</button><button type="button" className="text-danger" onClick={discard}>放弃修改</button></div>}

@@ -71,15 +71,38 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* macOS shows a text cursor over buttons by default; some users want a pointer. */
+  /*
+   * macOS shows a text cursor over buttons by default; some users want a pointer.
+   *
+   * The list is by *role*, not by tag, because half of what you can press here is not a `button`:
+   * a menu is `[role="menuitem"]`, a file tree row is `[role="treeitem"]`, a picker's list is
+   * `[role="option"]`. Those were all missing, so turning the setting on changed the cursor over
+   * the toolbar and left it a text caret over every menu in the app — which reads as the menu not
+   * being clickable. Anything that answers to a press belongs here.
+   *
+   * `[aria-disabled="true"]` rather than `:disabled` for the role-based ones: a div with a role
+   * has no `disabled` property to match, and a control that cannot be pressed must not claim it
+   * can. Two ways of saying the same thing, because the elements are two kinds.
+   */
   :root[data-pointer-cursor="true"] button:not(:disabled),
+  :root[data-pointer-cursor="true"] select:not(:disabled),
   :root[data-pointer-cursor="true"] a,
   :root[data-pointer-cursor="true"] summary,
   :root[data-pointer-cursor="true"] label:has(input:not(:disabled)),
   :root[data-pointer-cursor="true"] input[type="checkbox"]:not(:disabled),
   :root[data-pointer-cursor="true"] input[type="radio"]:not(:disabled),
-  :root[data-pointer-cursor="true"] [role="tab"],
-  :root[data-pointer-cursor="true"] [role="switch"] {
+  :root[data-pointer-cursor="true"] [role="tab"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="switch"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="button"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="link"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="menuitem"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="menuitemradio"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="menuitemcheckbox"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="option"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="radio"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="checkbox"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="combobox"]:not([aria-disabled="true"]),
+  :root[data-pointer-cursor="true"] [role="treeitem"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
 

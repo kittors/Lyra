@@ -236,11 +236,43 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		source: "builtin",
 	},
 	{
-		name: "fast", description: "快速处理明确的小任务", model: "@fast", tools: "*", source: "builtin",
+		name: "simple", description: "边界清楚的小改动，直接做完", model: "@fast", tools: "*", source: "builtin",
 		systemPrompt: "Complete the delegated task efficiently. Read the necessary context, make only requested changes, verify them and report the result concisely.",
 	},
 	{
-		name: "deep", description: "复杂问题与深入推理", model: "@deep", tools: "*", source: "builtin",
+		name: "reason", description: "先想清楚再动手的难题", model: "@deep", tools: "*", source: "builtin",
 		systemPrompt: "Investigate the delegated problem carefully. Ground decisions in evidence, implement the requested solution, verify the result and report remaining uncertainty.",
 	},
 ];
+
+/**
+ * 改过名的内置智能体，旧名 → 新名。
+ *
+ * `fast` 和 `deep` 是按**模型跑得多快**起的名，而其余五个是按**它负责什么**起的——同一张表里两套
+ * 命名法，读的人得先知道 `@fast` 指的是哪一种「快」。更绕的是 `fast`/`deep` 同时还是模型角色名
+ * （见 `model-roles.ts` 的 `ModelRole`），所以 `fast` 这个智能体的定义里写着 `model: "@fast"`，
+ * 自己引用自己的同名角色。改成 `simple`／`reason` 之后，名字说的是任务的形状，模型仍由角色决定。
+ *
+ * 表要留着，不能改完就算：名字是**调用名**——模型按它派活，历史会话里存着旧名，用户改过的自定义
+ * 版本也是按名字挂在内置定义上的。旧名进来仍然要能找到人，否则翻回三天前的会话，那一条 `task`
+ * 指向的智能体就凭空消失了。
+ */
+export const RENAMED_AGENTS: Readonly<Record<string, string>> = { fast: "simple", deep: "reason" };
+
+/**
+ * 反过来查：这个名字以前叫什么。
+ *
+ * 派活是「拿旧名找新定义」，读设置是「拿新名找旧配置」——用户给 `fast` 挑过的模型存在
+ * `subAgentProfiles.fast`（以及更早的 `modelRoles.fast`）里，改名之后 `simple` 得知道去那儿看一眼，
+ * 否则一次改名就把每个人调好的模型悄悄退回「随主会话」。见 `agentProfile`。
+ */
+export const PREVIOUS_AGENT_NAME: Readonly<Record<string, string>> = Object.fromEntries(
+	Object.entries(RENAMED_AGENTS).map(([before, after]) => [after, before]),
+);
+
+/** 名单里没有 `asked` 时，试试它是不是某个旧名。 */
+export function resolveAgentName(asked: string, known: readonly { name: string }[]): string {
+	if (known.some((agent) => agent.name === asked)) return asked;
+	const renamed = RENAMED_AGENTS[asked];
+	return renamed && known.some((agent) => agent.name === renamed) ? renamed : asked;
+}

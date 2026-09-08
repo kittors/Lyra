@@ -26,7 +26,8 @@ test("built-in profiles are configurable before a session exists and while a col
 		Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) }, sessions: { capabilities: async () => null } } });
 		const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 		try {
-			for (const name of ["general", "explore", "review", "verify", "plan", "fast", "deep"]) {
+			// 名字来自 BUILTIN_AGENTS 本身，而不是抄一份：抄的那份在改名时不会红，只会悄悄少测两个。
+			for (const name of BUILTIN_AGENTS.map((agent) => agent.name)) {
 				assert.ok(view.host.querySelector(`[data-agent-profile="${name}"]`), `${sessionId}: ${name}`);
 				assert.ok(view.host.querySelector(`[aria-label="${name} 模型"]`));
 			}

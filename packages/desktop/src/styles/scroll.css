@@ -94,6 +94,17 @@
   padding-right: 4px;
 }
 
+/*
+ * 铺到边的内容，也要让开滚动条那一条。
+ *
+ * 菜单靠 `.ly-menu-scroll` 让位，而一整块面板——预览里的 diff、审核弹窗里的代码——是要铺满卡片的，
+ * 上一版把内衬全拆了之后，滚动条就直接压在最右边那几个字符上。10px 是滑块实际占的 8px 加一点呼吸：
+ * 比菜单的让位窄一半，又不至于让文字贴着它滚。没有滚动条时一点都不留，卡片仍旧是铺满的。
+ */
+.ly-scroll-gutter:has(.ly-thumb) > .ly-scroll-view {
+  padding-right: 10px;
+}
+
 /* Approval prose must stay outside the scrollbar's widened drag target. */
 .ly-approval-scroll:has(.ly-thumb) > .ly-scroll-view {
   padding-right: 20px;

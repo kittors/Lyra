@@ -36,7 +36,7 @@ import { writePreview } from "./previews.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
-import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
+import { AGENTS_KEY, BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../tools/task.ts";
 import type { ApprovalDecision, ApprovalRequest, ModelConfig, ProviderConfig, Tool } from "../types.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 
@@ -115,7 +115,9 @@ export async function runSubAgent(
 	model: ModelConfig,
 	_parentSystemPrompt: string,
 ): Promise<SubAgentAnswer> {
-	const definition = options.agents.find((a) => a.name === (input.agentType ?? "general")) ?? BUILTIN_AGENTS[0];
+	// 旧名在这里也要认：历史记录重放和外部调用都可能带着 `fast`／`deep` 进来。见 `RENAMED_AGENTS`。
+	const wanted = resolveAgentName(input.agentType ?? "general", options.agents);
+	const definition = options.agents.find((a) => a.name === wanted) ?? BUILTIN_AGENTS[0];
 	const fromSession =
 		definition.tools === "*" ? options.tools : options.tools.filter((t) => (definition.tools as string[]).includes(t.name));
 
@@ -285,8 +287,9 @@ export async function runSubAgent(
 							 * 只把它当布尔用，那份名单就成了注释。
 							 */
 							const allowedNames = definition.spawns;
-							const wanted = nested.agentType ?? "general";
-							if (Array.isArray(allowedNames) && !allowedNames.includes(wanted)) {
+							// 同样先认旧名，否则一条写着 `fast` 的 spawns 白名单会把改名后的它自己挡在外面。
+							const wanted = resolveAgentName(nested.agentType ?? "general", options.agents);
+							if (Array.isArray(allowedNames) && !allowedNames.map((name) => resolveAgentName(name, options.agents)).includes(wanted)) {
 								throw new Error(
 									`\`${definition.name}\` 只被允许派生 ${allowedNames.join("、")}，不包括 \`${wanted}\`。` +
 										`要放开，请在它的定义里把 \`${wanted}\` 加进 spawns。`,

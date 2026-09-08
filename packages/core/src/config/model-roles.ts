@@ -23,6 +23,7 @@ import type { Settings } from "./settings.ts";
  */
 import { resolveModel } from "./models.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
+import { PREVIOUS_AGENT_NAME } from "../agents-builtin.ts";
 
 export { availableModels } from "./models.ts";
 export { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
@@ -47,10 +48,18 @@ export const ROLE_DESCRIPTIONS: Record<ModelRole, string> = {
 	review: "最好指到另一个模型家族——同家族模型的盲点是相关的，让它审自己写的代码，它会同意自己",
 };
 
-/** Local profiles supersede legacy role bindings, including settings displayed before migration. */
+/**
+ * Local profiles supersede legacy role bindings, including settings displayed before migration.
+ *
+ * 改过名的内置智能体，还要回头看一眼旧名下面存了什么：给 `fast` 挑过的模型存在
+ * `subAgentProfiles.fast`（更早的存在 `modelRoles.fast`）里，`simple` 读不到它的话，一次改名就把
+ * 每个人调好的模型悄悄退回「随主会话」。新名下面一旦有东西就以新的为准——那说明已经迁过了。
+ */
 export function agentProfile(settings: Settings, name: string): SubAgentProfile {
-	const profile = normalizeSubAgentProfiles(settings.subAgentProfiles)[name];
-	const role = MODEL_ROLES.find((candidate) => candidate === name);
+	const profiles = normalizeSubAgentProfiles(settings.subAgentProfiles);
+	const before = PREVIOUS_AGENT_NAME[name];
+	const profile = profiles[name] ?? (before ? profiles[before] : undefined);
+	const role = MODEL_ROLES.find((candidate) => candidate === name || candidate === before);
 	const legacy = role ? settings.modelRoles?.[role] : undefined;
 	return { ...(legacy ? { modelId: legacy } : {}), ...profile };
 }
