@@ -112,15 +112,35 @@ export function buildGraph(commits: GitCommit[]): GraphRow[] {
   });
 }
 
-/** The width the graph column needs for a given set of rows. */
-export function graphWidth(rows: GraphRow[], laneWidth: number): number {
-  const widest = rows.reduce((max, row) => {
+/**
+ * How wide the graph column is at each row, widening as the history does.
+ *
+ * One width for the whole list is the obvious shape and it wastes most of the panel. A repository
+ * that ever had eight branches open at once has one row somewhere that needs eight lanes, and every
+ * other row was then given eight lanes' worth of column — so a straight run of recent commits, one
+ * lane wide, sat behind a hundred pixels of nothing, and the subjects that had to fit in what was
+ * left were cut off mid-word. The width was being set by a commit from three weeks ago.
+ *
+ * So it is a running maximum down the list instead: each row is as wide as the widest thing at or
+ * above it. Lane positions do not depend on it — `lane * laneWidth` is the same on every row — so
+ * the lines still meet across rows exactly as before; the only thing that changes is where the
+ * column ends and the text begins. It never narrows going down, which matters more than it might
+ * seem: a width that grew and shrank again would walk the subjects left and right as you scrolled,
+ * and the eye reads that as the list rearranging itself. Growing only, at the row where the graph
+ * genuinely gets more complicated, reads as the graph making room for itself.
+ *
+ * Loading more commits cannot disturb what is already on screen, for the same reason: a row's width
+ * is decided by the rows above it, and nothing appended below can change that.
+ */
+export function graphWidths(rows: GraphRow[], laneWidth: number): number[] {
+  let widest = 1;
+  return rows.map((row) => {
     const lanes = [
       row.lane,
       ...row.through.map((line) => line.lane),
       ...row.out.map((line) => line.to),
     ];
-    return Math.max(max, ...lanes.map((lane) => lane + 1));
-  }, 1);
-  return widest * laneWidth;
+    widest = Math.max(widest, ...lanes.map((lane) => lane + 1));
+    return widest * laneWidth;
+  });
 }

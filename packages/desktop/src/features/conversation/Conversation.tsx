@@ -3,7 +3,7 @@ import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
-import { HiccupTrace } from "./HiccupTrace.tsx";
+import { HiccupRow } from "./HiccupTrace.tsx";
 import { RuleSuggestion } from "./RuleSuggestion.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
@@ -47,6 +47,14 @@ export const Conversation = memo(function Conversation() {
   const running = useApp((s) => s.running);
   const compactions = useApp((s) => s.compactions);
 	const commandRuns = useApp((s) => s.commandRuns);
+	/*
+	 * 这一轮里连接抖过没有，以及最后怎么了。
+	 *
+	 * 和压缩标记、命令边界一起交给 `runs`，因为它们是同一种东西：转录里按位置插进去的一条记录。
+	 * 从前它是转录末尾单独的一丛，一律挂在运行指示器底下——那让一句「重连 2 次后恢复」站在了「此刻」
+	 * 的位置上，而它说的是四十分钟前的事。见 `HiccupTrace`。
+	 */
+	const hiccups = useApp((s) => s.hiccups);
 	const compacting = commandRuns.some((command) => command.status === "running");
   /*
    * How many tool calls there are, and how many have stopped running.
@@ -74,7 +82,7 @@ export const Conversation = memo(function Conversation() {
   });
   const activeSessionId = useApp((s) => s.activeSessionId);
   const loadingSession = useApp((s) => s.loadingSession);
-  const allRuns = useMemo(() => runs(messages, compactions, commandRuns), [messages, compactions, commandRuns]);
+  const allRuns = useMemo(() => runs(messages, compactions, commandRuns, hiccups), [messages, compactions, commandRuns, hiccups]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
   const range = useTranscriptWindow(activeSessionId, WINDOW_STEP, allRuns.length);
@@ -289,7 +297,9 @@ export const Conversation = memo(function Conversation() {
 						 * Automatic compaction belongs on the running indicator. An explicitly submitted
 						 * command keeps its own result, so the user can verify the action they requested.
              */
-            run.kind === "compaction" ? null : run.kind === "command" ? <CommandRunRow key={`${activeSessionId}:${runKey(run)}`} command={run.command} /> : run.kind === "message" ? (
+            run.kind === "compaction" ? null : run.kind === "command" ? <CommandRunRow key={`${activeSessionId}:${runKey(run)}`} command={run.command} /> : run.kind === "hiccup" ? (
+              <HiccupRow key={`${activeSessionId}:${runKey(run)}`} hiccup={run.hiccup} />
+            ) : run.kind === "message" ? (
               <MessageRow
                 key={`${activeSessionId}:${runKey(run)}`}
                 viewKey={runKey(run)}
@@ -352,13 +362,6 @@ export const Conversation = memo(function Conversation() {
               <div>{running && !compacting && <RunningIndicator />}</div>
             </div>
           </div>
-          {/*
-           * 这一轮里连接抖过没有，以及最后怎么了。
-           *
-           * 在运行行下面、`ResumeRow` 上面：等待时它紧挨着那句「正在思考」，属于同一件正在发生的
-           * 事；收场之后它留在原地，成为这一轮末尾的一条脚注。见 `HiccupTrace`。
-           */}
-          <HiccupTrace />
           {/* Where the running indicator would have been, saying why it is not there. */}
           <ResumeRow />
           {/*

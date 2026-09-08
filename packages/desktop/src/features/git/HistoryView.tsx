@@ -16,7 +16,7 @@ import { Text } from "../../ui/primitives/Text.tsx";
 import { CommitGraph, CommitThroughGraph, LANE_WIDTH } from "./CommitGraph.tsx";
 import { withContents } from "./diff-merge.ts";
 import { FileDiffList } from "./FileDiffList.tsx";
-import { buildGraph, graphWidth } from "./graph.ts";
+import { buildGraph, graphWidths } from "./graph.ts";
 import { relativeTime } from "../../lib/relative-time.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -133,7 +133,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
   }, [cwd, openSha]);
 
   const rows = useMemo(() => buildGraph(commits ?? []), [commits]);
-  const width = useMemo(() => graphWidth(rows, LANE_WIDTH), [rows]);
+  const widths = useMemo(() => graphWidths(rows, LANE_WIDTH), [rows]);
 
   const slow = useSlowLoad(commits === null);
   if (commits === null) return slow ? <SkeletonList count={5} label="正在读取提交" /> : null;
@@ -147,10 +147,12 @@ export function HistoryView({ cwd }: { cwd: string }) {
 
   return (
     <Scroller className="flex-1" contentClassName="px-1.5 pb-2">
-      {rows.map((row) => {
+      {rows.map((row, index) => {
         const commit = row.commit;
         const state = expansion && expansion.sha === commit.sha ? expansion : null;
         const expanded = state !== null;
+        // As wide as the graph has needed to be by this point in the list; see `graphWidths`.
+        const width = widths[index];
         return (
           <div key={commit.sha}>
             {/*

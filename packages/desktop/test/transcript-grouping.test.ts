@@ -58,6 +58,7 @@ function shape(rows: Run[]): string[] {
 	return rows.map((row) => {
 		if (row.kind === "compaction") return "compaction";
 		if (row.kind === "command") return `command:${row.command.id}`;
+		if (row.kind === "hiccup") return `hiccup:${row.hiccup.id}`;
 		if (row.kind === "message") return `message@${row.index}:${row.upTo}`;
 		return `tools:${row.calls.map((c) => c.block.id).join(",")}`;
 	});
@@ -80,6 +81,43 @@ test("a manual command remains before resumed tool work even when the continuati
 	const messages = [user("inspect"), assistant([call("a")], "aborted"), answered("a"), nudge(), assistant([call("b")], "pending")];
 	const rows = runs(messages, [], [{ id: "manual", name: "compact", input: "/compact", at: 3, timestamp: 3, status: "done", detail: "完成" }]);
 	assert.deepEqual(shape(rows), ["message@0:1", "tools:a", "command:manual", "tools:b"]);
+});
+
+/*
+ * 断线画在它断的地方。
+ *
+ * 从前这些记录一律堆在转录末尾、运行指示器底下：一轮跑四十分钟、中间断过一次又接上，那句「重连 N
+ * 次后恢复」贴在最后一行 loading 下面——说的是某个时刻的事，站的却是「此刻」的位置。见 `hiccup.ts`
+ * 的 `at`。
+ */
+
+function hiccup(id: string, at: number, outcome: "waiting" | "recovered" | "gave_up" = "recovered") {
+	return { id, at, attempts: 2, until: 0, summary: "连接断了", kind: "network" as const, fingerprint: id, repeated: 1, outcome, resume: false };
+}
+
+test("一次断线留在它发生的那一段旁边，后面来的消息不会把它挤到末尾", () => {
+	const messages = [user("跑个长活"), assistant([call("a")], "toolUse"), answered("a"), assistant([text("做完了")], "endTurn")];
+	// 断在第一条回复之后、后面那些还没来的时候。
+	const rows = runs(messages, [], [], [hiccup("h1", 2)]);
+	assert.deepEqual(shape(rows), ["message@0:1", "tools:a", "hiccup:h1", "message@3:1"]);
+});
+
+test("还在等的那一条数出来正好是末尾，因为它确实正在此刻发生", () => {
+	const messages = [user("跑个长活"), assistant([call("a")], "toolUse"), answered("a")];
+	const rows = runs(messages, [], [], [hiccup("h1", messages.length, "waiting")]);
+	assert.deepEqual(shape(rows), ["message@0:1", "tools:a", "hiccup:h1"]);
+});
+
+test("断过两次就是两条，各自站在各自的位置上", () => {
+	const messages = [user("问一句"), assistant([text("答一句")], "endTurn"), user("再问一句"), assistant([text("再答一句")], "endTurn")];
+	const rows = runs(messages, [], [], [hiccup("h2", 3), hiccup("h1", 1)]);
+	// 传进来的顺序不算数，位置才算数。
+	assert.deepEqual(shape(rows), ["message@0:1", "hiccup:h1", "message@1:1", "message@2:1", "hiccup:h2", "message@3:1"]);
+});
+
+test("没有断过的转录，和从前一模一样", () => {
+	const messages = [user("问一句"), assistant([text("答一句")], "endTurn")];
+	assert.deepEqual(shape(runs(messages, [], [], [])), shape(runs(messages)));
 });
 
 test("finishing a reply does not move its calls into a different row", () => {

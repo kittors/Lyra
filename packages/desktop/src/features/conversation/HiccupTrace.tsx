@@ -28,21 +28,20 @@ function useTick(active: boolean): number {
 	return now;
 }
 
-export function HiccupTrace() {
-	const hiccups = useApp((s) => s.hiccups);
-	const waiting = hiccups.some((hiccup) => hiccup.outcome === "waiting");
-	const now = useTick(waiting);
-	if (hiccups.length === 0) return null;
-	return (
-		<div data-hiccup-trace className="mb-2.5 flex flex-col gap-1">
-			{hiccups.map((hiccup) => (
-				<HiccupRow key={hiccup.id} hiccup={hiccup} now={now} />
-			))}
-		</div>
-	);
-}
-
-function HiccupRow({ hiccup, now }: { hiccup: Hiccup; now: number }) {
+/**
+ * 一条记录，画在它发生的那个位置上。
+ *
+ * 从前这些记录是转录末尾的一丛，一律挂在运行指示器底下。一轮跑四十分钟、中间断过两次又接上，那句
+ * 「重连 2 次后恢复」就贴在最后一行 loading 下面：它说的是四十分钟里某个时刻的事，站的却是「此刻」
+ * 的位置。断线是这段工作当中的一件事，该待在它发生的那一段旁边——所以它成了转录里的一行，和压缩标记、
+ * 命令边界同一种东西，按 `at` 插进去。见 `conversation/grouping.ts`。
+ *
+ * 还在等的那一条数出来正好落在末尾，因为它确实正在此刻发生——所以「紧挨着那句正在思考」这件事没有
+ * 丢，只是不再靠位置写死，而是从它自己的时刻推出来的。
+ */
+export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
+	// 只有还在等的那条要数秒；其余的一次都不用重画。
+	const now = useTick(hiccup.outcome === "waiting");
 	const [open, setOpen] = useState(false);
 	const line = describeHiccup(hiccup, now);
 	const tip = hiccupTip(hiccup);
@@ -63,6 +62,8 @@ function HiccupRow({ hiccup, now }: { hiccup: Hiccup; now: number }) {
 		: "flex w-fit max-w-full flex-col gap-1.5 px-0.5";
 
 	return (
+		/* 外面这层只管它和上下两行之间的距离——`shell` 管的是这条记录自己长什么样。 */
+		<div data-hiccup-trace className="mb-2.5">
 		<div className={shell} data-hiccup={hiccup.outcome}>
 			{/*
 			 * 图标和那行字在同一条水平线上。
@@ -117,6 +118,7 @@ function HiccupRow({ hiccup, now }: { hiccup: Hiccup; now: number }) {
 					{hiccup.detail}
 				</pre>
 			)}
+		</div>
 		</div>
 	);
 }

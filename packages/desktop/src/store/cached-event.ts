@@ -44,7 +44,9 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			toolRuns = rebuildToolRuns(messages);
 			state = { ...state, todos: todosFrom(messages), pendingUserMessage: null,
 				commandRuns: state.commandRuns?.filter((run) => run.at <= event.messageCount),
-				compactions: state.compactions.filter((run) => run.at <= event.messageCount) };
+				compactions: state.compactions.filter((run) => run.at <= event.messageCount),
+				// 见 `apply-event.ts` 里的同一处：记录跟着它说明的那一段一起走。
+				hiccups: state.hiccups?.filter((one) => one.at <= event.messageCount) };
 			break;
 		case "command_status":
 			state = { ...state, running: event.command.status === "running", commandRuns: [...(state.commandRuns ?? []).filter((run) => run.id !== event.command.id), event.command] };
@@ -53,11 +55,11 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			state = { ...state, compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }] };
 			break;
 		case "retry":
-			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now()) };
+			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now(), messages.length) };
 			break;
 		// 后台那个会话抖过什么、最后怎么了，切回去时得还在——见 `apply-event.ts` 里的同一对分支。
 		case "retry_settled":
-			state = { ...state, retrying: null, hiccups: settleHiccups(state.hiccups ?? [], event) };
+			state = { ...state, retrying: null, hiccups: settleHiccups(state.hiccups ?? [], event, messages.length) };
 			break;
 		default: return cached;
 	}

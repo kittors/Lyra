@@ -13,6 +13,7 @@
 
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@lyra/core";
 import { CARRY_ON_PROMPTS } from "../../store/derive.ts";
+import type { Hiccup } from "../../lib/hiccup.ts";
 
 type ToolCallBlock = Extract<AssistantContent, { type: "toolCall" }>;
 
@@ -22,6 +23,8 @@ export type Call = { block: ToolCallBlock; stopReason: AssistantMessage["stopRea
 export type Run =
 	| { kind: "compaction" }
 	| { kind: "command"; command: CommandRun }
+	/** 连接抖了一下，画在它抖的那个位置上。见 `lib/hiccup.ts` 的 `at`。 */
+	| { kind: "hiccup"; hiccup: Hiccup }
 	/**
 	 * A message, and how much of it is this row's.
 	 *
@@ -59,6 +62,7 @@ export function isNudge(message: Message | undefined): boolean {
 /** A split reply has two identities; neither identity changes when more text arrives. */
 export function runKey(run: Exclude<Run, { kind: "compaction" }>): string {
 	if (run.kind === "command") return `command-${run.command.id}`;
+	if (run.kind === "hiccup") return `hiccup-${run.hiccup.id}`;
 	if (run.kind === "tools") return `tools-${run.calls[0].block.id}`;
 	return run.key ?? `${run.message.role}-${run.message.timestamp}-${run.index}`;
 }
@@ -315,15 +319,24 @@ export function sameRun(
  * `compactions` are indices into `messages`: the marker goes where the summary was taken, not at
  * the end, because everything above it is a summary as far as the model is concerned.
  */
-export function runs(messages: Message[], compactions?: { at: number }[]): Exclude<Run, { kind: "command" }>[];
-export function runs(messages: Message[], compactions: { at: number }[], commands: CommandRun[]): Run[];
-export function runs(messages: Message[], compactions: { at: number }[] = [], commands: CommandRun[] = []): Run[] {
+export function runs(messages: Message[], compactions?: { at: number }[]): Exclude<Run, { kind: "command" } | { kind: "hiccup" }>[];
+export function runs(messages: Message[], compactions: { at: number }[], commands: CommandRun[], hiccups?: Hiccup[]): Run[];
+export function runs(messages: Message[], compactions: { at: number }[] = [], commands: CommandRun[] = [], hiccups: Hiccup[] = []): Run[] {
 	const out: Run[] = [];
 	// Sorted so the marks can be consumed in order as the transcript is walked.
 	const marks = [...compactions].map((c) => c.at).sort((a, b) => a - b);
 	let nextMark = 0;
 	const commandMarks = [...commands].sort((a, b) => a.at - b.at);
 	let nextCommand = 0;
+	/*
+	 * 断线也是一个标记，和上面两种一样按位置插。
+	 *
+	 * 它们从前一律画在转录最下面、运行指示器底下，于是一轮跑四十分钟、中间断过两次又接上的那句
+	 * 「重连 2 次后恢复」贴在最后一行 loading 下面——说的是某个时刻的事，站的却是「此刻」的位置。
+	 * 断线是这段工作当中的一件事，就该待在它发生的那一段旁边。见 `lib/hiccup.ts` 的 `at`。
+	 */
+	const hiccupMarks = [...hiccups].sort((a, b) => a.at - b.at);
+	let nextHiccup = 0;
 	/** The reply being made, if one is: the last assistant message, whatever state it is in. */
 	let live = -1;
 	for (let at = messages.length - 1; at >= 0 && live < 0; at--) {
@@ -364,6 +377,9 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 		// Commands are visible boundaries, including between an interrupted tool run and its resume.
 		while (nextCommand < commandMarks.length && commandMarks[nextCommand].at <= index) {
 			out.push({ kind: "command", command: commandMarks[nextCommand++] });
+		}
+		while (nextHiccup < hiccupMarks.length && hiccupMarks[nextHiccup].at <= index) {
+			out.push({ kind: "hiccup", hiccup: hiccupMarks[nextHiccup++] });
 		}
 
 		// A person speaking starts a new turn; the runtime's own messages continue the one running.
@@ -464,6 +480,8 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 		nextMark++;
 	}
 	while (nextCommand < commandMarks.length) out.push({ kind: "command", command: commandMarks[nextCommand++] });
+	// 还在等的那一条数出来正好落在这里——它确实正在此刻发生，末尾就是它的位置。
+	while (nextHiccup < hiccupMarks.length) out.push({ kind: "hiccup", hiccup: hiccupMarks[nextHiccup++] });
 
 	/*
 	 * Which run is being pushed forward, answered once the whole transcript is known.

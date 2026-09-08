@@ -341,7 +341,10 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       // from the messages that arrive next.
 			set({ messages: get().messages.slice(0, event.messageCount),
 				commandRuns: get().commandRuns.filter((run) => run.at <= event.messageCount),
-				compactions: get().compactions.filter((run) => run.at <= event.messageCount) });
+				compactions: get().compactions.filter((run) => run.at <= event.messageCount),
+				// 抖动记录也按位置活着（见 `lib/hiccup.ts` 的 `at`），所以被丢掉的那一截里发生过的
+				// 事情跟着一起走——留下来的话它会滑到转录末尾，说给一段已经不存在的工作。
+				hiccups: get().hiccups.filter((one) => one.at <= event.messageCount) });
       break;
 
     case "title": {
@@ -392,8 +395,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
           reason: event.reason,
           resume: event.resume === true,
         },
-        // 同一次中断折进同一条记录，次数往上加；见 `hiccup.ts`。
-        hiccups: foldRetry(get().hiccups, event, Date.now()),
+        // 同一次中断折进同一条记录，次数往上加；见 `hiccup.ts`。位置是转录此刻的末尾——断线
+        // 发生在这儿，记录也该留在这儿，而不是一路跟到这一轮的最下面。
+        hiccups: foldRetry(get().hiccups, event, Date.now(), get().messages.length),
         /*
          * A resume arrives after `agent_end`, which has already stood the window down.
          *
@@ -415,7 +419,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      * 必须立刻消失，而记录要留下。两件事，两个字段，同一个事件喂。
      */
     case "retry_settled":
-      set({ hiccups: settleHiccups(get().hiccups, event), retrying: null });
+      set({ hiccups: settleHiccups(get().hiccups, event, get().messages.length), retrying: null });
       break;
 
 		case "command_status":

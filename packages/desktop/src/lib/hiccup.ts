@@ -21,6 +21,17 @@ export type HiccupOutcome = "waiting" | "recovered" | "gave_up";
 export interface Hiccup {
 	/** 一次中断一条。同一条里次数往上加，不新开。 */
 	id: string;
+	/**
+	 * 它是在转录的哪儿发生的——当时已经有多少条消息。
+	 *
+	 * 从前没有这个，于是所有的记录一律画在转录末尾、运行指示器底下。一轮跑四十分钟，中间断过两次
+	 * 又接上了，那句「重连 2 次后恢复」却贴在最下面那行 loading 底下——它说的是四十分钟里某个时刻
+	 * 的事，摆的位置却是「此刻」。断线是这段工作里的一件事，就该待在它发生的那一段旁边。
+	 *
+	 * 和 `compactions` 记的是同一种东西（见 `store/index.ts`），插进转录的办法也是同一个，见
+	 * `conversation/grouping.ts`。还在等的那一条数出来正好是末尾，因为它确实正在此刻发生。
+	 */
+	at: number;
 	attempts: number;
 	/** 等待结束的时刻。存时刻而不是时长，因为时长在渲染出来之前就过期了。 */
 	until: number;
@@ -46,12 +57,16 @@ export function foldRetry(
 	hiccups: Hiccup[],
 	event: { attempt: number; delayMs: number; reason: string; resume?: boolean; failure?: HiccupFailure },
 	now: number,
+	/** 转录当下有多少条消息——这一条记录就落在那儿。见 `Hiccup.at`。 */
+	at: number,
 ): Hiccup[] {
 	const last = hiccups[hiccups.length - 1];
 	const failure = event.failure;
 	const fingerprint = failure?.fingerprint ?? event.reason;
 	const next: Hiccup = {
 		id: last?.outcome === "waiting" ? last.id : `hiccup-${now}-${hiccups.length}`,
+		// 接着上一条的，位置也是上一条的：同一次中断重试了几回，说的仍是同一个时刻的事。
+		at: last?.outcome === "waiting" ? last.at : at,
 		attempts: last?.outcome === "waiting" ? last.attempts + 1 : 1,
 		until: now + event.delayMs,
 		summary: failure?.summary ?? event.reason,
@@ -85,6 +100,8 @@ export interface HiccupFailure {
 export function settleHiccups(
 	hiccups: Hiccup[],
 	event: { outcome: "recovered" | "gave_up"; attempts: number; failure?: HiccupFailure },
+	/** 只有下面那条凭空补出来的失败用得上——它没有「正在等」的记录可以接着。见 `Hiccup.at`。 */
+	at: number,
 ): Hiccup[] {
 	const last = hiccups[hiccups.length - 1];
 	if (!last || last.outcome !== "waiting") {
@@ -100,6 +117,7 @@ export function settleHiccups(
 			...hiccups,
 			{
 				id: `hiccup-fatal-${hiccups.length}-${event.failure.fingerprint}`,
+				at,
 				attempts: event.attempts,
 				until: 0,
 				summary: event.failure.summary,
