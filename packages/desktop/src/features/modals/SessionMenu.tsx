@@ -13,6 +13,7 @@ import {
 import { useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 
@@ -25,6 +26,7 @@ export function SessionMenu({
 	session: SessionMeta;
 	onClose: () => void;
 }) {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
@@ -40,7 +42,7 @@ export function SessionMenu({
 
 	if (mode === "rename") {
 		return (
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" role="dialog" label="重命名会话">
+			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" role="dialog" label={t("sessionMenu.rename")}>
 				<form
 					className="p-2.5"
 					onSubmit={(e) => {
@@ -49,7 +51,7 @@ export function SessionMenu({
 						onClose();
 					}}
 				>
-					<label className="block pb-1.5 text-detail text-ink-faint">会话标题</label>
+					<label className="block pb-1.5 text-detail text-ink-faint">{t("sessionMenu.titleLabel")}</label>
 					<Input
 						autoFocus
 						value={draft}
@@ -69,14 +71,14 @@ export function SessionMenu({
 							onClick={() => setMode("menu")}
 							className="h-7 rounded-lg px-2.5 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
-							取消
+							{t("common.cancel")}
 						</button>
 						<button
 							type="submit"
 							disabled={!draft.trim()}
 							className="h-7 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
 						>
-							保存
+							{t("common.save")}
 						</button>
 					</div>
 				</form>
@@ -86,7 +88,7 @@ export function SessionMenu({
 
 	if (mode === "projects") {
 		return (
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label="移动到项目">
+			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.moveToProject")}>
 				<MenuBody>
 					<MenuItem
 						icon={<FolderInput size={13} strokeWidth={1.8} />}
@@ -94,7 +96,7 @@ export function SessionMenu({
 							setMode("menu");
 						}}
 					>
-						返回上一级
+						{t("common.back")}
 					</MenuItem>
 					<MenuSeparator />
 					{projects.map((p) => {
@@ -103,7 +105,7 @@ export function SessionMenu({
 							<MenuItem
 								key={p.path}
 								icon={<Folder size={13} strokeWidth={1.8} />}
-								hint={isCurrent ? "当前项目" : undefined}
+								hint={isCurrent ? t("sessionMenu.currentProject") : undefined}
 								disabled={isCurrent}
 								onClick={() => {
 									void moveSessionProject(session, p.path);
@@ -124,7 +126,7 @@ export function SessionMenu({
 									onClose();
 								}}
 							>
-								从 {session.projectName || "项目"} 中移除
+								{t("sessionMenu.removeFrom", { name: session.projectName || t("sessionMenu.project") })}
 							</MenuItem>
 						</>
 					)}
@@ -135,7 +137,7 @@ export function SessionMenu({
 
 	if (mode === "copy") {
 		return (
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label="复制选项">
+			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.copyOptions")}>
 				<MenuBody>
 					<MenuItem
 						icon={<FolderInput size={13} strokeWidth={1.8} />}
@@ -143,28 +145,28 @@ export function SessionMenu({
 							setMode("menu");
 						}}
 					>
-						返回上一级
+						{t("common.back")}
 					</MenuItem>
 					<MenuSeparator />
 					<MenuItem
 						icon={<Copy size={13} strokeWidth={1.8} />}
 						onClick={() => {
 							void navigator.clipboard.writeText(session.cwd);
-							notify("已复制工作目录路径");
+							notify(t("sessionMenu.cwdCopied"));
 							onClose();
 						}}
 					>
-						复制工作目录
+						{t("sessionMenu.copyCwd")}
 					</MenuItem>
 					<MenuItem
 						icon={<Copy size={13} strokeWidth={1.8} />}
 						onClick={() => {
 							void navigator.clipboard.writeText(`lyra://session/${session.id}`);
-							notify("已复制深度链接");
+							notify(t("sessionMenu.deepLinkCopied"));
 							onClose();
 						}}
 					>
-						复制深度链接
+						{t("sessionMenu.copyDeepLink")}
 					</MenuItem>
 				</MenuBody>
 			</Popover>
@@ -172,17 +174,17 @@ export function SessionMenu({
 	}
 
 	return (
-		<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label="会话选项">
+		<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.options")}>
 			<MenuBody>
 				<MenuItem
 					icon={isPinned ? <PinOff size={13} strokeWidth={1.8} /> : <Pin size={13} strokeWidth={1.8} />}
 					onClick={() => {
 						void setSessionPinned(session.id, !isPinned);
-						notify(isPinned ? "已取消置顶会话" : "已置顶会话");
+						notify(isPinned ? t("sessionMenu.unpinned") : t("sessionMenu.pinned"));
 						onClose();
 					}}
 				>
-					{isPinned ? "取消置顶" : "置顶"}
+					{isPinned ? t("sessionMenu.unpin") : t("sessionMenu.pin")}
 				</MenuItem>
 
 				<MenuItem
@@ -192,17 +194,17 @@ export function SessionMenu({
 						setMode("rename");
 					}}
 				>
-					重命名
+					{t("common.rename")}
 				</MenuItem>
 
 				<MenuItem
 					icon={<Eye size={13} strokeWidth={1.8} />}
 					onClick={() => {
-						notify("已标记为未读");
+						notify(t("sessionMenu.markedUnread"));
 						onClose();
 					}}
 				>
-					标记为未读
+					{t("sessionMenu.markUnread")}
 				</MenuItem>
 
 				<MenuItem
@@ -212,28 +214,28 @@ export function SessionMenu({
 						onClose();
 					}}
 				>
-					归档
+					{t("common.archive")}
 				</MenuItem>
 
 				<MenuSeparator />
 
 				<MenuItem icon={<Folder size={13} strokeWidth={1.8} />} onClick={() => setMode("projects")}>
-					项目
+					{t("sessionMenu.project")}
 				</MenuItem>
 
 				<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => setMode("copy")}>
-					复制
+					{t("common.copy")}
 				</MenuItem>
 
 				{!onPhone() && <MenuItem
 					icon={<ExternalLink size={13} strokeWidth={1.8} />}
 					onClick={() => {
 						void bridge.system.openExternal(`lyra://session/${session.id}`).catch(() => {});
-						notify("正在新窗口中打开…");
+						notify(t("sessionMenu.openingWindow"));
 						onClose();
 					}}
 				>
-					在新窗口中打开
+					{t("sessionMenu.openInNewWindow")}
 				</MenuItem>}
 			</MenuBody>
 		</Popover>

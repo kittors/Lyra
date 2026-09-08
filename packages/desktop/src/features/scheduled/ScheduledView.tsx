@@ -15,12 +15,15 @@ import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { NumberField, TimeField } from "../settings/index.ts";
 import { useLayout } from "../../app/layout.tsx";
+import { useI18n } from "../../i18n/index.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";
 import { Toggle } from "../settings/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { bridge } from "../../services/index.ts";
 
 export function ScheduledView() {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const workspace = useApp((s) => s.workspace);
@@ -44,9 +47,9 @@ export function ScheduledView() {
 				...tasks,
 				{
 					id: `task-${Date.now().toString(36)}`,
-					name: "新任务",
+					name: t("scheduled.newTask"),
 					cwd: workspace?.path ?? "",
-					prompt: "检查一下未提交的改动，指出其中的问题。",
+					prompt: t("scheduled.samplePrompt"),
 					schedule: { kind: "daily", time: "09:00" },
 					enabled: false,
 				},
@@ -58,9 +61,9 @@ export function ScheduledView() {
 			<Scroller className="flex-1" contentClassName={`mx-auto w-full max-w-[880px] py-6 ${compact ? "px-4" : "px-8"}`}>
 				<header className="flex flex-wrap items-start justify-between gap-3 pb-6">
 					<div>
-						<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">已安排</h1>
+						<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">{t("scheduled.title")}</h1>
 						<p className="mt-1.5 max-w-[560px] text-label leading-relaxed text-ink-muted">
-							定时自动发起新会话执行提示词。
+							{t("scheduled.intro")}
 						</p>
 					</div>
 					<button
@@ -69,15 +72,15 @@ export function ScheduledView() {
 						className="flex h-7 items-center gap-1.5 rounded-lg border border-line px-2.5 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
 					>
 						<Plus size={12} strokeWidth={2} />
-						新建
+						{t("common.new")}
 					</button>
 				</header>
 
 				{tasks.length === 0 && (
 					<p className="py-16 text-center text-label leading-relaxed text-ink-faint">
-						还没有安排任务。
+						{t("scheduled.empty")}
 						<br />
-						常见用途：每天早上审一遍未提交改动、每小时跑一次测试并报告失败。
+						{t("scheduled.emptyHint")}
 					</p>
 				)}
 
@@ -115,9 +118,9 @@ export function ScheduledView() {
  * does: the caller drops the line instead.
  */
 function describeNext(task: ScheduledTask): string | null {
-	if (!task.enabled) return "已停用";
+	if (!task.enabled) return translate("scheduled.paused");
 	const at = nextRunAt(task);
-	return at === null ? null : new Date(at).toLocaleString("zh-CN");
+	return at === null ? null : new Date(at).toLocaleString(activeLocale());
 }
 
 function TaskCard({
@@ -133,6 +136,7 @@ function TaskCard({
 	onRemove: () => void;
 	onOpenLast: () => void;
 }) {
+	const { t } = useI18n();
 	const [prompt, setPrompt] = useState(task.prompt);
 	const [name, setName] = useState(task.name);
 	const [running, setRunning] = useState(false);
@@ -150,7 +154,7 @@ function TaskCard({
 				/>
 				<button
 					type="button"
-					data-ly-tip="立即运行一次"
+					data-ly-tip={t("scheduled.runNow")}
 					disabled={running}
 					onClick={async () => {
 						setRunning(true);
@@ -167,13 +171,13 @@ function TaskCard({
 				<Toggle checked={task.enabled} onChange={(enabled) => onChange({ enabled })} />
 				<button
 					type="button"
-					data-ly-tip="删除"
-					aria-label={`删除定时任务「${task.name}」`}
+					data-ly-tip={t("common.delete")}
+					aria-label={t("scheduled.deleteOne", { name: task.name })}
 					onClick={() =>
 						confirm.ask({
-							title: `删除「${task.name}」？`,
-							detail: "这条定时任务不会再运行，它的提示和时间设置一起删掉。已经跑出来的会话留着。",
-							confirmLabel: "删除",
+							title: t("scheduled.deleteConfirm", { name: task.name }),
+							detail: t("scheduled.deleteDetail"),
+							confirmLabel: t("common.delete"),
 							onConfirm: onRemove,
 						})
 					}
@@ -187,7 +191,7 @@ function TaskCard({
 
 			<div className="space-y-3 px-4 py-3">
 				<label className="block">
-					<span className="mb-1.5 block text-detail text-ink-muted">提示</span>
+					<span className="mb-1.5 block text-detail text-ink-muted">{t("common.prompt")}</span>
 					<Textarea
 						value={prompt}
 						onChange={(e) => setPrompt(e.target.value)}
@@ -212,7 +216,7 @@ function TaskCard({
 									task.schedule.kind === kind ? "bg-elevated text-ink" : "text-ink-muted hover:text-ink"
 								}`}
 							>
-								{kind === "daily" ? "每天" : "每隔"}
+								{kind === "daily" ? t("scheduled.daily") : t("scheduled.every")}
 							</button>
 						))}
 					</div>
@@ -221,7 +225,7 @@ function TaskCard({
 						<TimeField
 							value={task.schedule.time}
 							onChange={(time) => onChange({ schedule: { kind: "daily", time } })}
-							label="每天运行时间"
+							label={t("scheduled.dailyTime")}
 						/>
 					) : (
 						<div className="flex items-center gap-1.5">
@@ -232,27 +236,35 @@ function TaskCard({
 								min={1}
 								max={60 * 24}
 								onChange={(minutes) => onChange({ schedule: { kind: "interval", minutes } })}
-								label="间隔分钟数"
+								label={t("scheduled.intervalMinutes")}
 							/>
-							<span className="text-detail text-ink-faint">分钟</span>
+							<span className="text-detail text-ink-faint">{t("common.minutes")}</span>
 						</div>
 					)}
 
 					<div className="flex-1" />
-					<span className="font-mono text-detail text-ink-faint">{task.cwd || "（未设置工作区）"}</span>
+					<span className="font-mono text-detail text-ink-faint">{task.cwd || t("scheduled.noWorkspace")}</span>
 				</div>
 
 				<div className="flex flex-wrap items-center gap-x-3 text-detail text-ink-faint">
-					<span>上次运行：{task.lastRunAt ? new Date(task.lastRunAt).toLocaleString("zh-CN") : "从未"}</span>
+					<span>
+							{t("scheduled.lastRun")}
+							{task.lastRunAt ? new Date(task.lastRunAt).toLocaleString(activeLocale()) : t("common.never")}
+						</span>
 					{/*
 					 * Computed from the same rules the scheduler runs on, not from a second copy of
 					 * them: `nextRunAt` lives in core precisely so the badge and the run cannot
 					 * disagree about when 09:00 is.
 					 */}
-					{describeNext(task) && <span>下次运行：{describeNext(task)}</span>}
+					{describeNext(task) && (
+							<span>
+								{t("scheduled.nextRun")}
+								{describeNext(task)}
+							</span>
+						)}
 					{task.lastSessionId && lastSessionTitle && (
 						<button type="button" onClick={onOpenLast} className="text-ink-muted transition-colors hover:text-ink">
-							打开上次会话
+							{t("scheduled.openLast")}
 						</button>
 					)}
 					{task.lastError && <span className="text-danger">{task.lastError}</span>}

@@ -20,6 +20,7 @@
  *     the only control here that appears on its own evidence rather than on a state the user set.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import { ArrowUp, Download, FolderOpen, Loader2, MoreHorizontal, Play, Settings2, Trash2 } from "lucide-react";
 
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
@@ -54,6 +55,7 @@ export function CatalogCard({
 	 */
 	onToggle?: (enabled: boolean) => void;
 }) {
+	const { t } = useI18n();
 	const menu = usePopover();
 	const act = useInstall(item, onChanged, onError);
 
@@ -128,7 +130,7 @@ export function CatalogCard({
 						<span className="truncate text-label font-medium text-ink">{item.name}</span>
 						{item.outdated && (
 							<span className="shrink-0 rounded-md bg-accent/12 px-1.5 py-px text-caption leading-[1.5] text-accent">
-								可更新
+								{t("catalogCard.updatable")}
 							</span>
 						)}
 						{/*
@@ -138,7 +140,7 @@ export function CatalogCard({
 						 */}
 						{installed && !isEnabled(item) && item.collected === 0 && (
 							<span className="shrink-0 text-caption text-ink-faint">
-								{item.kind === "mcp" ? "未启用" : "已停用"}
+								{item.kind === "mcp" ? t("catalogCard.notEnabled") : t("catalogCard.disabled")}
 							</span>
 						)}
 
@@ -149,7 +151,11 @@ export function CatalogCard({
 								<button
 									type="button"
 									disabled={act.busy !== null}
-									data-ly-tip={`更新到 ${item.entry?.version ? `v${item.entry.version}` : "最新版本"}`}
+									data-ly-tip={
+											item.entry?.version
+												? t("catalogCard.updateTo", { version: `v${item.entry.version}` })
+												: t("catalogCard.updateToLatest")
+										}
 									onClick={() => void act.update()}
 									className="pointer-events-auto flex h-[26px] items-center gap-1 rounded-lg bg-accent/12 px-2 text-detail font-medium text-accent transition-opacity duration-[var(--ly-t-quick)] hover:opacity-80 disabled:opacity-50"
 								>
@@ -158,7 +164,7 @@ export function CatalogCard({
 									) : (
 										<ArrowUp size={11.5} strokeWidth={2.2} />
 									)}
-									更新
+									{t("common.update")}
 								</button>
 							)}
 
@@ -167,7 +173,7 @@ export function CatalogCard({
 							{installed ? (
 								<button
 									type="button"
-									aria-label={`${item.name} 的更多操作`}
+									aria-label={t("catalogCard.moreFor", { name: item.name })}
 									aria-haspopup="menu"
 									aria-expanded={menu.open}
 									onClick={menu.toggle}
@@ -192,7 +198,7 @@ export function CatalogCard({
 										) : (
 											<Download size={11.5} strokeWidth={1.9} />
 										)}
-										安装
+										{t("common.install")}
 									</button>
 								)
 							)}
@@ -206,7 +212,7 @@ export function CatalogCard({
 					 * A description is written to be read whole and wraps to three lines in a card.
 					 */}
 					<p className="mt-1.5 line-clamp-2 text-detail leading-relaxed text-ink-muted">
-						{item.tagline || item.description || "（没有描述）"}
+						{item.tagline || item.description || t("plugins.noDescription")}
 					</p>
 
 					<FootprintLine item={item} />
@@ -216,15 +222,15 @@ export function CatalogCard({
 			{/* The question is a modal, so the menu is only ever a menu — see `Confirm`. */}
 			{act.confirming && (
 				<Confirm
-					title={`卸载 ${item.name}？`}
+					title={t("plugins.uninstallConfirm", { name: item.name })}
 					detail={
 						item.kind === "mcp"
-							? `它的目录会被删除，它在设置 › MCP 里的 ${item.servers.length} 条配置也一起清掉——包括你在那里改过的参数。`
+							? t("pluginDetail.uninstallMcpDetail", { n: item.servers.length })
 							: item.collected > 0
-								? `它带来的 ${item.collected} 个技能会从技能目录里删掉，你自己放的技能不受影响。重新安装可以拿回来。`
-								: "它的目录会被删除，随它安装的技能也一起消失。重新安装可以拿回来。"
+								? t("catalogCard.uninstallSkillsDetail", { n: item.collected })
+								: t("plugins.uninstallDetail")
 					}
-					confirmLabel="卸载"
+					confirmLabel={t("mcp.uninstall")}
 					onCancel={() => act.setConfirming(false)}
 					onConfirm={() => {
 						act.setConfirming(false);
@@ -253,7 +259,7 @@ export function CatalogCard({
 									onTry(trial);
 								}}
 							>
-								立即试用
+								{t("catalogCard.tryNow")}
 							</MenuItem>
 						)}
 						<MenuItem
@@ -263,7 +269,7 @@ export function CatalogCard({
 								onOpen();
 							}}
 						>
-							管理
+							{t("common.manage")}
 						</MenuItem>
 						<MenuItem
 							icon={<FolderOpen size={13} strokeWidth={1.8} />}
@@ -272,7 +278,7 @@ export function CatalogCard({
 								void bridge.system.openPath(dir);
 							}}
 						>
-							打开目录
+							{t("common.openFolder")}
 						</MenuItem>
 
 						<MenuSeparator />
@@ -281,14 +287,14 @@ export function CatalogCard({
 							danger
 							icon={<Trash2 size={13} strokeWidth={1.8} />}
 							disabled={act.busy !== null || !removable}
-							title={removable ? undefined : "项目里的插件，从项目目录里删"}
+							title={removable ? undefined : t("catalogCard.workspaceOwned")}
 							onClick={() => {
 								// The menu gives way to the question rather than sitting behind it.
 								menu.close();
 								act.setConfirming(true);
 							}}
 						>
-							卸载
+							{t("mcp.uninstall")}
 						</MenuItem>
 					</MenuBody>
 				</Popover>
@@ -305,13 +311,14 @@ export function CatalogCard({
  * macOS in the middle of a card that looks the same is worse than one we draw.
  */
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (next: boolean) => void }) {
+	const { t } = useI18n();
 	return (
 		<button
 			type="button"
 			role="switch"
 			aria-checked={on}
-			aria-label={`${label}${on ? "（已启用）" : "（已停用）"}`}
-			data-ly-tip={on ? "停用" : "启用"}
+			aria-label={on ? t("catalogCard.toggleOn", { label }) : t("catalogCard.toggleOff", { label })}
+			data-ly-tip={on ? t("common.disable") : t("common.enable")}
 			onClick={() => onChange(!on)}
 			className={`pointer-events-auto flex h-[16px] w-[28px] shrink-0 items-center rounded-full px-[2px] transition-colors duration-[var(--ly-t-quick)] ${
 				on ? "bg-ok" : "bg-line"

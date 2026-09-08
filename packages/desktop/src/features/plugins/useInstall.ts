@@ -10,6 +10,7 @@
  * the user needs to read, not an exception that unmounts the grid they were reading it from.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useState } from "react";
 
 import type { CatalogItem } from "./catalog.ts";
@@ -69,11 +70,11 @@ export function useInstall(
 		if (!replace && result.kind && result.kind !== item.kind) {
 			onError(
 				result.kind === "mcp"
-					? `${item.name} 其实是一个 MCP 服务，已装到「MCP 服务」下；它的 ${result.servers} 个服务默认关着，去设置 › MCP 里开。`
-					: `${item.name} 其实是一个插件，已装到「插件」下。`,
+					? translate("install.actuallyMcp", { name: item.name, n: result.servers ?? 0 })
+					: translate("install.actuallyPlugin", { name: item.name }),
 			);
 		} else if (!replace && result.kind === "mcp") {
-			onError(`${item.name} 已安装，${result.servers} 个服务默认关着——去设置 › MCP 里开。`);
+			onError(translate("install.serversOff", { name: item.name, n: result.servers ?? 0 }));
 		}
 		onChanged();
 	};

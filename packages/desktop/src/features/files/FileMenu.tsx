@@ -10,6 +10,7 @@
  * what people already know from every other editor.
  */
 
+import { useI18n } from "../../i18n/index.ts";
 import {
 	ClipboardPaste,
 	Copy,
@@ -76,11 +77,12 @@ export function FileMenu({
 }) {
 	// What 默认文件打开目标 currently names, and what this platform calls its file manager. Read
 	// here rather than passed in: both are properties of the machine, not of this tree.
+	const { t } = useI18n();
 	const openTarget = useOpenTarget();
 	const reveal = useRevealLabel();
 	const many = count > 1;
 	/** Names the target once so every destructive label counts the same way. */
-	const what = many ? `这 ${count} 项` : "";
+	const what = many ? t("fileMenu.theseN", { n: count }) : "";
 
 	return (
 		<ContextMenu anchor={anchor} onClose={onClose} width="default">
@@ -90,7 +92,7 @@ export function FileMenu({
 					    would be the longest way to do the shortest thing. */}
 					{!entry.isDirectory && (
 						<MenuItem icon={<FolderOpen {...ICON} />} onClick={() => actions.open(entry)}>
-							打开
+							{t("common.open")}
 						</MenuItem>
 					)}
 					<MenuItem icon={<ExternalLink {...ICON} />} onClick={() => actions.openWith(entry.path)}>
@@ -104,7 +106,7 @@ export function FileMenu({
 				{reveal}
 			</MenuItem>
 			<MenuItem icon={<SquareTerminal {...ICON} />} onClick={() => actions.openInTerminal(dir)}>
-				在终端中打开
+				{t("fileMenu.openInTerminal")}
 			</MenuItem>
 
 			<MenuSeparator />
@@ -115,10 +117,10 @@ export function FileMenu({
 			 * offered on a file at all.
 			 */}
 			<MenuItem icon={<FilePlus2 {...ICON} />} onClick={() => actions.newFile(dir)}>
-				新建文件
+				{t("fileMenu.newFile")}
 			</MenuItem>
 			<MenuItem icon={<FolderPlus {...ICON} />} onClick={() => actions.newFolder(dir)}>
-				新建文件夹
+				{t("fileMenu.newFolder")}
 			</MenuItem>
 
 			<MenuSeparator />
@@ -126,10 +128,10 @@ export function FileMenu({
 			{entry && (
 				<>
 					<MenuItem icon={<Scissors {...ICON} />} hint="⌘X" onClick={actions.cut}>
-						{`剪切${what}`}
+						{t("fileMenu.cut", { what })}
 					</MenuItem>
 					<MenuItem icon={<Copy {...ICON} />} hint="⌘C" onClick={actions.copy}>
-						{`复制${what}`}
+						{t("fileMenu.copy", { what })}
 					</MenuItem>
 				</>
 			)}
@@ -137,38 +139,38 @@ export function FileMenu({
 				icon={<ClipboardPaste {...ICON} />}
 				hint="⌘V"
 				disabled={!canPaste}
-				title={canPaste ? undefined : "剪贴板里没有文件"}
+				title={canPaste ? undefined : t("fileMenu.clipboardEmpty")}
 				onClick={() => actions.paste(dir)}
 			>
-				粘贴
+				{t("common.paste")}
 			</MenuItem>
 
 			{entry && (
 				<>
 					<MenuSeparator />
 					<MenuItem icon={<Link2 {...ICON} />} hint="⌥⌘C" onClick={() => actions.copyPath(false)}>
-						复制路径
+						{t("fileMenu.copyPath")}
 					</MenuItem>
 					<MenuItem icon={<Link2 {...ICON} />} hint="⌥⇧⌘C" onClick={() => actions.copyPath(true)}>
-						复制相对路径
+						{t("fileMenu.copyRelativePath")}
 					</MenuItem>
 
 					<MenuSeparator />
 					{!many && (
 						<>
 							<MenuItem icon={<Pencil {...ICON} />} hint="F2" onClick={() => actions.rename(entry.path)}>
-								重命名
+								{t("common.rename")}
 							</MenuItem>
 							<MenuItem icon={<Copy {...ICON} />} onClick={() => actions.duplicate(entry.path)}>
-								创建副本
+								{t("fileMenu.duplicate")}
 							</MenuItem>
 						</>
 					)}
 					<MenuItem icon={<Trash2 {...ICON} />} hint="⌘⌫" danger onClick={() => actions.remove(false)}>
-						{`删除${what}`}
+						{t("fileMenu.delete", { what })}
 					</MenuItem>
 					<MenuItem icon={<Trash2 {...ICON} />} hint="⇧⌘⌫" danger onClick={() => actions.remove(true)}>
-						{`永久删除${what}`}
+						{t("fileMenu.deleteForever", { what })}
 					</MenuItem>
 				</>
 			)}
@@ -176,14 +178,14 @@ export function FileMenu({
 			<MenuSeparator />
 			{entry?.isDirectory && !many && (
 				<MenuItem icon={<FolderSearch {...ICON} />} onClick={() => actions.findInFolder(entry.path)}>
-					在此文件夹中搜索
+					{t("fileMenu.searchHere")}
 				</MenuItem>
 			)}
 			<MenuItem icon={<CopyMinus {...ICON} />} onClick={actions.collapseAll}>
-				全部折叠
+				{t("fileMenu.collapseAll")}
 			</MenuItem>
 			<MenuItem icon={<RefreshCw {...ICON} />} onClick={actions.refresh}>
-				刷新
+				{t("common.refresh")}
 			</MenuItem>
 		</ContextMenu>
 	);

@@ -4,6 +4,7 @@ import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
@@ -76,6 +77,7 @@ export interface ModelSelection {
 }
 
 export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onClose: () => void; selection?: ModelSelection }) {
+	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
 	const messages = useApp((s) => s.messages);
@@ -128,7 +130,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	const sections = useMemo<Section[]>(() => {
 		const starred = query ? [] : favouriteRows(groups, favourites);
 		return [
-			...(starred.length > 0 ? [{ key: "__favourites__", title: "收藏", rows: starred, foldable: false }] : []),
+			...(starred.length > 0 ? [{ key: "__favourites__", title: t("modelMenu.favourite"), rows: starred, foldable: false }] : []),
 			...shown.map((group) => ({
 				key: group.provider.id,
 				title: group.provider.name,
@@ -136,7 +138,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 				foldable: true,
 			})),
 		];
-	}, [groups, favourites, shown, query]);
+	}, [groups, favourites, shown, query, t]);
 
 	/** The rows a number key can reach: what is on screen, in the order it is drawn. */
 	const reachable = useMemo(
@@ -154,7 +156,9 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	 */
 	const apply = (modelId: string, options?: { asDefault?: boolean }) => {
 		void setModel(modelId, options).catch((cause: unknown) => {
-			useApp.getState().notify(`切换模型失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+			useApp
+				.getState()
+				.notify(t("modelMenu.switchFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		});
 	};
 
@@ -167,20 +171,20 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 		const midConversation = messages.length > 0 && current !== modelId;
 		if (midConversation) {
 			confirmer.ask({
-				title: "确定要中途切换模型吗？",
+				title: t("modelMenu.midConfirm"),
 				detail: (
 					<>
-						当前会话已产生对话记录。各家模型的上下文格式、推理习惯与工具调用规范存在差异：
+						{t("modelMenu.midDetail1")}
 						<br />
-						1. 之前的推理上下文和思维链无法跨模型沿用，后续回答效果可能变差；
+						{t("modelMenu.midDetail2")}
 						<br />
-						2. 原有 Prompt Cache（提示词缓存）将失效，导致首轮延迟和 Token 消耗上升；
+						{t("modelMenu.midDetail3")}
 						<br />
-						3. 若遇到意外格式异常，建议开启新对话体验最佳效果。
+						{t("modelMenu.midDetail4")}
 					</>
 				),
-				confirmLabel: "确认切换",
-				cancelLabel: "取消",
+				confirmLabel: t("modelMenu.confirmSwitch"),
+				cancelLabel: t("common.cancel"),
 				tone: "danger",
 				onConfirm: () => {
 					apply(modelId, options);
@@ -253,7 +257,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 			placement={selection ? "bottom" : "top"}
 			align={selection ? "end" : "start"}
 			width="wide"
-			label="选择模型"
+			label={t("modelMenu.pick")}
 			/*
 			 * A ceiling, so a relay with thirty models does not draw a menu from the composer to the
 			 * top of the screen. The body scrolls inside it; the search field above and the switches
@@ -266,13 +270,13 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 			maxHeight={MODEL_MENU_MAX_HEIGHT}
 			header={
 				searchable ? (
-					<MenuSearch value={query} onChange={setQuery} placeholder="搜索模型或供应商" />
+					<MenuSearch value={query} onChange={setQuery} placeholder={t("modelMenu.search")} />
 				) : undefined
 			}
 			footer={selection ? undefined :
 				<div className="p-1">
 					<MenuItem
-						detail={meta ? "跳过推理直接作答，只影响当前会话" : "跳过推理直接作答，明显更快"}
+						detail={meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
 						trailing={
 							/*
 							 * Indicator, not a control: the whole row is the switch. A real Toggle here
@@ -297,7 +301,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 							void setThinking(fastMode ? (settings.lastThinking ?? "medium") : "off");
 						}}
 					>
-						关闭思考
+						{t("modelMenu.noThinking")}
 					</MenuItem>
 					<MenuItem
 						trailing={<ChevronRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />}
@@ -307,7 +311,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 							onClose();
 						}}
 					>
-						<RollingText>管理供应商与模型</RollingText>
+						<RollingText>{t("modelMenu.manageProviders")}</RollingText>
 					</MenuItem>
 				</div>
 			}
@@ -328,12 +332,12 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 							onClose();
 						}}
 					>
-						还没有可用模型，去添加供应商
+						{t("modelMenu.noModels")}
 					</MenuItem>
 				)}
 
 				{total > 0 && sections.length === 0 && (
-					<p className="px-2 py-6 text-center text-detail text-ink-faint">没有匹配的模型</p>
+					<p className="px-2 py-6 text-center text-detail text-ink-faint">{t("modelMenu.noMatch")}</p>
 				)}
 
 				{sections.map((section) => {
@@ -389,7 +393,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 								onClose();
 							}}
 						>
-							{isDefault ? "已是新会话的默认模型" : "设为新会话的默认模型"}
+							{isDefault ? t("modelMenu.isDefault") : t("modelMenu.makeDefault")}
 						</MenuItem>
 					</>
 				)}
@@ -472,6 +476,7 @@ function ModelItem({
 	onChoose: () => void;
 	onStar: () => void;
 }) {
+	const { t } = useI18n();
 	const { model, provider } = row;
 
 	return (
@@ -534,9 +539,9 @@ function ModelItem({
 			</span>
 			<button
 				type="button"
-				aria-label={starred ? `取消收藏 ${model.name}` : `收藏 ${model.name}`}
+				aria-label={starred ? t("modelMenu.unfavouriteOne", { name: model.name }) : t("modelMenu.favouriteOne", { name: model.name })}
 				aria-pressed={starred}
-				data-ly-tip={starred ? "取消收藏" : "收藏"}
+				data-ly-tip={starred ? t("modelMenu.unfavourite") : t("modelMenu.favourite")}
 				onClick={onStar}
 				className={`mr-1 ml-0.5 flex h-full w-[18px] shrink-0 items-center justify-center rounded transition-opacity duration-[var(--ly-t-quick)] ${
 					starred
