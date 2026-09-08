@@ -55,9 +55,12 @@ const LIKELY = [
 	`${home()}/.local/bin`,
 	`${home()}/Library/pnpm`,
 	`${home()}/.local/share/pnpm`,
+	`${home()}/.pnpm`,
 	`${home()}/.bun/bin`,
 	`${home()}/.cargo/bin`,
 	`${home()}/.volta/bin`,
+	`${home()}/.nvm/current/bin`,
+	`${home()}/.asdf/shims`,
 ];
 
 /**
