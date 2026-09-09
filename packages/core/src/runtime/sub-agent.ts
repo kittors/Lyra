@@ -14,8 +14,8 @@ import { randomUUID } from "node:crypto";
 import { access } from "node:fs/promises";
 import { platform } from "node:os";
 import { join } from "node:path";
-import type { AgentEvent } from "../agent/events.ts";
-import type { AgentRunConfig } from "../agent/loop.ts";
+import type { AgentEvent, AgentEventSink } from "../agent/events.ts";
+import type { AgentRunConfig, AgentRunResult } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
@@ -42,7 +42,7 @@ import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutc
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../tools/task.ts";
-import type { ApprovalDecision, ApprovalRequest, ModelConfig, ProviderConfig, Tool } from "../types.ts";
+import type { ApprovalDecision, ApprovalRequest, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 
 async function pathExists(path: string): Promise<boolean> {
@@ -68,6 +68,15 @@ export interface SubAgentAnswer {
 	/** Schema problems that were accepted rather than rejected. */
 	warnings?: string[];
 }
+
+/**
+ * How many rounds a delegated run gets.
+ *
+ * Named because the number appears in what a caller is told when it runs out — "用满了 60 步" is
+ * actionable in a way that "步数用尽" is not, and a constant is the only way those two stay in step.
+ * Deliberately below the main conversation's 200: a dozen of these can be in flight at once.
+ */
+export const MAX_SUB_AGENT_TURNS = 60;
 
 export interface SubAgentOptions {
 	sessionId: string;
@@ -261,7 +270,74 @@ export async function runSubAgent(
 			: definition.systemPrompt,
 	});
 
+	// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
+	// 留成变量，因为讨要交付的那一轮要拿它当历史的头。
+	const history = withEnvironment([{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }]);
+
+	/*
+	 * The same context compaction the parent gets, for the same reason.
+	 *
+	 * A delegated run is the one most likely to need it: sixty turns of reading files is exactly
+	 * what it is dispatched to do, and its history is its own — the parent's compaction cannot
+	 * reach it. Without this a long search does not degrade, it stops, with the provider refusing
+	 * the request for being over the window; and because the `task` tool turns that into a tool
+	 * error, what the user sees is delegation that mysteriously fails on the big jobs and works on
+	 * the small ones.
+	 *
+	 * The overhead handed over is this run's own: its system prompt and its own subset of the
+	 * tools, which is not what the parent carries.
+	 */
+	const compactHistory: AgentRunConfig["compact"] = (messages, model) => {
+		const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
+		return compactWith(
+			messages,
+			model,
+			runProvider,
+			(provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: controller.signal }),
+			textTokens(subAgentPrompt) + toolTokens(allowed),
+			undefined,
+			summarizer,
+		);
+	};
+
+	/** Everything on its way out of the loop: the pane, the roster, and the step list. */
+	const relay: AgentEventSink = async (event) => {
+		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted") {
+			await options.emit({ type: "subagent_event", id, event });
+		}
+		// Record activity in registry for live sub-agent status line without toast spamming
+		if (event.type === "tool_start") {
+			steps.push(event.summary);
+			registry?.activity(id, event.summary);
+		}
+		/*
+		 * The transcript, as it is written.
+		 *
+		 * `message_end` rather than `message_start`: a message still streaming has nothing worth
+		 * showing yet. These carry the sub-agent's own id and go nowhere near the parent model
+		 * transcript — durable events keep them available after reopening.
+		 */
+		if (event.type === "message_end") {
+			registry?.record(id, event.message);
+			await options.emit({ type: "subagent_message", id, message: event.message });
+		}
+	};
+
+	/**
+	 * Whether it is worth asking once more for a delivery.
+	 *
+	 * Only for a run that had more to do and no more rounds to do it in, that declares a schema,
+	 * and that has not already yielded. An aborted one is excluded on purpose: stopping it was
+	 * somebody's decision, and spending another request would be arguing with it.
+	 */
+	const needsFinalYield = (reason: AgentRunResult["reason"]) =>
+		reason === "max_turns" && yieldTool !== undefined && subState.get(YIELD_KEY) === undefined && !controller.signal.aborted;
+
 	let result: Awaited<ReturnType<typeof runTurn>>;
+	/** Both rounds' messages, so the prose fallback can see what the last one said. */
+	let produced: Message[] = [];
+	/** Whether the extra round got a delivery out of it, which changes what the answer says. */
+	let salvaged = false;
 	try {
 		await options.emit({ type: "subagent_event", id, event: {
 			type: "context", systemPrompt: subAgentPrompt, tools: allowed.map(tool => tool.name),
@@ -276,8 +352,7 @@ export async function runSubAgent(
 				model: runModel,
 				systemPrompt: subAgentPrompt,
 				tools: allowed,
-				// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
-				messages: withEnvironment([{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }]),
+				messages: history,
 				/*
 				 * The app default, deliberately — not the dispatching conversation's level.
 				 *
@@ -379,55 +454,53 @@ export async function runSubAgent(
 				 * queues it, the loop drains it, exactly as for the parent.
 				 */
 				drainSteering: registry ? () => registry.drainSteering(id) : undefined,
-				/*
-				 * The same context compaction the parent gets, for the same reason.
-				 *
-				 * A delegated run is the one most likely to need it: sixty turns of reading files is
-				 * exactly what it is dispatched to do, and its history is its own — the parent's
-				 * compaction cannot reach it. Without this a long search does not degrade, it stops,
-				 * with the provider refusing the request for being over the window; and because the
-				 * `task` tool turns that into a tool error, what the user sees is delegation that
-				 * mysteriously fails on the big jobs and works on the small ones.
-				 *
-				 * The overhead handed over is this run's own: its system prompt and its own subset of
-				 * the tools, which is not what the parent carries.
-				 */
-				compact: (messages, model) => {
-					const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
-					return compactWith(
-						messages,
-						model,
-						runProvider,
-						(provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: controller.signal }),
-						textTokens(subAgentPrompt) + toolTokens(allowed),
-						undefined,
-						summarizer,
-					);
-				},
-				maxTurns: 60,
+				compact: compactHistory,
+				maxTurns: MAX_SUB_AGENT_TURNS,
 			},
-			async (event) => {
-				if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted") {
-					await options.emit({ type: "subagent_event", id, event });
-				}
-				// Record activity in registry for live sub-agent status line without toast spamming
-				if (event.type === "tool_start") {
-					steps.push(event.summary);
-					registry?.activity(id, event.summary);
-				}
-				/*
-				 * The transcript, as it is written.
-				 *
-				 * `message_end` rather than `message_start`: a message still streaming has nothing
-				 * worth showing yet. These carry the sub-agent's own id and go nowhere near the
-				 * parent model transcript — durable events keep them available after reopening.
-				 */
-				if (event.type === "message_end") {
-					registry?.record(id, event.message);
-					await options.emit({ type: "subagent_message", id, message: event.message });
-				}
-			},
+			relay,
 		);
+		produced = result.messages;
+
+		/*
+		 * 步数用尽时，讨一份交付回来。
+		 *
+		 * 有 schema 的子代理只认 `yield`——没调用就等于什么都没交。而「跑满 60 步」恰恰是它读了
+		 * 一路、手里有货、只是没走到收尾那一步的情形：报告的价值最高，拿到的却是零。四个 explore
+		 * 各跑了半小时、一份报告都没有，就是这么来的。
+		 *
+		 * 所以再给一轮，工具表里只剩 `yield`——它没有别的事可做，只能交。两轮而不是一轮：
+		 * 字段填错时校验会退回来，留一次改正的机会比让整轮白费划算。
+		 *
+		 * 只在这一种收尾上做。`stalled` 是它在原地打转，再问一次多半还是同一个圈；上游出错时
+		 * 连接本身就是坏的；被人按停的那次，用户要的就是它别再花钱了。
+		 */
+		if (needsFinalYield(result.reason)) {
+			const salvage = await runTurn(
+				{
+					sessionId: id,
+					cwd: options.cwd,
+					provider: runProvider,
+					model: runModel,
+					systemPrompt: subAgentPrompt,
+					// 只有 yield。剩下的工具都拿走，它就没有第二条路可走了。
+					tools: [yieldTool as unknown as Tool],
+					messages: [...history, ...result.messages, finalDemand()],
+					thinking: chosen.thinking,
+					retryAttempts: options.settings.retryAttempts,
+					retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
+					signal: controller.signal,
+					state: subState,
+					requestApproval: (request) => options.requestApproval(request),
+					// 跑满 60 步的历史多半装不下一次新请求，压缩这一步不能省。
+					compact: compactHistory,
+					streamFn: options.streamFn,
+					maxTurns: 2,
+				},
+				relay,
+			);
+			produced = [...produced, ...salvage.messages];
+			salvaged = subState.get(YIELD_KEY) !== undefined;
+		}
 	} catch (error) {
 		/*
 		 * A run that threw has to be marked, or it stays "running" for the life of the session.
@@ -453,36 +526,139 @@ export async function runSubAgent(
 	}
 
 	/*
-	 * A yielded object is the answer; the last paragraph is the fallback.
+	 * A yielded object is the answer; the last thing it said is the fallback.
 	 *
-	 * The fallback still matters. An agent with no declared schema returns prose by design, and one
-	 * that was aborted or ran out of turns before yielding has said something worth passing up
-	 * rather than nothing at all.
+	 * Both halves used to be able to come back empty, and between them that is how a sub-agent could
+	 * run for half an hour and hand the parent an empty string:
+	 *
+	 *   - `renderYield` of `{ summary: "", files: [] }` is `""`. The schema check asks whether the
+	 *     required fields are present and typed, not whether they were filled in, so that object is
+	 *     accepted and delivers nothing. Hence `|| prose` rather than a plain ternary.
+	 *   - the fallback read only the *last* assistant message, and the last message of a run that
+	 *     hit its round cap, stalled or died mid-request is a bare tool call with no text in it.
+	 *     `lastProse` walks back to the newest thing it actually said.
 	 */
 	const yielded = subState.get(YIELD_KEY) as YieldOutcome | undefined;
-	const last = [...result.messages].reverse().find((m) => m.role === "assistant");
-	const prose =
-		last?.role === "assistant"
-			? last.content
-					.filter((c) => c.type === "text")
-					.map((c) => c.text)
-					.join("\n")
-					.trim()
-			: "";
-	const answer = yielded ? renderYield(yielded) : prose;
+	const prose = lastProse(produced);
+	const delivered = (yielded ? renderYield(yielded) : "") || prose;
 
 	/*
-	 * Aborted is not failed.
+	 * How it ended, in the answer itself.
+	 *
+	 * `runTurn` reports its reason and nothing here read it, so a run that used up its rounds, went
+	 * in circles, or lost the provider mid-stream was filed as `done` with an empty answer — and the
+	 * parent, the transcript and the roster all said the same thing a clean finish says. The parent
+	 * has no other channel to learn this on: it sees one string.
+	 *
+	 * In front of the report rather than after it, because its job is to stop a partial finding
+	 * being read as a conclusion — which has to happen before the finding, not after.
+	 */
+	const aborted = controller.signal.aborted;
+	const cutShort = aborted ? null : incompleteNote(result.reason, result.error, salvaged);
+	const answer = cutShort ? [cutShort, delivered].filter(Boolean).join("\n\n") : delivered;
+
+	/*
+	 * Aborted is not failed, and neither is out of rounds.
 	 *
 	 * A sub-agent stopped on purpose has done exactly what was asked of it, and recording that as a
-	 * failure would put an error in the parent's transcript for a button the user pressed.
+	 * failure would put an error in the parent's transcript for a button the user pressed. A run
+	 * that used up its rounds or stopped going anywhere is not a failure either — it did the work,
+	 * it just did not get to the end of it, and the note above says so. Only a provider that failed
+	 * the request is `failed`, which is also what puts the 重新派发 button on the pane.
 	 */
+	const status = aborted ? "aborted" : result.reason === "error" ? "failed" : "done";
 	registry?.finish(
 		id,
-		controller.signal.aborted
+		aborted
 			? { status: "aborted" }
-			: { status: "done", answer, output: yielded?.value, warnings: yielded?.warnings },
+			: {
+					status,
+					answer,
+					output: yielded?.value,
+					warnings: yielded?.warnings,
+					// Same fact the first line of `answer` states, in a form the pane can draw.
+					...(cutShort ? { incomplete: true } : {}),
+					...(result.error ? { error: result.error } : {}),
+				},
 	);
-	await options.emit({ type: "subagent_done", id, steps, answer, status: controller.signal.aborted ? "aborted" : "done" });
+	await options.emit({
+		type: "subagent_done",
+		id,
+		steps,
+		answer,
+		status,
+		...(result.error ? { error: result.error } : {}),
+	});
 	return { text: answer, output: yielded?.value, warnings: yielded?.warnings };
+}
+
+/**
+ * The message that spends the salvage round.
+ *
+ * Blunt, and it has to be: the round it opens has one tool on the table and one thing worth doing
+ * with it. "不完整也要交" is the important half — a model that has been told it is out of budget
+ * will otherwise apologise for not finishing and deliver nothing, which is the failure this whole
+ * round exists to prevent.
+ *
+ * `synthetic`, because the runtime is speaking. It has to be a user message for the model to take
+ * it as an instruction, and the pane must not draw it as something the person typed.
+ */
+function finalDemand(): Message {
+	return {
+		role: "user",
+		content: [
+			{
+				type: "text",
+				text:
+					"（自动追加）步数已经用尽，这是最后一轮，你手上只剩 `yield` 这一个工具。" +
+					"把已经查到的东西按 `yield` 的字段交上去——不完整也要交，在 `summary` 里写清楚哪些没查完、卡在哪。" +
+					"不调用 `yield`，派你来的人就什么都拿不到。",
+			},
+		],
+		timestamp: Date.now(),
+		synthetic: true,
+	};
+}
+
+/**
+ * The newest thing the run actually said, rather than the newest message.
+ *
+ * A turn that ends on a tool call has no text in it, so reading the last message alone answers
+ * "what did it conclude" with silence for exactly the runs that were cut off — the ones where the
+ * question is worth asking.
+ */
+function lastProse(messages: Message[]): string {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (message.role !== "assistant") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (text) return text;
+	}
+	return "";
+}
+
+/**
+ * What to say about an ending that was not the end of the work.
+ *
+ * Written for the parent model first — it is the one that has to decide whether to redispatch,
+ * narrow the task, or carry on with a partial answer — and read by a person second. Each names the
+ * cause and what to do about it, because "没有输出" gives neither.
+ */
+function incompleteNote(reason: AgentRunResult["reason"], error: string | undefined, salvaged: boolean): string | null {
+	if (reason === "max_turns") {
+		return salvaged
+			? `⚠ 这次派发用满了 ${MAX_SUB_AGENT_TURNS} 步，下面是它被叫停时补交的结论——它没能自己跑完，可能有没查到的地方。要更完整的结果，把任务拆小再派一次。`
+			: `⚠ 这次派发用满了 ${MAX_SUB_AGENT_TURNS} 步就停了，下面是它停下前最后说的话，不是完整结论。要完整的结果，把任务拆小再派一次。`;
+	}
+	if (reason === "stalled") {
+		return "⚠ 它反复用同样的参数调同一个工具、每次拿到的结果都一样，已经停下。下面是它停下前最后说的话，不是完整结论。";
+	}
+	if (reason === "error") {
+		return `⚠ 模型服务出错，这次派发没跑完${error ? `：${error}` : ""}。下面是它中断前最后说的话，不是完整结论。`;
+	}
+	return null;
 }

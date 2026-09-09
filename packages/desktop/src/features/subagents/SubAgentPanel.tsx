@@ -16,7 +16,7 @@
  * for, and choosing between them *is* the title.
  */
 
-import { Bot, CircleStop, FileText, Plus, RotateCcw, X } from "lucide-react";
+import { Bot, CircleStop, FileText, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
@@ -167,9 +167,39 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				 * that none of it reached the parent's context. Saying which part did is what makes
 				 * the transcript legible as "what was delegated and what came back".
 				 */}
-				{agent.status === "done" && agent.answer && (
-					<div className="mt-2 min-w-0 max-w-full overflow-hidden rounded-lg border border-line-soft bg-card/50 px-3 py-2">
-						<p className="mb-1 text-caption text-ink-faint">{t("subAgent.reportedBack")}</p>
+				{/*
+				 * Shown whenever there is one, not only on a clean finish.
+				 *
+				 * A run that lost its provider halfway still did half an hour of work, and what it
+				 * had concluded by then travels back with the failure — see `incompleteNote`. Gating
+				 * this on `done` hid exactly the reports worth reading, and left the pane for a
+				 * half-hour run showing one red line.
+				 */}
+				{agent.answer && (
+					/*
+					 * A report that was cut short is drawn as one.
+					 *
+					 * Its first line already says so in words, and that is what the parent model reads
+					 * — but a person skims, and the window strips symbols out of text it did not write
+					 * (`strip-emoji`), so the `⚠` that leads the sentence never reaches the screen. The
+					 * label is the part a reader cannot miss; `status` could not carry it, because a
+					 * run that used up its rounds is `done` — the work happened, it just did not
+					 * finish.
+					 *
+					 * `danger` rather than a warning hue of its own: this app has three semantic
+					 * colours and has already turned down a sixth for exactly this kind of case (see
+					 * `SessionStatus`). Only the label takes it and the border is barely tinted — a
+					 * whole card in red would read as "this failed", and it did not.
+					 */
+					<div
+						className={`mt-2 min-w-0 max-w-full overflow-hidden rounded-lg border bg-card/50 px-3 py-2 ${
+							agent.incomplete ? "border-danger/25" : "border-line-soft"
+						}`}
+					>
+						<p className={`mb-1 flex items-center gap-1.5 text-caption ${agent.incomplete ? "text-danger" : "text-ink-faint"}`}>
+							{agent.incomplete && <TriangleAlert size={12} strokeWidth={2} className="shrink-0" />}
+							{t(agent.incomplete ? "subAgent.reportedBackPartial" : "subAgent.reportedBack")}
+						</p>
 						{/*
 						 * The object first, drawn by its shape, when the agent declared one.
 						 *
@@ -195,7 +225,8 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 						<Markdown text={agent.answer} className="min-w-0 max-w-full break-words" />
 					</div>
 				)}
-				{agent.status === "failed" && agent.error && (
+				{/* Only when it is the whole story: the report above already opens with the cause. */}
+				{agent.status === "failed" && agent.error && !agent.answer && (
 					<p className="mt-2 rounded-lg border border-danger/30 px-3 py-2 text-detail text-danger">{agent.error}</p>
 				)}
 				{/*

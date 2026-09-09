@@ -83,6 +83,17 @@ export interface SubAgentSummary {
 	warnings?: string[];
 	/** Set on `failed`. */
 	error?: string;
+	/**
+	 * Whether the answer is what it had rather than what it was asked for.
+	 *
+	 * True for a run that used up its rounds, went in circles, or lost the provider partway. The
+	 * reason is already the first line of `answer` — this exists because that line has to survive
+	 * being read quickly: the window strips symbols out of text it did not write (see
+	 * `strip-emoji`), so a `⚠` in the prose is not a mark a reader can rely on, and `status` cannot
+	 * carry it either — `done` is right for these (the work happened) and `failed` would put an
+	 * error where there is a partial result.
+	 */
+	incomplete?: boolean;
 }
 
 /** A summary plus everything it said, for the pane showing one of them. */
@@ -195,6 +206,7 @@ export class SubAgentRegistry {
 			error?: string;
 			output?: Record<string, unknown>;
 			warnings?: string[];
+			incomplete?: boolean;
 		},
 	): void {
 		const found = this.records.get(id);
@@ -205,6 +217,7 @@ export class SubAgentRegistry {
 		found.output = outcome.output;
 		found.warnings = outcome.warnings;
 		found.error = outcome.error;
+		found.incomplete = outcome.incomplete;
 		// The levers go with the run: a finished sub-agent must not look steerable.
 		found.steering.length = 0;
 		found.abort = undefined;

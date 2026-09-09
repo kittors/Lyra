@@ -112,7 +112,17 @@ export const taskTool: Tool<TaskArgs> = {
 			 * the cost delegation exists to avoid.
 			 */
 			return {
-				content: [{ type: "text", text: answer.text || "(the sub-agent returned no output)" }],
+				/*
+				 * The fallback is now only for a clean finish that said nothing at all.
+				 *
+				 * Every other ending describes itself — see `incompleteNote` in `sub-agent.ts`. What is
+				 * left is a run that stopped because it had nothing more to do and neither yielded nor
+				 * wrote a word. Saying that in those terms matters: the parent's next move after "it
+				 * finished and said nothing" is not the one it makes after "it was cut off partway".
+				 */
+				content: [
+					{ type: "text", text: answer.text || "（子代理没有留下任何输出：既没有调用 `yield` 交付结果，也没有说任何话。）" },
+				],
 				details: {
 					kind: "task",
 					description: args.description,
