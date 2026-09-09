@@ -1,16 +1,18 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronDown, FileDiff, Files, Undo2 } from "lucide-react";
+import { ChevronDown, FileDiff, Files, FileText, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { DeliveryFile, TurnDelivery } from "../../../electron/turn-delivery.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { relativeTo } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
+import { useOpenFile } from "../../store/openFile.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { companionOf, useDock } from "../dock/index.ts";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -103,6 +105,21 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	if (!data?.files.length) return null;
 	const added = data.files.reduce((sum, file) => sum + file.added, 0);
 	const removed = data.files.reduce((sum, file) => sum + file.removed, 0);
+	/*
+	 * The turn's own write-up, in the file pane.
+	 *
+	 * `collectDelivery` writes it for every engineering turn and the delivery channel grants read
+	 * access to it — so the only thing standing between it and a reader is a way in. Rebuilding
+	 * this card around file rows dropped that way in, and the report went on being written to
+	 * `scratch/` where nothing opened it. The diffs answer "what changed"; this answers "what was
+	 * asked, what was run and how it ended", which is the half no row can show.
+	 */
+	const report = data.reportPath;
+	const openReport = (path: string) => {
+		void useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path, isDirectory: false, size: 0 })
+			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
+		useDock.getState().open("file", companionOf("file"));
+	};
 	const remaining = data.files.length - PREVIEW_FILES;
 	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;
 	const row = (file: DeliveryFile) => <button key={file.path} type="button" data-delivery-file={file.path}
@@ -144,6 +161,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 						 * Undoing one file at a time is still there, in 「审核」, where the same condition
 						 * is per file and does carry its reason.
 						 */}
+						{report && <IconButton size="sm" icon={<FileText size={14} />} label={t("delivery.openReport")} onClick={() => { hideHover(); openReport(report); }} />}
 						{data.files.every((file) => file.canUndo) &&
 							<Button size="sm" variant="subtle" icon={<Undo2 size={14} />} loading={undoing} label={t("delivery.revertThis")} onClick={() => askUndo()}>{t("common.revert")}</Button>}
 						<Button size="sm" icon={<Files size={14} />} label={t("delivery.reviewAll")} onClick={() => { hideHover(); setReview(true); }}>{t("common.review")}</Button>
