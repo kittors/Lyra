@@ -195,9 +195,6 @@ importers:
       docx-preview:
         specifier: ^0.4.0
         version: 0.4.0
-      fflate:
-        specifier: ^0.8.3
-        version: 0.8.3
       katex:
         specifier: 0.18.4
         version: 0.18.4
@@ -356,9 +353,6 @@ importers:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.18)(react@19.2.3)
     devDependencies:
-      '@babel/plugin-transform-react-jsx':
-        specifier: ^7.28.6
-        version: 7.29.7(@babel/core@7.29.7)
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -3838,9 +3832,6 @@ packages:
 
   fetch-nodeshim@0.4.10:
     resolution: {integrity: sha512-m6I8ALe4L4XpdETy7MJZWs6L1IVMbjs99bwbpIKphxX+0CTns4IKDWJY0LWfr4YsFjfg+z1TjzTMU8lKl8rG0w==}
-
-  fflate@0.8.3:
-    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   figures@6.1.0:
     resolution: {integrity: sha512-d+l3qxjSesT4V7v2fh+QnmFnUWv9lSpjarhShNTgBOfA0ttejbQUAlHLitbjkoRiDulW0OPoQPYIGhIC8ohejg==}
@@ -10271,8 +10262,6 @@ snapshots:
       picomatch: 4.0.7
 
   fetch-nodeshim@0.4.10: {}
-
-  fflate@0.8.3: {}
 
   figures@6.1.0:
     dependencies:
