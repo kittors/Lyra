@@ -8,19 +8,25 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { ModelConfig } from "@lyra/core";
-import { Box, Plus, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { Box, FileDown, FileUp, Plus, RefreshCw } from "lucide-react";
+import { useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { GhostButton } from "./controls.tsx";
 import { FetchModelsModal } from "./FetchModelsModal.tsx";
 import { ModelEditor } from "./ModelEditor.tsx";
 import { ProviderEditor } from "./ProviderEditor.tsx";
+import { ProviderImportModal } from "./ProviderImportModal.tsx";
 import { useProviders } from "./useProviders.ts";
+import { useProviderTransfer } from "./useProviderTransfer.ts";
 
 export function ModelSettings() {
 	const { t } = useI18n();
   const p = useProviders();
+  const transfer = useProviderTransfer();
+  const confirm = useConfirmer();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [editingModel, setEditingModel] = useState<{
     providerId: string;
     model: ModelConfig | null;
@@ -38,19 +44,67 @@ export function ModelSettings() {
             {t("modelSettings.intro")}
           </p>
         </div>
-        <button
-          type="button"
-          data-ly-tip={t("modelSettings.testConnection")}
-          aria-label={t("modelSettings.testConnection")}
-          onClick={() => void p.test()}
-          className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-        >
-          <RefreshCw
-            size={16}
-            strokeWidth={1.8}
-            className={p.testing ? "ly-pulse" : undefined}
-          />
-        </button>
+        {/*
+          * Carrying the list to another machine, and testing the one in front of you: two
+          * different jobs, so the rule between them rather than four identical icons in a row.
+          */}
+        <div className="mt-1 flex items-center gap-0.5">
+          <button
+            type="button"
+            data-ly-tip={t("providerTransfer.importTip")}
+            aria-label={t("providerTransfer.importTip")}
+            onClick={() => fileRef.current?.click()}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+          >
+            <FileUp size={16} strokeWidth={1.8} />
+          </button>
+          <button
+            type="button"
+            data-ly-tip={t("providerTransfer.exportTip")}
+            aria-label={t("providerTransfer.exportTip")}
+            disabled={!transfer.canExport}
+            onClick={() =>
+              confirm.ask({
+                title: t("providerTransfer.exportConfirm"),
+                detail: t("providerTransfer.exportConfirmDetail"),
+                confirmLabel: t("providerTransfer.exportAction"),
+                onConfirm: transfer.exportAll,
+              })
+            }
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+          >
+            <FileDown size={16} strokeWidth={1.8} />
+          </button>
+
+          <span aria-hidden className="mx-1 h-4 w-px bg-line" />
+
+          <button
+            type="button"
+            data-ly-tip={t("modelSettings.testConnection")}
+            aria-label={t("modelSettings.testConnection")}
+            onClick={() => void p.test()}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+          >
+            <RefreshCw
+              size={16}
+              strokeWidth={1.8}
+              className={p.testing ? "ly-pulse" : undefined}
+            />
+          </button>
+        </div>
+
+        {/* Reset after every pick, or choosing the same file twice fires no change event. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void transfer.offer(file);
+          }}
+        />
       </header>
 
       {/*
@@ -121,9 +175,17 @@ export function ModelSettings() {
                 </GhostButton>
               </div>
             ) : (
-              /* Keyed, so switching provider resets the fields rather than carrying them over. */
+              /*
+               * Keyed, so switching provider resets the fields rather than carrying them over.
+               *
+               * The import counter is in the key for the same reason, and it is not decoration:
+               * an import replaces the provider under the same id, so nothing about the key
+               * changes and the URL and API Key boxes — which read their initial value once, on
+               * mount — go on showing what was there before. The file said one thing, the form
+               * says another, and the form is the one being read.
+               */
               <ProviderEditor
-                key={p.selected.id}
+                key={`${p.selected.id}:${transfer.imports}`}
                 provider={p.selected}
                 defaultModelId={p.defaultModelId}
                 testResult={p.testResult}
@@ -176,6 +238,17 @@ export function ModelSettings() {
           onImport={(selectedIds) => void p.importDiscoveredModels(selectedIds)}
         />
       )}
+
+      {transfer.pending && (
+        <ProviderImportModal
+          entries={transfer.pending.entries}
+          dropped={transfer.pending.dropped}
+          onCancel={transfer.cancelImport}
+          onImport={(chosen) => void transfer.confirmImport(chosen)}
+        />
+      )}
+
+      {confirm.element}
     </Scroller>
   );
 }

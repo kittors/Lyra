@@ -243,7 +243,7 @@ function NumberField({
 						commit(event.target.value, true);
 						setTyped(null);
 					}}
-					className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-label text-ink tabular-nums disabled:opacity-40"
+					className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-center text-label text-ink tabular-nums disabled:opacity-40"
 				/>
 				<span className={`text-label text-ink-muted ${value === null ? "opacity-40" : ""}`}>{unit}</span>
 				{children}

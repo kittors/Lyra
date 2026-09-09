@@ -160,7 +160,15 @@ export function DelegationSettings() {
 								data-delegation-tier={option.id}
 								data-selected={selected || undefined}
 								onClick={() => write({ subAgentDelegation: option.id })}
-								className={`flex w-full items-start gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-[var(--ly-t-quick)] ${
+								/*
+								 * `items-center`：记号和右边那一档等级都落在这一条的中线上。
+								 *
+								 * 之前是 `items-start` 加一个 3px 的下移，去对齐标题那一行的视觉基线。对齐
+								 * 得挺准，可对齐错了东西：每一档是「名字 + 一整行说明」，说明有多长各不
+								 * 相同，于是这一列记号的高度全跟着各自那行说明走——五档摞起来，左边那一列
+								 * 是参差的，右边那一列等级也是。它们标的是整整一条，就该站在整条的中间。
+								 */
+								className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-[var(--ly-t-quick)] ${
 									auto ? "cursor-default" : "hover:bg-card-hover"
 								} ${selected ? "bg-card-hover" : ""}`}
 							>
@@ -173,7 +181,7 @@ export function DelegationSettings() {
 								<Check
 									size={15}
 									strokeWidth={2.2}
-									className={`mt-[3px] shrink-0 ${selected ? "text-accent" : "opacity-0"}`}
+									className={`shrink-0 ${selected ? "text-accent" : "opacity-0"}`}
 								/>
 								<span className="min-w-0 flex-1">
 									<span className="flex flex-wrap items-center gap-2">
@@ -192,7 +200,7 @@ export function DelegationSettings() {
 								 * 继续显示它就是在指一条已经断掉的因果。
 								 */}
 								{auto && option.levelsKey && (
-									<span className="shrink-0 pt-0.5 text-detail whitespace-nowrap text-ink-faint">{t(option.levelsKey)}</span>
+									<span className="shrink-0 text-detail whitespace-nowrap text-ink-faint">{t(option.levelsKey)}</span>
 								)}
 							</button>
 						);
@@ -280,7 +288,8 @@ function ConcurrencyField({ value, onCommit }: { value: number; onCommit: (value
 					commit(event.target.value, true);
 					setTyped(null);
 				}}
-				className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-label text-ink tabular-nums"
+				// 数字站在框的中间：一个数看的是它有多大，不是从左边读起的。
+				className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-center text-label text-ink tabular-nums"
 			/>
 			<span className="text-label text-ink-muted">{t("common.countUnit")}</span>
 		</div>

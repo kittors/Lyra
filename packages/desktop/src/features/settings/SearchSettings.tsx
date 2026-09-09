@@ -12,7 +12,7 @@
  */
 
 import { Check, ExternalLink, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, SectionTitle } from "./layout.tsx";
 import { SecretInput } from "./inputs.tsx";
@@ -97,17 +97,24 @@ export function SearchSettings() {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
-	const [saved, setSaved] = useState<string | null>(null);
 
 	if (!settings) return null;
 
 	const keys = settings.searchApiKeys ?? {};
 	const selected = settings.searchProvider ?? null;
 
+	/*
+	 * 每次落盘都从 store 现读，不用这一次渲染闭包里的 `settings`。
+	 *
+	 * 三个 key 各自防抖提交，第二个框的写入完全可能落在第一个框之后一瞬。合并进渲染时那份副本，
+	 * 会把刚存好的另一个 key 悄悄改回原值。
+	 */
 	const setKey = (which: "tavily" | "exa" | "brave", value: string) => {
-		void saveSettings({ ...settings, searchApiKeys: { ...keys, [which]: value } });
-		setSaved(which);
-		setTimeout(() => setSaved(null), 1500);
+		const current = useApp.getState().settings;
+		if (!current) return;
+		const now = current.searchApiKeys ?? {};
+		if ((now[which] ?? "") === value) return;
+		void saveSettings({ ...current, searchApiKeys: { ...now, [which]: value } });
 	};
 
 	return (
@@ -126,12 +133,28 @@ export function SearchSettings() {
 						<div key={choice.id} className={index === 0 ? "" : "border-t border-line-soft"}>
 							<button
 								type="button"
+								/* 探针和 e2e 靠它认出这五条，而不是靠文字或者「带个圆圈的按钮」这种碰运气的选择器。 */
+								data-search-provider={choice.id}
+								data-selected={active || undefined}
 								onClick={() => void saveSettings({ ...settings, searchProvider: active ? null : choice.id })}
-								className="ly-scroll flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-card-hover"
+								/*
+								 * `items-center`：圈落在整条的中线上，不是贴着第一行文字。
+								 *
+								 * 一条里是「名字 + 一到两行说明」，说明有多长是各家自己的事——`items-start`
+								 * 把圈钉在标题那一行，于是这一列圈的高度全跟着各自那条说明的行数走，一整
+								 * 张卡片看下来是一列参差的点。
+								 */
+								className="ly-scroll group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-card-hover"
 							>
+								{/*
+								 * 没选中的圈在 hover 底色上要更重一档。
+								 *
+								 * `--color-line` 是 #2e2e2e，`--color-card-hover` 是 #2a2a2a——差四级灰。
+								 * 鼠标一进这一条，圈就和底色化在一起，看上去像是「指过去反而没得选了」。
+								 */}
 								<span
-									className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors ${
-										active ? "border-accent bg-accent text-shell" : "border-line"
+									className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+										active ? "border-accent bg-accent text-shell" : "border-line group-hover:border-ink-faint"
 									}`}
 								>
 									{active && <Check size={11} strokeWidth={3} />}
@@ -169,15 +192,14 @@ export function SearchSettings() {
 									rel="noreferrer"
 									className="flex items-center gap-0.5 text-caption text-ink-faint transition-colors hover:text-ink"
 								>
-									申请
+									{t("common.apply")}
 									<ExternalLink size={10} strokeWidth={2} />
 								</a>
 							)}
-							{saved === choice.key && <span className="text-caption text-ok">{t("common.saved")}</span>}
 						</div>
-						<SecretInput
+						<KeyField
 							value={keys[choice.key!] ?? ""}
-							onChange={(value) => setKey(choice.key!, value)}
+							onCommit={(value) => setKey(choice.key!, value)}
 							placeholder={t("search.pasteKey")}
 						/>
 					</div>
@@ -194,5 +216,55 @@ export function SearchSettings() {
 				搜索会把你的问题发给选中的服务商。结果和网页一样按不可信内容处理 —— agent 不会把搜到的文字当成给它的指令。
 			</p>
 		</div>
+	);
+}
+
+/**
+ * 停下来才写出去的一把 key，而且写完不吭声。
+ *
+ * 之前是每一次按键都 `saveSettings`：粘贴一把 40 位的 key 就是四十次整份设置的序列化和落盘，
+ * 而设置写盘会带着整个 store 走一遍——手打的时候能感觉到输入框在顿。旁边那句「已保存」还给每一
+ * 次按键各挂一个 1500ms 的定时器，于是它在打字过程中一直亮着。
+ *
+ * 亮着这件事本身也是多余的。这一页上没有保存按钮，每一处改动都是当场生效的；一个恒亮的「已保存」
+ * 没有回答任何人的问题——真正会让人担心的是「我关掉这一页它还在不在」，而那要靠下次打开时框里
+ * 有东西来回答，不是靠一行绿字。上面那份列表里的「已填 key / 未填 key」已经在说这件事了。
+ *
+ * 所以：有焦点时文本是本地的，停手 400ms 后落盘，失焦时立刻落盘。跟并发数那个框同一套做法。
+ */
+function KeyField({
+	value,
+	onCommit,
+	placeholder,
+}: {
+	value: string;
+	onCommit: (value: string) => void;
+	placeholder?: string;
+}) {
+	const [typed, setTyped] = useState<string | null>(null);
+	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	useEffect(() => () => clearTimeout(timer.current), []);
+
+	const commit = (raw: string, now: boolean) => {
+		clearTimeout(timer.current);
+		// 两头的空白是粘贴带进来的，不是 key 的一部分——留着它，请求会带上一把服务商不认识的凭据。
+		const cleaned = raw.trim();
+		if (now) onCommit(cleaned);
+		else timer.current = setTimeout(() => onCommit(cleaned), 400);
+	};
+
+	return (
+		<SecretInput
+			value={typed ?? value}
+			onChange={(next) => {
+				setTyped(next);
+				commit(next, false);
+			}}
+			onBlur={(next) => {
+				commit(next, true);
+				setTyped(null);
+			}}
+			placeholder={placeholder}
+		/>
 	);
 }
