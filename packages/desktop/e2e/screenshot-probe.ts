@@ -638,7 +638,7 @@ try {
 	if (!drawn || drawn.w < 500 || drawn.h < 300) problems.push("拖拽没有拉出预期大小的选区");
 
 	// ---- 2. 八个手柄 -----------------------------------------------------
-	const handles = await run<number>(`document.querySelectorAll('[data-selection] > div').length`);
+	const handles = await run<number>(`document.querySelectorAll('[data-selection-handle]').length`);
 	note(`  2. 手柄 → ${handles} 个`);
 	if (handles !== 8) problems.push(`应该有 8 个缩放手柄，实际 ${handles} 个`);
 

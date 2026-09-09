@@ -12,6 +12,7 @@ import type { ScreenshotSettings, Settings } from "@lyra/core";
 
 import { resolveSaveDirectory } from "./screenshot-path.ts";
 import { listWindows } from "./screenshot-windows.ts";
+import { canvasColorSpace, pickDisplaySource } from "./screenshot-displays.ts";
 import { beginCaptureLog, captureLog } from "./screenshot-debug.ts";
 
 
@@ -178,7 +179,7 @@ function generateScreenshotFilename(): string {
  * to fit whatever it is given, and a Retina screen asked for its logical size comes back at half
  * resolution. The name is misleading: this is the capture size, not a preview.
  */
-async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels: Buffer; width: number; height: number; scaleFactor: number } | null> {
+async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels: Buffer; width: number; height: number; scaleFactor: number; colorSpace: "srgb" | "display-p3" } | null> {
 	const targetDisplay = displayId !== undefined
 		? screen.getAllDisplays().find((d) => d.id === displayId) ?? screen.getPrimaryDisplay()
 		: screen.getPrimaryDisplay();
@@ -226,9 +227,25 @@ async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels:
 			return null;
 		}
 
-		// `display_id` is a string on every platform, and absent on some Linux setups — falling back
-		// to the first source is right there, where there is only one screen to capture.
-		const source = sources.find((candidate) => candidate.display_id === String(targetDisplay.id)) ?? sources[0];
+		/*
+		 * 挑出这一块屏幕的画面，而不是「第一张」。
+		 *
+		 * 原来这里是 `sources.find(display_id === …) ?? sources[0]`。那个兜底在 Windows 上是常态而
+		 * 不是例外：走 GDI 抓屏时 Electron 根本不填 `display_id`，于是每一次副屏截图都落到
+		 * `sources[0]`——主屏。遮罩盖在副屏上、画面却是主屏的，就是有人报的「不能跨屏幕截图」。
+		 * `pickDisplaySource` 说清楚了还有哪几条依据可用。
+		 */
+		const displays = screen.getAllDisplays();
+		const choice = pickDisplaySource(
+			sources.map((candidate) => ({ id: candidate.id, display_id: candidate.display_id, size: candidate.thumbnail.getSize() })),
+			displays.map((display) => ({ id: display.id, bounds: display.bounds, scaleFactor: display.scaleFactor || 1 })),
+			targetDisplay.id,
+		);
+		if (!choice) {
+			console.error("[screenshot] no screen sources to choose from");
+			return null;
+		}
+		const source = sources[choice.index]!;
 		const image = source.thumbnail;
 		if (image.isEmpty()) {
 			console.error("[screenshot] the captured image was empty");
@@ -236,6 +253,19 @@ async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels:
 		}
 
 		const size = image.getSize();
+		/*
+		 * 挑中了哪一张、凭什么挑的，连同所有候选一起写进日志。
+		 *
+		 * 「截错屏幕了」是个从外面看不出原因的故障——画面本身是完好的，只是属于另一块屏。把每一张
+		 * 画面的 `display_id` 和尺寸都留下来，下次有人报的时候，日志里直接就有答案。`how` 不是
+		 * `display-id` 就说明这台机器上那条官方依据是不可用的。
+		 */
+		captureLog("snapshot: source picked", {
+			how: choice.how,
+			picked: { id: source.id, displayId: source.display_id, size },
+			wanted: { id: targetDisplay.id, bounds: targetDisplay.bounds, scaleFactor },
+			candidates: sources.map((candidate) => ({ id: candidate.id, displayId: candidate.display_id, size: candidate.thumbnail.getSize() })),
+		});
 		/*
 		 * The pixels themselves, not a PNG of them.
 		 *
@@ -269,18 +299,28 @@ async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels:
 		 * be done about it, while `toDataURL` is a PNG encode of a full-resolution screen that this
 		 * process is choosing to do.
 		 */
+		/*
+		 * 这一帧的数值属于哪个色彩空间。
+		 *
+		 * 抓回来的是显示器帧缓冲里的原始数值，而不是 sRGB——见 `canvasColorSpace`。答案跟着快照一起
+		 * 走到渲染进程，那边照它建 canvas，数值才被按本来的意思解释。
+		 */
+		const colorSpace = canvasColorSpace(targetDisplay.colorSpace);
 		captureLog("snapshot: taken", {
 			getSources: gotAt - askedAt,
 			toBitmap: bitmapMs,
 			bgraSwap: swapMs,
 			size,
 			bytes: pixels.length,
+			colorSpace,
+			displayColorSpace: targetDisplay.colorSpace,
 		});
 		return {
 			pixels,
 			width: size.width,
 			height: size.height,
 			scaleFactor,
+			colorSpace,
 		};
 	} catch (err) {
 		console.error("[screenshot] failed to capture the display:", err);
@@ -736,6 +776,34 @@ function stepMainAside(overlayWindow: BrowserWindow): void {
 }
 
 /**
+ * 把遮罩挪到这一块屏幕上，然后确认它真的到了。
+ *
+ * 一次 `setBounds` 在同一块屏幕上是够的，跨屏就不一定。Windows 在窗口跨过 DPI 分界时会发
+ * `WM_DPICHANGED` 并连带建议一个新的窗口矩形，Chromium 照办——于是刚设好的尺寸被按两块屏幕的
+ * 缩放比换算了一道。125% 的主屏挪到 100% 的副屏上，1920 宽会变成 1536，遮罩盖不满，右边和下边
+ * 留出一条活的桌面：点下去点到的是底下的窗口，而不是在框选。
+ *
+ * 所以设完读一遍。差了就再设一遍——第二次是在新屏幕的 DPI 下发出的，不会再被换算。两次都不对
+ * 就记下来：那说明这台机器上还有别的东西在管这个窗口的尺寸，而知道这件事比默默盖不满强。
+ *
+ * 差一个像素不算数：DIP 到物理像素的来回换算本来就会在末位上取整。
+ */
+function coverDisplay(win: BrowserWindow, bounds: { x: number; y: number; width: number; height: number }): void {
+	const off = (): boolean => {
+		const got = win.getBounds();
+		return Math.abs(got.width - bounds.width) > 1 || Math.abs(got.height - bounds.height) > 1 || Math.abs(got.x - bounds.x) > 1 || Math.abs(got.y - bounds.y) > 1;
+	};
+	win.setBounds(bounds);
+	if (!off()) {
+		captureLog("after setBounds", { asked: bounds, got: win.getBounds() });
+		return;
+	}
+	const first = win.getBounds();
+	win.setBounds(bounds);
+	captureLog("after setBounds", { asked: bounds, first, got: win.getBounds(), retried: true, stillOff: off() });
+}
+
+/**
  * How long a cleared overlay is given to leave the screen before the picture is taken.
  *
  * `setOpacity` is not a paint. It sets the window's alpha and returns; the screen changes on the
@@ -1070,7 +1138,7 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	 * *work area*, the screen minus the menu bar and the Dock, so the full-screen size only takes
 	 * effect because the `screen-saver` level lets it overhang.
 	 */
-	win.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+	coverDisplay(win, bounds);
 	// Undo a colour pick's pass-through, and any opacity left by the warm-up — the same window served
 	// those, and this capture is meant to be seen and drawn on.
 	win.setIgnoreMouseEvents(false);
@@ -1083,7 +1151,6 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	 * `overlayPainted` is what brings it back, off the renderer's report that a frame exists.
 	 */
 	if (!takingOver) win.setOpacity(1);
-	captureLog("after setBounds", { asked: bounds, got: win.getBounds() });
 
 	/*
 	 * Shown when the snapshot is on screen, not when the document has loaded.
@@ -1230,6 +1297,13 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 		 */
 		cursor: { x: cursorPoint.x - bounds.x, y: cursorPoint.y - bounds.y },
 		scaleFactor: snapshot.scaleFactor,
+		/*
+		 * 这串像素该按哪个色彩空间读。
+		 *
+		 * 不说的话渲染进程只能按 sRGB 猜，而在一台 P3 的机器上那是猜错的——截出来的颜色会比屏幕上
+		 * 更艳。见 `canvasColorSpace`。
+		 */
+		colorSpace: snapshot.colorSpace,
 		settings: customSettings ?? currentSettingsProvider?.()?.screenshot,
 	});
 }
