@@ -383,16 +383,18 @@ try {
 			const el = document.querySelector(sel);
 			return el ? getComputedStyle(el).cursor : "没有这个元素";
 		};
+		const inner = document.querySelector("[data-screenshot-ui] > div") || document.querySelector("[data-screenshot-ui]");
 		return {
-			bar: at("[data-screenshot-ui]"),
+			bar: inner ? getComputedStyle(inner).cursor : "没有这个元素",
 			button: at("[data-tool-index]"),
-			grip: at("[data-toolbar-grip]"),
+			grip: document.querySelector("[data-toolbar-grip]") ? "还在" : "没有了",
 			confirm: at("[data-ly-tip='完成']"),
 		};
 	})()`);
-	note(`  光标 → 工具栏 ${cursors.bar}，工具按钮 ${cursors.button}，手柄 ${cursors.grip}，完成 ${cursors.confirm}`);
+	note(`  光标 → 工具栏 ${cursors.bar}，工具按钮 ${cursors.button}，行首手柄 ${cursors.grip}，完成 ${cursors.confirm}`);
 	if (cursors.bar === "not-allowed") problems.push("鼠标放在工具栏上是禁用光标——它继承了选区外那条「这里什么都不做」的规则");
-	if (cursors.grip !== "grab") problems.push(`拖动手柄上的光标不是抓手：${cursors.grip}`);
+	if (cursors.grip !== "没有了") problems.push("行首那个竖点手柄还在——整条都能拖之后它就是一排按钮里的一个洞");
+	if (cursors.bar !== "grab") problems.push(`工具栏本体上的光标不是抓手：${cursors.bar}——能拖却不说，等于不能拖`);
 	if (cursors.button !== "pointer") problems.push(`工具按钮上的光标不是手型：${cursors.button}`);
 	if (cursors.confirm !== "pointer") problems.push(`「完成」上的光标不是手型：${cursors.confirm}`);
 	await beat();
@@ -423,14 +425,17 @@ try {
 	// ---- 3. 拖动工具栏 ---------------------------------------------------
 	await beat();
 	note("\n【3】工具栏可以自由拖动");
-	const grip = await run<{ x: number; y: number } | null>(`(() => {
-		const el = document.querySelector("[data-toolbar-grip]");
+	const grip = await run<{ x: number; y: number; onButton: boolean } | null>(`(() => {
+		const el = document.querySelector("[data-screenshot-ui]");
 		if (!el) return null;
 		const r = el.getBoundingClientRect();
-		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+		const x = Math.round(r.x + 4), y = Math.round(r.y + r.height / 2);
+		const hit = document.elementFromPoint(x, y);
+		return { x, y, onButton: Boolean(hit && hit.closest("button")) };
 	})()`);
-	note(`  拖动手柄 → ${grip ? `在 (${grip.x}, ${grip.y})` : "没有"}`);
-	if (!grip) problems.push("工具栏上没有拖动手柄");
+	note(`  按钮之外的落点 → ${grip ? `在 (${grip.x}, ${grip.y})${grip.onButton ? "（落在按钮上了）" : ""}` : "没有"}`);
+	if (!grip) problems.push("找不到工具栏");
+	else if (grip.onButton) problems.push("挑的那个点落在按钮上了，量到的就不是「空处能拖」");
 	else {
 		const before = bar!;
 		const to: [number, number] = [Math.round(screenSize.w * 0.12), Math.round(screenSize.h * 0.12)];
@@ -446,7 +451,7 @@ try {
 		if (!after) problems.push("拖完之后工具栏不见了");
 		else {
 			const moved = Math.abs(after.x - before.x) + Math.abs(after.y - before.y);
-			if (moved < 40) problems.push(`拖动手柄没有把工具栏挪走：位移只有 ${moved}pt`);
+			if (moved < 40) problems.push(`按住工具栏的空处没有把它挪走：位移只有 ${moved}pt`);
 			// Dragged towards the top-left corner, and clamped so it stays on screen with room for
 			// the bubble above it.
 			if (after.x < 0 || after.y < 0) problems.push(`工具栏被拖出屏幕了：(${after.x}, ${after.y})`);

@@ -136,6 +136,14 @@ interface ScreenshotInit {
 	session: number;
 	bounds: { x: number; y: number; width: number; height: number };
 	scaleFactor: number;
+	/**
+	 * 这串像素属于哪个色彩空间。
+	 *
+	 * 抓回来的是显示器帧缓冲里的原始数值，而不是 sRGB：一台 Display P3 的 Mac 上，屏幕上的纯红在
+	 * 这串数里是 234,51,35。主进程读显示器自己的 `colorSpace` 得出答案——见 `canvasColorSpace`。
+	 * 缺省按 sRGB 走，那是这条链路在这次改动之前的行为。
+	 */
+	colorSpace?: PredefinedColorSpace;
 	/** On-screen windows, front to back, already in this overlay's coordinates. */
 	windows?: (Rect & { app: string })[];
 	/** Where the pointer already was, so a window is offered before the mouse moves. */
@@ -244,7 +252,8 @@ export function ScreenshotOverlay() {
 	 * a second time. On a 5K display that is several megabytes and a visible fraction of the delay
 	 * before the overlay can be shown at all.
 	 */
-	const annotator = useAnnotator(initData?.snapshot ?? null, { session: initData?.session });
+	const colorSpace = initData?.colorSpace ?? "srgb";
+	const annotator = useAnnotator(initData?.snapshot ?? null, { session: initData?.session, colorSpace });
 	/*
 	 * `revision` and not just `ready`, and the difference is a whole capture.
 	 *
@@ -272,7 +281,14 @@ export function ScreenshotOverlay() {
 		const img = snapshotImage.current;
 		const canvas = bgCanvasRef.current;
 		if (!img || !canvas) return;
-		const ctx = canvas.getContext("2d");
+		/*
+		 * `willReadFrequently` 在这里，跟取色那一处保持完全一致的参数。
+		 *
+		 * 一块画布的色彩空间由第一次 `getContext` 定下，之后传什么都会被忽略——所以两处的参数必须
+		 * 一模一样，不然谁先跑谁说了算。取色是每次 `pointermove` 都要 `getImageData` 的，那个标志
+		 * 得让它在建的时候就带上。
+		 */
+		const ctx = canvas.getContext("2d", { colorSpace, willReadFrequently: true });
 		if (!ctx) return;
 
 		canvas.width = img.width;
@@ -308,7 +324,7 @@ export function ScreenshotOverlay() {
 		 * written the snapshot into the canvas's bitmap, so the first frame after `show()` has it.
 		 */
 		bridge.screenshot?.ready?.();
-	}, [initData, snapshotReady, snapshotRevision, snapshotImage]);
+	}, [initData, snapshotReady, snapshotRevision, snapshotImage, colorSpace]);
 
 	/*
 	 * The way in and the way out, as a fade rather than a cut.
@@ -566,7 +582,14 @@ export function ScreenshotOverlay() {
 		const out = document.createElement("canvas");
 		out.width = Math.max(1, Math.round(selection.width * scale));
 		out.height = Math.max(1, Math.round(selection.height * scale));
-		const ctx = out.getContext("2d");
+		/*
+		 * 裁出来的这张也在同一个色彩空间里，交出去的文件才是对的。
+		 *
+		 * 两头都要：`drawImage` 跨空间会转一道，而 `toDataURL` 会按画布自己的空间给 PNG 写上对应的
+		 * ICC——一张 P3 的图带着 P3 的标，任何看图软件打开都还是屏幕上那个颜色。空间不对的话，这
+		 * 一步就是把偏色固化进文件里，之后谁也救不回来。
+		 */
+		const ctx = out.getContext("2d", { colorSpace });
 		if (!ctx) return null;
 
 		ctx.drawImage(
@@ -582,7 +605,7 @@ export function ScreenshotOverlay() {
 		);
 
 		return out.toDataURL("image/png");
-	}, [annotator, selection, initData]);
+	}, [annotator, selection, initData, colorSpace]);
 
 	/**
 	 * Commit whatever is being typed, then do the thing that needs the picture.
@@ -665,19 +688,13 @@ export function ScreenshotOverlay() {
 	}, [withText, crop, initData, leaveWithToast]);
 
 	/**
-	 * Begin dragging the toolbar, from wherever it is now.
+	 * 工具栏说它要挪窝了。
 	 *
-	 * Where it is now is read off the element rather than off `toolbarAt`, which is computed further
-	 * down this component — after the early return, so it cannot be reached from a hook up here. The
-	 * DOM has the same answer and cannot disagree with what is on screen.
+	 * 起点和它当时在哪儿都由它自己报——那两个数只有它清楚，而且按住按钮触发的那一次是从定时器里
+	 * 发出来的，那会儿事件对象早就不在了。这里只管收下，然后接管后面的移动。
 	 */
-	const startToolbarDrag = useCallback((event: React.PointerEvent) => {
-		const bar = (event.currentTarget as HTMLElement).closest("[data-screenshot-ui]") as HTMLElement | null;
-		if (!bar) return;
-		const box = bar.getBoundingClientRect();
-		event.preventDefault();
-		event.stopPropagation();
-		toolbarDrag.current = { from: { x: event.clientX, y: event.clientY }, origin: { x: box.left, y: box.top } };
+	const startToolbarDrag = useCallback((grab: { from: Point; origin: Point }) => {
+		toolbarDrag.current = grab;
 		setToolbarDragging(true);
 	}, []);
 
@@ -805,9 +822,17 @@ export function ScreenshotOverlay() {
 			const scale = bg && initData.bounds.width ? bg.width / initData.bounds.width : 1;
 			const px = Math.round(pt.x * scale);
 			const py = Math.round(pt.y * scale);
-			const ctx = bg?.getContext("2d", { willReadFrequently: true });
+			const ctx = bg?.getContext("2d", { colorSpace, willReadFrequently: true });
 			if (ctx && px >= 0 && py >= 0 && px < (bg?.width ?? 0) && py < (bg?.height ?? 0)) {
-				const [r, g, b] = ctx.getImageData(px, py, 1, 1).data;
+				/*
+				 * 报出来的色值要是 sRGB 的。
+				 *
+				 * 画布本身是显示器的空间（P3），里面存的数是 P3 的——直接读出来写成 #RRGGBB，得到的
+				 * 是「屏幕上那个红」在 P3 里的坐标 EA3323，而不是任何人期待的 FF0000。取色器上的
+				 * 值是要拿去填进 CSS 和设计稿的，那两处说的都是 sRGB。`getImageData` 的
+				 * `colorSpace` 正是为这件事准备的：让浏览器替我们换算，而不是把坐标当颜色报出去。
+				 */
+				const [r, g, b] = ctx.getImageData(px, py, 1, 1, { colorSpace: "srgb" }).data;
 				const hex = `#${[r, g, b].map((n) => (n ?? 0).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 				setReading({ x: px, y: py, hex });
 			}
@@ -1117,6 +1142,7 @@ export function ScreenshotOverlay() {
 					viewport={bounds}
 					reading={reading}
 					copied={copied}
+					colorSpace={colorSpace}
 				/>
 			)}
 
@@ -1162,6 +1188,14 @@ export function ScreenshotOverlay() {
 						return (
 							<div
 								key={h}
+								/*
+								 * 认名字，不认「是选区的第几个孩子」。
+								 *
+								 * 数 `[data-selection] > div` 会连上面那四条只负责光标的边缘条一起数进去——探针
+								 * 因此一直报「应该有 8 个手柄，实际 12 个」，而手柄一个不少。一条永远红着的
+								 * 断言，下一次真的少了一个手柄时也还是那句话。
+								 */
+								data-selection-handle={h}
 								className="pointer-events-auto absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--color-accent)] shadow-sm"
 								style={{ left: pt.x, top: pt.y, cursor: HANDLE_CURSOR[h] }}
 							/>

@@ -34,6 +34,7 @@ export function ScreenshotLoupe({
 	viewport,
 	reading,
 	copied,
+	colorSpace = "srgb",
 }: {
 	/** The frozen screen, at its own resolution. */
 	source: HTMLCanvasElement | null;
@@ -44,19 +45,26 @@ export function ScreenshotLoupe({
 	viewport: { width: number; height: number };
 	reading: LoupeReading | null;
 	copied: boolean;
+	/**
+	 * 快照那块画布用的色彩空间，放大镜跟着用同一个。
+	 *
+	 * 两块画布的空间不一样，`drawImage` 会在中间转一道——于是放大镜里的颜色跟它下面那片屏幕不是
+	 * 同一个，而放大镜存在的全部意义就是「看清这一格到底是什么颜色」。
+	 */
+	colorSpace?: PredefinedColorSpace;
 }) {
 	const glass = useRef<HTMLCanvasElement | null>(null);
 
 	useEffect(() => {
 		const el = glass.current;
-		const ctx = el?.getContext("2d");
+		const ctx = el?.getContext("2d", { colorSpace });
 		if (!el || !ctx || !source) return;
 		const half = SPAN / 2;
 		ctx.imageSmoothingEnabled = false;
 		ctx.clearRect(0, 0, el.width, el.height);
 		// A slab of the snapshot, blown up so one snapshot pixel is a visible square.
 		ctx.drawImage(source, at.x * scale - half, at.y * scale - half, SPAN, SPAN, 0, 0, el.width, el.height);
-	}, [source, at.x, at.y, scale]);
+	}, [source, at.x, at.y, scale, colorSpace]);
 
 	/*
 	 * Beside the pointer, and never off the screen.

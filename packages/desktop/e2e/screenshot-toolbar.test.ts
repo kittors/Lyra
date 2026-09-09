@@ -268,26 +268,31 @@ test("截图工具栏的控件够大，不是文件查看器里那一排", async
 	assert.ok(bar.height >= 44, `工具栏整条太矮：${bar.height}pt`);
 });
 
-test("鼠标放在工具栏上不是禁用光标，手柄上是抓手", async () => {
+test("工具栏本身就是抓手，按钮上是手型，没有单独的手柄", async () => {
 	/*
 	 * The bar floats *outside* the selection, and everything out there carries `not-allowed` — the
 	 * rule that says a press there does nothing. Cursors are inherited, so the bar inherited it too:
 	 * a row of live buttons under a 🚫, which is how it was reported.
+	 *
+	 * 手柄没有了：整条工具栏都能拿起来，所以光标从进来那一刻就该说得清楚。这里量的是「说清楚了
+	 * 没有」——一个能拖但不告诉你能拖的东西，等于不能拖。
 	 */
 	const cursors = await evaluator(overlay)<{ bar: string; button: string; grip: string; confirm: string }>(`(() => {
 		const at = (sel) => {
 			const el = document.querySelector(sel);
 			return el ? getComputedStyle(el).cursor : "没有这个元素";
 		};
+		const inner = document.querySelector("[data-screenshot-ui] > div") || document.querySelector("[data-screenshot-ui]");
 		return {
-			bar: at("[data-screenshot-ui]"),
+			bar: inner ? getComputedStyle(inner).cursor : "没有这个元素",
 			button: at("[data-tool-index]"),
-			grip: at("[data-toolbar-grip]"),
+			grip: document.querySelector("[data-toolbar-grip]") ? "还在" : "没有了",
 			confirm: at("[data-ly-tip='完成']"),
 		};
 	})()`);
 	assert.notEqual(cursors.bar, "not-allowed", "鼠标放在工具栏上是禁用光标");
-	assert.equal(cursors.grip, "grab", "拖动手柄上应该是抓手");
+	assert.equal(cursors.grip, "没有了", "行首那个竖点手柄应该已经拿掉了");
+	assert.equal(cursors.bar, "grab", "工具栏本体上应该是抓手——整条都能拿起来");
 	assert.equal(cursors.button, "pointer", "工具按钮上应该是手型");
 	assert.equal(cursors.confirm, "pointer", "「完成」上应该是手型");
 });
@@ -313,7 +318,7 @@ test("属性气泡指着它属于的那个工具，即使前面还有别的控�
 	assert.ok(Math.abs(aim.bubble - aim.button) <= 24, `气泡没有对准它的工具：气泡 ${aim.bubble}，按钮 ${aim.button}`);
 });
 
-test("工具栏可以拖到别处，按钮跟着一起走", async () => {
+test("按住工具栏的空处就能拖走，按钮跟着一起走", async () => {
 	const run = evaluator(overlay);
 	const before = await run<{ x: number; y: number } | null>(`(() => {
 		const el = document.querySelector("[data-screenshot-ui]");
@@ -321,16 +326,25 @@ test("工具栏可以拖到别处，按钮跟着一起走", async () => {
 		const r = el.getBoundingClientRect();
 		return { x: Math.round(r.x), y: Math.round(r.y) };
 	})()`);
-	const grip = await run<{ x: number; y: number } | null>(`(() => {
-		const el = document.querySelector("[data-toolbar-grip]");
+	/*
+	 * 按在按钮之外的地方——这一条的内边距上。
+	 *
+	 * 手柄拿掉之后，这里是「按下即拖」那条路：整条工具栏上任何不是按钮的像素。挑最左边那 4pt，
+	 * 因为它一定在内边距里，不会因为按钮排布变了而落到某个按钮上。
+	 */
+	const blank = await run<{ x: number; y: number; onButton: boolean } | null>(`(() => {
+		const el = document.querySelector("[data-screenshot-ui]");
 		if (!el) return null;
 		const r = el.getBoundingClientRect();
-		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+		const x = Math.round(r.x + 4), y = Math.round(r.y + r.height / 2);
+		const hit = document.elementFromPoint(x, y);
+		return { x, y, onButton: Boolean(hit && hit.closest("button")) };
 	})()`);
-	assert.ok(before && grip, "工具栏上没有拖动手柄");
+	assert.ok(before && blank, "找不到工具栏");
+	assert.equal(blank.onButton, false, "挑的这个点落在按钮上了，量到的就不是「空处能拖」");
 
 	const screen = await run<{ w: number; h: number }>(`({ w: window.innerWidth, h: window.innerHeight })`);
-	await drag(overlay, [grip.x, grip.y], [Math.round(screen.w * 0.12), Math.round(screen.h * 0.12)], 14);
+	await drag(overlay, [blank.x, blank.y], [Math.round(screen.w * 0.12), Math.round(screen.h * 0.12)], 14);
 	await pause(300);
 
 	const after = await run<{ x: number; y: number } | null>(`(() => {
@@ -356,6 +370,52 @@ test("工具栏可以拖到别处，按钮跟着一起走", async () => {
 		return b ? String(b.getAttribute("aria-pressed")) : "没有这个按钮";
 	})()`);
 	assert.equal(pressed, "true", "工具栏挪走之后按钮点不动了——移动的只是画面，命中区域没跟上");
+});
+
+test("在按钮上按住不放也能拖走，而且不会顺手按到那个按钮", async () => {
+	/*
+	 * 这一条工具栏几乎全是按钮，空隙只有内边距那几个像素——只有空处能拖，等于还是要瞄准，而这
+	 * 正是拿掉手柄要解决的事。所以按钮上按住不放也是拖。
+	 *
+	 * 后半句同样要紧：松手时浏览器会照常在这一条上派发一次 click，那正是刚被按住的按钮。不吞掉
+	 * 的话，「把工具栏从要标注的地方挪开」会顺手切一次工具——更糟的情况是按到「完成」，整个截图
+	 * 就交出去了。所以这里挑一个状态看得见的按钮（画笔），拖完之后确认它没有被按下。
+	 */
+	const run = evaluator(overlay);
+	// 先切到别的工具，这样「画笔有没有被误按」是个看得出来的区别。
+	assert.ok(await pressTip(overlay, "矩形"), "工具栏上没有「矩形」");
+	await pause(200);
+
+	const pen = await run<{ x: number; y: number; bar: { x: number; y: number } } | null>(`(() => {
+		const b = [...document.querySelectorAll("[data-ly-tip]")].find(b => b.dataset.lyTip.startsWith("画笔"));
+		const bar = document.querySelector("[data-screenshot-ui]");
+		if (!b || !bar) return null;
+		const r = b.getBoundingClientRect(), br = bar.getBoundingClientRect();
+		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2), bar: { x: Math.round(br.x), y: Math.round(br.y) } };
+	})()`);
+	assert.ok(pen, "工具栏上没有「画笔」");
+
+	// 按下、按住过了 320ms 的门槛、再挪。中间那一段静止正是「按住」和「点击」的分界。
+	await mouse(overlay, "mousePressed", pen.x, pen.y);
+	await pause(480);
+	for (let step = 1; step <= 12; step++) {
+		await mouse(overlay, "mouseMoved", pen.x - step * 8, pen.y - step * 5);
+		await pause(16);
+	}
+	await mouse(overlay, "mouseReleased", pen.x - 96, pen.y - 60, 0);
+	await pause(300);
+
+	const after = await run<{ bar: { x: number; y: number }; penPressed: string }>(`(() => {
+		const bar = document.querySelector("[data-screenshot-ui]");
+		const b = [...document.querySelectorAll("[data-ly-tip]")].find(b => b.dataset.lyTip.startsWith("画笔"));
+		const r = bar.getBoundingClientRect();
+		return { bar: { x: Math.round(r.x), y: Math.round(r.y) }, penPressed: b ? String(b.getAttribute("aria-pressed")) : "没有这个按钮" };
+	})()`);
+	assert.ok(
+		Math.abs(after.bar.x - pen.bar.x) + Math.abs(after.bar.y - pen.bar.y) > 40,
+		`在按钮上按住没能把工具栏拖走：${JSON.stringify(pen.bar)} → ${JSON.stringify(after.bar)}`,
+	);
+	assert.equal(after.penPressed, "false", "拖完之后画笔被选中了——那一次 click 没被吞掉");
 });
 
 test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖能关", async () => {
