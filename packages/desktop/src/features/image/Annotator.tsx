@@ -18,6 +18,8 @@
  * picture it is being used to annotate would be unusable at 400%.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import {
 	ArrowUpRight,
@@ -82,7 +84,8 @@ const COLOURS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#111827"];
  * fit in — which is exactly how it broke: the floor was a guess in character counts, the
  * placeholder is four characters, and the guess was 1.6.
  */
-const PLACEHOLDER = "输入文字";
+/** The caption box's ghost text. A key: this module is loaded long before the language settles. */
+const PLACEHOLDER: MessageKey = "annotate.textPlaceholder";
 
 /** Where a piece of text is being typed, in natural pixels, before it becomes a shape. */
 interface Typing {
@@ -141,11 +144,11 @@ interface Dragging {
 const SELECT_ON_DRAW = new Set<Tool>(["rect", "ellipse", "line", "arrow", "step"]);
 
 /** What can sit behind a caption. Transparent first, because most captions want nothing. */
-const BACKDROPS: [string | undefined, string][] = [
-	[undefined, "透明"],
-	["#ffffffe6", "白色"],
-	["#111827e6", "黑色"],
-	["#fde68ae6", "浅黄"],
+const BACKDROPS: [string | undefined, MessageKey][] = [
+	[undefined, "annotate.transparent"],
+	["#ffffffe6", "annotate.white"],
+	["#111827e6", "annotate.black"],
+	["#fde68ae6", "annotate.paleYellow"],
 ];
 
 /**
@@ -264,10 +267,10 @@ export interface Annotator {
 // ---------------------------------------------------------------------------
 
 /** Multipliers for mark and text weight, used in Annotator and ScreenshotOverlay. */
-export const WEIGHT_LEVELS: [number, string, number][] = [
-	[0.6, "细", 4],
-	[1, "中", 6],
-	[1.8, "粗", 9],
+export const WEIGHT_LEVELS: [number, MessageKey, number][] = [
+	[0.6, "annotate.thin", 4],
+	[1, "annotate.medium", 6],
+	[1.8, "annotate.thick", 9],
 ];
 
 export interface AnnotatorOptions {
@@ -782,7 +785,7 @@ export function AnnotateCanvas({
 			 * say, an empty box is wide enough to show it on one line.
 			 */
 			const caret = Math.max(2, typeSize * 0.08);
-			const floor = ctx.measureText(PLACEHOLDER).width + pad + caret;
+			const floor = ctx.measureText(translate(PLACEHOLDER)).width + pad + caret;
 			return Math.min(Math.max(longest + pad + caret, floor), Math.max(width * 0.9, floor));
 		},
 		[canvas, typeSize, width, colorSpace],
@@ -1358,7 +1361,7 @@ export function AnnotateCanvas({
 							 */
 							if (event.key === "Escape") setTyping(null);
 						}}
-						placeholder={PLACEHOLDER}
+						placeholder={translate(PLACEHOLDER)}
 						rows={1}
 						spellCheck={false}
 						className="relative block w-full resize-none overflow-hidden border-0 bg-transparent outline-none placeholder:text-current placeholder:opacity-40"
@@ -1394,8 +1397,8 @@ export function AnnotateCanvas({
 					<span className="pointer-events-none absolute inset-0 rounded-md border border-sky-400/70 border-dashed" />
 					<button
 						type="button"
-						aria-label="调整文字宽度"
-						data-ly-tip="拖动调整宽度"
+						aria-label={translate("annotate.textWidth")}
+						data-ly-tip={translate("annotate.dragWidth")}
 						data-ly-tip-side="top"
 						onPointerDown={(event) => {
 							event.preventDefault();
@@ -1426,15 +1429,15 @@ export function AnnotateCanvas({
 // The toolbar
 // ---------------------------------------------------------------------------
 
-const TOOLS: [Tool, typeof Pencil, string][] = [
-	["pen", Pencil, "画笔"],
-	["arrow", ArrowUpRight, "箭头"],
-	["line", Minus, "直线"],
-	["rect", Square, "矩形"],
-	["ellipse", Circle, "圆形"],
-	["step", ListOrdered, "步骤标号"],
-	["text", Type, "文字"],
-	["mosaic", Grid2x2, "马赛克"],
+const TOOLS: [Tool, typeof Pencil, MessageKey][] = [
+	["pen", Pencil, "annotate.pen"],
+	["arrow", ArrowUpRight, "annotate.arrow"],
+	["line", Minus, "annotate.line"],
+	["rect", Square, "annotate.rectangle"],
+	["ellipse", Circle, "annotate.ellipse"],
+	["step", ListOrdered, "annotate.step"],
+	["text", Type, "annotate.text"],
+	["mosaic", Grid2x2, "annotate.mosaic"],
 ];
 
 /**
@@ -1442,18 +1445,18 @@ const TOOLS: [Tool, typeof Pencil, string][] = [
  *
  * One control has always driven all three; only its name was ever about lines.
  */
-const SIZE_LABEL: Partial<Record<Tool, string>> = {
-	text: "字号",
-	mosaic: "马赛克大小",
-	step: "标号大小",
+const SIZE_LABEL: Partial<Record<Tool, MessageKey>> = {
+	text: "annotate.fontSize",
+	mosaic: "annotate.mosaicSize",
+	step: "annotate.stepSize",
 };
 
-const COLOUR_NAMES: Record<string, string> = {
-	"#ef4444": "红色",
-	"#3b82f6": "蓝色",
-	"#22c55e": "绿色",
-	"#eab308": "黄色",
-	"#111827": "黑色",
+const COLOUR_NAMES: Record<string, MessageKey> = {
+	"#ef4444": "annotate.red",
+	"#3b82f6": "annotate.blue",
+	"#22c55e": "annotate.green",
+	"#eab308": "annotate.yellow",
+	"#111827": "annotate.black",
 };
 
 /**
@@ -1572,7 +1575,7 @@ export function AnnotateToolbar({
 	size = "compact",
 	canReplace,
 	saveLabel,
-	cancelLabel = "退出标注",
+	cancelLabel,
 	requireDirty = true,
 	className,
 	style,
@@ -1807,17 +1810,17 @@ export function AnnotateToolbar({
 			 * 少一格，这一条还窄了 20pt，在一块框得很小的区域旁边，那 20pt 是看得出来的。
 			 */}
 			{TOOLS.map(([id, Icon, label], at) => (
-				<ToolButton key={id} metrics={metrics} toolIndex={at} label={label} active={annotator.tool === id} onClick={() => annotator.setTool(id)}>
+				<ToolButton key={id} metrics={metrics} toolIndex={at} label={translate(label)} active={annotator.tool === id} onClick={() => annotator.setTool(id)}>
 					<Icon size={metrics.icon} strokeWidth={1.9} />
 				</ToolButton>
 			))}
 
 			<Divider metrics={metrics} />
 
-			<ToolButton metrics={metrics} label="撤销 ⌘Z" disabled={!annotator.canUndo} onClick={annotator.undo}>
+			<ToolButton metrics={metrics} label={translate("annotate.undo")} disabled={!annotator.canUndo} onClick={annotator.undo}>
 				<Undo2 size={metrics.icon} strokeWidth={1.9} />
 			</ToolButton>
-			<ToolButton metrics={metrics} label="重做 ⇧⌘Z" disabled={!annotator.canRedo} onClick={annotator.redo}>
+			<ToolButton metrics={metrics} label={translate("annotate.redo")} disabled={!annotator.canRedo} onClick={annotator.redo}>
 				<Redo2 size={metrics.icon} strokeWidth={1.9} />
 			</ToolButton>
 			{/*
@@ -1829,12 +1832,12 @@ export function AnnotateToolbar({
 			 */}
 			{annotator.selected !== null && (
 				<span className="flex animate-[ly-tool-in_var(--ly-t-base)_ease-out]">
-					<ToolButton metrics={metrics} label="删除选中 ⌫" onClick={annotator.removeSelected}>
+					<ToolButton metrics={metrics} label={translate("annotate.deleteSelected")} onClick={annotator.removeSelected}>
 						<Delete size={metrics.icon} strokeWidth={1.9} />
 					</ToolButton>
 				</span>
 			)}
-			<ToolButton metrics={metrics} label="清空" disabled={!annotator.dirty} onClick={annotator.clear}>
+			<ToolButton metrics={metrics} label={translate("annotate.clear")} disabled={!annotator.dirty} onClick={annotator.clear}>
 				<Trash2 size={metrics.icon} strokeWidth={1.9} />
 			</ToolButton>
 
@@ -1848,12 +1851,12 @@ export function AnnotateToolbar({
 			 */}
 			{(onPin || onDownload) && <Divider metrics={metrics} />}
 			{onPin && (
-				<ToolButton metrics={metrics} label="置顶在桌面" onClick={onPin}>
+				<ToolButton metrics={metrics} label={translate("annotate.pinToDesktop")} onClick={onPin}>
 					<Pin size={metrics.icon} strokeWidth={1.9} />
 				</ToolButton>
 			)}
 			{onDownload && (
-				<ToolButton metrics={metrics} label="下载截图" onClick={onDownload}>
+				<ToolButton metrics={metrics} label={translate("annotate.download")} onClick={onDownload}>
 					<Download size={metrics.icon} strokeWidth={1.9} />
 				</ToolButton>
 			)}
@@ -1862,9 +1865,9 @@ export function AnnotateToolbar({
 
 			<button
 				type="button"
-				data-ly-tip={cancelLabel}
+				data-ly-tip={cancelLabel ?? translate("annotate.exit")}
 				data-ly-tip-side="top"
-				aria-label={cancelLabel}
+				aria-label={cancelLabel ?? translate("annotate.exit")}
 				onClick={onCancel}
 				className={`flex cursor-pointer items-center rounded-md text-white/65 transition-colors duration-[var(--ly-t-quick)] hover:text-white ${metrics.action}`}
 			>
@@ -1872,7 +1875,7 @@ export function AnnotateToolbar({
 			</button>
 			<button
 				type="button"
-				data-ly-tip={saveLabel ?? (canReplace ? "保存并替换原图" : "导出一份带标注的副本")}
+				data-ly-tip={saveLabel ?? translate(canReplace ? "annotate.saveOver" : "annotate.saveCopyTip")}
 				data-ly-tip-side="top"
 				disabled={requireDirty && !annotator.dirty}
 				onClick={onSave}
@@ -1881,7 +1884,7 @@ export function AnnotateToolbar({
 				// height with it.
 				className={`flex cursor-pointer items-center whitespace-nowrap rounded-md bg-white font-medium text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
 			>
-				{saveLabel ?? (canReplace ? "保存" : "保存副本")}
+				{saveLabel ?? translate(canReplace ? "common.save" : "annotate.saveCopy")}
 			</button>
 		</div>
 	);
@@ -1970,13 +1973,16 @@ function ToolProperties({
 					key={label}
 					type="button"
 					onClick={() => annotator.setWeight(value)}
-					aria-label={`${SIZE_LABEL[annotator.tool] ?? "粗细"} ${label}`}
+					aria-label={translate("annotate.sizeIs", {
+						what: translate(SIZE_LABEL[annotator.tool] ?? "annotate.weight"),
+						label: translate(label),
+					})}
 					aria-pressed={annotator.weight === value}
 					className={`flex cursor-pointer items-center rounded transition-colors ${metrics.weight} ${
 						annotator.weight === value ? "bg-white/20 text-white" : "text-white/55 hover:bg-white/10 hover:text-white"
 					}`}
 				>
-					{label}
+					{translate(label)}
 				</button>
 			))}
 
@@ -1987,7 +1993,7 @@ function ToolProperties({
 					<button
 						key={value}
 						type="button"
-						aria-label={COLOUR_NAMES[value] ?? value}
+						aria-label={COLOUR_NAMES[value] ? translate(COLOUR_NAMES[value]) : value}
 						aria-pressed={annotator.colour === value}
 						onClick={() => annotator.setColour(value)}
 						style={{ background: value }}
@@ -2006,7 +2012,7 @@ function ToolProperties({
 					<button
 						key={label}
 						type="button"
-						aria-label={`文字底色 ${label}`}
+						aria-label={translate("annotate.textBackground", { label: translate(label) })}
 						aria-pressed={annotator.backdrop === value}
 						onClick={() => annotator.setBackdrop(value)}
 						style={value ? { background: value } : undefined}

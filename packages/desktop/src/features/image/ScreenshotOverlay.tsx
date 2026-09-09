@@ -15,6 +15,7 @@
  * retaken on every drag, and every mark on it would slide.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Check, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotSettings } from "@lyra/core";
@@ -553,7 +554,7 @@ export function ScreenshotOverlay() {
 				void navigator.clipboard?.writeText(reading.hex).then(
 					() => {
 						setCopied(true);
-						leaveWithToast({ text: "已复制色值" });
+						leaveWithToast({ text: translate("screenshot.colourCopied") });
 					},
 					() => setCopied(false),
 				);
@@ -681,8 +682,11 @@ export function ScreenshotOverlay() {
 			const png = crop();
 			if (!png || !initData) return;
 			void bridge.screenshot?.download?.(png, initData.settings).then(
-				(result) => leaveWithToast(result?.ok ? { text: "已保存" } : { text: "保存失败", failed: true }),
-				() => leaveWithToast({ text: "保存失败", failed: true }),
+				(result) =>
+				leaveWithToast(
+					result?.ok ? { text: translate("screenshot.saved") } : { text: translate("screenshot.saveFailed"), failed: true },
+				),
+				() => leaveWithToast({ text: translate("screenshot.saveFailed"), failed: true }),
 			);
 		});
 	}, [withText, crop, initData, leaveWithToast]);
@@ -1253,8 +1257,8 @@ export function ScreenshotOverlay() {
 						 */
 						size="large"
 						canReplace={false}
-						saveLabel="完成"
-						cancelLabel="取消"
+						saveLabel={translate("common.done")}
+						cancelLabel={translate("common.cancel")}
 						requireDirty={false}
 						/*
 						 * The bubble opens away from the region, which is the opposite of where the bar

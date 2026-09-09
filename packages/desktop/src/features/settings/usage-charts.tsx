@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/index.ts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { portal } from "../../ui/overlay/portal.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
@@ -165,6 +166,7 @@ export function UsageTrendChart({
 	/** 图例里被关掉的供应商：仍然在图上占着位置，只是淡出，并且不再决定纵轴。 */
 	hidden?: ReadonlySet<string>;
 }) {
+	const { t } = useI18n();
 	const svgRef = useRef<SVGSVGElement>(null);
 	const [hover, setHover] = useState<Hover | null>(null);
 	const [viewHeight, setViewHeight] = useState<number>(CHART.height);
@@ -294,7 +296,7 @@ export function UsageTrendChart({
 				preserveAspectRatio="none"
 				className="block h-full w-full flex-1 overflow-visible"
 				role="img"
-				aria-label={`每日${metric === "cost" ? "费用" : "token"}趋势`}
+				aria-label={t(metric === "cost" ? "usage.dailyCost" : "usage.dailyTokens")}
 			>
 				{ticks.map((share) => {
 					const tick = CHART.top + (1 - share) * plotHeight;
@@ -380,6 +382,7 @@ export function UsageTrendChart({
  * on a dependency list, because the pointer moving is exactly when it needs to move.
  */
 function TrendTip({ anchor, content }: { anchor: Hover; content: TipContent }) {
+	const { t } = useI18n();
 	const ref = useRef<HTMLDivElement>(null);
 
 	useLayoutEffect(() => {
@@ -411,7 +414,7 @@ function TrendTip({ anchor, content }: { anchor: Hover; content: TipContent }) {
 			</div>
 			{content.total && (
 				<div className="mt-1.5 flex items-center gap-2 border-t border-line-soft pt-1.5 text-detail">
-					<span className="flex-1 text-ink-faint">合计</span>
+					<span className="flex-1 text-ink-faint">{t("usage.total")}</span>
 					<span className="shrink-0 tabular-nums font-medium text-ink">{content.total}</span>
 				</div>
 			)}

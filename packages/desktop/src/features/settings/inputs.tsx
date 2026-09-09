@@ -7,6 +7,7 @@
  * rather than three.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Check, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
@@ -86,7 +87,7 @@ export function SecretInput({
 			/>
 			<button
 				type="button"
-				data-ly-tip={visible ? "隐藏" : "显示"}
+				data-ly-tip={translate(visible ? "common.hide" : "common.show")}
 				onClick={() => setVisible((v) => !v)}
 				className="absolute top-1/2 right-2.5 -translate-y-1/2 text-ink-faint transition-colors hover:text-ink"
 			>
@@ -194,7 +195,7 @@ function Dropdown<T extends string>({
 export function ShortcutRecorder({
 	value,
 	onChange,
-	placeholder = "按下快捷键",
+	placeholder,
 }: {
 	value?: string;
 	onChange: (shortcut: string) => void;
@@ -239,7 +240,7 @@ export function ShortcutRecorder({
 						: "border-dashed border-line bg-card/50 text-ink-muted hover:border-ink-faint"
 			}`}
 		>
-			<span>{recording ? "请在键盘上按下快捷键..." : value ? acceleratorLabel(value) : placeholder}</span>
+			<span>{recording ? translate("shortcut.pressHint") : value ? acceleratorLabel(value) : (placeholder ?? translate("shortcut.press"))}</span>
 		</button>
 	);
 }

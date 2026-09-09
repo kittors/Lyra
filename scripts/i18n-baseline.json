@@ -1,12 +1,1 @@
-{
-	"features/browser/BrowserPanel.tsx": 40,
-	"features/image/Annotator.tsx": 41,
-	"features/image/ScreenshotLoupe.tsx": 4,
-	"features/image/ScreenshotOverlay.tsx": 6,
-	"features/settings/RetrySettings.tsx": 1,
-	"features/settings/SearchSettings.tsx": 1,
-	"features/settings/UsageSettings.tsx": 2,
-	"features/settings/inputs.tsx": 4,
-	"features/settings/usage-chart-hover.ts": 7,
-	"features/settings/usage-charts.tsx": 2
-}
+{}

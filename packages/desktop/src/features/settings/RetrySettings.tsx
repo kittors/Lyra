@@ -76,8 +76,7 @@ export function RetrySettings({ settings }: { settings: Settings }) {
 			<SectionTitle>{t("retry.title")}</SectionTitle>
 			{/* Said once, above both rules, rather than twice inside them. */}
 			<p className="-mt-1 mb-3 max-w-[62ch] text-label leading-relaxed text-ink-muted">
-				网络中断、限流或服务暂时不可用时自动重试，次数不含首次请求。改动立即生效，正在重试的请求从下一次等待起就用新值；
-				已执行的工具不会重做，点击停止可立即取消等待。
+				{t("retry.intro")}
 			</p>
 			<Card className="mb-9 px-4">
 				{FAULTS.map((fault) => {

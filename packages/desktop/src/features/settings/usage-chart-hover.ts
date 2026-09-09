@@ -14,6 +14,8 @@
  * for it should not have to mount React or measure a layout that a test DOM does not perform.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
+import { translate } from "../../i18n/translate.ts";
 import type { ProviderTrend } from "./usage-aggregate.ts";
 import { formatCost } from "./usage-format.ts";
 
@@ -162,11 +164,20 @@ export function metricLabel(value: number, metric: TrendMetric): string {
 	return formatCost(value) ?? "$0";
 }
 
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+/** Keys, not words: this table is built at import, before the window has settled on a language. */
+const WEEKDAYS: MessageKey[] = [
+	"weekday.sun",
+	"weekday.mon",
+	"weekday.tue",
+	"weekday.wed",
+	"weekday.thu",
+	"weekday.fri",
+	"weekday.sat",
+];
 
 /** `2026/9/5 周六` — the full date, because the axis only has room for `9/5`. */
 export function dayTitle(day: string): string {
 	const [year, month, date] = day.split("-").map(Number);
 	if (!year || !month || !date) return day;
-	return `${year}/${month}/${date} ${WEEKDAYS[new Date(year, month - 1, date).getDay()]}`;
+	return `${year}/${month}/${date} ${translate(WEEKDAYS[new Date(year, month - 1, date).getDay()])}`;
 }

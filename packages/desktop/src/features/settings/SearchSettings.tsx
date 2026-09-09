@@ -213,7 +213,7 @@ export function SearchSettings() {
 			 */}
 			<p className="flex max-w-[600px] items-start gap-2 pb-8 text-detail leading-relaxed text-ink-faint">
 				<Search size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" />
-				搜索会把你的问题发给选中的服务商。结果和网页一样按不可信内容处理 —— agent 不会把搜到的文字当成给它的指令。
+				{t("search.trustNote")}
 			</p>
 		</div>
 	);

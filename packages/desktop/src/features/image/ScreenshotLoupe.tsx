@@ -12,6 +12,7 @@
  * and it is already decoded, so this costs a `drawImage` of a few hundred pixels per frame.
  */
 
+import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef } from "react";
 import type { Point } from "./screenshot-geometry.ts";
 
@@ -106,13 +107,13 @@ export function ScreenshotLoupe({
 			</div>
 			<div className="space-y-0.5 px-2 py-1.5 text-caption text-white/85 tabular-nums">
 				<div className="flex items-center justify-between gap-2">
-					<span className="text-white/50">坐标</span>
+					<span className="text-white/50">{translate("screenshot.coordinates")}</span>
 					<span>
 						{reading ? `${reading.x}, ${reading.y}` : "—"}
 					</span>
 				</div>
 				<div className="flex items-center justify-between gap-2">
-					<span className="text-white/50">色值</span>
+					<span className="text-white/50">{translate("screenshot.colour")}</span>
 					<span className="flex items-center gap-1">
 						<span
 							className="inline-block size-2.5 rounded-[2px] border border-white/30"
@@ -121,7 +122,7 @@ export function ScreenshotLoupe({
 						{reading?.hex ?? "—"}
 					</span>
 				</div>
-				<div className="pt-0.5 text-center text-white/45">{copied ? "已复制" : "按 ⌘C 复制色值"}</div>
+				<div className="pt-0.5 text-center text-white/45">{translate(copied ? "screenshot.copied" : "screenshot.copyColour")}</div>
 			</div>
 		</div>
 	);
