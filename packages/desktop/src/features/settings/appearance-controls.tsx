@@ -87,11 +87,23 @@ export function ThemePreview({ variant, accent }: { variant: "system" | "light" 
 		</g>
 	);
 
+	/*
+	 * Split on the diagonal, not down the middle.
+	 *
+	 * A vertical cut at x=60 gives each side exactly half the area and still reads as "dark": the
+	 * light half spends most of its width on a grey sidebar (`bar`, x<40) while the dark half is
+	 * dark throughout, and the card — the one shape the eye lands on — straddles the seam with its
+	 * centre at x=78, on the dark side. Measured in area it was fair; looked at, it was a dark
+	 * thumbnail with a pale strip, and it got read as the dark option sitting under the word 系统.
+	 *
+	 * The diagonal keeps the halves equal and makes the split itself the thing you see. Both
+	 * corners of the card are crossed, so neither theme can be mistaken for the whole picture.
+	 */
 	return (
 		<svg viewBox="0 0 120 80" className="w-full rounded-[7px]" aria-hidden>
 			<defs>
 				<clipPath id={`ly-half-${variant}`}>
-					<rect x="0" y="0" width="60" height="80" />
+					<polygon points="0,0 120,0 0,80" />
 				</clipPath>
 			</defs>
 			{variant === "light" && half(light)}
@@ -100,6 +112,8 @@ export function ThemePreview({ variant, accent }: { variant: "system" | "light" 
 				<>
 					{half(dark)}
 					{half(light, `url(#ly-half-${variant})`)}
+					{/* The seam, so the two sides are divided rather than merely adjacent. */}
+					<line x1="120" y1="0" x2="0" y2="80" stroke={light.line} strokeWidth="0.75" opacity="0.5" />
 				</>
 			)}
 		</svg>
