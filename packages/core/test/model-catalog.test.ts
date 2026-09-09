@@ -47,6 +47,66 @@ describe("offline model catalogue", () => {
 		assert.equal(model?.pricing?.cacheRead, 0.175);
 		assert.equal(model?.pricing?.source, "catalog");
 	});
+	/*
+	 * 目录的名字只能给它真正描述的那个模型。
+	 *
+	 * `modelCandidates` 是靠剥后缀找到条目的——`-thinking`、`-preview`、`-high` 一路剥——所以
+	 * `gemini-2.5-flash-thinking` 会匹配到 `gemini-2.5-flash` 那一条。借它的上限和价格是合理的
+	 * 近似；借它的**名字**不是：剥掉的那个后缀正是区分这两个模型的唯一东西，于是四个 id 归到
+	 * 一条目录，全都显示成同一个词。选择器到这里就没牌可打了——它是靠供应商名区分同名模型的，
+	 * 而这几个偏偏同一个供应商。
+	 */
+	it("剥过后缀才匹配上的，名字保留模型 id", () => {
+		const openai = provider("https://api.openai.com/v1");
+		const exact = modelConfigFromCatalog(openai, "gpt-5.2");
+		assert.equal(exact?.name, "GPT-5.2", "一字不差的那个，用目录的名字");
+
+		const stripped = modelConfigFromCatalog(openai, "gpt-5.2-high");
+		assert.equal(stripped?.modelId, "gpt-5.2-high");
+		assert.equal(stripped?.name, "gpt-5.2-high", "别显示成「GPT-5.2」，那是另一个模型的名字");
+		assert.equal(stripped?.contextWindow, exact?.contextWindow, "上限照旧从目录借，那部分借得没错");
+	});
+
+	it("同一个供应商下，剥到同一条目录的几个模型不会重名", () => {
+		const openai = provider("https://api.openai.com/v1");
+		const names = ["gpt-5.2", "gpt-5.2-high", "gpt-5.2-minimal"].map(
+			(id) => modelConfigFromCatalog(openai, id)?.name,
+		);
+		assert.equal(new Set(names).size, names.length, `重名了：${JSON.stringify(names)}`);
+	});
+
+	it("存量里自动填的名字会被改回来，手改过的留着", () => {
+		const openai = provider("https://api.openai.com/v1");
+		const auto = withCatalogDefaults(openai, {
+			id: "openai/gpt-5.2-high",
+			providerId: "openai",
+			modelId: "gpt-5.2-high",
+			// 旧版本导入时填的就是目录名，一字不差——说明没人动过。
+			name: "GPT-5.2",
+			contextWindow: 400_000,
+			maxOutputTokens: 128_000,
+			supportsThinking: true,
+			supportsImages: true,
+			supportsTools: true,
+			metadataSource: "catalog",
+		});
+		assert.equal(auto.name, "gpt-5.2-high");
+
+		const renamed = withCatalogDefaults(openai, {
+			id: "openai/gpt-5.2-high",
+			providerId: "openai",
+			modelId: "gpt-5.2-high",
+			name: "我自己起的名字",
+			contextWindow: 400_000,
+			maxOutputTokens: 128_000,
+			supportsThinking: true,
+			supportsImages: true,
+			supportsTools: true,
+			metadataSource: "catalog",
+		});
+		assert.equal(renamed.name, "我自己起的名字", "`metadataSource` 管的是上限和能力，不该拿它去覆盖人取的名字");
+	});
+
 	it("recognises versioned relay suffixes across model families without guessing unknown versions", () => {
 		const relay = provider("https://relay.example/v1");
 		for (const [id, expected] of [

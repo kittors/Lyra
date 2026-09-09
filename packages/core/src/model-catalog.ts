@@ -218,6 +218,26 @@ export function catalogPricing(providerId: string, model: CatalogModel): ModelPr
 	};
 }
 
+/**
+ * Whether the catalogue's own name for a model is safe to show.
+ *
+ * `modelCandidates` finds an entry by stripping suffixes — `-thinking`, `-preview`, `-high` and the
+ * rest — so `gemini-2.5-flash-thinking` matches the entry for `gemini-2.5-flash`. Borrowing that
+ * entry's limits and prices is a fair approximation. Borrowing its *name* is not: the suffix that
+ * was stripped is the only thing telling those two models apart, and four ids that reduce to one
+ * entry all end up displaying the same word. The picker then has nothing left to disambiguate with
+ * — it separates same-named models by their provider, and these share one.
+ *
+ * The file header promises the wire model id is never rewritten. This keeps the promise on the half
+ * of it a person actually reads.
+ *
+ * `exact` is the same id in the same provider's catalogue, and `binding` is a link the user chose
+ * on purpose; both mean the entry really is this model, so its name describes it.
+ */
+function namedByCatalog(match: CatalogMatch["match"]): boolean {
+	return match === "exact" || match === "binding";
+}
+
 /** A complete model row for endpoint discovery imports. */
 export function modelConfigFromCatalog(provider: ProviderConfig, modelId: string): ModelConfig | null {
 	const found = catalogModelFor(provider, modelId);
@@ -226,7 +246,7 @@ export function modelConfigFromCatalog(provider: ProviderConfig, modelId: string
 		id: `${provider.id}/${modelId}`,
 		providerId: provider.id,
 		modelId,
-		name: found.model.name,
+		name: namedByCatalog(found.match) ? found.model.name : modelId,
 		contextWindow: found.model.contextWindow,
 		maxOutputTokens: found.model.maxOutputTokens,
 		supportsThinking: found.model.supportsThinking,
@@ -252,6 +272,16 @@ export function withCatalogDefaults(provider: Pick<ProviderConfig, "id" | "baseU
 			supportsThinking: found.model.supportsThinking, supportsImages: found.model.supportsImages,
 			supportsTools: found.model.supportsTools, metadataSource: "catalog",
 		} : {}),
+		/*
+		 * Names filled in by an older import are corrected; names a person typed are not.
+		 *
+		 * `metadataSource` says whether *limits* follow the catalogue and is left alone when the
+		 * display name is edited, so it cannot answer this on its own. What can: a name that is
+		 * still character-for-character the catalogue's is one nobody has touched.
+		 */
+		...(follow && !namedByCatalog(found.match) && model.name === found.model.name
+			? { name: model.modelId }
+			: {}),
 		pricing,
 	};
 }
