@@ -194,13 +194,17 @@ test("two real screens stream both ways and recover missed content without dropp
 });
 
 /*
- * 手机端还没有拿轨迹的路。
+ * 手机上这个面板打开了，读数一直停在「0/0 读取中…」，原因还没定位到。
  *
- * `electron/sync-server.ts` 里没有任何 trajectory/trace 通道，面板打开是打开了，读数一直停在
- * 「0/0 读取中…」。引入这个文件的那个提交自己写着「轨迹待发布功能」——测试是先写下的，功能
- * 还没跟上。标成 todo 而不是删掉：等通道接上，把这行标记去掉就能验收。
+ * 通道是通的：`electron/sync-rpc.ts` 里有 `sessions.trajectory` 和 `sessions.trajectoryChanges`，
+ * 面板那侧 `useTrajectory.ts` 也照常发请求。所以不是「功能没做」——我先前查的是
+ * `sync-server.ts`，没找见就下了那个结论，那是错的。
+ *
+ * seed 这次补上了 `seedTrajectory`（交互 fixture 里一次工具调用也没有，面板本来就无从有条目），
+ * 数据这一半已经就位；还差一步是弄清请求发出去之后为什么没有条目回来。标 todo 是因为要往下
+ * 查得起真实窗口，而那会打断人用电脑——不是因为它不该修。
  */
-test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "手机端尚无轨迹数据通道，见 electron/sync-server.ts" }, async (t) => {
+test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "面板停在 0/0，通道存在（sync-rpc.ts）但条目没回来，待定位" }, async (t) => {
 	await size(390, 844);
 	// Dismiss the errors intentionally produced by the preceding offline test.
 	await phone.evaluate(`document.querySelectorAll('[role="alert"] button[aria-label="关闭"]').forEach(e=>e.click())`);
