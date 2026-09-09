@@ -1046,7 +1046,7 @@ export const zhTW = {
 	"projectMenu.worktreeFailed": "建立工作樹失敗",
 	"projectMenu.worktreeMade": "已建立工作樹 {path}",
 	"projectMenu.removeConfirm": "移除 {name}？",
-	"projectMenu.removeDetail": "只是從清單裡去掉，磁碟上的目錄和裡面的檔案都不動。置頂、改過的名字這些會丟。",
+	"projectMenu.removeDetail": "它的聊天會一併封存，之後能在設定 › 已封存裡找回。磁碟上的目錄和裡面的檔案都不動；置頂、改過的名字這些會丟。",
 	"projectMenu.newWorktree": "新建工作樹",
 	"projectMenu.editProject": "編輯專案",
 	"projectMenu.branchName": "新工作樹的分支名",

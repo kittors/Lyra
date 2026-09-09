@@ -1046,7 +1046,7 @@ export const ja = {
 	"projectMenu.worktreeFailed": "ワークツリーを作れませんでした",
 	"projectMenu.worktreeMade": "{path} にワークツリーを作りました",
 	"projectMenu.removeConfirm": "{name} を取り除きますか？",
-	"projectMenu.removeDetail": "消えるのは一覧の項目だけで、ディスク上のフォルダと中身はそのままです。ピン留めと付け直した名前は失われます。",
+	"projectMenu.removeDetail": "この項目の会話も一緒にアーカイブされ、設定 › アーカイブ済みから戻せます。ディスク上のフォルダと中身はそのままです。ピン留めと付け直した名前は失われます。",
 	"projectMenu.newWorktree": "ワークツリーを作る",
 	"projectMenu.editProject": "プロジェクトを編集",
 	"projectMenu.branchName": "新しいワークツリーのブランチ名",

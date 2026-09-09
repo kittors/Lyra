@@ -1046,7 +1046,7 @@ export const ru = {
 	"projectMenu.worktreeFailed": "Не удалось создать рабочее дерево",
 	"projectMenu.worktreeMade": "Рабочее дерево создано в {path}",
 	"projectMenu.removeConfirm": "Убрать {name}?",
-	"projectMenu.removeDetail": "Исчезнет только запись в списке — папка и её содержимое останутся на диске. Закрепление и данное вами имя пропадут.",
+	"projectMenu.removeDetail": "Его беседы уходят в архив вместе с ним и возвращаются из «Настройки › Архив». Папка и её содержимое остаются на диске; закрепление и данное вами имя пропадут.",
 	"projectMenu.newWorktree": "Новое рабочее дерево",
 	"projectMenu.editProject": "Изменить проект",
 	"projectMenu.branchName": "Ветка для нового рабочего дерева",

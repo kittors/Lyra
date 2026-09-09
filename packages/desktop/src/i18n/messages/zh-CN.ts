@@ -1218,7 +1218,7 @@ export const zhCN = {
 	"projectMenu.worktreeFailed": "创建工作树失败",
 	"projectMenu.worktreeMade": "已创建工作树 {path}",
 	"projectMenu.removeConfirm": "移除 {name}？",
-	"projectMenu.removeDetail": "只是从列表里去掉，磁盘上的目录和里面的文件都不动。置顶、改过的名字这些会丢。",
+	"projectMenu.removeDetail": "它的聊天会一并归档，之后能在设置 › 已归档里找回。磁盘上的目录和里面的文件都不动；置顶、改过的名字这些会丢。",
 	"projectMenu.newWorktree": "新建工作树",
 	"projectMenu.editProject": "编辑项目",
 	"projectMenu.branchName": "新工作树的分支名",

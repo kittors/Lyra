@@ -284,11 +284,26 @@ export function workspaceSlice(set: Set, get: Get) {
   async removeProject(path: string) {
     const settings = get().settings;
     if (!settings) return;
-    // Only the entry goes. The sessions and the directory itself are left alone — this is
-    // "stop listing this", not "delete my work".
+    /*
+     * The entry goes, and its conversations are archived with it.
+     *
+     * Dropping the entry alone did not stop the project being listed, which is the one thing this
+     * action promises. The sidebar builds a group for any `cwd` it sees among the sessions and
+     * falls back to the session's own `projectName` when no configured project matches — so the
+     * group was rebuilt on the next render from the very conversations that removing the entry
+     * deliberately leaves alone. Delete the folder from disk and it is still there: the sessions
+     * live in `~/.lyra`, not in the directory they point at. That is the 「删不掉」 report.
+     *
+     * Archiving rather than deleting keeps the promise on the other half of it. Nothing is lost —
+     * the conversations are in 设置 › 已归档 and can be brought back one by one — and it reuses
+     * the action the project menu already offers, so "remove" is now "archive its chats, then
+     * forget the project" rather than a third kind of disappearance with its own rules.
+     */
+    await get().archiveProjectSessions(path);
+    const latest = get().settings ?? settings;
     await get().saveSettings({
-      ...settings,
-      projects: settings.projects.filter((p) => p.path !== path),
+      ...latest,
+      projects: latest.projects.filter((p) => p.path !== path),
     });
     if (get().workspace?.path === path) void get().clearWorkspace();
   },

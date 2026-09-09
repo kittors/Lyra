@@ -256,3 +256,41 @@ test("with no roots known yet, nothing is treated as project-less", () => {
 	assert.deepEqual(loose, []);
 	assert.equal(rest[0].path, "/home/.lyra/workspaces/owner-repo-1");
 });
+
+/*
+ * 「移除项目」得真的把它从列表里去掉。
+ *
+ * `removeProject` 只把条目从 `settings.projects` 里滤掉，注释说这是「stop listing this, not
+ * delete my work」。可这里会照着会话的 `cwd` 把分组重新造出来——移除项目并不删它的会话，于是
+ * 那些会话还指着同一个路径，分组下一帧就回来了。用户看到的就是「删不掉」：目录都从磁盘上删了，
+ * 侧边栏里那一组还在。
+ *
+ * 所以移除的时候要连同它的会话一起归档——归档是既有的、可撤销的手段，会话一条没少，只是不在
+ * 主列表里了。这条钉的是「归档之后不会被重新造出来」。
+ */
+test("移除项目之后，它不会因为还有会话就被重新造回来", () => {
+	const gone = "/removed";
+	const sessions = [
+		session({ id: "kept", cwd: "/a" }),
+		// 它的会话已经跟着一起归档了，所以进不了列表。
+		session({ id: "with-removed", cwd: gone, projectName: "removed", archived: true }),
+	];
+	const { projects: rest } = groupSessions(listableSessions(sessions, null), projects, "");
+	assert.equal(
+		rest.some((group) => group.path === gone),
+		false,
+		"归档掉它的会话之后，这一组不该再出现",
+	);
+});
+
+test("只移除条目、会话还留在列表里，那一组就会自己长回来", () => {
+	const gone = "/removed";
+	// 这是修复前的样子，也是这条修复要防的：条目没了，会话还在，分组照旧。
+	const sessions = [session({ id: "orphan", cwd: gone, projectName: "removed" })];
+	const { projects: rest } = groupSessions(listableSessions(sessions, null), projects, "");
+	assert.equal(
+		rest.some((group) => group.path === gone),
+		true,
+		"这不是要保留的行为，是在说明为什么移除必须连会话一起处理",
+	);
+});

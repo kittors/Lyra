@@ -1046,7 +1046,7 @@ export const en = {
 	"projectMenu.worktreeFailed": "Could not create the worktree",
 	"projectMenu.worktreeMade": "Worktree created at {path}",
 	"projectMenu.removeConfirm": "Remove {name}?",
-	"projectMenu.removeDetail": "Only the list entry goes — the folder and everything in it stay on disk. The pin and the name you gave it are lost.",
+	"projectMenu.removeDetail": "Its conversations are archived with it and can be brought back from Settings › Archived. The folder and everything in it stay on disk; the pin and the name you gave it are lost.",
 	"projectMenu.newWorktree": "New worktree",
 	"projectMenu.editProject": "Edit the project",
 	"projectMenu.branchName": "Branch for the new worktree",

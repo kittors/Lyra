@@ -1046,7 +1046,7 @@ export const fr = {
 	"projectMenu.worktreeFailed": "Impossible de créer l'arbre de travail",
 	"projectMenu.worktreeMade": "Arbre de travail créé dans {path}",
 	"projectMenu.removeConfirm": "Retirer {name} ?",
-	"projectMenu.removeDetail": "Seule l'entrée de la liste disparaît — le dossier et son contenu restent sur le disque. L'épinglage et le nom que vous lui aviez donné sont perdus.",
+	"projectMenu.removeDetail": "Ses conversations sont archivées avec lui et peuvent être récupérées depuis Réglages › Archivées. Le dossier et son contenu restent sur le disque ; l'épinglage et le nom que vous lui aviez donné sont perdus.",
 	"projectMenu.newWorktree": "Nouvel arbre de travail",
 	"projectMenu.editProject": "Modifier le projet",
 	"projectMenu.branchName": "Branche du nouvel arbre de travail",

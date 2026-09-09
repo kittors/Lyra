@@ -1046,7 +1046,7 @@ export const ko = {
 	"projectMenu.worktreeFailed": "워크트리를 만들지 못했습니다",
 	"projectMenu.worktreeMade": "{path}에 워크트리를 만들었습니다",
 	"projectMenu.removeConfirm": "{name}을(를) 목록에서 뺄까요?",
-	"projectMenu.removeDetail": "목록에서만 사라집니다 — 디스크의 폴더와 그 안의 파일은 그대로입니다. 고정과 직접 붙인 이름은 사라집니다.",
+	"projectMenu.removeDetail": "이 프로젝트의 대화도 함께 보관되며, 설정 › 보관됨에서 되찾을 수 있습니다. 디스크의 폴더와 그 안의 파일은 그대로입니다. 고정과 직접 붙인 이름은 사라집니다.",
 	"projectMenu.newWorktree": "새 워크트리",
 	"projectMenu.editProject": "프로젝트 편집",
 	"projectMenu.branchName": "새 워크트리의 브랜치 이름",
