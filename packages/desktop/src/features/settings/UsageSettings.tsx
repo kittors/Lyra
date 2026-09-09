@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UsageScan } from "../../../electron/usage-scan.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
+import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { SkeletonBar, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
+import { DURATION } from "../../ui/motion/tokens.ts";
 import { ModelIcon } from "../models/index.ts";
 import { Card, EmptyHint, Segmented } from "./controls.tsx";
 import { dayTotals, providerLabel, summarise, type ModelUse, type Range } from "./usage-aggregate.ts";
@@ -14,6 +16,20 @@ import { formatCompact, formatCost } from "./usage-format.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
 
 const WEEKS = 52;
+
+/**
+ * 这一页上每一个会跟着区间变的数字。
+ *
+ * 一个包装而不是在十来处各写一遍 `<CountUp bidirectional ms={…} />`：它们说的是同一件事——按下
+ * 「30 天」之后，这一屏的所有读数都是同一批账重新算出来的——所以它们该一起出发、一起停。参数
+ * 散在各处，第一次有人调其中一个，这一屏就会变成一堆各走各的数字。
+ *
+ * `slow` 而不是 `useCountUp` 自己那 520ms：那个默认值是给对话里边跑边涨的 token 数用的，那种
+ * 数字没有终点；这里有，按一下就该落定。
+ */
+function Figure({ value, format }: { value: number; format: (shown: number) => string }) {
+	return <CountUp value={value} format={format} bidirectional ms={DURATION.slow} />;
+}
 
 export function UsageSettings() {
 	const { t } = useI18n();
@@ -134,7 +150,13 @@ function Dashboard({
 
 	return (
 		<div data-usage-dashboard="true" className="@container">
-			<div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-detail text-ink-faint">
+			{/*
+			 * 这一行整句换掉，所以是淡进来的。
+			 *
+			 * 「2026/9/3 至 2026/9/9」和「6 个活跃日」都是句子，句子里的数字没法一位一位地走——能做的
+			 * 是让新的一行淡进来，好过在原地被替换掉。`key` 挂在区间上，换区间才重播。
+			 */}
+			<div key={view.series.length} className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-detail text-ink-faint animate-[ly-fade-up_var(--ly-t-base)_ease-out] motion-reduce:animate-none">
 				<span>{dateRange}</span>
 				<span>{t("usage.activeDays", { n: totals.activeDays })}</span>
 				<span>{t("usage.sessionDays", { n: totals.sessionDays })}</span>
@@ -144,8 +166,15 @@ function Dashboard({
 			<div className="grid gap-3 @3xl:grid-cols-[minmax(245px,0.78fr)_minmax(0,1.45fr)]">
 				<Card className="p-4">
 					<div className="text-detail font-medium tracking-wide text-ink-faint">{t("usage.estimatedCost")}</div>
+					{/*
+					 * 换区间时这个数走过去，不是被换掉。
+					 *
+					 * 7 天和 30 天是同一笔账的两种问法，中间没有任何事情真的发生——一个数字直接跳成
+					 * 另一个，读的人得先愣一下才知道自己刚才按了什么。走过去的那半秒本身就说明了
+					 * 「这是同一个数，只是问的时段变了」。往下走也一样：区间从大改小，钱本来就该变少。
+					 */}
 					<div className="mt-1 text-[32px] leading-tight font-semibold tracking-[-0.03em] text-ink tabular-nums">
-						{pricedTokens > 0 ? costLabel(totals.cost) : t("usage.noPrice")}
+						{pricedTokens > 0 ? <Figure value={totals.cost} format={costLabel} /> : t("usage.noPrice")}
 					</div>
 					<div className="mt-1 text-detail text-ink-faint">{t("usage.estimatedCostDetail")}</div>
 					{/*
@@ -215,11 +244,11 @@ function Dashboard({
 			</div>
 
 			<div aria-label={t("usage.metrics")} className="mt-3 grid grid-cols-2 overflow-hidden rounded-[12px] border border-line bg-card/40 @2xl:grid-cols-5">
-				<Metric label={t("usage.tokensProcessed")} value={formatCompact(totals.tokens)} sub={t("usage.perActiveDay", { n: formatCompact(totals.activeDays > 0 ? totals.tokens / totals.activeDays : 0) })} />
-				<Metric label={t("usage.cacheHit")} value={formatCompact(totals.cacheRead)} sub={t("usage.ofInput", { percent: percent(totals.cacheRead, totals.input + totals.cacheRead + totals.cacheWrite) })} />
-				<Metric label={t("usage.uncachedInput")} value={formatCompact(totals.input)} sub={t("usage.cacheWrites", { n: formatCompact(totals.cacheWrite) })} />
-				<Metric label={t("common.output")} value={formatCompact(totals.output)} sub={t("usage.withReasoning", { n: formatCompact(totals.reasoning) })} />
-				<Metric label={t("usage.cacheSaving")} value={signedCost(totals.cacheSavings)} sub={t("usage.withoutCache", { cost: costLabel(totals.rawCost) })} />
+				<Metric label={t("usage.tokensProcessed")} value={totals.tokens} format={formatCompact} sub={t("usage.perActiveDay", { n: formatCompact(totals.activeDays > 0 ? totals.tokens / totals.activeDays : 0) })} />
+				<Metric label={t("usage.cacheHit")} value={totals.cacheRead} format={formatCompact} sub={t("usage.ofInput", { percent: percent(totals.cacheRead, totals.input + totals.cacheRead + totals.cacheWrite) })} />
+				<Metric label={t("usage.uncachedInput")} value={totals.input} format={formatCompact} sub={t("usage.cacheWrites", { n: formatCompact(totals.cacheWrite) })} />
+				<Metric label={t("common.output")} value={totals.output} format={formatCompact} sub={t("usage.withReasoning", { n: formatCompact(totals.reasoning) })} />
+				<Metric label={t("usage.cacheSaving")} value={totals.cacheSavings} format={signedCost} sub={t("usage.withoutCache", { cost: costLabel(totals.rawCost) })} />
 			</div>
 
 			{/*
@@ -243,7 +272,14 @@ function Dashboard({
 						<div className="text-label font-medium text-ink">{t("usage.breakdown")}</div>
 						<Segmented value={breakdown} onChange={setBreakdown} options={[{ value: "model", label: t("common.model") }, { value: "day", label: t("common.date") }]} />
 					</div>
-					<div className="min-h-0 flex-1 overflow-y-auto">
+					{/*
+					 * 换口径是换一整张表，所以让它淡进来。
+					 *
+					 * 「模型」和「日期」下面的行没有一条对得上——按模型是 12 个模型，按日期是 12 天——
+					 * 所以这里没有「这一行走到那一行」可言，逐行补间只会得到一串没有意义的中间态。整块
+					 * 淡入是这种换法唯一诚实的过渡：旧的那张读完了，新的这张开始。
+					 */}
+					<div key={`${breakdown}:${view.series.length}`} className="min-h-0 flex-1 overflow-y-auto animate-[ly-fade-up_var(--ly-t-base)_ease-out] motion-reduce:animate-none">
 						{breakdown === "model" ? <ModelBreakdown rows={view.models} providers={providers} totalCost={totals.cost} /> : <DayBreakdown rows={view.series} totalCost={totals.cost} />}
 					</div>
 				</Card>
@@ -253,12 +289,12 @@ function Dashboard({
 					<div className="mt-1 text-detail leading-relaxed text-ink-faint">{t("usage.priceQualityDetail")}</div>
 					<QualityBar totals={totals} />
 					<div className="mt-3 divide-y divide-line-soft">
-						<QualityRow label={t("usage.fromProvider")} value={percent(totals.quality.provider, totals.tokens)} />
-						<QualityRow label={t("usage.offlineCatalog")} value={percent(totals.quality.catalog, totals.tokens)} />
-						<QualityRow label={t("usage.manualPrice")} value={percent(totals.quality.manual, totals.tokens)} />
-						<QualityRow label={t("usage.recorded")} value={percent(totals.quality.recorded, totals.tokens)} />
-						<QualityRow label={t("usage.unpriced")} value={percent(totals.quality.unpriced, totals.tokens)} />
-						<QualityRow label={t("usage.cacheSaving")} value={signedCost(totals.cacheSavings)} />
+						<QualityRow label={t("usage.fromProvider")} value={share(totals.quality.provider, totals.tokens)} format={percentLabel} />
+						<QualityRow label={t("usage.offlineCatalog")} value={share(totals.quality.catalog, totals.tokens)} format={percentLabel} />
+						<QualityRow label={t("usage.manualPrice")} value={share(totals.quality.manual, totals.tokens)} format={percentLabel} />
+						<QualityRow label={t("usage.recorded")} value={share(totals.quality.recorded, totals.tokens)} format={percentLabel} />
+						<QualityRow label={t("usage.unpriced")} value={share(totals.quality.unpriced, totals.tokens)} format={percentLabel} />
+						<QualityRow label={t("usage.cacheSaving")} value={totals.cacheSavings} format={signedCost} />
 					</div>
 					<div className="mt-3 text-detail leading-relaxed text-ink-faint">
 						目录版本 {MODEL_CATALOG_SOURCE.commit.slice(0, 8)} · {new Date(MODEL_CATALOG_SOURCE.updatedAt).toLocaleDateString()}
@@ -281,16 +317,27 @@ function ProviderSpend({ name, provider, color }: { name: string; provider: Usag
 			<div className="flex items-center gap-2 text-label">
 				<ModelIcon model={provider.id} name={name} size={14} />
 				<span className="min-w-0 flex-1 truncate text-ink">{name}</span>
-				<span className="shrink-0 font-medium text-ink tabular-nums">{provider.unpricedTokens === provider.tokens ? t("usage.unpriced") : costLabel(provider.cost)}</span>
+				<span className="shrink-0 font-medium text-ink tabular-nums">
+					{provider.unpricedTokens === provider.tokens ? t("usage.unpriced") : <Figure value={provider.cost} format={costLabel} />}
+				</span>
 			</div>
-			<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink/[0.06]"><div className="h-full rounded-full" style={{ width: `${Math.max(provider.share * 100, 1)}%`, background: color }} /></div>
-			<div className="mt-1 text-detail text-ink-faint tabular-nums">{(provider.share * 100).toFixed(1)}% · {formatCompact(provider.tokens)} token</div>
+			{/* 占比条跟着数字一起变宽变窄，用的是同一段时长——两个说同一件事的东西不该分头到达。 */}
+			<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink/[0.06]">
+				<div
+					className="h-full rounded-full transition-[width] duration-[var(--ly-t-slow)] ease-[var(--ly-e-out)] motion-reduce:transition-none"
+					style={{ width: `${Math.max(provider.share * 100, 1)}%`, background: color }}
+				/>
+			</div>
+			<div className="mt-1 text-detail text-ink-faint tabular-nums">
+				<Figure value={provider.share * 100} format={(shown) => shown.toFixed(1)} />% ·{" "}
+				<Figure value={provider.tokens} format={formatCompact} /> token
+			</div>
 		</div>
 	);
 }
 
-function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
-	return <div className="min-w-0 border-b border-line-soft px-3.5 py-3 odd:border-r even:border-r-0 last:col-span-2 last:border-b-0 @2xl:border-b-0 @2xl:odd:border-r @2xl:even:border-r @2xl:last:col-span-1 @2xl:last:border-r-0"><div className="truncate text-detail text-ink-muted">{label}</div><div className="mt-1 text-title font-medium text-ink tabular-nums">{value}</div><div className="mt-0.5 truncate text-detail text-ink-faint tabular-nums">{sub}</div></div>;
+function Metric({ label, value, format, sub }: { label: string; value: number; format: (shown: number) => string; sub: React.ReactNode }) {
+	return <div className="min-w-0 border-b border-line-soft px-3.5 py-3 odd:border-r even:border-r-0 last:col-span-2 last:border-b-0 @2xl:border-b-0 @2xl:odd:border-r @2xl:even:border-r @2xl:last:col-span-1 @2xl:last:border-r-0"><div className="truncate text-detail text-ink-muted">{label}</div><div className="mt-1 text-title font-medium text-ink tabular-nums"><Figure value={value} format={format} /></div><div className="mt-0.5 truncate text-detail text-ink-faint tabular-nums">{sub}</div></div>;
 }
 
 function ModelBreakdown({ rows, providers, totalCost }: { rows: ModelUse[]; providers: { id: string; name: string }[] | undefined; totalCost: number }) {
@@ -314,13 +361,19 @@ function BreakdownTable({ rows, remaining }: { rows: BreakdownRow[]; remaining: 
 	return <div className="px-4 pb-2"><div className="grid grid-cols-[minmax(0,1fr)_78px_78px] gap-4 border-b border-line-soft py-2 text-detail text-ink-faint @xl:grid-cols-[minmax(0,1fr)_100px_78px_62px_90px]"><span>{t("common.project")}</span><span className="hidden text-right @xl:block">{t("common.provider")}</span><span className="text-right">{t("common.cost")}</span><span className="hidden text-right @xl:block">{t("usage.share")}</span><span className="text-right">Token</span></div>{rows.map((row) => <div key={row.key} className="grid min-h-[38px] grid-cols-[minmax(0,1fr)_78px_78px] items-center gap-4 border-b border-line-soft text-label last:border-b-0 @xl:grid-cols-[minmax(0,1fr)_100px_78px_62px_90px]"><div className="min-w-0"><div className="truncate text-ink">{row.label}</div>{row.provider && <div className="truncate text-detail text-ink-faint @xl:hidden">{row.provider}</div>}</div><div className="hidden truncate text-right text-detail text-ink-faint @xl:block">{row.provider}</div><div className="text-right text-ink tabular-nums">{row.unpriced ? t("usage.unpriced") : costLabel(row.cost)}</div><div className="hidden text-right text-ink-muted tabular-nums @xl:block">{(row.share * 100).toFixed(1)}%</div><div className="text-right text-ink-muted tabular-nums">{formatCompact(row.tokens)}</div></div>)}{remaining > 0 && <div className="py-2 text-center text-detail text-ink-faint">另有 {remaining} 项</div>}</div>;
 }
 
+/*
+ * 每一段都在，宽度为零的也在。
+ *
+ * 之前是 `value > 0` 才画：一段从有到无就是整个 `<span>` 被摘掉，剩下的几段瞬间重排，没有中间态
+ * 可言。让它们一直在那儿、只让宽度过渡，换区间时这条带子是自己重新分配的，而不是被换了一条。
+ */
 function QualityBar({ totals }: { totals: UsageView["totals"] }) {
 	const parts = [totals.quality.provider, totals.quality.catalog, totals.quality.manual, totals.quality.recorded, totals.quality.unpriced];
-	return <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink/[0.06]">{parts.map((value, index) => value > 0 ? <span key={index} style={{ width: `${(value / Math.max(1, totals.tokens)) * 100}%`, background: index === 4 ? "var(--color-line)" : trendColor(index) }} /> : null)}</div>;
+	return <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink/[0.06]">{parts.map((value, index) => <span key={index} className="transition-[width] duration-[var(--ly-t-slow)] ease-[var(--ly-e-out)] motion-reduce:transition-none" style={{ width: `${(value / Math.max(1, totals.tokens)) * 100}%`, background: index === 4 ? "var(--color-line)" : trendColor(index) }} />)}</div>;
 }
 
-function QualityRow({ label, value }: { label: string; value: string }) {
-	return <div className="flex items-center justify-between gap-3 py-2 text-label"><span className="text-ink-muted">{label}</span><span className="shrink-0 text-ink tabular-nums">{value}</span></div>;
+function QualityRow({ label, value, format }: { label: string; value: number; format: (shown: number) => string }) {
+	return <div className="flex items-center justify-between gap-3 py-2 text-label"><span className="text-ink-muted">{label}</span><span className="shrink-0 text-ink tabular-nums"><Figure value={value} format={format} /></span></div>;
 }
 
 function UsageSkeleton({ failed }: { failed: boolean }) {
@@ -350,7 +403,10 @@ function heatTip(day: DayUsage): string {
 
 function costLabel(value: number): string { return formatCost(value) ?? "$0.00"; }
 function signedCost(value: number): string { return `${value < 0 ? "−" : ""}${costLabel(Math.abs(value))}`; }
-function percent(value: number, total: number): string { return `${(total > 0 ? (value / total) * 100 : 0).toFixed(1)}%`; }
+/** 百分比拆成「算出这个数」和「把它写出来」两步，动画要插值的是前者。 */
+function share(value: number, total: number): number { return total > 0 ? (value / total) * 100 : 0; }
+function percentLabel(value: number): string { return `${value.toFixed(1)}%`; }
+function percent(value: number, total: number): string { return percentLabel(share(value, total)); }
 function viewTokens(rows: { tokens: number }[]): number { return rows.reduce((sum, row) => sum + row.tokens, 0); }
 function fullDate(day: string): string { const [year, month, date] = day.split("-"); return `${year}/${Number(month)}/${Number(date)}`; }
 function rangeLabel(series: { day: string }[]): string { return series.length > 0 ? translate("usage.range", { from: fullDate(series[0].day), to: fullDate(series[series.length - 1].day) }) : translate("usage.noRange"); }

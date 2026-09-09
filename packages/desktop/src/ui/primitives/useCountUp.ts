@@ -21,9 +21,25 @@ import { motionReduced } from "../motion/reduced.ts";
 /** Long enough to read as movement, short enough that a burst of updates does not queue up. */
 const TRAVEL_MS = 520;
 
-export function useCountUp(target: number, ms = TRAVEL_MS): number {
+export function useCountUp(
+	target: number,
+	ms = TRAVEL_MS,
+	options?: {
+		/**
+		 * Whether a smaller number is also travelled to, rather than simply set.
+		 *
+		 * Off by default, and the default is the one that matters here: a running total only grows
+		 * within a turn, so counting *down* would show values the reading never had. It is on for the
+		 * one shape where a drop is as real as a rise — the same figure recomputed over a different
+		 * period, where 90 天 → 7 天 is a genuinely smaller number and the movement between them is
+		 * what says the two readings are of the same thing.
+		 */
+		bidirectional?: boolean;
+	},
+): number {
 	const [shown, setShown] = useState(target);
 	const frame = useRef(0);
+	const bidirectional = options?.bidirectional ?? false;
 	/**
 	 * Where the next journey starts from.
 	 *
@@ -43,8 +59,12 @@ export function useCountUp(target: number, ms = TRAVEL_MS): number {
 		 * The count only ever grows within a turn; it drops when the turn ends or the session
 		 * changes. Animating that would show the number counting *down* through values it never
 		 * had, which says something false about what happened.
+		 *
+		 * `bidirectional` is the exception, and it is a narrow one: the same reading recomputed over
+		 * a different period. There a smaller number is not a different conversation — it is the same
+		 * conversation, asked about a shorter stretch of time.
 		 */
-		if (target <= from.current || motionReduced()) {
+		if ((!bidirectional && target <= from.current) || target === from.current || motionReduced()) {
 			from.current = target;
 			setShown(target);
 			return;
@@ -74,7 +94,7 @@ export function useCountUp(target: number, ms = TRAVEL_MS): number {
 
 		frame.current = requestAnimationFrame(step);
 		return () => cancelAnimationFrame(frame.current);
-	}, [target, ms]);
+	}, [target, ms, bidirectional]);
 
 	return shown;
 }

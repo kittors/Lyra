@@ -37,18 +37,38 @@ export function TextInput({
 			placeholder={placeholder}
 			className={`h-[38px] rounded-[10px] border bg-input px-3.5 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint ${
 				invalid ? "border-danger/60" : "border-line"
-			} ${mono ? "font-mono text-label" : ""} ${className || "w-full"}`}
+			} ${mono ? "font-mono text-label" : ""} ${numericClass(rest.inputMode)} ${className || "w-full"}`}
 		/>
 	);
+}
+
+/**
+ * 一个装数字的框，字就站在框的中间。
+ *
+ * 文字是从左边读起的，所以文字框左对齐；一个数字不是读出来的，是看一眼就知道多大——它两边留白
+ * 不一样宽的时候，一列这样的框看上去像没对齐。判断依据用 `inputMode` 而不是新加一个 prop：说
+ * 「这里只输数字」的地方本来就得写它（软键盘要用），再加一个意思相同的开关，迟早会有一个字段
+ * 只写了其中一个。
+ */
+function numericClass(inputMode: React.HTMLAttributes<HTMLElement>["inputMode"]): string {
+	return inputMode === "numeric" || inputMode === "decimal" ? "text-center tabular-nums" : "";
 }
 
 export function SecretInput({
 	value,
 	onChange,
+	onBlur,
 	placeholder,
 }: {
 	value: string;
 	onChange: (value: string) => void;
+	/**
+	 * 失焦时的那一次，带着当前文本。
+	 *
+	 * 给防抖提交用：改完就切走的那次修改，等不到防抖的定时器。这里传的是值而不是事件，跟
+	 * `onChange` 保持同一种形状——调用方不必知道底下是什么元素。
+	 */
+	onBlur?: (value: string) => void;
 	placeholder?: string;
 }) {
 	const [visible, setVisible] = useState(false);
@@ -58,6 +78,7 @@ export function SecretInput({
 				type={visible ? "text" : "password"}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
+				onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
 				placeholder={placeholder}
 				spellCheck={false}
 				autoComplete="off"

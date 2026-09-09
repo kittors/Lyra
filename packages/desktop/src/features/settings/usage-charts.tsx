@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { portal } from "../../ui/overlay/portal.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
+import { useCountUp } from "../../ui/primitives/useCountUp.ts";
 import type { ProviderTrend } from "./usage-aggregate.ts";
 import { curveArea, curvePath } from "./usage-chart-curve.ts";
 import {
@@ -26,11 +27,38 @@ export { trendColor, type TrendMetric };
 const NONE_HIDDEN: ReadonlySet<string> = new Set();
 
 /**
+ * 一条线按比例拉到另一个点数，好让两条长度不同的线还能逐点相减。
+ *
+ * 换区间是这张图上唯一会改变点数的操作：7 天的 7 个点和 30 天的 30 个点之间，没有哪一天对着哪
+ * 一天。但它们描的是同一条曲线的两段——按位置比例取样，第 30 天还是落在末端，中间那些点落在旧
+ * 曲线上对应比例的位置，于是「7 天铺开成 30 天」看起来是这条线自己在展开。
+ *
+ * 线性取样而不是取最近的那个点：取最近的会在展开时留下一级一级的台阶，而台阶是假的——原始数据
+ * 里并没有那样的平台。
+ */
+function resample(values: number[], length: number, fallback: number): number[] {
+	if (values.length === length) return values;
+	if (length <= 0) return [];
+	if (values.length === 0) return Array.from({ length }, () => fallback);
+	if (values.length === 1 || length === 1) {
+		const only = values[values.length - 1]!;
+		return Array.from({ length }, () => only);
+	}
+	return Array.from({ length }, (_, index) => {
+		const at = (index / (length - 1)) * (values.length - 1);
+		const low = Math.floor(at);
+		const high = Math.min(values.length - 1, low + 1);
+		return values[low]! + (values[high]! - values[low]!) * (at - low);
+	});
+}
+
+/**
  * 曲线从上一组坐标走到这一组，而不是直接换掉。
  *
  * 费用和 token 是同一批日子的两种读法，中间没有任何东西真的发生了变化——所以那一下不该是一张
  * 图被另一张顶掉，而该是同一条线改了形状。关掉一个供应商同理：纵轴重新分配，留下的曲线长高，
- * 长高的过程本身就是「刚才那条线占掉了这么多」的解释。
+ * 长高的过程本身就是「刚才那条线占掉了这么多」的解释。换区间也算在内，只是要先把旧的那条按比例
+ * 拉到新的点数上——见 `resample`。
  *
  * 每帧重算路径而不是让 CSS 去补 `d`：`d` 的过渡要求两条路径的段数和指令完全对得上，而这里段数
  * 恰恰是会变的（换区间就变），一旦对不上浏览器直接跳变，于是动画只在「不需要它」的时候有。
@@ -38,7 +66,22 @@ const NONE_HIDDEN: ReadonlySet<string> = new Set();
  *
  * 关掉动效时一步到位。这不是把时长改成 0：中间那些帧本身就是这里唯一做的事。
  */
-function useMorphedY(target: number[][], shape: string): number[][] {
+/**
+ * 画出来的那一组，先跟这一轮的点数对齐。
+ *
+ * 补间是在 effect 里跑的，而 effect 在这一帧画完之后才轮到——所以点数刚变的那一帧，手上还是上
+ * 一组坐标。少掉的那些点会各自落到基线上，于是曲线在动画开始前先塌下去一帧。按比例拉开就没有
+ * 这一下：这一帧画的就是「旧曲线铺到新宽度」，也正是补间该出发的地方。
+ *
+ * 点数没变时原样返回同一个数组，引用不变，后面的 `useMemo` 也就不必重算。
+ */
+function alignTo(drawn: number[][], target: number[][], baseline: number): number[][] {
+	const aligned =
+		drawn.length === target.length && target.every((series, index) => series.length === drawn[index]?.length);
+	return aligned ? drawn : target.map((series, index) => resample(drawn[index] ?? [], series.length, baseline));
+}
+
+function useMorphedY(target: number[][], shape: string, baseline: number): number[][] {
 	const [drawn, setDrawn] = useState(target);
 	const current = useRef(target);
 	const lastShape = useRef(shape);
@@ -51,7 +94,12 @@ function useMorphedY(target: number[][], shape: string): number[][] {
 			setDrawn(target);
 			return;
 		}
-		const from = current.current;
+		/*
+		 * 起点先跟终点对齐点数，只对齐一次。
+		 *
+		 * 放在循环外面：动画期间点数不再变（变了就是新的一轮），而每帧重取样 90 个点是白做的功。
+		 */
+		const from = target.map((series, trendIndex) => resample(current.current[trendIndex] ?? [], series.length, baseline));
 		const started = performance.now();
 		let frame = 0;
 		const step = (now: number) => {
@@ -70,9 +118,9 @@ function useMorphedY(target: number[][], shape: string): number[][] {
 		};
 		frame = requestAnimationFrame(step);
 		return () => cancelAnimationFrame(frame);
-	}, [target, shape]);
+	}, [target, shape, baseline]);
 
-	return drawn;
+	return useMemo(() => alignTo(drawn, target, baseline), [drawn, target, baseline]);
 }
 
 /** 气泡里只留还开着的供应商，合计跟着重算。 */
@@ -133,6 +181,14 @@ export function UsageTrendChart({
 	const counted = trends.filter((trend) => !off.has(trend.id));
 	const values = (counted.length ? counted : trends).flatMap((trend) => trend.points.map((point) => point[metric]));
 	const maximum = Math.max(1, ...values);
+	/*
+	 * 刻度上的数跟着曲线一起走。
+	 *
+	 * 曲线的形变是在纵轴已经换了刻度的前提下画出来的——中间那些帧既不属于旧刻度也不属于新刻度。
+	 * 让刻度自己也从旧的走到新的，这一段就重新自洽了：线在长高，旁边的数也在长。坐标本身仍然用
+	 * 真实的 `maximum` 算，动的只是写在轴上的那几个字。
+	 */
+	const axisMax = useCountUp(maximum, DURATION.base, { bidirectional: true });
 	const x = (index: number) => pointAtX(index, count);
 	const ticks = [1, 0.75, 0.5, 0.25, 0];
 
@@ -149,15 +205,18 @@ export function UsageTrendChart({
 	/*
 	 * 形状对不上就没有中间态可言。
 	 *
-	 * 换区间（7 天到 30 天）是点数变了，换项目是供应商变了——两者都没有「这一天走到那一天」的
-	 * 对应关系。窗口改大小也在这里：拖动边框时每一帧都是新的高度，跟着做 220ms 的补间，曲线会
-	 * 一路落在容器后面。这三种直接换，剩下的才补间。
+	 * 换项目是供应商换了一批——没有「这条线走到那条线」的对应关系。窗口改大小也在这里：拖动边框
+	 * 时每一帧都是新的高度，跟着做 220ms 的补间，曲线会一路落在容器后面。这两种直接换。
+	 *
+	 * 点数不在里面，是后来撤掉的：换区间（7 天到 30 天）本来也算「形状变了」，于是这张图上最常
+	 * 按的那个开关恰好是唯一没有过渡的那个——四个区间来回按，图每次都是硬生生换掉一张。同一批
+	 * 供应商在同一个高度上，只是问的天数不同，那是同一条线铺得开一点，`resample` 就是干这个的。
 	 */
 	const shape = useMemo(
-		() => `${trends.map((trend) => `${trend.id}:${trend.points.length}`).join("|")}@${plotHeight}`,
+		() => `${trends.map((trend) => trend.id).join("|")}@${plotHeight}`,
 		[trends, plotHeight],
 	);
-	const drawn = useMorphedY(target, shape);
+	const drawn = useMorphedY(target, shape, CHART.top + plotHeight);
 	const y = (trendIndex: number, dayIndex: number) => drawn[trendIndex]?.[dayIndex] ?? CHART.top + plotHeight;
 
 	// A day that no longer exists — the range changed under the pointer — must not draw a crosshair.
@@ -243,7 +302,7 @@ export function UsageTrendChart({
 						<g key={share}>
 							<line x1={CHART.left} x2={CHART.width - CHART.right} y1={tick} y2={tick} stroke="var(--color-line)" strokeWidth="1" />
 							<text x={CHART.left - 8} y={tick + 4} textAnchor="end" fill="var(--color-ink-faint)" fontSize="10" className="tabular-nums">
-								{axisValue(maximum * share, metric)}
+								{axisValue(axisMax * share, metric)}
 							</text>
 						</g>
 					);

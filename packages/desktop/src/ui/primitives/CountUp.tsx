@@ -23,10 +23,20 @@ export function CountUp({
 	className,
 	/** How the travelling figure is written. Defaults to a plain rounded integer. */
 	format = plain,
+	bidirectional,
+	ms,
+	...rest
 }: {
 	value: number;
 	className?: string;
 	format?: (shown: number) => string;
-}) {
-	return <span className={className}>{format(useCountUp(value))}</span>;
+	/** Travel downwards too — see `useCountUp`. For a reading recomputed over a shorter period. */
+	bidirectional?: boolean;
+	ms?: number;
+} & Omit<React.ComponentProps<"span">, "className" | "children">) {
+	return (
+		<span {...rest} className={className}>
+			{format(useCountUp(value, ms, { bidirectional }))}
+		</span>
+	);
 }
