@@ -49,9 +49,19 @@ test("a conversation sees its own tabs and nobody else's", async () => {
 	const app = await panel("a");
 	try {
 		assert.deepEqual(app.listed(), ["a1", "a2"]);
-		// The page on screen is this conversation's, and the other conversations' are not visible.
-		const visible = app.view.all("[data-browser-page]").filter((page) => (page.parentElement as HTMLElement).style.visibility === "visible");
+		/*
+		 * The page on screen is this conversation's, and the other conversations' are not visible.
+		 *
+		 * Asked as "not hidden" rather than "declared visible", because the active page deliberately
+		 * declares nothing — see the note in `BrowserPage`. `visibility` is inherited, and a
+		 * descendant that asserts `visible` climbs back out of an ancestor that is `hidden`: opening
+		 * settings puts the whole workspace away with `invisible`, and a webview that insisted on
+		 * being visible went on painting the browser over the settings pane.
+		 */
+		const shell = (page: HTMLElement) => page.parentElement as HTMLElement;
+		const visible = app.view.all("[data-browser-page]").filter((page) => shell(page).style.visibility !== "hidden");
 		assert.deepEqual(visible.map((page) => page.dataset.browserPage), ["a1"]);
+		assert.equal(shell(visible[0]).style.visibility, "", "活动那一页不能写死 visible，否则设置页盖不住它");
 		await app.switchTo("b");
 		assert.deepEqual(app.listed(), []);
 		assert.equal(app.view.find("[data-browser-panel]").textContent?.includes("b1"), false);

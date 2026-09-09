@@ -94,8 +94,8 @@ export function BrowserPanel() {
 		{options.open && <Popover anchor={options.anchor} onClose={options.close} placement="bottom" width="default" maxHeight={340} label="浏览器菜单"
 			header={menu !== "actions" && <button type="button" onClick={() => setMenu("actions")} className="flex h-9 w-full items-center gap-2 px-3 text-detail text-ink-muted"><ChevronLeft size={13} />{menu === "bookmarks" ? "书签" : "视口尺寸"}</button>}
 			footer={menu === "viewport" && tab && <form className="flex items-center gap-1.5 p-2" onSubmit={(event) => { event.preventDefault(); void commandBrowser({ type: "viewport", id: tab.id, viewport: { width: Number(width), height: Number(height) } }); options.close(); }}>
-				<Input aria-label="视口宽度" type="number" min={240} max={3840} required value={width} onChange={(event) => setWidth(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-detail" />×
-				<Input aria-label="视口高度" type="number" min={240} max={2160} required value={height} onChange={(event) => setHeight(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-detail" />
+				<Input aria-label="视口宽度" type="number" min={240} max={3840} required value={width} onChange={(event) => setWidth(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />×
+				<Input aria-label="视口高度" type="number" min={240} max={2160} required value={height} onChange={(event) => setHeight(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />
 				<button type="submit" className="shrink-0 rounded px-2 py-1 text-detail text-ink-muted hover:bg-card-hover">应用</button>
 			</form>}>
 			<MenuBody>

@@ -38,7 +38,20 @@ export function BrowserPage({ tab, active }: { tab: BrowserTab; active: boolean 
 	const scale = tab.viewport ? Math.min(1, size.width / tab.viewport.width, size.height / tab.viewport.height) : 1;
 	const x = Math.max(0, Math.min(size.width - 1, (pointer?.x ?? 0) * tab.zoom * scale));
 	const y = Math.max(0, Math.min(size.height - 1, (pointer?.y ?? 0) * tab.zoom * scale));
-	return <div className="absolute inset-0" style={{ visibility: active ? "visible" : "hidden", pointerEvents: active ? "auto" : "none" }}>
+	/*
+	 * Inherited when this tab is the active one, never asserted.
+	 *
+	 * `visibility` is inherited, and a descendant that declares `visible` comes back into view even
+	 * inside an ancestor that is `hidden` — that is the property's defining behaviour, not a quirk.
+	 * So `visibility: "visible"` here reached past the one thing that puts the whole workspace away:
+	 * opening settings hides it with `invisible` (see `Shell` in `app/App.tsx`, which cannot use
+	 * `display: none` without losing the transcript's scroll position), and this webview was the one
+	 * element that ignored it. The browser's page went on painting over the settings pane.
+	 *
+	 * `undefined` leaves the property alone: the active tab is visible exactly when whatever contains
+	 * it is. The inactive ones still assert `hidden`, which is what keeps the tab strip working.
+	 */
+	return <div className="absolute inset-0" style={{ visibility: active ? undefined : "hidden", pointerEvents: active ? "auto" : "none" }}>
 		<webview ref={ref} src={initialUrl} partition="persist:ly-browser" data-browser-page={tab.id} className="absolute inset-0 h-full w-full bg-white" />
 		{pointer && <>
 			<div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-10" style={{ transform: `translate(${x}px, ${y}px)` }}>
