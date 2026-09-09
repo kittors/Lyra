@@ -13,6 +13,7 @@
  */
 
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -59,7 +60,14 @@ async function seed(home: string): Promise<void> {
 
 before(async () => {
 	app = await startApp({ port: 9445, seed });
-	project = join(app.home, "project");
+	/*
+	 * 规范写法，和主进程回给渲染进程的那个一致。
+	 *
+	 * 边界检查现在两侧都解软链再比，因此返回的也是解过的那一个——`resolveInside` 的约定本来就是
+	 * 「调用方对被检查过的那个字符串做 IO」。macOS 上 `mkdtemp` 给的是 `/var/…`，解开是
+	 * `/private/var/…`，拿没解的那个去比路径会差一个前缀。
+	 */
+	project = realpathSync(join(app.home, "project"));
 });
 
 after(async () => {
@@ -95,10 +103,14 @@ const UI = `
 			clientX: Math.round(b.left + 40), clientY: Math.round(b.top + 8),
 		}));
 	};
-	const type = (input, text) => {
+	const type = async (input, text) => {
 		const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
 		setter.call(input, text);
 		input.dispatchEvent(new Event("input", { bubbles: true }));
+		// 两个事件之间必须让 React 渲染一次。setState 是批到这次事件之后才生效的，紧接着同步发
+		// Enter，提交读到的还是上一轮闭包里的空名字——于是文件按空名字建，或者被拒，磁盘上什么
+		// 都没有，报出来是「ENOENT」，看着像功能坏了。
+		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 		input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 	};
 	const key = (init) => document.querySelector("[data-ly-tree]").dispatchEvent(
@@ -288,22 +300,27 @@ test("opening a file gives it a pane of its own, beside the tree rather than ins
 	assert.equal(insideTree, false, "the tree pane is only a tree now");
 });
 
-test("新建文件 puts a field in the tree, and Enter creates what was typed", async () => {
+test("新建文件 puts a field in the tree, and Enter creates what was typed", async (t) => {
 	await openFilePanel();
 	const state = await ui<{ field: boolean; selected: string[]; editor: boolean }>(`
 		openMenu(row("/src")); await wait(400);
 		item("新建文件").click(); await wait(400);
 		const field = document.querySelector("[data-ly-tree] input.ly-name-input");
 		if (!field) return { field: false, selected: [], editor: false };
-		type(field, "through-the-menu.ts"); await wait(800);
+		await type(field, "through-the-menu.ts"); await wait(800);
 		return {
 			field: true,
+			// 提交读的是组件 state，为空就静默取消——把输入框最后的样子带出来，好分清是没输进去
+			// 还是输进去了没提交。
+			typed: field.value,
+			stillThere: Boolean(document.querySelector("[data-ly-tree] input.ly-name-input")),
 			selected: rows().filter((r) => r.getAttribute("aria-selected") === "true").map((r) => r.getAttribute("data-path")),
 			editor: Boolean(document.querySelector(".ly-cm .cm-editor")),
 		};
 	`);
 
 	assert.equal(state.field, true, "no inline field appeared");
+	t.diagnostic(JSON.stringify(state));
 	assert.equal(await readFile(join(project, "src", "through-the-menu.ts"), "utf8"), "");
 	assert.deepEqual(state.selected, [join(project, "src", "through-the-menu.ts")], "the new file is selected");
 	assert.equal(state.editor, true, "and open in the pane beside the tree");
@@ -316,7 +333,7 @@ test("F2 renames in place, with the extension left out of the selection", async 
 		const field = document.querySelector("[data-ly-tree] input.ly-name-input");
 		if (!field) return { range: null };
 		const range = [field.selectionStart, field.selectionEnd];
-		type(field, "renamed-in-place.ts"); await wait(800);
+		await type(field, "renamed-in-place.ts"); await wait(800);
 		return { range };
 	`);
 
