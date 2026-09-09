@@ -21,6 +21,7 @@
  * as much a part of what they shipped as the name. Where none was declared the mark stays grey,
  * which is the difference — nothing is being made up to fill the gap.
  */
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { Blocks, FileText, Server } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -41,11 +42,11 @@ export function safeColour(raw: string | undefined): string | null {
 	return /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(raw.trim()) ? raw.trim() : null;
 }
 
-/** Which glyph stands for each kind, and what it is called when the mark needs a name. */
-const MARKS: Record<BundleKind, { Glyph: typeof Blocks; label: string }> = {
-	mcp: { Glyph: Server, label: translate("pluginIcon.mcp") },
-	plugin: { Glyph: Blocks, label: translate("pluginIcon.plugin") },
-	skill: { Glyph: FileText, label: translate("pluginIcon.skill") },
+/** Which glyph stands for each kind, and what it is called. Keys — this table is built at import. */
+const MARKS: Record<BundleKind, { Glyph: typeof Blocks; label: MessageKey }> = {
+	mcp: { Glyph: Server, label: "pluginIcon.mcp" },
+	plugin: { Glyph: Blocks, label: "pluginIcon.plugin" },
+	skill: { Glyph: FileText, label: "pluginIcon.skill" },
 };
 
 /**
@@ -72,6 +73,7 @@ export function SkillMark({ size = 30 }: { size?: number }) {
  */
 function KindMark({ kind, brandColor, size }: { kind: BundleKind; brandColor?: string; size: number }) {
 	const { Glyph, label } = MARKS[kind] ?? MARKS.plugin;
+	const name = translate(label);
 	const colour = safeColour(brandColor);
 
 	return (
@@ -82,7 +84,7 @@ function KindMark({ kind, brandColor, size }: { kind: BundleKind; brandColor?: s
 			 * beside the bundle's name, under a heading that already says which of the three kinds is
 			 * being listed, so a hover saying translate("pluginIcon.mcp") is a third copy of something nobody asked.
 			 */
-			aria-label={label}
+			aria-label={name}
 			style={{
 				width: size,
 				height: size,

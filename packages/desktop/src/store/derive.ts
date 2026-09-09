@@ -80,11 +80,21 @@ export type TurnStop = "user" | "interrupt" | "error" | null;
  * these exact strings to tell "carrying on" apart from "asking something new" — that is what keeps
  * a task's elapsed time and tokens whole across an interruption. A second copy is a mismatch
  * waiting for the day somebody improves the wording.
+ *
+ * **Not translated, and that is deliberate.** Nobody reads these: `resumesTurn` folds the message
+ * into the turn above it, so it never reaches the transcript. What they are is two things that
+ * both need to stay put — the text handed to the model, and the mark a saved transcript is
+ * recognised by. Route them through `translate` and the table freezes into whatever language the
+ * window started in; a conversation carried on in Chinese and reopened in English stops matching,
+ * `resumesTurn` calls it a new question, and every interrupted turn from then on reports the
+ * length of its last leg. Which is precisely the failure this constant exists to prevent, and it
+ * is invisible: the suite walks this table, so a table that moved with the language stayed green.
  */
+// i18n-exempt: 发给模型的文本，同时是历史转录的标识——翻译它会让老会话的续跑认不出来。
 export const CARRY_ON_PROMPTS = [
-	translate("derive.resumePaused"),
-	translate("derive.resumeInterrupted"),
-	translate("derive.resumeChecklist"),
+	"继续，从暂停的地方接着做。",
+	"继续，从中断的地方接着做。",
+	"继续，把清单里没做完的做完。",
 ] as const;
 
 /**

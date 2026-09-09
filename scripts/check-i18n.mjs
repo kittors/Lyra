@@ -77,20 +77,29 @@ const EXEMPT = [
 	"lib/markdown/inline.ts",
 ];
 
-/** Strip comments, so the reasoning this codebase writes in Chinese is not a finding. */
+/**
+ * Strip comments, so the reasoning this codebase writes in Chinese is not a finding.
+ *
+ * Newlines survive — including the ones inside a block comment, which are replaced one for one.
+ * Anything else and every line number after the first `/* *\/` is wrong, which matters twice: the
+ * `--list` output stops being clickable, and the inline exemption below is keyed by line.
+ */
 function stripComments(src) {
 	let out = "";
 	let i = 0;
 	while (i < src.length) {
 		const two = src.slice(i, i + 2);
 		if (two === "//") {
-			const end = src.indexOf("\n", i);
-			i = end === -1 ? src.length : end;
-			out += "\n";
+			// Stop *at* the newline and let the loop copy it: adding one here as well shifted every
+			// line after a `//` comment by one, which is why `--list` line numbers never quite lined
+			// up with the file.
+			i = src.indexOf("\n", i);
+			if (i === -1) i = src.length;
 		} else if (two === "/*") {
 			const end = src.indexOf("*/", i + 2);
+			const body = src.slice(i, end === -1 ? src.length : end + 2);
 			i = end === -1 ? src.length : end + 2;
-			out += " ";
+			out += body.replace(/[^\n]/g, "");
 		} else {
 			out += src[i];
 			i += 1;
@@ -99,13 +108,41 @@ function stripComments(src) {
 	return out;
 }
 
+/**
+ * Lines a `i18n-exempt` note has spoken for.
+ *
+ * There is a third kind of Chinese string, next to "a label" and "a whole file of samples": one
+ * that a person never reads and that must not move. `CARRY_ON_PROMPTS` in `store/derive.ts` is the
+ * case that produced this — the text 「继续」 sends, which `grouping.ts` matches saved transcripts
+ * against to keep an interrupted turn's timings whole. Translating it froze the table into the
+ * launch language and quietly stopped older conversations from matching. A file-wide exemption
+ * would be wrong here (the same file has real notices in it), so the note is a line away from what
+ * it excuses, with the reason written beside it.
+ *
+ * It covers from the next line to the first blank one, so one note speaks for a whole table rather
+ * than needing to be repeated on every row.
+ */
+function exemptLines(source) {
+	const lines = source.split("\n");
+	const exempt = new Set();
+	for (let i = 0; i < lines.length; i++) {
+		if (!/i18n-exempt\b/.test(lines[i])) continue;
+		for (let j = i + 1; j < lines.length && lines[j].trim() !== ""; j++) exempt.add(j + 1);
+	}
+	return exempt;
+}
+
 /** Every user-visible Chinese string in one file, as `{ line, text }`. */
 export function findings(source) {
 	const stripped = stripComments(source);
+	const spared = exemptLines(source);
 	const found = [];
 	const at = (index) => stripped.slice(0, index).split("\n").length;
+	const keep = (line, text) => {
+		if (!spared.has(line)) found.push({ line, text });
+	};
 	for (const match of stripped.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g)) {
-		if (HAN.test(match[0])) found.push({ line: at(match.index), text: match[0].trim().slice(0, 80) });
+		if (HAN.test(match[0])) keep(at(match.index), match[0].trim().slice(0, 80));
 	}
 	/*
 	 * JSX text, including the half of it that sits beside an expression.
@@ -120,7 +157,7 @@ export function findings(source) {
 	 */
 	for (const match of stripped.matchAll(/>([^<>]*)</g)) {
 		const text = match[1].replace(/\{[^{}]*\}/g, " ");
-		if (HAN.test(text)) found.push({ line: at(match.index), text: text.trim().replace(/\s+/g, " ").slice(0, 80) });
+		if (HAN.test(text)) keep(at(match.index), text.trim().replace(/\s+/g, " ").slice(0, 80));
 	}
 	return found;
 }

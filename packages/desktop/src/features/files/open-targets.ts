@@ -16,20 +16,26 @@ import type { OpenTarget } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
 import { available, bridge } from "../../services/index.ts";
 
-/** Revealing is the one target every platform has, and the one worth falling back to. */
-const REVEAL: OpenTarget = { id: "reveal", label: translate("openTarget.reveal"), aliases: [] };
+/**
+ * Revealing is the one target every platform has, and the one worth falling back to.
+ *
+ * A function rather than a constant: a constant with `translate` in it is built once at import and
+ * keeps whatever language the window opened in. Everything else on this list is an application's
+ * own name and never moves; this one is a sentence, so it has to be looked up when it is used.
+ */
+const reveal = (): OpenTarget => ({ id: "reveal", label: translate("openTarget.reveal"), aliases: [] });
 
 let pending: Promise<OpenTarget[]> | null = null;
 let loaded: OpenTarget[] | null = null;
 const waiting = new Set<(targets: OpenTarget[]) => void>();
 
 function load(): Promise<OpenTarget[]> {
-	if (!available("system", "openTargets")) return Promise.resolve([REVEAL]);
+	if (!available("system", "openTargets")) return Promise.resolve([reveal()]);
 	pending ??= bridge.system
 		.openTargets()
-		.catch(() => [REVEAL])
+		.catch(() => [reveal()])
 		.then((targets) => {
-			loaded = targets.length > 0 ? targets : [REVEAL];
+			loaded = targets.length > 0 ? targets : [reveal()];
 			for (const listener of waiting) listener(loaded);
 			return loaded;
 		});
@@ -37,7 +43,7 @@ function load(): Promise<OpenTarget[]> {
 }
 
 export function useOpenTargets(): OpenTarget[] {
-	const [targets, setTargets] = useState<OpenTarget[]>(() => loaded ?? [REVEAL]);
+	const [targets, setTargets] = useState<OpenTarget[]>(() => loaded ?? [reveal()]);
 
 	useEffect(() => {
 		if (loaded) return;
@@ -60,7 +66,7 @@ export function useOpenTargets(): OpenTarget[] {
  */
 export function matchTarget(targets: OpenTarget[], stored: string | undefined): OpenTarget {
 	const value = (stored ?? "").trim();
-	if (!value) return targets[0] ?? REVEAL;
+	if (!value) return targets[0] ?? reveal();
 	const lower = value.toLowerCase();
 	return (
 		targets.find((target) => target.id === value) ??
@@ -96,5 +102,5 @@ export function useOpenTarget(): OpenTarget {
  */
 export function useRevealLabel(): string {
 	const targets = useOpenTargets();
-	return targets.find((target) => target.id === "reveal")?.label ?? REVEAL.label;
+	return targets.find((target) => target.id === "reveal")?.label ?? reveal().label;
 }

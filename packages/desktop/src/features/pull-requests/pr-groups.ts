@@ -7,6 +7,7 @@
  * they are here rather than inline in a component.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { PullRequestSummary } from "../../../electron/ipc-types.ts";
 
@@ -19,10 +20,11 @@ export interface Group {
 	items: PullRequestSummary[];
 }
 
-const GROUP_LABELS: Record<PullRequestSummary["relation"], string> = {
-	reviewing: translate("prGroups.forYou"),
-	authored: translate("prGroups.mine"),
-	reviewed: translate("prGroups.reviewed"),
+/** Keys — looked up in `groupPullRequests`, since this table is built at import time. */
+const GROUP_LABELS: Record<PullRequestSummary["relation"], MessageKey> = {
+	reviewing: "prGroups.forYou",
+	authored: "prGroups.mine",
+	reviewed: "prGroups.reviewed",
 };
 
 /** The order the groups appear in, which is the order they need attention. */
@@ -41,7 +43,7 @@ export function groupFor(items: PullRequestSummary[], filter: Filter, query: str
 
 	return GROUP_ORDER.map((key) => ({
 		key,
-		label: GROUP_LABELS[key],
+		label: translate(GROUP_LABELS[key]),
 		items: matching.filter((pr) => pr.relation === key),
 	})).filter((group) => group.items.length > 0);
 }

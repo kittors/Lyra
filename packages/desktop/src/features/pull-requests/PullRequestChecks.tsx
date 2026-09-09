@@ -11,6 +11,7 @@
  * the one thing you need somewhere in the middle of nineteen greens.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { Check, CircleDashed, ExternalLink, X } from "lucide-react";
 import type { PullRequestCheck } from "../../../electron/ipc-types.ts";
@@ -18,10 +19,11 @@ import { bridge } from "../../services/index.ts";
 
 const RANK: Record<PullRequestCheck["state"], number> = { fail: 0, pending: 1, pass: 2 };
 
-const LOOK: Record<PullRequestCheck["state"], { icon: typeof Check; tone: string; label: string }> = {
-	pass: { icon: Check, tone: "text-ok", label: translate("prChecks.passed") },
-	fail: { icon: X, tone: "text-danger", label: translate("common.failed") },
-	pending: { icon: CircleDashed, tone: "text-ink-faint", label: translate("common.inProgress") },
+/** Keys — this table is built at import, so the word is fetched when the row is drawn. */
+const LOOK: Record<PullRequestCheck["state"], { icon: typeof Check; tone: string; label: MessageKey }> = {
+	pass: { icon: Check, tone: "text-ok", label: "prChecks.passed" },
+	fail: { icon: X, tone: "text-danger", label: "common.failed" },
+	pending: { icon: CircleDashed, tone: "text-ink-faint", label: "common.inProgress" },
 };
 
 export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | undefined }) {
@@ -65,7 +67,7 @@ export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | und
 						)}
 
 						<span className={`shrink-0 text-detail ${check.state === "pass" ? "text-ink-faint" : look.tone}`}>
-							{look.label}
+							{translate(look.label)}
 						</span>
 					</div>
 				);

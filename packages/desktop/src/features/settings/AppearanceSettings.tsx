@@ -264,10 +264,10 @@ export function AppearanceSettings() {
 							patch({ codeFont: next });
 						}}
 						options={[
-							...CODE_FONTS.map((font) => ({
-								value: font.stack,
-								label: fontAvailable(font) ? font.label : t("appearance.fontNotInstalled", { name: font.label }),
-							})),
+							...CODE_FONTS.map((font) => {
+								const name = font.labelKey ? t(font.labelKey) : font.label;
+								return { value: font.stack, label: fontAvailable(font) ? name : t("appearance.fontNotInstalled", { name }) };
+							}),
 							{ value: CUSTOM_FONT, label: t("appearance.custom") },
 						]}
 					/>

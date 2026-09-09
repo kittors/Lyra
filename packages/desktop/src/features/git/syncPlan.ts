@@ -13,16 +13,17 @@
  * commit was sitting unpushed.
  */
 
+import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { GitOperation, GitStatus, RemoteState } from "../../../electron/ipc-types.ts";
 
-/** What to call each unfinished operation in a sentence. */
-const OPERATION: Record<GitOperation, string> = {
-	rebase: translate("sync.rebase"),
-	merge: translate("sync.merge"),
-	"cherry-pick": translate("sync.cherryPick"),
-	revert: translate("sync.revert"),
-	bisect: translate("sync.bisect"),
+/** What to call each unfinished operation. Keys — this table is built at import time. */
+const OPERATION: Record<GitOperation, MessageKey> = {
+	rebase: "sync.rebase",
+	merge: "sync.merge",
+	"cherry-pick": "sync.cherryPick",
+	revert: "sync.revert",
+	bisect: "sync.bisect",
 };
 
 export interface SyncButton {
@@ -76,7 +77,7 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 	}
 
 	if (state === "in-progress") {
-		const what = OPERATION[status.operation ?? "merge"];
+		const what = translate(OPERATION[status.operation ?? "merge"]);
 		return {
 			branch,
 			detail: translate("sync.inProgress", { what }),
