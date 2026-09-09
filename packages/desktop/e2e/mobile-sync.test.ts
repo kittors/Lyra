@@ -36,9 +36,14 @@ function finish() {
 }
 
 type Page = Pick<RunningApp, "evaluate" | "send">;
-async function until(page: Page, expression: string, label = expression) {
+/*
+ * 默认 12 秒，但手机侧的 RPC 自己等到 20 秒才认输（见 `mobile/src/bridge.ts` 的
+ * 「桌面端没有响应」）。等得比它短，慢一点的调用就会在还没有答复的时候被判死，报出来像是
+ * 功能坏了。数据量大的那几步要把这个数字抬到 RPC 超时之上。
+ */
+async function until(page: Page, expression: string, label = expression, timeout = 12_000) {
 	const started = performance.now();
-	while (performance.now() - started < 12_000) {
+	while (performance.now() - started < timeout) {
 		if (await page.evaluate<boolean>(expression)) return performance.now() - started;
 		await new Promise((resolve) => setTimeout(resolve, 80));
 	}
@@ -223,7 +228,9 @@ test("mobile trajectory keeps real touch targets and omits desktop file exports"
 	t.diagnostic(await phone.evaluate("document.body.innerText.slice(-800)"));
 	await phone.evaluate("(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='轨迹');if(!e)throw new Error('trajectory action missing');e.click();})()");
 	t.diagnostic(`轨迹面板：${await phone.evaluate<string>(`(()=>{const p=document.querySelector('[data-dock-pane="trajectory"]');return p?('在，内容='+p.innerText.slice(0,240).replace(/\\s+/g,' ')):'✗ 没有 trajectory 面板；当前 dock='+[...document.querySelectorAll('[data-dock-pane]')].map(e=>e.getAttribute('data-dock-pane')).join(',');})()`)}`);
-	await until(phone, "!!document.querySelector('[data-trace-entry]')");
+	// 轨迹是这一屏里最重的一次调用：五千条消息走中转再到手机端解析。等到 RPC 自己超时之后，
+	// 才分得清「还没回来」和「回来了是空的」。
+	await until(phone, "!!document.querySelector('[data-trace-entry]')", "trajectory entries", 25_000);
 	for (const [width, height] of [[320, 568], [390, 844], [844, 390]]) {
 		await size(width, height);
 		const rows = await phone.evaluate<{ top: number; height: number; bottom: number }[]>("[...document.querySelectorAll('[data-trace-list] [role=listitem]')].map(e=>{const r=e.getBoundingClientRect();return {top:r.top,height:r.height,bottom:r.bottom}})");
