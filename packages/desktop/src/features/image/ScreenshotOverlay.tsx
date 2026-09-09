@@ -234,15 +234,36 @@ export function ScreenshotOverlay() {
 
 	/** The toolbar's measured size, so it is kept on screen against what it really is. */
 	const [toolbarSize, setToolbarSize] = useState<{ width: number; height: number } | null>(null);
+	const toolbarObserver = useRef<ResizeObserver | null>(null);
+	/*
+	 * Watched, not measured once.
+	 *
+	 * This was a bare ref callback, which runs when the element mounts and never again — so the
+	 * width it recorded was the width of the bar *as it first appeared*. The bar does not keep that
+	 * width: select a shape and 「删除选中」 joins the row, and a tool with a properties bubble adds
+	 * its own controls. Every rule that keeps the bar on screen is computed against this number, so
+	 * a stale one disables all of them at once — `toolbarPosition` clamps the right edge against a
+	 * bar narrower than the one being drawn, and the real one hangs off the screen.
+	 *
+	 * Which is why the report was 「依然存在」: the placement arithmetic had been fixed, and it was
+	 * being fed a measurement that stopped updating.
+	 */
 	const measureToolbar = useCallback((el: HTMLDivElement | null) => {
+		toolbarObserver.current?.disconnect();
+		toolbarObserver.current = null;
 		if (!el) return;
-		const r = el.getBoundingClientRect();
-		if (!r.width || !r.height) return;
-		setToolbarSize((was) =>
-			was && Math.abs(was.width - r.width) < 1 && Math.abs(was.height - r.height) < 1
-				? was
-				: { width: Math.ceil(r.width), height: Math.ceil(r.height) },
-		);
+		const read = () => {
+			const r = el.getBoundingClientRect();
+			if (!r.width || !r.height) return;
+			setToolbarSize((was) =>
+				was && Math.abs(was.width - r.width) < 1 && Math.abs(was.height - r.height) < 1
+					? was
+					: { width: Math.ceil(r.width), height: Math.ceil(r.height) },
+			);
+		};
+		read();
+		toolbarObserver.current = new ResizeObserver(read);
+		toolbarObserver.current.observe(el);
 	}, []);
 
 	/*
@@ -961,8 +982,20 @@ export function ScreenshotOverlay() {
 	 * The side is still derived rather than kept, because the bubble must open away from the edge it
 	 * is nearest: dragged to the top of the screen, a bubble opening upwards would be off it.
 	 */
-	const toolbarAt: (Point & { side: "above" | "below" | "over" }) | null = toolbarAtManual
-		? { ...toolbarAtManual, side: toolbarAtManual.y >= PROPERTIES_HEIGHT ? "above" : "below" }
+	/*
+	 * A bar that was moved by hand is still not allowed off the screen.
+	 *
+	 * `clampToolbar` used to run only while the pointer was down, which kept the drag itself honest
+	 * and then stopped caring. The bar changes width after the drag — 「删除选中」 appears the moment
+	 * a shape is selected — and the position it was left at was reapplied unchanged, so the extra
+	 * width went straight off the right edge. Clamped here instead, against the size measured now,
+	 * so it holds for every later change and not just for the gesture that placed it.
+	 */
+	const manual = toolbarAtManual
+		? clampToolbar(toolbarAtManual, { ...TOOLBAR_SIZE, ...toolbarSize }, bounds, PROPERTIES_HEIGHT)
+		: null;
+	const toolbarAt: (Point & { side: "above" | "below" | "over" }) | null = manual
+		? { ...manual, side: manual.y >= PROPERTIES_HEIGHT ? "above" : "below" }
 		: placed;
 
 	return (
@@ -1235,6 +1268,9 @@ export function ScreenshotOverlay() {
 					 * so, and its children say what they are individually.
 					 */
 					className="pointer-events-auto absolute z-[120] cursor-default"
+					/* A stable hook: the bar has no text of its own to find it by, and where it sits
+					   is the thing most worth measuring from outside. See `toolbar-width-probe`. */
+					data-annotate-bar
 					style={{ left: toolbarAt.x, top: toolbarAt.y }}
 					onPointerDown={(e) => e.stopPropagation()}
 				>
