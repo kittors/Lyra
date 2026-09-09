@@ -194,17 +194,24 @@ test("two real screens stream both ways and recover missed content without dropp
 });
 
 /*
- * 手机上这个面板打开了，读数一直停在「0/0 读取中…」，原因还没定位到。
+ * 手机上这个面板打开了，读数一直停在「0/0 读取中…」。
  *
- * 通道是通的：`electron/sync-rpc.ts` 里有 `sessions.trajectory` 和 `sessions.trajectoryChanges`，
- * 面板那侧 `useTrajectory.ts` 也照常发请求。所以不是「功能没做」——我先前查的是
- * `sync-server.ts`，没找见就下了那个结论，那是错的。
+ * 已经排除的（都能靠读代码确认，不必起窗口）：
+ *   · 通道在——`electron/sync-rpc.ts` 有 `sessions.trajectory` 和 `sessions.trajectoryChanges`；
+ *   · 手机上允许调——`contract/src/methods.ts` 里这两个都是 `remote: true`，不在被填成 reject
+ *     的那一批里（机制见 `services/host.ts`）；
+ *   · 面板照常发请求——`useTrajectory.ts` 挂载即 `read()`。
+ * 所以不是「功能没做」。我先前查的是 `sync-server.ts`，没找见就下了那个结论，那是错的。
  *
- * seed 这次补上了 `seedTrajectory`（交互 fixture 里一次工具调用也没有，面板本来就无从有条目），
- * 数据这一半已经就位；还差一步是弄清请求发出去之后为什么没有条目回来。标 todo 是因为要往下
- * 查得起真实窗口，而那会打断人用电脑——不是因为它不该修。
+ * 下一步该看的是运行时的实际值，两条分支：`useTrajectory` 开头有
+ * `if (!sessionId || !projectId) return;`——`projectId` 在手机上要是空的，请求压根不会发出，
+ * 面板就停在初始态，「读取中」是假象；否则就是请求回来了但条目为空，那要看
+ * `readTrajectory` 拿到的 store 路径。分清这两条得起真实窗口读一次状态。
+ *
+ * seed 已经补上 `seedTrajectory`：交互 fixture 里一次工具调用也没有，面板本来就无从有条目，
+ * 数据这一半现在就位了。
  */
-test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "面板停在 0/0，通道存在（sync-rpc.ts）但条目没回来，待定位" }, async (t) => {
+test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "面板停在 0/0；通道、contract、请求侧均已排除，待看运行时 projectId 是否为空" }, async (t) => {
 	await size(390, 844);
 	// Dismiss the errors intentionally produced by the preceding offline test.
 	await phone.evaluate(`document.querySelectorAll('[role="alert"] button[aria-label="关闭"]').forEach(e=>e.click())`);
