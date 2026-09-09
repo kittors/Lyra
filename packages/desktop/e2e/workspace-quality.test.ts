@@ -40,7 +40,7 @@ before(async () => {
 	});
 	await new Promise<void>((resolve) => server.listen(0,"127.0.0.1",resolve));
 	const addr=server.address(); assert.ok(addr && typeof addr !== "string");port=addr.port;
-	app = await startApp({port:9618,seed:async(home)=>{
+	app = await startApp({port: 9702,seed:async(home)=>{
 		await seedInteractions(home,port);
 		const path=join(home,"settings.json"), settings=JSON.parse(await readFile(path,"utf8"));
 		settings.permissionMode="full"; settings.screenshot={enabled:false,shortcut:""};
@@ -107,13 +107,15 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	const delivery=await app.evaluate<{reportPath:string;files:{added:number;removed:number}[];commands:{status:string}[]}>(`window.lyra.delivery.get('qa-short',${timestamp})`);
 	assert.equal(delivery.files.length,1);assert.equal(delivery.files[0].removed,0);assert.ok(delivery.commands.some(c=>c.status==='exit 0'));
 	assert.match(await readFile(delivery.reportPath,"utf8"),/answer = 2/);assert.match(await readFile(delivery.reportPath,"utf8"),/本轮实现与验证记录/);
-	await until(`document.querySelector('[aria-label="内置浏览器打开服务"]')`);
+	// 等的是交付卡片自己。这里从前等「在内置浏览器打开」，可那个按钮在任务面板的服务列表里，
+	// 而任务面板要到下面第 122 行才打开——在它存在之前等它，只能等到超时。
+	await until(`document.querySelector('[data-turn-delivery] [data-delivery-file]')`);
 	await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>document.fonts.ready)");
 	await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').scrollIntoView({block:'nearest',behavior:'instant'})`);
 	await app.evaluate("new Promise(requestAnimationFrame)");
 	const row=await app.evaluate<{x:number;y:number;height:number}>(`(()=>{const e=document.querySelector('[data-turn-delivery] [data-delivery-file]'),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('delivery row is covered');return {x:r.x+r.width/2,y:r.y+r.height/2,height:r.height}})()`);
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:row.x,y:row.y});await until(`document.querySelector('[aria-label="文件变更预览"] .ly-diff-add')`);
-	await until(`document.querySelector('[aria-label="内置浏览器打开服务"]')`);await shot("turn-delivery-diff");
+	await shot("turn-delivery-diff");
 	assert.equal(await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').getBoundingClientRect().height`),row.height);
 	assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]').getBoundingClientRect().bottom <= document.querySelector('[data-delivery-file]').getBoundingClientRect().top`), "the preview must stay above its file row");await escape();
 	await click('[aria-label="查看实现与验证记录"]');await until(`document.querySelector('[data-dock-pane="file"]')?.innerText.includes('命令与验证证据')`);

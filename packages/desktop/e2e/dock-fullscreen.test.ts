@@ -36,7 +36,7 @@ async function seed(home: string) {
 }
 
 before(async () => {
-	app = await startApp({ port: 9617, seed });
+	app = await startApp({ port: 9700, seed });
 	await app.evaluate(`document.querySelector('[data-ly-row="fullscreen"] > button').click()`);
 	await until(`document.querySelector('.ly-transcript')`);
 	await openPane("任务");

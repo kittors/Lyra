@@ -7,7 +7,7 @@ import type { SessionRecord } from "@lyra/core";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
-before(async () => { app = await startApp({ port: 9618, seed: async (home) => {
+before(async () => { app = await startApp({ port: 9701, seed: async (home) => {
 	await seedInteractions(home, 1);
 	const settings = JSON.parse(await readFile(join(home, "settings.json"), "utf8"));
 	settings.appearance = { theme: "light", reduceMotion: "off" };
