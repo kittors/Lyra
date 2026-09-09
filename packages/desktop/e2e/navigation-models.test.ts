@@ -83,8 +83,15 @@ test("navigation clicks land instantly inside and outside the transcript window,
 		const at = await point(selector);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at }); await frames(settledHover ? 20 : 3);
 		if (settledHover) {
-			assert.equal(await app.evaluate(`document.querySelector('.ly-question-preview strong')?.textContent`), "格式化回答");
-			assert.equal(await app.evaluate(`document.querySelector('.ly-question-preview h3')?.textContent`), "段落标题");
+			/*
+			 * 预览里是摘要，不是渲染过的 Markdown。
+			 *
+			 * 这两条从前找 `strong` 和 `h3`，可 `markdownExcerpt` 出来的是纯文本——预览是一行
+			 * 提要，本来就不该带标题和粗体。断言的是一套没有实现过的行为。
+			 */
+			const excerpt = await app.evaluate<string>(`document.querySelector('.ly-question-excerpt')?.textContent ?? ""`);
+			assert.match(excerpt, /格式化回答/);
+			assert.match(excerpt, /段落标题/);
 			await shot("markdown-question-preview");
 		}
 		const marks = await app.evaluate<number[]>(`[...document.querySelectorAll('.ly-question-mark')].map(e=>Number(e.dataset.position))`);
@@ -105,7 +112,8 @@ test("navigation clicks land instantly inside and outside the transcript window,
 
 test("role and subagent menus share a bounded searchable favourite catalog without changing the active session", async (t) => {
 	await click('button:has(svg.lucide-settings)'); await label("模型设置"); await frames();
-	await click('[aria-label="@fast · 快而便宜 用哪个模型"]'); await frames();
+	// 标签是 `{name} 模型`——底下那句 `[aria-label="explore 模型"]` 用的就是这个格式。
+	await click('[aria-label="fast 模型"]'); await frames();
 	const menuGeometry = () => app.evaluate<{ height: number; right: number; bottom: number; first: string; fade: string }>(`(()=>{const m=document.querySelector('[aria-label="选择模型"]'),r=m.getBoundingClientRect();return {height:r.height,right:r.right,bottom:r.bottom,first:m.querySelector('[data-model]').dataset.model,fade:m.querySelector('.ly-scroll-view').style.getPropertyValue('--ly-fade-bottom')};})()`);
 	const roleMenu = await menuGeometry();
 	assert.ok(roleMenu.height <= 420); assert.equal(roleMenu.first, "p1/m1"); assert.equal(roleMenu.fade, "48px");
