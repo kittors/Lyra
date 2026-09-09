@@ -230,12 +230,78 @@
    * opens a gap the eye has to jump — the columns stop looking related. Sized to fit, the frame
    * lands where the data ends, and the table reads as one object instead of a full-width band.
    */
+  /*
+   * Two elements, because the thumb and the wrap control must not scroll with the table.
+   *
+   * The outer one is the table's place on the page and the frame of reference for both — it does
+   * not move. The inner one is what scrolls, and it keeps the border for the reason above: a frame
+   * on the table itself would slide out of view and leave the right edge open.
+   */
+  /*
+   * The frame is on the outer box, and `overflow: hidden` is what rounds its corners: the strip and
+   * the scrolling box are square, and one of them is always against a corner.
+   */
   .prose-dw .ly-table {
-    overflow-x: auto;
+    position: relative;
     width: fit-content;
     max-width: 100%;
+    overflow: hidden;
     border: 1px solid var(--color-line-soft);
     border-radius: 10px;
+  }
+
+  .prose-dw .ly-table-scroll {
+    overflow-x: auto;
+  }
+
+  /*
+   * The strip the control sits in — inside the frame, outside the scroller.
+   *
+   * The header's own fill, and no rule under it, so it reads as the top of the header block rather
+   * than as a toolbar bolted on. 26px is the button plus the 2px it is inset by.
+   */
+  .prose-dw .ly-table-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    height: 26px;
+    padding-right: 4px;
+    background: var(--color-card);
+  }
+
+  /*
+   * Reading the whole cell instead of dragging it into view.
+   *
+   * The default is `nowrap` (below), and it stays the default: a column of 「一键新机」 broken
+   * across two lines to save eight pixels is harder to read than one that runs off the edge. This
+   * is the other answer for the times it is not — a wide table in a narrow pane, where scrolling
+   * sideways to compare two rows means losing the first column.
+   *
+   * Only the cells change. The table then sizes itself to the box rather than to its longest line,
+   * because `fit-content` above resolves against `max-width: 100%` once the content can break.
+   */
+  .prose-dw .ly-table[data-wrap="true"] th,
+  .prose-dw .ly-table[data-wrap="true"] td {
+    white-space: normal;
+    /* Enough that a column cannot collapse to one character per line, and small enough that four
+       of them still fit a side pane. */
+    min-width: 6em;
+  }
+
+  /*
+   * Faded rather than removed, so it arrives with the thumb instead of appearing as a jump — and so
+   * a keyboard can bring it back for someone who never hovers anything. The strip keeps its height
+   * either way, so nothing moves when it appears.
+   */
+  .prose-dw .ly-table-toggle {
+    display: flex;
+    opacity: 0;
+    transition: opacity var(--ly-t-base) var(--ly-e-out);
+  }
+
+  .prose-dw .ly-table:hover .ly-table-toggle,
+  .prose-dw .ly-table-toggle:has(:focus-visible) {
+    opacity: 1;
   }
 
   .prose-dw table {

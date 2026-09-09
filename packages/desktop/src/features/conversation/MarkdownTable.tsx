@@ -12,7 +12,7 @@
  * table and not remembered — it is a way to look at *this* one, the same as scrolling it.
  */
 
-import { MoveHorizontal, TextWrap } from "lucide-react";
+import { CornerDownLeft, MoveHorizontal } from "lucide-react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import type { Block } from "../../lib/markdown/blocks.ts";
@@ -62,8 +62,46 @@ export function MarkdownTable({
 		return () => observer.disconnect();
 	}, []);
 
+	const control = !preview && (overflow || wrap);
+
 	return (
 		<div className="ly-table" data-wrap={wrap ? "true" : "false"}>
+			{/*
+			 * A strip of its own inside the frame, above the box that scrolls.
+			 *
+			 * The control has to be reachable at the table's top right and it must never sit on a
+			 * cell — and anywhere *inside* the scrolling box those two are in conflict, because the
+			 * content slides under whatever is pinned there. Empty at the left edge, over 「一键新机
+			 * 后的合理行为」 two hundred pixels along. So the strip is outside the scroller and
+			 * inside the frame: it holds still, and nothing ever passes beneath it.
+			 *
+			 * Reserved whether or not the pointer is here. Giving it height on hover would make the
+			 * table jump down the page as you approached it.
+			 */}
+			{control && (
+				<div className="ly-table-bar">
+					{/*
+					 * The fade lives on this wrapper, not on the button.
+					 *
+					 * `IconButton` carries `transition-colors` as a Tailwind utility, and utilities
+					 * outrank `@layer components` whatever the selector — so a `transition: opacity`
+					 * written for the button in the stylesheet is replaced by one that does not list
+					 * opacity, and the control appears as a hard cut. A plain element the utilities do
+					 * not touch is where the transition can live.
+					 */}
+					<span className="ly-table-toggle">
+						<IconButton
+							size="sm"
+							label={t(wrap ? "markdown.tableNowrap" : "markdown.tableWrap")}
+							active={wrap}
+							/* 「↵」 for the break itself and 「↔」 for the sideways scrolling it replaces —
+							   two strokes each, which is what stays legible at 13px. */
+							icon={wrap ? <MoveHorizontal size={13} strokeWidth={2} /> : <CornerDownLeft size={13} strokeWidth={2} />}
+							onClick={() => setWrap((on) => !on)}
+						/>
+					</span>
+				</div>
+			)}
 			<div ref={viewport} className="ly-table-scroll">
 				<table>
 					<thead>
@@ -88,22 +126,6 @@ export function MarkdownTable({
 					</tbody>
 				</table>
 			</div>
-
-			{/*
-			 * Only where it would do something — and `wrap` is half of that test, not a redundancy.
-			 * Wrapping is what removes the overflow, so a control shown on overflow alone would
-			 * disappear the moment it was used and leave no way back to the scrolling table.
-			 */}
-			{!preview && (overflow || wrap) && (
-				<IconButton
-					size="sm"
-					label={t(wrap ? "markdown.tableNowrap" : "markdown.tableWrap")}
-					active={wrap}
-					icon={wrap ? <MoveHorizontal size={13} strokeWidth={1.9} /> : <TextWrap size={13} strokeWidth={1.9} />}
-					onClick={() => setWrap((on) => !on)}
-					className="ly-table-toggle"
-				/>
-			)}
 
 			{!preview && <OverlayScrollbar viewport={viewport} orientation="horizontal" />}
 		</div>

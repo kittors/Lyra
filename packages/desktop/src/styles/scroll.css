@@ -156,7 +156,8 @@
 /* Dragging the thumb must not select the text it passes over. */
 .ly-scroll-host:has(.ly-thumb-active),
 .ly-scroll-host:has(.ly-hthumb-active),
-.ly-diff-host:has(.ly-hthumb-active) {
+.ly-diff-host:has(.ly-hthumb-active),
+.ly-table:has(.ly-hthumb-active) {
   user-select: none;
 }
 
@@ -185,6 +186,31 @@
 
 .ly-hthumb:hover,
 .ly-hthumb.ly-hthumb-active {
+  opacity: 0.85;
+}
+
+/*
+ * A table in a reply answers to itself, not to the transcript it sits in.
+ *
+ * The rule above is a descendant selector, and the transcript is a `.ly-scroll-host` — so hovering
+ * anything at all in a conversation lit up the bottom edge of every wide table on screen at once.
+ * Which is the opposite of what a scrollbar is for: it says *this* is the thing you can drag.
+ *
+ * Order matters here rather than specificity — these match the rules above exactly, so being
+ * written after them is what makes them win. The active one is not a duplicate of the hover state:
+ * a drag continues once the pointer has left the table, and without it the thumb would vanish out
+ * from under a hand that is still holding it.
+ */
+.ly-table:not(:hover) .ly-hthumb {
+  opacity: 0;
+}
+
+.ly-table:hover .ly-hthumb {
+  opacity: 0.55;
+}
+
+.ly-table .ly-hthumb:hover,
+.ly-table .ly-hthumb.ly-hthumb-active {
   opacity: 0.85;
 }
 
