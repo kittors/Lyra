@@ -61,12 +61,16 @@ async function resize(width: number): Promise<void> {
 	await app.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
 }
-async function section(name: "常规" | "模型设置"): Promise<void> {
+// 名字直接拼进选择器：原来那个三元只认得两页，多传一个会被悄悄当成「模型设置」，于是导航
+// 去了别处、等待超时，报出来却像是控件不见了。
+async function section(name: "常规" | "模型设置" | "智能体"): Promise<void> {
 	await resize(1440);
-	await click(`[...document.querySelectorAll("nav button")].find((button) => button.innerText.trim() === ${name === "常规" ? '"常规"' : '"模型设置"'})`);
+	await click(`[...document.querySelectorAll("nav button")].find((button) => button.innerText.trim() === ${JSON.stringify(name)})`);
 }
 const titleRow = `[...document.querySelectorAll('div')].find((element) => element.innerText === "智能标题总结")?.closest('[class~="@container"]')`;
-const compactButton = `document.querySelector('[aria-label="@compact · 上下文压缩 用哪个模型"]')`;
+// 压缩模型挪到了「智能体」页的「会话」那一段，控件标签跟着 `agents.compactModel` 变成了
+// 「compact 模型」——`@compact · 上下文压缩 用哪个模型` 是它在「模型设置」里那会儿的名字。
+const compactButton = `document.querySelector('[aria-label="compact 模型"]')`;
 
 async function verifyRow(kind: "title" | "compact"): Promise<void> {
 	for (const theme of ["light", "dark"]) {
@@ -78,7 +82,8 @@ async function verifyRow(kind: "title" | "compact"): Promise<void> {
 		for (const width of [1440, 760]) {
 			await resize(width);
 			const metrics = await app.evaluate<{ rowWidth: number; overflow: number; overlaps: boolean; controlWidth: number; visible: boolean; text: string }>(`(() => {
-				const row = ${kind === "title" ? titleRow : `${compactButton}?.closest('[class~="@container"]')`};
+				// compact 那一行搬到「智能体」页之后，外面不再套 @container 那层；它自己带着标识，直接认。
+				const row = ${kind === "title" ? titleRow : `document.querySelector('[data-agent-profile="compact"]')`};
 				if (!row) throw new Error("Settings row missing");
 				row.scrollIntoView({ block: "center", behavior: "instant" });
 				const text = row.firstElementChild.firstElementChild;
@@ -119,18 +124,28 @@ test("title summary is enabled initially and its switch persists without row ove
 });
 
 test("compact model role persists and clearing it returns to the session model", async () => {
-	await section("模型设置");
+	await section("智能体");
 	await waitFor(`Boolean(${compactButton})`);
-	assert.equal(await app.evaluate(`(${compactButton}).innerText.trim()`), "同会话模型");
+	// 没设过的时候，控件显示的是继承来的那个模型，底下一行标着来源——「同会话模型」是它单行
+	// 那会儿的写法。
+	assert.match(await app.evaluate<string>(`(${compactButton}).innerText.trim()`), /随主会话/);
 	await click(compactButton);
 	await waitFor('Boolean(document.querySelector("[role=menuitem]"))');
 	await click('[...document.querySelectorAll("[role=menuitem]")].find((item) => item.innerText.includes("Summary model"))');
-	await waitFor(`(${compactButton}).innerText.trim() === "Summary model"`);
-	assert.equal(JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).modelRoles.compact, "fixture/summary");
+	await waitFor(`(${compactButton}).innerText.includes("Summary model")`);
+	/*
+	 * 存的地方也换了。
+	 *
+	 * 这一页现在走 `withAgentProfile`：写进 `subAgentProfiles[name]`，并把同名的 `modelRoles`
+	 * 删掉——`compact` 恰好两边都叫这个名字，所以旧字段读起来永远是空的。见
+	 * `core/src/config/model-roles.ts`。
+	 */
+	const saved = async () => JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")) as { subAgentProfiles?: Record<string, { modelId?: string }> };
+	assert.equal((await saved()).subAgentProfiles?.compact?.modelId, "fixture/summary");
 	await click(compactButton);
 	await waitFor('Boolean(document.querySelector("[role=menuitem]"))');
-	await click('[...document.querySelectorAll("[role=menuitem]")].find((item) => item.innerText.includes("同会话模型"))');
-	await waitFor(`(${compactButton}).innerText.trim() === "同会话模型"`);
-	assert.equal(JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).modelRoles.compact, undefined);
+	await click('[...document.querySelectorAll("[role=menuitem]")].find((item) => item.innerText.includes("跟随主会话"))');
+	await waitFor(`(${compactButton}).innerText.includes("随主会话")`);
+	assert.equal((await saved()).subAgentProfiles?.compact, undefined);
 	await verifyRow("compact");
 });

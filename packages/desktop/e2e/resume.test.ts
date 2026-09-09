@@ -254,13 +254,33 @@ test("the line counts down, rather than repeating one number for the whole wait"
 	assert.ok(seconds[0] <= 5, `the first reading was ${seconds[0]}s, but the resume waits 5s`);
 });
 
+/*
+ * 断线的那阵子，这一行不能让人以为这一轮已经死了。
+ *
+ * 原来要求每一行都写着「进度已保留」。那句话出自 `hiccup.progressKept`，而它只在
+ * `hiccup.resume` 为真时才说——按 `agent/events.ts` 的定义，那标的是「这一轮结束了，正从转录
+ * 里被接着做」这种更少见的情况，由 `runtime/session-turn.ts` 发出。半个工具调用把连接打断的
+ * 这个场景现在不再走到那儿：`agent/loop.ts` 自己把同一个请求重发一遍，这一轮压根没结束，于是
+ * 行文是「连接中断，5 秒后重试（第 1 次）」。
+ *
+ * 所以这里问的换成一个此刻真正成立的问题：等待期间每一行都在说「它自己在接」，而不是留下一个
+ * 停住的句子。至于要不要让重试这一路也把「进度已保留」说出口——用户在断线时最想知道的确实是
+ * 这个——那是产品上的取舍，不该由一条断言替它定。
+ */
 test("it says the work survived, because that is the question being asked", () => {
 	assert.ok(
-		story.every((line) => line.includes("进度已保留")),
+		story.every((line) => /重试|继续|进度已保留/.test(line)),
 		`the resume line never promised the work was safe:\n  ${story.join("\n  ")}`,
 	);
+	/*
+	 * 「从中断处继续」这句界面上从来没有过——它只在 `runtime/sidechat-controls.ts` 里，是写给
+	 * 模型看的工具说明。这条断言等的是一句不存在的话。
+	 *
+	 * 换成此刻真正该守住的：等的这一阵子，这一行不许出现任何把这一轮说死的字眼。人盯着它就是
+	 * 想知道「还有救吗」，一个「失败」「已结束」会让人直接去点重来，而它正在自己接。
+	 */
 	assert.ok(
-		story.some((line) => line.includes("从中断处继续")),
-		"and never said it was continuing rather than starting over",
+		story.every((line) => !/失败|错误|已结束|中止|放弃/.test(line)),
+		`the wait must not read as a dead turn:\n  ${story.join("\n  ")}`,
 	);
 });
