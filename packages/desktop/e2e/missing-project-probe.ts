@@ -1,3 +1,4 @@
+/* oxlint-disable no-console -- a probe CLI whose entire output is what it printed */
 /**
  * 文件夹在磁盘上没了之后，这个项目还听不听话。
  *
