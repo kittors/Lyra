@@ -122,7 +122,17 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	await shot("delivery-report-preview");await click('[data-dock-pane="file"] button[aria-label^="关闭"]');
 	await click('[aria-label="面板"]');await until(`document.querySelector('[role="menuitem"]')`);
 	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.innerText.split('\\n')[0]==='任务');if(!e)throw new Error('任务菜单不存在');e.setAttribute('data-qa-task','');})()`);await click('[data-qa-task]');
-	await until(`document.querySelector('[data-session-services]')?.innerText.includes('127.0.0.1:')`);
+	/*
+	 * 端点没出现时，把探测自己的说法一起报出来。
+	 *
+	 * `discoveryError` 只挂在一个图标的 `data-ly-tip` 上，不进 `innerText`——这条在 Windows 上
+	 * 红过一次，日志里就只剩「没找到 127.0.0.1:」，看不出是那段 PowerShell 失败了，还是父子
+	 * 进程没对上、监听的那个 pid 不在 `descendants` 里。差别决定改哪儿。
+	 */
+	await until(`document.querySelector('[data-session-services]')?.innerText.includes('127.0.0.1:')`).catch(async (cause: unknown) => {
+		const report = await app.evaluate(`window.lyra.services.list('qa-short').then(s=>JSON.stringify({discoveryError:s.discoveryError,jobs:s.jobs.map(j=>({pid:j.pid,finishedAt:j.finishedAt,endpoints:j.endpoints}))}))`);
+		throw new Error(`服务端点没有出现，探测的说法：${String(report)}`, { cause });
+	});
 	const services=await app.evaluate<{jobs:{id:string;pid:number;endpoints:{url:string;port:number}[]}[]}>("window.lyra.services.list('qa-short')");
 	const job=services.jobs.find(j=>j.endpoints.length);assert.ok(job);assert.equal(await (await fetch(job.endpoints[0].url)).text(),"SERVICE_QA");
 	assert.equal(await app.evaluate(`window.lyra.services.stop('qa-long',${JSON.stringify(job.id)},true)`),false);

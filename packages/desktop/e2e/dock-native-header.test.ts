@@ -144,7 +144,14 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 		})()`);
 		reports.push({ theme, width, ...report });
 		t.diagnostic(JSON.stringify({ theme, width, samples: report.samples.length, maxReversal: Math.max(...report.deltas), hit: report.samples.every(s=>s.hit), retained: report.retained }));
-		assert.ok(report.samples.every(s=>s.hit && s.boundary && s.noDrag && s.titleVisible && s.width === 20 && s.height === 20), "terminal tabs remain visible without covering or scaling pane actions");
+		/*
+		 * 六个条件揉在一句里，坏了也不说是哪一个。
+		 *
+		 * 这条在 Windows 上红过，日志里只有这句话——按钮被盖住、标签越界、尺寸不是 20，读起来
+		 * 一模一样。把第一个不合格的采样连同它自己的字段打出来，下次的报告自己会说是哪一条。
+		 */
+		const bad = report.samples.find(s => !(s.hit && s.boundary && s.noDrag && s.titleVisible && s.width === 20 && s.height === 20));
+		assert.ok(!bad, `terminal tabs remain visible without covering or scaling pane actions — ${JSON.stringify({ theme, width, bad })}`);
 		assert.ok(report.deltas.every(delta=>delta < 1), "title and grip reverse from their visible positions");
 		assert.equal(report.retained, true);
 	}
