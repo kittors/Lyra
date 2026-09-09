@@ -246,14 +246,14 @@ test("@ agents are selectable and @compact executes real compaction with the con
 	const composer = '[data-dock-pane="conversation"] textarea';
 	for (const name of ["fast", "deep"]) {
 		await click(composer); await app.send("Input.insertText", { text: "@" + name });
-		await until(`document.querySelector('[data-mention-kind="subagent"][aria-label^="${name}，"]')?.checkVisibility()`);
+		await until(`document.querySelector('[data-mention-kind="subagent"][data-mention-title="${name}"]')?.checkVisibility()`);
 		await app.evaluate(`document.querySelector(${JSON.stringify(composer)}).select()`);
 		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", windowsVirtualKeyCode: 8 });
 		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", windowsVirtualKeyCode: 8 });
 	}
 	const start = requests.length;
 	await click(composer); await app.send("Input.insertText", { text: "@compact" });
-	await click('[data-mention-kind="action"][aria-label^="compact，"]');
+	await click('[data-mention-kind="action"][data-mention-title="compact"]');
 	await app.send("Input.insertText", { text: "保留 EARLY_MAIN_DECISION" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
@@ -318,7 +318,7 @@ test("sidechat model selection and its default use their actual providers and su
 });
 
 
-test("retry settings apply without a save button, fixed waits last five seconds, and completed turns offer Continue", async t => {
+test("retry settings apply without a save button and fixed waits last five seconds", async t => {
 	await click('button:has(svg.lucide-settings)'); await label("常规", "nav button");
 	await until(`document.querySelector('[data-retry-settings]')`);
 	/*
@@ -333,6 +333,8 @@ test("retry settings apply without a save button, fixed waits last five seconds,
 	assert.equal(await app.evaluate(`document.querySelector('[aria-label="上游故障重试间隔秒数"]').value`), "5");
 	await click('[aria-label="上游故障重试次数"]'); await app.evaluate(`document.querySelector('[aria-label="上游故障重试次数"]').select()`); await app.send("Input.insertText", { text: "4" });
 	await click('[aria-label="上游故障间隔方式"]'); await label("逐次递增", '[role="menuitem"]');
+	// 「最长间隔」只在逐次递增下渲染，选完菜单要等它挂上来——直接查会扑空。
+	await until(`document.querySelector('[aria-label="上游故障最长间隔秒数"]')`);
 	assert.equal(await app.evaluate(`document.querySelector('[aria-label="上游故障最长间隔秒数"]').value`), "30");
 	// Nothing was pressed to make this happen, because there is nothing to press.
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-retry-settings] button[type="submit"], [data-retry-settings] form').length`), 0);
@@ -351,14 +353,23 @@ test("retry settings apply without a save button, fixed waits last five seconds,
 	assert.deepEqual(await persistedUpstream(rule => rule.strategy === "fixed"), { retries: 4, strategy: "fixed", intervalMs: 5000, maxIntervalMs: 30000 });
 	assert.equal(await app.evaluate(`document.querySelector('[data-retry-summary="upstream"]').textContent`), "重试 4 次 · 每 5 秒");
 	await label("返回工作区", "nav button");
+	/*
+	 * 等的是第二次请求，不是「继续」那一行。
+	 *
+	 * 这里从前等 `[aria-label="继续"]`，那个选择器什么也匹配不到——按钮只有文字、没有这个属性。
+	 * 而就算把选择器修对，这一步也等不到：假的上游只挡回第一次，重试一次就成功了，于是这一轮是
+	 * 干净结束的，计划也没有剩下的项——`ResumeRow` 明确不在这种情况下出现（见它自己的注释）。
+	 * 底下那句 `assert` 断言的还是「继续推进当前任务」，一句早就被 `CARRY_ON_PROMPTS` 换掉的旧
+	 * 文案。整段等的是一套不存在的行为。
+	 *
+	 * 这一段真正要证明的是间隔：固定策略下两次请求之间隔了 5 秒。所以就等那第二次请求。
+	 */
 	await send("RETRY_POLICY_PROBE", '[data-dock-pane="conversation"]');
-	await until(`document.querySelector('[data-dock-pane="conversation"] [aria-label="继续"]')`);
-	const probes = requests.filter(request => JSON.stringify(request.body).includes("RETRY_POLICY_PROBE")); assert.equal(probes.length, 2);
+	const sent = () => requests.filter(request => JSON.stringify(request.body).includes("RETRY_POLICY_PROBE"));
+	for (let i = 0; i < 150 && sent().length < 2; i++) await new Promise(resolve => setTimeout(resolve, 100));
+	const probes = sent(); assert.equal(probes.length, 2, `重试没有发出第二次请求：${probes.length}`);
 	const delay = probes[1].at - probes[0].at; assert.ok(delay >= 4900 && delay < 8000, String(delay)); t.diagnostic(JSON.stringify({ fixedRetryMs: delay }));
 	await shot("composer-continue");
-	const start = requests.length; await click('[data-dock-pane="conversation"] [aria-label="继续"]');
-	await until(`document.querySelector('[data-dock-pane="conversation"] [aria-label="继续"]')`);
-	assert.ok(requests.slice(start).some(request => JSON.stringify(request.body).includes("继续推进当前任务")));
 	await click('button:has(svg.lucide-settings)'); await label("常规", "nav button");
 	await openRetryRule("上游故障"); await click('[aria-label="上游故障不限次数"]'); await frames();
 	assert.equal((await persistedUpstream(rule => rule.retries === null)).retries, null);

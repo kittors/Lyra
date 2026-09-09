@@ -138,6 +138,16 @@ export function ResumeRow() {
 					void send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true });
 				}}
 				className="rounded px-1 text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
+				/*
+				 * A hook that does not move with the language.
+				 *
+				 * The suite used to reach for this button as `[aria-label="继续"]`, which never matched
+				 * anything: the button has no `aria-label` — its accessible name is the word inside it,
+				 * and an attribute selector cannot see that. Naming it here rather than adding the
+				 * attribute, because an `aria-label` would be a second copy of the label that has to
+				 * be translated too, and then the same assertion breaks again on an English machine.
+				 */
+				data-resume-continue
 			>
 				{translate("resume.continueLabel")}
 			</button>

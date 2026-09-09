@@ -12,6 +12,7 @@
  * 是一块限高、可滚的地方，而不是把一页 JSON 铺进转录里。
  */
 
+import { CARRY_ON_PROMPTS, carryOnPrompt } from "../../store/derive.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import { ChevronRight, CircleAlert, CircleCheck, RotateCw } from "lucide-react";
@@ -172,7 +173,19 @@ function Next({ hint }: { hint?: string }) {
 		<button
 			type="button"
 			data-ly-tip={translate("composer.finishUnfinished")}
-			onClick={() => void send([{ type: "text", text: translate("common.continue") }], { synthetic: true, carryOn: true })}
+			/* Same hook as `ResumeRow`'s: these two are one entry point wearing two rows, and which
+			   of them is on screen depends on whether the failure was already reported above. */
+			data-resume-continue
+			/*
+			 * The sentence the rest of the app recognises, not the word on the button.
+			 *
+			 * This sent 「继续」 — the label, translated — and `grouping.ts` matches saved transcripts
+			 * against `CARRY_ON_PROMPTS` to tell carrying on from asking something new. Two words that
+			 * are not in that table are a new question: the turn's clock and its tokens started again,
+			 * so a run that failed once and was picked up from here reported the length of its second
+			 * leg. `ResumeRow` has always sent the constant; this row is the same act and was not.
+			 */
+			onClick={() => void send([{ type: "text", text: carryOnPrompt("error", 0) ?? CARRY_ON_PROMPTS[1] }], { synthetic: true, carryOn: true })}
 			className="shrink-0 rounded px-1 text-detail text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
 		>
 			{translate("common.continue")}

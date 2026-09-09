@@ -120,6 +120,10 @@ export function MentionMenu({
 									aria-selected={index === shownActive}
 									data-index={index}
 									data-mention-kind={item.kind}
+									/* Which one this is, apart from the label. The label is three translated
+									   pieces joined by a comma, so anything matching on it moves with the
+									   language; the title is the agent's own name and does not. */
+									data-mention-title={item.title}
 									onMouseDown={(event) => event.preventDefault()}
 									onClick={() => onPick(item)}
 									onMouseMove={(event) => {
