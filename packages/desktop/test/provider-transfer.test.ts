@@ -22,6 +22,7 @@ import {
 	parseBundle,
 	planImport,
 	serializeBundle,
+	uniqueProviderName,
 } from "../src/features/settings/provider-transfer.ts";
 
 function model(providerId: string, modelId: string, extra: Partial<ModelConfig> = {}): ModelConfig {
@@ -207,4 +208,49 @@ test("a default model the import removed does not stay selected", () => {
 
 	const kept = applyImport(here, [provider("xiaoji")], "glm/glm-pro");
 	assert.equal(kept.defaultModelId, "glm/glm-pro", "an import that did not touch it leaves it alone");
+});
+
+/*
+ * 两个同名的供应商，是两行谁也认不出谁。
+ *
+ * 而且损失会传下去：两个模型同名时，选择器是靠**供应商名**把它们分开的——供应商一旦重名，最后
+ * 那点能区分的东西也没了。两个入口都会造出重名：「新供应商」每次按都是同一个名字，而导入带来的
+ * 条目在这台机器上 id 是新的、名字却是从另一台带过来的。
+ */
+test("导入进来的重名供应商会被编号，不会变成两行一模一样的", () => {
+	const here = [provider("relay", { name: "Relay" })];
+	const { providers } = applyImport(here, [provider("relay-2", { name: "Relay" })], null);
+
+	assert.equal(providers.length, 2);
+	assert.equal(providers[0].name, "Relay", "这台机器上原有的那个不改名");
+	assert.equal(providers[1].name, "Relay 2");
+});
+
+test("同一次导入里带进来的几个同名，彼此之间也要分得开", () => {
+	const { providers } = applyImport(
+		[],
+		[provider("a", { name: "Relay" }), provider("b", { name: "Relay" }), provider("c", { name: "Relay" })],
+		null,
+	);
+
+	assert.deepEqual(
+		providers.map((one) => one.name),
+		["Relay", "Relay 2", "Relay 3"],
+	);
+});
+
+test("覆盖同一个 id 的那条留着自己的名字——它就是那一个，不是重名", () => {
+	const here = [provider("relay", { name: "Relay" })];
+	const { providers } = applyImport(here, [provider("relay", { name: "Relay" })], null);
+
+	assert.equal(providers.length, 1);
+	assert.equal(providers[0].name, "Relay", "别把它跟自己算成重名，改成了「Relay 2」");
+});
+
+test("没被占用的名字原样返回，占用了才编号", () => {
+	assert.equal(uniqueProviderName([], "新供应商"), "新供应商");
+	assert.equal(uniqueProviderName(["新供应商"], "新供应商"), "新供应商 2");
+	assert.equal(uniqueProviderName(["新供应商", "新供应商 2"], "新供应商"), "新供应商 3");
+	// 前后空格不算另一个名字：列表里看着一样，就是一样。
+	assert.equal(uniqueProviderName([" Relay "], "Relay"), "Relay 2");
 });

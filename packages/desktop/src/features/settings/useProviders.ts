@@ -10,6 +10,7 @@
  * only a layout.
  */
 
+import { uniqueProviderName } from "./provider-transfer.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
 import { modelConfigFromCatalog } from "@lyra/core/model-catalog";
@@ -61,7 +62,10 @@ export function useProviders() {
 		const id = `provider-${Date.now().toString(36)}`;
 		const provider: ProviderConfig = {
 			id,
-			name: translate("providers.newProvider"),
+			name: uniqueProviderName(
+				settings.providers.map((one) => one.name),
+				translate("providers.newProvider"),
+			),
 			baseUrl: "https://",
 			api: "openai-responses",
 			apiKey: "",

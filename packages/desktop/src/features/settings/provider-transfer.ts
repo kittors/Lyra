@@ -139,6 +139,29 @@ export function planImport(incoming: ProviderConfig[], existing: ProviderConfig[
  * Same rule as removing a provider by hand: a default pointing at a model that no longer exists has
  * to move, or the next message is sent with nothing selected.
  */
+/**
+ * A name no other provider in the list is already using.
+ *
+ * Two providers called the same thing are two rows nobody can tell apart — and the damage carries:
+ * when two models share a name the picker disambiguates them *by their provider*, so a duplicate
+ * provider name takes the last thing that could have distinguished them. Both ways in produce one:
+ * 「新供应商」 is the same name every time it is pressed, and an import brings entries whose ids are
+ * new on this machine but whose names came from another one.
+ *
+ * Numbered rather than suffixed with the id: the point is to be readable in a list, and
+ * `Relay (provider-m8x2k)` is not.
+ */
+export function uniqueProviderName(taken: Iterable<string>, wanted: string): string {
+	const used = new Set<string>();
+	for (const name of taken) used.add(name.trim());
+	const base = wanted.trim();
+	if (!base || !used.has(base)) return wanted;
+	for (let n = 2; ; n++) {
+		const candidate = `${base} ${n}`;
+		if (!used.has(candidate)) return candidate;
+	}
+}
+
 export function applyImport(
 	existing: ProviderConfig[],
 	chosen: ProviderConfig[],
@@ -147,13 +170,26 @@ export function applyImport(
 	const byId = new Map(existing.map((provider) => [provider.id, provider]));
 	const appended: ProviderConfig[] = [];
 
+	/*
+	 * Names already spoken for, which grows as entries are appended.
+	 *
+	 * Seeded from what is here rather than from `chosen`, because an entry that replaces one under
+	 * the same id is that provider — it keeps its name even if it matches itself.
+	 */
+	const names = new Set(existing.map((provider) => provider.name.trim()));
+
 	for (const provider of chosen) {
 		const current = byId.get(provider.id);
 		// An empty key in the file means "not exported", never "clear the one I have".
 		const merged: ProviderConfig =
 			current && !provider.apiKey.trim() ? { ...provider, apiKey: current.apiKey } : provider;
-		if (current) byId.set(provider.id, merged);
-		else appended.push(merged);
+		if (current) {
+			byId.set(provider.id, merged);
+			continue;
+		}
+		const name = uniqueProviderName(names, merged.name);
+		names.add(name.trim());
+		appended.push(name === merged.name ? merged : { ...merged, name });
 	}
 
 	const providers = [...existing.map((provider) => byId.get(provider.id) ?? provider), ...appended];
