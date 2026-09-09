@@ -244,7 +244,8 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 
 test("@ agents are selectable and @compact executes real compaction with the configured model", async (t) => {
 	const composer = '[data-dock-pane="conversation"] textarea';
-	for (const name of ["fast", "deep"]) {
+	// `RENAMED_AGENTS` 把 `fast`/`deep` 换成了 `simple`/`reason`，内置名单里已经没有旧名。
+	for (const name of ["simple", "reason"]) {
 		await click(composer); await app.send("Input.insertText", { text: "@" + name });
 		await until(`document.querySelector('[data-mention-kind="subagent"][data-mention-title="${name}"]')?.checkVisibility()`);
 		await app.evaluate(`document.querySelector(${JSON.stringify(composer)}).select()`);

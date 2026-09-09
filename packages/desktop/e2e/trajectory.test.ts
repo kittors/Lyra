@@ -145,7 +145,20 @@ test("7500+ trajectory entries remain bounded; full output search and inspector 
 	t.diagnostic(await trajectoryGeometry());
 	assert.ok(baseline.rows < 55 && baseline.top > 200000, JSON.stringify(baseline));
 	const sample = await app.evaluate(`new Promise(resolve=>{const s=document.querySelector('[data-dock-pane="trajectory"] .ly-scroll-view');const out=[];let i=0,prev=performance.now();const f=()=>{const now=performance.now();out.push({ms:now-prev,rows:document.querySelectorAll('[data-trace-entry]').length});prev=now;s.scrollTop=(s.scrollHeight-s.clientHeight)*(1-i/60);if(++i<60)requestAnimationFrame(f);else resolve(out);};requestAnimationFrame(f);})`);
-	assert.ok(sample.every((frame: {rows: number}) => frame.rows < 55));
+	/*
+	 * 静止时是一屏加固定预留，甩动时不是。
+	 *
+	 * `lib/overscan.ts` 把预留行数按这一帧滚过的距离放大，封顶 `MAX = 160`，上下各一份。这里
+	 * 一帧跨过 (270144−558)/60 ≈ 4493px，除以行高 36 得 125，加一屏 16 行就是 141——上下合起来
+	 * 二百八十几行，实测正是这个数。`< 55` 是预留还固定 8 行那会儿的上限。
+	 *
+	 * 放宽不等于不设限：七千五百条里画三百行仍然是「有界」，这条测试问的就是这个。
+	 */
+	const SCROLLING_CEILING = 2 * 160 + 24;
+	assert.ok(
+		sample.every((frame: {rows: number}) => frame.rows < SCROLLING_CEILING),
+		`甩到底时画的行数应当停在预留上限附近，实测 ${Math.max(...sample.map((frame: {rows: number}) => frame.rows))}`,
+	);
 	t.diagnostic(JSON.stringify({ baseline, maxFrame: Math.max(...sample.map((frame: {ms: number}) => frame.ms)), maxRows: Math.max(...sample.map((frame: {rows: number}) => frame.rows)) }));
 	await search('[data-trajectory] input', "TAIL_SENTINEL");
 	await until(`document.querySelectorAll('[data-trace-entry]').length === 2`);
