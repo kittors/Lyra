@@ -70,7 +70,7 @@ const SettingsShell = lazy(() =>
 );
 import { useOpenFile } from "../store/openFile.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
-import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
+import { applyAppearance, loadSelectedFonts, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
 import { I18nProvider, useI18n } from "../i18n/index.ts";
 
@@ -90,9 +90,18 @@ export function App() {
 	useProjectFiles();
 
 	const appearance = useApp((s) => s.settings?.appearance);
+	const uiFont = appearance?.uiFont;
+	const codeFont = appearance?.codeFont;
 	useEffect(() => {
 		if (appearance) applyAppearance(appearance);
 	}, [appearance]);
+	useEffect(() => {
+		if (!uiFont || !codeFont) return;
+		void loadSelectedFonts(uiFont, codeFont).catch((cause: unknown) => {
+			const detail = cause instanceof Error ? cause.message : String(cause);
+			useApp.getState().notify(`所选字体加载失败：${detail}`, "error");
+		});
+	}, [uiFont, codeFont]);
 	useEffect(() => watchSystemTheme(() => useApp.getState().settings?.appearance ?? appearance!), [appearance]);
 
 	/*

@@ -214,3 +214,21 @@ test("最该挡住的那几样，确实挡住了", () => {
 		assert.equal(method.remote, false, `${path} 不该对手机开放：持有配对令牌不等于拥有这台机器`);
 	}
 });
+
+test("imported fonts remain local and have native IPC handlers", async () => {
+	const handlers = await source("ipc/fonts.ts");
+	const main = await source("main.ts");
+	assert.match(main, /registerFontsIpc\(\)/u);
+	for (const name of ["list", "import", "read"]) {
+		const method = methodFor(`fonts.${name}`);
+		assert.ok(method);
+		assert.equal(method.channel, `fonts:${name}`);
+		assert.equal(method.remote, false);
+		assert.match(method.why ?? "", /本机字体文件/u);
+		assert.equal(REMOTE_METHODS.includes(`fonts.${name}`), false);
+		assert.ok(handlers.includes(`ipcMain.handle("${method.channel}"`));
+	}
+	assert.match(handlers, /properties: \["openFile"\]/u);
+	assert.doesNotMatch(handlers, /multiSelections/u);
+	assert.match(handlers, /if \(result\.canceled \|\| result\.filePaths\.length === 0\) return null/u);
+});

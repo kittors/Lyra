@@ -58,6 +58,11 @@ export const METHODS = {
 		get: { channel: "delivery:get", remote: false, why: "本机文件差异和实现记录" },
 		undo: { channel: "delivery:undo", remote: false, why: "恢复本轮文件，要求本机审阅" },
 	},
+	fonts: {
+		list: { channel: "fonts:list", remote: false, why: "仅本机字体文件，不同步到手机" },
+		import: { channel: "fonts:import", remote: false, why: "仅本机字体文件，由本机原生对话框选择" },
+		read: { channel: "fonts:read", remote: false, why: "仅本机字体文件，不向远端提供字体数据" },
+	},
 	services: {
 		list: { channel: "services:list", remote: false, why: "读取本机进程和监听端口" },
 		stop: { channel: "services:stop", remote: false, why: "停止当前会话拥有的本机进程" },

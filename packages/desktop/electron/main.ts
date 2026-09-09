@@ -65,6 +65,7 @@ import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { registerFormatIpc } from "./ipc/format.ts";
+import { registerFontsIpc } from "./ipc/fonts.ts";
 import { rescueLegacyWorkspaces } from "./scratch.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
@@ -728,6 +729,7 @@ function registerIpc(): void {
 	registerFilesIpc({ projectRoots: () => (settings?.projects ?? []).map((project) => project.path) });
 	registerFileOpsIpc({ projectPath });
 	registerFormatIpc({ projectPath, projectRoot });
+	registerFontsIpc();
 
 	registerTerminalIpc({ terminals, spawnPty, projectPath, insideAProject, window: () => getWindow() });
 	registerUpdateIpc();
