@@ -25,7 +25,7 @@ const clickTargets = {
 before(async () => {
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const address = server.address(); assert.ok(address && typeof address !== "string");
-	app = await startApp({ port: 9638, seed: (home) => seedQuestions(home, address.port) });
+	app = await startApp({ port: 9735, seed: (home) => seedQuestions(home, address.port) });
 	await app.evaluate("document.fonts.ready");
 });
 afterEach(async () => { if (app) await shot("mention-question-last-screen"); });

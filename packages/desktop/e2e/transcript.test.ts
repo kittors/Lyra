@@ -164,7 +164,7 @@ async function seed(home: string): Promise<void> {
 
 before(async () => {
 	model = startModel();
-	app = await startApp({ port: 9448, seed });
+	app = await startApp({ port: 9736, seed });
 });
 
 after(async () => {

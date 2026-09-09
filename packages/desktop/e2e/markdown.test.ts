@@ -86,7 +86,7 @@ async function seed(home: string): Promise<void> {
 }
 
 before(async () => {
-	app = await startApp({ port: 9459, seed });
+	app = await startApp({ port: 9732, seed });
 
 	// Open the files pane, then the document — the same two gestures a person makes.
 	await app.evaluate(`(async () => {

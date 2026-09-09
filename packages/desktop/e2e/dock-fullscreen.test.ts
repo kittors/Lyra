@@ -36,7 +36,7 @@ async function seed(home: string) {
 }
 
 before(async () => {
-	app = await startApp({ port: 9700, seed });
+	app = await startApp({ port: 9712, seed });
 	await app.evaluate(`document.querySelector('[data-ly-row="fullscreen"] > button').click()`);
 	await until(`document.querySelector('.ly-transcript')`);
 	await openPane("任务");
@@ -152,7 +152,19 @@ test("thousands of records stay bounded, retain an open detail and reach both li
 		return {initial,bottom,top,beforeHeight};
 	})()`);
 	t.diagnostic(JSON.stringify(result));
-	assert.ok(result.initial < 80 && result.bottom.count < 80 && result.top.count < 80);
+	/*
+	 * 有界，但甩到底的那一帧界要放宽。
+	 *
+	 * 可见区间是在 scroll 事件里 setState 的，下一次渲染才画得出来，所以预留的行数按这一帧滚过
+	 * 的距离往上加——滚得越快留得越多，否则新的一段还没画、旧的已经移出视口，视口里就是白的
+	 * （见 `lib/overscan.ts`）。一次 `scrollTop = scrollHeight` 是能滚的最远的一帧，于是取到那里
+	 * 的上限 160 行；停下来之后回到一屏上下，就是 `initial` 量到的那个数。
+	 *
+	 * 这条测的是「两千三百多条记录不会全进 DOM」，不是「任何时候都不超过八十行」。上限按预留的
+	 * 上限加一屏来定，仍然离 2344 很远。
+	 */
+	assert.ok(result.initial < 80, JSON.stringify(result));
+	assert.ok(result.bottom.count < 200 && result.top.count < 200, JSON.stringify(result));
 	assert.equal(result.bottom.last, "run-19"); assert.equal(result.bottom.openRetained, true);
 	assert.equal(result.top.first, "run-2325"); assert.equal(result.top.openRetained, true);
 	assert.equal(result.top.height, result.beforeHeight);

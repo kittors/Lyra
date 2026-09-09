@@ -40,7 +40,7 @@ before(async () => {
 	});
 	await new Promise<void>((resolve) => server.listen(0,"127.0.0.1",resolve));
 	const addr=server.address(); assert.ok(addr && typeof addr !== "string");port=addr.port;
-	app = await startApp({port: 9702,seed:async(home)=>{
+	app = await startApp({port: 9721,seed:async(home)=>{
 		await seedInteractions(home,port);
 		const path=join(home,"settings.json"), settings=JSON.parse(await readFile(path,"utf8"));
 		settings.permissionMode="full"; settings.screenshot={enabled:false,shortcut:""};

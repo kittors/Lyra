@@ -126,7 +126,7 @@ async function seed(home: string): Promise<void> {
 }
 
 before(async () => {
-	app = await startApp({ port: 9502, seed });
+	app = await startApp({ port: 9711, seed });
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 });
 
@@ -188,12 +188,25 @@ test("the dashboard paints a skeleton, then shows priced, cached and unpriced us
 		let frames = 0;
 		let sawSkeleton = false;
 		let landed = false;
+		/*
+		 * 等到它读完，按秒数算，不按帧数算。
+		 *
+		 * 这里原本是「五百帧还没画出来就算了」。五百帧读起来像很多，其实是八秒出头——而这一屏
+		 * 要把四十个会话、七万二千条记录整个扫一遍才有读数，本机空着的时候正好是八秒半，刚刚
+		 * 好落在外面。更糟的是帧数根本不等于时间：窗口被别的窗口盖住时 requestAnimationFrame
+		 * 会降频，五百帧能拖上半分钟，于是同一份代码在同一台机器上时红时绿。
+		 *
+		 * 这条断言要的是「先骨架、后读数」，不是「八秒内读完」——性能是另一回事，不该在这里
+		 * 借着一个凑出来的帧数上限偷偷断言。上限留三十秒：够慢的机器读完，也仍在 CDP 那一次
+		 * 调用的四十秒之内。
+		 */
+		const deadline = performance.now() + 30_000;
 		await new Promise((resolve) => {
 			const step = () => {
 				frames += 1;
 				if (document.querySelector('[aria-busy="true"]')) sawSkeleton = true;
 				landed = Boolean(document.querySelector('[data-usage-dashboard="true"]'));
-				if (landed || frames > 500) resolve(); else requestAnimationFrame(step);
+				if (landed || performance.now() > deadline) resolve(); else requestAnimationFrame(step);
 			};
 			requestAnimationFrame(step);
 		});
@@ -229,12 +242,38 @@ test("the dashboard paints a skeleton, then shows priced, cached and unpriced us
 
 test("range, metric, breakdown and refresh controls update without blanking the page", async () => {
 	const result = await ui<{ emptyText: string; tokenChart: boolean; dayRows: boolean; refreshed: boolean; remained: boolean }>(`
+		/*
+		 * 先等这一屏自己站住。
+		 *
+		 * 上一条把页面留在使用统计上，可留下的可能还是「正在读取会话日志」：区间那一排按钮在读
+		 * 之前就画出来了，「费用／Token」和明细的切换却要等读完才有。这里从前一进来就点，于是
+		 * 机器一忙，点的就是 undefined——报的错是 dispatchEvent 读不到，跟这条测的东西毫无
+		 * 关系。等的是后面真要点的那个按钮本人。
+		 */
+		for (let index = 0; index < 400 && !byText("button", "Token"); index++) await wait(50);
+		/*
+		 * 换完区间等这一屏停下来，不是等一个写死的三百毫秒。
+		 *
+		 * 这些读数现在是走过去的，不是被换掉的——同一笔账换个时段问，中间那半秒的移动本身就在说
+		 * 「这是同一个数，只是问的时段变了」。补间跑 520 毫秒（useCountUp 里的 TRAVEL_MS），而
+		 * 且现在往下也走：换到 7 天，「已处理 Token」要从 623M 一路走回 0。等 300 毫秒读到的是
+		 * 半路上的 3.1M，断言问的却是终点的 0——测的成了补间跑多快，不是这一屏答得对不对。
+		 */
+		const settled = async () => {
+			let last = null;
+			for (let index = 0; index < 80; index++) {
+				await wait(50);
+				const now = document.querySelector('[data-usage-dashboard="true"]')?.innerText || "";
+				if (now === last) return now;
+				last = now;
+			}
+			return last || "";
+		};
 		const seven = byText("button", "7 天");
 		click(seven);
-		await wait(300);
-		const emptyText = document.querySelector('[data-usage-dashboard="true"]')?.innerText || "";
+		const emptyText = await settled();
 		click(byText("button", "30 天"));
-		await wait(300);
+		await settled();
 		click(byText("button", "Token"));
 		await wait(100);
 		const tokenChart = Boolean(document.querySelector('[data-usage-chart="tokens"]'));

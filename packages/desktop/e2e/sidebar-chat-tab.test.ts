@@ -26,7 +26,7 @@ let project: string;
 
 before(async () => {
 	app = await startApp({
-		port: 9457,
+		port: 9731,
 		seed: async (home) => {
 			project = join(home, "demo-project");
 			await mkdir(project, { recursive: true });

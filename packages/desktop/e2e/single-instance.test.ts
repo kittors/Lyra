@@ -23,7 +23,7 @@ const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 let app: RunningApp;
 
 before(async () => {
-	app = await startApp({ port: 9459 });
+	app = await startApp({ port: 9734 });
 });
 
 after(async () => {

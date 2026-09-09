@@ -7,7 +7,7 @@ import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
 before(async () => {
-	app = await startApp({ port: 9613, seed: async (home) => {
+	app = await startApp({ port: 9720, seed: async (home) => {
 		await seedInteractions(home);
 		const path = join(home, "settings.json");
 		const settings = JSON.parse(await readFile(path, "utf8"));
@@ -110,16 +110,25 @@ test("navigation clicks land instantly inside and outside the transcript window,
 	}
 });
 
+/*
+ * 模型角色那一页已经不在了。
+ *
+ * 从前「模型设置」里单独列着 default/compact/fast/deep/review 五个角色，这条测试就是去那儿点
+ * `fast` 的。后来角色并进了「智能体」——每个内置智能体自己一行，选出来的模型写进
+ * `subAgentProfiles`，`modelRoles` 只剩读旧配置时的兜底（见 `config/model-roles.ts` 的
+ * `withAgentProfile`）；同一次改动里 `fast` 和 `deep` 也按「任务的形状」改名成了 `simple` 和
+ * `reason`。所以这里改成在「智能体」页上点 `simple`，两个菜单本来就在同一页，不必再导航一次。
+ */
 test("role and subagent menus share a bounded searchable favourite catalog without changing the active session", async (t) => {
-	await click('button:has(svg.lucide-settings)'); await label("模型设置"); await frames();
+	await click('button:has(svg.lucide-settings)'); await label("智能体"); await frames();
 	// 标签是 `{name} 模型`——底下那句 `[aria-label="explore 模型"]` 用的就是这个格式。
-	await click('[aria-label="fast 模型"]'); await frames();
+	await click('[aria-label="simple 模型"]'); await frames();
 	const menuGeometry = () => app.evaluate<{ height: number; right: number; bottom: number; first: string; fade: string }>(`(()=>{const m=document.querySelector('[aria-label="选择模型"]'),r=m.getBoundingClientRect();return {height:r.height,right:r.right,bottom:r.bottom,first:m.querySelector('[data-model]').dataset.model,fade:m.querySelector('.ly-scroll-view').style.getPropertyValue('--ly-fade-bottom')};})()`);
 	const roleMenu = await menuGeometry();
 	assert.ok(roleMenu.height <= 420); assert.equal(roleMenu.first, "p1/m1"); assert.equal(roleMenu.fade, "48px");
 	await shot("model-role-favourites");
 	await click('[data-model="p1/m1"] [role="menuitem"]'); await frames();
-	await label("子智能体"); await until(`document.querySelector('[aria-label="explore 模型"]')`);
+	await until(`document.querySelector('[aria-label="explore 模型"]')`);
 	await click('[aria-label="explore 模型"]'); await frames();
 	assert.equal((await menuGeometry()).first, "p1/m1");
 	await click('[data-model="p1/m1"] [role="menuitem"]'); await frames();
@@ -138,7 +147,7 @@ test("role and subagent menus share a bounded searchable favourite catalog witho
 		t.diagnostic(JSON.stringify({ width, geometry }));
 	}
 	const saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
-	assert.equal(saved.modelRoles.fast, "p1/m1"); assert.equal(saved.subAgentProfiles.explore.modelId, "p1/m1"); assert.equal(saved.defaultModelId, "p0/m0");
+	assert.equal(saved.subAgentProfiles.simple.modelId, "p1/m1"); assert.equal(saved.subAgentProfiles.explore.modelId, "p1/m1"); assert.equal(saved.defaultModelId, "p0/m0");
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
 	await label("返回工作区"); await frames();
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="conversation"]').innerText`), /同名模型/);

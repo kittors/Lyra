@@ -138,7 +138,7 @@ async function seed(home: string): Promise<void> {
 
 before(async () => {
 	model = startModel();
-	app = await startApp({ port: 9459, seed });
+	app = await startApp({ port: 9733, seed });
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
 	await new Promise((r) => setTimeout(r, 600));
 });

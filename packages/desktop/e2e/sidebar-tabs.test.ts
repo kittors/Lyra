@@ -45,7 +45,7 @@ const PROJECTS = [
 const PER_PROJECT = 9;
 
 before(async () => {
-	app = await startApp({ port: 9453, seed });
+	app = await startApp({ port: 9730, seed });
 	// Geometry, so the window has to be a known quantity rather than whatever this machine opens at.
 	await app.send("Emulation.setDeviceMetricsOverride", {
 		width: 1280,
