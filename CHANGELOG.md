@@ -5,6 +5,107 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.6](https://github.com/kittors/Lyra/releases/tag/v0.9.6) - 2026-09-09
+
+<!-- lyra:notes zh-CN -->
+
+### 修复
+
+- **项目放在软链下时，文件操作全部失效，而且一声不吭**。macOS 上任何经过 `/tmp`、外接卷或同步目录的项目，在文件树里新建、重命名、删除、复制粘贴都不会发生任何事——没有报错，没有提示。原因是边界检查拿同一个目录的两种写法互相比对（`/var/…` 与 `/private/var/…`），判定「不在项目里」就拒绝了。同一个原因还让 markdown 里的图片一张都显示不出来，全部停在 alt 文本上。这一版把两侧都解开软链再比，顺带堵上了「项目里的软链指向项目外」这条路。
+- **文件夹在磁盘上删掉之后，项目在 Lyra 里点不动也删不掉**。点它什么都不发生（现在会说清楚是哪个文件夹不在了），移除时会连子目录里开过的会话一起归档，归档失败也不再拖住移除。
+- **交付卡片打不开本轮的实现与验证记录**。报告一直在生成、也一直有读取授权，只是入口在一次卡片重写里丢了，写在盘上没人能打开。
+- **CI 那一列的长文字被截断成省略号**。工作流名、提交标题、分支和展开后的步骤名，现在边缘虚化代替省略号，鼠标停上去这行字自己走一遍。
+- **抖动行说的是「重连」，做的却是重试**。设置里那一页叫「重试规则」，配置项叫 `retryAttempts`，两处对不上。七种语言一起改回。
+- 标注工具栏出现「删除选中」变宽后会顶出屏幕；菜单滚动条压在行上；浏览器菜单的「检查元素」被误改成「页面检查」；模型目录的名字曾被安到另一个模型头上。
+
+<!-- lyra:notes zh-TW -->
+
+### 修復
+
+- **專案放在符號連結下時，檔案操作全部失效，而且一聲不吭**。macOS 上任何經過 `/tmp`、外接磁碟或同步目錄的專案，在檔案樹裡新增、重新命名、刪除、複製貼上都不會發生任何事——沒有錯誤，沒有提示。原因是邊界檢查拿同一個目錄的兩種寫法互相比對（`/var/…` 與 `/private/var/…`），判定「不在專案裡」就拒絕了。同一個原因還讓 markdown 裡的圖片一張都顯示不出來。這一版把兩側都解開符號連結再比。
+- **資料夾在磁碟上刪掉之後，專案在 Lyra 裡點不動也刪不掉**。點它什麼都不發生（現在會說清楚是哪個資料夾不在了），移除時會連子目錄裡開過的工作階段一起封存。
+- **交付卡片打不開本輪的實作與驗證記錄**。報告一直在產生，只是入口在一次卡片重寫裡遺失了。
+- **CI 那一欄的長文字被截斷成刪節號**。現在邊緣虛化取代刪節號，滑鼠停上去這行字自己走一遍。
+- **抖動行說的是「重連」，做的卻是重試**。設定裡那一頁叫「重試規則」，兩處對不上。七種語言一起改回。
+- 標註工具列出現「刪除選取」變寬後會頂出螢幕；選單捲軸壓在行上；瀏覽器選單的「檢查元素」被誤改成「頁面檢查」。
+
+<!-- lyra:notes en -->
+
+### Fixes
+
+- **File operations silently did nothing when the project sat behind a symlink.** On macOS, any project reached through `/tmp`, an external volume or a synced folder could not create, rename, delete, cut or paste in the file tree — no error, no hint. The boundary check was comparing two spellings of the same directory (`/var/…` against `/private/var/…`) and reading that as "outside the project". The same cause left every image in a markdown file stuck on its alt text. Both sides are now resolved before they are compared, which also closes a symlink pointing out of a project as a way through.
+- **A project whose folder was deleted from disk could neither be opened nor removed.** Clicking it did nothing at all; it now names the missing folder. Removing it archives the chats started in its subfolders too, and a failed archive no longer blocks the removal.
+- **The delivery card had no way into the turn's own report.** It was being written every engineering turn, and read access was granted for it — the entrance was dropped in a rewrite.
+- **Long lines in the CI column ended in an ellipsis.** Workflow names, commit titles, branches and expanded step names now fade at the edge instead, and read themselves out on hover.
+- **The hiccup line said "reconnecting" while it was retrying.** Settings calls that page "retry rules" and the setting `retryAttempts`; the two disagreed. Corrected in all seven languages.
+- The annotation toolbar overflowed the screen once "Delete selection" widened it; the menu scrollbar sat on top of rows; the browser menu's "Inspect element" had been renamed by mistake; a catalogue name was attached to the wrong model.
+
+<!-- lyra:notes ja -->
+
+### 修正
+
+- **シンボリックリンク配下のプロジェクトで、ファイル操作が何も起きなくなっていました**。macOS で `/tmp`・外部ボリューム・同期フォルダー経由のプロジェクトでは、作成・名前変更・削除・切り取り・貼り付けのいずれも無反応で、エラーも表示もありませんでした。境界チェックが同じディレクトリの二つの表記（`/var/…` と `/private/var/…`）を突き合わせ、「プロジェクト外」と判定していたためです。同じ原因で markdown の画像もすべて alt テキストのままでした。今回から両側を解決してから比較します。
+- **フォルダーをディスクから削除したあと、プロジェクトを開くことも消すこともできませんでした**。クリックしても無反応でしたが、どのフォルダーが無いのかを伝えるようになりました。削除時はサブフォルダーで始めた会話もまとめてアーカイブします。
+- **配信カードからその回のレポートを開けませんでした**。レポート自体は毎回生成されていて、入口だけが書き直しの際に失われていました。
+- **CI 列の長い行が省略記号で切れていました**。今は端がぼけ、ポインターを乗せると自分で流れます。
+- **ゆらぎの行が「再接続」と言いながら、実際は再試行していました**。設定側は「再試行ルール」なので、七言語すべてで揃えました。
+- 注釈ツールバーが「選択を削除」で広がると画面からはみ出す、メニューのスクロールバーが行に重なる、ブラウザーメニューの「要素を検証」が誤って改名されていた、カタログ名が別のモデルに付いていた、も直しました。
+
+<!-- lyra:notes ko -->
+
+### 고친 것
+
+- **심볼릭 링크 아래에 있는 프로젝트에서 파일 작업이 아무 반응 없이 실패했습니다**. macOS에서 `/tmp`, 외장 볼륨, 동기화 폴더를 거친 프로젝트는 파일 트리에서 새로 만들기·이름 바꾸기·삭제·잘라내기·붙여넣기가 전부 동작하지 않았고, 오류도 안내도 없었습니다. 경계 검사가 같은 디렉터리의 두 표기(`/var/…`와 `/private/var/…`)를 맞대어 보고 "프로젝트 밖"이라고 판단했기 때문입니다. 같은 원인으로 markdown의 이미지도 전부 대체 텍스트에 멈춰 있었습니다. 이제 양쪽을 모두 풀어 비교합니다.
+- **폴더를 디스크에서 지운 뒤 프로젝트를 열 수도, 지울 수도 없었습니다**. 눌러도 아무 일도 없었지만 이제 어느 폴더가 없는지 알려 줍니다. 제거할 때는 하위 폴더에서 시작한 대화도 함께 보관합니다.
+- **전달 카드에서 그 회차의 보고서를 열 길이 없었습니다**. 보고서는 계속 생성되고 있었고, 입구만 재작성 과정에서 사라졌습니다.
+- **CI 열의 긴 줄이 말줄임표로 잘렸습니다**. 이제 가장자리가 흐려지고, 포인터를 올리면 스스로 흘러갑니다.
+- **끊김 줄이 "재연결"이라고 말하면서 실제로는 재시도하고 있었습니다**. 설정 쪽은 "재시도 규칙"이라 서로 어긋났고, 일곱 언어를 모두 맞췄습니다.
+- 주석 도구 모음이 "선택 삭제"로 넓어지면 화면을 넘치던 문제, 메뉴 스크롤바가 줄 위에 겹치던 문제, 브라우저 메뉴의 "요소 검사"가 잘못 바뀌었던 문제도 함께 고쳤습니다.
+
+<!-- lyra:notes fr -->
+
+### Corrections
+
+- **Les opérations sur les fichiers ne faisaient rien, en silence, quand le projet passait par un lien symbolique.** Sur macOS, tout projet atteint via `/tmp`, un volume externe ou un dossier synchronisé ne pouvait ni créer, ni renommer, ni supprimer, ni couper-coller dans l'arborescence — sans erreur ni indication. Le contrôle de limite comparait deux écritures du même dossier (`/var/…` et `/private/var/…`) et en concluait « hors du projet ». La même cause laissait toutes les images d'un fichier markdown sur leur texte alternatif. Les deux côtés sont maintenant résolus avant comparaison.
+- **Un projet dont le dossier avait été supprimé du disque ne pouvait être ni ouvert ni retiré.** Un clic ne produisait rien ; il nomme désormais le dossier manquant. Le retrait archive aussi les conversations ouvertes dans ses sous-dossiers.
+- **La carte de livraison n'offrait plus d'accès au rapport du tour.** Le rapport était toujours produit ; seule l'entrée avait disparu lors d'une réécriture.
+- **Les lignes longues de la colonne CI se terminaient par des points de suspension.** Le bord s'estompe désormais, et la ligne se lit d'elle-même au survol.
+- **La ligne d'incident disait « reconnexion » alors qu'elle réessayait.** Les réglages parlent de « règles de nouvelle tentative » ; corrigé dans les sept langues.
+- La barre d'annotation débordait de l'écran une fois élargie par « Supprimer la sélection » ; la barre de défilement des menus recouvrait les lignes ; « Inspecter l'élément » avait été renommé par erreur.
+
+<!-- lyra:notes ru -->
+
+### Исправления
+
+- **Операции с файлами молча переставали работать, если проект лежал за символьной ссылкой.** В macOS любой проект, доступный через `/tmp`, внешний том или синхронизируемую папку, не позволял создавать, переименовывать, удалять, вырезать и вставлять в дереве файлов — без ошибок и подсказок. Проверка границы сравнивала два написания одного каталога (`/var/…` и `/private/var/…`) и считала путь «вне проекта». По той же причине все изображения в markdown оставались на альтернативном тексте. Теперь обе стороны разрешаются до сравнения.
+- **Проект, папка которого удалена с диска, нельзя было ни открыть, ни убрать.** Щелчок не давал ничего; теперь он называет отсутствующую папку. При удалении архивируются и чаты, начатые в подпапках.
+- **Из карточки доставки нельзя было открыть отчёт этого хода.** Отчёт по-прежнему создавался — потерялся только вход, при переписывании карточки.
+- **Длинные строки в колонке CI обрывались многоточием.** Теперь край растворяется, а строка сама прокручивается при наведении.
+- **Строка о сбое говорила «переподключение», хотя выполнялся повтор запроса.** В настройках эта страница называется «правила повтора»; исправлено во всех семи языках.
+- Панель аннотаций выходила за экран, когда её расширяла кнопка «Удалить выделенное»; полоса прокрутки меню ложилась поверх строк; «Проверить элемент» в меню браузера было переименовано по ошибке.
+
+### 修复
+
+- **desktop**: 软链下的项目，文件操作全被判在项目之外 ([4da82eb](https://github.com/kittors/Lyra/commit/4da82ebb070230d4ece84c7dbdd3130323d88aa8))
+- **desktop**: 抖动行说的是重试，不是重连 ([8433e96](https://github.com/kittors/Lyra/commit/8433e96bae3f942c5b885f6843dd67bfd317a158))
+- **desktop**: 符号链接下的项目，markdown 里的图一张都出不来 ([f2327db](https://github.com/kittors/Lyra/commit/f2327dbf5675bc29dda81b2ff6b0e60867df74bd))
+- **desktop**: 探针补回 no-console 豁免 ([f297246](https://github.com/kittors/Lyra/commit/f297246d282b5593c2d5c0eba4cad1e8d1a943e6))
+- **desktop**: 文件夹在磁盘上没了之后，项目仍然点得动、删得掉 ([cd26f8d](https://github.com/kittors/Lyra/commit/cd26f8d7f6ef3a200e5dd5bdebaa6c8efc33c46c))
+- **desktop**: 交付卡片补回打开本轮报告的入口 ([c6807db](https://github.com/kittors/Lyra/commit/c6807db11296eb2a7c0e491a32865c8e9d93fd38))
+- **desktop**: CI 那一列的单行截断改成虚化加悬停自读 ([3bfe203](https://github.com/kittors/Lyra/commit/3bfe20381939ab0d3c2673cf6a7e8c5f0c7457d7))
+- **desktop**: 问题预览的两条断言，等的是没实现过的行为 ([85dd515](https://github.com/kittors/Lyra/commit/85dd5150e9aad8426cfa294a0b1bd4759be8f242))
+- **desktop**: 菜单滚动条压在行上，浏览器菜单的「检查元素」被我改成了「页面检查」 ([2f3900d](https://github.com/kittors/Lyra/commit/2f3900ddb5bed4cc29ec09ef9fd11f7100611155))
+- **desktop**: e2e 里三个文件抢同一个调试端口 ([70151fd](https://github.com/kittors/Lyra/commit/70151fdec94ba83e6abe6a2bc617c50bedb91f12))
+- **desktop**: 项目移除不掉——它会照着自己的会话长回来 ([2c7de82](https://github.com/kittors/Lyra/commit/2c7de8282721c190843c36cdb77ea8e15dc9138c))
+- **desktop**: 从抖动行点「继续」，那一轮的账就断了 ([75e27e0](https://github.com/kittors/Lyra/commit/75e27e0def9b24c9647705e59b7f155992aca3af))
+- **core**: 目录的名字被安到了另一个模型头上 ([80327d0](https://github.com/kittors/Lyra/commit/80327d0602e0a16819e45a9f7fe6a5dce9296786))
+- **desktop**: 标注工具栏一变宽就顶出屏幕 ([2a2e2a1](https://github.com/kittors/Lyra/commit/2a2e2a12fdafe6245083d6ce97901817e1bf90f7))
+
+### 文档
+
+- **desktop**: 把轨迹那条的待查范围收到两条分支 ([b7807d3](https://github.com/kittors/Lyra/commit/b7807d302f951fee0e09e629715779e8b8c3432e))
+- **desktop**: 改掉一个下错的结论 ([02791a4](https://github.com/kittors/Lyra/commit/02791a41c245674b46374145d2e325c83f1ee297))
+
 ## [0.9.5](https://github.com/kittors/Lyra/releases/tag/v0.9.5) - 2026-09-09
 
 <!-- lyra:notes zh-CN -->
@@ -146,7 +247,6 @@
 - **Часть слов не двигалась при смене языка**. Названия шрифтов, значки плагинов, группы пулреквестов, состояния проверок, план синхронизации, имена тем кода — таблицы, записанные в начале файла, застывают в языке момента загрузки программы. Обход синтаксического дерева нашёл девятнадцать таких мест. Одно исправление пошло в обратную сторону: три фразы, которые отправляет «Продолжить», **не** переводятся. Это текст для модели и одновременно метка, по которой узнаётся сохранённая история — переведи их, и беседа, продолженная на китайском, перестаёт узнаваться на английском, а тот ход сообщает только длительность последнего отрезка.
 - **Превью темы «Системная» выглядело как тёмная**. По площади половины равны, но не на глаз: светлая тратит большую часть ширины на серую боковую панель, а карточка пересекает шов, и вес её приходится на тёмную сторону. Растеризовали и посчитали: до правки было 0% светлого / 100% тёмного — те же числа, что и у миниатюры «Тёмная».
 - **Несколько выравниваний в настройках и форма, всё ещё показывающая старые значения после импорта**. Метки пяти уровней делегирования тянулись к базовой линии заголовка, но у каждого уровня описание своей длины — столбец выходил неровным. А импорт заменяет поставщика под тем же идентификатором, тогда как поля адреса и ключа API читают начальное значение один раз, при монтировании.
-
 
 ## [0.9.4](https://github.com/kittors/Lyra/releases/tag/v0.9.4) - 2026-09-08
 
