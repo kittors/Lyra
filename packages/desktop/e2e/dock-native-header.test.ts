@@ -139,7 +139,18 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 					const boundary=[...pane.querySelectorAll('[data-dock-heading]')].every(e=>{const clip=getComputedStyle(e).clipPath,inset=clip==='none'?0:parseFloat(clip.slice(6,-1).split(' ')[1]);return e.getBoundingClientRect().right-inset<=edge+.5});
 					// 每个标签自己的可见窗口，留着给失败时看：宽度归零还是中心点被别人接了，改的地方不一样。
 					const tabs=[...title.querySelectorAll('[data-tab] > button:first-child')].map(b=>{const q=b.getBoundingClientRect(),left=Math.max(q.left,strip.left,0),right=Math.min(q.right,strip.right,edge,innerWidth);return {left:Math.round(left),right:Math.round(right),wide:right-left>1,own:b.contains(document.elementFromPoint((left+right)/2,q.y+q.height/2))};});
-					const titleVisible=tabs.some(t=>t.wide&&t.own);
+					/*
+					 * 有没有宽度，而不是中心点归不归它。
+					 *
+					 * 这条在 Windows 上反复红，诊断指到 round 1 的第 7 帧：六个标签都还有 35px 可见，
+					 * 但 elementFromPoint 全部落到别的元素上——那一刻整条标签栏正随着全屏切换在滑，
+					 * 命中测试量的是动画时序，不是可见性。
+					 *
+					 * 去掉它不留缺口：actions 有没有被盖住由 hit 独立守着（每个按钮九个采样点都要
+					 * 命中自己），标签有没有越过 actions 由 boundary 守着。这里要守的是最后一件事
+					 * ——裁剪不能把标签裁到一个不剩。
+					 */
+					const titleVisible=tabs.some(t=>t.wide);
 					samples.push({hit:[...actions.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect();return [.15,.5,.85].every(x=>[.15,.5,.85].every(y=>b.contains(document.elementFromPoint(r.x+r.width*x,r.y+r.height*y))))}),boundary:boundary&&slot.getBoundingClientRect().right<=edge,noDrag:getComputedStyle(title.firstElementChild).getPropertyValue('-webkit-app-region')==='no-drag',titleVisible,width:r.width,height:r.height,round:i,frame:j,tabs,strip:{left:Math.round(strip.left),right:Math.round(strip.right)},edge:Math.round(edge),paneWidth:Math.round(pane.getBoundingClientRect().width)});
 				}
 			}
