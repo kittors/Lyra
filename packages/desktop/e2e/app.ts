@@ -153,6 +153,28 @@ export interface RunningApp {
  * `seed` runs after the profile directory is made and before the app starts, which is the only
  * window in which settings can be written for it to read at launch.
  */
+/**
+ * How a Lyra instance is launched, for the tests that start a second one themselves.
+ *
+ * The binary directly, never `electron-vite preview`: Windows cannot spawn a `pnpm.cmd` shim
+ * without a shell, and preview silently rebuilds instead of running the build under test. The
+ * rebuild is what made `single-instance` fail — a second copy spawned through preview spends
+ * longer compiling than the test is willing to wait, so it was timing the bundler and reporting
+ * a lost lock.
+ *
+ * `port` is optional because a copy expected to exit on the single-instance lock never gets far
+ * enough to open a debugging port, and giving it the first one's would be a second conflict.
+ */
+export function electronLaunch(port?: number): { executable: string; argv: string[] } {
+	const bundle = process.env.LYRA_E2E_APP;
+	const electron: unknown = bundle ? join(bundle, "Contents", "MacOS", "Lyra") : createRequire(import.meta.url)("electron");
+	if (typeof electron !== "string") throw new Error("Electron's executable path is unavailable");
+	// Keep app.getAppPath() at the package root, exactly as electron-vite's `electron .` does.
+	const argv = bundle ? [] : [ROOT];
+	if (port !== undefined) argv.push(`--remote-debugging-port=${port}`);
+	return { executable: electron, argv };
+}
+
 export async function startApp({
 	port,
 	seed,
@@ -209,13 +231,7 @@ export async function startApp({
 			throw new Error("Build the desktop app with pnpm build before running Electron e2e tests", { cause });
 		});
 	}
-	const electron: unknown = bundle ? join(bundle, "Contents", "MacOS", "Lyra") : createRequire(import.meta.url)("electron");
-	if (typeof electron !== "string") throw new Error("Electron's executable path is unavailable");
-	const executable = electron;
-	const argv = bundle
-		? [`--remote-debugging-port=${port}`]
-		// Keep app.getAppPath() at the package root, exactly as electron-vite's `electron .` does.
-		: [ROOT, `--remote-debugging-port=${port}`];
+	const { executable, argv } = electronLaunch(port);
 	if (scaleFactor !== undefined) argv.push(`--force-device-scale-factor=${scaleFactor}`);
 
 	// Validate the executable before creating a profile, so failed setup leaves no test data.

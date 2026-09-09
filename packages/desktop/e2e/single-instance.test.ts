@@ -16,7 +16,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
-import { startApp, type RunningApp } from "./app.ts";
+import { electronLaunch, startApp, type RunningApp } from "./app.ts";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 
@@ -35,11 +35,17 @@ after(async () => {
  *
  * Spawned the same way the first one was, so the lock is being tested rather than a lookalike:
  * the lock is keyed on the user data directory, which `LYRA_HOME` decides.
+ *
+ * That claim used to be false. This went through `electron-vite preview`, which rebuilds before it
+ * launches anything — so the second copy spent the whole budget compiling, the backstop killed it
+ * still short of `main.ts`, and the failure read as a lost lock. `electronLaunch` is the same
+ * binary and argv `startApp` uses.
  */
 function secondLaunch(home: string): Promise<{ code: number | null; output: string }> {
 	return new Promise((resolve) => {
 		const output: string[] = [];
-		const second = spawn("pnpm", ["exec", "electron-vite", "preview"], {
+		const { executable, argv } = electronLaunch();
+		const second = spawn(executable, argv, {
 			cwd: ROOT,
 			env: { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
 			stdio: "pipe",
