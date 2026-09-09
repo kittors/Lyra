@@ -61,6 +61,7 @@ import {
 	sideChats,
 } from "./session-hub.ts";
 import { containingRoot, resolveInside } from "./file-ops.ts";
+import { resolveReadablePath } from "./file-read-service.ts";
 import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
@@ -496,7 +497,17 @@ app.whenReady().then(async () => {
 	 */
 	installPermissionHandlers([BROWSER_PARTITION]);
 
-	registerPreviewProtocols({ browserPartition: BROWSER_PARTITION, insideAProject });
+	/*
+	 * The media scheme resolves both sides before it compares them.
+	 *
+	 * `insideAProject` compares the strings as configured, and a listing hands the renderer
+	 * canonical paths — the same directory reaching the guard spelled two ways. See the note on
+	 * the handler.
+	 */
+	registerPreviewProtocols({
+		browserPartition: BROWSER_PARTITION,
+		resolveMedia: (target) => resolveReadablePath(target, (settings?.projects ?? []).map((project) => project.path)),
+	});
 
 	// Clear out sessions that were reserved and never used — including any left over from
 	// when clicking "新对话" created one up front.

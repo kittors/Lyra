@@ -163,16 +163,29 @@ function contentTypeFor(path: string): string {
  */
 export function registerPreviewProtocols(options: {
 	browserPartition: string;
-	insideAProject(target: string): boolean;
+	resolveMedia(target: string): Promise<string | null>;
 }): void {
-	const { browserPartition, insideAProject } = options;
+	const { browserPartition, resolveMedia } = options;
 
-	// `ly-media://f/<encoded absolute path>`. Decoding it here is the only place it becomes a path
-	// again — and the only place it is checked.
+	/*
+	 * `ly-media://f/<encoded absolute path>`. Decoding it here is the only place it becomes a path
+	 * again — and the only place it is checked.
+	 *
+	 * The check resolves both sides first, which is why it is `resolveReadablePath` rather than the
+	 * plain string comparison this used to do. A directory listing hands the renderer canonical
+	 * paths, so on macOS an image under a temporary or symlinked project came back as
+	 * `/private/var/…` while the configured project path was still `/var/…` — the same directory,
+	 * spelled two ways, and the guard read that as "outside the project" and answered 403. Every
+	 * picture in a markdown file rendered as its alt text.
+	 *
+	 * Resolving is also the stricter reading: a symlink inside a project that points out of it
+	 * stops being a way through.
+	 */
 	protocol.handle(MEDIA_SCHEME, async (request) => {
 		const target = decodeURIComponent(new URL(request.url).pathname.replace(/^\//, ""));
-		if (!target || !insideAProject(target)) return new Response("forbidden", { status: 403 });
-		return net.fetch(pathToFileURL(target).toString(), { headers: request.headers, method: request.method });
+		const allowed = target ? await resolveMedia(target) : null;
+		if (!allowed) return new Response("forbidden", { status: 403 });
+		return net.fetch(pathToFileURL(allowed).toString(), { headers: request.headers, method: request.method });
 	});
 
 	// `ly-preview://<sessionId>/<previewId>/<file>`, resolved against the previews directory.
