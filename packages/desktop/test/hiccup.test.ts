@@ -45,13 +45,13 @@ test("收场了的记录不会被后来的抖动改写", () => {
 	assert.deepEqual(hiccups[0], before, "已经放弃的那条是历史，不该被改写");
 });
 
-test("重连成功说的是恢复，不是出错", () => {
+test("重试成功说的是恢复，不是出错", () => {
 	let hiccups = foldRetry([], retry(1), 1000);
 	hiccups = foldRetry(hiccups, retry(2), 1000);
 	hiccups = foldRetry(hiccups, retry(3), 1000);
 	hiccups = settleHiccups(hiccups, { outcome: "recovered", attempts: 3 });
 	const line = describeHiccup(hiccups[0], 2000);
-	assert.equal(line, "重连 3 次后恢复");
+	assert.equal(line, "重试 3 次后恢复");
 	// 用户要的就是这个：自己好了的，不该有任何像报错的字眼。
 	assert.ok(!line.includes("错"), "恢复了就不该出现「错」字");
 	assert.ok(!line.includes("失败"), "恢复了就不该出现「失败」");
@@ -65,10 +65,10 @@ test("只断一下的说法更短", () => {
 
 test("等待时数着秒，过零之后不再声称时间", () => {
 	const hiccups = foldRetry([], retry(2), 1000);
-	assert.match(describeHiccup(hiccups[0], 1000), /5 秒后重连/);
-	assert.match(describeHiccup(hiccups[0], 4000), /2 秒后重连/);
+	assert.match(describeHiccup(hiccups[0], 1000), /5 秒后重试/);
+	assert.match(describeHiccup(hiccups[0], 4000), /2 秒后重试/);
 	// 等待结束、请求已经发出去了，这时候再说「0 秒后」就是假的。
-	assert.match(describeHiccup(hiccups[0], 7000), /正在重连/);
+	assert.match(describeHiccup(hiccups[0], 7000), /正在重试/);
 });
 
 test("一直是同一个错误时，次数比原因更值得说", () => {
@@ -77,7 +77,7 @@ test("一直是同一个错误时，次数比原因更值得说", () => {
 	const line = describeHiccup(hiccups[0], 1000);
 	// 无限重试唯一可能骗人的地方：分类器没认出来的终局错误。
 	assert.match(line, /一直是同一个错误/);
-	assert.match(line, /已重连 5 次/);
+	assert.match(line, /已重试 5 次/);
 });
 
 test("错误换了花样，就不算「一直是同一个」", () => {
