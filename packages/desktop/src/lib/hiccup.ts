@@ -164,7 +164,7 @@ export function describeHiccup(hiccup: Hiccup, now: number): string {
 		return clip(hiccup.summary, LINE_MAX);
 	}
 	const left = Math.ceil((hiccup.until - now) / 1000);
-	const wait = left > 0 ? translate("hiccup.reconnectIn", { n: left }) : translate("hiccup.reconnecting");
+	const wait = left > 0 ? translate("hiccup.retryIn", { n: left }) : translate("hiccup.retrying");
 	/*
 	 * 等的时候，「还要等多久」比「什么错」要紧。
 	 *
