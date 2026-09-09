@@ -904,6 +904,7 @@ export const fr = {
 	"pipelines.empty": "Aucune exécution",
 	"pipelines.back": "Retour à la liste des pipelines",
 	"pipelines.workflowDetail": "Détails du workflow",
+	"pipelines.noCommitMessage": "Aucun message de commit",
 	"pipelines.jobsHint": "Cliquez pour les tâches de build · {title}",
 	"commit.generateFailed": "Impossible de rédiger le message de commit",
 	"commit.placeholder": "Écrivez un message de commit…",

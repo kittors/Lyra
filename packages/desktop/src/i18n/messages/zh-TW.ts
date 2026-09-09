@@ -904,6 +904,7 @@ export const zhTW = {
 	"pipelines.empty": "暫無執行紀錄",
 	"pipelines.back": "返回流水線清單",
 	"pipelines.workflowDetail": "工作流程詳情",
+	"pipelines.noCommitMessage": "沒有提交訊息",
 	"pipelines.jobsHint": "點擊查看建置任務詳情 · {title}",
 	"commit.generateFailed": "產生提交說明失敗",
 	"commit.placeholder": "輸入提交訊息…",

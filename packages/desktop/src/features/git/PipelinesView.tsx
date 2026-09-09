@@ -7,6 +7,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import {
 	Activity,
 	AlertCircle,
@@ -283,7 +284,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 				{actions}
 				{/* Top Header Bar */}
 				<div className="flex items-center justify-between px-3.5 py-2.5">
-					<div className="flex items-center gap-2 min-w-0">
+					<div className="ly-scroll flex items-center gap-2 min-w-0">
 						<button
 							type="button"
 							onClick={() => setInspectRun(null)}
@@ -292,20 +293,24 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 						>
 							<ArrowLeft size={15} />
 						</button>
-						<span className="text-ui font-medium text-ink truncate">
-							{inspectRun.name || t("pipelines.workflowDetail")}
-						</span>
+						<ScrollText
+							text={inspectRun.name || t("pipelines.workflowDetail")}
+							className="text-ui font-medium text-ink"
+						/>
 					</div>
 				</div>
 
 				<Scroller className="flex-1 px-3.5 pb-6">
 					{/* Summary Card */}
-					<div className="rounded-xl bg-card p-3.5 space-y-2.5">
+					<div className="ly-scroll rounded-xl bg-card p-3.5 space-y-2.5">
 						<div className="flex items-center justify-between gap-2">
 							<div className="min-w-0">
-								<div className="text-label font-medium text-ink truncate">
-									{runDetail?.displayTitle || runDetail?.name || inspectRun.displayTitle || inspectRun.name}
-								</div>
+								<ScrollText
+									text={
+										runDetail?.displayTitle || runDetail?.name || inspectRun.displayTitle || inspectRun.name || ""
+									}
+									className="text-label font-medium text-ink"
+								/>
 							</div>
 							<span className="text-caption text-ink-faint whitespace-nowrap">
 								{relativeTime(runDetail?.createdAt ?? inspectRun.createdAt)}
@@ -360,13 +365,11 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 											<button
 												type="button"
 												onClick={() => toggleJob(job.id)}
-												className="w-full flex items-center justify-between p-3 hover:bg-card-hover transition-colors cursor-pointer text-left"
+												className="ly-scroll w-full flex items-center justify-between p-3 hover:bg-card-hover transition-colors cursor-pointer text-left"
 											>
 												<div className="flex items-center gap-2.5 min-w-0">
 													<StatusIcon status={job.status} conclusion={job.conclusion} size={15} />
-													<span className="text-detail font-medium text-ink truncate">
-														{job.name}
-													</span>
+													<ScrollText text={job.name} className="text-detail font-medium text-ink" />
 												</div>
 												<div className="flex items-center gap-2 shrink-0">
 													{duration && (
@@ -389,7 +392,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 														return (
 															<div
 																key={step.number}
-																className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-card-hover text-caption text-ink-muted transition-colors"
+																className="ly-scroll flex items-center justify-between py-1 px-2 rounded-lg hover:bg-card-hover text-caption text-ink-muted transition-colors"
 															>
 																<div className="flex items-center gap-2 min-w-0">
 																	<StatusIcon
@@ -397,7 +400,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 																		conclusion={step.conclusion}
 																		size={12.5}
 																	/>
-																	<span className="truncate">{step.name}</span>
+																	<ScrollText text={step.name} />
 																</div>
 																{stepDuration && (
 																	<span className="text-micro text-ink-faint font-mono shrink-0 pl-2">
@@ -434,29 +437,33 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 							key={run.id}
 							type="button"
 							onClick={() => setInspectRun(run)}
-							className="w-full text-left p-2.5 rounded-xl transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover group/run cursor-pointer"
+							className="ly-scroll w-full text-left p-2.5 rounded-xl transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover group/run cursor-pointer"
 							data-ly-tip={t("pipelines.jobsHint", { title: run.displayTitle || run.name })}
 						>
 							<div className="flex items-center justify-between gap-2 mb-1">
 								<div className="flex items-center gap-2 min-w-0">
 									<StatusIcon status={run.status} conclusion={run.conclusion} size={14.5} />
-									<span className="text-detail font-medium text-ink truncate leading-tight">
-										{run.name || "Workflow"}
-									</span>
+									<ScrollText
+										text={run.name || "Workflow"}
+										className="text-detail font-medium text-ink leading-tight"
+									/>
 								</div>
 								<span className="text-caption text-ink-faint shrink-0 whitespace-nowrap">
 									{relativeTime(run.createdAt)}
 								</span>
 							</div>
 
-							<div className="text-caption text-ink-muted pl-5 mb-1.5 truncate">
-								{run.displayTitle || "No commit message"}
+							<div className="pl-5 mb-1.5">
+								<ScrollText
+									text={run.displayTitle || t("pipelines.noCommitMessage")}
+									className="text-caption text-ink-muted"
+								/>
 							</div>
 
 							<div className="flex items-center gap-3 text-caption text-ink-faint pl-5">
-								<span className="flex items-center gap-1 truncate max-w-[130px]">
+								<span className="flex items-center gap-1 overflow-hidden max-w-[130px]">
 									<GitBranch size={12} className="shrink-0 text-ink-faint" />
-									<span className="truncate">{run.headBranch}</span>
+									<ScrollText text={run.headBranch} />
 								</span>
 								{run.headSha && (
 									<span className="flex items-center gap-1 shrink-0 font-mono text-micro">

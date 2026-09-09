@@ -47,15 +47,49 @@ function runs(): unknown[] {
 	}));
 }
 
+/**
+ * 报告指的那一行在详情页里：展开一个 job 之后的步骤名，`Windows desktop and trans…`。
+ * 步骤名照抄真实工作流的长度，短名字撑不出溢出，也就问不出虚化到底在不在。
+ */
+function jobs(): unknown[] {
+	return [
+		{
+			id: 900,
+			name: "windows-ui",
+			status: "completed",
+			conclusion: "failure",
+			started_at: new Date(Date.now() - 600_000).toISOString(),
+			completed_at: new Date().toISOString(),
+			steps: [
+				"Set up job",
+				"Windows desktop and translations end-to-end suite",
+				"Upload the failing renderer screenshots as build artifacts",
+				"Complete job",
+			].map((name, i) => ({
+				number: i + 1,
+				name,
+				status: "completed",
+				conclusion: i === 1 ? "failure" : "success",
+				started_at: new Date(Date.now() - (4 - i) * 60_000).toISOString(),
+				completed_at: new Date(Date.now() - (3 - i) * 60_000).toISOString(),
+			})),
+		},
+	];
+}
+
 const forge: Server = createServer((req, res) => {
 	req.resume();
-	if (!req.url?.startsWith("/api/v3/repos/fixture/repo/actions/runs?")) {
-		res.writeHead(404);
-		res.end();
-		return;
-	}
-	res.writeHead(200, { "content-type": "application/json" });
-	res.end(JSON.stringify({ workflow_runs: runs() }));
+	const url = req.url ?? "";
+	const base = "/api/v3/repos/fixture/repo/actions/runs";
+	const reply = (body: unknown) => {
+		res.writeHead(200, { "content-type": "application/json" });
+		res.end(JSON.stringify(body));
+	};
+	if (url.startsWith(`${base}?`)) return reply({ workflow_runs: runs() });
+	if (/\/actions\/runs\/\d+\/jobs/.test(url)) return reply({ jobs: jobs() });
+	if (/\/actions\/runs\/\d+$/.test(url)) return reply(runs()[0]);
+	res.writeHead(404);
+	res.end();
 });
 
 await new Promise<void>((resolve) => forge.listen(0, "127.0.0.1", resolve));
@@ -129,53 +163,133 @@ try {
 	})()`);
 	await pause(3000);
 
-	const shape = (await app.evaluate(`(() => {
-		const host = document.querySelector('${pane} .ly-scroll-view');
-		if (!host) return null;
-		return {
-			rows: document.querySelectorAll('${pane} .ly-scroll-view > * > *').length,
-			scrollHeight: Math.round(host.scrollHeight),
-			clientHeight: Math.round(host.clientHeight),
-			overflowing: host.scrollHeight - host.clientHeight > 1,
-		};
-	})()`)) as { rows: number; scrollHeight: number; clientHeight: number; overflowing: boolean } | null;
+	/*
+	 * 要问的不是「这一列能不能上下滚」，而是「一行放不下的字，看不看得全」。
+	 *
+	 * 截断成 `Windows desktop and trans…` 的行，省略号只说了「被切了」，没说切掉了什么。
+	 * 别处的做法是 `ScrollText`：右边缘虚化代替省略号，鼠标停上去这行字自己走一遍。这里量的
+	 * 就是那两件事在 CI 这一列里到底有没有生效。
+	 */
+	const lines = (await app.evaluate(`(() => {
+		const out = [];
+		for (const el of document.querySelectorAll('${pane} .ly-fade-edge')) {
+			const body = el.querySelector('.ly-marquee-track > span');
+			const css = getComputedStyle(el);
+			out.push({
+				text: (body ? body.textContent : '').slice(0, 34),
+				box: Math.round(el.clientWidth),
+				body: Math.round(body ? body.offsetWidth : 0),
+				masked: (css.maskImage || css.webkitMaskImage || 'none') !== 'none',
+			});
+		}
+		return out;
+	})()`)) as { text: string; box: number; body: number; masked: boolean }[];
 
 	console.log("");
-	if (!shape) {
-		problems.push("找不到 CI 那一列的滚动容器");
-		console.log("  找不到滚动容器——CI 那一页可能没渲染出来");
+	if (lines.length === 0) {
+		problems.push("CI 这一列里一行放不下的字都没接虚化——还是老的省略号");
+		console.log("  没找到一条虚化的行");
 	} else {
-		console.log(`  列表 ${shape.rows} 行  内容高 ${shape.scrollHeight}  可见 ${shape.clientHeight}  ${shape.overflowing ? "溢出了" : "✗ 没溢出"}`);
-		if (!shape.overflowing) {
-			problems.push(`内容没有溢出（${shape.scrollHeight} ≤ ${shape.clientHeight}）——上面某一层把它切掉了，滚动容器自己不知道`);
-		} else {
-			/*
-			 * 真实滚轮，不是合成的 WheelEvent。
-			 *
-			 * `dispatchEvent(new WheelEvent(...))` 会被派发，但它 `isTrusted` 为假，不驱动浏览器
-			 * 自己的滚动——照样打印出一个「滚动了」的结论，而报告说的正是滚轮推不动。所以这里走
-			 * `Input.dispatchMouseEvent`，指针真的落在那一列上。
-			 */
-			const at = (await app.evaluate(`(() => {
-				const host = document.querySelector('${pane} .ly-scroll-view');
-				host.scrollTop = 0;
-				const r = host.getBoundingClientRect();
-				return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-			})()`)) as { x: number; y: number };
-			await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
-			await pause(120);
-			for (let i = 0; i < 3; i++) {
-				await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX: 0, deltaY: 160 });
-				await pause(120);
-			}
-			await pause(400);
-			const after = (await app.evaluate(`document.querySelector('${pane} .ly-scroll-view').scrollTop`)) as number;
-			console.log(`  真实滚轮推 480px：scrollTop 0 → ${Math.round(after)}`);
-			if (after <= 1) problems.push("内容溢出了，可滚轮推不动它");
+		for (const line of lines.slice(0, 6)) {
+			console.log(`  「${line.text}」 行宽 ${line.box}  文字 ${line.body}  ${line.masked ? "虚化在" : "✗ 没虚化"}`);
 		}
+		console.log(`  共 ${lines.length} 行溢出并接上了虚化`);
+		const bare = lines.filter((l) => !l.masked).length;
+		if (bare > 0) problems.push(`${bare} 行标了溢出却没有虚化`);
+
+		/*
+		 * 真实鼠标，不是合成的 PointerEvent：`:hover` 只认真指针，合成事件照样能让探针打印出
+		 * 一个「动了」的结论。动画还有 300ms 起步延迟，所以进场后先等够再取第一帧。
+		 */
+		const at = (await app.evaluate(`(() => {
+			const el = document.querySelector('${pane} .ly-fade-edge');
+			const r = el.getBoundingClientRect();
+			return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+		})()`)) as { x: number; y: number };
+
+		const shift = `(() => {
+			const t = document.querySelector('${pane} .ly-fade-edge .ly-marquee-track');
+			if (!t) return null;
+			const css = getComputedStyle(t);
+			return { name: css.animationName, x: Math.round(new DOMMatrixReadOnly(css.transform).m41) };
+		})()`;
+
+		const idle = (await app.evaluate(shift)) as { name: string; x: number } | null;
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
+		await pause(700);
+		const early = (await app.evaluate(shift)) as { name: string; x: number } | null;
+		await pause(600);
+		const late = (await app.evaluate(shift)) as { name: string; x: number } | null;
+
+		console.log(`\n  鼠标进场前 动画=${idle?.name ?? "?"} 位移=${idle?.x ?? "?"}`);
+		console.log(`  进场 700ms  动画=${early?.name ?? "?"} 位移=${early?.x ?? "?"}`);
+		console.log(`  再过 600ms  动画=${late?.name ?? "?"} 位移=${late?.x ?? "?"}`);
+
+		if (idle?.name !== "none") problems.push("鼠标还没进来这行字就在动了");
+		if (late?.name !== "ly-marquee") problems.push("鼠标停上去没有起自动滚动");
+		else if (early && late && early.x === late.x) problems.push("动画挂上了，可位移一直没变——字其实没走");
 	}
 
-	console.log(problems.length === 0 ? "\nCI 那一列滚得动\n" : `\n${problems.length} 处：\n${problems.map((p) => `  ✗ ${p}`).join("\n")}\n`);
+	// 报告里箭头指的那一行不在列表页，在点进去、再把 job 展开之后的步骤名上。
+	await app.evaluate(`(() => {
+		const row = document.querySelector('${pane} .ly-scroll-view button.ly-scroll');
+		if (row) row.click();
+	})()`);
+	await pause(1800);
+	await app.evaluate(`(() => {
+		const job = [...document.querySelectorAll('${pane} button.ly-scroll')].find((b) => /windows-ui/.test(b.textContent || ''));
+		if (job) job.click();
+	})()`);
+	await pause(1000);
+
+	const step = (await app.evaluate(`(() => {
+		const hit = [...document.querySelectorAll('${pane} .ly-fade-edge')].find((el) => /Windows desktop/.test(el.textContent || ''));
+		if (!hit) return null;
+		const body = hit.querySelector('.ly-marquee-track > span');
+		const css = getComputedStyle(hit);
+		const r = hit.getBoundingClientRect();
+		return {
+			text: (body ? body.textContent : '').slice(0, 34),
+			box: Math.round(hit.clientWidth),
+			body: Math.round(body ? body.offsetWidth : 0),
+			masked: (css.maskImage || css.webkitMaskImage || 'none') !== 'none',
+			x: Math.round(r.left + r.width / 2),
+			y: Math.round(r.top + r.height / 2),
+		};
+	})()`)) as { text: string; box: number; body: number; masked: boolean; x: number; y: number } | null;
+
+	console.log("");
+	if (!step) {
+		problems.push("详情页展开 job 后没找到接了虚化的步骤名——报告指的正是这一行");
+		console.log("  详情页里没找到那一行步骤名");
+	} else {
+		console.log(`  详情页步骤「${step.text}」 行宽 ${step.box}  文字 ${step.body}  ${step.masked ? "虚化在" : "✗ 没虚化"}`);
+		if (!step.masked) problems.push("详情页的步骤名溢出了却没有虚化");
+		const track = `(() => {
+			const hit = [...document.querySelectorAll('${pane} .ly-fade-edge')].find((el) => /Windows desktop/.test(el.textContent || ''));
+			const t = hit && hit.querySelector('.ly-marquee-track');
+			if (!t) return null;
+			const css = getComputedStyle(t);
+			return { name: css.animationName, x: Math.round(new DOMMatrixReadOnly(css.transform).m41) };
+		})()`;
+		// 先把指针挪开，免得上一段 hover 的残留冒充成这一段的结论。
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+		await pause(500);
+		const before = (await app.evaluate(track)) as { name: string; x: number } | null;
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: step.x, y: step.y });
+		await pause(700);
+		const mid = (await app.evaluate(track)) as { name: string; x: number } | null;
+		await pause(600);
+		const end = (await app.evaluate(track)) as { name: string; x: number } | null;
+		console.log(`  鼠标进场前 动画=${before?.name ?? "?"} 位移=${before?.x ?? "?"}`);
+		console.log(`  进场 700ms  动画=${mid?.name ?? "?"} 位移=${mid?.x ?? "?"}`);
+		console.log(`  再过 600ms  动画=${end?.name ?? "?"} 位移=${end?.x ?? "?"}`);
+		if (before?.name !== "none") problems.push("详情页那一行没碰就在动");
+		if (end?.name !== "ly-marquee") problems.push("详情页的步骤名停上去不会自己走");
+		else if (mid && end && mid.x === end.x) problems.push("详情页动画挂上了，可位移没变");
+	}
+
+	console.log(problems.length === 0 ? "\nCI 这一列：溢出的行虚化了，鼠标停上去自己走\n" : `\n${problems.length} 处：\n${problems.map((p) => `  ✗ ${p}`).join("\n")}\n`);
 	process.exitCode = problems.length === 0 ? 0 : 1;
 } finally {
 	await app.stop();

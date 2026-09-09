@@ -904,6 +904,7 @@ export const en = {
 	"pipelines.empty": "No runs yet",
 	"pipelines.back": "Back to the pipeline list",
 	"pipelines.workflowDetail": "Workflow details",
+	"pipelines.noCommitMessage": "No commit message",
 	"pipelines.jobsHint": "Click for the build jobs · {title}",
 	"commit.generateFailed": "Could not write a commit message",
 	"commit.placeholder": "Write a commit message…",

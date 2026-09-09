@@ -904,6 +904,7 @@ export const ru = {
 	"pipelines.empty": "Запусков пока нет",
 	"pipelines.back": "Назад к списку конвейеров",
 	"pipelines.workflowDetail": "Подробности рабочего процесса",
+	"pipelines.noCommitMessage": "Нет сообщения коммита",
 	"pipelines.jobsHint": "Нажмите, чтобы увидеть задачи сборки · {title}",
 	"commit.generateFailed": "Не удалось составить сообщение коммита",
 	"commit.placeholder": "Введите сообщение коммита…",

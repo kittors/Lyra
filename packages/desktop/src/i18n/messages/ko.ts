@@ -904,6 +904,7 @@ export const ko = {
 	"pipelines.empty": "실행 기록이 아직 없습니다",
 	"pipelines.back": "파이프라인 목록으로",
 	"pipelines.workflowDetail": "워크플로 자세히",
+	"pipelines.noCommitMessage": "커밋 메시지 없음",
 	"pipelines.jobsHint": "누르면 빌드 작업 자세히 · {title}",
 	"commit.generateFailed": "커밋 메시지를 만들지 못했습니다",
 	"commit.placeholder": "커밋 메시지를 입력…",

@@ -1076,6 +1076,7 @@ export const zhCN = {
 	"pipelines.empty": "暂无运行记录",
 	"pipelines.back": "返回流水线列表",
 	"pipelines.workflowDetail": "工作流详情",
+	"pipelines.noCommitMessage": "没有提交信息",
 	"pipelines.jobsHint": "点击查看构建任务详情 · {title}",
 	"commit.generateFailed": "生成提交说明失败",
 	"commit.placeholder": "输入提交信息…",

@@ -904,6 +904,7 @@ export const ja = {
 	"pipelines.empty": "実行の記録はまだありません",
 	"pipelines.back": "パイプライン一覧に戻る",
 	"pipelines.workflowDetail": "ワークフローの詳細",
+	"pipelines.noCommitMessage": "コミットメッセージなし",
 	"pipelines.jobsHint": "クリックでビルドジョブの詳細 · {title}",
 	"commit.generateFailed": "コミットメッセージを作れませんでした",
 	"commit.placeholder": "コミットメッセージを入力…",
