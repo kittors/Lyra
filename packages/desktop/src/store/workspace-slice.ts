@@ -12,6 +12,7 @@ import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/sidebar-order.ts";
+import { sessionUnderProject } from "../lib/project-scope.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -28,7 +29,22 @@ export function workspaceSlice(set: Set, get: Get) {
     const epoch = get().selectionEpoch + 1;
     set({ selectionEpoch: epoch });
     const workspace = await bridge.workspace.info(path);
-    if (!workspace || get().selectionEpoch !== epoch) return;
+    // A newer pick already won; it owns the screen and this one says nothing.
+    if (get().selectionEpoch !== epoch) return;
+    /*
+     * The folder is gone from disk, and saying so is the whole point.
+     *
+     * `workspace.info` answers `null` for a path that no longer exists, and returning on it
+     * silently made a deleted project the one entry in the list that does nothing when clicked —
+     * no panel, no error, no hint that the directory is what changed. People read that as the app
+     * being stuck on it, which is where 「删不掉」 comes from as much as anywhere: you cannot even
+     * get far enough to be told why. Naming the missing folder points at the remove action, which
+     * works whether or not the directory is still there.
+     */
+    if (!workspace) {
+      get().notify(translate("workspace.missing", { path }), "error");
+      return;
+    }
 
     /*
      * On screen first, remembered second.
@@ -299,7 +315,21 @@ export function workspaceSlice(set: Set, get: Get) {
      * the action the project menu already offers, so "remove" is now "archive its chats, then
      * forget the project" rather than a third kind of disappearance with its own rules.
      */
-    await get().archiveProjectSessions(path);
+    /*
+     * Archiving is best-effort; forgetting the project is not.
+     *
+     * Awaiting it bare meant one failing `setArchived` — a session index that cannot be written,
+     * a file that went away underneath us — took the removal down with it, and the entry the user
+     * asked to delete stayed. That is the same complaint they opened with, arriving through the
+     * fix for it. Report the failure and carry on: a project still listed after a successful
+     * archive is the bug; a project removed while some chats keep their place in 「最近」 is
+     * recoverable, and visible.
+     */
+    try {
+      await get().archiveProjectSessions(path);
+    } catch (error) {
+      get().notify(translate("workspace.archiveFailed", { reason: String(error) }), "error");
+    }
     const latest = get().settings ?? settings;
     await get().saveSettings({
       ...latest,
@@ -309,11 +339,11 @@ export function workspaceSlice(set: Set, get: Get) {
   },
 
   async archiveProjectSessions(path: string) {
-    const targets = get().sessions.filter((s) => s.cwd === path && !s.archived);
+    const targets = get().sessions.filter((s) => sessionUnderProject(path, s.cwd) && !s.archived);
     if (targets.length === 0) return;
     set({
       sessions: get().sessions.map((s) =>
-        s.cwd === path && !s.archived ? { ...s, archived: true } : s,
+        sessionUnderProject(path, s.cwd) && !s.archived ? { ...s, archived: true } : s,
       ),
     });
     if (targets.some((s) => s.id === get().activeSessionId)) {
