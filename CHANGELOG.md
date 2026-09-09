@@ -5,6 +5,149 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.5](https://github.com/kittors/Lyra/releases/tag/v0.9.5) - 2026-09-09
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **界面语言，这次是整个界面**。把语言切成 English，以前只有设置页的导航跟着走，正文、菜单、提示、报错仍是中文——一页英文导航配一页中文说明。这一版清掉了 **2436 处**写死的文案，真窗口扫描：中文界面 769 处中文，切到英文 **0 处**没跟上。七种语言（简中、繁中、English、日本語、한국어、Français、Русский）覆盖同一份目录，少一条翻译是类型错误，编译过不去。
+- **供应商配置可以带走**。导出成一个文件，在另一台机器上导入。文件里带着 API Key，所以它会先说清楚这件事再让你导出；读回来的时候逐字段校验，读不懂的整条丢掉并告诉你丢了几条——一个半成品的供应商混进去，会一路走到模型选择器和请求构造里。
+- **回复里的宽表格能横向滚了**。单元格保持不折行，鼠标停上去才浮出横向滑块。原生滚动条全局关着，所以以前宽表格是在半个词处截断，看着像它本来就到那儿为止。
+- **换时间区间时，用量页的数字一起走**。按下「30 天」，这一屏的所有读数都是同一批账重新算出来的，所以它们一起出发、一起停，而不是各走各的。
+
+### 修复
+
+- **副屏截图拿到的是主屏画面**。遮罩明明盖在副屏上，出来的图却是主屏的。Windows 上走 GDI 抓屏时系统根本不填屏幕标识，于是每一次副屏截图都落回第一块屏。这就是「不能跨屏幕截图」的真正原因。
+- **标注过的截图颜色会偏，而且只偏彩色不偏灰**。截图拿到的是显示器帧缓冲里的原始数值——一台 Display P3 的机器上，屏幕上的纯红在那串数里是 234,51,35，按 sRGB 去读就偏了。裁剪、马赛克取样、放大镜这几张派生的画布现在跟主画布同一个色彩空间，中间不再做转换。
+- **浏览器的页面画在了设置页上面**。打开设置时整个工作区会被藏起来，而浏览器那个 webview 是唯一无视它的元素——它自己声明了「可见」，而这个属性会从隐藏的祖先里重新冒出来。
+- **子 Agent 跑长任务会撞上下文上限，而不是压一压接着跑**。派出去搜六十轮文件，正是最容易把上下文撑爆的活，而父会话的压缩够不到子会话。撑爆之后供应商直接拒了这次请求，从外面看就是「大活总是莫名其妙失败、小活好好的」。现在子会话也带上下文压缩；步数用完时那句话会说出数字，而不只是「步数用尽」。
+- **两个供应商可以重名，于是谁也认不出谁**。「新供应商」每次按都是同一个名字，导入又是按内部编号认人的，于是列表里并排躺着两个一模一样的名字。而且损失会传下去：两个模型同名时，选择器本来是靠供应商名把它们分开的。
+- **切了语言，有些字还留在原地**。字体名、插件图标、PR 分组、检查状态、同步计划、代码主题名——这些写在文件顶上的常量表，在程序加载的那一刻就把语言定死了，之后再怎么切都不动。走语法树查了一遍，一共十九处。反过来也修了一处：「继续」发出去的那三句话不该翻译，它们是发给模型的文本，也是历史记录靠什么被认出来——翻了它，用中文界面跑过的旧对话在英文下就认不出来，那一轮的耗时会只报最后一小段。
+- **「系统」那张主题预览看着像深色**。面积是各半的，看着不是：浅色那半的宽度大多花在灰色侧栏上，而卡片横跨接缝、重心落在深色一侧。把它光栅化数过：改之前是 0% 亮 / 100% 暗，和「深色」那张的读数一模一样。
+- **设置页几处对齐，以及导入后表单还显示着旧值**。派活积极性那五档的记号原本去够标题的基线，可每一档的说明长短不同，于是那一列高低参差；导入会用同一个编号把供应商整个换掉，而地址和 API Key 那两个框只在挂载时读一次初始值，于是文件里写的是一回事、表单上显示的是另一回事。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **介面語言，這次是整個介面**。把語言切成 English，以前只有設定頁的導覽跟著走，正文、選單、提示、報錯仍是中文——一頁英文導覽配一頁中文說明。這一版清掉了 **2436 處**寫死的文案，真視窗掃描：中文介面 769 處中文，切到英文 **0 處**沒跟上。七種語言（簡中、繁中、English、日本語、한국어、Français、Русский）覆蓋同一份目錄，少一條翻譯是型別錯誤，編譯過不去。
+- **供應商設定可以帶走**。匯出成一個檔案，在另一台機器上匯入。檔案裡帶著 API Key，所以它會先說清楚這件事再讓你匯出；讀回來的時候逐欄位校驗，讀不懂的整條丟掉並告訴你丟了幾條——一個半成品的供應商混進去，會一路走到模型選擇器和請求建構裡。
+- **回覆裡的寬表格能橫向捲了**。儲存格保持不換行，滑鼠停上去才浮出橫向捲軸。原生捲軸全域關著，所以以前寬表格是在半個詞處截斷，看著像它本來就到那兒為止。
+- **換時間區間時，用量頁的數字一起走**。按下「30 天」，這一屏的所有讀數都是同一批帳重新算出來的，所以它們一起出發、一起停，而不是各走各的。
+
+### 修復
+
+- **副螢幕截圖拿到的是主螢幕畫面**。遮罩明明蓋在副螢幕上，出來的圖卻是主螢幕的。Windows 上走 GDI 抓螢幕時系統根本不填螢幕識別，於是每一次副螢幕截圖都落回第一塊螢幕。這就是「不能跨螢幕截圖」的真正原因。
+- **標註過的截圖顏色會偏，而且只偏彩色不偏灰**。截圖拿到的是顯示器影格緩衝裡的原始數值——一台 Display P3 的機器上，螢幕上的純紅在那串數裡是 234,51,35，按 sRGB 去讀就偏了。裁切、馬賽克取樣、放大鏡這幾張衍生的畫布現在跟主畫布同一個色彩空間，中間不再做轉換。
+- **瀏覽器的頁面畫在了設定頁上面**。開啟設定時整個工作區會被藏起來，而瀏覽器那個 webview 是唯一無視它的元素——它自己宣告了「可見」，而這個屬性會從隱藏的祖先裡重新冒出來。
+- **子 Agent 跑長任務會撞上下文上限，而不是壓一壓接著跑**。派出去搜六十輪檔案，正是最容易把上下文撐爆的活，而父工作階段的壓縮夠不到子工作階段。撐爆之後供應商直接拒了這次請求，從外面看就是「大活總是莫名其妙失敗、小活好好的」。現在子工作階段也帶上下文壓縮；步數用完時那句話會說出數字，而不只是「步數用盡」。
+- **兩個供應商可以重名，於是誰也認不出誰**。「新供應商」每次按都是同一個名字，匯入又是按內部編號認人的，於是清單裡並排躺著兩個一模一樣的名字。而且損失會傳下去：兩個模型同名時，選擇器本來是靠供應商名把它們分開的。
+- **切了語言，有些字還留在原地**。字型名、外掛圖示、PR 分組、檢查狀態、同步計畫、程式碼主題名——這些寫在檔案頂上的常數表，在程式載入的那一刻就把語言定死了，之後再怎麼切都不動。走語法樹查了一遍，一共十九處。反過來也修了一處：「繼續」發出去的那三句話不該翻譯，它們是發給模型的文字，也是歷史紀錄靠什麼被認出來——翻了它，用中文介面跑過的舊對話在英文下就認不出來，那一輪的耗時會只報最後一小段。
+- **「系統」那張主題預覽看著像深色**。面積是各半的，看著不是：淺色那半的寬度大多花在灰色側欄上，而卡片橫跨接縫、重心落在深色一側。把它點陣化數過：改之前是 0% 亮 / 100% 暗，和「深色」那張的讀數一模一樣。
+- **設定頁幾處對齊，以及匯入後表單還顯示著舊值**。派活積極性那五檔的記號原本去夠標題的基線，可每一檔的說明長短不同，於是那一列高低參差；匯入會用同一個編號把供應商整個換掉，而位址和 API Key 那兩個框只在掛載時讀一次初始值，於是檔案裡寫的是一回事、表單上顯示的是另一回事。
+
+<!-- lyra:notes en -->
+
+### Features
+
+- **The interface language now moves the whole interface**. Switch to English and, until now, only the settings navigation followed: the prose, the menus, the tooltips and the errors stayed in Chinese — an English page of navigation wrapped around a Chinese page of explanation. This release cleared **2436 hardcoded strings**. Scanned in a real window: 769 pieces of Chinese text in the Chinese interface, **0 left behind** after switching to English. Seven languages (Simplified and Traditional Chinese, English, Japanese, Korean, French, Russian) share one catalogue, and a missing translation is a type error — it does not compile.
+- **Provider settings can travel**. Export them to a file and import it on another machine. The file carries your API keys, so it says so before it lets you write one; on the way back in every field is checked rather than trusted, and anything unreadable is dropped whole with a count of what went — a half-formed provider that gets through reaches the model picker and the request builder alike.
+- **Wide tables in a reply scroll sideways**. Cells stay on one line, and a horizontal scrollbar appears when you hover. Native scrollbars are off throughout the app, so until now a wide table simply stopped mid-word and looked as though that was where it ended.
+- **Change the period and the usage figures travel together**. Press "30 days" and every reading on the screen is the same set of books recomputed, so they now set off and settle together instead of each going its own way.
+
+### Fixes
+
+- **A screenshot of the second display returned the first one**. The overlay sat on the second screen; the picture came from the primary. Capturing through GDI on Windows leaves the display identifier empty, so every secondary-screen capture fell back to the first source. That was the real cause of "screenshots don't work across displays".
+- **Annotated screenshots shifted colour — and only the colours, not the greys**. A capture holds the raw values from the display's frame buffer: on a Display P3 machine, the pure red on screen is 234,51,35 in those numbers, and reading them as sRGB shifts them. The crop, the blur sampler and the loupe now share the main canvas's colour space, so nothing is converted on the way.
+- **The browser painted over the settings page**. Opening settings puts the whole workspace away, and the browser's webview was the one element that ignored it: it declared itself visible, and that property re-emerges from a hidden ancestor by design.
+- **A long-running sub-agent hit the context limit instead of compacting and carrying on**. Sixty turns of reading files is exactly the job most likely to overflow, and the parent's compaction cannot reach a delegated run. Once it overflowed the provider refused the request outright, which from outside looked like "the big jobs mysteriously fail and the small ones are fine". Delegated runs now compact too, and when the step budget runs out the message says the number rather than just "out of steps".
+- **Two providers could share a name, and then neither could be told from the other**. "New provider" is the same name every time it is pressed, and an import matches on the internal id — so two identical names ended up side by side in the list. The damage carried: when two models share a name, the picker was relying on the provider's name to tell them apart.
+- **Some words stayed put when the language changed**. Font names, plugin marks, pull-request groups, check states, the sync plan, code theme names — tables written at the top of a file, which fix the language at the moment the program loads and never move again. A pass over the syntax tree found nineteen of them. One went the other way: the three sentences "Continue" sends are *not* translated. They are the text handed to the model and the mark a saved transcript is recognised by — translate them and a conversation carried on in Chinese stops being recognised in English, and that turn reports only the length of its last leg.
+- **The "System" theme preview looked like the dark one**. The halves are equal by area but not to the eye: the light half spends most of its width on a grey sidebar, while the card straddles the seam with its weight on the dark side. Rasterised and counted: it read 0% light / 100% dark — the same numbers as the "Dark" thumbnail.
+- **Some alignment on the settings pages, and a form still showing the old values after an import**. The marks beside the five delegation levels reached for the title's baseline, but each level carries a description of a different length, so the column came out ragged. And an import replaces a provider under the same id, while the address and API key boxes read their initial value once, on mount — so the file said one thing and the form showed another.
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **画面の言語が、画面まるごと動くようになりました**。English に切り替えても、これまでついてくるのは設定画面のナビゲーションだけで、本文もメニューもツールチップもエラーも中国語のまま——英語の枠に中国語の中身、という状態でした。今回、**2436 か所**の直書きを片づけました。実際のウィンドウで走査した結果、中国語表示では 769 か所に中国語、英語に切り替えたあとに残ったのは **0 か所**。7 言語（簡体字・繁体字中国語、英語、日本語、韓国語、フランス語、ロシア語）が同じ辞書を共有し、訳の欠けは型エラーとしてコンパイルを止めます。
+- **プロバイダーの設定を持ち出せます**。ファイルに書き出して、別のマシンで読み込めます。ファイルには API キーが入るので、書き出す前にそのことを告げます。読み込むときは項目ごとに検証し、読めなかったものは丸ごと捨てて件数を返します——半端なプロバイダーが 1 件混じると、モデルの選択画面にもリクエストの組み立てにもそのまま届いてしまうからです。
+- **返信のなかの横長の表が横スクロールするようになりました**。セルは折り返さず、ポインタを載せたときだけ横のつまみが浮かびます。ネイティブのスクロールバーは全体で切ってあるため、これまでは語の途中で切れて、そこで終わっているように見えていました。
+- **期間を変えると、使用量の数字がそろって動きます**。「30 日」を押したとき画面に出るのはどれも同じ帳簿を計算し直したものなので、いっせいに動き出し、いっせいに止まります。
+
+### 修正
+
+- **サブディスプレイのスクリーンショットがメインの画面を返していました**。覆いはサブに掛かっているのに、出てくる絵はメインのもの。Windows で GDI 経由の取り込みではディスプレイの識別子が空になるため、サブ画面の取り込みが毎回 1 番目のソースに落ちていました。「複数ディスプレイでスクリーンショットが撮れない」の本当の原因です。
+- **注釈をつけたスクリーンショットの色がずれ、しかも有彩色だけずれていました**。取り込んだ絵はディスプレイのフレームバッファの生の数値です。Display P3 のマシンでは、画面上の純粋な赤がその数値では 234,51,35 で、sRGB として読むとずれます。切り抜き・モザイクの標本・ルーペの各キャンバスが主キャンバスと同じ色空間になり、途中で変換されなくなりました。
+- **ブラウザのページが設定画面の上に描かれていました**。設定を開くとワークスペース全体がしまわれますが、ブラウザの webview だけがそれを無視していました。自分で「見える」と宣言していて、この属性は隠れた先祖の内側からでも現れる仕様だからです。
+- **長く走るサブエージェントが、文脈を畳まずに上限にぶつかっていました**。ファイルを 60 ターン読む仕事は、まさに文脈があふれやすい仕事です。しかも親の圧縮は委譲先には届きません。あふれた時点で提供元がリクエストごと拒むので、外からは「大きい仕事だけ理由もなく失敗する」ように見えていました。委譲した実行にも圧縮が入り、手数を使い切ったときの文言も「使い切りました」ではなく数字を言います。
+- **プロバイダーが同じ名前を持てて、どちらがどちらか分からなくなっていました**。「新しい提供元」は押すたびに同じ名前で、読み込みは内部の ID で照合するため、同じ名前が 2 つ並びました。しかもその損失は先に及びます——モデルが同名のとき、選択画面は提供元の名前で見分けていたからです。
+- **言語を切り替えても動かない語がありました**。フォント名、プラグインの印、プルリクエストの分類、チェックの状態、同期の計画、コードテーマの名前——ファイルの先頭に置かれた表は、プログラムが読み込まれた瞬間の言語で固まり、その後は動きません。構文木をたどって 19 か所見つけました。逆向きの修正も 1 つ：「続ける」が送る 3 つの文は訳**しません**。モデルに渡す文であり、保存された記録がそれと認識される目印でもあるからです。訳すと、中国語で続けた会話が英語では認識されず、そのターンは最後の一区間の長さしか報告しなくなります。
+- **「システム」のテーマ見本が暗いほうに見えていました**。面積は半々でも、目にはそう映りません。明るい側は幅の多くを灰色のサイドバーに使い、カードは継ぎ目をまたいで重心が暗い側に寄っています。ラスタライズして数えたところ、修正前は明 0% / 暗 100%——「ダーク」の見本とまったく同じ数字でした。
+- **設定画面のいくつかの位置合わせと、読み込み後もフォームが古い値を映していた件**。委譲の積極性 5 段階の印は見出しのベースラインに合わせていましたが、段ごとに説明の長さが違うため列がそろいませんでした。また読み込みは同じ ID でプロバイダーを丸ごと置き換える一方、アドレスと API キーの欄は初期値をマウント時に一度読むだけなので、ファイルの内容とフォームの表示が食い違っていました。
+
+<!-- lyra:notes ko -->
+
+### 새 기능
+
+- **화면 언어가 이제 화면 전체를 움직입니다**. English로 바꿔도 지금까지 따라오는 것은 설정 화면의 내비게이션뿐이었고, 본문도 메뉴도 안내도 오류도 중국어 그대로였습니다 — 영어 틀에 중국어 속. 이번에 **2436곳**의 하드코딩을 걷어냈습니다. 실제 창에서 훑어본 결과, 중국어 화면에 중국어 769곳, 영어로 바꾼 뒤 남은 것은 **0곳**. 일곱 언어(간체·번체 중국어, 영어, 일본어, 한국어, 프랑스어, 러시아어)가 같은 목록을 공유하며, 빠진 번역은 타입 오류라 컴파일이 멈춥니다.
+- **제공자 설정을 가지고 다닐 수 있습니다**. 파일로 내보내고 다른 컴퓨터에서 불러옵니다. 파일에 API 키가 들어가므로 내보내기 전에 그 사실을 먼저 알립니다. 읽어 들일 때는 항목마다 검증하고, 읽지 못한 것은 통째로 버린 뒤 몇 건인지 알려 줍니다 — 덜 갖춰진 제공자 하나가 섞이면 모델 선택 화면과 요청 구성까지 그대로 흘러가기 때문입니다.
+- **답변 속 넓은 표가 가로로 넘어갑니다**. 칸은 줄바꿈하지 않고, 포인터를 올렸을 때만 가로 손잡이가 떠오릅니다. 기본 스크롤바를 전역으로 꺼 두었기 때문에, 지금까지는 단어 중간에서 잘려 거기서 끝나는 것처럼 보였습니다.
+- **기간을 바꾸면 사용량 숫자가 함께 움직입니다**. 「30일」을 누르면 화면의 모든 값이 같은 장부를 다시 계산한 결과이므로, 함께 출발하고 함께 멈춥니다.
+
+### 고친 것
+
+- **보조 화면을 찍으면 주 화면이 나왔습니다**. 덮개는 보조 화면에 있는데 나오는 그림은 주 화면의 것이었습니다. Windows에서 GDI로 캡처하면 디스플레이 식별자가 비어 있어, 보조 화면 캡처가 매번 첫 번째 소스로 떨어졌습니다. 「여러 화면에서 스크린샷이 안 된다」의 진짜 원인입니다.
+- **주석을 단 스크린샷의 색이 틀어졌고, 유채색만 틀어졌습니다**. 캡처는 디스플레이 프레임 버퍼의 날 값입니다. Display P3 기기에서는 화면의 순수한 빨강이 그 숫자로 234,51,35이고, sRGB로 읽으면 어긋납니다. 잘라내기·모자이크 표본·돋보기의 캔버스가 이제 주 캔버스와 같은 색 공간을 씁니다.
+- **브라우저 페이지가 설정 화면 위에 그려졌습니다**. 설정을 열면 작업 공간 전체가 치워지는데, 브라우저의 webview만 그것을 무시했습니다. 스스로 「보임」을 선언했고, 이 속성은 숨겨진 조상 안에서도 다시 드러나도록 되어 있기 때문입니다.
+- **오래 도는 하위 에이전트가 문맥을 줄이지 않고 한계에 부딪혔습니다**. 파일을 예순 턴 읽는 일은 문맥이 넘치기 가장 쉬운 일이고, 부모의 압축은 맡긴 실행에 닿지 않습니다. 넘치는 순간 제공자가 요청째로 거절하니, 밖에서는 「큰 일만 이유 없이 실패한다」로 보였습니다. 이제 맡긴 실행에도 압축이 들어가고, 걸음 수를 다 쓰면 그 문장이 숫자를 말합니다.
+- **제공자가 같은 이름을 가질 수 있어, 어느 쪽인지 알 수 없었습니다**. 「새 제공자」는 누를 때마다 같은 이름이고 가져오기는 내부 id로 맞추기 때문에, 목록에 똑같은 이름 둘이 나란히 놓였습니다. 손해는 이어집니다 — 모델 이름이 같을 때 선택기는 제공자 이름으로 둘을 갈라 왔으니까요.
+- **언어를 바꿔도 제자리에 남는 글자가 있었습니다**. 글꼴 이름, 플러그인 표시, 풀 리퀘스트 분류, 검사 상태, 동기화 계획, 코드 테마 이름 — 파일 맨 위에 놓인 표들은 프로그램이 로드되는 순간의 언어로 굳어, 그 뒤로는 움직이지 않습니다. 구문 트리를 훑어 열아홉 곳을 찾았습니다. 반대 방향으로 고친 것도 하나: 「계속」이 보내는 세 문장은 번역하지 **않습니다**. 모델에게 건네는 글이자 저장된 기록이 그것으로 식별되는 표시이기 때문입니다 — 번역하면 중국어로 이어 간 옛 대화가 영어에서 인식되지 않고, 그 턴은 마지막 한 구간의 시간만 보고하게 됩니다.
+- **「시스템」 테마 미리보기가 어두운 쪽처럼 보였습니다**. 넓이는 반반이어도 눈에는 그렇지 않습니다. 밝은 쪽은 너비의 대부분을 회색 사이드바에 쓰고, 카드는 이음매를 가로지르며 무게가 어두운 쪽에 실립니다. 래스터화해 세어 보니 고치기 전은 밝음 0% / 어두움 100% — 「어두움」 미리보기와 똑같은 수치였습니다.
+- **설정 화면의 몇 곳 정렬, 그리고 가져온 뒤에도 옛 값을 보여 주던 양식**. 위임 적극성 다섯 단계의 표시는 제목의 기준선에 맞췄지만 단계마다 설명 길이가 달라 열이 들쭉날쭉했습니다. 또 가져오기는 같은 id로 제공자를 통째로 바꾸는데, 주소와 API 키 칸은 처음 붙을 때 초기값을 한 번만 읽으므로 파일의 내용과 화면의 표시가 어긋났습니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **La langue de l'interface déplace enfin toute l'interface**. En passant à l'anglais, seule la navigation des réglages suivait : le texte, les menus, les infobulles et les erreurs restaient en chinois — une coquille anglaise autour d'un contenu chinois. Cette version a nettoyé **2436 chaînes écrites en dur**. Mesuré dans une vraie fenêtre : 769 fragments de chinois dans l'interface chinoise, **0 restant** après le passage à l'anglais. Sept langues (chinois simplifié et traditionnel, anglais, japonais, coréen, français, russe) partagent un même catalogue, et une traduction manquante est une erreur de type — cela ne compile pas.
+- **La configuration des fournisseurs peut voyager**. Exportez-la dans un fichier et importez-le sur une autre machine. Le fichier contient vos clés d'API, il le dit donc avant de vous laisser en écrire un ; à la lecture, chaque champ est vérifié plutôt que cru, et tout ce qui est illisible est écarté en entier avec le compte de ce qui est parti — un fournisseur à moitié formé qui passerait atteindrait aussi bien le sélecteur de modèles que la construction des requêtes.
+- **Les tableaux larges d'une réponse défilent latéralement**. Les cellules restent sur une ligne et une barre horizontale apparaît au survol. Les barres de défilement natives sont désactivées partout, si bien qu'un tableau large s'arrêtait au milieu d'un mot et semblait finir là.
+- **Changez de période et les chiffres d'utilisation avancent ensemble**. En appuyant sur « 30 jours », toutes les valeurs à l'écran sont les mêmes comptes recalculés : elles partent et s'arrêtent de concert au lieu d'aller chacune de son côté.
+
+### Corrections
+
+- **Une capture du second écran renvoyait le premier**. Le voile était sur le second écran ; l'image venait du principal. La capture via GDI sous Windows laisse l'identifiant d'écran vide, et chaque capture d'un écran secondaire retombait sur la première source. C'était la vraie cause de « les captures ne marchent pas sur plusieurs écrans ».
+- **Les captures annotées dérivaient en couleur — et seulement les couleurs, pas les gris**. Une capture contient les valeurs brutes du tampon d'image de l'écran : sur une machine Display P3, le rouge pur affiché vaut 234,51,35 dans ces nombres, et les lire comme du sRGB les décale. Le recadrage, l'échantillon de flou et la loupe partagent désormais l'espace colorimétrique du canevas principal.
+- **Le navigateur peignait par-dessus la page des réglages**. Ouvrir les réglages range tout l'espace de travail, et la webview du navigateur était le seul élément à l'ignorer : elle se déclarait visible, et cette propriété ressort d'un ancêtre masqué par conception.
+- **Un sous-agent au long cours heurtait la limite de contexte au lieu de compacter et de continuer**. Soixante tours à lire des fichiers, c'est exactement le travail qui déborde, et le compactage du parent n'atteint pas une exécution déléguée. Une fois débordée, le fournisseur refusait la requête entière — vu de l'extérieur, « les gros travaux échouent mystérieusement et les petits vont bien ». Les exécutions déléguées compactent maintenant aussi, et quand le budget d'étapes s'épuise le message donne le nombre.
+- **Deux fournisseurs pouvaient porter le même nom, et plus rien ne les distinguait**. « Nouveau fournisseur » est le même nom à chaque pression, et un import s'apparie sur l'identifiant interne : deux noms identiques se retrouvaient côte à côte. Le dommage se propageait — quand deux modèles portent le même nom, le sélecteur s'appuyait justement sur le nom du fournisseur.
+- **Certains mots restaient en place au changement de langue**. Noms de polices, marques d'extensions, groupes de pull requests, états des vérifications, plan de synchronisation, noms des thèmes de code — des tables écrites en tête de fichier, figées dans la langue du chargement du programme. Un passage sur l'arbre syntaxique en a trouvé dix-neuf. Une correction va dans l'autre sens : les trois phrases qu'envoie « Continuer » ne sont **pas** traduites. C'est le texte remis au modèle et la marque à laquelle un historique enregistré est reconnu — les traduire, et une conversation poursuivie en chinois cesse d'être reconnue en anglais, ce tour ne rapportant plus que la durée de son dernier segment.
+- **L'aperçu du thème « Système » ressemblait au thème sombre**. Les moitiés sont égales en surface, pas à l'œil : la moitié claire dépense l'essentiel de sa largeur en barre latérale grise, tandis que la carte enjambe la couture avec son poids du côté sombre. Rastérisé et compté : avant correction, 0 % clair / 100 % sombre — les mêmes chiffres que la vignette « Sombre ».
+- **Quelques alignements dans les réglages, et un formulaire affichant encore les anciennes valeurs après un import**. Les marques des cinq niveaux de délégation visaient la ligne de base du titre, mais chaque niveau porte une description de longueur différente : la colonne sortait irrégulière. Et un import remplace un fournisseur sous le même identifiant, alors que les champs d'adresse et de clé d'API ne lisent leur valeur initiale qu'une fois, au montage.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **Язык интерфейса теперь двигает весь интерфейс**. При переключении на английский до сих пор следовала только навигация настроек: текст, меню, подсказки и ошибки оставались на китайском — английская рамка вокруг китайского содержимого. В этом выпуске убрано **2436 зашитых строк**. Замер в настоящем окне: 769 фрагментов китайского в китайском интерфейсе и **0 оставшихся** после переключения на английский. Семь языков (упрощённый и традиционный китайский, английский, японский, корейский, французский, русский) делят один каталог, а пропущенный перевод — это ошибка типа, сборка не пройдёт.
+- **Настройки поставщиков можно взять с собой**. Выгрузите их в файл и загрузите на другой машине. Файл несёт ваши ключи API, поэтому он предупреждает об этом, прежде чем дать его записать; на обратном пути каждое поле проверяется, а всё непонятое отбрасывается целиком с указанием, сколько ушло — недоделанный поставщик, если бы прошёл, добрался бы и до выбора модели, и до сборки запроса.
+- **Широкие таблицы в ответе прокручиваются вбок**. Ячейки не переносятся, а горизонтальный ползунок появляется при наведении. Системные полосы прокрутки отключены во всём приложении, поэтому раньше широкая таблица обрывалась посреди слова и выглядела законченной.
+- **Смените период — и цифры расхода поедут вместе**. Нажатие «30 дней» пересчитывает все показания на экране по одним и тем же данным, поэтому они трогаются и останавливаются разом, а не каждый сам по себе.
+
+### Исправлено
+
+- **Снимок второго экрана возвращал первый**. Затемнение лежало на втором экране, а картинка приходила с основного. Захват через GDI в Windows оставляет идентификатор дисплея пустым, и каждый снимок дополнительного экрана откатывался к первому источнику. Это и была настоящая причина «скриншоты не работают на нескольких экранах».
+- **У размеченных снимков уезжал цвет — и только цветное, не серое**. Снимок хранит сырые значения из буфера кадра дисплея: на машине с Display P3 чистый красный на экране — это 234,51,35, и чтение их как sRGB смещает картинку. Обрезка, выборка для мозаики и лупа теперь в том же цветовом пространстве, что и основной холст.
+- **Браузер рисовал поверх страницы настроек**. Открытие настроек убирает всю рабочую область, и webview браузера был единственным элементом, который это игнорировал: он объявлял себя видимым, а это свойство по определению всплывает изнутри скрытого предка.
+- **Долгий субагент упирался в предел контекста вместо того, чтобы сжать его и продолжить**. Шестьдесят ходов чтения файлов — как раз та работа, где контекст переполняется, а сжатие родителя до порученного запуска не дотягивается. После переполнения поставщик отклонял запрос целиком, и снаружи это выглядело как «большие задачи загадочно падают, а мелкие идут». Теперь порученные запуски тоже сжимают контекст, а когда кончаются шаги, сообщение называет число.
+- **Два поставщика могли называться одинаково, и различить их было нечем**. «Новый поставщик» — одно и то же имя при каждом нажатии, а импорт сопоставляет по внутреннему идентификатору: в списке оказывались два одинаковых имени. Ущерб шёл дальше — когда две модели зовутся одинаково, выбор разделял их именно по имени поставщика.
+- **Часть слов не двигалась при смене языка**. Названия шрифтов, значки плагинов, группы пулреквестов, состояния проверок, план синхронизации, имена тем кода — таблицы, записанные в начале файла, застывают в языке момента загрузки программы. Обход синтаксического дерева нашёл девятнадцать таких мест. Одно исправление пошло в обратную сторону: три фразы, которые отправляет «Продолжить», **не** переводятся. Это текст для модели и одновременно метка, по которой узнаётся сохранённая история — переведи их, и беседа, продолженная на китайском, перестаёт узнаваться на английском, а тот ход сообщает только длительность последнего отрезка.
+- **Превью темы «Системная» выглядело как тёмная**. По площади половины равны, но не на глаз: светлая тратит большую часть ширины на серую боковую панель, а карточка пересекает шов, и вес её приходится на тёмную сторону. Растеризовали и посчитали: до правки было 0% светлого / 100% тёмного — те же числа, что и у миниатюры «Тёмная».
+- **Несколько выравниваний в настройках и форма, всё ещё показывающая старые значения после импорта**. Метки пяти уровней делегирования тянулись к базовой линии заголовка, но у каждого уровня описание своей длины — столбец выходил неровным. А импорт заменяет поставщика под тем же идентификатором, тогда как поля адреса и ключа API читают начальное значение один раз, при монтировании.
+
+
 ## [0.9.4](https://github.com/kittors/Lyra/releases/tag/v0.9.4) - 2026-09-08
 
 <!-- lyra:notes zh-CN -->
