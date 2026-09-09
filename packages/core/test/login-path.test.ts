@@ -11,9 +11,11 @@
  */
 
 import assert from "node:assert/strict";
-import { delimiter, dirname } from "node:path";
-import { test } from "node:test";
-import { commandPath, FALLBACK_DIRS, forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join } from "node:path";
+import { test, type TestContext } from "node:test";
+import { commandPath, FALLBACK_DIRS, forgetCommandPath, nvmNodeBins, primeCommandPath } from "../src/sandbox/login-path.ts";
 
 /** Exactly what launchd hands a double-clicked app on macOS. */
 const GUI = "/usr/bin:/bin:/usr/sbin:/sbin";
@@ -195,4 +197,35 @@ test("the repair finds a package manager, which is the entire point", { skip: po
 		assert.ok(found(repaired, "pnpm"), "the fallback list cannot find pnpm");
 	}
 	forgetCommandPath();
+});
+
+/**
+ * nvm's layout, read rather than guessed.
+ *
+ * The entry that stood here before was `~/.nvm/current/bin`, which nvm never creates — that is
+ * fnm's shape. So on any machine whose node comes from nvm the fallback pointed at a path that did
+ * not exist, and the one test that would have caught it could not: it can only ask about the
+ * directory this host happens to have.
+ *
+ * A directory made here instead, holding versions that sort differently as text than as numbers.
+ */
+test("nvm 的 node 目录按版本号从新到旧读出来，不是按字符串", async (t: TestContext) => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-nvm-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	// v9 sorts after v24 as text. A lexicographic list hands back the oldest node on the machine.
+	for (const name of ["v9.11.2", "v24.18.0", "v22.9.0", "v24.2.1", "node_modules", ".DS_Store"]) {
+		await mkdir(join(root, name), { recursive: true });
+	}
+	await writeFile(join(root, "stray-file"), "");
+
+	assert.deepEqual(nvmNodeBins(root), [
+		join(root, "v24.18.0", "bin"),
+		join(root, "v24.2.1", "bin"),
+		join(root, "v22.9.0", "bin"),
+		join(root, "v9.11.2", "bin"),
+	]);
+});
+
+test("没有 nvm 的机器上不报错，只是没有可加的目录", () => {
+	assert.deepEqual(nvmNodeBins(join(tmpdir(), "lyra-nvm-absent-4711", "versions", "node")), []);
 });

@@ -27,6 +27,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { readdirSync } from "node:fs";
 import { delimiter } from "node:path";
 import { promisify } from "node:util";
 import { home, systemShell } from "../platform.ts";
@@ -42,11 +43,49 @@ const run = promisify(execFile);
 const SYSTEM_ONLY = new Set(["/usr/bin", "/bin", "/usr/sbin", "/sbin"]);
 
 /**
+ * nvm's node directories under `root`, newest version first.
+ *
+ * `~/.nvm/current/bin` used to stand here, and nvm does not create it — that is fnm's layout and
+ * n's, not nvm's. nvm installs every version under `~/.nvm/versions/node/<version>/bin` and names
+ * the active one only in `$NVM_BIN`, which a GUI process does not have. `~/.nvm/alias/default` is
+ * no better: it holds an alias such as `lts/*`, which resolves through two more files before it
+ * becomes a version.
+ *
+ * So the directory is read. A list cannot know which version the user's shell would have selected
+ * — that is what asking the shell is for, and its answer still wins in `commandPath` — but the
+ * newest installed is the closest a guess gets, and it beats a path that was never there.
+ *
+ * `root` is a parameter so the test can point it at a directory it made. Reading the real `~/.nvm`
+ * would prove only what the machine running the test happens to have installed.
+ */
+export function nvmNodeBins(root: string): string[] {
+	let names: string[];
+	try {
+		names = readdirSync(root);
+	} catch {
+		// No nvm here, or no permission to look. Both mean there is nothing to add.
+		return [];
+	}
+	const found: Array<{ dir: string; parts: [number, number, number] }> = [];
+	for (const name of names) {
+		const version = /^v(\d+)\.(\d+)\.(\d+)$/u.exec(name);
+		if (version) found.push({ dir: `${root}/${name}/bin`, parts: [Number(version[1]), Number(version[2]), Number(version[3])] });
+	}
+	// Numeric, not lexicographic: v9 sorts after v24 as text, and that is the wrong node.
+	found.sort((left, right) => right.parts[0] - left.parts[0] || right.parts[1] - left.parts[1] || right.parts[2] - left.parts[2]);
+	return found.map((entry) => entry.dir);
+}
+
+/**
  * Where tools are, for when the shell cannot be asked.
  *
  * The first three are `git-exec.ts`'s list, which is the one already shipping. The rest are the
  * default install locations of the package managers that this failure is actually about — a
  * fallback that cannot run `pnpm` is not much of a fallback.
+ *
+ * Read once, at load. The one directory listing this costs is a few hundred microseconds on a
+ * directory with a handful of entries, and a version installed after launch is exactly the case
+ * the shell is asked about anyway.
  */
 const LIKELY = [
 	"/usr/local/bin",
@@ -59,7 +98,8 @@ const LIKELY = [
 	`${home()}/.bun/bin`,
 	`${home()}/.cargo/bin`,
 	`${home()}/.volta/bin`,
-	`${home()}/.nvm/current/bin`,
+	// Newest only. Every extra entry is another directory the OS walks on a lookup that misses.
+	...nvmNodeBins(`${home()}/.nvm/versions/node`).slice(0, 1),
 	`${home()}/.asdf/shims`,
 ];
 
