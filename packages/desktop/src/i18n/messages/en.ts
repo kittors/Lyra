@@ -2110,4 +2110,5 @@ export const en = {
 	"retry.intro": "Retries on a dropped connection, a rate limit, or a service that is briefly unavailable; the count excludes the first attempt. Changes take effect at once — a request already retrying picks up the new value from its next wait. Tools that already ran are not run again, and pressing stop cancels the wait immediately.",
 	"browser.zoomLabel": "Zoom",
 	"search.trustNote": "Searching sends your question to the provider you picked. What comes back is treated as untrusted, the same as any web page — the agent does not take the text it finds as instructions to itself.",
+	"browser.inspectElement": "Inspect an element",
 } satisfies MessageCatalog;

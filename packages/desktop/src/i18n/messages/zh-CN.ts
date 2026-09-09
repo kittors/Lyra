@@ -2282,6 +2282,7 @@ export const zhCN = {
 	"retry.intro": "网络中断、限流或服务暂时不可用时自动重试，次数不含首次请求。改动立即生效，正在重试的请求从下一次等待起就用新值； 已执行的工具不会重做，点击停止可立即取消等待。",
 	"browser.zoomLabel": "缩放",
 	"search.trustNote": "搜索会把你的问题发给选中的服务商。结果和网页一样按不可信内容处理 —— agent 不会把搜到的文字当成给它的指令。",
+	"browser.inspectElement": "检查元素",
 } as const;
 
 export type MessageKey = keyof typeof zhCN;

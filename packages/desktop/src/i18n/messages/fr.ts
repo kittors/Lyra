@@ -2110,4 +2110,5 @@ export const fr = {
 	"retry.intro": "Réessaie en cas de connexion coupée, de limitation de débit ou de service momentanément indisponible ; le compte exclut la première tentative. Les changements prennent effet aussitôt — une requête déjà en cours de reprise adopte la nouvelle valeur dès son attente suivante. Les outils déjà exécutés ne le sont pas à nouveau, et appuyer sur stop interrompt l'attente sur-le-champ.",
 	"browser.zoomLabel": "Zoom",
 	"search.trustNote": "La recherche envoie votre question au fournisseur choisi. Ce qui revient est traité comme non fiable, au même titre qu'une page web — l'agent ne prend pas le texte trouvé pour des instructions qui lui seraient adressées.",
+	"browser.inspectElement": "Inspecter un élément",
 } satisfies MessageCatalog;

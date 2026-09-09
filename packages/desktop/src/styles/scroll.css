@@ -87,11 +87,14 @@
  * It was 20px, and the thumb is 8px of it (6 wide, 2 in from the edge) with 4 more already given
  * by the margin above — so a menu with a scrollbar left a 24px gutter down its right side while
  * its rows started 9px from the left. Every row read as pushed left, and the bar floated in the
- * middle of the empty strip rather than at the edge of the list it scrolls. 4px puts the rows'
- * own padding beside the thumb with a hair's gap, which is where a scrollbar belongs.
+ * middle of the empty strip rather than at the edge of the list it scrolls.
+ *
+ * 12px, not 4: the thumb occupies eight of them — `right: 2px` plus its own `6px` — so 4 left the
+ * rows running four pixels *under* it. Measured, not guessed: the suite reads the distance from the
+ * row's right edge to the thumb's left and wanted a hair's gap; it was getting −4.
  */
 .ly-menu-scroll:has(.ly-thumb) > .ly-scroll-view {
-  padding-right: 4px;
+  padding-right: 12px;
 }
 
 /*

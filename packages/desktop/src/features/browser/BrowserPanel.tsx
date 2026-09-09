@@ -107,7 +107,7 @@ export function BrowserPanel() {
 					<MenuItem icon={<Bookmark size={14} fill={saved ? "currentColor" : "none"} />} disabled={blank} onClick={() => { void mark(); options.close(); }}>{t(saved ? "browser.unbookmark" : "browser.bookmark")}</MenuItem>
 					<MenuItem icon={<Bookmark size={14} />} trailing={<ChevronRight size={13} />} onClick={() => setMenu("bookmarks")}>{t("browser.bookmarks")}</MenuItem>
 					<MenuSeparator />
-					<MenuItem icon={<MousePointer2 size={14} />} disabled={blank} onClick={() => { options.close(); if (inspecting) void bridge.browser.cancelInspect(inspecting); else void inspect("element"); }}>{t(inspecting ? "browser.exitInspect" : "browser.inspect")}</MenuItem>
+					<MenuItem icon={<MousePointer2 size={14} />} disabled={blank} onClick={() => { options.close(); if (inspecting) void bridge.browser.cancelInspect(inspecting); else void inspect("element"); }}>{t(inspecting ? "browser.exitInspect" : "browser.inspectElement")}</MenuItem>
 					<MenuItem icon={<Scan size={14} />} disabled={blank} onClick={() => { options.close(); void inspect("region"); }}>{t("browser.selectRegion")}</MenuItem>
 					<MenuItem icon={<CodeXml size={14} />} disabled={blank} onClick={() => { command("devtools"); options.close(); }}>{t("browser.devtools")}</MenuItem>
 					<MenuSeparator />

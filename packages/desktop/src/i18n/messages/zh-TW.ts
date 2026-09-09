@@ -2110,4 +2110,5 @@ export const zhTW = {
 	"retry.intro": "網路中斷、限流或服務暫時不可用時自動重試，次數不含首次請求。改動立即生效，正在重試的請求從下一次等待起就用新值； 已執行的工具不會重做，點擊停止可立即取消等待。",
 	"browser.zoomLabel": "縮放",
 	"search.trustNote": "搜尋會把你的問題發給選中的服務商。結果和網頁一樣按不可信內容處理 —— agent 不會把搜到的文字當成給它的指令。",
+	"browser.inspectElement": "檢查元素",
 } satisfies MessageCatalog;

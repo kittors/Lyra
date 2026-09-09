@@ -7,7 +7,10 @@ import type { SessionRecord } from "@lyra/core";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
-before(async () => { app = await startApp({ port: 9701, seed: async (home) => {
+/** 一个文件一个端口：几个文件共用一个，串行跑时上一个的 Electron 还没退，下一个就起不来。 */
+const PORT = 9701;
+
+before(async () => { app = await startApp({ port: PORT, seed: async (home) => {
 	await seedInteractions(home, 1);
 	const settings = JSON.parse(await readFile(join(home, "settings.json"), "utf8"));
 	settings.appearance = { theme: "light", reduceMotion: "off" };
@@ -73,7 +76,7 @@ async function screenshot(name: string) {
 }
 
 async function withTouchViewport(run: () => Promise<void>) {
-	const targets: { url: string; webSocketDebuggerUrl?: string }[] = await fetch("http://127.0.0.1:9618/json/list").then((response) => response.json());
+	const targets: { url: string; webSocketDebuggerUrl?: string }[] = await fetch(`http://127.0.0.1:${PORT}/json/list`).then((response) => response.json());
 	const target = targets.find((entry) => entry.url.endsWith("/index.html"));
 	assert.ok(target?.webSocketDebuggerUrl);
 	const socket = new WebSocket(target.webSocketDebuggerUrl);
