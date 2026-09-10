@@ -89,9 +89,8 @@ export function SessionRow({
 	onOpen: () => void;
 	/** Put it away. Absent in the archive, where every row is already filed. */
 	onArchive?: () => void;
-	/** Take it back out. Passed by both lists; see `filing`. */
+	/** Both present only in the archive: put it back, or end it. */
 	onRestore?: () => void;
-	/** End it. The archive's alone, which is what makes it say where this row is. */
 	onDelete?: () => void;
 }) {
 	const { t } = useI18n();
@@ -140,17 +139,7 @@ export function SessionRow({
 	const isTargetThisSession = reorder?.dropTarget?.kind === "session" && reorder.dropTarget.id === session.id;
 	/** Only the archive can offer to delete, which makes it the answer to "which list is this". */
 	const inArchive = Boolean(onDelete);
-	/*
-	 * Put away or take out — one of the two, never both, chosen by what this row *is* rather than
-	 * by which list it is in.
-	 *
-	 * Nearly every row in the live list is unfiled and gets 归档. The open conversation is the
-	 * exception: `listableSessions` keeps it listed whether or not it is archived, so that row may
-	 * already be filed — and offering it 归档 is a button that does nothing when pressed.
-	 */
-	const filing = session.archived ? onRestore : onArchive;
-	const actionsCount = (inArchive ? Boolean(onRestore) : Boolean(filing)) ? 2 : 1;
-
+	const actionsCount = inArchive ? (onRestore ? 2 : 1) : (onArchive ? 2 : 1);
 	return (
 		<div
 			{...card.bind}
@@ -274,23 +263,18 @@ export function SessionRow({
 						>
 							{isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
 						</button>
-						{/* One button, one claim: filed rows offer to come out, the rest offer to go in. */}
-						{filing && (
+						{onArchive && (
 							<button
 								type="button"
-								data-ly-tip={t(session.archived ? "sessionRow.unarchive" : "sessionRow.archive")}
+								data-ly-tip={t("sessionRow.archive")}
 								aria-label={t("sessionRow.fileOne", {
-					what: t(session.archived ? "sessionRow.unarchive" : "sessionRow.archive"),
-					title: sessionTitle(session.title),
-				})}
-								onClick={filing}
+									what: t("sessionRow.archive"),
+									title: sessionTitle(session.title),
+								})}
+								onClick={onArchive}
 								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 							>
-								{session.archived ? (
-									<ArchiveRestore size={12.5} strokeWidth={1.8} />
-								) : (
-									<Archive size={12.5} strokeWidth={1.8} />
-								)}
+								<Archive size={12.5} strokeWidth={1.8} />
 							</button>
 						)}
 					</>

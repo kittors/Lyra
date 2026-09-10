@@ -1,18 +1,20 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import {
 	Archive,
+	ArchiveRestore,
 	Copy,
 	ExternalLink,
-	Eye,
 	Folder,
 	FolderInput,
 	Pencil,
 	Pin,
 	PinOff,
+	Trash2,
 } from "lucide-react";
 import { useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge, onPhone } from "../../services/index.ts";
@@ -30,9 +32,11 @@ export function SessionMenu({
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
+	const deleteSession = useApp((s) => s.deleteSession);
 	const renameSession = useApp((s) => s.renameSession);
 	const moveSessionProject = useApp((s) => s.moveSessionProject);
 	const notify = useApp((s) => s.notify);
+	const confirm = useConfirmer();
 
 	const [mode, setMode] = useState<"menu" | "rename" | "projects" | "copy">("menu");
 	const [draft, setDraft] = useState(session.title);
@@ -174,70 +178,93 @@ export function SessionMenu({
 	}
 
 	return (
-		<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.options")}>
-			<MenuBody>
-				<MenuItem
-					icon={isPinned ? <PinOff size={13} strokeWidth={1.8} /> : <Pin size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						void setSessionPinned(session.id, !isPinned);
-						notify(isPinned ? t("sessionMenu.unpinned") : t("sessionMenu.pinned"));
-						onClose();
-					}}
-				>
-					{isPinned ? t("sessionMenu.unpin") : t("sessionMenu.pin")}
-				</MenuItem>
+		<>
+			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.options")}>
+				<MenuBody>
+					{!session.archived && (
+						<MenuItem
+							icon={isPinned ? <PinOff size={13} strokeWidth={1.8} /> : <Pin size={13} strokeWidth={1.8} />}
+							onClick={() => {
+								void setSessionPinned(session.id, !isPinned);
+								notify(isPinned ? t("sessionMenu.unpinned") : t("sessionMenu.pinned"));
+								onClose();
+							}}
+						>
+							{isPinned ? t("sessionMenu.unpin") : t("sessionMenu.pin")}
+						</MenuItem>
+					)}
 
-				<MenuItem
-					icon={<Pencil size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						setDraft(session.title);
-						setMode("rename");
-					}}
-				>
-					{t("common.rename")}
-				</MenuItem>
+					<MenuItem
+						icon={<Pencil size={13} strokeWidth={1.8} />}
+						onClick={() => {
+							setDraft(session.title);
+							setMode("rename");
+						}}
+					>
+						{t("common.rename")}
+					</MenuItem>
 
-				<MenuItem
-					icon={<Eye size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						notify(t("sessionMenu.markedUnread"));
-						onClose();
-					}}
-				>
-					{t("sessionMenu.markUnread")}
-				</MenuItem>
+					{/*
+					 * 「标为未读」不在这里，因为它从来没有被实现过。
+					 *
+					 * 这一项过去点下去只弹一句「已标为未读」，然后什么都不做——全仓没有任何会话级
+					 * 的手动未读位：`unreadActivity` 问的是「有没有跑完的活动」，`unreadSince` 问的
+					 * 是「转录里未读了多少」，两个都是自动推出来的，谁都没有入口去写。
+					 *
+					 * 一个假装做完了的按钮比一个不存在的按钮更糟：它让人以为那条会话被标记了。要么
+					 * 真做（`SessionMeta` 上加一位，侧边栏画点，打开会话时清掉），要么不给。
+					 */}
 
-				<MenuItem
-					icon={<Archive size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						void setSessionArchived(session, true);
-						onClose();
-					}}
-				>
-					{t("common.archive")}
-				</MenuItem>
+					<MenuItem
+						icon={session.archived ? <ArchiveRestore size={13} strokeWidth={1.8} /> : <Archive size={13} strokeWidth={1.8} />}
+						onClick={() => {
+							void setSessionArchived(session, !session.archived);
+							onClose();
+						}}
+					>
+						{session.archived ? t("common.unarchive") : t("common.archive")}
+					</MenuItem>
 
-				<MenuSeparator />
+					{session.archived && (
+						<MenuItem
+							icon={<Trash2 size={13} strokeWidth={1.8} className="text-danger" />}
+							onClick={() => {
+								onClose();
+								confirm.ask({
+									title: t("sidebarList.deleteConfirm"),
+									detail: t("sidebarList.deleteDetail", { title: session.title, n: session.messageCount }),
+									confirmLabel: t("common.delete"),
+									onConfirm: () => void deleteSession(session),
+								});
+							}}
+						>
+							<span className="text-danger">{t("common.delete")}</span>
+						</MenuItem>
+					)}
 
-				<MenuItem icon={<Folder size={13} strokeWidth={1.8} />} onClick={() => setMode("projects")}>
-					{t("sessionMenu.project")}
-				</MenuItem>
+					<MenuSeparator />
 
-				<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => setMode("copy")}>
-					{t("common.copy")}
-				</MenuItem>
+					<MenuItem icon={<Folder size={13} strokeWidth={1.8} />} onClick={() => setMode("projects")}>
+						{t("sessionMenu.project")}
+					</MenuItem>
 
-				{!onPhone() && <MenuItem
-					icon={<ExternalLink size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						void bridge.system.openExternal(`lyra://session/${session.id}`).catch(() => {});
-						notify(t("sessionMenu.openingWindow"));
-						onClose();
-					}}
-				>
-					{t("sessionMenu.openInNewWindow")}
-				</MenuItem>}
-			</MenuBody>
-		</Popover>
+					<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => setMode("copy")}>
+						{t("common.copy")}
+					</MenuItem>
+
+					{!onPhone() && <MenuItem
+						icon={<ExternalLink size={13} strokeWidth={1.8} />}
+						onClick={() => {
+							void bridge.system.openExternal(`lyra://session/${session.id}`).catch(() => {});
+							notify(t("sessionMenu.openingWindow"));
+							onClose();
+						}}
+					>
+						{t("sessionMenu.openInNewWindow")}
+					</MenuItem>}
+				</MenuBody>
+			</Popover>
+			{confirm.element}
+		</>
 	);
 }
