@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
 import { groupNotices, TOAST_LIFETIME, TOAST_Z, visibleToasts, type ToastGroup } from "./stack.ts";
+import { useLayout } from "../../app/layout.tsx";
 import { portal } from "../../ui/overlay/portal.ts";
 
 /** Matches `.ly-toast-out` in the stylesheet; the card is removed once it has played. */
@@ -41,6 +42,7 @@ const TONE = {
 
 export function Toaster() {
 	const { t } = useI18n();
+	const { compact, navOpen, sidebarWidth } = useLayout();
 	const notices = useApp((s) => s.notices);
 	const remove = useApp((s) => s.dismissNotice);
 	const newSession = useApp((s) => s.newSession);
@@ -169,8 +171,12 @@ export function Toaster() {
 		 * `pointer-events-none` on the column so only the cards themselves take the pointer.
 		 */
 		<div
-			style={{ zIndex: TOAST_Z }}
-			className="no-drag pointer-events-none fixed inset-x-0 top-[52px] flex flex-col items-center gap-1.5 px-4"
+			style={{
+				zIndex: TOAST_Z,
+				left: !compact && navOpen ? `${sidebarWidth}px` : "0px",
+				right: 0,
+			}}
+			className="no-drag pointer-events-none fixed top-[52px] flex flex-col items-center gap-1.5 px-4 transition-[left] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 		>
 			{shown.map((group) => {
 				const tone = TONE[group.level];

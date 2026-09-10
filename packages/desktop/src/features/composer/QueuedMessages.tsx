@@ -120,6 +120,7 @@ function Rows({
 	const moveQueued = useApp((state) => state.moveQueued);
 	const list = useRef<HTMLDivElement>(null);
 	const [drag, setDrag] = useState<Drag | null>(null);
+	const [settling, setSettling] = useState(false);
 	/** 一行到下一行的距离，拖动开始时量一次——行高固定，量一次就够，量在拖动中会读到让位后的位置。 */
 	const step = useRef(0);
 	const origin = useRef({ y: 0, index: 0 });
@@ -168,7 +169,13 @@ function Rows({
 		if (!drag) return;
 		const target = rows[drag.to]?.entry;
 		if (target && drag.to !== drag.from) {
+			// 顺序变更落定时，先进入 settling 状态阻断 transition 回弹，避免坐标对冲跳动
+			setSettling(true);
 			moveQueued(sessionId, drag.id, target.id, drag.to > drag.from ? "after" : "before");
+			// 下一帧清除 settling，恢复正常过渡状态
+			requestAnimationFrame(() => {
+				setSettling(false);
+			});
 		}
 		setDrag(null);
 	};
@@ -210,6 +217,7 @@ function Rows({
 					index={index}
 					sortable={sortable}
 					dragging={drag?.id === row.entry.id}
+					settling={settling}
 					offset={offsetOf(index)}
 					status={status}
 					onEdit={onEdit}
@@ -230,6 +238,7 @@ function Row({
 	index,
 	sortable,
 	dragging,
+	settling,
 	offset,
 	status,
 	onEdit,
@@ -244,6 +253,7 @@ function Row({
 	index: number;
 	sortable: boolean;
 	dragging: boolean;
+	settling: boolean;
 	offset: number;
 	status: string;
 	onEdit: (entry: QueuedMessage) => void;
@@ -284,6 +294,7 @@ function Row({
 			className="ly-queue-row"
 			data-leaving={leaving || undefined}
 			data-dragging={dragging || undefined}
+			data-settling={settling || undefined}
 			style={{ transform: offset ? `translateY(${offset}px)` : undefined }}
 		>
 			{/* 折叠的那一层：`grid-template-rows` 收到 0fr 时，里面的东西要被它裁掉而不是溢出来。 */}

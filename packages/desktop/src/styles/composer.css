@@ -135,11 +135,16 @@
 .ly-queue-row[data-dragging] {
   position: relative;
   z-index: 1;
-  animation: none;
-  transition: none;
+  animation: none !important;
+  transition: none !important;
   cursor: grabbing;
 }
 
+/* 刚刚落定的那一帧关掉过渡，避免坐标对冲带来的瞬间二次回弹跳动 */
+.ly-queue-row[data-settling] {
+  animation: none !important;
+  transition: none !important;
+}
 .ly-queue-row[data-dragging] [data-queue-grip] {
   cursor: grabbing;
 }
