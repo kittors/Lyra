@@ -5,6 +5,26 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.7](https://github.com/kittors/Lyra/releases/tag/v0.9.7) - 2026-09-10
+
+### 新功能
+
+- **desktop**: 归档里的会话可以取消归档和删除 ([1d3cd06](https://github.com/kittors/Lyra/commit/1d3cd06fec035a3127c8ec38ea5365ac4d29df39))
+- **desktop**: 附件不再把正文铺进气泡，而且带上先后顺序 ([9b014d4](https://github.com/kittors/Lyra/commit/9b014d4ef71cd1721a3e46f67e367e40a15073ed))
+
+### 修复
+
+- **desktop**: 提示条让开侧边栏，队列拖动落定不再回弹 ([b541f8c](https://github.com/kittors/Lyra/commit/b541f8c1b5d28a97cd5350fa0aed37a1f7423e2a))
+- **desktop**: 撤掉三处会静默出错的改动 ([747bb9c](https://github.com/kittors/Lyra/commit/747bb9ca031c6bfd40bab20b367738d490142783))
+- **desktop**: 拉取的模型按 200K 导入，弹窗遮罩盖住整扇窗 ([7b79f45](https://github.com/kittors/Lyra/commit/7b79f45389426f218a7379b997001a57ff921989))
+- **core**: 编辑器不再把 unified diff 的减号写进源码 ([351c121](https://github.com/kittors/Lyra/commit/351c121f1ebc86d665659d8ca2a5a69c6884ac04))
+- **core**: 换过模型的会话不再作废 ([e957c7f](https://github.com/kittors/Lyra/commit/e957c7fe6c71d80abc40e131030819130f78555f))
+
+### 重构
+
+- **desktop**: 归档正开着的对话，人回到新对话 ([a48b113](https://github.com/kittors/Lyra/commit/a48b113a344c500a134bdd858778e34241f8c34d))
+- **desktop**: 一轮里的过程行统一成一套骨架 ([10bec22](https://github.com/kittors/Lyra/commit/10bec228ec50743d2932dcec5aa8fc1c0735b75b))
+
 ## [0.9.6](https://github.com/kittors/Lyra/releases/tag/v0.9.6) - 2026-09-09
 
 <!-- lyra:notes zh-CN -->
