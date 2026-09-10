@@ -24,9 +24,10 @@ import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
-import { parseToolArguments, readSse } from "../utils/sse.ts";
+import { argumentFragment, parseToolArguments, readSse } from "../utils/sse.ts";
 import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
+import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 
 export const openaiResponsesProvider: Provider = {
 	api: "openai-responses",
@@ -56,11 +57,18 @@ async function* streamResponses(
 	const modelId = (model.modelId || model.id || "").toLowerCase();
 	const isGemini = modelId.includes("gemini") || modelId.includes("gemma");
 
-	const body: Record<string, unknown> = {
+	/*
+	 * 每次尝试重新编一遍，因为**推理形状可能在两次之间变掉**。
+	 *
+	 * 端点对「把推理还回去」的态度是撞出来的，不是配出来的（见 `reasoning-compat.ts`）：有的要求必须带、
+	 * 有的一带就 400。被顶回来的那一次会记下结论、换个形状重发，所以这里必须能重新编一份，而不是把第
+	 * 一次编好的那份原样再发一遍。
+	 */
+	const buildBody = (replay: ReasoningReplay): Record<string, unknown> => ({
 		model: model.modelId,
 		// Told who it is going to, so a handle written by a different model is left behind rather
 		// than replayed to one that will reject it. See `fromHome`.
-		input: toResponsesInput(sanitizeToolPairing(context.messages), { provider: provider.id, model: model.modelId }),
+		input: toResponsesInput(sanitizeToolPairing(context.messages), { provider: provider.id, model: model.modelId }, replay),
 		stream: true,
 		// Sessions live in Lyra's own store, not on the provider.
 		store: false,
@@ -87,7 +95,8 @@ async function* streamResponses(
 		...(options.temperature !== undefined && !thinkingEnabled ? { temperature: options.temperature } : {}),
 		...model.samplingParams,
 		...options.samplingParams,
-	};
+	});
+	let body = buildBody(reasoningReplay(provider.id, model.id));
 
 	options.onPayload?.(body);
 
@@ -121,7 +130,19 @@ async function* streamResponses(
 		 * of work where losing a turn costs the most. Nothing has happened yet when it dies:
 		 * tools run after a complete reply arrives, so the reply can simply be asked for again.
 		 */
-		yield* retryStream(
+		yield* withReasoningRetry(provider.id, model.id, () => {
+			spentOnRetries = addUsage(spentOnRetries, partial.usage);
+			partial.content = [];
+			partial.usage = emptyUsage();
+			items.clear();
+			inventedIds.clear();
+			framesSeen = 0;
+			firstTokenTime = null;
+			incompleteReason = undefined;
+		}, async function* (replay) {
+			body = buildBody(replay);
+			options.onPayload?.(body);
+			yield* retryStream(
 			async function* attempt() {
 				const response = await fetchWithRetry(
 					doFetch,
@@ -259,7 +280,8 @@ async function* streamResponses(
 							if (firstTokenTime === null) firstTokenTime = Date.now();
 							const tracked = items.get(outputIndex);
 							if (!tracked) break;
-							tracked.raw += event.delta ?? "";
+							// 协议说 delta 是字符串分片，但转译层不一定守；对象接上去会变成 `"[object Object]"`。
+							tracked.raw += argumentFragment(event.delta);
 							const target = partial.content[tracked.contentIndex];
 							if (target?.type === "toolCall") target.argumentsText = tracked.raw;
 							yield {
@@ -278,7 +300,14 @@ async function* streamResponses(
 							const target = partial.content[tracked.contentIndex];
 
 							if (tracked.kind === "toolCall" && target?.type === "toolCall") {
-								const raw = typeof item.arguments === "string" && item.arguments ? item.arguments : tracked.raw;
+								/*
+							 * 收尾的那个 item 里带的参数说了算，字符串还是对象都认。
+							 *
+							 * 原本只认字符串，非字符串一律退回流里攒的 `tracked.raw`。对于一次性给完整对象、
+							 * 一个 delta 都不发的宿主，那个缓冲区是空的——参数就这么没了，还不报错。
+							 */
+							const complete = argumentFragment(item.arguments);
+							const raw = complete || tracked.raw;
 								target.argumentsText = raw;
 								target.arguments = parseToolArguments(raw) ?? {};
 								yield {
@@ -387,7 +416,8 @@ async function* streamResponses(
 					firstTokenTime = null;
 				},
 			},
-		);
+			);
+		});
 	} catch (error) {
 		const aborted = options.signal?.aborted;
 		const failure = aborted ? undefined : failureOf(error);

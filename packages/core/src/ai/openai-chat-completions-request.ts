@@ -3,6 +3,7 @@
  */
 
 import type { Message, ToolResultMessage, ToolSpec } from "../types.ts";
+import type { ReasoningReplay } from "./reasoning-compat.ts";
 
 export function toChatCompletionsTools(tools: ToolSpec[]): unknown[] {
 	return tools.map((tool) => ({
@@ -64,7 +65,7 @@ export function sanitizeChatCompletionsHistory(messages: Message[]): Message[] {
 	return out;
 }
 
-export function toChatCompletionsMessages(systemPrompt: string, messages: Message[]): unknown[] {
+export function toChatCompletionsMessages(systemPrompt: string, messages: Message[], reasoning: ReasoningReplay = "replay"): unknown[] {
 	const sanitized = sanitizeChatCompletionsHistory(messages);
 	const out: unknown[] = [];
 	if (systemPrompt) {
@@ -112,10 +113,20 @@ export function toChatCompletionsMessages(systemPrompt: string, messages: Messag
 
 			const toolCalls: unknown[] = [];
 			let text = "";
+			let thought = "";
 
 			for (const c of message.content) {
 				if (c.type === "text") {
 					text += c.text;
+				} else if (c.type === "thinking") {
+					/*
+					 * 只收带得动句柄的那一档：没有句柄的这一块跳过。
+					 *
+					 * 「句柄」在这条链上就是 `signature`——那是别的协议留下的。撞上这一档说明对面（多半是
+					 * 一个把请求再翻译成 Anthropic 的中转）要求推理带着签名回来，而剥过句柄的思考块拿不出来。
+					 */
+					if (reasoning === "handled" && !c.signature) continue;
+					thought += c.thinking;
 				} else if (c.type === "toolCall") {
 					toolCalls.push({
 						id: c.id,
@@ -140,6 +151,23 @@ export function toChatCompletionsMessages(systemPrompt: string, messages: Messag
 				msg.content = hasThinking ? "[Thought without final response]" : "[Empty response]";
 			}
 			if (toolCalls.length > 0) msg.tool_calls = toolCalls;
+			/*
+			 * 模型想过的话，原样还回去。
+			 *
+			 * 这条链一直是只读不还：解码那边把 `delta.reasoning_content` 接进思考块
+			 * （`openai-chat-completions.ts`），界面上也画出来，然后编码这边把它整段丢掉——上面那个循环
+			 * 原本只有 `text` 和 `toolCall` 两个分支。对多数宿主这只是浪费；对 DeepSeek 系的推理模型这是
+			 * 致命的，它要求自己产出的思考跟着下一轮回来：
+			 *
+			 *     The `reasoning_content` in the thinking mode must be passed back to the API.
+			 *
+			 * 于是模型只要调过一次工具，第二轮必 400，而且没有任何一条代码路径能满足它——不是配错了，是
+			 * 这段逻辑不存在。唯一的出路是把思考关掉。
+			 *
+			 * 只在真有思考文本时发。历史里没有的时候不去编一段：那是「端点要求而我们手上没有」的另一个
+			 * 问题，属于失败重试那一层，不该在一个纯翻译函数里替它做主。
+			 */
+			if (thought && reasoning !== "omit") msg.reasoning_content = thought;
 
 			out.push(msg);
 

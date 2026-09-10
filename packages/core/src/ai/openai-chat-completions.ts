@@ -18,9 +18,10 @@ import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
-import { parseToolArguments, readSse } from "../utils/sse.ts";
+import { argumentFragment, parseToolArguments, readSse } from "../utils/sse.ts";
 import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
+import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 
 export const openaiChatCompletionsProvider: Provider = {
 	api: "openai-chat-completions",
@@ -48,9 +49,15 @@ async function* streamChatCompletions(
 	const reasoningEffort = resolveReasoningEffort(options.thinking, model);
 	const thinkingEnabled = reasoningEffort !== undefined;
 
-	const body: Record<string, unknown> = {
+	/*
+	 * 每次尝试重新编一遍，因为**推理形状可能在两次之间变掉**。
+	 *
+	 * 端点对「把推理还回去」的态度是撞出来的，不是配出来的（见 `reasoning-compat.ts`）。被顶回来的那
+	 * 一次会记下结论、换个形状重发——那就必须能重新编一份请求体，而不是把第一次编好的那份再发一遍。
+	 */
+	const buildBody = (replay: ReasoningReplay): Record<string, unknown> => ({
 		model: model.modelId,
-		messages: toChatCompletionsMessages(context.systemPrompt ?? "", sanitizeToolPairing(context.messages)),
+		messages: toChatCompletionsMessages(context.systemPrompt ?? "", sanitizeToolPairing(context.messages), replay),
 		stream: true,
 		stream_options: { include_usage: true },
 		max_tokens: options.maxTokens ?? model.maxOutputTokens,
@@ -63,7 +70,8 @@ async function* streamChatCompletions(
 		...(options.temperature !== undefined && !thinkingEnabled ? { temperature: options.temperature } : {}),
 		...model.samplingParams,
 		...options.samplingParams,
-	};
+	});
+	let body = buildBody(reasoningReplay(provider.id, model.id));
 
 	options.onPayload?.(body);
 
@@ -77,11 +85,33 @@ async function* streamChatCompletions(
 
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
-		yield* retryStream(
+		yield* withReasoningRetry(provider.id, model.id, () => {
+			spentOnRetries = addUsage(spentOnRetries, partial.usage);
+			partial.content = [];
+			partial.usage = emptyUsage();
+			inventedIds.clear();
+			framesSeen = 0;
+			firstTokenTime = null;
+		}, async function* (replay) {
+			body = buildBody(replay);
+			options.onPayload?.(body);
+			yield* retryStream(
 			async function* attempt() {
 				const response = await fetchWithRetry(
 					doFetch,
-					joinUrl(provider.baseUrl, "/chat/completions"),
+					/*
+					 * `/v1/`，和另外两条链一样。
+					 *
+					 * 这一条原本是 `"/chat/completions"`，是三条链里唯一不带版本段的。`joinUrl` 只在 path
+					 * 以 `/v1/` 开头时才去重 baseUrl 末尾已有的 `/v1`，所以这一条既不补、也享受不到去重：
+					 * 填最自然的 `https://api.openai.com` 拼出来是
+					 * `https://api.openai.com/chat/completions`，官方直接 404（`/v1/chat/completions` 才是
+					 * 那个地址，不带密钥打它返回 401——路由在，只是没认证）。
+					 *
+					 * 于是同一份 baseUrl 在三条链里规则不一样，而且只有这一条要求填的人知道内情。宽松的
+					 * 宿主两个地址都收，所以这个 bug 只在最正规的那些端点上发作。
+					 */
+					joinUrl(provider.baseUrl, "/v1/chat/completions"),
 					{
 						method: "POST",
 						headers: {
@@ -244,12 +274,21 @@ async function* streamChatCompletions(
 								}
 
 								if (tc.function?.arguments) {
-									block.argumentsText = (block.argumentsText || "") + tc.function.arguments;
+									/*
+									 * 字符串是分片，接上去；对象是**整份参数**，覆盖掉。
+									 *
+									 * 直接 `+` 会把对象变成 `"[object Object]"`——见 `argumentFragment`。而一个
+									 * 一次性给完整对象的宿主，往往每个 delta 都重发一遍同一份；接上去会拼成两份。
+									 */
+									const fragment = argumentFragment(tc.function.arguments);
+									block.argumentsText = typeof tc.function.arguments === "string"
+										? (block.argumentsText || "") + fragment
+										: fragment;
 									const blockIndex = partial.content.indexOf(block);
 									yield {
 										type: "toolcall_delta",
 										index: blockIndex >= 0 ? blockIndex : tcIndex,
-										delta: tc.function.arguments,
+										delta: fragment,
 										partial: { ...partial },
 									};
 								}
@@ -310,7 +349,8 @@ async function* streamChatCompletions(
 					firstTokenTime = null;
 				},
 			},
-		);
+			);
+		});
 	} catch (error) {
 		const aborted = options.signal?.aborted;
 		const failure = aborted ? undefined : failureOf(error);

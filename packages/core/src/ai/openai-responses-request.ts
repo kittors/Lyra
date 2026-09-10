@@ -7,6 +7,7 @@
  */
 
 import type { AssistantMessage, Message, ToolResultMessage, ToolSpec } from "../types.ts";
+import type { ReasoningReplay } from "./reasoning-compat.ts";
 
 /**
  * Who this request is going to, so a handle from someone else can be told apart from our own.
@@ -45,6 +46,21 @@ function functionCallOutput(message: ToolResultMessage): unknown {
 }
 
 /**
+ * 一个句柄能不能当 API 的 item id 用。
+ *
+ * Responses 只接受字母、数字、下划线和短横。中转自己生成的 id 不一定守这条——客户报过一次
+ * `Invalid 'input[14].id' … this value contained additional characters`，而那串东西里混着一个
+ * 肉眼看不出来的字符。
+ *
+ * 不合规的句柄**丢掉**，不是原样发出去：它按定义就是不可用的，发过去只有一个结果——整个请求被拒，
+ * 而那段历史每一轮都会被重新编码一次，于是那个对话再也说不了话。丢掉它只损失「供应商接回自己那条
+ * 思维链」的能力，那本来就不是可移植的东西。
+ */
+function usableId(handle: string | undefined): string | undefined {
+	return handle !== undefined && /^[A-Za-z0-9_-]+$/.test(handle) ? handle : undefined;
+}
+
+/**
  * Every call answered where it was made: `function_call`, then its own `function_call_output`.
  *
  * The obvious arrangement is the one the model produced — all of a turn's calls, then all of their
@@ -72,7 +88,7 @@ function functionCallOutput(message: ToolResultMessage): unknown {
  * removed the call — keeps its place in the list rather than being dropped: it is history, and
  * inventing a call to hang it on would be worse than passing it through.
  */
-export function toResponsesInput(messages: Message[], home?: ResponsesHome): unknown[] {
+export function toResponsesInput(messages: Message[], home?: ResponsesHome, reasoning: ReasoningReplay = "replay"): unknown[] {
 	const input: unknown[] = [];
 
 	for (let index = 0; index < messages.length; index++) {
@@ -117,6 +133,14 @@ export function toResponsesInput(messages: Message[], home?: ResponsesHome): unk
 			for (const c of message.content) {
 				if (c.type === "thinking") {
 					/*
+					 * 这个端点已经说过它不收推理项——那就一个都不发。
+					 *
+					 * 不是形状不对，是它那边根本没有能放下这个东西的位置：四种写法（带 id、带 content、
+					 * 带 summary、两个都带）全试过，全 400；删掉整项之后，同一段工具历史照样 200。
+					 * 这个结论是撞出来的，怎么撞的见 `reasoning-compat.ts`。
+					 */
+					if (reasoning === "omit") continue;
+					/*
 					 * Someone else's reasoning does not go back at all.
 					 *
 					 * Not the id — the whole block. The id is unusable by definition, and the text is a
@@ -140,12 +164,27 @@ export function toResponsesInput(messages: Message[], home?: ResponsesHome): unk
 					 * lets the provider pick its own chain of thought back up, and a summary offered in
 					 * its place is not accepted as a substitute for it.
 					 */
-					if (c.signature) {
+					const handle = usableId(c.signature);
+					if (handle) {
 						input.push({
 							type: "reasoning",
-							id: c.signature,
+							id: handle,
 							summary: c.thinking ? [{ type: "summary_text", text: c.thinking }] : [],
 							...(c.encrypted ? { encrypted_content: c.encrypted } : {}),
+							/*
+							 * 没有密文时，思考本身也要进 `content`。
+							 *
+							 * 一个推理项能拿回去的东西有三样：item id（供应商自己的句柄）、`encrypted_content`
+							 * （原样可回放的那份）、和 `content` 里的 `reasoning_text`（文本本身）。`summary`
+							 * 不算——它按定义是**对**推理的概括，要求原样回放的上游不接受它顶替：
+							 *
+							 *     The `reasoning_text` in the thinking mode must be passed back to the API.
+							 *
+							 * 有密文的时候端点认密文，这条分支一直没炸，所以这个缺口一直看不见；上游只给签名
+							 * 不给密文时（中转把 Responses 转译成别的协议时很常见）就露出来了。实测同时给
+							 * `content` 和 `summary` 不会被拒，所以这里补的是缺的那一半，不动本来就好的那条路。
+							 */
+							...(!c.encrypted && c.thinking ? { content: [{ type: "reasoning_text", text: c.thinking }] } : {}),
 						});
 						continue;
 					}
@@ -172,9 +211,28 @@ export function toResponsesInput(messages: Message[], home?: ResponsesHome): unk
 					 * the transcript, in the field that holds it.
 					 */
 					if (!c.thinking && !c.encrypted) continue;
+					/*
+					 * 这个端点说过它只收带得动句柄的推理——这一块没有句柄，跳过。
+					 *
+					 * 中转把 Responses 翻译成 Anthropic 时会撞上这条：那边的 thinking 块要文本也要签名，
+					 * 而换过模型之后 `stripStaleHandles` 把签名剥了，两样都拿不出来。发过去只会 400，
+					 * 而且是 `signature: Field required` 和 `thinking: Field required` 轮流报——补哪个都
+					 * 补不齐，因为缺的那样东西我们真的没有。
+					 */
+					if (reasoning === "handled") continue;
 					input.push({
 						type: "reasoning",
-						summary: [],
+						/*
+						 * `summary` 也给一份。
+						 *
+						 * 这里原本是空数组，只往 `content` 里放。两个字段读起来像是同一句话的两种说法，实际
+						 * 哪个被读走取决于对面：要求原样回放的上游读 `content`（`summary` 是概括，顶不了），
+						 * 而把 Responses 翻译成别的协议的中转往往只认 `summary`——只给 `content` 时它翻译出来
+						 * 的是一个没有文本的思考块，报 `thinking.thinking: Field required`。
+						 *
+						 * 两个都给不会被拒（实测过），那就都给。
+						 */
+						summary: c.thinking ? [{ type: "summary_text", text: c.thinking }] : [],
 						...(c.thinking ? { content: [{ type: "reasoning_text", text: c.thinking }] } : {}),
 						...(c.encrypted ? { encrypted_content: c.encrypted } : {}),
 					});
