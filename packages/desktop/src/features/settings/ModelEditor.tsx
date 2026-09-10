@@ -29,9 +29,22 @@ export function ModelEditor({
 	const [name, setName] = useState(model?.name ?? "");
 	const [contextWindow, setContextWindow] = useState(String(model?.contextWindow ?? 200000));
 	const [maxOutput, setMaxOutput] = useState(String(model?.maxOutputTokens ?? 16384));
-	const [supportsThinking, setSupportsThinking] = useState(model?.supportsThinking ?? false);
-	const [supportsImages, setSupportsImages] = useState(model?.supportsImages ?? false);
-	const [supportsTools, setSupportsTools] = useState(model?.supportsTools ?? false);
+	/*
+	 * 新加一个模型时，三样能力默认都开着。
+	 *
+	 * 原本默认全关，理由大概是「不知道就别声称」。可这个默认落在的正是「目录不认识这个名字」的
+	 * 那一档——中转起的私有名字、刚发布的型号、自建的端点，而如今这些几乎都会思考、看图、调工具。
+	 * 于是最常见的一次操作变成了：加完模型，它不会用工具，思考档位是灰的，界面上没有任何一处说
+	 * 明为什么，人得先猜到有这么三个开关、再回来打开。
+	 *
+	 * 猜错的代价也不对等：默认开着而模型其实不支持，会收到一个说得清清楚楚的报错；默认关着而模型
+	 * 支持，是能力凭空少了一块，而且不报错。
+	 *
+	 * 编辑已有模型时走的是它自己存下来的值，这里只管新建。
+	 */
+	const [supportsThinking, setSupportsThinking] = useState(model?.supportsThinking ?? true);
+	const [supportsImages, setSupportsImages] = useState(model?.supportsImages ?? true);
+	const [supportsTools, setSupportsTools] = useState(model?.supportsTools ?? true);
 	const [priceIn, setPriceIn] = useState(String(initialPricing?.input ?? ""));
 	const [priceOut, setPriceOut] = useState(String(initialPricing?.output ?? ""));
 	const [priceCacheRead, setPriceCacheRead] = useState(String(initialPricing?.cacheRead ?? ""));

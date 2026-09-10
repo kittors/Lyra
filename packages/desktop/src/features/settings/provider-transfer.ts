@@ -248,9 +248,16 @@ function readModel(raw: unknown, providerId: string): ModelConfig | null {
 		name: text(raw.name) || modelId,
 		contextWindow: count(raw.contextWindow, 200_000),
 		maxOutputTokens: count(raw.maxOutputTokens, 16_384),
-		supportsThinking: raw.supportsThinking === true,
-		supportsImages: raw.supportsImages === true,
-		supportsTools: raw.supportsTools === true,
+		/*
+		 * 没写就是「有」，写了 `false` 才是「没有」。
+		 *
+		 * 原本是 `=== true`：字段缺席等同于不支持。而缺席最常见的来源是一份手写的或者别处生成的
+		 * 配置——那种文件里通常只写 id 和地址，于是导进来的每个模型都不会调工具，人还以为是导入
+		 * 坏了。明确写 `false` 是一次选择，那个照旧尊重。
+		 */
+		supportsThinking: raw.supportsThinking !== false,
+		supportsImages: raw.supportsImages !== false,
+		supportsTools: raw.supportsTools !== false,
 		...(pricing ? { pricing } : {}),
 		...(catalogRef?.providerId && catalogRef.modelId ? { catalogRef } : {}),
 		...(raw.metadataSource === "manual" || raw.metadataSource === "catalog"

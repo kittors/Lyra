@@ -42,9 +42,19 @@ export function importedModel(provider: Pick<ProviderConfig, "id" | "baseUrl">, 
 			providerId: provider.id,
 			modelId,
 			name: modelId,
-			supportsThinking: false,
-			supportsImages: false,
-			supportsTools: false,
+			/*
+			 * 目录不认识这个名字时，三样能力当作都有。
+			 *
+			 * 这一档接的是中转起的私有名字、刚发布的型号、自建的端点——如今这些几乎都会思考、看图、
+			 * 调工具，而原本默认全关，于是「拉一批模型进来」之后每一个都不会用工具、思考档位是灰的，
+			 * 界面上还没有一处说明为什么。
+			 *
+			 * 猜错的代价不对等：开着而其实不支持，供应商会回一个说得清楚的错；关着而其实支持，是
+			 * 能力凭空少一块，还不报错。能改的地方就在模型编辑器里，一眼看得见。
+			 */
+			supportsThinking: true,
+			supportsImages: true,
+			supportsTools: true,
 		}),
 		contextWindow: DEFAULT_CONTEXT_WINDOW,
 		maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
