@@ -17,6 +17,7 @@ import {
 	FileText,
 	FileType,
 	FileVideo,
+	Palette,
 	Presentation,
 	Binary,
 } from "lucide-react";
@@ -31,6 +32,7 @@ const ICONS: Record<FileKind, typeof File> = {
 	excel: FileSpreadsheet,
 	powerpoint: Presentation,
 	archive: FileArchive,
+	design: Palette,
 	font: FileType,
 	binary: Binary,
 	text: File,
@@ -50,6 +52,7 @@ const TONES: Record<FileKind, string> = {
 	excel: "text-[#16a34a]",
 	powerpoint: "text-[#ea580c]",
 	archive: "text-[#a16207]",
+	design: "text-[#d946ef]",
 	font: "text-[#0ea5e9]",
 	binary: "text-ink-faint",
 	text: "text-ink-muted",

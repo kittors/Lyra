@@ -13,6 +13,7 @@ import type { UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
 
+import { attachmentBody, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -20,6 +21,8 @@ import { bridge } from "../../services/index.ts";
 export interface OutgoingAttachment {
 	name: string;
 	mimeType: string;
+	/** 图标用的门类，跟着消息一起留在转录里——正文不留，只留这个。 */
+	kind?: string;
 	data?: string;
 	text?: string;
 	isText?: boolean;
@@ -37,6 +40,8 @@ export interface Outgoing {
 	displayText?: string;
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: { id: string; title: string }[];
+	/** 名字和门类，给气泡里那排胶囊用；正文不在里面，见 `UserMessage.attachments`。 */
+	attachments?: { name: string; kind?: string; mimeType?: string }[];
 	/** 命令自己声明的投递方式——见 `SlashCommand.deliver`。 */
 	deliver?: "steer" | "followUp";
 }
@@ -141,26 +146,72 @@ export async function buildOutgoing(
 		}
 		outgoing = `${outgoing}\n\n[Referenced context]\n${sessionPrompts.join("\n")}`;
 	}
-	if (draft.attachments.length > 0) {
-		const textFiles = draft.attachments.filter((a) => a.isText && a.text);
-		if (textFiles.length > 0) {
-			const attachedTexts = textFiles.map((f) => `### Attached file: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
-			outgoing = outgoing ? `${outgoing}\n\n${attachedTexts.join("\n\n")}` : attachedTexts.join("\n\n");
-		}
-	}
+	/*
+	 * 附件从这里开始分成两份：模型读的那份，和人在气泡里看到的那份。
+	 *
+	 * 从前只有一份。文本附件的正文被直接拼进正文里，而 `displayText` 只在技能和会话引用那两条路上
+	 * 才设——附件这条路没设，于是 `UserMessage` 退回原文，一份上千行的 md 就整个铺在自己发出的那条
+	 * 消息里，想翻回上面得滚很久。会话引用那三行早就把这件事做对了，这里照着做。
+	 *
+	 * 顺序也在这里落地：正文按占位符切开，图片和文档各自落在自己被插入的位置上，而不是图片一律
+	 * 排在最前、文档一律缀在最后。见 `placeAttachments`。
+	 */
+	if (displayText === undefined && draft.attachments.length > 0) displayText = outgoing;
 
-	const images = draft.attachments
-		.filter((a) => !a.isText && a.data)
-		.map((a): UserContent => ({ type: "image", data: a.data!, mimeType: a.mimeType }));
+	const { segments, unplaced } = placeAttachments(outgoing, draft.attachments);
+	const content: UserContent[] = [];
+	let buffer = "";
+	const flush = () => {
+		if (buffer) content.push({ type: "text", text: buffer });
+		buffer = "";
+	};
+	/*
+	 * 每份附件正文自己占一个 content 块，不跟前后的字并进同一块。
+	 *
+	 * 这不是排版讲究，是为了「编辑已发出的消息」还能用：编辑框改的是 `displayText`——人打的那些字，
+	 * 不含正文——所以重建消息时必须把正文原样搬过去。并成一块就分不出哪一段是人写的、哪一段是文件，
+	 * 见 `isAttachmentBody`。
+	 */
+	const spell = (file: OutgoingAttachment) => {
+		if (file.isText && file.text) {
+			// Fenced and named, so the model can tell the document from the sentence around it.
+			flush();
+			content.push({ type: "text", text: attachmentBody(file.name, file.text) });
+			return;
+		}
+		if (!file.isText && file.data) {
+			// An image is its own content block, so the text on either side of it has to be closed off.
+			flush();
+			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+			return;
+		}
+		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from
+		// answering as though it had read something it was never given.
+		flush();
+		content.push({ type: "text", text: attachmentStub(file.name, file.mimeType) });
+	};
+
+	for (const segment of segments) {
+		if (segment.kind === "text") buffer += segment.text;
+		else spell(segment.file);
+	}
+	for (const file of unplaced) spell(file);
+	flush();
 
 	return {
-		content: [
-			...images,
-			...(outgoing ? [{ type: "text" as const, text: outgoing }] : []),
-		],
+		content,
 		...(displayText !== undefined ? { displayText } : {}),
 		...(skillRef ? { skillRef } : {}),
 		...(draft.sessionRefs.length > 0 ? { sessionRefs: draft.sessionRefs } : {}),
+		...(draft.attachments.length > 0
+			? {
+					attachments: draft.attachments.map((file) => ({
+						name: file.name,
+						...(file.kind ? { kind: file.kind } : {}),
+						...(file.mimeType ? { mimeType: file.mimeType } : {}),
+					})),
+				}
+			: {}),
 		...(deliver ? { deliver } : {}),
 	};
 }

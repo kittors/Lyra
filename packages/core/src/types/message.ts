@@ -184,6 +184,23 @@ export interface UserMessage {
 		id: string;
 		title: string;
 	}>;
+	/**
+	 * The files that were attached, by name and kind — never their contents.
+	 *
+	 * A text attachment's body is expanded into the prompt, which is what the model needs and the
+	 * last thing a reader wants to scroll past: a thousand-line document arrived as a thousand lines
+	 * inside the message bubble, and getting back above it was a chore. `displayText` keeps the
+	 * bubble to what was actually typed, and this is what lets it still say which files went with it.
+	 *
+	 * Metadata only, deliberately. The contents are already in `content`; a second copy here would
+	 * double the size of every session log for something no reader ever looks at.
+	 */
+	attachments?: Array<{
+		name: string;
+		/** `fileKind` on the desktop side — image, document, archive, text. Purely for the icon. */
+		kind?: string;
+		mimeType?: string;
+	}>;
 }
 
 export interface AssistantMessage {

@@ -5,6 +5,8 @@ import type {
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
+import { FileKindIcon, type FileKind } from "../composer/index.ts";
+import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
@@ -23,6 +25,26 @@ import { useI18n } from "../../i18n/index.ts";
  * wording any more. Leaving it would put an answer to a question nobody asked directly under
  * the question that replaced it.
  */
+/**
+ * 一段正文，切成「普通的字」和「站在句子里的附件名」。
+ *
+ * 复用输入框那一侧的 `placeAttachments`：同一套匹配规则，写进去和读出来的必须是同一件事，
+ * 两边各写一份正是两边会对不上的开始。
+ */
+type Part =
+  | { kind: "text"; text: string }
+  | { kind: "file"; name: string; fileKind: FileKind };
+
+function textParts(text: string, files: UserMessageType["attachments"]): Part[] {
+  if (!files?.length) return [{ kind: "text", text }];
+  const { segments } = placeAttachments(text, files);
+  return segments.map((segment): Part =>
+    segment.kind === "text"
+      ? { kind: "text", text: segment.text }
+      : { kind: "file", name: segment.file.name, fileKind: (segment.file.kind as FileKind) ?? "text" },
+  );
+}
+
 export function UserMessage({
   message,
   index,
@@ -43,7 +65,7 @@ export function UserMessage({
     .join("\n");
 
   const skillRef = message.skillRef;
-  const hasCapsules = Boolean(skillRef || message.sessionRefs?.length);
+  const hasCapsules = Boolean(skillRef || message.sessionRefs?.length || message.attachments?.length);
   const text = message.displayText ?? rawText;
   const images = message.content.filter((block) => block.type === "image");
 
@@ -61,8 +83,20 @@ export function UserMessage({
      * broken button, not as a considerate no-op. Cancel is right there for changing your mind.
      */
     if (!trimmed) return;
-    // Images are carried over: the edit is to the wording, not to what was attached.
-    void editMessage(index, [...images, { type: "text", text: trimmed }]);
+    /*
+     * Everything that was attached is carried over: the edit is to the wording, not to the files.
+     *
+     * Images always were. The file bodies are new here and are not optional — the editor works on
+     * `displayText`, which deliberately leaves them out, so rebuilding from the edited text alone
+     * would resend 【report.md】 with the document gone and the model answering about a file it can
+     * no longer see. They go ahead of the new wording rather than back where they were: an edit is
+     * a redo, and keeping the contents matters more than keeping the interleaving.
+     */
+    const bodies = message.content.filter(
+      (block): block is Extract<UserContent, { type: "text" }> =>
+        block.type === "text" && isAttachmentBody(block.text),
+    );
+    void editMessage(index, [...images, ...bodies, { type: "text", text: trimmed }]);
   }
 
   if (editing) {
@@ -194,7 +228,34 @@ export function UserMessage({
           </div>
         )}
 
-        {text && <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">{text}</p>}
+        {text && (
+        <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">
+          {/*
+            * 附件就画在它被放进去的那个位置上，而且它本身就是那颗胶囊。
+            *
+            * 从前是「气泡里一段浅蓝的【交接说明.md】，气泡底下再来一排文件胶囊」——同一个文件说了
+            * 两遍，而且两遍长得不一样。占位符已经在正确的位置上了，让它长成胶囊就够了：带色的门类
+            * 图标加文件名，一句话里嵌一颗，顺序和形态一次说清。
+            *
+            * 认不出来的 `【…】` 原样留着：中文里方括号是普通标点，一句「这个【重要】」不是在引用
+            * 任何东西。
+            */}
+          {textParts(text, message.attachments).map((part, i) =>
+            part.kind === "file" ? (
+              <span
+                key={i}
+                data-ly-attachment
+                className="mx-0.5 inline-flex max-w-full translate-y-[1px] items-center gap-1 rounded-md border border-line-soft bg-card-hover/70 px-1.5 py-px align-baseline text-[0.9em] text-ink-muted"
+              >
+                <FileKindIcon kind={part.fileKind} size={12} />
+                <span className="truncate">{part.name}</span>
+              </span>
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
+        </p>
+      )}
       </div>}
 
       {/* Editing is the one thing a sent message offers that a reply does not. */}

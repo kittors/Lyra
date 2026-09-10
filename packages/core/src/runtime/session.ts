@@ -621,6 +621,7 @@ export class AgentSession {
 			displayText?: string;
 			skillRef?: { name: string; path?: string; pluginId?: string };
 			sessionRefs?: Array<{ id: string; title: string }>;
+			attachments?: Array<{ name: string; kind?: string; mimeType?: string }>;
 		} = {},
 	): Promise<void> {
 		// A prompt waits for the manual boundary before creating a turn against that history.
@@ -634,6 +635,7 @@ export class AgentSession {
 			...(options.displayText !== undefined ? { displayText: options.displayText } : {}),
 			...(options.skillRef ? { skillRef: options.skillRef } : {}),
 			...(options.sessionRefs?.length ? { sessionRefs: options.sessionRefs } : {}),
+			...(options.attachments?.length ? { attachments: options.attachments } : {}),
 		};
 
 		if (this.running) {

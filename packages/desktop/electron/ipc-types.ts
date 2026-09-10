@@ -247,7 +247,7 @@ export interface LyraApi {
 	sessions: {
 		onChanged(handler: (change: SessionChange) => void): () => void;
 		list(): Promise<SessionMeta[]>;
-		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }> }): Promise<SessionSnapshot>;
+		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
 		open(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
 		/** Read the stored transcript without starting anything. For looking at things. */
@@ -276,7 +276,7 @@ export interface LyraApi {
 		 * `synthetic` marks a message the app composed on the user's behalf — 「继续」 — so the
 		 * transcript does not show it as something they typed. See `Session.prompt`.
 		 */
-		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }> }): Promise<SessionMeta>;
+		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<SessionMeta>;
 		/** Replace a message and re-run from there, discarding everything after it. */
 		editMessage(sessionId: string, messageIndex: number, content: UserContent[]): Promise<void>;
 		abort(sessionId: string): Promise<void>;

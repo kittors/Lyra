@@ -35,6 +35,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { findModel } from "../models/index.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
 import { FileKindIcon } from "./attachments/FileKindIcon.tsx";
+import { placeholderFor } from "../../lib/attachment-placeholders.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
@@ -333,6 +334,7 @@ export function Composer() {
 				...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
 				...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 				...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
+				...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
 				draft: { text: trimmed, attachments, sessionRefs: referencedSessions },
 				preview: queuePreview(composed),
 				...(queueThumbnail(composed) ? { thumbnail: queueThumbnail(composed)! } : {}),
@@ -347,6 +349,7 @@ export function Composer() {
 			...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
+			...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
 		});
 		if (!accepted) {
 			// A transport rejection must preserve the original files and command text for retry.
@@ -433,7 +436,51 @@ export function Composer() {
 				.getState()
 				.notify(translate("composer.unreadableAsText", { names: refused.join("、") }), "warn");
 		}
-		if (next.length > 0) setAttachments((prev) => [...prev, ...next]);
+		if (next.length > 0) {
+			setAttachments((prev) => [...prev, ...next]);
+			writePlaceholders(next.map((file) => file.name));
+		}
+	}
+
+	/**
+	 * The token that says where a file was put, written at the caret.
+	 *
+	 * `execCommand("insertText")` rather than assigning `value`: it goes through the field's own undo
+	 * stack, so ⌘Z takes the placeholder back out the way it takes typing back out. Assigning the
+	 * value would leave an attachment the person cannot un-place without deleting the text by hand.
+	 *
+	 * A leading space when the caret is mid-sentence, so 「对比这两张【a.png】」 does not run together.
+	 */
+	function writePlaceholders(names: string[]) {
+		const field_ = field.current;
+		const tokens = names.map(placeholderFor).join("");
+		if (!field_) {
+			setText((current) => (current ? `${current} ${tokens}` : tokens));
+			return;
+		}
+		field_.focus();
+		const before = field_.value.slice(0, field_.selectionStart ?? field_.value.length);
+		const lead = before && !/\s$/.test(before) ? " " : "";
+		document.execCommand("insertText", false, `${lead}${tokens}`);
+	}
+
+	/**
+	 * Take a file back off, and take its placeholder with it.
+	 *
+	 * Leaving the token behind would put 【report.md】 in the sent message with nothing standing
+	 * behind it — `placeAttachments` would then read it as ordinary text, which is right, but the
+	 * person removed the file and would still see its name in what they sent.
+	 */
+	function detach(target: Attachment) {
+		setAttachments((prev) => prev.filter((a) => a.id !== target.id));
+		const token = placeholderFor(target.name);
+		setText((current) => {
+			const at = current.indexOf(token);
+			if (at === -1) return current;
+			const cut = `${current.slice(0, at)}${current.slice(at + token.length)}`;
+			// A space that only existed to separate the token from the words before it goes too.
+			return cut.replace(/ {2,}/g, " ").replace(/ +$/, "");
+		});
 	}
 
 	const takeScreenshot = useCallback(async () => {
@@ -597,28 +644,24 @@ export function Composer() {
 										 * `attachment.data` — which a Word document, a video or an archive does not have.
 										 * Attaching one produced a broken image where the file should have been.
 										 */}
-										{attachment.isText ? (
-											<div className="flex h-[68px] w-[110px] flex-col justify-between rounded-lg border border-line bg-card p-2.5 text-left shadow-xs">
-												<div className="flex items-center gap-1.5 text-ink-muted">
-													<FileKindIcon kind={attachment.kind ?? "text"} size={15} />
-													<span className="truncate text-xs font-medium text-ink">{attachment.name}</span>
-												</div>
-												<span className="text-[10px] text-ink-faint">{t("composer.textAttachment")}</span>
-											</div>
-										) : !attachment.data ? (
-											/* Attached by name and type: its bytes are not something a prompt can carry.
-											   See `addFiles`. */
+										{/*
+										 * 三种形态，不是两种。
+										 *
+										 * 从前只分「文本还是图片」，图片那一支直接拿 `attachment.data` 画 `<img>`——
+										 * 而一份 Word、一段视频、一个压缩包根本没有 `data`，附上去就是一个碎图。
+										 *
+										 * 不是图片的那两种共用一颗胶囊：一个带色的门类图标加一个文件名，没了。
+										 * 它一度是 68×110 的卡片，里面还写着「文本 / 代码附件」——一行副标题说的是图标
+										 * 已经用颜色说过的事，而那个尺寸让两三个附件就占掉输入框上方一整条。
+										 * 输入框上方这一排要回答的只有一个问题：带了哪几个文件。
+										 */}
+										{!attachment.data ? (
 											<div
-												className="flex h-[68px] w-[110px] flex-col justify-between rounded-lg border border-line bg-card p-2.5 text-left shadow-xs"
-											data-ly-tip={`${attachment.name}\n${t(KIND_LABEL[attachment.kind ?? "binary"])} · ${t("composer.filenameOnly")}`}
+												className="flex h-7 max-w-[220px] items-center gap-1.5 rounded-lg border border-line-soft bg-card pr-2 pl-1.5 text-caption"
+												data-ly-tip={`${attachment.name}\n${t(KIND_LABEL[attachment.kind ?? (attachment.isText ? "text" : "binary")])}${attachment.isText ? "" : ` · ${t("composer.filenameOnly")}`}`}
 											>
-												<div className="flex items-center gap-1.5 text-ink-muted">
-													<FileKindIcon kind={attachment.kind ?? "binary"} size={15} />
-													<span className="truncate text-xs font-medium text-ink">{attachment.name}</span>
-												</div>
-												<span className="text-[10px] text-ink-faint">
-											{t(KIND_LABEL[attachment.kind ?? "binary"])} · {t("composer.filenameOnly")}
-												</span>
+												<FileKindIcon kind={attachment.kind ?? (attachment.isText ? "text" : "binary")} size={14} />
+												<span className="truncate text-ink">{attachment.name}</span>
 											</div>
 										) : (
 											<button
@@ -654,7 +697,7 @@ export function Composer() {
 										)}
 										<button
 											type="button"
-											onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== attachment.id))}
+											onClick={() => detach(attachment)}
 											className="absolute -top-1.5 -right-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border border-line bg-float text-ink-muted transition-colors hover:text-ink"
 										>
 											<X size={11} strokeWidth={2.2} />

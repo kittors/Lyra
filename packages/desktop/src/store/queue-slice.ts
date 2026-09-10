@@ -46,6 +46,8 @@ export interface QueuedMessage {
 	displayText?: string;
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: { id: string; title: string }[];
+	/** 名字和门类，给气泡里那排胶囊用；正文不在里面。 */
+	attachments?: { name: string; kind?: string; mimeType?: string }[];
 	/** 原样收着的草稿，「编辑」拿它回填输入框。 */
 	draft: QueuedDraft;
 	/** 条上那一行字。展开前的原文，因为那才是人写下的话。 */
@@ -136,6 +138,7 @@ export function queueSlice(set: Set, get: Get): QueueSlice {
 				...(taken.entry.displayText !== undefined ? { displayText: taken.entry.displayText } : {}),
 				...(taken.entry.skillRef ? { skillRef: taken.entry.skillRef } : {}),
 				...(taken.entry.sessionRefs?.length ? { sessionRefs: taken.entry.sessionRefs } : {}),
+				...(taken.entry.attachments?.length ? { attachments: taken.entry.attachments } : {}),
 			});
 			if (!accepted) putBack(sessionId, taken.entry, taken.at);
 		} catch (cause) {

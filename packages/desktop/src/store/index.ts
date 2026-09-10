@@ -406,7 +406,7 @@ export interface AppState extends QueueSlice {
    * 队列才需要它：排队的消息等的是「那一轮结束」，而那一轮结束时人可能已经切到别的对话去了——
    * 没有它，出队要么发错对话，要么只能等人切回来。
    */
-	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; sessionId?: string }): Promise<boolean>;
+	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }>; sessionId?: string }): Promise<boolean>;
   /** Replace a message and re-run from there; everything after it is discarded. */
   editMessage(index: number, content: UserContent[]): Promise<void>;
   /** Re-send the user message that produced the reply at `index`. */

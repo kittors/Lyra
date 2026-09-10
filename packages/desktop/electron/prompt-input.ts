@@ -19,8 +19,8 @@ export function promptContent(value: unknown): UserContent[] {
 	});
 }
 
-function presentation(value: Record<string, unknown>): Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs"> {
-	const result: Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs"> = {};
+function presentation(value: Record<string, unknown>): Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs" | "attachments"> {
+	const result: Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs" | "attachments"> = {};
 	if (value.displayText !== undefined) {
 		if (typeof value.displayText !== "string") throw new Error("displayText must be a string");
 		result.displayText = value.displayText;
@@ -37,6 +37,20 @@ function presentation(value: Record<string, unknown>): Pick<InitialPrompt, "disp
 		result.sessionRefs = value.sessionRefs.map((ref: unknown) => {
 			if (!object(ref) || typeof ref.id !== "string" || !ref.id.trim() || typeof ref.title !== "string") throw new Error("Invalid session reference");
 			return { id: ref.id, title: ref.title };
+		});
+	}
+	if (value.attachments !== undefined) {
+		if (!Array.isArray(value.attachments)) throw new Error("attachments must be an array");
+		// Name and kind only. The bytes travel in `content`; nothing here is allowed to carry them.
+		result.attachments = value.attachments.map((file: unknown) => {
+			if (!object(file) || typeof file.name !== "string" || !file.name.trim()) throw new Error("Invalid attachment");
+			if (file.kind !== undefined && typeof file.kind !== "string") throw new Error("Invalid attachment kind");
+			if (file.mimeType !== undefined && typeof file.mimeType !== "string") throw new Error("Invalid attachment type");
+			return {
+				name: file.name,
+				...(file.kind === undefined ? {} : { kind: file.kind }),
+				...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
+			};
 		});
 	}
 	return result;

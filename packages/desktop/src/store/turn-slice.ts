@@ -20,7 +20,7 @@ export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; sessionId?: string } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }>; sessionId?: string } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
 		let sessionId = options.sessionId ?? get().activeSessionId;
 		const cwd = workspace?.path ?? scratchCwd;
@@ -47,6 +47,7 @@ export function turnSlice(set: Set, get: Get) {
 			...(options.displayText !== undefined ? { displayText: options.displayText } : {}),
 			...(options.skillRef ? { skillRef: options.skillRef } : {}),
 			...(options.sessionRefs?.length ? { sessionRefs: options.sessionRefs } : {}),
+			...(options.attachments?.length ? { attachments: options.attachments } : {}),
 		};
 		/*
 		 * 这一轮的表：接着走，还是从零起。
@@ -85,6 +86,7 @@ export function turnSlice(set: Set, get: Get) {
 				displayText: options.displayText,
 				skillRef: options.skillRef,
 				sessionRefs: options.sessionRefs,
+				attachments: options.attachments,
 			});
 			creating.set(epoch, creation);
 			try {
