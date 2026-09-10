@@ -1,0 +1,172 @@
+/* ---------------------------------------------------------------------------
+ * 流水行
+ *
+ * 一轮对话里，模型先想，然后动手，最后才说话。屏幕上对应三种行：思考、一段工具活、一条命令。
+ * 它们在读者眼里是同一件事的三个阶段，所以必须是同一种东西——而在这条规则之前，它们是三种：
+ *
+ *   思考行   靠 py-0.5 撑高，13px 图标，gap 6，运行时图标在脉动
+ *   工具行   靠 py-0.5 撑高，没有前置图标，chevron 在末尾，运行时文字扫光
+ *   命令行   min-h-9（36px），14px 图标，gap 8，运行时图标在转圈
+ *
+ * 三个高度、三个间距、三种「正在跑」的说法。连着排下来，每隔几行眼睛就要重新认一次这是什么，
+ * 这就是「乱」的全部来源——不是哪一行不好看，是它们互相不像。
+ *
+ * 这里只定一件事：**行的骨架**。里面放什么由各自决定。
+ * ------------------------------------------------------------------------- */
+
+.ly-flow-row {
+  /*
+   * 高度锁死，不由内容撑。
+   *
+   * 撑出来的高度会随字号、图标、有没有尾部装饰而变，于是同类的行彼此差一两个像素——单看不出来，
+   * 连着五行就是一条不齐的左边缘。锁成一个值，任何一行加东西都不会推动它的邻居。
+   */
+  display: flex;
+  align-items: center;
+  height: 24px;
+  min-width: 0;
+  border-radius: 6px;
+}
+
+/* 前置槽：只放图标，而且它一直在。 */
+.ly-flow-lead {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+}
+
+/*
+ * 展开箭头在最右边，不去顶掉前面那个图标。
+ *
+ * 它一度是「悬停时图标原地淡出、chevron 淡入」——省了一格宽度，代价是鼠标一放上去，那一行的身份
+ * 标志（在想 / 在动手 / 在跑命令）就没了，换成一个跟这一行是什么无关的箭头。图标说的是「这是什
+ * 么」，箭头说的是「点开还是收起」，两件事不该抢同一个位置。
+ *
+ * 平时不显形，鼠标进来或者已经展开时才出现——收起状态下一行安静的字里不该插一个常驻的控件。
+ */
+.ly-flow-chevron {
+  flex: none;
+  /* 行尾是它的位置：它管的是整行，不是行里的某一段。 */
+  margin-left: auto;
+  padding-left: 8px;
+  opacity: 0;
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-flow-row:hover .ly-flow-chevron,
+.ly-flow-row[data-open] .ly-flow-chevron {
+  opacity: 1;
+}
+
+.ly-flow-row[data-open] .ly-flow-chevron {
+  transform: rotate(90deg);
+}
+
+/* 标题不参与压缩：先被吃掉的永远该是摘要。 */
+.ly-flow-title {
+  flex: none;
+}
+
+/*
+ * 标题和摘要之间那个点。
+ *
+ * 一个 2px 的圆点，不是「·」这个字符——字符的大小和基线跟着字体走，换一种字体它就偏了。
+ */
+.ly-flow-dot {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  margin: 0 6px;
+  border-radius: 1px;
+  background: currentcolor;
+  opacity: 0.45;
+}
+
+/*
+ * 摘要按内容宽，不抢剩下的空间。
+ *
+ * 它一度是 `flex: 1 1 auto`，于是尾部那个「+12 -0」被顶到行的最右端，孤零零地飘在一片空白之后
+ * ——它是在补充这一行说的事，就该紧跟在那句话后面。行尾留给箭头，那个才是属于整行的控件。
+ */
+.ly-flow-summary {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 正在写的那一句要占满，字尾才有得可顶——见下面的 `data-follow-end`。 */
+.ly-flow-summary[data-follow-end] {
+  flex: 1 1 auto;
+}
+
+/*
+ * 正在写的那一句，字尾顶在右边。
+ *
+ * 左对齐的话，超出行宽之后看到的永远是开头——而开头早读完了。要看的是刚落下的那几个字。
+ * 内容取 `max-content` 且至少和行一样宽，靠 flex-end 推到右边，行把左边裁掉。
+ */
+.ly-flow-summary[data-follow-end] {
+  display: flex;
+  justify-content: flex-end;
+  text-overflow: clip;
+}
+
+.ly-flow-summary[data-follow-end] > * {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 100%;
+  text-align: start;
+}
+
+/* 尾部附注紧跟摘要，且和这一行的字垂直居中。 */
+.ly-flow-trail {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: 8px;
+}
+
+/*
+ * 一整轮的过程，是一块，所以行距只有一种。
+ *
+ * 用 `gap`，不用 margin。这一条是量出来的：靠 margin 对齐，只要某一行的容器里还有别的东西
+ * （一张交付卡片、一行操作），它的外边距一样而视觉间距就变了——上一版量的是容器的 margin，
+ * 报「统一」而屏幕上是 4px 和 10px 参差着。`gap` 由构造保证，子元素的外边距动不了它。
+ *
+ * 这里一度还想「让思考和它带出来的活贴得更紧」，只收窄配对内部，结果是 2px、10px 交替下来，
+ * 比原来更不像一个整体：眼睛会把大间隔当成分组边界，而那些边界并不存在。节奏要么统一，要么对应
+ * 真实结构；两个都不是的时候，统一永远是对的那个。
+ */
+[data-ly-turn-process] .ly-freeze > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 子元素自带的外边距会在 gap 之上再叠一层，得先清掉。 */
+[data-ly-turn-process] .ly-freeze > div > * {
+  margin-bottom: 0;
+}
+
+/* 折叠行到它下面第一条过程行，用的是同一个 4px——否则展开时那一行贴在过程上。 */
+[data-ly-turn-process][data-ly-turn-open] > .ly-flow-row {
+  margin-bottom: 4px;
+}
+
+/*
+ * 收起来的过程，读作「一句摘要，紧跟着它的答案」。
+ *
+ * 展开时它是一整段工作，和下文之间该有正常的段落间距；收起后它只是一行字，再留一整段的空隙，
+ * 那行字就飘在两块内容中间，哪一边都不属于。
+ */
+[data-ly-turn-process]:not([data-ly-turn-open]) {
+  margin-bottom: 2px;
+}

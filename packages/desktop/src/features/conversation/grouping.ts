@@ -498,3 +498,103 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 	}
 	return out;
 }
+
+/**
+ * 一整轮的过程，和它最后说出口的那句话，分开。
+ *
+ * 一轮读下来是「想 → 做 → 说」：模型先推理，然后调命令、读文件、跑技能，全部做完了才给出真正的
+ * 回答。前两步是过程——它值得看，但看过一次之后，翻回一段旧对话时四十行工具卡片挡在答案前面，
+ * 就只是噪音了。所以过程可以收成一行，而那句回答永远在外面。
+ *
+ * 「最后那句话」的定义就是字面意思：这一轮里**最后一条带正文的助手消息**。中间那些「我先看一下
+ * 配置」属于过程——它们是在解说自己正在做什么，不是结论。
+ *
+ * 在 Run 这一层分，不在渲染时分：这是一条关于转录形状的规则，规则性的东西要能单独测。
+ */
+export interface TurnBlock {
+	/** 一整轮的过程，收得起来。 */
+	kind: "process" | "plain";
+	runs: Run[];
+	/** 过程里有什么，用来写那一行摘要。 */
+	counts: { tools: number; thinking: number };
+	/**
+	 * 这一块属于第几轮。
+	 *
+	 * 「过程要不要收起来」问的是**这一轮跑完没有**，不是「这一块是不是最后一块」。模型一开始流式
+	 * 输出正文，过程块就不再排在末尾了——按位置判会让折叠行在回合中途冒出来，把正在进行的工作收
+	 * 起来，而那正是人盯着看的时候。
+	 */
+	turn: number;
+}
+
+/** 这一条 run 是不是「过程」——相对于「最后说出口的那句话」。 */
+function isProcess(run: Run): boolean {
+	if (run.kind === "tools" || run.kind === "hiccup" || run.kind === "compaction") return true;
+	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
+	return run.kind === "message" && run.lead === true;
+}
+
+/** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
+function opensBlock(run: Run): boolean {
+	return run.kind === "command" || (run.kind === "message" && run.message.role === "user");
+}
+
+export function turnBlocks(list: Run[]): TurnBlock[] {
+	const out: TurnBlock[] = [];
+	let turn = 0;
+	const plain = (run: Run) => out.push({ kind: "plain", runs: [run], counts: { tools: 0, thinking: 0 }, turn });
+
+	let at = 0;
+	while (at < list.length) {
+		if (opensBlock(list[at])) {
+			turn++;
+			plain(list[at++]);
+			continue;
+		}
+		/*
+		 * 从这里到这一轮结束，先框出来，再决定哪一段是过程。
+		 *
+		 * 边界是下一次「人开的口」——不是下一条助手消息：一轮里助手会说很多次话。
+		 */
+		let end = at;
+		while (end < list.length && !opensBlock(list[end])) end++;
+
+		/*
+		 * 最后一条带正文的助手消息，就是这一轮的回答。它和它后面的一切都留在外面。
+		 *
+		 * 找不到（还在跑、或者这一轮只有工具活）时，过程就一直延伸到边界——正在跑的那一轮本来就
+		 * 该全程看得见，而 `TurnProcess` 只在收起时才折叠。
+		 */
+		let answer = end;
+		for (let n = end - 1; n >= at; n--) {
+			const run = list[n];
+			if (run.kind === "message" && run.message.role === "assistant" && !isProcess(run)) {
+				answer = n;
+				break;
+			}
+		}
+
+		/*
+		 * 过程之间夹着的助手解说（「我先看一下配置」）也归过程。
+		 *
+		 * 它们是在说自己正在做什么，不是结论——所以整段按位置原样收进去，只有计数只算真正的过程行。
+		 */
+		const body = list.slice(at, answer);
+		const process = body.filter(isProcess);
+		if (process.length > 0) {
+			out.push({
+				kind: "process",
+				runs: body,
+				counts: {
+					tools: process.reduce((n, run) => n + (run.kind === "tools" ? run.calls.length : 0), 0),
+					thinking: process.filter((run) => run.kind === "message" && run.lead === true).length,
+				},
+				turn,
+			});
+		} else for (const run of body) plain(run);
+
+		for (let n = answer; n < end; n++) plain(list[n]);
+		at = end;
+	}
+	return out;
+}

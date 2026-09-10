@@ -1,33 +1,28 @@
 import { translate } from "../../i18n/translate.ts";
 import { Brain } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 
+import { FlowRow } from "./FlowRow.tsx";
 import { Markdown } from "./Markdown.tsx";
+import { motionReduced } from "../../ui/motion/reduced.ts";
 import { thinkingRuns } from "./thinking-ticker.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
-
-/** How deep the ticker's mask goes at each end while the text is arriving. */
-const FADE = 24;
-/** Space between the two copies of a finished line reading itself out — see `ScrollText`. */
-const LOOP_GAP = 44;
-/** Pixels per second for that reading. Slow enough to follow a sentence. */
-const SPEED = 46;
 
 /**
  * How fast the line writes itself out, in characters per second.
  *
- * The line used to have no pace of its own: whatever arrived was put into the DOM whole, and a
- * CSS transition slid the track to its new end in a fixed span of time. That makes the speed a
- * function of how much turned up at once — a provider that flushes six hundred characters in one
- * frame threw them past in the same fraction of a second as it took to ease six. The bigger the
- * batch the faster it went, which is exactly backwards from reading.
+ * The line has no pace of its own unless it is given one, and without it the speed becomes a
+ * function of how much turned up at once: a provider that flushes six hundred characters in one
+ * frame throws them past in the same instant it takes to ease six. Measured against a real relay —
+ * 1024 frames of one turn — the summary changed three times. Three paragraphs, each landing whole.
+ * That is not printing, it is three jump cuts.
  *
- * So the text is revealed a character at a time, and the rate comes from how far behind the line
- * is. A floor, because a trickle should still look deliberate rather than stall; a ceiling,
- * because past roughly three or four characters a frame there is nothing to read, only a blur
- * travelling left. Between them it is "clear the backlog in `catchUp` seconds", which keeps a
- * steady stream about two thirds of a second behind the model — close enough to feel live, far
- * enough behind to actually be writing.
+ * So the text is revealed a character at a time and the rate comes from how far behind the line is.
+ * A floor, because a trickle should still look deliberate rather than stall; a ceiling, because
+ * past roughly three or four characters a frame there is nothing to read, only a blur travelling
+ * left. Between them it is "clear the backlog in `catchUp` seconds", which keeps a steady stream
+ * about two thirds of a second behind the model — close enough to feel live, far enough behind to
+ * actually be writing.
  */
 const TYPE = {
 	/** Characters per second when there is barely anything waiting. */
@@ -36,55 +31,65 @@ const TYPE = {
 	ceiling: 210,
 	/** Seconds allowed to absorb whatever is waiting; the rate follows from it. */
 	catchUp: 0.9,
-	/**
-	 * The ceiling once the reasoning has stopped arriving.
-	 *
-	 * Finishing at reading pace would leave the line typing under work that has already moved on.
-	 * Cutting to the end instead would be a jump. So it accelerates out.
-	 */
-	finish: 520,
 } as const;
 
 /**
- * The model's reasoning, behind one line that is the reasoning.
+ * 模型的推理，收在一条流水行里。
  *
- * The line used to say 「思考过程」 with a chevron. The words only said that reasoning existed,
- * which the icon already says, and the chevron was a second control on a line that is itself
- * the control. What a reader wants from the line is what the model is thinking, so that is
- * what it shows: while the reasoning arrives it writes itself out a character at a time, the
- * newest words entering at the right and the older ones sliding off the left under a fade; once
- * it has finished, the line holds its opening words and reads the rest out on hover, the way a
- * long title in the sidebar does.
+ * 和它下面那段工具活、那条命令是同一个骨架（见 `FlowRow`）：同样的 16px 图标槽、同样的行高、
+ * 一个图标加一句话，没有标签。一轮对话读下来是「想 → 做 → 说」，这三步在屏幕上必须长得像三步，
+ * 而不是像三个互不相干的控件。
  *
- * Clicking the line unfolds the whole text beneath it, as it always has. Once opened it stays
- * open, including as the text keeps arriving.
+ * 运行中它自己把字写出来——这是它「在动」的说法，所以不再另外加扫光：一行上只有一种动效。写到
+ * 一半的字尾被顶在右边，看到的永远是最新的那几个字。停下来之后它就是一条普通的收起行：开头那句
+ * 话，长了省略号。点开是全文。
  */
 export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string; redacted: boolean; live?: boolean; stateKey?: string }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
+	const runs = useMemo(() => thinkingRuns(text), [text]);
+	const span = useRef<HTMLSpanElement>(null);
+	/*
+	 * 关掉动效时不写字，直接给最新的一句。
+	 *
+	 * 这里没有「时长可以缩短」的东西，只有「帧可以不跑」——正是 `motionReduced` 那份注释说的情形。
+	 */
+	const typing = live === true && !motionReduced();
+	useTyped(runs, typing, span);
 
 	if (!text && !redacted) return null;
 
+	/*
+	 * 正在写的时候，React 渲染空字符串，这个 span 归帧循环管。
+	 *
+	 * 在这里渲染当前那一句的话，下一个 token 到达时 React 会把循环刚写进去的字覆盖掉。
+	 */
+	const settled = live ? (typing ? "" : runs[runs.length - 1] ?? "") : runs[0] ?? text;
+
 	return (
 		<div data-ly-thinking="" className="mb-2.5 last:mb-0">
-			{/* `ly-scroll` is what sets a finished line's read-back moving on hover — see styles.css. */}
-			<button
-				type="button"
-				disabled={redacted}
-				aria-label={translate("thinking.process")}
-				aria-expanded={open}
-				onClick={() => setOpen((v) => !v)}
-				/*
-				 * `text-label`，和 `ToolGroup` 那一行一样——这两个是同一种东西。
-				 *
-				 * 一条工具行和一条思考行在文稿里是并排出现的同类：一行灰字、点开有内容。它们过去
-				 * 一个 13px 一个 12px，行高就差 1.5px，于是连着几条摘要排下来，行距一宽一窄，看着
-				 * 像是没对齐。外边距早就是一样的 `mb-2.5` 了，不齐的是字本身。
-				 */
-				className="ly-scroll flex max-w-full items-center gap-1.5 rounded-md py-0.5 text-label text-ink-faint transition-colors hover:text-ink-muted"
-			>
-				<Brain size={13} strokeWidth={1.8} className={`shrink-0 ${live ? "ly-pulse" : ""}`} />
-				{redacted ? translate("thinking.redacted") : <Ticker text={text} live={live === true} />}
-			</button>
+			{/*
+			 * 不再写「思考过程 ·」。
+			 *
+			 * 那四个字说的是「这里有推理」，而左边那个脑子图标已经说了同一件事；它旁边的工具行是
+			 * 「🔧 更新清单、列出目录」——图标加一句话，没有标签。思考行多出一个标签和一个点，就
+			 * 变成了「标签：取值」的表单样子，和自己的兄弟行不是同一种东西，连着排下来那一块就散了。
+			 *
+			 * 读者要从这一行拿到的是模型在想什么，那就让整行都是它在想什么。
+			 */}
+			<FlowRow
+				icon={<Brain size={13} strokeWidth={1.8} />}
+				summary={
+					redacted ? (
+						translate("thinking.redacted")
+					) : (
+						<span ref={span}>{settled}</span>
+					)
+				}
+				followEnd={typing}
+				open={open}
+				{...(redacted ? {} : { onToggle: () => setOpen((v) => !v) })}
+				label={translate("thinking.process")}
+			/>
 
 			{open && !redacted && (
 				<div className="ly-enter mt-1.5 border-l-2 border-line pl-3">
@@ -101,213 +106,58 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 }
 
 /**
- * The reasoning on one line, typing itself out and then holding still.
+ * 最新的那一句，一个字一个字写进 DOM。
  *
- * Two motions, and the handover between them is the whole difficulty. While the text is arriving
- * a frame loop owns the line: it reveals a few more characters, measures how much of the track no
- * longer fits, and moves it left by exactly that — so the character being written sits at the
- * right edge and everything before it has slid under the fade. Once the reasoning stops arriving
- * the loop keeps going until it has caught up, and only then hands over: the line rests at its
- * beginning and reads itself back on hover, the same motion and the same CSS as a long title in
- * the sidebar.
+ * 全程不经过 React，这是重点。每个 token 本来就已经重渲染这个组件一次；为了写一个 DOM 已经知道
+ * 的字符串，每帧再多跑一遍 React，正是 ticker 和 stutter 的区别。
  *
- * That order matters. Switching the moment the model stops would swap a line typed two thirds of
- * the way through for its own full text, which is a jump — and this component is remounted for
- * every stretch of reasoning in a turn, so on a long turn that would be forty of them.
- *
- * Nothing about the typing goes through React. Every token re-renders this component already, and
- * asking for a second pass per token to apply a number the DOM already knows is the difference
- * between a ticker and a stutter — so React renders empty spans while the line is live and the
- * frame loop writes their text, and only the handover to the finished state is state.
+ * 循环通过 ref 读 `runs`，不通过依赖。依赖文本的 effect 会在每个 token 被拆掉重建，而重建正是丢帧、
+ * 让行首反复弹回去的地方。
  */
-function Ticker({ text, live }: { text: string; live: boolean }) {
-	const box = useRef<HTMLSpanElement>(null);
-	const track = useRef<HTMLSpanElement>(null);
-	const runs = useMemo(() => thinkingRuns(text), [text]);
-	/**
-	 * Whether the line has finished writing itself out.
-	 *
-	 * Starts true for anything that was never live — a reopened session is hundreds of finished
-	 * lines, and none of them should type themselves out on the way in.
-	 */
-	const [done, setDone] = useState(!live);
-	const [loop, setLoop] = useState<{ distance: number; duration: number } | null>(null);
-
-	/*
-	 * What the frame loop reads, kept off the render path.
-	 *
-	 * The loop must see the newest text without being torn down and rebuilt for it: an effect that
-	 * depended on `runs` would restart on every token, and restarting is where a frame's worth of
-	 * position gets lost.
-	 */
-	const state = useRef({ runs, total: 0, shown: 0, live, held: false });
+function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement | null>): void {
+	const state = useRef({ runs, total: 0, shown: 0 });
 	state.current.runs = runs;
 	state.current.total = runs.reduce((n, run) => n + run.length, 0);
-	state.current.live = live;
 
-	/** Put `count` characters on the line, spending them run by run. */
-	const reveal = (count: number) => {
-		const spans = track.current?.firstElementChild?.children;
-		if (!spans) return;
-		let left = count;
-		for (let at = 0; at < spans.length; at++) {
-			const run = state.current.runs[at] ?? "";
-			const take = Math.max(0, Math.min(left, run.length));
-			const span = spans[at] as HTMLElement;
-			const next = run.slice(0, take);
-			if (span.textContent !== next) span.textContent = next;
-			// A run that has not started must not hold its gap open, or the line begins indented.
-			span.style.display = take > 0 ? "" : "none";
-			left -= run.length;
-		}
-	};
-
-	/** Move the track so the character being written sits at the right edge. */
-	const follow = () => {
-		const outer = box.current;
-		const inner = track.current;
-		if (!outer || !inner) return;
-		const overflow = Math.max(0, inner.offsetWidth - outer.clientWidth);
-		// Held under the pointer: the reader is looking at something, and the line stops for them.
-		if (!state.current.held) inner.style.transform = `translateX(${-overflow}px)`;
-		const fade = overflow > 0 ? `${FADE}px` : "0px";
-		outer.style.setProperty("--ly-fade-left", fade);
-		outer.style.setProperty("--ly-fade-right", fade);
-	};
-
-	// The frame loop: reveal, measure, move. Runs only while the line is still writing.
 	useEffect(() => {
-		if (done) return;
+		if (!live) return;
 		let raf = 0;
 		let last = performance.now();
 		const step = (now: number) => {
-			// Clamped, so a backgrounded tab does not come back and spend its whole absence in one frame.
-			const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+			// 夹住，免得一个切到后台的窗口回来时把缺席的那段时间一帧花完。
+			const delta = Math.min(0.1, Math.max(0, (now - last) / 1000));
 			last = now;
 			const here = state.current;
 			if (here.shown > here.total) here.shown = here.total;
 			const backlog = here.total - here.shown;
 			if (backlog > 0) {
-				const ceiling = here.live ? TYPE.ceiling : TYPE.finish;
-				const rate = Math.min(ceiling, Math.max(TYPE.floor, backlog / TYPE.catchUp));
-				here.shown = Math.min(here.total, here.shown + rate * dt);
-				reveal(Math.floor(here.shown));
-				follow();
-			} else if (!here.live) {
-				// Caught up, and nothing more is coming: hand over with the same text already on screen.
-				reveal(here.total);
-				follow();
-				setDone(true);
-				return;
+				const rate = Math.min(TYPE.ceiling, Math.max(TYPE.floor, backlog / TYPE.catchUp));
+				here.shown = Math.min(here.total, here.shown + rate * delta);
+				const next = revealed(here.runs, here.shown);
+				const element = span.current;
+				if (element && element.textContent !== next) element.textContent = next;
 			}
 			raf = requestAnimationFrame(step);
 		};
 		raf = requestAnimationFrame(step);
 		return () => cancelAnimationFrame(raf);
-	}, [done]);
+	}, [live, span]);
+}
 
-	/*
-	 * The pointer holds a live line still.
-	 *
-	 * Landing on a line that is scrolling itself away is how you lose the sentence you were reading,
-	 * so the pointer stops the movement — the text carries on being written, it just stops sliding
-	 * out from under you. Letting go glides back to the end rather than snapping, which is the one
-	 * moment this line wants a transition.
-	 *
-	 * Native listeners rather than React's: a hover that went through state would re-render this
-	 * component, and while the line is live its spans are written by hand and rendered empty.
-	 */
-	useLayoutEffect(() => {
-		if (done) return;
-		const line = box.current?.closest(".ly-scroll") as HTMLElement | null;
-		if (!line) return;
-		const here = state.current;
-		const hold = () => {
-			here.held = true;
-		};
-		const release = () => {
-			here.held = false;
-			const inner = track.current;
-			if (!inner) return;
-			inner.style.transition = "transform 420ms var(--ly-e-out)";
-			window.setTimeout(() => inner.style.removeProperty("transition"), 460);
-		};
-		line.addEventListener("pointerenter", hold);
-		line.addEventListener("pointerleave", release);
-		return () => {
-			line.removeEventListener("pointerenter", hold);
-			line.removeEventListener("pointerleave", release);
-			here.held = false;
-		};
-	}, [done]);
-
-	/*
-	 * The finished line: how far it has to travel to read itself out, and how long that should take.
-	 *
-	 * Measured rather than assumed, and re-measured when the column changes width — a panel
-	 * opening, the sidebar being dragged.
-	 */
-	useLayoutEffect(() => {
-		if (!done) return;
-		const outer = box.current;
-		const inner = track.current;
-		if (!outer || !inner) return;
-		/*
-		 * The marks the typing left behind, cleared before the other motion starts.
-		 *
-		 * An inline transform and a pair of mask depths outrank the classes that draw the finished
-		 * line, so leaving them would pin it wherever the typing stopped, permanently.
-		 */
-		inner.style.removeProperty("transform");
-		inner.style.removeProperty("transition");
-		outer.style.removeProperty("--ly-fade-left");
-		outer.style.removeProperty("--ly-fade-right");
-		const measure = () => {
-			// One copy's width against the box: the copies are identical, so the first will do.
-			const width = Math.round((inner.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0);
-			const overflow = width - outer.clientWidth;
-			// Constant speed rather than constant duration, so a slightly-too-long line does not
-			// crawl while a very long one races. The dead band keeps a sub-pixel wobble from
-			// re-rendering on every observer callback.
-			const distance = width + LOOP_GAP;
-			const duration = Math.max(2200, Math.round((distance / SPEED) * 1000));
-			setLoop((prev) => {
-				if (overflow <= 1) return prev === null ? prev : null;
-				return prev && Math.abs(prev.distance - distance) <= 1 ? prev : { distance, duration };
-			});
-		};
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(outer);
-		return () => observer.disconnect();
-	}, [done, runs]);
-
-	const looping = done && loop !== null;
-	const copy = (hidden: boolean) => (
-		<span aria-hidden={hidden || undefined} className="ly-think-runs">
-			{runs.map((run, index) => (
-				// Empty while the line is live: the frame loop owns this text until it hands over.
-				<span key={index}>{done ? run : null}</span>
-			))}
-		</span>
-	);
-
-	return (
-		<span
-			ref={box}
-			aria-hidden
-			className={`ly-think-ticker ${looping ? "ly-fade-edge" : ""}`}
-			style={
-				looping
-					? ({ "--ly-marquee": `-${loop.distance}px`, "--ly-scroll": `${loop.duration}ms` } as React.CSSProperties)
-					: undefined
-			}
-		>
-			<span ref={track} className={looping ? "ly-marquee-track" : "ly-think-track"}>
-				{copy(false)}
-				{/* The trailing copy is decoration; the line is already hidden from readers. */}
-				{looping && copy(true)}
-			</span>
-		</span>
-	);
+/**
+ * 写到第 `shown` 个字时，屏幕上是哪一句、写了多少。
+ *
+ * 句子按顺序消耗，所以就是这个计数落在的那一句。正好落在边界上时保持上一句，而不是开始下一句：
+ * 还没开始的句子渲染出来是空串，一行摘要在两段之间闪一下空白，读起来像是它死了。
+ */
+function revealed(runs: string[], shown: number): string {
+	let left = Math.floor(shown);
+	let held = "";
+	for (const run of runs) {
+		if (left <= 0) break;
+		if (left < run.length) return run.slice(0, left);
+		left -= run.length;
+		held = run;
+	}
+	return held;
 }

@@ -1,4 +1,5 @@
-import { ChevronRight } from "lucide-react";
+import { Wrench } from "lucide-react";
+import { FlowRow } from "./FlowRow.tsx";
 import { useLayoutEffect, useRef, useState } from "react";
 import { translate, type MessageKey } from "../../i18n/index.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
@@ -67,50 +68,34 @@ export function ToolGroup({
 		 * checkable from outside, against the rows actually on screen.
 		 */
 		<div className="mb-2.5" data-ly-run={running ? "running" : "done"}>
-			<button
-				type="button"
-				onClick={() => {
-					setVisited(true);
-					setOpen((value) => !value);
-				}}
-				aria-expanded={open}
-				className="ly-scroll group/run flex w-full items-center gap-1.5 rounded-md py-0.5 text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
-			>
-				{/*
-				 * The line itself says it is running — a highlight glides along it — so there is no
-				 * spinner here. One mark per statement: a spinner beside a moving line is the same
-				 * fact told twice, and the pair of them is what made a long run feel busy.
-				 *
-				 * Two elements, because they are two animations — and in this order, because only
-				 * one of them may restart.
-				 *
-				 * `animation` is one property: a second class does not add to the first, it replaces
-				 * it. So the glide and the entrance cannot share a span.
-				 *
-				 * Which one gets the key is the whole of how this reads. The key was on the outer
-				 * span, so every time the sentence gained a clause — "读取文件 8 个" becoming "读取
-				 * 文件 9 个" — React replaced the element the glide was running on, and the highlight
-				 * jumped back to the start. During a busy run that is several restarts a second,
-				 * which is a flicker, not a sweep. The glide belongs to the line, which persists for
-				 * as long as the run does; the fade belongs to the words, which are what changed.
-				 */}
-				<span className={`min-w-0 truncate ${running ? "ly-glide" : ""}`}>
+			{/*
+			 * 前置图标是这一行的状态：转着的扳手是「正在动手」，停下的是「做完了」。它和思考行、
+			 * 命令行共用同一个 16px 的槽，所以三种行的左边缘是一条线——见 `FlowRow`。
+			 *
+			 * 「正在跑」只由摘要上那道光说，图标不跟着转。同一件事说两遍，是长任务让人觉得吵的原因。
+			 */}
+			<FlowRow
+				icon={<Wrench size={13} strokeWidth={1.8} />}
+				summary={
+					// key 在这一层：变的是这些字，而光属于外面那一行。见 `FlowRow` 里的长注释。
 					<span key={summary} className="ly-fade-in">
 						{summary}
 					</span>
-				</span>
-				{(added ?? 0) + (removed ?? 0) > 0 && (
-					<span className="shrink-0 font-mono text-caption">
-						<span className="text-ok/80">+{added ?? 0}</span> <span className="text-danger/80">-{removed ?? 0}</span>
-					</span>
-				)}
-				<ChevronRight
-					size={12}
-					strokeWidth={2}
-					className="shrink-0 opacity-0 transition-all duration-[var(--ly-t-base)] group-hover/run:opacity-100"
-					style={open ? { transform: "rotate(90deg)", opacity: 1 } : undefined}
-				/>
-			</button>
+				}
+				trailing={
+					(added ?? 0) + (removed ?? 0) > 0 ? (
+						<span className="font-mono text-caption">
+							<span className="text-ok/80">+{added ?? 0}</span> <span className="text-danger/80">-{removed ?? 0}</span>
+						</span>
+					) : undefined
+				}
+				running={running}
+				open={open}
+				onToggle={() => {
+					setVisited(true);
+					setOpen((value) => !value);
+				}}
+			/>
 
 			{/* `ly-freeze`: an open group's height follows what fits, so a boundary being dragged
 			    keeps changing it — and an eased height would trail the pointer. See `styles.css`. */}
@@ -182,4 +167,15 @@ const KIND: Record<string, MessageKey> = {
 	task: "tools.delegate",
 	preview: "tools.preview",
 	symbol: "tools.symbol",
+	/*
+	 * 技能、学习、回忆、语言服务、问一句——这五个从前不在表里，一律落到「使用 …」。
+	 *
+	 * 于是一行摘要读作「使用 3 个」，而那三个各是各的事。表里缺一项的代价不是报错，是那一行悄悄
+	 * 变成一句废话——`describeRun` 的兜底本来就是给真正没见过的工具准备的，不是给自家工具的。
+	 */
+	skill: "tools.skill",
+	learn: "tools.learn",
+	recall: "tools.recall",
+	lsp: "tools.lsp",
+	ask_user: "tools.askUser",
 };
