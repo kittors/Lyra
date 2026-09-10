@@ -6,7 +6,31 @@
  * a message is not being sent correctly, the other when a reply is not being read correctly.
  */
 
-import type { Message, ToolResultMessage, ToolSpec } from "../types.ts";
+import type { AssistantMessage, Message, ToolResultMessage, ToolSpec } from "../types.ts";
+
+/**
+ * Who this request is going to, so a handle from someone else can be told apart from our own.
+ *
+ * Every assistant message records the provider and model that produced it. A reasoning item id is
+ * that provider's private handle on its own chain of thought — it means nothing to anyone else, and
+ * is rejected rather than ignored when replayed to them.
+ */
+export interface ResponsesHome {
+	provider: string;
+	model: string;
+}
+
+/**
+ * Whether this turn was written by the model the request is going to.
+ *
+ * Missing provenance counts as ours: logs written before those fields existed have no opinion, and
+ * dropping a handle we cannot prove is foreign would break the upstreams that require their own
+ * reasoning back (see the `reasoning_text` note below).
+ */
+function fromHome(message: AssistantMessage, home: ResponsesHome | undefined): boolean {
+	if (!home || !message.provider || !message.model) return true;
+	return message.provider === home.provider && message.model === home.model;
+}
 
 /**
  * One tool result, in the shape Responses wants.
@@ -48,7 +72,7 @@ function functionCallOutput(message: ToolResultMessage): unknown {
  * removed the call — keeps its place in the list rather than being dropped: it is history, and
  * inventing a call to hang it on would be worse than passing it through.
  */
-export function toResponsesInput(messages: Message[]): unknown[] {
+export function toResponsesInput(messages: Message[], home?: ResponsesHome): unknown[] {
 	const input: unknown[] = [];
 
 	for (let index = 0; index < messages.length; index++) {
@@ -88,9 +112,29 @@ export function toResponsesInput(messages: Message[]): unknown[] {
 				if (!answers.has(next.toolCallId)) answers.set(next.toolCallId, next);
 			}
 			const paired = new Set<ToolResultMessage>();
+			const own = fromHome(message, home);
 
 			for (const c of message.content) {
 				if (c.type === "thinking") {
+					/*
+					 * Someone else's reasoning does not go back at all.
+					 *
+					 * Not the id — the whole block. The id is unusable by definition, and the text is a
+					 * different model's chain of thought, which this one has no business resuming. Both
+					 * halves used to go anyway, and both were rejected: the id as
+					 * `Invalid 'input[14].id' … invalid_value`, and the text — once the id had been
+					 * stripped for being stale — as
+					 * `Invalid 'input[32].content': array too long. Expected an array with maximum
+					 * length 0`, because a reasoning item may only carry `content` on the endpoint that
+					 * wrote it. Neither is retryable: the history is the request, so every turn after a
+					 * model change failed the same way and the conversation could not be continued at
+					 * all.
+					 *
+					 * The transcript still holds the text and still shows it; this is only about what
+					 * crosses the wire. The Anthropic encoder has always done exactly this with a
+					 * thinking block it cannot replay.
+					 */
+					if (!own) continue;
 					/*
 					 * With the provider's own item id, replayed exactly as it arrived. That id is what
 					 * lets the provider pick its own chain of thought back up, and a summary offered in
@@ -136,11 +180,21 @@ export function toResponsesInput(messages: Message[]): unknown[] {
 					});
 				} else if (c.type === "text") {
 					if (!c.text) continue;
+					/*
+					 * No `id`, deliberately.
+					 *
+					 * The provider's own item id was replayed here, and it bought nothing: on an input
+					 * item of type `message` the id is optional, exists only to reference an item the
+					 * provider is storing, and we store our own sessions (`store: false`). What it cost
+					 * was every request that reached a different endpoint than the one that issued it —
+					 * a relay routed to another upstream, a model changed mid-conversation — coming back
+					 * as `Invalid 'input[14].id' … Expected an ID that contains letters, numbers,
+					 * underscores, or dashes`. The text is what matters and the text is all that goes.
+					 */
 					input.push({
 						type: "message",
 						role: "assistant",
 						content: [{ type: "output_text", text: c.text }],
-						...(c.signature ? { id: c.signature } : {}),
 					});
 				} else {
 					input.push({

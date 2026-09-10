@@ -207,3 +207,91 @@ test("sanitizeToolPairing repairs broken tool calls across all three wire format
 	assert.deepEqual(ccToolCalls, ["call_1", "call_2"]);
 	assert.deepEqual(ccTools, ["call_1", "call_2"]);
 });
+
+/*
+ * 换了模型之后，上一个模型的私有句柄一个都不能回放。
+ *
+ * 两条真实报错，来自同一段历史：
+ *   Invalid 'input[14].id': 'msg-2026…'. Expected an ID that contains letters, numbers,
+ *     underscores, or dashes …
+ *   Invalid 'input[32].content': array too long. Expected an array with maximum length 0 …
+ * 前者是助手段落上的 item id 被原样发了回去，后者是句柄被摘掉之后剩下的推理正文被当作
+ * `reasoning.content` 发了回去。两者都存在会话日志里，所以每一轮都会重犯——重试没用，切回原模型
+ * 也没用，对话直接作废。
+ */
+function turn(provider: string, model: string): AssistantMessage {
+	return {
+		role: "assistant",
+		content: [
+			{ type: "thinking", thinking: "让我想想", signature: "rs-2026" },
+			{ type: "text", text: "好的。", signature: "msg-2026091002063385" },
+		],
+		api: "openai-responses",
+		provider,
+		model,
+		usage: emptyUsage(),
+		stopReason: "end",
+		timestamp: 0,
+	} as AssistantMessage;
+}
+
+const askThen = (after: AssistantMessage): Message[] => [
+	{ role: "user", content: [{ type: "text", text: "hi" }] } as Message,
+	after,
+	{ role: "user", content: [{ type: "text", text: "继续" }] } as Message,
+];
+
+test("助手段落从不带 id 出门", () => {
+	// 这个 id 在 input item 上是可选的，只用来引用供应商替我们存着的条目——而我们 `store: false`。
+	// 它换不来任何东西，却让每一次「中转换了上游」都变成一次 400。
+	const wire = toResponsesInput(askThen(turn("relay", "gemini-3.6-flash")), {
+		provider: "relay",
+		model: "gemini-3.6-flash",
+	}) as Record<string, unknown>[];
+	for (const item of wire) {
+		if (item.type === "message") assert.equal(item.id, undefined, "message 条目不该带 id");
+	}
+});
+
+test("换了模型，上一个模型的推理块整块不发", () => {
+	const wire = toResponsesInput(askThen(turn("relay", "gemini-3.6-flash")), {
+		provider: "relay",
+		model: "gpt-5.6-sol",
+	}) as Record<string, unknown>[];
+	assert.equal(wire.filter((item) => item.type === "reasoning").length, 0, "别人的思维链，一个字都不该回放");
+	// 正文照常送达：换掉的是模型，不是这段对话。
+	assert.ok(JSON.stringify(wire).includes("好的。"));
+});
+
+test("同一个模型自己的推理，没有 id 也要带回去", () => {
+	/*
+	 * DeepSeek 一类的上游要求把它产出的 thinking 原样带回来，否则 400。59f4093 修的就是这个，
+	 * 上面那条不能把它打回去——区别在于「是不是同一个模型写的」。
+	 */
+	const own: AssistantMessage = {
+		role: "assistant",
+		content: [{ type: "thinking", thinking: "推理正文" }, { type: "text", text: "答案" }],
+		api: "openai-responses",
+		provider: "ds",
+		model: "deepseek-v4",
+		usage: emptyUsage(),
+		stopReason: "end",
+		timestamp: 0,
+	} as AssistantMessage;
+	const wire = toResponsesInput(askThen(own), { provider: "ds", model: "deepseek-v4" });
+	assert.ok(JSON.stringify(wire).includes("reasoning_text"));
+});
+
+test("老日志没有溯源字段时，保守放行而不是误删", () => {
+	// 那些字段是后加的。没有证据说它是别人的，就不能当成别人的——否则会打回 DeepSeek 那条。
+	const legacy = {
+		role: "assistant",
+		content: [{ type: "thinking", thinking: "旧", signature: "rs-old" }],
+		api: "openai-responses",
+		usage: emptyUsage(),
+		stopReason: "end",
+		timestamp: 0,
+	} as AssistantMessage;
+	const wire = toResponsesInput(askThen(legacy), { provider: "relay", model: "m" }) as Record<string, unknown>[];
+	assert.equal(wire.filter((item) => item.type === "reasoning").length, 1);
+});

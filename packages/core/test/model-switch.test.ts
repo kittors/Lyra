@@ -85,3 +85,37 @@ test("a message with no handles to strip is not copied", () => {
 	const plain = [user("你好"), thought("没有句柄")];
 	assert.equal(stripStaleHandles(plain, 2), plain);
 });
+
+/*
+ * 文本块和工具调用块也带着句柄，而这里一度只洗推理块。
+ *
+ * `openai-responses.ts` 把上游的 item id 存在三种块上，不只是推理块。于是一份「洗干净」的历史
+ * 仍然带着 `id: "msg-2026…"` 发出去，被整个拒绝：`Invalid 'input[14].id'`。因为那个 id 就存在
+ * 会话日志里，重试和切回原模型都清不掉，对话从此不能继续。
+ */
+test("一段文本上的句柄也要洗掉", () => {
+	const messages = [
+		user("你好"),
+		{
+			role: "assistant",
+			content: [{ type: "text", text: "答案", signature: "msg-2026091002063385" }],
+		} as Message,
+	];
+	const block = (stripStaleHandles(messages, 2)[1] as { content: Record<string, unknown>[] }).content[0];
+	assert.equal(block.signature, undefined);
+	assert.equal(block.text, "答案", "正文要留下——屏幕上显示的就是它");
+});
+
+test("工具调用洗掉 item id，但保留配对用的 call_id", () => {
+	const messages = [
+		user("你好"),
+		{
+			role: "assistant",
+			content: [{ type: "toolCall", id: "call_abc", name: "bash", arguments: {}, signature: "fc-2026" }],
+		} as Message,
+	];
+	const block = (stripStaleHandles(messages, 2)[1] as { content: Record<string, unknown>[] }).content[0];
+	assert.equal(block.signature, undefined);
+	assert.equal(block.id, "call_abc", "结果靠它找到自己的调用，掉了这条历史就配不上对");
+	assert.equal(block.name, "bash");
+});

@@ -58,7 +58,9 @@ async function* streamResponses(
 
 	const body: Record<string, unknown> = {
 		model: model.modelId,
-		input: toResponsesInput(sanitizeToolPairing(context.messages)),
+		// Told who it is going to, so a handle written by a different model is left behind rather
+		// than replayed to one that will reject it. See `fromHome`.
+		input: toResponsesInput(sanitizeToolPairing(context.messages), { provider: provider.id, model: model.modelId }),
 		stream: true,
 		// Sessions live in Lyra's own store, not on the provider.
 		store: false,
