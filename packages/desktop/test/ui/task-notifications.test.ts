@@ -7,6 +7,7 @@ import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { WindowControls } from "../../src/app/window/WindowControls.tsx";
 import { useTrayCommands } from "../../src/app/window/tray-commands.ts";
 import { Toaster } from "../../src/features/toast/Toaster.tsx";
+import { LayoutProvider } from "../../src/app/layout.tsx";
 import type { LyraApi } from "../../electron/ipc-types.ts";
 import { click, mount } from "../helpers/mount.ts";
 
@@ -85,7 +86,8 @@ test("cold tray commands use the same ID lookup as the toast action", async () =
 test("task toasts offer one action and keep the source session ID", async () => {
 	useApp.getState().notify("同名任务执行失败", "error", "b");
 	const open = mock.method(useApp.getState(), "openSessionById", async () => true);
-	const view = await mount(h(Toaster));
+	// 提示条在应用里就挂在 `LayoutProvider` 里面（App.tsx），它要按侧边栏宽度让开位置。
+	const view = await mount(h(LayoutProvider, null, h(Toaster)));
 	try {
 		const action = document.querySelector<HTMLButtonElement>('[aria-label="跳转到该会话"]');
 		assert.ok(action);

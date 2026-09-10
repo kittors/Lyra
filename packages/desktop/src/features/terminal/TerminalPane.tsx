@@ -33,7 +33,6 @@ import { bridge } from "../../services/index.ts";
  * decides one thing only: where a shell starts when you ask for a new one.
  */
 export function TerminalPane() {
-	const workspace = useApp((s) => s.workspace);
 	const appearance = useApp((s) => s.settings?.appearance);
 	const host = useRef<HTMLDivElement>(null);
 	const term = useRef<Terminal | null>(null);
@@ -80,10 +79,16 @@ export function TerminalPane() {
 		term.current?.focus();
 	}, [pending, ready]);
 
+	const active = useTerminals((s) => s.active);
+
 	/**
 	 * Where a *new* shell would start. Empty string means "no project", which is home.
 	 *
-	 * Read at the moment one is opened rather than depended on, because it is the only thing the
+	 * The conversation's directory first, the workspace second. They are usually the same; when a
+	 * session runs in a worktree they are not, and a terminal opened beside that conversation that
+	 * starts in the main checkout is a terminal pointed at the wrong branch.
+	 *
+	 * Read at the moment one is opened rather than subscribed to, because it is the only thing the
 	 * project decides here. Nothing else in this pane is keyed by it: a terminal you started is
 	 * yours until you close it, and changing projects — or leaving all of them — is not a reason to
 	 * take it away and hand back a different one. Making it a dependency is exactly what used to
@@ -93,8 +98,7 @@ export function TerminalPane() {
 	 * home directory (`resolve` in `terminal-registry.ts`), so a shell with nowhere in particular to
 	 * be starts in `~` — which is what a terminal does everywhere else on the machine.
 	 */
-	const cwd = workspace?.path ?? "";
-	const active = useTerminals((s) => s.active);
+	const startingCwd = () => useApp.getState().meta?.cwd ?? useApp.getState().workspace?.path ?? "";
 
 	/*
 	 * Find out what is already running before drawing anything.
@@ -128,11 +132,7 @@ export function TerminalPane() {
 			 * takes to lose. `size` is what the last mounted terminal measured — see the layout
 			 * effect below — and 80×24 only stands in when nothing has been measured yet.
 			 */
-			const opened = await bridge.terminal.open(
-				useApp.getState().workspace?.path ?? "",
-				size.current.cols,
-				size.current.rows,
-			);
+			const opened = await bridge.terminal.open(startingCwd(), Math.max(10, size.current.cols), Math.max(4, size.current.rows));
 			if (cancelled) return;
 			useTerminals.getState().sync([{ id: opened.id, title: opened.title }]);
 		});
@@ -401,7 +401,7 @@ export function TerminalPane() {
 						type="button"
 						onClick={() => {
 							// The measured size, like everywhere else a shell is started — see `size`.
-							void bridge.terminal.open(cwd, size.current.cols, size.current.rows).then((opened) => {
+							void bridge.terminal.open(startingCwd(), Math.max(10, size.current.cols), Math.max(4, size.current.rows)).then((opened) => {
 								useTerminals.getState().add({ id: opened.id, title: opened.title });
 							});
 						}}

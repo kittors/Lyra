@@ -243,6 +243,15 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 	return <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>;
 }
 
+/**
+ * The window's shape, for anything that needs to lay itself out against it.
+ *
+ * Throws rather than falling back to a plausible default, and the distinction is not academic:
+ * a stand-in would hand out `sidebarWidth: 260` and `navOpen: true` to a component that is
+ * mounted outside the provider, which is exactly the situation where those numbers are wrong and
+ * nothing on screen would say so. The one caller that hit this was a test mounting `Toaster` on
+ * its own — the test is what needed the provider, not this.
+ */
 export function useLayout(): LayoutValue {
 	const value = useContext(LayoutContext);
 	if (!value) throw new Error("useLayout must be used inside <LayoutProvider>");

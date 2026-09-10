@@ -71,7 +71,8 @@ export function TerminalTabs() {
 	 * all and no way back to a shell that was still running.
 	 */
 	const openAnother = async () => {
-		const opened = await bridge.terminal.open(useApp.getState().workspace?.path ?? "", 80, 24);
+		const cwd = useApp.getState().meta?.cwd ?? useApp.getState().workspace?.path ?? "";
+		const opened = await bridge.terminal.open(cwd, 80, 24);
 		useTerminals.getState().add({ id: opened.id, title: opened.title });
 	};
 
