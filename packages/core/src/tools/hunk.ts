@@ -61,6 +61,11 @@ export function snapshotTag(content: string): string {
 /** A line that is unambiguously an operation header rather than payload. */
 const HEADER_RE = /^\s*(?:REPLACE\s+\d+\s*-\s*\d+|INSERT\s+AFTER\s+\d+|DELETE\s+\d+\s*-\s*\d+)\s*:?\s*$/i;
 
+/** An unprefixed line that can only be unified-diff punctuation: a removal, or an `@@ … @@` header. */
+function diffPunctuation(line: string): boolean {
+	return line.startsWith("-") || /^@@.*@@/.test(line);
+}
+
 /**
  * Parse the patch language.
  *
@@ -69,6 +74,19 @@ const HEADER_RE = /^\s*(?:REPLACE\s+\d+\s*-\s*\d+|INSERT\s+AFTER\s+\d+|DELETE\s+
  * `gemini-2.5-flash-lite` the most common failure was a correct edit with the prefix omitted, and
  * rejecting it bought nothing. A payload line is ambiguous only when it exactly matches the header
  * grammar, and real source lines do not look like `REPLACE 3-7`.
+ *
+ * What that tolerance must not do is swallow a unified diff. Models write `-old` / `+new` pairs by
+ * overwhelming habit, and every unprefixed line used to be taken literally — so the `-` lines were
+ * written into the file, verbatim, on top of the replacement. The tool reported success, and the
+ * source was quietly broken:
+ *
+ *     -import { useRegionStore } from '@/store/modules/region'
+ *     import { listRegion } from '@/api/region'
+ *
+ * The discriminator is the *mixture*. A payload where every line omits the prefix is the measured
+ * case above and still passes; a payload where every line carries it is the format working as
+ * intended. One that does both is a diff, and there is no reading of it that is safe to guess at —
+ * so it is rejected, which is what this format promises to do instead of misapplying an edit.
  */
 export function parsePatch(patch: string): ParseResult {
 	const hunks: Hunk[] = [];
@@ -78,18 +96,41 @@ export function parsePatch(patch: string): ParseResult {
 
 	const readPayload = (): string[] => {
 		const payload: string[] = [];
+		/** Prefixed and unprefixed counts for *this* payload; blank lines belong to neither. */
+		let prefixed = 0;
+		let bare = 0;
+		let marker = "";
 		while (i < lines.length) {
 			const line = lines[i];
 			if (HEADER_RE.test(line)) break;
 			if (line.startsWith("+")) {
 				payload.push(line.slice(1));
+				prefixed += 1;
 			} else {
 				// Blank lines at the very end belong to the patch's own formatting, not the payload.
 				if (lines.slice(i).every((l) => l.trim() === "")) break;
 				payload.push(line);
-				if (line.trim() !== "") looseLines += 1;
+				if (line.trim() !== "") {
+					bare += 1;
+					looseLines += 1;
+					if (!marker && diffPunctuation(line)) marker = line;
+				}
 			}
 			i += 1;
+		}
+
+		if (prefixed > 0 && bare > 0) {
+			if (marker) {
+				throw new PatchError(
+					`This is not a unified diff. ${JSON.stringify(marker.slice(0, 48))} would be written into the file ` +
+						`as a line of source. The operation header already names the lines being removed — give only the ` +
+						`replacement lines, each prefixed with "+", and never a "-" line.`,
+				);
+			}
+			throw new PatchError(
+				`Some payload lines carry the "+" prefix and some do not, so there is no way to tell which ones are ` +
+					`meant literally. Prefix every replacement line with "+".`,
+			);
 		}
 		return payload;
 	};
@@ -142,6 +183,27 @@ export function parsePatch(patch: string): ParseResult {
 }
 
 /**
+ * A replacement whose opening lines are the file's own lines with a `-` in front.
+ *
+ * The second half of the unified-diff guard, and the half that needs the file. `parsePatch` catches
+ * a diff by its mixture of prefixed and unprefixed lines; a payload that is *only* `-` lines has no
+ * mixture to catch, and `- item` is a perfectly ordinary line of YAML or Markdown, so the shape
+ * alone proves nothing. What proves it is the content: a line reading `-` followed by the exact
+ * text of the line it is replacing is a deletion marker, not source. Nothing else produces that.
+ */
+function diffDeletionMarker(hunk: Hunk, lines: string[]): string | null {
+	if (hunk.op !== "replace") return null;
+	const span = hunk.end - hunk.start + 1;
+	for (let n = 0; n < hunk.lines.length && n < span; n++) {
+		const payload = hunk.lines[n];
+		if (!payload.startsWith("-") || payload.slice(1) !== lines[hunk.start - 1 + n]) {
+			return n > 0 ? hunk.lines[0] : null;
+		}
+	}
+	return hunk.lines.length > 0 ? hunk.lines[0] : null;
+}
+
+/**
  * Apply hunks to a file.
  *
  * Bottom-up is the whole trick: applied in descending order, no hunk shifts the numbers a later
@@ -165,6 +227,14 @@ export function applyHunks(hunks: Hunk[], content: string): string {
 			throw new PatchError(`Lines ${hunk.start}-${hunk.end} are out of range: the file has ${total} lines.`);
 		}
 		if (hunk.start > hunk.end) throw new PatchError(`Range ${hunk.start}-${hunk.end} is inverted.`);
+		const marker = diffDeletionMarker(hunk, lines);
+		if (marker !== null) {
+			throw new PatchError(
+				`This is not a unified diff. ${JSON.stringify(marker.slice(0, 48))} is line ${hunk.start} of the file with ` +
+					`a "-" in front of it, so writing it would put that "-" into the source. REPLACE ${hunk.start}-${hunk.end} ` +
+					`already removes those lines — give only the replacement lines, each prefixed with "+".`,
+			);
+		}
 		for (let n = hunk.start; n <= hunk.end; n++) {
 			if (touched.has(n)) throw new PatchError(`Line ${n} is changed by more than one operation. Ranges must not overlap.`);
 			touched.add(n);
@@ -204,10 +274,14 @@ INSERT AFTER <line>
 DELETE <start>-<end>
 
 Rules:
+- This is NOT a unified diff. NEVER write "-" lines and never write "@@" headers: the range in the
+  operation header is the deletion. A "-" line would be written into the file as source.
 - Line numbers are the ORIGINAL numbers shown in the file. They NEVER shift, however many
   operations you write.
 - A payload line is everything after the leading "+", verbatim, including indentation. A blank
   line is a bare "+".
+- Within one operation, either every payload line carries "+" or none of them do. Mixing is
+  rejected, because there is then no way to tell which lines are meant literally.
 - The range names the original lines you are replacing; the payload may be longer or shorter.
 - NEVER widen a range to retype lines you are keeping — use INSERT AFTER instead.
 - To remove lines use DELETE, never REPLACE with an empty payload.

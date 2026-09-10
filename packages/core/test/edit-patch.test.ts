@@ -196,6 +196,58 @@ test("payload without the + prefix is tolerated and counted", () => {
 	assert.equal(applyHunks(parsed.hunks, FIVE), "alpha\n\t\tconst x = 1;\nbravo\ncharlie\ndelta\necho\n");
 });
 
+// ---------------------------------------------------------------------------
+// the unified-diff guard
+//
+// Models write `-old` / `+new` by habit. Every unprefixed line used to be taken literally, so the
+// `-` lines were written into the file on top of the replacement and `edit` reported success — a
+// wrong file written successfully, which is the one failure mode this format exists to remove.
+// ---------------------------------------------------------------------------
+
+test("a payload that mixes + lines with - lines is rejected as a unified diff", () => {
+	assert.throws(
+		() => parsePatch("REPLACE 2-3\n-bravo\n-charlie\n+B\n+C"),
+		(error: Error) => error instanceof PatchError && /not a unified diff/.test(error.message),
+	);
+});
+
+test("an @@ hunk header among prefixed lines is rejected too", () => {
+	assert.throws(
+		() => parsePatch("REPLACE 2-2\n@@ -2,1 +2,1 @@\n+B"),
+		(error: Error) => error instanceof PatchError && /not a unified diff/.test(error.message),
+	);
+});
+
+test("mixed prefixes with no diff punctuation say which half is wrong", () => {
+	assert.throws(
+		() => parsePatch("REPLACE 2-3\n+B\ncharlie two"),
+		(error: Error) => error instanceof PatchError && /Prefix every replacement line/.test(error.message),
+	);
+});
+
+test("a payload of only - lines is caught against the file it would be applied to", () => {
+	// No mixture to spot, so the parser lets it through; the content is what proves it is a diff.
+	const { hunks } = parsePatch("REPLACE 2-3\n-bravo\n-charlie");
+	assert.throws(
+		() => applyHunks(hunks, FIVE),
+		(error: Error) => error instanceof PatchError && /not a unified diff/.test(error.message),
+	);
+});
+
+test("a line that merely starts with - is source, and still applies", () => {
+	// `- item` is ordinary YAML and Markdown. Only `-` plus the exact line being replaced is a marker.
+	const yaml = "steps:\n  - build\n  - test\n";
+	const bare = parsePatch("REPLACE 2-2\n  - lint");
+	assert.equal(applyHunks(bare.hunks, yaml), "steps:\n  - lint\n  - test\n");
+	const prefixed = parsePatch("REPLACE 2-2\n+  - lint");
+	assert.equal(applyHunks(prefixed.hunks, yaml), "steps:\n  - lint\n  - test\n");
+});
+
+test("blank payload lines do not count as unprefixed, so + blocks with gaps still parse", () => {
+	const { hunks } = parsePatch("REPLACE 1-1\n+function foo() {\n+\n+}");
+	assert.equal(applyHunks(hunks, FIVE), "function foo() {\n\n}\nbravo\ncharlie\ndelta\necho\n");
+});
+
 test("a following header still ends the payload", () => {
 	const { hunks } = parsePatch("REPLACE 1-1\nA\nDELETE 3-3");
 	assert.equal(applyHunks(hunks, FIVE), "A\nbravo\ndelta\necho\n");
