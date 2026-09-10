@@ -76,7 +76,14 @@ export function useTerminalPrewarm(): void {
 
 	useEffect(() => {
 		if (!ready) return;
-		const cwd = useApp.getState().workspace?.path ?? "";
+		/*
+		 * 和面板开新终端时用的是同一个口径（`startingCwd`，见 `TerminalPane`）。
+		 *
+		 * 这里原本只看 `workspace.path`。面板那边先看会话的目录、再看工作区——两者在跑 worktree 的会话
+		 * 里是不一样的。口径不同的后果不是「预热白费了」，是**多一个终端**：面板按自己的目录找不到匹配
+		 * 的，于是又开一个，第一次打开面板就是两个标签。
+		 */
+		const cwd = useApp.getState().meta?.cwd ?? useApp.getState().workspace?.path ?? "";
 		const { cols, rows } = lastTerminalSize();
 		/*
 		 * `requestIdleCallback` where it exists, with a timeout so a permanently busy app still gets

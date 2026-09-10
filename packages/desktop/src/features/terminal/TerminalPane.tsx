@@ -114,32 +114,108 @@ export function TerminalPane() {
 		let cancelled = false;
 		void bridge.terminal.listAll().then(async (tabs) => {
 			if (cancelled) return;
-			if (tabs.length > 0) {
-				useTerminals.getState().sync(tabs);
-				return;
-			}
+			// 先把已有的全同步进来：切走过的项目里那些还在跑的 shell，标签条上必须找得到。
+			if (tabs.length > 0) useTerminals.getState().sync(tabs);
 			/*
-			 * Born at the size it will be shown at.
+			 * 再把焦点落到当前这个项目上。
 			 *
-			 * This used to say `80, 24`, and a shell started at 80 columns in a pane 38 wide wraps
-			 * its first output to a width the screen does not have — so the greeting and any
-			 * `.zshrc` complaints came out broken mid-word, and stayed broken, because the resize
-			 * that follows only affects what has yet to be written.
+			 * 这一步从前没有，于是「当前是 A，而启动时预热的那个终端在 B」时，打开面板看到的是 B
+			 * 的终端——面板顶上写着 A，里面是 B，两句话对不上。
 			 *
-			 * It looked intermittent because it was a race it usually won: a shell takes a few
-			 * hundred milliseconds to say anything and the terminal is measured within one frame of
-			 * being asked for, so the correction normally lands first. A busy main thread is all it
-			 * takes to lose. `size` is what the last mounted terminal measured — see the layout
-			 * effect below — and 80×24 only stands in when nothing has been measured yet.
+			 * 顺带也接管了「一个都没有」这件事：`focusProject` 找不到就开一个，开在当前目录，
+			 * 用的是已经量到的尺寸（见 `size`）——猜一个 80×24 的宽度，shell 的第一行输出就会按
+			 * 一个屏幕上不存在的宽度折行，而且改不回来。
 			 */
-			const opened = await bridge.terminal.open(startingCwd(), Math.max(10, size.current.cols), Math.max(4, size.current.rows));
-			if (cancelled) return;
-			useTerminals.getState().sync([{ id: opened.id, title: opened.title }]);
+			await focusProject(startingCwd(), () => cancelled);
 		});
 		return () => {
 			cancelled = true;
 		};
 	}, []);
+
+	/**
+	 * 把焦点放到这个目录的终端上——已经有就选中它，没有才开一个。
+	 *
+	 * 终端清单是一份、不按项目分，那是刻意的：按项目分组时，切走一个项目等于把它里面还在跑的
+	 * shell 变成够不着的东西（见 `store/terminals.ts` 的文件头）。但只有一份清单也带来了客户报的
+	 * 那个：在 A 开了终端，切到 B，面板里还是 A 的那个。
+	 *
+	 * 两者都要：清单仍然是一份，切项目时只是把**焦点**移过去。切走的 shell 一个都不会消失，
+	 * 仍然在标签条上。
+	 */
+	/*
+	 * 排队，不并发。
+	 *
+	 * 「先看有没有，没有才开」这件事里有一次 await，而调用它的有两处：挂载时那一次，和工作区变化时
+	 * 那一次。两处在启动的同一瞬间都会跑——store 里的路径先是空的、随后水合成真实路径，于是「换了
+	 * 项目」和「刚挂载」撞在一起。两次调用各自看到一份空清单，各自开了一个 shell。
+	 *
+	 * 真窗口里量出来的：修好切换之后，第一次打开面板出现了两个终端，而原版只有一个——治好了一个
+	 * 毛病，带出来一个新的。排成队之后，第二次调用看到的是第一次开出来的那个，于是选中它。
+	 */
+	const focusQueue = useRef<Promise<void>>(Promise.resolve());
+	const focusProject = (cwd: string, cancelled: () => boolean): Promise<void> => {
+		const next = focusQueue.current.then(() => openOrSelect(cwd, cancelled)).catch(() => {});
+		focusQueue.current = next;
+		return next;
+	};
+
+	const openOrSelect = async (cwd: string, cancelled: () => boolean) => {
+		const here = await bridge.terminal.list(cwd);
+		if (cancelled()) return;
+		const known = new Set(useTerminals.getState().tabs.map((tab) => tab.id));
+		const mine = here.find((tab) => known.has(tab.id));
+		if (mine) {
+			useTerminals.getState().select(mine.id);
+			return;
+		}
+		const opened = await bridge.terminal.open(cwd, Math.max(10, size.current.cols), Math.max(4, size.current.rows));
+		/*
+		 * 即使这中间又切走了，也要把它加进清单。
+		 *
+		 * shell 已经在主进程里起来了；这时候丢掉它，就多了一个没有标签、谁也够不着的 pty。
+		 * 加进去最多是多一个标签，那是看得见、关得掉的。
+		 */
+		useTerminals.getState().add({ id: opened.id, title: opened.title });
+	};
+
+	/*
+	 * 换了项目就跟过去。
+	 *
+	 * 记住上一次的目录，而不是用一个「是不是第一次」的布尔：开发模式下 effect 每次挂载会跑两遍，
+	 * 布尔在第二遍已经是 false，于是照样开一个——那正是之前双开 shell 的成因。
+	 */
+	const workspacePath = useApp((s) => s.workspace?.path ?? "");
+	/*
+	 * 起手就记着挂载时用的那个目录，而不是 `null`。
+	 *
+	 * `null` 的写法把「store 水合出真实路径」也算成了一次换项目：挂载那一刻 `workspace.path` 还是空的，
+	 * 第一次跑记下空串，紧接着它变成真实路径，于是这个 effect 认为项目换了。它和挂载那条路本来就在做
+	 * 同一件事，两边一起跑就是上面那个并发。
+	 */
+	const workspacePath0 = useRef(false);
+	const lastCwd = useRef<string | null>(null);
+	if (!workspacePath0.current) {
+		workspacePath0.current = true;
+		lastCwd.current = startingCwd();
+	}
+	useEffect(() => {
+		if (lastCwd.current === null) {
+			lastCwd.current = workspacePath;
+			return;
+		}
+		if (lastCwd.current === workspacePath) return;
+		// 水合：空 → 真实路径，而那个真实路径就是挂载时用的那个。不是换项目。
+		if (!workspacePath) return;
+		lastCwd.current = workspacePath;
+		let cancelled = false;
+		void focusProject(workspacePath, () => cancelled);
+		return () => {
+			cancelled = true;
+		};
+		// `focusProject` 每次渲染都是新的闭包，放进依赖会让这个 effect 跟着每次渲染重跑。
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [workspacePath]);
 
 	/*
 	 * The terminal itself belongs to the pane, not to the shell it happens to be showing.
