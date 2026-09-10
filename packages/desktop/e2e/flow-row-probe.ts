@@ -72,6 +72,7 @@ interface Geometry {
 	gaps: number[];
 	between: string[];
 	collapsedGap: number | null;
+	openGap: number | null;
 	iconStaysOnHover: boolean | null;
 	chevronOnRight: boolean | null;
 	titles: string[];
@@ -140,6 +141,18 @@ async function main() {
 				between.push((flowRows[i - 1].closest('[data-ly-thinking],[data-ly-run]')?.parentElement?.className ?? '?').split(' ')[0]);
 			}
 
+			/*
+			 * 展开状态下，这一块到下面那段答案的距离。
+			 *
+			 * 和收起状态的那个数必须相等。它们一度是 10px 和 2px——同一块东西，点一下开、点一下关，
+			 * 它和答案的距离就变了五倍，答案自己在原地跳。这两个数只有一起量才看得出来。
+			 */
+			const proc0 = document.querySelector('[data-ly-turn-process]');
+			const answer0 = proc0?.nextElementSibling;
+			const openGap = proc0 && answer0
+				? Math.round(answer0.getBoundingClientRect().top - proc0.getBoundingClientRect().bottom)
+				: null;
+
 			const fold = document.querySelector('[data-ly-turn-process] .ly-flow-row');
 			let collapsedGap = null, iconStaysOnHover = null, chevronOnRight = null;
 			if (fold) {
@@ -157,7 +170,7 @@ async function main() {
 			}
 
 			return {
-				rows, gaps, between, collapsedGap, iconStaysOnHover, chevronOnRight,
+				rows, gaps, between, collapsedGap, openGap, iconStaysOnHover, chevronOnRight,
 				titles: [...document.querySelectorAll('.ly-flow-title')].map((el) => el.textContent ?? ''),
 			};
 		})()`);
@@ -165,7 +178,8 @@ async function main() {
 		console.log(`\n过程行 ${g.rows.length} 条：`);
 		for (const r of g.rows) console.log(`   ${r.kind.padEnd(8)} left=${r.left} 行高=${r.height} 图标盒 left=${r.iconLeft} 宽=${r.iconSize}`);
 		console.log(`\n行与行的实际间距 ${JSON.stringify(g.gaps)}`);
-		console.log(`各行的容器 ${JSON.stringify(g.between)}；收起后到回答 ${g.collapsedGap}px`);
+		console.log(`各行的容器 ${JSON.stringify(g.between)}`);
+		console.log(`到答案的距离：展开 ${g.openGap}px，收起 ${g.collapsedGap}px`);
 
 		const flow = g.rows.filter((r) => r.kind === "think" || r.kind === "tools" || r.kind === "command");
 		check("思考行在流式中持续地写字", typed > 20, `${typed} 次 / 20 秒`);
@@ -173,7 +187,9 @@ async function main() {
 		check("所有行左边缘在一条线上", new Set(g.rows.map((r) => r.left)).size === 1, `left ${[...new Set(g.rows.map((r) => r.left))].join(", ")}`);
 		check("所有行等高", new Set(g.rows.map((r) => r.height)).size === 1, `行高 ${[...new Set(g.rows.map((r) => r.height))].join(", ")}`);
 		check("块内行距只有一个值", new Set(g.gaps).size <= 1, `取值 ${JSON.stringify([...new Set(g.gaps)])}`);
-		check("收起后摘要紧跟回答", g.collapsedGap !== null && g.collapsedGap <= 12, `${g.collapsedGap}px`);
+		check("展开和收起，到答案的距离是同一个",
+			g.openGap !== null && g.collapsedGap === g.openGap,
+			`展开 ${g.openGap}px，收起 ${g.collapsedGap}px`);
 		check("悬停时前面的图标还在", g.iconStaysOnHover === true, String(g.iconStaysOnHover));
 		check("展开箭头在行的右半边", g.chevronOnRight === true, String(g.chevronOnRight));
 		check("思考行不再带「思考过程」标签", !g.titles.some((t) => t.includes("思考")), `标题取值 ${JSON.stringify(g.titles)}`);

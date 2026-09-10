@@ -135,7 +135,23 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 				here.shown = Math.min(here.total, here.shown + rate * delta);
 				const next = revealed(here.runs, here.shown);
 				const element = span.current;
-				if (element && element.textContent !== next) element.textContent = next;
+				if (element && element.textContent !== next) {
+					element.textContent = next;
+					/*
+					 * 这一句现在有没有超出行宽——超出了才给两头加渐隐。
+					 *
+					 * 常驻的渐隐会把短句子的开头几个字平白抹淡：不溢出的时候字是从容器左边开始写的，
+					 * 那里没有东西正在退场，化开就只是糊。谁溢出谁才化。
+					 *
+					 * 顺手量，不另起一个循环：这一帧刚写完字，布局本来就要重算一次；换成
+					 * `ResizeObserver` 或者定时器反而要多算一次，还会晚一帧。
+					 */
+					const shell = element.parentElement;
+					if (shell) {
+						const clipped = element.getBoundingClientRect().width > shell.clientWidth + 0.5;
+						if (clipped !== shell.hasAttribute("data-clipped")) shell.toggleAttribute("data-clipped", clipped);
+					}
+				}
 			}
 			raf = requestAnimationFrame(step);
 		};

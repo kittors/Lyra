@@ -69,8 +69,15 @@ export function FlowRow({
 			 * 元素，光就跳回起点——一次忙碌的运行里每秒好几次，那是闪烁不是扫过。光属于这一行（它和
 			 * 这段活一样长命），淡入属于那些字（变的是它们）。
 			 */}
+			{/*
+			 * 正在逐字写的那一句借 `ly-fade-edge` 的遮罩：两头化开，深浅由 flow-row.css 说了算。
+			 * 不写的时候不挂——那条规则会给 `position: fixed` 的后代造出一个包含块（见 portal.ts）。
+			 */}
 			{summary !== undefined && summary !== null && summary !== "" && (
-				<span className={`ly-flow-summary ${running ? "ly-glide" : ""}`} data-follow-end={followEnd ? "" : undefined}>
+				<span
+					className={`ly-flow-summary ${running ? "ly-glide" : ""} ${followEnd ? "ly-fade-edge" : ""}`}
+					data-follow-end={followEnd ? "" : undefined}
+				>
 					{summary}
 				</span>
 			)}
