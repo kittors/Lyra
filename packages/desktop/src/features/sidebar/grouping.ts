@@ -133,16 +133,11 @@ export function isScratch(cwd: string, scratchRoots: string[]): boolean {
  *
  * Archived ones live in the archive — that is the whole point of archiving them. Empty ones are not
  * conversations yet: no title, nothing to return to, so a row for one cannot be usefully clicked.
- *
- * The one you have open is exempt from both, and the two exemptions are the same rule: the pane must
- * always be able to show you where you are. A conversation whose first message is still in flight has
- * no messages yet; an archived one you opened from the archive is filed. Neither is a reason to leave
- * the person looking at a sidebar that does not contain the thing on their screen — which is what
- * used to force opening an archived conversation to unfile it first. It no longer does; this is what
- * replaced that. See `useSidebarLists`.
+ * The active session is exempt, because the conversation you are in the middle of starting has to
+ * stay visible and selected while its first message is still in flight.
  */
 export function listableSessions(sessions: SessionMeta[], activeSessionId: string | null): SessionMeta[] {
-	return sessions.filter((s) => s.id === activeSessionId || (!s.archived && s.messageCount > 0));
+	return sessions.filter((s) => !s.archived && (s.messageCount > 0 || s.id === activeSessionId));
 }
 
 /** What the settings row says it will take you to. */

@@ -48,19 +48,12 @@ test("an empty session is not a conversation yet, unless it is the one being sta
 	);
 });
 
-test("the archived conversation you have open stays in the list, because it is where you are", () => {
-	/*
-	 * Opening a row in the archive used to unfile it on the way in, so that the pane would still
-	 * contain the conversation on screen. That was a state change nobody asked for, made by a click
-	 * that says "open" — so opening leaves the filing alone, and this is what keeps the promise the
-	 * old behaviour was paying for. See `useSidebarLists`.
-	 */
+test("archived sessions never enter the live list even if active", () => {
 	const filed = session({ id: "filed", archived: true });
 	assert.deepEqual(
 		listableSessions([filed, session({ id: "other" })], "filed").map((s) => s.id),
-		["filed", "other"],
+		["other"],
 	);
-	// And the exemption is only ever for the one you are in: every other filed row stays filed away.
 	assert.deepEqual(
 		listableSessions([filed, session({ id: "other" })], "other").map((s) => s.id),
 		["other"],
