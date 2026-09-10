@@ -295,3 +295,43 @@ test("老日志没有溯源字段时，保守放行而不是误删", () => {
 	const wire = toResponsesInput(askThen(legacy), { provider: "relay", model: "m" }) as Record<string, unknown>[];
 	assert.equal(wire.filter((item) => item.type === "reasoning").length, 1);
 });
+
+test("装不进 API 字符集的句柄，丢掉而不是原样发出去", () => {
+	/*
+	 * 客户报过 `Invalid 'input[14].id' … this value contained additional characters`：中转生成的 id
+	 * 里混着一个肉眼看不出来的字符。这种句柄按定义就是不可用的——发过去只有一个结果，整个请求被拒，
+	 * 而那段历史每一轮都会被重新编码，于是那个对话再也说不了话。
+	 */
+	const dirty: AssistantMessage = {
+		role: "assistant",
+		content: [
+			{ type: "thinking", thinking: "想想", signature: "rs-2026 0910 带了个空格" },
+			{ type: "text", text: "答案" },
+		],
+		api: "openai-responses",
+		provider: "relay",
+		model: "m",
+		usage: emptyUsage(),
+		stopReason: "end",
+		timestamp: 0,
+	} as AssistantMessage;
+	const wire = toResponsesInput(askThen(dirty), { provider: "relay", model: "m" }) as Record<string, unknown>[];
+	for (const item of wire) assert.equal(item.id, undefined, "带不合法字符的 id 一个都不该出门");
+	// 推理正文照旧带回去——丢的是句柄，不是这段话。
+	assert.ok(JSON.stringify(wire).includes("想想"));
+});
+
+test("干净的句柄照常回放——不能因为要防脏数据就把好数据也扔了", () => {
+	const clean: AssistantMessage = {
+		role: "assistant",
+		content: [{ type: "thinking", thinking: "想想", signature: "rs_abc-123" }],
+		api: "openai-responses",
+		provider: "relay",
+		model: "m",
+		usage: emptyUsage(),
+		stopReason: "end",
+		timestamp: 0,
+	} as AssistantMessage;
+	const wire = toResponsesInput(askThen(clean), { provider: "relay", model: "m" }) as Record<string, unknown>[];
+	assert.equal(wire.find((item) => item.type === "reasoning")?.id, "rs_abc-123");
+});

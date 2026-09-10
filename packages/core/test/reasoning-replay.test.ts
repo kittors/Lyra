@@ -79,13 +79,22 @@ test("reasoning without an item id goes back as reasoning_text rather than being
 	]);
 
 	/*
-	 * `content`, not `summary`. The upstream asks for the reasoning itself; a summary of it is a
-	 * different thing and is what the relay would have had to send in its place.
+	 * 两个字段都给。
+	 *
+	 * `content` 是主要的那个：要求原样回放的上游要的是推理本身，`summary` 是对它的概括，顶不了。
+	 * 这条原本就是这么写的，`summary` 留了空数组。
+	 *
+	 * 后来实测发现空着不行。把 Responses 翻译成 Anthropic 的中转只认 `summary`——只给 `content` 时
+	 * 它翻出来的是一个没有文本的 thinking 块：
+	 *
+	 *     messages.1.content.0.thinking.thinking: Field required
+	 *
+	 * 两个都给不会被任何一边拒（在官方 DeepSeek 上量过），所以两个都给。
 	 */
 	assert.deepEqual(reasoning(input), [
 		{
 			type: "reasoning",
-			summary: [],
+			summary: [{ type: "summary_text", text: "用户要我继续，先确认上一步的结果" }],
 			content: [{ type: "reasoning_text", text: "用户要我继续，先确认上一步的结果" }],
 		},
 	]);
