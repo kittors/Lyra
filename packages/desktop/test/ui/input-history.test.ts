@@ -12,7 +12,7 @@ import { test } from "node:test";
 
 import type { Message } from "@lyra/core";
 import { useInputHistory } from "../../src/features/composer/useInputHistory.ts";
-import { fire, mount, press } from "../helpers/mount.ts";
+import { click, fire, mount, press } from "../helpers/mount.ts";
 
 function said(text: string, extra: Record<string, unknown> = {}): Message {
 	return { role: "user", content: [{ type: "text", text }], timestamp: 1, ...extra } as unknown as Message;
@@ -28,12 +28,16 @@ function Harness({ messages }: { messages: Message[] }) {
 		h("textarea", {
 			ref: field,
 			value: text,
-			onChange: (event: { target: { value: string } }) => {
-				setText(event.target.value);
-				history.change(event.target.value);
-			},
+			onChange: (event: { target: { value: string } }) => setText(event.target.value),
 			onKeyDown: history.keyDown,
 		}),
+		/*
+		 * 「发送」：和真的 `submit` 一样直接清空，**不经过 onChange**。
+		 *
+		 * 这是真窗口里那条路的形状，也是上一版漏掉的那条——把重置挂在 onChange 上，消息发出去了、
+		 * 框空了，那行「历史 1/1」还留在框里指着一句已经不在的话。
+		 */
+		h("button", { type: "button", onClick: () => setText("") }, "发送"),
 		h("output", null, history.position ? `${history.position.current}/${history.position.total}` : "—"),
 	);
 }
@@ -91,6 +95,23 @@ test("改了一个字，就不再是在翻历史", async () => {
 	// 这时候再按 ↓ 不该把刚补的字换成草稿：已经脱离历史了。
 	await press(field, "ArrowDown");
 	assert.equal(field.value, "原话，再补一句");
+	await view.unmount();
+});
+
+test("发出去之后，「历史 x/x」不该还留在框里", async () => {
+	const view = await mount(h(Harness, { messages: [said("说过的")] }));
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
+	assert.match(view.text(), /1\/1/);
+
+	await click(view.find("button"));
+	assert.equal(field.value, "", "发送把框清空了");
+	assert.ok(!view.text().includes("1/1"), `发完那行小字还留着：${view.text()}`);
+
+	// 而且是真的回到了草稿态：这时候按 ↓ 不该翻出任何东西。
+	await press(field, "ArrowDown");
+	assert.equal(field.value, "");
 	await view.unmount();
 });
 

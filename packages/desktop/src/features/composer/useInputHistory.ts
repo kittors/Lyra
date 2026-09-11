@@ -25,9 +25,7 @@ import { spokenByPerson } from "../conversation/index.ts";
 export interface InputHistory {
 	/** 排在 @ 和 / 之后的最后一手。吃掉了这个键就回 true。 */
 	keyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean;
-	/** 输入框的内容变了。一动手就不再是「在翻历史」了。 */
-	change: (next: string) => void;
-	/** 正翻到第几条，给上面那行小字用；不在历史里时是 null。 */
+	/** 正翻到第几条，给框里那行小字用；不在历史里时是 null。 */
 	position: { current: number; total: number } | null;
 }
 
@@ -103,22 +101,23 @@ export function useInputHistory({
 		[apply, entries.length, field, index, value],
 	);
 
-	const change = useCallback(
-		(next: string) => {
-			/*
-			 * 改了一个字，就不再是「正在翻历史」。
-			 *
-			 * 比对的是内容而不是「有没有敲过键」，因为 `apply` 自己也会走一遍 `onChange`——那一次的
-			 * 值正好等于翻出来的那条，据此分得开「是我翻的」和「是人改的」，不用另外记一个标志位。
-			 */
-			if (index !== -1 && next !== entries[index]) setIndex(-1);
-		},
-		[entries, index],
-	);
+	/*
+	 * 框里的字一旦不再是翻出来的那条，就不算在翻历史了。
+	 *
+	 * 盯 `value` 本身，而不是挂在 `onChange` 上等人敲键——**发送这条路一个字都不经过 onChange**：
+	 * `submit` 自己 `setText("")` 清空输入框。上一版把重置写在 onChange 里，于是消息发出去了、框也
+	 * 空了，「历史 1/2」还留在那儿，指着一条已经不在框里的话。从外面塞进来的草稿、换会话时恢复的
+	 * 草稿，走的也都是绕开 onChange 的同一条路。
+	 *
+	 * 比内容而不是记一个标志位：`apply` 自己改 `value` 的那一次，新值正好等于翻出来的那条，所以
+	 * 「是我翻的」和「是别处改的」天然分得开。
+	 */
+	useEffect(() => {
+		if (index !== -1 && value !== entries[index]) setIndex(-1);
+	}, [value, index, entries]);
 
 	return {
 		keyDown,
-		change,
 		position: index >= 0 ? { current: index + 1, total: entries.length } : null,
 	};
 }

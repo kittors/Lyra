@@ -637,24 +637,26 @@ export function Composer() {
 				{activeSessionId && <QueuedMessages key={activeSessionId} sessionId={activeSessionId} running={running} onEdit={restoreQueued} />}
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
 				<MentionMenu id={mention.id} items={mention.matches} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
-				{history.position && (
-					/*
-					 * 翻到第几条了，就写在输入框上沿。
-					 *
-					 * 不写的话，翻出来的那句和自己刚打的那句长得一模一样——都是输入框里的黑字——按到哪儿
-					 * 了全凭记性，而一旦记错，再按一下就走过头了。
-					 */
-					<div data-ly-history="" className="px-4 pb-1 text-caption text-ink-faint">
-						{t("composer.history", { current: history.position.current, total: history.position.total })}
-					</div>
-				)}
 				<ComposerShell
 					fieldRef={field}
+					/*
+					 * 翻到第几条了，写在框里的最上沿。
+					 *
+					 * 在框里而不是框外：翻出来的那句就落在它下面一行，两者说的是同一件事，隔着边框分开摆
+					 * 就得让人自己把它们联系起来。不写又不行——翻出来的那句和自己刚打的那句长得一模一样，
+					 * 都是输入框里的黑字，按到哪儿了全凭记性，一旦记错，再按一下就走过头了。
+					 */
+					hint={
+						history.position ? (
+							<div data-ly-history="" className="px-4 pt-2.5 text-caption text-ink-faint">
+								{t("composer.history", { current: history.position.current, total: history.position.total })}
+							</div>
+						) : undefined
+					}
 					value={text}
 					onChange={(next) => {
 						slash.change(next);
 						mention.change(next);
-						history.change(next);
 					}}
 					decoration={mergedDecoration}
 					onSelect={() => {

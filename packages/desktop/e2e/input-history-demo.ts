@@ -16,13 +16,14 @@
  * 用法：node --experimental-strip-types e2e/input-history-demo.ts [输出目录]
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
+const REAL_HOME = join(homedir(), ".lyra");
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra输入历史测试");
 const PORT = 9427;
 const STAMP = new Date()
@@ -104,11 +105,25 @@ async function seed(home: string): Promise<void> {
 	];
 	await writeFile(join(dir, `${SESSION_ID}.jsonl`), `${lines.join("\n")}\n`);
 
+	/*
+	 * 借真实的模型配置，只为了让最后那一次「发送」是真的发出去。
+	 *
+	 * 不借的话，submit 照样会清空输入框（`setText("")` 在 `buildOutgoing` 之后、模型调用之前），
+	 * 验证还是成立的——但窗口上会挂一条「未配置模型」的红提示，录进视频里比功能本身更抢眼。
+	 */
+	for (const file of ["credentials.json", "vault.key"]) {
+		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
+			throw new Error(`没找到 ~/.lyra/${file}——最后那次真实发送需要它`);
+		});
+	}
+	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({
+			...real,
 			permissionMode: "full",
 			projects: [{ id: projectId, path: cwd, name: "演示工程", pinned: true, lastOpenedAt: Date.now() }],
+			pinnedSessionIds: [],
 			sync: { enabled: false },
 		}),
 	);
@@ -163,14 +178,24 @@ async function main() {
 		const up1 = await fieldValue();
 		const mark1 = await indicator();
 		check("↑ 翻出的是最近说的那句", up1 === SECOND, up1 || "（空的）");
-		check("上沿标着 1/2", /1\s*\/\s*2/.test(mark1), mark1 || "（没有指示器）");
+		check("框里标着 1/2", /1\s*\/\s*2/.test(mark1), mark1 || "（没有指示器）");
+		/*
+		 * 在框**里**，不是浮在框外。
+		 *
+		 * 从 `.ly-composer` 往上找；页面里不止一个输入框外壳（侧边聊天共用同一个），所以先用
+		 * `main` 限定到主输入框这一个。
+		 */
+		const inside = await app.evaluate<boolean>(
+			'(() => { const el = document.querySelector("main [data-ly-history]"); return Boolean(el && el.closest(".ly-composer")); })()',
+		);
+		check("那行小字长在输入框里面", inside, inside ? "" : "（跑到框外面去了）");
 
 		await d.key("ArrowUp", UP);
 		await pause(1100);
 		const up2 = await fieldValue();
 		const mark2 = await indicator();
 		check("再按 ↑ 翻到更早那句", up2 === FIRST, up2 || "（空的）");
-		check("上沿标着 2/2", /2\s*\/\s*2/.test(mark2), mark2 || "（没有指示器）");
+		check("框里标着 2/2", /2\s*\/\s*2/.test(mark2), mark2 || "（没有指示器）");
 
 		await d.key("ArrowUp", UP);
 		await pause(900);
@@ -208,6 +233,15 @@ async function main() {
 		await pause(1200);
 		const fromTop = await fieldValue();
 		check("光标贴到最前面时才翻历史", fromTop === SECOND, fromTop);
+		await pause(1200);
+
+		console.log("\n【五】发出去之后，那行小字不该还留着");
+		check("发送前确实标着", (await indicator()) !== "", "（发送前就没有，这一条白验了）");
+		await d.submit();
+		await pause(2000);
+		const afterSend = await indicator();
+		check("发完之后那行小字没了", afterSend === "", afterSend);
+		check("输入框也空了", (await fieldValue()) === "", await fieldValue());
 		await pause(1800);
 	} finally {
 		await stop();

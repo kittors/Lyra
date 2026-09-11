@@ -29,6 +29,14 @@ export function ComposerShell({
   autoFocus,
   /** Rendered above the field, for image thumbnails. */
   attachments,
+  /**
+   * 一行小字，贴在框内的最上沿。
+   *
+   * 和 `attachments` 分开，是因为它们说的不是一回事：附件是这条消息的一部分，会跟着发出去；这里
+   * 放的是关于输入框此刻状态的旁白（翻到第几条历史了），发出去的东西里没有它。挤进同一个槽，
+   * 「这条消息带了什么」就再也读不准了。
+   */
+  hint,
   left,
   right,
   onFiles,
@@ -52,6 +60,7 @@ export function ComposerShell({
   disabled?: boolean;
   autoFocus?: boolean;
   attachments?: React.ReactNode;
+  hint?: React.ReactNode;
   left?: React.ReactNode;
   right?: React.ReactNode;
   /** Supplied only where attachments are accepted; enables paste and drop. */
@@ -193,6 +202,7 @@ export function ComposerShell({
           : undefined
       }
     >
+      {hint}
       {attachments}
 
       {/*
