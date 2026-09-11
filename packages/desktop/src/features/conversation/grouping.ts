@@ -15,6 +15,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@lyra/core";
 import { CARRY_ON_PROMPTS } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
+import { intact } from "../../lib/transcript.ts";
 
 type ToolCallBlock = Extract<AssistantContent, { type: "toolCall" }>;
 
@@ -404,7 +405,8 @@ export function sameRun(
  */
 export function runs(messages: Message[], compactions?: { at: number }[]): Exclude<Run, { kind: "command" } | { kind: "hiccup" }>[];
 export function runs(messages: Message[], compactions: { at: number }[], commands: CommandRun[], hiccups?: Hiccup[]): Run[];
-export function runs(messages: Message[], compactions: { at: number }[] = [], commands: CommandRun[] = [], hiccups: Hiccup[] = []): Run[] {
+export function runs(rawMessages: Message[], compactions: { at: number }[] = [], commands: CommandRun[] = [], hiccups: Hiccup[] = []): Run[] {
+	const messages = intact(rawMessages);
 	const out: Run[] = [];
 	// Sorted so the marks can be consumed in order as the transcript is walked.
 	const marks = [...compactions].map((c) => c.at).sort((a, b) => a - b);

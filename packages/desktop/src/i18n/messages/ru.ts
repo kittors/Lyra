@@ -1450,6 +1450,7 @@ export const ru = {
 	"composer.commandNoArgs": "Эта команда не принимает аргументов — набранное сохранено.",
 	"composer.binaryFile": "{name} (двоичный)",
 	"composer.unreadableAsText": "{names}: модель видит только имя файла",
+	"transcript.damagedRecord": "Эту запись не удалось прочитать — пропущена",
 	"composer.scannedDocument": "{name} — скан, внутри нет текста для извлечения",
 	"composer.textTruncated": "[… дальше ещё около {count} символов, они не приложены]",
 	"composer.history": "История {current}/{total}",

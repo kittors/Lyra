@@ -1450,6 +1450,7 @@ export const fr = {
 	"composer.commandNoArgs": "Cette commande ne prend pas d'arguments — ce que vous avez tapé a été conservé.",
 	"composer.binaryFile": "{name} (binaire)",
 	"composer.unreadableAsText": "{names} : le modèle ne voit que le nom du fichier",
+	"transcript.damagedRecord": "Cet enregistrement est illisible — ignoré",
 	"composer.scannedDocument": "{name} est un scan — aucun texte à en extraire",
 	"composer.textTruncated": "[… environ {count} caractères de plus n'ont pas été joints]",
 	"composer.history": "Historique {current}/{total}",

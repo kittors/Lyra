@@ -1450,6 +1450,7 @@ export const ko = {
 	"composer.commandNoArgs": "이 명령은 인자를 받지 않습니다. 입력한 내용은 그대로 남겨 뒀습니다.",
 	"composer.binaryFile": "{name}(바이너리)",
 	"composer.unreadableAsText": "{names}: 모델에는 파일 이름만 보입니다",
+	"transcript.damagedRecord": "이 기록은 읽을 수 없어 건너뛰었습니다",
 	"composer.scannedDocument": "{name}은(는) 스캔본이라 추출할 텍스트가 없습니다",
 	"composer.textTruncated": "[… 뒤로 약 {count}자는 첨부되지 않았습니다]",
 	"composer.history": "기록 {current}/{total}",

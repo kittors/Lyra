@@ -2,6 +2,7 @@ import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import type { AppState } from "./index.ts";
 import { howItStopped, prune, rebuildToolRuns, todosFrom, type Cache } from "./derive.ts";
+import { intact } from "../lib/transcript.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { beginSessionRead, endSessionRead } from "./read-events.ts";
@@ -53,6 +54,20 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 		set({ loadingSession: false });
 		return;
 	}
+	/*
+	 * 从主进程拿到的转录，进门先过一道闸。
+	 *
+	 * 这一条数组紧接着要交给 `rebuildToolRuns`、`todosFrom`、`howItStopped`，三个都直接读 `role`，
+	 * 而 core 那边的校验只问「有没有 message」不问它长什么样（`store.ts` 的 `if (record.message)`）——
+	 * 一条缺 `content` 的记录能原样送到这里。
+	 *
+	 * 后果比崩溃更难认：这几个函数一抛，整条 `readSelectedSession` 就断在半路，`loadingSession`
+	 * 再也没人置回 false，会话**永远停在「正在加载对话…」**。实测就是这样——同一份数据，全好的能
+	 * 打开，塞两条坏记录进去就再也打不开，而且一句报错都不给。
+	 *
+	 * 没有损坏时 `intact` 交回同一个引用，所以下面那些靠引用相等判断的缓存路径不受影响。
+	 */
+	snapshot = { ...snapshot, messages: intact(snapshot.messages) };
 
 	// Cold visits need the disk prefix as well as events that arrived during the read.
 	if ((before.loadingSession || resync) && events.length) {

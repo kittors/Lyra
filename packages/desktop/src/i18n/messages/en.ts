@@ -1450,6 +1450,7 @@ export const en = {
 	"composer.commandNoArgs": "This command takes no arguments — what you typed has been kept.",
 	"composer.binaryFile": "{name} (binary)",
 	"composer.unreadableAsText": "{names}: the model can only see the filename",
+	"transcript.damagedRecord": "This record could not be read — skipped",
 	"composer.scannedDocument": "{name} is a scan — there is no text inside to extract",
 	"composer.textTruncated": "[… about {count} more characters were left off]",
 	"composer.history": "History {current}/{total}",

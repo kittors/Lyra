@@ -1450,6 +1450,7 @@ export const ja = {
 	"composer.commandNoArgs": "このコマンドは引数を取りません。入力した内容はそのまま残しています。",
 	"composer.binaryFile": "{name}（バイナリ）",
 	"composer.unreadableAsText": "{names}：モデルにはファイル名しか見えません",
+	"transcript.damagedRecord": "この記録は読めなかったので飛ばしました",
 	"composer.scannedDocument": "{name} はスキャン画像で、取り出せる文字がありません",
 	"composer.textTruncated": "［…この先およそ {count} 文字は添付されていません］",
 	"composer.history": "履歴 {current}/{total}",

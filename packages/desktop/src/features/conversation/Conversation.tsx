@@ -11,6 +11,7 @@ import { TaskList } from "../task/index.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useAnswering } from "./useAnswering.ts";
 import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
+import { intact } from "../../lib/transcript.ts";
 import { ToolRun as ToolRunGroup, WINDOW_STEP } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
@@ -45,7 +46,17 @@ import { useApp } from "../../store/index.ts";
 const NARROW_COLUMN = 520;
 
 export const Conversation = memo(function Conversation() {
-  const messages = useApp((s) => s.messages);
+  /*
+   * 转录的入口，也是那道闸门的位置。
+   *
+   * `intact` 放在这里而不是只放在 `runs` 里，是因为这一条数组要交给五个消费者——`runs`、
+   * `timeSeparators`、`questionsIn`、`useAnswering`、`tailSignature`——它们各自都会去读 `role`。
+   * 只挡住其中一个，另外四个照样能把整个窗口掀翻，而报出来还是同一句话。
+   *
+   * 没有损坏时 `intact` 交回的是同一个引用，所以下面那些 `useMemo` 的依赖不会因此失效。
+   */
+  const rawMessages = useApp((s) => s.messages);
+  const messages = useMemo(() => intact(rawMessages), [rawMessages]);
   const running = useApp((s) => s.running);
   const compactions = useApp((s) => s.compactions);
 	const commandRuns = useApp((s) => s.commandRuns);

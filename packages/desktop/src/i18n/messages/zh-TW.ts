@@ -1450,6 +1450,7 @@ export const zhTW = {
 	"composer.commandNoArgs": "這條命令不接收參數，輸入內容已保留。",
 	"composer.binaryFile": "{name}（二進位檔案）",
 	"composer.unreadableAsText": "{names}：模型只看得到檔名",
+	"transcript.damagedRecord": "這條記錄讀不出來，已略過",
 	"composer.scannedDocument": "{name} 是掃描件，裡面沒有可擷取的文字",
 	"composer.textTruncated": "[……後面還有約 {count} 個字元沒有附上]",
 	"composer.history": "歷史 {current}/{total}",

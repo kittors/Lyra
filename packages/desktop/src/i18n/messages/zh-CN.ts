@@ -1622,6 +1622,7 @@ export const zhCN = {
 	"composer.commandNoArgs": "这条命令不接收参数，输入内容已保留。",
 	"composer.binaryFile": "{name}（二进制文件）",
 	"composer.unreadableAsText": "{names}：模型只看得到文件名",
+	"transcript.damagedRecord": "这条记录读不出来，已跳过",
 	"composer.scannedDocument": "{name} 是扫描件，里面没有可提取的文字",
 	"composer.textTruncated": "[……后面还有约 {count} 个字符没有附上]",
 	"composer.history": "历史 {current}/{total}",
