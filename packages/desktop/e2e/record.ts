@@ -63,8 +63,12 @@ export async function startRecording(port: number, frames: Frame[]): Promise<() 
  * 帧按**真实到达时间**合成，不是按固定 fps 排。
  *
  * 屏幕录制的帧只在画面变化时产生，当成等间隔去合成，等待的那几秒会被压成一瞬，节奏就假了。
+ *
+ * `fps` 给定时，输出转成那个帧率的定帧率视频。**时间轴不变**——每一帧该停多久还是停多久，只是按固定
+ * 间隔重新采一遍，不足的地方补上重复帧。要这个是因为有些播放器（和大多数录屏分享的地方）对变帧率的
+ * 素材处理得很差：明明录到了每一帧，播出来却是一顿一顿的。不给就维持变帧率，文件更小。
  */
-export async function encode(frames: Frame[], out: string): Promise<void> {
+export async function encode(frames: Frame[], out: string, fps?: number, maxHoldMs = 0): Promise<void> {
 	const dir = await mkdtemp(join(tmpdir(), "lyra-demo-"));
 	const lines: string[] = [];
 	for (const [index, frame] of frames.entries()) {
@@ -72,7 +76,8 @@ export async function encode(frames: Frame[], out: string): Promise<void> {
 		await writeFile(file, frame.data);
 		const next = frames[index + 1];
 		// 最后一帧多留一秒，免得画面戛然而止。
-		const seconds = next ? Math.max(0.016, (next.at - frame.at) / 1000) : 1;
+		const raw = next ? Math.max(0.016, (next.at - frame.at) / 1000) : 1;
+		const seconds = maxHoldMs > 0 ? Math.min(raw, maxHoldMs / 1000) : raw;
 		lines.push(`file '${file}'`, `duration ${seconds.toFixed(3)}`);
 	}
 	// concat 解复用器要求最后一帧再写一次，否则它的 duration 被忽略。
@@ -86,7 +91,7 @@ export async function encode(frames: Frame[], out: string): Promise<void> {
 			"ffmpeg",
 			[
 				"-y", "-f", "concat", "-safe", "0", "-i", list,
-				"-vsync", "vfr",
+				...(fps ? ["-vsync", "cfr", "-r", String(fps)] : ["-vsync", "vfr"]),
 				// yuv420p + 偶数边长，否则 QuickTime 和多数播放器不认。
 				"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
 				"-c:v", "libx264", "-preset", "slow", "-crf", "18",
