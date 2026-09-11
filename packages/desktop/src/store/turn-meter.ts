@@ -24,12 +24,15 @@
  * it continues, and its stats are added to it. This is the live half of that, and the two have to
  * agree or the number jumps the moment the turn ends.
  *
- * It does *not* follow on the interruption, and should not: that is where the two part company on
- * purpose. What it counts is what the model spent — streaming time, tokens out — printed under the
- * reply it belongs to, and cutting that at each thing a person said is what makes the figure match
- * the reply it sits beneath. This counts the wall clock from the moment somebody asked. Neither is
- * an approximation of the other, so the added message being a boundary there and not here is two
- * questions answered correctly rather than one answered twice.
+ * 它们有很长一段时间并不 agree，而这句话就写在这里。这半边数的一直是墙钟；那半边数的是每条回复
+ * 的 `durationMs` 加起来，也就是**只有请求在飞的时候**才走的表。一轮跑了 13 分 02 秒、当中四个子
+ * 代理和三条长命令占掉 10 分 48 秒，人盯着这一行看了十三分钟，`agent_end` 一到，数字当场变成 2 分
+ * 14 秒——八成以上的时间不是被算错，是从来没进过账。跨 229 个真实会话的 309 个有记录的回合复核，
+ * 中位少算 8.7%，九成位 59.6%。那半边现在也走墙钟，也跨过停顿，见 `grouping.ts` 的 `TurnStats`。
+ *
+ * 还剩一处故意分开的：**人在回合进行当中插的那句话**。它在那半边是新一轮的开头，在这半边不是。
+ * 那半边的数字印在一条回复底下，按人每次开口切一刀，才对得上它所在的那条回复；这半边回答的是
+ * 「我这件事等了多久」，补一句需求不是另起一件事。两个问题各自答对，不是同一个问题答了两遍。
  */
 
 /** A turn in flight: when its clock was lit, and what it has spent since. */

@@ -16,12 +16,12 @@ import { emptyUsage } from "@lyra/core";
 import { computeTurnStats, runs, runKey, type Run } from "../src/features/conversation/grouping.ts";
 import { CARRY_ON_PROMPTS } from "../src/store/derive.ts";
 
-function user(text: string): Message {
-	return { role: "user", content: [{ type: "text", text }], timestamp: 1 };
+function user(text: string, timestamp = 1): Message {
+	return { role: "user", content: [{ type: "text", text }], timestamp };
 }
 
-function nudge(): Message {
-	return { role: "user", content: [{ type: "text", text: "（自动继续）继续" }], timestamp: 1 };
+function nudge(timestamp = 1): Message {
+	return { role: "user", content: [{ type: "text", text: "（自动继续）继续" }], timestamp };
 }
 
 function assistant(content: AssistantContent[], stopReason: StopReason): AssistantMessage {
@@ -49,9 +49,30 @@ function thinking(value: string): AssistantContent {
 	return { type: "thinking", thinking: value };
 }
 
-function answered(id: string): Message {
-	return { role: "toolResult", toolCallId: id, toolName: "read", content: [], isError: false, timestamp: 2 };
+function answered(id: string, timestamp = 2): Message {
+	return { role: "toolResult", toolCallId: id, toolName: "read", content: [], isError: false, timestamp };
 }
+
+/**
+ * 一条放在时间轴上的回复：什么时候起的流，跑了多久，出了多少字。
+ *
+ * 统计那几条测试非用真实时刻不可。固件从前把所有 `timestamp` 都写成 1，于是「这一轮跑了多久」
+ * 退化成「每次请求加起来多久」——正好是那个 bug 本身的样子，测试因此对它一无所知。
+ */
+function spent(message: AssistantMessage, startedAt: number, durationMs: number, extra?: { sse?: number; output?: number }): AssistantMessage {
+	message.timestamp = startedAt;
+	message.durationMs = durationMs;
+	if (extra?.sse !== undefined) message.sseDurationMs = extra.sse;
+	if (extra?.output !== undefined) {
+		message.usage = { input: 0, output: extra.output, cacheRead: 0, cacheWrite: 0, total: extra.output };
+	}
+	return message;
+}
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+/** 这一轮从哪一刻开始——随便挑的一个真实毫秒数，只是不能是 0 或者 1。 */
+const T0 = 1_789_110_727_867;
 
 /** Rows reduced to what a reader would see change: the kind, and which calls are in it. */
 function shape(rows: Run[]): string[] {
@@ -374,39 +395,95 @@ test("the reply carries the calls it made, so a live one reads as live", () => {
 	);
 });
 
-test("computeTurnStats aggregates duration and output tokens across all assistant requests in a turn", () => {
-	const msg1 = assistant([call("a")], "toolUse");
-	msg1.durationMs = 1200;
-	msg1.sseDurationMs = 900;
-	msg1.usage = { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, total: 150 };
-
-	const msg2 = assistant([call("b")], "toolUse");
-	msg2.durationMs = 800;
-	msg2.sseDurationMs = 600;
-	msg2.usage = { input: 200, output: 30, cacheRead: 0, cacheWrite: 0, total: 230 };
-
-	const msg3 = assistant([text("完成了")], "stop");
-	msg3.durationMs = 2000;
-	msg3.sseDurationMs = 1500;
-	msg3.usage = { input: 300, output: 120, cacheRead: 0, cacheWrite: 0, total: 420 };
+/*
+ * 一轮花了多久，问的是墙上的钟。
+ *
+ * 报出来的那个数是人在外面等的时间：模型在想、工具在跑、子代理在跑，对等着的人来说是同一件事
+ * 还没做完。从前这里把每条回复的 `durationMs` 加起来——那是只有请求在飞的时候才走的表——所以
+ * 一轮真实 13 分 02 秒的活报成了 2 分 14 秒，工具和子代理占掉的那 10 分 48 秒不是算错，是从来
+ * 没进过账。
+ */
+test("一轮的耗时是从开口到停笔的墙钟，工具跑的那几分钟也在里面", () => {
+	const msg1 = spent(assistant([call("a")], "toolUse"), T0 + 2 * SECOND, 1200, { sse: 900, output: 50 });
+	const msg2 = spent(assistant([call("b")], "toolUse"), T0 + 5 * MINUTE, 800, { sse: 600, output: 30 });
+	const msg3 = spent(assistant([text("完成了")], "stop"), T0 + 9 * MINUTE, 2000, { sse: 1500, output: 120 });
 
 	const messages: Message[] = [
-		user("第一轮问题"),
-		assistant([text("第一轮回答")], "stop"),
-		user("第二轮问题"),
+		user("第一轮问题", T0 - MINUTE),
+		spent(assistant([text("第一轮回答")], "stop"), T0 - MINUTE, 500),
+		user("第二轮问题", T0),
 		msg1,
-		answered("a"),
-		nudge(),
+		// 一次跑了将近五分钟的子代理。
+		answered("a", T0 + 5 * MINUTE - SECOND),
+		nudge(T0 + 5 * MINUTE),
 		msg2,
-		answered("b"),
+		// 又一次，这次四分钟。
+		answered("b", T0 + 9 * MINUTE - SECOND),
 		msg3,
 	];
 
 	const stats = computeTurnStats(messages, 8);
-	assert.equal(stats.durationMs, 4000);
+	assert.equal(stats.durationMs, 9 * MINUTE + 2000, "从人开口到最后一条回复收尾");
+	assert.equal(stats.requestMs, 4000, "其中模型在应答的只有这些");
 	assert.equal(stats.sseDurationMs, 3000);
 	assert.equal(stats.outputTokens, 200);
 	assert.equal(stats.requestCount, 3);
+});
+
+/*
+ * 一条命令跑四分钟，这一轮就是过了四分钟——哪怕这四分钟里一个 token 都没产出。
+ *
+ * 这是上面那条的最小形态，单独钉一遍：轮里只有一次请求，请求本身两秒钟，工具跑了四分钟。任何
+ * 「把回复的耗时加起来」的实现在这里都只能答出 2 秒，差了 120 倍。
+ */
+test("工具在跑的时间全算这一轮头上", () => {
+	const messages: Message[] = [
+		user("跑一下那个脚本", T0),
+		spent(assistant([call("a")], "toolUse"), T0, 2 * SECOND, { output: 10 }),
+		answered("a", T0 + 4 * MINUTE),
+		spent(assistant([text("跑完了")], "stop"), T0 + 4 * MINUTE, SECOND, { output: 5 }),
+	];
+
+	const stats = computeTurnStats(messages, 3);
+	assert.equal(stats.durationMs, 4 * MINUTE + SECOND);
+	assert.equal(stats.requestMs, 3 * SECOND);
+});
+
+/*
+ * 工具是边流边派的，所以工具结果可以比派它的那条回复更早收尾。
+ *
+ * 一条回复的 `toolCall` 块一落地就发出去了，不等整个流结束。真实会话里就是这样：一条跑了 21 秒的
+ * 回复在第 19 秒派出工具，工具的结束时刻减去它自己的时长，落在那条回复收尾之前。段的终点因此要取
+ * 最大值——直接往后赋值的话，这一轮会在后面某条早结束的消息那里被截短。
+ */
+test("先派出去的工具不会把这一轮的终点拉回来", () => {
+	const messages: Message[] = [
+		user("干活", T0),
+		// 21 秒的一条回复，第 2 秒就把工具派出去了：工具 3 秒跑完，比派它的那条回复收尾早 16 秒。
+		spent(assistant([call("a")], "toolUse"), T0, 21 * SECOND),
+		answered("a", T0 + 5 * SECOND),
+	];
+
+	assert.equal(computeTurnStats(messages, 2).durationMs, 21 * SECOND);
+});
+
+/*
+ * 还在跑的那一轮，报的是到目前为止。
+ *
+ * 正在写的那条回复还没有 `durationMs`——适配器要等流关了才填——所以它只把终点推到它起流的那一刻。
+ * 这一行本来就只在悬停时露面，跑着的时候人看的是 `RunningIndicator` 那块在线的表。
+ */
+test("一轮还没跑完时，账只记到已经发生的地方", () => {
+	const messages: Message[] = [
+		user("干活", T0),
+		spent(assistant([call("a")], "toolUse"), T0, 2 * SECOND),
+		answered("a", T0 + 3 * MINUTE),
+		{ ...assistant([text("我看看")], "pending"), timestamp: T0 + 3 * MINUTE },
+	];
+
+	const stats = computeTurnStats(messages, 3);
+	assert.equal(stats.durationMs, 3 * MINUTE);
+	assert.equal(stats.requestCount, 2);
 });
 
 /*
@@ -418,27 +495,48 @@ test("computeTurnStats aggregates duration and output tokens across all assistan
  * described a stretch of work that was never run on its own.
  */
 test("continuing after a failure keeps the turn's totals whole", () => {
-	const first = assistant([call("a")], "error");
-	first.durationMs = 5000;
-	first.sseDurationMs = 4000;
-	first.usage = { input: 100, output: 200, cacheRead: 0, cacheWrite: 0, total: 300 };
-
-	const second = assistant([text("做完了")], "stop");
-	second.durationMs = 3000;
-	second.sseDurationMs = 2500;
-	second.usage = { input: 50, output: 80, cacheRead: 0, cacheWrite: 0, total: 130 };
+	const first = spent(assistant([call("a")], "error"), T0, 5 * SECOND, { sse: 4000, output: 200 });
+	const second = spent(assistant([text("做完了")], "stop"), T0 + 10 * MINUTE, 3 * SECOND, { sse: 2500, output: 80 });
 
 	const messages: Message[] = [
-		user("干这件事"),
+		user("干这件事", T0),
 		first,
-		user("继续，从中断的地方接着做。"),
+		// 出错了，人过了十分钟才回来按「继续」。
+		user("继续，从中断的地方接着做。", T0 + 10 * MINUTE),
 		second,
 	];
 
 	const stats = computeTurnStats(messages, 3);
-	assert.equal(stats.durationMs, 8000, "两段的耗时要加起来");
+	assert.equal(stats.durationMs, 8 * SECOND, "两段跑的时间加起来，当中停着等人的十分钟不算");
 	assert.equal(stats.outputTokens, 280, "两段的 token 要加起来");
 	assert.equal(stats.requestCount, 2);
+});
+
+/*
+ * 停下之后那段等人的时间不算，可停之前、接上之后的都要算全。
+ *
+ * 上面那条两段都只有请求、没有工具，所以「加起来」和「跨过中间那段」看起来是一回事。这条把工具塞
+ * 进两段里：第一段跑了三分钟被打断，人去吃了半小时饭，回来接着跑两分钟。答案是五分钟——不是三十五
+ * 分钟（把等的时间也算上），也不是两分钟（只报最后一段），更不是八秒（只把请求加起来）。
+ */
+test("停下等人的那段跨过去，两头的工具时间照样算", () => {
+	const messages: Message[] = [
+		user("干这件大事", T0),
+		spent(assistant([call("a")], "toolUse"), T0, 5 * SECOND),
+		answered("a", T0 + 3 * MINUTE),
+		// 人按了停。
+		spent(assistant([], "aborted"), T0 + 3 * MINUTE, SECOND),
+		// 半小时后回来。
+		user("继续，从暂停的地方接着做。", T0 + 33 * MINUTE),
+		spent(assistant([call("b")], "toolUse"), T0 + 33 * MINUTE, 2 * SECOND),
+		answered("b", T0 + 35 * MINUTE),
+		spent(assistant([text("做完了")], "stop"), T0 + 35 * MINUTE, SECOND),
+	];
+
+	const stats = computeTurnStats(messages, 7);
+	assert.equal(stats.durationMs, 5 * MINUTE + 2 * SECOND, "3 分钟 + 2 分钟，中间那半小时不算");
+	assert.equal(stats.requestMs, 9 * SECOND);
+	assert.equal(stats.requestCount, 4);
 });
 
 /*
@@ -449,23 +547,18 @@ test("continuing after a failure keeps the turn's totals whole", () => {
  * together in the figures.
  */
 test("the same wording after a clean finish starts a new turn", () => {
-	const first = assistant([text("做完了")], "stop");
-	first.durationMs = 5000;
-	first.usage = { input: 100, output: 200, cacheRead: 0, cacheWrite: 0, total: 300 };
-
-	const second = assistant([text("好的")], "stop");
-	second.durationMs = 3000;
-	second.usage = { input: 50, output: 80, cacheRead: 0, cacheWrite: 0, total: 130 };
+	const first = spent(assistant([text("做完了")], "stop"), T0, 5 * SECOND, { output: 200 });
+	const second = spent(assistant([text("好的")], "stop"), T0 + 10 * MINUTE, 3 * SECOND, { output: 80 });
 
 	const messages: Message[] = [
-		user("干这件事"),
+		user("干这件事", T0),
 		first,
-		user("继续，从中断的地方接着做。"),
+		user("继续，从中断的地方接着做。", T0 + 10 * MINUTE),
 		second,
 	];
 
 	const stats = computeTurnStats(messages, 3);
-	assert.equal(stats.durationMs, 3000, "上一轮正常结束，这是新的一轮");
+	assert.equal(stats.durationMs, 3 * SECOND, "上一轮正常结束，这是新的一轮");
 	assert.equal(stats.outputTokens, 80);
 	assert.equal(stats.requestCount, 1);
 });
@@ -488,35 +581,20 @@ test("computeTurnStats returns zeros if no assistant messages or out of bounds",
  * deriving them here, and this is what says the answer did not change on the way.
  */
 test("a row carries the same totals computeTurnStats would give for it", () => {
-	const first = assistant([text("第一轮回答")], "stop");
-	first.durationMs = 500;
-	first.sseDurationMs = 400;
-	first.usage = { input: 10, output: 20, cacheRead: 0, cacheWrite: 0, total: 30 };
-
-	const msg1 = assistant([call("a")], "toolUse");
-	msg1.durationMs = 1200;
-	msg1.sseDurationMs = 900;
-	msg1.usage = { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, total: 150 };
-
-	const msg2 = assistant([call("b")], "toolUse");
-	msg2.durationMs = 800;
-	msg2.sseDurationMs = 600;
-	msg2.usage = { input: 200, output: 30, cacheRead: 0, cacheWrite: 0, total: 230 };
-
-	const msg3 = assistant([text("完成了")], "stop");
-	msg3.durationMs = 2000;
-	msg3.sseDurationMs = 1500;
-	msg3.usage = { input: 300, output: 120, cacheRead: 0, cacheWrite: 0, total: 420 };
+	const first = spent(assistant([text("第一轮回答")], "stop"), T0 - MINUTE, 500, { sse: 400, output: 20 });
+	const msg1 = spent(assistant([call("a")], "toolUse"), T0, 1200, { sse: 900, output: 50 });
+	const msg2 = spent(assistant([call("b")], "toolUse"), T0 + 5 * MINUTE, 800, { sse: 600, output: 30 });
+	const msg3 = spent(assistant([text("完成了")], "stop"), T0 + 9 * MINUTE, 2000, { sse: 1500, output: 120 });
 
 	const messages: Message[] = [
-		user("第一轮问题"),
+		user("第一轮问题", T0 - MINUTE),
 		first,
-		user("第二轮问题"),
+		user("第二轮问题", T0),
 		msg1,
-		answered("a"),
-		nudge(),
+		answered("a", T0 + 5 * MINUTE - SECOND),
+		nudge(T0 + 5 * MINUTE),
 		msg2,
-		answered("b"),
+		answered("b", T0 + 9 * MINUTE - SECOND),
 		msg3,
 	];
 
@@ -530,18 +608,14 @@ test("a row carries the same totals computeTurnStats would give for it", () => {
 	// And specifically: a nudge does not start a new turn, so the last row has all three replies.
 	const last = rows[rows.length - 1];
 	assert.equal(last.kind === "message" && last.turnStats?.requestCount, 3);
-	assert.equal(last.kind === "message" && last.turnStats?.durationMs, 4000);
+	assert.equal(last.kind === "message" && last.turnStats?.durationMs, 9 * MINUTE + 2000);
 });
 
 test("a person speaking starts the count over; the first turn's cost stays with the first turn", () => {
-	const one = assistant([text("一")], "stop");
-	one.durationMs = 500;
-	one.usage = { input: 0, output: 20, cacheRead: 0, cacheWrite: 0, total: 20 };
-	const two = assistant([text("二")], "stop");
-	two.durationMs = 700;
-	two.usage = { input: 0, output: 30, cacheRead: 0, cacheWrite: 0, total: 30 };
+	const one = spent(assistant([text("一")], "stop"), T0, 500, { output: 20 });
+	const two = spent(assistant([text("二")], "stop"), T0 + MINUTE, 700, { output: 30 });
 
-	const rows = runs([user("甲"), one, user("乙"), two]).filter((run) => run.kind === "message");
+	const rows = runs([user("甲", T0), one, user("乙", T0 + MINUTE), two]).filter((run) => run.kind === "message");
 	const totals = rows
 		.filter((run) => run.kind === "message" && run.message.role === "assistant")
 		.map((run) => (run.kind === "message" ? run.turnStats : undefined));
@@ -564,23 +638,18 @@ test("a person speaking starts the count over; the first turn's cost stays with 
  * rather than assumed to follow from it.
  */
 test("continuing after a manual pause keeps the turn's totals whole", () => {
-	const first = assistant([call("a")], "aborted");
-	first.durationMs = 90_000;
-	first.usage = { input: 100, output: 1000, cacheRead: 0, cacheWrite: 0, total: 1100 };
-
-	const second = assistant([text("接着做完了")], "stop");
-	second.durationMs = 30_000;
-	second.usage = { input: 50, output: 200, cacheRead: 0, cacheWrite: 0, total: 250 };
+	const first = spent(assistant([call("a")], "aborted"), T0, 90 * SECOND, { output: 1000 });
+	const second = spent(assistant([text("接着做完了")], "stop"), T0 + 10 * MINUTE, 30 * SECOND, { output: 200 });
 
 	const messages: Message[] = [
-		user("干这件事"),
+		user("干这件事", T0),
 		first,
-		user("继续，从暂停的地方接着做。"),
+		user("继续，从暂停的地方接着做。", T0 + 10 * MINUTE),
 		second,
 	];
 
 	const stats = computeTurnStats(messages, 3);
-	assert.equal(stats.durationMs, 120_000, "暂停前后的耗时要加起来");
+	assert.equal(stats.durationMs, 120 * SECOND, "暂停前后跑的时间加起来，当中停着的十分钟不算");
 	assert.equal(stats.outputTokens, 1200);
 });
 
@@ -593,21 +662,16 @@ test("continuing after a manual pause keeps the turn's totals whole", () => {
  * carry across it.
  */
 test("继续 sent as a synthetic message neither shows nor restarts the turn", () => {
-	const first = assistant([call("a")], "aborted");
-	first.durationMs = 90_000;
-	first.usage = { input: 100, output: 1000, cacheRead: 0, cacheWrite: 0, total: 1100 };
+	const first = spent(assistant([call("a")], "aborted"), T0, 90 * SECOND, { output: 1000 });
+	const second = spent(assistant([text("接着做完了")], "stop"), T0 + 10 * MINUTE, 30 * SECOND, { output: 200 });
 
-	const second = assistant([text("接着做完了")], "stop");
-	second.durationMs = 30_000;
-	second.usage = { input: 50, output: 200, cacheRead: 0, cacheWrite: 0, total: 250 };
-
-	const carryOn = user("继续，从暂停的地方接着做。");
+	const carryOn = user("继续，从暂停的地方接着做。", T0 + 10 * MINUTE);
 	carryOn.synthetic = true;
 
-	const messages: Message[] = [user("干这件事"), first, carryOn, second];
+	const messages: Message[] = [user("干这件事", T0), first, carryOn, second];
 
 	const stats = computeTurnStats(messages, 3);
-	assert.equal(stats.durationMs, 120_000, "暂停前后的耗时要加起来");
+	assert.equal(stats.durationMs, 120 * SECOND, "暂停前后跑的时间加起来，当中停着的十分钟不算");
 	assert.equal(stats.outputTokens, 1200);
 
 	// And it is not a row: `runs` drops synthetic user messages entirely.
@@ -626,17 +690,12 @@ test("继续 sent as a synthetic message neither shows nor restarts the turn", (
  */
 test("每一句「继续」都要被认成接着做，而不是一个新问题", () => {
 	for (const prompt of CARRY_ON_PROMPTS) {
-		const first = assistant([call("a")], "aborted");
-		first.durationMs = 90_000;
-		first.usage = { input: 100, output: 1000, cacheRead: 0, cacheWrite: 0, total: 1100 };
+		const first = spent(assistant([call("a")], "aborted"), T0, 90 * SECOND, { output: 1000 });
+		const second = spent(assistant([text("接着做完了")], "stop"), T0 + 10 * MINUTE, 30 * SECOND, { output: 200 });
 
-		const second = assistant([text("接着做完了")], "stop");
-		second.durationMs = 30_000;
-		second.usage = { input: 50, output: 200, cacheRead: 0, cacheWrite: 0, total: 250 };
-
-		const messages: Message[] = [user("干这件事"), first, user(prompt), second];
+		const messages: Message[] = [user("干这件事", T0), first, user(prompt, T0 + 10 * MINUTE), second];
 		const stats = computeTurnStats(messages, 3);
-		assert.equal(stats.durationMs, 120_000, `「${prompt}」没有被认出来`);
+		assert.equal(stats.durationMs, 120 * SECOND, `「${prompt}」没有被认出来`);
 		assert.equal(stats.outputTokens, 1200, `「${prompt}」没有被认出来`);
 	}
 });

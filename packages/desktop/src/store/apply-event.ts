@@ -169,8 +169,11 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        *
        * `aborted` and `error` are the stops that leave a piece of work half done — the same two
        * `grouping.ts` reads off the transcript when it decides that a 继续 belongs to the turn
-       * before it. Keeping the pair in step is the point: they are the live and the settled account
-       * of one number, and if they disagreed the elapsed time would jump the moment the turn ended.
+       * before it, and the same two its clock stops counting at (`saw`'s `halted`). Keeping the
+       * pair in step is the point: they are the live and the settled account of one number, and if
+       * they disagreed the elapsed time would jump the moment the turn ended. It did — by a factor
+       * of six on a turn full of tool work, until the settled half started counting the wall clock
+       * too. See the note at the top of `turn-meter.ts`.
        *
        * `done`, `max_turns` and `stalled` clear it instead. A turn that reached its own end is over;
        * anything carried past it would be added to whatever ran next, under a total nobody could

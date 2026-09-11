@@ -6,6 +6,7 @@ import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { useApp } from "../../store/index.ts";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
+import { useLiveRate } from "./useLiveRate.ts";
 
 /**
  * What the agent is spending while it works: elapsed time and tokens so far.
@@ -76,6 +77,22 @@ export function RunningIndicator() {
 		const block = last.content[last.content.length - 1];
 		return block?.type === "text" && block.text.length > 0;
 	});
+	/*
+	 * 正在写的这一条，到此刻为止有多少字。
+	 *
+	 * 思考和正文都算：两者都是模型这一刻正在产出的东西，速度是同一件事。工具调用的参数不算——它是一次
+	 * 落地的，把它算进来会让曲线在调用那一帧凭空冲高。
+	 */
+	const liveChars = useApp((s) => {
+		const last = s.messages[s.messages.length - 1];
+		if (last?.role !== "assistant" || last.stopReason !== "pending") return 0;
+		let chars = 0;
+		for (const block of last.content) {
+			if (block.type === "text") chars += block.text.length;
+			else if (block.type === "thinking") chars += block.thinking.length;
+		}
+		return chars;
+	});
 
 	useEffect(() => {
 		if (!startedAt) return;
@@ -95,6 +112,18 @@ export function RunningIndicator() {
 	const total = tokens + live;
 	// Travelled to, not jumped to: usage lands per message, so this moves in steps of thousands.
 	const counted = useCountUp(total);
+	/*
+	 * 现在写得多快——**只能是估出来的**，这一点必须说在前面。
+	 *
+	 * 计费口径的 `usage` 在流式过程中是空的：适配器要等 `response.completed` 才把它一次性填上
+	 * （`openai-responses.ts` 的 `applyUsage`）。也就是说，回合结束前根本没有真实 token 数可读，而
+	 * 「实时」这个词要求的恰恰是结束前。
+	 *
+	 * 唯一还在动的是文本本身，所以按字符估：`@lyra/core/tokens` 的 3.5 字符/token，和上下文仪表、
+	 * 压缩判断用的是同一把尺，至少全应用口径一致。回合结束后 `MessageActions` 那行显示的是服务商
+	 * 报的真数，两者会有出入——这是估算的代价，不是 bug。
+	 */
+	const rate = useLiveRate(liveChars, now, startedAt);
 
 	const [toolName, summary, finishedAt] = doing.split("\u0000");
 	/*
@@ -179,6 +208,24 @@ export function RunningIndicator() {
 					{/* `tabular-nums` matters more while it is moving: without it the glyph widths
 					    change every frame and the whole line shuffles sideways as the number climbs. */}
 					<span className="text-ink-faint tabular-nums">{formatTokens(Math.round(counted))} tokens</span>
+				</>
+			)}
+			{/*
+			 * 这一轮写得多快——一旦有过读数，就一直挂着，直到被新的读数**走**过去替换。
+			 *
+			 * 门槛是「有没有拿到过读数」，不是「此刻有没有在写」。后者是最初的写法，它错在一个回合的形状：
+			 * 大半时间在跑工具，按此刻是否在写来显示，一轮里几十次调用就是几十次出现又消失，那不是信号，
+			 * 是闪烁。而「刚才那段写得多快」在工具跑着的时候依然是这一轮的事实——它不因为模型正在读文件
+			 * 而变得不真。
+			 *
+			 * 回合真正结束时这整行一起消失，那时候 `MessageActions` 上是服务商报的真数，接得上。
+			 *
+			 * 淡入一次而不是每次都淡：这一行上已经有一个跳动的省略号和一个在爬的总数，数字自己走就够了。
+			 */}
+			{rate >= 0.05 && (
+				<>
+					<span className="text-ink-faint">·</span>
+					<span className="ly-fade-in text-ink-faint tabular-nums">{rate.toFixed(1)} tok/s</span>
 				</>
 			)}
 			{/*

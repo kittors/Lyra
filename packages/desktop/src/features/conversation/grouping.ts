@@ -69,42 +69,120 @@ export function runKey(run: Exclude<Run, { kind: "compaction" }>): string {
 }
 
 export type TurnStats = {
+	/**
+	 * 这一轮实际跑了多久。
+	 *
+	 * 墙上的钟，不是请求耗时之和。模型在想、工具在跑、子代理在跑，对等在外面的人来说都是同一件
+	 * 事还没做完——这些时间全在里面。
+	 *
+	 * 从前这里是把每条回复的 `durationMs` 加起来，那是**只有请求在飞的时候**才走的表：一轮真实
+	 * 跑了 13 分 02 秒、其中四次子代理和三次长命令占掉 10 分 48 秒，报出来是 2 分 14 秒。八成
+	 * 以上的时间不是被算错，是从来没被算过。而运行中那一行（`RunningIndicator`）读的一直是墙钟，
+	 * 所以回合一结束，数字当场从 13 分掉到 2 分——同一个问题的两个答案，差了近六倍。
+	 *
+	 * 唯一不算进来的是停下来之后那一段：见 `halted`。
+	 */
 	durationMs: number;
+	/**
+	 * 其中模型在应答的时间——工具、子代理、中间的调度间隙都不在里面。
+	 *
+	 * 就是从前 `durationMs` 装的那个数。它没有错，错的是拿它回答「这一轮花了多久」；留在这里，
+	 * 是因为「13 分钟里模型只说了 2 分钟」本身是句有用的话，界面把它放进了悬浮说明。
+	 */
+	requestMs: number;
+	/** 纯出字的时间，tok/s 的分母：去掉了排队、首字延迟和连接往返。 */
 	sseDurationMs: number;
 	outputTokens: number;
 	requestCount: number;
 };
 
 /**
- * Calculates accumulated turn statistics (total duration in ms, sse output duration in ms, total output tokens, total requests)
- * for the turn that ends at or before `endMessageIndex`.
+ * 一轮的表，边读转录边走。
  *
- * A turn consists of:
- * - Assistant messages (including toolUse calls, intermediate thought steps, and the final response).
- * - Tool result messages and continuation nudges between them.
- * The turn starts immediately after the previous real (non-synthetic, non-nudge) user message.
+ * 可变对象，只在这个文件里用；要交出去的时候 `snapshot` 出一份不可变的 `TurnStats`——那是要塞进
+ * memo 过的行里的东西，原地改的总数 React 有权当作没变过。
  */
-/** A turn that has spent nothing yet. */
-function noStats(): TurnStats {
-	return { durationMs: 0, sseDurationMs: 0, outputTokens: 0, requestCount: 0 };
+type Clock = {
+	/** 当前这一段从哪儿起表；`null` 是这一轮还没有任何消息。 */
+	from: number | null;
+	/** 当前这一段已知走到了哪儿。 */
+	to: number;
+	/** 之前那些结清了的段加起来有多长。 */
+	closedMs: number;
+	/**
+	 * 上一条回复是停下的（出错，或者被人按停），下一条消息来之前这段不算。
+	 *
+	 * 这是唯一一处「时间不算数」的地方，也正是 `turn-meter` 那半边 `freeze` 的两个理由：停在那里
+	 * 等人回来看一眼的十分钟，是人的时间，不是这一轮的时间。人一开口（或者重试一发出），表重新
+	 * 起走，中间那段就这么被跨过去了。
+	 */
+	halted: boolean;
+	requestMs: number;
+	sseDurationMs: number;
+	outputTokens: number;
+	requestCount: number;
+};
+
+/** 一轮还什么都没发生。 */
+function newClock(): Clock {
+	return { from: null, to: 0, closedMs: 0, halted: false, requestMs: 0, sseDurationMs: 0, outputTokens: 0, requestCount: 0 };
 }
 
 /**
- * Add one reply's cost to a running total, and hand back a new object.
+ * 一条消息在时间轴上占到哪儿为止。
  *
- * New rather than mutated: these are handed to a memoised row, and a total that changes in place
- * is one React is entitled to decide has not changed at all.
+ * 回复的 `timestamp` 是流开始的时刻，加上 `durationMs` 才是它收尾的时刻。工具结果的 `timestamp`
+ * 本身就已经是工具跑完的时刻了（它自己的 `durationMs` 是往回算的），再加一次等于把工具时长记两遍。
  */
-function accumulate(into: TurnStats, message: AssistantMessage): TurnStats {
+function endOf(message: Message): number {
+	if (message.role === "assistant" && typeof message.durationMs === "number" && message.durationMs > 0) {
+		return message.timestamp + message.durationMs;
+	}
+	return message.timestamp;
+}
+
+/**
+ * 把一条消息记进表里。
+ *
+ * 每一条都记，包括画不出行的那些——工具结果、自动继续的那句话。它们占的是真实时间：一条 `task`
+ * 跑四分钟，这一轮就是过了四分钟，哪怕这四分钟里一个 token 都没产出。
+ *
+ * 取 `max` 而不是直接赋值，是因为工具是边流边派的：一条回复的 `toolCall` 块一落地就发出去了，
+ * 不等整个流收尾，所以工具结果的时刻可以比派它的那条回复的结束时刻更早。
+ */
+function saw(clock: Clock, message: Message): void {
+	if (clock.from === null) {
+		clock.from = message.timestamp;
+		clock.to = message.timestamp;
+	} else if (clock.halted) {
+		clock.closedMs += Math.max(0, clock.to - clock.from);
+		clock.from = message.timestamp;
+		clock.to = message.timestamp;
+	}
+	clock.halted = false;
+	clock.to = Math.max(clock.to, endOf(message));
+	if (message.role !== "assistant") return;
 	const duration = typeof message.durationMs === "number" && message.durationMs > 0 ? message.durationMs : 0;
 	const sse = typeof message.sseDurationMs === "number" && message.sseDurationMs > 0 ? message.sseDurationMs : 0;
 	const output = typeof message.usage?.output === "number" && message.usage.output > 0 ? message.usage.output : 0;
+	clock.requestMs += duration;
+	// 没记 sse 的旧消息（磁盘上的老数据）退回整条请求的耗时，至少分母不会是 0。
+	clock.sseDurationMs += sse || duration;
+	clock.outputTokens += output;
+	clock.requestCount += 1;
+	// 这两种收场是「停下了」，不是「做完了」——和 `apply-event` 里冻结那块表的条件是同一对。
+	if (message.stopReason === "error" || message.stopReason === "aborted") clock.halted = true;
+}
+
+/** 此刻为止这一轮的账，一份定下来的副本。 */
+function snapshot(clock: Clock): TurnStats {
+	const open = clock.from === null ? 0 : Math.max(0, clock.to - clock.from);
 	return {
-		durationMs: into.durationMs + duration,
-		// Fallback when sseDurationMs was not recorded (e.g. older messages on disk).
-		sseDurationMs: into.sseDurationMs + (sse || duration),
-		outputTokens: into.outputTokens + output,
-		requestCount: into.requestCount + 1,
+		durationMs: clock.closedMs + open,
+		requestMs: clock.requestMs,
+		sseDurationMs: clock.sseDurationMs,
+		outputTokens: clock.outputTokens,
+		requestCount: clock.requestCount,
 	};
 }
 
@@ -156,6 +234,13 @@ function opensTurn(message: Message): boolean {
 	return message.role === "user" && !message.synthetic && !isNudge(message);
 }
 
+/**
+ * 截至 `endMessageIndex` 的那一轮花了多少。
+ *
+ * 一轮从人开口的那条消息**本身**起算，不是从它的下一条起算：表要从人按下回车那一刻走，那正是
+ * `turn-slice` 给在线那块表定的起点，两边差一点点都会让数字在回合结束的瞬间跳一下。中间的工具
+ * 结果和自动继续都属于这一轮，一并记进去。
+ */
 export function computeTurnStats(messages: Message[], endMessageIndex: number): TurnStats {
 	// Walk backwards from endMessageIndex until we hit a real user message or index 0
 	let startIndex = 0;
@@ -163,17 +248,14 @@ export function computeTurnStats(messages: Message[], endMessageIndex: number): 
 		// A 继续 after a failure belongs to the turn it is continuing, so the walk goes on past it
 		// to the question that actually started the work.
 		if (opensTurn(messages[i]) && !resumesTurn(messages, i)) {
-			startIndex = i + 1;
+			startIndex = i;
 			break;
 		}
 	}
 
-	let stats = noStats();
-	for (let i = startIndex; i <= endMessageIndex && i < messages.length; i++) {
-		const msg = messages[i];
-		if (msg.role === "assistant") stats = accumulate(stats, msg);
-	}
-	return stats;
+	const clock = newClock();
+	for (let i = startIndex; i <= endMessageIndex && i < messages.length; i++) saw(clock, messages[i]);
+	return snapshot(clock);
 }
 
 /**
@@ -364,11 +446,11 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 	/*
 	 * What the turn in progress has spent, carried down the transcript as it is walked.
 	 *
-	 * The same answer `computeTurnStats` gives, arrived at in one pass instead of one backward
-	 * scan per row. On a session of several thousand messages that difference is the whole cost:
-	 * the scan was being run for every visible reply, on every render of the transcript.
+	 * The same answer `computeTurnStats` gives — the same `saw` — arrived at in one pass instead of
+	 * one backward scan per row. On a session of several thousand messages that difference is the
+	 * whole cost: the scan was being run for every visible reply, on every render of the transcript.
 	 */
-	let turn = noStats();
+	let clock = newClock();
 
 	for (const [index, message] of messages.entries()) {
 		while (nextMark < marks.length && marks[nextMark] === index) {
@@ -384,7 +466,15 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 		}
 
 		// A person speaking starts a new turn; the runtime's own messages continue the one running.
-		if (opensTurn(message) && !resumesTurn(messages, index)) turn = noStats();
+		if (opensTurn(message) && !resumesTurn(messages, index)) clock = newClock();
+		/*
+		 * 每一条都记进表里，包括下面那两种画不出行的。
+		 *
+		 * 它们不出现在转录上，可是它们占的时间是真的：一条工具结果背后是一次四分钟的子代理，一句
+		 * 「自动继续」后面是模型接着往下干。这一句要排在下面所有 `continue` 前面——从前那些 continue
+		 * 是纯粹的渲染决定，把统计一起跳过去，正是时间丢掉的地方。
+		 */
+		saw(clock, message);
 
 		/*
 		 * Tool results are not entries in the transcript; they are the contents of a card.
@@ -413,8 +503,6 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 			out.push({ kind: "message", message, index, upTo: message.content.length });
 			continue;
 		}
-
-		turn = accumulate(turn, message);
 
 		const think = leadingThinking(message.content);
 		const own = beforeTrailingCalls(message.content);
@@ -463,13 +551,13 @@ export function runs(messages: Message[], compactions: { at: number }[] = [], co
 		}
 
 		if (own > think) {
-			out.push({ kind: "message", message, index, upTo: own, from: think, turnStats: turn });
+			out.push({ kind: "message", message, index, upTo: own, from: think, turnStats: snapshot(clock) });
 		} else if (think === 0 && calls.length === 0 && message.stopReason !== "pending") {
 			/*
 			 * Nothing thought, nothing said, nothing done, and the turn is over: a failure with no
 			 * output. This message's only chance to show it, so it gets a row.
 			 */
-			out.push({ kind: "message", message, index, upTo: message.content.length, turnStats: turn });
+			out.push({ kind: "message", message, index, upTo: message.content.length, turnStats: snapshot(clock) });
 		}
 
 		work(calls, index);
