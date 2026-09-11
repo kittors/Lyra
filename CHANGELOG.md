@@ -5,6 +5,15 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.8](https://github.com/kittors/Lyra/releases/tag/v0.9.8) - 2026-09-11
+
+### 修复
+
+- **desktop**: 新加的模型默认就支持思考、图片和工具 ([bb8355c](https://github.com/kittors/Lyra/commit/bb8355ce909f6f01c66f6a1110eac4470eb71459))
+- **desktop**: 过程块到答案的距离不再随开合变化，思考行两头化开 ([c9cb888](https://github.com/kittors/Lyra/commit/c9cb888d8de19dc1590098f04c52d848594cb0e4))
+- **desktop**: 换项目时终端跟着走，不再停在上一个项目里 ([957569a](https://github.com/kittors/Lyra/commit/957569a9be3507965c4381664bddae0df7e678f3))
+- **core**: 三条协议链上那些让会话再也说不了话的形状 ([310f8aa](https://github.com/kittors/Lyra/commit/310f8aadf9f24fac619318672a1fb40a2b83f1cd))
+
 ## [0.9.7](https://github.com/kittors/Lyra/releases/tag/v0.9.7) - 2026-09-10
 
 ### 新功能
