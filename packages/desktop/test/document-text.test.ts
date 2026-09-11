@@ -7,60 +7,34 @@
  * 真文件是必须的。OOXML 抽取走的是正则，而正则对着手写的 XML 片段永远是绿的——真正会出事的是
  * SheetJS 写出来的那种共享字符串表、`<w:t xml:space="preserve">` 这类带属性的标签、以及 PDF 里字形
  * 编码和 Unicode 码位对不上。这些都只有真文件才有。
+ *
+ * PDF 那几份是**印好提交进来的固件**，不在跑测试的时候现印。现印那一版两处 CI 都拦下了：Linux 没有
+ * 显示器，Electron 根本起不来；macOS 起得来但没装中文字体，`printToPDF` 照样成功、PDF 也合法，只是
+ * 中文全印成了豆腐——抽出来是空的，断言挂在内容上而不是挂在文件缺失上，是两种失败里更难认的那种。
+ * 固件由 `fixtures/make-pdfs.mjs` 在有字体的机器上印，要改它们装着什么就重跑那个脚本。
  */
 
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, before, test } from "node:test";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { test } from "node:test";
 import { zipSync, strToU8 } from "fflate";
 import { EXTRACTABLE, extractDocumentText, textFromPdf } from "../electron/document-text.ts";
 
-let dir: string;
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 
-/** 一份真 PDF，用 Electron 自己的 `printToPDF` 印出来——和人拿到的 PDF 是同一条生产线。 */
-function makePdf(target: string, bodyHtml: string): void {
-	const script = join(dir, "gen.cjs");
-	writeFileSync(
-		script,
-		`const { app, BrowserWindow } = require("electron");
-		const { writeFileSync } = require("node:fs");
-		app.on("ready", async () => {
-			const win = new BrowserWindow({ show: false, width: 900, height: 1200 });
-			await win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(${JSON.stringify(
-				`<html><head><meta charset="utf-8"><style>body{font-family:"PingFang SC";padding:40px;line-height:1.8}</style></head><body>${bodyHtml}</body></html>`,
-			)}));
-			writeFileSync(${JSON.stringify(target)}, await win.webContents.printToPDF({ printBackground: true }));
-			app.quit();
-		});`,
-	);
-	const electron = createRequire(import.meta.url)("electron") as unknown as string;
-	execFileSync(electron, [script], { stdio: "ignore", timeout: 90_000 });
+/** 一份印好的真 PDF。名字对应 `make-pdfs.mjs` 里的那一份。 */
+function pdf(name: string): Uint8Array {
+	return new Uint8Array(readFileSync(join(FIXTURES, name)));
 }
-
-before(() => {
-	dir = mkdtempSync(join(tmpdir(), "lyra-doctext-"));
-});
-
-after(() => {
-	rmSync(dir, { recursive: true, force: true });
-});
 
 // ---------------------------------------------------------------------------
 // PDF
 // ---------------------------------------------------------------------------
 
 test("PDF：抽得出正文，中英混排都在，页码标出来", async () => {
-	const file = join(dir, "白皮书.pdf");
-	makePdf(
-		file,
-		`<h1>技术架构白皮书</h1><p>系统在生产环境的 P99 延迟为 320 毫秒。</p>
-		 <p>English text is included to verify mixed-script extraction.</p>`,
-	);
-	const out = await extractDocumentText("白皮书.pdf", new Uint8Array(readFileSync(file)));
+	const out = await extractDocumentText("白皮书.pdf", pdf("mixed.pdf"));
 
 	assert.ok(out, "PDF 该抽得出东西");
 	assert.match(out.text, /## 第 1 页/, "页码要标出来——问「第几页写了什么」得有依据");
@@ -77,9 +51,7 @@ test("PDF：部首码位被换回真正的汉字", async () => {
 	 * 「白」「皮」(U+767D/U+76AE) 是**不同的字符**。人眼分辨不出，而用户问「白皮书里写了什么」时，
 	 * 问题里的字和文档里的字对不上。
 	 */
-	const file = join(dir, "码位.pdf");
-	makePdf(file, `<p>白皮书记载：第一章自下而上，生产环境可用区日均处理。</p>`);
-	const out = await extractDocumentText("码位.pdf", new Uint8Array(readFileSync(file)));
+	const out = await extractDocumentText("码位.pdf", pdf("radicals.pdf"));
 
 	assert.ok(out);
 	for (const word of ["白皮书", "第一章", "自下而上", "生产环境", "可用区", "日均处理"]) {
@@ -91,9 +63,7 @@ test("PDF：部首码位被换回真正的汉字", async () => {
 
 test("PDF：全角标点保持原样，不被顺手压成半角", async () => {
 	// 整段 NFKC 能修好汉字，但会把「，」压成「,」——那是在改原文。
-	const file = join(dir, "标点.pdf");
-	makePdf(file, `<p>第一项，第二项；第三项。</p>`);
-	const out = await extractDocumentText("标点.pdf", new Uint8Array(readFileSync(file)));
+	const out = await extractDocumentText("标点.pdf", pdf("punctuation.pdf"));
 
 	assert.ok(out);
 	assert.ok(out.text.includes("，"), `全角逗号该留着，得到：${out.text}`);
@@ -104,12 +74,8 @@ test("PDF：没有文本层的，说清楚是扫描件而不是空文件", async
 	 * 整页是图的 PDF 抽不出一个字。返回空字符串就让人以为附件坏了，而实际上他要的是 OCR——
 	 * 一个需要换工具的问题，被说成了一个换个文件重试就能解决的问题。
 	 */
-	const file = join(dir, "扫描件.pdf");
-	// 一个 1×1 的透明 PNG 撑满一页，没有任何文字。
-	const png =
-		"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-	makePdf(file, `<img src="${png}" style="width:600px;height:800px">`);
-	const out = await extractDocumentText("扫描件.pdf", new Uint8Array(readFileSync(file)));
+	// 固件是一个 1×1 的透明 PNG 撑满一页，没有任何文字。
+	const out = await extractDocumentText("扫描件.pdf", pdf("scan.pdf"));
 
 	assert.ok(out, "文件本身是好的，不该当成不支持的格式");
 	assert.equal(out.text, "", "一个字都不该编出来");
@@ -123,9 +89,7 @@ test("PDF：解析不会吃掉调用方手里的那份字节", async () => {
 	 * 这在这里是真会出事的：同一份字节既要拿去解析，又要作为附件本体带上。少了内部那次拷贝，解析
 	 * 之后附件就变成 0 字节——而且解析本身是成功的，所以没有任何报错。
 	 */
-	const file = join(dir, "字节.pdf");
-	makePdf(file, `<p>保持字节完整</p>`);
-	const bytes = new Uint8Array(readFileSync(file));
+	const bytes = pdf("mixed.pdf");
 	const before = bytes.byteLength;
 
 	await textFromPdf(bytes);
