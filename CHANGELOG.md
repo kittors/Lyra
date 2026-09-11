@@ -5,6 +5,113 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.10](https://github.com/kittors/Lyra/releases/tag/v0.9.10) - 2026-09-11
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **方向键往回翻自己说过的话**。输入框里按 ↑ 翻出上一句，再按往更早翻，↓ 往回走；翻过最近那条，就回到原来那句还没打完的草稿——草稿必须回得来，否则「想看看上次是怎么说的」这个念头，代价是丢掉手里正写着的半句话。框里最上沿标一行「历史 1/4」，翻到哪儿一眼看得见。
+
+  当初那条附了图或文件的，图和文件也跟着回来。翻回来的是整条消息，而不是那条消息里的一句话——只给字的话，一句「这张图里有什么」翻出来就成了没有指代对象的问题。
+
+  方向键在这个输入框里本来就有三个主人（@ 的名单、/ 的命令单、排队消息的挪动），所以历史排在最后一个，而且只在光标已经贴着头或尾的时候才接管：消息有好几行时，↑ 的本分仍然是把光标挪到上一行。
+
+### 修复
+
+- **一条读不出来的记录，不再让人失去整个窗口**。上一版修同一句崩溃（`Cannot read properties of undefined (reading 'role')`）时只堵了写入口，渲染端一行没动，所以承诺只兑现了一半：坏记录少了几条来路，可一旦真的出现，界面照样整个白掉——有人在 Windows 上长时间跑任务时又撞到了同一句。这一版补上另一半：读不出来的那一条就地换成一条画得出来的，**位置不动**。位置必须保住，因为压缩标记、命令记录、抖动行全是指进这个数组的下标，抽掉一条它们就整体错位一格，画出一份对不上的转录比崩更难发现。读会话那条路上也装了同一道闸——那里一抛出来，会话会**永远停在「正在加载对话…」**，一句报错都不给。
+- **附件上那个取下的叉，改成鼠标移上去才出现，而且浮在缩略图的右上角上**，不再常驻在图里面。它盖着的正是人想看的那张图；一排缩略图配一排叉，最显眼的东西成了「删掉我」，而这排东西本来是拿来看的。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **方向鍵往回翻自己說過的話**。輸入框裡按 ↑ 翻出上一句，再按往更早翻，↓ 往回走；翻過最近那條，就回到原來那句還沒打完的草稿——草稿必須回得來，否則「想看看上次是怎麼說的」這個念頭，代價是丟掉手裡正寫著的半句話。框裡最上沿標一行「歷史 1/4」，翻到哪兒一眼看得見。
+
+  當初那條附了圖或檔案的，圖和檔案也跟著回來。翻回來的是整條訊息，而不是那條訊息裡的一句話——只給字的話，一句「這張圖裡有什麼」翻出來就成了沒有指涉對象的問題。
+
+  方向鍵在這個輸入框裡本來就有三個主人（@ 的名單、/ 的命令單、排隊訊息的挪動），所以歷史排在最後一個，而且只在游標已經貼著頭或尾的時候才接管：訊息有好幾行時，↑ 的本分仍然是把游標挪到上一行。
+
+### 修復
+
+- **一條讀不出來的記錄，不再讓人失去整個視窗**。上一版修同一句崩潰（`Cannot read properties of undefined (reading 'role')`）時只堵了寫入口，繪製端一行沒動，所以承諾只兌現了一半：壞記錄少了幾條來路，可一旦真的出現，介面照樣整個白掉——有人在 Windows 上長時間跑任務時又撞到了同一句。這一版補上另一半：讀不出來的那一條就地換成一條畫得出來的，**位置不動**。位置必須保住，因為壓縮標記、命令記錄、抖動行全是指進這個陣列的索引，抽掉一條它們就整體錯位一格，畫出一份對不上的逐字稿比崩更難發現。讀工作階段那條路上也裝了同一道閘——那裡一拋出來，工作階段會**永遠停在「正在載入對話…」**，一句錯誤都不給。
+- **附件上那個取下的叉，改成滑鼠移上去才出現，而且浮在縮圖的右上角上**，不再常駐在圖裡面。它蓋著的正是人想看的那張圖；一排縮圖配一排叉，最顯眼的東西成了「刪掉我」，而這排東西本來是拿來看的。
+
+<!-- lyra:notes en -->
+
+### New
+
+- **The arrow keys go back through what you have said.** Press ↑ in the composer for your previous message, again for the one before that, ↓ to come back; past the most recent one you land on the half-written draft you started with. The draft has to come back — otherwise the thought "let me see how I put it last time" costs you the sentence you are in the middle of writing. A line along the top inside the field reads "History 1/4", so where you are is never a guess.
+
+  If that message had an image or a file attached, those come back with it. What you get back is the whole message rather than one sentence out of it: with only the words, "what is in this picture" returns as a question with nothing to point at.
+
+  The arrow keys already had three owners here — the @ list, the / command list, and reordering queued messages — so history goes last, and only takes over once the caret is already at the very start or the very end. In a message several lines long, ↑ still does its usual job of moving the caret up a line.
+
+### Fixes
+
+- **One unreadable record no longer costs you the whole window.** The previous fix for this crash (`Cannot read properties of undefined (reading 'role')`) only closed the ways in; nothing changed on the rendering side, so the promise was half kept. Fewer bad records got written, but one that did still took the interface down — someone running a long task on Windows hit the same error again. This version adds the other half: a record that cannot be read is replaced in place by one that can be drawn, **keeping its position**. The position has to hold, because compaction marks, command runs and hiccup rows are all indices into that array; drop one and every one of them shifts by a place, and a transcript that quietly disagrees with itself is harder to notice than a crash. The same gate now sits on the read path, where a throw used to leave the session stuck on "loading conversation…" forever, saying nothing at all.
+- **The remove button on an attachment now appears when you hover it, and sits on the thumbnail's top corner** instead of inside the picture. It used to be pinned there permanently, covering the very image you were looking at; a row of thumbnails came with a row of crosses, which made "delete me" the most prominent thing about a strip you are meant to be looking at.
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **方向キーで自分が書いた文をさかのぼれるようになりました。** 入力欄で ↑ を押すと一つ前の文が、もう一度押すとさらに前の文が戻ってきます。↓ は逆向きで、いちばん新しいものを通り越すと、書きかけだった下書きに戻ります。下書きが戻ってくることは必須です——そうでないと「前はどう書いたっけ」と思っただけで、いま書いている途中の一文を失うことになります。入力欄の内側いちばん上に「履歴 1/4」と出るので、どこまで戻ったかは見ればわかります。
+
+  その文に画像やファイルが付いていた場合、それらも一緒に戻ります。戻ってくるのはメッセージ全体であって、その中の一文ではありません——文字だけでは、「この画像には何が写っていますか」が指す先のない問いになってしまいます。
+
+  この入力欄では方向キーにすでに三つの持ち主がいます（@ の一覧、/ のコマンド一覧、順番待ちメッセージの入れ替え）。ですから履歴はいちばん後ろに並び、しかもカーソルが先頭か末尾に着いているときだけ引き受けます。数行あるメッセージでは、↑ は今までどおりカーソルを一行上へ動かします。
+
+### 修正
+
+- **読み取れない記録が一つあっても、ウィンドウ全体を失うことはなくなりました。** 同じクラッシュ（`Cannot read properties of undefined (reading 'role')`）を前回直したときは書き込み口を塞いだだけで、描画側には一行も手を入れていませんでした。約束は半分しか果たされておらず、壊れた記録の入口は減ったものの、いざ現れれば画面はやはり真っ白になります——Windows で長時間タスクを回していた方が、また同じ文言に行き当たりました。今回もう半分を補いました。読めない記録は、**位置をそのままに**、描ける一行へその場で置き換えます。位置を守る必要があるのは、圧縮の目印・コマンドの記録・回線の乱れの行が、すべてこの配列への添字だからです。一つ抜けばすべてが一つずつずれ、静かに食い違った記録はクラッシュより気づきにくくなります。同じ関門は読み込み側にも置きました。そちらで例外が出ると、その会話は**「会話を読み込んでいます…」のまま永久に止まり**、何も言ってくれませんでした。
+- **添付ファイルの取り消しボタンは、カーソルを重ねたときだけ現れ、サムネイルの右上の角に載るようになりました。** 以前は画像の中に出しっぱなしで、まさに見たいその絵を覆っていました。サムネイルが並べば×も並び、本来は眺めるためのその一列で、いちばん目立つものが「消す」になっていました。
+
+<!-- lyra:notes ko -->
+
+### 새 기능
+
+- **방향키로 자기가 썼던 말을 거슬러 올라갑니다.** 입력창에서 ↑를 누르면 바로 앞 메시지가, 한 번 더 누르면 그 앞의 것이 돌아옵니다. ↓는 반대 방향이고, 가장 최근 것을 지나치면 쓰다 만 초안으로 돌아옵니다. 초안은 반드시 돌아와야 합니다 — 그러지 않으면 "지난번엔 어떻게 썼더라" 하는 생각의 대가가 지금 쓰던 문장을 잃는 일이 됩니다. 입력창 안쪽 맨 위에 "기록 1/4"이라고 적혀 있어, 어디까지 왔는지는 보면 압니다.
+
+  그 메시지에 이미지나 파일이 붙어 있었다면 그것들도 함께 돌아옵니다. 돌아오는 건 메시지 전체이지 그 안의 한 문장이 아닙니다 — 글자만 돌아오면 "이 사진에 뭐가 있나요"는 가리킬 대상이 없는 질문이 되어 버립니다.
+
+  이 입력창에서 방향키에는 이미 주인이 셋 있습니다(@ 목록, / 명령 목록, 대기 중인 메시지 순서 바꾸기). 그래서 기록은 맨 뒤에 서고, 커서가 이미 맨 앞이나 맨 끝에 닿아 있을 때만 넘겨받습니다. 여러 줄짜리 메시지에서 ↑는 여전히 커서를 한 줄 위로 옮기는 제 일을 합니다.
+
+### 수정
+
+- **읽을 수 없는 기록 하나 때문에 창 전체를 잃지 않습니다.** 같은 오류(`Cannot read properties of undefined (reading 'role')`)를 지난번에 고칠 때는 쓰는 입구만 막았고 그리는 쪽은 한 줄도 손대지 않았습니다. 약속은 절반만 지켜진 셈이라, 망가진 기록이 들어올 길은 줄었지만 일단 생기면 화면은 여전히 통째로 하얘졌습니다 — Windows에서 오래 도는 작업을 하던 분이 같은 문장을 또 만났습니다. 이번에 나머지 절반을 채웠습니다. 읽히지 않는 기록은 **자리를 그대로 둔 채** 그릴 수 있는 한 줄로 그 자리에서 바뀝니다. 자리를 지켜야 하는 이유는 압축 표시, 명령 기록, 끊김 줄이 전부 그 배열의 색인이기 때문입니다. 하나를 빼면 전부 한 칸씩 밀리고, 조용히 어긋난 기록은 아예 죽는 것보다 알아채기 어렵습니다. 같은 관문을 읽는 쪽에도 두었습니다. 거기서 예외가 나면 그 대화는 **"대화를 불러오는 중…"에서 영영 멈춰** 아무 말도 하지 않았습니다.
+- **첨부 파일의 제거 버튼이 마우스를 올렸을 때만 나타나고, 썸네일 오른쪽 위 모서리에 걸치도록 바뀌었습니다.** 전에는 그림 안에 늘 박혀 있어서 정작 보려던 그 그림을 가렸습니다. 썸네일이 늘어서면 ×도 함께 늘어서서, 보라고 만든 줄에서 가장 눈에 띄는 것이 "지우기"가 되어 있었습니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **Les flèches remontent ce que vous avez déjà écrit.** Dans la zone de saisie, ↑ rappelle votre message précédent, encore une fois celui d'avant, ↓ revient en arrière ; passé le plus récent, vous retombez sur le brouillon inachevé d'où vous étiez parti. Ce brouillon doit revenir : sans cela, l'envie de « voir comment je l'avais formulé » coûte la phrase que vous êtes en train d'écrire. Une ligne en haut, à l'intérieur du champ, indique « Historique 1/4 » : où vous en êtes ne se devine pas.
+
+  Si ce message avait une image ou un fichier joint, ils reviennent avec lui. Ce qui revient est le message entier, pas une phrase qui en est extraite : avec les seuls mots, « qu'y a-t-il sur cette image » redevient une question qui ne désigne rien.
+
+  Les flèches avaient déjà trois propriétaires ici — la liste du @, celle des commandes /, et le réordonnancement des messages en file. L'historique passe donc en dernier, et ne prend la main que lorsque le curseur est déjà tout au début ou tout à la fin. Dans un message de plusieurs lignes, ↑ fait toujours son travail habituel : monter d'une ligne.
+
+### Corrections
+
+- **Un enregistrement illisible ne coûte plus la fenêtre entière.** Le correctif précédent pour ce plantage (`Cannot read properties of undefined (reading 'role')`) n'avait fermé que les entrées ; rien n'avait bougé du côté de l'affichage, la promesse n'était donc tenue qu'à moitié. Les mauvais enregistrements se faisaient plus rares, mais l'un d'eux suffisait encore à faire tomber l'interface — quelqu'un l'a de nouveau rencontré sous Windows, sur une tâche longue. Cette version ajoute l'autre moitié : un enregistrement qu'on ne peut pas lire est remplacé sur place par un qui s'affiche, **en gardant sa position**. Elle doit tenir, car les marques de compression, les commandes et les lignes de coupure sont toutes des indices dans ce tableau ; en retirer un les décale tous d'un rang, et une transcription qui se contredit en silence se repère moins bien qu'un plantage. La même barrière est maintenant posée du côté de la lecture, où une exception laissait la conversation bloquée sur « chargement de la conversation… » indéfiniment, sans rien dire.
+- **Le bouton de retrait d'une pièce jointe n'apparaît plus qu'au survol, et se pose sur le coin supérieur droit de la vignette** au lieu d'être dedans. Il y était affiché en permanence, masquant précisément l'image que vous regardiez ; une rangée de vignettes s'accompagnait d'une rangée de croix, et « supprimer » devenait l'élément le plus visible d'une bande faite pour être regardée.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **Стрелки листают то, что вы уже писали.** В поле ввода ↑ возвращает предыдущее сообщение, ещё раз — то, что было до него, ↓ идёт обратно; за самым свежим вас ждёт недописанный черновик, с которого всё начиналось. Черновик обязан возвращаться: иначе мысль «а как я это сформулировал в прошлый раз» стоит вам той фразы, которую вы пишете сейчас. Строка вверху, внутри поля, показывает «История 1/4» — где вы находитесь, не приходится угадывать.
+
+  Если к тому сообщению были приложены картинка или файл, они возвращаются вместе с ним. Возвращается сообщение целиком, а не одна фраза из него: с одними словами «что на этой картинке» снова становится вопросом, которому не на что указать.
+
+  У стрелок в этом поле уже есть три хозяина — список по @, список команд по /, и перестановка сообщений в очереди. Поэтому история идёт последней и берёт управление только тогда, когда курсор уже стоит в самом начале или в самом конце. В сообщении из нескольких строк ↑ по-прежнему делает своё обычное дело — поднимает курсор на строку выше.
+
+### Исправления
+
+- **Одна нечитаемая запись больше не стоит вам целого окна.** Прошлое исправление той же ошибки (`Cannot read properties of undefined (reading 'role')`) закрыло только входы; со стороны отрисовки не изменилось ничего, и обещание оказалось выполнено наполовину. Испорченных записей стало меньше, но одной по-прежнему хватало, чтобы уронить интерфейс, — в Windows на долгой задаче человек снова наткнулся на ту же строку. Эта версия добавляет вторую половину: запись, которую не удаётся прочитать, заменяется на месте той, которую можно нарисовать, **с сохранением позиции**. Позиция должна устоять: отметки сжатия, записи команд и строки обрывов — всё это индексы в том же массиве, убери один элемент, и они сдвинутся на шаг, а расшифровка, которая тихо расходится сама с собой, заметна хуже, чем падение. Тот же заслон теперь стоит и на чтении, где исключение оставляло беседу **навсегда на «загрузка беседы…»** и ничего не сообщало.
+- **Крестик для снятия вложения теперь появляется при наведении и садится на правый верхний угол миниатюры**, а не внутрь картинки. Раньше он висел там постоянно и закрывал ровно то изображение, на которое вы смотрели; за рядом миниатюр шёл ряд крестиков, и «удалить» оказывалось самым заметным в полосе, которую полагается разглядывать.
+
 ## [0.9.9](https://github.com/kittors/Lyra/releases/tag/v0.9.9) - 2026-09-11
 
 <!-- lyra:notes zh-CN -->
