@@ -1,6 +1,33 @@
 import { translate } from "../../i18n/translate.ts";
 import type { Message } from "@lyra/core";
+import { stripPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { isNudge } from "./grouping.ts";
+
+/**
+ * 人真正打进去过的那些话，最近的排在最前。
+ *
+ * 和 `questionsIn` 同住一个文件，是因为两者靠的是同一条判断：`synthetic`、`ruleMatch` 和 nudge 都
+ * 挂在 user 名下，却没有一个是人敲出来的。分在两处写，迟早有一处会漏掉其中一种——而漏掉的后果是
+ * 把一句人从没说过的话摆到他面前，还让他以为是自己说的。
+ *
+ * 取 `displayText`（没有才退回正文），和气泡里显示的是同一份：附件正文不该跟着翻回输入框，那是上
+ * 千行的东西，而人想找回的是自己写的那几句。
+ *
+ * 给输入框的方向键用，见 `composer/useInputHistory.ts`。
+ */
+export function spokenByPerson(messages: readonly Message[]): string[] {
+	const said: string[] = [];
+	for (const message of messages) {
+		if (message.role !== "user" || message.synthetic || message.ruleMatch || isNudge(message)) continue;
+		const body = message.content
+			.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")
+			.map((block) => block.text)
+			.join("\n\n");
+		const text = stripPlaceholders(message.displayText ?? body, message.attachments ?? []).trim();
+		if (text) said.push(text);
+	}
+	return said.reverse();
+}
 
 /** Message indices preserve distinct targets for identical questions and attachment-only turns. */
 export function questionsIn(messages: readonly Message[]) {

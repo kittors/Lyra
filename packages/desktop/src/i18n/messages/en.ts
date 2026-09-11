@@ -1452,6 +1452,7 @@ export const en = {
 	"composer.unreadableAsText": "{names}: the model can only see the filename",
 	"composer.scannedDocument": "{name} is a scan — there is no text inside to extract",
 	"composer.textTruncated": "[… about {count} more characters were left off]",
+	"composer.history": "History {current}/{total}",
 	"composer.removeSessionRef": "Remove the reference to {title}",
 	"composer.removeAttachment": "Remove {name}",
 	"composer.finishUnfinished": "Carry on with what is unfinished",

@@ -1452,6 +1452,7 @@ export const ko = {
 	"composer.unreadableAsText": "{names}: 모델에는 파일 이름만 보입니다",
 	"composer.scannedDocument": "{name}은(는) 스캔본이라 추출할 텍스트가 없습니다",
 	"composer.textTruncated": "[… 뒤로 약 {count}자는 첨부되지 않았습니다]",
+	"composer.history": "기록 {current}/{total}",
 	"composer.removeSessionRef": "{title} 참조 빼기",
 	"composer.removeAttachment": "{name} 빼기",
 	"composer.finishUnfinished": "남은 부분을 이어서 하기",

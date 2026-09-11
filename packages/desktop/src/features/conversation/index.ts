@@ -18,6 +18,7 @@ export { CodeText } from "./detail/CodeText.tsx";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { Section } from "./detail/Section.tsx";
 export { runs, runKey } from "./grouping.ts";
+export { spokenByPerson } from "./question-navigation.ts";
 export { MessageEditor } from "./message/MessageEditor.tsx";
 export { ThinkingLine } from "./message/ThinkingLine.tsx";
 export { ToolRun } from "./runs.tsx";

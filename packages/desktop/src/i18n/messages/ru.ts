@@ -1452,6 +1452,7 @@ export const ru = {
 	"composer.unreadableAsText": "{names}: модель видит только имя файла",
 	"composer.scannedDocument": "{name} — скан, внутри нет текста для извлечения",
 	"composer.textTruncated": "[… дальше ещё около {count} символов, они не приложены]",
+	"composer.history": "История {current}/{total}",
 	"composer.removeSessionRef": "Убрать ссылку на {title}",
 	"composer.removeAttachment": "Убрать {name}",
 	"composer.finishUnfinished": "Доделать незаконченное",

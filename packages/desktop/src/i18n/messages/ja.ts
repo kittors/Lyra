@@ -1452,6 +1452,7 @@ export const ja = {
 	"composer.unreadableAsText": "{names}：モデルにはファイル名しか見えません",
 	"composer.scannedDocument": "{name} はスキャン画像で、取り出せる文字がありません",
 	"composer.textTruncated": "［…この先およそ {count} 文字は添付されていません］",
+	"composer.history": "履歴 {current}/{total}",
 	"composer.removeSessionRef": "{title} への参照を外す",
 	"composer.removeAttachment": "{name} を外す",
 	"composer.finishUnfinished": "やり残した分を続ける",

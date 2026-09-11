@@ -1624,6 +1624,7 @@ export const zhCN = {
 	"composer.unreadableAsText": "{names}：模型只看得到文件名",
 	"composer.scannedDocument": "{name} 是扫描件，里面没有可提取的文字",
 	"composer.textTruncated": "[……后面还有约 {count} 个字符没有附上]",
+	"composer.history": "历史 {current}/{total}",
 	"composer.removeSessionRef": "移除会话引用：{title}",
 	"composer.removeAttachment": "移除 {name}",
 	"composer.finishUnfinished": "接着做完没做完的部分",

@@ -1452,6 +1452,7 @@ export const zhTW = {
 	"composer.unreadableAsText": "{names}：模型只看得到檔名",
 	"composer.scannedDocument": "{name} 是掃描件，裡面沒有可擷取的文字",
 	"composer.textTruncated": "[……後面還有約 {count} 個字元沒有附上]",
+	"composer.history": "歷史 {current}/{total}",
 	"composer.removeSessionRef": "移除工作階段引用：{title}",
 	"composer.removeAttachment": "移除 {name}",
 	"composer.finishUnfinished": "接著做完沒做完的部分",

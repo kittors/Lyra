@@ -14,6 +14,7 @@ import { useMention } from "./useMention.ts";
 import { formatMention } from "./mention-catalog.ts";
 import type { ComposerDecorations } from "./CommandText.tsx";
 import { useCommands } from "./useCommands.ts";
+import { useInputHistory } from "./useInputHistory.ts";
 import { commandEntries } from "./command-catalog.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
@@ -163,6 +164,12 @@ export function Composer() {
 		useApp.setState({ browserAttachment: null });
 	}, [browserAttachment, draftKey]);
 	const field = useRef<HTMLTextAreaElement>(null);
+	/*
+	 * 往回翻自己说过的话。
+	 *
+	 * 排在 @ 和 / 后面接方向键——它俩开着的时候，上下是用来挑名单的。
+	 */
+	const history = useInputHistory({ messages, value: text, onPick: setText, field, resetKey: draftKey });
 	useEffect(() => {
 		if (!draft.text) return;
 		setText((current) =>
@@ -630,12 +637,24 @@ export function Composer() {
 				{activeSessionId && <QueuedMessages key={activeSessionId} sessionId={activeSessionId} running={running} onEdit={restoreQueued} />}
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
 				<MentionMenu id={mention.id} items={mention.matches} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
+				{history.position && (
+					/*
+					 * 翻到第几条了，就写在输入框上沿。
+					 *
+					 * 不写的话，翻出来的那句和自己刚打的那句长得一模一样——都是输入框里的黑字——按到哪儿
+					 * 了全凭记性，而一旦记错，再按一下就走过头了。
+					 */
+					<div data-ly-history="" className="px-4 pb-1 text-caption text-ink-faint">
+						{t("composer.history", { current: history.position.current, total: history.position.total })}
+					</div>
+				)}
 				<ComposerShell
 					fieldRef={field}
 					value={text}
 					onChange={(next) => {
 						slash.change(next);
 						mention.change(next);
+						history.change(next);
 					}}
 					decoration={mergedDecoration}
 					onSelect={() => {
@@ -659,6 +678,9 @@ export function Composer() {
 					onKeyDown={(event) => {
 						if (mention.keyDown(event)) return;
 						slash.keyDown(event, () => void submit());
+						// 命令单接下了这个键就到此为止：它是拿 preventDefault 说这话的，见 ComposerShell。
+						if (event.defaultPrevented) return;
+						history.keyDown(event);
 					}}
 					placeholder={t("composer.placeholder")}
 					onFiles={(files) => void addFiles(files)}
