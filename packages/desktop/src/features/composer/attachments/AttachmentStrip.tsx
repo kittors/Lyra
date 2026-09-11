@@ -32,8 +32,14 @@ export interface StripFile {
 /**
  * 取下那一个的按钮。
  *
- * 画在格子**里面**，不再是 `-top-1.5 -right-1.5` 浮到外面去。溢出的那一版在单行时看不出问题，
- * 一换行就露馅：行距只有 8px，下一行的叉正好压在上一行缩略图的下缘上。
+ * 浮在格子右上角上，一半探到外面——这是这类缩略图通行的位置，也是人第一眼会去找它的地方。画进格
+ * 子里面时它压着图本身，既挡内容又不像个「取下」的手柄。
+ *
+ * 这里一度因为「换行之后，下一行的叉压在上一行缩略图的下缘上」被收回格子内部。那其实是行距的问
+ * 题，不是位置的问题：叉往上探出 8px，而当时纵向行距只有 8px，一点余量都不剩。现在纵向给到
+ * 12px（横向仍是 8px——左右不溢出，不需要多留），空出来的 4px 就是余量。
+ *
+ * 第一行不会顶出附件区：那一区自己有 14px 的上边距，比 8px 宽裕。
  */
 function Remove({ name, onClick }: { name: string; onClick: () => void }) {
 	const label = translate("composer.removeAttachment", { name });
@@ -85,7 +91,7 @@ export function AttachmentStrip({
 			className={`flex flex-col gap-2 ${align === "end" ? "items-end" : "items-start"} ${className}`}
 		>
 			{images.length > 0 && (
-				<div className={`flex flex-wrap gap-2 ${justify}`}>
+				<div className={`flex flex-wrap gap-x-2 gap-y-3 ${justify}`}>
 					{images.map((file, index) => (
 						<div key={file.key} className="group/thumb relative shrink-0">
 							<button
@@ -118,7 +124,7 @@ export function AttachmentStrip({
 								 */
 								<div
 									data-ly-hover-reveal
-									className="absolute top-1 right-1 rounded-full border border-line bg-float/90 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/thumb:opacity-100 group-has-[:focus-visible]/thumb:opacity-100"
+									className="absolute -top-2 -right-2 rounded-full border border-line bg-float opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/thumb:opacity-100 group-has-[:focus-visible]/thumb:opacity-100"
 								>
 									<Remove name={file.name} onClick={() => onRemove(file)} />
 								</div>

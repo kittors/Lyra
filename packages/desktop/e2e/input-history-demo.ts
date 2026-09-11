@@ -38,6 +38,9 @@ const WITH_IMAGE = "这个图片里面有什么呢？";
 const FIRST = "第一句：这个项目用 pnpm，不要用 npm。";
 const SECOND = "第二句：发版走 pnpm release，先排练。";
 const SHOT = "截图.png";
+/** 一条附了一排图的旧消息，用来逼出换行——叉浮在角上，最怕的就是换行之后压住上一行。 */
+const MANY = "这一堆图都看一下";
+const MANY_COUNT = 14;
 /** 往回翻之前手里那半句。翻一圈回来，它必须还在。 */
 const DRAFT = "这是我打了一半的草稿";
 /** 一张 1×1 的红点 PNG。够小，而且是张真图——加载不了的话缩略图就是个空框。 */
@@ -96,6 +99,31 @@ async function seed(home: string): Promise<void> {
 				timestamp: at + seq * 1000,
 			},
 		});
+	/** 同一条消息里附一排图：够多才会换行，而换行正是叉浮到外面时唯一会出事的地方。 */
+	const manyImages = (seq: number) =>
+		JSON.stringify({
+			seq,
+			ts: at + seq * 1000,
+			type: "message",
+			message: {
+				role: "user",
+				content: [
+					...Array.from({ length: MANY_COUNT }, (_, i) => [
+						{ type: "text", text: `\n\n### Attachment ${i + 1} of ${MANY_COUNT}: 图${i + 1}.png\n\n` },
+						{ type: "image", data: PNG, mimeType: "image/png" },
+					]).flat(),
+					{ type: "text", text: MANY },
+				],
+				displayText: MANY,
+				attachments: Array.from({ length: MANY_COUNT }, (_, i) => ({
+					name: `图${i + 1}.png`,
+					kind: "image",
+					mimeType: "image/png",
+				})),
+				timestamp: at + seq * 1000,
+			},
+		});
+
 	const lines = [
 		JSON.stringify({
 			seq: 1,
@@ -110,17 +138,19 @@ async function seed(home: string): Promise<void> {
 				createdAt: at,
 				updatedAt: at,
 				modelId: "relay/gemini-3.7-flash-high",
-				messageCount: 6,
+				messageCount: 8,
 				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: 0 },
 				seq: 0,
 			},
 		}),
-		withImage(2),
-		record(3, "assistant", "图里是一个一像素的红点。"),
-		record(4, "user", FIRST),
-		record(5, "assistant", "好的，记下了：用 pnpm。"),
-		record(6, "user", SECOND),
-		record(7, "assistant", "也记下了：发版前先排练。"),
+		manyImages(2),
+		record(3, "assistant", "都看过了。"),
+		withImage(4),
+		record(5, "assistant", "图里是一个一像素的红点。"),
+		record(6, "user", FIRST),
+		record(7, "assistant", "好的，记下了：用 pnpm。"),
+		record(8, "user", SECOND),
+		record(9, "assistant", "也记下了：发版前先排练。"),
 	];
 	await writeFile(join(dir, `${SESSION_ID}.jsonl`), `${lines.join("\n")}\n`);
 
@@ -183,6 +213,29 @@ function stripState(): Promise<{ images: number; names: string }> {
 	);
 }
 
+/**
+ * 一排缩略图和它们的叉，各自的几何。
+ *
+ * 叉 `opacity: 0` 的时候盒子还在，量得到——这正好，「藏着」和「摆在哪」是两件事，分开验。
+ */
+function stripGeometry(): Promise<{
+	thumbs: { top: number; right: number; bottom: number }[];
+	crosses: { top: number; right: number }[];
+}> {
+	return app.evaluate(
+		'(() => {' +
+			' const shell = document.querySelector("main textarea")?.closest(".ly-composer");' +
+			' const strip = shell ? shell.querySelector("[data-ly-attachments]") : null;' +
+			' if (!strip) return { thumbs: [], crosses: [] };' +
+			' const box = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom) }; };' +
+			' return {' +
+			'  thumbs: [...strip.querySelectorAll("img")].map(box),' +
+			'  crosses: [...strip.querySelectorAll("[data-ly-hover-reveal]")].map(box),' +
+			' };' +
+			'})()',
+	);
+}
+
 /** 那个叉此刻的不透明度。0 = 藏着，1 = 露出来了。 */
 function crossOpacity(): Promise<string> {
 	return app.evaluate<string>(
@@ -209,7 +262,7 @@ async function main() {
 	const stop = await startRecording(PORT, frames);
 
 	try {
-		console.log("【一】打开那个说过三句话的会话，其中一句还附了张图");
+		console.log("【一】打开那个说过四句话的会话，其中两句附了图");
 		await d.until('document.querySelector("main textarea")', 30000);
 		await pause(1200);
 		// 真鼠标：会话行用 evaluate 里的 .click() 是打不开的。
@@ -229,7 +282,7 @@ async function main() {
 		const up1 = await fieldValue();
 		const mark1 = await indicator();
 		check("↑ 翻出的是最近说的那句", up1 === SECOND, up1 || "（空的）");
-		check("框里标着 1/3", /1\s*\/\s*3/.test(mark1), mark1 || "（没有指示器）");
+		check("框里标着 1/4", /1\s*\/\s*4/.test(mark1), mark1 || "（没有指示器）");
 		const inside = await app.evaluate<boolean>(
 			'(() => { const el = document.querySelector("main [data-ly-history]"); return Boolean(el && el.closest(".ly-composer")); })()',
 		);
@@ -264,20 +317,60 @@ async function main() {
 		check("鼠标挪开又藏回去", left === "0", left);
 		await pause(800);
 
-		console.log("\n【五】一路翻回来，草稿和它的附件都得原样还在");
-		await d.key("ArrowDown", DOWN);
-		await pause(900);
-		await d.key("ArrowDown", DOWN);
-		await pause(900);
-		await d.key("ArrowDown", DOWN);
-		await pause(1400);
+		console.log("\n【五】再翻一条——一排图，看叉是不是浮在角上，以及换行会不会压到上一行");
+		await d.key("ArrowUp", UP);
+		await pause(1600);
+		const manyText = await fieldValue();
+		const manyStrip = await stripState();
+		check("翻出的是那条一排图", manyText === MANY, manyText || "（空的）");
+		check(`${MANY_COUNT} 张图都回来了`, manyStrip.images === MANY_COUNT, `只有 ${manyStrip.images} 张`);
+
+		const geo = await stripGeometry();
+		/*
+		 * 叉在**角上**：比格子更靠上、也更靠右。
+		 *
+		 * 量的是盒子不是眼睛看到的：叉此刻 `opacity: 0`，但位置早就定下了。
+		 */
+		const cornered =
+			geo.thumbs.length > 0 &&
+			geo.thumbs.every((thumb, at) => {
+				const cross = geo.crosses[at];
+				return Boolean(cross) && cross.top < thumb.top && cross.right > thumb.right;
+			});
+		check(
+			"每个叉都探到格子的右上角外面",
+			cornered,
+			JSON.stringify({ 第一个格子: geo.thumbs[0], 它的叉: geo.crosses[0] }),
+		);
+
+		// 按 top 把它们分行——这一排必须真的换过行，否则下面那条断言什么也没验到。
+		const rows = [...new Set(geo.thumbs.map((thumb) => thumb.top))].sort((a, b) => a - b);
+		check("这一排确实换了行", rows.length >= 2, `只有 ${rows.length} 行，没换行，下一条就白验了`);
+		if (rows.length >= 2) {
+			const firstBottom = Math.max(...geo.thumbs.filter((t) => t.top === rows[0]).map((t) => t.bottom));
+			const secondTop = Math.min(
+				...geo.crosses.filter((_, at) => geo.thumbs[at]?.top === rows[1]).map((c) => c.top),
+			);
+			check(
+				"下一行的叉没压在上一行格子上",
+				secondTop >= firstBottom,
+				`下一行叉顶 ${secondTop}，上一行格底 ${firstBottom}`,
+			);
+		}
+		await pause(1500);
+
+		console.log("\n【六】一路翻回来，草稿和它的附件都得原样还在");
+		for (const wait of [900, 900, 900, 1400]) {
+			await d.key("ArrowDown", DOWN);
+			await pause(wait);
+		}
 		const back = await fieldValue();
 		const backStrip = await stripState();
 		check("回到自己那半句草稿", back === DRAFT, back || "（空的——草稿丢了）");
 		check("草稿本来没附件，图也跟着退干净", backStrip.images === 0, `还剩 ${backStrip.images} 张`);
 		check("回到草稿就不再标第几条", (await indicator()) === "", (await indicator()) || "（已消失）");
 
-		console.log("\n【六】多行文本里，方向键该归光标管");
+		console.log("\n【七】多行文本里，方向键该归光标管");
 		await pause(600);
 		await d.type("上面一行\n下面一行");
 		await pause(900);
@@ -297,7 +390,7 @@ async function main() {
 		check("光标贴到最前面时才翻历史", (await fieldValue()) === SECOND, await fieldValue());
 		await pause(1200);
 
-		console.log("\n【七】发出去之后，那行小字不该还留着");
+		console.log("\n【八】发出去之后，那行小字不该还留着");
 		check("发送前确实标着", (await indicator()) !== "", "（发送前就没有，这一条白验了）");
 		await d.submit();
 		await pause(2000);
