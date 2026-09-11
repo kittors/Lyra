@@ -192,6 +192,16 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 	return {
 		meta: session.meta,
 		messages: session.messages,
+		/*
+		 * The same field the stored read returns, so a session being read live is not missing
+		 * something a session read from disk has.
+		 *
+		 * Leaving it out did not break anything — the window defaults it to an empty list — it just
+		 * quietly dropped every compaction mark for as long as the session was running, and put them
+		 * all back the moment it stopped. A turn long enough to summarise its own history is exactly
+		 * the one where those marks are worth drawing.
+		 */
+		compactions: session.log.compactions,
 		commandRuns: session.log.commandRuns,
 		running: session.running || submitted.has(session.meta.id),
 		pendingApprovals: session.listPendingApprovals().map(({ id, request }) => ({
@@ -245,7 +255,7 @@ async function startStoredSession(projectId: string, sessionId: string): Promise
 		const loaded = await store.load(projectId, sessionId);
 		if (!loaded || retiring.has(sessionId)) return null;
 		session = stageSession({ meta: loaded.meta, messages: loaded.messages, running: false, pendingApprovals: [] });
-		session.restore(loaded.messages, loaded.compaction);
+		session.restore(loaded.messages, loaded.compaction, loaded.compactions);
 		session.log.commandRuns = loaded.commandRuns ?? [];
 	}
 	try {

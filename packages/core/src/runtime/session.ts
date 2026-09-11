@@ -168,7 +168,7 @@ export class AgentSession {
 	 * window on the first prompt — which then compacts again, from scratch, having thrown away the
 	 * summary it paid for last time.
 	 */
-	restore(messages: Message[], compaction: Boundary | null = null): void {
+	restore(messages: Message[], compaction: Boundary | null = null, compactions: number[] = []): void {
 		/*
 		 * Handles from before a model change are dropped on the way in, not at the point of use.
 		 *
@@ -176,7 +176,7 @@ export class AgentSession {
 		 * means the stale handles come back every time the session is opened. Cleaning here covers
 		 * both ways in, from the session hub and from sync, and leaves the encoders unchanged.
 		 */
-		this.log.restore(stripStaleHandles(messages, this.log.meta?.modelSwitchedAt), compaction);
+		this.log.restore(stripStaleHandles(messages, this.log.meta?.modelSwitchedAt), compaction, compactions);
 	}
 
 	get running(): boolean {
@@ -472,7 +472,8 @@ export class AgentSession {
 		await this.log.append({ type: "meta", meta });
 		// The running session holds the same messages the next turn will encode, so clean those too.
 		if (switching) {
-			this.log.restore(stripStaleHandles(this.log.messages, meta.modelSwitchedAt), this.log.compaction);
+			// Same transcript, same marks — a model switch rewrites handles, not where history was summarised.
+			this.log.restore(stripStaleHandles(this.log.messages, meta.modelSwitchedAt), this.log.compaction, this.log.compactions);
 		}
 		return true;
 	}

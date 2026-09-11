@@ -182,7 +182,19 @@ export class SubAgentRegistry {
 	/** Everything the sub-agent said, as it says it. */
 	record(id: string, message: Message): void {
 		const found = this.records.get(id);
-		if (!found) return;
+		/*
+		 * Nothing to record is not the same as a message, and the order here used to decide which.
+		 *
+		 * The push came first and the `role` read below second, so anything empty arriving went into
+		 * the transcript *and then* threw — leaving a hole in an array that outlives the throw, in a
+		 * list nothing else validates. The window reads this array straight through `subAgents.detail`
+		 * and walks it whole, so the hole surfaced later and somewhere else entirely, as the
+		 * `undefined.role` that takes the interface down.
+		 *
+		 * Every other transcript in the codebase checks before it appends — `SessionLog.commit` does
+		 * it with a WeakSet. This one now does too.
+		 */
+		if (!found || !message) return;
 		found.messages.push(message);
 		// Each assistant message is one request, and arrives once — see `message_end` in `runSubAgent`.
 		if (message.role === "assistant") found.usage = addUsage(found.usage, message.usage);

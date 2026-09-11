@@ -51,6 +51,21 @@ export class SessionLog {
 	compaction: { summary: string; keptFrom: number; at?: number } | null = null;
 
 	/**
+	 * Every place history was summarised, as positions in `messages` — the marks the window draws.
+	 *
+	 * Not the same thing as `compaction` above, despite the names sitting next to each other.
+	 * That one is the model's view: the single newest boundary, because each summary stands in for
+	 * the one before it. This is the reader's: every boundary the session has ever crossed, because
+	 * scrolling back through a long transcript should show where each one happened.
+	 *
+	 * Kept here because a running session is read from memory, not from disk. `store.load` rebuilds
+	 * the same list while replaying the log, but `snapshot` never opens the log — so without this
+	 * the marks vanished the moment a session started running and came back when it stopped, which
+	 * is exactly backwards from when a long turn most wants to show them.
+	 */
+	compactions: number[] = [];
+
+	/**
 	 * Messages already appended, tracked by identity.
 	 *
 	 * A prompt sent while the agent is idle is committed straight away; a steering message is
@@ -142,6 +157,12 @@ export class SessionLog {
 	 */
 	markCompaction(summary: string, kept: number): void {
 		this.compaction = { at: Date.now(), summary, keptFrom: Math.max(0, this.messages.length - kept) };
+		/*
+		 * Counted before the `compacted` event is written, which is what keeps this in step with the
+		 * list `store.load` builds while replaying: there the mark is `entries.length` at the moment
+		 * the event is read back, and every message committed before it is already in both.
+		 */
+		this.compactions.push(this.messages.length);
 	}
 
 	/**
@@ -150,10 +171,13 @@ export class SessionLog {
 	 * These messages are already in the log — that is where they came from — so they are not
 	 * committed again, and nothing here is written.
 	 */
-	restore(messages: Message[], compaction: { summary: string; keptFrom: number; at?: number } | null = null): void {
+	restore(messages: Message[], compaction: { summary: string; keptFrom: number; at?: number } | null = null, compactions: number[] = []): void {
 		this.messages = messages;
 		this.committed = new WeakSet(messages);
 		this.compaction = compaction;
+		// Positions into the array being adopted, so anything past its end is a mark for messages
+		// that are no longer here — a rewound tail, or a log the caller read only part of.
+		this.compactions = compactions.filter((at) => at <= messages.length);
 	}
 
 	/**
@@ -177,7 +201,8 @@ export class SessionLog {
 		 */
 		const boundary = this.compaction && index > this.compaction.keptFrom ? this.compaction : null;
 		this.commandRuns = this.commandRuns.filter((run) => run.at <= index);
-		this.restore(truncated.messages, boundary);
+		// The marks live at positions too, so a cut tail takes the ones inside it — same rule as the runs above.
+		this.restore(truncated.messages, boundary, this.compactions.filter((at) => at <= index));
 		return true;
 	}
 }

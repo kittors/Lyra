@@ -200,6 +200,28 @@ export class SessionStore implements SessionStorage {
 		if (payload.type === "title" && payload.source === "auto" && base.titleSetByUser) return base;
 		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: Date.now() };
 
+		/*
+		 * 子 Agent 烧的 token 也是这个会话烧的。
+		 *
+		 * 它的消息落盘成 `type: "event"` 里的 `subagent_message`，不是 `type: "message"`，所以下面那条
+		 * 按定义够不着——于是一整个委派的用量从来没进过会话统计。实测代价（2026-09-11，用户的两个会话）：
+		 *
+		 *     会话 A  主 Agent 发出 1,155,989   子 Agent 发出 1,623,591   统计漏掉 58.4%
+		 *     会话 B  主 Agent 发出 2,506,233   子 Agent 发出 1,543,053   统计漏掉 38.1%
+		 *
+		 * 第一个会话里子 Agent 比主 Agent 还多烧 40%，而卡片上的数字只有主 Agent 那一半。按 token 判断
+		 * 一次对话花了多少，这个数直接误导。
+		 *
+		 * **只算助手消息**，和主 Agent 那条一个道理：一条助手消息 = 一次请求，用量记在它身上，工具结果和
+		 * 用户消息都不带用量，算进来只会重复。
+		 *
+		 * `messageCount` **不加**：那个数是给人看「这段对话有多长」的，而子 Agent 的往返是委派内部的事，
+		 * 混进来会让一次委派看起来像聊了几十轮。用量是成本、条数是篇幅，两件事。
+		 */
+		if (payload.type === "event" && payload.event.type === "subagent_message" && payload.event.message.role === "assistant") {
+			next.usage = addUsage(base.usage, payload.event.message.usage);
+		}
+
 		if (payload.type === "message") {
 			next.messageCount = base.messageCount + 1;
 			if (payload.message.role === "assistant") next.usage = addUsage(base.usage, payload.message.usage);
@@ -253,6 +275,16 @@ export class SessionStore implements SessionStorage {
 					// A crash mid-append can leave a partial final line; skip it rather than failing the load.
 					continue;
 				}
+				/*
+				 * A line that parses but is not a record — `null`, a bare number, an array.
+				 *
+				 * Damage does not always make a line unparseable: a write cut short at the wrong byte, or
+				 * a file an external tool has been through, can leave something `JSON.parse` accepts and
+				 * nothing here can use. Reading `record.seq` off it threw, and the throw came out of the
+				 * IPC handler, so one such line made the whole session refuse to open — a much worse
+				 * outcome than the missing record it stands for.
+				 */
+				if (typeof record !== "object" || record === null) continue;
 				if (record.seq > sinceSeq) yield record;
 			}
 		} finally {
@@ -260,10 +292,29 @@ export class SessionStore implements SessionStorage {
 		}
 	}
 
+	/**
+	 * Every message in the log, in order — and nothing that is not one.
+	 *
+	 * The guard on `record.message` is the whole of a crash that reached people. A record saying it
+	 * is a message but carrying none — `{"type":"message"}`, which is what `JSON.stringify` writes
+	 * when the message is `undefined` — used to be pushed through as-is, leaving a hole in the array.
+	 * Nothing here reads the messages, so the hole travelled the length of the app in silence: into
+	 * the live session, out through `snapshot`, across the IPC boundary, and into the window, where
+	 * the first pass over the transcript hit `undefined.role` and took the whole interface down.
+	 *
+	 * It only ever showed up on a session that was *running*, which is what made it look like a bug
+	 * about long tasks. A session sitting idle is read by `load` below, and `load` totals the usage —
+	 * so it touched `.role` itself and threw in the main process, where the renderer catches it and
+	 * shows a failed-to-read notice instead. Same broken file, two completely different symptoms,
+	 * decided by nothing more than which of these two functions did the reading.
+	 *
+	 * Dropping the record is right: it has no message in it. Whatever was meant to be there is gone
+	 * either way, and one lost message reads better than a session that cannot be opened at all.
+	 */
 	async messages(projectId: string, sessionId: string): Promise<Message[]> {
 		const out: Message[] = [];
 		for await (const record of this.read(projectId, sessionId)) {
-			if (record.type === "message") out.push(record.message);
+			if (record.type === "message" && record.message) out.push(record.message);
 		}
 		return out;
 	}
@@ -318,7 +369,8 @@ export class SessionStore implements SessionStorage {
 				if (kept !== undefined) {
 					compaction = { at: record.ts, summary: summary ?? "", keptFrom: Math.max(0, entries.length - kept) };
 				}
-			} else if (record.type === "message") entries.push({ seq: record.seq, message: record.message });
+			// A message record with no message in it leaves a hole in the transcript; see `messages` above.
+			} else if (record.type === "message") { if (record.message) entries.push({ seq: record.seq, message: record.message }); }
 			else if (record.type === "title" && meta) {
 				if (record.source !== "auto" || !meta.titleSetByUser) meta.title = record.title;
 				if (record.source === "user") meta.titleSetByUser = true;
