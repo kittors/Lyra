@@ -21,6 +21,7 @@ import type { Message } from "@lyra/core";
  * 「哪几条是人自己打的」本来就是转录的语义，判断留在那个域里，这边只消费结果。
  */
 import { spokenByPerson } from "../conversation/index.ts";
+import { attachmentsFrom, type RestoredAttachment } from "./attachments/restore.ts";
 
 export interface InputHistory {
 	/** 排在 @ 和 / 之后的最后一手。吃掉了这个键就回 true。 */
@@ -32,13 +33,22 @@ export interface InputHistory {
 export function useInputHistory({
 	messages,
 	value,
+	attachments,
 	onPick,
 	field,
 	resetKey,
 }: {
 	messages: readonly Message[];
 	value: string;
-	onPick: (text: string) => void;
+	/** 输入框里此刻挂着的那袋文件。翻走之前要连它一起收好。 */
+	attachments: readonly RestoredAttachment[];
+	/**
+	 * 把翻出来的那一条交回输入框：文字和附件一起。
+	 *
+	 * 附件是**整袋替换**而不是追加——翻的是「当初那条消息」，它带几个文件就是几个。追加会让连按两
+	 * 次 ↑ 攒出一袋根本没人发过的东西。
+	 */
+	onPick: (text: string, attachments: RestoredAttachment[]) => void;
 	field: RefObject<HTMLTextAreaElement | null>;
 	/** 换了对话就从头开始：上一个对话翻到哪儿了，跟这一个没关系。 */
 	resetKey: string;
@@ -46,17 +56,22 @@ export function useInputHistory({
 	const entries = useMemo(() => spokenByPerson(messages), [messages]);
 	/** -1 是「在草稿上」，0 是最近说过的那一句。 */
 	const [index, setIndex] = useState(-1);
-	const draft = useRef("");
+	/** 翻走之前手里那份草稿，文字和文件都在。 */
+	const draft = useRef<{ text: string; attachments: RestoredAttachment[] }>({ text: "", attachments: [] });
 
 	useEffect(() => {
 		setIndex(-1);
-		draft.current = "";
+		draft.current = { text: "", attachments: [] };
 	}, [resetKey]);
 
 	const apply = useCallback(
 		(next: number) => {
 			setIndex(next);
-			onPick(next === -1 ? draft.current : (entries[next] ?? ""));
+			if (next === -1) onPick(draft.current.text, draft.current.attachments);
+			else {
+				const entry = entries[next];
+				onPick(entry?.text ?? "", entry ? attachmentsFrom(entry.message) : []);
+			}
 			/*
 			 * 光标落到最后。
 			 *
@@ -89,7 +104,8 @@ export function useInputHistory({
 
 			if (up) {
 				if (index + 1 >= entries.length) return false; // 已经是最早的一条，让键透过去
-				if (index === -1) draft.current = value; // 头一次往回翻，先把手里这句收好
+				// 头一次往回翻，先把手里这句连同挂着的文件一起收好。
+				if (index === -1) draft.current = { text: value, attachments: [...attachments] };
 				apply(index + 1);
 			} else {
 				if (index === -1) return false; // 本来就在草稿上，没有「更新」的可翻
@@ -98,7 +114,7 @@ export function useInputHistory({
 			event.preventDefault();
 			return true;
 		},
-		[apply, entries.length, field, index, value],
+		[apply, attachments, entries.length, field, index, value],
 	);
 
 	/*
@@ -113,7 +129,7 @@ export function useInputHistory({
 	 * 「是我翻的」和「是别处改的」天然分得开。
 	 */
 	useEffect(() => {
-		if (index !== -1 && value !== entries[index]) setIndex(-1);
+		if (index !== -1 && value !== entries[index]?.text) setIndex(-1);
 	}, [value, index, entries]);
 
 	return {

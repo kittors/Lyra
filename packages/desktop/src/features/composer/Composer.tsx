@@ -169,7 +169,18 @@ export function Composer() {
 	 *
 	 * 排在 @ 和 / 后面接方向键——它俩开着的时候，上下是用来挑名单的。
 	 */
-	const history = useInputHistory({ messages, value: text, onPick: setText, field, resetKey: draftKey });
+	const history = useInputHistory({
+		messages,
+		value: text,
+		attachments,
+		/* 翻出来的那一条整份交回：字是字，那袋文件也照原样挂上。 */
+		onPick: (next, files) => {
+			setText(next);
+			setAttachments(files);
+		},
+		field,
+		resetKey: draftKey,
+	});
 	useEffect(() => {
 		if (!draft.text) return;
 		setText((current) =>

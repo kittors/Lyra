@@ -87,7 +87,7 @@ export function AttachmentStrip({
 			{images.length > 0 && (
 				<div className={`flex flex-wrap gap-2 ${justify}`}>
 					{images.map((file, index) => (
-						<div key={file.key} className="relative shrink-0">
+						<div key={file.key} className="group/thumb relative shrink-0">
 							<button
 								type="button"
 								data-ly-tip={file.tip}
@@ -107,7 +107,19 @@ export function AttachmentStrip({
 								<img src={file.src} alt={file.name} className="h-full w-full object-cover" />
 							</button>
 							{onRemove && (
-								<div className="absolute top-1 right-1 rounded-full border border-line bg-float/90">
+								/*
+								 * 鼠标挪上来才现身。
+								 *
+								 * 常驻的那一版，一排缩略图上钉着一排叉——最显眼的东西成了「删掉我」，而这排东西是拿来看的。
+								 * 要删总得先把鼠标移过去，那一刻它再出现也不迟。
+								 *
+								 * `group-has-[:focus-visible]` 是键盘那一路：只挂 hover 的话，用 Tab 走到这个按钮上时它仍然
+								 * 是透明的，人按下去也不知道自己按的是什么。
+								 */
+								<div
+									data-ly-hover-reveal
+									className="absolute top-1 right-1 rounded-full border border-line bg-float/90 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/thumb:opacity-100 group-has-[:focus-visible]/thumb:opacity-100"
+								>
 									<Remove name={file.name} onClick={() => onRemove(file)} />
 								</div>
 							)}

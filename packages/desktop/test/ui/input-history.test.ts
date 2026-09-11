@@ -12,6 +12,8 @@ import { test } from "node:test";
 
 import type { Message } from "@lyra/core";
 import { useInputHistory } from "../../src/features/composer/useInputHistory.ts";
+import type { RestoredAttachment } from "../../src/features/composer/attachments/restore.ts";
+import { attachmentBody, attachmentImageLabel, attachmentStub } from "../../src/lib/attachment-placeholders.ts";
 import { click, fire, mount, press } from "../helpers/mount.ts";
 
 function said(text: string, extra: Record<string, unknown> = {}): Message {
@@ -20,8 +22,19 @@ function said(text: string, extra: Record<string, unknown> = {}): Message {
 
 function Harness({ messages }: { messages: Message[] }) {
 	const [text, setText] = useState("");
+	const [files, setFiles] = useState<RestoredAttachment[]>([]);
 	const field = useRef<HTMLTextAreaElement>(null);
-	const history = useInputHistory({ messages, value: text, onPick: setText, field, resetKey: "one" });
+	const history = useInputHistory({
+		messages,
+		value: text,
+		attachments: files,
+		onPick: (next, picked) => {
+			setText(next);
+			setFiles(picked);
+		},
+		field,
+		resetKey: "one",
+	});
 	return h(
 		"div",
 		null,
@@ -37,9 +50,41 @@ function Harness({ messages }: { messages: Message[] }) {
 		 * 这是真窗口里那条路的形状，也是上一版漏掉的那条——把重置挂在 onChange 上，消息发出去了、
 		 * 框空了，那行「历史 1/1」还留在框里指着一句已经不在的话。
 		 */
-		h("button", { type: "button", onClick: () => setText("") }, "发送"),
+		h("button", { type: "button", onClick: () => { setText(""); setFiles([]); } }, "发送"),
 		h("output", null, history.position ? `${history.position.current}/${history.position.total}` : "—"),
+		/* 那袋文件也得看得见，否则「附件有没有跟着回来」只能靠猜。 */
+		h(
+			"ul",
+			{ "data-files": "" },
+			files.map((file) =>
+				h("li", { key: file.id }, `${file.name}:${file.data ? "图" : file.text ? "正文" : "只有名字"}`),
+			),
+		),
 	);
+}
+
+/** 一条带附件的消息，按 `outgoing.ts` 真正打包出来的形状写。 */
+function saidWith(text: string, files: { name: string; kind: string; mimeType: string; body?: string; data?: string }[]): Message {
+	const content: unknown[] = [];
+	files.forEach((file, at) => {
+		const label = `Attachment ${at + 1} of ${files.length}`;
+		if (file.data) {
+			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
+			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+		} else if (file.body !== undefined) {
+			content.push({ type: "text", text: attachmentBody(file.name, file.body, label) });
+		} else {
+			content.push({ type: "text", text: attachmentStub(file.name, file.mimeType, label) });
+		}
+	});
+	content.push({ type: "text", text });
+	return {
+		role: "user",
+		content,
+		displayText: text,
+		attachments: files.map((file) => ({ name: file.name, kind: file.kind, mimeType: file.mimeType })),
+		timestamp: 1,
+	} as unknown as Message;
 }
 
 /** 像人那样打字：受控输入框里直接赋 value 会被 React 盖掉，得走原生 setter。 */
@@ -199,5 +244,94 @@ test("附件正文不跟着翻回输入框", async () => {
 	await press(field, "ArrowUp");
 	assert.ok(!field.value.includes("【"), `占位符该被摘掉，得到：${field.value}`);
 	assert.match(field.value, /看看这个/);
+	await view.unmount();
+});
+
+test("翻出一条带图的消息，图跟着回来", async () => {
+	const view = await mount(
+		h(Harness, {
+			messages: [saidWith("这个图片里面有什么呢？", [{ name: "shot.png", kind: "image", mimeType: "image/png", data: "QkFTRTY0" }])],
+		}),
+	);
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
+	assert.equal(field.value, "这个图片里面有什么呢？");
+	assert.match(view.text(), /shot\.png:图/, `图没跟回来：${view.text()}`);
+	await view.unmount();
+});
+
+test("文档翻回来的是原文，不是打包时那层围栏", async () => {
+	const view = await mount(
+		h(Harness, {
+			messages: [saidWith("看看这份", [{ name: "报告.md", kind: "text", mimeType: "text/markdown", body: "第一行\n第二行" }])],
+		}),
+	);
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
+	assert.match(view.text(), /报告\.md:正文/, `正文没跟回来：${view.text()}`);
+	// 输入框里只该有人打的那句，附件正文不许铺进来。
+	assert.equal(field.value, "看看这份");
+	await view.unmount();
+});
+
+test("图文混排时两边各数各的，不会错位", async () => {
+	/*
+	 * 这一条是冲着 `isAttachmentBody` 去的：图片前面那行标签和文档正文长得一样（都是
+	 * `\n\n### 标题: 名字`），按它顺序配对，图的标签行会被当成文档的正文。
+	 */
+	const view = await mount(
+		h(Harness, {
+			messages: [
+				saidWith("都看一下", [
+					{ name: "a.png", kind: "image", mimeType: "image/png", data: "QQ==" },
+					{ name: "b.md", kind: "text", mimeType: "text/markdown", body: "乙的正文" },
+					{ name: "c.png", kind: "image", mimeType: "image/png", data: "Qg==" },
+					{ name: "d.bin", kind: "binary", mimeType: "application/octet-stream" },
+				]),
+			],
+		}),
+	);
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
+	const shown = view.text();
+	assert.match(shown, /a\.png:图/, shown);
+	assert.match(shown, /b\.md:正文/, shown);
+	assert.match(shown, /c\.png:图/, shown);
+	assert.match(shown, /d\.bin:只有名字/, `读不出来的那份该还原成「只有名字」：${shown}`);
+	await view.unmount();
+});
+
+test("草稿里挂着的文件，翻一圈回来还在", async () => {
+	const view = await mount(
+		h(Harness, { messages: [saidWith("说过的", [{ name: "旧.png", kind: "image", mimeType: "image/png", data: "Qw==" }])] }),
+	);
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	// 先翻出那条带图的，再改一个字——这时候手里这份就是「草稿」了，图也算在里面。
+	await press(field, "ArrowUp");
+	assert.match(view.text(), /旧\.png:图/);
+	await type(field, "我自己写的");
+	assert.match(view.text(), /旧\.png:图/, "改字不该把附件弄丢");
+
+	await press(field, "ArrowUp");
+	assert.equal(field.value, "说过的", "又翻回历史那条");
+	await press(field, "ArrowDown");
+	assert.equal(field.value, "我自己写的", "草稿的字回来了");
+	assert.match(view.text(), /旧\.png:图/, `草稿那袋文件也该回来：${view.text()}`);
+	await view.unmount();
+});
+
+test("只附了文件、一个字没打的那条，也翻得出来", async () => {
+	const view = await mount(
+		h(Harness, { messages: [saidWith("", [{ name: "无字.png", kind: "image", mimeType: "image/png", data: "RA==" }])] }),
+	);
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
+	assert.equal(field.value, "", "本来就没有字");
+	assert.match(view.text(), /无字\.png:图/, `它同样是人发出去的一条消息：${view.text()}`);
 	await view.unmount();
 });
