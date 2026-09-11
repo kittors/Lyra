@@ -175,8 +175,20 @@ export const RPC: Record<string, Handler> = {
 		await session?.setThinking(thinkingLevel(thinking));
 		return null;
 	},
-	"agent.editMessage": async (deps, [sessionId, index, content]) =>
-		deps.editMessage(s(sessionId), Number(index), promptContent(content)),
+	/*
+	 * 只收该收的两样。
+	 *
+	 * `promptOptions` 是给 `agent.prompt` 准备的，认得出的字段比这里多。编辑重发要带过来的只有
+	 * 「这条消息除措辞之外的样子」——附了哪几个文件，气泡里该显示什么；投递方式、synthetic 这些
+	 * 是「怎么发出去」，由这一次编辑自己决定，不该由对面说了算。
+	 */
+	"agent.editMessage": async (deps, [sessionId, index, content, options]) => {
+		const { displayText, attachments } = promptOptions(options);
+		return deps.editMessage(s(sessionId), Number(index), promptContent(content), {
+			...(displayText === undefined ? {} : { displayText }),
+			...(attachments === undefined ? {} : { attachments }),
+		});
+	},
 
 	"sessions.compact": async (deps, [sessionId, instructions]) => {
 		const session = await live(deps, s(sessionId));
@@ -375,8 +387,8 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 
 	"agent.prompt": ([sessionId, content_, options]) =>
 		fail(all(str(sessionId, "sessionId"), content(content_, "content"), optionalRecord(options, "options"))),
-	"agent.editMessage": ([sessionId, messageIndex, content_]) =>
-		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), content(content_, "content"))),
+	"agent.editMessage": ([sessionId, messageIndex, content_, options]) =>
+		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), content(content_, "content"), optionalRecord(options, "options"))),
 	"agent.abort": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"agent.approve": ([sessionId, requestId, decision]) =>
 		fail(all(str(sessionId, "sessionId"), str(requestId, "requestId"), checkApprovalDecision(decision))),

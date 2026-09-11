@@ -147,6 +147,7 @@ export const METHODS = {
 		list: { channel: "files:list", remote: true },
 		read: { channel: "files:read", remote: true },
 		document: { channel: "files:document", remote: false, why: "读写任意路径" },
+		documentText: { channel: "files:documentText", remote: false, why: "把任意字节交给主进程里的解析器" },
 		bytes: { channel: "files:bytes", remote: false, why: "读写任意路径" },
 		write: { channel: "files:write", remote: false, why: "读写任意路径" },
 		create: { channel: "files:create", remote: false, why: "在任意位置建文件" },

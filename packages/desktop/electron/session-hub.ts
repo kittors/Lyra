@@ -92,12 +92,17 @@ export const browsers = new Map<string, () => void>();
 export const sideChats = new Map<string, SideChat>();
 
 
-export async function editSessionMessage(sessionId: string, index: number, content: Parameters<LyraApi["agent"]["editMessage"]>[2]): Promise<void> {
+export async function editSessionMessage(
+	sessionId: string,
+	index: number,
+	content: Parameters<LyraApi["agent"]["editMessage"]>[2],
+	options: Parameters<LyraApi["agent"]["editMessage"]>[3] = {},
+): Promise<void> {
 	const session = await ensureLiveSession(sessionId);
 	if (!session) throw new Error("找不到这个会话。");
 	if (session.running) throw new Error("请先停止当前回复，再编辑消息。");
 	// Acknowledge submission immediately; the rerun and any failure arrive on the shared stream.
-	void session.editAndResend(index, content).catch((error: unknown) => {
+	void session.editAndResend(index, content, options).catch((error: unknown) => {
 		const message = error instanceof Error ? error.message : String(error);
 		broadcast(sessionId, { type: "notice", level: "error", message });
 		broadcast(sessionId, { type: "agent_end", reason: "error", error: message });

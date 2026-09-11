@@ -5,9 +5,9 @@ import type {
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
-import { FileKindIcon, type FileKind } from "../composer/index.ts";
-import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
-import { useState } from "react";
+import { AttachmentStrip, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
+import { isAttachmentBody, stripPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
@@ -25,24 +25,46 @@ import { useI18n } from "../../i18n/index.ts";
  * wording any more. Leaving it would put an answer to a question nobody asked directly under
  * the question that replaced it.
  */
-/**
- * 一段正文，切成「普通的字」和「站在句子里的附件名」。
- *
- * 复用输入框那一侧的 `placeAttachments`：同一套匹配规则，写进去和读出来的必须是同一件事，
- * 两边各写一份正是两边会对不上的开始。
- */
-type Part =
-  | { kind: "text"; text: string }
-  | { kind: "file"; name: string; fileKind: FileKind };
+type ImageBlock = Extract<UserContent, { type: "image" }>;
 
-function textParts(text: string, files: UserMessageType["attachments"]): Part[] {
-  if (!files?.length) return [{ kind: "text", text }];
-  const { segments } = placeAttachments(text, files);
-  return segments.map((segment): Part =>
-    segment.kind === "text"
-      ? { kind: "text", text: segment.text }
-      : { kind: "file", name: segment.file.name, fileKind: (segment.file.kind as FileKind) ?? "text" },
-  );
+/**
+ * 带了哪几个文件，认回成一排。
+ *
+ * 同一批附件在消息里是分开存的：图片的像素在 `content` 的 image 块里，名字和门类在 `attachments`
+ * 里，后者故意不带正文（见 `UserMessage.attachments` 的说明）。要画成一排就得先把两边配回去，
+ * 按次序：第 n 个门类是图片的附件，配第 n 个图片块。
+ *
+ * 配不齐也不能把图弄丢。转录里躺着的老消息可能根本没有 `attachments` 这一项，那时只有图片块，
+ * 于是剩下的一律补在后面——少画一个附件，比多画一个要命得多。
+ */
+function attachmentsOf(
+  message: UserMessageType,
+  images: ImageBlock[],
+  label: (kind: FileKind) => string,
+): StripFile[] {
+  const files: StripFile[] = [];
+  let at = 0;
+  for (const [index, file] of (message.attachments ?? []).entries()) {
+    const kind = (file.kind as FileKind | undefined) ?? fileKind(file.name, file.mimeType ?? "");
+    const block = kind === "image" ? images[at] : undefined;
+    if (block) at++;
+    files.push({
+      key: `${index}-${file.name}`,
+      name: file.name,
+      kind,
+      tip: `${file.name}\n${label(kind)}`,
+      ...(block ? { src: `data:${block.mimeType};base64,${block.data}` } : {}),
+    });
+  }
+  for (; at < images.length; at++) {
+    files.push({
+      key: `image-${at}`,
+      name: "",
+      kind: "image",
+      src: `data:${images[at].mimeType};base64,${images[at].data}`,
+    });
+  }
+  return files;
 }
 
 export function UserMessage({
@@ -65,9 +87,35 @@ export function UserMessage({
     .join("\n");
 
   const skillRef = message.skillRef;
-  const hasCapsules = Boolean(skillRef || message.sessionRefs?.length || message.attachments?.length);
-  const text = message.displayText ?? rawText;
-  const images = message.content.filter((block) => block.type === "image");
+  /*
+   * 附件不在这里面了。
+   *
+   * 它们从前算一份「胶囊」，跟技能和会话引用一样住在气泡里；于是一条只附了几个文件、一个字
+   * 没打的消息，气泡里装的全是文件名——气泡是「我说的那句话」的容器，它不该盛这个。附件整体
+   * 搬到气泡外面那一排上之后，只剩这两样还要气泡：它们确实是这句话的一部分。
+   *
+   * 顺带修掉一个空壳：附件还算在里面时，正文为空的那条消息会渲染出一个只有内边距的气泡。
+   */
+  const hasCapsules = Boolean(skillRef || message.sessionRefs?.length);
+  const images = useMemo(
+    () => message.content.filter((block): block is ImageBlock => block.type === "image"),
+    [message.content],
+  );
+  const files = useMemo(
+    () => attachmentsOf(message, images, (kind) => t(KIND_LABEL[kind])),
+    [message, images, t],
+  );
+  /*
+   * 认得出的 `【文件名】` 不进气泡。
+   *
+   * 新发出去的消息里已经没有了，但升级前发的那些还带着——留着就是同一个文件说两遍：气泡里一
+   * 遍名字，气泡外那排附件上又一遍，而图片的两遍还长得毫不相干，一边是像素一边是紫色图标。
+   */
+  const text = useMemo(
+    () => stripPlaceholders(message.displayText ?? rawText, message.attachments ?? []),
+    [message.displayText, rawText, message.attachments],
+  );
+  const said = text.trim();
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
@@ -96,7 +144,17 @@ export function UserMessage({
       (block): block is Extract<UserContent, { type: "text" }> =>
         block.type === "text" && isAttachmentBody(block.text),
     );
-    void editMessage(index, [...images, ...bodies, { type: "text", text: trimmed }]);
+    /*
+     * 附了哪几个文件，和气泡里该显示什么，跟着一起过去。
+     *
+     * 不带的那一版等于每编辑一次就把附件从界面上抹掉一次——文件其实还在 `content` 里，模型照样
+     * 读得到，只有人看不见了。而 `displayText` 一旦没有，气泡就退回原文，附件正文重新整个铺进
+     * 自己发出的那条消息里，那正是 `displayText` 存在的全部理由。
+     */
+    void editMessage(index, [...images, ...bodies, { type: "text", text: trimmed }], {
+      displayText: trimmed,
+      ...(message.attachments?.length ? { attachments: message.attachments } : {}),
+    });
   }
 
   if (editing) {
@@ -132,46 +190,35 @@ export function UserMessage({
       )}
 
         {/*
-         * Thumbnails in a row, not a stack of full-size pictures.
+         * 全部附件，在气泡外面，一排。
          *
-         * What a sent image needs to do here is say which image it was; looking at it properly is
-         * a click away, and the viewer is much better at it than a message bubble. At full height
-         * three screenshots pushed the reply that followed them off the screen — the picture took
-         * the space, and the conversation lost it.
+         * 图片是缩略图不是原图：一张已发出的图在这里要回答的只是「是哪一张」，看清楚它是一次
+         * 点击的事，而查看器比一个消息气泡称职得多。三张全尺寸的截图会把它们底下的回复整个顶
+         * 出屏幕——地方被图占了，对话把它丢了。
+         *
+         * 文件也在这里，而不是在气泡里当一段行内文字。从前只有图片站在外面，文档的名字嵌在句
+         * 子中间，于是同一条消息里两种附件是两种东西；更糟的是图片两样都占：外面一张缩略图，
+         * 里面还有一遍它的文件名。现在一个文件只画一次，画在同一个地方。
+         *
+         * 能点开，但不能改：这一份已经发出去了。查看器认得出没有 `onReplace`，于是把标注过的
+         * 那份放进剪贴板，而不是悄悄改写一条已经是记录的消息。
          */}
-        {images.length > 0 && (
-          <div className="ly-user-images mb-2 flex max-w-[85%] flex-wrap justify-end gap-2">
-            {images.map((block, i) => (
-              /*
-               * Openable, but not replaceable: this one has already been sent. The viewer notices
-               * the missing `onReplace` and offers the annotated copy for the clipboard instead of
-               * silently rewriting a message that is part of the record.
-               */
-              <button
-                key={i}
-                type="button"
-                aria-label={t("userMessage.previewImage")}
-                onClick={(event) =>
-                  openFromEvent(
-                    event,
-                    images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
-                    i,
-                  )
-                }
-                className="block h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-line transition-[opacity,transform] duration-[var(--ly-t-quick)] hover:opacity-88 active:scale-[0.97]"
-              >
-                {/* `cover`: a row of equal squares reads as a set. Letterboxed thumbnails of mixed
-                    aspect ratios read as a layout that gave up. */}
-                <img
-                  src={`data:${block.mimeType};base64,${block.data}`}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              </button>
-            ))}
-          </div>
+        {files.length > 0 && (
+          <AttachmentStrip
+            files={files}
+            align="end"
+            thumbnail={80}
+            className="ly-user-images mb-2 max-w-[85%]"
+            onOpen={(index, event) =>
+              openFromEvent(
+                event,
+                images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
+                index,
+              )
+            }
+          />
         )}
-      {(text || hasCapsules) && <div className="ly-user-bubble max-w-[85%] rounded-2xl bg-card px-4 py-2.5 sm:max-w-[75%]">
+      {(said || hasCapsules) && <div className="ly-user-bubble max-w-[85%] rounded-2xl bg-card px-4 py-2.5 sm:max-w-[75%]">
         {/* Render interactive Skill capsule if present */}
         {skillRef && (
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
@@ -228,34 +275,15 @@ export function UserMessage({
           </div>
         )}
 
-        {text && (
-        <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">
-          {/*
-            * 附件就画在它被放进去的那个位置上，而且它本身就是那颗胶囊。
-            *
-            * 从前是「气泡里一段浅蓝的【交接说明.md】，气泡底下再来一排文件胶囊」——同一个文件说了
-            * 两遍，而且两遍长得不一样。占位符已经在正确的位置上了，让它长成胶囊就够了：带色的门类
-            * 图标加文件名，一句话里嵌一颗，顺序和形态一次说清。
-            *
-            * 认不出来的 `【…】` 原样留着：中文里方括号是普通标点，一句「这个【重要】」不是在引用
-            * 任何东西。
-            */}
-          {textParts(text, message.attachments).map((part, i) =>
-            part.kind === "file" ? (
-              <span
-                key={i}
-                data-ly-attachment
-                className="mx-0.5 inline-flex max-w-full translate-y-[1px] items-center gap-1 rounded-md border border-line-soft bg-card-hover/70 px-1.5 py-px align-baseline text-[0.9em] text-ink-muted"
-              >
-                <FileKindIcon kind={part.fileKind} size={12} />
-                <span className="truncate">{part.name}</span>
-              </span>
-            ) : (
-              <span key={i}>{part.text}</span>
-            ),
-          )}
-        </p>
-      )}
+        {/*
+          * 气泡里只有人自己打的那些字。
+          *
+          * 认不出来的 `【…】` 原样留着：中文里方括号是普通标点，一句「这个【重要】」不是在引用
+          * 任何东西。
+          */}
+        {said && (
+          <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">{text}</p>
+        )}
       </div>}
 
       {/* Editing is the one thing a sent message offers that a reply does not. */}

@@ -1,15 +1,16 @@
 /**
- * 附件在句子里的位置，和它的正文该出现在哪儿。
+ * 读得懂已经存在的 `【文件名】`，并且不让它出现在人眼前。
  *
- * 两件事一起测，因为它们是同一个决定的两半：占位符决定顺序，`displayText` 决定气泡里看到什么。
- * 客户报的是后者——引用一份上千行的 md，整份正文就铺在自己发出的那条消息里，想翻回上面很费劲。
- * 前者是同一条反馈里的另一半：图片一律排在最前、文档一律缀在最后，人放进去的先后被丢掉了。
+ * 这些记号一度是写进草稿正文的，用来记住附件在句子里的位置。代价是每次拖文件都往输入框里塞一
+ * 串方括号，发出去以后气泡里又是一遍文件名——而同一张图的缩略图就挂在气泡外面。记号因此不再产
+ * 生了（见 `attachment-placeholders.ts`），但升级前存下的草稿和转录里的消息还带着它们：解析要
+ * 继续对，给人看的那一份里要剥干净。
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { placeAttachments, placeholderFor, isAttachmentBody } from "../src/lib/attachment-placeholders.ts";
+import { placeAttachments, placeholderFor, isAttachmentBody, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
 
 const file = (name: string) => ({ name });
 
@@ -42,8 +43,8 @@ test("认不出来的【】是普通标点，原样留着", () => {
 	assert.deepEqual(unplaced.map((f) => f.name), ["a.md"], "没被认走的附件仍然要发出去");
 });
 
-test("没有占位符的附件不会被丢掉，落在末尾", () => {
-	// 人可以把那句话删掉，队列里退回来的草稿也没有光标可写——不能因此就不发。
+test("没有占位符的附件不会被丢掉", () => {
+	// 如今这是常态：记号不再写进草稿，所有附件都从这条路走，由 `buildOutgoing` 排在正文前面。
 	const { segments, unplaced } = placeAttachments("随便说点什么", [file("orphan.md")]);
 	assert.deepEqual(segments, [{ kind: "text", text: "随便说点什么" }]);
 	assert.deepEqual(unplaced.map((f) => f.name), ["orphan.md"]);
@@ -53,6 +54,27 @@ test("正文全是占位符时不会产生空的文本段", () => {
 	const { segments } = placeAttachments(placeholderFor("only.png"), [file("only.png")]);
 	assert.equal(segments.length, 1);
 	assert.equal(segments[0].kind, "file");
+});
+
+test("给人看的那一份里，认得出的记号被剥掉", () => {
+	// 气泡里只剩人打的字；文件本身画在气泡外面那一排上，一个文件只出现一次。
+	assert.equal(
+		stripPlaceholders(`看这张 ${placeholderFor("a.png")} 再看 ${placeholderFor("b.md")} 谢谢`, [file("a.png"), file("b.md")]),
+		"看这张 再看 谢谢",
+		"记号让位之后留下的空档要收干净，不能剩下一段莫名其妙的空白",
+	);
+});
+
+test("只附了文件、一个字没打，剥完是空的", () => {
+	// 正是客户截图里那条：气泡里装着四个文件名，而人什么都没说。空字符串让气泡整个不渲染。
+	const files = [file("a.png"), file("b.mov"), file("c.pdf")];
+	const text = files.map((f) => placeholderFor(f.name)).join("");
+	assert.equal(stripPlaceholders(text, files), "");
+});
+
+test("认不出来的记号不动它", () => {
+	assert.equal(stripPlaceholders("这个【重要】要注意", [file("a.md")]), "这个【重要】要注意");
+	assert.equal(stripPlaceholders("一句没有方括号的话", [file("a.md")]), "一句没有方括号的话");
 });
 
 test("认得出哪一段文本是附件正文，哪一段是人打的字", () => {

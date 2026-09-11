@@ -865,7 +865,19 @@ export class AgentSession {
 	async editAndResend(
 		messageIndex: number,
 		content: UserContent[],
-		options: { thinking?: ThinkingLevel } = {},
+		options: {
+			thinking?: ThinkingLevel;
+			/**
+			 * 改的是措辞，不是这条消息是什么。
+			 *
+			 * 这两样从前没跟过来，于是编辑一次就把它们清空了：`attachments` 一没，界面上那排附件
+			 * 整个消失——文件其实还在 `content` 里，模型照样看得见，只有人看不见了；`displayText`
+			 * 一没，气泡退回原文，一份上千行的附件正文重新整个铺进自己发出的那条消息里，而那正
+			 * 是 `displayText` 存在的全部理由。
+			 */
+			displayText?: string;
+			attachments?: Array<{ name: string; kind?: string; mimeType?: string }>;
+		} = {},
 	): Promise<void> {
 		await this.cancelTitleSummary();
 		if (this.running) {

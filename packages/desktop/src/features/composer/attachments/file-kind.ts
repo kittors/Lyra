@@ -96,9 +96,21 @@ export function fileKind(name: string, mimeType = ""): FileKind {
 	return "text";
 }
 
+/**
+ * 图标归图标，能不能当文本读是另一件事。
+ *
+ * `csv` 和 `tsv` 是这条区别的全部理由。它们被归进 `excel` 是为了画一个表格图标——一列数字顶着一个
+ * 文档图标确实不像话——但门类同时还被拿去决定「内容能不能进 prompt」，于是一个**纯文本文件**被当成
+ * 二进制拒掉了：附一个 csv 上去，模型只收到一个文件名。一个字段扛了两个决定，图标对了，读取坏了。
+ *
+ * 所以这里按扩展名再问一次。不改 `fileKind` 的归类：图标那一头是对的，不该为了这一头把它弄坏。
+ */
+const TEXT_DESPITE_KIND = new Set(["csv", "tsv"]);
+
 /** Whether a prompt can carry this file's contents, rather than just its name. */
-export function isReadableAsText(kind: FileKind): boolean {
-	return kind === "text";
+export function isReadableAsText(kind: FileKind, name = ""): boolean {
+	if (kind === "text") return true;
+	return TEXT_DESPITE_KIND.has(extensionOf(name));
 }
 
 /**

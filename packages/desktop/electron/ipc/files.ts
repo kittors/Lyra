@@ -16,6 +16,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { getWindow } from "../window.ts";
 import { documentKind } from "../../shared/document-kind.ts";
 import { readDatabase, readWorkbook, type DocumentData } from "../documents.ts";
+import { extractDocumentText, type ExtractedText } from "../document-text.ts";
 import type { FileContents, FileEntry } from "../ipc-types.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../file-read-service.ts";
 
@@ -77,6 +78,26 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 		if (!info?.isFile() || info.size > DOCUMENT_READ_CAP) return null;
 		return readFile(path).catch(() => null);
 	});
+
+	/*
+	 * 一份文档里的字，抽给模型读。
+	 *
+	 * 走字节而不是走路径：这条通道服务的是输入框里那些**拖进来的**文件，它们是浏览器的 `File`，本来就
+	 * 没有磁盘路径可言（从别的应用拖来的、粘贴板里的，尤其如此）。上面几条通道都按路径收，并在路径上
+	 * 做项目边界检查；这一条收的字节是人刚刚自己交出来的，边界检查在这里没有意义。
+	 *
+	 * 解析放在主进程，是因为 `renderer-does-not-reach-into-main` 那条架构规则——渲染进程只能从
+	 * `electron/` 拿类型。这也顺带把 pdf.js 挡在页面之外：它在主进程里解析，卡住的是一个没有界面的
+	 * 进程，而不是人正在打字的那个窗口。
+	 */
+	ipcMain.handle(
+		"files:documentText",
+		async (_event, name: string, bytes: Uint8Array): Promise<ExtractedText | null> => {
+			if (!name || !bytes?.byteLength) return null;
+			if (bytes.byteLength > DOCUMENT_READ_CAP) return null;
+			return extractDocumentText(name, new Uint8Array(bytes));
+		},
+	);
 
 	ipcMain.handle("files:document", async (_event, raw: string): Promise<DocumentData | null> => {
 		const path = await projectPath(raw);

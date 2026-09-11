@@ -13,7 +13,7 @@ import type { UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
 
-import { attachmentBody, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments, stripPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -153,8 +153,9 @@ export async function buildOutgoing(
 	 * 才设——附件这条路没设，于是 `UserMessage` 退回原文，一份上千行的 md 就整个铺在自己发出的那条
 	 * 消息里，想翻回上面得滚很久。会话引用那三行早就把这件事做对了，这里照着做。
 	 *
-	 * 顺序也在这里落地：正文按占位符切开，图片和文档各自落在自己被插入的位置上，而不是图片一律
-	 * 排在最前、文档一律缀在最后。见 `placeAttachments`。
+	 * 顺序也在这里落地：按人放进去的先后，整体排在正文前面。图片一律最前、文档一律缀在最后的
+	 * 那个老毛病仍然是治好的——真正让出去的只有「插在句子中间」，而它的代价是每次拖文件都往输
+	 * 入框里塞一串 `【文件名】`。见 `attachment-placeholders.ts`。
 	 */
 	if (displayText === undefined && draft.attachments.length > 0) displayText = outgoing;
 
@@ -172,35 +173,84 @@ export async function buildOutgoing(
 	 * 不含正文——所以重建消息时必须把正文原样搬过去。并成一块就分不出哪一段是人写的、哪一段是文件，
 	 * 见 `isAttachmentBody`。
 	 */
+	/*
+	 * 每份附件带上它在这一条消息里的位置。
+	 *
+	 * 人指认附件靠的是序数加门类——「第二张截图」「excel 文件 1」——而不是文件名。位置按**实际写进
+	 * prompt 的先后**数，不是按草稿里的先后：模型看到的是前者，两者在有记号的旧草稿里会不一样。
+	 */
+	const total = draft.attachments.length;
+	const kindTotals = new Map<string, number>();
+	for (const file of draft.attachments) {
+		const kind = file.kind ?? "file";
+		kindTotals.set(kind, (kindTotals.get(kind) ?? 0) + 1);
+	}
+	const kindSeen = new Map<string, number>();
+	let placed = 0;
+
+	const labelFor = (file: OutgoingAttachment): string => {
+		const kind = file.kind ?? "file";
+		placed += 1;
+		const kindIndex = (kindSeen.get(kind) ?? 0) + 1;
+		kindSeen.set(kind, kindIndex);
+		return attachmentLabel({
+			index: placed,
+			total,
+			kind: file.kind,
+			kindIndex,
+			kindTotal: kindTotals.get(kind) ?? 1,
+		});
+	};
+
 	const spell = (file: OutgoingAttachment) => {
+		const label = labelFor(file);
 		if (file.isText && file.text) {
 			// Fenced and named, so the model can tell the document from the sentence around it.
 			flush();
-			content.push({ type: "text", text: attachmentBody(file.name, file.text) });
+			content.push({ type: "text", text: attachmentBody(file.name, file.text, label) });
 			return;
 		}
 		if (!file.isText && file.data) {
-			// An image is its own content block, so the text on either side of it has to be closed off.
+			/*
+			 * 图片前面先写一行，说它是谁、排第几。
+			 *
+			 * 图片块本身装不下字，而三张截图在模型眼里本来是三团无法区分的像素——「第二张截图里的报错」
+			 * 就是从这里开始猜的。这一行是它们之间唯一的区别。
+			 */
 			flush();
+			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
 			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
 			return;
 		}
 		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from
 		// answering as though it had read something it was never given.
 		flush();
-		content.push({ type: "text", text: attachmentStub(file.name, file.mimeType) });
+		content.push({ type: "text", text: attachmentStub(file.name, file.mimeType, label) });
 	};
 
+	/*
+	 * 材料在前，问题在后。
+	 *
+	 * 没有记号可站的附件从前缀在最末尾，现在整体走在正文前面——而「没有记号可站」如今是常态，
+	 * 因为记号不再被写进草稿了。先给材料再提问，跟编辑一条已发出的消息时走的是同一条路：
+	 * `UserMessage.submit` 早就是 `[...图片, ...正文, 新的字]`，两边从此说的是同一件事。
+	 */
+	for (const file of unplaced) spell(file);
 	for (const segment of segments) {
 		if (segment.kind === "text") buffer += segment.text;
 		else spell(segment.file);
 	}
-	for (const file of unplaced) spell(file);
 	flush();
 
 	return {
 		content,
-		...(displayText !== undefined ? { displayText } : {}),
+		/*
+		 * 给人看的那一份里不留 `【文件名】`。
+		 *
+		 * 新的草稿不会有，但升级前存下的还带着——留着它，气泡里就是一遍文件名，气泡外面那排附件
+		 * 上又是一遍，同一个文件说两次。
+		 */
+		...(displayText !== undefined ? { displayText: stripPlaceholders(displayText, draft.attachments) } : {}),
 		...(skillRef ? { skillRef } : {}),
 		...(draft.sessionRefs.length > 0 ? { sessionRefs: draft.sessionRefs } : {}),
 		...(draft.attachments.length > 0

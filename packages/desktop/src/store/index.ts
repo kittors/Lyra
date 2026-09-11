@@ -407,8 +407,13 @@ export interface AppState extends QueueSlice {
    * 没有它，出队要么发错对话，要么只能等人切回来。
    */
 	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }>; sessionId?: string }): Promise<boolean>;
-  /** Replace a message and re-run from there; everything after it is discarded. */
-  editMessage(index: number, content: UserContent[]): Promise<void>;
+  /**
+   * Replace a message and re-run from there; everything after it is discarded.
+   *
+   * `meta` 是这条消息除措辞之外的样子——附了哪几个文件，气泡里该显示哪一份文本。编辑改的是
+   * 措辞，这两样得原样带过去，否则每编辑一次就把附件从界面上抹掉一次。
+   */
+  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<void>;
   /** Re-send the user message that produced the reply at `index`. */
   retryFrom(index: number): Promise<void>;
   abort(): Promise<void>;

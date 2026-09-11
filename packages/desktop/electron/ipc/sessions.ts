@@ -318,8 +318,9 @@ export function registerSessionsIpc({
 			sessionId: string,
 			messageIndex: number,
 			content: UserContent[],
+			options?: { displayText?: string; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> },
 		) => {
-			await editSessionMessage(sessionId, messageIndex, content);
+			await editSessionMessage(sessionId, messageIndex, content, options);
 		},
 	);
 

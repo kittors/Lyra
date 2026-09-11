@@ -83,3 +83,30 @@ test("every kind has something to call it", () => {
 		assert.ok(KIND_LABEL[kind as keyof typeof KIND_LABEL].length > 0);
 	}
 });
+
+test("csv 和 tsv 画成表格，但内容照样进得了 prompt", () => {
+	/*
+	 * 门类扛了两个决定，于是图标对了、读取坏了。
+	 *
+	 * `csv` 被归进 `excel` 是为了画表格图标——一列数字顶着文档图标确实不像话。但同一个门类还被
+	 * `isReadableAsText` 拿去决定「内容能不能进 prompt」，结果一个**纯文本文件**被当成二进制拒掉：
+	 * 附一个 csv 上去，模型只收到一个文件名。
+	 */
+	for (const name of ["data.csv", "汇总.tsv", "DATA.CSV"]) {
+		assert.equal(fileKind(name), "excel", `${name} 的图标该是表格`);
+		assert.ok(isReadableAsText(fileKind(name), name), `${name} 是纯文本，内容该进 prompt`);
+	}
+});
+
+test("真正的二进制表格仍然不当文本读", () => {
+	// 上一条放行的是扩展名，不是门类——别把 xlsx 也一起放进来。
+	for (const name of ["报表.xlsx", "旧表.xls", "a.xlsb"]) {
+		assert.equal(isReadableAsText(fileKind(name), name), false, name);
+	}
+});
+
+test("不给名字时退回按门类判断，不会误放行", () => {
+	// 旧调用点只传门类。那时候拿不到扩展名，保守一点：只有 text 放行。
+	assert.equal(isReadableAsText("excel"), false);
+	assert.equal(isReadableAsText("text"), true);
+});

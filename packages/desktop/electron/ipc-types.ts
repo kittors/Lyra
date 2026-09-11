@@ -55,6 +55,7 @@ import type { DownloadPhase } from "./ipc/update-download.ts";
 import type { TrayCommand } from "./tray-menu.ts";
 export type { DocumentData, DocumentSheet } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
+import type { ExtractedText } from "./document-text.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { DocumentKind } from "../shared/document-kind.ts";
 export type { OpenTarget } from "./open-targets.ts";
@@ -277,8 +278,13 @@ export interface LyraApi {
 		 * transcript does not show it as something they typed. See `Session.prompt`.
 		 */
 		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<SessionMeta>;
-		/** Replace a message and re-run from there, discarding everything after it. */
-		editMessage(sessionId: string, messageIndex: number, content: UserContent[]): Promise<void>;
+		/**
+		 * Replace a message and re-run from there, discarding everything after it.
+		 *
+		 * `options` 是这条消息除措辞之外的那部分——编辑改的是措辞，别的应当原样留着。不带它的
+		 * 那一版等于每编辑一次就把附件从界面上抹掉一次，并把附件正文重新铺回气泡里。
+		 */
+		editMessage(sessionId: string, messageIndex: number, content: UserContent[], options?: { displayText?: string; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<void>;
 		abort(sessionId: string): Promise<void>;
 		approve(sessionId: string, requestId: string, decision: ApprovalDecision): Promise<void>;
 		setModel(sessionId: string, modelId: string): Promise<void>;
@@ -411,6 +417,15 @@ export interface LyraApi {
 		 * Null outside every open project, for a directory, or past the size cap.
 		 */
 		bytes(path: string): Promise<Uint8Array | null>;
+		/**
+		 * 一份文档里的字，抽给模型读——PDF、Word、Excel、PowerPoint，以及压缩包的清单。
+		 *
+		 * 收字节不收路径：服务的是输入框里拖进来的文件，那些是浏览器的 `File`，本来就没有磁盘路径。
+		 *
+		 * `null` 的意思是「这个格式这里读不了」，和「读了但里面没字」是两件事——后者会带着
+		 * `imageOnly` 回来（扫描版 PDF 就是这样）。调用方要分开说，见 `Composer.addFiles`。
+		 */
+		documentText(name: string, bytes: Uint8Array): Promise<ExtractedText | null>;
 		/** Overwrite a file. Refused outside the open project, same as reading. */
 		write(path: string, text: string): Promise<{ ok: boolean; error?: string }>;
 		/**

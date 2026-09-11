@@ -34,8 +34,7 @@ import { ProjectPicker } from "../modals/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { findModel } from "../models/index.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
-import { FileKindIcon } from "./attachments/FileKindIcon.tsx";
-import { placeholderFor } from "../../lib/attachment-placeholders.ts";
+import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
@@ -395,10 +394,48 @@ export function Composer() {
 				continue;
 			}
 
-			if (!isReadableAsText(kind)) {
-				// Known not to be text: attached, but its bytes stay out of the prompt.
+			if (!isReadableAsText(kind, file.name)) {
+				/*
+				 * 不是文本，但未必读不出字来。
+				 *
+				 * PDF、Word、Excel、PPT 里的字是拿得到的——`document-text.ts` 一直能做这件事，只是从来
+				 * 没有人调用它（`extractDocumentText` 在仓库里零调用点）。于是拖一份合同进来，得到的是
+				 * 一句「内容无法作为文本读取」，而那句话在能力上并不成立。
+				 *
+				 * 抽取在主进程：架构规则不许页面伸手进 `electron/`，而且 pdf.js 解析一份三百页的文档要
+				 * 几百毫秒，卡住一个没有界面的进程比卡住正在打字的窗口好。哪些格式认得由那边说了算，
+				 * 这里不复制一份清单——两处清单迟早分家。
+				 */
+				const bytes = new Uint8Array(await file.arrayBuffer());
+				const extracted = await bridge.files.documentText(file.name, bytes).catch(() => null);
+
+				if (extracted?.text) {
+					next.push({
+						id,
+						name: file.name,
+						mimeType: file.type || "application/octet-stream",
+						text: extracted.truncated
+							? `${extracted.text}\n\n${translate("composer.textTruncated", { count: extracted.fullLength - extracted.text.length })}`
+							: extracted.text,
+						isText: true,
+						// 门类不改：图标该是 PDF 就还是 PDF，变的只是「内容进不进 prompt」。
+						kind,
+					});
+					continue;
+				}
+
 				next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind });
-				refused.push(`${file.name}（${translate(KIND_LABEL[kind])}）`);
+				/*
+				 * 读不出来的两种，分开说。
+				 *
+				 * 扫描件是「这份文件里本来就没有文字」，要的是 OCR；格式不支持是「换个格式」。合成同
+				 * 一句话，等于让人去试一件不可能成功的事。
+				 */
+				refused.push(
+					extracted?.imageOnly
+						? translate("composer.scannedDocument", { name: file.name })
+						: `${file.name}（${translate(KIND_LABEL[kind])}）`,
+				);
 				continue;
 			}
 
@@ -436,51 +473,18 @@ export function Composer() {
 				.getState()
 				.notify(translate("composer.unreadableAsText", { names: refused.join("、") }), "warn");
 		}
-		if (next.length > 0) {
-			setAttachments((prev) => [...prev, ...next]);
-			writePlaceholders(next.map((file) => file.name));
-		}
+		if (next.length > 0) setAttachments((prev) => [...prev, ...next]);
 	}
 
 	/**
-	 * The token that says where a file was put, written at the caret.
+	 * 取下一个附件，只动上面那一排。
 	 *
-	 * `execCommand("insertText")` rather than assigning `value`: it goes through the field's own undo
-	 * stack, so ⌘Z takes the placeholder back out the way it takes typing back out. Assigning the
-	 * value would leave an attachment the person cannot un-place without deleting the text by hand.
-	 *
-	 * A leading space when the caret is mid-sentence, so 「对比这两张【a.png】」 does not run together.
-	 */
-	function writePlaceholders(names: string[]) {
-		const field_ = field.current;
-		const tokens = names.map(placeholderFor).join("");
-		if (!field_) {
-			setText((current) => (current ? `${current} ${tokens}` : tokens));
-			return;
-		}
-		field_.focus();
-		const before = field_.value.slice(0, field_.selectionStart ?? field_.value.length);
-		const lead = before && !/\s$/.test(before) ? " " : "";
-		document.execCommand("insertText", false, `${lead}${tokens}`);
-	}
-
-	/**
-	 * Take a file back off, and take its placeholder with it.
-	 *
-	 * Leaving the token behind would put 【report.md】 in the sent message with nothing standing
-	 * behind it — `placeAttachments` would then read it as ordinary text, which is right, but the
-	 * person removed the file and would still see its name in what they sent.
+	 * 从前这里还要回正文里把 `【文件名】` 抠掉，而它是 `indexOf` 找第一个同名的——附两张都叫
+	 * `shot.png` 的图、删掉后一张，被抠走的是前一张的记号，剩下那张就此失去位置。正文里不再有
+	 * 记号之后，这类对不上账的情况整类消失了。
 	 */
 	function detach(target: Attachment) {
 		setAttachments((prev) => prev.filter((a) => a.id !== target.id));
-		const token = placeholderFor(target.name);
-		setText((current) => {
-			const at = current.indexOf(token);
-			if (at === -1) return current;
-			const cut = `${current.slice(0, at)}${current.slice(at + token.length)}`;
-			// A space that only existed to separate the token from the words before it goes too.
-			return cut.replace(/ {2,}/g, " ").replace(/ +$/, "");
-		});
 	}
 
 	const takeScreenshot = useCallback(async () => {
@@ -516,6 +520,33 @@ export function Composer() {
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
 	};
+
+	/**
+	 * 带着像素的那几个，按它们在附件里的先后。
+	 *
+	 * 查看器里的序号只能在这一份里数：混着文档一起数，附件里有图有文档时点开的就是另一张图。
+	 */
+	const previewable = attachments.filter((a) => !a.isText && a.data);
+
+	/**
+	 * 输入框上方那一排，交给 `AttachmentStrip` 去摆。
+	 *
+	 * `key` 就是附件 id，取下时按它找回原件——名字会重，id 不会。
+	 */
+	const strip: StripFile[] = attachments.map((attachment) => {
+		const kind = attachment.kind ?? (attachment.isText ? "text" : "binary");
+		// 只有正文和像素都进不了提示词的，才是「仅文件名」。一张图的字节是送到了的。
+		const bodiless = !attachment.isText && !attachment.data;
+		return {
+			key: attachment.id,
+			name: attachment.name,
+			kind,
+			...(attachment.data && !attachment.isText
+				? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
+				: {}),
+			tip: `${attachment.name}\n${t(KIND_LABEL[kind])}${bodiless ? ` · ${t("composer.filenameOnly")}` : ""}`,
+		};
+	});
 
 	return (
 		/*
@@ -633,77 +664,39 @@ export function Composer() {
 					onFiles={(files) => void addFiles(files)}
 					attachments={
 						attachments.length > 0 || sessionRefs.length > 0 ? (
-							<div className="flex flex-wrap gap-2 px-4 pt-3.5">
-								{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex max-w-full items-center gap-1.5 rounded-lg border border-line-soft bg-card px-2 py-1 text-caption text-ink-muted"><MessageSquare size={12} className="shrink-0" /><span className="truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
-								{attachments.map((attachment) => (
-									<div key={attachment.id} className="relative">
-										{/*
-										 * Three shapes, not two.
-										 *
-										 * The old split was "text or image", and the image branch drew an `<img>` from
-										 * `attachment.data` — which a Word document, a video or an archive does not have.
-										 * Attaching one produced a broken image where the file should have been.
-										 */}
-										{/*
-										 * 三种形态，不是两种。
-										 *
-										 * 从前只分「文本还是图片」，图片那一支直接拿 `attachment.data` 画 `<img>`——
-										 * 而一份 Word、一段视频、一个压缩包根本没有 `data`，附上去就是一个碎图。
-										 *
-										 * 不是图片的那两种共用一颗胶囊：一个带色的门类图标加一个文件名，没了。
-										 * 它一度是 68×110 的卡片，里面还写着「文本 / 代码附件」——一行副标题说的是图标
-										 * 已经用颜色说过的事，而那个尺寸让两三个附件就占掉输入框上方一整条。
-										 * 输入框上方这一排要回答的只有一个问题：带了哪几个文件。
-										 */}
-										{!attachment.data ? (
-											<div
-												className="flex h-7 max-w-[220px] items-center gap-1.5 rounded-lg border border-line-soft bg-card pr-2 pl-1.5 text-caption"
-												data-ly-tip={`${attachment.name}\n${t(KIND_LABEL[attachment.kind ?? (attachment.isText ? "text" : "binary")])}${attachment.isText ? "" : ` · ${t("composer.filenameOnly")}`}`}
-											>
-												<FileKindIcon kind={attachment.kind ?? (attachment.isText ? "text" : "binary")} size={14} />
-												<span className="truncate text-ink">{attachment.name}</span>
-											</div>
-										) : (
-											<button
-												type="button"
-												aria-label={translate("subAgent.previewOne", { name: attachment.name })}
-												onClick={(event) =>
-													openFromEvent(
-														event,
-														attachments
-															.filter((a) => !a.isText && a.data)
-															.map((a) => ({
-																src: `data:${a.mimeType};base64,${a.data}`,
-																alt: a.name,
-																onReplace: (dataUrl: string) =>
-																	setAttachments((prev) =>
-																		prev.map((item) =>
-																			item.id === a.id ? { ...item, ...fromDataUrl(dataUrl, item) } : item,
-																		),
-																	),
-															})),
-														// Indexed among the ones that are actually previewable, or the viewer opens the wrong picture.
-														attachments.filter((a) => !a.isText && a.data).findIndex((a) => a.id === attachment.id),
-													)
-												}
-												className="block overflow-hidden rounded-lg border border-line transition-opacity duration-[var(--ly-t-quick)] hover:opacity-85"
-											>
-												<img
-													src={`data:${attachment.mimeType};base64,${attachment.data}`}
-													alt={attachment.name}
-													className="h-[68px] w-[92px] object-cover"
-												/>
-											</button>
-										)}
-										<button
-											type="button"
-											onClick={() => detach(attachment)}
-											className="absolute -top-1.5 -right-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border border-line bg-float text-ink-muted transition-colors hover:text-ink"
-										>
-											<X size={11} strokeWidth={2.2} />
-										</button>
+							<div className="flex flex-col gap-2 px-4 pt-3.5">
+								{sessionRefs.length > 0 && (
+									<div className="flex flex-wrap gap-1.5">
+										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
 									</div>
-								))}
+								)}
+								<AttachmentStrip
+									files={strip}
+									onRemove={(file) => {
+										const target = attachments.find((a) => a.id === file.key);
+										if (target) detach(target);
+									}}
+									/*
+									 * 这一份还能被改：在查看器里标注完，改的是还没发出去的草稿本身。
+									 * 气泡外那一排就没有 `onReplace`——那一份已经发出去了，是记录。
+									 */
+									onOpen={(index, event) =>
+										openFromEvent(
+											event,
+											previewable.map((a) => ({
+												src: `data:${a.mimeType};base64,${a.data}`,
+												alt: a.name,
+												onReplace: (dataUrl: string) =>
+													setAttachments((prev) =>
+														prev.map((item) =>
+															item.id === a.id ? { ...item, ...fromDataUrl(dataUrl, item) } : item,
+														),
+													),
+											})),
+											index,
+										)
+									}
+								/>
 							</div>
 						) : undefined
 					}
