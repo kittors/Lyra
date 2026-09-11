@@ -13,13 +13,26 @@ export interface UsageFileEntry {
 export type UsageFiles = Record<string, UsageFileEntry>;
 
 interface UsageCache {
-	version: 2;
+	version: typeof USAGE_CACHE_VERSION;
 	pricingKey: string;
 	files: UsageFiles;
 }
 
-/** 3: the priced-token figures switched from every bucket to fresh tokens only. */
-export const USAGE_CACHE_VERSION = 3 as const;
+/**
+ * 缓存的格式版本。**改了「扫什么」就要加一。**
+ *
+ * 这张缓存按「文件的 mtime + size 没变就不重读」工作，快是快在这里，代价是它记的是**上一版扫描器的
+ * 结论**。所以凡是改变了从一行日志里读出什么的改动，都必须在这里加一，否则老用户的数字永远停在旧口径
+ * 上——文件不再增长，缓存就再也不会被重算。
+ *
+ * 3: 计价 token 从每个桶都算，改成只算新鲜 token。
+ * 4: 子 Agent 的用量开始算进来（它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前够不着）。
+ *    这一版的漏算不小：用户的一个会话里子 Agent 比主 Agent 还多烧 40%。
+ *
+ * 上面那个 `version: 2` 曾经和这里的 3 对不上——接口写死一个字面量、常量另写一个，两边谁也不管谁。
+ * 现在接口直接引常量，只能一起改。
+ */
+export const USAGE_CACHE_VERSION = 4 as const;
 
 const BUCKET_NUMBERS: (keyof UsageBucket)[] = [
 	"input", "output", "cacheRead", "cacheWrite", "reasoning", "cost", "inputCost", "outputCost",

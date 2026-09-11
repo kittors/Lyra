@@ -92,8 +92,21 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 	const lines = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
 	try {
 		for await (const line of lines) {
-			// Cheaper than parsing: most records in a busy log are events, not messages.
-			if (!line.includes('"type":"message"') && !line.includes('"type":"usage"')) continue;
+			/*
+			 * Cheaper than parsing: most records in a busy log are events, not messages.
+			 *
+			 * 子 Agent 的消息是这条快速通道的例外——它落盘成 `type: "event"` 里的 `subagent_message`，
+			 * 所以按 `"type":"message"` 筛会把它连同别的 event 一起跳过。这一行**在 `JSON.parse` 之前**，
+			 * 于是下面认得再准也够不着：改完扫描逻辑之后打点量过，`event` 记录命中 0 条。
+			 *
+			 * 只放行这一种 event，别的照旧跳过——这条通道的价值就在于不去解析那些跟花销无关的行。
+			 */
+			if (
+				!line.includes('"type":"message"') &&
+				!line.includes('"type":"usage"') &&
+				!line.includes('"subagent_message"')
+			)
+				continue;
 			let parsed: unknown;
 			try {
 				parsed = JSON.parse(line);
@@ -102,11 +115,26 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 			}
 			const record = asRecord(parsed);
 			if (!record) continue;
-			// Auxiliary model requests contribute spend without adding a conversation message.
-			const auxiliary = record.type === "usage";
-			const message = auxiliary
-				? { role: "assistant", timestamp: record.ts, provider: record.providerId, model: record.modelId, usage: record.usage }
-				: record.type === "message" ? asRecord(record.message) : null;
+			/*
+			 * 三个来源，都是花出去的钱。
+			 *
+			 * `usage` 是辅助调用（自动起标题那种），它有花销但不算一条对话消息。`message` 是主 Agent 自己
+			 * 说的话。第三个是**子 Agent**——它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前
+			 * 这里够不着，于是一整个委派的用量在用量页上不存在。实测漏掉的量不小：用户的一个会话里子 Agent
+			 * 比主 Agent 还多烧 40%，统计里少了 58%。
+			 *
+			 * 和辅助调用一样按 `auxiliary` 处理，因为它们在「是不是一条对话消息」这件事上是同一类：算钱，
+			 * 不算条数。子 Agent 的往返是委派内部的事，混进日活消息数会让一次委派看起来像聊了几十轮。
+			 */
+			const subagent =
+				record.type === "event" && asRecord(record.event)?.type === "subagent_message"
+					? asRecord(asRecord(record.event)?.message)
+					: null;
+			const auxiliary = record.type === "usage" || subagent !== null;
+			const message =
+				record.type === "usage"
+					? { role: "assistant", timestamp: record.ts, provider: record.providerId, model: record.modelId, usage: record.usage }
+					: (subagent ?? (record.type === "message" ? asRecord(record.message) : null));
 			if (!message) continue;
 
 			const at = typeof message.timestamp === "number" ? message.timestamp : 0;
