@@ -173,12 +173,42 @@ test("端点说「必须带回来」之后，Chat 那边把思考发回去", () 
 	assert.equal(assistant?.reasoning_content, "这是个纯算术问题。");
 });
 
-test("已经在顶格时「必须带回来」不引发重发", () => {
+test("顶格时「必须带回来」给一次原样重试，只给一次", () => {
+	/*
+	 * 这条原来断言的是「顶格时不重发」，理由是发的已经是它要的那一份、这次 400 的原因在别处。前半句
+	 * 对，后半句推错了方向：原因在别处**不等于**重发没用。
+	 *
+	 * 这个端点会拿这句话说瞬时故障——2026-09-11 量到一次：某个子 Agent 的请求被它用这句话拒了，同一段
+	 * 历史原样重发就 200。而 400 在 `failure.ts` 里是 fatal、不重试，于是一次抖动让那个子 Agent 整个
+	 * 中断，40 秒、21 次调用的成果只能回报半截。
+	 *
+	 * 代价不对称：重试一次是一个请求的钱，不重试是一整轮委派白费。所以给一次。
+	 */
 	resetReasoningCompat();
 	const said = "The `reasoning_text` in the thinking mode must be passed back to the API.";
-	// 默认就是顶格，发的已经是它要的那一份——这次 400 的原因在别处，重发只是多烧一次钱。
-	assert.equal(learnReasoningReplay("qa", "m", said), false);
+	assert.equal(learnReasoningReplay("qa", "m", said), true, "第一次：原样再试一次");
+	assert.equal(reasoningReplay("qa", "m"), "replay", "形状不变——顶格已经是能带的都带了");
+	assert.equal(learnReasoningReplay("qa", "m", said), false, "第二次：机会用完了，如实抛出去");
 	assert.equal(reasoningReplay("qa", "m"), "replay");
+});
+
+test("重试配额按模型记，不串到别的模型上", () => {
+	resetReasoningCompat();
+	const said = "The `reasoning_text` in the thinking mode must be passed back to the API.";
+	assert.equal(learnReasoningReplay("qa", "a", said), true);
+	assert.equal(learnReasoningReplay("qa", "a", said), false, "a 用完了");
+	assert.equal(learnReasoningReplay("qa", "b", said), true, "b 还有自己的那次");
+	assert.equal(learnReasoningReplay("other", "a", said), true, "换个供应商也是新的");
+});
+
+test("那次原样重试不该被记成一条形状结论", () => {
+	// 瞬时故障什么形状都没说。把它记进档位表，下一次真的形状问题就会从一个错的起点开始降级。
+	resetReasoningCompat();
+	learnReasoningReplay("qa", "m", "The `reasoning_text` in the thinking mode must be passed back to the API.");
+	assert.equal(reasoningReplay("qa", "m"), "replay", "档位纹丝不动");
+	// 而真正的形状信号照常降级，不受那次重试影响。
+	assert.equal(learnReasoningReplay("qa", "m", "messages.1.content.0.thinking.signature: Field required"), true);
+	assert.equal(reasoningReplay("qa", "m"), "handled");
 });
 
 test("认不出来的 400 不动结论——改坏了的请求比原样发出去更糟", () => {

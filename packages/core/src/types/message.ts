@@ -30,6 +30,18 @@ export interface ThinkingContent {
 	encrypted?: string;
 	/** Safety filters removed the visible text but the encrypted payload is still replayable. */
 	redacted?: boolean;
+	/**
+	 * 入站时这段推理挂在哪个键上——原样记下，下一轮用同一个键还回去。
+	 *
+	 * Chat Completions 上同一件事有三个字段名：`reasoning_content`（DeepSeek、llama.cpp）、`reasoning`
+	 * （OpenRouter）、`reasoning_text`。证据是 oh-my-pi 三个都读、取第一个非空
+	 * （`packages/ai/src/providers/openai-completions.ts:1206-1217`），并把命中的那个字段名一路带到回发
+	 * 时用（同文件 `:1219-1224`）。一个只认自己那个键的端点，收到另一个键就当没收到。
+	 *
+	 * 只有 Chat Completions 这一条链写和读它；缺省（旧会话、Anthropic 和 Responses 产生的块）一律按
+	 * `reasoning_content` 处理，也就是这条链从前唯一发过的那个键——所以加这个字段不改变任何既有语义。
+	 */
+	reasoningField?: string;
 }
 
 export interface ImageContent {
