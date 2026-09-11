@@ -10,7 +10,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText, ExternalLink, FolderOpen } from "lucide-react";
 import { createContext, Fragment, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { MarkdownTable } from "./MarkdownTable.tsx";
@@ -21,10 +21,11 @@ import { resolveAsset, isAbsolutePath } from "../../lib/markdown/assets.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, useDock } from "../dock/index.ts";
+import { useRevealLabel } from "../files/index.ts";
 
 /**
  * What this text is, beyond the characters in it.
@@ -260,18 +261,109 @@ function renderToken(token: Inline): ReactNode {
 }
 
 /** Local artifacts use the bounded file reader; executable URI schemes never navigate the app. */
+/**
+ * 一个指向本机文件的链接，外加两个只在鼠标过来时才出现的出口。
+ *
+ * 点链接本身还是老样子——在内置面板里打开，那是对 `.md`、`.ts` 这类最快的读法。问题出在打不开的那些：
+ * 点一个 `.exe`，dock 面板被挤掉，换来一句「二进制文件，无法以文本显示」。用户付出了正在看的东西，
+ * 得到的是一句「打不开」，而他真正想做的两件事——运行它、看它在哪——一件也做不到。
+ *
+ * 所以旁边给两个出口，而不是改点击的含义：同一个链接有时开面板、有时开访达，那种不可预测比多两个图标
+ * 更让人不敢点。
+ *
+ * 只在悬停时显形，理由和 `MessageActions` 那一排一样：它们重复出现在整页的每一个文件名旁边，常驻的话
+ * 会和正文抢注意力。手机上没有悬停，`data-ly-hover-reveal` 让样式表那边把它们常驻出来。
+ */
+function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
+	const revealLabel = useRevealLabel();
+	const canOpen = available("system", "openPath");
+	const canReveal = available("system", "openIn");
+	const openFile = () => {
+		const name = path.split(/[/\\]/).pop() || path;
+		void useOpenFile
+			.getState()
+			.open({ path, name })
+			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
+		useDock.getState().open("file", companionOf("file"));
+	};
+	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
+
+	return (
+		/*
+		 * `inline-flex` 而不是 `inline-block`：这一组要整体待在文字行里，跟着行走、跟着换行。
+		 * `align-middle` 而不是一个手调的 em 偏移：后者是拿眼睛凑出来的数，量下来它把这一段行盒顶高了
+		 * 2.8px——同一段文字，有文件链接的那行比没有的高出一截，段落的节奏就散了。`middle` 由字体的
+		 * x-height 定义，换字号、换字体都跟着走。
+		 */
+		<span data-ly-file-link className="inline-flex items-center align-middle leading-none">
+			{/*
+			 * 链接本身也是一个居中的行盒。
+			 *
+			 * 图标原来用 `align-text-bottom`——那对齐的是**文本底边**，而不是视觉中心。量下来图标中心比
+			 * 文字中心低 2px：13px 的方块和 17px 的文字盒底边对齐时，几何上必然如此。旁边两个动作按钮
+			 * 走的是 flex 居中、差 0.25px，一行里两个正一个偏，反而更显眼。
+			 *
+			 * 交给 flex 居中，不再用 `vertical-align` 凑。代价是这个链接内部不会换行了——文件名是一个
+			 * 整体，本来也不该从中间断开。
+			 */}
+			<a href={href} data-ly-tip={path} className="inline-flex items-center" onClick={(event) => { event.preventDefault(); openFile(); }}>
+				<FileText size={13} className="mr-1 shrink-0" />
+				{children}
+			</a>
+			{/*
+			 * 按能力画，不按平台画。
+			 *
+			 * 手机上这两个 API 根本不存在——画出来是两个按下去什么都不会发生的图标，比没有更糟。
+			 * `available()` 问的正是这件事，所以这里不需要知道自己跑在什么上面。
+			 */}
+			{(canOpen || canReveal) && (
+				<span data-ly-file-actions className="ml-1 inline-flex items-center gap-0.5">
+					{canOpen && (
+						<FileLinkAction
+							tip={translate("openTarget.defaultApp")}
+							onClick={() => void bridge.system.openPath(path).catch(fail)}
+						>
+							<ExternalLink size={11.5} strokeWidth={1.9} />
+						</FileLinkAction>
+					)}
+					{canReveal && (
+						<FileLinkAction tip={revealLabel} onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}>
+							<FolderOpen size={11.5} strokeWidth={1.9} />
+						</FileLinkAction>
+					)}
+				</span>
+			)}
+		</span>
+	);
+}
+
+/** 一个出口按钮。尺寸比 `MessageActions` 那排小一圈——它坐在一行字里，24px 会把行撑高。 */
+function FileLinkAction({ tip, onClick, children }: { tip: string; onClick: () => void; children: ReactNode }) {
+	return (
+		<button
+			type="button"
+			data-ly-tip={tip}
+			aria-label={tip}
+			onClick={(event) => {
+				// 链接是它的父元素，不拦住的话按一下会顺带把文件在内置面板里也开一遍。
+				event.preventDefault();
+				event.stopPropagation();
+				onClick();
+			}}
+			className="flex h-[17px] w-[17px] items-center justify-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+		>
+			{children}
+		</button>
+	);
+}
+
 function Link({ href, children }: { href: string; children: ReactNode }) {
 	const { baseDir, preview } = useContext(Doc);
 	const workspace = useApp((state) => state.workspace?.path);
 	const safe = href.startsWith("http://") || href.startsWith("https://");
 	const path = safe ? null : resolveAsset(baseDir ?? workspace ?? (isAbsolutePath(href) ? "/" : undefined), href.replace(/:\d+(?:-\d+)?$/, ""));
 	if (preview || (!safe && !path)) return <>{children}</>;
-	if (path) return <a href={href} data-ly-tip={path} onClick={(event) => {
-		event.preventDefault();
-		const name = path.split(/[/\\]/).pop() || path;
-		void useOpenFile.getState().open({ path, name }).catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		useDock.getState().open("file", companionOf("file"));
-	}}><FileText size={13} className="mr-1 inline-block align-text-bottom" />{children}</a>;
+	if (path) return <FileLink href={href} path={path}>{children}</FileLink>;
 	return (
 		<a
 			href={href}

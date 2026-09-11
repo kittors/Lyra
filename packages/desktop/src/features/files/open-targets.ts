@@ -31,8 +31,18 @@ const waiting = new Set<(targets: OpenTarget[]) => void>();
 
 function load(): Promise<OpenTarget[]> {
 	if (!available("system", "openTargets")) return Promise.resolve([reveal()]);
-	pending ??= bridge.system
-		.openTargets()
+	/*
+	 * 调用本身也包进 Promise 里，不能直接 `.catch()`。
+	 *
+	 * `available()` 回答的是「契约里有没有这个方法、这个宿主允不允许」，不是「桥现在通不通」。两者会
+	 * 分开：单元测试把宿主 mock 成 desktop 却没有 mock `bridge.system`，于是 `bridge.system.openTargets()`
+	 * 在**读属性**这一步就同步抛了 TypeError——而同步抛出的异常，后面挂多少个 `.catch()` 都接不住。
+	 *
+	 * 后果不是少一个菜单项，是整棵组件树挂掉：这个 hook 现在也被对话里的文件链接用着，一次渲染抛异常，
+	 * 整段回复都不见了。包一层的代价是一个微任务。
+	 */
+	pending ??= Promise.resolve()
+		.then(() => bridge.system.openTargets())
 		.catch(() => [reveal()])
 		.then((targets) => {
 			loaded = targets.length > 0 ? targets : [reveal()];

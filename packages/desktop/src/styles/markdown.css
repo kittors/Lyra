@@ -515,3 +515,71 @@
     text-align: left;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * 文件链接旁边那两个出口
+ *
+ * 点文件名还是老样子——在内置面板里读，那对 `.md`、`.ts` 是最快的路。这两个图标是给读不了的那些留的：
+ * 一个 `.exe` 点开只会换来一句「二进制文件，无法以文本显示」，而人真正想做的两件事（运行它、看它在哪）
+ * 一件也做不到。
+ *
+ * 它们只在鼠标过来时才出现，理由和消息那排操作一样：同样的两个图标会重复出现在整页的每一个文件名旁边，
+ * 常驻的话正文就没法读了。
+ * ------------------------------------------------------------------------- */
+
+/*
+ * 位置留着，只是看不见。
+ *
+ * 用 `opacity` 而不是 `display` 或宽度动画：后两者会在鼠标进来的一瞬间把后面的文字推开一截，而这一行
+ * 字往往正读到一半。留位的代价是链接后面多两个图标宽的空档，比整行跳一下便宜得多。
+ */
+[data-ly-file-actions] > button {
+  opacity: 0;
+  transform: translateX(-2px);
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-quick) var(--ly-e-out),
+    background-color var(--ly-t-quick) var(--ly-e-out),
+    color var(--ly-t-quick) var(--ly-e-out);
+}
+
+[data-ly-file-link]:hover [data-ly-file-actions] > button,
+[data-ly-file-actions]:focus-within > button {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * 第二个晚一步到，走的时候一起走。
+ *
+ * 出现时错开 45ms，两个图标是「依次落位」而不是「啪地一起冒出来」——同时出现的两个东西读起来像一个色块，
+ * 错开一点点，眼睛才分得清那是两个可以分别去按的东西。
+ *
+ * 延迟只写在 hover 那一侧，所以离开时两个同时淡出：登场可以有先后，退场拖泥带水就成了犹豫。
+ */
+[data-ly-file-link]:hover [data-ly-file-actions] > button:nth-child(2) {
+  transition-delay: 45ms;
+}
+
+/*
+ * 键盘走到这儿时不要动画。
+ *
+ * Tab 过来的人要的是「我现在在哪」，一个 150ms 的淡入会让焦点框在还没画完的时候就已经在那儿了。
+ */
+[data-ly-file-actions] > button:focus-visible {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0ms;
+}
+
+/* 关掉动效偏好下，只留最终状态——位移和延迟都是装饰。 */
+@media (prefers-reduced-motion: reduce) {
+  [data-ly-file-actions] > button {
+    transform: none;
+    transition: opacity var(--ly-t-quick) linear;
+  }
+
+  [data-ly-file-link]:hover [data-ly-file-actions] > button:nth-child(2) {
+    transition-delay: 0ms;
+  }
+}
