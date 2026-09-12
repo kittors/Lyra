@@ -101,7 +101,7 @@ export function renderRuleInterrupt(matches: RuleMatch[]): Message {
  * discarded and nothing is being redone. Telling the model its output was thrown away when it was
  * not would make it re-emit work that already landed.
  */
-export function renderRuleReminder(matches: RuleMatch[]): Message {
+function renderRuleReminder(matches: RuleMatch[]): Message {
 	const blocks = matches.map((match) => {
 		const where = match.source === "tool" ? `tool:${match.toolName ?? "?"}` : match.source;
 		return (

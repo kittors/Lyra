@@ -18,7 +18,7 @@
 
 import type { McpServerConfig } from "@lyra/core";
 
-export const MCP_PREFIX = "mcp__";
+const MCP_PREFIX = "mcp__";
 
 /** What a row needs to draw a server: its picture, or failing that its colour and name. */
 export interface McpMark {

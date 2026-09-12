@@ -55,21 +55,34 @@ export const TokenDefaultDacl = 6;
 
 // --- ACL / trustee (accctrl.h, aclapi.h) ---
 export const DACL_SECURITY_INFORMATION = 0x00000004;
+/*
+ * 这张表里有几个常量没有调用点，留着是有意的。
+ *
+ * 它照着 Windows 的头文件抄，作用一半是给 `koffi` 用、一半是让下一个读这个文件的人不必去翻
+ * `aclapi.h`。`GRANT_ACCESS = 1` 旁边缺了 `REVOKE_ACCESS = 4`，读的人不会以为「不需要」，会以为
+ * 「是不是抄漏了」——然后去翻头文件确认。一个完整的枚举比一个精简的枚举省事。
+ *
+ * 没有 `export`（`knip` 会说没人用，它说得对），所以下面几行各自压一条 oxlint 的未用告警。
+ */
 export const SE_FILE_OBJECT = 1;
 export const TRUSTEE_IS_UNKNOWN = 0;
 export const TRUSTEE_IS_SID = 0;
 export const NO_MULTIPLE_TRUSTEE = 0;
 export const GRANT_ACCESS = 1;
-export const REVOKE_ACCESS = 4;
+// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
+const REVOKE_ACCESS = 4;
 /** `OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE` — the grant reaches the whole tree. */
 export const SUB_CONTAINERS_AND_OBJECTS_INHERIT = 0x3;
-export const ACCESS_ALLOWED_ACE_TYPE = 0;
-export const INHERITED_ACE = 0x10;
+// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
+const ACCESS_ALLOWED_ACE_TYPE = 0;
+// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
+const INHERITED_ACE = 0x10;
 
 // --- Process / handle (processthreadsapi.h, winbase.h) ---
 export const PROCESS_QUERY_INFORMATION = 0x0400;
 export const STARTF_USESTDHANDLES = 0x00000100;
-export const HANDLE_FLAG_INHERIT = 0x1;
+// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
+const HANDLE_FLAG_INHERIT = 0x1;
 export const INFINITE = 0xffffffff;
 export const STD_INPUT_HANDLE = -10;
 export const STD_OUTPUT_HANDLE = -11;

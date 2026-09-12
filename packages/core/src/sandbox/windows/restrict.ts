@@ -15,7 +15,7 @@
  */
 
 import * as abi from "./abi.ts";
-import { fail, isNull, ptrSlot, readPtr, uint32Slot, win32, type Ptr, type Win32 } from "./win32.ts";
+import { fail, isNull, ptrSlot, readPtr, uint32Slot, type Ptr, type Win32 } from "./win32.ts";
 
 /** Open this process's token with the rights `CreateRestrictedToken` needs. */
 export function openOwnToken(api: Win32): Ptr {
@@ -95,7 +95,7 @@ export function sidFromString(api: Win32, sddl: string): Ptr {
 }
 
 /** One `EXPLICIT_ACCESS_W`, built by hand because its layout is fixed and small. */
-export function explicitAccess(sid: Ptr | Buffer, mode: number, permissions: number): Buffer {
+function explicitAccess(sid: Ptr | Buffer, mode: number, permissions: number): Buffer {
 	const entry = Buffer.alloc(abi.EXPLICIT_ACCESS_W_SIZE);
 	entry.writeUInt32LE(permissions, 0);
 	entry.writeUInt32LE(mode, 4);
@@ -263,5 +263,3 @@ export function createRestrictedToken(
 	if (token === null) fail(api, "CreateRestrictedToken", "拿到的是空令牌句柄");
 	return token;
 }
-
-export { win32 };

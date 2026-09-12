@@ -11,15 +11,14 @@
  * nothing, and reports nothing.
  */
 
-import { translate } from "../i18n/translate.ts";
 import { methodFor } from "@lyra/contract";
 
 import { bridge } from "./bridge.ts";
 
-export type Host = "desktop" | "mobile";
+type Host = "desktop" | "mobile";
 
 /** Where this renderer is being displayed. Desktop unless the bridge says otherwise. */
-export function host(): Host {
+function host(): Host {
 	// Both spellings, for the same reason as `bridge.ts`.
 	const scope = globalThis as { lyra?: { host?: Host }; window?: { lyra?: { host?: Host } } };
 	return (scope.lyra ?? scope.window?.lyra)?.host ?? "desktop";
@@ -46,17 +45,5 @@ export function available(group: string, method: string): boolean {
 	return host() === "desktop" || entry.remote;
 }
 
-/**
- * Why a method is unavailable here, in words that can go on screen.
- *
- * The contract requires a reason for everything it withholds from the phone, which means this can
- * always say something better than "not supported".
- */
-export function unavailableBecause(group: string, method: string): string | undefined {
-	const entry = methodFor(`${group}.${method}`);
-	if (!entry) return translate("host.unknownMethod", { group, method });
-	if (host() === "desktop" || entry.remote) return undefined;
-	return entry.why;
-}
 
 export { bridge };

@@ -24,8 +24,8 @@ export const LANE_WIDTH = 13;
  * The 0.75/0.85 split was presumably meant to push passing lanes back a step, but a tenth of an
  * alpha is not enough to read as depth and is more than enough to read as a join.
  */
-export const GRAPH_STROKE = 1.5;
-export const GRAPH_OPACITY = 0.85;
+const GRAPH_STROKE = 1.5;
+const GRAPH_OPACITY = 0.85;
 
 function laneColour(index: number): string {
   return LANE_COLOURS[index % LANE_COLOURS.length];

@@ -24,7 +24,7 @@ import { ResourceError, type Completion, type ParsedUrl, type Resource, type Res
  * body as an instruction the model then follows, this returns text it is looking at — and they
  * both stay, because "consult" and "adopt" are not the same request.
  */
-export const skillResource: ResourceHandler = {
+const skillResource: ResourceHandler = {
 	scheme: "skill",
 	/*
 	 * Three forms, each paired with what it is for.
@@ -100,7 +100,7 @@ export const skillResource: ResourceHandler = {
 };
 
 /** `rule://<name>` is a rule body. Read-only, and that is a boundary rather than an omission. */
-export const ruleResource: ResourceHandler = {
+const ruleResource: ResourceHandler = {
 	scheme: "rule",
 	describe: "规则正文",
 
@@ -137,7 +137,7 @@ export const ruleResource: ResourceHandler = {
  * model had to be trusted to keep using it — and a path in a prompt is a suggestion. As an address
  * it is a place, and `write scratch://notes.md` cannot land in the user's project by mistake.
  */
-export const scratchResource: ResourceHandler = {
+const scratchResource: ResourceHandler = {
 	scheme: "scratch",
 	describe: "本次会话的临时目录，可读可写，会话结束后消失",
 
@@ -270,7 +270,7 @@ const TOPICS: Record<string, { title: string; body: string }> = {
 	},
 };
 
-export const lyraResource: ResourceHandler = {
+const lyraResource: ResourceHandler = {
 	scheme: "lyra",
 	describe: "Lyra 自己的文档。**只在用户问 Lyra 本身时读**",
 
@@ -305,7 +305,7 @@ export const lyraResource: ResourceHandler = {
  * The path syntax is `a.b.0.c` and nothing more. JSONPath expressions (`$..[?(@.x)]`) are a second
  * language, and the cost of a model learning it exceeds what it buys over reading one more field.
  */
-export const agentResource: ResourceHandler = {
+const agentResource: ResourceHandler = {
 	scheme: "agent",
 	describe: "`agent://<id>` 子代理交回的结构化结果；`agent://<id>/<字段路径>` 取其中一个字段（如 `files.0.path`）",
 

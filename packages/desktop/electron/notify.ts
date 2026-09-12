@@ -41,7 +41,7 @@ export interface WindowLike {
 	isMinimized(): boolean;
 }
 
-export interface NotificationOptionsLike {
+interface NotificationOptionsLike {
 	title: string;
 	body: string;
 	icon?: string;

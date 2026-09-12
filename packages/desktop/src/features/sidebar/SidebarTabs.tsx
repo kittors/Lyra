@@ -28,7 +28,7 @@ export type SidebarTab = "projects" | "chats";
  * kinds of thing rather than two views of the same conversations. A folder and a message say the
  * arrangement — filed, or spoken — in a form you do not have to read.
  */
-export const SIDEBAR_TABS: { value: SidebarTab; labelKey: MessageKey; Icon: typeof Folder }[] = [
+const SIDEBAR_TABS: { value: SidebarTab; labelKey: MessageKey; Icon: typeof Folder }[] = [
 	{ value: "projects", labelKey: "sidebar.projects", Icon: Folder },
 	{ value: "chats", labelKey: "sidebar.chats", Icon: MessageSquare },
 ];

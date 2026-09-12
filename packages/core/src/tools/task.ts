@@ -3,7 +3,7 @@ import { DELEGATION_KEY, dispatchAllowed, type DelegationDecision } from "../run
 import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
 import type { Tool, ToolResult } from "../types.ts";
 
-export { BUILTIN_AGENTS, RENAMED_AGENTS, resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
+export { BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
 import { resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
 
 export const AGENTS_KEY = "agents";

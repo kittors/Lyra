@@ -5,7 +5,7 @@ export interface SseFrame {
 	data: string;
 }
 
-export async function* readSse(response: Response, signal?: AbortSignal): AsyncGenerator<SseFrame> {
+async function* readSse(response: Response, signal?: AbortSignal): AsyncGenerator<SseFrame> {
 	const body = response.body;
 	if (!body) throw new Error("Response has no body");
 

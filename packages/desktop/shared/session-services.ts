@@ -1,5 +1,5 @@
 export interface ServiceEndpoint { address: string; port: number; pid: number; url?: string }
-export interface SessionService {
+interface SessionService {
 	id: string;
 	command: string;
 	pid?: number;

@@ -17,7 +17,7 @@
  * page shows what it has and does not pad the rest out with empty headings.
  */
 
-import type { McpServerConfig, Plugin } from "@lyra/core";
+import type { McpServerConfig } from "@lyra/core";
 import {
 	ArrowUpRight,
 	Cable,
@@ -453,4 +453,3 @@ function repoUrl(repository: string): string {
 }
 
 /** Kept in step with `UNFILED` in useCatalog, where the sentinel is defined. */
-export type { Plugin };

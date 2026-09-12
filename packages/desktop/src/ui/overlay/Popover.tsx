@@ -46,7 +46,7 @@ export type Anchor = HTMLElement | PointAnchor | null;
  * reason nobody could state. Four sizes, chosen by what the surface holds rather than by how long
  * its longest label happened to be on the day it was written.
  */
-export const MENU_WIDTH = {
+const MENU_WIDTH = {
 	/** Actions only, a word or two each. */
 	compact: 190,
 	/** The ordinary menu — icon, label, sometimes a second line — and every dropdown. */
@@ -175,7 +175,7 @@ function columnBounds(
  *
  * "Other" means unrelated, not merely earlier — see `PopoverChain`.
  */
-export const openPopovers = new Set<PopoverHandle>();
+const openPopovers = new Set<PopoverHandle>();
 
 interface PopoverHandle {
 	close: () => void;

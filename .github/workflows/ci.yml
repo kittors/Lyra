@@ -215,15 +215,14 @@ jobs:
       - run: pnpm arch
 
   dead-code:
-    # Reported, not enforced. Knip is right often enough to be worth reading and wrong often
-    # enough that failing a pull request on it would teach people to ignore it.
+    # 真门禁。从前这里是 `--no-exit-code`，理由写着「knip 对的时候够多值得一读，错的时候也够多，
+    # 让它挂掉 PR 会教人无视它」——而一条永远不会红的检查，被无视得更彻底：它那时积着 191 个未用
+    # 导出，没有人看过一眼。现在是 0，误判的那几个在代码里各自压了一行并写明理由，所以它可以红了。
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      # `--no-exit-code`, so the report lands in the log without turning the run red for
-      # something that is advisory by design.
-      - run: pnpm knip --no-exit-code
+      - run: pnpm knip
 
   build:
     runs-on: ubuntu-latest

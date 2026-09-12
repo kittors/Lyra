@@ -19,7 +19,7 @@ import type { PullRequestDetail } from "../../../electron/ipc-types.ts";
  * is all they say. What was pushed and what was said about it are the two halves of reviewing, and
  * a timeline that does not distinguish them is a list you have to read every line of to navigate.
  */
-export type ActivityKind = "opened" | "commit" | "review" | "comment";
+type ActivityKind = "opened" | "commit" | "review" | "comment";
 
 export interface ActivityEntry {
 	key: string;

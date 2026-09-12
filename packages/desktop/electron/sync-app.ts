@@ -38,7 +38,7 @@ const TYPES: Record<string, string> = {
 };
 
 /** Base64 expands by a third; five MiB stays below the relay's eight MiB frame ceiling. */
-export const MAX_RELAY_ASSET_BYTES = 5 * 1024 * 1024;
+const MAX_RELAY_ASSET_BYTES = 5 * 1024 * 1024;
 
 export interface AppAsset {
 	status: 200 | 404 | 413;
@@ -53,7 +53,7 @@ export interface AppAsset {
  * `normalize` then a prefix check, because the path arrives from the network: `/app/../../../etc/
  * passwd` is a request someone will make, and it is the whole reason this does not simply join.
  */
-export function resolveAsset(pathname: string): string | null {
+function resolveAsset(pathname: string): string | null {
 	const relative = pathname.replace(/^\/app\/?/, "") || "index.html";
 	const full = resolve(ROOT, normalize(relative));
 	if (full !== ROOT && !full.startsWith(ROOT + sep)) return null;

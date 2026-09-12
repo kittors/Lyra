@@ -14,7 +14,7 @@
 import { mosaicCells, stepNumber, wrapText, type Shape } from "./annotate.ts";
 
 /** Scaled with the image, so a mark on a 3000px screenshot is not a hairline. */
-export const STROKE_BASE = 3;
+const STROKE_BASE = 3;
 /** Type size relative to the stroke, which is itself relative to the image. */
 /**
  * Type size relative to the stroke.
@@ -29,7 +29,7 @@ export const TEXT_SCALE = 5;
 export const LINE = 1.35;
 export const PAD = 0.28;
 
-export const FONT = `-apple-system, system-ui, "PingFang SC", sans-serif`;
+const FONT = `-apple-system, system-ui, "PingFang SC", sans-serif`;
 /** One string, so the field and the canvas cannot drift apart. */
 export const fontOf = (size: number) => `${Math.max(12, size)}px ${FONT}`;
 
@@ -37,7 +37,7 @@ export const fontOf = (size: number) => `${Math.max(12, size)}px ${FONT}`;
 export const strokeFor = (width: number) => Math.max(STROKE_BASE, Math.round(width / 500));
 
 /** Blit one averaged pixel per covered cell, at block size, with smoothing off. */
-export function paintMosaic(
+function paintMosaic(
 	ctx: CanvasRenderingContext2D,
 	shape: Shape,
 	source: HTMLCanvasElement | null,
@@ -62,10 +62,10 @@ export function paintMosaic(
  * what the field does. Getting this wrong shifts the painted caption a few pixels off the one that
  * was typed — small, and visible the moment the field disappears.
  */
-export const baseline = (top: number, pad: number, i: number, step: number, size: number) =>
+const baseline = (top: number, pad: number, i: number, step: number, size: number) =>
 	top + pad + i * step + (step - size) / 2;
 
-export function paint(ctx: CanvasRenderingContext2D, shape: Shape, stroke: number, step: number) {
+function paint(ctx: CanvasRenderingContext2D, shape: Shape, stroke: number, step: number) {
 	ctx.strokeStyle = shape.colour;
 	ctx.fillStyle = shape.colour;
 	ctx.lineWidth = stroke;

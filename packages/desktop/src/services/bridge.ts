@@ -62,9 +62,3 @@ export const bridge: LyraApi = new Proxy({} as LyraApi, {
 		return property in bridgeOrThrow();
 	},
 });
-
-/** Whether the bridge is there at all. For the boot path, which has to cope with it not being. */
-export function bridgeAvailable(): boolean {
-	const scope = globalThis as { lyra?: LyraApi; window?: { lyra?: LyraApi } };
-	return Boolean(scope.lyra ?? scope.window?.lyra);
-}

@@ -665,7 +665,7 @@ export function onHighlightChange(listener: () => void): () => void {
 
 let highlightStyleEl: HTMLStyleElement | null = null;
 
-export function mountHighlightStyles(style: HighlightStyle): void {
+function mountHighlightStyles(style: HighlightStyle): void {
 	const rules = style.module?.getRules();
 	if (!rules) return;
 	if (!highlightStyleEl) {

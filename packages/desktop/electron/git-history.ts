@@ -115,7 +115,7 @@ export function parseNumstat(stats: string): Map<string, { added: number; remove
  * Where the two can disagree — a file git reports as binary, marked `-` — the row says so instead
  * of claiming a number.
  */
-export async function diffSummary(
+async function diffSummary(
 	cwd: string,
 	base: string,
 	head: string,
@@ -258,7 +258,7 @@ export async function deleteBranch(cwd: string, name: string, force = false) {
  */
 export const QUIET_FETCH_TIMEOUT_MS = 8_000;
 export const FETCH_TIMEOUT_MS = 20_000;
-export const PUSH_PULL_TIMEOUT_MS = 120_000;
+const PUSH_PULL_TIMEOUT_MS = 120_000;
 
 /** The remotes this repository has, in config order. */
 async function remoteNames(cwd: string): Promise<string[]> {

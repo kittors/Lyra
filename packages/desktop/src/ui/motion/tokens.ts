@@ -31,6 +31,3 @@ export const EASING = {
 	in: "cubic-bezier(0.55, 0, 1, 0.45)",
 	soft: "cubic-bezier(0.4, 0, 0.2, 1)",
 } as const;
-
-export type DurationName = keyof typeof DURATION;
-export type EasingName = keyof typeof EASING;

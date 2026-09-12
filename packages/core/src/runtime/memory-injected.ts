@@ -26,7 +26,7 @@ export type InjectedMap = Record<string, number>;
 export const EXTRACTED_KEY = "extracted";
 
 /** A minute: injection happens every turn, and the timestamp does not need to. */
-export const MARK_INTERVAL_MS = 60_000;
+const MARK_INTERVAL_MS = 60_000;
 
 export function userInjectedPath(): string {
 	return join(lyraHome(), "memory-injected.json");

@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
@@ -39,14 +39,6 @@ export async function exists(path: string): Promise<boolean> {
 	try {
 		await access(path, constants.F_OK);
 		return true;
-	} catch {
-		return false;
-	}
-}
-
-export async function isDirectory(path: string): Promise<boolean> {
-	try {
-		return (await stat(path)).isDirectory();
 	} catch {
 		return false;
 	}

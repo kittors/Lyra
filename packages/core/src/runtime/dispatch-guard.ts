@@ -21,7 +21,7 @@
  */
 
 /** How many sub-agents may run at once. Beyond this they queue. */
-export const DEFAULT_MAX_CONCURRENT = 4;
+const DEFAULT_MAX_CONCURRENT = 4;
 /** How deep dispatch may nest. The main conversation is 0. */
 export const DEFAULT_MAX_DEPTH = 2;
 

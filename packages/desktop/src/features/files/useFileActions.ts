@@ -228,5 +228,3 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 		prompt: gate.element,
 	};
 }
-
-export type FileActions = ReturnType<typeof useFileActions>;

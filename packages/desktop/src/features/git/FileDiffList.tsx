@@ -23,7 +23,7 @@ function baseName(path: string): string {
 }
 
 /** True for the trailing-slash form git uses when a whole directory is untracked. */
-export function isDirectory(path: string): boolean {
+function isDirectory(path: string): boolean {
   return path.endsWith("/");
 }
 

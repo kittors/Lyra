@@ -29,7 +29,7 @@ export const CHAT_PAGE = 40;
  * A fixed height with no margin of its own: the space between bands belongs to the band, not to
  * its heading, or a heading pinned at the top of the pane would arrive with a gap above it.
  */
-export function BandHead({ label }: { label: string }) {
+function BandHead({ label }: { label: string }) {
 	const { compact } = useLayout();
 	return (
 		<div

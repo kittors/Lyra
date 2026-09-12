@@ -40,10 +40,6 @@ const MODE_LABEL: Record<SandboxMode, string> = {
 	"danger-full-access": "完全访问",
 };
 
-export function modeLabel(mode: SandboxMode): string {
-	return MODE_LABEL[mode];
-}
-
 /**
  * The line that says a policy refused this, not that it failed.
  *

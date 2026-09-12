@@ -632,7 +632,7 @@ function clip(text: string, limit: number): string {
  * Rather than losing all context and instructions completely, this extracts
  * the original user requests, recent actions, and key tool usages mechanically.
  */
-export function fallbackSummary(messages: Message[]): string {
+function fallbackSummary(messages: Message[]): string {
 	const userPrompts: string[] = [];
 	const touchedFiles = new Set<string>();
 	const keyActions: string[] = [];

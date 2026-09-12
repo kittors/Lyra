@@ -8,7 +8,6 @@
  */
 
 import type { AgentEventSink } from "./events.ts";
-import type { AgentEvent } from "./events.ts";
 import type { AgentRunConfig } from "./loop.ts";
 import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
@@ -253,5 +252,3 @@ export function textResult(text: string, details?: unknown): ToolResult {
 	const content: UserContent[] = [{ type: "text", text }];
 	return { content, details };
 }
-
-export type { AgentEvent };

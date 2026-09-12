@@ -4,7 +4,7 @@ import type { FileContents, FileEntry } from "./ipc-types.ts";
 import { resolveInside } from "./file-ops.ts";
 
 /** Enough for source and text files without pulling generated output into a renderer. */
-export const FILE_READ_CAP = 512 * 1024;
+const FILE_READ_CAP = 512 * 1024;
 
 /** Resolve both sides before IO so project symlinks cannot grant access to files outside it. */
 export async function resolveReadablePath(target: string, roots: readonly string[]): Promise<string | null> {

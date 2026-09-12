@@ -282,7 +282,7 @@ const NO_CACHE_CONTROL = new Set(["thinking", "redacted_thinking", "fallback", "
  * 触发场景很日常：读过一个被 emoji 截断的文件、grep 命中半个代理对——流出来时没事，回放时被
  * Anthropic 的严格 UTF-8 校验 400，然后整个会话卡死。
  */
-export function wellFormed(text: string): string {
+function wellFormed(text: string): string {
 	// `lib` 是 ES2023，而 `toWellFormed` 是 ES2024 加的；运行时（Node ≥ 24）一直都有。
 	return (text as unknown as { toWellFormed(): string }).toWellFormed();
 }

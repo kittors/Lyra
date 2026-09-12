@@ -16,7 +16,7 @@
 type Context = "'" | '"' | "$(" | "`";
 
 /** What ended a piece, so a pipeline can be put back together. */
-export type Separator = ";" | "|" | "&" | "&&" | "||" | "\n" | "sub" | "end";
+type Separator = ";" | "|" | "&" | "&&" | "||" | "\n" | "sub" | "end";
 
 interface Piece {
 	text: string;

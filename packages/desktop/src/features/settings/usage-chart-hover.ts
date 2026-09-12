@@ -33,7 +33,7 @@ export type TrendMetric = "cost" | "tokens";
 export const CHART = { width: 640, height: 212, left: 52, right: 12, top: 12, bottom: 28 } as const;
 
 export const PLOT_WIDTH = CHART.width - CHART.left - CHART.right;
-export const PLOT_HEIGHT = CHART.height - CHART.top - CHART.bottom;
+const PLOT_HEIGHT = CHART.height - CHART.top - CHART.bottom;
 
 /** The viewBox height for a rendered box, in the same units as the fixed width. */
 export function viewHeightFor(box: { width: number; height: number }): number {
@@ -123,7 +123,7 @@ export function chartTipPlacement(
 	};
 }
 
-export interface TipRow {
+interface TipRow {
 	id: string;
 	label: string;
 	color: string;

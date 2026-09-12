@@ -19,7 +19,7 @@ const LINE_MAX = 40;
 /** 悬停气泡里放多少。气泡最宽 360px，塞一页 JSON 只会得到一堵墙。 */
 const TIP_MAX = 220;
 
-export type HiccupOutcome = "waiting" | "recovered" | "gave_up";
+type HiccupOutcome = "waiting" | "recovered" | "gave_up";
 
 export interface Hiccup {
 	/** 一次中断一条。同一条里次数往上加，不新开。 */

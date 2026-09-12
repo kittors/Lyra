@@ -84,7 +84,7 @@ export function parseArgs(argv: readonly string[]): Args {
  * Ordered so that nothing runs until confinement is in place: the grant and the token are both
  * complete before `CreateProcessAsUserW` is reached, and any failure before that point throws.
  */
-export function runConfined(args: Args): number {
+function runConfined(args: Args): number {
 	const api: Win32 = win32();
 
 	const source = openOwnToken(api);

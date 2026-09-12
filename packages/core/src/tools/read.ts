@@ -58,7 +58,7 @@ export function markRead(ctx: ToolContext, absolute: string, content?: string, f
  * that: an edit to a folded body must be refused, and it can only be refused if we remember that
  * the body was never on screen.
  */
-export function markReadRanges(ctx: ToolContext, absolute: string, content: string | undefined, added: [number, number][]): void {
+function markReadRanges(ctx: ToolContext, absolute: string, content: string | undefined, added: [number, number][]): void {
 	const state = readState(ctx);
 	const previous = state.get(absolute);
 	const tag = content === undefined ? (previous?.tag ?? "") : snapshotTag(content);

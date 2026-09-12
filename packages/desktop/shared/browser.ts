@@ -107,13 +107,13 @@ export function browserAddressLike(raw: string): boolean {
 }
 
 /** The search template in use, falling back to Bing whenever the custom one cannot carry a query. */
-export function browserSearchTemplate(settings?: BrowserSearchSettings): string {
+function browserSearchTemplate(settings?: BrowserSearchSettings): string {
 	const custom = settings?.searchEngine === "custom" ? settings.searchUrl?.trim() : undefined;
 	const preset = BROWSER_SEARCH_ENGINES.find((engine) => engine.id === settings?.searchEngine)?.template;
 	return (custom?.includes("%s") ? custom : preset) ?? BROWSER_SEARCH_ENGINES[0]!.template;
 }
 
-export function browserSearchUrl(query: string, settings?: BrowserSearchSettings): string {
+function browserSearchUrl(query: string, settings?: BrowserSearchSettings): string {
 	return browserUrl(browserSearchTemplate(settings).replaceAll("%s", encodeURIComponent(query)));
 }
 

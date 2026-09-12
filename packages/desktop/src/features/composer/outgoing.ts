@@ -18,7 +18,7 @@ import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
 
 /** 附件在草稿里的样子，只取这一步用得上的几项。 */
-export interface OutgoingAttachment {
+interface OutgoingAttachment {
 	name: string;
 	mimeType: string;
 	/** 图标用的门类，跟着消息一起留在转录里——正文不留，只留这个。 */

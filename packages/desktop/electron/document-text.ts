@@ -117,7 +117,7 @@ function finish(text: string): ExtractedText {
 }
 
 /** A Word document: the body, plus headers and footers, which carry parties and dates. */
-export function textFromDocx(bytes: Uint8Array): ExtractedText {
+function textFromDocx(bytes: Uint8Array): ExtractedText {
 	const zip = unzipSync(bytes);
 	const parts = ["word/document.xml"];
 	// Headers and footers, in the order they are numbered.
@@ -137,7 +137,7 @@ export function textFromDocx(bytes: Uint8Array): ExtractedText {
  * Numbered because a question about a deck is nearly always about a particular slide, and an
  * unlabelled run of bullet points gives the model no way to answer "what does slide 4 say".
  */
-export function textFromPptx(bytes: Uint8Array): ExtractedText {
+function textFromPptx(bytes: Uint8Array): ExtractedText {
 	const zip = unzipSync(bytes);
 	const slides = Object.keys(zip)
 		.filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
@@ -164,7 +164,7 @@ function slideNumber(name: string): number {
  * format where the parsing is somebody else's problem. CSV per sheet rather than a grid: it is the
  * densest way to put a table in front of a model, and the one it reads most reliably.
  */
-export async function textFromXlsx(bytes: Uint8Array): Promise<ExtractedText> {
+async function textFromXlsx(bytes: Uint8Array): Promise<ExtractedText> {
 	const { read, utils } = await import("xlsx");
 	const book = read(bytes, { type: "array" });
 	const blocks = book.SheetNames.map((name) => {
@@ -222,7 +222,7 @@ export async function textFromPdf(bytes: Uint8Array): Promise<ExtractedText> {
  * Sizes are included because they answer the second question people ask, and directories are left
  * out because the paths already say where everything sits.
  */
-export function listArchive(bytes: Uint8Array): ExtractedText {
+function listArchive(bytes: Uint8Array): ExtractedText {
 	const zip = unzipSync(bytes);
 	const entries = Object.entries(zip)
 		.filter(([name]) => !name.endsWith("/"))

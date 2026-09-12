@@ -25,7 +25,7 @@ export const CONTENT_MAX = 1600;
 export const CONTENT_DEFAULT = 640;
 
 /** The four the segmented control offers; the field beside it covers everything between. */
-export const CONTENT_PRESETS = [CONTENT_DEFAULT, 800, 960, CONTENT_FILL] as const;
+const CONTENT_PRESETS = [CONTENT_DEFAULT, 800, 960, CONTENT_FILL] as const;
 
 /**
  * Which preset a stored width is, or `""` for a number typed into the field.

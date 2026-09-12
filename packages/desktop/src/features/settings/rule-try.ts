@@ -21,7 +21,7 @@ export const RECENT_LIMIT = 20;
 /** Characters shown either side of a hit. */
 const CONTEXT = 30;
 
-export type TrySource = "text" | "thinking" | "tool";
+type TrySource = "text" | "thinking" | "tool";
 
 export interface TryHit {
 	/** 1 is the newest assistant message. */

@@ -5,7 +5,7 @@ import type { UsageBucket, UsageDay, UsageScan } from "../../../electron/usage-s
 
 export type Range = 7 | 30 | 90 | 0;
 
-export interface CostQuality {
+interface CostQuality {
 	provider: number;
 	catalog: number;
 	manual: number;
@@ -71,7 +71,7 @@ export function providerLabel(providers: { id: string; name: string }[] | undefi
 	return providers?.find((each) => each.id === id)?.name ?? id;
 }
 
-export function dayKey(date: Date): string {
+function dayKey(date: Date): string {
 	const month = `${date.getMonth() + 1}`.padStart(2, "0");
 	const day = `${date.getDate()}`.padStart(2, "0");
 	return `${date.getFullYear()}-${month}-${day}`;
@@ -242,7 +242,7 @@ export function dailySeries(buckets: UsageBucket[], range: Range, now: Date, ear
 	});
 }
 
-export function providerTrends(buckets: UsageBucket[], series: DailyUse[], ranked: ProviderUse[], limit = 4): ProviderTrend[] {
+function providerTrends(buckets: UsageBucket[], series: DailyUse[], ranked: ProviderUse[], limit = 4): ProviderTrend[] {
 	const byProviderDay = new Map<string, { tokens: number; cost: number }>();
 	for (const bucket of buckets) {
 		const key = `${bucket.provider}\u0000${bucket.day}`;

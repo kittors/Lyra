@@ -19,7 +19,7 @@
  * model decides to; a stream rule fires whether or not the model was paying attention.
  */
 
-export type RuleBucket = "always" | "book" | "stream";
+type RuleBucket = "always" | "book" | "stream";
 
 /** Which parts of the model's output a stream rule watches. */
 export type RuleScope =

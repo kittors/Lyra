@@ -17,7 +17,7 @@ import type { CatalogItem } from "./catalog.ts";
 import { bridge } from "../../services/index.ts";
 
 /** Which operation is in flight, or null. Drives the spinner and disables the controls. */
-export type Busy = "install" | "update" | "uninstall" | null;
+type Busy = "install" | "update" | "uninstall" | null;
 
 export interface Install {
 	busy: Busy;

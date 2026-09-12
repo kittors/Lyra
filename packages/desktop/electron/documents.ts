@@ -14,7 +14,7 @@
 import { readFile } from "node:fs/promises";
 
 /** One grid: a sheet of a workbook, or a table of a database. */
-export interface DocumentSheet {
+interface DocumentSheet {
 	name: string;
 	/** Column headers. For a spreadsheet these are A, B, C…; for a table, its columns. */
 	columns: string[];

@@ -237,7 +237,7 @@ function formatMatches(lines: string[], args: GrepArgs, limit: number, literal =
 }
 
 /** Extract a grep regex pattern when the model embeds it in a description string. */
-export function extractGrepPattern(desc: unknown): string {
+function extractGrepPattern(desc: unknown): string {
 	if (typeof desc !== "string" || !desc.trim()) return "";
 	const labeled = desc.match(/(?:pattern|regex|query|search)[:=]\s*[`'"]?([^`'")\s]+)/i);
 	if (labeled?.[1]) return labeled[1].replace(/[`'"]+$/, "").trim();

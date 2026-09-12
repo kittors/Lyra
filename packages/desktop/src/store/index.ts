@@ -53,7 +53,7 @@ import type { Hiccup } from "../lib/hiccup.ts";
  * servers a bundle brought with it, where its directory is. Sending the sidebar's 插件 straight
  * to a settings pane made the first question unanswerable from anywhere.
  */
-export type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
+type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
 
 export type SettingsSection =
   | "general"
@@ -83,7 +83,7 @@ export type SettingsSection =
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */
 export type ExtensionsTab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
 
-export interface PendingApproval {
+interface PendingApproval {
   id: string;
   kind: string;
   title: string;

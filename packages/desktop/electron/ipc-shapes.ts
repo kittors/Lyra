@@ -8,7 +8,7 @@
 
 import type { BranchList } from "./git.ts";
 
-export type { GitCommit, GitStatus, GitStatusFile, RepoRef } from "./git.ts";
+export type { GitCommit, GitStatus, GitStatusFile } from "./git.ts";
 
 /** The shape every diff view consumes, whatever produced it. */
 export interface RefDiff {
@@ -28,17 +28,14 @@ import type {
 	CommandRun,
 	ContextBreakdown,
 	ContextSegmentKey,
-	MemoryFileItem,
-	Registry,
 	RegistryEntry,
 	McpServerStatus,
 	Plugin,
-	QueuedTask,
 	SessionMeta,
 	Skill,
 } from "@lyra/core";
 
-export type { ContextBreakdown, ContextSegmentKey, MemoryFileItem, QueuedTask, Registry, RegistryEntry };
+export type { ContextBreakdown, ContextSegmentKey, RegistryEntry };
 
 /**
  * Which project the window is pointed at.
@@ -212,7 +209,7 @@ export interface PullRequestSummary {
 }
 
 /** One review already left on a pull request. */
-export interface PullRequestReview {
+interface PullRequestReview {
 	author: string;
 	state: string;
 	body: string;
@@ -220,7 +217,7 @@ export interface PullRequestReview {
 }
 
 /** A top-level comment. Line comments live on the diff and are not part of this. */
-export interface PullRequestComment {
+interface PullRequestComment {
 	author: string;
 	body: string;
 	createdAt: string;
@@ -246,7 +243,7 @@ export interface PullRequestDetail extends PullRequestSummary {
 }
 
 /** One commit on the branch, trimmed to what a timeline row shows. */
-export interface PullRequestCommit {
+interface PullRequestCommit {
 	sha: string;
 	headline: string;
 	author: string;

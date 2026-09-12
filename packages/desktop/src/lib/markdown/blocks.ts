@@ -23,7 +23,7 @@ export type Block =
 	| { kind: "html"; align: Align | null; children: Block[] };
 
 /** A column's alignment, from the colons in the separator row. */
-export type Align = "left" | "center" | "right";
+type Align = "left" | "center" | "right";
 
 export interface ListItem {
 	text: string;
@@ -36,7 +36,7 @@ export function parseMarkdown(source: string): Block[] {
 	return parseBlocks(source.replace(/\r\n/g, "\n").split("\n"));
 }
 
-export function parseBlocks(lines: string[]): Block[] {
+function parseBlocks(lines: string[]): Block[] {
 	const blocks: Block[] = [];
 	let i = 0;
 

@@ -20,8 +20,6 @@ import type {
 	RemoteResult,
 	RemoteState,
 	RepoRef,
-	WorkflowJob,
-	WorkflowJobStep,
 	WorkflowRunStatus,
 	WorkflowRunSummary,
 	WorktreeCreateOptions,
@@ -33,15 +31,9 @@ export type {
 	GitOperation,
 	GitStatus,
 	ReleaseInfo,
-	RemoteResult,
 	RemoteState,
-	RepoRef,
-	WorkflowJob,
-	WorkflowJobStep,
 	WorkflowRunStatus,
 	WorkflowRunSummary,
-	WorktreeCreateOptions,
-	WorktreeResult,
 };
 /*
  * Re-exported under a name that means something on this side of the boundary.
@@ -53,11 +45,10 @@ export type {
  */
 import type { DownloadPhase } from "./ipc/update-download.ts";
 import type { TrayCommand } from "./tray-menu.ts";
-export type { DocumentData, DocumentSheet } from "./documents.ts";
+export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
 import type { ExtractedText } from "./document-text.ts";
 import type { UsageScan } from "./usage-scan.ts";
-export type { DocumentKind } from "../shared/document-kind.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
 
@@ -113,7 +104,7 @@ import type {
 } from "./ipc-shapes.ts";
 
 export * from "./ipc-shapes.ts";
-export type { CommandsList, SkillEntry } from "./ipc/commands.ts";
+export type { SkillEntry } from "./ipc/commands.ts";
 import type { SkillEntry } from "./ipc/commands.ts";
 
 /*
@@ -141,7 +132,7 @@ export interface TerminalTab {
 }
 
 /** What a pane gets back when it connects to a shell. */
-export interface AttachedTerminal {
+interface AttachedTerminal {
 	id: string;
 	title: string;
 	pid: number;
@@ -152,7 +143,7 @@ export interface AttachedTerminal {
 }
 
 /** What `format.external` can come back with. Mirrors `electron/format-external.ts`. */
-export type ExternalFormatResult =
+type ExternalFormatResult =
 	| { ok: true; text: string; tool: string }
 	| { ok: false; reason: "unsupported" }
 	| { ok: false; reason: "failed"; message: string; tool: string }

@@ -19,7 +19,7 @@ import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
 import { useFileTreeStore } from "../../store/fileTree.ts";
 
-export interface TreeNode {
+interface TreeNode {
 	entry: FileEntry;
 	depth: number;
 }

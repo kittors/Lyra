@@ -30,9 +30,9 @@ import type { Message, ToolResultMessage } from "../types.ts";
  */
 export const PRUNE_THRESHOLD_CHARS = 8192;
 /** Kept from the front, where a tool puts its answer. */
-export const PRUNE_HEAD_CHARS = 4096;
+const PRUNE_HEAD_CHARS = 4096;
 /** Kept from the back, where it puts totals, errors and "N more matches". */
-export const PRUNE_TAIL_CHARS = 1024;
+const PRUNE_TAIL_CHARS = 1024;
 /**
  * Below this, cutting a result costs more than it saves.
  *

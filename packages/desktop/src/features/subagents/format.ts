@@ -11,7 +11,7 @@ import { formatTokens } from "../../lib/format-tokens.ts";
 import { formatCost } from "../settings/index.ts";
 
 /** `18s`, `2m 14s`, `1h 3m` — the same shape the running turn's own meter uses. */
-export function elapsed(ms: number): string {
+function elapsed(ms: number): string {
 	const total = Math.max(0, Math.floor(ms / 1000));
 	const minutes = Math.floor(total / 60);
 	const seconds = total % 60;

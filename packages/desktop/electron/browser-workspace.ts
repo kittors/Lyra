@@ -177,7 +177,7 @@ export function pointBrowser(id: string, point: Omit<BrowserPointer, "sequence">
 	tab.state.pointer = { ...point, sequence: (tab.state.pointer?.sequence ?? 0) + 1 };
 	publish();
 }
-export function closeBrowser(id: string): void {
+function closeBrowser(id: string): void {
 	const tab = tabs.get(id);
 	if (!tab) return;
 	tabs.delete(id);

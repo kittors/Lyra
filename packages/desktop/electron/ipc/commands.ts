@@ -14,7 +14,7 @@ import { registerReferenceFiles } from "../reference-files.ts";
 import { settings } from "../app-settings.ts";
 import { listCommands, type CommandsList } from "../commands-service.ts";
 
-export type { CommandsList, SkillEntry } from "../commands-service.ts";
+export type { SkillEntry } from "../commands-service.ts";
 
 /** Where a newly created command goes, per scope. Only ours — nothing writes into `.claude`. */
 function directoryFor(scope: "workspace" | "user", cwd: string): string {

@@ -48,7 +48,7 @@ export function resolveWorktreesRoot(customRootDir?: string): string {
 /**
  * Fetch updates from remotes if git repository has remotes configured.
  */
-export async function fetchUpstreamQuietly(cwd: string): Promise<void> {
+async function fetchUpstreamQuietly(cwd: string): Promise<void> {
 	try {
 		await git(cwd, ["fetch", "--all", "--prune"]);
 	} catch {

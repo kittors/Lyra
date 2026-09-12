@@ -70,7 +70,8 @@ export interface ExtensionManifest {
 }
 
 /** A message from the host to an extension. */
-export interface HostMessage {
+// oxlint-disable-next-line no-unused-vars -- 扩展协议的宿主侧那一半，和下面的 `ExtensionReply` 成对；只留一半就读不出这是个来回
+interface HostMessage {
 	id: number;
 	event: ExtensionEvent;
 	payload: unknown;

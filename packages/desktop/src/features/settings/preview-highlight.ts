@@ -17,10 +17,10 @@
 import { tagHighlighter, tags as t } from "@lezer/highlight";
 import type { Language } from "@codemirror/language";
 import type { CodeThemeSpec } from "../../lib/code/themes.ts";
-import { GRAMMARS, grammarKeyFor } from "../../lib/code/highlight.ts";
+import { GRAMMARS } from "../../lib/code/highlight.ts";
 
 /** The token names a theme declares a colour for. */
-export type TokenName = keyof CodeThemeSpec["tokens"];
+type TokenName = keyof CodeThemeSpec["tokens"];
 
 export interface Piece {
 	text: string;
@@ -156,4 +156,3 @@ export async function highlightPieces(code: string, grammarKey: string | null): 
 }
 
 /** Which grammar a filename would get, for previews that are named rather than chosen. */
-export { grammarKeyFor };

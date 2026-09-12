@@ -19,7 +19,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 
 /** 攒事件的窗口。一次保存产生的那几个事件要合成一次重载。 */
-export const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 300;
 
 export interface WatchOptions {
 	/** 实际读过的目录，来自 `LoadedCapabilities.watched`。 */

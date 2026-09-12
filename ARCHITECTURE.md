@@ -83,10 +83,12 @@ CI 里都是必过项：
 7. **`ui/` 与 `lib/` 是叶子。** 见上一节。
 8. **`window.lyra` 只在 `services/bridge.ts`。** 由 oxlint 守。
 
-循环依赖是 error，垫着一份已有的 159 条的基线（`.dependency-cruiser-known-violations.json`）：
+循环依赖是 error，垫着一份已有的 158 条的基线（`.dependency-cruiser-known-violations.json`）：
 新加一条会让 `pnpm arch` 变红，已有那些照旧通过。这个数字每次 `pnpm arch` 都会印出来，
 少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的正常动作，也是唯一能让它上升的动作。
-从前这条规则是 warn 配一句「数字是要盯的东西」，没有东西在盯，于是它从 53 涨到了 159。
+从前这条规则是 warn 配一句「数字是要盯的东西」，没有东西在盯，于是它从 53 涨到了 159；
+清掉没人用的转出之后掉到 158，而那一条是被 `test/docs-numbers.test.ts` 抓出来的——
+它要求这里写的数和基线里的数一样多，所以重生成基线的人会被迫顺手改这一段。
 
 ## 要做某件事，去哪
 

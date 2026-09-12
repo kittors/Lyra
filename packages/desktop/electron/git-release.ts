@@ -25,7 +25,7 @@ export interface ReleaseInfo {
 	};
 }
 
-export interface WorkflowJobStep {
+interface WorkflowJobStep {
 	name: string;
 	status: string;
 	conclusion: string | null;
@@ -34,7 +34,7 @@ export interface WorkflowJobStep {
 	completedAt?: string;
 }
 
-export interface WorkflowJob {
+interface WorkflowJob {
 	id: number;
 	name: string;
 	status: string;

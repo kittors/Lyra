@@ -8,7 +8,7 @@
 import { ipcMain } from "electron";
 import { createTerminalRegistry, type TerminalDeps } from "../terminal-registry.ts";
 
-export type { Attached, LiveTerminal, TerminalDeps, TerminalTab } from "../terminal-registry.ts";
+export type { LiveTerminal, TerminalDeps } from "../terminal-registry.ts";
 
 export function registerTerminalIpc(deps: TerminalDeps): void {
 	const registry = createTerminalRegistry(deps);

@@ -29,6 +29,11 @@ export interface FollowSnapshot {
  *
  * Enough to cover moving around a project for an afternoon. Each entry is four numbers; the limit
  * is about not growing without bound over a long session rather than about memory.
+ *
+ * 也是为什么**没有**一个「会话删掉了就把它的位置忘掉」的函数。写过一个，叫 `forgetFollow`，
+ * 注释写着「删除或归档时用」——而从来没有人调用它。代价是一条已经不存在的会话占着 64 个槽位里
+ * 的一个，直到被这里淘汰掉，也就是几乎没有代价。想接上它的人先读这一段：那件事这个上限已经
+ * 做了，多一个调用点只多一处会忘记跟着改的地方。
  */
 const LIMIT = 64;
 
@@ -64,9 +69,4 @@ export function writeFollow(namespace: string, id: string, snapshot: FollowSnaps
 		const oldest = store.keys().next();
 		if (!oldest.done) store.delete(oldest.value);
 	}
-}
-
-/** Used when a conversation is deleted or archived: it is not coming back, and neither is its place. */
-export function forgetFollow(namespace: string, id: string): void {
-	storeFor(namespace).delete(id);
 }

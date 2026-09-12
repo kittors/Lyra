@@ -118,12 +118,3 @@ export function classifyRemote({
 	if (remotes.length === 0) return { state: "none", remote: null };
 	return { state: "no-upstream", remote: defaultRemote(remotes) };
 }
-
-/** What to call the operation in a sentence. */
-export const OPERATION_LABEL: Record<GitOperation, string> = {
-	rebase: "变基",
-	merge: "合并",
-	"cherry-pick": "拣选",
-	revert: "回滚",
-	bisect: "二分查找",
-};

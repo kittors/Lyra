@@ -116,7 +116,7 @@ function place(el: HTMLElement) {
  * The element stays in the document for the length of the exit and is only hidden afterwards, so a
  * pointer that comes back mid-fade finds it still there and simply cancels the departure.
  */
-export function hide() {
+function hide() {
 	window.clearTimeout(timer);
 	current = null;
 	if (!host || host.hidden || host.dataset.leaving !== undefined) return;
@@ -130,7 +130,7 @@ export function hide() {
 }
 
 /** Immediately hide the tooltip without playing exit animation. */
-export function hideTooltipImmediate() {
+function hideTooltipImmediate() {
 	window.clearTimeout(timer);
 	current = null;
 	if (host) {

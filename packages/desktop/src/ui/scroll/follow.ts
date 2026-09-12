@@ -76,7 +76,7 @@ export interface Geometry {
  * Wide enough to forgive the last few pixels of an inertial scroll, narrow enough that it cannot
  * be reached by accident from a screenful away.
  */
-export const FOLLOW_SLACK = 72;
+const FOLLOW_SLACK = 72;
 
 /**
  * How far past the slack the reader must be before the way back is offered, in pixels.
@@ -85,7 +85,7 @@ export const FOLLOW_SLACK = 72;
  * flicker in: between `FOLLOW_SLACK` and this the surface is detached but says nothing, which is
  * where a scroll that stops just short of the end lands.
  */
-export const AWAY_THRESHOLD = 160;
+const AWAY_THRESHOLD = 160;
 
 /**
  * A reading of the surface that decisions are made against.

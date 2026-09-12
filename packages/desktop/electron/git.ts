@@ -8,17 +8,9 @@
 
 import { git } from "./git-exec.ts";
 
-export { git, run, type RemoteResult } from "./git-exec.ts";
-export { OPERATION_LABEL, type GitOperation, type RemoteState } from "./git-remote-state.ts";
+export { type RemoteResult } from "./git-exec.ts";
+export { type GitOperation, type RemoteState } from "./git-remote-state.ts";
 export { collectWorkspaceDiff, readDiffBlob, type DiffBlob } from "./git-diff.ts";
-export {
-	commentOnPullRequest,
-	listPullRequests,
-	pullRequestDetail,
-	pullRequestDiff,
-	reviewPullRequest,
-} from "./forge/index.ts";
-export type { ReviewVerdict } from "./forge/types.ts";
 export {
 	commitAll,
 	discardPaths,
@@ -45,7 +37,6 @@ export {
 	QUIET_FETCH_TIMEOUT_MS,
 } from "./git-history.ts";
 export {
-	addWorktree,
 	createWorktree,
 	initRepo,
 	listRepos,
@@ -57,7 +48,6 @@ export {
 	type WorktreeResult,
 } from "./git-repos.ts";
 export {
-	bumpSemver,
 	bumpVersionFiles,
 	getReleaseInfo,
 	getWorkflowRunStatus,
@@ -65,8 +55,6 @@ export {
 	publishReleaseTag,
 	triggerReleaseDryRun,
 	type ReleaseInfo,
-	type WorkflowJob,
-	type WorkflowJobStep,
 	type WorkflowRunStatus,
 	type WorkflowRunSummary,
 } from "./git-release.ts";

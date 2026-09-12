@@ -123,7 +123,7 @@ function checkIcon(checks: PullRequestDetail["checks"]): typeof GitBranch {
  * "Open" is technically true of a draft and of something with a failing merge, and neither is
  * ready for anyone's attention — so the label says the thing that would stop you.
  */
-export function stateLabel(detail: PullRequestDetail): string {
+function stateLabel(detail: PullRequestDetail): string {
 	if (detail.state === "MERGED") return translate("prMeta.merged");
 	if (detail.state === "CLOSED") return translate("prMeta.closed");
 	if (detail.isDraft) return translate("prMeta.draft");

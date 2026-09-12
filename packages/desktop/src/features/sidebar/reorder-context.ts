@@ -4,7 +4,7 @@
 
 import { createContext, useContext } from "react";
 
-export type DragKind = "project" | "session";
+type DragKind = "project" | "session";
 
 export interface DraggingItem {
 	kind: DragKind;

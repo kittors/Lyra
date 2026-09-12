@@ -42,7 +42,7 @@ export interface Lesson {
  */
 export const MAX_LESSONS = 100;
 export const MAX_LESSON_CHARS = 2000;
-export const MAX_CONTEXT_CHARS = 400;
+const MAX_CONTEXT_CHARS = 400;
 
 export function projectMemoryDir(cwd: string): string {
 	return join(lyraHome(), "projects", projectIdFor(cwd), "memory");
@@ -205,7 +205,7 @@ export function parseLessons(raw: string): Lesson[] {
  * without looking — memory outranked the files. A date is the cheapest thing that says "this was
  * then".
  */
-export function lessonAge(at: number, now = Date.now()): string {
+function lessonAge(at: number, now = Date.now()): string {
 	const days = Math.floor((now - at) / 86_400_000);
 	if (days < 1) return "今天记下";
 	if (days < 30) return `${days} 天前记下`;

@@ -6,7 +6,7 @@ export const SKILLS_KEY = "skills";
 /** The skill currently in force, and what it allows. See `ACTIVE_SKILL` below. */
 export const ACTIVE_SKILL_KEY = "activeSkill";
 
-export interface ActiveSkill {
+interface ActiveSkill {
 	name: string;
 	/** Tool names this skill permits. Undefined means it did not restrict anything. */
 	allowedTools?: string[];

@@ -214,6 +214,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -278,6 +279,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -349,6 +351,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -404,6 +407,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -468,6 +472,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -539,6 +544,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -594,6 +600,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -658,6 +665,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -713,6 +721,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -784,6 +793,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -839,6 +849,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -894,6 +905,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -965,6 +977,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -1029,6 +1042,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       },
@@ -1100,6 +1114,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       }
@@ -1157,6 +1172,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       }
@@ -1221,6 +1237,7 @@
         "name": "packages/desktop/electron/forge/index.ts",
         "dependencyTypes": [
           "local",
+          "type-only",
           "export"
         ]
       }
@@ -1655,47 +1672,6 @@
         "dependencyTypes": [
           "local",
           "export"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/electron/git.ts",
-    "to": "packages/desktop/electron/forge/index.ts",
-    "unresolvedTo": "./forge/index.ts",
-    "dependencyTypes": [
-      "local",
-      "export"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/electron/forge/index.ts",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/electron/ipc-shapes.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import",
-          "pre-compilation-only"
-        ]
-      },
-      {
-        "name": "packages/desktop/electron/git.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import",
-          "pre-compilation-only"
         ]
       }
     ]

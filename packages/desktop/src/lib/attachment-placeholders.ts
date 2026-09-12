@@ -78,7 +78,7 @@ export function isAttachmentBody(text: string): boolean {
 	return /^\n\n(?:### |\[)(?:Attached file|Attachment \d+)[:,]/.test(text) || /^\n\n(?:### |\[)Attachment \d+ of \d+/.test(text);
 }
 
-export type Segment<File> = { kind: "text"; text: string } | { kind: "file"; file: File };
+type Segment<File> = { kind: "text"; text: string } | { kind: "file"; file: File };
 
 export interface Placement<File> {
 	/** The draft cut at its placeholders, in reading order. */

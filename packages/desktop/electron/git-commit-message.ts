@@ -71,7 +71,7 @@ export function cleanCommitMessage(raw: string): string {
 	return text;
 }
 
-export function assistantText(message: AssistantMessage): string {
+function assistantText(message: AssistantMessage): string {
 	return message.content
 		.filter((block): block is TextContent => block.type === "text")
 		.map((block) => block.text)

@@ -44,7 +44,7 @@ export function rememberTerminalSize(cols: number, rows: number): void {
 }
 
 /** The last measured pane size, or a first-launch guess. */
-export function lastTerminalSize(): { cols: number; rows: number } {
+function lastTerminalSize(): { cols: number; rows: number } {
 	try {
 		const raw = localStorage.getItem(SIZE_KEY);
 		if (!raw) return FALLBACK;

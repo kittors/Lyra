@@ -6,5 +6,5 @@
  * `host.ts` is *whether* (which methods answer in this host, and why not when they do not).
  */
 
-export { bridge, bridgeAvailable } from "./bridge.ts";
-export { available, host, onPhone, unavailableBecause, type Host } from "./host.ts";
+export { bridge } from "./bridge.ts";
+export { available, onPhone } from "./host.ts";

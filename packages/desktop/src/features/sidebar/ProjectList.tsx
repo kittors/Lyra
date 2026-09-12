@@ -29,8 +29,8 @@ import { CarriedPill } from "./DropIndicator.tsx";
  * `§` because every project key is an absolute path and none of them can start with one, so the
  * two kinds share a store without a chance of collision.
  */
-export const PINNED = "§pinned";
-export const RECENT = "§recent";
+const PINNED = "§pinned";
+const RECENT = "§recent";
 
 export function ProjectList({
 	groups,

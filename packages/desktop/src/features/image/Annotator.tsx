@@ -165,7 +165,7 @@ const BACKDROPS: [string | undefined, MessageKey][] = [
  * size — `naturalWidth` against `width` — so that is read once, here, and everything downstream
  * uses this shape.
  */
-export interface Decoded {
+interface Decoded {
 	source: CanvasImageSource;
 	width: number;
 	height: number;
@@ -267,7 +267,7 @@ export interface Annotator {
 // ---------------------------------------------------------------------------
 
 /** Multipliers for mark and text weight, used in Annotator and ScreenshotOverlay. */
-export const WEIGHT_LEVELS: [number, MessageKey, number][] = [
+const WEIGHT_LEVELS: [number, MessageKey, number][] = [
 	[0.6, "annotate.thin", 4],
 	[1, "annotate.medium", 6],
 	[1.8, "annotate.thick", 9],

@@ -45,7 +45,7 @@ export interface Outline {
 }
 
 /** Whether this path is a language whose declarations we can recognise. */
-export function isOutlineable(path: string): boolean {
+function isOutlineable(path: string): boolean {
 	const dot = path.lastIndexOf(".");
 	return dot !== -1 && CODE_EXTENSIONS.has(path.slice(dot).toLowerCase());
 }

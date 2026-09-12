@@ -6,7 +6,7 @@ import { bridge } from "../../services/host.ts";
 import { useApp } from "../../store/index.ts";
 
 /** 一轮结束之后，等多久算「空闲」。 */
-export const IDLE_MS = 5 * 60 * 1000;
+const IDLE_MS = 5 * 60 * 1000;
 
 /**
  * 挂一次，管整个窗口。

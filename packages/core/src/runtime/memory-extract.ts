@@ -38,7 +38,7 @@ export const MIN_AGE_MS = 12 * 60 * 60 * 1000;
 /** Beyond this, what a session concluded is probably no longer true of the code. */
 export const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 /** How many sessions one pass will read. */
-export const MAX_SESSIONS = 40;
+const MAX_SESSIONS = 40;
 /** A lock older than this belonged to a window that is gone. */
 export const LOCK_STALE_MS = 10 * 60 * 1000;
 
@@ -131,7 +131,7 @@ export function extractionPrompt(): string {
  * 分成两次请求而不是一次问两件事：一次请求要两种格式的输出，模型会把两者混在一起，而解析
  * 失败的那一半是静默丢掉的。两次都是便宜模型上的小请求。
  */
-export function skillProposalPrompt(): string {
+function skillProposalPrompt(): string {
 	return [
 		"你在读一个项目最近的几次会话记录，找**一段反复出现、下次可以照着做的流程**。",
 		"",
@@ -228,7 +228,7 @@ export function renderSessions(candidates: ExtractionCandidate[]): string {
 }
 
 /** Historical commands need today's project rules before they can become tomorrow's workflow. */
-export async function skillProposalInput(cwd: string, candidates: ExtractionCandidate[]): Promise<string> {
+async function skillProposalInput(cwd: string, candidates: ExtractionCandidate[]): Promise<string> {
 	const instructions = await loadProjectInstructions(cwd);
 	const current = instructions.map((file) => `### ${relative(cwd, file.path)}\n${file.content}`).join("\n\n");
 	return redactSecrets(`## 当前项目指令\n${current || "未找到项目指令文件。技能执行时仍须重新发现当前配置，不能假定历史命令仍然适用。"}\n\n## 历史会话证据\n${renderSessions(candidates)}`);

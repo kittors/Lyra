@@ -47,7 +47,7 @@ export function SkeletonBar({ width, height = 10, className = "" }: { width: str
  * The widths vary per index so a grid of them does not read as a printed pattern — the eye finds
  * repetition faster than it finds text, and a perfectly regular placeholder looks like a bug.
  */
-export function SkeletonCard({ index = 0 }: { index?: number }) {
+function SkeletonCard({ index = 0 }: { index?: number }) {
 	const title = [92, 116, 78, 104][index % 4] ?? 96;
 	const second = [82, 64, 90, 71][index % 4] ?? 78;
 
@@ -65,7 +65,7 @@ export function SkeletonCard({ index = 0 }: { index?: number }) {
 }
 
 /** A settings list row: mark, title, one line, and the switch. */
-export function SkeletonRow({ index = 0 }: { index?: number }) {
+function SkeletonRow({ index = 0 }: { index?: number }) {
 	const title = [70, 96, 58, 84][index % 4] ?? 76;
 	const detail = [68, 84, 56, 76][index % 4] ?? 70;
 

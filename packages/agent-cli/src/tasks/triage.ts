@@ -52,7 +52,7 @@ export async function triageIssue(args: {
 	if (labels.length > 0) await removeLabel(args.token, args.repo, args.number, "needs-triage");
 }
 
-export function prompt(title: string, body: string): string {
+function prompt(title: string, body: string): string {
 	return `给这个仓库的一个新 issue 做分类。仓库代码就在当前目录，可以读、可以搜——
 在判断它属于哪一块之前，最好先找到相关的代码确认一下。
 

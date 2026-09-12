@@ -18,7 +18,7 @@
 import { useEffect } from "react";
 
 /** How often to re-read while a turn is running. Fast enough to read as live, cheap enough to keep. */
-export const LIVE_POLL_MS = 1500;
+const LIVE_POLL_MS = 1500;
 
 export function useLiveRefresh(refresh: () => void | Promise<void>, running: boolean, ms = LIVE_POLL_MS): void {
 	/*

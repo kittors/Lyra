@@ -2,7 +2,7 @@ import type { Entry } from "@lyra/core/trajectory-view";
 
 export interface TimeRange { start: number; end: number }
 export const LANE_HEIGHT = 16;
-export const MIN_DRAG = 3;
+const MIN_DRAG = 3;
 
 export function timelineLane(entry: Entry): number {
 	return entry.source === "tool-call" ? 1 : entry.source === "compaction" || entry.source === "subagent" ? 2 : 0;
@@ -14,7 +14,7 @@ export function timelineDomain(entries: Entry[]): TimeRange {
 	return entries.length ? { start, end: Math.max(start + 1, end) } : { start: 0, end: 1 };
 }
 
-export function timelineTime(x: number, width: number, shown: TimeRange): number {
+function timelineTime(x: number, width: number, shown: TimeRange): number {
 	return shown.start + Math.max(0, Math.min(width, x)) / Math.max(1, width) * (shown.end - shown.start);
 }
 

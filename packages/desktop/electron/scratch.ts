@@ -77,7 +77,7 @@ export function prChatSlug(repo: string, number: number): string {
  * Two mechanisms, one path, opposite lifetimes. Separating them is the whole repair: `core` keeps
  * sweeping `scratch/`, and nothing it sweeps belongs to anybody.
  */
-export function workspacesRoot(): string {
+function workspacesRoot(): string {
 	return join(lyraHome(), "workspaces");
 }
 

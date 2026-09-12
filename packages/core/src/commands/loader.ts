@@ -64,7 +64,7 @@ export interface SlashCommand {
 }
 
 /** 一条命令展开后怎么送出去。 */
-export type CommandDelivery = "prompt" | "steer" | "followUp";
+type CommandDelivery = "prompt" | "steer" | "followUp";
 
 const DELIVERIES: CommandDelivery[] = ["prompt", "steer", "followUp"];
 

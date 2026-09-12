@@ -11,7 +11,8 @@
  * to act on: the second one is a reason to check.
  */
 
-export type CodeIntelOperation = "references" | "definition" | "diagnostics" | "rename";
+// oxlint-disable-next-line no-unused-vars -- 这一层的协议形状，和旁边用着的那几个是一组；少一个就说不清这个后端能被问什么
+type CodeIntelOperation = "references" | "definition" | "diagnostics" | "rename";
 
 /** A place in a file. Lines and columns are 1-based, matching what `read` shows. */
 export interface CodeLocation {
@@ -47,9 +48,10 @@ export interface TextEdit {
  * which is what we had — and the point of naming it is that the model reads this and behaves
  * differently. A `textual` answer to "who calls this" is a starting point, not a list.
  */
-export type Confidence = "exact" | "textual";
+type Confidence = "exact" | "textual";
 
-export interface CodeIntelResult<T> {
+// oxlint-disable-next-line no-unused-vars -- 这一层的协议形状，和旁边用着的那几个是一组；少一个就说不清这个后端能被问什么
+interface CodeIntelResult<T> {
 	items: T[];
 	confidence: Confidence;
 	/** Why the answer is `textual`, when it is. Shown to the model verbatim. */

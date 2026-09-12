@@ -40,7 +40,7 @@ const TIMEOUT_MS = 8000;
 /** Checked at most this often, however many times the window asks. */
 const CACHE_MS = 30 * 60 * 1000;
 
-export interface UpdateInfo {
+interface UpdateInfo {
 	current: string;
 	latest: string;
 	available: boolean;

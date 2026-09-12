@@ -3,7 +3,7 @@ import { browserContents, browserCommand, browserState, browserScale, pointBrows
 
 /** Automation chrome lives in an isolated world, never in a page's JavaScript globals. */
 const WORLD = 999;
-export async function evaluatePage(contents: WebContents, expression: string): Promise<unknown> {
+async function evaluatePage(contents: WebContents, expression: string): Promise<unknown> {
 	let timer: NodeJS.Timeout | undefined;
 	try {
 		return await Promise.race([

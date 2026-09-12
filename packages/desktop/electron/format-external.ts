@@ -16,7 +16,7 @@ import { spawn } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 
-export interface ExternalFormatter {
+interface ExternalFormatter {
 	/** Display name, and the binary to look for. */
 	command: string;
 	args: string[];

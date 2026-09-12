@@ -13,7 +13,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -104,6 +104,3 @@ export async function scheduleSwap(options: { staged: string; target: string }):
 	const child = spawn("/bin/bash", [script], { detached: true, stdio: "ignore" });
 	child.unref();
 }
-
-/** Tidy a staging directory, best effort: a leftover copy is clutter, not a failure. */
-export const discard = (dir: string): Promise<void> => rm(dir, { recursive: true, force: true }).catch(() => {});

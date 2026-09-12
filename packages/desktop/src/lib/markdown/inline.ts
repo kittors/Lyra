@@ -14,7 +14,6 @@
 
 import { type InlineTag, matchHtml } from "./html.ts";
 
-export type { InlineTag } from "./html.ts";
 
 export type Inline =
 	| { kind: "text"; text: string }

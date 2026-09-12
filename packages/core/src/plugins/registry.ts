@@ -39,7 +39,6 @@ import { inspectBundle } from "./loader.ts";
 // bundle installs into needs the type. Adding a second dependency to reach one alias would be a
 // wider change than re-exporting it beside the entry type it is a field of.
 export type { BundleKind, ClientId, RegistryEntry } from "@lyra/registry-shared";
-export { normalise } from "@lyra/registry-shared";
 
 /** How long a registry has to answer before we give up on it. */
 const FETCH_TIMEOUT_MS = 10_000;

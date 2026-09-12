@@ -1,6 +1,6 @@
 import type { CommandDecoration } from "./command-catalog.ts";
 
-export interface MentionDecoration {
+interface MentionDecoration {
 	start: number;
 	end: number;
 	kind?: "file" | "subagent" | "plugin" | "session";

@@ -341,4 +341,4 @@ function staysInside(command: string, cwd: string): boolean {
 export { splitCommands } from "./shell-split.ts";
 
 export { assessWrite } from "./risk-paths.ts";
-export { assessNetwork, isPrivateAddress, type NetworkVerdict } from "./risk-network.ts";
+export { assessNetwork } from "./risk-network.ts";

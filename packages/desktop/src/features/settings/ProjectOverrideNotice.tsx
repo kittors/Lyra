@@ -26,7 +26,7 @@ interface LayerState {
 	load(cwd: string): Promise<void>;
 }
 
-export const useProjectLayer = create<LayerState>((set) => ({
+const useProjectLayer = create<LayerState>((set) => ({
 	cwd: null,
 	view: null,
 	async load(cwd) {

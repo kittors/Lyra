@@ -178,7 +178,7 @@ export function isNull(value: Ptr | null | undefined): boolean {
  * Worth the extra call: `CreateRestrictedToken failed (1314)` sends somebody searching, while
  * "a required privilege is not held by the client" says what to do about it.
  */
-export function describeError(api: Win32, code: number): string {
+function describeError(api: Win32, code: number): string {
 	const buffer = Buffer.alloc(1024);
 	const length = api.formatMessageW(
 		abi.FORMAT_MESSAGE_FROM_SYSTEM | abi.FORMAT_MESSAGE_IGNORE_INSERTS,

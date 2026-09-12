@@ -15,8 +15,8 @@
 import type { ApiFormat, ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "@lyra/core";
 
 /** Identifies the file as ours before anything reads what is in it. */
-export const BUNDLE_KIND = "lyra.providers";
-export const BUNDLE_VERSION = 1;
+const BUNDLE_KIND = "lyra.providers";
+const BUNDLE_VERSION = 1;
 
 const API_FORMATS = new Set<string>(["openai-responses", "anthropic-messages", "openai-chat-completions"]);
 

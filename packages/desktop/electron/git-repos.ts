@@ -121,10 +121,6 @@ export async function listWorktrees(cwd: string): Promise<RepoRef[]> {
 	return trees.map((tree, index) => ({ ...tree, worktree: index > 0 }));
 }
 
-export async function addWorktree(cwd: string, branch: string): Promise<{ ok: boolean; path?: string; error?: string }> {
-	return createWorktree(cwd, branch);
-}
-
 /**
  * Turn a plain directory into a repository.
  *

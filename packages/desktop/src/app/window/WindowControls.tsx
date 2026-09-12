@@ -14,7 +14,7 @@ import { useApp } from "../../store/index.ts";
 import { unreadActivity } from "../../lib/session-notifications.ts";
 
 export const TOOLBAR_BUTTON = 28;
-export const TOOLBAR_GAP = 10;
+const TOOLBAR_GAP = 10;
 
 /**
  * How much of the window's top-left corner belongs to the window rather than to the content.
