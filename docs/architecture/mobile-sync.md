@@ -98,7 +98,8 @@ MCP、hooks、scheduled tasks、搜索密钥与同步令牌。手机保存设置
 
 协议测试分别覆盖直连和 relay 的 hello/ready、帧关联、超时清理、`peer-left`、重连、设置与事件
 推送、只读文件帧和原生桥。桌面测试覆盖 RPC 参数校验、项目路径边界、敏感设置裁剪、panel 与
-设置页能力过滤；Expo 必须同时完成 iOS 和 Android export。
+设置页能力过滤；Expo 必须在 iOS 和 Android 两个平台上完成 `export:embed`——即原生构建用的那条打包
+路径，见 [手机端怎么打包、怎么进 release](mobile-packaging.md)。
 
 用户可见改动还要在真实 desktop renderer 的手机视口中测量 44px 命中区、触控显隐、文件只读
 状态、断线提示、重同步、滚动和草稿保持。没有对应实机时，macOS 上的 WebView/Chromium 验证

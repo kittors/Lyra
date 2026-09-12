@@ -85,8 +85,12 @@ async function preflight({ skipRehearsal }) {
 
 	const head = await must("git", ["rev-parse", "HEAD"]);
 
+	// Asked before the rehearsal branch: `--skip-rehearsal` says "I accept an unrehearsed package",
+	// not "I accept a release that will stop at the signing step".
+	await androidKeyOrStop();
+
 	if (skipRehearsal) {
-		note("⚠︎ 跳过排练检查——这次发布没有在三平台上打包验证过");
+		note("⚠︎ 跳过排练检查——这次发布没有在五个 runner 上打包验证过");
 		return { head, rehearsed: false };
 	}
 
@@ -119,6 +123,58 @@ async function preflight({ skipRehearsal }) {
 	}
 	note(`排练通过：${ok.url}`);
 	return { head, rehearsed: true };
+}
+
+/**
+ * The Android release key, which the rehearsal is unable to check for us.
+ *
+ * `release.yml` treats a missing keystore as fatal — an APK signed with React Native's public
+ * template key can never be updated by a properly signed one — while the dry run treats it as a
+ * warning, because a rehearsal without secrets should still rehearse the packaging. Which leaves
+ * exactly one gap: a green rehearsal, then a tag, then a release job that dies on the signing
+ * step. A pushed tag with no release behind it is the failure this whole script exists to prevent.
+ *
+ * So it is asked here, where it is still a question and not yet a tag.
+ *
+ * Unreadable is not the same as absent: `gh secret list` needs a token with admin scope, and not
+ * having one says nothing about the repository. That case notes and continues — the release job
+ * will still refuse, which is the outcome we are trying to warn about rather than to enforce.
+ *
+ * Plain output rather than `--json`: this only needs the first column, and asking for JSON adds a
+ * dependency on a `gh` new enough to serve it.
+ */
+async function androidKeyOrStop() {
+	const needed = [
+		"ANDROID_KEYSTORE_BASE64",
+		"ANDROID_KEYSTORE_PASSWORD",
+		"ANDROID_KEY_ALIAS",
+		"ANDROID_KEY_PASSWORD",
+	];
+
+	let listed;
+	try {
+		const { stdout } = await run("gh", ["secret", "list"], { cwd: ROOT });
+		listed = new Set(stdout.split("\n").map((line) => line.split(/\s+/)[0]).filter(Boolean));
+	} catch {
+		note("读不到仓库 secret（gh 没有 admin 权限？）。Android 签名这一条没检查。");
+		return;
+	}
+
+	const missing = needed.filter((name) => !listed.has(name));
+	if (missing.length === 0) {
+		note("Android 签名钥匙就位");
+		return;
+	}
+
+	fail(
+		`Android 的签名钥匙没配，发版会在签名那一步停下：\n\n` +
+		`  缺：    ${missing.join("、")}\n` +
+		`  生成：  bash packages/mobile/scripts/make-release-keystore.sh\n` +
+		`          （它会打印四条 gh secret set，粘贴执行即可）\n\n` +
+		`为什么不能凑合：用 React Native 模板里那把公开的 debug key 签出来的 APK，` +
+		`以后任何一个正经签名的版本都更新不了它——用户必须先卸载，配对跟着一起丢。` +
+		`而那把钥匙是公开的，拿到它的人能造出手机会接受的「更新」。`,
+	);
 }
 
 async function rehearse() {

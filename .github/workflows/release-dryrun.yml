@@ -36,3 +36,17 @@ jobs:
       # packaging, which is most of what can go wrong.
       require-signing: false
     secrets: inherit
+
+  # The phone app, rehearsed for the same reason the desktop one is.
+  #
+  # `expo prebuild` regenerates the Android and Xcode projects from `app.json` on every run, so an
+  # Expo SDK bump, a plugin that stopped accepting its options, or a permission string that is no
+  # longer valid all fail here first — and nowhere else, because `ci.yml` only bundles the
+  # JavaScript. That is the same shape as the `executableName` fault that broke 0.2.0: a packaging
+  # input that no ordinary check ever executes.
+  mobile:
+    uses: ./.github/workflows/_mobile-build.yml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+      require-signing: false
+    secrets: inherit

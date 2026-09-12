@@ -246,14 +246,31 @@ jobs:
     # manager objects either: `expo`'s peer range for react-native is `*`, so the SDK's real version
     # pairing is enforced by neither npm nor tsc. Only bundling says so.
     #
-    # `export`, not a simulator: this is the JS bundle, so it needs no Xcode and no Android SDK and
-    # runs on the cheap platform in about a minute. The output is thrown away — the question being
-    # asked is whether Metro can resolve and transform the whole graph.
+    # A bundle, not a simulator: no Xcode and no Android SDK, so it runs on the cheap platform in
+    # about a minute. The output is thrown away — the question is whether Metro can resolve and
+    # transform the whole graph.
+    #
+    # `export:embed` rather than `export`, and both platforms, because those are the words the
+    # native build uses. Xcode's and Gradle's bundle phases both shell out to `export:embed`, and
+    # it resolves Babel plugins named as strings from the project root while `export` lets the
+    # preset require them from its own directory. So `expo export` was green on a tree where the
+    # iOS archive died at the JavaScript step with "Cannot find module
+    # '@babel/plugin-transform-react-jsx'" — a dependency the phone app uses and had never
+    # declared. This job now fails on that, in a minute, instead of a release doing it in twenty.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: pnpm --filter @lyra/mobile exec expo export --platform ios --output-dir /tmp/mobile-bundle
+      - name: Bundle the way the native build does
+        run: |
+          set -euo pipefail
+          for platform in ios android; do
+            pnpm --filter @lyra/mobile exec expo export:embed \
+              --platform "$platform" \
+              --dev false \
+              --bundle-output "/tmp/mobile-bundle/$platform.jsbundle" \
+              --assets-dest "/tmp/mobile-bundle/$platform-assets"
+          done
 
   # The single required check. Everything above must pass; `dead-code` is deliberately not here.
   all-green:

@@ -78,14 +78,25 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 
 ## 发版
 
-打 tag 就是发版：推 `v*` 触发 `release.yml`，三平台各自构建，汇总成一个 release 并**直接发布**。
+打 tag 就是发版：推 `v*` 触发 `release.yml`，桌面三平台加手机 iOS、Android 各自构建，汇总成一个
+release 并**直接发布**。手机端带出两个文件：`Lyra-x.y.z-android.apk`（签名）和
+`Lyra-x.y.z-ios-unsigned.ipa`（未签名，装的人自己签），和桌面产物一起进 `SHA256SUMS`。
+怎么打包、为什么 iOS 不签名、Android 的钥匙为什么是一次性的决定，见
+[docs/architecture/mobile-packaging.md](docs/architecture/mobile-packaging.md)。
 
 **打 tag 之前要跑一次 `Release dry run`**（`pnpm release:rehearse`，`pnpm release` 会验证它跑过）。 它跑的东西和 release
-一模一样（三平台 lint/typecheck/test + `pnpm package`），只是不创建 release。绿了再打 tag。
+一模一样（五个 runner 的 lint/typecheck/test + `pnpm package` + `expo prebuild` 与两端原生构建），
+只是不创建 release。绿了再打 tag。
 
 为什么必须这一步：日常的 CI 不打包，而 `pnpm package` 是唯一会执行 electron-builder 的地
 方。0.2.0 第一次发版就栽在这里——`executableName` 在 Linux 上不合法，这个配置错误在仓库里
-待了很久，因为在此之前没有任何一条流程构建过 Linux 包。
+待了很久，因为在此之前没有任何一条流程构建过 Linux 包。手机端是同一类：`android/` 和 `ios/`
+不在仓库里，每次都由 `expo prebuild` 从 `app.json` 生成，所以插件参数、权限文案、SDK 版本的问题
+只有原生构建才会报出来。
+
+Android 的签名要四个 secret（`ANDROID_KEYSTORE_BASE64` 等，`packages/mobile/scripts/make-release-keystore.sh`
+一次生成并打印）。没配的话 `pnpm release` 在推 tag 之前就会停下——排练不会因此变红，而 release
+会在签名那一步死掉，留下一个没有 release 的 tag。
 
 发版是一条命令：
 
@@ -100,7 +111,7 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 
 以前汇总成草稿，要再手动 Publish 一次——结果 0.4.0、0.4.1、0.5.0、0.6.1 全都躺在草稿里：产
 物齐全，客户端一个都收不到（更新检查跳过草稿和预发布）。手动的最后一步就是会被忘的一步。现
-在 tag 一推、三平台绿了就直接发布，release notes 事后还能改，收不到的版本事后改不了。
+在 tag 一推、五个 runner 绿了就直接发布，release notes 事后还能改，收不到的版本事后改不了。
 
 ### 发版文案是手写的，七种语言一种都不能少
 

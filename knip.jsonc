@@ -74,6 +74,17 @@
     // different version mid-release.
     "git-cliff",
 
+    // Named as a string by the Babel config the native build assembles, never imported by us.
+    //
+    // `expo export` does not need it declared: `babel-preset-expo` requires the plugin from its
+    // own directory. The native build takes another path — Xcode's bundle phase runs
+    // `expo export:embed`, which resolves that plugin by name from the project root, where pnpm
+    // puts only what the package declares. Without this line `pnpm knip` calls it unused and
+    // without the dependency the iOS archive fails at the JavaScript bundle with
+    // "Cannot find module '@babel/plugin-transform-react-jsx'" — green everywhere else, because
+    // nothing but a native build ever runs that command.
+    "@babel/plugin-transform-react-jsx",
+
     "tailwindcss",
     "@electron/rebuild",
     "expo-updates",

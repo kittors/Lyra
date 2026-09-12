@@ -1,0 +1,35 @@
+// Build with the NDK this machine already has, instead of the one revision Expo names.
+//
+// Expo's root plugin asks for an exact revision — `getVersionOrDefault("ndkVersion",
+// "27.1.12297006")` in `ExpoRootProjectPlugin.kt` — and AGP matches revisions exactly. Nobody has
+// that one: GitHub's Linux image ships 27.3.13750724, 28.2 and 29.0, and a developer's machine has
+// whatever Android Studio installed.
+//
+// What happens without this is not a failure, which is the point. Gradle resolves the missing
+// revision during *configuration*: it spends minutes printing "Still waiting for package manifests
+// to be fetched remotely" — nothing in that line mentions an NDK — and then quietly accepts the
+// licence and installs the revision itself. Measured on a laptop: eight minutes of manifest
+// waiting before it even said "Install NDK (Side by side) 27.1.12297006". On a release build that
+// is a 1.5 GB download and several minutes, every time, on a runner whose own NDKs went unused.
+//
+// Applied through an init script rather than by editing `android/build.gradle`, because
+// `expo prebuild` regenerates that file on every run and a patch to it is a patch that has to be
+// reapplied. Expo reads the property with `setIfNotExist`, so a value set here before the root
+// project is evaluated is the value it keeps.
+//
+// Revisions within one NDK major are compatible for what is compiled here (Reanimated and
+// Worklets' C++), which is why "the installed one" is a safe answer rather than a lucky one.
+//
+//   ./gradlew assembleRelease -I ../scripts/use-installed-ndk.init.gradle
+//
+// with `LYRA_NDK_VERSION` set. Unset, this does nothing at all and Gradle goes back to asking for
+// Expo's revision — the previous behaviour, not a silent half-measure.
+gradle.rootProject { root ->
+	def wanted = System.getenv("LYRA_NDK_VERSION")
+	if (wanted) {
+		root.ext.ndkVersion = wanted
+		root.logger.lifecycle("[lyra] ndkVersion = ${wanted} (installed, overriding Expo's default)")
+	} else {
+		root.logger.lifecycle("[lyra] LYRA_NDK_VERSION not set — leaving the NDK revision to Expo")
+	}
+}

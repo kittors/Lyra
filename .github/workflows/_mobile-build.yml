@@ -1,0 +1,189 @@
+# Building and packaging the phone app for both of its platforms.
+#
+# Same arrangement as `_desktop-build.yml` and for the same reason: `release.yml` and
+# `release-dryrun.yml` both call this one file, so the rehearsal cannot drift from the release by
+# somebody editing one of two copies. The only difference between the two callers is whether a
+# missing Android signing key is fatal.
+#
+# Why native builds at all, when `ci.yml` already runs `expo export` on every push: that job asks
+# whether Metro can resolve the JavaScript graph, which is the failure that happens weekly. This
+# one asks whether an installable app comes out, which is the failure that happens once and ruins
+# a release — `expo prebuild` generates the entire Android and Xcode project from `app.json` every
+# time it runs, so a plugin that no longer accepts its options, a permission string that stopped
+# being valid, or an SDK bump that moved a Gradle version are all invisible until something builds.
+#
+# Cost, since it is real: the iOS job is a macOS runner billed at ten times Linux, and a cold
+# archive is 15–25 minutes of it. That is why this is not in `ci.yml` — it runs on a tag and on the
+# rehearsal before a tag, which is where "can this be built at all" is the question being asked.
+name: Mobile build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: What to build. Defaults to whatever the caller is on.
+        type: string
+        required: false
+      require-signing:
+        description: |
+          Whether a missing Android release key stops the build.
+
+          True for a release. An APK signed with React Native's template debug key cannot be
+          replaced by a properly signed one — the phone rejects the update and the user has to
+          uninstall, losing their pairing — and that key is public, so anybody holding it can
+          build an update the phone accepts. False for a rehearsal, which should still rehearse
+          the packaging.
+
+          iOS is unsigned either way; `build-unsigned-ipa.sh` says why.
+        type: boolean
+        default: false
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    # A Gradle build that cannot reach a repository retries for a long time before giving up. Same
+    # lesson as the desktop packaging job: GitHub's default limit is 360 minutes.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: ./.github/actions/setup
+
+      # JDK 17, from the image rather than from an action.
+      #
+      # The runner ships several and points `JAVA_HOME` at whichever it prefers; AGP 8 needs 17 or
+      # newer and React Native's Gradle plugin is tested against 17. Naming it here means a runner
+      # image that changes its default does not change what this builds with.
+      - name: JDK 17
+        run: |
+          if [ ! -d "$JAVA_HOME_17_X64" ]; then
+            echo "::error::The runner image has no JAVA_HOME_17_X64. Pin a JDK explicitly here if that has changed."
+            exit 1
+          fi
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+
+      - name: Android SDK and NDK
+        # Both preinstalled on the Linux image, and worth asserting rather than discovering: without
+        # the SDK, Gradle fails in the configuration phase with "SDK location not found", which reads
+        # like a mistake in this repository and is not one.
+        #
+        # The NDK revision is passed on to the build because Expo names one exact revision that no
+        # image carries; `use-installed-ndk.init.gradle` has the whole story, including what the
+        # failure looks like when it is left alone (it does not look like a missing NDK).
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_HOME:-}${ANDROID_SDK_ROOT:-}" ]; then
+            echo "::error::No Android SDK on this runner. The ubuntu image used to carry one; install it here if that has changed."
+            exit 1
+          fi
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" >> "$GITHUB_ENV"
+
+          if [ -z "${ANDROID_NDK_ROOT:-}" ] || [ ! -d "${ANDROID_NDK_ROOT:-}" ]; then
+            echo "::error::No NDK on this runner ($ANDROID_NDK_ROOT). Reanimated and Worklets compile C++, so this build needs one."
+            exit 1
+          fi
+          echo "LYRA_NDK_VERSION=$(basename "$ANDROID_NDK_ROOT")" >> "$GITHUB_ENV"
+          echo "NDK: $(basename "$ANDROID_NDK_ROOT")"
+
+      - name: What this build is called
+        id: version
+        # Both numbers come from the root `package.json`, which `pnpm release` writes and
+        # `test/version-sync.test.ts` guards. The build number is asked for rather than computed
+        # here, so that the iOS job's script and this step cannot disagree about it —
+        # `build-number.mjs` explains why it is derived at all.
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          code=$(node scripts/build-number.mjs)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Lyra $version, Android versionCode $code"
+
+      # The Android project itself, generated from app.json.
+      #
+      # `--no-install` because the package manager has already run: prebuild's own install step
+      # reaches for npm in a pnpm workspace and rearranges `node_modules` under everything else.
+      - name: Generate the Android project
+        run: pnpm --filter @lyra/mobile exec expo prebuild --platform android --no-install
+
+      - name: Prepare the release key
+        env:
+          REQUIRE_SIGNING: ${{ inputs.require-signing }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash .github/scripts/prepare-android-signing.sh
+
+      - name: Package the APK
+        working-directory: packages/mobile/android
+        # An APK, not an App Bundle: this is installed from a GitHub release, and `.aab` is a
+        # format only Google Play can turn into something a phone will accept.
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -I ../scripts/use-installed-ndk.init.gradle \
+            -Pandroid.injected.version.code=${{ steps.version.outputs.code }}
+
+      - name: Name it after the release, and check what signed it
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          EXPECTED_CODE: ${{ steps.version.outputs.code }}
+        run: bash .github/scripts/finish-android-apk.sh "$VERSION" "$EXPECTED_CODE"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lyra-android
+          path: packages/mobile/dist/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    runs-on: macos-latest
+    # A cold pod install plus an archive is 15–25 minutes. Twice that is something being wrong
+    # rather than slow, and a macOS minute costs ten.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: ./.github/actions/setup
+
+      - name: What this build is called
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Generate the Xcode project
+        # `--no-install` for the node side, then CocoaPods by hand, for the same reason as Android:
+        # prebuild runs both together and the node half reaches for npm in a pnpm workspace.
+        run: |
+          set -euo pipefail
+          pnpm --filter @lyra/mobile exec expo prebuild --platform ios --no-install
+          cd packages/mobile/ios && pod install
+
+      - name: Package the ipa
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/build-unsigned-ipa.sh packages/mobile/dist "$VERSION"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lyra-ios
+          path: packages/mobile/dist/*.ipa
+          if-no-files-found: error
+          retention-days: 14

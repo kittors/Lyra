@@ -72,6 +72,18 @@ Windows 安装包同样没有代码签名。第一次运行会撞上 SmartScreen
 `Lyra-<版本>-<架构>.exe`，一百多 MB，那是安装包**自己**，不是主程序 —— 通常是安装时把目标目录选成了
 安装包所在的文件夹。而只有几百 KB 的 `Uninstall Lyra.exe` 是卸载程序。这两个都不是用来启动应用的。
 
+### 手机端装包
+
+同一个 release 里，手机端两个文件：
+
+- `Lyra-<版本>-android.apk` —— 直接装，第一次会问「是否允许安装未知来源的应用」。
+- `Lyra-<版本>-ios-unsigned.ipa` —— **未签名**，双击装不上。用 Sideloadly、AltStore 或 Xcode 的
+  「Devices and Simulators」自己签一遍再装，免费 Apple ID 就够。这样发的原因是：签名装到别人手机
+  上要 Apple 开发者账号，而一个谁都装不上的 `.ipa` 比没有更糟。
+
+手机端只是个壳，它连的是你自己电脑上的 Lyra——会话、模型、密钥都在电脑上。装完在桌面端
+「设置 → 移动端同步」里开服务，扫码配对。
+
 ## 能力
 
 - **自定义模型**：任意数量的供应商，每个供应商挂任意数量的模型。只对接 **Responses**（`/v1/responses`）和 **Anthropic Messages**（`/v1/messages`）两种格式，不支持 Chat Completions。

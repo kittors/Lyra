@@ -39,8 +39,23 @@ jobs:
       require-signing: true
     secrets: inherit
 
+  # The phone app, on its own two runners. Same file the rehearsal calls.
+  #
+  # `require-signing` is fatal here for the same class of reason as the macOS certificate, with a
+  # different mechanism: Android ties an app's identity to its signing key, so an APK signed with
+  # React Native's public template key can never be updated by a properly signed one.
+  mobile:
+    uses: ./.github/workflows/_mobile-build.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
+      require-signing: true
+    secrets: inherit
+
   publish:
-    needs: build
+    # Both, so a release either carries every platform or is not published. A desktop-only release
+    # published while the phone build was red would be a release whose asset list quietly means
+    # something different from the last one's.
+    needs: [build, mobile]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -55,8 +70,12 @@ jobs:
       # The digests every client checks before it installs.
       #
       # Not the same file the build job wrote — that one covers a single platform's output and is
-      # there to prove the step works. This is the one that ships: every artifact from all three
-      # runners, in one list a person can also check by hand.
+      # there to prove the step works. This is the one that ships: every artifact from all five
+      # runners, desktop and phone alike, in one list a person can also check by hand.
+      #
+      # The phone's two files ride along without being special-cased, and the desktop updater is
+      # unbothered by them: it looks its own filename up in this list rather than reading the list
+      # as a whole (`parseChecksums` in `update-checksum.ts`, keyed by name).
       #
       # `update-checksum.ts` reads it back. A release without it downloads and then refuses to
       # install, which is the intended behaviour for a release nobody can verify.
