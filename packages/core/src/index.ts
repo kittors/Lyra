@@ -203,9 +203,59 @@ export {
 	type Skill,
 	type SkillDiagnostic,
 } from "./skills/index.ts";
-export * from "./tools/index.ts";
-export { builtinTools, useToolRegistry } from "./tools/index.ts";
-export * from "./platform.ts";
+/*
+ * 工具与平台这两处从 `export *` 改成点名。
+ *
+ * `export *` 的代价不是体积，是「加一个导出不需要经过任何人」——而这个文件是根入口，进来的东西
+ * 会被渲染进程当成公共 API 用，而渲染进程从根入口取**值**会把整条 `node:fs` 链拉进浏览器包
+ * （见 `.dependency-cruiser.cjs` 里那条规则，以及它注明的「先看到过一整屏空白」）。点名之后，
+ * 往外开一个口子是一次要写进 diff 的动作。
+ *
+ * `./types.ts` 留着 `export *`，它不是同一件事：那个文件自己就是类型模型的门（三行转出三个
+ * 类型文件），而类型在编译期就擦掉了，不可能被误当成值拉进包里。
+ */
+export {
+	builtinTools,
+	READ_ONLY_TOOL_NAMES,
+	staticTools,
+	useToolRegistry,
+	askUserTool,
+	bashOutputTool,
+	bashTool,
+	isReadOnlyCommand,
+	formatDiff,
+	editTool,
+	globToRegExp,
+	globTool,
+	grepTool,
+	invalidateIndex,
+	symbolTool,
+	lsTool,
+	recallTool,
+	displayPath,
+	resolveWorkspacePath,
+	hasRead,
+	markRead,
+	readTool,
+	AGENTS_KEY,
+	BUILTIN_AGENTS,
+	taskTool,
+	previewTool,
+	readTodos,
+	todoTool,
+	TODOS_KEY,
+	ruleTool,
+	RULES_KEY,
+	htmlToText,
+	webFetchTool,
+	webSearchTool,
+	writeTool,
+	type AgentDefinition,
+	type DiffHunk,
+	type DiffLine,
+	type FileDiff,
+} from "./tools/index.ts";
+export { home, systemShell, within, withinOrIs } from "./platform.ts";
 export * from "./types.ts";
 export {
 	listPreviews,

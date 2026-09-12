@@ -275,6 +275,18 @@ export interface Settings {
 	allowedHosts?: string[];
 	/** Lyra's interface language. `system` follows the operating system without storing a guess. */
 	uiLocale: UiLocale;
+	/**
+	 * 写进文件、但**没有任何代码读它**。
+	 *
+	 * 说清楚是因为它看起来像一个版本化迁移的入口，而这里没有版本化迁移：升级靠的是
+	 * `migrateAppearance`、`migrateRegistries`、`migrateSecrets` 这几张「认得旧值就换成新值」的
+	 * 表，各自独立、幂等，和这个数字无关。照着它写一个 `if (parsed.version < 2) …` 的人会得到
+	 * 一段永远不跑的代码——因为没有任何地方会把它写成 2，也没有任何地方比较过它。
+	 *
+	 * 留着而不是删掉：它已经在每个用户的 `settings.json` 里了，`Settings` 的每个构造点都填了它，
+	 * 而多一个没人读的字段是无害的。真要上按版本迁移的那一天，第一步是让某处开始写它——在那之前
+	 * 这个 `1` 只是一个字面量。
+	 */
 	version: 1;
 	providers: ProviderConfig[];
 	mcpServers: McpServerConfig[];
