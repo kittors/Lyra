@@ -17,10 +17,10 @@ import type {
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
-import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
+import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
-import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
+import { failedStreamEvent, joinUrl } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
@@ -874,23 +874,15 @@ async function* streamChatCompletions(
 			);
 		});
 	} catch (error) {
-		const aborted = options.signal?.aborted;
-		const failure = aborted ? undefined : failureOf(error);
-		partial.stopReason = aborted ? "aborted" : "error";
-		partial.errorMessage = aborted ? "Aborted by user" : (failure?.summary ?? describeFetchError(error, options.signal));
-		partial.errorRetryable = failure ? worthRetrying(failure) : false;
-		partial.failure = failure;
-		partial.usage = addUsage(partial.usage, spentOnRetries);
-		partial.usage = computeCost(partial.usage, model);
-		partial.durationMs = Math.max(1, Date.now() - startTime);
-		if (firstTokenTime !== null) {
-			partial.sseDurationMs = Math.max(1, Date.now() - firstTokenTime);
-		}
-		yield {
-			type: "error",
-			error: partial.errorMessage,
-			message: { ...partial },
-		};
+		// 失败时这条消息长什么样，三条链一致——见 `failedStreamEvent`。
+		yield failedStreamEvent(partial, {
+			error,
+			signal: options.signal,
+			model,
+			spentOnRetries,
+			startTime,
+			firstTokenTime,
+		});
 		return partial;
 	}
 

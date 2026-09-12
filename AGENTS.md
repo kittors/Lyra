@@ -20,6 +20,7 @@ pnpm install
 pnpm lint        # oxlint，--deny-warnings：警告等于失败
 pnpm typecheck   # 7 个包
 pnpm test        # 单元测试，含组件测试
+node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑一遍
 pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 ```
 

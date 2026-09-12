@@ -13,7 +13,7 @@ import { test } from "node:test";
 import { toAnthropicMessages } from "../src/ai/anthropic-messages-request.ts";
 import { toChatCompletionsMessages } from "../src/ai/openai-chat-completions-request.ts";
 import { toResponsesInput } from "../src/ai/openai-responses-request.ts";
-import { joinUrl } from "../src/ai/anthropic-messages.ts";
+import { joinUrl } from "../src/ai/endpoint.ts";
 import { sanitizeToolPairing } from "../src/ai/sanitize-history.ts";
 import { argumentFragment } from "../src/utils/sse.ts";
 import { learnReasoningReplay, reasoningReplay, resetReasoningCompat } from "../src/ai/reasoning-compat.ts";

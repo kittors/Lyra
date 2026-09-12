@@ -63,6 +63,12 @@ src/
 | 只有一个域读写的状态 | `features/<域>/store.ts` |
 | 两个以上域读写的状态 | `store/` |
 
+**「读写」两个字都算，数的时候别只数读。** 2026-09-12 的审计按「有几个文件读它」判断，点名
+`store/index.ts` 里七个字段「只有一个 feature 文件读，违反这条规则」——逐个查下来七个全是跨域的，
+而且是最典型的那种：`composerDraft` 一个域读、**七个域写**（子智能体面板、吐司、插件、PR、Git、
+空状态都往主输入框塞过文字），`settingsSection` 九处写，`ruleOffer` 由 agent 事件写、conversation
+读。一个域读、多个域写，正是这张表存在的理由，不是违反它。
+
 前两条由 `pnpm arch` 与 oxlint 强制。
 
 ## 边界
