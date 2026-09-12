@@ -121,7 +121,17 @@ export interface AppearanceSettings {
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-	theme: "dark",
+	/*
+	 * 跟着系统走，而不是钉死深色。
+	 *
+	 * 主进程一侧一直是这个行为：`window.ts` 读不到设置时按 `nativeTheme.shouldUseDarkColors` 画启动
+	 * 屏，而这里却把没选过主题的人一律归为深色。两边不一致的代价不是审美问题——系统是浅色的机器上，
+	 * 启动屏按系统画成浅色，渲染进程一加载又被这行拽回深色，开机第一眼是一次闪烁。
+	 *
+	 * 只影响没表过态的人：`normalizeSettings` 是 `{ ...DEFAULT_APPEARANCE, ...parsed.appearance }`，
+	 * 谁在设置里选过深色，选的就还在。
+	 */
+	theme: "system",
 	accent: "#339CFF",
 	lightBackground: "#FFFFFF",
 	lightForeground: "#1A1C1F",
