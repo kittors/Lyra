@@ -39,7 +39,7 @@
     "@types/node": "24.13.3",
     "dependency-cruiser": "^18.2.0",
     "git-cliff": "^2.13.1",
-    "knip": "^6.33.0",
+    "knip": "^6.35.1",
     "lefthook": "^2.1.12",
     "oxlint": "^1.80.0",
     "stylelint": "^17.14.1",
