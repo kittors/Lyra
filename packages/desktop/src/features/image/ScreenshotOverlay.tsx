@@ -19,11 +19,9 @@ import { translate } from "../../i18n/translate.ts";
 import { Check, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotSettings } from "@lyra/core";
-import {
-	AnnotateCanvas,
-	AnnotateToolbar,
-	useAnnotator,
-} from "./Annotator.tsx";
+import { useAnnotator } from "./Annotator.tsx";
+import { AnnotateCanvas } from "./AnnotateCanvas.tsx";
+import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
 import { ScreenshotLoupe, type LoupeReading } from "./ScreenshotLoupe.tsx";
 import { bridge } from "../../services/index.ts";
 import {

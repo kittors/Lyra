@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FLOATING_BAR } from "../../src/features/image/Annotator.tsx";
+import { FLOATING_BAR } from "../../src/features/image/AnnotateToolbar.tsx";
 
 /** Tailwind 里所有会写 `position` 的工具类。 */
 const POSITIONS = new Set(["static", "fixed", "absolute", "relative", "sticky"]);

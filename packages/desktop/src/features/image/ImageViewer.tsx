@@ -25,7 +25,9 @@ import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";
-import { AnnotateCanvas, AnnotateToolbar, STAGE_FIT, useAnnotator } from "./Annotator.tsx";
+import { useAnnotator } from "./Annotator.tsx";
+import { AnnotateCanvas, STAGE_FIT } from "./AnnotateCanvas.tsx";
+import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { EASING } from "../../ui/motion/tokens.ts";
