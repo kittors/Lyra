@@ -5,6 +5,162 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.11](https://github.com/kittors/Lyra/releases/tag/v0.9.11) - 2026-09-12
+
+<!-- lyra:notes zh-CN -->
+
+### 修复
+
+- **子智能体提交结果后不再空转。** 子智能体调用 `yield` 交付之后，会话循环仍会向模型追加一轮请求。这轮请求没有接收方：答案就是刚才交付的那个对象，模型此时无话可说，返回的空回答被判定为上游故障并进入重试。在「一直重试」设置下，同一个请求可以重复发送数百次，而已经生成好的结果始终送不到调用方。现在交付即结束，空回答另有自己的重试上限（4 次）；断线与服务端错误的重试策略不变。
+
+- **子智能体重连时，界面会说明它在等什么。** 此前重连过程在界面上没有任何提示，唯一的迹象是一个持续转动的任务。现在面板与状态条会显示重试次数和失败原因，重试不计入工具调用次数。按下停止时，子智能体已经产出的内容也会保留在面板上。
+
+- **运行时的 token 统计与速度计入子智能体。** 运行指示器此前只统计主智能体自身的消耗：派发四个子智能体后，显示的数值与实际相差一个数量级；主智能体等待期间，速度读数会停在极低的水平。会话列表与用量统计页此前已正确统计，不受影响。同时移除了三处重复显示的「本次编排合计」。
+
+- **默认主题改为跟随系统。** 主进程在读不到设置时按系统外观绘制启动屏，而默认值将未选择过主题的用户一律视为深色。两者不一致，在浅色系统上表现为启动瞬间的闪烁。已在设置中选择过主题的用户不受影响。
+
+- **五个工具恢复可用。** recall、rule、learn、lsp、web_search 此前在桌面端从未提供给模型。
+
+- **「禁止命令联网」开关现在真正生效。** 此前这个设置可以配置，但没有传递到命令执行的一层。
+
+- **删除工作树不会再误删普通目录。** 当传入的路径不是 git 工作树时，`git worktree remove` 失败后的兜底逻辑会递归删除该目录。现在只删除 git 自身列出的工作树，相关接口补充了项目路径校验。
+
+- **修复两处流式响应处理。** Anthropic 链路会把中断的流当作完整回答；两条 OpenAI 链路在上游停止响应时会无限等待。
+
+- **上下文压缩的三项参数在桌面端恢复传递。**
+
+<!-- lyra:notes zh-TW -->
+
+### 修復
+
+- **子智慧體提交結果後不再空轉。** 子智慧體呼叫 `yield` 交付之後，工作階段迴圈仍會向模型追加一輪請求。這輪請求沒有接收方：答案就是剛才交付的那個物件，模型此時無話可說，回傳的空回答被判定為上游故障並進入重試。在「一直重試」設定下，同一個請求可以重複傳送數百次，而已經產生好的結果始終送不到呼叫方。現在交付即結束，空回答另有自己的重試上限（4 次）；斷線與伺服器錯誤的重試策略不變。
+
+- **子智慧體重新連線時，介面會說明它在等什麼。** 此前重新連線的過程在介面上沒有任何提示，唯一的跡象是一個持續轉動的任務。現在面板與狀態列會顯示重試次數和失敗原因，重試不計入工具呼叫次數。按下停止時，子智慧體已經產出的內容也會保留在面板上。
+
+- **執行時的 token 統計與速度計入子智慧體。** 執行指示器此前只統計主智慧體自身的消耗：派發四個子智慧體後，顯示的數值與實際相差一個數量級；主智慧體等待期間，速度讀數會停在極低的水準。工作階段清單與用量統計頁此前已正確統計，不受影響。同時移除了三處重複顯示的「本次編排合計」。
+
+- **預設佈景主題改為跟隨系統。** 主行程在讀不到設定時按系統外觀繪製啟動畫面，而預設值將未選擇過佈景主題的使用者一律視為深色。兩者不一致，在淺色系統上表現為啟動瞬間的閃爍。已在設定中選擇過佈景主題的使用者不受影響。
+
+- **五個工具恢復可用。** recall、rule、learn、lsp、web_search 此前在桌面端從未提供給模型。
+
+- **「禁止命令連網」開關現在真正生效。** 此前這個設定可以設定，但沒有傳遞到命令執行的那一層。
+
+- **刪除工作樹不會再誤刪一般目錄。** 當傳入的路徑不是 git 工作樹時，`git worktree remove` 失敗後的備援邏輯會遞迴刪除該目錄。現在只刪除 git 自身列出的工作樹，相關介面補上了專案路徑檢查。
+
+- **修復兩處串流回應處理。** Anthropic 鏈路會把中斷的串流當作完整回答；兩條 OpenAI 鏈路在上游停止回應時會無限等待。
+
+- **上下文壓縮的三項參數在桌面端恢復傳遞。**
+
+<!-- lyra:notes en -->
+
+### Fixes
+
+- **A sub-agent no longer spins after delivering its result.** Once a sub-agent called `yield`, the session loop still sent one more request to the model. That request has no recipient — the answer is the object just delivered — so the model had nothing left to say, and the empty reply that came back was classified as an upstream failure and retried. Under the "retry indefinitely" setting the same request could go out hundreds of times while the finished result never reached the caller. Delivery now ends the run, and empty replies carry a retry ceiling of their own (four). Retry behaviour for dropped connections and server errors is unchanged.
+
+- **While a sub-agent is reconnecting, the interface says what it is waiting for.** Reconnection used to be invisible; the only sign was a task that kept spinning. The pane and the status line now show the attempt count and the reason, and retries are not counted as tool calls. Stopping a sub-agent also keeps whatever it had already produced.
+
+- **Token counts and speed during a run include sub-agents.** The running indicator counted only the main agent's own usage: with four sub-agents dispatched, the figure sat an order of magnitude below the real one, and the rate reading dropped to near zero while the main agent waited. The session list and the usage page already counted correctly and are unaffected. Three duplicate "orchestration total" readouts have been removed.
+
+- **The default theme now follows the system.** With no setting present the main process paints the boot screen from the system appearance, while the default treated anyone who had never chosen a theme as dark. On a light system the mismatch showed as a flash at startup. Anyone who has chosen a theme is unaffected.
+
+- **Five tools are available again.** recall, rule, learn, lsp and web_search were never offered to the model on desktop.
+
+- **The "no network for commands" switch now takes effect.** The setting could be configured but was not passed down to the layer where commands run.
+
+- **Removing a worktree no longer deletes an ordinary directory.** When the path given was not a git worktree, the fallback after `git worktree remove` failed deleted that directory recursively. Only worktrees git itself lists are removed now, and the related endpoints check that the path is inside a project.
+
+- **Two stream-handling fixes.** The Anthropic path treated a truncated stream as a complete reply; the two OpenAI paths waited indefinitely when the upstream stopped responding.
+
+- **Three context-compaction parameters are passed through again on desktop.**
+
+<!-- lyra:notes ja -->
+
+### 修正
+
+- **サブエージェントが結果を提出したあとに空回りしなくなりました。** サブエージェントが `yield` で結果を提出したあとも、セッションループはモデルへのリクエストをもう一度送っていました。このリクエストには受け取り手がありません。答えは提出済みのオブジェクトそのものであり、モデルには言うことが残っていないため、返ってくる空の応答が上流の障害と判定されて再試行に入ります。「無制限に再試行」の設定では同じリクエストが数百回送られ、その間、完成済みの結果は呼び出し元に届きませんでした。提出をもって実行を終了するようにし、空の応答には独自の再試行上限（4 回）を設けました。接続断とサーバーエラーの再試行方針は変わりません。
+
+- **サブエージェントの再接続中、何を待っているかが画面に表示されます。** これまで再接続は画面上に何の手がかりもなく、回り続けるタスクだけが唯一の兆候でした。パネルとステータス行に再試行の回数と理由が出るようになり、再試行はツール呼び出し回数に数えません。停止した場合も、そのサブエージェントがすでに出力した内容はパネルに残ります。
+
+- **実行中のトークン数と速度にサブエージェント分を含めるようにしました。** 実行インジケーターはメインエージェント自身の消費しか数えていませんでした。サブエージェントを四つ動かすと表示値は実際より一桁小さく、メインエージェントの待機中は速度表示がほぼ止まった値のままでした。セッション一覧と使用量ページはすでに正しく集計しており、影響はありません。あわせて、重複していた三か所の「オーケストレーション合計」表示を削除しました。
+
+- **既定のテーマをシステム連動に変更しました。** 設定が無い場合、メインプロセスはシステムの外観に合わせて起動画面を描画しますが、既定値はテーマを選んだことのない利用者をすべてダークとして扱っていました。ライト設定のシステムでは、この食い違いが起動時のちらつきとして現れます。設定でテーマを選んだことのある利用者に影響はありません。
+
+- **五つのツールが再び利用できます。** recall、rule、learn、lsp、web_search はデスクトップ版でモデルに提示されていませんでした。
+
+- **「コマンドのネットワークを禁止」スイッチが実際に効くようになりました。** 設定はできるものの、コマンドを実行する層まで渡っていませんでした。
+
+- **ワークツリーの削除で通常のディレクトリを消してしまうことがなくなりました。** 渡されたパスが git のワークツリーでない場合、`git worktree remove` の失敗後のフォールバックがそのディレクトリを再帰的に削除していました。現在は git 自身が列挙したワークツリーだけを削除し、関連するエンドポイントでもパスがプロジェクト内にあるかを確認します。
+
+- **ストリーム処理の修正を二件。** Anthropic 系統は途中で切れたストリームを完全な応答として扱っていました。OpenAI 系統の二つは、上流が応答を止めた場合に無限に待ち続けていました。
+
+- **コンテキスト圧縮の三つのパラメータがデスクトップ版で再び渡されるようになりました。**
+
+<!-- lyra:notes ko -->
+
+### 수정
+
+- **서브 에이전트가 결과를 제출한 뒤 공회전하지 않습니다.** 서브 에이전트가 `yield`로 결과를 제출한 뒤에도 세션 루프는 모델에 요청을 한 번 더 보냈습니다. 이 요청에는 받는 쪽이 없습니다. 답은 방금 제출한 객체 자체이므로 모델은 더 할 말이 없고, 돌아오는 빈 응답이 업스트림 장애로 분류되어 재시도에 들어갑니다. "무제한 재시도" 설정에서는 같은 요청이 수백 번 나가는 동안 이미 완성된 결과가 호출한 쪽에 전달되지 못했습니다. 이제 제출과 함께 실행이 끝나며, 빈 응답에는 별도의 재시도 상한(4회)을 두었습니다. 연결 끊김과 서버 오류의 재시도 정책은 그대로입니다.
+
+- **서브 에이전트가 재연결 중일 때 무엇을 기다리는지 화면에 표시됩니다.** 그동안 재연결은 화면에 아무런 단서가 없었고, 계속 돌아가는 작업 표시만이 유일한 흔적이었습니다. 이제 패널과 상태 줄에 재시도 횟수와 실패 이유가 표시되며, 재시도는 도구 호출 횟수에 포함되지 않습니다. 중지한 경우에도 서브 에이전트가 이미 만들어 둔 내용은 패널에 남습니다.
+
+- **실행 중 토큰 집계와 속도에 서브 에이전트가 포함됩니다.** 실행 표시기는 메인 에이전트 자신의 사용량만 집계했습니다. 서브 에이전트를 넷 띄우면 표시되는 값이 실제보다 한 자릿수 작았고, 메인 에이전트가 기다리는 동안 속도 표시는 거의 0에 머물렀습니다. 세션 목록과 사용량 페이지는 이미 올바르게 집계하고 있어 영향이 없습니다. 아울러 중복으로 표시되던 세 곳의 "오케스트레이션 합계"를 제거했습니다.
+
+- **기본 테마를 시스템 설정에 따르도록 변경했습니다.** 설정이 없을 때 메인 프로세스는 시스템 외관에 맞춰 시작 화면을 그리지만, 기본값은 테마를 고른 적이 없는 사용자를 모두 다크로 취급했습니다. 라이트 시스템에서는 이 불일치가 시작 시 깜빡임으로 나타납니다. 설정에서 테마를 고른 적이 있는 사용자는 영향을 받지 않습니다.
+
+- **다섯 개 도구를 다시 사용할 수 있습니다.** recall, rule, learn, lsp, web_search는 데스크톱에서 모델에 제공된 적이 없었습니다.
+
+- **"명령의 네트워크 차단" 스위치가 실제로 동작합니다.** 설정은 가능했지만 명령이 실행되는 계층까지 전달되지 않았습니다.
+
+- **워크트리 삭제가 일반 디렉터리를 지우지 않습니다.** 전달된 경로가 git 워크트리가 아닐 때, `git worktree remove` 실패 후의 대체 처리가 그 디렉터리를 재귀적으로 삭제했습니다. 이제 git이 직접 나열한 워크트리만 삭제하며, 관련 엔드포인트에서도 경로가 프로젝트 안에 있는지 확인합니다.
+
+- **스트림 처리 수정 두 건.** Anthropic 경로는 중간에 끊긴 스트림을 완전한 응답으로 취급했습니다. OpenAI 두 경로는 업스트림이 응답을 멈추면 무한히 기다렸습니다.
+
+- **컨텍스트 압축의 세 가지 매개변수가 데스크톱에서 다시 전달됩니다.**
+
+<!-- lyra:notes fr -->
+
+### Corrections
+
+- **Un sous-agent ne tourne plus à vide après avoir livré son résultat.** Une fois `yield` appelé, la boucle de session envoyait encore une requête au modèle. Cette requête n'a pas de destinataire : la réponse est l'objet qui vient d'être livré, le modèle n'a donc plus rien à dire, et la réponse vide qui revenait était classée comme panne amont puis réessayée. Avec le réglage « réessayer indéfiniment », la même requête pouvait partir des centaines de fois sans que le résultat déjà produit n'atteigne jamais l'appelant. La livraison met désormais fin à l'exécution, et les réponses vides ont leur propre plafond de réessais (quatre). La politique de réessai pour les coupures de connexion et les erreurs serveur est inchangée.
+
+- **Pendant la reconnexion d'un sous-agent, l'interface indique ce qui est attendu.** La reconnexion n'apparaissait nulle part ; seul un indicateur de tâche qui continuait de tourner la trahissait. Le panneau et la ligne d'état affichent maintenant le nombre de tentatives et la raison de l'échec, et les réessais ne comptent pas comme des appels d'outil. À l'arrêt, ce que le sous-agent avait déjà produit reste affiché.
+
+- **Le comptage des jetons et la vitesse en cours d'exécution incluent les sous-agents.** L'indicateur ne comptait que la consommation de l'agent principal : avec quatre sous-agents lancés, la valeur affichée était inférieure d'un ordre de grandeur, et la vitesse restait proche de zéro pendant que l'agent principal attendait. La liste des sessions et la page d'utilisation comptaient déjà correctement et ne sont pas concernées. Trois affichages redondants du « total d'orchestration » ont été retirés.
+
+- **Le thème par défaut suit désormais le système.** Sans réglage enregistré, le processus principal dessine l'écran de démarrage d'après l'apparence du système, alors que la valeur par défaut considérait comme sombre tout utilisateur n'ayant jamais choisi de thème. Sur un système clair, cet écart se voyait comme un clignotement au démarrage. Les utilisateurs ayant choisi un thème ne sont pas concernés.
+
+- **Cinq outils sont de nouveau disponibles.** recall, rule, learn, lsp et web_search n'avaient jamais été proposés au modèle sur le bureau.
+
+- **L'option « interdire le réseau aux commandes » prend maintenant effet.** Le réglage était configurable mais n'était pas transmis à la couche qui exécute les commandes.
+
+- **La suppression d'un worktree n'efface plus un répertoire ordinaire.** Lorsque le chemin fourni n'était pas un worktree git, le repli après l'échec de `git worktree remove` supprimait ce répertoire de façon récursive. Seuls les worktrees que git lui-même répertorie sont désormais supprimés, et les points d'entrée concernés vérifient que le chemin se trouve dans un projet.
+
+- **Deux corrections sur le traitement des flux.** La voie Anthropic traitait un flux interrompu comme une réponse complète ; les deux voies OpenAI attendaient indéfiniment lorsque l'amont cessait de répondre.
+
+- **Trois paramètres de compression du contexte sont de nouveau transmis sur le bureau.**
+
+<!-- lyra:notes ru -->
+
+### Исправления
+
+- **Субагент больше не работает вхолостую после выдачи результата.** После вызова `yield` цикл сессии всё равно отправлял модели ещё один запрос. У этого запроса нет получателя: ответом является только что переданный объект, модели больше нечего сказать, а приходивший пустой ответ классифицировался как сбой вышестоящего сервиса и уходил в повтор. При настройке «повторять бесконечно» один и тот же запрос мог уйти сотни раз, а готовый результат так и не доходил до вызывающей стороны. Теперь выдача завершает выполнение, а у пустых ответов есть собственный предел повторов (четыре). Политика повторов при обрыве связи и ошибках сервера не изменилась.
+
+- **Во время переподключения субагента интерфейс сообщает, чего он ждёт.** Раньше переподключение никак не отображалось — единственным признаком была бесконечно вращающаяся задача. Теперь панель и строка состояния показывают номер попытки и причину сбоя, а повторы не учитываются как вызовы инструментов. При остановке всё, что субагент уже успел выдать, остаётся в панели.
+
+- **Подсчёт токенов и скорость во время работы учитывают субагентов.** Индикатор считал только расход самого основного агента: при четырёх запущенных субагентах показываемое значение было на порядок меньше реального, а показатель скорости держался у нуля, пока основной агент ждал. Список сессий и страница статистики считали правильно и не затронуты. Также убраны три дублирующих показа «итога оркестровки».
+
+- **Тема по умолчанию теперь следует за системой.** Без сохранённой настройки основной процесс рисует экран запуска по системному оформлению, тогда как значение по умолчанию считало тёмной тему для всех, кто её ни разу не выбирал. В светлой системе это расхождение выглядело как мерцание при запуске. Тех, кто выбрал тему в настройках, изменение не затрагивает.
+
+- **Пять инструментов снова доступны.** recall, rule, learn, lsp и web_search никогда не передавались модели в настольной версии.
+
+- **Переключатель «запретить командам доступ к сети» теперь действительно работает.** Настройку можно было задать, но она не доходила до слоя, где выполняются команды.
+
+- **Удаление рабочего дерева больше не стирает обычный каталог.** Если переданный путь не был рабочим деревом git, запасная ветка после неудачи `git worktree remove` удаляла этот каталог рекурсивно. Теперь удаляются только рабочие деревья, перечисленные самим git, а соответствующие точки входа проверяют, что путь находится внутри проекта.
+
+- **Два исправления в обработке потоков.** В ветке Anthropic оборванный поток считался полным ответом; две ветки OpenAI бесконечно ждали, если вышестоящий сервис переставал отвечать.
+
+- **Три параметра сжатия контекста снова передаются в настольной версии.**
+
 ## [0.9.10](https://github.com/kittors/Lyra/releases/tag/v0.9.10) - 2026-09-11
 
 <!-- lyra:notes zh-CN -->
