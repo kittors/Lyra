@@ -103,9 +103,8 @@ jobs:
       - name: What this build is called
         id: version
         # Both numbers come from the root `package.json`, which `pnpm release` writes and
-        # `test/version-sync.test.ts` guards. The build number is asked for rather than computed
-        # here, so that the iOS job's script and this step cannot disagree about it —
-        # `build-number.mjs` explains why it is derived at all.
+        # `test/version-sync.test.ts` guards. The build number is only wanted here to check the
+        # APK against afterwards: the value that reaches the build is the one in `app.json`.
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
@@ -134,10 +133,12 @@ jobs:
         working-directory: packages/mobile/android
         # An APK, not an App Bundle: this is installed from a GitHub release, and `.aab` is a
         # format only Google Play can turn into something a phone will accept.
-        run: |
-          ./gradlew assembleRelease --no-daemon \
-            -I ../scripts/use-installed-ndk.init.gradle \
-            -Pandroid.injected.version.code=${{ steps.version.outputs.code }}
+        #
+        # No `-Pandroid.injected.version.code` here, and that is the fix for a measured failure
+        # rather than a simplification: the property was passed, Gradle accepted it without a
+        # word, and the APK came out carrying versionCode 1. The number is in `app.json` now,
+        # which is where `expo prebuild` reads the rest of the app's identity from.
+        run: ./gradlew assembleRelease --no-daemon -I ../scripts/use-installed-ndk.init.gradle
 
       - name: Name it after the release, and check what signed it
         env:

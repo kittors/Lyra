@@ -7,12 +7,12 @@
 #   the name says which release it belongs to, and — when there was no keystore — that it is not
 #   one. `app-release.apk` in a release's asset list is a file nobody can place.
 #
-#   the APK is read back and asked what it actually is. Both of the things this pipeline injects
-#   go in as Gradle properties, which are the kind of input that fails by being ignored:
-#   `android.injected.version.code` is read by AGP, not by the build file, so a property name that
-#   stops being honoured leaves `versionCode 1` in place — the value the template wrote, the value
-#   that makes every release unable to update any other — and the build stays green. Same for the
-#   signature: injected signing silently falling back to the debug key looks exactly like success.
+#   the APK is read back and asked what it actually is. Everything that decides the identity of
+#   this file is an input Gradle is free to ignore without saying so, and one of them already did:
+#   `-Pandroid.injected.version.code=9011` was accepted, the build succeeded, and the APK came out
+#   carrying versionCode 1 — the value the template wrote, the value that makes every release
+#   unable to update any other. That is the check below, and it is the check that found it. The
+#   signing properties fail the same way: falling back to the debug key looks exactly like success.
 #
 # So the digest of this step is: the artifact says what it is, and what it says was measured.
 #
@@ -60,7 +60,7 @@ echo "versionCode: $CODE (expected $EXPECTED_CODE)"
 echo "versionName: $NAME (expected $VERSION)"
 
 if [ "$CODE" != "$EXPECTED_CODE" ]; then
-	echo "::error::The APK carries versionCode $CODE, not $EXPECTED_CODE. \`android.injected.version.code\` was not honoured, so this release could not update any other."
+	echo "::error::The APK carries versionCode $CODE, not $EXPECTED_CODE. app.json's android.versionCode did not reach the build, so this release could not update any other."
 	exit 1
 fi
 if [ "$NAME" != "$VERSION" ]; then

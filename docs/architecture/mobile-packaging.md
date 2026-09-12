@@ -56,19 +56,24 @@ buildTypes { release { … signingConfig signingConfigs.debug } }
 没有 release 的 tag。所以 `pnpm release` 自己问一次 `gh secret list`（`androidKeyOrStop`）；读不到
 secret 列表（gh 没有 admin 权限）时只提示不拦，因为「读不到」不等于「没有」。
 
-### versionCode 是算出来的，不是存下来的
+### 构建号：算出来，写进 app.json
 
-`app.json` 没写 `android.versionCode`，prebuild 就写 `versionCode 1`。而 Android 拒绝安装
-versionCode 比已装版本低的包——每个版本都带 1，等于任何版本都更新不了任何版本。
+不写的话，prebuild 就给 `versionCode 1`、`CFBundleVersion 1`。而 Android 拒绝安装 versionCode
+不高于已装版本的包——每个版本都带 1，等于任何版本都更新不了任何版本，而且它不会说为什么。
 
-它由根 `package.json` 的版本号算出来：`major * 1000000 + minor * 1000 + patch`（0.9.11 → 9011）。
-算而不是存，是因为存在第二处的数字会漂——这个仓库有伤疤，`app.json` 的版本号在 0.1.0 上停了
-三十五个版本。
+数字由根 `package.json` 的版本号算出来：`major * 1000000 + minor * 1000 + patch`（0.9.11 →
+9011），实现在 `scripts/versions.mjs` 的 `buildNumber()`。算而不是各写一遍，是因为第二处的数字会
+漂——这个仓库有伤疤，`app.json` 的版本号在 0.1.0 上停了三十五个版本。
 
-两个注入值都通过 Gradle property 进去（`android.injected.version.code`、
-`android.injected.signing.*`），而 property 的失败方式是**被忽略**：名字哪天不再被 AGP 认，
-构建照样绿，出来的包却带着 `versionCode 1` 和 debug 签名。所以 `finish-android-apk.sh` 在打完包
-之后把 APK 读回来——`aapt2` 问 versionCode 和 versionName，`apksigner` 问签名证书——对不上就红。
+算完由 `pnpm release` 写进 `app.json` 的 `android.versionCode` 与 `ios.buildNumber`，
+`test/version-sync.test.ts` 守着它跟版本号对得上。**不走 Gradle property**，这一条是在真 runner
+上换来的：`-Pandroid.injected.version.code=9011` 传进去，Gradle 一声不吭地接受，构建绿，出来的
+APK 带着 `versionCode 1`。property 的失败方式就是被忽略。
+
+签名仍然只能走 property（`android.injected.signing.*`），失败方式同理——静静地退回 debug 签名，
+看起来跟成功一模一样。所以 `finish-android-apk.sh` 在打完包之后把 APK 读回来：`aapt2` 问
+versionCode 和 versionName，`apksigner` 问签名证书，对不上就红。那个 versionCode 检查不是摆设，
+上面那次注入失败就是它抓到的。
 
 ## iOS：不签名，以及这不是将来的样子
 

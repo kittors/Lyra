@@ -12,6 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.lyra.app",
+      "buildNumber": "9011",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
@@ -20,6 +21,7 @@
     },
     "android": {
       "package": "dev.lyra.app",
+      "versionCode": 9011,
       "icon": "../../assets/lyra.png",
       "adaptiveIcon": {
         "foregroundImage": "../../assets/lyra.png",

@@ -25,7 +25,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { ALL, ROOT, SOURCE, readVersion, writeVersion } from "./versions.mjs";
+import { ALL, ROOT, SOURCE, readVersion, writeBuildNumber, writeVersion } from "./versions.mjs";
 
 const run = promisify(execFile);
 
@@ -208,6 +208,10 @@ async function main() {
 
 	note(`写版本号（${ALL.length} 处）`);
 	for (const relative of ALL) await writeVersion(relative, version);
+
+	// The two numbers the phone installs by. They are in app.json and not in the build command
+	// because `android/` and `ios/` do not exist until a runner generates them from app.json.
+	note(`写手机端构建号（${await writeBuildNumber(version)}）`);
 
 	note("生成 CHANGELOG");
 	const previous = await must("git", ["describe", "--tags", "--abbrev=0"]);

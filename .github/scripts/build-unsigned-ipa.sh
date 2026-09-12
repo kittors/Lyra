@@ -61,17 +61,14 @@ echo "scheme:    $SCHEME"
 ARCHIVE="$OUT_DIR/$SCHEME.xcarchive"
 mkdir -p "$OUT_DIR"
 
-# The build number, which prebuild leaves at 1 for every release.
+# What the build number should turn out to be. Only for checking: the value that reaches the build
+# is `ios.buildNumber` in app.json, which prebuild writes into the generated Info.plist. iOS
+# expects it to rise between builds of the same version string, and `Devices and Simulators` uses
+# it to decide whether what you are installing is newer than what is on the phone.
 #
-# `app.json` does not set `ios.buildNumber`, so the generated Info.plist carries a literal `1` —
-# not a `$(CURRENT_PROJECT_VERSION)` a build setting could override, which is why this is an edit
-# to the file rather than an argument to xcodebuild. iOS expects the number to rise between builds
-# of the same version string, and `Devices and Simulators` uses it to decide whether what you are
-# installing is newer than what is on the phone.
-#
-# Same number Android's versionCode gets, from the same script, for the same reason it exists.
+# Same number Android's versionCode gets, and the same reason it is derived rather than stored —
+# `scripts/versions.mjs` has that.
 BUILD_NUMBER=$(node scripts/build-number.mjs)
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$IOS/$SCHEME/Info.plist"
 echo "build number: $BUILD_NUMBER"
 
 # `CODE_SIGNING_ALLOWED=NO` is the whole of "unsigned".
@@ -131,6 +128,6 @@ if [ "$BUILT_VERSION" != "$VERSION" ]; then
 	exit 1
 fi
 if [ "$BUILT_BUILD" != "$BUILD_NUMBER" ]; then
-	echo "::error::the app carries build number $BUILT_BUILD, not $BUILD_NUMBER — the Info.plist edit did not reach the build."
+	echo "::error::the app carries build number $BUILT_BUILD, not $BUILD_NUMBER — app.json's ios.buildNumber did not reach the build."
 	exit 1
 fi

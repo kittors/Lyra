@@ -52,3 +52,42 @@ export async function writeVersion(relative, version) {
 }
 
 export const ALL = [...MANIFESTS, EXPO_MANIFEST];
+
+/**
+ * The integer both platforms want for a native build, derived from the version they already share.
+ *
+ * Android calls it `versionCode` and refuses an APK whose number is not higher than the installed
+ * one; iOS calls it `CFBundleVersion` and expects it to rise between builds of the same version
+ * string. Neither accepts `0.9.11`.
+ *
+ * `major * 1000000 + minor * 1000 + patch`, so 0.9.11 → 9011 and 1.0.0 → 1000000. It rises with
+ * the version as long as minor and patch stay under 1000, and throws rather than returning a
+ * number that goes backwards if either ever reaches 1000.
+ */
+export function buildNumber(version) {
+	const parts = version.split(".").map(Number);
+	if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n) || n < 0)) throw new Error(`不是 x.y.z：${version}`);
+	const [major, minor, patch] = parts;
+	if (minor > 999 || patch > 999) throw new Error(`${version} 的 minor 或 patch 超过 999，这个进位方式会让构建号倒退——先改这里的算法`);
+	return major * 1000000 + minor * 1000 + patch;
+}
+
+/**
+ * Write that integer into `app.json`, where `expo prebuild` will pick it up.
+ *
+ * It lives in the manifest rather than being passed to the build because `app.json` is the only
+ * description of the app that exists — `android/` and `ios/` are generated. The alternative was
+ * `-Pandroid.injected.version.code`, which was tried on a runner: Gradle accepted the property,
+ * the build succeeded, and the APK came out carrying versionCode 1 anyway.
+ */
+export async function writeBuildNumber(version) {
+	const path = join(ROOT, EXPO_MANIFEST);
+	const text = await readFile(path, "utf8");
+	const code = buildNumber(version);
+	const android = /("versionCode"\s*:\s*)(\d+)/;
+	const ios = /("buildNumber"\s*:\s*")([^"]+)(")/;
+	if (!android.test(text)) throw new Error(`${EXPO_MANIFEST} 里找不到 android.versionCode`);
+	if (!ios.test(text)) throw new Error(`${EXPO_MANIFEST} 里找不到 ios.buildNumber`);
+	await writeFile(path, text.replace(android, `$1${code}`).replace(ios, `$1${code}$3`));
+	return code;
+}
