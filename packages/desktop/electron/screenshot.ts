@@ -134,9 +134,9 @@ let capture: Capture = idleCapture(0);
 function clearFailsafe(): void {
 	if (capture.failsafe) clearTimeout(capture.failsafe);
 	capture.failsafe = null;
-	if (paintFallback) clearTimeout(paintFallback);
-	paintFallback = null;
-	awaitingPaint = null;
+	if (paint.fallback) clearTimeout(paint.fallback);
+	paint.fallback = null;
+	paint.window = null;
 }
 
 /**
@@ -747,8 +747,8 @@ function warmFirstPresentation(win: BrowserWindow): void {
 	 * Long enough for the compositor to produce a frame, which is what allocates the surface —
 	 * returning sooner would hide the window again before the work this exists to do has happened.
 	 */
-	warmingPresentation = setTimeout(() => {
-		warmingPresentation = null;
+	paint.warming = setTimeout(() => {
+		paint.warming = null;
 		if (win.isDestroyed()) return;
 		win.hide();
 		win.setOpacity(1);
@@ -756,12 +756,26 @@ function warmFirstPresentation(win: BrowserWindow): void {
 	}, 220);
 }
 
-/** The invisible first presentation, while it is on screen. See `warmFirstPresentation`. */
-let warmingPresentation: NodeJS.Timeout | null = null;
+/**
+ * 「窗口已经在屏上、但还没画出东西」这件事的状态。
+ *
+ * 三个字段，和上面那个 `Capture` 同一个理由收在一起：它们互相牵着——`paint.window` 有值时
+ * `paint.fallback` 必须挂着，反过来也是——而散成三个模块级 `let` 的时候，这条不变式没有任何一处
+ * 写得下来。`clearFailsafe` 和 `overlayPainted` 都要同时动它们，谁漏一个都是「窗口永远透明」或者
+ * 「一个已经作废的兜底把下一轮的窗口显出来」。
+ *
+ * 和 `Capture` 分开，是因为生命周期不同：这一组跨得过一轮截图（预热那次就发生在任何截图之前）。
+ */
+interface PaintWait {
+	/** The invisible first presentation, while it is on screen. See `warmFirstPresentation`. */
+	warming: NodeJS.Timeout | null;
+	/** The overlay that is up but still transparent, waiting to be shown to have painted. */
+	window: BrowserWindow | null;
+	/** 等不到「画好了」时把它显出来的兜底。 */
+	fallback: NodeJS.Timeout | null;
+}
 
-/** The overlay that is up but still transparent, waiting to be shown to have painted. */
-let awaitingPaint: BrowserWindow | null = null;
-let paintFallback: NodeJS.Timeout | null = null;
+const paint: PaintWait = { warming: null, window: null, fallback: null };
 
 /**
  * The overlay has produced a frame: let it be seen.
@@ -773,12 +787,12 @@ let paintFallback: NodeJS.Timeout | null = null;
  * Idempotent, because the fallback timer may already have run.
  */
 export function overlayPainted(): void {
-	if (paintFallback) {
-		clearTimeout(paintFallback);
-		paintFallback = null;
+	if (paint.fallback) {
+		clearTimeout(paint.fallback);
+		paint.fallback = null;
 	}
-	const win = awaitingPaint;
-	awaitingPaint = null;
+	const win = paint.window;
+	paint.window = null;
 	if (!win || win.isDestroyed() || !win.isVisible()) return;
 	win.setOpacity(1);
 	captureLog("reveal: painted — overlay made visible");
@@ -925,9 +939,9 @@ function dropClearedOverlay(): void {
  * not for a slow one: the alternative is an invisible full-screen window swallowing every click.
  */
 function awaitPaint(win: BrowserWindow): void {
-	awaitingPaint = win;
-	paintFallback = setTimeout(() => {
-		paintFallback = null;
+	paint.window = win;
+	paint.fallback = setTimeout(() => {
+		paint.fallback = null;
 		captureLog("reveal: shown without a paint report");
 		overlayPainted();
 	}, 250);
@@ -941,9 +955,9 @@ function awaitPaint(win: BrowserWindow): void {
  * full-screen window: the capture appears not to open at all. Rare, and permanent for that capture.
  */
 function endWarmPresentation(): void {
-	if (!warmingPresentation) return;
-	clearTimeout(warmingPresentation);
-	warmingPresentation = null;
+	if (!paint.warming) return;
+	clearTimeout(paint.warming);
+	paint.warming = null;
 	if (!overlay || overlay.isDestroyed()) return;
 	overlay.hide();
 	overlay.setOpacity(1);
@@ -1085,6 +1099,196 @@ export function destroyScreenshotOverlay(): void {
 }
 
 /**
+ * 把浮层送上屏，这一轮截图的最后一步。
+ *
+ * 从 `startScreenshotSession` 里提出来的。那个函数 276 行，而这 86 行是其中最大的一块，也是唯一
+ * 一块和「怎么开始一次截图」无关的——它回答的是另一个问题：**已经准备好了，现在怎么让它出现**。
+ * 两条路差得很远（窗口已经在屏上，和第一次显示），各自的理由都很长，挤在一个更长的函数中间时
+ * 读不出它们是一对。
+ *
+ * 只捕获两样：那扇窗，以及这一轮是不是接管了上一轮还开着的浮层。原来的闭包看起来还引用了
+ * `bounds` 和 `snapshot`，实际上那两个只出现在注释和 `win.getBounds()` 里。
+ */
+function revealOverlay(win: BrowserWindow, takingOver: boolean): void {
+	clearFailsafe();
+	if (win.isDestroyed()) return;
+	/*
+	 * Already up, because a capture was started while one was on screen — two presses of the
+	 * shortcut in quick succession. The window stays where it is and only the picture changes;
+	 * all that is left to do is tell the page it is visible, which is what starts its fade.
+	 */
+	if (win.isVisible()) {
+		holdEscape(true);
+		/*
+		 * Focus too, which this branch used not to do.
+		 *
+		 * A window that is not the key window receives no `mouseMoved` and no key presses on
+		 * macOS — so the capture that reused this window had no window highlighting and no ⌘C.
+		 * Reported as "copying a colour sometimes does nothing", and the log named the cases: the
+		 * three sessions that took this branch are the three with no `reveal: after focus` line.
+		 *
+		 * The window is already up, so this is not deferred the way the fresh path defers it: the
+		 * activation repaint it guards against has already happened.
+		 */
+		win.focus();
+		/*
+		 * And transparent since this capture took its snapshot, if it superseded one that was up.
+		 *
+		 * `clearOverlayForSnapshot` emptied the window so the picture would not contain the last
+		 * capture's selection frame; the same handshake the fresh path uses brings it back, once
+		 * the page reports a composited frame of *this* capture. So the sequence on screen is the
+		 * desktop, then the new capture — never the old one again.
+		 */
+		if (takingOver) awaitPaint(win);
+		if (!win.webContents.isDestroyed()) win.webContents.send("screenshot:shown");
+		captureLog("reveal: already on screen", { focused: win.isFocused(), takingOver });
+		return;
+	}
+	/*
+	 * On screen first, activated a couple of frames later.
+	 *
+	 * `show()` activates the application and then puts the window up, and activation repaints
+	 * every other window of the app from its inactive look to its active one. The log caught
+	 * that repaint landing 21ms after the overlay was *marked* visible — inside the gap before
+	 * Chromium composites its first frame — so it happened in plain sight, and what it looks
+	 * like is the desktop shifting.
+	 *
+	 * Activating at all is not optional: a window that is not the key window receives no mouse
+	 * *movement* on macOS, and everything here that follows the pointer depends on it. Escape is
+	 * covered by a global shortcut in the meantime, so nothing is unresponsive during the wait.
+	 */
+	/*
+	 * On screen, but transparent until it has actually produced a frame.
+	 *
+	 * `screenshot:ready` — the handshake that decides this moment — means the snapshot has been
+	 * written into the canvas's *bitmap*. That is CPU-side work, and it says nothing about
+	 * whether Chromium has composited it. So the window goes up invisible and is made visible by
+	 * `overlayPainted`, which the renderer calls from inside an animation frame — the earliest
+	 * point at which a frame provably exists. Measured at 4-15ms, so it costs one frame;
+	 * `paint.fallback` covers a renderer that never gets there.
+	 *
+	 * This was written for a stronger claim, which turned out to be false: that a window hidden
+	 * for a while loses its surface and briefly shows a stale one stretched to fit, explaining why
+	 * the first capture after a pause looks different. Measured — first frame after a sixty-second
+	 * pause arrives in 4ms, no slower than one taken seconds after the last capture. See
+	 * `first frame` in the capture log. What is left here is the cheap guarantee, not that
+	 * explanation; the difference on early captures is still unaccounted for.
+	 */
+	win.setOpacity(0);
+	captureLog("reveal: before showInactive", { bounds: win.getBounds(), visible: win.isVisible() });
+	win.showInactive();
+	captureLog("reveal: after showInactive", { bounds: win.getBounds(), visible: win.isVisible() });
+	holdEscape(true);
+	awaitPaint(win);
+	setTimeout(() => {
+		if (win.isDestroyed()) return;
+		win.focus();
+		captureLog("reveal: after focus", { bounds: win.getBounds(), focused: win.isFocused() });
+	}, 32);
+	/*
+	 * Now that it is on screen, the renderer can fade the dimming in.
+	 *
+	 * It cannot start that itself: until this line the page is hidden, a hidden page is not
+	 * composited, and a CSS transition started there has no frames to run in — it would jump
+	 * straight to its end state and the capture would appear fully dimmed, all at once, which
+	 * is exactly the abruptness being fixed.
+	 */
+	if (!win.webContents.isDestroyed()) win.webContents.send("screenshot:shown");
+}
+
+/**
+ * 画面备好了，交给渲染进程，并安排它什么时候出现在屏上。
+ *
+ * 从 `startScreenshotSession` 里提出来的第二块。那个函数原来 276 行，一路从「用户按了快捷键」写
+ * 到「像素发出去了」；这一段是最后一程，和前面的取景、取画面是两件事——前面在**准备**，这里在
+ * **交付**，中间那条界线就是「东西齐了」。
+ *
+ * 三条出路都在这里，挨在一起才看得出它们是一组：页面还在就发 init，页面在这之前就销毁了就整轮
+ * 作废，以及那个一秒半的兜底——它防的不是慢，是一个在说「我画好了」之前就失败的渲染进程，那种
+ * 情况下屏幕上会挂着一扇看不见、却吃掉每一次点击的全屏窗口。
+ */
+function handOffToRenderer(
+	win: BrowserWindow,
+	frame: {
+		snapshot: { pixels: Buffer; width: number; height: number; scaleFactor: number; colorSpace: "srgb" | "display-p3" };
+		windows: Awaited<ReturnType<typeof listWindows>>;
+		bounds: { x: number; y: number; width: number; height: number };
+		/** 指针在屏幕坐标里的位置，这里会换算成浮层自己的坐标。 */
+		cursorPoint: { x: number; y: number };
+		/** 这一轮是不是接管了上一轮还开着的浮层。 */
+		takingOver: boolean;
+		settings: ScreenshotSettings | undefined;
+	},
+): void {
+	const { snapshot, windows, bounds, cursorPoint, takingOver } = frame;
+	const reveal = () => revealOverlay(win, takingOver);
+	const webContentsId = win.webContents.id;
+	revealers.set(webContentsId, reveal);
+	/*
+	 * A renderer that fails before it says it has painted, not a slow one.
+	 *
+	 * The alternative is an invisible full-screen window swallowing every click on the screen with
+	 * nothing to show for it.
+	 */
+	capture.failsafe = setTimeout(reveal, 1500);
+
+	if (win.webContents.isDestroyed()) {
+		/*
+		 * Nothing will be sent, so nothing will be shown: give the flag back rather than leave it
+		 * standing for a capture that never happened — and the reveal timer with it, which would
+		 * otherwise put this window up a second and a half later with nothing in it. Then whatever
+		 * was cleared for the snapshot goes away too, for the same reason as the branch above.
+		 */
+		/*
+		 * `endCapture()`，不是原来那两行。
+		 *
+		 * 这条路原来写的是 `capture.active = false; clearFailsafe();`——**漏了 `holdEscape(false)`**。
+		 * 那意味着走到这里（页面在发 init 之前就销毁了）之后，这一轮注册的全局 Escape 不会被释放：
+		 * 从此按 Escape 会被一个已经不存在的截图吃掉，一直到下一次截图重新注册为止。
+		 *
+		 * 六个 `let` 平铺着的时候，这种漏只能靠每条分支各自记得；收成一个对象、给「结束」一个名字
+		 * 之后，它就是一处。
+		 */
+		endCapture();
+		revealers.delete(webContentsId);
+		if (takingOver) dropClearedOverlay();
+		return;
+	}
+	// Straight out: the page is already loaded — that is what `ensureOverlay` waited for — so there
+	// is nothing left between here and the renderer having the picture.
+	win.webContents.send("screenshot:init", {
+		snapshot: { pixels: snapshot.pixels, width: snapshot.width, height: snapshot.height },
+		/*
+		 * Which capture this is, because the page is no longer new each time.
+		 *
+		 * One window serves them all now, so the renderer cannot tell "a fresh capture" from "the
+		 * same one again" by the fact that it just loaded. It cannot use the picture either: two
+		 * captures of a screen that did not change encode identically.
+		 */
+		session: ++capture.id,
+		bounds,
+		// Where every window is, so pointing at one can offer it whole.
+		windows,
+		/*
+		 * Where the pointer already is, in the overlay's own coordinates.
+		 *
+		 * Without it the first window is only offered once the mouse *moves*: the overlay opens
+		 * under a stationary pointer and no `pointermove` is ever delivered.
+		 */
+		cursor: { x: cursorPoint.x - bounds.x, y: cursorPoint.y - bounds.y },
+		scaleFactor: snapshot.scaleFactor,
+		/*
+		 * 这串像素该按哪个色彩空间读。
+		 *
+		 * 不说的话渲染进程只能按 sRGB 猜，而在一台 P3 的机器上那是猜错的——截出来的颜色会比屏幕上
+		 * 更艳。见 `canvasColorSpace`。
+		 */
+		colorSpace: snapshot.colorSpace,
+		settings: frame.settings,
+	});
+}
+
+/**
  * Open the interactive fullscreen overlay window on the display where the cursor currently is.
  */
 export async function startScreenshotSession(customSettings?: ScreenshotSettings): Promise<void> {
@@ -1212,154 +1416,12 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	 * for a renderer that fails before it gets there, where the alternative is an invisible window
 	 * swallowing every click on the screen with nothing to show for it.
 	 */
-	const reveal = () => {
-		clearFailsafe();
-		if (win.isDestroyed()) return;
-		/*
-		 * Already up, because a capture was started while one was on screen — two presses of the
-		 * shortcut in quick succession. The window stays where it is and only the picture changes;
-		 * all that is left to do is tell the page it is visible, which is what starts its fade.
-		 */
-		if (win.isVisible()) {
-			holdEscape(true);
-			/*
-			 * Focus too, which this branch used not to do.
-			 *
-			 * A window that is not the key window receives no `mouseMoved` and no key presses on
-			 * macOS — so the capture that reused this window had no window highlighting and no ⌘C.
-			 * Reported as "copying a colour sometimes does nothing", and the log named the cases: the
-			 * three sessions that took this branch are the three with no `reveal: after focus` line.
-			 *
-			 * The window is already up, so this is not deferred the way the fresh path defers it: the
-			 * activation repaint it guards against has already happened.
-			 */
-			win.focus();
-			/*
-			 * And transparent since this capture took its snapshot, if it superseded one that was up.
-			 *
-			 * `clearOverlayForSnapshot` emptied the window so the picture would not contain the last
-			 * capture's selection frame; the same handshake the fresh path uses brings it back, once
-			 * the page reports a composited frame of *this* capture. So the sequence on screen is the
-			 * desktop, then the new capture — never the old one again.
-			 */
-			if (takingOver) awaitPaint(win);
-			if (!win.webContents.isDestroyed()) win.webContents.send("screenshot:shown");
-			captureLog("reveal: already on screen", { focused: win.isFocused(), takingOver });
-			return;
-		}
-		/*
-		 * On screen first, activated a couple of frames later.
-		 *
-		 * `show()` activates the application and then puts the window up, and activation repaints
-		 * every other window of the app from its inactive look to its active one. The log caught
-		 * that repaint landing 21ms after the overlay was *marked* visible — inside the gap before
-		 * Chromium composites its first frame — so it happened in plain sight, and what it looks
-		 * like is the desktop shifting.
-		 *
-		 * Activating at all is not optional: a window that is not the key window receives no mouse
-		 * *movement* on macOS, and everything here that follows the pointer depends on it. Escape is
-		 * covered by a global shortcut in the meantime, so nothing is unresponsive during the wait.
-		 */
-		/*
-		 * On screen, but transparent until it has actually produced a frame.
-		 *
-		 * `screenshot:ready` — the handshake that decides this moment — means the snapshot has been
-		 * written into the canvas's *bitmap*. That is CPU-side work, and it says nothing about
-		 * whether Chromium has composited it. So the window goes up invisible and is made visible by
-		 * `overlayPainted`, which the renderer calls from inside an animation frame — the earliest
-		 * point at which a frame provably exists. Measured at 4-15ms, so it costs one frame;
-		 * `paintFallback` covers a renderer that never gets there.
-		 *
-		 * This was written for a stronger claim, which turned out to be false: that a window hidden
-		 * for a while loses its surface and briefly shows a stale one stretched to fit, explaining why
-		 * the first capture after a pause looks different. Measured — first frame after a sixty-second
-		 * pause arrives in 4ms, no slower than one taken seconds after the last capture. See
-		 * `first frame` in the capture log. What is left here is the cheap guarantee, not that
-		 * explanation; the difference on early captures is still unaccounted for.
-		 */
-		win.setOpacity(0);
-		captureLog("reveal: before showInactive", { bounds: win.getBounds(), visible: win.isVisible() });
-		win.showInactive();
-		captureLog("reveal: after showInactive", { bounds: win.getBounds(), visible: win.isVisible() });
-		holdEscape(true);
-		awaitPaint(win);
-		setTimeout(() => {
-			if (win.isDestroyed()) return;
-			win.focus();
-			captureLog("reveal: after focus", { bounds: win.getBounds(), focused: win.isFocused() });
-		}, 32);
-		/*
-		 * Now that it is on screen, the renderer can fade the dimming in.
-		 *
-		 * It cannot start that itself: until this line the page is hidden, a hidden page is not
-		 * composited, and a CSS transition started there has no frames to run in — it would jump
-		 * straight to its end state and the capture would appear fully dimmed, all at once, which
-		 * is exactly the abruptness being fixed.
-		 */
-		if (!win.webContents.isDestroyed()) win.webContents.send("screenshot:shown");
-	};
-	const webContentsId = win.webContents.id;
-	revealers.set(webContentsId, reveal);
-	/*
-	 * A renderer that fails before it says it has painted, not a slow one.
-	 *
-	 * The alternative is an invisible full-screen window swallowing every click on the screen with
-	 * nothing to show for it.
-	 */
-	capture.failsafe = setTimeout(reveal, 1500);
-
-	if (win.webContents.isDestroyed()) {
-		/*
-		 * Nothing will be sent, so nothing will be shown: give the flag back rather than leave it
-		 * standing for a capture that never happened — and the reveal timer with it, which would
-		 * otherwise put this window up a second and a half later with nothing in it. Then whatever
-		 * was cleared for the snapshot goes away too, for the same reason as the branch above.
-		 */
-		/*
-		 * `endCapture()`，不是原来那两行。
-		 *
-		 * 这条路原来写的是 `capture.active = false; clearFailsafe();`——**漏了 `holdEscape(false)`**。
-		 * 那意味着走到这里（页面在发 init 之前就销毁了）之后，这一轮注册的全局 Escape 不会被释放：
-		 * 从此按 Escape 会被一个已经不存在的截图吃掉，一直到下一次截图重新注册为止。
-		 *
-		 * 六个 `let` 平铺着的时候，这种漏只能靠每条分支各自记得；收成一个对象、给「结束」一个名字
-		 * 之后，它就是一处。
-		 */
-		endCapture();
-		revealers.delete(webContentsId);
-		if (takingOver) dropClearedOverlay();
-		return;
-	}
-	// Straight out: the page is already loaded — that is what `ensureOverlay` waited for — so there
-	// is nothing left between here and the renderer having the picture.
-	win.webContents.send("screenshot:init", {
-		snapshot: { pixels: snapshot.pixels, width: snapshot.width, height: snapshot.height },
-		/*
-		 * Which capture this is, because the page is no longer new each time.
-		 *
-		 * One window serves them all now, so the renderer cannot tell "a fresh capture" from "the
-		 * same one again" by the fact that it just loaded. It cannot use the picture either: two
-		 * captures of a screen that did not change encode identically.
-		 */
-		session: ++capture.id,
-		bounds,
-		// Where every window is, so pointing at one can offer it whole.
+	handOffToRenderer(win, {
+		snapshot,
 		windows,
-		/*
-		 * Where the pointer already is, in the overlay's own coordinates.
-		 *
-		 * Without it the first window is only offered once the mouse *moves*: the overlay opens
-		 * under a stationary pointer and no `pointermove` is ever delivered.
-		 */
-		cursor: { x: cursorPoint.x - bounds.x, y: cursorPoint.y - bounds.y },
-		scaleFactor: snapshot.scaleFactor,
-		/*
-		 * 这串像素该按哪个色彩空间读。
-		 *
-		 * 不说的话渲染进程只能按 sRGB 猜，而在一台 P3 的机器上那是猜错的——截出来的颜色会比屏幕上
-		 * 更艳。见 `canvasColorSpace`。
-		 */
-		colorSpace: snapshot.colorSpace,
+		bounds,
+		cursorPoint,
+		takingOver,
 		settings: customSettings ?? currentSettingsProvider?.()?.screenshot,
 	});
 }

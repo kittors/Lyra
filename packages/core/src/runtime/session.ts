@@ -8,6 +8,24 @@
  * the session *has done* is `SessionLog` — the transcript and the append-only log kept as one
  * thing — and what it *can do* is `SessionCapabilities`. Both are held rather than inherited, so
  * the boundary is visible at every call site.
+ *
+ * ---
+ *
+ * **还能拆到哪一步，以及为什么停在这里。**
+ *
+ * 2026-09-12 的审计把这个类列为 god-object：985 行、35 个公开方法、十几个分得清的职责。已经拆出去
+ * 的是四个协作者——`tasks`、`approvals`、`subAgents`、`title`——它们的共同点不是「职责独立」，是
+ * **要借的东西少**：`SessionTitle` 只需要六个窄回调（读设置、写日志、发事件、问用户改没改过标题、
+ * 读模型 id、拿注入的流），所以它搬得干净。
+ *
+ * 剩下的没有再拆，判断是量出来的：这 940 行里 358 行是注释，实际代码 511 行；而 `this.log`、
+ * `this.settings`、`this.emit`、`this.controller`、`this.streamFn` 这五样在里面被引用 87 次。
+ * 手动压缩、驱动一轮、编辑重发、双队列 prompt 各自都不长（最大 52 行），但每一个都同时要那五样中
+ * 的三四样。把它们搬出去意味着协作者收十几个回调，而一个收十几个回调的类不是协作者，是同一个
+ * 对象换了个地址——读的人要在两个文件之间来回跳才能看完一件事。
+ *
+ * 也就是说：这个数字要再降，得先让那五样核心状态之间的关系变简单，而不是把用它们的代码搬走。
+ * 那是另一件事，不该顺手在一次整改里做。
  */
 
 import { randomUUID } from "node:crypto";
