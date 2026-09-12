@@ -3,8 +3,8 @@
  *
  * Split out of `ipc/updates.ts` so it can be checked against a real release's file names without
  * an Electron process — which is how the bug it now guards against was found. A release carries
- * eleven files and only one of them is right for the machine asking; picking by extension alone
- * gets nine of them wrong on some machine or other.
+ * thirteen files and only one of them is right for the machine asking; picking by extension alone
+ * gets twelve of them wrong on some machine or other.
  */
 
 import { CHECKSUM_ASSET } from "./update-checksum.ts";

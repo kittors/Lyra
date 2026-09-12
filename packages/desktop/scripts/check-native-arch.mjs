@@ -42,6 +42,7 @@ const BUILDS = {
 	"win-unpacked": { platform: "win32", arch: "x64", resources: "resources" },
 	"win-arm64-unpacked": { platform: "win32", arch: "arm64", resources: "resources" },
 	"linux-unpacked": { platform: "linux", arch: "x64", resources: "resources" },
+	"linux-arm64-unpacked": { platform: "linux", arch: "arm64", resources: "resources" },
 };
 
 /**

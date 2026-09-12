@@ -155,11 +155,27 @@ linux:
     - "!**/node_modules/node-pty/prebuilds/!(linux-${arch})/**"
   icon: icon.png
   category: Development
+  # No `arch:` here, and that asymmetry with `mac` and `win` is deliberate.
+  #
+  # Without it electron-builder builds for the architecture of the machine it is running on —
+  # measured, not assumed: `electron-builder --dir` with no arch listed produced `mac-arm64/` on an
+  # arm64 laptop, and the binary inside reported arm64. So Linux gets both architectures by being
+  # built on two runners, one of each, and this file does not have to name them.
+  #
+  # Why two runners, when macOS and Windows each cross-build both from one: `node-pty` is compiled
+  # during packaging rather than downloaded, and the compiler has to be able to target the other
+  # architecture. Apple's clang carries both slices and the Windows image ships MSVC's arm64
+  # cross-compiler; the Linux image has no aarch64 cross toolchain, so an arm64 package built on
+  # the x64 runner would fail at `pty.node` — or, worse, package the wrong binary and fail on a
+  # user's machine, which is what `scripts/check-native-arch.mjs` exists to stop.
+  #
+  # AppImage and deb rather than an rpm as well: AppImage needs no package manager and runs on
+  # every distribution, which is what Fedora and Arch users install. An rpm would also be a file
+  # the updater cannot use — `update-asset.ts` picks `.AppImage` and `.deb` only, so anyone who
+  # installed the rpm would be offered an AppImage as its update.
   target:
-    - target: AppImage
-      arch: [x64]
-    - target: deb
-      arch: [x64]
+    - AppImage
+    - deb
 
 # Electron 的 fuses：**试过，没能验证，所以没有开。**
 #

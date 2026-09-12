@@ -78,14 +78,15 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 
 ## 发版
 
-打 tag 就是发版：推 `v*` 触发 `release.yml`，桌面三平台加手机 iOS、Android 各自构建，汇总成一个
-release 并**直接发布**。手机端带出两个文件：`Lyra-x.y.z-android.apk`（签名）和
-`Lyra-x.y.z-ios-unsigned.ipa`（未签名，装的人自己签），和桌面产物一起进 `SHA256SUMS`。
+打 tag 就是发版：推 `v*` 触发 `release.yml`，六个 runner 各自构建，汇总成一个 release 并**直接发布**。
+一个 release 里 13 个文件：桌面端 10 个（macOS 的 dmg 与 zip 各 arm64/x64、Windows 的 exe
+x64/arm64、Linux 的 AppImage 与 deb 各 x64/arm64），手机端 2 个（`Lyra-x.y.z-android.apk` 签名的、
+`Lyra-x.y.z-ios-unsigned.ipa` 未签名的），加一份 `SHA256SUMS`。
 怎么打包、为什么 iOS 不签名、Android 的钥匙为什么是一次性的决定，见
 [docs/architecture/mobile-packaging.md](docs/architecture/mobile-packaging.md)。
 
 **打 tag 之前要跑一次 `Release dry run`**（`pnpm release:rehearse`，`pnpm release` 会验证它跑过）。 它跑的东西和 release
-一模一样（五个 runner 的 lint/typecheck/test + `pnpm package` + `expo prebuild` 与两端原生构建），
+一模一样（六个 runner 的 lint/typecheck/test + `pnpm package` + `expo prebuild` 与两端原生构建），
 只是不创建 release。绿了再打 tag。
 
 为什么必须这一步：日常的 CI 不打包，而 `pnpm package` 是唯一会执行 electron-builder 的地
@@ -111,7 +112,7 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 
 以前汇总成草稿，要再手动 Publish 一次——结果 0.4.0、0.4.1、0.5.0、0.6.1 全都躺在草稿里：产
 物齐全，客户端一个都收不到（更新检查跳过草稿和预发布）。手动的最后一步就是会被忘的一步。现
-在 tag 一推、五个 runner 绿了就直接发布，release notes 事后还能改，收不到的版本事后改不了。
+在 tag 一推、六个 runner 绿了就直接发布，release notes 事后还能改，收不到的版本事后改不了。
 
 ### 发版文案是手写的，七种语言一种都不能少
 

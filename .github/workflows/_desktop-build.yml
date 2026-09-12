@@ -1,4 +1,4 @@
-# Building and packaging the desktop app on all three platforms.
+# Building and packaging the desktop app for every system and architecture it ships on.
 #
 # Called by `release.yml` and by `release-dryrun.yml`, which differ in exactly two things: whether a
 # missing signing certificate is fatal, and whether anything is published afterwards. Everything
@@ -47,6 +47,14 @@ jobs:
             artifact: win
           - os: ubuntu-latest
             artifact: linux
+          # Linux on arm64 — a Raspberry Pi, an Ampere server, an arm64 VM on an Apple laptop.
+          #
+          # Its own runner rather than a second architecture on the x64 one, because `node-pty` is
+          # compiled during packaging and the Linux image has no aarch64 cross toolchain. The note
+          # above `linux:` in `electron-builder.yml` has the whole reason, including why macOS and
+          # Windows need only one runner each. Free for public repositories, same as the others.
+          - os: ubuntu-24.04-arm
+            artifact: linux-arm64
     runs-on: ${{ matrix.os }}
     # A packaging job that hangs would otherwise sit until GitHub's 360-minute default. The e2e job
     # learned this the expensive way; see its comment in `ci.yml`.

@@ -90,7 +90,7 @@ async function preflight({ skipRehearsal }) {
 	await androidKeyOrStop();
 
 	if (skipRehearsal) {
-		note("⚠︎ 跳过排练检查——这次发布没有在五个 runner 上打包验证过");
+		note("⚠︎ 跳过排练检查——这次发布没有在六个 runner 上打包验证过");
 		return { head, rehearsed: false };
 	}
 
@@ -182,7 +182,9 @@ async function rehearse() {
 	await must("gh", ["workflow", "run", "release-dryrun.yml", "--ref", "main"]);
 	await new Promise((r) => setTimeout(r, 6000));
 	const id = await must("gh", ["run", "list", "--workflow", "release-dryrun.yml", "--limit", "1", "--json", "databaseId", "-q", ".[0].databaseId"]);
-	note(`跑起来了：${id}。等它结束（三平台打包，约十五分钟）…`);
+	// Six runners in parallel, and the Android one sets the pace: a cold Gradle build measured
+	// twenty-two minutes of the twenty-five.
+	note(`跑起来了：${id}。等它结束（六个 runner，约二十五分钟）…`);
 	await run("gh", ["run", "watch", id], { cwd: ROOT, stdio: "inherit" }).catch(() => {});
 	console.log("\n绿了就可以 pnpm release <版本>\n");
 }

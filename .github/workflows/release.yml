@@ -69,9 +69,9 @@ jobs:
 
       # The digests every client checks before it installs.
       #
-      # Not the same file the build job wrote — that one covers a single platform's output and is
-      # there to prove the step works. This is the one that ships: every artifact from all five
-      # runners, desktop and phone alike, in one list a person can also check by hand.
+      # Not the same file the build job wrote — that one covers a single runner's output and is
+      # there to prove the step works. This is the one that ships: all twelve artifacts from all
+      # six runners, desktop and phone alike, in one list a person can also check by hand.
       #
       # The phone's two files ride along without being special-cased, and the desktop updater is
       # unbothered by them: it looks its own filename up in this list rather than reading the list
