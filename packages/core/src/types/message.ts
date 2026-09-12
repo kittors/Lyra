@@ -264,6 +264,13 @@ export interface ToolResultMessage {
 	isError: boolean;
 	/** See `ToolResult.uneventful`. Carried on the message so compaction can see it. */
 	uneventful?: boolean;
+	/**
+	 * See `ToolResult.terminate`. Carried on the message so the loop can see it.
+	 *
+	 * 和 `details` 一样，只在本进程里活着——不进 provider 的请求体。写进会话日志是无害的：循环只
+	 * 看自己这一轮刚拿到的结果，重放历史时没人会再读它。
+	 */
+	terminate?: boolean;
 	timestamp: number;
 }
 

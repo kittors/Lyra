@@ -1034,6 +1034,7 @@ export const en = {
 	"subAgent.stopping": "Stopping this sub-agent…",
 	"subAgent.waiting": "Waiting for output…",
 	"subAgent.noOutput": "No output",
+	"subAgent.retrying": "Reconnecting · attempt {attempt} — {reason}",
 	"subAgent.reportedBack": "Reported to the main agent",
 	"subAgent.reportedBackPartial": "Reported to the main agent — cut short, only what it had",
 	"subAgent.redispatchTip": "Ask the main agent to delegate the same task again",

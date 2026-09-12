@@ -31,7 +31,20 @@ export class RetryBudget {
 		if (!this.cache || this.cache.from !== from) this.cache = { from, resolved: resolvePolicy(from, this.legacyAttempts) };
 		return this.cache.resolved;
 	}
-	available(kind: RetryFailure): boolean { const { retries } = this.policy[kind]; return retries === null || this.used[kind] < retries; }
+	/**
+	 * 还能不能再试一次。
+	 *
+	 * 失败可以选择传进来，因为有那么几种失败自己带着上限（见 `Failure.retryLimit`），而它比用户
+	 * 的策略更有发言权的情形只有一种：重发不可能改变结果。两个数取更严的那个——用户设了 2 次就
+	 * 是 2 次，这里不会把它放宽成 4。
+	 *
+	 * 不传也是对的：调用方手里没有分类结论时（还没发出去的那一次），问的就是纯粹的策略。
+	 */
+	available(kind: RetryFailure, failure?: Failure): boolean {
+		const { retries } = this.policy[kind];
+		const limit = retries === null ? failure?.retryLimit : Math.min(retries, failure?.retryLimit ?? retries);
+		return limit === undefined || this.used[kind] < limit;
+	}
 	next(kind: RetryFailure): { attempt: number; delayMs: number } { this.used[kind]++; return { attempt: this.used.network + this.used.upstream, delayMs: policyDelay(this.policy[kind], this.used[kind]) }; }
 }
 
@@ -183,7 +196,7 @@ export async function fetchWithRetry(
 			 */
 			const body = await response.clone().text().catch(() => undefined);
 			const failure = classifyFailure({ from: "status", status: response.status, body });
-			const canRetry = options.budget ? options.budget.available("upstream") : attempt < attempts;
+			const canRetry = options.budget ? options.budget.available("upstream", failure) : attempt < attempts;
 
 			if (!worthRetrying(failure) || !canRetry) {
 				// 判断带着结论一起往上走，免得流那一层拿到一个字符串又重新猜一遍——猜错的那次会把
@@ -220,7 +233,7 @@ export async function fetchWithRetry(
 			if (error instanceof FailureError) throw error;
 			const failure = failureOf(error);
 			// A cancelled turn is not a failed one; stop immediately rather than waiting to retry.
-			if (options.signal?.aborted || !worthRetrying(failure) || (options.budget ? !options.budget.available("network") : attempt === attempts)) throw error;
+			if (options.signal?.aborted || !worthRetrying(failure) || (options.budget ? !options.budget.available("network", failure) : attempt === attempts)) throw error;
 			const retry = options.budget?.next("network") ?? { attempt, delayMs: retryDelay(attempt) };
 			const delay = retry.delayMs;
 			options.onRetry?.({ ...retry, reason: failure.summary, failure });
@@ -313,7 +326,7 @@ export async function* retryStream<T>(
 			 * 界面上两行设置就有一行永远不生效。
 			 */
 			const rule = failure.kind === "upstream" ? "upstream" : "network";
-			const last = options.budget ? !options.budget.available(rule) : number === attempts;
+			const last = options.budget ? !options.budget.available(rule, failure) : number === attempts;
 			if (last || options.signal?.aborted || !worthRetrying(failure)) throw error;
 			// 同上：配了策略就按策略的数走，服务器的建议只喂给兜底曲线。
 			const retry = options.budget?.next(rule) ?? { attempt: number, delayMs: retryDelay(number) };

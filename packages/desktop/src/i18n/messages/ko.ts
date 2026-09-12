@@ -1034,6 +1034,7 @@ export const ko = {
 	"subAgent.stopping": "이 하위 에이전트를 멈추는 중…",
 	"subAgent.waiting": "출력을 기다리는 중…",
 	"subAgent.noOutput": "출력이 없습니다",
+	"subAgent.retrying": "재연결 중 · {attempt}번째 — {reason}",
 	"subAgent.reportedBack": "메인 에이전트에게 보고한 내용",
 	"subAgent.reportedBackPartial": "메인 에이전트에 보고 — 끝까지 못 가고, 가진 것만",
 	"subAgent.redispatchTip": "같은 일을 다시 맡기도록 메인 에이전트에게 부탁하기",

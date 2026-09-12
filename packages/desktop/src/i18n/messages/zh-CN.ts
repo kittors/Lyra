@@ -1206,6 +1206,7 @@ export const zhCN = {
 	"subAgent.stopping": "正在停止这个子 Agent…",
 	"subAgent.waiting": "等待输出…",
 	"subAgent.noOutput": "暂无输出",
+	"subAgent.retrying": "重连中 · 第 {attempt} 次 — {reason}",
 	"subAgent.reportedBack": "回报给主 Agent",
 	"subAgent.reportedBackPartial": "回报给主 Agent（没跑完，只是它手上的一部分）",
 	"subAgent.redispatchTip": "让主 Agent 重新派发一个同样的子任务",

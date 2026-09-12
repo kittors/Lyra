@@ -1034,6 +1034,7 @@ export const fr = {
 	"subAgent.stopping": "Arrêt de ce sous-agent…",
 	"subAgent.waiting": "En attente de sortie…",
 	"subAgent.noOutput": "Aucune sortie",
+	"subAgent.retrying": "Reconnexion · tentative {attempt} — {reason}",
 	"subAgent.reportedBack": "Rapporté à l'agent principal",
 	"subAgent.reportedBackPartial": "Transmis à l'agent principal — interrompu, seulement ce qu'il avait",
 	"subAgent.redispatchTip": "Demander à l'agent principal de redéléguer la même tâche",

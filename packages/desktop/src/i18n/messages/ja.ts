@@ -1034,6 +1034,7 @@ export const ja = {
 	"subAgent.stopping": "このサブエージェントを止めています…",
 	"subAgent.waiting": "出力を待っています…",
 	"subAgent.noOutput": "出力はありません",
+	"subAgent.retrying": "再接続中 · {attempt} 回目 — {reason}",
 	"subAgent.reportedBack": "メインのエージェントへの報告",
 	"subAgent.reportedBackPartial": "メインエージェントへ報告 — 途中で止まり、手元にある分だけ",
 	"subAgent.redispatchTip": "同じ仕事をもう一度出すようメインのエージェントに頼む",

@@ -301,7 +301,7 @@ export async function runSubAgent(
 
 	/** Everything on its way out of the loop: the pane, the roster, and the step list. */
 	const relay: AgentEventSink = async (event) => {
-		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted") {
+		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted") {
 			await options.emit({ type: "subagent_event", id, event });
 		}
 		// Record activity in registry for live sub-agent status line without toast spamming
@@ -309,6 +309,16 @@ export async function runSubAgent(
 			steps.push(event.summary);
 			registry?.activity(id, event.summary);
 		}
+		/*
+		 * 卡在重连上也是一种状态，而且是最该说出口的那种。
+		 *
+		 * 这两行之前不存在：子代理的 `retry` 只进了转录，面板不认识它，主对话的抖动提示也不解包
+		 * `subagent_event`（见 `apply-event.ts`）。于是一个正在反复重连的子代理，在界面上和一个
+		 * 正在安静干活的子代理长得一模一样——派它来的人只看见一个一直转的 task，没有任何线索说明
+		 * 它在等什么、等了多少次。
+		 */
+		if (event.type === "retry") registry?.retrying(id, { attempt: event.attempt, reason: event.reason });
+		if (event.type === "retry_settled") registry?.retrying(id, undefined);
 		/*
 		 * The transcript, as it is written.
 		 *
@@ -567,10 +577,22 @@ export async function runSubAgent(
 	 * the request is `failed`, which is also what puts the 重新派发 button on the pane.
 	 */
 	const status = aborted ? "aborted" : result.reason === "error" ? "failed" : "done";
+	/*
+	 * 被按停的那次，也要把它已经交出来的东西留下。
+	 *
+	 * 这里曾经是干干净净的 `{ status: "aborted" }`——什么都不带。而按停最常发生的时刻，恰恰是它
+	 * 已经交付、然后卡在别的什么地方的时候：报告早就在 `state` 里躺着，人等得不耐烦按了停止，
+	 * 面板上于是一片空白。派它来的那个模型还能从 `answer` 里读到（下面那行一直是带着的），只有
+	 * 看着界面的人什么都拿不到——而按停止的正是他。
+	 *
+	 * 只带东西，不带 `incomplete`。那个标记会让面板画上「没跑完，只是它手上的一部分」，而按停止
+	 * 这件事上面那段已经定过调子了：人按下的按钮不是一桩要报告的事故。带回他的东西，别给他一条
+	 * 警告。
+	 */
 	registry?.finish(
 		id,
 		aborted
-			? { status: "aborted" }
+			? { status: "aborted", ...(delivered ? { answer, output: yielded?.value, warnings: yielded?.warnings } : {}) }
 			: {
 					status,
 					answer,

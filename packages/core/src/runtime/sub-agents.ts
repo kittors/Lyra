@@ -54,6 +54,20 @@ export interface SubAgentSummary {
 	 */
 	lastActivity?: string;
 	/**
+	 * 它此刻正卡在重连上，以及卡了多少次。
+	 *
+	 * 和 `lastActivity` 分开，因为它们回答的不是同一个问题：那个说「它最后做成了什么」，这个说
+	 * 「它现在没在做事，在等」。混在一起，一个重连 47 次的子代理在界面上看起来仍然停在半小时前
+	 * 那次读文件上——而那恰恰是最需要说话的时刻。
+	 *
+	 * 之前这里什么都没有：子代理的 `retry` 只进了转录，主对话的抖动提示不解包它（见
+	 * `apply-event.ts`），面板也不认识它。于是一次无限重试在界面上是彻底安静的，唯一的迹象是
+	 * 一个一直转的 task。
+	 *
+	 * 接上就清掉——见 `retrying`。
+	 */
+	retrying?: { attempt: number; reason: string };
+	/**
 	 * The sub-agent that dispatched this one, by registry id; absent when the main conversation did.
 	 *
 	 * Enough to draw the lineage: every record names its parent, so the tree is a fold over the
@@ -207,6 +221,26 @@ export class SubAgentRegistry {
 		if (!found) return;
 		found.toolCalls += 1;
 		found.lastActivity = summary;
+		/*
+		 * 又动起来了，就不再是「正在等」。
+		 *
+		 * 正常路径上 `retry_settled` 会先把它清掉，这一行是兜底：转发漏了一次、或者哪个适配器没
+		 * 发这个事件，界面上都不该留着一个永远在重连的子代理——它明明已经在读下一个文件了。
+		 */
+		found.retrying = undefined;
+		this.onChange();
+	}
+
+	/**
+	 * 它正在等一次重连，或者等完了。
+	 *
+	 * 不走 `activity`：那个会把 `toolCalls` 加一，而重连不是它做的事。一个重试了 47 次的子代理
+	 * 在界面上显示「47 次调用」，是把一次故障说成了工作量。
+	 */
+	retrying(id: string, info: { attempt: number; reason: string } | undefined): void {
+		const found = this.records.get(id);
+		if (!found) return;
+		found.retrying = info;
 		this.onChange();
 	}
 
@@ -230,6 +264,8 @@ export class SubAgentRegistry {
 		found.warnings = outcome.warnings;
 		found.error = outcome.error;
 		found.incomplete = outcome.incomplete;
+		// 停下来的那一刻，「正在重连」就成了过去时——被按停的那次尤其，它正是在重连里被按停的。
+		found.retrying = undefined;
 		// The levers go with the run: a finished sub-agent must not look steerable.
 		found.steering.length = 0;
 		found.abort = undefined;

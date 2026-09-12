@@ -316,9 +316,20 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 					</span>
 				</>
 			)}
-			{/* The newest thing it did, which is what answers "is this stuck?". */}
-			{agent.status === "running" && agent.lastActivity && (
-				<span className="ly-fade-tail min-w-0 flex-1 truncate text-ink-faint">{agent.lastActivity}</span>
+			{/*
+			 * The newest thing it did, which is what answers "is this stuck?".
+			 *
+			 * 正在重连时说重连——那才是此刻的实话。卡在重试上的子代理，最后一次工具调用可能是半小时
+			 * 前的事，把它顶在这里等于告诉人「它在读文件」，而它其实什么都没在做。
+			 *
+			 * 重连那行稍重一档，但不用警告色：重试不是错误，是在等。
+			 */}
+			{agent.status === "running" && (agent.retrying || agent.lastActivity) && (
+				<span className={`ly-fade-tail min-w-0 flex-1 truncate ${agent.retrying ? "text-ink-muted" : "text-ink-faint"}`}>
+					{agent.retrying
+						? t("subAgent.retrying", { attempt: agent.retrying.attempt, reason: agent.retrying.reason })
+						: agent.lastActivity}
+				</span>
 			)}
 			<span className="min-w-2 flex-1" />
 			{agent.status === "running" && sessionId && (

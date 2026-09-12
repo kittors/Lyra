@@ -22,7 +22,13 @@ export type AgentEvent =
 	| { type: "turn_start"; turn: number }
 	| { type: "request"; provider: string; model: string; thinking?: string; messageCount: number }
 	/** Durable nested events stay outside the parent's model transcript. */
-	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "agent_end" | "turn_start" | "context" | "compacted" }> }
+	/*
+	 * `retry_settled` 跟着 `retry` 一起转发，因为它们是一件事的两头。
+	 *
+	 * 只转前一半，界面就只会看到「开始重连」而永远等不到「接上了」——那个状态会一直挂在那里，
+	 * 比不显示还糟。
+	 */
+	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" }> }
 	| { type: "message_start"; message: Message }
 	| { type: "message_update"; message: AssistantMessage; delta: StreamEvent }
 	| { type: "message_end"; message: Message }

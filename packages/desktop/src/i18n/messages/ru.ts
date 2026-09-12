@@ -1034,6 +1034,7 @@ export const ru = {
 	"subAgent.stopping": "Останавливаю этого субагента…",
 	"subAgent.waiting": "Жду вывода…",
 	"subAgent.noOutput": "Вывода нет",
+	"subAgent.retrying": "Переподключение · попытка {attempt} — {reason}",
 	"subAgent.reportedBack": "Отчёт главному агенту",
 	"subAgent.reportedBackPartial": "Передано главному агенту — прервано, только то, что успел",
 	"subAgent.redispatchTip": "Попросить главного агента поручить то же ещё раз",

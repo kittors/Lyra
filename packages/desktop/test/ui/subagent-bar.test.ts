@@ -71,3 +71,27 @@ test("the bar carries the orchestration total, priced or not", async () => {
 	assert.ok(!total.includes("$"), `no pricing, no dollar figure: ${total}`);
 	await view.unmount();
 });
+
+test("卡在重连上的那个，条上说的是它在等什么", async () => {
+	/*
+	 * 之前这里只会显示最后一次工具调用。一个重连了 47 次的子代理，条上写的仍是半小时前那次读文件
+	 * ——看的人据此判断「它在干活」，而它其实一直在等。整条链是 core 的 `retrying` 一路传到这里，
+	 * 中间任何一段断掉都会让它退回那个样子，所以这里认的是文案，不是字段。
+	 */
+	const view = await mount(h(SubAgentBar, { onOpen: () => {} }));
+	await roster([summary({ id: "审代码", toolCalls: 3, lastActivity: "读取文件", retrying: { attempt: 47, reason: "服务商返回了空回答" } })]);
+	const tip = view.find("[data-ly-tip]").getAttribute("data-ly-tip") ?? "";
+
+	/*
+	 * 先把它收成 `done`，再断言。
+	 *
+	 * 这条线上只要还有 running 的，组件就开着一个每秒一跳的计时器；留着它退出测试，进程不会结束
+	 * ——而这个文件跑的是 `--test-timeout=0`，于是不是红，是永远挂着。上面那条测试以 `done` 收尾
+	 * 是同一个道理，只是没写出来。
+	 */
+	await roster([summary({ id: "审代码", status: "done" })]);
+
+	assert.ok(tip.includes("47"), `说清等到第几次了：${tip}`);
+	assert.ok(tip.includes("服务商返回了空回答"), `也说清在等什么：${tip}`);
+	assert.ok(!tip.includes("读取文件"), `此刻它没在读文件，别再挂着那句：${tip}`);
+});

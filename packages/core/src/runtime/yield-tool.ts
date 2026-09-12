@@ -120,8 +120,24 @@ export function makeYieldTool(
 			const errors = validateAgainstSchema(args, schema);
 
 			if (errors.length === 0) {
-				ctx.state.set(YIELD_KEY, { value: args, warnings: [] } satisfies YieldOutcome);
-				return { content: [{ type: "text", text: "结果已提交。" }] };
+				const outcome: YieldOutcome = { value: args, warnings: [] };
+				ctx.state.set(YIELD_KEY, outcome);
+				/*
+				 * 交付即结束——`terminate` 说的就是这件事。
+				 *
+				 * 不加这个字段，循环会把「结果已提交。」当成一条普通的工具结果送回模型，再问一轮。
+				 * 那一轮没有任何收件人：答案是上面那个对象，派生的调用方读的是它，模型接下来说什么
+				 * 都不会被任何人看到。见 `agent/loop.ts` 里消费这个字段的那一段。
+				 *
+				 * 除非交出来的是个空壳。校验只问字段在不在、类型对不对，不问填没填，所以
+				 * `{ summary: "", files: [] }` 是合格的，而它渲染出来是一片空白。那一句「结束」
+				 * 在这里就成了让一次跑完的派生交出零——留着这一轮，是它唯一还能说点什么的机会，
+				 * `runtime/sub-agent.ts` 里 `|| prose` 那个兜底接的正是那句话。
+				 */
+				return {
+					content: [{ type: "text", text: "结果已提交。" }],
+					...(renderYield(outcome) ? { terminate: true } : {}),
+				};
 			}
 
 			if (attempts < maxAttempts) {
@@ -151,8 +167,10 @@ export function makeYieldTool(
 			 * than either — so the warnings travel with it and the UI shows them.
 			 */
 			ctx.state.set(YIELD_KEY, { value: args, warnings: errors } satisfies YieldOutcome);
+			// 收下了就是收下了，照样收尾。这里不必像上面那样防空壳：带着 warnings 的渲染至少有那段 ⚠。
 			return {
 				content: [{ type: "text", text: `结果已提交，但有 ${errors.length} 处不符合要求，已按原样接受。` }],
+				terminate: true,
 			};
 		},
 	};

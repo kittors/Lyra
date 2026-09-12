@@ -31,14 +31,14 @@ const SUMMARY_MAX = 48;
 /** 原文留多少。够看清是什么，又不至于把一页 HTML 塞进会话日志的每一条记录。 */
 const DETAIL_MAX = 2000;
 
-export type FailureKind = "network" | "upstream" | "fatal";
+type FailureKind = "network" | "upstream" | "fatal";
 
 /**
  * 界面据此挂动作：401 旁边给「去检查密钥」，404 给「换个模型」。
  *
  * 是分类的产物而不是界面自己猜的，所以加一个动作不用碰分类逻辑，认一种新错误也不用碰界面。
  */
-export type FailureHint = "check-key" | "check-model" | "check-billing" | "check-request" | "blocked";
+type FailureHint = "check-key" | "check-model" | "check-billing" | "check-request" | "blocked";
 
 export interface Failure {
 	kind: FailureKind;
@@ -57,6 +57,19 @@ export interface Failure {
 	 * 码会变；一字不差重复几十次的，人一眼就知道不是在排队。
 	 */
 	fingerprint: string;
+	/**
+	 * 这一种失败自己的重试上限，和用户的策略取更严的那个。
+	 *
+	 * 绝大多数失败不该有这个——「重试几次」是用户的决定，设置页上那个「一直重试」写着的就是
+	 * 「网络回来之前别放弃」，那是他要的。
+	 *
+	 * 例外是重发根本不可能改变结果的那些。空回答是眼下唯一一种：重发的是逐字节相同的请求体，
+	 * 拿回来的是逐字节相同的空。服务端状态的波动（503、限流、实例在换）几次之内就会变个样子，
+	 * 而几十次一模一样的，只说明这个请求在这个端点上就是会得到空——再等一百次也是。
+	 *
+	 * 真实日志里量到过一次：同一个请求重发 222 次、34 分钟，直到人工按停。
+	 */
+	retryLimit?: number;
 	/**
 	 * 这次失败有没有已经花掉 token。
 	 *
@@ -460,8 +473,24 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
 		summary,
 		detail: truncateDetail(body ?? ""),
 		fingerprint: fingerprintOf("upstream", `empty:${why}:${said}`),
+		/*
+		 * 空回答仍然是失败，仍然重试——只是不会重试到地老天荒。见 `Failure.retryLimit`。
+		 *
+		 * 四次，因为这四次发的是同一个请求体。真临时的波动（中转在重启、实例在换）一两次之内就
+		 * 会变个样子，四次是给它的宽限；四次之后还是一模一样的空，继续发第五次唯一确定的事情是
+		 * 再等五秒。
+		 */
+		retryLimit: EMPTY_REPLY_RETRIES,
 	};
 }
+
+/**
+ * 空回答最多重试几次，无论用户把重试设成了什么。
+ *
+ * 单独命名而不是写成一个字面量，因为解释它的那段话和用到它的地方必须待在一起——下一个想调大
+ * 它的人要先读过「重发的是同一个请求体」这句。
+ */
+const EMPTY_REPLY_RETRIES = 4;
 
 function matchFatalPhrase(text: string): { summary: string; hint: FailureHint } | undefined {
 	if (!text) return undefined;

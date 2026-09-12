@@ -62,7 +62,11 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	const tip = [
 		...ordered.map((one) => {
 			const state = one.status === "running" ? translate("subAgentBar.runningFor", { elapsed: elapsedSince(one.startedAt) }) : statusWord(one.status);
-			const activity = one.status === "running" && one.lastActivity ? ` · ${one.lastActivity}` : "";
+			// 正在重连时说重连，理由同 `SubAgentPanel`：最后一次工具调用可能是半小时前的事了。
+			const doing = one.retrying
+				? translate("subAgent.retrying", { attempt: one.retrying.attempt, reason: one.retrying.reason })
+				: one.lastActivity;
+			const activity = one.status === "running" && doing ? ` · ${doing}` : "";
 			const spent = figuresWord(figuresOf(one));
 			return `${one.description}（${one.agent}）— ${state}${activity}${spent ? ` · ${spent}` : ""}`;
 		}),

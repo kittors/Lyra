@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { DEFAULT_RETRY_POLICY, DEFAULT_RETRY_RULE, normalizeRetryPolicy, policyDelay, type RetryPolicy } from "../src/config/retry-policy.ts";
 import { normalizeSettings } from "../src/config/settings.ts";
 import { RetryBudget, fetchWithRetry, retryStream, isRetryableError } from "../src/ai/retry.ts";
+import { FailureError, classifyFailure } from "../src/ai/failure.ts";
 const socket = () => new Error("fetch failed");
 
 test("defaults mean ten retries after the first request, always five seconds", async () => {
@@ -97,4 +98,40 @@ test("fault categories keep independent limits, and certificate errors are not t
 	assert.equal(calls, 4); assert.deepEqual(waits, [1000, 3000, 1000]);
 	assert.equal(isRetryableError(new Error("fetch failed", { cause: { code: "CERT_HAS_EXPIRED" } })), false);
 	assert.equal(isRetryableError(new Error("fetch failed", { cause: { code: "ENETUNREACH" } })), true);
+});
+
+test("空回答自己带着上限，「一直重试」也管不着它", async () => {
+	/*
+	 * 用户把两类都设成了「一直重试」，而子代理卡了 34 分钟：同一个请求重发了 222 次，每次拿回来的
+	 * 都是同一个空回答。重发的是逐字节相同的请求体——服务端状态的波动几次之内就会变个样子，几十次
+	 * 一模一样的只说明这个请求在这个端点上就是会得到空。
+	 *
+	 * 所以空回答自带上限（`Failure.retryLimit`），和用户的策略取更严的那个。设成无限时，就是它说了算。
+	 */
+	const unlimited: RetryPolicy = { network: { ...DEFAULT_RETRY_RULE, retries: null }, upstream: { ...DEFAULT_RETRY_RULE, retries: null } };
+	let calls = 0; const waits: number[] = [];
+	const stream = retryStream(async function* () {
+		calls++;
+		// 逃生阀。上限没接上时这里是真的无限转，而挂死整个文件的测试没人看得出是哪条坏了——所以
+		// 越过一个不可能到达的次数就正常收流，让下面的断言红着出来。
+		if (calls > 20) { yield "上限没接上"; return; }
+		throw new FailureError(classifyFailure({ from: "empty", why: "no-content" }));
+	}, {
+		budget: new RetryBudget(unlimited), reset: () => {}, sleep: async ms => { waits.push(ms); },
+	});
+	await assert.rejects(async () => { for await (const value of stream) assert.fail(`不该产出任何东西：${value}`); }, /空回答/);
+	assert.equal(calls, 5, "第一次，加四次重试，然后放弃");
+	assert.deepEqual(waits, Array(4).fill(5000));
+});
+
+test("收窄的只有空回答那一种，断线照旧无限重试", async () => {
+	// 上一条的对照。「一直重试」是用户明确要的——网络回来之前别放弃，那个语义一个字都不能改。
+	let calls = 0;
+	const stream = retryStream(async function* () { calls++; if (calls < 9) throw socket(); yield "ok"; }, {
+		budget: new RetryBudget(DEFAULT_RETRY_POLICY), reset: () => {}, sleep: async () => {},
+	});
+	const seen: string[] = [];
+	for await (const value of stream) seen.push(value);
+	assert.deepEqual(seen, ["ok"]);
+	assert.equal(calls, 9, "远超空回答那四次，因为断线根本不归那条规则管");
 });

@@ -268,6 +268,47 @@ test("a real yield still wins over the prose beside it", async () => {
 	assert.deepEqual(answer.output, { summary: "登录在 auth.ts:42", files: [{ path: "auth.ts", why: "入口" }] });
 });
 
+test("交付完就收工，不会再多问一句", async () => {
+	/*
+	 * 这一条守的是一次真实的卡死。
+	 *
+	 * 从前 `yield` 交完，循环把「结果已提交。」当普通工具结果送回模型，再发一轮请求。顺利时那一轮
+	 * 只换回一句没人读的「我做完了」——一整份上下文换一句废话。不顺时模型确实无话可说，服务商把它
+	 * 转成一个没有内容的流，而空回答是要重试的：日志里量到过同一个请求重发 222 次、34 分钟，报告
+	 * 早就躺在 `state` 里，派它来的人一直等不到。
+	 *
+	 * 所以断言的是请求次数，不是答案内容——答案那一半上面两条已经守着了，而这里唯一会重新坏掉的
+	 * 方式，就是有人把 `terminate` 那根线又拆了。
+	 */
+	const { answer, turns } = await dispatch({
+		reply: (turn) =>
+			turn === 0
+				? yields(0, { summary: "登录在 auth.ts:42", files: [{ path: "auth.ts", why: "入口" }] })
+				: says("这一轮不该存在"),
+	});
+
+	assert.equal(turns, 1, `交付之后不该再有请求，实际发了 ${turns} 次`);
+	assert.ok(answer.text.startsWith("登录在 auth.ts:42"), `报告照常回来：${answer.text}`);
+});
+
+test("没过校验的那次不算交付，它还得接着改", async () => {
+	/*
+	 * 上一条的另一半：收工的信号必须跟着「收下了」走，而不是跟着「调用了 `yield`」走。
+	 *
+	 * 挂在后者上，一次缺字段的提交就会把整个派生结束掉——模型本来只差一次改正，结果交出去的是
+	 * 一份没通过校验、也没人再让它补的东西。
+	 */
+	const { answer, turns } = await dispatch({
+		reply: (turn) =>
+			turn === 0
+				? yields(0, { summary: "只写了一半" })
+				: yields(turn, { summary: "登录在 auth.ts:42", files: [{ path: "auth.ts", why: "入口" }] }),
+	});
+
+	assert.equal(turns, 2, `第一次没过校验，得给它改的机会，实际发了 ${turns} 次`);
+	assert.ok(answer.text.startsWith("登录在 auth.ts:42"), `改完的那份才是答案：${answer.text}`);
+});
+
 test("pressing stop is still not a failure, and still says nothing about rounds", async () => {
 	const { record, answer } = await dispatch({
 		reply: (turn) => looks(turn, `第 ${turn} 轮`),
@@ -279,4 +320,22 @@ test("pressing stop is still not a failure, and still says nothing about rounds"
 	assert.equal(record.status, "aborted");
 	assert.ok(!answer.text.includes("⚠"), "a button the user pressed is not an incident to report");
 	assert.equal(record.incomplete, undefined);
+});
+
+test("按停止的那个，它说过的话留在面板上", async () => {
+	/*
+	 * 这里曾经是干干净净的 `{ status: "aborted" }`，什么都不带。而人按停止的时刻，往往正是它已经
+	 * 说了些什么、然后卡在别处的时候——派它来的模型还能从返回值里读到那些话，只有看着界面的人
+	 * 两手空空，而按下按钮的正是他。
+	 */
+	const { record, answer } = await dispatch({
+		reply: (turn) => looks(turn, `第 ${turn} 轮：auth.ts 里没有入口`),
+		onTurn: (turn, registry, id) => {
+			if (turn === 1) registry.abort(id);
+		},
+	});
+
+	assert.ok(answer.text.includes("没有入口"), `返回值里一直都有：${answer.text}`);
+	assert.ok(record.answer?.includes("没有入口"), `面板上现在也有了：${record.answer}`);
+	assert.equal(record.incomplete, undefined, "带回他的东西，别给他一条警告——理由见上一条");
 });

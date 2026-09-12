@@ -1034,6 +1034,7 @@ export const zhTW = {
 	"subAgent.stopping": "正在停止這個子 Agent…",
 	"subAgent.waiting": "等待輸出…",
 	"subAgent.noOutput": "暫無輸出",
+	"subAgent.retrying": "重連中 · 第 {attempt} 次 — {reason}",
 	"subAgent.reportedBack": "回報給主 Agent",
 	"subAgent.reportedBackPartial": "回報給主 Agent（沒跑完，只是它手上的一部分）",
 	"subAgent.redispatchTip": "讓主 Agent 重新派發一個同樣的子任務",
