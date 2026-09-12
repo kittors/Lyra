@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@v5
         # Needs the repository's dependency graph turned on
         # (Settings → Code security → Dependency graph). Until it is, the action fails with
         # "Dependency review is not supported on this repository", which is a fact about a setting
