@@ -120,7 +120,22 @@ export function useToolbarPlacement(
 		setDragging(true);
 	}, []);
 
-	const reset = useCallback(() => setManualAt(null), []);
+	/*
+	 * 三样都要清，不是只清位置。
+	 *
+	 * 拆出来的第一版只写了 `setManualAt(null)`——漏了 `dragging` 和那个 ref。后果是：一次截图在
+	 * 工具条被拖着的时候结束（按 Esc，或者别的关闭路径先到），`dragging` 留着 true 进入下一轮，
+	 * 于是新一轮开场时光标是 grabbing，而且下面那个 effect 立刻挂上 window 的 pointermove——鼠标
+	 * 一动工具条就跟着走，用户根本没按下去。
+	 *
+	 * 这和 `electron/screenshot.ts` 里那个漏放 Escape 的分支是同一种错：状态分散着清，漏一个没有
+	 * 任何东西会说。
+	 */
+	const reset = useCallback(() => {
+		setManualAt(null);
+		setDragging(false);
+		drag.current = null;
+	}, []);
 
 	/*
 	 * The rest of the drag, on the window rather than on the handle.
