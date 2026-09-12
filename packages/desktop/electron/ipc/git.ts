@@ -123,15 +123,35 @@ export function registerGitIpc({ insideAProject }: GitIpcDeps): void {
 
 	ipcMain.handle("git:branches", async (_event, cwd: string) => listBranches(cwd));
 
-	ipcMain.handle("git:switchBranch", async (_event, cwd: string, branch: string) => switchBranch(cwd, branch));
+	/*
+	 * 改仓库状态的那几条，和提交走同一道边界。
+	 *
+	 * 这五条从前一条守卫都没有，而它们都会写：切分支动工作区、建/删工作树动目录、`init` 会在
+	 * 任意路径上造一个仓库。最要命的是 `removeWorktree`——它在 `git worktree remove` 失败之后
+	 * 兜底 `rm -rf`，也就是说渲染进程拿着一个任意路径就能触发一次递归删除。那一侧也收紧了
+	 * （只删 `git worktree list` 认得的路径），这里是同一件事的第二层：先问它在不在已打开的
+	 * 项目里。
+	 */
+	ipcMain.handle("git:switchBranch", async (_event, cwd: string, branch: string) => {
+		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
+		return switchBranch(cwd, branch);
+	});
 
-	ipcMain.handle("git:createWorktree", async (_event, cwd: string, branch: string, options?: WorktreeCreateOptions) =>
-		createWorktree(cwd, branch, options),
-	);
-	ipcMain.handle("git:removeWorktree", async (_event, cwd: string, worktreePath: string) =>
-		removeWorktree(cwd, worktreePath),
-	);
-	ipcMain.handle("git:pruneWorktrees", async (_event, cwd: string) => pruneWorktrees(cwd));
+	ipcMain.handle("git:createWorktree", async (_event, cwd: string, branch: string, options?: WorktreeCreateOptions) => {
+		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
+		return createWorktree(cwd, branch, options);
+	});
+	ipcMain.handle("git:removeWorktree", async (_event, cwd: string, worktreePath: string) => {
+		// 两个路径都要问：`cwd` 决定问哪个仓库，`worktreePath` 是真正会被删掉的那个。
+		if (!insideAProject(cwd) || !insideAProject(worktreePath)) {
+			return { ok: false, error: "该目录不在已打开的项目内" };
+		}
+		return removeWorktree(cwd, worktreePath);
+	});
+	ipcMain.handle("git:pruneWorktrees", async (_event, cwd: string) => {
+		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
+		return pruneWorktrees(cwd);
+	});
 
 	ipcMain.handle("git:stat", async (_event, cwd: string) => workspaceStat(cwd));
 
@@ -146,8 +166,22 @@ export function registerGitIpc({ insideAProject }: GitIpcDeps): void {
 	ipcMain.handle("git:repos", async (_event, root: string) => listRepos(root));
 
 	ipcMain.handle("git:worktrees", async (_event, cwd: string) => listWorktrees(cwd));
-	ipcMain.handle("git:init", async (_event, cwd: string) => initRepo(cwd));
+	ipcMain.handle("git:init", async (_event, cwd: string) => {
+		// 在任意目录上造一个仓库也是写。这一条服务的场景是「面板正看着一个刚建出来的项目」，
+		// 那个目录本来就是已打开的项目，所以守卫不挡正常用法。
+		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
+		return initRepo(cwd);
+	});
 
+	/*
+	 * 下面这些只读的没有加守卫，说明一下为什么。
+	 *
+	 * 它们问的是分支、状态、历史、diff，不改变任何东西。威胁模型是渲染进程被 XSS——那种情况下
+	 * 「读到别的仓库的提交记录」确实不好，但和上面那批「改别的仓库、删别的目录」不是一个量级，
+	 * 而 `git:repos` 这类本来就要能看项目之外（它的用途就是找仓库）。
+	 *
+	 * 也就是说：这不是漏了，是划在这里。要改这条线的人，先想清楚 `git:repos` 怎么办。
+	 */
 	ipcMain.handle("git:status", async (_event, cwd: string) => gitStatus(cwd));
 
 	ipcMain.handle("git:log", async (_event, cwd: string, limit?: number, ref?: string) => gitLog(cwd, limit, ref));

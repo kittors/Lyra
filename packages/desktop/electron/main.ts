@@ -463,6 +463,24 @@ app.whenReady().then(async () => {
 	useAgentLoop(kernel.require<AgentLoop>(LOOP));
 	useTurnPipeline(kernel.require<TurnPipeline>(SESSION).all());
 
+/**
+ * 把截图快捷键（重新）绑到当前设置上。
+ *
+ * 两个调用点：启动时一次，以及每次设置变化后一次——快捷键是从设置里读的，不重绑等于改了不生效。
+ * 从前这九行在两处各抄一遍，于是「窗口还在不在」那三个判断也抄了两遍；改其中一处而忘了另一处，
+ * 症状是「启动后能用，改过设置之后不能用」或者反过来，而两处代码看起来都对。
+ */
+function bindScreenshotShortcut(): void {
+	registerScreenshotShortcut(
+		() => settings,
+		() => {
+			const win = getWindow();
+			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
+				win.webContents.send("screenshot:trigger");
+			}
+		},
+	);
+}
 	/*
 	 * What a settings change has to reach.
 	 *
@@ -474,15 +492,7 @@ app.whenReady().then(async () => {
 		settings = next;
 		applyNativeAppearance();
 		refreshMenu();
-		registerScreenshotShortcut(
-			() => settings,
-			() => {
-				const win = getWindow();
-				if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-					win.webContents.send("screenshot:trigger");
-				}
-			},
-		);
+		bindScreenshotShortcut();
 		for (const session of sessions.values()) session.updateSettings(next);
 		for (const chat of sideChats.values()) chat.updateSettings(next);
 		if (next.sync.enabled && !syncStatusSource()?.running) await startSync();
@@ -551,15 +561,7 @@ app.whenReady().then(async () => {
 
 	registerIpc();
 	createWindow();
-	registerScreenshotShortcut(
-		() => settings,
-		() => {
-			const win = getWindow();
-			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-				win.webContents.send("screenshot:trigger");
-			}
-		},
-	);
+	bindScreenshotShortcut();
 	/*
 	 * Build the capture overlay now, while nothing is waiting on it.
 	 *

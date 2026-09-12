@@ -114,6 +114,22 @@ export async function createWorktree(
 }
 
 /**
+ * 这个路径是不是 git 自己认的一棵工作树。
+ *
+ * 问 `git worktree list` 而不是看目录长什么样：只有 git 说它是，删掉它才是「移除一棵工作树」，
+ * 否则就只是删一个目录。比对走 canonical 形式，因为 git 印的是解析过的长名，而调用方手上那个
+ * 往往是拼出来的——`创建` 那一侧的注释说过同一件事。
+ */
+async function isKnownWorktree(cwd: string, target: string): Promise<boolean> {
+	const listed = await git(cwd, ["worktree", "list", "--porcelain"]).catch(() => "");
+	const want = canonicalPath(target);
+	return listed
+		.split("\n")
+		.filter((line) => line.startsWith("worktree "))
+		.some((line) => canonicalPath(line.slice("worktree ".length).trim()) === want);
+}
+
+/**
  * Removes a git worktree and prunes git metadata.
  */
 export async function removeWorktree(
@@ -129,8 +145,22 @@ export async function removeWorktree(
 		await git(cwd, ["worktree", "prune"]);
 		return { ok: true };
 	} catch (cause) {
-		// If git worktree remove fails because folder is missing or deleted, fallback to prune & manual rm
+		/*
+		 * 兜底那一步会 `rm -rf`，所以先问清楚删的是什么。
+		 *
+		 * 原来这里是「git 那条命令失败了 → 如果路径存在就递归删掉」。失败的原因有很多种，「这
+		 * 根本不是一棵工作树」是其中最常见的一种——于是传进来一个普通目录，git 拒绝，兜底把它整
+		 * 个删了。这个函数由 `git:removeWorktree` 这个 IPC 直接暴露给渲染进程，也就是说渲染进程
+		 * 拿着一个任意路径就能触发一次递归删除。
+		 *
+		 * 现在只删 `git worktree list` 里确实有的那条。那也正是这个兜底原本要救的场景：目录被人
+		 * 手动删过、git 的元数据还挂着，此时 `remove` 会失败而 `list` 仍然认得它。
+		 */
 		try {
+			if (!(await isKnownWorktree(cwd, worktreePath))) {
+				const why = cause instanceof Error && "stderr" in cause ? String(cause.stderr) : String(cause);
+				return { ok: false, error: why.trim() || "这个路径不是当前仓库的工作树" };
+			}
 			if (existsSync(worktreePath)) {
 				await rm(worktreePath, { recursive: true, force: true });
 			}

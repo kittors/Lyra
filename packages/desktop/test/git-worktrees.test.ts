@@ -173,3 +173,36 @@ test("a worktree in use is protected however its path is spelled", async () => {
 
 	await pruneWorktrees(dir);
 });
+
+/*
+ * 兜底的 `rm -rf` 只碰 git 自己认的工作树。
+ *
+ * `removeWorktree` 在 `git worktree remove` 失败之后会兜底删目录，而「这根本不是一棵工作树」
+ * 正是它最常见的失败原因——于是传进去一个普通目录，git 拒绝，兜底把它整个删掉。这个函数由
+ * `git:removeWorktree` 直接暴露给渲染进程，也就是说一个任意路径就能触发一次递归删除。
+ *
+ * 目录里放东西，是因为空目录被删掉和没被删掉太像；有内容时「还在」才是个有力的断言。
+ */
+test("不是工作树的目录，删不掉", async () => {
+	const bystander = join(root, "not-a-worktree");
+	await mkdtemp(join(root, "x-")).catch(() => {});
+	await exec("mkdir", ["-p", bystander]);
+	await writeFile(join(bystander, "重要文件.txt"), "别删我\n");
+
+	const result = await removeWorktree(dir, bystander);
+
+	assert.equal(result.ok, false, "它不是工作树，这次调用就该失败");
+	assert.equal(existsSync(bystander), true, "目录必须还在——这是这条测试的全部意义");
+	assert.equal(existsSync(join(bystander, "重要文件.txt")), true, "里面的东西也在");
+});
+
+test("真的工作树照样删得掉", async () => {
+	// 上面那条守卫如果写死了，这条会红：它证明收紧的是「不是工作树」而不是「删不了了」。
+	const made = await createWorktree(dir, "wt-removable", DEFAULT_SETTINGS);
+	assert.equal(made.ok, true, made.error);
+	assert.ok(made.path);
+
+	const result = await removeWorktree(dir, made.path);
+	assert.equal(result.ok, true, result.error);
+	assert.equal(existsSync(made.path), false);
+});

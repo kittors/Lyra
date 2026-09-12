@@ -166,18 +166,6 @@ export interface AppState extends QueueSlice {
    * alternatives, so pressing a second one means "that one instead": appending there stacks three
    * unrelated requests into one message nobody wrote.
    */
-  /**
-   * Text to put in the composer, for callers that are not the composer.
-   *
-   * Opening a review's conversation fills in what to ask rather than asking it: the user should
-   * see the question, be able to change it, and press send themselves. Consumed on read.
-   *
-   * `replace` decides what happens to whatever is already in the field, and the two callers want
-   * opposite things. A review or an error arrives while you may be part-way through typing, and
-   * discarding that would lose work — those append. A suggestion card is a choice between four
-   * alternatives, so pressing a second one means "that one instead": appending there stacks three
-   * unrelated requests into one message nobody wrote.
-   */
   composerDraft: { text: string; replace: boolean };
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
   setComposerDraft(text: string, replace?: boolean): void;
