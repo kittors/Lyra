@@ -12,7 +12,7 @@
 
 import { create } from "zustand";
 import { sameDrop } from "./drop.ts";
-import { MIN_FRACTION } from "./geometry.ts";
+import { COLUMN_LIMIT, MIN_FRACTION } from "./geometry.ts";
 import { flushTree, readTree, storageKey, writeTree } from "./persist.ts";
 import {
 	defaultTree,
@@ -135,10 +135,9 @@ interface DockState {
  * third starts a column of its own, and so on in pairs.
  *
  * Stacking rather than opening a column every time is what keeps the conversation from being
- * squeezed thinner with each panel. But stacking *without limit* is worse: a fourth panel in one
- * column leaves each of them a couple of rows tall, which is not a terminal or a diff, it is a
- * hint that one exists. Two is where a pane still holds something worth looking at, so a full
- * column hands the next panel to a new one.
+ * squeezed thinner with each panel; stopping at `COLUMN_LIMIT` is what keeps the stack worth
+ * looking at. See `geometry.ts` for why that number is two, and `fitTree` for the other decision
+ * it settles.
  */
 export function defaultDrop(tree: DockNode): DropAt {
 	const others = kinds(tree).filter((kind) => kind !== "conversation");
@@ -158,9 +157,6 @@ export function defaultDrop(tree: DockNode): DropAt {
 	 */
 	return column >= COLUMN_LIMIT ? { side: "right", kind: null } : { side: "bottom", kind: last };
 }
-
-/** How many panels share one column before the next one starts another. */
-const COLUMN_LIMIT = 2;
 
 /**
  * Give a freshly opened pane the share its panel asked for, out of what it shares with its partner.

@@ -17,7 +17,7 @@
  * which is also what makes the rearrangement animate for free.
  */
 
-import { EPSILON } from "./geometry.ts";
+import { COLUMN_LIMIT, EPSILON } from "./geometry.ts";
 import type { Axis, DockNode, PaneKind } from "./tree.ts";
 
 /**
@@ -160,12 +160,46 @@ export interface Floor {
  * Repeated because taking room from a pane can push that one below its own floor; each pass pins
  * at least one more, so it cannot loop.
  */
-function fitSizes(sizes: number[], floors: number[]): number[] {
+function fitSizes(sizes: number[], floors: number[], mayOverlap = false): number[] {
 	const total = sizes.reduce((sum, size) => sum + size, 0);
 	const needed = floors.reduce((sum, floor) => sum + floor, 0);
-	// Not enough room for everyone's floor. Nothing here can fix that, so the least surprising
-	// answer is to divide what there is in proportion to what was asked for.
 	if (needed >= total) {
+		/*
+		 * Not enough room for everyone's floor. Somebody has to give, and the question is *how*.
+		 *
+		 * Dividing what there is in proportion to the floors — which is what this used to do — puts
+		 * every pane below its own minimum at once. Nothing is readable and nothing is at the size
+		 * it says it is: a 420pt conversation drawn at 320 has its words breaking one per line, and
+		 * the terminal beside it is wrapping its own prompt.
+		 *
+		 * So instead everyone keeps their floor except the *first*, which absorbs the entire
+		 * shortfall. Its box goes as small as it has to; a `min-width` on the pane then draws it at
+		 * its floor anyway — see `DockPane` — so it extends past its box and the pane after it is
+		 * drawn over the overhang. The result is a conversation that is still laid out at its own
+		 * width, with its right-hand side covered rather than reflowed.
+		 *
+		 * That overhang is the thing `geometry.ts` warns about, and this is the deliberate version
+		 * of it. The accident it describes was a pane that believed it was tiling and was not: every
+		 * pane could overflow, in any direction, and a panel silently ate a slice of the
+		 * conversation. Here exactly one pane overflows, only when the row genuinely cannot hold its
+		 * floors, only along the row's own axis, and the sizes still add up to the row — so nothing
+		 * downstream has to know.
+		 *
+		 * `mayOverlap` is false for a column. Overlapping vertically would cover either the
+		 * conversation's composer or the next pane's title bar, and those are the controls you need
+		 * in order to undo it.
+		 */
+		if (mayOverlap && floors.length > 1) {
+			const others = needed - floors[0];
+			// Only when the rest of them genuinely fit. Otherwise the overhang would be the whole
+			// row and the panes after the first would themselves be pushed off the end.
+			if (others < total - EPSILON) {
+				const out = [...floors];
+				out[0] = total - others;
+				return out;
+			}
+		}
+		// The fallback, and the honest answer when even the panes after the first will not fit.
 		return needed > 0 ? floors.map((floor) => (floor / needed) * total) : sizes.map(() => total / sizes.length);
 	}
 
@@ -218,11 +252,29 @@ export function fitTree(node: DockNode, span: { width: number; height: number },
 			&& floorOf(candidate, "col", floor) <= span.height + EPSILON;
 	};
 	const other = node.dir === "row" ? "col" : "row";
-	const dir = !fits(node.dir) && fits(other) ? other : node.dir;
+	/*
+	 * Turning the arrangement on its side is worth it for a pair, and not for a crowd.
+	 *
+	 * Clearing every floor is necessary and is not sufficient, which is what this used to assume.
+	 * Two panes that will not fit side by side are both usable stacked, and that is the Windows case
+	 * this was written for — a 498px dock, a conversation and a terminal, where a column is the only
+	 * arrangement in which you can read either of them.
+	 *
+	 * Four is a different thing wearing the same arithmetic. Every pane clears its 150px floor and
+	 * the answer is still a column of full-width strips: the arrangement someone had made, replaced
+	 * on the layout's own initiative by one they did not ask for and cannot drag back — because this
+	 * runs on every render and re-derives it every frame. That is what "the window feels locked" was.
+	 *
+	 * Past `COLUMN_LIMIT` the room is not there to be found by rotating, and the honest answer is
+	 * that the row keeps its shape and overflows instead — see `fitSizes`.
+	 */
+	const worthTurning = node.children.length <= COLUMN_LIMIT;
+	const dir = !fits(node.dir) && worthTurning && fits(other) ? other : node.dir;
 	const along = dir === "row" ? span.width : span.height;
 	const sizes = node.children.map((_, i) => (node.sizes[i] ?? 0) * along);
 	const floors = node.children.map((child) => floorOf(child, dir, floor));
-	const fitted = fitSizes(sizes, floors);
+	// Overlap along a row only. See `fitSizes` for why a column does not.
+	const fitted = fitSizes(sizes, floors, dir === "row");
 
 	return {
 		...node,

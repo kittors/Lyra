@@ -10,7 +10,7 @@
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
-import { HEADER_HEIGHT, PANE_INSET } from "./geometry.ts";
+import { HEADER_HEIGHT, PANE_INSET, paneFloor } from "./geometry.ts";
 import type { Box } from "./layout.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 
@@ -138,7 +138,36 @@ export function DockPane({
 							height: carried.height,
 							willChange: "transform",
 						}
-					: { left: pct(box.left), top: pct(box.top), width: pct(box.width), height: pct(box.height) }
+					: {
+							left: pct(box.left),
+							top: pct(box.top),
+							width: pct(box.width),
+							height: pct(box.height),
+							/*
+							 * The pixel floor, which a share cannot express.
+							 *
+							 * `fitSizes` keeps every pane in a row at its floor except the first, which
+							 * absorbs whatever the row cannot hold — so on a dock too narrow for the
+							 * arrangement, the first pane's *box* is smaller than the pane may be drawn.
+							 * This is what draws it at its floor anyway: it extends past its box, and
+							 * the pane beside it — a panel, and so a layer above — is drawn over the
+							 * overhang.
+							 *
+							 * Which is the whole point. The conversation stays laid out at the width it
+							 * says it is, with its right-hand side covered, rather than reflowing its
+							 * text into a column two words wide. Nothing else in the row moves.
+							 *
+							 * Width only. A vertical overhang would cover either the composer at the
+							 * bottom of the conversation or the title bar of the pane below — and those
+							 * are the controls you would need in order to undo it. `fitSizes` declines
+							 * to overlap a column for the same reason.
+							 *
+							 * Not while a pane fills the dock: full screen divides the room by a ratio
+							 * of its own, which can legitimately put a pane below its floor, and a
+							 * minimum here would make the pair overlap instead of divide.
+							 */
+							...(maximized ? null : { minWidth: paneFloor(kind).width }),
+						}
 			}
 			/*
 			 * Panels sit above the conversation, and the splitters sit above both.

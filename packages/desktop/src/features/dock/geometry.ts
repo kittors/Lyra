@@ -62,6 +62,21 @@ export const paneFloor = (kind: PaneKind): { width: number; height: number } =>
 		? { width: CONVERSATION_MIN_WIDTH_PX, height: CONVERSATION_MIN_HEIGHT_PX }
 		: { width: PANEL_MIN_WIDTH_PX, height: PANEL_MIN_HEIGHT_PX };
 
+/**
+ * How many panes may share one column before that stops being a layout.
+ *
+ * Two. A pane sharing a column with one other still holds something worth looking at; a fourth in
+ * the same column leaves each of them a couple of rows tall, which is not a terminal or a diff, it
+ * is a hint that one exists.
+ *
+ * Two decisions ask this same question. `defaultDrop` asks it of a column it is about to add to —
+ * a full column hands the next panel to a new one. `fitTree` asks it of a row it is considering
+ * turning on its side to fit a narrow window: stacking two panes that would not fit side by side
+ * keeps both usable and is worth doing, and stacking four produces the column of full-width strips
+ * that made people ask why the layout had been taken away from them.
+ */
+export const COLUMN_LIMIT = 2;
+
 /** Floating-point slack. Shares are compared, added and re-normalised constantly. */
 export const EPSILON = 1e-6;
 
