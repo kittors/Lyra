@@ -68,16 +68,28 @@ if [ "$NAME" != "$VERSION" ]; then
 	exit 1
 fi
 
-# Which certificate signed it, printed either way and checked when it matters.
+# Which certificate signed it, printed in full either way and checked when it matters.
 #
-# React Native's template debug key is a known quantity — its certificate says
-# `CN=Android Debug`, and that string is what tells the two cases apart from the outside. Checking
-# the subject rather than a fingerprint on purpose: a fingerprint pinned here would have to be
-# updated the day a real key is rotated, which is the day nobody wants a second surprise.
-SIGNER=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK_OUT" | sed -n 's/^Signer #1 certificate DN: //p')
-echo "signed by: $SIGNER"
+# React Native's template debug key is a known quantity — its certificate says `CN=Android Debug`,
+# and that string is what tells the two cases apart from the outside. The subject rather than a
+# fingerprint on purpose: a fingerprint pinned here would have to be updated the day a real key is
+# rotated, which is the day nobody wants a second surprise.
+#
+# Printed whole, and searched whole, because the first version of this parsed one line out of it
+# (`^Signer #1 certificate DN: `) and came back empty on the runner — apksigner 37.0.0 says it
+# some other way than the 36.0.0 measured on a laptop. An empty answer then flowed straight into
+# the `grep` below, which of course did not find "Android Debug" in it, which read as "not the
+# debug key". A check that cannot see anything must not report agreement, so a missing
+# `certificate DN:` is a failure here rather than a pass — and the output is in the log so the
+# next person does not have to guess at the wording either.
+CERTS=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK_OUT")
+echo "$CERTS"
 
-if [ "${LYRA_ANDROID_SIGNED:-false}" = "true" ] && printf '%s' "$SIGNER" | grep -q "Android Debug"; then
+if ! printf '%s\n' "$CERTS" | grep -q "certificate DN:"; then
+	echo "::error::apksigner named no signing certificate for this APK, so what signed it is unknown. Its output is above."
+	exit 1
+fi
+if [ "${LYRA_ANDROID_SIGNED:-false}" = "true" ] && printf '%s\n' "$CERTS" | grep -q "Android Debug"; then
 	echo "::error::A release key was configured, but the APK came out signed with React Native's debug key — the injected signing properties were ignored."
 	exit 1
 fi
