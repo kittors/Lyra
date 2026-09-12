@@ -26,8 +26,20 @@
      * beside it, and CJK punctuation fell through to `-apple-system` — which is a western face, so
      * it sets a full-width comma the western way, floating at mid-height instead of sitting at the
      * bottom-left of its box. 「加德克拉斯，123」 with the comma halfway up the line.
+     *
+     * An imported font goes in front of even that, and is the one thing allowed to. Everything
+     * above is about a default nobody chose; this is a file the user went and found. Someone who
+     * imports a Chinese face wants it used for Chinese — leaving `Lyra CJK` in front would apply
+     * their font to the latin half of a line and silently ignore it for the half they picked it
+     * for. `syncImportedUiFont` sets the variable only once the browser has accepted the face, so
+     * a font that fails to load never reaches this line and the CJK adjustment keeps working.
+     *
+     * `Lyra CJK` is then named twice, which costs nothing: when no font is imported the fallback
+     * resolves to the same family already sitting behind it, and when one is imported it is what
+     * catches the CJK an imported latin face does not cover.
      */
-	font-family: var(--ly-script-font, "Lyra CJK"), var(--ly-ui-font, var(--font-sans));
+	font-family: var(--ly-imported-ui-font, var(--ly-script-font, "Lyra CJK")), var(--ly-script-font, "Lyra CJK"),
+	  var(--ly-ui-font, var(--font-sans));
     font-size: var(--ly-ui-size, 13px);
     line-height: 1.6;
     /*

@@ -7,6 +7,7 @@ import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/co
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { CODE_DEFAULTS } from "./code-defaults.ts";
 import { CODE_FONTS, fontAvailable, matchCodeFont } from "./code-fonts.ts";
+import { ImportedFontsSettings } from "./ImportedFontsSettings.tsx";
 import {
 	CONTENT_DEFAULT,
 	CONTENT_FILL,
@@ -179,6 +180,8 @@ export function AppearanceSettings() {
 					}
 				/>
 			</Card>
+
+			<ImportedFontsSettings />
 
 			{/*
 			 * The heading, with a way back to where it started.

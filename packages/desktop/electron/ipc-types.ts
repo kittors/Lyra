@@ -60,6 +60,8 @@ import type { UsageScan } from "./usage-scan.ts";
 export type { DocumentKind } from "../shared/document-kind.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
+import type { ImportedFont, ImportedFontData } from "../shared/custom-fonts.ts";
+export type { ImportedFont, ImportedFontData } from "../shared/custom-fonts.ts";
 
 export type UpdatePhase = DownloadPhase;
 
@@ -204,6 +206,11 @@ export interface LyraApi {
 	 * from how much room it has.
 	 */
 	host?: "desktop" | "mobile";
+	fonts: {
+		list(): Promise<ImportedFont[]>;
+		import(): Promise<ImportedFontData | null>;
+		read(id: string): Promise<ImportedFontData>;
+	};
 	settings: {
 		get(): Promise<Settings>;
 		save(settings: Settings): Promise<Settings>;
