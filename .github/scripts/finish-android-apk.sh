@@ -76,12 +76,15 @@ fi
 # rotated, which is the day nobody wants a second surprise.
 #
 # Printed whole, and searched whole, because the first version of this parsed one line out of it
-# (`^Signer #1 certificate DN: `) and came back empty on the runner — apksigner 37.0.0 says it
-# some other way than the 36.0.0 measured on a laptop. An empty answer then flowed straight into
-# the `grep` below, which of course did not find "Android Debug" in it, which read as "not the
-# debug key". A check that cannot see anything must not report agreement, so a missing
-# `certificate DN:` is a failure here rather than a pass — and the output is in the log so the
-# next person does not have to guess at the wording either.
+# (`^Signer #1 certificate DN: `) and came back empty. That wording is what apksigner prints for an
+# APK carrying a v1 signature; this one is signed v2 only, and for that it says
+#
+#   V2 Signer: certificate DN: CN=Android Debug, OU=Android, O=Unknown, ...
+#
+# The empty answer then flowed straight into the `grep` below, which of course did not find
+# "Android Debug" in it, which read as "not the debug key" — the check would have agreed to
+# anything. So a missing `certificate DN:` is a failure here rather than a pass, and the output
+# goes to the log whole, so the next person reads the wording instead of guessing it.
 CERTS=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK_OUT")
 echo "$CERTS"
 
