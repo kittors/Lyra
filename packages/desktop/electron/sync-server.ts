@@ -16,7 +16,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces } from "node:os";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { AgentEvent, AgentSession, SessionStorage, Settings, ThinkingLevel, UserContent } from "@lyra/core";
+import type { AgentEvent, AgentSession, SessionStorage, Settings } from "@lyra/core";
 import type { SyncStatus } from "./ipc-types.ts";
 import { allowedMethods, callRpc, type RpcDeps } from "./sync-rpc.ts";
 import { RelayLink, relaySocketUrl } from "./sync-relay.ts";
@@ -27,8 +27,6 @@ export interface SyncServerDeps {
 	getSettings(): Settings;
 	saveSettings(settings: Settings): Promise<void>;
 	store: SessionStorage;
-	resolveSession(projectId: string, sessionId: string): Promise<AgentSession | null>;
-	createSession(cwd: string, modelId: string): Promise<AgentSession>;
 	/**
 	 * What the renderer asks about a project directory.
 	 *
@@ -473,102 +471,19 @@ export class SyncServer {
 					return;
 				}
 
-				const session = await this.deps.resolveSession(projectId, sessionId);
-				if (!session) {
-					send(404, { error: "session_not_found" });
-					return;
-				}
-
-				if (req.method === "POST" && action === "prompt") {
-					const body = (await readJson(req)) as { content?: UserContent[]; text?: string };
-					const content: UserContent[] = body.content ?? [{ type: "text", text: String(body.text ?? "") }];
-					if (content.length === 0) {
-						send(400, { error: "empty_prompt" });
-						return;
-					}
-					void session.prompt(content);
-					send(202, { accepted: true, sessionId });
-					return;
-				}
-
-				if (req.method === "POST" && action === "model") {
-					const body = (await readJson(req)) as { modelId?: string };
-					if (!body.modelId) {
-						send(400, { error: "modelId_required" });
-						return;
-					}
-					// Refused once the conversation has started — the stored history carries
-					// provider-specific handles another model cannot replay. Reported rather
-					// than swallowed, so the phone can say why instead of silently not changing.
-					const changed = await session.setModel(String(body.modelId));
-					if (!changed) {
-						send(409, { error: "model_locked", meta: session.meta });
-						return;
-					}
-					send(200, { ok: true });
-					return;
-				}
-
 				/*
-				 * The conversation's reasoning level, from the phone.
+				 * 这条路径上只剩读。写的那七条删掉了。
 				 *
-				 * Unlike the model this is never refused: no stored message carries a handle that
-				 * a different level invalidates. `null` hands the conversation back to the app
-				 * default rather than pinning it to today's value.
+				 * 曾经有 `POST .../prompt`、`/model`、`/thinking`、`/abort`、`/rename`、`/approve`，
+				 * 加上 `POST /api/sessions`。它们各自 `readJson` 之后直接调 handler，**绕过
+				 * `sync-rpc.ts` 的白名单和那份 `ARGS` 校验**——而那份白名单是这套东西唯一的边界。
+				 * 一条不经过它的路等于没有边界：白名单里明确关掉的东西，从这里照样做得到，连参数
+				 * 形状都没人看一眼。
+				 *
+				 * 删掉而不是给它们补校验：手机走的是 WebSocket RPC，这七条没有任何使用者（`mobile`
+				 * 只用上面那个 `GET /api/sessions` 验令牌，和这里的 `GET` 读记录）。留着一条没人走
+				 * 又绕过边界的路，唯一的作用是把将来某个人引到那边去。
 				 */
-				if (req.method === "POST" && action === "thinking") {
-					const body = (await readJson(req)) as { thinking?: string | null };
-					const level = body.thinking == null ? null : (String(body.thinking) as ThinkingLevel);
-					await session.setThinking(level);
-					send(200, { ok: true, meta: session.meta });
-					return;
-				}
-
-				if (req.method === "POST" && action === "abort") {
-					session.abort();
-					send(200, { aborted: true });
-					return;
-				}
-
-				if (req.method === "POST" && action === "rename") {
-					const body = (await readJson(req)) as { title?: string };
-					const newTitle = (body.title ?? "").trim();
-					if (!newTitle) {
-						send(400, { error: "title_required" });
-						return;
-					}
-					await session.rename(newTitle);
-					send(200, { ok: true, meta: session.meta });
-					return;
-				}
-
-				if (req.method === "POST" && action === "approve") {
-					const body = (await readJson(req)) as { requestId?: string; decision?: "once" | "always" | "reject" };
-					const ok = session.resolveApproval(String(body.requestId), body.decision ?? "reject");
-					send(ok ? 200 : 404, { resolved: ok });
-					return;
-				}
-
-				if (req.method === "GET" && action === "status") {
-					send(200, {
-						meta: session.meta,
-						running: session.running,
-						pendingApprovals: session.listPendingApprovals(),
-					});
-					return;
-				}
-			}
-
-			if (req.method === "POST" && url.pathname === "/api/sessions") {
-				const body = (await readJson(req)) as { cwd?: string; modelId?: string };
-				if (!body.cwd) {
-					send(400, { error: "cwd_required" });
-					return;
-				}
-				const session = await this.deps.createSession(body.cwd, body.modelId ?? "");
-				if (body.modelId) await session.setModel(body.modelId);
-				send(201, { meta: session.meta });
-				return;
 			}
 
 			send(404, { error: "not_found" });

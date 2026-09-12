@@ -10,7 +10,7 @@ import { type SessionStorage } from "@lyra/core";
 import { workspaceInfo } from "./workspace-info.ts";
 import { applySettings, onSettingsChanged, settings } from "./app-settings.ts";
 import type { SyncStatus } from "./ipc-types.ts";
-import { editSessionMessage, activateSession, createSession, abortSession, disposeSession, promptSession, getOrCreateSession, sessions, snapshot, touchSession } from "./session-hub.ts";
+import { editSessionMessage, activateSession, createSession, abortSession, disposeSession, promptSession, sessions, snapshot, touchSession } from "./session-hub.ts";
 import { SyncServer } from "./sync-server.ts";
 import { listCommands } from "./commands-service.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "./file-read-service.ts";
@@ -66,7 +66,23 @@ export async function startSync(): Promise<SyncStatus> {
 			workspaceInfo: (path) => workspaceInfo(path),
 			live: (id) => sessions.get(id),
 			activate: (projectId, id) => activateSession(projectId, id),
-			create: createSession,
+			/*
+			 * 手机只能在已经打开的项目里开会话。
+			 *
+			 * 从前这里是 `create: createSession`，而 `sync-rpc.ts` 对 cwd 的校验只有「是不是绝对
+			 * 路径」。手机因此可以在机器上任何一个目录开一个会话，然后在里面 `agent.prompt` ——
+			 * 白名单挡掉的 `terminal.*` 就这样被等价地拿了回来，而且拿回来的那一份不受任何项目
+			 * 边界约束。
+			 *
+			 * 复用 `phoneProjectPath`：`filesList`/`filesRead` 用的是同一条判断（已打开的项目，
+			 * 加上草稿目录），所以「手机看得见哪些地方」和「手机能在哪里开工」现在是同一个答案。
+			 * 不在范围里就抛——一条说得出原因的错误，比一个在别处才炸的会话好。
+			 */
+			create: async (cwd, modelId, initial) => {
+				const inside = await phoneProjectPath(cwd);
+				if (!inside) throw new Error(`手机只能在已打开的项目里新建会话，${cwd} 不在其中`);
+				return createSession(inside, modelId, initial);
+			},
 			prompt: promptSession,
 			editMessage: editSessionMessage,
 			abort: abortSession,
@@ -88,8 +104,6 @@ export async function startSync(): Promise<SyncStatus> {
 			filesRead: async (path) => readReadableFile(await phoneProjectPath(path), true),
 			scratchRoots: async () => scratchRoots(),
 			generalScratch: generalScratchDir,
-			resolveSession: activateSession,
-			createSession: (cwd, modelId) => getOrCreateSession(cwd, modelId),
 		});
 	}
 	/*

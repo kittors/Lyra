@@ -315,6 +315,20 @@ export interface Settings {
 	 */
 	favoriteModelIds?: string[];
 	permissionMode: PermissionMode;
+	/**
+	 * Whether shell commands may reach the network.
+	 *
+	 * A second axis rather than a fourth permission mode, because it does not sit anywhere on the
+	 * existing scale: `auto` is chosen by people who want the agent to edit the project without
+	 * being asked, and that is orthogonal to whether it may also `curl` something. Folding the two
+	 * together would have meant the only way to take the network away was also to take away the
+	 * file access that makes the mode useful.
+	 *
+	 * Off by default. The command classifier is a blacklist and will keep missing spellings, so
+	 * this is the structural answer for anyone who wants one — but turning it on stops
+	 * `pnpm install` and `git push`, which is a decision the user has to make rather than inherit.
+	 */
+	denyCommandNetwork?: boolean;
 	thinking: ThinkingLevel;
 	/** Legacy total attempts, retained when reading older settings. Prefer retryPolicy. */
 	retryAttempts: number;

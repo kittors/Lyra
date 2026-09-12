@@ -86,7 +86,7 @@ interface Seen {
 async function dispatch(replies: AssistantMessage[], compaction: { squash: boolean }) {
 	const seen: Seen[] = [];
 	useCompaction({
-		compact: async (messages, model) => {
+		compact: async ({ messages, model }) => {
 			seen.push({ messages: [...messages], model });
 			if (!compaction.squash) return null;
 			// A summary and the last message, which is the shape the loop expects back.

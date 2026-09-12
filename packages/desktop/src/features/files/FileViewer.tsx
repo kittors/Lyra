@@ -130,12 +130,12 @@ export function FileViewer({
 				<WordView key={path} path={path} />
 			) : kind === "video" ? (
 				<div className="flex min-h-0 flex-1 items-center justify-center bg-black/85 p-2">
-					{/* biome-ignore lint/a11y/useMediaCaption: a file preview has no caption track. */}
+					{/* useMediaCaption 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: a file preview has no caption track. */}
 					<video src={media} controls className="max-h-full max-w-full rounded-md" />
 				</div>
 			) : kind === "audio" ? (
 				<div className="flex min-h-0 flex-1 items-center justify-center p-4">
-					{/* biome-ignore lint/a11y/useMediaCaption: a file preview has no caption track. */}
+					{/* useMediaCaption 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: a file preview has no caption track. */}
 					<audio src={media} controls className="w-full max-w-[420px]" />
 				</div>
 			) : kind === "binary" ? (

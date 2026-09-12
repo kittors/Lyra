@@ -21,7 +21,7 @@ export function TraceText({ title, text, kind = "text", query = "", markdown = f
 	const current = Math.min(page, pages - 1);
 	return <Section title={title} mono>
 		<div className="mb-1 flex h-[22px] items-center justify-end gap-1 font-sans text-caption text-ink-faint">
-			<span className="mr-auto tabular-nums">{text.length.toLocaleString()} 字符{pages > 1 ? ` · ${current + 1}/${pages}` : ""}</span>
+			<span className="mr-auto tabular-nums">{translate("traceText.charCount", { count: text.length.toLocaleString() })}{pages > 1 ? ` · ${current + 1}/${pages}` : ""}</span>
 			{pages > 1 && <><IconButton size="sm" label={translate("traceText.prevPage", { title })} icon={<ChevronLeft size={12} />} disabled={current === 0} onClick={() => setPage(current - 1)} /><IconButton size="sm" label={translate("traceText.nextPage", { title })} icon={<ChevronRight size={12} />} disabled={current === pages - 1} onClick={() => setPage(current + 1)} /></>}
 			<IconButton size="sm" label={translate("traceText.copyAll", { title })} icon={copied ? <Check size={12} /> : <Copy size={12} />} onClick={() => { void navigator.clipboard.writeText(text).then(() => { setCopied(true); setError(""); }).catch((error: unknown) => setError(String(error))); }} />
 		</div>

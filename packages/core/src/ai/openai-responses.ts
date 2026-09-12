@@ -24,7 +24,7 @@ import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
-import { argumentFragment, parseToolArguments, readSse } from "../utils/sse.ts";
+import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
@@ -211,7 +211,9 @@ async function* streamResponses(
 
 				/** 这次尝试里没能解析的帧，留一份原文，空回答时用来说明收到的到底是什么。 */
 				let unparsable = "";
-				for await (const frame of readSse(response, options.signal)) {
+				/** 这条流被空闲闸掉了吗。见 `readSseWithIdleTimeout`。 */
+				const idle = { tripped: false };
+				for await (const frame of readSseWithIdleTimeout(response, options.signal, STREAM_IDLE_TIMEOUT_MS, idle)) {
 					if (frame.data === "[DONE]") break;
 					let event: Record<string, any>;
 					try {
@@ -434,6 +436,19 @@ async function* streamResponses(
 							);
 						}
 					}
+				}
+
+				/*
+				 * 被空闲闸掉的，按连接问题抛，排在这三条判定之前。
+				 *
+				 * 挂死时内容常常正好是空的，也正好没有收尾事件——三条判定都会认领它，而它们说出来的原因
+				 * 都不对。放在最前面是因为它知道得最确切：计时器响了，不是推断出来的。见 Anthropic 链上
+				 * 同一段。
+				 */
+				if (idle.tripped) {
+					throw new FailureError(
+						classifyFailure({ from: "transport", error: new Error(`流空闲超过 ${Math.round(STREAM_IDLE_TIMEOUT_MS / 1000)} 秒`) }),
+					);
 				}
 
 				/*

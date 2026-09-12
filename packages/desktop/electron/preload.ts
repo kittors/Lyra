@@ -110,7 +110,7 @@ type DeepPartial<T> = {
 	[K in keyof T]?: T[K] extends (...args: never[]) => unknown ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K];
 };
 
-const extras: DeepPartial<LyraApi> = {
+const extras = {
 	sessions: {
 		onChanged: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, change: Parameters<typeof handler>[0]) => handler(change);
@@ -261,6 +261,63 @@ const extras: DeepPartial<LyraApi> = {
 		dragStart: () => ipcRenderer.send("pin:dragStart"),
 		dragMove: (dx: number, dy: number) => ipcRenderer.send("pin:dragMove", dx, dy),
 	},
-};
+	// `satisfies`, not an annotation: the check below needs the names actually written here, and an
+	// annotation of `DeepPartial<LyraApi>` would hand it every name in the interface instead.
+} satisfies DeepPartial<LyraApi>;
+
+/**
+ * That `window.lyra` really has everything `LyraApi` promises.
+ *
+ * The line below is a double cast, and a double cast is a claim with nothing behind it. What it
+ * claims is that the generated half plus the hand-written half add up to the interface — and the
+ * failure when they do not is `window.lyra.x.y is not a function` in the renderer, at whatever
+ * moment the user reaches that button. Nothing checked it: the interface had grown past the
+ * contract, and the only evidence either way was that nobody had clicked the wrong thing yet.
+ *
+ * So it is checked here, at compile time, where it costs nothing to keep. If a name in `LyraApi`
+ * is provided by neither `METHODS` nor `extras`, `Missing` stops being `never` and the assignment
+ * below fails with that name in the error.
+ */
+type Provided<G> =
+	| (G extends keyof typeof METHODS ? keyof (typeof METHODS)[G] : never)
+	| (G extends keyof typeof extras ? keyof NonNullable<(typeof extras)[G]> : never);
+
+/**
+ * Optional members are exempt.
+ *
+ * `host` is the one that matters: it says whether a phone or the desktop is holding the app, and
+ * the phone's WebView sets it on the object after this bridge is built. An optional member is a
+ * declaration that absence is a state, so requiring the preload to supply it would be wrong.
+ */
+type IsRequired<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
+
+/*
+ * `-?` on both mapped types, because a mapped type keeps the optionality of what it maps — and an
+ * optional member makes the indexed union include `undefined`, which is not a name and would make
+ * the assertion below fail while naming nothing.
+ */
+type MissingIn<G extends keyof LyraApi> = {
+	[N in keyof LyraApi[G]]-?: IsRequired<LyraApi[G], N> extends true
+		? N extends Provided<G>
+			? never
+			: `${G & string}.${N & string}`
+		: never;
+}[keyof LyraApi[G]];
+
+type Missing = {
+	[G in keyof LyraApi]-?: IsRequired<LyraApi, G> extends false
+		? never
+		: G extends keyof typeof METHODS | keyof typeof extras
+			? // A function or a plain value at the top level is provided by being present at all.
+				LyraApi[G] extends (...args: never[]) => unknown
+				? never
+				: LyraApi[G] extends object
+					? MissingIn<G>
+					: never
+			: `${G & string}`;
+}[keyof LyraApi];
+
+const _bridgeCoversTheInterface: [Missing] extends [never] ? true : Missing = true;
+void _bridgeCoversTheInterface;
 
 contextBridge.exposeInMainWorld("lyra", merge(invokers(), extras) as unknown as LyraApi);

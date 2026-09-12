@@ -23,7 +23,7 @@ import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
-import { parseToolArguments, readSse, type SseFrame } from "../utils/sse.ts";
+import { parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 
 const THINKING_BUDGET: Record<string, number> = {
@@ -157,19 +157,6 @@ export function resetThinkingReplay(): void {
  */
 const THINKING_FORBIDS_SAMPLING = ["temperature", "top_p", "top_k"];
 
-/**
- * 一条流安静多久算它已经死了。
- *
- * `readSse` 只认 AbortSignal，没有计时器：上游把连接挂住不再发帧时，那个 `await reader.read()` 就一直
- * 等下去，界面上是一个永远转着的圈，用户只能按停。
- *
- * 十分钟，不是一个延迟指标而是一个死锁闸：Anthropic 在生成期间会周期性地发 `ping` 帧，兼容端点多数
- * 也会，任何一帧都把计时重新拨回去。所以走到这个阈值意味着**一帧都没有**，那不是「在想」。
- *
- * 数字跟 oh-my-pi 给推理流留的 `BEDROCK_REASONING_STREAM_IDLE_TIMEOUT_MS = 600_000` 一致。
- */
-const STREAM_IDLE_TIMEOUT_MS = 600_000;
-
 async function* streamAnthropic(
 	provider: ProviderConfig,
 	model: ModelConfig,
@@ -254,6 +241,8 @@ async function* streamAnthropic(
 		}
 	>();
 	let stopReason: string | undefined;
+	/** 见过 `message_stop` 没有。这条流是正常收的尾，还是断在半路——见流末尾那一段。 */
+	let sawMessageStop = false;
 	/** 收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。见空回答那一段。 */
 	let framesSeen = 0;
 	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
@@ -283,6 +272,7 @@ async function* streamAnthropic(
 				blocks.clear();
 				inventedIds.clear();
 				stopReason = undefined;
+				sawMessageStop = false;
 				framesSeen = 0;
 				firstTokenTime = null;
 			},
@@ -458,6 +448,11 @@ async function* streamAnthropic(
 							break;
 						}
 
+						case "message_stop": {
+							sawMessageStop = true;
+							break;
+						}
+
 						case "error": {
 							/*
 							 * 抛出去，由分类器决定，而不是当场放弃。
@@ -491,6 +486,31 @@ async function* streamAnthropic(
 					);
 				}
 
+				/*
+				 * 有内容、但两个收尾信号一个都没到——这条流断在半路。
+				 *
+				 * 两条 OpenAI 链早就修过这件事，这条一直没有：`mapStopReason(undefined, …)` 会落到
+				 * `"stop"`，于是半截回答被当成模型说完了交给 loop。半截的代价不是少几个字——半截的
+				 * `toolCall` 参数照样会被 `parseToolArguments` 收下，模型「说完了」的判断会被下一轮当
+				 * 成事实，而真正该发生的事（重发一遍）不会发生。
+				 *
+				 * 判据和 chat-completions 那条一样，连取舍一起：**两个信号都没有**才算断。Anthropic
+				 * 官方两个都发，但中转不一定——只认 `message_stop` 会把只发 `message_delta` 的中转每
+				 * 一轮都误判成截断。两样都不发又安静关掉连接的宿主会被漏掉，那种宿主也没给出任何能
+				 * 分辨「说完了」和「断了」的东西。
+				 *
+				 * 排在空回答之前，和 idle 之后：没有内容的走下面那条，它的原因说得更准。
+				 */
+				if (!sawMessageStop && stopReason === undefined && partial.content.length > 0) {
+					throw new FailureError(
+						classifyFailure({
+							from: "stream",
+							message: "回答只传了一半，连接就断了",
+							spent: true,
+						}),
+					);
+				}
+
 				// 空回答也是失败，不是「模型没话说」——见 Responses 适配器里同一段的说明。
 				if (partial.content.length === 0) {
 					throw new FailureError(
@@ -512,7 +532,16 @@ async function* streamAnthropic(
 					partial.content = [];
 					partial.usage = emptyUsage();
 					blocks.clear();
+					/*
+					 * 这一行原来不在，另外五处 reset 都有。
+					 *
+					 * `inventedIds` 记的是我们替哪些没带 id 的 toolCall 编过号，作用是同一条流里第二次
+					 * 遇到同一个块时给回同一个 id。重试要的是把上一次整个当没发生过，留着它等于让这一次
+					 * 的编号从上一次的位置接着走——半截流重试正是它最常被触发的场合。
+					 */
+					inventedIds.clear();
 					stopReason = undefined;
+					sawMessageStop = false;
 					framesSeen = 0;
 					firstTokenTime = null;
 				},
@@ -553,49 +582,6 @@ async function* streamAnthropic(
 	partial.usage = computeCost(partial.usage, model);
 	yield { type: "done", message: { ...partial } };
 	return partial;
-}
-
-/**
- * 同一条 SSE 流，加一个空闲闸。
- *
- * `readSse` 只接一个 AbortSignal，没有计时器。它被三条链共用，所以计时加在这一侧而不是改那个文件：另
- * 起一个控制器，和调用方那个信号并起来交给它，每收到一帧把计时拨回去。**默认行为一个字节都不变**——
- * 正常流里唯一多出来的事是一次 `clearTimeout` + 一次 `setTimeout`。
- *
- * 取舍两点，都记在这里：
- *
- *   - 计时是**帧级**的，不是字节级的。一个把半个帧挂在那里的上游要等到下一帧才算超时，多等一个阈值。
- *     真正的死连接两者没有区别。
- *   - `readSse` 收到 abort 之后走的是 `reader.cancel()`，那个生成器会**正常结束**而不是抛。所以闸掉
- *     这件事得另外写在 `state.tripped` 上让调用方看——不看的话，一条挂死的流会被当成「模型没话说」，
- *     或者更糟：一个截断了的回答被当成完整的。
- */
-export async function* readSseWithIdleTimeout(
-	response: Response,
-	signal: AbortSignal | undefined,
-	idleMs: number,
-	state: { tripped: boolean },
-): AsyncGenerator<SseFrame> {
-	const idle = new AbortController();
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	const bump = (): void => {
-		if (timer !== undefined) clearTimeout(timer);
-		timer = setTimeout(() => {
-			state.tripped = true;
-			idle.abort();
-		}, idleMs);
-		// 挂死的流那一侧本来就把事件循环撑着，这里不该再多撑一个 10 分钟的计时器。
-		(timer as { unref?: () => void }).unref?.();
-	};
-	try {
-		bump();
-		for await (const frame of readSse(response, signal ? AbortSignal.any([signal, idle.signal]) : idle.signal)) {
-			bump();
-			yield frame;
-		}
-	} finally {
-		if (timer !== undefined) clearTimeout(timer);
-	}
 }
 
 /** 这一份请求该带哪些采样参数。见 `THINKING_FORBIDS_SAMPLING`。 */

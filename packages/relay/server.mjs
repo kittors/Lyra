@@ -36,6 +36,19 @@ const MAX_ASSET_RESPONSE_BYTES = 7 * 1024 * 1024;
 const ASSET_TIMEOUT_MS = 15_000;
 const RATE_WINDOW_MS = 60_000;
 
+/**
+ * 一条连接上还没凑成完整帧的字节，最多攒到这里。
+ *
+ * `MAX_BYTES_PER_CONNECTION` 管的是一条连接一共转了多少，它不看这些字节是不是还堆在内存里。
+ * 中间那个缺口是这样的：`decode` 对声明长度超过 8 MiB 的帧返回 `null`，而 `onData` 把 `null`
+ * 读成「这块还不完整，等下一块」——于是缓冲再也不会被清空，对面只要一直发，进程的内存就一直
+ * 涨。不需要是攻击，一个把长度字段写错了的客户端就能做到。
+ *
+ * 8 MiB 是 `decode` 允许的最大帧，加一点富余放帧头（最多 14 字节）和紧跟着的下一个帧头。攒到
+ * 这个数还没成帧，说明对面发来的不是这个协议里的东西，等下去不会变好。
+ */
+const MAX_BUFFERED_BYTES = 8 * 1024 * 1024 + 64;
+
 /** 每个来源最近一分钟建了几次房。键是 IP，值是时间戳数组。 */
 const recentJoins = new Map();
 
@@ -141,6 +154,17 @@ server.on("upgrade", (req, socket) => {
 /** Decode as many whole frames as `chunk` completes, and act on each. */
 function onData(client, chunk) {
 	client.buffer = Buffer.concat([client.buffer, chunk]);
+
+	/*
+	 * 攒不出帧的字节有个上限，越过就断。
+	 *
+	 * 放在解码之前：要挡的正是那种解码永远不会成功的情况，解完再查等于永远查不到。断开而不是
+	 * 丢弃缓冲——半截帧丢掉之后，后面的字节会从一个不是帧边界的位置开始读，那比断开更难查。
+	 */
+	if (client.buffer.length > MAX_BUFFERED_BYTES) {
+		client.buffer = Buffer.alloc(0);
+		return client.socket.destroy();
+	}
 
 	for (;;) {
 		const frame = decode(client.buffer);

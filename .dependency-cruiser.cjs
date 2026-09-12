@@ -24,18 +24,26 @@ module.exports = {
 				"referring back is ordinary, correct TypeScript that disappears at compile time, and " +
 				"forbidding it would mean flattening a type model to satisfy a tool.",
 			/*
-			 * `warn` on arrival, and the reason is worth stating rather than assuming.
+			 * `error`, against a baseline of the cycles that already exist.
 			 *
-			 * There are fifty-odd of these today and the application works: the cycles are between
-			 * modules that reach each other lazily, so nothing is read before it is assigned. Turning
-			 * them red on the first run would mean either a week of untangling before any other rule
-			 * could be enforced, or — far more likely — the whole tool being ignored. `knip` runs with
-			 * `--no-exit-code` in CI for the same reason.
+			 * This was `warn` with a comment saying "the number is the thing to watch". Nothing was
+			 * watching: it went from 53 to 159 without a single check going red, which is what a
+			 * warning costs when there is no ratchet under it. Waiting for zero before turning it
+			 * red was the plan, and three months of drift is the evidence that the plan does not
+			 * survive contact with ordinary work.
 			 *
-			 * The number is the thing to watch. It should go down as domains get their own directories,
-			 * and this becomes `error` in the commit that empties it.
+			 * So the two halves are separated. The rule is red — a *new* cycle fails the build
+			 * today. The 159 that are already here are listed in
+			 * `.dependency-cruiser-known-violations.json` and pass, because failing the build for
+			 * something somebody else wrote last month teaches people to ignore the tool, the same
+			 * reason this comment used to give for staying yellow.
+			 *
+			 * The baseline is a file that can only be regenerated deliberately, so shrinking it is
+			 * a visible act and growing it is one somebody has to defend in review. Untangling one
+			 * hub — `features/dock` accounts for most of desktop's 119 — and regenerating is the
+			 * expected way this number goes down.
 			 */
-			severity: "warn",
+			severity: "error",
 			from: {},
 			to: { circular: true, dependencyTypesNot: ["type-only"] },
 		},

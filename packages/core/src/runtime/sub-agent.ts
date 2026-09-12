@@ -289,15 +289,14 @@ export async function runSubAgent(
 	 */
 	const compactHistory: AgentRunConfig["compact"] = (messages, model) => {
 		const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
-		return compactWith(
+		return compactWith({
 			messages,
 			model,
-			runProvider,
-			(provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: controller.signal }),
-			textTokens(subAgentPrompt) + toolTokens(allowed),
-			undefined,
+			provider: runProvider,
+			streamFn: (provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: controller.signal }),
+			overhead: textTokens(subAgentPrompt) + toolTokens(allowed),
 			summarizer,
-		);
+		});
 	};
 
 	/** Everything on its way out of the loop: the pane, the roster, and the step list. */
@@ -430,6 +429,7 @@ export async function runSubAgent(
 				 * Delegation is a way of organising work, not a way around what the session decided.
 				 */
 				sandboxMode: sandboxModeFor(options.settings.permissionMode),
+				sandboxNetwork: options.settings.denyCommandNetwork ? "deny" : "allow",
 				allowedHosts: options.settings.allowedHosts,
 				scratchDir: join(lyraHome(), "scratch", options.sessionId),
 				beforeToolCall: makeBeforeToolCall(options.settings.hooks, options.cwd, controller.signal),

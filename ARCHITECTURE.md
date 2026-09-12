@@ -37,13 +37,13 @@ Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，�
 不翻译的内容见 [界面国际化](docs/architecture/i18n.md)。
 缓存、骨架屏与空结果在视图切换时的约定见 [视图切换与加载](docs/architecture/view-loading.md)。
 
-## 渲染进程的九个目录
+## 渲染进程的 10 个目录
 
 ```
 src/
 ├── main.tsx      入口
 ├── app/          窗口怎么装起来：布局、快捷键、启动屏、窗口按钮
-├── features/     21 个用户看得见的域，各自一个目录
+├── features/     22 个用户看得见的域，各自一个目录
 ├── ui/           谁都能用的组件——换个产品也成立
 ├── lib/          纯逻辑：没有 React，没有主进程，不需要 DOM 就能测
 ├── services/     跟主进程说话的唯一出口
@@ -83,7 +83,10 @@ CI 里都是必过项：
 7. **`ui/` 与 `lib/` 是叶子。** 见上一节。
 8. **`window.lyra` 只在 `services/bridge.ts`。** 由 oxlint 守。
 
-循环依赖目前是 warn（53 条，见 `pnpm arch` 的输出），清零后转 error。
+循环依赖是 error，垫着一份已有的 159 条的基线（`.dependency-cruiser-known-violations.json`）：
+新加一条会让 `pnpm arch` 变红，已有那些照旧通过。这个数字每次 `pnpm arch` 都会印出来，
+少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的正常动作，也是唯一能让它上升的动作。
+从前这条规则是 warn 配一句「数字是要盯的东西」，没有东西在盯，于是它从 53 涨到了 159。
 
 ## 要做某件事，去哪
 
@@ -109,8 +112,11 @@ pnpm arch    # 依赖方向
 pnpm test:e2e  # 真实 Electron 窗口
 ```
 
-`pnpm test` 含 2086 条：纯逻辑的在各包 `test/` 下，组件的在 `packages/desktop/test/ui/`
-（happy-dom 真挂载）。e2e 在干净的 main 上有若干条稳定失败，见 [docs/architecture/testing.md](docs/architecture/testing.md)。
+`pnpm test`：纯逻辑的在各包 `test/` 下，组件的在 `packages/desktop/test/ui/`（happy-dom 真挂载）。
+条数不写在这里——一个只会过期的数字，而它对任何决定都不起作用；要知道就跑一次。
+e2e 在干净的 main 上有若干条稳定失败，**是哪几条没有写下来过**：从前这里指向
+[docs/architecture/testing.md](docs/architecture/testing.md)，那份文档里没有这个清单。
+在有人把它量出来写进去之前，这句话说的就是这个意思——不知道是哪几条。
 
 ## 决策记录
 

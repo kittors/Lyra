@@ -254,7 +254,7 @@ export class SideChat {
 				streamFn: this.streamFn,
 				compact: async (messages, model) => {
 					const summarizer = resolveModelRef(this.settings, "@compact", { provider: resolved.provider, model });
-					const compacted = await compactWith(messages, model, resolved.provider, (provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), textTokens(systemPrompt) + toolTokens(tools), undefined, summarizer);
+					const compacted = await compactWith({ messages, model, provider: resolved.provider, streamFn: (provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
 					reading = [...(compacted?.messages ?? messages)];
 					return compacted;
 				},

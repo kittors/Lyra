@@ -2,17 +2,31 @@
  * What the phone is allowed to ask the desktop to do.
  *
  * The phone runs the desktop's own renderer — the same React app, the same components, the same
- * settings pages — and that renderer talks to `window.lyra`, an interface of some 177 methods. On
+ * settings pages — and that renderer talks to `window.lyra`, an interface of some 199 methods. On
  * the desktop those are Electron IPC channels. Over the network they cannot all be: `terminal.*`
  * hands out a shell, `files.write` writes anywhere the user can, `screenshot.*` reads the display.
- * Whoever holds the pairing token would hold all of it.
  *
  * So this is an allowlist rather than a bridge. A method that is not named here does not exist for
  * the phone, and the renderer degrades on its own — a settings page whose data never arrives shows
  * its empty state, which is the right thing for a page that has no business being on a phone.
  *
- * The list is the security boundary and the product decision at once, which is why it is one file
- * you can read top to bottom rather than a rule spread across the handlers.
+ * **说清楚这份名单挡的是什么，不挡什么。**
+ *
+ * 它挡的是「手机能调哪些方法」，不是「拿到配对令牌的人能做多少事」。这两件事之间的距离是有意
+ * 留下的：手机可以写 `permissionMode`（见 `phone-settings.ts`——在手机上批准本来就是这个功能
+ * 存在的理由），设成 `full` 之后审批全部放行、沙箱变 `danger-full-access`；而 `agent.prompt`
+ * 在名单里。也就是说，名单里没有 `terminal.*`，但一把令牌仍然可以让 agent 在一个项目里跑任意
+ * 命令——**这是产品意图，不是漏洞**。配对令牌要按「能操作这台机器」来保管，不是按「能看会话」。
+ *
+ * 这段话是 2026-09-12 改的。原文写的是「Whoever holds the pairing token would hold all of it」，
+ * 把这件事说成了要防的事——而代码从来没有防，也不打算防。一份自述与现状不符的安全边界，比没有
+ * 自述更糟：照着它做判断的人会以为令牌泄露的后果只到「会话被人看见」。
+ *
+ * 真正收紧的是另外两处：`sessions.create` 的 cwd 现在必须落在已打开的项目里（见 `sync.ts` 的
+ * `create`），以及 `sync-server.ts` 里那七条绕过本名单的旧 HTTP 写路由已经删掉。
+ *
+ * The list is the security boundary for *method reach* and the product decision at once, which is
+ * why it is one file you can read top to bottom rather than a rule spread across the handlers.
  */
 
 import {

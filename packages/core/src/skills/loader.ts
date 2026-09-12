@@ -69,8 +69,8 @@ export async function loadSkills(
 			if (raw === null) continue;
 
 			const parsed = parseFrontmatter(raw);
-			if (!parsed) {
-				diagnostics.push({ path: file, message: "Frontmatter is not valid YAML." });
+			if (isUnparsable(parsed)) {
+				diagnostics.push({ path: file, message: `Frontmatter is not valid YAML — ${parsed.invalid}` });
 				continue;
 			}
 			if (parsed.problem) diagnostics.push({ path: file, message: parsed.problem });
@@ -150,7 +150,25 @@ export interface ParsedFrontmatter {
 	problem?: string;
 }
 
-export function parseFrontmatter(raw: string): ParsedFrontmatter | null {
+/**
+ * 开头的 YAML 根本读不了，连带这个文件都用不成。
+ *
+ * 从前这里返回 `null`，解析器说的那句话在 `catch` 里就没了。四个调用点因此只能说「不是合法
+ * YAML」——文件名是有的，错在第几行、错的是什么，一个字都没有。写 SKILL.md 的人看到那句话之后
+ * 能做的只有一行行重看，而 YAML 解析器早就把答案算出来了。
+ *
+ * 做成一个**带字段的结果**而不是继续返回 null，是为了让类型逼着每个调用点把那句话接过去：
+ * `!parsed` 对一个对象永远是假，所以漏改一处就编译不过。
+ */
+export interface UnparsableFrontmatter {
+	/** YAML 解析器的原话，已去掉多余换行。直接给用户看。 */
+	invalid: string;
+}
+
+export const isUnparsable = (parsed: ParsedFrontmatter | UnparsableFrontmatter): parsed is UnparsableFrontmatter =>
+	"invalid" in parsed;
+
+export function parseFrontmatter(raw: string): ParsedFrontmatter | UnparsableFrontmatter {
 	const normalized = raw.replace(/\r\n/g, "\n");
 	if (!normalized.startsWith("---\n")) return { frontmatter: {}, body: normalized };
 	const end = normalized.indexOf("\n---", 3);
@@ -164,8 +182,11 @@ export function parseFrontmatter(raw: string): ParsedFrontmatter | null {
 	try {
 		const frontmatter = (parseYaml(normalized.slice(4, end)) ?? {}) as Record<string, unknown>;
 		return { frontmatter, body: normalized.slice(end + 4).replace(/^\n+/, "") };
-	} catch {
-		return null;
+	} catch (error) {
+		// 解析器的话原样带走。它的行号是相对 frontmatter 块的，而块从第 2 行开始——说清楚比
+		// 换算准确，换算一旦和解析器的计法不一致，指错行比不指行更费时间。
+		const said = error instanceof Error ? error.message : String(error);
+		return { invalid: said.replace(/\s*\n\s*/g, " ").trim() };
 	}
 }
 

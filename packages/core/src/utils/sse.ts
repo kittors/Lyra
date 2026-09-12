@@ -60,6 +60,64 @@ function parseFrame(raw: string): SseFrame | null {
 }
 
 /**
+ * 同一条 SSE 流，加一个空闲闸。
+ *
+ * `readSse` 只接一个 AbortSignal，没有计时器：上游把连接挂住不再发帧时，那个 `await reader.read()`
+ * 就一直等下去，界面上是一个永远转着的圈，用户只能按停。计时另起一个控制器加在外面，和调用方那个
+ * 信号并起来交给它，每收到一帧把计时拨回去。**默认行为一个字节都不变**——正常流里唯一多出来的事是
+ * 一次 `clearTimeout` + 一次 `setTimeout`。
+ *
+ * 住在这里而不是某一条链里：三条链的上游都会挂住，而这个函数本来写着「它被三条链共用」的注释，却
+ * 只有 Anthropic 那条接了——两条 OpenAI 链一直是裸的 `readSse`，挂住就无限等。共用的东西放在共用的
+ * 地方，是这件事不会再走岔的唯一办法。
+ *
+ * 取舍两点，都记在这里：
+ *
+ *   - 计时是**帧级**的，不是字节级的。一个把半个帧挂在那里的上游要等到下一帧才算超时，多等一个阈值。
+ *     真正的死连接两者没有区别。
+ *   - `readSse` 收到 abort 之后走的是 `reader.cancel()`，那个生成器会**正常结束**而不是抛。所以闸掉
+ *     这件事得另外写在 `state.tripped` 上让调用方看——不看的话，一条挂死的流会被当成「模型没话说」，
+ *     或者更糟：一个截断了的回答被当成完整的。
+ */
+export async function* readSseWithIdleTimeout(
+	response: Response,
+	signal: AbortSignal | undefined,
+	idleMs: number,
+	state: { tripped: boolean },
+): AsyncGenerator<SseFrame> {
+	const idle = new AbortController();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const bump = (): void => {
+		if (timer !== undefined) clearTimeout(timer);
+		timer = setTimeout(() => {
+			state.tripped = true;
+			idle.abort();
+		}, idleMs);
+		// 挂死的流那一侧本来就把事件循环撑着，这里不该再多撑一个 10 分钟的计时器。
+		(timer as { unref?: () => void }).unref?.();
+	};
+	try {
+		bump();
+		for await (const frame of readSse(response, signal ? AbortSignal.any([signal, idle.signal]) : idle.signal)) {
+			bump();
+			yield frame;
+		}
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+	}
+}
+
+/**
+ * 一条流安静多久算它已经死了。
+ *
+ * 十分钟，不是一个延迟指标而是一个死锁闸：生成期间各家都会周期性地发 `ping` 之类的保活帧，任何一帧
+ * 都把计时重新拨回去。所以走到这个阈值意味着**一帧都没有**，那不是「在想」。
+ *
+ * 数字跟 oh-my-pi 给推理流留的 `BEDROCK_REASONING_STREAM_IDLE_TIMEOUT_MS = 600_000` 一致。
+ */
+export const STREAM_IDLE_TIMEOUT_MS = 600_000;
+
+/**
  * Parse tool-call arguments that may be truncated mid-stream.
  *
  * A model that hits the output limit leaves `{"path": "/a/b` on the wire. Returning `{}` there

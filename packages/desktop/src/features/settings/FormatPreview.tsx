@@ -181,14 +181,14 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 				>
 					<div className="relative w-max min-w-full px-3" style={metrics}>
 						{lines.map((line, index) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: lines have no identity but their position.
+							// noArrayIndexKey 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: lines have no identity but their position.
 							<div key={index}>
 								{line.length === 0 ? (
 									// A blank line still needs height, and an empty div has none.
 									<span>{"​"}</span>
 								) : (
 									line.map((piece, at) => (
-										// biome-ignore lint/suspicious/noArrayIndexKey: same.
+										// noArrayIndexKey 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: same.
 										<span key={at} style={piece.token ? { color: theme.tokens[piece.token] } : undefined}>
 											{piece.text}
 										</span>

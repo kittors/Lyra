@@ -51,3 +51,88 @@ export const RISKY_SUBCOMMANDS = new Map<string, Map<string, string>>([
 
 /** Paths that are never the project, so writing to them is out of scope by definition. */
 export const PROTECTED_PATH = /(^|\s)(\/(bin|sbin|usr|etc|var|System|Library|Applications)\b|~\/\.(ssh|aws|gnupg|config\/gh)\b)/;
+
+/**
+ * Programs that put a file somewhere, as opposed to a shell redirect.
+ *
+ * `PROTECTED_PATH` used to be consulted only when the line contained a `>`, so it answered about
+ * `echo x > /etc/hosts` and said nothing about `cp payload /etc/hosts`, `mv x /usr/local/bin/`,
+ * `tee /etc/hosts` or `ln -sf x /usr/bin/git` — the same effect, reached without a redirect.
+ */
+export const PLACES_FILES = new Set([
+	"cp",
+	"mv",
+	"tee",
+	"install",
+	"ln",
+	"rsync",
+	"truncate",
+	"chmod",
+	"chflags",
+	"xattr",
+	"touch",
+	"unzip",
+	"tar",
+]);
+
+/**
+ * Files that are the keys to something, wherever they are read from.
+ *
+ * The write side of this was covered — `PROTECTED_PATH` includes `~/.ssh` — and the read side was
+ * not, which is the half that matters for a credential: a key is not damaged by being read, it is
+ * spent. `cat ~/.lyra/vault.key` is the whole vault, and it was not a question anyone was asked.
+ *
+ * The vault's own two files are named explicitly rather than covered by a `~/.lyra` rule: that
+ * directory also holds settings and session logs, and a rule broad enough to include them would
+ * stop an agent reading its own configuration.
+ */
+export const SECRET_PATH =
+	/(~|\$HOME|\/Users\/[^/\s]+|\/home\/[^/\s]+)?\/?\.(lyra\/(vault\.key|credentials\.json)|ssh\/id_[A-Za-z0-9_]+|aws\/credentials|gnupg\b|netrc|config\/gh\/hosts\.yml)/;
+
+/**
+ * Shells, which run whatever string they are handed.
+ *
+ * Named here rather than inline because two rules need the same list: "what does `bash -c` run"
+ * and "what is on the far end of a `curl … |`".
+ */
+export const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
+
+/** Anything that runs code it is given, for the pipe-into-interpreter rule. */
+export const INTERPRETERS = new Set([
+	...SHELLS,
+	"python",
+	"python2",
+	"python3",
+	"perl",
+	"ruby",
+	"node",
+	"deno",
+	"bun",
+	"php",
+	"osascript",
+	"Rscript",
+	"lua",
+	"awk",
+	"tclsh",
+]);
+
+/**
+ * Programs whose argument list is another command, once their own options are out of the way.
+ *
+ * Without this, every one of them was a way to put a command somewhere nothing looked: the first
+ * word of `env rm -rf ~` is `env`, of `xargs rm -rf` is `xargs`, and neither is on any list.
+ */
+export const COMMAND_PREFIXES = new Set([
+	"env",
+	"nohup",
+	"time",
+	"nice",
+	"ionice",
+	"stdbuf",
+	"setsid",
+	"timeout",
+	"command",
+	"exec",
+	"xargs",
+	"watch",
+]);

@@ -82,7 +82,7 @@ export function ProviderEditor({
 			<ProviderHeading provider={provider} onChange={onChange} onRemove={onRemove} />
 
 			<div className="space-y-4">
-				<Field label="Base URL" hint="例如 https://relay.example.com 或 https://relay.example.com/v1">
+				<Field label="Base URL" hint={t("provider.baseUrlHint")}>
 					<TextInput
 						value={baseUrl}
 						onChange={(value) => {

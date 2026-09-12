@@ -1,8 +1,7 @@
 import { streamAssistant } from "../../ai/index.ts";
 import { type Compaction, compactIfNeeded } from "../../runtime/compaction.ts";
-import type { Message, ModelConfig, ProviderConfig } from "../../types.ts";
 import type { Context, Plugin } from "../context.ts";
-import { COMPACTION, type CompactionStrategy } from "../services.ts";
+import { COMPACTION, type CompactionRequest, type CompactionStrategy } from "../services.ts";
 
 /**
  * Summarise the middle, keep the ends.
@@ -13,13 +12,26 @@ import { COMPACTION, type CompactionStrategy } from "../services.ts";
  * a different one.
  */
 class SummaryCompaction implements CompactionStrategy {
-	compact(
-		messages: Message[],
-		model: ModelConfig,
-		provider: ProviderConfig,
-		streamFn?: typeof streamAssistant,
-	): Promise<Compaction | null> {
-		return compactIfNeeded(messages, model, provider, streamFn ?? streamAssistant);
+	compact(request: CompactionRequest): Promise<Compaction | null> {
+		/*
+		 * Every field forwarded, none defaulted away.
+		 *
+		 * This used to pass the first four and let `compactIfNeeded` default the rest, which meant
+		 * that binding the built-in strategy — what the desktop does at boot — turned off the
+		 * overhead accounting, artifact storage and the `@compact` model role. The built-in policy
+		 * should behave the same whether or not a context is in the picture.
+		 */
+		return compactIfNeeded(
+			request.messages,
+			request.model,
+			request.provider,
+			request.streamFn ?? streamAssistant,
+			request.overhead ?? 0,
+			request.force ?? false,
+			request.artifacts,
+			request.manual,
+			request.summarizer,
+		);
 	}
 }
 

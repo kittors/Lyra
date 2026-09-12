@@ -398,7 +398,7 @@ export function CodeEditor({
 	return (
 		// `relative` so the thumbs can be positioned against the pane rather than the window.
 		<div className="ly-scroll-host relative flex min-h-0 flex-1">
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: the menu is the editor's, not this box's. */}
+			{/* noStaticElementInteractions 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: the menu is the editor's, not this box's. */}
 			<div
 				ref={host}
 				onContextMenu={(event) => menu.show(event, undefined)}

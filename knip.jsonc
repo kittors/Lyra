@@ -1,0 +1,91 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+
+  // Every package, including the four that had no entry here at all — `contract`, `relay`,
+  // `agent-cli` and `registry-shared`. A workspace knip does not know about is a workspace whose
+  // dead code it cannot see, which is the opposite of what this file is for.
+  //
+  // Tests are entry points. They are a legitimate consumer: a helper exported so a test can drive
+  // it directly is not dead, and this repo requires the test. The patterns are `test/**` rather
+  // than `test/*` because the component tests live in `test/ui/`, and `e2e/**` is listed because
+  // the real-window probes import a great deal that nothing else does.
+  "workspaces": {
+    "packages/core": {
+      "entry": ["src/index.ts", "src/**/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/contract": {
+      "entry": ["src/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/desktop": {
+      "entry": [
+        "electron/main.ts",
+        "electron/preload.ts",
+        "src/main.tsx",
+        "test/**/*.test.{ts,tsx}",
+        "e2e/**/*.ts",
+        "scripts/*.mjs"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "electron/**/*.ts", "shared/**/*.ts"]
+    },
+    "packages/mobile": {
+      "entry": ["app/**/*.tsx", "test/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+      // Off because knip loads `metro.config.js` to read it, and `withNativeWind` resolves
+      // `tailwind.config` by bare name from a directory knip is not in — so the run reported a
+      // module-not-found error that had nothing to do with this repository's code.
+      "metro": false
+    },
+    "packages/relay": {
+      "entry": ["server.mjs", "test/**/*.test.ts"],
+      "project": ["*.mjs"]
+    },
+    "packages/agent-cli": {
+      "entry": ["src/index.ts", "src/cli.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/registry-shared": {
+      "entry": ["src/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    ".": {
+      // Each of these is a command someone runs by hand or a hook runs for them. Nothing imports
+      // them, which is the point, and without this they read as unused files.
+      "entry": ["scripts/**/*.mjs", "test/**/*.test.ts"]
+    }
+  },
+
+  "ignoreDependencies": [
+    "lefthook",
+
+    // Fonts, reached from `src/styles/fonts.css` as `url("@fontsource-variable/…/files/…woff2")`.
+    // knip does not follow CSS — it says so itself, as a configuration hint — so every font this
+    // app ships looks unused to it. Removing them would drop the monospace faces the code panes
+    // and the appearance page offer.
+    "@fontsource-variable/inter",
+    "@fontsource-variable/jetbrains-mono",
+    "@fontsource-variable/fira-code",
+    "@fontsource-variable/source-code-pro",
+    "@fontsource/ibm-plex-mono",
+
+    // Run as a binary, never imported: `npx git-cliff` in `scripts/release.mjs` builds the
+    // changelog section. The dependency is what makes that resolve locally rather than fetching a
+    // different version mid-release.
+    "git-cliff",
+
+    "tailwindcss",
+    "@electron/rebuild",
+    "expo-updates",
+    "expo-system-ui",
+    "react-native-css-interop",
+    "@modelcontextprotocol/sdk"
+  ],
+
+  "ignore": ["**/node_modules/**", "**/dist/**", "**/out/**"],
+
+  // External tools this code shells out to, which are meant to be absent on a machine that does
+  // not need them: `rg` for grep, `bwrap` for the Linux sandbox, `ffmpeg` to encode the recording
+  // an e2e probe makes.
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg"]
+}

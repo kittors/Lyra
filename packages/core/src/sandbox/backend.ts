@@ -14,7 +14,14 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { bwrapArgs, canonicalPath, seatbeltArgs, type SandboxEnforcement, type SandboxPolicy } from "./policy.ts";
+import {
+	bwrapArgs,
+	canonicalPath,
+	seatbeltArgs,
+	type SandboxEnforcement,
+	type SandboxNetwork,
+	type SandboxPolicy,
+} from "./policy.ts";
 import { workspaceWriteSid } from "./windows/identity.ts";
 
 /** Where the platform's confinement comes from, or `none` when it has none we can use. */
@@ -87,14 +94,33 @@ const ENFORCEMENT: Record<Exclude<Runner, "none">, SandboxEnforcement> = {
 };
 
 /**
+ * Which runners can keep the network half of a policy.
+ *
+ * The Windows runner works by restricting the process token's access to file objects, which is a
+ * statement about the filesystem and nothing else — there is no network in it. So a policy that
+ * denies the network is refused there rather than partly applied: this file's own rule is that the
+ * one thing a sandbox must never do is run the command anyway while the UI says it is confined,
+ * and "the writes are confined and the sockets are not" is exactly that, one axis down.
+ */
+const ENFORCES_NETWORK: Record<Exclude<Runner, "none">, boolean> = {
+	seatbelt: true,
+	bwrap: true,
+	"windows-acl": false,
+};
+
+/**
  * Really run something trivial under the real profile.
  *
  * `read-only` with `/` as the workspace is the strictest profile the runner will ever be handed, so
  * a runner that accepts it accepts the rest. `true` is the command because it exists everywhere,
  * writes nothing, and its exit code is unambiguous.
  */
-function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string): boolean {
-	const policy: SandboxPolicy = { mode: "read-only", workspaceRoot: process.platform === "win32" ? process.cwd() : "/" };
+function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string, network: SandboxNetwork): boolean {
+	const policy: SandboxPolicy = {
+		mode: "read-only",
+		workspaceRoot: process.platform === "win32" ? process.cwd() : "/",
+		network,
+	};
 	if (runner === "windows-acl") {
 		try {
 			const wrap = windowsRunnerArgv(policy);
@@ -149,14 +175,23 @@ export function resetProbeCache(): void {
  * a broken `sandbox-exec`. What the caller does about it is the caller's decision; what this
  * function must not do is pretend.
  */
-export function selectRunner(hooks: BackendHooks = {}): Runner {
+export function selectRunner(hooks: BackendHooks = {}, network: SandboxNetwork = "allow"): Runner {
 	const platform = hooks.platform ?? process.platform;
 	const seatbeltExec = hooks.seatbeltExec ?? "/usr/bin/sandbox-exec";
 	for (const runner of PLATFORM_RUNNERS[platform] ?? []) {
-		const key = `${platform}:${runner}:${seatbeltExec}`;
+		/*
+		 * Probed and cached per axis, not once for both.
+		 *
+		 * The network forms are a separate question from the file forms — a `sandbox-exec` can
+		 * accept one profile and reject another — and a single shared answer would resolve it in
+		 * whichever direction happened to be asked first. Worse in one direction than the other:
+		 * one shared `false` would take away file confinement from a host that has it, because
+		 * this host cannot deny the network.
+		 */
+		const key = `${platform}:${runner}:${seatbeltExec}:${network}`;
 		let ok = probed.get(key);
 		if (ok === undefined) {
-			ok = hooks.probe ? hooks.probe(runner) : probeRunner(runner, seatbeltExec);
+			ok = hooks.probe ? hooks.probe(runner) : probeRunner(runner, seatbeltExec, network);
 			probed.set(key, ok);
 		}
 		if (ok) return runner;
@@ -172,13 +207,25 @@ export function selectRunner(hooks: BackendHooks = {}): Runner {
  * which case running unconfined was a decision somebody made rather than something that happened.
  */
 export function confine(policy: SandboxPolicy, hooks: BackendHooks = {}): Confinement | null {
-	if (policy.mode === "danger-full-access") return null;
+	/*
+	 * `danger-full-access` is the absence of a sandbox — but only of the file half.
+	 *
+	 * A policy that names no file confinement and still denies the network is a real combination,
+	 * and returning `null` for it would hand back an unwrapped command whose policy said otherwise.
+	 */
+	if (policy.mode === "danger-full-access" && policy.network !== "deny") return null;
 
-	const runner = selectRunner(hooks);
+	const network = policy.network ?? "allow";
+	const runner = selectRunner(hooks, network);
 	if (runner === "none") {
 		const platform = hooks.platform ?? process.platform;
 		throw new SandboxUnavailableError(
 			`这台机器上没有可用的沙箱后端（平台 ${platform}），无法以「${policy.mode}」模式运行。`,
+		);
+	}
+	if (network === "deny" && !ENFORCES_NETWORK[runner]) {
+		throw new SandboxUnavailableError(
+			`${runner} 后端只能约束文件写入，不能断开网络；「禁止命令联网」在这台机器上无法保证。`,
 		);
 	}
 
@@ -252,4 +299,39 @@ const DENIAL_PATTERNS = [
 	/\bdeny file-write\b/i,
 	/\bbwrap:.*(?:permission denied|read-only file system)/i,
 	/\bread-only file system\b/i,
+];
+
+/**
+ * Whether this output is what a denied *network* looks like.
+ *
+ * Only meaningful when the caller already knows the network was denied, and the signature says so
+ * by asking for the policy rather than just the text. That is not caution about naming: a denied
+ * socket is genuinely indistinguishable from being offline. Measured under a real profile on
+ * macOS 25 — `curl` says `Could not resolve host` (exit 6) for a name and
+ * `Couldn't connect to server` (exit 7) for an address, and a program using sockets directly gets
+ * `EPERM`. Of those, only `EPERM` is unlike an ordinary network failure; the other two are
+ * character-for-character what a laptop on a train prints.
+ *
+ * So the policy is the evidence and the text only confirms the shape. Reading the text alone would
+ * mean telling the model "policy denied this" every time a flaky registry timed out, which teaches
+ * it to disbelieve the marker — the one thing the marker cannot afford.
+ */
+export function looksNetworkDenied(output: string, network: SandboxNetwork | undefined): boolean {
+	if (network !== "deny") return false;
+	return NETWORK_DENIAL_PATTERNS.some((pattern) => pattern.test(output));
+}
+
+const NETWORK_DENIAL_PATTERNS = [
+	/\bcould not resolve host\b/i,
+	/\bcouldn't connect to server\b/i,
+	/\bcould not resolve proxy\b/i,
+	/\bconnect EPERM\b/i,
+	/\bEPERM\b.*\bconnect\b/i,
+	/\bnetwork is unreachable\b/i,
+	/\btemporary failure in name resolution\b/i,
+	/\bname or service not known\b/i,
+	// `git` wraps curl's line in its own, and npm/pnpm report the registry rather than the host.
+	/\bunable to access\b.*\bcould not resolve\b/i,
+	/\bENOTFOUND\b/,
+	/\bEAI_AGAIN\b/,
 ];

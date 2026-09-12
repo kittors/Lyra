@@ -8,6 +8,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { allowedMethods, callRpc, RPC, type RpcDeps } from "../electron/sync-rpc.ts";
 import { DEFAULT_SETTINGS, type SessionMeta, type Settings } from "@lyra/core";
@@ -325,4 +326,50 @@ test("phone submissions preserve the opening message and resume it through the s
 		assert.equal((await callRpc(hub, "sessions.create", ["/project", "qa/model", invalid])).ok, false);
 	}
 	assert.equal(calls.length, 3, "malformed content must not reach storage");
+});
+
+/*
+ * 名单之外没有第二条路。
+ *
+ * 这份白名单曾经不是唯一的入口：`sync-server.ts` 里另有七条 HTTP 写路由（`POST .../prompt`、
+ * `/model`、`/thinking`、`/abort`、`/rename`、`/approve`，以及 `POST /api/sessions`），各自
+ * `readJson` 之后**直接调 handler**——既不过这份名单，也不过 `ARGS` 的参数校验。名单里明确没有的
+ * 事，从那边照样做得到。
+ *
+ * 它们删掉了。这条测试读源码而不是发请求：要守的是「不会再长出来」，而一条新加的路由在任何行为
+ * 测试里都不会失败——没有人会去请求一个刚被别人加上的地址。
+ */
+test("HTTP 那一侧不再有绕过白名单的写路由", async () => {
+	const source = await readFile(new URL("../electron/sync-server.ts", import.meta.url), "utf8");
+
+	/*
+	 * 写方法只准出现在 `/api/rpc` 那一条上——那条本来就是把请求交给 `callRpc`，也就是交给这份
+	 * 名单。别的任何写路由都是绕过它的第二条路，不管它当时看起来多无害。
+	 */
+	const writeRoutes = [...source.matchAll(/req\.method === "(?:POST|PUT|PATCH|DELETE)"([^\n]*)/g)].map((m) => m[1].trim());
+	const bypassing = writeRoutes.filter((rest) => !rest.includes('url.pathname === "/api/rpc"'));
+	assert.deepEqual(bypassing, [], `HTTP 那一侧多了不经过 callRpc 的写路由：${bypassing.join("、")}`);
+	assert.equal(writeRoutes.length, 1, "只该有 /api/rpc 这一条写路由");
+
+	// 而读的那两条还在——手机拿它们验令牌和拉记录，删掉会让配对无声失败。
+	assert.match(source, /req\.method === "GET" && url\.pathname === "\/api\/sessions"/);
+	assert.match(source, /req\.method === "GET" && !action/);
+});
+
+/*
+ * 手机开会话的 cwd 必须落在已打开的项目里。
+ *
+ * 限制装在注入那一侧（`sync.ts` 的 `create`），因为 `phoneProjectPath` 要读 settings 和真实文件
+ * 系统，而这份 RPC 表本身是纯的。这条测试守的是**那一侧确实包了一层**：`create: createSession`
+ * 这种直接转发的写法，会让 `sessions.create` 的 cwd 只剩「是不是绝对路径」这一道校验——手机就能
+ * 在机器上任何目录开一个会话，然后在里面 `agent.prompt`。
+ */
+test("sessions.create 的 cwd 在注入那一侧被限到已打开的项目", async () => {
+	const source = await readFile(new URL("../electron/sync.ts", import.meta.url), "utf8");
+	// 只看代码行——注释里正要讲的就是「从前这里是 `create: createSession`」，别把它算进去。
+	assert.doesNotMatch(source, /^\t+create: createSession\b/m, "直接转发等于没有项目边界");
+	const create = /create: async \(cwd, modelId, initial\) => \{([\s\S]*?)\n\s*\},/.exec(source);
+	assert.ok(create, "找不到 `create` 那一层包装——它是项目边界所在");
+	assert.match(create[1], /phoneProjectPath\(cwd\)/, "要走和 filesList/filesRead 同一条判断");
+	assert.match(create[1], /throw new Error/, "不在范围里要说出来，不能默默换个目录开");
 });

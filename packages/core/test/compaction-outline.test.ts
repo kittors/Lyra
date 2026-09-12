@@ -121,7 +121,7 @@ async function compactionsWhenReading(outline: boolean): Promise<{ compactions: 
 			temperature: 0,
 			state: new Map(),
 			streamFn: reader.stream,
-			compact: (history, model) => compactWith(history, model, PROVIDER, summaryStream, 0),
+			compact: (history, model) => compactWith({ messages: history, model, provider: PROVIDER, streamFn: summaryStream }),
 		},
 		async (event) => {
 			if (event.type === "compacted") compactions += 1;

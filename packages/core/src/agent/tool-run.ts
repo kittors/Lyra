@@ -65,6 +65,16 @@ export async function runTools(
 			isError: result.isError === true,
 			/* An error is always worth keeping, whatever else the tool said about itself. */
 			uneventful: result.isError !== true && result.uneventful === true,
+			/*
+			 * 只有说了才带上，没说的一律不写这个字段。
+			 *
+			 * 每条工具结果都要落进会话日志，而绝大多数工具永远不会想终止这一轮——给它们每人添一个
+			 * `"terminate":false`，是拿一个空值去换一次对称。
+			 *
+			 * 出错的那次不算数：`yield` 校验没过时返回的就是一条 `isError`，那是「重填一次」的意思，
+			 * 不是「交完了」。
+			 */
+			...(result.isError !== true && result.terminate === true ? { terminate: true } : {}),
 			timestamp: finishedAt,
 		};
 		await emit({ type: "message_start", message });
@@ -134,6 +144,7 @@ async function executeOne(
 		state,
 		requestApproval: config.requestApproval,
 		sandboxMode: config.sandboxMode,
+		sandboxNetwork: config.sandboxNetwork,
 		allowedHosts: config.allowedHosts,
 		writePreview: config.writePreview,
 		spawnSubAgent: config.spawnSubAgent,

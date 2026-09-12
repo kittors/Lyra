@@ -23,7 +23,7 @@
  * writes both down.
  */
 
-import type { CompactionStrategy } from "../kernel/services.ts";
+import type { CompactionRequest, CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
 import { dropUneventful, pruneToolResults, type ArtifactSink } from "./prune.ts";
@@ -203,17 +203,28 @@ export function useCompaction(next: CompactionStrategy | null): void {
 	strategy = next;
 }
 
-export function compactWith(
-	messages: Message[],
-	model: ModelConfig,
-	provider: ProviderConfig,
-	streamFn?: typeof streamAssistant,
-	overhead = 0,
-	artifacts?: ArtifactSink,
-	summarizer?: { provider: ProviderConfig; model: ModelConfig },
-): Promise<Compaction | null> {
-	if (strategy) return strategy.compact(messages, model, provider, streamFn);
-	return compactIfNeeded(messages, model, provider, streamFn ?? streamAssistant, overhead, false, artifacts, undefined, summarizer);
+/**
+ * The one way history gets shortened.
+ *
+ * Both paths come through here — the loop running out of room, and a person typing `/compact` —
+ * and both hand over the whole request. They did not always: this took seven positional arguments
+ * and forwarded four of them to the strategy, so a host that bound one (the desktop does) lost
+ * the overhead, the artifact sink and the `@compact` summarizer without a word. The request is an
+ * object now so that adding to it cannot leave a caller silently short.
+ */
+export function compactWith(request: CompactionRequest): Promise<Compaction | null> {
+	if (strategy) return strategy.compact(request);
+	return compactIfNeeded(
+		request.messages,
+		request.model,
+		request.provider,
+		request.streamFn ?? streamAssistant,
+		request.overhead ?? 0,
+		request.force ?? false,
+		request.artifacts,
+		request.manual,
+		request.summarizer,
+	);
 }
 
 export async function compactIfNeeded(

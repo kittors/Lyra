@@ -124,6 +124,10 @@ export function useFileTree(root: string | null): FileTree {
 
 	// Bound once: the store's actions never change identity, and the callers below put several of
 	// them in dependency arrays.
+	//
+	// `react/hooks` 读到 `useFileTreeStore` 这个名字就认为 hook 被当成值传了。zustand 的 store
+	// 两样都是：调用它是 hook，`.getState()` 是它上面的静态方法，规则分辨不了这两种用法。
+	// oxlint-disable-next-line react/hooks
 	const store = useRef(useFileTreeStore.getState()).current;
 
 	return {

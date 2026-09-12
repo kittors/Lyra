@@ -262,6 +262,8 @@ function SlashCommands() {
 function ToolInventory() {
 	const { t } = useI18n();
 	const activeSessionId = useApp((s) => s.activeSessionId);
+	// 同 `useFileTree.ts`：`useApp.getState()` 是 zustand store 的静态读法，不是在调 hook。
+	// oxlint-disable-next-line react/hooks
 	const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(useApp.getState().capabilities);
 
 	useEffect(() => {

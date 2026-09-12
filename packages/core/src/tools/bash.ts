@@ -3,11 +3,12 @@ import { createOutputLog } from "./output-log.ts";
 import { randomUUID } from "node:crypto";
 import { backgroundJobs, type BackgroundJob } from "./background-jobs.ts";
 import { rerouteShellCommand, TOOL_NAMES_KEY } from "./reroute.ts";
-import { getSandbox, looksDenied } from "../sandbox/index.ts";
+import { getSandbox, looksDenied, looksNetworkDenied } from "../sandbox/index.ts";
 import {
 	approveEscalation,
 	escalationHint,
 	ESCALATION_TARGETS,
+	networkDenialMarker,
 	sandboxDenialMarker,
 	validateEscalationArgs,
 } from "./escalation.ts";
@@ -34,29 +35,92 @@ interface BashArgs {
 /**
  * Commands that are never worth an approval prompt: they read state and cannot mutate the
  * workspace. Anything not on this list goes through `requestApproval`.
+ *
+ * Read this as the strongest claim in the file, because that is what it is. A `true` from
+ * `isReadOnlyCommand` does not mean "probably fine" — it means the command never reaches
+ * `requestApproval` at all, so it is not judged by `assessCommand` either, in any permission mode.
+ * It is the one path around the whole risk classifier, and it had no tests.
+ *
+ * So the bar for being on this list is that the program cannot change anything *whatever its
+ * arguments are*. Four kinds of entry were on it that do not meet that bar:
+ *
+ *   `env`      — `env FOO=1 rm -rf ~` is `rm`, and the first word is `env`
+ *   `find`     — `find . -delete` deletes, and `-exec` runs anything
+ *   `node` and every other interpreter — they run a file, which can do anything
+ *   `npm run`  — runs whatever the package says; `git stash` moves the working tree
+ *
+ * None of them needs a shell metacharacter, so the guard below never saw any of them.
  */
 const READ_ONLY_COMMANDS = new Set([
-	"ls", "pwd", "echo", "cat", "head", "tail", "wc", "which", "whoami", "date", "env",
-	"grep", "rg", "find", "fd", "tree", "du", "df", "stat", "file", "basename", "dirname",
-	"node", "python3", "go", "cargo", "rustc", "tsc",
+	"ls", "pwd", "echo", "cat", "head", "tail", "wc", "which", "whoami", "date",
+	"grep", "rg", "fd", "tree", "du", "df", "stat", "file", "basename", "dirname",
 ]);
 
 const READ_ONLY_SUBCOMMANDS: Record<string, Set<string>> = {
-	git: new Set(["status", "log", "diff", "show", "branch", "remote", "config", "ls-files", "rev-parse", "blame", "stash"]),
-	npm: new Set(["ls", "view", "outdated", "run"]),
+	// `stash` is gone: it takes the working tree away, which is the thing `git reset` is asked
+	// about. `config` stays only for the forms that read — see `WRITES_ANYWAY`.
+	git: new Set(["status", "log", "diff", "show", "branch", "remote", "config", "ls-files", "rev-parse", "blame"]),
+	// `run` is gone: `npm run build` executes whatever `package.json` names.
+	npm: new Set(["ls", "view", "outdated"]),
 	pnpm: new Set(["ls", "view", "outdated", "why"]),
 	docker: new Set(["ps", "images", "logs"]),
 };
 
+/**
+ * Programs that only have a read-only use when they are being asked about themselves.
+ *
+ * `node --version` cannot do anything; `node build.js` can do everything. They were on the list
+ * above with no distinction drawn, which made every script this agent runs invisible to the
+ * approval path. Keeping the informational form is worth it — checking a toolchain version is
+ * something the agent does constantly, and it is genuinely nothing.
+ */
+const VERSION_ONLY = new Set(["node", "python", "python3", "go", "cargo", "rustc", "tsc", "deno", "bun", "java", "ruby", "perl", "php"]);
+const INFORMATIONAL = /^(--version|-v|-V|--help|-h|version)$/;
+
+/**
+ * Arguments that turn one of the programs above into something that writes.
+ *
+ * A veto rather than more entries in the sets: the sets say what a program is for, and this says
+ * when it is being used for something else.
+ */
+const WRITES_ANYWAY: Record<string, RegExp> = {
+	// `find -delete` and `-exec` are the two that matter; the `-f*` family writes files too.
+	find: /^(-delete|-exec|-execdir|-ok|-okdir|-fls|-fprint|-fprintf|-fprint0)$/,
+	// Everything except reading it back is a write to a config file.
+	git: /^(--replace-all|--add|--unset|--unset-all|--rename-section|--remove-section|--edit|-e)$/,
+	// A pager that can shell out is not a reader.
+	docker: /^(--format=.*exec.*)$/,
+};
+
 export function isReadOnlyCommand(command: string): boolean {
-	// Any shell metacharacter can chain a mutating command onto a safe one.
-	if (/[;&|><`$(){}]/.test(command)) return false;
+	/*
+	 * Any shell metacharacter can chain a mutating command onto a safe one.
+	 *
+	 * `\n` and `\r` included. They separate commands exactly as `;` does, and their absence here
+	 * was a complete bypass: `ls\nrm -rf ~` has `ls` as its first word, no metacharacter from the
+	 * old set, and so skipped the approval prompt while running both halves.
+	 */
+	if (/[;&|><`$(){}\n\r]/.test(command)) return false;
 	const parts = command.trim().split(/\s+/);
 	const head = parts[0];
 	if (!head) return false;
+	const args = parts.slice(1);
+
+	const veto = WRITES_ANYWAY[head];
+	if (veto && args.some((arg) => veto.test(arg))) return false;
+
 	if (READ_ONLY_COMMANDS.has(head)) return true;
+
+	/*
+	 * `env` prints the environment, which is read-only — right up until it is given something to
+	 * run. With assignments and nothing else, there is nothing to run.
+	 */
+	if (head === "env") return args.every((arg) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(arg));
+
+	if (VERSION_ONLY.has(head)) return args.length > 0 && args.every((arg) => INFORMATIONAL.test(arg));
+
 	const sub = READ_ONLY_SUBCOMMANDS[head];
-	return sub ? sub.has(parts[1] ?? "") : false;
+	return sub ? sub.has(args[0] ?? "") : false;
 }
 
 export const bashTool: Tool<BashArgs> = {
@@ -169,7 +233,14 @@ export const bashTool: Tool<BashArgs> = {
 		try { baseline = await beforeCommand(ctx); } catch (error) { changeWarning = String(error); }
 		const outputLog = await createOutputLog(ctx.scratchDir);
 		const result = await new Promise<ToolResult>((resolve) => {
-			const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode });
+			/*
+			 * `mode` may have been widened by an escalation just now; `network` never is.
+			 *
+			 * The file modes are a scale, so `escalate` has somewhere to move along. The network is
+			 * one switch with one position, and `escalation.ts` deliberately offers no grant for it
+			 * — so this reads the turn's setting rather than anything decided above.
+			 */
+			const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork });
 
 			let output = "";
 			let settled = false;
@@ -264,12 +335,32 @@ export const bashTool: Tool<BashArgs> = {
 				 */
 				const ranUnder = mode;
 				const denied = ranUnder !== undefined && ranUnder !== "danger-full-access" && looksDenied(output);
-				const body = denied
-					? [text || "(no output)", sandboxDenialMarker(ranUnder), escalationHint("command")].join("\n")
-					: text || (code === null ? "(terminated without an exit code)" : `(no output, exit code ${code})`);
+				/*
+				 * And the same for the network, which needs it more.
+				 *
+				 * A write denial at least prints something recognisable; a denied socket prints
+				 * `Could not resolve host`, so without this the model spends its remaining turns
+				 * retrying, switching registries and blaming DNS. The policy is what identifies it
+				 * — see `looksNetworkDenied`, which will not answer without being told the policy.
+				 */
+				const cutOff = looksNetworkDenied(output, ctx.sandboxNetwork);
+				const markers = [
+					...(denied ? [sandboxDenialMarker(ranUnder), escalationHint("command")] : []),
+					...(cutOff ? [networkDenialMarker()] : []),
+				];
+				const body =
+					markers.length > 0
+						? [text || "(no output)", ...markers].join("\n")
+						: text || (code === null ? "(terminated without an exit code)" : `(no output, exit code ${code})`);
 				resolve({
 					content: [{ type: "text", text: body }],
-					details: { kind: "bash", command: args.command, exitCode: code, ...(denied ? { denied: true } : {}) },
+					details: {
+						kind: "bash",
+						command: args.command,
+						exitCode: code,
+						...(denied ? { denied: true } : {}),
+						...(cutOff ? { networkDenied: true } : {}),
+					},
 					isError: code !== 0,
 				});
 			});
@@ -285,7 +376,7 @@ export const bashTool: Tool<BashArgs> = {
 async function startBackground(args: BashArgs, ctx: ToolContext): Promise<ToolResult> {
 	const outputLog = await createOutputLog(ctx.scratchDir);
 	const id = randomUUID();
-	const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode });
+	const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork });
 
 	const job: BackgroundJob = {
 		id,

@@ -26,7 +26,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { parseFrontmatter } from "../skills/loader.ts";
+import { isUnparsable, parseFrontmatter } from "../skills/loader.ts";
 
 export interface SlashCommand {
 	/** What you type after the slash. Namespaced by directory: `git/commit.md` is `git:commit`. */
@@ -126,8 +126,8 @@ export async function loadCommands(
 			if (raw === null) continue;
 
 			const parsed = parseFrontmatter(raw);
-			if (!parsed) {
-				diagnostics.push({ path: file, message: "文件开头的 YAML 无法解析。" });
+			if (isUnparsable(parsed)) {
+				diagnostics.push({ path: file, message: `文件开头的 YAML 无法解析：${parsed.invalid}` });
 				continue;
 			}
 			if (parsed.problem) diagnostics.push({ path: file, message: "开头的 `---` 没有闭合，整个文件都被当成了正文。" });

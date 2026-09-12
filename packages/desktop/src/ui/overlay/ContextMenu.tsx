@@ -85,7 +85,7 @@ export function ContextMenu({
 			role="menu"
 		>
 			<MenuBody insetIcons>
-				{/* biome-ignore lint/a11y/useKeyWithClickEvents: rows are buttons; this only closes after them. */}
+				{/* useKeyWithClickEvents 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: rows are buttons; this only closes after them. */}
 				<div onClick={onClose}>{children}</div>
 			</MenuBody>
 		</Popover>

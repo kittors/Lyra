@@ -215,7 +215,7 @@ function MathBlock({ tex }: { tex: string }) {
 	const html = renderMath(tex, true);
 	// TeX that does not parse is shown as it was written; a red error box helps nobody read it.
 	if (!html) return <pre className="ly-math-raw">{tex}</pre>;
-	// biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX's own output, built from a parse tree it escapes.
+	// noDangerouslySetInnerHtml 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: KaTeX's own output, built from a parse tree it escapes.
 	return <div className="ly-math-block" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
@@ -248,7 +248,7 @@ function renderToken(token: Inline): ReactNode {
 		case "math": {
 			const html = renderMath(token.tex, false);
 			if (!html) return `$${token.tex}$`;
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX's own output, built from a parse tree it escapes.
+			// noDangerouslySetInnerHtml 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: KaTeX's own output, built from a parse tree it escapes.
 			return <span className="ly-math" dangerouslySetInnerHTML={{ __html: html }} />;
 		}
 		case "link":

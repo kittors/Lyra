@@ -128,6 +128,8 @@ export function buildTurnConfig(
 			 * up itself could disagree with the one running beside it.
 			 */
 			sandboxMode: sandboxModeFor(deps.settings.permissionMode),
+			// The network half, stated rather than derived: no permission mode implies it.
+			sandboxNetwork: deps.settings.denyCommandNetwork ? "deny" : "allow",
 			allowedHosts: deps.settings.allowedHosts,
 			/*
 			 * Queued rather than run on demand.
@@ -191,16 +193,16 @@ export function buildTurnConfig(
 			 */
 			compact: (messages, model) => {
 				const summarizer = resolveModelRef(deps.settings, "@compact", { provider: deps.provider, model });
-				return compactWith(
+				return compactWith({
 					messages,
 					model,
-					deps.provider,
-					deps.summaryStream,
-					textTokens(systemPrompt) + toolTokens(turn.tools),
+					provider: deps.provider,
+					streamFn: deps.summaryStream,
+					overhead: textTokens(systemPrompt) + toolTokens(turn.tools),
 					// 自动压缩剪掉的原文也存下来——它剪掉的量比手动压缩多得多。
-					deps.artifacts,
+					artifacts: deps.artifacts,
 					summarizer,
-				);
+				});
 			},
 			streamFn: deps.streamFn,
 	};

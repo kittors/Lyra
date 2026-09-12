@@ -318,7 +318,7 @@ export function FileTree({
 			)}
 
 			<Scroller className="flex-1" contentClassName="px-1 py-1">
-				{/* biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard is handled on this node. */}
+				{/* useKeyWithClickEvents 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: the keyboard is handled on this node. */}
 				<div
 					ref={rowsHost}
 					role="tree"

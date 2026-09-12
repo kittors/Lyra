@@ -10,6 +10,10 @@
  * format defined inside a React component is a format that gets adjusted when the layout changes.
  */
 
+// 直接从 `translate.ts` 引，不走 `i18n/index.ts`：那个 barrel 会把 `context.tsx` 带进来，
+// 而一个纯 TS 模块引了它就不能再被 `node --test --experimental-strip-types` 加载。
+import { translate } from "../../i18n/translate.ts";
+
 export type PairingRoute =
 	| { kind: "lan"; address: string; port: number }
 	/** A host that already routes here — `lyra.example.com`, `https://lyra.example.com:8443`. */
@@ -92,5 +96,7 @@ export function routeLabel(route: PairingRoute): string {
 	if (!endpoint) return route.url;
 	const shown = endpoint.tls ? "https" : "http";
 	const port = (endpoint.tls && endpoint.port === 443) || (!endpoint.tls && endpoint.port === 80) ? "" : `:${endpoint.port}`;
-	return route.kind === "relay" ? `中转 ${endpoint.host}${port}` : `${shown}://${endpoint.host}${port}`;
+	return route.kind === "relay"
+		? translate("sync.relayRoute", { host: `${endpoint.host}${port}` })
+		: `${shown}://${endpoint.host}${port}`;
 }

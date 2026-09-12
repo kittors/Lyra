@@ -47,7 +47,7 @@ export function BrowserSettings() {
 			<Row title={t("browser.openLinksWith")} control={<InlineSelect value={config.openLinks ?? "system"} options={[{ value: "system", label: t("browser.systemBrowser") }, { value: "builtin", label: t("browser.builtin") }]} onChange={(openLinks) => patch({ openLinks })} />} />
 			<Row title={t("browser.addressSearch")} detail={t("browser.addressSearchDetail")} control={<InlineSelect value={config.searchEngine ?? "bing"} options={engineOptions(t("common.custom"))} onChange={(searchEngine) => patch({ searchEngine })} ariaLabel={t("browser.searchEngine")} />}>
 				{config.searchEngine === "custom" && <div className="mt-3" data-search-custom>
-					<TextInput mono value={draft} onChange={setDraft} onBlur={commit} invalid={Boolean(error)} placeholder="https://example.com/search?q=%s" aria-label="自定义搜索地址" spellCheck={false} />
+					<TextInput mono value={draft} onChange={setDraft} onBlur={commit} invalid={Boolean(error)} placeholder="https://example.com/search?q=%s" aria-label={t("browser.searchUrl")} spellCheck={false} />
 					<p className={`mt-1.5 text-caption ${error ? "text-danger" : "text-ink-faint"}`}>{error ?? t("browser.searchEngineDetail")}</p>
 				</div>}
 			</Row>

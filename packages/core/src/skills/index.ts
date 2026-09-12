@@ -2,6 +2,7 @@ export {
 	formatSkillCatalogue,
 	formatSkillInvocation,
 	loadSkills,
+	isUnparsable,
 	parseFrontmatter,
 	type Skill,
 	type SkillDiagnostic,

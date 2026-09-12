@@ -1,8 +1,17 @@
 import { isAbsolute } from "node:path";
 import { withinOrIs } from "../platform.ts";
 import { SAFE, risky, scratchRoots, underScratchRoot, wipesScratchRoot, type RiskVerdict } from "./risk-shared.ts";
-import { NEVER_UNATTENDED, PROTECTED_PATH, RISKY_SUBCOMMANDS } from "./risk-tables.ts";
-import { splitCommands } from "./shell-split.ts";
+import {
+	COMMAND_PREFIXES,
+	INTERPRETERS,
+	NEVER_UNATTENDED,
+	PLACES_FILES,
+	PROTECTED_PATH,
+	RISKY_SUBCOMMANDS,
+	SECRET_PATH,
+	SHELLS,
+} from "./risk-tables.ts";
+import { pipelines, splitCommands, splitWords } from "./shell-split.ts";
 /**
  * How dangerous an operation is, so that "帮我批准" can mean what it says.
  *
@@ -27,6 +36,73 @@ function firstWord(command: string): string {
 	// Leading `VAR=value` assignments are not the program being run.
 	const program = command.split(/\s+/).find((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
 	return (program ?? "").replace(/^.*\//, "");
+}
+
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+/**
+ * What a wrapper wraps, or null if this command is not one.
+ *
+ * `firstWord` answers "what program is this", and for `env`, `xargs`, `nohup`, `timeout` and the
+ * shells themselves the answer is not the program that does anything. So every rule below was
+ * looking at the wrapper: `env rm -rf ~` was judged as `env` and `bash -c "rm -rf ~"` as `bash`,
+ * and neither is on any list, so both were safe. That is not a gap in the tables — the tables are
+ * about `rm` — it is a gap in deciding what to look up.
+ */
+function wrappedCommand(command: string): string | null {
+	const words = splitWords(command);
+	if (words.length < 2) return null;
+	const head = words[0].replace(/^.*\//, "");
+
+	// A shell takes its command as one string, after `-c`. `-lc`, `-ec` and friends count.
+	if (SHELLS.has(head)) {
+		const at = words.findIndex((word, index) => index > 0 && /^-[A-Za-z]*c$/.test(word));
+		return at === -1 || at + 1 >= words.length ? null : words[at + 1];
+	}
+	// `eval` takes it as the rest of the line, however many words that is.
+	if (head === "eval") return words.slice(1).join(" ");
+
+	if (!COMMAND_PREFIXES.has(head)) return null;
+
+	let i = 1;
+	// The wrapper's own options and any `VAR=value` it is setting.
+	while (i < words.length && (words[i].startsWith("-") || ASSIGNMENT.test(words[i]))) {
+		// `nice -n 10 cmd`, `timeout -k 5 …`, `xargs -n 1 cmd`: the option takes an argument.
+		if (/^-[nPILsEek]$/.test(words[i]) && i + 1 < words.length) i += 1;
+		i += 1;
+	}
+	// `timeout 30s cmd` and `watch 2 cmd`: a bare duration belongs to the wrapper.
+	if ((head === "timeout" || head === "watch") && i < words.length && /^\d+(\.\d+)?[smhd]?$/.test(words[i])) i += 1;
+	if (i >= words.length) return null;
+
+	const inner = words.slice(i).join(" ");
+	// A wrapper that wrapped nothing but itself would recurse forever.
+	return inner === command.trim() ? null : inner;
+}
+
+/**
+ * Git's subcommand, after its global options.
+ *
+ * Taken as `words[1]` before, which is the option rather than the subcommand the moment anything
+ * global is present — and `git -c protocol.ext.allow=always push --force` is a force push whose
+ * "subcommand" read as `-c`. Every git rule below then declined to apply.
+ */
+function gitSubcommand(words: string[]): string {
+	const TAKES_VALUE = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"]);
+	let i = 1;
+	while (i < words.length) {
+		const word = words[i];
+		if (TAKES_VALUE.has(word)) {
+			i += 2;
+			continue;
+		}
+		if (word.startsWith("-")) {
+			i += 1;
+			continue;
+		}
+		return word;
+	}
+	return "";
 }
 
 /**
@@ -74,7 +150,9 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 		 * proceed; the workspace itself (`.`), a bare wildcard, a home or absolute path, anything
 		 * climbing out with `..`, and any chain that has `cd`-ed elsewhere first still ask.
 		 */
-		if (/\s-[a-zA-Z]*[rR]/.test(command)) {
+		// Long options too: `--recursive` is `-r`, and it was not recognised as one. The short form
+		// is deliberately unanchored at its end — `-rf` is one word carrying both flags.
+		if (/(^|\s)(-[a-zA-Z]*[rR]|--recursive(\s|$))/.test(command)) {
 			const targets = command.split(/\s+/).slice(1).filter((word) => !word.startsWith("-"));
 			const reckless = targets.some(
 				(t) =>
@@ -97,7 +175,7 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 		 * the project, so that is what this asks about: an absolute or home-relative target, or
 		 * a chain that has stepped out of the workspace first.
 		 */
-		if (/\s-[a-zA-Z]*f/.test(command) && /[*?]/.test(command)) {
+		if (/(^|\s)(-[a-zA-Z]*f|--force(\s|$))/.test(command) && /[*?]/.test(command)) {
 			const targets = command.split(/\s+/).slice(1).filter((word) => !word.startsWith("-"));
 			const outside = targets.some(
 				(t) => t.startsWith("~") || wipesScratchRoot(t, cwd) || (isAbsolute(t) && !underScratchRoot(t, cwd)),
@@ -108,7 +186,7 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 	}
 
 	if (head === "git") {
-		const sub = command.split(/\s+/)[1] ?? "";
+		const sub = gitSubcommand(splitWords(command));
 		// A force push replaces what other people have; a plain push does not.
 		// `--force-with-lease` is the careful form, but it still replaces the remote branch.
 		if (sub === "push" && /(--force|(^|\s)-f(\s|$))/.test(command)) return risky("强制推送会覆盖远程历史");
@@ -129,9 +207,40 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 		if (reason) return risky(reason);
 	}
 
+	/*
+	 * A credential named anywhere in the command, read or written.
+	 *
+	 * Checked before the write rules rather than folded into them, because for a key the read is
+	 * the loss: `cat ~/.lyra/vault.key` does no damage and hands over every stored credential,
+	 * and `curl -d @~/.ssh/id_ed25519` is the same sentence with somewhere to send it. Both were
+	 * safe, because the only path rule in here fired on a redirect.
+	 */
+	if (SECRET_PATH.test(command)) return risky("读写本机密钥文件");
+
 	// A redirect into a system location, or an edit of the shell's own startup files.
 	if (/>\s*[^&\s]/.test(command) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
 	if (/>\s*~?\/?\.(zshrc|bashrc|profile|zprofile)\b/.test(command)) return risky("修改 shell 启动文件");
+	// And the same destination reached without one: `cp payload /usr/local/bin/git`.
+	if (PLACES_FILES.has(head) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
+
+	/*
+	 * A local file going out over the network.
+	 *
+	 * Uploading is not a step in writing code, and it is the one effect on this list that cannot
+	 * be undone by any means at all — a file that has left the machine has left it. `@` is curl's
+	 * "read this from a file" marker, which is what separates sending a file from sending a
+	 * string the model composed.
+	 */
+	if (head === "curl" || head === "wget") {
+		/*
+		 * The `@` has to sit where a filename would: at the start of the value, or just after the
+		 * field name in curl's `-F name=@file`. Anywhere else it is ordinary text, and
+		 * `-d 'email=a@b.test'` is a string being posted, not a file being uploaded.
+		 */
+		const uploads = /(^|\s)(-d|--data(-binary|-raw)?|-F|--form)(\s+|=)['"]?([A-Za-z0-9_.-]+=)?@/;
+		const puts = /(^|\s)(-T|--upload-file)(\s|=)/;
+		if (uploads.test(command) || puts.test(command)) return risky("把本机文件上传到网络");
+	}
 
 	return SAFE;
 }
@@ -142,15 +251,25 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
  * A pipeline is risky if any stage is: `cat x | sudo tee /etc/hosts` is not made safe by
  * starting with `cat`.
  */
-export function assessCommand(command: string, cwd?: string): RiskVerdict {
+export function assessCommand(command: string, cwd?: string, depth = 0): RiskVerdict {
 	/*
-	 * Checked against the whole line, before it is taken apart.
+	 * Downloading something and handing it to an interpreter.
 	 *
-	 * Downloading something and handing it straight to a shell is the classic way to run code
-	 * nobody has read — and it is invisible once split, because `curl url` and `sh` are each
-	 * unremarkable on their own. The danger is in the join.
+	 * The classic way to run code nobody has read, and invisible once the line is flattened,
+	 * because `curl url` and `python3` are each unremarkable on their own. The danger is in the
+	 * join — so this asks the pipeline view rather than a regular expression over the whole line.
+	 *
+	 * That regular expression matched a shell directly after the pipe and nothing else, so it
+	 * covered `curl u | sh` and missed both `curl u | python3` (any other interpreter) and
+	 * `curl u | tail -n +2 | sh` (anything in between). Both are the same sentence.
 	 */
-	if (/\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(ba|z|fi)?sh\b/.test(command)) return risky("下载并直接执行脚本");
+	for (const stages of pipelines(command)) {
+		const heads = stages.map((stage) => firstWord(stage));
+		const fetched = heads.findIndex((head) => head === "curl" || head === "wget" || head === "fetch");
+		if (fetched === -1) continue;
+		const ran = heads.findIndex((head, index) => index > fetched && INTERPRETERS.has(head));
+		if (ran !== -1) return risky("下载并直接执行脚本");
+	}
 
 	/*
 	 * Whether the command stays inside the project.
@@ -164,6 +283,19 @@ export function assessCommand(command: string, cwd?: string): RiskVerdict {
 	for (const piece of splitCommands(command)) {
 		const verdict = judgeSingle(piece, contained, cwd);
 		if (verdict.risky) return verdict;
+
+		/*
+		 * And whatever this piece wraps.
+		 *
+		 * Bounded because the nesting can be: `bash -c "bash -c '…'"` is legal and a model that
+		 * produced it by accident should get an answer rather than a stack overflow. Four is past
+		 * anything written on purpose; the depth is what stops it, not the shape.
+		 */
+		if (depth >= 4) continue;
+		const inner = wrappedCommand(piece);
+		if (!inner) continue;
+		const nested = assessCommand(inner, cwd, depth + 1);
+		if (nested.risky) return nested;
 	}
 	return SAFE;
 }

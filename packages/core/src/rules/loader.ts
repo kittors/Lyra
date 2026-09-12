@@ -14,7 +14,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { parseFrontmatter } from "../skills/loader.ts";
+import { isUnparsable, parseFrontmatter } from "../skills/loader.ts";
 import { BUILTIN_RULES } from "./builtin.ts";
 import { compileCondition } from "./condition.ts";
 import { type Dialect, normalizeFrontmatter } from "./dialects.ts";
@@ -156,8 +156,8 @@ async function buildFromFile(
 	}
 
 	const parsed = parseFrontmatter(raw);
-	if (!parsed) {
-		diagnostics.push({ path, severity: "error", message: "文件开头的 YAML 无法解析，这条规则未加载。" });
+	if (isUnparsable(parsed)) {
+		diagnostics.push({ path, severity: "error", message: `文件开头的 YAML 无法解析，这条规则未加载：${parsed.invalid}` });
 		return null;
 	}
 

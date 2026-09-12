@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { loadCommands, commandSources } from "../../commands/loader.ts";
 import { loadRules, ruleSources } from "../../rules/loader.ts";
 import type { Rule } from "../../rules/types.ts";
-import { loadSkills, parseFrontmatter, type Skill } from "../../skills/loader.ts";
+import { isUnparsable, loadSkills, parseFrontmatter, type Skill } from "../../skills/loader.ts";
 import type { AgentDefinition } from "../../tools/task.ts";
 import type { JsonSchema } from "../../types.ts";
 import { normalizeKeys, walkFiles } from "../fs.ts";
@@ -146,8 +146,8 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 			const raw = await readFileSafe(file, diagnostics);
 			if (raw === null) continue;
 			const parsed = parseFrontmatter(raw);
-			if (!parsed) {
-				diagnostics.push({ path: file, message: "开头的 YAML 无法解析，这个 agent 被跳过了。", severity: "error" });
+			if (isUnparsable(parsed)) {
+				diagnostics.push({ path: file, message: `开头的 YAML 无法解析，这个 agent 被跳过了：${parsed.invalid}`, severity: "error" });
 				continue;
 			}
 			if (parsed.problem) {

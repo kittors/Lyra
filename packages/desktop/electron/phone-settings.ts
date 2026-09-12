@@ -25,9 +25,13 @@ import type { Settings } from "@lyra/core";
 /**
  * Fields a phone may write.
  *
- * The test of membership is not "would this be convenient" but "can the phone see what it did, and
- * does setting it hand anyone the machine". Everything here is either about the interface or about
- * which model answers; nothing here starts a process, runs a command, or reaches the filesystem.
+ * The test of membership is not "would this be convenient" but "can the phone see what it did".
+ * Almost everything here is about the interface or about which model answers, and starts nothing.
+ *
+ * **`permissionMode` 是这条规则明说的例外，写在这里免得有人照着上一句做判断。** 把它设成 `full`
+ * 之后审批全部放行、沙箱变 `danger-full-access`，所以它确实「把机器交了出去」——而这是想要的：
+ * 在手机上批准本来就是这个功能存在的理由，一个批得了单次、改不了模式的手机是半个功能。代价写在
+ * `sync-rpc.ts` 的文件头里：配对令牌要按「能操作这台机器」保管。这一段和那一段要一起改。
  *
  *   appearance         the theme, which is the whole point of syncing it
  *   defaultModelId     which model a new conversation uses

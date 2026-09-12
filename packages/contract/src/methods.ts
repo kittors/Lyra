@@ -4,15 +4,17 @@
  * This list is the answer to three questions that used to be answered in three places:
  *
  *   which channel does this method use      → `preload.ts`, one `invoke` per method
- *   what does it look like                  → `ipc-types.ts`, 925 lines of hand-written interface
+ *   what does it look like                  → `ipc-types.ts`, a hand-written interface
  *   may the phone call it                   → `sync-rpc.ts`, a hand-written allowlist
  *
  * Adding a method meant editing three files. Missing one of them failed differently each time, and
  * the third was the worst: a method absent from the allowlist is not an error on the phone, it is
  * *nothing* — the button is there, the tap does nothing, and no error is raised anywhere.
  *
- * Generated from the three files it replaces, then kept by hand. `test/methods.test.ts` checks it
- * against `preload.ts` and `sync-rpc.ts` on every run, so the three cannot drift apart again.
+ * Generated from the three files it replaces, then kept by hand. `test/methods.test.ts` compares it
+ * with `preload.ts`, `sync-rpc.ts` and every `ipcMain.handle` in the main process on every run, so
+ * none of them can drift apart again. The main process was the last one added and the one that
+ * mattered most: it is the end that actually answers, and it was the end nothing looked at.
  */
 
 /** Where a method may be called from, and — when the phone may not — why not. */

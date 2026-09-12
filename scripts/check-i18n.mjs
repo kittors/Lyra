@@ -83,29 +83,129 @@ const EXEMPT = [
  * Newlines survive — including the ones inside a block comment, which are replaced one for one.
  * Anything else and every line number after the first `/* *\/` is wrong, which matters twice: the
  * `--list` output stops being clickable, and the inline exemption below is keyed by line.
+ *
+ * Aware of strings, because the version that was not missed real text. `//` occurs inside strings
+ * all the time in this codebase — every example URL has one — and treating it as a comment threw
+ * away the rest of that line. `hint="例如 https://relay.example.com"` was invisible for exactly
+ * that reason, and so was the `aria-label` that happened to sit after a `placeholder` holding a
+ * URL. A check that stops reading at the first `https://` is not checking the lines it skipped.
+ *
+ * The stack is because template literals nest: inside `${…}` another string, or another template,
+ * may start, and a comment inside that expression is still a comment.
  */
 function stripComments(src) {
 	let out = "";
-	let i = 0;
-	while (i < src.length) {
+	const stack = [];
+	const inside = () => stack[stack.length - 1];
+
+	for (let i = 0; i < src.length; ) {
+		const char = src[i];
 		const two = src.slice(i, i + 2);
+		const state = inside();
+
+		if (state === "'" || state === '"' || state === "`") {
+			if (char === "\\") {
+				out += two;
+				i += 2;
+				continue;
+			}
+			if (char === state) stack.pop();
+			else if (state === "`" && two === "${") {
+				stack.push("{");
+				out += two;
+				i += 2;
+				continue;
+			}
+			out += char;
+			i += 1;
+			continue;
+		}
+
+		// Code, or the inside of a `${…}` — either way a comment here is a comment.
 		if (two === "//") {
 			// Stop *at* the newline and let the loop copy it: adding one here as well shifted every
 			// line after a `//` comment by one, which is why `--list` line numbers never quite lined
 			// up with the file.
-			i = src.indexOf("\n", i);
-			if (i === -1) i = src.length;
-		} else if (two === "/*") {
+			const end = src.indexOf("\n", i);
+			i = end === -1 ? src.length : end;
+			continue;
+		}
+		if (two === "/*") {
 			const end = src.indexOf("*/", i + 2);
 			const body = src.slice(i, end === -1 ? src.length : end + 2);
 			i = end === -1 ? src.length : end + 2;
 			out += body.replace(/[^\n]/g, "");
-		} else {
-			out += src[i];
-			i += 1;
+			continue;
 		}
+		if (char === "'" || char === '"' || char === "`") stack.push(char);
+		else if (char === "{") stack.push("{");
+		else if (char === "}" && state === "{") stack.pop();
+		out += char;
+		i += 1;
 	}
 	return out;
+}
+
+/** The index of the `}` closing the `{` at `open`, skipping over strings. Or -1. */
+function matchingBrace(src, open) {
+	let depth = 0;
+	let quote = null;
+	for (let i = open; i < src.length; i++) {
+		const char = src[i];
+		if (quote) {
+			if (char === "\\") i += 1;
+			else if (char === quote) quote = null;
+			continue;
+		}
+		if (char === "'" || char === '"' || char === "`") quote = char;
+		else if (char === "{") depth += 1;
+		else if (char === "}") {
+			depth -= 1;
+			if (depth === 0) return i;
+		}
+	}
+	return -1;
+}
+
+/**
+ * JSX text runs: what sits between a tag's `>` and the next `<`.
+ *
+ * Written as a scan rather than as `>([^<>]*)<` because that pattern stops at any `>`, including
+ * one inside an expression — and `{n > 1 ? … : …}` mid-sentence is the commonest shape there is.
+ * `{text.length} 字符{pages > 1 ? … : ""}` ended its run at the `>` in `pages > 1`, four characters
+ * before the word, so 「字符」 was never seen. The blind spot fell precisely on the sentences most
+ * likely to be hardcoded, because a sentence with a number in it does not look like a label.
+ *
+ * Expression containers are skipped whole and replaced with a space: what is left is the text a
+ * reader sees, and a `{…}` between two Chinese words must not join them into one finding.
+ */
+function jsxRuns(stripped) {
+	const runs = [];
+	for (let i = 0; i < stripped.length; i++) {
+		if (stripped[i] !== ">") continue;
+		let j = i + 1;
+		let text = "";
+		while (j < stripped.length) {
+			const char = stripped[j];
+			if (char === "<" || char === ">") break;
+			if (char === "{") {
+				const end = matchingBrace(stripped, j);
+				if (end === -1) {
+					j = stripped.length;
+					break;
+				}
+				text += " ";
+				j = end + 1;
+				continue;
+			}
+			text += char;
+			j += 1;
+		}
+		// Only a run that ends at a tag is text; one that ends at another `>` was never JSX.
+		if (stripped[j] === "<") runs.push({ index: i, text });
+		i = Math.max(i, j - 1);
+	}
+	return runs;
 }
 
 /**
@@ -132,8 +232,14 @@ function exemptLines(source) {
 	return exempt;
 }
 
-/** Every user-visible Chinese string in one file, as `{ line, text }`. */
-export function findings(source) {
+/**
+ * Every user-visible Chinese string in one file, as `{ line, text }`.
+ *
+ * `jsx` says whether to look for tag text, which is a `.tsx` question. Run over a plain `.ts` file
+ * the text scan finds nothing but noise: `=>` supplies a `>`, and with nothing resembling a tag to
+ * stop at, the "run" swallows half the module and reports whatever Chinese it passed on the way.
+ */
+export function findings(source, { jsx = true } = {}) {
 	const stripped = stripComments(source);
 	const spared = exemptLines(source);
 	const found = [];
@@ -141,23 +247,16 @@ export function findings(source) {
 	const keep = (line, text) => {
 		if (!spared.has(line)) found.push({ line, text });
 	};
-	for (const match of stripped.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g)) {
+	// Escapes handled, so `"他说 \"好\""` is one string and not two. It over-counted rather than
+	// under-counted, so it hid nothing — but a count that is wrong in either direction is a count
+	// nobody can reason about, and this is the file that asks people to reason about counts.
+	for (const match of stripped.matchAll(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g)) {
 		if (HAN.test(match[0])) keep(at(match.index), match[0].trim().slice(0, 80));
 	}
-	/*
-	 * JSX text, including the half of it that sits beside an expression.
-	 *
-	 * `<span>{n} 个活跃日</span>` is a sentence with a number in the middle of it, and the first
-	 * version of this looked only for runs with no braces at all — so every count, every duration,
-	 * every "N files changed" in the app was invisible to it. Those are exactly the strings most
-	 * likely to be written inline and never translated, because they do not look like labels.
-	 *
-	 * The expressions are blanked rather than skipped: what is left is the text a reader sees, and
-	 * a `{...}` between two Chinese words must not join them into one finding.
-	 */
-	for (const match of stripped.matchAll(/>([^<>]*)</g)) {
-		const text = match[1].replace(/\{[^{}]*\}/g, " ");
-		if (HAN.test(text)) keep(at(match.index), text.trim().replace(/\s+/g, " ").slice(0, 80));
+	if (jsx) {
+		for (const run of jsxRuns(stripped)) {
+			if (HAN.test(run.text)) keep(at(run.index), run.text.trim().replace(/\s+/g, " ").slice(0, 80));
+		}
 	}
 	return found;
 }
@@ -179,7 +278,7 @@ const detail = {};
 for (const path of files) {
 	const key = relative(SOURCE, path);
 	if (EXEMPT.some((prefix) => key.startsWith(prefix))) continue;
-	const found = findings(await readFile(path, "utf8"));
+	const found = findings(await readFile(path, "utf8"), { jsx: path.endsWith(".tsx") });
 	if (found.length > 0) {
 		counts[key] = found.length;
 		detail[key] = found;

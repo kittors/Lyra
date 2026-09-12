@@ -1,32 +1,17 @@
-import { skillTool } from "../skills/tool.ts";
 import type { Tool } from "../types.ts";
-import { bashOutputTool, bashTool } from "./bash.ts";
-import { editTool } from "./edit.ts";
-import { globTool } from "./glob.ts";
-import { grepTool } from "./grep.ts";
-import { lsTool } from "./ls.ts";
-import { readTool } from "./read.ts";
-import { recallTool } from "./recall.ts";
-import { symbolTool } from "./symbol.ts";
-import { taskTool } from "./task.ts";
-import { previewTool } from "./preview.ts";
-import { learnTool } from "./learn.ts";
-import { lspTool } from "./lsp.ts";
-import { ruleTool } from "./rule.ts";
-import { todoTool } from "./todo.ts";
-import { askUserTool } from "./ask-user.ts";
-import { webSearchTool } from "./search.ts";
-import { webFetchTool } from "./web.ts";
-import { writeTool } from "./write.ts";
+import { builtinToolGroups } from "./groups.ts";
 
-/** The built-in tool set, in the order they are advertised to the model. */
 /**
  * Where the built-in tool list comes from.
  *
  * `ctx.tools` is the real registry — it is what lets a plugin add a tool, or displace one with
  * its own implementation. This binding is how the session reaches it without every caller having
- * to be handed a context; unbound, the list below is used, which is what tests and small tools
- * see.
+ * to be handed a context; unbound, the groups in `groups.ts` are used, which is what tests and
+ * small tools see.
+ *
+ * Both paths read the same groups. They did not always: this function kept a flat list of its own
+ * and the kernel plugin registered another, and five tools existed in only one of them. See
+ * `groups.ts`.
  */
 let registry: { all(): Tool[] } | null = null;
 
@@ -39,29 +24,8 @@ export function builtinTools(): Tool[] {
 	return staticTools();
 }
 
-function staticTools(): Tool[] {
-	return [
-		readTool,
-		writeTool,
-		editTool,
-		lsTool,
-		globTool,
-		grepTool,
-		symbolTool,
-		bashTool,
-		bashOutputTool,
-		todoTool,
-		taskTool,
-		skillTool,
-		ruleTool,
-		recallTool,
-		learnTool,
-		lspTool,
-		webFetchTool,
-		webSearchTool,
-		previewTool,
-		askUserTool,
-	] as Tool[];
+export function staticTools(): Tool[] {
+	return builtinToolGroups().flat();
 }
 
 /** Tools a read-only agent may use. */

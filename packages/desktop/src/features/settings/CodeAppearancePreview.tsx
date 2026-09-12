@@ -52,6 +52,10 @@ const BOX_HEIGHT = 168;
  *
  * Chosen so that every one of the eleven colours a theme declares has something to land on —
  * a sample that exercises four of them makes two themes look more alike than they are.
+ *
+ * i18n-exempt: the comment in it is the specimen's subject matter, not a label — it is there so the
+ * comment colour has something to tint. Same reasoning as `format-catalog.ts`, which is exempt as a
+ * whole; this file is not, because the rest of it is real interface text.
  */
 const SAMPLE = `// 把名字招呼一下
 function greet(name: string): string {
@@ -226,7 +230,7 @@ function CodeSnippetBox({
 						{lines.map((line, index) => {
 							const diff = stock ? DIFF_ROWS[index + 1] : undefined;
 							return (
-								// biome-ignore lint/suspicious/noArrayIndexKey: lines have no identity but their position.
+								// noArrayIndexKey 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: lines have no identity but their position.
 								<div
 									key={index}
 									className="-mx-3 px-3"
@@ -241,7 +245,7 @@ function CodeSnippetBox({
 										<span>{"​"}</span>
 									) : (
 										line.map((piece, at) => (
-											// biome-ignore lint/suspicious/noArrayIndexKey: same.
+											// noArrayIndexKey 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: same.
 											<span key={at} style={piece.token ? { color: theme.tokens[piece.token] } : undefined}>
 												{piece.text}
 											</span>

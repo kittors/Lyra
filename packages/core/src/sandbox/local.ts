@@ -16,7 +16,7 @@ import { systemShell } from "../platform.ts";
 import type { Sandbox, SandboxProcess } from "../kernel/services.ts";
 import { confine } from "./backend.ts";
 import { commandPath } from "./login-path.ts";
-import type { SandboxMode } from "./policy.ts";
+import type { SandboxMode, SandboxNetwork } from "./policy.ts";
 
 /**
  * Kept out of the child's environment.
@@ -27,7 +27,10 @@ import type { SandboxMode } from "./policy.ts";
 const QUIET_ENV = { TERM: "dumb", NO_COLOR: "1", GIT_PAGER: "cat", PAGER: "cat" };
 
 export class LocalSandbox implements Sandbox {
-	run(command: string, options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode }): SandboxProcess {
+	run(
+		command: string,
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork },
+	): SandboxProcess {
 		const shell = systemShell();
 		// Annotated: spreading `process.env` into a literal drops its index signature, and with it
 		// every variable whose name is not one of the four below.
@@ -53,7 +56,18 @@ export class LocalSandbox implements Sandbox {
 		 * command through one more process, and it is the only arrangement where the confinement
 		 * is applied *before* the shell exists rather than around a shell that is already running.
 		 */
-		const wrap = options.mode ? confine({ mode: options.mode, workspaceRoot: options.cwd }) : null;
+		/*
+		 * A network denial is enough on its own to need a wrapper.
+		 *
+		 * `options.mode` being absent means the host composed no file confinement — which it does
+		 * for the CLI and the tests — and that says nothing about the network axis. Reading only
+		 * `mode` here would have let "deny the network" be configured and then not happen.
+		 */
+		const network = options.network ?? "allow";
+		const wrap =
+			options.mode || network === "deny"
+				? confine({ mode: options.mode ?? "danger-full-access", workspaceRoot: options.cwd, network })
+				: null;
 		const child = wrap
 			? spawn(wrap.command, [...wrap.args, shell.file, shell.flag, command], {
 					cwd: options.cwd,

@@ -56,6 +56,22 @@ export function sandboxDenialMarker(mode: SandboxMode): string {
 }
 
 /**
+ * The same line for the network half.
+ *
+ * Needed precisely because the output does not say so. A denied socket prints `Could not resolve
+ * host` — indistinguishable from a laptop with no wifi — so without this the model reads a policy
+ * decision as a flaky network and does the one thing that cannot work: retries, waits, retries.
+ * The marker is what turns that into "this will not work until somebody changes the setting".
+ *
+ * No escalation offered alongside it, unlike a write denial. The file modes form a scale that
+ * `escalate` can walk up; this is a separate switch with one position, and there is nothing for a
+ * per-call grant to widen to.
+ */
+export function networkDenialMarker(): string {
+	return "[sandbox: 联网被拒（当前设置禁止命令联网）——这是策略拒绝，不是网络故障；重试、换镜像、改 DNS 都没有用，只有用户在设置里关掉这一项才行。本机 localhost 不受影响]";
+}
+
+/**
  * The nudge that rides along with a denial.
  *
  * At the point of refusal rather than in the tool description, because that is where it is needed

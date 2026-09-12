@@ -19,7 +19,7 @@ import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError, failureOf, worthRetrying } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
-import { argumentFragment, parseToolArguments, readSse } from "../utils/sse.ts";
+import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { describeFetchError, joinUrl } from "./anthropic-messages.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
@@ -504,8 +504,10 @@ async function* streamChatCompletions(
 				let reasoningIsSnapshot = false;
 				/** 可见文本里扣下来等下一个 chunk 的那截半个特殊 token。见 `trailingPartialDeepseekToken`。 */
 				let stripBuffer = "";
+				/** 这条流被空闲闸掉了吗。见 `readSseWithIdleTimeout`。 */
+				const idle = { tripped: false };
 
-				for await (const frame of readSse(response, options.signal)) {
+				for await (const frame of readSseWithIdleTimeout(response, options.signal, STREAM_IDLE_TIMEOUT_MS, idle)) {
 					if (frame.data === "[DONE]") {
 						sawDone = true;
 						break;
@@ -805,6 +807,18 @@ async function* streamChatCompletions(
 				 *
 				 * 没有内容的情况不走这里：那是空回答，下面那段管，错误信息说得更准。
 				 */
+				/*
+				 * 被空闲闸掉的，按连接问题抛，排在截断之前。
+				 *
+				 * 挂死的流从这一侧看恰好就是「没有收尾信号」，所以不先认领的话，下面那条会把它说成截断
+				 * ——两者都可重试，但说出来的原因不一样，而用户读到的就是那句话。见 Anthropic 链上同一段。
+				 */
+				if (idle.tripped) {
+					throw new FailureError(
+						classifyFailure({ from: "transport", error: new Error(`流空闲超过 ${Math.round(STREAM_IDLE_TIMEOUT_MS / 1000)} 秒`) }),
+					);
+				}
+
 				if (!sawFinish && !sawDone && partial.content.length > 0) {
 					throw new FailureError(
 						classifyFailure({

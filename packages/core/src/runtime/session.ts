@@ -28,7 +28,7 @@ import { SessionCapabilities } from "./session-capabilities.ts";
 import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
-import { compactIfNeeded } from "./compaction.ts";
+import { compactWith } from "./compaction.ts";
 import { driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
 import { SubAgentRegistry } from "./sub-agents.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
@@ -373,18 +373,25 @@ export class AgentSession {
 		if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。" };
 
 		const summarizer = resolveModelRef(this.settings, "@compact", resolved);
-		const compaction = await compactIfNeeded(
-			history,
-			resolved.model,
-			resolved.provider,
-			summaryStream(this.streamFn, { sessionId: this.meta.id, cwd: this.cwd, retryPolicy: () => this.settings.retryPolicy, signal }),
-			0,
-			true,
+		/*
+		 * Through the seam, not around it.
+		 *
+		 * This called `compactIfNeeded` directly, which meant `/compact` ran the built-in policy
+		 * even where a host had installed another one — so replacing compaction replaced it for
+		 * the loop and not for the user. There is one way a session's history gets shortened; this
+		 * only changes what starts it, which is what `force` says.
+		 */
+		const compaction = await compactWith({
+			messages: history,
+			model: resolved.model,
+			provider: resolved.provider,
+			streamFn: summaryStream(this.streamFn, { sessionId: this.meta.id, cwd: this.cwd, retryPolicy: () => this.settings.retryPolicy, signal }),
+			force: true,
 			// 剪掉的原文存下来，占位标记里给出 `artifact://` 地址。
-			{ keep: (tool, content) => this.can.keepArtifact(tool, content) },
-			{ instructions, signal },
+			artifacts: { keep: (tool, content) => this.can.keepArtifact(tool, content) },
+			manual: { instructions, signal },
 			summarizer,
-		);
+		});
 		/*
 		 * Two different outcomes, and they used to say the same thing.
 		 *

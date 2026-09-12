@@ -28,7 +28,8 @@
     "catalog:update": "node scripts/update-model-catalog.mjs",
     "release": "node scripts/release.mjs",
     "release:rehearse": "node scripts/release.mjs rehearse",
-    "arch": "depcruise --config .dependency-cruiser.cjs packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/agent-cli/src packages/registry-shared/src",
+    "arch": "depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/agent-cli/src packages/registry-shared/src",
+    "arch:baseline": "depcruise --config .dependency-cruiser.cjs --output-type baseline packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/agent-cli/src packages/registry-shared/src > .dependency-cruiser-known-violations.json",
     "check:links": "node scripts/check-links.mjs",
     "style": "stylelint packages/desktop/src/**/*.css"
   },

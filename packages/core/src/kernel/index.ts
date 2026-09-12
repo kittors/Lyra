@@ -26,6 +26,7 @@ export {
 	TOOLS,
 	type ApprovalPolicy,
 	type ApprovalVerdict,
+	type CompactionRequest,
 	type CompactionStrategy,
 	type LlmRegistry,
 	type Sandbox,
@@ -44,7 +45,10 @@ export { schedulerPlugin } from "./plugins/scheduler.ts";
 export { sessionPlugin } from "./plugins/session.ts";
 export { skillsPlugin } from "./plugins/skills.ts";
 export { storagePlugin } from "./plugins/storage.ts";
-export { AGENT_TOOLS, FILE_TOOLS, SHELL_TOOLS, WEB_TOOLS, toolsPlugin } from "./plugins/tools.ts";
+export { toolsPlugin } from "./plugins/tools.ts";
+// The groups live with the tools rather than with the plugin that registers them: `tools/index.ts`
+// reads the same four when no context is bound, and two lists is what let five tools go missing.
+export { AGENT_TOOLS, FILE_TOOLS, SHELL_TOOLS, WEB_TOOLS, builtinToolGroups } from "../tools/groups.ts";
 
 /**
  * The set that makes an ordinary Lyra.

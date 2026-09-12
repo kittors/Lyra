@@ -100,7 +100,7 @@ export function DiffView({
 										>
 											{tokens?.length
 												? tokens.map((token, index) => (
-														// biome-ignore lint/suspicious/noArrayIndexKey: runs are positional
+														// noArrayIndexKey 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: runs are positional
 														<span key={index} className={token.className}>
 															{token.text}
 														</span>

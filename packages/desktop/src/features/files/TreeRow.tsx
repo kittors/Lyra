@@ -69,7 +69,7 @@ export function TreeRow({
 	const look = lookFor(entry.name, entry.isDirectory, expanded);
 
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: the tree container owns the keyboard.
+		// useKeyWithClickEvents 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: the tree container owns the keyboard.
 		<div
 			role="treeitem"
 			aria-level={depth + 1}

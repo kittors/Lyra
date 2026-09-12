@@ -52,6 +52,8 @@ export interface AgentRunConfig {
 	requestApproval?: (request: ApprovalRequest) => Promise<ApprovalDecision>;
 	/** Passed through to the tools; see `ToolContext.sandboxMode`. */
 	sandboxMode?: ToolContext["sandboxMode"];
+	/** Passed through to the tools; see `ToolContext.sandboxNetwork`. */
+	sandboxNetwork?: ToolContext["sandboxNetwork"];
 	/** Passed through to the tools; see `ToolContext.allowedHosts`. */
 	allowedHosts?: ToolContext["allowedHosts"];
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
@@ -481,6 +483,23 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		}
 
 		await emit({ type: "turn_end", message: assistant, toolResults });
+
+		/*
+		 * 一个工具说了「到此为止」，那就到此为止。
+		 *
+		 * `ToolResult.terminate` 这个字段一直都在，只是从来没有人写、也从来没有人读——于是唯一需要
+		 * 它的那个工具只能靠模型自觉收尾。`yield` 的语义是「交付即结束」：结果已经在 `state` 里，
+		 * 派它来的人拿的就是那个对象，此后再问模型一句话，答案不会被任何人读到。
+		 *
+		 * 那一句废话的代价不是零。顺利的时候，它是一整份上下文换回来的一句「我做完了」；不顺的
+		 * 时候——模型交完货真的无话可说、服务商把它转成一个没有内容的流——它就是一次空回答，而空
+		 * 回答是会被重试的。开着无限重试时，这一轮不会失败，它会永远转下去：子代理的报告早就躺在
+		 * `state` 里，派它来的人却一直等不到。真实日志里量到过同一个请求重发 222 次、34 分钟。
+		 *
+		 * 收在 `turn_end` 之后：这一轮确实完整地发生过，工具跑了、结果进了历史，只是不再问下一句。
+		 */
+		const terminated = toolResults.find((result) => result.terminate === true);
+		if (terminated) return finish("done");
 
 		/*
 		 * Same call, same arguments, same answer — again.

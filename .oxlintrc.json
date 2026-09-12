@@ -75,16 +75,58 @@
     ],
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
-    "react/set-state-in-effect": "off",
-    "react/exhaustive-effect-dependencies": "off",
+
+    // ---------------------------------------------------------------------
+    // React 编译器的那批规则。
+    //
+    // 十一条曾经整块 "off"，一条理由都没有，而 AGENTS.md 写着「不要把规则关掉，除非你能说清楚
+    // 这条规则对整个仓库都不适用」。下面每一条要么开着，要么带着为什么关和关掉时欠下多少条。
+    // 数字是 2026-09-12 用 `npx oxlint -D react/<规则>` 逐条数出来的。
+    //
+    // 顺带记一句：这个文件是 JSONC，注释能写——「JSON 里写不了理由」曾经被当成不写的原因。
+    // ---------------------------------------------------------------------
+
+    // 开着。唯一两处违规是误报，在那两行各自标了原因：zustand 的 store 同时是一个 hook 和一个
+    // 带 `getState()` 的对象，规则看见 `useApp.getState()` 里的 `useApp` 就当成引用了 hook。
+    "react/hooks": "error",
+    // 开着。唯一一处在测试里——测试给外层变量赋值是它的正常写法，见下面 overrides 的豁免。
+    "react/globals": "error",
+    // 开着。唯一一处在 mobile，那是 React Native：`style` 收数组和 StyleSheet id 是它的常态，
+    // 同样在 overrides 里豁免。桌面端的 DOM 里这条仍然该红。
+    "react/style-prop-object": "error",
+
+    /*
+     * 关着的六条，各自的理由。
+     *
+     * 共同的那条先说：它们都不是「代码写错了」而是「React 编译器要接管记忆化，所以你自己写的
+     * 那套得先让开」。这个仓库没有开编译器，于是规则要求的改法在这里只剩成本——而每一条的
+     * 违规量都大到不可能在一次提交里清完，红着跑的检查会被无视，那比关着更糟。
+     */
+    // 78 条。绝大多数是 ref 在 render 里被读写：测量布局、记上一次的值、存计时器 id。
     "react/refs": "off",
-    "react/memo-dependencies": "off",
+    // 65 条。同步外部状态的 effect，本仓库到处都是（窗口尺寸、主进程事件、滚动位置）。
+    "react/set-state-in-effect": "off",
+    // 56 条。要求 effect 依赖数组完备到编译器的标准，比 `react-hooks/exhaustive-deps` 严得多，
+    // 而那条是开着的（warn）——两条同时开会互相打架。
+    "react/exhaustive-effect-dependencies": "off",
+    // 12 条。要求 props 与 state 全程不可变；这里有几处刻意在原地改可变结构再整体替换。
     "react/immutability": "off",
-    "react/purity": "off",
+    // 12 条 + 7 条。手写的 `useMemo`/`useCallback` 与编译器的记忆化如何共处，没开编译器时没有意义。
     "react/preserve-manual-memoization": "off",
-    "react/hooks": "off",
-    "react/no-deriving-state-in-effects": "off",
-    "react/globals": "off"
+    "react/memo-dependencies": "off",
+    /*
+     * 5 条，全都是同一件事：渲染期读当前时间，为了显示「多久以前」。
+     *
+     * 三处是 `useRef(Date.now())` 或 `useRef(Math.random())` 这种取一次就固定下来的写法，规则
+     * 严格说得对（每次渲染都会算一遍再丢掉），实际结果是稳定的。另两处是 `now = Date.now()`
+     * 这样的默认参数。按规则改法要把它们换成 effect + state，也就是为了满足一条规则而引入一个
+     * 定时重渲染——比规则想防的问题更贵。
+     */
+    "react/purity": "off",
+    // 1 条：`files/ImagePane.tsx:50` 在 effect 里派生 state，多一次渲染、可能显示上一帧的值。
+    // 这条是真的，改法也清楚（改成渲染期计算），但它要动图片面板的尺寸适配，属于要在真窗口里
+    // 量过才能改的那类。留着规则关、留着这行字，比留一条没人看的 warn 强。
+    "react/no-deriving-state-in-effects": "off"
   },
   "overrides": [
     {
@@ -95,7 +137,10 @@
       ],
       "rules": {
         "no-console": "off",
-        "typescript/no-non-null-assertion": "off"
+        "typescript/no-non-null-assertion": "off",
+        // 测试给外层变量赋值是它的工作方式：`let captured; ... 断言 captured`。
+        // 在组件里这是渲染期副作用，在测试里这就是怎么把值拿出来。
+        "react/globals": "off"
       }
     },
     {
@@ -126,6 +171,16 @@
       "rules": {
         "react-hooks/rules-of-hooks": "off",
         "react-hooks/exhaustive-deps": "off"
+      }
+    },
+    {
+      "files": [
+        "packages/mobile/**"
+      ],
+      "rules": {
+        // React Native 的 `style` 收数组、收 StyleSheet 注册出来的 id，不只是对象字面量。
+        // 这条规则说的是 DOM 的 `style`，在 RN 这一侧它问的不是同一件事。
+        "react/style-prop-object": "off"
       }
     },
     {

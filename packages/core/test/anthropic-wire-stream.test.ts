@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readSseWithIdleTimeout } from "../src/ai/anthropic-messages.ts";
+import { readSseWithIdleTimeout } from "../src/utils/sse.ts";
 
 /** 一段真形状的 Anthropic SSE。事件名和字段都照着真的来，因为解析器认的就是这些。 */
 const FRAMES = [

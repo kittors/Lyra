@@ -18,18 +18,33 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { Plus, ShieldCheck, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { TextInput } from "./inputs.tsx";
-import { Card, SectionTitle } from "./layout.tsx";
+import { Card, Row, SectionTitle } from "./layout.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
-import { EmptyHint, GhostButton } from "./controls.tsx";
+import { EmptyHint, GhostButton, Toggle } from "./controls.tsx";
 
 export function AccessSettings() {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const [host, setHost] = useState("");
+	/*
+	 * Whether the network switch is offered at all, which is a property of the machine.
+	 *
+	 * The Windows backend confines a process token's access to file objects and has no statement
+	 * about sockets in it, so `confine` refuses a policy that denies the network there rather than
+	 * applying half of it. That refusal is the right call and it arrives at the worst moment —
+	 * every command failing to start, one turn into somebody's work. Asking the platform here
+	 * turns it into a sentence read before the switch is thrown.
+	 */
+	const [platform, setPlatform] = useState("darwin");
+	useEffect(() => {
+		void bridge.system.platform().then(setPlatform);
+	}, []);
+	const networkCanBeDenied = platform !== "win32";
 
 	if (!settings) return null;
 
@@ -135,9 +150,36 @@ export function AccessSettings() {
 			 * The limit of what a name can buy you, said plainly — otherwise this list reads as a
 			 * general override, and somebody would use it as one.
 			 */}
-			<p className="max-w-[600px] pb-8 text-detail leading-relaxed text-ink-faint">
+			<p className="max-w-[600px] pb-7 text-detail leading-relaxed text-ink-faint">
 				{t("access.hostOnly")}
 			</p>
+
+			{/*
+			 * The switch that does not go through the lists above.
+			 *
+			 * Both lists are decisions about a name — this subject, that host — and every one of
+			 * them is reached by reading command text first. That reading is a blacklist and will
+			 * keep missing spellings, so the last row on this page is the one that does not read
+			 * anything: the kernel either hands the command a socket or it does not.
+			 */}
+			<SectionTitle>{t("access.commandNetwork")}</SectionTitle>
+			<Card className="mb-8">
+				<Row
+					title={t("access.denyCommandNetwork")}
+					detail={
+						networkCanBeDenied ? t("access.denyCommandNetworkDetail") : t("access.denyCommandNetworkUnsupported")
+					}
+					control={
+						networkCanBeDenied ? (
+							<Toggle
+								checked={settings.denyCommandNetwork ?? false}
+								onChange={(denyCommandNetwork) => void saveSettings({ ...settings, denyCommandNetwork })}
+								ariaLabel={t("access.denyCommandNetwork")}
+							/>
+						) : undefined
+					}
+				/>
+			</Card>
 		</div>
 	);
 }

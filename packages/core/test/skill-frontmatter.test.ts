@@ -13,7 +13,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { loadSkills, parseFrontmatter } from "../src/skills/loader.ts";
+import { isUnparsable, loadSkills, parseFrontmatter } from "../src/skills/loader.ts";
 
 let root: string;
 
@@ -56,7 +56,17 @@ test("an unterminated block still parses, and says so", () => {
 });
 
 test("invalid YAML is a parse failure, which is a different thing", () => {
-	assert.equal(parseFrontmatter("---\n: : :\n---\nbody\n"), null);
+	const parsed = parseFrontmatter("---\n: : :\n---\nbody\n");
+	assert.ok(isUnparsable(parsed), "不是「读出来是空的」，是根本读不了");
+	/*
+	 * 解析器的原话要在里面。
+	 *
+	 * 从前这里返回 null，于是用户能看到的只有「不是合法 YAML」——文件名有了，错在哪没有。
+	 * 不比对完整句子（那是 `yaml` 库的措辞，升级会变），只要求它确实说了点什么，并且不是
+	 * 我们自己编的一句空话。
+	 */
+	assert.ok(parsed.invalid.length > 0);
+	assert.ok(!parsed.invalid.includes("\n"), "单行，因为它要被拼进一句诊断里");
 });
 
 test("a skill with unterminated frontmatter loads but is reported", async () => {
