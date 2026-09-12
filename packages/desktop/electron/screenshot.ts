@@ -38,56 +38,122 @@ import { beginCaptureLog, captureLog } from "./screenshot-debug.ts";
 let overlay: BrowserWindow | null = null;
 /** The window and its page, once. Retried on failure by clearing it. */
 let overlayLoading: Promise<BrowserWindow> | null = null;
+
 /**
- * The "show it anyway" timer for the capture in progress.
+ * 这一次截图的全部状态，一个对象。
  *
- * One window now serves every capture, so a timer left over from a finished one would reveal the
- * next — or an empty overlay over a session that has already been cancelled. Cleared when it fires,
- * when the capture ends, and when another begins.
+ * 原来是六个平铺的模块级 `let`。它们合起来是一台状态机——「屏上有没有一次截图」「这次是不是从
+ * Lyra 里触发的」「这次让开了哪个窗口」「这次注册了 Escape 吗」——而散成六个之后，那台状态机没有
+ * 任何一处写得下来：一次截图结束该清掉哪几个，只存在于每个 `close` 分支各自记得多少。漏一个的
+ * 症状是下一次截图带着上一次的半截状态开场，而那是用户一眼就看见的东西。
+ *
+ * 收成一个对象之后，「这一轮结束了」是一次赋值（`idleCapture`），加不加字段都不会漏。计时器仍然
+ * 要先 `clearTimeout` 再丢，那是宿主资源，不是状态。
+ *
+ * 每个字段的注释是它当 `let` 时就带着的那一段，一个字没改。
  */
-let failsafeTimer: NodeJS.Timeout | null = null;
+interface Capture {
+	/** Which capture this is. See the `session` field of the init message. */
+	id: number;
+	/**
+	 * Whether there is a capture on screen that is meant to be there.
+	 *
+	 * Kept rather than asked, because `overlay.isVisible()` answers a different question than the one
+	 * that matters — a window inside a hidden application reports invisible, and a window the system
+	 * has restored along with the application reports visible without any capture behind it. Neither
+	 * confusion is hypothetical: the first is what stopped the overlay ever being hidden, and the
+	 * second is what `dismissStrayOverlay` exists to catch.
+	 *
+	 * Set once a capture has a picture to show and cleared by every close, so "the overlay is up but
+	 * this is false" means precisely: something put that window on screen and it was not a capture.
+	 */
+	active: boolean;
+	/**
+	 * The "show it anyway" timer for the capture in progress.
+	 *
+	 * One window now serves every capture, so a timer left over from a finished one would reveal the
+	 * next — or an empty overlay over a session that has already been cancelled. Cleared when it fires,
+	 * when the capture ends, and when another begins.
+	 */
+	failsafe: NodeJS.Timeout | null;
+	/**
+	 * The main window, if this capture put it away.
+	 *
+	 * Activating the overlay activates Lyra, and macOS raises *every* window of an application it
+	 * activates — so the main window comes up above whatever the user was actually looking at and sits
+	 * there, out of sight underneath the overlay, for the whole capture. Nothing showed it while the
+	 * frozen picture covered the screen, which is why this took so long to see: it only appears at the
+	 * moment that picture goes, and then it is Lyra in front of the browser you were screenshotting.
+	 *
+	 * A user's recording caught it exactly: the frozen page is replaced by the Lyra window, and the
+	 * 「已复制色值」 confirmation lands on top of *that* instead of on the page the colour came from.
+	 *
+	 * So it is hidden for the duration — but only when the capture did not come from Lyra in the first
+	 * place, since a capture started from the app is expected to come back to it.
+	 */
+	steppedAsideMain: BrowserWindow | null;
+	/**
+	 * Whether Lyra was the application in front when the screenshot started.
+	 *
+	 * Decides where the foreground goes afterwards, and the two answers are opposite. Triggered from
+	 * inside Lyra — the composer's button, the tray — finishing should come back to Lyra, because that
+	 * is where the picture is going. Triggered by the global shortcut while reading something else, it
+	 * should not: taking a screenshot of a browser and being thrown into a different application is
+	 * the app barging in on work it was only meant to observe.
+	 *
+	 * What the fix for the disappearing window actually owed was "do not leave Lyra buried behind two
+	 * other applications with no way back" — not "always jump to the front".
+	 */
+	cameFromApp: boolean;
+	/**
+	 * Escape while a capture is up, for an overlay that has not been activated.
+	 *
+	 * The overlay is shown without taking focus — see `reveal` — so the page's own key handler does not
+	 * hear anything until it has been pressed on. Cancelling has to work before that: registered when a
+	 * capture starts and released the moment it ends, so it never shadows the key anywhere else.
+	 */
+	escapeHeld: boolean;
+}
+
+/** 什么都没在发生的样子。`id` 不归零——它是「第几次」，跨会话单调。 */
+const idleCapture = (id: number): Capture => ({
+	id,
+	active: false,
+	failsafe: null,
+	steppedAsideMain: null,
+	cameFromApp: false,
+	escapeHeld: false,
+});
+
+let capture: Capture = idleCapture(0);
 
 function clearFailsafe(): void {
-	if (failsafeTimer) clearTimeout(failsafeTimer);
-	failsafeTimer = null;
+	if (capture.failsafe) clearTimeout(capture.failsafe);
+	capture.failsafe = null;
 	if (paintFallback) clearTimeout(paintFallback);
 	paintFallback = null;
 	awaitingPaint = null;
 }
 
-/** Which capture this is. See the `session` field of the init message. */
-let sessionCount = 0;
-
 /**
- * Whether there is a capture on screen that is meant to be there.
+ * 这一轮截图结束了——把属于它的东西全部放掉。
  *
- * Kept rather than asked, because `overlay.isVisible()` answers a different question than the one
- * that matters — a window inside a hidden application reports invisible, and a window the system
- * has restored along with the application reports visible without any capture behind it. Neither
- * confusion is hypothetical: the first is what stopped the overlay ever being hidden, and the
- * second is what `dismissStrayOverlay` exists to catch.
+ * 三件事从前在 `closeScreenshotOverlay` 里平铺着，而那个函数有六条返回路径；「每条路都要先做
+ * 这三件」只存在于开头那句注释里。给它一个名字，是为了下一个人往 `Capture` 里加字段时有一处
+ * 明确该改的地方。
  *
- * Set once a capture has a picture to show and cleared by every close, so "the overlay is up but
- * this is false" means precisely: something put that window on screen and it was not a capture.
+ * `steppedAsideMain` **不在这里**，而且是有意的：那个窗口要不要回到屏上取决于这一轮是怎么结束的
+ * （交付了图片就该回来，取消了就该继续待着），只有调用方知道。它由 `releaseSteppedAsideMain`
+ * 交还，自己那段注释讲得更细。
  */
-let captureActive = false;
+function endCapture(): void {
+	capture.active = false;
+	holdEscape(false);
+	clearFailsafe();
+}
 
-/**
- * The main window, if this capture put it away.
- *
- * Activating the overlay activates Lyra, and macOS raises *every* window of an application it
- * activates — so the main window comes up above whatever the user was actually looking at and sits
- * there, out of sight underneath the overlay, for the whole capture. Nothing showed it while the
- * frozen picture covered the screen, which is why this took so long to see: it only appears at the
- * moment that picture goes, and then it is Lyra in front of the browser you were screenshotting.
- *
- * A user's recording caught it exactly: the frozen page is replaced by the Lyra window, and the
- * 「已复制色值」 confirmation lands on top of *that* instead of on the page the colour came from.
- *
- * So it is hidden for the duration — but only when the capture did not come from Lyra in the first
- * place, since a capture started from the app is expected to come back to it.
- */
-let steppedAsideMain: BrowserWindow | null = null;
+
+
 
 /**
  * Hand back the window this capture put away, without deciding what to do with it.
@@ -99,8 +165,8 @@ let steppedAsideMain: BrowserWindow | null = null;
  * capture began. `app.on("activate")` brings it back whenever the user asks.
  */
 function releaseSteppedAsideMain(): BrowserWindow | null {
-	const main = steppedAsideMain;
-	steppedAsideMain = null;
+	const main = capture.steppedAsideMain;
+	capture.steppedAsideMain = null;
 	if (!main || main.isDestroyed()) return null;
 	captureLog("close: main window released", { visible: main.isVisible() });
 	return main;
@@ -113,38 +179,17 @@ function releaseSteppedAsideMain(): BrowserWindow | null {
  * the sender identifies the window. See `revealScreenshotOverlay`.
  */
 const revealers = new Map<number, () => void>();
-/**
- * Whether Lyra was the application in front when the screenshot started.
- *
- * Decides where the foreground goes afterwards, and the two answers are opposite. Triggered from
- * inside Lyra — the composer's button, the tray — finishing should come back to Lyra, because that
- * is where the picture is going. Triggered by the global shortcut while reading something else, it
- * should not: taking a screenshot of a browser and being thrown into a different application is
- * the app barging in on work it was only meant to observe.
- *
- * What the fix for the disappearing window actually owed was "do not leave Lyra buried behind two
- * other applications with no way back" — not "always jump to the front".
- */
-let cameFromApp = false;
-/**
- * Escape while a capture is up, for an overlay that has not been activated.
- *
- * The overlay is shown without taking focus — see `reveal` — so the page's own key handler does not
- * hear anything until it has been pressed on. Cancelling has to work before that: registered when a
- * capture starts and released the moment it ends, so it never shadows the key anywhere else.
- */
-let escapeGuard = false;
 
 function holdEscape(on: boolean): void {
-	if (on === escapeGuard) return;
+	if (on === capture.escapeHeld) return;
 	try {
-		if (on) escapeGuard = globalShortcut.register("Escape", () => closeScreenshotOverlay({ foreground: false }));
+		if (on) capture.escapeHeld = globalShortcut.register("Escape", () => closeScreenshotOverlay({ foreground: false }));
 		else {
 			globalShortcut.unregister("Escape");
-			escapeGuard = false;
+			capture.escapeHeld = false;
 		}
 	} catch {
-		escapeGuard = false;
+		capture.escapeHeld = false;
 	}
 }
 let activeShortcut: string | null = null;
@@ -371,15 +416,13 @@ export function closeScreenshotOverlay(options?: {
 	const cover = overlay && !overlay.isDestroyed() && overlay.isVisible() ? overlay : null;
 	// Before anything can return early: every path out of here ends the capture, and a flag left set
 	// by one of them would tell `dismissStrayOverlay` to keep its hands off the window forever.
-	captureActive = false;
-	holdEscape(false);
-	clearFailsafe();
+	endCapture();
 	// Whatever this capture registered, so a reveal cannot arrive after it is over.
 	if (overlay && !overlay.isDestroyed()) revealers.delete(overlay.webContents.id);
 	captureLog("close: entered", {
 		foregroundOption: options?.foreground,
 		restoreFocus: options?.restoreFocus,
-		cameFromApp,
+		cameFromApp: capture.cameFromApp,
 		covering: Boolean(cover),
 	});
 	// Whichever window this capture put away, so the paths below can decide about it.
@@ -405,8 +448,8 @@ export function closeScreenshotOverlay(options?: {
 		process.platform === "darwin" &&
 		options?.restoreFocus !== false &&
 		options?.stepAside !== false &&
-		!(options?.foreground ?? cameFromApp) &&
-		!cameFromApp;
+		!(options?.foreground ?? capture.cameFromApp) &&
+		!capture.cameFromApp;
 	captureLog("close: decided", { stepBack });
 	if (stepBack) {
 		app.hide();
@@ -442,7 +485,7 @@ export function closeScreenshotOverlay(options?: {
 	 *
 	 * Hiding the overlay hands focus back to whatever was under it, which is where it came from.
 	 */
-	if (!(options?.foreground ?? cameFromApp)) {
+	if (!(options?.foreground ?? capture.cameFromApp)) {
 		captureLog("close: cancelled — leaving every window where it is", { mainVisible: main?.isVisible() });
 		cover.hide();
 		settleOverlayHidden();
@@ -763,13 +806,13 @@ function stepMainAside(overlayWindow: BrowserWindow): void {
 	// Only macOS raises sibling windows on app activation. Hiding them on Windows removes
 	// the taskbar entry, and neither cancel nor an external capture brings them back.
 	if (process.platform !== "darwin") return;
-	if (cameFromApp || steppedAsideMain) return;
+	if (capture.cameFromApp || capture.steppedAsideMain) return;
 	const main = BrowserWindow.getAllWindows().find(
 		(other) => other !== overlayWindow && !other.isDestroyed() && other.isVisible(),
 	);
 	if (!main) return;
 	main.hide();
-	steppedAsideMain = main;
+	capture.steppedAsideMain = main;
 	// Immediately, because the hide above just cost the overlay the key window.
 	if (!overlayWindow.isDestroyed()) overlayWindow.focus();
 	captureLog("reveal: main window stepped aside", { overlayFocused: overlayWindow.isFocused() });
@@ -987,7 +1030,7 @@ export function overlayPassedThrough(): void {
  */
 export function dismissStrayOverlay(): void {
 	const sweep = (): void => {
-		if (captureActive) return;
+		if (capture.active) return;
 		const win = overlay;
 		if (!win || win.isDestroyed()) return;
 		/*
@@ -1044,12 +1087,12 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	if (currentSettingsProvider?.()?.screenshot?.enabled === false) throw new Error("屏幕截图已关闭，可在设置中开启。");
 	/*
 	 * Asked before anything is shown, because in a moment the overlay itself will be the focused
-	 * window and the answer will always be yes. See `cameFromApp`.
+	 * window and the answer will always be yes. See `capture.cameFromApp`.
 	 */
 	beginCaptureLog();
-	cameFromApp = BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isFocused());
+	capture.cameFromApp = BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isFocused());
 	captureLog("session start", {
-		cameFromApp,
+		cameFromApp: capture.cameFromApp,
 		windows: BrowserWindow.getAllWindows().map((w) => ({
 			id: w.id,
 			focused: w.isFocused(),
@@ -1111,7 +1154,7 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	// There is a picture and a window to put it in, so from here the overlay is on screen on purpose.
 	// Set before the window is touched rather than when it is shown, so no arrangement of the reveal
 	// can leave it up while this still says nobody asked for it.
-	captureActive = true;
+	capture.active = true;
 	captureLog("snapshot + windows ready", {
 		windows: windows.length,
 		snapshot: { width: snapshot.width, height: snapshot.height, scaleFactor: snapshot.scaleFactor },
@@ -1259,7 +1302,7 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	 * The alternative is an invisible full-screen window swallowing every click on the screen with
 	 * nothing to show for it.
 	 */
-	failsafeTimer = setTimeout(reveal, 1500);
+	capture.failsafe = setTimeout(reveal, 1500);
 
 	if (win.webContents.isDestroyed()) {
 		/*
@@ -1268,8 +1311,17 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 		 * otherwise put this window up a second and a half later with nothing in it. Then whatever
 		 * was cleared for the snapshot goes away too, for the same reason as the branch above.
 		 */
-		captureActive = false;
-		clearFailsafe();
+		/*
+		 * `endCapture()`，不是原来那两行。
+		 *
+		 * 这条路原来写的是 `capture.active = false; clearFailsafe();`——**漏了 `holdEscape(false)`**。
+		 * 那意味着走到这里（页面在发 init 之前就销毁了）之后，这一轮注册的全局 Escape 不会被释放：
+		 * 从此按 Escape 会被一个已经不存在的截图吃掉，一直到下一次截图重新注册为止。
+		 *
+		 * 六个 `let` 平铺着的时候，这种漏只能靠每条分支各自记得；收成一个对象、给「结束」一个名字
+		 * 之后，它就是一处。
+		 */
+		endCapture();
 		revealers.delete(webContentsId);
 		if (takingOver) dropClearedOverlay();
 		return;
@@ -1285,7 +1337,7 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 		 * same one again" by the fact that it just loaded. It cannot use the picture either: two
 		 * captures of a screen that did not change encode identically.
 		 */
-		session: ++sessionCount,
+		session: ++capture.id,
 		bounds,
 		// Where every window is, so pointing at one can offer it whole.
 		windows,
