@@ -1,6 +1,47 @@
 import { useEffect, useRef, useState } from "react";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
-import { pushSample, rateFrom, trustworthy, type RateSample } from "./live-rate.ts";
+import { useApp } from "../../store/index.ts";
+import { useSubAgents } from "../../store/subAgents.ts";
+import { CHARS_PER_TOKEN, pushSample, rateFrom, trustworthy, type RateSample } from "./live-rate.ts";
+
+/**
+ * 这一轮此刻一共产出了多少字——主 Agent 自己的，加上委派出去的那些。
+ *
+ * 和 `useLiveRate` 同住一个文件，理由也一样：抽出来才挂得起来。`RunningIndicator` 连着一颗 canvas
+ * 思考球，在 `test/ui` 里挂不动，而这两件事——「产出了多少」和「那有多快」——恰恰是那个组件里唯二
+ * 值得验的。
+ *
+ * **为什么非得算上子代理。** 不算的话，一轮里派了几个子代理之后这个读数就废了：主 Agent 在等，
+ * 自己一个字都不产，而屏幕上那个 0.9 tok/s 与此同时有四个子代理正在飞快地写。那不是「慢」，是
+ * 「没在看真正在写的那个」。
+ *
+ * 子代理只能按 token 折算：它的消息要等 `message_end` 才整条过来（见 `runtime/sub-agent.ts` 的
+ * relay），中途没有字符可数。于是曲线在它们身上是一跳一跳的，被 4 秒的窗口抹平之后，仍然比停在
+ * 0.9 诚实得多。
+ *
+ * 已经结束的那些也在里面，而它们的数字不再变——速率算的是窗口内的差值，不动的部分只是个常量底，
+ * 换一轮时窗口整个重置，底也跟着换掉。
+ */
+export function useProducedChars(): number {
+	/*
+	 * 正在写的这一条，到此刻为止有多少字。
+	 *
+	 * 思考和正文都算：两者都是模型这一刻正在产出的东西，速度是同一件事。工具调用的参数不算——它是
+	 * 一次落地的，把它算进来会让曲线在调用那一帧凭空冲高。
+	 */
+	const live = useApp((s) => {
+		const last = s.messages[s.messages.length - 1];
+		if (last?.role !== "assistant" || last.stopReason !== "pending") return 0;
+		let chars = 0;
+		for (const block of last.content) {
+			if (block.type === "text") chars += block.text.length;
+			else if (block.type === "thinking") chars += block.thinking.length;
+		}
+		return chars;
+	});
+	const delegated = useSubAgents((s) => s.agents.reduce((sum, one) => sum + (one.usage?.output ?? 0), 0) * CHARS_PER_TOKEN);
+	return live + delegated;
+}
 
 /**
  * 此刻的写入速度，跟着 `now` 一起走。

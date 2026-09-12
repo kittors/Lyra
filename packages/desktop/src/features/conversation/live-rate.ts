@@ -108,6 +108,15 @@ function trimIdleHead(samples: RateSample[]): RateSample[] {
  */
 export const SETTLE_MS = 1200;
 
+/**
+ * 一个 token 折合多少字符。
+ *
+ * 和 `@lyra/core/tokens` 的 `estimateTokens` 是同一把尺（那边是 `chars / 3.5`）。提成常量是因为
+ * 现在两个方向都要用：这条线按字符走，而子代理的产出只报 token——它的消息要等 `message_end` 才
+ * 到，中途没有字符可数——所以接进来之前得先乘回去。见 `RunningIndicator` 里 `subChars` 那一段。
+ */
+export const CHARS_PER_TOKEN = 3.5;
+
 export function trustworthy(samples: RateSample[]): boolean {
 	if (samples.length < 2) return false;
 	const span = samples[samples.length - 1].at - samples[0].at;
@@ -128,6 +137,5 @@ export function rateFrom(samples: RateSample[]): number {
 	if (seconds <= 0) return 0;
 	const chars = last.chars - first.chars;
 	if (chars <= 0) return 0;
-	// 和 `@lyra/core/tokens` 的 `estimateTokens` 同一个系数，那边是 `chars / 3.5`。
-	return chars / 3.5 / seconds;
+	return chars / CHARS_PER_TOKEN / seconds;
 }

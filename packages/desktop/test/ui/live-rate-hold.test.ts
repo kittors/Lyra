@@ -11,11 +11,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { useLiveRate } from "../../src/features/conversation/useLiveRate.ts";
+import { act } from "react";
+import type { SubAgentSummary } from "@lyra/core";
+import { useLiveRate, useProducedChars } from "../../src/features/conversation/useLiveRate.ts";
+import { useApp } from "../../src/store/index.ts";
+import { useSubAgents } from "../../src/store/subAgents.ts";
 import { mount, type Mounted } from "../helpers/mount.ts";
 
 function Probe({ chars, now, startedAt }: { chars: number; now: number; startedAt: number | null }) {
 	return h("output", {}, useLiveRate(chars, now, startedAt).toFixed(1));
+}
+
+function CharsProbe() {
+	return h("output", {}, String(useProducedChars()));
+}
+
+/** 一个只有产出数字要紧的子代理记录。 */
+function subAgent(id: string, output: number, status: SubAgentSummary["status"] = "running"): SubAgentSummary {
+	return {
+		id, agent: "explore", description: id, status, startedAt: 0, toolCalls: 0, depth: 1,
+		usage: { input: 0, output, cacheRead: 0, cacheWrite: 0, total: output, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+	};
 }
 
 /** 采样的节奏，和 `RunningIndicator` 里那个 `setInterval` 一样。 */
@@ -168,4 +184,32 @@ test("心跳和流式增量交错到达时，读数照样出得来——这是�
 		await view.unmount();
 		delete document.documentElement.dataset.reduceMotion;
 	}
+});
+
+test("委派出去的产出也算进这条线，主 Agent 在等的时候读数才不会趴着", async () => {
+	/*
+	 * 这一条守的是接线，不是算法。算法上面几条已经验过了；这里问的是「喂给它的那个数，有没有把
+	 * 子代理算进去」——不算的话，一轮里派了四个子代理之后，主 Agent 自己一个字不产，屏幕上就是
+	 * 0.9 tok/s，而那四个正在飞快地写。
+	 *
+	 * `useProducedChars` 从两个 store 各读一半，所以这里两个都摆上：主 Agent 那条消息已经收尾
+	 * （`stopReason` 不是 pending），它这一刻贡献 0；数字全从子代理来。
+	 */
+	useApp.setState({ messages: [] });
+	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [] });
+
+	const view = await mount(h(CharsProbe));
+	assert.equal(Number(view.text()), 0, "什么都没派、什么都没写，就是 0");
+
+	await act(async () => {
+		useSubAgents.setState({ agents: [subAgent("a", 1000), subAgent("b", 400)] });
+	});
+	// 1400 个 output token，按 3.5 字符一个折回去。
+	assert.equal(Number(view.text()), 1400 * 3.5, "两个子代理的产出都在里面");
+
+	await act(async () => {
+		useSubAgents.setState({ agents: [subAgent("a", 1000), subAgent("b", 400), subAgent("c", 0, "done")] });
+	});
+	assert.equal(Number(view.text()), 1400 * 3.5, "一个还没产出的不改变什么");
+	await view.unmount();
 });

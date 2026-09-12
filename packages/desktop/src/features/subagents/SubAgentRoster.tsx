@@ -7,9 +7,10 @@
  * the question becomes "who asked for this, and what did the whole errand cost?" — and the strip
  * becomes an indented list, each root carrying its branch's total.
  *
- * Cost is on every row because it is the brake on orchestration. Fanning out eight sub-agents is
- * free from the parent's side, since none of their context comes back; this is where the bill for
- * it shows, and 「本次编排 $2.40」 is what makes someone ask whether all eight were needed.
+ * Cost is on every row because that is the question a roster raises: 铺开了八个，哪个贵。整批的
+ * 合计**不**在这里——它曾经挂在 tab 条尾巴和树的末行上，现在子代理的花销直接进这一轮的总数（见
+ * `store/apply-event.ts`），运行指示器上那个一直在爬的数字就是账单。同一笔钱在屏幕上写三遍，只会
+ * 让口径稍有出入时没人知道该信哪个。
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -17,7 +18,7 @@ import type { ReactNode, RefObject } from "react";
 import { useEffect, useRef } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
-import { rosterNested, rosterRows, rosterTotal, type RosterNode } from "../../store/subAgents.ts";
+import { rosterNested, rosterRows, type RosterNode } from "../../store/subAgents.ts";
 import { figuresWord, ranFor, statusTone, statusWord } from "./format.ts";
 
 export interface SubAgentRosterProps {
@@ -50,11 +51,7 @@ export function SubAgentRoster(props: SubAgentRosterProps) {
 	return <Strip {...props} hostRef={host} />;
 }
 
-/** Looked up per render rather than at import: this file loads before the language is settled. */
-const totalTip = () => translate("roster.totalTip");
-
 function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
-	const total = figuresWord(rosterTotal(agents));
 	return (
 		<div className="flex h-7 shrink-0 items-center border-b border-line">
 			<div
@@ -89,32 +86,22 @@ function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
 					);
 				})}
 			</div>
-			{total && (
-				<span data-sub-total data-ly-tip={totalTip()} className="shrink-0 px-2 text-caption tabular-nums text-ink-faint">
-					{translate("roster.total", { total })}
-				</span>
-			)}
 		</div>
 	);
 }
 
 function Tree({ agents, current, onFocus, trailing, hostRef }: Shape) {
 	const rows = rosterRows(agents);
-	const total = figuresWord(rosterTotal(agents));
 	return (
 		<div ref={hostRef} role="tree" aria-label={translate("roster.tree")} className="shrink-0 border-b border-line py-0.5">
 			{rows.map((node) => (
 				<Branch key={node.agent.id} node={node} active={node.agent.id === current} onFocus={onFocus} trailing={trailing} />
 			))}
-			{total && (
-				<div
-					data-sub-total
-					data-ly-tip={totalTip()}
-					className="flex h-[20px] items-center justify-end px-2 text-caption tabular-nums text-ink-faint"
-				>
-					{translate("roster.summary", { n: agents.length, total })}
-				</div>
-			)}
+			{/*
+			 * 这里和 tab 条那头都曾挂着一行「本次编排合计」。两处一起拿掉了——理由见 `SubAgentBar`：
+			 * 子代理的花销现在进这一轮的总数，运行指示器上那个数字就是账单，不必在三个地方各写一遍。
+			 * 每一行自己的花销留着，那个回答的是另一个问题：这几个里哪个贵。
+			 */}
 		</div>
 	);
 }

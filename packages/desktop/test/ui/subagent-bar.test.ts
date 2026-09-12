@@ -60,15 +60,19 @@ test("the first dispatch of a run opens the pane; the rest of the batch does not
 	await view.unmount();
 });
 
-test("the bar carries the orchestration total, priced or not", async () => {
+test("整批的合计不在这条线上——那笔钱已经进了这一轮的总数", async () => {
+	/*
+	 * 这条曾经反着断言：条上要挂一个「本次编排合计」，作为铺开子代理的刹车。刹车装错了地方——
+	 * 子代理烧的 token 现在直接进运行指示器那个数（见 `store/apply-event.ts`），同一笔钱在屏幕上
+	 * 写两遍，口径但凡差一点就没人知道该信哪个。
+	 *
+	 * 留着反过来守，是因为「再加回去」是个太自然的念头。
+	 */
 	const view = await mount(h(SubAgentBar, { onOpen: () => {} }));
 	await roster([summary({ id: "a", status: "done", tokens: 2480, cost: 0.0087 }), summary({ id: "b", status: "done", tokens: 520, cost: 0.0018 })]);
 	assert.match(view.text(), /2 个子 Agent 已结束/);
-	assert.match(view.find("[data-sub-total]").textContent ?? "", /^3\.0k · \$0\.01$/, "the whole batch, added up");
-
-	await roster([summary({ id: "a", status: "done", tokens: 2480 })]);
-	const total = view.find("[data-sub-total]").textContent ?? "";
-	assert.ok(!total.includes("$"), `no pricing, no dollar figure: ${total}`);
+	assert.equal(view.all("[data-sub-total]").length, 0, "条上不该再有整批合计");
+	assert.ok(!view.text().includes("$0.01"), `也不该有它的钱数：${view.text()}`);
 	await view.unmount();
 });
 

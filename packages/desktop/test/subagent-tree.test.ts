@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SubAgentSummary } from "@lyra/core";
-import { rosterNested, rosterRows, rosterTotal, rosterTree } from "../src/store/subAgents.ts";
+import { rosterNested, rosterRows, rosterTree } from "../src/store/subAgents.ts";
 
 function summary(over: Partial<SubAgentSummary> & { id: string; tokens?: number; cost?: number }): SubAgentSummary {
 	const { tokens = 0, cost = 0, ...rest } = over;
@@ -58,7 +58,7 @@ test("an orphan becomes a root, at level 1, whatever its depth was", () => {
 	const rows = rosterRows([summary({ id: "grandchild", parentId: "gone", depth: 3, tokens: 40 })]);
 	assert.equal(rows.length, 1);
 	assert.equal(rows[0].level, 1);
-	assert.equal(rosterTotal([rows[0].agent]).tokens, 40);
+	assert.equal(rows[0].own.tokens, 40, "父亲被清掉了，它干的活和花的钱还在");
 });
 
 test("a branch total includes grandchildren; the root's own share stays separate", () => {
@@ -73,15 +73,6 @@ test("a branch total includes grandchildren; the root's own share stays separate
 	assert.equal(root.children[0].branch.tokens, 350, "the middle node's branch is itself plus its child");
 });
 
-test("the orchestration total is everything on the roster, related or not", () => {
-	const total = rosterTotal([
-		summary({ id: "a", tokens: 1000, cost: 0.1 }),
-		summary({ id: "a1", parentId: "a", depth: 2, tokens: 300, cost: 0.03 }),
-		summary({ id: "b", tokens: 200 }),
-	]);
-	assert.equal(total.tokens, 1500);
-	assert.ok(Math.abs(total.cost - 0.13) < 1e-9);
-});
 
 test("nested means someone below the main conversation dispatched", () => {
 	assert.equal(rosterNested([summary({ id: "a" }), summary({ id: "b" })]), false, "peers are a strip, not a tree");

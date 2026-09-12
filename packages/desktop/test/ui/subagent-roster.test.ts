@@ -42,7 +42,7 @@ test("peers are a tab strip, with the total at its end", async () => {
 	assert.equal(view.all("[role=tree]").length, 0, "no nesting, no tree");
 	assert.equal(view.all("[role=tab]").length, 2);
 	assert.equal(view.find("[role=tab][aria-selected=true]").textContent, "找入口");
-	assert.match(view.find("[data-sub-total]").textContent ?? "", /合计 2\.0k · \$0\.03/);
+	assert.equal(view.all("[data-sub-total]").length, 0, "整批合计不在这里了——它进了这一轮的总数");
 	await view.unmount();
 });
 
@@ -85,7 +85,7 @@ test("a dispatch below the main conversation turns the strip into an indented tr
 	// The root's figure is the branch's — what dispatching it cost — not its own share.
 	assert.match(rows[0].querySelector("[data-sub-figures]")?.textContent ?? "", /1\.5k · \$0\.15/);
 	assert.match(rows[1].querySelector("[data-sub-figures]")?.textContent ?? "", /^500 · \$0\.05$/);
-	assert.match(view.find("[data-sub-total]").textContent ?? "", /本次编排 · 3 个子 Agent · 1\.7k · \$0\.17/);
+	assert.equal(view.all("[data-sub-total]").length, 0, "树的末行也不再挂合计，理由同上");
 	assert.equal(rows[1].getAttribute("aria-selected"), "true");
 
 	await click(rows[2].querySelector("button") as HTMLElement);
@@ -114,8 +114,10 @@ test("an unpriced model shows tokens and no price — unknown is not free", asyn
 			onFocus: () => {},
 		}),
 	);
-	const total = view.find("[data-sub-total]").textContent ?? "";
-	assert.match(total, /4\.0k/);
-	assert.ok(!total.includes("$"), `no rate, no dollar figure: ${total}`);
+	// 合计没了，但「不知道价钱就别编一个」这件事还要守，改看行自己的那个数。
+	const rows = view.all<HTMLElement>("[role=treeitem]");
+	const figures = rows[0].querySelector("[data-sub-figures]")?.textContent ?? "";
+	assert.match(figures, /4\.0k/, "根这一行是整枝的 token");
+	assert.ok(!figures.includes("$"), `no rate, no dollar figure: ${figures}`);
 	await view.unmount();
 });

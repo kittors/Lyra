@@ -189,8 +189,3 @@ export function rosterRows(agents: SubAgentSummary[]): RosterNode[] {
 export function rosterNested(agents: SubAgentSummary[]): boolean {
 	return agents.some((one) => one.depth > 1);
 }
-
-/** Everything on the roster added up: the figure for the orchestration as a whole. */
-export function rosterTotal(agents: SubAgentSummary[]): RosterFigures {
-	return agents.map(figuresOf).reduce(addFigures, { tokens: 0, cost: 0 });
-}

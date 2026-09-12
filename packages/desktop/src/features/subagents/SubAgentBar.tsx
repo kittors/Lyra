@@ -18,7 +18,7 @@ import { Bot, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
-import { figuresOf, rosterOrder, rosterTotal, useSubAgents } from "../../store/subAgents.ts";
+import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { elapsedSince, figuresWord, statusWord } from "./format.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -58,9 +58,14 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	 * enough to give in full. Running ones first, each with what it was asked to do and how long it
 	 * has been at it; the rest with how they ended.
 	 */
-	const total = figuresWord(rosterTotal(agents));
-	const tip = [
-		...ordered.map((one) => {
+	/*
+	 * 这里曾经在末尾还接一行「本次编排合计」，作为铺开子代理的刹车。拿掉了，因为那个刹车装错了
+	 * 地方：子代理烧掉的 token 现在直接进这一轮的总数（见 `store/apply-event.ts` 里数
+	 * `subagent_message` 的那一段），运行指示器上那个一直在爬的数字本身就是账单。同一笔钱在屏幕
+	 * 上写两遍，口径但凡差一点（比如一处含已结束的、一处不含），读的人只会更不知道该信哪个。
+	 */
+	const tip = ordered
+		.map((one) => {
 			const state = one.status === "running" ? translate("subAgentBar.runningFor", { elapsed: elapsedSince(one.startedAt) }) : statusWord(one.status);
 			// 正在重连时说重连，理由同 `SubAgentPanel`：最后一次工具调用可能是半小时前的事了。
 			const doing = one.retrying
@@ -69,10 +74,8 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 			const activity = one.status === "running" && doing ? ` · ${doing}` : "";
 			const spent = figuresWord(figuresOf(one));
 			return `${one.description}（${one.agent}）— ${state}${activity}${spent ? ` · ${spent}` : ""}`;
-		}),
-		// The bill for the whole batch, on the line everyone sees while it runs — the brake.
-		...(total ? [translate("subAgentBar.totalCost", { total })] : []),
-	].join("\n");
+		})
+		.join("\n");
 
 	return (
 		<div className="ly-enter group/bar mb-1.5 flex w-full items-center justify-between rounded-lg bg-card/60 px-2 py-0.5 border border-line-soft transition-colors hover:bg-card">
@@ -95,11 +98,6 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 				{running > 0 && (
 					<span className="shrink-0 text-caption text-ink-faint tabular-nums">
 						{elapsedSince(Math.min(...ordered.filter((one) => one.status === "running").map((one) => one.startedAt)))}
-					</span>
-				)}
-				{total && (
-					<span data-sub-total className="shrink-0 text-caption text-ink-faint tabular-nums">
-						{total}
 					</span>
 				)}
 			</button>

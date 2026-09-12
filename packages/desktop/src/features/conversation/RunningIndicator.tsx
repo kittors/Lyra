@@ -6,7 +6,7 @@ import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { useApp } from "../../store/index.ts";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
-import { useLiveRate } from "./useLiveRate.ts";
+import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
 
 /**
  * What the agent is spending while it works: elapsed time and tokens so far.
@@ -77,22 +77,8 @@ export function RunningIndicator() {
 		const block = last.content[last.content.length - 1];
 		return block?.type === "text" && block.text.length > 0;
 	});
-	/*
-	 * 正在写的这一条，到此刻为止有多少字。
-	 *
-	 * 思考和正文都算：两者都是模型这一刻正在产出的东西，速度是同一件事。工具调用的参数不算——它是一次
-	 * 落地的，把它算进来会让曲线在调用那一帧凭空冲高。
-	 */
-	const liveChars = useApp((s) => {
-		const last = s.messages[s.messages.length - 1];
-		if (last?.role !== "assistant" || last.stopReason !== "pending") return 0;
-		let chars = 0;
-		for (const block of last.content) {
-			if (block.type === "text") chars += block.text.length;
-			else if (block.type === "thinking") chars += block.thinking.length;
-		}
-		return chars;
-	});
+	// 这一轮此刻产出了多少字——主 Agent 的加上委派出去的。抽在 `useLiveRate.ts` 里，那里说明了为什么。
+	const producedChars = useProducedChars();
 
 	useEffect(() => {
 		if (!startedAt) return;
@@ -123,7 +109,7 @@ export function RunningIndicator() {
 	 * 压缩判断用的是同一把尺，至少全应用口径一致。回合结束后 `MessageActions` 那行显示的是服务商
 	 * 报的真数，两者会有出入——这是估算的代价，不是 bug。
 	 */
-	const rate = useLiveRate(liveChars, now, startedAt);
+	const rate = useLiveRate(producedChars, now, startedAt);
 
 	const [toolName, summary, finishedAt] = doing.split("\u0000");
 	/*
