@@ -22,63 +22,19 @@ import type { ScreenshotSettings } from "@lyra/core";
 import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas } from "./AnnotateCanvas.tsx";
 import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
-import { ScreenshotLoupe, type LoupeReading } from "./ScreenshotLoupe.tsx";
+import { ScreenshotLoupe } from "./ScreenshotLoupe.tsx";
+import { useToolbarPlacement } from "./useToolbarPlacement.ts";
+import { useSelectionGesture, EDGE_GRAB } from "./useSelectionGesture.ts";
 import { bridge } from "../../services/index.ts";
 import {
-	clampRect,
-	clampToolbar,
 	handlePoint,
-	hitHandle,
-	insideRect,
-	moveRect,
-	rectFromPoints,
-	resizeRect,
-	toolbarPosition,
 	HANDLES,
 	HANDLE_CURSOR,
-	type Handle,
 	type Point,
 	type Rect,
 } from "./screenshot-geometry.ts";
 
-const HANDLE_GRAB = 10;
-/**
- * A first guess at the bar's size, replaced by a measurement after the first paint.
- *
- * Only used to place it before it exists. It is deliberately close to the truth — the bar is now
- * 48pt tall and about 800 wide with the two extra actions on it — because being wrong here puts the
- * bar in the wrong place for one frame, and the eye is already following the pointer that just
- * released the selection.
- */
-const TOOLBAR_SIZE = { width: 800, height: 48 };
-const MIN_SELECTION = 10;
-/**
- * How wide the band around the selection's edge is that picks the whole region up.
- *
- * While annotating, the inside of the selection belongs to the pen: a press there draws. The
- * region still has to be movable, so the grab is the border itself — the same place the eye
- * already reads as the edge of the shot, and the same convention every other capture tool uses.
- */
-/**
- * How wide the frame's edge is to grab, in display pixels.
- *
- * Was 8, which is narrower than the border it sits on looks and had to be aimed at. Fourteen is
- * about the width of a window's resize edge on this platform, and the mark it decorates is only
- * 1px — the grab area is meant to be generous where the drawing is precise.
- */
-const EDGE_GRAB = 14;
 
-/**
- * How tall the size-and-colour bubble is, including the gap above it.
- *
- * A constant rather than a measurement: it is only needed to decide which side of the region the
- * toolbar goes on, that decision has to be made before the bubble exists, and the bubble is one
- * row of controls in a padded box — a number that changes only if that row is redesigned.
- *
- * 48 rather than the 34 it was: the capture bar uses the `large` metrics, whose bubble is a row of
- * 28pt controls with 6pt of padding, plus the 8pt gap that separates it from the bar.
- */
-const PROPERTIES_HEIGHT = 48;
 /**
  * How long the dimming takes to arrive, and to leave.
  *
@@ -150,60 +106,14 @@ interface ScreenshotInit {
 	settings?: ScreenshotSettings;
 }
 
-/**
- * The window under the pointer, which is the first one that contains it.
- *
- * Front to back is the order the Window Server returns them in, and it is the same order a click
- * would resolve — so what highlights is what you would have hit.
- */
-function windowAt(windows: (Rect & { app: string })[] | undefined, at: Point): (Rect & { app: string }) | null {
-	return windows?.find((w) => insideRect(w, at)) ?? null;
-}
 
-type DragMode =
-	| { kind: "none" }
-	| { kind: "creating"; from: Point }
-	| { kind: "moving"; from: Point; origin: Rect }
-	| { kind: "resizing"; handle: Handle; origin: Rect };
 
-/** Whether a point is on the selection's border rather than out in the middle of it. */
-function onEdge(rect: Rect, at: Point, tolerance: number): boolean {
-	if (!insideRect(rect, at)) return false;
-	return (
-		at.x - rect.x <= tolerance ||
-		rect.x + rect.width - at.x <= tolerance ||
-		at.y - rect.y <= tolerance ||
-		rect.y + rect.height - at.y <= tolerance
-	);
-}
 
 export function ScreenshotOverlay() {
 	const [initData, setInitData] = useState<ScreenshotInit | null>(null);
-	const [selection, setSelection] = useState<Rect | null>(null);
-	const [dragMode, setDragMode] = useState<DragMode>({ kind: "none" });
-	const [cursor, setCursor] = useState("crosshair");
-	const [isAnnotating, setIsAnnotating] = useState(false);
 
 	const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
-	/**
-	 * The window the pointer is over, before a region has been drawn.
-	 *
-	 * Offering whole windows is most of what makes a capture quick: the common case is "this
-	 * window", and dragging a rectangle around one by hand is both slower and less accurate than
-	 * the window's own bounds. It stops mattering the moment a region exists — from then on the
-	 * region is what is being adjusted.
-	 */
-	const [hoverWindow, setHoverWindow] = useState<(Rect & { app: string }) | null>(null);
 
-	/**
-	 * Where the pointer is and what is under it, for the loupe.
-	 *
-	 * Kept until a region exists: once there is something to annotate, a magnifier following the
-	 * pointer is in the way of the drawing rather than in aid of it.
-	 */
-	const [pointer, setPointer] = useState<Point | null>(null);
-	const [reading, setReading] = useState<LoupeReading | null>(null);
-	const [copied, setCopied] = useState(false);
 	/**
 	 * The confirmation that outlives the capture, or null.
 	 *
@@ -215,54 +125,6 @@ export function ScreenshotOverlay() {
 	 */
 	const [toast, setToast] = useState<ToastMessage | null>(null);
 
-	/**
-	 * Where the user has put the toolbar, if they have moved it.
-	 *
-	 * Null means "wherever `toolbarPosition` says", which is the ordinary case and the good default:
-	 * the bar follows the region and ends up under the hand that drew it. This exists for when that
-	 * default is wrong — the bar lands on top of the very thing being annotated, which happens for a
-	 * region near the bottom of the screen, or over the part of the picture a caption is going on.
-	 *
-	 * In overlay coordinates, i.e. the same space as the selection.
-	 */
-	const [toolbarAtManual, setToolbarAtManual] = useState<Point | null>(null);
-	const [toolbarDragging, setToolbarDragging] = useState(false);
-	/** The press that started the current toolbar drag, and where the bar was when it did. */
-	const toolbarDrag = useRef<{ from: Point; origin: Point } | null>(null);
-
-	/** The toolbar's measured size, so it is kept on screen against what it really is. */
-	const [toolbarSize, setToolbarSize] = useState<{ width: number; height: number } | null>(null);
-	const toolbarObserver = useRef<ResizeObserver | null>(null);
-	/*
-	 * Watched, not measured once.
-	 *
-	 * This was a bare ref callback, which runs when the element mounts and never again — so the
-	 * width it recorded was the width of the bar *as it first appeared*. The bar does not keep that
-	 * width: select a shape and 「删除选中」 joins the row, and a tool with a properties bubble adds
-	 * its own controls. Every rule that keeps the bar on screen is computed against this number, so
-	 * a stale one disables all of them at once — `toolbarPosition` clamps the right edge against a
-	 * bar narrower than the one being drawn, and the real one hangs off the screen.
-	 *
-	 * Which is why the report was 「依然存在」: the placement arithmetic had been fixed, and it was
-	 * being fed a measurement that stopped updating.
-	 */
-	const measureToolbar = useCallback((el: HTMLDivElement | null) => {
-		toolbarObserver.current?.disconnect();
-		toolbarObserver.current = null;
-		if (!el) return;
-		const read = () => {
-			const r = el.getBoundingClientRect();
-			if (!r.width || !r.height) return;
-			setToolbarSize((was) =>
-				was && Math.abs(was.width - r.width) < 1 && Math.abs(was.height - r.height) < 1
-					? was
-					: { width: Math.ceil(r.width), height: Math.ceil(r.height) },
-			);
-		};
-		read();
-		toolbarObserver.current = new ResizeObserver(read);
-		toolbarObserver.current.observe(el);
-	}, []);
 
 	/*
 	 * The whole screen, decoded once.
@@ -273,6 +135,32 @@ export function ScreenshotOverlay() {
 	 * before the overlay can be shown at all.
 	 */
 	const colorSpace = initData?.colorSpace ?? "srgb";
+	/*
+	 * 框选那一半在 `useSelectionGesture` 里：框、拖动模式、光标、窗口高亮，以及放大镜的读数。
+	 *
+	 * 截图有两个阶段——先框一块，再在上面画。这个组件原来同时拿着两阶段的全部状态，17 个
+	 * `useState` 里 8 个属于框选，三个指针处理函数 240 行。现在这里只管渲染和交付。
+	 */
+	const gesture = useSelectionGesture({ frame: initData, backdrop: bgCanvasRef, colorSpace });
+	const { selection, isAnnotating, cursor, pointer, reading, copied, hoverWindow } = gesture;
+	/*
+	 * 这两个单独解出来，是为了下面的依赖数组能只写它们。
+	 *
+	 * `gesture` 本身是每次渲染新建的对象，写进依赖数组会让 `onInit` 的订阅每渲染一次就拆一次
+	 * 重建一次——那是真的行为回归，不是 lint 的洁癖。这两个都是 `useCallback([])` 或 `useState`
+	 * 的 setter，身份稳定，依赖它们才等于「一次」。
+	 */
+	const { reset: resetGesture, setCopied: setColourCopied } = gesture;
+
+	/*
+	 * 工具条画在哪，连同它的尺寸测量和拖动，都在 `useToolbarPlacement` 里。
+	 *
+	 * 那五个状态只服务这一件事，留在这里会和选区、放大镜、吐司的状态混成一片——这个组件原来有 17
+	 * 个 `useState`，谁属于谁得一个个读出来。`initData?.bounds` 可以是 null：hook 必须在下面那个
+	 * 早返回之前调用，而那时截图还没到。
+	 */
+	const toolbar = useToolbarPlacement(selection, initData?.bounds ?? null);
+	const { reset: resetToolbar } = toolbar;
 	const annotator = useAnnotator(initData?.snapshot ?? null, { session: initData?.session, colorSpace });
 	/*
 	 * `revision` and not just `ready`, and the difference is a whole capture.
@@ -457,15 +345,8 @@ export function ScreenshotOverlay() {
 	 *
 	 * Marks are not here: `useAnnotator` clears those off the same session number.
 	 */
-	const resetSession = useCallback(() => {
-		setSelection(null);
-		setDragMode({ kind: "none" });
-		setCursor("crosshair");
-		setIsAnnotating(false);
-		setHoverWindow(null);
-		setPointer(null);
-		setReading(null);
-		setCopied(false);
+	const resetSession = useCallback((frame?: ScreenshotInit) => {
+		resetGesture(frame);
 		setToast(null);
 		setToastLeaving(false);
 		setEntered(false);
@@ -479,17 +360,22 @@ export function ScreenshotOverlay() {
 		 * remembered position would arrive over whatever this one is framing, for a reason nobody
 		 * could see.
 		 */
-		setToolbarAtManual(null);
-		setToolbarDragging(false);
-		toolbarDrag.current = null;
-	}, []);
+		resetToolbar();
+	}, [resetGesture, resetToolbar]);
 	useEffect(() => {
 		const cleanup = bridge.screenshot?.onInit((data: ScreenshotInit) => {
-			resetSession();
+			/*
+			 * `resetSession` 而不是 `resetGesture`——这里曾经因此坏过。
+			 *
+			 * 手势那一组只是这一轮状态的一部分：`resetSession` 还要清掉吐司、`entered`、`leaving`
+			 * 和工具条被拖到的位置。拆分时这里一度只清了手势，于是新一轮截图**没有淡入**（`entered`
+			 * 留着上一轮的 true）、工具条**停在上一轮被拖到的地方**。两个都是探针在真窗口里抓出来的。
+			 *
+			 * 带上 `data`，是因为清空的同时要把「指针已经在哪个窗口上」点出来——覆盖层常常开在一个
+			 * 不会再动的指针底下，等第一次 move 就太晚了。
+			 */
+			resetSession(data);
 			setInitData(data);
-			// Before any movement: the overlay often opens under a pointer that is not going to move.
-			setPointer(data.cursor ?? null);
-			setHoverWindow(data.cursor ? windowAt(data.windows, data.cursor) : null);
 		});
 		return cleanup;
 	}, [resetSession]);
@@ -572,16 +458,16 @@ export function ScreenshotOverlay() {
 				 */
 				void navigator.clipboard?.writeText(reading.hex).then(
 					() => {
-						setCopied(true);
+						setColourCopied(true);
 						leaveWithToast({ text: translate("screenshot.colourCopied") });
 					},
-					() => setCopied(false),
+					() => setColourCopied(false),
 				);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleCancel, reading, selection, leaveWithToast]);
+	}, [handleCancel, reading, selection, leaveWithToast, setColourCopied]);
 
 	/**
 	 * The selection and the marks on it, cut out of the annotated canvas at its own resolution.
@@ -710,229 +596,6 @@ export function ScreenshotOverlay() {
 		});
 	}, [withText, crop, initData, leaveWithToast]);
 
-	/**
-	 * 工具栏说它要挪窝了。
-	 *
-	 * 起点和它当时在哪儿都由它自己报——那两个数只有它清楚，而且按住按钮触发的那一次是从定时器里
-	 * 发出来的，那会儿事件对象早就不在了。这里只管收下，然后接管后面的移动。
-	 */
-	const startToolbarDrag = useCallback((grab: { from: Point; origin: Point }) => {
-		toolbarDrag.current = grab;
-		setToolbarDragging(true);
-	}, []);
-
-	/*
-	 * The rest of the drag, on the window rather than on the handle.
-	 *
-	 * A pointer moving fast leaves a 20pt grip behind between two events, and a capture on the
-	 * element would have to be released on a page that is about to be torn down and rebuilt for the
-	 * next capture. Listening on the window for as long as the drag lasts has neither problem.
-	 */
-	useEffect(() => {
-		if (!toolbarDragging) return;
-		const size = toolbarSize ?? TOOLBAR_SIZE;
-		const move = (event: PointerEvent) => {
-			const drag = toolbarDrag.current;
-			if (!drag) return;
-			// Kept on screen, with room above it for the properties bubble. See `clampToolbar`.
-			setToolbarAtManual(
-				clampToolbar(
-					{ x: drag.origin.x + event.clientX - drag.from.x, y: drag.origin.y + event.clientY - drag.from.y },
-					size,
-					{ width: window.innerWidth, height: window.innerHeight },
-					PROPERTIES_HEIGHT,
-				),
-			);
-		};
-		const end = () => {
-			toolbarDrag.current = null;
-			setToolbarDragging(false);
-		};
-		window.addEventListener("pointermove", move);
-		window.addEventListener("pointerup", end);
-		window.addEventListener("pointercancel", end);
-		return () => {
-			window.removeEventListener("pointermove", move);
-			window.removeEventListener("pointerup", end);
-			window.removeEventListener("pointercancel", end);
-		};
-	}, [toolbarDragging, toolbarSize]);
-
-	// Selection pointer events
-	const handlePointerDown = (e: React.PointerEvent) => {
-		if (!initData) return;
-		/*
-		 * A press on a control is not a press on the screen.
-		 *
-		 * The toolbar floats *outside* the selection — below it, by `toolbarPosition` — so without
-		 * this every press on it falls through to the rule at the bottom of this function and is
-		 * read as "start a new region somewhere else". Pressing any tool button therefore threw the
-		 * selection away and went back to the empty crosshair, which is the whole of "点一个按钮就
-		 * 立马出现新的截图". Nothing about it is visible to a test that clicks buttons through the
-		 * DOM: `element.click()` dispatches a click and no pointer event at all.
-		 */
-		if ((e.target as HTMLElement).closest?.("[data-screenshot-ui]")) return;
-		const pt: Point = { x: e.clientX, y: e.clientY };
-
-		/*
-		 * Taking the press means the canvas must not also have it.
-		 *
-		 * This runs in the capture phase, so it sees the press before `AnnotateCanvas` does. That
-		 * matters for the edge band: there is no handle element out there, so the press lands on the
-		 * canvas, which starts a stroke — and then bubbles up here and moves the selection. Dragging
-		 * the frame therefore drew a line every time. Stopping propagation is what makes adjusting
-		 * the region and drawing on it two different gestures instead of one gesture doing both.
-		 */
-		const take = () => {
-			e.stopPropagation();
-			(e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-		};
-
-		if (selection) {
-			const handle = hitHandle(selection, pt, HANDLE_GRAB);
-			if (handle) {
-				setDragMode({ kind: "resizing", handle, origin: selection });
-				take();
-				return;
-			}
-			if (insideRect(selection, pt)) {
-				// Before there is anything to annotate the whole region is a grab; afterwards only its
-				// edge is, because the middle is the canvas.
-				if (!isAnnotating || onEdge(selection, pt, EDGE_GRAB)) {
-					setDragMode({ kind: "moving", from: pt, origin: selection });
-					take();
-				}
-				// Otherwise the press belongs to `AnnotateCanvas`, and is deliberately left to reach it.
-				return;
-			}
-		}
-
-		/*
-		 * Once a region exists, everything outside it is dead.
-		 *
-		 * It used to start a new region from scratch, throwing away the one that was framed and every
-		 * mark on it — a whole capture lost to a press a few pixels outside the frame, which is easy
-		 * to do while reaching for the toolbar. The region is adjusted by its handles and moved by its
-		 * edge; nothing out here is meant to do anything, and the cursor says so.
-		 *
-		 * Escape is how you start over, and it is what the hint says.
-		 */
-		if (selection) {
-			e.stopPropagation();
-			return;
-		}
-
-		// With no region yet, a press anywhere begins one.
-		setIsAnnotating(false);
-		setDragMode({ kind: "creating", from: pt });
-		setSelection({ x: pt.x, y: pt.y, width: 0, height: 0 });
-		take();
-	};
-
-	const handlePointerMove = (e: React.PointerEvent) => {
-		if (!initData) return;
-		const pt: Point = { x: e.clientX, y: e.clientY };
-
-		/*
-		 * The loupe follows the pointer until there is a region, and then gets out of the way.
-		 *
-		 * Sampled from the backdrop canvas: it holds the snapshot at its own resolution, so the
-		 * coordinates reported are the picture's own and the colour is the one that will be saved.
-		 */
-		if (!selection) {
-			setPointer(pt);
-			const bg = bgCanvasRef.current;
-			const scale = bg && initData.bounds.width ? bg.width / initData.bounds.width : 1;
-			const px = Math.round(pt.x * scale);
-			const py = Math.round(pt.y * scale);
-			const ctx = bg?.getContext("2d", { colorSpace, willReadFrequently: true });
-			if (ctx && px >= 0 && py >= 0 && px < (bg?.width ?? 0) && py < (bg?.height ?? 0)) {
-				/*
-				 * 报出来的色值要是 sRGB 的。
-				 *
-				 * 画布本身是显示器的空间（P3），里面存的数是 P3 的——直接读出来写成 #RRGGBB，得到的
-				 * 是「屏幕上那个红」在 P3 里的坐标 EA3323，而不是任何人期待的 FF0000。取色器上的
-				 * 值是要拿去填进 CSS 和设计稿的，那两处说的都是 sRGB。`getImageData` 的
-				 * `colorSpace` 正是为这件事准备的：让浏览器替我们换算，而不是把坐标当颜色报出去。
-				 */
-				const [r, g, b] = ctx.getImageData(px, py, 1, 1, { colorSpace: "srgb" }).data;
-				const hex = `#${[r, g, b].map((n) => (n ?? 0).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
-				setReading({ x: px, y: py, hex });
-			}
-			setCopied(false);
-		} else if (pointer) {
-			setPointer(null);
-		}
-
-		if (dragMode.kind === "creating") {
-			const rect = clampRect(rectFromPoints(dragMode.from, pt), initData.bounds);
-			setSelection(rect);
-		} else if (dragMode.kind === "moving") {
-			const dx = pt.x - dragMode.from.x;
-			const dy = pt.y - dragMode.from.y;
-			const rect = moveRect(dragMode.origin, dx, dy, initData.bounds);
-			setSelection(rect);
-		} else if (dragMode.kind === "resizing") {
-			const rect = clampRect(
-				resizeRect(dragMode.origin, dragMode.handle, pt),
-				initData.bounds,
-			);
-			setSelection(rect);
-		} else if (!selection) {
-			/*
-			 * Nothing drawn yet, so offer whatever is under the pointer.
-			 *
-			 * Only in this state: once a region exists it is the thing being worked on, and having
-			 * windows light up behind it would be offering to throw it away.
-			 */
-			setHoverWindow(windowAt(initData.windows, pt));
-			setCursor("crosshair");
-		} else if (selection) {
-			// Update hover cursor
-			const handle = hitHandle(selection, pt, HANDLE_GRAB);
-			if (handle) {
-				setCursor(HANDLE_CURSOR[handle]);
-				return;
-			}
-			if (insideRect(selection, pt)) {
-				// The canvas sets its own cursor for the tool in hand; this is only about the frame.
-				setCursor(!isAnnotating || onEdge(selection, pt, EDGE_GRAB) ? "move" : "default");
-				return;
-			}
-			// Outside a region that already exists: nothing here does anything, and a crosshair would
-			// promise that it does. See the matching rule in `handlePointerDown`.
-			setCursor("not-allowed");
-		} else {
-			setCursor("crosshair");
-		}
-	};
-
-	const handlePointerUp = () => {
-		if (dragMode.kind === "creating" && selection) {
-			if (selection.width < MIN_SELECTION || selection.height < MIN_SELECTION) {
-				/*
-				 * A press that went nowhere takes the window under it, if there is one.
-				 *
-				 * The two gestures share a beginning and are told apart by what happened next: drag
-				 * and you framed a region by hand, release without moving and you pointed at a
-				 * window. With no window there — the desktop, or a display whose windows could not be
-				 * read — it stays what it always was, the way to clear a selection.
-				 */
-				const whole = hoverWindow ? clampRect(hoverWindow, initData!.bounds) : null;
-				if (whole && whole.width >= MIN_SELECTION && whole.height >= MIN_SELECTION) {
-					setSelection(whole);
-					setIsAnnotating(true);
-				} else {
-					setSelection(null);
-				}
-			} else {
-				setIsAnnotating(true);
-			}
-			setHoverWindow(null);
-		}
-		setDragMode({ kind: "none" });
-	};
-
 	/*
 	 * Between captures. The window still exists — it is never destroyed any more — so this is what
 	 * it looks like when nothing is being captured: transparent, empty, and holding no picture.
@@ -957,44 +620,7 @@ export function ScreenshotOverlay() {
 	 * the screen with no way to reach it. Measured after the first paint and remembered, so this
 	 * cannot drift again as controls are added.
 	 */
-	/*
-	 * The bubble counts towards the placement, whether or not one is open right now.
-	 *
-	 * Measuring only the open one would make the bar jump the moment a tool with properties was
-	 * chosen — the placement would change under the pointer that just chose it. Reserving the room
-	 * unconditionally costs a few pixels of gap in the rare case nothing opens, and keeps the bar
-	 * still.
-	 */
-	const placed = selection
-		? toolbarPosition(selection, bounds, { ...TOOLBAR_SIZE, ...toolbarSize }, { height: PROPERTIES_HEIGHT })
-		: null;
-	/*
-	 * Where the user put it, if they moved it; otherwise where it belongs.
-	 *
-	 * The automatic placement is right nearly always — the bar follows the region and lands under the
-	 * hand that drew it — and wrong in the case it cannot see: the bar is over the part of the
-	 * picture that is about to be annotated, or over a second window the user is comparing against.
-	 * There is no rule that fixes that, because the thing it must not cover is not on the screen the
-	 * overlay can measure. So it is draggable, and a bar that has been dragged stops following.
-	 *
-	 * The side is still derived rather than kept, because the bubble must open away from the edge it
-	 * is nearest: dragged to the top of the screen, a bubble opening upwards would be off it.
-	 */
-	/*
-	 * A bar that was moved by hand is still not allowed off the screen.
-	 *
-	 * `clampToolbar` used to run only while the pointer was down, which kept the drag itself honest
-	 * and then stopped caring. The bar changes width after the drag — 「删除选中」 appears the moment
-	 * a shape is selected — and the position it was left at was reapplied unchanged, so the extra
-	 * width went straight off the right edge. Clamped here instead, against the size measured now,
-	 * so it holds for every later change and not just for the gesture that placed it.
-	 */
-	const manual = toolbarAtManual
-		? clampToolbar(toolbarAtManual, { ...TOOLBAR_SIZE, ...toolbarSize }, bounds, PROPERTIES_HEIGHT)
-		: null;
-	const toolbarAt: (Point & { side: "above" | "below" | "over" }) | null = manual
-		? { ...manual, side: manual.y >= PROPERTIES_HEIGHT ? "above" : "below" }
-		: placed;
+	const toolbarAt = toolbar.at;
 
 	return (
 		<div
@@ -1016,7 +642,7 @@ export function ScreenshotOverlay() {
 			 * allowed. So the hand would close on the handle and then turn back into a crosshair for
 			 * the rest of the gesture, which reads as the drag having been dropped.
 			 */
-			style={{ cursor: toolbarDragging ? "grabbing" : cursor, WebkitUserDrag: "none" } as React.CSSProperties}
+			style={{ cursor: toolbar.dragging ? "grabbing" : cursor, WebkitUserDrag: "none" } as React.CSSProperties}
 			/*
 			 * A press-and-move here is a selection, never a drag of the page.
 			 *
@@ -1027,9 +653,9 @@ export function ScreenshotOverlay() {
 			 */
 			onDragStart={(e) => e.preventDefault()}
 			// Capture, so the frame's own gestures are decided before the canvas can start a stroke.
-			onPointerDownCapture={handlePointerDown}
-			onPointerMove={handlePointerMove}
-			onPointerUp={handlePointerUp}
+			onPointerDownCapture={gesture.onPointerDown}
+			onPointerMove={gesture.onPointerMove}
+			onPointerUp={gesture.onPointerUp}
 		>
 			{/*
 			 * The frozen screen, shown instantly and deliberately not faded.
@@ -1253,7 +879,7 @@ export function ScreenshotOverlay() {
 			 */}
 			{isAnnotating && toolbarAt && (
 				<div
-					ref={measureToolbar}
+					ref={toolbar.measure}
 					data-screenshot-ui
 					/*
 					 * `cursor-default`, and it is a bug fix rather than a tidy-up.
@@ -1278,8 +904,8 @@ export function ScreenshotOverlay() {
 						onSave={handleFinish}
 						onPin={handlePin}
 						onDownload={handleDownload}
-						onGrab={startToolbarDrag}
-						grabbing={toolbarDragging}
+						onGrab={toolbar.startDrag}
+						grabbing={toolbar.dragging}
 						/*
 						 * Bigger here than in the image viewer, and the reason is where it is standing.
 						 *
