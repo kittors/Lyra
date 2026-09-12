@@ -118,7 +118,18 @@ test("e2e 稳定失败的清单，要么在 testing.md 里，要么文档承认�
  * 下面这条守的是另一件事：`pnpm arch` 的输出里必须还有那个数，否则棘轮就退回成一句口号。
  */
 test("pnpm arch 仍然把循环依赖的数目印出来", () => {
-	const out = execFileSync("pnpm", ["arch"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+	/*
+	 * Windows 上要过 shell，否则这一行根本跑不起来。
+	 *
+	 * 那里的 `pnpm` 是 `pnpm.cmd`，而 `execFileSync` 不带 shell 时按字面找可执行文件，找不到就当场
+	 * 抛——症状是这条测试十几毫秒就红了，快得不像是跑过 `pnpm arch`（它在 Linux 上要七秒）。
+	 */
+	const out = execFileSync("pnpm", ["arch"], {
+		cwd: root,
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "pipe"],
+		shell: process.platform === "win32",
+	});
 	assert.match(out, /known violations ignored/, "基线机制没生效，或者输出不再报数");
 	assert.match(out, /144 known violations/);
 });

@@ -276,7 +276,17 @@ const counts = {};
 const detail = {};
 
 for (const path of files) {
-	const key = relative(SOURCE, path);
+	/*
+	 * 一律用正斜杠，因为这个字符串有两个读者，而它们都只认正斜杠。
+	 *
+	 * 一个是上面的 `EXEMPT`，一个是磁盘上的基线文件——两者都是在 mac/Linux 上写下的。Windows 的
+	 * `relative` 给的是 `i18n\messages\zh-CN.ts`：豁免前缀一条都匹配不上，基线里也查无此人，于是
+	 * 每个本该被豁免的文件都被当成新冒出来的，报成「硬编码中文从 0 涨到 2293」。
+	 *
+	 * 本机三个平台里只有 Windows 会这样，而这个检查本机跑、CI 也跑——所以它在 mac 上绿了整整一天，
+	 * 直到发版前的 Windows 打包才红出来。
+	 */
+	const key = relative(SOURCE, path).replaceAll("\\", "/");
 	if (EXEMPT.some((prefix) => key.startsWith(prefix))) continue;
 	const found = findings(await readFile(path, "utf8"), { jsx: path.endsWith(".tsx") });
 	if (found.length > 0) {
