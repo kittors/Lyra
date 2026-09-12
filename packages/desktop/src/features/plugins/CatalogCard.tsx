@@ -21,7 +21,8 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { ArrowUp, Download, FolderOpen, Loader2, MoreHorizontal, Play, Settings2, Trash2 } from "lucide-react";
+import { ArrowUp, Download, FolderOpen, MoreHorizontal, Play, Settings2, Trash2 } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -160,7 +161,7 @@ export function CatalogCard({
 									className="pointer-events-auto flex h-[26px] items-center gap-1 rounded-lg bg-accent/12 px-2 text-detail font-medium text-accent transition-opacity duration-[var(--ly-t-quick)] hover:opacity-80 disabled:opacity-50"
 								>
 									{act.busy === "update" ? (
-										<Loader2 size={11.5} strokeWidth={2} className="ly-spin" />
+										<Spinner size={11.5} />
 									) : (
 										<ArrowUp size={11.5} strokeWidth={2.2} />
 									)}
@@ -180,7 +181,7 @@ export function CatalogCard({
 									className="pointer-events-auto flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/card:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
 								>
 									{act.busy === "uninstall" ? (
-										<Loader2 size={13} strokeWidth={2} className="ly-spin" />
+										<Spinner size={13} />
 									) : (
 										<MoreHorizontal size={15} strokeWidth={1.9} />
 									)}
@@ -194,7 +195,7 @@ export function CatalogCard({
 										className="pointer-events-auto flex h-[26px] items-center gap-1.5 rounded-lg border border-line bg-shell/80 px-2.5 text-detail text-ink-muted transition-[color,border-color,opacity] duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink disabled:opacity-50"
 									>
 										{act.busy === "install" ? (
-											<Loader2 size={11.5} strokeWidth={2} className="ly-spin" />
+											<Spinner size={11.5} />
 										) : (
 											<Download size={11.5} strokeWidth={1.9} />
 										)}

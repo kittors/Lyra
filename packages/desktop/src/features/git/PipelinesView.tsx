@@ -19,7 +19,6 @@ import {
 	ExternalLink,
 	GitBranch,
 	GitCommitHorizontal,
-	Loader2,
 	RefreshCw,
 	Tag,
 	XCircle,
@@ -28,6 +27,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkflowRunStatus, WorkflowRunSummary } from "../../../electron/ipc-types.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SkeletonBar, SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { readCachedDetail, readCachedRuns, writeCachedDetail, writeCachedRuns } from "./pipeline-cache.ts";
@@ -104,7 +104,7 @@ function StatusIcon({
 	size?: number;
 }) {
 	if (status === "in_progress") {
-		return <Loader2 size={size} strokeWidth={2.2} className="ly-spin text-amber-500 shrink-0" />;
+		return <Spinner size={size} className="text-amber-500" />;
 	}
 	if (status === "queued" || status === "waiting") {
 		return <Clock size={size} className="text-ink-faint shrink-0" />;
@@ -245,7 +245,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 	};
 
 	const controls = <div className="flex shrink-0 items-center gap-1">
-		<IconButton size="sm" icon={<RefreshCw size={13.5} className={(inspectRun ? detailLoading : refreshing) ? "ly-spin" : undefined} />}
+		<IconButton size="sm" icon={(inspectRun ? detailLoading : refreshing) ? <Spinner size={13.5} /> : <RefreshCw size={13.5} />}
 			label={inspectRun ? t("pipelines.refreshRun") : t("pipelines.refresh")} disabled={inspectRun ? detailLoading : refreshing}
 			onClick={() => void (inspectRun ? fetchDetail(inspectRun.id) : fetchRuns())} />
 		{inspectRun?.url ? <a href={inspectRun.url} target="_blank" rel="noreferrer" aria-label={t("common.openInBrowser")} data-ly-tip={t("common.openInBrowser")}

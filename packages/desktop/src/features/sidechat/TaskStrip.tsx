@@ -15,6 +15,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { QueuedTask } from "@lyra/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 
@@ -108,19 +109,18 @@ function TaskRow({ task }: { task: QueuedTask }) {
 			// The whole instruction, for a row that can only show a line of it.
 			data-ly-tip={`${task.text}\n\n${statusOf(task)}`}
 		>
-			<Icon
-				size={12}
-				strokeWidth={1.9}
-				className={`shrink-0 ${
-					task.status === "failed"
-						? "text-danger"
-						: task.status === "done"
-							? "text-ok"
-							: task.status === "running"
-								? "ly-spin text-ink-muted"
-								: "text-ink-faint"
-				}`}
-			/>
+			{task.status === "running" ? (
+				// 正在跑的那一条不用图标转圈，用全应用那一个 spinner——这一列里它和任务面板里的同一条是同一件事。
+				<Spinner size={12} className="text-ink-muted" />
+			) : (
+				<Icon
+					size={12}
+					strokeWidth={1.9}
+					className={`shrink-0 ${
+						task.status === "failed" ? "text-danger" : task.status === "done" ? "text-ok" : "text-ink-faint"
+					}`}
+				/>
+			)}
 			<span className="min-w-0 flex-1 truncate text-ink-muted">{task.text}</span>
 
 			{/*

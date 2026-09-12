@@ -11,7 +11,8 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check, CircleAlert, CloudDownload, Link2, Loader2, Pencil, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, CircleAlert, CloudDownload, Link2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -75,7 +76,7 @@ export function ProviderModels({
 							className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50 cursor-pointer"
 						>
 							{fetchingModels ? (
-								<Loader2 size={13} strokeWidth={2} className="animate-spin text-accent" />
+								<Spinner size={13} className="text-accent" />
 							) : (
 								<CloudDownload size={13.5} strokeWidth={1.8} />
 							)}
@@ -190,7 +191,7 @@ function ModelRow({
 					}`}
 				>
 					{testing ? (
-						<RefreshCw size={13} strokeWidth={2} className="animate-spin text-accent" />
+						<Spinner size={13} className="text-accent" />
 					) : (
 						<Play size={13} strokeWidth={1.9} className="ml-0.5" />
 					)}

@@ -269,12 +269,10 @@
 }
 
 /*
- * Alive, at 13px.
+ * 一起一伏的透明度。
  *
- * A ring that only rotates reads as static at this size — the eye needs a change in weight, not
- * just in angle. Breathing supplies it, and composes with the rotation because it animates a
- * different property; two `animation` declarations on one element would replace each other, so
- * this rides on `opacity` while `ly-spin` owns `transform`.
+ * 眼下只有一个用处：拉取请求列表里 pending 的那颗点（`pull-requests.css`）。它曾经还给一个 13px
+ * 的圆弧 spinner 加过分量——那个 spinner 已经换成射线记号，射线自己就是靠明暗说话的。
  */
 @keyframes ly-breathe {
   0%,

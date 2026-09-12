@@ -1,5 +1,6 @@
 import { MODEL_CATALOG_SOURCE } from "@lyra/core/model-catalog";
 import { RefreshCw } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UsageScan } from "../../../electron/usage-scan.ts";
 import { bridge } from "../../services/index.ts";
@@ -104,7 +105,7 @@ export function UsageSettings() {
 						disabled={refreshing}
 						className="flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-line text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50"
 					>
-						<RefreshCw size={14} strokeWidth={1.8} className={refreshing ? "animate-spin" : undefined} />
+						{refreshing ? <Spinner size={14} /> : <RefreshCw size={14} strokeWidth={1.8} />}
 					</button>
 				</div>
 			</header>

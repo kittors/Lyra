@@ -15,6 +15,7 @@ import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { ChevronRight, RefreshCw, Search, UserPlus } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeAccount, PullRequestSummary } from "../../../electron/ipc-types.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -163,7 +164,7 @@ export function PullRequestList({
 					onClick={onRefresh}
 					className="no-drag flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 				>
-					<RefreshCw size={13} strokeWidth={1.8} className={loading ? "ly-spin" : undefined} />
+					{loading ? <Spinner size={13} /> : <RefreshCw size={13} strokeWidth={1.8} />}
 				</button>
 			</div>
 

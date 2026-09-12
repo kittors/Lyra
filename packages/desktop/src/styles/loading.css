@@ -1,29 +1,85 @@
 /* ---------------------------------------------------------------------------
  * Loading
  *
- * Two of them, because the two places they appear are asking different questions. In the sidebar
- * a row says "this conversation is working" — it is one mark in a column of marks, and it has to
- * stay legible at 11px. In the transcript the indicator says "your turn is running" and sits at
- * the head of a line of text, where three dots read as a sentence continuing.
+ * 两个记号，分工明确。
  *
- * Both take their easing from SpinKit (tobiasahlin), whose numbers are worth copying rather than
- * reinventing: every one of its animations is on a sine curve rather than `linear`. An earlier
- * pass at this was written from scratch with linear timing and evenly-spaced geometry, and read as
- * mechanical for exactly that reason.
+ * **射线**（`.ly-star`）是「正在忙」的通用说法：按钮里、工具卡上、任务清单的每一步、面板的
+ * 角上——全应用二十几处都是它。在这之前那些地方各写各的，多半是随手抓一个 lucide 的
+ * `Loader2` 或 `RefreshCw` 套上 `ly-spin` 转起来，同一句话被说成好几种腔调。
+ *
+ * **呼吸**（`.ly-breathe`）只在侧栏的会话行上。那一处的问题和别处不是同一个，见下面它自己的
+ * 注释——一列会话可能同时有好几个在跑，而那一列你还要用来读标题。
+ *
+ * 两个都不旋转，这是它们的共同点，也是这一节真正的规矩：**没有东西绕着圈跑**。一段弧转起来，
+ * 眼睛会跟着那个头走；十几个这样的记号同时在屏幕上，每一个都在自己的相位上把视线勾一下。
  * ------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+ * 射线：八条原地明暗轮转，亮处沿圈走
+ *
+ * 位置从头到尾没动过，动的只有各自的 opacity，相邻两条差 1/8 个周期。于是「亮处在走」是读出来
+ * 的，不是画出来的——余光里它只是一小片微微起伏的灰，正眼看才看得出方向。这是 iOS 那个转菊花
+ * 二十年没换的原因。
+ *
+ * 800ms 一周、`linear`：一圈八格，每格 100ms，比这快就糊成一团闪，比这慢会显得卡住了。这里
+ * 不用正弦缓动——每条线只是从亮到暗走一遍，缓动会让它在两端各停一下，八条一起停就成了呼吸，
+ * 而呼吸是隔壁那个记号的说法。
+ * ------------------------------------------------------------------------- */
+
+@keyframes ly-star-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.12;
+  }
+}
+
 /*
- * A pulse leaving a still centre, cycling through the palette as it goes.
+ * 0.12 而不是 0：最暗的那条仍要留在画面里。
  *
- * For the sidebar, where a row may sit working for a long time in a column of other rows. Nothing
- * rotates and nothing travels, which is what makes it bearable at the edge of vision — a spinner
- * there pulls the eye every time it comes round, and there may be several of them.
- *
- * The colour is the part that says how long it has been going. One breath is 2.4s and the hue
- * moves accent → info → violet → accent across it, so a glance tells you it is alive and a longer
- * look tells you it is *still* alive — without anything getting faster or louder. All three are
- * already in the palette; this introduces no new colour, it walks the ones there are.
+ * 归零的话，任何一帧都只看得见半圈，记号的轮廓随亮处一起转，反倒比转圆弧更晃。留一点底，八条
+ * 线始终围成一个完整的星，亮处是在这个固定形状上走。
  */
+.ly-star line {
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  animation: ly-star-fade 800ms linear infinite;
+}
+
+/*
+ * 关掉动效之后换一副样子，而不是停在某一帧。
+ *
+ * 总开关（`motion.css`）的做法是把时长压到 0.01ms 并只跑一遍，动画照常结束——`fill-mode` 是
+ * `none`，八条线于是全部回到 opacity 1，成了一枚扎眼的实心星。固定成半透明，让它读作一个安静的
+ * 记号：不动，但也不喊。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] .ly-star line {
+    opacity: 0.5;
+  }
+}
+
+:root[data-reduce-motion="on"] .ly-star line {
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------------------
+ * 呼吸：一圈波纹离开静止的中心，颜色一路走过调色板
+ *
+ * 只给侧栏的会话行。那一行是一列记号里的一个，要在 11px 上还认得出，而且一列里可能同时好几个
+ * 在跑——那一列你还得用来读标题。所以这里连「亮处在走」都不要：什么都不旋转、什么都不位移，
+ * 余光里它只是缓缓涨落的一团。
+ *
+ * 缓动抄的是 SpinKit（tobiasahlin），它那些数值值得照搬而不是重新发明：每一条动画都在正弦曲线
+ * 上。这里早先有过一版从零写起、`linear` 加均分几何的，读起来就是机械的，原因正是这个。
+ *
+ * 颜色是说「跑了多久」的那一半。一次呼吸 2.4s，色相在其间走 accent → info → violet → accent，
+ * 于是扫一眼知道它活着，多看一会儿知道它**还**活着——而没有任何东西变快或变响。三个颜色本来
+ * 就在调色板里；这里没有引入新颜色，只是把已有的走了一遍。
+ * ------------------------------------------------------------------------- */
+
 @keyframes ly-breathe-wave {
   0% {
     transform: scale(0.3);
@@ -36,15 +92,14 @@
 }
 
 /*
- * The core walks the palette; what it must not do is change size much.
+ * 核心走色相，而它绝不能怎么变大小。
  *
- * It sits in a column of marks that are all 7px — waiting, done, failed — and the slot it is drawn
- * in is 12px, so every 0.1 of scale here is 1.2px against neighbours that never move. The first
- * numbers peaked at 0.86, which is 10.3px: half again the size of the dot above it, on the one row
- * in the list that is already the most conspicuous. The comment in `SessionStatus` claimed the core
- * stayed the size of the other dots, and that was true only of the two frames it rests on.
+ * 它待在一列 7px 的记号里——等待、完成、失败都是 7px——而画它的槽是 12px，所以这里每 0.1 的
+ * scale 就是 1.2px，对面是一排从不动弹的邻居。最初那组数值峰值到 0.86，也就是 10.3px：比它上面
+ * 那颗点大出一半，偏偏又是整列里最惹眼的一行。`SessionStatus` 里的注释曾说核心和别的点一样大，
+ * 那话只在它停住的那两帧上成立。
  *
- * 0.58 → 0.62 keeps 7px as the size it reads at, and spends the breath on colour instead.
+ * 0.58 → 0.62 让它读起来就是 7px，把这口气花在颜色上。
  */
 @keyframes ly-breathe-core {
   0%,
@@ -81,11 +136,10 @@
 }
 
 /*
- * The rings and the core share a period but not a curve.
+ * 波纹和核心共用一个周期，但不共用曲线。
  *
- * The wave eases out — it is thrown, and slows as it goes. The colour walk is `ease-in-out`, so it
- * lingers on each hue rather than sliding evenly between them. Two rings half a period apart, so
- * there is always one on its way out.
+ * 波纹是 ease-out——它是被抛出去的，一路慢下来。色相走的是 `ease-in-out`，于是它在每个色上多留
+ * 一会儿，而不是匀速滑过去。两道波纹差半个周期，所以总有一道正在离场。
  */
 .ly-breathe i {
   position: absolute;

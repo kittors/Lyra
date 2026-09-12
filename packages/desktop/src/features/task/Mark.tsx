@@ -8,13 +8,15 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Check } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import type { TodoItem } from "@lyra/core";
 
 export /**
  * Three states, three marks, all on the same 13px grid so the column of them stays a column.
  *
- * The running one borrows the app's spinner geometry rather than a second kind of spinner, and
- * pending is a dashed ring — present, but plainly not started, which a solid outline reads as.
+ * 正在跑的那一步用的就是全应用那一个 `Spinner`，不是照它的样子再画一个——这里原先自己描了一段
+ * 圆弧，跟它想模仿的那个 spinner 只是碰巧长得像，后者换了形状它还留在原地。等待中是一圈虚线：
+ * 在，但显然还没开始，实线轮廓读起来不是这个意思。
  */
 function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?: boolean; failed?: boolean }) {
 	if (status === "completed") {
@@ -42,22 +44,7 @@ function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?:
 		);
 	}
 	if (status === "in_progress") {
-		return (
-			<svg width={13} height={13} viewBox="0 0 24 24" aria-hidden className="ly-spin ly-breathe shrink-0">
-				<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="3.4" className="text-line" />
-				<circle
-					cx="12"
-					cy="12"
-					r="9"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth="3.4"
-					strokeLinecap="round"
-					strokeDasharray={`${2 * Math.PI * 9 * 0.3} ${2 * Math.PI * 9}`}
-					className="text-accent"
-				/>
-			</svg>
-		);
+		return <Spinner size={13} className="text-accent" />;
 	}
 	return (
 		<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center">

@@ -59,23 +59,6 @@
   background: var(--ly-behind, var(--color-shell));
 }
 
-.ly-breathe {
-  animation: ly-breathe 1.6s ease-in-out infinite;
-}
-
-/*
- * Both at once.
- *
- * `animation` is one property: two classes each declaring it means the later one replaces the
- * earlier, and the mark would only ever turn or only ever breathe. Listing both here is the only
- * way to have them compose.
- */
-.ly-spin.ly-breathe {
-  animation:
-    ly-spin 900ms linear infinite,
-    ly-breathe 1.6s ease-in-out infinite;
-}
-
 .ly-pulse {
   animation: ly-pulse 1.4s ease-in-out infinite;
 }

@@ -1,5 +1,6 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Database, RefreshCw, Search } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
@@ -78,7 +79,7 @@ export function IndexSettings() {
 									}}
 								>
 									<span className="flex items-center gap-1.5">
-										<RefreshCw size={11} strokeWidth={2} className={building ? "ly-spin" : undefined} />
+										{building ? <Spinner size={11} /> : <RefreshCw size={11} strokeWidth={2} />}
 										{building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
 									</span>
 								</GhostButton>

@@ -25,7 +25,6 @@ import {
 	Download,
 	ExternalLink,
 	FolderOpen,
-	Loader2,
 	Sparkles,
 	Trash2,
 } from "lucide-react";
@@ -35,6 +34,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { PluginIcon, safeColour } from "../settings/index.ts";
 import { isEnabled, isInstalled, type CatalogItem } from "./useCatalog.ts";
 import { bridge } from "../../services/index.ts";
@@ -220,7 +220,7 @@ export function PluginDetail({
 										className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-danger/10 hover:text-danger disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint"
 									>
 										{busy === "uninstall" ? (
-											<Loader2 size={13} strokeWidth={2} className="ly-spin" />
+											<Spinner size={13} />
 										) : (
 											<Trash2 size={13} strokeWidth={1.8} />
 										)}
@@ -235,7 +235,7 @@ export function PluginDetail({
 										className="flex h-[30px] items-center gap-1.5 rounded-lg bg-ink px-3.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-50"
 									>
 										{busy === "install" ? (
-											<Loader2 size={12.5} strokeWidth={2} className="ly-spin" />
+											<Spinner size={12.5} />
 										) : (
 											<Download size={12.5} strokeWidth={1.9} />
 										)}

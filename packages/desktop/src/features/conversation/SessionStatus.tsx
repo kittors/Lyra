@@ -36,12 +36,14 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 		>
 			{activity === "running" ? (
 				/*
-				 * Just inside the slot, not filling it.
+				 * 比槽位小一圈，不填满。
 				 *
-				 * The rings expand to the full width at the end of each breath, so a loader given
-				 * the whole 14px would touch its neighbours at the top of every cycle. At 12px the
-				 * widest ring still clears the row, and the core — which is what you actually read
-				 * at a glance — stays the size of the dots the other states use.
+				 * 波纹每口气的末尾会涨到满宽，所以给足 14px 的话，它每个周期顶点都要碰到邻居。12px
+				 * 上最宽的那圈仍然让得开行距，而核心——一眼真正读到的就是它——保持着其余状态那些点
+				 * 的大小。
+				 *
+				 * 这一处没有跟着换成全应用那个射线记号：一列会话可能同时好几行在跑，而这一列还要
+				 * 用来读标题。射线并排三四个各自明灭，读标题时旁边总有东西在闪。
 				 */
 				<BreatheLoader size={12} />
 			) : activity === "waiting" ? (

@@ -11,13 +11,13 @@ import {
 	FolderTree,
 	Globe,
 	ListTodo,
-	Loader2,
 	Search,
 	Sparkles,
 	Terminal,
 	Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { CodeText } from "./detail/CodeText.tsx";
 import { Section } from "./detail/Section.tsx";
 import { DiffView } from "../git/index.ts";
@@ -113,7 +113,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 				{running && (
 					<span className="flex shrink-0 items-center gap-1.5 text-caption text-info/80">
 						{elapsed > 0 && <span className="tabular-nums">{elapsed}s</span>}
-						<Loader2 size={12} strokeWidth={2.2} className="ly-spin" />
+						<Spinner size={12} />
 					</span>
 				)}
 				{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-ok/75" />}

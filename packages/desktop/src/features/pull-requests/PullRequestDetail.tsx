@@ -8,6 +8,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, RefreshCw } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { relativeTime } from "../../lib/relative-time.ts";
@@ -270,7 +271,8 @@ function IconAction({
 			onClick={onClick}
 			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 		>
-			<span className={spinning ? "ly-spin" : undefined}>{children}</span>
+			{/* 忙的时候整个换成 spinner，而不是把这个按钮自己的图标转起来。 */}
+			{spinning ? <Spinner size={13.5} /> : children}
 		</button>
 	);
 }

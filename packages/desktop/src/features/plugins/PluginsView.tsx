@@ -21,6 +21,7 @@
 
 import type { BundleKind, Skill } from "@lyra/core";
 import { Blocks, Cable, ChevronDown, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
@@ -249,7 +250,7 @@ export function PluginsView() {
 
 				<div className="no-drag flex items-center gap-1">
 					<HeaderButton label={t("market.reload")} onClick={catalog.refresh}>
-						<RefreshCw size={13.5} strokeWidth={1.8} className={catalog.loading ? "ly-spin" : undefined} />
+						{catalog.loading ? <Spinner size={13.5} /> : <RefreshCw size={13.5} strokeWidth={1.8} />}
 					</HeaderButton>
 					<HeaderButton
 						label={tab === "mcp" ? t("market.mcpSettings") : t("market.pluginSettings")}

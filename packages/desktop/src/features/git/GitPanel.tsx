@@ -638,7 +638,7 @@ export function GitPanel() {
         />
         </>}
         <IconButton
-          icon={<RefreshCw size={12} strokeWidth={1.9} className={sync === "fetch" ? "ly-spin" : undefined} />}
+          icon={sync === "fetch" ? <Spinner size={12} /> : <RefreshCw size={12} strokeWidth={1.9} />}
           /*
            * Two things at once, and it has to be both.
            *

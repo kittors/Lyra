@@ -19,6 +19,7 @@ import { Button } from "../src/ui/primitives/Button.tsx";
 import { IconButton } from "../src/ui/primitives/IconButton.tsx";
 import { Text } from "../src/ui/primitives/Text.tsx";
 import { Badge, Segmented, Toggle } from "../src/features/settings/controls.tsx";
+import { BreatheLoader, Spinner } from "../src/ui/motion/loaders.tsx";
 import { installTooltips } from "../src/ui/overlay/tooltip.ts";
 import "../src/styles.css";
 
@@ -60,6 +61,50 @@ function Gallery() {
 					{dark ? "浅色" : "深色"}
 				</Button>
 			</header>
+
+			{/*
+			 * 全应用唯一的「正在忙」，摆成它实际出现过的那几个尺寸。
+			 *
+			 * 这一行要回答的是断言问不出来的那个问题：11px 的时候八条线还分得开，还是已经糊成一个
+			 * 灰点。`test/ui/spinner.test.ts` 能证明八条线都在、相位是对的——那跟看不看得清是两件事。
+			 */}
+			<Row title="Spinner — 应用里用到的尺寸。11px 上八条线还该分得开">
+				{[11, 12, 13, 14, 16, 20].map((size) => (
+					<span key={size} className="flex flex-col items-center gap-1.5">
+						<Spinner size={size} />
+						<Text size="caption" tone="faint">{size}</Text>
+					</span>
+				))}
+			</Row>
+
+			{/*
+			 * 两个记号并排，看的是它们该不该是两个。
+			 *
+			 * 射线是通用的「正在忙」；呼吸只给侧栏会话行，因为那一列可能同时好几行在跑，而它还要
+			 * 用来读标题。并排放着，也是在提醒下一个想「统一」的人：左边这个已经被删过一次。
+			 */}
+			<Row title="Spinner / BreatheLoader — 通用的那个，和只给侧栏会话行的那个">
+				<span className="flex flex-col items-center gap-1.5">
+					<Spinner size={14} />
+					<Text size="caption" tone="faint">射线</Text>
+				</span>
+				<span className="flex flex-col items-center gap-1.5">
+					<BreatheLoader size={12} />
+					<Text size="caption" tone="faint">呼吸</Text>
+				</span>
+			</Row>
+
+			<Row title="Spinner — 颜色跟着周围走">
+				<span className="text-ink"><Spinner size={16} /></span>
+				<span className="text-ink-muted"><Spinner size={16} /></span>
+				<span className="text-ink-faint"><Spinner size={16} /></span>
+				<Spinner size={16} className="text-accent" />
+				<Spinner size={16} className="text-amber-500" />
+				<span className="flex h-7 items-center gap-1.5 rounded-lg bg-ink px-3 text-detail text-shell">
+					<Spinner size={12} />
+					深底上
+				</span>
+			</Row>
 
 			<Row title="Button — 四种变体">
 				<Button variant="primary">主要</Button>

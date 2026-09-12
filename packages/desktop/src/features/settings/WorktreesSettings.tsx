@@ -1,6 +1,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { FolderGit2, RefreshCw, Trash2 } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./controls.tsx";
@@ -192,7 +193,7 @@ export function WorktreesSettings() {
 					disabled={refreshing}
 					className="flex items-center gap-1 text-detail text-ink-muted hover:text-ink"
 				>
-					<RefreshCw size={12} className={refreshing ? "ly-spin" : ""} />
+					{refreshing ? <Spinner size={12} /> : <RefreshCw size={12} />}
 					{translate("common.refresh")}
 				</button>
 			</div>

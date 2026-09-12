@@ -7,6 +7,7 @@ import {
 	RefreshCw,
 	Sparkles,
 } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { check, useUpdate } from "../update/index.ts";
@@ -77,7 +78,7 @@ export function AboutSettings() {
 							<GhostButton
 								onClick={() => void check(true)}
 								disabled={checking}
-								icon={<RefreshCw size={13} strokeWidth={2} className={checking ? "ly-spin" : ""} />}
+								icon={checking ? <Spinner size={13} /> : <RefreshCw size={13} strokeWidth={2} />}
 							>
 								{checking ? t("about.checking") : t("about.checkUpdate")}
 							</GhostButton>

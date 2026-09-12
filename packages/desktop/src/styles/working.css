@@ -1,22 +1,12 @@
 /* ---------------------------------------------------------------------------
- * Working mark
+ * 匀速自转
  *
- * A slow turn plus rays breathing out of phase: alive without being busy, and legible at
- * 14px where a spinner just smears.
- * ------------------------------------------------------------------------- */
-
-/* ---------------------------------------------------------------------------
- * Working indicator
+ * 只剩一个用处：更新徽章那圈进度环，在拿不到进度的时候整圈转起来（`UpdateBadge` 的
+ * `ProgressRing`）。那不是一个 loading 记号而是一个刻度盘——它平时画的是「下到几成」，转是它
+ * 在说「这一段我不知道还有多久」。刻度盘换不成射线，射线没有地方放那段弧。
  *
- * One shape at every size: a faint track with a quarter-arc travelling round it. It replaced
- * eight rays that blinked out of phase under a slow rotation — three animations arguing over
- * one 14px mark, which at that size reads as flicker rather than as motion.
- *
- * Drawn as SVG strokes rather than a masked conic gradient. The gradient version was the more
- * elegant construction and looked it at 64px, but the app only ever shows this at 13–17px,
- * where a gradient spread over 300° leaves nothing bright enough to see and the mask edge goes
- * to mush. A stroked arc stays crisp at any size, and the track behind it gives the mark a
- * shape even at the instant the arc is furthest away.
+ * 全应用其余二十几处「正在忙」原本都是把某个图标——`Loader2`、`RefreshCw`——挂上这个类转起来，
+ * 现在统一走 `Spinner`（`styles/loading.css`）。
  * ------------------------------------------------------------------------- */
 
 .ly-spin {

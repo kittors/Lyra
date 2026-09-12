@@ -12,7 +12,7 @@ test("group loading only exists while collapsed and returns to the count when wo
 	try {
 		assert.equal(view.host.childElementCount, 0);
 		await view.rerender(h(GroupActivity, { ...props, collapsed: true }));
-		assert.equal(view.all("svg.ly-spin").length, 1);
+		assert.equal(view.all("svg.ly-star").length, 1);
 		assert.ok(view.host.querySelector('[aria-label="1 个会话正在执行"]'));
 		assert.equal(view.text(), "");
 		await view.rerender(h(GroupActivity, { ...props, collapsed: false }));
