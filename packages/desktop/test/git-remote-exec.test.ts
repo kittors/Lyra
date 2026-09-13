@@ -48,7 +48,12 @@ before(async () => {
 after(async () => {
 	for (const socket of held) socket.destroy();
 	await new Promise<void>((resolve) => silent.close(() => resolve()));
-	await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+	try {
+		await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+	} catch (error) {
+		// Windows GCM can keep the temp repo open after git itself has exited.
+		if ((error as { code?: string }).code !== "EBUSY") throw error;
+	}
 });
 
 const silentUrl = () => `http://127.0.0.1:${silentPort}/x.git`;
@@ -149,6 +154,10 @@ test("no credentials and rejected credentials are different sentences", () => {
 	 */
 	assert.equal(
 		explainGitFailure("fatal: could not read Username for 'https://github.com': terminal prompts disabled"),
+		"远端需要登录，这里无法输入。请先在终端里配置一次凭据。",
+	);
+	assert.equal(
+		explainGitFailure("fatal: unable to get password from user"),
 		"远端需要登录，这里无法输入。请先在终端里配置一次凭据。",
 	);
 	assert.equal(

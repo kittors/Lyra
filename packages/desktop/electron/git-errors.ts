@@ -35,7 +35,12 @@ const KNOWN: { match: (text: string) => boolean; say: string }[] = [
 	},
 	{
 		// Not "wrong password" — there was nowhere to ask for one. See `runRemote`.
-		match: (t) => t.includes("could not read Username") || t.includes("terminal prompts disabled"),
+		// `unable to get password from user` is what current GCM prints when
+		// `credential.interactive=false` and nothing is stored.
+		match: (t) =>
+			t.includes("could not read Username") ||
+			t.includes("terminal prompts disabled") ||
+			t.includes("unable to get password from user"),
 		say: "远端需要登录，这里无法输入。请先在终端里配置一次凭据。",
 	},
 	{

@@ -48,7 +48,7 @@ test("but the rest of the environment is left alone", () => {
 test("remote git disables both terminal and credential manager prompts", () => {
 	const env = remoteGitEnvironment({ GIT_TERMINAL_PROMPT: "1", GCM_INTERACTIVE: "1", PATH: process.env.PATH });
 	assert.equal(env.GIT_TERMINAL_PROMPT, "0", "git itself must not wait for a terminal");
-	assert.equal(env.GCM_INTERACTIVE, "0", "GCM must not open a window of its own");
+	assert.equal(env.GCM_INTERACTIVE, "never", "GCM must not open a window of its own");
 });
 
 test("the usual install locations are added when they are missing", { skip: process.platform === "win32" }, () => {

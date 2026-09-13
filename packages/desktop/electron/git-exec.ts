@@ -77,7 +77,10 @@ export function gitEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * fetch fails promptly instead of leaving an orphaned credentials dialog behind after its timeout.
  */
 export function remoteGitEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-	return { ...gitEnvironment(base), GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "0" };
+	// `never` is what older Git Credential Manager on Windows understands.
+	// `0` is documented for current GCM, and that runner still hung for the
+	// full timeout — the helper treated an unknown value as "ask".
+	return { ...gitEnvironment(base), GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" };
 }
 
 /**
@@ -180,9 +183,10 @@ export interface RemoteResult {
  * without a way to cancel, that is a panel someone is locked inside.
  *
  * **It must not wait for a person.** `GIT_TERMINAL_PROMPT=0` turns git's own prompt into an
- * immediate failure with a clear reason, while `GCM_INTERACTIVE=0` prevents Git Credential Manager
- * from opening a separate GUI prompt first. The latter matters on Windows because killing the git
- * process on timeout does not necessarily close the credential helper it launched.
+ * immediate failure with a clear reason, while `GCM_INTERACTIVE=never` (and the matching
+ * `credential.interactive` config) prevents Git Credential Manager from opening a separate GUI
+ * prompt first. The latter matters on Windows because killing the git process on timeout does not
+ * necessarily close the credential helper it launched.
  *
  * Deliberately does not set `GIT_ASKPASS`. Pointing it at a helper that answers with nothing makes
  * git complete an authentication attempt using an empty username, and the failure changes from
@@ -195,7 +199,7 @@ export async function runRemote(
 	{ timeoutMs, signal }: { timeoutMs: number; signal?: AbortSignal },
 ): Promise<RemoteResult> {
 	try {
-		await execFileAsync("git", args, {
+		await execFileAsync("git", ["-c", "credential.interactive=false", ...args], {
 			cwd,
 			maxBuffer: 32 * 1024 * 1024,
 			env: REMOTE_GIT_ENV,
