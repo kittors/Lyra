@@ -14,21 +14,34 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket } from "ws";
-import type { RunningApp } from "./app.ts";
+import { evaluateRenderer, type RunningApp } from "./app.ts";
 
 export interface Frame {
 	at: number;
 	data: Buffer;
 }
 
+/**
+ * 主界面那一个 webContents，不是碰巧排在前面的那一个。
+ *
+ * Lyra 跑起来有不止一个 `page` 类型的目标，而且标题和 URL 一模一样——从列表里 `find` 第一个，
+ * 有时候拿到的是另一个。录制会因此整趟报废，且不报错：`startScreencast` 在一个什么都不画的
+ * webContents 上照样成功，只是一帧都不来。查了半天以为是窗口被挡住，其实是录错了对象。
+ *
+ * 所以挨个问一句「你身上有主界面吗」。`.ly-shell` 是 `app.ts` 等待启动时认的同一个记号。
+ */
 async function pageTarget(port: number): Promise<string> {
 	const list = (await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json())) as Array<{
 		type: string;
 		webSocketDebuggerUrl?: string;
 	}>;
-	const page = list.find((t) => t.type === "page" && t.webSocketDebuggerUrl);
-	if (!page?.webSocketDebuggerUrl) throw new Error("没找到页面的调试地址");
-	return page.webSocketDebuggerUrl;
+	const pages = list.flatMap((t) => (t.type === "page" && t.webSocketDebuggerUrl ? [t.webSocketDebuggerUrl] : []));
+	if (pages.length === 0) throw new Error("没找到页面的调试地址");
+	for (const url of pages) {
+		const shell = await evaluateRenderer<boolean>(url, 'Boolean(document.querySelector(".ly-shell"))').catch(() => false);
+		if (shell) return url;
+	}
+	throw new Error(`${pages.length} 个页面目标里没有一个画着主界面`);
 }
 
 /** 开录，返回一个「停」。帧攒进传进来的数组里。 */
@@ -56,6 +69,66 @@ export async function startRecording(port: number, frames: Frame[]): Promise<() 
 		send("Page.stopScreencast");
 		await new Promise((r) => setTimeout(r, 400));
 		socket.close();
+	};
+}
+
+/**
+ * 一条常驻连接，用来「摆一下、拍一张」地逐帧录。
+ *
+ * `startScreencast` 给的是合成帧，而 macOS 上被别的窗口完全盖住的窗口不合成——那趟录下来只有开头
+ * 一帧，之后画面怎么变都没有。量过：连改十次 `opacity`，帧数还是 1。跑测试的时候终端就在窗口前面，
+ * 所以这不是偶尔，是常态。
+ *
+ * `Page.captureScreenshot` 每次强制渲染一帧，遮不遮得住都拍得到，代价是慢——所以连接要常驻：
+ * `app.evaluate` 和 `app.send` 每次都新开一条 WebSocket 再关掉（见 `app.ts` 的 `withConnection`，
+ * 那是为了远程句柄的生命周期，对一问一答是对的），按帧这么来，开销比拍照本身还大。
+ *
+ * 拍到的帧仍然打**真实**时间戳，交给下面的 `encode`。所以动画是按真机时间走完的，不是逐格摆出来
+ * 再假装连贯：CSS 过渡该用 220ms 就用了 220ms，录出来多快，播出来就多快。
+ */
+export async function frameGrabber(port: number): Promise<{
+	evaluate: <T>(expression: string) => Promise<T>;
+	shot: () => Promise<Buffer>;
+	close: () => void;
+}> {
+	const socket = new WebSocket(await pageTarget(port), { maxPayload: 256 * 1024 * 1024 });
+	await new Promise<void>((done, fail) => {
+		socket.once("open", () => done());
+		socket.once("error", fail);
+	});
+	let id = 0;
+	const waiting = new Map<number, { done: (value: unknown) => void; fail: (error: Error) => void }>();
+	socket.on("message", (raw: Buffer) => {
+		const message = JSON.parse(raw.toString()) as { id?: number; error?: { message: string }; result?: unknown };
+		if (message.id === undefined) return;
+		const pending = waiting.get(message.id);
+		if (!pending) return;
+		waiting.delete(message.id);
+		if (message.error) pending.fail(new Error(message.error.message));
+		else pending.done(message.result);
+	});
+	const call = <T>(method: string, params: Record<string, unknown> = {}): Promise<T> =>
+		new Promise<T>((done, fail) => {
+			const at = ++id;
+			waiting.set(at, { done: done as (value: unknown) => void, fail });
+			socket.send(JSON.stringify({ id: at, method, params }));
+		});
+	return {
+		evaluate: async <T>(expression: string): Promise<T> => {
+			const answer = await call<{
+				result?: { value: T };
+				exceptionDetails?: { text: string; exception?: { description?: string } };
+			}>("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+			if (answer.exceptionDetails) {
+				// `text` 单说就是一句「Uncaught」，出了什么事全在 description 里。
+				const { text, exception } = answer.exceptionDetails;
+				throw new Error(`${text}${exception?.description ? `\n${exception.description}` : ""}\n表达式：${expression.slice(0, 200)}`);
+			}
+			return answer.result?.value as T;
+		},
+		shot: async () =>
+			Buffer.from((await call<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality: 92 })).data, "base64"),
+		close: () => socket.close(),
 	};
 }
 
