@@ -13,6 +13,13 @@
 
 .ly-attachments-track {
   display: flex;
+  /*
+   * 中线对齐。
+   *
+   * 一排里高的是图片（64 见方），矮的是文件横条（32）。对齐中线是「高矮不齐」唯一需要做的事——
+   * 把矮的那个拉到和高的一样高不是对齐，是把一个横向的文件名塞进一个方形的盒子，两行都放不下。
+   */
+  align-items: center;
   min-width: 0;
   /*
    * 纵向 12，横向 8。
@@ -120,7 +127,6 @@
 
 .ly-attachment-body {
   display: block;
-  height: 100%;
   overflow: hidden;
   border: 1px solid var(--color-line);
   border-radius: 10px;
@@ -141,34 +147,36 @@
   transform: scale(0.97);
 }
 
-/*
- * 图片是正方形，文件按名字宽。
- *
- * 「和图片一样大的方块」听着才是整齐的那一个，画出来不是：64 见方放得下十个字符，而
- * 「陈列道具导入模板(花园里店).xlsx」有二十一个——六个这样的文件并排，每个都被截成同样的前十个
- * 字。一排东西读起来是不是一组，看的是高度、圆角和边框一不一样。
- */
-.ly-attachment-body:has(> img) {
+/* 图片的边长由 `thumbnail` 给，写在行内；这里只管它是个方的。 */
+[data-ly-shape="image"] .ly-attachment-body {
   aspect-ratio: 1;
 }
 
-.ly-attachment-body:not(:has(> img)) {
-  min-width: 112px;
-  max-width: 200px;
-  width: max-content;
+/*
+ * 文档是一条，不是一个方块。
+ *
+ * 这一版一度把它也拉成和图片一样大的方块，理由是「一样大才整齐」。画出来是空的：64 见方的格子
+ * 里只有一个图标和一个文件名，而名字被挤成两行之后，单独画的扩展名角标又和第二行错开。同样的
+ * 宽度，一行放得下二十个字符，方块里两行也只放得下十个——文件名是横向的文本，横条才是它的形状。
+ *
+ * 右边留出 26px：悬停时那颗「更多」落在那儿，不压着名字的末尾。
+ */
+[data-ly-shape="file"] .ly-attachment-body {
+  height: 32px;
+  min-width: 0;
+  max-width: 260px;
+  padding: 0 26px 0 8px;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .ly-attachment-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   min-width: 0;
   overflow: hidden;
   color: var(--color-ink);
-  font-size: 11px;
-  line-height: 1.35;
-  /* 一串没有空格的长文件名要断得开，否则它会把格子顶到 max-width 之外。 */
-  overflow-wrap: anywhere;
+  /* 省的是中间那截，扩展名单独一段跟在后面——见 `nameParts`。 */
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------------------
@@ -178,6 +186,18 @@
 .ly-attachment-control {
   opacity: 0;
   transition: opacity var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * 横条上的「更多」落在右端中间，不在右下角。
+ *
+ * 一条只有 32px 高的东西，右上角的叉和右下角的圆点会挤成一团——叉探出去 8px，两者中心只差十来个
+ * 像素。图片那边有 64px 可分，这边没有。
+ */
+[data-ly-shape="file"] .ly-attachment-more {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
 }
 
 .ly-attachment:hover .ly-attachment-control {

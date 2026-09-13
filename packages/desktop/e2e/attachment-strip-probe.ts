@@ -123,10 +123,15 @@ const READ_COMPOSER = `(() => {
 		draft: field.value,
 		bracketsInDraft: (field.value.match(/【/g) || []).length,
 		tiles: tiles.length,
-		// 独占一行：每个格子的上边缘都落在同一条线上，换行了这个数就大于 1。
-		rows: new Set(boxes.map((b) => Math.round(b.top))).size,
-		// 一种格子：高度只该有一个值，图片和文档都一样高。
-		heights: [...new Set(boxes.map((b) => Math.round(b.height)))],
+		/*
+		 * 独占一行，看的是中线。
+		 *
+		 * 不是上边缘：图片是 64 见方、文件是 32 高的横条，两者靠中线对齐，上边缘本来就不在一条线
+		 * 上——按上边缘数，一排永远会被数成「两行」。
+		 */
+		rows: new Set(boxes.map((b) => Math.round(b.top + b.height / 2))).size,
+		// 两种形状各自一个高度：图片按缩略图边长，横条固定 32。注释里不能有反引号，它会提前结束模板串。
+		heights: [...new Set(boxes.map((b) => Math.round(b.height)))].sort((a, b) => a - b),
 		widths: boxes.map((b) => Math.round(b.width)),
 		scrollable: track.scrollWidth > track.clientWidth + 1,
 		overflowBy: track.scrollWidth - track.clientWidth,

@@ -6,15 +6,17 @@
  * 里还有一遍它的文件名，一个是像素一个是紫色图标，两遍看不出是同一个东西。一个文件说一次，那
  * 就只能有一个地方画它。
  *
- * 一种格子，不是两种。图片和文档从前分成两组：一个 64px 的方块，一个 28px 的胶囊，各自换行。分
- * 组的理由是真的——高矮不齐没法靠调间距救回来——但它治的是症状。把高度定死之后那个理由就消失
- * 了，于是两者回到同一排上，按人放进去的先后排。这一点顺带修好了另一件事：发给模型的
- * `Attachment 2 of 5` 数的就是这个先后（见 `attachment-placeholders.ts`），而分了组之后，屏幕上
- * 的第二个和提示词里的第二个不是同一份。
+ * 一排，不是两组。图片和文档从前各排各的，谁也不知道另一边有几个；现在它们在同一排上，按人放进
+ * 去的先后。这一点顺带修好了另一件事：发给模型的 `Attachment 2 of 5` 数的就是这个先后（见
+ * `attachment-placeholders.ts`），而分了组之后，屏幕上的第二个和提示词里的第二个不是同一份。
  *
- * 宽度不统一，只统一高度。一个 64×64 的方块里塞得下十个字符，而「陈列道具导入模板(花园里店)
- * .xlsx」有二十一个——六个这样的文件并排，每一个都被截成同样的前十个字，那一排就只能靠悬停逐个
- * 认。一排东西读起来是不是一组，取决于它们的高度、圆角和边框一不一样，不取决于宽度。
+ * 齐的是中线，不是高度。这一版一度把文档也拉成和图片一样的方块，理由是「一样大才整齐」——画出来
+ * 不是：一个 64 见方的格子里只有一个图标和一个文件名，空得发慌，六个这样的格子在气泡里占掉大半
+ * 屏；而名字被挤成两行之后，单独画出来的扩展名角标又和第二行文字错开，怎么摆都别扭。
+ *
+ * 文件名是横向的文本，横条才是它的形状：同样的宽度，一行放得下二十个字符，方块里两行也只放得下
+ * 十个。所以图片是方块、文档是横条，靠 `align-items: center` 在同一排上对齐中线——分组当初要躲的
+ * 是「高矮不齐挤在一起」，而那件事靠的是对齐，不是靠把矮的那个拉高。
  */
 
 import { MoreHorizontal, X } from "lucide-react";
@@ -265,8 +267,9 @@ export function AttachmentStrip({
 					<div
 						key={file.key}
 						data-ly-attachment={file.key}
+						/* 图片和横条挂的控件位置不同，CSS 按这个分。 */
+						data-ly-shape={file.src ? "image" : "file"}
 						className="ly-attachment group/tile"
-						style={{ height: thumbnail }}
 						onContextMenu={(event) => menu.show(event, file.key)}
 					>
 						<button
@@ -309,28 +312,29 @@ export function AttachmentStrip({
 									: undefined
 							}
 							className="ly-attachment-body"
+							{...(file.src ? { style: { width: thumbnail, height: thumbnail } } : {})}
 						>
 							{file.src ? (
 								/* `cover`：一排等大的方块读起来是一组东西。按各自比例留黑边的缩略图读起来
 								    像是排版放弃了。 */
 								<img src={file.src} alt={label} className="h-full w-full object-cover" />
 							) : (
-								<span className="flex h-full items-center gap-2 px-2.5">
-									<span className="flex shrink-0 flex-col items-center gap-0.5">
-										<FileKindIcon kind={file.kind} size={thumbnail >= 76 ? 22 : 19} />
-										{/*
-										 * 扩展名单独画，不参与截断。
-										 *
-										 * 两行的省略号落在名字末尾，而末尾正好是 `.xlsx`——一排六个文件于是
-										 * 既看不出是哪一个，也看不出是什么。见 `nameParts`。
-										 */}
-										{parts.ext && (
-											<span className="text-[9px] leading-none font-semibold tracking-wide text-ink-faint uppercase">
-												{parts.ext}
-											</span>
-										)}
+								<span className="flex h-full items-center gap-1.5">
+									<FileKindIcon kind={file.kind} size={14} />
+									{/*
+									 * 名字截中间，扩展名不参与。
+									 *
+									 * 省略号落在末尾的话，被吃掉的正好是 `.xlsx`——一排六个文件于是既看不出是
+									 * 哪一个，也看不出是什么。拆成两段之后，省的是中间那截：
+									 * 「陈列道具导入模板(花园…).xlsx」。见 `nameParts`。
+									 *
+									 * 两段之间不留空隙：它们是同一个名字，中间多 6px 就读成了两样东西
+									 * （「录屏2026-09-11 17.37.06 .mov」）。间距只在图标和名字之间。
+									 */}
+									<span className="flex min-w-0 items-baseline">
+										<span className="ly-attachment-name">{parts.stem}</span>
+										{parts.ext && <span className="shrink-0 text-ink-muted">.{parts.ext}</span>}
 									</span>
-									<span className="ly-attachment-name">{parts.stem}</span>
 								</span>
 							)}
 						</button>
@@ -353,7 +357,7 @@ export function AttachmentStrip({
 							</div>
 						)}
 
-						<div data-ly-hover-reveal className="ly-attachment-control absolute right-1 bottom-1">
+						<div data-ly-hover-reveal className="ly-attachment-control ly-attachment-more absolute right-1 bottom-1">
 							<More name={label} onClick={(event) => menu.show(event, file.key)} />
 						</div>
 					</div>
