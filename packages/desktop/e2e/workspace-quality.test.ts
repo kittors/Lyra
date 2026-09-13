@@ -56,7 +56,13 @@ before(async () => {
 });
 after(async(t)=>{ await stopWorkspaceFixture(app, server, (message) => t.diagnostic(message)); });
 afterEach(async(t)=>{
-	if(!t.passed){t.diagnostic(await app.evaluate<string>("document.body.innerText.slice(-4500)")); t.diagnostic(JSON.stringify({step,results})); await shot("workspace-failure");}
+	if(!t.passed){
+		t.diagnostic(await app.evaluate<string>("document.body.innerText.slice(-4500)"));
+		t.diagnostic(JSON.stringify({step,results}));
+		try { t.diagnostic(JSON.stringify(JSON.parse(await readFile(join(app.home,"settings.json"),"utf8")).personalization)); }
+		catch (error) { t.diagnostic(String(error)); }
+		await shot("workspace-failure");
+	}
 	// A failed settings case used to leave the next test looking at the settings page
 	// for transcript text and the session service list.
 	try {
@@ -103,10 +109,14 @@ test("motto persists, IME keeps confirmation keys and screenshot disabling reach
 	await app.send("Input.insertText",{text:"中文输入"});await app.evaluate(`document.querySelector('[aria-label="侧边栏座右铭"]').select()`);await app.send("Input.insertText",{text:"保持好奇，认真求证。"});
 	// Empty draft keeps save disabled, so a click before React sees the text is a no-op and
 	// settings.json keeps personalization without sidebarMotto.
-	await until(`document.querySelector('[aria-label="侧边栏座右铭"]').value===${JSON.stringify("保持好奇，认真求证。")}`);
+	const motto="保持好奇，认真求证。";
+	await until(`document.querySelector('[aria-label="侧边栏座右铭"]').value===${JSON.stringify(motto)}`);
 	await until(`!document.querySelector('[aria-label="保存座右铭"]').disabled`);
-	await click('[aria-label="保存座右铭"]');await until(`document.querySelector('[aria-label="保存座右铭"]').disabled`);
-	assert.equal((JSON.parse(await readFile(join(app.home,"settings.json"),"utf8"))).personalization.sidebarMotto,"保持好奇，认真求证。");
+	await click('[aria-label="保存座右铭"]');
+	// `disabled` flips on `setSaving(true)`, before the main process writes the file.
+	// Windows CI read settings.json in that window and saw personalization without sidebarMotto.
+	await app.evaluate(`(async()=>{for(let n=0;n<200;n++){const s=await window.lyra.settings.get();if(s.personalization?.sidebarMotto===${JSON.stringify(motto)})return;await new Promise(r=>setTimeout(r,25));}throw new Error('motto not in settings.get');})()`);
+	assert.equal((JSON.parse(await readFile(join(app.home,"settings.json"),"utf8"))).personalization.sidebarMotto,motto);
 	await label("屏幕截图","nav button");await until(`document.querySelector('[data-view="screenshot"]')`);
 	const result=await app.evaluate<string>(`window.lyra.screenshot.start().then(()=>"started",e=>e.message)`);assert.match(result,/已关闭/);
 	await shot("screenshot-settings-disabled");await label("返回工作区","nav button");
