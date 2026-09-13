@@ -42,6 +42,7 @@ export function ComposerShell({
   right,
   onFiles,
   onKeyDown,
+  onContextMenu,
   fieldRef,
 	decoration,
 	onSelect,
@@ -82,6 +83,13 @@ export function ComposerShell({
    * acting on a key and there is no sense in having two ways to say the same thing.
    */
   onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * 右键点在字上。
+   *
+   * 给附件标记用：被点到的是这个 textarea，而标记画在铺于其上的镜像层里，那一层整层不接事件。谁在
+   * 那个坐标下面，只能由调用方按字符偏移去问。
+   */
+  onContextMenu?: (event: React.MouseEvent<HTMLTextAreaElement>) => void;
   /**
    * The field itself, for a caller that has to put the caret in it.
    *
@@ -271,6 +279,7 @@ export function ComposerShell({
                 }
               : undefined
           }
+          onContextMenu={onContextMenu}
           onKeyDown={(e) => {
 						if (composing || e.nativeEvent.isComposing || e.keyCode === 229) return;
             onKeyDown?.(e);

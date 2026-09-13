@@ -24,6 +24,8 @@ interface TextSpan {
 	className?: string;
 	/** 附件标记按门类上色，色值由 `.ly-attachment-token[data-kind]` 给。 */
 	kind?: string;
+	/** 首尾那对 `【】` 单独包一层画成透明——留位不留形，见下面组装 span 的地方。 */
+	brackets?: boolean;
 }
 
 /** Split text by non-overlapping ranges and mark matched spans. */
@@ -35,6 +37,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		/** 附件标记才有：门类决定它是哪种颜色。 */
 		kind?: string;
 	}
+
 
 	const segments: Segment[] = [];
 	if (decoration.command) {
@@ -88,6 +91,15 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 			text: value.slice(seg.start, seg.end),
 			className: seg.className,
 			...(seg.kind ? { kind: seg.kind } : {}),
+			/*
+			 * 附件标记的那对方括号留着占位，但不画出来。
+			 *
+			 * 这一层是铺在 textarea 上的镜像，每个字必须和底下真正的字符严丝合缝——所以既不能把
+			 * 括号从这里删掉（textarea 里有它们，删了之后整段字就错位了），也不能给标签加左右内
+			 * 边距（同理）。把它们画成透明是唯一两头都成立的办法：字符照样占它那一格宽度，而那一
+			 * 格正好成了标签天然的左右留白。
+			 */
+			...(seg.className === "ly-attachment-token" ? { brackets: true } : {}),
 		});
 		cursor = seg.end;
 	}
@@ -115,15 +127,23 @@ export function CommandText({
 	return (
 		<div aria-hidden className={`pointer-events-none absolute inset-0 select-none overflow-hidden ${commandHint ? "ly-fade-edge" : ""}`}>
 			<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
-				{spans.map((s, idx) => (
+				{spans.map((s, idx) =>
 					s.className ? (
 						<span key={idx} className={s.className} data-kind={s.kind}>
-							{s.text}
+							{s.brackets && s.text.length > 2 ? (
+								<>
+									<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
+									{s.text.slice(1, -1)}
+									<span className="ly-token-bracket">{s.text.slice(-1)}</span>
+								</>
+							) : (
+								s.text
+							)}
 						</span>
 					) : (
 						<span key={idx}>{s.text}</span>
-					)
-				))}
+					),
+				)}
 				{/* A native textarea reserves a line after a trailing newline; an empty div line collapses. */}
 				{value.endsWith("\n") && "\u200b"}
 				{commandHint && (

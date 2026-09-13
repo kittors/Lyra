@@ -5,7 +5,7 @@ import type {
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
-import { AttachmentStrip, fileKind, KIND_LABEL, useAttachmentActions, type FileKind, type StripFile } from "../composer/index.ts";
+import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, useAttachmentActions, type FileKind, type StripFile } from "../composer/index.ts";
 import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
@@ -60,6 +60,7 @@ function attachmentsOf(
   message: UserMessageType,
   images: ImageBlock[],
   label: (kind: FileKind) => string,
+  regionShot: string,
 ): StripFile[] {
   const files: StripFile[] = [];
   let at = 0;
@@ -76,15 +77,15 @@ function attachmentsOf(
       name: file.name,
       kind,
       /*
-       * 正文里那枚标记写的名字：「表格 2」，门类加序号。
+       * 正文里那枚标记写的名字：有真名就是真名，没有（粘贴进来的图）才是「图片 1」。
        *
-       * 存下来的优先，没存的按**和输入框同一套规则**现算——这里一度用的是「有真名就用真名」那一套
-       * （`displayName`，附件条上写的那个），于是 `【图片 1】` 在气泡里配不上任何一份附件，整句话
-       * 里十一枚标记只有一枚被认出来，其余退化成一串方括号。两处规则必须是同一条。
+       * 存下来的优先，没存的按**和输入框同一套规则**现算（见 `Composer` 的 `relabel`）。这条规则错
+       * 开过两次，两次的表现是一样的：气泡里那些标记配不上任何一份附件，整句话的标签退化成一串方
+       * 括号。两处必须是同一条。
        *
        * 老消息的标记写的是文件名，那一种由 `scanPlaceholders` 一并认（见 `answersTo`）。
        */
-      label: file.label ?? `${label(kind)} ${kindIndex}`,
+      label: file.label ?? displayName({ name: file.name, kindLabel: label(kind), kindIndex }, regionShot),
       tip: `${file.name}\n${label(kind)}`,
       ...(block ? { src: `data:${block.mimeType};base64,${block.data}` } : {}),
       /*
@@ -119,6 +120,11 @@ export function UserMessage({
   const editMessage = useApp((s) => s.editMessage);
   /** 气泡外那排附件上的动作，和输入框那排共用一套——见 `attachments/actions.ts`。 */
   const { ensureThere } = useAttachmentActions();
+  /** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
+  const [markMenu, setMarkMenu] = useState<{
+    point: { x: number; y: number };
+    file: { name: string; label?: string; path?: string };
+  } | null>(null);
 
   const rawText = message.content
     .filter(
@@ -144,7 +150,7 @@ export function UserMessage({
     [message.content],
   );
   const files = useMemo(
-    () => attachmentsOf(message, images, (kind) => t(KIND_LABEL[kind])),
+    () => attachmentsOf(message, images, (kind) => t(KIND_LABEL[kind]), t("composer.regionShot")),
     [message, images, t],
   );
   const text = message.displayText ?? rawText;
@@ -157,6 +163,14 @@ export function UserMessage({
    *
    * 「这个【重要】」不会被误认：方括号在中文里是普通标点，配不上任何一个附件的名字就当作人打的字。
    */
+  /*
+   * 气泡外面那一排只有图片。
+   *
+   * 文件不上这一排，和输入框那边同一条规矩：一份表格的全部信息就是它的名字，而名字已经在句子里那
+   * 枚标记上了；再在上面摆一个同样写着名字的格子，是同一件事说两遍。图片留着，因为缩略图答的是
+   * 「是哪一张」——那是文件名答不了的。
+   */
+  const shown = useMemo(() => files.filter((file) => file.src), [files]);
   const spoken = useMemo(
     () => placeAttachments(text, files.map((file) => ({ name: file.name, label: file.label, kind: file.kind }))).segments,
     [text, files],
@@ -249,9 +263,9 @@ export function UserMessage({
          * 能点开，但不能改：这一份已经发出去了。查看器认得出没有 `onReplace`，于是把标注过的
          * 那份放进剪贴板，而不是悄悄改写一条已经是记录的消息。
          */}
-        {files.length > 0 && (
+        {shown.length > 0 && (
           <AttachmentStrip
-            files={files}
+            files={shown}
             align="end"
             thumbnail={80}
             /*
@@ -343,7 +357,22 @@ export function UserMessage({
               segment.kind === "text" ? (
                 segment.text
               ) : (
-                <span key={at} className="ly-attachment-token" data-kind={segment.file.kind}>
+                <span
+                  key={at}
+                  className="ly-attachment-token"
+                  data-kind={segment.file.kind}
+                  /*
+                   * 右键点这一枚，和右键点输入框里那一枚、点附件条上那一格，弹的是同一份菜单。
+                   *
+                   * 已经发出去的消息里没有「移除」——那一份是记录。其余几行照旧，靠的是消息里存下的
+                   * 路径（`MessageAttachment.path`）；存之前发的那些没有路径，菜单会自己把它们画成
+                   * 灰的并说明为什么。
+                   */
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setMarkMenu({ point: { x: event.clientX, y: event.clientY }, file: segment.file });
+                  }}
+                >
                   {segment.file.label ?? segment.file.name}
                 </span>
               ),
@@ -351,6 +380,22 @@ export function UserMessage({
           </p>
         )}
       </div>}
+
+      <AttachmentMenu
+        anchor={markMenu?.point ?? null}
+        file={
+          markMenu
+            ? {
+                name: markMenu.file.label ?? markMenu.file.name,
+                ...(markMenu.file.path ? { path: markMenu.file.path } : {}),
+                ...(markMenu.file.path
+                  ? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
+                  : {}),
+              }
+            : null
+        }
+        onClose={() => setMarkMenu(null)}
+      />
 
       {/* Editing is the one thing a sent message offers that a reply does not. */}
       <MessageActions

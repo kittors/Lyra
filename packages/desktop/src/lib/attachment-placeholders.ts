@@ -146,6 +146,29 @@ export function scanPlaceholders<File extends { name: string; label?: string }>(
 }
 
 /**
+ * 光标停在这里的话，退格键该吃掉哪一枚标记。
+ *
+ * 标记是一个整体，不是十一个字符。一格一格地退，`【表格 1】` 会先变成 `【表格 1`——那一刻它已经不
+ * 再是标记了（配不上任何附件），于是附件不会跟着卸下来，而屏幕上还剩一串没人认得的字。整枚一起
+ * 走，删除才和「这份附件不要了」是同一件事。
+ *
+ * `backwards` 是退格（吃掉光标前面那一枚），否则是 Delete（吃掉后面那一枚）。光标**在标记中间**时
+ * 两个键都吃掉整枚——停在里面本身就说明人没打算逐字编辑它。
+ */
+export function placeholderAt<File extends { name: string; label?: string }>(
+	text: string,
+	files: File[],
+	caret: number,
+	backwards: boolean,
+): Placeholder<File> | null {
+	for (const hit of scanPlaceholders(text, files)) {
+		if (caret > hit.start && caret < hit.end) return hit;
+		if (backwards ? caret === hit.end : caret === hit.start) return hit;
+	}
+	return null;
+}
+
+/**
  * 附件的名字变了，正文里指着它的标记跟着改。
  *
  * 序号会变：删掉「图片 1」之后，原来的「图片 2」就成了「图片 1」——附件条上是自动重编的，正文里

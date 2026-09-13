@@ -374,21 +374,31 @@ try {
 	}
 
 	/*
-	 * 再拖五份重名的表格进去。
+	 * 再拖八张图进去，把这一排撑到超出输入框。
 	 *
-	 * 客户截图里就是这个样子：同一个模板反复拖进来，六个格子上印着同一行字。这一批的用处是把这
-	 * 排东西撑到超出输入框——横滚、两头化开、以及「叉会不会被会滚的容器切掉」，都只有溢出之后才
-	 * 存在，不撑开就等于没验。
+	 * 撑开的必须是图片：文件现在不上这一排，它的全部存在是句子里那枚标记（见 `Composer` 的 `strip`）。
+	 * 横滚、两头化开、以及「叉会不会被会滚的容器切掉」，都只有溢出之后才存在，不撑开就等于没验。
 	 */
 	await app.evaluate(`(async () => {
+		const draw = async (label, colour) => {
+			const canvas = document.createElement("canvas");
+			canvas.width = 320; canvas.height = 200;
+			const ctx = canvas.getContext("2d");
+			ctx.fillStyle = colour; ctx.fillRect(0, 0, 320, 200);
+			ctx.fillStyle = "#ffffff"; ctx.font = "bold 96px sans-serif";
+			ctx.textAlign = "center"; ctx.textBaseline = "middle";
+			ctx.fillText(label, 160, 100);
+			return await new Promise((done) => canvas.toBlob(done, "image/png"));
+		};
 		const dt = new DataTransfer();
-		for (let i = 0; i < 5; i++) {
-			dt.items.add(new File([new Uint8Array([80, 75, 3, 4])], "陈列道具导入模板(花园里店).xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+		const tones = ["#c92a2a", "#a61e4d", "#5f3dc4", "#1864ab", "#0b7285", "#2b8a3e", "#e67700", "#495057"];
+		for (let i = 0; i < 8; i++) {
+			dt.items.add(new File([await draw(String(i + 1), tones[i])], "image.png", { type: "image/png" }));
 		}
 		document.querySelector("main .ly-composer").dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
 		return true;
 	})()`);
-	await new Promise((r) => setTimeout(r, 2600));
+	await new Promise((r) => setTimeout(r, 3000));
 
 	const crowded = await app.evaluate<Record<string, unknown>>(READ_COMPOSER);
 	console.log("撑开之后：", JSON.stringify(crowded, null, 1));
@@ -446,43 +456,77 @@ try {
 	console.log(`wrote ${out}-at-start.png`);
 
 	/*
-	 * 取下一个，正文里指着它的标记该跟着走。
+	 * 两条删除路径，各验一条。
 	 *
-	 * 不另外种一个标记：正文里那十一枚是拖文件时自己落下的，用真实流程产生的东西来验，比用手摆的
-	 * 更说明问题。取下的是那份 md（标记叫「文本 1」），拿掉之后它应该从句子里消失，而后面那些表格
-	 * 的序号不受影响——它们是另一个门类，各数各的。
-	 */
-	await app.evaluate(`(() => {
-		const field = document.querySelector("main textarea");
-		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-		setter.call(field, field.value + " 照着改一版");
-		field.dispatchEvent(new Event("input", { bubbles: true }));
-		return true;
-	})()`);
-	await new Promise((r) => setTimeout(r, 300));
-	/*
-	 * 读 after 要等一帧。
-	 *
-	 * 点下去那一刻 React 还没把新状态画出来，同一次 `evaluate` 里紧接着读 `textarea.value` 拿到的
-	 * 是旧的那一份——于是无论这个功能做没做对，读数都会是「正文没变」。这一条第一次跑出来就是假红。
+	 * 图片在这一排上有自己的格子，按那个叉——标记跟着从句子里消失。文件不在这一排上，它的全部存在
+	 * 就是句子里那枚标记，所以删法反过来：把那段字删掉，附件跟着卸下来。后一条是「双向」里的另一
+	 * 个方向，也是文件唯一的删除入口。
 	 */
 	const before = await app.evaluate<string>(`document.querySelector("main textarea").value`);
 	await app.evaluate(`(() => {
-		const tiles = [...document.querySelectorAll("main .ly-composer [data-ly-attachment]")];
-		const target = tiles.find((tile) => {
-			const body = tile.querySelector(".ly-attachment-body");
-			return body && (body.getAttribute("aria-label") || "").includes("交接说明");
-		});
-		target.querySelector('[data-ly-hover-reveal] button[aria-label^="移除"]').click();
+		const tile = document.querySelector("main .ly-composer [data-ly-attachment]");
+		tile.querySelector('[data-ly-hover-reveal] button[aria-label^="移除"]').click();
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 700));
+	console.log("按叉删图片：", JSON.stringify({
+		before,
+		after: await app.evaluate<string>(`document.querySelector("main textarea").value`),
+		tilesLeft: await app.evaluate<number>(`document.querySelectorAll("main .ly-composer [data-ly-attachment]").length`),
+	}, null, 1));
+
+	/* 把那份 md 的标记从句子里删掉——附件该跟着走。 */
+	const beforeText = await app.evaluate<string>(`document.querySelector("main textarea").value`);
+	await app.evaluate(`(() => {
+		const field = document.querySelector("main textarea");
+		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+		setter.call(field, field.value.replace("【交接说明.md】", "").replace(/[ ]{2,}/g, " "));
+		field.dispatchEvent(new Event("input", { bubbles: true }));
 		return true;
 	})()`);
 	await new Promise((r) => setTimeout(r, 700));
 	const removed = {
-		before,
+		before: beforeText,
 		after: await app.evaluate<string>(`document.querySelector("main textarea").value`),
-		tilesLeft: await app.evaluate<number>(`document.querySelectorAll("main .ly-composer [data-ly-attachment]").length`),
+		/* 附件总数（不只是这一排上的）：文件卸没卸下来看的是它。 */
+		attachmentsLeft: await app.evaluate<number>(
+			`document.querySelectorAll("main .ly-composer [data-ly-attachment]").length + (document.querySelector("main textarea").value.match(/【/g) || []).length`,
+		),
 	};
-	console.log("取下之后：", JSON.stringify(removed, null, 1));
+	console.log("删标记卸文件：", JSON.stringify(removed, null, 1));
+
+	/*
+	 * 换一种界面语言。
+	 *
+	 * 「图片 1」是一句会翻译的话，而正文里那枚标记是放文件那天写下的。不跟着改写的话，界面换成英文
+	 * 之后附件条上那一格叫 `Image 1`、句子里还写着 `【图片 1】`，两边一对不上，那枚标记就不再是标记。
+	 */
+	const beforeLocale = await app.evaluate<string>(`document.querySelector("main textarea").value`);
+	await app.evaluate(`(async () => {
+		const settings = await window.lyra.settings.get();
+		await window.lyra.settings.save({ ...settings, uiLocale: "en" });
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 1500));
+	console.log("换成英文：", JSON.stringify({
+		before: beforeLocale,
+		after: await app.evaluate<string>(`document.querySelector("main textarea").value`),
+		/* 标记还认得出来吗——认不出就没有高亮，那一段会退回成普通文字。 */
+		stillMarked: await app.evaluate<number>(`document.querySelectorAll("main .ly-composer .ly-attachment-token").length`),
+		tiles: await app.evaluate<number>(`document.querySelectorAll("main .ly-composer [data-ly-attachment]").length`),
+		firstTile: await app.evaluate<string>(
+			`document.querySelector("main .ly-composer .ly-attachment-body")?.getAttribute("aria-label") ?? ""`,
+		),
+	}, null, 1));
+	await writeFile(`${out}-en.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
+	console.log(`wrote ${out}-en.png`);
+	// 换回去，后面那几步的断言是按中文写的。
+	await app.evaluate(`(async () => {
+		const settings = await window.lyra.settings.get();
+		await window.lyra.settings.save({ ...settings, uiLocale: "zh-CN" });
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 1200));
 
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");

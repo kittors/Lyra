@@ -28,6 +28,8 @@ export type { StripFile } from "./attachments/AttachmentStrip.tsx";
  * 「先确认文件还在」这一步。两份实现的话，只在出错时才看得见的那一步迟早只剩一份有。
  */
 export { useAttachmentActions } from "./attachments/actions.ts";
+/* 一份附件能拿去做什么，那张单子——附件条上、句子里、气泡里，点出来的是同一份。 */
+export { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 /*
  * 放进来的文件，连同它们在磁盘上的位置。
  *

@@ -6,12 +6,14 @@
  *
  * 探针（`attachment-strip-probe.ts`）答的是「停下来的时候每个数对不对」，这一支答的是另一半：过程
  * 里有没有哪一帧是跳的。两件事都要——逐格都对、滚起来仍然可能在某一帧闪一下，而那种闪只在连着看的
- * 时候才现形。这一次要看的动态有四样：
+ * 时候才现形。这一次要看的动态有六样：
  *
- *   放进去   附件进条的同时，正文里落下一枚标记，光标接在它后面
- *   滚起来   撑出输入框之后横着拨，左右两头的渐隐此消彼长
- *   停上去   叉和「更多」淡进来，最靠边那一格的叉不该被裁掉
- *   删掉     标记跟着从句子里消失，同门类里排在它后面的那些重新编号
+ *   放进去   图片进上面那一排，同时正文里落下一枚带图标的标记，光标接在它后面
+ *   接着打   标记是句子的一部分，字顺着它往下写
+ *   右键     句子里那一枚点出来的，和附件条上那一格点出来的是同一份菜单
+ *   退格     整枚标记一起走，那份附件跟着卸下来——不是一格一格地退
+ *   删标记   图片那一枚删掉之后，上面那一排里对应的缩略图也不见
+ *   换语言   会翻译的那些标记跟着改写，文件名不动
  *
  * 逐帧拍，不用 `startScreencast`：被别的窗口盖住的窗口不合成，那趟录下来只有开头一帧。帧打的是真实
  * 时间戳，所以 CSS 那 220ms 的过渡录出来就是 220ms。
@@ -134,73 +136,79 @@ try {
 	}
 	await film(900);
 
-	/* 三、再放五份进去，把这一排撑出输入框。新的排在最右，所以它自己滚过去。 */
-	await grab.evaluate(`(() => {
+	/* 三、再放三张图进去。上面那一排只有图片，文件的全部存在是句子里那一枚。 */
+	await grab.evaluate(`(async () => {
+		const draw = ${DRAW};
 		const dt = new DataTransfer();
-		for (let i = 0; i < 5; i++) {
-			dt.items.add(new File([new Uint8Array([80, 75, 3, 4])], "陈列道具导入模板(花园里店).xlsx", { type: ${JSON.stringify(XLSX)} }));
+		for (const [label, colour] of [["B", "#0b7285"], ["C", "#862e9c"], ["D", "#2b8a3e"]]) {
+			dt.items.add(new File([await draw(label, colour)], "image.png", { type: "image/png" }));
 		}
 		document.querySelector("main .ly-composer").dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
 		return true;
 	})()`);
-	await film(2600);
+	await film(2800);
 
-	/* 四、用滚轮往左拨：右边那头化开，左边那头收掉。 */
-	const track = await grab.evaluate<{ x: number; y: number }>(`(() => {
-		const r = document.querySelector("main .ly-composer [data-ly-attachments-track]").getBoundingClientRect();
+	/* 四、右键点在句子里那一枚上：和附件条上同一份菜单。 */
+	const mark = await grab.evaluate<{ x: number; y: number }>(`(() => {
+		const tokens = [...document.querySelectorAll("main .ly-composer .ly-attachment-token")];
+		const r = tokens[1].getBoundingClientRect();
 		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
 	})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...track });
-	for (let i = 0; i < 14; i++) {
-		await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...track, deltaX: 0, deltaY: -130 });
-		await film(90);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...mark });
+	await film(500);
+	for (const type of ["mousePressed", "mouseReleased"]) {
+		await app.send("Input.dispatchMouseEvent", { type, ...mark, button: "right", clickCount: 1 });
 	}
-	await film(800);
-
-	/* 五、停在一格上：叉和「更多」淡进来。 */
-	const first = await grab.evaluate<{ x: number; y: number }>(`(() => {
-		const r = document.querySelector("main .ly-composer [data-ly-attachment]").getBoundingClientRect();
-		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-	})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...first });
-	await film(1500);
-
-	/* 六、点开「更多」：做不到的事画成灰的，并且说出为什么。 */
-	const more = await grab.evaluate<{ x: number; y: number }>(`(() => {
-		const r = document.querySelector("main .ly-composer [data-ly-attachment] [data-ly-hover-reveal]:last-of-type button").getBoundingClientRect();
-		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-	})()`);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
-		await app.send("Input.dispatchMouseEvent", { type, ...more, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
-	}
-	await film(2600);
+	await film(2800);
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
 	await film(700);
 
 	/*
-	 * 七、取下那份表格：正文里指着它的标记跟着走，排在它后面的重新编号。
+	 * 五、退格一下，整枚标记走掉，那份表格跟着卸下来。
 	 *
-	 * 取的是「表格 1」，后面还有四份表格——所以这一下同时看得到两件事：标记消失，和「表格 2」成为
-	 * 新的「表格 1」。
+	 * 光标放到那一枚的右边再按退格。一格一格地退的话，`【…xlsx】` 会先变成半截——那一刻它已经不是标
+	 * 记了，附件不会跟着走，屏幕上还剩一串没人认得的字。
 	 */
-	await grab.evaluate(`document.querySelector("main .ly-composer [data-ly-attachments-track]").scrollLeft = 0`);
-	await film(700);
-	const cross = await grab.evaluate<{ x: number; y: number }>(`(() => {
-		const tiles = [...document.querySelectorAll("main .ly-composer [data-ly-attachment]")];
-		const target = tiles.find((tile) => {
-			const body = tile.querySelector(".ly-attachment-body");
-			return body && (body.getAttribute("aria-label") || "").includes("陈列道具");
-		});
-		const r = target.querySelector('[data-ly-hover-reveal] button[aria-label^="移除"]').getBoundingClientRect();
-		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	await grab.evaluate(`(() => {
+		const field = document.querySelector("main textarea");
+		const at = field.value.indexOf("】", field.value.indexOf("陈列道具")) + 1;
+		field.focus();
+		field.setSelectionRange(at, at);
+		return true;
 	})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...cross });
-	await film(800);
-	for (const type of ["mousePressed", "mouseReleased"]) {
-		await app.send("Input.dispatchMouseEvent", { type, ...cross, button: "left", clickCount: 1 });
-	}
+	await film(900);
+	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", windowsVirtualKeyCode: 8 });
+	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", windowsVirtualKeyCode: 8 });
 	await film(2400);
+
+	/*
+	 * 六、再删掉一枚图片的标记——上面那一格也跟着不见。
+	 *
+	 * 这是「双向」的另一头：在上面按叉，句子里那一枚消失；在句子里删掉，上面那一格消失。
+	 */
+	await grab.evaluate(`(() => {
+		const field = document.querySelector("main textarea");
+		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+		setter.call(field, field.value.replace(/【截屏[^】]*】[ ]?/, ""));
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+		return true;
+	})()`);
+	await film(2600);
+
+	/* 七、换成英文：句子里那些会翻译的标记跟着改写，文件名不动。 */
+	await grab.evaluate(`(async () => {
+		const settings = await window.lyra.settings.get();
+		await window.lyra.settings.save({ ...settings, uiLocale: "en" });
+		return true;
+	})()`);
+	await film(3000);
+	await grab.evaluate(`(async () => {
+		const settings = await window.lyra.settings.get();
+		await window.lyra.settings.save({ ...settings, uiLocale: "zh-CN" });
+		return true;
+	})()`);
+	await film(2000);
 
 	/* 八、发出去：气泡外面那一排铺开，句子里那几枚标签还在。 */
 	await grab.evaluate(`(() => {

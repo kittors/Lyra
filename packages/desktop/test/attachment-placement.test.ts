@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { placeAttachments, placeholderFor, isAttachmentBody, renamePlaceholders, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
+import { placeAttachments, placeholderAt, placeholderFor, isAttachmentBody, renamePlaceholders, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
 
 const file = (name: string) => ({ name });
 
@@ -144,4 +144,30 @@ test("老消息里写的是文件名，新的写的是界面名，两种都认�
 		segments.map((s) => (s.kind === "text" ? s.text : "<file>")),
 		["旧的 ", "<file>", " 新的 ", "<file>"],
 	);
+});
+
+test("退格吃掉整枚标记，不是一个字符", () => {
+	/*
+	 * 一格一格地退，`【表格 1】` 会先变成 `【表格 1`——那一刻它已经不再是标记（配不上任何附件），
+	 * 于是附件不会跟着卸下来，而屏幕上还剩一串没人认得的字。
+	 */
+	const a = { name: "a.png", label: "图片 1" };
+	const text = `看 ${placeholderFor("图片 1")} 这里`;
+	const mark = text.indexOf("【");
+	// 光标贴在标记右边，退格
+	assert.equal(placeholderAt(text, [a], mark + 6, true)?.file, a);
+	// 光标贴在标记左边，Delete
+	assert.equal(placeholderAt(text, [a], mark, false)?.file, a);
+	// 停在标记中间：两个键都整枚吃掉
+	assert.equal(placeholderAt(text, [a], mark + 3, true)?.file, a);
+	assert.equal(placeholderAt(text, [a], mark + 3, false)?.file, a);
+});
+
+test("光标不在标记旁边时，退格还是退格", () => {
+	const a = { name: "a.png", label: "图片 1" };
+	const text = `看 ${placeholderFor("图片 1")} 这里`;
+	// 句末，离标记还有两个字
+	assert.equal(placeholderAt(text, [a], text.length, true), null);
+	// 标记左边界的左侧一位——退格吃的是那个空格，不是标记
+	assert.equal(placeholderAt(text, [a], text.indexOf("【"), true), null);
 });

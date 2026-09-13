@@ -425,78 +425,137 @@ textarea.ly-composer-text[data-highlighted="true"] {
  *
  * 输入框里是画在镜像层上的一段高亮，气泡里是一个真的 `<span>`——同一个 class，两处长得一样。
  *
- * 颜色跟着门类走，和附件条上那个图标是同一套约定（Word 蓝、Excel 绿、PDF 红，见 `FileKindIcon`）。
- * 一句话里同时出现 `/命令`、`@引用` 和两枚附件标记时，前两样已经各占一种蓝；附件再用蓝的话，四段
- * 高亮谁也不比谁显眼，等于都不显眼。按门类分色之后，「那个绿的」就是那份表格——不用读完名字。
+ * 底色只有一种，颜色全在图标上。按门类给每枚标记配一种底色试过了：一句话里排开五枚，整行就成了
+ * 一条彩带，人反而读不到自己写的那句话；而且 `/命令` 和 `@引用` 已经各占一种蓝，四种高亮抢同一句
+ * 话，谁也不比谁显眼。图标承担分辨的活——一眼看见绿的那个就是表格，不用读完名字。
  *
- * 色相由门类给，明度由主题给：亮色下压暗一档压在纸上，暗色下提亮一档浮在底色上。一个色值两头用
- * 的话，总有一头是糊的——这也是 `--ly-kind` 是变量而不是十二组写死的色对的原因。
+ * 图标是彩色的 SVG（和 `FileKindIcon` 同一套形状、同一套颜色），矢量的，放多大都清楚。写成
+ * `background-image` 而不是 `mask`：遮罩只留形状，颜色得从外面给，那样一枚图标在明暗两套主题下就
+ * 成了两个色——而这些颜色是约定（Word 蓝、Excel 绿、PDF 红），约定不该跟着主题变。
  * ------------------------------------------------------------------------- */
 
 .ly-attachment-token {
-  --ly-kind: var(--color-ink-faint);
-  color: color-mix(in srgb, var(--ly-kind) 82%, var(--color-ink));
-  background: color-mix(in srgb, var(--ly-kind) 13%, transparent);
-  border-radius: 4px;
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
+  /*
+   * 上下的内边距不推动任何东西。
+   *
+   * 行内元素的垂直内边距不参与行盒的高度计算，所以加了它只是把背景画得高一点，底下 textarea 里的
+   * 字一个像素都不会动——而这一层是铺在 textarea 上的镜像，字要是动了就全错位了。左右那一半靠透明
+   * 的方括号顶着（见 `.ly-token-bracket`），同样一格没多占。
+   */
+  padding: 2px 0;
+  border-radius: 5px;
   /* 换行时两截各自带圆角，而不是中间被切开一刀。 */
   box-decoration-break: clone;
 }
 
 :root.dark .ly-attachment-token {
-  color: color-mix(in srgb, var(--ly-kind) 62%, #fff);
-  background: color-mix(in srgb, var(--ly-kind) 22%, transparent);
+  background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
 }
 
 /*
- * 气泡里的那几枚可以有呼吸，输入框里的不行。
+ * 那对 `【】` 只占位，不露脸——而头一个还顺便当了图标的位置。
  *
- * 输入框那一层是画在 textarea 上的镜像，每个字必须和底下真正的字符严丝合缝地对齐——给它加内边距，
- * 光标和选区就会从标记那里开始整体偏移。那边靠 `【】` 本身划出边界；这边没有括号，十枚标签连在
- * 一起会读成一片，所以补上间距。
+ * 它们是这枚标记在正文里的存储形式：textarea 里实实在在有这两个字符，删了就不再是一枚标记。但没
+ * 有人需要看见方括号，所以画成透明——它们占的那一格宽度正好成了标签左右的留白，而镜像和底下的字仍
+ * 然逐字对齐。
+ *
+ * 图标画在头一个方括号自己的位置上，绝对定位，所以一个像素都不占。这是这一层唯一放得下图标的地
+ * 方：镜像铺在 textarea 上，任何会占宽度的东西都会让后面整段字错位——而全角方括号本来就有 1em，
+ * 一枚图标正好住得进去。
+ */
+.ly-token-bracket {
+  /*
+   * 定位的参照系是这一个字符，不是整枚标记。
+   *
+   * 标记会跨行——一个二十一个字的文件名在窄输入框里必然折行——而行内元素跨行时，绝对定位的包含块是
+   * 它所有行框的并集：`top: 50%` 于是落在两行之间，图标掉到第二行去了。方括号只有一个字符，永远不
+   * 跨行。
+   */
+  position: relative;
+  color: transparent;
+}
+
+.ly-attachment-token[data-kind] .ly-token-bracket:first-child::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0.06em;
+  width: 0.92em;
+  height: 0.92em;
+  transform: translateY(-50%);
+  background: var(--ly-glyph) center / contain no-repeat;
+}
+
+/*
+ * 气泡里那几枚可以有真的左右内边距，图标也可以是真的行内元素。
+ *
+ * 输入框那一层是镜像：左右留白只能靠透明的方括号顶，图标只能绝对定位画在那个方括号上，因为任何占
+ * 宽度的东西都会让后面整段字错位。这边没有那个约束——渲染的是名字本身，不必和任何字符对齐。数值调
+ * 到和那边看起来一样。
  */
 .ly-user-bubble .ly-attachment-token {
-  padding: 1px 5px;
+  padding: 2px 6px;
   margin: 0 1px;
 }
 
+.ly-user-bubble .ly-attachment-token[data-kind]::before {
+  content: "";
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.34em;
+  vertical-align: -0.15em;
+  background: var(--ly-glyph) center / contain no-repeat;
+}
+
 .ly-attachment-token[data-kind="image"] {
-  --ly-kind: #8b5cf6;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%238b5cf6%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Ccircle%20cx%3D%2210%22%20cy%3D%2212%22%20r%3D%222%22%2F%3E%3Cpath%20d%3D%22m20%2017-1.296-1.296a2.41%202.41%200%200%200-3.408%200L9%2022%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="video"] {
-  --ly-kind: #ec4899;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ec4899%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M15.033%2013.44a.647.647%200%200%201%200%201.12l-4.065%202.352a.645.645%200%200%201-.968-.56v-4.704a.645.645%200%200%201%20.967-.56z%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="audio"] {
-  --ly-kind: #f59e0b;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f59e0b%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%206.835V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.706.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202h-.343%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M2%2019a2%202%200%200%201%204%200v1a2%202%200%200%201-4%200v-4a6%206%200%200%201%2012%200v4a2%202%200%200%201-4%200v-1a2%202%200%200%201%204%200%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="pdf"] {
-  --ly-kind: #ef4444;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ef4444%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M10%209H8%22%2F%3E%3Cpath%20d%3D%22M16%2013H8%22%2F%3E%3Cpath%20d%3D%22M16%2017H8%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="word"] {
-  --ly-kind: #2b7cd3;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232b7cd3%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M10%209H8%22%2F%3E%3Cpath%20d%3D%22M16%2013H8%22%2F%3E%3Cpath%20d%3D%22M16%2017H8%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="excel"] {
-  --ly-kind: #16a34a;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2316a34a%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M8%2013h2%22%2F%3E%3Cpath%20d%3D%22M14%2013h2%22%2F%3E%3Cpath%20d%3D%22M8%2017h2%22%2F%3E%3Cpath%20d%3D%22M14%2017h2%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="powerpoint"] {
-  --ly-kind: #ea580c;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ea580c%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M2%203h20%22%2F%3E%3Cpath%20d%3D%22M21%203v11a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2V3%22%2F%3E%3Cpath%20d%3D%22m7%2021%205-5%205%205%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="archive"] {
-  --ly-kind: #a16207;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a16207%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M13.659%2022H18a2%202%200%200%200%202-2V8a2.4%202.4%200%200%200-.706-1.706l-3.588-3.588A2.4%202.4%200%200%200%2014%202H6a2%202%200%200%200-2%202v11.5%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M8%2012v-1%22%2F%3E%3Cpath%20d%3D%22M8%2018v-2%22%2F%3E%3Cpath%20d%3D%22M8%207V6%22%2F%3E%3Ccircle%20cx%3D%228%22%20cy%3D%2220%22%20r%3D%222%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="design"] {
-  --ly-kind: #d946ef;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23d946ef%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%2022a1%201%200%200%201%200-20%2010%209%200%200%201%2010%209%205%205%200%200%201-5%205h-2.25a1.75%201.75%200%200%200-1.4%202.8l.3.4a1.75%201.75%200%200%201-1.4%202.8z%22%2F%3E%3Ccircle%20cx%3D%2213.5%22%20cy%3D%226.5%22%20r%3D%22.5%22%20fill%3D%22currentColor%22%2F%3E%3Ccircle%20cx%3D%2217.5%22%20cy%3D%2210.5%22%20r%3D%22.5%22%20fill%3D%22currentColor%22%2F%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2212.5%22%20r%3D%22.5%22%20fill%3D%22currentColor%22%2F%3E%3Ccircle%20cx%3D%228.5%22%20cy%3D%227.5%22%20r%3D%22.5%22%20fill%3D%22currentColor%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-attachment-token[data-kind="font"] {
-  --ly-kind: #0ea5e9;
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%230ea5e9%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3Cpath%20d%3D%22M11%2018h2%22%2F%3E%3Cpath%20d%3D%22M12%2012v6%22%2F%3E%3Cpath%20d%3D%22M9%2013v-.5a.5.5%200%200%201%20.5-.5h5a.5.5%200%200%201%20.5.5v.5%22%2F%3E%3C%2Fsvg%3E");
+}
+
+.ly-attachment-token[data-kind="binary"] {
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%238d8d8d%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%2214%22%20y%3D%2214%22%20width%3D%224%22%20height%3D%226%22%20rx%3D%222%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%224%22%20height%3D%226%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M6%2020h4%22%2F%3E%3Cpath%20d%3D%22M14%2010h4%22%2F%3E%3Cpath%20d%3D%22M6%2014h2v6%22%2F%3E%3Cpath%20d%3D%22M14%204h2v6%22%2F%3E%3C%2Fsvg%3E");
+}
+
+.ly-attachment-token[data-kind="text"] {
+  --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%238d8d8d%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3C%2Fsvg%3E");
 }
 
 .ly-mention-menu {

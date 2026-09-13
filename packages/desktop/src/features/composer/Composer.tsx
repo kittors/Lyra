@@ -36,9 +36,11 @@ import { useLayout } from "../../app/layout.tsx";
 import { findModel } from "../models/index.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
 import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
+import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
 import { useAttachmentActions } from "./attachments/actions.ts";
-import { placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { displayName } from "./attachments/display.ts";
+import { placeholderAt, placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
@@ -99,7 +101,7 @@ async function openInPane(
 }
 
 export function Composer() {
-	const { t } = useI18n();
+	const { t, resolvedLocale: locale } = useI18n();
 	const workspace = useApp((s) => s.workspace);
 	const scratchCwd = useApp((s) => s.scratchCwd);
 	const settings = useApp((s) => s.settings);
@@ -122,6 +124,8 @@ export function Composer() {
 	const { compact } = useLayout();
 	/** 附件那一排上「打开」「在访达中显示」走的是同一套行为，和气泡那边共用——见 `attachments/actions.ts`。 */
 	const { ensureThere } = useAttachmentActions();
+	/** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
+	const [markMenu, setMarkMenu] = useState<{ point: { x: number; y: number }; file: Attachment } | null>(null);
 
 	/**
 	 * 给一份附件列表重新编号。
@@ -138,20 +142,44 @@ export function Composer() {
 				const kindIndex = (seen.get(kind) ?? 0) + 1;
 				seen.set(kind, kindIndex);
 				/*
-				 * 「表格 2」，不是那个二十一个字的文件名。
+				 * 有名字就叫名字，没有才叫「图片 1」。
 				 *
-				 * 标记是嵌在句子里的，写全名的话，拖六个文件进来输入框当场变成三行方括号——那正是这
-				 * 套记号当初被拿掉的原因。而人指认附件说的本来就是「第二张图」「那个表格」：序数加
-				 * 门类，几乎从不是文件名。全名在附件条那一格上，一眼就能看到。
+				 * 和附件条上那一格写的是同一个字符串（`displayName` 是个纯函数，两处算得出同一个结
+				 * 果）——两边差一个字，正文里那枚标记就配不上任何一份附件。
 				 *
-				 * 序号和提示词里 `image 2 of 3` 数的是同一个数（见 `attachment-placeholders.ts`），
-				 * 所以「看图片 2」在两边指的是同一张。
+				 * 「图片 1」这一种会跟着界面语言变，所以换语言时正文里的标记要重写一遍，见上面那个
+				 * effect。文件名不翻译，它那一半天然是稳的。
 				 */
-				return { ...file, label: `${t(KIND_LABEL[kind])} ${kindIndex}` };
+				return {
+					...file,
+					label: displayName({ name: file.name, kindLabel: t(KIND_LABEL[kind]), kindIndex }, t("composer.regionShot")),
+				};
 			});
 		},
 		[t],
 	);
+
+	/*
+	 * 换了界面语言，正文里那些标记跟着改写。
+	 *
+	 * 「图片 1」是一句会翻译的话。标记是放文件那天写下的，界面换成英文之后附件条上那一格叫
+	 * `Image 1` 而句子里还写着 `【图片 1】`——两边一对不上，那枚标记就不再是标记，退化成一串裸方括
+	 * 号，删掉附件时也不会跟着走。
+	 *
+	 * 按**改之前**的名字定位，按新名字写回去，和取下附件时走的是同一条路（`renamePlaceholders`）。
+	 * 文件名不在此列，它本来就不翻译。
+	 */
+	const spokenIn = useRef(locale);
+	useEffect(() => {
+		if (spokenIn.current === locale) return;
+		spokenIn.current = locale;
+		const before = attachmentsRef.current;
+		if (before.length === 0) return;
+		const after = relabel(before);
+		const renamed = new Map(before.map((file, index) => [file, after[index].label ?? file.name]));
+		setAttachments(after);
+		setText((current) => renamePlaceholders(current, before, (file) => renamed.get(file) ?? null));
+	}, [locale, relabel]);
 
 	const draftKey = activeSessionId
 		? activeSessionId
@@ -643,20 +671,31 @@ export function Composer() {
 	 * 删掉后一张，被抠走的是前一张的记号，剩下那张就此失去位置。`placeAttachments` 是按次序配对
 	 * 的，第二个 `【表格 1】` 认的就是第二个叫「表格 1」的附件——见 `renamePlaceholders`。
 	 */
-	function detach(target: Attachment) {
+	/**
+	 * 卸下这几份附件，正文跟着对齐。
+	 *
+	 * 两件事必须在一次里做完：被卸下的那些，标记从句子里拿掉；**剩下的那些，名字可能变了**——删掉
+	 * 「图片 1」之后原来的「图片 2」就成了「图片 1」，而正文里那句「照着 【图片 2】 改」如果不跟着
+	 * 改，指的就是一个不存在的编号，那枚标记当场退化成一串裸方括号。
+	 *
+	 * 定位用**改之前**的那份列表，所以不存在「认不出」的窗口。
+	 *
+	 * 三条删除路径共用这一个：附件条上按叉、句子里按退格、以及把那段字整个删掉。它们从前各写各的，
+	 * 而只有第一条把重新编号这一步做对了——另外两条留下的正是那种没人认得的方括号。
+	 *
+	 * 返回改写后的正文，由调用方决定怎么落地：有的地方是 `setText`，有的地方本来就在改字的中途。
+	 */
+	function unload(text: string, dropped: Attachment[]): string {
 		const before = attachmentsRef.current;
-		const remaining = before.filter((a) => a.id !== target.id);
+		const remaining = before.filter((file) => !dropped.includes(file));
 		const relabelled = relabel(remaining);
-		/*
-		 * 旧的那份列表用来定位，新的名字用来改写。
-		 *
-		 * 两步必须在一次里做完：删掉「图片 1」之后，原来的「图片 2」就成了「图片 1」，而正文里那句
-		 * 「照着 【图片 2】 改」如果不跟着改，指的就是一个不存在的编号。按旧名字扫出位置、按新名字
-		 * 写回去，中间不存在「认不出」的窗口。
-		 */
 		const renamed = new Map(remaining.map((file, index) => [file, relabelled[index].label ?? file.name]));
 		setAttachments(relabelled);
-		setText((current) => renamePlaceholders(current, before, (file) => renamed.get(file) ?? null));
+		return renamePlaceholders(text, before, (file) => renamed.get(file) ?? null);
+	}
+
+	function detach(target: Attachment) {
+		setText((current) => unload(current, [target]));
 	}
 
 	const takeScreenshot = useCallback(async () => {
@@ -701,11 +740,19 @@ export function Composer() {
 	const previewable = attachments.filter((a) => !a.isText && a.data);
 
 	/**
-	 * 输入框上方那一排，交给 `AttachmentStrip` 去摆。
+	 * 输入框上方那一排，只有图片。
+	 *
+	 * 文件不在这里。一份表格的全部信息就是它的名字，而名字已经写在句子里那枚标记上了——再在上面摆一
+	 * 个同样写着名字的格子，是同一件事说两遍，还把那一排撑得老长。图片不一样：缩略图答的是「是哪一
+	 * 张」，那是文件名答不了的，所以它留在上面，句子里只放一个序号。
+	 *
+	 * 两者的删除入口也因此不同：图片在格子上按叉，文件是把句子里那枚标记删掉——见 `onChange`。
 	 *
 	 * `key` 就是附件 id，取下时按它找回原件——名字会重，id 不会。
 	 */
-	const strip: StripFile[] = attachments.map((attachment) => {
+	const strip: StripFile[] = attachments
+		.filter((attachment) => attachment.data && !attachment.isText)
+		.map((attachment) => {
 		const kind = attachment.kind ?? (attachment.isText ? "text" : "binary");
 		// 只有正文和像素都进不了提示词的，才是「仅文件名」。一张图的字节是送到了的。
 		const bodiless = !attachment.isText && !attachment.data;
@@ -829,6 +876,22 @@ export function Composer() {
 					onChange={(next) => {
 						slash.change(next);
 						mention.change(next);
+						/*
+						 * 句子里那枚标记被删掉，附件跟着卸下来。
+						 *
+						 * 标记就是这份附件在这条消息里的存在：删了标记还留着附件，就成了一份谁也提不到
+						 * 的东西——文件连取下它的地方都没有（它不在上面那一排上）。
+						 *
+						 * 图片也一样：留着它就是一格没有任何一句话在说的缩略图。删除因此是双向的——在上
+						 * 面按那个叉，标记从句子里消失；在句子里删掉标记，上面那一格也不见。
+						 *
+						 * 写在这里而不是 effect 里，因为这一步必须只在**人改字**时发生。放文件时是先加
+						 * 附件、再写标记，两次更新之间有一帧附件已在而标记未落——effect 会在那一帧认定
+						 * 它是孤儿，当场把刚拖进来的文件删掉。
+						 */
+						const kept = new Set(scanPlaceholders(next, attachmentsRef.current).map((hit) => hit.file));
+						const orphaned = attachmentsRef.current.filter((file) => !kept.has(file));
+						if (orphaned.length > 0) setText(unload(next, orphaned));
 					}}
 					decoration={mergedDecoration}
 					onSelect={() => {
@@ -849,7 +912,44 @@ export function Composer() {
 							: { id: slash.id, active: slash.active, open: slash.matches.length > 0 }
 					}
 					onSubmit={() => void submit()}
+					/*
+					 * 右键点在一枚标记上，弹出它的菜单。
+					 *
+					 * 被点到的是 textarea，不是标记——那一层高亮是铺在它上面的镜像，而镜像整层
+					 * `pointer-events: none`（不然连把光标放进句子里都做不到）。所以这里反过来问：点的
+					 * 这个坐标落在第几个字符上，那个字符又在不在某一枚标记的范围里。
+					 *
+					 * `caretPositionFromPoint` 是浏览器唯一肯回答这件事的地方。
+					 */
+					onContextMenu={(event) => {
+						const at = document.caretPositionFromPoint?.(event.clientX, event.clientY);
+						if (!at) return;
+						const hit = placeholderAt(text, attachments, at.offset, false) ?? placeholderAt(text, attachments, at.offset, true);
+						if (!hit) return;
+						event.preventDefault();
+						setMarkMenu({ point: { x: event.clientX, y: event.clientY }, file: hit.file });
+					}}
 					onKeyDown={(event) => {
+						/*
+						 * 退格吃掉整枚标记，不是一个字符。
+						 *
+						 * 标记是一个整体。一格一格地退，`【表格 1】` 会先变成 `【表格 1`——那一刻它已经不
+						 * 再是标记（配不上任何附件），于是附件不会跟着卸下来，而屏幕上还剩一串没人认得的
+						 * 字。整枚一起走，这一下才和「这份附件不要了」是同一件事。
+						 *
+						 * 只在没有选区时接管：人自己框住一段按删除，那是他要删的那一段，不该被改写。
+						 */
+						const field = event.currentTarget;
+						if ((event.key === "Backspace" || event.key === "Delete") && field.selectionStart === field.selectionEnd) {
+							const hit = placeholderAt(field.value, attachmentsRef.current, field.selectionStart, event.key === "Backspace");
+							if (hit) {
+								event.preventDefault();
+								const cut = `${field.value.slice(0, hit.start)}${field.value.slice(hit.end)}`.replace(/[ \t]{2,}/g, " ");
+								setText(unload(cut, [hit.file]));
+								requestAnimationFrame(() => field.setSelectionRange(hit.start, hit.start));
+								return;
+							}
+						}
 						if (mention.keyDown(event)) return;
 						slash.keyDown(event, () => void submit());
 						// 命令单接下了这个键就到此为止：它是拿 preventDefault 说这话的，见 ComposerShell。
@@ -1061,6 +1161,32 @@ export function Composer() {
 			{branchMenu.open && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
 			{modelMenu.open && <ModelMenu anchor={modelMenu.anchor} onClose={modelMenu.close} />}
 			{effortMenu.open && <EffortMenu anchor={effortMenu.anchor} onClose={effortMenu.close} />}
+			{/*
+			 * 句子里那一枚被右键点中时，弹的是和附件条上同一份菜单。
+			 *
+			 * 同一份，不是长得一样的另一份——打开、在访达中显示、复制路径，以及「先确认文件还在」那一
+			 * 步，都只有一处实现。见 `AttachmentMenu`。
+			 */}
+			<AttachmentMenu
+				anchor={markMenu?.point ?? null}
+				file={
+					markMenu
+						? {
+								name: markMenu.file.label ?? markMenu.file.name,
+								...(markMenu.file.path ? { path: markMenu.file.path } : {}),
+								...(markMenu.file.path
+									? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
+									: {}),
+							}
+						: null
+				}
+				onClose={() => setMarkMenu(null)}
+				onRemove={() => {
+					const target = markMenu?.file;
+					setMarkMenu(null);
+					if (target) detach(target);
+				}}
+			/>
 		</div>
 	);
 }
