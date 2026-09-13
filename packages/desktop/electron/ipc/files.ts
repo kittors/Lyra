@@ -16,7 +16,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { getWindow } from "../window.ts";
 import { documentKind } from "../../shared/document-kind.ts";
 import { readDatabase, readWorkbook, type DocumentData } from "../documents.ts";
-import { extractDocumentText, type ExtractedText } from "../document-text.ts";
+import { extractDocumentText, type ExtractedText } from "@lyra/core";
 import type { FileContents, FileEntry } from "../ipc-types.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../file-read-service.ts";
 

@@ -1,8 +1,10 @@
 /**
  * 把一份文档变成模型读得懂的字——对着**真文件**测，不是对着构造好的字符串。
  *
- * 这个模块整个是死代码：写好了，`EXTRACTABLE` 和 `extractDocumentText` 在仓库里零调用点，所以它声称
- * 能做的事从来没有人验证过。接线之前先把它自己验一遍，否则接上去之后分不清是接错了还是本来就不行。
+ * 这个模块一度整个是死代码：写好了，`EXTRACTABLE` 和 `extractDocumentText` 在仓库里零调用点。第一次
+ * 接线把它接到了输入框上（拖一份合同进来，正文进提示词）；第二次接到了 `read` 工具上——在那之前，同
+ * 一份 `.docx`，人拖进来读得到、模型自己去读就是一句「看起来是二进制文件」。同一份文件、同样的字节，
+ * 因为是谁在问而给出两种答案。
  *
  * 真文件是必须的。OOXML 抽取走的是正则，而正则对着手写的 XML 片段永远是绿的——真正会出事的是
  * SheetJS 写出来的那种共享字符串表、`<w:t xml:space="preserve">` 这类带属性的标签、以及 PDF 里字形
@@ -20,7 +22,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { zipSync, strToU8 } from "fflate";
-import { EXTRACTABLE, extractDocumentText, textFromPdf } from "../electron/document-text.ts";
+import { EXTRACTABLE, extractDocumentText, textFromPdf } from "../src/files/document-text.ts";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 

@@ -5,6 +5,7 @@ import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { snapshotTag } from "./hunk.ts";
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary, resolveWorkspacePath } from "./paths.ts";
+import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
 
 const DEFAULT_LIMIT = 2000;
 const MAX_LINE_LENGTH = 2000;
@@ -82,6 +83,13 @@ export function wasShown(record: ReadRecord, from: number, to: number): boolean 
 		if (!record.ranges.some(([a, b]) => line >= a && line <= b)) return false;
 	}
 	return true;
+}
+
+/** The extension, lowercased — which of the two decisions below applies is keyed on it. */
+function extensionOf(path: string): string {
+	const base = path.toLowerCase().split(/[/\\]/).pop() ?? "";
+	const dot = base.lastIndexOf(".");
+	return dot > 0 ? base.slice(dot + 1) : "";
 }
 
 export const readTool: Tool<ReadArgs> = {
@@ -170,6 +178,43 @@ export const readTool: Tool<ReadArgs> = {
 		}
 
 		const buffer = await readFile(absolute);
+
+		/*
+		 * A contract, a spreadsheet, a deck — read as the words in them.
+		 *
+		 * These are binaries by the byte test below, and refusing them was this tool's answer for a
+		 * long time: `report.xlsx looks like a binary file (48231 bytes)`. Meanwhile the application
+		 * has been able to read exactly these formats all along — a `.docx` is a zip of XML, and the
+		 * text is in there in plain sight — but that code was wired only to the composer, so it ran
+		 * when a person dragged a file in and never when the model went looking for one. Same
+		 * document, same bytes, two different answers depending on who asked.
+		 *
+		 * Extraction first, because the byte test cannot tell a zip of XML from an executable and
+		 * would turn every one of these away before anything else got a chance.
+		 */
+		const extracted = EXTRACTABLE.has(extensionOf(absolute)) ? await extractDocumentText(absolute, buffer).catch(() => null) : null;
+		if (extracted) {
+			markRead(ctx, absolute);
+			/*
+			 * Said, not guessed at: a scan has pages and no text layer, and an empty string here is
+			 * exactly how somebody ends up believing their scan was read.
+			 */
+			const body = extracted.imageOnly
+				? `[${displayPath(ctx.cwd, absolute)} has no text layer — it is a scan or an image-only document. Reading it needs OCR.]`
+				: extracted.text;
+			return {
+				content: [{ type: "text", text: body }],
+				details: {
+					kind: "document",
+					path: displayPath(ctx.cwd, absolute),
+					bytes: info.size,
+					characters: extracted.fullLength,
+					truncated: extracted.truncated,
+					...(extracted.imageOnly ? { imageOnly: true } : {}),
+				},
+			};
+		}
+
 		if (looksBinary(buffer)) {
 			return errorResult(`${args.path} looks like a binary file (${info.size} bytes) and cannot be read as text.`);
 		}

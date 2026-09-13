@@ -317,3 +317,12 @@ export { computeDiff } from "./tools/diff.ts";
 export { readFileChange, undoFileChanges, undoFileChangeBatches, type RecordedChange } from "./tools/file-changes.ts";
 export { AgentDefinitionStore } from "./agents/definition-store.ts";
 export type { AgentDraft, AgentDefinitionRecord, AgentDefinitionSave } from "./agents/definition-document.ts";
+
+/*
+ * 一份文档里的字。
+ *
+ * `read` 工具靠它把 `.docx`、`.xlsx`、`.pptx`、`.pdf` 读成字而不是拒掉——这些格式底下是 zip 加 XML，
+ * 字就在里面。桌面端把同一份实现用在「拖进输入框」那条路上：同一份文件、同样的字节，不该因为是谁在
+ * 问而给出两种答案。
+ */
+export { EXTRACTABLE, extractDocumentText, textFromPdf, type ExtractedText } from "./files/document-text.ts";

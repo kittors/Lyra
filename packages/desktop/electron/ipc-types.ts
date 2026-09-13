@@ -47,7 +47,7 @@ import type { DownloadPhase } from "./ipc/update-download.ts";
 import type { TrayCommand } from "./tray-menu.ts";
 export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
-import type { ExtractedText } from "./document-text.ts";
+import type { ExtractedText } from "@lyra/core";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
