@@ -70,6 +70,15 @@ export function AttachmentMenu({
 	/** 图片的像素在手上就能复制；文件得先在磁盘上找得到。 */
 	const canCopy = Boolean(file.src) || onDisk;
 
+	/*
+	 * 一行都没有就别弹。
+	 *
+	 * 「只列做得到的」有一种下场是这一整份单子空掉：一份已经发出去的文件附件，磁盘上找不到它（老消
+	 * 息没存路径），没有像素可复制，记录也谈不上移除——于是屏幕上浮出一个空的圆角灰框，正好盖住人
+	 * 刚点的那句话。什么都不弹至少是诚实的：这一枚眼下确实没有能做的事。
+	 */
+	if (!file.onPreview && !onDisk && !canCopy && !onRemove) return null;
+
 	/** 复制一份出去：图片进剪贴板是图片，文件进剪贴板是它的路径。 */
 	const copy = () => {
 		if (file.src) {

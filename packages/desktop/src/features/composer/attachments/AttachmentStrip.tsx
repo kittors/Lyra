@@ -361,6 +361,14 @@ export function AttachmentStrip({
 						? {
 								name: picked.label,
 								...(picked.file.path ? { path: picked.file.path } : {}),
+								/*
+								 * 图片的像素也给菜单。
+								 *
+								 * 漏了它的表现是「同一张图，句子里那一枚能复制，上面这一格不能」——而人对着的是同一
+								 * 张图，位置不同不该换一套能做的事。粘贴进来的截图尤其靠这一条：它在磁盘上没有对应
+								 * 的文件，像素是它唯一能被复制的形式。
+								 */
+								...(picked.file.src ? { src: picked.file.src } : {}),
 								...(picked.canPreview ? { onPreview: () => bodies.current.get(picked.file.key)?.click() } : {}),
 							}
 						: null

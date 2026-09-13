@@ -10,6 +10,7 @@
  *
  *   放进去   图片进上面那一排，同时正文里落下一枚带图标的标记，光标接在它后面
  *   接着打   标记是句子的一部分，字顺着它往下写
+ *   打中文   拼音还没上屏的那几刻，标记仍然是标记——不是塌回一串方括号
  *   右键     句子里那一枚点出来的，和附件条上那一格点出来的是同一份菜单
  *   退格     整枚标记一起走，那份附件跟着卸下来——不是一格一格地退
  *   删标记   图片那一枚删掉之后，上面那一排里对应的缩略图也不见
@@ -133,6 +134,36 @@ try {
 			return true;
 		})()`);
 		await film(420);
+	}
+	await film(900);
+
+	/*
+	 * 二·五、用输入法打中文。
+	 *
+	 * 每个字都要先拼再上屏，而组字的那一刻整句话会重画一遍——标记得在每一帧里都还是标记。这一段一度
+	 * 是坏的：手一动，句子里每一枚都塌回成一串方括号加文件名，停下手才变回来，等于打中文的全过程都
+	 * 在看原文。
+	 *
+	 * 走 CDP 的 `imeSetComposition`，和真输入法同一条路——JS 派发的 `compositionstart` 进不了组字态。
+	 */
+	await grab.evaluate(`(() => {
+		const field = document.querySelector("main textarea");
+		field.focus();
+		field.setSelectionRange(field.value.length, field.value.length);
+		return true;
+	})()`);
+	await film(600);
+	for (const [pinyin, word] of [
+		["zhe", "这"],
+		["zhang", "张"],
+	]) {
+		for (let n = 1; n <= pinyin.length; n++) {
+			await grab.send("Input.imeSetComposition", { text: pinyin.slice(0, n), selectionStart: n, selectionEnd: n });
+			await film(170);
+		}
+		await film(560);
+		await grab.send("Input.insertText", { text: word });
+		await film(380);
 	}
 	await film(900);
 

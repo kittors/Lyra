@@ -41,15 +41,29 @@ function presentation(value: Record<string, unknown>): Pick<InitialPrompt, "disp
 	}
 	if (value.attachments !== undefined) {
 		if (!Array.isArray(value.attachments)) throw new Error("attachments must be an array");
-		// Name and kind only. The bytes travel in `content`; nothing here is allowed to carry them.
+		/*
+		 * 这里过的是「它是什么」，不是「它装了什么」。
+		 *
+		 * 字节走 `content`，这一项一个字节都不许带——一份上千行的文档正文要是从这儿混进去，每条消息
+		 * 都会把它再存一遍，转录一轮大一倍。那条规矩不变。
+		 *
+		 * 但 `path` 和 `label` 不是字节，它们是这份附件的身份，而这道门一度把它们一起丢了：
+		 * `MessageAttachment` 定义了这两个字段、发送那头填好了、气泡那头读它——中间这一道白名单把它们
+		 * 抹掉，于是一条已经发出去的消息对着自己带的那份表格，右键点上去什么都做不了（菜单空到不弹）。
+		 * 界面、类型、发送端三处都是对的，只有这一行不知道它们存在。
+		 */
 		result.attachments = value.attachments.map((file: unknown) => {
 			if (!object(file) || typeof file.name !== "string" || !file.name.trim()) throw new Error("Invalid attachment");
 			if (file.kind !== undefined && typeof file.kind !== "string") throw new Error("Invalid attachment kind");
 			if (file.mimeType !== undefined && typeof file.mimeType !== "string") throw new Error("Invalid attachment type");
+			if (file.path !== undefined && typeof file.path !== "string") throw new Error("Invalid attachment path");
+			if (file.label !== undefined && typeof file.label !== "string") throw new Error("Invalid attachment label");
 			return {
 				name: file.name,
 				...(file.kind === undefined ? {} : { kind: file.kind }),
 				...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
+				...(file.path === undefined ? {} : { path: file.path }),
+				...(file.label === undefined ? {} : { label: file.label }),
 			};
 		});
 	}

@@ -87,6 +87,35 @@ test("presentation metadata is validated on both prompt entry points", () => {
 	assert.deepEqual(initialPrompt({ content: "hello", ...metadata }), { content: [{ type: "text", text: "hello" }], ...metadata });
 });
 
+test("附件过这道门时，身份留下、字节留不下", () => {
+	/*
+	 * 这道门一度只放行 name / kind / mimeType，把 `path` 和 `label` 一并抹掉。
+	 *
+	 * 抹掉的后果只在发送**之后**才看得见：一条已经发出去的消息，对着自己带的那份表格，右键点上去什
+	 * 么都做不了——没有路径就没有「打开」「在访达中显示」「复制路径」，而文件又没有像素可复制，于是
+	 * 一行都不剩。界面、类型、发送端三处写的都是对的，只有这一行不知道这两个字段存在。
+	 */
+	const carried = {
+		content: "看看这个",
+		attachments: [{ name: "台账.xlsx", kind: "excel", mimeType: "application/vnd.ms-excel", path: "/Users/me/下载/台账.xlsx", label: "表格 1" }],
+	};
+	assert.deepEqual(initialPrompt(carried)?.attachments, carried.attachments);
+	assert.deepEqual(promptOptions(carried).attachments, carried.attachments);
+
+	/*
+	 * 字节仍然进不来。
+	 *
+	 * 正文和像素走 `content`，从这儿混进去的话每条消息都会把一份上千行的文档再存一遍——转录一轮大一
+	 * 倍。放行的是「它是什么」，不是「它装了什么」。
+	 */
+	const sneaked = initialPrompt({ content: "x", attachments: [{ name: "a.md", text: "一整篇正文", data: "eA==" }] });
+	assert.deepEqual(sneaked?.attachments, [{ name: "a.md" }]);
+
+	for (const invalid of [{ name: "a", path: 4 }, { name: "a", label: [] }, { name: "  " }, { name: "a", kind: {} }]) {
+		assert.throws(() => initialPrompt({ content: "x", attachments: [invalid] }), `本该拒绝：${JSON.stringify(invalid)}`);
+	}
+});
+
 test("a reference-only opening uses its label and persists both same-title targets", async () => {
 	const root = await mkdtemp(join(tmpdir(), "lyra-reference-prompt-"));
 	try {

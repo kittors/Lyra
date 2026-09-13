@@ -175,6 +175,15 @@ export function UserMessage({
           label: file.label,
           kind: file.kind,
           src: file.src,
+          /*
+           * 它在磁盘上的位置也要带过来。
+           *
+           * 这一行漏了很久，而漏掉它的表现不是「少一行菜单」：右键点在气泡里一枚文件标记上，弹出
+           * 来的是一个**空框**——没有路径就没有「打开」「在访达中显示」「复制路径」，而文件又没有
+           * 像素可复制、已经发出去的也没有「移除」，于是一行都不剩。消息里本来就存着这个路径
+           * （`MessageAttachment.path`），只是没走到这儿。
+           */
+          ...(file.path ? { path: file.path } : {}),
           // 图片的像素、文本的正文，两样都没有的才是「只有名字」。
           bodiless: !file.src && file.kind !== "text",
         })),

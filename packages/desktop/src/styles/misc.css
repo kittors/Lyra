@@ -485,7 +485,15 @@ textarea.ly-composer-text[data-highlighted="true"] {
  * 左右的内边距靠负外边距抵掉，所以净宽度一个像素没变：这一层是铺在 textarea 上的镜像，多占一点
  * 后面整段字就错位了。上下的不必抵——行内元素的垂直内边距本来就不参与行盒的高度。
  */
-.ly-token-body {
+/*
+ * 气泡里那一枚没有这层壳，底色直接上在标记本身。
+ *
+ * 两边的结构不一样：输入框那边是镜像层，方括号必须留着占位，所以底色只能包到名字为止（见上）；气
+ * 泡里渲染的是名字本身，没有方括号，整枚就是名字。而底色一度只写在这层壳上——于是发出去之后那枚标
+ * 记只剩图标和一行字，底没了，看着就不再是一枚标记了。
+ */
+.ly-token-body,
+.ly-user-bubble .ly-attachment-token {
   padding: 2px 0.22em;
   margin: 0 -0.22em;
   border-radius: 5px;
@@ -494,7 +502,8 @@ textarea.ly-composer-text[data-highlighted="true"] {
   box-decoration-break: clone;
 }
 
-:root.dark .ly-token-body {
+:root.dark .ly-token-body,
+:root.dark .ly-user-bubble .ly-attachment-token {
   background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
 }
 
