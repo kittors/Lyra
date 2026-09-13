@@ -21,13 +21,6 @@ export type { FileKind } from "./attachments/file-kind.ts";
  */
 export { AttachmentStrip } from "./attachments/AttachmentStrip.tsx";
 export type { StripFile } from "./attachments/AttachmentStrip.tsx";
-/*
- * 拿一份附件去做点什么——打开、指出它在哪、抄下路径。
- *
- * 和上面那一排是一套：格子上的双击、菜单里的那几行、气泡外那一排，走的都得是同一段行为，包括
- * 「先确认文件还在」这一步。两份实现的话，只在出错时才看得见的那一步迟早只剩一份有。
- */
-export { useAttachmentActions } from "./attachments/actions.ts";
 /* 一份附件能拿去做什么，那张单子——附件条上、句子里、气泡里，点出来的是同一份。 */
 export { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 /*

@@ -81,6 +81,19 @@ export const COLUMN_LIMIT = 2;
 export const EPSILON = 1e-6;
 
 /**
+ * CSS min-width for a docked pane, or none.
+ *
+ * The floor is only painted when the *box* is narrower than the dock. That is the overlap
+ * case: the pane draws at its floor and the neighbour covers the overhang. A pane that
+ * already fills the dock — alone, or full-screen — has to shrink with the window. Otherwise
+ * a 380px window draws a 420px conversation off the right edge, with nothing covering it.
+ */
+export function panePaintMinWidth(kind: PaneKind, boxWidth: number, maximized: boolean): number | undefined {
+	if (maximized || boxWidth >= 1 - EPSILON) return undefined;
+	return paneFloor(kind).width;
+}
+
+/**
  * How much of a pane's width or height counts as its edge, for the drop test.
  *
  * 28% leaves a centre region that is comfortably larger than any of the four bands, which is what

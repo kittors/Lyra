@@ -149,7 +149,9 @@ test("narrow layouts, long drafts and IME keep the native input aligned and do n
 		await input("/compact ");
 		const before = requests.length;
 		await app.send("Input.imeSetComposition", { text: "保留", selectionStart: 2, selectionEnd: 2 }); await frames(3);
-		assert.equal(await app.evaluate(`document.querySelector('textarea').dataset.highlighted`), "false");
+		// Composition stays on the mirror. Pulling the highlight off during IME collapsed every
+		// attachment mark back to brackets for the whole of a Chinese word.
+		assert.equal(await app.evaluate(`document.querySelector('textarea').dataset.highlighted`), "true");
 		await app.evaluate(`document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:229,isComposing:true,bubbles:true,cancelable:true}))`); await frames(3);
 		assert.equal(requests.length, before); assert.equal(await app.evaluate(`document.querySelector('textarea').value`), "/compact 保留");
 		await app.send("Input.insertText", { text: "保留" }); await frames(3);

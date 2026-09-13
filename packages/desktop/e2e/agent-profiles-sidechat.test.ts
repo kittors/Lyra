@@ -6,6 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -98,8 +99,9 @@ async function click(selector: string) {
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(3);
 }
 async function label(text: string, scope = "button") {
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&e.textContent.trim().startsWith(${JSON.stringify(text)}))`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&e.textContent.trim().startsWith(${JSON.stringify(text)})).setAttribute('data-qa-target','');})()`);
+	const match = named(text, "starts");
+	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&${match})`);
+	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match}).setAttribute('data-qa-target','');})()`);
 	await click("[data-qa-target]");
 }
 async function send(text: string, scope = '[data-dock-pane="chat"]') {

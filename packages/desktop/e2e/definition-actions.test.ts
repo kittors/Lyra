@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 let cwd: string;
@@ -66,7 +67,8 @@ async function click(selector: string) {
 	await frames(2);
 }
 async function select(label: string, nav = false, counted = false) {
-	const matches = `b.checkVisibility({visibilityProperty:true})&&${counted ? "b.textContent.trim().replace(/\\s*\\d+$/, '')" : "b.textContent.trim()"}===${JSON.stringify(label)}`;
+	const match = named(label, counted ? "stripCount" : "exact", "b");
+	const matches = `b.checkVisibility({visibilityProperty:true})&&${match}`;
 	await until(`[...document.querySelectorAll('${nav ? "nav " : ""}button')].some(b=>${matches})`);
 	await app.evaluate(`(()=>{document.querySelector('[data-qa-pick]')?.removeAttribute('data-qa-pick');[...document.querySelectorAll('${nav ? "nav " : ""}button')].find(b=>${matches}).setAttribute('data-qa-pick','');})()`);
 	await click('[data-qa-pick]');

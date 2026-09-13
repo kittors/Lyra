@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 before(async () => {
@@ -50,8 +51,9 @@ async function click(selector: string) {
 	await frames(3);
 }
 async function label(text: string, scope = "nav button") {
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility({visibilityProperty:true})&&e.textContent.trim()===${JSON.stringify(text)})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');const e=[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&e.textContent.trim()===${JSON.stringify(text)});if(!e)throw new Error(${JSON.stringify(text)});e.setAttribute('data-qa-target','');})()`);
+	const match = named(text);
+	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility({visibilityProperty:true})&&${match})`);
+	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');const e=[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match});if(!e)throw new Error(${JSON.stringify(text)});e.setAttribute('data-qa-target','');})()`);
 	await click('[data-qa-target]');
 }
 async function key(key: string, code: number) {

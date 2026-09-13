@@ -5,6 +5,7 @@ import { before, after, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import type { SessionRecord } from "@lyra/core";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 /** 一个文件一个端口：几个文件共用一个，串行跑时上一个的 Electron 还没退，下一个就起不来。 */
@@ -65,7 +66,8 @@ async function click(selector: string) {
 	await frames(2);
 }
 async function clickText(text: string) {
-	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.checkVisibility({visibilityProperty:true})&&e.textContent.trim()===${JSON.stringify(text)});if(!e)throw new Error('missing text');e.setAttribute('data-qa-click','');})()`);
+	const match = named(text);
+	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.checkVisibility({visibilityProperty:true})&&${match});if(!e)throw new Error('missing text');e.setAttribute('data-qa-click','');})()`);
 	await click('[data-qa-click]'); await app.evaluate(`document.querySelector('[data-qa-click]')?.removeAttribute('data-qa-click')`);
 }
 async function screenshot(name: string) {
@@ -182,7 +184,7 @@ test("permission dialog uses grouped capabilities, animates cancel, and restores
 	await app.evaluate(`document.querySelector('[data-ly-modal] button:last-child').focus()`);
 	await app.send("Input.dispatchKeyEvent", {type:"keyDown",key:"Tab",windowsVirtualKeyCode:9});
 	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Tab",windowsVirtualKeyCode:9});
-	assert.equal((await app.evaluate<string>(`document.activeElement.textContent`)).trim(), "取消");
+	assert.equal((await app.evaluate<string>(`document.activeElement.getAttribute('aria-label')||document.activeElement.textContent`)).trim(), "取消");
 	await clickText("取消");
 	const leaving = await app.evaluate(`document.querySelector('[data-ly-modal]')?.classList.contains('ly-dialog-out')`);
 	assert.equal(leaving,true);
@@ -198,7 +200,7 @@ test("project memory is visible in usage and its settings switch stops injection
 	const before = await app.evaluate<{used:number;projectMemory:string}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
 	assert.match(before.projectMemory,/核对当前仓库/);
 	await click('button:has(svg.lucide-settings)');
-	await until(`[...document.querySelectorAll('nav button')].some(b=>b.textContent.trim()==='个性化')`);
+	await until(`[...document.querySelectorAll('nav button')].some(e=>${named("个性化")})`);
 	await clickText("个性化"); await frames();
 	await app.evaluate(`(()=>{const title=[...document.querySelectorAll('[data-view="personalization"] *')].find(e=>e.children.length===0&&e.textContent==='项目记忆');let row=title;while(row&&!row.querySelector('[role="switch"]'))row=row.parentElement;row.querySelector('[role="switch"]').setAttribute('data-project-switch','');})()`);
 	await app.evaluate(`(()=>{const title=[...document.querySelectorAll('[data-view="personalization"] *')].find(e=>e.children.length===0&&e.textContent==='用户记忆');let row=title;while(row&&!row.querySelector('[role="switch"]'))row=row.parentElement;row.querySelector('[role="switch"]').setAttribute('data-user-switch','');})()`);

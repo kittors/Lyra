@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@lyra/core";
 import { startApp, type RunningApp } from "./app.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 const shots = "/tmp/lyra-model-defaults-e2e";
@@ -56,8 +57,9 @@ async function click(selector: string) {
 }
 
 async function label(text: string, scope = "button") {
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&e.textContent.trim()===${JSON.stringify(text)})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-model-qa]')?.removeAttribute('data-model-qa');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&e.textContent.trim()===${JSON.stringify(text)}).setAttribute('data-model-qa','');})()`);
+	const match = named(text);
+	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&${match})`);
+	await app.evaluate(`(()=>{document.querySelector('[data-model-qa]')?.removeAttribute('data-model-qa');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match}).setAttribute('data-model-qa','');})()`);
 	await click("[data-model-qa]");
 }
 

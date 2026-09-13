@@ -22,7 +22,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CONVERSATION_MIN_WIDTH_PX, PANEL_MIN_WIDTH_PX, paneFloor } from "../src/features/dock/geometry.ts";
+import { CONVERSATION_MIN_WIDTH_PX, PANEL_MIN_WIDTH_PX, paneFloor, panePaintMinWidth } from "../src/features/dock/geometry.ts";
 import { fitTree, layoutPanes } from "../src/features/dock/layout.ts";
 import { leafOf, type DockNode } from "../src/features/dock/tree.ts";
 
@@ -182,4 +182,12 @@ test("the overlap is re-derived from the size, so widening gives the layout stra
 
 	const { of } = drawn(tree, { width: 1600, height: 900 });
 	assert.ok(of("conversation").width >= CONVERSATION_MIN_WIDTH_PX, "and the room comes back on its own");
+});
+
+test("a pane that fills the dock is not painted past the window", () => {
+	assert.equal(panePaintMinWidth("conversation", 1, false), undefined);
+	assert.equal(panePaintMinWidth("conversation", 0.24, false), CONVERSATION_MIN_WIDTH_PX);
+	assert.equal(panePaintMinWidth("conversation", 0.24, true), undefined);
+	assert.equal(panePaintMinWidth("terminal", 0.4, false), PANEL_MIN_WIDTH_PX);
+	assert.equal(paneFloor("conversation").width, CONVERSATION_MIN_WIDTH_PX);
 });

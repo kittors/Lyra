@@ -6,6 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { stopWorkspaceFixture } from "./workspace-quality-lifecycle.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -65,7 +66,7 @@ async function click(selector:string){
 	const point=await app.evaluate<{x:number;y:number}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest',behavior:'instant'});const r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('control is covered: '+${JSON.stringify(selector)});return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...point});await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
 }
-async function label(text:string,selector="button"){await app.evaluate(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.textContent.trim()===${JSON.stringify(text)});if(!e)throw new Error('No label '+${JSON.stringify(text)});e.setAttribute('data-qa-label','');})()`);await click('[data-qa-label]');await app.evaluate("document.querySelector('[data-qa-label]')?.removeAttribute('data-qa-label')");}
+async function label(text:string,selector="button"){const match=named(text);await app.evaluate(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>${match});if(!e)throw new Error('No label '+${JSON.stringify(text)});e.setAttribute('data-qa-label','');})()`);await click('[data-qa-label]');await app.evaluate("document.querySelector('[data-qa-label]')?.removeAttribute('data-qa-label')");}
 async function shot(name:string){const dir=process.env.LYRA_E2E_ARTIFACTS;if(!dir)return;await mkdir(dir,{recursive:true});await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>new Promise(requestAnimationFrame))");const result=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(dir,`${name}.png`),Buffer.from(result.data,"base64"));}
 async function escape(){await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",windowsVirtualKeyCode:27});}
 

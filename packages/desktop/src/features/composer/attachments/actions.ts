@@ -17,7 +17,7 @@ import { useI18n } from "../../../i18n/index.ts";
 import { useOpenTarget } from "../../../store/open-targets.ts";
 
 /** 动作要认识这份附件的哪几件事。 */
-export interface ActionTarget {
+interface ActionTarget {
 	/** 屏幕上叫什么——出错的那句话里用它，而不是用一串路径。 */
 	name: string;
 	path?: string;

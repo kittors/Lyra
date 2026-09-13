@@ -228,9 +228,6 @@ importers:
       thinking-orbs:
         specifier: ^0.3.1
         version: 0.3.1(react@19.2.8)
-      unpdf:
-        specifier: ^1.8.1
-        version: 1.8.1
       ws:
         specifier: 8.21.3
         version: 8.21.3
@@ -260,8 +257,8 @@ importers:
         specifier: 6.1.1
         version: 6.1.1(babel-plugin-react-compiler@1.0.0)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
       electron:
-        specifier: 43.6.0
-        version: 43.6.0
+        specifier: 43.4.1
+        version: 43.4.1
       electron-builder:
         specifier: 26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -3511,8 +3508,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@43.6.0:
-    resolution: {integrity: sha512-DqVKYV+FXheMSLTxcMQ+NCo78BDgpnToSyIzXctlUtbP3lRGEuoo1P+C2n/90rJ7TvHgzP0bpP9fbbXxp4noIg==}
+  electron@43.4.1:
+    resolution: {integrity: sha512-5b+EuiwkgG5iRcsEL34rimgRpkYp15SsfZOa0pC5kXs0Tb82TH4n95rpQzTZa7yRCbA7tm0WoEbuBL6NaAhAcA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -9908,7 +9905,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@43.6.0:
+  electron@43.4.1:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0

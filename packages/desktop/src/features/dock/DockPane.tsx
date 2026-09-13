@@ -10,7 +10,7 @@
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
-import { HEADER_HEIGHT, PANE_INSET, paneFloor } from "./geometry.ts";
+import { HEADER_HEIGHT, PANE_INSET, panePaintMinWidth } from "./geometry.ts";
 import type { Box } from "./layout.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 
@@ -82,6 +82,7 @@ export function DockPane({
 }) {
 	/** Panels are cards over the conversation's surface; so is anything currently in the air. */
 	const floats = kind !== "conversation" || Boolean(carried);
+	const paintMinWidth = panePaintMinWidth(kind, box.width, maximized);
 
 	return (
 		<PaneSurface
@@ -164,9 +165,10 @@ export function DockPane({
 							 *
 							 * Not while a pane fills the dock: full screen divides the room by a ratio
 							 * of its own, which can legitimately put a pane below its floor, and a
-							 * minimum here would make the pair overlap instead of divide.
+							 * minimum here would make the pair overlap instead of divide. The same
+							 * is true of a lone conversation — see `panePaintMinWidth`.
 							 */
-							...(maximized ? null : { minWidth: paneFloor(kind).width }),
+							...(paintMinWidth === undefined ? null : { minWidth: paintMinWidth }),
 						}
 			}
 			/*

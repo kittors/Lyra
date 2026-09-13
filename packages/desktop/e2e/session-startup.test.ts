@@ -108,7 +108,7 @@ test("slow MCP startup still creates immediate titled rows, aggregates collapsed
 	assert.equal(await app.evaluate(`!!document.querySelector('[class~="group/project"] > button[aria-expanded="true"] [aria-label*="个会话正在执行"]')`), false);
 	await click('[class~="group/project"] > button[aria-expanded]');
 	await frames(20);
-	const group = await app.evaluate<{ expanded: string; label: string; hasSpinner: boolean }>(`(()=>{const b=document.querySelector('[class~="group/project"] > button[aria-expanded]');const status=b.querySelector('[aria-label*="个会话正在执行"]');return {expanded:b.getAttribute('aria-expanded'),label:status?.getAttribute('aria-label'),hasSpinner:!!status?.querySelector('svg.ly-spin')};})()`);
+	const group = await app.evaluate<{ expanded: string; label: string; hasSpinner: boolean }>(`(()=>{const b=document.querySelector('[class~="group/project"] > button[aria-expanded]');const status=b.querySelector('[aria-label*="个会话正在执行"]');return {expanded:b.getAttribute('aria-expanded'),label:status?.getAttribute('aria-label'),hasSpinner:!!status?.querySelector('svg.ly-star')};})()`);
 	assert.equal(group.expanded, "false"); assert.equal(group.label, "1 个会话正在执行"); assert.equal(group.hasSpinner, true);
 	await click('button[aria-label="停止"]');
 	const second = await submit();
@@ -159,7 +159,7 @@ test("collapsed group loading shares the far-right action slot without shifting 
 	assert.ok(completeReply); completeReply();
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=300;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(--n)requestAnimationFrame(read);else reject(new Error('turn did not complete'));};read();})`);
 	await click('[data-qa-running-group]'); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-spin')`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-star')`), false);
 });
 
 async function shot(name: string) {
@@ -178,15 +178,15 @@ while(group&&!group.querySelector(selector))group=group.parentElement;
 if(!group)throw new Error('Running session has no project heading');group.querySelector(selector).setAttribute('data-qa-running-group','');})()`);
 	const heading = '[data-qa-running-group]';
 	assert.equal(await app.evaluate(`document.querySelector(${JSON.stringify(heading)}).getAttribute('aria-expanded')`), "true");
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-spin')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-star')})`), false);
 	await click(heading);
 	// Leave the row so its resting status can occupy the same slot as the hover actions.
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(20);
 	const measurement = `(()=>{const b=document.querySelector(${JSON.stringify(heading)}),r=b.getBoundingClientRect(),name=b.children[1].getBoundingClientRect();
 const status=b.querySelector('[aria-label*="个会话正在执行"]'),slot=status.parentElement,s=status.getBoundingClientRect(),svg=status.querySelector('svg');
 const menu=b.parentElement.querySelector('button[aria-haspopup="menu"]'),actions=menu.parentElement,m=menu.querySelector('svg').getBoundingClientRect();
-return {height:r.height,nameX:name.x,nameWidth:name.width,rightInset:r.right-s.right,centerY:s.y+s.height/2-r.y-r.height/2,slotOpacity:Number(getComputedStyle(slot).opacity),actionsOpacity:Number(getComputedStyle(actions).opacity),diameter:s.width,menuCenterX:m.x+m.width/2,loadingCenterX:s.x+s.width/2,rotation:getComputedStyle(svg).transform,buttonsReachable:[...actions.querySelectorAll('button')].every(e=>{const a=e.getBoundingClientRect();return e.contains(document.elementFromPoint(a.x+a.width/2,a.y+a.height/2));})};})()`;
-	type Measurement = { height: number; nameX: number; nameWidth: number; rightInset: number; centerY: number; slotOpacity: number; actionsOpacity: number; diameter: number; menuCenterX: number; loadingCenterX: number; rotation: string; buttonsReachable: boolean };
+return {height:r.height,nameX:name.x,nameWidth:name.width,rightInset:r.right-s.right,centerY:s.y+s.height/2-r.y-r.height/2,slotOpacity:Number(getComputedStyle(slot).opacity),actionsOpacity:Number(getComputedStyle(actions).opacity),diameter:s.width,menuCenterX:m.x+m.width/2,loadingCenterX:s.x+s.width/2,fade:[...svg.querySelectorAll('line')].map(l=>getComputedStyle(l).opacity).join(),buttonsReachable:[...actions.querySelectorAll('button')].every(e=>{const a=e.getBoundingClientRect();return e.contains(document.elementFromPoint(a.x+a.width/2,a.y+a.height/2));})};})()`;
+	type Measurement = { height: number; nameX: number; nameWidth: number; rightInset: number; centerY: number; slotOpacity: number; actionsOpacity: number; diameter: number; menuCenterX: number; loadingCenterX: number; fade: string; buttonsReachable: boolean };
 	const resting = await app.evaluate<Measurement>(measurement);
 	assert.equal(resting.diameter, 14); assert.ok(resting.rightInset >= 8 && resting.rightInset <= 12);
 	assert.ok(Math.abs(resting.centerY) <= 0.5); assert.ok(Math.abs(resting.menuCenterX - resting.loadingCenterX) <= 1);
@@ -197,20 +197,20 @@ return {height:r.height,nameX:name.x,nameWidth:name.width,rightInset:r.right-s.r
 	const samples = await app.evaluate<Measurement[]>(`(async()=>{const samples=[];for(let i=0;i<24;i++){await new Promise(requestAnimationFrame);samples.push(${measurement});}return samples;})()`);
 	assert.ok(samples.every((frame) => frame.height === resting.height && frame.nameX === resting.nameX && frame.nameWidth === resting.nameWidth));
 	assert.ok(samples.some((frame) => frame.slotOpacity > 0 && frame.slotOpacity < 1), "status fades rather than jumping");
-	assert.ok(new Set(samples.map((frame) => frame.rotation)).size > 1, "the loading arc actually rotates");
+	assert.ok(new Set(samples.map((frame) => frame.fade)).size > 1, "the loading mark cycles rather than sitting still");
 	const hovered = samples.at(-1); assert.ok(hovered);
 	assert.equal(hovered.slotOpacity, 0); assert.equal(hovered.actionsOpacity, 1); assert.equal(hovered.buttonsReachable, true);
 	await shot("group-loading-hover");
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(20);
 	assert.equal((await app.evaluate<Measurement>(measurement)).slotOpacity, 1);
 	await click(heading); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-spin')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-star')})`), false);
 	await shot("group-loading-expanded");
 	const section = '[class~="group/section"]';
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-spin')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-star')})`), false);
 	await click(section); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-spin')})`), true);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-star')})`), true);
 	await click(section); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-spin')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-star')})`), false);
 	t.diagnostic(JSON.stringify({ resting, hovered, sampledFrames: samples.length, slotOpacity: samples.map((frame) => frame.slotOpacity), pinnedSection: "collapsed only" }));
 }

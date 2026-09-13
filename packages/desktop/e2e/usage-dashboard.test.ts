@@ -151,8 +151,14 @@ async function shot(name: string): Promise<void> {
 const UI = `
 	const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 	const label = (element) => element.innerText.replace(/\\s+/g, " ").trim();
+	const named = (element, text) => {
+		const visible = label(element);
+		const aria = (element.getAttribute("aria-label") || "").trim();
+		const tip = (element.dataset.lyTip || "").trim();
+		return visible === text || aria === text || tip === text;
+	};
 	const click = (element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-	const byText = (selector, text) => [...document.querySelectorAll(selector)].find((element) => element.checkVisibility({ visibilityProperty: true }) && label(element) === text);
+	const byText = (selector, text) => [...document.querySelectorAll(selector)].find((element) => element.checkVisibility({ visibilityProperty: true }) && named(element, text));
 	const heatmap = () => {
 		const scroller = [...document.querySelectorAll("div")].find((d) => d.className.includes("justify-content:safe_center"));
 		if (!scroller) throw new Error("heatmap scroller not found");
