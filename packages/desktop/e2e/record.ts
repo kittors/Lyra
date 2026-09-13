@@ -89,6 +89,14 @@ export async function startRecording(port: number, frames: Frame[]): Promise<() 
 export async function frameGrabber(port: number): Promise<{
 	evaluate: <T>(expression: string) => Promise<T>;
 	shot: () => Promise<Buffer>;
+	/**
+	 * 随便发一条 CDP 命令，走的是这条常驻连接。
+	 *
+	 * 需要它是因为有些命令**必须连着发**：`DOM.getDocument` 给的 `nodeId` 只在发出它的那个会话里
+	 * 有效，而 `app.send` 每次都新开一条连接再关掉——第二条命令拿着上一条的 nodeId 过去，得到的是
+	 * 「Could not find node with given id」。往 `<input type=file>` 里塞一个真文件正好要这么三步。
+	 */
+	send: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
 	close: () => void;
 }> {
 	const socket = new WebSocket(await pageTarget(port), { maxPayload: 256 * 1024 * 1024 });
@@ -128,6 +136,7 @@ export async function frameGrabber(port: number): Promise<{
 		},
 		shot: async () =>
 			Buffer.from((await call<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality: 92 })).data, "base64"),
+		send: <T,>(method: string, params: Record<string, unknown> = {}) => call<T>(method, params),
 		close: () => socket.close(),
 	};
 }

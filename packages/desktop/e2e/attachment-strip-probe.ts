@@ -15,8 +15,10 @@
 
 import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { frameGrabber } from "./record.ts";
 
 const MODEL = "claude-opus-4-6-thinking";
 const MODEL_PORT = 9581;
@@ -519,6 +521,68 @@ try {
 			insideAfterwards: at > ${caret.open} && at < ${caret.close + 1},
 		};
 	})()`), null, 1));
+
+	/*
+	 * 一份**真的**在磁盘上的文件，走「+」那个入口进来。
+	 *
+	 * 这是之前一直没验到的那条路。`DataTransfer` 现造的 `File` 在磁盘上没有对应物，
+	 * `webUtils.getPathForFile` 对它只能返回空串——于是每一趟探针跑下来，附件全都是「没有路径」的
+	 * 那一类，而「打开 / 在访达中显示 / 复制路径」三件事的**成功**路径一次都没走过。它们坏了很久：
+	 * 判断「取不取得到路径」用的是 `available()`，而那查的是契约表，`pathForDrop` 根本不在表里。
+	 *
+	 * `DOM.setFileInputFiles` 能把一个真文件交给 `<input type=file>`，于是这条路第一次走得通。
+	 */
+	const realFile = join(tmpdir(), "真的在磁盘上.txt");
+	await writeFile(realFile, "这份文件真的存在，所以它该能被打开、被指出位置、被复制路径。\n");
+	/*
+	 * 三条命令必须走同一条连接。
+	 *
+	 * `DOM.getDocument` 给的 `nodeId` 只在发出它的那个会话里有效，而 `app.send` 每次新开一条连接再
+	 * 关掉——第二条拿着上一条的 nodeId 过去，只会得到「Could not find node with given id」。
+	 */
+	const wire = await frameGrabber(9472);
+	try {
+		const doc = await wire.send<{ root: { nodeId: number } }>("DOM.getDocument", { depth: -1 });
+		const input = await wire.send<{ nodeId: number }>("DOM.querySelector", {
+			nodeId: doc.root.nodeId,
+			selector: 'main input[type="file"]',
+		});
+		await wire.send("DOM.setFileInputFiles", { files: [realFile], nodeId: input.nodeId });
+	} finally {
+		wire.close();
+	}
+	await new Promise((r) => setTimeout(r, 2200));
+
+	console.log("真文件的路径：", JSON.stringify(await app.evaluate<Record<string, unknown>>(`(() => {
+		const field = document.querySelector("main textarea");
+		return {
+			// 标记落进正文了没有
+			inDraft: field.value.includes("真的在磁盘上.txt"),
+		};
+	})()`)));
+
+	/* 右键那一枚，看菜单给出哪几行——这一次它该是全的。 */
+	const realToken = await app.evaluate<{ x: number; y: number } | null>(`(() => {
+		const tokens = [...document.querySelectorAll("main .ly-composer .ly-attachment-token")];
+		const target = tokens.find((t) => t.textContent.includes("真的在磁盘上"));
+		if (!target) return null;
+		const r = target.getClientRects()[0];
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	if (realToken) {
+		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
+			await app.send("Input.dispatchMouseEvent", {
+				type,
+				...realToken,
+				...(type === "mouseMoved" ? {} : { button: "right", clickCount: 1 }),
+			});
+		}
+		await new Promise((r) => setTimeout(r, 700));
+		console.log("真文件的菜单：", JSON.stringify(await app.evaluate<Record<string, unknown>>(READ_MENU), null, 1));
+		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
+		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
+		await new Promise((r) => setTimeout(r, 400));
+	}
 
 	/*
 	 * 每一枚标记那个左定界符，实际画出来有多宽。

@@ -5,18 +5,21 @@
  * 标记。差别只有一处——已经发出去的那一份不给「剪切」和「删除」，因为那是记录。差别只有一处，就没
  * 有理由让它们各写一份：四份菜单会在第三次改动时分家，而人不会因为附件换了个位置就换一套指望。
  *
- * 行的顺序和措辞照抄文件树那份（`features/files/FileMenu.tsx`）。同一台机器上「打开」和「在访达中
- * 显示」是同一件事，出现在两个地方却排成两种顺序的话，肌肉记忆每次都得重学一遍。
+ * 行的顺序照抄文件树那份（`features/files/FileMenu.tsx`）。同一台机器上「打开」和「在访达中显示」
+ * 是同一件事，出现在两个地方却排成两种顺序的话，肌肉记忆每次都得重学一遍。
  *
- * 做不到的事画成灰的，并且说出为什么。这里有两种做不到：粘贴进来的图片在磁盘上根本没有文件；项目
- * 外的文件打得开，却进不了应用内的面板。两种都不是「点了没反应」能解释的，所以它们各有一句话。
+ * 「打开」就叫打开，不写成「在 Zed 中打开」：那是设置里选的默认应用，写进菜单等于每换一次设置这行
+ * 字就变一次，而人按它要的从来只是「打开这个文件」。
+ *
+ * 只列做得到的。做不到的那些一度也列出来、灰着、各带一句为什么，而一张七行的单子上五行是灰的，读的
+ * 人第一眼看到的是「这东西基本没用」——何况那五行说的是同一件事：这份附件在磁盘上没有对应的文件。
  */
 
-import { Copy, CornerUpRight, ExternalLink, Eye, FolderOpen, Link2, Scissors, Trash2 } from "lucide-react";
+import { Copy, CornerUpRight, ExternalLink, Eye, Link2, Scissors, Trash2 } from "lucide-react";
 
 import { ContextMenu } from "../../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../../ui/overlay/Menu.tsx";
-import { openLabel, useRevealLabel } from "../../../store/open-targets.ts";
+import { useRevealLabel } from "../../../store/open-targets.ts";
 import { bridge } from "../../../services/index.ts";
 import { useApp } from "../../../store/index.ts";
 import { useAttachmentActions } from "./actions.ts";
@@ -64,14 +67,6 @@ export function AttachmentMenu({
 	if (!anchor || !file) return null;
 
 	const { onDisk } = actions.abilities(file.path);
-	/*
-	 * 为什么这一行是灰的，写成它下面常驻的一行小字。
-	 *
-	 * 不能挂 tooltip：`MenuItem` 把 `title` 接到 `data-ly-tip` 上，而**禁用的按钮不派发鼠标事件**
-	 * ——指针停上去什么都不会发生，那句解释于是永远不会出现。一个不解释自己的禁用项，和一个点下去
-	 * 没反应的按钮，对用的人是同一件事。
-	 */
-	const why = onDisk ? undefined : t("attachment.noFile");
 	/** 图片的像素在手上就能复制；文件得先在磁盘上找得到。 */
 	const canCopy = Boolean(file.src) || onDisk;
 
@@ -87,40 +82,47 @@ export function AttachmentMenu({
 
 	return (
 		<ContextMenu anchor={anchor} onClose={onClose} width="default">
-			<MenuItem
-				icon={<Eye {...ICON} />}
-				disabled={!file.onPreview}
-				{...(file.onPreview ? {} : { detail: why ?? t("attachment.outsideProject") })}
-				onClick={file.onPreview}
-			>
-				{t("attachment.preview")}
-			</MenuItem>
+			{/*
+			 * 只列做得到的。
+			 *
+			 * 上一版把做不到的也列出来，灰着，各带一句为什么——一张七行的单子上五行是灰的，读的人第
+			 * 一眼看到的是「这东西基本没用」。而那五行说的其实是同一件事：这份附件在磁盘上没有对应的
+			 * 文件（粘贴进来的截图就是这样），而那件事它自己已经说清楚了——能做的那几行还在。
+			 */}
+			{file.onPreview && (
+				<MenuItem icon={<Eye {...ICON} />} onClick={file.onPreview}>
+					{t("attachment.preview")}
+				</MenuItem>
+			)}
 
-			<MenuItem icon={<ExternalLink {...ICON} />} disabled={!onDisk} {...(why ? { detail: why } : {})} onClick={() => actions.openExternal(file)}>
-				{openLabel(actions.target)}
-			</MenuItem>
-
-			<MenuItem icon={<CornerUpRight {...ICON} />} disabled={!onDisk} {...(why ? { detail: why } : {})} onClick={() => actions.reveal(file)}>
-				{reveal}
-			</MenuItem>
+			{onDisk && (
+				<MenuItem icon={<ExternalLink {...ICON} />} onClick={() => actions.openExternal(file)}>
+					{t("common.open")}
+				</MenuItem>
+			)}
 
 			{/*
-			 * 「打开所在文件夹」和「在访达中显示」不是一件事。
+			 * 「在访达中显示」只此一条。
 			 *
-			 * 后者打开目录并把这个文件选中，前者只是打开那个目录——人要前者的时候，通常是想看它旁边
-			 * 还有什么。两个都留着，因为两种意图都常见。
+			 * 一度还有一条「打开所在文件夹」：前者打开目录并选中它，后者只打开目录——技术上确实是两
+			 * 件事，但对着菜单的人读到的是同一句话说了两遍。`reveal` 的文案本来就跟着平台走（访达 /
+			 * 文件资源管理器），一条就够。
 			 */}
-			<MenuItem icon={<FolderOpen {...ICON} />} disabled={!onDisk} {...(why ? { detail: why } : {})} onClick={() => actions.openFolder(file)}>
-				{t("attachment.openFolder")}
-			</MenuItem>
+			{onDisk && (
+				<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => actions.reveal(file)}>
+					{reveal}
+				</MenuItem>
+			)}
 
-			<MenuSeparator />
+			{canCopy && <MenuSeparator />}
 
-			<MenuItem icon={<Copy {...ICON} />} disabled={!canCopy} {...(canCopy ? {} : { detail: why })} onClick={copy}>
-				{file.src ? t("attachment.copyImage") : t("fileMenu.copyPath")}
-			</MenuItem>
+			{canCopy && (
+				<MenuItem icon={<Copy {...ICON} />} onClick={copy}>
+					{file.src ? t("attachment.copyImage") : t("fileMenu.copyPath")}
+				</MenuItem>
+			)}
 
-			{/* 图片那一行复制的是像素，路径另给一行——两样都常要。 */}
+			{/* 图片那一行复制的是像素；它同时来自磁盘的话，路径另给一行——两样都常要。 */}
 			{Boolean(file.src) && onDisk && (
 				<MenuItem icon={<Link2 {...ICON} />} onClick={() => actions.copyPath(file)}>
 					{t("fileMenu.copyPath")}
@@ -134,19 +136,19 @@ export function AttachmentMenu({
 					 * 剪切 = 复制一份出去，再从这条消息里拿掉。
 					 *
 					 * 和文件管理器里的剪切不是一回事——那边剪的是磁盘上的文件，这里剪的是「这条消息带不
-					 * 带它」。磁盘上那一份一个字节都不会动：一个输入框没有理由删掉别人的文件。
+					 * 带它」。磁盘上那一份一个字节都不会动：一个输入框没有理由删别人的文件。
 					 */}
-					<MenuItem
-						icon={<Scissors {...ICON} />}
-						disabled={!canCopy}
-						{...(canCopy ? {} : { detail: why })}
-						onClick={() => {
-							copy();
-							onRemove();
-						}}
-					>
-						{t("attachment.cut")}
-					</MenuItem>
+					{canCopy && (
+						<MenuItem
+							icon={<Scissors {...ICON} />}
+							onClick={() => {
+								copy();
+								onRemove();
+							}}
+						>
+							{t("attachment.cut")}
+						</MenuItem>
+					)}
 					<MenuItem icon={<Trash2 {...ICON} />} danger onClick={onRemove}>
 						{t("common.remove")}
 					</MenuItem>

@@ -5,14 +5,14 @@ import type {
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent, openViewer } from "../image/index.ts";
-import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, useAttachmentActions, type FileKind, type StripFile } from "../composer/index.ts";
+import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
 import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
-import { useOpenFile } from "../../store/openFile.ts";
 import { useDock } from "../dock/index.ts";
+import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -27,23 +27,6 @@ import { useI18n } from "../../i18n/index.ts";
  */
 type ImageBlock = Extract<UserContent, { type: "image" }>;
 
-/**
- * 把一份附件放进右边的文件面板。
- *
- * 写在这里而不是 `attachments/actions.ts` 里，是因为那一层还被气泡那边用着：让它去敲 dock 的门
- * 会绕出一条循环依赖——门后面挂着整棵面板树，最终又回到这个域，而 `pnpm arch` 拦的就是这个。这
- * 两个文件本来就各自有这条边，所以「打开到面板」由它们自己动手，共用的只是前面那一问。
- */
-async function openInPane(
-	path: string | undefined,
-	name: string,
-	ensureThere: (file: { name: string; path?: string }) => Promise<boolean>,
-) {
-	if (!path) return;
-	if (!(await ensureThere({ name, path }))) return;
-	void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-	useDock.getState().open("file", { kind: "conversation", side: "right", share: 0.45 });
-}
 
 
 /**
@@ -118,8 +101,6 @@ export function UserMessage({
 	const { t } = useI18n();
   const running = useApp((s) => s.running);
   const editMessage = useApp((s) => s.editMessage);
-  /** 气泡外那排附件上的动作，和输入框那排共用一套——见 `attachments/actions.ts`。 */
-  const { ensureThere } = useAttachmentActions();
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从右键的位置长。 */
   const previewImage = (src: string) => {
     const index = images.findIndex((img) => `data:${img.mimeType};base64,${img.data}` === src);
@@ -308,9 +289,6 @@ export function UserMessage({
                 index,
               )
             }
-            onPreviewFile={(file) => {
-              void openInPane(file.path, file.name, ensureThere);
-            }}
           />
         )}
       {(said || hasCapsules) && <div className="ly-user-bubble max-w-[85%] rounded-2xl bg-card px-4 py-2.5 sm:max-w-[75%]">
@@ -418,14 +396,10 @@ export function UserMessage({
                 ...(markMenu.file.path ? { path: markMenu.file.path } : {}),
                 ...(markMenu.file.src ? { src: markMenu.file.src } : {}),
                 /*
-                 * 图片的预览不需要磁盘上有文件——像素就在消息里，查看器要的只是一个放大的起点。
-                 * 这一行一度写成「有 path 才给预览」，于是一张粘贴进来的截图右键出来整张单子全是灰的。
+                 * 预览只给图片：像素就在消息里，查看器要的只是一个放大的起点。文件不给——它的预览只
+                 * 能是右边那个面板，而面板读不到项目外的东西，而附件绝大多数来自项目外。
                  */
-                ...(markMenu.file.src
-                  ? { onPreview: () => previewImage(markMenu.file.src!) }
-                  : markMenu.file.path
-                    ? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
-                    : {}),
+                ...(markMenu.file.src ? { onPreview: () => previewImage(markMenu.file.src ?? "") } : {}),
               }
             : null
         }

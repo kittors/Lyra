@@ -38,10 +38,8 @@ import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } fr
 import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
 import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
-import { useAttachmentActions } from "./attachments/actions.ts";
 import { displayName } from "./attachments/display.ts";
 import { clampToPlaceholders, placeholderAt, placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
-import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
@@ -82,23 +80,6 @@ interface Attachment {
  */
 const MAX_FILES = 8;
 
-/**
- * 把一份附件放进右边的文件面板。
- *
- * 写在这里而不是 `attachments/actions.ts` 里，是因为那一层还被气泡那边用着：让它去敲 dock 的门
- * 会绕出一条循环依赖——门后面挂着整棵面板树，最终又回到这个域，而 `pnpm arch` 拦的就是这个。这
- * 两个文件本来就各自有这条边，所以「打开到面板」由它们自己动手，共用的只是前面那一问。
- */
-async function openInPane(
-	path: string | undefined,
-	name: string,
-	ensureThere: (file: { name: string; path?: string }) => Promise<boolean>,
-) {
-	if (!path) return;
-	if (!(await ensureThere({ name, path }))) return;
-	void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-	useDock.getState().open("file", { kind: "conversation", side: "right", share: 0.45 });
-}
 
 export function Composer() {
 	const { t, resolvedLocale: locale } = useI18n();
@@ -122,8 +103,6 @@ export function Composer() {
 	/** 排着几条。只要不是零，新说的这句就得排到它们后面，不然先后就乱了。 */
 	const queuedCount = useApp((s) => (s.activeSessionId ? s.queued[s.activeSessionId]?.length ?? 0 : 0));
 	const { compact } = useLayout();
-	/** 附件那一排上「打开」「在访达中显示」走的是同一套行为，和气泡那边共用——见 `attachments/actions.ts`。 */
-	const { ensureThere } = useAttachmentActions();
 	/**
 	 * 刚按下的是哪个方向键：-1 左、1 右、0 别的。
 	 *
@@ -1066,10 +1045,7 @@ export function Composer() {
 									 * 自己。气泡那一侧没有这个问题，所以那边照样铺开。
 									 */
 									layout="row"
-									onPreviewFile={(file) => {
-										void openInPane(file.path, file.name, ensureThere);
-									}}
-									onRemove={(file) => {
+										onRemove={(file) => {
 										const target = attachments.find((a) => a.id === file.key);
 										if (target) detach(target);
 									}}
@@ -1269,17 +1245,17 @@ export function Composer() {
 									? { src: `data:${markMenu.file.mimeType};base64,${markMenu.file.data}` }
 									: {}),
 								/*
-								 * 图片的预览不需要磁盘上有文件。
+								 * 预览只给图片。
 								 *
-								 * 像素就在手上，查看器要的只是一个放大的起点。这一行一度写成「有 path 才给
-								 * 预览」，于是一张粘贴进来的截图右键出来整张单子全是灰的——包括那件它明明
-								 * 做得到的事。
+								 * 图片的预览不需要磁盘上有文件——像素就在手上，查看器要的只是一个放大的起
+								 * 点；这一行一度写成「有 path 才给」，于是一张粘贴进来的截图右键出来，连它
+								 * 明明做得到的那件事都是灰的。
+								 *
+								 * 文件不给：它的「预览」只能是右边那个文件面板，而面板读不到项目外的东西
+								 * （`files.read` 要过 `resolveReadablePath`），而附件绝大多数来自项目外。
+								 * 一个点下去会失败的菜单项比没有更糟——文件要打开，有「打开」那一行。
 								 */
-								...(markMenu.file.data && !markMenu.file.isText
-									? { onPreview: () => previewImage(markMenu.file) }
-									: markMenu.file.path
-										? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
-										: {}),
+								...(markMenu.file.data && !markMenu.file.isText ? { onPreview: () => previewImage(markMenu.file) } : {}),
 							}
 						: null
 				}
