@@ -105,14 +105,30 @@ export function ComposerShell({
 	const mirror = useRef<HTMLDivElement>(null);
 	const [composing, setComposing] = useState(false);
 	/*
+	 * 正在组字的那几个字母在哪儿。
+	 *
+	 * 组字期间 textarea 的字仍然是透明的，画字的还是镜像层——所以镜像层得知道这一段是「还没上屏
+	 * 的」，给它画上输入法那条下划线。起点在 `compositionstart` 那一刻定下：那时光标就在组字要开
+	 * 始的地方（选中一段再打字的话，选区起点就是它）。往后每次 update 只有长度在变。
+	 */
+	const [composed, setComposed] = useState<{ start: number; end: number } | null>(null);
+	/*
 	 * 有东西要画才铺镜像层。
 	 *
 	 * 三样都要问：命令、引用、附件标记。漏掉任何一样的后果都一样——那一段在屏幕上是纯黑的普通文字，
 	 * 而装饰数据算得好好的。附件标记就是这么漏过一次的。
+	 *
+	 * 组字**不**在撤下它的理由之列。一度是的——组字时整层摘掉，textarea 的字跟着变回不透明，于是
+	 * 打中文的全过程里每一枚 `【图片 1】` 都塌回成一串方括号加文件名，一个字上屏才变回来。而中文
+	 * 是每个字都要过一次组字的：那等于「打字时标记一直是坏的」，只有停下手才好。
+	 *
+	 * 不撤是成立的，因为组字中的字母**已经在受控的 `value` 里**（Chromium 组字期间照常发 `input`，
+	 * 量过：打到 `zhe` 时 value 就是 `…】zhe`，选区也同步）。镜像层照着 value 画，画出来和底下严
+	 * 丝合缝，人看见的仍然是自己正在打的那几个字母。
 	 */
 	const highlighted =
-		!composing && decoration && (Boolean(decoration.command) || Boolean(decoration.mentions?.length) || Boolean(decoration.attachments?.length))
-			? decoration
+		decoration && (Boolean(decoration.command) || Boolean(decoration.mentions?.length) || Boolean(decoration.attachments?.length))
+			? { ...decoration, ...(composed ? { composing: composed } : {}) }
 			: undefined;
 	const syncMirror = () => {
 		if (mirror.current && field.current) mirror.current.style.transform = `translateY(${-field.current.scrollTop}px)`;
@@ -246,9 +262,33 @@ export function ComposerShell({
 					onFocus={onFocus}
 					onBlur={onBlur}
 					onScroll={syncMirror}
-					onCompositionStart={() => setComposing(true)}
-					onCompositionEnd={() => setComposing(false)}
+					onCompositionStart={(e) => {
+						/*
+						 * 属性当场写一次，不等这一轮渲染。
+						 *
+						 * 读它的是别处那条光标夹取（`Composer` 里挂在 `selectionchange` 上的那个）：组字期
+						 * 间谁去动一下选区，输入法当场就散了。而组字的第一次选区变化和 `compositionstart`
+						 * 是同一帧的事，等 React 把 state 渲染出来已经晚了一步。下面那行 `data-composing`
+						 * 才是真正管着它的人，这里只是把它提前到这一刻。
+						 */
+						e.currentTarget.dataset.composing = "";
+						setComposing(true);
+						const at = e.currentTarget.selectionStart;
+						setComposed({ start: at, end: at });
+					}}
+					onCompositionUpdate={(e) =>
+						setComposed((was) => {
+							const start = was?.start ?? e.currentTarget.selectionStart - e.data.length;
+							return { start, end: start + e.data.length };
+						})
+					}
+					onCompositionEnd={(e) => {
+						delete e.currentTarget.dataset.composing;
+						setComposing(false);
+						setComposed(null);
+					}}
 					data-highlighted={Boolean(highlighted)}
+					data-composing={composing ? "" : undefined}
 					role={commandMenu ? "combobox" : undefined}
 					aria-label={t("composer.message")}
 					aria-autocomplete={commandMenu ? "list" : undefined}

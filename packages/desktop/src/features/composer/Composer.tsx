@@ -195,6 +195,13 @@ export function Composer() {
 		const clamp = () => {
 			const el = field.current;
 			if (!el || document.activeElement !== el) return;
+			/*
+			 * 组字的时候不碰选区。
+			 *
+			 * 一次 `setSelectionRange` 就能让输入法当场散掉，而那几个字母还没上屏——人打了一半的字就
+			 * 这么没了。组字中的文本落不进标记里（光标本来就进不去），所以这里让开不会漏掉什么。
+			 */
+			if (el.dataset.composing !== undefined) return;
 			const next = clampToPlaceholders(
 				el.value,
 				attachmentsRef.current,

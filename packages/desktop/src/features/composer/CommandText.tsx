@@ -17,6 +17,13 @@ export interface ComposerDecorations {
 	 * 「这个【重要】」和真正的引用长得一模一样。
 	 */
 	attachments?: { start: number; end: number; kind?: string; bodiless?: boolean }[];
+	/**
+	 * 还没上屏的那几个字母，正在等着被选成一个字。
+	 *
+	 * 输入法给这一段画一条下划线，说的是「这还没定下来」。组字期间画字的是这一层而不是 textarea
+	 * （底下那行字始终透明），那条下划线就得由这一层自己补——否则 `zhe` 看起来和已经打完的字一样。
+	 */
+	composing?: { start: number; end: number };
 }
 
 interface TextSpan {
@@ -78,6 +85,18 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		}
 	}
 
+	/*
+	 * 组字那一段排在最后加。
+	 *
+	 * 重叠时先到的那个赢（见下面那圈循环），所以它让着命令、引用和附件标记——那三样是这句话的结
+	 * 构，而这一段只是几个还没落定的字母。真重叠上的时候丢掉它只是少一条下划线，反过来丢掉的却是
+	 * 一枚标记。
+	 */
+	const composing = decoration.composing;
+	if (composing && composing.start >= 0 && composing.end <= value.length && composing.start < composing.end) {
+		segments.push({ start: composing.start, end: composing.end, className: "ly-composing-token" });
+	}
+
 	// Sort segments by start offset
 	segments.sort((a, b) => a.start - b.start);
 
@@ -130,8 +149,21 @@ export function CommandText({
 	const spans = buildDecoratedSpans(value, decoration);
 	const commandHint = decoration.command?.hint;
 
+	/*
+	 * 组字的时候这一层浮到上面去。
+	 *
+	 * 平时它铺在 textarea 底下，靠底下那行字透明透上来——够用，因为 textarea 除了字什么都不画。组
+	 * 字时不是：浏览器会给还没上屏的那几个字母刷一块不透明的高亮底，而那块底盖住的正是这一层画的同
+	 * 几个字母，于是屏幕上出现一块什么都没有的色块。浮上来之后，那块底就退成了它本来该是的样子——
+	 * 输入法给这一段打的底色，字在上面。
+	 *
+	 * 只在组字时浮。这一层不吃鼠标也不吃选择，但它毕竟带着标记那层淡底色，常态压在选区上没必要。
+	 */
 	return (
-		<div aria-hidden className={`pointer-events-none absolute inset-0 select-none overflow-hidden ${commandHint ? "ly-fade-edge" : ""}`}>
+		<div
+			aria-hidden
+			className={`pointer-events-none absolute inset-0 select-none overflow-hidden ${decoration.composing ? "z-10" : ""} ${commandHint ? "ly-fade-edge" : ""}`}
+		>
 			<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
 				{spans.map((s, idx) =>
 					s.className ? (

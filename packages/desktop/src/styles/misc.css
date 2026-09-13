@@ -416,6 +416,29 @@ textarea.ly-composer-text[data-highlighted="true"] {
 	caret-color: var(--color-ink);
 }
 
+/*
+ * 还没上屏的那几个字母。
+ *
+ * 输入法会给组字中的文字画一条下划线、有时再刷一块底色，说的是「这还没定下来」。而这个输入框里画
+ * 字的是镜像层，底下那行真字始终透明——浏览器那条下划线跟着文字色，于是也透明了，只剩那块底色孤零
+ * 零地留在屏幕上，看着像一块什么都没有的色块。所以这两样都由这一层自己画。
+ *
+ * 底色是**不透明**的（两个成分都不透明），为的就是盖住浏览器刷的那一块：它在亮色下是黄的，配上暗
+ * 色主题的浅色字，等于打到一半的字看不见了。`--color-shell` 是输入框周围那一片的底色——附件条两头
+ * 化开用的也是它，而进了代码面板它会跟着那套配色重新定义，继承下来就自动对。
+ *
+ * 宽度一格都不能变：这一层的每个字符要和底下的 textarea 严丝合缝。背景和下划线都不改变宽度，内边
+ * 距会——所以这里一个 padding 都没有。
+ */
+.ly-composing-token {
+	background: color-mix(in srgb, var(--color-accent) 18%, var(--color-shell));
+	box-decoration-break: clone;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
+	text-decoration-color: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+
 .ly-command-token {
 	color: var(--color-accent);
 	background: color-mix(in srgb, var(--color-accent) 9%, transparent);
