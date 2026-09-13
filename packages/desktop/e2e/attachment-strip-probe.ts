@@ -8,6 +8,9 @@
  *
  * 不是测试——`node e2e/attachment-strip-probe.ts`——但和测试一起放在这儿，因为它用同一套方式
  * 起窗口。跑的是 `out/` 里的产物，所以改完代码要先 `pnpm build`。
+ *
+ * `LYRA_THEME=dark` 换暗色跑一遍。附件标记的颜色是「色相由门类给、明度由主题给」，只看亮色那一张
+ * 等于只验了一半——而糊掉的那一半只在另一个主题下才现形。
  */
 
 import { createServer } from "node:http";
@@ -58,6 +61,14 @@ async function seed(home: string): Promise<void> {
 			],
 			mcpServers: [],
 			projects: [{ id: "e2e", name: "project", path: project, pinned: true, lastOpenedAt: 1 }],
+			/*
+			 * 主题在这里定，不在页面上临时加个 class。
+			 *
+			 * `applyTheme` 除了切 class 还会把整套颜色写成 `:root` 上的行内变量，而行内变量压得过任何
+			 * 规则——只加 class 的话，标记的颜色换了、它底下的背景没换，拍出来是「亮底配暗色字」，一张
+			 * 现实中不存在的图。`normalizeSettings` 会把没写的字段补成默认值，所以这里只说主题。
+			 */
+			appearance: { theme: process.env.LYRA_THEME === "dark" ? "dark" : "light" },
 			defaultModelId: `relay/${MODEL}`, permissionMode: "full", thinking: "high", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
 			sync: { enabled: false, port: 4525, token: null },
@@ -249,6 +260,7 @@ try {
 	await writeFile(`${out}-composer.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
 	console.log(`wrote ${out}-composer.png`);
 
+
 	/*
 	 * 鼠标真的停到最后一格上。
 	 *
@@ -434,15 +446,16 @@ try {
 	console.log(`wrote ${out}-at-start.png`);
 
 	/*
-	 * 取下一个，正文里指着它的记号该跟着走。
+	 * 取下一个，正文里指着它的标记该跟着走。
 	 *
-	 * 这一版的草稿里本来就不写记号，所以这里先手动种一个进去——升级前存下的草稿、从队列里退回来
-	 * 的那一条，都长这样。留着它就是一句提到了某个文件的话，而那个文件没跟着发出去。
+	 * 不另外种一个标记：正文里那十一枚是拖文件时自己落下的，用真实流程产生的东西来验，比用手摆的
+	 * 更说明问题。取下的是那份 md（标记叫「文本 1」），拿掉之后它应该从句子里消失，而后面那些表格
+	 * 的序号不受影响——它们是另一个门类，各数各的。
 	 */
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");
 		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-		setter.call(field, "照着 【交接说明.md】 改一版");
+		setter.call(field, field.value + " 照着改一版");
 		field.dispatchEvent(new Event("input", { bubbles: true }));
 		return true;
 	})()`);
@@ -474,7 +487,8 @@ try {
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");
 		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-		setter.call(field, "这几个文件看一下");
+		// 接在标记后面，不是覆盖：气泡里那几枚标签正是这一步要看的东西。
+		setter.call(field, field.value + " 这几个文件看一下");
 		field.dispatchEvent(new Event("input", { bubbles: true }));
 		field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 		return true;

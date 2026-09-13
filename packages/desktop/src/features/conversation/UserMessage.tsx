@@ -6,7 +6,7 @@ import type {
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
 import { AttachmentStrip, fileKind, KIND_LABEL, useAttachmentActions, type FileKind, type StripFile } from "../composer/index.ts";
-import { isAttachmentBody, stripPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
@@ -63,14 +63,28 @@ function attachmentsOf(
 ): StripFile[] {
   const files: StripFile[] = [];
   let at = 0;
+  /* 「图片 2」里的那个 2 数的是同门类里的第几个，和输入框那边、和提示词里是同一个数。 */
+  const seen = new Map<FileKind, number>();
   for (const [index, file] of (message.attachments ?? []).entries()) {
     const kind = (file.kind as FileKind | undefined) ?? fileKind(file.name, file.mimeType ?? "");
+    const kindIndex = (seen.get(kind) ?? 0) + 1;
+    seen.set(kind, kindIndex);
     const block = kind === "image" ? images[at] : undefined;
     if (block) at++;
     files.push({
       key: `${index}-${file.name}`,
       name: file.name,
       kind,
+      /*
+       * 正文里那枚标记写的名字：「表格 2」，门类加序号。
+       *
+       * 存下来的优先，没存的按**和输入框同一套规则**现算——这里一度用的是「有真名就用真名」那一套
+       * （`displayName`，附件条上写的那个），于是 `【图片 1】` 在气泡里配不上任何一份附件，整句话
+       * 里十一枚标记只有一枚被认出来，其余退化成一串方括号。两处规则必须是同一条。
+       *
+       * 老消息的标记写的是文件名，那一种由 `scanPlaceholders` 一并认（见 `answersTo`）。
+       */
+      label: file.label ?? `${label(kind)} ${kindIndex}`,
       tip: `${file.name}\n${label(kind)}`,
       ...(block ? { src: `data:${block.mimeType};base64,${block.data}` } : {}),
       /*
@@ -133,15 +147,19 @@ export function UserMessage({
     () => attachmentsOf(message, images, (kind) => t(KIND_LABEL[kind])),
     [message, images, t],
   );
+  const text = message.displayText ?? rawText;
   /*
-   * 认得出的 `【文件名】` 不进气泡。
+   * 认得出的 `【图片 1】` 画成一枚标签，认不出的原样留着。
    *
-   * 新发出去的消息里已经没有了，但升级前发的那些还带着——留着就是同一个文件说两遍：气泡里一
-   * 遍名字，气泡外那排附件上又一遍，而图片的两遍还长得毫不相干，一边是像素一边是紫色图标。
+   * 它一度是被整个剥掉的，理由是「同一个文件说两遍」——气泡里一遍名字，气泡外那排附件上又一遍。
+   * 那个理由只在标记是一串裸方括号时成立：外面那排答的是「这条消息带了什么」，句子里这一枚答的是
+   * 「我这句话说的是哪一个」，剥掉之后「照着它改一版」里的「它」就没有着落了。
+   *
+   * 「这个【重要】」不会被误认：方括号在中文里是普通标点，配不上任何一个附件的名字就当作人打的字。
    */
-  const text = useMemo(
-    () => stripPlaceholders(message.displayText ?? rawText, message.attachments ?? []),
-    [message.displayText, rawText, message.attachments],
+  const spoken = useMemo(
+    () => placeAttachments(text, files.map((file) => ({ name: file.name, label: file.label, kind: file.kind }))).segments,
+    [text, files],
   );
   const said = text.trim();
 
@@ -320,7 +338,17 @@ export function UserMessage({
           * 任何东西。
           */}
         {said && (
-          <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">{text}</p>
+          <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">
+            {spoken.map((segment, at) =>
+              segment.kind === "text" ? (
+                segment.text
+              ) : (
+                <span key={at} className="ly-attachment-token" data-kind={segment.file.kind}>
+                  {segment.file.label ?? segment.file.name}
+                </span>
+              ),
+            )}
+          </p>
         )}
       </div>}
 

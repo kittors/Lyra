@@ -1,21 +1,21 @@
 /**
- * 附件的次序，和它的正文该出现在哪儿。
+ * 附件的次序，和它在句子里站的位置。
  *
- * 一份草稿从前是「一段文字加一袋文件」，而那个袋子没有次序：图片一律排在最前，文档一律缀在
- * 最后，不管人是按什么顺序放进去的。一个文件时看不出来；「拿这张截图跟旧的那张比一比」时那
- * 就是整句话的意思，而它在模型看到之前就被丢掉了。
+ * 一份草稿从前是「一段文字加一袋文件」，而那个袋子没有次序：图片一律排在最前，文档一律缀在最后，
+ * 不管人是按什么顺序放进去的。一个文件时看不出来；「拿这张截图跟旧的那张比一比」时那就是整句话的
+ * 意思，而它在模型看到之前就被丢掉了。
  *
- * 那一版的做法是往草稿里写一个 `【report.md】`，让次序活在唯一一个天然能扛住编辑、撤销、排队
- * 和从队列里退回来的地方——正文本身。次序是保住了，代价是人得一直看着它：输入框里凭空多出一
- * 串方括号，发出去以后气泡里又是一遍文件名，而同一张图的缩略图就挂在气泡外面。为了一个「把图
- * 插在句子中间」的罕见用法，每个人每次拖文件都要付这笔钱。
+ * 做法是往正文里写一个记号，让次序活在唯一一个天然能扛住编辑、撤销、排队和从队列里退回来的地方
+ * ——正文本身。这套记号一度被整个拿掉，因为它那时写的是文件名：拖六个文件进来，输入框当场变成三行
+ * 方括号，发出去以后气泡里又是一遍，而同一张图的缩略图就挂在气泡外面。
  *
- * 所以现在次序就是拖进来的次序，附件整体排在正文前面——见 `composer/outgoing.ts`。真正被放弃
- * 的只有「嵌在句子中间」这一种，而「图片一律在前、文档一律在后」那个原始毛病仍然是好的。
+ * 现在它回来了，换了两处：记号写的是「图片 1」「表格 2」——门类加序号，短，而且正是人指认附件时说
+ * 的话；两头都把它画成一枚带色的标签（输入框里是镜像层上的高亮，气泡里是个真的 span），而不是一串
+ * 裸方括号。于是它不再是噪声，而是句子的一部分：「照着 【表格 1】 改一版」里的那个「表格 1」，和上
+ * 面那一排里的某一格是同一个东西，删掉那一格它就跟着消失。
  *
- * 这个模块因此变成一条只读的兼容路径：新的草稿不再产生 `【】`，但升级前存下的草稿和已经躺在
- * 转录里的消息还带着它们，得读得懂。匹配按名字加序号：文中第二个 `【shot.png】` 认的是第二个
- * 叫 `shot.png` 的附件。
+ * 匹配按名字加序号：文中第二个 `【表格 1】` 认的是第二个叫「表格 1」的附件。升级前存下的草稿和转录
+ * 里的老消息写的是文件名，那一种也认——见 `answersTo`。
  */
 
 /** 从前写进草稿的那个记号。如今只有测试和读旧数据的路径还用得上它。 */
@@ -80,6 +80,105 @@ export function isAttachmentBody(text: string): boolean {
 
 type Segment<File> = { kind: "text"; text: string } | { kind: "file"; file: File };
 
+/** 正文里一处认得出的标记：它在哪儿，指的是谁。 */
+export interface Placeholder<File> {
+	start: number;
+	/** 闭合的 `】` 之后一位，可以直接拿去 `slice`。 */
+	end: number;
+	file: File;
+}
+
+/**
+ * 标记在正文里叫什么。
+ *
+ * 不是文件名：一张粘贴进来的图在界面上叫「图片 1」，而它的 `name` 是剪贴板给的 `image.png`——
+ * 正文里的标记要和人在附件条上看到的那个名字一字不差，否则「删掉图片 1」这句话里说的东西和屏幕
+ * 上的对不上。给模型看的仍然是 `name`，两者分开走。
+ */
+function answersTo(file: { name: string; label?: string }, written: string): boolean {
+	/*
+	 * 真名也认。
+	 *
+	 * 升级前写进草稿和转录的标记用的是文件名（`【image.png】`），而现在写的是界面上那个名字
+	 * （`【图片 1】`）。只认后者的话，那些旧消息的标记会全部退化成普通文字——气泡里凭空多出一串
+	 * 方括号，而它本来是一枚标签。
+	 */
+	return file.label === written || file.name === written;
+}
+
+/**
+ * 扫出正文里所有认得出的标记，带位置。
+ *
+ * 解析只有这一处。`placeAttachments` 当初把「切开正文」和「找出标记」揉在一起，于是想知道「第二
+ * 个标记在第几个字符」的调用方只能再写一遍同样的扫描——而两份扫描迟早对不齐，对不齐的表现是正文
+ * 里某一段被高亮成了别的东西。
+ *
+ * 匹配按名字加次序：第二个 `【图片 1】` 认的是第二个叫「图片 1」的附件。认不出的 `【…】` 原样
+ * 留着——中文里方括号是普通标点，一句「这个【重要】」不是在引用任何东西。
+ */
+export function scanPlaceholders<File extends { name: string; label?: string }>(
+	text: string,
+	files: File[],
+): Placeholder<File>[] {
+	const hits: Placeholder<File>[] = [];
+	if (!text.includes("【")) return hits;
+	const taken = new Set<File>();
+	let at = 0;
+
+	while (at < text.length) {
+		const open = text.indexOf("【", at);
+		if (open === -1) break;
+		const close = text.indexOf("】", open + 1);
+		if (close === -1) break;
+		const name = text.slice(open + 1, close);
+		const file = files.find((candidate) => answersTo(candidate, name) && !taken.has(candidate));
+		if (!file) {
+			// 不是引用。从开头那个括号之后接着找，这样 【a【b.md】 还能找到里面那个名字。
+			at = open + 1;
+			continue;
+		}
+		hits.push({ start: open, end: close + 1, file });
+		taken.add(file);
+		at = close + 1;
+	}
+
+	return hits;
+}
+
+/**
+ * 附件的名字变了，正文里指着它的标记跟着改。
+ *
+ * 序号会变：删掉「图片 1」之后，原来的「图片 2」就成了「图片 1」——附件条上是自动重编的，正文里
+ * 那句「照着 【图片 2】 改」如果不动，指的就是一个不存在的编号了。
+ *
+ * 定位用的是**改名之前**的那份列表，所以不存在「认不出」的问题：先按旧名字把位置扫出来，再一次
+ * 性写成新名字。
+ */
+export function renamePlaceholders<File extends { name: string; label?: string }>(
+	text: string,
+	before: File[],
+	nameAfter: (file: File) => string | null,
+): string {
+	const hits = scanPlaceholders(text, before);
+	if (hits.length === 0) return text;
+
+	let out = "";
+	let cursor = 0;
+	for (const hit of hits) {
+		out += text.slice(cursor, hit.start);
+		const next = nameAfter(hit.file);
+		// `null` 是「这一份已经不在了」——标记跟着走，剩下的空档在下面收干净。
+		if (next !== null) out += placeholderFor(next);
+		cursor = hit.end;
+	}
+	out += text.slice(cursor);
+
+	return out
+		.replace(/[ \t]{2,}/g, " ")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
 export interface Placement<File> {
 	/** The draft cut at its placeholders, in reading order. */
 	segments: Segment<File>[];
@@ -100,66 +199,25 @@ export interface Placement<File> {
  * A `【…】` that names nothing stays as literal text — the brackets are ordinary punctuation in
  * Chinese, and a message that happens to contain 【重要】 is not making a reference to anything.
  */
-export function placeAttachments<File extends { name: string }>(text: string, files: File[]): Placement<File> {
+export function placeAttachments<File extends { name: string; label?: string }>(text: string, files: File[]): Placement<File> {
 	const segments: Segment<File>[] = [];
-	const taken = new Set<File>();
-	let plain = "";
-	let at = 0;
+	const hits = scanPlaceholders(text, files);
+	const taken = new Set<File>(hits.map((hit) => hit.file));
+	let cursor = 0;
 
-	while (at < text.length) {
-		const open = text.indexOf("【", at);
-		if (open === -1) break;
-		const close = text.indexOf("】", open + 1);
-		if (close === -1) break;
-		const name = text.slice(open + 1, close);
-		const file = files.find((candidate) => candidate.name === name && !taken.has(candidate));
-		if (!file) {
-			// Not a reference. Keep the brackets and carry on looking after the opening one, so
-			// 【a【b.md】 still finds the inner name.
-			plain += text.slice(at, open + 1);
-			at = open + 1;
-			continue;
-		}
-		plain += text.slice(at, open);
+	for (const hit of hits) {
+		const plain = text.slice(cursor, hit.start);
 		if (plain) segments.push({ kind: "text", text: plain });
-		plain = "";
-		segments.push({ kind: "file", file });
-		taken.add(file);
-		at = close + 1;
+		segments.push({ kind: "file", file: hit.file });
+		cursor = hit.end;
 	}
 
-	plain += text.slice(at);
-	if (plain) segments.push({ kind: "text", text: plain });
+	const tail = text.slice(cursor);
+	if (tail) segments.push({ kind: "text", text: tail });
 
 	return { segments, unplaced: files.filter((file) => !taken.has(file)) };
 }
 
-/**
- * 取下一份附件时，正文里指着它的那个记号跟着走。
- *
- * 留下来的话，正文里就有一个指向不存在之物的名字：一句「照着 【模板.xlsx】 填」，而模板没有跟着
- * 发出去。模型只能按那句话答，答出来的东西没有依据。
- *
- * 按引用配对，不按名字。两份附件重名是常事（同一个模板拖了两次），而 `placeAttachments` 是按出现
- * 次序把第 n 个 `【模板.xlsx】` 配给第 n 个同名附件的——删掉后一份时，被抠走的必须是后一个记号。
- * 从前那一版在这里用 `indexOf` 找第一个同名的，剩下那份就此失去位置。
- *
- * 记号让位之后留下的空档要一起收干净，理由和 `stripPlaceholders` 那边一样：一条自己发出去的消息
- * 里出现一段莫名其妙的空白，比留着文件名还难解释。
- */
-export function dropPlaceholder<File extends { name: string }>(text: string, files: File[], target: File): string {
-	if (!text.includes("【")) return text;
-	const { segments } = placeAttachments(text, files);
-	// 正文里本来就没提它——常态，因为新的草稿不写记号了。原样退回，别去动人打的字。
-	if (!segments.some((segment) => segment.kind === "file" && segment.file === target)) return text;
-	return segments
-		.filter((segment) => !(segment.kind === "file" && segment.file === target))
-		.map((segment) => (segment.kind === "text" ? segment.text : placeholderFor(segment.file.name)))
-		.join("")
-		.replace(/[ \t]{2,}/g, " ")
-		.replace(/\n{3,}/g, "\n\n")
-		.trim();
-}
 
 /**
  * 只留人打的字：认得出的 `【文件名】` 从给人看的那一份里拿掉。

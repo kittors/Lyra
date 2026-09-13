@@ -152,6 +152,50 @@ export type StopReason = "pending" | "stop" | "length" | "toolUse" | "error" | "
 // Messages
 // ---------------------------------------------------------------------------
 
+/**
+ * One attached file, as a message records it.
+ *
+ * A named type rather than the shape written inline, which is what it used to be — in nine places
+ * across seven files, because every layer between the composer and the session log restates the
+ * option bag it forwards. Two fields were added to the message and reached none of those
+ * signatures; the values still flowed (a structural type does not strip anything at runtime), but
+ * the next person to write against the type would have dropped them, and the one after that would
+ * have had no way to know they existed.
+ */
+export interface MessageAttachment {
+	name: string;
+	/** `fileKind` on the desktop side — image, document, archive, text. Purely for the icon. */
+	kind?: string;
+	mimeType?: string;
+	/**
+	 * Where the file came from on this machine, when it came from a file at all.
+	 *
+	 * What it buys: a sent message can still offer to open the spreadsheet it carried, or show it
+	 * where it lives. Without it the bubble knows a name and nothing else, so the only honest
+	 * thing it can do with a file it is displaying is display it.
+	 *
+	 * Optional because a good share of attachments never were files. A pasted screenshot, a
+	 * region grabbed inside the app — those are pixels in memory with a name invented for them,
+	 * and there is nothing on disk to open. Absent is also what every message written before this
+	 * field existed looks like, which is the same thing and wants the same treatment: offer
+	 * nothing rather than offer something that fails.
+	 *
+	 * Not a promise that the file is still there. It records where it was at send time; anything
+	 * acting on it checks first, because the transcript outlives the file by design.
+	 */
+	path?: string;
+	/**
+	 * What it was called on screen — 「图片 1」 for a pasted screenshot whose `name` is the
+	 * `image.png` the clipboard invented.
+	 *
+	 * Kept because the message text refers to it by this name: a draft writes 【图片 1】 where the
+	 * file was dropped, and the bubble has to find that mark again to draw it as a label rather
+	 * than as a stray pair of brackets. Absent on messages written before labels existed, where
+	 * the mark spelled the filename instead — both are still recognised.
+	 */
+	label?: string;
+}
+
 export interface UserMessage {
 	role: "user";
 	content: UserContent[];
@@ -196,6 +240,7 @@ export interface UserMessage {
 		id: string;
 		title: string;
 	}>;
+
 	/**
 	 * The files that were attached, by name and kind — never their contents.
 	 *
@@ -207,29 +252,7 @@ export interface UserMessage {
 	 * Metadata only, deliberately. The contents are already in `content`; a second copy here would
 	 * double the size of every session log for something no reader ever looks at.
 	 */
-	attachments?: Array<{
-		name: string;
-		/** `fileKind` on the desktop side — image, document, archive, text. Purely for the icon. */
-		kind?: string;
-		mimeType?: string;
-		/**
-		 * Where the file came from on this machine, when it came from a file at all.
-		 *
-		 * What it buys: a sent message can still offer to open the spreadsheet it carried, or show it
-		 * where it lives. Without it the bubble knows a name and nothing else, so the only honest
-		 * thing it can do with a file it is displaying is display it.
-		 *
-		 * Optional because a good share of attachments never were files. A pasted screenshot, a
-		 * region grabbed inside the app — those are pixels in memory with a name invented for them,
-		 * and there is nothing on disk to open. Absent is also what every message written before this
-		 * field existed looks like, which is the same thing and wants the same treatment: offer
-		 * nothing rather than offer something that fails.
-		 *
-		 * Not a promise that the file is still there. It records where it was at send time; anything
-		 * acting on it checks first, because the transcript outlives the file by design.
-		 */
-		path?: string;
-	}>;
+	attachments?: MessageAttachment[];
 }
 
 export interface AssistantMessage {

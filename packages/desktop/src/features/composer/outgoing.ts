@@ -13,7 +13,7 @@ import type { UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
 
-import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments, stripPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -28,6 +28,8 @@ interface OutgoingAttachment {
 	isText?: boolean;
 	/** 磁盘上的位置，跟着消息一起留在转录里——发出去之后还要靠它打开那个文件。 */
 	path?: string;
+	/** 界面上叫什么。正文里那枚标记写的是它，附件要按标记的位置排就得靠它配对。 */
+	label?: string;
 }
 
 export interface OutgoingDraft {
@@ -43,7 +45,7 @@ export interface Outgoing {
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: { id: string; title: string }[];
 	/** 名字和门类，给气泡外那排格子用；正文不在里面，见 `UserMessage.attachments`。 */
-	attachments?: { name: string; kind?: string; mimeType?: string; path?: string }[];
+	attachments?: { name: string; kind?: string; mimeType?: string; path?: string; label?: string }[];
 	/** 命令自己声明的投递方式——见 `SlashCommand.deliver`。 */
 	deliver?: "steer" | "followUp";
 }
@@ -247,18 +249,21 @@ export async function buildOutgoing(
 	return {
 		content,
 		/*
-		 * 给人看的那一份里不留 `【文件名】`。
+		 * 标记留在给人看的那一份里。
 		 *
-		 * 新的草稿不会有，但升级前存下的还带着——留着它，气泡里就是一遍文件名，气泡外面那排附件
-		 * 上又是一遍，同一个文件说两次。
+		 * 它一度是被剥掉的，理由是「同一个文件说两次」——气泡里一遍文件名，气泡外那排附件上又一遍。
+		 * 那个理由只在标记是一串裸方括号时成立：现在它画成一枚标签，说的也不是同一件事——外面那排
+		 * 答的是「这条消息带了什么」，句子里这一枚答的是「我这句话说的是哪一个」。剥掉之后，一句
+		 * 「照着它改一版」里的「它」就没有着落了。
 		 */
-		...(displayText !== undefined ? { displayText: stripPlaceholders(displayText, draft.attachments) } : {}),
+		...(displayText !== undefined ? { displayText } : {}),
 		...(skillRef ? { skillRef } : {}),
 		...(draft.sessionRefs.length > 0 ? { sessionRefs: draft.sessionRefs } : {}),
 		...(draft.attachments.length > 0
 			? {
 					attachments: draft.attachments.map((file) => ({
 						name: file.name,
+						...(file.label ? { label: file.label } : {}),
 						...(file.kind ? { kind: file.kind } : {}),
 						...(file.mimeType ? { mimeType: file.mimeType } : {}),
 						/*

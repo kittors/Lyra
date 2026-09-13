@@ -38,7 +38,7 @@ import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } fr
 import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
 import { useAttachmentActions } from "./attachments/actions.ts";
-import { dropPlaceholder } from "../../lib/attachment-placeholders.ts";
+import { placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
@@ -62,6 +62,14 @@ interface Attachment {
 	 * 是因为附件里从来就没记下这个。粘贴进来的截图没有：那是剪贴板里的一团像素，不是某个文件。
 	 */
 	path?: string;
+	/**
+	 * 界面上管它叫什么——附件条上那一格写的，和正文里那枚标记写的，是同一个。
+	 *
+	 * 和 `name` 分开：一张粘贴进来的图的 `name` 是剪贴板给的 `image.png`，而屏幕上它是「图片 1」。
+	 * 模型看到的仍然是 `name`，人看到的是这个。序号会随删除变动，所以它不是一次算定的——见
+	 * `relabel`。
+	 */
+	label?: string;
 }
 
 /**
@@ -114,6 +122,36 @@ export function Composer() {
 	const { compact } = useLayout();
 	/** 附件那一排上「打开」「在访达中显示」走的是同一套行为，和气泡那边共用——见 `attachments/actions.ts`。 */
 	const { ensureThere } = useAttachmentActions();
+
+	/**
+	 * 给一份附件列表重新编号。
+	 *
+	 * 「图片 2」里的那个 2 是它在同门类里的位置，而位置会因为别人被删掉而改变——所以名字不是一次
+	 * 算定的，每次列表变动都要整份重来。附件条上和正文里的标记读的是同一个字段，两边因此不会各说
+	 * 各话。
+	 */
+	const relabel = useCallback(
+		(files: Attachment[]): Attachment[] => {
+			const seen = new Map<FileKind, number>();
+			return files.map((file) => {
+				const kind = file.kind ?? (file.isText ? "text" : "binary");
+				const kindIndex = (seen.get(kind) ?? 0) + 1;
+				seen.set(kind, kindIndex);
+				/*
+				 * 「表格 2」，不是那个二十一个字的文件名。
+				 *
+				 * 标记是嵌在句子里的，写全名的话，拖六个文件进来输入框当场变成三行方括号——那正是这
+				 * 套记号当初被拿掉的原因。而人指认附件说的本来就是「第二张图」「那个表格」：序数加
+				 * 门类，几乎从不是文件名。全名在附件条那一格上，一眼就能看到。
+				 *
+				 * 序号和提示词里 `image 2 of 3` 数的是同一个数（见 `attachment-placeholders.ts`），
+				 * 所以「看图片 2」在两边指的是同一张。
+				 */
+				return { ...file, label: `${t(KIND_LABEL[kind])} ${kindIndex}` };
+			});
+		},
+		[t],
+	);
 
 	const draftKey = activeSessionId
 		? activeSessionId
@@ -264,8 +302,18 @@ export function Composer() {
 		return {
 			command: slash.decoration,
 			mentions: mention.mentionDecorations,
+			/*
+			 * 认得出的那些标记画成标签，认不出的原样留着。
+			 *
+			 * 「这个【重要】」在中文里是普通标点，不是引用——扫描按名字配对，配不上就当作人打的字。
+			 */
+			attachments: scanPlaceholders(text, attachments).map(({ start, end, file }) => ({
+				start,
+				end,
+				kind: file.kind ?? (file.isText ? "text" : "binary"),
+			})),
 		};
-	}, [slash.decoration, mention.mentionDecorations]);
+	}, [slash.decoration, mention.mentionDecorations, text, attachments]);
 	const submitting = useRef(new Map<string, symbol>());
 
 	const modelMenu = usePopover();
@@ -440,6 +488,8 @@ export function Composer() {
 		if (picked.length === 0) return;
 		const next: Attachment[] = [];
 		const refused: string[] = [];
+		/* 在读字节之前问一次：抽一份三百页 PDF 的文本要几百毫秒，那之后光标早不在原地了。 */
+		const caret = field.current?.selectionStart ?? textRef.current.length;
 
 		/*
 		 * 一次最多八个，而且要说出来。
@@ -544,7 +594,42 @@ export function Composer() {
 				.getState()
 				.notify(translate("composer.unreadableAsText", { names: refused.join("、") }), "warn");
 		}
-		if (next.length > 0) setAttachments((prev) => [...prev, ...next]);
+		if (next.length === 0) return;
+
+		/*
+		 * 附件进来的同时，正文里落下一枚标记。
+		 *
+		 * 上面那一排答的是「这条消息带了什么」，而这一枚答的是「我这句话里说的是哪一个」——「照着
+		 * 【图片 1】 改一版」，没有它，一句提到了某张图的话和那张图之间没有任何东西连着。它也是
+		 * 次序的所在：模型收到的附件按标记在句子里的先后排（见 `outgoing.ts`）。
+		 *
+		 * 落在光标处，因为人是在句子的某个位置放下这份文件的。`caret` 在读文件之前就记下了：读一份
+		 * 三百页的 PDF 要几百毫秒，那期间光标早就不在原地了。
+		 */
+		const before = attachmentsRef.current;
+		const grown = relabel([...before, ...next]);
+		setAttachments(grown);
+
+		const marks = grown
+			.slice(before.length)
+			.map((file) => placeholderFor(file.label ?? file.name))
+			.join(" ");
+		setText((current) => {
+			const at = Math.min(caret, current.length);
+			const head = current.slice(0, at);
+			const tail = current.slice(at);
+			// 前后各留一个空格，除非那儿本来就有空白或者根本没有字——不然标记会和人打的字黏在一起。
+			const lead = head && !/\s$/.test(head) ? " " : "";
+			const trail = tail && !/^\s/.test(tail) ? " " : "";
+			return `${head}${lead}${marks}${trail}${tail}`;
+		});
+		/* 光标落在标记后面，人接着打的字就跟在它后头。 */
+		requestAnimationFrame(() => {
+			const el = field.current;
+			if (!el) return;
+			const to = Math.min(caret, el.value.length) + marks.length + 1;
+			el.setSelectionRange(to, to);
+		});
 	}
 
 	/**
@@ -556,11 +641,22 @@ export function Composer() {
 	 *
 	 * 按**引用**找，不按名字找。从前这里是 `indexOf` 第一个同名的：附两张都叫 `shot.png` 的图、
 	 * 删掉后一张，被抠走的是前一张的记号，剩下那张就此失去位置。`placeAttachments` 是按次序配对
-	 * 的，第二个 `【shot.png】` 认的就是第二个 `shot.png`——见 `dropPlaceholder`。
+	 * 的，第二个 `【表格 1】` 认的就是第二个叫「表格 1」的附件——见 `renamePlaceholders`。
 	 */
 	function detach(target: Attachment) {
-		setAttachments((prev) => prev.filter((a) => a.id !== target.id));
-		setText((current) => dropPlaceholder(current, attachmentsRef.current, target));
+		const before = attachmentsRef.current;
+		const remaining = before.filter((a) => a.id !== target.id);
+		const relabelled = relabel(remaining);
+		/*
+		 * 旧的那份列表用来定位，新的名字用来改写。
+		 *
+		 * 两步必须在一次里做完：删掉「图片 1」之后，原来的「图片 2」就成了「图片 1」，而正文里那句
+		 * 「照着 【图片 2】 改」如果不跟着改，指的就是一个不存在的编号。按旧名字扫出位置、按新名字
+		 * 写回去，中间不存在「认不出」的窗口。
+		 */
+		const renamed = new Map(remaining.map((file, index) => [file, relabelled[index].label ?? file.name]));
+		setAttachments(relabelled);
+		setText((current) => renamePlaceholders(current, before, (file) => renamed.get(file) ?? null));
 	}
 
 	const takeScreenshot = useCallback(async () => {
@@ -617,6 +713,11 @@ export function Composer() {
 			key: attachment.id,
 			name: attachment.name,
 			kind,
+			/*
+			 * 格子上写全名，正文里那枚标记写「表格 2」——两者不是同一个字符串，也不该是。
+			 * 这里传的是标记名，格子拿它只用在一种情况下：文件本来就没有像样的名字（粘贴进来的图）。
+			 */
+			...(attachment.label ? { label: attachment.label } : {}),
 			...(attachment.data && !attachment.isText
 				? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
 				: {}),

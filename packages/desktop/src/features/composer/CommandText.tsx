@@ -9,11 +9,21 @@ interface MentionDecoration {
 export interface ComposerDecorations {
 	command?: CommandDecoration;
 	mentions?: MentionDecoration[];
+	/**
+	 * 正文里代表附件的那些标记，`【图片 1】`。
+	 *
+	 * 它们是人打出来的字里唯一一段「不是字」的东西：指的是上面那一排里的某一个附件，删掉那个附件
+	 * 它就该消失。画成一枚标签而不是一串方括号，是因为方括号在中文里是普通标点——不画出来的话，
+	 * 「这个【重要】」和真正的引用长得一模一样。
+	 */
+	attachments?: { start: number; end: number; kind?: string }[];
 }
 
 interface TextSpan {
 	text: string;
 	className?: string;
+	/** 附件标记按门类上色，色值由 `.ly-attachment-token[data-kind]` 给。 */
+	kind?: string;
 }
 
 /** Split text by non-overlapping ranges and mark matched spans. */
@@ -22,6 +32,8 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		start: number;
 		end: number;
 		className: string;
+		/** 附件标记才有：门类决定它是哪种颜色。 */
+		kind?: string;
 	}
 
 	const segments: Segment[] = [];
@@ -45,6 +57,19 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		}
 	}
 
+	if (decoration.attachments) {
+		for (const a of decoration.attachments) {
+			if (a.start >= 0 && a.end <= value.length && a.start < a.end) {
+				segments.push({
+					start: a.start,
+					end: a.end,
+					className: "ly-attachment-token",
+					...(a.kind ? { kind: a.kind } : {}),
+				});
+			}
+		}
+	}
+
 	// Sort segments by start offset
 	segments.sort((a, b) => a.start - b.start);
 
@@ -62,6 +87,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		spans.push({
 			text: value.slice(seg.start, seg.end),
 			className: seg.className,
+			...(seg.kind ? { kind: seg.kind } : {}),
 		});
 		cursor = seg.end;
 	}
@@ -91,7 +117,7 @@ export function CommandText({
 			<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
 				{spans.map((s, idx) => (
 					s.className ? (
-						<span key={idx} className={s.className}>
+						<span key={idx} className={s.className} data-kind={s.kind}>
 							{s.text}
 						</span>
 					) : (

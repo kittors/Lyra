@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { dropPlaceholder, placeAttachments, placeholderFor, isAttachmentBody, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
+import { placeAttachments, placeholderFor, isAttachmentBody, renamePlaceholders, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
 
 const file = (name: string) => ({ name });
 
@@ -90,7 +90,7 @@ test("取下一份附件，正文里指着它的那个记号跟着走", () => {
 	const a = file("a.png");
 	const b = file("b.md");
 	assert.equal(
-		dropPlaceholder(`看这张 ${placeholderFor("a.png")} 再看 ${placeholderFor("b.md")} 谢谢`, [a, b], a),
+		renamePlaceholders(`看这张 ${placeholderFor("a.png")} 再看 ${placeholderFor("b.md")} 谢谢`, [a, b], (f) => (f === a ? null : f.name)),
 		`看这张 再看 ${placeholderFor("b.md")} 谢谢`,
 	);
 });
@@ -103,20 +103,45 @@ test("两份重名的附件，抠掉的是被取下的那一个", () => {
 	const first = file("shot.png");
 	const second = file("shot.png");
 	const text = `先看 ${placeholderFor("shot.png")} 再看 ${placeholderFor("shot.png")}`;
-	assert.equal(dropPlaceholder(text, [first, second], second), `先看 ${placeholderFor("shot.png")} 再看`);
-	assert.equal(dropPlaceholder(text, [first, second], first), `先看 再看 ${placeholderFor("shot.png")}`);
+	assert.equal(renamePlaceholders(text, [first, second], (f) => (f === second ? null : f.name)), `先看 ${placeholderFor("shot.png")} 再看`);
+	assert.equal(renamePlaceholders(text, [first, second], (f) => (f === first ? null : f.name)), `先看 再看 ${placeholderFor("shot.png")}`);
 });
 
 test("正文里没提它，就一个字都不要动", () => {
 	// 新的草稿根本不写记号，所以这是最常走的一条路：人打的字不该因为取下一个附件而被重排。
 	const a = file("a.png");
-	assert.equal(dropPlaceholder("帮我看看这个  两个空格", [a], a), "帮我看看这个  两个空格");
-	assert.equal(dropPlaceholder("这个【重要】要注意", [a], a), "这个【重要】要注意");
+	assert.equal(renamePlaceholders("帮我看看这个  两个空格", [a], () => null), "帮我看看这个  两个空格");
+	assert.equal(renamePlaceholders("这个【重要】要注意", [a], () => null), "这个【重要】要注意");
 });
 
 test("记号让位之后留下的空档收干净", () => {
 	const a = file("a.png");
 	// 一条自己发出去的消息里出现一段莫名其妙的空白，比留着文件名还难解释。
-	assert.equal(dropPlaceholder(`${placeholderFor("a.png")}`, [a], a), "");
-	assert.equal(dropPlaceholder(`看 ${placeholderFor("a.png")} 这里`, [a], a), "看 这里");
+	assert.equal(renamePlaceholders(`${placeholderFor("a.png")}`, [a], () => null), "");
+	assert.equal(renamePlaceholders(`看 ${placeholderFor("a.png")} 这里`, [a], () => null), "看 这里");
+});
+
+test("别人被取下之后，剩下那些的序号跟着改", () => {
+	/*
+	 * 删掉「图片 1」之后，原来的「图片 2」就成了「图片 1」——附件条上是自动重编的，而正文里那句
+	 * 「照着 【图片 2】 改」如果不跟着改，指的就是一个不存在的编号。定位用改名之前的那份列表，所以
+	 * 不存在「认不出」的窗口。
+	 */
+	const first = { name: "a.png", label: "图片 1" };
+	const second = { name: "b.png", label: "图片 2" };
+	const text = `先看 ${placeholderFor("图片 1")} 再看 ${placeholderFor("图片 2")}`;
+	assert.equal(
+		renamePlaceholders(text, [first, second], (f) => (f === first ? null : "图片 1")),
+		`先看 再看 ${placeholderFor("图片 1")}`,
+	);
+});
+
+test("老消息里写的是文件名，新的写的是界面名，两种都认得", () => {
+	// 升级前发出去的那些标记写的是 `【shot.png】`，只认界面名的话它们会整片退化成普通方括号。
+	const file = { name: "shot.png", label: "图片 1" };
+	const { segments } = placeAttachments(`旧的 ${placeholderFor("shot.png")} 新的 ${placeholderFor("图片 1")}`, [file, { ...file }]);
+	assert.deepEqual(
+		segments.map((s) => (s.kind === "text" ? s.text : "<file>")),
+		["旧的 ", "<file>", " 新的 ", "<file>"],
+	);
 });

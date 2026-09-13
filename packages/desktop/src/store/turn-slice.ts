@@ -7,7 +7,7 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { ApprovalDecision, Message, ThinkingLevel, UserContent } from "@lyra/core";
+import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent } from "@lyra/core";
 import { prune, without } from "./derive.ts";
 import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
@@ -20,7 +20,7 @@ export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }>; sessionId?: string } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
 		let sessionId = options.sessionId ?? get().activeSessionId;
 		const cwd = workspace?.path ?? scratchCwd;
@@ -182,7 +182,7 @@ export function turnSlice(set: Set, get: Get) {
   async editMessage(
     index: number,
     content: UserContent[],
-    meta: { displayText?: string; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> } = {},
+    meta: { displayText?: string; attachments?: MessageAttachment[] } = {},
   ) {
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;

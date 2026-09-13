@@ -35,4 +35,11 @@ export { useAttachmentActions } from "./attachments/actions.ts";
  * 还活着的时候同步调用。各写各的话，漏掉的那一个只会表现为「菜单里全是灰的」。
  */
 export { pickedFrom } from "./attachments/picked.ts";
+/*
+ * 一份附件在屏幕上叫什么。
+ *
+ * 气泡那边也要算一次：转录里存了名字的直接用，存之前发出去的那些按同一套规则现算——同样的输入
+ * 得同样的结果，否则正文里那枚标记会配不上气泡外面那一格。
+ */
+export { displayName } from "./attachments/display.ts";
 export type { PickedFile } from "./attachments/picked.ts";

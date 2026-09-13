@@ -37,7 +37,7 @@ import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts"
 import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
-import type { ApprovalDecision, ApprovalRequest, Message, ThinkingLevel, Tool, UserContent } from "../types.ts";
+import type { ApprovalDecision, ApprovalRequest, Message, MessageAttachment, ThinkingLevel, Tool, UserContent } from "../types.ts";
 import { ApprovalGate, sessionApprovalGate } from "./approvals.ts";
 import type { ContextBreakdown } from "./context.ts";
 import { describeContext, describeSession, type SessionFacts, type SessionStatus } from "./reporting.ts";
@@ -659,7 +659,7 @@ export class AgentSession {
 			displayText?: string;
 			skillRef?: { name: string; path?: string; pluginId?: string };
 			sessionRefs?: Array<{ id: string; title: string }>;
-			attachments?: Array<{ name: string; kind?: string; mimeType?: string }>;
+			attachments?: MessageAttachment[];
 		} = {},
 	): Promise<void> {
 		// A prompt waits for the manual boundary before creating a turn against that history.
@@ -913,7 +913,7 @@ export class AgentSession {
 			 * 是 `displayText` 存在的全部理由。
 			 */
 			displayText?: string;
-			attachments?: Array<{ name: string; kind?: string; mimeType?: string }>;
+			attachments?: MessageAttachment[];
 		} = {},
 	): Promise<void> {
 		await this.title.cancel();

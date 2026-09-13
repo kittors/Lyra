@@ -25,7 +25,7 @@ import type { MouseEvent } from "react";
 
 import { AttachmentMenu } from "./AttachmentMenu.tsx";
 import { FileKindIcon } from "./FileKindIcon.tsx";
-import { displayName, nameParts } from "./display.ts";
+import { displayName, isPlaceholderName, nameParts } from "./display.ts";
 import { KIND_LABEL, type FileKind } from "./file-kind.ts";
 import { translate } from "../../../i18n/translate.ts";
 import { useAttachmentActions } from "./actions.ts";
@@ -47,6 +47,14 @@ export interface StripFile {
 	path?: string;
 	/** 悬停时多说的那一行，通常是「文件名 + 门类」。 */
 	tip?: string;
+	/**
+	 * 界面上叫什么，调用方已经算好的话。
+	 *
+	 * 输入框那边必须自己算：正文里那枚标记写的就是这个名字，两边差一个字就配不上了。气泡那边不
+	 * 传，由这里按同一套规则算出来——同样的输入得同样的结果，那正是 `displayName` 是个纯函数的
+	 * 原因。
+	 */
+	label?: string;
 }
 
 /**
@@ -166,7 +174,15 @@ export function AttachmentStrip({
 			const kindIndex = (kindSeen.get(file.kind) ?? 0) + 1;
 			kindSeen.set(file.kind, kindIndex);
 			if (file.src) imageAt += 1;
-			const label = displayName({ name: file.name, kindLabel: t(KIND_LABEL[file.kind]), kindIndex }, regionShot);
+			/*
+			 * 格子上是全名。
+			 *
+			 * `label` 是正文里那枚标记写的短名（「表格 2」），只在文件本来就没有像样名字时顶上——
+			 * 一张粘贴进来的图，它的 `name` 是剪贴板编的 `image.png`。
+			 */
+			const label = isPlaceholderName(file.name, regionShot)
+				? (file.label ?? displayName({ name: file.name, kindLabel: t(KIND_LABEL[file.kind]), kindIndex }, regionShot))
+				: file.name;
 			const { onDisk, inProject } = actions.abilities(file.path);
 			return {
 				file,

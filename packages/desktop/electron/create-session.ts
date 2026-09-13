@@ -1,4 +1,4 @@
-import type { Message, SessionStorage, Settings, UserContent } from "@lyra/core";
+import type { Message, MessageAttachment, SessionStorage, Settings, UserContent } from "@lyra/core";
 import type { SessionSnapshot } from "./ipc-types.ts";
 
 export interface InitialPrompt {
@@ -7,7 +7,7 @@ export interface InitialPrompt {
 	displayText?: string;
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: Array<{ id: string; title: string }>;
-	attachments?: Array<{ name: string; kind?: string; mimeType?: string }>;
+	attachments?: MessageAttachment[];
 }
 
 /** Persist identity, title and the submitted message without starting MCP, Git or a provider. */

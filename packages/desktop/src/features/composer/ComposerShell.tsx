@@ -96,7 +96,16 @@ export function ComposerShell({
   const field = fieldRef ?? own;
 	const mirror = useRef<HTMLDivElement>(null);
 	const [composing, setComposing] = useState(false);
-	const highlighted = !composing && decoration && (Boolean(decoration.command) || Boolean(decoration.mentions?.length)) ? decoration : undefined;
+	/*
+	 * 有东西要画才铺镜像层。
+	 *
+	 * 三样都要问：命令、引用、附件标记。漏掉任何一样的后果都一样——那一段在屏幕上是纯黑的普通文字，
+	 * 而装饰数据算得好好的。附件标记就是这么漏过一次的。
+	 */
+	const highlighted =
+		!composing && decoration && (Boolean(decoration.command) || Boolean(decoration.mentions?.length) || Boolean(decoration.attachments?.length))
+			? decoration
+			: undefined;
 	const syncMirror = () => {
 		if (mirror.current && field.current) mirror.current.style.transform = `translateY(${-field.current.scrollTop}px)`;
 	};

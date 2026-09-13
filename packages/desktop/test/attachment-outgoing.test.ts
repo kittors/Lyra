@@ -96,14 +96,21 @@ test("只附了文件、一个字没打，给人看的那份是空的", async ()
 	assert.deepEqual(outgoing.attachments?.map((f) => f.name), ["shot.png", "clip.mov"], "附件本身一个都不能少");
 });
 
-test("升级前存下的草稿：记号还认，但不留给人看", async () => {
+test("正文里的标记决定附件插在句子的哪一处", async () => {
 	const text = `看这张 ${placeholderFor("shot.png")} 说说看`;
 	const outgoing = await buildOutgoing(draft(text, [png]), "/tmp");
 	assert.ok(outgoing);
 	assert.deepEqual(
 		outgoing.content.map((block) => (block.type === "image" ? "<image>" : block.text)),
 		["看这张 ", "\n\n### Attached file: shot.png\n\n", "<image>", " 说说看"],
-		"记号还在的那些，位置照旧认——图片前面多了一行说它是谁",
+		"图片落在标记所在的位置，前面多一行说它是谁",
 	);
-	assert.equal(outgoing.displayText, "看这张 说说看", "但气泡里不留文件名");
+	/*
+	 * 标记留在给人看的那一份里。
+	 *
+	 * 它一度是被剥掉的（那时这条测试的名字还叫「不留给人看」），理由是「同一个文件说两遍」。那个
+	 * 理由只在标记是一串裸方括号时成立：气泡里它画成一枚标签，说的也不是同一件事——外面那排答的是
+	 * 「这条消息带了什么」，句子里这一枚答的是「我这句话说的是哪一个」。
+	 */
+	assert.equal(outgoing.displayText, text, "气泡里那句话还认得出它说的是哪一个附件");
 });

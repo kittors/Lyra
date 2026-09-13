@@ -420,6 +420,85 @@ textarea.ly-composer-text[data-highlighted="true"] {
 	box-decoration-break: clone;
 }
 
+/* ---------------------------------------------------------------------------
+ * 正文里那枚附件标记
+ *
+ * 输入框里是画在镜像层上的一段高亮，气泡里是一个真的 `<span>`——同一个 class，两处长得一样。
+ *
+ * 颜色跟着门类走，和附件条上那个图标是同一套约定（Word 蓝、Excel 绿、PDF 红，见 `FileKindIcon`）。
+ * 一句话里同时出现 `/命令`、`@引用` 和两枚附件标记时，前两样已经各占一种蓝；附件再用蓝的话，四段
+ * 高亮谁也不比谁显眼，等于都不显眼。按门类分色之后，「那个绿的」就是那份表格——不用读完名字。
+ *
+ * 色相由门类给，明度由主题给：亮色下压暗一档压在纸上，暗色下提亮一档浮在底色上。一个色值两头用
+ * 的话，总有一头是糊的——这也是 `--ly-kind` 是变量而不是十二组写死的色对的原因。
+ * ------------------------------------------------------------------------- */
+
+.ly-attachment-token {
+  --ly-kind: var(--color-ink-faint);
+  color: color-mix(in srgb, var(--ly-kind) 82%, var(--color-ink));
+  background: color-mix(in srgb, var(--ly-kind) 13%, transparent);
+  border-radius: 4px;
+  /* 换行时两截各自带圆角，而不是中间被切开一刀。 */
+  box-decoration-break: clone;
+}
+
+:root.dark .ly-attachment-token {
+  color: color-mix(in srgb, var(--ly-kind) 62%, #fff);
+  background: color-mix(in srgb, var(--ly-kind) 22%, transparent);
+}
+
+/*
+ * 气泡里的那几枚可以有呼吸，输入框里的不行。
+ *
+ * 输入框那一层是画在 textarea 上的镜像，每个字必须和底下真正的字符严丝合缝地对齐——给它加内边距，
+ * 光标和选区就会从标记那里开始整体偏移。那边靠 `【】` 本身划出边界；这边没有括号，十枚标签连在
+ * 一起会读成一片，所以补上间距。
+ */
+.ly-user-bubble .ly-attachment-token {
+  padding: 1px 5px;
+  margin: 0 1px;
+}
+
+.ly-attachment-token[data-kind="image"] {
+  --ly-kind: #8b5cf6;
+}
+
+.ly-attachment-token[data-kind="video"] {
+  --ly-kind: #ec4899;
+}
+
+.ly-attachment-token[data-kind="audio"] {
+  --ly-kind: #f59e0b;
+}
+
+.ly-attachment-token[data-kind="pdf"] {
+  --ly-kind: #ef4444;
+}
+
+.ly-attachment-token[data-kind="word"] {
+  --ly-kind: #2b7cd3;
+}
+
+.ly-attachment-token[data-kind="excel"] {
+  --ly-kind: #16a34a;
+}
+
+.ly-attachment-token[data-kind="powerpoint"] {
+  --ly-kind: #ea580c;
+}
+
+.ly-attachment-token[data-kind="archive"] {
+  --ly-kind: #a16207;
+}
+
+.ly-attachment-token[data-kind="design"] {
+  --ly-kind: #d946ef;
+}
+
+.ly-attachment-token[data-kind="font"] {
+  --ly-kind: #0ea5e9;
+}
+
 .ly-mention-menu {
 	opacity: 0;
 	visibility: hidden;

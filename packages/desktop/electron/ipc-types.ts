@@ -61,24 +61,25 @@ import type {
 	BundleKind,
 	ContextBreakdown,
 	CorrectionSuggestion,
-	McpBundle,
-	Registry,
-	RegistryEntry,
-	Plugin,
 	DiffHunk,
 	ExtensionDiagnostic,
 	ExtensionStats,
 	ForeignConfigLine,
 	LayerOverride,
+	McpBundle,
+	MessageAttachment,
+	Plugin,
 	PluginDiagnostic,
 	QueuedTask,
+	Registry,
+	RegistryEntry,
 	RuleDestination,
 	RuleEntry,
-	SkillCandidate,
 	ScreenshotSettings,
 	SessionMeta,
 	Settings,
 	Skill,
+	SkillCandidate,
 	SkillDiagnostic,
 	SlashCommand,
 	SubAgentDetail,
@@ -239,7 +240,7 @@ export interface LyraApi {
 	sessions: {
 		onChanged(handler: (change: SessionChange) => void): () => void;
 		list(): Promise<SessionMeta[]>;
-		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<SessionSnapshot>;
+		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
 		open(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
 		/** Read the stored transcript without starting anything. For looking at things. */
@@ -268,14 +269,14 @@ export interface LyraApi {
 		 * `synthetic` marks a message the app composed on the user's behalf — 「继续」 — so the
 		 * transcript does not show it as something they typed. See `Session.prompt`.
 		 */
-		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<SessionMeta>;
+		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionMeta>;
 		/**
 		 * Replace a message and re-run from there, discarding everything after it.
 		 *
 		 * `options` 是这条消息除措辞之外的那部分——编辑改的是措辞，别的应当原样留着。不带它的
 		 * 那一版等于每编辑一次就把附件从界面上抹掉一次，并把附件正文重新铺回气泡里。
 		 */
-		editMessage(sessionId: string, messageIndex: number, content: UserContent[], options?: { displayText?: string; attachments?: Array<{ name: string; kind?: string; mimeType?: string }> }): Promise<void>;
+		editMessage(sessionId: string, messageIndex: number, content: UserContent[], options?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
 		abort(sessionId: string): Promise<void>;
 		approve(sessionId: string, requestId: string, decision: ApprovalDecision): Promise<void>;
 		setModel(sessionId: string, modelId: string): Promise<void>;
