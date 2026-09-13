@@ -2,7 +2,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
 import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
-import { openFromEvent } from "../image/index.ts";
+import { openFromEvent, openViewer } from "../image/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChangeBar } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
@@ -136,6 +136,26 @@ export function Composer() {
 	const [markMenu, setMarkMenu] = useState<{ point: { x: number; y: number }; file: Attachment } | null>(null);
 
 	/**
+	 * 从句子里那枚标记上打开图片查看器。
+	 *
+	 * 查看器是从一个矩形放大开的，而这里没有被点中的那个元素——点中的是 textarea。上面那一排里有这
+	 * 张图自己的格子，就从那儿长出来；要是连那一排都被滚走了，退回从右键点的位置长，一个点放大总
+	 * 好过凭空出现。
+	 */
+	const previewImage = (target: Attachment) => {
+		const index = previewable.findIndex((file) => file.id === target.id);
+		if (index < 0) return;
+		const tile = document.querySelector<HTMLElement>(`[data-ly-attachment="${CSS.escape(target.id)}"] .ly-attachment-body`);
+		const origin = tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
+		openViewer(
+			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
+			index,
+			origin,
+			tile,
+		);
+	};
+
+	/**
 	 * 给一份附件列表重新编号。
 	 *
 	 * 「图片 2」里的那个 2 是它在同门类里的位置，而位置会因为别人被删掉而改变——所以名字不是一次
@@ -177,6 +197,39 @@ export function Composer() {
 	 * 按**改之前**的名字定位，按新名字写回去，和取下附件时走的是同一条路（`renamePlaceholders`）。
 	 * 文件名不在此列，它本来就不翻译。
 	 */
+	/*
+	 * 光标不进标记里面。
+	 *
+	 * 标记是一个整体：停进去之后，方向键一格一格地穿过它，打一个字它就废了——配不上任何附件，当场
+	 * 退化成一串裸方括号，而人看不出自己刚破坏了什么。退格那一路已经按整枚处理，落点这一路是它欠的
+	 * 另一半。
+	 *
+	 * 挂在原生的 `selectionchange` 上，不挂 React 的 `onSelect`：后者是 SelectEventPlugin 从
+	 * focus / 按键 / 鼠标那几类事件里**合成**出来的，合成不出来的路径（拖选、双击选词、输入法落字、
+	 * 程序改选区）就没有它。方向键那一路因此是好的，而点进去那一路不是——同一个保护，一半的覆盖。
+	 * 原生那个是选区变化唯一的信号，中间没有合成这一层。
+	 *
+	 * `setSelectionRange` 自己也会再触发一次这个事件，但第二次光标已经在边界上，`clamp` 原样退回，
+	 * 于是就停了。
+	 */
+	useEffect(() => {
+		const clamp = () => {
+			const el = field.current;
+			if (!el || document.activeElement !== el) return;
+			const next = clampToPlaceholders(
+				el.value,
+				attachmentsRef.current,
+				{ start: el.selectionStart, end: el.selectionEnd },
+				el.selectionStart === el.selectionEnd ? lastArrow.current : 0,
+			);
+			if (next.start !== el.selectionStart || next.end !== el.selectionEnd) {
+				el.setSelectionRange(next.start, next.end, el.selectionDirection ?? "none");
+			}
+		};
+		document.addEventListener("selectionchange", clamp);
+		return () => document.removeEventListener("selectionchange", clamp);
+	}, []);
+
 	const spokenIn = useRef(locale);
 	useEffect(() => {
 		if (spokenIn.current === locale) return;
@@ -646,17 +699,28 @@ export function Composer() {
 		const grown = relabel([...before, ...next]);
 		setAttachments(grown);
 
+		/*
+		 * 标记之间不另外塞空格。
+		 *
+		 * 收尾那个方括号是透明的，它自己就占一格——再加一个空格，两枚标记之间就是两格，看着像中间掉
+		 * 了个字。一格正好。
+		 */
 		const marks = grown
 			.slice(before.length)
 			.map((file) => placeholderFor(file.label ?? file.name))
-			.join(" ");
+			.join("");
 		setText((current) => {
 			const at = Math.min(caret, current.length);
 			const head = current.slice(0, at);
 			const tail = current.slice(at);
-			// 前后各留一个空格，除非那儿本来就有空白或者根本没有字——不然标记会和人打的字黏在一起。
+			/*
+			 * 前面留一个空格，后面不留。
+			 *
+			 * 后面那一格已经有了——收尾的方括号是透明的，它自己就占一格。再补一个，标记和后面那句话
+			 * 之间就空出两格来。
+			 */
 			const lead = head && !/\s$/.test(head) ? " " : "";
-			const trail = tail && !/^\s/.test(tail) ? " " : "";
+			const trail = "";
 			return `${head}${lead}${marks}${trail}${tail}`;
 		});
 		/* 光标落在标记后面，人接着打的字就跟在它后头。 */
@@ -905,27 +969,7 @@ export function Composer() {
 					onSelect={() => {
 						slash.select();
 						mention.select();
-						/*
-						 * 光标不进标记里面。
-						 *
-						 * 标记是一个整体：停进去之后，方向键一格一格地穿过它，打一个字它就废了——配不上
-						 * 任何附件，当场退化成一串裸方括号，而人看不出自己刚破坏了什么。退格那一路已经
-						 * 按整枚处理，落点这一路是它欠的另一半。
-						 *
-						 * `step` 是这一下挪了几格：单步（方向键）要顺着原方向推到那一头去，否则左箭头会
-						 * 卡在标记右缘一动不动；点击和拖选推到近的那一头。
-						 */
-						const el = field.current;
-						if (!el) return;
-						const next = clampToPlaceholders(
-							el.value,
-							attachmentsRef.current,
-							{ start: el.selectionStart, end: el.selectionEnd },
-							el.selectionStart === el.selectionEnd ? lastArrow.current : 0,
-						);
-						if (next.start !== el.selectionStart || next.end !== el.selectionEnd) {
-							el.setSelectionRange(next.start, next.end, el.selectionDirection ?? "none");
-						}
+
 					}}
 					onFocus={() => {
 						slash.focus();
@@ -945,15 +989,32 @@ export function Composer() {
 					 * 右键点在一枚标记上，弹出它的菜单。
 					 *
 					 * 被点到的是 textarea，不是标记——那一层高亮是铺在它上面的镜像，而镜像整层
-					 * `pointer-events: none`（不然连把光标放进句子里都做不到）。所以这里反过来问：点的
-					 * 这个坐标落在第几个字符上，那个字符又在不在某一枚标记的范围里。
+					 * `pointer-events: none`（不然连把光标放进句子里都做不到）。所以得自己回答「点的是
+					 * 哪一枚」。
 					 *
-					 * `caretPositionFromPoint` 是浏览器唯一肯回答这件事的地方。
+					 * 问镜像层里那些 span 的位置，不问 `caretPositionFromPoint`。后者是这件事看上去最
+					 * 该用的 API，而它在 textarea 上给的偏移对不上：点第一枚标记，算出来的位置落在另一
+					 * 枚里，于是右键一张图弹出来的是隔壁那份 mov 的菜单——「复制图片」成了「复制路径」，
+					 * 「预览」成了灰的。span 的矩形是排版算完的结果，没有这一层不确定。
+					 *
+					 * 逐个 rect 比，不用 `getBoundingClientRect`：一枚跨行的标记有两个矩形，而它们的并
+					 * 集会把中间整片空白也算进去。
 					 */
 					onContextMenu={(event) => {
-						const at = document.caretPositionFromPoint?.(event.clientX, event.clientY);
-						if (!at) return;
-						const hit = placeholderAt(text, attachments, at.offset, false) ?? placeholderAt(text, attachments, at.offset, true);
+						const mirror = field.current?.closest(".ly-composer")?.querySelector("[data-command-mirror]");
+						const tokens = [...(mirror?.querySelectorAll(".ly-attachment-token") ?? [])];
+						const at = tokens.findIndex((token) =>
+							[...token.getClientRects()].some(
+								(rect) =>
+									event.clientX >= rect.left &&
+									event.clientX <= rect.right &&
+									event.clientY >= rect.top &&
+									event.clientY <= rect.bottom,
+							),
+						);
+						if (at < 0) return;
+						/* 镜像里 span 的先后和扫描出来的先后是同一个——两边都是文档顺序。 */
+						const hit = scanPlaceholders(text, attachments)[at];
 						if (!hit) return;
 						event.preventDefault();
 						setMarkMenu({ point: { x: event.clientX, y: event.clientY }, file: hit.file });
@@ -1207,9 +1268,18 @@ export function Composer() {
 								...(markMenu.file.data && !markMenu.file.isText
 									? { src: `data:${markMenu.file.mimeType};base64,${markMenu.file.data}` }
 									: {}),
-								...(markMenu.file.path
-									? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
-									: {}),
+								/*
+								 * 图片的预览不需要磁盘上有文件。
+								 *
+								 * 像素就在手上，查看器要的只是一个放大的起点。这一行一度写成「有 path 才给
+								 * 预览」，于是一张粘贴进来的截图右键出来整张单子全是灰的——包括那件它明明
+								 * 做得到的事。
+								 */
+								...(markMenu.file.data && !markMenu.file.isText
+									? { onPreview: () => previewImage(markMenu.file) }
+									: markMenu.file.path
+										? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
+										: {}),
 							}
 						: null
 				}

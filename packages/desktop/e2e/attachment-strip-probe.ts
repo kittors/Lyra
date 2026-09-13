@@ -520,6 +520,96 @@ try {
 		};
 	})()`), null, 1));
 
+	/*
+	 * 每一枚标记那个左定界符，实际画出来有多宽。
+	 *
+	 * 图标是按「全角方括号占 1em」画在它上面的。如果这个前提不成立——比如浏览器对 CJK 标点做了挤压，
+	 * 把行中的 `【` 压到半宽——图标就会压到名字上。行首那几枚不挤压，所以只看第一枚是看不出来的。
+	 */
+	console.log("定界符宽度：", JSON.stringify(await app.evaluate<Record<string, unknown>>(`(() => {
+		const field = document.querySelector("main textarea");
+		const mirror = document.querySelector("main .ly-composer [data-command-mirror]");
+		const size = Number.parseFloat(getComputedStyle(mirror).fontSize);
+		const brackets = [...mirror.querySelectorAll(".ly-attachment-token .ly-token-bracket:first-child")];
+		return {
+			fontSize: size,
+			// 按 em 记，1 就是没被挤压。行首和行中都得是同一个数。
+			widths: [...new Set(brackets.map((b) => Number((b.getBoundingClientRect().width / size).toFixed(2))))],
+			/*
+			 * 两层的排版必须一模一样。
+			 *
+			 * 镜像铺在 textarea 上，每个字符得落在同一处。挤压这件事要是只在一边关掉，同一段文字就会
+			 * 在两层里于不同的地方换行——量得到的就是这两个高度对不上，而肉眼看到的是光标停在字的中
+			 * 间、或者高亮整体偏了半个字。
+			 */
+			mirrorHeight: Math.round(mirror.getBoundingClientRect().height),
+			fieldScrollHeight: field.scrollHeight,
+			trim: getComputedStyle(field).textSpacingTrim ?? "(不支持)",
+		};
+	})()`), null, 1));
+
+	/*
+	 * 真的用鼠标，在标记里的好几个位置各点一下。
+	 *
+	 * 方向键那一路上面验过了，而客户报的是点进去的：两条走的不是同一段判断（一个单步、一个就近），
+	 * 只验前者等于没验后者。位置也得多试几个——就近是按离哪头近决定的，只点正中间那一下，两边的分支
+	 * 只走到一个。
+	 *
+	 * 双击也在里面：它选中一个词，走的是选区那条分支，而 React 的合成事件在这一路上本来就没有。
+	 */
+	for (const [where, at] of [["左侧", 0.2], ["正中", 0.5], ["右侧", 0.8]] as const) {
+		const point = await app.evaluate<{ x: number; y: number } | null>(`(() => {
+			const token = document.querySelector("main .ly-composer .ly-attachment-token");
+			if (!token) return null;
+			const r = token.getBoundingClientRect();
+			return { x: Math.round(r.left + r.width * ${at}), y: Math.round(r.top + r.height / 2) };
+		})()`);
+		if (!point) continue;
+		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
+			await app.send("Input.dispatchMouseEvent", {
+				type,
+				...point,
+				...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }),
+			});
+		}
+		await new Promise((r) => setTimeout(r, 350));
+		const landed = await app.evaluate<Record<string, unknown>>(`(() => {
+			const field = document.querySelector("main textarea");
+			const open = field.value.indexOf("【");
+			const close = field.value.indexOf("】", open) + 1;
+			const at = field.selectionStart;
+			return { landed: at, inside: at > open && at < close };
+		})()`);
+		console.log(`点进标记（${where}）：`, JSON.stringify(landed));
+	}
+
+	/* 双击选词：它落在标记里的话，该被撑成整枚。 */
+	const middle = await app.evaluate<{ x: number; y: number } | null>(`(() => {
+		const token = document.querySelector("main .ly-composer .ly-attachment-token");
+		if (!token) return null;
+		const r = token.getBoundingClientRect();
+		return { x: Math.round(r.left + r.width * 0.5), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	if (middle) {
+		for (const clickCount of [1, 2]) {
+			for (const type of ["mousePressed", "mouseReleased"]) {
+				await app.send("Input.dispatchMouseEvent", { type, ...middle, button: "left", clickCount });
+			}
+		}
+		await new Promise((r) => setTimeout(r, 400));
+		console.log("双击选词：", JSON.stringify(await app.evaluate<Record<string, unknown>>(`(() => {
+			const field = document.querySelector("main textarea");
+			const open = field.value.indexOf("【");
+			const close = field.value.indexOf("】", open) + 1;
+			return {
+				mark: [open, close],
+				selection: [field.selectionStart, field.selectionEnd],
+				// 要么没碰这枚标记，要么把它整个框住——不能框住半截
+				whole: field.selectionStart <= open || field.selectionStart >= close || (field.selectionStart === open && field.selectionEnd === close),
+			};
+		})()`)));
+	}
+
 	/* 框住半枚，该自己长成整枚——复制走的和删掉的都得是完整的一枚。 */
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");

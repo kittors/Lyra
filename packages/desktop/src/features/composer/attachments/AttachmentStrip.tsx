@@ -19,7 +19,7 @@
  * 是「高矮不齐挤在一起」，而那件事靠的是对齐，不是靠把矮的那个拉高。
  */
 
-import { MoreHorizontal, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { MouseEvent } from "react";
 
@@ -85,30 +85,6 @@ function Remove({ name, onClick }: { name: string; onClick: () => void }) {
 	);
 }
 
-/**
- * 这一格还能做什么，都在这儿。
- *
- * 画在格子里面的右下角，不像叉那样探出去。两个都探出去的话，一个 64px 的方块上挂着两个悬在角上
- * 的圆，格子本身反倒成了它们的背景；而这一个按下去是「展开一张单子」，本来就该长在它所属的那块
- * 东西上。
- *
- * 有它，是因为右键菜单没人找得到。这一排上能做的事有一半只存在于右键里——打开、在访达中显示、
- * 复制路径——而右键在一个看起来像缩略图的方块上不是任何人的第一反应。
- */
-function More({ name, onClick }: { name: string; onClick: (event: MouseEvent<HTMLElement>) => void }) {
-	const label = translate("attachment.more");
-	return (
-		<button
-			type="button"
-			data-ly-tip={`${label} · ${name}`}
-			aria-label={`${label} · ${name}`}
-			onClick={onClick}
-			className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-line bg-float text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-		>
-			<MoreHorizontal size={12} strokeWidth={2} />
-		</button>
-	);
-}
 
 export function AttachmentStrip({
 	files,
@@ -373,9 +349,7 @@ export function AttachmentStrip({
 							</div>
 						)}
 
-						<div data-ly-hover-reveal className="ly-attachment-control ly-attachment-more absolute right-1 bottom-1">
-							<More name={label} onClick={(event) => menu.show(event, file.key)} />
-						</div>
+
 					</div>
 				))}
 			</div>

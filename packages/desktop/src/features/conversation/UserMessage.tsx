@@ -4,7 +4,7 @@ import type {
   UserMessage as UserMessageType,
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
-import { openFromEvent } from "../image/index.ts";
+import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, useAttachmentActions, type FileKind, type StripFile } from "../composer/index.ts";
 import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
@@ -120,6 +120,20 @@ export function UserMessage({
   const editMessage = useApp((s) => s.editMessage);
   /** 气泡外那排附件上的动作，和输入框那排共用一套——见 `attachments/actions.ts`。 */
   const { ensureThere } = useAttachmentActions();
+  /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从右键的位置长。 */
+  const previewImage = (src: string) => {
+    const index = images.findIndex((img) => `data:${img.mimeType};base64,${img.data}` === src);
+    if (index < 0) return;
+    const tile = document.querySelectorAll<HTMLElement>(`[data-question-index="${index}"] .ly-attachment-body`)[index] ?? null;
+    const origin = tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
+    openViewer(
+      images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
+      index,
+      origin,
+      tile,
+    );
+  };
+
   /** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
   const [markMenu, setMarkMenu] = useState<{
     point: { x: number; y: number };
@@ -403,9 +417,15 @@ export function UserMessage({
                 name: markMenu.file.label ?? markMenu.file.name,
                 ...(markMenu.file.path ? { path: markMenu.file.path } : {}),
                 ...(markMenu.file.src ? { src: markMenu.file.src } : {}),
-                ...(markMenu.file.path
-                  ? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
-                  : {}),
+                /*
+                 * 图片的预览不需要磁盘上有文件——像素就在消息里，查看器要的只是一个放大的起点。
+                 * 这一行一度写成「有 path 才给预览」，于是一张粘贴进来的截图右键出来整张单子全是灰的。
+                 */
+                ...(markMenu.file.src
+                  ? { onPreview: () => previewImage(markMenu.file.src!) }
+                  : markMenu.file.path
+                    ? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
+                    : {}),
               }
             : null
         }

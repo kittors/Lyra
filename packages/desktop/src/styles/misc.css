@@ -393,6 +393,20 @@
  * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
  * 24px 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
  */
+/*
+ * 标点不许挤压。
+ *
+ * 附件标记的图标画在它那个全角方括号上，按一整格算位置。而 Chromium 对 CJK 标点做自动挤压：行首的
+ * `【` 留全宽，行中的压到半宽——量出来是 1.04em 和 0.52em 两种。图标照 0.78em 画，在半宽那格里就超
+ * 出一半，压在名字第一个字上；而行首那几枚看着好好的，所以只盯第一枚永远发现不了。
+ *
+ * 输入框和它上面那层镜像一起设，缺一不可：这两层的每个字符必须落在同一个位置上，一边挤一边不挤，
+ * 整段字就错开了。
+ */
+.ly-composer-text {
+  text-spacing-trim: space-all;
+}
+
 textarea.ly-composer-text {
 	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + 24px);
 }
@@ -500,9 +514,16 @@ textarea.ly-composer-text[data-highlighted="true"] {
   content: "";
   position: absolute;
   top: 50%;
-  left: 0.06em;
-  width: 0.92em;
-  height: 0.92em;
+  /*
+   * 图标住在那一格里，右边留一点给名字。
+   *
+   * 方括号是一整格（1em），图标占满的话名字就从它右边缘 0.02em 处开始——贴着，中文字尤其明显，看上
+   * 去像图标被字压住了。0.78em 靠左放，剩下的 0.2em 就是图标和名字之间该有的那点距离；这一格本来
+   * 就是透明的占位，怎么分都不影响后面的字。
+   */
+  left: 0.02em;
+  width: 0.78em;
+  height: 0.78em;
   transform: translateY(-50%);
   background: var(--ly-glyph) center / contain no-repeat;
 }
