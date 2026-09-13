@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { named } from "./named.ts";
 
 let app: RunningApp;
 const usage = { input: 0, output: 0, total: 0, cost: { input: 0, output: 0, total: 0 } };
@@ -176,7 +177,7 @@ test("expanded history and disclosures return at the same reading position", asy
 		open: boolean;
 	}>(`(async () => { ${UI}
 		await open("scroll-a");
-		const earlier = [...document.querySelectorAll(".ly-transcript > button")].find(b => b.textContent.includes("显示更早"));
+		const earlier = [...document.querySelectorAll(".ly-transcript > button")].find(b => ${named("显示更早", "starts", "b")});
 		if (!earlier) throw new Error("fixture must have hidden history");
 		earlier.click();
 		document.querySelector('main [data-ly-thinking] > button').click();

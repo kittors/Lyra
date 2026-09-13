@@ -170,15 +170,14 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		const narrow = await measure();
 		assert.ok(narrow.conversation.width >= 420 && narrow.conversation.height >= 260);
 		assert.ok(narrow.terminal.width >= 300 && narrow.terminal.height >= 150);
-		// The row keeps its shape: the conversation stays at its floor and the terminal covers
-		// the overhang, rather than the pair flattening into a column of full-width strips.
-		assert.ok(narrow.terminal.left > narrow.conversation.left, "still side by side");
-		assert.ok(Math.abs(narrow.terminal.top - narrow.conversation.top) < 1, "same row, not stacked");
-		assert.ok(narrow.conversation.left + narrow.conversation.width > narrow.terminal.left + 1, "the panel covers the conversation's overhang");
+		// A pair that cannot hold both floors side by side turns into a column — see `fitTree`
+		// and `COLUMN_LIMIT`. Overlap-in-row is for more than two columns, not this 770 case.
+		assert.ok(Math.abs(narrow.terminal.left - narrow.conversation.left) < 1);
+		assert.ok(Math.abs(narrow.terminal.top - narrow.conversation.top - narrow.conversation.height) < 1);
 		assert.equal(narrow.saved, wide.saved); assert.equal(narrow.sameTerminal, true);
 		const splitter = await app.evaluate<{ x: number; y: number; hit: boolean }>(`(()=>{const e=document.querySelector('.ly-dock [role="separator"]'),r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:e.contains(document.elementFromPoint(x,y))};})()`);
 		assert.equal(splitter.hit, true, "the splitter stays on the responsive boundary and can be hit");
-		assert.ok(Math.abs(splitter.x - narrow.terminal.left) < 2);
+		assert.ok(Math.abs(splitter.y - narrow.terminal.top) < 1);
 		const directory = process.env.LYRA_E2E_ARTIFACTS;
 		if (directory) {
 			await mkdir(directory, { recursive: true });

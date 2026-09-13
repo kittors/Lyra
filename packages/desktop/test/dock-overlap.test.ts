@@ -22,7 +22,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CONVERSATION_MIN_WIDTH_PX, PANEL_MIN_WIDTH_PX, paneFloor, panePaintMinWidth } from "../src/features/dock/geometry.ts";
+import { CONVERSATION_MIN_WIDTH_PX, GRIP_WIDTH, HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor, panePaintMinWidth } from "../src/features/dock/geometry.ts";
+import { OVERLAY_FALLBACK } from "../src/app/window/titlebar.ts";
 import { fitTree, layoutPanes } from "../src/features/dock/layout.ts";
 import { leafOf, type DockNode } from "../src/features/dock/tree.ts";
 
@@ -190,4 +191,12 @@ test("a pane that fills the dock is not painted past the window", () => {
 	assert.equal(panePaintMinWidth("conversation", 0.24, true), undefined);
 	assert.equal(panePaintMinWidth("terminal", 0.4, false), PANEL_MIN_WIDTH_PX);
 	assert.equal(paneFloor("conversation").width, CONVERSATION_MIN_WIDTH_PX);
+});
+
+test("a 300px Windows pane still has a heading track wider than the grip", () => {
+	// Matches PaneHeader: padding-right is insetEnd+6, gap-1.5 before the actions,
+	// full-screen + close at 20px each with gap-0.5. The grip is centred in what remains.
+	const actions = 20 + 2 + 20;
+	const track = PANEL_MIN_WIDTH_PX - HEADER_PAD - (OVERLAY_FALLBACK + 6) - 6 - actions;
+	assert.ok(track >= GRIP_WIDTH, `track ${track}px cannot hold a ${GRIP_WIDTH}px grip beside ${OVERLAY_FALLBACK}px of caption buttons`);
 });

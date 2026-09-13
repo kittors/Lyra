@@ -143,58 +143,63 @@ export function PaneHeader({
 			 * A panel may put a control here instead of its name — the terminal's tab strip does,
 			 * because once a pane holds several of something, choosing between them *is* the title.
 			 */}
-			<div data-dock-heading-slot className="min-w-0 flex-1" style={{
-					// The grip is centered on the full header, including the OS control insets.
-					maxWidth: title && draggable
-						? `calc(50% + ${((insetEnd ?? 0) + 6 - (inset ?? 0) - HEADER_PAD - GRIP_WIDTH) / 2 - 6}px)`
-						: undefined,
-				}}>
-				<div data-dock-heading className="flex min-w-0 items-center gap-1.5">
-					{title ?? <>
-						{!hideTitle && icon && <span className="flex shrink-0 items-center text-ink-faint">{icon}</span>}
-						<span className="min-w-0 flex-1 truncate text-detail text-ink-muted select-none">{hideTitle ? "" : label}</span>
-					</>}
-				</div>
-			</div>
-
 			{/*
-			 * The grip: a short bar near the top edge, centred, and the only thing that moves the pane.
+			 * Slot and grip share one box that ends where the actions begin.
 			 *
-			 * Absolute so it is not in the row's flow — a long title would otherwise push it off
-			 * centre, and the one thing a handle must do is be in the same place every time.
-			 *
-			 * A real button, not a decoration, because it carries the keyboard route too. Dragging
-			 * is the whole interaction here and a drag is one of the few gestures with no keyboard
-			 * equivalent at all; without this the dock would be unusable without a mouse. ⌥ rather
-			 * than bare arrows, which belong to whatever is being scrolled. Each arrow sends the
-			 * pane to that edge of the *dock*, so "left" means one thing wherever it is pressed —
-			 * which is what makes it usable without a preview to watch.
-			 *
-			 * `touch-none` so a trackpad drag moves the pane instead of scrolling what is under it;
-			 * without it the browser claims the gesture before the first move arrives.
+			 * The grip used to be `left: 50%` of this whole header, including `padding-right`
+			 * reserved for Windows caption buttons. On a 300px right-edge pane that reserve is
+			 * ~138px, so the visual centre sat on top of full-screen and close. The wrapper is
+			 * the bar a person can actually use; 50% of *that* cannot cross the actions.
 			 */}
-			{draggable && (
-				<button
-					type="button"
-					data-dock-grip={kind}
-					data-dock-heading
-					aria-label={shortcutLabel(translate("pane.moveHint", { label }))}
-					data-ly-tip={translate("common.move")}
-					onPointerDown={onDragStart}
-					onKeyDown={(event) => {
-						const side = event.altKey ? ARROWS[event.key] : undefined;
-						if (!side) return;
-						event.preventDefault();
-						onMove(side);
-					}}
-					className={`ly-dock-grip no-drag absolute top-0 left-1/2 flex -translate-x-1/2 touch-none justify-center pt-[7px] ${
-						carried ? "cursor-grabbing" : "cursor-grab"
-					}`}
-					style={{ height: GRIP_REACH, width: GRIP_WIDTH }}
-				>
-					<span aria-hidden className="h-[3px] w-9 rounded-full bg-ink-faint" />
-				</button>
-			)}
+			<div className="relative min-w-0 flex-1 overflow-hidden">
+				<div data-dock-heading-slot className="min-w-0">
+					<div data-dock-heading className="flex min-w-0 items-center gap-1.5">
+						{title ?? <>
+							{!hideTitle && icon && <span className="flex shrink-0 items-center text-ink-faint">{icon}</span>}
+							<span className="min-w-0 flex-1 truncate text-detail text-ink-muted select-none">{hideTitle ? "" : label}</span>
+						</>}
+					</div>
+				</div>
+
+				{/*
+				 * The grip: a short bar near the top edge, centred, and the only thing that moves the pane.
+				 *
+				 * Absolute so it is not in the row's flow — a long title would otherwise push it off
+				 * centre, and the one thing a handle must do is be in the same place every time.
+				 *
+				 * A real button, not a decoration, because it carries the keyboard route too. Dragging
+				 * is the whole interaction here and a drag is one of the few gestures with no keyboard
+				 * equivalent at all; without this the dock would be unusable without a mouse. ⌥ rather
+				 * than bare arrows, which belong to whatever is being scrolled. Each arrow sends the
+				 * pane to that edge of the *dock*, so "left" means one thing wherever it is pressed —
+				 * which is what makes it usable without a preview to watch.
+				 *
+				 * `touch-none` so a trackpad drag moves the pane instead of scrolling what is under it;
+				 * without it the browser claims the gesture before the first move arrives.
+				 */}
+				{draggable && (
+					<button
+						type="button"
+						data-dock-grip={kind}
+						data-dock-heading
+						aria-label={shortcutLabel(translate("pane.moveHint", { label }))}
+						data-ly-tip={translate("common.move")}
+						onPointerDown={onDragStart}
+						onKeyDown={(event) => {
+							const side = event.altKey ? ARROWS[event.key] : undefined;
+							if (!side) return;
+							event.preventDefault();
+							onMove(side);
+						}}
+						className={`ly-dock-grip no-drag absolute top-0 left-1/2 flex -translate-x-1/2 touch-none justify-center pt-[7px] ${
+							carried ? "cursor-grabbing" : "cursor-grab"
+						}`}
+						style={{ height: GRIP_REACH, width: GRIP_WIDTH }}
+					>
+						<span aria-hidden className="h-[3px] w-9 rounded-full bg-ink-faint" />
+					</button>
+				)}
+			</div>
 
 			{/*
 			 * The controls stop the press from reaching the bar underneath them.

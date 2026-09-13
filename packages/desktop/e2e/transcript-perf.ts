@@ -321,7 +321,7 @@ async function main() {
 
 		for (let round = 0; round < EXPANSIONS; round++) {
 			await app.evaluate(`(async () => {
-				const more = [...document.querySelectorAll("button")].find((b) => b.textContent.startsWith("显示更早的"));
+				const more = [...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("显示更早") || (b.getAttribute("data-ly-tip") || "").startsWith("显示更早"));
 				more?.click();
 				await new Promise((r) => setTimeout(r, 900));
 				return true;

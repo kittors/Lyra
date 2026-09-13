@@ -1,4 +1,5 @@
 .ly-trajectory {
+  position: relative;
   container: trajectory / inline-size;
 }
 
@@ -42,9 +43,22 @@
 }
 
 @container trajectory (width < 720px) {
+  /*
+   * Cover the panel, not just the ledger row.
+   *
+   * Overlaying `.ly-trace-body` left the timeline (and the count row) eating the
+   * height a 300×400 pane still had. The tabpanel then measured 93px — not enough
+   * to read a record. The timeline stays mounted so Enter-from-canvas can keep it;
+   * `checkVisibility` is about display, not who is on top.
+   */
+  .ly-trace-body {
+    position: static;
+  }
+
   .ly-trace-inspector {
     position: absolute;
     inset: 0;
+    z-index: 1;
     width: 100% !important;
     min-width: 0;
     max-width: none;
