@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { heldBand, isPinned, pinnedDepth, type StickyRow } from "../src/features/sidebar/sticky.ts";
+import { fadeGeometry, heldBand, HOLD_ROOM_UNBOUNDED, isPinned, pinnedDepth, type StickyRow } from "../src/features/sidebar/sticky.ts";
 
 const GAP = 6;
 const STRIP = 32;
@@ -163,4 +163,106 @@ test("a row pushed above the viewport does not detach the one below it", () => {
 	const band = heldBand([strip(-4), head(-30)], FADE);
 	assert.equal(band.top, 0);
 	assert.equal(band.next, band.bottom, "one run, not two");
+});
+
+/*
+ * And the step after it: the band turned into what the mask is actually given.
+ *
+ * This step had no test at all, and it is where the reported defect lived. Everything above was
+ * green — the bands were right — while the sidebar had no top fade whatsoever, because the length
+ * derived from those bands said "soften over zero pixels" in every configuration but one.
+ */
+
+test("one run of held rows lets the softening below it run to its full depth", () => {
+	/*
+	 * The regression, stated as the thing that was wrong.
+	 *
+	 * With a single run `nextTop` equals `bottom`, and a gap computed as the distance between them
+	 * is zero — every stop of that gradient on one offset, opaque to transparent across no pixels.
+	 * An unbounded room is what says "nothing below to stop for"; see `.ly-fade-y` for the division.
+	 */
+	const one = fadeGeometry(heldBand([strip(GAP), head(400)], FADE));
+	assert.equal(one.room, HOLD_ROOM_UNBOUNDED, "the stretch under the strip is not stopped short by anything");
+	assert.equal(one.run, 0, "and there is no second run to leave room for");
+	assert.equal(one.inset, GAP + STRIP, "the softening starts under the strip");
+});
+
+test("no held rows at all is the same unbounded case, not a special one", () => {
+	// Every scroller in the app that is not the sidebar, and the sidebar for its first few pixels.
+	const none = fadeGeometry(heldBand([strip(120), head(400)], FADE));
+	assert.deepEqual(none, { top: 0, inset: 0, room: HOLD_ROOM_UNBOUNDED, run: 0 });
+});
+
+test("a second run stops the first stretch where that run begins", () => {
+	const two = fadeGeometry(heldBand([strip(GAP), head(GAP + STRIP + 10)], FADE));
+	assert.equal(two.inset, GAP + STRIP);
+	assert.equal(two.room, 10, "ten pixels of list between the strip and the heading, and all ten soften");
+	assert.equal(two.run, GAP + STRIP + 10 + HEAD, "the heading is protected down to its underside");
+});
+
+/**
+ * The arithmetic of `.ly-fade-y`, restated so the property below can be asserted on it.
+ *
+ * Not a second implementation of the division — the stylesheet remains the only one that runs.
+ * This is the shape that division has to have for the geometry above to be divisible at all, and
+ * `e2e/sidebar-fade-probe.ts` measures the real mask to confirm the two still agree.
+ */
+function divide(geometry: ReturnType<typeof fadeGeometry>, fade: number) {
+	const budget = Math.max(0, fade - geometry.top);
+	const gap = Math.min(geometry.room, budget);
+	return {
+		/** The stretch above the first run, which the mask softens over its whole height. */
+		above: Math.min(geometry.top, fade),
+		gap,
+		next: Math.max(geometry.run, geometry.inset + gap),
+		nextFade: Math.max(0, budget - gap),
+	};
+}
+
+/** The sidebar's own geometry, scrolled: a strip at the top edge and a heading at the rail below. */
+const STRIP_BOX = 44;
+const rowsAt = (scroll: number): StickyRow[] => {
+	const stripTop = Math.max(0, 101 - scroll);
+	const headTop = Math.max(STRIP_BOX, 190 - scroll);
+	return [
+		{ top: stripTop, bottom: stripTop + STRIP_BOX, rail: 0 },
+		{ top: headTop, bottom: headTop + HEAD, rail: STRIP_BOX },
+	];
+};
+
+test("the softening keeps its total depth while rows arrive at their rails", () => {
+	/*
+	 * The other half of the defect, and the one that would still be visible after fixing the first.
+	 *
+	 * Each stretch of list between two held rows is a gradient of its own, transparent to opaque.
+	 * When each one was given the full depth, the total changed with the number of stretches — so
+	 * a heading crossing the threshold where it counts as held grew a second 36px gradient beneath
+	 * it in a single frame, and the list under it went from lit to dissolving with nothing in
+	 * between. Measured on the real window at 12px steps: 4.5px of soft band, then 63px.
+	 *
+	 * Scrolled one pixel at a time here, which is finer than any wheel: if a total moves, it moves
+	 * on some frame, and a frame is what the eye catches.
+	 */
+	for (let scroll = 1; scroll <= 320; scroll++) {
+		const geometry = fadeGeometry(heldBand(rowsAt(scroll), FADE));
+		const { above, gap, nextFade } = divide(geometry, FADE);
+		const total = above + gap + nextFade;
+		assert.ok(
+			Math.abs(total - FADE) < 1,
+			`at ${scroll}px the mask softens over ${total}px rather than ${FADE}px (above ${above}, gap ${gap}, next ${nextFade})`,
+		);
+	}
+});
+
+test("the mask's stops stay in order at every scroll position", () => {
+	// A gradient whose offsets go backwards is clamped by the browser rather than rejected, which
+	// turns a wrong number into a hard edge somewhere instead of an error anywhere.
+	for (let scroll = 0; scroll <= 320; scroll++) {
+		const geometry = fadeGeometry(heldBand(rowsAt(scroll), FADE));
+		const { gap, next, nextFade } = divide(geometry, FADE);
+		const stops = [0, geometry.top, geometry.inset, geometry.inset + gap, next, next + nextFade];
+		for (let i = 1; i < stops.length; i++) {
+			assert.ok(stops[i] >= stops[i - 1] - 0.001, `at ${scroll}px stop ${i} (${stops[i]}) sits above stop ${i - 1} (${stops[i - 1]})`);
+		}
+	}
 });

@@ -1,9 +1,10 @@
 /**
  * Keep the scroller's upper fade below the rows pinned over it.
  *
- * The rows are held by `position: sticky`; this only tells the mask where they end, by writing
- * `--ly-fade-inset` on the viewport. `sticky.ts` has the reasoning, including why this being a
- * frame behind is harmless when the placement was not.
+ * The rows are held by `position: sticky`; this only tells the mask where they currently are, as
+ * the four lengths of `fadeGeometry`. How deeply to soften around them is `.ly-fade-y`'s, because
+ * the depth being divided animates and a number frozen here cannot follow it. `sticky.ts` has the
+ * reasoning, including why this being a frame behind is harmless when the placement was not.
  *
  * Reads on the frame, writes only on change: this runs on every frame of every scroll of the one
  * surface in the app that is always being scrolled.
@@ -11,7 +12,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { FADE_TOP } from "../../ui/scroll/Scroller.tsx";
-import { heldBand, isPinned, type StickyRow } from "./sticky.ts";
+import { fadeGeometry, heldBand, isPinned, type FadeGeometry, type StickyRow } from "./sticky.ts";
 
 /** Marks a row the browser is currently holding at its rail. `.ly-pin` fills only while it is set. */
 const STUCK = "data-ly-stuck";
@@ -24,7 +25,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	/** Found once per change to the list rather than once per frame. */
 	const rows = useRef<{ node: HTMLElement; rail: number }[]>([]);
 	const stale = useRef(true);
-	const written = useRef({ top: -1, bottom: -1, next: -1, under: -1 });
+	const written = useRef<FadeGeometry>({ top: -1, inset: -1, room: -1, run: -1 });
 	const frame = useRef(0);
 
 	const measure = useCallback(() => {
@@ -60,25 +61,26 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		 */
 		const band = heldBand(measured, view.scrollTop > 0 ? FADE_TOP : 0);
 		/*
-		 * The gap between the two held runs, softened — and folded away when there is only one.
+		 * Where the held rows are, and nothing about how deep to soften.
 		 *
-		 * `gap` is how deep the fade under the first run reaches: a full `FADE_TOP` when there is
-		 * room, and only as far as the next held row when there is not, so the softening stops
-		 * where that row begins instead of eating into it. With one run there is nothing below to
-		 * stop for, so it is the full depth and the stops after it collapse onto each other —
-		 * `nextFade` of zero is what makes the mask's second half disappear rather than draw a
-		 * second fade nobody asked for. See `.ly-fade-y`.
+		 * That split is the fix rather than a refactor. How deep is `--ly-fade-top`, it animates,
+		 * and the sidebar's mask reaches it only through the lengths derived in `.ly-fade-y` — so
+		 * a depth written from here is a transition overwritten with one of its own frames. It was
+		 * also arithmetic that had the single-run case backwards: with one run `nextTop` equals
+		 * `bottom`, so the gap it wrote was zero, every stop of that gradient landed on the same
+		 * offset, and the sidebar went from opaque to transparent in no pixels at all. Which is to
+		 * say it had no top fade — the reported defect, on every frame but the handful where a
+		 * heading happened to be approaching its rail.
 		 */
-		const under = Math.min(FADE_TOP, Math.max(0, band.nextTop - band.bottom));
-		const nextFade = band.next > band.bottom ? FADE_TOP : 0;
+		const next = fadeGeometry(band);
 
-		if (written.current.top !== band.top || written.current.bottom !== band.bottom || written.current.next !== band.next || written.current.under !== under) {
-			view.style.setProperty("--ly-hold-top", `${band.top}px`);
-			view.style.setProperty("--ly-fade-inset", `${band.bottom}px`);
-			view.style.setProperty("--ly-hold-gap", `${under}px`);
-			view.style.setProperty("--ly-hold-next", `${Math.max(band.next, band.bottom + under)}px`);
-			view.style.setProperty("--ly-hold-next-fade", `${nextFade}px`);
-			written.current = { top: band.top, bottom: band.bottom, next: band.next, under };
+		const last = written.current;
+		if (last.top !== next.top || last.inset !== next.inset || last.room !== next.room || last.run !== next.run) {
+			view.style.setProperty("--ly-hold-top", `${next.top}px`);
+			view.style.setProperty("--ly-fade-inset", `${next.inset}px`);
+			view.style.setProperty("--ly-hold-room", `${next.room}px`);
+			view.style.setProperty("--ly-hold-run", `${next.run}px`);
+			written.current = next;
 		}
 
 		/*

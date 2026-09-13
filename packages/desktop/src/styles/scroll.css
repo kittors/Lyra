@@ -307,11 +307,11 @@
  * dissolving and started sliding under it hard-edged. So the band below the strip is softened on
  * its own, and the row still on its way down keeps a band of its own.
  *
- * `--ly-hold-gap` stops that softening short when the second band is closer than a full fade, so it
- * ends where that row begins rather than eating into it. With nothing held below, the gap is the
- * full depth, `--ly-hold-next` sits at the end of it and `--ly-hold-next-fade` is zero — every stop
- * in the second half then lands on the same position and draws nothing, which is how this folds
- * back into the single-band mask it replaced. `sidebar/sticky.ts` decides all three.
+ * These three are *derived*, below, from the two raw measurements `sidebar/useStickyFade` writes
+ * and the depth `Scroller` is asking for. They used to be written directly, and that is the whole
+ * of the defect this replaced: a length computed in JavaScript cannot follow `--ly-fade-top` while
+ * it animates, and the sidebar's mask never reads that property anywhere else — so the softening
+ * stopped easing in and started appearing.
  */
 @property --ly-hold-gap {
   syntax: "<length>";
@@ -331,20 +331,65 @@
   initial-value: 0;
 }
 
+/*
+ * How much softening there is to go round, and the two measurements it gets divided by.
+ *
+ * Every stretch of list between two held rows is a full gradient of its own, transparent to opaque.
+ * Giving each one the full depth is what made the softening jump: a heading reaching the point
+ * where it counts as held is one frame, and in that frame a second gradient 36px deep appeared
+ * under it out of nothing. Measured on the sidebar, scrolling one notch at a time — the soft band
+ * went 4.5px → 63px between two adjacent 12px steps, and 41.5px → 0px twelve pixels later.
+ *
+ * So there is a budget instead, and it is the depth `Scroller` asked for. Whatever the list above
+ * the first held row has already used comes off the top; the first stretch takes what it can up to
+ * the next held row; the last stretch gets the remainder. The total stays put while the shape of
+ * the pane changes underneath it, which is the only way a fade survives rows arriving at a rail.
+ *
+ * `--ly-hold-room` is that "up to the next held row" — the distance from the first run's underside
+ * to the second one's top. Its initial value is a length no pane is tall enough to reach, which is
+ * how a scroller with nothing held at all takes the whole budget in one stretch: every scroller in
+ * the app but the sidebar, and the sidebar itself whenever only one run is held. `--ly-hold-run` is
+ * where that second run ends, and zero — no second run — leaves `--ly-hold-next` at the end of the
+ * first gradient, where the stops after it collapse and draw nothing.
+ */
+@property --ly-hold-room {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 99999px;
+}
+
+@property --ly-hold-run {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --ly-hold-budget {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .ly-fade-y {
   /*
-   * What the second band is worth to a scroller that has no held rows at all — which is every one
-   * of them but the sidebar.
+   * Dividing the softening up, for every scroller in the app including the sidebar.
    *
-   * The three below are written per frame by `sidebar/useStickyFade`, as inline style, which wins
-   * over this. Everywhere else they have to fold the mask back to a plain two-ended fade, and the
-   * registered initial value of `0` will not do it: the gap is the depth of the softening under the
-   * band, so a zero there is a scroller with no top fade at all. Stated in terms of `--ly-fade-top`
-   * instead, so it follows the depth `Scroller` is asking for — including while that is animating.
+   * Stated here rather than written per frame by `sidebar/useStickyFade`, and that is the fix
+   * rather than a tidy-up. `--ly-fade-top` is the depth `Scroller` asks for and it *animates* —
+   * that transition at the foot of this rule is what makes a fade ease in when a list first
+   * scrolls rather than snap on. Nothing in the mask below reads it directly; it reaches the
+   * gradient only through these four. So the moment a pixel length computed in JavaScript is
+   * written over any of them, the sidebar's softening stops easing and starts appearing — and it
+   * cannot follow a short pane either, where `scrollFade` asks for less than the full depth.
+   *
+   * What JavaScript still owns is the two things CSS cannot ask: where the held rows are
+   * (`--ly-hold-top`, `--ly-fade-inset`) and how far apart the two runs of them sit
+   * (`--ly-hold-room`, `--ly-hold-run`). Geometry measured, never depth decided.
    */
-  --ly-hold-gap: var(--ly-fade-top);
-  --ly-hold-next: calc(var(--ly-fade-inset) + var(--ly-fade-top));
-  --ly-hold-next-fade: 0px;
+  --ly-hold-budget: max(0px, var(--ly-fade-top) - var(--ly-hold-top));
+  --ly-hold-gap: min(var(--ly-hold-room), var(--ly-hold-budget));
+  --ly-hold-next: max(var(--ly-hold-run), var(--ly-fade-inset) + var(--ly-hold-gap));
+  --ly-hold-next-fade: max(0px, var(--ly-hold-budget) - var(--ly-hold-gap));
   mask-image: linear-gradient(
     to bottom,
     /* Above the held band: the list, softened into the top edge as it always was. Collapses to

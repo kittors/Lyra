@@ -133,3 +133,47 @@ export function pinnedDepth(rows: StickyRow[]): number {
 	const band = heldBand(rows, 0);
 	return Math.max(band.bottom, band.next);
 }
+
+/**
+ * A length no scroll viewport is tall enough to reach, meaning "as far as the softening wants".
+ *
+ * Matches the registered initial value of `--ly-hold-room`, which is what every scroller that has
+ * no held rows at all gets — so a sidebar holding one run and a transcript holding none arrive at
+ * the same mask by the same arithmetic rather than by two separate special cases.
+ */
+export const HOLD_ROOM_UNBOUNDED = 99999;
+
+/** The four lengths the mask needs, and the only four it asks JavaScript for. */
+export interface FadeGeometry {
+	/** Where the first run of held rows starts. */
+	top: number;
+	/** And where it ends — the offset the softening below it begins at. */
+	inset: number;
+	/** How far that softening may reach: to the second run, or unbounded when there is none. */
+	room: number;
+	/** The underside of the second run, and zero when there is no second run to protect. */
+	run: number;
+}
+
+/**
+ * Geometry measured, never depth decided.
+ *
+ * The division of the softening itself is `.ly-fade-y`, in CSS, because the depth being divided is
+ * `--ly-fade-top` and that animates — a number computed here would be a frame of a transition
+ * frozen into a constant, which is a fade that appears rather than eases in. What is left for this
+ * side is the part CSS genuinely cannot ask: where the browser has currently put the rows it is
+ * holding.
+ *
+ * The two runs collapse to one here rather than in the stylesheet: an unbounded `room` lets the
+ * first stretch take the whole budget, and a `run` of zero leaves the second stretch zero-width at
+ * the end of it. So "one run" and "no runs at all" need no branch of their own anywhere below.
+ */
+export function fadeGeometry(band: HeldBand): FadeGeometry {
+	const second = band.next > band.bottom;
+	return {
+		top: band.top,
+		inset: band.bottom,
+		room: second ? Math.max(0, band.nextTop - band.bottom) : HOLD_ROOM_UNBOUNDED,
+		run: second ? band.next : 0,
+	};
+}
