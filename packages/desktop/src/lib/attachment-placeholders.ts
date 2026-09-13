@@ -169,6 +169,46 @@ export function placeholderAt<File extends { name: string; label?: string }>(
 }
 
 /**
+ * 把一段选区推到标记外面。
+ *
+ * 标记是一个整体，光标不该停在它中间——停进去之后，方向键一格一格地穿过它，打一个字它就废了（配
+ * 不上任何附件，当场退化成一串裸方括号），而人看不出自己刚才破坏了什么。
+ *
+ * `step` 是这一下移动了几格：正负表示方向，`0` 表示这不是一次单步移动（点击、拖选、跳转）。单步
+ * 的时候顺着原方向推到那一头去，不然左箭头会卡在标记右缘一动不动；其余情况推到近的那一头，这是
+ * 点击落点该有的样子。
+ *
+ * 选区的两端分别推：框住半枚标记时它会自己长成整枚，于是复制走的和删掉的都是完整的一枚。
+ */
+export function clampToPlaceholders<File extends { name: string; label?: string }>(
+	text: string,
+	files: File[],
+	selection: { start: number; end: number },
+	step: number,
+): { start: number; end: number } {
+	const hits = scanPlaceholders(text, files);
+	if (hits.length === 0) return selection;
+
+	const push = (at: number, toward: "start" | "end" | "near"): number => {
+		for (const hit of hits) {
+			if (at <= hit.start || at >= hit.end) continue;
+			if (toward === "start") return hit.start;
+			if (toward === "end") return hit.end;
+			return at - hit.start < hit.end - at ? hit.start : hit.end;
+		}
+		return at;
+	};
+
+	const collapsed = selection.start === selection.end;
+	const single = step === -1 || step === 1;
+	return {
+		// 选区的左端往左长，右端往右长——除非这是一次单步移动，那时两端一起顺着走。
+		start: push(selection.start, single ? (step < 0 ? "start" : "end") : collapsed ? "near" : "start"),
+		end: push(selection.end, single ? (step < 0 ? "start" : "end") : collapsed ? "near" : "end"),
+	};
+}
+
+/**
  * 附件的名字变了，正文里指着它的标记跟着改。
  *
  * 序号会变：删掉「图片 1」之后，原来的「图片 2」就成了「图片 1」——附件条上是自动重编的，正文里

@@ -436,21 +436,28 @@ textarea.ly-composer-text[data-highlighted="true"] {
 
 .ly-attachment-token {
   color: var(--color-ink);
-  background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
-  /*
-   * 上下的内边距不推动任何东西。
-   *
-   * 行内元素的垂直内边距不参与行盒的高度计算，所以加了它只是把背景画得高一点，底下 textarea 里的
-   * 字一个像素都不会动——而这一层是铺在 textarea 上的镜像，字要是动了就全错位了。左右那一半靠透明
-   * 的方括号顶着（见 `.ly-token-bracket`），同样一格没多占。
-   */
-  padding: 2px 0;
+}
+
+/*
+ * 底色画在这一层上，不在整枚标记上。
+ *
+ * 收尾那个方括号留在外面：两个方括号都是透明的占位，但左边那个底下画着图标、右边那个是纯空白，
+ * 都包进去的话右侧就凭空多出一整个字符的留白，和左边对不齐——客户一眼看出来的就是这个。包到名字
+ * 为止之后标签自身是对称的，而右边那一格空白正好成了它和后面那句话之间的间隔。
+ *
+ * 左右的内边距靠负外边距抵掉，所以净宽度一个像素没变：这一层是铺在 textarea 上的镜像，多占一点
+ * 后面整段字就错位了。上下的不必抵——行内元素的垂直内边距本来就不参与行盒的高度。
+ */
+.ly-token-body {
+  padding: 2px 0.22em;
+  margin: 0 -0.22em;
   border-radius: 5px;
+  background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
   /* 换行时两截各自带圆角，而不是中间被切开一刀。 */
   box-decoration-break: clone;
 }
 
-:root.dark .ly-attachment-token {
+:root.dark .ly-token-body {
   background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
 }
 
@@ -475,6 +482,18 @@ textarea.ly-composer-text[data-highlighted="true"] {
    */
   position: relative;
   color: transparent;
+}
+
+/*
+ * 只有名字进了提示词的那些，图标淡一档。
+ *
+ * 一个压缩包、一个可执行文件没有正文可读——模型拿到的是一个名字。这件事得说，但它不是出错：为一件
+ * 本来如此的事横一条提示在屏幕上，读的人会去找自己哪里做错了。图标淡着，说的是同一件事，而且一直
+ * 在那儿。
+ */
+.ly-attachment-token[data-bodiless] .ly-token-bracket:first-child::before,
+.ly-user-bubble .ly-attachment-token[data-bodiless]::before {
+  opacity: 0.42;
 }
 
 .ly-attachment-token[data-kind] .ly-token-bracket:first-child::before {

@@ -123,7 +123,7 @@ export function UserMessage({
   /** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
   const [markMenu, setMarkMenu] = useState<{
     point: { x: number; y: number };
-    file: { name: string; label?: string; path?: string };
+    file: { name: string; label?: string; path?: string; src?: string };
   } | null>(null);
 
   const rawText = message.content
@@ -172,7 +172,18 @@ export function UserMessage({
    */
   const shown = useMemo(() => files.filter((file) => file.src), [files]);
   const spoken = useMemo(
-    () => placeAttachments(text, files.map((file) => ({ name: file.name, label: file.label, kind: file.kind }))).segments,
+    () =>
+      placeAttachments(
+        text,
+        files.map((file) => ({
+          name: file.name,
+          label: file.label,
+          kind: file.kind,
+          src: file.src,
+          // 图片的像素、文本的正文，两样都没有的才是「只有名字」。
+          bodiless: !file.src && file.kind !== "text",
+        })),
+      ).segments,
     [text, files],
   );
   const said = text.trim();
@@ -361,6 +372,9 @@ export function UserMessage({
                   key={at}
                   className="ly-attachment-token"
                   data-kind={segment.file.kind}
+                  /* 只有名字进了提示词的那些：图标淡一档。气泡里还多一句悬停说明。 */
+                  data-bodiless={segment.file.bodiless ? "" : undefined}
+                  data-ly-tip={segment.file.bodiless ? t("composer.filenameOnly") : undefined}
                   /*
                    * 右键点这一枚，和右键点输入框里那一枚、点附件条上那一格，弹的是同一份菜单。
                    *
@@ -388,6 +402,7 @@ export function UserMessage({
             ? {
                 name: markMenu.file.label ?? markMenu.file.name,
                 ...(markMenu.file.path ? { path: markMenu.file.path } : {}),
+                ...(markMenu.file.src ? { src: markMenu.file.src } : {}),
                 ...(markMenu.file.path
                   ? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
                   : {}),

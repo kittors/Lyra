@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { placeAttachments, placeholderAt, placeholderFor, isAttachmentBody, renamePlaceholders, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
+import { clampToPlaceholders, placeAttachments, placeholderAt, placeholderFor, isAttachmentBody, renamePlaceholders, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
 
 const file = (name: string) => ({ name });
 
@@ -170,4 +170,44 @@ test("光标不在标记旁边时，退格还是退格", () => {
 	assert.equal(placeholderAt(text, [a], text.length, true), null);
 	// 标记左边界的左侧一位——退格吃的是那个空格，不是标记
 	assert.equal(placeholderAt(text, [a], text.indexOf("【"), true), null);
+});
+
+test("光标进不到标记中间", () => {
+	const a = { name: "a.png", label: "图片 1" };
+	const text = `看 ${placeholderFor("图片 1")} 这里`;
+	const mark = text.indexOf("【");
+	const end = text.indexOf("】") + 1;
+
+	// 点在标记里：推到近的那一头
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: mark + 1, end: mark + 1 }, 0), { start: mark, end: mark });
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: end - 1, end: end - 1 }, 0), { start: end, end: end });
+
+	/*
+	 * 单步移动顺着原方向走。
+	 *
+	 * 这一条是「就近」唯一办不到的：从右缘按一下左箭头，新位置离右缘只差一格，就近会把它推回右
+	 * 缘——于是左箭头按下去光标一动不动。
+	 */
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: end - 1, end: end - 1 }, -1), { start: mark, end: mark });
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: mark + 1, end: mark + 1 }, 1), { start: end, end: end });
+});
+
+test("选区碰到半枚标记，就长成整枚", () => {
+	// 框住半枚复制走，粘出来是半截没人认得的方括号。
+	const a = { name: "a.png", label: "图片 1" };
+	const text = `看 ${placeholderFor("图片 1")} 这里`;
+	const mark = text.indexOf("【");
+	const end = text.indexOf("】") + 1;
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: mark + 2, end: text.length }, 0), { start: mark, end: text.length });
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: 0, end: end - 2 }, 0), { start: 0, end });
+});
+
+test("标记外面的光标不动它", () => {
+	const a = { name: "a.png", label: "图片 1" };
+	const text = `看 ${placeholderFor("图片 1")} 这里`;
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: 0, end: 0 }, 0), { start: 0, end: 0 });
+	assert.deepEqual(clampToPlaceholders(text, [a], { start: text.length, end: text.length }, -1), {
+		start: text.length,
+		end: text.length,
+	});
 });

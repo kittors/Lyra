@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { abilitiesOf, displayName, isPlaceholderName, nameParts } from "../src/features/composer/attachments/display.ts";
+import { parentOf } from "../src/lib/paths.ts";
 
 test("剪贴板给的那些名字，等于没说", () => {
 	for (const name of [
@@ -92,4 +93,14 @@ test("项目外的文件打得开，但打不进面板", () => {
 test("同名前缀的另一个目录不算在项目里", () => {
 	// `/Users/me/work-old` 不是 `/Users/me/work` 的下级，前缀比较会说它是。
 	assert.deepEqual(abilitiesOf("/Users/me/work-old/表.xlsx", ["/Users/me/work"]), { onDisk: true, inProject: false });
+});
+
+test("所在文件夹是它上一级，不是它自己", () => {
+	// 「在访达中显示」打开目录并选中文件；「打开所在文件夹」只打开目录——两件事，两个菜单项。
+	assert.equal(parentOf("/Users/me/Downloads/表.xlsx"), "/Users/me/Downloads");
+	assert.equal(parentOf("C:\\Users\\me\\表.xlsx"), "C:\\Users\\me");
+	// 根目录下的文件：上级是根，不是空串——空串会被当成「没有路径」而把菜单项画成灰的。
+	assert.equal(parentOf("/表.xlsx"), "/");
+	// 压根不是路径的东西，答不出上级
+	assert.equal(parentOf("表.xlsx"), "");
 });

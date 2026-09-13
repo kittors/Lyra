@@ -74,7 +74,7 @@ test("渲染进程顶层目录的数目", () => {
 test("契约方法的数目", () => {
 	// 数的是 `channel:` 而不是导出的常量：这个文件是一张表，表的行数就是方法数。
 	const actual = (read("packages/contract/src/methods.ts").match(/channel: "/g) ?? []).length;
-	assert.equal(actual, 200);
+	assert.equal(actual, 201);
 	for (const source of [agents, read("docs/adr/0012-one-contract-not-three.md")]) {
 		for (const written of counts(source, "个方法").concat(counts(source, "个 invoke"))) {
 			assert.equal(written, actual);

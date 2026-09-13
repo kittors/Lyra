@@ -365,7 +365,7 @@ try {
 			await app.evaluate(`document.querySelector("main .ly-composer [data-ly-attachment] [data-ly-hover-reveal]:last-of-type button").click()`);
 			await new Promise((r) => setTimeout(r, 600));
 		}
-		console.log("菜单：", JSON.stringify(await app.evaluate<Record<string, unknown>>(READ_MENU), null, 1));
+		console.log("格子上的菜单：", JSON.stringify(await app.evaluate<Record<string, unknown>>(READ_MENU), null, 1));
 		await writeFile(`${out}-menu.png`, Buffer.from((await clip(app, "main .ly-composer", 120)).data, "base64"));
 		console.log(`wrote ${out}-menu.png`);
 		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
@@ -454,6 +454,85 @@ try {
 	}));
 	await writeFile(`${out}-at-start.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
 	console.log(`wrote ${out}-at-start.png`);
+
+	/*
+	 * 句子里那枚标记的右键菜单。
+	 *
+	 * 四个地方点出来的该是同一份：格子上、句子里、气泡外那一排、气泡里那一枚。这里验第二个——它是最
+	 * 容易漏的，因为被点到的是 textarea 而不是标记（那一层高亮整层不接事件）。
+	 */
+	const tokenAt = await app.evaluate<{ x: number; y: number } | null>(`(() => {
+		const token = document.querySelector("main .ly-composer .ly-attachment-token");
+		if (!token) return null;
+		const r = token.getBoundingClientRect();
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	if (tokenAt) {
+		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
+			await app.send("Input.dispatchMouseEvent", {
+				type,
+				...tokenAt,
+				...(type === "mouseMoved" ? {} : { button: "right", clickCount: 1 }),
+			});
+		}
+		await new Promise((r) => setTimeout(r, 700));
+		console.log("标记上的菜单：", JSON.stringify(await app.evaluate<Record<string, unknown>>(READ_MENU), null, 1));
+		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
+		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
+		await new Promise((r) => setTimeout(r, 400));
+	}
+
+	/*
+	 * 光标进不到标记里面。
+	 *
+	 * 停进去之后，方向键一格一格地穿过它，打一个字它就废了——配不上任何附件，当场退化成一串裸方括
+	 * 号，而人看不出自己刚破坏了什么。这里把光标硬塞到一枚标记的正中间，看它自己弹出来没有。
+	 */
+	/*
+	 * 用真的方向键，不是派发一个 `select` 事件。
+	 *
+	 * React 的 `onSelect` 不是原生的那个 select——它由 SelectEventPlugin 从 focus / 按键 / 鼠标这些
+	 * 事件里合成出来。手写一个 `new Event("select")` 派发过去，React 那一侧什么都不会发生，于是这条
+	 * 读数会说「光标停在标记里出不来」，而真窗口里它是好的。第一次跑出来就是这种假红。
+	 */
+	const caret = await app.evaluate<{ open: number; close: number }>(`(() => {
+		const field = document.querySelector("main textarea");
+		const open = field.value.indexOf("【");
+		const close = field.value.indexOf("】", open);
+		field.focus();
+		// 停在标记右缘外面，等下按左箭头往里走。
+		field.setSelectionRange(close + 2, close + 2);
+		return { open, close };
+	})()`);
+	for (let i = 0; i < 2; i++) {
+		await app.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "ArrowLeft", code: "ArrowLeft", windowsVirtualKeyCode: 37 });
+		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowLeft", code: "ArrowLeft", windowsVirtualKeyCode: 37 });
+		await new Promise((r) => setTimeout(r, 200));
+	}
+	console.log("光标夹取：", JSON.stringify(await app.evaluate<Record<string, unknown>>(`(() => {
+		const field = document.querySelector("main textarea");
+		const at = field.selectionStart;
+		return {
+			mark: [${caret.open}, ${caret.close + 1}],
+			landed: at,
+			// 往左走两下，应该已经整枚跨过去停在标记左边，而不是卡在里面
+			insideAfterwards: at > ${caret.open} && at < ${caret.close + 1},
+		};
+	})()`), null, 1));
+
+	/* 框住半枚，该自己长成整枚——复制走的和删掉的都得是完整的一枚。 */
+	await app.evaluate(`(() => {
+		const field = document.querySelector("main textarea");
+		field.setSelectionRange(${caret.open + 3}, ${caret.close + 4});
+		return true;
+	})()`);
+	await app.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39, modifiers: 8 });
+	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39, modifiers: 8 });
+	await new Promise((r) => setTimeout(r, 300));
+	console.log("选区扩展：", JSON.stringify(await app.evaluate<number[]>(`(() => {
+		const field = document.querySelector("main textarea");
+		return [field.selectionStart, field.selectionEnd];
+	})()`)));
 
 	/*
 	 * 两条删除路径，各验一条。

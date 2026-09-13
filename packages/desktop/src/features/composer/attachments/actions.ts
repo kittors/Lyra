@@ -10,6 +10,7 @@
 import { useCallback, useMemo } from "react";
 
 import { abilitiesOf, type Abilities } from "./display.ts";
+import { parentOf } from "../../../lib/paths.ts";
 import { bridge } from "../../../services/index.ts";
 import { useApp } from "../../../store/index.ts";
 import { useI18n } from "../../../i18n/index.ts";
@@ -29,8 +30,10 @@ export interface AttachmentActions {
 	target: ReturnType<typeof useOpenTarget>;
 	/** 交给外部应用。 */
 	openExternal(file: ActionTarget): void;
-	/** 在这个平台的文件管理器里指出它。 */
+	/** 在这个平台的文件管理器里指出它——打开目录并把它选中。 */
 	reveal(file: ActionTarget): void;
+	/** 只打开它所在的那个目录，不选中它。人要这个的时候，通常是想看它旁边还有什么。 */
+	openFolder(file: ActionTarget): void;
 	/**
 	 * 文件还在原处吗——动手之前问一句，不在就说出来。
 	 *
@@ -78,6 +81,11 @@ export function useAttachmentActions(): AttachmentActions {
 			target,
 			openExternal: (file) => void withFile(file, (path) => bridge.system.openIn(target.id, path)),
 			reveal: (file) => void withFile(file, (path) => bridge.system.openIn("reveal", path)),
+			openFolder: (file) =>
+				void withFile(file, (path) => {
+					const folder = parentOf(path);
+					if (folder) void bridge.system.openPath(folder);
+				}),
 			ensureThere: async (file) => {
 				let here = false;
 				await withFile(file, () => {

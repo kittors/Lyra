@@ -469,6 +469,14 @@ export interface LyraApi {
 	clipboard: {
 		read(): Promise<string>;
 		write(text: string): Promise<void>;
+		/**
+		 * A picture on the clipboard, as a picture.
+		 *
+		 * `write` puts text there; pasting that into a chat window gives you a line of characters.
+		 * Copying an image has to go through the image format or it is not copying the image.
+		 * False when the data URL decoded to nothing.
+		 */
+		writeImage(dataUrl: string): Promise<boolean>;
 	};
 	/** A real pseudo-terminal, one per tab. */
 	terminal: {

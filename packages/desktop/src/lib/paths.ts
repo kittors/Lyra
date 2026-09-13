@@ -79,6 +79,22 @@ export function isDescendantPath(parent: string, child: string): boolean {
  * importing a module that imports `node:path`; five lines is the cheaper of the two prices, and
  * both sides are tested against the same cases.
  */
+/**
+ * 这个路径所在的目录。
+ *
+ * 「打开所在文件夹」和「在访达中显示」是两件事：后者打开目录并把这个文件选中，前者只是打开目录。
+ * 人要前者的时候，往往是想看它旁边还有什么。
+ *
+ * 字符串处理，不走 `node:path`——这跑在页面里。两种分隔符都认，因为路径是从主进程来的，而那边可
+ * 能是 Windows。
+ */
+export function parentOf(path: string): string {
+	const at = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+	// 根目录（`/a`）的上级是 `/`，不是空串——空串会被当成「没有路径」而把菜单项画成灰的。
+	if (at < 0) return "";
+	return at === 0 ? path.slice(0, 1) : path.slice(0, at);
+}
+
 export function splitExtension(name: string): [stem: string, extension: string] {
 	const dot = name.lastIndexOf(".");
 	return dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];

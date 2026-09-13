@@ -40,7 +40,7 @@ import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
 import { useAttachmentActions } from "./attachments/actions.ts";
 import { displayName } from "./attachments/display.ts";
-import { placeholderAt, placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { clampToPlaceholders, placeholderAt, placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
@@ -124,6 +124,14 @@ export function Composer() {
 	const { compact } = useLayout();
 	/** 附件那一排上「打开」「在访达中显示」走的是同一套行为，和气泡那边共用——见 `attachments/actions.ts`。 */
 	const { ensureThere } = useAttachmentActions();
+	/**
+	 * 刚按下的是哪个方向键：-1 左、1 右、0 别的。
+	 *
+	 * 光标被标记弹开时要顺着原方向弹，否则左箭头会卡在标记右缘一动不动。方向不能靠「新位置比旧位
+	 * 置小」来推——光标位置本身就是被这段代码改过的，拿它当基线会绕回去。按了什么键是唯一的一手
+	 * 消息。
+	 */
+	const lastArrow = useRef(0);
 	/** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
 	const [markMenu, setMarkMenu] = useState<{ point: { x: number; y: number }; file: Attachment } | null>(null);
 
@@ -339,6 +347,8 @@ export function Composer() {
 				start,
 				end,
 				kind: file.kind ?? (file.isText ? "text" : "binary"),
+				// 正文和像素都没进提示词的那些——模型只拿到一个名字，图标淡一档说这件事。
+				...(!file.isText && !file.data ? { bodiless: true } : {}),
 			})),
 		};
 	}, [slash.decoration, mention.mentionDecorations, text, attachments]);
@@ -515,7 +525,8 @@ export function Composer() {
 	async function addFiles(picked: PickedFile[]) {
 		if (picked.length === 0) return;
 		const next: Attachment[] = [];
-		const refused: string[] = [];
+		/** 本该有文字却没有的那些——只有这一类要说出来。 */
+		const scanned: string[] = [];
 		/* 在读字节之前问一次：抽一份三百页 PDF 的文本要几百毫秒，那之后光标早不在原地了。 */
 		const caret = field.current?.selectionStart ?? textRef.current.length;
 
@@ -574,16 +585,14 @@ export function Composer() {
 
 				next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind, ...from });
 				/*
-				 * 读不出来的两种，分开说。
+				 * 读不出来的两种，只有一种要说。
 				 *
-				 * 扫描件是「这份文件里本来就没有文字」，要的是 OCR；格式不支持是「换个格式」。合成同
-				 * 一句话，等于让人去试一件不可能成功的事。
+				 * 扫描件是「这份 PDF 本该有文字，但它是一张图」——人得换个做法（OCR、或者换个文件），
+				 * 不说他不会知道。格式本身不支持（压缩包、可执行文件）是可预期的：为一件本来如此的事
+				 * 横一条提示在屏幕上，读的人会去找自己哪里做错了。那一类改由标记上那枚淡一档的图标说，
+				 * 见 `.ly-attachment-token[data-bodiless]`。
 				 */
-				refused.push(
-					extracted?.imageOnly
-						? translate("composer.scannedDocument", { name: file.name })
-						: `${file.name}（${translate(KIND_LABEL[kind])}）`,
-				);
+				if (extracted?.imageOnly) scanned.push(translate("composer.scannedDocument", { name: file.name }));
 				continue;
 			}
 
@@ -592,7 +601,6 @@ export function Composer() {
 				if (looksBinary(buffer)) {
 					// Named like text, and is not. Same treatment as the known kinds above.
 					next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind: "binary", ...from });
-					refused.push(translate("composer.binaryFile", { name: file.name }));
 					continue;
 				}
 				next.push({
@@ -610,17 +618,17 @@ export function Composer() {
 		}
 
 		/*
-		 * Said once, and said plainly.
+		 * 「模型只看得到文件名」标在附件自己身上，不弹提示。
 		 *
-		 * The file is still attached — the name and type reach the model, which is often all the
-		 * question needs. What must not happen silently is the contents being dropped: someone who
-		 * expects the agent to have read their document should find out here rather than from an
-		 * answer that quietly ignored it.
+		 * 这件事得说——附一个 zip 进去，人会以为模型看了里面，而它只拿到一个名字。但它不是出错：一
+		 * 个压缩包本来就没有正文可读，为一件可预期的事横一条提示在屏幕上，读的人会去找自己哪里做错
+		 * 了。标记上那枚图标淡一档，说的是同一件事，而且一直在那儿。
+		 *
+		 * 扫描件是另一回事，仍然提示：那是「这份 PDF 本该有文字，但它是一张图」——人得换个做法（OCR
+		 * 或者换个文件），这是只有说出来才知道的。
 		 */
-		if (refused.length > 0) {
-			useApp
-				.getState()
-				.notify(translate("composer.unreadableAsText", { names: refused.join("、") }), "warn");
+		if (scanned.length > 0) {
+			useApp.getState().notify(scanned.join("\n"), "warn");
 		}
 		if (next.length === 0) return;
 
@@ -897,6 +905,27 @@ export function Composer() {
 					onSelect={() => {
 						slash.select();
 						mention.select();
+						/*
+						 * 光标不进标记里面。
+						 *
+						 * 标记是一个整体：停进去之后，方向键一格一格地穿过它，打一个字它就废了——配不上
+						 * 任何附件，当场退化成一串裸方括号，而人看不出自己刚破坏了什么。退格那一路已经
+						 * 按整枚处理，落点这一路是它欠的另一半。
+						 *
+						 * `step` 是这一下挪了几格：单步（方向键）要顺着原方向推到那一头去，否则左箭头会
+						 * 卡在标记右缘一动不动；点击和拖选推到近的那一头。
+						 */
+						const el = field.current;
+						if (!el) return;
+						const next = clampToPlaceholders(
+							el.value,
+							attachmentsRef.current,
+							{ start: el.selectionStart, end: el.selectionEnd },
+							el.selectionStart === el.selectionEnd ? lastArrow.current : 0,
+						);
+						if (next.start !== el.selectionStart || next.end !== el.selectionEnd) {
+							el.setSelectionRange(next.start, next.end, el.selectionDirection ?? "none");
+						}
 					}}
 					onFocus={() => {
 						slash.focus();
@@ -940,6 +969,7 @@ export function Composer() {
 						 * 只在没有选区时接管：人自己框住一段按删除，那是他要删的那一段，不该被改写。
 						 */
 						const field = event.currentTarget;
+						lastArrow.current = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
 						if ((event.key === "Backspace" || event.key === "Delete") && field.selectionStart === field.selectionEnd) {
 							const hit = placeholderAt(field.value, attachmentsRef.current, field.selectionStart, event.key === "Backspace");
 							if (hit) {
@@ -1174,6 +1204,9 @@ export function Composer() {
 						? {
 								name: markMenu.file.label ?? markMenu.file.name,
 								...(markMenu.file.path ? { path: markMenu.file.path } : {}),
+								...(markMenu.file.data && !markMenu.file.isText
+									? { src: `data:${markMenu.file.mimeType};base64,${markMenu.file.data}` }
+									: {}),
 								...(markMenu.file.path
 									? { onPreview: () => void openInPane(markMenu.file.path, markMenu.file.name, ensureThere) }
 									: {}),

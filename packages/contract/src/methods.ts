@@ -165,6 +165,7 @@ export const METHODS = {
 	clipboard: {
 		read: { channel: "clipboard:read", remote: false, why: "手机有自己的剪贴板" },
 		write: { channel: "clipboard:write", remote: false, why: "手机有自己的剪贴板" },
+		writeImage: { channel: "clipboard:writeImage", remote: false, why: "手机有自己的剪贴板" },
 	},
 	terminal: {
 		list: { channel: "terminal:list", remote: false, why: "开的是这台机器上的 shell" },

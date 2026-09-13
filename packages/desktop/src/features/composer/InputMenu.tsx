@@ -65,6 +65,17 @@ export function InputMenu() {
 
 	useEffect(() => {
 		const onMenu = (event: MouseEvent) => {
+			/*
+			 * 谁先接下这次右键，就归谁。
+			 *
+			 * 这一份是兜底：任何普通输入框上右键都该有剪切/复制/粘贴。但输入框里的某些东西有自己的
+			 * 菜单——附件标记就是，右键它要的是「打开」「在访达中显示」，不是「全选」。那一边在自己
+			 * 的 `onContextMenu` 里 `preventDefault` 过了，这里认这个记号。
+			 *
+			 * 不认的话，两份菜单会同时想弹，而挂在 document 上的这一份后到、后到的那个盖住先到的：
+			 * 点在标记上弹出来的是一张跟附件毫无关系的编辑菜单。
+			 */
+			if (event.defaultPrevented) return;
 			const next = aim(event);
 			if (!next) return;
 			event.preventDefault();

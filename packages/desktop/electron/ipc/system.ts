@@ -8,7 +8,7 @@
 import { access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome } from "@lyra/core";
-import { clipboard, ipcMain, shell } from "electron";
+import { clipboard, ipcMain, nativeImage, shell } from "electron";
 import { remoteImage } from "../avatars.ts";
 import { openExternalSafely } from "../window-security.ts";
 import { openTargets, openWith, type OpenTarget } from "../open-targets.ts";
@@ -77,4 +77,17 @@ export function registerSystemIpc(): void {
 	 */
 	ipcMain.handle("clipboard:read", async () => clipboard.readText());
 	ipcMain.handle("clipboard:write", async (_event, text: string) => clipboard.writeText(text));
+
+	/*
+	 * 一张图进剪贴板，作为图片而不是一串字。
+	 *
+	 * 「复制」一张截图，人想要的是能粘到聊天窗口、粘到文档里去的那种复制——写进去一行路径的话，粘
+	 * 出来是一行路径。写文字那个方法答不了这件事：剪贴板里图片和文本是两种格式。
+	 */
+	ipcMain.handle("clipboard:writeImage", async (_event, dataUrl: string) => {
+		const image = nativeImage.createFromDataURL(dataUrl);
+		if (image.isEmpty()) return false;
+		clipboard.writeImage(image);
+		return true;
+	});
 }

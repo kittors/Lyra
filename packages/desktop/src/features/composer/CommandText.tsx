@@ -16,7 +16,7 @@ export interface ComposerDecorations {
 	 * 它就该消失。画成一枚标签而不是一串方括号，是因为方括号在中文里是普通标点——不画出来的话，
 	 * 「这个【重要】」和真正的引用长得一模一样。
 	 */
-	attachments?: { start: number; end: number; kind?: string }[];
+	attachments?: { start: number; end: number; kind?: string; bodiless?: boolean }[];
 }
 
 interface TextSpan {
@@ -24,6 +24,8 @@ interface TextSpan {
 	className?: string;
 	/** 附件标记按门类上色，色值由 `.ly-attachment-token[data-kind]` 给。 */
 	kind?: string;
+	/** 只有名字进了提示词，内容没有——图标淡一档说这件事。 */
+	bodiless?: boolean;
 	/** 首尾那对 `【】` 单独包一层画成透明——留位不留形，见下面组装 span 的地方。 */
 	brackets?: boolean;
 }
@@ -36,6 +38,8 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		className: string;
 		/** 附件标记才有：门类决定它是哪种颜色。 */
 		kind?: string;
+		/** 同上，只有名字进了提示词的那些。 */
+		bodiless?: boolean;
 	}
 
 
@@ -68,6 +72,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 					end: a.end,
 					className: "ly-attachment-token",
 					...(a.kind ? { kind: a.kind } : {}),
+					...(a.bodiless ? { bodiless: true } : {}),
 				});
 			}
 		}
@@ -91,6 +96,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 			text: value.slice(seg.start, seg.end),
 			className: seg.className,
 			...(seg.kind ? { kind: seg.kind } : {}),
+			...(seg.bodiless ? { bodiless: true } : {}),
 			/*
 			 * 附件标记的那对方括号留着占位，但不画出来。
 			 *
@@ -129,11 +135,21 @@ export function CommandText({
 			<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
 				{spans.map((s, idx) =>
 					s.className ? (
-						<span key={idx} className={s.className} data-kind={s.kind}>
+						<span key={idx} className={s.className} data-kind={s.kind} data-bodiless={s.bodiless ? "" : undefined}>
 							{s.brackets && s.text.length > 2 ? (
+								/*
+								 * 底色只包到名字为止，收尾那个方括号留在外面。
+								 *
+								 * 两个方括号都是透明的占位，但它们看起来不一样：左边那个底下画着图标，右
+								 * 边那个是纯空白——底色要是把两个都包进去，右侧就凭空多出一整个字符的留
+								 * 白，和左边对不齐。包到名字为止之后，标签自身是对称的，而右边那一格空白
+								 * 正好成了它和后面那句话之间的间隔。
+								 */
 								<>
-									<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
-									{s.text.slice(1, -1)}
+									<span className="ly-token-body">
+										<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
+										{s.text.slice(1, -1)}
+									</span>
 									<span className="ly-token-bracket">{s.text.slice(-1)}</span>
 								</>
 							) : (
