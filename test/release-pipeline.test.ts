@@ -130,6 +130,14 @@ test("Android 那四个 secret 的名字，三处写的是同一套", () => {
 	}
 });
 
+test("排练红了不能假装绿", () => {
+	assert.match(
+		read("scripts/release.mjs"),
+		/--exit-status/,
+		"rehearse 若不看 exit-status，红的 dry run 也会打印「绿了就可以」并退出 0",
+	);
+});
+
 test("all-green 等 windows-ui 也等 knip，pre-push 跑同一组 check", () => {
 	const hook = read("lefthook.yml");
 	assert.match(ci, /needs: \[[^\]]*windows-ui[^\]]*\]/, "all-green 不等 windows-ui，Windows 窗口红了主分支仍是绿的");

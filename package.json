@@ -22,7 +22,7 @@
     "knip": "knip",
     "test": "pnpm -r --no-bail test && node --test --experimental-strip-types test/*.test.ts",
     "test:unit": "pnpm -r --no-bail test",
-    "check": "pnpm lint && pnpm style && pnpm i18n && pnpm typecheck && pnpm arch && pnpm test",
+    "check": "pnpm lint && pnpm check:links && pnpm style && pnpm i18n && pnpm typecheck && pnpm arch && pnpm test",
     "prepare": "lefthook install",
     "test:e2e": "pnpm --filter @lyra/desktop test:e2e",
     "catalog:update": "node scripts/update-model-catalog.mjs",

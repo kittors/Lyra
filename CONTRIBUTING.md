@@ -19,13 +19,13 @@ Windows 上的真实窗口（`windows-ui`）只在 CI 里跑。要临时跳过�
 
 | 命令 | 做什么 |
 | --- | --- |
-| `pnpm check` | lint + typecheck + test，和 CI 跑的是同一套 |
+| `pnpm check` | lint、链接、style、i18n、typecheck、arch、test |
 | `pnpm lint` | oxlint，`--deny-warnings`，所以警告等同于失败 |
 | `pnpm lint:fix` | 能自动修的修掉 |
 | `pnpm typecheck` | 三个包一起 |
 | `pnpm test` | 单元测试，含组件测试 |
 | `pnpm --filter @lyra/desktop test:ui` | 只跑组件测试（happy-dom，不到一秒） |
-| `pnpm release:rehearse` | 触发一次 Release dry run |
+| `pnpm release:rehearse` | 触发 Release dry run 并等到绿；红了就停 |
 | `pnpm release patch` | 发版：版本号、CHANGELOG、tag、推送 |
 | `pnpm knip` | 未使用的导出、依赖、文件 |
 | `pnpm build` | core + 桌面端 |

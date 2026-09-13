@@ -185,7 +185,9 @@ async function rehearse() {
 	// Six runners in parallel, and the Android one sets the pace: a cold Gradle build measured
 	// twenty-two minutes of the twenty-five.
 	note(`跑起来了：${id}。等它结束（六个 runner，约二十五分钟）…`);
-	await run("gh", ["run", "watch", id], { cwd: ROOT, stdio: "inherit" }).catch(() => {});
+	// `--exit-status` is the whole point: without it a red dry run still printed
+	// 「绿了就可以」and exited 0, which is how a failed Windows verify was treated as a pass.
+	await must("gh", ["run", "watch", id, "--exit-status"]);
 	console.log("\n绿了就可以 pnpm release <版本>\n");
 }
 
