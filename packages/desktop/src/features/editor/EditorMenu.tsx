@@ -34,7 +34,7 @@ import {
 	Wand2,
 } from "lucide-react";
 
-import { useRevealLabel } from "../files/index.ts";
+import { useRevealLabel } from "../../store/open-targets.ts";
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 import { bridge } from "../../services/index.ts";

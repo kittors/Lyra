@@ -37,6 +37,7 @@
 
 /* Components, in the order they were written. */
 @import "./styles/composer.css";
+@import "./styles/attachments.css";
 @import "./styles/working.css";
 @import "./styles/loading.css";
 @import "./styles/scroll.css";

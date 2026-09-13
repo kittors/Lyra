@@ -74,7 +74,7 @@ test("渲染进程顶层目录的数目", () => {
 test("契约方法的数目", () => {
 	// 数的是 `channel:` 而不是导出的常量：这个文件是一张表，表的行数就是方法数。
 	const actual = (read("packages/contract/src/methods.ts").match(/channel: "/g) ?? []).length;
-	assert.equal(actual, 199);
+	assert.equal(actual, 200);
 	for (const source of [agents, read("docs/adr/0012-one-contract-not-three.md")]) {
 		for (const written of counts(source, "个方法").concat(counts(source, "个 invoke"))) {
 			assert.equal(written, actual);
@@ -92,7 +92,7 @@ test("契约方法的数目", () => {
 test("循环依赖的数目", () => {
 	const baseline = JSON.parse(read(".dependency-cruiser-known-violations.json")) as Array<{ rule: { name: string } }>;
 	const actual = baseline.filter((one) => one.rule.name === "no-circular").length;
-	assert.equal(actual, 142);
+	assert.equal(actual, 139);
 	for (const written of counts(architecture, "条的基线").concat(counts(architecture, "条循环"))) {
 		assert.equal(written, actual);
 	}
@@ -131,5 +131,5 @@ test("pnpm arch 仍然把循环依赖的数目印出来", () => {
 		shell: process.platform === "win32",
 	});
 	assert.match(out, /known violations ignored/, "基线机制没生效，或者输出不再报数");
-	assert.match(out, /144 known violations/);
+	assert.match(out, /141 known violations/);
 });

@@ -16,16 +16,25 @@
  * for, and choosing between them *is* the title.
  */
 
-import { Bot, Check, CircleStop, FileText, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Bot, Check, CircleStop, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
-import { openViewer } from "../image/index.ts";
+import { openFromEvent } from "../image/index.ts";
 import { BackToLatest } from "../conversation/index.ts";
-import { ComposerSend, ComposerShell } from "../composer/index.ts";
+import {
+	AttachmentStrip,
+	ComposerSend,
+	ComposerShell,
+	fileKind,
+	KIND_LABEL,
+	pickedFrom,
+	type PickedFile,
+	type StripFile,
+} from "../composer/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -44,6 +53,8 @@ interface SubAgentAttachment {
 	data?: string;
 	text?: string;
 	isText: boolean;
+	/** 磁盘上的位置，来自一个文件的话——「打开」和「在访达中显示」靠它。 */
+	path?: string;
 }
 
 export function SubAgentPanel() {
@@ -361,10 +372,30 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 	const [sending, setSending] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	const addFiles = async (fileList: FileList | null) => {
-		if (!fileList || fileList.length === 0) return;
+	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
+	const strip: StripFile[] = useMemo(
+		() =>
+			attachments.map((attachment) => {
+				const kind = fileKind(attachment.name, attachment.mimeType);
+				return {
+					key: attachment.id,
+					name: attachment.name,
+					kind,
+					...(attachment.data && !attachment.isText
+						? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
+						: {}),
+					...(attachment.path ? { path: attachment.path } : {}),
+					tip: `${attachment.name}\n${t(KIND_LABEL[kind])}`,
+				};
+			}),
+		[attachments, t],
+	);
+
+	const addFiles = async (picked: PickedFile[]) => {
+		if (picked.length === 0) return;
 		const next: SubAgentAttachment[] = [];
-		for (const file of Array.from(fileList)) {
+		for (const { file, path } of picked) {
+			const from = path ? { path } : {};
 			if (file.type.startsWith("image/")) {
 				const buffer = await file.arrayBuffer();
 				const base64 = bytesToBase64(new Uint8Array(buffer));
@@ -374,6 +405,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 					mimeType: file.type,
 					data: base64,
 					isText: false,
+					...from,
 				});
 			} else {
 				// Non-image attachments (text, markdown, code, config, logs, etc.)
@@ -385,6 +417,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 						mimeType: file.type || "text/plain",
 						text: content,
 						isText: true,
+						...from,
 					});
 				} catch {
 					useApp.getState().notify(t("subAgent.fileUnreadable", { name: file.name }), "warn");
@@ -433,53 +466,33 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 				onSubmit={() => void send()}
 				disabled={sending}
 				placeholder={t("subAgent.steerPlaceholder")}
-				onFiles={(files) => void addFiles(files)}
+				onFiles={(picked) => void addFiles(picked)}
 				attachments={
+					/*
+					 * 和主输入框、侧边聊天、气泡外面，是同一排东西。
+					 *
+					 * 这里从前自己画了一份：56px 高的卡片、一行「文件附件」、常驻的叉。于是同一份 PDF 在应用里
+					 * 有四种长相，而它们说的是同一件事。四份实现也意味着新增的能力只会长在其中一份上——打开、
+					 * 指出位置、复制路径，这一份一样都没有。
+					 */
 					attachments.length > 0 ? (
-						<div className="flex flex-wrap gap-2 px-3.5 pt-3">
-							{attachments.map((attachment) => (
-								<div key={attachment.id} className="relative group/att">
-									{attachment.isText ? (
-										<div className="flex h-14 w-28 flex-col justify-between rounded-lg border border-line bg-card p-2 text-left shadow-xs">
-											<div className="flex items-center gap-1 text-ink-muted">
-												<FileText size={13} className="shrink-0" />
-												<span className="truncate text-[11px] font-medium text-ink">{attachment.name}</span>
-											</div>
-											<span className="text-[9.5px] text-ink-faint">{t("subAgent.fileAttachment")}</span>
-										</div>
-									) : (
-										<button
-											type="button"
-											aria-label={t("subAgent.previewOne", { name: attachment.name })}
-											onClick={(event) => {
-												const images = attachments
-													.filter((a) => !a.isText && a.data)
-													.map((a) => ({
-														src: `data:${a.mimeType};base64,${a.data}`,
-														alt: a.name,
-													}));
-												const index = attachments.filter((a) => !a.isText).findIndex((a) => a.id === attachment.id);
-												const origin = event.currentTarget.getBoundingClientRect();
-												openViewer(images, index, origin, event.currentTarget);
-											}}
-											className="block h-14 w-20 overflow-hidden rounded-lg border border-line bg-card shadow-xs transition-opacity duration-[var(--ly-t-quick)] hover:opacity-85"
-										>
-											<img
-												src={`data:${attachment.mimeType};base64,${attachment.data}`}
-												alt={attachment.name}
-												className="h-full w-full object-cover"
-											/>
-										</button>
-									)}
-									<button
-										type="button"
-										onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== attachment.id))}
-										className="absolute -top-1.5 -right-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-line bg-float text-ink-muted transition-colors hover:text-ink"
-									>
-										<X size={10} strokeWidth={2.2} />
-									</button>
-								</div>
-							))}
+						<div className="px-3.5 pt-3">
+							<AttachmentStrip
+								files={strip}
+								layout="row"
+								/* 面板本来就窄，格子跟着小一号——一排还是一排，只是每个矮一点。 */
+								thumbnail={56}
+								onOpen={(index, event) =>
+									openFromEvent(
+										event,
+										attachments
+											.filter((a) => !a.isText && a.data)
+											.map((a) => ({ src: `data:${a.mimeType};base64,${a.data}`, alt: a.name })),
+										index,
+									)
+								}
+								onRemove={(file) => setAttachments((prev) => prev.filter((a) => a.id !== file.key))}
+							/>
 						</div>
 					) : undefined
 				}
@@ -500,7 +513,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 							multiple
 							hidden
 							onChange={(e) => {
-								void addFiles(e.target.files);
+								void addFiles(pickedFrom(e.target.files));
 								e.target.value = "";
 							}}
 						/>

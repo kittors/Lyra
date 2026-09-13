@@ -4,7 +4,7 @@ import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
-import { useRevealLabel } from "../files/index.ts";
+import { useRevealLabel } from "../../store/open-targets.ts";
 import { startProjectSession } from "../sidebar/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";

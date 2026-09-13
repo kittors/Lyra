@@ -36,6 +36,10 @@ import { useLayout } from "../../app/layout.tsx";
 import { findModel } from "../models/index.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
 import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
+import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
+import { useAttachmentActions } from "./attachments/actions.ts";
+import { dropPlaceholder } from "../../lib/attachment-placeholders.ts";
+import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
@@ -51,6 +55,39 @@ interface Attachment {
 	data?: string;
 	text?: string;
 	isText: boolean;
+	/**
+	 * 它在磁盘上的位置，来自一个文件的话。
+	 *
+	 * 有它才谈得上「打开」和「在访达中显示」——这两件事在附件条上一直缺着，不是因为界面没给按钮，
+	 * 是因为附件里从来就没记下这个。粘贴进来的截图没有：那是剪贴板里的一团像素，不是某个文件。
+	 */
+	path?: string;
+}
+
+/**
+ * 一次放得进来几个。
+ *
+ * 四十个文件一起拖进来多半是拖错了目录，而每一个都要读字节、抽文本，窗口会停住。超出的部分现在
+ * 会说出来——从前是默默丢掉，人以为都在里面，模型手里却只有前八个。
+ */
+const MAX_FILES = 8;
+
+/**
+ * 把一份附件放进右边的文件面板。
+ *
+ * 写在这里而不是 `attachments/actions.ts` 里，是因为那一层还被气泡那边用着：让它去敲 dock 的门
+ * 会绕出一条循环依赖——门后面挂着整棵面板树，最终又回到这个域，而 `pnpm arch` 拦的就是这个。这
+ * 两个文件本来就各自有这条边，所以「打开到面板」由它们自己动手，共用的只是前面那一问。
+ */
+async function openInPane(
+	path: string | undefined,
+	name: string,
+	ensureThere: (file: { name: string; path?: string }) => Promise<boolean>,
+) {
+	if (!path) return;
+	if (!(await ensureThere({ name, path }))) return;
+	void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+	useDock.getState().open("file", { kind: "conversation", side: "right", share: 0.45 });
 }
 
 export function Composer() {
@@ -75,6 +112,8 @@ export function Composer() {
 	/** 排着几条。只要不是零，新说的这句就得排到它们后面，不然先后就乱了。 */
 	const queuedCount = useApp((s) => (s.activeSessionId ? s.queued[s.activeSessionId]?.length ?? 0 : 0));
 	const { compact } = useLayout();
+	/** 附件那一排上「打开」「在访达中显示」走的是同一套行为，和气泡那边共用——见 `attachments/actions.ts`。 */
+	const { ensureThere } = useAttachmentActions();
 
 	const draftKey = activeSessionId
 		? activeSessionId
@@ -397,18 +436,30 @@ export function Composer() {
 	 *   - anything else read as text, and *then* checked: the extension is a first guess, and a file
 	 *     can be named anything.
 	 */
-	async function addFiles(files: FileList | null) {
-		if (!files) return;
+	async function addFiles(picked: PickedFile[]) {
+		if (picked.length === 0) return;
 		const next: Attachment[] = [];
 		const refused: string[] = [];
 
-		for (const file of Array.from(files).slice(0, 8)) {
+		/*
+		 * 一次最多八个，而且要说出来。
+		 *
+		 * 上限本身是对的——一次拖进四十个文件多半是拖错了目录。静默截断不对：第九个之后的那些
+		 * 连个说法都没有，人以为它们在里面，模型手里却没有。
+		 */
+		if (picked.length > MAX_FILES) {
+			useApp.getState().notify(translate("composer.tooManyFiles", { count: MAX_FILES, dropped: picked.length - MAX_FILES }), "warn");
+		}
+
+		for (const { file, path } of picked.slice(0, MAX_FILES)) {
 			const id = `${file.name}-${Date.now()}-${Math.random()}`;
 			const kind = fileKind(file.name, file.type);
+			// 每一条出口都要带上它，所以在这里摊平一次——漏在某一条分支上，那一类附件就打不开了。
+			const from = path ? { path } : {};
 
 			if (kind === "image") {
 				const buffer = await file.arrayBuffer();
-				next.push({ id, name: file.name, mimeType: file.type, data: bytesToBase64(new Uint8Array(buffer)), isText: false, kind });
+				next.push({ id, name: file.name, mimeType: file.type, data: bytesToBase64(new Uint8Array(buffer)), isText: false, kind, ...from });
 				continue;
 			}
 
@@ -438,11 +489,12 @@ export function Composer() {
 						isText: true,
 						// 门类不改：图标该是 PDF 就还是 PDF，变的只是「内容进不进 prompt」。
 						kind,
+						...from,
 					});
 					continue;
 				}
 
-				next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind });
+				next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind, ...from });
 				/*
 				 * 读不出来的两种，分开说。
 				 *
@@ -461,7 +513,7 @@ export function Composer() {
 				const buffer = new Uint8Array(await file.arrayBuffer());
 				if (looksBinary(buffer)) {
 					// Named like text, and is not. Same treatment as the known kinds above.
-					next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind: "binary" });
+					next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind: "binary", ...from });
 					refused.push(translate("composer.binaryFile", { name: file.name }));
 					continue;
 				}
@@ -472,6 +524,7 @@ export function Composer() {
 					text: new TextDecoder().decode(buffer),
 					isText: true,
 					kind,
+					...from,
 				});
 			} catch {
 				useApp.getState().notify(translate("subAgent.fileUnreadable", { name: file.name }), "warn");
@@ -495,14 +548,19 @@ export function Composer() {
 	}
 
 	/**
-	 * 取下一个附件，只动上面那一排。
+	 * 取下一个附件，连同正文里指着它的那个记号。
 	 *
-	 * 从前这里还要回正文里把 `【文件名】` 抠掉，而它是 `indexOf` 找第一个同名的——附两张都叫
-	 * `shot.png` 的图、删掉后一张，被抠走的是前一张的记号，剩下那张就此失去位置。正文里不再有
-	 * 记号之后，这类对不上账的情况整类消失了。
+	 * 新的草稿不写 `【文件名】` 了，但正文里仍然可能有：升级前存下的草稿、从队列里退回来的那一条，
+	 * 都带着。只把附件从这一排上拿掉的话，正文里就留下一个指向不存在之物的名字——发出去以后，模型
+	 * 会看到一句提到了某个文件的话，而那个文件根本没来。
+	 *
+	 * 按**引用**找，不按名字找。从前这里是 `indexOf` 第一个同名的：附两张都叫 `shot.png` 的图、
+	 * 删掉后一张，被抠走的是前一张的记号，剩下那张就此失去位置。`placeAttachments` 是按次序配对
+	 * 的，第二个 `【shot.png】` 认的就是第二个 `shot.png`——见 `dropPlaceholder`。
 	 */
 	function detach(target: Attachment) {
 		setAttachments((prev) => prev.filter((a) => a.id !== target.id));
+		setText((current) => dropPlaceholder(current, attachmentsRef.current, target));
 	}
 
 	const takeScreenshot = useCallback(async () => {
@@ -562,6 +620,8 @@ export function Composer() {
 			...(attachment.data && !attachment.isText
 				? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
 				: {}),
+			...(attachment.path ? { path: attachment.path } : {}),
+			// 悬停时说全名，因为格子上那一份是截过的。能拿它做什么由 `AttachmentStrip` 自己补一行。
 			tip: `${attachment.name}\n${t(KIND_LABEL[kind])}${bodiless ? ` · ${t("composer.filenameOnly")}` : ""}`,
 		};
 	});
@@ -707,6 +767,16 @@ export function Composer() {
 								)}
 								<AttachmentStrip
 									files={strip}
+									/*
+									 * 独占一行，多了横着滚。
+									 *
+									 * 这一块地方是拿来打字的：一排附件换到第三行时，被挤出屏幕的是输入框
+									 * 自己。气泡那一侧没有这个问题，所以那边照样铺开。
+									 */
+									layout="row"
+									onPreviewFile={(file) => {
+										void openInPane(file.path, file.name, ensureThere);
+									}}
 									onRemove={(file) => {
 										const target = attachments.find((a) => a.id === file.key);
 										if (target) detach(target);
@@ -763,7 +833,8 @@ export function Composer() {
 								multiple
 								hidden
 								onChange={(e) => {
-									void addFiles(e.target.files);
+									// 选进来的也要取路径，和拖进来的走同一条路——见 `attachments/picked.ts`。
+									void addFiles(pickedFrom(e.target.files));
 									e.target.value = "";
 								}}
 							/>

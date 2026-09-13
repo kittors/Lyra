@@ -135,6 +135,33 @@ export function placeAttachments<File extends { name: string }>(text: string, fi
 }
 
 /**
+ * 取下一份附件时，正文里指着它的那个记号跟着走。
+ *
+ * 留下来的话，正文里就有一个指向不存在之物的名字：一句「照着 【模板.xlsx】 填」，而模板没有跟着
+ * 发出去。模型只能按那句话答，答出来的东西没有依据。
+ *
+ * 按引用配对，不按名字。两份附件重名是常事（同一个模板拖了两次），而 `placeAttachments` 是按出现
+ * 次序把第 n 个 `【模板.xlsx】` 配给第 n 个同名附件的——删掉后一份时，被抠走的必须是后一个记号。
+ * 从前那一版在这里用 `indexOf` 找第一个同名的，剩下那份就此失去位置。
+ *
+ * 记号让位之后留下的空档要一起收干净，理由和 `stripPlaceholders` 那边一样：一条自己发出去的消息
+ * 里出现一段莫名其妙的空白，比留着文件名还难解释。
+ */
+export function dropPlaceholder<File extends { name: string }>(text: string, files: File[], target: File): string {
+	if (!text.includes("【")) return text;
+	const { segments } = placeAttachments(text, files);
+	// 正文里本来就没提它——常态，因为新的草稿不写记号了。原样退回，别去动人打的字。
+	if (!segments.some((segment) => segment.kind === "file" && segment.file === target)) return text;
+	return segments
+		.filter((segment) => !(segment.kind === "file" && segment.file === target))
+		.map((segment) => (segment.kind === "text" ? segment.text : placeholderFor(segment.file.name)))
+		.join("")
+		.replace(/[ \t]{2,}/g, " ")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
+/**
  * 只留人打的字：认得出的 `【文件名】` 从给人看的那一份里拿掉。
  *
  * 气泡里画的是这个结果，附件本身画在气泡外面那一排上。留着记号就会变成同一个文件说两遍——

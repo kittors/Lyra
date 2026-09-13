@@ -215,6 +215,7 @@ export const METHODS = {
 		revealSkillsDir: { channel: "system:revealSkillsDir", remote: false, why: "把路径或程序交给操作系统去打开" },
 		platform: { channel: "system:platform", remote: false, why: "把路径或程序交给操作系统去打开" },
 		remoteImage: { channel: "system:remoteImage", remote: false, why: "把路径或程序交给操作系统去打开" },
+		pathExists: { channel: "system:pathExists", remote: false, why: "把路径或程序交给操作系统去打开" },
 	},
 	screenshot: {
 		start: { channel: "screenshot:start", remote: false, why: "读取整个屏幕" },

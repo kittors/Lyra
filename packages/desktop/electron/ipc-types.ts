@@ -713,6 +713,14 @@ export interface LyraApi {
 		revealSkillsDir(scope: "workspace" | "user", cwd: string): Promise<string>;
 		platform(): Promise<string>;
 		/**
+		 * Whether anything is at this path.
+		 *
+		 * Unlike `files.exists`, which resolves against the open projects and so answers `false` for
+		 * every path outside them — which is where attached files mostly live. Asked before offering
+		 * to open one, so that a file since moved says so instead of doing nothing.
+		 */
+		pathExists(path: string): Promise<boolean>;
+		/**
 		 * An https image as a data URL, or null.
 		 *
 		 * For pictures a rendered document names. Fetched in the main process because the page's

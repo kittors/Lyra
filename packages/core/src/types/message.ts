@@ -212,6 +212,23 @@ export interface UserMessage {
 		/** `fileKind` on the desktop side — image, document, archive, text. Purely for the icon. */
 		kind?: string;
 		mimeType?: string;
+		/**
+		 * Where the file came from on this machine, when it came from a file at all.
+		 *
+		 * What it buys: a sent message can still offer to open the spreadsheet it carried, or show it
+		 * where it lives. Without it the bubble knows a name and nothing else, so the only honest
+		 * thing it can do with a file it is displaying is display it.
+		 *
+		 * Optional because a good share of attachments never were files. A pasted screenshot, a
+		 * region grabbed inside the app — those are pixels in memory with a name invented for them,
+		 * and there is nothing on disk to open. Absent is also what every message written before this
+		 * field existed looks like, which is the same thing and wants the same treatment: offer
+		 * nothing rather than offer something that fails.
+		 *
+		 * Not a promise that the file is still there. It records where it was at send time; anything
+		 * acting on it checks first, because the transcript outlives the file by design.
+		 */
+		path?: string;
 	}>;
 }
 

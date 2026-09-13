@@ -1,0 +1,201 @@
+/* ---------------------------------------------------------------------------
+ * 带上去的那几个文件
+ *
+ * 一种格子，两种排法。输入框上方独占一行、横着滚；气泡外面铺开、该几行是几行。骨架在这里，里
+ * 面放什么由 `AttachmentStrip` 决定。
+ * ------------------------------------------------------------------------- */
+
+.ly-attachments {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.ly-attachments-track {
+  display: flex;
+  min-width: 0;
+  /*
+   * 纵向 12，横向 8。
+   *
+   * 不是审美，是余量：取下附件的那个叉往上探出 8px，而行距只有 8px 时它正好压在上一行格子的
+   * 下缘上——这一条是因为「换行之后叉压着上一行」才定下来的，当时的处置是把叉收回格子里面，
+   * 治错了地方。
+   */
+  gap: 12px 8px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 独占一行的那一种
+ * ------------------------------------------------------------------------- */
+
+.ly-attachments-row {
+  flex-wrap: nowrap;
+  /*
+   * 占满，而不是按内容宽。
+   *
+   * 外面那层为了对齐写了 `align-items: start`（气泡那侧是 `end`），而它同时决定了这条轨道有多
+   * 宽——按内容宽的话，十一个格子就把轨道撑到 1702px，`overflow-x` 永远等不到溢出，横滚和两头
+   * 化开于是一次都没发生过。属性全都写对了，画出来什么都没有，正是这一类。
+   */
+  align-self: stretch;
+  /* 横着能滚，竖着不能——那 10px 的上下内边距是留给叉的，不是一块可以滚出去的地方。 */
+  overflow: auto hidden;
+  /*
+   * 内边距留给探到格子外面的那半个叉，负外边距再把格子挪回原位。
+   *
+   * 会滚的容器按自己的内容框裁剪，所以 `-top-2 -right-2` 的叉在这里会被切掉一半——而它在气泡
+   * 那一侧（不滚）是完好的，同一个组件两处长得不一样。补内边距是唯一不必把叉收回格子里的解法：
+   * 裁掉的是内边距以外的东西，而叉正落在内边距里面。
+   *
+   * 两个数一起改，否则这一排会整体偏移。
+   */
+  padding: 10px 12px;
+  margin: -10px -12px;
+  /* 焦点用 Tab 走到一个滚出去的格子上时，它得先被滚进来——落在这里就不会贴着渐隐的那一头。 */
+  scroll-padding-inline: 12px;
+  scrollbar-width: none;
+}
+
+.ly-attachments-row::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * 两头化开，而且是**盖上去**的一层，不是遮罩。
+ *
+ * `mask-image` 是这个仓库里做同类事情的常规手段（见 marquee.css），这里不能用：遮罩连子元素一
+ * 起裁，而这一排每个格子右上角那个叉正是探到格子外面的——用遮罩的话，最靠边那个附件的叉会连同
+ * 它一起被淡掉。盖一层渐变不碰子元素，代价是它必须知道自己底下是什么颜色，也就是 `shell`。
+ *
+ * 位置对齐轨道的负外边距，所以渐变是从那一排真正的边界开始的，不是从内容框。
+ */
+.ly-attachments[data-ly-layout="row"]::before,
+.ly-attachments[data-ly-layout="row"]::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-attachments[data-ly-layout="row"]::before {
+  left: -12px;
+  background: linear-gradient(to right, var(--color-shell), transparent);
+}
+
+.ly-attachments[data-ly-layout="row"]::after {
+  right: -12px;
+  background: linear-gradient(to left, var(--color-shell), transparent);
+}
+
+/*
+ * 谁溢出谁才化开，两侧分开问。
+ *
+ * 属性是量出来写上去的（`AttachmentStrip` 的 `measure`），没溢出时一个都不加：两个附件排在左边、
+ * 右边空着一半，却在中间凭空糊掉一块，那是遮罩常驻才会有的样子。
+ *
+ * 一条选择器一条规则，不合并。Lightning CSS 会按构建目标删掉它认为不支持的规则，`:has()` 有过
+ * 一次把整组逗号选择器一起带走的前科——那一次连 `:hover` 那一半都跟着没了。
+ */
+.ly-attachments:has([data-fade-start])::before {
+  opacity: 1;
+}
+
+.ly-attachments:has([data-fade-end])::after {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * 一个格子
+ * ------------------------------------------------------------------------- */
+
+.ly-attachment {
+  position: relative;
+  flex: none;
+}
+
+.ly-attachment-body {
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-card);
+  text-align: start;
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-quick) var(--ly-e-out),
+    border-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-attachment-body:enabled:hover {
+  border-color: var(--color-line-float);
+  opacity: 0.92;
+}
+
+.ly-attachment-body:enabled:active {
+  transform: scale(0.97);
+}
+
+/*
+ * 图片是正方形，文件按名字宽。
+ *
+ * 「和图片一样大的方块」听着才是整齐的那一个，画出来不是：64 见方放得下十个字符，而
+ * 「陈列道具导入模板(花园里店).xlsx」有二十一个——六个这样的文件并排，每个都被截成同样的前十个
+ * 字。一排东西读起来是不是一组，看的是高度、圆角和边框一不一样。
+ */
+.ly-attachment-body:has(> img) {
+  aspect-ratio: 1;
+}
+
+.ly-attachment-body:not(:has(> img)) {
+  min-width: 112px;
+  max-width: 200px;
+  width: max-content;
+}
+
+.ly-attachment-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 11px;
+  line-height: 1.35;
+  /* 一串没有空格的长文件名要断得开，否则它会把格子顶到 max-width 之外。 */
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------
+ * 挂在格子上的两颗按钮
+ * ------------------------------------------------------------------------- */
+
+.ly-attachment-control {
+  opacity: 0;
+  transition: opacity var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-attachment:hover .ly-attachment-control {
+  opacity: 1;
+}
+
+/* 键盘那一路：Tab 走到叉上时它得看得见，否则按下去的人不知道自己按的是什么。 */
+.ly-attachment:has(:focus-visible) .ly-attachment-control {
+  opacity: 1;
+}
+
+/*
+ * 触屏上没有「先悬停」这一步。
+ *
+ * 手机和平板上这两颗按钮不常驻的话就是不存在——没有任何手势能让它们现身。
+ */
+@media (hover: none) {
+  .ly-attachment-control {
+    opacity: 1;
+  }
+}

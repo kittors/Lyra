@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { CommandText } from "./CommandText.tsx";
 import type { ComposerDecorations } from "./CommandText.tsx";
+import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 import { FIT_LEVELS, FIT_PROBE, settle, tight } from "./fit.ts";
 import { ROLL_VALUE } from "../../ui/motion/RollingText.tsx";
@@ -63,8 +64,14 @@ export function ComposerShell({
   hint?: React.ReactNode;
   left?: React.ReactNode;
   right?: React.ReactNode;
-  /** Supplied only where attachments are accepted; enables paste and drop. */
-  onFiles?: (files: FileList | null) => void;
+  /**
+   * Supplied only where attachments are accepted; enables paste and drop.
+   *
+   * Files *with their paths*, read here rather than by the caller — `pathForDrop` has to run while
+   * the `DataTransfer` is still alive, and this is the last place that is true. A caller receiving
+   * a bare `FileList` could no longer find out where any of it came from.
+   */
+  onFiles?: (files: PickedFile[]) => void;
   /**
    * First refusal on every keystroke, for whatever is floating above the field.
    *
@@ -197,7 +204,8 @@ export function ComposerShell({
         onFiles
           ? (e) => {
               e.preventDefault();
-              onFiles(e.dataTransfer.files);
+              // 同步读，就在这儿：事件返回之后 `DataTransfer` 就空了，路径也就无从问起。
+              onFiles(pickedFrom(e.dataTransfer.files));
             }
           : undefined
       }
@@ -250,7 +258,7 @@ export function ComposerShell({
                    */
                   if (e.clipboardData.files.length === 0) return;
                   e.preventDefault();
-                  onFiles(e.clipboardData.files);
+                  onFiles(pickedFrom(e.clipboardData.files));
                 }
               : undefined
           }

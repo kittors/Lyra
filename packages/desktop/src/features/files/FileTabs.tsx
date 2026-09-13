@@ -19,7 +19,7 @@ import { useDock } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
-import { useRevealLabel } from "./open-targets.ts";
+import { useRevealLabel } from "../../store/open-targets.ts";
 import { bridge } from "../../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;

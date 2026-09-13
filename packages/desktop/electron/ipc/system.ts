@@ -5,7 +5,7 @@
  * a renderer-supplied string to the OS, so the guard matters more than the call.
  */
 
-import { mkdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome } from "@lyra/core";
 import { clipboard, ipcMain, shell } from "electron";
@@ -37,6 +37,22 @@ export function registerSystemIpc(): void {
 	});
 
 	ipcMain.handle("system:platform", async () => process.platform);
+
+	/*
+	 * Is there still a file there.
+	 *
+	 * Asked before offering to open or reveal an attachment, and it cannot be `files:exists` —
+	 * that one resolves against the open projects and answers `false` for everything outside
+	 * them, which is where attachments overwhelmingly come from. A spreadsheet dragged in from
+	 * `~/Downloads` would be reported missing while sitting right there.
+	 *
+	 * Unguarded like `system:openPath` beside it, and for the same reason: a renderer that can ask
+	 * the OS to *open* any path is not held back by being unable to ask whether it exists. What it
+	 * buys is the difference between 「这个文件已经不在原处了」 and a click that does nothing.
+	 */
+	ipcMain.handle("system:pathExists", async (_event, path: string): Promise<boolean> =>
+		typeof path === "string" && path.length > 0 ? access(path).then(() => true).catch(() => false) : false,
+	);
 
 	/*
 	 * A picture named by a Markdown file, fetched here so the page's CSP does not have to open up.

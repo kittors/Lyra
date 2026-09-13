@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { placeAttachments, placeholderFor, isAttachmentBody, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
+import { dropPlaceholder, placeAttachments, placeholderFor, isAttachmentBody, stripPlaceholders } from "../src/lib/attachment-placeholders.ts";
 
 const file = (name: string) => ({ name });
 
@@ -83,4 +83,40 @@ test("认得出哪一段文本是附件正文，哪一段是人打的字", () =>
 	assert.equal(isAttachmentBody("\n\n[Attached file: a.zip (application/zip) — contents not included]\n\n"), true);
 	assert.equal(isAttachmentBody("帮我看看 【a.md】"), false);
 	assert.equal(isAttachmentBody("### Attached file: 这是我自己写的标题"), false, "得是我们生成的那种，前面有两个换行");
+});
+
+test("取下一份附件，正文里指着它的那个记号跟着走", () => {
+	// 留着就是一句提到了某个文件的话，而那个文件没跟着发出去——模型只能照那句话答。
+	const a = file("a.png");
+	const b = file("b.md");
+	assert.equal(
+		dropPlaceholder(`看这张 ${placeholderFor("a.png")} 再看 ${placeholderFor("b.md")} 谢谢`, [a, b], a),
+		`看这张 再看 ${placeholderFor("b.md")} 谢谢`,
+	);
+});
+
+test("两份重名的附件，抠掉的是被取下的那一个", () => {
+	/*
+	 * 同一个模板拖两次是常事。从前这里按名字找第一个同名的，删掉后一份时被抠走的是前一份的记号
+	 * ——剩下那份就此失去位置，而两个记号长得一模一样，屏幕上看不出发生过什么。
+	 */
+	const first = file("shot.png");
+	const second = file("shot.png");
+	const text = `先看 ${placeholderFor("shot.png")} 再看 ${placeholderFor("shot.png")}`;
+	assert.equal(dropPlaceholder(text, [first, second], second), `先看 ${placeholderFor("shot.png")} 再看`);
+	assert.equal(dropPlaceholder(text, [first, second], first), `先看 再看 ${placeholderFor("shot.png")}`);
+});
+
+test("正文里没提它，就一个字都不要动", () => {
+	// 新的草稿根本不写记号，所以这是最常走的一条路：人打的字不该因为取下一个附件而被重排。
+	const a = file("a.png");
+	assert.equal(dropPlaceholder("帮我看看这个  两个空格", [a], a), "帮我看看这个  两个空格");
+	assert.equal(dropPlaceholder("这个【重要】要注意", [a], a), "这个【重要】要注意");
+});
+
+test("记号让位之后留下的空档收干净", () => {
+	const a = file("a.png");
+	// 一条自己发出去的消息里出现一段莫名其妙的空白，比留着文件名还难解释。
+	assert.equal(dropPlaceholder(`${placeholderFor("a.png")}`, [a], a), "");
+	assert.equal(dropPlaceholder(`看 ${placeholderFor("a.png")} 这里`, [a], a), "看 这里");
 });

@@ -5,7 +5,7 @@ import type {
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent } from "../image/index.ts";
-import { AttachmentStrip, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
+import { AttachmentStrip, fileKind, KIND_LABEL, useAttachmentActions, type FileKind, type StripFile } from "../composer/index.ts";
 import { isAttachmentBody, stripPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
@@ -26,6 +26,25 @@ import { useI18n } from "../../i18n/index.ts";
  * the question that replaced it.
  */
 type ImageBlock = Extract<UserContent, { type: "image" }>;
+
+/**
+ * 把一份附件放进右边的文件面板。
+ *
+ * 写在这里而不是 `attachments/actions.ts` 里，是因为那一层还被气泡那边用着：让它去敲 dock 的门
+ * 会绕出一条循环依赖——门后面挂着整棵面板树，最终又回到这个域，而 `pnpm arch` 拦的就是这个。这
+ * 两个文件本来就各自有这条边，所以「打开到面板」由它们自己动手，共用的只是前面那一问。
+ */
+async function openInPane(
+	path: string | undefined,
+	name: string,
+	ensureThere: (file: { name: string; path?: string }) => Promise<boolean>,
+) {
+	if (!path) return;
+	if (!(await ensureThere({ name, path }))) return;
+	void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+	useDock.getState().open("file", { kind: "conversation", side: "right", share: 0.45 });
+}
+
 
 /**
  * 带了哪几个文件，认回成一排。
@@ -54,6 +73,13 @@ function attachmentsOf(
       kind,
       tip: `${file.name}\n${label(kind)}`,
       ...(block ? { src: `data:${block.mimeType};base64,${block.data}` } : {}),
+      /*
+       * 发送时它在哪儿。
+       *
+       * 老消息没有这一项——那时字段还不存在——于是那些附件只剩一个名字，能做的事跟着少几件。这是
+       * 对的降级：offer nothing rather than offer something that fails。
+       */
+      ...(file.path ? { path: file.path } : {}),
     });
   }
   for (; at < images.length; at++) {
@@ -77,6 +103,8 @@ export function UserMessage({
 	const { t } = useI18n();
   const running = useApp((s) => s.running);
   const editMessage = useApp((s) => s.editMessage);
+  /** 气泡外那排附件上的动作，和输入框那排共用一套——见 `attachments/actions.ts`。 */
+  const { ensureThere } = useAttachmentActions();
 
   const rawText = message.content
     .filter(
@@ -208,6 +236,13 @@ export function UserMessage({
             files={files}
             align="end"
             thumbnail={80}
+            /*
+             * 铺开，不滚。
+             *
+             * 这一条已经发出去了：它带了九个文件就该看见九个，下面没有什么在等着被挤走。横滚在这里
+             * 还会藏东西——翻旧消息的人不会想到要去横着拨一下。
+             */
+            layout="wrap"
             className="ly-user-images mb-2 max-w-[85%]"
             onOpen={(index, event) =>
               openFromEvent(
@@ -216,6 +251,9 @@ export function UserMessage({
                 index,
               )
             }
+            onPreviewFile={(file) => {
+              void openInPane(file.path, file.name, ensureThere);
+            }}
           />
         )}
       {(said || hasCapsules) && <div className="ly-user-bubble max-w-[85%] rounded-2xl bg-card px-4 py-2.5 sm:max-w-[75%]">

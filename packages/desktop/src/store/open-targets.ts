@@ -5,16 +5,21 @@
  * platform calls its file manager, what each one's icon looks like — because none of that is
  * knowable from a page. See `electron/open-targets.ts`.
  *
- * Fetched once for the whole window rather than per component. Four different places offer to open
- * a file (the editor's toolbar, the file tree's menu, the tree's own action, the setting itself)
- * and asking each time would shell out to `mdfind` on each of them.
+ * Fetched once for the whole window rather than per component. Several different places offer to
+ * open a file (the editor's toolbar, the file tree's menu, the tree's own action, the setting
+ * itself, the attachment strip) and asking each time would shell out to `mdfind` on each of them.
+ *
+ * 住在 `store/` 而不是 `features/files/`，尽管文件树是它最早的用户。「这台机器能用什么打开文件」
+ * 是全窗口共用的一份事实，不是文件树的私产——而把它留在那个域里意味着别人只能走 `files/index.ts`
+ * 那扇门进来，那扇门后面挂着查看器、转录、浏览器面板。附件条要用它时，这条路绕成了一个环
+ * （`pnpm arch` 拦下的就是它）。往下搬一层，谁都够得着，且谁也不会因此多拖进一棵组件树。
  */
 
-import { translate } from "../../i18n/translate.ts";
+import { translate } from "../i18n/translate.ts";
 import { useEffect, useState } from "react";
-import type { OpenTarget } from "../../../electron/ipc-types.ts";
-import { useApp } from "../../store/index.ts";
-import { available, bridge } from "../../services/index.ts";
+import type { OpenTarget } from "../../electron/ipc-types.ts";
+import { useApp } from "./index.ts";
+import { available, bridge } from "../services/index.ts";
 
 /**
  * Revealing is the one target every platform has, and the one worth falling back to.

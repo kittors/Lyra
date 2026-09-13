@@ -26,6 +26,8 @@ interface OutgoingAttachment {
 	data?: string;
 	text?: string;
 	isText?: boolean;
+	/** 磁盘上的位置，跟着消息一起留在转录里——发出去之后还要靠它打开那个文件。 */
+	path?: string;
 }
 
 export interface OutgoingDraft {
@@ -40,8 +42,8 @@ export interface Outgoing {
 	displayText?: string;
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: { id: string; title: string }[];
-	/** 名字和门类，给气泡里那排胶囊用；正文不在里面，见 `UserMessage.attachments`。 */
-	attachments?: { name: string; kind?: string; mimeType?: string }[];
+	/** 名字和门类，给气泡外那排格子用；正文不在里面，见 `UserMessage.attachments`。 */
+	attachments?: { name: string; kind?: string; mimeType?: string; path?: string }[];
 	/** 命令自己声明的投递方式——见 `SlashCommand.deliver`。 */
 	deliver?: "steer" | "followUp";
 }
@@ -259,6 +261,13 @@ export async function buildOutgoing(
 						name: file.name,
 						...(file.kind ? { kind: file.kind } : {}),
 						...(file.mimeType ? { mimeType: file.mimeType } : {}),
+						/*
+						 * 位置也留下。
+						 *
+						 * 正文不留——那会让每份会话日志大一倍——但一行路径是另一回事：没有它，一条已经
+						 * 发出去的消息对着自己带的那份表格，唯一做得到的事就是把名字显示出来。
+						 */
+						...(file.path ? { path: file.path } : {}),
 					})),
 				}
 			: {}),

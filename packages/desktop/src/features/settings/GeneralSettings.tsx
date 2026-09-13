@@ -2,7 +2,7 @@ import { RetrySettings } from "./RetrySettings.tsx";
 import type { PermissionMode, UiLocale } from "@lyra/core";
 import { FolderOpen, Languages } from "lucide-react";
 import { useEffect, useState } from "react";
-import { matchTarget, useOpenTargets } from "../files/index.ts";
+import { matchTarget, useOpenTargets } from "../../store/open-targets.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { ProjectLayerCard } from "./ProjectOverrideNotice.tsx";

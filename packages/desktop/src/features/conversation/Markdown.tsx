@@ -25,7 +25,7 @@ import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, useDock } from "../dock/index.ts";
-import { useRevealLabel } from "../files/index.ts";
+import { useRevealLabel } from "../../store/open-targets.ts";
 
 /**
  * What this text is, beyond the characters in it.

@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
-import { openLabel, useOpenTarget, useRevealLabel } from "./open-targets.ts";
+import { openLabel, useOpenTarget, useRevealLabel } from "../../store/open-targets.ts";
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 

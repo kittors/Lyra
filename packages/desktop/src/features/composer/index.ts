@@ -21,3 +21,18 @@ export type { FileKind } from "./attachments/file-kind.ts";
  */
 export { AttachmentStrip } from "./attachments/AttachmentStrip.tsx";
 export type { StripFile } from "./attachments/AttachmentStrip.tsx";
+/*
+ * 拿一份附件去做点什么——打开、指出它在哪、抄下路径。
+ *
+ * 和上面那一排是一套：格子上的双击、菜单里的那几行、气泡外那一排，走的都得是同一段行为，包括
+ * 「先确认文件还在」这一步。两份实现的话，只在出错时才看得见的那一步迟早只剩一份有。
+ */
+export { useAttachmentActions } from "./attachments/actions.ts";
+/*
+ * 放进来的文件，连同它们在磁盘上的位置。
+ *
+ * 三个输入框（主的、侧边聊天、子智能体）都要取路径，而取的时机很挑——`pathForDrop` 必须在事件
+ * 还活着的时候同步调用。各写各的话，漏掉的那一个只会表现为「菜单里全是灰的」。
+ */
+export { pickedFrom } from "./attachments/picked.ts";
+export type { PickedFile } from "./attachments/picked.ts";

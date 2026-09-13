@@ -1577,21 +1577,28 @@
         ]
       },
       {
-        "name": "packages/desktop/src/features/files/index.ts",
+        "name": "packages/desktop/src/features/sidebar/index.ts",
         "dependencyTypes": [
           "local",
           "import"
         ]
       },
       {
-        "name": "packages/desktop/src/features/files/FileActions.tsx",
+        "name": "packages/desktop/src/features/sidebar/Sidebar.tsx",
         "dependencyTypes": [
           "local",
           "export"
         ]
       },
       {
-        "name": "packages/desktop/src/features/files/FileViewer.tsx",
+        "name": "packages/desktop/src/features/sidebar/ChatList.tsx",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/sidebar/SessionRow.tsx",
         "dependencyTypes": [
           "local",
           "import"
@@ -3370,57 +3377,6 @@
   },
   {
     "type": "cycle",
-    "from": "packages/desktop/src/features/conversation/Markdown.tsx",
-    "to": "packages/desktop/src/features/files/index.ts",
-    "unresolvedTo": "../files/index.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/features/files/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/files/FileActions.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/files/FileViewer.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/conversation/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/conversation/Markdown.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "packages/desktop/src/features/conversation/rows.tsx",
     "to": "packages/desktop/src/features/conversation/runs.tsx",
     "unresolvedTo": "./runs.tsx",
@@ -3974,21 +3930,28 @@
         ]
       },
       {
-        "name": "packages/desktop/src/features/files/index.ts",
+        "name": "packages/desktop/src/features/sidebar/index.ts",
         "dependencyTypes": [
           "local",
           "import"
         ]
       },
       {
-        "name": "packages/desktop/src/features/files/FileActions.tsx",
+        "name": "packages/desktop/src/features/sidebar/Sidebar.tsx",
         "dependencyTypes": [
           "local",
           "export"
         ]
       },
       {
-        "name": "packages/desktop/src/features/files/FileViewer.tsx",
+        "name": "packages/desktop/src/features/sidebar/ChatList.tsx",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/sidebar/SessionRow.tsx",
         "dependencyTypes": [
           "local",
           "import"
@@ -5540,64 +5503,6 @@
           "type-only",
           "import",
           "pre-compilation-only"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/src/features/editor/CodeEditor.tsx",
-    "to": "packages/desktop/src/features/editor/EditorMenu.tsx",
-    "unresolvedTo": "./EditorMenu.tsx",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/features/editor/EditorMenu.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/files/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/files/FileActions.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/files/FileViewer.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/editor/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/editor/CodeEditor.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
         ]
       }
     ]
@@ -7819,6 +7724,64 @@
   {
     "type": "cycle",
     "from": "packages/desktop/src/features/modals/index.ts",
+    "to": "packages/desktop/src/features/modals/ProjectMenu.tsx",
+    "unresolvedTo": "./ProjectMenu.tsx",
+    "dependencyTypes": [
+      "local",
+      "export"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/desktop/src/features/modals/ProjectMenu.tsx",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/sidebar/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/sidebar/Sidebar.tsx",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/sidebar/ChatList.tsx",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/sidebar/SessionRow.tsx",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/desktop/src/features/modals/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/desktop/src/features/modals/index.ts",
     "to": "packages/desktop/src/features/modals/UpdateDialog.tsx",
     "unresolvedTo": "./UpdateDialog.tsx",
     "dependencyTypes": [
@@ -7870,92 +7833,6 @@
         "dependencyTypes": [
           "local",
           "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/src/features/modals/ProjectMenu.tsx",
-    "to": "packages/desktop/src/features/sidebar/index.ts",
-    "unresolvedTo": "../sidebar/index.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/features/sidebar/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/Sidebar.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/ChatList.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/SessionRow.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/conversation/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/conversation/Conversation.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/composer/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/composer/Composer.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/modals/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/modals/ProjectMenu.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
         ]
       }
     ]
@@ -8385,64 +8262,6 @@
       },
       {
         "name": "packages/desktop/src/features/sidebar/SessionCard.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/src/features/sidebar/SessionRow.tsx",
-    "to": "packages/desktop/src/features/modals/index.ts",
-    "unresolvedTo": "../modals/index.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/features/modals/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/modals/ProjectMenu.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/Sidebar.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/ChatList.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/sidebar/SessionRow.tsx",
         "dependencyTypes": [
           "local",
           "import"

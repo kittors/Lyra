@@ -15,7 +15,7 @@ import { ChevronsDownUp, FilePlus2, Filter, FolderPlus, X } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
-import { useOpenTarget } from "./open-targets.ts";
+import { useOpenTarget } from "../../store/open-targets.ts";
 import { useSide } from "../dock/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";

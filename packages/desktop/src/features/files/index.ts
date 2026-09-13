@@ -14,4 +14,9 @@ export { FileTitle } from "./FileTitle.tsx";
 export { PreviewCard } from "./PreviewCard.tsx";
 export type { PreviewInfo } from "./PreviewCard.tsx";
 export { iconColour, lookFor } from "./fileIcon.tsx";
-export { matchTarget, useOpenTargets, useRevealLabel } from "./open-targets.ts";
+/*
+ * 「用什么打开」搬去了 `store/open-targets.ts`。
+ *
+ * 它从来不是这个域的私产——文件树只是第一个用户。留在这里的话，别的域要用就得走这扇门，而门
+ * 后面挂着查看器和转录；附件条正是这样绕出一个环来的。这里不再转出，引它的人直接从 store 拿。
+ */

@@ -16,7 +16,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { Braces, Check, ExternalLink, Eye, Pencil, Save, WrapText } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { openLabel, useOpenTarget } from "./open-targets.ts";
+import { openLabel, useOpenTarget } from "../../store/open-targets.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { fileKind } from "./FileViewer.tsx";
