@@ -5,6 +5,274 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.12](https://github.com/kittors/Lyra/releases/tag/v0.9.12) - 2026-09-13
+
+<!-- lyra:notes en -->
+
+### New
+
+- **The same release now has an Android APK and an iOS IPA.** `Lyra-<version>-android.apk` installs directly. `Lyra-<version>-ios-unsigned.ipa` is unsigned: sign it with Sideloadly, AltStore, or Xcode (a free Apple ID is enough), then install. The phone app is a shell. It talks to Lyra on your computer. Sessions, models, and keys stay there.
+
+- **Linux arm64 is in the release.** Raspberry Pi, Ampere machines, and a Linux VM on a Mac can take `Lyra-<version>-arm64.AppImage` or `Lyra-<version>-arm64.deb`. Before this, the updater on those machines said "you're up to date" because it could not find a file for that architecture.
+
+- **A file or image in the message is a chip: icon plus name, sitting in the sentence.** It is no longer a row above the text. Right-click opens the file or shows it in the folder. The caret cannot walk into the chip.
+
+- **`read` can pull the words out of Word, Excel, PowerPoint, and PDF.** Drop one of those on a chat, or point the agent at the path, and it reads the text instead of treating the file as opaque.
+
+- **Switching the interface language moves the words that stayed the same to their new place, instead of cutting.** The language list uses each language's own name. Every language in that list can be formatted; ones that cannot are not listed.
+
+### Fixes
+
+- **After you sent a message, the chips lost their background, and right-click opened an empty box.** The marks were still there. They just no longer looked or behaved like chips.
+
+- **Typing Chinese collapsed a chip back into a string of brackets.** Composing a sentence around a file mark turned the mark into the raw token, and the file dropped out of the message.
+
+- **The icon sat on top of the file name when punctuation squeezed the line, and the caret could still walk into the chip.** Those two were the same layout: the mark did not reserve a box the caret had to skip.
+
+- **Several items on the attachment menu were grey because the path was never fetched.** Open and Reveal did nothing. They looked disabled. They were waiting on a path nobody asked for.
+
+- **The fade at the top of the sidebar was usually missing.** It only painted on one scroll state, so most of the time the list ran straight into the header.
+
+- **The usage chart jumped instead of moving.** The animation finished in a frame, so the page looked like it had no motion at all.
+
+- **When the dock ran out of width, it covered the conversation.** The layout flattened into one full-width strip instead of keeping the chat as its own column.
+
+- **Dragging a pane past the window edge made the card vanish.** The pointer left the window and the card followed it out.
+
+- **Menu separators vanished in the dark theme.** Their contrast was computed against the page, not the menu.
+
+- **Delete on an archived chat did nothing.** The confirm dialog left with the context menu, so the click never landed.
+
+- **On Windows, a remote that asked for a login left the sync buttons stuck.** The panel waited until the command timed out, and sometimes left a credentials window behind. It now fails at once and says to set the credentials up in a terminal first.
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **同一个 release 里有安卓安装包和 iOS 安装包。** `Lyra-<版本>-android.apk` 直接装。`Lyra-<版本>-ios-unsigned.ipa` 没签名：用 Sideloadly、AltStore 或 Xcode 自己签一遍再装，免费 Apple ID 就够。手机端只是个壳，连的是你电脑上的 Lyra，会话、模型和密钥都在那边。
+
+- **Linux arm64 进产物了。** 树莓派、Ampere 机器、Mac 上的 Linux 虚拟机可以下 `Lyra-<版本>-arm64.AppImage` 或 `Lyra-<版本>-arm64.deb`。以前这些机器上点更新，界面说的是「已是最新」，因为它找不到自己架构的文件。
+
+- **消息里的文件或图片变成一枚标记：图标加名字，坐在句子里。** 不再单独占输入框上面那一排。右键可以打开文件，也可以指出它在文件夹里的位置。光标进不去这枚标记。
+
+- **`read` 读得到 Word、Excel、PowerPoint 和 PDF 里的字。** 把这类文件丢进对话，或者让 agent 去读那条路径，它读的是正文，而不是把文件当成一块不认识的东西。
+
+- **切换界面语言时，没变的词会走到新位置，而不是整页硬切。** 语言列表用的是每种语言自己的名字。列表里出现的每一种都能格式化；格不了的不会出现在列表里。
+
+### 修复
+
+- **发出去之后，那几枚标记的底没了，右键弹出来的是个空框。** 标记还在，只是不再长得像、也不再表现得像一枚芯片。
+
+- **打中文的时候，句子里的标记塌回成一串方括号。** 在文件标记旁边组句，标记会变成原始记号，文件从这条消息里掉出去。
+
+- **标点一挤，图标就压在文件名上，而且光标仍进得去标记里面。** 这两件是同一件事：标记没有给自己留出光标必须跳过的那一块。
+
+- **附件菜单上那几行是灰的，因为路径一次都没取到。** 「打开」和「在文件夹中显示」点了没反应。看起来像禁用，其实是在等一条没人去取的路径。
+
+- **侧边栏顶上那道虚化，大部分时候根本不存在。** 它只在一种滚动状态下会画，所以列表常常直接顶到标题上。
+
+- **用量图那一下太快，看着就是没动画。** 动画在一帧里走完，页面像是硬切过去的。
+
+- **面板放不下时盖住会话。** 布局被拍成一条全宽的带子，对话不再自己占一列。
+
+- **拖面板时指针移出窗口，卡片跟着跑出去消失。** 指针离开窗口，卡片也跟着离开。
+
+- **菜单分隔线在暗色下看不见。** 对比度是照着页面算的，不是照着菜单。
+
+- **归档会话右键「删除」点了没反应。** 确认框被菜单一起带走，那一次点击落在空处。
+
+- **Windows 上，远端要登录时，同步按钮会一直停住。** 面板等到命令超时，有时还会留下一个凭据窗口。现在立刻失败，并说明要先在终端里配好凭据。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **同一個 release 裡有 Android 安裝包和 iOS 安裝包。** `Lyra-<版本>-android.apk` 直接裝。`Lyra-<版本>-ios-unsigned.ipa` 沒有簽名：用 Sideloadly、AltStore 或 Xcode 自己簽過再裝，免費 Apple ID 就夠。手機端只是個殼，連的是你電腦上的 Lyra，工作階段、模型和金鑰都在那邊。
+
+- **Linux arm64 進產物了。** 樹莓派、Ampere 機器、Mac 上的 Linux 虛擬機可以下載 `Lyra-<版本>-arm64.AppImage` 或 `Lyra-<版本>-arm64.deb`。以前這些機器上點更新，介面說的是「已是最新」，因為它找不到自己架構的檔案。
+
+- **訊息裡的檔案或圖片變成一枚標記：圖示加名字，坐在句子裡。** 不再單獨占輸入框上面那一排。右鍵可以開啟檔案，也可以指出它在資料夾裡的位置。游標進不去這枚標記。
+
+- **`read` 讀得到 Word、Excel、PowerPoint 和 PDF 裡的字。** 把這類檔案丟進對話，或讓 agent 去讀那條路徑，它讀的是正文，而不是把檔案當成一塊不認識的東西。
+
+- **切換介面語言時，沒變的詞會走到新位置，而不是整頁硬切。** 語言清單用的是每種語言自己的名字。清單裡出現的每一種都能格式化；格不了的不會出現在清單裡。
+
+### 修復
+
+- **送出去之後，那幾枚標記的底沒了，右鍵彈出來的是個空框。** 標記還在，只是不再長得像、也不再表現得像一枚晶片。
+
+- **打中文的時候，句子裡的標記塌回成一串方括號。** 在檔案標記旁邊組句，標記會變成原始記號，檔案從這條訊息裡掉出去。
+
+- **標點一擠，圖示就壓在檔案名上，而且游標仍進得去標記裡面。** 這兩件是同一件事：標記沒有替自己留出游標必須跳過的那一塊。
+
+- **附件選單上那幾行是灰的，因為路徑一次都沒取到。** 「開啟」和「在檔案夾中顯示」點了沒反應。看起來像停用，其實是在等一條沒人去取的路徑。
+
+- **側邊欄頂上那道虛化，大部分時候根本不存在。** 它只在一種捲動狀態下會畫，所以清單常常直接頂到標題上。
+
+- **用量圖那一下太快，看起來就是沒有動畫。** 動畫在一幀裡走完，頁面像是硬切過去的。
+
+- **面板放不下時蓋住工作階段。** 版面被拍成一條全寬的帶子，對話不再自己占一欄。
+
+- **拖面板時指標移出視窗，卡片跟著跑出去消失。** 指標離開視窗，卡片也跟著離開。
+
+- **選單分隔線在暗色下看不見。** 對比是照著頁面算的，不是照著選單。
+
+- **封存工作階段右鍵「刪除」點了沒反應。** 確認框被選單一起帶走，那一次點擊落在空處。
+
+- **Windows 上，遠端要登入時，同步按鈕會一直停住。** 面板等到命令逾時，有時還會留下一個憑證視窗。現在立刻失敗，並說明要先在終端機裡配好憑證。
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **同じリリースにAndroidのAPKとiOSのIPAが入ります。** `Lyra-<バージョン>-android.apk` はそのままインストールできます。`Lyra-<バージョン>-ios-unsigned.ipa` は未署名です。Sideloadly、AltStore、またはXcodeで自分で署名してから入れてください。無料のApple IDで足ります。モバイルアプリは殻です。つながる先は手元のLyraで、セッション、モデル、鍵はそちらにあります。
+
+- **Linuxのarm64用パッケージがリリースに入りました。** Raspberry Pi、Ampereのマシン、Mac上のLinux仮想マシンは `Lyra-<バージョン>-arm64.AppImage` か `Lyra-<バージョン>-arm64.deb` を使います。これまでは、そのアーキテクチャのファイルが無いので、更新を押しても「最新です」とだけ出ていました。
+
+- **メッセージの中のファイルや画像は、アイコンと名前のチップとして文の中に座ります。** 入力欄の上の一段ではなくなりました。右クリックでファイルを開くか、フォルダーでの位置を示します。キャレットはこのチップの中に入れません。
+
+- **`read`がWord、Excel、PowerPoint、PDFの文字を読めます。** 会話に載せても、パスを渡しても、中身のテキストを読みます。知らない塊としては扱いません。
+
+- **表示言語を切り替えると、変わっていない語は新しい位置へ動きます。ページごと差し替わるのではありません。** 言語一覧は、それぞれの言語の自家の名前です。一覧に出る言語はどれも整形できます。整形できないものは一覧に出しません。
+
+### 修正
+
+- **送信したあと、チップの地がなくなり、右クリックは空の枠だけでした。** 印は残っていました。チップとしては見えず、チップとしては動きませんでした。
+
+- **日本語や中国語を入力すると、文中のチップが角括弧の列に戻っていました。** ファイルの印のそばで変換すると、印が生のトークンになり、ファイルがメッセージから落ちます。
+
+- **約物が詰まるとアイコンがファイル名に重なり、キャレットはチップの中に入れたままです。** どちらも同じレイアウトです。印が、キャレットが飛ばなければならない箱を確保していませんでした。
+
+- **添付メニューの数行が灰色なのは、パスを一度も取っていなかったからです。** 「開く」も「フォルダーに表示」も無反応でした。無効に見えて、誰も取りに行かないパスを待っていました。
+
+- **サイドバー上端のぼかしは、ほとんどの場合ありませんでした。** あるスクロール状態でしか描かれないので、一覧が見出しに突き当たっていました。
+
+- **使用量のグラフが一瞬で切り替わり、動きが無いように見えました。** アニメーションが 1 フレームで終わっていました。
+
+- **ドックの幅が足りなくなると、会話を覆いました。** レイアウトが全幅の一本になり、会話が自分の列を失いました。
+
+- **ペインをドラッグしてポインターがウィンドウの外へ出ると、カードが消えていました。** ポインターが窓を離れ、カードもついて出ていました。
+
+- **ダークテーマではメニューの区切り線が見えませんでした。** コントラストをメニューではなくページに対して計算していました。
+
+- **アーカイブした会話の右クリック「削除」が無反応でした。** 確認ダイアログがメニューと一緒に消え、クリックが空に落ちていました。
+
+- **Windows では、ログインを求めるリモートで同期ボタンが止まったままでした。** パネルはコマンドが時間切れになるまで待ち、資格情報の窓が残ることもありました。今はすぐ失敗し、先に端末で資格情報を用意するよう知らせます。
+
+<!-- lyra:notes ko -->
+
+### 새로운 기능
+
+- **같은 릴리스에 Android APK와 iOS IPA가 들어갑니다.** `Lyra-<버전>-android.apk`는 바로 설치합니다. `Lyra-<버전>-ios-unsigned.ipa`는 서명되어 있지 않습니다. Sideloadly, AltStore 또는 Xcode로 직접 서명한 뒤 설치하세요. 무료 Apple ID면 됩니다. 휴대폰 앱은 껍데기입니다. 연결하는 대상은 컴퓨터의 Lyra이고, 세션·모델·키는 그쪽에 있습니다.
+
+- **Linux arm64 패키지가 릴리스에 들어갑니다.** 라즈베리 파이, Ampere 기기, Mac의 Linux 가상 머신은 `Lyra-<버전>-arm64.AppImage` 또는 `Lyra-<버전>-arm64.deb`를 받으면 됩니다. 이전에는 그 아키텍처 파일이 없어서, 업데이트를 눌러도 "이미 최신"이라고만 나왔습니다.
+
+- **메시지의 파일이나 이미지는 아이콘과 이름이 붙은 칩으로 문장 안에 앉습니다.** 입력칸 위 한 줄을 차지하지 않습니다. 오른쪽 클릭으로 파일을 열거나 폴더에서 위치를 보여 줍니다. 캐럿은 이 칩 안으로 들어가지 못합니다.
+
+- **`read`가 Word, Excel, PowerPoint, PDF 안의 글을 읽습니다.** 대화에 올리든 경로를 넘기든, 알 수 없는 덩어리가 아니라 본문을 읽습니다.
+
+- **인터페이스 언어를 바꾸면, 그대로인 단어는 새 위치로 움직입니다. 페이지를 통째로 갈아끼우지 않습니다.** 언어 목록은 각 언어 자신의 이름입니다. 목록에 있는 언어는 모두 서식을 맞출 수 있습니다. 맞출 수 없는 언어는 목록에 올리지 않습니다.
+
+### 수정
+
+- **보낸 뒤에 칩의 바탕이 사라지고, 오른쪽 클릭은 빈 상자만 열었습니다.** 표시는 남아 있었습니다. 칩처럼 보이지도, 칩처럼 동작하지도 않았습니다.
+
+- **한글이나 중국어를 입력하면 문장 속 칩이 대괄호 나열로 무너졌습니다.** 파일 표시 옆에서 조합하면 표시가 원본 토큰이 되고, 파일이 메시지에서 빠집니다.
+
+- **문장 부호가 줄을 밀어 넣으면 아이콘이 파일 이름 위에 겹치고, 캐럿은 여전히 칩 안으로 들어갔습니다.** 둘 다 같은 레이아웃입니다. 표시가 캐럿이 건너뛰어야 할 칸을 잡아 두지 않았습니다.
+
+- **첨부 메뉴의 몇 줄이 회색인 이유는 경로를 한 번도 가져오지 않았기 때문입니다.** 열기와 폴더에서 보기가 반응이 없었습니다. 비활성처럼 보였지만, 아무도 가져오지 않은 경로를 기다리고 있었습니다.
+
+- **사이드바 맨 위 흐림은 대부분 존재하지 않았습니다.** 한 가지 스크롤 상태에서만 그려져, 목록이 제목에 바로 붙었습니다.
+
+- **사용량 그래프가 한순간에 바뀌어 애니메이션이 없는 것처럼 보였습니다.** 애니메이션이 한 프레임 만에 끝났습니다.
+
+- **독 너비가 모자라면 대화를 덮었습니다.** 레이아웃이 가로 전체 한 줄이 되어, 대화가 자기 열을 잃었습니다.
+
+- **패널을 끌다가 포인터가 창 밖으로 나가면 카드가 사라졌습니다.** 포인터가 창을 떠나고 카드도 따라 나갔습니다.
+
+- **어두운 테마에서 메뉴 구분선이 보이지 않았습니다.** 대비를 메뉴가 아니라 페이지 기준으로 계산했습니다.
+
+- **보관한 대화의 오른쪽 클릭 "삭제"가 반응이 없었습니다.** 확인 상자가 메뉴와 함께 사라져, 클릭이 빈곳에 떨어졌습니다.
+
+- **Windows에서 로그인을 요구하는 원격을 만나면 동기화 버튼이 멈춘 채로 있었습니다.** 패널은 명령이 시간 초과될 때까지 기다렸고, 자격 증명 창이 남는 일도 있었습니다. 지금은 바로 실패하고, 터미널에서 먼저 자격 증명을 맞추라고 말합니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **La même version contient un APK Android et un IPA iOS.** `Lyra-<version>-android.apk` s'installe directement. `Lyra-<version>-ios-unsigned.ipa` n'est pas signé : signez-le avec Sideloadly, AltStore ou Xcode (un identifiant Apple gratuit suffit), puis installez-le. L'application téléphone n'est qu'une coquille. Elle parle à Lyra sur l'ordinateur. Les sessions, les modèles et les clés restent là-bas.
+
+- **Linux arm64 est dans la version.** Un Raspberry Pi, une machine Ampere ou une machine virtuelle Linux sur un Mac prennent `Lyra-<version>-arm64.AppImage` ou `Lyra-<version>-arm64.deb`. Avant, sur ces machines, « Vérifier les mises à jour » répondait que tout était à jour, faute de fichier pour cette architecture.
+
+- **Un fichier ou une image dans le message est une pastille : icône et nom, dans la phrase.** Ce n'est plus une rangée au-dessus du texte. Un clic droit ouvre le fichier ou le montre dans le dossier. Le curseur ne peut pas entrer dans la pastille.
+
+- **`read` lit le texte d'un Word, d'un Excel, d'un PowerPoint et d'un PDF.** Déposez le fichier dans la conversation, ou donnez le chemin : l'agent lit le texte, il ne traite plus le fichier comme une brique opaque.
+
+- **Changer la langue de l'interface déplace les mots inchangés vers leur nouvelle place, au lieu de tout recouper.** La liste des langues utilise le nom de chaque langue. Toutes les langues de cette liste peuvent être formatées ; celles qui ne le peuvent pas n'y figurent pas.
+
+### Corrections
+
+- **Après l'envoi, les pastilles perdaient leur fond, et le clic droit ouvrait un cadre vide.** Les marques étaient encore là. Elles n'avaient plus l'air ni le comportement d'une pastille.
+
+- **Saisir du chinois (ou composer autour d'une marque) repliait la pastille en une suite de crochets.** La marque redevenait le jeton brut, et le fichier sortait du message.
+
+- **Quand la ponctuation serrait la ligne, l'icône recouvrait le nom du fichier, et le curseur pouvait encore entrer dans la pastille.** Les deux viennent du même dessin : la marque ne se réservait pas la case que le curseur doit sauter.
+
+- **Plusieurs lignes du menu des pièces jointes étaient grises parce que le chemin n'était jamais demandé.** Ouvrir et Afficher dans le dossier ne faisaient rien. Elles avaient l'air désactivées. Elles attendaient un chemin que personne n'allait chercher.
+
+- **Le flou en haut de la barre latérale manquait presque toujours.** Il n'était peint que dans un état de défilement, donc la liste butait souvent contre le titre.
+
+- **Le graphique d'utilisation sautait au lieu de bouger.** L'animation tenait en une image, la page avait l'air figée.
+
+- **Quand le dock manquait de largeur, il recouvrait la conversation.** La mise en page devenait une bande pleine largeur, et la conversation perdait sa colonne.
+
+- **Glisser un volet hors de la fenêtre faisait disparaître la carte.** Le pointeur quittait la fenêtre, la carte le suivait.
+
+- **Les séparateurs de menu disparaissaient en thème sombre.** Leur contraste était calculé sur la page, pas sur le menu.
+
+- **« Supprimer » sur une conversation archivée ne faisait rien.** La boîte de confirmation partait avec le menu, le clic tombait dans le vide.
+
+- **Sous Windows, un distant qui demandait une connexion laissait les boutons de synchronisation bloqués.** Le panneau attendait la fin du délai, et une fenêtre d'identifiants restait parfois ouverte. Ça échoue tout de suite, et ça dit de configurer les identifiants dans un terminal d'abord.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **В том же выпуске есть APK для Android и IPA для iOS.** `Lyra-<версия>-android.apk` ставится сразу. `Lyra-<версия>-ios-unsigned.ipa` не подписан: подпишите его в Sideloadly, AltStore или Xcode (бесплатного Apple ID достаточно) и затем установите. Телефонное приложение — оболочка. Оно говорит с Lyra на компьютере. Сессии, модели и ключи остаются там.
+
+- **В выпуске есть сборка Linux arm64.** Raspberry Pi, машины Ampere и виртуальная машина Linux на Mac берут `Lyra-<версия>-arm64.AppImage` или `Lyra-<версия>-arm64.deb`. Раньше на этих машинах проверка обновлений отвечала «уже последняя», потому что файла своей архитектуры не было.
+
+- **Файл или картинка в сообщении — это метка: значок и имя, внутри предложения.** Это больше не отдельный ряд над текстом. Правый щелчок открывает файл или показывает его в папке. Курсор в метку не заходит.
+
+- **`read` читает текст из Word, Excel, PowerPoint и PDF.** Положите такой файл в беседу или укажите путь — агент читает текст, а не смотрит на файл как на незнакомый кусок.
+
+- **Смена языка интерфейса переносит неизменившиеся слова на новое место, а не перерезает страницу.** В списке языков — собственное имя каждого языка. Любой язык из этого списка можно форматировать; те, которые нельзя, в список не попадают.
+
+### Исправления
+
+- **После отправки у меток пропадала подложка, а правое меню открывало пустую рамку.** Метки оставались. Они больше не выглядели и не вели себя как чипы.
+
+- **Набор китайского складывал метку обратно в цепочку скобок.** Набор вокруг файловой метки превращал её в сырой токен, и файл выпадал из сообщения.
+
+- **Когда пунктуация сжимала строку, значок наезжал на имя файла, а курсор всё ещё заходил внутрь метки.** Это один и тот же макет: метка не оставляла себе ячейку, которую курсор обязан перескочить.
+
+- **Несколько пунктов меню вложений были серыми, потому что путь ни разу не запрашивался.** «Открыть» и «Показать в папке» ничего не делали. Они выглядели выключенными. Они ждали путь, который никто не ходил брать.
+
+- **Размытие у верхнего края боковой панели почти всегда отсутствовало.** Оно рисовалось только в одном состоянии прокрутки, поэтому список часто упирался прямо в заголовок.
+
+- **График использования прыгал, а не двигался.** Анимация укладывалась в один кадр, страница казалась без движения.
+
+- **Когда док не умещался по ширине, он закрывал беседу.** Вёрстка сплющивалась в одну полосу на всю ширину, и беседа теряла свою колонку.
+
+- **Если при перетаскивании панели указатель уходил за окно, карточка пропадала.** Указатель покидал окно, карточка уходила за ним.
+
+- **Разделители меню пропадали в тёмном оформлении.** Контраст считался относительно страницы, а не меню.
+
+- **«Удалить» у архивной беседы не срабатывало.** Окно подтверждения уходило вместе с меню, щелчок попадал в пустоту.
+
+- **В Windows удалённый репозиторий, который просил вход, оставлял кнопки синхронизации застывшими.** Панель ждала, пока команда истечёт по времени, и иногда оставалось окно учётных данных. Теперь это сразу ошибка, и сказано сначала настроить учётные данные в терминале.
+
 ## [0.9.11](https://github.com/kittors/Lyra/releases/tag/v0.9.11) - 2026-09-12
 
 <!-- lyra:notes zh-CN -->
