@@ -11,7 +11,8 @@ pnpm dev:mobile  # 移动端
 ```
 
 `pnpm install` 会跑 `lefthook install`。之后 `git commit` 会 lint 你暂存的文件，
-`git push` 会跑完整的 typecheck 和测试。要临时跳过：`LEFTHOOK=0 git commit …`——
+`git push` 会跑 `pnpm check` 和 `pnpm knip`——和 CI 里 linux 那几项同一组。
+Windows 上的真实窗口（`windows-ui`）只在 CI 里跑。要临时跳过：`LEFTHOOK=0 git commit …`——
 但那意味着你打算让 CI 替你发现问题，通常不划算。
 
 ## 命令
@@ -30,7 +31,7 @@ pnpm dev:mobile  # 移动端
 | `pnpm build` | core + 桌面端 |
 | `pnpm package` | 打出桌面端安装包 |
 
-推之前跑 `pnpm check` 就够了；hooks 也会替你跑。
+推之前跑 `pnpm check` 和 `pnpm knip`；hooks 也会替你跑。`windows-ui` 过不了，`all-green` 就是红的。
 
 ## 代码约定
 

@@ -130,6 +130,21 @@ test("Android 那四个 secret 的名字，三处写的是同一套", () => {
 	}
 });
 
+test("all-green 等 windows-ui 也等 knip，pre-push 跑同一组 check", () => {
+	const hook = read("lefthook.yml");
+	assert.match(ci, /needs: \[[^\]]*windows-ui[^\]]*\]/, "all-green 不等 windows-ui，Windows 窗口红了主分支仍是绿的");
+	assert.match(ci, /needs: \[[^\]]*dead-code[^\]]*\]/, "all-green 不等 knip，未用导出可以进 main");
+	assert.match(hook, /pnpm check/, "pre-push 只跑 typecheck/test 时，lint 和 i18n 要到 CI 才爆");
+	assert.match(hook, /pnpm knip/, "pre-push 不跑 knip，未用导出同样要到 CI 才爆");
+	const run = /windows-ui:[\s\S]*?run: pnpm --filter @lyra\/desktop exec node --test[^\n]+/.exec(ci)?.[0] ?? "";
+	for (const file of run.match(/e2e\/[\w.-]+\.test\.ts/g) ?? []) {
+		assert.ok(
+			readFileSync(join(root, "packages/desktop", file), "utf8").length > 0,
+			`windows-ui 还点着 ${file}，文件却不在了`,
+		);
+	}
+});
+
 test("日常 CI 用的是原生构建那条打包命令", () => {
 	assert.match(
 		ci,

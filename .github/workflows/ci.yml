@@ -272,10 +272,14 @@ jobs:
               --assets-dest "/tmp/mobile-bundle/$platform-assets"
           done
 
-  # The single required check. Everything above must pass; `dead-code` is deliberately not here.
+  # The single required check. Every job that can fail a change belongs here.
+  #
+  # `dead-code` used to be left out: knip was still noisy then, and a red job that
+  # nobody waited for taught people to ignore it. It is at zero now. Leaving it
+  # out of this list is how unused exports reach main while all-green stays green.
   all-green:
     if: always()
-    needs: [lint, typecheck, test, build, e2e, e2e-scope, windows-ui, mobile-bundle, arch, audit, pr-title]
+    needs: [lint, typecheck, test, build, e2e, e2e-scope, windows-ui, mobile-bundle, arch, audit, pr-title, dead-code]
     runs-on: ubuntu-latest
     steps:
       - name: Verdict
@@ -284,7 +288,7 @@ jobs:
         run: |
           echo "lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }}"
           echo "test=${{ needs.test.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }} e2e-scope=${{ needs.e2e-scope.result }}"
-          echo "windows-ui=${{ needs.windows-ui.result }}"
+          echo "windows-ui=${{ needs.windows-ui.result }} dead-code=${{ needs.dead-code.result }}"
           echo "mobile-bundle=${{ needs.mobile-bundle.result }} arch=${{ needs.arch.result }}"
           echo "audit=${{ needs.audit.result }} pr-title=${{ needs.pr-title.result }}"
           [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false" ]

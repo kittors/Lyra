@@ -59,8 +59,9 @@ Electron 43 携带的 V8 尚未包含 [536271637 的修复](https://chromium-rev
 ### Windows 桌面回归
 
 CI 的 `windows-ui` 在 push、PR 和手动执行时运行真实 Windows Electron，并纳入 `all-green`。
+`dead-code`（knip）也是：未用导出不能只红在一个没人等的 job 上。
 它跑 `desktop-compatibility.test.ts`、`transcript-stability.test.ts`、`interaction-polish.test.ts`、
-`session-startup.test.ts`、`definition-actions.test.ts`、`command-workflow.test.ts`、`visual-details.test.ts`、`agent-profiles-sidechat.test.ts`、`navigation-models.test.ts`、`model-menu-polish.test.ts`、`usage-dashboard.test.ts`、`workspace-quality.test.ts`、`browser-workspace.test.ts`、`menu-scroll.test.ts` 与 `cdp-lifetime.test.ts`：
+`session-startup.test.ts`、`definition-actions.test.ts`、`command-workflow.test.ts`、`visual-details.test.ts`、`agent-profiles-sidechat.test.ts`、`navigation-models.test.ts`、`model-menu-polish.test.ts`、`usage-dashboard.test.ts`、`workspace-quality.test.ts`、`browser-workspace.test.ts`、`browser-cursor.test.ts`、`dock-fullscreen.test.ts`、`dock-native-header.test.ts`、`trajectory.test.ts`、`menu-scroll.test.ts`、`cdp-lifetime.test.ts` 与 `pipelines-loading.test.ts`：
 
 - 100%、125%、150%、200% Chromium 显示缩放，深浅主题和 380px 起的窗口宽度。
 - 从 Window Controls Overlay API 读取系统按钮区域，验证应用按钮没有进入它。
