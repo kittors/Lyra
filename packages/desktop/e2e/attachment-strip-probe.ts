@@ -88,6 +88,8 @@ const DROP = `(async () => {
 	dt.items.add(new File([await draw("A", "#3b5bdb")], "截屏2026-09-11 17.36.45.png", { type: "image/png" }));
 	dt.items.add(new File([new Uint8Array([0, 1, 2, 3])], "录屏2026-09-11 17.37.06.mov", { type: "video/quicktime" }));
 	dt.items.add(new File([await draw("B", "#0b7285")], "HLri6IQWoAAX73p.jpeg", { type: "image/jpeg" }));
+	// 剪贴板给的名字：一排里每个都叫这个，等于没说——界面上该退成「图片 N」。
+	dt.items.add(new File([await draw("C", "#862e9c")], "image.png", { type: "image/png" }));
 	dt.items.add(new File([new Uint8Array([37, 80, 68, 70])], "品类实验室_AI智能分析平台_技术架构白皮书_专业重构版.pdf", { type: "application/pdf" }));
 	// 一份真能读成文本的，它的正文会进提示词——但绝不该铺进气泡，编辑一次之后也不该。
 	dt.items.add(new File(["## 交接说明 这一段是文件正文，气泡里一个字都不该出现。".repeat(24)], "交接说明.md", { type: "text/markdown" }));
@@ -97,23 +99,97 @@ const DROP = `(async () => {
 	return true;
 })()`;
 
-/** 输入框这一侧的读数：正文里有没有记号，那一排齐不齐。 */
+/**
+ * 输入框这一侧的读数。
+ *
+ * 量的是画出来的结果，不是写进去的值：一行到底是不是一行，看的是所有格子的上边缘在不在同一条
+ * 线上；两头化没化开，读的是伪元素算完的 opacity，而不是「属性加上了没有」——属性加对了而渐变
+ * 压根没画出来，是这一类改动最典型的失败方式。
+ */
 const READ_COMPOSER = `(() => {
 	const field = document.querySelector("main textarea");
 	const shell = field.closest(".ly-composer");
 	const strip = shell.querySelector("[data-ly-attachments]");
-	const heights = [...strip.children].map((row) => [...row.children].map((cell) => Math.round(cell.getBoundingClientRect().height)));
-	// 越界的那一个：叉从前浮在格子外面，换行之后正压在上一行缩略图的下缘上。
-	const overflow = [...strip.querySelectorAll("*")].filter((el) => {
-		const r = el.getBoundingClientRect(), s = strip.getBoundingClientRect();
-		return r.width > 0 && (r.left < s.left - 0.5 || r.right > s.right + 0.5 || r.top < s.top - 0.5 || r.bottom > s.bottom + 0.5);
-	}).length;
+	const track = strip.querySelector("[data-ly-attachments-track]");
+	const tiles = [...track.querySelectorAll("[data-ly-attachment]")];
+	const boxes = tiles.map((tile) => tile.getBoundingClientRect());
+	const before = getComputedStyle(strip, "::before");
+	const after = getComputedStyle(strip, "::after");
+	const nameOf = (tile) => {
+		const body = tile.querySelector(".ly-attachment-body");
+		return body ? body.getAttribute("aria-label") : null;
+	};
 	return {
 		draft: field.value,
 		bracketsInDraft: (field.value.match(/【/g) || []).length,
-		rowHeights: heights,
-		raggedRows: heights.filter((row) => new Set(row).size > 1).length,
-		overflowing: overflow,
+		tiles: tiles.length,
+		// 独占一行：每个格子的上边缘都落在同一条线上，换行了这个数就大于 1。
+		rows: new Set(boxes.map((b) => Math.round(b.top))).size,
+		// 一种格子：高度只该有一个值，图片和文档都一样高。
+		heights: [...new Set(boxes.map((b) => Math.round(b.height)))],
+		widths: boxes.map((b) => Math.round(b.width)),
+		scrollable: track.scrollWidth > track.clientWidth + 1,
+		overflowBy: track.scrollWidth - track.clientWidth,
+		fadeStartAttr: track.hasAttribute("data-fade-start"),
+		fadeEndAttr: track.hasAttribute("data-fade-end"),
+		fadeStartPainted: Number(before.opacity),
+		fadeEndPainted: Number(after.opacity),
+		labels: tiles.map(nameOf),
+		exts: tiles.map((tile) => {
+			const badge = tile.querySelector(".ly-attachment-body .uppercase");
+			return badge ? badge.textContent : null;
+		}),
+	};
+})()`;
+
+/**
+ * 鼠标停在某一格上时，那两颗按钮画出来没有、被裁掉没有。
+ *
+ * 叉往格子外面探 8px，而这一排是会横滚的——会滚的容器按内容框裁剪，所以「叉被切掉一半」是这个
+ * 布局最容易出的错，而它只在鼠标真的停上去时才看得见。用真实指针，`:hover` 不认 JS 派发的事件。
+ */
+const READ_HOVER = `((key) => {
+	const tile = document.querySelector('[data-ly-attachment="' + key + '"]');
+	const track = tile.closest("[data-ly-attachments-track]");
+	const controls = [...tile.querySelectorAll("[data-ly-hover-reveal]")];
+	const clip = track.getBoundingClientRect();
+	return {
+		hovered: tile.matches(":hover"),
+		controls: controls.map((control) => {
+			const box = control.getBoundingClientRect();
+			return {
+				opacity: Number(getComputedStyle(control).opacity),
+				// 被裁：探出去的部分落到了会滚的那个盒子外面。
+				clipped: box.top < clip.top - 0.5 || box.bottom > clip.bottom + 0.5 || box.right > clip.right + 0.5,
+			};
+		}),
+	};
+})`;
+
+/** 菜单里那几行，各自是活的还是灰的，以及灰的那些有没有说明为什么。 */
+const READ_MENU = `(() => {
+	const menu = document.querySelector('[role="menu"], [role="dialog"]');
+	if (!menu) {
+		return {
+			open: false,
+			// 没开的时候要能分清是「没点着」还是「点了没开」。
+			portals: document.querySelectorAll("body > div").length,
+			anyFixed: document.querySelectorAll("body > div .fixed").length,
+		};
+	}
+	const rows = [...menu.querySelectorAll("button")];
+	return {
+		open: true,
+		items: rows.map((row) => {
+			const detail = row.querySelector(".text-caption");
+			return {
+				// 不切行：模板串会把注入代码里的换行转义提前吃掉，注进去就是语法错误。
+				label: (row.innerText || "").trim(),
+				disabled: row.disabled === true || row.getAttribute("aria-disabled") === "true",
+				// 为什么是灰的，现在是常驻的一行小字——禁用的按钮不派发鼠标事件，挂 tooltip 等于没写。
+				why: detail ? detail.textContent : null,
+			};
+		}),
 	};
 })()`;
 
@@ -122,7 +198,6 @@ const READ_BUBBLE = `(() => {
 	const message = document.querySelector("[data-question-index]");
 	const bubble = message.querySelector(".ly-user-bubble");
 	const strip = message.querySelector("[data-ly-attachments]");
-	const rows = strip ? [...strip.children] : [];
 	const box = strip && strip.getBoundingClientRect();
 	const bub = bubble && bubble.getBoundingClientRect();
 	return {
@@ -134,8 +209,14 @@ const READ_BUBBLE = `(() => {
 		/* visual-details.test.ts 按这一条判「图片和它的气泡右边缘齐平」，改完要还站得住。 */
 		rightEdgesMatch: Boolean(box && bub) && Math.round(box.right) === Math.round(bub.right),
 		thumbnails: strip ? strip.querySelectorAll("img").length : 0,
-		stripRowHeights: rows.map((row) => [...row.children].map((cell) => Math.round(cell.getBoundingClientRect().height))),
-		names: strip ? [...strip.querySelectorAll("span")].map((s) => s.textContent).filter(Boolean) : [],
+		tiles: strip ? strip.querySelectorAll("[data-ly-attachment]").length : 0,
+		// 气泡这一侧铺开，所以这里允许不止一行——但每一格仍然一样高。
+		tileHeights: strip
+			? [...new Set([...strip.querySelectorAll("[data-ly-attachment]")].map((t) => Math.round(t.getBoundingClientRect().height)))]
+			: [],
+		names: strip
+			? [...strip.querySelectorAll(".ly-attachment-body")].map((b) => b.getAttribute("aria-label"))
+			: [],
 	};
 })()`;
 
@@ -162,6 +243,228 @@ try {
 	console.log("输入框：", JSON.stringify(composer, null, 1));
 	await writeFile(`${out}-composer.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
 	console.log(`wrote ${out}-composer.png`);
+
+	/*
+	 * 鼠标真的停到最后一格上。
+	 *
+	 * 最后一格是最靠边的那一个，也是它右上角的叉最可能被会滚的容器切掉的地方。`:hover` 不认 JS
+	 * 派发的事件，所以这里走 CDP 的真实指针——`evaluate` 里 dispatch 一个 mouseover 拿到的是
+	 * 「事件收到了」，不是「CSS 认它」。
+	 */
+	/*
+	 * 停在第一格上，不是最后一格。
+	 *
+	 * 六个附件已经把这一排撑出了输入框（766 > 630），而没滚过去之前最后那一格整个在可视区外——
+	 * 被裁掉的东西不参与命中测试，鼠标停上去既不 hover 也点不着。这一条是探针自己踩的坑，但它同
+	 * 时也确认了裁剪是真的在发生。
+	 */
+	const lastKey = await app.evaluate<string>(`document.querySelector("main .ly-composer [data-ly-attachment]").getAttribute("data-ly-attachment")`);
+	const spot = await app.evaluate<{ x: number; y: number }>(`(() => {
+		const r = document.querySelector("main .ly-composer [data-ly-attachment]").getBoundingClientRect();
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: spot.x, y: spot.y });
+	await new Promise((r) => setTimeout(r, 500));
+	const hover = await app.evaluate<Record<string, unknown>>(`(${READ_HOVER})(${JSON.stringify(lastKey)})`);
+	console.log("悬停：", JSON.stringify(hover, null, 1));
+	await writeFile(`${out}-hover.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
+	console.log(`wrote ${out}-hover.png`);
+
+	/*
+	 * 点开那一格的「更多」。
+	 *
+	 * 这一批附件是 `DataTransfer` 现造的，磁盘上并不存在，所以「打开」「在访达中显示」「复制路径」
+	 * 都该是灰的，并且每一行都得说出为什么——一个不解释自己的禁用项，和一个点下去没反应的按钮，
+	 * 对用的人是同一件事。
+	 */
+	const more = await app.evaluate<{ x: number; y: number; on: string; label: string } | null>(`(() => {
+		const button = document.querySelector("main .ly-composer [data-ly-attachment] [data-ly-hover-reveal]:last-of-type button");
+		if (!button) return null;
+		const r = button.getBoundingClientRect();
+		const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+		// 算出来的这个点，实际压在谁身上——对不上就是坐标算错了，而不是按钮坏了。
+		const at = document.elementFromPoint(x, y);
+		return { x, y, on: at ? at.tagName + "." + String(at.className).split(" ")[0] : "null", label: button.getAttribute("aria-label") || "" };
+	})()`);
+	if (more) {
+		console.log("更多按钮：", JSON.stringify(more));
+		/*
+		 * 等到那个点真的压在按钮上再按下去。
+		 *
+		 * `getBoundingClientRect` 给的是此刻的排版，而命中测试用的是合成之后的位置——附件刚进来
+		 * 那几帧里两者对不上，算出来的坐标会落到输入框外面的空处。既有的 `approval-question`
+		 * 那支探针也是这么等的，这不是本地的怪毛病。
+		 */
+		for (let tries = 0; tries < 20; tries++) {
+			const onTarget = await app.evaluate<boolean>(`(() => {
+				const button = document.querySelector("main .ly-composer [data-ly-attachment] [data-ly-hover-reveal]:last-of-type button");
+				const r = button.getBoundingClientRect();
+				return button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+			})()`);
+			if (onTarget) break;
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		const at = await app.evaluate<{ x: number; y: number; on: string }>(`(() => {
+			const button = document.querySelector("main .ly-composer [data-ly-attachment] [data-ly-hover-reveal]:last-of-type button");
+			const r = button.getBoundingClientRect();
+			const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+			const el = document.elementFromPoint(x, y);
+			return { x, y, on: el ? el.tagName + "." + String(el.className).split(" ")[0] : "null" };
+		})()`);
+		console.log("稳定之后：", JSON.stringify(at));
+		console.log("各层矩形：", await app.evaluate<string>(`(() => {
+			const box = (el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)].join(","); };
+			const composer = document.querySelector("main .ly-composer");
+			const track = composer.querySelector("[data-ly-attachments-track]");
+			const tiles = [...composer.querySelectorAll("[data-ly-attachment]")];
+			const last = tiles[tiles.length - 1];
+			return JSON.stringify({
+				composer: box(composer),
+				track: box(track),
+				trackClient: track.clientWidth + "x" + track.clientHeight,
+				trackScroll: track.scrollWidth + " left=" + track.scrollLeft,
+				lastTile: box(last),
+				moreBtn: box(last.querySelector('[data-ly-hover-reveal]:last-of-type button')),
+			});
+		})()`));
+		more.x = at.x;
+		more.y = at.y;
+		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
+			await app.send("Input.dispatchMouseEvent", {
+				type,
+				x: more.x,
+				y: more.y,
+				...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }),
+			});
+		}
+		await new Promise((r) => setTimeout(r, 600));
+		// 真实指针没点开的话，再用 JS 点一次——两者的差别本身就是诊断。
+		if (!(await app.evaluate<boolean>(`Boolean(document.querySelector('[role="menu"]'))`))) {
+			console.log("真实指针没点开，改用 JS 点一次");
+			console.log("点到的是：", await app.evaluate<string>(`(() => {
+				const el = document.elementFromPoint(${more.x}, ${more.y});
+				return el ? el.tagName + " " + (el.getAttribute("aria-label") || el.className) : "null";
+			})()`));
+			await app.evaluate(`document.querySelector("main .ly-composer [data-ly-attachment] [data-ly-hover-reveal]:last-of-type button").click()`);
+			await new Promise((r) => setTimeout(r, 600));
+		}
+		console.log("菜单：", JSON.stringify(await app.evaluate<Record<string, unknown>>(READ_MENU), null, 1));
+		await writeFile(`${out}-menu.png`, Buffer.from((await clip(app, "main .ly-composer", 120)).data, "base64"));
+		console.log(`wrote ${out}-menu.png`);
+		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
+		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
+		await new Promise((r) => setTimeout(r, 400));
+	}
+
+	/*
+	 * 再拖五份重名的表格进去。
+	 *
+	 * 客户截图里就是这个样子：同一个模板反复拖进来，六个格子上印着同一行字。这一批的用处是把这
+	 * 排东西撑到超出输入框——横滚、两头化开、以及「叉会不会被会滚的容器切掉」，都只有溢出之后才
+	 * 存在，不撑开就等于没验。
+	 */
+	await app.evaluate(`(async () => {
+		const dt = new DataTransfer();
+		for (let i = 0; i < 5; i++) {
+			dt.items.add(new File([new Uint8Array([80, 75, 3, 4])], "陈列道具导入模板(花园里店).xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+		}
+		document.querySelector("main .ly-composer").dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 2600));
+
+	const crowded = await app.evaluate<Record<string, unknown>>(READ_COMPOSER);
+	console.log("撑开之后：", JSON.stringify(crowded, null, 1));
+	await writeFile(`${out}-crowded.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
+	console.log(`wrote ${out}-crowded.png`);
+
+	// 往右拨到底：左边那一头该化开，右边那一头该收掉。
+	await app.evaluate(`(() => {
+		const track = document.querySelector("main .ly-composer [data-ly-attachments-track]");
+		track.scrollLeft = track.scrollWidth;
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 600));
+	const scrolled = await app.evaluate<Record<string, unknown>>(READ_COMPOSER);
+	console.log("拨到最右：", JSON.stringify(scrolled, null, 1));
+
+	/*
+	 * 拨到底之后，最后那一格的叉还完整吗。
+	 *
+	 * 会滚的容器按内容框裁剪，而取下附件的那个叉往格子外面探 8px——这两件事凑在一起就是「最靠边
+	 * 那个附件的叉被切掉一半」。轨道自带的那圈内边距就是为它留的，而这里是唯一能证明它留够了的
+	 * 地方：不滚到头，最靠边的格子根本不在可视区里。
+	 */
+	const edgeSpot = await app.evaluate<{ x: number; y: number }>(`(() => {
+		const tiles = [...document.querySelectorAll("main .ly-composer [data-ly-attachment]")];
+		const r = tiles[tiles.length - 1].getBoundingClientRect();
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: edgeSpot.x, y: edgeSpot.y });
+	await new Promise((r) => setTimeout(r, 500));
+	const edgeKey = await app.evaluate<string>(`(() => {
+		const tiles = [...document.querySelectorAll("main .ly-composer [data-ly-attachment]")];
+		return tiles[tiles.length - 1].getAttribute("data-ly-attachment");
+	})()`);
+	console.log("最靠边那一格：", JSON.stringify(await app.evaluate<Record<string, unknown>>(`(${READ_HOVER})(${JSON.stringify(edgeKey)})`)));
+	await writeFile(`${out}-edge.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
+	console.log(`wrote ${out}-edge.png`);
+	await writeFile(`${out}-scrolled.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
+	console.log(`wrote ${out}-scrolled.png`);
+
+	// 再拨回最左：该轮到右边那一头化开，左边收掉。
+	await app.evaluate(`(() => {
+		document.querySelector("main .ly-composer [data-ly-attachments-track]").scrollLeft = 0;
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 600));
+	const atStart = await app.evaluate<Record<string, unknown>>(READ_COMPOSER);
+	console.log("拨回最左：", JSON.stringify({
+		fadeStartAttr: atStart.fadeStartAttr,
+		fadeEndAttr: atStart.fadeEndAttr,
+		fadeStartPainted: atStart.fadeStartPainted,
+		fadeEndPainted: atStart.fadeEndPainted,
+	}));
+	await writeFile(`${out}-at-start.png`, Buffer.from((await clip(app, "main .ly-composer")).data, "base64"));
+	console.log(`wrote ${out}-at-start.png`);
+
+	/*
+	 * 取下一个，正文里指着它的记号该跟着走。
+	 *
+	 * 这一版的草稿里本来就不写记号，所以这里先手动种一个进去——升级前存下的草稿、从队列里退回来
+	 * 的那一条，都长这样。留着它就是一句提到了某个文件的话，而那个文件没跟着发出去。
+	 */
+	await app.evaluate(`(() => {
+		const field = document.querySelector("main textarea");
+		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+		setter.call(field, "照着 【交接说明.md】 改一版");
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 300));
+	/*
+	 * 读 after 要等一帧。
+	 *
+	 * 点下去那一刻 React 还没把新状态画出来，同一次 `evaluate` 里紧接着读 `textarea.value` 拿到的
+	 * 是旧的那一份——于是无论这个功能做没做对，读数都会是「正文没变」。这一条第一次跑出来就是假红。
+	 */
+	const before = await app.evaluate<string>(`document.querySelector("main textarea").value`);
+	await app.evaluate(`(() => {
+		const tiles = [...document.querySelectorAll("main .ly-composer [data-ly-attachment]")];
+		const target = tiles.find((tile) => {
+			const body = tile.querySelector(".ly-attachment-body");
+			return body && (body.getAttribute("aria-label") || "").includes("交接说明");
+		});
+		target.querySelector('[data-ly-hover-reveal] button[aria-label^="移除"]').click();
+		return true;
+	})()`);
+	await new Promise((r) => setTimeout(r, 700));
+	const removed = {
+		before,
+		after: await app.evaluate<string>(`document.querySelector("main textarea").value`),
+		tilesLeft: await app.evaluate<number>(`document.querySelectorAll("main .ly-composer [data-ly-attachment]").length`),
+	};
+	console.log("取下之后：", JSON.stringify(removed, null, 1));
 
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");
