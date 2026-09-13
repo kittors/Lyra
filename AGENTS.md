@@ -120,10 +120,12 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 真正发出去的是 CHANGELOG 里七个块：
 
 ```
-<!-- lyra:notes zh-CN -->   <!-- lyra:notes zh-TW -->   <!-- lyra:notes en -->
+<!-- lyra:notes en -->      <!-- lyra:notes zh-CN -->    <!-- lyra:notes zh-TW -->
 <!-- lyra:notes ja -->      <!-- lyra:notes ko -->       <!-- lyra:notes fr -->
 <!-- lyra:notes ru -->
 ```
+
+GitHub Release 正文是这七段按写下的顺序排出来的全文，**英文必须在最上面**。客户端按当前语言只抽一段，顺序不影响它。
 
 tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这里读，所以**改 CHANGELOG
 就是改发布内容**。0.9.6 是写对了的样子，照它写。
