@@ -55,7 +55,16 @@ before(async () => {
 	}});
 });
 after(async(t)=>{ await stopWorkspaceFixture(app, server, (message) => t.diagnostic(message)); });
-afterEach(async(t)=>{if(!t.passed){t.diagnostic(await app.evaluate<string>("document.body.innerText.slice(-4500)")); t.diagnostic(JSON.stringify({step,results})); await shot("workspace-failure");}});
+afterEach(async(t)=>{
+	if(!t.passed){t.diagnostic(await app.evaluate<string>("document.body.innerText.slice(-4500)")); t.diagnostic(JSON.stringify({step,results})); await shot("workspace-failure");}
+	// A failed settings case used to leave the next test looking at the settings page
+	// for transcript text and the session service list.
+	try {
+		if (await app.evaluate(`Boolean([...document.querySelectorAll("nav button")].some(e=>${named("返回工作区")}))`)) {
+			await label("返回工作区", "nav button");
+		}
+	} catch { /* the next test has its own until() */ }
+});
 async function until(expression:string){await app.evaluate(`new Promise((resolve,reject)=>{let n=1200;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);}
 async function click(selector:string){
 	await until(`document.querySelector(${JSON.stringify(selector)})`);
@@ -90,7 +99,12 @@ test("motto persists, IME keeps confirmation keys and screenshot disabling reach
 	await click('[aria-label="侧边栏座右铭"]');await app.send("Input.imeSetComposition",{text:"中",selectionStart:1,selectionEnd:1});
 	await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",windowsVirtualKeyCode:13});await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",windowsVirtualKeyCode:13});
 	assert.ok(await app.evaluate(`!!document.querySelector('[aria-label="侧边栏座右铭"]')`));
+	await app.evaluate(`document.querySelector('[aria-label="侧边栏座右铭"]').focus()`);
 	await app.send("Input.insertText",{text:"中文输入"});await app.evaluate(`document.querySelector('[aria-label="侧边栏座右铭"]').select()`);await app.send("Input.insertText",{text:"保持好奇，认真求证。"});
+	// Empty draft keeps save disabled, so a click before React sees the text is a no-op and
+	// settings.json keeps personalization without sidebarMotto.
+	await until(`document.querySelector('[aria-label="侧边栏座右铭"]').value===${JSON.stringify("保持好奇，认真求证。")}`);
+	await until(`!document.querySelector('[aria-label="保存座右铭"]').disabled`);
 	await click('[aria-label="保存座右铭"]');await until(`document.querySelector('[aria-label="保存座右铭"]').disabled`);
 	assert.equal((JSON.parse(await readFile(join(app.home,"settings.json"),"utf8"))).personalization.sidebarMotto,"保持好奇，认真求证。");
 	await label("屏幕截图","nav button");await until(`document.querySelector('[data-view="screenshot"]')`);
