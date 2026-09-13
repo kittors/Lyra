@@ -15,6 +15,7 @@
  *   退格     整枚标记一起走，那份附件跟着卸下来——不是一格一格地退
  *   删标记   图片那一枚删掉之后，上面那一排里对应的缩略图也不见
  *   换语言   会翻译的那些标记跟着改写，文件名不动
+ *   发出去   气泡里那几枚还是标记，右键照样能打开那份文件、在访达里指出它
  *
  * 逐帧拍，不用 `startScreencast`：被别的窗口盖住的窗口不合成，那趟录下来只有开头一帧。帧打的是真实
  * 时间戳，所以 CSS 那 220ms 的过渡录出来就是 220ms。
@@ -22,7 +23,7 @@
 
 import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
@@ -92,8 +93,6 @@ const DRAW = `async (label, colour) => {
 	return await new Promise((done) => canvas.toBlob(done, "image/png"));
 }`;
 
-const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
 const out = process.argv[2] ?? join(homedir(), "Desktop");
 const model = startModel();
 const app = await startApp({ port: PORT, seed });
@@ -112,13 +111,28 @@ try {
 	await pause(1800);
 	await film(700);
 
-	/* 一、放三个进去：一张图、一份表格、一份 PDF。标记同时落进正文。 */
+	/*
+	 * 一、放三个进去：一张图、一份表格、一份 PDF。标记同时落进正文。
+	 *
+	 * 两份文件是**真的在磁盘上**的，走「+」那个入口进来——`DataTransfer` 现造的 `File` 在磁盘上没有
+	 * 对应物，附件因此没有路径，而菜单上「打开 / 在访达中显示 / 复制路径」三行全靠它。用假的录出来
+	 * 的片子里，那三行根本不会出现，看片的人会以为它们不存在。
+	 *
+	 * 三条命令必须走同一条连接：`DOM.getDocument` 给的 `nodeId` 只在发出它的那个会话里有效。
+	 */
+	const sheet = join(tmpdir(), "陈列道具导入模板(花园里店).csv");
+	const paper = join(tmpdir(), "品类实验室_技术架构白皮书.md");
+	await writeFile(sheet, "门店,道具,数量\n花园里店,层板,12\n中山路店,挂钩,30\n");
+	await writeFile(paper, "# 技术架构白皮书\n\n这一份是正文。\n");
+	const doc = await grab.send<{ root: { nodeId: number } }>("DOM.getDocument", { depth: -1 });
+	const picker = await grab.send<{ nodeId: number }>("DOM.querySelector", { nodeId: doc.root.nodeId, selector: 'main input[type="file"]' });
+	await grab.send("DOM.setFileInputFiles", { files: [sheet, paper], nodeId: picker.nodeId });
+	await film(2400);
+
 	await grab.evaluate(`(async () => {
 		const draw = ${DRAW};
 		const dt = new DataTransfer();
 		dt.items.add(new File([await draw("A", "#3b5bdb")], "截屏 2026-09-13 10.02.11.png", { type: "image/png" }));
-		dt.items.add(new File([new Uint8Array([80, 75, 3, 4])], "陈列道具导入模板(花园里店).xlsx", { type: ${JSON.stringify(XLSX)} }));
-		dt.items.add(new File([new Uint8Array([37, 80, 68, 70])], "品类实验室_技术架构白皮书.pdf", { type: "application/pdf" }));
 		document.querySelector("main .ly-composer").dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
 		return true;
 	})()`);
@@ -248,6 +262,32 @@ try {
 		return true;
 	})()`);
 	await film(4200);
+
+	/*
+	 * 九、发出去之后，右键气泡里那一枚。
+	 *
+	 * 一条已经发出去的消息，对着自己带的那份表格还能做事：打开它、在访达里指出它、复制它的路径。这
+	 * 一段一度是空的——不是少几行，是整份菜单空到浮出一个灰框盖住刚说的那句话，因为路径在过 IPC 那
+	 * 道门时被白名单抹掉了。没有「移除」是对的：那一份是记录。
+	 */
+	const sent = await grab.evaluate<{ x: number; y: number } | null>(`(() => {
+		const marks = [...document.querySelectorAll(".ly-user-bubble .ly-attachment-token")];
+		const target = marks.find((m) => m.textContent.includes("陈列道具")) ?? marks[0];
+		if (!target) return null;
+		const r = target.getBoundingClientRect();
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	if (sent) {
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...sent });
+		await film(500);
+		for (const type of ["mousePressed", "mouseReleased"]) {
+			await app.send("Input.dispatchMouseEvent", { type, ...sent, button: "right", clickCount: 1 });
+		}
+		await film(3200);
+		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
+		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
+		await film(900);
+	}
 
 	const file = join(out, process.env.LYRA_THEME === "dark" ? "Lyra-附件-暗色.mp4" : "Lyra-附件.mp4");
 	await encode(frames, file, 30);
