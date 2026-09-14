@@ -5,6 +5,120 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.14](https://github.com/kittors/Lyra/releases/tag/v0.9.14) - 2026-09-14
+
+<!-- lyra:notes en -->
+
+### New
+
+- **A new "Keep computer awake while running" switch in General settings.** When enabled, Lyra prevents your display and system from sleeping due to idle timeout during long-running tasks. Closing the laptop lid still sleeps normally according to system power policies.
+
+### Fixes
+
+- **Standardised button styles across settings and toolbars.** Buttons for primary creation actions like "Add provider" and "Add model" clearly pair icons with text labels and visible borders. Toolbars, table row toggles, and icon-only actions are clean and borderless.
+
+- **In pull request details, the redundant chat button is removed and agent review pre-populates your draft.** Clicking "Ask Agent to review" directly prepares the PR review prompt in the composer, focused and ready to send, without getting lost to workspace resets.
+
+- **The Guide button at the bottom of settings shows its text label again.** The rocket icon now sits beside "Guide" rather than standing alone as an unlabelled icon.
+
+- **Unified loading indicators into distinct shapes.** Running items in lists, task steps, and pipelines display a smooth dashed ring (StatusSpinner); clicked buttons and action spots show a clear arc on a faint track (ActionSpinner).
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **通用设置新增「运行期间不让电脑休眠」开关。** 开启后 Lyra 运行期间不息屏、不因闲置而进入睡眠，长任务跑一夜也不会中断。合盖操作仍遵循系统电源策略正常休眠。
+
+### 修复
+
+- **规范全应用按钮形态与层级。** 「添加服务商」「添加模型」等创建操作采用清晰的图文加框按钮；工具栏按钮、行内开关等纯图标动作保持无边框微交互。
+
+- **Pull Request 详情页移除冗余的纯聊天按钮，让 Agent 审查会自动填好草稿。** 点击「让 Agent 审查」会将审阅提示词直接带入输入框并聚焦在末尾，修复了此前因工作目录初始化竞态导致草稿丢失的问题。
+
+- **设置页左下角的「引导」按钮恢复文字标签。** 火箭图标旁恢复显示「引导」文案，不再是不明语义的孤立小图标。
+
+- **统一全局加载动画。** 状态行、任务清单与流水线统一采用六段匀速旋转的虚线环（StatusSpinner）；按钮与交互动作采用带浅色底轨的亮弧（ActionSpinner），不再忽转忽闪。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **一般設定新增「執行期間不讓電腦休眠」開關。** 開啟後 Lyra 執行期間不息屏、不因閒置進入睡眠，長任務跑整夜也不會中斷。闔蓋操作仍依系統電源策略正常休眠。
+
+### 修復
+
+- **規範全應用按鈕形態與層級。** 「新增服務商」「新增模型」等建立操作採用清晰的圖文加框按鈕；工具列按鈕、行內開關等純圖示動作保持無邊框微互動。
+
+- **Pull Request 詳細資料頁移除多餘的純聊天按鈕，讓 Agent 審查會自動填入草稿。** 點選「讓 Agent 審查」會將審核提示詞直接帶入輸入框並聚焦於末尾，修復了此前因工作目錄初始化競態導致草稿遺失的問題。
+
+- **設定頁左下角的「引導」按鈕恢復文字標籤。** 火箭圖示旁恢復顯示「引導」文案，不再是不明語意的孤立小圖示。
+
+- **統一全域載入動畫。** 狀態列、任務清單與管線統一採用六段等分勻速旋轉的虛線環（StatusSpinner）；按鈕與操作互動採用帶淡色底軌的亮弧（ActionSpinner）。
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **一般設定に「実行中にコンピュータをスリープさせない」設定を追加。** 有効にすると、長時間のタスク中でも画面オフやアイドルによるスリープを防ぎます。ノートPCの蓋を閉じた場合は、システム電源設定に従ってスリープします。
+
+### 修正
+
+- **各種ボタンのスタイルと階層を統一。** 「プロバイダーを追加」「モデルを追加」などの新規作成アクションはアイコン＋テキスト＋枠線で見やすく整理。ツールバーや行内トグルなどのアイコン単体ボタンは枠線のないすっきりしたスタイルに統一しました。
+
+- **Pull Request 詳細の重複したチャットボタンを削除し、Agent によるレビュー依頼の下書き自動入力を改善。** 「Agent にレビューを依頼」をクリックするとレビュー用のプロンプトが入力欄に自動設定され、ワークスペース切り替えで消える不具合を修正しました。
+
+- **設定画面左下の「ガイド」ボタンにテキスト表記を復元。** ロケットアイコンの横に「ガイド」ラベルが並び、分かりやすくなりました。
+
+- **読み込みアニメーションの統一。** リストやタスク進行中の状態表示は等分割の点線リング（StatusSpinner）に、ボタン等の操作待機はうっすらとした軌道付きのアーク（ActionSpinner）に整理しました。
+
+<!-- lyra:notes ko -->
+
+### 새로운 기능
+
+- **일반 설정에 '실행 중 컴퓨터 절전 모드 방지' 옵션 추가.** 켜 두면 긴 작업 도중 화면이 꺼지거나 유휴 상태로 잠들지 않습니다. 노트북 덮개를 닫는 동작은 시스템 전원 설정에 따라 정상 절전됩니다.
+
+### 수정
+
+- **전체 버튼 형태 및 시각적 위계 표준화.** '제공자 추가', '모델 추가' 등 생성 버튼은 아이콘+텍스트와 테두리로 명확하게 표시하고, 툴바 및 행 토글 등 단독 아이콘 버튼은 테두리 없이 깔끔하게 통일했습니다.
+
+- **Pull Request 상세 보기에서 불필요한 채팅 버튼을 제거하고 Agent 검토 초안 자동 입력을 수정.** 'Agent에게 검토 요청' 클릭 시 검토 프롬프트가 입력창에 바로 채워지고, 작업 영역 전환으로 내용이 사라지던 문제를 해결했습니다.
+
+- **설정 화면 하단 로켓 버튼에 '안내' 텍스트 복원.** 아이콘만 있던 버튼에 텍스트를 함께 배치하여 역할을 명확히 했습니다.
+
+- **로딩 인디케이터 표준화.** 작업 목록 및 상태 표시는 일정한 점선 원(StatusSpinner)으로, 버튼 조작 대기는 궤도가 있는 부드러운 호(ActionSpinner)로 정돈했습니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **Nouvelle option « Empêcher la mise en veille pendant l'exécution » dans les paramètres généraux.** Lyra évite l'extinction de l'écran et la mise en veille pendant les longues tâches. Fermer le capot de l'ordinateur portable continue de mettre en veille conformément aux réglages système.
+
+### Corrections
+
+- **Harmonisation des styles de boutons.** Les actions de création comme « Ajouter un fournisseur » ou « Ajouter un modèle » affichent clairement icône, texte et bordure. Les barres d'outils et commutateurs d'icônes seuls adoptent un style épuré sans bordure.
+
+- **Suppression du bouton de discussion redondant dans les détails de PR et remplissage automatique de la demande de revue.** Cliquer sur « Demander une revue par l'Agent » insère le prompt d'analyse directement dans la zone de saisie sans perte lors du changement d'espace.
+
+- **Le bouton « Guide » en bas des paramètres retrouve son libellé textuel.** L'icône de fusée est à nouveau accompagnée du texte « Guide ».
+
+- **Uniformisation des animations de chargement.** Anneau en pointillés régulier (StatusSpinner) pour les éléments en cours, arc sur rail discret (ActionSpinner) pour les retours d'actions sur boutons.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **Новый переключатель «Не давать компьютеру уснуть во время работы» в основных настройках.** Lyra предотвращает отключение экрана и переход в спящий режим из-за бездействия во время выполнения длительных задач. Закрытие крышки ноутбука по-прежнему переводит устройство в сон в соответствии с системными политиками питания.
+
+### Исправления
+
+- **Стандартизация стилей кнопок.** Основные действия создания («Добавить провайдера», «Добавить модель») оформлены понятными кнопками с иконкой, текстом и рамкой. Кнопки панелей инструментов и переключатели внутри строк выполнены в лаконичном стиле без рамок.
+
+- **Удалена лишняя кнопка чата в деталях Pull Request, исправлено заполнение черновика запроса на ревью.** Нажатие «Попросить Agent провести ревью» сразу помещает готовый запрос в поле ввода без сброса из-за инициализации рабочей папки.
+
+- **Кнопка «Руководство» внизу панели настроек снова отображает поясняющий текст.** Рядом с иконкой ракеты возвращена надпись «Руководство».
+
+- **Унификация индикаторов загрузки.** Пунктирное вращающееся кольцо (StatusSpinner) для фоновых процессов и задач, и мягкая дуга с фоновой дорожкой (ActionSpinner) для нажатых кнопок.
+
 ## [0.9.13](https://github.com/kittors/Lyra/releases/tag/v0.9.13) - 2026-09-14
 
 <!-- lyra:notes en -->
