@@ -7,8 +7,7 @@
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
  */
 
-export { EffortMenu, effortLabel } from "./EffortMenu.tsx";
-export type { ThinkingSelection } from "./EffortMenu.tsx";
+export { effortLabel } from "./EffortMenu.tsx";
 export { EffortTrigger } from "./EffortTrigger.tsx";
 export { ModelIcon } from "./ModelIcon.tsx";
 export { formatWindow } from "./ModelMenu.tsx";
