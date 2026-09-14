@@ -38,6 +38,7 @@ import {
 	type SessionStorage,
 	type Settings,
 	type ThinkingLevel,
+	type UserContent,
 } from "@lyra/core";
 import type { LyraApi } from "./ipc-types.ts";
 import { resolveSessionApproval } from "./approval-response.ts";
@@ -116,6 +117,13 @@ export interface PlatformFacts {
 type Handler = (deps: RpcDeps, args: unknown[]) => Promise<unknown>;
 
 const s = (value: unknown): string => (typeof value === "string" ? value : "");
+/** 侧边聊天只认这一个选项——校验已经在 `optionalRecord` 那边做过了。 */
+const thinkingOnly = (value: unknown): { thinking?: ThinkingLevel } | undefined => {
+	const level = (value as { thinking?: unknown } | null | undefined)?.thinking;
+	return typeof level === "string" ? { thinking: level as ThinkingLevel } : undefined;
+};
+/** 一句操控：一段字，或者一串内容块。校验已经在 `content` 那边做过了。 */
+const said = (value: unknown): string | UserContent[] => (typeof value === "string" ? value : Array.isArray(value) ? (value as UserContent[]) : "");
 
 /**
  * Everything the phone may call, and nothing else.
@@ -265,13 +273,13 @@ export const RPC: Record<string, Handler> = {
 	"git.generalScratch": async (deps) => deps.generalScratch(),
 	"subAgents.list": async (deps, [sessionId]) => deps.live(s(sessionId))?.subAgents.list() ?? [],
 	"subAgents.detail": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.subAgents.detail(s(id)) ?? null,
-	"subAgents.steer": async (deps, [sessionId, id, message]) => deps.live(s(sessionId))?.steerSubAgent(s(id), s(message)) ?? false,
+	"subAgents.steer": async (deps, [sessionId, id, message]) => deps.live(s(sessionId))?.steerSubAgent(s(id), said(message)) ?? false,
 	"subAgents.abort": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.abortSubAgent(s(id)) ?? false,
 	"subAgents.dismiss": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.dismissSubAgent(s(id)) ?? "unknown",
 	"subAgents.dismissFinished": async (deps, [sessionId]) => deps.live(s(sessionId))?.dismissFinishedSubAgents() ?? 0,
 	"sideChat.setModel": async (deps, [sessionId, modelId]) => deps.sideChatSetModel(s(sessionId), modelId === null ? null : s(modelId)),
 	"sideChat.state": async (deps, [sessionId]) => deps.sideChatState(s(sessionId)),
-	"sideChat.ask": async (deps, [sessionId, content_]) => deps.sideChatAsk(s(sessionId), promptContent(content_)),
+	"sideChat.ask": async (deps, [sessionId, content_, options]) => deps.sideChatAsk(s(sessionId), promptContent(content_), thinkingOnly(options)),
 	"sideChat.editAndResend": async (deps, [sessionId, messageIndex, content_]) =>
 		deps.sideChatEditAndResend(s(sessionId), Number(messageIndex), promptContent(content_)),
 	"sideChat.abort": async (deps, [sessionId]) => deps.sideChatAbort(s(sessionId)),
@@ -417,14 +425,15 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 	"settings.save": ([next]) => fail(record(next, "settings")),
 	"subAgents.list": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"subAgents.detail": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
+	// 字符串或内容块都收：操控框现在也能附图，而手机端发的仍然是一段字。
 	"subAgents.steer": ([sessionId, id, message]) =>
-		fail(all(str(sessionId, "sessionId"), str(id, "id"), text(message, "message"))),
+		fail(all(str(sessionId, "sessionId"), str(id, "id"), content(message, "message"))),
 	"subAgents.abort": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
 	"subAgents.dismiss": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
 	"subAgents.dismissFinished": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"sideChat.setModel": ([sessionId, modelId]) => fail(all(str(sessionId, "sessionId"), nullableStr(modelId, "modelId"))),
 	"sideChat.state": ([sessionId]) => fail(str(sessionId, "sessionId")),
-	"sideChat.ask": ([sessionId, content_]) => fail(all(str(sessionId, "sessionId"), content(content_, "content"))),
+	"sideChat.ask": ([sessionId, content_, options]) => fail(all(str(sessionId, "sessionId"), content(content_, "content"), optionalRecord(options, "options"))),
 	"sideChat.editAndResend": ([sessionId, messageIndex, content_]) =>
 		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), content(content_, "content"))),
 	"sideChat.abort": ([sessionId]) => fail(str(sessionId, "sessionId")),

@@ -1,7 +1,7 @@
 /** Electron IPC bindings for the shared side-chat service. */
 
 import { ipcMain } from "electron";
-import type { UserContent } from "@lyra/core";
+import type { ThinkingLevel, UserContent } from "@lyra/core";
 import {
 	sideChatAbort,
 	sideChatAsk,
@@ -18,7 +18,7 @@ import {
 export function registerSideChatIpc(): void {
 	ipcMain.handle("sidechat:setModel", (_event, sessionId: string, modelId: string | null) => sideChatSetModel(sessionId, modelId));
 	ipcMain.handle("sidechat:state", (_event, sessionId: string) => sideChatState(sessionId));
-	ipcMain.handle("sidechat:ask", (_event, sessionId: string, content: UserContent[]) => sideChatAsk(sessionId, content));
+	ipcMain.handle("sidechat:ask", (_event, sessionId: string, content: UserContent[], options?: { thinking?: ThinkingLevel }) => sideChatAsk(sessionId, content, options));
 	ipcMain.handle("sidechat:editAndResend", (_event, sessionId: string, index: number, content: UserContent[]) =>
 		sideChatEditAndResend(sessionId, index, content));
 	ipcMain.handle("sidechat:abort", (_event, sessionId: string) => sideChatAbort(sessionId));

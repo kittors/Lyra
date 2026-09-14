@@ -22,7 +22,8 @@ export function PanelEmpty({
 }: {
 	icon: LucideIcon;
 	title: string;
-	children: React.ReactNode;
+	/** 可省：有些空状态的标题已经把话说完了，底下再补一句就是在解释一个不需要解释的东西。 */
+	children?: React.ReactNode;
 	/**
 	 * The one thing to do from here, when there is one.
 	 *
@@ -50,7 +51,7 @@ export function PanelEmpty({
 		<div className={`relative flex min-h-0 flex-1 flex-col items-center justify-center px-7 pb-6 text-center ${action ? "pt-9" : ""}`}>
 			<Icon size={30} strokeWidth={1.35} className="text-ink-faint" />
 			<h2 className="mt-3.5 text-title font-medium text-ink">{title}</h2>
-			<p className="mt-2 max-w-[290px] text-label leading-relaxed text-ink-muted">{children}</p>
+			{children !== undefined && <p className="mt-2 max-w-[290px] text-label leading-relaxed text-ink-muted">{children}</p>}
 			{action && (
 				<button
 					type="button"

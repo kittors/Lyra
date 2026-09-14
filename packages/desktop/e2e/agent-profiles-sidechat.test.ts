@@ -228,7 +228,19 @@ test("a dispatched subagent actually calls the selected provider with ultra reas
 test("sidechat restores old answers, queries early history and full tool tails, then survives switching", async () => {
 	await openSide();
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('以前的侧聊回答')`);
-	assert.match(await app.evaluate<string>(`document.querySelector('[aria-label="侧边聊天模型"]').textContent`), /同名模型.*主供应商.*随主会话/);
+	/*
+	 * 名字在控件上，继承在提示里。
+	 *
+	 * 这一行从前连「随主会话」一起量：那时侧边聊天用的是设置页那个 `ModelSelect`，把一句关于配置
+	 * 的话画在了输入框那一排上。现在它和主输入框共用 `ModelTrigger`，那一排只说「谁来答」，继承
+	 * 挪进了 `data-ly-tip` ——两样都还在，问的地方不同了。
+	 */
+	const sideModel = await app.evaluate<{ text: string; tip: string }>(
+		`(()=>{const e=document.querySelector('[aria-label="侧边聊天模型"]');return {text:e.textContent,tip:e.getAttribute('data-ly-tip')||''}})()`,
+	);
+	assert.match(sideModel.text, /主供应商.*同名模型/, `同名的模型要把厂商说出来：${JSON.stringify(sideModel)}`);
+	assert.match(sideModel.tip, /随主会话/, `继承没被藏掉，只是挪进了提示：${JSON.stringify(sideModel)}`);
+	assert.equal(await app.evaluate(`getComputedStyle(document.querySelector('[aria-label="侧边聊天模型"]')).borderTopWidth`), "0px");
 	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('Legacy hidden')`), false);
 	await send("EARLY_REQUEST 主聊天最早的决策是什么？");
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`);

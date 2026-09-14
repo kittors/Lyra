@@ -67,38 +67,27 @@ interface Held {
  * a ref out of one of them to here — for a lifetime of a few hundred milliseconds — would put
  * bookkeeping in every pane to serve the one that is moving.
  */
+
 const paneOf = (kind: PaneKind): HTMLElement | null =>
 	document.querySelector<HTMLElement>(`[data-dock-pane="${kind}"]`);
 
 /**
- * The carried pane's offset, held so the pane itself never leaves the window.
+ * 卡片跟着指针，一步不差——探出窗口的那部分被裁掉，那是可以接受的。
  *
- * The pointer may go wherever it likes — off the bottom edge, onto another screen — and it takes
- * the pane with it, because the offset is the raw distance travelled. The pane is `fixed`, so it is
- * positioned against the viewport, and a pane pushed past the viewport is simply clipped away: the
- * card you are holding disappears, the layout has already closed over the space it left, and the
- * window now shows one pane fewer with nothing to say where it went. Letting go put it back, but
- * you had no way of knowing that while you were holding it.
+ * 这里一度夹住整张卡片，后来改成夹住抓握点，两版都不对，而且错在同一处：只要还夹，指针越过那条
+ * 线之后就和卡片分了家——手在外面，卡片贴在边上。那一段「各走各的」正是「不跟手」的全部内容，而
+ * 它恰恰发生在人最用力的时候。
  *
- * So the pointer is free and the pane is not. Past the edge the two come apart — the card stops
- * against the window and the pointer carries on — which is the honest picture of what is happening:
- * out there is not a place a pane can be put.
+ * 当初夹住是有理由的：`fixed` 的元素画不出视口，推出去就被裁没了，而「手上拿着的东西凭空消失」
+ * 听起来比「它停在边上」更糟。实际用下来不是：人是自己把它往外拖的，裁掉多少心里有数；而且松手
+ * 就飞回原位，丢不了。反倒是卡片停住而指针还在走，每次都要愣一下——那才是没人预期的。
  *
- * Only what is *drawn* is clamped. The drop test still reads the real pointer, so "released outside
- * the window" still means "no landing place", and the pane still flies home. See `onMove` below.
+ * 参照的是同类应用的做法：那边的面板同样是页面里的元素，同样被窗口边缘裁掉，一样跟到底。
  *
- * A pane larger than the window clamps to the origin rather than to a negative bound, which keeps
- * its header — the part you are holding it by — on screen.
+ * 判定不受影响：落点读的是真指针，「在窗口外松手」仍然等于「没有落点」，卡片仍然飞回原位。
  */
-function keptOnScreen(raw: { x: number; y: number }, from: Rect): { x: number; y: number } {
-	const held = (start: number, length: number, viewport: number, moved: number): number => {
-		const room = Math.max(0, viewport - length);
-		return Math.min(Math.max(start + moved, 0), room) - start;
-	};
-	return {
-		x: held(from.left, from.width, window.innerWidth, raw.x),
-		y: held(from.top, from.height, window.innerHeight, raw.y),
-	};
+function keptOnScreen(raw: { x: number; y: number }): { x: number; y: number } {
+	return raw;
 }
 
 export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): {
@@ -371,15 +360,13 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			 * pointer only ever changes one composited property on one element. Nothing else in the
 			 * app hears about it.
 			 */
-			offset.current = keptOnScreen(
-				{
-					x: event.clientX - grabbed.grip.x - grabbed.from.left,
-					y: event.clientY - grabbed.grip.y - grabbed.from.top,
-				},
-				grabbed.from,
-			);
+			offset.current = keptOnScreen({
+				x: event.clientX - grabbed.grip.x - grabbed.from.left,
+				y: event.clientY - grabbed.grip.y - grabbed.from.top,
+			});
 			const flying = paneOf(grabbed.kind);
 			if (flying) flying.style.transform = `translate3d(${offset.current.x}px, ${offset.current.y}px, 0)`;
+
 
 			// Measured at the press, not here — see `dockBox`.
 			const container = dockBox.current;

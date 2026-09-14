@@ -1,5 +1,5 @@
 import { useI18n } from "../../i18n/index.ts";
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Link2, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";
 import { bridge } from "../../services/index.ts";
@@ -13,6 +13,7 @@ import { AddressBar } from "./AddressBar.tsx";
 import { BrowserPage } from "./BrowserPage.tsx";
 import { BrowserSelectionCard } from "./BrowserSelectionCard.tsx";
 import { browserChose, browserMounted, browserOwner, browserVisited, commandBrowser, useBrowser, useBrowserView } from "./browser-store.ts";
+import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 export function BrowserPanel() {
 	const { t } = useI18n();
@@ -38,6 +39,7 @@ export function BrowserPanel() {
 	const settings = useApp((state) => state.settings);
 	const saveSettings = useApp((state) => state.saveSettings);
 	const addressInput = useRef<HTMLInputElement>(null);
+	const tabStrip = useRef<HTMLDivElement>(null);
 	const [selection, setSelection] = useState<BrowserSelection | null>(null);
 	const [inspecting, setInspecting] = useState<string | null>(null);
 	const inspection = useRef({ generation: 0, id: "" });
@@ -65,14 +67,14 @@ export function BrowserPanel() {
 	const saved = settings?.browser?.bookmarks?.some((entry) => entry.url === tab?.url);
 	return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-browser-panel>
 		{tabs.length > 1 && <div className="flex h-8 shrink-0 items-center gap-1 px-2" role="tablist" aria-label={t("browser.tabs")}>
-			<div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto ly-scrollbar-hidden">
+			<Sideways trackRef={tabStrip} outerClassName="flex-1" className="flex min-w-0 items-center gap-0.5 overflow-x-auto ly-scrollbar-hidden">
 				{tabs.map((entry) => <div key={entry.id} className={`group/tab flex min-w-[70px] max-w-[170px] flex-1 items-center rounded-md ${entry.id === tab?.id ? "bg-card-hover text-ink" : "text-ink-faint"}`}>
 					<button type="button" role="tab" aria-selected={entry.id === tab?.id} onClick={() => { browserChose(sessionId, entry.id); void commandBrowser({ type: "select", id: entry.id }); }} className="ly-scroll flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-detail">
 						<Globe size={12} className={`shrink-0 ${entry.loading ? "ly-pulse" : ""}`} /><ScrollText text={entry.title || t("browser.newTab")} className="min-w-0 flex-1 text-left" />
 					</button>
 					<IconButton size="sm" label={t("browser.closeOne", { title: entry.title || t("browser.newTab") })} icon={<X size={11} />} onClick={() => void commandBrowser({ type: "close", id: entry.id })} />
 				</div>)}
-			</div>
+			</Sideways>
 			<IconButton size="sm" label={t("browser.newTab")} icon={<Plus size={14} />} onClick={() => open("about:blank", true)} />
 		</div>}
 		<div className="flex h-10 shrink-0 items-center gap-1 px-2" data-browser-toolbar>
@@ -90,7 +92,8 @@ export function BrowserPanel() {
 		{tab?.error && <p role="status" className="px-3 py-2 text-detail text-danger">{tab.error}</p>}
 		<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-shell">
 			{mounted.map((entry) => <BrowserPage key={entry.id} tab={entry} active={entry.id === tab?.id} />)}
-			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title={t("browser.openPage")}>{t("browser.addressHint")}<button type="button" data-ly-tip={t("browser.addressPlaceholder")} aria-label={t("browser.addressPlaceholder")} className="mx-auto mt-3 grid h-8 w-8 place-items-center rounded text-info hover:bg-hover" onClick={() => addressInput.current?.focus()}><Link2 size={15} strokeWidth={1.9} aria-hidden /></button></PanelEmpty></div>}
+			{/* 标题就够了：地址栏就在正上方，说明它怎么用的那一句和那枚跳过去的按钮都是在解释一个不需要解释的东西。 */}
+			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title={t("browser.openPage")} /></div>}
 		</div>
 		{selection && <BrowserSelectionCard selection={selection} onClose={() => setSelection(null)} />}
 		{options.open && <Popover anchor={options.anchor} onClose={options.close} placement="bottom" width="default" maxHeight={340} label={t("browser.menu")}

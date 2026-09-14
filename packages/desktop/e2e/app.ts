@@ -136,6 +136,25 @@ export interface RunningApp {
 	/** One expression in the renderer. Promises are awaited; the value comes back by value. */
 	evaluate<T>(expression: string): Promise<T>;
 	/**
+	 * One expression in the *main* process — only when `startApp` was given an `inspectPort`.
+	 *
+	 * What it buys is the half of the app no renderer can reach: window lifetime, the tray, quitting.
+	 * There the thing under test *is* an Electron call, and the DOM has nothing to say about whether
+	 * it worked. Closing the window is the case this was written for — `window.close()` from the page
+	 * does nothing at all here, so a probe driving it from the renderer proves only that it asked.
+	 *
+	 * Reach Electron through `process._linkedBinding("electron_browser_window")` and
+	 * `"electron_browser_app"`. Every way you would reach for first is closed off in that scope, and
+	 * each was tried: the main process is an ES module, so `require` is not global; evaluated code
+	 * has no host-defined import callback, so `await import("electron")` throws; Electron is not a
+	 * Node builtin, so `process.getBuiltinModule("electron")` is undefined; and a `--require`
+	 * preload is ignored, because Electron's binary here is renamed and it therefore treats itself
+	 * as packaged and drops NODE_OPTIONS. The linked bindings go through no module system at all,
+	 * and they are the very objects Electron's own JS layer decorates — `getAllWindows` and friends
+	 * are on them.
+	 */
+	main<T>(expression: string): Promise<T>;
+	/**
 	 * One DevTools protocol call, for the things the page cannot do to itself.
 	 *
 	 * Resizing is the case this exists for. `window.resizeTo` is ignored for an ordinary Electron
@@ -179,12 +198,20 @@ export async function startApp({
 	port,
 	seed,
 	scaleFactor,
+	inspectPort,
 }: {
 	/** A port per test file: two suites running at once must not share a debugger. */
 	port: number;
 	seed?: (home: string) => Promise<void>;
 	/** Exercise Chromium's actual DIP conversion, including native overlay geometry on Windows. */
 	scaleFactor?: number;
+	/**
+	 * Open the main process's own debugger, on a port of its own, and enable `main()`.
+	 *
+	 * Off unless asked for. `--inspect` is a second debugger on the app and a suite that never
+	 * evaluates in the main process should not be carrying one.
+	 */
+	inspectPort?: number;
 }): Promise<RunningApp> {
 	/*
 	 * Refuse to start while something is already on this port.
@@ -233,6 +260,8 @@ export async function startApp({
 	}
 	const { executable, argv } = electronLaunch(port);
 	if (scaleFactor !== undefined) argv.push(`--force-device-scale-factor=${scaleFactor}`);
+	// Ahead of the app path: this one is read by Electron's Node side before the app is loaded.
+	if (inspectPort !== undefined) argv.unshift(`--inspect=${inspectPort}`);
 
 	// Validate the executable before creating a profile, so failed setup leaves no test data.
 	const home = await mkdtemp(join(tmpdir(), "lyra-e2e-"));
@@ -298,11 +327,33 @@ export async function startApp({
 		home,
 		evaluate,
 		send: <T>(method: string, params?: Record<string, unknown>) => call<T>(target, method, params ?? {}),
+		main: async <T>(expression: string) => {
+			if (inspectPort === undefined) throw new Error("main() needs startApp({ inspectPort })");
+			// Looked up per call rather than kept: V8's inspector takes one client at a time, and
+			// `withConnection` opens and closes a socket around each operation anyway.
+			return evaluateRenderer<T>(await waitForMainProcess(inspectPort, output), expression);
+		},
 		stop: async () => {
 			await stopProcessGroup(app);
 			await rm(home, { recursive: true, force: true }).catch(() => {});
 		},
 	};
+}
+
+/** The main process's inspector socket, once it is listening. */
+async function waitForMainProcess(inspectPort: number, output: string[]): Promise<string> {
+	const deadline = Date.now() + 30_000;
+	while (Date.now() < deadline) {
+		const targets = await fetch(`http://127.0.0.1:${inspectPort}/json/list`)
+			.then((r) => r.json() as Promise<{ webSocketDebuggerUrl?: string }[]>)
+			.catch(() => null);
+		const url = targets?.find((t) => t.webSocketDebuggerUrl)?.webSocketDebuggerUrl;
+		if (url) return url;
+		await new Promise((r) => setTimeout(r, 300));
+	}
+	throw new Error(
+		`the main process never opened a debugger on ${inspectPort}. What the app printed:\n${output.join("").slice(-2000) || "(nothing)"}`,
+	);
 }
 
 async function waitForWindow(port: number, output: string[]): Promise<string> {

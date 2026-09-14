@@ -8,7 +8,10 @@
  */
 
 export { EffortMenu, effortLabel } from "./EffortMenu.tsx";
+export type { ThinkingSelection } from "./EffortMenu.tsx";
+export { EffortTrigger } from "./EffortTrigger.tsx";
 export { ModelIcon } from "./ModelIcon.tsx";
-export { ModelMenu, formatWindow } from "./ModelMenu.tsx";
+export { formatWindow } from "./ModelMenu.tsx";
 export { ModelSelect } from "./ModelSelect.tsx";
+export { ModelTrigger } from "./ModelTrigger.tsx";
 export { findModel } from "./models.ts";

@@ -18,6 +18,7 @@
 import { RotateCw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { CopyMark } from "./CopyMark.tsx";
 import { Disclosure } from "./Disclosure.tsx";
 
 interface State {
@@ -64,30 +65,53 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 					{componentStack && (
 						<div className="mt-2">
 							<Disclosure variant="compact" title={translate("errorBoundary.stack")}>
-								<pre className="mt-1 max-h-[220px] overflow-auto rounded-[10px] border border-line bg-card/40 px-3 py-2.5 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
-									{componentStack.trim()}
-								</pre>
+								{/*
+								 * 这一段的下一步一定是粘到别处去，所以角上给一枚复制键。
+								 *
+								 * 左上角而不是右上角：这一框会横向溢出，右上角那枚会压在最长那几行的字上；
+								 * 而左边是每一行的行首，缩进留出来的空白本来就在那儿。`pl-9` 是给它让的位。
+								 */}
+								<div className="group/copy relative mt-1">
+									<CopyMark text={componentStack.trim()} side="left" />
+									<pre className="max-h-[220px] overflow-auto rounded-[10px] border border-line bg-card/40 py-2.5 pr-3 pl-9 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
+										{componentStack.trim()}
+									</pre>
+								</div>
 							</Disclosure>
 						</div>
 					)}
 
-					<div className="mt-5 flex items-center gap-2">
-						<button
-							type="button"
-							data-ly-tip={translate("errorBoundary.reload")}
-							aria-label={translate("errorBoundary.reload")}
-							onClick={() => window.location.reload()}
-							className="grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
-						>
-							<RotateCw size={14} strokeWidth={2} aria-hidden />
-						</button>
+					{/*
+					 * 这一行的字顶着左边，和上面的标题、正文、报错框对齐。
+					 *
+					 * 按钮从行首挪到了话的后面：它是这句话的出口（「要重启 dev server」——那就重启给你看），
+					 * 排在话前面时，整段说明被它推离了左边缘，页面上于是有两条左边界。
+					 */}
+					<div className="mt-5 flex items-center gap-1.5">
 						{/*
 						 * Worth saying out loud, because it is the answer surprisingly often during
 						 * development: the main process does not hot-reload, so a renderer built
 						 * against a newer IPC shape than the one answering it will throw right here.
 						 */}
 						<span className="text-detail text-ink-faint">{translate("errorBoundary.devHint")}</span>
+						{/*
+						 * 没有底色也没有描边。
+						 *
+						 * 这一屏上唯一该被填实的是那个报错框——它是这一屏的主语。一枚实心按钮压在说明文字
+						 * 旁边，读起来像是这句话在催人按它，而它只是「顺手可以重来一次」。
+						 */}
+						<button
+							type="button"
+							data-ly-tip={translate("errorBoundary.reload")}
+							aria-label={translate("errorBoundary.reload")}
+							onClick={() => window.location.reload()}
+							className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+						>
+							<RotateCw size={13} strokeWidth={2} aria-hidden />
+						</button>
 					</div>
+					{/* 组件栈是这一屏里唯一带线索的东西，而它默认是折起来的——得说一句。 */}
+					<p className="mt-1.5 text-detail text-ink-faint">{translate("errorBoundary.issueHint")}</p>
 				</div>
 			</div>
 		);

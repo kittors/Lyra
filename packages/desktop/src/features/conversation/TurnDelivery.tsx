@@ -147,7 +147,8 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			<section data-turn-delivery aria-label={t("delivery.fileChanges")} className="rounded-xl border border-line bg-card/30 text-label">
 				<div className="flex min-h-16 flex-wrap items-center gap-3 px-3 py-3">
 					<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card-hover text-ink-muted"><FileDiff size={21} strokeWidth={1.7} /></span>
-					<div className="min-w-0 flex-1"><p className="font-medium text-ink">{translate("delivery.editedN", { n: data.files.length })}</p><Counts added={added} removed={removed} /></div>
+					{/* 一行写不下就省略，不折行：折了这张卡就长高一截，而那一行字本来就是标题不是正文。 */}
+					<div className="min-w-0 flex-1"><p className="truncate font-medium text-ink">{translate("delivery.editedN", { n: data.files.length })}</p><Counts added={added} removed={removed} /></div>
 					<div className="ml-auto flex shrink-0 items-center gap-1">
 						{/*
 						 * Offered only when it can actually be done.

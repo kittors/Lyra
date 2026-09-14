@@ -18,12 +18,10 @@ const call = (name: string, args: unknown) => [{ name, arguments: args }];
 test("the same call with the same answer is what counts as repetition", () => {
 	const watch = new RepetitionWatch();
 	for (let i = 1; i < REPEAT_WARN; i++) {
-		watch.observe(call("bash", { command: "ls" }), [result("a.txt")]);
-		assert.equal(watch.shouldWarn(call("bash", { command: "ls" }), [result("a.txt")]), null, "not yet");
+		assert.equal(watch.observe(call("bash", { command: "ls" }), [result("a.txt")]).warn, null, "not yet");
 	}
-	watch.observe(call("bash", { command: "ls" }), [result("a.txt")]);
-	assert.equal(watch.shouldWarn(call("bash", { command: "ls" }), [result("a.txt")]), "bash", "said once");
-	assert.equal(watch.shouldWarn(call("bash", { command: "ls" }), [result("a.txt")]), null, "and only once");
+	assert.equal(watch.observe(call("bash", { command: "ls" }), [result("a.txt")]).warn, "bash", "said once");
+	assert.equal(watch.observe(call("bash", { command: "ls" }), [result("a.txt")]).warn, null, "and only once");
 });
 
 test("a call whose answer changed is progress, not repetition", () => {
@@ -38,7 +36,7 @@ test("argument order does not disguise an identical call", () => {
 	const watch = new RepetitionWatch();
 	watch.observe(call("read", { path: "a", limit: 3 }), [result("x")]);
 	watch.observe(call("read", { limit: 3, path: "a" }), [result("x")]);
-	assert.equal(watch.observe(call("read", { path: "a", limit: 3 }), [result("x")]), 3);
+	assert.equal(watch.observe(call("read", { path: "a", limit: 3 }), [result("x")]).worst, 3);
 });
 
 test("alternating between two useless probes is still stuck", () => {

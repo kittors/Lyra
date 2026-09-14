@@ -8,23 +8,27 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { UserContent } from "@lyra/core";
-import { Plus, RotateCcw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { findModel } from "../models/index.ts";
 import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
+import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
 import {
 	AttachmentStrip,
 	ComposerSend,
 	ComposerShell,
 	fileKind,
+	type FileKind,
 	KIND_LABEL,
+	spellDraft,
+	useAttachmentMarks,
 	pickedFrom,
 	type PickedFile,
 	type StripFile,
 } from "../composer/index.ts";
-import { ModelSelect } from "../models/index.ts";
+import { EffortTrigger, ModelTrigger } from "../models/index.ts";
 
 interface SideAttachment {
 	id: string;
@@ -35,6 +39,9 @@ interface SideAttachment {
 	isText: boolean;
 	/** 磁盘上的位置，来自一个文件的话——「打开」和「在访达中显示」靠它。 */
 	path?: string;
+	/** 界面上叫什么：「图片 1」或者文件名。正文里那枚标记写的就是它——见 `useAttachmentMarks`。 */
+	label?: string;
+	kind?: FileKind;
 }
 
 export function SideComposer({
@@ -42,32 +49,39 @@ export function SideComposer({
 	disabled,
 	onSend,
 	onStop,
-	onReset,
 }: {
 	running: boolean;
 	/** No session to be beside; the field stays visible but inert rather than vanishing. */
 	disabled?: boolean;
 	onSend: (content: UserContent[]) => void;
 	onStop: () => void;
-	onReset?: () => void;
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
 	const modelId = useSide((s) => s.modelId);
 	const loading = useSide((s) => s.loading);
+	const thinking = useSide((s) => s.thinking);
 	const [text, setText] = useState("");
 	const [attachments, setAttachments] = useState<SideAttachment[]>([]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const field = useRef<HTMLTextAreaElement>(null);
+	/*
+	 * 正文里那枚标记，和主输入框是同一套。
+	 *
+	 * 这个输入框从前收得下文件，句子里却什么也没有：附件一律「图片在前、文本缀在后」地送出去，于是
+	 * 「照着第二张图改」这种再普通不过的话，模型只能猜是哪一张。
+	 */
+	const marks = useAttachmentMarks<SideAttachment>({ attachments, setAttachments, setText, field });
 
 	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
 	const strip: StripFile[] = useMemo(
 		() =>
 			attachments.map((attachment) => {
-				const kind = fileKind(attachment.name, attachment.mimeType);
+				const kind = attachment.kind ?? fileKind(attachment.name, attachment.mimeType);
 				return {
 					key: attachment.id,
-					name: attachment.name,
+					name: attachment.label ?? attachment.name,
 					kind,
 					...(attachment.data && !attachment.isText
 						? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
@@ -96,6 +110,8 @@ export function SideComposer({
 
 	const addFiles = async (picked: PickedFile[]) => {
 		if (picked.length === 0) return;
+		// 读文件之前记下来：读一份大文件要几百毫秒，那期间光标早就不在原地了。
+		const caret = field.current?.selectionStart ?? text.length;
 		const next: SideAttachment[] = [];
 		for (const { file, path } of picked) {
 			const from = path ? { path } : {};
@@ -126,34 +142,20 @@ export function SideComposer({
 				}
 			}
 		}
-		if (next.length > 0) {
-			setAttachments((prev) => [...prev, ...next]);
-		}
+		// 标记、编号、光标落点都在这一步里——和主输入框是同一段代码。
+		marks.attach(next, caret);
 	};
 
 	function submit() {
 		const trimmed = text.trim();
 		if ((!trimmed && attachments.length === 0) || running || disabled) return;
-
-		let finalMessage = trimmed;
-		const textFiles = attachments.filter((a) => a.isText && a.text);
-		if (textFiles.length > 0) {
-			// Written for the model that reads it, so it stays in English whatever the window is set to.
-			const attachedTexts = textFiles.map((f) => `### Attached file: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
-			finalMessage = finalMessage
-				? `${finalMessage}\n\n${attachedTexts.join("\n\n")}`
-				: attachedTexts.join("\n\n");
-		}
-
-		const images = attachments
-			.filter((a) => !a.isText && a.data)
-			.map((a): UserContent => ({ type: "image", data: a.data!, mimeType: a.mimeType }));
-
-		const content: UserContent[] = [
-			...images,
-			...(finalMessage ? [{ type: "text" as const, text: finalMessage }] : []),
-		];
-
+		/*
+		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。
+		 *
+		 * 这里从前是自己拼的——图片一律排最前，文本附件一律缀在最后，而且什么标签都不带。那正是这套
+		 * 记号当初要治的毛病：三张截图送过去，模型看到的是三团分不出先后的像素。
+		 */
+		const content = spellDraft(trimmed, attachments);
 		setText("");
 		setAttachments([]);
 		onSend(content);
@@ -173,7 +175,17 @@ export function SideComposer({
 		<div className="mx-auto w-full max-w-[var(--ly-content)] shrink-0 px-3 pt-2 pb-[15px]">
 			<ComposerShell
 				value={text}
-				onChange={setText}
+				fieldRef={field}
+				onChange={(next) => {
+					setText(next);
+					// 句子里那枚标记被删掉，附件跟着卸下来——删除是双向的。
+					marks.reconcile(next);
+				}}
+				onKeyDown={(event) => {
+					// 退格吃掉整枚标记，而不是把它啃成一串没人认得的方括号。
+					marks.keyDown(event);
+				}}
+				decoration={{ attachments: marks.decorationFor(text) }}
 				onSubmit={submit}
 				disabled={disabled}
 				placeholder={t(disabled ? "sideChat.noSession" : "sideChat.placeholder")}
@@ -203,7 +215,10 @@ export function SideComposer({
 										index,
 									)
 								}
-								onRemove={(file) => setAttachments((prev) => prev.filter((a) => a.id !== file.key))}
+								onRemove={(file) => {
+									const target = attachments.find((a) => a.id === file.key);
+									if (target) marks.detach(target);
+								}}
 							/>
 						</div>
 					) : undefined
@@ -215,7 +230,7 @@ export function SideComposer({
 							data-ly-tip={t("subAgent.attach")}
 							aria-label={t("subAgent.attach")}
 							onClick={() => fileInputRef.current?.click()}
-							className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="ly-composer-control flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Plus size={16} strokeWidth={1.9} />
 						</button>
@@ -229,23 +244,49 @@ export function SideComposer({
 								e.target.value = "";
 							}}
 						/>
-						<ModelSelect ariaLabel={t("sideChat.model")} value={modelId ?? ""} inheritedModelId={model?.id} inheritedSource={t("sideChat.followMain")} inheritLabel={t("sideChat.followMainLong")} inheritDetail={modelName ?? t("sideChat.noModel")}
-							disabled={disabled || loading} onChange={(value) => { void useSide.getState().setModel(value || null); }} />
 					</>
 				}
 				right={
 					<>
-						{onReset && !running && (
-							<button
-								type="button"
-								data-ly-tip={t("sideChat.new")}
-								aria-label={t("sideChat.new")}
-								onClick={onReset}
-								className="mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-							>
-								<RotateCcw size={13.5} strokeWidth={1.9} />
-							</button>
-						)}
+						{/*
+						 * 和主输入框同一枚，不是一个长得像它的。
+						 *
+						 * 这里从前用的是设置页那个 `ModelSelect`：描了边、按输入框高度做的表单控件，外加一句
+						 * 「随主会话」。摆进这一行，就成了在输入框的边框里面再画一个框；而那句话说的是配置，
+						 * 不是正在写的这条消息。两样东西，全应用只有这一个输入框上有。
+						 *
+						 * 继承没被藏起来，只是挪进了提示里——见 `inheriting`。
+						 */}
+						<ModelTrigger
+							modelId={modelId || model?.id}
+							ariaLabel={t("sideChat.model")}
+							inheriting={modelId ? undefined : t("sideChat.followMainLong")}
+							disabled={disabled || loading}
+							selection={{
+								value: modelId ?? "",
+								inheritLabel: t("sideChat.followMainLong"),
+								inheritDetail: modelName ?? t("sideChat.noModel"),
+								onChange: (value) => {
+									void useSide.getState().setModel(value || null);
+								},
+							}}
+						/>
+					{/*
+						 * 想多久，也是这一条消息的属性。
+						 *
+						 * 侧边聊天此前只能挑模型，等级一律跟着主会话——而它本来就是另一个对话，模型
+						 * 都能单独挑，想多久却挑不了。`sidechat.ts` 的 `ask` 一直收这个参数，缺的只是
+						 * 界面和中间那几层。不选就还是跟着主会话走，也就是从前的行为。
+						 */}
+						<EffortTrigger
+							modelId={modelId || model?.id}
+							disabled={disabled || loading}
+							selection={{
+								modelId: modelId || model?.id,
+								value: thinking ?? sessionThinking(meta, settings),
+								onChange: (level) => useSide.getState().setThinking(level),
+							}}
+						/>
 						<ComposerSend
 							running={running}
 							disabled={(!text.trim() && attachments.length === 0) || disabled}

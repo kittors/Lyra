@@ -22,27 +22,23 @@ import { ForeignConfigNotice } from "./ForeignConfigNotice.tsx";
 import { useDock } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { ContextMeter } from "./ContextMeter.tsx";
-import { EffortMenu, effortLabel } from "../models/index.ts";
-import { ModelIcon } from "../models/index.ts";
+import { EffortTrigger } from "../models/index.ts";
 import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { ModelMenu, formatWindow } from "../models/index.ts";
-import { modelIdentity, modelTooltip } from "../../lib/model-grouping.ts";
+import { ModelTrigger } from "../models/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { BranchMenu } from "../modals/index.ts";
 import { PermissionPicker } from "../modals/index.ts";
 import { ProjectPicker } from "../modals/index.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { findModel } from "../models/index.ts";
 import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
 import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
 import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
-import { displayName } from "./attachments/display.ts";
-import { clampToPlaceholders, placeholderAt, placeholderFor, renamePlaceholders, scanPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { useAttachmentMarks } from "./useAttachmentMarks.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
-import { sessionThinking } from "../../lib/thinking.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -82,7 +78,7 @@ const MAX_FILES = 8;
 
 
 export function Composer() {
-	const { t, resolvedLocale: locale } = useI18n();
+	const { t } = useI18n();
 	const workspace = useApp((s) => s.workspace);
 	const scratchCwd = useApp((s) => s.scratchCwd);
 	const settings = useApp((s) => s.settings);
@@ -103,14 +99,6 @@ export function Composer() {
 	/** 排着几条。只要不是零，新说的这句就得排到它们后面，不然先后就乱了。 */
 	const queuedCount = useApp((s) => (s.activeSessionId ? s.queued[s.activeSessionId]?.length ?? 0 : 0));
 	const { compact } = useLayout();
-	/**
-	 * 刚按下的是哪个方向键：-1 左、1 右、0 别的。
-	 *
-	 * 光标被标记弹开时要顺着原方向弹，否则左箭头会卡在标记右缘一动不动。方向不能靠「新位置比旧位
-	 * 置小」来推——光标位置本身就是被这段代码改过的，拿它当基线会绕回去。按了什么键是唯一的一手
-	 * 消息。
-	 */
-	const lastArrow = useRef(0);
 	/** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
 	const [markMenu, setMarkMenu] = useState<{ point: { x: number; y: number }; file: Attachment } | null>(null);
 
@@ -134,99 +122,8 @@ export function Composer() {
 		);
 	};
 
-	/**
-	 * 给一份附件列表重新编号。
-	 *
-	 * 「图片 2」里的那个 2 是它在同门类里的位置，而位置会因为别人被删掉而改变——所以名字不是一次
-	 * 算定的，每次列表变动都要整份重来。附件条上和正文里的标记读的是同一个字段，两边因此不会各说
-	 * 各话。
-	 */
-	const relabel = useCallback(
-		(files: Attachment[]): Attachment[] => {
-			const seen = new Map<FileKind, number>();
-			return files.map((file) => {
-				const kind = file.kind ?? (file.isText ? "text" : "binary");
-				const kindIndex = (seen.get(kind) ?? 0) + 1;
-				seen.set(kind, kindIndex);
-				/*
-				 * 有名字就叫名字，没有才叫「图片 1」。
-				 *
-				 * 和附件条上那一格写的是同一个字符串（`displayName` 是个纯函数，两处算得出同一个结
-				 * 果）——两边差一个字，正文里那枚标记就配不上任何一份附件。
-				 *
-				 * 「图片 1」这一种会跟着界面语言变，所以换语言时正文里的标记要重写一遍，见上面那个
-				 * effect。文件名不翻译，它那一半天然是稳的。
-				 */
-				return {
-					...file,
-					label: displayName({ name: file.name, kindLabel: t(KIND_LABEL[kind]), kindIndex }, t("composer.regionShot")),
-				};
-			});
-		},
-		[t],
-	);
 
-	/*
-	 * 换了界面语言，正文里那些标记跟着改写。
-	 *
-	 * 「图片 1」是一句会翻译的话。标记是放文件那天写下的，界面换成英文之后附件条上那一格叫
-	 * `Image 1` 而句子里还写着 `【图片 1】`——两边一对不上，那枚标记就不再是标记，退化成一串裸方括
-	 * 号，删掉附件时也不会跟着走。
-	 *
-	 * 按**改之前**的名字定位，按新名字写回去，和取下附件时走的是同一条路（`renamePlaceholders`）。
-	 * 文件名不在此列，它本来就不翻译。
-	 */
-	/*
-	 * 光标不进标记里面。
-	 *
-	 * 标记是一个整体：停进去之后，方向键一格一格地穿过它，打一个字它就废了——配不上任何附件，当场
-	 * 退化成一串裸方括号，而人看不出自己刚破坏了什么。退格那一路已经按整枚处理，落点这一路是它欠的
-	 * 另一半。
-	 *
-	 * 挂在原生的 `selectionchange` 上，不挂 React 的 `onSelect`：后者是 SelectEventPlugin 从
-	 * focus / 按键 / 鼠标那几类事件里**合成**出来的，合成不出来的路径（拖选、双击选词、输入法落字、
-	 * 程序改选区）就没有它。方向键那一路因此是好的，而点进去那一路不是——同一个保护，一半的覆盖。
-	 * 原生那个是选区变化唯一的信号，中间没有合成这一层。
-	 *
-	 * `setSelectionRange` 自己也会再触发一次这个事件，但第二次光标已经在边界上，`clamp` 原样退回，
-	 * 于是就停了。
-	 */
-	useEffect(() => {
-		const clamp = () => {
-			const el = field.current;
-			if (!el || document.activeElement !== el) return;
-			/*
-			 * 组字的时候不碰选区。
-			 *
-			 * 一次 `setSelectionRange` 就能让输入法当场散掉，而那几个字母还没上屏——人打了一半的字就
-			 * 这么没了。组字中的文本落不进标记里（光标本来就进不去），所以这里让开不会漏掉什么。
-			 */
-			if (el.dataset.composing !== undefined) return;
-			const next = clampToPlaceholders(
-				el.value,
-				attachmentsRef.current,
-				{ start: el.selectionStart, end: el.selectionEnd },
-				el.selectionStart === el.selectionEnd ? lastArrow.current : 0,
-			);
-			if (next.start !== el.selectionStart || next.end !== el.selectionEnd) {
-				el.setSelectionRange(next.start, next.end, el.selectionDirection ?? "none");
-			}
-		};
-		document.addEventListener("selectionchange", clamp);
-		return () => document.removeEventListener("selectionchange", clamp);
-	}, []);
 
-	const spokenIn = useRef(locale);
-	useEffect(() => {
-		if (spokenIn.current === locale) return;
-		spokenIn.current = locale;
-		const before = attachmentsRef.current;
-		if (before.length === 0) return;
-		const after = relabel(before);
-		const renamed = new Map(before.map((file, index) => [file, after[index].label ?? file.name]));
-		setAttachments(after);
-		setText((current) => renamePlaceholders(current, before, (file) => renamed.get(file) ?? null));
-	}, [locale, relabel]);
 
 	const draftKey = activeSessionId
 		? activeSessionId
@@ -317,6 +214,13 @@ export function Composer() {
 	}, [browserAttachment, draftKey]);
 	const field = useRef<HTMLTextAreaElement>(null);
 	/*
+	 * 正文里那些标记的一生，都在这里面。
+	 *
+	 * 抽出去是因为侧边聊天和子智能体的输入框也要它——它们此前收得下文件，句子里却什么也没有，于是
+	 * 一句「照着第二张图改」在那两处模型只能猜。见 `useAttachmentMarks`。
+	 */
+	const marks = useAttachmentMarks<Attachment>({ attachments, setAttachments, setText, field });
+	/*
 	 * 往回翻自己说过的话。
 	 *
 	 * 排在 @ 和 / 后面接方向键——它俩开着的时候，上下是用来挑名单的。
@@ -382,19 +286,11 @@ export function Composer() {
 			 *
 			 * 「这个【重要】」在中文里是普通标点，不是引用——扫描按名字配对，配不上就当作人打的字。
 			 */
-			attachments: scanPlaceholders(text, attachments).map(({ start, end, file }) => ({
-				start,
-				end,
-				kind: file.kind ?? (file.isText ? "text" : "binary"),
-				// 正文和像素都没进提示词的那些——模型只拿到一个名字，图标淡一档说这件事。
-				...(!file.isText && !file.data ? { bodiless: true } : {}),
-			})),
+			attachments: marks.decorationFor(text),
 		};
-	}, [slash.decoration, mention.mentionDecorations, text, attachments]);
+	}, [slash.decoration, mention.mentionDecorations, marks, text]);
 	const submitting = useRef(new Map<string, symbol>());
 
-	const modelMenu = usePopover();
-	const effortMenu = usePopover();
 	const permissionMenu = usePopover();
 	const projectMenu = usePopover();
 	const branchMenu = usePopover();
@@ -403,21 +299,6 @@ export function Composer() {
 	/** No project behind this conversation, and that was the choice — not a step left undone. */
 	const chatting = !workspace && Boolean(scratchCwd);
 	const modelId = meta?.modelId ?? settings?.defaultModelId ?? null;
-	// The whole record, not just its name: the mark beside it is chosen from the id the provider
-	// knows the model by, which is not the same string as the label somebody typed for it.
-	const model = findModel(settings, modelId);
-	/*
-	 * Which house this model is from, and whether the strip has to say so.
-	 *
-	 * With one provider the name is the whole answer and the extra word is noise. With two relays
-	 * offering the same `grok-4.6`, the name is not an answer at all — so the provider is folded
-	 * into the label exactly when it is what tells them apart. Either way the tooltip has room for
-	 * all of it.
-	 */
-	const identity = modelIdentity(settings, modelId);
-	const modelName = identity?.ambiguous ? `${identity.provider.name} · ${identity.model.name}` : (model?.name ?? null);
-	// The mark rolls with the name it belongs to, on the same terms — never on the first paint.
-	const modelRolls = useRolled(modelId ?? "");
 	const permissionMode = settings?.permissionMode ?? "auto";
 	const permissionLabel = {
 		ask: t("composer.permissionAsk"),
@@ -671,90 +552,10 @@ export function Composer() {
 		}
 		if (next.length === 0) return;
 
-		/*
-		 * 附件进来的同时，正文里落下一枚标记。
-		 *
-		 * 上面那一排答的是「这条消息带了什么」，而这一枚答的是「我这句话里说的是哪一个」——「照着
-		 * 【图片 1】 改一版」，没有它，一句提到了某张图的话和那张图之间没有任何东西连着。它也是
-		 * 次序的所在：模型收到的附件按标记在句子里的先后排（见 `outgoing.ts`）。
-		 *
-		 * 落在光标处，因为人是在句子的某个位置放下这份文件的。`caret` 在读文件之前就记下了：读一份
-		 * 三百页的 PDF 要几百毫秒，那期间光标早就不在原地了。
-		 */
-		const before = attachmentsRef.current;
-		const grown = relabel([...before, ...next]);
-		setAttachments(grown);
-
-		/*
-		 * 标记之间不另外塞空格。
-		 *
-		 * 收尾那个方括号是透明的，它自己就占一格——再加一个空格，两枚标记之间就是两格，看着像中间掉
-		 * 了个字。一格正好。
-		 */
-		const marks = grown
-			.slice(before.length)
-			.map((file) => placeholderFor(file.label ?? file.name))
-			.join("");
-		setText((current) => {
-			const at = Math.min(caret, current.length);
-			const head = current.slice(0, at);
-			const tail = current.slice(at);
-			/*
-			 * 前面留一个空格，后面不留。
-			 *
-			 * 后面那一格已经有了——收尾的方括号是透明的，它自己就占一格。再补一个，标记和后面那句话
-			 * 之间就空出两格来。
-			 */
-			const lead = head && !/\s$/.test(head) ? " " : "";
-			const trail = "";
-			return `${head}${lead}${marks}${trail}${tail}`;
-		});
-		/* 光标落在标记后面，人接着打的字就跟在它后头。 */
-		requestAnimationFrame(() => {
-			const el = field.current;
-			if (!el) return;
-			const to = Math.min(caret, el.value.length) + marks.length + 1;
-			el.setSelectionRange(to, to);
-		});
+		// 标记、编号、光标落点，都在这一步里——见 `useAttachmentMarks`。
+		marks.attach(next, caret);
 	}
 
-	/**
-	 * 取下一个附件，连同正文里指着它的那个记号。
-	 *
-	 * 新的草稿不写 `【文件名】` 了，但正文里仍然可能有：升级前存下的草稿、从队列里退回来的那一条，
-	 * 都带着。只把附件从这一排上拿掉的话，正文里就留下一个指向不存在之物的名字——发出去以后，模型
-	 * 会看到一句提到了某个文件的话，而那个文件根本没来。
-	 *
-	 * 按**引用**找，不按名字找。从前这里是 `indexOf` 第一个同名的：附两张都叫 `shot.png` 的图、
-	 * 删掉后一张，被抠走的是前一张的记号，剩下那张就此失去位置。`placeAttachments` 是按次序配对
-	 * 的，第二个 `【表格 1】` 认的就是第二个叫「表格 1」的附件——见 `renamePlaceholders`。
-	 */
-	/**
-	 * 卸下这几份附件，正文跟着对齐。
-	 *
-	 * 两件事必须在一次里做完：被卸下的那些，标记从句子里拿掉；**剩下的那些，名字可能变了**——删掉
-	 * 「图片 1」之后原来的「图片 2」就成了「图片 1」，而正文里那句「照着 【图片 2】 改」如果不跟着
-	 * 改，指的就是一个不存在的编号，那枚标记当场退化成一串裸方括号。
-	 *
-	 * 定位用**改之前**的那份列表，所以不存在「认不出」的窗口。
-	 *
-	 * 三条删除路径共用这一个：附件条上按叉、句子里按退格、以及把那段字整个删掉。它们从前各写各的，
-	 * 而只有第一条把重新编号这一步做对了——另外两条留下的正是那种没人认得的方括号。
-	 *
-	 * 返回改写后的正文，由调用方决定怎么落地：有的地方是 `setText`，有的地方本来就在改字的中途。
-	 */
-	function unload(text: string, dropped: Attachment[]): string {
-		const before = attachmentsRef.current;
-		const remaining = before.filter((file) => !dropped.includes(file));
-		const relabelled = relabel(remaining);
-		const renamed = new Map(remaining.map((file, index) => [file, relabelled[index].label ?? file.name]));
-		setAttachments(relabelled);
-		return renamePlaceholders(text, before, (file) => renamed.get(file) ?? null);
-	}
-
-	function detach(target: Attachment) {
-		setText((current) => unload(current, [target]));
-	}
 
 	const takeScreenshot = useCallback(async () => {
 		try { await bridge.screenshot.start(settings?.screenshot); }
@@ -947,9 +748,7 @@ export function Composer() {
 						 * 附件、再写标记，两次更新之间有一帧附件已在而标记未落——effect 会在那一帧认定
 						 * 它是孤儿，当场把刚拖进来的文件删掉。
 						 */
-						const kept = new Set(scanPlaceholders(next, attachmentsRef.current).map((hit) => hit.file));
-						const orphaned = attachmentsRef.current.filter((file) => !kept.has(file));
-						if (orphaned.length > 0) setText(unload(next, orphaned));
+						marks.reconcile(next);
 					}}
 					decoration={mergedDecoration}
 					onSelect={() => {
@@ -1015,18 +814,7 @@ export function Composer() {
 						 *
 						 * 只在没有选区时接管：人自己框住一段按删除，那是他要删的那一段，不该被改写。
 						 */
-						const field = event.currentTarget;
-						lastArrow.current = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
-						if ((event.key === "Backspace" || event.key === "Delete") && field.selectionStart === field.selectionEnd) {
-							const hit = placeholderAt(field.value, attachmentsRef.current, field.selectionStart, event.key === "Backspace");
-							if (hit) {
-								event.preventDefault();
-								const cut = `${field.value.slice(0, hit.start)}${field.value.slice(hit.end)}`.replace(/[ \t]{2,}/g, " ");
-								setText(unload(cut, [hit.file]));
-								requestAnimationFrame(() => field.setSelectionRange(hit.start, hit.start));
-								return;
-							}
-						}
+						if (marks.keyDown(event)) return;
 						if (mention.keyDown(event)) return;
 						slash.keyDown(event, () => void submit());
 						// 命令单接下了这个键就到此为止：它是拿 preventDefault 说这话的，见 ComposerShell。
@@ -1054,7 +842,7 @@ export function Composer() {
 									layout="row"
 										onRemove={(file) => {
 										const target = attachments.find((a) => a.id === file.key);
-										if (target) detach(target);
+										if (target) marks.detach(target);
 									}}
 									/*
 									 * 这一份还能被改：在查看器里标注完，改的是还没发出去的草稿本身。
@@ -1174,44 +962,8 @@ export function Composer() {
 								<ContextMeter messages={messages} settings={settings} modelId={modelId} sessionId={activeSessionId} />
 							</div>
 
-							<button
-								type="button"
-								onClick={modelMenu.toggle}
-								data-ly-tip={modelTooltip(identity, formatWindow)}
-								aria-haspopup="menu"
-								aria-expanded={modelMenu.open}
-								className={`ly-composer-control flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors ${
-									modelMenu.open ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
-								}`}
-							>
-								{/* Keyed on the model, so picking a different house turns the mark over with
-								    the label beside it rather than swapping under it. */}
-								<ModelIcon
-									key={modelId}
-									model={model?.modelId}
-									name={modelName}
-									className={modelRolls ? "ly-roll" : ""}
-								/>
-								{/*
-								 * The one thing in the row that yields, so it is also what says the row is out of
-								 * room: everything else is `shrink-0`, and this truncating is exactly the moment
-								 * there was not enough width to go round. `fit.ts` reads this element — the class is the handle — which is why a short
-								 * name keeps its meter at any width.
-								 */}
-								<RollingText className="ly-fit-probe min-w-0 truncate">{modelName ?? t("composer.selectModel")}</RollingText>
-							</button>
-							<button
-								type="button"
-								onClick={effortMenu.toggle}
-								aria-haspopup="menu"
-								aria-expanded={effortMenu.open}
-								data-ly-tip={t("composer.thinking", { level: effortLabel(sessionThinking(meta, settings), model, t) })}
-								className={`ly-composer-control mr-1.5 flex h-7 shrink-0 items-center rounded-md px-2 text-label transition-colors ${
-									effortMenu.open ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
-								}`}
-							>
-								<RollingText>{effortLabel(sessionThinking(meta, settings), model, t)}</RollingText>
-							</button>
+							<ModelTrigger modelId={modelId} ariaLabel={t("composer.selectModel")} />
+							<EffortTrigger modelId={modelId} />
 
 							{/* 正忙时按下去是排队而不是插话，所以它说的也不再是「发送」——见 `submitOnce`。 */}
 							{running && (text.trim() || attachments.length > 0) && <ComposerSend running={false} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort()} />}
@@ -1233,8 +985,6 @@ export function Composer() {
 			{permissionMenu.open && <PermissionPicker anchor={permissionMenu.anchor} onClose={permissionMenu.close} />}
 			{projectMenu.open && <ProjectPicker anchor={projectMenu.anchor} onClose={projectMenu.close} />}
 			{branchMenu.open && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
-			{modelMenu.open && <ModelMenu anchor={modelMenu.anchor} onClose={modelMenu.close} />}
-			{effortMenu.open && <EffortMenu anchor={effortMenu.anchor} onClose={effortMenu.close} />}
 			{/*
 			 * 句子里那一枚被右键点中时，弹的是和附件条上同一份菜单。
 			 *
@@ -1270,7 +1020,7 @@ export function Composer() {
 				onRemove={() => {
 					const target = markMenu?.file;
 					setMarkMenu(null);
-					if (target) detach(target);
+					if (target) marks.detach(target);
 				}}
 			/>
 		</div>

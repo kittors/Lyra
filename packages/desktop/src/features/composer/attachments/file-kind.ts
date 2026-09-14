@@ -61,9 +61,10 @@ const BY_EXTENSION: Record<string, FileKind> = {
 	blend: "design",
 };
 
-/** The extension, lowercased, or "" for a file that has none. */
+/** The extension, lowercased, or "" for a file that has none — or that has no name at all. */
 function extensionOf(name: string): string {
-	const base = name.toLowerCase().split(/[/\\]/).pop() ?? "";
+	// 同样的理由：一份从旧数据里恢复出来的附件可能连名字都没有，而这是渲染期的调用。
+	const base = (typeof name === "string" ? name : "").toLowerCase().split(/[/\\]/).pop() ?? "";
 	const dot = base.lastIndexOf(".");
 	return dot > 0 ? base.slice(dot + 1) : "";
 }
@@ -72,7 +73,15 @@ export function fileKind(name: string, mimeType = ""): FileKind {
 	const byExtension = BY_EXTENSION[extensionOf(name)];
 	if (byExtension) return byExtension;
 
-	const mime = mimeType.toLowerCase();
+	/*
+	 * 兜到字符串，因为默认参数兜不住。
+	 *
+	 * `mimeType = ""` 只在传 `undefined` 时生效；传 `null` 的话 `mime` 就是 null，下一行当场
+	 * `null.startsWith is not a function`——而这是个渲染期的调用，整个界面跟着白。附件不都是这里
+	 * 造的：从磁盘恢复的草稿、从手机同步过来的那一份，都可能带着一个没有 `mimeType` 的旧形状，
+	 * 而它们进来时是 `as Attachment[]`，类型上那个 `: string` 一次也没被检查过。
+	 */
+	const mime = typeof mimeType === "string" ? mimeType.toLowerCase() : "";
 	if (mime.startsWith("image/")) return "image";
 	if (mime.startsWith("video/")) return "video";
 	if (mime.startsWith("audio/")) return "audio";

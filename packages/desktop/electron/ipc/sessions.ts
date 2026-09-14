@@ -292,9 +292,9 @@ export function registerSessionsIpc({
 		return session?.subAgents.list() ?? [];
 	});
 
-	ipcMain.handle("subagents:steer", async (_event, sessionId: string, id: string, text: string) => {
+	ipcMain.handle("subagents:steer", async (_event, sessionId: string, id: string, said: string | UserContent[]) => {
 		const session = sessions.get(sessionId);
-		return session?.steerSubAgent(id, text) ?? false;
+		return session?.steerSubAgent(id, said) ?? false;
 	});
 
 	ipcMain.handle("subagents:abort", async (_event, sessionId: string, id: string) => {

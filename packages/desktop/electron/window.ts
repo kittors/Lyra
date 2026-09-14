@@ -59,11 +59,39 @@ export function appIconPath(): string | undefined {
 let readSettings: () => Settings | undefined = () => undefined;
 let mainWindow: BrowserWindow | null = null;
 
+/**
+ * Whether the app is on its way out.
+ *
+ * `before-quit` runs before any window is asked to close, so this is what lets the handler below
+ * tell the two apart: someone pressing the close button, and the window being taken apart because
+ * the app is shutting down. Without the distinction, refusing the first would refuse the second
+ * too — and an app that cannot be quit is a worse bug than the one this fixes.
+ */
+let quitting = false;
+
+/**
+ * Whether there is a status bar item to come back through.
+ *
+ * Injected rather than imported, for the same reason the settings are: this file owns the window,
+ * and whether a tray icon exists belongs to the tray. It also cannot be answered at module load —
+ * the tray is created after the window, and creating it can fail.
+ */
+let trayPresent: () => boolean = () => false;
+
 export function useSettingsSource(read: () => Settings | undefined): void {
 	readSettings = read;
 }
 
-/** The live window, or null between "all closed" and the next activate. */
+export function useTrayPresence(present: () => boolean): void {
+	trayPresent = present;
+}
+
+/** Told by `before-quit`, so the closes that follow it are let through. */
+export function beginQuit(): void {
+	quitting = true;
+}
+
+/** The live window, or null before the first one is built. */
 export function getWindow(): BrowserWindow | null {
 	if (!mainWindow || mainWindow.isDestroyed()) return null;
 	return mainWindow;
@@ -190,9 +218,12 @@ export function createWindow(): void {
 	};
 	mainWindow.on("resize", rememberLater);
 	mainWindow.on("move", rememberLater);
-	mainWindow.on("close", () => {
+	mainWindow.on("close", (event) => {
 		clearTimeout(saveTimer);
 		writeWindowState();
+		if (!closeShouldHide()) return;
+		event.preventDefault();
+		hideWindow();
 	});
 
 	/*
@@ -221,6 +252,48 @@ export function createWindow(): void {
 	const devServer = process.env.ELECTRON_RENDERER_URL;
 	if (devServer) void mainWindow.loadURL(devServer);
 	else void mainWindow.loadFile(join(import.meta.dirname, "../renderer/index.html"));
+}
+
+/**
+ * Closing the window puts it away. It does not throw it out.
+ *
+ * The window *is* the state the user left behind: which conversation is open, how far the
+ * transcript is scrolled, the page loaded in the browser panel, the message typed but not sent.
+ * Destroying it discards every bit of that, and the next visit is a cold start — `activate` finds
+ * no window, builds one, loads the renderer from nothing, and the boot screen holds it for two
+ * seconds. The process never quit, so the way back should have been the window as it was left,
+ * not a launch.
+ *
+ * Only where there is a way back in. On macOS that is the dock icon, always. Everywhere else it is
+ * the status bar item and nothing else, so with no tray the close is real and the app goes on to
+ * quit — a hidden window with no icon anywhere is a process that cannot be reached or stopped.
+ *
+ * This is what the tray's own toggle has always done (`tray.ts`), and the two agreeing is the
+ * point: however the window is put away, it comes back the way it was left.
+ */
+function closeShouldHide(): boolean {
+	if (quitting) return false;
+	return process.platform === "darwin" || trayPresent();
+}
+
+/**
+ * Put the window away, dropping out of full screen first if it is in one.
+ *
+ * Hiding a full-screen window on macOS leaves its Space standing: an empty desktop the user is
+ * still looking at, with the app nowhere in it and no obvious way back. Leaving full screen first
+ * costs the system's own animation and returns the window to the desktop it came from.
+ */
+function hideWindow(): void {
+	const win = mainWindow;
+	if (!win || win.isDestroyed()) return;
+	if (win.isFullScreen()) {
+		win.once("leave-full-screen", () => {
+			if (!win.isDestroyed()) win.hide();
+		});
+		win.setFullScreen(false);
+		return;
+	}
+	win.hide();
 }
 
 interface WindowState {

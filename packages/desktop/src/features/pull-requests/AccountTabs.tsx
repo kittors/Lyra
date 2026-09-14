@@ -18,6 +18,8 @@
 import { translate } from "../../i18n/translate.ts";
 import type { ForgeAccount } from "../../../electron/ipc-types.ts";
 import { Avatar } from "./Avatar.tsx";
+import { useRef } from "react";
+import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 export function AccountTabs({
 	accounts,
@@ -33,6 +35,7 @@ export function AccountTabs({
 }) {
 	// Switched-off accounts are not fetched, so a tab for one would always be empty. They still
 	// exist on the settings page, which is where switching them back on belongs.
+	const strip = useRef<HTMLDivElement>(null);
 	const shown = accounts.filter((account) => account.enabled);
 	if (shown.length < 2) return null;
 
@@ -44,10 +47,12 @@ export function AccountTabs({
 		 * search field and the whole list down — a layout that changes height as somebody signs in
 		 * somewhere else. The scrollbar itself is already hidden app-wide by `styles.css`.
 		 */
-		<div
+		<Sideways
+			trackRef={strip}
+			outerClassName="shrink-0"
 			role="group"
 			aria-label={translate("accountTabs.account")}
-			className="flex shrink-0 items-center gap-1 overflow-x-auto px-3 pb-1.5"
+			className="flex items-center gap-1 overflow-x-auto px-3 pb-1.5"
 		>
 			<Tab label={translate("common.all")} active={active === null} onClick={() => onSelect(null)} />
 			{shown.map((account) => (
@@ -61,7 +66,7 @@ export function AccountTabs({
 					icon={<Avatar accountId={account.id} login={account.login} url={account.avatarUrl} size={14} />}
 				/>
 			))}
-		</div>
+		</Sideways>
 	);
 }
 

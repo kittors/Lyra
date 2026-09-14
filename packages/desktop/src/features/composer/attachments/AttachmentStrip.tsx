@@ -31,6 +31,8 @@ import { translate } from "../../../i18n/translate.ts";
 import { useAttachmentActions } from "./actions.ts";
 import { useContextMenu } from "../../../ui/overlay/ContextMenu.tsx";
 import { useI18n } from "../../../i18n/index.ts";
+import { useSideways } from "../../../ui/scroll/useSideways.ts";
+import { SidewaysArrow } from "../../../ui/scroll/Sideways.tsx";
 
 export interface StripFile {
 	key: string;
@@ -126,6 +128,8 @@ export function AttachmentStrip({
 	const actions = useAttachmentActions();
 	const menu = useContextMenu<string>();
 	const track = useRef<HTMLDivElement>(null);
+	// 图片一多就横向溢出：Shift + 滚轮滚得动，两端按剩余内容渐隐，再配一对方向键——见 `useSideways`。
+	const edges = useSideways(track);
 	/*
 	 * 每一格那颗主按钮，按 key 记着。
 	 *
@@ -248,12 +252,13 @@ export function AttachmentStrip({
 			/* 输入框上方和气泡外面是同一排东西，探针和测试按这个找它，不必去猜第几层 div。 */
 			data-ly-attachments=""
 			data-ly-layout={layout}
-			className={`ly-attachments ${align === "end" ? "items-end" : "items-start"} ${className}`}
+			/* `relative` 是给那两枚方向键的定位参照——它们浮在这一排上面，不占位置。 */
+			className={`ly-attachments ${layout === "row" ? "relative" : ""} ${align === "end" ? "items-end" : "items-start"} ${className}`}
 		>
 			<div
 				ref={track}
 				data-ly-attachments-track=""
-				className={`ly-attachments-track ${layout === "row" ? "ly-attachments-row" : "flex-wrap"} ${align === "end" ? "justify-end" : "justify-start"}`}
+				className={`ly-attachments-track ${layout === "row" ? "ly-attachments-row ly-fade-tail" : "flex-wrap"} ${align === "end" ? "justify-end" : "justify-start"}`}
 			>
 				{tiles.map(({ file, label, parts, imageIndex, canPreview, canOpenExternal }) => (
 					<div
@@ -353,6 +358,13 @@ export function AttachmentStrip({
 					</div>
 				))}
 			</div>
+			{/* 只有横排会溢出：换行那一排会把格子折到下一行，没有滚这回事。 */}
+			{layout === "row" && (
+				<>
+					<SidewaysArrow side="left" shown={edges.canLeft} track={track} />
+					<SidewaysArrow side="right" shown={edges.canRight} track={track} />
+				</>
+			)}
 
 			<AttachmentMenu
 				anchor={menu.anchor}

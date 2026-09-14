@@ -23,7 +23,7 @@
  * reachable.
  */
 
-import { addUsage, emptyUsage, type Message, type Usage } from "../types/message.ts";
+import { addUsage, emptyUsage, type Message, type UserContent, type Usage } from "../types/message.ts";
 
 /**
  * Where a sub-agent is in its life.
@@ -283,10 +283,20 @@ export class SubAgentRegistry {
 	 * Recorded in the transcript on the way past, so the pane shows what was said to it rather than
 	 * a reply appearing out of nowhere.
 	 */
-	steer(id: string, text: string): Message | null {
+	steer(id: string, said: string | UserContent[]): Message | null {
 		const found = this.records.get(id);
-		if (!found || found.status !== "running" || !text.trim()) return null;
-		const message: Message = { role: "user", content: [{ type: "text", text }], timestamp: Date.now() };
+		if (!found || found.status !== "running") return null;
+		/*
+		 * 一串内容块，不只是一段字。
+		 *
+		 * `steering` 里放的本来就是完整的 `Message`，图片块从来都装得下——只是这个入口的签名卡在
+		 * `string` 上，于是操控框里附的图在发出去之前就没了：界面收得下、缩略图画得出、送到这里
+		 * 只剩文本附件被拼进正文。字符串那一种仍然认，手机端和旧的调用点都还在用。
+		 */
+		const content: UserContent[] = typeof said === "string" ? [{ type: "text", text: said }] : said;
+		// 全是空白的一条只会让子代理白转一轮。`every` 对空数组返回 true，空的那一种也在里面。
+		if (content.every((part) => part.type === "text" && !part.text.trim())) return null;
+		const message: Message = { role: "user", content, timestamp: Date.now() };
 		found.steering.push(message);
 		found.messages.push(message);
 		this.onChange();

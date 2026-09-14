@@ -7,7 +7,7 @@
  * and invite exactly the bug that makes a side-chat reply appear in the main thread.
  */
 
-import type { SideChatUpdate, Message, QueuedTask, UserContent } from "@lyra/core";
+import type { SideChatUpdate, Message, QueuedTask, ThinkingLevel, UserContent } from "@lyra/core";
 import { create } from "zustand";
 import { useDock } from "./store.ts";
 import { reduceSideEvent, rebuildToolRuns, type SideConversation } from "./side-events.ts";
@@ -46,6 +46,15 @@ interface BrowserPreview {
 interface SideState {
 	modelId: string | null;
 	setModel(modelId: string | null): Promise<void>;
+	/**
+	 * 这一侧自己的思考等级，`null` 表示跟着主会话走。
+	 *
+	 * 只活在这个窗口里，不落盘——模型是这个对话的属性（换了要记住），而想多久更像是「这一问要不要
+	 * 多花点时间」，下次打开从主会话那边重新起算是对的。`sidechat.ts` 的 `ask` 早就收这个参数，不
+	 * 给才回落到主会话，所以这里不传等于从前的行为。
+	 */
+	thinking: ThinkingLevel | null;
+	setThinking(level: ThinkingLevel | null): void;
 	loading: boolean;
 	error: string | null;
 	/** The session this state belongs to, so a late event from the previous one is discarded. */
@@ -115,6 +124,7 @@ const EMPTY: SideConversation = {
 
 export const useSide = create<SideState>((set, get) => ({
 	browserTarget: null,
+	thinking: null,
 	loading: false,
 	sessionId: null,
 	sessionCache: {},
@@ -160,6 +170,10 @@ export const useSide = create<SideState>((set, get) => ({
 		} finally { if (reads.get(sessionId) === read) reads.delete(sessionId); }
 	},
 
+	setThinking(level) {
+		set({ thinking: level });
+	},
+
 	async setModel(modelId) {
 		const sessionId = get().sessionId;
 		if (!sessionId) return;
@@ -180,7 +194,8 @@ export const useSide = create<SideState>((set, get) => ({
 		 */
 		const pending: Message = { role: "user", content, timestamp: Date.now() };
 		set({ messages: [...get().messages, pending], pending, running: true, error: null });
-		try { await bridge.sideChat.ask(sessionId, content); }
+		const thinking = get().thinking;
+		try { await bridge.sideChat.ask(sessionId, content, thinking ? { thinking } : undefined); }
 		catch (error) { get().applyEvent(sessionId, { type: "notice", level: "error", message: String(error) }); get().applyEvent(sessionId, { type: "agent_end", reason: "error", error: String(error) }); }
 	},
 

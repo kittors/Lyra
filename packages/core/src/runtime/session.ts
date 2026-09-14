@@ -561,8 +561,8 @@ export class AgentSession {
 	 * workspace: steering changes what the sub-agent reports back, and the parent acts on the
 	 * report. Two agents writing to one working tree is a conflict waiting to happen.
 	 */
-	async steerSubAgent(id: string, text: string): Promise<boolean> {
-		const message = this.subAgents.steer(id, text);
+	async steerSubAgent(id: string, said: string | UserContent[]): Promise<boolean> {
+		const message = this.subAgents.steer(id, said);
 		if (!message) return false;
 		/*
 		 * Announced, or a window watching this sub-agent would not see what was said to it.

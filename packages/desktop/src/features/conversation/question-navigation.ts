@@ -26,9 +26,21 @@ export interface Spoken {
  *
  * 给输入框的方向键用，见 `composer/useInputHistory.ts`。
  */
+/**
+ * 一条记录画得出来吗——这里只问「有没有 role」，因为这几个函数全是按 role 分岔的。
+ *
+ * 和 `lib/transcript.ts` 的闸门是同一件事的两道：那一道把坏记录换成占位行，这一道是给绕过它的调用
+ * 点兜底。两道都要，因为这几个函数是导出的——`Conversation` 过了闸门，而下一个调用点未必记得过，
+ * 而漏掉的代价是整块界面白掉、报一句 `Cannot read properties of undefined (reading 'role')`，
+ * 从那句话完全看不出是转录里缺了一格。
+ */
+const readable = (message: Message | undefined): message is Message =>
+	Boolean(message && typeof message.role === "string");
+
 export function spokenByPerson(messages: readonly Message[]): Spoken[] {
 	const said: Spoken[] = [];
 	for (const message of messages) {
+		if (!readable(message)) continue;
 		if (message.role !== "user" || message.synthetic || message.ruleMatch || isNudge(message)) continue;
 		const body = message.content
 			.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")
@@ -44,6 +56,7 @@ export function spokenByPerson(messages: readonly Message[]): Spoken[] {
 export function questionsIn(messages: readonly Message[]) {
 	const questions: { index: number; text: string; answer: string }[] = [];
 	for (const [index, message] of messages.entries()) {
+		if (!readable(message)) continue;
 		if (message.role === "assistant") {
 			const question = questions.at(-1);
 			const answer = message.content.filter((block) => block.type === "text").map((block) => block.text).join("\n\n").trim();
@@ -70,6 +83,7 @@ export function timeSeparators(messages: readonly Message[]) {
 	const result = new Set<number>();
 	let previous: number | undefined;
 	for (const [index, message] of messages.entries()) {
+		if (!readable(message)) continue;
 		if (message.role === "user" && !message.synthetic && !message.ruleMatch && !isNudge(message)) {
 			if (previous === undefined || message.timestamp - previous >= 30 * 60_000 || new Date(previous).toDateString() !== new Date(message.timestamp).toDateString()) result.add(index);
 		}

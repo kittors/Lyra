@@ -21,6 +21,7 @@ import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { bridge } from "../../services/index.ts";
+import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -75,22 +76,6 @@ export function FileTabs() {
 		retire();
 	}, []);
 
-	/*
-	 * Fade whichever end has more tabs beyond it, and only that end.
-	 *
-	 * A permanent fade on both sides dims the first and last tab of a strip that fits, which reads
-	 * as those tabs being disabled. Driven from the scroll position so the softness means what it
-	 * says: there is more this way.
-	 */
-	const markEdges = useCallback(() => {
-		const el = strip.current;
-		if (!el) return;
-		const max = el.scrollWidth - el.clientWidth;
-		el.style.setProperty("--ly-fade-left", el.scrollLeft > 1 ? "18px" : "0px");
-		el.style.setProperty("--ly-fade-right", el.scrollLeft < max - 1 ? "18px" : "0px");
-	}, []);
-
-	useEffect(markEdges, [markEdges, tabs.length]);
 
 	// Keep the open file in view: it can be selected from the tree or the dropdown, which may
 	// scroll it in from either end.
@@ -100,8 +85,8 @@ export function FileTabs() {
 			block: "nearest",
 			inline: "nearest",
 		});
-		markEdges();
-	}, [open, markEdges]);
+		// 渐隐不必在这里补一刀：`useSideways` 自己听着 scroll。
+	}, [open]);
 
 	/*
 	 * 只有一个文件时也留着这一行。
@@ -114,14 +99,16 @@ export function FileTabs() {
 	 */
 	if (tabs.length === 0) return null;
 
+
 	return (
 		<>
-			<div
-				ref={strip}
-				onScroll={markEdges}
+			{/* 滚、渐隐、两头的方向键，都在这一个壳里——见 `Sideways`。 */}
+			<Sideways
+				trackRef={strip}
+				outerClassName="shrink-0"
 				role="tablist"
 				aria-label={t("tabs.openFiles")}
-				className="ly-file-tabs ly-fade-tail flex h-7 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line px-1"
+				className="ly-file-tabs flex h-7 items-center gap-0.5 overflow-x-auto border-b border-line px-1"
 			>
 				{tabs.map((tab) => {
 					const current = tab.path === open;
@@ -179,7 +166,7 @@ export function FileTabs() {
 						</div>
 					);
 				})}
-			</div>
+			</Sideways>
 
 			{menu.target && (
 				<TabMenu

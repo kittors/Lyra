@@ -509,11 +509,10 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 * discover anything on the seventh, and the hours it would spend doing so belong to
 		 * whoever is waiting for it.
 		 */
-		repetition.observe(toolCalls, toolResults);
+		const { warn: repeated } = repetition.observe(toolCalls, toolResults);
 		if (repetition.exhausted()) {
 			return finish("stalled");
 		}
-		const repeated = repetition.shouldWarn(toolCalls, toolResults);
 		if (repeated) {
 			const notice: Message = {
 				role: "user",

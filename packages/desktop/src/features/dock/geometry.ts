@@ -150,6 +150,21 @@ export const GRIP_WIDTH = 64;
 export const GRIP_REACH = 17;
 
 /**
+ * How far below the top of the header the mark itself is drawn.
+ *
+ * The grip says "this card can be picked up", and the one place that says it without saying
+ * anything else is the top edge — above the title, above the buttons, where nothing else lives.
+ * It used to be drawn level with the title instead, which read as a third item in that row rather
+ * than as a handle belonging to the card.
+ *
+ * Four rather than zero. Flush with the edge reads as a rendering seam, and the card's own corner
+ * radius is curving away right there. It is also what keeps the grip clear of the buttons: those
+ * are 20px tall and centred in the header, so they start 8px down, and a 3px mark at 4 sits above
+ * them — which matters on a pane narrow enough that the pane's centre and the buttons overlap.
+ */
+export const GRIP_TOP = 4;
+
+/**
  * How far the pointer may travel before a press on a header becomes a drag.
  *
  * Without a threshold every click on a header — to focus a pane, to hit its close button — starts

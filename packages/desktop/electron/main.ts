@@ -84,10 +84,12 @@ import { registerSessionsIpc } from "./ipc/sessions.ts";
 import {
 	appIconPath,
 	applyNativeAppearance,
+	beginQuit,
 	createWindow,
 	getWindow,
 	registerWindowIpc,
 	useSettingsSource,
+	useTrayPresence,
 } from "./window.ts";
 import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
@@ -609,6 +611,15 @@ function bindScreenshotShortcut(): void {
 		 */
 		recent: () => recentSessions,
 	});
+	/*
+	 * Now that the answer exists, the window can be told how to read it.
+	 *
+	 * Closing the window hides it wherever there is a way back to it, and outside macOS the only
+	 * way back is this icon — so the window has to be able to ask whether one was actually made.
+	 * `createTray` gives up quietly on a missing icon file, and a window that assumed otherwise
+	 * would hide itself somewhere with nothing left to click.
+	 */
+	useTrayPresence(hasTray);
 	await refreshRecentSessions();
 
 	app.on("activate", () => {
@@ -670,12 +681,12 @@ configureNotify({
 
 app.on("window-all-closed", () => {
 	/*
-	 * With a status bar item, closing the window is not quitting.
+	 * The close that was allowed to happen was a real one, so this is a real quit.
 	 *
-	 * That is the whole point of having one: the agent goes on running, the schedule goes on
-	 * firing, and the way back is the icon. macOS works this way for every app; Windows and Linux
-	 * only should when there is something left on screen to return through — hence the check
-	 * rather than an unconditional change. Quitting is on the tray menu.
+	 * Where there is a way back — the dock on macOS, the status bar item anywhere else — the window
+	 * refuses the close and hides instead (`window.ts`), and this never fires at all. Reaching here
+	 * means there was nowhere to come back through, which is exactly when closing the last window
+	 * should end the app rather than leave a process nobody can see or stop.
 	 */
 	if (process.platform !== "darwin" && !hasTray()) app.quit();
 });
@@ -703,6 +714,14 @@ app.on("browser-window-created", (_event, win) => {
 });
 
 app.on("before-quit", async () => {
+	/*
+	 * First, and synchronously.
+	 *
+	 * Every window is asked to close on the way out, and the main one now refuses that unless it
+	 * knows the app is leaving — so this flag has to be set before any of them are asked, which is
+	 * what this event is. Anything awaited below happens long after Electron has moved on.
+	 */
+	beginQuit();
 	unregisterScreenshotShortcut();
 	// The overlay outlives every capture on purpose, so it has to be let go of here or the process
 	// has a window left open and never finishes quitting. Pinned pictures outlive it too.

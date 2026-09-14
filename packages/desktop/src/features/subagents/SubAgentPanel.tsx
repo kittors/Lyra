@@ -30,6 +30,9 @@ import {
 	ComposerSend,
 	ComposerShell,
 	fileKind,
+	type FileKind,
+	spellDraft,
+	useAttachmentMarks,
 	KIND_LABEL,
 	pickedFrom,
 	type PickedFile,
@@ -55,6 +58,9 @@ interface SubAgentAttachment {
 	isText: boolean;
 	/** 磁盘上的位置，来自一个文件的话——「打开」和「在访达中显示」靠它。 */
 	path?: string;
+	/** 界面上叫什么：「图片 1」或者文件名。正文里那枚标记写的就是它——见 `useAttachmentMarks`。 */
+	label?: string;
+	kind?: FileKind;
 }
 
 export function SubAgentPanel() {
@@ -371,15 +377,23 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 	const [attachments, setAttachments] = useState<SubAgentAttachment[]>([]);
 	const [sending, setSending] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const field = useRef<HTMLTextAreaElement>(null);
+	/*
+	 * 正文里那枚标记，和主输入框是同一套。
+	 *
+	 * 这个框从前收得下图片、也画得出缩略图，但发出去的时候图片是被静默丢掉的——`steer` 只收一段字，
+	 * 于是只有文本附件被拼进正文。现在 `steer` 收内容块了，见 `core/runtime/sub-agents.ts`。
+	 */
+	const marks = useAttachmentMarks<SubAgentAttachment>({ attachments, setAttachments, setText, field });
 
 	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
 	const strip: StripFile[] = useMemo(
 		() =>
 			attachments.map((attachment) => {
-				const kind = fileKind(attachment.name, attachment.mimeType);
+				const kind = attachment.kind ?? fileKind(attachment.name, attachment.mimeType);
 				return {
 					key: attachment.id,
-					name: attachment.name,
+					name: attachment.label ?? attachment.name,
 					kind,
 					...(attachment.data && !attachment.isText
 						? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
@@ -393,6 +407,8 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 
 	const addFiles = async (picked: PickedFile[]) => {
 		if (picked.length === 0) return;
+		// 读文件之前记下来：读一份大文件要几百毫秒，那期间光标早就不在原地了。
+		const caret = field.current?.selectionStart ?? text.length;
 		const next: SubAgentAttachment[] = [];
 		for (const { file, path } of picked) {
 			const from = path ? { path } : {};
@@ -424,31 +440,25 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 				}
 			}
 		}
-		if (next.length > 0) {
-			setAttachments((prev) => [...prev, ...next]);
-		}
+		// 标记、编号、光标落点都在这一步里——和主输入框是同一段代码。
+		marks.attach(next, caret);
 	};
 
 	const send = async () => {
 		const trimmed = text.trim();
 		if ((!trimmed && attachments.length === 0) || sending) return;
 
-		let finalMessage = trimmed;
-		if (attachments.length > 0) {
-			const textFiles = attachments.filter((a) => a.isText && a.text);
-			// Written for the model that reads it, so it stays in English whatever the window is set to.
-			const attachedTexts = textFiles.map((f) => `### Attached file: ${f.name}\n\`\`\`\n${f.text}\n\`\`\``);
-			if (attachedTexts.length > 0) {
-				finalMessage = finalMessage
-					? `${finalMessage}\n\n${attachedTexts.join("\n\n")}`
-					: attachedTexts.join("\n\n");
-			}
-		}
-
-		if (!finalMessage) return;
+		/*
+		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。
+		 *
+		 * 这里从前是自己拼的，而且只拼得动文本附件——图片一路收到这儿就没了，因为 `steer` 当时只收
+		 * 一段字。界面上那一格缩略图是真的，发出去的东西里没有它，这中间没有任何提示。
+		 */
+		const content = spellDraft(trimmed, attachments);
+		if (content.length === 0) return;
 
 		setSending(true);
-		const delivered = await bridge.subAgents.steer(sessionId, agent.id, finalMessage);
+		const delivered = await bridge.subAgents.steer(sessionId, agent.id, content);
 		setSending(false);
 		if (delivered) {
 			setText("");
@@ -462,7 +472,17 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 		<div className="mx-auto w-full max-w-[var(--ly-content)] shrink-0 px-3 pt-2 pb-[15px]">
 			<ComposerShell
 				value={text}
-				onChange={setText}
+				fieldRef={field}
+				onChange={(next) => {
+					setText(next);
+					// 句子里那枚标记被删掉，附件跟着卸下来——删除是双向的。
+					marks.reconcile(next);
+				}}
+				onKeyDown={(event) => {
+					// 退格吃掉整枚标记，而不是把它啃成一串没人认得的方括号。
+					marks.keyDown(event);
+				}}
+				decoration={{ attachments: marks.decorationFor(text) }}
 				onSubmit={() => void send()}
 				disabled={sending}
 				placeholder={t("subAgent.steerPlaceholder")}
@@ -491,7 +511,10 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 										index,
 									)
 								}
-								onRemove={(file) => setAttachments((prev) => prev.filter((a) => a.id !== file.key))}
+								onRemove={(file) => {
+									const target = attachments.find((a) => a.id === file.key);
+									if (target) marks.detach(target);
+								}}
 							/>
 						</div>
 					) : undefined
@@ -503,7 +526,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 							data-ly-tip={t("subAgent.attach")}
 							aria-label={t("subAgent.attach")}
 							onClick={() => fileInputRef.current?.click()}
-							className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="ly-composer-control flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Plus size={16} strokeWidth={1.9} />
 						</button>
@@ -517,7 +540,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 								e.target.value = "";
 							}}
 						/>
-						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-caption text-ink-faint">
+						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-label text-ink-faint">
 							<span className={`size-[5px] shrink-0 rounded-full ${statusTone(agent.status)}`} />
 							<span className="truncate">{t("subAgent.steering")}</span>
 						</span>

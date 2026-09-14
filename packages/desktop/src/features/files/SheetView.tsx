@@ -12,18 +12,20 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Database, Table2 } from "lucide-react";
 import type { DocumentData } from "../../../electron/ipc-types.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
+import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 /** Numbers line up on the right; everything else reads from the left. */
 const NUMERIC = /^-?[\d,]+(\.\d+)?%?$/;
 
 export function SheetView({ path }: { path: string }) {
 	const [data, setData] = useState<DocumentData | null>(null);
+	const sheetTabs = useRef<HTMLDivElement>(null);
 	const [active, setActive] = useState(0);
 	const [failed, setFailed] = useState(false);
 
@@ -122,7 +124,7 @@ export function SheetView({ path }: { path: string }) {
 			 * Always rendered, even for one sheet: it is also where the row count lives, and "how
 			 * much of this am I looking at" is the question a truncated table has to answer.
 			 */}
-			<div className="flex shrink-0 items-center gap-1 overflow-x-auto border-t border-line px-2 py-1.5">
+			<Sideways trackRef={sheetTabs} outerClassName="shrink-0" className="flex items-center gap-1 overflow-x-auto border-t border-line px-2 py-1.5">
 				{data.sheets.map((entry, index) => (
 					<button
 						key={entry.name}
@@ -145,7 +147,7 @@ export function SheetView({ path }: { path: string }) {
 							: ""}
 					</Text>
 				</span>
-			</div>
+			</Sideways>
 		</div>
 	);
 }

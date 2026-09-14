@@ -20,6 +20,7 @@ import { useEffect, useRef } from "react";
 import type { SubAgentSummary } from "@lyra/core";
 import { rosterNested, rosterRows, type RosterNode } from "../../store/subAgents.ts";
 import { figuresWord, ranFor, statusTone, statusWord } from "./format.ts";
+import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 export interface SubAgentRosterProps {
 	/** In roster order: running first, then by start. */
@@ -51,14 +52,15 @@ export function SubAgentRoster(props: SubAgentRosterProps) {
 	return <Strip {...props} hostRef={host} />;
 }
 
-function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
+function Strip({ agents, current, onFocus, trailing }: Shape) {
 	return (
 		<div className="flex h-7 shrink-0 items-center border-b border-line">
-			<div
-				ref={hostRef}
+			{/* 占位交给外壳（`flex-1`），滚动和箭头交给它里面那层——见 `Sideways`。 */}
+			<Sideways
+				outerClassName="flex-1"
 				role="tablist"
 				aria-label={translate("subAgent.title")}
-				className="ly-fade-tail flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-1"
+				className="flex min-w-0 items-center gap-0.5 overflow-x-auto px-1"
 			>
 				{agents.map((one) => {
 					const active = one.id === current;
@@ -85,7 +87,7 @@ function Strip({ agents, current, onFocus, trailing, hostRef }: Shape) {
 						</div>
 					);
 				})}
-			</div>
+			</Sideways>
 		</div>
 	);
 }

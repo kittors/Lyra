@@ -28,7 +28,20 @@ export function effortLabel(level: ThinkingLevel, model?: ModelConfig | null, t?
 	return localizeThinkingOption(selected, model?.thinkingOptions === undefined, t).label;
 }
 
-export function EffortMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => void }) {
+/**
+ * 一份自己的思考等级，给不发给当前对话的那些输入框。
+ *
+ * 和 `ModelSelection` 同一个形状、同一个理由：侧边聊天有自己的模型，也就该有自己的思考等级——
+ * 它读的是自己那份，改的也是自己那份。不给这个参数就和从前一样，改的是屏幕上这个对话的。
+ */
+export interface ThinkingSelection {
+	/** 按哪个模型算可选档位——不同模型给的档位不一样。 */
+	modelId?: string | null;
+	value: ThinkingLevel;
+	onChange: (level: ThinkingLevel) => void;
+}
+
+export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onClose: () => void; selection?: ThinkingSelection }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const setThinking = useApp((s) => s.setThinking);
@@ -37,13 +50,13 @@ export function EffortMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 
 	const model = settings?.providers
 		.flatMap((p) => p.models)
-		.find((m) => m.id === (meta?.modelId ?? settings.defaultModelId));
+		.find((m) => m.id === (selection ? selection.modelId : meta?.modelId ?? settings.defaultModelId));
 	const supported = model?.supportsThinking !== false;
 
 	const options: ThinkingOption[] = resolveModelThinkingOptions(model).map((option) =>
 		localizeThinkingOption(option, model?.thinkingOptions === undefined, t),
 	);
-	const level = sessionThinking(meta, settings);
+	const level = selection ? selection.value : sessionThinking(meta, settings);
 
 	let index = options.findIndex((l) => l.id === level);
 	if (index === -1) {
@@ -59,7 +72,8 @@ export function EffortMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 	const set = (nextIndex: number) => {
 		if (!settings || options.length === 0) return;
 		const next = options[Math.min(options.length - 1, Math.max(0, nextIndex))].id;
-		void setThinking(next);
+		if (selection) selection.onChange(next);
+		else void setThinking(next);
 		/*
 		 * The last level above 「关闭」, so fast mode has something to put back.
 		 *

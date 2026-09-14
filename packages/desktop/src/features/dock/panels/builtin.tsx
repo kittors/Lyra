@@ -14,7 +14,7 @@ import { SubAgentPanel } from "../../subagents/index.ts";
 import { FileActions } from "../../files/index.ts";
 import { FileTitle } from "../../files/index.ts";
 import { GitPanel } from "../../git/index.ts";
-import { SideChat } from "../../sidechat/index.ts";
+import { SideChat, SideChatActions } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane } from "../../terminal/index.ts";
 import { TerminalTabs } from "../../terminal/index.ts";
@@ -120,6 +120,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		mobile: true,
 		unavailable: needsSession,
 		render: SideChat,
+		actions: SideChatActions,
 	},
 	{
 		kind: "terminal",

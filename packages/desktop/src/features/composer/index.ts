@@ -38,3 +38,12 @@ export { pickedFrom } from "./attachments/picked.ts";
  */
 export { displayName } from "./attachments/display.ts";
 export type { PickedFile } from "./attachments/picked.ts";
+/*
+ * 正文里那枚标记的一生，和把草稿摊成内容块的那一步。
+ *
+ * 三个输入框（主的、侧边聊天、子智能体）共用这两样。它们从前只长在主输入框上，于是同一句「照着
+ * 第二张图改」，在另外两处模型只能猜——那两个输入框收得下文件，句子里却什么都没有。
+ */
+export { useAttachmentMarks } from "./useAttachmentMarks.ts";
+export type { MarkableFile } from "./useAttachmentMarks.ts";
+export { spellDraft } from "./outgoing.ts";

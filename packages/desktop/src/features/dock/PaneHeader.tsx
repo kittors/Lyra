@@ -25,7 +25,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Maximize2, Minimize2, X } from "lucide-react";
-import { GRIP_REACH, GRIP_WIDTH, HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
+import { GRIP_REACH, GRIP_TOP, GRIP_WIDTH, HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 import { shortcutLabel } from "../../ui/keyboard.ts";
 
@@ -144,12 +144,10 @@ export function PaneHeader({
 			 * because once a pane holds several of something, choosing between them *is* the title.
 			 */}
 			{/*
-			 * Slot and grip share one box that ends where the actions begin.
+			 * The title gets the bar minus whatever the actions take, and stops there.
 			 *
-			 * The grip used to be `left: 50%` of this whole header, including `padding-right`
-			 * reserved for Windows caption buttons. On a 300px right-edge pane that reserve is
-			 * ~138px, so the visual centre sat on top of full-screen and close. The wrapper is
-			 * the bar a person can actually use; 50% of *that* cannot cross the actions.
+			 * `overflow-hidden` rather than a width: what a title may use is whatever the buttons
+			 * leave over, and that differs per pane and changes with the window.
 			 */}
 			<div className="relative min-w-0 flex-1 overflow-hidden">
 				<div data-dock-heading-slot className="min-w-0">
@@ -160,46 +158,61 @@ export function PaneHeader({
 						</>}
 					</div>
 				</div>
-
-				{/*
-				 * The grip: a short bar near the top edge, centred, and the only thing that moves the pane.
-				 *
-				 * Absolute so it is not in the row's flow — a long title would otherwise push it off
-				 * centre, and the one thing a handle must do is be in the same place every time.
-				 *
-				 * A real button, not a decoration, because it carries the keyboard route too. Dragging
-				 * is the whole interaction here and a drag is one of the few gestures with no keyboard
-				 * equivalent at all; without this the dock would be unusable without a mouse. ⌥ rather
-				 * than bare arrows, which belong to whatever is being scrolled. Each arrow sends the
-				 * pane to that edge of the *dock*, so "left" means one thing wherever it is pressed —
-				 * which is what makes it usable without a preview to watch.
-				 *
-				 * `touch-none` so a trackpad drag moves the pane instead of scrolling what is under it;
-				 * without it the browser claims the gesture before the first move arrives.
-				 */}
-				{draggable && (
-					<button
-						type="button"
-						data-dock-grip={kind}
-						data-dock-heading
-						aria-label={shortcutLabel(translate("pane.moveHint", { label }))}
-						data-ly-tip={translate("common.move")}
-						onPointerDown={onDragStart}
-						onKeyDown={(event) => {
-							const side = event.altKey ? ARROWS[event.key] : undefined;
-							if (!side) return;
-							event.preventDefault();
-							onMove(side);
-						}}
-						className={`ly-dock-grip no-drag absolute top-0 left-1/2 flex -translate-x-1/2 touch-none justify-center pt-[7px] ${
-							carried ? "cursor-grabbing" : "cursor-grab"
-						}`}
-						style={{ height: GRIP_REACH, width: GRIP_WIDTH }}
-					>
-						<span aria-hidden className="h-[3px] w-9 rounded-full bg-ink-faint" />
-					</button>
-				)}
 			</div>
+
+			{/*
+			 * The grip: a short bar at the top edge, centred on the pane, and the only thing that
+			 * moves the pane.
+			 *
+			 * Centred on the *pane*, which is why it is a child of the header rather than of the
+			 * title's box. It lived in that box for a while and was centred within it, and the
+			 * middle of "whatever the buttons left over" is visibly left of the middle of the card —
+			 * by half the actions' width, so the more buttons a panel has the further off it sits.
+			 * Here, `left: 50%` resolves against the header's padding box, which spans the card
+			 * regardless of what the two paddings are reserving for traffic lights or captions.
+			 *
+			 * What made centring on the header unworkable before was drawing the mark level with
+			 * the title: on a 300px right-edge pane, where Windows reserves ~138px for its caption
+			 * buttons, the middle of the header is on top of full-screen and close. The top edge
+			 * settles that — at `GRIP_TOP` the mark is above the row the buttons sit in, so the two
+			 * cannot collide even when they do line up, and the actions keep their own layer
+			 * (`z-[1]` below) so a press still reaches the button rather than the grip.
+			 *
+			 * Absolute also keeps it out of the row's flow: a long title would otherwise push it
+			 * off centre, and the one thing a handle must do is be in the same place every time.
+			 *
+			 * A real button, not a decoration, because it carries the keyboard route too. Dragging
+			 * is the whole interaction here and a drag is one of the few gestures with no keyboard
+			 * equivalent at all; without this the dock would be unusable without a mouse. ⌥ rather
+			 * than bare arrows, which belong to whatever is being scrolled. Each arrow sends the
+			 * pane to that edge of the *dock*, so "left" means one thing wherever it is pressed —
+			 * which is what makes it usable without a preview to watch.
+			 *
+			 * `touch-none` so a trackpad drag moves the pane instead of scrolling what is under it;
+			 * without it the browser claims the gesture before the first move arrives.
+			 */}
+			{draggable && (
+				<button
+					type="button"
+					data-dock-grip={kind}
+					data-dock-heading
+					aria-label={shortcutLabel(translate("pane.moveHint", { label }))}
+					data-ly-tip={translate("common.move")}
+					onPointerDown={onDragStart}
+					onKeyDown={(event) => {
+						const side = event.altKey ? ARROWS[event.key] : undefined;
+						if (!side) return;
+						event.preventDefault();
+						onMove(side);
+					}}
+					className={`ly-dock-grip no-drag absolute top-0 left-1/2 flex -translate-x-1/2 touch-none justify-center ${
+						carried ? "cursor-grabbing" : "cursor-grab"
+					}`}
+					style={{ height: GRIP_REACH, width: GRIP_WIDTH, paddingTop: GRIP_TOP }}
+				>
+					<span aria-hidden className="h-[3px] w-9 rounded-full bg-ink-faint" />
+				</button>
+			)}
 
 			{/*
 			 * The controls stop the press from reaching the bar underneath them.

@@ -51,6 +51,102 @@ export interface Outgoing {
 }
 
 /**
+ * 一份草稿里的字和文件，摊成模型收到的那一串内容块。
+ *
+ * 单独一个函数，因为三个输入框都要走它：主输入框、侧边聊天、子智能体的操控框。它们从前各拼各的
+ * ——后两个是「图片一律最前、文本附件一律缀在最后」，也就是这套记号当初要治的那个毛病，只是治好
+ * 的那一版没人接过去。于是同一句「照着第二张图改」，在主输入框里模型分得清，在侧边聊天里分不清。
+ *
+ * 命令展开、skill、会话引用都不在这里：那几样只有主输入框有，而这一步是三个都有的那一半。
+ */
+export function spellDraft(text: string, attachments: OutgoingAttachment[]): UserContent[] {
+	const { segments, unplaced } = placeAttachments(text, attachments);
+	const content: UserContent[] = [];
+	let buffer = "";
+	const flush = () => {
+		if (buffer) content.push({ type: "text", text: buffer });
+		buffer = "";
+	};
+	/*
+	 * 每份附件正文自己占一个 content 块，不跟前后的字并进同一块。
+	 *
+	 * 这不是排版讲究，是为了「编辑已发出的消息」还能用：编辑框改的是 `displayText`——人打的那些字，
+	 * 不含正文——所以重建消息时必须把正文原样搬过去。并成一块就分不出哪一段是人写的、哪一段是文件，
+	 * 见 `isAttachmentBody`。
+	 */
+	/*
+	 * 每份附件带上它在这一条消息里的位置。
+	 *
+	 * 人指认附件靠的是序数加门类——「第二张截图」「excel 文件 1」——而不是文件名。位置按**实际写进
+	 * prompt 的先后**数，不是按草稿里的先后：模型看到的是前者，两者在有记号的旧草稿里会不一样。
+	 */
+	const total = attachments.length;
+	const kindTotals = new Map<string, number>();
+	for (const file of attachments) {
+		const kind = file.kind ?? "file";
+		kindTotals.set(kind, (kindTotals.get(kind) ?? 0) + 1);
+	}
+	const kindSeen = new Map<string, number>();
+	let placed = 0;
+
+	const labelFor = (file: OutgoingAttachment): string => {
+		const kind = file.kind ?? "file";
+		placed += 1;
+		const kindIndex = (kindSeen.get(kind) ?? 0) + 1;
+		kindSeen.set(kind, kindIndex);
+		return attachmentLabel({
+			index: placed,
+			total,
+			kind: file.kind,
+			kindIndex,
+			kindTotal: kindTotals.get(kind) ?? 1,
+		});
+	};
+
+	const spell = (file: OutgoingAttachment) => {
+		const label = labelFor(file);
+		if (file.isText && file.text) {
+			// Fenced and named, so the model can tell the document from the sentence around it.
+			flush();
+			content.push({ type: "text", text: attachmentBody(file.name, file.text, label) });
+			return;
+		}
+		if (!file.isText && file.data) {
+			/*
+			 * 图片前面先写一行，说它是谁、排第几。
+			 *
+			 * 图片块本身装不下字，而三张截图在模型眼里本来是三团无法区分的像素——「第二张截图里的报错」
+			 * 就是从这里开始猜的。这一行是它们之间唯一的区别。
+			 */
+			flush();
+			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
+			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+			return;
+		}
+		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from
+		// answering as though it had read something it was never given.
+		flush();
+		content.push({ type: "text", text: attachmentStub(file.name, file.mimeType, label) });
+	};
+
+	/*
+	 * 材料在前，问题在后。
+	 *
+	 * 没有记号可站的附件从前缀在最末尾，现在整体走在正文前面——而「没有记号可站」如今是常态，
+	 * 因为记号不再被写进草稿了。先给材料再提问，跟编辑一条已发出的消息时走的是同一条路：
+	 * `UserMessage.submit` 早就是 `[...图片, ...正文, 新的字]`，两边从此说的是同一件事。
+	 */
+	for (const file of unplaced) spell(file);
+	for (const segment of segments) {
+		if (segment.kind === "text") buffer += segment.text;
+		else spell(segment.file);
+	}
+	flush();
+
+	return content;
+}
+
+/**
  * `stillCurrent` 是磁盘那一趟回来之后再问一次：这份草稿还是刚才那份吗。
  *
  * 命令要按磁盘上的定义展开，那是一次异步，而人可以在这段时间里接着打字、换对话。答案是否就放弃这
@@ -163,88 +259,7 @@ export async function buildOutgoing(
 	 */
 	if (displayText === undefined && draft.attachments.length > 0) displayText = outgoing;
 
-	const { segments, unplaced } = placeAttachments(outgoing, draft.attachments);
-	const content: UserContent[] = [];
-	let buffer = "";
-	const flush = () => {
-		if (buffer) content.push({ type: "text", text: buffer });
-		buffer = "";
-	};
-	/*
-	 * 每份附件正文自己占一个 content 块，不跟前后的字并进同一块。
-	 *
-	 * 这不是排版讲究，是为了「编辑已发出的消息」还能用：编辑框改的是 `displayText`——人打的那些字，
-	 * 不含正文——所以重建消息时必须把正文原样搬过去。并成一块就分不出哪一段是人写的、哪一段是文件，
-	 * 见 `isAttachmentBody`。
-	 */
-	/*
-	 * 每份附件带上它在这一条消息里的位置。
-	 *
-	 * 人指认附件靠的是序数加门类——「第二张截图」「excel 文件 1」——而不是文件名。位置按**实际写进
-	 * prompt 的先后**数，不是按草稿里的先后：模型看到的是前者，两者在有记号的旧草稿里会不一样。
-	 */
-	const total = draft.attachments.length;
-	const kindTotals = new Map<string, number>();
-	for (const file of draft.attachments) {
-		const kind = file.kind ?? "file";
-		kindTotals.set(kind, (kindTotals.get(kind) ?? 0) + 1);
-	}
-	const kindSeen = new Map<string, number>();
-	let placed = 0;
-
-	const labelFor = (file: OutgoingAttachment): string => {
-		const kind = file.kind ?? "file";
-		placed += 1;
-		const kindIndex = (kindSeen.get(kind) ?? 0) + 1;
-		kindSeen.set(kind, kindIndex);
-		return attachmentLabel({
-			index: placed,
-			total,
-			kind: file.kind,
-			kindIndex,
-			kindTotal: kindTotals.get(kind) ?? 1,
-		});
-	};
-
-	const spell = (file: OutgoingAttachment) => {
-		const label = labelFor(file);
-		if (file.isText && file.text) {
-			// Fenced and named, so the model can tell the document from the sentence around it.
-			flush();
-			content.push({ type: "text", text: attachmentBody(file.name, file.text, label) });
-			return;
-		}
-		if (!file.isText && file.data) {
-			/*
-			 * 图片前面先写一行，说它是谁、排第几。
-			 *
-			 * 图片块本身装不下字，而三张截图在模型眼里本来是三团无法区分的像素——「第二张截图里的报错」
-			 * 就是从这里开始猜的。这一行是它们之间唯一的区别。
-			 */
-			flush();
-			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
-			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
-			return;
-		}
-		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from
-		// answering as though it had read something it was never given.
-		flush();
-		content.push({ type: "text", text: attachmentStub(file.name, file.mimeType, label) });
-	};
-
-	/*
-	 * 材料在前，问题在后。
-	 *
-	 * 没有记号可站的附件从前缀在最末尾，现在整体走在正文前面——而「没有记号可站」如今是常态，
-	 * 因为记号不再被写进草稿了。先给材料再提问，跟编辑一条已发出的消息时走的是同一条路：
-	 * `UserMessage.submit` 早就是 `[...图片, ...正文, 新的字]`，两边从此说的是同一件事。
-	 */
-	for (const file of unplaced) spell(file);
-	for (const segment of segments) {
-		if (segment.kind === "text") buffer += segment.text;
-		else spell(segment.file);
-	}
-	flush();
+	const content = spellDraft(outgoing, draft.attachments);
 
 	return {
 		content,
