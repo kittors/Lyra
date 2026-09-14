@@ -5,6 +5,148 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.13](https://github.com/kittors/Lyra/releases/tag/v0.9.13) - 2026-09-14
+
+<!-- lyra:notes en -->
+
+### New
+
+- **Side chat and the sub-agent box now put a file or image in the sentence, the same way the main box does.** A chip with an icon and a name sits in the text. The model can tell which file you mean. You can attach a picture when you steer a sub-agent.
+
+- **When a row of tabs runs out of room, arrows appear at the ends.** File tabs, terminal tabs, account tabs, and the same kind of strip elsewhere. Click an arrow and the row moves, keeping a bit of what you just saw.
+
+### Fixes
+
+- **A crash in the window used to leave a grey pane and three traffic lights.** It now says what threw, offers a reload, and keeps your conversations and settings. The main process is still running.
+
+- **Closing the window on a Mac puts it away. It does not throw the session out.** The conversation you had open, how far you had scrolled, and the message you had typed come back as they were. On Windows and Linux this happens when the status bar icon is there; without it, close still quits, so the app does not hide with no way back.
+
+- **Dragging a pane past the window edge follows your hand again.** The card is clipped by the window. It used to stop at the edge while the pointer kept going.
+
+- **The move handle sits on the top edge of the pane, in the middle of the card.** It no longer lands on the Windows caption buttons when the pane is narrow.
+
+- **A broken line in the transcript no longer blanks the whole conversation.** A message with no role used to throw `Cannot read properties of undefined (reading 'role')` and take the screen with it.
+
+<!-- lyra:notes zh-CN -->
+
+### 新功能
+
+- **侧边聊天和子 Agent 的输入框，现在也会把文件或图片放进句子里，和主输入框一样。** 一枚带图标和名字的标记坐在正文里，模型分得清你说的是哪一份。给子 Agent 纠偏时，也可以附上一张图。
+
+- **标签挤不下时，两端会出现箭头。** 文件标签、终端标签、账号标签，以及同样那种横条。点一下，横条走一段，刚看过的还留一点。
+
+### 修复
+
+- **窗口里崩了，从前只剩一片灰和三颗红绿灯。** 现在会写出是谁抛的、给一颗重新加载，会话和设置都还在。主进程没停。
+
+- **在 Mac 上关窗口，是把窗口收起来，不是把会话扔掉。** 开着的对话、滚到哪、打到一半的字，回来还是那样。Windows 和 Linux 上，有状态栏图标才这样收；没有图标时关掉就是退出，免得藏起来找不到。
+
+- **拖面板越过窗口边缘时，卡片又跟着指针走了。** 探出去的部分被窗口裁掉。从前卡片停在边上，手还在往外走。
+
+- **移动的那一杠在面板顶边，对着卡片正中。** 窄面板上不再压到 Windows 标题栏那几个按钮。
+
+- **转录里坏掉的一行，不会再把整场对话刷白。** 一条没有 role 的消息从前会抛 `Cannot read properties of undefined (reading 'role')`，整页跟着没了。
+
+<!-- lyra:notes zh-TW -->
+
+### 新功能
+
+- **側邊聊天和子 Agent 的輸入框，現在也會把檔案或圖片放進句子裡，和主輸入框一樣。** 一枚帶圖示和名字的標記坐在正文裡，模型分得清你說的是哪一份。給子 Agent 糾偏時，也可以附上一張圖。
+
+- **標籤擠不下時，兩端會出現箭頭。** 檔案標籤、終端標籤、帳號標籤，以及同樣那種橫條。點一下，橫條走一段，剛看過的還留一點。
+
+### 修復
+
+- **視窗裡崩了，從前只剩一片灰和三顆紅綠燈。** 現在會寫出是誰拋的、給一顆重新載入，工作階段和設定都還在。主行程沒停。
+
+- **在 Mac 上關視窗，是把視窗收起來，不是把工作階段扔掉。** 開著的對話、捲到哪、打到一半的字，回來還是那樣。Windows 和 Linux 上，有狀態列圖示才這樣收；沒有圖示時關掉就是結束，免得藏起來找不到。
+
+- **拖面板越過視窗邊緣時，卡片又跟著指標走了。** 探出去的部分被視窗裁掉。從前卡片停在邊上，手還在往外走。
+
+- **移動的那一槓在面板頂邊，對著卡片正中。** 窄面板上不再壓到 Windows 標題列那幾個按鈕。
+
+- **轉錄裡壞掉的一行，不會再把整場對話刷白。** 一條沒有 role 的訊息從前會拋 `Cannot read properties of undefined (reading 'role')`，整頁跟著沒了。
+
+<!-- lyra:notes ja -->
+
+### 新機能
+
+- **サイドチャットとサブエージェントの入力欄も、本文の中にファイルや画像を置きます。メインと同じです。** アイコンと名前のチップが文の中に座ります。モデルはどれを指しているか分かります。サブエージェントに指示を出すときも、絵を付けられます。
+
+- **タブが幅に収まらないと、両端に矢印が出ます。** ファイル、ターミナル、アカウント、同じ形の横列です。押すと列が動き、今見ていたものが少し残ります。
+
+### 修正
+
+- **画面が落ちると、灰色と信号機の三つだけが残っていました。** 今は何が投げたかを書き、再読み込みを出し、会話と設定は残します。メインプロセスは止まっていません。
+
+- **Mac で窓を閉じると、しまいます。セッションは捨てません。** 開いていた会話、どこまで読んだか、打ちかけの文が、そのまま戻ります。Windows と Linux では、ステータスバーのアイコンがあるときだけそうします。アイコンが無いときに閉じると終了します。隠れても戻れない状態にはしません。
+
+- **ペインを窓の外へドラッグすると、また手に付いていきます。** はみ出した分は窓で切れます。これまでは縁で止まり、ポインターだけが先へ行っていました。
+
+- **移動のしるしはペインの上端、カードの真ん中です。** 狭いペインで Windows のタイトルボタンに重なりません。
+
+- **壊れた一行で会話全体が白くなりません。** role の無いメッセージが `Cannot read properties of undefined (reading 'role')` を投げ、画面ごと消えていました。
+
+<!-- lyra:notes ko -->
+
+### 새로운 기능
+
+- **사이드 챗과 하위 에이전트 입력칸도 이제 파일이나 이미지를 문장 안에 넣습니다. 메인과 같습니다.** 아이콘과 이름이 붙은 칩이 글 안에 앉습니다. 모델이 어느 파일인지 구분합니다. 하위 에이전트에게 길을 알려 줄 때도 그림을 붙일 수 있습니다.
+
+- **탭이 자리에 안 들어가면 양끝에 화살표가 나옵니다.** 파일 탭, 터미널 탭, 계정 탭, 같은 모양의 가로줄입니다. 누르면 줄이 움직이고, 방금 본 것이 조금 남습니다.
+
+### 수정
+
+- **창이 무너지면 회색과 신호등 세 개만 남았습니다.** 지금은 무엇이 던졌는지 쓰고, 새로 고침을 주며, 대화와 설정은 그대로입니다. 메인 프로세스는 살아 있습니다.
+
+- **Mac에서 창을 닫으면 치워 둡니다. 세션을 버리지 않습니다.** 열려 있던 대화, 어디까지 읽었는지, 쓰다 만 글이 그대로 돌아옵니다. Windows와 Linux에서는 상태 표시줄 아이콘이 있을 때만 이렇게 합니다. 아이콘이 없으면 닫는 것이 종료입니다. 숨겨 두고 못 찾게 하지 않습니다.
+
+- **패널을 창 밖으로 끌면 다시 손을 따라갑니다.** 나간 부분은 창에 잘립니다. 이전에는 카드가 가장자리에서 멈추고 포인터만 나갔습니다.
+
+- **옮기는 막대는 패널 맨 위, 카드 한가운데에 있습니다.** 좁은 패널에서 Windows 제목 단추 위에 앉지 않습니다.
+
+- **깨진 한 줄 때문에 대화 전체가 하얘지지 않습니다.** role이 없는 메시지가 `Cannot read properties of undefined (reading 'role')`를 던지고 화면을 가져갔습니다.
+
+<!-- lyra:notes fr -->
+
+### Nouveautés
+
+- **La discussion latérale et la boîte du sous-agent mettent maintenant un fichier ou une image dans la phrase, comme la boîte principale.** Une pastille avec une icône et un nom s'assoit dans le texte. Le modèle sait de quel fichier vous parlez. On peut joindre une image en guidant un sous-agent.
+
+- **Quand une rangée d'onglets n'a plus de place, des flèches apparaissent aux bouts.** Onglets de fichiers, de terminal, de comptes, et la même bande ailleurs. Un clic avance la rangée et laisse un peu de ce qu'on venait de voir.
+
+### Corrections
+
+- **Un plantage dans la fenêtre ne laissait qu'un panneau gris et trois feux.** Elle dit maintenant ce qui a levé, propose de recharger, et garde les conversations et les réglages. Le processus principal tourne encore.
+
+- **Fermer la fenêtre sur un Mac la range. Ça ne jette pas la session.** La conversation ouverte, jusqu'où on avait défilé, et le message tapé reviennent comme on les a laissés. Sous Windows et Linux, c'est ainsi quand l'icône de la barre d'état est là ; sans elle, fermer quitte encore, pour ne pas cacher une appli sans issue.
+
+- **Glisser un volet hors de la fenêtre suit à nouveau la main.** La carte est coupée par la fenêtre. Elle s'arrêtait au bord pendant que le pointeur continuait.
+
+- **La poignée de déplacement est sur le bord haut du volet, au milieu de la carte.** Elle ne tombe plus sur les boutons de titre Windows quand le volet est étroit.
+
+- **Une ligne cassée dans la transcription n'efface plus toute la conversation.** Un message sans rôle levait `Cannot read properties of undefined (reading 'role')` et emportait l'écran.
+
+<!-- lyra:notes ru -->
+
+### Новое
+
+- **Боковая беседа и поле субагента теперь кладут файл или картинку в предложение, как главное поле.** Метка с значком и именем сидит в тексте. Модель понимает, о каком файле речь. К указанию субагенту можно приложить картинку.
+
+- **Когда ряду вкладок не хватает места, по краям появляются стрелки.** Вкладки файлов, терминала, аккаунтов и такая же полоса в других местах. Нажатие сдвигает ряд и оставляет чуть-чуть того, что только что было видно.
+
+### Исправления
+
+- **Падение в окне оставляло серую панель и три светофора.** Теперь написано, что выбросило, есть перезагрузка, беседы и настройки на месте. Главный процесс ещё работает.
+
+- **Закрытие окна на Mac убирает его. Сессию не выбрасывает.** Открытая беседа, до куда долистали, и недописанное сообщение возвращаются как были. В Windows и Linux так только если есть значок в строке состояния; без него закрытие по-прежнему выход, чтобы приложение не спряталось без дороги назад.
+
+- **Перетаскивание панели за край окна снова идёт за рукой.** Карточка обрезается окном. Раньше она вставала у края, а указатель шёл дальше.
+
+- **Ручка переноса на верхнем крае панели, по центру карточки.** На узкой панели она больше не садится на кнопки заголовка Windows.
+
+- **Сломанная строка в расшифровке больше не белит всю беседу.** Сообщение без role бросало `Cannot read properties of undefined (reading 'role')` и уносило экран.
+
 ## [0.9.12](https://github.com/kittors/Lyra/releases/tag/v0.9.12) - 2026-09-13
 
 <!-- lyra:notes en -->
