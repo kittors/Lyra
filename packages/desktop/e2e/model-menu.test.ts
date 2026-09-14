@@ -129,7 +129,7 @@ const UI = `
 	const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 	const label = (el) => el.innerText.replace(/\\s+/g, " ").trim();
 	const click = (el) => el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-	const menu = () => document.querySelector('[aria-label="选择模型"]');
+	const menu = () => document.querySelector('[role="menu"][aria-label="选择模型"]');
 	const openModelMenu = async () => {
 		if (!menu()) {
 			const chip = [...document.querySelectorAll('button[aria-haspopup="menu"]')].find((x) =>

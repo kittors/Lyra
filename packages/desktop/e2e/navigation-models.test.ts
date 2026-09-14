@@ -125,7 +125,7 @@ test("role and subagent menus share a bounded searchable favourite catalog witho
 	await click('button:has(svg.lucide-settings)'); await label("智能体"); await frames();
 	// 标签是 `{name} 模型`——底下那句 `[aria-label="explore 模型"]` 用的就是这个格式。
 	await click('[aria-label="simple 模型"]'); await frames();
-	const menuGeometry = () => app.evaluate<{ height: number; right: number; bottom: number; first: string; fade: string }>(`(()=>{const m=document.querySelector('[aria-label="选择模型"]'),r=m.getBoundingClientRect();return {height:r.height,right:r.right,bottom:r.bottom,first:m.querySelector('[data-model]').dataset.model,fade:m.querySelector('.ly-scroll-view').style.getPropertyValue('--ly-fade-bottom')};})()`);
+	const menuGeometry = () => app.evaluate<{ height: number; right: number; bottom: number; first: string; fade: string }>(`(()=>{const m=document.querySelector('[role="menu"][aria-label="选择模型"]'),r=m.getBoundingClientRect();return {height:r.height,right:r.right,bottom:r.bottom,first:m.querySelector('[data-model]').dataset.model,fade:m.querySelector('.ly-scroll-view').style.getPropertyValue('--ly-fade-bottom')};})()`);
 	const roleMenu = await menuGeometry();
 	assert.ok(roleMenu.height <= 420); assert.equal(roleMenu.first, "p1/m1"); assert.equal(roleMenu.fade, "48px");
 	await shot("model-role-favourites");
@@ -143,7 +143,7 @@ test("role and subagent menus share a bounded searchable favourite catalog witho
 		await click('[aria-label="explore 模型"]'); await frames();
 		const geometry = await menuGeometry(); assert.ok(geometry.height <= 420 && geometry.right <= width && geometry.bottom <= 850, JSON.stringify(geometry));
 		await shot(`subagent-model-menu-${width}`);
-		await click('[aria-label="选择模型"] input'); await app.send("Input.insertText", { text: "gemini-relay-19" }); await frames();
+		await click('[role="menu"][aria-label="选择模型"] input'); await app.send("Input.insertText", { text: "gemini-relay-19" }); await frames();
 		assert.equal(await app.evaluate(`document.querySelectorAll('[data-model]').length`), 3);
 		await key("Escape", 27); await frames();
 		t.diagnostic(JSON.stringify({ width, geometry }));

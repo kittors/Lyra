@@ -136,7 +136,7 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 				for(let j=0;j<(i<2?20:2);j++){
 					await frame();const actions=pane.querySelector('[data-dock-actions]'),slot=pane.querySelector('[data-dock-heading-slot]'),r=pane.querySelector('button[aria-label*="全屏"]').getBoundingClientRect();
 					const strip=title.querySelector('.ly-fade-tail').getBoundingClientRect(),edge=actions.getBoundingClientRect().left;
-					const boundary=[...pane.querySelectorAll('[data-dock-heading]')].every(e=>{const clip=getComputedStyle(e).clipPath,inset=clip==='none'?0:parseFloat(clip.slice(6,-1).split(' ')[1]);return e.getBoundingClientRect().right-inset<=edge+.5});
+					const boundary=[...pane.querySelectorAll('[data-dock-heading]:not([data-dock-grip])')].every(e=>{const clip=getComputedStyle(e).clipPath,inset=clip==='none'?0:parseFloat(clip.slice(6,-1).split(' ')[1]);return e.getBoundingClientRect().right-inset<=edge+.5});
 					// 每个标签自己的可见窗口，留着给失败时看：宽度归零还是中心点被别人接了，改的地方不一样。
 					const tabs=[...title.querySelectorAll('[data-tab] > button:first-child')].map(b=>{const q=b.getBoundingClientRect(),left=Math.max(q.left,strip.left,0),right=Math.min(q.right,strip.right,edge,innerWidth);return {left:Math.round(left),right:Math.round(right),wide:right-left>1,own:b.contains(document.elementFromPoint((left+right)/2,q.y+q.height/2))};});
 					/*
@@ -163,6 +163,9 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 		 *
 		 * 这条在 Windows 上红过，日志里只有这句话——按钮被盖住、标签越界、尺寸不是 20，读起来
 		 * 一模一样。把第一个不合格的采样连同它自己的字段打出来，下次的报告自己会说是哪一条。
+		 *
+		 * 握把也挂 data-dock-heading，好跟着几何动画走；它在卡片正中、顶边，300px 的 Windows
+		 * 面板上那个中心已经越过操作键。标题必须让开，握把不必。
 		 */
 		const bad = report.samples.find(s => !(s.hit && s.boundary && s.noDrag && s.titleVisible && s.width === 20 && s.height === 20));
 		assert.ok(!bad, `terminal tabs remain visible without covering or scaling pane actions — ${JSON.stringify({ theme, width, bad })}`);

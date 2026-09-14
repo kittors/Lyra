@@ -131,7 +131,7 @@ async function main() {
 			if (!trigger) return false;
 			press(trigger);
 			await new Promise((r) => setTimeout(r, 400));
-			return Boolean(document.querySelector('[aria-label="选择模型"]'));
+			return Boolean(document.querySelector('[role="menu"][aria-label="选择模型"]'));
 		})()`);
 		log("模型菜单打开了吗", menuUp);
 		if (!menuUp) throw new Error("没能打开模型菜单");
@@ -164,7 +164,7 @@ async function main() {
 			const trigger = [...document.querySelectorAll('button[aria-haspopup="menu"]')].find((b) => /Alpha|Beta/.test(b.textContent ?? ""));
 			return {
 				dialogStillUp: Boolean(document.querySelector("[data-ly-modal]")),
-				menuStillOpen: Boolean(document.querySelector('[aria-label="选择模型"]')),
+				menuStillOpen: Boolean(document.querySelector('[role="menu"][aria-label="选择模型"]')),
 				label: (trigger?.textContent ?? "").trim(),
 			};
 		})()`);

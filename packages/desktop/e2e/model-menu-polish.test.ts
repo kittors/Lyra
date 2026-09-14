@@ -58,7 +58,7 @@ const UI = `
 	const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 	const label = (element) => element.innerText.replace(/\\s+/g, " ").trim();
 	const click = (element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-	const menu = () => document.querySelector('[aria-label="选择模型"]');
+	const menu = () => document.querySelector('[role="menu"][aria-label="选择模型"]'); // not the trigger; it uses the same label
 	const openModelMenu = async () => {
 		if (menu()) return menu();
 		const chip = [...document.querySelectorAll('button[aria-haspopup="menu"]')].find((element) =>

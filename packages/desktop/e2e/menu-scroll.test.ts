@@ -77,7 +77,7 @@ test("shared model popovers keep clear gutters and their thumb can be dragged to
 	await key("Escape", 27);
 	// Synthetic models are saved through the real settings IPC; no provider request is made.
 	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();const models=Array.from({length:40},(_,i)=>({id:'qa/model-'+i,providerId:'qa',modelId:'model-'+i,name:'菜单验证 '+String(i).padStart(2,'0'),contextWindow:128000,maxOutputTokens:4096,supportsImages:false,supportsThinking:false,supportsTools:true}));await window.lyra.settings.save({...s,providers:[{id:'qa',name:'菜单验证',api:'anthropic-messages',baseUrl:'http://127.0.0.1:9',apiKey:'test',enabled:true,models}],defaultModelId:'qa/model-0'})})()`);
-	const selector = '[aria-label="选择模型"]';
+	const selector = '[role="menu"][aria-label="选择模型"]';
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
 		// Protocol GC failures carry no JavaScript stack; record the pending operation in CI.
 		const phase = (step: string) => t.diagnostic(`${theme}/${width}: ${step}`);

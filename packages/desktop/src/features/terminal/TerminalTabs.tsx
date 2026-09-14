@@ -73,6 +73,7 @@ export function TerminalTabs() {
 			{/* 滚、渐隐、两头的方向键，都在这一个壳里——见 `Sideways`。 */}
 			<Sideways
 				trackRef={strip}
+				outerClassName="flex-1"
 				className="flex min-w-0 items-center gap-0.5 overflow-x-auto"
 			>
 				{tabs.map((tab) => {
