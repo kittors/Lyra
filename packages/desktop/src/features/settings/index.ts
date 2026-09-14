@@ -14,6 +14,7 @@ export { GhostButton, Toggle } from "./controls.tsx";
 export { TextInput, InlineSelect } from "./inputs.tsx";
 export { NumberField, TimeField } from "./pickers.tsx";
 export { applyAppearance, watchSystemTheme } from "./theme.ts";
+export { loadSelectedFonts, syncImportedUiFont } from "./imported-fonts.ts";
 
 /*
  * 顶层视图不在这张表上。
