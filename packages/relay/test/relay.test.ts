@@ -63,6 +63,11 @@ function client(room: string, role: "host" | "guest" | "desktop" | "mobile", por
 		ready,
 		send: (text: string) => socket.send(text),
 		close: () => socket.close(),
+		/**
+		 * 只结束读端：发一个 FIN、不发 WebSocket close 帧——模拟移动端切后台时
+		 * 操作系统收走 socket 的样子。`ws` 的 close() 做的事比这多，测不到这条路径。
+		 */
+		end: () => socket.terminate(),
 		/** Wait until `predicate` holds over what has arrived, or fail saying what did. */
 		async until(predicate: (lines: string[]) => boolean, what: string) {
 			for (let i = 0; i < 60; i++) {
@@ -305,3 +310,92 @@ test("限流只挡新房间，已经在房里的两端不受影响", async () =>
 		own.kill();
 	}
 });
+
+test("对端只送 FIN 也会腾出房间，后来的连接不再 room-full", async () => {
+	/*
+	 * 半开连接是这次修复的起点：移动端切后台时操作系统收走 socket，经常只送一个
+	 * FIN——服务端看到 `end` 而不是 `close`。旧代码只监听 `close`，于是 socket 停在
+	 * CLOSE_WAIT，幽灵成员占着座位，同令牌的重连一律 `room-full`。
+	 */
+	const port = PORT + 2;
+	const own = spawn(process.execPath, [SERVER], {
+		env: { ...process.env, PORT: String(port) },
+		stdio: "pipe",
+	});
+
+	try {
+		await listening(own);
+		const room = roomFor("half-close");
+		const ghost = client(room, "host", port);
+		await ghost.ready;
+		await ghost.until((lines) => lines.some((l) => l.includes("waiting")), "waiting");
+
+		// 直接断掉 TCP，不给 WebSocket 关闭帧——移动端切后台时操作系统的做法。
+		ghost.end();
+
+		// 幽灵走了以后，同一个房间能再进人。
+		const next = client(room, "host", port);
+		await next.ready;
+		await next.until(
+			(lines) => lines.some((l) => l.includes("waiting")) || lines.some((l) => l.includes("ready")),
+			"重新进房",
+		);
+		next.close();
+	} finally {
+		own.kill();
+	}
+});
+
+test("一声不吭的幽灵成员会被 idle 清理，房间腾给重连的真设备", async () => {
+	/*
+	 * 另一种失联：连 FIN 都没有。对端进程没了，TCP 却还 ESTABLISHED——服务端永远收
+	 * 不到 `close` 也收不到 `end`。idle 巡查是唯一的出口：心跳三倍宽的窗口里一帧
+	 * 都没来的成员，请出去。
+	 *
+	 * idle 窗口用环境变量压到 400ms，这条测试才可能在亚秒级跑完。断言不打在
+	 * `peer-left` 上：巡查对两个成员一视同仁（这条测试的 client 都没有心跳），
+	 * 全体清空时没有人留下来收 `peer-left`。看 /health 的房间数——回落即腾空。
+	 */
+	const port = PORT + 3;
+	const own = spawn(process.execPath, [SERVER], {
+		env: { ...process.env, PORT: String(port), LYRA_MEMBER_IDLE_MS: "400" },
+		stdio: "pipe",
+	});
+
+	try {
+		await listening(own);
+		const room = roomFor("silent-ghost");
+
+		// 真设备先在房里等着。
+		const real = client(room, "guest", port);
+		await real.ready;
+		await real.until((lines) => lines.some((l) => l.includes("waiting")), "waiting");
+
+		// 幽灵进来占座，然后一声不吭。
+		const ghost = client(room, "host", port);
+		await ghost.ready;
+		await real.until((lines) => lines.some((l) => l.includes("ready")), "ready");
+		assert.equal(await roomCount(port), 1, "两人在场，应恰有一个房间");
+
+		// 不发心跳（这条测试的 client 本来就没有 heartbeat），等巡查把双方请出去。
+		for (let i = 0; i < 100 && (await roomCount(port)) > 0; i++) {
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		assert.equal(await roomCount(port), 0, "没人发帧，房间应在 idle 后被清空");
+
+		// 房间腾空了，重连的真设备能再进来。
+		const back = client(room, "host", port);
+		await back.ready;
+		await back.until((lines) => lines.some((l) => l.includes("waiting")), "重新进房");
+		back.close();
+	} finally {
+		own.kill();
+	}
+});
+
+/** `GET /health` 里的 `rooms`——巡查效果的观测口。 */
+async function roomCount(port: number): Promise<number> {
+	const response = await fetch(`http://127.0.0.1:${port}/health`);
+	const body = (await response.json()) as { rooms: number };
+	return body.rooms;
+}
