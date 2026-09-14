@@ -24,7 +24,7 @@ import { MenuBody, MenuItem } from "../../ui/overlay/Menu.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner, StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { bridge } from "../../services/index.ts";
 
 interface ReleaseModalProps {
@@ -204,7 +204,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 				<Scroller className="h-[min(520px,calc(85dvh-132px))] min-h-0" contentClassName="p-5 space-y-4">
 					{loading && (
 						<div className="flex items-center justify-center py-12">
-							<Spinner size={20} className="text-ink-faint" />
+							<ActionSpinner size={20} className="text-ink-faint" />
 						</div>
 					)}
 
@@ -342,7 +342,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 											{previewMode ? <Edit3 size={14} /> : <Eye size={14} />}
 										</button>
 										<button type="button" onClick={() => void handleGenerateNotes(notesLang, true)} disabled={generatingNotes} aria-label={t("release.regenerateNotes")} data-ly-tip={t("resume.regenerate")} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50">
-											{generatingNotes ? <Spinner size={14} /> : <RefreshCw size={14} />}
+											{generatingNotes ? <ActionSpinner size={14} /> : <RefreshCw size={14} />}
 										</button>
 									</div>
 								</div>
@@ -379,7 +379,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 										className="grid h-6 w-6 place-items-center rounded-md border border-line bg-card text-ink hover:bg-card-hover transition-colors cursor-pointer disabled:opacity-50"
 									>
 										{triggeringDryRun ? (
-											<Spinner size={11} className="text-ink-muted" />
+											<ActionSpinner size={11} className="text-ink-muted" />
 										) : (
 											<Play size={11} strokeWidth={2.2} className="text-accent" aria-hidden />
 										)}
@@ -388,7 +388,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 
 								{dryRunNotice && !dryRunStatus && (
 									<div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-detail text-primary">
-										<Spinner size={13} />
+										<ActionSpinner size={13} />
 										<span>{dryRunNotice}</span>
 									</div>
 								)}
@@ -433,7 +433,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 																<XCircle size={12} className="text-rose-500 shrink-0" />
 															)
 														) : (
-															<Spinner size={12} className="text-amber-500" />
+															<StatusSpinner size={12} className="text-amber-500" />
 														)}
 														<span className="truncate">{job.name}</span>
 													</div>
@@ -475,7 +475,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 								className="grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
 							>
 								{publishing ? (
-									<Spinner size={13} />
+									<ActionSpinner size={13} onFill />
 								) : (
 									<Rocket size={14} strokeWidth={1.9} aria-hidden />
 								)}

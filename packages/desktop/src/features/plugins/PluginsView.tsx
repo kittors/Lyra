@@ -22,7 +22,7 @@
 import type { BundleKind, Skill } from "@lyra/core";
 import { Blocks, Cable, Plus, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
@@ -260,7 +260,7 @@ export function PluginsView() {
 
 				<div className="no-drag flex items-center gap-1">
 					<HeaderButton label={t("market.reload")} onClick={catalog.refresh}>
-						{catalog.loading ? <Spinner size={13.5} /> : <RefreshCw size={13.5} strokeWidth={1.8} />}
+						{catalog.loading ? <ActionSpinner size={13.5} /> : <RefreshCw size={13.5} strokeWidth={1.8} />}
 					</HeaderButton>
 					<HeaderButton
 						label={tab === "mcp" ? t("market.mcpSettings") : t("market.pluginSettings")}

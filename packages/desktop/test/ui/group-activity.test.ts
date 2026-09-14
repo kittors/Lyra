@@ -12,7 +12,8 @@ test("group loading only exists while collapsed and returns to the count when wo
 	try {
 		assert.equal(view.host.childElementCount, 0);
 		await view.rerender(h(GroupActivity, { ...props, collapsed: true }));
-		assert.equal(view.all("svg.ly-star").length, 1);
+		// 折叠的分组头上顶掉的是一个计数，不是一列状态里的一格——所以这里是动作那个记号。
+		assert.equal(view.all("svg.ly-arc").length, 1);
 		assert.ok(view.host.querySelector('[aria-label="1 个会话正在执行"]'));
 		assert.equal(view.text(), "");
 		await view.rerender(h(GroupActivity, { ...props, collapsed: false }));

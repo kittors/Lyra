@@ -8,15 +8,19 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Check } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import type { TodoItem } from "@lyra/core";
 
 export /**
  * Three states, three marks, all on the same 13px grid so the column of them stays a column.
  *
- * 正在跑的那一步用的就是全应用那一个 `Spinner`，不是照它的样子再画一个——这里原先自己描了一段
- * 圆弧，跟它想模仿的那个 spinner 只是碰巧长得像，后者换了形状它还留在原地。等待中是一圈虚线：
- * 在，但显然还没开始，实线轮廓读起来不是这个意思。
+ * 正在跑的那一步用的就是 `StatusSpinner`，不是照它的样子再画一个——这里原先自己描了一段圆弧，
+ * 跟它想模仿的那个记号只是碰巧长得像，后者换了形状它还留在原地。等待中是一圈虚线：在，但显然
+ * 还没开始，实线轮廓读起来不是这个意思。
+ *
+ * 于是这一列里有两圈虚线：正在跑的那个亮蓝、在转，还没开始的那个淡灰、不动。跑起来分得开，关掉
+ * 动效就不行了——所以 `loading.css` 里让 `StatusSpinner` 停下来时变成实线，虚的那个仍然只表示
+ * 「还没开始」。改这里的记号之前先看那一段。
  */
 function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?: boolean; failed?: boolean }) {
 	if (status === "completed") {
@@ -44,7 +48,7 @@ function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?:
 		);
 	}
 	if (status === "in_progress") {
-		return <Spinner size={13} className="text-accent" />;
+		return <StatusSpinner size={13} className="text-accent" />;
 	}
 	return (
 		<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center">

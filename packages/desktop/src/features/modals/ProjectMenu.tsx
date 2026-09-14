@@ -1,6 +1,6 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Archive, ArrowRight, Check, FolderOpen, GitBranch, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -160,7 +160,7 @@ export function ProjectMenu({
 							disabled={busy || !draft.trim()}
 							className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
 						>
-							{busy ? <Spinner size={12} /> : worktree ? <GitBranch size={13} strokeWidth={2} aria-hidden /> : <Check size={13} strokeWidth={2.2} aria-hidden />}
+							{busy ? <ActionSpinner size={12} /> : worktree ? <GitBranch size={13} strokeWidth={2} aria-hidden /> : <Check size={13} strokeWidth={2.2} aria-hidden />}
 						</button>
 					</div>
 				</form>

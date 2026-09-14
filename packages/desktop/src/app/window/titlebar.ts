@@ -49,6 +49,23 @@ export interface TitlebarInsets {
 	end: number;
 }
 
+/**
+ * 这个平台的窗口顶上要不要单独一条 header。
+ *
+ * macOS 不要。那里的红绿灯在左上角，面板的第一行本身就是窗口的顶行——标题栏和红绿灯在同一条线
+ * 上，一行当两行用。这是刻意的：单开一行等于把 44px 花两遍，一次给 toolbar，一次给它底下的面板
+ * 标题，还把按钮和它们操作的面板分到了两行上。
+ *
+ * Windows 和 Linux 要。那里的最小化/最大化/关闭在**右上角**，正压在面板自己的控件上——让开之后
+ * 面板的标题栏右端被系统切掉一块，而左上角只剩一个孤零零浮着的侧边栏开关。一条横贯的 header 把
+ * 这两头收进同一条带子里：开关在左端，系统按钮在右端，面板整体下移，不再和窗口抢那一行。
+ *
+ * 手机上不是窗口，没有任何一端需要让。
+ */
+export function hasHeaderBar(platform: string, windowed = true): boolean {
+	return windowed && platform !== "darwin";
+}
+
 export function titlebarInsets(
 	platform: string,
 	nativeFullScreen: boolean,

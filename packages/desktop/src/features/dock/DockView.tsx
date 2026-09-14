@@ -47,8 +47,58 @@ const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
  * pane in that corner drew its title over the one control that would have undone the thing that
  * put it there.
  */
-function cornerReserved(start: number): number {
+export function cornerReserved(start: number): number {
 	return toolbarReserved(start) - HEADER_PAD - 1;
+}
+
+/**
+ * Which pane, if any, has to make room for what is drawn over the window's top-left corner.
+ *
+ * Split out of the component because it is the whole of a rule that was wrong in one case and
+ * could not be tested where it was — see `test/ui/dock-corner.test.ts`.
+ *
+ * With the sidebar open the answer is none: the sidebar covers that corner and draws the inset
+ * itself. Closed, the corner belongs to whichever pane is drawn at the very top-left, and only
+ * that one.
+ *
+ * **Native full screen does not excuse anything.** It used to: the reasoning was that macOS takes
+ * the traffic lights away in full screen, so the corner is free. The lights are not the only thing
+ * up there — the sidebar toggle is this app's own button, it stays through full screen, and with
+ * the sidebar closed it is the only way back. Excused, the pane at the origin drew its title strip
+ * from x=0 and the toggle landed on top of it: the terminal's first tab was unreadable and the
+ * button underneath looked like it had gone. What full screen changes is only *how much* room is
+ * needed, and that is already handled — `titlebarInsets` drops `start` from 78 to 12, so
+ * `cornerReserved` asks for the toggle's width and nothing more.
+ */
+export function cornerPane({
+	headerBar,
+	navOpen,
+	compact,
+	focusedPane,
+	origin,
+}: {
+	/**
+	 * Windows 和 Linux 顶上那条 header。
+	 *
+	 * 有它的时候没有任何面板需要让位：窗口的两端都收进那条带子里了，面板整体从它底下开始，根本
+	 * 碰不到窗口的顶行。这是它值那 44px 的地方——让位是每个面板各让各的，一条 header 是让一次。
+	 */
+	headerBar: boolean;
+	navOpen: boolean;
+	compact: boolean;
+	/**
+	 * The narrow layout shows one pane over the whole dock, so that pane is the corner — always,
+	 * rather than only when it happens to be laid out at the origin. It used to be excluded on the
+	 * assumption that the sidebar covers the corner, which is true at every width except this one:
+	 * here the sidebar is a drawer over the window, and with it closed the pane's own title started
+	 * underneath the buttons the system paints there.
+	 */
+	focusedPane: PaneKind | null;
+	/** The pane actually drawn at the origin, which full screen changes without touching the tree. */
+	origin: PaneKind | null;
+}): PaneKind | null {
+	if (headerBar || navOpen) return null;
+	return compact ? focusedPane : origin;
 }
 
 export function DockView({
@@ -80,7 +130,7 @@ export function DockView({
 	const tree = useDock((s) => s.tree);
 	const focusedPane = useDock((s) => s.focused);
 	const maximized = useDock((s) => s.maximized);
-	const { compact, navOpen, nativeFullScreen, titlebar, width: windowWidth } = useLayout();
+	const { compact, navOpen, headerBar, titlebar, width: windowWidth } = useLayout();
 	const { drawn: sidebarDrawn } = useSidebarFit();
 	const definitions = usePanelDefinitions();
 
@@ -267,11 +317,10 @@ export function DockView({
 	};
 
 	/*
-	 * Which pane, if any, has to make room for the traffic lights.
+	 * Which pane, if any, has to make room for what sits in the window's top-left corner.
 	 *
-	 * With the sidebar open — which is almost always — the answer is none: the sidebar covers that
-	 * corner and draws the lights' inset itself. Closed, the corner belongs to whichever pane is at
-	 * the very top-left, and only that one. Native full screen takes the lights away entirely.
+	 * The rule itself is `cornerPane` above, where it can be tested. This is the part that has to
+	 * live here: working out which pane is *drawn* at the origin, which is not what the tree says.
 	 *
 	 * This is the whole of what used to be a delayed handover of the window's own buttons between
 	 * the toolbar and the panel — 220ms of it, timed to a slide. A pane either starts at the
@@ -285,20 +334,13 @@ export function DockView({
 	 * there. `focusBox` is the same function the layout below uses, so the two cannot disagree.
 	 */
 	const at = (box: Box & { kind: PaneKind }) => focusBox(box.kind) ?? box;
-	const corner =
-		navOpen || nativeFullScreen
-			? null
-			: compact
-				? /*
-					 * The narrow layout shows one pane over the whole dock, so that pane is the corner
-					 * — always, rather than only when it happens to be laid out at the origin. It used
-					 * to be excluded here on the assumption that the sidebar covers the corner, which
-					 * is true at every width except this one: at this width the sidebar is a drawer
-					 * over the window, and with it closed the pane's own title started underneath the
-					 * three buttons the system paints there.
-					 */
-					focusedPane
-				: (boxes.find((box) => at(box).left === 0 && at(box).top === 0)?.kind ?? null);
+	const corner = cornerPane({
+		headerBar,
+		navOpen,
+		compact,
+		focusedPane,
+		origin: boxes.find((box) => at(box).left === 0 && at(box).top === 0)?.kind ?? null,
+	});
 
 	/*
 	 * And which pane has to make room for the buttons at the *other* end.
@@ -316,7 +358,7 @@ export function DockView({
 	 * edges whatever the tree says about it.
 	 */
 	const endCorner =
-		titlebar.end === 0
+		headerBar || titlebar.end === 0
 			? null
 			: compact
 				? focusedPane

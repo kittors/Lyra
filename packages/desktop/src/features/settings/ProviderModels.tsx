@@ -12,7 +12,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Activity, Check, CircleAlert, CloudDownload, Link2, Pencil, Play, Plus, Trash2 } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -77,7 +77,7 @@ export function ProviderModels({
 							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50 cursor-pointer"
 						>
 							{fetchingModels ? (
-								<Spinner size={13} className="text-accent" />
+								<ActionSpinner size={13} className="text-accent" />
 							) : (
 								<CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />
 							)}
@@ -87,7 +87,7 @@ export function ProviderModels({
 						onClick={onTest}
 						disabled={testing || !!testingModelId || fetchingModels}
 						title={testing ? t("providerModels.testing") : t("providerModels.testAll")}
-						icon={testing ? <Spinner size={13} /> : <Activity size={13} strokeWidth={1.9} />}
+						icon={testing ? <ActionSpinner size={13} /> : <Activity size={13} strokeWidth={1.9} />}
 					/>
 				</div>
 			</div>
@@ -117,10 +117,13 @@ export function ProviderModels({
 				<button
 					type="button"
 					onClick={() => onEdit(null)}
-					className="grid place-items-center h-[38px] rounded-[10px] border border-line text-label text-ink-muted transition-colors hover:border-ink-faint hover:text-ink cursor-pointer w-[38px]"
-			data-ly-tip={translate("providerModels.add")}
-			aria-label={translate("providerModels.add")}
-		><Plus size={14} strokeWidth={1.9} /></button>
+					className="flex h-[38px] items-center gap-2 rounded-[10px] border border-line px-3 text-label text-ink-muted transition-colors hover:border-ink-faint hover:text-ink cursor-pointer"
+					data-ly-tip={translate("providerModels.add")}
+					aria-label={translate("providerModels.add")}
+				>
+					<Plus size={14} strokeWidth={1.9} />
+					<span>{translate("providerModels.add")}</span>
+				</button>
 			</div>
 
 			{testResult && <TestOutcome result={testResult} />}
@@ -193,7 +196,7 @@ function ModelRow({
 					}`}
 				>
 					{testing ? (
-						<Spinner size={13} className="text-accent" />
+						<ActionSpinner size={13} className="text-accent" />
 					) : (
 						<Play size={13} strokeWidth={1.9} className="ml-0.5" />
 					)}

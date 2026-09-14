@@ -2,7 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { X } from "lucide-react";
-import { Spinner } from "../motion/loaders.tsx";
+import { ActionSpinner } from "../motion/loaders.tsx";
 
 /**
  * The middle of an empty panel body.
@@ -67,7 +67,7 @@ export function PanelEmpty({
 						hovered ? (
 							<X size={13} strokeWidth={2.2} />
 						) : (
-							<Spinner size={13} />
+							<ActionSpinner size={13} />
 						)
 					) : (
 						<>{ActionIcon && <ActionIcon size={13} strokeWidth={1.8} />}{action.label}</>

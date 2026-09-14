@@ -10,7 +10,7 @@ import { Check, Languages, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { ComposerSend, ComposerShell } from "../composer/index.ts";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { bridge } from "../../services/index.ts";
 import {
@@ -88,7 +88,7 @@ export function CommitComposer({
 							onClick={() => void generate()}
 							className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
 						>
-							{generating ? <Spinner size={15} /> : <Wand2 size={16} strokeWidth={1.9} />}
+							{generating ? <ActionSpinner size={15} /> : <Wand2 size={16} strokeWidth={1.9} />}
 						</button>
 						<button
 							type="button"

@@ -42,8 +42,8 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 				 * 上最宽的那圈仍然让得开行距，而核心——一眼真正读到的就是它——保持着其余状态那些点
 				 * 的大小。
 				 *
-				 * 这一处没有跟着换成全应用那个射线记号：一列会话可能同时好几行在跑，而这一列还要
-				 * 用来读标题。射线并排三四个各自明灭，读标题时旁边总有东西在闪。
+				 * 这一处没有跟着换成 `StatusSpinner`：一列会话可能同时好几行在跑，而这一列还要用来
+				 * 读标题。并排三四个各自在转，读标题时旁边总有东西在动。
 				 */
 				<BreatheLoader size={12} />
 			) : activity === "waiting" ? (

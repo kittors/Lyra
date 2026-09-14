@@ -14,7 +14,7 @@
  */
 
 import { Download, ExternalLink, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 
 import { useApp } from "../../store/index.ts";
 import type { Info } from "../update/index.ts";
@@ -32,8 +32,8 @@ import { bridge } from "../../services/index.ts";
  * 一档（还没开始下载）落到 `Download`，正好是默认分支的那个词。
  */
 const CONFIRM_GLYPH: Partial<Record<Phase["at"], React.ReactNode>> = {
-	downloading: <Spinner size={13} />,
-	preparing: <Spinner size={13} />,
+	downloading: <ActionSpinner size={13} onFill />,
+	preparing: <ActionSpinner size={13} onFill />,
 	paused: <Play size={13} strokeWidth={2.2} fill="currentColor" aria-hidden />,
 	ready: <RotateCcw size={13} strokeWidth={2} aria-hidden />,
 	failed: <RotateCcw size={13} strokeWidth={2} aria-hidden />,

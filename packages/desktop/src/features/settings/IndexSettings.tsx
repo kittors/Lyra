@@ -1,6 +1,6 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Database, RefreshCw, Search } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
@@ -78,7 +78,7 @@ export function IndexSettings() {
 										}
 									}}
 									title={building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
-									icon={building ? <Spinner size={11} /> : <RefreshCw size={11} strokeWidth={2} />}
+									icon={building ? <ActionSpinner size={11} /> : <RefreshCw size={11} strokeWidth={2} />}
 								/>
 							}
 						/>

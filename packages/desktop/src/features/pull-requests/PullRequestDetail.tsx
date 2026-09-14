@@ -7,8 +7,8 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { Bot, ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, RefreshCw } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { Bot, ExternalLink, GitPullRequest, Maximize2, Minimize2, RefreshCw } from "lucide-react";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { relativeTime } from "../../lib/relative-time.ts";
@@ -141,30 +141,16 @@ export function PullRequestDetail({
 					</IconAction>
 
 					{/*
-					 * Chat and review, in that order, then expand at the very end.
-					 *
-					 * Both open the same thing — the app's own conversation window — and differ only in
-					 * what they put in the composer: 聊天 leaves a question to edit, 让 Agent 审查 leaves
-					 * the review request. Expand is last because it is about this pane rather than about
-					 * the pull request, and because that is where the eye looks for it.
+					 * 让 Agent 审查: opens conversation with the review prompt pre-filled in composer.
 					 */}
-					<button
-						type="button"
-						data-ly-tip={t("prDetail.chat")}
-						aria-label={t("prDetail.chat")}
-						onClick={() => onOpenChat(detail, "ask")}
-						className="ml-1 grid h-[26px] w-[26px] place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-					>
-						<MessagesSquare size={12.5} strokeWidth={1.8} aria-hidden />
-					</button>
 					<button
 						type="button"
 						data-ly-tip={t("prDetail.askAgent")}
 						aria-label={t("prDetail.askAgent")}
 						onClick={() => onOpenChat(detail, "review")}
-						className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-line text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
+						className="ml-1 grid h-[26px] w-[26px] place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 					>
-						<Bot size={12.5} strokeWidth={1.8} aria-hidden />
+						<Bot size={13} strokeWidth={1.8} aria-hidden />
 					</button>
 					<IconAction label={t(expanded ? "prDetail.showList" : "prDetail.fillWidth")} onClick={onToggleExpanded}>
 						{expanded ? <Minimize2 size={13} strokeWidth={1.9} /> : <Maximize2 size={13} strokeWidth={1.9} />}
@@ -274,8 +260,8 @@ function IconAction({
 			onClick={onClick}
 			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 		>
-			{/* 忙的时候整个换成 spinner，而不是把这个按钮自己的图标转起来。 */}
-			{spinning ? <Spinner size={13.5} /> : children}
+			{/* 忙的时候整个换成那个亮弧，而不是把这个按钮自己的图标转起来。 */}
+			{spinning ? <ActionSpinner size={13.5} /> : children}
 		</button>
 	);
 }

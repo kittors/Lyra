@@ -71,7 +71,7 @@ export const zhCN = {
 	"general.retryDetail": "模型请求因网络中断失败时的重试次数（含首次）。中继或代理不稳时可以调高；设为 1 则失败立即报错。已经开始输出的回答不会重试。",
 	"general.bottomPanel": "底部面板",
 	"general.bottomPanelDetail": "在会话底部显示用量与状态信息",
-	"general.platform": "平台",
+	"general.keepAwake": "运行期间不让电脑休眠", "general.keepAwakeDetail": "Lyra 开着的时候不息屏、不因为闲置而休眠，长任务跑一夜也不会中断。合盖仍然会睡——两个系统的合盖动作都由系统电源策略决定，应用改不了。", "general.platform": "平台",
 	"general.platformDetail": "当前运行环境",
 	"thinking.off": "关",
 	"thinking.minimal": "极简",

@@ -1,7 +1,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { FolderGit2, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./controls.tsx";
@@ -195,7 +195,7 @@ export function WorktreesSettings() {
 					disabled={refreshing}
 					className="grid h-6 w-6 place-items-center rounded text-ink-muted hover:text-ink"
 				>
-					{refreshing ? <Spinner size={12} /> : <RefreshCw size={12} aria-hidden />}
+					{refreshing ? <ActionSpinner size={12} /> : <RefreshCw size={12} aria-hidden />}
 				</button>
 			</div>
 			{worktrees.length === 0 ? (

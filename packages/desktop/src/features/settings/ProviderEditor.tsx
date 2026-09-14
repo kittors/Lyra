@@ -17,7 +17,7 @@ import { Pencil, Power, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { Badge, Field, GhostButton, SecretInput, Select, TextInput } from "./controls.tsx";
+import { Badge, Field, SecretInput, Select, TextInput } from "./controls.tsx";
 import { ProviderModels } from "./ProviderModels.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 
@@ -187,11 +187,15 @@ function ProviderHeading({
 			 * 按钮说的是**按下去会变成什么**，两句话方向相反，摆在一起本来就容易读反。现在一个说
 			 * 状态、一个是符号，悬停才给出动词。
 			 */}
-			<GhostButton
-				icon={<Power size={13} strokeWidth={1.9} />}
-				title={t(provider.enabled ? "provider.disable" : "provider.enable")}
+			<button
+				type="button"
+				data-ly-tip={t(provider.enabled ? "provider.disable" : "provider.enable")}
+				aria-label={t(provider.enabled ? "provider.disable" : "provider.enable")}
 				onClick={() => onChange({ enabled: !provider.enabled })}
-			/>
+				className="grid h-[26px] w-[26px] place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
+			>
+				<Power size={13} strokeWidth={1.9} />
+			</button>
 
 			<div className="flex-1" />
 			<button

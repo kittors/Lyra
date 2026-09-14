@@ -52,7 +52,7 @@ export function Sidebar() {
 	 * behind it also has to get out of the way. Pushed, `dismissNav` does nothing and the
 	 * sidebar stays where the user put it.
 	 */
-	const { compact, dismissNav } = useLayout();
+	const { compact, headerBar, dismissNav } = useLayout();
 
 	const [query, setQuery] = useState("");
 	const [searching, setSearching] = useState(false);
@@ -247,7 +247,13 @@ export function Sidebar() {
 			 */
 			style={{ "--ly-rail": `${rail}px` } as React.CSSProperties}
 		>
-			<div className="h-[44px] shrink-0" />
+			{/*
+			 * 给窗口顶上那一行让出的空当。
+			 *
+			 * macOS 才有：红绿灯画在侧边栏的左上角，侧边栏自己的内容得从它们下面开始。Windows 和 Linux
+			 * 那条 header 已经把整行占走了，侧边栏从 header 底下开始，再留一次就是 88px 的空白。
+			 */}
+			{!headerBar && <div className="h-[44px] shrink-0" />}
 
 			<SidebarHead searching={searching} query={query} onQuery={setQuery} onToggleSearch={toggleSearch} />
 

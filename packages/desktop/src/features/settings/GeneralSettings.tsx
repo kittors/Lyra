@@ -201,6 +201,23 @@ export function GeneralSettings() {
           }
         />
         <Row
+          title={t("general.keepAwake")}
+          /*
+           * 说明里写明合盖不算，而不是让人自己发现。
+           *
+           * 两个平台的合盖动作都不归应用管——macOS 的 clamshell sleep 要 `pmset disablesleep`，
+           * Windows 是电源计划里的 LIDACTION，都要特权。一个开关不该替人改系统电源策略：那是退出
+           * 应用之后还留在机器上的事。说清楚它保证什么、不保证什么，比含糊地承诺「不会睡」强。
+           */
+          detail={t("general.keepAwakeDetail")}
+          control={
+            <Toggle
+              checked={settings.keepAwake === true}
+              onChange={(keepAwake) => patch({ keepAwake })}
+            />
+          }
+        />
+        <Row
 			title={t("general.platform")}
 			detail={t("general.platformDetail")}
           control={

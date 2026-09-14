@@ -22,7 +22,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { ArrowUp, Download, FolderOpen, MoreHorizontal, Play, Settings2, Trash2 } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -161,7 +161,7 @@ export function CatalogCard({
 									className="grid place-items-center pointer-events-auto h-[26px] rounded-lg bg-accent/12 text-detail font-medium text-accent transition-opacity duration-[var(--ly-t-quick)] hover:opacity-80 disabled:opacity-50 w-[26px]"
 			aria-label={t("common.update")}
 		>{act.busy === "update" ? (
-										<Spinner size={11.5} />
+										<ActionSpinner size={11.5} />
 									) : (
 										<ArrowUp size={11.5} strokeWidth={2.2} />
 									)}</button>
@@ -179,7 +179,7 @@ export function CatalogCard({
 									className="pointer-events-auto flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/card:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
 								>
 									{act.busy === "uninstall" ? (
-										<Spinner size={13} />
+										<ActionSpinner size={13} />
 									) : (
 										<MoreHorizontal size={15} strokeWidth={1.9} />
 									)}
@@ -194,7 +194,7 @@ export function CatalogCard({
 			data-ly-tip={t("common.install")}
 			aria-label={t("common.install")}
 		>{act.busy === "install" ? (
-											<Spinner size={11.5} />
+											<ActionSpinner size={11.5} />
 										) : (
 											<Download size={11.5} strokeWidth={1.9} />
 										)}</button>

@@ -16,7 +16,7 @@ import { CARRY_ON_PROMPTS, carryOnPrompt } from "../../store/derive.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import { ChevronRight, CircleAlert, CircleCheck, Play, Settings2 } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
 import { useApp } from "../../store/index.ts";
 
@@ -136,7 +136,7 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
  */
 function Icon({ outcome }: { outcome: Hiccup["outcome"] }) {
 	if (outcome === "waiting") {
-		return <Spinner size={13} className="text-ink-faint" />;
+		return <StatusSpinner size={13} className="text-ink-faint" />;
 	}
 	if (outcome === "recovered") {
 		return <CircleCheck size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />;

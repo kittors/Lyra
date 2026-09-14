@@ -18,7 +18,7 @@ import { InputMenu } from "../features/composer/index.ts";
 import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
-import { DragBand, PanelMenu, WindowButtons } from "./window/WindowToolbar.tsx";
+import { DragBand, PanelMenu, WindowButtons, WindowHeader } from "./window/WindowToolbar.tsx";
 import { DockView } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
 import { sessionTitle } from "../lib/session-title.ts";
@@ -254,14 +254,14 @@ function LazyScreen({ children, shape = "list" }: { children: React.ReactNode; s
  * 重排换了个方向。
  */
 function SettingsFallback() {
-	const { compact, sidebarWidth } = useLayout();
+	const { compact, headerBar, sidebarWidth } = useLayout();
 	const { t } = useI18n();
 
 	return (
 		<div className="ly-shell relative flex h-full" role="status" aria-label={t("common.loading")}>
 			{!compact && (
 				<div className="ly-sidebar-fill flex h-full shrink-0 flex-col" style={{ width: sidebarWidth }}>
-					<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
+					{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 					<div className="px-2.5 pb-2">
 						<SkeletonBar width="96px" height={11} className="mx-2 my-[10px]" />
 					</div>
@@ -274,7 +274,7 @@ function SettingsFallback() {
 			)}
 
 			<div className="ly-opaque flex min-w-0 flex-1 flex-col">
-				<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
+				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 				<div className={`mx-auto w-full max-w-[900px] ${compact ? "px-4" : "px-9"}`}>
 					{/* 标题、副标题、第一组卡片——每张设置页开头都是这三样。 */}
 					<div className="pt-8">
@@ -346,7 +346,7 @@ function MainContent() {
 function ChatShell({ settings }: { settings: boolean }) {
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const workspace = useApp((s) => s.workspace);
-	const { compact, navOpen, toggleNav, dismissNav } = useLayout();
+	const { compact, navOpen, headerBar, toggleNav, dismissNav } = useLayout();
 	const attach = useSide((s) => s.attach);
 	const { drawn: sidebarDrawn, max: sidebarMax } = useSidebarFit();
 	const main = useMainPane();
@@ -362,11 +362,68 @@ function ChatShell({ settings }: { settings: boolean }) {
 	// one, is not what those keys mean on that screen.
 	useShortcuts({ enabled: !settings, compact, navOpen, activeSessionId, workspace, toggleNav, dismissNav });
 
+	const nav = (
+		<NavPane width={sidebarDrawn} maxWidth={sidebarMax} label={t("app.sidebar")}>
+			<Sidebar />
+		</NavPane>
+	);
+
+	/*
+	 * 面板那一大块，两种外壳共用。
+	 *
+	 * 只抽它，不把侧边栏一起抽进来：macOS 那条路径必须在两者之间插进 `DragBand`，而那个位置是
+	 * 规矩不是风格——见下面它自己的注释。侧边栏只有一行，写两遍换来的是拖拽区的顺序还能读懂。
+	 */
+	const dock = (
+		<main className="ly-opaque relative flex min-w-0 flex-1 flex-col">
+				{/*
+				 * The dock, holding the conversation and every panel alongside it.
+				 *
+				 * On macOS there is no toolbar row above it: the first row of panes *is* the window's
+				 * top row — their title bars are 44px and sit on the traffic lights' line, and the
+				 * controls that used to need a strip of their own ride on the conversation's own title
+				 * bar. A separate row would cost the height twice, once for the toolbar and once for
+				 * the titles under it, and put the buttons on a different line from the panes they act
+				 * on.
+				 *
+				 * Windows and Linux do get that row, and pay those 44px on purpose — see
+				 * `hasHeaderBar`. Their window controls are at the *right*, straight on top of a
+				 * pane's own controls, and the corner at the left held nothing but a floating sidebar
+				 * toggle. One band collects both ends and lets every pane start below it.
+				 */}
+				<DockView
+					title={main.title}
+					icon={main.icon}
+					// No panel controls on a screen the panels do not belong to.
+					actions={main.solo ? undefined : <PanelMenu />}
+					solo={main.solo}
+					renderConversation={() => <MainContent />}
+				/>
+			</main>
+	);
+
+	/*
+	 * Windows 和 Linux：一条横贯的 header，其余的都在它下面。
+	 *
+	 * 这条路径里没有 `DragBand` 也没有 `WindowButtons`——header 自己就是拖拽区，侧边栏开关就在它
+	 * 上面。窗口的两端都收在这一条带子里，于是底下的面板不必再给任何一端让位，`cornerPane` 和
+	 * `insetEnd` 在这里全是 no-op。
+	 */
+	if (headerBar) {
+		return (
+			<div className="ly-shell relative flex h-full flex-col overflow-hidden">
+				<WindowHeader navOpen={navOpen} compact={compact} onToggleNav={toggleNav} />
+				<div className="ly-window-body relative flex min-h-0 flex-1">
+					{nav}
+					{dock}
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="ly-shell relative flex h-full overflow-hidden">
-			<NavPane width={sidebarDrawn} maxWidth={sidebarMax} label={t("app.sidebar")}>
-				<Sidebar />
-			</NavPane>
+			{nav}
 
 			{/*
 			 * The draggable top edge, declared before anything that cuts a hole in it.
@@ -378,32 +435,13 @@ function ChatShell({ settings }: { settings: boolean }) {
 			 * hit test the page can run, and did nothing at all: the press was going to the window
 			 * manager as a drag.
 			 *
-			 * First, therefore. Everything after it — this view's own header, the panel controls,
-			 * the window buttons — is a `no-drag` hole, and holes only stay open if nothing
-			 * re-covers them.
+			 * Before the dock, therefore, and this is why the sidebar is not bundled with it into one
+			 * fragment: everything after this band — the dock's pane titles, the panel controls, the
+			 * window buttons — is a `no-drag` hole, and holes only stay open if nothing re-covers them.
 			 */}
 			<DragBand navOpen={navOpen && !compact} sidebarWidth={sidebarDrawn} />
 
-			<main className="ly-opaque relative flex min-w-0 flex-1 flex-col">
-				{/*
-				 * The dock, holding the conversation and every panel alongside it, up to the window's
-				 * top edge.
-				 *
-				 * There is no toolbar row above it. The first row of panes *is* the window's top row:
-				 * their title bars are 44px and sit on the traffic lights' line, and the controls that
-				 * used to need a strip of their own now ride on the conversation's own title bar. A
-				 * separate row cost the height twice — once for the toolbar, once for the titles under
-				 * it — and put the buttons on a different line from the panes they act on.
-				 */}
-				<DockView
-					title={main.title}
-					icon={main.icon}
-					// No panel controls on a screen the panels do not belong to.
-					actions={main.solo ? undefined : <PanelMenu />}
-					solo={main.solo}
-					renderConversation={() => <MainContent />}
-				/>
-			</main>
+			{dock}
 
 			<WindowButtons navOpen={navOpen} compact={compact} onToggleNav={toggleNav} />
 		</div>

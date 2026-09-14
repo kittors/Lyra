@@ -1,57 +1,74 @@
 /**
- * 「正在忙」的两个记号，以及它们各管哪里。
+ * 「正在忙」的三个记号，以及它们各管哪里。
  *
- * `Spinner` 是通用的那个：按钮里、工具卡上、任务清单的每一步、面板的角上，全应用二十几处都是它。
- * 在这之前那些地方各写各的——任务清单自己描了一段圆弧，其余多半是随手抓一个 lucide 的 `Loader2`
- * 或 `RefreshCw` 套上 `ly-spin` 转起来，同一句话被说成好几种腔调。
+ * 分成两个而不是一个，是因为「正在忙」其实是两句话：
+ *
+ * `StatusSpinner` 说的是**这一条正在跑**。它是某个对象的状态值，出现在一列同族状态记号中间
+ * ——上下左右是 ✓、✗、时钟、待办圆点——同屏可能好几个在跑，你是旁观者。任务清单的每一步、
+ * 流水线的每一行、工具卡的运行中都是它。
+ *
+ * `ActionSpinner` 说的是**你按的那下正在回来**。它顶替的是一个刚被按下的动作图标（刷新、保存、
+ * 下载、发布），或者填在一个刚被清空的角标位上；同屏通常只有一个，你在等它。全应用三十来处
+ * 按钮都是它。
+ *
+ * 判据是可以机械执行的：把这个记号删掉，原地会出现什么。是状态图标就用 `StatusSpinner`，是
+ * 一个可点的动作图标（或一个计数）就用 `ActionSpinner`。`test/ui/loading-consistency.test.ts`
+ * 守着这条。
  *
  * `BreatheLoader` 只在侧栏的会话行上，那一处问的不是同一个问题，见它自己的注释。
  *
- * 两个都不旋转。为什么，以及那些数字是怎么定的，写在 `styles/loading.css` 的 Loading 一节。
+ * 前两个都是 r=10 的描边圆，和 lucide 的 `CheckCircle2`、`XCircle`、`Clock` 精确重合——它们
+ * 就是那一列里的邻居。在这之前这里是一枚八条射线的星芒，一列圆里混一个星，每次都从队列里
+ * 跳出来一次。几何和那些数字怎么定的，写在 `styles/loading.css` 的 Loading 一节。
  */
-
-/** 八条。再多在 12px 上并成一团灰，再少就数得出根数、露出机关。 */
-const RAY_COUNT = 8;
-
-/** 走完一圈的时间。一圈八格，每格 100ms。 */
-const PERIOD_MS = 800;
-
-const RAYS = Array.from({ length: RAY_COUNT }, (_, index) => index);
 
 /**
- * 第 `index` 条射线的动画应当从哪一刻开始。
+ * 一圈虚线，匀速转。
  *
- * 负的 delay 表示「已经跑过这么久了」，于是各条线一上来就分散在周期的不同位置上。倒着数是为了
- * 让亮处顺时针走：`index` 是顺时针排的，delay 若正着递增，最亮的一条会一格一格往回退。
+ * 六段等分，所以转过 60° 就回到自身：没有可追踪的端点，眼睛抓不到锚点。这是它敢转、而一段
+ * 弧不敢的原因——一段弧有头，十几个同时在屏幕上，每一个都在自己的相位上把视线勾一下。
+ *
+ * 颜色走 `currentColor`，默认跟着周围的文字走。要它说话大声一点的地方（任务清单里正在跑的
+ * 那一步、流水线里排队的那一条）自己传 `text-accent`、`text-amber-500`。
  */
-function delayOf(index: number): string {
-	return `${-((RAY_COUNT - index) % RAY_COUNT) * (PERIOD_MS / RAY_COUNT)}ms`;
+export function StatusSpinner({ size = 14, className = "" }: { size?: number; className?: string }) {
+	return (
+		<svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden className={`ly-dash shrink-0 ${className}`}>
+			<circle cx="12" cy="12" r="10" />
+		</svg>
+	);
 }
 
 /**
- * 一圈射线，亮处沿圈走。
+ * 一段亮弧沿着一圈淡轨道跑。
  *
- * 颜色走 `currentColor`，默认跟着周围的文字走——它顶替的是二十几个 lucide 图标，那些图标就是这么
- * 上色的，换成一个自带颜色的东西会让它在按钮里、在状态行里各自跳出来一次。要它说话大声一点的
- * 地方（任务清单里正在跑的那一步、流水线里排队的那一条）自己传 `text-accent`、`text-amber-500`。
+ * 轨道是这个记号的重点，不是装饰：亮弧单独转的话，图形的轮廓跟着弧一起走，在按钮那个方寸
+ * 之间会读成「有东西在里面甩」。垫一圈淡的，形状就恒定是一个完整的圆，动的只有亮处。
  *
- * 几何在 24 的 viewBox 里量：射线从半径 4.4 到 9.6，圆头两端各外扩 1.15。内圈留出的空洞在
- * 相邻两条之间还剩 1px 的缝，是 8 条线不糊成一个实心点的下限。
+ * 轨道浓度走 `--ly-track`，默认 0.18。实心底的按钮（`bg-ink`、`bg-accent`）上 `currentColor`
+ * 是底色的反色，0.18 基本看不见，那几处传 `onFill`——见 `loading.css` 里那一档的注释。
  */
-export function Spinner({ size = 14, className = "" }: { size?: number; className?: string }) {
+export function ActionSpinner({
+	size = 14,
+	className = "",
+	onFill = false,
+}: {
+	size?: number;
+	className?: string;
+	/** 画在实心底的按钮上（`bg-ink` / `bg-accent`），轨道要更浓才看得见。 */
+	onFill?: boolean;
+}) {
 	return (
-		<svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className={`ly-star shrink-0 ${className}`}>
-			{RAYS.map((index) => (
-				<line
-					key={index}
-					x1="12"
-					y1="2.4"
-					x2="12"
-					y2="7.6"
-					transform={`rotate(${index * (360 / RAY_COUNT)} 12 12)`}
-					style={{ animationDelay: delayOf(index) }}
-				/>
-			))}
+		<svg
+			width={size}
+			height={size}
+			viewBox="0 0 24 24"
+			fill="none"
+			aria-hidden
+			className={`ly-arc ${onFill ? "ly-arc--on-fill " : ""}shrink-0 ${className}`}
+		>
+			<circle className="ly-arc-track" cx="12" cy="12" r="10" />
+			<circle className="ly-arc-head" cx="12" cy="12" r="10" />
 		</svg>
 	);
 }
@@ -60,8 +77,8 @@ export function Spinner({ size = 14, className = "" }: { size?: number; classNam
  * 一圈波纹离开静止的中心，颜色一路走过调色板。
  *
  * 给侧栏的会话行。那一列可能同时有好几行在跑，而你还要用它读标题——所以这里连「亮处在走」都不
- * 要：什么都不旋转、什么都不位移，余光里它只是缓缓涨落的一团。换成通用的那个射线记号试过，
- * 一列里并排三四个各自明灭，读标题时总有东西在旁边闪。
+ * 要：什么都不旋转、什么都不位移，余光里它只是缓缓涨落的一团。换成上面那两个试过，一列里并排
+ * 三四个各自明灭，读标题时总有东西在旁边闪。
  *
  * 颜色走完 accent → info → violet 的那 2.4 秒，是它说「跑了多久」的方式：扫一眼知道它活着，
  * 多看一会儿知道它**还**活着，而没有任何东西变快或变响。

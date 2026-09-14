@@ -108,7 +108,7 @@ test("slow MCP startup still creates immediate titled rows, aggregates collapsed
 	assert.equal(await app.evaluate(`!!document.querySelector('[class~="group/project"] > button[aria-expanded="true"] [aria-label*="个会话正在执行"]')`), false);
 	await click('[class~="group/project"] > button[aria-expanded]');
 	await frames(20);
-	const group = await app.evaluate<{ expanded: string; label: string; hasSpinner: boolean }>(`(()=>{const b=document.querySelector('[class~="group/project"] > button[aria-expanded]');const status=b.querySelector('[aria-label*="个会话正在执行"]');return {expanded:b.getAttribute('aria-expanded'),label:status?.getAttribute('aria-label'),hasSpinner:!!status?.querySelector('svg.ly-star')};})()`);
+	const group = await app.evaluate<{ expanded: string; label: string; hasSpinner: boolean }>(`(()=>{const b=document.querySelector('[class~="group/project"] > button[aria-expanded]');const status=b.querySelector('[aria-label*="个会话正在执行"]');return {expanded:b.getAttribute('aria-expanded'),label:status?.getAttribute('aria-label'),hasSpinner:!!status?.querySelector('svg.ly-arc')};})()`);
 	assert.equal(group.expanded, "false"); assert.equal(group.label, "1 个会话正在执行"); assert.equal(group.hasSpinner, true);
 	await click('button[aria-label="停止"]');
 	const second = await submit();
@@ -159,7 +159,7 @@ test("collapsed group loading shares the far-right action slot without shifting 
 	assert.ok(completeReply); completeReply();
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=300;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(--n)requestAnimationFrame(read);else reject(new Error('turn did not complete'));};read();})`);
 	await click('[data-qa-running-group]'); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-star')`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-arc')`), false);
 });
 
 async function shot(name: string) {
@@ -178,7 +178,7 @@ while(group&&!group.querySelector(selector))group=group.parentElement;
 if(!group)throw new Error('Running session has no project heading');group.querySelector(selector).setAttribute('data-qa-running-group','');})()`);
 	const heading = '[data-qa-running-group]';
 	assert.equal(await app.evaluate(`document.querySelector(${JSON.stringify(heading)}).getAttribute('aria-expanded')`), "true");
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-star')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-arc')})`), false);
 	await click(heading);
 	// Leave the row so its resting status can occupy the same slot as the hover actions.
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(20);
@@ -204,13 +204,13 @@ return {height:r.height,nameX:name.x,nameWidth:name.width,rightInset:r.right-s.r
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(20);
 	assert.equal((await app.evaluate<Measurement>(measurement)).slotOpacity, 1);
 	await click(heading); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-star')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-arc')})`), false);
 	await shot("group-loading-expanded");
 	const section = '[class~="group/section"]';
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-star')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-arc')})`), false);
 	await click(section); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-star')})`), true);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-arc')})`), true);
 	await click(section); await frames(20);
-	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-star')})`), false);
+	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-arc')})`), false);
 	t.diagnostic(JSON.stringify({ resting, hovered, sampledFrames: samples.length, slotOpacity: samples.map((frame) => frame.slotOpacity), pinnedSection: "collapsed only" }));
 }

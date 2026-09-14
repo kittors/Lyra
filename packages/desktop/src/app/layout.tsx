@@ -19,7 +19,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout-widths.ts";
 import { freezeMotion } from "../ui/motion/freeze.ts";
 import { useDrawerGesture, useKeyboardInset } from "../mobile/useMobileShell.ts";
-import { overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
+import { hasHeaderBar, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
 import { bridge, onPhone } from "../services/index.ts";
 
 /** Below this the sidebar and a readable content column no longer fit side by side. */
@@ -66,6 +66,13 @@ export interface LayoutValue {
 	 * have occupied stays open around nothing.
 	 */
 	nativeFullScreen: boolean;
+	/**
+	 * 窗口顶上有没有一条横贯的 header——Windows 和 Linux 有，macOS 没有。
+	 *
+	 * 有 header 的时候，侧边栏和面板都从它底下开始：两者都不再自己给窗口控件让位，顶部也不再留
+	 * 那 44px 的空当。规则和它的理由在 `hasHeaderBar`。
+	 */
+	headerBar: boolean;
 	/**
 	 * How much of the window's top row the system has taken, at each end.
 	 *
@@ -178,6 +185,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 	useEffect(() => bridge.onFullScreenChange?.(setNativeFullScreen), []);
 
 	const titlebar = useTitlebar(nativeFullScreen);
+	const headerBar = hasHeaderBar(bridge.platform ?? "darwin", !onPhone());
 
 	// Crossing the breakpoint in either direction dismisses the drawer; it is a transient
 	// overlay, and carrying it across a reflow leaves it stranded over the wrong layout.
@@ -214,6 +222,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 			width,
 			navOpen: compact ? drawerOpen : pushOpen,
 			nativeFullScreen,
+			headerBar,
 			titlebar,
 			sidebarWidth,
 			setSidebarWidth,
@@ -230,6 +239,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 			drawerOpen,
 			pushOpen,
 			nativeFullScreen,
+			headerBar,
 			titlebar,
 			sidebarWidth,
 			setSidebarWidth,

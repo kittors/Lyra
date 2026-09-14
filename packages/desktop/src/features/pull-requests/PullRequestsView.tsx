@@ -82,8 +82,17 @@ export function PullRequestsView() {
 			)
 			.catch(() => null);
 
+		const draftText = draftFor(detail, intent, local);
+
 		if (local) {
 			await openWorkspace(local);
+			const state = useApp.getState();
+			const key = state.activeSessionId
+				? state.activeSessionId
+				: state.workspace
+					? `new:project:${state.workspace.path}`
+					: `new:scratch:${state.scratchCwd ?? "general"}`;
+			useApp.getState().setDraft(key, { text: draftText, attachments: [], sessionRefs: [] });
 		} else {
 			// No project: a scratch directory with the pull request's facts written into it.
 			const cwd = await bridge.git
@@ -99,11 +108,16 @@ export function PullRequestsView() {
 					body: detail.body,
 				})
 				.catch(() => null);
-			useApp.setState({ workspace: null, scratchCwd: cwd });
+
+			await newSession();
+			if (cwd) {
+				useApp.setState({ workspace: null, scratchCwd: cwd });
+			}
+			const key = `new:scratch:${cwd ?? useApp.getState().scratchCwd ?? "general"}`;
+			useApp.getState().setDraft(key, { text: draftText, attachments: [], sessionRefs: [] });
 		}
 
-		await newSession();
-		setComposerDraft(draftFor(detail, intent, local));
+		setComposerDraft(draftText);
 		setView("chat");
 	};
 

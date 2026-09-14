@@ -10,6 +10,7 @@ import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
+import { WindowHeader } from "../../app/window/WindowToolbar.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { DelegationSettings } from "./DelegationSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
@@ -51,7 +52,7 @@ export function SettingsShell() {
 	const wanted = useApp((s) => s.settingsSection);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
-	const { compact, navOpen, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
+	const { compact, navOpen, headerBar, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
 	const [platform, setPlatform] = useState("darwin");
 
 	useEffect(() => {
@@ -77,6 +78,36 @@ export function SettingsShell() {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [compact, navOpen, toggleNav, dismissNav]);
 
+	/*
+	 * 开合章节列表的那颗开关，两条外壳路径共用一个。
+	 *
+	 * 设置页和工作区共用一份 nav 状态：在工作区收起过侧边栏，进设置页它也是收起的。没有这颗按钮
+	 * 就没有回到章节列表的路——窄窗口里则是没有退出抽屉的路。
+	 */
+	const navToggle = (
+		<ToolbarButton
+			label={navOpen ? t("app.hideSettingsNavigation", { shortcut: "⌘B" }) : t("app.showSettingsNavigation", { shortcut: "⌘B" })}
+			onClick={toggleNav}
+			active={compact && navOpen}
+		>
+			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+				<rect x="3" y="4" width="18" height="16" rx="2.5" />
+				<line x1="9.5" y1="4" x2="9.5" y2="20" />
+				<rect
+					x="3"
+					y="4"
+					width="6.5"
+					height="16"
+					rx="2.5"
+					fill="currentColor"
+					stroke="none"
+					className="transition-opacity duration-[var(--ly-t-base)]"
+					opacity={navOpen ? 0.5 : 0}
+				/>
+			</svg>
+		</ToolbarButton>
+	);
+
 	return (
 		/*
 		 * The page is the palest surface here, as it is in the workspace.
@@ -85,11 +116,19 @@ export function SettingsShell() {
 		 * two columns read as one undifferentiated field. The workspace already answers this: the
 		 * nav is tinted and the thing you are working in is the plain page.
 		 */
-		<div className="ly-shell relative flex h-full">
+		<div className={`ly-shell relative flex h-full ${headerBar ? "flex-col" : ""}`}>
+			{/* 有 header 的平台上，窗口的两端都收在这条带子里；没有的平台走下面那条浮动的老路。 */}
+			{headerBar && (
+				<WindowHeader navOpen={navOpen} compact={compact} onToggleNav={toggleNav}>
+					{navToggle}
+				</WindowHeader>
+			)}
+			<div className={headerBar ? "ly-window-body relative flex min-h-0 flex-1" : "contents"}>
 			<NavPane width={sidebarWidth} label={t("app.settingsNavigation")}>
 				{/* Same as the workspace sidebar: separated by its tint, not by a rule. */}
 				<nav className="ly-sidebar-fill flex h-full w-full flex-col">
-					<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
+					{/* 红绿灯那一行的空当。有 header 的平台上这一行已经在 header 里了——见 `hasHeaderBar`。 */}
+					{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 
 					{/*
 					 * Filled on hover, like the section rows below it. The outlined variant used
@@ -153,16 +192,19 @@ export function SettingsShell() {
 								setSection("models");
 								dismissNav();
 							}}
-							className="grid place-items-center h-[36px] w-full rounded-lg border border-dashed border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated"
-			data-ly-tip={t("app.guide")}
-			aria-label={t("app.guide")}
-		><Rocket size={14} strokeWidth={1.8} /></button>
+							className="flex h-[36px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated"
+							data-ly-tip={t("app.guide")}
+							aria-label={t("app.guide")}
+						>
+							<Rocket size={14} strokeWidth={1.8} />
+							<span>{t("app.guide")}</span>
+						</button>
 					</div>
 				</nav>
 			</NavPane>
 
 			<main className="ly-opaque flex min-w-0 flex-1 flex-col">
-				<div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
+				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 				{/*
 				 * Most sections are a column of settings and scroll as one page. A few are
 				 * two-pane layouts whose halves scroll independently — putting those inside a page
@@ -182,38 +224,16 @@ export function SettingsShell() {
 				)} />
 			</main>
 
-			{/* Last child, for the same DOM-order reason as the chat shell's toolbar. */}
-			<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
-				<div className="no-drag absolute top-0 flex items-center gap-0.5" style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}>
-					{/*
-					 * Settings shares the shell's nav state, so a sidebar collapsed in the workspace
-					 * arrives collapsed here too. Without this button there would be no way back to
-					 * the section list — or, in a compact window, out of the drawer.
-					 */}
-					<ToolbarButton
-						label={navOpen ? t("app.hideSettingsNavigation", { shortcut: "⌘B" }) : t("app.showSettingsNavigation", { shortcut: "⌘B" })}
-						onClick={toggleNav}
-						active={compact && navOpen}
-					>
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-							<rect x="3" y="4" width="18" height="16" rx="2.5" />
-							<line x1="9.5" y1="4" x2="9.5" y2="20" />
-							<rect
-								x="3"
-								y="4"
-								width="6.5"
-								height="16"
-								rx="2.5"
-								fill="currentColor"
-								stroke="none"
-								className="transition-opacity duration-[var(--ly-t-base)]"
-								opacity={navOpen ? 0.5 : 0}
-							/>
-						</svg>
-					</ToolbarButton>
-				</div>
-
 			</div>
+
+			{/* Last child, for the same DOM-order reason as the chat shell's toolbar. */}
+			{!headerBar && (
+				<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
+					<div className="no-drag absolute top-0 flex items-center gap-0.5" style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}>
+						{navToggle}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

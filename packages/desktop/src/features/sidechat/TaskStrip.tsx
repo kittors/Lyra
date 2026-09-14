@@ -15,7 +15,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { QueuedTask } from "@lyra/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 
@@ -110,8 +110,8 @@ function TaskRow({ task }: { task: QueuedTask }) {
 			data-ly-tip={`${task.text}\n\n${statusOf(task)}`}
 		>
 			{task.status === "running" ? (
-				// 正在跑的那一条不用图标转圈，用全应用那一个 spinner——这一列里它和任务面板里的同一条是同一件事。
-				<Spinner size={12} className="text-ink-muted" />
+				// 这一列里它和任务面板里的同一条是同一件事，所以用状态那个记号，不是按钮那个。
+				<StatusSpinner size={12} className="text-ink-muted" />
 			) : (
 				<Icon
 					size={12}

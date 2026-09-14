@@ -6,7 +6,7 @@ import { kinds } from "../dock/index.ts";
 import { paneVisible } from "../dock/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { syncPlan, type SyncButton } from "./syncPlan.ts";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 
 import type { GitStatus } from "../../../electron/ipc-types.ts";
 import type { RepoRef } from "../../../electron/git.ts";
@@ -81,7 +81,7 @@ function SyncControl({
 	const { t } = useI18n();
 	const [hovered, setHovered] = useState(false);
 	const label = running ? t("git.cancelAction", { word }) : state.tip;
-	const currentIcon = running ? (hovered ? <X size={12} strokeWidth={2} className="text-ink" /> : <Spinner size={12} />) : icon;
+	const currentIcon = running ? (hovered ? <X size={12} strokeWidth={2} className="text-ink" /> : <ActionSpinner size={12} />) : icon;
 
 	// Words only for the emphasised control, only when it is idle, and only when the row is wide
 	// enough that spelling it out does not push the branch name out of view.
@@ -168,6 +168,17 @@ const VIEWS: { id: View; labelKey: MessageKey; icon: typeof GitCompare }[] = [
  */
 export function GitPanel() {
 	const { t } = useI18n();
+  /*
+   * 操作失败走 toast，不在面板顶上挂一块红的。
+   *
+   * 这里的失败全是「刚才按的那一下没成」——pull 撞上多个分支、push 被拒、fetch 断线。它们说完
+   * 就该走：面板本身没出问题，分支和改动照常在，红块留在那儿只是占掉一行，而且下一次操作成功了
+   * 它也不会自己消失，得等谁再触发一次 setError(null)。
+   *
+   * 面板里仍然该挂红块的是**状态**而不是动作：MCP 服务器现在连不上、插件市场列表加载不出来——
+   * 那些换成 toast 会在原地留下一块没人解释的空白。
+   */
+  const notify = useApp((s) => s.notify);
   const workspace = useApp((s) => s.workspace);
   const running = useApp((s) => s.running);
   const [view, setView] = useState<View>("changes");
@@ -189,7 +200,6 @@ export function GitPanel() {
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [narrowNav, navRef] = useNarrow(330);
   /*
@@ -338,15 +348,14 @@ export function GitPanel() {
   const act = useCallback(
     async (operation: () => Promise<{ ok: boolean; error?: string }>) => {
       setBusy(true);
-      setError(null);
       const result = await operation();
-      if (!result.ok) setError(result.error ?? t("common.actionFailed"));
+      if (!result.ok) notify(result.error ?? t("common.actionFailed"), "error");
       // `read`, not `refresh`: this one has to see what the operation just did — see above.
       await read();
       setBusy(false);
       return result.ok;
     },
-    [read, t],
+    [notify, read, t],
   );
 
   /*
@@ -369,15 +378,14 @@ export function GitPanel() {
       const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       token.current = id;
       setSync(kind);
-      setError(null);
       const result = await call(id);
       token.current = null;
       // A cancellation says nothing: the person watching is the one who stopped it.
-      if (!result.ok && !result.cancelled) setError(result.error ?? t("common.actionFailed"));
+      if (!result.ok && !result.cancelled) notify(result.error ?? t("common.actionFailed"), "error");
       await read();
       setSync(null);
     },
-    [read, sync, t],
+    [notify, read, sync, t],
   );
 
   /*
@@ -635,7 +643,7 @@ export function GitPanel() {
         />
         </>}
         <IconButton
-          icon={sync === "fetch" ? <Spinner size={12} /> : <RefreshCw size={12} strokeWidth={1.9} />}
+          icon={sync === "fetch" ? <ActionSpinner size={12} /> : <RefreshCw size={12} strokeWidth={1.9} />}
           /*
            * Two things at once, and it has to be both.
            *
@@ -686,18 +694,6 @@ export function GitPanel() {
           </button>
         ))}
       </div>
-
-      {error && (
-        <div className="mx-1.5 mb-1.5 shrink-0 rounded-lg border border-danger/25 bg-danger/8 px-2.5 py-1.5">
-          <Text
-            size="detail"
-            tone="danger"
-            className="break-words whitespace-pre-wrap"
-          >
-            {error}
-          </Text>
-        </div>
-      )}
 
       <RetainedViews key={cwd} active={view} limit={4} render={(shown) => <>
       {shown === "changes" && (

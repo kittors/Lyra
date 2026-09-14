@@ -19,7 +19,8 @@ import { Button } from "../src/ui/primitives/Button.tsx";
 import { IconButton } from "../src/ui/primitives/IconButton.tsx";
 import { Text } from "../src/ui/primitives/Text.tsx";
 import { Badge, Segmented, Toggle } from "../src/features/settings/controls.tsx";
-import { BreatheLoader, Spinner } from "../src/ui/motion/loaders.tsx";
+import { ActionSpinner, BreatheLoader, StatusSpinner } from "../src/ui/motion/loaders.tsx";
+import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { installTooltips } from "../src/ui/overlay/tooltip.ts";
 import "../src/styles.css";
 
@@ -63,30 +64,44 @@ function Gallery() {
 			</header>
 
 			{/*
-			 * 全应用唯一的「正在忙」，摆成它实际出现过的那几个尺寸。
+			 * 两个「正在忙」，摆成它们实际出现过的那几个尺寸。
 			 *
-			 * 这一行要回答的是断言问不出来的那个问题：11px 的时候八条线还分得开，还是已经糊成一个
-			 * 灰点。`test/ui/spinner.test.ts` 能证明八条线都在、相位是对的——那跟看不看得清是两件事。
+			 * 这两行要回答的是断言问不出来的那个问题：11px 的时候虚线还分得开，还是已经并成一圈
+			 * 灰。`test/ui/spinner.test.ts` 能证明段数和几何是对的——那跟看不看得清是两件事。
 			 */}
-			<Row title="Spinner — 应用里用到的尺寸。11px 上八条线还该分得开">
+			<Row title="StatusSpinner — 用到的尺寸。11px 上六段虚线还该分得开">
 				{[11, 12, 13, 14, 16, 20].map((size) => (
 					<span key={size} className="flex flex-col items-center gap-1.5">
-						<Spinner size={size} />
+						<StatusSpinner size={size} />
+						<Text size="caption" tone="faint">{size}</Text>
+					</span>
+				))}
+			</Row>
+
+			<Row title="ActionSpinner — 用到的尺寸。11px 上轨道还该看得见">
+				{[11, 12, 13, 14, 16, 20].map((size) => (
+					<span key={size} className="flex flex-col items-center gap-1.5">
+						<ActionSpinner size={size} />
 						<Text size="caption" tone="faint">{size}</Text>
 					</span>
 				))}
 			</Row>
 
 			{/*
-			 * 两个记号并排，看的是它们该不该是两个。
+			 * 三个记号并排，看的是它们该不该是三个。
 			 *
-			 * 射线是通用的「正在忙」；呼吸只给侧栏会话行，因为那一列可能同时好几行在跑，而它还要
-			 * 用来读标题。并排放着，也是在提醒下一个想「统一」的人：左边这个已经被删过一次。
+			 * 虚线环说「这一条正在跑」，亮弧说「你按的那下正在回来」，呼吸只给侧栏会话行，因为那
+			 * 一列可能同时好几行在跑而它还要用来读标题。并排放着，也是在提醒下一个想「统一」的人：
+			 * 右边这个已经被删过一次。
 			 */}
-			<Row title="Spinner / BreatheLoader — 通用的那个，和只给侧栏会话行的那个">
+			<Row title="三个记号并排 — 状态、动作、会话行">
 				<span className="flex flex-col items-center gap-1.5">
-					<Spinner size={14} />
-					<Text size="caption" tone="faint">射线</Text>
+					<StatusSpinner size={14} />
+					<Text size="caption" tone="faint">虚线环</Text>
+				</span>
+				<span className="flex flex-col items-center gap-1.5">
+					<ActionSpinner size={14} />
+					<Text size="caption" tone="faint">亮弧</Text>
 				</span>
 				<span className="flex flex-col items-center gap-1.5">
 					<BreatheLoader size={12} />
@@ -94,15 +109,56 @@ function Gallery() {
 				</span>
 			</Row>
 
-			<Row title="Spinner — 颜色跟着周围走">
-				<span className="text-ink"><Spinner size={16} /></span>
-				<span className="text-ink-muted"><Spinner size={16} /></span>
-				<span className="text-ink-faint"><Spinner size={16} /></span>
-				<Spinner size={16} className="text-accent" />
-				<Spinner size={16} className="text-amber-500" />
-				<span className="flex h-7 items-center gap-1.5 rounded-lg bg-ink px-3 text-detail text-shell">
-					<Spinner size={12} />
-					深底上
+			{/*
+			 * 状态那个记号，和它在一列里的邻居。
+			 *
+			 * 它整个换掉的理由就在这一行：以前这里是一枚八条射线的星芒，一列圆里混一个星。现在它
+			 * 和左右都是 r=10 的描边圆，扫下来该是同一个形状。
+			 */}
+			<Row title="StatusSpinner — 和它在状态列里的邻居，该是同一个形状">
+				<span className="flex items-center gap-3 rounded-lg bg-card px-3 py-2">
+					<CheckCircle2 size={14} className="text-emerald-500" />
+					<XCircle size={14} className="text-rose-500" />
+					<StatusSpinner size={14} className="text-amber-500" />
+					<Clock size={14} className="text-ink-faint" />
+					<AlertCircle size={14} className="text-ink-faint" />
+				</span>
+			</Row>
+
+			<Row title="颜色跟着周围走">
+				<span className="text-ink"><StatusSpinner size={16} /></span>
+				<span className="text-ink-muted"><StatusSpinner size={16} /></span>
+				<span className="text-ink-faint"><StatusSpinner size={16} /></span>
+				<StatusSpinner size={16} className="text-accent" />
+				<StatusSpinner size={16} className="text-amber-500" />
+				<span className="text-ink"><ActionSpinner size={16} /></span>
+				<span className="text-ink-muted"><ActionSpinner size={16} /></span>
+				<ActionSpinner size={16} className="text-accent" />
+			</Row>
+
+			{/*
+			 * 实心底上的那一档。
+			 *
+			 * 亮弧的轨道是 `currentColor` 压到 0.18，在实心底上 `currentColor` 是底色的反色，那个
+			 * 浓度基本看不见，轨道一消失它就退回成「一段弧在甩」。这一行并排放着不传和传 `onFill`
+			 * 的，看得出该不该有那一档。
+			 */}
+			<Row title="ActionSpinner — 实心底上要传 onFill，不传的话轨道看不见">
+				<span className="flex h-8 items-center gap-2 rounded-lg bg-ink px-3 text-detail text-shell">
+					<ActionSpinner size={13} />
+					不传
+				</span>
+				<span className="flex h-8 items-center gap-2 rounded-lg bg-ink px-3 text-detail text-shell">
+					<ActionSpinner size={13} onFill />
+					onFill
+				</span>
+				<span className="flex h-8 items-center gap-2 rounded-lg bg-accent px-3 text-detail text-white">
+					<ActionSpinner size={13} />
+					不传
+				</span>
+				<span className="flex h-8 items-center gap-2 rounded-lg bg-accent px-3 text-detail text-white">
+					<ActionSpinner size={13} onFill />
+					onFill
 				</span>
 			</Row>
 

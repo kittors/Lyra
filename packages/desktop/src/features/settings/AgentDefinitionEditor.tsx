@@ -1,5 +1,5 @@
 import { ArrowLeft, PenLine, Save, Trash2 } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@lyra/core";
 import { Input, Textarea } from "../../ui/inputs/NativeField.tsx";
@@ -50,7 +50,7 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 		<div className="sticky top-0 z-10 flex items-center gap-3 bg-shell py-3">
 			<button type="button" aria-label={t("agentEditor.back")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded hover:bg-hover" disabled={busy} onClick={() => dirty ? setLeaving(true) : onClose()}><ArrowLeft size={18} /></button>
 			<h1 className="min-w-0 flex-1 truncate text-title leading-9 font-semibold">{record && !copy ? t("agentEditor.editNamed", { name: record.definition.name }) : t("agents.add")}</h1>
-			<button type="submit" disabled={busy} data-ly-tip={busy ? t("common.saving") : t("common.save")} aria-label={busy ? t("common.saving") : t("common.save")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white disabled:opacity-50">{busy ? <Spinner size={15} /> : <Save size={15} aria-hidden />}</button>
+			<button type="submit" disabled={busy} data-ly-tip={busy ? t("common.saving") : t("common.save")} aria-label={busy ? t("common.saving") : t("common.save")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white disabled:opacity-50">{busy ? <ActionSpinner size={15} onFill /> : <Save size={15} aria-hidden />}</button>
 		</div>
 		{/*
 		 * 「有改动没保存」，后面跟一支笔和一个垃圾桶。

@@ -283,6 +283,16 @@ export interface Settings {
 	 * is the shape of an attack rather than a configuration anybody intends.
 	 */
 	allowedHosts?: string[];
+	/**
+	 * Lyra 开着的时候，别让这台电脑睡。
+	 *
+	 * 开着的时候主进程持有一个系统级的「别休眠」声明（`electron/keep-awake.ts`），保证不息屏、
+	 * 不因为闲置而休眠——长任务跑一夜、离开工位回来它还在那儿。
+	 *
+	 * **不含合盖。** 两个平台的合盖动作都不归应用管（macOS 要 `pmset disablesleep`，Windows 是
+	 * 电源计划里的 LIDACTION，都要特权），设置页把这一句写在开关下面，而不是让人自己发现。
+	 */
+	keepAwake?: boolean;
 	/** Lyra's interface language. `system` follows the operating system without storing a guess. */
 	uiLocale: UiLocale;
 	/**

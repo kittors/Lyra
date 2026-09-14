@@ -157,10 +157,13 @@ export function ModelSettings() {
             <button
               type="button"
               onClick={() => void p.add()}
-              className="grid place-items-center h-[38px] w-full rounded-lg text-left text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-			data-ly-tip={t("modelSettings.addProvider")}
-			aria-label={t("modelSettings.addProvider")}
-		><Plus size={15} strokeWidth={1.9} className="shrink-0" /></button>
+              className="flex h-[38px] w-full items-center gap-2.5 rounded-lg border border-line px-2.5 text-left text-label text-ink-muted transition-colors hover:border-ink-faint hover:bg-card-hover hover:text-ink cursor-pointer"
+              data-ly-tip={t("modelSettings.addProvider")}
+              aria-label={t("modelSettings.addProvider")}
+            >
+              <Plus size={15} strokeWidth={1.9} className="shrink-0" />
+              <span>{t("modelSettings.addProvider")}</span>
+            </button>
           </Scroller>
 
           <Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:p-6">
@@ -169,7 +172,9 @@ export function ModelSettings() {
                 <p className="text-label text-ink-muted">
                   {t("modelSettings.noProviders")}
                 </p>
-                <GhostButton onClick={() => void p.add()} icon={<Plus size={13} strokeWidth={1.8} />} title={t("modelSettings.addFirst")} />
+                <GhostButton onClick={() => void p.add()} icon={<Plus size={13} strokeWidth={1.8} />}>
+                  {t("modelSettings.addFirst")}
+                </GhostButton>
               </div>
             ) : (
               /*

@@ -16,7 +16,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { ExternalLink, ShieldCheck, X } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { useAccountActions } from "../pull-requests/index.ts";
@@ -156,7 +156,7 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 					onClick={() => void save()}
 					disabled={busy || !token.trim() || !baseUrl.trim()}
 					title={busy ? t("forge.verifying") : t("forge.verifyAndSave")}
-					icon={busy ? <Spinner size={13} /> : <ShieldCheck size={13} strokeWidth={1.9} />}
+					icon={busy ? <ActionSpinner size={13} /> : <ShieldCheck size={13} strokeWidth={1.9} />}
 				/>
 				<GhostButton onClick={onCancel} icon={<X size={13} strokeWidth={1.8} />} title={t("common.cancel")} />
 			</div>

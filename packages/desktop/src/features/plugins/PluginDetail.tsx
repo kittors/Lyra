@@ -35,7 +35,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { PluginIcon, safeColour } from "../settings/index.ts";
 import { isEnabled, isInstalled, type CatalogItem } from "./useCatalog.ts";
 import { bridge } from "../../services/index.ts";
@@ -222,7 +222,7 @@ export function PluginDetail({
 										className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-danger/10 hover:text-danger disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint"
 									>
 										{busy === "uninstall" ? (
-											<Spinner size={13} />
+											<ActionSpinner size={13} />
 										) : (
 											<Trash2 size={13} strokeWidth={1.8} />
 										)}
@@ -238,7 +238,7 @@ export function PluginDetail({
 			data-ly-tip={t("common.install")}
 			aria-label={t("common.install")}
 		>{busy === "install" ? (
-											<Spinner size={12.5} />
+											<ActionSpinner size={12.5} onFill />
 										) : (
 											<Download size={12.5} strokeWidth={1.9} />
 										)}</button>

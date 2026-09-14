@@ -7,7 +7,7 @@ import {
 	RefreshCw,
 	Sparkles,
 } from "lucide-react";
-import { Spinner } from "../../ui/motion/loaders.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { check, useUpdate } from "../update/index.ts";
@@ -79,7 +79,7 @@ export function AboutSettings() {
 								onClick={() => void check(true)}
 								disabled={checking}
 								title={checking ? t("about.checking") : t("about.checkUpdate")}
-								icon={checking ? <Spinner size={13} /> : <RefreshCw size={13} strokeWidth={2} />}
+								icon={checking ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={2} />}
 							/>
 							{available && (
 								<PrimaryButton

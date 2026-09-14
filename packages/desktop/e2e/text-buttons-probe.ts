@@ -77,12 +77,12 @@ const OUT_OF_SCOPE = `(el) => {
 	// wearing a different coat, and the third of three is unguessable as a glyph.
 	if (el.hasAttribute("data-segment") || el.hasAttribute("aria-pressed")) return true;
 	const cls = (el.className || "").split(/\\s+/);
-	// A full-width row is a row; a control that does one thing is as wide as what it says.
+	// Primary creation or full-width list action buttons — like 「添加服务商」 or 「添加模型」.
 	if (cls.includes("w-full")) return true;
 	// The onboarding cards: a title, a sentence, and a lot of height.
 	if (cls.some((c) => c.startsWith("min-h-[") && parseInt(c.slice(7)) >= 60)) return true;
 	return false;
-}`;
+};`
 
 const SURVEY = `(() => {
 	const own = ${OWN_TEXT};

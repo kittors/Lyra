@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn as spawnPty } from "node-pty";
-import { app, BrowserWindow, Notification, protocol } from "electron";
+import { app, BrowserWindow, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	createContext,
 	lyraHome,
@@ -69,6 +69,7 @@ import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { registerFormatIpc } from "./ipc/format.ts";
 import { rescueLegacyWorkspaces } from "./scratch.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
+import { createKeepAwake, installKeepAwake } from "./keep-awake.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
 import { registerDeliveryIpc } from "./ipc/delivery.ts";
 import { registerRunningServicesIpc } from "./ipc/running-services.ts";
@@ -509,6 +510,25 @@ function bindScreenshotShortcut(): void {
 	configureSync(() => store);
 	// Before the window exists, so its very first frame gets the right material.
 	applyNativeAppearance();
+
+	/*
+	 * 「别让电脑睡」那个开关，开机时按设置摆好，之后跟着设置走。
+	 *
+	 * 放在这里而不是等窗口起来：设置里开着的话，它该从进程活着的那一刻就生效——启动过程本身也可能
+	 * 很慢（扫插件、起同步服务），那段时间正是没人碰键盘的时候。
+	 */
+	installKeepAwake(
+		createKeepAwake({
+			/*
+			 * `prevent-display-sleep` 而不是 `prevent-app-suspension`——理由在 `keep-awake.ts` 的头注释里。
+			 *
+			 * 这三行是这个功能里唯一碰 Electron 的地方，其余全是可测的纯逻辑。
+			 */
+			start: () => powerSaveBlocker.start("prevent-display-sleep"),
+			stop: (id) => powerSaveBlocker.stop(id),
+			isStarted: (id) => powerSaveBlocker.isStarted(id),
+		}),
+	);
 
 	/*
 	 * Before any window exists, so no page can race the handler.
