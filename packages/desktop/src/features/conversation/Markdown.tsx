@@ -18,6 +18,7 @@ import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
 import { parseMarkdown } from "../../lib/markdown/blocks.ts";
 import { resolveAsset, isAbsolutePath } from "../../lib/markdown/assets.ts";
+import { groupTokens, HUGE_BLOCK } from "../../lib/markdown/slice.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
@@ -157,6 +158,8 @@ function renderBlock(block: Block, preview = false): ReactNode {
 				</div>
 			);
 		case "paragraph":
+			// 大到会把浏览器按住不放的那种，切开画；正常的一段走原路，一行代码都不多跑。
+			if (block.text.length > HUGE_BLOCK) return <HugeParagraph text={block.text} />;
 			return <p>{inline(block.text)}</p>;
 		case "code":
 			return preview ? <pre><code>{block.code}</code></pre> : <CodeBlock lang={block.lang} code={block.code} />;
@@ -183,6 +186,35 @@ function renderBlock(block: Block, preview = false): ReactNode {
 		default:
 			return null;
 	}
+}
+
+/**
+ * 一段大到画不动的正文。
+ *
+ * 现场是一条 12.26 MB 的消息：193 行，最长的一行 1.3 MB。装进一个 `<p>` 里，Chromium 要给一千
+ * 三百万个字符算换行——实测 45 秒还没画完，整个窗口按住不动。这不是「慢」，是没法用。
+ *
+ * 切成小片、每片挂 `content-visibility: auto` 之后是 17 毫秒：屏幕外的片浏览器根本不去布局，滚到
+ * 哪儿算哪儿。内容一个字不少地留在 DOM 里——能选、能复制、Ctrl+F 找得到（Chrome 会为查找自动展开
+ * 跳过的片），不折叠、不聚合、不截断。
+ *
+ * **为什么是块级元素。** `content-visibility` 在 `inline-block` 上实测无效（同样 45 秒不出来），
+ * 所以片必须是块级的，而块级元素之间浏览器复制时会插一个换行。`groupTokens` 因此尽量只在原本就有
+ * 换行的地方开新片；只有单个 text token 自己就超过上限时才从中间断开，那一处复制会多一个换行。
+ *
+ * 解析仍然是整段一次（964 ms），不是逐片解析（1443 ms）——片边界会打断匹配，反而更慢。
+ */
+function HugeParagraph({ text }: { text: string }) {
+	const groups = useMemo(() => groupTokens(parseInline(text)), [text]);
+	return (
+		<div className="ly-md-huge">
+			{groups.map((group, index) => (
+				<p key={index} className="ly-md-huge-slice">
+					{renderTokens(group)}
+				</p>
+			))}
+		</div>
+	);
 }
 
 function Item({ item, preview }: { item: ListItem; preview: boolean }) {
