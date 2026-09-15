@@ -61,7 +61,7 @@ async function _biggest(count: number): Promise<{ file: string; dir: string; byt
  * 一个压测探针没有任何理由碰它们；`settings.json` 里每个 provider 的 key 也一并清空。少了它们
  * 应用照常起，只是发不出请求——而这个探针本来也不发请求。
  */
-function seedFromReal(home: string): Promise<void> {
+export function seedFromReal(home: string): Promise<void> {
 	return (async () => {
 		const env = { ...process.env, DEVELOPER_DIR: "/Library/Developer/CommandLineTools" };
 		// `-R` 连目录结构一起，`.` 是为了把内容复制进去而不是复制成一个子目录。
