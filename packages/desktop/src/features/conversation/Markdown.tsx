@@ -97,7 +97,17 @@ export const Markdown = memo(function Markdown({
 	 *
 	 * Here rather than at each call site, because this is the one door remote prose comes through.
 	 */
-	const clean = stripEmoji(text);
+	/*
+	 * 去表情和解析都缓存住，否则每一次重渲染都把整段正文重扫一遍。
+	 *
+	 * 这两步原先都在 render body 里裸跑。对一段一两 KB 的回复无所谓，对一条 233KB 的消息就不是了：
+	 * 本机有个会话里粘进来过一整个文件，打开它主线程占死两秒多。上面那条「一次拖动就重新解析了一遍」
+	 * 的注释说的是同一件事——那次给 `doc` 加了 memo，正文这一半漏了。
+	 *
+	 * 这只省掉**重复**的那些次。第一次仍然要老老实实解析一遍，那一次的成本由 `CodeBlock` 的高亮
+	 * 上限和下面的块数上限管。
+	 */
+	const clean = useMemo(() => stripEmoji(text), [text]);
 
 	// The class rides alongside `prose-dw` rather than replacing it, so a caller can dial the
 	// size or colour down — reasoning is secondary text — without losing the block styling.
@@ -112,10 +122,11 @@ export const Markdown = memo(function Markdown({
 	// Memoised because a new object here re-renders every picture in the document on every keystroke
 	// of a streaming reply — which for a remote one means dropping and re-requesting it.
 	const doc = useMemo(() => ({ baseDir, remoteImages, preview }), [baseDir, remoteImages, preview]);
+	const blocks = useMemo(() => renderBlocks(clean, preview), [clean, preview]);
 
 	return (
 		<Doc.Provider value={doc}>
-			<div className={`prose-dw min-w-0 ${className}`}>{renderBlocks(clean, preview)}</div>
+			<div className={`prose-dw min-w-0 ${className}`}>{blocks}</div>
 		</Doc.Provider>
 	);
 });

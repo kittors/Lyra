@@ -1819,7 +1819,7 @@ export const ja = {
 	"applyEvent.agentsDelta": "サブエージェント {delta}",
 	"errorBoundary.title": "この画面が落ちました",
 	"errorBoundary.detail": "レンダラーが誰にも受け止められないエラーを投げました。会話も設定も残っています。この画面を再読み込みすれば戻れます。",
-	"errorBoundary.stack": "コンポーネントのスタック",
+	"errorBoundary.errorStack": "エラースタック", "errorBoundary.stack": "コンポーネントのスタック",
 	"errorBoundary.reload": "再読み込み",
 	"errorBoundary.devHint": "メインプロセスか core を変えたなら、dev server を再起動してください",
 	"errorBoundary.issueHint": "issue を立てるときは、コンポーネントスタックも一緒にコピーしてください。",

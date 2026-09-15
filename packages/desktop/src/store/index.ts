@@ -4,6 +4,7 @@ import type { SessionChange } from "../../electron/ipc-types.ts";
 import type { AgentEvent, ApprovalDecision, CommandRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
+import { howItStopped } from "./derive.ts";
 import type { Cache, TurnStop } from "./derive.ts";
 import { sessionSlice } from "./session-slice.ts";
 import { readSelectedSession } from "./session-read.ts";
@@ -413,6 +414,12 @@ export interface AppState extends QueueSlice {
   refreshSync(): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;
+  /**
+   * 和主进程校一次「当前会话在不在跑」。
+   *
+   * 见实现处的注释：`running` 是纯增量的状态，丢一条事件就永久卡住，这是它唯一的自愈路径。
+   */
+  reconcileRunning(): Promise<void>;
   applyEvent(sessionId: string, event: AgentEvent): void;
 }
 
@@ -586,6 +593,36 @@ export const useApp = create<AppState>((set, get) => ({
   ...sessionSlice(set, get),
   ...queueSlice(set, get),
   ...turnSlice(set, get),
+
+  /*
+   * 拿主进程那份权威答案，校一次「在不在跑」。
+   *
+   * 这里的 `running` 是一串事件推出来的：`agent_start` 立起来，`agent_end` 放下去。整条链里任何
+   * 一环丢了——IPC 掉一条、窗口中途重建、事件乱序——它就永远停在立着的那一档：转录末尾挂着
+   * 「Thinking…」转圈，输入框是停止按钮，而这一轮早就收工了。一个纯靠增量维持、从不对账的状态，
+   * 坏掉之后自己回不来。
+   *
+   * 只在**它说自己在跑**的时候问，而且只问当前这个会话：说自己没跑时问一次没有任何意义，而反过来
+   * 那一档正是会卡住的那一档。答案是 false 才动手，别把一轮真在跑的给按停了。
+   */
+  reconcileRunning: async () => {
+    const sessionId = get().activeSessionId;
+    if (!sessionId || !get().running) return;
+    /*
+     * 记下**这一轮的身份**，不只是「在跑」这个事实。
+     *
+     * IPC 是异步的，答案回来时情况可能已经变了。只检查「现在还在跑吗」是不够的：这一轮结束、人又发
+     * 了一条，新一轮同样是「在跑」——拿着关于上一轮的答案去按停新一轮，比原来那个 bug 严重得多。
+     * `turnStartedAt` 每轮都会换，它就是这一轮的身份。
+     */
+    const asked = get().turnStartedAt;
+    const live = await bridge.sessions.running(sessionId).catch(() => null);
+    if (live !== false) return;
+    // 期间切走了、换了一轮、或者已经自己停了，都不再动手。
+    if (get().activeSessionId !== sessionId || !get().running || get().turnStartedAt !== asked) return;
+    const settled = get().messages;
+    set({ running: false, retrying: null, turnStartedAt: null, stopped: howItStopped(settled) });
+  },
 
   dismissNotice: (id) =>
     set({ notices: get().notices.filter((n) => n.id !== id) }),

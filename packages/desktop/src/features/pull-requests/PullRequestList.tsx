@@ -46,6 +46,7 @@ function readFolded(): Set<string> {
 
 export function PullRequestList({
 	groups,
+	inset,
 	filter,
 	onFilter,
 	query,
@@ -65,6 +66,13 @@ export function PullRequestList({
 	onRefresh,
 }: {
 	groups: Group[];
+	/**
+	 * 顶栏要给窗口左上角那颗侧边栏开关让出多少。
+	 *
+	 * 只有这一栏站在窗口最左边、而且开关确实浮在那儿的时候才非零——算在 `PullRequestsView` 里，
+	 * 那里才知道另一栏滑走了没有。跟着列宽一起做过渡，否则列还在动的时候筛选按钮就先跳到了新位置。
+	 */
+	inset?: number;
 	filter: Filter;
 	onFilter: (filter: Filter) => void;
 	query: string;
@@ -140,7 +148,11 @@ export function PullRequestList({
 			 * takes back only its own few pixels. `relative z-50` to come out from under the drag
 			 * band, which covers the full width at z-40.
 			 */}
-			<div className="relative z-50 flex h-11 shrink-0 items-center px-3">
+			<div
+				data-ly-toprow="pr-list"
+				className="relative z-50 flex h-11 shrink-0 items-center px-3 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
+				style={{ paddingLeft: inset ? inset + 12 : undefined }}
+			>
 				<div className="no-drag flex items-center gap-0.5">
 					{FILTERS.map((option) => (
 						<button

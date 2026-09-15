@@ -37,6 +37,7 @@ export function PullRequestDetail({
 	onToggleExpanded,
 	tab,
 	onTab,
+	inset,
 }: {
 	detail: Detail | null;
 	loading: boolean;
@@ -53,7 +54,11 @@ export function PullRequestDetail({
 	 * Only non-zero once the list has slid away and this column is the one at the window's edge.
 	 * Transitioned alongside it, or the tabs would jump to their new place while the column they
 	 * sit in was still moving.
+	 *
+	 * 这段注释曾经是孤儿：prop 没了，header 上的 `transition-[padding-left]` 还留着，于是全屏收起
+	 * 侧边栏之后那颗开关就压在 PR 标题上。算在 `PullRequestsView` 里——只有那里知道列表滑走了没有。
 	 */
+	inset?: number;
 	/**
 	 * Lifted, because the review bar below this belongs to two of these tabs and not the third.
 	 * 摘要 and 代码 are things you form an opinion about; 聊天 has a field of its own, and stacking
@@ -95,7 +100,9 @@ export function PullRequestDetail({
 			 * including why `no-drag` is on the controls rather than on this row.
 			 */}
 			<header
+				data-ly-toprow="pr-detail"
 				className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
+				style={{ paddingLeft: inset ? inset + 12 : undefined }}
 			>
 				{/*
 				 * Expanded, the list is gone and with it the only thing saying which pull request this

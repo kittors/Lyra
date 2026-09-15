@@ -253,6 +253,7 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 	const sample: Record<string, unknown[]> = {
 		"workspace.info": ["/tmp/p"],
 		"sessions.create": ["/tmp/p"],
+		"sessions.running": ["s1"],
 		"sessions.open": ["p1", "s1"],
 		"sessions.transcript": ["p1", "s1"],
 		"sessions.trajectory": ["p1", "s1"],

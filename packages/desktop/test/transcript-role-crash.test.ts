@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@lyra/core";
-import { runs } from "../src/features/conversation/grouping.ts";
+import { runKey, runs } from "../src/features/conversation/grouping.ts";
 import { questionsIn, timeSeparators } from "../src/features/conversation/question-navigation.ts";
 import { tailSignature } from "../src/ui/scroll/signature.ts";
 
@@ -57,4 +57,43 @@ test("数组里有窟窿时，闸门把它换成占位而不是让它穿过去",
 	assert.doesNotThrow(() => timeSeparators(holed));
 	assert.doesNotThrow(() => questionsIn(holed));
 	assert.doesNotThrow(() => tailSignature(holed));
+});
+
+test("runKey 认得每一种 Run，压缩标记也不例外", () => {
+	/*
+	 * 这一条是第三次复发之后加的，而前两次都没查到这里。
+	 *
+	 * `runKey` 的签名曾经是 `Exclude<Run, { kind: "compaction" }>`——看起来压缩标记进不来。那只是
+	 * 一个类型：`Conversation` 里有一处 `as Exclude<Run, { kind: "compaction" }>`，一个断言就把它
+	 * 塞进来了，运行时什么都不拦。于是压缩过的会话一打开就整页白掉，报的还是那句
+	 * `Cannot read properties of undefined (reading 'role')`——因为前三个 if 全不匹配，最后一行去读
+	 * 了一个不存在的 `message`。
+	 *
+	 * 复现它需要一个真压缩过的会话：本机 245 个会话里只有一个，它压缩过六次（最后一次 315 条压到
+	 * 73 条）。所以这里直接喂形状，不依赖那份数据还在不在。
+	 */
+	const keys = new Set<string>();
+	for (const run of [
+		{ kind: "compaction", at: 0 },
+		{ kind: "compaction", at: 7 },
+		{ kind: "command", command: { id: "c1" } },
+		{ kind: "hiccup", hiccup: { id: "h1" } },
+		{ kind: "message", message: user("问", 3), index: 0, upTo: 0 },
+	] as Parameters<typeof runKey>[0][]) {
+		const key = runKey(run);
+		assert.equal(typeof key, "string");
+		assert.ok(key.length > 0, `${(run as { kind: string }).kind} 没拿到 key`);
+		assert.ok(!keys.has(key), `两种 Run 撞了同一个 key：${key}`);
+		keys.add(key);
+	}
+});
+
+test("压缩标记带着位置，两个标记分得开", () => {
+	// 没有 `at` 的话，一次会话压缩六次就有六个一模一样的 key，React 认不出谁是谁。
+	assert.notEqual(runKey({ kind: "compaction", at: 0 }), runKey({ kind: "compaction", at: 1 }));
+});
+
+test("工具组里一个调用都没有时，runKey 也不该崩", () => {
+	// `run.calls[0]` 空数组时是 undefined，读它的 `.block` 会崩成另一句报错，白屏的程度一模一样。
+	assert.equal(typeof runKey({ kind: "tools", calls: [] } as unknown as Parameters<typeof runKey>[0]), "string");
 });

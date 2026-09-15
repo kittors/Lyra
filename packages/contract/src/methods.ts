@@ -88,6 +88,13 @@ export const METHODS = {
 	},
 	sessions: {
 		list: { channel: "sessions:list", remote: true },
+		/*
+		 * 这个会话此刻在不在跑——权威的那一份，用来和渲染层自己推出来的那份对账。
+		 *
+		 * `remote: true`：手机端同样需要它。那边的运行状态也是事件推出来的，丢一条同样会永久卡在
+		 * 「正在跑」上，而它的连接比桌面端更容易断。
+		 */
+		running: { channel: "sessions:running", remote: true },
 		create: { channel: "sessions:create", remote: true },
 		open: { channel: "sessions:open", remote: true },
 		transcript: { channel: "sessions:transcript", remote: true },

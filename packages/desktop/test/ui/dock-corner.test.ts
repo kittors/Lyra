@@ -13,6 +13,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cornerPane, cornerReserved } from "../../src/features/dock/DockView.tsx";
+import { prInsets } from "../../src/features/pull-requests/PullRequestsView.tsx";
+import { HEADER_PAD } from "../../src/features/dock/geometry.ts";
 import { TOOLBAR_BUTTON } from "../../src/app/window/WindowControls.tsx";
 import { OVERLAY_FALLBACK, TOOLBAR_EDGE, TRAFFIC_LIGHTS_WIDTH, hasHeaderBar, overlayReserved, titlebarInsets } from "../../src/app/window/titlebar.ts";
 
@@ -124,4 +126,36 @@ test("Windows 全屏之后，header 还在，只是右边不再留位", () => {
 	// overlay 开着但还没量出尺寸时，宁可按兜底值让位，也不要把控件塞到关闭按钮底下。
 	assert.equal(overlayReserved({ visible: true, getTitlebarAreaRect: () => ({ right: 0, width: 0 }) }, 1200), OVERLAY_FALLBACK);
 	assert.equal(overlayReserved({ visible: false, getTitlebarAreaRect: () => ({ right: 0, width: 0 }) }, 1200), 0);
+});
+
+test("拉取请求那一页，谁在最左边谁让位", () => {
+	/*
+	 * 这一页不走 dock，所以 `cornerPane` 一个字也管不到它——而它漏掉过整整一次：注释在、
+	 * `transition-[padding-left]` 在，对应的 prop 不见了，于是全屏收起侧边栏之后那颗开关就压在
+	 * PR 的标题上（列表展开时压的是「全部」那个筛选按钮）。
+	 */
+	const start = TRAFFIC_LIGHTS_WIDTH;
+	const reserved = cornerReserved(start) + HEADER_PAD + 1; // 也就是 toolbarReserved(start)
+	const ask = (over: Partial<Parameters<typeof prInsets>[0]>) =>
+		prInsets({ navOpen: false, headerBar: false, compact: false, expanded: false, selected: false, start, ...over });
+
+	// 侧边栏开着：开关画在侧边栏自己身上，两栏都不让。
+	assert.deepEqual(ask({ navOpen: true }), { list: 0, detail: 0 });
+	assert.deepEqual(ask({ navOpen: true, expanded: true }), { list: 0, detail: 0 });
+
+	// 有 header 的平台：开关在那条带子里，两栏都在它底下。
+	assert.deepEqual(ask({ headerBar: true }), { list: 0, detail: 0 });
+	assert.deepEqual(ask({ headerBar: true, expanded: true }), { list: 0, detail: 0 });
+
+	// 侧边栏收起：列表在最左边，它让。
+	assert.deepEqual(ask({}), { list: reserved, detail: 0 });
+	// 列表滑走之后换详情让——这正是用户截到的那一张。
+	assert.deepEqual(ask({ expanded: true }), { list: 0, detail: reserved });
+
+	// 窄布局只画一栏，画的那个就是最左边那个。
+	assert.deepEqual(ask({ compact: true }), { list: reserved, detail: 0 });
+	assert.deepEqual(ask({ compact: true, selected: true }), { list: 0, detail: reserved });
+
+	// 让出来的量要装得下那颗 28px 的开关。
+	assert.ok(reserved >= TOOLBAR_BUTTON);
 });

@@ -1,15 +1,31 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
+
+/**
+ * 跑 git 用的环境。
+ *
+ * macOS 上 `xcode-select` 可能指着完整的 Xcode，而它的许可协议没人同意过——那样**任何** git 命令
+ * 都直接退出 69，报 "You have not agreed to the Xcode license agreements"。同意它要 sudo，而这个
+ * fixture 只是想 init 一个空仓库。
+ *
+ * 命令行工具那份 git 不受这条约束，所以存在就指过去。不存在（CI 上常常如此）就什么都不改，用
+ * 原来的环境——所以这一段在 CI 上是个空操作，不会把构建机指向一个不存在的目录。
+ */
+function gitEnv(): NodeJS.ProcessEnv {
+	const clt = "/Library/Developer/CommandLineTools";
+	return existsSync(clt) ? { ...process.env, DEVELOPER_DIR: clt } : process.env;
+}
 
 /** Synthetic logs and candidate data, read by the real app through its normal filesystem paths. */
 export async function seedInteractions(home: string, modelPort?: number): Promise<void> {
 	const cwd = join(home, "project");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 	await mkdir(cwd);
-	const git = async (...args: string[]) => promisify(execFile)("git", args, { cwd });
+	const git = async (...args: string[]) => promisify(execFile)("git", args, { cwd, env: gitEnv() });
 	await git("init", "-q");
 	await git("config", "user.email", "test@example.com");
 	await git("config", "user.name", "Lyra test");

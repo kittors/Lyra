@@ -14,6 +14,7 @@ import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { useLayout } from "../../app/layout.tsx";
+import { toolbarReserved } from "../../app/window/WindowControls.tsx";
 import { useApp } from "../../store/index.ts";
 import { PullRequestDetail, type PrTab } from "./PullRequestDetail.tsx";
 import { PullRequestList } from "./PullRequestList.tsx";
@@ -24,8 +25,46 @@ import { bridge } from "../../services/index.ts";
 /** Wide enough for a title and a repository name without either becoming an ellipsis. */
 const LIST_WIDTH = 300;
 
+/**
+ * 两栏各自要给窗口左上角那颗侧边栏开关让出多少。
+ *
+ * 抽成纯函数是因为它是一条规则而不是一段渲染，而且这条规则漏掉过整整一次：`PullRequestDetail` 上
+ * 留着一句「Left inset keeping this header clear of the window controls」的注释、header 上留着
+ * `transition-[padding-left]`，对应的 prop 却不见了——注释在、过渡在、功能没有。全屏收起侧边栏之后
+ * 那颗开关就压在 PR 标题上，而这一页不走 dock，`cornerPane` 那套一个字也管不到它。
+ *
+ * 规则本身和 `cornerPane` 是同一条：
+ *   - 侧边栏开着：开关画在侧边栏自己身上，谁都不用让
+ *   - Windows/Linux：开关在那条横贯的 header 里，两栏都在它底下，也不用让
+ *   - 其余情况：**谁在窗口最左边谁让**——列表滑走了（`expanded`）就是详情，否则是列表；
+ *     窄布局里只画一栏，选中了是详情，没选是列表
+ */
+export function prInsets({
+	navOpen,
+	headerBar,
+	compact,
+	expanded,
+	selected,
+	start,
+}: {
+	navOpen: boolean;
+	headerBar: boolean;
+	compact: boolean;
+	/** 列表已经滑走，详情占满整个宽度。 */
+	expanded: boolean;
+	/** 窄布局里选中了某个 PR，于是画的是详情而不是列表。 */
+	selected: boolean;
+	/** 系统在左上角占掉的宽度，见 `titlebarInsets`。 */
+	start: number;
+}): { list: number; detail: number } {
+	if (navOpen || headerBar) return { list: 0, detail: 0 };
+	const reserved = toolbarReserved(start);
+	if (compact) return selected ? { list: 0, detail: reserved } : { list: reserved, detail: 0 };
+	return expanded ? { list: 0, detail: reserved } : { list: reserved, detail: 0 };
+}
+
 export function PullRequestsView() {
-	const { compact } = useLayout();
+	const { compact, navOpen, headerBar, titlebar } = useLayout();
 	/*
 	 * No allowance for a toolbar above this view any more.
 	 *
@@ -146,8 +185,23 @@ export function PullRequestsView() {
 		return null;
 	};
 
+	/*
+	 * 给窗口左上角那颗侧边栏开关让出的宽度。
+	 *
+	 * 这一段从前是不存在的：`PullRequestDetail` 上留着一句「Left inset keeping this header clear of
+	 * the window controls」的注释，header 上留着 `transition-[padding-left]`，而对应的 prop 没有——
+	 * 注释在、过渡在、功能没有。于是全屏收起侧边栏之后，那颗开关就压在 PR 的标题上。
+	 *
+	 * 规则和 dock 那边的 `cornerPane` 是同一条，只是这个视图不走 dock：
+	 *   - 侧边栏开着：开关画在侧边栏自己身上，两栏都不用让
+	 *   - Windows/Linux：开关在那条横贯的 header 里，面板整体在它底下，也不用让
+	 *   - 其余情况：**谁在窗口最左边谁让**——列表滑走了就是详情，否则是列表
+	 */
+	const { list: listInset, detail: detailInset } = prInsets({ navOpen, headerBar, compact, expanded, selected: !!pr.selected, start: titlebar.start });
+
 	const list = (
 		<PullRequestList
+			inset={listInset}
 			groups={pr.groups}
 			filter={pr.filter}
 			onFilter={pr.setFilter}
@@ -179,6 +233,7 @@ export function PullRequestsView() {
 	const detail = (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 			<PullRequestDetail
+				inset={detailInset}
 				detail={pr.detail}
 				loading={pr.detailLoading}
 				error={pr.detailError}

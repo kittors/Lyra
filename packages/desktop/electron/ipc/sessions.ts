@@ -59,6 +59,18 @@ export function registerSessionsIpc({
 
 	ipcMain.handle("sessions:list", async () => store.listSessions());
 
+	/*
+	 * 这个会话此刻在不在跑——权威的那一份。
+	 *
+	 * 渲染层那个 `running` 是一串事件推出来的：`agent_start` 把它立起来，`agent_end` 放下去。整条链
+	 * 里任何一环丢了（IPC 掉一条、窗口中途重建、事件乱序），它就永远停在立着的那一档——转录末尾挂着
+	 * 「Thinking…」转圈，输入框是停止按钮，而这一轮早在一小时前就收工了。一个纯粹靠增量维持、没有任何
+	 * 对账的状态，坏掉之后自己是回不来的。
+	 *
+	 * 这里不传转录，只答一个布尔：对账要能随手做，贵了就没人做。
+	 */
+	ipcMain.handle("sessions:running", (_event, sessionId: string) => sessions.get(sessionId)?.running ?? false);
+
 	/**
 	 * Bring a session up: replay its log, load its skills, spawn its MCP servers.
 	 *

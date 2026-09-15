@@ -202,6 +202,7 @@ test("数量对得上，且手机能力是逐项审过的清单", () => {
 			"settings.save",
 			"workspace.info",
 			"sessions.list",
+			"sessions.running",
 			"sessions.create",
 			"sessions.open",
 			"sessions.transcript",

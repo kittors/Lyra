@@ -88,13 +88,22 @@ async function shot(name: string): Promise<void> {
 	await writeFile(join(OUT_DIR, `${name}.png`), Buffer.from(data, "base64"));
 }
 
-/** 点一个 aria-label 匹配的按钮，返回有没有点到。 */
+/**
+ * 点一个按钮，按 aria-label **或者**可见文字找，返回有没有点到。
+ *
+ * 只按 aria-label 找过一版，于是侧边栏那几个导航项（「拉取请求」之类）一个都点不中——文字在
+ * innerText 里，它们没有 aria-label。而探针照样往下跑，把 dock 的面板当成 PR 视图量了一遍，
+ * 印出八格绿的。没点中不是没问题。
+ */
 async function click(pattern: string): Promise<boolean> {
 	return evaluate<boolean>(`(() => {
 		const re = new RegExp(${JSON.stringify(pattern)});
-		const b = [...document.querySelectorAll('button[aria-label]')].find((e) => re.test(e.getAttribute('aria-label') || ''));
-		if (b) b.click();
-		return !!b;
+		const hit = [...document.querySelectorAll('button, [role="button"]')].find((e) => {
+			if (!e.checkVisibility || !e.checkVisibility()) return false;
+			return re.test(e.getAttribute('aria-label') || '') || re.test((e.innerText || '').trim());
+		});
+		if (hit) hit.click();
+		return !!hit;
 	})()`);
 }
 
@@ -122,6 +131,18 @@ const READ = `(() => {
 	const vis = (el) => el && el.checkVisibility() && el.getBoundingClientRect().width > 0;
 	const toggle = [...document.querySelectorAll('button[aria-label]')].find((b) => /侧边栏/.test(b.getAttribute('aria-label') || '')) ?? null;
 	const header = document.querySelector('[data-ly-window-header]');
+	/*
+	 * 拉取请求那个视图不走 dock，它有自己的两栏和自己的顶栏——正因为这里只扫 [data-dock-pane]，
+	 * 它压住开关的那个 bug 整套矩阵一次都没抓到。用 data-ly-toprow 把那两条顶栏也收进来。
+	 */
+	const extra = [...document.querySelectorAll('[data-ly-toprow]')].filter(vis).map((row) => ({
+		kind: 'toprow:' + (row.getAttribute('data-ly-toprow') || '?'),
+		rect: box(row),
+		marks: [...row.querySelectorAll('button, [data-ly-title]')].filter(vis).map((el) => ({
+			what: 'ctl:' + ((el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 10)),
+			...box(el),
+		})),
+	}));
 	const panes = [...document.querySelectorAll('[data-dock-pane]')].filter(vis).map((pane) => {
 		const head = pane.querySelector('[data-dock-heading]');
 		const marks = [];
@@ -134,7 +155,7 @@ const READ = `(() => {
 		headerBar: !!header,
 		header: header ? box(header) : null,
 		toggle: toggle ? box(toggle) : null,
-		panes,
+		panes: [...panes, ...extra],
 	};
 })()`;
 
@@ -242,7 +263,13 @@ async function setFullScreen(on: boolean): Promise<boolean> {
 	return WIN || (await evaluate<number>(`(() => { const b = [...document.querySelectorAll('button[aria-label]')].find((e) => /侧边栏/.test(e.getAttribute('aria-label') || '')); return b ? Math.round(b.getBoundingClientRect().x) : -1; })()`)) === want;
 }
 
-const SCENES: { name: string; setup: () => Promise<void> }[] = [
+/**
+ * 一种摆法。
+ *
+ * `expect` 是这一步声称会带来的东西，用一个 CSS 选择器写。没有它的话，一个点空了的场景会安安静静
+ * 地量上一个场景的界面，然后印出一串绿的——整套矩阵里 PR 视图那八格就这么假绿过一轮。
+ */
+const SCENES: { name: string; setup: () => Promise<void>; expect?: string }[] = [
 	{ name: "只有对话", setup: async () => {} },
 	{
 		name: "一个终端",
@@ -272,6 +299,16 @@ const SCENES: { name: string; setup: () => Promise<void> }[] = [
 			await settle(40);
 		},
 	},
+	/*
+	 * 拉取请求那一页**没有**摆进这套矩阵，而它正是那颗开关压住标题的地方（列表展开时压「全部」
+	 * 那个筛选按钮，列表收起时压 PR 的标题）。
+	 *
+	 * 够不到的原因是这个 fixture 没有配代码托管账号：那一页于是整页是「未添加代码托管账号」的空态，
+	 * 空态直接 return，两条顶栏一条都不渲染。要在这里覆盖它，得连 GitHub 的接口一起假造。
+	 *
+	 * 所以那条规则改由单测守：`test/ui/dock-corner.test.ts` 里的「拉取请求那一页，谁在最左边谁让位」
+	 * 把 `prInsets` 的八种组合全测了。这里留这段话，是为了下一个人知道这一页不在矩阵里、以及为什么。
+	 */
 	{
 		name: "终端最大化",
 		setup: async () => {
@@ -341,6 +378,11 @@ async function main(): Promise<void> {
 			for (const scene of SCENES) {
 				await scene.setup();
 				console.log(`\n【${scene.name}】`);
+				if (scene.expect) {
+					const there = await evaluate<boolean>(`!!document.querySelector(${JSON.stringify(scene.expect)})`);
+					check(`${scene.name}｜这一步声称要打开的东西真的在`, there, `${scene.expect} 没出现——这一场量的是上一场的界面`);
+					if (!there) continue;
+				}
 				for (const open of [true, false]) {
 					await setNav(open);
 					const nav = open ? "栏开" : "栏收";

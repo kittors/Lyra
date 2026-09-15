@@ -62,6 +62,29 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 						{error.message || String(error)}
 					</pre>
 
+					{/*
+					 * 错误自己的调用栈，和组件栈分开两块。
+					 *
+					 * 组件栈只说「崩在 Conversation 这棵树里」，而那是一个有几十个 useMemo 的组件——
+					 * 从它完全看不出是哪一个函数读到了 undefined。真正能定位的是 `error.stack`：即使
+					 * 压缩过，chunk 的行列号配 source map 也能还原到具体那一行。
+					 *
+					 * 这一条是踩出来的：同一个崩溃报上来三次，每次都只有组件栈，于是每次都只能靠猜
+					 * 「大概是转录里缺了一格」，三次都没查到根上。默认展开，就是因为前两次它没被复制。
+					 */}
+					{error.stack && (
+						<div className="mt-2">
+							<Disclosure variant="compact" title={translate("errorBoundary.errorStack")} defaultOpen>
+								<div className="group/copy relative mt-1">
+									<CopyMark text={error.stack.trim()} side="left" />
+									<pre className="max-h-[220px] overflow-auto rounded-[10px] border border-line bg-card/40 py-2.5 pr-3 pl-9 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
+										{error.stack.trim()}
+									</pre>
+								</div>
+							</Disclosure>
+						</div>
+					)}
+
 					{componentStack && (
 						<div className="mt-2">
 							<Disclosure variant="compact" title={translate("errorBoundary.stack")}>

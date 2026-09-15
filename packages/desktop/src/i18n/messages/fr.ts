@@ -1819,7 +1819,7 @@ export const fr = {
 	"applyEvent.agentsDelta": "sous-agents {delta}",
 	"errorBoundary.title": "Cet écran a planté",
 	"errorBoundary.detail": "Le moteur de rendu a levé une erreur que personne n'a rattrapée. Vos conversations et vos réglages sont intacts — recharger cette fenêtre vous y ramène.",
-	"errorBoundary.stack": "Pile des composants",
+	"errorBoundary.errorStack": "Pile d’erreur", "errorBoundary.stack": "Pile des composants",
 	"errorBoundary.reload": "Recharger",
 	"errorBoundary.devHint": "Si vous avez modifié le processus principal ou core, redémarrez le serveur de dev",
 	"errorBoundary.issueHint": "Copiez aussi la pile de composants si vous ouvrez un ticket.",

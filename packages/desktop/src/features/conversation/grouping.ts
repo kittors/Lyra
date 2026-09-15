@@ -23,7 +23,13 @@ type ToolCallBlock = Extract<AssistantContent, { type: "toolCall" }>;
 export type Call = { block: ToolCallBlock; stopReason: AssistantMessage["stopReason"] };
 
 export type Run =
-	| { kind: "compaction" }
+	/**
+	 * 压缩标记，带着它插在哪一条消息之前。
+	 *
+	 * `at` 不是装饰：`runKey` 要给每一行一个稳定的 key，而压缩标记原先除了 `kind` 什么都没有——
+	 * 没有任何字段能把两个压缩标记区分开。一次会话压缩过六次，转录里就有六个一模一样的东西。
+	 */
+	| { kind: "compaction"; at: number }
 	| { kind: "command"; command: CommandRun }
 	/** 连接抖了一下，画在它抖的那个位置上。见 `lib/hiccup.ts` 的 `at`。 */
 	| { kind: "hiccup"; hiccup: Hiccup }
@@ -61,11 +67,23 @@ export function isNudge(message: Message | undefined): boolean {
 	return message.content.some((c) => c.type === "text" && c.text.startsWith(translate("grouping.autoContinue")));
 }
 
-/** A split reply has two identities; neither identity changes when more text arrives. */
-export function runKey(run: Exclude<Run, { kind: "compaction" }>): string {
+/**
+ * A split reply has two identities; neither identity changes when more text arrives.
+ *
+ * **每一种 `Run` 都要有分支，包括压缩标记。** 这个函数的签名曾经是
+ * `Exclude<Run, { kind: "compaction" }>`——看起来压缩标记进不来，而那只是一个类型：调用处写一个
+ * `as` 就能把它塞进来，运行时什么都不拦。`Conversation` 里正好有那么一个 `as`，于是压缩过的会话
+ * 一打开就整页白掉，报 `Cannot read properties of undefined (reading 'role')`：前三个 `if` 都不
+ * 匹配，落到最后一行去读一个根本不存在的 `message`。
+ *
+ * 同一句报错被报上来三次才查到这里，原因是崩溃界面只给组件栈——它只说「崩在 Conversation 这棵树
+ * 里」，而这里是一个有几十个 useMemo 的组件。真正指到这一行的是 `error.stack`。
+ */
+export function runKey(run: Run): string {
+	if (run.kind === "compaction") return `compaction-${run.at}`;
 	if (run.kind === "command") return `command-${run.command.id}`;
 	if (run.kind === "hiccup") return `hiccup-${run.hiccup.id}`;
-	if (run.kind === "tools") return `tools-${run.calls[0].block.id}`;
+	if (run.kind === "tools") return `tools-${run.calls[0]?.block.id ?? "empty"}`;
 	return run.key ?? `${run.message.role}-${run.message.timestamp}-${run.index}`;
 }
 
@@ -456,7 +474,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 
 	for (const [index, message] of messages.entries()) {
 		while (nextMark < marks.length && marks[nextMark] === index) {
-			out.push({ kind: "compaction" });
+			out.push({ kind: "compaction", at: index });
 			nextMark++;
 		}
 		// Commands are visible boundaries, including between an interrupted tool run and its resume.
@@ -567,7 +585,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 
 	// A compaction recorded after the last message still belongs at the end.
 	while (nextMark < marks.length) {
-		out.push({ kind: "compaction" });
+		out.push({ kind: "compaction", at: messages.length + nextMark });
 		nextMark++;
 	}
 	while (nextCommand < commandMarks.length) out.push({ kind: "command", command: commandMarks[nextCommand++] });

@@ -1819,7 +1819,7 @@ export const ko = {
 	"applyEvent.agentsDelta": "하위 에이전트 {delta}",
 	"errorBoundary.title": "이 화면이 무너졌습니다",
 	"errorBoundary.detail": "렌더러가 아무도 잡지 못한 오류를 던졌습니다. 대화와 설정은 그대로이니, 이 창을 새로 고치면 돌아갑니다.",
-	"errorBoundary.stack": "컴포넌트 스택",
+	"errorBoundary.errorStack": "오류 스택", "errorBoundary.stack": "컴포넌트 스택",
 	"errorBoundary.reload": "새로 고침",
 	"errorBoundary.devHint": "메인 프로세스나 core를 고쳤다면 dev server를 다시 시작하세요",
 	"errorBoundary.issueHint": "이슈를 남길 때 컴포넌트 스택도 함께 복사해 주세요.",

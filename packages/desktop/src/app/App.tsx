@@ -120,6 +120,23 @@ export function App() {
 	useTrayCommands();
 
 	/*
+	 * 回到这个窗口时，和主进程校一次「在不在跑」。
+	 *
+	 * `running` 是纯增量的状态——`agent_start` 立起来、`agent_end` 放下去——中间丢一条事件它就永远
+	 * 停在立着的那一档：转录末尾挂着「Thinking…」转圈，输入框是停止按钮，而这一轮早就收工了。这种
+	 * 卡住自己是好不了的，界面上也没有任何入口能把它按回去。
+	 *
+	 * 挂在 `focus` 上而不是定时轮询：会去看它的那一刻正是人回到窗口的那一刻，而一个每隔几秒问一次
+	 * 主进程的定时器，为的是一个几乎不发生的状态，不值得一直烧着。`reconcileRunning` 自己会先看
+	 * 「界面说在跑吗」，没在跑就直接返回，所以这一下在正常情况下连 IPC 都不发。
+	 */
+	useEffect(() => {
+		const onFocus = () => void useApp.getState().reconcileRunning();
+		window.addEventListener("focus", onFocus);
+		return () => window.removeEventListener("focus", onFocus);
+	}, []);
+
+	/*
 	 * 后台抽取，以及它欠的那一次征询。
 	 *
 	 * 挂在这里而不是挂在对话里：它是窗口级的空闲行为，跟当下打开的是哪一个会话无关——问的是

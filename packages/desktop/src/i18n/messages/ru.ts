@@ -1819,7 +1819,7 @@ export const ru = {
 	"applyEvent.agentsDelta": "субагенты {delta}",
 	"errorBoundary.title": "Этот экран рухнул",
 	"errorBoundary.detail": "Отрисовщик выбросил ошибку, которую никто не поймал. Беседы и настройки на месте — перезагрузите это окно, и вы вернётесь.",
-	"errorBoundary.stack": "Стек компонентов",
+	"errorBoundary.errorStack": "Стек ошибки", "errorBoundary.stack": "Стек компонентов",
 	"errorBoundary.reload": "Перезагрузить",
 	"errorBoundary.devHint": "Если правили главный процесс или core — перезапустите dev-сервер",
 	"errorBoundary.issueHint": "Сообщая о проблеме, скопируйте вместе с ней стек компонентов.",

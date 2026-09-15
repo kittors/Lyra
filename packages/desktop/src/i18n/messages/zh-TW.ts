@@ -1819,7 +1819,7 @@ export const zhTW = {
 	"applyEvent.agentsDelta": "子代理 {delta}",
 	"errorBoundary.title": "這個介面崩了",
 	"errorBoundary.detail": "算繪處理程序拋了一個沒人接住的錯誤。工作階段和設定都還在，重新載入這個視窗就能回去。",
-	"errorBoundary.stack": "元件堆疊",
+	"errorBoundary.errorStack": "錯誤堆疊", "errorBoundary.stack": "元件堆疊",
 	"errorBoundary.reload": "重新載入",
 	"errorBoundary.devHint": "改過主處理程序或 core 的話，要重啟 dev server",
 	"errorBoundary.issueHint": "提交 issue 或回報問題時，請把元件堆疊一併複製上。",

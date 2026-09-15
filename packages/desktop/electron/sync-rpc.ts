@@ -137,6 +137,13 @@ export const RPC: Record<string, Handler> = {
 	// -- Reading the shell -----------------------------------------------------
 	"settings.get": async (deps) => settingsForPhone(deps.settings()),
 	"sessions.list": async (deps) => deps.store().listSessions(),
+	/*
+	 * 这个会话此刻在不在跑——权威那一份。
+	 *
+	 * 手机端和桌面端一样，运行状态是一串事件推出来的，丢一条就永久停在「正在跑」上；而手机的连接
+	 * 更容易断，所以它比桌面更需要能对一次账。只答一个布尔，不带转录。
+	 */
+	"sessions.running": async (deps, [sessionId]) => deps.live(s(sessionId))?.running ?? false,
 	"workspace.info": async (deps, [path]) => deps.workspaceInfo(s(path)),
 
 	// -- Opening and reading a conversation ------------------------------------
@@ -391,6 +398,7 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 	"sessions.fork": ([projectId, sessionId, seq]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), index(seq, "seq"))),
 	"sessions.create": ([cwd, modelId]) => fail(all(path(cwd, "cwd"), optionalStr(modelId, "modelId"))),
 	"sessions.open": ([projectId, sessionId]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
+	"sessions.running": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"sessions.transcript": ([projectId, sessionId]) =>
 		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
 	"sessions.trajectory": ([projectId, sessionId]) =>

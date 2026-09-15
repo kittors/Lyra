@@ -372,7 +372,14 @@ export const Conversation = memo(function Conversation() {
               />
             );
             if (block.kind === "plain") return draw(block.runs[0]);
-            const key = `${activeSessionId}:process:${runKey(block.runs[0] as Exclude<Run, { kind: "compaction" }>)}`;
+            /*
+             * 不再有 `as Exclude<Run, { kind: "compaction" }>`。
+             *
+             * 那个断言是这次崩溃的来路：它把编译器的警告手动关掉了，而编译器警告的正是「这里可能
+             * 是一个压缩标记」——一旦真是，`runKey` 会去读它没有的 `message`，整页白掉。`runKey`
+             * 现在认得每一种 Run，断言也就没有存在的理由了。
+             */
+            const key = `${activeSessionId}:process:${runKey(block.runs[0])}`;
             return (
               <TurnProcess
                 key={key}

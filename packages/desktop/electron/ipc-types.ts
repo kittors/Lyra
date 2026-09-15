@@ -243,6 +243,13 @@ export interface LyraApi {
 		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
 		open(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
+		/**
+		 * 这个会话此刻在不在跑，问主进程要权威答案。
+		 *
+		 * 渲染层自己那份 `running` 是事件推出来的，丢一条就永久卡住。见 `ipc/sessions.ts` 里这个
+		 * handler 的注释。
+		 */
+		running(sessionId: string): Promise<boolean>;
 		/** Read the stored transcript without starting anything. For looking at things. */
 		transcript(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
 		/** The same log, read as a trajectory: one entry per thing that happened, by source. */

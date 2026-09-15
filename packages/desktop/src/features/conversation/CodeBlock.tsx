@@ -15,6 +15,13 @@ import { useSide } from "../dock/index.ts";
  */
 const SHELL = new Set(["bash", "sh", "zsh", "shell", "console", "terminal"]);
 
+/**
+ * 超过这么多字符就不高亮了。
+ *
+ * 见下面 `tokens` 里的注释——这个数是照着「一帧以内跑得完」量出来的。
+ */
+const HIGHLIGHT_LIMIT = 60_000;
+
 /** Comment lines and prompt markers are for reading; the shell should not receive them. */
 function commandFrom(code: string): string {
 	return code
@@ -57,6 +64,21 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 
 	const tokens = useMemo(() => {
 		if (!language) return null;
+		/*
+		 * 太长的块不高亮，直接给纯文本。
+		 *
+		 * `tokenize` 是同步的，而它前面没有任何上限。本机一个会话里有一条用户消息 233KB、1087 行，
+		 * 整段是一个代码围栏——打开那个会话时主线程被占死 **2.3 秒**，鼠标转圈，而那个会话一共只有
+		 * 34 条消息。相比之下 382 条消息、25MB 的会话只卡 195ms：贵的从来不是条数或文件大小，是
+		 * 单块文本的长度。
+		 *
+		 * 60KB 这个数是量出来的，不是拍的：低于它的块在这台机器上都在一帧以内跑完；而真正会越过它的
+		 * 内容——整个文件粘进来、几千行日志——本来也不是拿来逐行读的，少了配色不影响它被翻阅和复制。
+		 *
+		 * `return null` 走的是这个组件本来就有的降级路径（半截围栏在流式输出中途也走它），所以文本
+		 * 一个字都不会少，只是没有配色。
+		 */
+		if (code.length > HIGHLIGHT_LIMIT) return null;
 		try {
 			return tokenize(code, language, sharedHighlightStyle());
 		} catch {

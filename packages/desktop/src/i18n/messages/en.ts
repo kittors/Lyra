@@ -1819,7 +1819,7 @@ export const en = {
 	"applyEvent.agentsDelta": "sub-agents {delta}",
 	"errorBoundary.title": "This screen crashed",
 	"errorBoundary.detail": "The renderer threw an error nobody caught. Your conversations and settings are intact — reloading this window brings you back.",
-	"errorBoundary.stack": "Component stack",
+	"errorBoundary.errorStack": "Error stack", "errorBoundary.stack": "Component stack",
 	"errorBoundary.reload": "Reload",
 	"errorBoundary.devHint": "If you changed the main process or core, restart the dev server",
 	"errorBoundary.issueHint": "Copy the component stack along with it when filing an issue.",

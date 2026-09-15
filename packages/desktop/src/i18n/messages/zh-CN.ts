@@ -1991,7 +1991,7 @@ export const zhCN = {
 	"applyEvent.agentsDelta": "子代理 {delta}",
 	"errorBoundary.title": "这个界面崩了",
 	"errorBoundary.detail": "渲染进程抛了一个没人接住的错误。会话和设置都还在，重新加载这个窗口就能回去。",
-	"errorBoundary.stack": "组件栈",
+	"errorBoundary.errorStack": "错误栈", "errorBoundary.stack": "组件栈",
 	"errorBoundary.reload": "重新加载",
 	"errorBoundary.devHint": "改过主进程或 core 的话，要重启 dev server",
 	"errorBoundary.issueHint": "提交 issue 或反馈问题时，请把组件栈一并复制上。",
