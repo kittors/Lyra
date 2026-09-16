@@ -39,6 +39,7 @@ overrides:
   qs: ">=6.15.4"
   uuid: ">=11.1.1"
   decode-uri-component: ">=0.4.3"
+  lodash-es: ">=4.17.24"
 
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20260818.1'

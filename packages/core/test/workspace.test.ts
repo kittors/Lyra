@@ -150,7 +150,7 @@ test("every place that builds a system prompt says which kind of workspace it is
 	for (const file of await walk(root)) {
 		const source = await readFile(file, "utf8");
 		// 类型声明本身不算调用点。
-		if (file.endsWith("prompt/system.ts")) continue;
+		if (file.replaceAll("\\", "/").endsWith("prompt/system.ts")) continue;
 		const declares = (source.match(/^\s*isGitRepo:/gm) ?? []).length;
 		if (declares === 0) continue;
 		const isolated = (source.match(/^\s*isolatedWorktree:/gm) ?? []).length;

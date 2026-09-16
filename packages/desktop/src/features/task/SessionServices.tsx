@@ -19,8 +19,9 @@ export function SessionServices() {
 	const confirm = useConfirmer();
 	useEffect(() => {
 		if (!sessionId || onPhone()) return;
-		let live = true, timer: ReturnType<typeof setTimeout>;
+		let live = true, timer: ReturnType<typeof setTimeout>, seen = 0;
 		const refresh = async () => {
+			clearTimeout(timer);
 			try {
 				if (!document.hidden && root.current?.getBoundingClientRect().width) {
 					const value = await bridge.services.list(sessionId);
@@ -31,7 +32,16 @@ export function SessionServices() {
 			} finally { if (live) timer = setTimeout(() => void refresh(), 2000); }
 		};
 		void refresh();
-		return () => { live = false; clearTimeout(timer); };
+		const ro = new ResizeObserver(() => {
+			const width = root.current?.getBoundingClientRect().width ?? 0;
+			if (seen === 0 && width > 0) void refresh();
+			seen = width;
+		});
+		if (root.current) {
+			seen = root.current.getBoundingClientRect().width;
+			ro.observe(root.current);
+		}
+		return () => { live = false; clearTimeout(timer); ro.disconnect(); };
 	}, [sessionId]);
 	const value = sessionId ? snapshot?.id === sessionId ? snapshot.value : cache.get(sessionId) : undefined;
 	const jobs = value?.jobs.filter((job) => job.finishedAt === undefined) ?? [];

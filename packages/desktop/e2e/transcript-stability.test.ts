@@ -132,23 +132,31 @@ const UI = `
 `;
 
 test("switching split reasoning and answers never accumulates orphan DOM rows", async () => {
-	const counts = await app.evaluate<number[]>(`(async () => { ${UI}
-		const counts = [];
+	const counts = await app.evaluate<{ process: number[]; thinking: number[]; opened: number[] }>(`(async () => { ${UI}
+		const process = [];
+		const thinking = [];
+		const opened = [];
 		for (let i = 0; i < 8; i++) {
 			await open(i % 2 ? "scroll-b" : "scroll-a");
-			counts.push(document.querySelectorAll("main [data-ly-thinking]").length);
+			process.push(document.querySelectorAll("main [data-ly-turn-process]").length);
+			thinking.push(document.querySelectorAll("main [data-ly-thinking]").length);
+			document.querySelector('main [data-ly-turn-process] > button')?.click();
+			for (let n = 0; n < 20; n++) await frame();
+			opened.push(document.querySelectorAll("main [data-ly-thinking]").length);
+			document.querySelector('main [data-ly-turn-process] > button')?.click();
+			for (let n = 0; n < 20; n++) await frame();
 		}
-		return counts;
+		return { process, thinking, opened };
 	})()`);
 	/*
-	 * Two, and the same two every time.
-	 *
-	 * The fixture reasons twice: once before its tool call, once in the reply that answers. Only
-	 * the second used to reach the transcript at all — a reply with a call and no prose got no row
-	 * — so this read 1. What the test is actually watching for is the count *growing*, which is
-	 * what a duplicate React key looks like from the outside: the old session's rows left behind.
+	 * Finished turns fold think+tools into one process row. The fixture still reasons twice —
+	 * once before the call, once before the answer — and both come back when that row is opened.
+	 * The number that must not grow is the mounted count after a switch: leftover keys leave
+	 * the previous session's process and thinking sitting under the new one.
 	 */
-	assert.deepEqual(counts, Array(8).fill(2));
+	assert.deepEqual(counts.process, Array(8).fill(1));
+	assert.deepEqual(counts.thinking, Array(8).fill(0));
+	assert.deepEqual(counts.opened, Array(8).fill(2));
 });
 
 test("scrolling an unchanged transcript leaves the scrollbar range constant", async () => {
@@ -180,7 +188,12 @@ test("expanded history and disclosures return at the same reading position", asy
 		const earlier = [...document.querySelectorAll(".ly-transcript button")].find(b => ${named("显示更早", "starts", "b")});
 		if (!earlier) throw new Error("fixture must have hidden history");
 		earlier.click();
-		document.querySelector('main [data-ly-thinking] > button').click();
+		for (let i = 0; i < 20; i++) await frame();
+		document.querySelector('main [data-ly-turn-process] > button')?.click();
+		for (let i = 0; i < 20; i++) await frame();
+		const think = document.querySelector('main [data-ly-thinking] > button');
+		if (!think) throw new Error("fixture must expose thinking after the process row opens");
+		think.click();
 		for (let i = 0; i < 20; i++) await frame();
 		const el = viewport();
 		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -800, bubbles: true }));

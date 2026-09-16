@@ -154,7 +154,7 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	 * 红过一次，日志里就只剩「没找到 127.0.0.1:」，看不出是那段 PowerShell 失败了，还是父子
 	 * 进程没对上、监听的那个 pid 不在 `descendants` 里。差别决定改哪儿。
 	 */
-	await until(`document.querySelector('[data-session-services]')?.innerText.includes('127.0.0.1:')`).catch(async (cause: unknown) => {
+	await app.evaluate(`(async()=>{const end=Date.now()+20000;while(Date.now()<end){const text=document.querySelector('[data-session-services]')?.innerText??'';if(text.includes('127.0.0.1:'))return;await new Promise(r=>setTimeout(r,100));}throw new Error('service endpoint never appeared');})()`).catch(async (cause: unknown) => {
 		const report = await app.evaluate(`window.lyra.services.list('qa-short').then(s=>JSON.stringify({discoveryError:s.discoveryError,jobs:s.jobs.map(j=>({pid:j.pid,finishedAt:j.finishedAt,endpoints:j.endpoints}))}))`);
 		throw new Error(`服务端点没有出现，探测的说法：${String(report)}`, { cause });
 	});

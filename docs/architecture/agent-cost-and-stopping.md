@@ -59,7 +59,7 @@
 - [session-notifications.md](session-notifications.md)：长任务完成、中断与错误通知机制。
 - [session-notifications.md](session-notifications.md)：长任务完成、中断与错误通知机制。
 - [testing.md](testing.md)：运行时与 UI 测试规范、测试夹具约束。
-- [docs/issue/2026-09-16-1600-01-agent-cost-stall-and-serialization-issues.md](../issue/2026-09-16-1600-01-agent-cost-stall-and-serialization-issues.md)：本执行清单对应的标准问题缺陷报告与立项 Issue。
+- 对应立项在本地 `docs/issue/`（不进仓库）：2026-09-16-1600-01。
 ---
 
 ### 术语表
@@ -427,7 +427,7 @@ A1 省 50.6% 的携带量，换算成钱约 25%。
 - [x] **A2. grep 加字符闸门，且长行必须可寻址** ← 闸门已落地；行首截断会把命中藏起来，已改成匹配窗口 + `char_offset`
       **证据（原）**：[grep.ts](../../packages/core/src/tools/grep.ts) 曾经只有 `MAX_MATCHES = 200`，单行无上限。
       [model-catalog.json](../../packages/core/src/catalog/model-catalog.json) 是 1.7MB **单行** JSON，一次命中就被整行带进上下文。
-      **现在**：单行 2000 字 + 总输出 12 000 字。窗口开在**匹配附近**，不是行首；省略处写下 `char_offset`，`read` 按这个地址翻页。`read` / `outline` / `bash` 不再把长行砍成行首并当成看过整行。grep 用 ripgrep `--json` 的匹配偏移，不二次搜索。现场记录见 [`docs/issue/2026-09-16-2355-01-long-line-head-truncation-hides-match.md`](../issue/2026-09-16-2355-01-long-line-head-truncation-hides-match.md)。
+      **现在**：单行 2000 字 + 总输出 12 000 字。窗口开在**匹配附近**，不是行首；省略处写下 `char_offset`，`read` 按这个地址翻页。`read` / `outline` / `bash` 不再把长行砍成行首并当成看过整行。grep 用 ripgrep `--json` 的匹配偏移，不二次搜索。
       对比：bash 有 [`MAX_OUTPUT_CHARS = 60_000`](../../packages/core/src/tools/bash.ts)。
 
       **不是假想的风险，是本仓库里正在发生的事**（详见上面「活案例」）：

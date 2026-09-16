@@ -70,14 +70,17 @@ for (const [scale, width, height, theme] of [
 			}>(`(() => {
 				const overlay = navigator.windowControlsOverlay;
 				const edge = overlay?.visible ? overlay.getTitlebarAreaRect().right : innerWidth;
+				const header = document.querySelector('[data-ly-window-header]');
 				const input = document.querySelector('textarea').getBoundingClientRect();
-				const buttons = [...document.querySelectorAll('[data-dock-header] button')];
+				// Caption buttons sit on the window header. Pane titles are the next row; their x
+				// crossing the overlay edge is not a collision.
+				const buttons = [...(header ?? document).querySelectorAll(header ? 'button' : '[data-dock-header] button')];
 				return { width: innerWidth, height: innerHeight, dpr: devicePixelRatio,
 					overflow: document.documentElement.scrollWidth - innerWidth,
 					composerVisible: input.left >= 0 && input.right <= innerWidth && input.bottom <= innerHeight && input.height > 20,
 					controlsClear: buttons.every(b => {const r = b.getBoundingClientRect();return r.right <= edge && r.left >= 0;}),
 					overlayVisible: overlay?.visible ?? false, overlayRight: edge,
-					hints: buttons.map(b => b.getAttribute('aria-label') ?? '') };
+					hints: [...document.querySelectorAll('[data-dock-header] button')].map(b => b.getAttribute('aria-label') ?? '') };
 			})()`);
 			t.diagnostic(JSON.stringify(geometry));
 			assert.equal(geometry.overflow, 0);

@@ -43,7 +43,8 @@ test("question navigation is mouse reachable and jumps to an unmounted historica
 	await until('document.querySelector("[data-question-index=\\"0\\"]")');
 	const samples = await app.evaluate<{ y: number; rows: number }[]>(`(async()=>{const out=[];for(let i=0;i<24;i++){await new Promise(requestAnimationFrame);out.push({y:document.querySelector('[data-question-index="0"]').getBoundingClientRect().top,rows:document.querySelector('.ly-transcript').children.length});}return out;})()`);
 	t.diagnostic(JSON.stringify(samples));
-	assert.ok(samples[0].y >= 44 && samples[0].y < 110);
+	const header = await app.evaluate<number>(`document.querySelector('[data-ly-window-header]')?.getBoundingClientRect().height ?? 0`);
+	assert.ok(samples[0].y >= 44 + header && samples[0].y < 110 + header, `question 0 at ${samples[0].y} with header ${header}`);
 	assert.ok(samples.every((sample) => Math.abs(sample.y - samples[0].y) < 1 && sample.rows <= 62));
 	await frames();
 	await shot("question-navigation");
@@ -51,7 +52,7 @@ test("question navigation is mouse reachable and jumps to an unmounted historica
 	const trajectory = await app.evaluate<number[]>(`(async()=>{const out=[];for(let i=0;i<120;i++){await new Promise(requestAnimationFrame);out.push(document.querySelector('[data-question-index="18"]').getBoundingClientRect().top);}return out;})()`);
 	t.diagnostic(JSON.stringify({question10:trajectory.filter((_,i)=>i%10===0)}));
 	const position = await app.evaluate<number>(`document.querySelector('[data-question-index="18"]').getBoundingClientRect().top`);
-	assert.ok(position >= 44 && position <= 100, `question 10 at ${position}`);
+	assert.ok(position >= 44 + header && position <= 100 + header, `question 10 at ${position} with header ${header}`);
 	await click('[data-ly-row="qa-short"] > button'); await frames();
 	await click('[data-ly-row="qa-long"] > button'); await frames();
 	assert.ok(Math.abs(await app.evaluate<number>(`document.querySelector('[data-question-index="18"]').getBoundingClientRect().top`) - position) <= 1);
