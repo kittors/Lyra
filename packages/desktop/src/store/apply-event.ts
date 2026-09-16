@@ -9,7 +9,7 @@
 
 import { translate } from "../i18n/translate.ts";
 import type { AgentEvent } from "@lyra/core";
-import { freshTokens } from "@lyra/core/tokens";
+import { addTurnUsage, type TurnMeter, type CarriedTurn } from "./turn-meter.ts";
 import { nextActivity } from "@lyra/core/activity";
 import { recordReadEvent } from "./read-events.ts";
 import { cachedEvent } from "./cached-event.ts";
@@ -124,7 +124,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      */
     const turns = get().turns ?? {};
     const meter = turns[sessionId];
-    let next: { startedAt: number; tokens: number } | undefined = meter;
+    let next: TurnMeter | undefined = meter;
     /*
      * What a turn that stopped part-way leaves behind for 继续 to pick up.
      *
@@ -132,7 +132,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      * turn; `null` means "there is nothing to carry", which is how a turn that finished properly
      * clears the one before it.
      */
-    let carriedNext: { elapsedMs: number; tokens: number } | null | undefined;
+    let carriedNext: CarriedTurn | null | undefined;
     if (event.type === "agent_start") {
       // Kept if it is already running: a continuation is the same turn, not a new one.
       // If not currently running but carried exists, relight from the carried meter so continuation preserves timing and tokens.
@@ -152,7 +152,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * One accumulator now, here, for every session rather than only the one on screen. The
        * mirroring below is what carries it to the line.
        */
-      if (meter) next = { ...meter, tokens: meter.tokens + freshTokens(event.message.usage) };
+      if (meter) next = addTurnUsage(meter, event.message.usage);
     } else if (event.type === "subagent_message" && event.message.role === "assistant") {
       /*
        * 委派出去烧的钱也是这一轮烧的。
@@ -166,7 +166,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * 只数助手消息，口径和上面那条完全一样：一条助手消息等于一次请求，用量记在它身上；工具结果
        * 和用户消息不带用量，数进来只会重复。
        */
-      if (meter) next = { ...meter, tokens: meter.tokens + freshTokens(event.message.usage) };
+      if (meter) next = addTurnUsage(meter, event.message.usage);
     } else if (event.type === "retry" && event.resume) {
       /*
        * A turn being picked back up after the connection died, which arrives *after* `agent_end`
@@ -339,6 +339,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     case "message_start":
     case "message_end":
       set(messageEvent(get(), event, sessionId));
+			if (event.message.role === "user" && event.message.clearsTaskPlan === true) set({ todos: [] });
       break;
 
     case "message_update":
@@ -364,7 +365,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
             detail: event.detail,
             ...(event.reason ? { reason: event.reason } : {}),
             subject: event.subject,
-            ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}),
+            ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}), selectionMode: event.selectionMode, allowSkip: event.allowSkip, defaultOptionIndex: event.defaultOptionIndex,
           },
         ],
       });

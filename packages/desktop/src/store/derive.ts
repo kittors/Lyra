@@ -166,6 +166,7 @@ export { wasCutShort } from "./turn-stop.ts";
 export function todosFrom(messages: Message[]): TodoItem[] {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
+		if (message.role === "user" && message.clearsTaskPlan === true) return [];
 		if (message.role !== "toolResult" || message.toolName !== "todo_write" || message.isError) continue;
 		const details = message.details as { kind?: string; todos?: TodoItem[] } | undefined;
 		if (details?.kind === "todo" && Array.isArray(details.todos)) return details.todos;

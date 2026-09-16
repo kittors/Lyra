@@ -13,8 +13,9 @@ import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { dropUneventful, stripOversizedToolResults } from "../runtime/prune.ts";
-import { clearActiveSkill } from "../skills/tool.ts";
-import { readTodos } from "../tools/todo.ts";
+import type { ArtifactSink } from "../runtime/prune.ts";
+import { AgedToolPruner } from "../runtime/aged-prune.ts";
+import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type { Compaction } from "../runtime/compaction.ts";
 import type {
 	ApprovalDecision,
@@ -56,6 +57,8 @@ export interface AgentRunConfig {
 	 * 省略时自己建一只——单次调用（子代理、评测、测试）本来就没有「上一段」。
 	 */
 	repetition?: RepetitionWatch;
+	pruner?: AgedToolPruner;
+	artifacts?: ArtifactSink;
 	signal?: AbortSignal;
 	/** Session-scoped scratch space shared by every tool. */
 	state?: Map<string, unknown>;
@@ -158,12 +161,7 @@ function rejectedContent(assistant: AssistantMessage): boolean {
 }
 
 const DEFAULT_MAX_TURNS = 200;
-/**
- * How many times in a row the agent may be told to get on with it.
- *
- * Enough to carry a plan over a couple of pauses, few enough that a model which has genuinely
- * finished — but left an item it decided against — is not argued with indefinitely.
- */
+/** Empty-response retries per run; tool calls must not replenish this budget. */
 const MAX_NUDGES = 3;
 
 /** Appended to a lone todo_write's result. The wording names the cost, not just the rule. */
@@ -176,10 +174,11 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	const produced: Message[] = [];
 	const state = config.state ?? new Map<string, unknown>();
 	const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
-	/** Consecutive turns that talked about the plan without touching it. */
+	/** Empty-response retries spent in this run. */
 	let nudges = 0;
 	/** Watches for a turn that has stopped learning anything; see `repetition.ts`. */
 	const repetition = config.repetition ?? new RepetitionWatch();
+	const pruner = config.pruner ?? new AgedToolPruner();
 	/**
 	 * When the last request went out, for judging whether the provider's prefix cache is still warm.
 	 *
@@ -247,7 +246,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 * the history loaded from the log carries empty results from turns that ended before this
 		 * process started, and those do sit under everything that came after.
 		 */
-		const tidied = dropUneventful(messages, { lastRequestAt });
+		const tidied = pruner.prepare(dropUneventful(messages, { lastRequestAt }), { lastRequestAt }, config.artifacts);
 		if (tidied !== messages) {
 			messages.length = 0;
 			messages.push(...tidied);
@@ -396,51 +395,12 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			carried = config.drainSteering?.() ?? [];
 			if (carried.length > 0) continue;
 
-			/*
-			 * Saying what comes next is not the same as stopping.
-			 *
-			 * On long work a model regularly ends a turn with a sentence like "backend done, now
-			 * the SSR pages" and no tool call at all — it narrated the next step instead of taking
-			 * it. Read literally that is the end of the run, and eight-step plans were being
-			 * abandoned three steps in with nothing wrong and nothing said.
-			 *
-			 * Its own task list is the evidence. If items remain unfinished, the work is not over
-			 * and it is asked to carry on. Bounded, and reset by any turn that actually uses a
-			 * tool, so a model that has genuinely stopped is nudged a few times and then left
-			 * alone rather than talked at forever.
-			 */
-			/*
-			 * An empty reply is not an answer.
-			 *
-			 * A turn that produced no tool call *and* no words has said nothing — it happens when a
-			 * model spends its turn thinking and emits nothing after it. Read literally that is the
-			 * end of the run, and a whole task once ended this way four messages in with an empty
-			 * workspace and no explanation. There is no plan to consult in that case, because
-			 * nothing has happened yet; the emptiness is the evidence.
-			 */
+			// A checklist cannot distinguish a question from abandoned work. Text yields to the
+			// person; only an actually empty response earns a bounded retry.
 			const saidNothing = assistant.content.every((part) => part.type !== "text" || !part.text.trim());
-			const unfinished = readTodos(state).filter((todo) => todo.status !== "completed");
-			/*
-			 * Both tests are facts about the run, not readings of what the reply said.
-			 *
-			 * The tempting third case is a turn that describes a plan and stops without starting it,
-			 * and it cannot be decided here: whether a reply owed the user an action depends on what
-			 * they asked for, and that is not in the reply. Matching the wording instead catches
-			 * every polite sign-off on a finished answer and every question worth asking, and
-			 * answers them by demanding a tool call there is no work for. A plan the session should
-			 * hold on to goes in `todo_write`, where it becomes the first test above; one left in
-			 * prose is a sentence, and sentences are the user's to judge.
-			 */
-			if ((unfinished.length > 0 || saidNothing) && nudges < MAX_NUDGES) {
+			if (saidNothing && nudges < MAX_NUDGES) {
 				nudges += 1;
-				let nudgeText = "（自动继续）上一条回复是空的。请直接开始执行：说明你要做什么，并调用工具去做。";
-				if (!saidNothing && unfinished.length > 0) {
-					const inProgress = unfinished.find((t) => t.status === "in_progress") ?? unfinished[0];
-					const listStr = unfinished
-						.map((t, idx) => `  ${idx + 1}. [${t.status === "in_progress" ? "进行中" : "待处理"}] ${t.content}`)
-						.join("\n");
-					nudgeText = `（自动继续）清单里还有 ${unfinished.length} 项没有完成：\n${listStr}\n\n请直接执行【${inProgress.content}】，调用工具继续，不要只描述计划。`;
-				}
+				const nudgeText = "（自动继续）上一条回复没有正文。请给出回答；如果需要用户补充信息，请直接提问并等待回复。";
 
 				const nudge: Message = {
 					role: "user",
@@ -467,11 +427,12 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				await emit({ type: "message_end", message: nudge });
 				continue;
 			}
-			return finish("done");
+			return saidNothing
+				? finish("error", "模型连续返回空回复，请重试或更换模型。")
+				: finish("done");
 		}
-		// It did something, so whatever made it pause before is no longer the pattern.
-		nudges = 0;
 
+		syncSkillContext(state, messages);
 		const toolResults =
 			assistant.stopReason === "length"
 				? await failTruncatedCalls(toolCalls, emit)
@@ -559,7 +520,11 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			 * 全程没有收到任何提示；等到终于收到时，那句话描述的也不是它正在做的事。
 			 */
 			const text =
-				kind === "intent"
+				kind === "probe"
+					? `（自动提示）你已经连续多次切图、读切片或做像素测距。` +
+						`这类探测回答不了「为什么间距是这样」——去读对应的 CSS 和组件结构，基于已有证据下结论。` +
+						`不要再写新的测距脚本，也不要再切图。`
+					: kind === "intent"
 					? `（自动提示）你已经用不同的翻页参数把 \`${repeated}\` 的同一个问题问了很多遍。` +
 						`翻页不会把答案翻出来——要么它本来就不在这里，要么该换个问法。` +
 						`换个工具、换个假设，或者直接说明当前卡在哪里、需要什么。`

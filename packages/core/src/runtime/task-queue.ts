@@ -152,6 +152,18 @@ export class TaskQueue {
 		if (touched) await this.options.changed();
 	}
 
+	/** A cancelled goal is withdrawn, so Continue cannot revive its dispatched work. */
+	async discardPlan(): Promise<void> {
+		let changed = false;
+		for (const task of this.tasks) {
+			if (!isResumable(task)) continue;
+			task.status = "cancelled";
+			task.cancelledBy = "user";
+			changed = true;
+		}
+		if (changed) await this.options.changed();
+	}
+
 	/** Start draining if nothing else is. Safe to call from anywhere, including mid-drain. */
 	async drain(): Promise<void> {
 		if (this.draining || this.options.busy()) return;

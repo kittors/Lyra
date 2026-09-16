@@ -989,7 +989,7 @@ export function Composer() {
 							<EffortTrigger modelId={modelId} />
 
 							{/* 正忙时按下去是排队而不是插话，所以它说的也不再是「发送」——见 `submitOnce`。 */}
-							{running && (text.trim() || attachments.length > 0) && <ComposerSend running={false} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort()} />}
+							<div className="ly-queue-send" data-visible={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} inert={!running || !(text.trim() || attachments.length || sessionRefs.length)}><div><ComposerSend running={false} active={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} disabled={!running || !(text.trim() || attachments.length || sessionRefs.length)} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort()} /></div></div>
 							<ComposerSend
 								running={running}
 								continueReady={continueReady}

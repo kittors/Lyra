@@ -121,7 +121,7 @@ export const editTool: Tool<EditArgs> = {
 				detail: formatDiff(diff, shown),
 				subject: absolute,
 			});
-			if (decision === "reject") return errorResult("The user rejected this edit.");
+			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this edit.");
 		}
 
 		if (await readFile(absolute, "utf8") !== before) return errorResult("The file changed while awaiting approval. Read it again before editing.");

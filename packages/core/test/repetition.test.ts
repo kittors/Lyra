@@ -7,13 +7,32 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { INTENT_WARN, RepetitionWatch, REPEAT_STOP, REPEAT_WARN } from "../src/agent/repetition.ts";
+import { INTENT_WARN, PROBE_STOP, PROBE_WARN, RepetitionWatch, REPEAT_STOP, REPEAT_WARN } from "../src/agent/repetition.ts";
 import type { Message } from "../src/types.ts";
 
 const result = (text: string): Message =>
 	({ role: "toolResult", toolCallId: "c", content: [{ type: "text", text }], timestamp: 1 }) as Message;
 
 const call = (name: string, args: unknown) => [{ name, arguments: args }];
+
+test("different results past the old 400-character sample are not identical", () => {
+	const watch = new RepetitionWatch();
+	for (let i = 0; i < REPEAT_STOP + 1; i++) {
+		assert.equal(watch.observe(call("read", { path: "log" }), [result("x".repeat(500) + i)]).worst, 1);
+	}
+	assert.equal(watch.exhausted(), false);
+});
+
+test("a successful edit resets stale observations while failed writes do not", () => {
+	const watch = new RepetitionWatch();
+	for (let i = 0; i < REPEAT_WARN; i++) watch.observe(call("read", { path: "a" }), [result("same")]);
+	const failed = result("denied");
+	if (failed.role === "toolResult") failed.isError = true;
+	watch.observe(call("write", { path: "a" }), [failed]);
+	assert.equal(watch.observe(call("read", { path: "a" }), [result("same")]).worst, REPEAT_WARN + 1);
+	watch.observe(call("edit", { path: "a" }), [result("edited")]);
+	assert.equal(watch.observe(call("read", { path: "a" }), [result("same")]).worst, 1);
+});
 
 test("the same call with the same answer is what counts as repetition", () => {
 	const watch = new RepetitionWatch();
@@ -144,6 +163,62 @@ test("a page-walk is counted even on rounds that reported an exact repeat", () =
 		if (round.kind === "intent") sawIntent = true;
 	}
 	assert.equal(sawIntent, true, "the earlier rounds counted toward the same question");
+});
+
+test("pixel-measure bash is one family even when the script keeps changing", () => {
+	const watch = new RepetitionWatch();
+	let reported: { warn: string | null; kind?: string } | null = null;
+	for (let i = 0; i < PROBE_WARN; i++) {
+		const round = watch.observe(
+			call("bash", { command: `python3 -c "import numpy; Image.open('band_${String(i).padStart(2, "0")}.png')"` }),
+			[result(`wrote band_${i}.png`)],
+		);
+		if (round.warn) reported = round;
+	}
+	assert.equal(reported?.warn, "bash");
+	assert.equal(reported?.kind, "probe");
+});
+
+test("writing a new measure script does not reset the probe family", () => {
+	const watch = new RepetitionWatch();
+	const script = "import numpy\nfrom PIL import Image\nImage.open('shot.png')\n";
+	for (let i = 0; i < 3; i++) {
+		watch.observe(call("write", { path: `/tmp/measure_${i}.py`, content: script }), [result("wrote")]);
+	}
+	let reported: { kind?: string } | null = null;
+	for (let i = 0; i < PROBE_WARN; i++) {
+		const round = watch.observe(call("read", { path: `/tmp/band_${String(i).padStart(2, "0")}.png` }), [result("pixels")]);
+		if (round.kind === "probe") reported = round;
+	}
+	assert.equal(reported?.kind, "probe", "the writes were more of the same loop, not progress");
+});
+
+test("a real workspace edit still resets probe counts", () => {
+	const watch = new RepetitionWatch();
+	for (let i = 0; i < PROBE_WARN - 1; i++) {
+		watch.observe(call("read", { path: `/tmp/band_${String(i).padStart(2, "0")}.png` }), [result("pixels")]);
+	}
+	watch.observe(call("edit", { path: "packages/desktop/src/styles/base.css" }), [result("edited")]);
+	const next = watch.observe(call("read", { path: "/tmp/band_00.png" }), [result("pixels")]);
+	assert.equal(next.warn, null);
+	assert.equal(next.kind, undefined);
+	assert.equal(watch.exhausted(), false);
+});
+
+test("ignored probe corrections end the turn", () => {
+	const watch = new RepetitionWatch();
+	for (let i = 0; i < PROBE_STOP; i++) {
+		watch.observe(call("read", { path: `/tmp/band_${String(i).padStart(2, "0")}.png` }), [result("pixels")]);
+	}
+	assert.equal(watch.exhausted(), true);
+});
+
+test("ordinary image work without measuring is not a probe loop", () => {
+	const watch = new RepetitionWatch();
+	for (let i = 0; i < PROBE_STOP + 1; i++) {
+		watch.observe(call("bash", { command: `ffmpeg -i src.mov frame-${i}.png` }), [result("ok")]);
+	}
+	assert.equal(watch.exhausted(), false);
 });
 
 test("one watch spans a whole continuation chain", async () => {

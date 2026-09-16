@@ -11,6 +11,7 @@ import type { AgentEventSink } from "./events.ts";
 import type { AgentRunConfig } from "./loop.ts";
 import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
+import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
 import type {
 	AssistantContent,
 	Tool,
@@ -169,8 +170,17 @@ async function executeOne(
 		}
 	}
 
-	let result: ToolResult;
-	try {
+	let result: ToolResult | undefined;
+	if (state.has(TOOL_NAMES_KEY) && call.name === "bash" && typeof call.arguments.command === "string" && !call.arguments.escalate && !call.arguments.run_in_background) {
+		const translated = translatedShellCommand(call.arguments.command);
+		const target = translated && config.tools.find((candidate) => candidate.name === translated.name);
+		if (translated && target) {
+			const native = await executeOne(target, { ...call, name: translated.name, arguments: translated.args, argumentsText: JSON.stringify(translated.args) }, config, state, emit);
+			result = { ...native, content: [...native.content, { type: "text", text: `[Executed with ${translated.name}; use that tool directly next time.]` }] };
+		}
+	}
+
+	if (!result) try {
 		/*
 		 * Stop must not depend on the tool agreeing to stop.
 		 *

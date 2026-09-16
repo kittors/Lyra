@@ -38,6 +38,7 @@ import { resolveModelRef } from "../config/model-roles.ts";
 import type { TurnContext } from "./turn.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
+import { sessionPruner } from "./aged-prune.ts";
 
 export interface TurnConfigDeps {
 	sessionId: string;
@@ -141,6 +142,8 @@ export function buildTurnConfig(
 			 * （`runtime/session-turn.ts`），共用这只表，跑满两百轮攒下的观察才不会在续跑时清零。
 			 */
 			repetition: new RepetitionWatch(),
+			pruner: sessionPruner(deps.state),
+			artifacts: deps.artifacts,
 			allowedPaths: deps.allowedPaths,
 			/*
 			 * Queued rather than run on demand.

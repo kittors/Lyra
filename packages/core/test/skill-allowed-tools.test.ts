@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ACTIVE_SKILL_KEY, clearActiveSkill, skillRefusal, skillTool, SKILLS_KEY } from "../src/skills/tool.ts";
+import { ACTIVE_SKILL_KEY, clearActiveSkill, skillRefusal, skillTool, SKILLS_KEY, syncSkillContext } from "../src/skills/tool.ts";
 import type { Skill } from "../src/skills/loader.ts";
 import type { ToolContext } from "../src/types.ts";
 
@@ -32,6 +32,18 @@ function ctx(skills: Skill[]): ToolContext {
 function textOf(result: { content: { type: string; text?: string }[] }): string {
 	return result.content.map((c) => c.text ?? "").join("");
 }
+
+test("duplicate skill loads are small, but compaction and changed arguments permit reloading", async () => {
+	const context = ctx([skill("pdf", ["read"])]);
+	const first = await skillTool.execute({ name: "pdf" }, context);
+	const second = await skillTool.execute({ name: "pdf" }, context);
+	assert.match(textOf(first), /# pdf/);
+	assert.match(textOf(second), /already loaded/);
+	assert.doesNotMatch(textOf(second), /# pdf/);
+	assert.match(textOf(await skillTool.execute({ name: "pdf", args: "new task" }, context)), /# pdf/);
+	syncSkillContext(context.state, []);
+	assert.equal(textOf(await skillTool.execute({ name: "pdf" }, context)), textOf(first));
+});
 
 test("loading a restricted skill records what it allows", async () => {
 	const context = ctx([skill("pdf", ["read", "bash"])]);

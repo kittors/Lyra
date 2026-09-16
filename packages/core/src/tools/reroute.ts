@@ -23,6 +23,26 @@ export interface Reroute {
 /** 当前会话有哪些工具，`SessionCapabilities.load` 填进 state。没有这个 key 就是关了。 */
 export const TOOL_NAMES_KEY = "toolNames";
 
+/** Only translate unambiguous argv; shell composition and unsupported flags stay with bash. */
+export function translatedShellCommand(command: string): { name: string; args: Record<string, unknown> } | null {
+	if (/[\n|<>;&`$*?{}[\]~\\]/.test(command)) return null;
+	const words = command.trim().match(/"[^"]*"|'[^']*'|[^\s"']+/g);
+	if (!words || words.join(" ") !== command.trim().replace(/\s+/g, " ")) return null;
+	const [name, ...args] = words.map((word) => /^['"]/.test(word) ? word.slice(1, -1) : word);
+	if (name === "cat" && args.length === 1 && !args[0].startsWith("-")) return { name: "read", args: { path: args[0] } };
+	if (name === "ls") {
+		const all = args[0] === "-a" || args[0] === "-la" || args[0] === "-al";
+		const rest = all || args[0] === "-l" ? args.slice(1) : args;
+		if (rest.length <= 1 && !rest[0]?.startsWith("-")) return { name: "ls", args: { path: rest[0] ?? ".", all } };
+	}
+	if (name === "rg" || name === "grep") {
+		const rest = args[0] === "-n" ? args.slice(1) : args;
+		// Literal words share semantics between grep's BRE, rg and the fallback regex engine.
+		if (rest.length === 2 && /^[\w-]+$/.test(rest[0]) && !rest[0].startsWith("-") && !rest[1].startsWith("-")) return { name: "grep", args: { pattern: rest[0], path: rest[1] } };
+	}
+	return null;
+}
+
 /**
  * 命中一条就是等价调用；`[^|<>;&`$]*$` 是「后面没有任何组合」。
  *

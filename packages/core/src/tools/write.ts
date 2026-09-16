@@ -96,7 +96,7 @@ export const writeTool: Tool<WriteArgs> = {
 				detail: formatDiff(computeDiff(previous, args.content), displayPath(ctx.cwd, absolute)),
 				subject: absolute,
 			});
-			if (decision === "reject") return errorResult("The user rejected this write.");
+			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this write.");
 		}
 
 		if ((await exists(absolute)) !== alreadyExists || (alreadyExists && await readFile(absolute, "utf8") !== previous)) return errorResult("The file changed while awaiting approval. Read it again before writing.");

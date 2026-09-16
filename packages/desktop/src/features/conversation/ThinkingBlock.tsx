@@ -1,6 +1,7 @@
+import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { translate } from "../../i18n/translate.ts";
 import { Brain } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 
 import { FlowRow } from "./FlowRow.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -46,46 +47,6 @@ const TYPE = {
  */
 export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string; redacted: boolean; live?: boolean; stateKey?: string }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
-	const [visited, setVisited] = useState(open);
-	const container = useRef<HTMLDivElement>(null);
-	const body = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<number | null>(() => (open && !redacted ? null : 0));
-	const prevOpen = useRef(open);
-
-	useLayoutEffect(() => {
-		const el = body.current;
-		const box = container.current;
-		if (!el || !box) return;
-
-		if (open !== prevOpen.current) {
-			if (open && !redacted) {
-				const targetHeight = el.scrollHeight;
-				setHeight(targetHeight);
-			} else {
-				const currentHeight = el.scrollHeight;
-				box.style.height = `${currentHeight}px`;
-				void box.offsetHeight;
-				box.style.height = "0px";
-				setHeight(0);
-			}
-			prevOpen.current = open;
-		} else if (open && !redacted) {
-			const measure = () => {
-				if (box.style.height !== "0px") {
-					setHeight(el.scrollHeight);
-				}
-			};
-			const observer = new ResizeObserver(measure);
-			observer.observe(el);
-			return () => observer.disconnect();
-		}
-	}, [text, open, redacted]);
-	useLayoutEffect(() => {
-		const element = body.current;
-		if ((!open || redacted) && element) {
-			setHeight(0);
-		}
-	}, [open, redacted]);
 	const runs = useMemo(() => thinkingRuns(text), [text]);
 	const span = useRef<HTMLSpanElement>(null);
 	/*
@@ -106,7 +67,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 	const settled = live ? (typing ? "" : runs[runs.length - 1] ?? "") : runs[0] ?? text;
 
 	return (
-		<div data-ly-thinking="" className="mb-2.5 last:mb-0">
+		<div data-ly-thinking="">
 			{/*
 			 * 不再写「思考过程 ·」。
 			 *
@@ -127,30 +88,10 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 				}
 				followEnd={typing}
 				open={open}
-				{...(redacted ? {} : { onToggle: () => { setVisited(true); setOpen((v) => !v); } })}
+				{...(redacted ? {} : { onToggle: () => { setOpen((v) => !v); } })}
 				label={translate("thinking.process")}
 			/>
-			<div
-				ref={container}
-				style={{ height: open && !redacted ? (height !== null ? `${height}px` : "auto") : 0 }}
-				onTransitionEnd={(e) => {
-					if (e.target === e.currentTarget && open && !redacted) {
-						setHeight(null);
-					}
-				}}
-				inert={!open || redacted}
-				aria-hidden={!open || redacted}
-				className="ly-freeze overflow-hidden transition-[height] duration-[var(--ly-t-base)] ease-out"
-			>
-				<div ref={body} className="mt-1.5 border-l-2 border-line pl-3">
-					{/*
-					 * Rendered, not raw. Models write their reasoning in markdown — backticked
-					 * identifiers, numbered steps, the occasional block — so showing it verbatim
-					 * meant reading `handle()` with the backticks still on.
-					 */}
-					{(open || visited) && !redacted && <Markdown text={text} className="text-label text-ink-muted" />}
-				</div>
-			</div>
+			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3" keepMounted><Markdown text={text} className="text-label text-ink-muted" /></Collapse>
 		</div>
 	);
 }

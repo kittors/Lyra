@@ -245,7 +245,7 @@ function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool): 
 					detail: JSON.stringify(args, null, 2).slice(0, 2000),
 					subject: qualifiedName,
 				});
-				if (decision === "reject") return { content: [{ type: "text", text: "The user rejected this MCP call." }], isError: true };
+				if (decision !== "once" && decision !== "always") return { content: [{ type: "text", text: "The user rejected this MCP call." }], isError: true };
 			}
 
 			try {

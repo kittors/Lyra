@@ -170,3 +170,66 @@
 .ly-composer-catch {
   animation: ly-composer-catch var(--ly-t-slow) var(--ly-e-out);
 }
+
+/* The border and inter-control gap participate in the same size transition as the rows. */
+.ly-composer-queue {
+	margin-bottom: 6px;
+	contain: layout style;
+	transition: margin-bottom var(--ly-t-base) var(--ly-e-in), border-width var(--ly-t-base) var(--ly-e-in);
+}
+
+.ly-composer-queue[data-empty] {
+	margin-bottom: 0;
+	border-block-width: 0;
+}
+
+@starting-style {
+	.ly-composer-queue {
+		margin-bottom: 0;
+		border-block-width: 0;
+	}
+}
+
+.ly-queue-row[data-leaving][data-recalled] {
+	transform: translateY(6px);
+	transition: grid-template-rows var(--ly-t-base) var(--ly-e-in), opacity var(--ly-t-quick) var(--ly-e-in), transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-composer-text {
+	transition: height var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-composer-catch .ly-composer-text {
+	animation: ly-fade-in var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-queue-send {
+	display: grid;
+	grid-template-columns: 0fr;
+	opacity: 0;
+	transition: grid-template-columns var(--ly-t-base) var(--ly-e-out), opacity var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-queue-send > div {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.ly-queue-send[data-visible="true"] {
+	grid-template-columns: 1fr;
+	opacity: 1;
+}
+
+.ly-send-icon {
+	position: absolute;
+	display: grid;
+	place-items: center;
+	opacity: 0;
+	transform: scale(0.6);
+	transition: opacity var(--ly-t-quick), transform var(--ly-t-quick);
+}
+
+.ly-send-icon[data-active="true"] {
+	opacity: 1;
+	transform: scale(1);
+}

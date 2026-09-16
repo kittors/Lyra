@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "./zh-CN.ts";
 
 export const zhTW = {
+
+	"tools.run": "工具呼叫",
+	"process.turn": "本輪過程",	"question.title": "需要你的意見",
+	"question.skip": "略過此步",
+	"question.recommended": "建議",
+	"question.confirm": "確認選擇",
+	"question.otherCard": "其他想法",
+	"question.selectOne": "選擇一項",
+	"question.selectMany": "可選擇多項",
+	"question.skipDefault": "略過將採用：{choice}",
+	"question.collapse": "收合提問或核准",
+	"question.expand": "展開提問或核准",
+	"question.fullAccessNote": "這是業務提問。完整存取免除操作核准，問題的答案仍由你決定。",
+
 	"common.cancel": "取消", "common.confirm": "確認", "common.delete": "刪除", "common.hide": "隱藏", "common.loading": "正在開啟", "common.save": "儲存", "common.show": "顯示",
 	"app.backWorkspace": "返回工作區", "app.guide": "引導", "app.hideSettingsNavigation": "隱藏設定導覽 {shortcut}", "app.mainProcessError": "主程序發生錯誤", "app.panel": "面板", "app.plugins": "外掛", "app.pullRequests": "拉取請求", "app.scheduledTasks": "排程任務", "app.settingsNavigation": "設定導覽", "app.showSettingsNavigation": "顯示設定導覽 {shortcut}", "app.sidebar": "側邊欄",
 	"language.title": "介面語言", "language.detail": "切換 Lyra 的選單、設定與操作提示。對話內容、程式碼與終端輸出維持原文。", "language.system": "跟隨系統", "language.systemDetected": "目前系統語言", "language.zh-CN": "简体中文", "language.zh-TW": "繁體中文", "language.en": "English", "language.fr": "Français", "language.ru": "Русский", "language.ko": "한국어", "language.ja": "日本語",
@@ -1808,7 +1822,7 @@ export const zhTW = {
 	"sessionCard.yesterday": "昨天",
 	"sessionCard.daysAgo": "{n} 天前",
 	"sessionCard.messages": "訊息",
-	"sessionCard.usage": "用量",
+	"sessionCard.usage": "全程用量",
 	"sessionCard.cache": "快取",
 	"recency.today": "今天",
 	"recency.yesterday": "昨天",
@@ -2023,6 +2037,7 @@ export const zhTW = {
 	"conversation.showLater": "顯示後面的 {n} 條",
 	"questionNav.label": "使用者問題導覽",
 	"ruleCard.watching": " · 監視 ",
+	"running.turnTokens": "本輪 {n} tokens",
 	"running.compacted": "已壓縮較早的對話",
 	"delivery.editedFiles": "已編輯 {n} 個檔案",
 	"userMessage.fromSideChat": "來自側邊聊天",

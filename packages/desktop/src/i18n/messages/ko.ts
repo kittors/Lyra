@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "./zh-CN.ts";
 
 export const ko = {
+
+	"tools.run": "도구 호출",
+	"process.turn": "이번 턴의 과정",	"question.title": "의견이 필요해요",
+	"question.skip": "질문 건너뛰기",
+	"question.recommended": "추천",
+	"question.confirm": "선택 확인",
+	"question.otherCard": "다른 답변 입력",
+	"question.selectOne": "하나 선택",
+	"question.selectMany": "여러 항목 선택 가능",
+	"question.skipDefault": "건너뛸 때 사용할 답변: {choice}",
+	"question.collapse": "질문 또는 승인 접기",
+	"question.expand": "질문 또는 승인 펼치기",
+	"question.fullAccessNote": "작업 방향을 묻는 질문입니다. 전체 접근은 작업 승인을 생략하지만 질문에 대신 답하지는 않습니다.",
+
 	"common.cancel": "취소", "common.confirm": "확인", "common.delete": "삭제", "common.hide": "숨기기", "common.loading": "여는 중", "common.save": "저장", "common.show": "표시",
 	"app.backWorkspace": "작업 공간으로 돌아가기", "app.guide": "안내", "app.hideSettingsNavigation": "설정 탐색 숨기기 {shortcut}", "app.mainProcessError": "메인 프로세스 오류", "app.panel": "패널", "app.plugins": "플러그인", "app.pullRequests": "Pull Request", "app.scheduledTasks": "예약 작업", "app.settingsNavigation": "설정 탐색", "app.showSettingsNavigation": "설정 탐색 표시 {shortcut}", "app.sidebar": "사이드바",
 	"language.title": "인터페이스 언어", "language.detail": "Lyra의 메뉴, 설정, 작업 안내 언어를 변경합니다. 대화 내용, 코드, 터미널 출력은 원문을 유지합니다.", "language.system": "시스템 언어 사용", "language.systemDetected": "현재 시스템 언어", "language.zh-CN": "简体中文", "language.zh-TW": "繁體中文", "language.en": "English", "language.fr": "Français", "language.ru": "Русский", "language.ko": "한국어", "language.ja": "日本語",
@@ -1808,7 +1822,7 @@ export const ko = {
 	"sessionCard.yesterday": "어제",
 	"sessionCard.daysAgo": "{n}일 전",
 	"sessionCard.messages": "메시지",
-	"sessionCard.usage": "사용량",
+	"sessionCard.usage": "전체 대화 사용량",
 	"sessionCard.cache": "캐시",
 	"recency.today": "오늘",
 	"recency.yesterday": "어제",
@@ -2023,6 +2037,7 @@ export const ko = {
 	"conversation.showLater": "뒤의 {n}개 보기",
 	"questionNav.label": "내 질문 모음",
 	"ruleCard.watching": " · 지켜보는 중 ",
+	"running.turnTokens": "이번 턴 {n} tokens",
 	"running.compacted": "앞선 대화를 요약했습니다",
 	"delivery.editedFiles": "파일 {n}개 고침",
 	"userMessage.fromSideChat": "사이드 챗에서",

@@ -175,7 +175,7 @@ async function checkTarget(input: string, ctx: ToolContext): Promise<{ url: URL 
 			subject: url.origin,
 			reason: verdict.reason,
 		});
-		if (decision === "reject") return { error: "The user rejected this network request." };
+		if (decision !== "once" && decision !== "always") return { error: "The user rejected this network request." };
 	}
 	return { url };
 }

@@ -47,8 +47,11 @@ export type AgentEvent =
 			/** What an "always" answer would be remembered against, so the prompt can say so. */
 			subject: string;
 			/** Interactive choices for user selection. */
-			options?: string[];
+			options?: import("../types.ts").QuestionFields["options"];
 			allowCustomInput?: boolean;
+			selectionMode?: "single" | "multi";
+			allowSkip?: boolean;
+			defaultOptionIndex?: number;
 		}
 	| { type: "turn_end"; message: AssistantMessage; toolResults: ToolResultMessage[] }
 	/** `stalled`: the turn kept making the same call for the same answer and was stopped. */

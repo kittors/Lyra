@@ -1,0 +1,15 @@
+---
+description: Question and approval choice rows use the drawn ChoiceMark, never native OS checkboxes
+globs: packages/desktop/src/features/conversation/**/*.{tsx,css}
+alwaysApply: true
+---
+
+# Choice controls
+
+Ask-user and approval option rows must use `ui/primitives/ChoiceMark.tsx`.
+
+Do not ship `<input type="checkbox">` or `<input type="radio">` as the visible control. Native chrome follows the OS (Aqua, Fluent) and does not match Lyra's ink/accent cards.
+
+Keep a visually hidden native input (`sr-only`) when a real form control is needed so tests and assistive tech still see `input:checked`. The mark is paint only.
+
+Selected rows use the quiet card treatment: `border-accent/40 bg-accent/[0.04]`, not a loud `bg-accent/10` wash plus a system checkbox.

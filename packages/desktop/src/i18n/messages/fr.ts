@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "./zh-CN.ts";
 
 export const fr = {
+
+	"tools.run": "Appels d’outils",
+	"process.turn": "Détails du tour",	"question.title": "Votre avis est nécessaire",
+	"question.skip": "Passer la question",
+	"question.recommended": "Recommandé",
+	"question.confirm": "Confirmer le choix",
+	"question.otherCard": "Une autre réponse",
+	"question.selectOne": "Choisir une option",
+	"question.selectMany": "Choisir une ou plusieurs options",
+	"question.skipDefault": "Réponse utilisée si vous passez : {choice}",
+	"question.collapse": "Replier la question ou la demande",
+	"question.expand": "Déplier la question ou la demande",
+	"question.fullAccessNote": "Cette question porte sur votre choix. L’accès complet dispense d’autoriser chaque action, mais ne répond pas à votre place.",
+
 	"common.cancel": "Annuler", "common.confirm": "Confirmer", "common.delete": "Supprimer", "common.hide": "Masquer", "common.loading": "Ouverture", "common.save": "Enregistrer", "common.show": "Afficher",
 	"app.backWorkspace": "Retour à l’espace de travail", "app.guide": "Guide", "app.hideSettingsNavigation": "Masquer la navigation des réglages {shortcut}", "app.mainProcessError": "Erreur du processus principal", "app.panel": "Panneaux", "app.plugins": "Extensions", "app.pullRequests": "Demandes de fusion", "app.scheduledTasks": "Tâches planifiées", "app.settingsNavigation": "Navigation des réglages", "app.showSettingsNavigation": "Afficher la navigation des réglages {shortcut}", "app.sidebar": "Barre latérale",
 	"language.title": "Langue de l’interface", "language.detail": "Modifie les menus, les réglages et les indications de Lyra. Les conversations, le code et la sortie du terminal restent dans leur langue d’origine.", "language.system": "Langue du système", "language.systemDetected": "Langue actuelle du système", "language.zh-CN": "简体中文", "language.zh-TW": "繁體中文", "language.en": "English", "language.fr": "Français", "language.ru": "Русский", "language.ko": "한국어", "language.ja": "日本語",
@@ -1808,7 +1822,7 @@ export const fr = {
 	"sessionCard.yesterday": "hier",
 	"sessionCard.daysAgo": "il y a {n} jours",
 	"sessionCard.messages": "Messages",
-	"sessionCard.usage": "Consommation",
+	"sessionCard.usage": "Usage de la session",
 	"sessionCard.cache": "Cache",
 	"recency.today": "Aujourd'hui",
 	"recency.yesterday": "Hier",
@@ -2023,6 +2037,7 @@ export const fr = {
 	"conversation.showLater": "Afficher les {n} suivants",
 	"questionNav.label": "Vos questions",
 	"ruleCard.watching": " · surveille ",
+	"running.turnTokens": "Ce tour : {n} tokens",
 	"running.compacted": "Les échanges antérieurs ont été résumés",
 	"delivery.editedFiles": "{n} fichiers modifiés",
 	"userMessage.fromSideChat": "Depuis la discussion latérale",

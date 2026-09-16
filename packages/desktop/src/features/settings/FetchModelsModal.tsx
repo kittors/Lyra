@@ -15,7 +15,8 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check, CheckSquare, Square, X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
 import { useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "../models/index.ts";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
@@ -129,15 +130,7 @@ export function FetchModelsModal({
 						onClick={toggleAll}
 						className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-card text-ink-muted transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
 					>
-						{allSelected ? (
-							<CheckSquare size={14} className="text-accent" strokeWidth={2} />
-						) : someSelected ? (
-							<div className="flex h-3.5 w-3.5 items-center justify-center rounded border border-accent bg-accent/20">
-								<div className="h-1.5 w-1.5 rounded-xs bg-accent" />
-							</div>
-						) : (
-							<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
-						)}
+						<ChoiceMark kind="checkbox" checked={allSelected} indeterminate={!allSelected && someSelected} />
 					</button>
 				</div>
 
@@ -157,7 +150,7 @@ export function FetchModelsModal({
 							return (
 								<label
 									key={modelId}
-									className={`flex items-center justify-between rounded-xl border p-2.5 transition-all select-none ${
+									className={`group flex items-center justify-between rounded-xl border p-2.5 transition-all select-none ${
 										isExisting
 											? "cursor-default border-line bg-card opacity-55"
 											: checked
@@ -179,11 +172,7 @@ export function FetchModelsModal({
 											}}
 											className="shrink-0 text-ink-muted focus:outline-none cursor-pointer disabled:cursor-default"
 										>
-											{checked ? (
-												<CheckSquare size={16} className="text-accent" strokeWidth={2} />
-											) : (
-												<Square size={16} className="text-ink-faint hover:text-ink" strokeWidth={1.8} />
-											)}
+											<ChoiceMark kind="checkbox" checked={checked} />
 										</button>
 										<ModelIcon model={modelId} size={16} />
 										<div className="min-w-0">

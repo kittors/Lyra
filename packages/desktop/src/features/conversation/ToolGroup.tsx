@@ -1,6 +1,6 @@
+import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { Wrench } from "lucide-react";
 import { FlowRow } from "./FlowRow.tsx";
-import { useLayoutEffect, useRef, useState } from "react";
 import { translate, type MessageKey } from "../../i18n/index.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
@@ -35,44 +35,6 @@ export function ToolGroup({
 	stateKey?: string;
 }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
-	const [visited, setVisited] = useState(open);
-	const container = useRef<HTMLDivElement>(null);
-	const body = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<number | null>(() => (open ? null : 0));
-	const prevOpen = useRef(open);
-
-	useLayoutEffect(() => {
-		const el = body.current;
-		const box = container.current;
-		if (!el || !box) return;
-
-		if (open !== prevOpen.current) {
-			if (open) {
-				// Opening: from 0 -> scrollHeight px
-				const targetHeight = el.scrollHeight;
-				setHeight(targetHeight);
-			} else {
-				// Closing: latch current scrollHeight first, force reflow, then set to 0
-				const currentHeight = el.scrollHeight;
-				box.style.height = `${currentHeight}px`;
-				// Force synchronous layout so the browser registers the starting height
-				void box.offsetHeight;
-				box.style.height = "0px";
-				setHeight(0);
-			}
-			prevOpen.current = open;
-		} else if (open) {
-			// Keep measuring while open to adapt to live changes
-			const measure = () => {
-				if (box.style.height !== "0px") {
-					setHeight(el.scrollHeight);
-				}
-			};
-			const observer = new ResizeObserver(measure);
-			observer.observe(el);
-			return () => observer.disconnect();
-		}
-	}, [children, open]);
 
 	/*
 	 * Close above, open below.
@@ -90,7 +52,7 @@ export function ToolGroup({
 		 * stretch of work, the same line from the first call to the last — and that claim is only
 		 * checkable from outside, against the rows actually on screen.
 		 */
-		<div className="mb-2.5" data-ly-run={running ? "running" : "done"}>
+		<div data-ly-run={running ? "running" : "done"}>
 			{/*
 			 * 前置图标是这一行的状态：转着的扳手是「正在动手」，停下的是「做完了」。它和思考行、
 			 * 命令行共用同一个 16px 的槽，所以三种行的左边缘是一条线——见 `FlowRow`。
@@ -115,28 +77,12 @@ export function ToolGroup({
 				running={running}
 				open={open}
 				onToggle={() => {
-					setVisited(true);
 					setOpen((value) => !value);
 				}}
 				label={translate("tools.run")}
 			/>
 
-			<div
-				ref={container}
-				style={{ height: open ? (height !== null ? `${height}px` : "auto") : 0 }}
-				onTransitionEnd={(e) => {
-					if (e.target === e.currentTarget && open) {
-						setHeight(null);
-					}
-				}}
-				inert={!open}
-				aria-hidden={!open}
-				className="ly-freeze overflow-hidden transition-[height] duration-[var(--ly-t-base)] ease-out"
-			>
-				<div ref={body} className="pt-1">
-					{(open || visited) && children}
-				</div>
-			</div>
+			<Collapse open={open} bodyClassName="flex flex-col gap-2.5 pt-1" keepMounted>{children}</Collapse>
 		</div>
 	);
 }

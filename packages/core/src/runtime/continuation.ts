@@ -150,13 +150,17 @@ export async function continueWhileWorkRemains(
 	let done = completed(deps.todos());
 	let stalled = 0;
 
-	for (let extra = 0; extra < MAX_CONTINUATIONS; extra++) {
+	let extra = 0;
+	for (; extra < MAX_CONTINUATIONS; extra++) {
 		if (deps.aborted()) break;
 
 		if (result.reason === "max_turns") {
 			const todos = deps.todos();
 			const unfinished = todos.filter((todo) => todo.status !== "completed");
-			if (unfinished.length === 0) break;
+			if (unfinished.length === 0) {
+				await deps.notify("本轮已达到步数上限，已停下。执行记录已保留，需要时可继续。");
+				break;
+			}
 
 			/*
 			 * 这一轮把清单往前推了没有。
@@ -207,6 +211,9 @@ export async function continueWhileWorkRemains(
 		 * what takes the line down. The loop stops on the check at the top.
 		 */
 		result = await deps.run(deps.messages());
+	}
+	if (extra === MAX_CONTINUATIONS && result.reason === "max_turns" && !deps.aborted()) {
+		await deps.notify("已达到自动续跑次数上限，已停下。执行记录已保留，需要时可继续。");
 	}
 	return result;
 }

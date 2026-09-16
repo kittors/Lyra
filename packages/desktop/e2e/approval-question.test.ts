@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { startRecording, encode, type Frame } from "./record.ts";
 import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { LONG_OPTIONS, LONG_QUESTION, questionModel, seedQuestions } from "./mention-question-fixture.ts";
 
 let app: RunningApp;
+const frames: Frame[] = [];
+let stopRecording: (() => Promise<void>) | undefined;
+let passed = 0;
+const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const { server } = questionModel();
 const targets = {
 	session: '[data-ly-row="qa-long"] > button',
@@ -16,7 +22,8 @@ const targets = {
 	input: 'input[aria-label="自定义回答"]',
 	submit: 'button[aria-label="发送回答"]',
 	thumb: '.ly-approval-scroll .ly-thumb',
-	lastChoice: '[data-approval-card] button:has(> span):last-child',
+	lastChoice: '[data-approval-card] label:last-of-type',
+	confirm: 'button[aria-label="确认选择"]',
 };
 
 before(async () => {
@@ -24,9 +31,16 @@ before(async () => {
 	const address = server.address(); assert.ok(address && typeof address !== "string");
 	app = await startApp({ port: 9688, seed: (home) => seedQuestions(home, address.port) });
 	await app.evaluate("document.fonts.ready");
+	stopRecording = await startRecording(9688, frames);
 });
 afterEach(async () => { if (app) await shot("approval-question-last-screen"); });
-after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });
+after(async () => {
+	await stopRecording?.();
+	await cleanupFixture(() => app?.stop(), () => closeListeningServer(server));
+	const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+	await mkdir(out, { recursive: true });
+	if (frames.length) await encode(frames, join(out, `${stamp}_长提问滚动主题输入法_${passed}of2.mp4`), 30);
+});
 
 async function until(condition: () => Promise<boolean>) {
 	const deadline = Date.now() + 15_000;
@@ -84,7 +98,7 @@ test("long questions stay readable and actionable across themes and widths with 
 	await app.send("Input.insertText", { text: "ASK_LONG" }); await enter();
 	await until(async () => app.evaluate("Boolean(document.querySelector('[data-approval-card] .ly-thumb'))"));
 	assert.equal(await app.evaluate("document.querySelector('[data-approval-card] pre').textContent"), LONG_QUESTION);
-	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input').length"), 0);
+	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input:not([type=radio]):not([type=checkbox])').length"), 0);
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] .ly-scroll-host').length"), 1);
 	for (const theme of ["dark", "light"] satisfies Array<"dark" | "light">) {
 		for (const width of [1280, 375]) {
@@ -101,8 +115,8 @@ test("long questions stay readable and actionable across themes and widths with 
 				assert.ok(button.icon);
 				assert.ok(button.left >= geometry.left && button.right <= geometry.right);
 			}
-			assert.ok(geometry.alignment.every(value => value === "flex-end"));
-			assert.deepEqual(await app.evaluate("[...document.querySelectorAll('[data-approval-card] button span')].map(e=>e.textContent)"), LONG_OPTIONS);
+			assert.equal(await app.evaluate("getComputedStyle(document.querySelector('[data-approval-card] button[type=submit]').parentElement).justifyContent"), "flex-end");
+			assert.deepEqual(await app.evaluate("[...document.querySelectorAll('[data-approval-card] label')].map(e=>e.textContent)"), LONG_OPTIONS);
 			await shot(`approval-long-${theme}-${width}`);
 		}
 	}
@@ -134,6 +148,7 @@ test("long questions stay readable and actionable across themes and widths with 
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
 	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='qa-long');const t=await window.lyra.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	assert.deepEqual(results, [answer]);
+	passed++;
 });
 
 test("a long final choice remains reachable through the same body scroller", async () => {
@@ -143,7 +158,10 @@ test("a long final choice remains reachable through the same body scroller", asy
 	await appearance("light", 375);
 	await app.evaluate(`document.querySelector(${JSON.stringify(targets.lastChoice)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
 	await settle(); await shot("approval-options-light-375"); await click("lastChoice");
+	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input:checked').length"), 1);
+	await click("confirm");
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
 	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='qa-short');const t=await window.lyra.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	assert.deepEqual(results, [LONG_OPTIONS.at(-1)]);
+	passed++;
 });

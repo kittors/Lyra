@@ -143,7 +143,7 @@ export async function approveEscalation(
 	}
 
 	const decision = await ask(justification);
-	if (decision === "reject") {
+	if (decision !== "once" && decision !== "always") {
 		throw new EscalationError(`用户拒绝了把这条${subject}提权到「${MODE_LABEL[requested as SandboxMode]}」。`);
 	}
 	return requested as SandboxMode;

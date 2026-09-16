@@ -20,12 +20,14 @@ test("question options send an answer without creating a user prompt; custom inp
 	const answer = async (decision: ApprovalDecision) => { answers.push(decision); };
 	const view = await mount(h(QuestionChoices, { options: ["保留", "更新"], allowCustomInput: false, answer }));
 	try {
-		assert.equal(view.all("input").length, 0);
-		await click(view.all("button").find(button => button.textContent === "更新")!);
+		assert.equal(view.all('input:not([type="radio"])').length, 0);
+		await click(view.all('input[type="radio"]')[1]);
+		assert.equal(answers.length, 0, "selecting an option waits for confirmation");
+		await fire(view.find("form"), new Event("submit", { bubbles: true, cancelable: true }));
 		assert.deepEqual(answers, [{ answer: "更新" }]);
 		await view.rerender(h(QuestionChoices, { key: "next", options: [], allowCustomInput: true, answer }));
 		assert.equal(view.all('input[aria-label="自定义回答"]').length, 1);
-		await click(view.all("button")[0]);
+		await click(view.all("button").find(button => button.textContent === "取消")!);
 		assert.deepEqual(answers.at(-1), "reject");
 	} finally { await view.unmount(); }
 });

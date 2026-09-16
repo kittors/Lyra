@@ -8,6 +8,7 @@ import { bridge } from "../services/index.ts";
 import { beginSessionRead, endSessionRead } from "./read-events.ts";
 import { cachedEvent } from "./cached-event.ts";
 import { flushCoalesced } from "./coalesce.ts";
+import { afterPaint } from "../lib/after-paint.ts";
 
 // Only one IPC payload is in flight. Intermediate selections collapse into the latest one.
 let reading: string | null = null;
@@ -25,6 +26,22 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	reading = meta.id;
 	const before = get();
 	const events = beginSessionRead(meta.id);
+	/*
+	 * A cold click has already written `loadingSession`. Give that write a frame before the
+	 * IPC payload lands — otherwise the skeleton never commits and the clone hitch is the
+	 * first thing the window paints.
+	 */
+	if (before.loadingSession) {
+		await afterPaint();
+		if (get().activeSessionId !== meta.id) {
+			endSessionRead(meta.id);
+			reading = null;
+			const next = queued;
+			queued = null;
+			if (next && get().activeSessionId === next.meta.id) void readSelectedSession(next.meta, set, get, next.resync);
+			return;
+		}
+	}
 
 	let snapshot: Awaited<ReturnType<typeof bridge.sessions.transcript>>;
 	try {

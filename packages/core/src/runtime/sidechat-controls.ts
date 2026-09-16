@@ -53,12 +53,13 @@ export function dispatchTaskTool(main: AgentSession): Tool<{ instruction: string
  * These take effect immediately, because that is what a control is. They cannot change a file, run
  * a command or read anything: the whole surface is stop, carry on, and what is it doing.
  */
-export function controlMainTool(main: AgentSession): Tool<{ action: string }> {
+export function controlMainTool(main: AgentSession): Tool<{ action: string; discardPlan?: boolean }> {
 	return {
 		name: "control_main",
 		description:
 			"立即控制主会话的执行状态，不排队、马上生效。" +
 			"pause：让主会话停下手头正在跑的工作（和用户点暂停按钮一样）。" +
+			"用户明确取消旧目标时，pause 配合 discardPlan: true 可同时废除旧清单；单纯暂停不要清除清单。" +
 			"resume：让它接着做——如果有被暂停时中断的派出任务，会把那个任务重新排上，否则让它从中断处继续。" +
 			"status：查主会话现在是在忙还是空着，以及队列里还剩什么。" +
 			"需要它去『做』一件新的事，用 dispatch_task，不要用这个。",
@@ -66,6 +67,7 @@ export function controlMainTool(main: AgentSession): Tool<{ action: string }> {
 		parameters: {
 			type: "object",
 			properties: {
+				discardPlan: { type: "boolean", description: "Only with pause, when the user explicitly cancels or replaces the old task plan." },
 				action: {
 					type: "string",
 					enum: ["pause", "resume", "status"],
@@ -84,6 +86,10 @@ export function controlMainTool(main: AgentSession): Tool<{ action: string }> {
 			const action = String(args.action ?? "").trim();
 
 			if (action === "pause") {
+				if (args.discardPlan === true) {
+					await main.discardTaskPlan();
+					return textResult("主会话已停止，旧任务清单已取消。历史记录保留，未完成事项没有被标记为完成。");
+				}
 				if (!main.running) return textResult("主会话现在没有在执行任何东西，不需要暂停。");
 				main.abort();
 				return textResult("已经让主会话停下了。它手头的工作已中止，派出的任务也一并中断——需要的话可以让我继续。");

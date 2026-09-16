@@ -16,6 +16,7 @@
  * person who asked deserves to hear about it rather than come back to a spinner.
  */
 
+import { createHash } from "node:crypto";
 import type { Message } from "../types.ts";
 
 /** Say something. */
@@ -31,6 +32,8 @@ export const REPEAT_WARN = 3;
  * 少完成一件。
  */
 export const REPEAT_STOP = 10;
+// Zero stops in the 266-session audit on 2026-09-16: this is an exact-repeat backstop,
+// not a general detector of unproductive work. Do not lower it to catch unrelated calls.
 
 /**
  * How many times the same *question* can be asked, however the paging is dressed up.
@@ -48,8 +51,16 @@ export const REPEAT_STOP = 10;
  */
 export const INTENT_WARN = 12;
 
-/** Enough of a result to tell two apart, but not so much that formatting noise hides a repeat. */
-const RESULT_SAMPLE = 400;
+/**
+ * Consecutive screenshot-slicing / pixel-measuring probes, regardless of the exact script.
+ *
+ * Exact fingerprints miss this: each round writes a new Python file or changes crop coordinates,
+ * so the call looks new and a successful `write` used to clear the other tables. The signal is
+ * the *activity* — generating band_*.png, reading those slices, histogramming pixels — not the
+ * arguments. Warn, then stop if the correction is ignored, same order as exact repeats.
+ */
+export const PROBE_WARN = 5;
+export const PROBE_STOP = 10;
 
 /*
  * 这里一度有一条「连着 60 轮一个字都没对人说过就停」，2026-09-16 拆掉了。留着这段是因为它错得很
@@ -93,7 +104,7 @@ export interface RepeatRound {
 	 * 「同样的参数」对一个每次都在改 offset 的调用来说是假的，而一句和眼前情况对不上的提示，
 	 * 模型有充分理由忽略它。
 	 */
-	kind?: "exact" | "intent";
+	kind?: "exact" | "intent" | "probe";
 	/**
 	 * 这一轮里每个调用各是第几次问出同一个问题（同工具、同参数、同结果），和 `calls` 同序。
 	 *
@@ -117,6 +128,9 @@ export class RepetitionWatch {
 	 * file, and a watchdog that does that gets turned off.
 	 */
 	private readonly intents = new Map<string, number>();
+	/** Screenshot-slicing / pixel-measure family. Survives writing a new probe script. */
+	private probes = 0;
+	private probeWarned = false;
 	/**
 	 * Record what a round did, and answer both questions it raises in one pass.
 	 *
@@ -130,9 +144,18 @@ export class RepetitionWatch {
 	 * the first; it only cost.
 	 */
 	observe(calls: { name: string; arguments: unknown }[], results: Message[]): RepeatRound {
+		if (calls.some((call, index) => isWorkspaceProgress(call.name, call.arguments, results[index]))) {
+			// A successful workspace mutation invalidates observations made before that change.
+			// Writing another measurement script is not progress — that is the loop this watch is for.
+			this.counts.clear();
+			this.intents.clear();
+			this.warned.clear();
+			this.probes = 0;
+			this.probeWarned = false;
+		}
 		let worst = 0;
 		let warn: string | null = null;
-		let kind: "exact" | "intent" | undefined;
+		let kind: "exact" | "intent" | "probe" | undefined;
 		const repeats: number[] = [];
 		for (const [index, call] of calls.entries()) {
 			const key = `${call.name} ${stable(call.arguments)} ${sample(results[index])}`;
@@ -174,6 +197,16 @@ export class RepetitionWatch {
 			}
 		}
 
+		for (const call of calls) {
+			if (!isProbe(call.name, call.arguments)) continue;
+			this.probes += 1;
+			if (warn === null && this.probes >= PROBE_WARN && !this.probeWarned) {
+				this.probeWarned = true;
+				warn = call.name;
+				kind = "probe";
+			}
+		}
+
 		return { worst, warn, kind, repeats };
 	}
 
@@ -191,7 +224,7 @@ export class RepetitionWatch {
 	 */
 	exhausted(): boolean {
 		for (const seen of this.counts.values()) if (seen >= REPEAT_STOP) return true;
-		return false;
+		return this.probes >= PROBE_STOP;
 	}
 }
 
@@ -215,10 +248,52 @@ function stable(value: unknown): string {
 	return `{${entries.map(([k, v]) => `${k}:${stable(v)}`).join(",")}}`;
 }
 
+const IMAGE_FILE = /\.(?:png|jpe?g|webp|gif)\b/i;
+const MEASURE = /numpy|PIL\.|Image\.open|cv2\.|histogram|non[-_]?white|getBoundingClientRect|band_\d+|row_inspect|box_line|pixel.?count|screencast/i;
+const SLICE_NAME = /(?:^|\/)(?:band_\d+|row_inspect|box_line|icon_\d+)[^/]*\.(?:png|jpe?g|webp)$/i;
+
+function commandOf(args: unknown): string {
+	if (args === null || typeof args !== "object" || !("command" in args)) return "";
+	return String((args as { command: unknown }).command);
+}
+
+function pathOf(args: unknown): string {
+	if (args === null || typeof args !== "object") return "";
+	const record = args as { path?: unknown; file_path?: unknown; contents?: unknown };
+	if (typeof record.path === "string") return record.path;
+	if (typeof record.file_path === "string") return record.file_path;
+	return "";
+}
+
+function contentsOf(args: unknown): string {
+	if (args === null || typeof args !== "object") return "";
+	const record = args as { content?: unknown; contents?: unknown };
+	if (typeof record.content === "string") return record.content;
+	if (typeof record.contents === "string") return record.contents;
+	return "";
+}
+
+/** Same activity the 2130 loop used: cut images, read the slices, measure pixels. */
+function isProbe(name: string, args: unknown): boolean {
+	if (name === "bash") {
+		const command = commandOf(args);
+		return IMAGE_FILE.test(command) && MEASURE.test(command);
+	}
+	if (name === "read") return SLICE_NAME.test(pathOf(args));
+	if (name === "write") {
+		const path = pathOf(args);
+		const contents = contentsOf(args);
+		return SLICE_NAME.test(path) || (path.endsWith(".py") && IMAGE_FILE.test(contents) && MEASURE.test(contents));
+	}
+	return false;
+}
+
+function isWorkspaceProgress(name: string, args: unknown, result: Message | undefined): boolean {
+	if ((name !== "edit" && name !== "write") || result?.role !== "toolResult" || result.isError) return false;
+	return !isProbe(name, args);
+}
+
 function sample(result: Message | undefined): string {
 	if (!result || result.role !== "toolResult") return "";
-	return result.content
-		.map((part) => (part.type === "text" ? part.text : ""))
-		.join("")
-		.slice(0, RESULT_SAMPLE);
+	return createHash("sha256").update(JSON.stringify({ content: result.content, isError: result.isError })).digest("hex");
 }

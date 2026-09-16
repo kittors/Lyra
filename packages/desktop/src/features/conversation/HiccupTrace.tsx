@@ -66,7 +66,7 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 
 	return (
 		/* 外面这层只管它和上下两行之间的距离——`shell` 管的是这条记录自己长什么样。 */
-		<div data-hiccup-trace className="mb-2.5">
+		<div data-hiccup-trace>
 		<div className={shell} data-hiccup={hiccup.outcome}>
 			{/*
 			 * 图标和那行字在同一条水平线上。

@@ -83,7 +83,7 @@ export function SideChat() {
 					 * takes the whole column.
 					 */}
 					{/* Bottom padding leaves 「回到最新」 somewhere to float that is not the newest reply. */}
-					<div className="mx-auto w-full max-w-[var(--ly-content)] pt-3 pb-[var(--ly-bottom-inset)]">
+					<div className="mx-auto flex w-full max-w-[var(--ly-content)] flex-col gap-2.5 pt-3 pb-[var(--ly-bottom-inset)]">
 						{messages.map((message, index) => (
 							<MessageRow key={rowKey(message, index)} message={message} index={index} />
 						))}

@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 import { TurnProcess } from "../../src/features/conversation/TurnProcess.tsx";
-import { click, mount } from "../helpers/mount.ts";
+import { click, fire, mount } from "../helpers/mount.ts";
 
 const COUNTS = { tools: 400, thinking: 1 };
 const inside = h("div", { "data-probe": "inside" }, "四百条过程");
@@ -41,7 +41,11 @@ test("opening it renders the contents, closing it takes them back out", async ()
 		assert.equal(toggle.getAttribute("aria-expanded"), "true");
 
 		await click(toggle);
-		assert.equal(view.all("[data-probe]").length, 0, "收回去之后又不该留在 DOM 里");
+		assert.equal(view.all("[data-probe]").length, 1, "closing content survives until the transition ends");
+		const event = new Event("transitionend", { bubbles: true });
+		Object.defineProperty(event, "propertyName", { value: "grid-template-rows" });
+		await fire(view.find(".ly-freeze"), event);
+		assert.equal(view.all("[data-probe]").length, 0, "settled closed content is released");
 		assert.equal(toggle.getAttribute("aria-expanded"), "false");
 	} finally {
 		await view.unmount();
@@ -71,7 +75,7 @@ test("a collapsed body stays out of the tab order and out of the accessibility t
 		const box = view.find(".ly-freeze");
 		assert.ok(box.hasAttribute("inert"));
 		assert.equal(box.getAttribute("aria-hidden"), "true");
-		assert.equal(box.style.height, "0px", "收起时高度是 0，展开的过渡要从这里起步");
+		assert.equal(box.getAttribute("data-open"), "false", "the grid remains collapsed");
 	} finally {
 		await view.unmount();
 	}

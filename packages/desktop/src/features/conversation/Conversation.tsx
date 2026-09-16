@@ -240,7 +240,7 @@ export const Conversation = memo(function Conversation() {
   }, [jump, activeSessionId, range.start, range.end, scrollRef, scrollTo]);
 
   return (
-    <div ref={column} className="flex min-h-0 flex-1 flex-col">
+    <div ref={column} data-ly-chat-surface="conversation" className="flex min-h-0 flex-1 flex-col">
       {/*
        * The transcript and the button that scrolls it, in a box of their own.
        *
@@ -365,6 +365,7 @@ export const Conversation = memo(function Conversation() {
            * 前面就只是噪音。`turnBlocks` 在 Run 那一层把这件事定下来（规则性的东西要能单独测），
            * 这里只负责把过程那一块套进 `TurnProcess`。
            */}
+          <div className="flex flex-col gap-2.5" data-ly-transcript-rows>
           {blocks.map((block) => {
             const draw = (run: Run) =>
             /*
@@ -438,6 +439,7 @@ export const Conversation = memo(function Conversation() {
               </TurnProcess>
             );
           })}
+          </div>
 
           {/*
            * Present for the whole turn — until the answer starts, at which point it has been
@@ -524,9 +526,8 @@ export const Conversation = memo(function Conversation() {
        *
        * They used to be pinned to the bottom of the whole pane, which put them over the field
        * you type in — the one control you might want while deciding, and the place your eye is
-       * already resting. Anchored to the composer instead, they push nothing around and cover
-       * nothing: the decision sits between the transcript that prompted it and the box you
-       * would answer in.
+       * already resting. A normal-flow card now reserves its own height, so the transcript
+       * scrolls above the decision instead of disappearing behind it.
        */}
       <div className="relative shrink-0">
         <ApprovalOverlay />
@@ -556,7 +557,7 @@ export function ConversationSkeleton() {
   const rows = [72, 94, 61, 88, 47];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-ly-chat-surface="skeleton" className="flex min-h-0 flex-1 flex-col">
       <div
         className={`ly-defer-in min-h-0 flex-1 overflow-hidden ${compact ? "px-4" : "px-8"}`}
         aria-busy

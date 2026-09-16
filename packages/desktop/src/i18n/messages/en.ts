@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "./zh-CN.ts";
 
 export const en = {
+
+	"tools.run": "Tool calls",
+	"process.turn": "Turn details",	"question.title": "Your input is needed",
+	"question.skip": "Skip question",
+	"question.recommended": "Recommended",
+	"question.confirm": "Confirm selection",
+	"question.otherCard": "Another answer",
+	"question.selectOne": "Select one option",
+	"question.selectMany": "Select one or more options",
+	"question.skipDefault": "Skipping uses: {choice}",
+	"question.collapse": "Collapse question or approval",
+	"question.expand": "Expand question or approval",
+	"question.fullAccessNote": "This asks for your decision. Full access skips action approvals; it does not answer questions for you.",
+
 	"common.cancel": "Cancel", "common.confirm": "Confirm", "common.delete": "Delete", "common.hide": "Hide", "common.loading": "Opening", "common.save": "Save", "common.show": "Show",
 	"app.backWorkspace": "Back to workspace", "app.guide": "Guide", "app.hideSettingsNavigation": "Hide settings navigation {shortcut}", "app.mainProcessError": "Main process error", "app.panel": "Panels", "app.plugins": "Plugins", "app.pullRequests": "Pull requests", "app.scheduledTasks": "Scheduled tasks", "app.settingsNavigation": "Settings navigation", "app.showSettingsNavigation": "Show settings navigation {shortcut}", "app.sidebar": "Sidebar",
 	"language.title": "Interface language", "language.detail": "Change Lyra's menus, settings, and action hints. Conversations, code, and terminal output stay in their original language.", "language.system": "Use system language", "language.systemDetected": "Current system language", "language.zh-CN": "简体中文", "language.zh-TW": "繁體中文", "language.en": "English", "language.fr": "Français", "language.ru": "Русский", "language.ko": "한국어", "language.ja": "日本語",
@@ -1808,7 +1822,7 @@ export const en = {
 	"sessionCard.yesterday": "yesterday",
 	"sessionCard.daysAgo": "{n} days ago",
 	"sessionCard.messages": "Messages",
-	"sessionCard.usage": "Usage",
+	"sessionCard.usage": "Session usage",
 	"sessionCard.cache": "Cache",
 	"recency.today": "Today",
 	"recency.yesterday": "Yesterday",
@@ -2023,6 +2037,7 @@ export const en = {
 	"conversation.showLater": "Show {n} later",
 	"questionNav.label": "Your questions",
 	"ruleCard.watching": " · watching ",
+	"running.turnTokens": "This turn: {n} tokens",
 	"running.compacted": "Earlier turns have been summarised",
 	"delivery.editedFiles": "{n} files edited",
 	"userMessage.fromSideChat": "From the side chat",

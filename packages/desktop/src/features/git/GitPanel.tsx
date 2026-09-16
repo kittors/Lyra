@@ -714,15 +714,13 @@ export function GitPanel() {
            *
            * These are the same thing right up until a workspace holds more than one repository, or
            * the picker is pointed at a linked worktree — and then every file operation in here was
-           * going to a different checkout than the status above it was read from. Harmless while
-           * the view only listed files; not harmless now that it has a 推送 button.
+           * going to a different checkout than the status above it was read from. File actions
+           * must use the selected repository just like the toolbar does.
            */
           cwd={cwd}
           busy={busy || sync !== null}
           act={act}
           plan={plan}
-          onPush={() => void remote("push", (id) => bridge.git.push(cwd, id))}
-          onPull={() => void remote("pull", (id) => bridge.git.pull(cwd, id))}
         />
       )}
       {shown === "history" && <HistoryView cwd={cwd} />}

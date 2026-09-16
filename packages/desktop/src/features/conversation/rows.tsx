@@ -119,7 +119,7 @@ export const MessageRow = memo(function MessageRow({
      */
     if (message.ruleMatch) return <RuleCard match={message.ruleMatch} />;
     if (message.synthetic || isNudge(message)) return null;
-    return <>{showTime && <div className="ly-conversation-time my-6 text-center text-caption text-ink-faint"><time dateTime={new Date(message.timestamp).toISOString()}>{conversationTime(message.timestamp)}</time></div>}<UserMessage message={message} index={index} /></>;
+    return <>{showTime && <div className="ly-conversation-time py-2 text-center text-caption text-ink-faint"><time dateTime={new Date(message.timestamp).toISOString()}>{conversationTime(message.timestamp)}</time></div>}<UserMessage message={message} index={index} /></>;
   }
 
   // Tool results are rendered inside their tool card, not as standalone rows.
@@ -160,7 +160,7 @@ function AssistantRow({
 
   // `group/msg` is what reveals the row below, and it names the whole reply as the target.
   return (
-    <div className="group/msg ly-enter mb-2.5">
+    <div className="group/msg ly-enter flex flex-col gap-2.5">
       {/*
        * Grouped before rendering, not after.
        *
@@ -196,7 +196,7 @@ function AssistantRow({
           }
           if (block.type === "text") {
             return block.text ? (
-              <div key={at} className="mb-2.5 last:mb-0">
+              <div key={at}>
                 <Markdown text={block.text} />
               </div>
             ) : null;

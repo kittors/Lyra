@@ -43,7 +43,7 @@ export function EmptyState() {
 	const chatting = !workspace && Boolean(scratchCwd);
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col">
 			{/*
 			 * Scrolls rather than clips: at the minimum window height the mark, the heading and
 			 * two rows of cards do not all fit, and a card you cannot reach is worse than one

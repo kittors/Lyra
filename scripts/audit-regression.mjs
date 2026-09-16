@@ -31,6 +31,21 @@ const withWindow = process.argv.includes("--window");
  */
 const CHECKS = [
 	{
+		id: "ISSUE-cost-loop",
+		what: "大结果无限携带、未完成清单强制续跑、技能重复注入及空回复重试重置",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/aged-prune.test.ts", "packages/core/test/context.test.ts", "packages/core/test/grep-literal.test.ts", "packages/core/test/nudge.test.ts", "packages/core/test/repetition.test.ts", "packages/core/test/translated-tools.test.ts", "packages/core/test/skill-allowed-tools.test.ts", "packages/core/test/session-log.test.ts", "packages/core/test/resume.test.ts"]],
+	},
+	{
+		id: "ISSUE-question",
+		what: "Full Access 混淆回答与权限、跳过和多选缺少可信边界校验",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/ask-user.test.ts"]],
+	},
+	{
+		id: "ISSUE-ui",
+		what: "提问遮挡、清单残留、队列卸载重建、过程收起硬切和 Git 重复入口",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/approval-overlay.test.ts", "test/ui/message-queue-strip.test.ts", "test/ui/turn-process.test.ts", "test/ui/git-group-actions.test.ts"]],
+	},
+	{
 		id: "C1",
 		what: "recall/rule/learn/lsp/web_search 五个工具没被告知给模型",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/tool-registry.test.ts"]],

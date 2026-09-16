@@ -231,7 +231,7 @@ export const bashTool: Tool<BashArgs> = {
 				detail: args.command,
 				subject: args.command,
 			});
-			if (decision === "reject") return errorResult("The user rejected this command.");
+			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this command.");
 		}
 
 		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode });

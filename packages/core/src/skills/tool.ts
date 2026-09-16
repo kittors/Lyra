@@ -1,10 +1,24 @@
 import { errorResult } from "../agent/tool-run.ts";
-import type { Tool, ToolResult } from "../types.ts";
+import type { Message, Tool, ToolResult } from "../types.ts";
+import { createHash } from "node:crypto";
 import { formatSkillInvocation, type Skill } from "./loader.ts";
 
 export const SKILLS_KEY = "skills";
 /** The skill currently in force, and what it allows. See `ACTIVE_SKILL` below. */
 export const ACTIVE_SKILL_KEY = "activeSkill";
+const INJECTED_SKILLS_KEY = "injectedSkills";
+
+/** Rebuild from the actual model history: compaction must allow instructions to be loaded again. */
+export function syncSkillContext(state: Map<string, unknown>, messages: Message[]): void {
+	const injected = new Set<string>();
+	for (const message of messages) {
+		if (message.role !== "toolResult" || message.toolName !== "skill" || message.isError) continue;
+		for (const part of message.content) {
+			if (part.type === "text") injected.add(createHash("sha256").update(part.text).digest("hex"));
+		}
+	}
+	state.set(INJECTED_SKILLS_KEY, injected);
+}
 
 interface ActiveSkill {
 	name: string;
@@ -70,8 +84,15 @@ export const skillTool: Tool<SkillArgs> = {
 			? `\n\n<skill-tools>这个技能声明了它只用这些工具：${skill.allowedTools.join("、")}。其他工具在它生效期间会被拒绝。</skill-tools>`
 			: "";
 
+		const text = formatSkillInvocation(skill, args.args) + limit;
+		const fingerprint = createHash("sha256").update(text).digest("hex");
+		const previous = ctx.state.get(INJECTED_SKILLS_KEY);
+		const injected: Set<string> = previous instanceof Set ? previous : new Set<string>();
+		const duplicate = injected.has(fingerprint);
+		injected.add(fingerprint);
+		ctx.state.set(INJECTED_SKILLS_KEY, injected);
 		return {
-			content: [{ type: "text", text: formatSkillInvocation(skill, args.args) + limit }],
+			content: [{ type: "text", text: duplicate ? `Skill "${skill.name}" is already loaded in the current context. Follow its instructions above.${limit}` : text }],
 			details: { kind: "skill", name: skill.name, source: skill.source, path: skill.path, allowedTools: skill.allowedTools },
 		};
 	},

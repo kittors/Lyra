@@ -139,6 +139,7 @@ test("编辑：行先收掉，草稿整份交回给输入框", async () => {
 	assert.equal(useApp.getState().queued.a, undefined);
 	await act(async () => {});
 	assert.equal(view.find("[data-queue-row]").getAttribute("data-leaving"), "true");
+	await view.unmount();
 });
 
 test("拖动换位置：让位的那几行先滑开，松手才落定", async () => {
@@ -203,4 +204,21 @@ test("一条都不排的时候，条本身不占位置", async () => {
 	const view = await mount(strip());
 	assert.equal(view.all("[data-composer-queue]").length, 0);
 	await view.unmount();
+});
+
+test("successive removals retain their original DOM and complete despite a new enqueue", async () => {
+	const first = useApp.getState().enqueue("a", entry("first"));
+	const second = useApp.getState().enqueue("a", entry("second"));
+	const view = await mount(strip());
+	try {
+		const original = view.all("[data-queue-row]");
+		await act(async () => { useApp.getState().dropQueued("a", first); });
+		assert.equal(view.all("[data-queue-row]").find(row => row.textContent === "first"), original[0]);
+		await settle(30);
+		await act(async () => { useApp.getState().dropQueued("a", second); });
+		assert.equal(view.all("[data-queue-row]").find(row => row.textContent === "second"), original[1]);
+		await act(async () => { useApp.getState().enqueue("a", entry("new")); });
+		await settle(DURATION.base + 80);
+		assert.deepEqual(view.all("[data-queue-row]").map(row => row.textContent), ["new"]);
+	} finally { await view.unmount(); }
 });

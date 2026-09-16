@@ -16,9 +16,10 @@
  */
 
 import { CornerDownLeft, GripVertical, MessageSquarePlus, MoreHorizontal, PencilLine, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { QueuedMessage } from "../../store/queue-slice.ts";
+import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { companionOf, useDock, useSide } from "../dock/index.ts";
@@ -55,28 +56,24 @@ export function QueuedMessages({
 	const [leaving, setLeaving] = useState<Leaving[]>([]);
 	const previous = useRef(items);
 
-	/*
-	 * 谁走了，从两次列表的差里读出来。
-	 *
-	 * 删除和编辑是这里点出去的，自己知道；自动出队不是——它由 `agent_end` 推着走，这个组件没有别的
-	 * 途径知道那一条已经被送出去了。比对上一次的列表对三种情形一视同仁，也就少了三条各自为政的路。
-	 */
-	useEffect(() => {
-		const gone = previous.current
-			.map((entry, at) => ({ entry, at }))
-			.filter(({ entry }) => !items.some((each) => each.id === entry.id));
+	const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+	const gone = previous.current.map((entry, at) => ({ entry, at })).filter(({ entry }) => !items.some(each => each.id === entry.id));
+	// Include departing rows in this render, before any effect: their DOM identity owns the transition.
+	const departures = [...leaving, ...gone].filter(({ entry }) => !items.some(each => each.id === entry.id));
+	const rows: { entry: QueuedMessage; leaving: boolean }[] = items.map(entry => ({ entry, leaving: false }));
+	for (const { entry, at } of departures) rows.splice(Math.min(at, rows.length), 0, { entry, leaving: true });
+	useLayoutEffect(() => {
+		const removed = previous.current.map((entry, at) => ({ entry, at })).filter(({ entry }) => !items.some(each => each.id === entry.id));
 		previous.current = items;
-		if (gone.length === 0) return;
-		setLeaving((current) => [...current, ...gone]);
-		const timer = setTimeout(
-			() => setLeaving((current) => current.filter((each) => !gone.some((one) => one.entry.id === each.entry.id))),
-			DURATION.base,
-		);
-		return () => clearTimeout(timer);
+		if (!removed.length) return;
+		setLeaving(current => [...current, ...removed]);
+		const timer = setTimeout(() => {
+			setLeaving(current => current.filter(each => !removed.some(one => one.entry.id === each.entry.id)));
+			timers.current.delete(timer);
+		}, motionReduced() ? 0 : DURATION.base);
+		timers.current.add(timer);
 	}, [items]);
-
-	const rows: { entry: QueuedMessage; leaving: boolean }[] = items.map((entry) => ({ entry, leaving: false }));
-	for (const { entry, at } of leaving) rows.splice(Math.min(at, rows.length), 0, { entry, leaving: true });
+	useEffect(() => () => { for (const timer of timers.current) clearTimeout(timer); }, []);
 
 	if (rows.length === 0) return null;
 	return (
@@ -207,7 +204,7 @@ function Rows({
 		 * `overflow-hidden` 是为了圆角：行的高亮要在角上被切住。它也顺手圈住了拖动——被拖的那行
 		 * 位移在下面按队伍长度夹过，甩不出这张卡片。
 		 */
-		<div ref={list} role="list" aria-label={label} data-composer-queue className="mb-1.5 overflow-hidden rounded-[14px] border border-line-soft bg-card/40">
+		<div ref={list} role="list" aria-label={label} data-composer-queue data-empty={rows.every(row => row.leaving) || undefined} className="ly-composer-queue overflow-hidden rounded-[14px] border border-line-soft bg-card/40">
 			{rows.map((row, index) => (
 				<Row
 					key={row.entry.id}
@@ -266,10 +263,12 @@ function Row({
 	const dropQueued = useApp((state) => state.dropQueued);
 	const steerQueued = useApp((state) => state.steerQueued);
 	const more = usePopover();
+	const [recalled, setRecalled] = useState(false);
 
 	const remove = () => dropQueued(sessionId, entry.id);
 	const edit = () => {
 		more.close();
+		setRecalled(true);
 		const taken = dropQueued(sessionId, entry.id);
 		if (taken) onEdit(taken);
 	};
@@ -293,6 +292,8 @@ function Row({
 			role="listitem"
 			className="ly-queue-row"
 			data-leaving={leaving || undefined}
+			data-recalled={recalled || undefined}
+			inert={leaving}
 			data-dragging={dragging || undefined}
 			data-settling={settling || undefined}
 			style={{ transform: offset ? `translateY(${offset}px)` : undefined }}

@@ -1,3 +1,4 @@
+import { motionReduced } from "../../ui/motion/reduced.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -206,16 +207,26 @@ export function ComposerShell({
    * 需要认得它——`height: auto` 之后量到的 `clientHeight` 就是那条线，上限再低也不能低过它，
    * 否则一个还没打字的框自己就在滚。
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = field.current;
     if (!el) return;
     const resize = () => {
+			const previous = el.getBoundingClientRect().height;
+			const transition = el.style.transition;
+			el.style.transition = "none";
       el.style.height = "auto";
       const floor = el.clientHeight;
       const ceiling = Math.max(floor, Math.min(300, window.innerHeight * 0.34));
       el.style.maxHeight = `${ceiling}px`;
-      el.style.height = `${Math.min(el.scrollHeight, ceiling)}px`;
+			const target = Math.min(el.scrollHeight, ceiling);
       el.style.overflowY = el.scrollHeight > ceiling ? "auto" : "hidden";
+			// Latch a numeric starting size; auto-to-pixels cannot interpolate on supported hosts.
+			if (previous > 0 && !motionReduced()) {
+				el.style.height = `${previous}px`;
+				void el.offsetHeight;
+			}
+			el.style.transition = transition;
+			el.style.height = `${target}px`;
     };
     resize();
     window.addEventListener("resize", resize);
@@ -424,78 +435,24 @@ export function ComposerShell({
   );
 }
 
-/** The send / stop button, so both composers commit with the same target. */
-export function ComposerSend({
-  running,
-  disabled,
-  onSend,
-  onStop,
-	continueReady = false,
-	tip,
-}: {
-  running: boolean;
+/** One stable button lets the icon and colours interpolate when the run changes state. */
+export function ComposerSend({ running, disabled, onSend, onStop, continueReady = false, tip, active = true }: {
+	running: boolean;
 	continueReady?: boolean;
-  disabled?: boolean;
-  onSend: () => void;
-  onStop: () => void;
-  /** Tooltip and accessible name while idle. Stop is always 停止. */
-  tip?: string;
+	disabled?: boolean;
+	onSend: () => void;
+	onStop: () => void;
+	tip?: string;
+	active?: boolean;
 }) {
 	const { t } = useI18n();
-	const sendTip = tip ?? t("composer.send");
-  if (running) {
-    return (
-      <button
-        type="button"
-		/*
-		 * 这一个按钮位有三种态，写在这里，好过让读它的人去认图标或者认 tooltip。
-		 *
-		 * 「继续」是最容易看错的那一种：它和发送共用同一个圆、同一个位置，差别只在里面画的是
-		 * 三角还是箭头。附件按钮也是 `.ly-composer-control`，所以按 class 找会找到它。
-		 */
-		data-composer-send="stop"
-		data-ly-tip={t("composer.stop")}
-		aria-label={t("composer.stop")}
-        onClick={onStop}
-		className="ly-composer-control ly-pop flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-full bg-ink text-shell transition-all duration-[var(--ly-t-quick)] hover:opacity-85"
-      >
-        <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden>
-          <rect width="11" height="11" rx="1.5" fill="currentColor" />
-        </svg>
-      </button>
-    );
-  }
-  return (
-    <button
-      type="button"
-	data-composer-send={continueReady ? "continue" : "send"}
-	data-ly-tip={sendTip}
-	aria-label={sendTip}
-      disabled={disabled}
-      onClick={onSend}
-	  className="ly-composer-control flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-full bg-elevated text-ink transition-all duration-[var(--ly-t-quick)] enabled:hover:bg-ink enabled:hover:text-shell enabled: disabled:opacity-45"
-    >
-			{continueReady ? (
-				/*
-				 * Filled, because the thing it takes turns with in this exact spot is filled.
-				 *
-				 * It used to share the arrow's `<svg>` — 2.2px of stroke over `fill="none"` — so a
-				 * hollow outlined triangle and an 11×11 solid block swapped places inside the same
-				 * circle, differing in weight as well as in shape. Here the stroke width *is* the
-				 * corner radius: 3 gives r=1.5, which is the block's `rx`, so both round the same.
-				 *
-				 * A little taller than the block (12 to its 11) and nudged 0.75px right. A triangle
-				 * carries its mass at the base, so a geometrically centred play mark reads as sitting
-				 * left of centre — the offset is the correction every play button makes.
-				 */
-				<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-					<path d="M5 3.5 12.5 8 5 12.5Z" fill="currentColor" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-				</svg>
-			) : (
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-					<path d="M12 19V5M5 12l7-7 7 7" />
-				</svg>
-			)}
-    </button>
-  );
+	const mode = running ? "stop" : continueReady ? "continue" : "send";
+	const label = running ? t("composer.stop") : tip ?? t("composer.send");
+	return <button type="button" data-composer-send={active ? mode : undefined} data-ly-tip={label} aria-label={label}
+		disabled={!running && disabled} onClick={running ? onStop : onSend}
+		className={`ly-composer-control relative flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-full transition-all duration-[var(--ly-t-quick)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
+		<span className="ly-send-icon" data-active={mode === "stop"}><svg width="11" height="11" viewBox="0 0 11 11" aria-hidden><rect width="11" height="11" rx="1.5" fill="currentColor" /></svg></span>
+		<span className="ly-send-icon" data-active={mode === "continue"}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M5 3.5 12.5 8 5 12.5Z" fill="currentColor" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" /></svg></span>
+		<span className="ly-send-icon" data-active={mode === "send"}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 19V5M5 12l7-7 7 7" /></svg></span>
+	</button>;
 }

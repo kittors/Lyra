@@ -12,6 +12,7 @@ import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-rea
 import { RetainedViews } from "../ui/layout/RetainedViews.tsx";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
 import { Conversation, ConversationSkeleton } from "../features/conversation/index.ts";
+import { chatSurface } from "../lib/chat-surface.ts";
 import { EmptyState } from "../features/conversation/index.ts";
 import { ImageViewer } from "../features/image/index.ts";
 import { InputMenu } from "../features/composer/index.ts";
@@ -348,7 +349,6 @@ function useMainPane() {
 
 function MainContent() {
 	const view = useApp((state) => state.view);
-	const meta = useApp((state) => state.meta);
 	const messages = useApp((state) => state.messages);
 	const loading = useApp((state) => state.loadingSession);
 	const active = view === "settings" ? "chat" : view;
@@ -356,7 +356,8 @@ function MainContent() {
 		if (key === "plugins") return <LazyScreen shape="grid"><PluginsView /></LazyScreen>;
 		if (key === "pull-requests") return <LazyScreen><PullRequestsView /></LazyScreen>;
 		if (key === "scheduled") return <LazyScreen><ScheduledView /></LazyScreen>;
-		return messages.length > 0 || (meta && meta.messageCount > 0) ? <Conversation /> : loading ? <ConversationSkeleton /> : <EmptyState />;
+		const surface = chatSurface({ messages: messages.length, loading });
+		return surface === "conversation" ? <Conversation /> : surface === "skeleton" ? <ConversationSkeleton /> : <EmptyState />;
 	}} />;
 }
 

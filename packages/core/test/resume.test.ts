@@ -267,6 +267,7 @@ test("running out of rounds with the plan complete still stops", async () => {
 	const { seen, full } = deps([result({ reason: "done" })], { todos: () => [] });
 	await continueWhileWorkRemains(result({ reason: "max_turns" }), full);
 
+	assert.match(seen.notices.at(-1) ?? "", /步数上限.*停下/);
 	assert.equal(seen.runs, 0);
 });
 

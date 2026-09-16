@@ -1,7 +1,7 @@
 /**
  * The index, as a column you read downwards.
  */
-import { ArrowDownToLine, ArrowUpFromLine, Check, FolderTree, List, Minus, Plus, RotateCcw } from "lucide-react";
+import { Check, FolderTree, List, Minus, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { GitStatus, GitStatusFile, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
@@ -37,8 +37,6 @@ export function ChangesView({
   loading,
   act,
   plan,
-  onPush,
-  onPull,
 }: {
   status: GitStatus | null;
   cwd: string;
@@ -48,8 +46,6 @@ export function ChangesView({
   act: Act;
   /** What a clean tree should say, and what to offer doing about it. Computed in `GitPanel`. */
   plan: SyncPlan;
-  onPush: () => void;
-  onPull: () => void;
 }) {
 	const { t } = useI18n();
   const [treeView, setTreeView] = useState(false);
@@ -133,17 +129,7 @@ export function ChangesView({
       <PanelEmpty
         icon={Check}
         title={t("changes.clean")}
-        action={
-          plan.empty.action
-            ? {
-                icon: plan.empty.action.kind === "push" ? ArrowUpFromLine : ArrowDownToLine,
-                label: plan.empty.action.label,
-                onClick: plan.empty.action.kind === "push" ? onPush : onPull,
-                disabled: busy,
-                loading: busy,
-              }
-            : undefined
-        }
+
       >
         {plan.empty.body}
       </PanelEmpty>

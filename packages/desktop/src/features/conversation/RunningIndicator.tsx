@@ -34,6 +34,7 @@ const COMPACTED_NOTICE_MS = 8000;
 export function RunningIndicator() {
 	const startedAt = useApp((s) => s.turnStartedAt);
 	const tokens = useApp((s) => s.turnTokens);
+	const meter = useApp(s => s.activeSessionId ? s.turns[s.activeSessionId] : undefined);
 	const messages = useApp((s) => s.messages);
 	const retrying = useApp((s) => s.retrying);
 	const compactedAt = useApp((s) => s.compactedAt);
@@ -96,6 +97,9 @@ export function RunningIndicator() {
 	const last = messages[messages.length - 1];
 	const live = last?.role === "assistant" && last.stopReason === "pending" ? freshTokens(last.usage) : 0;
 	const total = tokens + live;
+	const liveUsage = last?.role === "assistant" && last.stopReason === "pending" ? last.usage : undefined;
+	const input = (meter?.inputTokens ?? 0) + (liveUsage ? liveUsage.input + liveUsage.cacheRead + liveUsage.cacheWrite : 0);
+	const cached = (meter?.cacheRead ?? 0) + (liveUsage?.cacheRead ?? 0);
 	// Travelled to, not jumped to: usage lands per message, so this moves in steps of thousands.
 	const counted = useCountUp(total);
 	/*
@@ -160,7 +164,7 @@ export function RunningIndicator() {
 			 * also the fastest way to see what the window thinks it is doing while using it.
 			 */
 			data-ly-mood={mood}
-			className="ly-enter mb-2.5 flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-detail text-ink-muted whitespace-nowrap"
+			className="ly-enter mb-2.5 flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-detail text-ink-muted whitespace-nowrap"
 		>
 			{/*
 			 * Decorative, so `aria-hidden`: the phrase beside it already says what this is, and a
@@ -193,7 +197,7 @@ export function RunningIndicator() {
 					<span className="text-ink-faint">·</span>
 					{/* `tabular-nums` matters more while it is moving: without it the glyph widths
 					    change every frame and the whole line shuffles sideways as the number climbs. */}
-					<span className="text-ink-faint tabular-nums">{formatTokens(Math.round(counted))} tokens</span>
+					<span className="text-ink-faint tabular-nums">{translate("running.turnTokens", { n: formatTokens(Math.round(counted)) })}{input > 0 && ` · ${translate("sessionCard.cache")} ${Math.round(cached / input * 100)}%`}</span>
 				</>
 			)}
 			{/*

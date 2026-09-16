@@ -43,6 +43,41 @@ test("an interactive answer cannot authorize a side effect", async () => {
 	const pending = gate.request({ kind: "bash", title: "命令", detail: "run", subject: "run" });
 	const [request] = gate.list();
 	assert.equal(gate.resolve(request.id, { answer: "允许" }), false);
+	assert.equal(gate.resolve(request.id, "skip"), false);
 	gate.rejectAll();
 	assert.equal(await pending, "reject");
+});
+
+test("multi-select validates every answer and skip only adopts an explicit default", async () => {
+	const gate = new ApprovalGate({ mode: () => "full", cwd: () => "/test", ask: async () => {}, remember: () => {} });
+	const ctx: ToolContext = { cwd: "/test", sessionId: "a", state: new Map(), requestApproval: request => gate.request(request) };
+	try {
+		const args = { question: "选择", options: [{ label: "A", description: "first", recommended: true }, "B"], selectionMode: "multi" as const };
+		const pending = askUserTool.execute(args, ctx);
+		let request = gate.list()[0];
+		for (const answer of [[], ["A", "unknown"], ["A", "A"], [7]]) assert.equal(gate.resolve(request.id, { answer }), false);
+		assert.equal(gate.resolve(request.id, { answer: ["A", "B"] }), true);
+		assert.deepEqual((await pending).content, [{ type: "text", text: '["A","B"]' }]);
+		const skipped = askUserTool.execute(args, ctx);
+		request = gate.list()[0];
+		assert.equal(gate.resolve(request.id, "skip"), true);
+		assert.match((await skipped).content[0].text, /No answer or permission/);
+		const defaulted = askUserTool.execute({ ...args, defaultOptionIndex: 1 }, ctx);
+		assert.equal(gate.resolve(gate.list()[0].id, "skip"), true);
+		assert.match((await defaulted).content[0].text, /explicit default: B/);
+		const required = askUserTool.execute({ ...args, allowSkip: false }, ctx);
+		assert.equal(gate.resolve(gate.list()[0].id, "skip"), false);
+		gate.rejectAll();
+		assert.equal((await required).isError, true);
+	} finally { gate.rejectAll(); }
+});
+
+test("single-select rejects arrays and malformed defaults fail before opening a request", async () => {
+	const gate = new ApprovalGate({ mode: () => "full", cwd: () => "/test", ask: async () => {}, remember: () => {} });
+	const ctx: ToolContext = { cwd: "/test", sessionId: "a", state: new Map(), requestApproval: request => gate.request(request) };
+	const pending = askUserTool.execute({ question: "选择", options: ["A", "B"] }, ctx);
+	assert.equal(gate.resolve(gate.list()[0].id, { answer: ["A"] }), false);
+	gate.rejectAll(); await pending;
+	assert.equal((await askUserTool.execute({ question: "选择", options: ["A"], defaultOptionIndex: 2 }, ctx)).isError, true);
+	assert.equal(gate.list().length, 0);
 });

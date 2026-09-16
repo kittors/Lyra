@@ -33,6 +33,25 @@ async function workspace(): Promise<string> {
 
 const ctx = (cwd: string) => ({ cwd, sessionId: "s", state: new Map<string, unknown>() });
 
+for (const fallback of [false, true]) {
+	test(`large matching lines have bounded output, including details (fallback=${fallback})`, async (t) => {
+		const dir = await workspace();
+		t.after(() => rm(dir, { recursive: true, force: true }));
+		await writeFile(join(dir, "huge.json"), Array.from({ length: 20 }, () => `needle ${"😀".repeat(20_000)}`).join("\n"));
+		const path = process.env.PATH;
+		if (fallback) process.env.PATH = "";
+		t.after(() => { process.env.PATH = path; });
+		const res = await grepTool.execute({ pattern: "needle" }, ctx(dir));
+		const text = res.content.map((part) => part.text).join("");
+		assert.ok(text.length < 16_000, `output was ${text.length} characters`);
+		assert.match(text, /huge.json:1:needle/);
+		assert.match(text, /omitted|truncated/);
+		assert.match(text, /\[38020 characters omitted;/, "the original omission count survives total-output limiting");
+		assert.ok(text.isWellFormed(), "Unicode boundaries stay intact");
+		assert.ok(JSON.stringify(res.details).length < 20_000, "details cannot smuggle the original output back in");
+	});
+}
+
 test("an unclosed group is searched for as text rather than failing", async (t) => {
 	const dir = await workspace();
 	t.after(() => rm(dir, { recursive: true, force: true }));

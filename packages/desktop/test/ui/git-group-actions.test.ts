@@ -37,7 +37,7 @@ function fixture(t: TestContext) {
 function changes(busy = false, current = status) {
 	return h(ChangesView, {
 		cwd, status: current, busy, act: async operation => (await operation()).ok,
-		plan: syncPlan(current), onPush: () => {}, onPull: () => {},
+		plan: syncPlan(current),
 	});
 }
 
@@ -120,3 +120,17 @@ test("the local branch icon opens and cancels creation without blank actions in 
 		assert.equal(view.host.querySelector('input[placeholder="新分支名"]'), null);
 	} finally { await view.unmount(); }
 });
+
+for (const [name, ahead, behind, upstream] of [
+	["ahead", 1, 0, "origin/main"], ["behind", 0, 1, "origin/main"],
+	["diverged", 1, 1, "origin/main"], ["unpublished", 0, 0, null],
+] as const) {
+	test(`clean ${name} changes view describes sync without a duplicate action`, async t => {
+		fixture(t);
+		const view = await mount(changes(false, { ...status, staged: [], unstaged: [], ahead, behind, upstream }));
+		try {
+			assert.ok(view.text().trim().length > 0);
+			assert.equal(view.all("button").length, 0);
+		} finally { await view.unmount(); }
+	});
+}

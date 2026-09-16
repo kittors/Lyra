@@ -16,6 +16,8 @@ import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore, type SessionRecord } from "../src/session/store.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { controlMainTool } from "../src/runtime/sidechat-controls.ts";
+import { TODOS_KEY } from "../src/tools/todo.ts";
 
 const MODEL: ModelConfig = {
 	id: "fake/model",
@@ -60,7 +62,7 @@ function reply(text: string): AssistantMessage {
 	};
 }
 
-async function harness(script?: (turn: number) => AssistantMessage) {
+async function harness(script?: (turn: number) => AssistantMessage | Promise<AssistantMessage>) {
 	const root = await mkdtemp(join(tmpdir(), "ly-log-"));
 	/*
 	 * A home of its own, so the assertions are about this test and not about this machine.
@@ -100,6 +102,28 @@ async function harness(script?: (turn: number) => AssistantMessage) {
 		},
 	};
 }
+
+test("explicit cancellation clears the plan durably without making another model request", async () => {
+	let requests = 0;
+	const h = await harness(() => { requests++; return reply("ok"); });
+	try {
+		h.session.can.state.set(TODOS_KEY, [{ content: "old work", status: "in_progress" }]);
+		await controlMainTool(h.session).execute({ action: "pause", discardPlan: true }, { cwd: h.root, sessionId: h.session.meta.id, state: new Map() });
+		assert.equal(h.session.can.state.has(TODOS_KEY), false);
+		assert.equal(requests, 0);
+		assert.ok((await h.records()).some((record) => record.type === "message" && record.message.role === "user" && record.message.clearsTaskPlan));
+	} finally { await h.cleanup(); }
+});
+
+test("all runtime stop reasons survive on disk independently of model stopReason", async () => {
+	const h = await harness();
+	try {
+		const reasons = ["done", "aborted", "error", "max_turns", "stalled"] as const;
+		for (const reason of reasons) await h.session.log.emit({ type: "agent_end", reason });
+		const recorded = (await h.records()).flatMap((record) => record.type === "event" && record.event.type === "agent_end" ? [record.event.reason] : []);
+		assert.deepEqual(recorded, [...reasons]);
+	} finally { await h.cleanup(); }
+});
 
 test("the context the model was given is written down, once", async () => {
 	const h = await harness();
@@ -219,4 +243,24 @@ test("a history read back from disk is adopted, not appended again", async () =>
 	} finally {
 		await h.cleanup();
 	}
+});
+
+test("discarding an active plan suppresses a late tool response and leaves no resumable old dispatch", async () => {
+	let begin!: () => void, finish!: (message: AssistantMessage) => void;
+	const started = new Promise<void>(resolve => { begin = resolve; });
+	const delayed = new Promise<AssistantMessage>(resolve => { finish = resolve; });
+	const h = await harness(() => { begin(); return delayed; });
+	try {
+		h.session.can.state.set(TODOS_KEY, [{ content: "old", status: "in_progress" }]);
+		await h.session.enqueueTask("old dispatch"); await started;
+		const cancellation = h.session.discardTaskPlan();
+		finish({ ...reply(""), stopReason: "toolUse", content: [{ type: "toolCall", id: "late", name: "todo_write", arguments: { todos: [{ content: "late old work", status: "pending" }] } }] });
+		await cancellation;
+		assert.equal(h.session.running, false);
+		assert.equal(h.session.can.state.has(TODOS_KEY), false);
+		assert.equal(h.session.interruptedTask(), null);
+		assert.equal(h.session.taskQueue[0]?.cancelledBy, "user");
+		const records = await h.records();
+		assert.ok(records.some(record => record.type === "message" && record.message.role === "user" && record.message.clearsTaskPlan));
+	} finally { await h.cleanup(); }
 });

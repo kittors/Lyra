@@ -202,6 +202,8 @@ export interface UserMessage {
 	timestamp: number;
 	/** Set when the message was injected by the runtime rather than typed by a human. */
 	synthetic?: boolean;
+	/** An explicit runtime control discarded the old plan; it did not mark work completed. */
+	clearsTaskPlan?: boolean;
 	/**
 	 * Who sent this, when it was not the person looking at the transcript.
 	 *

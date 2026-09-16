@@ -116,3 +116,13 @@ test("two pauses in one turn add up rather than replacing each other", () => {
 	assert.equal(elapsedOf(meter, 61 * MINUTE), 6 * MINUTE, "3 + 2 + 1 minutes of actual work");
 	assert.equal(meter.tokens, 2_000);
 });
+
+test("cache input counts survive pause, continuation and disk persistence", async () => {
+	const { addTurnUsage, freeze, relight } = await import("../src/store/turn-meter.ts");
+	const { emptyUsage } = await import("@lyra/core");
+	const usage = { ...emptyUsage(), input: 10, cacheRead: 80, cacheWrite: 10, output: 500 };
+	const metered = addTurnUsage({ startedAt: 100, tokens: 0 }, usage);
+	assert.equal(metered.tokens, 520); assert.equal(metered.inputTokens, 100); assert.equal(metered.cacheRead, 80);
+	const next = relight(freeze(metered, 200), 500);
+	assert.equal(next.inputTokens, 100); assert.equal(next.cacheRead, 80); assert.equal(next.tokens, 520);
+});

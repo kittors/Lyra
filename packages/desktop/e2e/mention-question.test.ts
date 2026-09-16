@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { startRecording, encode, type Frame } from "./record.ts";
 import { after, afterEach, before, test } from "node:test";
 import type { SessionSnapshot } from "../electron/ipc-types.ts";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
@@ -8,6 +10,10 @@ import { cleanupFixture } from "./fixture-cleanup.ts";
 import { questionModel, REFERENCE_TITLE, seedQuestions } from "./mention-question-fixture.ts";
 
 let app: RunningApp;
+const frames: Frame[] = [];
+let stopRecording: (() => Promise<void>) | undefined;
+let passed = 0;
+const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const { server, requests } = questionModel();
 const capsuleCount = `document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]').length`;
 type SessionId = "qa-long" | "qa-short";
@@ -19,7 +25,7 @@ const clickTargets = {
 	secondReference: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('.ly-mention-menu [role="option"][data-index="1"]'))?.checkVisibility())`,
 	choice: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('[data-question-choice]'))?.checkVisibility())`,
 	custom: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('input[aria-label="自定义回答"]'))?.checkVisibility())`,
-	submitCustom: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('input[aria-label="自定义回答"] + button'))?.checkVisibility())`,
+	submitCustom: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('button[aria-label="发送回答"]'))?.checkVisibility())`,
 };
 
 before(async () => {
@@ -27,9 +33,11 @@ before(async () => {
 	const address = server.address(); assert.ok(address && typeof address !== "string");
 	app = await startApp({ port: 9735, seed: (home) => seedQuestions(home, address.port) });
 	await app.evaluate("document.fonts.ready");
+	stopRecording = await startRecording(9735, frames);
 });
 afterEach(async () => { if (app) await shot("mention-question-last-screen"); });
 after(async () => {
+	await stopRecording?.();
 	await cleanupFixture(
 		async () => {
 			const directory = process.env.LYRA_E2E_ARTIFACTS;
@@ -38,6 +46,9 @@ after(async () => {
 		() => app?.stop(),
 		() => closeListeningServer(server),
 	);
+	const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+	await mkdir(out, { recursive: true });
+	if (frames.length) await encode(frames, join(out, `${stamp}_提问跨会话隔离_${passed}of2.mp4`), 30);
 });
 
 async function until(condition: string | (() => Promise<boolean>)) {
@@ -82,6 +93,7 @@ async function snapshot(id: SessionId) {
 	assert.ok(result); return result;
 }
 async function shot(name: string) {
+	await new Promise(resolve => setTimeout(resolve, 1000));
 	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	await app.evaluate(`Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))`);
@@ -142,6 +154,7 @@ test("same-title references survive draft switching and fit dark, light and narr
 	assert.ok(requests.some((request) => { const raw = JSON.stringify(request); return raw.includes("session://qa-long") && raw.includes("session://qa-short"); }));
 	assert.equal(await app.evaluate(capsuleCount), 0);
 	await shot("reference-sent");
+	passed++;
 });
 
 test("real ask_user returns choices and custom answers to their own pending sessions", async (t) => {
@@ -163,9 +176,10 @@ test("real ask_user returns choices and custom answers to their own pending sess
 	assert.ok(question.left >= 0 && question.right <= question.width); assert.equal(question.inputs, 1); t.diagnostic(JSON.stringify(question));
 	await shot("question-custom-light-375");
 	await appearance("dark", 1280); await session("qa-long");
-	await until(`[...document.querySelectorAll('button')].some(e=>e.textContent==='更新实现')`);
-	await app.evaluate(`[...document.querySelectorAll('button')].find(e=>e.textContent==='更新实现').setAttribute('data-question-choice','')`);
+	await until(`[...document.querySelectorAll('[data-approval-card] label')].some(e=>e.textContent==='更新实现')`);
+	await app.evaluate(`[...document.querySelectorAll('[data-approval-card] label')].find(e=>e.textContent==='更新实现').setAttribute('data-question-choice','')`);
 	await click("choice");
+	await app.evaluate(`document.querySelector('button[aria-label="确认选择"]').click()`);
 	await session("qa-short");
 	await until(`Boolean(document.querySelector('input[aria-label="自定义回答"]'))`);
 	const custom = "先保留草稿，完成验证再更新。";
@@ -181,4 +195,5 @@ test("real ask_user returns choices and custom answers to their own pending sess
 		assert.ok(requests.some((request) => { const tail = JSON.stringify(request.messages.slice(-3)); return tail.includes('"tool_result"') && tail.includes(answer); }));
 	}
 	await shot("question-answered");
+	passed++;
 });

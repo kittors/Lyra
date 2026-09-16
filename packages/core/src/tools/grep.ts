@@ -1,12 +1,41 @@
-import { spawn } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createInterface } from "node:readline";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { basename, join, relative, sep } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
 import { looksBinary, resolveWorkspacePath } from "./paths.ts";
 
 const MAX_MATCHES = 200;
+// Keep searchable addresses plus ordinary source lines; minified multi-MB lines need read.
+const MAX_LINE_CHARS = 2000;
+// About 3.4k estimated tokens across all matches; more requires a narrower search.
+const MAX_OUTPUT_CHARS = 12_000;
+
+/** Keep file/line addresses and disclose omissions without splitting a surrogate pair. */
+function shortenLine(line: string): string {
+	if (line.length <= MAX_LINE_CHARS) return line;
+	const head = line.slice(0, MAX_LINE_CHARS).replace(/[\uD800-\uDBFF]$/, "");
+	return `${head} … [${line.length - head.length} characters omitted; read this file for the full line]`;
+}
+
+/** Shared with offline audit replay so its estimate measures the production output policy. */
+export function boundedGrepLines(lines: string[]): string[] {
+	return boundCollectedLines(lines.map(shortenLine));
+}
+
+/** Collectors already shorten each line; applying that twice would replace the omission count. */
+function boundCollectedLines(lines: string[]): string[] {
+	const shown: string[] = [];
+	let size = 0;
+	for (const line of lines) {
+		if (size + line.length + 1 > MAX_OUTPUT_CHARS) break;
+		shown.push(line);
+		size += line.length + 1;
+	}
+	return shown;
+}
 const SKIP_DIRS = new Set([
 	"node_modules", ".git", "dist", "build", "out", ".next", "target",
 	"__pycache__", ".venv", "venv", ".turbo", ".cache", ".expo",
@@ -108,7 +137,7 @@ function compiles(pattern: string): boolean {
 
 async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
 	const limit = Math.min(args.limit ?? MAX_MATCHES, MAX_MATCHES);
-	const argv = ["--no-heading", "--line-number", "--color=never", "--max-count", String(limit)];
+	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--max-count", String(limit)];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
 	if (args.files_only) argv.push("--files-with-matches");
@@ -117,35 +146,42 @@ async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, litera
 	argv.push("--", args.pattern, root);
 
 	return new Promise<ToolResult | null>((resolve) => {
-		let child: ReturnType<typeof spawn>;
+		let child: ChildProcessWithoutNullStreams;
 		try {
-			child = spawn("rg", argv, { cwd: root });
+			child = spawn("rg", argv, { cwd: ctx.cwd });
 		} catch {
 			resolve(null);
 			return;
 		}
 
-		let stdout = "";
+		const lines: string[] = [];
+		let count = 0;
 		let failed = false;
-		child.stdout?.on("data", (chunk: Buffer) => {
-			stdout += chunk.toString("utf8");
+		const reader = createInterface({ input: child.stdout });
+		reader.on("line", (line) => {
+			if (!line) return;
+			count++;
+			if (lines.length < limit) lines.push(shortenLine(line.startsWith(`${root}${sep}`) ? line.slice(root.length + 1) : line));
 		});
 		// ENOENT here just means ripgrep is not installed; the fallback handles it.
 		child.on("error", () => {
 			failed = true;
 			resolve(null);
 		});
-		ctx.signal?.addEventListener("abort", () => child.kill("SIGKILL"), { once: true });
+		const abort = () => { child.kill("SIGKILL"); };
+		ctx.signal?.addEventListener("abort", abort, { once: true });
+		if (ctx.signal?.aborted) abort();
 
 		child.on("close", (code) => {
+			ctx.signal?.removeEventListener("abort", abort);
+			reader.close();
 			if (failed) return;
 			// rg exits 1 when there are no matches, and 2+ on real errors.
 			if (code !== 0 && code !== 1) {
 				resolve(null);
 				return;
 			}
-			const lines = stdout.split("\n").filter(Boolean).map((line) => line.replace(`${root}/`, ""));
-			resolve(formatMatches(lines, args, limit, literal));
+			resolve(formatMatches(lines, args, limit, literal, count));
 		});
 	});
 }
@@ -175,17 +211,17 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		if (lines.length >= limit) return;
 		const buffer = await readFile(path).catch(() => null);
 		if (!buffer || looksBinary(buffer)) return;
-		const rel = relative(root, path).split(sep).join("/");
+		const rel = relative(root, path).split(sep).join("/") || basename(path);
 		const fileLines = buffer.toString("utf8").split("\n");
 
 		for (let i = 0; i < fileLines.length && lines.length < limit; i++) {
 			if (!regex.test(fileLines[i])) continue;
 			if (args.files_only) {
-				lines.push(rel);
+				lines.push(shortenLine(rel));
 				return;
 			}
 			for (let c = Math.max(0, i - contextLines); c <= Math.min(fileLines.length - 1, i + contextLines); c++) {
-				lines.push(`${rel}:${c + 1}:${fileLines[c]}`);
+				lines.push(shortenLine(`${rel}:${c + 1}:${fileLines[c]}`));
 			}
 		}
 	};
@@ -207,7 +243,8 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		}
 	};
 
-	await walk(root);
+	if ((await stat(root).catch(() => null))?.isFile()) await scanFile(root);
+	else await walk(root);
 	return formatMatches(lines, args, limit, literal);
 }
 
@@ -216,7 +253,7 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
  *   expression. Said in the result rather than left silent: otherwise a search whose metacharacters
  *   were quietly disarmed reads as a search that ran as written and found nothing.
  */
-function formatMatches(lines: string[], args: GrepArgs, limit: number, literal = false): ToolResult {
+function formatMatches(lines: string[], args: GrepArgs, limit: number, literal = false, count = lines.length): ToolResult {
 	const note = literal ? `\`${args.pattern}\` is not a valid regular expression, so it was searched for literally.` : "";
 	if (lines.length === 0) {
 		const text = literal ? `${note}\nNo matches.` : `No matches for /${args.pattern}/.`;
@@ -227,12 +264,12 @@ function formatMatches(lines: string[], args: GrepArgs, limit: number, literal =
 			uneventful: true,
 		};
 	}
-	const shown = lines.slice(0, limit);
+	const shown = boundCollectedLines(lines.slice(0, limit));
 	const header = literal ? `${note}\n\n` : "";
-	const footer = lines.length > shown.length ? `\n\n[truncated at ${limit} matches]` : "";
+	const footer = count > shown.length ? `\n\n[truncated: ${count - shown.length} collected matching/context lines omitted; narrow pattern, path or glob]` : "";
 	return {
 		content: [{ type: "text", text: header + shown.join("\n") + footer }],
-		details: { kind: "grep", pattern: args.pattern, count: lines.length, matches: shown, literal },
+		details: { kind: "grep", pattern: args.pattern, count, matches: shown, literal },
 	};
 }
 

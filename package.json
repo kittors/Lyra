@@ -26,6 +26,8 @@
     "prepare": "lefthook install",
     "test:e2e": "pnpm --filter @lyra/desktop test:e2e",
     "audit:sessions": "node --experimental-strip-types scripts/session-audit.ts",
+    "audit:prune": "node --experimental-strip-types scripts/session-prune-audit.ts",
+    "probe:parallel": "node --experimental-strip-types scripts/probe-parallel-calls.ts",
     "catalog:update": "node scripts/update-model-catalog.mjs",
     "release": "node scripts/release.mjs",
     "release:rehearse": "node scripts/release.mjs rehearse",

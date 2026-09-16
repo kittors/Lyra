@@ -101,30 +101,20 @@ const nudgeCount = (messages: Message[]) =>
 	messages.filter((m) => m.role === "user" && m.content.some((c) => c.type === "text" && c.text.includes("自动继续")))
 		.length;
 
-test("narrating the next step with work outstanding does not end the run", async () => {
-	// Talks once, is pushed, then finishes the plan properly and stops for real.
-	const { result, turns } = await run(
-		[narrates("后端完成，现在做前台页面"), narrates("全部做完了")],
-		todos("completed", "pending"),
-		(turn, state) => {
-			if (turn === 1) state.set(TODOS_KEY, todos("completed", "completed"));
-		},
-	);
-
-	assert.equal(turns, 2, "one extra turn, not more");
-	assert.equal(nudgeCount(result.messages), 1, "exactly one nudge for one pause");
-	assert.equal(result.reason, "done");
+test("unfinished todos cannot override a question or a requested text-only report", async () => {
+	for (const text of ["请问现在是否可以开始修改代码？", "按你的要求仅输出分析，等待确认。", "Analysis complete. Awaiting your decision."]) {
+		const { result, turns } = await run([narrates(text)], todos("completed", "in_progress", "pending"));
+		assert.equal(turns, 1, text);
+		assert.equal(nudgeCount(result.messages), 0);
+		assert.equal(result.reason, "done");
+	}
 });
 
-test("the nudge says what is left and asks for action, not a plan", async () => {
-	const { result } = await run([narrates("接下来我会写测试"), narrates("done")], todos("completed", "pending", "pending"));
-	const nudge = result.messages.find(
-		(m) => m.role === "user" && m.content.some((c) => c.type === "text" && c.text.includes("自动继续")),
-	);
-	const text = nudge?.content.map((c) => (c.type === "text" ? c.text : "")).join("") ?? "";
-	assert.match(text, /还有 2 项/, "it counts what actually remains");
-	assert.match(text, /不要只描述计划/);
-	assert.match(text, /step 2/, "it includes the task details");
+test("an unfinished checklist alone cannot authorize another model request", async () => {
+	const { result, turns } = await run([narrates("后端完成，现在做前台页面")], todos("completed", "pending"));
+	assert.equal(turns, 1);
+	assert.equal(nudgeCount(result.messages), 0);
+	assert.equal(result.reason, "done");
 });
 
 test("a finished plan is left alone", async () => {
@@ -140,30 +130,12 @@ test("a conversation with no plan at all is never nudged", async () => {
 	assert.equal(nudgeCount(result.messages), 0);
 });
 
-test("a model that will not act is nudged a few times and then left", async () => {
-	const { result } = await run([narrates("I will do it next")], todos("pending", "pending"));
-	assert.equal(nudgeCount(result.messages), 3, "bounded rather than endless");
-	assert.equal(result.reason, "done");
-});
-
-test("using a tool resets the allowance, so a later pause is still recovered", async () => {
-	const script = [
-		narrates("pausing once"),
-		callsTool(),
-		narrates("pausing again"),
-		callsTool(),
-		narrates("pausing a third time"),
-		narrates("finished"),
-	];
-	const { result } = await run(script, todos("pending", "pending"));
-	/*
-	 * More than one allowance was spent, which is only possible if the tool calls reset it.
-	 * The exact number is the script's business: once the replies run out the last one repeats,
-	 * and with a plan that never completes it burns the final allowance down — which is the
-	 * give-up path, tested above.
-	 */
-	assert.ok(nudgeCount(result.messages) > MAX_NUDGES, "a tool call must restore the allowance");
-	assert.equal(result.reason, "done");
+test("empty retries remain bounded even when interleaved with tools", async () => {
+	const empty: AssistantMessage = { ...base(), content: [] };
+	const { result } = await run([empty, callsTool(), empty, callsTool(), empty, callsTool(), empty], todos("pending"));
+	assert.equal(nudgeCount(result.messages), MAX_NUDGES);
+	assert.equal(result.reason, "error");
+	assert.match(result.error ?? "", /空回复/);
 });
 
 test("an empty reply is nudged even before there is a plan", async () => {
@@ -209,21 +181,12 @@ test("a question the user has to answer is left standing", async () => {
 	assert.equal(nudgeCount(result.messages), 0, "a question worth asking is not a pause to push past");
 });
 
-test("a plan recorded with todo_write is what brings the follow-up", async () => {
-	/*
-	 * The way out of the gap this loop cannot close on its own. Steps named only in prose are
-	 * invisible here; the same steps on the list are the first test in the condition, so the pause
-	 * after them is already covered. That is what the prompt sends the model to `todo_write` for.
-	 */
+test("a checklist created during this run does not override a later text reply", async () => {
 	const { result, turns } = await run(
-		[callsTool(), narrates("清单已经记下，接下来逐项处理"), narrates("全部完成")],
-		[],
-		(turn, state) => {
-			if (turn === 1) state.set(TODOS_KEY, todos("in_progress", "pending"));
-			if (turn === 2) state.set(TODOS_KEY, todos("completed", "completed"));
-		},
+		[callsTool(), narrates("清单已经记下，等待确认")], [],
+		(turn, state) => { if (turn === 1) state.set(TODOS_KEY, todos("in_progress", "pending")); },
 	);
-	assert.equal(nudgeCount(result.messages), 1, "the recorded plan is the thing the loop can act on");
-	assert.equal(turns, 3);
+	assert.equal(nudgeCount(result.messages), 0);
+	assert.equal(turns, 2);
 	assert.equal(result.reason, "done");
 });

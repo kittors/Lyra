@@ -41,6 +41,7 @@ import {
 	snapshot,
 	touchSession,
 } from "../session-hub.ts";
+import { slimSnapshot } from "../display-transcript.ts";
 
 export interface SessionsIpcDeps {
 	store(): SessionStorage;
@@ -129,14 +130,16 @@ export function registerSessionsIpc({
 
 			const loaded = await store.load(projectId, sessionId);
 			if (!loaded) return null;
-			return {
+			const delay = Number(process.env.LYRA_E2E_SLOW_TRANSCRIPT ?? 0);
+			if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+			return slimSnapshot({
 				meta: loaded.meta,
 				messages: loaded.messages,
 				running: false,
 				pendingApprovals: [],
 				compactions: loaded.compactions,
 				commandRuns: loaded.commandRuns,
-			};
+			});
 		},
 	);
 

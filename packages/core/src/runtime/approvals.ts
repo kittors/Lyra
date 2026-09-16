@@ -55,11 +55,19 @@ export class ApprovalGate {
 		const entry = this.pending.get(requestId);
 		if (!entry) return false;
 		if (entry.request.kind === "interactive") {
+			const labels = (entry.request.options ?? []).map((option) => typeof option === "string" ? option : option.label);
 			if (decision === "reject") entry.resolve(decision);
-			else if (typeof decision === "object" && decision !== null && "answer" in decision && typeof decision.answer === "string") {
-				const answer = decision.answer.trim();
-				if (!answer || (!entry.request.allowCustomInput && !entry.request.options?.includes(answer))) return false;
-				entry.resolve({ answer });
+			else if (decision === "skip" && entry.request.allowSkip === true) {
+				const index = entry.request.defaultOptionIndex;
+				const fallback = index !== undefined ? labels[index] : undefined;
+				entry.resolve(fallback === undefined ? "skip" : { answer: fallback, skipped: true });
+			} else if (typeof decision === "object" && decision !== null && "answer" in decision) {
+				const value = decision.answer;
+				if (typeof value !== "string" && (!Array.isArray(value) || !value.every((item: unknown) => typeof item === "string"))) return false;
+				if (Array.isArray(value) && entry.request.selectionMode !== "multi") return false;
+				const answers = (typeof value === "string" ? [value] : value).map((item: string) => item.trim());
+				if (!answers.length || new Set(answers).size !== answers.length || answers.some((answer: string) => !answer || (!entry.request.allowCustomInput && !labels.includes(answer)))) return false;
+				entry.resolve({ answer: typeof value === "string" ? answers[0] : answers });
 			} else return false;
 		} else {
 			if (decision !== "once" && decision !== "always" && decision !== "reject") return false;
@@ -141,18 +149,7 @@ export class ApprovalGate {
 export function sessionApprovalGate(deps: {
 	mode(): PermissionMode;
 	cwd(): string;
-	emit(event: {
-		type: "approval_request";
-		requestId: string;
-		toolCallId: string;
-		kind: ApprovalRequest["kind"];
-		title: string;
-		detail: ApprovalRequest["detail"];
-		reason?: string;
-		subject: string;
-		options?: string[];
-		allowCustomInput?: boolean;
-	}): Promise<void>;
+	emit(event: Extract<import("../agent/events.ts").AgentEvent, { type: "approval_request" }>): Promise<void>;
 	alwaysAllow: Iterable<string>;
 }): ApprovalGate {
 	return new ApprovalGate(
@@ -164,13 +161,7 @@ export function sessionApprovalGate(deps: {
 					type: "approval_request",
 					requestId: pending.id,
 					toolCallId: pending.id,
-					kind: pending.request.kind,
-					title: pending.request.title,
-					detail: pending.request.detail,
-					...(pending.request.reason ? { reason: pending.request.reason } : {}),
-					subject: pending.request.subject,
-					...(pending.request.options ? { options: pending.request.options } : {}),
-					...(pending.request.allowCustomInput !== undefined ? { allowCustomInput: pending.request.allowCustomInput } : {}),
+					...pending.request,
 				}),
 			// Persisting an "always" answer is the host's job; the settings are not ours to write.
 			remember: () => {},

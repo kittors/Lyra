@@ -70,6 +70,7 @@ interface Session {
 	results: Map<string, Message>;
 	/** 每个助手回合的 stopReason，最后一个决定这次会话是怎么收尾的。 */
 	stops: string[];
+	runtimeStops: string[];
 	turns: Turn[];
 	userPrompts: UserPrompt[];
 	finalTodos?: { content: string; status: string }[];
@@ -99,18 +100,20 @@ function loadSessions(): Session[] {
 			const calls: Call[] = [];
 			const results = new Map<string, Message>();
 			const stops: string[] = [];
+			const runtimeStops: string[] = [];
 			const turns: Turn[] = [];
 			const userPrompts: UserPrompt[] = [];
 			let finalTodos: { content: string; status: string }[] | undefined;
 			const fileEdits = new Map<string, number>();
 			let round = 0;
 			for (const line of lines) {
-				let entry: { type?: string; message?: Record<string, unknown> };
+				let entry: { type?: string; message?: Record<string, unknown>; event?: { type?: string; reason?: string } };
 				try {
 					entry = JSON.parse(line);
 				} catch {
 					continue;
 				}
+				if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
 				if (entry.type !== "message") continue;
 				const message = entry.message;
 				if (message?.role === "user") {
@@ -161,6 +164,7 @@ function loadSessions(): Session[] {
 					calls,
 					results,
 					stops,
+					runtimeStops,
 					turns,
 					userPrompts,
 					finalTodos,
@@ -352,7 +356,9 @@ for (const session of sessions) {
 
 const stopKinds = new Map<string, number>();
 const endedWith = new Map<string, number>();
+const runtimeStops = new Map<string, number>();
 for (const session of sessions) {
+	for (const reason of session.runtimeStops) runtimeStops.set(reason, (runtimeStops.get(reason) ?? 0) + 1);
 	for (const stop of session.stops) stopKinds.set(stop, (stopKinds.get(stop) ?? 0) + 1);
 	const last = session.stops[session.stops.length - 1];
 	if (last) endedWith.set(last, (endedWith.get(last) ?? 0) + 1);
@@ -428,8 +434,8 @@ const FRUSTRATION_REGEX = /(上一轮|刚才|不对|怎么又|别再|不是让|�
 let totalUserPrompts = 0;
 let frustrationPrompts = 0;
 
-let frustMaxEdits: number[] = [];
-let smoothMaxEdits: number[] = [];
+const frustMaxEdits: number[] = [];
+const smoothMaxEdits: number[] = [];
 
 for (const session of sessions) {
 	let isFrustSession = false;
@@ -451,6 +457,8 @@ for (const session of sessions) {
 const avgMaxEdits = (arr: number[]) => (arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : 0);
 const frustAvgEdits = avgMaxEdits(frustMaxEdits);
 const smoothAvgEdits = avgMaxEdits(smoothMaxEdits);
+// Nearest-rank P90 is descriptive, never a runtime stop threshold.
+const p90 = (values: number[]) => values.length ? [...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.9) - 1] : 0;
 
 // ---------------------------------------------------------------------------
 // 报告
@@ -482,6 +490,7 @@ if (asJson) {
 					DELAYS.map((n) => [`delay${n}`, { carried: tk(curve.get(n)!), savedShare: share(allCarried - curve.get(n)!, allCarried) }]),
 				),
 				stops: Object.fromEntries(stopKinds),
+				runtimeStops: Object.fromEntries(runtimeStops),
 				endedWith: Object.fromEntries(endedWith),
 				parallelism: {
 					callsPerTurn: +(parCalls / parTurns).toFixed(3),
@@ -501,6 +510,9 @@ if (asJson) {
 					frustrationRate: share(frustrationPrompts, totalUserPrompts),
 					frustAvgMaxEdits: frustAvgEdits,
 					smoothAvgMaxEdits: smoothAvgEdits,
+					frustP90MaxEdits: p90(frustMaxEdits), smoothP90MaxEdits: p90(smoothMaxEdits),
+					frustSessions: frustMaxEdits.length, smoothSessions: smoothMaxEdits.length,
+					classification: "Uncalibrated keyword proxy, not a task-success metric",
 				},
 			},
 			null,
@@ -562,7 +574,8 @@ for (const n of DELAYS)
 console.log("\n── 6. 回合怎么结束的 ──");
 console.log(`  全部助手回合：${[...stopKinds].map(([k, v]) => `${k} ${v}`).join("，")}`);
 console.log(`  会话的最后一个：${[...endedWith].map(([k, v]) => `${k} ${v}`).join("，")}`);
-console.log("  ⚠ toolUse 收尾的会话是「要了工具却没有下文」，既可能是人按了停，也可能是循环断了 —— 落盘的 stopReason 区分不了。");
+console.log(`  运行时停止原因（agent_end）：${[...runtimeStops].map(([k, v]) => `${k} ${v}`).join("，")}`);
+console.log(`  有结构化结束记录的会话：${sessions.filter((session) => session.runtimeStops.length > 0).length}/${sessions.length}；旧日志缺失不能由 stopReason 猜测补齐。`);
 
 console.log("\n── 7. 并行度：一个回合发几个调用（这是「慢」，不是「贵」） ──");
 console.log(`  总体 ${(parCalls / parTurns).toFixed(2)} 个/轮，并行率 ${share(parMulti, parTurns)}`);
@@ -588,3 +601,5 @@ console.log("    所以省下的 token 量 ≠ 省下的钱，A1 的收益要按
 console.log("\n── 9. 完成质量与用户体验（第一原则守卫） ──");
 console.log(`  用户发言：真实输入 ${totalUserPrompts} 条，含挫败信号 ${frustrationPrompts} 条 (${share(frustrationPrompts, totalUserPrompts)})`);
 console.log(`  单文件最大修改均值：顺利组 ${smoothAvgEdits} 次 vs 挫败组 ${frustAvgEdits} 次（纯事后连续观测，严禁在运行时注入打断）`);
+
+console.log(`  Edit-count P90: smooth ${p90(smoothMaxEdits)} (n=${smoothMaxEdits.length}); frustration-proxy ${p90(frustMaxEdits)} (n=${frustMaxEdits.length}). Keyword classification is uncalibrated, not task success.`);

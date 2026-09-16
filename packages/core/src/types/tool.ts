@@ -137,7 +137,21 @@ export interface ToolContext {
 	logger?: Logger;
 }
 
-export interface ApprovalRequest {
+export interface AskUserOption {
+	label: string;
+	description?: string;
+	recommended?: boolean;
+}
+
+export interface QuestionFields {
+	options?: (string | AskUserOption)[];
+	allowCustomInput?: boolean;
+	selectionMode?: "single" | "multi";
+	allowSkip?: boolean;
+	defaultOptionIndex?: number;
+}
+
+export interface ApprovalRequest extends QuestionFields {
 	kind: "bash" | "write" | "edit" | "mcp" | "network" | "interactive";
 	title: string;
 	detail: string;
@@ -151,11 +165,8 @@ export interface ApprovalRequest {
 	reason?: string;
 	/** Command / path the approval applies to, used for "always allow" rules. */
 	subject: string;
-	/** Optional interactive options for user decision. */
-	options?: string[];
-	allowCustomInput?: boolean;
 }
-export type ApprovalDecision = "once" | "always" | "reject" | { answer: string };
+export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
 
 export interface SubAgentInput {
 	description: string;

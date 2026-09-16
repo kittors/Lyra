@@ -221,6 +221,19 @@ test("background messages update a parked session without flashing a cold loader
 });
 
 
+test("a cold historical session stays empty and loading until the transcript arrives", async () => {
+	const deferred = deferredRead();
+	readTranscript = () => deferred.promise;
+	const opening = useApp.getState().openSession({ ...meta("cold"), messageCount: 800 });
+	assert.equal(useApp.getState().loadingSession, true);
+	assert.equal(useApp.getState().messages.length, 0);
+	assert.equal(useApp.getState().meta?.messageCount, 800);
+	deferred.resolve(snapshot("cold"));
+	await opening;
+	assert.equal(useApp.getState().loadingSession, false);
+	assert.equal(useApp.getState().messages.length, 1);
+});
+
 test("a cold read retains the history prefix and events arriving while it was in flight", async () => {
 	const deferred = deferredRead();
 	readTranscript = () => deferred.promise;

@@ -20,6 +20,7 @@ import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { notifyAgentEvent } from "./notify.ts";
+import { slimSnapshot } from "./display-transcript.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -194,7 +195,7 @@ export function touchSession(sessionId: string): void {
 }
 
 export async function snapshot(session: AgentSession): Promise<SessionSnapshot> {
-	return {
+	return slimSnapshot({
 		meta: session.meta,
 		messages: session.messages,
 		/*
@@ -211,13 +212,9 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 		running: session.running || submitted.has(session.meta.id),
 		pendingApprovals: session.listPendingApprovals().map(({ id, request }) => ({
 			id,
-			kind: request.kind,
-			title: request.title,
-			detail: request.detail,
-			options: request.options,
-			allowCustomInput: request.allowCustomInput,
+			...request,
 		})),
-	};
+	});
 }
 
 /** Tear down a live session's agent, MCP servers and browser. Safe to call for unknown ids. */

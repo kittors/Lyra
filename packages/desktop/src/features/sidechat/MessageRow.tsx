@@ -94,7 +94,7 @@ function UserRow({
 	}
 
 	return (
-		<div className="group/msg ly-enter mb-2.5 flex flex-col items-end">
+		<div className="group/msg ly-enter flex flex-col items-end">
 			<div className="max-w-[88%] rounded-[13px] rounded-br-[5px] bg-card px-3 py-2 text-label leading-relaxed text-ink">
 				{text && <div className="whitespace-pre-wrap">{text}</div>}
 				{images.length > 0 && (
@@ -161,7 +161,7 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 		.join("\n");
 
 	return (
-		<div className="group/msg ly-enter mb-2.5">
+		<div className="group/msg ly-enter flex flex-col gap-2.5">
 			{message.content.map((block, index) => {
 				if (block.type === "thinking") {
 					return (
@@ -178,7 +178,7 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 						// The same rhythm as the main transcript — see `rows.tsx`. Two conversations
 						// showing the same kind of answer at two different spacings is the drift this
 						// panel keeps accumulating.
-						<div key={index} className="mb-2.5 last:mb-0">
+						<div key={index}>
 							<Markdown text={block.text} />
 						</div>
 					) : null;

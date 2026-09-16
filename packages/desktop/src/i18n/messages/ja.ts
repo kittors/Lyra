@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "./zh-CN.ts";
 
 export const ja = {
+
+	"tools.run": "ツールの呼び出し",
+	"process.turn": "このターンの処理",	"question.title": "判断をお願いします",
+	"question.skip": "スキップ",
+	"question.recommended": "推奨",
+	"question.confirm": "選択を確定",
+	"question.otherCard": "別の回答を入力",
+	"question.selectOne": "1つ選択",
+	"question.selectMany": "複数選択可",
+	"question.skipDefault": "スキップ時の回答：{choice}",
+	"question.collapse": "質問・承認を折りたたむ",
+	"question.expand": "質問・承認を開く",
+	"question.fullAccessNote": "方針についての質問です。フルアクセスでも、質問への回答は自動では選ばれません。",
+
 	"common.cancel": "キャンセル", "common.confirm": "確認", "common.delete": "削除", "common.hide": "非表示", "common.loading": "開いています", "common.save": "保存", "common.show": "表示",
 	"app.backWorkspace": "ワークスペースに戻る", "app.guide": "ガイド", "app.hideSettingsNavigation": "設定ナビゲーションを隠す {shortcut}", "app.mainProcessError": "メインプロセスのエラー", "app.panel": "パネル", "app.plugins": "プラグイン", "app.pullRequests": "プルリクエスト", "app.scheduledTasks": "予約タスク", "app.settingsNavigation": "設定ナビゲーション", "app.showSettingsNavigation": "設定ナビゲーションを表示 {shortcut}", "app.sidebar": "サイドバー",
 	"language.title": "表示言語", "language.detail": "Lyra のメニュー、設定、操作ヒントの言語を変更します。会話、コード、ターミナル出力は原文のまま表示します。", "language.system": "システム設定に従う", "language.systemDetected": "現在のシステム言語", "language.zh-CN": "简体中文", "language.zh-TW": "繁體中文", "language.en": "English", "language.fr": "Français", "language.ru": "Русский", "language.ko": "한국어", "language.ja": "日本語",
@@ -1808,7 +1822,7 @@ export const ja = {
 	"sessionCard.yesterday": "昨日",
 	"sessionCard.daysAgo": "{n} 日前",
 	"sessionCard.messages": "メッセージ",
-	"sessionCard.usage": "使用量",
+	"sessionCard.usage": "会話全体の使用量",
 	"sessionCard.cache": "キャッシュ",
 	"recency.today": "今日",
 	"recency.yesterday": "昨日",
@@ -2023,6 +2037,7 @@ export const ja = {
 	"conversation.showLater": "あとの {n} 件を表示",
 	"questionNav.label": "あなたの質問の一覧",
 	"ruleCard.watching": " · 監視 ",
+	"running.turnTokens": "このターン {n} tokens",
 	"running.compacted": "前のほうのやりとりを要約しました",
 	"delivery.editedFiles": "{n} 件のファイルを編集",
 	"userMessage.fromSideChat": "サイドチャットから",

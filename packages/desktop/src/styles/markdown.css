@@ -38,6 +38,10 @@
     margin-top: 0;
   }
 
+  .prose-dw > :last-child {
+    margin-bottom: 0;
+  }
+
   .prose-dw h1,
   .prose-dw h2,
   .prose-dw h3,

@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "./zh-CN.ts";
 
 export const ru = {
+
+	"tools.run": "Вызовы инструментов",
+	"process.turn": "Ход выполнения",	"question.title": "Нужно ваше решение",
+	"question.skip": "Пропустить вопрос",
+	"question.recommended": "Рекомендуется",
+	"question.confirm": "Подтвердить выбор",
+	"question.otherCard": "Свой ответ",
+	"question.selectOne": "Выберите один вариант",
+	"question.selectMany": "Можно выбрать несколько вариантов",
+	"question.skipDefault": "При пропуске будет выбран ответ: {choice}",
+	"question.collapse": "Свернуть вопрос или запрос",
+	"question.expand": "Развернуть вопрос или запрос",
+	"question.fullAccessNote": "Это вопрос о задаче. Полный доступ отменяет запросы разрешений на действия, но не выбирает ответы за вас.",
+
 	"common.cancel": "Отмена", "common.confirm": "Подтвердить", "common.delete": "Удалить", "common.hide": "Скрыть", "common.loading": "Открытие", "common.save": "Сохранить", "common.show": "Показать",
 	"app.backWorkspace": "Вернуться в рабочую область", "app.guide": "Настройка", "app.hideSettingsNavigation": "Скрыть навигацию настроек {shortcut}", "app.mainProcessError": "Ошибка основного процесса", "app.panel": "Панели", "app.plugins": "Плагины", "app.pullRequests": "Запросы на слияние", "app.scheduledTasks": "Запланированные задачи", "app.settingsNavigation": "Навигация настроек", "app.showSettingsNavigation": "Показать навигацию настроек {shortcut}", "app.sidebar": "Боковая панель",
 	"language.title": "Язык интерфейса", "language.detail": "Меняет язык меню, настроек и подсказок Lyra. Текст бесед, код и вывод терминала остаются без перевода.", "language.system": "Как в системе", "language.systemDetected": "Текущий язык системы", "language.zh-CN": "简体中文", "language.zh-TW": "繁體中文", "language.en": "English", "language.fr": "Français", "language.ru": "Русский", "language.ko": "한국어", "language.ja": "日本語",
@@ -1808,7 +1822,7 @@ export const ru = {
 	"sessionCard.yesterday": "вчера",
 	"sessionCard.daysAgo": "{n} дн. назад",
 	"sessionCard.messages": "Сообщения",
-	"sessionCard.usage": "Расход",
+	"sessionCard.usage": "За весь диалог",
 	"sessionCard.cache": "Кэш",
 	"recency.today": "Сегодня",
 	"recency.yesterday": "Вчера",
@@ -2023,6 +2037,7 @@ export const ru = {
 	"conversation.showLater": "Показать следующие {n}",
 	"questionNav.label": "Ваши вопросы",
 	"ruleCard.watching": " · следит за ",
+	"running.turnTokens": "За этот ход: {n} tokens",
 	"running.compacted": "Ранние ходы свёрнуты в пересказ",
 	"delivery.editedFiles": "Изменено файлов: {n}",
 	"userMessage.fromSideChat": "Из боковой беседы",

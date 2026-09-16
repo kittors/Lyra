@@ -54,6 +54,7 @@ import { stripStaleHandles } from "./model-switch.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { SessionTitle } from "./session-title.ts";
+import { TODOS_KEY } from "../tools/todo.ts";
 
 export interface AgentSessionOptions {
 	cwd: string;
@@ -824,6 +825,21 @@ export class AgentSession {
 		// Stop means stop. Letting the queue carry on after the button was pressed would be
 		// the opposite of what pressing it asks for.
 		void this.tasks.cancelAll();
+	}
+
+	/** Wait for in-flight tools before discarding a plan so a late todo_write cannot restore it. */
+	async discardTaskPlan(): Promise<void> {
+		this.abort();
+		await this.activePrompt;
+		await this.activeTurn;
+		await this.tasks.discardPlan();
+		this.can.state.delete(TODOS_KEY);
+		const message: Message = {
+			role: "user", synthetic: true, clearsTaskPlan: true, timestamp: Date.now(),
+			content: [{ type: "text", text: "用户已取消旧任务清单。不要继续旧清单；等待新的指令。" }],
+		};
+		await this.log.commit(message);
+		await this.emit({ type: "message_end", message });
 	}
 
 	// -------------------------------------------------------------------------

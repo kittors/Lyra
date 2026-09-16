@@ -19,6 +19,7 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			const next = messageEvent({ messages, pendingUserMessage: state.pendingUserMessage }, event, meta.id);
 			messages = next.messages;
 			state = { ...state, pendingUserMessage: next.pendingUserMessage, retrying: null };
+			if (event.message.role === "user" && event.message.clearsTaskPlan === true) state = { ...state, todos: [] };
 			break;
 		}
 		case "tool_start": case "tool_update": case "tool_end":
@@ -36,7 +37,7 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			state = { ...state, running: false, approvals: [], pendingUserMessage: null, retrying: null, stopped: howItStopped(messages, event.reason) };
 			break;
 		case "approval_request":
-			state = { ...state, approvals: [...state.approvals, { id: event.requestId, kind: event.kind, title: event.title, detail: event.detail, subject: event.subject, ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}) }] };
+			state = { ...state, approvals: [...state.approvals, { id: event.requestId, kind: event.kind, title: event.title, detail: event.detail, subject: event.subject, ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}), selectionMode: event.selectionMode, allowSkip: event.allowSkip, defaultOptionIndex: event.defaultOptionIndex }] };
 			break;
 		case "title": meta = { ...meta, title: event.title }; break;
 		case "rewound":

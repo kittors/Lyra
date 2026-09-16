@@ -237,7 +237,7 @@ export function UserMessage({
 
   if (editing) {
     return (
-      <div data-question-index={index} className="ly-enter mb-2.5 flex justify-end">
+      <div data-question-index={index} className="ly-enter flex justify-end">
         <MessageEditor
           value={draft}
           onChange={setDraft}
@@ -252,7 +252,7 @@ export function UserMessage({
   }
 
   return (
-    <div data-question-index={index} className="group/msg ly-enter mb-2.5 flex flex-col items-end">
+    <div data-question-index={index} className="group/msg ly-enter flex flex-col items-end">
       {/*
        * Always visible, not folded into the hover row below.
        *

@@ -137,7 +137,7 @@ export function buildContextBreakdown(input: {
  * and every tool schema. Between the two, a conversation that had filled its window read as barely
  * two thirds full, so the one mechanism for staying inside the window never ran.
  *
- * `usage.input + cacheRead` is the whole request as the provider measured it, overhead included,
+ * `usage.input + cacheRead + cacheWrite` is the whole request as the provider measured it, overhead included,
  * so anything after the last settled reply is estimated and added on top.
  */
 export function measureTotal(messages: Message[]): { measured: boolean; tokens: number } {
@@ -163,7 +163,7 @@ export function measureTotal(messages: Message[]): { measured: boolean; tokens: 
 		const message = messages[i];
 		if (message.role !== "assistant" || message.stopReason === "pending") continue;
 		if (compactedAt !== null && message.timestamp <= compactedAt) break;
-		const total = message.usage.input + message.usage.cacheRead + message.usage.output;
+		const total = message.usage.input + message.usage.cacheRead + message.usage.cacheWrite + message.usage.output;
 		if (total <= 0) break;
 		return { measured: true, tokens: total + estimateTokens(messages.slice(i + 1)) };
 	}

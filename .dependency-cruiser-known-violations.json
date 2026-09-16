@@ -100,45 +100,6 @@
   },
   {
     "type": "cycle",
-    "from": "packages/core/src/agent/loop.ts",
-    "to": "packages/core/src/tools/todo.ts",
-    "unresolvedTo": "../tools/todo.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/core/src/tools/todo.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/core/src/agent/tool-run.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/core/src/agent/loop.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import",
-          "pre-compilation-only"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "packages/core/src/agent/tool-run.ts",
     "to": "packages/core/src/skills/tool.ts",
     "unresolvedTo": "../skills/tool.ts",

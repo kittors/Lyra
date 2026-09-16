@@ -99,3 +99,10 @@ test("project memory is accounted for separately without double-counting the sys
 	assert.equal(result.segments.find((segment) => segment.key === "systemPrompt")?.tokens, 600);
 	assert.equal(result.used, result.segments.reduce((sum, segment) => sum + segment.tokens, 0));
 });
+
+test("cache creation tokens count toward the context window", () => {
+	const response = reply({ input: 100, cacheRead: 500, output: 200 });
+	response.usage.cacheWrite = 9000;
+	const result = buildContextBreakdown({ ...fixed, messages: [asked, response] });
+	assert.equal(result.used, 9800);
+});

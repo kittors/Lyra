@@ -1,3 +1,5 @@
+import type { TurnMeter, CarriedTurn } from "./turn-meter.ts";
+import type { QuestionFields } from "@lyra/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { SessionChange } from "../../electron/ipc-types.ts";
@@ -75,7 +77,7 @@ export type SettingsSection =
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */
 export type ExtensionsTab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
 
-interface PendingApproval {
+interface PendingApproval extends QuestionFields {
   id: string;
   kind: string;
   title: string;
@@ -84,9 +86,6 @@ interface PendingApproval {
   reason?: string;
   /** What an "always" answer gets remembered against. */
   subject?: string;
-  /** Interactive choices offered to user. */
-  options?: string[];
-  allowCustomInput?: boolean;
 }
 
 export interface AppState extends QueueSlice {
@@ -217,7 +216,7 @@ export interface AppState extends QueueSlice {
    * Keyed by session because that is what the fact belongs to. `apply-event` maintains it for
    * every session including the ones off screen, and `openSession` reads this one's back out.
    */
-  turns: Record<string, { startedAt: number; tokens: number }>;
+  turns: Record<string, TurnMeter>;
   /**
    * The same meter for turns that stopped part-way, frozen so 继续 can pick it back up.
    *
@@ -230,7 +229,7 @@ export interface AppState extends QueueSlice {
    * cleared when a turn ends properly or the conversation moves on to a new question — a meter that
    * outlived the work it measured would silently add itself to whatever ran next.
    */
-  carried: Record<string, { elapsedMs: number; tokens: number }>;
+  carried: Record<string, CarriedTurn>;
   /**
    * When the history was last summarised, so the running line can mention it and move on.
    *

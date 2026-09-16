@@ -146,12 +146,17 @@ test("approval decisions accept structured answers and persist only the consumed
 	assert.ok(saved[0].alwaysAllow.includes("approved command"));
 	assert.equal((await callRpc(deps({ live: () => session }), "agent.approve", ["s1", "r2", { answer: "保留" }])).ok, true);
 
-	for (const invalid of [{ allow: true }, { answer: "" }, { answer: 42 }, "yes", null]) {
+	for (const invalid of [{ allow: true }, { answer: "" }, { answer: 42 }, { answer: [] }, { answer: ["A", 4] }, "yes", null]) {
 		const result = await callRpc(deps({ live: () => session }), "agent.approve", ["s1", "r2", invalid]);
 		assert.equal(result.ok, false);
 		assert.match(String(result.error), /invalid-args.*decision/);
 	}
 	assert.deepEqual(resolved, [["r1", "always"], ["r2", { answer: "保留" }]], "invalid decisions must not reach the session");
+	for (const decision of ["skip", { answer: ["A", "B"] }]) {
+		assert.equal((await callRpc(deps({ live: () => session }), "agent.approve", ["s1", "r3", decision])).ok, true);
+		assert.deepEqual(resolved.at(-1), ["r3", decision]);
+	}
+
 	const missing = await callRpc(deps(), "agent.approve", ["missing", "r", { answer: "保留" }]);
 	assert.equal(missing.ok, false, "a closed session must not acknowledge an answer");
 });

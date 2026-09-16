@@ -61,6 +61,7 @@ import {
 	type Checked,
 } from "@lyra/contract/args";
 import { REMOTE_METHODS, methodFor } from "@lyra/contract";
+import { slimSnapshot } from "./display-transcript.ts";
 
 /**
  * Everything a call may reach, handed in rather than imported.
@@ -156,14 +157,14 @@ export const RPC: Record<string, Handler> = {
 		}
 		const loaded = await deps.store().load(s(projectId), s(sessionId));
 		if (!loaded) return null;
-		return {
+		return slimSnapshot({
 			meta: loaded.meta,
 			messages: loaded.messages,
 			running: false,
 			pendingApprovals: [],
 			compactions: loaded.compactions,
 			commandRuns: loaded.commandRuns,
-		};
+		});
 	},
 	"sessions.open": async (deps, [projectId, sessionId]) => {
 		const session = await deps.activate(s(projectId), s(sessionId));
@@ -467,9 +468,13 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 
 function checkApprovalDecision(value: unknown): Checked<unknown> {
 	if (typeof value === "object" && value !== null && "answer" in value) {
+		if (Array.isArray(value.answer)) {
+			if (!value.answer.length || value.answer.length > 100) return str(undefined, "decision.answer");
+			return all(...value.answer.map((answer: unknown) => str(answer, "decision.answer", 20_000)));
+		}
 		return str(value.answer, "decision.answer", 20_000);
 	}
-	return oneOf(value, "decision", ["once", "always", "reject"]);
+	return oneOf(value, "decision", ["once", "always", "reject", "skip"]);
 }
 
 function thinkingLevel(value: unknown): ThinkingLevel | null {
