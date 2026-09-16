@@ -17,10 +17,10 @@
 
 ## 子智能体
 
-Lyra 内置 `general`、`explore`、`review`、`verify`、`plan` 五种子智能体。设置 › 子智能体在
-没有会话、刚新建会话或会话尚未载入时也显示这五项，可以提前选择模型和思考等级。默认遵循定义：
-`general` 跟随主会话，`explore`、`verify` 使用 `@fast`，`review` 使用 `@review`，`plan`
-使用 `@deep`；未设置角色时回退到主会话模型。保存的覆盖在下一次派发生效。
+Lyra 内置七种子智能体：`general`、`explore`、`review`、`verify`、`plan`、`simple`、`reason`。
+设置 › 子智能体在没有会话、刚新建会话或会话尚未载入时也显示这七项，可以提前选择模型和思考等级。
+默认遵循定义：`general` 跟随主会话，`explore`、`verify`、`simple` 使用 `@fast`，`review` 使用
+`@review`，`plan`、`reason` 使用 `@deep`；未设置角色时回退到主会话模型。保存的覆盖在下一次派发生效。
 
 定义来自同一个 `@lyra/core/agents-builtin` 浏览器安全入口，运行时与设置页不维护两份名单。
 会话能力加载后使用已合并的项目、用户和内置定义，同名项目／用户定义仍按能力层优先级覆盖内置项。

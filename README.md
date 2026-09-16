@@ -102,6 +102,9 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 - **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.lyra/agents/*.md`.
 - **Side chat.** A temporary conversation beside the current session. It can read the main chat. It writes nothing into it. Work that needs tools is queued on the main session.
 - **Right-hand dock.** Nine panes, all open at once if you want: Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace, Browser. The file pane is a syntax-highlighted editor. The terminal is a real pty.
+- **Replies render what the model wrote.** A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. A twelve-megabyte message still paints in one frame.
+- **Built-in formatters.** Saving a file can run Prettier, or the language's own formatter shipped in the app (Go, Rust/Python via Ruff, C/C++, Dart, Swift, PHP, and others). You do not have to install those toolchains first.
+- **Keep the computer awake while a task runs.** A switch in General settings. Closing the lid still sleeps.
 - **Mobile sync.** The phone replays the same session log: watch a turn, approve actions, keep asking. Three paths: LAN when you share a Wi-Fi, your own domain and TLS, or both ends dial out to the relay.
 
 ## Layout
@@ -111,7 +114,7 @@ packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
   mobile/            Expo / React Native app
-  contract/          the line between the two processes; 199 methods in one place
+  contract/          the line between the two processes; 205 methods in one place
   relay/             public relay for when the phone is not on the same LAN. one file, no dependencies
   agent-cli/         command-line entry
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
