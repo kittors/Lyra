@@ -38,14 +38,14 @@ export function MemoryMeta({
 	const when = (at: number) => relativeTime(new Date(at).toISOString(), now);
 	return (
 		<span data-memory-meta className="flex flex-wrap items-center gap-x-1.5 text-caption text-ink-faint">
-			<span data-memory-source>{t(SOURCE_WORD[source])}</span>
-			<span className="text-line">·</span>
-			<span>{t("memoryMeta.writtenAt", { when: when(createdAt) })}</span>
-			<span className="text-line">·</span>
+			<span data-memory-source className="shrink-0 whitespace-nowrap">{t(SOURCE_WORD[source])}</span>
+			<span className="shrink-0 text-line">·</span>
+			<span className="shrink-0 whitespace-nowrap">{t("memoryMeta.writtenAt", { when: when(createdAt) })}</span>
+			<span className="shrink-0 text-line">·</span>
 			{lastInjectedAt === undefined ? (
-				<span data-memory-injected="never">{t("memoryMeta.neverUsed")}</span>
+				<span data-memory-injected="never" className="shrink-0 whitespace-nowrap">{t("memoryMeta.neverUsed")}</span>
 			) : (
-				<span data-memory-injected="at">{t("memoryMeta.injectedAt", { when: when(lastInjectedAt) })}</span>
+				<span data-memory-injected="at" className="shrink-0 whitespace-nowrap">{t("memoryMeta.injectedAt", { when: when(lastInjectedAt) })}</span>
 			)}
 		</span>
 	);

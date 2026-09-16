@@ -94,6 +94,15 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 		setFailure(null);
 	};
 
+	// Keep latest options and format function accessible to effects without unstable dependency cycles
+	const optionsRef = useRef(options);
+	optionsRef.current = options;
+	const entryRef = useRef(entry);
+	entryRef.current = entry;
+	const codeRef = useRef(code);
+	codeRef.current = code;
+	const editedRef = useRef(edited);
+	editedRef.current = edited;
 	const format = useCallback(async () => {
 		try {
 			/*
@@ -111,13 +120,10 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 				setFailure(null);
 				return;
 			}
-			// A tool that is not installed is not a failure of the file: say which one and how.
 			setFailure(
-				outcome.kind === "missing"
-					? t("formatPreview.missingTool", { tool: outcome.tool, install: outcome.install })
-					: outcome.kind === "failed"
-						? outcome.message.split("\n")[0]
-						: t("formatPreview.noTool", { label: entry.label }),
+				outcome.kind === "failed"
+					? outcome.message.split("\n")[0]
+					: t("formatPreview.noTool", { label: entry.label }),
 			);
 		} catch (thrown) {
 			// The formatter's own message, which names the line. Replacing it with 「格式化失败」
@@ -126,6 +132,26 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 			setFailure(thrown instanceof Error ? thrown.message.split("\n")[0] : String(thrown));
 		}
 	}, [entry, code, options, t]);
+	// Automatically re-format sample or existing buffer when formatting settings change
+	const prevOptionsJson = useRef(JSON.stringify(options));
+	useEffect(() => {
+		const currentJson = JSON.stringify(options);
+		if (prevOptionsJson.current === currentJson) return;
+		prevOptionsJson.current = currentJson;
+
+		let cancelled = false;
+		void formatFile(`sample.${entry.aliases[0]}`, codeRef.current, options).then((outcome) => {
+			if (cancelled) return;
+			if (outcome.ok) {
+				setCode(outcome.text);
+				setFailure(null);
+			}
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [options, entry.aliases]);
 
 	/* Colouring follows the text; formatting does not. Debounced against typing. */
 	useEffect(() => {
@@ -264,10 +290,12 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 						 * says so when pressed, which is more use than a button that cannot be pressed.
 						 */
 						tip={`${translate("common.format")} · ${
-							entry.formatter === "prettier"
-								? t("formatPreview.run")
-								: t("formatPreview.tool", { label: entry.label, tool: entry.tool ?? "", shortcut: macKeyboard() ? "⇧⌘F" : "Shift+Alt+F" })
-						}`}
+								entry.formatter === "builtin" && entry.tool
+									? `${t("format.builtin")} · ${entry.tool} · ${macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"}`
+									: entry.formatter === "external" && entry.tool
+										? `${entry.tool} · ${macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"}`
+										: t("formatPreview.run")
+							}`}
 						primary
 					>
 						<Wand2 size={11} strokeWidth={2} />

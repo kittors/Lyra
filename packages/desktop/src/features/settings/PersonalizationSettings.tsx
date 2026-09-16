@@ -4,7 +4,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { Textarea, Input } from "../../ui/inputs/NativeField.tsx";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Save, Trash2 } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
@@ -55,10 +55,40 @@ export function PersonalizationSettings() {
 		void loadMemories();
 	}, []);
 
-	useEffect(() => {
+	const loadProjectMemory = useCallback(() => {
 		if (!workspace?.path) return;
 		void bridge.projectMemory.list(workspace.path).then(setProjectMemory).catch(() => setProjectMemory(null));
 	}, [workspace?.path]);
+
+	useEffect(() => {
+		loadProjectMemory();
+	}, [loadProjectMemory]);
+
+	/*
+	 * 删完重读，而不是就地把那一条从数组里抠掉。
+	 *
+	 * 磁盘上的文件才是这份清单的本体，而它不止这一个窗口在写——后台抽取也在写。就地改状态会让
+	 * 界面和文件各说各话，直到下次切换项目。重读一次是一次本地文件读取，便宜得多。
+	 */
+	const forgetLesson = async (at: number) => {
+		if (!workspace?.path) return;
+		await bridge.projectMemory.forget(workspace.path, at);
+		loadProjectMemory();
+	};
+
+	const forgetExtracted = async () => {
+		if (!workspace?.path) return;
+		await bridge.projectMemory.forgetExtracted(workspace.path);
+		loadProjectMemory();
+	};
+
+	const forgetAllProjectMemory = async () => {
+		if (!workspace?.path) return;
+		// 不可撤销，而且删的是模型往后再也读不到的东西——先问一句。用的是这个文件既有的那种问法（见上面清空用户记忆处）。
+		if (!confirm(t("memory.confirmForgetAllProject"))) return;
+		await bridge.projectMemory.forgetAll(workspace.path);
+		loadProjectMemory();
+	};
 
 	const handleSaveInstructions = async () => {
 		if (!settings) return;
@@ -311,25 +341,74 @@ export function PersonalizationSettings() {
 				)}
 				{workspace?.path && projectMemory && (projectMemory.lessons.length > 0 || projectMemory.extracted) && (
 					<div className="pt-2" data-project-memory>
-						<p className="mb-1.5 text-caption text-ink-muted">
-							{t("personalization.rememberedFor", { name: workspace.name ?? workspace.path })}
-						</p>
+						<div className="mb-1.5 flex items-center justify-between gap-2">
+							<p className="text-caption text-ink-muted">
+								{t("personalization.rememberedFor", { name: workspace.name ?? workspace.path })}
+							</p>
+							{/*
+							 * 「全部忘掉」和逐条删是两种意图，不是一个的快捷方式。
+							 *
+							 * 逐条删是在修一条错的；全部忘掉是「这个项目我重新开始」——多半发生在
+							 * 抽取跑歪了、或者仓库整个换了方向之后。一条条点二十下不是同一件事。
+							 */}
+							<button
+								type="button"
+								onClick={() => void forgetAllProjectMemory()}
+								data-project-memory-clear
+								className="shrink-0 rounded-lg px-2 py-1 text-caption text-ink-faint transition-colors hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
+							>
+								{t("memory.forgetAllProject")}
+							</button>
+						</div>
 						<div className="space-y-1.5">
+							{/*
+							 * 每一条都得能删掉。
+							 *
+							 * 这些会被注入这个项目的每一次请求——一条过时的记忆不是碍眼，是一句对模型
+							 * 永远重复的指示。在这之前，撤回它的唯一办法是自己去改
+							 * `~/.lyra/projects` 底下那个项目的记忆目录；用户记忆早就有这颗按钮了，
+							 * 项目记忆没有，纯粹是漏了。
+							 */}
 							{projectMemory.lessons.map((lesson) => (
-								<div key={`${lesson.at}-${lesson.text}`} className="rounded-xl border border-line bg-card p-3" data-project-lesson>
-									<span className="text-detail text-ink leading-relaxed break-words">{lesson.text}</span>
-									{lesson.context && <span className="block text-caption text-ink-muted">{t("personalization.appliesTo", { context: lesson.context })}</span>}
-									<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
+								<div key={`${lesson.at}-${lesson.text}`} className="flex items-start justify-between gap-2 rounded-xl border border-line bg-card p-3" data-project-lesson>
+									<div className="min-w-0">
+										<span className="text-detail text-ink leading-relaxed break-words">{lesson.text}</span>
+										{lesson.context && <span className="block text-caption text-ink-muted">{t("personalization.appliesTo", { context: lesson.context })}</span>}
+										<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
+									</div>
+									<button
+										type="button"
+										onClick={() => void forgetLesson(lesson.at)}
+										data-ly-tip={t("memory.deleteOne")}
+										aria-label={t("memory.deleteOne")}
+										data-project-lesson-delete
+										className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
+									>
+										<Trash2 size={13.5} strokeWidth={1.8} />
+									</button>
 								</div>
 							))}
 							{projectMemory.extracted && (
-								<div className="rounded-xl border border-line bg-card p-3" data-project-extracted>
-									<pre className="whitespace-pre-wrap font-sans text-detail text-ink leading-relaxed break-words">{projectMemory.extracted.text}</pre>
-									<MemoryMeta
-										source="extracted"
-										createdAt={projectMemory.extracted.updatedAt ?? Date.now()}
-										lastInjectedAt={projectMemory.extracted.lastInjectedAt}
-									/>
+								<div className="flex items-start justify-between gap-2 rounded-xl border border-line bg-card p-3" data-project-extracted>
+									<div className="min-w-0">
+										<pre className="whitespace-pre-wrap font-sans text-detail text-ink leading-relaxed break-words">{projectMemory.extracted.text}</pre>
+										<MemoryMeta
+											source="extracted"
+											createdAt={projectMemory.extracted.updatedAt ?? Date.now()}
+											lastInjectedAt={projectMemory.extracted.lastInjectedAt}
+										/>
+									</div>
+									{/* 抽取出来的那一份是整体重写的，所以它只有「整份丢掉」这一个动作。下次抽取会重新写。 */}
+									<button
+										type="button"
+										onClick={() => void forgetExtracted()}
+										data-ly-tip={t("memory.deleteExtracted")}
+										aria-label={t("memory.deleteExtracted")}
+										data-project-extracted-delete
+										className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
+									>
+										<Trash2 size={13.5} strokeWidth={1.8} />
+									</button>
 								</div>
 							)}
 						</div>

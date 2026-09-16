@@ -184,13 +184,12 @@ export function PullRequestDetail({
 					contentClassName="ly-fade-in px-5 pt-1 pb-6"
 				>
 					<h1 className="text-heading leading-snug font-semibold tracking-tight text-ink">{detail.title}</h1>
-					{/* A face on the byline, for the same reason it is on each comment: recognition. */}
 					<div className="flex items-center gap-2 pt-2 pb-4 text-detail text-ink-faint">
 						<Avatar accountId={detail.accountId} login={detail.author} size={17} />
-						<span className="text-ink-muted">{detail.author}</span>
-						<span>·</span>
-						<span>{relativeTime(detail.createdAt)}</span>
-						<span>·</span>
+						<span className="shrink-0 whitespace-nowrap text-ink-muted">{detail.author}</span>
+						<span className="shrink-0 text-ink-faint">·</span>
+						<span className="shrink-0 whitespace-nowrap">{relativeTime(detail.createdAt)}</span>
+						<span className="shrink-0 text-ink-faint">·</span>
 						<span className="min-w-0 truncate">
 							{detail.repo} #{detail.number}
 						</span>

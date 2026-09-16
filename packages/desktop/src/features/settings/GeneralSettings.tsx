@@ -189,6 +189,16 @@ export function GeneralSettings() {
           }
         />
         <Row
+          title={t("general.hideEmptiedProjects")}
+          detail={t("general.hideEmptiedProjectsDetail")}
+          control={
+            <Toggle
+              checked={settings.hideEmptiedProjects === true}
+              onChange={(hideEmptiedProjects) => patch({ hideEmptiedProjects })}
+            />
+          }
+        />
+        <Row
           title={t("general.bottomPanel")}
           detail={t("general.bottomPanelDetail")}
           control={

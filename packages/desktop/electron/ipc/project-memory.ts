@@ -13,6 +13,9 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	EXTRACTED_KEY,
+	forgetAllLessons,
+	forgetExtractedMemory,
+	forgetLesson,
 	lastPassAt,
 	projectInjectedPath,
 	projectMemoryDir,
@@ -45,6 +48,20 @@ export function registerProjectMemoryIpc({ store }: ProjectMemoryIpcDeps): void 
 			lessons: lessons.map((lesson) => ({ ...lesson, lastInjectedAt: injected[lesson.text] })),
 			extracted: extracted ? { text: extracted, updatedAt, lastInjectedAt: injected[EXTRACTED_KEY] } : null,
 		};
+	});
+
+	/*
+	 * 忘掉一条，或者忘掉抽取出来的那一份。
+	 *
+	 * 这里的每一条都会被注入这个项目的每一次请求。一条错的记忆不是碍眼，是一句对模型永远重复
+	 * 的指示——在这之前，撤回它的唯一办法是自己去 `~/.lyra/projects` 底下翻那个项目的记忆目录。
+	 */
+	ipcMain.handle("memory:projectForget", async (_event, cwd: string, at: number) => forgetLesson(cwd, at));
+
+	ipcMain.handle("memory:projectForgetExtracted", async (_event, cwd: string) => forgetExtractedMemory(cwd));
+
+	ipcMain.handle("memory:projectForgetAll", async (_event, cwd: string) => {
+		await Promise.all([forgetAllLessons(cwd), forgetExtractedMemory(cwd)]);
 	});
 
 	ipcMain.handle("memory:projectStatus", async (_event, cwd: string) => {

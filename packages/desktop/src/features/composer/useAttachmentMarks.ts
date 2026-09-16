@@ -131,19 +131,20 @@ export function useAttachmentMarks<F extends MarkableFile>({
 				.slice(before.length)
 				.map((file) => placeholderFor(file.label ?? file.name))
 				.join("");
+			let targetCaret = 0;
 			setText((current) => {
 				const at = Math.min(caret, current.length);
 				const head = current.slice(0, at);
 				// 前面留一个空格，后面不留——后面那一格已经由透明的收尾方括号占着了。
 				const lead = head && !/\s$/.test(head) ? " " : "";
+				targetCaret = at + lead.length + marks.length;
 				return `${head}${lead}${marks}${current.slice(at)}`;
 			});
 			/* 光标落在标记后面，人接着打的字就跟在它后头。 */
 			requestAnimationFrame(() => {
 				const el = field.current;
 				if (!el) return;
-				const to = Math.min(caret, el.value.length) + marks.length + 1;
-				el.setSelectionRange(to, to);
+				el.setSelectionRange(targetCaret, targetCaret);
 			});
 		},
 		[field, relabel, setAttachments, setText],

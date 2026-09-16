@@ -61,6 +61,16 @@ export function groupSessions(
 	pinnedSessionIds: string[] = [],
 	sessionOrder?: Record<string, string[]>,
 	sortKey: SessionSortKey = "updatedAt",
+	/**
+	 * Projects that had conversations and have none left, because every one was archived.
+	 *
+	 * Passed in rather than derived here: this only ever sees the conversations it is asked to
+	 * group, and the archived ones are by definition not among them — so from in here "never had
+	 * any" and "has none left" look identical, while calling for opposite answers.
+	 */
+	emptied: ReadonlySet<string> = new Set(),
+	/** Whether an emptied project should fold away with its conversations; see `hideEmptiedProjects`. */
+	hideEmptied = false,
 ): Grouped {
 	const needle = query.trim().toLowerCase();
 	const filtered = needle ? sessions.filter((s) => s.title.toLowerCase().includes(needle)) : sessions;
@@ -102,8 +112,21 @@ export function groupSessions(
 	const pinnedPaths = new Set(projects.filter((p) => p.pinned).map((p) => p.path));
 	const order = new Map(projects.map((p, i) => [p.path, i]));
 	const all = [...byPath.values()]
-		// A project with no sessions is only worth a row when the user pinned it.
-		.filter((g) => g.sessions.length > 0 || pinnedPaths.has(g.path))
+		.filter((group) => {
+			if (group.sessions.length > 0) return true;
+			/*
+			 * 空着的项目分两种，它们的答案正好相反。
+			 *
+			 * 一种是「会话都归档了」——这个项目告一段落了。想让它跟着一起收起来的人去设置里打开
+			 * `hideEmptiedProjects`；默认不打开，因为一个登记过的项目突然从侧边栏消失，比多留
+			 * 一行更让人找不着北。
+			 *
+			 * 另一种是「一条会话都没有过」，那是刚加进列表的项目，藏起来就没地方点着开第一条了。
+			 * 这一条按老规矩：只有置顶的才值得占一行。
+			 */
+			if (emptied.has(group.path)) return !hideEmptied;
+			return pinnedPaths.has(group.path);
+		})
 		.sort((a, b) => (order.get(a.path) ?? 999) - (order.get(b.path) ?? 999));
 
 	return {

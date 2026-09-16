@@ -11,8 +11,11 @@
  * is printed by `gofmt` or it is printed wrong. See `format.ts` and `electron/format-external.ts`.
  */
 
-import { canFormat, formatCode, type FormatOptions } from "./format.ts";
+import { canFormat, formatCode, FORMAT_DEFAULTS, type FormatOptions } from "./format.ts";
+import { formatWithBuiltin } from "./builtin-format.ts";
 import { bridge } from "../../services/index.ts";
+import { translate } from "../../i18n/translate.ts";
+import { BUILTIN_FORMATTER } from "../../../shared/format-builtin.ts";
 
 export type FormatOutcome =
 	| { ok: true; text: string; changed: boolean; by: string; config?: string }
@@ -53,7 +56,8 @@ function usableConfig(raw: Record<string, unknown> | null): Partial<FormatOption
 	return out;
 }
 
-export async function formatFile(path: string, source: string, settings: FormatOptions): Promise<FormatOutcome> {
+export async function formatFile(path: string, source: string, settings?: Partial<FormatOptions>): Promise<FormatOutcome> {
+	const effectiveSettings = { ...FORMAT_DEFAULTS, ...settings };
 	const extension = extensionOf(path);
 
 	if (canFormat(path)) {
@@ -65,7 +69,7 @@ export async function formatFile(path: string, source: string, settings: FormatO
 		 * a second, conflicting source of truth.
 		 */
 		const raw = await bridge.format.config(path).catch(() => null);
-		const options = { ...settings, ...usableConfig(raw) };
+		const options = { ...effectiveSettings, ...usableConfig(raw) };
 		try {
 			const text = await formatCode(path, source, options);
 			if (text === null) return { ok: false, kind: "unsupported" };
@@ -75,9 +79,40 @@ export async function formatFile(path: string, source: string, settings: FormatO
 		}
 	}
 
-	const external = await bridge.format.external(extension, source);
-	if (external.ok) return { ok: true, text: external.text, changed: external.text !== source, by: external.tool };
-	if (external.reason === "missing") return { ok: false, kind: "missing", tool: external.tool, install: external.install };
-	if (external.reason === "failed") return { ok: false, kind: "failed", message: external.message };
-	return { ok: false, kind: "unsupported" };
+	const external = await bridge.format
+		.external(extension, source, {
+			tabWidth: effectiveSettings.tabWidth,
+			useTabs: effectiveSettings.useTabs,
+			printWidth: effectiveSettings.printWidth,
+			semi: effectiveSettings.semi,
+			singleQuote: effectiveSettings.singleQuote,
+		})
+		.catch(() => null);
+	/*
+	 * 内置引擎报的是标记，不是名字——在这里翻成当前语言。
+	 *
+	 * 这一行原来直接把 `external.tool` 交给界面，而主进程那一侧没有 `translate`，于是它送过来的是
+	 * 一个写死的中文串，所有语言的界面都照念。
+	 */
+	if (external?.ok)
+		return {
+			ok: true,
+			text: external.text,
+			changed: external.text !== source,
+			by: external.tool === BUILTIN_FORMATTER ? translate("format.builtin") : external.tool,
+		};
+	if (external?.reason === "failed") return { ok: false, kind: "failed", message: external.message };
+
+	// If external formatter is missing or unavailable on this machine, fall back to built-in formatting
+	try {
+		const text = await formatWithBuiltin(extension, source, effectiveSettings);
+		return {
+			ok: true,
+			text,
+			changed: text !== source,
+			by: external?.reason === "missing" ? translate("format.toolBuiltin", { tool: external.tool }) : translate("format.builtin"),
+		};
+	} catch (error) {
+		return { ok: false, kind: "failed", message: error instanceof Error ? error.message : String(error) };
+	}
 }

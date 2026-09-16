@@ -258,7 +258,24 @@ test("换了模型，上一个模型的推理块整块不发", () => {
 		provider: "relay",
 		model: "gpt-5.6-sol",
 	}) as Record<string, unknown>[];
-	assert.equal(wire.filter((item) => item.type === "reasoning").length, 0, "别人的思维链，一个字都不该回放");
+	/*
+	 * 剩下的推理项只可能是编码器给这一轮补的那个空位——`api.deepseek.com` 要求助手轮以推理项开头，
+	 * 而别人的推理整块丢掉之后这一轮正好一个都不剩。所以这里不能再数「有没有推理项」，要数的是
+	 * **上一个模型的东西有没有漏过来**：句柄、密文、还有它写的那些字。
+	 */
+	const items = wire.filter((item) => item.type === "reasoning");
+	// 先钉住有一项，再检查它是什么：没有这一行，下面的循环在「一个推理项都没有」时会空过，
+	// 而那正是这条测试原来的写法，也正是它挡不住任何东西的那种版本。
+	assert.equal(items.length, 1, "这一轮该有且只有补位的那一个推理项");
+	for (const item of items) {
+		assert.equal(item.id, undefined, "别人的句柄，一个都不该回放");
+		assert.equal(item.encrypted_content, undefined, "别人的密文，一份都不该回放");
+		assert.deepEqual(
+			item.content,
+			[{ type: "reasoning_text", text: "（自动追加）这一轮没有留下推理记录。" }],
+			"别人的思维链，一个字都不该回放",
+		);
+	}
 	// 正文照常送达：换掉的是模型，不是这段对话。
 	assert.ok(JSON.stringify(wire).includes("好的。"));
 });

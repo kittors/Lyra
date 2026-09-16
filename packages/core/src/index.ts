@@ -310,6 +310,7 @@ export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";
 export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory-injected.ts";
 export { readLessons } from "./runtime/project-memory.ts";
+export { forgetAllLessons, forgetExtractedMemory, forgetLesson, writeLessons } from "./runtime/project-memory.ts";
 export { readExtractedMemory } from "./runtime/memory-extract.ts";
 export { projectMemoryDir } from "./runtime/project-memory.ts";
 export { computeDiff } from "./tools/diff.ts";

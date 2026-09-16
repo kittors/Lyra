@@ -13,6 +13,7 @@ import { translate } from "../../i18n/translate.ts";
 import { FileText, ExternalLink, FolderOpen } from "lucide-react";
 import { createContext, Fragment, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
+import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";
 import { MarkdownTable } from "./MarkdownTable.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
@@ -162,7 +163,19 @@ function renderBlock(block: Block, preview = false): ReactNode {
 			if (block.text.length > HUGE_BLOCK) return <HugeParagraph text={block.text} />;
 			return <p>{inline(block.text)}</p>;
 		case "code":
-			return preview ? <pre><code>{block.code}</code></pre> : <CodeBlock lang={block.lang} code={block.code} />;
+			if (preview) return <pre><code>{block.code}</code></pre>;
+			/*
+			 * ```mermaid 画成图，画不出来就还是那段代码。
+			 *
+			 * `fallback` 由这里给而不是组件自己 import `CodeBlock`：那样会绕出一条十二个模块的循环
+			 * 依赖（`Markdown → MermaidBlock → CodeBlock → dock → … → conversation/index → Markdown`），
+			 * `pnpm arch` 拦得住。分工也因此更清楚——组件知道画没画成，「画不成时显示什么」是这段
+			 * Markdown 的事。
+			 */
+			if (isMermaid(block.lang)) {
+				return <MermaidBlock code={block.code} fallback={<CodeBlock lang={block.lang} code={block.code} />} />;
+			}
+			return <CodeBlock lang={block.lang} code={block.code} />;
 		case "rule":
 			return <hr />;
 		case "quote":

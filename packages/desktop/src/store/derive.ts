@@ -13,7 +13,8 @@ import type { CommandRun } from "@lyra/core";
 import type { Message, TodoItem } from "@lyra/core";
 import type { SessionMeta } from "@lyra/core";
 import { summarizeToolCall } from "../lib/tool-summary.ts";
-import type { AppState, ToolRun } from "./index.ts";
+import type { AppState } from "./index.ts";
+import type { ToolRun } from "./tool-run.ts";
 
 export type CachedSessionState = Pick<AppState, "running" | "todos" | "compactions" | "approvals" | "stopped" | "retrying" | "capabilities" | "pendingUserMessage"> & { commandRuns?: CommandRun[]; hiccups?: AppState["hiccups"] };
 
@@ -71,7 +72,8 @@ export function without<T>(cache: Record<string, T>, id: string): Record<string,
  * own click back to you as an accident; being told it about an HTTP 503 says nothing about the one
  * thing worth knowing, which is that the work is still there.
  */
-export type TurnStop = "user" | "interrupt" | "error" | null;
+import type { TurnStop } from "./turn-stop.ts";
+export type { TurnStop };
 
 /**
  * The wordings 「继续」 sends, which are the same act as an automatic nudge.
@@ -132,18 +134,7 @@ export function carryOnPrompt(stopped: TurnStop, unfinished: number): (typeof CA
  * a minute reading files could only be started over from the top. The work is on disk either way;
  * the only question is whether anything says so.
  */
-export function howItStopped(messages: Message[], reason?: string): TurnStop {
-	if (reason === "aborted") return "user";
-	if (reason === "error") return "error";
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const message = messages[i];
-		if (message.role !== "assistant") continue;
-		if (message.stopReason === "aborted") return "user";
-		if (message.stopReason === "error") return "error";
-		break;
-	}
-	return wasCutShort(messages) ? "interrupt" : null;
-}
+export { howItStopped } from "./turn-stop.ts";
 
 /**
  * Whether there is anything to re-ask.
@@ -155,36 +146,16 @@ export function hasRetryPoint(messages: Message[]): boolean {
 	return messages.some((message) => message.role === "user" && !message.synthetic);
 }
 
-/**
- * Whether the conversation was left mid-turn.
+/*
+ * 同上，实现在 `turn-stop.ts`。
  *
- * Two shapes mean the same thing. A reply still marked `pending` never reached its end; a
- * finished reply whose tool calls have no results was cut off between asking for the tools and
- * running them. Either way the work stopped somewhere it did not choose to.
+ * 这里一度留着一份自己的副本，而 `howItStopped` 搬走之后应用走的已经是那一份了——两份当天一字不差，
+ * 谁先改谁就让另一份变成谎话。真正咬人的是测试：`test/transcript.test.ts` 从这个文件 import，于是
+ * 它测的是应用不再执行的那一份，改坏 `turn-stop.ts` 照样全绿。
+ *
+ * 保留这个 re-export 而不是让调用方改路径：它是这个文件对外的一部分，而搬家的是实现，不是接口。
  */
-export function wasCutShort(messages: Message[]): boolean {
-	/*
-	 * A finished turn always ends with the agent saying something.
-	 *
-	 * Stopping between a tool's result and the reply to it leaves the result as the last message:
-	 * the tools all ran, nothing is unanswered, and the old rules below therefore called it
-	 * complete — while the one thing the turn was for, the answer, never arrived.
-	 */
-	if (messages[messages.length - 1]?.role === "toolResult") return true;
-
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const message = messages[i];
-		if (message.role !== "assistant") continue;
-		if (message.stopReason === "pending") return true;
-		const calls = message.content.filter((block) => block.type === "toolCall");
-		if (calls.length === 0) return false;
-		const answered = new Set(
-			messages.slice(i + 1).flatMap((m) => (m.role === "toolResult" ? [m.toolCallId] : [])),
-		);
-		return calls.some((call) => call.type === "toolCall" && !answered.has(call.id));
-	}
-	return false;
-}
+export { wasCutShort } from "./turn-stop.ts";
 
 /**
  * The last task list written in a conversation.

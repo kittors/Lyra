@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactIfNeeded } from "../src/runtime/compaction.ts";
+import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
 import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/runtime/prune.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
@@ -196,6 +196,68 @@ test("a summary that never arrives falls back to deterministic summary or drop w
 	const head = result[0].content.map((b) => (b.type === "text" ? b.text : "")).join("");
 	assert.ok(head.includes("帮我排查程序坞图标消失原因并修复"), "and preserves user intent and standing request");
 	assert.notEqual(result[1]?.role, "toolResult", "the survivors start on a whole unit");
+});
+
+/*
+ * The second compaction, when the summariser is unreachable.
+ *
+ * By this point the messages carrying the user's opening request are long gone — the first
+ * compaction replaced them with a synthetic message holding the summary. The mechanical fallback
+ * read only non-synthetic user messages, so it skipped that summary, found nothing to put under
+ * `## Goal & Original User Intent`, and omitted the section entirely.
+ *
+ * What that produced in a real session: 1219 characters of 「- bash: See commit 3d5d03a」 with no
+ * statement of what any of it was for. Eleven seconds later the model started a 245-call search
+ * through its own history trying to work out what it had been asked to do.
+ *
+ * This path runs exactly when the summariser could not be reached — the moment a conversation can
+ * least afford to also lose its purpose.
+ */
+test("a second fallback summary carries the first summary's goal forward", async () => {
+	const goal = "## Goal & Original User Intent\n用户要求修复程序坞图标消失，并且不要改动其它功能。";
+	const prior = summaryMessages(goal, "接着修，别停", PROVIDER, MODEL);
+	const messages = [...prior, ...conversation(40, 1200)];
+
+	const empty = async function* () {
+		yield { type: "start" as const, partial: reply("") };
+		return reply("   ");
+	};
+
+	const result = await compactIfNeeded(messages, MODEL, PROVIDER, empty as never);
+	assert.ok(result, "it still came back with something sendable");
+
+	const head = result.messages[0].content.map((b) => (b.type === "text" ? b.text : "")).join("");
+	assert.ok(
+		head.includes("修复程序坞图标消失"),
+		`the original goal survives a summariser that could not be reached:\n${head.slice(0, 600)}`,
+	);
+	assert.ok(head.includes("## Goal & Original User Intent"), "and it is still under the heading that names it");
+});
+
+test("the carried goal is not also repeated underneath itself", async () => {
+	/*
+	 * The previous summary already opens with the goal. Appending the same sentence again as a
+	 * fresh "user intent" makes every fallback a little more redundant than the last, and a summary
+	 * that repeats itself is one a reader learns to skim.
+	 */
+	const goal = "## Goal & Original User Intent\n- 独特口令：孔雀十三";
+	const prior = summaryMessages(goal, "继续", PROVIDER, MODEL);
+	const messages = [...prior, user("独特口令：孔雀十三"), ...conversation(40, 1200)];
+
+	const empty = async function* () {
+		yield { type: "start" as const, partial: reply("") };
+		return reply("   ");
+	};
+
+	const result = await compactIfNeeded(messages, MODEL, PROVIDER, empty as never);
+	const head = result!.messages[0].content.map((b) => (b.type === "text" ? b.text : "")).join("");
+	const occurrences = head.split("孔雀十三").length - 1;
+	/*
+	 * Twice, not three times: once inside the carried `<session-summary>`, and once in the
+	 * `<standing-request>` that `summaryMessages` quotes verbatim beside it. What must not appear
+	 * is a third copy under a heading of its own.
+	 */
+	assert.ok(occurrences <= 2, `the goal is stated, not restated (${occurrences} copies):\n${head.slice(0, 600)}`);
 });
 
 test("a conversation already inside the window is left alone even when summarising fails", async () => {

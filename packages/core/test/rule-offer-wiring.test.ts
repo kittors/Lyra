@@ -122,3 +122,43 @@ test("the budget it spends is the session's, not a fresh one per turn", async ()
 	can.correctionBudget.recordOffer();
 	assert.equal(can.correctionBudget.exhausted, true, "one already spent, plus two, is three");
 });
+
+test("attachments in user message grant external file permissions for tools in turn", async () => {
+	const externalDir = await mkdtemp(join(tmpdir(), "ly-external-wire-"));
+	const externalFile = join(externalDir, "grant-me.txt");
+	await import("node:fs/promises").then((fs) => fs.writeFile(externalFile, "hello external", "utf8"));
+
+	const events: AgentEvent[] = [];
+	const can = new SessionCapabilities();
+	const log = new SessionLog(STORE, async () => {}, { ...META, cwd: root });
+	await log.commit({
+		role: "user",
+		content: [{ type: "text", text: "请修改这个外部文件" }],
+		attachments: [{ name: "grant-me.txt", path: externalFile }],
+		timestamp: Date.now(),
+	});
+
+	let capturedConfig: any;
+	await driveTurn({
+		cwd: root,
+		settings: DEFAULT_SETTINGS,
+		log,
+		can,
+		provider: PROVIDER,
+		model: MODEL,
+		signal: new AbortController().signal,
+		scratchDir: join(root, "scratch"),
+		streamFn: async (_ctx, config) => {
+			capturedConfig = config;
+			return reply("好的，已处理。");
+		},
+		requestApproval: async () => ({ decision: "allow" }) as never,
+		emit: async (event) => void events.push(event),
+		drainSteering: () => [],
+	});
+
+	assert.ok(capturedConfig, "turn should run and provide config");
+	assert.ok(capturedConfig.allowedPaths, "config.allowedPaths should be populated from attachments");
+	assert.equal(capturedConfig.allowedPaths.has(externalFile), true);
+	await rm(externalDir, { recursive: true, force: true });
+});

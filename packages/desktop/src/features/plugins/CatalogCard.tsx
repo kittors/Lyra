@@ -130,8 +130,18 @@ export function CatalogCard({
 					<div className="flex items-center gap-2">
 						<span className="truncate text-label font-medium text-ink">{item.name}</span>
 						{item.outdated && (
-							<span className="shrink-0 rounded-md bg-accent/12 px-1.5 py-px text-caption leading-[1.5] text-accent">
+							<span className="shrink-0 whitespace-nowrap rounded-md bg-accent/12 px-1.5 py-px text-caption leading-[1.5] text-accent">
 								{t("catalogCard.updatable")}
+							</span>
+						)}
+						{/*
+						 * Installed-and-off is worth a word; installed-and-on is what the switch beside
+						 * it already says. An MCP bundle starts with every server off, so "未启用" is
+						 * where it begins rather than something the user did.
+						 */}
+						{installed && !isEnabled(item) && item.collected === 0 && (
+							<span className="shrink-0 whitespace-nowrap text-caption text-ink-faint">
+								{item.kind === "mcp" ? t("catalogCard.notEnabled") : t("catalogCard.disabled")}
 							</span>
 						)}
 						{/*

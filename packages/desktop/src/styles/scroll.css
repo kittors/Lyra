@@ -1,9 +1,16 @@
-/* ---------------------------------------------------------------------------
- * Scrolling
+/* stylelint-disable selector-class-pattern */
+/* Utility classes for overscroll behavior, guaranteed to exist across all bundlers/contexts */
+.overscroll-auto { overscroll-behavior: auto; }
+.overscroll-contain { overscroll-behavior: contain; }
+.overscroll-none { overscroll-behavior: none; }
+/* stylelint-enable selector-class-pattern */
+
+/*
+ * 侧栏与浮层共用的细滚动条。
  *
- * The thumb belongs to the surface it scrolls: invisible until the pointer is over that
- * surface, so a still window shows no chrome at all.
- * ------------------------------------------------------------------------- */
+ * 系统默认滚动条在 macOS 上会悬浮在内容上方，但 Windows/Linux 上经常会占用固定宽度，或者在深色
+ * 背景下显示刺眼的白底灰色滑块。这里统一用自定义轨道的细条，平时半透明，鼠标悬停或拖拽时高亮。
+ */
 
 /*
  * Room at the foot of a transcript for the control that floats over it.

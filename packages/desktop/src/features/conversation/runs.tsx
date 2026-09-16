@@ -15,12 +15,21 @@ import { useApp, type ToolRun as ToolRunState } from "../../store/index.ts";
 import { sameRun, type Call } from "./grouping.ts";
 
 /**
- * How much of a long transcript is mounted at once, and how much each "show more" adds.
+ * How much of a long transcript is mounted at once, and how much each "show more" adds — **in turns**.
  *
- * Large enough that an ordinary conversation is never truncated, small enough that a session
- * with thousands of messages still scrolls like an empty one.
+ * Counted in turns rather than in rows, and that unit is the whole point. The window used to step by
+ * 60 `Run`s while the transcript draws in `TurnBlock`s (`grouping.ts`), and a turn can hold hundreds
+ * of runs: one session had 400 tool calls between two things the user typed. Paging by row into a
+ * turn like that loads 60 rows straight into an already-collapsed block, so the only thing that
+ * changes on screen is the number in 「调用工具 N 个」 — four clicks in a row, and the transcript does
+ * not move. Now one click always brings whole turns, so it always brings something you can see.
+ *
+ * Twenty rather than sixty because a turn is worth several rows: its question, its answer, and the
+ * one folded line standing in for everything in between. Collapsed turns cost nothing to keep
+ * mounted (`TurnProcess` renders nothing while closed), so this number is about how much a person
+ * wants to take in at once, not about what the browser can hold.
  */
-export const WINDOW_STEP = 60;
+export const WINDOW_TURNS = 20;
 
 export type Segment =
   | { kind: "block"; block: AssistantContent; index: number }

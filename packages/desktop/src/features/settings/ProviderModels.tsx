@@ -61,7 +61,7 @@ export function ProviderModels({
 				<div className="flex items-center gap-2">
 					<span className="text-label text-ink-muted">{t("providerModels.list")}</span>
 					{models.length > 0 && (
-						<span className="rounded-md bg-card-hover px-1.5 py-0.5 text-micro font-medium text-ink-faint">
+						<span className="shrink-0 whitespace-nowrap rounded-md bg-card-hover px-1.5 py-0.5 text-micro font-medium text-ink-faint">
 							{models.length}
 						</span>
 					)}

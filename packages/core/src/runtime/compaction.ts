@@ -391,7 +391,7 @@ export async function compactIfNeeded(
 	 */
 	const target = Math.max(0, model.contextWindow * SAFE_AFTER - overhead);
 	const scaled = (list: Message[]) => estimateTokens(list) * scale;
-	const head = summaryMessages(summary, lastRequest(older), provider, model);
+	const head = summaryMessages(summary, lastRequest(older), provider, model, filesSeen(older));
 
 	let tail = recent;
 	let compacted = [...head, ...tail];
@@ -409,6 +409,44 @@ export async function compactIfNeeded(
 	 */
 	if (scaled(compacted) >= scaled(messages)) return null;
 	return { messages: compacted, summary, kept: tail.length };
+}
+
+/** 摘要里最多列几个文件——再多就从「一眼能扫完的清单」变成「又一段要读的正文」。 */
+const SEEN_FILES_CAP = 20;
+
+/**
+ * 被折叠掉的那段历史里，碰过哪些文件——读过的和改过的分开。
+ *
+ * 机械收集，不让模型写：摘要是模型的转述，而「我读过什么」是个事实，转述会漏。`fallbackSummary`
+ * 里早就有一份同样的东西，但那条路只在**摘要请求失败时**才走——正常压缩的摘要里，一个字都没提模型
+ * 已经读过什么。
+ *
+ * 这个缺口的代价是量得出来的：一个会话跨 9 个压缩段，`apply-event.ts` 在其中 **8 段里各被重读一次**，
+ * `store.ts` 在同一个会话里读了 55 次。压缩把内容丢了，摘要又没说读过，模型只能重读——而重读一次的
+ * 钱，远多于在摘要里多列 20 行路径。
+ *
+ * 分「读过」和「改过」两类：改过的那些，内容已经和它记忆里的不一样了，重读是对的；只读过的那些，
+ * 重读多半是白花钱。这个分法照搬 oh-my-pi 的压缩摘要（它还多分一类「改过但没读过」，那类在这里
+ * 归入改过）。
+ */
+export function filesSeen(messages: Message[]): { read: string[]; changed: string[] } {
+	const read = new Set<string>();
+	const changed = new Set<string>();
+	for (const message of messages) {
+		if (message.role !== "assistant") continue;
+		for (const part of message.content) {
+			if (part.type !== "toolCall") continue;
+			const args = (part.arguments ?? {}) as Record<string, unknown>;
+			const path = (args.path ?? args.file ?? args.filePath) as unknown;
+			if (typeof path !== "string" || !path) continue;
+			if (part.name === "write" || part.name === "edit") changed.add(path);
+			else if (part.name === "read") read.add(path);
+		}
+	}
+	// 改过的不再算进「只读过」——两边都出现时，「它变了」是更要紧的那件事。
+	for (const path of changed) read.delete(path);
+	const tail = (set: Set<string>) => [...set].slice(-SEEN_FILES_CAP);
+	return { read: tail(read), changed: tail(changed) };
 }
 
 /**
@@ -438,12 +476,24 @@ export function summaryMessages(
 	standing: string | null,
 	provider: ProviderConfig,
 	model: ModelConfig,
+	/** 被折叠掉那段里碰过的文件；省略时这一段不出现（旧调用点、测试）。 */
+	seen?: { read: string[]; changed: string[] },
 ): Message[] {
+	const seenBlock =
+		seen && (seen.read.length > 0 || seen.changed.length > 0)
+			? `<files-already-seen>\n` +
+				`折叠掉的那段里，你已经看过这些文件。内容不在上面的摘要里了，但你**读过**它们：\n` +
+				(seen.read.length > 0 ? `\n只读过（多半不必再读一遍）：\n${seen.read.map((f) => `- ${f}`).join("\n")}\n` : "") +
+				(seen.changed.length > 0 ? `\n你改过（内容已经和你记得的不一样，需要时值得重读）：\n${seen.changed.map((f) => `- ${f}`).join("\n")}\n` : "") +
+				`\n这不是禁止你重读——是提醒你先想清楚要找的东西是不是已经知道了。要原文用 \`recall\`。\n` +
+				`</files-already-seen>`
+			: null;
 	const text = [
 		`<session-summary>\n${summary}\n</session-summary>`,
 		standing
 			? `<standing-request>\nThis is the most recent thing the user asked for, quoted exactly. It is current, and it supersedes anything above that disagrees with it.\n\n${standing}\n</standing-request>`
 			: null,
+		seenBlock,
 		RECALL_NOTE,
 	]
 		.filter(Boolean)
@@ -637,6 +687,27 @@ function fallbackSummary(messages: Message[]): string {
 	const touchedFiles = new Set<string>();
 	const keyActions: string[] = [];
 
+	/*
+	 * The previous summary is the only place the original goal still exists.
+	 *
+	 * By the second compaction the messages that carried the user's opening request are long gone
+	 * from this array — the first compaction replaced them with a synthetic message holding the
+	 * summary. Reading only non-synthetic user messages therefore finds nothing to put under
+	 * `## Goal & Original User Intent`, and the section is simply omitted.
+	 *
+	 * What that produced, measured: a second compaction whose entire output was 1219 characters of
+	 * 「- bash: See commit 3d5d03a」 — a list of commands with no statement of what any of them were
+	 * for. Eleven seconds later the model began a 245-call search through its own history trying to
+	 * work out what it had been asked to do. It was not confused; it had been handed a summary that
+	 * genuinely did not say.
+	 *
+	 * This path runs precisely when the summariser could not be reached, which is the moment the
+	 * conversation can least afford to also lose its purpose. Carrying the previous summary forward
+	 * verbatim is the whole fix: it is already in the required format, and it already contains the
+	 * goal that a model wrote down while it could still see it.
+	 */
+	const carried = previousSummary(messages);
+
 	for (const msg of messages) {
 		if (msg.role === "user" && !msg.synthetic) {
 			const text = msg.content
@@ -668,8 +739,29 @@ function fallbackSummary(messages: Message[]): string {
 
 	const sections: string[] = [];
 
-	if (userPrompts.length > 0) {
-		sections.push(`## Goal & Original User Intent\n${userPrompts.map((p) => `- ${p}`).join("\n")}`);
+	/*
+	 * The carried summary goes first and keeps its own structure.
+	 *
+	 * It already opens with `## Goal & Original User Intent` — appending the mechanical sections
+	 * after it reads as an update to a handover document, which is what this is, rather than as two
+	 * documents stapled together.
+	 */
+	if (carried) sections.push(carried);
+
+	/*
+	 * Only prompts the carried summary does not already account for.
+	 *
+	 * Without this the goal appears twice on every fallback — once as the previous summary's own
+	 * `## Goal` section and once more verbatim underneath it — and a summary that repeats itself
+	 * is a summary a reader learns to skim.
+	 */
+	const fresh = userPrompts.filter((prompt) => !carried?.includes(prompt));
+	if (fresh.length > 0) {
+		sections.push(
+			carried
+				? `## Newer User Requests (since the summary above)\n${fresh.map((p) => `- ${p}`).join("\n")}`
+				: `## Goal & Original User Intent\n${fresh.map((p) => `- ${p}`).join("\n")}`,
+		);
 	}
 
 	if (keyActions.length > 0) {
@@ -683,6 +775,30 @@ function fallbackSummary(messages: Message[]): string {
 	}
 
 	return sections.join("\n\n") || "Previous turns were compacted.";
+}
+
+/**
+ * The summary a previous compaction left behind, unwrapped from the message carrying it.
+ *
+ * Matches how `summaryMessages` writes it: a synthetic user message whose text opens with a
+ * `<session-summary>` block. The standing request that may follow it is deliberately not picked up
+ * here — `compactIfNeeded` recomputes that from the real messages every time, and a stale copy
+ * inside the summary would then contradict the fresh one beside it.
+ */
+function previousSummary(messages: Message[]): string | null {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (message.role !== "user" || !message.synthetic) continue;
+		for (const block of message.content) {
+			if (block.type !== "text") continue;
+			const match = /<session-summary>\n?([\s\S]*?)\n?<\/session-summary>/.exec(block.text);
+			if (match) {
+				const text = match[1].trim();
+				if (text) return text;
+			}
+		}
+	}
+	return null;
 }
 
 /**

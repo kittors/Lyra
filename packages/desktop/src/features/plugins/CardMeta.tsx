@@ -40,10 +40,14 @@ export function IdentityLine({ item }: { item: CatalogItem }): React.ReactNode {
 
 	// Which half of the catalogue it belongs to. The card can be reached from either scope, and the
 	// distinction survives being installed: something from a registry stays "公开" once you have it.
-	parts.push(<span key="scope">{translate(item.entry ? "common.public" : "common.personal")}</span>);
+	parts.push(
+		<span key="scope" className="shrink-0 whitespace-nowrap">
+			{translate(item.entry ? "common.public" : "common.personal")}
+		</span>,
+	);
 	if (item.version) {
 		parts.push(
-			<span key="version" className="tabular-nums">
+			<span key="version" className="shrink-0 whitespace-nowrap tabular-nums">
 				{/* Prefixed here rather than stored with the `v`, because the version is compared as a
 				    string elsewhere and a display prefix in the data is a bug waiting for that. */}
 				v{item.version}
@@ -76,8 +80,11 @@ export function IdentityLine({ item }: { item: CatalogItem }): React.ReactNode {
 		<div className="mt-1 flex min-w-0 items-center gap-1.5 text-caption text-ink-faint">
 			{parts.map((part, index) => (
 				// The separator belongs to the gap between two parts, so the line never ends on one.
-				<span key={index} className="flex min-w-0 items-center gap-1.5">
-					{index > 0 && <span className="text-ink-faint/50">·</span>}
+				<span
+					key={index}
+					className={`flex min-w-0 items-center gap-1.5 ${index === 0 ? "shrink-0" : ""}`}
+				>
+					{index > 0 && <span className="shrink-0 text-ink-faint/50">·</span>}
 					{part}
 				</span>
 			))}
@@ -113,13 +120,13 @@ export function FootprintLine({ item }: { item: CatalogItem }): React.ReactNode 
 			{clients.map((client) => (
 				<span
 					key={client}
-					className="rounded-md border border-line-soft px-1.5 py-px leading-[1.5] text-ink-muted"
+					className="shrink-0 whitespace-nowrap rounded-md border border-line-soft px-1.5 py-px leading-[1.5] text-ink-muted"
 				>
 					{CLIENT_LABEL[client] ?? client}
 				</span>
 			))}
 			{counts.map((count) => (
-				<span key={count} className="tabular-nums">
+				<span key={count} className="shrink-0 whitespace-nowrap tabular-nums">
 					{count}
 				</span>
 			))}
@@ -127,7 +134,9 @@ export function FootprintLine({ item }: { item: CatalogItem }): React.ReactNode 
 			 * A popularity signal, not a fact about the bundle — and shown only once it means
 			 * anything. "0 次安装" on a new entry reads as a verdict on it rather than as its age.
 			 */}
-			{(item.downloads ?? 0) > 0 && <span className="tabular-nums">↓ {item.downloads}</span>}
+			{(item.downloads ?? 0) > 0 && (
+				<span className="shrink-0 whitespace-nowrap tabular-nums">↓ {item.downloads}</span>
+			)}
 		</div>
 	);
 }

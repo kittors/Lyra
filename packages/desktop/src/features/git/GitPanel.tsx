@@ -1,4 +1,4 @@
-import { Activity, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
+import { Activity, AlertCircle, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { useDock } from "../dock/index.ts";
@@ -11,6 +11,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import type { GitStatus } from "../../../electron/ipc-types.ts";
 import type { RepoRef } from "../../../electron/git.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 
 import { Text } from "../../ui/primitives/Text.tsx";
@@ -510,23 +511,28 @@ export function GitPanel() {
    */
   if (workspace.gitProblem) {
     return (
-      <PanelEmpty icon={GitBranch} title={t("git.brokenRepo")}>
-        <span className="block text-ink-muted">{workspace.gitProblem}</span>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            useApp
-              .getState()
-              .setComposerDraft(
-                t("git.brokenRepoPrompt", { error: workspace.gitProblem ?? "" }),
-                true,
-              );
-          }}
-          className="grid place-items-center mt-3 h-[28px] rounded-md bg-ink text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 w-[28px]"
-			data-ly-tip={t("gitPanel.diagnose")}
-			aria-label={t("gitPanel.diagnose")}
-		><Sparkles size={13} strokeWidth={2} /></button>
+      <PanelEmpty icon={AlertCircle} title={t("git.brokenRepo")}>
+        <div className="flex flex-col items-center gap-3 w-full max-w-[280px]">
+          <div className="w-full max-h-36 overflow-y-auto rounded-md border border-line bg-card/60 p-2.5 text-left font-mono text-detail text-ink-muted select-text">
+            {workspace.gitProblem}
+          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            icon={<Sparkles size={13} strokeWidth={2} />}
+            onClick={() => {
+              useApp
+                .getState()
+                .setComposerDraft(
+                  t("git.brokenRepoPrompt", { error: workspace.gitProblem ?? "" }),
+                  true,
+                );
+            }}
+          >
+            {t("gitPanel.diagnose")}
+          </Button>
+        </div>
       </PanelEmpty>
     );
   }
@@ -535,9 +541,11 @@ export function GitPanel() {
     return (
       <PanelEmpty icon={GitBranch} title={t("git.noRepo")}>
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="primary"
             disabled={busy}
+            icon={<GitBranch size={13} strokeWidth={1.8} />}
             onClick={() => {
               void act(() => bridge.git.init(workspace.path)).then((ok) => {
                 // Re-scan rather than assume: the new repository has to come back through the
@@ -545,13 +553,14 @@ export function GitPanel() {
                 if (ok) setRescan((n) => n + 1);
               });
             }}
-            className="grid place-items-center h-[28px] rounded-md bg-ink text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 w-[28px]"
-			data-ly-tip={t("gitPanel.initRepo")}
-			aria-label={t("gitPanel.initRepo")}
-		><GitBranch size={13} strokeWidth={1.8} /></button>
-          <button
-            type="button"
+          >
+            {t("gitPanel.initRepo")}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             disabled={busy}
+            icon={<Sparkles size={13} strokeWidth={2} className="text-accent" />}
             onClick={() => {
               useApp
                 .getState()
@@ -560,10 +569,9 @@ export function GitPanel() {
                   true,
                 );
             }}
-            className="grid place-items-center h-[28px] rounded-md border border-line bg-card text-detail font-medium text-ink transition-colors hover:bg-card-hover disabled:opacity-40 w-[28px]"
-			data-ly-tip={t("gitPanel.letAgent")}
-			aria-label={t("gitPanel.letAgent")}
-		><Sparkles size={13} strokeWidth={2} className="text-accent" /></button>
+          >
+            {t("gitPanel.letAgent")}
+          </Button>
         </div>
       </PanelEmpty>
     );

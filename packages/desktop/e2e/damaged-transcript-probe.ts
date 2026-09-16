@@ -89,7 +89,7 @@ async function main() {
 		await click("[data-probe]").catch(() => {});
 		// 等它真的画完，而不是等一个固定的秒数——「正在加载」和「加载不出来」要分得开。
 		for (let waited = 0; waited < 20000; waited += 500) {
-			const loading = await app.evaluate<boolean>(`document.body.innerText.includes("正在加载对话")`);
+			const loading = await app.evaluate<boolean>(`Boolean(document.querySelector('.ly-transcript[aria-busy="true"]'))`);
 			if (!loading) break;
 			await pause(500);
 		}

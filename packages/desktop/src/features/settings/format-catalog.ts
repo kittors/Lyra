@@ -19,7 +19,15 @@
 export type FormatterKind =
 	/** Prettier, in the renderer. The options on this page apply. */
 	| "prettier"
-	/** The language's own binary — gofmt, rustfmt, ruff. The options here do not apply. */
+	/**
+	 * 那个语言自己的格式化器，编译成 WebAssembly 或用纯 JavaScript 重写，随应用一起分发。
+	 *
+	 * 跑的就是 ruff、gofmt、clang-format、dart format、swift-format 本人——不是某种近似，也不是
+	 * 「缩进大致对齐一下」。区别只在于它在应用包里，不在 PATH 上：装没装 Python、Go、Clang，
+	 * 结果一样。见 `electron/format-builtin-engines.ts`。
+	 */
+	| "builtin"
+	/** The language's own binary on this machine — for the few with no WASM or JS build yet. */
 	| "external"
 	/** Coloured, but nothing here can reformat it. */
 	| "none";
@@ -31,7 +39,12 @@ export interface LanguageEntry {
 	/** Every extension that resolves here, for searching and for the hint under the name. */
 	aliases: string[];
 	formatter: FormatterKind;
-	/** The binary, for `external`. Shown so the answer to "why not" is actionable. */
+	/**
+	 * 是谁在排这门语言。
+	 *
+	 * 对 `external` 是「你得装这个」——答案要可执行。对 `builtin` 是「跑的是它」：同一个名字，
+	 * 但说的是应用里带的那一份，不是让人去装什么。两者的区别由 `formatter` 说，不由这个字段说。
+	 */
 	tool?: string;
 	sample: string;
 }
@@ -219,8 +232,8 @@ button { border-radius: 6px; }
 		key: "py",
 		label: "Python",
 		aliases: ["py", "pyi", "python"],
-		formatter: "external",
-		tool: "ruff / black",
+		formatter: "builtin",
+		tool: "ruff",
 		sample: `# 取一个用户，取不到就报错
 async def find_user(id: str) -> User:
     found = await db.users.find_one({"id": id})
@@ -232,7 +245,7 @@ async def find_user(id: str) -> User:
 		key: "go",
 		label: "Go",
 		aliases: ["go"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "gofmt",
 		sample: `package main
 
@@ -266,8 +279,8 @@ pub async fn find_user(id: &str) -> Result<User, Error> {
 		key: "java",
 		label: "Java",
 		aliases: ["java"],
-		formatter: "external",
-		tool: "google-java-format",
+		formatter: "builtin",
+		tool: "clang-format",
 		sample: `package com.lyra;
 
 /** 一个用户。 */
@@ -292,7 +305,7 @@ data class User(val id: String, val name: String = "匿名") {
 		key: "c",
 		label: "C",
 		aliases: ["c", "h"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "clang-format",
 		sample: `#include <stdio.h>
 
@@ -307,7 +320,7 @@ int main(void) {
 		key: "cpp",
 		label: "C++",
 		aliases: ["cpp", "hpp", "cc", "cxx"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "clang-format",
 		sample: `#include <string>
 
@@ -323,8 +336,8 @@ struct User {
 		key: "cs",
 		label: "C#",
 		aliases: ["cs"],
-		formatter: "external",
-		tool: "csharpier",
+		formatter: "builtin",
+		tool: "clang-format",
 		sample: `namespace Lyra;
 
 // 一个用户
@@ -337,7 +350,7 @@ public record User(string Id, string Name = "匿名")
 		key: "swift",
 		label: "Swift",
 		aliases: ["swift"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "swift-format",
 		sample: `// 一个用户
 struct User {
@@ -369,8 +382,8 @@ end`,
 		key: "php",
 		label: "PHP",
 		aliases: ["php"],
-		formatter: "external",
-		tool: "php-cs-fixer",
+		formatter: "builtin",
+		tool: "@prettier/plugin-php",
 		sample: `<?php
 
 // 一个用户
@@ -391,8 +404,7 @@ final class User
 		key: "sql",
 		label: "SQL",
 		aliases: ["sql"],
-		formatter: "external",
-		tool: "sql-formatter",
+		formatter: "prettier",
 		sample: `-- 最近登录过的用户
 SELECT u.id, u.name, COUNT(s.id) AS sessions
 FROM users AS u
@@ -419,8 +431,8 @@ services:
 		key: "toml",
 		label: "TOML",
 		aliases: ["toml"],
-		formatter: "external",
-		tool: "taplo",
+		formatter: "builtin",
+		tool: "prettier-plugin-toml",
 		sample: `# 包信息
 [package]
 name = "demo"
@@ -433,8 +445,8 @@ serde = { version = "1", features = ["derive"] }`,
 		key: "sh",
 		label: "Shell",
 		aliases: ["sh", "bash", "zsh", "fish"],
-		formatter: "external",
-		tool: "shfmt",
+		formatter: "builtin",
+		tool: "prettier-plugin-sh",
 		sample: `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -462,8 +474,8 @@ query User($id: ID!) {
 		key: "proto",
 		label: "Protocol Buffers",
 		aliases: ["proto", "protobuf"],
-		formatter: "external",
-		tool: "buf",
+		formatter: "builtin",
+		tool: "clang-format",
 		sample: `syntax = "proto3";
 
 // 一个用户
@@ -477,7 +489,7 @@ message User {
 		key: "lua",
 		label: "Lua",
 		aliases: ["lua"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "stylua",
 		sample: `-- 打个招呼
 local function greet(name)
@@ -512,7 +524,7 @@ greet Nothing     = "你好"`,
 		key: "clj",
 		label: "Clojure",
 		aliases: ["clj", "cljs", "clojure"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "zprint",
 		sample: `;; 打个招呼
 (defn greet
@@ -536,7 +548,7 @@ greet(Name) ->
 		key: "dart",
 		label: "Dart",
 		aliases: ["dart"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "dart format",
 		sample: `// 一个用户
 class User {
@@ -552,7 +564,7 @@ class User {
 		key: "m",
 		label: "Objective-C",
 		aliases: ["m", "mm"],
-		formatter: "external",
+		formatter: "builtin",
 		tool: "clang-format",
 		sample: `// 一个用户
 @interface User : NSObject
@@ -590,8 +602,8 @@ target_compile_features(demo PRIVATE cxx_std_20)`,
 		key: "tex",
 		label: "LaTeX",
 		aliases: ["tex", "latex"],
-		formatter: "external",
-		tool: "latexindent",
+		formatter: "builtin",
+		tool: "prettier-plugin-latex",
 		sample: `% 一份文档
 \\documentclass{article}
 \\begin{document}
@@ -615,7 +627,7 @@ export function searchLanguages(query: string): LanguageEntry[] {
 
 /** How many languages fall into each engine, for the summary line on the settings page. */
 export function formatterCounts(): Record<FormatterKind, number> {
-	const counts: Record<FormatterKind, number> = { prettier: 0, external: 0, none: 0 };
+	const counts: Record<FormatterKind, number> = { prettier: 0, builtin: 0, external: 0, none: 0 };
 	for (const entry of LANGUAGES) counts[entry.formatter]++;
 	return counts;
 }

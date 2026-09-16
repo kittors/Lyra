@@ -53,6 +53,16 @@ export interface SystemPromptInput {
 	platform: string;
 	modelName: string;
 	isGitRepo: boolean;
+	/**
+	 * 这个工作目录本身就是一份隔离副本（`git worktree`），改在这里用户的主工作树看不见。
+	 *
+	 * 决定上面 `isolationGuideline` 那条准则怎么说：已经在副本里的会话不该被叫去再开一个。
+	 *
+	 * 省略按「不是副本」算，而且这个缺省方向是刻意的——两个方向的代价差得很远：少判一次最多让它多开
+	 * 一个副本、白费几秒；多判一次会让它以为可以随便改，然后直接动用户的工作树。所以老会话、拿不准的
+	 * 调用点、检测失败，一律落在安全的那一边。怎么测的见 `runtime/workspace.ts`。
+	 */
+	isolatedWorktree?: boolean;
 	/** Appended verbatim after the built-in prompt. */
 	appendSystemPrompt?: string;
 	/**
@@ -127,6 +137,39 @@ const BASE_GUIDELINES = [
 ];
 
 /**
+ * 思考用的**改动**放哪——上一条说的是思考用的**文件**，这是同一件事的另一半。
+ *
+ * 判据是**这个改动是为了交付，还是为了拿证据**，不是「用户有没有禁止你改」。后者当判据是错的，而且
+ * 错得很常见：用户明确说「先别改代码」的时候少，说「你先看看」「帮我分析下」的时候多，那时模型既不
+ * 知道自己被允许改到什么程度，也不知道还有第三条路。前者它自己一定知道——它清楚自己为什么要动这一行。
+ *
+ * 不写它的代价是量得出来的：2026-09-15 一个会话被要求「定位问题，先别修改任何的代码」，而那是个计时
+ * 器被重算的时序问题，静态读代码解释不了。模型于是读了 406 次文件、跑了 467 轮、烧掉 43M token 和
+ * $12.86，470 个回合里 448 个（95%）输出不到 50 个字：既不被允许验证，也不敢收敛。同一天另一个会话
+ * 做同类排查、没有这层约束，25 分钟就写出探针跑出了结论。
+ *
+ * 分三种说法，因为「去哪改」这件事在三种工作区里的答案不一样，而一句放之四海的话在其中两种里是**错**
+ * 的：已经在副本里的会话被叫去再开一个副本，是套娃；不是 git 仓库的项目压根开不了 worktree，让它去跑
+ * 那条命令就是教它试一个必然失败的东西。
+ *
+ * 举三个具体例子而不是只说「探索性改动」：这个判断要在动手那一刻做得出来，抽象的说法到那时用不上。
+ */
+function isolationGuideline(input: SystemPromptInput): string {
+	const where = input.isolatedWorktree
+		? "you are already working in an isolated copy of the repository — do it right here, because the user's main working tree does not see this directory"
+		: input.isGitRepo
+			? "run `git worktree add` to make an isolated copy outside the repository and do it there; the user's working tree never sees it"
+			: "copy what you need somewhere outside the project and do it there — this is not a git repository, so there is no worktree to open";
+	return (
+		"Changes you make to think with belong somewhere the user's working tree will not see them, the same way scratch files belong outside the repository. " +
+		"When you are changing code to get evidence rather than to deliver the fix — adding logging to see an ordering, forcing a state to reproduce a bug, deleting things to bisect — " +
+		`${where}. Say that is what you are doing. ` +
+		"This is also what makes 'do not change my code' and 'I need runtime evidence' compatible rather than contradictory, so never let the first become 'do not verify': " +
+		"reading alone cannot answer a timing question, and a turn that keeps reading without forming a testable hypothesis has stopped making progress."
+	);
+}
+
+/**
  * Kept separate from the guideline list because it is a boundary, not advice: tool output is
  * an untrusted channel, and an agent that treats it as instructions can be steered by any file
  * or web page it reads.
@@ -148,7 +191,15 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<strin
 	// Deduplicate while preserving order: two tools may contribute the same rule.
 	const guidelines: string[] = [];
 	const seen = new Set<string>();
-	const base = input.guidelinesOverride?.trim() ? parseGuidelines(input.guidelinesOverride) : BASE_GUIDELINES;
+	/*
+	 * 隔离那条跟着内置的一起走，所以 `.lyra/prompts/guidelines.md` 换掉内置准则时它也一起换掉。
+	 *
+	 * 它是一条行为准则，不是工具说明书——`guidelinesOverride` 的语义就是「内置那些我自己来写」，把
+	 * 一条内置准则留在外面强行追加，等于给了用户一个他关不掉的开关。
+	 */
+	const base = input.guidelinesOverride?.trim()
+		? parseGuidelines(input.guidelinesOverride)
+		: [...BASE_GUIDELINES, isolationGuideline(input)];
 	for (const guideline of [...base, ...input.tools.flatMap((tool) => tool.guidelines ?? [])]) {
 		const normalized = guideline.trim();
 		if (!normalized || seen.has(normalized)) continue;

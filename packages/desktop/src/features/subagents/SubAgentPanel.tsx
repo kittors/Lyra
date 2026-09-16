@@ -24,6 +24,9 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { openFromEvent } from "../image/index.ts";
+import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { openViewer } from "../image/index.ts";
+import { useOpenFile } from "../../store/openFile.ts";
 import { BackToLatest } from "../conversation/index.ts";
 import {
 	AttachmentStrip,
@@ -37,6 +40,7 @@ import {
 	pickedFrom,
 	type PickedFile,
 	type StripFile,
+	useAttachmentActions,
 } from "../composer/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
@@ -316,20 +320,20 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 	return (
 		<div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2.5 text-caption text-ink-faint">
 			<span className={`size-[5px] shrink-0 rounded-full ${statusTone(agent.status)}`} />
-			<span className="shrink-0">{agent.agent}</span>
-			<span className="text-line">·</span>
-			<span className="shrink-0 tabular-nums">{ranFor(agent)}</span>
+			<span className="shrink-0 whitespace-nowrap">{agent.agent}</span>
+			<span className="shrink-0 text-line">·</span>
+			<span className="shrink-0 whitespace-nowrap tabular-nums">{ranFor(agent)}</span>
 			{agent.toolCalls > 0 && (
 				<>
-					<span className="text-line">·</span>
-					<span className="shrink-0 tabular-nums">{t("subAgent.calls", { n: agent.toolCalls })}</span>
+					<span className="shrink-0 text-line">·</span>
+					<span className="shrink-0 whitespace-nowrap tabular-nums">{t("subAgent.calls", { n: agent.toolCalls })}</span>
 				</>
 			)}
 			{/* What it has cost so far — the number that decides whether delegating this was worth it. */}
 			{figuresWord(figuresOf(agent)) && (
 				<>
-					<span className="text-line">·</span>
-					<span data-sub-figures data-ly-tip={t("subAgent.figuresTip")} className="shrink-0 tabular-nums">
+					<span className="shrink-0 text-line">·</span>
+					<span data-sub-figures data-ly-tip={t("subAgent.figuresTip")} className="shrink-0 whitespace-nowrap tabular-nums">
 						{figuresWord(figuresOf(agent))}
 					</span>
 				</>
@@ -378,6 +382,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 	const [sending, setSending] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const field = useRef<HTMLTextAreaElement>(null);
+	const attachmentActions = useAttachmentActions();
 	/*
 	 * 正文里那枚标记，和主输入框是同一套。
 	 *
@@ -386,6 +391,21 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 	 */
 	const marks = useAttachmentMarks<SubAgentAttachment>({ attachments, setAttachments, setText, field });
 
+	const previewable = useMemo(
+		() => attachments.filter((a) => !a.isText && a.data),
+		[attachments],
+	);
+
+	const previewImage = (target: SubAgentAttachment, originRect?: DOMRect) => {
+		const index = previewable.findIndex((file) => file.id === target.id);
+		if (index < 0) return;
+		const origin = originRect ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 1, 1);
+		openViewer(
+			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
+			index,
+			origin,
+		);
+	};
 	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
 	const strip: StripFile[] = useMemo(
 		() =>
@@ -481,6 +501,25 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 				onKeyDown={(event) => {
 					// 退格吃掉整枚标记，而不是把它啃成一串没人认得的方括号。
 					marks.keyDown(event);
+				}}
+				onAttachmentClick={(index, rect) => {
+					const hit = scanPlaceholders(text, attachments)[index];
+					if (!hit) return;
+					attachmentActions.openOrPreview(
+						{
+							name: hit.file.label ?? hit.file.name,
+							path: hit.file.path,
+							src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
+							isImage: !hit.file.isText && Boolean(hit.file.data),
+							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
+							onOpenFile: (path: string, name: string) => {
+								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+								// Note: SubAgentPanel cannot import useDock directly due to dependency cycle.
+								// It opens via useOpenFile and users view files in file panel or system.
+							},
+						},
+						rect,
+					);
 				}}
 				decoration={{ attachments: marks.decorationFor(text) }}
 				onSubmit={() => void send()}

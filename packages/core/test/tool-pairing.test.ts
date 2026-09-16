@@ -52,7 +52,13 @@ function answer(id: string, text: string): ToolResultMessage {
 
 const user: Message = { role: "user", content: [{ type: "text", text: "看看项目" }], timestamp: 0 };
 
-/** Just the parts that decide whether the request is well formed. */
+/**
+ * Just the parts that decide whether the request is well formed.
+ *
+ * 期望里的 `reasoning` 是编码器补的，不是下面那些 fixture 写的：它们的助手轮都只有工具调用、没有
+ * 思考块，而 `api.deepseek.com` 要求每个助手轮以推理项开头，自己没有的由 `toResponsesInput` 补一个
+ * （见 `reasoning-replay.test.ts`）。这一组测试盯的是调用和结果怎么排，那一项只是它们前面的定数。
+ */
 const shape = (input: unknown[]) =>
 	input.map((item) => {
 		const it = item as { type: string; call_id?: string };
@@ -81,6 +87,7 @@ test("默认成组：一轮的所有调用排完，再排所有结果", () => {
 
 	assert.deepEqual(shape(input), [
 		"message",
+		"reasoning",
 		"function_call:a",
 		"function_call:b",
 		"function_call_output:a",
@@ -98,6 +105,7 @@ test("学到「这个端点要交错」之后，结果紧跟着自己的调用",
 
 	assert.deepEqual(shape(input), [
 		"message",
+		"reasoning",
 		"function_call:a",
 		"function_call_output:a",
 		"function_call:b",
@@ -117,24 +125,25 @@ test("结果按调用顺序排，不按完成顺序——两种排法都是", ()
 	const grouped = toResponsesInput(history);
 	assert.deepEqual(shape(grouped), [
 		"message",
+		"reasoning",
 		"function_call:a",
 		"function_call:b",
 		"function_call_output:a",
 		"function_call_output:b",
 	]);
 	// 而且每条结果带的是自己的文本，没有串位。
-	assert.equal((grouped[3] as { output: string }).output, "listing");
-	assert.equal((grouped[4] as { output: string }).output, "no match");
+	assert.equal((grouped[4] as { output: string }).output, "listing");
+	assert.equal((grouped[5] as { output: string }).output, "no match");
 
 	const interleaved = toResponsesInput(history, undefined, "replay", "interleaved");
-	assert.equal((interleaved[2] as { output: string }).output, "listing");
-	assert.equal((interleaved[4] as { output: string }).output, "no match");
+	assert.equal((interleaved[3] as { output: string }).output, "listing");
+	assert.equal((interleaved[5] as { output: string }).output, "no match");
 });
 
 test("a call with no result is left unanswered rather than given someone else's", () => {
 	const input = toResponsesInput([user, assistant([call("a", "bash"), call("b", "glob")]), answer("b", "no match")]);
 
-	assert.deepEqual(shape(input), ["message", "function_call:a", "function_call:b", "function_call_output:b"]);
+	assert.deepEqual(shape(input), ["message", "reasoning", "function_call:a", "function_call:b", "function_call_output:b"]);
 });
 
 test("a result whose call is not in the history keeps its place", () => {
@@ -142,6 +151,7 @@ test("a result whose call is not in the history keeps its place", () => {
 
 	assert.deepEqual(shape(input), [
 		"message",
+		"reasoning",
 		"function_call:a",
 		"function_call_output:a",
 		"function_call_output:z",

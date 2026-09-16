@@ -52,7 +52,7 @@ function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?:
 	}
 	return (
 		<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-			<span className="block h-[9px] w-[9px] rounded-full border border-dashed border-line" />
+			<span className="block h-[9px] w-[9px] rounded-full border border-dashed border-ink-faint" />
 		</span>
 	);
 }

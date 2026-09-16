@@ -49,7 +49,9 @@ export function ComposerShell({
 	onFocus,
 	onBlur,
 	commandMenu,
+	onAttachmentClick,
 }: {
+	onAttachmentClick?: (index: number, rect?: DOMRect) => void;
 	decoration?: ComposerDecorations;
 	onSelect?: () => void;
 	onFocus?: () => void;
@@ -320,6 +322,63 @@ export function ComposerShell({
               : undefined
           }
           onContextMenu={onContextMenu}
+          onMouseMove={(e) => {
+            if (composing || e.buttons !== 0) return;
+            const target = e.currentTarget;
+            const mirrorEl = target.closest(".ly-composer")?.querySelector("[data-command-mirror]");
+            const tokens = [...(mirrorEl?.querySelectorAll(".ly-attachment-token") ?? [])];
+            let hitIdx = -1;
+            for (let i = 0; i < tokens.length; i++) {
+              const token = tokens[i];
+              const hit = [...token.getClientRects()].some(
+                (rect) =>
+                  e.clientX >= rect.left &&
+                  e.clientX <= rect.right &&
+                  e.clientY >= rect.top &&
+                  e.clientY <= rect.bottom,
+              );
+              if (hit) {
+                hitIdx = i;
+                break;
+              }
+            }
+            tokens.forEach((token, idx) => {
+              token.toggleAttribute("data-hovered", idx === hitIdx);
+            });
+            if (hitIdx >= 0) {
+              target.style.cursor = "pointer";
+            } else {
+              target.style.cursor = "";
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.cursor = "";
+            const mirrorEl = e.currentTarget.closest(".ly-composer")?.querySelector("[data-command-mirror]");
+            mirrorEl?.querySelectorAll(".ly-attachment-token[data-hovered]").forEach((token) => {
+              token.removeAttribute("data-hovered");
+            });
+          }}
+          onClick={(e) => {
+            if (composing) return;
+            const mirrorEl = e.currentTarget.closest(".ly-composer")?.querySelector("[data-command-mirror]");
+            const tokens = [...(mirrorEl?.querySelectorAll(".ly-attachment-token") ?? [])];
+            let hitRect: DOMRect | undefined;
+            const at = tokens.findIndex((token) =>
+              [...token.getClientRects()].some((rect) => {
+                const match =
+                  e.clientX >= rect.left &&
+                  e.clientX <= rect.right &&
+                  e.clientY >= rect.top &&
+                  e.clientY <= rect.bottom;
+                if (match) hitRect = rect;
+                return match;
+              }),
+            );
+            if (at >= 0 && onAttachmentClick) {
+              e.preventDefault();
+              onAttachmentClick(at, hitRect);
+            }
+          }}
           onKeyDown={(e) => {
 						if (composing || e.nativeEvent.isComposing || e.keyCode === 229) return;
             onKeyDown?.(e);

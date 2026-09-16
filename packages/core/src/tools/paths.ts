@@ -22,11 +22,19 @@ function contains(root: string, absolute: string): boolean {
  * and what it worked around by reaching for an MCP filesystem server instead. Only the scratch
  * subtree is opened up: `~/.lyra` itself still holds settings and transcripts, and stays shut.
  */
-export function resolveWorkspacePath(cwd: string, input: string): string {
+export function resolveWorkspacePath(
+	cwd: string,
+	input: string,
+	allowedPaths?: ReadonlySet<string> | readonly string[],
+): string {
 	if (!input || typeof input !== "string") throw new Error("A path is required.");
 	const expanded = input.startsWith("~/") ? input.replace("~", home()) : input;
 	const absolute = isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
 	if (contains(cwd, absolute) || contains(scratchHome(lyraHome()), absolute)) return absolute;
+	if (allowedPaths) {
+		const allowed = allowedPaths instanceof Set ? allowedPaths : new Set(allowedPaths);
+		if (allowed.has(absolute)) return absolute;
+	}
 	throw new Error(`Path escapes the workspace root (${cwd}): ${input}`);
 }
 

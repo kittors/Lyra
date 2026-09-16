@@ -114,11 +114,10 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 			 * 展开之后：限高、可滚、等宽字。
 			 *
 			 * 中转的错误体动辄一整页 JSON。铺开在转录里会把上面的对话推出屏幕，所以给它一个盒子
-			 * 待着——十行的高度，超出的部分自己滚，`overscroll-contain` 免得滚到底之后顺手把整
-			 * 条转录也带着走。
+			 * 待着——十行的高度，超出的部分自己滚。
 			 */}
 			{open && hiccup.detail && (
-				<pre className="max-h-[10lh] overflow-y-auto overscroll-contain rounded-lg bg-input px-2.5 py-2 text-detail leading-relaxed whitespace-pre-wrap text-ink-faint">
+				<pre className="max-h-[10lh] overflow-y-auto overscroll-auto rounded-lg bg-input px-2.5 py-2 text-detail leading-relaxed whitespace-pre-wrap text-ink-faint">
 					{hiccup.detail}
 				</pre>
 			)}

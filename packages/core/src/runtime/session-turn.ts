@@ -14,7 +14,7 @@ import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memo
 import { gatherMemory } from "./memory-inject.ts";
 import { platform } from "node:os";
 import { access } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
 import type { AgentRunConfig } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
@@ -33,7 +33,7 @@ import type {
 	StreamEvent,
 	ThinkingLevel,
 } from "../types.ts";
-import { droppedMessage, lastRequest, summaryMessages } from "./compaction.ts";
+import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
@@ -54,6 +54,7 @@ import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
+import { isIsolatedWorktree } from "./workspace.ts";
 
 export interface TurnInputs {
 	cwd: string;
@@ -198,7 +199,7 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 		return [droppedMessage(standing), ...tail];
 	}
 
-	const head = summaryMessages(boundary.summary, lastRequest(older), provider, model);
+	const head = summaryMessages(boundary.summary, lastRequest(older), provider, model, filesSeen(older));
 	const at = boundary.at ?? Math.max(0, ...tail.map((message) => message.timestamp));
 	return [...head.map((message) => ({ ...message, timestamp: at })), ...tail];
 }
@@ -242,6 +243,31 @@ function delegationDecision(input: TurnInputs): DelegationDecision {
 	}
 	return { tier, mentioned: [...mentioned] };
 }
+/**
+ * 用户拖进来的、工作区之外的文件——这一轮可以读它们。
+ *
+ * 只喂给读的那一侧（`read`、`ls`）。写和改不吃这份集合，理由写在 `tools/write.ts` 里：拖一个文件
+ * 进来的意思是让模型看它，不是把它交出去。
+ *
+ * **只认绝对路径**。`MessageAttachment.path` 的类型注释写得很清楚，它是发送时记下的展示用元数据
+ * （「Not a promise that the file is still there」），从来不是按权限凭证设计的——而它现在是一个了。
+ * 相对路径在这里没有意义：它会被 `resolve()` 按**当前进程**的工作目录补全，而那跟会话的 `cwd` 不是
+ * 一回事，补出来的东西谁也没打算授权。宁可少认一条，也不要凭一段没人校验过的字符串放行。
+ */
+function collectAllowedPaths(messages: readonly Message[]): Set<string> | undefined {
+	let paths: Set<string> | undefined;
+	for (const message of messages) {
+		if (message.role !== "user" || !message.attachments) continue;
+		for (const attachment of message.attachments) {
+			if (typeof attachment.path !== "string" || !attachment.path) continue;
+			if (!isAbsolute(attachment.path)) continue;
+			paths ??= new Set<string>();
+			paths.add(resolve(attachment.path));
+		}
+	}
+	return paths;
+}
+
 
 async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig; systemPrompt: string }> {
 	const { cwd, can, log, settings } = input;
@@ -301,6 +327,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			platform: platform(),
 			modelName: input.model.name,
 			isGitRepo: await pathExists(join(cwd, ".git")),
+			isolatedWorktree: await isIsolatedWorktree(cwd),
 			scratchDir: input.scratchDir,
 				rules: can.rules,
 				resources: can.resources.schemes(),
@@ -349,6 +376,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			ruleMonitor: can.ruleMonitor,
 			resources: can.resources,
 			scratchDir: input.scratchDir,
+			allowedPaths: collectAllowedPaths(log.messages),
 			// Where anything this turn delegates registers itself, so it can be watched and steered.
 			subAgents: input.subAgents,
 			signal: input.signal,

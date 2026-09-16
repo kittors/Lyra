@@ -23,6 +23,10 @@ export { FADE_TOP } from "./fade.ts";
  *
  * `overscroll-contain` keeps a wheel that reaches the end here rather than passing it to the
  * window behind — a nested list would otherwise scroll its parent as soon as it bottomed out.
+ *
+ * For surfaces embedded inside an outer scroller (e.g. tool cards, error logs, or code outputs
+ * in a transcript), `overscroll="auto"` allows natural scroll chaining once the inner content
+ * is scrolled to the boundary.
  */
 export function Scroller({
 	children,
@@ -30,6 +34,7 @@ export function Scroller({
 	contentClassName = "",
 	top = "fade",
 	bottom = "fade",
+	overscroll = "contain",
 	onScroll,
 	onResize,
 	onUserScroll,
@@ -39,6 +44,7 @@ export function Scroller({
 	children: React.ReactNode;
 	className?: string;
 	contentClassName?: string;
+	overscroll?: "contain" | "auto" | "none";
 	/**
 	 * How the top edge ends.
 	 *
@@ -281,9 +287,20 @@ export function Scroller({
 				 * clipping here is what lets it. A reading column has no meaning off to the right —
 				 * anything genuinely wider than the window is wide *inside* its own box.
 				 */
-				className={`ly-scroll-view min-h-0 flex-auto overflow-x-hidden overflow-y-auto overscroll-contain ${
-					fades ? "ly-fade-y" : ""
-				} ${contentClassName}`}
+				className={`ly-scroll-view min-h-0 flex-auto overflow-x-hidden overflow-y-auto ${
+					overscroll === "auto" ? "overscroll-auto" : overscroll === "none" ? "overscroll-none" : "overscroll-contain"
+				/*
+				 * `ly-fade-y`，不是 `ly-scroll-fade`——后者没有对应的 CSS 规则。
+				 *
+				 * 上面那个 `style` 只写 `--ly-fade-top` 和 `--ly-fade-bottom` 两个变量，而遮罩本身
+				 * 读不到它们：`.ly-fade-y`（`styles/scroll.css`）先把这两个变量派生成四个，`mask-image`
+				 * 只认那四个。类名一改，变量照样写得出去，遮罩规则却不再命中，于是每一个带渐隐的滚动面
+				 * ——转录、侧栏、设置页、浮层——上下边缘都是硬切。
+				 *
+				 * 没有任何检查拦得住这个：类名是字符串，typecheck 和 lint 都不看它。
+				 */
+				} ${fades ? "ly-fade-y" : ""} ${contentClassName}`}
+				tabIndex={-1}
 				style={
 					fades
 						? ({

@@ -111,3 +111,55 @@ test("上一轮的过程不会被当成这一轮的", () => {
 	assert.equal(processes.length, 2);
 	assert.notEqual(processes[0].turn, processes[1].turn, "两轮各归各的，否则旧的那段会跟着新的一起摊开");
 });
+
+/*
+ * 一轮里塞进几百个 Run，它们收成**一个**块——这就是「显示更早」曾经点了没反应的成因。
+ *
+ * 转录的分页窗口从前按 Run 走（那是当时唯一控得住渲染量的闸门），而画出来的单位是块。真实会话里
+ * 用户两次发言之间跑过 400 次工具调用，于是往前翻 60 个 Run 时，那 60 个全落进下面这个已经收起的
+ * 块——屏幕上唯一的变化是「调用工具 N 个」那行数字。连点四次，转录一动不动（2026-09-15 的录屏）。
+ *
+ * 窗口现在按块走（`Conversation.tsx` 的 `allBlocks`），所以翻一次必然多出整块、必然看得见。这条
+ * 测试钉的是那个成因本身：只要一轮还能收成一个块，按 Run 分页就一定会退化，谁想改回去都得先过它。
+ */
+test("hundreds of runs between two questions still collapse into a single block", () => {
+	const long: Run[] = [ask("查一下这个问题", 0)];
+	for (let i = 0; i < 200; i++) {
+		long.push(think(i * 2 + 1), work(2));
+	}
+	long.push(ask("那彻底修一下", 401));
+
+	const blocks = turnBlocks(long);
+	const process = blocks.filter((block) => block.kind === "process");
+
+	assert.equal(process.length, 1, "两次发言之间的一切收成一个过程块——这正是按 Run 翻页会失效的原因");
+	assert.ok(process[0].runs.length > 300, `那一个块里装着 ${process[0].runs.length} 个 Run`);
+
+	/*
+	 * 而按块分页时，同样这段历史往前翻一步必然多出可见的块。
+	 *
+	 * 拿 `slice` 直接比，是因为组件里就是这么切的（`allBlocks.slice(range.start, range.end)`）——
+	 * 这里比的不是 `slice` 会不会工作，是「切的是块不是 Run」这个决定还在不在。
+	 */
+	assert.ok(blocks.length >= 3, "开头的问题、中间的过程、末尾的问题，至少三块");
+	assert.ok(
+		blocks.slice(blocks.length - 3).length > blocks.slice(blocks.length - 1).length,
+		"往前翻一步就多出块",
+	);
+});
+
+/*
+ * 窗口切的是块，不是 Run——这个决定写在组件里，没有可以单独调用的函数，所以只能对着源码钉。
+ *
+ * 换个写法就退回原样了，而且退回去之后没有任何测试会红：`turnBlocks` 照常工作、`slice` 照常工作，
+ * 只有屏幕上不对。那正是这个 bug 活到今天的方式。
+ */
+test("the transcript window pages by block, not by run", async () => {
+	const { readFile } = await import("node:fs/promises");
+	const source = await readFile(new URL("../src/features/conversation/Conversation.tsx", import.meta.url), "utf8");
+
+	assert.match(source, /useTranscriptWindow\([^)]*allBlocks\.length\)/, "窗口的总数要按块算");
+	assert.match(source, /allBlocks\.slice\(range\.start, range\.end\)/, "切的要是块");
+	assert.ok(!/allRuns\.slice\(range/.test(source), "切 Run 就是那个「点了没反应」的写法");
+	assert.match(source, /turnBlocks\(allRuns\)/, "要先分块再开窗，顺序反过来等于没改");
+});

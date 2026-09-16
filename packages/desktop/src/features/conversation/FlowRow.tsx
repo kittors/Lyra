@@ -16,7 +16,6 @@
  * 陪着它——同一件事说两遍，就是长任务让人觉得吵的原因。
  */
 
-import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function FlowRow({
@@ -82,8 +81,6 @@ export function FlowRow({
 				</span>
 			)}
 			{trailing && <span className="ly-flow-trail">{trailing}</span>}
-			{/* 展开箭头在最右边——它说的是「点开还是收起」，和前面那个图标是两件事。 */}
-			{expandable && <ChevronRight size={12} strokeWidth={2} className="ly-flow-chevron" />}
 		</>
 	);
 

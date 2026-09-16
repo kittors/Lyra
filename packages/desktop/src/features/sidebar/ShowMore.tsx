@@ -15,8 +15,8 @@ import { RollingText } from "../../ui/motion/RollingText.tsx";
  * same reason: forty rows under one heading is a wall, and the way back from it used to be a
  * single 收起 that threw away however far you had read.
  *
- * Indented to where the titles start, so it reads as part of the list it pages rather than as a
- * control belonging to the pane.
+ * Indented so its icon aligns with the session status icons above it (pl-2 and 14px slot),
+ * with the title starting at 30px to align with session titles.
  */
 export function ShowMore({
 	hidden,
@@ -33,43 +33,70 @@ export function ShowMore({
 	const { compact } = useLayout();
 	if (hidden <= 0 && !canCollapse) return null;
 
-	return (
-		<div /*
-			 * 30px, not a Tailwind step: it lines this row's text up with the session titles above it,
-			 * which sit at the dot's left edge plus the dot's own 14px plus the 8px gap. Every one of
-			 * those is fixed, so the sum is too.
-			 */
-			className={`flex items-center gap-3 pl-[30px] ${compact ? "h-[32px]" : "h-[26px]"}`}>
-			{hidden > 0 && (
-				<button
-					type="button"
-					data-ly-tip={translate("showMore.expand", { n: hidden })}
-					aria-label={translate("showMore.expand", { n: hidden })}
-					onClick={onShowMore}
-					className="flex items-center gap-1 text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
-				>
-					{/*
-					 * 数字留着，「还有…条」进 tooltip。
-					 *
-					 * 剩几条是这一行存在的理由——一个光秃秃的箭头说不出「还有 37 条」和「还有 2 条」
-					 * 的差别，而那正是决定要不要按的东西。滚动效果也留在数字上，它本来就是为数字做的：
-					 * 按一下，37 滚成 32。
-					 */}
+	const heightClass = compact ? "h-[34px]" : "h-[27px]";
+
+	if (hidden > 0 && !canCollapse) {
+		return (
+			<button
+				type="button"
+				onClick={onShowMore}
+				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted active:bg-elevated ${heightClass}`}
+			>
+				{/*
+				 * The 14px (h-3.5 w-3.5) icon slot preceded by pl-2 perfectly mirrors SessionRow,
+				 * ensuring the chevron is horizontally centered with the session status dots above.
+				 */}
+				<span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
 					<ChevronDown size={12} strokeWidth={2} aria-hidden />
-					<RollingText>{String(hidden)}</RollingText>
-				</button>
-			)}
-			{canCollapse && (
-				<button
-					type="button"
-					data-ly-tip={translate("common.collapse")}
-					aria-label={translate("common.collapse")}
-					onClick={onCollapse}
-					className="grid h-[18px] w-[18px] place-items-center rounded text-ink-faint transition-colors hover:text-ink-muted"
-				>
+				</span>
+				<span className="truncate text-detail text-ink-faint tabular-nums transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
+					<RollingText rollKey={hidden}>{translate("showMore.expand", { n: hidden })}</RollingText>
+				</span>
+			</button>
+		);
+	}
+
+	if (hidden <= 0 && canCollapse) {
+		return (
+			<button
+				type="button"
+				onClick={onCollapse}
+				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted active:bg-elevated ${heightClass}`}
+			>
+				<span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
 					<ChevronUp size={12} strokeWidth={2} aria-hidden />
-				</button>
-			)}
+				</span>
+				<span className="truncate text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
+					{translate("common.collapse")}
+				</span>
+			</button>
+		);
+	}
+
+	return (
+		<div className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
+			<button
+				type="button"
+				onClick={onShowMore}
+				className="group/more flex min-w-0 flex-1 items-center gap-2 rounded-lg pl-2 pr-1.5 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted"
+			>
+				<span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
+					<ChevronDown size={12} strokeWidth={2} aria-hidden />
+				</span>
+				<span className="truncate text-detail text-ink-faint tabular-nums transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
+					<RollingText rollKey={hidden}>{translate("showMore.expand", { n: hidden })}</RollingText>
+				</span>
+			</button>
+			<button
+				type="button"
+				data-ly-tip={translate("common.collapse")}
+				aria-label={translate("common.collapse")}
+				onClick={onCollapse}
+				className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-caption text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted"
+			>
+				<ChevronUp size={12} strokeWidth={2} aria-hidden />
+				<span>{translate("common.collapse")}</span>
+			</button>
 		</div>
 	);
 }

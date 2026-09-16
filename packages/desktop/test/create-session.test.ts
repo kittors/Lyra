@@ -129,3 +129,29 @@ test("a reference-only opening uses its label and persists both same-title targe
 		assert.equal(message.displayText, "");
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
+
+/*
+ * 附件里的 `path` 是一张通行证，所以它认发证的人。
+ *
+ * 那个字段进了会话之后被 `runtime/session-turn.ts` 的 `collectAllowedPaths` 收成「这一轮可以读的
+ * 工作区外文件」。本机那份是用户自己在输入框里拖进来的，正是它的用途；远端那份是一串可以随便编的
+ * 字符串，而手机那一侧本来是被 `phoneProjectPath` 和一批 `remote: false` 的契约锁住的。
+ */
+test("an attachment path from a paired client is dropped, the local one is kept", () => {
+	const attachment = { name: "notes.txt", path: "/Users/someone/.ssh/id_rsa" };
+
+	const local = promptOptions({ attachments: [attachment] });
+	assert.equal(local.attachments?.[0].path, "/Users/someone/.ssh/id_rsa", "本机拖进来的照旧带着");
+
+	const remote = promptOptions({ attachments: [attachment] }, "remote");
+	assert.equal(remote.attachments?.[0].path, undefined, "远端给的路径不作数");
+	assert.equal(remote.attachments?.[0].name, "notes.txt", "但附件本身还在，气泡上照样看得见");
+});
+
+test("the same rule covers a session opened by a paired client", () => {
+	// `sessions.create` 的 `initial` 走的是同一条 `presentation()`，堵一个不堵另一个等于没堵。
+	const initial = { content: [{ type: "text", text: "看看这个" }], attachments: [{ name: "a", path: "/etc/passwd" }] };
+
+	assert.equal(initialPrompt(initial)?.attachments?.[0].path, "/etc/passwd");
+	assert.equal(initialPrompt(initial, "remote")?.attachments?.[0].path, undefined);
+});

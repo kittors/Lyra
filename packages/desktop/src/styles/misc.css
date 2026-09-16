@@ -478,33 +478,51 @@ textarea.ly-composer-text[data-highlighted="true"] {
 /*
  * 底色画在这一层上，不在整枚标记上。
  *
- * 收尾那个方括号留在外面：两个方括号都是透明的占位，但左边那个底下画着图标、右边那个是纯空白，
- * 都包进去的话右侧就凭空多出一整个字符的留白，和左边对不齐——客户一眼看出来的就是这个。包到名字
- * 为止之后标签自身是对称的，而右边那一格空白正好成了它和后面那句话之间的间隔。
- *
- * 左右的内边距靠负外边距抵掉，所以净宽度一个像素没变：这一层是铺在 textarea 上的镜像，多占一点
- * 后面整段字就错位了。上下的不必抵——行内元素的垂直内边距本来就不参与行盒的高度。
+ * 输入框里整枚标记包括首尾透明方括号都在 `.ly-token-body` 内：
+ * 左侧方括号承载绝对定位图标，右侧方括号提供天然微距，胶囊背景完整包裹标记。
+ * 行内元素的垂直内边距不参与行盒高度计算，水平内边距保持为 0，完全保持与 textarea 逐字符对齐。
  */
 /*
  * 气泡里那一枚没有这层壳，底色直接上在标记本身。
  *
- * 两边的结构不一样：输入框那边是镜像层，方括号必须留着占位，所以底色只能包到名字为止（见上）；气
- * 泡里渲染的是名字本身，没有方括号，整枚就是名字。而底色一度只写在这层壳上——于是发出去之后那枚标
- * 记只剩图标和一行字，底没了，看着就不再是一枚标记了。
+ * 两边的结构不一样：输入框那边是镜像层，方括号必须留着占位；气泡里渲染的是名字本身，没有方括号，整枚就是名字。
  */
-.ly-token-body,
-.ly-user-bubble .ly-attachment-token {
-  padding: 2px 0.22em;
-  margin: 0 -0.22em;
+.ly-token-body {
+  padding: 2px 0;
+  margin: 0;
   border-radius: 5px;
   background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
   /* 换行时两截各自带圆角，而不是中间被切开一刀。 */
   box-decoration-break: clone;
+  transition: background-color var(--ly-t-quick) var(--ly-e-soft);
+}
+
+.ly-user-bubble .ly-attachment-token {
+  padding: 2px 6px;
+  margin: 0 1px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
+  box-decoration-break: clone;
+  transition: background-color var(--ly-t-quick) var(--ly-e-soft);
+}
+
+.ly-attachment-token[data-hovered] .ly-token-body,
+.ly-user-bubble .ly-attachment-token:hover {
+  background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
+}
+
+.ly-user-bubble .ly-attachment-token {
+  cursor: pointer;
 }
 
 :root.dark .ly-token-body,
 :root.dark .ly-user-bubble .ly-attachment-token {
   background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
+}
+
+:root.dark .ly-attachment-token[data-hovered] .ly-token-body,
+:root.dark .ly-user-bubble .ly-attachment-token:hover {
+  background: color-mix(in srgb, var(--color-ink-faint) 34%, transparent);
 }
 
 /*
@@ -560,17 +578,6 @@ textarea.ly-composer-text[data-highlighted="true"] {
   background: var(--ly-glyph) center / contain no-repeat;
 }
 
-/*
- * 气泡里那几枚可以有真的左右内边距，图标也可以是真的行内元素。
- *
- * 输入框那一层是镜像：左右留白只能靠透明的方括号顶，图标只能绝对定位画在那个方括号上，因为任何占
- * 宽度的东西都会让后面整段字错位。这边没有那个约束——渲染的是名字本身，不必和任何字符对齐。数值调
- * 到和那边看起来一样。
- */
-.ly-user-bubble .ly-attachment-token {
-  padding: 2px 6px;
-  margin: 0 1px;
-}
 
 .ly-user-bubble .ly-attachment-token[data-kind]::before {
   content: "";

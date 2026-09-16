@@ -37,6 +37,7 @@ import type { SubAgentRegistry } from "./sub-agents.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import type { TurnContext } from "./turn.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
+import { RepetitionWatch } from "../agent/repetition.ts";
 
 export interface TurnConfigDeps {
 	sessionId: string;
@@ -81,6 +82,8 @@ export interface TurnConfigDeps {
 	resources?: AgentRunConfig["resources"];
 	/** Where `scratch://` writes for this session. */
 	scratchDir?: string;
+	/** Specific files outside the workspace explicitly granted to this turn. */
+	allowedPaths?: ReadonlySet<string>;
 }
 
 export function buildTurnConfig(
@@ -132,6 +135,14 @@ export function buildTurnConfig(
 			sandboxNetwork: deps.settings.denyCommandNetwork ? "deny" : "allow",
 			allowedHosts: deps.settings.allowedHosts,
 			/*
+			 * 一只表，一条续跑链。
+			 *
+			 * 在这里建，而不是让 `runAgent` 自己建：续跑是拿同一份 config 再调一次 `runAgent`
+			 * （`runtime/session-turn.ts`），共用这只表，跑满两百轮攒下的观察才不会在续跑时清零。
+			 */
+			repetition: new RepetitionWatch(),
+			allowedPaths: deps.allowedPaths,
+			/*
 			 * Queued rather than run on demand.
 			 *
 			 * A model asked to look at eight things dispatches eight, which is a reasonable thought
@@ -168,6 +179,7 @@ export function buildTurnConfig(
 							 */
 							gate,
 							dispatch: rootDispatch(),
+							allowedPaths: deps.allowedPaths,
 						},
 						input,
 						deps.provider,

@@ -177,7 +177,7 @@ test("expanded history and disclosures return at the same reading position", asy
 		open: boolean;
 	}>(`(async () => { ${UI}
 		await open("scroll-a");
-		const earlier = [...document.querySelectorAll(".ly-transcript > button")].find(b => ${named("显示更早", "starts", "b")});
+		const earlier = [...document.querySelectorAll(".ly-transcript button")].find(b => ${named("显示更早", "starts", "b")});
 		if (!earlier) throw new Error("fixture must have hidden history");
 		earlier.click();
 		document.querySelector('main [data-ly-thinking] > button').click();

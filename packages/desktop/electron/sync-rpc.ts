@@ -176,11 +176,12 @@ export const RPC: Record<string, Handler> = {
 	"sessions.fork": async (deps, [projectId, sessionId, seq]) =>
 		forkSession(deps.store(), s(projectId), s(sessionId), Number(seq)),
 	"sessions.create": async (deps, [cwd, modelId, initial]) =>
-		deps.create(s(cwd), s(modelId), initialPrompt(initial)),
+		// "remote"：对面递来的附件路径不作数，见 `prompt-input.ts` 的 `PromptOrigin`。
+		deps.create(s(cwd), s(modelId), initialPrompt(initial, "remote")),
 
 	// -- Driving a turn --------------------------------------------------------
 	"agent.prompt": async (deps, [sessionId, content, options]) =>
-		deps.prompt(s(sessionId), promptContent(content), promptOptions(options)),
+		deps.prompt(s(sessionId), promptContent(content), promptOptions(options, "remote")),
 	"agent.abort": async (deps, [sessionId]) => {
 		await deps.abort(s(sessionId));
 		return null;
@@ -212,7 +213,7 @@ export const RPC: Record<string, Handler> = {
 	 * 是「怎么发出去」，由这一次编辑自己决定，不该由对面说了算。
 	 */
 	"agent.editMessage": async (deps, [sessionId, index, content, options]) => {
-		const { displayText, attachments } = promptOptions(options);
+		const { displayText, attachments } = promptOptions(options, "remote");
 		return deps.editMessage(s(sessionId), Number(index), promptContent(content), {
 			...(displayText === undefined ? {} : { displayText }),
 			...(attachments === undefined ? {} : { attachments }),

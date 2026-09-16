@@ -579,12 +579,12 @@ function ScopeTab({
 			type="button"
 			aria-pressed={active}
 			onClick={onClick}
-			className={`flex h-[28px] items-center gap-1.5 rounded-lg px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
+			className={`flex h-[28px] items-center gap-1.5 rounded-lg px-2.5 text-label whitespace-nowrap transition-colors duration-[var(--ly-t-quick)] ${
 				active ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
 			}`}
 		>
 			{children}
-			<span className="text-detail text-ink-faint tabular-nums">{count}</span>
+			<span className="shrink-0 text-detail text-ink-faint tabular-nums">{count}</span>
 		</button>
 	);
 }

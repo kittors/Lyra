@@ -389,7 +389,20 @@ export interface LyraApi {
 	 */
 	format: {
 		/** Format via the language's own tool. See `electron/format-external.ts` for the outcomes. */
-		external(extension: string, source: string): Promise<ExternalFormatResult>;
+		/**
+		 * 用内置引擎排这门语言，内置引擎没有的才去找这台机器上的二进制。
+		 */
+		external(
+			extension: string,
+			source: string,
+			options?: {
+				tabWidth: number;
+				useTabs: boolean;
+				printWidth: number;
+				semi?: boolean;
+				singleQuote?: boolean;
+			},
+		): Promise<ExternalFormatResult>;
 		/** Whether any external tool is even conceivable for this extension. */
 		available(extension: string): Promise<boolean>;
 		/**
@@ -1120,6 +1133,17 @@ export interface LyraApi {
 			lessons: { text: string; context?: string; at: number; lastInjectedAt?: number }[];
 			extracted: { text: string; updatedAt?: number; lastInjectedAt?: number } | null;
 		}>;
+		/**
+		 * 忘掉一条，按它的写入时间认人。
+		 *
+		 * 用 `at` 而不是正文：`recordLesson` 会把措辞相近的两条合成一条，正文相同是可能的，
+		 * 时间戳相同不会。返回它是不是真的在那儿——两个窗口开着同一个项目就够产生「已经没了」。
+		 */
+		forget(cwd: string, at: number): Promise<boolean>;
+		/** 丢掉后台抽取出来的那一份（`MEMORY.md`）。下一次抽取会重新写。 */
+		forgetExtracted(cwd: string): Promise<boolean>;
+		/** 这个项目的全部记忆，一次清空。 */
+		forgetAll(cwd: string): Promise<void>;
 	};
 	diff: {
 		/** Uncommitted changes for the review panel. */

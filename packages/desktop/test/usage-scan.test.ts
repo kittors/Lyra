@@ -276,4 +276,21 @@ describe("scanUsage", () => {
 		const scan = await scanUsage(home);
 		assert.equal(scan.scanned, 1);
 	});
+
+	it("side-chat auxiliary usage is recorded as auxiliary spend without inflating message count", async () => {
+		const line = `${JSON.stringify({
+			seq: 1,
+			ts: AT,
+			type: "usage",
+			source: "side-chat",
+			providerId: "relay",
+			modelId: "gemini-3.7",
+			usage: { input: 300, output: 50, cacheRead: 200, cacheWrite: 0, reasoning: 0, total: 350 },
+		})}\n`;
+		await writeFile(log("s1"), line);
+		const scan = await scanUsage(home);
+		assert.equal(scan.days[0].messages, 0, "auxiliary usage does not count as conversational message");
+		assert.equal(scan.buckets[0].input, 300);
+		assert.equal(scan.buckets[0].cacheRead, 200);
+	});
 });

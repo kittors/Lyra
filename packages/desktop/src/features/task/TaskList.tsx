@@ -6,6 +6,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store/index.ts";
+import { carryOnPrompt } from "../../store/derive.ts";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
 
 /**
@@ -57,7 +58,7 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 			: {
 						icon: Play,
 						label: t("taskList.resume"),
-						run: () => void send([{ type: "text", text: t("taskList.resumeDetail") }], { synthetic: true, carryOn: true }),
+						run: () => void send([{ type: "text", text: carryOnPrompt(null, todos.filter((todo) => todo.status !== "completed").length) ?? t("taskList.resumeDetail") }], { synthetic: true, carryOn: true }),
 					};
 
 	const [open, setOpen] = useState(false);
@@ -159,7 +160,7 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 				aria-hidden={!open}
 			>
 				<div className="border-t border-line-soft">
-					<Scroller className="max-h-[min(280px,38vh)]" contentClassName="px-1.5 py-1.5">
+					<Scroller className="max-h-[min(280px,38vh)]" contentClassName="px-1.5 py-1.5" overscroll={placement === "inline" ? "auto" : "contain"}>
 						{todos.map((todo, index) => (
 							<Row
 								key={`${index}-${todo.content}`}

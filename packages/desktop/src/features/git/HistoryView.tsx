@@ -189,7 +189,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
                     <Text size="caption" tone="faint" mono>
                       {commit.shortSha}
                     </Text>
-                    <Text size="caption" tone="faint" className="truncate">
+                    <Text size="caption" tone="faint" className="truncate whitespace-nowrap">
                       {commit.author} · {relativeTime(commit.date)}
                     </Text>
                   </span>

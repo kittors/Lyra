@@ -67,7 +67,8 @@ import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { registerFormatIpc } from "./ipc/format.ts";
-import { rescueLegacyWorkspaces } from "./scratch.ts";
+import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
+import { resolveWorktreesRoot } from "./git-worktrees.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
 import { createKeepAwake, installKeepAwake } from "./keep-awake.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
@@ -183,18 +184,28 @@ const BROWSER_PARTITION = "persist:ly-browser";
  * 的话 `relative()` 会算出一串 `../..`，新建、重命名、删除、复制粘贴全被判在项目之外，而且判完
  * 一声不吭。`file-read-service.ts` 早就在读文件那条路上这么做了，这里补上其余的门。
  */
+/**
+ * All directories the desktop treats as legitimate workspaces:
+ * explicitly opened projects, scratch/session workspaces, and managed git worktrees.
+ */
+function allowedRoots(): string[] {
+	const projectPaths = (settings?.projects ?? []).map((project) => project.path);
+	const worktreeRoot = resolveWorktreesRoot(settings?.worktrees?.rootDir);
+	return [...projectPaths, ...scratchRoots(), worktreeRoot];
+}
+
 function projectPath(target: string): string | null {
-	return resolveInside(canonicalPath(target), (settings?.projects ?? []).map((project) => canonicalPath(project.path)));
+	return resolveInside(canonicalPath(target), allowedRoots().map((root) => canonicalPath(root)));
 }
 
 /**
- * Which open project a path belongs to, or null if none of them.
+ * Which workspace root a path belongs to, or null if none of them.
  *
  * `projectPath` answers whether a path is allowed; this answers where it lives, which is what
  * anything walking upward through directories needs in order to know when to stop.
  */
 function projectRoot(target: string): string | null {
-	const roots = (settings?.projects ?? []).map((project) => canonicalPath(project.path));
+	const roots = allowedRoots().map((root) => canonicalPath(root));
 	return containingRoot(canonicalPath(target), roots);
 }
 
@@ -547,9 +558,8 @@ function bindScreenshotShortcut(): void {
 	 */
 	registerPreviewProtocols({
 		browserPartition: BROWSER_PARTITION,
-		resolveMedia: (target) => resolveReadablePath(target, (settings?.projects ?? []).map((project) => project.path)),
+		resolveMedia: (target) => resolveReadablePath(target, allowedRoots()),
 	});
-
 	// Clear out sessions that were reserved and never used — including any left over from
 	// when clicking "新对话" created one up front.
 	const pruned = await store.pruneEmpty().catch(() => 0);
@@ -786,7 +796,7 @@ function registerIpc(): void {
 
 	registerSideChatIpc();
 
-	registerFilesIpc({ projectRoots: () => (settings?.projects ?? []).map((project) => project.path) });
+	registerFilesIpc({ projectRoots: () => allowedRoots() });
 	registerFileOpsIpc({ projectPath });
 	registerFormatIpc({ projectPath, projectRoot });
 

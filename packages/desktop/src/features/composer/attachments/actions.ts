@@ -13,8 +13,10 @@ import { abilitiesOf, type Abilities } from "./display.ts";
 import { parentOf } from "../../../lib/paths.ts";
 import { bridge } from "../../../services/index.ts";
 import { useApp } from "../../../store/index.ts";
-import { useI18n } from "../../../i18n/index.ts";
+import { useI18n } from "../../../i18n/context.tsx";
 import { useOpenTarget } from "../../../store/open-targets.ts";
+
+/** 动作要认识这份附件的哪几件事。 */
 
 /** 动作要认识这份附件的哪几件事。 */
 interface ActionTarget {
@@ -23,7 +25,14 @@ interface ActionTarget {
 	path?: string;
 }
 
-export interface AttachmentActions {
+interface OpenTargetOption extends ActionTarget {
+	src?: string;
+	mimeType?: string;
+	isImage?: boolean;
+	onPreviewImage?: (originRect?: DOMRect) => void;
+	onOpenFile?: (path: string, name: string) => void;
+}
+interface AttachmentActions {
 	/** 这一份在这台机器上能被怎么处置。 */
 	abilities(path: string | undefined): Abilities;
 	/** 「用什么打开」当前指向的那个应用，标签由 `openLabel` 给。 */
@@ -44,6 +53,10 @@ export interface AttachmentActions {
 	ensureThere(file: ActionTarget): Promise<boolean>;
 	/** 路径进剪贴板。 */
 	copyPath(file: ActionTarget): void;
+	/**
+	 * 打开或预览附件：图片走预览，项目内文件走编辑器，其他有路径的在访达/文件资源管理器中打开所在文件夹并定位。
+	 */
+	openOrPreview(target: OpenTargetOption, originRect?: DOMRect): void;
 }
 
 export function useAttachmentActions(): AttachmentActions {
@@ -98,6 +111,29 @@ export function useAttachmentActions(): AttachmentActions {
 				// 复制不碰磁盘，所以这一个不必先问文件还在不在：人要的就是那串字。
 				void bridge.clipboard.write(file.path);
 				useApp.getState().notify(t("attachment.pathCopied"), "info");
+			},
+			openOrPreview: (targetItem, originRect) => {
+				if (targetItem.isImage || targetItem.src || targetItem.mimeType?.startsWith("image/")) {
+					if (targetItem.onPreviewImage) {
+						targetItem.onPreviewImage(originRect);
+						return;
+					}
+				}
+				const { onDisk, inProject } = abilitiesOf(targetItem.path, roots);
+				if (inProject && targetItem.path) {
+					const filename = targetItem.name || targetItem.path.split(/[\\/]/).pop() || targetItem.path;
+					if (targetItem.onOpenFile) {
+						targetItem.onOpenFile(targetItem.path, filename);
+						return;
+					}
+				}
+				if (onDisk && targetItem.path) {
+					void withFile(targetItem, (filePath) => bridge.system.openIn("reveal", filePath));
+					return;
+				}
+				if (targetItem.onPreviewImage) {
+					targetItem.onPreviewImage(originRect);
+				}
 			},
 		}),
 		[roots, target, withFile, t],

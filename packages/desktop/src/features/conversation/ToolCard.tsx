@@ -177,7 +177,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 									mono
 									tone={status === "error" ? "danger" : "muted"}
 								>
-									<Scroller className="max-h-[420px]">
+									<Scroller className="max-h-[420px]" overscroll="auto">
 										{resultText(result)}
 									</Scroller>
 								</Section>

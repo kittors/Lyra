@@ -85,6 +85,7 @@ const PARSERS: Record<string, { parser: string; plugins: string[] }> = {
 	 */
 	xml: { parser: "xml", plugins: ["xml"] },
 	svg: { parser: "xml", plugins: ["xml"] },
+	sql: { parser: "sql", plugins: ["sql"] },
 };
 
 /** Files whose name decides the parser, the same way `highlight.ts` handles its own. */
@@ -110,7 +111,7 @@ function loadPlugin(name: string): Promise<unknown> {
 		 * emits a request that fails at runtime in the packaged app. Written out, each one is a
 		 * chunk it can find and split.
 		 */
-		pending = (() => {
+		pending = (async () => {
 			switch (name) {
 				case "babel":
 					return import("prettier/plugins/babel");
@@ -129,12 +130,23 @@ function loadPlugin(name: string): Promise<unknown> {
 				case "graphql":
 					return import("prettier/plugins/graphql");
 				// Not under `prettier/plugins`: this ships as a package of its own.
-				case "xml":
-					return import("@prettier/plugin-xml");
+				case "xml": {
+					const mod = await import("@prettier/plugin-xml");
+					return (mod as { default?: unknown }).default ?? mod;
+				}
+				case "sql":
+					return import("sql-formatter");
 				default:
 					return Promise.reject(new Error(translate("format.unknownPlugin", { name })));
 			}
 		})();
+		/*
+		 * 存回去——这一行是这个 Map 唯一的写入点。
+		 *
+		 * 上一次改动（给 `xml` 分支加 `await`，顺手把这个函数改成 `async`）把它删掉了，于是
+		 * `loaded.get(name)` 永远落空：缓存还在，只是再也命中不了，每次格式化都重走一遍 switch。
+		 * 动态 `import()` 自己是幂等的，所以坏得很安静——没有任何检查会报它。
+		 */
 		loaded.set(name, pending);
 	}
 	return pending;
@@ -167,6 +179,17 @@ export function canFormat(path: string): boolean {
 export async function formatCode(path: string, source: string, options: FormatOptions): Promise<string | null> {
 	const entry = PARSERS[keyFor(path)];
 	if (!entry) return null;
+
+	if (entry.parser === "sql") {
+		const { format: formatSql } = (await loadPlugin("sql")) as {
+			format: (sql: string, cfg: Record<string, unknown>) => string;
+		};
+		return formatSql(source, {
+			tabWidth: options.tabWidth,
+			useTabs: options.useTabs,
+			linesBetweenQueries: 1,
+		});
+	}
 
 	const [{ format }, ...plugins] = await Promise.all([
 		import("prettier/standalone"),

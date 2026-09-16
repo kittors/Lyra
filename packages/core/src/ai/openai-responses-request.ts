@@ -78,6 +78,14 @@ function usableId(handle: string | undefined): string | undefined {
 const CONTINUE_FROM_HERE = "（自动追加）接着上面的进度继续。";
 
 /**
+ * 助手轮缺推理项时补上的那一句，理由见下面 `toResponsesInput` 里的补位分支。
+ *
+ * 只陈述「这一轮没有推理记录」这件事，不替它编一段想法：这段文本会进模型的上下文，而一段伪造的思考
+ * 比一个空位更能把它带偏。
+ */
+const SYNTHETIC_REASONING = "（自动追加）这一轮没有留下推理记录。";
+
+/**
  * 一轮里的多个工具调用怎么排：成组（所有调用，然后所有结果）还是交错（一问一答）。
  *
  * 两家要求相反，见 `tool-pairing-compat.ts`。这里只负责按给定的那一档编码，选哪一档是那边的事。
@@ -159,6 +167,8 @@ export function toResponsesInput(
 			/** 成组档里攒下的结果，等这一轮的调用全排完再一起放。交错档下始终为空。 */
 			const grouped: unknown[] = [];
 			const own = fromHome(message, home);
+			/** 这一轮的项从哪儿开始——轮排完之后要回头看它有没有以推理项开头。 */
+			const turnAt = input.length;
 
 			for (const c of message.content) {
 				if (c.type === "thinking") {
@@ -210,9 +220,21 @@ export function toResponsesInput(
 							 *
 							 *     The `reasoning_text` in the thinking mode must be passed back to the API.
 							 *
-							 * 有密文的时候端点认密文，这条分支一直没炸，所以这个缺口一直看不见；上游只给签名
-							 * 不给密文时（中转把 Responses 转译成别的协议时很常见）就露出来了。实测同时给
-							 * `content` 和 `summary` 不会被拒，所以这里补的是缺的那一半，不动本来就好的那条路。
+							 * 有密文的时候端点认密文，这条分支就不发文本；上游只给签名不给密文时（中转把
+							 * Responses 转译成别的协议时很常见）才发。
+							 *
+							 * 「有密文就够了」有一处已知的例外，写在这里免得下一个人重走一遍：`api.deepseek.com`
+							 * 回的 `encrypted_content` 是 38 个字符的 `{uuid}-0`，全部日志里 194 个块一个不差都是
+							 * 这个长度，而边上的思考最长 17178 字——它是个指向服务端自己那份的引用，不是载荷
+							 * （对照：Claude 和 Grok 的密文长度随推理长度走，204 到 12659 不等）。前缀缓存一冷，
+							 * 那个引用就什么也指不到，模型接不回自己那条思维链。
+							 *
+							 * **但那不是上面那句 400 的原因。** 这一点在真实端点上分离过：同一份被拒的请求，
+							 * 推理项带上 `content.reasoning_text` 和不带，两种都是 400；真正的原因是助手轮没有
+							 * 以推理项开头（见下面的补位分支，落盘在
+							 * `~/.lyra/scratch/deepseek-compaction-400.txt`）。所以这里维持不发——补发一份等于
+							 * 把每段推理在请求里放两遍（`summary` 已经有一份），长会话上是实打实的钱，而换回来
+							 * 的好处一个都没被证实过。要改它，先拿出「模型接得回思维链」的量法，别拿那句 400。
 							 */
 							...(!c.encrypted && c.thinking ? { content: [{ type: "reasoning_text", text: c.thinking }] } : {}),
 						});
@@ -298,6 +320,43 @@ export function toResponsesInput(
 					if (pairing === "interleaved") input.push(functionCallOutput(answer));
 					else grouped.push(functionCallOutput(answer));
 				}
+			}
+
+			/*
+			 * 这一轮一个推理项都没有——补一个，否则 `api.deepseek.com` 会把整个请求拒掉。
+			 *
+			 * 它在思考模式下要求**每个助手轮由一个推理项开头**，而它对这条的违反只有一句话可说：
+			 *
+			 *     The `reasoning_text` in the thinking mode must be passed back to the API.
+			 *
+			 * 一句听起来在讲某个字段、实际在讲位置的话。2026-09-15 在真实端点上分离过（落盘
+			 * `~/.lyra/scratch/deepseek-compaction-400.txt`，历史取自被它报废的那个会话压缩后的 18 条）：
+			 *
+			 *     原样（助手轮前面没有推理项）                    400
+			 *     在那条助手消息前插一个合成推理项                200
+			 *     把那条助手消息的角色换成 user                   200
+			 *     把那条助手消息整个删掉                          200
+			 *     推理项带不带 `content.reasoning_text`           两种都 400 —— 跟这个字段无关
+			 *
+			 * 最后一行是这条注释存在的理由：错误原文点名的那个字段，加上或去掉都不改变结果。
+			 *
+			 * 补在编码这一层，不是补在压缩那一层。压缩那条合成的助手确认消息（`runtime/compaction.ts` 的
+			 * `summaryMessages`）只是第一个撞上来的，产生「没有推理的助手轮」的路子还有好几条：换模型之后
+			 * 别人的推理被整块丢掉、`reasoning` 退到 `handled` 档而这一轮的块没有句柄、以及模型自己想都没想
+			 * 就直接答了。堵住其中一个出口，剩下的照样能让一个会话再也说不了话。
+			 *
+			 * 只在顶格（`replay`）补。`omit` 那档的端点一个推理项都不收，`handled` 那档只收带得动句柄的，
+			 * 而补出来的这个两样都不是——在那两档补等于拿一个必被拒的请求去换另一个。
+			 *
+			 * 文本是合成的，而且说明了自己是合成的。它会进模型的上下文，所以只说「这一轮没有留下推理记录」
+			 * 这件事实，不替它编一段想法——凭空写一段“它当时在想什么”，比缺这一项更糟。
+			 */
+			if (reasoning === "replay" && input.length > turnAt && !input.slice(turnAt).some((item) => (item as { type?: string }).type === "reasoning")) {
+				input.splice(turnAt, 0, {
+					type: "reasoning",
+					summary: [],
+					content: [{ type: "reasoning_text", text: SYNTHETIC_REASONING }],
+				});
 			}
 
 			input.push(...grouped);

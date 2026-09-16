@@ -269,9 +269,16 @@ test("历史以助手的话收尾时，末尾补一条 user——这个形状会
 	const last = input[input.length - 1];
 	assert.equal(last.type, "message");
 	assert.equal(last.role, "user", "末项必须是 user，否则整个请求被拒");
-	assert.equal(input.length, 3, "原来两项，补了一条");
 	// 助手那条本身要原样留着——补的是尾巴，不是替换。
-	assert.equal((input[1] as { role: string }).role, "assistant");
+	assert.ok(
+		input.some((item) => item.type === "message" && item.role === "assistant"),
+		"补的是尾巴，不是替换",
+	);
+	// 那一轮自己没有推理，编码器给它补了一个开头的推理项（见 `reasoning-replay.test.ts`），所以是四项。
+	assert.deepEqual(
+		input.map((item) => `${item.type}${item.role ? `:${item.role}` : ""}`),
+		["message:user", "reasoning", "message:assistant", "message:user"],
+	);
 });
 
 test("末项本来就是工具结果或用户消息时，一个字都不补", () => {

@@ -20,7 +20,7 @@ import type { Settings } from "../config/settings.ts";
  *   wholesale, which is only safe because the deliberate half lives elsewhere.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome, projectIdFor } from "../session/store.ts";
 
@@ -135,6 +135,57 @@ export async function recordLesson(cwd: string, lesson: Omit<Lesson, "at">): Pro
 	const capped = next.slice(0, MAX_LESSONS);
 	await writeLessons(cwd, capped);
 	return { action, total: capped.length };
+}
+
+/**
+ * Forget one lesson.
+ *
+ * Memory that can only be added to is memory nobody trusts. Everything in here is injected into
+ * every prompt in this project, so a lesson that was wrong — or was right in March and is wrong
+ * now — is not merely clutter: it is a standing instruction, repeated to the model forever, with
+ * no way to withdraw it short of editing a file by hand.
+ *
+ * Keyed on `at` rather than on the text. Two lessons can be re-worded into near-duplicates, and
+ * `recordLesson` merges those on purpose; what it never does is give two entries the same
+ * timestamp. Matching on prose would eventually delete the wrong one.
+ *
+ * Returns whether anything went, so the caller can tell "removed" from "it was already gone" —
+ * two windows open on the same project is enough to produce the second.
+ */
+export async function forgetLesson(cwd: string, at: number): Promise<boolean> {
+	const existing = await readLessons(cwd);
+	const next = existing.filter((lesson) => lesson.at !== at);
+	if (next.length === existing.length) return false;
+	await writeLessons(cwd, next);
+	return true;
+}
+
+/** Forget every lesson at once, leaving the extracted file alone. */
+export async function forgetAllLessons(cwd: string): Promise<void> {
+	await writeLessons(cwd, []);
+}
+
+/**
+ * Throw away the extracted summary.
+ *
+ * Its own entry point rather than part of forgetting lessons, because the two have different
+ * authors and different failure modes. Lessons are written one at a time by `learn`, deliberately;
+ * `MEMORY.md` is written wholesale by the background pass reading old conversations, and when that
+ * pass draws a wrong conclusion the fix is to drop the file and let it be written again — not to
+ * hunt for the sentence to edit.
+ *
+ * Deleting the file rather than emptying it: absent is the state the rest of the code already
+ * knows how to read (`readExtractedMemory` answers "" for a missing file), and an empty file would
+ * be a second way of saying the same thing.
+ */
+export async function forgetExtractedMemory(cwd: string): Promise<boolean> {
+	try {
+		await rm(join(projectMemoryDir(cwd), "MEMORY.md"));
+		return true;
+	} catch {
+		// Already gone is the outcome the caller wanted; it just did not happen here.
+		return false;
+	}
 }
 
 export async function writeLessons(cwd: string, lessons: Lesson[]): Promise<void> {

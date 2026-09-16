@@ -285,6 +285,15 @@ test("running out of rounds with work left starts another turn rather than stopp
 			return {
 				...reply(""),
 				content: [
+					/*
+					 * 每一轮说一句，因为真实的回合就是这样——而且不说话的回合现在会被拦下。
+					 *
+					 * 这个 fixture 原本只调 `todo_write`、一个字不说地跑两百多轮，而那恰恰是
+					 * `repetition.ts` 的「连着 60 轮一个字都没说」要抓的状态（`loop.ts` 自己也有
+					 * `SOLO_TODO_NOTE` 说只改清单不干活是浪费）。它在第 60 轮就被停住，于是这条
+					 * 测试要测的续跑根本没轮到发生。
+					 */
+					{ type: "text", text: `做第 ${calls} 件事` },
 					{
 						type: "toolCall",
 						id: `c${calls}`,

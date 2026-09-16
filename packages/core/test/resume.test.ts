@@ -270,6 +270,66 @@ test("running out of rounds with the plan complete still stops", async () => {
 	assert.equal(seen.runs, 0);
 });
 
+/*
+ * 清单上一项都没打勾的续跑，最多给一次。
+ *
+ * 真实案例：2026-09-15 的 `86ff1d52` 跑了 396 轮、5.32 小时、36.9M token、$10.72，计划始终停在
+ * 0/4。当时的条件只问「还有没有没做完的」，而清单是模型自己写的，探索中只增不减，于是永远为真。
+ * 重复看门狗也没有拦住它——那 396 次调用里有 384 个不同指纹，它没有任何东西可抓。
+ */
+test("rounds that finish nothing twice over stop rather than continuing", async () => {
+	// 四项，一项都没打勾——两轮下来还是一项都没打勾。
+	const stuck: TodoItem[] = [
+		{ content: "a", status: "in_progress" },
+		{ content: "b", status: "pending" },
+		{ content: "c", status: "pending" },
+		{ content: "d", status: "pending" },
+	];
+	const { seen, full } = deps([result({ reason: "max_turns" }), result({ reason: "max_turns" }), result({ reason: "max_turns" })], {
+		todos: () => stuck,
+	});
+
+	await continueWhileWorkRemains(result({ reason: "max_turns" }), full);
+
+	assert.equal(seen.runs, 1, "第一次零进展还给一次机会，第二次就该停——不是 10 次");
+	assert.match(seen.notices[seen.notices.length - 1], /一项都没完成/);
+});
+
+test("rounds that keep finishing things keep going", async () => {
+	/*
+	 * 打勾数每轮 +1：这是真的长任务，不该被上面那条闸误伤。
+	 *
+	 * 没有这条，上面那条测试可以靠「永远停在第一次续跑」通过——而那会把每一个超过两百步的正经
+	 * 任务砍在半路。
+	 */
+	let ticked = 0;
+	const { seen, full } = deps(
+		[result({ reason: "max_turns" }), result({ reason: "max_turns" }), result({ reason: "done" })],
+		{
+			todos: () => [
+				{ content: "a", status: ticked > 0 ? "completed" : "pending" },
+				{ content: "b", status: ticked > 1 ? "completed" : "pending" },
+				{ content: "c", status: ticked > 2 ? "completed" : "pending" },
+				{ content: "d", status: "pending" },
+			],
+			run: async () => {
+				ticked += 1;
+				return [result({ reason: "max_turns" }), result({ reason: "max_turns" }), result({ reason: "done" })][
+					Math.min(seen.runs++, 2)
+				];
+			},
+		},
+	);
+
+	await continueWhileWorkRemains(result({ reason: "max_turns" }), full);
+
+	assert.equal(seen.runs, 3, "每一轮都打上了勾，就一直继续到它自己说做完了");
+	assert.ok(
+		!seen.notices.some((notice) => /一项都没完成/.test(notice)),
+		"有进展的轮次不该收到停下来的通知",
+	);
+});
+
 // ---------------------------------------------------------------------------
 // The history it resumes from has to be one the provider will accept
 // ---------------------------------------------------------------------------

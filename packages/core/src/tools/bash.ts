@@ -176,7 +176,16 @@ export const bashTool: Tool<BashArgs> = {
 		 * 见 `reroute.ts`——有管道、重定向、串联的一律放行，那是真的在组合。
 		 */
 		const reroute = rerouteShellCommand(args.command, ctx.state.get(TOOL_NAMES_KEY) as ReadonlySet<string> | undefined);
-		if (reroute) return errorResult(reroute.message);
+		/*
+		 * An error to the model, a redirection to everyone counting.
+		 *
+		 * `isError` stays because that is what makes the model pick the other tool — a劝告 it can
+		 * skim does not. But nothing ran, nothing broke, and nothing needs looking into, so the
+		 * record says which of the two this was. Without the marker these land in the same bucket as
+		 * a failing build when anyone asks how a session went, and 「工具大量失败」 is a very
+		 * different report from 「模型用了 cat，被改道到 read」.
+		 */
+		if (reroute) return { ...errorResult(reroute.message), details: { kind: "reroute", tool: reroute.tool } };
 
 		/*
 		 * The escalation, resolved before anything runs.

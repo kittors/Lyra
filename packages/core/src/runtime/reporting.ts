@@ -24,6 +24,7 @@ import type { SessionMeta } from "../session/store.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Message, Tool } from "../types.ts";
 import { buildContextBreakdown, type ContextBreakdown } from "./context.ts";
+import { isIsolatedWorktree } from "./workspace.ts";
 
 export interface SessionStatus {
 	meta: SessionMeta;
@@ -102,6 +103,7 @@ export async function describeContext(session: SessionFacts): Promise<ContextBre
 			platform: platform(),
 			modelName: resolved.model.name,
 			isGitRepo: await pathExists(join(session.cwd, ".git")),
+			isolatedWorktree: await isIsolatedWorktree(session.cwd),
 			scratchDir: session.scratchDir(),
 		}),
 		builtinTools: tools.filter((tool) => !mcpNames.has(tool.name)),

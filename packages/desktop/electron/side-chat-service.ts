@@ -32,6 +32,19 @@ async function ensureSideChat(sessionId: string): Promise<SideChat | null> {
 			persistReset: (modelId) => saveSideChat(sessionId, [], modelId),
 			emit: async (event: SideChatEvent) => {
 				broadcastSideChat(sessionId, event);
+				if (event.type === "message_end" && event.message.role === "assistant" && event.message.usage) {
+					try {
+						await main.log.append({
+							type: "usage",
+							source: "side-chat",
+							providerId: event.message.provider,
+							modelId: event.message.model,
+							usage: event.message.usage,
+						});
+					} catch (error) {
+						console.error("[sidechat] Failed to record usage", error);
+					}
+				}
 				if (event.type !== "message_end" && event.type !== "rewound") return;
 				try {
 					await saveSideChatTranscript(sessionId, chat.messages, chat.state().modelId);

@@ -313,6 +313,20 @@ export interface Settings {
 	projects: ProjectEntry[];
 	/** Pinned session IDs across projects and loose chats. */
 	pinnedSessionIds?: string[];
+	/**
+	 * Fold a project away once every one of its conversations is archived.
+	 *
+	 * Off by default. Archiving the last conversation is a reasonable way to say a project is done
+	 * with, and for some people the row left behind is clutter — it looks like a project with work
+	 * in it and opens onto nothing. But a project vanishing from the sidebar is also how someone
+	 * loses track of where their work went, and that is the worse surprise to hand a person who
+	 * did not ask for it. So it is offered rather than assumed.
+	 *
+	 * Only affects projects that *had* conversations. One that never had any is a project just
+	 * added to the list, and it keeps its row either way — otherwise there is nowhere to click to
+	 * start the first one.
+	 */
+	hideEmptiedProjects?: boolean;
 	/** Custom session ordering per project: maps project path to ordered session IDs. */
 	sessionOrder?: Record<string, string[]>;
 	/** Worktrees configuration and auto-cleanup preferences. */
@@ -634,6 +648,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	capabilityPreferences: {},
 	rerouteShellCommands: true,
 	autoSummarizeTitle: true,
+	hideEmptiedProjects: false,
 	maxConcurrentSubAgents: 4,
 	subAgentDelegation: "auto",
 	modelRoles: {},
@@ -787,6 +802,8 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			capabilityPreferences: parsed.capabilityPreferences ?? {},
 			rerouteShellCommands: parsed.rerouteShellCommands !== false,
 			autoSummarizeTitle: parsed.autoSummarizeTitle !== false,
+			// Off unless asked for: a project disappearing from the sidebar is the worse surprise.
+			hideEmptiedProjects: parsed.hideEmptiedProjects === true,
 			maxConcurrentSubAgents:
 				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
 					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))

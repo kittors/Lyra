@@ -12,9 +12,11 @@
  * formatting a saved one.
  */
 
+import { BUILTIN_FORMATTER } from "../shared/format-builtin.ts";
 import { spawn } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import { delimiter, join } from "node:path";
+import { type BuiltinFormatOptions, formatWithBuiltinEngine, hasBuiltinEngine } from "./format-builtin-engines.ts";
 
 interface ExternalFormatter {
 	/** Display name, and the binary to look for. */
@@ -148,9 +150,20 @@ export type ExternalResult =
 	/** Nothing installed that can do this language; `install` says how to get one. */
 	| { ok: false; reason: "missing"; tool: string; install: string };
 
-/** Whether an external tool is even conceivable for this extension. */
+/**
+ * 界面上「这一份是谁格式化的」——内置引擎的那个答案。
+ *
+ * 不写 `ruff`／`gofmt` 这些具体名字，是因为那会让人去自己机器上找它们。这里跑的是随应用分发的
+ * 那一份，装没装都一样。
+ *
+ * 传一个标记过去，不传现成的话：主进程这一侧没有 `translate`，而这个值会一路走到界面上被念出来。
+ * 它原来是中文的「内置」，于是英文界面保存 `.go` 得到 `Formatted with 内置`。翻译在读的那一端做。
+ */
+const BUILTIN_TOOL = BUILTIN_FORMATTER;
+
+/** Whether anything at all can format this extension — built in, or on the machine. */
 export function hasExternalFormatter(extension: string): boolean {
-	return extension.toLowerCase() in EXTERNAL;
+	return hasBuiltinEngine(extension) || extension.toLowerCase() in EXTERNAL;
 }
 
 /**
@@ -160,7 +173,28 @@ export function hasExternalFormatter(extension: string): boolean {
  * hangs would otherwise hang the save that triggered it. Ten seconds is far past anything
  * legitimate and far short of "the app is stuck".
  */
-export async function formatExternally(extension: string, source: string): Promise<ExternalResult> {
+export async function formatExternally(extension: string, source: string, options?: BuiltinFormatOptions): Promise<ExternalResult> {
+	/*
+	 * 先问内置引擎，再去 PATH 上找二进制。
+	 *
+	 * 顺序是这么定的：内置引擎和外部工具多半是同一个格式化器（ruff 就是 ruff，gofmt 就是
+	 * gofmt），输出一致，而内置那份一定在。把它排在后面，等于让「装没装」继续决定功能在不在，
+	 * 而那正是这一整块要消掉的东西。
+	 *
+	 * 装了外部工具的人也没有损失：同一个格式化器的同一个版本线，结果不会打架。真正会打架的是
+	 * 项目自带的配置（`rustfmt.toml`、`.clang-format`），而那几种语言要么还在走外部路径，要么
+	 * 由引擎自己去读——不是这里该替它决定的事。
+	 */
+	const builtin = await formatWithBuiltinEngine(extension, source, options ?? { tabWidth: 2, useTabs: false, printWidth: 100 });
+	if (builtin.ok) return { ok: true, text: builtin.text, tool: BUILTIN_TOOL };
+	/*
+	 * 内置引擎明确拒绝了这份源码，就到此为止，不再去试外部工具。
+	 *
+	 * 语法错误在哪个引擎里都是语法错误，换一个来跑一遍只是把同一句话再说一遍——而它带着行号，
+	 * 是此刻最有用的那句话。
+	 */
+	if (builtin.reason === "failed") return { ok: false, reason: "failed", message: builtin.message, tool: BUILTIN_TOOL };
+
 	const candidates = EXTERNAL[extension.toLowerCase()];
 	if (!candidates) return { ok: false, reason: "unsupported" };
 

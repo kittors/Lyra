@@ -78,7 +78,7 @@ export type SessionRecord =
 	| { seq: number; ts: number; type: "message"; message: Message }
 	| { seq: number; ts: number; type: "event"; event: AgentEvent }
 	| { seq: number; ts: number; type: "title"; title: string; source?: "user" | "auto" }
-	| { seq: number; ts: number; type: "usage"; source: "title-summary"; providerId: string; modelId: string; usage: Usage }
+	| { seq: number; ts: number; type: "usage"; source: "title-summary" | "side-chat" | (string & {}); providerId: string; modelId: string; usage: Usage }
 	/**
 	 * Its own record type rather than a `meta` write: archiving must not touch `updatedAt`,
 	 * and a `meta` record always refreshes it. Sending it through the log also means a phone
@@ -238,7 +238,7 @@ export class SessionStore implements SessionStorage {
 		}
 		if (payload.type === "meta") {
 			// A meta record carries caller-side changes such as the selected model.
-			Object.assign(next, payload.meta, { seq: next.seq, updatedAt: next.updatedAt, usage: next.usage });
+			Object.assign(next, payload.meta, { seq: next.seq, updatedAt: next.updatedAt, usage: payload.meta.usage ?? next.usage });
 			// A model/settings snapshot cannot undo an explicit name chosen while it was in flight.
 			if (base.titleSetByUser) { next.title = base.title; next.titleSetByUser = true; }
 		}
@@ -343,6 +343,7 @@ export class SessionStore implements SessionStorage {
 		 */
 		const compactions: number[] = [];
 		const commandRuns = new Map<string, { seq: number; run: CommandRun }>();
+		let subagentEntries: { seq: number; usage: Usage }[] = [];
 		/*
 		 * And the newest of them in full, which is what the *model* is given.
 		 *
@@ -370,6 +371,8 @@ export class SessionStore implements SessionStorage {
 					compaction = { at: record.ts, summary: summary ?? "", keptFrom: Math.max(0, entries.length - kept) };
 				}
 			// A message record with no message in it leaves a hole in the transcript; see `messages` above.
+			} else if (record.type === "event" && record.event.type === "subagent_message" && record.event.message.role === "assistant") {
+				subagentEntries.push({ seq: record.seq, usage: record.event.message.usage });
 			} else if (record.type === "message") { if (record.message) entries.push({ seq: record.seq, message: record.message }); }
 			else if (record.type === "title" && meta) {
 				if (record.source !== "auto" || !meta.titleSetByUser) meta.title = record.title;
@@ -379,6 +382,7 @@ export class SessionStore implements SessionStorage {
 			else if (record.type === "archive" && meta) meta.archived = record.archived;
 			else if (record.type === "truncate") {
 				entries = entries.filter((e) => e.seq <= record.afterSeq);
+				subagentEntries = subagentEntries.filter((e) => e.seq <= record.afterSeq);
 				for (const [id, entry] of commandRuns) if (entry.seq > record.afterSeq) commandRuns.delete(id);
 				while (compactions.length && compactions[compactions.length - 1] > entries.length) compactions.pop();
 				// A rewind past the boundary retires it: the tail it was paired with is gone.
@@ -389,8 +393,11 @@ export class SessionStore implements SessionStorage {
 		if (!meta) return null;
 		const messages = entries.map((e) => e.message);
 		meta.messageCount = messages.length;
-		// Re-accumulate usage across assistant messages if it was lost/cleared
+		// Re-accumulate usage across assistant messages and sub-agent assistant turns
 		let totalUsage = auxiliaryUsage;
+		for (const entry of subagentEntries) {
+			if (entry.usage) totalUsage = addUsage(totalUsage, entry.usage);
+		}
 		for (const msg of messages) {
 			if (msg.role === "assistant" && msg.usage) {
 				totalUsage = addUsage(totalUsage, msg.usage);
@@ -520,9 +527,11 @@ export class SessionStore implements SessionStorage {
 
 		const meta = await this.append(loaded.meta, { type: "truncate", afterSeq: cutoff });
 		const messages = loaded.messages.slice(0, targetIndex);
+		const surviving = await this.load(projectId, sessionId);
+		const survivingUsage = surviving?.meta.usage ?? loaded.meta.usage;
 		// The index tracks message count; a truncate is the one write that lowers it.
-		const corrected = await this.append(meta, { type: "meta", meta: { ...meta, messageCount: messages.length } });
-		return { meta: { ...corrected, messageCount: messages.length }, messages };
+		const corrected = await this.append(meta, { type: "meta", meta: { ...meta, messageCount: messages.length, usage: survivingUsage } });
+		return { meta: { ...corrected, messageCount: messages.length, usage: survivingUsage }, messages };
 	}
 
 	/**

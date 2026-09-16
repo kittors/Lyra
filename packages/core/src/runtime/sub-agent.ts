@@ -44,6 +44,7 @@ import { SKILLS_KEY } from "../skills/tool.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../tools/task.ts";
 import type { ApprovalDecision, ApprovalRequest, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
+import { isIsolatedWorktree } from "./workspace.ts";
 
 async function pathExists(path: string): Promise<boolean> {
 	try {
@@ -106,6 +107,8 @@ export interface SubAgentOptions {
 	 * old behaviour exactly. Delegation works the same either way; the registry only adds a window.
 	 */
 	registry?: SubAgentRegistry;
+	/** Passed through to the subagent; see `ToolContext.allowedPaths`. */
+	allowedPaths?: ReadonlySet<string>;
 	/**
 	 * Where the run doing the dispatching sits in the tree. Absent means the main conversation.
 	 *
@@ -265,6 +268,7 @@ export async function runSubAgent(
 		platform: platform(),
 		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
+			isolatedWorktree: await isIsolatedWorktree(options.cwd),
 		appendSystemPrompt: definition.output
 			? `${definition.systemPrompt}\n${yieldInstruction(definition.output)}`
 			: definition.systemPrompt,
@@ -441,6 +445,7 @@ export async function runSubAgent(
 				sandboxMode: sandboxModeFor(options.settings.permissionMode),
 				sandboxNetwork: options.settings.denyCommandNetwork ? "deny" : "allow",
 				allowedHosts: options.settings.allowedHosts,
+				allowedPaths: options.allowedPaths,
 				scratchDir: join(lyraHome(), "scratch", options.sessionId),
 				beforeToolCall: makeBeforeToolCall(options.settings.hooks, options.cwd, controller.signal),
 				afterToolCall: makeAfterToolCall(options.settings.hooks, options.cwd, controller.signal),

@@ -37,6 +37,8 @@ import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
 import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { useAttachmentMarks } from "./useAttachmentMarks.ts";
+import { useAttachmentActions } from "./attachments/actions.ts";
+import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { bridge } from "../../services/index.ts";
@@ -109,11 +111,11 @@ export function Composer() {
 	 * 张图自己的格子，就从那儿长出来；要是连那一排都被滚走了，退回从右键点的位置长，一个点放大总
 	 * 好过凭空出现。
 	 */
-	const previewImage = (target: Attachment) => {
+	const previewImage = (target: Attachment, originRect?: DOMRect) => {
 		const index = previewable.findIndex((file) => file.id === target.id);
 		if (index < 0) return;
 		const tile = document.querySelector<HTMLElement>(`[data-ly-attachment="${CSS.escape(target.id)}"] .ly-attachment-body`);
-		const origin = tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
+		const origin = originRect ?? tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
 		openViewer(
 			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
 			index,
@@ -121,6 +123,8 @@ export function Composer() {
 			tile,
 		);
 	};
+
+	const attachmentActions = useAttachmentActions();
 
 
 
@@ -803,6 +807,25 @@ export function Composer() {
 						if (!hit) return;
 						event.preventDefault();
 						setMarkMenu({ point: { x: event.clientX, y: event.clientY }, file: hit.file });
+					}}
+					onAttachmentClick={(index, rect) => {
+						const hit = scanPlaceholders(text, attachments)[index];
+						if (!hit) return;
+						attachmentActions.openOrPreview(
+							{
+								name: hit.file.label ?? hit.file.name,
+								path: hit.file.path,
+								src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
+								mimeType: hit.file.mimeType,
+								isImage: !hit.file.isText && Boolean(hit.file.data),
+								onPreviewImage: (originRect) => previewImage(hit.file, originRect),
+								onOpenFile: (path, name) => {
+									void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+									useDock.getState().open("file", companionOf("file"));
+								},
+							},
+							rect,
+						);
 					}}
 					onKeyDown={(event) => {
 						/*

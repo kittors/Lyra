@@ -96,6 +96,11 @@ export interface ToolContext {
 	/** Internal hosts the user allowed by name; see `Settings.allowedHosts`. */
 	allowedHosts?: readonly string[];
 	/**
+	 * Specific files outside the workspace explicitly granted to this turn
+	 * (e.g. user-attached files from messages in this session).
+	 */
+	allowedPaths?: ReadonlySet<string>;
+	/**
 	 * Run a nested agent (used by the `task` tool).
 	 *
 	 * Returns prose plus, when the agent declared an output schema and yielded against it, the same

@@ -13,7 +13,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@lyra/core";
-import { CARRY_ON_PROMPTS } from "../../store/derive.ts";
+import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
 
@@ -189,8 +189,12 @@ function saw(clock: Clock, message: Message): void {
 	clock.sseDurationMs += sse || duration;
 	clock.outputTokens += output;
 	clock.requestCount += 1;
-	// 这两种收场是「停下了」，不是「做完了」——和 `apply-event` 里冻结那块表的条件是同一对。
-	if (message.stopReason === "error" || message.stopReason === "aborted") clock.halted = true;
+	// 这几种收场是「停下了」，不是「做完了」——和 `apply-event` 里冻结那块表的条件是同一对。
+	// 如果助手回复停下（包括普通的 stop）但上一轮工作计划中仍有未完成的 todo，也暂停时钟，
+	// 避免在「继续，把清单里没做完的做完」之前用户等待或阅读的停顿时间被计入耗时。
+	if (message.stopReason === "error" || message.stopReason === "aborted") {
+		clock.halted = true;
+	}
 }
 
 /** 此刻为止这一轮的账，一份定下来的副本。 */
@@ -241,9 +245,12 @@ function resumesTurn(messages: Message[], index: number): boolean {
 		const previous = messages[i];
 		if (previous.role === "toolResult") continue;
 		if (previous.role !== "assistant") return false;
-		// The two ways a reply stops short: it failed, or it was stopped. Both leave work unfinished
-		// and are what 继续 exists to pick up.
-		return previous.stopReason === "error" || previous.stopReason === "aborted";
+		// The three ways a reply stops short: it failed, it was stopped, or it stopped with unfinished todos.
+		// All leave work unfinished and are what 继续 exists to pick up.
+		if (previous.stopReason === "error" || previous.stopReason === "aborted") return true;
+		const unfinished = todosFrom(messages.slice(0, i + 1)).filter((t) => t.status !== "completed").length > 0;
+		if (unfinished) return true;
+		return false;
 	}
 	return false;
 }
@@ -273,7 +280,18 @@ export function computeTurnStats(messages: Message[], endMessageIndex: number): 
 	}
 
 	const clock = newClock();
-	for (let i = startIndex; i <= endMessageIndex && i < messages.length; i++) saw(clock, messages[i]);
+	let currentTodos: ReturnType<typeof todosFrom> = [];
+	for (let i = startIndex; i <= endMessageIndex && i < messages.length; i++) {
+		const msg = messages[i];
+		if (msg.role === "toolResult" && msg.toolName === "todo_write" && !msg.isError) {
+			const details = msg.details as { kind?: string; todos?: ReturnType<typeof todosFrom> } | undefined;
+			if (details?.kind === "todo" && Array.isArray(details.todos)) currentTodos = details.todos;
+		}
+		saw(clock, msg);
+		if (msg.role === "assistant" && currentTodos.some((t) => t.status !== "completed")) {
+			clock.halted = true;
+		}
+	}
 	return snapshot(clock);
 }
 
@@ -471,7 +489,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 	 * whole cost: the scan was being run for every visible reply, on every render of the transcript.
 	 */
 	let clock = newClock();
-
+	let currentTodos: ReturnType<typeof todosFrom> = [];
 	for (const [index, message] of messages.entries()) {
 		while (nextMark < marks.length && marks[nextMark] === index) {
 			out.push({ kind: "compaction", at: index });
@@ -487,6 +505,10 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 
 		// A person speaking starts a new turn; the runtime's own messages continue the one running.
 		if (opensTurn(message) && !resumesTurn(messages, index)) clock = newClock();
+		if (message.role === "toolResult" && message.toolName === "todo_write" && !message.isError) {
+			const details = message.details as { kind?: string; todos?: ReturnType<typeof todosFrom> } | undefined;
+			if (details?.kind === "todo" && Array.isArray(details.todos)) currentTodos = details.todos;
+		}
 		/*
 		 * 每一条都记进表里，包括下面那两种画不出行的。
 		 *
@@ -495,6 +517,9 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * 是纯粹的渲染决定，把统计一起跳过去，正是时间丢掉的地方。
 		 */
 		saw(clock, message);
+		if (message.role === "assistant" && currentTodos.some((t) => t.status !== "completed")) {
+			clock.halted = true;
+		}
 
 		/*
 		 * Tool results are not entries in the transcript; they are the contents of a card.

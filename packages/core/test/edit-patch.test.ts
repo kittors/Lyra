@@ -14,6 +14,7 @@ import { test } from "node:test";
 import { editTool } from "../src/tools/edit.ts";
 import { applyHunks, parsePatch, PatchError, snapshotTag } from "../src/tools/hunk.ts";
 import { readTool } from "../src/tools/read.ts";
+import { writeTool } from "../src/tools/write.ts";
 import type { ToolContext } from "../src/types.ts";
 
 const FIVE = "alpha\nbravo\ncharlie\ndelta\necho\n";
@@ -266,4 +267,62 @@ test("INSERT AFTER 0 puts lines at the top", () => {
 test("snapshotTag is four hex characters and content-sensitive", () => {
 	assert.match(snapshotTag(FIVE), /^[0-9A-F]{4}$/);
 	assert.notEqual(snapshotTag(FIVE), snapshotTag(FIVE.replace("alpha", "ALPHA")));
+});
+
+test("read and edit work cleanly on explicitly allowed paths outside workspace", async () => {
+	const externalDir = await mkdtemp(join(tmpdir(), "lyra-external-"));
+	const externalFile = join(externalDir, "external.txt");
+	await writeFile(externalFile, FIVE, "utf8");
+
+	const workspaceDir = await mkdtemp(join(tmpdir(), "lyra-ws-"));
+	const ctxWithoutAllowed: ToolContext = {
+		cwd: workspaceDir,
+		sessionId: "t2",
+		state: new Map(),
+	};
+	const ctxWithAllowed: ToolContext = {
+		...ctxWithoutAllowed,
+		allowedPaths: new Set([externalFile]),
+	};
+
+	// Without allowedPaths, read is blocked as workspace escape
+	const deniedRead = await readTool.execute({ path: externalFile } as never, ctxWithoutAllowed);
+	assert.equal(deniedRead.isError, true);
+	assert.match(deniedRead.content[0].type === "text" ? deniedRead.content[0].text : "", /escapes the workspace root/);
+
+	// With allowedPaths, read succeeds
+	const readRes = await readTool.execute({ path: externalFile } as never, ctxWithAllowed);
+	assert.equal(readRes.isError, undefined);
+
+	/*
+	 * 但改不了——这条原来断言的是相反的事。
+	 *
+	 * 那份集合是用户拖进输入框的附件（`runtime/session-turn.ts` 的 `collectAllowedPaths`），拖进来
+	 * 的意思是让模型看它。原来 `write`/`edit` 也吃同一份许可，于是一次「你看看我的 ~/.zshrc」就换来
+	 * 了对它的写权限，在完全访问模式下全程不再问第二次；而 `MessageAttachment.path` 自己的类型注释
+	 * 写着它只是展示用元数据，从没按权限凭证设计过。
+	 */
+	const editRes = await editTool.execute(
+		{ path: externalFile, tag: snapshotTag(FIVE), patch: "REPLACE 2-2\n+BRAVO_EXTERNAL" },
+		ctxWithAllowed,
+	);
+	assert.equal(editRes.isError, true, "附件给的是读的许可，不该连写一起给");
+	assert.match(editRes.content[0].type === "text" ? editRes.content[0].text : "", /escapes the workspace root/);
+	assert.equal(await readFile(externalFile, "utf8"), FIVE, "文件一个字都不该被动过");
+});
+
+test("an attachment does not become a licence to overwrite the file either", async () => {
+	// `write` 和 `edit` 是同一条边界上的两个入口，堵一个不堵另一个等于没堵。
+	const externalDir = await mkdtemp(join(tmpdir(), "lyra-external-"));
+	const externalFile = join(externalDir, "external.txt");
+	await writeFile(externalFile, FIVE, "utf8");
+	const workspaceDir = await mkdtemp(join(tmpdir(), "lyra-ws-"));
+	const ctx: ToolContext = { cwd: workspaceDir, sessionId: "t3", state: new Map(), allowedPaths: new Set([externalFile]) };
+
+	// 先读一遍：`write` 对已存在的文件要求先读过，绕开这一步会撞上另一条规则而不是边界本身。
+	await readTool.execute({ path: externalFile } as never, ctx);
+	const written = await writeTool.execute({ path: externalFile, content: "OVERWRITTEN" } as never, ctx);
+
+	assert.equal(written.isError, true, "附件给的是读的许可，不该连覆写一起给");
+	assert.equal(await readFile(externalFile, "utf8"), FIVE, "文件一个字都不该被动过");
 });

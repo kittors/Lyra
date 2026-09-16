@@ -82,6 +82,51 @@ test("a pinned project keeps its row with no sessions; an unpinned one does not"
 	assert.deepEqual(rest, []);
 });
 
+/*
+ * 会话全归档之后，那一行留不留——是个设置，不是个定论。
+ *
+ * 归档掉最后一条对话是在说这个项目告一段落了，有人希望它跟着一起收起来。但项目从侧边栏凭空
+ * 消失，也是让人找不着自己活儿的一种方式。所以默认留着，想收起来的自己去开。
+ */
+test("an emptied project keeps its row by default", () => {
+	const emptied = new Set(["/pinned", "/a"]);
+	const { pinned } = groupSessions([], projects, "", [], [], undefined, "updatedAt", emptied, false);
+	assert.deepEqual(
+		pinned.map((g) => g.path),
+		["/pinned"],
+		"默认不消失",
+	);
+});
+
+test("with hideEmptiedProjects on, an emptied project folds away — pinned or not", () => {
+	const emptied = new Set(["/pinned", "/a"]);
+	const { pinned, projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", emptied, true);
+	assert.deepEqual(pinned, [], "置顶也挡不住——它空了");
+	assert.deepEqual(rest, []);
+});
+
+test("a project that never had a session is unaffected by the setting", () => {
+	/*
+	 * 「一条都没有过」和「都归档了」是两回事。前者是刚加进列表的项目，藏起来就没地方点着开第一
+	 * 条了——不管那个开关开没开，它都按老规矩来：只有置顶的才值得占一行。
+	 */
+	for (const hide of [false, true]) {
+		const { pinned, projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", new Set(), hide);
+		assert.deepEqual(pinned.map((g) => g.path), ["/pinned"], `hideEmptied=${hide}`);
+		assert.deepEqual(rest, [], `hideEmptied=${hide}`);
+	}
+});
+
+test("a project still holding one live session is never folded away", () => {
+	const live = session({ id: "alive", cwd: "/pinned" });
+	// 归档了一条、还剩一条：项目还在进行中，开关开着也得留着。
+	const { pinned } = groupSessions([live], projects, "", [], [], undefined, "updatedAt", new Set(["/a"]), true);
+	assert.deepEqual(
+		pinned.map((g) => g.path),
+		["/pinned"],
+	);
+});
+
 test("searching filters sessions without dissolving their projects", () => {
 	const sessions = [
 		session({ id: "1", title: "改一下登录", cwd: "/a" }),

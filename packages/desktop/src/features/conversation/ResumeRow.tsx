@@ -93,8 +93,8 @@ export function ResumeRow() {
 					: t("resume.unfinished", { n: unfinished });
 	return (
 		<div className="ly-enter mb-2.5 flex items-center gap-2 text-detail text-ink-faint">
-			<span>{note}</span>
-			<span className="text-line">·</span>
+			<span className="shrink-0 whitespace-nowrap">{note}</span>
+			<span className="shrink-0 text-line">·</span>
 			<button
 				type="button"
 				data-ly-tip={interrupted ? t("resume.requeue") : t("resume.carryOn")}

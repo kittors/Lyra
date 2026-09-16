@@ -145,6 +145,7 @@ async function executeOne(
 		sandboxMode: config.sandboxMode,
 		sandboxNetwork: config.sandboxNetwork,
 		allowedHosts: config.allowedHosts,
+		allowedPaths: config.allowedPaths,
 		writePreview: config.writePreview,
 		spawnSubAgent: config.spawnSubAgent,
 		resources: config.resources,

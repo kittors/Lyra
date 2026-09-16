@@ -15,6 +15,10 @@ import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
+import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
+import { openViewer } from "../image/index.ts";
+import { useOpenFile } from "../../store/openFile.ts";
+import { companionOf, useDock } from "../dock/index.ts";
 import {
 	AttachmentStrip,
 	ComposerSend,
@@ -27,6 +31,7 @@ import {
 	pickedFrom,
 	type PickedFile,
 	type StripFile,
+	useAttachmentActions,
 } from "../composer/index.ts";
 import { EffortTrigger, ModelTrigger } from "../models/index.ts";
 
@@ -66,6 +71,7 @@ export function SideComposer({
 	const [attachments, setAttachments] = useState<SideAttachment[]>([]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const field = useRef<HTMLTextAreaElement>(null);
+	const attachmentActions = useAttachmentActions();
 	/*
 	 * 正文里那枚标记，和主输入框是同一套。
 	 *
@@ -74,6 +80,21 @@ export function SideComposer({
 	 */
 	const marks = useAttachmentMarks<SideAttachment>({ attachments, setAttachments, setText, field });
 
+	const previewable = useMemo(
+		() => attachments.filter((a) => !a.isText && a.data),
+		[attachments],
+	);
+
+	const previewImage = (target: SideAttachment, originRect?: DOMRect) => {
+		const index = previewable.findIndex((file) => file.id === target.id);
+		if (index < 0) return;
+		const origin = originRect ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 1, 1);
+		openViewer(
+			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
+			index,
+			origin,
+		);
+	};
 	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
 	const strip: StripFile[] = useMemo(
 		() =>
@@ -184,6 +205,25 @@ export function SideComposer({
 				onKeyDown={(event) => {
 					// 退格吃掉整枚标记，而不是把它啃成一串没人认得的方括号。
 					marks.keyDown(event);
+				}}
+				onAttachmentClick={(index, rect) => {
+					const hit = scanPlaceholders(text, attachments)[index];
+					if (!hit) return;
+					attachmentActions.openOrPreview(
+						{
+							name: hit.file.label ?? hit.file.name,
+							path: hit.file.path,
+							src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
+							mimeType: hit.file.mimeType,
+							isImage: !hit.file.isText && Boolean(hit.file.data),
+							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
+							onOpenFile: (path: string, name: string) => {
+								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+								useDock.getState().open("file", companionOf("file"));
+							},
+						},
+						rect,
+					);
 				}}
 				decoration={{ attachments: marks.decorationFor(text) }}
 				onSubmit={submit}

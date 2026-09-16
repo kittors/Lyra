@@ -69,9 +69,38 @@ export function useSidebarLists({
 		[archiveOpen, archived, listable, poolSortField],
 	);
 
+	/*
+	 * Projects whose conversations are all in the archive.
+	 *
+	 * Computed here because this is the only place that can see both halves: `pool` is what the
+	 * list shows and `archived` is what it does not, and the question — "did this project have
+	 * conversations before they were archived?" — cannot be answered from either alone.
+	 */
+	const emptied = useMemo(() => {
+		const live = new Set(listable.map((s) => s.cwd));
+		const out = new Set<string>();
+		for (const session of archived) if (!live.has(session.cwd)) out.add(session.cwd);
+		return out;
+	}, [listable, archived]);
+
 	const groups = useMemo(
-		() => groupSessions(pool, settings?.projects ?? [], query, scratchRoots, settings?.pinnedSessionIds ?? [], settings?.sessionOrder, sort),
-		[pool, settings, query, scratchRoots, sort],
+		() =>
+			groupSessions(
+				pool,
+				settings?.projects ?? [],
+				query,
+				scratchRoots,
+				settings?.pinnedSessionIds ?? [],
+				settings?.sessionOrder,
+				sort,
+				emptied,
+				/*
+				 * Never while the archive itself is open: in there an emptied project is exactly what
+				 * the reader came to look at, and hiding it would empty the view they opened.
+				 */
+				!archiveOpen && (settings?.hideEmptiedProjects ?? false),
+			),
+		[pool, settings, query, scratchRoots, sort, emptied, archiveOpen],
 	);
 
 	const matching = useMemo(() => {

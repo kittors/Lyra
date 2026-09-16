@@ -111,6 +111,20 @@ test("bash 工具真的会查这个 key", async () => {
 	assert.match(result.content.map((c) => (c.type === "text" ? c.text : "")).join(""), /`read`/);
 });
 
+test("改道是错误，但记录里说得清它不是故障", async () => {
+	/*
+	 * `isError` 要留着——模型看见错误才会改用那个工具，看见劝告只会记一会儿。但没有命令跑过，
+	 * 也没有东西坏掉，所以记录得说清这是两者里的哪一种。
+	 *
+	 * 少了这个标记，它们和构建失败落进同一个桶：真实记录里有 5 次改道被算进「工具失败」，
+	 * 而「工具大量失败」和「模型用了 cat，被改道到 read」是两份完全不同的报告。
+	 */
+	const state = new Map<string, unknown>([[TOOL_NAMES_KEY, ALL]]);
+	const result = (await bashTool.execute({ command: "ls -la src" }, { cwd: root, sessionId: "t", state })) as ToolResult;
+	assert.equal(result.isError, true, "对模型仍然是错误");
+	assert.deepEqual(result.details, { kind: "reroute", tool: "ls" }, "对统计则说明了它是一次改道");
+});
+
 test("会话加载时把工具名填进 state；开关关了就不填", async () => {
 	const on = new SessionCapabilities();
 	await on.load(root, { ...DEFAULT_SETTINGS, mcpServers: [] });

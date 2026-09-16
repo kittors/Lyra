@@ -40,4 +40,15 @@ test("the rest of the app's home stays closed", () => {
 
 test("a missing path is an error rather than the workspace root", () => {
 	assert.throws(() => resolveWorkspacePath(CWD, ""), /A path is required/);
+
+test("explicitly allowed paths outside workspace resolve cleanly", () => {
+	const externalFile = resolve("/tmp/some-external-doc.txt");
+	const allowed = new Set([externalFile]);
+
+	assert.equal(resolveWorkspacePath(CWD, externalFile, allowed), externalFile);
+	assert.throws(
+		() => resolveWorkspacePath(CWD, "/tmp/unallowed-file.txt", allowed),
+		/escapes the workspace root/,
+	);
+});
 });

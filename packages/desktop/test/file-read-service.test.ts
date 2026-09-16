@@ -95,3 +95,47 @@ test("a phone can list a linked project and read the exact path returned by each
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+test("scratch roots and worktree roots permit reading files within them while forbidding traversal", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-scratch-roots-"));
+	try {
+		const project = join(root, "project");
+		const scratch = join(root, "scratch");
+		const worktrees = join(root, "worktrees");
+		const outside = join(root, "outside");
+
+		await Promise.all([
+			mkdir(join(project, "src"), { recursive: true }),
+			mkdir(join(scratch, "session-1"), { recursive: true }),
+			mkdir(join(worktrees, "repo-feat"), { recursive: true }),
+			mkdir(outside, { recursive: true }),
+		]);
+
+		await writeFile(join(project, "src", "index.ts"), "project file");
+		await writeFile(join(scratch, "session-1", "intro.md"), "# Scratch Note");
+		await writeFile(join(worktrees, "repo-feat", "feature.ts"), "worktree code");
+		await writeFile(join(outside, "secret.txt"), "secret");
+
+		const allowedRoots = [project, scratch, worktrees];
+
+		// Legitimate scratch and worktree files resolve and read correctly
+		const resolvedScratch = await resolveReadablePath(join(scratch, "session-1", "intro.md"), allowedRoots);
+		assert.ok(resolvedScratch);
+		const scratchContent = await readReadableFile(resolvedScratch, false);
+		assert.equal(scratchContent?.text, "# Scratch Note");
+
+		const resolvedWorktree = await resolveReadablePath(join(worktrees, "repo-feat", "feature.ts"), allowedRoots);
+		assert.ok(resolvedWorktree);
+		const worktreeContent = await readReadableFile(resolvedWorktree, false);
+		assert.equal(worktreeContent?.text, "worktree code");
+
+		// Traversal outside allowed roots is forbidden
+		const resolvedOutside = await resolveReadablePath(join(outside, "secret.txt"), allowedRoots);
+		assert.equal(resolvedOutside, null);
+
+		const resolvedTraverse = await resolveReadablePath(join(scratch, "..", "outside", "secret.txt"), allowedRoots);
+		assert.equal(resolvedTraverse, null);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

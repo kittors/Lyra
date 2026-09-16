@@ -23,6 +23,8 @@ export { AttachmentStrip } from "./attachments/AttachmentStrip.tsx";
 export type { StripFile } from "./attachments/AttachmentStrip.tsx";
 /* 一份附件能拿去做什么，那张单子——附件条上、句子里、气泡里，点出来的是同一份。 */
 export { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
+/* 拿一份附件去做点什么：打开、预览、外部应用、定位。 */
+export { useAttachmentActions } from "./attachments/actions.ts";
 /*
  * 放进来的文件，连同它们在磁盘上的位置。
  *

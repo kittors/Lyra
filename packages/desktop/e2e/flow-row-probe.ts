@@ -74,7 +74,6 @@ interface Geometry {
 	collapsedGap: number | null;
 	openGap: number | null;
 	iconStaysOnHover: boolean | null;
-	chevronOnRight: boolean | null;
 	titles: string[];
 }
 
@@ -154,15 +153,12 @@ async function main() {
 				: null;
 
 			const fold = document.querySelector('[data-ly-turn-process] .ly-flow-row');
-			let collapsedGap = null, iconStaysOnHover = null, chevronOnRight = null;
+			let collapsedGap = null, iconStaysOnHover = null;
 			if (fold) {
 				const icon = fold.querySelector('.ly-flow-lead');
-				const chev = fold.querySelector('.ly-flow-chevron');
 				const before = icon ? Math.round(icon.getBoundingClientRect().width) : 0;
 				fold.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 				iconStaysOnHover = Boolean(icon && Math.round(icon.getBoundingClientRect().width) === before && before > 0);
-				const box = fold.getBoundingClientRect();
-				chevronOnRight = Boolean(chev && chev.getBoundingClientRect().left > box.left + box.width / 2);
 				fold.click();
 				const proc = fold.closest('[data-ly-turn-process]');
 				const answer = proc?.nextElementSibling;
@@ -170,7 +166,7 @@ async function main() {
 			}
 
 			return {
-				rows, gaps, between, collapsedGap, openGap, iconStaysOnHover, chevronOnRight,
+				rows, gaps, between, collapsedGap, openGap, iconStaysOnHover,
 				titles: [...document.querySelectorAll('.ly-flow-title')].map((el) => el.textContent ?? ''),
 			};
 		})()`);
@@ -191,7 +187,6 @@ async function main() {
 			g.openGap !== null && g.collapsedGap === g.openGap,
 			`展开 ${g.openGap}px，收起 ${g.collapsedGap}px`);
 		check("悬停时前面的图标还在", g.iconStaysOnHover === true, String(g.iconStaysOnHover));
-		check("展开箭头在行的右半边", g.chevronOnRight === true, String(g.chevronOnRight));
 		check("思考行不再带「思考过程」标签", !g.titles.some((t) => t.includes("思考")), `标题取值 ${JSON.stringify(g.titles)}`);
 
 		// 截图要对准过程行——长回答会把它们顶出视口，拍到的就只是正文。

@@ -170,20 +170,16 @@ export function CommandText({
 						<span key={idx} className={s.className} data-kind={s.kind} data-bodiless={s.bodiless ? "" : undefined}>
 							{s.brackets && s.text.length > 2 ? (
 								/*
-								 * 底色只包到名字为止，收尾那个方括号留在外面。
+								 * 底色完整包裹整枚标记，收尾方括号包进标签内。
 								 *
-								 * 两个方括号都是透明的占位，但它们看起来不一样：左边那个底下画着图标，右
-								 * 边那个是纯空白——底色要是把两个都包进去，右侧就凭空多出一整个字符的留
-								 * 白，和左边对不齐。包到名字为止之后，标签自身是对称的，而右边那一格空白
-								 * 正好成了它和后面那句话之间的间隔。
+								 * 两端的方括号透明占位，首括号承载绝对定位图标，尾括号提供天然右边距。
+								 * 紧随其后的文本紧贴标记右侧边缘，杜绝全角字符导致的视觉空白断层。
 								 */
-								<>
-									<span className="ly-token-body">
-										<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
-										{s.text.slice(1, -1)}
-									</span>
+								<span className="ly-token-body">
+									<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
+									{s.text.slice(1, -1)}
 									<span className="ly-token-bracket">{s.text.slice(-1)}</span>
-								</>
+								</span>
 							) : (
 								s.text
 							)}

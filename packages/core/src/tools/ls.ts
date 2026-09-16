@@ -29,7 +29,7 @@ export const lsTool: Tool<LsArgs> = {
 	async execute(args, ctx): Promise<ToolResult> {
 		let absolute: string;
 		try {
-			absolute = args.path ? resolveWorkspacePath(ctx.cwd, args.path) : ctx.cwd;
+			absolute = args.path ? resolveWorkspacePath(ctx.cwd, args.path, ctx.allowedPaths) : ctx.cwd;
 		} catch (error) {
 			return errorResult(error instanceof Error ? error.message : String(error));
 		}

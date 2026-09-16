@@ -39,35 +39,6 @@
   margin-right: 6px;
 }
 
-/*
- * 展开箭头在最右边，不去顶掉前面那个图标。
- *
- * 它一度是「悬停时图标原地淡出、chevron 淡入」——省了一格宽度，代价是鼠标一放上去，那一行的身份
- * 标志（在想 / 在动手 / 在跑命令）就没了，换成一个跟这一行是什么无关的箭头。图标说的是「这是什
- * 么」，箭头说的是「点开还是收起」，两件事不该抢同一个位置。
- *
- * 平时不显形，鼠标进来或者已经展开时才出现——收起状态下一行安静的字里不该插一个常驻的控件。
- */
-.ly-flow-chevron {
-  flex: none;
-  /* 行尾是它的位置：它管的是整行，不是行里的某一段。 */
-  margin-left: auto;
-  padding-left: 8px;
-  opacity: 0;
-  transition:
-    opacity var(--ly-t-quick) var(--ly-e-out),
-    transform var(--ly-t-base) var(--ly-e-out);
-}
-
-.ly-flow-row:hover .ly-flow-chevron,
-.ly-flow-row[data-open] .ly-flow-chevron {
-  opacity: 1;
-}
-
-.ly-flow-row[data-open] .ly-flow-chevron {
-  transform: rotate(90deg);
-}
-
 /* 标题不参与压缩：先被吃掉的永远该是摘要。 */
 .ly-flow-title {
   flex: none;

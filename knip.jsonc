@@ -90,7 +90,17 @@
     "expo-updates",
     "expo-system-ui",
     "react-native-css-interop",
-    "@modelcontextprotocol/sdk"
+    "@modelcontextprotocol/sdk",
+    // Built-in formatter engines and plugins dynamically imported in `format-builtin-engines.ts`
+    "@prettier/plugin-php",
+    "@scalar/swift-fmt",
+    "@wasm-fmt/clang-format",
+    "@wasm-fmt/dart_fmt",
+    "@wasm-fmt/gofmt",
+    "@wasm-fmt/ruff_fmt",
+    "prettier-plugin-latex",
+    "prettier-plugin-sh",
+    "prettier-plugin-toml"
   ],
 
   "ignore": ["**/node_modules/**", "**/dist/**", "**/out/**"],

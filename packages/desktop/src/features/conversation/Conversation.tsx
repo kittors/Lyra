@@ -10,10 +10,11 @@ import { RuleSuggestion } from "./RuleSuggestion.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
 import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
-import { ToolRun as ToolRunGroup, WINDOW_STEP } from "./runs.tsx";
+import { ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
@@ -99,7 +100,18 @@ export const Conversation = memo(function Conversation() {
   const allRuns = useMemo(() => runs(messages, compactions, commandRuns, hiccups), [messages, compactions, commandRuns, hiccups]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
-  const range = useTranscriptWindow(activeSessionId, WINDOW_STEP, allRuns.length);
+  /*
+   * 先分块，再开窗——顺序反过来就是那个「点了没反应」的 bug。
+   *
+   * 窗口从前按 `Run` 走，而画出来的单位是 `TurnBlock`。一轮里可以有几百个 Run（一个会话在两次用户
+   * 发言之间跑了 400 次工具调用），于是往那种轮次里翻页，60 个 Run 全落进一个已经收起的块，屏幕上
+   * 只有「调用工具 N 个」那个数字在变。连点四次，转录一动不动。
+   *
+   * 按块开窗之后，翻一次必然多出整轮——必然看得见。收起的轮次不花钱（`TurnProcess` 收起时不渲染
+   * 里面的东西），所以一次多带几轮也不再是负担。
+   */
+  const allBlocks = useMemo(() => turnBlocks(allRuns), [allRuns]);
+  const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   const [jump, setJump] = useState<{ sessionId: string | null; index: number } | null>(null);
   const { compact } = useLayout();
   /*
@@ -209,14 +221,13 @@ export const Conversation = memo(function Conversation() {
    * three hundred rows to show one more word arriving.
    */
   const hidden = range.start;
-  const visibleRuns = allRuns.slice(range.start, range.end);
   /*
    * 分块只在转录变了的时候算一次。
    *
    * 它在渲染里被读两次（画每一块、判断哪一块是最后一块），直接调用就是每次渲染跑两遍分组，
    * 而这条转录在一轮里每个 token 都会重渲染。
    */
-  const blocks = useMemo(() => turnBlocks(visibleRuns), [visibleRuns]);
+  const blocks = useMemo(() => allBlocks.slice(range.start, range.end), [allBlocks, range.start, range.end]);
   const { scrollTo, detach } = follow;
   useLayoutEffect(() => {
     if (!jump || jump.sessionId !== activeSessionId) return;
@@ -302,19 +313,49 @@ export const Conversation = memo(function Conversation() {
            * end is what anyone is reading; the rest is one click away and stays unmounted until
            * then.
            */}
-          {loadingSession && <div role="status" className="text-label text-ink-faint">{translate("conversation.loading")}</div>}
-          {hidden > 0 && (
-            <button
-              type="button"
-              data-ly-tip={translate("conversation.showEarlier", { n: Math.min(hidden, WINDOW_STEP), total: hidden })}
-              aria-label={translate("conversation.showEarlier", { n: Math.min(hidden, WINDOW_STEP), total: hidden })}
-              onClick={range.earlier}
-              className="mb-4 flex h-7 w-full items-center justify-center gap-1 rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
+          {loadingSession && (
+            <div
+              role="status"
+              className={
+                allBlocks.length === 0
+                  ? "absolute inset-0 flex items-center justify-center pointer-events-none"
+                  : "flex items-center justify-center py-4"
+              }
             >
-              {/* 数字留在按钮上：它是这一按会拿回多少条，不是这颗按钮叫什么。 */}
-              <ChevronUp size={12} strokeWidth={2} aria-hidden />
-              <span className="tabular-nums">{Math.min(hidden, WINDOW_STEP)}</span>
-            </button>
+              <ActionSpinner size={allBlocks.length === 0 ? 20 : 14} className="text-ink-faint" />
+            </div>
+          )}
+          {hidden > 0 && (
+            /*
+             * 这颗按钮说的是整句话，不是一个数字。
+             *
+             * 它一度只画一个箭头和「60」，句子藏在 tooltip 里。一个数字不会自己解释自己——60 条
+             * 什么？加载？未读？剩余？——而要读懂它得先把鼠标停上去等一秒，那是一次「先猜、再验」
+             * 的交互，代价由每一个看到它的人付。键盘和读屏的人则连猜的机会都没有：`aria-label`
+             * 是另一套说法，和眼睛看到的对不上。
+             *
+             * 一整行的宽度本来就摆在那儿，写完这句话绰绰有余。
+             */
+            <div className="mb-4 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={range.earlier}
+                className="group/earlier inline-flex h-7 items-center gap-1.5 rounded-full border border-line-soft bg-card/40 px-3.5 text-detail text-ink-faint shadow-xs transition-colors duration-[var(--ly-t-quick)] hover:border-line hover:bg-card hover:text-ink-muted active:scale-[0.98]"
+              >
+                <ChevronUp size={12} strokeWidth={2} aria-hidden className="transition-transform duration-[var(--ly-t-quick)] group-hover/earlier:-translate-y-0.5" />
+                {/*
+                 * 「共 N 条」只在它确实是另一个数字时才出现。
+                 *
+                 * 最后一页里 n 和 total 是同一个数，「显示更早的 60 条（共 60 条）」把同一件事说了
+                 * 两遍——而读到括号的人会以为里面有新消息。
+                 */}
+                <span className="tabular-nums">
+                  {hidden > WINDOW_TURNS
+                    ? translate("conversation.showEarlier", { n: WINDOW_TURNS, total: hidden })
+                    : translate("conversation.showEarlierRest", { n: hidden })}
+                </span>
+              </button>
+            </div>
           )}
 
           {/*
@@ -413,8 +454,21 @@ export const Conversation = memo(function Conversation() {
            * Folded rather than removed, so the height goes continuously — which is the whole
            * reason it was made to stay put in the first place.
            */}
-          {range.end < allRuns.length && <button type="button" data-ly-tip={translate("conversation.showLaterN", { n: Math.min(WINDOW_STEP, allRuns.length - range.end) })} aria-label={translate("conversation.showLaterN", { n: Math.min(WINDOW_STEP, allRuns.length - range.end) })} onClick={range.later} className="my-3 flex h-7 w-full items-center justify-center gap-1 rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"><ChevronDown size={12} strokeWidth={2} aria-hidden /><span className="tabular-nums">{Math.min(WINDOW_STEP, allRuns.length - range.end)}</span></button>}
-          {range.end === allRuns.length && <>
+          {range.end < allBlocks.length && (
+            <div className="my-3 flex items-center justify-center">
+              <button
+                type="button"
+                data-ly-tip={translate("conversation.showLaterN", { n: Math.min(WINDOW_TURNS, allBlocks.length - range.end) })}
+                aria-label={translate("conversation.showLaterN", { n: Math.min(WINDOW_TURNS, allBlocks.length - range.end) })}
+                onClick={range.later}
+                className="group/later inline-flex h-7 items-center gap-1.5 rounded-full border border-line-soft bg-card/40 px-3.5 text-detail text-ink-faint shadow-xs transition-colors duration-[var(--ly-t-quick)] hover:border-line hover:bg-card hover:text-ink-muted active:scale-[0.98]"
+              >
+                <ChevronDown size={12} strokeWidth={2} aria-hidden className="transition-transform duration-[var(--ly-t-quick)] group-hover/later:translate-y-0.5" />
+                <span className="tabular-nums">{Math.min(WINDOW_TURNS, allBlocks.length - range.end)}</span>
+              </button>
+            </div>
+          )}
+          {range.end === allBlocks.length && <>
           <div className="ly-reveal" data-open={running && !answering && !compacting} aria-hidden={!running || answering || compacting}>
             <div>
               <div>{running && !compacting && <RunningIndicator />}</div>
@@ -451,14 +505,15 @@ export const Conversation = memo(function Conversation() {
        * it is about.
        */}
       {questions.length > 1 && <QuestionNav key={activeSessionId} questions={questions} viewport={scrollRef} edge={narrowColumn} onSelect={(index) => {
-        const at = allRuns.findIndex((run) => run.kind === "message" && run.index === index);
+        // 窗口按块走，所以要的是「那条消息在哪个块里」，不是它在 Run 序列里的位置。
+        const at = allBlocks.findIndex((block) => block.runs.some((run) => run.kind === "message" && run.index === index));
         if (at < 0) return;
         detach();
         range.reveal(at);
         setJump({ sessionId: activeSessionId, index });
       }} />}
       <BackToLatest
-        show={follow.away || range.end < allRuns.length}
+        show={follow.away || range.end < allBlocks.length}
         unread={follow.unread}
         onClick={() => { range.latest(); follow.returnToBottom(); }}
       />

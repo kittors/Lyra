@@ -122,7 +122,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      * one made every selector in the window run again to discover that nothing had happened. With
      * several conversations working at once that is the bulk of the store's traffic.
      */
-    const meter = get().turns[sessionId];
+    const turns = get().turns ?? {};
+    const meter = turns[sessionId];
     let next: { startedAt: number; tokens: number } | undefined = meter;
     /*
      * What a turn that stopped part-way leaves behind for 继续 to pick up.
@@ -134,7 +135,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     let carriedNext: { elapsedMs: number; tokens: number } | null | undefined;
     if (event.type === "agent_start") {
       // Kept if it is already running: a continuation is the same turn, not a new one.
-      next = { startedAt: meter?.startedAt ?? Date.now(), tokens: meter?.tokens ?? 0 };
+      // If not currently running but carried exists, relight from the carried meter so continuation preserves timing and tokens.
+      const carried = get().carried ?? {};
+      next = meter ?? (carried[sessionId] ? relight(carried[sessionId], Date.now()) : { startedAt: Date.now(), tokens: 0 });
     } else if (event.type === "message_end" && event.message.role === "assistant") {
       /*
        * Counted when the reply ends, because that is when there is anything to count.
@@ -193,7 +196,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * anything carried past it would be added to whatever ran next, under a total nobody could
        * account for — unless what runs next was already spoken, which is the case below.
        */
-      const stoppedShort = event.reason === "aborted" || event.reason === "error";
+      const unfinishedTodos = (sessionId === get().activeSessionId ? (get().todos ?? []) : (get().sessionCache?.[sessionId]?.state?.todos ?? [])).filter((todo) => todo.status !== "completed").length > 0;
+      const stoppedShort = event.reason === "aborted" || event.reason === "error" || event.reason === "max_turns" || (event.reason === "done" && unfinishedTodos);
       /*
        * And the other kind of unfinished: what is still waiting on the queue.
        *
@@ -229,6 +233,14 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       if (carriedNext) carried[sessionId] = carriedNext;
       else delete carried[sessionId];
       saveCarried(sessionId, carriedNext);
+      set({ carried });
+    }
+
+    // If we relighted from carried on agent_start, consume/clear carried so it won't linger
+    if (event.type === "agent_start" && get().carried?.[sessionId]) {
+      const carried = { ...get().carried };
+      delete carried[sessionId];
+      saveCarried(sessionId, null);
       set({ carried });
     }
   }
@@ -310,7 +322,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         // setup before the agent starts is part of the wait. Overwriting it here made
         // the elapsed time jump backwards. A turn driven from the phone or the
         // scheduler has no composer, so it starts the clock here instead.
-        turnStartedAt: get().turnStartedAt ?? Date.now(),
+        turnStartedAt: get().turns?.[sessionId]?.startedAt ?? get().turnStartedAt ?? Date.now(),
+        turnTokens: get().turns?.[sessionId]?.tokens ?? get().turnTokens ?? 0,
         /*
          * The count is the meter's to set, and it has already set it, a few lines up.
          *

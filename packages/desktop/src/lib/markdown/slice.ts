@@ -20,13 +20,13 @@ import type { Inline } from "./inline.ts";
 export const HUGE_BLOCK = 64 * 1024;
 
 /** 一片的目标大小。 */
-export const SLICE = 50_000;
+const SLICE = 50_000;
 
 /**
  * 切片。片与片拼回去必须**逐字**等于原文（换行也在片里，不靠拼接补），这条由测试守着：
  * 一旦某天为了对齐边界而吞掉一个空白，复制出来的东西就和看到的不是一回事了。
  */
-export function sliceHuge(text: string, limit = SLICE): string[] {
+function sliceHuge(text: string, limit = SLICE): string[] {
 	if (text.length <= limit) return [text];
 
 	const out: string[] = [];

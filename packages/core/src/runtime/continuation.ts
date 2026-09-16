@@ -17,10 +17,23 @@
  * fresh turn over that history resumes at the next step rather than the first one. Nothing is
  * replayed and nothing is re-run.
  *
- * Bounded in both cases, and safe to bound loosely for the cap, because the two ways a run can be
- * genuinely stuck are caught elsewhere: repetition ends a turn with `stalled`, and a model that has
- * stopped calling tools is nudged a few times and then left alone. Bounded tightly for the
- * connection, because nothing here can tell a network blip from an outage except by trying.
+ * Bounded in both cases. Bounded tightly for the connection, because nothing here can tell a
+ * network blip from an outage except by trying.
+ *
+ * The cap used to be bounded loosely, on the reasoning that the two ways a run can be genuinely
+ * stuck are caught elsewhere: repetition ends a turn with `stalled`, and a model that has stopped
+ * calling tools is nudged a few times and then left alone. **That reasoning was wrong, and it cost
+ * five hours and $10.72 to find out.**
+ *
+ * Measured on the session that did it (2026-09-15, `86ff1d52`): 396 rounds over 5.32 hours,
+ * 36.9M tokens — and of the 396 tool calls, **384 had distinct fingerprints**. The repetition watch
+ * never fired once, and it was right not to: nothing repeated. A model reading a different file and
+ * grepping a different word every round is not looping by any measure that watch can take, and it
+ * can do that until the money runs out. The safety net named above simply has no thread across this
+ * particular hole.
+ *
+ * So the cap now checks the one thing that actually distinguishes a long task from a stuck one:
+ * whether the last two hundred rounds finished anything. See `STALLED_CONTINUATIONS`.
  *
  * A policy, not a mechanism — hence a module of its own, and a set of questions it asks rather than
  * a session it reaches into.
@@ -38,6 +51,28 @@ import type { Message } from "../types.ts";
  * long before it the repetition watch would have called a genuine loop.
  */
 const MAX_CONTINUATIONS = 10;
+
+/**
+ * How many times in a row the rounds may run out with nothing on the list finished.
+ *
+ * This is the condition that was missing. Continuing used to ask only "is there anything left to
+ * do?", and the list is written by the model — an exploring model adds to it, so the answer is
+ * always yes and the loop is unbounded in everything except the backstop above.
+ *
+ * "Did anything get *done*?" is the question that separates the two cases the old comment ran
+ * together. A real long task finishes items as it goes: the frontend half of a full-stack build
+ * reaches the cap having ticked several boxes. A stuck one reaches it having ticked none — which is
+ * exactly what the 2026-09-15 session did, twice over, while its plan sat at 0 of 4.
+ *
+ * One is allowed, not zero, because a single item can legitimately be larger than two hundred
+ * rounds and the first stretch of a hard task is often all reading. Two in a row is four hundred
+ * rounds with nothing to show, and at that point the useful thing to do is stop and let a person
+ * look — the work is on disk, and continuing has already been proven to cost more than it returns.
+ */
+const STALLED_CONTINUATIONS = 1;
+
+/** 清单上打了勾的有几项。 */
+const completed = (todos: TodoItem[]): number => todos.filter((todo) => todo.status === "completed").length;
 
 /**
  * How many times a lost connection may be picked back up.
@@ -106,13 +141,39 @@ export async function continueWhileWorkRemains(
 	 * budget is for the run, not for the current streak.
 	 */
 	let resumes = 0;
+	/*
+	 * 打了勾的项数，和「连着几轮一项都没打上」。
+	 *
+	 * 起点取 `first` 跑完时的状态，所以下面第一次比较问的是「这一轮 200 步推进了什么」，而不是拿
+	 * 一个空清单当基线——后者会让第一次续跑无条件算作有进展。
+	 */
+	let done = completed(deps.todos());
+	let stalled = 0;
 
 	for (let extra = 0; extra < MAX_CONTINUATIONS; extra++) {
 		if (deps.aborted()) break;
 
 		if (result.reason === "max_turns") {
-			const unfinished = deps.todos().filter((todo) => todo.status !== "completed");
+			const todos = deps.todos();
+			const unfinished = todos.filter((todo) => todo.status !== "completed");
 			if (unfinished.length === 0) break;
+
+			/*
+			 * 这一轮把清单往前推了没有。
+			 *
+			 * 只看打勾数变多没有，不看它怎么变的：模型重写整张清单时打勾数会掉回去，那按「没推进」
+			 * 算——一个把自己的计划推翻重来的回合，正是最不该无条件再给它两百步的那种。
+			 */
+			const nowDone = completed(todos);
+			stalled = nowDone > done ? 0 : stalled + 1;
+			done = nowDone;
+			if (stalled > STALLED_CONTINUATIONS) {
+				await deps.notify(
+					`连着 ${stalled} 轮步数用尽，清单里的 ${unfinished.length} 项一项都没完成——先停下来，做过的都在记录里。`,
+				);
+				break;
+			}
+
 			await deps.notify(`本轮步数用尽，清单里还有 ${unfinished.length} 项，继续执行。`);
 			result = await deps.run(deps.messages());
 			continue;

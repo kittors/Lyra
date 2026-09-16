@@ -78,6 +78,7 @@ export const editTool: Tool<EditArgs> = {
 	summarize: (args) => `Edit ${args.path}`,
 
 	async execute(args, ctx): Promise<ToolResult> {
+		// 不吃 `ctx.allowedPaths`，理由见 `write.ts` 里同一处的注释：附件是「给你看」，不是「可以改」。
 		let absolute: string;
 		try {
 			absolute = resolveWorkspacePath(ctx.cwd, args.path);

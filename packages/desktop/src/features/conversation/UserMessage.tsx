@@ -6,6 +6,8 @@ import type {
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
+import { useAttachmentActions } from "../composer/index.ts";
+import { companionOf } from "../dock/index.ts";
 import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
@@ -101,15 +103,16 @@ export function UserMessage({
 	const { t } = useI18n();
   const running = useApp((s) => s.running);
   const editMessage = useApp((s) => s.editMessage);
-  /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从右键的位置长。 */
-  const previewImage = (src: string) => {
-    const index = images.findIndex((img) => `data:${img.mimeType};base64,${img.data}` === src);
-    if (index < 0) return;
-    const tile = document.querySelectorAll<HTMLElement>(`[data-question-index="${index}"] .ly-attachment-body`)[index] ?? null;
-    const origin = tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
+  const attachmentActions = useAttachmentActions();
+  /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
+  const previewImage = (src: string, originRect?: DOMRect) => {
+    const imgIndex = images.findIndex((img) => `data:${img.mimeType};base64,${img.data}` === src);
+    if (imgIndex < 0) return;
+    const tile = document.querySelectorAll<HTMLElement>(`[data-question-index="${index}"] .ly-attachment-body`)[imgIndex] ?? null;
+    const origin = originRect ?? tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
     openViewer(
       images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
-      index,
+      imgIndex,
       origin,
       tile,
     );
@@ -376,6 +379,27 @@ export function UserMessage({
                   /* 只有名字进了提示词的那些：图标淡一档。气泡里还多一句悬停说明。 */
                   data-bodiless={segment.file.bodiless ? "" : undefined}
                   data-ly-tip={segment.file.bodiless ? t("composer.filenameOnly") : undefined}
+                  onClick={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    attachmentActions.openOrPreview(
+                      {
+                        name: segment.file.label ?? segment.file.name,
+                        path: segment.file.path,
+                        src: segment.file.src,
+                        isImage: Boolean(segment.file.src || segment.file.kind === "image"),
+                        onPreviewImage: (originRect?: DOMRect) => {
+                          if (segment.file.src) {
+                            previewImage(segment.file.src, originRect);
+                          }
+                        },
+                        onOpenFile: (filePath: string, name: string) => {
+                          void useOpenFile.getState().open({ path: filePath, name, isDirectory: false, size: 0 });
+                          useDock.getState().open("file", companionOf("file"));
+                        },
+                      },
+                      rect,
+                    );
+                  }}
                   /*
                    * 右键点这一枚，和右键点输入框里那一枚、点附件条上那一格，弹的是同一份菜单。
                    *

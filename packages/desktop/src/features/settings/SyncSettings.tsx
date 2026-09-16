@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { useApp } from "../../store/index.ts";
-import { Badge, Card, Field, GhostButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
+import { Badge, Card, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { pairingCode, parseEndpoint, routeLabel, type PairingRoute } from "./pairing.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -96,13 +96,15 @@ export function SyncSettings() {
 						detail={running ? t("sync.clients", { count: sync?.clients ?? 0 }) : t("sync.notRunning")}
 						control={<Badge tone={running ? "ok" : "muted"}>{running ? t("sync.running") : t("sync.stopped")}</Badge>}
 				/>
-				<div className="px-4 py-3.5">
-					<Field label={t("sync.port")}>
+				<Row
+					title={t("sync.port")}
+					control={
 						<TextInput
 							value={port}
 							onChange={setPort}
 							mono
 							inputMode="numeric"
+							className="w-[120px]"
 							onBlur={() => {
 								const parsed = Number(port);
 								if (parsed > 0 && parsed < 65536 && parsed !== settings.sync.port) {
@@ -110,8 +112,8 @@ export function SyncSettings() {
 								}
 							}}
 						/>
-					</Field>
-				</div>
+					}
+				/>
 			</Card>
 
 			<SectionTitle>{t("sync.pairing")}</SectionTitle>
@@ -237,20 +239,21 @@ export function SyncSettings() {
 											</span>
 										</div>
 									</div>
-
 									<div>
-										<div className="mb-1.5 flex items-center gap-2">
-											<span className="text-detail text-ink-faint">{t("sync.token")}</span>
-											<GhostButton
+										<div className="mb-1.5 text-detail text-ink-faint">{t("sync.token")}</div>
+										<div className="flex items-center gap-2 rounded-[10px] border border-line bg-input px-3.5 py-2.5">
+											<span className="min-w-0 flex-1 truncate font-mono text-label text-ink">{sync?.token}</span>
+											<button
+												type="button"
+												data-ly-tip={t("common.reset")}
+												aria-label={t("common.reset")}
 												onClick={() => {
 													void bridge.sync.rotateToken().then(() => void refreshSync());
 												}}
-												title={t("common.reset")}
-												icon={<RotateCw size={11} strokeWidth={2} />}
-											/>
-										</div>
-										<div className="flex items-center gap-2 rounded-[10px] border border-line bg-input px-3.5 py-2.5">
-											<span className="min-w-0 flex-1 truncate font-mono text-label text-ink">{sync?.token}</span>
+												className="shrink-0 cursor-pointer text-ink-faint transition-colors hover:text-ink"
+											>
+												<RotateCw size={13} strokeWidth={1.8} />
+											</button>
 											<CopyButton
 												done={copied === "token"}
 												onCopy={() => {

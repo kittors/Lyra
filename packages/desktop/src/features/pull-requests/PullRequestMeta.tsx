@@ -35,7 +35,7 @@ export function PullRequestMeta({ detail }: { detail: PullRequestDetail }) {
 						{detail.reviewers.map((reviewer, index) => (
 							<span
 								key={`${reviewer.login}-${index}`}
-								className="rounded-md bg-card px-1.5 py-0.5 text-detail text-ink-muted"
+								className="shrink-0 whitespace-nowrap rounded-md bg-card px-1.5 py-0.5 text-detail text-ink-muted"
 							>
 								{reviewer.login}
 								<span className={`pl-1 ${verdictTone(reviewer.state)}`}>{verdictLabel(reviewer.state)}</span>
@@ -54,11 +54,11 @@ export function PullRequestMeta({ detail }: { detail: PullRequestDetail }) {
 			</Row>
 
 			<Row icon={GitPullRequest} label={t("common.status")}>
-				<span className="text-detail text-ink">{stateLabel(detail)}</span>
+				<span className="shrink-0 whitespace-nowrap text-detail text-ink">{stateLabel(detail)}</span>
 				{detail.labels.length > 0 && (
 					<span className="flex flex-wrap items-center gap-1.5 pl-2">
 						{detail.labels.map((label) => (
-							<span key={label} className="rounded-md bg-card px-1.5 py-0.5 text-caption text-ink-muted">
+							<span key={label} className="shrink-0 whitespace-nowrap rounded-md bg-card px-1.5 py-0.5 text-caption text-ink-muted">
 								{label}
 							</span>
 						))}

@@ -10,6 +10,7 @@ import { ipcMain } from "electron";
 import { readFile } from "node:fs/promises";
 import { dirname, join, parse } from "node:path";
 import { formatExternally, hasExternalFormatter, type ExternalResult } from "../format-external.ts";
+import type { BuiltinFormatOptions } from "../format-builtin-engines.ts";
 
 export interface FormatIpcDeps {
 	/** The path, normalised, if it lies in an open project — otherwise null. */
@@ -96,9 +97,12 @@ function fromEditorConfig(text: string): Record<string, unknown> | null {
 }
 
 export function registerFormatIpc(deps: FormatIpcDeps): void {
-	ipcMain.handle("format:external", async (_event, extension: string, source: string): Promise<ExternalResult> => {
-		return await formatExternally(extension, source);
-	});
+	ipcMain.handle(
+		"format:external",
+		async (_event, extension: string, source: string, options?: BuiltinFormatOptions): Promise<ExternalResult> => {
+			return await formatExternally(extension, source, options);
+		},
+	);
 
 	ipcMain.handle("format:available", async (_event, extension: string) => hasExternalFormatter(extension));
 

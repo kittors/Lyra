@@ -7,7 +7,7 @@ import type { RetryPolicySource } from "../config/retry-policy.ts";
  * can redirect a running agent without cancelling it.
  */
 
-import { RepetitionWatch } from "./repetition.ts";
+import { REPEAT_WARN, RepetitionWatch } from "./repetition.ts";
 import type { RuleMatch } from "../rules/stream.ts";
 import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
@@ -46,6 +46,16 @@ export interface AgentRunConfig {
 	maxTokens?: number;
 	temperature?: number;
 	maxTurns?: number;
+	/**
+	 * 盯着「这一轮有没有在原地打转」的那只表，由调用方给，**跨整条续跑链共用一只**。
+	 *
+	 * 不在这里 `new` 的原因是这个函数会被续跑反复调用（`runtime/continuation.ts`）：每次新建一只，
+	 * 计数就清零，于是跑满两百轮换来的全部观察在续跑的瞬间归零，看门狗永远攒不够。真实日志里那个
+	 * 会话跑了 588 轮、agent 起停五次，而每一段都以为自己是第一段。
+	 *
+	 * 省略时自己建一只——单次调用（子代理、评测、测试）本来就没有「上一段」。
+	 */
+	repetition?: RepetitionWatch;
 	signal?: AbortSignal;
 	/** Session-scoped scratch space shared by every tool. */
 	state?: Map<string, unknown>;
@@ -56,6 +66,8 @@ export interface AgentRunConfig {
 	sandboxNetwork?: ToolContext["sandboxNetwork"];
 	/** Passed through to the tools; see `ToolContext.allowedHosts`. */
 	allowedHosts?: ToolContext["allowedHosts"];
+	/** Passed through to the tools; see `ToolContext.allowedPaths`. */
+	allowedPaths?: ToolContext["allowedPaths"];
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
 	spawnSubAgent?: ToolContext["spawnSubAgent"];
@@ -167,7 +179,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	/** Consecutive turns that talked about the plan without touching it. */
 	let nudges = 0;
 	/** Watches for a turn that has stopped learning anything; see `repetition.ts`. */
-	const repetition = new RepetitionWatch();
+	const repetition = config.repetition ?? new RepetitionWatch();
 	/**
 	 * When the last request went out, for judging whether the provider's prefix cache is still warm.
 	 *
@@ -509,21 +521,53 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 * discover anything on the seventh, and the hours it would spend doing so belong to
 		 * whoever is waiting for it.
 		 */
-		const { warn: repeated } = repetition.observe(toolCalls, toolResults);
-		if (repetition.exhausted()) {
-			return finish("stalled");
+		const { warn: repeated, kind, repeats } = repetition.observe(toolCalls, toolResults);
+
+		/*
+		 * 问到第三次的，不再把那份一模一样的结果重贴一遍。
+		 *
+		 * 这里原本是「问满六次就结束这一轮」。停下来解决不了任何问题：它既没告诉模型该怎么办，也没把
+		 * 等结果的人放出来，只是把一次卡住变成一次中断。
+		 *
+		 * 换成纠正之后，模型收到的是一句具体的话——第几次、结果没变、它不会因为再问一次而改变——而
+		 * 不是一段它三分钟前刚读过的原文。省下的是实打实的钱：真实日志里同一段 `read` 贴过 5 遍，同一个
+		 * `skill` 注入过 4 次，每次 5,625 token。
+		 *
+		 * 只动给模型看的那一份，工具照常执行过：万一这次结果真的变了，指纹就不同，根本走不到这里。
+		 */
+		if (repetition.exhausted()) return finish("stalled");
+
+		for (const [index, seen] of repeats.entries()) {
+			if (seen < REPEAT_WARN) continue;
+			const result = toolResults[index];
+			if (!result || result.role !== "toolResult") continue;
+			result.content = [
+				{
+					type: "text",
+					text:
+						`（这是你第 ${seen} 次用同样的参数调用 \`${toolCalls[index].name}\`，结果和前几次一字不差，` +
+						`所以这里不再重复贴一遍。它不会因为你再问一次就改变——要么先去动它，要么换个问法。）`,
+				},
+			];
 		}
 		if (repeated) {
+			/*
+			 * 两条线两句话，因为说错了等于没说。
+			 *
+			 * 对一个每轮都在改 `offset` 的调用说「你用了同样的参数」，模型对照一眼就知道这话不成立，
+			 * 于是连带着后半句一起不信——而后半句才是要紧的那句。真实记录里，一次翻了 37 页的搜索
+			 * 全程没有收到任何提示；等到终于收到时，那句话描述的也不是它正在做的事。
+			 */
+			const text =
+				kind === "intent"
+					? `（自动提示）你已经用不同的翻页参数把 \`${repeated}\` 的同一个问题问了很多遍。` +
+						`翻页不会把答案翻出来——要么它本来就不在这里，要么该换个问法。` +
+						`换个工具、换个假设，或者直接说明当前卡在哪里、需要什么。`
+					: `（自动提示）你已经用同样的参数调用 \`${repeated}\` 多次，每次得到的结果都一样。` +
+						`再问一次不会有新信息。换一个思路：换个工具、换个假设，或者直接说明当前卡在哪里、需要什么。`;
 			const notice: Message = {
 				role: "user",
-				content: [
-					{
-						type: "text",
-						text:
-							`（自动提示）你已经用同样的参数调用 \`${repeated}\` 多次，每次得到的结果都一样。` +
-							`再问一次不会有新信息。换一个思路：换个工具、换个假设，或者直接说明当前卡在哪里、需要什么。`,
-					},
-				],
+				content: [{ type: "text", text }],
 				timestamp: Date.now(),
 				synthetic: true,
 			};

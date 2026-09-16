@@ -65,6 +65,15 @@ export const writeTool: Tool<WriteArgs> = {
 			}
 		}
 
+		/*
+		 * 不吃 `ctx.allowedPaths`——那是「给你看一眼」，不是「可以改」。
+		 *
+		 * 那份集合来自用户拖进输入框的附件（`runtime/session-turn.ts` 的 `collectAllowedPaths`），
+		 * 而拖一个文件进来的意思是让模型读它。把同一份许可接到写这一侧，等于一次「你看看我的
+		 * ~/.zshrc」就永久换来了对它的写权限——在完全访问模式下没有任何一步会再问。
+		 *
+		 * 读那一侧留着（`read.ts`、`ls.ts`），那是附件本来的用途。
+		 */
 		let absolute: string;
 		try {
 			absolute = resolveWorkspacePath(ctx.cwd, args.path);

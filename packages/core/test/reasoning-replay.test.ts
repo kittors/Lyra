@@ -107,10 +107,18 @@ test("an id-less block keeps its encrypted payload, which is replayable on its o
 });
 
 test("a block with neither a handle nor any text is still dropped", () => {
-	// Nothing to send and nothing to resume — an empty reasoning item would be noise in the request.
+	/*
+	 * Nothing to send and nothing to resume — that block contributes no reasoning item of its own.
+	 *
+	 * 这一轮因此没有推理项，于是补位分支给它补了一个（`api.deepseek.com` 要求助手轮以推理项开头）。
+	 * 两件事不矛盾，而且要分得开：**原来那块没有被回放**——补出来的这个既没有 id 也没有密文，文本是
+	 * 固定的那一句，跟 `""` 的那块无关。
+	 */
 	const input = toResponsesInput([user, assistant([{ type: "thinking", thinking: "" }, { type: "text", text: "嗯" }])]);
 
-	assert.deepEqual(reasoning(input), []);
+	assert.deepEqual(reasoning(input), [
+		{ type: "reasoning", summary: [], content: [{ type: "reasoning_text", text: "（自动追加）这一轮没有留下推理记录。" }] },
+	]);
 });
 
 test("reasoning stripped of its handles by a model switch still goes back as text", () => {
@@ -141,4 +149,63 @@ test("reasoning keeps its place among the other blocks of the turn", () => {
 		input.map((item) => (item as { type: string }).type),
 		["message", "reasoning", "function_call"],
 	);
+});
+
+/*
+ * 每个助手轮都要以一个推理项开头——没有可发的就补一个。
+ *
+ * 这是 2026-09-15 报废一个会话的那条规则。压缩在摘要后面补的那句「Understood. Continuing from that
+ * summary.」是一条没有推理的助手消息，而 `api.deepseek.com` 在思考模式下不收这种助手轮，它对此只有
+ * 一句话可说——正是文件头那句点名 `reasoning_text` 的话。
+ *
+ * 真实端点上分离过（`~/.lyra/scratch/deepseek-compaction-400.txt`）：那条助手消息原样留着 400，前面
+ * 插一个合成推理项 200，改成 user 200，整条删掉 200；而推理项带不带 `content.reasoning_text`，两种
+ * 都是 400。所以这一组测试盯的是**位置**，不是那个字段——盯错了一次，代价是一整天。
+ */
+test("a turn with no reasoning of its own still opens with a reasoning item", () => {
+	const input = toResponsesInput([
+		{ role: "user", content: [{ type: "text", text: "<session-summary>…</session-summary>" }], timestamp: 0, synthetic: true },
+		assistant([{ type: "text", text: "Understood. Continuing from that summary." }]),
+	]);
+
+	assert.deepEqual(
+		input.map((item) => (item as { type: string }).type),
+		// 末尾那条 user 是「历史不能以助手的话收尾」那道闸补的，和这条无关。
+		["message", "reasoning", "message", "message"],
+		"助手轮前面没有推理项，这份请求会被 400 顶回来，而且重试和切回去都救不了",
+	);
+	assert.ok(reasoning(input)[0].content?.[0]?.text, "补出来的推理项得有文本，空壳顶不了");
+	assert.deepEqual(reasoning(input)[0].summary, [], "补的是文本不是概括，`summary` 留空");
+});
+
+test("a tool call with no reasoning before it gets one too", () => {
+	// 换过模型、退到 handled 档、或者模型自己想都没想就调工具——路子不同，形状一样。
+	const input = toResponsesInput([
+		user,
+		assistant([{ type: "toolCall", id: "call_1", name: "bash", arguments: {}, argumentsText: "{}" }]),
+	]);
+
+	assert.deepEqual(
+		input.map((item) => (item as { type: string }).type),
+		["message", "reasoning", "function_call"],
+	);
+});
+
+test("a turn that brought its own reasoning is left alone", () => {
+	// 补位只在这一轮一个推理项都没有时发生，真有推理的轮次一个字都不该多。
+	const input = toResponsesInput([user, assistant([{ type: "thinking", thinking: "先列目录" }, { type: "text", text: "好" }])]);
+
+	assert.equal(reasoning(input).length, 1);
+	assert.deepEqual(reasoning(input)[0].content, [{ type: "reasoning_text", text: "先列目录" }]);
+});
+
+test("the ladder's lower rungs are not given a synthetic item to choke on", () => {
+	/*
+	 * `omit` 的端点一个推理项都不收，`handled` 的只收带得动句柄的，而补出来的这个两样都不是。
+	 * 在那两档补等于拿一个必被拒的请求去换另一个。
+	 */
+	const bare: Message[] = [user, assistant([{ type: "text", text: "好" }])];
+
+	assert.deepEqual(reasoning(toResponsesInput(bare, undefined, "omit")), []);
+	assert.deepEqual(reasoning(toResponsesInput(bare, undefined, "handled")), []);
 });

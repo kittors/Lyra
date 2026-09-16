@@ -367,6 +367,9 @@ export const METHODS = {
 		status: { channel: "memory:projectStatus", remote: false, why: "后台抽取跑在桌面端" },
 		extract: { channel: "memory:projectExtract", remote: false, why: "后台抽取跑在桌面端" },
 		list: { channel: "memory:projectList", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
+		forget: { channel: "memory:projectForget", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
+		forgetExtracted: { channel: "memory:projectForgetExtracted", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
+		forgetAll: { channel: "memory:projectForgetAll", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
 	},
 	diff: {
 		workspaceDiff: { channel: "diff:workspace", remote: false, why: "手机上没有审阅改动的界面" },

@@ -151,7 +151,7 @@ export const readTool: Tool<ReadArgs> = {
 
 		let absolute: string;
 		try {
-			absolute = resolveWorkspacePath(ctx.cwd, path);
+			absolute = resolveWorkspacePath(ctx.cwd, path, ctx.allowedPaths);
 		} catch (error) {
 			return errorResult(error instanceof Error ? error.message : String(error));
 		}
