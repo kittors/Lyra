@@ -1,0 +1,165 @@
+{
+  "sessionId": "1a9a4c2e",
+  "recordedDate": "2026-09-16",
+  "scenario": "三仓库（根仓、CliRelay、codeProxy）本地分支与代码合并至 main",
+  "rootCause": "模型高度单发（并行率接近零），120 轮中 119 轮只发 1 个命令，耗时几乎全在等待模型思考而非工具运行",
+  "first120RoundsEvidence": {
+    "rounds": 120,
+    "singleCallRounds": 119,
+    "multiCallRounds": 1,
+    "toolExecutionDurationSec": 87.4,
+    "toolExecutionDurationMin": 1.46,
+    "humanWallClockWaitMin": 16.4,
+    "toolTimeShare": "8.9%",
+    "modelWaitTimeShare": "91.1%"
+  },
+  "fullSessionMetrics": {
+    "totalRounds": 173,
+    "totalCalls": 175,
+    "totalToolExecutionMin": 7.04,
+    "blockedCallsCount": 4,
+    "blockedCallsList": [
+      {
+        "round": 11,
+        "ruleNotice": "用 `read` 读文件——它带行号、有结构视图、大文件会给摘要，而且下一次 `edit` 会认得这份快照。`cat` 只在管道里用。"
+      },
+      {
+        "round": 13,
+        "ruleNotice": "用 `grep` 工具搜——它不受 shell 引号转义的折磨，结果带文件名和行号，而且会跳过 node_modules。"
+      },
+      {
+        "round": 18,
+        "ruleNotice": "用 `read` 读文件——它带行号、有结构视图、大文件会给摘要，而且下一次 `edit` 会认得这份快照。`cat` 只在管道里用。"
+      },
+      {
+        "round": 30,
+        "ruleNotice": "用 `ls` 工具列目录——它会标出目录和文件，而且不会把颜色转义码带进结果。"
+      }
+    ]
+  },
+  "sampleRoundsBreakdown": [
+    {
+      "round": 1,
+      "calls": [
+        "todo_write",
+        "bash",
+        "bash",
+        "bash"
+      ]
+    },
+    {
+      "round": 2,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 3,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 4,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 5,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 6,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 7,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 8,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 9,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 10,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 11,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 12,
+      "calls": [
+        "read"
+      ]
+    },
+    {
+      "round": 13,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 14,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 15,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 16,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 17,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 18,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 19,
+      "calls": [
+        "bash"
+      ]
+    },
+    {
+      "round": 20,
+      "calls": [
+        "bash"
+      ]
+    }
+  ]
+}

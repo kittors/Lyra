@@ -149,8 +149,10 @@ export function pruneToolResults(messages: Message[], threshold = PRUNE_THRESHOL
 /**
  * The same cut, taken all the way: an oversized result becomes one line saying it was there.
  *
- * The last resort, and only reached after a provider has already refused the request — see
- * `recoverFromRejection` in the loop. Cutting to a head and a tail is the right trade almost
+ * The last resort, and only reached after a provider has already refused the request — the
+ * `rejectedContent(assistant)` branch in `agent/loop.ts`. Only retries when this actually removed
+ * something (`stripped !== messages`): a "recovery" that changed nothing would ask the same
+ * question again and be refused the same way. Cutting to a head and a tail is the right trade almost
  * always, because the head is where the answer is. It is the wrong trade in one case: when the
  * *content* is what the far end cannot handle, a head of it is still that content.
  *

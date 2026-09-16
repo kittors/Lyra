@@ -1,0 +1,363 @@
+{
+  "_meta": {
+    "生成时间": "2026-09-16",
+    "机器": "作者本机（macOS）",
+    "说明": "这是 pnpm audit:sessions --json 的一次快照。数字随本机会话增长而变，不同机器之间绝对值无可比性——它的用途是让你判断自己机器上的量级和比例是否一致，以及作为改动前后对照的参照点。重新生成：pnpm audit:sessions --json > docs/architecture/data/session-audit-baseline.json"
+  },
+  "sessions": 261,
+  "rounds": 26006,
+  "totalTokens": 33328505,
+  "totalCarried": 7018993449,
+  "tools": {
+    "bash": {
+      "calls": 10142,
+      "tokens": 14782726,
+      "carried": 3153683092
+    },
+    "grep": {
+      "calls": 3561,
+      "tokens": 10819903,
+      "carried": 2058075956
+    },
+    "read": {
+      "calls": 7585,
+      "tokens": 6553837,
+      "carried": 1587893377
+    },
+    "skill": {
+      "calls": 86,
+      "tokens": 533705,
+      "carried": 112815559
+    },
+    "recall": {
+      "calls": 411,
+      "tokens": 122103,
+      "carried": 25788835
+    },
+    "glob": {
+      "calls": 431,
+      "tokens": 96578,
+      "carried": 17346913
+    },
+    "todo_write": {
+      "calls": 745,
+      "tokens": 58685,
+      "carried": 16807473
+    },
+    "edit": {
+      "calls": 1940,
+      "tokens": 47161,
+      "carried": 12708601
+    },
+    "task": {
+      "calls": 80,
+      "tokens": 85804,
+      "carried": 9547903
+    },
+    "ls": {
+      "calls": 344,
+      "tokens": 40005,
+      "carried": 6248231
+    },
+    "web_fetch": {
+      "calls": 24,
+      "tokens": 71799,
+      "carried": 3997174
+    },
+    "mcp__filesystem__read_file": {
+      "calls": 7,
+      "tokens": 13166,
+      "carried": 3888313
+    },
+    "mcp__filesystem__read_text_file": {
+      "calls": 20,
+      "tokens": 14360,
+      "carried": 2825659
+    },
+    "write": {
+      "calls": 907,
+      "tokens": 14222,
+      "carried": 2819344
+    },
+    "bash_output": {
+      "calls": 69,
+      "tokens": 20029,
+      "carried": 2254627
+    },
+    "symbol": {
+      "calls": 43,
+      "tokens": 3233,
+      "carried": 587433
+    },
+    "browser_open": {
+      "calls": 72,
+      "tokens": 27699,
+      "carried": 366269
+    },
+    "browser_act": {
+      "calls": 157,
+      "tokens": 14113,
+      "carried": 334369
+    },
+    "mcp__chrome-devtools__chrome-devtools__evaluate_script": {
+      "calls": 26,
+      "tokens": 950,
+      "carried": 283310
+    },
+    "mcp__chrome-devtools__chrome-devtools__take_snapshot": {
+      "calls": 2,
+      "tokens": 2863,
+      "carried": 205836
+    },
+    "mcp__context7__query-docs": {
+      "calls": 4,
+      "tokens": 2023,
+      "carried": 178854
+    },
+    "mcp__filesystem__edit_file": {
+      "calls": 3,
+      "tokens": 1075,
+      "carried": 108901
+    },
+    "mcp__chrome-devtools__chrome-devtools__take_screenshot": {
+      "calls": 12,
+      "tokens": 431,
+      "carried": 63062
+    },
+    "mcp__context7__resolve-library-id": {
+      "calls": 1,
+      "tokens": 529,
+      "carried": 48100
+    },
+    "mcp__chrome-devtools__chrome-devtools__navigate_page": {
+      "calls": 7,
+      "tokens": 308,
+      "carried": 35803
+    },
+    "mcp__chrome-devtools__chrome-devtools__list_console_messages": {
+      "calls": 1,
+      "tokens": 311,
+      "carried": 25777
+    },
+    "mcp__filesystem__get_file_info": {
+      "calls": 1,
+      "tokens": 77,
+      "carried": 18369
+    },
+    "mcp__chrome-devtools__chrome-devtools__list_pages": {
+      "calls": 3,
+      "tokens": 29,
+      "carried": 7402
+    },
+    "preview": {
+      "calls": 8,
+      "tokens": 81,
+      "carried": 5294
+    },
+    "git_log_codeProxy_fixes?:default_api:bash": {
+      "calls": 1,
+      "tokens": 23,
+      "carried": 4592
+    },
+    "node scripts/check-surface-usage.mjs --help": {
+      "calls": 1,
+      "tokens": 24,
+      "carried": 3672
+    },
+    "mcp__filesystem__list_allowed_directories": {
+      "calls": 2,
+      "tokens": 46,
+      "carried": 3191
+    },
+    "browser_tabs": {
+      "calls": 3,
+      "tokens": 345,
+      "carried": 2469
+    },
+    "exec_command": {
+      "calls": 1,
+      "tokens": 15,
+      "carried": 1999
+    },
+    "exec": {
+      "calls": 1,
+      "tokens": 13,
+      "carried": 1684
+    },
+    "lsp": {
+      "calls": 1,
+      "tokens": 11,
+      "carried": 1474
+    },
+    "mcp__chrome-devtools__chrome-devtools__click": {
+      "calls": 2,
+      "tokens": 20,
+      "carried": 1430
+    },
+    "mcp__chrome-devtools__chrome-devtools__resize_page": {
+      "calls": 1,
+      "tokens": 10,
+      "carried": 1418
+    },
+    "ask_user": {
+      "calls": 1,
+      "tokens": 18,
+      "carried": 549
+    },
+    "git": {
+      "calls": 1,
+      "tokens": 13,
+      "carried": 453
+    },
+    "git log -n 1 -p packages/desktop/test/format-builtin-all.test.ts": {
+      "calls": 1,
+      "tokens": 30,
+      "carried": 390
+    },
+    "mcp__filesystem__directory_tree": {
+      "calls": 2,
+      "tokens": 98,
+      "carried": 197
+    },
+    "directory_tree": {
+      "calls": 2,
+      "tokens": 31,
+      "carried": 94
+    },
+    "browser_screenshot": {
+      "calls": 8,
+      "tokens": 0,
+      "carried": 0
+    }
+  },
+  "read": {
+    "calls": 7350,
+    "tokens": 6365135,
+    "reread": 4422,
+    "reredTokens": 3496797,
+    "identical": 136,
+    "identicalTokens": 118851
+  },
+  "repetition": {
+    "exactWarns": 116,
+    "intentWarns": 91,
+    "corrected": 150,
+    "savedTokens": 157852,
+    "wouldStop": 0,
+    "worstEver": 6
+  },
+  "pruneGain": {
+    "delay0": {
+      "carried": 3037579222,
+      "savedShare": "56.7%"
+    },
+    "delay5": {
+      "carried": 3142411739,
+      "savedShare": "55.2%"
+    },
+    "delay12": {
+      "carried": 3268172160,
+      "savedShare": "53.4%"
+    },
+    "delay20": {
+      "carried": 3393512170,
+      "savedShare": "51.7%"
+    },
+    "delay40": {
+      "carried": 3689254765,
+      "savedShare": "47.4%"
+    },
+    "delay80": {
+      "carried": 4217825411,
+      "savedShare": "39.9%"
+    }
+  },
+  "stops": {
+    "toolUse": 25084,
+    "stop": 775,
+    "error": 78,
+    "aborted": 69
+  },
+  "endedWith": {
+    "stop": 202,
+    "aborted": 18,
+    "toolUse": 26,
+    "error": 15
+  },
+  "parallelism": {
+    "callsPerTurn": 1.065,
+    "parallelShare": "3.2%",
+    "blockedTurns": 40,
+    "byModel": {
+      "gemini-3.7-flash-high": {
+        "turns": 8845,
+        "calls": 8892,
+        "perTurn": 1.005,
+        "parallelShare": "0.3%"
+      },
+      "gemini-3.8-flash-high": {
+        "turns": 12365,
+        "calls": 12452,
+        "perTurn": 1.007,
+        "parallelShare": "0.5%"
+      },
+      "claude-opus-4-6-thinking": {
+        "turns": 90,
+        "calls": 105,
+        "perTurn": 1.167,
+        "parallelShare": "7.8%"
+      },
+      "deepseek-flash": {
+        "turns": 330,
+        "calls": 437,
+        "perTurn": 1.324,
+        "parallelShare": "27.0%"
+      },
+      "grok-4.6": {
+        "turns": 1265,
+        "calls": 2166,
+        "perTurn": 1.712,
+        "parallelShare": "24.9%"
+      },
+      "deepseek-v4-flash:0731": {
+        "turns": 92,
+        "calls": 106,
+        "perTurn": 1.152,
+        "parallelShare": "15.2%"
+      },
+      "kimi-k3": {
+        "turns": 1,
+        "calls": 2,
+        "perTurn": 2,
+        "parallelShare": "100.0%"
+      },
+      "deepseek-v4-flash": {
+        "turns": 2054,
+        "calls": 2458,
+        "perTurn": 1.197,
+        "parallelShare": "12.4%"
+      },
+      "command/deepseek-v4-flash": {
+        "turns": 34,
+        "calls": 80,
+        "perTurn": 2.353,
+        "parallelShare": "82.4%"
+      },
+      "ollama/deepseek-v4-flash:0731": {
+        "turns": 12,
+        "calls": 22,
+        "perTurn": 1.833,
+        "parallelShare": "58.3%"
+      }
+    }
+  },
+  "spend": {
+    "rawInput": 250976087,
+    "cacheRead": 2880300456,
+    "cacheWrite": 0,
+    "output": 4634467,
+    "cost": 144.4,
+    "cacheReadShare": "92.0%",
+    "cacheWriteShare": "0.0%"
+  }
+}

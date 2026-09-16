@@ -32,21 +32,40 @@ export function TurnProcess({
 	children: React.ReactNode;
 }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
+	const container = useRef<HTMLDivElement>(null);
 	const body = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<number | null>(null);
-
-	// 量出来的高度，不是猜的：动到一个不是真实高度的 max-height，要么裁掉内容要么提前停。
-	useLayoutEffect(() => {
-		const element = body.current;
-		if (!element) return;
-		const measure = () => setHeight(element.scrollHeight);
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, [children, open, running]);
-
+	const [height, setHeight] = useState<number | null>(() => (running || open ? null : 0));
 	const shown = running || open;
+	const prevShown = useRef(shown);
+
+	useLayoutEffect(() => {
+		const el = body.current;
+		const box = container.current;
+		if (!el || !box) return;
+
+		if (shown !== prevShown.current) {
+			if (shown) {
+				const targetHeight = el.scrollHeight;
+				setHeight(targetHeight);
+			} else {
+				const currentHeight = el.scrollHeight;
+				box.style.height = `${currentHeight}px`;
+				void box.offsetHeight;
+				box.style.height = "0px";
+				setHeight(0);
+			}
+			prevShown.current = shown;
+		} else if (shown) {
+			const measure = () => {
+				if (box.style.height !== "0px") {
+					setHeight(el.scrollHeight);
+				}
+			};
+			const observer = new ResizeObserver(measure);
+			observer.observe(el);
+			return () => observer.disconnect();
+		}
+	}, [children, shown]);
 
 	return (
 		<div className="mb-2.5" data-ly-turn-process={running ? "running" : "done"} data-ly-turn-open={shown ? "" : undefined}>
@@ -60,15 +79,20 @@ export function TurnProcess({
 				<FlowRow
 					icon={<Layers size={13} strokeWidth={1.8} />}
 					summary={summarize(counts)}
-					open={open}
+					label={translate("process.turn")}
+					open={shown}
 					onToggle={() => setOpen((value) => !value)}
-					label={summarize(counts)}
 				/>
 			)}
 
-			{/* `ly-freeze`：展开后的高度跟着内容走，拖动边界时它每帧都在变，缓动的高度会追不上指针。 */}
 			<div
-				style={{ height: shown ? height ?? "auto" : 0 }}
+				ref={container}
+				style={{ height: shown ? (height !== null ? `${height}px` : "auto") : 0 }}
+				onTransitionEnd={(e) => {
+					if (e.target === e.currentTarget && shown) {
+						setHeight(null);
+					}
+				}}
 				inert={!shown}
 				aria-hidden={!shown}
 				className="ly-freeze overflow-hidden transition-[height] duration-[var(--ly-t-base)] ease-out"

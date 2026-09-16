@@ -114,16 +114,40 @@ test("↑ 先给最近说的那句，再按往更早翻", async () => {
 	await view.unmount();
 });
 
-test("翻过头回到草稿，手里那半句话还在", async () => {
+test("输入框已有文字时，按 ↑ 绝不翻历史，100% 留给光标", async () => {
 	const view = await mount(h(Harness, { messages: [said("说过的")] }));
 	const field = view.find<HTMLTextAreaElement>("textarea");
 
 	await type(field, "打了一半");
 	await press(field, "ArrowUp");
+	assert.equal(field.value, "打了一半", "已有输入内容时按 ↑ 绝不能冲掉用户正在写的话");
+	assert.match(view.text(), /—/, "不在历史里");
+	await view.unmount();
+});
+
+test("翻到历史之后，按 Escape 直接退出历史回到空草稿", async () => {
+	const view = await mount(h(Harness, { messages: [said("说过的")] }));
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
+	assert.equal(field.value, "说过的");
+	assert.match(view.text(), /1\/1/);
+
+	await press(field, "Escape");
+	assert.equal(field.value, "", "Escape 退出历史恢复空输入框");
+	assert.match(view.text(), /—/);
+	await view.unmount();
+});
+
+test("翻到历史之后，再往下翻回草稿恢复空框", async () => {
+	const view = await mount(h(Harness, { messages: [said("说过的")] }));
+	const field = view.find<HTMLTextAreaElement>("textarea");
+
+	await press(field, "ArrowUp");
 	assert.equal(field.value, "说过的");
 
 	await press(field, "ArrowDown");
-	assert.equal(field.value, "打了一半", "草稿必须回得来，否则没人敢按第二次");
+	assert.equal(field.value, "", "翻过头回到草稿，回到空状态");
 	assert.match(view.text(), /—/, "回到草稿就不该再标着第几条");
 	await view.unmount();
 });
@@ -160,20 +184,26 @@ test("发出去之后，「历史 x/x」不该还留在框里", async () => {
 	await view.unmount();
 });
 
-test("多行文本里，光标没贴到边就归光标管", async () => {
-	const view = await mount(h(Harness, { messages: [said("说过的")] }));
+test("历史文本为多行时，光标没贴到边就归光标在行间移动", async () => {
+	const view = await mount(h(Harness, { messages: [said("更早的一句"), said("第一行\n第二行")] }));
 	const field = view.find<HTMLTextAreaElement>("textarea");
 
-	await type(field, "第一行\n第二行");
-	// 光标搁在第二行开头：上面还有一行，↑ 的本分是把它挪上去。
+	// 空框按 ↑ 翻出最近的那条多行记录（第二句是最近的，index 0）
+	await press(field, "ArrowUp");
+	assert.equal(field.value, "第一行\n第二行");
+	assert.match(view.text(), /1\/2/);
+
+	// 光标搁在第二行开头：上面还有一行，↑ 的本分是把它挪上去，而不是翻到「更早的一句」
 	field.setSelectionRange(4, 4);
 	await press(field, "ArrowUp");
-	assert.equal(field.value, "第一行\n第二行", "多行里抢走 ↑，等于让方向键在输入框里失灵");
+	assert.equal(field.value, "第一行\n第二行", "多行历史里没到顶时，↑ 留给光标移动");
+	assert.match(view.text(), /1\/2/);
 
-	// 挪到最前面，这才轮到历史。
+	// 挪到最前面第一行开头，这才轮到翻更早的历史
 	field.setSelectionRange(0, 0);
 	await press(field, "ArrowUp");
-	assert.equal(field.value, "说过的");
+	assert.equal(field.value, "更早的一句");
+	assert.match(view.text(), /2\/2/);
 	await view.unmount();
 });
 
@@ -304,23 +334,21 @@ test("图文混排时两边各数各的，不会错位", async () => {
 	await view.unmount();
 });
 
-test("草稿里挂着的文件，翻一圈回来还在", async () => {
+test("历史记录带附件时，翻一圈回来附件也清空", async () => {
 	const view = await mount(
 		h(Harness, { messages: [saidWith("说过的", [{ name: "旧.png", kind: "image", mimeType: "image/png", data: "Qw==" }])] }),
 	);
 	const field = view.find<HTMLTextAreaElement>("textarea");
 
-	// 先翻出那条带图的，再改一个字——这时候手里这份就是「草稿」了，图也算在里面。
+	// 从空草稿翻出那条带图的
 	await press(field, "ArrowUp");
+	assert.equal(field.value, "说过的");
 	assert.match(view.text(), /旧\.png:图/);
-	await type(field, "我自己写的");
-	assert.match(view.text(), /旧\.png:图/, "改字不该把附件弄丢");
 
-	await press(field, "ArrowUp");
-	assert.equal(field.value, "说过的", "又翻回历史那条");
+	// 翻回草稿态（按 ↓）
 	await press(field, "ArrowDown");
-	assert.equal(field.value, "我自己写的", "草稿的字回来了");
-	assert.match(view.text(), /旧\.png:图/, `草稿那袋文件也该回来：${view.text()}`);
+	assert.equal(field.value, "", "草稿为空");
+	assert.ok(!view.text().includes("旧.png"), "回到草稿附件也清空");
 	await view.unmount();
 });
 

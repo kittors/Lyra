@@ -36,19 +36,42 @@ export function ToolGroup({
 }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const [visited, setVisited] = useState(open);
+	const container = useRef<HTMLDivElement>(null);
 	const body = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<number | null>(null);
+	const [height, setHeight] = useState<number | null>(() => (open ? null : 0));
+	const prevOpen = useRef(open);
 
-	// Measured rather than guessed, for the same reason as the task list: an animation to a
-	// max-height that is not the real one either clips the list or finishes early.
 	useLayoutEffect(() => {
-		const element = body.current;
-		if (!element) return;
-		const measure = () => setHeight(element.scrollHeight);
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		return () => observer.disconnect();
+		const el = body.current;
+		const box = container.current;
+		if (!el || !box) return;
+
+		if (open !== prevOpen.current) {
+			if (open) {
+				// Opening: from 0 -> scrollHeight px
+				const targetHeight = el.scrollHeight;
+				setHeight(targetHeight);
+			} else {
+				// Closing: latch current scrollHeight first, force reflow, then set to 0
+				const currentHeight = el.scrollHeight;
+				box.style.height = `${currentHeight}px`;
+				// Force synchronous layout so the browser registers the starting height
+				void box.offsetHeight;
+				box.style.height = "0px";
+				setHeight(0);
+			}
+			prevOpen.current = open;
+		} else if (open) {
+			// Keep measuring while open to adapt to live changes
+			const measure = () => {
+				if (box.style.height !== "0px") {
+					setHeight(el.scrollHeight);
+				}
+			};
+			const observer = new ResizeObserver(measure);
+			observer.observe(el);
+			return () => observer.disconnect();
+		}
 	}, [children, open]);
 
 	/*
@@ -95,12 +118,17 @@ export function ToolGroup({
 					setVisited(true);
 					setOpen((value) => !value);
 				}}
+				label={translate("tools.run")}
 			/>
 
-			{/* `ly-freeze`: an open group's height follows what fits, so a boundary being dragged
-			    keeps changing it — and an eased height would trail the pointer. See `styles.css`. */}
 			<div
-				style={{ height: open ? height ?? "auto" : 0 }}
+				ref={container}
+				style={{ height: open ? (height !== null ? `${height}px` : "auto") : 0 }}
+				onTransitionEnd={(e) => {
+					if (e.target === e.currentTarget && open) {
+						setHeight(null);
+					}
+				}}
 				inert={!open}
 				aria-hidden={!open}
 				className="ly-freeze overflow-hidden transition-[height] duration-[var(--ly-t-base)] ease-out"

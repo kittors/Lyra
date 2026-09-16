@@ -25,6 +25,7 @@
     "check": "pnpm lint && pnpm check:links && pnpm style && pnpm i18n && pnpm typecheck && pnpm arch && pnpm test",
     "prepare": "lefthook install",
     "test:e2e": "pnpm --filter @lyra/desktop test:e2e",
+    "audit:sessions": "node --experimental-strip-types scripts/session-audit.ts",
     "catalog:update": "node scripts/update-model-catalog.mjs",
     "release": "node scripts/release.mjs",
     "release:rehearse": "node scripts/release.mjs rehearse",
