@@ -170,14 +170,18 @@ export function CommandText({
 						<span key={idx} className={s.className} data-kind={s.kind} data-bodiless={s.bodiless ? "" : undefined}>
 							{s.brackets && s.text.length > 2 ? (
 								/*
-								 * 底色完整包裹整枚标记，收尾方括号包进标签内。
+								 * 底色只包图标和名字，收尾那个 `】` 仍占满 1em，但不进胶囊。
 								 *
-								 * 两端的方括号透明占位，首括号承载绝对定位图标，尾括号提供天然右边距。
-								 * 紧随其后的文本紧贴标记右侧边缘，杜绝全角字符导致的视觉空白断层。
+								 * 两端方括号必须留在镜像里：textarea 里有这两个字，删掉或改宽度，后面整段
+								 * 都会错位。原先把 `】` 也画进底色，右边就空出整整一格，左边图标却贴着边。
+								 * 底色改画在 `.ly-token-paint` 上，右侧只留和左边一样的 inset；`】` 用负边
+								 * 距叠回那一点 inset，字符格子一个都没动。
 								 */
 								<span className="ly-token-body">
-									<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
-									{s.text.slice(1, -1)}
+									<span className="ly-token-paint">
+										<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
+										{s.text.slice(1, -1)}
+									</span>
 									<span className="ly-token-bracket">{s.text.slice(-1)}</span>
 								</span>
 							) : (

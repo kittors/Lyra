@@ -20,6 +20,37 @@ test("named local Markdown artifacts open through the file reader and preserve t
 	}
 });
 
+test("backticked file links show the filename inside the chip and keep the path on the tooltip", async () => {
+	const view = await mount(h(Markdown, { text: "[`docs/result.md`](docs/result.md:1)", baseDir: "/project" }));
+	try {
+		const wrap = view.find("[data-ly-file-link]");
+		const link = wrap.querySelector("a");
+		const icon = wrap.querySelector("a svg");
+		const name = wrap.querySelector("[data-ly-file-name]");
+		assert.ok(link);
+		assert.ok(icon);
+		assert.ok(name);
+		assert.equal(name.textContent, "result.md");
+		assert.equal(link.getAttribute("data-ly-tip"), "docs/result.md");
+		assert.ok(link.contains(icon));
+		assert.ok(link.contains(name));
+		assert.equal(wrap.querySelector("code"), null);
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("plain file links use the same chip as backticked ones", async () => {
+	const view = await mount(h(Markdown, { text: "[README.md](README.md)", baseDir: "/project" }));
+	try {
+		const wrap = view.find("[data-ly-file-link]");
+		assert.ok(wrap.querySelector("a svg"));
+		assert.equal(wrap.querySelector("[data-ly-file-name]")?.textContent, "README.md");
+	} finally {
+		await view.unmount();
+	}
+});
+
 test("unsafe schemes and malformed encoded paths never become clickable file links", async () => {
 	const view = await mount(h(Markdown, { text: "[unsafe](javascript:alert) [broken](/project/%E0%A4.md)", baseDir: "/project" }));
 	try { assert.equal(view.host.querySelector("a"), null); assert.match(view.text(), /unsafe.*broken/); }

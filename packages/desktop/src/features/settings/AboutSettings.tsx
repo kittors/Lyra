@@ -19,17 +19,16 @@ import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle } fro
 import { bridge } from "../../services/index.ts";
 
 export function AboutSettings() {
-	const { t } = useI18n();
+	const { t, resolvedLocale } = useI18n();
 	const { info, phase, checking } = useUpdate();
 	const [openDialog, setOpenDialog] = useState(false);
 	const [platform, setPlatform] = useState("darwin");
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	/*
-	 * 发版说明按读的人的语言挑一段——整份说明七种语言写在同一个 release 正文里，见 `notesForLocale`。
-	 * 界面本来就跟着系统语言走，这一屏是它唯一还在讲中文的地方。
+	 * 「当前版本更新内容」跟着界面语言走：英文只出英文，中文只出中文，没写过的语言出英文。
+	 * 正文在 GitHub 上可以七种语言写在一起，这一屏不能一股脑铺开，见 `notesForLocale`。
 	 */
-	const { resolvedLocale } = useI18n();
 	const notes = info?.notes ? notesForLocale(info.notes, resolvedLocale) : "";
 
 	useEffect(() => {
@@ -130,7 +129,7 @@ export function AboutSettings() {
 									{info?.available ? t("about.updateDetails", { version: info.latest }) : t("about.releaseNotes", { version: info?.current ?? "" })}
 								</span>
 							</div>
-							<Markdown text={notes} className="text-label" />
+							<Markdown key={resolvedLocale} text={notes} className="text-label" />
 						</Scroller>
 					) : (
 						<div className="flex flex-col items-center justify-center py-6 text-center text-ink-faint">

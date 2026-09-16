@@ -115,7 +115,16 @@ async function main() {
 				};
 				// 文字自己的盒子：用 Range 圈住链接里的文本节点，那才是字形真正占的高度。
 				const link = wrap.querySelector('a');
-				const textNode = [...link.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+				const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT);
+				let textNode = null;
+				let node;
+				while ((node = walker.nextNode())) {
+					if (node.parentElement?.closest("svg")) continue;
+					if (node.textContent.trim()) {
+						textNode = node;
+						break;
+					}
+				}
 				let label = null;
 				if (textNode) {
 					const range = document.createRange();

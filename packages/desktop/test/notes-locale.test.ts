@@ -87,3 +87,66 @@ test("切段的结果按写下的顺序排，且只含有正文的段", () => {
 test("没有标记时切出空表，让调用方自己决定怎么办", () => {
 	assert.equal(splitNotesByLocale("## 0.9.2\n- 修好了一些东西").size, 0);
 });
+
+test("0.9.14 那种七段正文，关于页每种语言只拿到自己那一段", () => {
+	const body = [
+		"<!-- lyra:notes en -->",
+		"",
+		"### New",
+		"- Keep the computer awake.",
+		"",
+		"<!-- lyra:notes zh-CN -->",
+		"",
+		"### 新功能",
+		"- 运行期间不让电脑休眠。",
+		"",
+		"<!-- lyra:notes zh-TW -->",
+		"",
+		"### 新功能",
+		"- 執行期間不讓電腦休眠。",
+		"",
+		"<!-- lyra:notes ja -->",
+		"",
+		"### 新機能",
+		"- スリープさせない。",
+	].join("\n");
+	const crlf = body.replaceAll("\n", "\r\n");
+
+	const english = notesForLocale(crlf, "en");
+	assert.equal(english.includes("### New"), true);
+	assert.equal(english.includes("### 新功能"), false);
+	assert.equal(english.includes("スリープ"), false);
+
+	const chinese = notesForLocale(body, "zh-CN");
+	assert.equal(chinese.includes("运行期间不让电脑休眠"), true);
+	assert.equal(chinese.includes("### New"), false);
+	assert.equal(chinese.includes("スリープ"), false);
+
+	const traditional = notesForLocale(body, "zh-TW");
+	assert.equal(traditional.includes("執行期間不讓電腦休眠"), true);
+	assert.equal(traditional.includes("### New"), false);
+
+	assert.equal(notesForLocale(body, "fr").includes("### New"), true, "没写过的语言退回英文");
+	assert.equal(notesForLocale(body, "fr").includes("### 新功能"), false);
+});
+
+test("GitHub 上收起的非英文段，进应用时只剩正文", () => {
+	const folded = [
+		"<!-- lyra:notes en -->",
+		"## What's new",
+		"The English notes.",
+		"",
+		"<!-- lyra:notes zh-CN -->",
+		"<details>",
+		"<summary>中文（简体）</summary>",
+		"",
+		"## 新功能",
+		"中文说明。",
+		"",
+		"</details>",
+	].join("\n");
+	assert.equal(notesForLocale(folded, "en"), "## What's new\nThe English notes.");
+	assert.equal(notesForLocale(folded, "zh-CN"), "## 新功能\n中文说明。");
+	assert.ok(!notesForLocale(folded, "zh-CN").includes("details"));
+	assert.ok(!notesForLocale(folded, "en").includes("details"));
+});

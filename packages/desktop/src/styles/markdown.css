@@ -532,10 +532,80 @@
  * ------------------------------------------------------------------------- */
 
 /*
- * 位置留着，只是看不见。
+ * 文件链接只有一种形态：单行胶囊。短的跟着字走，长的到上限就省略，永不折行。
  *
- * 用 `opacity` 而不是 `display` 或宽度动画：后两者会在鼠标进来的一瞬间把后面的文字推开一截，而这一行
- * 字往往正读到一半。留位的代价是链接后面多两个图标宽的空档，比整行跳一下便宜得多。
+ * `--ly-file-chip-max` 是宽栏里的封顶，免得文件名把整行铺成一条横幅；窄栏再和行宽取小。
+ * 整枚是原子行盒，行末放不下就整枚换到下一行，不会图标在上行、名字在下行。
+ *
+ * 打开 / 访达叠在右沿：不进文档流，悬停才显形。浮在胶囊外会在贴栏边时溢出或把后面的字压住；
+ * 叠在右沿用胶囊底色把末尾托住，宽窄都是同一套。
+ */
+[data-ly-file-link] {
+  --ly-file-chip-max: 20em;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: min(100%, var(--ly-file-chip-max));
+  padding: 1.5px 6px;
+  border-radius: 5px;
+  background: var(--color-card-hover);
+  vertical-align: middle;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+[data-ly-file-link] > a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 0.3em;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+[data-ly-file-link] > a:hover {
+  text-decoration: none;
+}
+
+[data-ly-file-link] > a svg {
+  flex-shrink: 0;
+}
+
+[data-ly-file-name] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-ly-file-link] code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
+[data-ly-file-actions] {
+  position: absolute;
+  inset-block: 0;
+  right: 2px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-left: 14px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--color-card-hover) 12px);
+}
+
+[data-ly-file-link]:hover [data-ly-file-actions],
+[data-ly-file-actions]:focus-within {
+  pointer-events: auto;
+}
+
+/*
+ * 平时看不见。不占文档流：叠在右沿，显隐只动 opacity。
  */
 [data-ly-file-actions] > button {
   opacity: 0;

@@ -52,7 +52,7 @@ export function UpdateDialog({
 	const fraction = fractionOf(phase);
 	// Which of the four controls belong in this phase — the rules, and their tests, are in `view.ts`.
 	const controls = controlsFor(phase);
-	// 跟「关于」页同一段说明、同一种挑法——见 `notesForLocale`。两处显示的是同一份东西。
+	// 跟关于页同一段「当前版本更新内容」：一种语言，换界面语言就换这一段。
 	const { resolvedLocale } = useI18n();
 	const notes = info.notes ? notesForLocale(info.notes, resolvedLocale) : "";
 

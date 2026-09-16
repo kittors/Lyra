@@ -11,7 +11,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { FileText, ExternalLink, FolderOpen } from "lucide-react";
-import { createContext, Fragment, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, Fragment, isValidElement, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";
 import { MarkdownTable } from "./MarkdownTable.tsx";
@@ -19,6 +19,7 @@ import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
 import { parseMarkdown } from "../../lib/markdown/blocks.ts";
 import { resolveAsset, isAbsolutePath } from "../../lib/markdown/assets.ts";
+import { fileLinkCaption } from "../../lib/markdown/file-link.ts";
 import { groupTokens, HUGE_BLOCK } from "../../lib/markdown/slice.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
@@ -330,10 +331,19 @@ function renderToken(token: Inline): ReactNode {
  * 只在悬停时显形，理由和 `MessageActions` 那一排一样：它们重复出现在整页的每一个文件名旁边，常驻的话
  * 会和正文抢注意力。手机上没有悬停，`data-ly-hover-reveal` 让样式表那边把它们常驻出来。
  */
+function textOf(node: ReactNode): string {
+	if (node == null || typeof node === "boolean") return "";
+	if (typeof node === "string" || typeof node === "number") return String(node);
+	if (Array.isArray(node)) return node.map(textOf).join("");
+	if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children);
+	return "";
+}
+
 function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
 	const revealLabel = useRevealLabel();
 	const canOpen = available("system", "openPath");
 	const canReveal = available("system", "openIn");
+	const caption = fileLinkCaption(textOf(children), path);
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
 		void useOpenFile
@@ -346,25 +356,13 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 
 	return (
 		/*
-		 * `inline-flex` 而不是 `inline-block`：这一组要整体待在文字行里，跟着行走、跟着换行。
-		 * `align-middle` 而不是一个手调的 em 偏移：后者是拿眼睛凑出来的数，量下来它把这一段行盒顶高了
-		 * 2.8px——同一段文字，有文件链接的那行比没有的高出一截，段落的节奏就散了。`middle` 由字体的
-		 * x-height 定义，换字号、换字体都跟着走。
+		 * 几何在 `markdown.css` 的 `[data-ly-file-link]`。这里只负责 DOM：链接、文件名、两个出口。
+		 * 出口叠在胶囊右沿，不进文档流。太长由样式表省略，不在这里截字。
 		 */
-		<span data-ly-file-link className="inline-flex items-center align-middle leading-none">
-			{/*
-			 * 链接本身也是一个居中的行盒。
-			 *
-			 * 图标原来用 `align-text-bottom`——那对齐的是**文本底边**，而不是视觉中心。量下来图标中心比
-			 * 文字中心低 2px：13px 的方块和 17px 的文字盒底边对齐时，几何上必然如此。旁边两个动作按钮
-			 * 走的是 flex 居中、差 0.25px，一行里两个正一个偏，反而更显眼。
-			 *
-			 * 交给 flex 居中，不再用 `vertical-align` 凑。代价是这个链接内部不会换行了——文件名是一个
-			 * 整体，本来也不该从中间断开。
-			 */}
-			<a href={href} data-ly-tip={path} className="inline-flex items-center" onClick={(event) => { event.preventDefault(); openFile(); }}>
-				<FileText size={13} className="mr-1 shrink-0" />
-				{children}
+		<span data-ly-file-link>
+			<a href={href} data-ly-tip={caption.tip} onClick={(event) => { event.preventDefault(); openFile(); }}>
+				<FileText size={13} />
+				<span data-ly-file-name>{caption.text}</span>
 			</a>
 			{/*
 			 * 按能力画，不按平台画。
@@ -373,7 +371,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 			 * `available()` 问的正是这件事，所以这里不需要知道自己跑在什么上面。
 			 */}
 			{(canOpen || canReveal) && (
-				<span data-ly-file-actions className="ml-1 inline-flex items-center gap-0.5">
+				<span data-ly-file-actions>
 					{canOpen && (
 						<FileLinkAction
 							tip={translate("openTarget.defaultApp")}
@@ -406,7 +404,7 @@ function FileLinkAction({ tip, onClick, children }: { tip: string; onClick: () =
 				event.stopPropagation();
 				onClick();
 			}}
-			className="flex h-[17px] w-[17px] items-center justify-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+			className="flex h-[17px] w-[17px] items-center justify-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/[0.06] hover:text-ink"
 		>
 			{children}
 		</button>

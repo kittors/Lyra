@@ -476,11 +476,13 @@ textarea.ly-composer-text[data-highlighted="true"] {
 }
 
 /*
- * 底色画在这一层上，不在整枚标记上。
+ * 底色画在 `.ly-token-paint` 上，不画在整枚标记上。
  *
- * 输入框里整枚标记包括首尾透明方括号都在 `.ly-token-body` 内：
- * 左侧方括号承载绝对定位图标，右侧方括号提供天然微距，胶囊背景完整包裹标记。
- * 行内元素的垂直内边距不参与行盒高度计算，水平内边距保持为 0，完全保持与 textarea 逐字符对齐。
+ * 输入框是镜像层：`【】` 必须留着占位，textarea 里有这两个字，改宽度后面整段都会错位。所以
+ * `.ly-token-body` 自己不铺底、不加水平内边距。胶囊只包图标和名字；收尾那个 `】` 仍占满 1em，
+ * 用负边距叠回 inset，左右看起来一样宽，格子一个没动。
+ *
+ * `--ly-token-inset` 是左右共用的那一点：图标离左边这么远，名字离右边也这么远。
  */
 /*
  * 气泡里那一枚没有这层壳，底色直接上在标记本身。
@@ -488,13 +490,25 @@ textarea.ly-composer-text[data-highlighted="true"] {
  * 两边的结构不一样：输入框那边是镜像层，方括号必须留着占位；气泡里渲染的是名字本身，没有方括号，整枚就是名字。
  */
 .ly-token-body {
-  padding: 2px 0;
+  --ly-token-inset: 0.2em;
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+
+.ly-token-paint {
+  padding: 2px var(--ly-token-inset) 2px 0;
   margin: 0;
   border-radius: 5px;
   background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
   /* 换行时两截各自带圆角，而不是中间被切开一刀。 */
   box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
   transition: background-color var(--ly-t-quick) var(--ly-e-soft);
+}
+
+.ly-token-body > .ly-token-bracket:last-child {
+  margin-left: calc(var(--ly-token-inset) * -1);
 }
 
 .ly-user-bubble .ly-attachment-token {
@@ -506,7 +520,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
   transition: background-color var(--ly-t-quick) var(--ly-e-soft);
 }
 
-.ly-attachment-token[data-hovered] .ly-token-body,
+.ly-attachment-token[data-hovered] .ly-token-paint,
 .ly-user-bubble .ly-attachment-token:hover {
   background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
 }
@@ -515,12 +529,12 @@ textarea.ly-composer-text[data-highlighted="true"] {
   cursor: pointer;
 }
 
-:root.dark .ly-token-body,
+:root.dark .ly-token-paint,
 :root.dark .ly-user-bubble .ly-attachment-token {
   background: color-mix(in srgb, var(--color-ink-faint) 22%, transparent);
 }
 
-:root.dark .ly-attachment-token[data-hovered] .ly-token-body,
+:root.dark .ly-attachment-token[data-hovered] .ly-token-paint,
 :root.dark .ly-user-bubble .ly-attachment-token:hover {
   background: color-mix(in srgb, var(--color-ink-faint) 34%, transparent);
 }
@@ -529,8 +543,8 @@ textarea.ly-composer-text[data-highlighted="true"] {
  * 那对 `【】` 只占位，不露脸——而头一个还顺便当了图标的位置。
  *
  * 它们是这枚标记在正文里的存储形式：textarea 里实实在在有这两个字符，删了就不再是一枚标记。但没
- * 有人需要看见方括号，所以画成透明——它们占的那一格宽度正好成了标签左右的留白，而镜像和底下的字仍
- * 然逐字对齐。
+ * 有人需要看见方括号，所以画成透明。头一个格子给图标住，收尾那个仍占满 1em，但底色不再吞掉它。
+ * 镜像和底下的字仍然逐字对齐。
  *
  * 图标画在头一个方括号自己的位置上，绝对定位，所以一个像素都不占。这是这一层唯一放得下图标的地
  * 方：镜像铺在 textarea 上，任何会占宽度的东西都会让后面整段字错位——而全角方括号本来就有 1em，
@@ -565,15 +579,14 @@ textarea.ly-composer-text[data-highlighted="true"] {
   position: absolute;
   top: 50%;
   /*
-   * 图标住在那一格里，右边留一点给名字。
+   * 图标住在那一格里，离左边缘 `--ly-token-inset`，和胶囊右边留白同一数值。
    *
-   * 方括号是一整格（1em），图标占满的话名字就从它右边缘 0.02em 处开始——贴着，中文字尤其明显，看上
-   * 去像图标被字压住了。0.78em 靠左放，剩下的 0.2em 就是图标和名字之间该有的那点距离；这一格本来
-   * 就是透明的占位，怎么分都不影响后面的字。
+   * 方括号是一整格（1em）。原先 `left: 0.02em` 几乎贴边，右边却空出整个 `】`。现在图标从 inset
+   * 起笔，0.64em 宽，格子里还剩 0.16em 给名字；怎么分都不影响后面的字。
    */
-  left: 0.02em;
-  width: 0.78em;
-  height: 0.78em;
+  left: var(--ly-token-inset, 0.2em);
+  width: 0.64em;
+  height: 0.64em;
   transform: translateY(-50%);
   background: var(--ly-glyph) center / contain no-repeat;
 }

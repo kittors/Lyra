@@ -1,36 +1,26 @@
 /**
- * 一份发版说明，七种语言，读的人只看见自己那一种。
+ * 「当前版本更新内容」只显示一种语言。
  *
- * 发版说明是 GitHub Release 的正文，界面把它整段渲染在「关于」里。而这个应用的界面本身是跟着
- * 系统语言走的——于是一个把 Lyra 切成日语用的人，点开关于页面，看到的是一整屏中文。说明写得
- * 再清楚也没用，那一屏对他等于空白。
- *
- * 办法是让正文自己带上分段标记，客户端按当前语言挑出一段：
+ * GitHub Release 正文里七种语言写在一起，注释在发布页上是隐形的。关于页和更新对话框不是发布页：
+ * 界面是英文就只出英文，是中文就只出中文，没有写过的语言退回英文。不能把整份正文一股脑铺出来。
  *
  *     <!-- lyra:notes en -->
- *     ## What's fixed
+ *     ### New
  *     ...
  *     <!-- lyra:notes zh-CN -->
- *     ## 修好了什么
+ *     ### 新功能
  *     ...
- *
- * 标记用 HTML 注释，是因为它要同时活在两个地方：GitHub 的发布页上没有「当前语言」这回事，谁都
- * 该看到全文，而注释在那里是隐形的，七段依次排下来就是一份完整的多语言说明；客户端这边知道读的
- * 人是谁，于是只留一段。同一份文本，两种读法，不用维护两份。
- *
- * 没有标记的正文原样返回——历史上每一个 release 都是这样的，它们不该因为多了这套约定而变成空白。
  */
 
 import type { ResolvedUiLocale } from "../../i18n/index.ts";
 
-/** 行首的分段标记，语言码取 `ResolvedUiLocale` 的写法（`zh-CN`、`zh-TW`、`en`…）。 */
+/** 行首的分段标记，语言码取 `ResolvedUiLocale`（`zh-CN`、`zh-TW`、`en`…）。 */
 const MARKER = /^[ \t]*<!--[ \t]*lyra:notes[ \t]+([A-Za-z-]+)[ \t]*-->[ \t]*$/gm;
 
 /**
- * 挑不到时依次退到哪里。
+ * 当前语言没有自己那一段时，往哪退。
  *
- * 繁体退简体、简体退繁体：两种中文之间互相看得懂，比退回英文近得多。其余语言退英文——发版说明
- * 里技术名词居多，英文是这群人的第二语言，而中文对其中大多数不是。
+ * 两种中文互相看得懂，先试对面再试英文。日语、韩语、法语、俄语没写过就直接英文。
  */
 const FALLBACKS: Record<ResolvedUiLocale, readonly ResolvedUiLocale[]> = {
 	"zh-CN": ["zh-TW", "en"],
@@ -45,15 +35,16 @@ const FALLBACKS: Record<ResolvedUiLocale, readonly ResolvedUiLocale[]> = {
 /** 正文切成「语言 → 那一段」。没有任何标记时返回空表，交给调用方原样处理。 */
 export function splitNotesByLocale(notes: string): Map<string, string> {
 	const sections = new Map<string, string>();
-	const marks = [...notes.matchAll(MARKER)];
+	const normalized = notes.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+	const marks = [...normalized.matchAll(MARKER)];
 	if (marks.length === 0) return sections;
 
 	for (const [index, mark] of marks.entries()) {
 		const tag = mark[1];
 		if (!tag) continue;
 		const from = (mark.index ?? 0) + mark[0].length;
-		const to = index + 1 < marks.length ? (marks[index + 1]?.index ?? notes.length) : notes.length;
-		const body = notes.slice(from, to).trim();
+		const to = index + 1 < marks.length ? (marks[index + 1]?.index ?? normalized.length) : normalized.length;
+		const body = unwrapReleaseFold(normalized.slice(from, to).trim());
 		/*
 		 * 先到的那一段留下。
 		 *
@@ -66,13 +57,22 @@ export function splitNotesByLocale(notes: string): Map<string, string> {
 }
 
 /**
- * 这份发版说明，给这个语言的人看的是哪一段。
+ * GitHub 上非英文段可以收在 `<details>` 里。关于页已经按语言挑过了，披露条是多余的壳。
+ */
+function unwrapReleaseFold(body: string): string {
+	const opened = body.match(/^<details>\s*<summary>[\s\S]*?<\/summary>\s*/i);
+	if (!opened || !/<\/details>\s*$/i.test(body)) return body;
+	return body.slice(opened[0].length).replace(/\s*<\/details>\s*$/i, "").trim();
+}
+
+/**
+ * 关于页 / 更新对话框要用的那一段：一种语言，换界面语言就换这一段。
  *
- * 没有分段标记就是整段——这是所有旧版本的形状，也是写发版说明的人忘了分段时该有的样子：宁可给
- * 一段读不懂的，也不给一片空白。
+ * 没有分段标记的旧 release 仍整段返回，免得历史上那些只有一种语言的说明变成空白。
+ * 一旦写了标记，就绝不再把七种语言一起交出去。
  */
 export function notesForLocale(notes: string, locale: ResolvedUiLocale): string {
-	const trimmed = notes.trim();
+	const trimmed = notes.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 	if (!trimmed) return "";
 
 	const sections = splitNotesByLocale(trimmed);
@@ -82,6 +82,5 @@ export function notesForLocale(notes: string, locale: ResolvedUiLocale): string 
 		const body = sections.get(candidate);
 		if (body) return body;
 	}
-	// 标记齐全但一个都对不上（比如只写了 de）：把第一段给他，仍然好过空白。
-	return sections.values().next().value ?? trimmed;
+	return sections.get("en") ?? sections.values().next().value ?? "";
 }
