@@ -222,7 +222,40 @@ export interface PruneTiming {
  * Two ways to say yes, and they are the same reason twice: either the cache below the edit is
  * small, or it is already gone.
  */
-export function worthPruning(messages: Message[], index: number, timing: PruneTiming = {}): boolean {
+/**
+ * Characters a size-prune actually removes, so the cache check can weigh the rewrite against
+ * the saving. Zero means the result is already under the threshold and must not be touched.
+ */
+export function sizePruneSaving(chars: number): number {
+	if (chars <= PRUNE_THRESHOLD_CHARS) return 0;
+	return Math.max(0, chars - PRUNE_HEAD_CHARS - PRUNE_TAIL_CHARS - 280);
+}
+
+/**
+ * The leftmost rewrite we can afford this request.
+ *
+ * Once the prefix breaks at `L`, every later cut rides for free. Checking each candidate
+ * alone refuses a pile of small superseded reads that together outrun the tail; taking the
+ * earliest *individual* pass would also refuse a later 1.7 MB cut because a 400-character
+ * stale read sat in front of it. Walk left to right and keep the first `L` whose remaining
+ * saving already beats its suffix.
+ */
+export function firstAffordableCut(messages: Message[], cuts: ReadonlyArray<{ index: number; saving: number }>, timing: PruneTiming = {}): number | undefined {
+	if (cuts.length === 0) return undefined;
+	const ordered = [...cuts].sort((a, b) => a.index - b.index);
+	const remaining = new Map<number, number>();
+	let total = 0;
+	for (let i = ordered.length - 1; i >= 0; i--) {
+		total += ordered[i].saving;
+		remaining.set(ordered[i].index, total);
+	}
+	for (const cut of ordered) {
+		if (worthPruning(messages, cut.index, timing, remaining.get(cut.index) ?? 0)) return cut.index;
+	}
+	return undefined;
+}
+
+export function worthPruning(messages: Message[], index: number, timing: PruneTiming = {}, saving = 0): boolean {
 	const now = timing.now ?? Date.now();
 	if (timing.lastRequestAt !== undefined && now - timing.lastRequestAt >= CACHE_TTL_MS) return true;
 
@@ -230,10 +263,17 @@ export function worthPruning(messages: Message[], index: number, timing: PruneTi
 	for (let at = index + 1; at < messages.length; at += 1) {
 		for (const block of messages[at].content) {
 			if (block.type === "text") suffix += block.text.length;
-			if (suffix > CHEAP_SUFFIX_CHARS) return false;
+			/*
+			 * Refuse once the tail is both expensive to resend *and* larger than this cut.
+			 *
+			 * A 1.7 MB grep sitting under 50 k of later text used to stay forever: the 32 k
+			 * suffix cap fired regardless of how much the cut saved. If the saving already
+			 * exceeds the tail, the next request is cheaper even after the cache break.
+			 */
+			if (suffix > CHEAP_SUFFIX_CHARS && suffix >= saving) return false;
 		}
 	}
-	return true;
+	return saving > suffix || suffix <= CHEAP_SUFFIX_CHARS;
 }
 
 /**

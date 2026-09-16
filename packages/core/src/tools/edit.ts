@@ -26,7 +26,8 @@ import { recordFileChange } from "./file-changes.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
 import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag } from "./hunk.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
-import { hasRead, markRead, readRecord, wasShown } from "./read.ts";
+import { indexToLineCol } from "./long-line.ts";
+import { hasRead, markRead, readRecord, wasShown, wasShownChars } from "./read.ts";
 
 interface EditArgs {
 	path: string;
@@ -105,7 +106,7 @@ export const editTool: Tool<EditArgs> = {
 			return errorResult(`File not found: ${args.path}`);
 		}
 
-		const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, args.path);
+		const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, args.path, ctx, absolute);
 		if ("error" in outcome) return errorResult(outcome.error);
 		const { after, summary } = outcome;
 
@@ -196,11 +197,23 @@ function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof h
 
 	const record = readRecord(ctx, absolute);
 	if (record && record.ranges.length > 0) {
+		const lines = before.endsWith("\n") ? before.slice(0, -1).split("\n") : before.split("\n");
 		for (const hunk of parsed.hunks) {
 			const from = hunk.op === "insert" ? Math.max(1, hunk.after) : hunk.start;
 			const to = hunk.op === "insert" ? Math.max(1, hunk.after) : hunk.end;
 			if (!wasShown(record, from, to)) {
 				return { error: `Lines ${from}-${to} were not in what you read. Read that part of ${args.path} before editing it.` };
+			}
+			if (hunk.op === "insert") continue;
+			for (let line = from; line <= to; line++) {
+				const length = lines[line - 1]?.length ?? 0;
+				if (!wasShownChars(record, line, 1, Math.max(1, length))) {
+					return {
+						error:
+							`Line ${line} is ${length} characters; you have not seen all of it. ` +
+							`Read ${args.path} with char_offset to page the line, or use old_string for a span you have seen.`,
+					};
+				}
 			}
 		}
 	}
@@ -214,7 +227,13 @@ function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof h
 	}
 }
 
-function applyStringForm(args: EditArgs, before: string, path: string): Outcome {
+function applyStringForm(
+	args: EditArgs,
+	before: string,
+	path: string,
+	ctx: Parameters<typeof hasRead>[0],
+	absolute: string,
+): Outcome {
 	if (typeof args.old_string !== "string" || typeof args.new_string !== "string") {
 		return { error: "`old_string` and `new_string` must both be strings." };
 	}
@@ -238,9 +257,32 @@ function applyStringForm(args: EditArgs, before: string, path: string): Outcome 
 		};
 	}
 
+	const record = readRecord(ctx, absolute);
+	if (record && !stringSpanShown(record, before, args.old_string, Boolean(args.replace_all))) {
+		return {
+			error:
+				`\`old_string\` sits in a part of ${path} you have not read. ` +
+				`Read that span with char_offset before replacing it.`,
+		};
+	}
+
 	const after = args.replace_all ? before.split(args.old_string).join(args.new_string) : before.replace(args.old_string, args.new_string);
 	const count = args.replace_all ? occurrences : 1;
 	return { after, summary: `${count} replacement${count === 1 ? "" : "s"}` };
+}
+
+function stringSpanShown(record: NonNullable<ReturnType<typeof readRecord>>, before: string, needle: string, all: boolean): boolean {
+	const hits: number[] = [];
+	let index = before.indexOf(needle);
+	while (index !== -1) {
+		hits.push(index);
+		index = before.indexOf(needle, index + needle.length);
+	}
+	const shown = (at: number) => {
+		const { line, col } = indexToLineCol(before, at);
+		return wasShownChars(record, line, col, col + needle.length - 1);
+	};
+	return all ? hits.every(shown) : hits.some(shown);
 }
 
 function countOccurrences(haystack: string, needle: string): number {

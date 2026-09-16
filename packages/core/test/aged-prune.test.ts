@@ -31,6 +31,15 @@ test("warm long prefixes survive and changes are batched instead of made on ever
 	assert.notEqual(pruner.prepare(history, { lastRequestAt: 0, now: 600_000 }), history);
 });
 
+test("a blow-up does not wait for the twenty-round batch", () => {
+	const huge = output(80_000);
+	const history = [huge, ...rounds(2)];
+	const next = new AgedToolPruner().prepare(history);
+	assert.notEqual(next, history);
+	assert.match(JSON.stringify(next[0]), /characters omitted/);
+	assert.equal(huge.content[0].type === "text" && huge.content[0].text.length, 160_000);
+});
+
 test("small results and skill instructions stay intact", () => {
 	const skill = output();
 	if (skill.role === "toolResult") skill.toolName = "skill";

@@ -13,6 +13,7 @@ import {
 	validateEscalationArgs,
 } from "./escalation.ts";
 import { errorResult } from "../agent/tool-run.ts";
+import { clipOutput } from "./long-line.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -449,7 +450,5 @@ export const bashOutputTool: Tool<BashOutputArgs> = {
 };
 
 function clip(text: string): string {
-	if (text.length <= MAX_OUTPUT_CHARS) return text;
-	const half = Math.floor(MAX_OUTPUT_CHARS / 2);
-	return `${text.slice(0, half)}\n\n… [${text.length - MAX_OUTPUT_CHARS} characters omitted] …\n\n${text.slice(-half)}`;
+	return clipOutput(text, MAX_OUTPUT_CHARS);
 }

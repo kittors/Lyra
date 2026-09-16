@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { editTool } from "../src/tools/edit.ts";
 import { snapshotTag } from "../src/tools/hunk.ts";
-import { outline } from "../src/tools/outline.ts";
+import { outline, outlineFooter } from "../src/tools/outline.ts";
 import { readTool } from "../src/tools/read.ts";
 import type { ToolContext } from "../src/types.ts";
 
@@ -64,6 +64,18 @@ test("the footer says how to get the folded lines back, and not to guess", async
 	const text = textOf(await readTool.execute({ path: file } as never, ctx));
 	assert.match(text, /offset/, "must name the way to fetch a range");
 	assert.match(text, /绝不要猜测/, "must forbid guessing at folded content");
+});
+
+test("an outline windows a long declaration and names char_offset", () => {
+	const content = sourceFile().replace(
+		`import { b } from "./b.ts";\n`,
+		`import { b } from "./b.ts";\nexport const blob = "${"x".repeat(80_000)}NEEDLE-TAIL";\n`,
+	);
+	const result = outline("mod.ts", content, linesOf(content));
+	assert.ok(result, "the fixture must outline");
+	assert.doesNotMatch(result.text, /NEEDLE-TAIL/);
+	assert.ok(result.longLines.length >= 1);
+	assert.match(outlineFooter("mod.ts", result, linesOf(content).length), /char_offset/);
 });
 
 test("a short file is returned verbatim", async () => {

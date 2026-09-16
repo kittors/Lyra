@@ -46,7 +46,7 @@ for (const fallback of [false, true]) {
 		assert.ok(text.length < 16_000, `output was ${text.length} characters`);
 		assert.match(text, /huge.json:1:needle/);
 		assert.match(text, /omitted|truncated/);
-		assert.match(text, /\[38020 characters omitted;/, "the original omission count survives total-output limiting");
+		assert.match(text, /\[38008 characters omitted;/, "the original omission count survives total-output limiting");
 		assert.ok(text.isWellFormed(), "Unicode boundaries stay intact");
 		assert.ok(JSON.stringify(res.details).length < 20_000, "details cannot smuggle the original output back in");
 	});
@@ -111,6 +111,20 @@ test("the same holds where ripgrep is not installed and the built-in scanner ans
 	assert.equal(res.isError, undefined);
 	assert.match(res.content[0].text, /onEvent\(event\) => run/);
 	assert.equal((res.details as { literal?: boolean }).literal, true);
+});
+
+test("a match past the first 2000 characters of a line stays in the result", async (t) => {
+	const dir = await workspace();
+	t.after(() => rm(dir, { recursive: true, force: true }));
+	const needle = "MID-LINE-NEEDLE-7K2M";
+	await writeFile(join(dir, "catalog.json"), `${"a".repeat(80_000)}"id":"${needle}","name":"Keep this"${"b".repeat(80_000)}`);
+	const res = await grepTool.execute({ pattern: needle }, ctx(dir));
+	const text = res.content.map((part) => part.text).join("");
+	assert.ok(text.length < 16_000, `output was ${text.length} characters`);
+	assert.match(text, /catalog\.json:1:/);
+	assert.match(text, new RegExp(needle));
+	assert.match(text, /omitted/);
+	assert.match(text, /char_offset=/);
 });
 
 test("a regular expression that matches nothing is reported as itself", async (t) => {

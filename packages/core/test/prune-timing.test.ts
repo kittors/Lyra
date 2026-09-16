@@ -13,8 +13,10 @@ import {
 	CACHE_TTL_MS,
 	CHEAP_SUFFIX_CHARS,
 	dropUneventful,
+	firstAffordableCut,
 	PRUNE_FLOOR_CHARS,
 	pruneText,
+	sizePruneSaving,
 	worthPruning,
 } from "../src/runtime/prune.ts";
 import type { Message, ToolResultMessage } from "../src/types.ts";
@@ -82,6 +84,28 @@ test("with no request recorded, only the suffix decides", () => {
 	const big = [result("x".repeat(10)), user("y".repeat(CHEAP_SUFFIX_CHARS + 1))];
 	assert.equal(worthPruning(big, 0, {}), false);
 	assert.equal(worthPruning([result("x"), user("短")], 0, {}), true);
+});
+
+test("a cut larger than the warm tail is worth the cache break", () => {
+	/*
+	 * The 32 k cap was treating a 1.7 MB grep under 50 k of later text as untouchable.
+	 * If the saving already exceeds the tail, the next request is cheaper after the rewrite.
+	 */
+	const messages = [result("x".repeat(80_000)), user("y".repeat(CHEAP_SUFFIX_CHARS + 1))];
+	const now = Date.now();
+	assert.equal(worthPruning(messages, 0, { lastRequestAt: now, now }), false);
+	assert.equal(worthPruning(messages, 0, { lastRequestAt: now, now }, 90_000), true);
+	assert.equal(sizePruneSaving(1000), 0);
+	assert.ok(sizePruneSaving(20_000) > 10_000);
+});
+
+test("the first affordable cut is the leftmost one whose remaining saving beats the tail", () => {
+	const tail = user("y".repeat(CHEAP_SUFFIX_CHARS + 1));
+	const messages = [result("small"), result("x".repeat(80_000)), tail];
+	const now = Date.now();
+	const timing = { lastRequestAt: now, now };
+	assert.equal(firstAffordableCut(messages, [{ index: 0, saving: 10 }, { index: 1, saving: 90_000 }], timing), 1);
+	assert.equal(firstAffordableCut(messages, [{ index: 0, saving: 10 }], timing), undefined);
 });
 
 // ---------------------------------------------------------------------------

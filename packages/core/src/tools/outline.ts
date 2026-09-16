@@ -20,6 +20,7 @@
  */
 
 import { CODE_EXTENSIONS, PATTERNS } from "../index/symbols.ts";
+import { charWindow, formatCharWindow, MAX_LINE_CHARS } from "./long-line.ts";
 
 /** Below this, folding is not worth the indirection. */
 const MIN_LINES = 80;
@@ -42,6 +43,8 @@ export interface Outline {
 	 * folding would quietly widen what the model is willing to guess at.
 	 */
 	shownRanges: [number, number][];
+	/** Long lines that were windowed, so `read` can record what was actually on screen. */
+	longLines: { line: number; length: number; shownFrom: number; shownTo: number }[];
 }
 
 /** Whether this path is a language whose declarations we can recognise. */
@@ -140,9 +143,17 @@ export function outline(path: string, content: string, lines: string[]): Outline
 	let folded = 0;
 	let run: number[] = [];
 	const displayed: number[] = [];
+	const longLines: Outline["longLines"] = [];
 
 	const show = (index: number) => {
-		out.push(`${String(index + 1).padStart(width, " ")}→${lines[index]}`);
+		const line = lines[index];
+		if (line.length > MAX_LINE_CHARS) {
+			const window = charWindow(line, 0);
+			longLines.push({ line: index + 1, length: line.length, shownFrom: window.start + 1, shownTo: window.end });
+			out.push(`${String(index + 1).padStart(width, " ")}→${formatCharWindow(line)}`);
+		} else {
+			out.push(`${String(index + 1).padStart(width, " ")}→${line}`);
+		}
 		displayed.push(index + 1);
 	};
 
@@ -178,7 +189,7 @@ export function outline(path: string, content: string, lines: string[]): Outline
 		else shownRanges.push([line, line]);
 	}
 
-	return { text: out.join("\n"), shownLines: displayed.length, foldedLines: folded, shownRanges };
+	return { text: out.join("\n"), shownLines: displayed.length, foldedLines: folded, shownRanges, longLines };
 }
 
 /**
@@ -191,6 +202,7 @@ export function outlineFooter(path: string, result: Outline, totalLines: number)
 	return (
 		`\n\n[结构视图：显示 ${result.shownLines} 行声明，折叠 ${result.foldedLines} 行实现（共 ${totalLines} 行）。` +
 		`需要某段实现时用 offset/limit 读它的行范围，例如 read ${path} offset=<起> limit=<行数>。` +
+		(result.longLines.length > 0 ? `超长行只显示窗口，用 char_offset 继续。` : "") +
 		`绝不要猜测 ⋯ 折叠掉的内容。]`
 	);
 }

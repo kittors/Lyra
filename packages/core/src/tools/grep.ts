@@ -5,24 +5,33 @@ import { basename, join, relative, sep } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
+import { formatMatchWindow, formatMatchWindowAt, utf8ByteOffsetToIndex, type MatchOptions } from "./long-line.ts";
 import { looksBinary, resolveWorkspacePath } from "./paths.ts";
 
 const MAX_MATCHES = 200;
-// Keep searchable addresses plus ordinary source lines; minified multi-MB lines need read.
-const MAX_LINE_CHARS = 2000;
 // About 3.4k estimated tokens across all matches; more requires a narrower search.
 const MAX_OUTPUT_CHARS = 12_000;
 
-/** Keep file/line addresses and disclose omissions without splitting a surrogate pair. */
-function shortenLine(line: string): string {
-	if (line.length <= MAX_LINE_CHARS) return line;
-	const head = line.slice(0, MAX_LINE_CHARS).replace(/[\uD800-\uDBFF]$/, "");
-	return `${head} … [${line.length - head.length} characters omitted; read this file for the full line]`;
+/**
+ * Keep the file:line address. On a long line, keep a window around the match — not the
+ * first 2 000 characters — and name `char_offset` so read can open the rest.
+ */
+function shortenLine(line: string, pattern?: string, options?: MatchOptions, matchAt?: number): string {
+	const { address, content } = splitGrepLine(line);
+	const body = matchAt === undefined ? formatMatchWindow(content, pattern, options) : formatMatchWindowAt(content, matchAt);
+	return address ? `${address}${body}` : body;
+}
+
+/** `path:line:rest` from ripgrep / the fallback. Paths themselves are not windowed. */
+function splitGrepLine(line: string): { address: string; content: string } {
+	const found = line.match(/^(.+?:)(\d+:)(.*)$/s);
+	if (!found) return { address: "", content: line };
+	return { address: found[1] + found[2], content: found[3] };
 }
 
 /** Shared with offline audit replay so its estimate measures the production output policy. */
-export function boundedGrepLines(lines: string[]): string[] {
-	return boundCollectedLines(lines.map(shortenLine));
+export function boundedGrepLines(lines: string[], pattern?: string): string[] {
+	return boundCollectedLines(lines.map((line) => shortenLine(line, pattern)));
 }
 
 /** Collectors already shorten each line; applying that twice would replace the omission count. */
@@ -57,7 +66,8 @@ export const grepTool: Tool<GrepArgs> = {
 	snippet: "Search file contents by regular expression",
 	description:
 		"Search file contents with a regular expression. Uses ripgrep when it is installed and falls back to a built-in " +
-		"scanner otherwise. Narrow the search with `glob` (e.g. `*.ts`) and use `context` to include surrounding lines.",
+		"scanner otherwise. Narrow the search with `glob` (e.g. `*.ts`) and use `context` to include surrounding lines. " +
+		"A matching line longer than 2000 characters returns a window around the hit and names `char_offset` so `read` can open more of that line.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -137,14 +147,73 @@ function compiles(pattern: string): boolean {
 
 async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
 	const limit = Math.min(args.limit ?? MAX_MATCHES, MAX_MATCHES);
-	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--max-count", String(limit)];
+	if (args.files_only) return runRipgrepText(args, root, ctx, literal, limit, true);
+	const fromJson = await runRipgrepJson(args, root, ctx, literal, limit);
+	if (fromJson) return fromJson;
+	return runRipgrepText(args, root, ctx, literal, limit, false);
+}
+
+/**
+ * ripgrep already knows the match offset (`submatches.start`). Using that
+ * beat searching the formatted line again — a lookaround or engine mismatch
+ * used to drop us back on the line head.
+ */
+async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number): Promise<ToolResult | null> {
+	const argv = ["--json", "--max-count", String(limit)];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
-	if (args.files_only) argv.push("--files-with-matches");
 	if (args.context) argv.push("-C", String(args.context));
 	if (args.glob) argv.push("--glob", args.glob);
 	argv.push("--", args.pattern, root);
+	return collectRipgrep(argv, ctx, (line, lines, keep) => {
+		let event: { type?: string; data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number; submatches?: { start?: number }[] } };
+		try {
+			event = JSON.parse(line) as typeof event;
+		} catch {
+			return false;
+		}
+		if (event.type !== "match" && event.type !== "context") return false;
+		if (!keep) return true;
+		const pathText = event.data?.path?.text ?? "";
+		const raw = (event.data?.lines?.text ?? "").replace(/\r?\n$/, "");
+		const lineNo = event.data?.line_number ?? 0;
+		const rel = pathText.startsWith(`${root}${sep}`) ? pathText.slice(root.length + 1) : pathText;
+		const byteStart = event.type === "match" ? event.data?.submatches?.[0]?.start : undefined;
+		const matchAt = typeof byteStart === "number" ? utf8ByteOffsetToIndex(raw, byteStart) : undefined;
+		lines.push(shortenLine(`${rel}:${lineNo}:${raw}`, args.pattern, { literal, ignoreCase: args.case_insensitive }, matchAt));
+		return true;
+	}, limit, (code, lines, count) => {
+		if (code !== 0 && code !== 1) return null;
+		return formatMatches(lines, args, limit, literal, count);
+	});
+}
 
+async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean): Promise<ToolResult | null> {
+	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--max-count", String(limit)];
+	if (literal) argv.push("--fixed-strings");
+	if (args.case_insensitive) argv.push("-i");
+	if (filesOnly) argv.push("--files-with-matches");
+	if (args.context) argv.push("-C", String(args.context));
+	if (args.glob) argv.push("--glob", args.glob);
+	argv.push("--", args.pattern, root);
+	return collectRipgrep(argv, ctx, (line, lines, keep) => {
+		if (!keep) return true;
+		const shown = line.startsWith(`${root}${sep}`) ? line.slice(root.length + 1) : line;
+		lines.push(shortenLine(shown, args.pattern, { literal, ignoreCase: args.case_insensitive }));
+		return true;
+	}, limit, (code, lines, count) => {
+		if (code !== 0 && code !== 1) return null;
+		return formatMatches(lines, args, limit, literal, count);
+	});
+}
+
+function collectRipgrep(
+	argv: string[],
+	ctx: ToolContext,
+	onLine: (line: string, lines: string[], keep: boolean) => boolean,
+	limit: number,
+	finish: (code: number | null, lines: string[], count: number) => ToolResult | null,
+): Promise<ToolResult | null> {
 	return new Promise<ToolResult | null>((resolve) => {
 		let child: ChildProcessWithoutNullStreams;
 		try {
@@ -160,10 +229,8 @@ async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, litera
 		const reader = createInterface({ input: child.stdout });
 		reader.on("line", (line) => {
 			if (!line) return;
-			count++;
-			if (lines.length < limit) lines.push(shortenLine(line.startsWith(`${root}${sep}`) ? line.slice(root.length + 1) : line));
+			if (onLine(line, lines, lines.length < limit)) count++;
 		});
-		// ENOENT here just means ripgrep is not installed; the fallback handles it.
 		child.on("error", () => {
 			failed = true;
 			resolve(null);
@@ -176,12 +243,7 @@ async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, litera
 			ctx.signal?.removeEventListener("abort", abort);
 			reader.close();
 			if (failed) return;
-			// rg exits 1 when there are no matches, and 2+ on real errors.
-			if (code !== 0 && code !== 1) {
-				resolve(null);
-				return;
-			}
-			resolve(formatMatches(lines, args, limit, literal, count));
+			resolve(finish(code, lines, count));
 		});
 	});
 }
@@ -215,13 +277,19 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		const fileLines = buffer.toString("utf8").split("\n");
 
 		for (let i = 0; i < fileLines.length && lines.length < limit; i++) {
-			if (!regex.test(fileLines[i])) continue;
+			const found = regex.exec(fileLines[i]);
+			if (!found) {
+				regex.lastIndex = 0;
+				continue;
+			}
+			regex.lastIndex = 0;
 			if (args.files_only) {
 				lines.push(shortenLine(rel));
 				return;
 			}
+			const opts = { literal, ignoreCase: args.case_insensitive };
 			for (let c = Math.max(0, i - contextLines); c <= Math.min(fileLines.length - 1, i + contextLines); c++) {
-				lines.push(shortenLine(`${rel}:${c + 1}:${fileLines[c]}`));
+				lines.push(shortenLine(`${rel}:${c + 1}:${fileLines[c]}`, args.pattern, opts, c === i ? found.index : undefined));
 			}
 		}
 	};

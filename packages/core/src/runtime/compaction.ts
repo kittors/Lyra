@@ -27,6 +27,7 @@ import type { CompactionRequest, CompactionStrategy } from "../kernel/services.t
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
 import { dropUneventful, pruneToolResults, type ArtifactSink } from "./prune.ts";
+import { dropStaleResults } from "./stale-results.ts";
 import { measureTotal } from "./context.ts";
 import { stripStaleHandles } from "./model-switch.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../types.ts";
@@ -307,8 +308,9 @@ export async function compactIfNeeded(
 	 * routine per-turn tidying, not against the thing that stops the conversation ending.
 	 */
 	const tidied = dropUneventful(messages, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
-	const pruned = pruneToolResults(tidied, undefined, artifacts);
-	if (pruned !== tidied || tidied !== messages) {
+	const stale = dropStaleResults(tidied, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
+	const pruned = pruneToolResults(stale, undefined, artifacts);
+	if (pruned !== messages) {
 		const rawPruned = estimateTokens(pruned);
 		const factor = measured.measured && rawPruned > 0 ? Math.max(0, used - overhead) / rawPruned : 1;
 		const next = rawPruned * factor + overhead;

@@ -33,7 +33,7 @@ const CHECKS = [
 	{
 		id: "ISSUE-cost-loop",
 		what: "大结果无限携带、未完成清单强制续跑、技能重复注入及空回复重试重置",
-		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/aged-prune.test.ts", "packages/core/test/context.test.ts", "packages/core/test/grep-literal.test.ts", "packages/core/test/nudge.test.ts", "packages/core/test/repetition.test.ts", "packages/core/test/translated-tools.test.ts", "packages/core/test/skill-allowed-tools.test.ts", "packages/core/test/session-log.test.ts", "packages/core/test/resume.test.ts"]],
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/aged-prune.test.ts", "packages/core/test/stale-results.test.ts", "packages/core/test/prune-timing.test.ts", "packages/core/test/prune-live-session.test.ts", "packages/core/test/read-long-line.test.ts", "packages/core/test/long-line.test.ts", "packages/core/test/context.test.ts", "packages/core/test/grep-literal.test.ts", "packages/core/test/nudge.test.ts", "packages/core/test/repetition.test.ts", "packages/core/test/translated-tools.test.ts", "packages/core/test/skill-allowed-tools.test.ts", "packages/core/test/session-log.test.ts", "packages/core/test/resume.test.ts"]],
 	},
 	{
 		id: "ISSUE-question",

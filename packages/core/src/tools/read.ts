@@ -3,18 +3,19 @@ import { readFile, stat } from "node:fs/promises";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { snapshotTag } from "./hunk.ts";
+import { charWindow, coversChars, formatCharWindow, longLineFooter, MAX_LINE_CHARS, mergeCharRanges } from "./long-line.ts";
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary, resolveWorkspacePath } from "./paths.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
 
 const DEFAULT_LIMIT = 2000;
-const MAX_LINE_LENGTH = 2000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 interface ReadArgs {
 	path: string;
 	offset?: number;
 	limit?: number;
+	char_offset?: number;
 }
 
 /**
@@ -36,6 +37,13 @@ export interface ReadRecord {
 	tag: string;
 	/** Inclusive 1-indexed line ranges actually shown. */
 	ranges: [number, number][];
+	/**
+	 * Inclusive 1-indexed character ranges shown on a long line.
+	 *
+	 * Absent for a line means the whole line was on screen (it fit in the cap).
+	 * Present means only those spans were displayed — an edit of the rest is a guess.
+	 */
+	chars?: Map<number, [number, number][]>;
 }
 
 type ReadState = Map<string, ReadRecord>;
@@ -64,8 +72,22 @@ function markReadRanges(ctx: ToolContext, absolute: string, content: string | un
 	const previous = state.get(absolute);
 	const tag = content === undefined ? (previous?.tag ?? "") : snapshotTag(content);
 	// A changed file invalidates what was shown before: the old line numbers no longer mean anything.
-	const ranges = previous && previous.tag === tag ? [...previous.ranges, ...added] : [...added];
-	state.set(absolute, { tag, ranges });
+	const same = previous && previous.tag === tag;
+	const ranges = same ? [...previous.ranges, ...added] : [...added];
+	state.set(absolute, { tag, ranges, chars: same ? previous.chars : undefined });
+}
+
+function markReadChars(ctx: ToolContext, absolute: string, line: number, from: number, to: number, lineLength: number): void {
+	const state = readState(ctx);
+	const record = state.get(absolute);
+	if (!record) return;
+	if (from <= 1 && to >= lineLength) {
+		if (record.chars) record.chars.delete(line);
+		return;
+	}
+	const chars = record.chars ?? new Map<number, [number, number][]>();
+	chars.set(line, mergeCharRanges([...(chars.get(line) ?? []), [from, to]]));
+	record.chars = chars;
 }
 
 export function hasRead(ctx: ToolContext, absolute: string): boolean {
@@ -85,6 +107,14 @@ export function wasShown(record: ReadRecord, from: number, to: number): boolean 
 	return true;
 }
 
+/** Whether characters `[from, to]` of `line` (1-indexed) were on screen. */
+export function wasShownChars(record: ReadRecord, line: number, from: number, to: number): boolean {
+	if (!wasShown(record, line, line)) return false;
+	const windows = record.chars?.get(line);
+	if (!windows) return true;
+	return coversChars(windows, from, to);
+}
+
 /** The extension, lowercased — which of the two decisions below applies is keyed on it. */
 function extensionOf(path: string): string {
 	const base = path.toLowerCase().split(/[/\\]/).pop() ?? "";
@@ -101,6 +131,8 @@ export const readTool: Tool<ReadArgs> = {
 		"A long source file comes back as an outline: declarations shown, bodies folded as `⋯ N lines (from-to)`. " +
 			"When you need what is inside one, read that range with offset/limit. NEVER guess at folded content, and " +
 			"NEVER edit a line you have not seen — the edit will be refused.",
+		"A line longer than 2000 characters comes back as a window. The footer names `char_offset` to see the rest. " +
+			"NEVER guess at omitted characters, and NEVER edit a span you have not seen.",
 	],
 	description:
 		"Read a file from the workspace. Text files come back with a `[path#TAG]` header — quote that TAG when you " +
@@ -108,6 +140,8 @@ export const readTool: Tool<ReadArgs> = {
 		"Reading a long source file with no `offset`/`limit` returns its STRUCTURE: imports, declarations and their " +
 		"doc comments, with each body replaced by `⋯ N lines (from-to)`. To see a folded body, read that range. " +
 		"Short files, data files and explicit `offset`/`limit` windows always come back verbatim.\n\n" +
+		"A line longer than 2000 characters is a window, not the line head. Continue with `char_offset` (1-indexed). " +
+		"grep names that offset when a match sits past the first window.\n\n" +
 		"Images are returned to you as actual images.",
 	parameters: {
 		type: "object",
@@ -117,6 +151,10 @@ export const readTool: Tool<ReadArgs> = {
 			filePath: { type: "string", description: "Alias for path." },
 			offset: { type: "number", description: "1-indexed line to start from." },
 			limit: { type: "number", description: "Maximum number of lines to return. Defaults to 2000." },
+			char_offset: {
+				type: "number",
+				description: "1-indexed character to start from on each selected line. Use when a previous read or grep said a line was longer than 2000 characters.",
+			},
 		},
 		required: ["path"],
 		additionalProperties: true,
@@ -226,19 +264,24 @@ export const readTool: Tool<ReadArgs> = {
 
 		const shownPath = displayPath(ctx.cwd, absolute);
 		const tag = snapshotTag(text);
+		const charOffset = Math.max(1, numberArg(raw.char_offset ?? raw.charOffset) ?? 1);
+		const askedWindow = args.offset !== undefined || args.limit !== undefined || charOffset > 1;
 
 		/*
 		 * A bare read of a long source file returns its shape, not its bytes.
 		 *
-		 * Only when no window was asked for: `offset`/`limit` is the caller saying it already knows
-		 * where to look, and folding what it pointed at would be perverse. `outline` returns null
-		 * whenever the original is the better answer — short files, data files, anything whose
-		 * declarations it cannot see — so this is a fast path, not a gamble.
+		 * Only when no window was asked for: `offset`/`limit`/`char_offset` is the caller saying
+		 * it already knows where to look, and folding what it pointed at would be perverse.
+		 * `outline` returns null whenever the original is the better answer — short files, data
+		 * files, anything whose declarations it cannot see — so this is a fast path, not a gamble.
 		 */
-		if (args.offset === undefined && args.limit === undefined) {
+		if (!askedWindow) {
 			const shape = outline(shownPath, text, allLines);
 			if (shape) {
 				markReadRanges(ctx, absolute, text, shape.shownRanges);
+				for (const entry of shape.longLines) {
+					markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
+				}
 				return {
 					content: [{ type: "text", text: `[${shownPath}#${tag}]\n${shape.text}${outlineFooter(shownPath, shape, allLines.length)}` }],
 					details: {
@@ -262,20 +305,27 @@ export const readTool: Tool<ReadArgs> = {
 			return errorResult(`Line ${offset} is past the end of the file (${allLines.length} lines).`);
 		}
 
+		const charStart = charOffset - 1;
+		const long: { line: number; length: number; shownFrom: number; shownTo: number }[] = [];
 		const width = String(offset + slice.length - 1).length;
 		const body = slice
 			.map((line, i) => {
-				const truncated =
-					line.length > MAX_LINE_LENGTH ? `${line.slice(0, MAX_LINE_LENGTH)}… [line truncated]` : line;
-				return `${String(offset + i).padStart(width, " ")}→${truncated}`;
+				const lineNo = offset + i;
+				if (line.length <= MAX_LINE_CHARS && charStart <= 0) {
+					return `${String(lineNo).padStart(width, " ")}→${line}`;
+				}
+				const window = charWindow(line, charStart);
+				long.push({ line: lineNo, length: line.length, shownFrom: window.start + 1, shownTo: window.end });
+				return `${String(lineNo).padStart(width, " ")}→${formatCharWindow(line, charStart)}`;
 			})
 			.join("\n");
 
 		const shownEnd = offset + slice.length - 1;
-		const footer =
+		const lineFooter =
 			shownEnd < allLines.length
 				? `\n\n[showing lines ${offset}-${shownEnd} of ${allLines.length}; call read again with offset=${shownEnd + 1} for more]`
 				: "";
+		const charFooter = longLineFooter(long);
 
 		/*
 		 * The header carries the fingerprint the model quotes back when it edits.
@@ -284,8 +334,11 @@ export const readTool: Tool<ReadArgs> = {
 		 * edit has to be rejected when *any* part of the file moved, not only the part on screen.
 		 */
 		markRead(ctx, absolute, text, offset, shownEnd);
+		for (const entry of long) {
+			markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
+		}
 		return {
-			content: [{ type: "text", text: `[${shownPath}#${tag}]\n${body}${footer}` }],
+			content: [{ type: "text", text: `[${shownPath}#${tag}]\n${body}${lineFooter}${charFooter}` }],
 			details: {
 				kind: "text",
 				path: shownPath,
@@ -293,6 +346,7 @@ export const readTool: Tool<ReadArgs> = {
 				totalLines: allLines.length,
 				shownFrom: offset,
 				shownTo: shownEnd,
+				...(long[0] ? { charFrom: long[0].shownFrom, charTo: long[0].shownTo, longLines: long.length } : {}),
 			},
 		};
 	},
@@ -333,4 +387,8 @@ async function tryResource(path: string, ctx: ToolContext): Promise<ToolResult |
 
 function escapeAttr(value: string): string {
 	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+function numberArg(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
