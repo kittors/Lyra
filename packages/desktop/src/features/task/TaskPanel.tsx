@@ -5,6 +5,7 @@ import { memo, useDeferredValue, useMemo, useRef, useState } from "react";
 
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
+import { isUserPaused } from "./task-list-state.ts";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { InlineSelect } from "../settings/index.ts";
 import { filterRuns } from "./filter-runs.ts";
@@ -30,15 +31,16 @@ export const TaskPanel = memo(function TaskPanel() {
 	const todos = useApp((s) => s.todos);
 	const toolRuns = useApp((s) => s.toolRuns);
 	const running = useApp((s) => s.running);
+	const stopped = useApp((s) => s.stopped);
 	const messages = useApp((s) => s.messages);
 	/*
 	 * The same three answers the floating card gives, from the same evidence.
 	 *
-	 * A step that is `in_progress` while nothing is running has either paused or failed, and the
-	 * plan itself cannot tell you which — `todo_write` knows only pending, in progress and done.
-	 * How the last turn ended is what distinguishes them.
+	 * A leftover `in_progress` after a clean `done` is not a pause. Only a user abort is.
 	 */
 	const failed = !running && lastTurnFailed(messages);
+	const paused = isUserPaused(running, stopped);
+	const idle = !running && !paused && !failed;
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const sessionId = useApp((s) => s.activeSessionId);
 	const runs = useMemo(() => Object.values(toolRuns).sort((a, b) => b.startedAt - a.startedAt), [toolRuns]);
@@ -58,7 +60,7 @@ export const TaskPanel = memo(function TaskPanel() {
 					<Header label={t("taskPanel.plan")} hint={`${done}/${todos.length}`} />
 					{todos.map((todo, index) => (
 						<div key={`${index}-${todo.content}`} className="ly-scroll flex items-center gap-2 rounded-md px-1.5 py-[5px]">
-							<Mark status={todo.status} paused={!running && !failed} failed={failed} />
+							<Mark status={todo.status} paused={paused} failed={failed} idle={idle} />
 							<ScrollText
 								text={todo.content}
 								className={`ly-fade-tail min-w-0 flex-1 text-detail ${

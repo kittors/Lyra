@@ -221,25 +221,12 @@ export function SessionRow({
 				 */
 				aria-current={active ? "page" : undefined}
 				/*
-				 * The room made for the buttons is made on exactly the conditions that show them.
-				 *
-				 * It used to be `group-focus-within`, which is any focus anywhere in the row — and
-				 * this button is in the row. Clicking a conversation focuses it, in Chromium, and the
-				 * focus stays: move the pointer away and `:hover` drops but `:focus-within` does not,
-				 * so the row went on reserving 56px for buttons whose own visibility is governed by
-				 * the strip's `focus-within` — which the button is not inside of. Measured: 8px at
-				 * rest, 56px on hover, 56px after the pointer left with the icons at opacity 0. A gap
-				 * on the right of the open conversation with nothing in it, for as long as it kept
-				 * focus. See `e2e/session-row-probe.ts`.
-				 *
-				 * `group-has-[:focus-visible]` is the same rule the strip uses below, and it is the
-				 * one that was meant: keyboard focus reveals the buttons and is given room, a mouse
-				 * click does neither.
+				 * The title always stops short of the strip. Growing `padding-right` on hover used
+				 * to shrink `ScrollText` by 48px over `--ly-t-quick`, which is the jitter on a long
+				 * name. The buttons still fade in; they no longer steal width from the title.
 				 */
-				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label transition-[padding,color,background-color] duration-[var(--ly-t-quick)] ${
-					actionsCount === 2
-						? "pr-2 group-hover/session:pr-14 group-has-[:focus-visible]/session:pr-14"
-						: "pr-2 group-hover/session:pr-8 group-has-[:focus-visible]/session:pr-8"
+				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label transition-[color,background-color] duration-[var(--ly-t-quick)] ${
+					actionsCount === 2 ? "pr-14" : "pr-8"
 				} ${compact ? "h-[34px]" : "h-[27px]"} ${
 					active ? "text-ink" : "text-ink-muted group-hover/session:text-ink"
 				}`}

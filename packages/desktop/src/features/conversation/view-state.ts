@@ -36,7 +36,10 @@ export function useTranscriptWindow(id: string | null, step: number, total: numb
 		start, end,
 		earlier: () => update(current.size + step, current.end),
 		later: () => update(current.size + step, end + step >= total ? undefined : end + step),
-		latest: () => update(step),
+		// Jump to the tail without throwing away turns the reader already mounted. Resetting
+		// `size` to `step` is what made sending a message unmount the top of a long transcript
+		// and drop the viewport by a few hundred pixels before the glide back down.
+		latest: () => update(Math.max(step, current.size), undefined),
 		reveal: (index: number) => {
 			if (index >= start && index < end) return;
 			// Jumping to an old question must not mount every message between it and the tail.

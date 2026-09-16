@@ -207,7 +207,7 @@ export const Conversation = memo(function Conversation() {
   useLayoutEffect(() => {
     if (!pending && !compacting) return;
     range.latest();
-    returnToBottom();
+    returnToBottom(true);
     // The pending object identifies one submission; changing the window is not a new submission.
     // oxlint-disable-next-line exhaustive-deps
   }, [pending, compacting, returnToBottom]);
@@ -339,6 +339,7 @@ export const Conversation = memo(function Conversation() {
             <div className="mb-4 flex items-center justify-center">
               <button
                 type="button"
+                data-ly-show-earlier
                 onClick={range.earlier}
                 className="group/earlier inline-flex h-7 items-center gap-1.5 rounded-full border border-line-soft bg-card/40 px-3.5 text-detail text-ink-faint shadow-xs transition-colors duration-[var(--ly-t-quick)] hover:border-line hover:bg-card hover:text-ink-muted active:scale-[0.98]"
               >

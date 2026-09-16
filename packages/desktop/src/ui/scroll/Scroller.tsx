@@ -203,17 +203,23 @@ export function Scroller({
 			if (travel <= 0) return;
 			const ratio = (event.clientY - state.startY) / travel;
 			/*
-			 * Read back either side of the write, and report the difference rather than the intent.
+			 * Name the gesture *before* assigning `scrollTop`.
 			 *
-			 * The browser clamps at both ends, so a drag that has already run out of travel produces
-			 * no movement — and reporting a direction for it would let a thumb held against the
-			 * bottom stop the transcript following. Comparing the actual positions says nothing when
-			 * nothing happened.
+			 * The assignment fires `scroll` synchronously. If that event reaches `arrived` while
+			 * the surface is still following, the next follow write fights the drag for a frame —
+			 * the thumb that would not leave the bottom. Intending first detaches; then the write
+			 * is just a position.
+			 *
+			 * Direction is taken from the clamped target, not the raw ratio. A drag that has run
+			 * out of travel produces no movement, and reporting one would let a thumb held against
+			 * the end stop a following transcript.
 			 */
+			const travelMax = el.scrollHeight - el.clientHeight;
+			const next = Math.max(0, Math.min(travelMax, state.startTop + ratio * travelMax));
 			const before = el.scrollTop;
-			el.scrollTop = state.startTop + ratio * (el.scrollHeight - el.clientHeight);
-			const after = el.scrollTop;
-			if (after !== before) onUserScroll?.(after < before ? "up" : "down");
+			if (next < before) onUserScroll?.("up");
+			else if (next > before) onUserScroll?.("down");
+			el.scrollTop = next;
 		};
 
 		const onMove = (event: MouseEvent) => {

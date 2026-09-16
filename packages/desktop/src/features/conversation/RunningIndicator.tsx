@@ -164,7 +164,7 @@ export function RunningIndicator() {
 			 * also the fastest way to see what the window thinks it is doing while using it.
 			 */
 			data-ly-mood={mood}
-			className="ly-enter mb-2.5 flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-detail text-ink-muted whitespace-nowrap"
+			className="ly-enter mt-2.5 flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-detail text-ink-muted whitespace-nowrap"
 		>
 			{/*
 			 * Decorative, so `aria-hidden`: the phrase beside it already says what this is, and a

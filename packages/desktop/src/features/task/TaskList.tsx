@@ -8,6 +8,8 @@ import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store/index.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
+import { isUserPaused, taskListHeadline } from "./task-list-state.ts";
+import { useDelayedOffer } from "./hover-offer.ts";
 
 /**
  * The agent's plan for the work in hand.
@@ -33,7 +35,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	 * stopped without finishing leaves a perfectly intact log and a step that spins forever.
 	 */
 	const running = useApp((s) => s.running);
-	const paused = !running;
+	const stopped = useApp((s) => s.stopped);
+	const paused = isUserPaused(running, stopped);
 	const abort = useApp((s) => s.abort);
 	const send = useApp((s) => s.send);
 	const messages = useApp((s) => s.messages);
@@ -100,13 +103,12 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 				 */}
 				<ScrollText
 					text={
-						active
-							? paused
-								? t("taskList.pausedAt", { step: active.content })
-								: (active.activeForm ?? active.content)
-							: todos.length === done
-								? t("taskList.allDone")
-								: t("taskList.notStarted")
+						{
+							paused: t("taskList.pausedAt", { step: active?.content ?? "" }),
+							step: active?.activeForm ?? active?.content ?? "",
+							allDone: t("taskList.allDone"),
+							notStarted: t("taskList.notStarted"),
+						}[taskListHeadline({ running, stopped, active, done, total: todos.length })]
 					}
 					className="ly-fade-tail min-w-0 flex-1 text-label"
 				/>
@@ -167,6 +169,7 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 								todo={todo}
 								paused={paused}
 								failed={failed}
+								idle={!running && !paused && !failed}
 								action={todo.status === "in_progress" ? action : undefined}
 							/>
 						))}
@@ -183,33 +186,38 @@ function Row({
 	todo,
 	paused,
 	failed,
+	idle,
 	action,
 }: {
 	todo: TodoItem;
 	paused?: boolean;
 	failed?: boolean;
+	idle?: boolean;
 	/** Present on the current step: the mark becomes the button that acts on it. */
 	action?: { icon: typeof Pause; label: string; run: () => void };
 }) {
+	const offer = useDelayedOffer(Boolean(action));
 	return (
-		<div className="ly-scroll group/step flex items-center gap-2 rounded-md px-1.5 py-[5px]">
+		<div
+			className="ly-scroll group/step flex items-center gap-2 rounded-md px-1.5 py-[5px]"
+			onMouseEnter={offer.enter}
+			onMouseLeave={offer.leave}
+		>
 			{action ? (
 				<button
 					type="button"
 					onClick={action.run}
-					data-ly-tip={action.label}
+					data-ly-tip={offer.show ? action.label : undefined}
 					data-ly-tip-side="right"
 					aria-label={action.label}
+					data-ly-step-offer={offer.show ? "on" : "off"}
 					className="flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-sm text-ink-faint transition-colors hover:text-ink"
 				>
-					{/* The state at rest, the offer on hover — one place, one click. */}
-					<span className="group-hover/step:hidden">
-						<Mark status={todo.status} paused={paused} failed={failed} />
-					</span>
-					<action.icon size={11} strokeWidth={2} className="hidden group-hover/step:block" />
+					{/* The state at rest; the offer only after a settled hover. */}
+					{offer.show ? <action.icon size={11} strokeWidth={2} /> : <Mark status={todo.status} paused={paused} failed={failed} idle={idle} />}
 				</button>
 			) : (
-				<Mark status={todo.status} paused={paused} failed={failed} />
+				<Mark status={todo.status} paused={paused} failed={failed} idle={idle} />
 			)}
 			<ScrollText
 				text={todo.content}

@@ -46,23 +46,23 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 				 * 读标题。并排三四个各自在转，读标题时旁边总有东西在动。
 				 */
 				<BreatheLoader size={12} />
-			) : activity === "waiting" ? (
-				/*
-				 * The only state that is asking for something, so the only one that moves.
-				 *
-				 * A still mark would sit in the list looking like a result rather than a question,
-				 * and this one is a question that blocks until answered. The accent rather than a
-				 * new amber: it is the colour this app already uses to mean "you", and a palette
-				 * gains nothing from a sixth hue that appears in one place.
-				 */
-				<span className="ly-pulse block h-[7px] w-[7px] rounded-full bg-accent" />
-			) : activity === "done" ? (
-				<span className="block h-[7px] w-[7px] rounded-full bg-ok" />
-			) : activity === "failed" ? (
-				<span className="block h-[7px] w-[7px] rounded-full bg-danger" />
 			) : (
-				// Nothing to report — a ring rather than a dot, so it reads as an empty slot.
-				<span className="block h-[6px] w-[6px] rounded-full border border-line" />
+				/*
+				 * One 7px disc, four paints. Switching a finished conversation in used to swap a
+				 * 7px fill for a 6px ring, which is the hop the eye reports as the row jumping.
+				 */
+				<span
+					data-ly-status-mark={activity ?? "idle"}
+					className={`box-border block h-[7px] w-[7px] rounded-full transition-colors duration-[var(--ly-t-quick)] ${
+						activity === "waiting"
+							? "ly-pulse bg-accent"
+							: activity === "done"
+								? "bg-ok"
+								: activity === "failed"
+									? "bg-danger"
+									: "border border-line"
+					}`}
+				/>
 			)}
 		</span>
 	);

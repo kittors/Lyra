@@ -60,7 +60,7 @@ export async function seedIssues(home: string, port: number) {
 		{ role: "toolResult", toolCallId: "read-fixture", toolName: "read", isError: false, content: [{ type: "text", text: "# Isolated issue verification fixture" }], timestamp: at },
 		assistant([{ type: "text", text: "分析已完成。所有内容由本地测试夹具产生，未读取真实会话。正文末尾验证标记。" }], "stop"),
 	];
-	const meta = { id: "issue-demo", title: "Issue 修复验证（隔离数据）", projectId, projectName: "Issue 验证", cwd, createdAt: at, updatedAt: at, modelId: "issue/fixture", messageCount: messages.length, usage, seq: messages.length + 2 };
+	const meta = { id: "issue-demo", title: "Issue 修复验证（隔离数据）一条很长的标题用来量侧栏切换会不会拽文字", projectId, projectName: "Issue 验证", cwd, createdAt: at, updatedAt: at, modelId: "issue/fixture", messageCount: messages.length, usage, seq: messages.length + 2 };
 	const dump = "x".repeat(80_000);
 	const huge: Message[] = [
 		{ role: "user", content: [{ type: "text", text: "打开这条冷会话，核对骨架屏和首屏卡顿。" }], timestamp: at - 1_000 },
@@ -74,14 +74,21 @@ export async function seedIssues(home: string, port: number) {
 		...Array.from({ length: 36 }, (_, i) => ({ role: "toolResult" as const, toolCallId: `dump-${i}`, toolName: "grep", isError: false, content: [{ type: "text" as const, text: dump }], timestamp: at })),
 		assistant([{ type: "text", text: "冷会话大结果已写入夹具。正文末尾验证标记。" }], "stop"),
 	];
-	const hugeMeta = { id: "issue-cold", title: "冷会话大转录", projectId, projectName: "Issue 验证", cwd, createdAt: at - 2_000, updatedAt: at - 1_000, modelId: "issue/fixture", messageCount: huge.length, usage, seq: huge.length + 2 };
+	const hugeMeta = { id: "issue-cold", title: "冷会话大转录也用一段很长的名字好对照另一行", projectId, projectName: "Issue 验证", cwd, createdAt: at - 2_000, updatedAt: at - 1_000, modelId: "issue/fixture", messageCount: huge.length, usage, seq: huge.length + 2 };
+	const long: Message[] = [];
+	for (let i = 0; i < 24; i++) {
+		long.push({ role: "user", content: [{ type: "text", text: i === 0 ? "LONG_HEAD 这是长会话第一条，用来盯发送时会不会掉下去。" : `第 ${i + 1} 问` }], timestamp: at - (24 - i) * 1_000 });
+		long.push(assistant([{ type: "text", text: i === 0 ? "LONG_HEAD_REPLY 第一条回复留在视口里。" : `第 ${i + 1} 答` }], "stop"));
+	}
+	const longMeta = { id: "issue-long", title: "超过二十轮的长会话发送回弹", projectId, projectName: "Issue 验证", cwd, createdAt: at - 3_000, updatedAt: at - 500, modelId: "issue/fixture", messageCount: long.length, usage, seq: long.length + 2 };
 	const dir = join(home, "sessions", projectId); await mkdir(dir, { recursive: true });
 	const writeSession = async (id: string, sessionMeta: typeof meta, sessionMessages: Message[]) => {
 		await writeFile(join(dir, `${id}.jsonl`), [JSON.stringify({ type: "meta", meta: sessionMeta, seq: 1, ts: at }), ...sessionMessages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 2, ts: at })), JSON.stringify({ type: "meta", meta: sessionMeta, seq: sessionMeta.seq, ts: at })].join("\n") + "\n");
 	};
 	await writeSession("issue-demo", meta, messages);
 	await writeSession("issue-cold", hugeMeta, huge);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([hugeMeta, meta]));
+	await writeSession("issue-long", longMeta, long);
+	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([hugeMeta, longMeta, meta]));
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1500, height: 950 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "zh-CN", permissionMode: "full", projectMemory: false, thinking: "off", mcpServers: [], hooks: [], sync: { enabled: false }, appearance: { reduceMotion: "off" }, projects: [{ path: cwd, name: "Issue 验证", pinned: true, lastOpenedAt: at }], defaultModelId: "issue/fixture", providers: [{ id: "issue", name: "本地隔离模型", api: "anthropic-messages", baseUrl: `http://127.0.0.1:${port}`, apiKey: "test", enabled: true, models: [{ id: "issue/fixture", providerId: "issue", modelId: "fixture", name: "隔离测试", contextWindow: 128000, maxOutputTokens: 4096, supportsImages: true, supportsTools: true, supportsThinking: true }] }] }));
 }

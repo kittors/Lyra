@@ -129,7 +129,7 @@ try {
 		const rows = [
 			// SessionRow: the strip, and the room the title button makes for it.
 			["会话行", \`<div data-case class="ly-scroll group/session relative rounded-lg hover:bg-card-hover" style="--ly-row-controls:58px">
-				<button type="button" data-main class="flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label transition-[padding,color,background-color] pr-2 group-hover/session:pr-14 group-has-[:focus-visible]/session:pr-14 h-[27px]">
+				<button type="button" data-main class="flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label transition-[color,background-color] pr-14 h-[27px]">
 					<span data-title class="ly-fade-tail min-w-0 flex-1">会话标题</span>
 				</button>
 				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-lg pr-1.5 opacity-0 transition-opacity group-hover/session:opacity-100 group-has-[:focus-visible]/session:opacity-100">

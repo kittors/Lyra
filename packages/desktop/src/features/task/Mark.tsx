@@ -22,7 +22,7 @@ export /**
  * 动效就不行了——所以 `loading.css` 里让 `StatusSpinner` 停下来时变成实线，虚的那个仍然只表示
  * 「还没开始」。改这里的记号之前先看那一段。
  */
-function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?: boolean; failed?: boolean }) {
+function Mark({ status, paused, failed, idle }: { status: TodoItem["status"]; paused?: boolean; failed?: boolean; idle?: boolean }) {
 	if (status === "completed") {
 		return (
 			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center text-ok">
@@ -44,6 +44,15 @@ function Mark({ status, paused, failed }: { status: TodoItem["status"]; paused?:
 			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center gap-[2px]" aria-label={translate("mark.paused")}>
 				<span className="block h-[8px] w-[2px] rounded-[1px] bg-ink-faint" />
 				<span className="block h-[8px] w-[2px] rounded-[1px] bg-ink-faint" />
+			</span>
+		);
+	}
+	if (status === "in_progress" && idle) {
+		// The turn ended cleanly with this step still open. A spinner here would claim it is
+		// still running; pause bars would claim someone stopped it.
+		return (
+			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center">
+				<span className="block h-[7px] w-[7px] rounded-full bg-accent" />
 			</span>
 		);
 	}

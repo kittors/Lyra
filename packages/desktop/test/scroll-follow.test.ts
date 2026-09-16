@@ -202,10 +202,30 @@ test("a transcript clamped by its own shrinking keeps following", () => {
 
 test("arriving at the bottom is how a detached surface takes up following again", () => {
 	// The tail of a fling, or a thumb released at the end: the gesture is over and the position is
-	// the only thing left saying what it meant.
+	// the only thing left saying what it meant. The 72px slack is for a downward gesture, not this.
 	assert.equal(nextState("detached", { kind: "arrived" }, at(BOTTOM)), "following");
-	assert.equal(nextState("detached", { kind: "arrived" }, at(BOTTOM - 72)), "following", "the slack forgives the last few pixels");
-	assert.equal(nextState("detached", { kind: "arrived" }, at(BOTTOM - 73)), "detached", "one pixel outside it does not");
+	assert.equal(nextState("detached", { kind: "arrived" }, at(BOTTOM - 1)), "following", "one pixel of clamp is still the end");
+	assert.equal(nextState("detached", { kind: "arrived" }, at(BOTTOM - 20)), "detached", "inside the old slack is still away");
+	assert.equal(nextState("detached", { kind: "arrived" }, at(BOTTOM - 72)), "detached");
+});
+
+test("a thumb or finger down at the end is not itself a leave", () => {
+	// `unknown` is a claim without a direction — a press, not a notch. Leaving on press
+	// would detach a following transcript every time someone tapped it. Movement decides.
+	assert.equal(nextState("following", { kind: "user-scroll", direction: "unknown" }, at(BOTTOM)), "following");
+	assert.equal(nextState("following", { kind: "user-scroll", direction: "unknown" }, at(BOTTOM - 200)), "detached");
+});
+
+test("a one-notch wheel-up is not glued back by the scroll event it caused", () => {
+	/*
+	 * The report: at the bottom, a small wheel-up detaches, then the native scroll lands 20px up
+	 * and `arrived` used the 72px band to call that "back at the end". The next follow write
+	 * snapped the surface home. Only a violent flick that cleared 72px in one go could leave.
+	 */
+	let state = nextState("following", { kind: "user-scroll", direction: "up" }, at(BOTTOM - 20));
+	assert.equal(state, "detached");
+	assert.equal(nextState(state, { kind: "arrived" }, at(BOTTOM - 20)), "detached");
+	assert.equal(targetScrollTop("detached", at(BOTTOM - 20)), null);
 });
 
 test("a detached reader is left where they are wherever the surface moves", () => {

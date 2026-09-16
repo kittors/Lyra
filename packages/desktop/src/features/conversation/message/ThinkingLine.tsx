@@ -30,7 +30,7 @@ export function ThinkingLine({
 		<div
 			role="status"
 			aria-live="polite"
-			className="ly-enter mb-2.5 flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-detail text-ink-muted whitespace-nowrap"
+			className="ly-enter mt-2.5 flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-detail text-ink-muted whitespace-nowrap"
 		>
 			{/*
 			 * `aria-hidden`, because the line already says what is happening in words — a screen

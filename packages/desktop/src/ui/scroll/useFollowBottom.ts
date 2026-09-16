@@ -57,7 +57,7 @@ export interface FollowBottom {
 	/** How many messages arrived while the reader was away. Zero unless something really arrived. */
 	unread: number;
 	/** The reader asking to go back: the button, or having just sent something. */
-	returnToBottom(): void;
+	returnToBottom(instant?: boolean): void;
 	/** Explicit navigation owns the scroll position even while a reply is streaming. */
 	detach(): void;
 	scrollTo(top: number, instant?: boolean): void;
@@ -340,7 +340,7 @@ export function useFollowBottom({
 	// Going back
 	// ---------------------------------------------------------------------------
 
-	const returnToBottom = useCallback(() => {
+	const returnToBottom = useCallback((instant = false) => {
 		const el = scrollRef.current;
 		if (!el) return;
 		const reading = read(el);
@@ -358,8 +358,10 @@ export function useFollowBottom({
 			publish(read(el));
 		};
 
-		// Already there, or asked not to be moved around. Either way the unread mark still clears.
-		if (state.current !== "returning" || motionReduced()) {
+		// Sending a message is a snap, not a 420ms flight: the glide from a collapsed window
+		// was the second half of the send-time bounce. Already there, or asked not to be moved
+		// around, lands the same way. Either way the unread mark still clears.
+		if (instant || state.current !== "returning" || motionReduced()) {
 			land();
 			return;
 		}

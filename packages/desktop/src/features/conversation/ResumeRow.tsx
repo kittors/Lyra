@@ -92,7 +92,7 @@ export function ResumeRow() {
 					? t("resume.lastAborted")
 					: t("resume.unfinished", { n: unfinished });
 	return (
-		<div className="ly-enter mb-2.5 flex items-center gap-2 text-detail text-ink-faint">
+		<div className="ly-enter mt-2.5 flex items-center gap-2 text-detail text-ink-faint">
 			<span className="shrink-0 whitespace-nowrap">{note}</span>
 			<span className="shrink-0 text-line">·</span>
 			<button

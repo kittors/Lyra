@@ -59,3 +59,21 @@ test("jumping through 10,000 runs mounts one window and preserves each session's
 		assert.equal(view.find("output").textContent, "9940:10000");
 	} finally { await view.unmount(); }
 });
+
+test("latest keeps a widened window instead of shrinking it back to the step", async () => {
+	function Window({ id }: { id: string }) {
+		const range = useTranscriptWindow(id, 20, 80);
+		return h("div", null,
+			h("output", null, `${range.start}:${range.end}`),
+			h("button", { id: "more", onClick: range.earlier }, "more"),
+			h("button", { id: "latest", onClick: range.latest }, "latest"));
+	}
+	const view = await mount(h(Window, { id: "wide" }));
+	try {
+		assert.equal(view.find("output").textContent, "60:80");
+		await click(view.find("#more"));
+		assert.equal(view.find("output").textContent, "40:80");
+		await click(view.find("#latest"));
+		assert.equal(view.find("output").textContent, "40:80", "sending must not unmount the extra turns");
+	} finally { await view.unmount(); }
+});

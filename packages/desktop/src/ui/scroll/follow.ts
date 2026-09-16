@@ -132,6 +132,17 @@ export function atBottom(reading: Reading): boolean {
 	return fitsInView(reading) || distanceToBottom(reading) <= FOLLOW_SLACK;
 }
 
+/**
+ * Truly on the end, not merely inside the 72px re-entry band.
+ *
+ * `arrived` used `atBottom`, so a one-notch wheel-up that only moved 20px was treated as "back at
+ * the end" and the next write glued the surface down again. That band stays for a downward gesture
+ * that meant to rejoin; a nameless position change has to be sitting on the last pixel.
+ */
+function landedAtBottom(reading: Reading): boolean {
+	return fitsInView(reading) || distanceToBottom(reading) <= 1;
+}
+
 export function isAway(reading: Reading): boolean {
 	return !fitsInView(reading) && distanceToBottom(reading) > AWAY_THRESHOLD;
 }
@@ -211,7 +222,11 @@ export function nextState(state: FollowState, event: FollowEvent, reading: Readi
 			if (state === "returning") return state;
 			// At the end means following; anywhere else means whatever was already meant. The absent
 			// `: "detached"` is the whole rule — see the corollary at the top of this file.
-			return atBottom(reading) ? "following" : state;
+			//
+			// "The end" here is the last pixel, not the 72px slack. That slack is how a downward
+			// gesture says "I am back". Using it on `arrived` is what made a 20px wheel-up bounce
+			// home: detach, native scroll, arrived-inside-slack, follow, write-to-bottom.
+			return landedAtBottom(reading) ? "following" : state;
 
 		case "user-return":
 			// From the bottom there is nowhere to glide to; claiming otherwise costs a 420ms animation
