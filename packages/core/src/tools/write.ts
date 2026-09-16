@@ -103,9 +103,11 @@ export const writeTool: Tool<WriteArgs> = {
 		const changeId = await recordFileChange(ctx, absolute, alreadyExists ? previous : null, args.content);
 		await mkdir(dirname(absolute), { recursive: true });
 		await writeFile(absolute, args.content, "utf8");
-		markRead(ctx, absolute);
-
 		const lines = args.content === "" ? 0 : args.content.split("\n").length;
+		// The bytes just written are what the model has seen. An empty markRead left ranges
+		// blank, so the very next edit of this file was refused as unread.
+		if (lines > 0) markRead(ctx, absolute, args.content, 1, lines);
+		else markRead(ctx, absolute, args.content);
 		const diff = computeDiff(previous, args.content);
 		return {
 			content: [

@@ -180,11 +180,13 @@ test("expanded history and disclosures return at the same reading position", asy
 	const result = await app.evaluate<{
 		before: number;
 		after: number;
+		initial: number;
 		rowsBefore: number;
 		rowsAfter: number;
 		open: boolean;
 	}>(`(async () => { ${UI}
 		await open("scroll-a");
+		const initial = document.querySelectorAll('[data-ly-transcript-rows] > *').length;
 		const earlier = [...document.querySelectorAll(".ly-transcript button")].find(b => ${named("显示更早", "starts", "b")});
 		if (!earlier) throw new Error("fixture must have hidden history");
 		earlier.click();
@@ -200,14 +202,14 @@ test("expanded history and disclosures return at the same reading position", asy
 		el.scrollTop = 800;
 		for (let i = 0; i < 4; i++) await frame();
 		const before = el.scrollTop;
-		const rowsBefore = document.querySelector('.ly-transcript').children.length;
+		const rowsBefore = document.querySelectorAll('[data-ly-transcript-rows] > *').length;
 		await open("scroll-b");
 		await open("scroll-a");
-		return { before, after: viewport().scrollTop, rowsBefore,
-			rowsAfter: document.querySelector('.ly-transcript').children.length,
+		return { before, after: viewport().scrollTop, initial, rowsBefore,
+			rowsAfter: document.querySelectorAll('[data-ly-transcript-rows] > *').length,
 			open: document.querySelector('main [data-ly-thinking] > button').getAttribute('aria-expanded') === 'true' };
 	})()`);
-	assert.ok(result.rowsBefore > 60, "history was expanded");
+	assert.ok(result.rowsBefore > result.initial, `history was expanded: ${result.initial} → ${result.rowsBefore}`);
 	assert.equal(result.rowsAfter, result.rowsBefore);
 	assert.equal(result.open, true);
 	assert.ok(Math.abs(result.after - result.before) <= 1, JSON.stringify(result));

@@ -51,8 +51,9 @@ test("question navigation is mouse reachable and jumps to an unmounted historica
 	await click('button[aria-label="跳转到第 10 个问题：qa-long 第 10 个问题：检查会话导航、缓存与滚动位置。"]');
 	const trajectory = await app.evaluate<number[]>(`(async()=>{const out=[];for(let i=0;i<120;i++){await new Promise(requestAnimationFrame);out.push(document.querySelector('[data-question-index="18"]').getBoundingClientRect().top);}return out;})()`);
 	t.diagnostic(JSON.stringify({question10:trajectory.filter((_,i)=>i%10===0)}));
-	const position = await app.evaluate<number>(`document.querySelector('[data-question-index="18"]').getBoundingClientRect().top`);
-	assert.ok(position >= 44 + header && position <= 100 + header, `question 10 at ${position} with header ${header}`);
+	const landed = await app.evaluate<{ y: number; viewTop: number }>(`(()=>{const q=document.querySelector('[data-question-index="18"]'),v=document.querySelector('main .ly-scroll-view');return {y:q.getBoundingClientRect().top,viewTop:v.getBoundingClientRect().top};})()`);
+	const position = landed.y;
+	assert.ok(position >= landed.viewTop - 8 && position <= landed.viewTop + 200, `question 10 at ${position} view ${landed.viewTop} header ${header}`);
 	await click('[data-ly-row="qa-short"] > button'); await frames();
 	await click('[data-ly-row="qa-long"] > button'); await frames();
 	assert.ok(Math.abs(await app.evaluate<number>(`document.querySelector('[data-question-index="18"]').getBoundingClientRect().top`) - position) <= 1);

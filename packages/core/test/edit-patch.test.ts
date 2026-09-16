@@ -326,3 +326,13 @@ test("an attachment does not become a licence to overwrite the file either", asy
 	assert.equal(written.isError, true, "附件给的是读的许可，不该连覆写一起给");
 	assert.equal(await readFile(externalFile, "utf8"), FIVE, "文件一个字都不该被动过");
 });
+
+test("a file just written can be edited in the same turn without a dummy read", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "lyra-write-edit-"));
+	const ctx: ToolContext = { cwd: dir, sessionId: "write-edit", state: new Map() };
+	const created = await writeTool.execute({ path: "Sample.ts", content: "export const answer = 1;\n" } as never, ctx);
+	assert.equal(created.isError, undefined, created.content[0].type === "text" ? created.content[0].text : "");
+	const edited = await editTool.execute({ path: "Sample.ts", old_string: "answer = 1", new_string: "answer = 2" }, ctx);
+	assert.equal(edited.isError, undefined, edited.content[0].type === "text" ? edited.content[0].text : "");
+	assert.equal(await readFile(join(dir, "Sample.ts"), "utf8"), "export const answer = 2;\n");
+});
