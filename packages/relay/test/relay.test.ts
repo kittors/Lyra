@@ -15,28 +15,43 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { WebSocket } from "ws";
 
-const PORT = 47800 + (process.pid % 150);
-const URL = `ws://127.0.0.1:${PORT}`;
 const SERVER = join(fileURLToPath(import.meta.url), "..", "..", "server.mjs");
 
+let port = 0;
 let server: ChildProcess;
 
 before(async () => {
-	server = spawn(process.execPath, [SERVER], { env: { ...process.env, PORT: String(PORT) }, stdio: "pipe" });
-	await listening(server);
+	const started = await spawnRelay();
+	server = started.child;
+	port = started.port;
 });
 
-async function listening(child: ChildProcess): Promise<void> {
+/** `PORT=0` so the OS picks a free one. A hashed high port collided on the arm64 dry-run runner. */
+async function spawnRelay(): Promise<{ child: ChildProcess; port: number }> {
+	const child = spawn(process.execPath, [SERVER], { env: { ...process.env, PORT: "0" }, stdio: "pipe" });
+	return { child, port: await listening(child) };
+}
+
+async function listening(child: ChildProcess): Promise<number> {
 	// Wait for the line it prints once it is listening, rather than guessing at a delay.
-	await new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error("中转没有在 10 秒内启动")), 10_000);
+	return new Promise<number>((resolve, reject) => {
+		let stdout = "";
+		let stderr = "";
+		const timer = setTimeout(() => reject(new Error(`中转没有在 10 秒内启动：${stderr || stdout}`)), 10_000);
+		child.stderr?.on("data", (chunk: Buffer) => {
+			stderr = (stderr + chunk.toString()).slice(-8192);
+		});
 		child.once("error", (error) => { clearTimeout(timer); reject(error); });
-		child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`Relay exited before listening (${code})`)); });
+		child.once("exit", (code) => {
+			clearTimeout(timer);
+			reject(new Error(`Relay exited before listening (${code}): ${stderr || stdout}`));
+		});
 		child.stdout?.on("data", (chunk: Buffer) => {
-			if (chunk.toString().includes("listening")) {
-				clearTimeout(timer);
-				resolve();
-			}
+			stdout = (stdout + chunk.toString()).slice(-8192);
+			const match = /listening on :(\d+)/.exec(stdout);
+			if (!match) return;
+			clearTimeout(timer);
+			resolve(Number(match[1]));
 		});
 	});
 }
@@ -47,9 +62,9 @@ after(() => {
 
 /** A client that records everything it is sent, so assertions read as a transcript. */
 /** `port` 只有需要一个干净 server 的测试会传——见「限流只挡新房间」那条。 */
-function client(room: string, role: "host" | "guest" | "desktop" | "mobile", port = PORT, assetKey?: string) {
+function client(room: string, role: "host" | "guest" | "desktop" | "mobile", bindPort = port, assetKey?: string) {
 	const received: string[] = [];
-	const socket = new WebSocket(`ws://127.0.0.1:${port}`);
+	const socket = new WebSocket(`ws://127.0.0.1:${bindPort}`);
 	const ready = new Promise<void>((resolve, reject) => {
 		socket.once("open", () => {
 			socket.send(JSON.stringify({ type: "hello", room, role, assetKey }));
@@ -75,6 +90,16 @@ function client(room: string, role: "host" | "guest" | "desktop" | "mobile", por
 }
 
 const roomFor = (token: string) => createHash("sha256").update(token).digest("hex");
+
+test("two relays can listen at once without picking the same port", async () => {
+	const extra = await spawnRelay();
+	try {
+		assert.notEqual(extra.port, 0);
+		assert.notEqual(extra.port, port);
+	} finally {
+		extra.child.kill("SIGKILL");
+	}
+});
 
 test("the first to arrive is told to wait, and the second makes them both ready", async () => {
 	const room = roomFor("t1");
@@ -182,7 +207,7 @@ test("a hello that is not one is refused", async () => {
 	// The room must be a sha256; anything else is a client that does not speak this protocol, and
 	// letting it occupy a room would be a way to squat on someone's token hash.
 	for (const bad of [JSON.stringify({ type: "hello", room: "short" }), "not json at all"]) {
-		const socket = new WebSocket(URL);
+		const socket = new WebSocket(`ws://127.0.0.1:${port}`);
 		const seen: string[] = [];
 		await new Promise<void>((resolve) => {
 			socket.once("open", () => socket.send(bad));
@@ -198,7 +223,7 @@ test("a hello that is not one is refused", async () => {
 });
 
 test("the health endpoint answers, for a deployment to point a check at", async () => {
-	const response = await fetch(`http://127.0.0.1:${PORT}/health`);
+	const response = await fetch(`http://127.0.0.1:${port}/health`);
 	assert.equal(response.status, 200);
 	const body = (await response.json()) as { app: string };
 	assert.equal(body.app, "lyra-relay");
@@ -208,11 +233,11 @@ test("renderer assets are fetched through the paired desktop only", async () => 
 	const token = "renderer-tunnel";
 	const room = roomFor(token);
 	const assetKey = createHash("sha256").update(`lyra-assets\0${room}`).digest("hex");
-	const desktop = client(room, "desktop", PORT, assetKey);
+	const desktop = client(room, "desktop", port, assetKey);
 	await desktop.ready;
 	await desktop.until((lines) => lines.some((line) => line.includes("waiting")), "waiting");
 
-	const responsePromise = fetch(`http://127.0.0.1:${PORT}/app/${assetKey}/assets/app.js`);
+	const responsePromise = fetch(`http://127.0.0.1:${port}/app/${assetKey}/assets/app.js`);
 	await desktop.until((lines) => lines.some((line) => line.includes("asset_request")), "asset_request");
 	const request = desktop.received
 		.map((line) => JSON.parse(line) as { type?: string; id?: string; path?: string })
@@ -237,7 +262,7 @@ test("renderer assets are fetched through the paired desktop only", async () => 
 
 test("an unknown renderer capability does not reveal whether a room exists", async () => {
 	const unknown = createHash("sha256").update("unknown-assets").digest("hex");
-	const response = await fetch(`http://127.0.0.1:${PORT}/app/${unknown}/`);
+	const response = await fetch(`http://127.0.0.1:${port}/app/${unknown}/`);
 	assert.equal(response.status, 404);
 });
 
@@ -282,17 +307,12 @@ test("限流只挡新房间，已经在房里的两端不受影响", async () =>
 	 *
 	 * 与其在测试之间等一分钟，不如给它一个干净的进程。
 	 */
-	const port = PORT + 1;
-	const own = spawn(process.execPath, [SERVER], {
-		env: { ...process.env, PORT: String(port) },
-		stdio: "pipe",
-	});
+	const own = await spawnRelay();
 
 	try {
-		await listening(own);
 		const room = roomFor("still-working");
-		const host = client(room, "host", port);
-		const guest = client(room, "guest", port);
+		const host = client(room, "host", own.port);
+		const guest = client(room, "guest", own.port);
 		await Promise.all([host.ready, guest.ready]);
 		await host.until((lines) => lines.some((l) => l.includes("ready")), "ready");
 
@@ -302,6 +322,6 @@ test("限流只挡新房间，已经在房里的两端不受影响", async () =>
 		host.close();
 		guest.close();
 	} finally {
-		own.kill();
+		own.child.kill();
 	}
 });

@@ -20,12 +20,17 @@ import { dirname } from "node:path";
 const require = createRequire(import.meta.url);
 
 const COMMAND_LINE_TOOLS = "/Library/Developer/CommandLineTools";
+const HEADER_MIRRORS = [
+	"https://electronjs.org/headers",
+	// Same files, different host. electronjs.org timed out on a macOS dry-run runner.
+	"https://artifacts.electronjs.org/headers/dist",
+];
 
 try {
 	const electron = require("electron/package.json").version;
 	const ptyDir = dirname(require.resolve("node-pty/package.json"));
 
-	const build = (env) =>
+	const build = (env, distUrl) =>
 		execFileSync(
 			"npx",
 			[
@@ -34,13 +39,30 @@ try {
 				"rebuild",
 				`--target=${electron}`,
 				`--arch=${process.arch}`,
-				"--dist-url=https://electronjs.org/headers",
+				`--dist-url=${distUrl}`,
 			],
 			{ cwd: ptyDir, stdio: "inherit", env },
 		);
 
+	const buildWithMirrors = (env) => {
+		let last;
+		const attempts = [HEADER_MIRRORS[0], HEADER_MIRRORS[0], HEADER_MIRRORS[1]];
+		for (const [index, distUrl] of attempts.entries()) {
+			try {
+				build(env, distUrl);
+				return;
+			} catch (error) {
+				last = error;
+				console.warn(
+					`\n[pty] ${distUrl} attempt ${index + 1} failed: ${error instanceof Error ? error.message : String(error)}\n`,
+				);
+			}
+		}
+		throw last;
+	};
+
 	try {
-		build(process.env);
+		buildWithMirrors(process.env);
 	} catch (first) {
 		/*
 		 * 再用命令行工具那份工具链试一次。
@@ -56,7 +78,7 @@ try {
 		 */
 		if (process.platform !== "darwin" || !existsSync(COMMAND_LINE_TOOLS) || process.env.DEVELOPER_DIR === COMMAND_LINE_TOOLS) throw first;
 		console.warn(`\n[pty] 默认工具链编不动，改用 ${COMMAND_LINE_TOOLS} 重试一次\n`);
-		build({ ...process.env, DEVELOPER_DIR: COMMAND_LINE_TOOLS });
+		buildWithMirrors({ ...process.env, DEVELOPER_DIR: COMMAND_LINE_TOOLS });
 	}
 	console.log(`node-pty rebuilt for Electron ${electron}.`);
 } catch (error) {

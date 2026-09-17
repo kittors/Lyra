@@ -51,6 +51,18 @@ runs:
       # immediately when the binary is already there.
       run: |
         for dir in node_modules/.pnpm/electron@*/node_modules/electron; do
-          [ -f "$dir/path.txt" ] || (cd "$dir" && node install.js)
+          if [ -f "$dir/path.txt" ]; then
+            continue
+          fi
+          ok=
+          for attempt in 1 2 3 4 5; do
+            if (cd "$dir" && node install.js); then
+              ok=1
+              break
+            fi
+            echo "electron install attempt ${attempt} failed; retrying in $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          [ -n "$ok" ]
         done
         compgen -G "node_modules/.pnpm/electron@*/node_modules/electron/path.txt" > /dev/null

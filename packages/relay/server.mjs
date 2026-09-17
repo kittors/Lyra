@@ -424,6 +424,11 @@ function encode(payload, opcode = 0x1) {
 	return Buffer.concat([header, payload]);
 }
 
+server.on("error", (error) => {
+	process.stderr.write(`lyra-relay ${error instanceof Error ? error.message : String(error)}\n`);
+	process.exit(1);
+});
+
 server.listen(PORT, "0.0.0.0", () => {
 	process.stdout.write(`lyra-relay listening on :${server.address().port}\n`);
 });
