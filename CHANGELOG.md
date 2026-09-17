@@ -7,30 +7,175 @@
 
 ## [0.9.15](https://github.com/kittors/Lyra/releases/tag/v0.9.15) - 2026-09-17
 
+<!-- lyra:notes en -->
+
+### New
+
+- **Mermaid diagrams render in the conversation.** A mermaid fence draws as a diagram instead of a wall of source.
+
+- **Built-in formatters for more languages.** Format on save can run Prettier or the language's own formatter shipped in the app (Go, Ruff, C/C++, Dart, Swift, PHP), without installing those toolchains first.
+
+### Fixes
+
+- **Opening a chat no longer freezes or blanks the window.** A twelve-megabyte message paints in one frame. A damaged transcript no longer takes the page down, and the run indicator does not stay stuck after the turn has finished.
+
+- **Pull request icons no longer sit on top of each other.**
+
+- **The Terminal still opens when Xcode's license is unsigned.** Compiling the terminal addon used to fail there; the app falls back to the command-line tools instead of a dead panel.
+
+- **File links stay on one line.** You see the file name, with the full path on hover. Long paths used to wrap through the chip.
+
+- **What's new in this version follows the interface language.** English shows English, Chinese shows Chinese, anything unlisted falls back to English.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
 ### 新功能
 
-- **core**: 长行按命中开窗，过期工具结果不再反复带进上下文 ([9c4cd41](https://github.com/kittors/Lyra/commit/9c4cd415225d60cb41c66678e06b157b325719cf))
-- **core**: 优化会话循环流式传输与成本控制，强化问答交互和排队状态 ([ab9b6e6](https://github.com/kittors/Lyra/commit/ab9b6e6201212af8ecf47c7f38cb1bd2e3345488))
-- **desktop**: 内置多语言格式化引擎与 Mermaid 渲染，强化会话循环与记忆管理 ([b72ee2d](https://github.com/kittors/Lyra/commit/b72ee2de59f6ac20f3a4a07315b66515c802001c))
+- **对话里的 mermaid 围栏会画成图。** 不再是一整墙源码。
+
+- **更多语言能直接「保存时格式化」。** 可以走 Prettier，或应用里自带的那门语言的格式化器（Go、Ruff、C/C++、Dart、Swift、PHP），不用先装那些工具链。
 
 ### 修复
 
-- **desktop**: 会话启动测试按会话列表等，不再数帧 ([3e47843](https://github.com/kittors/Lyra/commit/3e47843273f4eb96ceab57414ed49ac1c96f8167))
-- **ci**: 排练红在中转撞端口和 Electron 下载超时 ([10c286f](https://github.com/kittors/Lyra/commit/10c286f307b97e4bc57b4f4a70e6834bcdb280c9))
-- **core**: 刚写入的文件可以立刻改，不必再假读一遍 ([46b169f](https://github.com/kittors/Lyra/commit/46b169f270fa4e9caf3a5d27da3ee3a5bb67b5b1))
-- **desktop**: 让 GitHub CI 对齐 Windows 顶栏与过程折叠 ([709b072](https://github.com/kittors/Lyra/commit/709b0727f520f2c4ec25fd0c5d701a79d262a57e))
-- **desktop**: 文件胶囊单行省略，关于页按语言只显示一段更新说明 ([0d03122](https://github.com/kittors/Lyra/commit/0d0312297ce57138c823420b44f862afa5407c81))
-- **desktop**: node-pty 编不动时改用命令行工具再试一次 ([86eedef](https://github.com/kittors/Lyra/commit/86eedef6391d85561923400697406e69c297e260))
-- **desktop**: 修掉转录崩溃、切会话卡顿、运行状态卡死与 PR 页图标重叠 ([a74f868](https://github.com/kittors/Lyra/commit/a74f868101a0b21010b61919cfe7e4dcadaa0cc6))
+- **打开会话不再把窗口卡死或整页刷白。** 一条十二兆的消息也能在一帧里画完。坏掉的转录不再拖垮页面，一轮已经结束时也不会一直挂着「还在跑」。
 
-### 性能
+- **拉取请求页的图标不再叠在一起。**
 
-- **desktop**: 一条 12 MB 的消息从画不完变成一帧画完 ([d3355a6](https://github.com/kittors/Lyra/commit/d3355a650f2b0372ffc0ddf16d9a9c64ada307ac))
+- **Xcode 许可没同意时，终端仍然打得开。** 以前编终端组件会失败；现在改走命令行工具，而不是留下一个死面板。
 
-### 文档
+- **指向本地文件的链接收成单行。** 只显示文件名，完整路径在悬停提示里。长路径不再把胶囊折成两行。
 
-- 同步 README 与指南到当前能力 ([7656701](https://github.com/kittors/Lyra/commit/765670164b59043e2a33cbf7e36bb1d87be3d2ac))
-- **architecture**: add agent cost and stopping checklist ([d6c6ba1](https://github.com/kittors/Lyra/commit/d6c6ba1c152538756cc90a85a272ecfb9d93ac2b))
+- **「当前版本更新内容」跟界面语言走。** 英文出英文，中文出中文，没有写过的语言退回英文。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **對話裡的 mermaid 圍欄會畫成圖。** 不再是一整牆原始碼。
+
+- **更多語言能直接「儲存時格式化」。** 可以走 Prettier，或應用程式內建的該語言格式化器（Go、Ruff、C/C++、Dart、Swift、PHP），不用先裝那些工具鏈。
+
+### 修復
+
+- **打開對話不再把視窗卡死或整頁刷白。** 一條十二 MB 的訊息也能在一幀裡畫完。壞掉的轉錄不再拖垮頁面，一輪已經結束時也不會一直掛著「還在跑」。
+
+- **拉取請求頁的圖示不再疊在一起。**
+
+- **Xcode 授權沒同意時，終端機仍然打得開。** 以前編終端機元件會失敗；現在改走命令列工具，而不是留下一個死面板。
+
+- **指向本機檔案的連結收成單行。** 只顯示檔名，完整路徑在懸停提示裡。長路徑不再把膠囊折成兩行。
+
+- **「目前版本更新內容」跟介面語言走。** 英文出英文，中文出中文，沒有寫過的語言退回英文。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **会話内のmermaidフェンスが図として描画されます。** ソースの壁ではなく、図が出ます。
+
+- **より多くの言語で「保存時に整形」できます。** Prettierか、アプリに同梱した各言語のフォーマッタ（Go、Ruff、C/C++、Dart、Swift、PHP）を使います。先にツールチェーンを入れる必要はありません。
+
+### 修正
+
+- **会話を開いてもウィンドウが固まったり真っ白になったりしません。** 12MBのメッセージも1フレームで描画します。壊れた転写でページが落ちず、ターンが終わったあとも実行中表示が残りません。
+
+- **プルリクエストのアイコンが重ならなくなりました。**
+
+- **Xcodeのライセンスに未同意でもターミナルが開きます。** 以前はアドオンのビルドに失敗していました。コマンドラインツールに切り替えて、死んだパネルのままにはしません。
+
+- **ローカルファイルへのリンクは1行のままです。** ファイル名を表示し、フルパスはホバーに出ます。長いパスでチップが折り返さなくなりました。
+
+- **「このバージョンの更新内容」は表示言語に従います。** 英語なら英語、中国語なら中国語。未収録の言語は英語に戻します。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **대화의 mermaid 펜스가 그림으로 렌더링됩니다.** 소스 벽 대신 다이어그램이 나옵니다.
+
+- **더 많은 언어에서 '저장할 때 서식'을 쓸 수 있습니다.** Prettier나 앱에 들어 있는 해당 언어 포맷터(Go, Ruff, C/C++, Dart, Swift, PHP)를 쓰며, 그 툴체인을 먼저 설치할 필요는 없습니다.
+
+### 수정
+
+- **대화를 열어도 창이 멈추거나 하얗게 죽지 않습니다.** 12 MB 메시지도 한 프레임에 그려집니다. 손상된 기록이 페이지를 무너뜨리지 않고, 턴이 끝났는데도 실행 중으로 남지 않습니다.
+
+- **Pull Request 아이콘이 서로 겹치지 않습니다.**
+
+- **Xcode 라이선스에 동의하지 않아도 터미널이 열립니다.** 예전에는 터미널 애드온 빌드가 실패했습니다. 이제 명령줄 도구로 넘어가며, 죽은 패널로 남지 않습니다.
+
+- **로컬 파일 링크는 한 줄로 유지됩니다.** 파일 이름만 보이고, 전체 경로는 마우스 오버에 있습니다. 긴 경로가 칩을 두 줄로 접지 않습니다.
+
+- **'이번 버전의 새로운 점'은 인터페이스 언어를 따릅니다.** 영어면 영어, 중국어면 중국어. 없는 언어는 영어로 돌아갑니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Les blocs mermaid s'affichent en diagramme dans la conversation.** Plus un mur de source.
+
+- **Plus de langues peuvent utiliser « Formater à l'enregistrement ».** Prettier, ou le formateur de la langue livré dans l'application (Go, Ruff, C/C++, Dart, Swift, PHP), sans installer ces toolchains d'abord.
+
+### Corrections
+
+- **Ouvrir une discussion ne fige plus ni ne blanchit plus la fenêtre.** Un message de douze mégaoctets se dessine en une image. Une transcription abîmée ne fait plus tomber la page, et l'indicateur d'exécution ne reste plus coincé une fois le tour terminé.
+
+- **Les icônes des demandes de fusion ne se superposent plus.**
+
+- **Le Terminal s'ouvre encore si la licence Xcode n'est pas acceptée.** Compiler l'extension du terminal échouait. L'application bascule vers les outils en ligne de commande au lieu d'un panneau mort.
+
+- **Les liens vers un fichier local restent sur une ligne.** Le nom du fichier s'affiche, le chemin complet est dans l'infobulle. Un long chemin ne plie plus la pastille.
+
+- **« Nouveautés de cette version » suit la langue de l'interface.** L'anglais affiche l'anglais, le chinois le chinois, une langue absente revient à l'anglais.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **Блоки mermaid в беседе рисуются как схемы.** Не стена исходника.
+
+- **Больше языков можно «Форматировать при сохранении».** Prettier или встроенный форматтер языка (Go, Ruff, C/C++, Dart, Swift, PHP), без предварительной установки этих цепочек инструментов.
+
+### Исправления
+
+- **Открытие беседы больше не зависает и не обеляет окно.** Сообщение на двенадцать мегабайт рисуется за один кадр. Повреждённая расшифровка больше не роняет страницу, а индикатор выполнения не зависает после окончания хода.
+
+- **Значки на странице запросов на слияние больше не накладываются друг на друга.**
+
+- **«Терминал» открывается, даже если лицензия Xcode не принята.** Сборка дополнения терминала падала; приложение переключается на инструменты командной строки, а не оставляет мёртвую панель.
+
+- **Ссылки на локальные файлы остаются в одну строку.** Видно имя файла, полный путь во всплывающей подсказке. Длинный путь больше не переносит капсулу.
+
+- **«Что нового в этой версии» следует языку интерфейса.** Английский показывает английский, китайский китайский, не записанный язык возвращается к английскому.
+
+</details>
 
 ## [0.9.14](https://github.com/kittors/Lyra/releases/tag/v0.9.14) - 2026-09-14
 
