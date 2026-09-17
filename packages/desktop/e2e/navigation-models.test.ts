@@ -133,8 +133,14 @@ test("role and subagent menus share a bounded searchable favourite catalog witho
 	await until(`document.querySelector('[aria-label="explore 模型"]')`);
 	await click('[aria-label="explore 模型"]'); await frames();
 	assert.equal((await menuGeometry()).first, "p1/m1");
-	await click('[data-model="p1/m1"] [role="menuitem"]'); await frames();
-	await click('[aria-label="explore 思考等级"]'); await frames();
+	await click('[data-model="p1/m1"] [role="menuitem"]');
+	// Persist sets every agent fieldset `disabled`. A click in that window is a no-op, so
+	// Windows CI read zero thinking rows after the model menu closed and the write was still
+	// in flight. Wait until explore's own save is on screen.
+	await until(`!document.querySelector('[role="menu"][aria-label="选择模型"]')`);
+	await app.evaluate(`(async()=>{const end=Date.now()+15000;while(Date.now()<end){const box=document.querySelector('[data-agent-profile="explore"] fieldset');const btn=document.querySelector('[aria-label="explore 思考等级"]');if(box&&!box.disabled&&(btn?.textContent??'').includes('自适应'))return;await new Promise(r=>setTimeout(r,50));}throw new Error('explore save did not land');})()`);
+	await click('[aria-label="explore 思考等级"]');
+	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent.includes('自适应'))`);
 	const levels = await app.evaluate<string[]>(`[...document.querySelectorAll('[role="menuitem"]')].map(e=>e.textContent.trim())`);
 	assert.equal(levels.length, 3); assert.ok(levels.some((text) => text.startsWith("自适应"))); assert.ok(!levels.some((text) => text === "高"));
 	await key("Escape", 27); await frames();

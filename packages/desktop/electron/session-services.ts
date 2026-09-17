@@ -3,17 +3,20 @@ import { request } from "node:http";
 import { promisify } from "node:util";
 import { backgroundJobs } from "@lyra/core";
 import type { ServiceEndpoint, SessionServices } from "../shared/session-services.ts";
-import { descendants, localHost, parseLsof, parseProcesses, parseSs, parseWindowsListeners, serviceUrl, type ProcessEntry } from "./service-listeners.ts";
+import { advertisedEndpoints, descendants, localHost, parseLsof, parseProcesses, parseSs, parseWindowsListeners, serviceUrl, type ProcessEntry } from "./service-listeners.ts";
 import { sessions } from "./session-hub.ts";
 
 const exec = promisify(execFile);
-async function command(file: string, args: string[]): Promise<string> {
-	return (await exec(file, args, { timeout: 4000, maxBuffer: 4 * 1024 * 1024, windowsHide: true })).stdout;
+async function command(file: string, args: string[], timeout = 4000): Promise<string> {
+	return (await exec(file, args, { timeout, maxBuffer: 4 * 1024 * 1024, windowsHide: true })).stdout;
 }
 async function listeners(): Promise<{ processes: ProcessEntry[]; listeners: ServiceEndpoint[] }> {
 	if (process.platform === "win32") {
-		const script = "$ErrorActionPreference='Stop'; $p=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=[int]$_.ProcessId; parent=[int]$_.ParentProcessId} }); $l=@(Get-NetTCPConnection -State Listen | ForEach-Object { @{pid=[int]$_.OwningProcess; address=$_.LocalAddress; port=[int]$_.LocalPort} }); @{processes=$p; listeners=$l} | ConvertTo-Json -Depth 4 -Compress";
-		const value: unknown = JSON.parse(await command("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]));
+		// Continue, not Stop: an empty Listen set and a single bad OwningProcess used to abort
+		// the whole snapshot, so a live job showed no port. CIM of every process on a loaded
+		// runner also overran 4s; 15s is the query, advertised stdout URLs still cover a miss.
+		const script = "$p=@(); $l=@(); try { $p=@(Get-CimInstance Win32_Process -ErrorAction Stop | ForEach-Object { @{pid=[int]$_.ProcessId; parent=[int]$_.ParentProcessId} }) } catch {}; try { $l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $null -ne $_.OwningProcess } | ForEach-Object { @{pid=[int]$_.OwningProcess; address=[string]$_.LocalAddress; port=[int]$_.LocalPort} }) } catch {}; @{processes=$p; listeners=$l} | ConvertTo-Json -Depth 4 -Compress";
+		const value: unknown = JSON.parse(await command("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], 15_000));
 		return parseWindowsListeners(value);
 	}
 	const [processes, sockets] = await Promise.all([
@@ -46,16 +49,22 @@ async function collect(sessionId: string): Promise<SessionServices> {
 	const jobs = backgroundJobs(session.can.state).list().slice(-30);
 	const response: SessionServices = { jobs: jobs.map(({ output: _output, ...job }) => ({ ...job, endpoints: [] })) };
 	if (!jobs.some((job) => job.pid && job.finishedAt === undefined)) return response;
-	try {
-		const snapshot = await listeners();
-		for (const job of response.jobs) {
-			if (!job.pid || job.finishedAt !== undefined) continue;
-			const owned = descendants(job.pid, snapshot.processes);
-			const output = jobs.find((entry) => entry.id === job.id)?.output ?? "";
-			job.endpoints = await Promise.all(snapshot.listeners.filter((entry) => owned.has(entry.pid)).slice(0, 16).map(async (entry) => ({ ...entry, url: serviceUrl(entry, output) ?? await httpUrl(entry) })));
-		}
-	} catch (error) { response.discoveryError = error instanceof Error ? error.message : String(error); }
+	let snapshot: { processes: ProcessEntry[]; listeners: ServiceEndpoint[] } = { processes: [], listeners: [] };
+	try { snapshot = await listeners(); }
+	catch (error) { response.discoveryError = error instanceof Error ? error.message : String(error); }
+	for (const job of response.jobs) {
+		if (!job.pid || job.finishedAt !== undefined) continue;
+		const output = jobs.find((entry) => entry.id === job.id)?.output ?? "";
+		const owned = descendants(job.pid, snapshot.processes);
+		const fromOs = await Promise.all(snapshot.listeners.filter((entry) => owned.has(entry.pid)).slice(0, 16).map(async (entry) => ({ ...entry, url: serviceUrl(entry, output) ?? await httpUrl(entry) })));
+		job.endpoints = mergeEndpoints(fromOs, advertisedEndpoints(job.pid, output));
+	}
 	return response;
+}
+function mergeEndpoints(fromOs: ServiceEndpoint[], fromLog: ServiceEndpoint[]): ServiceEndpoint[] {
+	const seen = new Set(fromOs.map((entry) => `${localHost(entry.address)}:${entry.port}`));
+	const extra = fromLog.filter((entry) => !seen.has(`${localHost(entry.address)}:${entry.port}`));
+	return [...fromOs, ...extra].slice(0, 16);
 }
 export function stopSessionService(sessionId: string, id: string, force: boolean): boolean {
 	const session = sessions.get(sessionId);

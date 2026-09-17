@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { descendants, parseLsof, parseSs, parseProcesses, parseWindowsListeners, serviceUrl } from "../electron/service-listeners.ts";
+import { advertisedEndpoints, descendants, parseLsof, parseSs, parseProcesses, parseWindowsListeners, serviceUrl } from "../electron/service-listeners.ts";
 import { browserUrl, parseBrowserCommand } from "../shared/browser.ts";
 test("POSIX listeners preserve IPv4/IPv6 and match only descendants of the owned process", () => {
 	const tree = parseProcesses(" 10 1\n20 10\n30 20\n40 1\n");
@@ -16,6 +16,11 @@ test("logged URLs require a matching real local listener", () => {
 	const endpoint={pid:20,address:"0.0.0.0",port:3000};
 	assert.equal(serviceUrl(endpoint,"docs https://example.com:3000/\nserver http://localhost:3000/app"), "http://127.0.0.1:3000/app");
 	assert.equal(serviceUrl(endpoint,"http://localhost:4000/"), undefined);
+});
+test("printed local URLs are enough when the OS listener table is missing", () => {
+	assert.deepEqual(advertisedEndpoints(20, "started\nhttp://127.0.0.1:5173/\n"), [{ pid: 20, address: "127.0.0.1", port: 5173, url: "http://127.0.0.1:5173/" }]);
+	assert.deepEqual(advertisedEndpoints(20, "http://localhost:3000/app\nhttps://example.com:3000/\nhttp://127.0.0.1/"), [{ pid: 20, address: "127.0.0.1", port: 3000, url: "http://127.0.0.1:3000/app" }]);
+	assert.deepEqual(advertisedEndpoints(0, "http://127.0.0.1:5173/"), []);
 });
 test("browser commands validate URL protocols, dimensions and IPC value types", () => {
 	assert.equal(browserUrl("localhost:5173"), "https://localhost:5173/");

@@ -62,3 +62,34 @@ export function serviceUrl(listener: ServiceEndpoint, output: string): string | 
 	}
 	return undefined;
 }
+
+/**
+ * URLs the process printed itself, usable when the OS socket table is missing.
+ *
+ * Get-NetTCPConnection on Windows CI is allowed to fail (access, empty set, a 4s timeout). The
+ * job is still listening; it already wrote `http://127.0.0.1:<port>`. Only local hosts with an
+ * explicit port — the same constraint `serviceUrl` uses to reject docs.example.com:3000.
+ */
+export function advertisedEndpoints(pid: number, output: string): ServiceEndpoint[] {
+	if (pid <= 0) return [];
+	const found: ServiceEndpoint[] = [];
+	const seen = new Set<string>();
+	// oxlint-disable-next-line no-control-regex -- ANSI escape bytes terminate terminal URLs.
+	for (const match of output.matchAll(/https?:\/\/[^\s\x1b<>"']+/g)) {
+		try {
+			const url = new URL(match[0]);
+			if (!url.port) continue;
+			const host = url.hostname.replace(/^\[|\]$/g, "");
+			if (!["localhost", "127.0.0.1", "::1", "0.0.0.0", "::"].includes(host)) continue;
+			const port = Number(url.port);
+			if (!Number.isSafeInteger(port) || port <= 0 || port > 65535) continue;
+			const address = localHost(host === "localhost" ? "0.0.0.0" : host);
+			const key = `${address}:${port}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			url.hostname = address.includes(":") ? `[${address}]` : address;
+			found.push({ pid, address, port, url: url.href });
+		} catch { /* Terminal output can contain incomplete URLs. */ }
+	}
+	return found;
+}
