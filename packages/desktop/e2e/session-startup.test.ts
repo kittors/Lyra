@@ -90,13 +90,17 @@ async function submit(): Promise<{ meta: SessionMeta; elapsed: number }> {
 	assert.equal(await app.evaluate(`document.activeElement===document.querySelector('textarea')`), true, "typing targets the new draft's live field");
 	await app.send("Input.insertText", { text: "相同提示词隔离验证" });
 	assert.equal(await app.evaluate(`document.querySelector('textarea').value`), "相同提示词隔离验证");
-	const before = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-ly-row]')].map(e=>e.dataset.lyRow)`);
+	/*
+	 * A new draft can already have a sidebar row. Send retitles that same node, so watching for a
+	 * brand-new `[data-ly-row]` misses the session that is already there. Ask the session list
+	 * instead, and wait on the clock: 120 frames on a busy Windows runner is about two seconds of
+	 * hope, not a measurement.
+	 */
+	const before = await app.evaluate<{ id: string; title: string; messageCount: number }[]>(`window.lyra.sessions.list().then(list=>list.map(s=>({id:s.id,title:s.title,messageCount:s.messageCount})))`);
 	const start = performance.now();
 	await click('button[aria-label="发送"]');
-	const id = await app.evaluate<string>(`new Promise((resolve,reject)=>{let n=120;const before=${JSON.stringify(before)};const step=()=>{const row=[...document.querySelectorAll('[data-ly-row]')].find(e=>!before.includes(e.dataset.lyRow));if(row)resolve(row.dataset.lyRow);else if(--n)requestAnimationFrame(step);else reject(new Error('no immediate session row'));};step();})`);
-	const elapsed = performance.now() - start;
-	const meta = await app.evaluate<SessionMeta>(`window.lyra.sessions.list().then(list=>list.find(s=>s.id===${JSON.stringify(id)}))`);
-	return { meta, elapsed };
+	const meta = await app.evaluate<SessionMeta>(`new Promise((resolve,reject)=>{const before=${JSON.stringify(before)};const end=performance.now()+8000;const read=async()=>{const list=await window.lyra.sessions.list();const hit=list.find(s=>s.title==="相同提示词隔离验证"&&s.messageCount>=1&&(!before.some(b=>b.id===s.id)||(before.find(b=>b.id===s.id)?.messageCount??0)<1));if(hit)resolve(hit);else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error("no immediate session row"));};void read();})`);
+	return { meta, elapsed: performance.now() - start };
 }
 
 test("slow MCP startup still creates immediate titled rows, aggregates collapsed status, and isolates identical prompts", async (t) => {
@@ -136,7 +140,7 @@ test("a submitted worktree session preserves a startup rename and completes once
 	await requested;
 	assert.ok(completeReply);
 	completeReply();
-	const saved = await app.evaluate<{ meta: SessionMeta; messages: { role: string }[]; running: boolean }>(`new Promise((resolve,reject)=>{let n=300;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(s.messages.some(m=>m.role==='assistant')&&!s.running)resolve(s);else if(--n)requestAnimationFrame(read);else reject(new Error('turn did not complete'));};read();})`);
+	const saved = await app.evaluate<{ meta: SessionMeta; messages: { role: string }[]; running: boolean }>(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(s.messages.some(m=>m.role==='assistant')&&!s.running)resolve(s);else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
 	assert.deepEqual(saved.messages.map((m) => m.role), ["user", "assistant"]);
 	assert.equal(saved.meta.title, "初始化中重命名");
 	assert.equal(saved.meta.projectId, started.meta.projectId);
@@ -157,7 +161,7 @@ test("collapsed group loading shares the far-right action slot without shifting 
 	await requested;
 	await verifyGroupLoading(t, started.meta.id);
 	assert.ok(completeReply); completeReply();
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=300;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(--n)requestAnimationFrame(read);else reject(new Error('turn did not complete'));};read();})`);
+	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
 	await click('[data-qa-running-group]'); await frames(20);
 	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-arc')`), false);
 });
