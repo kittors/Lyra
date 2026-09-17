@@ -138,18 +138,18 @@ export async function formatWithBuiltin(
 				extensions,
 			});
 			const tr = indentRange(state, 0, state.doc.length);
-			if (tr && tr.length > 0) {
-				const updated = state.update({ changes: tr });
-				const text = updated.state.doc.toString();
-				// If CodeMirror adjusted indentation, return it
-				// Strip trailing whitespace from CodeMirror result
-				const cleaned = text
-					.split(/\r?\n/)
-					.map((l) => l.trimEnd())
-					.join("\n")
-					.trimEnd() + "\n";
-				return cleaned;
-			}
+			/*
+			 * Keep the CodeMirror result even when it changed nothing.
+			 *
+			 * An empty change set means the grammar already likes this indent. Falling through to
+			 * the bracket scanner used to run a second, dumber pass: Kotlin formatted once (the
+			 * Java grammar kept four spaces) and again on save (the scanner rewrote it to two
+			 * spaces and a stray brace). Idempotent formatters do not get a consolation prize.
+			 */
+			const text = tr && tr.length > 0
+				? state.update({ changes: tr }).state.doc.toString()
+				: source;
+			return trimTrailing(text);
 		} catch {
 			// Fall back to block indentation scanner
 		}
