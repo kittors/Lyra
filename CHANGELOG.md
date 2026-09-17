@@ -5,6 +5,33 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.15](https://github.com/kittors/Lyra/releases/tag/v0.9.15) - 2026-09-17
+
+### 新功能
+
+- **core**: 长行按命中开窗，过期工具结果不再反复带进上下文 ([9c4cd41](https://github.com/kittors/Lyra/commit/9c4cd415225d60cb41c66678e06b157b325719cf))
+- **core**: 优化会话循环流式传输与成本控制，强化问答交互和排队状态 ([ab9b6e6](https://github.com/kittors/Lyra/commit/ab9b6e6201212af8ecf47c7f38cb1bd2e3345488))
+- **desktop**: 内置多语言格式化引擎与 Mermaid 渲染，强化会话循环与记忆管理 ([b72ee2d](https://github.com/kittors/Lyra/commit/b72ee2de59f6ac20f3a4a07315b66515c802001c))
+
+### 修复
+
+- **desktop**: 会话启动测试按会话列表等，不再数帧 ([3e47843](https://github.com/kittors/Lyra/commit/3e47843273f4eb96ceab57414ed49ac1c96f8167))
+- **ci**: 排练红在中转撞端口和 Electron 下载超时 ([10c286f](https://github.com/kittors/Lyra/commit/10c286f307b97e4bc57b4f4a70e6834bcdb280c9))
+- **core**: 刚写入的文件可以立刻改，不必再假读一遍 ([46b169f](https://github.com/kittors/Lyra/commit/46b169f270fa4e9caf3a5d27da3ee3a5bb67b5b1))
+- **desktop**: 让 GitHub CI 对齐 Windows 顶栏与过程折叠 ([709b072](https://github.com/kittors/Lyra/commit/709b0727f520f2c4ec25fd0c5d701a79d262a57e))
+- **desktop**: 文件胶囊单行省略，关于页按语言只显示一段更新说明 ([0d03122](https://github.com/kittors/Lyra/commit/0d0312297ce57138c823420b44f862afa5407c81))
+- **desktop**: node-pty 编不动时改用命令行工具再试一次 ([86eedef](https://github.com/kittors/Lyra/commit/86eedef6391d85561923400697406e69c297e260))
+- **desktop**: 修掉转录崩溃、切会话卡顿、运行状态卡死与 PR 页图标重叠 ([a74f868](https://github.com/kittors/Lyra/commit/a74f868101a0b21010b61919cfe7e4dcadaa0cc6))
+
+### 性能
+
+- **desktop**: 一条 12 MB 的消息从画不完变成一帧画完 ([d3355a6](https://github.com/kittors/Lyra/commit/d3355a650f2b0372ffc0ddf16d9a9c64ada307ac))
+
+### 文档
+
+- 同步 README 与指南到当前能力 ([7656701](https://github.com/kittors/Lyra/commit/765670164b59043e2a33cbf7e36bb1d87be3d2ac))
+- **architecture**: add agent cost and stopping checklist ([d6c6ba1](https://github.com/kittors/Lyra/commit/d6c6ba1c152538756cc90a85a272ecfb9d93ac2b))
+
 ## [0.9.14](https://github.com/kittors/Lyra/releases/tag/v0.9.14) - 2026-09-14
 
 <!-- lyra:notes en -->
