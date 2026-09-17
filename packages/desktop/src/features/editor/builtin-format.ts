@@ -133,22 +133,23 @@ export async function formatWithBuiltin(
 				indentUnit.of(indentStr),
 				EditorState.tabSize.of(tabSize),
 			];
-			const state = EditorState.create({
-				doc: source,
-				extensions,
-			});
-			const tr = indentRange(state, 0, state.doc.length);
 			/*
-			 * Keep the CodeMirror result even when it changed nothing.
+			 * Run indentRange until it stops changing the document.
 			 *
-			 * An empty change set means the grammar already likes this indent. Falling through to
-			 * the bracket scanner used to run a second, dumber pass: Kotlin formatted once (the
-			 * Java grammar kept four spaces) and again on save (the scanner rewrote it to two
-			 * spaces and a stray brace). Idempotent formatters do not get a consolation prize.
+			 * One pass is not enough: Rust's grammar first keeps rustfmt's four spaces (no
+			 * changes), then a second EditorState with the same indentUnit rewrites them to
+			 * tabWidth. Kotlin used to fall through to the bracket scanner on an empty first
+			 * pass and break the braces. Either way, save-twice must be a no-op.
 			 */
-			const text = tr && tr.length > 0
-				? state.update({ changes: tr }).state.doc.toString()
-				: source;
+			let text = source;
+			for (let i = 0; i < 3; i++) {
+				const state = EditorState.create({ doc: text, extensions });
+				const tr = indentRange(state, 0, state.doc.length);
+				if (!tr || tr.length === 0) break;
+				const next = state.update({ changes: tr }).state.doc.toString();
+				if (next === text) break;
+				text = next;
+			}
 			return trimTrailing(text);
 		} catch {
 			// Fall back to block indentation scanner

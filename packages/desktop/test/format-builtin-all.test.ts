@@ -76,9 +76,11 @@ const skeleton = (s: string) => s.replace(/\s+/g, "");
 test("a grammar that already likes the indent is not handed to the bracket scanner", async () => {
 	// Kotlin is highlighted as Java. One save used the grammar; the next saw an empty
 	// indentRange and used to fall through, rewriting four spaces into a broken brace.
-	const once = await formatWithBuiltin("kt", LANGUAGES.find((e) => e.key === "kt")!.sample, OPTS);
-	const twice = await formatWithBuiltin("kt", once, OPTS);
-	assert.equal(twice, once);
+	for (const key of ["kt", "rs"]) {
+		const once = await formatWithBuiltin(key, LANGUAGES.find((e) => e.key === key)!.sample, OPTS);
+		const twice = await formatWithBuiltin(key, once, OPTS);
+		assert.equal(twice, once, `${key} 第二遍又改了一次`);
+	}
 });
 
 test("内置格式化是幂等的：跑第二遍不再改动", async () => {
