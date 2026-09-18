@@ -7,17 +7,147 @@
 
 ## [0.9.16](https://github.com/kittors/Lyra/releases/tag/v0.9.16) - 2026-09-18
 
+<!-- lyra:notes en -->
+
+### New
+
+- **A window holds at most four conversations.** After you split, a terminal, browser, files or git panel stays in that tile. If the tile is too tight, the panel opens in a new window instead of crushing the chat into a sliver.
+
+- **Number fields in Settings keep a draft while you type.** "1" can stay long enough to become "16". Leaving the field puts the value in range; a minus never enters a count that cannot be negative.
+
+### Fixes
+
+- **Switching conversations no longer flashes the old highlight.** The sidebar stays on the row that is about to open.
+
+- **On Windows, a live preview still shows its port when probing the connection table fails.** Saving on the agent page no longer leaves the reasoning effort menu dead — a click after save actually changes the level.
+
+- **Long branch names no longer sit under the hover icons.** Workspace and Local rows share one icon column, the same reserved slot a conversation row already used for archive.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
 ### 新功能
 
-- **desktop**: 一个窗口最多四个会话，设置数字按范围收，切换不再闪旧高亮 ([edf328f](https://github.com/kittors/Lyra/commit/edf328f11119810398ab3875455813d3946998e2))
+- **一个窗口最多四个会话。** 拆开之后，终端、浏览器、文件、Git 面板停在那一块瓷砖里。这块地方不够，就开新窗口，不会把对话挤成一条缝。
+
+- **设置里的数字框允许打到一半。** 「1」可以先停着，再变成「16」。离开输入框才收到上下限里；不能为负的数量，负号根本进不去。
 
 ### 修复
 
-- **desktop**: 让位常量只留一份，并发测试不再被收窄成 never ([cacd508](https://github.com/kittors/Lyra/commit/cacd508921da8dfb3451bb79011bbacb05d1c998))
-- **desktop**: Git 列表跟会话行共用让位，左侧图标对齐 ([e0adf22](https://github.com/kittors/Lyra/commit/e0adf221b826b33bcee946ebf0e07158e9b5bac2))
-- **desktop**: 分支名铺满一行，悬停图标再让位 ([23c03c3](https://github.com/kittors/Lyra/commit/23c03c3a734f0bc375e7f2ca022550d40be22df3))
-- **desktop**: 发版前门禁：拆分树耗时、格式化幂等和未使用导出 ([702c8fc](https://github.com/kittors/Lyra/commit/702c8fc6a8edc2d251e02f05a6f5344c070ea1ea))
-- **desktop**: Windows 上服务端口和思考菜单不再被探测失败挡掉 ([627750b](https://github.com/kittors/Lyra/commit/627750b58684777ccff6e3c68bbbb6f20de8de0b))
+- **切换会话不再闪一下旧的高亮。** 侧栏跟着即将打开的那一行走。
+
+- **Windows 上探测连接表失败时，还活着的预览仍然显示端口。** 智能体页存完盘，推理强度菜单不再是点了白点——存完再点，档位会变。
+
+- **分支名不再压在悬停图标底下。** 工作区和本地共用一列图标，让位方式和会话行把标题停在归档按钮前是同一套。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **一個視窗最多四個對話。** 拆開之後，終端機、瀏覽器、檔案、Git 面板停在那一塊磁磚裡。這塊地方不夠，就開新視窗，不會把對話擠成一條縫。
+
+- **設定裡的數字框允許打到一半。** 「1」可以先停著，再變成「16」。離開輸入框才收到上下限裡；不能為負的數量，負號根本進不去。
+
+### 修復
+
+- **切換對話不再閃一下舊的反白。** 側欄跟著即將打開的那一列走。
+
+- **Windows 上探測連線表失敗時，還活著的預覽仍然顯示連接埠。** 智能體頁存完盤，推理強度選單不再是點了白點——存完再點，檔位會變。
+
+- **分支名不再壓在懸停圖示底下。** 工作區和本機共用一欄圖示，讓位方式和對話列把標題停在封存按鈕前是同一套。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **ひとつのウィンドウに会話は最大4つです。** 分割したあとの端末、ブラウザ、ファイル、Gitパネルは、そのタイルの中に残ります。入らなければ新しいウィンドウを開き、会話を細い隙間にはしません。
+
+- **設定の数値欄は、入力の途中を残せます。** 「1」のまま「16」まで打てます。欄を離したときに範囲へ収めます。負にできない数には、マイナス記号自体が入りません。
+
+### 修正
+
+- **会話を切り替えても、前の行が一度光って戻りません。** サイドバーは、これから開く行のままです。
+
+- **Windowsで接続一覧の取得に失敗しても、生きているプレビューのポートは出ます。** エージェントのページを保存したあと、推理強度のメニューが反応しなくなりません。保存してから押すと、段階が変わります。
+
+- **長いブランチ名が、ホバーアイコンの下に潜り込みません。** ワークスペースとローカルは同じアイコン列です。会話行がアーカイブの手前でタイトルを止めるのと同じ隙間です。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **창 하나에는 대화를 최대 네 개까지 둡니다.** 나눈 뒤의 터미널, 브라우저, 파일, Git 패널은 그 타일 안에 남습니다. 자리가 부족하면 새 창을 열고, 대화를 가느다란 틈으로 찌그러뜨리지 않습니다.
+
+- **설정의 숫자 칸은 입력 중간을 남겨 둡니다.** '1'을 잠시 둔 채로 '16'까지 칠 수 있습니다. 칸을 떠날 때 범위 안으로 맞춥니다. 음수가 될 수 없는 개수에는 마이너스 기호 자체가 들어가지 않습니다.
+
+### 수정
+
+- **대화를 바꿔도 이전 줄이 한 번 다시 밝아지지 않습니다.** 사이드바는 곧 열릴 그 줄에 머뭅니다.
+
+- **Windows에서 연결 목록 조회가 실패해도, 살아 있는 미리보기의 포트는 나옵니다.** 에이전트 페이지를 저장한 뒤 추론 강도 메뉴가 죽은 채로 남지 않습니다. 저장한 다음 누르면 단계가 바뀝니다.
+
+- **긴 브랜치 이름이 호버 아이콘 아래로 파고들지 않습니다.** 작업 공간과 로컬이 같은 아이콘 열을 씁니다. 대화 줄이 보관 버튼 앞에서 제목을 멈추는 것과 같은 자리입니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Une fenêtre contient au plus quatre conversations.** Après un fractionnement, un terminal, un navigateur, des fichiers ou un panneau Git restent dans cette tuile. S'il n'y a pas la place, le panneau s'ouvre dans une nouvelle fenêtre au lieu d'écraser la conversation en une fente.
+
+- **Les champs numériques des Réglages gardent un brouillon pendant la saisie.** « 1 » peut rester assez longtemps pour devenir « 16 ». Quitter le champ ramène la valeur dans l'intervalle ; un moins n'entre jamais dans un compte qui ne peut pas être négatif.
+
+### Corrections
+
+- **Changer de conversation ne fait plus clignoter l'ancienne surbrillance.** La barre latérale reste sur la ligne qui va s'ouvrir.
+
+- **Sous Windows, un aperçu encore vivant affiche son port même si l'interrogation de la table des connexions échoue.** Enregistrer la page de l'agent ne laisse plus le menu d'effort de raisonnement inerte — un clic après l'enregistrement change bien le niveau.
+
+- **Les longs noms de branche ne passent plus sous les icônes au survol.** L'espace de travail et Local partagent une même colonne d'icônes, le même créneau qu'une ligne de conversation réserve déjà à l'archivage.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **В одном окне не больше четырёх бесед.** После разделения терминал, браузер, файлы и панель Git остаются в этой плитке. Если места нет, панель открывается в новом окне, а не сжимает беседу в щель.
+
+- **Числовые поля в настройках держат черновик, пока вы печатаете.** «1» может подождать, пока не станет «16». Уход из поля ставит значение в диапазон; минус не входит в счёт, который не может быть отрицательным.
+
+### Исправления
+
+- **Переключение беседы больше не вспыхивает старой подсветкой.** Боковая панель остаётся на строке, которая сейчас откроется.
+
+- **В Windows живой просмотр по-прежнему показывает порт, если опрос таблицы соединений не удался.** Сохранение на странице агента больше не оставляет меню глубины рассуждений мёртвым — нажатие после сохранения меняет уровень.
+
+- **Длинные имена веток больше не залезают под значки при наведении.** Рабочая область и локальные ветки делят одну колонку значков — тот же запас, которым строка беседы уже останавливает название перед архивацией.
+
+</details>
 
 ## [0.9.15](https://github.com/kittors/Lyra/releases/tag/v0.9.15) - 2026-09-17
 
