@@ -60,15 +60,9 @@
  * would keep a fade over its last characters with nothing there to justify it. Keyboard focus does
  * bring the controls out, and `:has(:focus-visible)` is that and only that.
  */
-.group\/session:hover .ly-fade-tail,
-.group\/session:has(:focus-visible) .ly-fade-tail,
-.group\/project:hover .ly-fade-tail,
-.group\/project:has(:focus-visible) .ly-fade-tail,
-.group\/branch:hover .ly-fade-tail,
-.group\/branch:has(:focus-visible) .ly-fade-tail {
-  /* As wide as the controls that are landing on it — the row says how many it has.
-   * Session, project, and branch rows all overlay those controls; a list that
-   * forgets this rule fades the name in one place and the empty icon gutter in another. */
+[data-ly-hover-row]:hover .ly-fade-tail,
+[data-ly-hover-row]:has(:focus-visible) .ly-fade-tail {
+  /* As wide as the reserved slot. One rule, so a new list cannot forget to yield. */
   --ly-fade-right: var(--ly-row-controls, 30px);
 }
 

@@ -31,7 +31,7 @@ test("global toggles leave consumed, composing and repeating keys alone", async 
 });
 
 test("every advertised panel shortcut opens its panel, including a home terminal", async () => {
-	const toggle = mock.method(useDock.getState(), "toggle", () => {});
+	const open = mock.method(useDock.getState(), "open", () => {});
 	const view = await mount(h(Harness, { toggleNav() {} }));
 	try {
 		for (const [key, code, extra, kind] of [
@@ -44,10 +44,10 @@ test("every advertised panel shortcut opens its panel, including a home terminal
 			// happy-dom aliases AltGraph to Alt; Chromium distinguishes these modifiers.
 			Object.defineProperty(event, "getModifierState", { value: () => false });
 			await fire(view.find("textarea"), event);
-			assert.equal(toggle.mock.calls.at(-1)?.arguments[0], kind);
+			assert.equal(open.mock.calls.at(-1)?.arguments[0], kind);
 		}
 	} finally {
-		toggle.mock.restore();
+		open.mock.restore();
 		await view.unmount();
 	}
 });

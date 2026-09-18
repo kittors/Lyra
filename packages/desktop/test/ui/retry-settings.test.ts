@@ -116,15 +116,19 @@ test("数字等打完再落盘，一次输入不会先存下半截的值", async
 	await view.unmount();
 });
 
-test("失焦立即落盘，超出范围的数字按边界收，空输入不写", async () => {
+test("失焦立即落盘，超过上限进不去，空输入不写", async () => {
 	const view = await show();
 	await open(view, "上游故障");
 
 	const field = view.find<HTMLInputElement>('[aria-label="上游故障重试间隔秒数"]');
 	await type(field, "9999");
+	assert.equal(field.value, "5", "超过 3600 的数字进不去");
+	assert.equal(saved.length, 0);
+
+	await type(field, "12");
 	await fire(field, new Event("focusout", { bubbles: true }));
 	assert.equal(saved.length, 1);
-	assert.equal(policyOf(saved[0]!).upstream.intervalMs, 3_600_000);
+	assert.equal(policyOf(saved[0]!).upstream.intervalMs, 12_000);
 
 	await type(field, "");
 	await fire(field, new Event("focusout", { bubbles: true }));

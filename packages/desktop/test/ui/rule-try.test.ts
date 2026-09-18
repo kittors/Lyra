@@ -53,7 +53,7 @@ test("a pattern the loader would refuse is refused here, in the same words, with
 	const status = view.find("[data-rule-try-status]");
 	assert.equal(status.dataset.ruleTryStatus, "refused");
 	assert.match(status.textContent ?? "", /嵌套量词/);
-	assert.match(view.find("input").className, /border-danger/);
+	assert.match(view.find("input").className, /ly-field-invalid/);
 	assert.equal(view.all("[data-rule-try-hit]").length, 0);
 	await view.unmount();
 });

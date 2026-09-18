@@ -201,10 +201,14 @@ test("并发数写下去要落在 1–8 之间，负数和超上限进不去", a
 			});
 		};
 		await type("-12");
-		assert.equal(saved?.maxConcurrentSubAgents, 1, "负数不是一个并发");
-		assert.equal(field.value, "1");
+		assert.equal(saved, undefined, "负号进不去，也还不写盘");
+		assert.equal(field.value, "4");
 
 		await type("16");
+		assert.equal(saved, undefined, "超过 8 的数字进不去");
+		assert.equal(field.value, "4");
+
+		await type("8");
 		assert.equal(saved?.maxConcurrentSubAgents, 8);
 		assert.equal(field.value, "8");
 

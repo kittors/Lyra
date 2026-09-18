@@ -1,10 +1,8 @@
 /**
- * Branch names yield to hover icons the same way session titles do.
+ * Git rows use the same reserved slot as a session row.
  *
- * An in-flow transparent strip still occupies width, so every row faded in a
- * different place (one button, three, or 「当前」) and a long name drew two
- * fades — the 22px overflow mask, then the empty gutter. The overlay plus
- * `--ly-row-controls` is what keeps one fade, in one place.
+ * A full-width name with icons on top is the overlap SessionRow's comment forbids.
+ * A per-row reservation (one button, three, 「当前」) is the empty boxes of different widths.
  */
 
 import assert from "node:assert/strict";
@@ -13,25 +11,39 @@ import { test } from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("branch rows overlay icons and tell the fade how wide they are", async () => {
-	const row = await readFile(new URL("src/features/git/BranchRow.tsx", root), "utf8");
-	assert.match(row, /--ly-row-controls/);
-	assert.match(row, /ly-fade-tail/);
-	assert.match(row, /absolute inset-y-0 right-0/);
-	assert.match(row, /group-hover\/branch:opacity-100/);
-	assert.match(row, /pointer-events-none absolute/);
-	assert.doesNotMatch(row, /pr-\[76px\]|pr-\[52px\]|pr-7/);
+test("session, project, and git rows share HoverRow", async () => {
+	const files = [
+		"src/features/sidebar/SessionRow.tsx",
+		"src/features/sidebar/ProjectHead.tsx",
+		"src/features/git/BranchRow.tsx",
+		"src/features/git/CheckoutRow.tsx",
+	];
+	for (const file of files) {
+		const source = await readFile(new URL(file, root), "utf8");
+		assert.match(source, /from "\.\.\/.*ui\/row\/HoverRow\.tsx"/, file);
+	}
 });
 
-test("the fade yields for branch icons, not only session and project rows", async () => {
+test("the fade yields on the shared row, not a per-list group name", async () => {
 	const css = await readFile(new URL("src/styles/thinking-ticker.css", root), "utf8");
-	assert.match(css, /group\\\/branch:hover \.ly-fade-tail/);
+	assert.match(css, /\[data-ly-hover-row\]:hover \.ly-fade-tail/);
 	assert.match(css, /--ly-fade-right:\s*var\(--ly-row-controls/);
+	assert.doesNotMatch(css, /group\\\/branch/);
+	assert.doesNotMatch(css, /group\\\/session:hover/);
 });
 
-test("a workspace checkout keeps one fade — the branch name truncates", async () => {
+test("worktrees do not indent the icon past the repo icon", async () => {
 	const view = await readFile(new URL("src/features/git/BranchesView.tsx", root), "utf8");
-	const checkout = view.slice(view.indexOf("checkouts.map"), view.indexOf("common.local"));
-	assert.equal((checkout.match(/<ScrollText/g) ?? []).length, 1);
-	assert.match(checkout, /truncate/);
+	const checkout = await readFile(new URL("src/features/git/CheckoutRow.tsx", root), "utf8");
+	assert.doesNotMatch(view, /pl-5/);
+	assert.doesNotMatch(checkout, /pl-5/);
+	assert.match(checkout, /HoverRowMark/);
+	assert.match(checkout, /CHECKOUT_TRAIL/);
+});
+
+test("every branch row reserves the same trailing slot", async () => {
+	const row = await readFile(new URL("src/features/git/BranchRow.tsx", root), "utf8");
+	assert.match(row, /GIT_CONTROLS/);
+	assert.doesNotMatch(row, /pr-\[76px\]|pr-\[52px\]|pr-7/);
+	assert.match(row, /HoverRowMark/);
 });

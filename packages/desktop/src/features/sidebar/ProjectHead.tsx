@@ -19,6 +19,7 @@ import { ChevronRight, Folder, MoreHorizontal, SquarePen } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { HoverRow, HoverRowButton, HoverRowReveal, HoverRowTrail, PROJECT_CONTROLS } from "../../ui/row/HoverRow.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GroupActivity } from "./GroupActivity.tsx";
 import type { Group } from "./grouping.ts";
@@ -43,9 +44,10 @@ export function ProjectHead({
 	return (
 		/* Same hover-owner arrangement as the session rows: the fill belongs to the row so
 		   reaching for the menu button does not drop it. */
-		<div
+		<HoverRow
+			controls={PROJECT_CONTROLS}
 			data-ly-project={group.name}
-			className="ly-scroll group/project relative rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated"
+			className="group/project rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated"
 			onPointerMove={(event) => {
 				if (reorder) {
 					const rect = event.currentTarget.getBoundingClientRect();
@@ -76,14 +78,13 @@ export function ProjectHead({
 			 * inside — so it lost the click and kept a menu item, rather than the two sharing
 			 * one target and the fold never existing.
 			 */}
-			<button
+			<HoverRowButton
 				onPointerDown={(event) => {
 					reorder?.startDrag({ kind: "project", id: group.path, title: group.name }, event);
 				}}
-				type="button"
 				aria-expanded={!collapsed}
 				onClick={onToggleCollapsed}
-				className={`flex w-full items-center gap-2.5 rounded-lg pr-2 pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
+				className={`gap-2.5 rounded-lg pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
 					compact ? "h-[40px]" : "h-[31px]"
 				} ${active ? "font-medium text-ink" : "text-ink group-hover/project:text-ink"}`}
 			>
@@ -109,22 +110,22 @@ export function ProjectHead({
 					/>
 				</span>
 				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
-				{/*
-				 * How many are folded away, so a shut project is not indistinguishable from an
-				 * empty one. Only while shut: open, the rows themselves are the count.
-				 * Running work replaces the count with a quiet spinner in this same trailing slot.
-				 *
-				 * It vacates under the pointer, the same way the folder does. The menu button
-				 * lives at this exact spot, and the two drawn together was not two things
-				 * crowding each other — it was a numeral and an icon on the same pixels, legible
-				 * as neither. Hovering is reaching for the button, so the count is what yields.
-				 */}
-				<span className="flex w-[46px] shrink-0 items-center justify-end pr-0.5 text-caption text-ink-faint tabular-nums transition-opacity duration-[var(--ly-t-quick)] group-hover/project:opacity-0 group-has-[:focus-visible]/project:opacity-0">
-					<GroupActivity sessions={group.sessions} collapsed={collapsed} count={group.sessions.length} />
-				</span>
-			</button>
+			</HoverRowButton>
+			{/*
+			 * How many are folded away, so a shut project is not indistinguishable from an
+			 * empty one. Only while shut: open, the rows themselves are the count.
+			 * Running work replaces the count with a quiet spinner in this same trailing slot.
+			 *
+			 * It vacates under the pointer, the same way the folder does. The menu button
+			 * lives at this exact spot, and the two drawn together was not two things
+			 * crowding each other — it was a numeral and an icon on the same pixels, legible
+			 * as neither. Hovering is reaching for the button, so the count is what yields.
+			 */}
+			<HoverRowTrail className="text-caption text-ink-faint tabular-nums transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0">
+				<GroupActivity sessions={group.sessions} collapsed={collapsed} count={group.sessions.length} />
+			</HoverRowTrail>
 
-			<span data-ly-hover-reveal className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-0.5 rounded-r-lg pr-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/project:opacity-100 group-has-[:focus-visible]/project:opacity-100">
+			<HoverRowReveal className="gap-0.5 rounded-r-lg">
 				<button
 					type="button"
 					data-ly-tip={translate("projectHead.newSession")}
@@ -144,9 +145,9 @@ export function ProjectHead({
 				>
 					<MoreHorizontal size={13} strokeWidth={1.8} />
 				</button>
-			</span>
+			</HoverRowReveal>
 
 			{menu.open && <ProjectMenu anchor={menu.anchor} path={group.path} name={group.name} onClose={menu.close} />}
-		</div>
+		</HoverRow>
 	);
 }

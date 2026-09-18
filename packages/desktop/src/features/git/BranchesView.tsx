@@ -2,7 +2,7 @@
  * Branches, and the diff between any two of them.
  */
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import { ArrowLeft, GitBranchPlus, FolderGit2, X } from "lucide-react";
+import { ArrowLeft, GitBranchPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import type { GitStatus, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
@@ -11,7 +11,6 @@ import type { BranchList, RepoRef } from "../../../electron/git.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 
-import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -19,6 +18,7 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { FileDiffList } from "./FileDiffList.tsx";
 
 import { BranchRow } from "./BranchRow.tsx";
+import { CheckoutRow } from "./CheckoutRow.tsx";
 import { GroupHeader } from "./GroupHeader.tsx";
 import type { Act } from "./types.ts";
 import { bridge } from "../../services/index.ts";
@@ -138,29 +138,7 @@ export function BranchesView({
             <>
 							<GroupHeader label={t("common.workspace")} count={checkouts.length} />
               {checkouts.map((entry) => (
-                <button
-                  key={entry.path}
-                  type="button"
-                  data-ly-tip={entry.path}
-                  aria-current={entry.path === cwd ? "location" : undefined}
-                  onClick={() => onSelectRepo(entry.path)}
-                  className={`ly-scroll flex w-full items-center gap-1.5 rounded-md py-1 pr-1.5 text-left transition-colors ${
-                    entry.worktree ? "pl-5" : "pl-1.5"
-                  } ${entry.path === cwd ? "text-accent" : "text-ink-muted hover:text-ink"}`}
-                >
-                  {entry.worktree ? (
-                    <GitBranchPlus size={12} strokeWidth={1.8} className={`shrink-0 ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`} />
-                  ) : (
-                    <FolderGit2 size={12} strokeWidth={1.8} className={`shrink-0 ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`} />
-                  )}
-                  {/* The name identifies the checkout; the branch qualifies it. Names keep their
-                   * width and branches give theirs up, or `CliRelay-wt-audit` becomes `CliR…`. */}
-                  <ScrollText text={entry.label} className={`ly-fade-tail min-w-0 flex-1 text-label ${entry.path === cwd ? "text-accent" : "text-ink-muted"}`} />
-                  <span className={`ml-auto min-w-0 max-w-[42%] shrink-[4] truncate text-caption ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`}>
-                    {entry.branch ?? t("sync.detached")}
-                  </span>
-
-                </button>
+                <CheckoutRow key={entry.path} entry={entry} cwd={cwd} onSelect={onSelectRepo} />
               ))}
             </>
           )}

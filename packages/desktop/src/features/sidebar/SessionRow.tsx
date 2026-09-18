@@ -6,11 +6,8 @@
  * hanging `hover:` on the button meant the fill and the text colour dropped out the moment you
  * reached for the icon, while the icon itself (keyed off the row) stayed.
  *
- * The title stops short of the archive button, always. It used to run the full width with the
- * icon on top of it, so a long name and the icon overlapped into something neither could be read
- * through. A gradient behind the icon was the previous answer, but the sidebar is translucent —
- * there is no colour to fade to that reliably covers text. Reserving the space costs a few
- * characters and cannot go wrong; the full title is a hover away in the scroller either way.
+ * The title stops short of the archive button, always. The shell is `HoverRow`, shared with
+ * project heads and git rows, so a new list cannot invent a second way to overlap.
  */
 
 import { useI18n } from "../../i18n/index.ts";
@@ -25,6 +22,7 @@ import { SessionCard, useSessionCard } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { HoverRow, HoverRowButton, HoverRowReveal, SESSION_CONTROLS } from "../../ui/row/HoverRow.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SessionStatus } from "../conversation/index.ts";
 import { useTypedText } from "../../ui/motion/TypedText.tsx";
@@ -153,8 +151,9 @@ export function SessionRow({
 	const inArchive = Boolean(onDelete);
 	const actionsCount = inArchive ? (onRestore ? 2 : 1) : (onArchive ? 2 : 1);
 	return (
-		<div
+		<HoverRow
 			{...card.bind}
+			controls={actionsCount === 2 ? SESSION_CONTROLS.two : SESSION_CONTROLS.one}
 			onMouseEnter={(event) => { if (event.buttons === 0) card.bind.onMouseEnter(event); }}
 			data-ly-row={session.id}
 			onContextMenu={(event) => {
@@ -162,8 +161,7 @@ export function SessionRow({
 				card.dismiss();
 				menu.openAtPoint(event);
 			}}
-			style={{ "--ly-row-controls": actionsCount === 2 ? "58px" : "34px" } as React.CSSProperties}
-			className={`ly-scroll group/session relative rounded-lg active:bg-elevated ${
+			className={`group/session rounded-lg active:bg-elevated ${
 				justCreated ? "ly-drop" : ""
 			} ${active ? "bg-card-hover" : "hover:bg-card-hover"} ${
 				isDraggingThisSession ? "opacity-35" : ""
@@ -206,7 +204,7 @@ export function SessionRow({
 				/>
 			)}
 			{confirm.element}
-			<button
+			<HoverRowButton
 				onPointerDown={(event) => {
 					card.dismiss();
 					offerSessionDrag({ id: session.id, title: sessionTitle(session.title) }, event);
@@ -215,7 +213,6 @@ export function SessionRow({
 						event,
 					);
 				}}
-				type="button"
 				onClick={onOpen}
 				/*
 				 * Which conversation you are in, stated rather than only drawn.
@@ -225,28 +222,20 @@ export function SessionRow({
 				 * at the colour.
 				 */
 				aria-current={active ? "page" : undefined}
-				/*
-				 * The title always stops short of the strip. Growing `padding-right` on hover used
-				 * to shrink `ScrollText` by 48px over `--ly-t-quick`, which is the jitter on a long
-				 * name. The buttons still fade in; they no longer steal width from the title.
-				 */
-				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label ${
-					actionsCount === 2 ? "pr-14" : "pr-8"
-				} ${compact ? "h-[34px]" : "h-[27px]"} ${
+				className={`gap-2 rounded-lg pl-2 text-left text-label ${
+					compact ? "h-[34px]" : "h-[27px]"
+				} ${
 					active ? "text-ink" : "text-ink-muted group-hover/session:text-ink"
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
-			</button>
+			</HoverRowButton>
 
 			{/* The strip never takes pointer events; only the button does. Anything wider would
 			    shadow the row button and cost it its hover. */}
-			{/* Shown on hover, and on keyboard focus anywhere in the row — which is the same condition
-			    the button above reserves its space on. Two conditions that differ by a millimetre is
-			    what left a gap with nothing in it; see the note there. */}
-			<span data-ly-hover-reveal className="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-lg pr-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/session:opacity-100 group-has-[:focus-visible]/session:opacity-100">
+			<HoverRowReveal className="rounded-r-lg">
 				{inArchive ? (
 					<>
 						{onRestore && (
@@ -299,7 +288,7 @@ export function SessionRow({
 						)}
 					</>
 				)}
-			</span>
-		</div>
+			</HoverRowReveal>
+		</HoverRow>
 	);
 }
