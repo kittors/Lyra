@@ -59,14 +59,34 @@ export function slimJsonlLine(line: string, keep = INLINE_IMAGE_CHARS): string {
 }
 
 /**
+ * 这一行是谁说的。
+ *
+ * `role` 在 message 记录里靠前，而要躲开的那个 base64 在后面——所以只看开头这一截就够，不必为了
+ * 认一个角色把整行 `JSON.parse` 一遍（那正是这个文件存在的原因）。
+ */
+function roleOf(line: string): string {
+	return /"role":"(\w+)"/.exec(line.slice(0, 400))?.[1] ?? "";
+}
+
+/**
  * First display read of an old fat line: write each oversized image to
  * `session-media` and put `media` on the line that `JSON.parse` sees.
  *
  * The log stays append-only. The window never receives empty `data` without a
  * file name — that is the blank tile after a warm switch.
+ *
+ * **只有会画出来的图才停盘位。** 转录里唯一渲染图片块的是用户消息（`UserMessage`）；
+ * `toolResult` 那一整条在 `rows.tsx` 里 `return null`，工具的结果是另走工具卡片显示的，它
+ * 携带的图片一张也不会出现在屏幕上。本机扫下来，会显示的 180 张，从不显示却照样解码、写盘、
+ * 长期占着 `session-media` 的有 440 张——两倍半的活，全是白做的。
+ *
+ * 那些图仍然照常从 IPC 里剥掉（走 `slimJsonlLine`），所以窗口不会为它们付一分钱；只是不再为
+ * 一张没人看的图写一个文件。原始字节一直在日志里，哪天工具卡片要显示图了，`display-image.ts`
+ * 那条按需读的路照样取得到。
  */
 export function materializeJsonlLine(line: string, keep = INLINE_IMAGE_CHARS): string {
 	if (line.length <= keep + 16) return line;
+	if (roleOf(line) !== "user") return slimJsonlLine(line, keep);
 	const needle = '"data":"';
 	let out = "";
 	let last = 0;
