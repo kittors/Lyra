@@ -63,8 +63,12 @@
 .group\/session:hover .ly-fade-tail,
 .group\/session:has(:focus-visible) .ly-fade-tail,
 .group\/project:hover .ly-fade-tail,
-.group\/project:has(:focus-visible) .ly-fade-tail {
-  /* As wide as the controls that are landing on it — the row says how many it has. */
+.group\/project:has(:focus-visible) .ly-fade-tail,
+.group\/branch:hover .ly-fade-tail,
+.group\/branch:has(:focus-visible) .ly-fade-tail {
+  /* As wide as the controls that are landing on it — the row says how many it has.
+   * Session, project, and branch rows all overlay those controls; a list that
+   * forgets this rule fades the name in one place and the empty icon gutter in another. */
   --ly-fade-right: var(--ly-row-controls, 30px);
 }
 

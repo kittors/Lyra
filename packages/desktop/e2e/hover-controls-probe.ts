@@ -148,10 +148,13 @@ try {
 				<span data-strip class="mt-1 flex h-6 items-center gap-1.5 opacity-0 transition-opacity group-hover/msg:opacity-100 has-[:focus-visible]:opacity-100">
 					<button type="button" class="rounded p-1">C</button>
 				</span></div>\`],
-			// BranchRow.
-			["分支行", \`<div data-case class="group/branch relative rounded-lg"><button type="button" data-main class="h-[27px] w-full text-left">分支</button>
-				<span data-strip class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/branch:opacity-100 has-[:focus-visible]:opacity-100">
-					<button type="button" class="rounded p-1">B</button>
+			// BranchRow: overlay strip, title reserved, fade yields via --ly-row-controls.
+			["分支行", \`<div data-case class="ly-scroll group/branch relative rounded-lg" style="--ly-row-controls:52px">
+				<div data-main class="flex min-w-0 items-center h-[27px]">
+					<span data-title class="ly-fade-tail min-w-0 flex-1">分支</span>
+				</div>
+				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-md pr-1.5 opacity-0 transition-opacity group-hover/branch:opacity-100 group-has-[:focus-visible]/branch:opacity-100">
+					<button type="button" class="pointer-events-auto rounded p-1">B</button>
 				</span></div>\`],
 			// PreviewCard: the strip is always faintly there and comes up on hover.
 			["预览卡", \`<div data-case class="group/card relative rounded-lg"><button type="button" data-main class="h-[27px] w-full text-left">预览</button>

@@ -155,8 +155,10 @@ export function BranchesView({
                   )}
                   {/* The name identifies the checkout; the branch qualifies it. Names keep their
                    * width and branches give theirs up, or `CliRelay-wt-audit` becomes `CliR…`. */}
-                  <ScrollText text={entry.label} className={`min-w-0 shrink text-label ${entry.path === cwd ? "text-accent" : "text-ink-muted"}`} />
-                  <ScrollText text={entry.branch ?? t("sync.detached")} className={`ml-auto min-w-0 shrink-[4] text-caption ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`} />
+                  <ScrollText text={entry.label} className={`ly-fade-tail min-w-0 flex-1 text-label ${entry.path === cwd ? "text-accent" : "text-ink-muted"}`} />
+                  <span className={`ml-auto min-w-0 max-w-[42%] shrink-[4] truncate text-caption ${entry.path === cwd ? "text-accent" : "text-ink-faint"}`}>
+                    {entry.branch ?? t("sync.detached")}
+                  </span>
 
                 </button>
               ))}
