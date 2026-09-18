@@ -163,6 +163,7 @@ export function SessionCard({
 	return portal(<div
 			ref={card}
 			role="tooltip"
+			data-ly-session-card=""
 			style={{ zIndex: CARD_Z, left: at?.left ?? -9999, top: at?.top ?? -9999, opacity: at ? undefined : 0 }}
 			className={`ly-glass-solid pointer-events-none fixed w-[248px] overflow-hidden rounded-[12px] border border-line-soft ${
 				leaving ? "ly-card-out" : "ly-card-in"

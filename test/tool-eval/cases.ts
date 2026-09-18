@@ -387,7 +387,7 @@ const LONG_SETTINGS = `export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	codeFont: "JetBrains Mono Variable",
 	codeLightTheme: "lyra-light",
 	codeDarkTheme: "lyra-dark",
-	uiFontSize: 13,
+	uiFontSize: 14,
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
@@ -452,9 +452,9 @@ CASES.push(
 		scenario: "multi-point",
 		path: "src/settings.ts",
 		before: LONG_SETTINGS,
-		instruction: "三处修改：uiFontSize 改成 14；tabWidth 改成 4；DEFAULT_SCREENSHOT_SETTINGS 的 openEditor 改成 false。",
+		instruction: "三处修改：uiFontSize 改成 15；tabWidth 改成 4；DEFAULT_SCREENSHOT_SETTINGS 的 openEditor 改成 false。",
 		after: LONG_SETTINGS
-			.replace("\tuiFontSize: 13,\n", "\tuiFontSize: 14,\n")
+			.replace("\tuiFontSize: 14,\n", "\tuiFontSize: 15,\n")
 			.replace("\ttabWidth: 2,\n", "\ttabWidth: 4,\n")
 			.replace("\topenEditor: true,\n", "\topenEditor: false,\n"),
 	},

@@ -31,6 +31,7 @@ import type { AgentCapabilities } from "../ipc-types.ts";
 import {
 	activateSession,
 	editSessionMessage,
+	revertSessionMessage,
 	broadcast,
 	disposeSession,
 	ensureLiveSession,
@@ -339,6 +340,10 @@ export function registerSessionsIpc({
 			await editSessionMessage(sessionId, messageIndex, content, options);
 		},
 	);
+
+	ipcMain.handle("agent:revertMessage", async (_event, sessionId: string, messageIndex: number) => {
+		await revertSessionMessage(sessionId, messageIndex);
+	});
 
 	ipcMain.handle("agent:abort", async (_event, sessionId: string) => {
 		await abortSession(sessionId);

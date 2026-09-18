@@ -26,10 +26,21 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { freezeMotion, inertPanes } from "../../ui/motion/freeze.ts";
 import { dropAt, sameDrop, type Rect } from "./drop.ts";
+import type { DockDragHost } from "./drag-host.ts";
 import { DRAG_THRESHOLD, paneFloor } from "./geometry.ts";
 import { fitTree, layoutPanes } from "./layout.ts";
 import { useDock } from "./store.ts";
 import { lift, type PaneKind } from "./tree.ts";
+
+const windowHost: DockDragHost = {
+	tree: () => useDock.getState().tree,
+	restore: () => useDock.getState().restore(),
+	beginDrag: (drag) => useDock.getState().beginDrag(drag),
+	preview: (rest, kind, at) => useDock.getState().preview(rest, kind, at),
+	dragTo: (pointer, at) => useDock.getState().dragTo(pointer, at),
+	endDrag: (cancelled) => useDock.getState().endDrag(cancelled),
+	currentDrag: () => useDock.getState().drag,
+};
 
 /**
  * A backstop for the landing, well past `--ly-t-base`.
@@ -68,8 +79,13 @@ interface Held {
  * bookkeeping in every pane to serve the one that is moving.
  */
 
-const paneOf = (kind: PaneKind): HTMLElement | null =>
-	document.querySelector<HTMLElement>(`[data-dock-pane="${kind}"]`);
+const paneOf = (kind: PaneKind, root?: ParentNode | null): HTMLElement | null => {
+	const scope = root ?? document;
+	return (
+		scope.querySelector<HTMLElement>(`:scope > [data-dock-pane="${kind}"]`) ??
+		scope.querySelector<HTMLElement>(`[data-dock-pane="${kind}"]`)
+	);
+};
 
 /**
  * 卡片跟着指针，一步不差——探出窗口的那部分被裁掉，那是可以接受的。
@@ -90,7 +106,10 @@ function keptOnScreen(raw: { x: number; y: number }): { x: number; y: number } {
 	return raw;
 }
 
-export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): {
+export function useDockDrag(
+	containerRef: React.RefObject<HTMLElement | null>,
+	host: DockDragHost = windowHost,
+): {
 	carried: Carried | null;
 	start: (kind: PaneKind, event: React.PointerEvent<HTMLElement>) => void;
 	/** Called by the carried pane when its flight home finishes. */
@@ -145,7 +164,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			const container = dockBox.current ?? containerRef.current?.getBoundingClientRect();
 			if (!container) return null;
 			// Fitted, because that is where the pane actually is on screen — see `fitTree`.
-			const box = layoutPanes(fitTree(useDock.getState().tree, container, paneFloor)).find((pane) => pane.kind === kind);
+			const box = layoutPanes(fitTree(host.tree(), container, paneFloor)).find((pane) => pane.kind === kind);
 			if (!box) return null;
 			return {
 				left: container.left + box.left * container.width,
@@ -154,7 +173,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 				height: box.height * container.height,
 			};
 		},
-		[containerRef],
+		[containerRef, host],
 	);
 
 	/**
@@ -179,7 +198,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			 * than it was picked up from has to reach that width, and there is no transform that
 			 * does it without distorting what is inside.
 			 */
-			const flying = paneOf(kind);
+			const flying = paneOf(kind, containerRef.current);
 			if (flying && rect) {
 				flying.style.transform = `translate3d(${rect.left - from.left}px, ${rect.top - from.top}px, 0)`;
 			}
@@ -189,7 +208,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			window.clearTimeout(landingTimer.current);
 			landingTimer.current = window.setTimeout(() => settle.current(), LAND_TIMEOUT_MS);
 		});
-	}, []);
+	}, [containerRef]);
 
 	/**
 	 * The flight is over: hand the pane back to the dock.
@@ -230,10 +249,10 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 		if (carried || !flying.current) return;
 		// Clear the carry offset in the same commit that restores absolute positioning. Clearing
 		// it in transitionend exposes the fixed anchor for a frame before React commits the handover.
-		const arrived = paneOf(flying.current);
+		const arrived = paneOf(flying.current, containerRef.current);
 		if (arrived) arrived.style.transform = "";
 		flying.current = null;
-	}, [carried]);
+	}, [carried, containerRef]);
 
 	const finish = useCallback(
 		(cancelled: boolean) => {
@@ -249,12 +268,12 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			moving.current = false;
 			// Before `landAt`: the flight home is the one movement in a drag that should animate.
 			release();
-			useDock.getState().endDrag(cancelled);
+			host.endDrag(cancelled);
 			// Cancelling restores the tree, so home is where the pane started; otherwise it is
 			// wherever the live rearrangement has already put it. Read after `endDrag` either way.
 			landAt(grabbed.kind, grabbed.from, cancelled ? grabbed.from : rectOf(grabbed.kind));
 		},
-		[landAt, rectOf, release],
+		[host, landAt, rectOf, release],
 	);
 
 	const start = useCallback((kind: PaneKind, event: React.PointerEvent<HTMLElement>) => {
@@ -304,7 +323,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			if (!moving.current) {
 				const travelled = Math.hypot(event.clientX - grabbed.origin.x, event.clientY - grabbed.origin.y);
 				if (travelled < DRAG_THRESHOLD) return;
-				const before = useDock.getState().tree;
+				const before = host.tree();
 				const rest = lift(before, grabbed.kind);
 				// The only pane in the dock has nowhere to be dropped, so it is not picked up.
 				if (!rest) {
@@ -327,8 +346,8 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 				 * whole dock as the pane lifts, which is the only way the drop regions mean
 				 * anything.
 				 */
-				useDock.getState().restore();
-				useDock.getState().beginDrag({
+				host.restore();
+				host.beginDrag({
 					kind: grabbed.kind,
 					from: grabbed.from,
 					grip: grabbed.grip,
@@ -345,7 +364,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 				offset.current = { x: 0, y: 0 };
 				// Lift it out straight away: the pane is in the air now, and the ones staying put
 				// close over the space it left.
-				useDock.getState().preview(rest, grabbed.kind, null);
+				host.preview(rest, grabbed.kind, null);
 			}
 
 			/*
@@ -364,13 +383,13 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 				x: event.clientX - grabbed.grip.x - grabbed.from.left,
 				y: event.clientY - grabbed.grip.y - grabbed.from.top,
 			});
-			const flying = paneOf(grabbed.kind);
+			const flying = paneOf(grabbed.kind, containerRef.current);
 			if (flying) flying.style.transform = `translate3d(${offset.current.x}px, ${offset.current.y}px, 0)`;
 
 
 			// Measured at the press, not here — see `dockBox`.
 			const container = dockBox.current;
-			const drag = useDock.getState().drag;
+			const drag = host.currentDrag();
 			if (!container || !drag) return;
 			const root: Rect = { left: container.left, top: container.top, width: container.width, height: container.height };
 
@@ -395,10 +414,12 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			}));
 
 			const at = dropAt(root, panes, event.clientX, event.clientY);
-			// The rearrangement happens here, and only when the answer has actually changed —
-			// including when it changes back to nothing, which puts the starting layout back.
-			if (!sameDrop(at, drag.at)) useDock.getState().preview(drag.rest, grabbed.kind, at);
-			useDock.getState().dragTo({ x: event.clientX, y: event.clientY }, at);
+			// Commit the landing first so a host can refuse a drop that would crush a floor.
+			// Previewing the raw hit would rearrange every frame along an edge that is not viable.
+			const previous = drag.at;
+			host.dragTo({ x: event.clientX, y: event.clientY }, at);
+			const committed = host.currentDrag()?.at ?? null;
+			if (!sameDrop(committed, previous)) host.preview(drag.rest, grabbed.kind, committed);
 		};
 
 		const onUp = (event: PointerEvent) => {
@@ -427,7 +448,7 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			// A drag torn down mid-flight would otherwise leave the panes frozen and untouchable.
 			release();
 		};
-	}, [containerRef, finish, release]);
+	}, [containerRef, finish, host, release]);
 
 	settle.current = landed;
 

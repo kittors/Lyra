@@ -101,7 +101,7 @@ export function ContextMeter({
 				 * for, the proportion, impossible to see. Brightening the mark itself says the
 				 * same "this is a control" without erasing what it shows.
 				 */
-				className={`ly-composer-control ly-ring-button flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-opacity ${
+				className={`ly-composer-control ly-composer-icon ly-ring-button flex shrink-0 items-center justify-center rounded-md transition-opacity ${
 					open ? "opacity-100" : "opacity-80 hover:opacity-100"
 				}`}
 			>

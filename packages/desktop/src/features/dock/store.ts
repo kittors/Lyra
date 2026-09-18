@@ -33,7 +33,7 @@ import {
 } from "./tree.ts";
 
 /** A drag in flight. Null the rest of the time, which is almost all of it. */
-interface DragState {
+export interface DragState {
 	kind: PaneKind;
 	/** Where the pane was when the drag began, so the ghost can start there rather than jump. */
 	from: { left: number; top: number; width: number; height: number };
@@ -390,10 +390,9 @@ export const useDock = create<DockState>((set, get) => {
 		 */
 		preview: (rest, kind, at) => commit(at ? insert(rest, kind, at) : rest, { maximized: null }, false),
 
-		// Not through `commit`: this runs on every frame of a splitter drag, and the pane set is
-		// unchanged by definition — a resize cannot orphan the focused pane.
 		setShare: (path, index, fraction, floor) => {
 			const tree = resize(get().tree, path, index, fraction, floor);
+			if (tree === get().tree) return;
 			set({ tree });
 			save(get().scope, tree);
 		},

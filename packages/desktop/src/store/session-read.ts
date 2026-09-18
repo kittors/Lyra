@@ -12,15 +12,111 @@ import { afterPaint } from "../lib/after-paint.ts";
 
 // Only one IPC payload is in flight. Intermediate selections collapse into the latest one.
 let reading: string | null = null;
-let queued: { meta: SessionMeta; resync: boolean } | null = null;
+let queued: { meta: SessionMeta; resync: boolean; cacheOnly: boolean } | null = null;
+const readWaiters: Array<() => void> = [];
+
+function signalReadFinished(): void {
+	const waiters = readWaiters.splice(0);
+	for (const wake of waiters) wake();
+}
+
+function whenReadFinishes(): Promise<void> {
+	return new Promise((resolve) => {
+		readWaiters.push(resolve);
+	});
+}
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
 
-export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get, resync = false): Promise<void> {
+export type SessionReadOptions = {
+	/** Write `sessionCache` only. The live transcript slot stays on the conversation that is already up. */
+	cacheOnly?: boolean;
+};
+
+function drainQueued(finishedId: string, set: Set, get: Get): void {
+	const next = queued;
+	queued = null;
+	if (!next) return;
+	if (next.cacheOnly) {
+		void readSelectedSession(next.meta, set, get, next.resync, { cacheOnly: true });
+		return;
+	}
+	if (get().activeSessionId !== next.meta.id) return;
+	if (next.meta.id === finishedId && !next.resync) return;
+	void readSelectedSession(next.meta, set, get, next.resync);
+}
+
+function stashInCache(
+	meta: SessionMeta,
+	snapshot: NonNullable<Awaited<ReturnType<typeof bridge.sessions.transcript>>>,
+	events: ReturnType<typeof beginSessionRead>,
+	set: Set,
+	get: Get,
+): void {
+	const intactSnapshot = { ...snapshot, messages: intact(snapshot.messages) };
+	let merged: Cache[string] = {
+		meta: intactSnapshot.meta,
+		messages: intactSnapshot.messages,
+		toolRuns: rebuildToolRuns(intactSnapshot.messages),
+		state: {
+			running: intactSnapshot.running,
+			commandRuns: intactSnapshot.commandRuns ?? [],
+			todos: todosFrom(intactSnapshot.messages),
+			compactions: (intactSnapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
+			approvals: intactSnapshot.pendingApprovals,
+			stopped: howItStopped(intactSnapshot.messages),
+			retrying: null,
+			capabilities: null,
+			pendingUserMessage: null,
+		},
+	};
+	for (const event of events) {
+		if (event.type === "message_start" && intactSnapshot.messages.some((message) => message.role === event.message.role && message.timestamp === event.message.timestamp)) continue;
+		if (event.type === "message_update" && intactSnapshot.messages.some((message) => message.role === "assistant" && message.timestamp === event.message.timestamp && message.stopReason !== "pending")) continue;
+		if (event.type === "approval_request" && intactSnapshot.pendingApprovals.some((approval) => approval.id === event.requestId)) continue;
+		merged = cachedEvent(merged, event);
+	}
+	set({
+		sessionCache: prune({ ...get().sessionCache, [meta.id]: merged }, get().activeSessionId ?? meta.id),
+	});
+}
+
+/**
+ * Read a conversation into `sessionCache` without swapping the live slot.
+ *
+ * Sidebar bursts used to call `openSession` per press, which emptied `messages` and
+ * remounted the transcript. This keeps the current tree on screen and only fills the
+ * cache, so a later commit is a warm swap.
+ */
+export async function prefetchSession(meta: SessionMeta, set: Set, get: Get): Promise<boolean> {
+	if (get().sessionCache[meta.id] || get().activeSessionId === meta.id) return true;
+	// `reading` is written by the in-flight IPC, not this loop.
+	// oxlint-disable-next-line no-unmodified-loop-condition -- waiters wake when `reading` clears
+	while (reading !== null && !get().sessionCache[meta.id] && get().activeSessionId !== meta.id) {
+		await whenReadFinishes();
+	}
+	if (get().sessionCache[meta.id] || get().activeSessionId === meta.id) return true;
+	await readSelectedSession(meta, set, get, false, { cacheOnly: true });
+	while (
+		!get().sessionCache[meta.id] &&
+		get().activeSessionId !== meta.id &&
+		(reading !== null || queued?.meta.id === meta.id) // oxlint-disable-line no-unmodified-loop-condition -- waiters wake when `reading` clears
+	) {
+		await whenReadFinishes();
+	}
+	return Boolean(get().sessionCache[meta.id] || get().activeSessionId === meta.id);
+}
+
+export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get, resync = false, options: SessionReadOptions = {}): Promise<void> {
+	const cacheOnly = options.cacheOnly === true;
 	const cached = get().sessionCache[meta.id];
 	if (reading !== null) {
-		queued = { meta, resync: resync || (queued?.meta.id === meta.id && queued.resync) };
+		queued = {
+			meta,
+			resync: resync || (queued?.meta.id === meta.id && queued.resync),
+			cacheOnly: cacheOnly || (queued?.meta.id === meta.id && queued.cacheOnly),
+		};
 		return;
 	}
 	reading = meta.id;
@@ -31,14 +127,13 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	 * IPC payload lands — otherwise the skeleton never commits and the clone hitch is the
 	 * first thing the window paints.
 	 */
-	if (before.loadingSession) {
+	if (before.loadingSession && !cacheOnly) {
 		await afterPaint();
 		if (get().activeSessionId !== meta.id) {
 			endSessionRead(meta.id);
 			reading = null;
-			const next = queued;
-			queued = null;
-			if (next && get().activeSessionId === next.meta.id) void readSelectedSession(next.meta, set, get, next.resync);
+			signalReadFinished();
+			drainQueued(meta.id, set, get);
 			return;
 		}
 	}
@@ -47,25 +142,31 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	try {
 		snapshot = await bridge.sessions.transcript(meta.projectId, meta.id);
 	} catch (cause) {
-		if (get().activeSessionId === meta.id) {
+		if (!cacheOnly && get().activeSessionId === meta.id) {
 			set({ loadingSession: false });
+			get().notify(translate("sessionRead.failed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+		} else if (cacheOnly && get().pendingSessionId === meta.id) {
 			get().notify(translate("sessionRead.failed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
 		return;
 	} finally {
 		endSessionRead(meta.id);
 		reading = null;
+		signalReadFinished();
 		// Whatever was clicked last while this was running is the one that still wants reading.
-		const next = queued;
-		queued = null;
-		// Reconnect needs a post-disconnect snapshot even if the selected session did not change.
-		if (next && (next.meta.id !== meta.id || next.resync) && get().activeSessionId === next.meta.id) {
-			void readSelectedSession(next.meta, set, get, next.resync);
-		}
+		drainQueued(meta.id, set, get);
 	}
 
+	if (cacheOnly) {
+		if (snapshot) stashInCache(meta, snapshot, events, set, get);
+		return;
+	}
 	// A second click while this was in flight wins; discard the stale arrival.
 	if (get().activeSessionId !== meta.id) return;
+	if (get().pendingSessionId && get().pendingSessionId !== meta.id) {
+		if (snapshot) stashInCache(meta, snapshot, events, set, get);
+		return;
+	}
 	flushCoalesced();
 	if (!snapshot) {
 		set({ loadingSession: false });
@@ -172,7 +273,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	await restoreLiveState(meta.id, set, get);
 }
 
-async function restoreLiveState(id: string, set: Set, get: Get): Promise<void> {
+export async function restoreLiveState(id: string, set: Set, get: Get): Promise<void> {
 	// A cold read that merges events needs the same runtime details as an unchanged transcript.
 	void bridge.subAgents.list(id).then((subAgentsList) => {
 		if (get().activeSessionId === id && Array.isArray(subAgentsList)) {

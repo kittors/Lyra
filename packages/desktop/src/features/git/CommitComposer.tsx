@@ -71,7 +71,7 @@ export function CommitComposer({
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-[var(--ly-content)] shrink-0 px-3 pt-2 pb-[15px]">
+		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
 			<ComposerShell
 				value={message}
 				onChange={setMessage}
@@ -86,7 +86,7 @@ export function CommitComposer({
 							aria-label={generating ? t("commit.generating") : t("commit.generate")}
 							disabled={generating || disabled}
 							onClick={() => void generate()}
-							className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
+							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
 						>
 							{generating ? <ActionSpinner size={15} /> : <Wand2 size={16} strokeWidth={1.9} />}
 						</button>
@@ -98,7 +98,7 @@ export function CommitComposer({
 							aria-haspopup="menu"
 							aria-expanded={languageMenu.open}
 							onClick={languageMenu.toggle}
-							className={`flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors ${
+							className={`ly-composer-control flex min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors ${
 								languageMenu.open ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
 							}`}
 						>

@@ -33,6 +33,10 @@ export function applySessionChange(change: SessionChange, set: Set, get: () => A
 		} else if (sessionCache[id]) {
 			sessionCache[id] = { ...sessionCache[id], meta, dirty: true };
 		}
-		return { sessions, sessionCache, drafts, queued, ...(state.activeSessionId === id && meta ? { meta } : {}) };
+		return {
+			sessions, sessionCache, drafts, queued,
+			...(state.activeSessionId === id && meta ? { meta } : {}),
+			...(!meta && state.pendingSessionId === id ? { pendingSessionId: null } : {}),
+		};
 	});
 }

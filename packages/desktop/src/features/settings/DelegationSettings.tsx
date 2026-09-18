@@ -17,16 +17,18 @@
 // 子路径，不是包根：`@lyra/core` 会把整个 kernel 拖进渲染进程，窗口会白屏。见 .dependency-cruiser.cjs。
 import {
 	delegationTier,
+	MAX_CONCURRENT_SUB_AGENTS,
 	normalizeDelegationPolicy,
+	normalizeMaxConcurrentSubAgents,
 	type DelegationTier,
 } from "@lyra/core/delegation";
 import type { Settings } from "@lyra/core";
 import { Check } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Input } from "../../ui/inputs/NativeField.tsx";
+import { useState } from "react";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle, Toggle } from "./controls.tsx";
+import { NumberField } from "./pickers.tsx";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /**
@@ -76,9 +78,6 @@ const TIERS: { id: DelegationTier; nameKey: MessageKey; detailKey: MessageKey; l
 		levelsKey: "delegation.maxLevels",
 	},
 ];
-
-/** 天花板的上限。跟 `normalizeSettings` 里的 `Math.min(16, …)` 是同一个数字——那边是真正拦住它的地方。 */
-const MAX_CONCURRENCY = 16;
 
 export function DelegationSettings() {
 	const { t } = useI18n();
@@ -222,7 +221,7 @@ export function DelegationSettings() {
 					detail={t("delegation.overflowDetail")}
 					control={
 						<ConcurrencyField
-							value={settings.maxConcurrentSubAgents}
+							value={normalizeMaxConcurrentSubAgents(settings.maxConcurrentSubAgents)}
 							onCommit={(maxConcurrentSubAgents) => write({ maxConcurrentSubAgents })}
 						/>
 					}
@@ -250,46 +249,26 @@ const THINKING_LABELS: Record<string, MessageKey> = {
 };
 
 /**
- * 一个停下来才写出去的数字。
+ * 1–8, and never a negative sitting in the box.
  *
- * 跟重试设置里那个同一个道理：每次按键都提交，会在去 `10` 的路上先存一个 `1`——而这个值会立刻
- * 变成正在跑的那道闸门的宽度。只在失焦时提交又会吞掉「改完就关窗」的那次修改。所以：有焦点时
- * 文本是本地的，停手三分之一秒后落盘，失焦时立刻落盘并回到存下来的规范值。
+ * The old control was `<input type="number">`. Its spinner ignores `min` once you type a minus,
+ * so the field that meant "how many at once" could show −12 while the gate silently treated that
+ * as 1. `NumberField` draws its own steppers; a minus never enters, and plus/minus stop at the
+ * walls. The legal range is one digit, so there is no "typed 1 on the way to 10" to debounce.
  */
 function ConcurrencyField({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
 	const { t } = useI18n();
-	const [typed, setTyped] = useState<string | null>(null);
-	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-	useEffect(() => () => clearTimeout(timer.current), []);
-
-	const commit = (raw: string, now: boolean) => {
-		clearTimeout(timer.current);
-		const parsed = Number(raw);
-		if (raw.trim() === "" || !Number.isFinite(parsed)) return;
-		const clamped = Math.min(MAX_CONCURRENCY, Math.max(1, Math.round(parsed)));
-		if (now) onCommit(clamped);
-		else timer.current = setTimeout(() => onCommit(clamped), 300);
-	};
-
 	return (
-		<div className="flex items-center gap-2">
-			<Input
-				type="number"
-				aria-label={t("delegation.concurrencyAria")}
+		<div className="flex items-center gap-2" data-ly-concurrency="">
+			<NumberField
+				value={value}
 				min={1}
-				max={MAX_CONCURRENCY}
+				max={MAX_CONCURRENT_SUB_AGENTS}
 				step={1}
-				value={typed ?? String(value)}
-				onChange={(event) => {
-					setTyped(event.target.value);
-					commit(event.target.value, false);
-				}}
-				onBlur={(event) => {
-					commit(event.target.value, true);
-					setTyped(null);
-				}}
-				// 数字站在框的中间：一个数看的是它有多大，不是从左边读起的。
-				className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-center text-label text-ink tabular-nums"
+				width={72}
+				label={t("delegation.concurrencyAria")}
+				name="concurrency"
+				onChange={(next) => onCommit(normalizeMaxConcurrentSubAgents(next))}
 			/>
 			<span className="text-label text-ink-muted">{t("common.countUnit")}</span>
 		</div>

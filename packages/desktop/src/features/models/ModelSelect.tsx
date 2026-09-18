@@ -19,8 +19,8 @@ export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSo
 	const label = selected ? ambiguous ? `${selected.model.name} · ${selected.provider.name}` : selected.model.name : selection.value || inheritedModelId ? t("model.unavailable") : inheritedSource ? translate("sideChat.noModel") : selection.inheritLabel;
 	return <>
 		<button type="button" aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={menu.open} disabled={disabled}
-			onClick={menu.toggle} data-ly-tip={selected ? `${selected.provider.name} · ${selected.model.name}${!selection.value ? ` · ${selection.inheritDetail ?? selection.inheritLabel}` : ""}` : selection.value || selection.inheritDetail}
-			className="ly-scroll flex h-[30px] min-w-0 max-w-[220px] items-center gap-2 rounded-lg border border-line px-2.5 text-label text-ink transition-colors hover:bg-hover disabled:opacity-60">
+			onClick={menu.toggle} data-ly-select="" data-ly-tip={selected ? `${selected.provider.name} · ${selected.model.name}${!selection.value ? ` · ${selection.inheritDetail ?? selection.inheritLabel}` : ""}` : selection.value || selection.inheritDetail}
+			className="ly-field ly-scroll max-w-[240px] justify-between gap-2 disabled:opacity-60">
 			{selected ? <ModelIcon model={selected.model.modelId} name={selected.model.name} size={14} /> : <Box size={14} className="shrink-0 text-ink-muted" />}
 			<span className="min-w-0 flex-1 text-left"><ScrollText text={label} /></span>
 			{!selection.value && inheritedSource && <span className="shrink-0 text-caption text-ink-muted">{inheritedSource}</span>}

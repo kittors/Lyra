@@ -47,7 +47,21 @@ function paintBootTheme(): void {
 	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
 }
 
+function markWindowKind(): void {
+	const kind = process.argv.some((arg) => arg.includes("ly-kind=session"))
+		? "session"
+		: process.argv.some((arg) => arg.includes("ly-kind=panel"))
+			? "panel"
+			: "primary";
+	const apply = () => {
+		if (document.documentElement) document.documentElement.dataset.lyWindowKind = kind;
+	};
+	apply();
+	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
+}
+
 paintBootTheme();
+markWindowKind();
 
 /**
  * The renderer gets exactly this surface and nothing else — no `ipcRenderer`, no `require`.
@@ -126,6 +140,50 @@ const extras = {
 		},
 	},
 	platform: process.platform,
+	bootWindow: {
+		id: process.argv.find((arg) => arg.startsWith("--ly-window="))?.slice("--ly-window=".length) ?? "primary",
+		kind: process.argv.some((arg) => arg.includes("ly-kind=session"))
+			? "session"
+			: process.argv.some((arg) => arg.includes("ly-kind=panel"))
+				? "panel"
+				: "primary",
+		sessionId: (() => {
+			const flag = process.argv.find((arg) => arg.startsWith("--ly-session="));
+			if (!flag) return null;
+			try {
+				return decodeURIComponent(flag.slice("--ly-session=".length));
+			} catch {
+				return flag.slice("--ly-session=".length);
+			}
+		})(),
+		panelKind: process.argv.find((arg) => arg.startsWith("--ly-panel="))?.slice("--ly-panel=".length) ?? null,
+		panelScope: (() => {
+			const flag = process.argv.find((arg) => arg.startsWith("--ly-scope="));
+			if (!flag) return null;
+			try {
+				return decodeURIComponent(flag.slice("--ly-scope=".length));
+			} catch {
+				return flag.slice("--ly-scope=".length);
+			}
+		})(),
+	},
+	windows: {
+		onChanged: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof handler>[0]) => handler(state);
+			ipcRenderer.on("windows:changed", listener);
+			return () => ipcRenderer.removeListener("windows:changed", listener);
+		},
+		onShowSession: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof handler>[0]) => handler(state);
+			ipcRenderer.on("windows:show-session", listener);
+			return () => ipcRenderer.removeListener("windows:show-session", listener);
+		},
+		onRestorePanel: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof handler>[0]) => handler(state);
+			ipcRenderer.on("windows:restore-panel", listener);
+			return () => ipcRenderer.removeListener("windows:restore-panel", listener);
+		},
+	},
 	settings: {
 		onChanged: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);

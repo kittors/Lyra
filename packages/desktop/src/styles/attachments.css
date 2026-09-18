@@ -45,21 +45,20 @@
    * 化开于是一次都没发生过。属性全都写对了，画出来什么都没有，正是这一类。
    */
   align-self: stretch;
-  /* 横着能滚，竖着不能——那 10px 的上下内边距是留给叉的，不是一块可以滚出去的地方。 */
+  /* 横着能滚，竖着不能——上下那点空是留给叉的，不是一块可以滚出去的地方。 */
   overflow: auto hidden;
   /*
-   * 内边距留给探到格子外面的那半个叉，负外边距再把格子挪回原位。
+   * 叉只探出格子的上边和右边（`-top-2 -right-2`），底边并不需要。
    *
-   * 会滚的容器按自己的内容框裁剪，所以 `-top-2 -right-2` 的叉在这里会被切掉一半——而它在气泡
-   * 那一侧（不滚）是完好的，同一个组件两处长得不一样。补内边距是唯一不必把叉收回格子里的解法：
-   * 裁掉的是内边距以外的东西，而叉正落在内边距里面。
-   *
-   * 两个数一起改，否则这一排会整体偏移。
+   * 这一层的正负边距互相抵消，留给 `.ly-composer-attachments` 的 token padding
+   * 当下真正的内边距。8 是叉探出去的那一截；横向跟 `--ly-composer-x` 对齐，改一边
+   * 另一边跟着走，不会再留下一套 8/12 自己过活。
    */
-  padding: 10px 12px;
-  margin: -10px -12px;
+  --ly-attachment-bleed: 8px;
+  padding: var(--ly-attachment-bleed) calc(var(--ly-composer-x) - 4px) 0;
+  margin: calc(var(--ly-attachment-bleed) * -1) calc(4px - var(--ly-composer-x)) 0;
   /* 焦点用 Tab 走到一个滚出去的格子上时，它得先被滚进来——落在这里就不会贴着渐隐的那一头。 */
-  scroll-padding-inline: 12px;
+  scroll-padding-inline: calc(var(--ly-composer-x) - 4px);
   scrollbar-width: none;
 }
 
@@ -90,12 +89,12 @@
 }
 
 .ly-attachments[data-ly-layout="row"]::before {
-  left: -12px;
+  left: calc(4px - var(--ly-composer-x));
   background: linear-gradient(to right, var(--color-shell), transparent);
 }
 
 .ly-attachments[data-ly-layout="row"]::after {
-  right: -12px;
+  right: calc(4px - var(--ly-composer-x));
   background: linear-gradient(to left, var(--color-shell), transparent);
 }
 

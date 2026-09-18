@@ -16,7 +16,7 @@ import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { loadCarried } from "./turn-meter.ts";
 import { flushCoalesced } from "./coalesce.ts";
-import { readSelectedSession } from "./session-read.ts";
+import { prefetchSession, readSelectedSession, restoreLiveState } from "./session-read.ts";
 import { isDescendantPath } from "../lib/paths.ts";
 
 type Get = () => AppState;
@@ -31,6 +31,14 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
  */
 function isProjectLess(cwd: string, scratchRoots: string[]): boolean {
 	return scratchRoots.some((root) => root !== "" && isDescendantPath(root, cwd));
+}
+
+/** True when a newer click or open owns the live slot. */
+function lostSelection(get: Get, id: string): boolean {
+	const pending = get().pendingSessionId;
+	if (pending && pending !== id) return true;
+	if (!pending && get().activeSessionId != null && get().activeSessionId !== id) return true;
+	return false;
 }
 
 export function sessionSlice(set: Set, get: Get) {
@@ -63,6 +71,7 @@ export function sessionSlice(set: Set, get: Get) {
     set({
 			selectionEpoch: get().selectionEpoch + 1,
       activeSessionId: null,
+      pendingSessionId: null,
       meta: null,
       messages: [],
       toolRuns: {},
@@ -120,10 +129,28 @@ export function sessionSlice(set: Set, get: Get) {
   },
 
 
+	previewSession(meta: SessionMeta) {
+		return get().previewSessionId(meta.id);
+	},
+
+	previewSessionId(id: string) {
+		const current = get();
+		if (current.pendingSessionId === id) return current.selectionEpoch;
+		if (current.pendingSessionId == null && current.activeSessionId === id) return current.selectionEpoch;
+		const epoch = current.selectionEpoch + 1;
+		/*
+		 * Only the row. `view` and the transcript wait until the click stream goes quiet —
+		 * switching them here (or flushing them) would commit sixty chat rows, or the
+		 * settings page, on every press. A burst of clicks must stay a pair of sidebar
+		 * paints; `flushSync` made each one a forced layout.
+		 */
+		set({ pendingSessionId: id, selectionEpoch: epoch });
+		return epoch;
+	},
+
 	async openSessionById(id: string) {
 		// A cold lookup is already a navigation choice, before its metadata arrives.
-		const epoch = get().selectionEpoch + 1;
-		set({ selectionEpoch: epoch });
+		const epoch = get().previewSessionId(id);
 		let target = get().sessions.find((session) => session.id === id);
 		if (!target) {
 			try {
@@ -144,20 +171,31 @@ export function sessionSlice(set: Set, get: Get) {
 	},
 
   async openSession(meta: SessionMeta) {
+    get().previewSession(meta);
     flushCoalesced();
     /*
-     * Select first, load second.
-     *
-     * Opening a stored session replays its whole log and spins up its MCP servers, which
-     * can take a second or more. Waiting for that before touching state meant a click
-     * produced no feedback at all — the row you pressed stayed unselected and the old
-     * transcript stayed on screen, so it read as a dropped click. The sidebar's own copy
-     * of the meta is enough to paint the selection immediately.
+     * The row is already lit. `previewSession` wrote `pendingSessionId` in the click
+     * turn; this hydrate runs after that frame has painted. Parking the last transcript
+     * and mounting the next one is allowed to be slow — the pointer already got its due.
      */
+    if (lostSelection(get, meta.id)) return;
+    const leaving = get().activeSessionId;
+    const live =
+      Boolean(leaving) &&
+      leaving !== meta.id &&
+      get().meta &&
+      get().messages.length > 0 &&
+      !get().loadingSession;
+    let prefetched = false;
+    if (live && !get().sessionCache[meta.id]) {
+      await prefetchSession(meta, set, get);
+      if (lostSelection(get, meta.id)) return;
+      if (!get().sessionCache[meta.id]) return;
+      prefetched = true;
+    }
     const cache = { ...get().sessionCache };
 
     // Park the transcript being left behind, so coming back to it needs no round trip.
-    const leaving = get().activeSessionId;
     const leavingMeta = get().meta;
     if (
       leaving &&
@@ -195,6 +233,7 @@ export function sessionSlice(set: Set, get: Get) {
      * same bug in the other direction.
      */
     const projectLess = isProjectLess(meta.cwd, get().scratchRoots);
+    if (lostSelection(get, meta.id)) return;
     set({
       /*
        * Opening it is reading it, and reading a result clears it.
@@ -213,6 +252,7 @@ export function sessionSlice(set: Set, get: Get) {
       sessionCache: prune(cache, meta.id),
 			selectionEpoch: get().selectionEpoch + 1,
       activeSessionId: meta.id,
+      pendingSessionId: null,
       meta: cached?.meta ?? meta,
       messages: cached?.messages ?? [],
       toolRuns: cached?.toolRuns ?? {},
@@ -302,7 +342,8 @@ export function sessionSlice(set: Set, get: Get) {
      * read in flight will pick this up when it finishes. What is skipped is only the megabytes of
      * duplicated work.
      */
-    await readSelectedSession(meta, set, get);
+    if (prefetched) await restoreLiveState(meta.id, set, get);
+    else await readSelectedSession(meta, set, get);
   },
 
   async deleteSession(meta: SessionMeta) {

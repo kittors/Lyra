@@ -198,8 +198,9 @@
   }
 
   .prose-dw code {
-    /* Same reasoning as `body`: CJK-only range, so it only catches what the mono face gets wrong. */
-	font-family: var(--ly-script-font, "Lyra CJK"), var(--ly-code-font, var(--font-mono));
+    /* Same reasoning as `body`: punctuation, then Han, then the mono face. */
+	font-family: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"),
+		var(--ly-code-font, var(--font-mono));
     font-size: var(--text-code);
     font-weight: var(--text-code--weight);
     letter-spacing: var(--text-code--tracking);
@@ -246,15 +247,10 @@
    * lands where the data ends, and the table reads as one object instead of a full-width band.
    */
   /*
-   * Two elements, because the thumb and the wrap control must not scroll with the table.
+   * One framed box. The wrap control is the fence copy button: absolute, top-right, no extra row.
    *
-   * The outer one is the table's place on the page and the frame of reference for both — it does
-   * not move. The inner one is what scrolls, and it keeps the border for the reason above: a frame
-   * on the table itself would slide out of view and leave the right edge open.
-   */
-  /*
-   * The frame is on the outer box, and `overflow: hidden` is what rounds its corners: the strip and
-   * the scrolling box are square, and one of them is always against a corner.
+   * `overflow: hidden` is what rounds the corners. The control is a sibling of the scroller so
+   * it does not slide away with the cells.
    */
   .prose-dw .ly-table {
     position: relative;
@@ -267,21 +263,6 @@
 
   .prose-dw .ly-table-scroll {
     overflow-x: auto;
-  }
-
-  /*
-   * The strip the control sits in — inside the frame, outside the scroller.
-   *
-   * The header's own fill, and no rule under it, so it reads as the top of the header block rather
-   * than as a toolbar bolted on. 26px is the button plus the 2px it is inset by.
-   */
-  .prose-dw .ly-table-bar {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    height: 26px;
-    padding-right: 4px;
-    background: var(--color-card);
   }
 
   /*
@@ -304,19 +285,54 @@
   }
 
   /*
-   * Faded rather than removed, so it arrives with the thumb instead of appearing as a jump — and so
-   * a keyboard can bring it back for someone who never hovers anything. The strip keeps its height
-   * either way, so nothing moves when it appears.
+   * The fence copy seat, turned to face a header instead of a language row.
+   *
+   * The wash is always there when the control exists, so a header cannot sit under the icon.
+   * It is the same colour as `thead`, so it reads as the header ending, not as a second box.
+   * The icon itself matches `CodeBlock`: 8px inset, no chip, fade in on hover.
    */
+  .prose-dw .ly-table-corner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 44px;
+    height: calc(14px + 1.55 * var(--text-label) + 1px);
+    padding-right: 8px;
+    background: linear-gradient(to right, transparent, var(--color-card) 16px);
+    pointer-events: none;
+  }
+
   .prose-dw .ly-table-toggle {
     display: flex;
+    padding: 4px;
+    border: 0;
+    border-radius: 4px;
+    color: var(--color-ink-muted);
+    background: transparent;
     opacity: 0;
-    transition: opacity var(--ly-t-base) var(--ly-e-out);
+    pointer-events: none;
+    cursor: pointer;
+    transition:
+      opacity var(--ly-t-base) var(--ly-e-out),
+      color var(--ly-t-quick) var(--ly-e-out);
   }
 
   .prose-dw .ly-table:hover .ly-table-toggle,
-  .prose-dw .ly-table-toggle:has(:focus-visible) {
+  .prose-dw .ly-table-toggle:focus-visible {
     opacity: 1;
+    pointer-events: auto;
+  }
+
+  .prose-dw .ly-table-toggle:hover {
+    color: var(--color-ink);
+  }
+
+  .prose-dw .ly-table[data-control="true"][data-wrap="true"] thead th:last-child {
+    padding-right: 44px;
   }
 
   .prose-dw table {

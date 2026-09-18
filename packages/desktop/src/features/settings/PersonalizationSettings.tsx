@@ -7,7 +7,8 @@ import { Textarea, Input } from "../../ui/inputs/NativeField.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Save, Trash2 } from "lucide-react";
 import { useApp } from "../../store/index.ts";
-import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
+import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
 import { SidebarMotto } from "./SidebarMotto.tsx";
@@ -199,12 +200,14 @@ export function PersonalizationSettings() {
 					 * 原来是同一颗按钮上换一句话，而那句话本身是短暂的——过一会儿又变回「保存」。
 					 * 勾加绿色说的是同一件事，且按钮不必跟着两句话的长短宽一次窄一次。
 					 */}
-					<GhostButton
+					<DialogAction
 						onClick={handleSaveInstructions}
 						disabled={customInstructions === (personalization.customInstructions ?? "")}
-						title={savedNotice ? t("common.saved") : t("common.save")}
-						icon={savedNotice ? <Check size={13} className="text-emerald-500" strokeWidth={2.2} /> : <Save size={13} strokeWidth={1.9} />}
-					/>
+						label={savedNotice ? t("common.saved") : t("common.save")}
+					>
+						{savedNotice ? <Check size={13} className="text-emerald-500" strokeWidth={2.2} aria-hidden /> : <Save size={13} strokeWidth={1.9} aria-hidden />}
+						{savedNotice ? t("common.saved") : t("common.save")}
+					</DialogAction>
 				</div>
 
 				<Card className="p-3.5 space-y-2">

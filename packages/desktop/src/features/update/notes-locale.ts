@@ -60,9 +60,12 @@ export function splitNotesByLocale(notes: string): Map<string, string> {
  * GitHub 上非英文段可以收在 `<details>` 里。关于页已经按语言挑过了，披露条是多余的壳。
  */
 function unwrapReleaseFold(body: string): string {
-	const opened = body.match(/^<details>\s*<summary>[\s\S]*?<\/summary>\s*/i);
-	if (!opened || !/<\/details>\s*$/i.test(body)) return body;
-	return body.slice(opened[0].length).replace(/\s*<\/details>\s*$/i, "").trim();
+	let text = body.trim();
+	const commented = text.match(/^<!--\s*([\s\S]*?)\s*-->$/);
+	if (commented?.[1]) text = commented[1].trim();
+	text = text.replace(/^<details\b[^>]*>\s*<summary\b[^>]*>[\s\S]*?<\/summary>\s*/i, "");
+	text = text.replace(/\s*<\/details>\s*$/i, "");
+	return text.trim();
 }
 
 /**

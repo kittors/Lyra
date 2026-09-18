@@ -179,19 +179,39 @@ test("会话自己的等级优先于全局默认——这一页说的是当前�
 	}
 });
 
-test("并发数写下去要落在 1–16 之间，输入框自己拦住越界的值", async () => {
+test("并发数写下去要落在 1–8 之间，负数和超上限进不去", async () => {
+	const { act } = await import("react");
 	let saved: Settings | undefined;
 	const view = await open({ maxConcurrentSubAgents: 4 }, async (next) => {
 		saved = next;
+		useApp.setState({ settings: next });
 		return next;
 	});
 	try {
 		const field = view.find<HTMLInputElement>('[aria-label="最多同时运行的子智能体数量"]');
-		assert.equal(field.min, "1");
-		assert.equal(field.max, "16");
-		// 0 个子代理不是一个能表达的意思——「一个都不要」是「从不派」那一档，不是这个数字。
+		assert.equal(field.type, "text", "原生 number 的滚轮能转到负数");
 		assert.equal(field.value, "4");
-		assert.ok(!saved, "光渲染不该写盘");
+		assert.equal(saved === undefined, true, "光渲染不该写盘");
+
+		const type = async (value: string) => {
+			await act(async () => {
+				const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+				setter?.call(field, value);
+				field.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+		};
+		await type("-12");
+		assert.equal(saved?.maxConcurrentSubAgents, 1, "负数不是一个并发");
+		assert.equal(field.value, "1");
+
+		await type("16");
+		assert.equal(saved?.maxConcurrentSubAgents, 8);
+		assert.equal(field.value, "8");
+
+		const down = view.find<HTMLButtonElement>('[aria-label="最多同时运行的子智能体数量：减少"]');
+		const up = view.find<HTMLButtonElement>('[aria-label="最多同时运行的子智能体数量：增加"]');
+		assert.equal(up.disabled, true, "到 8 就不能再加");
+		assert.equal(down.disabled, false);
 	} finally {
 		await view.unmount();
 	}

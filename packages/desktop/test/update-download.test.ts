@@ -22,7 +22,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import type { AddressInfo } from "node:net";
 
-import { describe, downloadDir, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
+import { describe, downloadDir, partialPath, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
 
 /** The payload every test downloads: big enough to arrive in several chunks, small enough to be quick. */
 const BODY = Buffer.from(Array.from({ length: 200_000 }, (_, i) => i % 251));
@@ -190,7 +190,7 @@ test("a download that runs to the end leaves the whole file, byte for byte", asy
 		assert.equal(phase.at, "preparing");
 		assert.deepEqual(await readFile(join(dir, "Lyra.zip")), BODY);
 		// The partial is renamed, not left beside the finished file.
-		assert.equal(await stat(`${join(dir, "Lyra.zip")}.part`).catch(() => null), null);
+		assert.equal(await stat(partialPath(join(dir, "Lyra.zip"))).catch(() => null), null);
 	} finally {
 		await server.close();
 	}
@@ -256,7 +256,7 @@ test("pausing from the first progress event keeps the bytes it announced", async
 		stop();
 		assert.ok(announced > 0);
 		assert.deepEqual(download.state, { at: "paused", received: announced, total: BODY.length });
-		assert.deepEqual(await readFile(join(dir, "Lyra.zip.part")), BODY.subarray(0, announced));
+		assert.deepEqual(await readFile(partialPath(join(dir, "Lyra.zip"))), BODY.subarray(0, announced));
 		await download.start();
 		assert.equal(server.requests[1].range, `bytes=${announced}-`);
 		assert.deepEqual(await readFile(join(dir, "Lyra.zip")), BODY);
@@ -270,7 +270,7 @@ test("a resumed download is pausable as soon as its initial progress is announce
 	const dir = await workdir();
 	const kept = BODY.subarray(0, 20_000);
 	try {
-		await writeFile(join(dir, "Lyra.zip.part"), kept);
+		await writeFile(partialPath(join(dir, "Lyra.zip")), kept);
 		const download = downloadInto(dir, server.url);
 		const pause = Promise.withResolvers<void>();
 		let asked = false;
@@ -282,7 +282,7 @@ test("a resumed download is pausable as soon as its initial progress is announce
 		await Promise.race([download.start(), pause.promise]);
 		stop();
 		assert.deepEqual(download.state, { at: "paused", received: kept.length, total: BODY.length });
-		assert.deepEqual(await readFile(join(dir, "Lyra.zip.part")), kept);
+		assert.deepEqual(await readFile(partialPath(join(dir, "Lyra.zip"))), kept);
 		assert.equal(server.requests.length, 0);
 		await download.start();
 		assert.equal(server.requests[0].range, `bytes=${kept.length}-`);
@@ -333,7 +333,7 @@ test("a connection that drops is a failure, and the partial survives for the ret
 		);
 		// Not renamed into place: a short file must never look like a finished one.
 		assert.equal(await stat(join(dir, "Lyra.zip")).catch(() => null), null);
-		assert.ok(((await stat(`${join(dir, "Lyra.zip")}.part`).catch(() => null))?.size ?? 0) > 0, "已下的部分留着");
+		assert.ok(((await stat(partialPath(join(dir, "Lyra.zip"))).catch(() => null))?.size ?? 0) > 0, "已下的部分留着");
 	} finally {
 		await cut.close();
 	}
@@ -345,7 +345,7 @@ test("a failed download resumes from what it kept rather than starting again", a
 	const file = join(dir, "Lyra.zip");
 	try {
 		await downloadInto(dir, cut.url).start();
-		const kept = (await stat(`${file}.part`)).size;
+		const kept = (await stat(partialPath(file))).size;
 		assert.ok(kept > 0);
 		await cut.close();
 
@@ -375,7 +375,7 @@ test("cancelling throws the partial away, so the next attempt is a clean one", a
 		await download.cancel();
 
 		assert.equal(download.state.at, "idle");
-		assert.equal(await stat(`${join(dir, "Lyra.zip")}.part`).catch(() => null), null, "取消把碎片也带走");
+		assert.equal(await stat(partialPath(join(dir, "Lyra.zip"))).catch(() => null), null, "取消把碎片也带走");
 	} finally {
 		await server.close();
 	}
@@ -544,6 +544,20 @@ test("our own messages are already specific and are passed through", () => {
 	assert.equal(describe(new Error(mine), 100), mine);
 });
 
+test("a blocked write on Windows names Defender, not the Node open() path", () => {
+	const raw = new Error("UNKNOWN: unknown error, open 'C:\\Users\\250377\\AppData\\Roaming\\@lyra\\desktop\\updates\\lyra-update-0.9.15\\Lyra-0.9.15-x64.exe.part'");
+	const message = describe(raw, 173_000_000);
+	assert.match(message, /安全中心/);
+	assert.doesNotMatch(message, /250377|exe\.part|UNKNOWN/i);
+	assert.match(message, /已经下好的部分还在/);
+});
+
+test("the partial is never named like an installer", () => {
+	const file = join("updates", "Lyra-0.9.15-x64.exe");
+	assert.equal(partialPath(file), join("updates", "download.part"));
+	assert.doesNotMatch(partialPath(file), /\.exe/i);
+});
+
 /*
  * Sweeping up after older versions.
  *
@@ -612,7 +626,7 @@ test("摘要对不上的包不会落地，也不会留下残片", async () => {
 
 	// 两个文件都不能在：最终路径上没有假包，`.part` 也不能留着让下次续传出同一个东西。
 	assert.equal(await exists(join(dir, "Lyra.zip")), false, "不完整可信的包不该出现在最终位置");
-	assert.equal(await exists(join(dir, "Lyra.zip.part")), false, "残片也要清掉，否则下次会从它续");
+	assert.equal(await exists(partialPath(join(dir, "Lyra.zip"))), false, "残片也要清掉，否则下次会从它续");
 
 	await harness.close();
 });

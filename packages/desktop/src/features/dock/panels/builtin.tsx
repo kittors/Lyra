@@ -5,7 +5,8 @@
  * which is exactly the property that lets a plugin replace one.
  */
 
-import { Bot, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal } from "lucide-react";
+import { Bot, FileDiff, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal, Undo2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { BrowserPanel } from "../../browser/index.ts";
 import { FileBrowser } from "../../files/index.ts";
@@ -13,12 +14,22 @@ import { FilePanel } from "../../files/index.ts";
 import { SubAgentPanel } from "../../subagents/index.ts";
 import { FileActions } from "../../files/index.ts";
 import { FileTitle } from "../../files/index.ts";
-import { GitPanel } from "../../git/index.ts";
+import { DiffView, GitPanel } from "../../git/index.ts";
 import { SideChat, SideChatActions } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane } from "../../terminal/index.ts";
 import { TerminalTabs } from "../../terminal/index.ts";
-import { TrajectoryPanel } from "../../conversation/index.ts";
+import { TrajectoryPanel, useDeliveryReview } from "../../conversation/index.ts";
+import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
+import { useI18n } from "../../../i18n/index.ts";
+import { relativeTo } from "../../../lib/paths.ts";
+import { bridge } from "../../../services/index.ts";
+import { useApp } from "../../../store/index.ts";
+import { useConfirmer } from "../../../ui/overlay/Confirm.tsx";
+import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
+import { IconButton } from "../../../ui/primitives/IconButton.tsx";
+import { Scroller } from "../../../ui/scroll/Scroller.tsx";
+import { useDock } from "../store.ts";
 import { registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**
@@ -31,6 +42,132 @@ const TREE_SHARE = 0.3;
 
 const needsWorkspace = (state: { workspace: boolean }) => (state.workspace ? undefined : "dock.needProject");
 const needsSession = (state: { session: boolean }) => (state.session ? undefined : "dock.needSession");
+
+function deliveryCounts(added: number, removed: number) {
+	return <span className="flex shrink-0 items-center gap-1.5 tabular-nums"><span className="text-ok">+{added}</span><span className="text-danger">−{removed}</span></span>;
+}
+
+function deliveryName(path: string) {
+	const split = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1;
+	return <span className="min-w-0 flex-1 truncate"><span className="text-ink-muted">{path.slice(0, split)}</span><span className="text-ink">{path.slice(split)}</span></span>;
+}
+
+/**
+ * This turn's recorded diffs, in a dock pane.
+ *
+ * Lives next to the other built-in renders so conversation/index does not
+ * have to export a panel that pulls git and dock back into itself.
+ */
+function DeliveryTitle() {
+	const { t } = useI18n();
+	const path = useDeliveryReview((state) => state.target?.path ?? null);
+	const name = path ? path.split(/[\\/]/).pop() : null;
+	return (
+		<span className="flex min-w-0 items-center gap-1 py-0.5 pl-1 text-detail">
+			<FileDiff size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
+			<span className="min-w-0 truncate text-ink">{name ?? t("delivery.fileChanges")}</span>
+		</span>
+	);
+}
+
+function DeliveryPanel() {
+	const { t } = useI18n();
+	const workspace = useApp((state) => state.workspace?.path);
+	const active = useApp((state) => state.activeSessionId);
+	const target = useDeliveryReview((state) => state.target);
+	const cached = useDeliveryReview((state) => state.data);
+	const revision = useDeliveryReview((state) => state.revision);
+	const [data, setData] = useState<TurnDelivery | null>(cached);
+	const [undoing, setUndoing] = useState(false);
+	const undoLock = useRef(false);
+	const confirm = useConfirmer();
+
+	useEffect(() => {
+		if (target && target.sessionId !== active) {
+			useDeliveryReview.getState().close();
+			useDock.getState().close("delivery");
+		}
+	}, [active, target]);
+
+	useEffect(() => {
+		if (!target) {
+			setData(null);
+			return;
+		}
+		const fromStore = useDeliveryReview.getState().data;
+		if (fromStore) setData(fromStore);
+		let live = true;
+		void bridge.delivery.get(target.sessionId, target.timestamp).then((value) => {
+			if (live) {
+				setData(value);
+				useDeliveryReview.getState().setData(value);
+			}
+		}).catch((error: unknown) => {
+			if (live) useApp.getState().notify(String(error), "error");
+		});
+		return () => { live = false; };
+	}, [target, revision]);
+
+	const undo = async (path?: string) => {
+		if (!target || undoLock.current) return;
+		undoLock.current = true;
+		setUndoing(true);
+		try {
+			await bridge.delivery.undo(target.sessionId, target.timestamp, path);
+			const value = await bridge.delivery.get(target.sessionId, target.timestamp);
+			setData(value);
+			useDeliveryReview.getState().setData(value);
+			useApp.getState().notify(t("delivery.reverted"), "info");
+			if (!value.files.length) {
+				useDeliveryReview.getState().close();
+				useDock.getState().close("delivery");
+			} else useDeliveryReview.getState().touch();
+		} catch (error) {
+			useApp.getState().notify(String(error), "error");
+		} finally {
+			undoLock.current = false;
+			setUndoing(false);
+		}
+	};
+
+	if (!target) return <PanelEmpty icon={FileDiff} title={t("delivery.fileChanges")} />;
+	const files = (data?.files ?? []).filter((file) => !target.path || file.path === target.path);
+	if (!files.length) return <PanelEmpty icon={FileDiff} title={t("delivery.fileChanges")} />;
+	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;
+	const askUndo = (file: DeliveryFile) => {
+		confirm.ask({
+			title: t("delivery.revertFileConfirm"),
+			detail: t("delivery.revertDetail"),
+			confirmLabel: t("delivery.revertChanges"),
+			onConfirm: () => undo(file.path),
+		});
+	};
+
+	return <>
+		<Scroller>
+			{files.map((file) => (
+				<section key={file.path} data-delivery-diff={file.path} className="mb-1">
+					<div className="ly-pin sticky top-0 z-10">
+						<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label">
+							{deliveryName(relative(file.path))}
+							{deliveryCounts(file.added, file.removed)}
+							<IconButton
+								size="sm"
+								icon={<Undo2 size={14} />}
+								label={file.canUndo ? t("delivery.revertOne") : t("delivery.cannotRevert")}
+								explainDisabled
+								disabled={!file.canUndo || undoing}
+								onClick={() => askUndo(file)}
+							/>
+						</div>
+					</div>
+					<DiffView path={file.path} hunks={file.hunks} maxLines={Infinity} />
+				</section>
+			))}
+		</Scroller>
+		{confirm.element}
+	</>;
+}
 
 const BUILTIN_PANELS: PanelDefinition[] = [
 	{
@@ -148,6 +285,21 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 	},
 	{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "⌘T", render: BrowserPanel },
 	{ kind: "review", label: "common.git", icon: GitCompare, shortcut: "⌘⇧R", unavailable: needsWorkspace, render: GitPanel },
+	/*
+	 * This turn's recorded diffs — opened from the delivery card, not the +
+	 * menu. Git stays `review`; the file pane stays current contents.
+	 */
+	{
+		kind: "delivery",
+		label: "delivery.fileChanges",
+		icon: FileDiff,
+		shortcut: "",
+		listed: false,
+		ephemeral: true,
+		unavailable: needsSession,
+		render: DeliveryPanel,
+		header: DeliveryTitle,
+	},
 ];
 
 registerPanels(BUILTIN_PANELS);

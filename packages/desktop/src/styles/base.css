@@ -14,27 +14,22 @@
     background: var(--color-shell);
     color: var(--color-ink);
     /*
-     * `Lyra CJK` first, ahead of whatever font is configured.
+     * Punctuation, then Han, then whatever font is configured.
      *
-     * It is safe there — the face carries a CJK-only `unicode-range`, so every latin glyph falls
-     * straight past it to the chosen font — and it has to be there, because the chosen font is a
-     * whole stack that replaces this one. `--font-sans` lists `Lyra CJK`; the default `uiFont` in
-     * Appearance does not, and since that value is always set the fallback in `var()` never runs.
-     * So the adjustment was reachable only by users who had never opened the settings.
-     *
-     * What that cost: Chinese lost its 104% size match and rendered a size down from the latin
-     * beside it, and CJK punctuation fell through to `-apple-system` — which is a western face, so
-     * it sets a full-width comma the western way, floating at mid-height instead of sitting at the
-     * bottom-left of its box. 「加德克拉斯，123」 with the comma halfway up the line.
+     * `Lyra Punct` only claims the CJK punctuation blocks, so latin still falls to the chosen
+     * font. It has to lead: `--ly-ui-font` is a whole stack that often starts with Inter and
+     * then `-apple-system`, and `-apple-system` on a Mac paints `。` the Japanese way — a
+     * circle in the middle of the line — whenever the Han face is not first. `Lyra CJK` used
+     * to carry those code points too; wrapping PingFang in `@font-face` for them dropped the
+     * language and produced the same mid-height period. Han stays on `Lyra CJK`.
      */
-	font-family: var(--ly-script-font, "Lyra CJK"), var(--ly-ui-font, var(--font-sans));
-    font-size: var(--ly-ui-size, 13px);
+	font-family: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"),
+		var(--ly-ui-font, var(--font-sans));
+    font-size: var(--ly-ui-size, 14px);
     line-height: 1.6;
     /*
-     * Inter's disambiguating alternates, which are what make it legible at 12px rather than
-     * merely tidy: `cv05` gives lowercase l a tail and `cv08` gives uppercase I a serif, so
-     * 1 / l / I stop being three drawings of the same stroke. `ss03` turns the quotes round.
-     * Tabular figures keep numbers from shuffling as they tick — token counts, timers, diffs.
+     * Disambiguating figures. Inter honours `cv05`/`cv08`/`ss03`; Plex ignores them and already
+     * draws I / l / 1 as three shapes. Tabular numbers keep counters from shuffling as they tick.
      */
     font-feature-settings:
       "cv05" 1,
@@ -55,20 +50,18 @@
   }
 
   /*
-   * Thinner strokes, and only where they are an improvement.
+   * Native macOS greyscale antialiasing, both themes.
    *
-   * `antialiased` turns off subpixel rendering: every glyph is drawn in grey levels on one
-   * channel instead of three, which costs about a third of the horizontal resolution the LCD
-   * actually has. On a dark theme that is a good trade — subpixel rendering on light-on-dark
-   * fringes the stems with colour and fattens them — but on a light theme it is pure loss.
-   * Black-on-white is where subpixel AA is at its best, and switching it off there is exactly
-   * what makes text look thin, grey and slightly out of focus next to an app that left it on.
-   *
-   * So it is scoped to the dark class rather than applied to `body` outright. The setting still
-   * decides *whether* to smooth; the theme decides whether smoothing is the right answer.
+   * Chromium's default on a Retina panel is already greyscale, but wrapping PingFang in
+   * `@font-face` used to drop the Core Text path and leave stems a size down and soft.
+   * `antialiased` is the same switch Mail and the rest of the system use. It was once
+   * scoped to dark only, on the idea that light-theme subpixel AA is sharper — on a
+   * Retina Mac that path is already gone, and the light UI then looked unsmoothed
+   * next to every native app beside it.
    */
-  :root.dark[data-font-smoothing="true"] body {
+  :root[data-font-smoothing="true"] body {
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /*

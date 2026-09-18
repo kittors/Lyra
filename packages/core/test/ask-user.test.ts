@@ -9,7 +9,7 @@ for (const mode of ["ask", "auto", "full"] satisfies PermissionMode[]) {
 	test(`ask_user waits for and returns its own answer in ${mode} mode`, async () => {
 		const gate = new ApprovalGate({ mode: () => mode, cwd: () => "/test", ask: async () => {}, remember: () => {} }, ["ask_user"]);
 		const ctx: ToolContext = { cwd: "/test", sessionId: "a", state: new Map(), requestApproval: (request) => gate.request(request) };
-		const result = askUserTool.execute({ question: "选择实现", options: ["保留", "更新"] }, ctx);
+		const result = askUserTool.execute({ question: "选择实现", options: ["保留", "更新"], allowCustomInput: false }, ctx);
 		try {
 			const [request] = gate.list();
 			assert.ok(request, "permission policy must not answer a question");
@@ -22,6 +22,18 @@ for (const mode of ["ask", "auto", "full"] satisfies PermissionMode[]) {
 		} finally { gate.rejectAll(); }
 	});
 }
+
+test("custom input is on unless the model turns it off", async () => {
+	const gate = new ApprovalGate({ mode: () => "full", cwd: () => "/test", ask: async () => {}, remember: () => {} });
+	const ctx: ToolContext = { cwd: "/test", sessionId: "a", state: new Map(), requestApproval: (request) => gate.request(request) };
+	try {
+		const pending = askUserTool.execute({ question: "选择", options: ["A"] }, ctx);
+		const [entry] = gate.list();
+		assert.equal(entry.request.allowCustomInput, true);
+		assert.equal(gate.resolve(entry.id, { answer: "自己写" }), true);
+		assert.deepEqual((await pending).content, [{ type: "text", text: "自己写" }]);
+	} finally { gate.rejectAll(); }
+});
 
 test("free-form input is explicit; cancellation does not invent an answer", async () => {
 	const gate = new ApprovalGate({ mode: () => "full", cwd: () => "/test", ask: async () => {}, remember: () => {} });
@@ -52,7 +64,7 @@ test("multi-select validates every answer and skip only adopts an explicit defau
 	const gate = new ApprovalGate({ mode: () => "full", cwd: () => "/test", ask: async () => {}, remember: () => {} });
 	const ctx: ToolContext = { cwd: "/test", sessionId: "a", state: new Map(), requestApproval: request => gate.request(request) };
 	try {
-		const args = { question: "选择", options: [{ label: "A", description: "first", recommended: true }, "B"], selectionMode: "multi" as const };
+		const args = { question: "选择", options: [{ label: "A", description: "first", recommended: true }, "B"], selectionMode: "multi" as const, allowCustomInput: false };
 		const pending = askUserTool.execute(args, ctx);
 		let request = gate.list()[0];
 		for (const answer of [[], ["A", "unknown"], ["A", "A"], [7]]) assert.equal(gate.resolve(request.id, { answer }), false);

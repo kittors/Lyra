@@ -1,6 +1,6 @@
 import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./retry-policy.ts";
 import { withCatalogDefaults } from "../model-catalog.ts";
-import { normalizeDelegationPolicy, type DelegationPolicy } from "../runtime/delegation.ts";
+import { normalizeDelegationPolicy, normalizeMaxConcurrentSubAgents, type DelegationPolicy } from "../runtime/delegation.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -137,13 +137,22 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	lightForeground: "#1A1C1F",
 	darkBackground: "#171717",
 	darkForeground: "#EDEDED",
-	uiFont: '"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+	/*
+	 * Same-family Chinese UI, not a shipped Latin face in front of PingFang.
+	 *
+	 * Doubao has no public UI webfont. What reads as "豆包字体" on a Mac is PingFang drawing
+	 * both Han and Latin. `-apple-system` first would split that again (SF Pro + PingFang),
+	 * which is the mix people just asked to leave. Inter / IBM Plex stay bundled for anyone
+	 * who types them; they are no longer the factory stack.
+	 */
+	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
 	codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
 	// Lyra's own — see `lyra-light` in `code-themes.ts`. It takes the app's background rather than
 	// bringing one, so a fresh install looks like Lyra and picking any other theme is a real choice.
 	codeLightTheme: "lyra-light",
 	codeDarkTheme: "lyra-dark",
-	uiFontSize: 13,
+	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
+	uiFontSize: 14,
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
@@ -804,10 +813,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			autoSummarizeTitle: parsed.autoSummarizeTitle !== false,
 			// Off unless asked for: a project disappearing from the sidebar is the worse surprise.
 			hideEmptiedProjects: parsed.hideEmptiedProjects === true,
-			maxConcurrentSubAgents:
-				typeof parsed.maxConcurrentSubAgents === "number" && parsed.maxConcurrentSubAgents >= 1
-					? Math.min(16, Math.floor(parsed.maxConcurrentSubAgents))
-					: 4,
+			maxConcurrentSubAgents: normalizeMaxConcurrentSubAgents(parsed.maxConcurrentSubAgents),
 			subAgentDelegation: normalizeDelegationPolicy(parsed.subAgentDelegation),
 			/*
 			 * Spread rather than assigned, so "never asked" is an absent key rather than a present
@@ -861,7 +867,11 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
  * A stack the user actually typed is not in the list, and stays.
  */
 const SUPERSEDED_FONTS: Record<"uiFont" | "codeFont", string[]> = {
-	uiFont: ['-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif'],
+	uiFont: [
+		'-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif',
+		'"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+		'"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+	],
 	codeFont: ['ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace'],
 };
 
@@ -884,6 +894,12 @@ export function migrateAppearance(appearance: AppearanceSettings): AppearanceSet
 	for (const key of ["uiFont", "codeFont"] as const) {
 		if (SUPERSEDED_FONTS[key].includes(next[key])) next[key] = DEFAULT_APPEARANCE[key];
 	}
+	/*
+	 * 13 was only ever the factory size. Anyone still on it never picked a size; they just
+	 * inherited the old default, which sat a step below native Mac UI and looked slight.
+	 * A value they typed (11, 12, 15…) stays.
+	 */
+	if (next.uiFontSize === 13) next.uiFontSize = DEFAULT_APPEARANCE.uiFontSize;
 	for (const key of REMOVED_APPEARANCE) delete (next as Record<string, unknown>)[key];
 	return next;
 }

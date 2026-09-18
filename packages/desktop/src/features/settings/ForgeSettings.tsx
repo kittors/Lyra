@@ -20,7 +20,8 @@ import type { ForgeAccount, ForgeKindInfo } from "../../../electron/ipc-types.ts
 import { Avatar } from "../pull-requests/index.ts";
 import { useAccountActions, useForgeAccounts } from "../pull-requests/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { Badge, Card, EmptyHint, GhostButton, ListRow, SectionTitle, TextInput, Toggle } from "./controls.tsx";
+import { Badge, Card, EmptyHint, ListRow, SectionTitle, TextInput, Toggle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { ForgeSignIn } from "./ForgeSignIn.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -142,7 +143,10 @@ export function ForgeSettings() {
 			{adding ? (
 				<ForgeSignIn kinds={kinds} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
 			) : (
-				<GhostButton icon={<Plus size={14} strokeWidth={2} />} title={translate("prList.addAccount")} onClick={() => setAdding(true)} />
+				<DialogAction onClick={() => setAdding(true)} label={t("prList.addAccount")} data-ly-add-forge="">
+					<Plus size={14} strokeWidth={2} aria-hidden />
+					{t("prList.addAccount")}
+				</DialogAction>
 			)}
 
 			{/*

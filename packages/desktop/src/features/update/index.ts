@@ -11,5 +11,5 @@ export { UpdateBadge } from "./UpdateBadge.tsx";
 export { notesForLocale } from "./notes-locale.ts";
 export { check, restartCheckTimer, useUpdate } from "./store.ts";
 export type { Info } from "./store.ts";
-export { confirmLabel, controlsFor, fractionOf, mb, readyNote, versionNote } from "./view.ts";
+export { confirmLabel, controlsFor, failureDetail, fractionOf, mb, publishedOn, readyNote, versionNote } from "./view.ts";
 export type { Phase } from "./view.ts";

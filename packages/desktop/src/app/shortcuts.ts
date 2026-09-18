@@ -13,8 +13,9 @@
  */
 
 import { useEffect } from "react";
-import { useDock } from "../features/dock/index.ts";
+import { toggleScopedPanel, useDock } from "../features/dock/index.ts";
 import type { PanelKind } from "../features/dock/index.ts";
+import { firstSession, leafCount, useSplit } from "../features/split/index.ts";
 import { composingKey } from "../ui/keyboard.ts";
 
 export interface ShortcutDeps {
@@ -40,7 +41,13 @@ export function useShortcuts(deps: ShortcutDeps): void {
 
 		/** Open the pane, or put it away if it is already the one in front. */
 		const panel = (kind: PanelKind, allowed: unknown) => {
-			if (allowed) useDock.getState().toggle(kind);
+			if (!allowed) return;
+			const split = useSplit.getState();
+			if (leafCount(split.tree) > 1) {
+				toggleScopedPanel(split.focused ?? firstSession(split.tree) ?? "@draft", kind);
+				return;
+			}
+			toggleScopedPanel(null, kind);
 		};
 
 		const onKey = (event: KeyboardEvent) => {

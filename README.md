@@ -74,6 +74,8 @@ The Windows installer is also unsigned. The first run hits SmartScreen: "Windows
 
 If the wizard finishes, "Run Lyra" is checked, and you get "missing shortcut / Windows is looking for Lyra.exe" (or the Start menu and desktop icons do the same), `Lyra.exe` did not stay in the install folder. The usual cause is Microsoft Defender quarantining a large unsigned binary. Check Windows Security → Virus & threat protection → Protection history, allow the entry, and run the installer again.
 
+In-app updates take the same path. Defender also stops the file being written under `%APPDATA%\\@lyra\\desktop\\updates`, which shows up as a failed download near the end. Add that folder as an exclusion, allow Lyra in Protection history, and retry. The bytes already down are kept.
+
 The installed app is always named `Lyra.exe` and is a couple of hundred MB. If the install folder also has `Lyra-<version>-<arch>.exe`, about 100 MB, that is the installer itself, not the app. That happens when the destination folder is the folder the installer was downloaded into. `Uninstall Lyra.exe` is a few hundred KB and only uninstalls. Neither of those launches the app.
 
 ### Installing on a phone

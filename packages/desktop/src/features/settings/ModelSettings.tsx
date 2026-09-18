@@ -13,7 +13,7 @@ import { useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { GhostButton } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { FetchModelsModal } from "./FetchModelsModal.tsx";
 import { ModelEditor } from "./ModelEditor.tsx";
 import { ProviderEditor } from "./ProviderEditor.tsx";
@@ -154,16 +154,12 @@ export function ModelSettings() {
               </button>
             ))}
 
-            <button
-              type="button"
-              onClick={() => void p.add()}
-              className="flex h-[38px] w-full items-center gap-2.5 rounded-lg border border-line px-2.5 text-left text-label text-ink-muted transition-colors hover:border-ink-faint hover:bg-card-hover hover:text-ink cursor-pointer"
-              data-ly-tip={t("modelSettings.addProvider")}
-              aria-label={t("modelSettings.addProvider")}
-            >
-              <Plus size={15} strokeWidth={1.9} className="shrink-0" />
-              <span>{t("modelSettings.addProvider")}</span>
-            </button>
+            <div className="px-1 pt-1">
+              <DialogAction onClick={() => void p.add()} label={t("modelSettings.addProvider")} data-ly-add-provider="">
+                <Plus size={14} strokeWidth={2} aria-hidden />
+                {t("modelSettings.addProvider")}
+              </DialogAction>
+            </div>
           </Scroller>
 
           <Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:p-6">
@@ -172,9 +168,10 @@ export function ModelSettings() {
                 <p className="text-label text-ink-muted">
                   {t("modelSettings.noProviders")}
                 </p>
-                <GhostButton onClick={() => void p.add()} icon={<Plus size={13} strokeWidth={1.8} />}>
+                <DialogAction tone="primary" onClick={() => void p.add()} data-ly-add-provider="">
+                  <Plus size={14} strokeWidth={2} aria-hidden />
                   {t("modelSettings.addFirst")}
-                </GhostButton>
+                </DialogAction>
               </div>
             ) : (
               /*

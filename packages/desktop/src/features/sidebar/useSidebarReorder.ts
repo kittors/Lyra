@@ -1,6 +1,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
+import { dropSessionDrag, paneAtPoint } from "../split/index.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import type { Grouped } from "./grouping.ts";
 import type { DraggingItem, DropTarget, SidebarReorderContextValue } from "./reorder-context.ts";
@@ -97,7 +98,10 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 			if (event.pointerId !== candidateRef.current?.pointerId) return;
 			const active = draggingRef.current;
 			const target = dropTargetRef.current;
+			const overSplit = active?.kind === "session" && paneAtPoint(event.clientX, event.clientY);
+			if (overSplit) dropSessionDrag(event);
 			reset();
+			if (overSplit) return;
 			if (active && target) void commit(active, target);
 		};
 		const cancelPointer = (event: PointerEvent) => {

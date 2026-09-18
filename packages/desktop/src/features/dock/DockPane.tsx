@@ -31,9 +31,11 @@ export function DockPane({
 	inset,
 	insetEnd,
 	onToggleMaximized,
+	onPopOut,
 	onClose,
 	onFocus,
 	onLanded,
+	chrome = true,
 	children,
 }: {
 	kind: PaneKind;
@@ -74,10 +76,17 @@ export function DockPane({
 	insetEnd?: number;
 	/** Absent where full screen is not on offer — the dock decides; see `DockView`. */
 	onToggleMaximized?: () => void;
+	/** Leave this dock for a real window. */
+	onPopOut?: () => void;
 	onClose?: () => void;
 	onFocus: () => void;
 	/** Reported when the flight home ends, so the pane can be handed back to the dock's layout. */
 	onLanded: () => void;
+	/**
+	 * Conversation tiles are independent screens. When more than one is showing, each paints
+	 * its own title bar, and this shared dock chrome would sit above them as a fifth strip.
+	 */
+	chrome?: boolean;
 	children: React.ReactNode;
 }) {
 	/** Panels are cards over the conversation's surface; so is anything currently in the air. */
@@ -191,7 +200,7 @@ export function DockPane({
 			className={`ly-dock-pane group/pane absolute flex min-w-0 flex-col ${
 				carried ? "ly-dock-pane-carried" : floats ? "z-10" : "z-0"
 			} ${landing ? "ly-dock-pane-landing" : ""}`}
-			header={<div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: floats ? PANE_INSET + 1 : 0, background: "transparent" }}>
+			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: floats ? PANE_INSET + 1 : 0, background: "transparent" }}>
 				<PaneHeader
 					kind={kind}
 					label={label}
@@ -208,9 +217,10 @@ export function DockPane({
 					insetEnd={insetEnd}
 					lift={floats ? PANE_INSET + 1 : 0}
 					onToggleMaximized={onToggleMaximized}
+					onPopOut={onPopOut}
 					onClose={onClose}
 				/>
-			</div>}
+			</div> : null}
 		>
 			{/*
 			 * Panels float; the conversation does not.
@@ -234,7 +244,7 @@ export function DockPane({
 				style={floats ? { margin: PANE_INSET } : undefined}
 			>
 			{/* Controls keep their endpoint geometry while this retained surface composites its resize. */}
-			<div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />
+			{chrome && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 			</div>
 		</PaneSurface>

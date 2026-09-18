@@ -113,6 +113,7 @@ export const METHODS = {
 	agent: {
 		prompt: { channel: "agent:prompt", remote: true },
 		editMessage: { channel: "agent:editMessage", remote: true },
+		revertMessage: { channel: "agent:revertMessage", remote: true },
 		abort: { channel: "agent:abort", remote: true },
 		approve: { channel: "agent:approve", remote: true },
 		setModel: { channel: "agent:setModel", remote: true },
@@ -214,6 +215,14 @@ export const METHODS = {
 		relaunch: { channel: "updates:relaunch", remote: false, why: "下载并运行安装包" },
 		reopen: { channel: "updates:reopen", remote: false, why: "下载并运行安装包" },
 		open: { channel: "updates:open", remote: false, why: "下载并运行安装包" },
+	},
+	windows: {
+		open: { channel: "windows:open", remote: false, why: "开的是本机的第二个窗口" },
+		list: { channel: "windows:list", remote: false, why: "开的是本机的第二个窗口" },
+		openInMain: { channel: "windows:openInMain", remote: false, why: "开的是本机的第二个窗口" },
+		openPanel: { channel: "windows:openPanel", remote: false, why: "开的是本机的第二个窗口" },
+		restorePanel: { channel: "windows:restorePanel", remote: false, why: "开的是本机的第二个窗口" },
+		closePanel: { channel: "windows:closePanel", remote: false, why: "开的是本机的第二个窗口" },
 	},
 	system: {
 		openPath: { channel: "system:openPath", remote: false, why: "把路径或程序交给操作系统去打开" },

@@ -231,12 +231,13 @@ test("CJK punctuation is drawn by the CJK face, whatever font is configured", as
 	 *
 	 * The cause is which face claims U+FF0C. Inter declares a latin-only `unicode-range` so it
 	 * passes, and the next entry in the configured stack is `-apple-system` — a western face that
-	 * does carry CJK punctuation and sets it the western way. `Lyra CJK` (PingFang, `size-adjust`
-	 * 104%) was further down the list, and behind `-apple-system` it never got the chance.
+	 * does carry CJK punctuation and sets it the Japanese way, a circle at mid-height. `Lyra Punct`
+	 * (and behind it `Lyra CJK`) have to lead, or that western face wins.
 	 *
-	 * Asserted on the resolved stack rather than on pixels: the rule is "the CJK face is consulted
-	 * first", and that is a fact about the cascade, not about a screenshot.
+	 * Asserted on the resolved stack rather than on pixels: the rule is "the punctuation face is
+	 * consulted first", and that is a fact about the cascade, not about a screenshot.
 	 */
 	const family = await app.evaluate<string>(`getComputedStyle(document.body).fontFamily`);
-	assert.match(family, /^["']?Lyra CJK/, `the CJK face leads the stack (${family})`);
+	assert.match(family, /^["']?Lyra Punct/, `the punctuation face leads the stack (${family})`);
+	assert.match(family, /Lyra CJK/, `Han still follows (${family})`);
 });

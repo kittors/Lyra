@@ -25,6 +25,7 @@ function deps(overrides: Partial<RpcDeps> = {}): RpcDeps {
 		create: async () => { throw new Error("not needed"); },
 		abort: async () => {},
 		editMessage: async () => {},
+		revertMessage: async () => {},
 		dispose: async () => {},
 		prompt: async () => {
 			throw new Error("not needed");
@@ -272,6 +273,7 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"sessions.contextBreakdown": ["s1"],
 		"agent.prompt": ["s1", "你好"],
 		"agent.editMessage": ["s1", 0, "改过的"],
+		"agent.revertMessage": ["s1", 0],
 		"agent.abort": ["s1"],
 		"agent.approve": ["s1", "r1", "once"],
 		"agent.setModel": ["s1", "m1"],

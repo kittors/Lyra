@@ -3,9 +3,12 @@ import type { SessionMeta } from "@lyra/core";
 import { Archive, ArchiveRestore, Folder, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { GhostButton, InlineSelect } from "./controls.tsx";
+import { Caret } from "../../ui/primitives/Caret.tsx";
+import { InlineSelect } from "./controls.tsx";
+import { groupIsOpen, toggleOpened } from "./archived-groups.ts";
 import { useApp } from "../../store/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -13,9 +16,8 @@ import { useI18n } from "../../i18n/index.ts";
 /**
  * The archive: everything filed away from the sidebar, grouped by project.
  *
- * Archiving is the reversible action the sidebar offers, so this page has to be where it gets
- * reversed. Deleting stays here too, deliberately one step further from the transcript than
- * the archive button is.
+ * Groups start closed. Opening one is a click; a search opens every group that still has a
+ * match, then closing the query puts them back the way they were.
  */
 export function ArchivedSettings() {
 	const { t } = useI18n();
@@ -28,7 +30,9 @@ export function ArchivedSettings() {
 
 	const [query, setQuery] = useState("");
 	const [project, setProject] = useState("all");
+	const [opened, setOpened] = useState(() => new Set<string>());
 	const confirm = useConfirmer();
+	const searching = query.trim().length > 0;
 
 	const archived = useMemo(() => sessions.filter((s) => s.archived), [sessions]);
 
@@ -69,8 +73,8 @@ export function ArchivedSettings() {
 				</div>
 
 				{archived.length > 0 && (
-					<button
-						type="button"
+					<DialogAction
+						tone="danger"
 						onClick={() =>
 							confirm.ask({
 								title: t("archived.deleteAllConfirm", { n: archived.length }),
@@ -79,12 +83,12 @@ export function ArchivedSettings() {
 								onConfirm: () => void deleteAll(),
 							})
 						}
-						data-ly-tip={t("archived.deleteAll", { n: archived.length })}
-						aria-label={t("archived.deleteAll", { n: archived.length })}
-						className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-danger/40 text-danger transition-colors hover:bg-danger/10"
+						label={t("archived.deleteAll", { n: archived.length })}
+						data-ly-delete-all-archived=""
 					>
-						<Trash2 size={13} strokeWidth={2} />
-					</button>
+						<Trash2 size={13} strokeWidth={2} aria-hidden />
+						{t("archived.deleteAllAction")}
+					</DialogAction>
 				)}
 			</header>
 
@@ -96,7 +100,6 @@ export function ArchivedSettings() {
 				</div>
 			) : (
 				<>
-					{/* The shared field and the shared dropdown, as everywhere else. */}
 					<div className="flex flex-wrap items-center gap-2 pb-5">
 						<SearchField
 							size="comfortable"
@@ -119,38 +122,52 @@ export function ArchivedSettings() {
 						<p className="py-10 text-center text-label text-ink-faint">{t("archived.noMatch")}</p>
 					)}
 
-					{groups.map((group) => (
-						<section key={group.path} className="mb-6">
-							<div className="flex items-center gap-2 pb-2">
-								<Folder size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
-								<ScrollText text={group.name} className="min-w-0 text-label text-ink" />
-								<span className="shrink-0 text-detail text-ink-faint">{t("archived.chatCount", { n: group.sessions.length })}</span>
-							</div>
+					{groups.map((group) => {
+						const open = groupIsOpen(group.path, opened, searching);
+						return (
+							<section
+								key={group.path}
+								className="mb-6"
+								data-ly-archive-group={group.path}
+								data-open={open ? "true" : "false"}
+							>
+								<button
+									type="button"
+									aria-expanded={open}
+									aria-label={t("archived.toggleGroup", { name: group.name, n: group.sessions.length })}
+									disabled={searching}
+									onClick={() => setOpened((current) => toggleOpened(current, group.path))}
+									className="flex w-full items-center gap-2 pb-2 text-left disabled:cursor-default"
+									data-ly-archive-toggle=""
+								>
+									<Caret open={open} from="right" size={12} className="text-ink-faint" />
+									<Folder size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
+									<ScrollText text={group.name} className="min-w-0 text-label text-ink" />
+									<span className="shrink-0 text-detail text-ink-faint">{t("archived.chatCount", { n: group.sessions.length })}</span>
+								</button>
 
-							<div className="overflow-hidden rounded-[12px] border border-line">
-								{group.sessions.map((session, index) => (
-									<Row
-										key={session.id}
-										session={session}
-										first={index === 0}
-										onOpen={() => {
-											/*
-											 * 打开就是打开。
-											 *
-											 * 从前这里顺手把它取消归档——理由是「开着的对话不该在侧边栏里找不到」。
-											 * 那个顾虑已经由 `listableSessions` 接手：当前会话不管归没归档都在列表
-											 * 里。归不归档只由旁边那个按钮说了算，两处一致。
-											 */
-											void openSession(session);
-											setView("chat");
-										}}
-										onRestore={() => void setArchived(session, false)}
-										onDelete={() => void deleteSession(session)}
-									/>
-								))}
-							</div>
-						</section>
-					))}
+								<div className="ly-reveal" data-open={open} aria-hidden={!open}>
+									<div>
+										<div className="overflow-hidden rounded-[12px] border border-line">
+											{group.sessions.map((session, index) => (
+												<Row
+													key={session.id}
+													session={session}
+													first={index === 0}
+													onOpen={() => {
+														void openSession(session);
+														setView("chat");
+													}}
+													onRestore={() => void setArchived(session, false)}
+													onDelete={() => void deleteSession(session)}
+												/>
+											))}
+										</div>
+									</div>
+								</div>
+							</section>
+						);
+					})}
 				</>
 			)}
 
@@ -177,6 +194,7 @@ function Row({
 
 	return (
 		<div
+			data-ly-archive-row={session.id}
 			className={`ly-scroll group/row flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover ${
 				first ? "" : "border-t border-line-soft"
 			}`}
@@ -189,18 +207,14 @@ function Row({
 				</span>
 			</button>
 
-			{/*
-			 * The app's confirmation, not a pair of buttons that replace the row's own.
-			 *
-			 * This asked properly long before anything else did — by swapping 删除 for 取消 and
-			 * 确认删除 in place, which works and is the only place in the app that does it that way.
-			 * Same question, same surface as everywhere else now.
-			 */}
-			<div className="flex shrink-0 items-center gap-1">
-				<button
-					type="button"
-					data-ly-tip={t("common.delete")}
-					aria-label={t("archived.deleteNamed", { title: session.title })}
+			<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+				<DialogAction onClick={onRestore} label={t("common.unarchive")}>
+					<ArchiveRestore size={13} strokeWidth={1.8} aria-hidden />
+					{t("common.unarchive")}
+				</DialogAction>
+				<DialogAction
+					tone="danger"
+					label={t("archived.deleteNamed", { title: session.title })}
 					onClick={() =>
 						confirm.ask({
 							title: t("archived.deleteOneConfirm"),
@@ -209,11 +223,10 @@ function Row({
 							onConfirm: onDelete,
 						})
 					}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-danger/10 hover:text-danger"
 				>
-					<Trash2 size={13.5} strokeWidth={1.8} />
-				</button>
-				<GhostButton onClick={onRestore} icon={<ArchiveRestore size={13} strokeWidth={1.8} />} title={t("common.unarchive")} />
+					<Trash2 size={13.5} strokeWidth={1.8} aria-hidden />
+					{t("common.delete")}
+				</DialogAction>
 			</div>
 
 			{confirm.element}

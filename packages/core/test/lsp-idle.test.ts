@@ -79,16 +79,16 @@ test("一直有人问，就一直不回收", async () => {
 	 * 否则它每次问都在等冷启动，而那正是回收要避免的代价反过来落到最活跃的那个人头上。
 	 */
 	const { backend, counts } = counting();
-	const manager = new CodeIntelManager([backend], { idleMs: 60 });
+	const manager = new CodeIntelManager([backend], { idleMs: 180 });
 	await manager.acquire(join(root, "src", "a.ts"), root);
 
-	for (let i = 0; i < 4; i += 1) {
-		await tick(30);
+	for (let i = 0; i < 5; i += 1) {
+		await tick(25);
 		await manager.acquire(join(root, "src", "a.ts"), root);
 	}
-	assert.equal(counts.disposed, 0, "120ms 里每 30ms 问一次，60ms 的空闲上限一次都没到");
+	assert.equal(counts.disposed, 0, "125ms 里每 25ms 问一次，180ms 的空闲上限一次都没到");
 
-	await tick(100);
+	await tick(250);
 	assert.equal(counts.disposed, 1, "停下来之后才回收");
 	await manager.dispose();
 });

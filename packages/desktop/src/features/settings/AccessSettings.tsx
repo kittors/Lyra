@@ -24,7 +24,8 @@ import { useApp } from "../../store/index.ts";
 import { TextInput } from "./inputs.tsx";
 import { Card, Row, SectionTitle } from "./layout.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
-import { EmptyHint, GhostButton, Toggle } from "./controls.tsx";
+import { EmptyHint, Toggle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 
 export function AccessSettings() {
 	const { t } = useI18n();
@@ -116,7 +117,10 @@ export function AccessSettings() {
 							}
 						}}
 					/>
-					<GhostButton onClick={addHost} disabled={!host.trim()} icon={<Plus size={13} strokeWidth={2} />} title={t("mcp.add")} />
+					<DialogAction onClick={addHost} disabled={!host.trim()} label={t("mcp.add")} data-ly-add-host="">
+						<Plus size={13} strokeWidth={2} aria-hidden />
+						{t("mcp.add")}
+					</DialogAction>
 				</div>
 
 				{hosts.length > 0 && (

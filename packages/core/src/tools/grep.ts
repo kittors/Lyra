@@ -66,12 +66,12 @@ export const grepTool: Tool<GrepArgs> = {
 	snippet: "Search file contents by regular expression",
 	description:
 		"Search file contents with a regular expression. Uses ripgrep when it is installed and falls back to a built-in " +
-		"scanner otherwise. Narrow the search with `glob` (e.g. `*.ts`) and use `context` to include surrounding lines. " +
+		"scanner otherwise. Put the regex in `pattern` (aliases: `query`, `search`). Narrow the search with `glob` (e.g. `*.ts`) and use `context` to include surrounding lines. " +
 		"A matching line longer than 2000 characters returns a window around the hit and names `char_offset` so `read` can open more of that line.",
 	parameters: {
 		type: "object",
 		properties: {
-			pattern: { type: "string", description: "Regular expression to search for." },
+			pattern: { type: "string", description: "Regular expression to search for. Prefer this field; `query` and `search` are aliases." },
 			query: { type: "string", description: "Alias for pattern." },
 			search: { type: "string", description: "Alias for pattern." },
 			path: { type: "string", description: "Directory or file to search. Defaults to the workspace root." },
@@ -81,7 +81,6 @@ export const grepTool: Tool<GrepArgs> = {
 			files_only: { type: "boolean", description: "List matching file paths instead of matching lines." },
 			limit: { type: "number", description: "Maximum matches to return. Default 200." },
 		},
-		required: ["pattern"],
 		additionalProperties: true,
 	},
 	summarize: (args) => {
@@ -344,10 +343,20 @@ function formatMatches(lines: string[], args: GrepArgs, limit: number, literal =
 /** Extract a grep regex pattern when the model embeds it in a description string. */
 function extractGrepPattern(desc: unknown): string {
 	if (typeof desc !== "string" || !desc.trim()) return "";
-	const labeled = desc.match(/(?:pattern|regex|query|search)[:=]\s*[`'"]?([^`'")\s]+)/i);
-	if (labeled?.[1]) return labeled[1].replace(/[`'"]+$/, "").trim();
+	const labeled = extractLabeledValue(desc, ["pattern", "regex", "query", "search"]);
+	if (labeled) return labeled;
 	const quoted = desc.match(/[`'"]([^`'"]+)['`"]/);
 	if (quoted?.[1]) return quoted[1].trim();
 	/* Fallback: if the model passed the raw pattern directly as description */
 	return desc.trim();
+}
+
+/** Quoted first so `pattern: "foo|bar baz"` keeps spaces and alternation. */
+function extractLabeledValue(desc: string, labels: string[]): string {
+	const names = labels.join("|");
+	const quoted = desc.match(new RegExp(`(?:${names})[:=]\\s*[\`'"]([^\\\`'"]+)[\`'"]`, "i"));
+	if (quoted?.[1]) return quoted[1].trim();
+	const bare = desc.match(new RegExp(`(?:${names})[:=]\\s*(\\S+)`, "i"));
+	if (bare?.[1]) return bare[1].replace(/[)\].,;]+$/, "").trim();
+	return "";
 }

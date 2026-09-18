@@ -40,12 +40,12 @@ export const askUserTool: Tool<AskUserArgs> = {
 		if (typeof args.question !== "string" || !args.question.trim() || !Array.isArray(args.options) || !args.options.every(validOption)) return errorResult("Provide a question and choices with nonempty labels.");
 		const options = args.options.map((option) => typeof option === "string" ? option.trim() : { ...option, label: option.label.trim() });
 		const labels = options.map((option) => typeof option === "string" ? option : option.label);
-		if ((!options.length && !args.allowCustomInput) || new Set(labels).size !== labels.length) return errorResult("Provide distinct choices, or enable custom input.");
+		if ((!options.length && args.allowCustomInput === false) || new Set(labels).size !== labels.length) return errorResult("Provide distinct choices, or enable custom input.");
 		if (args.selectionMode !== undefined && args.selectionMode !== "single" && args.selectionMode !== "multi") return errorResult("selectionMode must be single or multi.");
 		if (args.defaultOptionIndex !== undefined && (!Number.isInteger(args.defaultOptionIndex) || args.defaultOptionIndex < 0 || args.defaultOptionIndex >= options.length)) return errorResult("defaultOptionIndex must identify an existing choice.");
 		const decision = await ctx.requestApproval({
 			kind: "interactive", title: "需要你的意见", detail: args.question.trim(), subject: "ask_user", options,
-			allowCustomInput: args.allowCustomInput === true, selectionMode: args.selectionMode ?? "single",
+			allowCustomInput: args.allowCustomInput !== false, selectionMode: args.selectionMode ?? "single",
 			allowSkip: args.allowSkip !== false, defaultOptionIndex: args.defaultOptionIndex,
 		});
 		if (decision === "skip") return { content: [{ type: "text", text: "The user skipped this question. No answer or permission was granted. Continue only work that does not depend on this answer." }], details: { kind: "question", skipped: true } };

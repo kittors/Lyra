@@ -3,7 +3,7 @@ import type {
   UserContent,
   UserMessage as UserMessageType,
 } from "@lyra/core";
-import { MessageSquarePlus, Pencil, Boxes, MessagesSquare } from "lucide-react";
+import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Undo2 } from "lucide-react";
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
@@ -18,6 +18,9 @@ import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { lastUserMessageIndex } from "../../lib/revert-draft.ts";
+import { afterPaint } from "../../lib/after-paint.ts";
 /**
  * A message you sent, with the two things you want from one afterwards: to copy it, and to
  * take it back.
@@ -101,8 +104,11 @@ export function UserMessage({
   index: number;
 }) {
 	const { t } = useI18n();
-  const running = useApp((s) => s.running);
-  const editMessage = useApp((s) => s.editMessage);
+	const running = useApp((s) => s.running);
+	const editMessage = useApp((s) => s.editMessage);
+	const revertMessage = useApp((s) => s.revertMessage);
+	const lastUser = useApp((s) => lastUserMessageIndex(s.messages));
+	const confirm = useConfirmer();
   const attachmentActions = useAttachmentActions();
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
   const previewImage = (src: string, originRect?: DOMRect) => {
@@ -346,7 +352,11 @@ export function UserMessage({
                 onClick={() => {
                   const target = useApp.getState().sessions.find((s) => s.id === sRef.id);
                   if (target) {
-                    void useApp.getState().openSession(target);
+                    const epoch = useApp.getState().previewSession(target);
+                    void afterPaint().then(() => {
+                      if (useApp.getState().selectionEpoch !== epoch) return;
+                      void useApp.getState().openSession(target);
+                    });
                   } else {
                     useApp.getState().notify(t("userMessage.sessionMissing", { title: sRef.title }), "warn");
                   }
@@ -447,6 +457,30 @@ export function UserMessage({
       >
         <button
           type="button"
+          data-message-undo=""
+          data-ly-tip={running ? t("userMessage.undoRunning") : t("userMessage.undo")}
+          aria-label={t("userMessage.undo")}
+          disabled={running}
+          onClick={() => {
+            if (running) return;
+            const run = () => void revertMessage(index);
+            if (index === lastUser) {
+              run();
+              return;
+            }
+            confirm.ask({
+              title: t("userMessage.undoConfirmTitle"),
+              detail: t("userMessage.undoConfirmDetail"),
+              confirmLabel: t("userMessage.undoConfirm"),
+              onConfirm: run,
+            });
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <Undo2 size={12.5} strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
           data-ly-tip={running ? t("userMessage.turnRunning") : t("userMessage.editResend")}
           aria-label={t("userMessage.editResend")}
           disabled={running}
@@ -459,6 +493,7 @@ export function UserMessage({
           <Pencil size={12.5} strokeWidth={1.8} />
         </button>
       </MessageActions>
+      {confirm.element}
     </div>
   );
 }

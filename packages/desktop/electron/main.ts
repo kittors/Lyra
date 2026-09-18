@@ -93,6 +93,7 @@ import {
 	useSettingsSource,
 	useTrayPresence,
 } from "./window.ts";
+import { registerWindowsIpc } from "./ipc/windows.ts";
 import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
@@ -787,6 +788,7 @@ function registerIpc(): void {
 	registerWorkspaceIpc({ workspaceInfo });
 
 	registerWindowIpc();
+	registerWindowsIpc();
 
 	registerSessionsIpc({
 		store: () => store,

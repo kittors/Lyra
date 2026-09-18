@@ -220,7 +220,7 @@ function fitSizes(sizes: number[], floors: number[], mayOverlap = false): number
 }
 
 /** How much of `axis` a node needs before it stops being usable. */
-function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): number {
+export function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): number {
 	if (node.type === "leaf") {
 		const min = floor(node.kind);
 		return axis === "row" ? min.width : min.height;
@@ -230,6 +230,23 @@ function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): 
 	return node.dir === axis
 		? children.reduce((sum, size) => sum + size, 0)
 		: children.reduce((largest, size) => Math.max(largest, size), 0);
+}
+
+/**
+ * Whether this tree still clears every pane's floor inside `span`.
+ *
+ * Asked *before* a pane is inserted or moved. `fitTree` can keep drawing a tree that does not
+ * clear its floors — it overlaps along a row — which is how a 2×2 tile produced a conversation
+ * sliver. The honest answer here is no, and the caller pops the pane out instead of committing.
+ */
+export function clearsFloors(
+	node: DockNode,
+	span: { width: number; height: number },
+	floor: (kind: PaneKind) => Floor,
+): boolean {
+	if (!(span.width > 0) || !(span.height > 0)) return false;
+	return floorOf(node, "row", floor) <= span.width + EPSILON
+		&& floorOf(node, "col", floor) <= span.height + EPSILON;
 }
 
 /**

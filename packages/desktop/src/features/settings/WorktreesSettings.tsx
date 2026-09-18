@@ -5,6 +5,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./controls.tsx";
+import { NumberField } from "./pickers.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -173,13 +174,14 @@ export function WorktreesSettings() {
 					title={t("worktrees.keepLimit")}
 					detail={t("worktrees.keepLimitDetail")}
 					control={
-						<Input
-							type="number"
+						<NumberField
+							value={keepLimit}
 							min={1}
 							max={100}
-							value={keepLimit}
-							onChange={(e) => update({ keepLimit: Number(e.target.value) || 15 })}
-							className="h-8 w-20 rounded-lg border border-line bg-input px-2.5 text-center text-label text-ink focus:border-ink-faint"
+							label={t("worktrees.keepLimit")}
+							name="keepLimit"
+							width={80}
+							onChange={(next) => update({ keepLimit: next })}
 						/>
 					}
 				/>

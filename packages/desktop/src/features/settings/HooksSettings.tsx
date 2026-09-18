@@ -5,13 +5,13 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { useApp } from "../../store/index.ts";
 import {
   Badge,
   Card,
   EmptyHint,
   Field,
-  GhostButton,
   SectionTitle,
   Select,
   TextInput,
@@ -89,7 +89,7 @@ export function HooksSettings() {
           </p>
         </div>
         <div className="shrink-0 pt-1">
-          <GhostButton
+          <DialogAction
             onClick={() =>
               add({
                 command: "echo $DW_TOOL",
@@ -99,9 +99,11 @@ export function HooksSettings() {
                 blocking: false,
               })
             }
-            title={t("common.new")}
-            icon={<Plus size={12} strokeWidth={2} />}
-          />
+            label={t("common.new")}
+          >
+            <Plus size={13} strokeWidth={2} aria-hidden />
+            {t("common.new")}
+          </DialogAction>
         </div>
       </header>
 

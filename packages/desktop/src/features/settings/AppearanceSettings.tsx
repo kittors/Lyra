@@ -3,7 +3,8 @@ import { translate } from "../../i18n/translate.ts";
 import type { AppearanceSettings as Appearance } from "@lyra/core";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { Card, GhostButton, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } from "./controls.tsx";
+import { Card, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/code/themes.ts";
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { CODE_DEFAULTS } from "./code-defaults.ts";
@@ -33,11 +34,11 @@ const FACTORY_APPEARANCE: Appearance = {
 	lightForeground: "#1A1C1F",
 	darkBackground: "#171717",
 	darkForeground: "#EDEDED",
-	uiFont: '"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
 	codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
 	codeLightTheme: "lyra-light",
 	codeDarkTheme: "lyra-dark",
-	uiFontSize: 13,
+	uiFontSize: 14,
 	codeFontSize: 12,
 	contrast: 60,
 	contentWidth: 640,
@@ -199,12 +200,12 @@ export function AppearanceSettings() {
 			 */}
 			<div className="flex items-baseline justify-between">
 				<SectionTitle>{t("appearance.codeSection")}</SectionTitle>
-				<GhostButton
-					onClick={() =>
-						patch({ ...CODE_DEFAULTS })
-					} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("appearance.resetDefaults")} />
+				<DialogAction onClick={() => patch({ ...CODE_DEFAULTS })} label={t("appearance.resetDefaults")}>
+					<RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+					{t("appearance.resetDefaults")}
+				</DialogAction>
 			</div>
-			<Card className="mb-8 p-4 space-y-4">
+			<Card className="mb-8 p-4 space-y-4" data-ly-code-appearance="">
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex-1 min-w-0">
 						<span className="block text-label font-medium text-ink">{t("appearance.lightSyntax")}</span>
@@ -299,6 +300,21 @@ export function AppearanceSettings() {
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
+						<span className="block text-label font-medium text-ink">{t("appearance.codeFontSize")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.codeFontSizeDetail")}</span>
+					</div>
+					<PixelField
+						value={appearance.codeFontSize}
+						min={10}
+						max={20}
+						onChange={(codeFontSize) => patch({ codeFontSize })}
+						label={t("appearance.codeFontSize")}
+						name="codeFontSize"
+					/>
+				</div>
+
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
+					<div className="flex-1 min-w-0">
 						<span className="block text-label font-medium text-ink">{t("appearance.weightSection")}</span>
 						<span className="block text-caption text-ink-muted">{t("appearance.weightDetail")}</span>
 					</div>
@@ -322,6 +338,7 @@ export function AppearanceSettings() {
 							step={50}
 							width={72}
 							label={t("appearance.weight")}
+							name="codeFontWeight"
 							onChange={(codeFontWeight) => patch({ codeFontWeight })}
 						/>
 					</div>
@@ -350,6 +367,7 @@ export function AppearanceSettings() {
 							step={0.05}
 							width={72}
 							label={t("appearance.lineHeight")}
+							name="codeLineHeight"
 							onChange={(codeLineHeight) => patch({ codeLineHeight })}
 						/>
 					</div>
@@ -378,6 +396,7 @@ export function AppearanceSettings() {
 							step={0.01}
 							width={72}
 							label={t("appearance.tracking")}
+							name="codeLetterSpacing"
 							onChange={(codeLetterSpacing) => patch({ codeLetterSpacing })}
 						/>
 					</div>
@@ -418,6 +437,7 @@ export function AppearanceSettings() {
 							max={20}
 							onChange={(uiFontSize) => patch({ uiFontSize })}
 							label={t("appearance.uiScale")}
+							name="uiFontSize"
 						/>
 					}
 				/>
@@ -451,6 +471,7 @@ export function AppearanceSettings() {
 									max={CONTENT_MAX}
 									onChange={(contentWidth) => patch({ contentWidth })}
 									label={t("appearance.chatWidth")}
+									name="contentWidth"
 								/>
 							)}
 						</div>
@@ -501,19 +522,6 @@ export function AppearanceSettings() {
 					<ComposerHeightPreview lines={composerLines} />
 				</Row>
 				<Row
-					title={t("appearance.codeFontSize")}
-					detail={t("appearance.codeFontSizeDetail")}
-					control={
-						<PixelField
-							value={appearance.codeFontSize}
-							min={10}
-							max={20}
-							onChange={(codeFontSize) => patch({ codeFontSize })}
-							label={t("appearance.codeFontSize")}
-						/>
-					}
-				/>
-				<Row
 					title={t("appearance.diffMarks")}
 					detail={t("appearance.diffMarksDetail")}
 					control={
@@ -550,7 +558,10 @@ export function AppearanceSettings() {
 					title={t("appearance.resetDefaults")}
 					detail={t("appearance.resetDefaultsDetail")}
 					control={
-						<GhostButton onClick={() => patch(FACTORY_APPEARANCE)} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("common.restore")} />
+						<DialogAction onClick={() => patch(FACTORY_APPEARANCE)} label={t("common.restore")}>
+							<RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+							{t("common.restore")}
+						</DialogAction>
 					}
 				/>
 			</Card>

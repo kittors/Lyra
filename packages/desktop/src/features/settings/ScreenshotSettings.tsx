@@ -11,12 +11,12 @@ import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import {
 	Card,
-	GhostButton,
 	Row,
 	SectionTitle,
 	ShortcutRecorder,
 	Toggle,
 } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 export function ScreenshotSettings() {
@@ -76,7 +76,10 @@ export function ScreenshotSettings() {
 								onChange={(val) => patch({ shortcut: val })}
 							/>
 							{config.shortcut && (
-								<GhostButton onClick={() => patch({ shortcut: "" })} icon={<Eraser size={13} strokeWidth={1.8} />} title={t("common.clear")} />
+								<DialogAction onClick={() => patch({ shortcut: "" })} label={t("common.clear")}>
+									<Eraser size={13} strokeWidth={1.8} aria-hidden />
+									{t("common.clear")}
+								</DialogAction>
 							)}
 						</div>
 					}
@@ -95,7 +98,10 @@ export function ScreenshotSettings() {
 					title={t("shot.test")}
 					detail={t("shot.testDetail")}
 					control={
-						<GhostButton disabled={config.enabled === false} icon={<Camera size={14} />} onClick={() => void bridge.screenshot.start().catch((error: unknown) => useApp.getState().notify(String(error), "error"))} title={t("screenshot.now")} />
+						<DialogAction disabled={config.enabled === false} onClick={() => void bridge.screenshot.start().catch((error: unknown) => useApp.getState().notify(String(error), "error"))} label={t("screenshot.now")}>
+							<Camera size={14} strokeWidth={2} aria-hidden />
+							{t("screenshot.now")}
+						</DialogAction>
 					}
 				/>
 			</Card>
@@ -112,9 +118,15 @@ export function ScreenshotSettings() {
 					control={
 						<div className="flex items-center gap-2">
 							{config.saveLocation?.trim() && (
-								<GhostButton onClick={() => patch({ saveLocation: "" })} icon={<Eraser size={13} strokeWidth={1.8} />} title={t("common.clear")} />
+								<DialogAction onClick={() => patch({ saveLocation: "" })} label={t("common.clear")}>
+									<Eraser size={13} strokeWidth={1.8} aria-hidden />
+									{t("common.clear")}
+								</DialogAction>
 							)}
-							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("saveLocation")} title={config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")} />
+							<DialogAction onClick={() => void pickDirectory("saveLocation")} label={config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")}>
+								<FolderOpen size={14} strokeWidth={2} aria-hidden />
+								{config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")}
+							</DialogAction>
 						</div>
 					}
 				/>
@@ -136,9 +148,15 @@ export function ScreenshotSettings() {
 					control={
 						<div className="flex items-center gap-2">
 							{config.downloadLocation?.trim() && (
-								<GhostButton onClick={() => patch({ downloadLocation: "" })} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("common.restoreDefault")} />
+								<DialogAction onClick={() => patch({ downloadLocation: "" })} label={t("common.restoreDefault")}>
+									<RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+									{t("common.restoreDefault")}
+								</DialogAction>
 							)}
-							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("downloadLocation")} title={config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")} />
+							<DialogAction onClick={() => void pickDirectory("downloadLocation")} label={config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")}>
+								<FolderOpen size={14} strokeWidth={2} aria-hidden />
+								{config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")}
+							</DialogAction>
 						</div>
 					}
 				/>

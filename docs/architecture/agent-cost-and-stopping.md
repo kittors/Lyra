@@ -19,7 +19,7 @@
 | A2 grep | 单行 2,000、总输出 12,000。窗口开在匹配附近，不是行首；省略处写下 `char_offset`，`read` 按这个地址翻页。rg 与 fallback 共用闸门，不拆 surrogate | 巨型单行两条路径 red/green；历史最大结果从 12,853,666 降至 11,999 字符 |
 | A3 bash | 保持 60,000 字符上限；历史平均约 1,451 tokens，证据指向携带寿命而非普遍单次输出过大 | 不为追求数字降低可用信息量 |
 | A4 skill | 完整注入文本（含参数与限制）SHA256 去重；每次执行前与模型实际历史同步，压缩丢失正文后可再加载；限制仍更新 | `skill-allowed-tools.test.ts` |
-| A5 压缩 | 修正 `measureTotal` 漏计 cacheWrite；继续采用 0.8 阈值 | cacheWrite 占用 red/green；比例与固定缓冲孰优仍需任务级实验 |
+| A5 压缩 | 修正 `measureTotal` 漏计 cacheWrite；**裁决保留 0.8 比例**。20k 剩余缓冲在 32k 窗口会于 37% 触发、在 200k 窗口又晚于 80%。`compactionTriggerTokens` 把这条写死 | `compaction.test.ts`：200k→160k，32k→25600 |
 | B1/B2 重复 | 保留 10 次兜底阈值；完整输出摘要替代前 400 字采样；成功 write/edit 清空精确/意图表，失败不清。切图/像素测距按活动族计数，写新的测距脚本不重置，纠正 5 次、10 次停 | `repetition.test.ts`；没有用编辑次数或 Todo 推断停机 |
 | C1 归因 | **纠正原报告：运行时原已持久化所有 `agent_end.reason`，此前 audit 只数模型 `stopReason`，混淆了两层语义。** audit 现直接统计 runtime 事件与覆盖率 | 五种原因落盘测试；旧数据仅 71/266 个会话带事件，不能补造历史原因 |
 | C2 通知 | max_turns 空清单退出、总续跑耗尽均有可见通知 | `resume.test.ts` |
@@ -27,7 +27,7 @@
 | C4 用量 | 运行行标明本轮 fresh tokens 与缓存占比；会话卡片标明全程用量。分母为 input + cacheRead + cacheWrite，不含 output；续跑与子 agent 保留同一口径 | `turn-meter.test.ts` 与真实 Electron fixture |
 | E1 并行 | 对实际 Gemini 服务做 8 次有界对照请求，独立文件场景均一次 3 个 read，依赖场景均先读 manifest；额外示例没有增益，因此不改生产提示词 | 简单场景证明能力，不足以证明真实复杂任务达到 ≥2.0 调用/轮；该目标未完成 |
 | E2 shell 改道 | 无 shell 组合、变量、glob、升级或后台语义的简单 cat/ls/grep 在同轮执行内置工具；尊重开关、原 bash 与目标工具的 hooks/限制，保留 call id | `translated-tools.test.ts`，不再为这类确定改道支付一次纠错请求 |
-| F1/F2 事后审计 | 增加编辑次数 P90 与样本数，显示挫败关键词代理未经校准 | 当前顺利组 P90=8 (n=95)，代理挫败组 P90=14 (n=9)；人工校准及修复后真实任务质量仍未验证 |
+| F1/F2 事后审计 | 增加编辑次数 P90 与样本数；F2 把需求重述从挫败词里拆出来单独计数，仍是关键词代理 | `audit:sessions` 现报挫败率与重述率；未经人工校准，不是任务成功率 |
 
 额外修复：未完成 Todo 不再强制正文回复继续。空正文无工具最多纠正 3 次，工具调用不补充额度；
 明确取消旧目标可用 `control_main({action:"pause",discardPlan:true})`，等待在途工具结束后清单清空并落盘，

@@ -32,10 +32,19 @@ import type {
  * below the features rather than beside them, so it is not one domain reaching into another.
  */
 import { useSide } from "../features/dock/sideStore.ts";
+import { sideChatRunning } from "../lib/row-activity.ts";
 import { bridge } from "../services/index.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
 import type { Hiccup } from "../lib/hiccup.ts";
+
+export function useSideChatRunning(sessionId: string): boolean {
+	return useSide((state) => sideChatRunning(state, sessionId));
+}
+
+export function useSideChatRunningKey(ids: readonly string[]): string {
+	return useSide((state) => ids.filter((id) => sideChatRunning(state, id)).join("\0"));
+}
 
 /**
  * `plugins` is the catalogue, not the plugin *settings*.
@@ -157,9 +166,21 @@ export interface AppState extends QueueSlice {
    * alternatives, so pressing a second one means "that one instead": appending there stacks three
    * unrelated requests into one message nobody wrote.
    */
-  composerDraft: { text: string; replace: boolean };
+  composerDraft: {
+    text: string;
+    replace: boolean;
+    attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
+    sessionRefs?: Array<{ id: string; title: string }>;
+  };
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
-  setComposerDraft(text: string, replace?: boolean): void;
+  setComposerDraft(
+    text: string,
+    replace?: boolean,
+    extras?: {
+      attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
+      sessionRefs?: Array<{ id: string; title: string }>;
+    },
+  ): void;
 
   /**
    * Unsent drafts in the composer, keyed by session id or blank conversation key:
@@ -171,6 +192,14 @@ export interface AppState extends QueueSlice {
   setDraft(key: string, draft: { text: string; attachments?: { id: string; name: string; mimeType: string; data?: string; text?: string; isText?: boolean }[]; sessionRefs?: Array<{ id: string; title: string }> } | null): void;
 
   activeSessionId: string | null;
+  /**
+   * Sidebar highlight for a click that has not yet swapped the live transcript.
+   *
+   * The row has to light in the same turn as the pointer. Parking the last chat and mounting
+   * the next one is the next frame's job — otherwise the highlight waits on that work and the
+   * click reads as dropped.
+   */
+  pendingSessionId: string | null;
   selectionEpoch: number;
   meta: SessionMeta | null;
   messages: Message[];
@@ -361,6 +390,9 @@ export interface AppState extends QueueSlice {
   /** Archive every session belonging to one project. */
   archiveProjectSessions(path: string): Promise<void>;
   newSession(): Promise<void>;
+  /** Light the row now. Returns the selection epoch so a later hydrate can tell if it is stale. */
+  previewSession(meta: SessionMeta): number;
+  previewSessionId(id: string): number;
   openSession(meta: SessionMeta): Promise<void>;
 	openSessionById(id: string): Promise<boolean>;
   deleteSession(meta: SessionMeta): Promise<void>;
@@ -393,9 +425,14 @@ export interface AppState extends QueueSlice {
    * 措辞，这两样得原样带过去，否则每编辑一次就把附件从界面上抹掉一次。
    */
   editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
+  /**
+   * Take a user message back: cut it and everything after, then put the wording in the composer.
+   * Does not start another turn.
+   */
+  revertMessage(index: number): Promise<void>;
   /** Re-send the user message that produced the reply at `index`. */
   retryFrom(index: number): Promise<void>;
-  abort(): Promise<void>;
+  abort(sessionId?: string): Promise<void>;
   respondToApproval(
     id: string,
     decision: ApprovalDecision,
@@ -443,6 +480,7 @@ export const useApp = create<AppState>((set, get) => ({
   browserAttachment: null,
   drafts: {},
   activeSessionId: null,
+  pendingSessionId: null,
   selectionEpoch: 0,
   meta: null,
   messages: [],
@@ -558,7 +596,15 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
-  setComposerDraft: (text, replace = false) => set({ composerDraft: { text, replace } }),
+  setComposerDraft: (text, replace = false, extras) =>
+    set({
+      composerDraft: {
+        text,
+        replace,
+        attachments: extras?.attachments ?? [],
+        sessionRefs: extras?.sessionRefs ?? [],
+      },
+    }),
   setDraft: (key, draft) =>
     set((state) => {
       if (!draft || (!draft.text.trim() && (!draft.attachments || draft.attachments.length === 0) && !draft.sessionRefs?.length)) {

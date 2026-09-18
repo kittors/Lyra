@@ -6,6 +6,7 @@ import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popove
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { useLayout } from "../../app/layout.tsx";
 import { type ExtensionsTab, useApp } from "../../store/index.ts";
 import { ExtensionHostSettings } from "./ExtensionHostSettings.tsx";
 import { McpSettings, newMcpServer } from "./McpSettings.tsx";
@@ -30,6 +31,8 @@ type Tab = ExtensionsTab;
  */
 export function ExtensionsSettings() {
 	const { t } = useI18n();
+	const { compact } = useLayout();
+	const gutter = compact ? "px-4" : "px-9";
 	const workspace = useApp((s) => s.workspace);
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
@@ -117,8 +120,8 @@ export function ExtensionsSettings() {
 	];
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col pt-8">
-			<header className="flex shrink-0 items-start justify-between pb-5">
+		<div className="flex min-h-0 flex-1 flex-col" data-ly-extensions-page="">
+			<header className={`mx-auto flex w-full max-w-[900px] shrink-0 items-start justify-between pt-8 pb-5 ${gutter}`}>
 				<div className="min-w-0">
 					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("common.plugins")}</h1>
 					{/* One line under the title, because the word 插件 is doing three jobs on this page —
@@ -176,7 +179,7 @@ export function ExtensionsSettings() {
 			)}
 
 			{/* One row: what to look at, and what to look for. */}
-			<div className="flex shrink-0 flex-wrap items-center gap-3 pb-5">
+			<div className={`mx-auto flex w-full max-w-[900px] shrink-0 flex-wrap items-center gap-3 pb-5 ${gutter}`}>
 				<div className="flex max-w-full flex-wrap items-center gap-1">
 					{tabs.map((entry) => (
 						<button
@@ -278,11 +281,21 @@ export function ExtensionsSettings() {
 
 			<RetainedViews active={tab} limit={5} render={(shown) => (
 				<Scroller className="flex-1" contentClassName="pb-10">
-					{shown === "plugins" && <PluginsSettings filter={query} />}
-					{shown === "skills" && <SkillsSettings filter={query} />}
-					{shown === "rules" && <RulesSettings filter={query} />}
-					{shown === "mcp" && <McpSettings filter={query} />}
-					{shown === "extensions" && <ExtensionHostSettings filter={query} />}
+					{/*
+					 * Column is inside the viewport, not the viewport itself.
+					 *
+					 * The overlay thumb sits on the host's right edge. If the host is the 900px
+					 * column, that edge is the right of every full-width field — the try-condition
+					 * box looked like it had a scrollbar growing out of it. The host fills the
+					 * pane; the page still reads as the same column the header uses.
+					 */}
+					<div className={`mx-auto w-full max-w-[900px] ${gutter}`} data-ly-extensions-column="">
+						{shown === "plugins" && <PluginsSettings filter={query} />}
+						{shown === "skills" && <SkillsSettings filter={query} />}
+						{shown === "rules" && <RulesSettings filter={query} />}
+						{shown === "mcp" && <McpSettings filter={query} />}
+						{shown === "extensions" && <ExtensionHostSettings filter={query} />}
+					</div>
 				</Scroller>
 			)} />
 

@@ -69,7 +69,7 @@ export function SideChat() {
 				<Scroller
 					className="flex-1"
 					scrollRef={follow.scrollRef}
-					contentClassName="px-3"
+					contentClassName="ly-content-gutter"
 					onScroll={follow.onScroll}
 					onResize={follow.onResize}
 					onUserScroll={follow.onUserScroll}
@@ -113,7 +113,7 @@ export function SideChat() {
 			)}
 
 			<TaskStrip />
-			{error && <p role="alert" className="px-3 py-2 text-label text-danger">{error}</p>}
+			{error && <p role="alert" className="ly-content-gutter py-2 text-label text-danger">{error}</p>}
 
 			<SideComposer
 				running={running}

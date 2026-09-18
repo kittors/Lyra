@@ -10,7 +10,7 @@ import { type SessionStorage } from "@lyra/core";
 import { workspaceInfo } from "./workspace-info.ts";
 import { applySettings, onSettingsChanged, settings } from "./app-settings.ts";
 import type { SyncStatus } from "./ipc-types.ts";
-import { editSessionMessage, activateSession, createSession, abortSession, disposeSession, promptSession, sessions, snapshot, touchSession } from "./session-hub.ts";
+import { editSessionMessage, revertSessionMessage, activateSession, createSession, abortSession, disposeSession, promptSession, sessions, snapshot, touchSession } from "./session-hub.ts";
 import { SyncServer } from "./sync-server.ts";
 import { listCommands } from "./commands-service.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "./file-read-service.ts";
@@ -85,6 +85,7 @@ export async function startSync(): Promise<SyncStatus> {
 			},
 			prompt: promptSession,
 			editMessage: editSessionMessage,
+			revertMessage: revertSessionMessage,
 			abort: abortSession,
 			dispose: disposeSession,
 			snapshot: (session) => snapshot(session),

@@ -5,8 +5,10 @@ import { useApp } from "../../src/store/index.ts";
 import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { flushCoalesced } from "../../src/store/coalesce.ts";
 import { prune, type Cache } from "../../src/store/derive.ts";
+import { afterPaint } from "../../src/lib/after-paint.ts";
 import { readSelectedSession } from "../../src/store/session-read.ts";
 import { applySessionChange } from "../../src/store/session-changes.ts";
+import { abandonSessionReveal, revealSession, SESSION_SETTLE_MS } from "../../src/features/split/actions.ts";
 import type { LyraApi } from "../../electron/ipc-types.ts";
 
 type Snapshot = Awaited<ReturnType<LyraApi["sessions"]["transcript"]>>;
@@ -62,13 +64,17 @@ function reply(text: string): AssistantMessage {
 	};
 }
 
+const settled = () => new Promise<void>((resolve) => setTimeout(resolve, SESSION_SETTLE_MS + 20));
+
 beforeEach(() => {
+	abandonSessionReveal();
 	flushCoalesced();
 	readTranscript = async (_projectId, id) => snapshot(id);
 	capabilityReads = [];
 	rosterReads = [];
 	useApp.setState({
 		activeSessionId: "a",
+		pendingSessionId: null,
 		meta: meta("a"),
 		messages: [reply("a")],
 		toolRuns: {},
@@ -102,6 +108,91 @@ beforeEach(() => {
 			git: { generalScratch: async () => "/test" },
 		},
 	});
+});
+
+test("previewing a session lights it without swapping the live transcript", () => {
+	const original = useApp.getState().messages;
+	const epoch = useApp.getState().previewSession(meta("b"));
+	assert.equal(useApp.getState().pendingSessionId, "b");
+	assert.equal(useApp.getState().activeSessionId, "a");
+	assert.equal(useApp.getState().messages, original);
+	assert.equal(useApp.getState().view, "chat");
+	assert.equal(useApp.getState().selectionEpoch, epoch);
+	assert.equal(useApp.getState().previewSession(meta("b")), epoch, "a second preview of the same row is not a new navigation");
+	useApp.setState({ view: "settings" });
+	useApp.getState().previewSession(meta("c"));
+	assert.equal(useApp.getState().view, "settings", "the row lights without tearing down the page that is still on screen");
+	assert.equal(useApp.getState().pendingSessionId, "c");
+});
+
+test("a sidebar click keeps the previous transcript until the click stream goes quiet", async () => {
+	const original = useApp.getState().messages;
+	revealSession(meta("b"));
+	assert.equal(useApp.getState().pendingSessionId, "b");
+	assert.equal(useApp.getState().activeSessionId, "a");
+	assert.equal(useApp.getState().messages, original);
+	await afterPaint();
+	assert.equal(useApp.getState().activeSessionId, "a", "a paint is not enough — that is still inside a burst");
+	assert.equal(useApp.getState().messages, original);
+	await settled();
+	assert.equal(useApp.getState().activeSessionId, "b");
+	assert.equal(useApp.getState().pendingSessionId, null);
+	assert.notEqual(useApp.getState().messages, original);
+	for (let i = 0; i < 10 && useApp.getState().loadingSession; i++) await afterPaint();
+	assert.equal(useApp.getState().loadingSession, false);
+});
+
+test("a burst of sidebar clicks hydrates only the last row", async () => {
+	const original = useApp.getState().messages;
+	const reads: string[] = [];
+	readTranscript = async (_projectId, id) => {
+		reads.push(id);
+		return snapshot(id);
+	};
+	let swaps = 0;
+	let seen = useApp.getState().activeSessionId;
+	const stop = useApp.subscribe((state) => {
+		if (state.activeSessionId !== seen) {
+			swaps += 1;
+			seen = state.activeSessionId;
+		}
+	});
+	try {
+		for (const id of ["b", "c", "d", "e"]) revealSession(meta(id));
+		assert.equal(useApp.getState().pendingSessionId, "e");
+		assert.equal(useApp.getState().activeSessionId, "a");
+		assert.equal(useApp.getState().messages, original);
+		assert.equal(swaps, 0);
+		await settled();
+		assert.equal(useApp.getState().activeSessionId, "e");
+		assert.equal(useApp.getState().pendingSessionId, null);
+		assert.equal(swaps, 1, "twenty lights, one transcript");
+		assert.deepEqual(reads, ["e"], "intermediate rows must not hit disk");
+		for (let i = 0; i < 10 && useApp.getState().loadingSession; i++) await afterPaint();
+		assert.equal(useApp.getState().loadingSession, false);
+	} finally {
+		stop();
+	}
+});
+
+test("an in-flight cold read does not swap if a newer row is pending", async () => {
+	const first = deferredRead();
+	const second = deferredRead();
+	readTranscript = (_projectId, id) => (id === "b" ? first.promise : second.promise);
+	const original = useApp.getState().messages;
+	revealSession(meta("b"));
+	await settled();
+	revealSession(meta("c"));
+	assert.equal(useApp.getState().pendingSessionId, "c");
+	first.resolve(snapshot("b"));
+	await new Promise<void>((resolve) => setTimeout(resolve, 20));
+	assert.equal(useApp.getState().activeSessionId, "a");
+	assert.equal(useApp.getState().messages, original);
+	await settled();
+	second.resolve(snapshot("c"));
+	for (let i = 0; i < 20 && useApp.getState().activeSessionId !== "c"; i++) await afterPaint();
+	assert.equal(useApp.getState().activeSessionId, "c");
+	assert.equal(useApp.getState().pendingSessionId, null);
 });
 
 test("a warm visit restores session status before its background refresh", async () => {
@@ -221,7 +312,24 @@ test("background messages update a parked session without flashing a cold loader
 });
 
 
-test("a cold historical session stays empty and loading until the transcript arrives", async () => {
+test("a cold open keeps the live transcript until the snapshot is ready", async () => {
+	const deferred = deferredRead();
+	readTranscript = () => deferred.promise;
+	const original = useApp.getState().messages;
+	const opening = useApp.getState().openSession({ ...meta("cold"), messageCount: 800 });
+	await afterPaint();
+	assert.equal(useApp.getState().activeSessionId, "a");
+	assert.equal(useApp.getState().messages, original);
+	assert.equal(useApp.getState().loadingSession, false, "the current tree stays up while the next one is read");
+	deferred.resolve(snapshot("cold"));
+	await opening;
+	assert.equal(useApp.getState().activeSessionId, "cold");
+	assert.equal(useApp.getState().loadingSession, false);
+	assert.equal(useApp.getState().messages.length, 1);
+});
+
+test("a cold open from a blank slot still shows a loader", async () => {
+	useApp.setState({ activeSessionId: null, meta: null, messages: [], loadingSession: false });
 	const deferred = deferredRead();
 	readTranscript = () => deferred.promise;
 	const opening = useApp.getState().openSession({ ...meta("cold"), messageCount: 800 });

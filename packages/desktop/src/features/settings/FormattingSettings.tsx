@@ -3,7 +3,8 @@ import { macKeyboard, shortcutLabel } from "../../ui/keyboard.ts";
 import type { FormattingSettings as Formatting } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./layout.tsx";
-import { Segmented, Toggle, GhostButton } from "./controls.tsx";
+import { Segmented, Toggle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { NumberField } from "./pickers.tsx";
 import { ArrowRightToLine, RotateCcw, Space } from "lucide-react";
 import { FormatPreview } from "./FormatPreview.tsx";
@@ -58,7 +59,10 @@ export function FormattingSettings() {
 			<div>
 				<div className="mb-2 flex items-center justify-between px-1">
 					<SectionTitle>{t("common.preview")}</SectionTitle>
-					<GhostButton onClick={() => patch(DEFAULTS)} icon={<RotateCcw size={13} strokeWidth={1.6} />} title={translate("common.restoreDefault")} />
+					<DialogAction onClick={() => patch(DEFAULTS)} label={translate("common.restoreDefault")}>
+						<RotateCcw size={13} strokeWidth={1.6} aria-hidden />
+						{translate("common.restoreDefault")}
+					</DialogAction>
 				</div>
 				<FormatPreview options={formatting} />
 			</div>
@@ -103,7 +107,8 @@ export function FormattingSettings() {
 									min={1}
 									max={8}
 									label={t("format.indentWidth")}
-									width={60}
+									name="tabWidth"
+									width={64}
 									onChange={(tabWidth) => patch({ tabWidth })}
 								/>
 							</div>
@@ -119,7 +124,8 @@ export function FormattingSettings() {
 								max={400}
 								step={10}
 								label={t("format.printWidth")}
-								width={72}
+								name="printWidth"
+								width={80}
 								onChange={(printWidth) => patch({ printWidth })}
 							/>
 						}

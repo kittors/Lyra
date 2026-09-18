@@ -947,6 +947,26 @@ export class AgentSession {
 	}
 
 	/**
+	 * Take a user message back without asking again.
+	 *
+	 * Edit-and-resend throws the tail away and immediately spends another turn. Undo is the other
+	 * half of that: the same cut, then stop, so the wording can land in the composer instead of
+	 * going back to the model. A running turn still owns the log, so this refuses rather than
+	 * aborting — abort-then-cut is what edit does, and mixing the two is how a tool write and a
+	 * rewind race.
+	 */
+	async revert(messageIndex: number): Promise<void> {
+		if (this.running) {
+			throw new Error("Cannot revert while a turn is running");
+		}
+		await this.title.cancel();
+		if (!(await this.log.truncateFrom(messageIndex))) {
+			throw new Error(`Failed to truncate message at index ${messageIndex}`);
+		}
+		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
+	}
+
+	/**
 	 * Name the conversation by hand, and have it stay named.
 	 *
 	 * The title record is what the store already understands, so this is only the writing half.

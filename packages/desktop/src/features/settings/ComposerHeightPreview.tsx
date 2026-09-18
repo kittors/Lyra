@@ -30,8 +30,8 @@ export function ComposerHeightPreview({ lines }: { lines: number }) {
 		<div className="ly-composer mt-3 rounded-[18px] border border-line-soft bg-shell transition-[border-color,box-shadow] duration-[var(--ly-t-base)]">
 			{/*
 			 * 与真输入框同源的排版：`.ly-composer-text` 出 padding、字号与 1.625 的行高，这里
-			 * 只补上那条 `min-height` 的算式。写死 1.625 而不是再引一个变量，是因为算式的另一半
-			 * （24px 的上下 padding）也在那张样式表里，两个数分开放才是真正会走散的写法。
+			 * 只补上那条 `min-height` 的算式。上下 padding 读 `--ly-composer-in`，和真框同一条
+			 * 变量，改一边另一边跟着走。
 			 *
 			 * 高度带过渡：拖一格，框是长上去的，不是跳过去的。这条过渡只有在
 			 * `applyAppearance` 不再为「行数变了」按住全应用的过渡之后才看得见——见 `theme.ts`
@@ -39,11 +39,11 @@ export function ComposerHeightPreview({ lines }: { lines: number }) {
 			 */}
 			<div
 				className="ly-composer-text text-ink-faint transition-[min-height] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
-				style={{ minHeight: `calc(${lines} * 1.625em + 24px)` }}
+				style={{ minHeight: `calc(${lines} * 1.625em + var(--ly-composer-in) * 2)` }}
 			>
 				{translate("composerPreview.placeholder")}
 			</div>
-			<div className="flex items-center justify-between gap-1 px-3 pt-0 pb-2.5">
+			<div className="ly-composer-bar flex items-center justify-between gap-1">
 				<div className="flex shrink-0 items-center gap-1 text-ink-faint">
 					<span className="flex h-7 w-7 items-center justify-center">
 						<Plus size={15} strokeWidth={1.8} />

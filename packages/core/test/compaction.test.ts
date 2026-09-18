@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
+import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryMessages } from "../src/runtime/compaction.ts";
 import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/runtime/prune.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
@@ -380,6 +380,14 @@ test("compaction goes by what the provider measured, not by our guess at it", as
  * string work; summarising is a request that is slow, billed, and least reliable exactly when the
  * window is tight. So this runs first.
  */
+
+test("compaction keeps the 80% ratio instead of a 20k leftover buffer", () => {
+	assert.equal(compactionTriggerTokens(200_000), 160_000);
+	assert.equal(compactionTriggerTokens(32_000), 25_600);
+	assert.ok(200_000 - COMPACTION_BUFFER_TOKENS > compactionTriggerTokens(200_000), "buffer would wait longer on a large window");
+	assert.ok(32_000 - COMPACTION_BUFFER_TOKENS < compactionTriggerTokens(32_000), "buffer would fire too early on a small window");
+	assert.equal(COMPACTION_RATIO, 0.8);
+});
 
 test("an oversized result keeps its head and its tail, and says what went", () => {
 	const text = `HEAD${"x".repeat(20_000)}TAIL`;

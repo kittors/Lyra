@@ -16,6 +16,7 @@ import type { SessionMeta } from "@lyra/core";
 import { useMemo } from "react";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
+import { openInPane } from "../split/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { groupSessions, listableSessions, type Grouped } from "./grouping.ts";
 import type { SortKey } from "./ListMenu.tsx";
@@ -50,7 +51,6 @@ export function useSidebarLists({
 	const settings = useApp((s) => s.settings);
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const scratchRoots = useApp((s) => s.scratchRoots);
-	const openSession = useApp((s) => s.openSession);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
 	const deleteSession = useApp((s) => s.deleteSession);
 
@@ -139,7 +139,7 @@ export function useSidebarLists({
 	 */
 	const confirm = useConfirmer();
 	const open = (meta: SessionMeta) => {
-		void openSession(meta);
+		openInPane(meta);
 		onOpened();
 	};
 	const restore = (meta: SessionMeta) => void setSessionArchived(meta, false);

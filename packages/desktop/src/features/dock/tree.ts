@@ -354,9 +354,11 @@ function replaceAt(node: DockNode, path: number[], change: (node: DockNode) => D
 	if (path.length === 0) return change(node);
 	if (node.type !== "split") return node;
 	const [head, ...rest] = path;
-	if (!node.children[head]) return node;
+	if (head === undefined || !node.children[head]) return node;
+	const child = replaceAt(node.children[head], rest, change);
+	if (child === node.children[head]) return node;
 	const children = [...node.children];
-	children[head] = replaceAt(children[head], rest, change);
+	children[head] = child;
 	return { ...node, children };
 }
 
@@ -390,15 +392,13 @@ export function resize(
 		const far = node.sizes[index + 1];
 		if (near === undefined || far === undefined) return node;
 		const pair = near + far;
+		const nextNear =
+			pair < 2 * floor ? pair / 2 : Math.min(pair - floor, Math.max(floor, fraction));
+		const nextFar = pair - nextNear;
+		if (Math.abs(nextNear - near) < EPSILON && Math.abs(nextFar - far) < EPSILON) return node;
 		const sizes = [...node.sizes];
-		// Too little room for both floors — the only stable answer is halves.
-		if (pair < 2 * floor) {
-			sizes[index] = pair / 2;
-			sizes[index + 1] = pair / 2;
-			return { ...node, sizes };
-		}
-		sizes[index] = Math.min(pair - floor, Math.max(floor, fraction));
-		sizes[index + 1] = pair - sizes[index];
+		sizes[index] = nextNear;
+		sizes[index + 1] = nextFar;
 		return { ...node, sizes };
 	});
 }

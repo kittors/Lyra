@@ -47,16 +47,14 @@ test("a table scrolls inside a frame the thumb and the wrap control can be pinne
 		assert.ok(host.querySelector(".ly-hthumb"));
 
 		/*
-		 * The control is inside the frame and outside the scroller, and nothing else will do.
-		 *
-		 * Inside the scroller, the content slides underneath it: clear at the left edge, over a
-		 * header cell two hundred pixels along. This is the structural half of "never covers a
-		 * cell" — the geometric half is measured in the running window.
+		 * Same seat as the fence copy button: on the host, outside the scroller, no reserved row
+		 * and no gutter rail. The geometric half is measured in the running window.
 		 */
-		const toggle = view.find(".ly-table-toggle button");
+		const toggle = view.find("button.ly-table-toggle");
 		assert.equal(scroller.contains(toggle), false);
 		assert.equal(host.contains(toggle), true);
-		assert.ok(view.find(".ly-table-bar").contains(toggle));
+		assert.equal(view.host.querySelector(".ly-table-bar"), null);
+		assert.equal(view.host.querySelector(".ly-table-frame"), null);
 	} finally {
 		await view.unmount();
 		restore();
@@ -68,16 +66,16 @@ test("the wrap control flips the flag the cells are styled from, and offers the 
 	const view = await mount(h(Markdown, { text: TABLE }));
 	try {
 		const host = view.find(".ly-table");
-		const before = view.find(".ly-table-toggle button").getAttribute("aria-label");
+		const before = view.find("button.ly-table-toggle").getAttribute("aria-label");
 
-		await click(view.find(".ly-table-toggle button"));
+		await click(view.find("button.ly-table-toggle"));
 		assert.equal(host.getAttribute("data-wrap"), "true");
 		// Pressed, and relabelled — a toggle that still says 「自动换行」 once wrapped is a control
 		// you cannot undo by reading it.
-		assert.equal(view.find(".ly-table-toggle button").getAttribute("aria-pressed"), "true");
-		assert.notEqual(view.find(".ly-table-toggle button").getAttribute("aria-label"), before);
+		assert.equal(view.find("button.ly-table-toggle").getAttribute("aria-pressed"), "true");
+		assert.notEqual(view.find("button.ly-table-toggle").getAttribute("aria-label"), before);
 
-		await click(view.find(".ly-table-toggle button"));
+		await click(view.find("button.ly-table-toggle"));
 		assert.equal(host.getAttribute("data-wrap"), "false");
 	} finally {
 		await view.unmount();

@@ -69,8 +69,9 @@ export interface StripFile {
  * 题，不是位置的问题：叉往上探出 8px，而当时纵向行距只有 8px，一点余量都不剩。现在纵向给到
  * 12px（横向仍是 8px），空出来的 4px 就是余量。
  *
- * 单行横滚那一版另有一处要还：会滚的容器把探到外面的半个叉裁掉。所以轨道自己带内边距，再用同样
- * 大小的负外边距把位置还原——裁掉的是内边距以外的东西，而叉正落在内边距里面。见 `.ly-attachments`。
+ * 单行横滚那一版另有一处要还：会滚的容器把探到外面的半个叉裁掉。轨道只在叉探出去的上边和右边
+ * 留空，再用同样大小的负外边距把格子挪回原位。底边不再垫，免得叠在输入框的顶垫上。见
+ * `.ly-attachments-row`。
  */
 function Remove({ name, onClick }: { name: string; onClick: () => void }) {
 	const label = translate("composer.removeAttachment", { name });

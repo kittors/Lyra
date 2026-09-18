@@ -19,8 +19,10 @@ import {
 	delegationNote,
 	delegationTier,
 	dispatchAllowed,
+	MAX_CONCURRENT_SUB_AGENTS,
 	mentionedAgents,
 	normalizeDelegationPolicy,
+	normalizeMaxConcurrentSubAgents,
 } from "../src/runtime/delegation.ts";
 import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
 import type { ThinkingLevel } from "../src/types/provider.ts";
@@ -83,6 +85,21 @@ test("上限至少是 1，无论传进来的是什么", () => {
 		for (const level of LADDER) assert.ok(delegationConcurrency(limit, level) >= 1, `${limit} / ${level}`);
 	}
 	assert.equal(delegationConcurrency(1, "medium"), 1, "向上取整，不能把 1 收成 0");
+});
+
+test("磁盘上的并发上限夹在 1–8，负数回落到默认 4", () => {
+	assert.equal(MAX_CONCURRENT_SUB_AGENTS, 8);
+	assert.equal(normalizeMaxConcurrentSubAgents(-12), 4);
+	assert.equal(normalizeMaxConcurrentSubAgents(0), 4);
+	assert.equal(normalizeMaxConcurrentSubAgents(Number.NaN), 4);
+	assert.equal(normalizeMaxConcurrentSubAgents(3.9), 3);
+	assert.equal(normalizeMaxConcurrentSubAgents(8), 8);
+	assert.equal(normalizeMaxConcurrentSubAgents(16), 8, "旧文件里的 16 不能再穿过去");
+});
+
+test("闸门也不让 16 或负数穿过去", () => {
+	assert.equal(delegationConcurrency(16, "ultra"), 8);
+	assert.equal(delegationConcurrency(-12, "ultra"), 1);
 });
 
 // ---------------------------------------------------------------------------

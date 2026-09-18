@@ -47,7 +47,7 @@ export function EffortTrigger({
 				aria-expanded={menu.open}
 				aria-label={ariaLabel ?? t("composer.thinking", { level: label })}
 				data-ly-tip={t("composer.thinking", { level: label })}
-				className={`ly-composer-control mr-1.5 flex h-7 shrink-0 items-center rounded-md px-2 text-label transition-colors disabled:opacity-60 ${
+				className={`ly-composer-control mr-1.5 flex shrink-0 items-center rounded-md px-2 text-label transition-colors disabled:opacity-60 ${
 					menu.open ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
 				}`}
 			>

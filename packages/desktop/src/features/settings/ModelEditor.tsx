@@ -5,8 +5,13 @@ import { Box, Check, X } from "lucide-react";
 import { useState } from "react";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { isLegalDraft } from "../../lib/number-draft.ts";
 import { Field, GhostButton, PrimaryButton, TextInput, Toggle } from "./controls.tsx";
 import { useI18n } from "../../i18n/index.ts";
+
+const CONTEXT = { min: 1, max: 100_000_000, step: 1 };
+const OUTPUT = { min: 1, max: 100_000_000, step: 1 };
+const PRICE = { min: 0, max: 1_000_000, step: 0.000001 };
 
 export function ModelEditor({
 	provider,
@@ -164,26 +169,26 @@ export function ModelEditor({
 						<ModelCatalog match={catalog} onApply={applyCatalog} />
 
 						<div className="grid grid-cols-2 gap-3">
-							<Field label={t("modelEditor.context")} hint={windowOk ? undefined : t("modelEditor.contextDetail")}>
-								<TextInput value={contextWindow} onChange={(value) => changeMetadata(setContextWindow, value)} invalid={!windowOk} mono inputMode="numeric" />
+							<Field label={t("modelEditor.context")}>
+								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) changeMetadata(setContextWindow, value); }} mono inputMode="numeric" />
 							</Field>
-							<Field label={t("modelEditor.maxOutput")} hint={outputOk ? undefined : t("modelEditor.maxOutputDetail")}>
-								<TextInput value={maxOutput} onChange={(value) => changeMetadata(setMaxOutput, value)} invalid={!outputOk} mono inputMode="numeric" />
+							<Field label={t("modelEditor.maxOutput")}>
+								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) changeMetadata(setMaxOutput, value); }} mono inputMode="numeric" />
 							</Field>
 						</div>
 
 						<div className="grid grid-cols-2 gap-3">
-							<Field label={t("modelEditor.inputPrice")} hint={!pricingOk && !pricingComplete ? t("modelEditor.priceBothDetail") : undefined}>
-								<TextInput value={priceIn} onChange={(value) => changePrice(setPriceIn, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
+							<Field label={t("modelEditor.inputPrice")}>
+								<TextInput value={priceIn} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceIn, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
 							</Field>
 							<Field label={t("modelEditor.outputPrice")}>
-								<TextInput value={priceOut} onChange={(value) => changePrice(setPriceOut, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
+								<TextInput value={priceOut} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceOut, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
 							</Field>
 							<Field label={t("modelEditor.cacheReadPrice")}>
-								<TextInput value={priceCacheRead} onChange={(value) => changePrice(setPriceCacheRead, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
+								<TextInput value={priceCacheRead} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceCacheRead, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
 							</Field>
 							<Field label={t("modelEditor.cacheWritePrice")}>
-								<TextInput value={priceCacheWrite} onChange={(value) => changePrice(setPriceCacheWrite, value)} placeholder={t("common.notSet")} mono inputMode="decimal" invalid={!pricingOk} />
+								<TextInput value={priceCacheWrite} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceCacheWrite, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
 							</Field>
 						</div>
 						<p className="-mt-2 text-detail text-ink-faint">

@@ -20,6 +20,7 @@ import { ModelIcon } from "../models/index.ts";
 import { formatWindow } from "../models/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Badge, GhostButton } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 export function ProviderModels({
@@ -114,16 +115,10 @@ export function ProviderModels({
 					/>
 				))}
 
-				<button
-					type="button"
-					onClick={() => onEdit(null)}
-					className="flex h-[38px] items-center gap-2 rounded-[10px] border border-line px-3 text-label text-ink-muted transition-colors hover:border-ink-faint hover:text-ink cursor-pointer"
-					data-ly-tip={translate("providerModels.add")}
-					aria-label={translate("providerModels.add")}
-				>
-					<Plus size={14} strokeWidth={1.9} />
-					<span>{translate("providerModels.add")}</span>
-				</button>
+				<DialogAction onClick={() => onEdit(null)} label={translate("providerModels.add")} data-ly-add-model="">
+					<Plus size={14} strokeWidth={1.9} aria-hidden />
+					{translate("providerModels.add")}
+				</DialogAction>
 			</div>
 
 			{testResult && <TestOutcome result={testResult} />}

@@ -446,6 +446,7 @@ export function bridgeScript(connection: Connection): string {
 
 	const api = {
 		platform: ${JSON.stringify(connection.platform ?? "darwin")},
+		bootWindow: { id: "primary", sessionId: null, kind: "primary", panelKind: null, panelScope: null },
 		host: "mobile",
 
 		settings: {
@@ -478,6 +479,7 @@ export function bridgeScript(connection: Connection): string {
 		agent: {
 			prompt: call("agent.prompt"),
 			editMessage: call("agent.editMessage"),
+			revertMessage: call("agent.revertMessage"),
 			abort: call("agent.abort"),
 			approve: call("agent.approve"),
 			setModel: call("agent.setModel"),

@@ -19,16 +19,15 @@ test("a checkbox mark fills and a radio mark stays a circle", async () => {
 	}
 });
 
-test("question choices keep a hidden native input and paint the shared mark", async () => {
+test("question choices keep a hidden native input and no drawn mark", async () => {
 	const view = await mount(h(QuestionChoices, { options: ["继续", "停"], answer: async () => {} }));
 	try {
 		const input = view.find<HTMLInputElement>('input[type="radio"]');
 		assert.match(input.className, /sr-only/);
-		assert.equal(view.all("[data-ly-choice-kind=radio]").length, 2);
-		assert.equal(view.all("[data-ly-choice=on]").length, 0);
+		assert.equal(view.all("[data-ly-choice-kind]").length, 0);
 		await click(view.all("label")[0]);
 		assert.equal(view.find<HTMLInputElement>('input[type="radio"]').checked, true);
-		assert.equal(view.all("[data-ly-choice=on]").length, 1);
+		assert.match(view.find("[data-ly-question-option]").className, /bg-accent\/\[0\.08\]/);
 	} finally {
 		await view.unmount();
 	}

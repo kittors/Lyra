@@ -150,3 +150,18 @@ test("GitHub 上收起的非英文段，进应用时只剩正文", () => {
 	assert.ok(!notesForLocale(folded, "zh-CN").includes("details"));
 	assert.ok(!notesForLocale(folded, "en").includes("details"));
 });
+
+test("GitHub 给 details 加上属性时也只剩正文", () => {
+	const folded = [
+		"<!-- lyra:notes zh-CN -->",
+		"<details markdown=\"1\">",
+		"<summary>中文（简体）</summary>",
+		"",
+		"## 新功能",
+		"中文说明。",
+		"",
+		"</details>",
+	].join("\n");
+	assert.equal(notesForLocale(folded, "zh-CN"), "## 新功能\n中文说明。");
+	assert.ok(!notesForLocale(folded, "zh-CN").includes("summary"));
+});

@@ -68,6 +68,19 @@ test("grepTool falls back to raw regex description directly", async () => {
 	assert.match(res.content[0].text, /grepTool/);
 });
 
+test("grep schema does not require pattern so query-only calls are not rejected upstream", () => {
+	const required = (grepTool.parameters as { required?: string[] }).required ?? [];
+	assert.equal(required.includes("pattern"), false);
+	const globRequired = (globTool.parameters as { required?: string[] }).required ?? [];
+	assert.equal(globRequired.includes("pattern"), false);
+});
+
+test("grepTool extracts alternation and spaces from a labeled description", async () => {
+	const res = await grepTool.execute({ description: 'pattern: "grepTool|globTool"' } as any, { cwd: testDir, sessionId: "s", state: new Map() });
+	assert.equal(res.isError, undefined);
+	assert.match(res.content[0].text, /grepTool/);
+});
+
 test("grepTool provides self-healing error message when pattern and description are missing", async () => {
 	const res = await grepTool.execute({ path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
 	assert.equal(res.isError, true);

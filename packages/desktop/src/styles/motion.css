@@ -154,6 +154,27 @@
 	animation: ly-page-in var(--ly-t-quick) var(--ly-e-out);
 }
 
+/*
+ * Session switch: opacity only, from 0, on a remounted wrapper.
+ *
+ * A 3px translate on a tall transcript is the jump people reported — the whole column
+ * nudges, then settles. Starting at 0.74 was worse: the new page had already painted at
+ * full strength, so the animation was a flicker, not an arrival. Opacity is compositor
+ * work; fifty child `ly-enter` fades are not, which is why those stay suppressed.
+ */
+@keyframes ly-session-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.ly-session-enter {
+	animation: ly-session-in var(--ly-t-slow) var(--ly-e-out) both;
+}
+
 .ly-question-preview[data-open="true"] {
 	opacity: 1;
 	transform: translateX(0);

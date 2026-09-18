@@ -159,7 +159,7 @@ function DefinitionActions({ record, disabled, edit, copy, remove }: { record: A
 	return <div className="flex shrink-0 items-center gap-1">
 		{record.editable && <button type="button" data-ly-tip={t("agents.editNamed", { name: record.definition.name })} aria-label={t("agents.editNamed", { name: record.definition.name })} disabled={disabled} className="grid h-[30px] w-[30px] place-items-center rounded-lg text-info hover:bg-hover" onClick={edit}><Pencil size={14} strokeWidth={1.9} aria-hidden /></button>}
 		<button type="button" aria-label={t("agents.moreFor", { name: record.definition.name })} aria-haspopup="menu" aria-expanded={menu.open} disabled={disabled} className="rounded-lg p-1.5 text-ink-muted hover:bg-hover" onClick={menu.toggle}><Ellipsis size={16} /></button>
-		{menu.open && <Popover anchor={menu.anchor} onClose={menu.close} label={t("agents.actions")}><MenuBody>
+		{menu.open && <Popover anchor={menu.anchor} onClose={menu.close} placement="bottom" align="end" width="compact" label={t("agents.actions")}><MenuBody>
 			<MenuItem icon={<Copy size={14} />} onClick={() => { menu.close(); copy(); }}>{t("agents.duplicate")}</MenuItem>
 			{record.editable && record.scope !== "builtin" && <MenuItem icon={record.customized ? <RotateCcw size={14} /> : <Trash2 size={14} />} onClick={() => { menu.close(); remove(); }}>{record.customized ? record.scope === "project" ? t("agents.removeProjectOverride") : t("agents.restoreBuiltin") : t("agents.delete")}</MenuItem>}
 		</MenuBody></Popover>}

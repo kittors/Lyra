@@ -12,6 +12,10 @@
  * structure at a breakpoint unmounts everything inside it, which is how this app has previously
  * shipped a transition that was a hard cut, and how it would now ship a terminal that dies when
  * you make the window small.
+ *
+ * Conversation tiling is a second tree, painted *inside* the conversation leaf. Opening a
+ * terminal or dragging a files pane still mutates this tree. `fitTree` already knows how to
+ * keep every floor, including a conversation cell that has grown to 2×2.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -27,11 +31,14 @@ import { HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
 import { DockPane } from "./DockPane.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
+import { popOutPanel } from "./popout.ts";
 import { useDock } from "./store.ts";
 import { canToggleMaximized } from "./visibility.ts";
+import type { PanelKind } from "./sideStore.ts";
 import type { PaneKind } from "./tree.ts";
 import { useBoxSize } from "./useBoxSize.ts";
 import { useDockDrag } from "./useDockDrag.ts";
+import { leafCount, subtreeMinPx, useSplit } from "../split/index.ts";
 
 const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
 
@@ -130,6 +137,9 @@ export function DockView({
 	const tree = useDock((s) => s.tree);
 	const focusedPane = useDock((s) => s.focused);
 	const maximized = useDock((s) => s.maximized);
+	const screens = useSplit((s) => leafCount(s.tree));
+	const convW = useSplit((s) => subtreeMinPx(s.tree, "row"));
+	const convH = useSplit((s) => subtreeMinPx(s.tree, "col"));
 	const { compact, navOpen, headerBar, titlebar, width: windowWidth } = useLayout();
 	const { drawn: sidebarDrawn } = useSidebarFit();
 	const definitions = usePanelDefinitions();
@@ -153,7 +163,7 @@ export function DockView({
 	 * (which kinds are loadable), never its identity.
 	 */
 	const allowed = useRef<PaneKind[]>([]);
-	allowed.current = ["conversation", ...definitions.map((def) => def.kind)];
+	allowed.current = ["conversation", ...definitions.filter((def) => !def.ephemeral).map((def) => def.kind)];
 	const session = useApp((s) => s.activeSessionId);
 	useLayoutEffect(() => {
 		/*
@@ -165,7 +175,11 @@ export function DockView({
 		 * every launch began with the default layout and slid into the saved one, and every switch
 		 * between conversations slid from the last one's arrangement into this one's, as though the
 		 * panes had travelled between two unrelated places.
+		 *
+		 * Tiled screens share one conversation slot. Swapping the dock for the focused chat would
+		 * close a terminal the user opened beside the grid the moment the incoming pane took focus.
 		 */
+		if (screens > 1) return;
 		const settled = freezeMotion();
 		document.documentElement.dataset.dockSettling = "";
 		useDock.getState().adopt(session, allowed.current);
@@ -179,7 +193,7 @@ export function DockView({
 			cancelAnimationFrame(frame);
 			settled();
 		};
-	}, [session]);
+	}, [session, screens]);
 
 	/*
 	 * The tree as stored, and the tree as it should be drawn at this window size.
@@ -189,24 +203,10 @@ export function DockView({
 	 * be unusable. `tree` keeps the shares that were actually dragged to, so widening the window
 	 * returns the layout to them rather than to whatever a narrow window forced.
 	 */
-	const fitted = compact || !size ? tree : fitTree(tree, size, paneFloor);
+	const floorFor = (kind: PaneKind) => (kind === "conversation" ? { width: convW, height: convH } : paneFloor(kind));
+	const fitted = compact || !size ? tree : fitTree(tree, size, floorFor);
 	const laid = layoutPanes(fitted);
 
-	/*
-	 * Full screen: the chosen panes split the dock between them, and nothing else is drawn.
-	 *
-	 * Laid out here rather than by pruning the tree and re-running the layout. Pruning produced a
-	 * second tree whose boundaries had to be matched back to the real one before a drag could act
-	 * on them, and every part of that translation was a place to be wrong — the value, the floor,
-	 * the identity. Two panes and a ratio need none of it: the boundary moves the ratio, and the
-	 * ratio is written back into the tree when full screen ends.
-	 *
-	 * Side by side when the dock is wide enough for both, stacked when it is not — rather than
-	 * keeping whatever arrangement they had. A pair of panels sharing a column is stacked because
-	 * the column is narrow; full screen is exactly the moment that stops being true, and a tree
-	 * beside a file is the arrangement every editor uses. On a window too narrow for two usable
-	 * columns it stays stacked, because the reason for stacking is back.
-	 */
 	/*
 	 * Showing one pane by itself covers two cases with the same machinery: a maximised pane, and a
 	 * screen that is not a conversation at all. The second one outranks the first — leaving a
@@ -473,6 +473,7 @@ export function DockView({
 							title={kind === "conversation" ? undefined : renderPanelHeader(kind)}
 							inset={corner === kind ? cornerReserved(titlebar.start) : 0}
 							insetEnd={endCorner === kind ? titlebar.end : 0}
+							chrome={kind !== "conversation" || screens <= 1}
 							// Absent where full screen is not on offer, which is what hides the button —
 							// see `canToggleMaximized` for the rule and the bug it was written for.
 							onToggleMaximized={
@@ -484,6 +485,17 @@ export function DockView({
 									: undefined
 							}
 							onClose={kind === "conversation" ? undefined : () => useDock.getState().close(kind)}
+							onPopOut={
+								kind === "conversation"
+									? undefined
+									: () =>
+											void popOutPanel({
+												dock: "window",
+												scope: "window",
+												kind: kind as PanelKind,
+												sessionId: useApp.getState().activeSessionId,
+											})
+							}
 							onFocus={() => useDock.getState().focus(kind)}
 							onLanded={landed}
 						>

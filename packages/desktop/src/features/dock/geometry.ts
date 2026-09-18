@@ -46,7 +46,7 @@ const CONVERSATION_MIN_HEIGHT_PX = 260;
  * The height is a title bar plus enough content to be worth having opened.
  */
 export const PANEL_MIN_WIDTH_PX = 300;
-const PANEL_MIN_HEIGHT_PX = 150;
+export const PANEL_MIN_HEIGHT_PX = 150;
 
 /**
  * How small each kind may be drawn.

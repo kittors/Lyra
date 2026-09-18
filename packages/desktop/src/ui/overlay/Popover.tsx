@@ -74,6 +74,22 @@ function widthOf(width: PopoverWidth | undefined): number | undefined {
 	return typeof width === "number" ? width : MENU_WIDTH[width];
 }
 
+/**
+ * Action menus that omit a width used to hug the longest label.
+ *
+ * A one-line 「复制为新智能体」 then painted a content-sized pill next to the 190px
+ * project menu, which is the same gesture looking like two different components.
+ * Compact is the action-menu size; anything that lists, searches, or reads still
+ * passes its own width.
+ */
+function resolvedWidth(
+	width: PopoverWidth | undefined,
+	role: "menu" | "listbox" | "dialog" | "group",
+): PopoverWidth | undefined {
+	if (width !== undefined) return width;
+	return role === "menu" || role === "listbox" ? "compact" : undefined;
+}
+
 export interface PopoverProps {
 	/** The element the popover is attached to, or a point for a context menu. */
 	anchor: Anchor;
@@ -304,7 +320,7 @@ export function Popover({
 			if (!a) return;
 			// A menu wider than the window cannot be nudged into view — it has to give up width.
 			const limit = window.innerWidth - MARGIN * 2;
-			const fixed = widthOf(width);
+			const fixed = widthOf(resolvedWidth(width, role));
 			/*
 			 * Width first, then measure — because height depends on it.
 			 *
@@ -487,7 +503,7 @@ export function Popover({
 			observer.disconnect(); cancelAnimationFrame(frame);
 			window.removeEventListener("resize", schedule); window.removeEventListener("scroll", onScroll, true);
 		};
-	}, [anchor, align, placement, width, maxHeight, kind]);
+	}, [anchor, align, placement, width, role, maxHeight, kind]);
 
 	// Which modal layer this popover itself sits on — read here because the press-outside test below
 	// needs it, and used again for the z-index it is drawn at.
@@ -590,7 +606,7 @@ export function Popover({
 				 * panel — and a menu opened near it was simply cut in half. A popover is transient
 				 * and belongs on top of whatever it was opened over, always.
 				 */
-				className={`${surface} fixed z-[60] flex flex-col overflow-hidden rounded-[10px] border border-line ${
+				className={`${surface} ly-menu-card fixed z-[60] flex flex-col overflow-hidden border border-line ${
 					leaving ? "ly-pop-out" : placed ? "ly-pop-in" : ""
 				} ${className}`}
 			>

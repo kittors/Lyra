@@ -62,7 +62,7 @@ export function ModelTrigger({
 				aria-label={ariaLabel}
 				aria-haspopup="menu"
 				aria-expanded={menu.open}
-				className={`ly-composer-control flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors disabled:opacity-60 ${
+				className={`ly-composer-control flex min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors disabled:opacity-60 ${
 					menu.open ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
 				}`}
 			>

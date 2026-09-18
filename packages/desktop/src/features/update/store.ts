@@ -45,6 +45,16 @@ function set(next: Partial<UpdateState>): void {
 }
 
 /**
+ * E2E / visual demos drive the dialog through the same store the badge reads.
+ *
+ * Photographing a progress bar does not need a 200MB GitHub download; it needs `info` and `phase`
+ * to be the ones on screen. Assigned at load so a script can call it before the first subscriber.
+ */
+if (typeof window !== "undefined") {
+	(window as Window & { __lyraUpdatePreview?: typeof set }).__lyraUpdatePreview = set;
+}
+
+/**
  * Ask the main process what the newest release is.
  *
  * `force` skips its half-hour cache, and is what 检查更新 passes: a person who presses a button

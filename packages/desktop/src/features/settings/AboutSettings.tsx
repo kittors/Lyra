@@ -15,7 +15,8 @@ import { notesForLocale, versionNote } from "../update/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { UpdateDialog } from "../modals/index.ts";
 import { Markdown } from "../conversation/index.ts";
-import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle } from "./controls.tsx";
+import { Card, InlineSelect, Row, SectionTitle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 
 export function AboutSettings() {
@@ -73,19 +74,26 @@ export function AboutSettings() {
 						</div>
 					}
 					control={
-						<div className="flex items-center gap-2">
-							<GhostButton
+						<div className="flex flex-wrap items-center justify-end gap-2">
+							<DialogAction
 								onClick={() => void check(true)}
 								disabled={checking}
-								title={checking ? t("about.checking") : t("about.checkUpdate")}
-								icon={checking ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={2} />}
-							/>
+								label={checking ? t("about.checking") : t("about.checkUpdate")}
+								data-ly-check-update=""
+							>
+								{checking ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={2} aria-hidden />}
+								{checking ? t("about.checking") : t("about.checkUpdate")}
+							</DialogAction>
 							{available && (
-								<PrimaryButton
+								<DialogAction
+									tone="primary"
 									onClick={() => setOpenDialog(true)}
-									title={t("about.updateNow", { version: info?.latest ?? "" })}
-									icon={<DownloadCloud size={13} />}
-								/>
+									label={t("about.updateNow", { version: info?.latest ?? "" })}
+									data-ly-update-now=""
+								>
+									<DownloadCloud size={13} strokeWidth={2} aria-hidden />
+									{t("about.updateNow", { version: info?.latest ?? "" })}
+								</DialogAction>
 							)}
 						</div>
 					}
@@ -146,20 +154,30 @@ export function AboutSettings() {
 					title={t("about.repository")}
 					detail={t("about.repositoryDetail")}
 					control={
-						<GhostButton
+						<DialogAction
 							onClick={() => void bridge.system.openExternal("https://github.com/kittors/Lyra")}
-							icon={<ArrowUpRight size={13} />} title={t("about.repo")} />
+							label={t("about.repo")}
+							data-ly-open-repo=""
+						>
+							<ArrowUpRight size={13} strokeWidth={2} aria-hidden />
+							{t("about.repo")}
+						</DialogAction>
 					}
 				/>
 				<Row
 					title={t("about.changelog")}
 					detail={t("about.changelogDetail")}
 					control={
-						<GhostButton
+						<DialogAction
 							onClick={() =>
 								void bridge.system.openExternal(info?.url || "https://github.com/kittors/Lyra/releases")
 							}
-							icon={<ArrowUpRight size={13} />} title={t("about.releases")} />
+							label={t("about.releases")}
+							data-ly-open-releases=""
+						>
+							<ArrowUpRight size={13} strokeWidth={2} aria-hidden />
+							{t("about.releases")}
+						</DialogAction>
 					}
 				/>
 			</Card>

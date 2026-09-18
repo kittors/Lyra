@@ -40,6 +40,14 @@ import { useAttachmentMarks } from "./useAttachmentMarks.ts";
 import { useAttachmentActions } from "./attachments/actions.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
+import {
+	useScopedMessages,
+	useScopedMeta,
+	useScopedRunning,
+	useScopedSessionId,
+	useScopedStopped,
+	useScopedTodos,
+} from "../../app/session-scope.tsx";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -84,13 +92,13 @@ export function Composer() {
 	const workspace = useApp((s) => s.workspace);
 	const scratchCwd = useApp((s) => s.scratchCwd);
 	const settings = useApp((s) => s.settings);
-	const meta = useApp((s) => s.meta);
-	const messages = useApp((s) => s.messages);
-	const running = useApp((s) => s.running);
-	const stopped = useApp((s) => s.stopped);
+	const meta = useScopedMeta();
+	const messages = useScopedMessages();
+	const running = useScopedRunning();
+	const stopped = useScopedStopped();
 	// A count, not the list: a selector that builds an array hands back a new one on every store tick.
-	const unfinished = useApp((s) => s.todos.filter((todo) => todo.status !== "completed").length);
-	const activeSessionId = useApp((s) => s.activeSessionId);
+	const unfinished = useScopedTodos().filter((todo) => todo.status !== "completed").length;
+	const activeSessionId = useScopedSessionId();
 	// "底部面板" in Settings → 常规. Saved but read by nothing until now.
 	const showBottomPanel = useApp((s) => s.settings?.editor.showBottomPanel) ?? true;
 	const switchingBranch = useApp((s) => s.switchingBranch);
@@ -99,7 +107,7 @@ export function Composer() {
 	const enqueue = useApp((s) => s.enqueue);
 	const flushQueue = useApp((s) => s.flushQueue);
 	/** 排着几条。只要不是零，新说的这句就得排到它们后面，不然先后就乱了。 */
-	const queuedCount = useApp((s) => (s.activeSessionId ? s.queued[s.activeSessionId]?.length ?? 0 : 0));
+	const queuedCount = useApp((s) => (activeSessionId ? s.queued[activeSessionId]?.length ?? 0 : 0));
 	const { compact } = useLayout();
 	/** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
 	const [markMenu, setMarkMenu] = useState<{ point: { x: number; y: number }; file: Attachment } | null>(null);
@@ -242,10 +250,18 @@ export function Composer() {
 		resetKey: draftKey,
 	});
 	useEffect(() => {
-		if (!draft.text) return;
-		setText((current) =>
-			draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
-		);
+		const files = draft.attachments ?? [];
+		const refs = draft.sessionRefs ?? [];
+		if (!draft.text && !files.length && !refs.length) return;
+		if (draft.text) {
+			setText((current) =>
+				draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
+			);
+		}
+		if (files.length) setAttachments((current) => [...current, ...files as Attachment[]]);
+		if (refs.length) {
+			setSessionRefs((current) => [...new Map([...current, ...refs].map((ref) => [ref.id, ref])).values()]);
+		}
 		useApp.getState().setComposerDraft("");
 		/*
 		 * And put the caret in it.
@@ -258,8 +274,14 @@ export function Composer() {
 		const el = field.current;
 		if (el) {
 			el.focus();
-			el.setSelectionRange(el.value.length, el.value.length);
+			requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
 		}
+		const shell = el?.closest(".ly-composer");
+		if (!(shell instanceof HTMLElement)) return;
+		shell.classList.remove("ly-composer-catch");
+		void shell.offsetWidth;
+		shell.classList.add("ly-composer-catch");
+		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
 	}, [draft]);
 
 
@@ -332,7 +354,7 @@ export function Composer() {
 			 * 谁也没跑过的 tokens/s。转录下面那行「继续」走的就是这条路；两个入口按下去必须是同
 			 * 一件事，不然按哪个还有讲究。
 			 */
-			await send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true });
+			await send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true, sessionId: activeSessionId ?? undefined });
 			return;
 		}
 
@@ -416,6 +438,7 @@ export function Composer() {
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 			...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
+			...(activeSessionId ? { sessionId: activeSessionId } : {}),
 		});
 		if (!accepted) {
 			// A transport rejection must preserve the original files and command text for retry.
@@ -643,7 +666,7 @@ export function Composer() {
 		 * find it. It is the one thing that has to move when a keyboard slides over the window —
 		 * the transcript above it stays put and keeps its scroll position. See `--ly-keyboard`.
 		 */
-		<div className={`ly-composer-dock shrink-0 pt-2 pb-5 ${compact ? "px-4" : "px-8"}`}>
+		<div className="ly-composer-dock shrink-0" data-compact={compact || undefined}>
 			<div className="mx-auto w-full max-w-[var(--ly-content)]">
 				{/*
 				 * That work has been delegated, above everything else the composer says.
@@ -730,7 +753,7 @@ export function Composer() {
 					 */
 					hint={
 						history.position ? (
-							<div data-ly-history="" className="px-4 pt-2.5 text-caption text-ink-faint">
+							<div data-ly-history="" className="ly-composer-hint text-caption text-ink-faint">
 								{t("composer.history", { current: history.position.current, total: history.position.total })}
 							</div>
 						) : undefined
@@ -847,14 +870,14 @@ export function Composer() {
 					placeholder={t("composer.placeholder")}
 					onFiles={(files) => void addFiles(files)}
 					attachments={
-						attachments.length > 0 || sessionRefs.length > 0 ? (
-							<div className="flex flex-col gap-2 px-4 pt-3.5">
+						<div className="ly-reveal" data-open={attachments.length > 0 || sessionRefs.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
+							<div className="ly-composer-attachments">
 								{sessionRefs.length > 0 && (
-									<div className="flex flex-wrap gap-1.5">
-										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
+									<div className="flex flex-wrap gap-2">
+										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
 									</div>
 								)}
-								<AttachmentStrip
+								{strip.length > 0 && <AttachmentStrip
 									files={strip}
 									/*
 									 * 独占一行，多了横着滚。
@@ -887,9 +910,9 @@ export function Composer() {
 											index,
 										)
 									}
-								/>
+								/>}
 							</div>
-						) : undefined
+						</div>
 					}
 					left={
 						<>
@@ -898,7 +921,7 @@ export function Composer() {
 								data-ly-tip={t("composer.addAttachment")}
 								aria-label={t("composer.addAttachment")}
 								onClick={() => fileRef.current?.click()}
-								className="ly-composer-control flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+								className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 							>
 								<Plus size={16} strokeWidth={1.9} />
 							</button>
@@ -908,7 +931,7 @@ export function Composer() {
 									data-ly-tip={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
 									aria-label={t("composer.screenshot")}
 									onClick={() => void takeScreenshot()}
-									className="ly-composer-control flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+									className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 								>
 									<Camera size={15} strokeWidth={1.9} />
 								</button>
@@ -934,7 +957,7 @@ export function Composer() {
 								onClick={permissionMenu.toggle}
 								aria-haspopup="menu"
 								aria-expanded={permissionMenu.open}
-								className={`ly-composer-control flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
+								className={`ly-composer-control flex shrink-0 items-center gap-1.5 rounded-full px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
 									permissionMode === "full"
 										? // Red, not the accent: this is the one mode that hands over the machine.
 											`text-danger ${permissionMenu.open ? "bg-danger/10" : "hover:bg-danger/10"}`
@@ -989,7 +1012,7 @@ export function Composer() {
 							<EffortTrigger modelId={modelId} />
 
 							{/* 正忙时按下去是排队而不是插话，所以它说的也不再是「发送」——见 `submitOnce`。 */}
-							<div className="ly-queue-send" data-visible={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} inert={!running || !(text.trim() || attachments.length || sessionRefs.length)}><div><ComposerSend running={false} active={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} disabled={!running || !(text.trim() || attachments.length || sessionRefs.length)} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort()} /></div></div>
+							<div className="ly-queue-send" data-visible={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} inert={!running || !(text.trim() || attachments.length || sessionRefs.length)}><div><ComposerSend running={false} active={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} disabled={!running || !(text.trim() || attachments.length || sessionRefs.length)} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort(activeSessionId ?? undefined)} /></div></div>
 							<ComposerSend
 								running={running}
 								continueReady={continueReady}
@@ -997,7 +1020,7 @@ export function Composer() {
 								tip={continueReady ? translate("composer.finishUnfinished") : undefined}
 								disabled={!continueReady && !text.trim() && attachments.length === 0 && sessionRefs.length === 0}
 								onSend={() => void submit()}
-								onStop={() => void abort()}
+								onStop={() => void abort(activeSessionId ?? undefined)}
 							/>
 						</>
 					}

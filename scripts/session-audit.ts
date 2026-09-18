@@ -431,8 +431,10 @@ const billed = rawInput + cacheRead + cacheWrite;
 // ---------------------------------------------------------------------------
 
 const FRUSTRATION_REGEX = /(上一轮|刚才|不对|怎么又|别再|不是让|做错了|还原|重来|为什么不|卡住|死循环|没按要求|报错了|恢复原样)/;
+const RESTATEMENT_REGEX = /(再说一遍|重新说|我要的是|我刚才说的是|听我说|我的意思是|不是这个意思|按我说的做)/;
 let totalUserPrompts = 0;
 let frustrationPrompts = 0;
+let restatementPrompts = 0;
 
 const frustMaxEdits: number[] = [];
 const smoothMaxEdits: number[] = [];
@@ -446,6 +448,7 @@ for (const session of sessions) {
 			frustrationPrompts++;
 			isFrustSession = true;
 		}
+		if (RESTATEMENT_REGEX.test(u.text)) restatementPrompts++;
 	}
 	if (session.fileEdits.size > 0) {
 		const maxCount = Math.max(...session.fileEdits.values());
@@ -507,7 +510,9 @@ if (asJson) {
 				quality: {
 					totalUserPrompts,
 					frustrationPrompts,
+					restatementPrompts,
 					frustrationRate: share(frustrationPrompts, totalUserPrompts),
+					restatementRate: share(restatementPrompts, totalUserPrompts),
 					frustAvgMaxEdits: frustAvgEdits,
 					smoothAvgMaxEdits: smoothAvgEdits,
 					frustP90MaxEdits: p90(frustMaxEdits), smoothP90MaxEdits: p90(smoothMaxEdits),
@@ -599,7 +604,7 @@ console.log(`  ⚠ 携带成本（第 1 节）里有 ${share(cacheRead, billed)}
 console.log("    所以省下的 token 量 ≠ 省下的钱，A1 的收益要按这个比例打折，以本节的 $ 为准。");
 
 console.log("\n── 9. 完成质量与用户体验（第一原则守卫） ──");
-console.log(`  用户发言：真实输入 ${totalUserPrompts} 条，含挫败信号 ${frustrationPrompts} 条 (${share(frustrationPrompts, totalUserPrompts)})`);
+console.log(`  用户发言：真实输入 ${totalUserPrompts} 条，含挫败信号 ${frustrationPrompts} 条 (${share(frustrationPrompts, totalUserPrompts)})，含需求重述 ${restatementPrompts} 条 (${share(restatementPrompts, totalUserPrompts)})`);
 console.log(`  单文件最大修改均值：顺利组 ${smoothAvgEdits} 次 vs 挫败组 ${frustAvgEdits} 次（纯事后连续观测，严禁在运行时注入打断）`);
 
 console.log(`  Edit-count P90: smooth ${p90(smoothMaxEdits)} (n=${smoothMaxEdits.length}); frustration-proxy ${p90(frustMaxEdits)} (n=${frustMaxEdits.length}). Keyword classification is uncalibrated, not task success.`);

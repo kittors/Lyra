@@ -50,22 +50,22 @@ try {
 	await pause();
 	model.set("question");
 	await send("验证单选授权框的选项标记。");
-	await until("Boolean(document.querySelector('[data-ly-choice-kind=radio]'))");
+	await until("Boolean(document.querySelector('[data-ly-question-option]'))");
 	await pause();
-	const single = await app.evaluate<{ kinds: string[]; sizes: number[]; radius: number[]; nativeVisible: boolean }>(`(()=>{
-		const marks=[...document.querySelectorAll('[data-ly-choice-kind]')];
+	const single = await app.evaluate<{ marks: number; indexes: number; nativeVisible: boolean; selected: boolean }>(`(()=>{
 		const native=[...document.querySelectorAll('[data-approval-card] input[type=radio], [data-approval-card] input[type=checkbox]')];
+		document.querySelector('[data-ly-question-option]')?.click();
+		const row=document.querySelector('[data-ly-question-option]');
 		return {
-			kinds: marks.map(el=>el.getAttribute('data-ly-choice-kind')??''),
-			sizes: marks.map(el=>{const r=el.getBoundingClientRect();return Math.round(r.width*10)/10;}),
-			radius: marks.map(el=>parseFloat(getComputedStyle(el).borderRadius)),
+			marks: document.querySelectorAll('[data-ly-choice-kind]').length,
+			indexes: document.querySelectorAll('[data-ly-question-index]').length,
 			nativeVisible: native.some(el=>getComputedStyle(el).position!=='absolute' && el.getBoundingClientRect().width>8),
+			selected: Boolean(row?.className.includes('bg-accent')),
 		};
 	})()`);
-	check("single-select paints radio marks", single.kinds.length >= 3 && single.kinds.every((kind) => kind === "radio"), single.kinds);
-	check("choice marks stay on the 16px grid", single.sizes.every((size) => Math.abs(size - 16) <= 0.5), single.sizes);
-	check("radio marks are circles", single.radius.every((radius) => radius >= 7), single.radius);
+	check("single-select has no drawn mark or index", single.marks === 0 && single.indexes === 0, single);
 	check("native radio is not the visible chrome", single.nativeVisible === false, single.nativeVisible);
+	check("picking a row is only a wash", single.selected, single);
 	const shot1 = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(out, `${stamp}_single.png`), Buffer.from(shot1.data, "base64"));
 	await app.evaluate("[...document.querySelectorAll('[data-approval-card] button')].find(e=>e.textContent.includes('跳过')).click()");
@@ -73,23 +73,19 @@ try {
 	await pause();
 	model.set("multi");
 	await send("验证多选授权框的选项标记。");
-	await until("Boolean(document.querySelector('[data-ly-choice-kind=checkbox]'))");
+	await until("Boolean(document.querySelector('[data-ly-choice-mode=multi]'))");
 	await pause();
 	await click("[data-approval-card] label:nth-of-type(1)");
 	await click("[data-approval-card] label:nth-of-type(2)");
 	await pause();
-	const multi = await app.evaluate<{ kinds: string[]; on: number; radius: number[]; checked: number }>(`(()=>{
-		const marks=[...document.querySelectorAll('[data-ly-choice-kind]')];
+	const multi = await app.evaluate<{ marks: number; checked: number }>(`(()=>{
 		return {
-			kinds: marks.map(el=>el.getAttribute('data-ly-choice-kind')??''),
-			on: marks.filter(el=>el.getAttribute('data-ly-choice')==='on').length,
-			radius: marks.map(el=>parseFloat(getComputedStyle(el).borderRadius)),
+			marks: document.querySelectorAll('[data-ly-choice-kind]').length,
 			checked: document.querySelectorAll('[data-approval-card] input:checked').length,
 		};
 	})()`);
-	check("multi-select paints checkbox marks", multi.kinds.length >= 3 && multi.kinds.every((kind) => kind === "checkbox"), multi.kinds);
-	check("checkbox marks are rounded squares", multi.radius.every((radius) => radius > 3 && radius < 6), multi.radius);
-	check("two drawn marks follow two checked inputs", multi.on === 2 && multi.checked === 2, multi);
+	check("multi-select still has no drawn mark", multi.marks === 0, multi);
+	check("two checked inputs stay on", multi.checked === 2, multi);
 	const shot2 = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(out, `${stamp}_multi.png`), Buffer.from(shot2.data, "base64"));
 } catch (error) {

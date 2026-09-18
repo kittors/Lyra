@@ -23,18 +23,17 @@ export const globTool: Tool<GlobArgs> = {
 	snippet: "Find files by glob pattern, newest first",
 	guidelines: ["Use glob to locate files by name; use grep to locate them by content."],
 	description:
-		"Find files by glob pattern, newest first. Supports `*`, `?`, `**` and `{a,b}` alternation — " +
-		'for example `src/**/*.{ts,tsx}`. Build and dependency directories are skipped automatically.',
+		"Find files by glob pattern, newest first. Put the glob in `pattern` (aliases: `query`, `search`). " +
+		"Supports `*`, `?`, `**` and `{a,b}` alternation — for example `src/**/*.{ts,tsx}`. Build and dependency directories are skipped automatically.",
 	parameters: {
 		type: "object",
 		properties: {
-			pattern: { type: "string", description: "Glob pattern, relative to the search root." },
+			pattern: { type: "string", description: "Glob pattern, relative to the search root. Prefer this field; `query` and `search` are aliases." },
 			query: { type: "string", description: "Alias for pattern." },
 			search: { type: "string", description: "Alias for pattern." },
 			path: { type: "string", description: "Directory to search. Defaults to the workspace root." },
 			limit: { type: "number", description: "Maximum number of matches. Default 500." },
 		},
-		required: ["pattern"],
 		additionalProperties: true,
 	},
 	summarize: (args) => {
@@ -168,12 +167,21 @@ function escapeRegex(text: string): string {
 /** Extract a glob pattern when the model embeds it in a description string. */
 function extractPattern(desc: unknown): string {
 	if (typeof desc !== "string" || !desc.trim()) return "";
-	const labeled = desc.match(/(?:pattern|glob|query)[:=]\s*[`'"]?([^`'")\s]+)/i);
-	if (labeled?.[1]) return labeled[1].replace(/[`'"]+$/, "").trim();
+	const labeled = extractLabeledValue(desc, ["pattern", "glob", "query", "search"]);
+	if (labeled) return labeled;
 	const quoted = desc.match(/[`'"]([^`'"]*[*?{}][^`'"]*)[`'"]/);
 	if (quoted?.[1]) return quoted[1].trim();
 	const wildcard = desc.match(/\S*[*?{}][^\s)]*/);
 	if (wildcard?.[0]) return wildcard[0].trim();
 	/* Fallback: if the model passed the pattern directly as description */
 	return desc.trim();
+}
+
+function extractLabeledValue(desc: string, labels: string[]): string {
+	const names = labels.join("|");
+	const quoted = desc.match(new RegExp(`(?:${names})[:=]\\s*[\`'"]([^\\\`'"]+)[\`'"]`, "i"));
+	if (quoted?.[1]) return quoted[1].trim();
+	const bare = desc.match(new RegExp(`(?:${names})[:=]\\s*(\\S+)`, "i"));
+	if (bare?.[1]) return bare[1].replace(/[)\].,;]+$/, "").trim();
+	return "";
 }

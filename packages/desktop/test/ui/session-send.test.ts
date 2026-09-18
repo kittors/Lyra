@@ -78,6 +78,44 @@ test("a failed capability refresh does not turn an accepted prompt into a retrya
 	assert.ok(useApp.getState().notices.every(notice => !notice.message.startsWith("发送失败")));
 });
 
+test("undoing the last user message cuts the tail and fills the composer", async () => {
+	const active = snapshot("a");
+	useApp.setState({
+		activeSessionId: "a",
+		meta: active.meta,
+		messages: active.messages,
+		running: false,
+		composerDraft: { text: "", replace: false, attachments: [], sessionRefs: [] },
+	});
+	const called: number[] = [];
+	Object.defineProperty(window, "lyra", { configurable: true, value: {
+		agent: { revertMessage: async (_id: string, index: number) => { called.push(index); } },
+	} });
+	await useApp.getState().revertMessage(0);
+	assert.deepEqual(called, [0]);
+	assert.deepEqual(useApp.getState().messages, []);
+	assert.equal(useApp.getState().composerDraft.text, "相同的问题");
+	assert.equal(useApp.getState().running, false);
+});
+
+test("an offline undo restores the transcript and does not fill the composer", async () => {
+	const active = snapshot("a");
+	useApp.setState({
+		activeSessionId: "a",
+		meta: active.meta,
+		messages: active.messages,
+		running: false,
+		composerDraft: { text: "", replace: false, attachments: [], sessionRefs: [] },
+	});
+	Object.defineProperty(window, "lyra", { configurable: true, value: {
+		agent: { revertMessage: async () => { throw new Error("offline"); } },
+	} });
+	await useApp.getState().revertMessage(0);
+	assert.equal(useApp.getState().messages, active.messages);
+	assert.equal(useApp.getState().composerDraft.text, "");
+	assert.ok(useApp.getState().notices.some((notice) => notice.message.includes("撤销失败")));
+});
+
 test("an offline edit preserves the previous transcript and leaves a visible failure", async () => {
 	const active = snapshot("a");
 	useApp.setState({ activeSessionId: "a", meta: active.meta, messages: active.messages, running: false });

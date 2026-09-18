@@ -261,6 +261,27 @@
 }
 
 /*
+ * Conversation-split landing: the future screen, drawn on top of the chat it will share.
+ *
+ * A heavy frost read as a floating card and hid the transcript. The reference is a wash
+ * you can still read, flush to the window top on the first split — the same edge the
+ * tiles will use — and down to the composer.
+ */
+.ly-split-drop {
+  z-index: 10;
+  border-radius: var(--radius-panel);
+  background: color-mix(in oklab, var(--color-shell) 42%, transparent);
+  border: 1.5px solid color-mix(in oklab, var(--color-accent) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  backdrop-filter: blur(8px) saturate(1.1);
+  transition:
+    left var(--ly-t-quick) var(--ly-e-out),
+    top var(--ly-t-quick) var(--ly-e-out),
+    width var(--ly-t-quick) var(--ly-e-out),
+    height var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
  * The splitter is the gap between two cards, so it draws nothing until you reach for it.
  *
  * It used to paint a hairline down the boundary. The cards' own edges say where that is now, and a

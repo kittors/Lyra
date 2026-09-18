@@ -3,6 +3,8 @@ import {
 	Archive,
 	ArchiveRestore,
 	Check,
+	ChevronRight,
+	Columns2,
 	Copy,
 	ExternalLink,
 	Folder,
@@ -13,12 +15,13 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
-import { bridge, onPhone } from "../../services/index.ts";
+import { onPhone } from "../../services/index.ts";
+import { canOfferSplit, canSplit, contains, openInNewWindow, splitWith, useSplit } from "../split/index.ts";
 
 export function SessionMenu({
 	anchor,
@@ -40,6 +43,7 @@ export function SessionMenu({
 	onRequestDelete: () => void;
 }) {
 	const { t } = useI18n();
+	const splitTree = useSplit((s) => s.tree);
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
@@ -48,6 +52,16 @@ export function SessionMenu({
 	const notify = useApp((s) => s.notify);
 
 	const [mode, setMode] = useState<"menu" | "rename" | "projects" | "copy">("menu");
+	const [openIn, setOpenIn] = useState(false);
+	const openInRow = useRef<HTMLDivElement>(null);
+	const openInLeave = useRef<number>(0);
+	const showOpenIn = () => {
+		window.clearTimeout(openInLeave.current);
+		setOpenIn(true);
+	};
+	const hideOpenIn = () => {
+		openInLeave.current = window.setTimeout(() => setOpenIn(false), 160);
+	};
 	const [draft, setDraft] = useState(session.title);
 
 	const isPinned = settings?.pinnedSessionIds?.includes(session.id) ?? false;
@@ -260,16 +274,58 @@ export function SessionMenu({
 						{t("common.copy")}
 					</MenuItem>
 
-					{!onPhone() && <MenuItem
-						icon={<ExternalLink size={13} strokeWidth={1.8} />}
-						onClick={() => {
-							void bridge.system.openExternal(`lyra://session/${session.id}`).catch(() => {});
-							notify(t("sessionMenu.openingWindow"));
-							onClose();
-						}}
+					<div
+						ref={openInRow}
+						data-ly-open-in=""
+						onMouseEnter={showOpenIn}
+						onMouseLeave={hideOpenIn}
 					>
-						{t("sessionMenu.openInNewWindow")}
-					</MenuItem>}
+						<MenuItem
+							icon={<ExternalLink size={13} strokeWidth={1.8} />}
+							trailing={<ChevronRight size={13} strokeWidth={1.8} className="text-ink-faint" />}
+							onClick={showOpenIn}
+						>
+							{t("sessionMenu.openIn")}
+						</MenuItem>
+						{openIn && openInRow.current && (
+							<Popover
+								anchor={openInRow.current}
+								onClose={() => setOpenIn(false)}
+								placement="right"
+								align="start"
+								width="compact"
+								label={t("sessionMenu.openIn")}
+								onMouseEnter={showOpenIn}
+								onMouseLeave={hideOpenIn}
+							>
+								<MenuBody>
+									<MenuItem
+										icon={<Columns2 size={13} strokeWidth={1.8} />}
+										disabled={!contains(splitTree, session.id) && !(canSplit(splitTree) && canOfferSplit())}
+										onClick={() => {
+											const pane = document.querySelector<HTMLElement>("[data-ly-split-focused]");
+											const box = (pane ?? document.querySelector("[data-ly-split-root]"))?.getBoundingClientRect();
+											splitWith(session, pane?.dataset.lySplitPane === "@draft" ? null : pane?.dataset.lySplitPane ?? null, box?.width ?? 800, box?.height ?? 600);
+											onClose();
+										}}
+									>
+										{t("sessionMenu.splitView")}
+									</MenuItem>
+									{!onPhone() && (
+										<MenuItem
+											icon={<ExternalLink size={13} strokeWidth={1.8} />}
+											onClick={() => {
+												void openInNewWindow(session.id);
+												onClose();
+											}}
+										>
+											{t("sessionMenu.newWindow")}
+										</MenuItem>
+									)}
+								</MenuBody>
+							</Popover>
+						)}
+					</div>
 				</MenuBody>
 			</Popover>
 		</>

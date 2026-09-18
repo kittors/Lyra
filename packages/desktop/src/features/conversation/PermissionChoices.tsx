@@ -19,7 +19,7 @@ export function PermissionChoices({ subject, answer }: {
 			setError(failure instanceof Error ? failure.message : String(failure));
 		}
 	}
-	return <div className="shrink-0 border-t border-line-soft px-4 py-3">
+	return <div className="shrink-0 px-4 py-3">
 		<div className="flex flex-wrap items-center justify-end gap-1.5" aria-busy={pending}>
 			<button type="button" disabled={pending} onClick={() => void submit("reject")} className="grid place-items-center min-h-8 rounded-lg text-label text-ink-muted transition-colors hover:bg-card-hover active:bg-elevated disabled:opacity-50 w-8"
 			data-ly-tip={translate("permission.reject")}

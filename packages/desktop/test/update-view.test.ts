@@ -18,10 +18,12 @@ import { test } from "node:test";
 import {
 	confirmLabel,
 	controlsFor,
+	failureDetail,
 	fractionOf,
 	labelFor,
 	mb,
 	PHASES,
+	publishedOn,
 	readyNote,
 	shouldShow,
 	versionNote,
@@ -89,12 +91,18 @@ test("idle names the version, because that is the announcement", () => {
  * cover — the phases are walked in the round-trip test below.
  */
 
-test("the confirm button is disabled only while something is genuinely working", () => {
+test("the confirm button is disabled only while the update is being unpacked", () => {
 	for (const phase of PHASES) {
 		const { confirmDisabled } = controlsFor(phase);
-		const working = phase.at === "downloading" || phase.at === "preparing";
-		assert.equal(confirmDisabled, working, `${phase.at} 的主按钮可用性不对`);
+		assert.equal(confirmDisabled, phase.at === "preparing", `${phase.at} 的主按钮可用性不对`);
 	}
+});
+
+test("while bytes are moving the confirm button is 暂停, and the percent lives in the body", () => {
+	const downloading: Phase = { at: "downloading", received: 45, total: 100 };
+	assert.equal(controlsFor(downloading).confirmPauses, true);
+	assert.equal(controlsFor(downloading).confirmDisabled, false);
+	assert.equal(confirmLabel(downloading), "暂停");
 });
 
 test("paused offers a way to continue, which is the whole reason to allow pausing", () => {
@@ -109,15 +117,22 @@ test("a failure offers a retry, and it is not greyed out", () => {
 	assert.equal(confirmLabel(failed), "重试");
 });
 
-test("暂停 and 关闭 never appear together, and one of them always does", () => {
-	/*
-	 * They occupy the same slot: during a download 暂停 is the more useful thing to offer there, and
-	 * outside one it has nothing to stop. Both at once would be two buttons for one position;
-	 * neither would leave a gap where a control belongs.
-	 */
+test("a failed download's detail does not carry a disk path", () => {
+	const raw = "UNKNOWN: unknown error, open 'C:\\Users\\250377\\AppData\\Roaming\\@lyra\\desktop\\updates\\lyra-update-0.9.15\\Lyra-0.9.15-x64.exe.part'";
+	const shown = failureDetail(raw);
+	assert.doesNotMatch(shown, /250377|Roaming|exe\.part/);
+	assert.match(shown, /UNKNOWN/i);
+});
+
+test("关闭 is offered in every phase, because leaving the dialog stops nothing", () => {
 	for (const phase of PHASES) {
-		const { pause, close } = controlsFor(phase);
-		assert.notEqual(pause, close, `${phase.at} 的这两个按钮应当恰好出现一个`);
+		assert.equal(controlsFor(phase).close, true, `${phase.at} 没有关闭`);
+	}
+});
+
+test("pause is the confirming control while downloading, never a second button", () => {
+	for (const phase of PHASES) {
+		assert.equal(controlsFor(phase).confirmPauses, phase.at === "downloading", `${phase.at} 的暂停归属不对`);
 	}
 });
 
@@ -241,4 +256,11 @@ test("bytes are rendered as something a person reads", () => {
 	assert.equal(mb(0), "0.0MB");
 	assert.equal(mb(1_048_576), "1.0MB");
 	assert.equal(mb(141_557_760), "135.0MB");
+});
+
+test("the release day follows the interface language, not a hard-coded Chinese locale", () => {
+	const at = Date.parse("2026-09-17T03:39:53Z");
+	assert.match(publishedOn(at, "zh-CN"), /2026/);
+	assert.match(publishedOn(at, "en"), /2026/);
+	assert.notEqual(publishedOn(at, "fr"), publishedOn(at, "zh-CN"));
 });

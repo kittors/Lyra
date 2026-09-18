@@ -26,10 +26,10 @@ import { shortcutLabel } from "../keyboard.ts";
 const InsetIcons = createContext(false);
 
 /**
- * The padded box every menu's contents sit in.
+ * The box every menu's contents sit in.
  *
- * Rows are rounded, so the panel needs a margin for them to sit inside — and every menu
- * needing the same margin is exactly the sort of thing that drifts if each one writes it out.
+ * The gutter around the rows lives on the scroller (`--ly-menu-inset`), not here. A second
+ * pad here used to stack on that margin and made the top and bottom twice the sides.
  */
 export function MenuBody({
 	children,
@@ -43,7 +43,12 @@ export function MenuBody({
 }) {
 	return (
 		<InsetIcons.Provider value={insetIcons}>
-			<div className={`p-1 ${className}`}>{children}</div>
+			{/*
+			 * No extra pad here. `--ly-menu-inset` on the scroller is the only gutter, so a
+			 * hover fill is the same distance from every edge of the card. Padding here
+			 * used to stack on that margin and make the top/bottom twice the sides.
+			 */}
+			<div className={className}>{children}</div>
 		</InsetIcons.Provider>
 	);
 }
@@ -99,8 +104,8 @@ export function MenuItem({
 			data-selected={selected ? "true" : undefined}
 			data-danger={danger ? "true" : undefined}
 			onClick={onClick}
-			className={`ly-scroll ly-item flex w-full gap-2.5 px-2 text-left text-label ${
-				detail ? "items-start py-1.5" : "h-[28px] items-center"
+			className={`ly-scroll ly-item flex w-full gap-2.5 px-3 text-left text-label ${
+				detail ? "items-start py-2" : "h-[var(--ly-menu-row)] items-center"
 			}`}
 		>
 			{/*
@@ -125,7 +130,7 @@ export function MenuItem({
 				{detail && <span className="mt-0.5 block truncate text-caption leading-snug opacity-65">{detail}</span>}
 			</span>
 			{hint !== undefined && (
-				<span className={`shrink-0 font-mono text-caption text-ink-faint ${detail ? "mt-[3px]" : ""}`}>
+				<span className={`shrink-0 text-detail text-ink-faint ${detail ? "mt-[3px]" : ""}`}>
 					{typeof hint === "string" ? shortcutLabel(hint) : hint}
 				</span>
 			)}
@@ -145,7 +150,7 @@ export function MenuSeparator() {
 
 /** Small label above a group of items. */
 export function MenuLabel({ children }: { children: React.ReactNode }) {
-	return <div className="px-2 pt-1.5 pb-1 text-caption text-ink-faint">{children}</div>;
+	return <div className="px-3 pt-1.5 pb-1 text-caption text-ink-faint">{children}</div>;
 }
 
 /**
@@ -171,7 +176,7 @@ export function MenuSearch({
 	autoFocus?: boolean;
 }) {
 	return (
-		<div className="flex h-9 items-center gap-2 px-3">
+		<div className="flex h-[34px] items-center gap-2 px-3">
 			<Search size={13} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
 			<Input
 				autoFocus={autoFocus}

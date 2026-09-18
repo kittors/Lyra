@@ -25,6 +25,16 @@ import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
+import {
+	useScopedCommandRuns,
+	useScopedCompactions,
+	useScopedHiccups,
+	useScopedLoading,
+	useScopedMessages,
+	useScopedRunning,
+	useScopedSessionId,
+	useScopedToolRuns,
+} from "../../app/session-scope.tsx";
 
 /**
  * Nothing about the window's shape belongs to the transcript.
@@ -47,7 +57,7 @@ import { useApp } from "../../store/index.ts";
  */
 const NARROW_COLUMN = 520;
 
-export const Conversation = memo(function Conversation() {
+export const Conversation = memo(function Conversation({ sessionId: _sessionId }: { sessionId?: string | null } = {}) {
   /*
    * 转录的入口，也是那道闸门的位置。
    *
@@ -57,11 +67,11 @@ export const Conversation = memo(function Conversation() {
    *
    * 没有损坏时 `intact` 交回的是同一个引用，所以下面那些 `useMemo` 的依赖不会因此失效。
    */
-  const rawMessages = useApp((s) => s.messages);
+  const rawMessages = useScopedMessages();
   const messages = useMemo(() => intact(rawMessages), [rawMessages]);
-  const running = useApp((s) => s.running);
-  const compactions = useApp((s) => s.compactions);
-	const commandRuns = useApp((s) => s.commandRuns);
+  const running = useScopedRunning();
+  const compactions = useScopedCompactions();
+	const commandRuns = useScopedCommandRuns();
 	/*
 	 * 这一轮里连接抖过没有，以及最后怎么了。
 	 *
@@ -69,7 +79,7 @@ export const Conversation = memo(function Conversation() {
 	 * 从前它是转录末尾单独的一丛，一律挂在运行指示器底下——那让一句「重连 2 次后恢复」站在了「此刻」
 	 * 的位置上，而它说的是四十分钟前的事。见 `HiccupTrace`。
 	 */
-	const hiccups = useApp((s) => s.hiccups);
+	const hiccups = useScopedHiccups();
 	const compacting = commandRuns.some((command) => command.status === "running");
   /*
    * How many tool calls there are, and how many have stopped running.
@@ -86,17 +96,18 @@ export const Conversation = memo(function Conversation() {
    * Returned as a string so the selector compares by value; an object would be a new identity on
    * every store change and re-render the transcript for each one.
    */
-  const toolProgress = useApp((s) => {
+  const toolRuns = useScopedToolRuns();
+  const toolProgress = useMemo(() => {
     let total = 0;
     let settled = 0;
-    for (const run of Object.values(s.toolRuns)) {
+    for (const run of Object.values(toolRuns)) {
       total += 1;
       if (run.status !== "running") settled += 1;
     }
     return `${total}/${settled}`;
-  });
-  const activeSessionId = useApp((s) => s.activeSessionId);
-  const loadingSession = useApp((s) => s.loadingSession);
+  }, [toolRuns]);
+  const activeSessionId = useScopedSessionId();
+  const loadingSession = useScopedLoading();
   const allRuns = useMemo(() => runs(messages, compactions, commandRuns, hiccups), [messages, compactions, commandRuns, hiccups]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
@@ -114,6 +125,7 @@ export const Conversation = memo(function Conversation() {
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   const [jump, setJump] = useState<{ sessionId: string | null; index: number } | null>(null);
   const { compact } = useLayout();
+  const gutter = compact ? "ly-content-gutter-compact" : "ly-content-gutter";
   /*
    * The floating card needs its own width plus a readable column left over beside it.
    * 320 for the card, 32 for the gap it keeps from the edge, and 420 of text — below that the
@@ -202,7 +214,10 @@ export const Conversation = memo(function Conversation() {
    * it arrives at the end — so staying where you were means watching a screen on which nothing
    * appears to happen. Your own message is the one thing you can be certain you want to see.
    */
-  const pending = useApp((s) => s.pendingUserMessage);
+  const pending = useApp((s) => {
+    if (!activeSessionId || s.activeSessionId === activeSessionId) return s.pendingUserMessage;
+    return s.sessionCache[activeSessionId]?.state?.pendingUserMessage ?? null;
+  });
   const { returnToBottom } = follow;
   useLayoutEffect(() => {
     if (!pending && !compacting) return;
@@ -284,15 +299,25 @@ export const Conversation = memo(function Conversation() {
          * twelfth of a 380px pane, and the whole transcript sits to the right of its own box. Below
          * `NARROW_COLUMN` the rail moves to the very edge and 28px each side clears it evenly.
          */
-        contentClassName={questions.length > 1 ? (narrowColumn ? "px-7" : "pl-12 pr-4 @min-[600px]:pr-8") : compact ? "px-4" : "px-8"}
+        contentClassName={questions.length > 1 ? (narrowColumn ? "px-7" : "pl-12 pr-4 @min-[600px]:pr-8") : gutter}
         onScroll={follow.onScroll}
         onResize={follow.onResize}
         onUserScroll={follow.onUserScroll}
       >
-        {/* Historical rows must never replay entrance motion when revisited. */}
+        {/*
+         * Historical rows must never replay entrance motion when revisited.
+         *
+         * The wrapper itself is remounted on `activeSessionId` so `ly-session-enter` always
+         * starts from opacity 0. Toggling the class after paint was the jump: the new
+         * transcript drew at full strength, then dimmed and slid 3px. Children stay
+         * `ly-no-enter` so fifty rows do not each fade-up — one opacity on the wrapper is
+         * the cheap arrival.
+         */}
         <div
           /* `--ly-bottom-inset` keeps 「回到最新」 off the newest message; see `styles/scroll.css`. */
-          className="ly-transcript ly-no-enter mx-auto w-full max-w-[var(--ly-content)] pt-5 pb-[var(--ly-bottom-inset)]"
+          key={activeSessionId}
+          className="ly-transcript ly-no-enter ly-session-enter mx-auto w-full max-w-[var(--ly-content)] pt-5 pb-[var(--ly-bottom-inset)]"
+          data-ly-session={activeSessionId ?? ""}
           aria-busy={loadingSession}
         >
           {/*
@@ -533,7 +558,7 @@ export const Conversation = memo(function Conversation() {
       <div className="relative shrink-0">
         <ApprovalOverlay />
         {!roomToFloat && (
-          <div className={`${compact ? "px-4" : "px-8"} pb-1.5`}>
+          <div className={`${gutter} pb-1.5`}>
             <div className="mx-auto w-full max-w-[var(--ly-content)]">
               <TaskList placement="inline" />
             </div>
@@ -560,7 +585,7 @@ export function ConversationSkeleton() {
   return (
     <div data-ly-chat-surface="skeleton" className="flex min-h-0 flex-1 flex-col">
       <div
-        className={`ly-defer-in min-h-0 flex-1 overflow-hidden ${compact ? "px-4" : "px-8"}`}
+        className={`ly-defer-in min-h-0 flex-1 overflow-hidden ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}
         aria-busy
       >
         <div className="mx-auto w-full max-w-[var(--ly-content)] py-5">

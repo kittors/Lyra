@@ -31,6 +31,13 @@ export type PanelKind =
 	| "subagents"
 	| "terminal"
 	| "review"
+	/**
+	 * This conversation turn's recorded file diffs.
+	 *
+	 * Not the worktree. Git's version review is `review`; the file pane is the
+	 * current contents. This one is only what the latest turn wrote.
+	 */
+	| "delivery"
 	| "browser"
 	| "tasks"
 	| "trajectory";

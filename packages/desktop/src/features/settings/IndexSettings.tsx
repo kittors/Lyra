@@ -1,10 +1,11 @@
-import { Input } from "../../ui/inputs/NativeField.tsx";
-import { Database, RefreshCw, Search } from "lucide-react";
+import { Database, RefreshCw } from "lucide-react";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { Card, EmptyHint, GhostButton, Row, SectionTitle } from "./controls.tsx";
+import { Card, EmptyHint, Row, SectionTitle } from "./controls.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -67,19 +68,24 @@ export function IndexSettings() {
 							title={t("common.project")}
 							detail={workspace.path}
 							control={
-								<GhostButton
+								<DialogAction
 									disabled={building}
-									onClick={async () => {
-										setBuilding(true);
-										try {
-											setStats(await bridge.index.rebuild(workspace.path));
-										} finally {
-											setBuilding(false);
-										}
+									onClick={() => {
+										void (async () => {
+											setBuilding(true);
+											try {
+												setStats(await bridge.index.rebuild(workspace.path));
+											} finally {
+												setBuilding(false);
+											}
+										})();
 									}}
-									title={building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
-									icon={building ? <ActionSpinner size={11} /> : <RefreshCw size={11} strokeWidth={2} />}
-								/>
+									label={building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
+									data-ly-index-rebuild=""
+								>
+									{building ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={2} aria-hidden />}
+									{building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
+								</DialogAction>
 							}
 						/>
 						<Row
@@ -115,19 +121,13 @@ export function IndexSettings() {
 					<SectionTitle>{t("index.trySearch")}</SectionTitle>
 					<Card>
 						<div className="border-b border-line-soft p-3">
-							<div className="relative">
-								<Search
-									size={14}
-									strokeWidth={1.9}
-									className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint"
-								/>
-								<Input
-									value={query}
-									onChange={(e) => setQuery(e.target.value)}
-									placeholder={t("index.searchPlaceholder")}
-									className="h-[34px] w-full rounded-[10px] border border-line bg-input pr-3 pl-9 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
-								/>
-							</div>
+							<SearchField
+								size="comfortable"
+								value={query}
+								onChange={setQuery}
+								placeholder={t("index.searchPlaceholder")}
+								className="w-full"
+							/>
 						</div>
 
 						{hits.length === 0 ? (

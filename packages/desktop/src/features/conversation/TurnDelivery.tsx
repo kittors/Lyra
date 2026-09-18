@@ -9,13 +9,13 @@ import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
-import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { companionOf, useDock } from "../dock/index.ts";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
+import { peekDelivery, rememberDelivery } from "./delivery-cache.ts";
+import { useDeliveryReview } from "./delivery-review.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 const PREVIEW_FILES = 3;
@@ -64,9 +64,8 @@ function FileName({ path }: { path: string }) {
 function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: number }) {
 	const { t } = useI18n();
 	const workspace = useApp((state) => state.workspace?.path);
-	const [data, setData] = useState<TurnDelivery | null>(null);
+	const [data, setData] = useState<TurnDelivery | null>(() => peekDelivery(sessionId, timestamp) ?? null);
 	const [expanded, setExpanded] = useState(false);
-	const [review, setReview] = useState<string | true | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	/** The row being previewed, and the file it stands for — the preview hangs off that row. */
 	const [hover, setHover] = useState<{ anchor: HTMLElement; file: DeliveryFile } | null>(null);
@@ -76,7 +75,10 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	const confirm = useConfirmer();
 	useEffect(() => {
 		live.current = true;
-		void bridge.delivery.get(sessionId, timestamp).then((value) => { if (live.current) setData(value); }).catch((error: unknown) => { if (live.current) useApp.getState().notify(String(error), "error"); });
+		void bridge.delivery.get(sessionId, timestamp).then((value) => {
+			rememberDelivery(sessionId, timestamp, value);
+			if (live.current) setData(value);
+		}).catch((error: unknown) => { if (live.current) useApp.getState().notify(String(error), "error"); });
 		return () => { live.current = false; clearTimeout(hoverTimer.current); };
 	}, [sessionId, timestamp]);
 	// Opening, switching and closing are the same decision made three ways, so they share one timer:
@@ -93,8 +95,16 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		try {
 			await bridge.delivery.undo(sessionId, timestamp, path);
 			const value = await bridge.delivery.get(sessionId, timestamp);
+			rememberDelivery(sessionId, timestamp, value);
 			if (live.current) setData(value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
+			if (!value.files.length) {
+				useDeliveryReview.getState().close();
+				useDock.getState().close("delivery");
+			} else {
+				useDeliveryReview.getState().setData(value);
+				useDeliveryReview.getState().touch();
+			}
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 		finally { undoLock.current = false; if (live.current) setUndoing(false); }
 	};
@@ -102,10 +112,11 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		hideHover();
 		confirm.ask({ title: file ? t("delivery.revertFileConfirm") : t("delivery.revertAllConfirm"), detail: t("delivery.revertDetail"), confirmLabel: t("delivery.revertChanges"), onConfirm: () => undo(file?.path) });
 	};
-	// Reports, warnings and commands cannot manufacture an empty file-change card.
-	if (!data?.files.length) return null;
-	const added = data.files.reduce((sum, file) => sum + file.added, 0);
-	const removed = data.files.reduce((sum, file) => sum + file.removed, 0);
+	// No slot while we wait: a 0→height reveal reads as the card unfolding from the top.
+	if (!data?.files.length) return confirm.element;
+	const files = data.files;
+	const added = files.reduce((sum, file) => sum + file.added, 0);
+	const removed = files.reduce((sum, file) => sum + file.removed, 0);
 	/*
 	 * The turn's own write-up, in the file pane.
 	 *
@@ -116,21 +127,36 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	 * asked, what was run and how it ended", which is the half no row can show.
 	 */
 	const report = data.reportPath;
-	const openReport = (path: string) => {
-		void useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path, isDirectory: false, size: 0 })
+	const openInFilePane = (path: string) => {
+		hideHover();
+		void useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path })
 			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
 		useDock.getState().open("file", companionOf("file"));
 	};
-	const remaining = data.files.length - PREVIEW_FILES;
+	const openTurn = (path?: string) => {
+		hideHover();
+		useDeliveryReview.getState().open({ sessionId, timestamp, path: path ?? null }, data);
+		useDock.getState().open("delivery");
+	};
+	const remaining = files.length - PREVIEW_FILES;
 	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;
 	const row = (file: DeliveryFile) => <button key={file.path} type="button" data-delivery-file={file.path}
 		className="flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-label transition-colors hover:bg-card-hover focus-visible:bg-card-hover"
 		// No `onMouseLeave` here: leaving a row for the row below it, or for the card's own header,
 		// is not leaving the preview. The card answers that, once, below.
 		onMouseEnter={(event) => schedule({ anchor: event.currentTarget, file }, HOVER_OPEN_MS)}
-		// Focus is not a pointer passing through — it is already the answer, so it does not wait.
-		onFocus={(event) => { keepHover(); setHover({ anchor: event.currentTarget, file }); }} onBlur={closeHover}
-		onClick={() => { hideHover(); setReview(file.path); }}>
+		// Press already chose the row. Kill any pending open so a timer cannot land between
+		// pointerdown and click and paint one frame of preview.
+		onPointerDown={() => hideHover()}
+		// Keyboard focus is the one that already means this row. A mouse click also focuses
+		// the button, but that focus arrives before `click` runs hideHover — opening here
+		// paints the preview and tears it down in the next event, which is the flash.
+		onFocus={(event) => {
+			if (!event.currentTarget.matches(":focus-visible")) return;
+			keepHover();
+			setHover({ anchor: event.currentTarget, file });
+		}} onBlur={closeHover}
+		onClick={() => openTurn(file.path)}>
 		<FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} />
 	</button>;
 	return <>
@@ -148,7 +174,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 				<div className="flex min-h-16 flex-wrap items-center gap-3 px-3 py-3">
 					<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card-hover text-ink-muted"><FileDiff size={21} strokeWidth={1.7} /></span>
 					{/* 一行写不下就省略，不折行：折了这张卡就长高一截，而那一行字本来就是标题不是正文。 */}
-					<div className="min-w-0 flex-1"><p className="truncate font-medium text-ink">{translate("delivery.editedN", { n: data.files.length })}</p><Counts added={added} removed={removed} /></div>
+					<div className="min-w-0 flex-1"><p className="truncate font-medium text-ink">{translate("delivery.editedN", { n: files.length })}</p><Counts added={added} removed={removed} /></div>
 					<div className="ml-auto flex shrink-0 items-center gap-1">
 						{/*
 						 * Offered only when it can actually be done.
@@ -160,19 +186,19 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 						 * to do with this card (something else wrote to it afterwards, or a command did),
 						 * and none of that is a state this row can usefully show.
 						 *
-						 * Undoing one file at a time is still there, in 「审核」, where the same condition
-						 * is per file and does carry its reason.
+						 * Undoing one file at a time is on the hover preview, where the same
+						 * condition is per file and does carry its reason.
 						 */}
-						{report && <IconButton size="sm" icon={<FileText size={14} />} label={t("delivery.openReport")} onClick={() => { hideHover(); openReport(report); }} />}
-						{data.files.every((file) => file.canUndo) &&
+						{report && <IconButton size="sm" icon={<FileText size={14} />} label={t("delivery.openReport")} onClick={() => openInFilePane(report)} />}
+						{files.every((file) => file.canUndo) &&
 							<Button size="sm" variant="subtle" icon={<Undo2 size={14} />} loading={undoing} label={t("delivery.revertThis")} onClick={() => askUndo()}>{t("common.revert")}</Button>}
-						<Button size="sm" icon={<Files size={14} />} label={t("delivery.reviewAll")} onClick={() => { hideHover(); setReview(true); }}>{t("common.review")}</Button>
+						<Button size="sm" icon={<Files size={14} />} label={t("delivery.reviewAll")} onClick={() => openTurn()}>{t("common.review")}</Button>
 					</div>
 				</div>
 				<div className="px-1 pb-1">
-					{data.files.slice(0, PREVIEW_FILES).map(row)}
+					{files.slice(0, PREVIEW_FILES).map(row)}
 					{remaining > 0 && <>
-						<div id={"delivery-" + timestamp + "-more"} className="ly-reveal" data-open={expanded} aria-hidden={!expanded} inert={!expanded}><div>{data.files.slice(PREVIEW_FILES).map(row)}</div></div>
+						<div id={"delivery-" + timestamp + "-more"} className="ly-reveal" data-open={expanded} aria-hidden={!expanded} inert={!expanded}><div>{files.slice(PREVIEW_FILES).map(row)}</div></div>
 						{/* 展开的是一串文件，还有几个是这行唯一的信息——留字，箭头跟着开合转身。 */}
 					<button type="button" aria-expanded={expanded} aria-controls={"delivery-" + timestamp + "-more"} onClick={() => { hideHover(); setExpanded(!expanded); }} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md text-detail text-ink-muted hover:bg-card-hover hover:text-ink">
 			{expanded ? t("delivery.collapse") : t("delivery.showMore", { n: remaining })}
@@ -202,38 +228,9 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 */}
 		{hover && <Popover anchor={hover.anchor} onClose={hideHover} role="group" label={t("delivery.previewChanges")} placement="top" align="start" width={hover.anchor.offsetWidth} maxHeight={420}
 			surface="panel" onMouseEnter={keepHover} onMouseLeave={closeHover}
-			header={<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label"><FileName path={relative(hover.file.path)} /><Counts added={hover.file.added} removed={hover.file.removed} /></div>}>
+			header={<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label"><FileName path={relative(hover.file.path)} /><Counts added={hover.file.added} removed={hover.file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={hover.file.canUndo ? t("delivery.revertOne") : t("delivery.cannotRevert")} explainDisabled disabled={!hover.file.canUndo || undoing} onClick={() => askUndo(hover.file)} /></div>}>
 			<DiffView path={hover.file.path} hunks={hover.file.hunks} maxLines={Infinity} />
 		</Popover>}
-		{/*
-		 * A reading surface, not a form with diffs on it.
-		 *
-		 * Everything here used to scroll together inside 16px of padding: the dialog's title left
-		 * the top of the window as soon as you moved, each file's name went with it — so halfway
-		 * down a five-file review nothing on screen said which file you were reading — and the code,
-		 * inset on all four sides, sat as a smaller rectangle inside the dialog with the dialog's own
-		 * colour showing around it and the scrollbar riding 16px clear of the text it scrolls.
-		 *
-		 * So: the title is a fixed rail, each file's name holds at the top of the scroll until the
-		 * next one pushes it off, and the code goes edge to edge with the bar over it. `top="line"`
-		 * rather than a fade, because content here slides under something solid rather than
-		 * dissolving into the window — and a fade would have softened the very names being held.
-		 */}
-		{review && <Overlay onClose={() => setReview(null)} width={850}>
-			<div className="shrink-0 border-b border-line px-4 py-3"><h2 data-dialog-title className="text-body text-ink">{t("delivery.fileChanges")}</h2></div>
-			<Scroller className="min-h-0 flex-auto" top="line" bottom="none">
-				{data.files.filter((file) => review === true || review === file.path).map((file) => <div key={file.path} className="border-t border-line first:border-t-0">
-					{/*
-					 * Above the diff's own pinned columns and its sideways bar — see `DiffView`.
-					 *
-					 * 右边比左边多让 10px：代码那一列自带 `px-2.5` 的留白供滑块落脚，这一行没有，而它
-					 * 右端正是「撤销」。滑块画在 z-40 上、自己吃点击，压上去就是按钮看得见、按不着。
-					 */}
-					<div className="sticky top-0 z-[3] flex items-center gap-3 border-b border-line-soft bg-float py-2 pr-[22px] pl-3 text-label"><FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={file.canUndo ? t("delivery.revertOne") : t("delivery.cannotRevert")} explainDisabled disabled={!file.canUndo || undoing} onClick={() => askUndo(file)} /></div>
-					<DiffView path={file.path} hunks={file.hunks} maxLines={Infinity} />
-				</div>)}
-			</Scroller>
-		</Overlay>}
 		{confirm.element}
 	</>;
 }

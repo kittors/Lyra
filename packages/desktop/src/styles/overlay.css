@@ -224,6 +224,10 @@
     opacity var(--ly-t-base) var(--ly-e-out);
 }
 
+.ly-reveal:not([data-open="true"]) {
+  overflow: hidden;
+}
+
 .ly-reveal > * {
   overflow: hidden;
   min-height: 0;
@@ -293,9 +297,9 @@
 	align-items: center;
 	justify-content: center;
 	gap: 6px;
-	min-height: 34px;
+	min-height: var(--ly-control);
 	padding: 0 16px;
-	border-radius: 999px;
+	border-radius: var(--radius-field);
 	font-size: var(--text-label);
 	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
 }
@@ -307,8 +311,72 @@
  * 留着 padding 的话，一个叉和一个勾的宽度会差出几个像素——一对本该对称的按钮，一边胖一点。
  */
 .ly-dialog-action-icon {
-	width: 34px;
+	width: var(--ly-control);
 	padding: 0;
+}
+
+/*
+ * The same capsule the dialog actions use, for anything you type into or pick from.
+ *
+ * A bordered 10px field next to a borderless 34px pill is two answers to "what is a
+ * control". This is the second answer, applied to the first family.
+ */
+.ly-field {
+	height: var(--ly-control);
+	padding: 0 16px;
+	border: 0;
+	border-radius: var(--radius-field);
+	background: var(--color-card);
+	color: var(--color-ink);
+	font-size: var(--text-label);
+	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
+}
+
+button.ly-field,
+div.ly-field {
+	display: flex;
+	align-items: center;
+}
+
+.ly-field:hover,
+.ly-field:focus,
+.ly-field:focus-within {
+	background: var(--color-card-hover);
+}
+
+.ly-field::placeholder {
+	color: var(--color-ink-faint);
+}
+
+.ly-field.ly-field-invalid,
+.ly-field[aria-invalid="true"] {
+	background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+	color: var(--color-danger);
+}
+
+.ly-field-compact {
+	height: 26px;
+	padding: 0 10px;
+	font-size: var(--text-detail);
+}
+
+/*
+ * The capsule pads 16px a side. That is right for a name, and it eats a two-digit
+ * font size once the steppers sit on the right. The number field keeps the same
+ * height and wash; only the inset shrinks so the digits stay visible.
+ */
+.ly-field.ly-number-field {
+	padding-left: 2px;
+	padding-right: 4px;
+}
+
+.ly-dialog-action-primary {
+	background: var(--color-ink);
+	color: var(--color-shell);
+}
+
+.ly-dialog-action-primary:hover {
+	opacity: 0.9;
 }
 
 .ly-dialog-action-secondary {

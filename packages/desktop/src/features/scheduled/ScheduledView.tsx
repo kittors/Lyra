@@ -230,12 +230,12 @@ function TaskCard({
 						<div className="flex items-center gap-1.5">
 							<NumberField
 								value={task.schedule.minutes}
-								// A task cannot repeat more often than once a minute; the field enforces that
-								// rather than silently dropping the keystroke that would break it.
+								// Once a minute is the floor. A minus or a zero never enters; plus/minus stop at 1 and a day.
 								min={1}
 								max={60 * 24}
 								onChange={(minutes) => onChange({ schedule: { kind: "interval", minutes } })}
 								label={t("scheduled.intervalMinutes")}
+								name="intervalMinutes"
 							/>
 							<span className="text-detail text-ink-faint">{t("common.minutes")}</span>
 						</div>

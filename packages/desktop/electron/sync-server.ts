@@ -41,6 +41,7 @@ export interface SyncServerDeps {
 	create: RpcDeps["create"];
 	prompt: RpcDeps["prompt"];
 	editMessage: RpcDeps["editMessage"];
+	revertMessage: RpcDeps["revertMessage"];
 	abort: RpcDeps["abort"];
 	dispose: RpcDeps["dispose"];
 	snapshot(session: AgentSession): Promise<unknown>;
@@ -222,6 +223,7 @@ export class SyncServer {
 			create: this.deps.create,
 			prompt: this.deps.prompt,
 			editMessage: this.deps.editMessage,
+			revertMessage: this.deps.revertMessage,
 			abort: this.deps.abort,
 			dispose: this.deps.dispose,
 			snapshot: (session) => this.deps.snapshot(session),

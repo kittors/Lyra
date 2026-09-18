@@ -6,6 +6,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedMessages, useScopedRunning, useScopedSessionId, useScopedStopped, useScopedTodos } from "../../app/session-scope.tsx";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
 import { isUserPaused, taskListHeadline } from "./task-list-state.ts";
@@ -25,7 +26,7 @@ import { useDelayedOffer } from "./hover-offer.ts";
  */
 export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	const { t } = useI18n();
-	const todos = useApp((s) => s.todos);
+	const todos = useScopedTodos();
 	/*
 	 * Nothing is working on the current step.
 	 *
@@ -34,12 +35,13 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	 * originally tied to a detected interruption, which was too narrow — a model that simply
 	 * stopped without finishing leaves a perfectly intact log and a step that spins forever.
 	 */
-	const running = useApp((s) => s.running);
-	const stopped = useApp((s) => s.stopped);
+	const running = useScopedRunning();
+	const stopped = useScopedStopped();
 	const paused = isUserPaused(running, stopped);
+	const sessionId = useScopedSessionId();
 	const abort = useApp((s) => s.abort);
 	const send = useApp((s) => s.send);
-	const messages = useApp((s) => s.messages);
+	const messages = useScopedMessages();
 	/*
 	 * The last turn ended badly, so the step it was on did not merely stop — it failed.
 	 *
@@ -51,17 +53,17 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 
 	/** What the control on the current step does, which is also what its mark shows. */
 	const action = running
-		? { icon: Pause, label: t("taskList.pause"), run: () => void abort() }
+		? { icon: Pause, label: t("taskList.pause"), run: () => void abort(sessionId ?? undefined) }
 		: failed
 			? {
 						icon: RotateCw,
 						label: t("taskList.retryStep"),
-						run: () => void send([{ type: "text", text: t("taskList.retryStepDetail") }], { synthetic: true }),
+						run: () => void send([{ type: "text", text: t("taskList.retryStepDetail") }], { synthetic: true, sessionId: sessionId ?? undefined }),
 					}
 			: {
 						icon: Play,
 						label: t("taskList.resume"),
-						run: () => void send([{ type: "text", text: carryOnPrompt(null, todos.filter((todo) => todo.status !== "completed").length) ?? t("taskList.resumeDetail") }], { synthetic: true, carryOn: true }),
+						run: () => void send([{ type: "text", text: carryOnPrompt(null, todos.filter((todo) => todo.status !== "completed").length) ?? t("taskList.resumeDetail") }], { synthetic: true, carryOn: true, sessionId: sessionId ?? undefined }),
 					};
 
 	const [open, setOpen] = useState(false);

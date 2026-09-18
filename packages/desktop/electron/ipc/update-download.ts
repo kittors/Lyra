@@ -159,7 +159,7 @@ export class UpdateDownload {
 
 	/** The partial, which is where a paused download's bytes wait. */
 	private get partial(): string {
-		return `${this.target.file}.part`;
+		return partialPath(this.target.file);
 	}
 
 	/**
@@ -273,7 +273,7 @@ export class UpdateDownload {
 			let received = plan.from;
 			this.set({ at: "downloading", received, total });
 
-			const sink = await open(this.partial, plan.append ? "a" : "w", 0o600);
+			const sink = await openPartial(this.partial, plan.append ? "a" : "w");
 			const reader = response.body.getReader();
 			try {
 				while (true) {
@@ -444,5 +444,40 @@ export function describe(error: unknown, received: number): string {
 	if (/fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT/i.test(raw)) {
 		return "连不上下载地址，检查一下网络再试。";
 	}
+	/*
+	 * Windows Defender (and friends) lock or delete a file the moment it looks like an unsigned
+	 * installer. Node then says `UNKNOWN: unknown error, open '…\Lyra-0.9.15-x64.exe.part'` —
+	 * which used to be printed next to the dialog buttons, path and all.
+	 */
+	if (isBlockedWrite(raw)) {
+		return received > 0
+			? "Windows 安全中心把安装包拦下了。到「病毒和威胁防护 → 保护历史记录」允许 Lyra，排除项里加上更新目录，再点重试。已经下好的部分还在。"
+			: "Windows 安全中心把安装包拦下了。到「病毒和威胁防护 → 保护历史记录」允许 Lyra，再点重试。";
+	}
 	return raw || "下载失败";
+}
+
+/** A sibling of the finished file, deliberately not named `*.exe.part`. */
+export const PARTIAL_NAME = "download.part";
+export function partialPath(file: string): string {
+	return join(dirname(file), PARTIAL_NAME);
+}
+
+function isBlockedWrite(raw: string): boolean {
+	return /UNKNOWN|EPERM|EACCES|EBUSY|ELOCKED|EIO/i.test(raw) && /open/i.test(raw);
+}
+
+async function openPartial(path: string, flags: "a" | "w") {
+	let last: unknown;
+	for (let attempt = 0; attempt < 5; attempt++) {
+		try {
+			return await open(path, flags, 0o600);
+		} catch (error) {
+			last = error;
+			const raw = error instanceof Error ? error.message : String(error);
+			if (!isBlockedWrite(raw) || attempt === 4) throw error;
+			await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+		}
+	}
+	throw last;
 }

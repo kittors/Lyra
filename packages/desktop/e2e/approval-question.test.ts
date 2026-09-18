@@ -18,11 +18,10 @@ const targets = {
 	session: '[data-ly-row="qa-long"] > button',
 	otherSession: '[data-ly-row="qa-short"] > button',
 	composer: 'main textarea',
-	toggle: 'button[aria-label="自定义回答"]',
 	input: 'input[aria-label="自定义回答"]',
 	submit: 'button[aria-label="发送回答"]',
 	thumb: '.ly-approval-scroll .ly-thumb',
-	lastChoice: '[data-approval-card] label:last-of-type',
+	lastChoice: '[data-ly-question-option]:last-of-type',
 	confirm: 'button[aria-label="确认选择"]',
 };
 
@@ -98,7 +97,7 @@ test("long questions stay readable and actionable across themes and widths with 
 	await app.send("Input.insertText", { text: "ASK_LONG" }); await enter();
 	await until(async () => app.evaluate("Boolean(document.querySelector('[data-approval-card] .ly-thumb'))"));
 	assert.equal(await app.evaluate("document.querySelector('[data-approval-card] pre').textContent"), LONG_QUESTION);
-	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input:not([type=radio]):not([type=checkbox])').length"), 0);
+	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input[aria-label=\"自定义回答\"]').length"), 1);
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] .ly-scroll-host').length"), 1);
 	for (const theme of ["dark", "light"] satisfies Array<"dark" | "light">) {
 		for (const width of [1280, 375]) {
@@ -116,7 +115,7 @@ test("long questions stay readable and actionable across themes and widths with 
 				assert.ok(button.left >= geometry.left && button.right <= geometry.right);
 			}
 			assert.equal(await app.evaluate("getComputedStyle(document.querySelector('[data-approval-card] button[type=submit]').parentElement).justifyContent"), "flex-end");
-			assert.deepEqual(await app.evaluate("[...document.querySelectorAll('[data-approval-card] label')].map(e=>e.textContent)"), LONG_OPTIONS);
+			assert.deepEqual(await app.evaluate("[...document.querySelectorAll('[data-ly-question-label]')].map(e=>e.textContent)"), LONG_OPTIONS);
 			await shot(`approval-long-${theme}-${width}`);
 		}
 	}
@@ -134,10 +133,10 @@ test("long questions stay readable and actionable across themes and widths with 
 	await until(async () => { const value = await scrollState(); return value.max - value.top < 1 && value.fadeBottom === 0; }); await settle();
 	const end = await scrollState(); assert.equal(end.fadeBottom, 0); assert.ok(end.fadeTop > 0);
 	t.diagnostic(JSON.stringify({ initial, middle, end })); await shot("approval-scrolled-to-end");
-	await click("toggle"); await click("input");
+	await click("input");
 	const expanded = await app.evaluate<{ top: number; bottom: number }>("(()=>{const r=document.querySelector('[data-approval-card]').getBoundingClientRect();return {top:r.top,bottom:r.bottom};})()");
 	t.diagnostic(JSON.stringify({ expanded }));
-	assert.ok(expanded.top >= 0 && expanded.bottom <= 800, "expanding custom input keeps the full card visible");
+	assert.ok(expanded.top >= 0 && expanded.bottom <= 800, "the other row keeps the full card visible");
 	await app.send("Input.imeSetComposition", { text: "中文输入", selectionStart: 4, selectionEnd: 4 });
 	assert.equal(await app.evaluate("document.querySelector('input[aria-label=\"自定义回答\"]').value"), "中文输入");
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card]').length"), 1);

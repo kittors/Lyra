@@ -184,6 +184,30 @@ export interface LyraApi {
 	 */
 	platform: NodeJS.Platform;
 	/**
+	 * Which window this renderer is, and which conversation it was born showing.
+	 *
+	 * Read from `additionalArguments` in the preload, not over IPC — the first frame of an
+	 * auxiliary window has to know its session before `sessions:list` comes back.
+	 */
+	bootWindow: {
+		id: string;
+		sessionId: string | null;
+		kind: "primary" | "session" | "panel";
+		panelKind: string | null;
+		panelScope: string | null;
+	};
+	windows: {
+		open(input: { sessionId: string }): Promise<{ ok: boolean }>;
+		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string }[] }>;
+		openInMain(input: { sessionId: string }): Promise<{ ok: boolean }>;
+		openPanel(input: { kind: string; scope: string; sessionId: string | null }): Promise<{ ok: boolean }>;
+		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
+		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
+		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string }[] }) => void): () => void;
+		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
+		onRestorePanel(handler: (state: { kind: string; scope: string }) => void): () => void;
+	};
+	/**
 	 * What is displaying this interface.
 	 *
 	 * `"desktop"` — the Electron window, which has traffic lights, a mouse and a keyboard with
@@ -284,6 +308,8 @@ export interface LyraApi {
 		 * 那一版等于每编辑一次就把附件从界面上抹掉一次，并把附件正文重新铺回气泡里。
 		 */
 		editMessage(sessionId: string, messageIndex: number, content: UserContent[], options?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
+		/** Cut from this user message and stop. The wording goes back to the composer, not the model. */
+		revertMessage(sessionId: string, messageIndex: number): Promise<void>;
 		abort(sessionId: string): Promise<void>;
 		approve(sessionId: string, requestId: string, decision: ApprovalDecision): Promise<void>;
 		setModel(sessionId: string, modelId: string): Promise<void>;

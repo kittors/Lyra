@@ -58,6 +58,18 @@ export function appIconPath(): string | undefined {
  */
 let readSettings: () => Settings | undefined = () => undefined;
 let mainWindow: BrowserWindow | null = null;
+const appWindows = new Set<BrowserWindow>();
+type AppWindowRole = "primary" | "aux" | "panel";
+
+interface WindowMeta {
+	id: string;
+	role: AppWindowRole;
+	sessionId: string | null;
+	panelKind?: string;
+	panelScope?: string;
+}
+
+const windowMeta = new WeakMap<BrowserWindow, WindowMeta>();
 
 /**
  * Whether the app is on its way out.
@@ -93,8 +105,21 @@ export function beginQuit(): void {
 
 /** The live window, or null before the first one is built. */
 export function getWindow(): BrowserWindow | null {
-	if (!mainWindow || mainWindow.isDestroyed()) return null;
-	return mainWindow;
+	const focused = BrowserWindow.getFocusedWindow();
+	if (focused && appWindows.has(focused) && !focused.isDestroyed()) return focused;
+	if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+	return listAppWindows()[0] ?? null;
+}
+
+export function listAppWindows(): BrowserWindow[] {
+	return [...appWindows].filter((win) => !win.isDestroyed());
+}
+
+export function eachAppWindow(fn: (win: BrowserWindow) => void): void {
+	for (const win of listAppWindows()) {
+		if (win.webContents.isDestroyed()) continue;
+		fn(win);
+	}
 }
 
 interface WindowState {
@@ -135,8 +160,146 @@ function bootTheme(): { dark: boolean; background: string; foreground: string; a
 }
 
 export function createWindow(): void {
-	const saved = readWindowState();
-	mainWindow = new BrowserWindow({
+	mainWindow = buildAppWindow({ role: "primary" });
+}
+
+export function openSessionWindow(sessionId: string): BrowserWindow {
+	const existing = findSessionWindow(sessionId);
+	if (existing) {
+		if (existing.isMinimized()) existing.restore();
+		existing.show();
+		existing.focus();
+		return existing;
+	}
+	return buildAppWindow({ role: "aux", sessionId });
+}
+
+export function listSessionWindowIds(): string[] {
+	const ids: string[] = [];
+	for (const win of listAppWindows()) {
+		const meta = windowMeta.get(win);
+		if (meta?.role === "aux" && meta.sessionId) ids.push(meta.sessionId);
+	}
+	return ids;
+}
+
+export function listPanelWindows(): { kind: string; scope: string }[] {
+	const panels: { kind: string; scope: string }[] = [];
+	for (const win of listAppWindows()) {
+		const meta = windowMeta.get(win);
+		if (meta?.role === "panel" && meta.panelKind && meta.panelScope) {
+			panels.push({ kind: meta.panelKind, scope: meta.panelScope });
+		}
+	}
+	return panels;
+}
+
+export function broadcastSessionWindows(): void {
+	const sessions = listSessionWindowIds();
+	const panels = listPanelWindows();
+	eachAppWindow((win) => {
+		if (win.webContents.isDestroyed()) return;
+		win.webContents.send("windows:changed", { sessions, panels });
+	});
+}
+
+function findPanelWindow(kind: string, scope: string): BrowserWindow | null {
+	return (
+		listAppWindows().find((win) => {
+			const meta = windowMeta.get(win);
+			return meta?.role === "panel" && meta.panelKind === kind && meta.panelScope === scope;
+		}) ?? null
+	);
+}
+
+export function openPanelWindow(input: { kind: string; scope: string; sessionId?: string | null }): BrowserWindow {
+	const existing = findPanelWindow(input.kind, input.scope);
+	if (existing) {
+		if (existing.isMinimized()) existing.restore();
+		existing.show();
+		existing.focus();
+		return existing;
+	}
+	return buildAppWindow({
+		role: "panel",
+		sessionId: input.sessionId ?? undefined,
+		panelKind: input.kind,
+		panelScope: input.scope,
+	});
+}
+
+export function closePanelWindow(input: { kind: string; scope: string }): boolean {
+	const existing = findPanelWindow(input.kind, input.scope);
+	if (!existing || existing.isDestroyed()) return false;
+	existing.close();
+	return true;
+}
+
+export function requestRestorePanel(input: { kind: string; scope: string }): boolean {
+	if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
+	if (mainWindow.isMinimized()) mainWindow.restore();
+	mainWindow.show();
+	mainWindow.webContents.send("windows:restore-panel", input);
+	return true;
+}
+
+export function revealSessionInMain(sessionId: string, from?: BrowserWindow | null): void {
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		if (mainWindow.isMinimized()) mainWindow.restore();
+		mainWindow.show();
+		mainWindow.focus();
+		if (!mainWindow.webContents.isDestroyed()) {
+			mainWindow.webContents.send("windows:show-session", { sessionId });
+		}
+	}
+	if (from && !from.isDestroyed() && windowMeta.get(from)?.role === "aux") from.close();
+}
+
+function findSessionWindow(sessionId: string): BrowserWindow | null {
+	return listAppWindows().find((win) => {
+		const meta = windowMeta.get(win);
+		return meta?.role === "aux" && meta.sessionId === sessionId;
+	}) ?? null;
+}
+
+/**
+ * A conversation window is a document, not a second workspace.
+ *
+ * Codex's "Open in new window" is a floating chat: title, the conversation, a way back. Copying
+ * the parent bounds produced a clone of the whole shell, which is the thing this is not.
+ */
+function sessionWindowBounds(origin: { x: number; y: number; width: number; height: number } | null): {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+} {
+	const width = 780;
+	const height = 640;
+	if (!origin) return { x: 80, y: 80, width, height };
+	const display = screen.getDisplayMatching(origin);
+	const area = display.workArea;
+	const nextWidth = Math.min(width, Math.max(420, area.width - 24));
+	const nextHeight = Math.min(height, Math.max(380, area.height - 24));
+	return {
+		x: Math.max(area.x, Math.min(origin.x + 52, area.x + area.width - nextWidth)),
+		y: Math.max(area.y, Math.min(origin.y + 52, area.y + area.height - nextHeight)),
+		width: nextWidth,
+		height: nextHeight,
+	};
+}
+
+function buildAppWindow(options: {
+	role: AppWindowRole;
+	sessionId?: string;
+	panelKind?: string;
+	panelScope?: string;
+}): BrowserWindow {
+	const saved = options.role === "primary" ? readWindowState() : null;
+	const origin = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+	const sessionBox = options.role === "aux" || options.role === "panel" ? sessionWindowBounds(origin) : null;
+	const windowId = options.role === "primary" ? "primary" : crypto.randomUUID();
+	const win = new BrowserWindow({
 		/*
 		 * The icon, for the layouts that read it from the window.
 		 *
@@ -148,16 +311,20 @@ export function createWindow(): void {
 		icon: appIconPath(),
 		// Matches the reference screenshots: a 272px sidebar plus a main column wide enough
 		// for the four suggestion cards to sit on one row.
-		width: saved?.width ?? 980,
-		height: saved?.height ?? 680,
-		...(saved && saved.x !== undefined && saved.y !== undefined ? { x: saved.x, y: saved.y } : {}),
+		width: sessionBox?.width ?? saved?.width ?? 980,
+		height: sessionBox?.height ?? saved?.height ?? 680,
+		...(sessionBox
+			? { x: sessionBox.x, y: sessionBox.y }
+			: saved && saved.x !== undefined && saved.y !== undefined
+				? { x: saved.x, y: saved.y }
+				: {}),
 		/*
 		 * Small enough for the phone-shaped layout the renderer switches to below 760pt: the
 		 * sidebar becomes a drawer, the cards stack two by two, and the composer keeps its
 		 * send button. 380×440 is where the composer controls stop fitting on one row.
 		 */
-		minWidth: 380,
-		minHeight: 440,
+		minWidth: options.role === "aux" || options.role === "panel" ? 420 : 380,
+		minHeight: options.role === "aux" || options.role === "panel" ? 380 : 440,
 		show: false,
 		/*
 		 * The window's own backing colour, which is what shows through whenever the native
@@ -204,27 +371,54 @@ export function createWindow(): void {
 			 */
 			backgroundThrottling: false,
 			// Read by the preload before the first frame, so the app never opens in the wrong theme.
-			additionalArguments: [`--ly-boot=${encodeURIComponent(JSON.stringify(bootTheme()))}`],
+			additionalArguments: [
+				`--ly-boot=${encodeURIComponent(JSON.stringify(bootTheme()))}`,
+				`--ly-window=${windowId}`,
+				...(options.role === "aux" ? ["--ly-kind=session"] : []),
+				...(options.role === "panel" ? ["--ly-kind=panel"] : []),
+				...(options.sessionId ? [`--ly-session=${encodeURIComponent(options.sessionId)}`] : []),
+				...(options.panelKind ? [`--ly-panel=${options.panelKind}`] : []),
+				...(options.panelScope ? [`--ly-scope=${encodeURIComponent(options.panelScope)}`] : []),
+			],
 		},
 	});
 
-	mainWindow.once("ready-to-show", () => mainWindow?.show());
+	appWindows.add(win);
+	windowMeta.set(win, {
+		id: windowId,
+		role: options.role,
+		sessionId: options.sessionId ?? null,
+		panelKind: options.panelKind,
+		panelScope: options.panelScope,
+	});
+	win.on("closed", () => {
+		appWindows.delete(win);
+		if (options.role === "primary") mainWindow = null;
+		if (options.role === "aux" || options.role === "panel") broadcastSessionWindows();
+	});
+
+	win.once("ready-to-show", () => {
+		win.show();
+		if (options.role === "aux" || options.role === "panel") broadcastSessionWindows();
+	});
 
 	// Persist on settle rather than on every resize event, which fires per frame while dragging.
-	let saveTimer: NodeJS.Timeout | undefined;
-	const rememberLater = () => {
-		clearTimeout(saveTimer);
-		saveTimer = setTimeout(writeWindowState, 400);
-	};
-	mainWindow.on("resize", rememberLater);
-	mainWindow.on("move", rememberLater);
-	mainWindow.on("close", (event) => {
-		clearTimeout(saveTimer);
-		writeWindowState();
-		if (!closeShouldHide()) return;
-		event.preventDefault();
-		hideWindow();
-	});
+	if (options.role === "primary") {
+		let saveTimer: NodeJS.Timeout | undefined;
+		const rememberLater = () => {
+			clearTimeout(saveTimer);
+			saveTimer = setTimeout(writeWindowState, 400);
+		};
+		win.on("resize", rememberLater);
+		win.on("move", rememberLater);
+		win.on("close", (event) => {
+			clearTimeout(saveTimer);
+			writeWindowState();
+			if (!closeShouldHide()) return;
+			event.preventDefault();
+			hideWindow();
+		});
+	}
 
 	/*
 	 * Native full screen, which the renderer cannot see for itself.
@@ -234,11 +428,11 @@ export function createWindow(): void {
 	 * is no CSS or DOM signal for this: `titlebar-area-*` is the Windows overlay API, and the
 	 * lights are drawn by the system outside the page entirely. So the window says so itself.
 	 */
-	const reportFullScreen = () => mainWindow?.webContents.send("window:fullscreen", mainWindow.isFullScreen());
-	mainWindow.on("enter-full-screen", reportFullScreen);
-	mainWindow.on("leave-full-screen", reportFullScreen);
+	const reportFullScreen = () => win.webContents.send("window:fullscreen", win.isFullScreen());
+	win.on("enter-full-screen", reportFullScreen);
+	win.on("leave-full-screen", reportFullScreen);
 	// The window can be restored into full screen, so the first frame has to be told as well.
-	mainWindow.webContents.on("did-finish-load", reportFullScreen);
+	win.webContents.on("did-finish-load", reportFullScreen);
 
 	/*
 	 * External links open in the user's browser, and the window stays on our own page.
@@ -247,11 +441,12 @@ export function createWindow(): void {
 	 * obvious part; refusing to *navigate* is the part that keeps an injected `location.href` from
 	 * loading a remote page into the window that holds the preload. See `window-security.ts`.
 	 */
-	guardNavigation(mainWindow.webContents);
+	guardNavigation(win.webContents);
 
 	const devServer = process.env.ELECTRON_RENDERER_URL;
-	if (devServer) void mainWindow.loadURL(devServer);
-	else void mainWindow.loadFile(join(import.meta.dirname, "../renderer/index.html"));
+	if (devServer) void win.loadURL(devServer);
+	else void win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
+	return win;
 }
 
 /**
@@ -366,8 +561,8 @@ function writeWindowState(): void {
  * backing colour before the renderer has reflowed, so that colour has to track the theme.
  */
 export function registerWindowIpc(): void {
-	ipcMain.on("window:theme", (_event, colors: { color: string; symbolColor: string }) => {
-		const window = getWindow();
+	ipcMain.on("window:theme", (event, colors: { color: string; symbolColor: string }) => {
+		const window = BrowserWindow.fromWebContents(event.sender) ?? getWindow();
 		if (!window || window.isDestroyed()) return;
 		/*
 		 * Repaint the window's own backing colour, not just the OS-drawn controls.

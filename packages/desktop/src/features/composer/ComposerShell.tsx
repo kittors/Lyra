@@ -427,7 +427,7 @@ export function ComposerShell({
        * parts that marked themselves droppable. Measured rather than guessed from a width — see
        * `composer/fit.ts`.
        */}
-      <div ref={bar} data-ly-fit={fit} className="flex items-center justify-between gap-1 px-3 pt-0 pb-2.5">
+      <div ref={bar} data-ly-fit={fit} className="ly-composer-bar flex items-center justify-between gap-1">
         <div className="flex shrink-0 items-center gap-1">{left}</div>
         <div className="flex min-w-0 shrink items-center gap-1">{right}</div>
       </div>
@@ -450,7 +450,7 @@ export function ComposerSend({ running, disabled, onSend, onStop, continueReady 
 	const label = running ? t("composer.stop") : tip ?? t("composer.send");
 	return <button type="button" data-composer-send={active ? mode : undefined} data-ly-tip={label} aria-label={label}
 		disabled={!running && disabled} onClick={running ? onStop : onSend}
-		className={`ly-composer-control relative flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-full transition-all duration-[var(--ly-t-quick)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
+		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-full transition-all duration-[var(--ly-t-quick)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
 		<span className="ly-send-icon" data-active={mode === "stop"}><svg width="11" height="11" viewBox="0 0 11 11" aria-hidden><rect width="11" height="11" rx="1.5" fill="currentColor" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "continue"}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M5 3.5 12.5 8 5 12.5Z" fill="currentColor" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "send"}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 19V5M5 12l7-7 7 7" /></svg></span>

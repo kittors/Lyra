@@ -1,15 +1,19 @@
 ---
-description: Question and approval choice rows use the drawn ChoiceMark, never native OS checkboxes
+description: Question rows are a wash, not a checkbox; pickers that still need a mark use ChoiceMark
 globs: packages/desktop/src/features/conversation/**/*.{tsx,css}
 alwaysApply: true
 ---
 
 # Choice controls
 
-Ask-user and approval option rows must use `ui/primitives/ChoiceMark.tsx`.
+Ask-user option rows are the wash only. No `ChoiceMark`, no trailing check, no index.
 
 Do not ship `<input type="checkbox">` or `<input type="radio">` as the visible control. Native chrome follows the OS (Aqua, Fluent) and does not match Lyra's ink/accent cards.
 
-Keep a visually hidden native input (`sr-only`) when a real form control is needed so tests and assistive tech still see `input:checked`. The mark is paint only.
+Keep a visually hidden native input (`sr-only`) when a real form control is needed so tests and assistive tech still see `input:checked`.
 
-Selected rows use the quiet card treatment: `border-accent/40 bg-accent/[0.04]`, not a loud `bg-accent/10` wash plus a system checkbox.
+Selected rows use `bg-accent/[0.08]`. Idle rows use the bubble wash `bg-card`, not `bg-elevated`. No hairline between rows.
+
+The recommended chip sits as a sibling of the title-and-description stack and stays vertically centered on that block.
+
+`ChoiceMark` stays for pickers that are actually on/off controls (model fetch, and the like).

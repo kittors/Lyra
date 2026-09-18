@@ -79,7 +79,7 @@ export function labelFor(phase: Phase, version: string): string {
 export function confirmLabel(phase: Phase): string {
 	switch (phase.at) {
 		case "downloading":
-			return translate("update.downloading");
+			return translate("updateDialog.pause");
 		case "paused":
 			return translate("update.resume");
 		case "preparing":
@@ -112,26 +112,25 @@ export function readyNote(relaunch: boolean): string {
  *
  * The rules, stated once:
  *
- *   - `confirm` is disabled only while something is genuinely working. Paused and failed are both
- *     actionable — disabling them was how the old dialog said "wait", which it then never stopped
- *     saying if the download had quietly died.
- *   - `pause` replaces `close` while downloading, rather than joining it: the two want the same
- *     slot, and a dialog that can be left by pressing Escape does not need a button saying so
- *     during the one phase where stopping is the more useful thing to offer.
+ *   - Progress lives in the body. The confirming button while bytes move is 暂停, not a
+ *     percentage and not a disabled 下载中. Preparing cannot be paused, so that one state greys
+ *     the button out.
+ *   - `close` is always offered. Leaving the dialog does not stop a download — that is the whole
+ *     reason the dialog is a view — so 关闭 must stay in the same slot in every phase.
  *   - `cancel` appears only when there is something to throw away. On an untouched update it would
  *     be a second 关闭 wearing a more alarming word.
  */
 export function controlsFor(phase: Phase): {
 	confirmDisabled: boolean;
-	pause: boolean;
+	confirmPauses: boolean;
 	close: boolean;
 	cancel: boolean;
 } {
 	const running = phase.at === "downloading";
 	return {
-		confirmDisabled: running || phase.at === "preparing",
-		pause: running,
-		close: !running,
+		confirmDisabled: phase.at === "preparing",
+		confirmPauses: running,
+		close: true,
 		cancel: running || phase.at === "paused" || (phase.at === "failed" && phase.received > 0),
 	};
 }
@@ -178,4 +177,29 @@ export function versionNote(
 /** Bytes as something a person reads at a glance. One decimal: 90.4MB, not 90.37MB. */
 export function mb(bytes: number): string {
 	return `${(bytes / 1_048_576).toFixed(1)}MB`;
+}
+
+/**
+ * The day a release went up, in the interface language.
+ *
+ * The dialog used to hard-code `zh-CN` for this, so a French UI still printed 2026/9/17.
+ */
+export function publishedOn(at: number, locale: string): string {
+	return new Date(at).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/**
+ * What the dialog shows when a download fails.
+ *
+ * The raw Node string used to sit in the button row — `UNKNOWN: unknown error, open 'C:\…exe.part'`
+ * next to 重试 — which is a path, not a next step. Paths come out; the sentence stays.
+ */
+export function failureDetail(error: string): string {
+	return error
+		.replace(/'[^']+'/g, "")
+		.replace(/"[^"]+"/g, "")
+		.replace(/[A-Za-z]:\\[^\s)]+/g, "")
+		.replace(/\s{2,}/g, " ")
+		.replace(/\s+([,.])/g, "$1")
+		.trim();
 }

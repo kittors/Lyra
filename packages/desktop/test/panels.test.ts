@@ -43,6 +43,14 @@ test("availability is decided against the current state, not at registration", (
 	remove();
 });
 
+test("an unlisted ephemeral panel stays registered for code to open", () => {
+	const remove = registerPanels([{ ...stub("notes", "笔记"), listed: false, ephemeral: true }]);
+	const panel = allPanels().find((p) => p.kind === "notes");
+	assert.equal(panel?.listed, false);
+	assert.equal(panel?.ephemeral, true);
+	remove();
+});
+
 test("the phone receives only panels that declare a complete mobile capability", () => {
 	const desktopOnly = stub("terminal", "终端");
 	const mobile = { ...stub("tasks", "任务"), mobile: true };

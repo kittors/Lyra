@@ -30,12 +30,12 @@ import { CarriedPill } from "./DropIndicator.tsx";
  * two kinds share a store without a chance of collision.
  */
 const PINNED = "§pinned";
+const PROJECTS = "§projects";
 const RECENT = "§recent";
 
 export function ProjectList({
 	groups,
 	activePath,
-	activeSessionId,
 	collapsed,
 	onToggleCollapsed,
 	groupProps,
@@ -50,7 +50,6 @@ export function ProjectList({
 	groups: Grouped;
 	/** The project the workspace is currently on, which is drawn as open. */
 	activePath: string | undefined;
-	activeSessionId: string | null;
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
@@ -78,7 +77,7 @@ export function ProjectList({
 			{reorder.dragging && <CarriedPill item={reorder.dragging} pointer={reorder.pointer} />}
 			{hasPinned && (
 				<>
-					<SectionLabel sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
+					<SectionLabel section="pinned" sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
 						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
@@ -87,7 +86,6 @@ export function ProjectList({
 								<SessionRow
 									key={session.id}
 									session={session}
-									active={activeSessionId === session.id}
 									project={session.projectName}
 									{...rowActions(actions, session)}
 								/>
@@ -107,22 +105,35 @@ export function ProjectList({
 			)}
 
 			{/*
-			 * No heading over the projects.
+			 * 「项目」 is a boundary, not a caption for a single folder.
 			 *
-			 * They used to sit under 「最近」, which then had nothing left to say when the
-			 * project-less conversations needed a home: a folder row called 「无项目」 was
-			 * invented for them, and a folder named after not having one is a contradiction you
-			 * cannot click on. 「最近」 belongs to those conversations — they are the ones that
-			 * are not filed anywhere and are found by when you last touched them. A project is
-			 * found by its name, and its own row is already the heading.
+			 * Without it, the first ordinary project sits on the same visual run as 「置顶」 and
+			 * reads as pinned. The project's own row still names the place; this heading only
+			 * says which list you are in.
 			 */}
-			{groups.projects.map((group) => (
-				<ProjectGroup key={group.path} group={group} active={activePath === group.path} {...groupProps(group.path)} />
-			))}
+			{groups.projects.length > 0 && (
+				<>
+					<SectionLabel
+						section="projects"
+						sessions={groups.projects.flatMap((group) => group.sessions)}
+						count={groups.projects.length}
+						collapsed={collapsed.includes(PROJECTS)}
+						onToggle={() => onToggleCollapsed(PROJECTS)}
+					>
+						{translate("projectList.projects")}
+					</SectionLabel>
+					<Collapsible open={!collapsed.includes(PROJECTS)}>
+						{groups.projects.map((group) => (
+							<ProjectGroup key={group.path} group={group} active={activePath === group.path} {...groupProps(group.path)} />
+						))}
+					</Collapsible>
+				</>
+			)}
 
 			{groups.loose.length > 0 && (
 				<>
 					<SectionLabel
+						section="recent"
 						sessions={groups.loose}
 						count={groups.loose.length}
 						collapsed={collapsed.includes(RECENT)}
@@ -138,7 +149,6 @@ export function ProjectList({
 								<SessionRow
 									key={session.id}
 									session={session}
-									active={activeSessionId === session.id}
 									{...rowActions(actions, session)}
 								/>
 							))}
@@ -174,12 +184,14 @@ export function ProjectList({
  */
 function SectionLabel({
 	children,
+	section,
 	count,
 	sessions,
 	collapsed,
 	onToggle,
 }: {
 	children: React.ReactNode;
+	section: "pinned" | "projects" | "recent";
 	count: number;
 	sessions: SessionMeta[];
 	collapsed: boolean;
@@ -188,6 +200,7 @@ function SectionLabel({
 	return (
 		<button
 			type="button"
+			data-ly-section={section}
 			aria-expanded={!collapsed}
 			onClick={onToggle}
 			className="group/section flex w-full items-center gap-1 rounded-md px-2 pt-4 pb-1.5 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"

@@ -69,11 +69,20 @@
  * identically — and so a row with a non-standard shape can still pick up the same states.
  */
 .ly-item {
-  border-radius: 7px;
+  border-radius: 6px;
   color: var(--color-ink);
   transition:
     background-color var(--ly-t-quick) var(--ly-e-out),
     color var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * Menus only. List rows in the inspector keep the 6px default. The menu
+ * hover is the card radius minus the inset, so the active fill follows
+ * the card instead of turning into a pill inside it.
+ */
+.ly-menu-scroll .ly-item {
+  border-radius: var(--radius-item);
 }
 
 /*
@@ -103,6 +112,10 @@
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
 }
 
+.ly-menu-card {
+  border-radius: var(--radius-menu);
+}
+
 .ly-glass,
 .ly-glass-solid {
   box-shadow:
@@ -118,9 +131,12 @@
    * `--color-float` and not `--color-elevated`: the elevated token steps toward the
    * foreground, which on a light theme makes a menu darker than the page it floats over — and
    * blurring a dark translucent panel over a light page just yields grey.
+   *
+   * Almost opaque. A 52% mix over a code pane reads as frosted glass; the menus this
+   * is matching are cards, and code showing through the rows is the wrong material.
    */
-  background: color-mix(in srgb, var(--color-float) 52%, transparent);
-  backdrop-filter: blur(34px) saturate(200%);
+  background: color-mix(in srgb, var(--color-float) 92%, transparent);
+  backdrop-filter: blur(40px) saturate(160%);
 }
 
 /*
@@ -150,7 +166,7 @@
 }
 
 :root.dark .ly-glass {
-  background: color-mix(in srgb, var(--color-float) 62%, transparent);
+  background: color-mix(in srgb, var(--color-float) 94%, transparent);
 }
 
 @supports not (backdrop-filter: blur(1px)) {
@@ -378,7 +394,7 @@
 
 /* Identical metrics keep the decoration and the native caret in the same place. */
 .ly-composer-text {
-	padding: 14px 16px 10px;
+	padding: var(--ly-composer-in) var(--ly-composer-x);
 	font-size: var(--text-body);
 	line-height: 1.625;
 	color: var(--color-ink);
@@ -391,7 +407,7 @@
  *
  * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
  * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
- * 24px 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
+ * `--ly-composer-in * 2` 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
  */
 /*
  * 标点不许挤压。
@@ -408,7 +424,7 @@
 }
 
 textarea.ly-composer-text {
-	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + 24px);
+	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + var(--ly-composer-in) * 2);
 }
 
 textarea.ly-composer-text[data-highlighted="true"] {

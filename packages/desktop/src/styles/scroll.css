@@ -82,10 +82,16 @@
   opacity: 0.5;
 }
 
-/* Menus need room for their rounded corners and a grab target separate from their rows. */
+/*
+ * One inset, every side.
+ *
+ * The thumb has to sit inside the rounded clip, and the rows have to sit the same
+ * distance from every edge of the card. A block-only margin plus a right-only margin
+ * was two different answers: hover fills looked shoved left, and a one-row menu
+ * grew a 4px empty strip on its right for a scrollbar that was not there.
+ */
 .ly-menu-scroll {
-  margin-block: 6px;
-  margin-right: 4px;
+  margin: var(--ly-menu-inset);
 }
 
 /*

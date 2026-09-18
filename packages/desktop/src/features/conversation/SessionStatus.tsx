@@ -45,7 +45,9 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 				 * 这一处没有跟着换成 `StatusSpinner`：一列会话可能同时好几行在跑，而这一列还要用来
 				 * 读标题。并排三四个各自在转，读标题时旁边总有东西在动。
 				 */
-				<BreatheLoader size={12} />
+				<span data-ly-status-mark="running">
+					<BreatheLoader size={12} />
+				</span>
 			) : (
 				/*
 				 * One 7px disc, four paints. Switching a finished conversation in used to swap a

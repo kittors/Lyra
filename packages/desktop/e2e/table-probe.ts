@@ -77,7 +77,7 @@ const READ = `(() => {
 	const thumb = host.querySelector(".ly-hthumb");
 	// The fade is on the positioning wrapper; the button inside it is always fully opaque.
 	const slot = host.querySelector(".ly-table-toggle");
-	const toggle = host.querySelector(".ly-table-toggle button");
+	const toggle = host.querySelector("button.ly-table-toggle");
 	const scrollBox = scroll.getBoundingClientRect();
 	const cell = host.querySelector("tbody td");
 	const box = host.getBoundingClientRect();
@@ -166,7 +166,7 @@ try {
 	 */
 	const pressToggle = async () => {
 		const at = await app.evaluate<{ x: number; y: number } | null>(`(() => {
-			const el = document.querySelector(".ly-table-toggle button");
+			const el = document.querySelector("button.ly-table-toggle");
 			if (!el) return null;
 			const r = el.getBoundingClientRect();
 			return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
@@ -195,7 +195,7 @@ try {
 	 * appeared, because the markup said `data-ly-tip` and the listener read `dataset.dwTip`.
 	 */
 	const tipAt = await app.evaluate<{ x: number; y: number } | null>(`(() => {
-		const el = document.querySelector(".ly-table-toggle button");
+		const el = document.querySelector("button.ly-table-toggle");
 		if (!el) return null;
 		const r = el.getBoundingClientRect();
 		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };

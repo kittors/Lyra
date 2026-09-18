@@ -44,6 +44,7 @@ export function ProjectHead({
 		/* Same hover-owner arrangement as the session rows: the fill belongs to the row so
 		   reaching for the menu button does not drop it. */
 		<div
+			data-ly-project={group.name}
 			className="ly-scroll group/project relative rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated"
 			onPointerMove={(event) => {
 				if (reorder) {

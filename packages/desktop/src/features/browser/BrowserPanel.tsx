@@ -1,3 +1,4 @@
+import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +15,9 @@ import { BrowserPage } from "./BrowserPage.tsx";
 import { BrowserSelectionCard } from "./BrowserSelectionCard.tsx";
 import { browserChose, browserMounted, browserOwner, browserVisited, commandBrowser, useBrowser, useBrowserView } from "./browser-store.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
+
+const VIEW_W = { min: 240, max: 3840, step: 1 };
+const VIEW_H = { min: 240, max: 2160, step: 1 };
 
 export function BrowserPanel() {
 	const { t } = useI18n();
@@ -98,9 +102,9 @@ export function BrowserPanel() {
 		{selection && <BrowserSelectionCard selection={selection} onClose={() => setSelection(null)} />}
 		{options.open && <Popover anchor={options.anchor} onClose={options.close} placement="bottom" width="default" maxHeight={340} label={t("browser.menu")}
 			header={menu !== "actions" && <button type="button" onClick={() => setMenu("actions")} className="flex h-9 w-full items-center gap-2 px-3 text-detail text-ink-muted hover:text-ink"><ChevronLeft size={13} aria-hidden />{t(menu === "bookmarks" ? "browser.bookmarks" : "browser.viewport")}</button>}
-			footer={menu === "viewport" && tab && <form className="flex items-center gap-1.5 p-2" onSubmit={(event) => { event.preventDefault(); void commandBrowser({ type: "viewport", id: tab.id, viewport: { width: Number(width), height: Number(height) } }); options.close(); }}>
-				<Input aria-label={t("browser.viewportWidth")} type="number" min={240} max={3840} required value={width} onChange={(event) => setWidth(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />×
-				<Input aria-label={t("browser.viewportHeight")} type="number" min={240} max={2160} required value={height} onChange={(event) => setHeight(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />
+			footer={menu === "viewport" && tab && <form className="flex items-center gap-1.5 p-2" onSubmit={(event) => { event.preventDefault(); const nextWidth = commitDraft(width, VIEW_W); const nextHeight = commitDraft(height, VIEW_H); if (nextWidth === null || nextHeight === null) return; void commandBrowser({ type: "viewport", id: tab.id, viewport: { width: nextWidth, height: nextHeight } }); options.close(); }}>
+				<Input aria-label={t("browser.viewportWidth")} type="text" inputMode="numeric" required value={width} onChange={(event) => { if (isLegalDraft(event.target.value, VIEW_W)) setWidth(event.target.value); }} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />×
+				<Input aria-label={t("browser.viewportHeight")} type="text" inputMode="numeric" required value={height} onChange={(event) => { if (isLegalDraft(event.target.value, VIEW_H)) setHeight(event.target.value); }} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />
 				<button type="submit" data-ly-tip={t("browser.apply")} aria-label={t("browser.apply")} className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-muted hover:bg-card-hover"><Check size={13} strokeWidth={2.2} aria-hidden /></button>
 			</form>}>
 			<MenuBody>

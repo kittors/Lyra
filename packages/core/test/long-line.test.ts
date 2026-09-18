@@ -41,6 +41,15 @@ test("clipOutput windows a single huge line instead of keeping 60k of head and t
 	assert.doesNotMatch(clipped, new RegExp(needle));
 });
 
+test("clipOutput keeps a failing assertion that sat in the omitted middle", () => {
+	const fail = "✖ failing tests:\ntest at test/lsp-idle.test.ts:76:1\n  AssertionError [ERR_ASSERTION]: idle never reached";
+	const text = `${"ok\n".repeat(8_000)}\n${fail}\n${"ok\n".repeat(8_000)}`;
+	const clipped = clipOutput(text, 60_000);
+	assert.match(clipped, /AssertionError/);
+	assert.match(clipped, /lsp-idle/);
+	assert.ok(clipped.length <= 60_000, `clipped to ${clipped.length}`);
+});
+
 test("coversChars and mergeCharRanges join adjacent spans", () => {
 	const merged = mergeCharRanges([[1, 10], [11, 20], [40, 50]]);
 	assert.deepEqual(merged, [[1, 20], [40, 50]]);

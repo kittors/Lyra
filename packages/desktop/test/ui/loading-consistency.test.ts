@@ -63,6 +63,7 @@ const STATUS_SITES = new Map([
 	["features/sidechat/TaskStrip.tsx", "侧边聊天的任务条，和任务面板里的同一条是同一件事"],
 	["features/conversation/ToolCard.tsx", "工具卡运行中，同一行后面跟着 CircleCheck / CircleX"],
 	["features/conversation/HiccupTrace.tsx", "重试轨迹的 waiting，兄弟分支是 CircleCheck"],
+	["features/conversation/RunningIndicator.tsx", "提问或审批卡住这一轮时，这行是在等你；虚线转圈替掉思考的 orb"],
 ]);
 
 async function sources(dir: URL, prefix = ""): Promise<{ path: string; text: string }[]> {

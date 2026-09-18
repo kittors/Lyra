@@ -14,3 +14,20 @@ test("finishing or removing the last running session clears the breathing state"
 	assert.equal(groupActivity([], { a: "running" }, null).activity, null);
 	assert.equal(groupActivity(["a"], { a: "failed" }, null).activity, "failed");
 });
+
+test("a side chat on an idle session counts as running without double-counting the main turn", () => {
+	assert.equal(groupActivity(["a"], {}, null, new Set(["a"])).activity, "running");
+	assert.deepEqual(groupActivity(["a"], {}, null, new Set(["a"])).counts, {
+		running: 1,
+		waiting: 0,
+		failed: 0,
+		done: 0,
+	});
+	assert.deepEqual(groupActivity(["a"], { a: "running" }, null, new Set(["a"])).counts, {
+		running: 1,
+		waiting: 0,
+		failed: 0,
+		done: 0,
+	});
+	assert.equal(groupActivity(["a"], { a: "waiting" }, null, new Set(["a"])).activity, "waiting");
+});

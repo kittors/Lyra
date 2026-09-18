@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 // into a renderer that otherwise only ever imports its types.
 import { normalizeRetryPolicy, type RetryFailure, type RetryRule } from "@lyra/core/retry-policy";
 import type { Settings } from "@lyra/core";
+import { isLegalDraft } from "../../lib/number-draft.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { useApp } from "../../store/index.ts";
@@ -214,6 +215,8 @@ function NumberField({
 	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 	useEffect(() => () => clearTimeout(timer.current), []);
 
+	const bounds = { min, max, step: 1 };
+	const shown = typed ?? (value === null ? "" : String(value));
 	const commit = (raw: string, now: boolean) => {
 		clearTimeout(timer.current);
 		const parsed = Number(raw);
@@ -227,22 +230,27 @@ function NumberField({
 		<Labeled label={label}>
 			<div className="flex items-center gap-2">
 				<Input
-					type="number"
+					type="text"
+					inputMode="numeric"
 					aria-label={ariaLabel}
-					min={min}
-					max={max}
-					step={1}
 					disabled={value === null}
-					value={typed ?? (value === null ? "" : String(value))}
+					value={shown}
+					autoComplete="off"
+					spellCheck={false}
 					onChange={(event) => {
-						setTyped(event.target.value);
-						commit(event.target.value, false);
+						const next = event.target.value;
+						if (!isLegalDraft(next, bounds)) {
+							event.currentTarget.value = shown;
+							return;
+						}
+						setTyped(next);
+						commit(next, false);
 					}}
 					onBlur={(event) => {
 						commit(event.target.value, true);
 						setTyped(null);
 					}}
-					className="h-[30px] w-[72px] rounded-lg border border-line bg-input px-2 text-center text-label text-ink tabular-nums disabled:opacity-40"
+					className="ly-field ly-number-field w-[72px] justify-center px-2 text-center tabular-nums disabled:opacity-40"
 				/>
 				<span className={`text-label text-ink-muted ${value === null ? "opacity-40" : ""}`}>{unit}</span>
 				{children}

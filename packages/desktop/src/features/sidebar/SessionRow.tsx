@@ -15,12 +15,12 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { SessionMeta } from "@lyra/core";
-import { visibleActivity } from "@lyra/core/activity";
+import { rowActivity } from "../../lib/row-activity.ts";
+import { useApp, useSideChatRunning } from "../../store/index.ts";
 import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";
-import { useApp } from "../../store/index.ts";
 import { SessionCard, useSessionCard } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -29,7 +29,9 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SessionStatus } from "../conversation/index.ts";
 import { useTypedText } from "../../ui/motion/TypedText.tsx";
 import { useSidebarReorderContext } from "./reorder-context.ts";
+import { offerSessionDrag } from "../split/index.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
+import { useRowLit } from "./use-row-lit.ts";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -69,7 +71,6 @@ export function rowActions(actions: RowActions, session: SessionMeta) {
 
 export function SessionRow({
 	session,
-	active,
 	project,
 	onRestore,
 	onDelete,
@@ -77,7 +78,6 @@ export function SessionRow({
 	onArchive,
 }: {
 	session: SessionMeta;
-	active: boolean;
 	/**
 	 * What this conversation belongs to, shown on hover rather than on the row.
 	 *
@@ -95,16 +95,20 @@ export function SessionRow({
 	onDelete?: () => void;
 }) {
 	const { t } = useI18n();
+	const active = useRowLit(session.id);
 	/*
 	 * Subscribed here rather than threaded through: it changes for reasons this row's other props
-	 * know nothing about — a turn ending in a conversation nobody has open.
+	 * know nothing about — a turn ending in a conversation nobody has open, or a side chat that
+	 * is still going after this row is no longer the one on screen.
 	 *
 	 * This row's own mark, not the whole map. Selecting the map means every row in the list is
 	 * subscribed to every other row's state, so one conversation starting a turn re-rendered a
 	 * sidebar of forty. Selecting the entry narrows that to the row it is about; the rest see a
-	 * value that did not change and stay put.
+	 * value that did not change and stay put. The side-chat bit is the same idea: a boolean for
+	 * this id, not the whole cache.
 	 */
 	const activity = useApp((s) => s.activity[session.id] ?? null);
+	const sideRunning = useSideChatRunning(session.id);
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
 	const deleteSession = useApp((s) => s.deleteSession);
@@ -159,7 +163,7 @@ export function SessionRow({
 				menu.openAtPoint(event);
 			}}
 			style={{ "--ly-row-controls": actionsCount === 2 ? "58px" : "34px" } as React.CSSProperties}
-			className={`ly-scroll group/session relative rounded-lg transition-colors duration-[var(--ly-t-quick)] active:bg-elevated ${
+			className={`ly-scroll group/session relative rounded-lg active:bg-elevated ${
 				justCreated ? "ly-drop" : ""
 			} ${active ? "bg-card-hover" : "hover:bg-card-hover"} ${
 				isDraggingThisSession ? "opacity-35" : ""
@@ -205,6 +209,7 @@ export function SessionRow({
 			<button
 				onPointerDown={(event) => {
 					card.dismiss();
+					offerSessionDrag({ id: session.id, title: sessionTitle(session.title) }, event);
 					reorder?.startDrag(
 						{ kind: "session", id: session.id, title: sessionTitle(session.title), projectPath: session.cwd },
 						event,
@@ -225,14 +230,14 @@ export function SessionRow({
 				 * to shrink `ScrollText` by 48px over `--ly-t-quick`, which is the jitter on a long
 				 * name. The buttons still fade in; they no longer steal width from the title.
 				 */
-				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label transition-[color,background-color] duration-[var(--ly-t-quick)] ${
+				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label ${
 					actionsCount === 2 ? "pr-14" : "pr-8"
 				} ${compact ? "h-[34px]" : "h-[27px]"} ${
 					active ? "text-ink" : "text-ink-muted group-hover/session:text-ink"
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
-				<SessionStatus activity={visibleActivity(activity, active)} />
+				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
 			</button>
 

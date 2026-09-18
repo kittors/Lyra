@@ -67,27 +67,67 @@
   --ly-e-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
   --radius-panel: 12px;
-  --radius-field: 10px;
+  /*
+   * Fields, dropdowns and dialog actions share one capsule.
+   *
+   * The dialog foot already settled on 34 × 999: a row of those next to a 38 × 10 input
+   * read as two toolkits glued together. One radius and one height is the whole point of
+   * having tokens rather than a number at each call site.
+   */
+  --radius-field: 999px;
+  --ly-control: 34px;
+  /*
+   * Floating menus are a soft card, and the hover follows the card.
+   *
+   * 16px stays a card at one row and at ten. The inset is the same on every
+   * side so a hover fill is not closer to the left edge than the right. The
+   * row radius is that leftover (16 − 6): an active row and the card share
+   * one curve instead of a pill sitting inside a box. 999 was the other
+   * language, and it read as two menus glued together.
+   */
+  --radius-menu: 16px;
+  --ly-menu-inset: 6px;
+  --radius-item: 10px;
+  --ly-menu-row: 36px;
+  /*
+   * Composer chrome. Three numbers, used by every field that looks like the
+   * main one: conversation, side chat, sub-agent, commit, the in-place editor.
+   *
+   * `--ly-composer-in` is every inner inset on the card: text top and bottom, the
+   * attachment strip, the toolbar's bottom edge, and the air above the dock.
+   * 12, not 10: 10 read as the field sitting on its own toolbar.
+   *
+   * `--ly-composer-x` is the inner horizontal inset, and the compact-window
+   * gutter. Slightly wider than the vertical so a line of text does not kiss
+   * the card's curve.
+   *
+   * `--ly-composer-out` is the outer gutter: card to pane edge on the sides, and
+   * card to the window's bottom. One number so a card cannot have 32px of
+   * side air and 20px under it. A floating pane already holds `--ly-pane-chrome`
+   * off the window, so its pad is `out - chrome` and the cards share a line.
+   *
+   * `--ly-composer-control` is every button on the toolbar. 26 / 27 / 28 in the
+   * same row was three cards of three heights.
+   */
+  --ly-composer-in: 12px;
+  --ly-composer-x: 16px;
+  --ly-composer-out: 24px;
+  --ly-composer-control: 28px;
+  /* `PANE_INSET` (3) plus the dock card's 1px border. Keep in step with geometry.ts. */
+  --ly-pane-chrome: 4px;
 
   /*
-   * "Lyra CJK" ahead of the platform stack, so the size-adjusted face above is the one that
-   * actually gets the Chinese. Left to `-apple-system` the system picks PingFang itself, at its
-   * own unadjusted scale, and the correction never applies.
-   */
-  /*
-   * `Lyra CJK` leads both stacks.
+   * Punctuation, then Han, then the platform stack.
    *
-   * It carries a CJK-only `unicode-range`, so latin never reaches it and the face after it is what
-   * actually draws the text. Anywhere it sat further down, a western face that happens to include
-   * a few CJK punctuation glyphs claimed them first — Menlo and `-apple-system` both do — and a
-   * full-width comma set by a western face floats at mid-height instead of sitting at the bottom
-   * left of its box. It also skipped the 104% size match, leaving Chinese a size smaller than the
-   * latin beside it.
+   * Menlo and `-apple-system` both ship a handful of CJK punctuation and draw `。` as a
+   * mid-height circle. `Lyra Punct` claims those code points first so the Chinese lower-left
+   * form wins; `Lyra CJK` then takes Han; latin comes from PingFang / YaHei so both scripts
+   * share one family when no UI font is set.
    */
-	--font-sans: var(--ly-script-font, "Lyra CJK"), "Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC",
-    "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
-	--font-mono: var(--ly-script-font, "Lyra CJK"), "JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
-    "PingFang SC", monospace;
+	--font-sans: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"), "PingFang SC",
+		"Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+	--font-mono: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"), "JetBrains Mono Variable",
+		ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace;
 
   /* -------------------------------------------------------------------------
    * The type scale
@@ -112,32 +152,31 @@
    * size once, in `Text.tsx` — see DEFAULT_WEIGHT, which is what stops hierarchy from resting on
    * size alone.
    *
-   * Tracking follows Inter's own optical curve — near zero at reading sizes, tightening as the
-   * type grows, because letterfit that looks right at 13px looks loose at 26px.
+   * Tracking tightens as the type grows: letterfit that looks right at 13px looks loose at 26px.
    * ---------------------------------------------------------------------- */
-  --text-caption: calc(var(--ly-ui-size, 13px) - 2px);
+  --text-caption: calc(var(--ly-ui-size, 14px) - 2px);
   --text-caption--line-height: 1.45;
 
-  --text-detail: calc(var(--ly-ui-size, 13px) - 1px);
+  --text-detail: calc(var(--ly-ui-size, 14px) - 1px);
   --text-detail--line-height: 1.5;
 
   /* The working size: rows, controls, table cells — most of the app. */
-  --text-label: var(--ly-ui-size, 13px);
+  --text-label: var(--ly-ui-size, 14px);
   --text-label--line-height: 1.5;
 
   /* Prose. Looser than a control, because a sentence is tracked along rather than glanced at. */
-  --text-body: calc(var(--ly-ui-size, 13px) + 1px);
+  --text-body: calc(var(--ly-ui-size, 14px) + 1px);
   --text-body--line-height: 1.7;
 
-  --text-title: calc(var(--ly-ui-size, 13px) + 3px);
+  --text-title: calc(var(--ly-ui-size, 14px) + 3px);
   --text-title--line-height: 1.4;
   --text-title--letter-spacing: -0.01em;
 
-  --text-heading: calc(var(--ly-ui-size, 13px) + 7px);
+  --text-heading: calc(var(--ly-ui-size, 14px) + 7px);
   --text-heading--line-height: 1.3;
   --text-heading--letter-spacing: -0.015em;
 
-  --text-display: calc(var(--ly-ui-size, 13px) + 13px);
+  --text-display: calc(var(--ly-ui-size, 14px) + 13px);
   --text-display--line-height: 1.2;
   --text-display--letter-spacing: -0.022em;
 

@@ -172,12 +172,12 @@ test("real ask_user returns choices and custom answers to their own pending sess
 	await input("ASK_CUSTOM"); await enter();
 	await until(`Boolean(document.querySelector('input[aria-label="自定义回答"]'))`);
 	await appearance("light", 375);
-	const question = await app.evaluate<{ left: number; right: number; width: number; inputs: number }>(`(()=>{const e=document.querySelector('input[aria-label="自定义回答"]').closest('.ly-glass'),r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth,inputs:e.querySelectorAll('input').length};})()`);
+	const question = await app.evaluate<{ left: number; right: number; width: number; inputs: number }>(`(()=>{const e=document.querySelector('input[aria-label="自定义回答"]').closest('.ly-glass'),r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth,inputs:e.querySelectorAll('input[aria-label="自定义回答"]').length};})()`);
 	assert.ok(question.left >= 0 && question.right <= question.width); assert.equal(question.inputs, 1); t.diagnostic(JSON.stringify(question));
 	await shot("question-custom-light-375");
 	await appearance("dark", 1280); await session("qa-long");
-	await until(`[...document.querySelectorAll('[data-approval-card] label')].some(e=>e.textContent==='更新实现')`);
-	await app.evaluate(`[...document.querySelectorAll('[data-approval-card] label')].find(e=>e.textContent==='更新实现').setAttribute('data-question-choice','')`);
+	await until(`[...document.querySelectorAll('[data-ly-question-label]')].some(e=>e.textContent==='更新实现')`);
+	await app.evaluate(`[...document.querySelectorAll('[data-ly-question-option]')].find(e=>e.querySelector('[data-ly-question-label]')?.textContent==='更新实现').setAttribute('data-question-choice','')`);
 	await click("choice");
 	await app.evaluate(`document.querySelector('button[aria-label="确认选择"]').click()`);
 	await session("qa-short");

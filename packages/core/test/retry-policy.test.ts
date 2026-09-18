@@ -6,6 +6,12 @@ import { RetryBudget, fetchWithRetry, retryStream, isRetryableError } from "../s
 import { FailureError, classifyFailure } from "../src/ai/failure.ts";
 const socket = () => new Error("fetch failed");
 
+test("normalizeSettings clamps concurrent sub-agents to 1–8", () => {
+	assert.equal(normalizeSettings({ maxConcurrentSubAgents: -12 }).maxConcurrentSubAgents, 4);
+	assert.equal(normalizeSettings({ maxConcurrentSubAgents: 16 }).maxConcurrentSubAgents, 8);
+	assert.equal(normalizeSettings({ maxConcurrentSubAgents: 3 }).maxConcurrentSubAgents, 3);
+});
+
 test("defaults mean ten retries after the first request, always five seconds", async () => {
 	assert.deepEqual(normalizeSettings({}).retryPolicy, DEFAULT_RETRY_POLICY);
 	assert.equal(new RetryBudget().policy.network.retries, null);

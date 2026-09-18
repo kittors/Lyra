@@ -89,9 +89,12 @@ export function SubAgentPanel() {
 
 	if (agents.length === 0) {
 		return (
-			<PanelEmpty icon={Bot} title={t("subAgent.title")}>
-				{t("subAgent.empty")}
-			</PanelEmpty>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+				<PanelEmpty icon={Bot} title={t("subAgent.title")}>
+					{t("subAgent.empty")}
+				</PanelEmpty>
+				<IdleComposer placeholder={t("subAgent.empty")} />
+			</div>
 		);
 	}
 
@@ -169,7 +172,7 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				className="flex-1"
 				scrollRef={follow.scrollRef}
 				/* Bottom padding leaves 「回到最新」 somewhere to float that is not the newest output. */
-				contentClassName="px-3 pt-2 pb-[var(--ly-bottom-inset)]"
+				contentClassName="ly-content-gutter pt-2 pb-[var(--ly-bottom-inset)]"
 				onScroll={follow.onScroll}
 				onResize={follow.onResize}
 				onUserScroll={follow.onUserScroll}
@@ -267,7 +270,11 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 			{/* A delegate streams like anything else, and scrolling up in one used to be a one-way trip. */}
 			<BackToLatest show={follow.away} unread={follow.unread} onClick={follow.returnToBottom} />
 			</div>
-			{agent.status === "running" && sessionId && <Steer agent={agent} sessionId={sessionId} />}
+			{agent.status === "running" && sessionId ? (
+				<Steer agent={agent} sessionId={sessionId} />
+			) : (
+				<IdleComposer placeholder={t("subAgent.steering")} />
+			)}
 		</>
 	);
 }
@@ -365,6 +372,49 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 					<CircleStop size={12} strokeWidth={1.9} />
 				</button>
 			)}
+		</div>
+	);
+}
+
+/**
+ * The same card the running steer uses, inert.
+ *
+ * Side chat keeps its field when there is nothing to say; this pane used to
+ * lose the whole card the moment a run ended, so three composers along the
+ * window's bottom became two, then one, and the remaining cards sat on a
+ * different line. A disabled twin holds the slot.
+ */
+function IdleComposer({ placeholder }: { placeholder: string }) {
+	const { t } = useI18n();
+	return (
+		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
+			<ComposerShell
+				value=""
+				onChange={() => undefined}
+				onSubmit={() => undefined}
+				disabled
+				placeholder={placeholder}
+				left={
+					<button
+						type="button"
+						disabled
+						data-ly-tip={t("subAgent.attach")}
+						aria-label={t("subAgent.attach")}
+						className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted"
+					>
+						<Plus size={16} strokeWidth={1.9} />
+					</button>
+				}
+				right={
+					<>
+						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-label text-ink-faint">
+							<span className="size-[5px] shrink-0 rounded-full bg-ink-faint" />
+							<span className="truncate">{t("subAgent.steering")}</span>
+						</span>
+						<ComposerSend running={false} disabled onSend={() => undefined} onStop={() => undefined} />
+					</>
+				}
+			/>
 		</div>
 	);
 }
@@ -489,7 +539,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 	};
 
 	return (
-		<div className="mx-auto w-full max-w-[var(--ly-content)] shrink-0 px-3 pt-2 pb-[15px]">
+		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
 			<ComposerShell
 				value={text}
 				fieldRef={field}
@@ -535,7 +585,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 					 * 指出位置、复制路径，这一份一样都没有。
 					 */
 					attachments.length > 0 ? (
-						<div className="px-3.5 pt-3">
+						<div className="ly-composer-attachments">
 							<AttachmentStrip
 								files={strip}
 								layout="row"
@@ -565,7 +615,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 							data-ly-tip={t("subAgent.attach")}
 							aria-label={t("subAgent.attach")}
 							onClick={() => fileInputRef.current?.click()}
-							className="ly-composer-control flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Plus size={16} strokeWidth={1.9} />
 						</button>

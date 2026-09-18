@@ -10,9 +10,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "lucide-react";
-import { useDock } from "../../features/dock/index.ts";
-import { has } from "../../features/dock/index.ts";
-import { usePanelDefinitions } from "../../features/dock/index.ts";
+import { emptyDockTree, has, toggleScopedPanel, useDock, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -120,15 +118,19 @@ const QUICK: PanelKind[] = ["terminal", "browser", "review"];
  * full-screen toggle, and the tab strip's add button. The dock removed the questions they answered
  * — there is no panel to open or collapse, and no full screen distinct from a pane being large.
  */
-export function PanelMenu() {
+export function PanelMenu({ scope }: { scope?: string } = {}) {
 	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
 	const phone = onPhone();
-	const tree = useDock((s) => s.tree);
-	const open = useDock((s) => s.open);
-	const close = useDock((s) => s.close);
-
+	const windowTree = useDock((s) => s.tree);
+	const paneTree = usePaneDock((s) => (scope ? (s.trees[scope] ?? emptyDockTree) : emptyDockTree));
+	const tree = scope ? paneTree : windowTree;
+	const open = (kind: PanelKind) => toggleScopedPanel(scope ?? null, kind);
+	const close = (kind: PanelKind) => {
+		if (scope) usePaneDock.getState().close(scope, kind);
+		else useDock.getState().close(kind);
+	};
 	const toggle = (kind: PanelKind) => (has(tree, kind) ? close(kind) : open(kind));
 
 	return (
@@ -173,13 +175,13 @@ export function PanelMenu() {
 						 * you have a project open, because the panel is simply there.
 						 */}
 						{definitions
-							.filter((def) => !def.unavailable)
+							.filter((def) => !def.unavailable && def.listed !== false)
 							.map((def) => {
 							const shown = has(tree, def.kind);
 							return (
 								<MenuItem
 									key={def.kind}
-									icon={<def.icon size={13.5} strokeWidth={1.8} />}
+									icon={<def.icon size={16} strokeWidth={1.7} />}
 									hint={phone ? undefined : def.shortcut}
 									// A tick, not a highlight: this is a set of things that are either
 									// in the window or not, and every row is independently either.

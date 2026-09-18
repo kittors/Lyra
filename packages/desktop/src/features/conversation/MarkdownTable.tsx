@@ -17,7 +17,6 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import type { Block } from "../../lib/markdown/blocks.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
 type TableBlock = Extract<Block, { kind: "table" }>;
@@ -63,44 +62,29 @@ export function MarkdownTable({
 	}, []);
 
 	const control = !preview && (overflow || wrap);
+	const label = t(wrap ? "markdown.tableNowrap" : "markdown.tableWrap");
 
 	return (
-		<div className="ly-table" data-wrap={wrap ? "true" : "false"}>
+		<div className="ly-table group relative" data-wrap={wrap ? "true" : "false"} data-control={control ? "true" : undefined}>
 			{/*
-			 * A strip of its own inside the frame, above the box that scrolls.
-			 *
-			 * The control has to be reachable at the table's top right and it must never sit on a
-			 * cell — and anywhere *inside* the scrolling box those two are in conflict, because the
-			 * content slides under whatever is pinned there. Empty at the left edge, over 「一键新机
-			 * 后的合理行为」 two hundred pixels along. So the strip is outside the scroller and
-			 * inside the frame: it holds still, and nothing ever passes beneath it.
-			 *
-			 * Reserved whether or not the pointer is here. Giving it height on hover would make the
-			 * table jump down the page as you approached it.
+			 * Same seat as the copy control on a fenced block: top-right of the frame, out of
+			 * flow. A reserved strip or a gutter rail both changed the table's proportions.
+			 * The corner wash is the fence's `pt-7` turned sideways, so a header never sits
+			 * under the icon.
 			 */}
 			{control && (
-				<div className="ly-table-bar">
-					{/*
-					 * The fade lives on this wrapper, not on the button.
-					 *
-					 * `IconButton` carries `transition-colors` as a Tailwind utility, and utilities
-					 * outrank `@layer components` whatever the selector — so a `transition: opacity`
-					 * written for the button in the stylesheet is replaced by one that does not list
-					 * opacity, and the control appears as a hard cut. A plain element the utilities do
-					 * not touch is where the transition can live.
-					 */}
-					<span className="ly-table-toggle">
-						<IconButton
-							size="sm"
-							label={t(wrap ? "markdown.tableNowrap" : "markdown.tableWrap")}
-							active={wrap}
-							/* 「↵」 for the break itself and 「↔」 for the sideways scrolling it replaces —
-							   two strokes each, which is what stays legible at 13px. */
-							icon={wrap ? <MoveHorizontal size={13} strokeWidth={2} /> : <CornerDownLeft size={13} strokeWidth={2} />}
-							onClick={() => setWrap((on) => !on)}
-						/>
-					</span>
-				</div>
+				<span className="ly-table-corner">
+					<button
+						type="button"
+						aria-label={label}
+						aria-pressed={wrap}
+						data-ly-tip={label}
+						className="ly-table-toggle"
+						onClick={() => setWrap((on) => !on)}
+					>
+						{wrap ? <MoveHorizontal size={13} strokeWidth={1.9} /> : <CornerDownLeft size={13} strokeWidth={1.9} />}
+					</button>
+				</span>
 			)}
 			<div ref={viewport} className="ly-table-scroll">
 				<table>

@@ -53,7 +53,7 @@ export function MessageEditor({
 	}, [value, maxHeight]);
 
 	return (
-		<div className="ly-composer w-full rounded-[18px] border border-line-soft bg-transparent px-4 pt-3.5 pb-2.5">
+		<div className="ly-composer ly-composer-edit w-full rounded-[18px] border border-line-soft bg-transparent">
 			<div className="ly-scroll-host relative">
 				<Textarea
 					ref={box}

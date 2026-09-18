@@ -16,11 +16,11 @@ import { FolderOpen, Plus, SquareTerminal, TriangleAlert, Wrench } from "lucide-
 import { useCallback, useEffect, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
-import { EmptyHint, PrimaryButton } from "./controls.tsx";
+import { EmptyHint } from "./controls.tsx";
 import { TextInput } from "./inputs.tsx";
 import { Card, ListRow, SectionTitle } from "./layout.tsx";
+import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
-import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
 import { translate, useI18n } from "../../i18n/index.ts";
@@ -134,7 +134,7 @@ function SlashCommands() {
 								}}
 							/>
 						</div>
-						<div className="flex h-[38px] shrink-0 items-center gap-1 rounded-[10px] bg-card p-1">
+						<div className="flex h-[34px] shrink-0 items-center gap-1 rounded-full bg-card p-0.5">
 							{(
 								[
 									{ id: "user", label: t("common.personal") },
@@ -146,7 +146,7 @@ function SlashCommands() {
 									type="button"
 									disabled={entry.id === "workspace" && !cwd}
 									onClick={() => setScope(entry.id)}
-									className={`h-full rounded-[8px] px-3 text-label font-medium transition-colors duration-[var(--ly-t-quick)] disabled:opacity-40 cursor-pointer ${
+									className={`h-full rounded-full px-3.5 text-label font-medium transition-colors duration-[var(--ly-t-quick)] disabled:opacity-40 cursor-pointer ${
 										scope === entry.id ? "bg-elevated text-ink shadow-xs" : "text-ink-muted hover:text-ink"
 									}`}
 								>
@@ -154,7 +154,16 @@ function SlashCommands() {
 								</button>
 							))}
 						</div>
-						<PrimaryButton disabled={!name.trim()} onClick={() => void create()} icon={<Plus size={14} strokeWidth={2} />} title={t("commands.createAndEdit")} />
+						<DialogAction
+							tone="primary"
+							disabled={!name.trim()}
+							onClick={() => void create()}
+							label={t("commands.createAndEdit")}
+							data-ly-create-command=""
+						>
+							<Plus size={14} strokeWidth={2} aria-hidden />
+							{t("commands.createAndEdit")}
+						</DialogAction>
 					</div>
 					<p className="text-detail text-ink-faint">
 						{scope === "workspace"
@@ -184,10 +193,24 @@ function SlashCommands() {
 
 			<div className="mb-2 flex items-center justify-between">
 				<SectionTitle>{t("commandsSettings.available", { n: commands.length })}</SectionTitle>
-				<div className="flex items-center gap-1">
-					<IconButton label={t("commands.openPersonalDir")} icon={<FolderOpen size={14} />} onClick={() => void bridge.commands.reveal("user", cwd)} />
+				<div className="flex items-center gap-2">
+					<DialogAction
+						onClick={() => void bridge.commands.reveal("user", cwd)}
+						label={t("commands.openPersonalDir")}
+						data-ly-open-commands="personal"
+					>
+						<FolderOpen size={14} strokeWidth={2} aria-hidden />
+						{t("common.personal")}
+					</DialogAction>
 					{cwd && (
-						<IconButton label={t("commands.openProjectDir")} icon={<FolderOpen size={14} />} onClick={() => void bridge.commands.reveal("workspace", cwd)} />
+						<DialogAction
+							onClick={() => void bridge.commands.reveal("workspace", cwd)}
+							label={t("commands.openProjectDir")}
+							data-ly-open-commands="project"
+						>
+							<FolderOpen size={14} strokeWidth={2} aria-hidden />
+							{t("common.project")}
+						</DialogAction>
 					)}
 				</div>
 			</div>

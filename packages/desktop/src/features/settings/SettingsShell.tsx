@@ -42,6 +42,9 @@ import { useI18n } from "../../i18n/index.ts";
  *
  * The model page is two lists side by side; a page-level scroller over the top would mean two
  * scrollbars for one screen and would carry each pane's header away from the rows it labels.
+ *
+ * Plugins fills the pane and keeps the 900px column *inside* its own scroller. Constraining the
+ * host to that column put the overlay thumb on the right of every full-width field.
  */
 const SELF_SCROLLING = new Set<SettingsSection>(["models", "plugins"]);
 
@@ -212,7 +215,13 @@ export function SettingsShell() {
 				 * the outer one would move the pane headers out from over their own content.
 				 */}
 				<RetainedViews key={workspaceKey} active={section} limit={4} render={(section) => SELF_SCROLLING.has(section) ? (
-					<div className={`mx-auto flex min-h-0 w-full max-w-[900px] flex-1 flex-col pb-6 ${compact ? "px-4" : "px-9"}`}>
+					<div
+						className={
+							section === "plugins"
+								? "flex min-h-0 w-full flex-1 flex-col"
+								: `mx-auto flex min-h-0 w-full max-w-[900px] flex-1 flex-col pb-6 ${compact ? "px-4" : "px-9"}`
+						}
+					>
 						<SectionBody section={section} />
 					</div>
 				) : (

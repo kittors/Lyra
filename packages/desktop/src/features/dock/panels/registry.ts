@@ -39,6 +39,22 @@ export interface PanelDefinition {
 	shortcut: string;
 	/** Expose this panel in the phone renderer. Absent stays desktop-only. */
 	mobile?: boolean;
+	/**
+	 * Offer this panel in the + menu. Absent is listed.
+	 *
+	 * A pane can still be opened in code when this is false — the turn's file
+	 * review is one: it belongs on a card click, not in a list of places you
+	 * keep around.
+	 */
+	listed?: boolean;
+	/**
+	 * Drop this pane when a layout is saved or restored.
+	 *
+	 * For a viewing surface tied to the turn on screen, not a column you
+	 * arranged. Leaving it in storage would reopen an empty review after
+	 * a restart or a session switch.
+	 */
+	ephemeral?: boolean;
 	/** Why it cannot be opened right now, given the current state. */
 	unavailable?(state: PanelAvailability): MessageKey | undefined;
 	/**

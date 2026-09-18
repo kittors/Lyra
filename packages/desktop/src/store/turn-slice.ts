@@ -7,11 +7,12 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent } from "@lyra/core";
+import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { prune, without } from "./derive.ts";
 import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
+import { draftFromUserMessage } from "../lib/revert-draft.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -73,6 +74,23 @@ export function turnSlice(set: Set, get: Get) {
 			messages: [...get().messages, pending], pendingUserMessage: { sessionId: sessionId ?? null, message: pending },
 			running: true, stopped: null, turnStartedAt: meter.startedAt, turnTokens: meter.tokens,
 		});
+		else if (sessionId) {
+			const cached = get().sessionCache[sessionId];
+			if (cached) {
+				set({
+					sessionCache: {
+						...get().sessionCache,
+						[sessionId]: {
+							...cached,
+							messages: [...cached.messages, pending],
+							state: cached.state
+								? { ...cached.state, running: true, stopped: null, pendingUserMessage: { sessionId, message: pending } }
+								: cached.state,
+						},
+					},
+				});
+			}
+		}
 		if (sessionId) set({
 			turns: { ...get().turns, [sessionId]: meter }, carried: without(get().carried, sessionId),
 			activity: { ...get().activity, [sessionId]: "running" },
@@ -244,9 +262,49 @@ export function turnSlice(set: Set, get: Get) {
 		}
   },
 
-  async abort() {
+  async revertMessage(index: number) {
     const sessionId = get().activeSessionId;
-    if (sessionId) await bridge.agent.abort(sessionId);
+    if (!sessionId || get().running) return;
+    const messages = get().messages;
+    const message = messages[index];
+    if (!message || message.role !== "user" || message.synthetic) return;
+    const before = get();
+    set({
+      messages: messages.slice(0, index),
+      toolRuns: {},
+      approvals: [],
+      commandRuns: get().commandRuns.filter((run) => run.at <= index),
+      compactions: get().compactions.filter((run) => run.at <= index),
+      hiccups: get().hiccups.filter((one) => one.at <= index),
+      sessionCache: without(get().sessionCache, sessionId),
+    });
+    try {
+      await bridge.agent.revertMessage(sessionId, index);
+      if (get().activeSessionId !== sessionId) return;
+      const draft = draftFromUserMessage(message as UserMessage);
+      get().setComposerDraft(draft.text, false, {
+        attachments: draft.attachments,
+        sessionRefs: draft.sessionRefs,
+      });
+    } catch (cause) {
+      const current = get();
+      if (current.activeSessionId === sessionId) {
+        set({
+          messages: before.messages,
+          toolRuns: before.toolRuns,
+          approvals: before.approvals,
+          commandRuns: before.commandRuns,
+          compactions: before.compactions,
+          hiccups: before.hiccups,
+        });
+      }
+      get().notify(translate("turn.revertFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+    }
+  },
+
+  async abort(sessionId?: string) {
+    const id = sessionId ?? get().activeSessionId;
+    if (id) await bridge.agent.abort(id);
   },
 
   async respondToApproval(id: string, decision: ApprovalDecision, ownerId?: string) {

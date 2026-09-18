@@ -6,6 +6,7 @@ import { LayoutProvider } from "../../src/app/layout.tsx";
 import { ApprovalOverlay } from "../../src/features/conversation/ApprovalOverlay.tsx";
 import { PermissionChoices } from "../../src/features/conversation/PermissionChoices.tsx";
 import { QuestionChoices } from "../../src/features/conversation/QuestionChoices.tsx";
+import { RunningIndicator } from "../../src/features/conversation/RunningIndicator.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
@@ -50,13 +51,14 @@ for (const permission of [false, true]) {
 	});
 }
 
-test("custom answers supplement choices on demand, retain retry drafts and leave candidate keys native", async () => {
+test("custom answers sit on the last row, retain retry drafts and leave candidate keys native", async () => {
 	const answers: ApprovalDecision[] = [];
 	const view = await mount(h(QuestionChoices, { options: ["继续"], allowCustomInput: true, answer: async (decision) => { answers.push(decision); throw new Error("请重试"); } }));
 	try {
-		assert.equal(view.all('input:not([type="radio"]):not([type="checkbox"])').length, 0);
-		await click(view.find('button[aria-label="自定义回答"]'));
-		const input = view.find<HTMLInputElement>('input:not([type="radio"]):not([type="checkbox"])');
+		assert.equal(view.all('input[aria-label="自定义回答"]').length, 1);
+		assert.equal(view.all("[data-ly-question-index]").length, 0);
+		assert.equal(view.all("[data-ly-choice-kind]").length, 0);
+		const input = view.find<HTMLInputElement>('input[aria-label="自定义回答"]');
 		const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
 		setValue.call(input, "保留中文草稿");
 		await fire(input, new Event("input", { bubbles: true }));
@@ -71,9 +73,45 @@ test("custom answers supplement choices on demand, retain retry drafts and leave
 		await fire(view.find("form"), new Event("submit", { bubbles: true, cancelable: true }));
 		assert.deepEqual(answers, [{ answer: "保留中文草稿" }]);
 		assert.equal(input.value, "保留中文草稿");
-		await click(view.find('button[aria-label="自定义回答"]'));
-		await click(view.find('button[aria-label="自定义回答"]'));
-		assert.equal(view.find<HTMLInputElement>('input:not([type="radio"]):not([type="checkbox"])').value, "保留中文草稿");
+		await click(view.find("[data-ly-question-option]"));
+		assert.equal(view.find<HTMLInputElement>("[data-ly-question-option] input").checked, true);
+		await click(view.find("[data-ly-question-other]"));
+		assert.equal(view.find<HTMLInputElement>('input[aria-label="自定义回答"]').value, "保留中文草稿");
+	} finally { await view.unmount(); }
+});
+
+test("choice rows sit on a wash, not a hairline, and selection is only a fill", async () => {
+	const single = await mount(h(QuestionChoices, { options: ["甲", "乙"], allowCustomInput: true, answer: async () => {} }));
+	try {
+		const row = single.find("[data-ly-question-option]");
+		assert.match(row.className, /(?:^|\s)bg-card(?:\s|$)/);
+		assert.doesNotMatch(row.className, /border-line/);
+		assert.equal(single.find("[data-ly-question-footer]").className.includes("border-t"), false);
+		assert.equal(single.all("[data-ly-choice-kind]").length, 0);
+		assert.equal(single.all("[data-ly-question-index]").length, 0);
+		await click(row);
+		assert.match(single.find("[data-ly-question-option]").className, /bg-accent\/\[0\.08\]/);
+	} finally { await single.unmount(); }
+	const multi = await mount(h(QuestionChoices, { options: ["甲", "乙"], selectionMode: "multi", answer: async () => {} }));
+	try {
+		assert.equal(multi.find("form").getAttribute("data-ly-choice-mode"), "multi");
+		assert.equal(multi.all("[data-ly-choice-kind]").length, 0);
+	} finally { await multi.unmount(); }
+});
+
+test("digit keys pick numbered rows and 0 focuses the other field", async () => {
+	const answers: ApprovalDecision[] = [];
+	const view = await mount(h(QuestionChoices, { options: ["甲", "乙", "丙"], allowCustomInput: true, answer: async (decision) => { answers.push(decision); } }));
+	try {
+		assert.equal(view.all("[data-ly-question-index]").length, 0);
+		await fire(view.find("form"), new KeyboardEvent("keydown", { key: "2", bubbles: true, cancelable: true }));
+		assert.equal(view.all<HTMLInputElement>("[data-ly-question-option] input")[1].checked, true);
+		await fire(view.find("form"), new KeyboardEvent("keydown", { key: "0", bubbles: true, cancelable: true }));
+		assert.equal(view.find<HTMLInputElement>("[data-ly-question-other] input").checked, true);
+		assert.equal(document.activeElement, view.find('input[aria-label="自定义回答"]'));
+		await fire(view.find('input[aria-label="自定义回答"]'), new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true }));
+		assert.equal(view.find<HTMLInputElement>("[data-ly-question-other] input").checked, true);
+		assert.equal(view.all<HTMLInputElement>("[data-ly-question-option] input")[0].checked, false);
 	} finally { await view.unmount(); }
 });
 
@@ -109,4 +147,64 @@ test("a cancelled plan stays cleared in the active view, cached view and transcr
 		const cached = { messages: [old], toolRuns: {}, meta: { id: "cancelled", title: "fixture", cwd: "/test", projectId: "p", projectName: "p", createdAt: 1, updatedAt: 1, modelId: "", messageCount: 1, seq: 1, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } } };
 		assert.deepEqual(cachedEvent(cached, { type: "message_end", message: cleared }).state?.todos, []);
 	} finally { useApp.setState(prior, true); }
+});
+
+test("the recommended chip sits beside the whole copy stack", async () => {
+	const view = await mount(h(QuestionChoices, {
+		options: [{ label: "跨框架方案", description: "基于有限态机，一次开发同时输出 React 与 Vue 组件库。", recommended: true }, "纯 CSS"],
+		answer: async () => {},
+	}));
+	try {
+		const row = view.find("[data-ly-question-option]");
+		assert.match(row.className, /items-center/);
+		assert.equal(view.find("[data-ly-question-recommended]").textContent, "推荐");
+		assert.equal(view.find("[data-ly-question-recommended]").previousElementSibling?.querySelector("[data-ly-question-label]")?.textContent, "跨框架方案");
+	} finally { await view.unmount(); }
+});
+
+test("folding the card keeps the body mounted and drives the reveal grid", async () => {
+	const previous = useApp.getState();
+	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	useApp.setState({
+		activeSessionId: "fold",
+		approvals: [{ id: "question", kind: "interactive", title: "需要你的意见", detail: "选一个", options: ["继续"], allowCustomInput: true }],
+	});
+	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay) }));
+	try {
+		const reveal = view.find(".ly-reveal");
+		assert.equal(reveal.getAttribute("data-open"), "true");
+		assert.equal(view.find("[data-ly-question-form]").hasAttribute("inert"), false);
+		await click(view.find('button[aria-expanded="true"]'));
+		assert.equal(view.find(".ly-reveal").getAttribute("data-open"), "false");
+		assert.ok(view.find("[data-ly-question-form]"), "the form stays mounted so the fold can animate");
+		assert.ok(view.find(".ly-reveal").hasAttribute("inert"));
+	} finally { await view.unmount(); useApp.setState(previous, true); }
+});
+
+test("a pending question replaces the thinking mutter with the dashed waiting line", async () => {
+	const prior = useApp.getState();
+	useApp.setState({
+		activeSessionId: "wait",
+		running: true,
+		turnStartedAt: Date.now() - 50_000,
+		turnTokens: 1200,
+		approvals: [{ id: "q", kind: "interactive", title: "需要你的意见", detail: "选一个" }],
+		messages: [],
+		toolRuns: {},
+		retrying: null,
+		compactedAt: null,
+	});
+	const view = await mount(h(RunningIndicator));
+	try {
+		assert.equal(view.find("[data-ly-running]").getAttribute("data-ly-mood"), "waiting");
+		assert.equal(view.find("[data-ly-running]").getAttribute("data-ly-waiting"), "question");
+		assert.equal(view.all(".ly-dash").length, 1);
+		assert.equal(view.all("canvas").length, 0);
+		assert.match(view.text(), /等待你的回答/);
+		assert.doesNotMatch(view.text(), /Wrestling/);
+		await act(async () => { useApp.setState({ approvals: [{ id: "p", kind: "bash", title: "命令", detail: "ls" }] }); });
+		assert.equal(view.find("[data-ly-waiting]").getAttribute("data-ly-waiting"), "approval");
+		assert.match(view.text(), /等待你的批准/);
+		assert.equal(view.all(".ly-dash").length, 1);
+	} finally { await view.unmount(); useApp.setState(prior, true); }
 });

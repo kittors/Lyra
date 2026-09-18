@@ -130,32 +130,29 @@ async function main() {
 	console.log("走到按钮上之后：", JSON.stringify(await obscured()));
 	await shot("reaching-buttons");
 
-	console.log("\n=== 审核弹窗 ===");
+	console.log("\n=== 点文件 / 审核，进右边这一轮的 diff ===");
+	await click('[data-turn-delivery] [data-delivery-file]');
+	await until(`document.querySelector('[data-dock-pane="delivery"] .ly-diff-scroll')`);
+	console.log("点文件：", JSON.stringify(await dock("delivery"), null, 1));
+	await shot("delivery-pane");
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 75 });
+	await wait(400);
 	await click('[data-turn-delivery] button[data-ly-tip="审核全部文件改动"]');
-	await until(`document.querySelector('[data-ly-modal] .ly-diff-scroll')`);
-	await frames();
-	console.log(JSON.stringify(await review(), null, 1));
-	await shot("review-top");
-	// 滚下去：标题该原地不动，文件名该吸在顶上。
-	await app.evaluate(`(()=>{document.querySelector('[data-ly-modal] .ly-scroll-view').scrollTop=520})()`);
-	await frames();
-	console.log("滚动 520px 之后：", JSON.stringify(await review(), null, 1));
-	await shot("review-scrolled");
+	await until(`document.querySelectorAll('[data-dock-pane="delivery"] [data-delivery-diff]').length>=3`);
+	console.log("点审核：", JSON.stringify(await dock("delivery"), null, 1));
+	await shot("delivery-review");
 
 	console.log("\n产物：", OUT);
 }
 
-/** 弹窗里代码贴不贴边、标题动不动、文件名吸不吸顶。 */
-async function review() {
+/** 点开之后，内容在右边的面板里，窗口中间没有弹层。 */
+async function dock(kind: "file" | "review" | "delivery") {
 	return app.evaluate(
-		`(()=>{const box=e=>e?e.getBoundingClientRect():null;const modal=document.querySelector('[data-ly-modal]'),m=box(modal);
-		const title=box(modal.querySelector('[data-dialog-title]')),name=box(modal.querySelector('.sticky')),diff=box(modal.querySelector('.ly-diff-scroll'));
-		const view=modal.querySelector('.ly-scroll-view'),vs=getComputedStyle(view),v=box(view);
-		return {代码左右间隙:{left:Math.round(diff.left-m.left),right:Math.round(m.right-diff.right)},
-		 标题:Math.round(title.top)+'..'+Math.round(title.bottom),
-		 文件名:Math.round(name.top)+'..'+Math.round(name.bottom)+(Math.abs(name.top-v.top)<1?' 吸在滚动区顶部':' 距顶 '+Math.round(name.top-v.top)),
-		 滚动条:{竖:Boolean(modal.querySelector('.ly-thumb')),横:Boolean(modal.querySelector('.ly-hthumb')),竖条距代码右缘:modal.querySelector('.ly-thumb')?Math.round(diff.right-box(modal.querySelector('.ly-thumb')).right):null},
-		 内衬:{padding:vs.padding,mask:vs.maskImage.slice(0,24)},scrollTop:Math.round(view.scrollTop)}})()`,
+		`(()=>{const pane=document.querySelector('[data-dock-pane=${JSON.stringify(kind)}]');
+		const modal=document.querySelector('[data-ly-modal]');
+		const box=pane?pane.getBoundingClientRect():null;
+		return {pane:Boolean(pane),modal:Boolean(modal),text:(pane?.innerText??'').slice(0,80),
+			box:box?{x:Math.round(box.x),y:Math.round(box.y),w:Math.round(box.width),h:Math.round(box.height)}:null}})()`,
 	);
 }
 

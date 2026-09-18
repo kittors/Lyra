@@ -36,9 +36,9 @@ export function TextInput({
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
 			placeholder={placeholder}
-			className={`h-[38px] rounded-[10px] border bg-input px-3.5 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint ${
-				invalid ? "border-danger/60" : "border-line"
-			} ${mono ? "font-mono text-label" : ""} ${numericClass(rest.inputMode)} ${className || "w-full"}`}
+			aria-invalid={invalid || undefined}
+			data-ly-field=""
+			className={`ly-field ${invalid ? "ly-field-invalid" : ""} ${mono ? "font-mono" : ""} ${numericClass(rest.inputMode)} ${className || "w-full"}`}
 		/>
 	);
 }
@@ -74,7 +74,7 @@ export function SecretInput({
 }) {
 	const [visible, setVisible] = useState(false);
 	return (
-		<div className="relative">
+		<div className="ly-field relative w-full pr-10" data-ly-field="">
 			<Input
 				type={visible ? "text" : "password"}
 				value={value}
@@ -83,7 +83,7 @@ export function SecretInput({
 				placeholder={placeholder}
 				spellCheck={false}
 				autoComplete="off"
-				className="h-[38px] w-full rounded-[10px] border border-line bg-input pr-10 pl-3.5 text-label tracking-wide text-ink placeholder:text-ink-faint focus:border-ink-faint"
+				className="h-full min-w-0 w-full bg-transparent tracking-wide text-ink placeholder:text-ink-faint"
 			/>
 			<button
 				type="button"
@@ -133,11 +133,9 @@ function Dropdown<T extends string>({
 				aria-label={ariaLabel}
 				aria-haspopup="menu"
 				aria-expanded={menu.open}
-				className={`flex items-center justify-between gap-2 border text-ink transition-colors ${
-					field
-						? "h-[38px] w-full rounded-[10px] border-line bg-input px-3.5 text-label"
-						: "h-[30px] rounded-lg border-line bg-card px-3 text-label"
-				} ${menu.open ? "border-ink-faint" : "hover:border-ink-faint"}`}
+				data-ly-field=""
+				data-ly-select=""
+				className={`ly-field justify-between gap-2 ${field ? "w-full" : ""}`}
 			>
 				<span className="flex min-w-0 items-center gap-2">
 					{current?.icon}
@@ -239,12 +237,12 @@ export function ShortcutRecorder({
 			onClick={() => setRecording(true)}
 			onBlur={() => setRecording(false)}
 			onKeyDown={handleKeyDown}
-			className={`flex h-[32px] min-w-[140px] items-center justify-center gap-1.5 rounded-lg border px-3 text-label font-mono transition-colors duration-[var(--ly-t-quick)] ${
+			className={`ly-field min-w-[140px] justify-center gap-1.5 font-mono ${
 				recording
-					? "border-accent bg-accent/10 text-accent ring-2 ring-accent/20 animate-pulse"
+					? "bg-accent/10 text-accent"
 					: value
-						? "border-line bg-card text-ink hover:border-ink-faint"
-						: "border-dashed border-line bg-card/50 text-ink-muted hover:border-ink-faint"
+						? ""
+						: "text-ink-muted"
 			}`}
 		>
 			<span>{recording ? translate("shortcut.pressHint") : value ? acceleratorLabel(value) : (placeholder ?? translate("shortcut.press"))}</span>

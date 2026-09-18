@@ -33,7 +33,6 @@ export function ProjectGroup({
 	group,
 	active,
 	pins = true,
-	activeSessionId,
 	shown,
 	collapsed,
 	onToggleCollapsed,
@@ -50,7 +49,6 @@ export function ProjectGroup({
 	 * so it would still measure, and a heading nobody can see would pin at the top of the pane.
 	 */
 	pins?: boolean;
-	activeSessionId: string | null;
 	/** How many rows this group is currently showing. */
 	shown: number;
 	/** Folded shut, hiding its sessions. Remembered across launches. */
@@ -100,7 +98,6 @@ export function ProjectGroup({
 						<SessionRow
 							key={session.id}
 							session={session}
-							active={activeSessionId === session.id}
 							{...rowActions(actions, session)}
 						/>
 					))}

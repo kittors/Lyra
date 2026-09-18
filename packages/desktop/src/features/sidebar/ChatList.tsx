@@ -16,7 +16,6 @@ import { isScratch } from "./grouping.ts";
 import type { RecencyBand } from "./recency.ts";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
-
 /** How many rows the flat list starts with, and how many more each press adds. */
 export const CHAT_PAGE = 40;
 
@@ -44,7 +43,6 @@ function BandHead({ label }: { label: string }) {
 
 export function ChatList({
 	bands,
-	activeSessionId,
 	scratchRoots,
 	hidden,
 	canCollapse,
@@ -54,7 +52,6 @@ export function ChatList({
 	empty,
 }: {
 	bands: RecencyBand[];
-	activeSessionId: string | null;
 	/** Directories whose sessions belong to no project, so their rows get no caption. */
 	scratchRoots: string[];
 	hidden: number;
@@ -96,7 +93,6 @@ export function ChatList({
 							<SessionRow
 								key={session.id}
 								session={session}
-								active={activeSessionId === session.id}
 								/*
 								 * Which project, as a tip rather than as a column.
 								 *

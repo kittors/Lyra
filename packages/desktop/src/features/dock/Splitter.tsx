@@ -172,12 +172,14 @@ export function Splitter({
 			ref={track}
 			onPointerEnter={(event) => {
 				const box = event.currentTarget.getBoundingClientRect();
-				setGrip(row ? event.clientY - box.top : event.clientX - box.left);
+				const next = row ? event.clientY - box.top : event.clientX - box.left;
+				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
 			}}
 			onPointerMove={(event) => {
 				if (dragging.current) return;
 				const box = event.currentTarget.getBoundingClientRect();
-				setGrip(row ? event.clientY - box.top : event.clientX - box.left);
+				const next = row ? event.clientY - box.top : event.clientX - box.left;
+				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
 			}}
 			// Stays put while dragging: by then the pointer is usually well outside the strip.
 			onPointerLeave={() => {

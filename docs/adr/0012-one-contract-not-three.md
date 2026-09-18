@@ -24,7 +24,7 @@
 
 ## 决定
 
-`@lyra/contract`：205 个方法写在一处，每个带 channel 名和「手机能不能调」。后者为 false 时
+`@lyra/contract`：212 个方法写在一处，每个带 channel 名和「手机能不能调」。后者为 false 时
 **必须附一句为什么**——这是安全边界，一个光秃秃的 false 读起来像是忘了加。
 
 契约的测试守着它与那三个文件的双向一致——`preload.ts`、`sync-rpc.ts`，以及主进程里每一个

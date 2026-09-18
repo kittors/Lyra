@@ -3,10 +3,13 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { useApp } from "../../store/index.ts";
+import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { Badge, Card, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { pairingCode, parseEndpoint, routeLabel, type PairingRoute } from "./pairing.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+
+const PORT = { min: 1, max: 65535, step: 1 };
 
 /**
  * Connecting a phone, as one thing to point a camera at.
@@ -101,13 +104,20 @@ export function SyncSettings() {
 					control={
 						<TextInput
 							value={port}
-							onChange={setPort}
+							onChange={(next) => {
+								if (isLegalDraft(next, PORT)) setPort(next);
+							}}
 							mono
 							inputMode="numeric"
 							className="w-[120px]"
 							onBlur={() => {
-								const parsed = Number(port);
-								if (parsed > 0 && parsed < 65536 && parsed !== settings.sync.port) {
+								const parsed = commitDraft(port, PORT);
+								if (parsed === null) {
+									setPort(String(settings.sync.port));
+									return;
+								}
+								setPort(String(parsed));
+								if (parsed !== settings.sync.port) {
 									void saveSettings({ ...settings, sync: { ...settings.sync, port: parsed } });
 								}
 							}}

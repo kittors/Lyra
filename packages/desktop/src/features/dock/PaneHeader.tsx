@@ -24,7 +24,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
 import { GRIP_REACH, GRIP_TOP, GRIP_WIDTH, HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 import { shortcutLabel } from "../../ui/keyboard.ts";
@@ -53,6 +53,7 @@ export function PaneHeader({
 	insetEnd,
 	lift,
 	onToggleMaximized,
+	onPopOut,
 	onClose,
 }: {
 	kind: PaneKind;
@@ -119,6 +120,8 @@ export function PaneHeader({
 	 * dragged and whether it can leave full screen are different questions.
 	 */
 	onToggleMaximized?: () => void;
+	/** Leave the dock for a real window. Absent on the conversation. */
+	onPopOut?: () => void;
 	/** Absent for the conversation, which is not a pane you can put away. */
 	onClose?: () => void;
 }) {
@@ -231,6 +234,17 @@ export function PaneHeader({
 				 * true of every pane, since one of them is all there is room for. Both of those are the
 				 * dock's call, not this component's — see `onToggleMaximized`.
 				 */}
+				{onPopOut && (
+					<HeaderButton
+						tip={translate("pane.openInNewWindow")}
+						label={translate("pane.openInNewWindow")}
+						onClick={onPopOut}
+					>
+						<span data-ly-pop-out={kind} className="flex items-center justify-center">
+							<SquareArrowOutUpRight size={12} strokeWidth={1.9} />
+						</span>
+					</HeaderButton>
+				)}
 				{onToggleMaximized && (
 					<HeaderButton
 						tip={translate(maximized ? "pane.exitFullScreen" : "common.fullScreen")}

@@ -1,11 +1,12 @@
 import { ExternalLink, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BROWSER_SEARCH_ENGINES, browserSearchCustom, type BrowserSearchEngine } from "../../../shared/browser.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Card, InlineSelect, Row, SectionTitle, TextInput } from "./controls.tsx";
+import { SearchEngineIcon } from "./SearchEngineIcon.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 /*
@@ -13,9 +14,13 @@ import { useI18n } from "../../i18n/index.ts";
  *
  * 所以这张表不能在模块加载时定型——那会儿窗口还没说自己是哪种语言。做成函数，渲染时调。
  */
-const engineOptions = (custom: string): { value: BrowserSearchEngine; label: string }[] => [
-	...BROWSER_SEARCH_ENGINES.map((engine) => ({ value: engine.id as BrowserSearchEngine, label: engine.label })),
-	{ value: "custom", label: custom },
+const engineOptions = (custom: string): { value: BrowserSearchEngine; label: string; icon: ReactNode }[] => [
+	...BROWSER_SEARCH_ENGINES.map((engine) => ({
+		value: engine.id as BrowserSearchEngine,
+		label: engine.label,
+		icon: <SearchEngineIcon engine={engine.id} />,
+	})),
+	{ value: "custom", label: custom, icon: <SearchEngineIcon engine="custom" /> },
 ];
 
 export function BrowserSettings() {

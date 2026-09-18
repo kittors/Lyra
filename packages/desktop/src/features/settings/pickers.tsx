@@ -13,6 +13,13 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
+import {
+	commitDraft,
+	decimalsOf,
+	formatNumber,
+	isLegalDraft,
+	stepNumber,
+} from "../../lib/number-draft.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type JSX } from "react";
@@ -150,6 +157,11 @@ export function Slider({
  * `type="text"` with a numeric keypad hint rather than `type="number"`: the latter draws a spinner
  * that differs in every browser, and it reports an empty string for input it considers invalid, so
  * `1e5` and `--3` arrive as "nothing typed" while looking like they were accepted.
+ *
+ * The stored value is not rewritten on every key. A draft sits in the box while it is focused,
+ * so "1" can stay long enough to become "16" when the floor is 11. A character that cannot
+ * lead to a value in range is dropped; plus and minus stop at the same walls. There is no
+ * toast for a refused keystroke.
  */
 export function NumberField({
 	value,
@@ -159,6 +171,7 @@ export function NumberField({
 	step = 1,
 	width = 76,
 	label,
+	name,
 }: {
 	value: number;
 	onChange: (value: number) => void;
@@ -167,52 +180,79 @@ export function NumberField({
 	step?: number;
 	width?: number;
 	label: string;
+	name?: string;
 }): JSX.Element {
-	const clamp = (next: number) => Math.min(max, Math.max(min, next));
-	/*
-	 * How many decimals this field accepts, taken from its own step.
-	 *
-	 * This used to be `Math.trunc`, unconditionally, which is right for a font size and silently
-	 * destroys the two fields whose step is a fraction: typing 1.8 into 行高 stored 1, and 字距
-	 * — whose entire range is -0.1 to 0.2 — could only ever be set to 0. Both looked like the
-	 * setting having no effect, because the value that reached the app was not the one typed.
-	 *
-	 * From `step` rather than a flag, since the step already says what the field's resolution is.
-	 */
-	const decimals = (String(step).split(".")[1] ?? "").length;
-	const round = (next: number) => (decimals === 0 ? Math.trunc(next) : Number(next.toFixed(decimals)));
+	const bounds = { min, max, step };
+	const decimals = decimalsOf(step);
+	const [draft, setDraft] = useState<string | null>(null);
+	const shown = draft ?? formatNumber(value, decimals);
+	const effective = (() => {
+		if (draft === null) return value;
+		return commitDraft(draft, bounds) ?? value;
+	})();
+
+	const applyText = (text: string, input: HTMLInputElement) => {
+		if (!isLegalDraft(text, bounds)) {
+			input.value = shown;
+			return;
+		}
+		setDraft(text);
+		const parsed = Number(text);
+		if (text === "" || text === "-" || text.endsWith(".") || !Number.isFinite(parsed)) return;
+		if (parsed < min || parsed > max) return;
+		const next = commitDraft(text, bounds);
+		if (next !== null && next !== value) onChange(next);
+	};
+
+	const finish = (text: string) => {
+		const next = commitDraft(text, bounds);
+		setDraft(null);
+		if (next !== null && next !== value) onChange(next);
+	};
+
+	const nudge = (delta: number) => {
+		const base = commitDraft(draft ?? formatNumber(value, decimals), bounds) ?? value;
+		setDraft(null);
+		onChange(stepNumber(base, delta, bounds));
+	};
 
 	return (
 		<div
-			className="flex h-[30px] items-center rounded-lg border border-line bg-input focus-within:border-ink-faint"
+			data-ly-field=""
+			data-ly-number={name ?? ""}
+			className="ly-field ly-number-field pr-1"
 			style={{ width }}
 		>
 			<Input
 				type="text"
-				inputMode="numeric"
-				value={String(value)}
+				inputMode={decimals > 0 || min < 0 ? "decimal" : "numeric"}
+				value={shown}
 				aria-label={label}
-				onChange={(event) => {
-					const text = event.target.value.trim();
-					// An empty box is the minimum rather than a refused keystroke: refusing it makes the
-					// field impossible to clear, since selecting all and typing passes through "".
-					if (text === "" || text === "-") return onChange(clamp(0));
-					const parsed = Number(text);
-					if (Number.isFinite(parsed)) onChange(clamp(round(parsed)));
+				autoComplete="off"
+				spellCheck={false}
+				onChange={(event) => applyText(event.target.value, event.currentTarget)}
+				onFocus={() => setDraft(formatNumber(value, decimals))}
+				onBlur={() => {
+					if (draft !== null) finish(draft);
 				}}
 				onKeyDown={(event) => {
+					if (event.key === "Enter") {
+						event.preventDefault();
+						if (draft !== null) finish(draft);
+						event.currentTarget.blur();
+						return;
+					}
 					if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
 					event.preventDefault();
-					// Rounded, or 1.6 + 0.1 arrives as 1.7000000000000002 and the box shows all of it.
-					onChange(clamp(round(value + (event.key === "ArrowUp" ? step : -step))));
+					nudge(event.key === "ArrowUp" ? step : -step);
 				}}
-				className="w-full min-w-0 bg-transparent px-2 text-center font-mono text-label text-ink"
+				className="w-full min-w-0 bg-transparent px-1.5 text-center font-mono text-label text-ink"
 			/>
 			<div className="flex shrink-0 flex-col pr-[3px]">
-				<Stepper label={translate("picker.increase", { label })} disabled={value >= max} onClick={() => onChange(clamp(value + step))}>
+				<Stepper label={translate("picker.increase", { label })} disabled={effective >= max} onClick={() => nudge(step)}>
 					<Plus size={10} strokeWidth={2.4} />
 				</Stepper>
-				<Stepper label={translate("picker.decrease", { label })} disabled={value <= min} onClick={() => onChange(clamp(value - step))}>
+				<Stepper label={translate("picker.decrease", { label })} disabled={effective <= min} onClick={() => nudge(-step)}>
 					<Minus size={10} strokeWidth={2.4} />
 				</Stepper>
 			</div>

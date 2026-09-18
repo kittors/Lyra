@@ -173,7 +173,7 @@
 
 /* The border and inter-control gap participate in the same size transition as the rows. */
 .ly-composer-queue {
-	margin-bottom: 6px;
+	margin-bottom: var(--ly-composer-in);
 	contain: layout style;
 	transition: margin-bottom var(--ly-t-base) var(--ly-e-in), border-width var(--ly-t-base) var(--ly-e-in);
 }
@@ -193,6 +193,83 @@
 .ly-queue-row[data-leaving][data-recalled] {
 	transform: translateY(6px);
 	transition: grid-template-rows var(--ly-t-base) var(--ly-e-in), opacity var(--ly-t-quick) var(--ly-e-in), transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-composer-attachments {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ly-composer-in);
+	/*
+	 * No bottom pad. The text field already has `--ly-composer-in` on top, and
+	 * stacking the two is the 24px band under a thumbnail. One inset between
+	 * the strip and the tokens is enough.
+	 */
+	padding: var(--ly-composer-in) var(--ly-composer-x) 0;
+}
+
+/*
+ * The main composer keeps this node mounted so attachments can grow in.
+ * A closed `0fr` reveal still inherits the 12+12 padding, and that leftover
+ * is the 24px that made the main card taller than the side and sub-agent
+ * fields. Strip the block padding while the tray is shut.
+ */
+.ly-reveal:not([data-open="true"]) .ly-composer-attachments {
+	padding-block: 0;
+}
+
+.ly-composer-bar {
+	padding: 0 var(--ly-composer-x) var(--ly-composer-in);
+}
+
+/*
+ * Outer gutter lives here, not as `px-8` / `px-3` on each caller.
+ *
+ * The main dock, the pane pads, and the transcript above them all read
+ * `--ly-composer-out`, so a card and the messages it answers share one edge.
+ * Compact windows drop to `--ly-composer-x` so 24+24 does not eat a 360px column.
+ */
+.ly-composer-dock {
+	padding: var(--ly-composer-in) var(--ly-composer-out) var(--ly-composer-out);
+}
+
+.ly-composer-dock[data-compact] {
+	padding-inline: var(--ly-composer-x);
+}
+
+/*
+ * Side chat, sub-agent, commit: same outer number as the main dock.
+ *
+ * Those panes already sit `--ly-pane-chrome` off the window (inset + card border).
+ * Padding the remainder on the bottom, not another full `--ly-composer-out`, is
+ * what keeps the cards on one window line. Sides stay the full gutter so a
+ * 12px pane next to a 32px conversation cannot happen again.
+ */
+.ly-composer-pad {
+	padding: var(--ly-composer-in) var(--ly-composer-out) calc(var(--ly-composer-out) - var(--ly-pane-chrome));
+}
+
+.ly-content-gutter {
+	padding-inline: var(--ly-composer-out);
+}
+
+.ly-content-gutter-compact {
+	padding-inline: var(--ly-composer-x);
+}
+
+.ly-composer-control {
+	height: var(--ly-composer-control);
+}
+
+.ly-composer-icon {
+	width: var(--ly-composer-control);
+}
+
+.ly-composer-edit {
+	padding: var(--ly-composer-in) var(--ly-composer-x);
+}
+
+.ly-composer-hint {
+	padding: var(--ly-composer-in) var(--ly-composer-x) 0;
 }
 
 .ly-composer-text {

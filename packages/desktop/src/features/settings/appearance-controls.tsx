@@ -53,16 +53,18 @@ export function PixelField({
 	max,
 	onChange,
 	label,
+	name,
 }: {
 	value: number;
 	min: number;
 	max: number;
 	onChange: (value: number) => void;
 	label: string;
+	name?: string;
 }) {
 	return (
 		<div className="flex items-center gap-2">
-			<NumberField value={value} min={min} max={max} onChange={onChange} label={label} width={64} />
+			<NumberField value={value} min={min} max={max} onChange={onChange} label={label} name={name} width={88} />
 			<span className="text-detail text-ink-faint">px</span>
 		</div>
 	);

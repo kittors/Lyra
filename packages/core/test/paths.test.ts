@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { scratchHome } from "../src/runtime/previews.ts";
+import { readTool } from "../src/tools/read.ts";
 import { resolveWorkspacePath } from "../src/tools/paths.ts";
 
 const HOME = join(tmpdir(), "ly-paths-home");
@@ -40,6 +42,7 @@ test("the rest of the app's home stays closed", () => {
 
 test("a missing path is an error rather than the workspace root", () => {
 	assert.throws(() => resolveWorkspacePath(CWD, ""), /A path is required/);
+});
 
 test("explicitly allowed paths outside workspace resolve cleanly", () => {
 	const externalFile = resolve("/tmp/some-external-doc.txt");
@@ -51,4 +54,32 @@ test("explicitly allowed paths outside workspace resolve cleanly", () => {
 		/escapes the workspace root/,
 	);
 });
+
+test("installed skill files are readable, and nothing else under lyra home is", () => {
+	const skill = join(HOME, "plugins", "waza", "skills", "check", "references", "mode-audit.md");
+	const loose = join(HOME, "skills", "ui", "SKILL.md");
+	assert.equal(resolveWorkspacePath(CWD, skill, undefined, { allowSkillReads: true }), skill);
+	assert.equal(resolveWorkspacePath(CWD, loose, undefined, { allowSkillReads: true }), loose);
+	assert.throws(
+		() => resolveWorkspacePath(CWD, skill),
+		/escapes the workspace root/,
+		"write-shaped callers do not inherit the skill exception",
+	);
+	assert.throws(
+		() => resolveWorkspacePath(CWD, join(HOME, "plugins", "waza", "manifest.json"), undefined, { allowSkillReads: true }),
+		/escapes the workspace root/,
+	);
+	assert.throws(
+		() => resolveWorkspacePath(CWD, join(HOME, "settings.json"), undefined, { allowSkillReads: true }),
+		/escapes the workspace root/,
+	);
+});
+
+test("read opens an installed plugin skill file that used to escape the workspace", async () => {
+	const skill = join(HOME, "plugins", "waza", "skills", "check", "references", "mode-audit.md");
+	await mkdir(dirname(skill), { recursive: true });
+	await writeFile(skill, "# mode-audit\nread me\n");
+	const res = await readTool.execute({ path: skill }, { cwd: CWD, sessionId: "s", state: new Map() });
+	assert.equal(res.isError, undefined);
+	assert.match(res.content[0].text, /mode-audit/);
 });

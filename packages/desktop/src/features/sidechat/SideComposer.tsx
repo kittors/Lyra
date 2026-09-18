@@ -187,13 +187,12 @@ export function SideComposer({
 	const modelName = model?.name ?? null;
 
 	/*
-	 * 15, because of what sits below it: the panel's 4px inset plus its 1px card border. The
-	 * main composer rests 20px off the window's bottom edge, and 15 + 1 + 4 lands on the same
-	 * line — which is what stops the two fields looking a pixel out of step side by side.
+	 * `.ly-composer-pad` uses the same `--ly-composer-out` gutter as the main dock,
+	 * minus `--ly-pane-chrome` on the bottom so the two cards share one window line.
 	 */
 	return (
 		// Same cap as the transcript above it, so the field stays under the messages it answers.
-		<div className="mx-auto w-full max-w-[var(--ly-content)] shrink-0 px-3 pt-2 pb-[15px]">
+		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
 			<ComposerShell
 				value={text}
 				fieldRef={field}
@@ -240,7 +239,7 @@ export function SideComposer({
 					 * 复制路径，这一份一样都没有。
 					 */
 					attachments.length > 0 ? (
-						<div className="px-3.5 pt-3">
+						<div className="ly-composer-attachments">
 							<AttachmentStrip
 								files={strip}
 								layout="row"
@@ -270,7 +269,7 @@ export function SideComposer({
 							data-ly-tip={t("subAgent.attach")}
 							aria-label={t("subAgent.attach")}
 							onClick={() => fileInputRef.current?.click()}
-							className="ly-composer-control flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Plus size={16} strokeWidth={1.9} />
 						</button>

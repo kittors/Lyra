@@ -491,13 +491,13 @@ function ModelItem({
 		 * at the edge, with no way to see the rest of it: `claude-opus-4-…` and `claude-opus-4-…`
 		 * being two different models you could not tell apart.
 		 */
-		<div data-model={model.id} className="ly-scroll ly-item group/model flex h-[28px] items-center">
+		<div data-model={model.id} className="ly-scroll ly-item group/model flex h-[var(--ly-menu-row)] items-center">
 			<button
 				type="button"
 				role="menuitem"
 				data-selected={selected ? "true" : undefined}
 				onClick={onChoose}
-				className="flex h-full min-w-0 flex-1 items-center gap-2.5 px-2 text-left text-label"
+				className="flex h-full min-w-0 flex-1 items-center gap-2.5 px-3 text-left text-label"
 			>
 				{/* The house, not the provider: one relay serves models from five of them, so a
 				    provider icon here would draw the same mark on every row. */}

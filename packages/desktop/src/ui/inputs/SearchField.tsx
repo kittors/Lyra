@@ -42,9 +42,8 @@ export function SearchField({
 
 	return (
 		<div
-			className={`flex min-w-0 items-center gap-1.5 rounded-lg border border-transparent bg-card/60 transition-colors focus-within:border-line focus-within:bg-input ${
-				comfortable ? "h-8 px-2.5" : "h-[26px] px-2"
-			} ${className}`}
+			data-ly-field=""
+			className={`ly-field min-w-0 gap-1.5 ${comfortable ? "" : "ly-field-compact"} ${className}`}
 		>
 			<Search size={comfortable ? 13 : 12} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
 			<Input

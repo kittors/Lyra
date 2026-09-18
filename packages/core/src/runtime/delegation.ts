@@ -49,6 +49,29 @@ export type DelegationPolicy = "auto" | DelegationTier;
 /** 下拉里的顺序，也是从不派到放开派的顺序。设置页和磁盘规范化共用，省得两边各写一遍。 */
 export const DELEGATION_POLICIES = ["auto", "off", "sparing", "selective", "ready", "eager"] as const;
 
+/**
+ * Hard ceiling on how many sub-agents may run at once.
+ *
+ * Eight is already a lot: each one is a full model run with its own context. Sixteen used to be
+ * the stored cap, and the field that wrote it was a native stepper — both of which let a setting
+ * that means "how many at once" become a number nobody would pick on purpose. The gate, the
+ * settings file, and the control on the page all read this same constant.
+ */
+export const MAX_CONCURRENT_SUB_AGENTS = 8;
+
+/**
+ * What the settings file is allowed to mean by `maxConcurrentSubAgents`.
+ *
+ * Anything below 1 is not a concurrency — "none" is the off tier — so it falls back to the
+ * default of 4 rather than being stored as 0 or a negative. Anything above the ceiling is cut
+ * down to it, including a 16 that an older build would have accepted.
+ */
+export function normalizeMaxConcurrentSubAgents(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) && value >= 1
+		? Math.min(MAX_CONCURRENT_SUB_AGENTS, Math.floor(value))
+		: 4;
+}
+
 /** 磁盘上的值可能是任何东西——手写的配置、旧版本、同步过来的字段。认不出来就是 `auto`。 */
 export function normalizeDelegationPolicy(value: unknown): DelegationPolicy {
 	return typeof value === "string" && (DELEGATION_POLICIES as readonly string[]).includes(value)
@@ -90,7 +113,7 @@ export function delegationTier(thinking?: ThinkingLevel, policy?: DelegationPoli
  * 设置就成了一个可以被别的设置绕过去的设置。
  */
 export function delegationConcurrency(limit: number, thinking?: ThinkingLevel, policy?: DelegationPolicy): number {
-	const ceiling = Math.max(1, Math.floor(limit));
+	const ceiling = Math.max(1, Math.min(MAX_CONCURRENT_SUB_AGENTS, Math.floor(limit)));
 	switch (delegationTier(thinking, policy)) {
 		/*
 		 * 关掉的时候闸门仍然是 1，不是 0。

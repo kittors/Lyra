@@ -21,6 +21,7 @@ import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
+import { eachAppWindow } from "./window.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -110,19 +111,20 @@ export async function editSessionMessage(
 	});
 }
 
+export async function revertSessionMessage(sessionId: string, index: number): Promise<void> {
+	const session = await ensureLiveSession(sessionId);
+	if (!session) throw new Error("找不到这个会话。");
+	if (session.running) throw new Error("回合进行中，无法撤销");
+	await session.revert(index);
+}
+
 export function broadcastSessionChange(change: SessionChange): void {
-	const win = deps.window();
-	if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-		win.webContents.send("sessions:changed", change);
-	}
+	eachAppWindow((win) => win.webContents.send("sessions:changed", change));
 	deps.sync?.()?.broadcastSessionChange(change);
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
-	const win = deps.window();
-	if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-		win.webContents.send("agent:event", { sessionId, event });
-	}
+	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
 	deps.sync?.()?.broadcast(sessionId, event);
 	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
 }
@@ -131,10 +133,7 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
  * Side-chat events have their own channel on both transports so they cannot enter the main thread.
  */
 export function broadcastSideChat(sessionId: string, event: import("@lyra/core").SideChatUpdate): void {
-	const win = deps.window();
-	if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-		win.webContents.send("sidechat:event", { sessionId, event });
-	}
+	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, event }));
 	deps.sync?.()?.broadcastSideChat(sessionId, event);
 }
 
@@ -184,7 +183,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
  * unbounded map meant an afternoon of browsing left a dozen sets of them running. Three keeps
  * the conversations you are actually moving between instant without hoarding processes.
  */
-const MAX_LIVE_SESSIONS = 3;
+const MAX_LIVE_SESSIONS = 8;
 
 /** Move a session to the end of the map, which is the recency order eviction walks. */
 export function touchSession(sessionId: string): void {

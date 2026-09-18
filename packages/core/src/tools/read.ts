@@ -189,7 +189,7 @@ export const readTool: Tool<ReadArgs> = {
 
 		let absolute: string;
 		try {
-			absolute = resolveWorkspacePath(ctx.cwd, path, ctx.allowedPaths);
+			absolute = resolveWorkspacePath(ctx.cwd, path, ctx.allowedPaths, { allowSkillReads: true });
 		} catch (error) {
 			return errorResult(error instanceof Error ? error.message : String(error));
 		}

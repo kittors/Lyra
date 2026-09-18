@@ -2,8 +2,10 @@ import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
+import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedApprovals } from "../../app/session-scope.tsx";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
@@ -34,10 +36,11 @@ const COMPACTED_NOTICE_MS = 8000;
 export function RunningIndicator() {
 	const startedAt = useApp((s) => s.turnStartedAt);
 	const tokens = useApp((s) => s.turnTokens);
-	const meter = useApp(s => s.activeSessionId ? s.turns[s.activeSessionId] : undefined);
 	const messages = useApp((s) => s.messages);
 	const retrying = useApp((s) => s.retrying);
 	const compactedAt = useApp((s) => s.compactedAt);
+	const waiting = useScopedApprovals()[0];
+	const waitingKind = !waiting ? null : waiting.kind === "interactive" ? "question" : "approval";
 	const [now, setNow] = useState(() => Date.now());
 	/*
 	 * The phrase advances on its own clock, slower than the seconds.
@@ -97,9 +100,6 @@ export function RunningIndicator() {
 	const last = messages[messages.length - 1];
 	const live = last?.role === "assistant" && last.stopReason === "pending" ? freshTokens(last.usage) : 0;
 	const total = tokens + live;
-	const liveUsage = last?.role === "assistant" && last.stopReason === "pending" ? last.usage : undefined;
-	const input = (meter?.inputTokens ?? 0) + (liveUsage ? liveUsage.input + liveUsage.cacheRead + liveUsage.cacheWrite : 0);
-	const cached = (meter?.cacheRead ?? 0) + (liveUsage?.cacheRead ?? 0);
 	// Travelled to, not jumped to: usage lands per message, so this moves in steps of thousands.
 	const counted = useCountUp(total);
 	/*
@@ -145,6 +145,20 @@ export function RunningIndicator() {
 	 * and how long it will take, and anything here would be the same fact in fewer words.
 	 */
 	const phrase = retrying ? null : phraseFor(mood, tick, elapsed);
+
+	if (waitingKind) {
+		return (
+			<div
+				data-ly-running
+				data-ly-mood="waiting"
+				data-ly-waiting={waitingKind}
+				className="ly-enter mt-2.5 flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-detail text-ink-muted whitespace-nowrap"
+			>
+				<StatusSpinner size={14} className="text-ink-muted" />
+				<span className="ly-fade-in">{waitingKind === "question" ? translate("running.waitingForAnswer") : translate("sessionStatus.waiting")}</span>
+			</div>
+		);
+	}
 
 	return (
 		/*
@@ -197,7 +211,7 @@ export function RunningIndicator() {
 					<span className="text-ink-faint">·</span>
 					{/* `tabular-nums` matters more while it is moving: without it the glyph widths
 					    change every frame and the whole line shuffles sideways as the number climbs. */}
-					<span className="text-ink-faint tabular-nums">{translate("running.turnTokens", { n: formatTokens(Math.round(counted)) })}{input > 0 && ` · ${translate("sessionCard.cache")} ${Math.round(cached / input * 100)}%`}</span>
+					<span className="text-ink-faint tabular-nums">{translate("running.turnTokens", { n: formatTokens(Math.round(counted)) })}</span>
 				</>
 			)}
 			{/*

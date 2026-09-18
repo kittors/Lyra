@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
 import { home } from "../platform.ts";
@@ -26,16 +26,32 @@ export function resolveWorkspacePath(
 	cwd: string,
 	input: string,
 	allowedPaths?: ReadonlySet<string> | readonly string[],
+	options?: { allowSkillReads?: boolean },
 ): string {
 	if (!input || typeof input !== "string") throw new Error("A path is required.");
 	const expanded = input.startsWith("~/") ? input.replace("~", home()) : input;
 	const absolute = isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
 	if (contains(cwd, absolute) || contains(scratchHome(lyraHome()), absolute)) return absolute;
+	if (options?.allowSkillReads && isInstalledSkillFile(absolute)) return absolute;
 	if (allowedPaths) {
 		const allowed = allowedPaths instanceof Set ? allowedPaths : new Set(allowedPaths);
 		if (allowed.has(absolute)) return absolute;
 	}
 	throw new Error(`Path escapes the workspace root (${cwd}): ${input}`);
+}
+
+/**
+ * Installed skill files the system prompt tells the model to open by absolute path.
+ *
+ * Loose skills live in `~/.lyra/skills`. Plugin skills live under each bundle's `skills/`
+ * directory. Settings, transcripts, credentials and the rest of `~/.lyra` stay closed.
+ */
+export function isInstalledSkillFile(absolute: string, homeDir = lyraHome()): boolean {
+	if (contains(join(homeDir, "skills"), absolute)) return true;
+	const plugins = join(homeDir, "plugins");
+	if (!contains(plugins, absolute)) return false;
+	const parts = relative(plugins, absolute).split(sep);
+	return parts.indexOf("skills") >= 1;
 }
 
 export function displayPath(cwd: string, absolute: string): string {

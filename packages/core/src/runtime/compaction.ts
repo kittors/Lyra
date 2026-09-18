@@ -33,7 +33,20 @@ import { stripStaleHandles } from "./model-switch.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../types.ts";
 
 /** Start compacting at this fraction of the context window. */
-const THRESHOLD = 0.8;
+export const COMPACTION_RATIO = 0.8;
+const THRESHOLD = COMPACTION_RATIO;
+/**
+ * OpenCode's leftover-token buffer. Kept as documentation of the A5 decision, not as a trigger.
+ *
+ * A 20k leftover fires at 37% of a 32k window and spends the rest of a short-context model on
+ * summaries. On a 200k window it fires later than 80% and walks closer to the hard cap. The
+ * ratio stays a constant fraction of whatever window the model actually has.
+ */
+export const COMPACTION_BUFFER_TOKENS = 20_000;
+
+export function compactionTriggerTokens(contextWindow: number): number {
+	return Math.floor(contextWindow * COMPACTION_RATIO);
+}
 /**
  * How far under the threshold pruning alone has to land before summarising is skipped.
  *
@@ -283,7 +296,7 @@ export async function compactIfNeeded(
 	 */
 	const measured = measureTotal(messages);
 	const used = measured.tokens;
-	if (!force && used < model.contextWindow * THRESHOLD) return null;
+	if (!force && used < compactionTriggerTokens(model.contextWindow)) return null;
 
 	/*
 	 * Cut the oversized tool results first, and see whether that was enough.

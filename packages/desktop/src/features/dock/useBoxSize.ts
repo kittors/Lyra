@@ -26,7 +26,8 @@ export function useBoxSize(
 	useLayoutEffect(() => {
 		const element = ref.current;
 		if (!element) return;
-		const measure = () => {
+		let frame = 0;
+		const read = () => {
 			const { clientWidth: width, clientHeight: height } = element;
 			// Zero means hidden rather than tiny; applying floors against it would make every pane
 			// the whole dock for the frame before the real size arrives.
@@ -34,10 +35,19 @@ export function useBoxSize(
 				setMeasured((current) => (current?.width === width && current?.height === height ? current : { width, height }));
 			}
 		};
-		measure();
-		const observer = new ResizeObserver(measure);
+		read();
+		const observer = new ResizeObserver(() => {
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				read();
+			});
+		});
 		observer.observe(element);
-		return () => observer.disconnect();
+		return () => {
+			observer.disconnect();
+			if (frame) cancelAnimationFrame(frame);
+		};
 	}, [ref]);
 
 	if (expectedWidth !== undefined && measured && measured.width !== expectedWidth && expectedWidth > 0) {

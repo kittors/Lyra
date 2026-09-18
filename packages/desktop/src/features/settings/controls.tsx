@@ -89,13 +89,13 @@ export function Segmented<T extends string>({
 	}, [value, options]);
 
 	return (
-		<div ref={box} className="relative flex gap-0.5 rounded-lg bg-card p-0.5">
+		<div ref={box} className="relative flex gap-0.5 rounded-full bg-card p-0.5">
 			{/* 量到之前不画。它一出现就已经在正确的位置上，不需要一段从零滑过来的开场。 */}
 			{rail && (
 				<span
 					aria-hidden
 					data-segment-rail=""
-					className="absolute top-0.5 bottom-0.5 left-0 rounded-md bg-elevated transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+					className="absolute top-0.5 bottom-0.5 left-0 rounded-full bg-elevated transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 					style={{ width: rail.width, transform: `translateX(${rail.left}px)` }}
 				/>
 			)}
@@ -109,7 +109,7 @@ export function Segmented<T extends string>({
 					aria-pressed={value === option.value}
 					onClick={() => onChange(option.value)}
 					// `relative` 把字提到那块底上面；没有它，滑过去的底会盖住它正要标出的那个词。
-					className={`relative h-[26px] rounded-md text-label transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
+					className={`relative h-[26px] rounded-full text-label transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
 						// A glyph wants a square; a word wants room either side of it.
 						option.icon ? "grid w-[30px] place-items-center" : "px-3"
 					} ${value === option.value ? "text-ink" : "text-ink-muted hover:text-ink"}`}

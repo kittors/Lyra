@@ -37,10 +37,20 @@ async function pageTarget(port: number): Promise<string> {
 	}>;
 	const pages = list.flatMap((t) => (t.type === "page" && t.webSocketDebuggerUrl ? [t.webSocketDebuggerUrl] : []));
 	if (pages.length === 0) throw new Error("没找到页面的调试地址");
+	let fallback: string | undefined;
 	for (const url of pages) {
-		const shell = await evaluateRenderer<boolean>(url, 'Boolean(document.querySelector(".ly-shell"))').catch(() => false);
-		if (shell) return url;
+		const mark = await evaluateRenderer<{ workspace: boolean; session: boolean; shell: boolean }>(
+			url,
+			`({
+				workspace: Boolean(document.querySelector("[data-ly-workspace-window]")),
+				session: Boolean(document.querySelector("[data-ly-session-window]")),
+				shell: Boolean(document.querySelector(".ly-shell")),
+			})`,
+		).catch(() => null);
+		if (mark?.workspace) return url;
+		if (mark?.shell && !mark.session && !fallback) fallback = url;
 	}
+	if (fallback) return fallback;
 	throw new Error(`${pages.length} 个页面目标里没有一个画着主界面`);
 }
 

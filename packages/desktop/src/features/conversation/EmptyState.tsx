@@ -51,13 +51,16 @@ export function EmptyState() {
 			 */}
 			<Scroller
 				className="flex-1"
-				contentClassName={`flex flex-col py-4 ${compact ? "px-4" : "px-8"}`}
+				contentClassName={`flex flex-col py-4 ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}
 			>
 				{/*
-				 * `m-auto` and not `justify-center`: a centred flex child that outgrows its
-				 * parent gets clipped at the top with no way to scroll back up to it.
+				 * Top-weighted, not `m-auto`.
+				 *
+				 * Centring in the leftover scroller recentres every time the composer grows. Dropping
+				 * a file then looks like a gap opening above the input. A fixed top slack and
+				 * `mb-auto` keep the heading still while the composer takes height from below.
 				 */}
-				<div className="m-auto flex w-full flex-col items-center">
+				<div className="mx-auto mt-[min(12vh,5.5rem)] mb-auto flex w-full flex-col items-center">
 					<EmptyMark compact={compact} />
 
 					<h1

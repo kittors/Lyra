@@ -60,11 +60,11 @@ try {
 	await click('[data-ly-row="issue-demo"] > button'); await pause();
 	model.set("question"); await send("验证 Full Access 下的选择题。");
 	await until("Boolean(document.querySelector('[data-approval-card]'))"); await pause();
-	const meter = await app.evaluate<string>("document.querySelector('[data-ly-running]').innerText");
-	check("turn meter labels fresh tokens and cache ratio", /本轮\s*120\s*tokens/.test(meter) && /缓存\s*90%/.test(meter), meter);
+	const meter = await app.evaluate<{ text: string; dash: boolean; mood: string | null }>("(()=>{const e=document.querySelector('[data-ly-running]');return {text:e.innerText,dash:Boolean(e.querySelector('.ly-dash')),mood:e.getAttribute('data-ly-mood')};})()");
+	check("waiting line uses dashed spinner, not a thinking mutter", meter.dash && meter.mood === "waiting" && /等待你的回答/.test(meter.text) && !/Wrestling|Wrestling with it/.test(meter.text), meter);
 	const selected = await app.evaluate("document.querySelectorAll('[data-approval-card] input:checked').length");
 	check("recommendation is not implicit consent", selected === 0, selected);
-	await click('button[aria-label="自定义回答"]'); await click('input[aria-label="自定义回答"]');
+	await click('input[aria-label="自定义回答"]');
 	await app.send("Input.insertText", { text: "收起后仍应保留中文草稿" }); await pause();
 	await click('button[aria-label="收起提问或审批"]'); await pause();
 	await click('button[aria-label="展开提问或审批"]'); await pause();
@@ -76,8 +76,8 @@ try {
 		await pause();
 		const boxes = await app.evaluate<{ left: number; right: number; top: number; bottom: number; transcriptBottom: number; overflow: number }>("(()=>{const c=document.querySelector('[data-approval-card]'),r=c.getBoundingClientRect(),region=document.querySelector('[data-approval-region]'),scroll=region.parentElement.previousElementSibling.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,transcriptBottom:scroll.bottom,overflow:c.scrollWidth-c.clientWidth}})()");
 		check(`question visible without overlap ${width} ${theme}`, boxes.left >= 0 && boxes.right <= width && boxes.top >= boxes.transcriptBottom - 1 && boxes.bottom <= 950 && boxes.overflow <= 1, boxes);
-		const meterBox = await app.evaluate<{ left: number; right: number; fieldLeft: number; fieldRight: number; overflow: number }>("(()=>{const e=document.querySelector('[data-ly-running]'),m=[...e.querySelectorAll('span')].find(s=>s.textContent.includes('本轮')),r=e.getBoundingClientRect(),f=m.getBoundingClientRect();return {left:r.left,right:r.right,fieldLeft:f.left,fieldRight:f.right,overflow:e.scrollWidth-e.clientWidth}})()");
-		check(`turn usage completely visible ${width} ${theme}`, meterBox.fieldLeft>=meterBox.left-1&&meterBox.fieldRight<=meterBox.right+1&&meterBox.overflow<=1, meterBox);
+		const meterBox = await app.evaluate<{ left: number; right: number; fieldLeft: number; fieldRight: number; overflow: number; text: string }>("(()=>{const e=document.querySelector('[data-ly-running]'),m=e.querySelector('span'),r=e.getBoundingClientRect(),f=m.getBoundingClientRect();return {left:r.left,right:r.right,fieldLeft:f.left,fieldRight:f.right,overflow:e.scrollWidth-e.clientWidth,text:e.innerText}})()");
+		check(`waiting line completely visible ${width} ${theme}`, meterBox.fieldLeft>=meterBox.left-1&&meterBox.fieldRight<=meterBox.right+1&&meterBox.overflow<=1&&/等待你的回答/.test(meterBox.text), meterBox);
 		await shot(`question-${width}-${theme}`);
 	}
 	await app.evaluate("[...document.querySelectorAll('[data-approval-card] button')].find(e=>e.textContent.includes('跳过')).click()");

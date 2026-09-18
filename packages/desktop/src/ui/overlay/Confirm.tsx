@@ -26,8 +26,8 @@ import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Check, CircleHelp, TriangleAlert, X } from "lucide-react";
-import { Scroller } from "../scroll/Scroller.tsx";
 import { Overlay } from "./Overlay.tsx";
+import { DialogFrame } from "./Dialog.tsx";
 
 /** Narrow enough to read as a question rather than as a form. */
 const CONFIRM_WIDTH = 400;
@@ -75,47 +75,38 @@ export function ConfirmBody({
 	onCancel,
 }: ConfirmOptions & { onCancel: () => void }) {
 	return (
-		<Scroller contentClassName="p-6">
-			<div className="flex items-center gap-2.5 text-body font-semibold text-ink" data-dialog-title>{tone === "danger" ? <TriangleAlert size={20} className="shrink-0 text-danger" /> : <CircleHelp size={20} className="shrink-0 text-accent" />}{title}</div>
-			{detail && <p className="mt-3 text-label leading-relaxed text-ink-muted">{detail}</p>}
-			<div className="mt-6 flex items-center justify-end gap-1.5">
-				{/*
-				 * 一个叉一个勾，动词搬到 tooltip 上。
-				 *
-				 * 这两颗按钮的字本来就是变的——「删除」「卸载」「覆盖」「重新生成」——所以它们从来
-				 * 不是靠字被认出来的；真正说清楚代价的是上面那个标题和那行说明，按钮只回答是或否。
-				 * 换成图标之后这一点变得更直白：勾是「就这么办」，叉是「算了」，而**具体是哪件事**
-				 * 由标题负责，`aria-label` 和 tooltip 把动词原样留给读屏和悬停。
-				 *
-				 * 颜色仍然分两种。删除那次的勾是红的，「以后要不要自动做」那次的勾是墨色的——图标
-				 * 一样，份量不一样，这正是 `tone` 一直在做的事。
-				 */}
-				<button
-					type="button"
-					data-ly-tip={cancelLabel ?? translate("common.cancel")}
-					aria-label={cancelLabel ?? translate("common.cancel")}
-					onClick={onCancel}
-					className="ly-dialog-action ly-dialog-action-icon ly-dialog-action-secondary"
-				>
-					<X size={15} strokeWidth={2} aria-hidden />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={confirmLabel}
-					aria-label={confirmLabel}
-					onClick={onConfirm}
-					/*
-					 * 红色属于删除，不属于「要不要开启」。
-					 *
-					 * 一个把每个问题都画成危险的窗口，等于没有画过危险——真正删东西的那一次，
-					 * 看起来跟这次一模一样。
-					 */
-					className={`ly-dialog-action ly-dialog-action-icon ${tone === "danger" ? "ly-dialog-action-danger" : "bg-ink text-shell"}`}
-				>
-					<Check size={15} strokeWidth={2.4} aria-hidden />
-				</button>
-			</div>
-		</Scroller>
+		<DialogFrame
+			icon={tone === "danger" ? <TriangleAlert size={20} className="shrink-0 text-danger" /> : <CircleHelp size={20} className="shrink-0 text-accent" />}
+			title={title}
+			detail={detail}
+			actions={(
+				<>
+					{/*
+					 * 一个叉一个勾，动词搬到 tooltip 上。是/否由标题负责；更新弹窗那种带字的
+					 * 动作走 `DialogAction`，不走这里。
+					 */}
+					<div className="flex-1" />
+					<button
+						type="button"
+						data-ly-tip={cancelLabel ?? translate("common.cancel")}
+						aria-label={cancelLabel ?? translate("common.cancel")}
+						onClick={onCancel}
+						className="ly-dialog-action ly-dialog-action-icon ly-dialog-action-secondary"
+					>
+						<X size={15} strokeWidth={2} aria-hidden />
+					</button>
+					<button
+						type="button"
+						data-ly-tip={confirmLabel}
+						aria-label={confirmLabel}
+						onClick={onConfirm}
+						className={`ly-dialog-action ly-dialog-action-icon ${tone === "danger" ? "ly-dialog-action-danger" : "ly-dialog-action-primary"}`}
+					>
+						<Check size={15} strokeWidth={2.4} aria-hidden />
+					</button>
+				</>
+			)}
+		/>
 	);
 }
 

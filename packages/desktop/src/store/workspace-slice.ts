@@ -146,6 +146,7 @@ export function workspaceSlice(set: Set, get: Get) {
       scratchCwd,
       workspace: null,
       activeSessionId: null,
+      pendingSessionId: null,
       meta: null,
       messages: [],
       toolRuns: {},
@@ -349,6 +350,7 @@ export function workspaceSlice(set: Set, get: Get) {
     if (targets.some((s) => s.id === get().activeSessionId)) {
       set({
         activeSessionId: null,
+        pendingSessionId: null,
         meta: null,
         messages: [],
         toolRuns: {},

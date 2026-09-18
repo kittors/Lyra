@@ -11,16 +11,17 @@ import { Activity, lazy, Suspense, useEffect, useState } from "react";
 import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-react";
 import { RetainedViews } from "../ui/layout/RetainedViews.tsx";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
-import { Conversation, ConversationSkeleton } from "../features/conversation/index.ts";
-import { chatSurface } from "../lib/chat-surface.ts";
-import { EmptyState } from "../features/conversation/index.ts";
+import { SplitWorkspace } from "../features/split/SplitWorkspace.tsx";
+import { revealInWorkspace, watchSessionWindows } from "../features/split/index.ts";
 import { ImageViewer } from "../features/image/index.ts";
 import { InputMenu } from "../features/composer/index.ts";
 import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
 import { DragBand, PanelMenu, WindowButtons, WindowHeader } from "./window/WindowToolbar.tsx";
-import { DockView } from "../features/dock/index.ts";
+import { SessionWindow } from "./window/SessionWindow.tsx";
+import { PanelWindow } from "./window/PanelWindow.tsx";
+import { DockView, watchPanelWindows } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
 import { sessionTitle } from "../lib/session-title.ts";
 import { useShortcuts } from "./shortcuts.ts";
@@ -154,16 +155,19 @@ export function App() {
 	 * Holding it for `MIN_BOOT_MS` gives it time to be seen; the timer starts with the window, so it
 	 * costs nothing that the boot was not already spending.
 	 */
-	const [settled, setSettled] = useState(false);
+	const sessionWindow = bridge.bootWindow?.kind === "session";
+	const panelWindow = bridge.bootWindow?.kind === "panel";
+	const [settled, setSettled] = useState(sessionWindow || panelWindow);
 	useEffect(() => {
+		if (sessionWindow || panelWindow) return;
 		const timer = window.setTimeout(() => setSettled(true), MIN_BOOT_MS);
 		return () => window.clearTimeout(timer);
-	}, []);
+	}, [sessionWindow, panelWindow]);
 
 	return (
 		<I18nProvider locale={uiLocale}>
 		{!ready || !settled ? <BootScreen /> : <LayoutProvider>
-			<Shell />
+			{panelWindow ? <PanelWindow /> : sessionWindow ? <SessionWindow /> : <Shell />}
 			{/*
 			 * One viewer for the whole window, outside the shell.
 			 *
@@ -349,15 +353,12 @@ function useMainPane() {
 
 function MainContent() {
 	const view = useApp((state) => state.view);
-	const messages = useApp((state) => state.messages);
-	const loading = useApp((state) => state.loadingSession);
 	const active = view === "settings" ? "chat" : view;
 	return <RetainedViews active={active} limit={4} render={(key) => {
 		if (key === "plugins") return <LazyScreen shape="grid"><PluginsView /></LazyScreen>;
 		if (key === "pull-requests") return <LazyScreen><PullRequestsView /></LazyScreen>;
 		if (key === "scheduled") return <LazyScreen><ScheduledView /></LazyScreen>;
-		const surface = chatSurface({ messages: messages.length, loading });
-		return surface === "conversation" ? <Conversation /> : surface === "skeleton" ? <ConversationSkeleton /> : <EmptyState />;
+		return <SplitWorkspace />;
 	}} />;
 }
 
@@ -379,6 +380,13 @@ function ChatShell({ settings }: { settings: boolean }) {
 	// transcript to keep its place — but ⌘P for a file pane nobody can see, or Escape unmaximising
 	// one, is not what those keys mean on that screen.
 	useShortcuts({ enabled: !settings, compact, navOpen, activeSessionId, workspace, toggleNav, dismissNav });
+
+	useEffect(() => watchSessionWindows(), []);
+	useEffect(() => watchPanelWindows(), []);
+	useEffect(() => {
+		if (!bridge.windows?.onShowSession) return;
+		return bridge.windows.onShowSession(({ sessionId }) => revealInWorkspace(sessionId));
+	}, []);
 
 	const nav = (
 		<NavPane width={sidebarDrawn} maxWidth={sidebarMax} label={t("app.sidebar")}>
@@ -429,7 +437,7 @@ function ChatShell({ settings }: { settings: boolean }) {
 	 */
 	if (headerBar) {
 		return (
-			<div className="ly-shell relative flex h-full flex-col overflow-hidden">
+			<div data-ly-workspace-window className="ly-shell relative flex h-full flex-col overflow-hidden">
 				<WindowHeader navOpen={navOpen} compact={compact} onToggleNav={toggleNav} />
 				<div className="ly-window-body relative flex min-h-0 flex-1">
 					{nav}
@@ -440,7 +448,7 @@ function ChatShell({ settings }: { settings: boolean }) {
 	}
 
 	return (
-		<div className="ly-shell relative flex h-full overflow-hidden">
+		<div data-ly-workspace-window className="ly-shell relative flex h-full overflow-hidden">
 			{nav}
 
 			{/*

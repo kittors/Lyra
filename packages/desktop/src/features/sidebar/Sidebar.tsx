@@ -29,6 +29,7 @@ import { ProjectList } from "./ProjectList.tsx";
 import { SidebarFoot } from "./SidebarFoot.tsx";
 import { SidebarHead } from "./SidebarHead.tsx";
 import { SidebarTabs, StripButton, type SidebarTab } from "./SidebarTabs.tsx";
+import { SessionCarryGhost } from "../split/index.ts";
 import { useSidebarLists } from "./useSidebarLists.ts";
 import { useStickyFade } from "./useStickyFade.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -43,7 +44,6 @@ const SORT_KEY = "ly-sidebar-sort";
 export function Sidebar() {
 	const { t } = useI18n();
 	const workspace = useApp((s) => s.workspace);
-	const activeSessionId = useApp((s) => s.activeSessionId);
 	const scratchRoots = useApp((s) => s.scratchRoots);
 	const newSession = useApp((s) => s.newSession);
 	const adoptSidebarTab = useApp((s) => s.adoptSidebarTab);
@@ -333,7 +333,6 @@ export function Sidebar() {
 						<ProjectList
 							groups={groups}
 							activePath={workspace?.path}
-							activeSessionId={activeSessionId}
 							collapsed={collapsed}
 							onToggleCollapsed={toggleCollapsed}
 							groupProps={(path) => ({
@@ -343,7 +342,6 @@ export function Sidebar() {
 								onShowMore: () =>
 									setShown((prev) => ({ ...prev, [path]: (prev[path] ?? SESSION_PAGE) + SESSION_PAGE })),
 								onCollapse: () => setShown((prev) => ({ ...prev, [path]: SESSION_PAGE })),
-								activeSessionId,
 								actions,
 							})}
 							looseShown={looseShown}
@@ -357,7 +355,6 @@ export function Sidebar() {
 					) : (
 						<ChatList
 							bands={bands}
-							activeSessionId={activeSessionId}
 							scratchRoots={scratchRoots}
 							hidden={Math.max(0, matching.length - chatShown)}
 							canCollapse={chatShown > CHAT_PAGE}
@@ -370,6 +367,7 @@ export function Sidebar() {
 				</div>
 			</Scroller>
 
+			<SessionCarryGhost suppressed={tab === "projects"} />
 			<SidebarFoot onNavigate={dismissNav} />
 
 			{menu.open && (

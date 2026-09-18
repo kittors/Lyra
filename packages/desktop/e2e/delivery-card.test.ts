@@ -179,48 +179,45 @@ test("real file changes produce one temporary card with internal expansion and s
 	await until(`!document.querySelector('[aria-label="文件变更预览"]')`);
 
 	/*
-	 * 审核弹窗是一张读代码的纸，不是一张摆着 diff 的表单。
-	 *
-	 * 原本整页一起滚，还裹在 16px 的内衬里：标题一动就滚出去了，每个文件的名字跟着它走——五个文件
-	 * 读到一半，屏幕上没有一处说得出你在看哪个——代码四边内缩，成了弹窗里一块更小的方框，四周露着
-	 * 弹窗自己的底色，滚动条离它要滚的正文 16px 远。
+	 * 点文件行打开这一轮的 diff，点审核打开同一块面板里全部文件的 diff。
+	 * 都不是弹窗，也不是文件预览，更不是 Git。
 	 */
-	await click('[data-turn-delivery] button[data-ly-tip="审核全部文件改动"]');
-	await until(`document.querySelector('[data-ly-modal] .ly-diff-scroll')`);
-	await frames();
-	const read = `(()=>{const modal=document.querySelector('[data-ly-modal]'),m=modal.getBoundingClientRect(),view=modal.querySelector('.ly-scroll-view'),v=view.getBoundingClientRect(),
-		t=modal.querySelector('[data-dialog-title]').getBoundingClientRect(),head=modal.querySelector('.sticky'),n=head.getBoundingClientRect(),s=modal.querySelector('.ly-diff-scroll'),d=s.getBoundingClientRect();
-		const thumb=modal.querySelector('.ly-thumb'),undo=head.querySelector('button');
-		return {title:Math.round(t.top),held:Math.abs(n.top-v.top)<1,inset:{left:Math.round(d.left-m.left),right:Math.round(m.right-d.right)},
-			fill:Math.round(view.clientWidth-d.width),
-			rowFill:(()=>{const r=s.querySelector('.ly-diff-add');return r?Math.round(d.width-r.getBoundingClientRect().width):null})(),
-			clear:thumb&&undo?Math.round(thumb.getBoundingClientRect().left-undo.getBoundingClientRect().right):null,
-			scrollTop:Math.round(view.scrollTop)}})()`;
-	const before = await app.evaluate<{ title: number; held: boolean; inset: { left: number; right: number }; fill: number; rowFill: number | null; clear: number | null; scrollTop: number }>(read);
-	// 留一张：代码铺没铺满、「撤销」让没让开滑块，量得出来，也该看得见。
-	await screenshot("delivery-review");
-	await app.evaluate(`(()=>{document.querySelector('[data-ly-modal] .ly-scroll-view').scrollTop=520})()`);
-	await frames();
-	const after = await app.evaluate<typeof before>(read);
-	t.diagnostic(JSON.stringify({ before, after }));
-	assert.ok(after.scrollTop > 0, "弹窗要能滚起来，否则下面几条什么都没验证");
-	assert.equal(after.title, before.title, "标题是固定的一条，不该跟着内容滚走");
-	assert.ok(after.held, "滚动时文件名要吸在滚动区顶部，否则读到一半不知道在看哪个文件");
-	assert.ok(before.inset.left <= 2, `代码左边要贴着弹窗，只留描边：${JSON.stringify(before.inset)}`);
-	// 两边都贴着，中间铺满：滑块浮在代码上，底下不许是另一种颜色。同上面预览里的那几条。
-	assert.ok(before.inset.right <= 2, `代码右边要贴着弹窗，只留描边：${JSON.stringify(before.inset)}`);
-	assert.equal(before.fill, 0, `代码要铺满滚动区，右边不许留下一条别的底色：还差 ${before.fill}px`);
-	// 同上：行只能更宽，不能更窄。
-	assert.ok(before.rowFill !== null && before.rowFill <= 0, `增删行的底色也要铺满：还差 ${before.rowFill}px`);
+	const fileName = await app.evaluate<string>(`document.querySelector('[data-turn-delivery] [data-delivery-file]')?.getAttribute('data-delivery-file')?.split(/[\\\\/]/).pop() ?? ''`);
+	assert.ok(fileName, "交付卡片上要有能点的文件行");
 	/*
-	 * 钉住的那一行让开滑块，因为它右端是「撤销」。
+	 * 点文件行不能闪出悬停预览。
 	 *
-	 * 代码那一列有自己的留白，这一行没有——它跟着让位一起被拆掉之后，滑块正落在这个按钮上，
-	 * 而滑块画在 z-40 上并且自己吃点击：按钮看得见、按不着。
+	 * 鼠标点下去会先 focus 再 click。focus 要是立刻打开预览，click 里的 hideHover 再把它拆掉，
+	 * 中间那一帧就是录屏里的闪烁。观察挂在 click 之前，点的过程里预览不许出现。
 	 */
-	assert.ok(before.clear !== null && before.clear >= 0, `文件名那一行的「撤销」要让开滑块：${before.clear}px`);
-	for (const type of ["keyDown", "keyUp"] as const) await app.send("Input.dispatchKeyEvent", { type, key: "Escape", windowsVirtualKeyCode: 27 });
-	await until(`!document.querySelector('[data-ly-modal]')`);
+	await app.evaluate(`(()=>{window.__deliveryPreviewFlashed=false;const watch=new MutationObserver(()=>{if(document.querySelector('[aria-label="文件变更预览"]'))window.__deliveryPreviewFlashed=true});watch.observe(document.body,{childList:true,subtree:true});window.__deliveryPreviewWatch=watch})()`);
+	await click('[data-turn-delivery] [data-delivery-file]');
+	assert.equal(await app.evaluate(`(()=>{window.__deliveryPreviewWatch.disconnect();return window.__deliveryPreviewFlashed})()`), false, "点文件行不该闪出悬停预览");
+	await until(`document.querySelector('[data-dock-pane="delivery"] .ly-diff-scroll')?.textContent.includes('export const')`);
+	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-modal]'))`), false, "点文件不该弹出审核窗");
+	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-dock-pane="review"]'))`), false, "点文件不该打开 Git");
+	const one = await app.evaluate<{ diffs: number; text: string }>(`(()=>{
+		const pane=document.querySelector('[data-dock-pane="delivery"]');
+		return {diffs:pane?pane.querySelectorAll('[data-delivery-diff]').length:0,text:(pane?.innerText??'').slice(0,80)};
+	})()`);
+	t.diagnostic(JSON.stringify({ fileName, one }));
+	assert.equal(one.diffs, 1, "点一个文件只审这一轮里的那一份 diff");
+	assert.ok(one.text.includes(fileName), "面板标题或正文要带着这个文件");
+	await screenshot("delivery-turn-diff");
+
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 75 });
+	await until(`!document.querySelector('[aria-label="文件变更预览"]')`);
+	await click('[data-turn-delivery] button[data-ly-tip="审核全部文件改动"]');
+	await until(`document.querySelectorAll('[data-dock-pane="delivery"] [data-delivery-diff]').length>=3`);
+	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-modal]'))`), false, "审核不该弹出窗");
+	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-dock-pane="review"]'))`), false, "审核不该打开 Git");
+	const review = await app.evaluate<{ pane: boolean; diffs: number; git: boolean }>(`(()=>{
+		const pane=document.querySelector('[data-dock-pane="delivery"]');
+		return {pane:Boolean(pane),diffs:pane?pane.querySelectorAll('[data-delivery-diff]').length:0,git:Boolean(document.querySelector('[data-dock-pane="review"]'))};
+	})()`);
+	t.diagnostic(JSON.stringify({ fileName, review }));
+	assert.ok(review.pane && review.diffs >= 3, "审核要打开这一轮全部文件的 diff");
+	await screenshot("delivery-turn-review");
 });
 
 test("local material readers and writes reject links outside an opened project", async () => {

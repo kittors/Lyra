@@ -83,6 +83,7 @@ export interface RpcDeps {
 	create: LyraApi["sessions"]["create"];
 	prompt: LyraApi["agent"]["prompt"];
 	editMessage: LyraApi["agent"]["editMessage"];
+	revertMessage: LyraApi["agent"]["revertMessage"];
 	abort(sessionId: string): Promise<void>;
 	dispose(sessionId: string): Promise<void>;
 	snapshot(session: AgentSession): Promise<unknown>;
@@ -220,6 +221,8 @@ export const RPC: Record<string, Handler> = {
 			...(attachments === undefined ? {} : { attachments }),
 		});
 	},
+	"agent.revertMessage": async (deps, [sessionId, index]) =>
+		deps.revertMessage(s(sessionId), Number(index)),
 
 	"sessions.compact": async (deps, [sessionId, instructions]) => {
 		const session = await live(deps, s(sessionId));
@@ -421,6 +424,8 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 		fail(all(str(sessionId, "sessionId"), content(content_, "content"), optionalRecord(options, "options"))),
 	"agent.editMessage": ([sessionId, messageIndex, content_, options]) =>
 		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), content(content_, "content"), optionalRecord(options, "options"))),
+	"agent.revertMessage": ([sessionId, messageIndex]) =>
+		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"))),
 	"agent.abort": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"agent.approve": ([sessionId, requestId, decision]) =>
 		fail(all(str(sessionId, "sessionId"), str(requestId, "requestId"), checkApprovalDecision(decision))),
