@@ -12,7 +12,7 @@ import { useSplitOverlay } from "./overlay.ts";
  * question without threading a callback through the sidebar.
  */
 
-export interface SessionDragCandidate {
+interface SessionDragCandidate {
 	id: string;
 	title: string;
 	pointerId: number;
@@ -52,10 +52,6 @@ export function offerSessionDrag(session: { id: string; title: string }, event: 
 		originX: event.clientX,
 		originY: event.clientY,
 	};
-}
-
-export function peekSessionDrag(): SessionDragLive | null {
-	return live;
 }
 
 function emit(next: SessionDragLive | null): void {

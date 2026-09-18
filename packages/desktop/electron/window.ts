@@ -111,7 +111,7 @@ export function getWindow(): BrowserWindow | null {
 	return listAppWindows()[0] ?? null;
 }
 
-export function listAppWindows(): BrowserWindow[] {
+function listAppWindows(): BrowserWindow[] {
 	return [...appWindows].filter((win) => !win.isDestroyed());
 }
 

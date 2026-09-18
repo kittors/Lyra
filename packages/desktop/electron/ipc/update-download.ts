@@ -458,7 +458,7 @@ export function describe(error: unknown, received: number): string {
 }
 
 /** A sibling of the finished file, deliberately not named `*.exe.part`. */
-export const PARTIAL_NAME = "download.part";
+const PARTIAL_NAME = "download.part";
 export function partialPath(file: string): string {
 	return join(dirname(file), PARTIAL_NAME);
 }

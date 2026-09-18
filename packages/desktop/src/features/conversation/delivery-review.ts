@@ -9,7 +9,7 @@
 import { create } from "zustand";
 import type { TurnDelivery } from "../../../electron/turn-delivery.ts";
 
-export interface DeliveryTarget {
+interface DeliveryTarget {
 	sessionId: string;
 	timestamp: number;
 	/** Null shows every file from the turn. */

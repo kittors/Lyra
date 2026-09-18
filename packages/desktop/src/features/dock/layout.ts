@@ -220,7 +220,7 @@ function fitSizes(sizes: number[], floors: number[], mayOverlap = false): number
 }
 
 /** How much of `axis` a node needs before it stops being usable. */
-export function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): number {
+function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): number {
 	if (node.type === "leaf") {
 		const min = floor(node.kind);
 		return axis === "row" ? min.width : min.height;

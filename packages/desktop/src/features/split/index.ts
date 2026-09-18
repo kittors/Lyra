@@ -9,8 +9,7 @@
 export { SessionCarryGhost } from "./SessionCarryGhost.tsx";
 export { useSplit } from "./store.ts";
 export { offerSessionDrag, dropSessionDrag } from "./session-drag.ts";
-export { openInPane, openInNewWindow, revealInWorkspace, resetSplit, splitWith, focusPane, closePane, paneAtPoint, canOfferSplit, revealSession, abandonSessionReveal, SESSION_SETTLE_MS } from "./actions.ts";
-export { SCREEN_MIN_WIDTH_PX, SCREEN_MIN_HEIGHT_PX, subtreeMinPx, canSplitSide, pickSplitTarget } from "./geometry.ts";
-export { MAX_PANES, leafCount, canSplit, contains, firstSession, sessionIds } from "./tree.ts";
-export type { SplitNode } from "./tree.ts";
+export { openInPane, openInNewWindow, revealInWorkspace, splitWith, paneAtPoint, canOfferSplit } from "./actions.ts";
+export { subtreeMinPx } from "./geometry.ts";
+export { leafCount, canSplit, contains, firstSession } from "./tree.ts";
 export { useSessionWindows, watchSessionWindows } from "./session-windows.ts";

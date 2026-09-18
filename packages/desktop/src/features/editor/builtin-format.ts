@@ -111,6 +111,15 @@ function trimTrailing(source: string): string {
 		.trimEnd()}\n`;
 }
 
+/** Collapse leading tabs/spaces onto the indent this save asked for. */
+function alignIndent(text: string, indentStr: string, tabSize: number): string {
+	if (indentStr === "\t") {
+		const block = " ".repeat(tabSize);
+		return text.replace(new RegExp(`^(?:${block})+`, "gm"), (spaces) => "\t".repeat(spaces.length / tabSize));
+	}
+	return text.replace(/^\t+/gm, (tabs) => indentStr.repeat(tabs.length));
+}
+
 /**
  * Format source text using built-in CodeMirror grammars and indentation engines.
  */
@@ -150,7 +159,7 @@ export async function formatWithBuiltin(
 				if (next === text) break;
 				text = next;
 			}
-			return trimTrailing(text);
+			return trimTrailing(alignIndent(text, indentStr, tabSize));
 		} catch {
 			// Fall back to block indentation scanner
 		}

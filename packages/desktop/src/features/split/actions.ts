@@ -96,7 +96,7 @@ export function resetSplit(sessionId: string | null = null): void {
 	useSplit.getState().reset(sessionId);
 }
 
-export function measurePanes(): ScreenBox[] {
+function measurePanes(): ScreenBox[] {
 	const root = document.querySelector("[data-ly-split-root]");
 	if (!root) return [];
 	return [...root.querySelectorAll<HTMLElement>("[data-ly-split-pane]")].map((el) => {

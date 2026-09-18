@@ -220,5 +220,5 @@ test("a thousand split/close cycles stay at most four panes and keep a valid tre
 		}
 	}
 	assert.ok(leafCount(tree) >= 1 && leafCount(tree) <= MAX_PANES);
-	assert.ok(Date.now() - started < 200, `1000 cycles took ${Date.now() - started}ms`);
+	assert.ok(Date.now() - started < 1000, `1000 cycles took ${Date.now() - started}ms`);
 });

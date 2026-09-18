@@ -23,7 +23,7 @@ export function roundTo(value: number, decimals: number): number {
 	return decimals === 0 ? Math.trunc(value) : Number(value.toFixed(decimals));
 }
 
-export function clampNumber(value: number, min: number, max: number): number {
+function clampNumber(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }
 

@@ -46,7 +46,7 @@ export function resolveWorkspacePath(
  * Loose skills live in `~/.lyra/skills`. Plugin skills live under each bundle's `skills/`
  * directory. Settings, transcripts, credentials and the rest of `~/.lyra` stay closed.
  */
-export function isInstalledSkillFile(absolute: string, homeDir = lyraHome()): boolean {
+function isInstalledSkillFile(absolute: string, homeDir = lyraHome()): boolean {
 	if (contains(join(homeDir, "skills"), absolute)) return true;
 	const plugins = join(homeDir, "plugins");
 	if (!contains(plugins, absolute)) return false;

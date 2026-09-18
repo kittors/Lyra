@@ -35,7 +35,7 @@ interface PaneDrag extends DragState {
 	scope: string;
 }
 
-export type DockSpan = { width: number; height: number };
+type DockSpan = { width: number; height: number };
 
 interface PaneDockState {
 	trees: Record<string, DockNode>;

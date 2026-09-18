@@ -64,6 +64,7 @@
     // app ships looks unused to it. Removing them would drop the monospace faces the code panes
     // and the appearance page offer.
     "@fontsource-variable/inter",
+    "@fontsource-variable/ibm-plex-sans",
     "@fontsource-variable/jetbrains-mono",
     "@fontsource-variable/fira-code",
     "@fontsource-variable/source-code-pro",

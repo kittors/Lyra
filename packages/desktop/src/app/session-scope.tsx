@@ -119,11 +119,3 @@ export function useScopedLoading(): boolean {
 		return !cached;
 	});
 }
-
-export function useScopedRetrying() {
-	const id = useScopedSessionId();
-	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.retrying;
-		return s.sessionCache[id]?.state?.retrying ?? null;
-	});
-}

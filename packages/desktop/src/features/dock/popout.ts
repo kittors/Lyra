@@ -18,7 +18,7 @@ import { useDock } from "./store.ts";
 import { has, type DropAt } from "./tree.ts";
 import type { PanelKind } from "./sideStore.ts";
 
-export interface PanelWindowRef {
+interface PanelWindowRef {
 	kind: string;
 	scope: string;
 }
@@ -33,9 +33,9 @@ const homes = new Map<string, Home>();
 
 const homeKey = (scope: string, kind: string): string => `${scope}:${kind}`;
 
-export const usePanelWindows = create<{ panels: PanelWindowRef[] }>(() => ({ panels: [] }));
+const usePanelWindows = create<{ panels: PanelWindowRef[] }>(() => ({ panels: [] }));
 
-export function isPopped(scope: string, kind: string): boolean {
+function isPopped(scope: string, kind: string): boolean {
 	return usePanelWindows.getState().panels.some((panel) => panel.scope === scope && panel.kind === kind);
 }
 
@@ -65,7 +65,7 @@ export async function popOutPanel(input: {
 	});
 }
 
-export function dockBack(kind: PanelKind, scope: string): boolean {
+function dockBack(kind: PanelKind, scope: string): boolean {
 	const home = homes.get(homeKey(scope, kind));
 	const dock = home?.dock ?? (scope === "window" ? "window" : "pane");
 	const paneLive = Boolean(usePaneDock.getState().size(scope));

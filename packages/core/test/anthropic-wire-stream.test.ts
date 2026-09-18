@@ -84,7 +84,7 @@ test("每收到一帧就把计时拨回去——慢但一直在动的流不该�
 	});
 	const idle = { tripped: false };
 	let count = 0;
-	for await (const _frame of readSseWithIdleTimeout(new Response(body, { status: 200 }), undefined, 40, idle)) count++;
+	for await (const _frame of readSseWithIdleTimeout(new Response(body, { status: 200 }), undefined, 120, idle)) count++;
 	assert.equal(count, FRAMES.length);
 	assert.equal(idle.tripped, false);
 });

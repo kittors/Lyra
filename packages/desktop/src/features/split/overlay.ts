@@ -9,7 +9,7 @@
 import { create } from "zustand";
 import type { DropSide } from "./tree.ts";
 
-export type OverlayKind = "split" | "replace";
+type OverlayKind = "split" | "replace";
 
 export interface SplitOverlayState {
 	/** Pane key: a session id, or `@draft` for the blank conversation. */

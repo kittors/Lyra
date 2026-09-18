@@ -32,7 +32,7 @@ export type Span = { width: number; height: number };
 const dropKey = (at: DropAt): string => `${at.side}:${at.kind ?? ""}`;
 
 /** Every edge a pane could land on: the dock's own, then each pane that is already there. */
-export function candidateDrops(tree: DockNode): DropAt[] {
+function candidateDrops(tree: DockNode): DropAt[] {
 	const seen = new Set<string>();
 	const out: DropAt[] = [];
 	const add = (at: DropAt) => {

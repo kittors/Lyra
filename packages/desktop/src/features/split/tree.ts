@@ -26,7 +26,7 @@ export interface SplitLeaf {
 	sessionId: string | null;
 }
 
-export interface SplitBranch {
+interface SplitBranch {
 	type: "split";
 	dir: Axis;
 	children: SplitNode[];
@@ -36,7 +36,7 @@ export interface SplitBranch {
 
 export type SplitNode = SplitLeaf | SplitBranch;
 
-export const EPSILON = 1e-6;
+const EPSILON = 1e-6;
 export const MIN_FRACTION = 0.08;
 
 export type ResizeFloor = number | { near: number; far: number };
@@ -55,7 +55,7 @@ export function longestAxis(width: number, height: number): Axis {
 
 export const axisOf = (side: DropSide): Axis => (side === "left" || side === "right" ? "row" : "col");
 
-export const isLeading = (side: DropSide): boolean => side === "left" || side === "top";
+const isLeading = (side: DropSide): boolean => side === "left" || side === "top";
 
 /** Menu "分屏" has no pointer: put the new chat on the trailing side of the longer axis. */
 export function sideFromBox(width: number, height: number): DropSide {
@@ -83,11 +83,6 @@ export function sessionIds(node: SplitNode): string[] {
 export function contains(node: SplitNode, sessionId: string): boolean {
 	if (node.type === "leaf") return node.sessionId === sessionId;
 	return node.children.some((child) => contains(child, sessionId));
-}
-
-export function focusedOrFirst(node: SplitNode, focused: string | null): string | null {
-	if (focused && contains(node, focused)) return focused;
-	return firstSession(node);
 }
 
 export function firstSession(node: SplitNode): string | null {

@@ -24,7 +24,7 @@ import {
 	type SplitNode,
 } from "./tree.ts";
 import { useApp } from "../../store/index.ts";
-import { flushSplit, loadSplit, saveSplit } from "./persist.ts";
+import { loadSplit, saveSplit } from "./persist.ts";
 
 export interface SplitState {
 	tree: SplitNode;
@@ -172,7 +172,3 @@ export const useSplit = create<SplitState>((set, get) => ({
 		persist({ ...get(), tree, focused });
 	},
 }));
-
-export function flushSplitPersist(): void {
-	flushSplit();
-}

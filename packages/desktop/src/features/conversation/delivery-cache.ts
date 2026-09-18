@@ -10,7 +10,7 @@ import type { TurnDelivery } from "../../../electron/turn-delivery.ts";
 const MAX = 32;
 const cache = new Map<string, TurnDelivery>();
 
-export function deliveryKey(sessionId: string, timestamp: number): string {
+function deliveryKey(sessionId: string, timestamp: number): string {
 	return `${sessionId}:${timestamp}`;
 }
 
