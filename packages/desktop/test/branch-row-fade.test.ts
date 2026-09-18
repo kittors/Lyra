@@ -38,7 +38,7 @@ test("worktrees do not indent the icon past the repo icon", async () => {
 	assert.doesNotMatch(view, /pl-5/);
 	assert.doesNotMatch(checkout, /pl-5/);
 	assert.match(checkout, /HoverRowMark/);
-	assert.match(checkout, /CHECKOUT_TRAIL/);
+	assert.match(checkout, /GIT_CONTROLS/);
 });
 
 test("every branch row reserves the same trailing slot", async () => {

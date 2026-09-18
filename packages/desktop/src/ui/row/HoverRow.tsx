@@ -23,10 +23,8 @@ function iconStripWidth(count: number): number {
 export const SESSION_CONTROLS = { one: 34, two: 58 } as const;
 /** Project heading: count and the two buttons that replace it. */
 export const PROJECT_CONTROLS = 52;
-/** Every branch row, including 「当前」 — three sm icons so the column does not jump. */
+/** Every git row, including 「当前」 and a checkout's branch — one column so the glyphs line up. */
 export const GIT_CONTROLS = iconStripWidth(3);
-/** Workspace checkout: same trailing column as the branch icons, so the list is one grid. */
-export const CHECKOUT_TRAIL = GIT_CONTROLS;
 
 export function HoverRow({
 	controls,

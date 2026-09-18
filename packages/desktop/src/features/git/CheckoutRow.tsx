@@ -9,7 +9,7 @@ import { FolderGit2, GitBranchPlus } from "lucide-react";
 
 import type { RepoRef } from "../../../electron/git.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { CHECKOUT_TRAIL, HoverRow, HoverRowButton, HoverRowMark, HoverRowTrail } from "../../ui/row/HoverRow.tsx";
+import { GIT_CONTROLS, HoverRow, HoverRowButton, HoverRowMark, HoverRowTrail } from "../../ui/row/HoverRow.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 
 export function CheckoutRow({
@@ -24,7 +24,7 @@ export function CheckoutRow({
 	const { t } = useI18n();
 	const here = entry.path === cwd;
 	return (
-		<HoverRow controls={CHECKOUT_TRAIL} className="rounded-md transition-colors hover:bg-card-hover">
+		<HoverRow controls={GIT_CONTROLS} className="rounded-md transition-colors hover:bg-card-hover">
 			<HoverRowButton
 				data-ly-tip={entry.path}
 				aria-current={here ? "location" : undefined}
