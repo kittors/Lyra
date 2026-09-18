@@ -5,6 +5,20 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.16](https://github.com/kittors/Lyra/releases/tag/v0.9.16) - 2026-09-18
+
+### 新功能
+
+- **desktop**: 一个窗口最多四个会话，设置数字按范围收，切换不再闪旧高亮 ([edf328f](https://github.com/kittors/Lyra/commit/edf328f11119810398ab3875455813d3946998e2))
+
+### 修复
+
+- **desktop**: 让位常量只留一份，并发测试不再被收窄成 never ([cacd508](https://github.com/kittors/Lyra/commit/cacd508921da8dfb3451bb79011bbacb05d1c998))
+- **desktop**: Git 列表跟会话行共用让位，左侧图标对齐 ([e0adf22](https://github.com/kittors/Lyra/commit/e0adf221b826b33bcee946ebf0e07158e9b5bac2))
+- **desktop**: 分支名铺满一行，悬停图标再让位 ([23c03c3](https://github.com/kittors/Lyra/commit/23c03c3a734f0bc375e7f2ca022550d40be22df3))
+- **desktop**: 发版前门禁：拆分树耗时、格式化幂等和未使用导出 ([702c8fc](https://github.com/kittors/Lyra/commit/702c8fc6a8edc2d251e02f05a6f5344c070ea1ea))
+- **desktop**: Windows 上服务端口和思考菜单不再被探测失败挡掉 ([627750b](https://github.com/kittors/Lyra/commit/627750b58684777ccff6e3c68bbbb6f20de8de0b))
+
 ## [0.9.15](https://github.com/kittors/Lyra/releases/tag/v0.9.15) - 2026-09-17
 
 <!-- lyra:notes en -->
