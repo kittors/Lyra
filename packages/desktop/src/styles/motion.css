@@ -155,9 +155,17 @@
 }
 
 /*
- * Settings sections. The workspace page fade starts at 0.88, which is a hard cut
- * with a name. Here the incoming column rises 6px and fills in, and flipping
- * `data-active` restarts it without remounting the page.
+ * 设置页换一章：升起 6px 填入。工作区那道 0.88 起步的淡入在这里太硬。
+ *
+ * `@starting-style`，不是 `animation`——理由和 dock 那边同源（见 dock.css），但这里的症状不一样。
+ *
+ * 章节是被 `Activity` 用 `display: none` 收起来的，回到一个访问过的章节时元素重新显示。动画绑在
+ * `[data-active="true"]` 上，而「重新显示」和「`data-active` 翻成 true」不在同一帧落地：中间那一
+ * 帧元素已经可见、动画还没挂上，于是内容先画在**终点**，下一帧才跳回起点再滑回来。逐帧量过，
+ * 换回一个看过的章节时 y 是 44 → 50 → 44 —— 一次掉头，人眼看见的就是「内容跳了一下」。
+ *
+ * 起始样式没有这个缝：它描述的是元素这一次变为可渲染时的第一帧长什么样，浏览器从那里开始过渡，
+ * 中间不存在一帧「已经可见但还没有动画」的状态。
  */
 @keyframes ly-settings-in {
 	from {
@@ -170,7 +178,14 @@
 	}
 }
 
-.ly-settings-enter[data-active="true"] {
+/*
+ * `data-fresh`，不只是 `data-active`——回来的那一页不重演。
+ *
+ * 试过 `@starting-style`（dock 那边就是这么做的）：这里不行。那条规则管的是元素**被插入**时的
+ * 第一帧，而章节是被 `Activity` 用 `display: none` 收起来的，回来时并没有重新插入，起始样式不
+ * 参与，掉头照旧。
+ */
+.ly-settings-enter[data-active="true"][data-fresh="true"] {
 	animation: ly-settings-in var(--ly-t-base) var(--ly-e-out) both;
 }
 

@@ -53,3 +53,29 @@ test("the visible page is marked active so arrival motion can restart without re
 		await view.unmount();
 	}
 });
+
+test("头一回露面的那一页才播进场，回来的不播", async () => {
+	const render = (id: string) => h("div", { id }, id);
+	const view = await mount(h(RetainedViews, { active: "a", render, pageClassName: "ly-settings-enter" }));
+	try {
+		/*
+		 * 这条守的是设置页里那次「内容跳一下」。
+		 *
+		 * 隐藏的页面是 `display: none`，内容和滚动位置都留着，所以回到一个看过的章节，它本来就
+		 * 在那里。从前不分头一回还是回来，于是回去时内容先画在终点、下一帧被拽回起点再滑回来，
+		 * 逐帧量是 44 → 50 → 44：一次掉头，人眼看见的就是跳。
+		 */
+		const fresh = (key: string) => view.host.querySelector(`[data-view=${key}]`)?.getAttribute("data-fresh");
+		await view.rerender(h(RetainedViews, { active: "b", render, pageClassName: "ly-settings-enter" }));
+		assert.equal(fresh("b"), "true", "头一回进 b，该播进场");
+		assert.equal(fresh("a"), "false", "让开的那一页不该带着进场标记");
+
+		await view.rerender(h(RetainedViews, { active: "a", render, pageClassName: "ly-settings-enter" }));
+		assert.equal(fresh("a"), "false", "a 是回来的，内容一直在，不该再演一遍");
+
+		await view.rerender(h(RetainedViews, { active: "c", render, pageClassName: "ly-settings-enter" }));
+		assert.equal(fresh("c"), "true", "没去过的 c 仍然该播");
+	} finally {
+		await view.unmount();
+	}
+});
