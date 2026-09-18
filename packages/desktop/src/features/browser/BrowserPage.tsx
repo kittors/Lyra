@@ -57,7 +57,7 @@ export function BrowserPage({ tab, active }: { tab: BrowserTab; active: boolean 
 			<div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-10" style={{ transform: `translate(${x}px, ${y}px)` }}>
 				<div ref={ring} data-browser-click-ring className="absolute -left-3 -top-3 h-6 w-6 rounded-full border border-sky-300/70 bg-sky-400/15 opacity-0" />
 			</div>
-			<div aria-hidden="true" data-browser-cursor={tab.id} data-action={pointer.action} className="pointer-events-none absolute left-0 top-0 z-10 h-0 w-0 transition-transform duration-[140ms] ease-out" style={{ transform: `translate(${x}px, ${y}px)` }}>
+			<div aria-hidden="true" data-browser-cursor={tab.id} data-action={pointer.action} className="pointer-events-none absolute left-0 top-0 z-10 h-0 w-0 transition-transform duration-[var(--ly-t-quick)] ease-[var(--ly-e-out)]" style={{ transform: `translate(${x}px, ${y}px)` }}>
 				<svg width="24" height="24" viewBox="0 0 32 32" fill="none" className="absolute -left-1 -top-1 overflow-visible" style={{ transformOrigin: "4px 4px", transform: `scale(${x > size.width - 24 ? -1 : 1}, ${y > size.height - 24 ? -1 : 1})`, filter: "drop-shadow(0 0 3px rgb(98 184 255 / 65%)) drop-shadow(0 0 9px rgb(64 157 255 / 45%))" }}>
 					<path d="M6.2 3.9C4.7 3.4 3.4 4.7 3.9 6.2L11.1 26.2C11.7 27.9 14.1 27.8 14.6 26L17.2 17.2L26 14.6C27.8 14.1 27.9 11.7 26.2 11.1Z" fill="#080a0d" stroke="white" strokeWidth="2.5" strokeLinejoin="round" />
 				</svg>

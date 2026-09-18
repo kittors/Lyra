@@ -129,7 +129,7 @@ export function QuestionNav({ questions, viewport, edge, onSelect }: {
 						<span style={{ width: clickedWidths?.get(at) ?? (distance < 4 ? 24 - distance * 5 : hovered === null && active === question.index ? 12 : 6), transition: dismissed ? "none" : undefined }} className={`block h-[2px] rounded-full transition-[width,background-color,opacity] duration-[var(--ly-t-quick)] ${distance === 0 ? "bg-ink" : active === question.index ? "bg-ink-muted" : "bg-ink-faint/40"}`} />
 					</button>;
 				})}
-				{preview && <div className="ly-question-preview pointer-events-none absolute left-9 w-[min(320px,calc(100cqw-60px))] rounded-xl border border-line bg-float p-3 text-label shadow-lg" role="tooltip" inert aria-hidden={hovered === null || dismissed} data-open={hovered !== null && !dismissed} data-dismissed={dismissed} style={{ top: Math.max(-24, Math.min((window.end - window.start) * 12 - 80, preview.slot * 12 - 24)) }}>
+				{preview && <div className="ly-question-preview pointer-events-none absolute left-9 w-[min(320px,calc(100cqw-60px))] rounded-xl border border-line bg-float p-3 text-label shadow-lg" role="tooltip" inert aria-hidden={hovered === null || dismissed} data-open={hovered !== null && !dismissed} data-dismissed={dismissed} style={{ top: 0, "--ly-preview-y": `${Math.max(-24, Math.min((window.end - window.start) * 12 - 80, preview.slot * 12 - 24))}px` } as React.CSSProperties}>
 					<p className="line-clamp-2 break-words font-medium text-ink">{preview.text}</p>
 					{preview.answer && <p className="ly-question-excerpt mt-1 line-clamp-3 break-words leading-relaxed text-ink-muted">{markdownExcerpt(preview.answer)}</p>}
 				</div>}

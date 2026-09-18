@@ -138,11 +138,21 @@
   transition: none !important;
 }
 
-/* Navigation previews fade without moving the transcript or its reading anchor. */
+/*
+ * Navigation previews fade without moving the transcript or its reading anchor.
+ *
+ * 纵向位置走 `transform`，不走 `top`。
+ *
+ * 浮层在问题之间移动时，过渡 `top` 要浏览器每一帧重新布局一次——而它是绝对定位在一条几十项
+ * 的导航轨旁边的，那一层布局本可以完全不发生。换成 translate 之后同一段位移只在合成器里走，
+ * 且和进场那 4px 的横移合成同一个 `transform`：两个位移一条过渡，不会互相打断。
+ *
+ * 纵坐标由 `QuestionNav` 写成 `--ly-preview-y`。
+ */
 .ly-question-preview {
 	opacity: 0;
-	transform: translateX(-4px);
-	transition: opacity var(--ly-t-quick) var(--ly-e-out), transform var(--ly-t-quick) var(--ly-e-out), top var(--ly-t-quick) var(--ly-e-out);
+	transform: translate(-4px, var(--ly-preview-y, 0));
+	transition: opacity var(--ly-t-quick) var(--ly-e-out), transform var(--ly-t-quick) var(--ly-e-out);
 }
 
 @keyframes ly-page-in {
@@ -234,13 +244,13 @@
 
 .ly-question-preview[data-open="true"] {
 	opacity: 1;
-	transform: translateX(0);
+	transform: translate(0, var(--ly-preview-y, 0));
 }
 
 @starting-style {
 	.ly-question-preview[data-open="true"] {
 		opacity: 0;
-		transform: translateX(-4px);
+		transform: translate(-4px, var(--ly-preview-y, 0));
 	}
 }
 

@@ -167,7 +167,7 @@ function ProgressRing({ fraction, spinning, inset }: { fraction: number; spinnin
 				 * is a quarter-turn chasing its own tail.
 				 */
 				strokeDashoffset={circumference * (1 - Math.max(spinning ? 0.25 : 0.07, fraction))}
-				className="transition-[stroke-dashoffset] duration-300 ease-out"
+				className="transition-[stroke-dashoffset] duration-[var(--ly-t-slow)] ease-[var(--ly-e-out)]"
 			/>
 		</svg>
 	);
