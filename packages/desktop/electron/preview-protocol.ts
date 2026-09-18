@@ -13,7 +13,8 @@ import { pathToFileURL } from "node:url";
 import { lyraHome, previewsHome } from "@lyra/core";
 import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
-import { safeMediaName, sessionMediaPath } from "@lyra/core";
+import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@lyra/core";
+import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
 
 export const MEDIA_SCHEME = "ly-media";
 export const PREVIEW_SCHEME = "ly-preview";
@@ -155,29 +156,42 @@ function contentTypeFor(path: string): string {
 	);
 }
 
+const THUMB_PNG = { "content-type": "image/png", "cache-control": "private, max-age=31536000" };
+
+/** 缩到这个边长。本来就比它小的原样发回去——放大只会糊，还白存一份。 */
+function shrink(bytes: Uint8Array, edge: number): Uint8Array | null {
+	const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+	if (image.isEmpty()) return null;
+	const { width, height } = image.getSize();
+	const longest = Math.max(width, height);
+	if (longest <= edge) return null;
+	const scale = edge / longest;
+	return image
+		.resize({ width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) })
+		.toPNG();
+}
+
 async function serveParkedMedia(url: URL): Promise<Response> {
 	const name = safeMediaName(decodeURIComponent(url.pathname.replace(/^\//, "")));
 	if (!name) return new Response("not found", { status: 404 });
+	const home = sessionMediaHome();
+	const thumb = Number(url.searchParams.get("thumb"));
+	/*
+	 * 命中盘上那份时连原图都不读。
+	 *
+	 * 原图是几 MB 的字节，读它本身就有代价，而这条路走到底根本用不上它。
+	 */
+	if (thumb > 0) {
+		const cached = await cachedThumb(home, name, thumb);
+		if (cached) return new Response(Uint8Array.from(cached), { headers: THUMB_PNG });
+		const png = await parkedThumb(home, name, thumb, {
+			source: () => readFile(sessionMediaPath(name)).catch(() => null),
+			shrink,
+		});
+		if (png) return new Response(Uint8Array.from(png), { headers: THUMB_PNG });
+	}
 	const body = await readFile(sessionMediaPath(name)).catch(() => null);
 	if (!body) return new Response("not found", { status: 404 });
-	const thumb = Number(url.searchParams.get("thumb"));
-	if (thumb > 0) {
-		const image = nativeImage.createFromBuffer(body);
-		if (!image.isEmpty()) {
-			const { width, height } = image.getSize();
-			const edge = Math.max(width, height);
-			if (edge > thumb) {
-				const scale = thumb / edge;
-				const png = image.resize({
-					width: Math.max(1, Math.round(width * scale)),
-					height: Math.max(1, Math.round(height * scale)),
-				}).toPNG();
-				return new Response(Uint8Array.from(png), {
-					headers: { "content-type": "image/png", "cache-control": "private, max-age=31536000" },
-				});
-			}
-		}
-	}
 	const type = name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "image/png";
 	return new Response(Uint8Array.from(body), { headers: { "content-type": type, "cache-control": "private, max-age=31536000" } });
 }
