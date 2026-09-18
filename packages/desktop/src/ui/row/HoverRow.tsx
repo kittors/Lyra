@@ -1,30 +1,26 @@
 /**
- * A list row whose title yields to a trailing slot, the way a session does.
+ * One list-row shell: title fills the row, icons overlay, fade yields on hover.
  *
- * The title used to run the full width with the icon on top of it, so a long name and the
- * control overlapped into something neither could be read through. A gradient behind the icon
- * failed once the sidebar went translucent — there is no colour to fade to that covers text.
- * Reserving the slot costs a few characters and cannot go wrong; the fade only deepens on
- * hover, and padding does not grow, so a long name does not jitter.
- *
- * Every row in a list uses the same slot width. Different reservations (one button, three,
- * a 「当前」 badge) are what drew those empty boxes at different places.
+ * Session, project, and git rows all use this. A reserved `pr-14` slot was the
+ * empty gutter. A 76px overlay column was the same hole with a different name.
+ * `group/row` plus `[data-ly-hover-row]` are the only hover keys; per-row
+ * `group/session` names were how pin and archive stopped lighting.
  */
 
-import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from "react";
 
-/** `IconButton` sm is 22px; 2px between them; 6px of row padding on the right. */
-function iconStripWidth(count: number): number {
-	if (count <= 0) return 0;
-	return 22 * count + 2 * Math.max(0, count - 1) + 6;
+/**
+ * Fallback written onto `--ly-row-controls` before the strip measures.
+ *
+ * Each hit is ~21px (`p-1` + 12.5 icon). 6px on the left mirrors `pr-1.5` on
+ * the right, so the first icon's inset matches the last icon's. A 58px two-button
+ * slot was 17px past the pin — the extra yield.
+ */
+export function hoverSlot(actions: 1 | 2 | 3): string {
+	if (actions >= 3) return "68px";
+	if (actions === 2) return "48px";
+	return "28px";
 }
-
-/** Live session: pin, or pin + archive. */
-export const SESSION_CONTROLS = { one: 34, two: 58 } as const;
-/** Project heading: count and the two buttons that replace it. */
-export const PROJECT_CONTROLS = 52;
-/** Every git row, including 「当前」 and a checkout's branch — one column so the glyphs line up. */
-export const GIT_CONTROLS = iconStripWidth(3);
 
 export function HoverRow({
 	controls,
@@ -33,57 +29,21 @@ export function HoverRow({
 	children,
 	...rest
 }: ComponentPropsWithoutRef<"div"> & {
-	/** Reserved trailing slot, in px. The title stops here; overlays land here. */
-	controls: number;
+	controls: string;
 }) {
 	return (
 		<div
 			{...rest}
 			data-ly-hover-row
 			className={`ly-scroll group/row relative ${className}`}
-			style={{ ...style, "--ly-row-controls": `${controls}px` } as CSSProperties}
+			style={{ ...style, "--ly-row-controls": controls } as CSSProperties}
 		>
 			{children}
 		</div>
 	);
 }
 
-function bodyStyle(style?: CSSProperties): CSSProperties {
-	return { ...style, paddingRight: "var(--ly-row-controls)" };
-}
-
-export function HoverRowBody({
-	className = "",
-	style,
-	children,
-	...rest
-}: ComponentPropsWithoutRef<"div">) {
-	return (
-		<div {...rest} className={`flex w-full min-w-0 items-center ${className}`} style={bodyStyle(style)}>
-			{children}
-		</div>
-	);
-}
-
-export function HoverRowButton({
-	className = "",
-	style,
-	children,
-	...rest
-}: ComponentPropsWithoutRef<"button">) {
-	return (
-		<button
-			{...rest}
-			type="button"
-			className={`flex w-full min-w-0 items-center ${className}`}
-			style={bodyStyle(style)}
-		>
-			{children}
-		</button>
-	);
-}
-
-/** Leading icon column. Every row in a list uses this box so the glyphs share one x. */
+/** Leading icon column — same 12px box on every git row, no extra indent for worktrees. */
 export function HoverRowMark({ className = "", children }: { className?: string; children: ReactNode }) {
 	return (
 		<span data-ly-row-mark className={`flex h-3 w-3 shrink-0 items-center justify-center ${className}`}>
@@ -92,23 +52,33 @@ export function HoverRowMark({ className = "", children }: { className?: string;
 	);
 }
 
-const TRAIL =
-	"pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end pr-1.5";
-
-export function HoverRowTrail({ className = "", children }: { className?: string; children: ReactNode }) {
-	return (
-		<span className={`${TRAIL} ${className}`} style={{ width: "var(--ly-row-controls)" }}>
-			{children}
-		</span>
-	);
-}
-
+/** Shrink-wrap overlay. Never a fixed-width column: that paints the empty box. */
 export function HoverRowReveal({ className = "", children }: { className?: string; children: ReactNode }) {
+	const ref = useRef<HTMLSpanElement>(null);
+	useLayoutEffect(() => {
+		const el = ref.current;
+		const row = el?.closest("[data-ly-hover-row]") as HTMLElement | null;
+		if (!el || !row) return;
+		const sync = () => {
+			const overlay = el.getBoundingClientRect();
+			if (overlay.width < 1) return;
+			const title = row.querySelector(".ly-fade-tail");
+			const titleRight = title?.getBoundingClientRect().right ?? overlay.right;
+			const clear = Math.round(titleRight - overlay.left);
+			if (clear > 0) row.style.setProperty("--ly-row-controls", `${clear}px`);
+		};
+		sync();
+		if (typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(sync);
+		observer.observe(el);
+		observer.observe(row);
+		return () => observer.disconnect();
+	}, []);
 	return (
 		<span
+			ref={ref}
 			data-ly-hover-reveal
-			className={`${TRAIL} opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 ${className}`}
-			style={{ width: "var(--ly-row-controls)" }}
+			className={`pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-md px-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 ${className}`}
 		>
 			{children}
 		</span>

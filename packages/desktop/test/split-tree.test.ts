@@ -171,6 +171,15 @@ test("independent screens keep their own origin and trailing-top corners", () =>
 	assert.equal(isTopEndPane(col[1]!), false);
 });
 
+test("replacing a leaf keeps its layout path so the pane does not remount", () => {
+	const tree = splitLeaf(leafOf("a"), "a", "b", "right")!;
+	const before = layoutPanes(tree);
+	const after = layoutPanes(replaceLeaf(tree, "a", "c"));
+	assert.deepEqual(before.map((pane) => pane.path.join(".")), after.map((pane) => pane.path.join(".")));
+	assert.equal(after[0]?.sessionId, "c");
+	assert.equal(layoutPanes(leafOf("a"))[0]?.path.join(".") || "root", layoutPanes(leafOf("b"))[0]?.path.join(".") || "root");
+});
+
 test("layout tiles to 1 and splitters sit on the seams", () => {
 	const tree = splitLeaf(leafOf("a"), "a", "b", "right")!;
 	const panes = layoutPanes(tree);

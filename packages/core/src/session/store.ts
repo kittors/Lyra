@@ -17,6 +17,7 @@ import type { AgentEvent, CommandRun } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 import type { SessionStorage } from "./storage.ts";
 import { addUsage, emptyUsage } from "../types.ts";
+import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
 import { readRecordChanges, type SessionReadCursor, type SessionRecordChanges } from "./read-changes.ts";
 
 export interface SessionMeta {
@@ -123,6 +124,17 @@ export function projectIdFor(cwd: string): string {
 	return createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 }
 
+/** A stripped image with no file name is the blank tile. Do not reuse that cache. */
+function displayImagesReady(messages: Message[]): boolean {
+	for (const message of messages) {
+		if (message.role !== "user" && message.role !== "toolResult") continue;
+		for (const part of message.content) {
+			if (part.type === "image" && !part.data && !part.media) return false;
+		}
+	}
+	return true;
+}
+
 export class SessionStore implements SessionStorage {
 	readonly root: string;
 	/**
@@ -159,6 +171,64 @@ export class SessionStore implements SessionStorage {
 
 	private fileFor(projectId: string, sessionId: string): string {
 		return join(this.dirFor(projectId), `${sessionId}.jsonl`);
+	}
+
+	private displayCacheFor(projectId: string, sessionId: string): string {
+		return join(this.dirFor(projectId), `${sessionId}.display.json`);
+	}
+
+	private async expectedSeq(projectId: string, sessionId: string): Promise<number | null> {
+		const remembered = this.latestMeta.get(`${projectId}/${sessionId}`);
+		if (remembered) return remembered.seq;
+		const listed = await this.listSessions();
+		return listed.find((session) => session.projectId === projectId && session.id === sessionId)?.seq ?? null;
+	}
+
+	private async readDisplayCache(projectId: string, sessionId: string) {
+		const expected = await this.expectedSeq(projectId, sessionId);
+		if (expected == null) return null;
+		const raw = await readFile(this.displayCacheFor(projectId, sessionId), "utf8").catch(() => null);
+		if (!raw) return null;
+		try {
+			const parsed = JSON.parse(raw) as {
+				v?: number;
+				seq?: number;
+				meta: SessionMeta;
+				messages: Message[];
+				entries: { seq: number; message: Message }[];
+				compactions: number[];
+				commandRuns?: CommandRun[];
+				compaction: Boundary | null;
+			};
+			if (parsed.v !== 2 || parsed.seq !== expected || !parsed.meta || !Array.isArray(parsed.messages)) return null;
+			if (!displayImagesReady(parsed.messages)) return null;
+			return parsed;
+		} catch {
+			return null;
+		}
+	}
+
+	private async writeDisplayCache(
+		projectId: string,
+		sessionId: string,
+		loaded: {
+			meta: SessionMeta;
+			messages: Message[];
+			entries: { seq: number; message: Message }[];
+			compactions: number[];
+			commandRuns?: CommandRun[];
+			compaction: Boundary | null;
+		},
+	): Promise<void> {
+		const path = this.displayCacheFor(projectId, sessionId);
+		const tmp = `${path}.${process.pid}.tmp`;
+		try {
+			await mkdir(this.dirFor(projectId), { recursive: true });
+			await writeFile(tmp, JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
+			await rename(tmp, path);
+		} catch {
+			await unlink(tmp).catch(() => undefined);
+		}
 	}
 
 	async create(cwd: string, modelId: string, title = "New session"): Promise<SessionMeta> {
@@ -246,9 +316,10 @@ export class SessionStore implements SessionStorage {
 		const persisted = payload.type === "meta" && base.titleSetByUser
 			? { ...payload, meta: { ...payload.meta, title: next.title, titleSetByUser: true } }
 			: payload;
-		const record: SessionRecord = { seq: next.seq, ts: Date.now(), ...persisted };
+		const record: SessionRecord = { seq: next.seq, ts: Date.now(), ...parkRecordPayload(persisted) };
 		await mkdir(this.dirFor(meta.projectId), { recursive: true });
 		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
+		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
 		this.latestMeta.set(key, next);
 		await this.writeIndex(next);
 		return next;
@@ -260,7 +331,12 @@ export class SessionStore implements SessionStorage {
 	}
 
 	/** Stream records, optionally only those newer than `sinceSeq`. */
-	async *read(projectId: string, sessionId: string, sinceSeq = 0): AsyncGenerator<SessionRecord> {
+	async *read(
+		projectId: string,
+		sessionId: string,
+		sinceSeq = 0,
+		options?: { display?: boolean },
+	): AsyncGenerator<SessionRecord> {
 		const file = this.fileFor(projectId, sessionId);
 		if (!(await stat(file).catch(() => null))) return;
 
@@ -270,7 +346,7 @@ export class SessionStore implements SessionStorage {
 				if (!line.trim()) continue;
 				let record: SessionRecord;
 				try {
-					record = JSON.parse(line);
+					record = JSON.parse(options?.display ? materializeJsonlLine(line) : line);
 				} catch {
 					// A crash mid-append can leave a partial final line; skip it rather than failing the load.
 					continue;
@@ -322,6 +398,7 @@ export class SessionStore implements SessionStorage {
 	async load(
 		projectId: string,
 		sessionId: string,
+		options?: { display?: boolean },
 	): Promise<{
 		meta: SessionMeta;
 		messages: Message[];
@@ -330,6 +407,10 @@ export class SessionStore implements SessionStorage {
 		commandRuns?: CommandRun[];
 		compaction: Boundary | null;
 	} | null> {
+		if (options?.display) {
+			const cached = await this.readDisplayCache(projectId, sessionId);
+			if (cached) return cached;
+		}
 		let meta: SessionMeta | null = null;
 		// Kept with their sequence numbers so a truncate record can drop the right tail.
 		let entries: { seq: number; message: Message }[] = [];
@@ -353,7 +434,7 @@ export class SessionStore implements SessionStorage {
 		 * the only one still standing for anything.
 		 */
 		let compaction: Boundary | null = null;
-		for await (const record of this.read(projectId, sessionId)) {
+		for await (const record of this.read(projectId, sessionId, 0, options)) {
 			if (record.type === "meta") meta = record.meta;
 			else if (record.type === "event" && record.event.type === "command_status") {
 				const run = record.event.command;
@@ -391,7 +472,14 @@ export class SessionStore implements SessionStorage {
 			if (meta) meta.seq = record.seq;
 		}
 		if (!meta) return null;
-		const messages = entries.map((e) => e.message);
+		let messages = entries.map((e) => e.message);
+		if (!options?.display) {
+			const hydrated = await rehydrateMessages(messages);
+			if (hydrated !== messages) {
+				messages = hydrated;
+				entries = entries.map((entry, index) => ({ ...entry, message: hydrated[index] ?? entry.message }));
+			}
+		}
 		meta.messageCount = messages.length;
 		// Re-accumulate usage across assistant messages and sub-agent assistant turns
 		let totalUsage = auxiliaryUsage;
@@ -408,7 +496,7 @@ export class SessionStore implements SessionStorage {
 		}
 		// Seed the append queue's view so a reopened session keeps numbering where it left off.
 		this.latestMeta.set(this.keyFor(meta), meta);
-		return {
+		const loaded = {
 			meta,
 			messages,
 			entries,
@@ -416,6 +504,8 @@ export class SessionStore implements SessionStorage {
 			compaction,
 			commandRuns: [...commandRuns.values()].map((entry) => entry.run),
 		};
+		if (options?.display) await this.writeDisplayCache(projectId, sessionId, loaded);
+		return loaded;
 	}
 
 	// -------------------------------------------------------------------------

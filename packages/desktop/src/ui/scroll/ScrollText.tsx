@@ -78,7 +78,12 @@ export function ScrollText({ text, className = "" }: { text: string; className?:
 				</span>
 				{/* The duplicate must not change the flex basis and feed back into overflow measurement. */}
 				{scrolls && (
-					<span aria-hidden className="absolute top-0 left-full inline-block" style={{ marginLeft: GAP }}>
+					<span
+						aria-hidden
+						data-ly-scroll-dup
+						className="absolute top-0 inline-block invisible"
+						style={{ left: width + GAP }}
+					>
 						{text}
 					</span>
 				)}

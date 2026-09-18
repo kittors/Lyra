@@ -8,10 +8,11 @@
  */
 
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import { describeLine, ForeignConfigBanner, summarize, targetFor } from "../../src/features/composer/ForeignConfigNotice.tsx";
+import { describeLine, ForeignConfigBanner, ForeignConfigNotice, summarize, targetFor } from "../../src/features/composer/ForeignConfigNotice.tsx";
 import { click, mount } from "../helpers/mount.ts";
 
 const LINES = [
@@ -72,6 +73,15 @@ test("each kind of place has a page — rules to the rules tab, a context file t
 	assert.deepEqual(targetFor(LINES[2]), { file: "CLAUDE.md" });
 	assert.equal(describeLine(LINES[0]), "6 条规则");
 	assert.equal(describeLine(LINES[2]), "项目上下文");
+});
+
+test("the composer never mounts the foreign-config reminder", async () => {
+	const composer = await readFile(new URL("../../src/features/composer/Composer.tsx", import.meta.url), "utf8");
+	assert.doesNotMatch(composer, /ForeignConfigNotice/);
+	const view = await mount(h(ForeignConfigNotice));
+	assert.equal(view.all("[data-foreign-config-notice]").length, 0);
+	assert.equal(view.text(), "");
+	await view.unmount();
 });
 
 test("知道了 is the other button, and it does not look", async () => {

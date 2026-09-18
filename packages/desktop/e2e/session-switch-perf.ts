@@ -100,10 +100,12 @@ async function until(expression: string, ms = 30000): Promise<void> {
 /*
  * 注入的代码里不写反引号：这段字符串还要在外层的模板串里活一遍，一个反引号就能把它截断。
  */
-const WATCH = `((was) => {
-	const out = { frames: [], start: performance.now(), firstPaint: null, longest: 0, was: was };
+const WATCH = `((was, wasSession) => {
+	const out = { frames: [], start: performance.now(), firstPaint: null, leave: null, longest: 0, was: was };
 	window.__perf = out;
 	let last = performance.now();
+	const sessionId = () => { const el = document.querySelector('[data-ly-session]'); return el ? el.getAttribute('data-ly-session') || '' : ''; };
+	const busy = () => document.querySelector('[aria-busy="true"]');
 	const signature = () => {
 		const runs = document.querySelectorAll('[data-ly-run]');
 		return runs.length + '|' + ((document.querySelector('[data-dock-pane="conversation"]') || {}).innerText || '').slice(0, 120);
@@ -114,19 +116,13 @@ const WATCH = `((was) => {
 		if (gap > out.longest) out.longest = gap;
 		out.frames.push(Math.round(gap));
 		last = now;
-		/*
-		 * 「画出来了」的判据是**内容真的换了**，不是「有转录元素」。
-		 *
-		 * 第一版用的是后者，于是第二个会话往后每次都报 0ms——上一个会话的转录还挂在那儿没卸载，
-		 * 判据一上来就成立。三个会话里只有第一个的数字是真的，而那三个 0ms 看起来非常像「缓存生效
-		 * 了」。切换前先记下当前的签名，等它变。
-		 */
+		if (out.leave === null && (sessionId() !== wasSession || busy())) out.leave = Math.round(now - out.start);
 		if (out.firstPaint === null && signature() !== out.was) out.firstPaint = Math.round(now - out.start);
 		if (now - out.start < 15000 && !out.stop) requestAnimationFrame(tick);
 	};
 	requestAnimationFrame(tick);
 	return true;
-})(SIGNATURE)`;
+})(SIGNATURE, SESSION)`;
 
 /** 当前转录的样子，用来判断切换之后内容有没有真的换掉。 */
 const SIGNATURE_EXPR = `(() => {
@@ -137,6 +133,7 @@ const SIGNATURE_EXPR = `(() => {
 interface Watch {
 	frames: number[];
 	firstPaint: number | null;
+	leave: number | null;
 	longest: number;
 }
 
@@ -173,19 +170,25 @@ const CRASH_EXPR = `(() => {
 async function switchTo(
 	title: string,
 	label: string,
-): Promise<{ firstPaint: number | null; longest: number; over100: number; crash: { message: string; stack: string } | null } | null> {
+): Promise<{ firstPaint: number | null; leave: number | null; longest: number; over100: number; crash: { message: string; stack: string } | null } | null> {
 	// 先记下现在的样子，再挂逐帧记录，最后才点——顺序反了会漏掉最要命的头几帧。
 	const was = await evaluate<string>(SIGNATURE_EXPR);
-	await evaluate(WATCH.replace("SIGNATURE", JSON.stringify(was)));
-	const clicked = await evaluate<boolean>(`(() => {
+	const wasSession = await evaluate<string>(`(() => { const el = document.querySelector("[data-ly-session]"); return el ? el.getAttribute("data-ly-session") || "" : ""; })()`);
+	await evaluate(WATCH.replace("SIGNATURE", JSON.stringify(was)).replace("SESSION", JSON.stringify(wasSession)));
+	const at = await evaluate<{ x: number; y: number } | null>(`(() => {
 		const want = ${JSON.stringify(title)};
 		const rows = [...document.querySelectorAll('[data-ly-row]')];
 		const row = rows.find((r) => (r.innerText || '').includes(want));
-		const button = row && row.querySelector('button');
-		if (button) button.click();
-		return !!button;
+		if (!row) return null;
+		row.scrollIntoView({ block: "center" });
+		const r = row.getBoundingClientRect();
+		if (r.width === 0 || r.height === 0) return null;
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
 	})()`);
-	if (!clicked) return null;
+	if (!at) return null;
+	for (const type of ["mousePressed", "mouseReleased"] as const) {
+		await app.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
+	}
 
 	// 等内容真的换掉，而不是等一个固定的帧数，也不是等「有转录元素」。
 	await until(`${SIGNATURE_EXPR} !== ${JSON.stringify(was)}`, 25000).catch(() => {});
@@ -202,18 +205,31 @@ async function switchTo(
 	if (crash) {
 		console.log(`\n   💥 ${label} 「${title.slice(0, 30)}」崩了：${crash.message}`);
 		if (crash.stack) console.log(`\n${crash.stack}\n`);
-		return { firstPaint: null, longest: 0, over100: 0, crash };
+		return { firstPaint: null, leave: null, longest: 0, over100: 0, crash };
 	}
 
 	await evaluate(`(() => { if (window.__perf) window.__perf.stop = true; return true; })()`);
 	const w = await evaluate<Watch>(
-		`(() => ({ frames: window.__perf.frames, firstPaint: window.__perf.firstPaint, longest: Math.round(window.__perf.longest) }))()`,
+		`(() => ({ frames: window.__perf.frames, firstPaint: window.__perf.firstPaint, leave: window.__perf.leave, longest: Math.round(window.__perf.longest) }))()`,
 	);
 	const over100 = w.frames.filter((f) => f > 100);
-	if (w.longest > 300) {
-		console.log(`   ${label} 「${title.slice(0, 28)}」：第一帧 ${w.firstPaint ?? "-"}ms，最长卡顿 ${w.longest}ms`);
+	if (w.longest > 100 || (w.leave ?? 0) > 50) {
+		console.log(`   ${label} 「${title.slice(0, 28)}」：离场 ${w.leave ?? "-"}ms，第一帧 ${w.firstPaint ?? "-"}ms，最长卡顿 ${w.longest}ms`);
 	}
-	return { firstPaint: w.firstPaint, longest: w.longest, over100: over100.length, crash: null };
+	return { firstPaint: w.firstPaint, leave: w.leave, longest: w.longest, over100: over100.length, crash: null };
+}
+
+async function expandShown(): Promise<void> {
+	for (let i = 0; i < 8; i++) {
+		const clicked = await evaluate<boolean>(`(() => {
+			const b = [...document.querySelectorAll("button")].find((el) => /展开显示|Show \\d+ more/.test(el.innerText || ""));
+			if (!b) return false;
+			b.click();
+			return true;
+		})()`);
+		if (!clicked) break;
+		await new Promise((r) => setTimeout(r, 200));
+	}
 }
 
 async function main(): Promise<void> {
@@ -221,28 +237,23 @@ async function main(): Promise<void> {
 	try {
 		await until(`document.querySelectorAll('[data-ly-row]').length > 0`, 40000);
 		await evaluate(HOOK_CONSOLE);
+		await expandShown();
 		const titles = await evaluate<string[]>(
 			`[...document.querySelectorAll('[data-ly-row]')].map((r) => (r.innerText || '').split('\\n')[0].trim()).filter(Boolean)`,
 		);
-		console.log(`侧边栏里有 ${titles.length} 行会话，逐个切过去量一遍（只印卡过 300ms 的和崩掉的）\n`);
+		const sample = titles.slice(0, 24);
+		console.log(`侧边栏里有 ${titles.length} 行，量前 ${sample.length} 个（真鼠标，离场+第一帧+最长卡顿）\n`);
 
-		/*
-		 * 量**每一个**，不是只量文件最大的那几个。
-		 *
-		 * 文件大小和切换成本不是一回事：25MB 里大半可能是几条工具的长输出，消息数反而不多，而渲染
-		 * 贵的是消息条数、工具卡数量、代码块数量。按文件大小挑三个量出来最长才 169ms，那三个根本
-		 * 不是慢的那几个。
-		 */
-		const results: { title: string; firstPaint: number | null; longest: number; crash: { message: string; stack: string } | null }[] = [];
-		for (const [index, title] of titles.entries()) {
-			const r = await switchTo(title, `${index + 1}/${titles.length}`);
-			if (r) results.push({ title, firstPaint: r.firstPaint, longest: r.longest, crash: r.crash });
-			if (r?.crash) break; // 崩了就停在现场，后面的量也没意义
+		const results: { title: string; firstPaint: number | null; leave: number | null; longest: number; crash: { message: string; stack: string } | null }[] = [];
+		for (const [index, title] of sample.entries()) {
+			const r = await switchTo(title, `${index + 1}/${sample.length}`);
+			if (r) results.push({ title, ...r });
+			if (r?.crash) break;
 		}
 
 		const crashed = results.filter((r) => r.crash);
 		console.log(`\n════ 结果 ════`);
-		console.log(`量到的会话：${results.length}/${titles.length}`);
+		console.log(`量到的会话：${results.length}/${sample.length}`);
 		if (crashed.length) {
 			console.log(`\n💥 崩溃复现了 ${crashed.length} 次：`);
 			for (const c of crashed) console.log(`   「${c.title.slice(0, 40)}」\n   ${c.crash?.message}\n${c.crash?.stack ?? ""}`);
@@ -250,20 +261,31 @@ async function main(): Promise<void> {
 			console.log("没有一个会话触发崩溃");
 		}
 
-		const slowest = [...results].filter((r) => !r.crash).sort((a, b) => b.longest - a.longest).slice(0, 8);
-		console.log("\n单帧卡得最久的八个（这就是鼠标转圈的那一下）：");
-		for (const r of slowest) {
-			console.log(`   ${String(r.longest).padStart(5)}ms   第一帧 ${String(r.firstPaint ?? "-").padStart(5)}ms   ${r.title.slice(0, 40)}`);
+		const live = results.filter((r) => !r.crash);
+		const leaves = live.map((r) => r.leave).filter((n): n is number => n != null).sort((a, b) => a - b);
+		const median = leaves.length ? leaves[Math.floor(leaves.length / 2)] : null;
+		console.log(`\n离场（点下去到右侧离开上一份转录）中位数 ${median ?? "-"}ms；>50ms 的 ${live.filter((r) => (r.leave ?? 0) > 50).length} 个`);
+		const slowestLeave = [...live].sort((a, b) => (b.leave ?? 0) - (a.leave ?? 0)).slice(0, 8);
+		console.log("离场最慢的八个：");
+		for (const r of slowestLeave) {
+			console.log(`   离场 ${String(r.leave ?? "-").padStart(4)}ms   第一帧 ${String(r.firstPaint ?? "-").padStart(5)}ms   卡顿 ${String(r.longest).padStart(4)}ms   ${r.title.slice(0, 36)}`);
 		}
-		const bad = results.filter((r) => !r.crash && r.longest > 300);
-		console.log(`\n卡过 300ms 以上的：${bad.length}/${results.length} 个会话`);
+		const slowest = [...live].sort((a, b) => b.longest - a.longest).slice(0, 8);
+		console.log("\n单帧卡得最久的八个：");
+		for (const r of slowest) {
+			console.log(`   ${String(r.longest).padStart(5)}ms   离场 ${String(r.leave ?? "-").padStart(4)}ms   第一帧 ${String(r.firstPaint ?? "-").padStart(5)}ms   ${r.title.slice(0, 36)}`);
+		}
+		if (median != null && median > 50) process.exitCode = 1;
+		if (live.some((r) => r.longest > 300)) process.exitCode = 1;
 	} finally {
 		await app?.stop().catch(() => {});
 	}
 }
 
-main().catch(async (error) => {
-	console.error(error);
-	await app?.stop().catch(() => {});
-	process.exitCode = 1;
-});
+if (process.argv[1]?.includes("session-switch-perf")) {
+	main().catch(async (error) => {
+		console.error(error);
+		await app?.stop().catch(() => {});
+		process.exitCode = 1;
+	});
+}

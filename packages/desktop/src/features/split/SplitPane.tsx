@@ -2,6 +2,7 @@ import { memo } from "react";
 import { SessionScope } from "../../app/session-scope.tsx";
 import { Conversation, ConversationSkeleton, EmptyState } from "../conversation/index.ts";
 import { chatSurface } from "../../lib/chat-surface.ts";
+import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { useApp } from "../../store/index.ts";
 import { pct } from "./layout.ts";
 import type { PaneBox } from "./layout.ts";
@@ -42,12 +43,19 @@ const SplitScreen = memo(function SplitScreen({
 	const surface = chatSurface({ messages, loading });
 	const body = (
 		<div className="flex min-h-0 flex-1 flex-col">
-			{surface === "skeleton" ? (
-				<ConversationSkeleton />
-			) : surface === "empty" && !sessionId ? (
-				<EmptyState />
+			{!sessionId ? (
+				surface === "skeleton" ? <ConversationSkeleton /> : <EmptyState />
 			) : (
-				<Conversation sessionId={sessionId} />
+				<RetainedViews
+					active={sessionId}
+					limit={3}
+					pageClassName=""
+					render={(id) => (
+						<SessionScope.Provider value={id}>
+							<Conversation sessionId={id} />
+						</SessionScope.Provider>
+					)}
+				/>
 			)}
 		</div>
 	);

@@ -189,7 +189,7 @@ export function SplitWorkspace() {
 		>
 			{panes.map((pane) => (
 				<SplitPane
-					key={paneKey(pane.sessionId)}
+					key={pane.path.join(".") || "root"}
 					pane={pane}
 					count={count}
 					focused={pane.sessionId === focusedId || (pane.sessionId === null && !focusedId)}

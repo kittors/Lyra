@@ -465,6 +465,7 @@ function Image({ src, alt, width, height }: { src: string; alt: string; width?: 
 			<img
 				src={resolved}
 				alt={alt}
+				loading="lazy"
 				/*
 				 * The author's `width` as a maximum, not as a width.
 				 *

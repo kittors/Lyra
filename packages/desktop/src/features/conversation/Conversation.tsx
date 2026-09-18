@@ -305,18 +305,14 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
         onUserScroll={follow.onUserScroll}
       >
         {/*
-         * Historical rows must never replay entrance motion when revisited.
-         *
-         * The wrapper itself is remounted on `activeSessionId` so `ly-session-enter` always
-         * starts from opacity 0. Toggling the class after paint was the jump: the new
-         * transcript drew at full strength, then dimmed and slid 3px. Children stay
-         * `ly-no-enter` so fifty rows do not each fade-up — one opacity on the wrapper is
-         * the cheap arrival.
+         * One tree per conversation. The pane keeps the last few mounted, so this
+         * key only resets scroll when *this* session's id changes. No enter fade —
+         * a 340ms opacity ramp after a click is the lag the list was already accused of.
          */}
         <div
           /* `--ly-bottom-inset` keeps 「回到最新」 off the newest message; see `styles/scroll.css`. */
           key={activeSessionId}
-          className="ly-transcript ly-no-enter ly-session-enter mx-auto w-full max-w-[var(--ly-content)] pt-5 pb-[var(--ly-bottom-inset)]"
+          className="ly-transcript ly-no-enter relative min-h-full mx-auto w-full max-w-[var(--ly-content)] pt-5 pb-[var(--ly-bottom-inset)]"
           data-ly-session={activeSessionId ?? ""}
           aria-busy={loadingSession}
         >

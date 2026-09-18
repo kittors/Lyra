@@ -17,6 +17,8 @@ export interface Box {
 
 export interface PaneBox extends Box {
 	sessionId: string | null;
+	/** Stable slot in the tree. Session switches keep this, so the pane does not remount. */
+	path: number[];
 }
 
 export interface SplitterBox extends Box {
@@ -42,19 +44,19 @@ function slice(rect: Box, dir: Axis, offset: number, share: number): Box {
 
 export function layoutPanes(tree: SplitNode, within: Box = FULL): PaneBox[] {
 	const out: PaneBox[] = [];
-	const walk = (node: SplitNode, rect: Box) => {
+	const walk = (node: SplitNode, rect: Box, path: number[]) => {
 		if (node.type === "leaf") {
-			out.push({ sessionId: node.sessionId, ...rect });
+			out.push({ sessionId: node.sessionId, path, ...rect });
 			return;
 		}
 		let offset = 0;
 		node.children.forEach((child, i) => {
 			const share = node.sizes[i] ?? 0;
-			walk(child, slice(rect, node.dir, offset, share));
+			walk(child, slice(rect, node.dir, offset, share), [...path, i]);
 			offset += share;
 		});
 	};
-	walk(tree, within);
+	walk(tree, within, []);
 	return out;
 }
 

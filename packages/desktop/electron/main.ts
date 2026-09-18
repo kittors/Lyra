@@ -63,6 +63,7 @@ import {
 import { canonicalPath } from "./canonical-path.ts";
 import { containingRoot, resolveInside } from "./file-ops.ts";
 import { resolveReadablePath } from "./file-read-service.ts";
+import { loadUserImagesAt } from "./display-image.ts";
 import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
@@ -560,6 +561,18 @@ function bindScreenshotShortcut(): void {
 	registerPreviewProtocols({
 		browserPartition: BROWSER_PARTITION,
 		resolveMedia: (target) => resolveReadablePath(target, allowedRoots()),
+		loadSessionImage: async (ref) => {
+			const images = await loadUserImagesAt(
+				{
+					liveMessages: (sessionId) => sessions.get(sessionId)?.messages,
+					read: (projectId, sessionId, since) => store.read(projectId, sessionId, since),
+				},
+				ref.projectId,
+				ref.sessionId,
+				ref.timestamp,
+			);
+			return images[ref.imageIndex] ?? null;
+		},
 	});
 	// Clear out sessions that were reserved and never used — including any left over from
 	// when clicking "新对话" created one up front.

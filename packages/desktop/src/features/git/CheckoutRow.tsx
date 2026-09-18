@@ -1,15 +1,15 @@
 /**
  * A repository or worktree in the branch list.
  *
- * Same reserved trailing slot as `BranchRow`, so the folder, the worktree plus and the
- * branch glyph share one x, and the qualifying branch sits where hover icons sit.
+ * Same leading icon box as BranchRow (no extra indent). The branch qualifies the
+ * folder in-flow, like 「当前」 on the current row — not a 76px empty overlay.
  */
 
 import { FolderGit2, GitBranchPlus } from "lucide-react";
 
 import type { RepoRef } from "../../../electron/git.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { GIT_CONTROLS, HoverRow, HoverRowButton, HoverRowMark, HoverRowTrail } from "../../ui/row/HoverRow.tsx";
+import { HoverRowMark } from "../../ui/row/HoverRow.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 
 export function CheckoutRow({
@@ -24,30 +24,29 @@ export function CheckoutRow({
 	const { t } = useI18n();
 	const here = entry.path === cwd;
 	return (
-		<HoverRow controls={GIT_CONTROLS} className="rounded-md transition-colors hover:bg-card-hover">
-			<HoverRowButton
-				data-ly-tip={entry.path}
-				aria-current={here ? "location" : undefined}
-				onClick={() => onSelect(entry.path)}
-				className={`gap-1.5 py-1 pl-1.5 text-left ${here ? "text-accent" : "text-ink-muted hover:text-ink"}`}
-			>
-				<HoverRowMark className={here ? "text-accent" : "text-ink-faint"}>
-					{entry.worktree ? (
-						<GitBranchPlus size={12} strokeWidth={1.8} />
-					) : (
-						<FolderGit2 size={12} strokeWidth={1.8} />
-					)}
-				</HoverRowMark>
-				<ScrollText
-					text={entry.label}
-					className={`ly-fade-tail min-w-0 flex-1 text-label ${here ? "text-accent" : "text-ink-muted"}`}
-				/>
-			</HoverRowButton>
-			<HoverRowTrail>
-				<span className={`min-w-0 truncate text-caption ${here ? "text-accent" : "text-ink-faint"}`}>
-					{entry.branch ?? t("sync.detached")}
-				</span>
-			</HoverRowTrail>
-		</HoverRow>
+		<button
+			type="button"
+			data-ly-tip={entry.path}
+			aria-current={here ? "location" : undefined}
+			onClick={() => onSelect(entry.path)}
+			className={`ly-scroll flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors ${
+				here ? "text-accent" : "text-ink-muted hover:text-ink"
+			}`}
+		>
+			<HoverRowMark className={here ? "text-accent" : "text-ink-faint"}>
+				{entry.worktree ? (
+					<GitBranchPlus size={12} strokeWidth={1.8} />
+				) : (
+					<FolderGit2 size={12} strokeWidth={1.8} />
+				)}
+			</HoverRowMark>
+			<ScrollText
+				text={entry.label}
+				className={`ly-fade-tail min-w-0 flex-1 text-label ${here ? "text-accent" : "text-ink-muted"}`}
+			/>
+			<span className={`ml-auto min-w-0 max-w-[42%] shrink-[4] truncate text-caption ${here ? "text-accent" : "text-ink-faint"}`}>
+				{entry.branch ?? t("sync.detached")}
+			</span>
+		</button>
 	);
 }

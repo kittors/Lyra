@@ -177,6 +177,14 @@ export {
 	type SessionMeta,
 	type SessionRecord,
 } from "./session/store.ts";
+export {
+	INLINE_IMAGE_CHARS,
+	materializeJsonlLine,
+	persistSessionImage,
+	safeMediaName,
+	sessionMediaHome,
+	sessionMediaPath,
+} from "./session/payload.ts";
 export { builtinCommandsFor, BUILTIN_COMMANDS, type BuiltinCommand, type CommandAction } from "./commands/builtin.ts";
 export {
 	commandSources,

@@ -6,8 +6,8 @@
  * hanging `hover:` on the button meant the fill and the text colour dropped out the moment you
  * reached for the icon, while the icon itself (keyed off the row) stayed.
  *
- * The title stops short of the archive button, always. The shell is `HoverRow`, shared with
- * project heads and git rows, so a new list cannot invent a second way to overlap.
+ * The title fills the row. Icons overlay. Hover deepens the fade via `--ly-row-controls`.
+ * A reserved `pr-14` slot was the empty gutter that looked like a second fade.
  */
 
 import { useI18n } from "../../i18n/index.ts";
@@ -22,7 +22,6 @@ import { SessionCard, useSessionCard } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
-import { HoverRow, HoverRowButton, HoverRowReveal, SESSION_CONTROLS } from "../../ui/row/HoverRow.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SessionStatus } from "../conversation/index.ts";
 import { useTypedText } from "../../ui/motion/TypedText.tsx";
@@ -30,6 +29,7 @@ import { useSidebarReorderContext } from "./reorder-context.ts";
 import { offerSessionDrag } from "../split/index.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
 import { useRowLit } from "./use-row-lit.ts";
+import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -153,9 +153,9 @@ export function SessionRow({
 	return (
 		<HoverRow
 			{...card.bind}
-			controls={actionsCount === 2 ? SESSION_CONTROLS.two : SESSION_CONTROLS.one}
 			onMouseEnter={(event) => { if (event.buttons === 0) card.bind.onMouseEnter(event); }}
 			data-ly-row={session.id}
+			controls={hoverSlot(actionsCount === 2 ? 2 : 1)}
 			onContextMenu={(event) => {
 				event.preventDefault();
 				card.dismiss();
@@ -204,15 +204,26 @@ export function SessionRow({
 				/>
 			)}
 			{confirm.element}
-			<HoverRowButton
+			<button
 				onPointerDown={(event) => {
 					card.dismiss();
+					/*
+					 * 按下不导航，松手才导航——这一行同时是重排的抓手。
+					 *
+					 * 「按下就切」看着是跟手，代价是拖着它换位置的那一下也会切过去：人只想调个顺序，
+					 * 手里的会话被换掉了。同一次按下还会把 `onOpen` 走两遍（这里一遍，`onClick`
+					 * 再一遍）。
+					 *
+					 * 跟手要从别处来。按下那一刻行已经亮了（`previewSession`），真正该省的是亮起来
+					 * 之后到转录画出来的那一段，而不是这 100ms 的按键行程。
+					 */
 					offerSessionDrag({ id: session.id, title: sessionTitle(session.title) }, event);
 					reorder?.startDrag(
 						{ kind: "session", id: session.id, title: sessionTitle(session.title), projectPath: session.cwd },
 						event,
 					);
 				}}
+				type="button"
 				onClick={onOpen}
 				/*
 				 * Which conversation you are in, stated rather than only drawn.
@@ -222,19 +233,21 @@ export function SessionRow({
 				 * at the colour.
 				 */
 				aria-current={active ? "page" : undefined}
-				className={`gap-2 rounded-lg pl-2 text-left text-label ${
+				/*
+				 * Title fills the row. Icons overlay. Growing padding on hover used to shrink
+				 * ScrollText and jitter a long name.
+				 */
+				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pr-1.5 pl-2 text-left text-label ${
 					compact ? "h-[34px]" : "h-[27px]"
 				} ${
-					active ? "text-ink" : "text-ink-muted group-hover/session:text-ink"
+					active ? "text-ink" : "text-ink-muted group-hover/row:text-ink"
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
-			</HoverRowButton>
+			</button>
 
-			{/* The strip never takes pointer events; only the button does. Anything wider would
-			    shadow the row button and cost it its hover. */}
 			<HoverRowReveal className="rounded-r-lg">
 				{inArchive ? (
 					<>

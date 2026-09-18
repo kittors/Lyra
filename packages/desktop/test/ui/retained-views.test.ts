@@ -26,3 +26,30 @@ test("tab visits retain local state, suspend hidden effects, and evict the oldes
 	} finally { await view.unmount(); }
 	assert.equal(live.size, 0);
 });
+
+test("the visible page is first in the tree so the live transcript is the one querySelector finds", async () => {
+	const render = (id: string) => h("div", { id }, id);
+	const view = await mount(h(RetainedViews, { active: "a", render, pageClassName: "" }));
+	try {
+		await view.rerender(h(RetainedViews, { active: "b", render, pageClassName: "" }));
+		assert.equal(view.host.querySelector("[data-view]")?.getAttribute("data-view"), "b");
+		assert.equal(view.host.querySelector("[data-view]")?.getAttribute("data-active"), "true");
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("the visible page is marked active so arrival motion can restart without remounting", async () => {
+	const render = (id: string) => h("div", { id }, id);
+	const view = await mount(h(RetainedViews, { active: "a", render, pageClassName: "ly-settings-enter" }));
+	try {
+		const first = view.host.querySelector("[data-view=a]");
+		assert.equal(first?.getAttribute("data-active"), "true");
+		assert.ok(first?.classList.contains("ly-settings-enter"));
+		await view.rerender(h(RetainedViews, { active: "b", render, pageClassName: "ly-settings-enter" }));
+		assert.equal(view.host.querySelector("[data-view=a]")?.getAttribute("data-active"), "false");
+		assert.equal(view.host.querySelector("[data-view=b]")?.getAttribute("data-active"), "true");
+	} finally {
+		await view.unmount();
+	}
+});

@@ -10,13 +10,13 @@ import { applySessionChange } from "./session-changes.ts";
 
 import type { SessionMeta } from "@lyra/core";
 import type { SessionActivity } from "@lyra/core/activity";
-import { prune, without, type CachedSessionState } from "./derive.ts";
+import { cacheIsFresh, prune, without, type CachedSessionState } from "./derive.ts";
 import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { loadCarried } from "./turn-meter.ts";
 import { flushCoalesced } from "./coalesce.ts";
-import { prefetchSession, readSelectedSession, restoreLiveState } from "./session-read.ts";
+import { readSelectedSession, restoreLiveState } from "./session-read.ts";
 import { isDescendantPath } from "../lib/paths.ts";
 
 type Get = () => AppState;
@@ -139,10 +139,9 @@ export function sessionSlice(set: Set, get: Get) {
 		if (current.pendingSessionId == null && current.activeSessionId === id) return current.selectionEpoch;
 		const epoch = current.selectionEpoch + 1;
 		/*
-		 * Only the row. `view` and the transcript wait until the click stream goes quiet —
-		 * switching them here (or flushing them) would commit sixty chat rows, or the
-		 * settings page, on every press. A burst of clicks must stay a pair of sidebar
-		 * paints; `flushSync` made each one a forced layout.
+		 * Only the row here. The pane swap is `openSession`, called from `revealSession`
+		 * on the same press. Flushing the row would commit sixty chat rows, or the
+		 * settings page, on every mash; `flushSync` made each one a forced layout.
 		 */
 		set({ pendingSessionId: id, selectionEpoch: epoch });
 		return epoch;
@@ -171,28 +170,26 @@ export function sessionSlice(set: Set, get: Get) {
 	},
 
   async openSession(meta: SessionMeta) {
+    /*
+     * 「谁更新」不能从 `pendingSessionId` 读出来。
+     *
+     * 这里曾经挡过一道：pending 上写着别的 id 就直接返回，理由是「更新的点击已经占了这一行」。
+     * 但 pending 只说明**有一个选择还没落地**，不说明它比这一次调用新——一个更早发起、还没回来的
+     * 冷查找（通知里点开一个没加载的会话）会把紧随其后的、真正更新的那次打开挡在门外，人点了侧边栏
+     * 却什么也没发生。
+     *
+     * 两条调用路径各自已经问过更准确的问题：`commitSettle` 问 `stillWants`，`openSessionById` 比
+     * 自己发起时的 `selectionEpoch`。这里再挡一道，挡掉的只会是它们已经放行的那一次。
+     */
     get().previewSession(meta);
     flushCoalesced();
     /*
-     * The row is already lit. `previewSession` wrote `pendingSessionId` in the click
-     * turn; this hydrate runs after that frame has painted. Parking the last transcript
-     * and mounting the next one is allowed to be slow — the pointer already got its due.
+     * Swap in this turn. Prefetch-before-swap kept the previous chat on screen
+     * for the whole disk read — that is the stale page after a click. A cache
+     * hit paints immediately; a miss paints the skeleton and reads behind it.
      */
     if (lostSelection(get, meta.id)) return;
     const leaving = get().activeSessionId;
-    const live =
-      Boolean(leaving) &&
-      leaving !== meta.id &&
-      get().meta &&
-      get().messages.length > 0 &&
-      !get().loadingSession;
-    let prefetched = false;
-    if (live && !get().sessionCache[meta.id]) {
-      await prefetchSession(meta, set, get);
-      if (lostSelection(get, meta.id)) return;
-      if (!get().sessionCache[meta.id]) return;
-      prefetched = true;
-    }
     const cache = { ...get().sessionCache };
 
     // Park the transcript being left behind, so coming back to it needs no round trip.
@@ -342,8 +339,16 @@ export function sessionSlice(set: Set, get: Get) {
      * read in flight will pick this up when it finishes. What is skipped is only the megabytes of
      * duplicated work.
      */
-    if (prefetched) await restoreLiveState(meta.id, set, get);
-    else await readSelectedSession(meta, set, get);
+    /*
+     * A clean cache already has the transcript on screen. Reading the file again
+     * clones megabytes onto the renderer in the same click — that is the hitch
+     * after a session has already been opened. Dirty or a newer seq still refresh.
+     */
+    if (cacheIsFresh(cached, meta)) {
+      await restoreLiveState(meta.id, set, get);
+      return;
+    }
+    await readSelectedSession(meta, set, get);
   },
 
   async deleteSession(meta: SessionMeta) {

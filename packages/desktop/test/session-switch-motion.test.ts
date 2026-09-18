@@ -2,21 +2,20 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-test("session switch remounts the transcript so the fade starts from opacity 0", async () => {
-	const source = await readFile(new URL("../src/features/conversation/Conversation.tsx", import.meta.url), "utf8");
-	assert.match(source, /key=\{activeSessionId\}/, "wrapper must remount or the animation will not restart");
-	assert.match(source, /ly-transcript ly-no-enter ly-session-enter/, "one wrapper fade, children stay quiet");
-	assert.ok(!/sessionEnter/.test(source), "toggling a class after paint is the flicker");
-	assert.ok(!/requestAnimationFrame\(\(\) => setSessionEnter/.test(source), "rAF toggle painted the new page first");
+test("every sidebar press hydrates the pane, not only the first in a 360ms burst", async () => {
+	const actions = await readFile(new URL("../src/features/split/actions.ts", import.meta.url), "utf8");
+	assert.ok(!/settleTimer/.test(actions), "a quiet-window timer left the transcript on the previous row");
+	assert.match(actions, /void commitSettle\(meta\)/, "each press must swap the pane in this turn");
 });
 
-test("session arrival is opacity only, from 0, using the slow token", async () => {
-	const css = await readFile(new URL("../src/styles/motion.css", import.meta.url), "utf8");
-	const block = css.match(/@keyframes ly-session-in \{[\s\S]*?\}\n/)?.[0] ?? "";
-	assert.match(block, /opacity:\s*0/);
-	assert.ok(!/translateY/.test(block), "a translate on a tall transcript is the jump");
-	assert.match(css, /\.ly-session-enter \{[\s\S]*var\(--ly-t-slow\)/);
-	assert.match(css, /\.ly-session-enter \{[\s\S]*\bboth\b/);
+test("session switch remounts the transcript without an enter fade", async () => {
+	const conversation = await readFile(new URL("../src/features/conversation/Conversation.tsx", import.meta.url), "utf8");
+	const pane = await readFile(new URL("../src/features/split/SplitPane.tsx", import.meta.url), "utf8");
+	assert.match(pane, /RetainedViews/, "a warm visit must keep the tree, not remount twenty turns");
+	assert.match(conversation, /ly-transcript ly-no-enter/, "historical rows stay quiet");
+	assert.ok(!/ly-session-enter/.test(conversation), "a 340ms fade after a click is the lag");
+	assert.ok(!/sessionEnter/.test(conversation), "toggling a class after paint is the flicker");
+	assert.ok(!/requestAnimationFrame\(\(\) => setSessionEnter/.test(conversation), "rAF toggle painted the new page first");
 });
 
 test("the file-change card does not unfold its height on arrival", async () => {

@@ -147,11 +147,11 @@
  * chosen action. Those actions are persistent on touch, so the row's own button stops before them:
  * one coordinate can now resolve to exactly one action.
  */
-[data-lyra-host="mobile"] .group\/project > button:first-of-type {
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-project] > button:first-of-type {
   width: calc(100% - 96px);
 }
 
-[data-lyra-host="mobile"] .group\/session > button:first-of-type {
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-row] > button:first-of-type {
   width: calc(100% - 94px);
   padding-right: 8px;
 }

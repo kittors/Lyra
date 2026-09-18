@@ -18,7 +18,6 @@ import { useInputHistory } from "./useInputHistory.ts";
 import { commandEntries } from "./command-catalog.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { ForeignConfigNotice } from "./ForeignConfigNotice.tsx";
 import { useDock } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { ContextMeter } from "./ContextMeter.tsx";
@@ -675,8 +674,6 @@ export function Composer() {
 				 * makes it invisible — for two minutes nothing on screen told a run reading forty
 				 * files apart from one that was stuck. The bar is that line, and it opens the pane.
 				 */}
-				{/* Once per project: what other tools' configuration this repository carries, already in use. */}
-				<ForeignConfigNotice />
 				<SubAgentBar onOpen={() => useDock.getState().open("subagents", companionOf("subagents"))} />
 				{/*
 				 * Where the turn will run, and what it has already changed.

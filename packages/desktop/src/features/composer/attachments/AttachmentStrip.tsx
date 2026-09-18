@@ -38,8 +38,10 @@ export interface StripFile {
 	key: string;
 	name: string;
 	kind: FileKind;
-	/** 看得见的那种才有。有它就画缩略图，没有就画门类图标加名字。 */
+	/** 看得见的那种才有。有它就画缩略图，没有就画门类图标加名字。缩略图可以是缩小过的。 */
 	src?: string;
+	/** 点开查看器、复制像素时用的原图。没有就退回 `src`。 */
+	full?: string;
 	/**
 	 * 磁盘上的位置，附件真的来自一个文件时才有。
 	 *
@@ -97,6 +99,7 @@ export function AttachmentStrip({
 	onOpen,
 	onPreviewFile,
 	onRemove,
+	eager,
 	className = "",
 }: {
 	files: StripFile[];
@@ -123,6 +126,11 @@ export function AttachmentStrip({
 	/** 在应用里打开一个不是图片的附件。只对项目里的文件生效——面板读不到项目外的东西。 */
 	onPreviewFile?: (file: StripFile) => void;
 	onRemove?: (file: StripFile) => void;
+	/**
+	 * 输入框里刚放进来的文件已经在手上，立刻画。气泡外那一排等进了视口再取像素，
+	 * 免得点开一个会话就把二十兆图一起解码。
+	 */
+	eager?: boolean;
 	className?: string;
 }) {
 	const { t } = useI18n();
@@ -140,6 +148,7 @@ export function AttachmentStrip({
 	 */
 	const bodies = useRef(new Map<string, HTMLButtonElement | null>());
 	const count = files.length;
+	const loadNow = eager ?? Boolean(onRemove);
 
 	/*
 	 * 一份附件在这一排里的全部身份：叫什么、排第几、能被怎么处置。
@@ -315,7 +324,14 @@ export function AttachmentStrip({
 							{file.src ? (
 								/* `cover`：一排等大的方块读起来是一组东西。按各自比例留黑边的缩略图读起来
 								    像是排版放弃了。 */
-								<img src={file.src} alt={label} className="h-full w-full object-cover" />
+								<img
+									src={file.src}
+									alt={label}
+									loading={loadNow ? "eager" : "lazy"}
+									decoding="async"
+									data-ly-lazy={loadNow ? "ready" : "lazy"}
+									className="h-full w-full object-cover"
+								/>
 							) : (
 								<span className="flex h-full items-center gap-1.5">
 									<FileKindIcon kind={file.kind} size={14} />
@@ -381,7 +397,7 @@ export function AttachmentStrip({
 								 * 张图，位置不同不该换一套能做的事。粘贴进来的截图尤其靠这一条：它在磁盘上没有对应
 								 * 的文件，像素是它唯一能被复制的形式。
 								 */
-								...(picked.file.src ? { src: picked.file.src } : {}),
+								...(picked.file.full ?? picked.file.src ? { src: picked.file.full ?? picked.file.src } : {}),
 								...(picked.canPreview ? { onPreview: () => bodies.current.get(picked.file.key)?.click() } : {}),
 							}
 						: null

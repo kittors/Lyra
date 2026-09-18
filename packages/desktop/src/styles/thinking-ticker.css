@@ -48,22 +48,24 @@
  * translucent veil — so that hover would read on the translucent sidebar — the gradient stopped
  * covering anything and the archive icon landed on top of the last characters.
  *
- * The mask that replaced it is shared with `ly-fade-edge` above; all this does is deepen the
- * right-hand side, which is why the two can now be on the same title at once.
+ * The mask that replaced it is shared with `ly-fade-edge` above. Hover writes `--ly-fade-clear`
+ * so the last N pixels are gone, not merely thinner — a longer `--ly-fade-right` still left
+ * glyphs sitting under the icons at ~70% opacity.
  */
 /*
  * `:focus-visible`, not `:focus-within`.
  *
- * The fade is as wide as the controls that land on the title, so it belongs on exactly the states
+ * The clear is as wide as the controls that land on the title, so it belongs on exactly the states
  * that bring those controls out. `:focus-within` is not one of them: clicking a row focuses its
  * button and the focus stays, so the pointer would leave, the controls would go, and the title
- * would keep a fade over its last characters with nothing there to justify it. Keyboard focus does
+ * would keep a hole over its last characters with nothing there to justify it. Keyboard focus does
  * bring the controls out, and `:has(:focus-visible)` is that and only that.
  */
 [data-ly-hover-row]:hover .ly-fade-tail,
 [data-ly-hover-row]:has(:focus-visible) .ly-fade-tail {
-  /* As wide as the reserved slot. One rule, so a new list cannot forget to yield. */
-  --ly-fade-right: var(--ly-row-controls, 30px);
+  /* Solid clear under the icons — the row says how wide that strip is.
+   * One attribute, every list. Per-row group names drifted and the fade missed the icons. */
+  --ly-fade-clear: var(--ly-row-controls, 30px);
 }
 
 /*

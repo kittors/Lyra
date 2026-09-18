@@ -7,7 +7,7 @@
  * second simply replaced the first — and the left-hand fade that catches the line as it starts
  * scrolling vanished exactly when it was needed, leaving the text emerging from a hard edge.
  *
- * One mask now, two lengths. Neither rule owns the shape; each says how deep its own side goes,
+ * One mask now, three lengths. Neither rule owns the shape; each says how deep its own side goes,
  * and they compose because a length is not a declaration to be overridden. Registered so they
  * interpolate — an unregistered custom property would jump between shapes rather than ease.
  * ------------------------------------------------------------------------- */
@@ -23,20 +23,33 @@
   initial-value: 0;
 }
 
+/*
+ * Solid transparent run under the hover icons. `--ly-fade-right` is only the dissolve; if the
+ * icons sit inside that dissolve the last glyphs stay readable under pin and archive. Clear is
+ * the length that must be gone completely, and the dissolve happens *before* it.
+ */
+@property --ly-fade-clear {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .ly-fade-edge,
 .ly-fade-tail {
   mask-image: linear-gradient(
     to right,
     transparent 0,
     #000 var(--ly-fade-left),
-    #000 calc(100% - var(--ly-fade-right)),
+    #000 calc(100% - var(--ly-fade-right) - var(--ly-fade-clear)),
+    transparent calc(100% - var(--ly-fade-clear)),
     transparent 100%
   );
-  /* Order matches the properties: the left fade waits for the scroll, the right one tracks the
+  /* Order matches the properties: the left fade waits for the scroll, the right pair tracks the
      control appearing over it. No delay on the way out — the line snaps back to its start. */
   transition:
     --ly-fade-left var(--ly-t-quick) var(--ly-e-out),
-    --ly-fade-right var(--ly-t-quick) var(--ly-e-out);
+    --ly-fade-right var(--ly-t-quick) var(--ly-e-out),
+    --ly-fade-clear var(--ly-t-quick) var(--ly-e-out);
 }
 
 /*
@@ -78,6 +91,16 @@
   animation: ly-marquee var(--ly-scroll, 8s) linear 300ms infinite;
 }
 
+/*
+ * The trailing copy exists for the loop. At rest `left: 100%` of a full-width
+ * clip box painted it on top of the first copy. Pixel `left` plus hidden-until-hover
+ * keeps a long title as one line until the pointer asks it to move.
+ */
+.ly-scroll:hover [data-ly-scroll-dup],
+.ly-scroll:has(:focus-visible) [data-ly-scroll-dup] {
+  visibility: visible;
+}
+
 .ly-scroll:has(:focus-visible) .ly-marquee-track {
   animation: ly-marquee var(--ly-scroll, 8s) linear 300ms infinite;
 }
@@ -91,12 +114,12 @@
  */
 .ly-scroll:hover .ly-fade-edge {
   --ly-fade-left: 13px;
-  transition-delay: 320ms, 0ms;
+  transition-delay: 320ms, 0ms, 0ms;
 }
 
 .ly-scroll:has(:focus-visible) .ly-fade-edge {
   --ly-fade-left: 13px;
-  transition-delay: 320ms, 0ms;
+  transition-delay: 320ms, 0ms, 0ms;
 }
 
 /* One cycle carries the first copy off the left, leaving the second exactly where it began. */

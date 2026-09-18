@@ -8,23 +8,10 @@ import { bridge } from "../services/index.ts";
 import { beginSessionRead, endSessionRead } from "./read-events.ts";
 import { cachedEvent } from "./cached-event.ts";
 import { flushCoalesced } from "./coalesce.ts";
-import { afterPaint } from "../lib/after-paint.ts";
 
 // Only one IPC payload is in flight. Intermediate selections collapse into the latest one.
 let reading: string | null = null;
 let queued: { meta: SessionMeta; resync: boolean; cacheOnly: boolean } | null = null;
-const readWaiters: Array<() => void> = [];
-
-function signalReadFinished(): void {
-	const waiters = readWaiters.splice(0);
-	for (const wake of waiters) wake();
-}
-
-function whenReadFinishes(): Promise<void> {
-	return new Promise((resolve) => {
-		readWaiters.push(resolve);
-	});
-}
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -82,32 +69,6 @@ function stashInCache(
 	});
 }
 
-/**
- * Read a conversation into `sessionCache` without swapping the live slot.
- *
- * Sidebar bursts used to call `openSession` per press, which emptied `messages` and
- * remounted the transcript. This keeps the current tree on screen and only fills the
- * cache, so a later commit is a warm swap.
- */
-export async function prefetchSession(meta: SessionMeta, set: Set, get: Get): Promise<boolean> {
-	if (get().sessionCache[meta.id] || get().activeSessionId === meta.id) return true;
-	// `reading` is written by the in-flight IPC, not this loop.
-	// oxlint-disable-next-line no-unmodified-loop-condition -- waiters wake when `reading` clears
-	while (reading !== null && !get().sessionCache[meta.id] && get().activeSessionId !== meta.id) {
-		await whenReadFinishes();
-	}
-	if (get().sessionCache[meta.id] || get().activeSessionId === meta.id) return true;
-	await readSelectedSession(meta, set, get, false, { cacheOnly: true });
-	while (
-		!get().sessionCache[meta.id] &&
-		get().activeSessionId !== meta.id &&
-		(reading !== null || queued?.meta.id === meta.id) // oxlint-disable-line no-unmodified-loop-condition -- waiters wake when `reading` clears
-	) {
-		await whenReadFinishes();
-	}
-	return Boolean(get().sessionCache[meta.id] || get().activeSessionId === meta.id);
-}
-
 export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get, resync = false, options: SessionReadOptions = {}): Promise<void> {
 	const cacheOnly = options.cacheOnly === true;
 	const cached = get().sessionCache[meta.id];
@@ -122,21 +83,6 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	reading = meta.id;
 	const before = get();
 	const events = beginSessionRead(meta.id);
-	/*
-	 * A cold click has already written `loadingSession`. Give that write a frame before the
-	 * IPC payload lands — otherwise the skeleton never commits and the clone hitch is the
-	 * first thing the window paints.
-	 */
-	if (before.loadingSession && !cacheOnly) {
-		await afterPaint();
-		if (get().activeSessionId !== meta.id) {
-			endSessionRead(meta.id);
-			reading = null;
-			signalReadFinished();
-			drainQueued(meta.id, set, get);
-			return;
-		}
-	}
 
 	let snapshot: Awaited<ReturnType<typeof bridge.sessions.transcript>>;
 	try {
@@ -152,7 +98,6 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	} finally {
 		endSessionRead(meta.id);
 		reading = null;
-		signalReadFinished();
 		// Whatever was clicked last while this was running is the one that still wants reading.
 		drainQueued(meta.id, set, get);
 	}

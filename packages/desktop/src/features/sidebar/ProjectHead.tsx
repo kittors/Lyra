@@ -19,12 +19,12 @@ import { ChevronRight, Folder, MoreHorizontal, SquarePen } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
-import { HoverRow, HoverRowButton, HoverRowReveal, HoverRowTrail, PROJECT_CONTROLS } from "../../ui/row/HoverRow.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GroupActivity } from "./GroupActivity.tsx";
 import type { Group } from "./grouping.ts";
 import { startProjectSession } from "./newSession.ts";
 import { useSidebarReorderContext } from "./reorder-context.ts";
+import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 
 export function ProjectHead({
 	group,
@@ -45,8 +45,8 @@ export function ProjectHead({
 		/* Same hover-owner arrangement as the session rows: the fill belongs to the row so
 		   reaching for the menu button does not drop it. */
 		<HoverRow
-			controls={PROJECT_CONTROLS}
 			data-ly-project={group.name}
+			controls={hoverSlot(2)}
 			className="group/project rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated"
 			onPointerMove={(event) => {
 				if (reorder) {
@@ -78,15 +78,16 @@ export function ProjectHead({
 			 * inside — so it lost the click and kept a menu item, rather than the two sharing
 			 * one target and the fold never existing.
 			 */}
-			<HoverRowButton
+			<button
 				onPointerDown={(event) => {
 					reorder?.startDrag({ kind: "project", id: group.path, title: group.name }, event);
 				}}
+				type="button"
 				aria-expanded={!collapsed}
 				onClick={onToggleCollapsed}
-				className={`gap-2.5 rounded-lg pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
+				className={`flex w-full items-center gap-2.5 rounded-lg pr-2 pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
 					compact ? "h-[40px]" : "h-[31px]"
-				} ${active ? "font-medium text-ink" : "text-ink group-hover/project:text-ink"}`}
+				} ${active ? "font-medium text-ink" : "text-ink group-hover/row:text-ink"}`}
 			>
 				{/*
 				 * The folder turns into a chevron under the pointer.
@@ -99,31 +100,31 @@ export function ProjectHead({
 					<Folder
 						size={15}
 						strokeWidth={1.8}
-						className="absolute inset-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/project:opacity-0"
+						className="absolute inset-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0"
 					/>
 					<ChevronRight
 						size={15}
 						strokeWidth={2}
-						className={`absolute inset-0 opacity-0 transition-[opacity,transform] duration-[var(--ly-t-quick)] group-hover/project:opacity-100 ${
+						className={`absolute inset-0 opacity-0 transition-[opacity,transform] duration-[var(--ly-t-quick)] group-hover/row:opacity-100 ${
 							collapsed ? "" : "rotate-90"
 						}`}
 					/>
 				</span>
 				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
-			</HoverRowButton>
-			{/*
-			 * How many are folded away, so a shut project is not indistinguishable from an
-			 * empty one. Only while shut: open, the rows themselves are the count.
-			 * Running work replaces the count with a quiet spinner in this same trailing slot.
-			 *
-			 * It vacates under the pointer, the same way the folder does. The menu button
-			 * lives at this exact spot, and the two drawn together was not two things
-			 * crowding each other — it was a numeral and an icon on the same pixels, legible
-			 * as neither. Hovering is reaching for the button, so the count is what yields.
-			 */}
-			<HoverRowTrail className="text-caption text-ink-faint tabular-nums transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0">
-				<GroupActivity sessions={group.sessions} collapsed={collapsed} count={group.sessions.length} />
-			</HoverRowTrail>
+				{/*
+				 * How many are folded away, so a shut project is not indistinguishable from an
+				 * empty one. Only while shut: open, the rows themselves are the count.
+				 * Running work replaces the count with a quiet spinner in this same trailing slot.
+				 *
+				 * It vacates under the pointer, the same way the folder does. The menu button
+				 * lives at this exact spot, and the two drawn together was not two things
+				 * crowding each other — it was a numeral and an icon on the same pixels, legible
+				 * as neither. Hovering is reaching for the button, so the count is what yields.
+				 */}
+				<span className="flex w-[46px] shrink-0 items-center justify-end pr-0.5 text-caption text-ink-faint tabular-nums transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0">
+					<GroupActivity sessions={group.sessions} collapsed={collapsed} count={group.sessions.length} />
+				</span>
+			</button>
 
 			<HoverRowReveal className="gap-0.5 rounded-r-lg">
 				<button

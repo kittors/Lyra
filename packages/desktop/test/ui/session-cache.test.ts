@@ -8,7 +8,7 @@ import { prune, type Cache } from "../../src/store/derive.ts";
 import { afterPaint } from "../../src/lib/after-paint.ts";
 import { readSelectedSession } from "../../src/store/session-read.ts";
 import { applySessionChange } from "../../src/store/session-changes.ts";
-import { abandonSessionReveal, revealSession, SESSION_SETTLE_MS } from "../../src/features/split/actions.ts";
+import { abandonSessionReveal, revealSession } from "../../src/features/split/actions.ts";
 import type { LyraApi } from "../../electron/ipc-types.ts";
 
 type Snapshot = Awaited<ReturnType<LyraApi["sessions"]["transcript"]>>;
@@ -63,8 +63,6 @@ function reply(text: string): AssistantMessage {
 		usage,
 	};
 }
-
-const settled = () => new Promise<void>((resolve) => setTimeout(resolve, SESSION_SETTLE_MS + 20));
 
 beforeEach(() => {
 	abandonSessionReveal();
@@ -125,25 +123,18 @@ test("previewing a session lights it without swapping the live transcript", () =
 	assert.equal(useApp.getState().pendingSessionId, "c");
 });
 
-test("a sidebar click keeps the previous transcript until the click stream goes quiet", async () => {
-	const original = useApp.getState().messages;
+test("a single sidebar click hydrates in the same turn", async () => {
 	revealSession(meta("b"));
-	assert.equal(useApp.getState().pendingSessionId, "b");
-	assert.equal(useApp.getState().activeSessionId, "a");
-	assert.equal(useApp.getState().messages, original);
-	await afterPaint();
-	assert.equal(useApp.getState().activeSessionId, "a", "a paint is not enough — that is still inside a burst");
-	assert.equal(useApp.getState().messages, original);
-	await settled();
 	assert.equal(useApp.getState().activeSessionId, "b");
 	assert.equal(useApp.getState().pendingSessionId, null);
-	assert.notEqual(useApp.getState().messages, original);
+	assert.equal(useApp.getState().loadingSession, true);
+	assert.equal(useApp.getState().messages.length, 0);
 	for (let i = 0; i < 10 && useApp.getState().loadingSession; i++) await afterPaint();
 	assert.equal(useApp.getState().loadingSession, false);
+	assert.equal(useApp.getState().messages.length, 1);
 });
 
-test("a burst of sidebar clicks hydrates only the last row", async () => {
-	const original = useApp.getState().messages;
+test("a burst of sidebar clicks keeps the last row and skips intermediate disk reads", async () => {
 	const reads: string[] = [];
 	readTranscript = async (_projectId, id) => {
 		reads.push(id);
@@ -159,40 +150,69 @@ test("a burst of sidebar clicks hydrates only the last row", async () => {
 	});
 	try {
 		for (const id of ["b", "c", "d", "e"]) revealSession(meta(id));
-		assert.equal(useApp.getState().pendingSessionId, "e");
-		assert.equal(useApp.getState().activeSessionId, "a");
-		assert.equal(useApp.getState().messages, original);
-		assert.equal(swaps, 0);
-		await settled();
 		assert.equal(useApp.getState().activeSessionId, "e");
 		assert.equal(useApp.getState().pendingSessionId, null);
-		assert.equal(swaps, 1, "twenty lights, one transcript");
-		assert.deepEqual(reads, ["e"], "intermediate rows must not hit disk");
+		assert.ok(swaps >= 1, "the pane follows the press");
 		for (let i = 0; i < 10 && useApp.getState().loadingSession; i++) await afterPaint();
 		assert.equal(useApp.getState().loadingSession, false);
+		assert.ok(reads.includes("e"), "the row that stayed must hit disk");
+		assert.ok(!reads.includes("c") && !reads.includes("d"), "intermediate rows must not hit disk");
 	} finally {
 		stop();
 	}
 });
 
-test("an in-flight cold read does not swap if a newer row is pending", async () => {
+test("an in-flight cold read does not paint if a newer row is pending", async () => {
 	const first = deferredRead();
 	const second = deferredRead();
 	readTranscript = (_projectId, id) => (id === "b" ? first.promise : second.promise);
-	const original = useApp.getState().messages;
 	revealSession(meta("b"));
-	await settled();
+	await afterPaint();
+	assert.equal(useApp.getState().activeSessionId, "b");
+	assert.equal(useApp.getState().loadingSession, true);
 	revealSession(meta("c"));
-	assert.equal(useApp.getState().pendingSessionId, "c");
+	await afterPaint();
+	assert.equal(useApp.getState().activeSessionId, "c");
+	assert.equal(useApp.getState().pendingSessionId, null);
 	first.resolve(snapshot("b"));
 	await new Promise<void>((resolve) => setTimeout(resolve, 20));
-	assert.equal(useApp.getState().activeSessionId, "a");
-	assert.equal(useApp.getState().messages, original);
-	await settled();
+	assert.equal(useApp.getState().messages.length, 0, "b's snapshot must not land after a newer row took the pane");
 	second.resolve(snapshot("c"));
 	for (let i = 0; i < 20 && useApp.getState().activeSessionId !== "c"; i++) await afterPaint();
 	assert.equal(useApp.getState().activeSessionId, "c");
 	assert.equal(useApp.getState().pendingSessionId, null);
+	for (let i = 0; i < 10 && useApp.getState().loadingSession; i++) await afterPaint();
+	assert.deepEqual(useApp.getState().messages[0]?.content, reply("c").content);
+});
+
+test("a clean cache hit does not read the transcript again", async () => {
+	const reads: string[] = [];
+	readTranscript = async (_projectId, id) => {
+		reads.push(id);
+		return snapshot(id);
+	};
+	await useApp.getState().openSession(meta("b"));
+	assert.deepEqual(reads, ["b"]);
+	reads.length = 0;
+	await useApp.getState().openSession(meta("a"));
+	assert.deepEqual(reads, [], "a parked finished log must not clone the file again");
+	assert.equal(useApp.getState().activeSessionId, "a");
+	assert.deepEqual(useApp.getState().messages[0]?.content, reply("a").content);
+});
+
+test("a dirty cache still refreshes from disk", async () => {
+	const reads: string[] = [];
+	readTranscript = async (_projectId, id) => {
+		reads.push(id);
+		return snapshot(id);
+	};
+	await useApp.getState().openSession(meta("b"));
+	useApp.setState((state) => ({
+		sessionCache: { ...state.sessionCache, a: { ...state.sessionCache.a, dirty: true } },
+	}));
+	reads.length = 0;
+	await useApp.getState().openSession(meta("a"));
+	assert.deepEqual(reads, ["a"]);
 });
 
 test("a warm visit restores session status before its background refresh", async () => {
@@ -255,6 +275,9 @@ test("visiting an old session makes it recent for cache eviction", async () => {
 
 test("a warm refresh cannot roll back live events received while reading", async () => {
 	await useApp.getState().openSession(meta("b"));
+	useApp.setState((state) => ({
+		sessionCache: { ...state.sessionCache, a: { ...state.sessionCache.a, dirty: true } },
+	}));
 	const read = deferredRead();
 	readTranscript = () => read.promise;
 	const opening = useApp.getState().openSession(meta("a"));
@@ -312,15 +335,14 @@ test("background messages update a parked session without flashing a cold loader
 });
 
 
-test("a cold open keeps the live transcript until the snapshot is ready", async () => {
+test("a cold open leaves the previous transcript in this turn", async () => {
 	const deferred = deferredRead();
 	readTranscript = () => deferred.promise;
-	const original = useApp.getState().messages;
 	const opening = useApp.getState().openSession({ ...meta("cold"), messageCount: 800 });
-	await afterPaint();
-	assert.equal(useApp.getState().activeSessionId, "a");
-	assert.equal(useApp.getState().messages, original);
-	assert.equal(useApp.getState().loadingSession, false, "the current tree stays up while the next one is read");
+	assert.equal(useApp.getState().activeSessionId, "cold");
+	assert.equal(useApp.getState().messages.length, 0);
+	assert.equal(useApp.getState().loadingSession, true, "the next conversation owns the pane while it is read");
+	assert.equal(useApp.getState().sessionCache.a?.messages.length, 1, "the conversation we left is parked");
 	deferred.resolve(snapshot("cold"));
 	await opening;
 	assert.equal(useApp.getState().activeSessionId, "cold");
@@ -369,6 +391,9 @@ test("Windows scratch conversations retain their projectless identity on selecti
 test("a failed transcript read releases loading and preserves warm content", async () => {
 	await useApp.getState().openSession(meta("b"));
 	await useApp.getState().openSession(meta("a"));
+	useApp.setState((state) => ({
+		sessionCache: { ...state.sessionCache, b: { ...state.sessionCache.b, dirty: true } },
+	}));
 	readTranscript = async () => { throw new Error("disk unavailable"); };
 	await useApp.getState().openSession(meta("b"));
 	assert.equal(useApp.getState().loadingSession, false);
@@ -397,6 +422,8 @@ test("reconnecting during an existing read queues a fresh snapshot for the same 
 	await readSelectedSession(meta("a"), useApp.setState, useApp.getState, true);
 	first.resolve(snapshot("a"));
 	await opening;
+	// oxlint-disable-next-line no-unmodified-loop-condition -- `reads` increments when the queued IPC starts after paint
+	for (let i = 0; i < 10 && reads < 2; i++) await afterPaint();
 	assert.equal(reads, 2, "a response requested before reconnect cannot cover the offline gap");
 	const missed = { ...reply("offline history"), timestamp: 20 };
 	const live = { ...reply("after reconnect"), timestamp: 30 };

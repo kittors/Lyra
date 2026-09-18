@@ -1,17 +1,9 @@
 /**
- * "This repository has other tools' configuration, and Lyra is already using it" (15 §5).
+ * Helpers for "this repository already has another tool's configuration".
  *
- * Shown once per project, the first time it is opened with a `.cursor/rules/` or a `.claude/` in
- * it. Worded as a fact and not as an offer — there is nothing to import, because every format is
- * read in place — so the line has a way to look and a way to dismiss, and nothing else.
- *
- * Above the composer, where the sub-agent bar goes, and shaped like it. Not a toast, which would
- * be gone before it was read; not a dialog, which would make an announcement into an interruption.
- * Not a table either: three columns of paths and counts read as a list of files to click on, and
- * the button under it led to the plugin page, which is about something else entirely. 「查看」 now
- * goes where each place is actually shown — rules to the rules page, skills to skills, a
- * `CLAUDE.md` into the file pane — and with more than one place it asks which, the way a split
- * button does, rather than guessing.
+ * The bar used to sit above the composer and say 「已在用 Cursor 的配置」. That is a fact the
+ * person already lives with — they opened the project — so it is not shown. `targetFor` and
+ * `summarize` stay because the settings pages still need to know whose rules a path is.
  */
 
 import { useI18n } from "../../i18n/index.ts";
@@ -19,13 +11,8 @@ import { translate } from "../../i18n/translate.ts";
 import type { ForeignConfigLine } from "@lyra/core";
 import { Blocks, X } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
-import { useEffect, useState } from "react";
-import { joinPath } from "../../lib/paths.ts";
-import { bridge } from "../../services/index.ts";
-import { type ExtensionsTab, type SettingsSection, useApp } from "../../store/index.ts";
-import { useOpenFile } from "../../store/openFile.ts";
+import { type ExtensionsTab, type SettingsSection } from "../../store/index.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { companionOf, useDock } from "../dock/index.ts";
 
 /**
  * Where one place is shown in this app: a settings page (a tab on it, something in its search
@@ -56,56 +43,7 @@ export function targetFor(line: ForeignConfigLine): LookTarget {
 }
 
 export function ForeignConfigNotice() {
-	const workspace = useApp((s) => s.workspace);
-	const [lines, setLines] = useState<ForeignConfigLine[] | null>(null);
-
-	useEffect(() => {
-		let gone = false;
-		setLines(null);
-		if (!workspace?.path) return;
-		void bridge.workspace
-			.foreignConfigs(workspace.path)
-			.then((found) => {
-				if (!gone) setLines(found.seen ? [] : found.lines);
-			})
-			.catch(() => {});
-		return () => {
-			gone = true;
-		};
-	}, [workspace?.path]);
-
-	if (!workspace?.path) return null;
-	const root = workspace.path;
-	if (!lines || lines.length === 0) return null;
-
-	const look = (line: ForeignConfigLine) => {
-		const target = targetFor(line);
-		if ("file" in target) {
-			void useOpenFile.getState().open({
-				path: joinPath(root, target.file),
-				name: target.file.split("/").pop() || target.file,
-				isDirectory: false,
-				size: 0,
-			});
-			useDock.getState().open("file", companionOf("file"));
-			return;
-		}
-		const app = useApp.getState();
-		app.setExtensionsFocus(target.tab ? { tab: target.tab, query: target.query } : null);
-		app.setSettingsSection(target.page);
-		app.setView("settings");
-	};
-
-	return (
-		<ForeignConfigBanner
-			lines={lines}
-			onLook={look}
-			onOk={() => {
-				setLines([]);
-				void bridge.workspace.markForeignConfigsSeen(root);
-			}}
-		/>
-	);
+	return null;
 }
 
 /** What a place says about itself, after the path: 「2 条规则」, 「项目上下文」. */

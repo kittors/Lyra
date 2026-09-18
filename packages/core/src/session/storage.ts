@@ -19,13 +19,14 @@ export interface SessionStorage {
 	create(cwd: string, modelId: string, title?: string): Promise<SessionMeta>;
 	/** Add one record and return the meta it produced. Never rewrites what is already there. */
 	append(meta: SessionMeta, payload: SessionRecordInput): Promise<SessionMeta>;
-	read(projectId: string, sessionId: string, sinceSeq?: number): AsyncGenerator<SessionRecord>;
+	read(projectId: string, sessionId: string, sinceSeq?: number, options?: { display?: boolean }): AsyncGenerator<SessionRecord>;
 	/** Optional byte-efficient snapshots for consumers that already hold the preceding log prefix. */
 	readChanges?(projectId: string, sessionId: string, cursor?: SessionReadCursor): Promise<SessionRecordChanges<SessionRecord>>;
 	messages(projectId: string, sessionId: string): Promise<Message[]>;
 	load(
 		projectId: string,
 		sessionId: string,
+		options?: { display?: boolean },
 	): Promise<{
 		meta: SessionMeta;
 		messages: Message[];

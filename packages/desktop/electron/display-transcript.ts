@@ -1,4 +1,4 @@
-import type { AssistantContent, Message, UserContent } from "@lyra/core";
+import { INLINE_IMAGE_CHARS, persistSessionImage, type AssistantContent, type ImageContent, type Message, type UserContent } from "@lyra/core";
 
 /**
  * How much of one block the window is allowed to hold.
@@ -9,6 +9,10 @@ import type { AssistantContent, Message, UserContent } from "@lyra/core";
  * to know the rest is in the log.
  */
 export const DISPLAY_TEXT_CHARS = 24_000;
+/** Inline icons stay. Anything bigger becomes a file pointer before it crosses IPC. */
+const DISPLAY_IMAGE_CHARS = INLINE_IMAGE_CHARS;
+
+const parked = new WeakMap<ImageContent, string>();
 
 export function slimSnapshot<T extends { messages: Message[] }>(snapshot: T): T {
 	const messages = slimMessagesForDisplay(snapshot.messages);
@@ -38,7 +42,8 @@ function slimMessage(message: Message): Message {
 	}
 	if (message.role === "user") {
 		const content = slimUserContent(message.content);
-		return content === message.content ? message : { ...message, content };
+		if (content === message.content) return message;
+		return { ...message, content };
 	}
 	return message;
 }
@@ -46,6 +51,13 @@ function slimMessage(message: Message): Message {
 function slimUserContent(content: UserContent[]): UserContent[] {
 	let changed = false;
 	const next = content.map((part) => {
+		if (part.type === "image") {
+			if (part.data.length <= DISPLAY_IMAGE_CHARS) return part;
+			changed = true;
+			const media = part.media ?? parked.get(part) ?? persistSessionImage(part.data, part.mimeType);
+			parked.set(part, media);
+			return { ...part, data: "", media };
+		}
 		if (part.type !== "text") return part;
 		const text = slimText(part.text);
 		if (text === null) return part;
@@ -81,13 +93,17 @@ function slimDetails(details: unknown): unknown {
 }
 
 function slimText(text: string): string | null {
-	const points = [...text];
-	if (points.length <= DISPLAY_TEXT_CHARS) return null;
+	/*
+	 * Length, not `[...text]`. Spreading a 12 MB grep dump allocated one string
+	 * per code point on the main process and stalled the IPC that the skeleton
+	 * was waiting on. Display truncation can follow UTF-16 units.
+	 */
+	if (text.length <= DISPLAY_TEXT_CHARS) return null;
 	const keep = Math.floor(DISPLAY_TEXT_CHARS / 2);
-	const omitted = points.length - keep * 2;
+	const omitted = text.length - keep * 2;
 	return (
-		`${points.slice(0, keep).join("")}\n\n` +
+		`${text.slice(0, keep)}\n\n` +
 		`… [${omitted.toLocaleString("en-US")} characters omitted for display; the full result stays in the session log.] …\n\n` +
-		points.slice(points.length - keep).join("")
+		text.slice(-keep)
 	);
 }

@@ -11,7 +11,9 @@ import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { lyraHome, previewsHome } from "@lyra/core";
-import { net, protocol, session } from "electron";
+import { nativeImage, net, protocol, session } from "electron";
+import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
+import { safeMediaName, sessionMediaPath } from "@lyra/core";
 
 export const MEDIA_SCHEME = "ly-media";
 export const PREVIEW_SCHEME = "ly-preview";
@@ -153,6 +155,69 @@ function contentTypeFor(path: string): string {
 	);
 }
 
+async function serveParkedMedia(url: URL): Promise<Response> {
+	const name = safeMediaName(decodeURIComponent(url.pathname.replace(/^\//, "")));
+	if (!name) return new Response("not found", { status: 404 });
+	const body = await readFile(sessionMediaPath(name)).catch(() => null);
+	if (!body) return new Response("not found", { status: 404 });
+	const thumb = Number(url.searchParams.get("thumb"));
+	if (thumb > 0) {
+		const image = nativeImage.createFromBuffer(body);
+		if (!image.isEmpty()) {
+			const { width, height } = image.getSize();
+			const edge = Math.max(width, height);
+			if (edge > thumb) {
+				const scale = thumb / edge;
+				const png = image.resize({
+					width: Math.max(1, Math.round(width * scale)),
+					height: Math.max(1, Math.round(height * scale)),
+				}).toPNG();
+				return new Response(Uint8Array.from(png), {
+					headers: { "content-type": "image/png", "cache-control": "private, max-age=31536000" },
+				});
+			}
+		}
+	}
+	const type = name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "image/png";
+	return new Response(Uint8Array.from(body), { headers: { "content-type": type, "cache-control": "private, max-age=31536000" } });
+}
+
+async function serveSessionImage(
+	url: URL,
+	load:
+		| ((ref: { projectId: string; sessionId: string; timestamp: number; imageIndex: number }) => Promise<{
+				data: string;
+				mimeType: string;
+		  } | null>)
+		| undefined,
+): Promise<Response> {
+	const parsed = parseSessionImageUrl(url.href);
+	if (!parsed || !load || !parsed.projectId || !parsed.sessionId) return new Response("not found", { status: 404 });
+	const part = await load(parsed);
+	if (!part) return new Response("not found", { status: 404 });
+	const bytes = Buffer.from(part.data, "base64");
+	if (parsed.thumb) {
+		const image = nativeImage.createFromBuffer(bytes);
+		if (!image.isEmpty()) {
+			const { width, height } = image.getSize();
+			const edge = Math.max(width, height);
+			if (edge > parsed.thumb) {
+				const scale = parsed.thumb / edge;
+				const png = image.resize({
+					width: Math.max(1, Math.round(width * scale)),
+					height: Math.max(1, Math.round(height * scale)),
+				}).toPNG();
+				return new Response(Uint8Array.from(png), {
+					headers: { "content-type": "image/png", "cache-control": "private, max-age=31536000" },
+				});
+			}
+		}
+	}
+	return new Response(Uint8Array.from(bytes), {
+		headers: { "content-type": part.mimeType, "cache-control": "private, max-age=31536000" },
+	});
+}
+
 /**
  * Register both schemes, on the default session and on the browser panel's partition.
  *
@@ -164,8 +229,11 @@ function contentTypeFor(path: string): string {
 export function registerPreviewProtocols(options: {
 	browserPartition: string;
 	resolveMedia(target: string): Promise<string | null>;
+	loadSessionImage?(
+		ref: { projectId: string; sessionId: string; timestamp: number; imageIndex: number },
+	): Promise<{ data: string; mimeType: string } | null>;
 }): void {
-	const { browserPartition, resolveMedia } = options;
+	const { browserPartition, resolveMedia, loadSessionImage } = options;
 
 	/*
 	 * `ly-media://f/<encoded absolute path>`. Decoding it here is the only place it becomes a path
@@ -182,7 +250,14 @@ export function registerPreviewProtocols(options: {
 	 * stops being a way through.
 	 */
 	protocol.handle(MEDIA_SCHEME, async (request) => {
-		const target = decodeURIComponent(new URL(request.url).pathname.replace(/^\//, ""));
+		const url = new URL(request.url);
+		if (url.hostname === SESSION_IMAGE_HOST) {
+			return serveSessionImage(url, loadSessionImage);
+		}
+		if (url.hostname === SESSION_MEDIA_HOST) {
+			return serveParkedMedia(url);
+		}
+		const target = decodeURIComponent(url.pathname.replace(/^\//, ""));
 		const allowed = target ? await resolveMedia(target) : null;
 		if (!allowed) return new Response("forbidden", { status: 403 });
 		return net.fetch(pathToFileURL(allowed).toString(), { headers: request.headers, method: request.method });

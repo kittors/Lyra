@@ -1,8 +1,5 @@
 /**
- * Git rows use the same reserved slot as a session row.
- *
- * A full-width name with icons on top is the overlap SessionRow's comment forbids.
- * A per-row reservation (one button, three, 「当前」) is the empty boxes of different widths.
+ * Session, project, and git rows share HoverRow: fill, overlay, fade on hover.
  */
 
 import assert from "node:assert/strict";
@@ -11,39 +8,56 @@ import { test } from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("session, project, and git rows share HoverRow", async () => {
-	const files = [
-		"src/features/sidebar/SessionRow.tsx",
-		"src/features/sidebar/ProjectHead.tsx",
-		"src/features/git/BranchRow.tsx",
-		"src/features/git/CheckoutRow.tsx",
-	];
-	for (const file of files) {
+test("session and project rows use the shared HoverRow shell", async () => {
+	for (const file of ["src/features/sidebar/SessionRow.tsx", "src/features/sidebar/ProjectHead.tsx"]) {
 		const source = await readFile(new URL(file, root), "utf8");
-		assert.match(source, /from "\.\.\/.*ui\/row\/HoverRow\.tsx"/, file);
+		assert.match(source, /ui\/row\/HoverRow/, file);
+		assert.match(source, /HoverRowReveal/, file);
 	}
+	const session = await readFile(new URL("src/features/sidebar/SessionRow.tsx", root), "utf8");
+	assert.match(session, /pr-1\.5/);
+	assert.doesNotMatch(session, /actionsCount === 2 \? "pr-14" : "pr-8"/);
+	assert.match(session, /group-hover\/row:text-ink/);
 });
 
-test("the fade yields on the shared row, not a per-list group name", async () => {
+test("the fade keys off the shared hover-row attribute", async () => {
 	const css = await readFile(new URL("src/styles/thinking-ticker.css", root), "utf8");
 	assert.match(css, /\[data-ly-hover-row\]:hover \.ly-fade-tail/);
-	assert.match(css, /--ly-fade-right:\s*var\(--ly-row-controls/);
-	assert.doesNotMatch(css, /group\\\/branch/);
+	assert.match(css, /--ly-fade-clear:\s*var\(--ly-row-controls/);
+	assert.doesNotMatch(css, /--ly-fade-right:\s*var\(--ly-row-controls/);
 	assert.doesNotMatch(css, /group\\\/session:hover/);
 });
 
-test("worktrees do not indent the icon past the repo icon", async () => {
-	const view = await readFile(new URL("src/features/git/BranchesView.tsx", root), "utf8");
-	const checkout = await readFile(new URL("src/features/git/CheckoutRow.tsx", root), "utf8");
-	assert.doesNotMatch(view, /pl-5/);
-	assert.doesNotMatch(checkout, /pl-5/);
-	assert.match(checkout, /HoverRowMark/);
-	assert.match(checkout, /GIT_CONTROLS/);
+test("the shared mask keeps a solid clear zone under the icons", async () => {
+	const css = await readFile(new URL("src/styles/marquee.css", root), "utf8");
+	assert.match(css, /@property --ly-fade-clear/);
+	assert.match(css, /transparent calc\(100% - var\(--ly-fade-clear\)\)/);
+	assert.match(css, /#000 calc\(100% - var\(--ly-fade-right\) - var\(--ly-fade-clear\)\)/);
 });
 
-test("every branch row reserves the same trailing slot", async () => {
-	const row = await readFile(new URL("src/features/git/BranchRow.tsx", root), "utf8");
-	assert.match(row, /GIT_CONTROLS/);
-	assert.doesNotMatch(row, /pr-\[76px\]|pr-\[52px\]|pr-7/);
-	assert.match(row, /HoverRowMark/);
+test("the reveal is a shrink-wrap overlay on group/row", async () => {
+	const row = await readFile(new URL("src/ui/row/HoverRow.tsx", root), "utf8");
+	assert.match(row, /data-ly-hover-row/);
+	assert.match(row, /group\/row/);
+	assert.match(row, /absolute inset-y-0 right-0/);
+	assert.match(row, /px-1\.5/);
+	assert.match(row, /group-hover\/row:opacity-100/);
+	assert.match(row, /titleRight - overlay\.left/);
+	assert.doesNotMatch(row, /width:\s*"var\(--ly-row-controls\)"/);
+	assert.doesNotMatch(row, /group\/branch/);
+});
+
+test("the marquee duplicate stays off-screen until hover", async () => {
+	const scroll = await readFile(new URL("src/ui/scroll/ScrollText.tsx", root), "utf8");
+	assert.match(scroll, /data-ly-scroll-dup/);
+	assert.match(scroll, /left:\s*width \+ GAP/);
+	assert.match(scroll, /invisible/);
+	const css = await readFile(new URL("src/styles/marquee.css", root), "utf8");
+	assert.match(css, /\[data-ly-scroll-dup\]/);
+});
+
+test("worktrees do not indent the icon past the repo icon", async () => {
+	const checkout = await readFile(new URL("src/features/git/CheckoutRow.tsx", root), "utf8");
+	assert.doesNotMatch(checkout, /pl-5/);
+	assert.match(checkout, /HoverRowMark/);
 });

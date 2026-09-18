@@ -35,6 +35,11 @@ export type Cache = Record<
 /** How many transcripts to hold. Enough to cover switching around a project, not a whole day. */
 const CACHE_LIMIT = 12;
 
+/** True when the parked copy is the same finished log the sidebar is pointing at. */
+export function cacheIsFresh(cached: Cache[string] | undefined, meta: SessionMeta): cached is Cache[string] {
+	return Boolean(cached && !cached.dirty && !cached.state?.running && cached.meta.seq === meta.seq);
+}
+
 /** Drop the least recently used entries, never the one being opened. */
 export function prune(cache: Cache, keep: string): Cache {
   const ids = Object.keys(cache);

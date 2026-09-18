@@ -35,7 +35,7 @@ test("a control hidden until hover is revealed", () => {
 	);
 	// SessionRow: rename, archive, delete.
 	assert.equal(
-		revealed("pointer-events-none absolute inset-y-0 right-0 flex opacity-0 group-hover/session:opacity-100"),
+		revealed("pointer-events-none absolute inset-y-0 right-0 flex opacity-0 group-hover/row:opacity-100"),
 		true,
 	);
 });

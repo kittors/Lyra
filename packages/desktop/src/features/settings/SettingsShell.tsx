@@ -5,6 +5,7 @@ import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { sectionFor } from "./sections-for.ts";
 import { settingsGroups } from "./settings-navigation.ts";
+import { SettingsNav } from "./SettingsNav.tsx";
 import type { SettingsSection } from "../../store/index.ts";
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -119,7 +120,7 @@ export function SettingsShell() {
 		 * two columns read as one undifferentiated field. The workspace already answers this: the
 		 * nav is tinted and the thing you are working in is the plain page.
 		 */
-		<div className={`ly-shell relative flex h-full ${headerBar ? "flex-col" : ""}`}>
+		<div data-ly-settings className={`ly-shell relative flex h-full ${headerBar ? "flex-col" : ""}`}>
 			{/* 有 header 的平台上，窗口的两端都收在这条带子里；没有的平台走下面那条浮动的老路。 */}
 			{headerBar && (
 				<WindowHeader navOpen={navOpen} compact={compact} onToggleNav={toggleNav}>
@@ -154,37 +155,16 @@ export function SettingsShell() {
 						</button>
 					</div>
 
-					{/* Same as the workspace sidebar: both ends soften. */}
-					<Scroller className="flex-1" contentClassName={`pb-3 ${compact ? "px-3" : "px-2.5"}`}>
-						{groups.map((group) => (
-							// Spaced for the same reason as the session list: adjacent filled rows
-							// would otherwise merge into one block on hover.
-							<div key={group.labelKey} className="flex flex-col gap-[2px]">
-								<div className="px-2 pt-4 pb-1 text-detail text-ink-faint">{t(group.labelKey)}</div>
-								{group.items.map((item) => (
-									<button
-										key={item.id}
-										aria-current={section === item.id ? "page" : undefined}
-										type="button"
-										onClick={() => {
-											setSection(item.id);
-											dismissNav();
-										}}
-										className={`flex w-full items-center gap-2.5 rounded-lg px-2 text-left text-label transition-colors ${
-											compact ? "h-[40px]" : "h-[32px]"
-										} ${
-											section === item.id
-												? "bg-card-hover text-ink"
-												: "text-ink-muted hover:bg-card-hover/60 hover:text-ink"
-										}`}
-									>
-										<item.icon size={15} strokeWidth={1.8} className="shrink-0" />
-										{t(item.labelKey)}
-									</button>
-								))}
-							</div>
-						))}
-					</Scroller>
+					<SettingsNav
+						groups={groups}
+						section={section}
+						compact={compact}
+						label={t}
+						onPick={(id) => {
+							setSection(id);
+							dismissNav();
+						}}
+					/>
 
 					<div className={`pb-3 ${compact ? "px-3" : "px-2.5"}`}>
 						{/* The dashed edge marks it as the odd one out; the fill on hover keeps it
@@ -214,7 +194,7 @@ export function SettingsShell() {
 				 * scroller as well would give the window two nested scrollbars for one screen, and
 				 * the outer one would move the pane headers out from over their own content.
 				 */}
-				<RetainedViews key={workspaceKey} active={section} limit={4} render={(section) => SELF_SCROLLING.has(section) ? (
+				<RetainedViews key={workspaceKey} active={section} limit={4} pageClassName="ly-settings-enter" render={(section) => SELF_SCROLLING.has(section) ? (
 					<div
 						className={
 							section === "plugins"

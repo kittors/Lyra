@@ -46,9 +46,16 @@ export interface ThinkingContent {
 
 export interface ImageContent {
 	type: "image";
-	/** base64, no data: prefix */
+	/** base64, no data: prefix. Empty on the display path when pixels live in `media`. */
 	data: string;
 	mimeType: string;
+	/**
+	 * Content-addressed file under `session-media`.
+	 *
+	 * The window only ever sees this name. The model gets `data` back at the
+	 * request boundary, not when a conversation is opened.
+	 */
+	media?: string;
 }
 
 export interface ToolCallContent {

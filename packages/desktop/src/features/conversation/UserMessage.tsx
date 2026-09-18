@@ -21,6 +21,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { lastUserMessageIndex } from "../../lib/revert-draft.ts";
 import { afterPaint } from "../../lib/after-paint.ts";
+import { SESSION_THUMB_EDGE, sessionMediaUrl } from "../../../shared/session-image.ts";
 /**
  * A message you sent, with the two things you want from one afterwards: to copy it, and to
  * take it back.
@@ -31,6 +32,24 @@ import { afterPaint } from "../../lib/after-paint.ts";
  * the question that replaced it.
  */
 type ImageBlock = Extract<UserContent, { type: "image" }>;
+
+function imageSrc(block: ImageBlock | undefined, path: string | undefined): { src?: string; full?: string } {
+	if (block?.media) {
+		return {
+			src: sessionMediaUrl(block.media, SESSION_THUMB_EDGE),
+			full: sessionMediaUrl(block.media),
+		};
+	}
+	if (block?.data) {
+		const url = `data:${block.mimeType};base64,${block.data}`;
+		return { src: url, full: url };
+	}
+	if (path) {
+		const url = bridge.files.mediaUrl(path);
+		return { src: url, full: url };
+	}
+	return {};
+}
 
 
 
@@ -60,6 +79,7 @@ function attachmentsOf(
     seen.set(kind, kindIndex);
     const block = kind === "image" ? images[at] : undefined;
     if (block) at++;
+    const refs = imageSrc(block, file.path);
     files.push({
       key: `${index}-${file.name}`,
       name: file.name,
@@ -75,7 +95,8 @@ function attachmentsOf(
        */
       label: file.label ?? displayName({ name: file.name, kindLabel: label(kind), kindIndex }, regionShot),
       tip: `${file.name}\n${label(kind)}`,
-      ...(block ? { src: `data:${block.mimeType};base64,${block.data}` } : {}),
+      ...(refs.src ? { src: refs.src } : {}),
+      ...(refs.full ? { full: refs.full } : {}),
       /*
        * 发送时它在哪儿。
        *
@@ -86,11 +107,13 @@ function attachmentsOf(
     });
   }
   for (; at < images.length; at++) {
+    const refs = imageSrc(images[at], undefined);
     files.push({
       key: `image-${at}`,
       name: "",
       kind: "image",
-      src: `data:${images[at].mimeType};base64,${images[at].data}`,
+      ...(refs.src ? { src: refs.src } : {}),
+      ...(refs.full ? { full: refs.full } : {}),
     });
   }
   return files;
@@ -112,12 +135,13 @@ export function UserMessage({
   const attachmentActions = useAttachmentActions();
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
   const previewImage = (src: string, originRect?: DOMRect) => {
-    const imgIndex = images.findIndex((img) => `data:${img.mimeType};base64,${img.data}` === src);
+    const pictures = files.filter((file) => file.kind === "image" && (file.full || file.src));
+    const imgIndex = pictures.findIndex((file) => file.full === src || file.src === src);
     if (imgIndex < 0) return;
     const tile = document.querySelectorAll<HTMLElement>(`[data-question-index="${index}"] .ly-attachment-body`)[imgIndex] ?? null;
     const origin = originRect ?? tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
     openViewer(
-      images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
+      pictures.map((file) => ({ src: file.full ?? file.src! })),
       imgIndex,
       origin,
       tile,
@@ -154,7 +178,13 @@ export function UserMessage({
     [message.content],
   );
   const files = useMemo(
-    () => attachmentsOf(message, images, (kind) => t(KIND_LABEL[kind]), t("composer.regionShot")),
+    () =>
+      attachmentsOf(
+        message,
+        images,
+        (kind) => t(KIND_LABEL[kind]),
+        t("composer.regionShot"),
+      ),
     [message, images, t],
   );
   const text = message.displayText ?? rawText;
@@ -183,7 +213,7 @@ export function UserMessage({
           name: file.name,
           label: file.label,
           kind: file.kind,
-          src: file.src,
+          src: file.full ?? file.src,
           /*
            * 它在磁盘上的位置也要带过来。
            *
@@ -303,7 +333,7 @@ export function UserMessage({
             onOpen={(index, event) =>
               openFromEvent(
                 event,
-                images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
+                shown.map((file) => ({ src: file.full ?? file.src! })),
                 index,
               )
             }

@@ -46,7 +46,7 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 				if (open && event.propertyName === "grid-template-rows") setClipped(false);
 			}}
 		>
-			<div className={clipped ? "overflow-hidden" : ""} inert={!open}>
+			<div className={`${clipped ? "overflow-hidden" : ""} ${open ? "" : "pointer-events-none"}`} inert={!open}>
 				{children}
 			</div>
 		</div>

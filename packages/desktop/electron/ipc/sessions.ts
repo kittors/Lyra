@@ -129,7 +129,7 @@ export function registerSessionsIpc({
 				return snapshot(live);
 			}
 
-			const loaded = await store.load(projectId, sessionId);
+			const loaded = await store.load(projectId, sessionId, { display: true });
 			if (!loaded) return null;
 			const delay = Number(process.env.LYRA_E2E_SLOW_TRANSCRIPT ?? 0);
 			if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));

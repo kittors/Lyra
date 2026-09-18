@@ -155,6 +155,48 @@
 }
 
 /*
+ * Settings sections. The workspace page fade starts at 0.88, which is a hard cut
+ * with a name. Here the incoming column rises 6px and fills in, and flipping
+ * `data-active` restarts it without remounting the page.
+ */
+@keyframes ly-settings-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.ly-settings-enter[data-active="true"] {
+	animation: ly-settings-in var(--ly-t-base) var(--ly-e-out) both;
+}
+
+.ly-settings-nav-pill {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	z-index: 0;
+	border-radius: 8px;
+	background: var(--color-card-hover);
+	height: var(--ly-nav-pill-h, 32px);
+	transform: translateY(var(--ly-nav-pill-y, 0));
+	pointer-events: none;
+	transition:
+		transform var(--ly-t-base) var(--ly-e-out),
+		height var(--ly-t-base) var(--ly-e-out),
+		opacity var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-settings-nav-pill[data-ready="false"] {
+	opacity: 0;
+	transition: none;
+}
+
+/*
  * Session switch: opacity only, from 0, on a remounted wrapper.
  *
  * A 3px translate on a tall transcript is the jump people reported — the whole column

@@ -14,23 +14,15 @@ import { useSplit } from "./store.ts";
 import { useSplitOverlay } from "./overlay.ts";
 
 /**
- * How long the pointer has to stay on one row before we swap the live transcript.
- *
- * A determined mash is 80–300ms between presses. 140ms sat inside that window, so
- * every press still parked the last chat, replaced the split leaf, and remounted
- * sixty rows — that is the freeze, not the row highlight. The row still lights in
- * the click turn; this timer is only the expensive half, and a newer click resets it.
+ * Kept for tests that wait out the old burst window. The pane now swaps on
+ * every press — retained trees made remounting every row cheap. Disk reads
+ * still collapse to the last id in `readSelectedSession`.
  */
 export const SESSION_SETTLE_MS = 360;
 
-let settleTimer: ReturnType<typeof setTimeout> | null = null;
-let settleTarget: SessionMeta | null = null;
-
-/** Drop a queued hydrate. Tests call this so a timer from the last case cannot land in the next. */
+/** Tests call this between cases. Hydrate is no longer a timer, so there is nothing to drop. */
 export function abandonSessionReveal(): void {
-	if (settleTimer !== null) clearTimeout(settleTimer);
-	settleTimer = null;
-	settleTarget = null;
+	return;
 }
 
 function stillWants(id: string): boolean {
@@ -39,18 +31,10 @@ function stillWants(id: string): boolean {
 }
 
 function queueSettle(meta: SessionMeta): void {
-	settleTarget = meta;
-	if (settleTimer !== null) clearTimeout(settleTimer);
-	settleTimer = setTimeout(() => {
-		settleTimer = null;
-		void commitSettle();
-	}, SESSION_SETTLE_MS);
+	void commitSettle(meta);
 }
 
-async function commitSettle(): Promise<void> {
-	const target = settleTarget;
-	settleTarget = null;
-	if (!target) return;
+async function commitSettle(target: SessionMeta): Promise<void> {
 	if (!stillWants(target.id)) return;
 	if (useApp.getState().pendingSessionId == null && useApp.getState().activeSessionId === target.id) return;
 	/*
@@ -61,17 +45,19 @@ async function commitSettle(): Promise<void> {
 	 * until `show` runs — the flash after a click. Move the leaf now, then hydrate.
 	 */
 	useSplit.getState().show(target.id);
+	if (!stillWants(target.id)) return;
 	await useApp.getState().openSession(target);
 	if (useApp.getState().activeSessionId !== target.id) return;
 	useSplit.getState().show(target.id);
 }
 
 /**
- * Light the sidebar row in this turn. Hydrate only after the click stream goes quiet.
+ * Light the sidebar row and swap the pane in this turn.
  *
- * `openSession` parks the last chat and mounts the next one. Doing that per click
- * is what locked the main thread when someone raked the list. The row only needs
- * `pendingSessionId`. The rest waits `SESSION_SETTLE_MS` and keeps only the last id.
+ * A 360ms quiet window used to hold the transcript on the first row while
+ * later presses only changed the highlight. People click 200–350ms apart, so
+ * the chat they pointed at never arrived until they stopped. Cached trees
+ * and a single in-flight disk read make a swap on every press cheap.
  */
 export function revealSession(meta: SessionMeta): void {
 	useApp.getState().previewSession(meta);

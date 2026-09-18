@@ -156,7 +156,7 @@ export const RPC: Record<string, Handler> = {
 			deps.touch(s(sessionId));
 			return deps.snapshot(warm);
 		}
-		const loaded = await deps.store().load(s(projectId), s(sessionId));
+		const loaded = await deps.store().load(s(projectId), s(sessionId), { display: true });
 		if (!loaded) return null;
 		return slimSnapshot({
 			meta: loaded.meta,

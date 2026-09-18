@@ -89,7 +89,7 @@ const readCase = (index: number) =>
 			stripY: Math.round(sr.y + sr.height / 2),
 			paddingRight: getComputedStyle(main).paddingRight,
 			stripOpacity: getComputedStyle(strip).opacity,
-			fade: title ? (getComputedStyle(title).getPropertyValue("--ly-fade-right") || "-").trim() : "-",
+			fade: title ? (getComputedStyle(title).getPropertyValue("--ly-fade-clear") || getComputedStyle(title).getPropertyValue("--ly-fade-right") || "-").trim() : "-",
 			focused: document.activeElement ? document.activeElement.tagName + ":" + (document.activeElement.textContent || "").trim().slice(0, 8) : "none",
 			hovered: row.matches(":hover"),
 		};
@@ -127,20 +127,20 @@ try {
 		host.id = "ly-probe-row";
 		host.style.cssText = "position:fixed;left:20px;top:120px;width:240px;z-index:99999";
 		const rows = [
-			// HoverRow as SessionRow uses it: reserved slot, overlay strip.
-			["会话行", \`<div data-case data-ly-hover-row class="ly-scroll group/row relative rounded-lg hover:bg-card-hover" style="--ly-row-controls:58px">
-				<button type="button" data-main class="flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 text-left text-label h-[27px]" style="padding-right:var(--ly-row-controls)">
+			// SessionRow: the strip, and the room the title button makes for it.
+			["会话行", \`<div data-case data-ly-hover-row class="ly-scroll group/row relative rounded-lg hover:bg-card-hover" style="--ly-row-controls:48px">
+				<button type="button" data-main class="flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-1.5 text-left text-label transition-[color,background-color] h-[27px]">
 					<span data-title class="ly-fade-tail min-w-0 flex-1">会话标题</span>
 				</button>
-				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end rounded-r-lg pr-1.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
+				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-lg px-1.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
 					<button type="button" class="pointer-events-auto rounded p-1">P</button>
 				</span></div>\`],
-			// HoverRow as ProjectHead uses it.
-			["项目行", \`<div data-case data-ly-hover-row class="ly-scroll group/row relative rounded-lg" style="--ly-row-controls:52px">
-				<button type="button" data-main class="flex w-full items-center gap-2.5 rounded-lg pl-2 text-left text-label h-[27px]" style="padding-right:var(--ly-row-controls)">
+			// ProjectHead: same strip, no padding change on the title.
+			["项目行", \`<div data-case data-ly-hover-row class="ly-scroll group/row relative rounded-lg" style="--ly-row-controls:48px">
+				<button type="button" data-main class="flex w-full items-center gap-2.5 rounded-lg pr-2 pl-2 text-left text-label h-[27px]">
 					<span data-title class="ly-fade-tail min-w-0 flex-1">项目名</span>
 				</button>
-				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end rounded-r-lg pr-1.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
+				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-lg px-1.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
 					<button type="button" class="pointer-events-auto rounded p-1">M</button>
 				</span></div>\`],
 			// MessageActions.
@@ -148,12 +148,12 @@ try {
 				<span data-strip class="mt-1 flex h-6 items-center gap-1.5 opacity-0 transition-opacity group-hover/msg:opacity-100 has-[:focus-visible]:opacity-100">
 					<button type="button" class="rounded p-1">C</button>
 				</span></div>\`],
-			// HoverRow as BranchRow uses it.
-			["分支行", \`<div data-case data-ly-hover-row class="ly-scroll group/row relative rounded-lg" style="--ly-row-controls:76px">
-				<div data-main class="flex min-w-0 items-center h-[27px]" style="padding-right:var(--ly-row-controls)">
+			// BranchRow: git-only HoverRow, group/branch.
+			["分支行", \`<div data-case data-ly-hover-row class="ly-scroll group/row relative rounded-lg" style="--ly-row-controls:48px">
+				<div data-main class="flex min-w-0 items-center pr-1.5 h-[27px]">
 					<span data-title class="ly-fade-tail min-w-0 flex-1">分支</span>
 				</div>
-				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end rounded-r-md pr-1.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
+				<span data-strip class="pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-md px-1.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
 					<button type="button" class="pointer-events-auto rounded p-1">B</button>
 				</span></div>\`],
 			// PreviewCard: the strip is always faintly there and comes up on hover.
