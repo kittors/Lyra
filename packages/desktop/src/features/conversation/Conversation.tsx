@@ -303,6 +303,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
         onScroll={follow.onScroll}
         onResize={follow.onResize}
         onUserScroll={follow.onUserScroll}
+        onHold={follow.hold}
+        onSettle={follow.settle}
       >
         {/*
          * One tree per conversation. The pane keeps the last few mounted, so this

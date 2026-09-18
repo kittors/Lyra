@@ -32,6 +32,13 @@ import { motionReduced } from "../motion/reduced.ts";
 
 /** How long the ride back down takes. The curve matches `--ly-e-out`, like everything else here. */
 const GLIDE_MS = 420;
+/**
+ * 一次按下能按住多久的锚。
+ *
+ * 要盖住展开动画走完（`--ly-t-slow` 那一档）加上图片落位，又不能长到把后面一次无关的长高也
+ * 按住。滚一下就作废，所以宁可稍长。
+ */
+const HOLD_MS = 900;
 
 export interface FollowBottom {
 	/** Hand to `Scroller`'s `scrollRef`. */
@@ -75,6 +82,21 @@ export interface FollowBottom {
 	 * position afterwards along with everything else that moves a transcript.
 	 */
 	onUserScroll(direction: Direction): void;
+	/**
+	 * Hand to `Scroller`'s `onHold`: what the reader has just put a finger on.
+	 *
+	 * 展开一段折叠区会让转录长高，而长高本身分不清是「新消息到了」还是「读者点开了手里这一块」。
+	 * 这一条就是那个区别：按下时记住按到的元素在视口的哪个高度，接下来这一次长高把它放回原处，
+	 * 跟随底部让路。没有它，点开历史里的一个工具组会把读者直接甩到转录末尾。
+	 */
+	hold(target: EventTarget | null): void;
+	/**
+	 * Hand to `Scroller`'s `onSettle`: run inside the resize callback, before the frame is painted.
+	 *
+	 * 和 `onResize` 是同一件事的两半。这一半只改 `scrollTop`，所以能同步跑在 `ResizeObserver`
+	 * 的回调里——展开动画每一帧都长高一点，修正晚一帧就是一串看得见的小抖。
+	 */
+	settle(el: HTMLDivElement): boolean;
 }
 
 export function useFollowBottom({
@@ -148,6 +170,19 @@ export function useFollowBottom({
 	 */
 	const touchY = useRef(0);
 
+	/*
+	 * 刚被按下的那个东西，和它当时在视口里的高度。
+	 *
+	 * 展开一段折叠区会让转录长高，而长高会走 `onResize`——那里只问一句「在不在跟随底部」，在就
+	 * 滚到底。于是点开一个历史里的折叠区，读者被直接带到转录末尾：量过一次「调用工具 42 个」，
+	 * 点中的那个按钮当场飞出视口 1952px；「再显示 1 个文件」则是整段文字平移 36px。人说的「点
+	 * 一下就在跳」就是这个。
+	 *
+	 * 按下时记住它的位置，长高之后把它放回原处——点开的那一段自然向下延展，手指底下的东西一动
+	 * 不动。这是「跟随底部」唯一该让路的时候：读者正在看的是手里这一块，不是末尾。
+	 */
+	const anchor = useRef<{ el: HTMLElement; top: number; until: number } | null>(null);
+
 	const read = (el: HTMLDivElement): Reading => ({
 		scrollTop: el.scrollTop,
 		scrollHeight: el.scrollHeight,
@@ -167,6 +202,38 @@ export function useFollowBottom({
 			written.current = null;
 		});
 	}, []);
+
+	/**
+	 * 把锚点放回按下时那个高度。返回 true 表示这一次长高由锚点做主，跟随底部不要插手。
+	 *
+	 * 只碰 `scrollTop`，不碰任何 React 状态——它要能在 `ResizeObserver` 的回调里**同步**跑完。
+	 * 那个回调发生在布局之后、绘制之前，是这一帧最后一次还来得及改位置的机会；推到 rAF 里就晚
+	 * 了一帧，当帧已经拿旧位置画过一遍，展开动画走完就是肉眼可见的一串小抖（量到 14px）。
+	 *
+	 * 返回 true 的时机也是要点：不光锚点漂了要挪，**没漂也得拦住**跟随底部。一段在底部附近展开
+	 * 的折叠区照样把 `scrollHeight` 撑大，不拦就被原样拉到底。
+	 */
+	const settle = useCallback(
+		(el: HTMLDivElement): boolean => {
+			const held = anchor.current;
+			if (!held) return false;
+			if (performance.now() > held.until || !held.el.isConnected) {
+				anchor.current = null;
+				return false;
+			}
+			/*
+			 * 自己把它挪回去，不要指望浏览器原生的 scroll anchoring。
+			 *
+			 * 试过只拦不挪：展开一个大工具组（长高 952px）时原生锚定确实顶住了，一动不动；而展开
+			 * 底部那张文件卡（36px）它整整漏掉 36px，按钮被推走多少就是多少。两种一起量才看得出
+			 * 来——只测大的那个会得出「原生的就够了」这个错结论。
+			 */
+			const drift = held.el.getBoundingClientRect().top - held.top;
+			if (Math.abs(drift) >= 1) write(el, el.scrollTop + drift);
+			return true;
+		},
+		[write],
+	);
 
 	/** Redraw whatever is derived from where we are. */
 	const publish = useCallback((reading: Reading) => {
@@ -197,6 +264,8 @@ export function useFollowBottom({
 			state.current = nextState(before, { kind: "user-scroll", direction }, reading);
 			// Leaving `returning` for any reason means the ride is off.
 			if (before === "returning" && state.current !== "returning") cancelAnimationFrame(glide.current);
+			// 自己滚开了，手里那个锚就不是「正在看的东西」了。
+			anchor.current = null;
 			publish(reading);
 		},
 		[publish],
@@ -329,12 +398,31 @@ export function useFollowBottom({
 				restoredSurface.current = surfaceId;
 				if (state.current === "detached" && restore.current) write(el, restore.current.scrollTop);
 			}
+			// 手里按着东西的时候，跟随底部让路——细节见 `settle`。
+			if (settle(el)) {
+				publish(read(el));
+				return;
+			}
 			const target = targetScrollTop(state.current, reading);
 			if (target !== null) write(el, target);
 			publish(read(el));
 		},
-		[publish, write, ready, surfaceId],
+		[publish, write, ready, surfaceId, settle],
 	);
+
+	/**
+	 * 按在转录上的那一下：记住按到的是谁，以及它此刻在视口的哪个高度。
+	 *
+	 * 挂在捕获阶段，比任何 `onClick` 都早——展开的那一帧要用的是**按下时**的位置，等到点击冒泡
+	 * 上来，布局可能已经变了。
+	 *
+	 * 不挑按钮也不挑元素：不改变高度的点击根本不会走到 `onResize`，锚点在超时后自己过期，什么
+	 * 也不会发生。挑，反而要在这里重写一遍「哪些东西点了会变高」，而那份名单一定会漏。
+	 */
+	const hold = useCallback((target: EventTarget | null) => {
+		if (!(target instanceof HTMLElement)) return;
+		anchor.current = { el: target, top: target.getBoundingClientRect().top, until: performance.now() + HOLD_MS };
+	}, []);
 
 	// ---------------------------------------------------------------------------
 	// Going back
@@ -538,5 +626,5 @@ export function useFollowBottom({
 		};
 		glide.current = requestAnimationFrame(step);
 	}, [detach, publish, write]);
-	return { scrollRef, tailRef, away, unread, returnToBottom, onScroll, onResize, onUserScroll: intend, detach, scrollTo };
+	return { scrollRef, tailRef, away, unread, returnToBottom, onScroll, onResize, onUserScroll: intend, detach, scrollTo, hold, settle };
 }

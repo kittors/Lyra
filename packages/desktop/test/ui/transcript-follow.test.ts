@@ -514,3 +514,80 @@ test("a reading taken while hidden neither moves nor decides anything", async ()
 	assert.equal(el.scrollTop, bottom(), "a pane briefly reporting nothing is not the reader leaving");
 	await view.unmount();
 });
+
+// ---------------------------------------------------------------------------
+// 手指底下那一块，和跟随底部之间的优先次序
+//
+// 展开一段折叠区会让转录长高，而长高在 `onResize` 里跟「新消息到了」长得一模一样——处理方式却
+// 正好相反。真窗口量过：点开一个 952px 的工具组，点中的按钮当场飞出视口 1952px，因为跟随底部
+// 把读者一路带到了转录末尾。下面几条守的就是这个次序。
+// ---------------------------------------------------------------------------
+
+/** 一个位置由测试说了算的元素——happy-dom 不做布局，`getBoundingClientRect` 本来全是 0。 */
+function placed(top: number): { el: HTMLElement; move(to: number): void } {
+	const el = document.createElement("button");
+	let at = top;
+	document.body.appendChild(el);
+	el.getBoundingClientRect = () => ({ top: at, bottom: at + 20, left: 0, right: 0, width: 0, height: 20, x: 0, y: at, toJSON: () => ({}) }) as DOMRect;
+	return { el, move: (to: number) => { at = to; } };
+}
+
+test("没按住任何东西时，长高照旧跟到底", async () => {
+	const { view, el } = await open("grow-free");
+	assert.equal(el.scrollTop, bottom());
+	geometry.content += 500;
+	await act(async () => controls.onResize(el));
+	assert.equal(el.scrollTop, bottom(), "这是跟随底部本来该做的事，不能被锚定顺手改掉");
+	await view.unmount();
+});
+
+test("按住一块再展开，跟随底部让路，点中的那个留在原处", async () => {
+	const { view, el } = await open("held");
+	const was = el.scrollTop;
+	const anchor = placed(100);
+	controls.hold(anchor.el);
+	/*
+	 * 长高 500，而按住的那个只被推下 200——展开区一部分在它上方，一部分在它下方。
+	 *
+	 * 两个数字必须不一样，否则这条测试分不开对错：推下的量恰好等于长高的量时，「把锚点挪回原处」
+	 * 和「一路滚到底」算出来是同一个 `scrollTop`，改坏了也照样绿。
+	 */
+	geometry.content += 500;
+	anchor.move(300);
+	await act(async () => controls.onResize(el));
+	assert.equal(el.scrollTop, was + 200, "没有把它挪回按下时那个高度");
+	assert.notEqual(el.scrollTop, bottom(), "跟随底部把读者带到末尾了——这正是那 1952px");
+	await view.unmount();
+});
+
+test("按住的东西没被推动，也照样拦住跟随底部", async () => {
+	const { view, el } = await open("held-still");
+	const was = el.scrollTop;
+	controls.hold(placed(100).el);
+	// 在底部附近展开：锚点一动不动，`scrollHeight` 却撑大了。只看漂移就会漏掉这一种。
+	geometry.content += 500;
+	await act(async () => controls.onResize(el));
+	assert.equal(el.scrollTop, was, "锚点没漂移不等于可以放跟随底部过去");
+	await view.unmount();
+});
+
+test("自己滚开之后，手里那个锚就不算数了", async () => {
+	const { view, el } = await open("held-then-scrolled");
+	controls.hold(placed(100).el);
+	await wheel(el, -120);
+	geometry.content += 500;
+	await act(async () => controls.onResize(el));
+	assert.notEqual(el.scrollTop, bottom(), "滚上去的人不该被长高拽回底部");
+	await view.unmount();
+});
+
+test("按住的元素已经不在页面上了，锚点作废", async () => {
+	const { view, el } = await open("held-gone");
+	const anchor = placed(100);
+	controls.hold(anchor.el);
+	anchor.el.remove();
+	geometry.content += 500;
+	await act(async () => controls.onResize(el));
+	assert.equal(el.scrollTop, bottom(), "一个已经摘掉的锚不该再挡着跟随底部");
+	await view.unmount();
+});

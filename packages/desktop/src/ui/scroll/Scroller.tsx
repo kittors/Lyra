@@ -38,6 +38,8 @@ export function Scroller({
 	onScroll,
 	onResize,
 	onUserScroll,
+	onHold,
+	onSettle,
 	scrollRef,
 	scrollbar = true,
 }: {
@@ -75,6 +77,20 @@ export function Scroller({
 	 * the one component in a position to know.
 	 */
 	onUserScroll?: (direction: Direction) => void;
+	/**
+	 * 读者刚把手指按在了什么上面。
+	 *
+	 * 给跟随底部的那一方一个机会，把接下来这一次长高认成「读者点开了手里这一块」而不是「新消息
+	 * 到了」——两者在 `onResize` 里长得一模一样，而处理方式正好相反。
+	 */
+	onHold?: (target: EventTarget | null) => void;
+	/**
+	 * 长高的那一帧里，先把锚点放平。
+	 *
+	 * 在 `ResizeObserver` 的回调里同步调用，早于 `onResize`：那里是这一帧最后一次还来得及改
+	 * `scrollTop` 的地方。
+	 */
+	onSettle?: (element: HTMLDivElement) => boolean;
 	/** Exposed for callers that drive the scroll position themselves, like the transcript. */
 	scrollRef?: React.RefObject<HTMLDivElement | null>;
 	/** Narrow navigation rails use their own targets; an overlay thumb would intercept them. */
@@ -165,7 +181,17 @@ export function Scroller({
 		 * The mutation observer stays, and now has a second job: children come and go as messages
 		 * arrive, and a new one has to be picked up by the size observer too.
 		 */
-		const observer = new ResizeObserver(scheduleMeasure);
+		/*
+		 * 锚点在这里就地放平，其余的照旧推到下一帧。
+		 *
+		 * 这个回调跑在布局之后、绘制之前——是这一帧最后一次还来得及改 `scrollTop` 的机会。测量和
+		 * 那些跟着重画的状态留在 rAF 里（它们不急，而且同步做会把布局搅乱）；位置不能等，展开动画
+		 * 每一帧都长高一点，晚一帧就是一串看得见的小抖。
+		 */
+		const observer = new ResizeObserver(() => {
+			if (viewport.current) onSettle?.(viewport.current);
+			scheduleMeasure();
+		});
 		const watch = () => {
 			observer.disconnect();
 			observer.observe(el);
@@ -184,7 +210,7 @@ export function Scroller({
 			observer.disconnect();
 			mutations.disconnect();
 		};
-	}, [measure, onResize, viewport]);
+	}, [measure, onResize, onSettle, viewport]);
 
 	// Dragging continues outside the thumb, so the listeners live on the window.
 	useEffect(() => {
@@ -261,6 +287,13 @@ export function Scroller({
 					measure();
 					onScroll?.(event.currentTarget);
 				}}
+				/*
+				 * 捕获阶段，早于任何 onClick。
+				 *
+				 * 展开一段折叠区的那一帧要用的是**按下时**元素在视口的高度；等点击冒泡上来，布局
+				 * 已经变了，量到的是展开之后的位置，锚也就锚错了地方。
+				 */
+				onPointerDownCapture={(event) => onHold?.(event.target)}
 				/*
 				 * A flex child, not `height: 100%`.
 				 *
