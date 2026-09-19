@@ -121,6 +121,25 @@ export function TerminalPane() {
 			// 先把已有的全同步进来：切走过的项目里那些还在跑的 shell，标签条上必须找得到。
 			if (tabs.length > 0) useTerminals.getState().sync(tabs);
 			/*
+			 * A detached pane goes back to the shell it left, before asking the project anything.
+			 *
+			 * `focusProject` picks by directory, and a panel window mounts this pane in its very
+			 * first frame — before the workspace has resolved, so `startingCwd()` is still empty
+			 * there. `bridge.terminal.list("")` then matches nothing and the fallback opens a
+			 * *second* shell, beside the one still running the user's server. That is the whole of
+			 * 「终端启动了服务，新窗口打开什么都没有了」.
+			 *
+			 * Only for the panel window. In the primary window the directory really is the right
+			 * question — see the note below about a pane titled A showing B's shell.
+			 */
+			if (bridge.bootWindow?.kind === "panel") {
+				const saved = savedTerminal(scope);
+				if (saved && tabs.some((tab) => tab.id === saved)) {
+					useTerminals.getState().select(saved, scope);
+					return;
+				}
+			}
+			/*
 			 * 再把焦点落到当前这个项目上。
 			 *
 			 * 这一步从前没有，于是「当前是 A，而启动时预热的那个终端在 B」时，打开面板看到的是 B

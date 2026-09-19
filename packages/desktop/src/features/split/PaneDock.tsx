@@ -11,11 +11,11 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { translate } from "../../i18n/translate.ts";
-import { useApp } from "../../store/index.ts";
 import {
 	DockPane,
 	PaneGrip,
 	DockSplitter,
+	detachOf,
 	dockPct,
 	emptyDockTree,
 	fitTree,
@@ -31,7 +31,6 @@ import {
 	useDockDrag,
 	usePaneDock,
 	usePanelDefinitions,
-	useOverflowWindows,
 	type DockDragHost,
 	type PaneKind,
 } from "../dock/index.ts";
@@ -69,8 +68,9 @@ export function PaneDock({
 		[scope],
 	);
 	const { carried, start, landed } = useDockDrag(container, host);
-	useOverflowWindows({ tree, size, floor: tilePaneFloor, dock: "pane", scope, sessionId: scope === "@draft" ? null : scope,
-		paused: Boolean(carried || maximized), container, onFailure: (error) => useApp.getState().notify(String(error), "error") });
+	// A tile too small for its panels keeps them and draws them squeezed. It used to hand the
+	// trailing one to a real window, which a second screen alone was enough to trigger.
+
 
 	/*
 	 * 把这一屏存着的布局读回来。
@@ -175,7 +175,7 @@ export function PaneDock({
 						title={conversation ? undefined : renderPanelHeader(kind)}
 						onClose={conversation ? undefined : () => usePaneDock.getState().close(scope, kind)}
 						onToggleMaximized={conversation ? undefined : () => usePaneDock.getState().toggleMaximized(scope, kind)}
-						onPopOut={conversation ? undefined : () => void popOutPanel({ dock: "pane", scope, kind, sessionId: scope === "@draft" ? null : scope })}
+						onPopOut={conversation || detachOf(kind) === "none" ? undefined : () => void popOutPanel({ dock: "pane", scope, kind, sessionId: scope === "@draft" ? null : scope })}
 						onFocus={() => {}}
 						onLanded={landed}
 						customHeader={conversation ? <>

@@ -12,17 +12,23 @@ function reset() {
 	usePanelWindows.setState({ panels: [], opening: [] });
 }
 
-test("an overfull tile opens a native panel once and leaves the chat tree intact", async () => {
+/*
+ * An overfull tile keeps its panel — it does not hand it to a native window.
+ *
+ * This used to assert the opposite. `2026-09-19-2304-01` removed that route: it fired on an
+ * ordinary resize, and the panel did not work once it arrived. The guards for the new rule are in
+ * `dock-no-auto-popout.test.ts`; what is left here is the half that still matters — the tile's
+ * own tree is the thing that changes.
+ */
+test("an overfull tile takes the panel into its own tree", async () => {
 	reset();
 	const opened: unknown[] = [];
 	Reflect.set(window, "lyra", { windows: { openPanel: async (input: unknown) => { opened.push(input); return { ok: true }; } } });
 	usePaneDock.getState().rememberSize("width", { width: 700, height: 400 });
-	const tree = usePaneDock.getState().tree("width");
 	toggleScopedPanel("width", "browser");
 	await Promise.resolve();
-	assert.equal(usePaneDock.getState().tree("width"), tree);
-	assert.deepEqual(opened, [{ kind: "browser", scope: "width", sessionId: "width" }]);
-	assert.equal(has(tree, "browser"), false);
+	assert.ok(has(usePaneDock.getState().tree("width"), "browser"));
+	assert.deepEqual(opened, []);
 });
 
 test("failed native creation restores the original panel even after its tile became too small", async () => {
@@ -65,7 +71,15 @@ test("a rejected native creation restores its panel after the old neighbour was 
 	assert.equal(has(usePaneDock.getState().tree("width"), "files"), false);
 });
 
-test("a window dock refuses a return without room and restores it after resize", async () => {
+/*
+ * Coming back is a person pressing a button, so it lands even when the dock is full.
+ *
+ * It used to refuse, leaving the panel in its floating window until the dock was made wider —
+ * which paired with the automatic hand-off that has since been removed. On its own that refusal
+ * is a button that does nothing and says nothing (`2026-09-19-2304-02`, 缺陷 3). The exact
+ * departure snapshot is still preferred when it clears the floors; what changed is the fallback.
+ */
+test("a window dock takes a panel back even with no room, using its remembered layout when it fits", async () => {
 	reset();
 	let restore = (_input: { kind: string; scope: string }) => {};
 	const closed: unknown[] = [];
@@ -82,18 +96,31 @@ test("a window dock refuses a return without room and restores it after resize",
 	const stop = watchPanelWindows();
 	await Promise.resolve();
 	restore({ kind: "browser", scope: "window" });
-	assert.equal(useDock.getState().tree, rest);
-	assert.equal(closed.length, 0);
-	assert.ok(window.localStorage.getItem("dw:homes")?.includes("window:browser"));
-	useDock.setState({ viewport: { width: 900, height: 800, conversation: { width: 420, height: 260 }, compact: false } });
+	// No room at 590×450, and it comes back regardless — squeezed, in the dock, reachable.
+	assert.ok(has(useDock.getState().tree, "browser"), "the button did something");
+	assert.equal(closed.length, 1, "the floating window closes once its pane is home");
+	assert.equal(window.localStorage.getItem("dw:homes")?.includes("window:browser"), false);
+
+	// With room, the layout it left is restored exactly rather than approximated.
+	reset();
+	useDock.setState({ tree: rest, viewport: { width: 900, height: 800, conversation: { width: 420, height: 260 }, compact: false } });
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", before, rest } }));
 	restore({ kind: "browser", scope: "window" });
 	assert.deepEqual(useDock.getState().tree, before);
-	assert.equal(closed.length, 1);
 	stop();
 });
 
+/*
+ * The anchor a panel remembers may have left while it was away.
+ *
+ * `insert` against a neighbour that is not in the tree hands back a tree *without* the pane, and
+ * the home record is deleted on the way out — so adopting that tree loses the panel for good.
+ * That is the failure these two exist for, and it survives the change of policy: what used to be
+ * "refuse, keep the record" is now "land it on the root edge", but the pane must be in the tree
+ * either way before anything is deleted.
+ */
 for (const dock of ["window", "pane"] as const) {
-	test(`${dock} return cannot consume a home when its former neighbour also left the dock`, async () => {
+	test(`${dock} return never deletes a home without actually placing the pane`, async () => {
 		reset();
 		const scope = dock === "window" ? "window" : "width";
 		let restore = (_input: { kind: string; scope: string }) => {};
@@ -118,19 +145,24 @@ for (const dock of ["window", "pane"] as const) {
 		try {
 			await Promise.resolve();
 			restore({ kind: "file", scope });
-			assert.equal(closed.length, 0, "a vanished anchor is not a successful placement");
-			assert.equal(has(current(), "file"), false);
-			assert.deepEqual(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")[`${scope}:file`], home);
-			resize(900, 800);
-			restore({ kind: "file", scope });
-			assert.equal(has(current(), "file"), true, "a wider home finds a new valid neighbour");
-			assert.equal(closed.length, 1);
+			// The anchor is gone, so the remembered edge cannot be used — it lands anyway.
+			assert.equal(has(current(), "file"), true, "a vanished anchor falls back to an edge that exists");
+			assert.equal(closed.length, 1, "the window closes only because the pane really is home");
 			assert.equal(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")[`${scope}:file`], undefined);
+			resize(900, 800);
+			assert.equal(has(current(), "file"), true, "and it stays there once there is room");
 		} finally { stop(); }
 	});
 }
 
-test("a restored tool whose live conversation is too small reopens its native window", async () => {
+/*
+ * Left detached at quit, adopted back on launch — into the dock, not into a new window.
+ *
+ * This used to assert that a home with no room re-opened the native window. With the floors being
+ * what they are that meant a narrow window spat its panels back out on every single launch, which
+ * is the cold-start half of `2026-09-19-2304-01`.
+ */
+test("a tool left detached at quit comes back to its tile, however small the tile is", async () => {
 	reset();
 	const opened: unknown[] = [];
 	Reflect.set(window, "lyra", { windows: {
@@ -146,8 +178,8 @@ test("a restored tool whose live conversation is too small reopens its native wi
 	const stop = watchPanelWindows();
 	await Promise.resolve();
 	await Promise.resolve();
-	assert.deepEqual(opened, [{ kind: "terminal", scope: "width", sessionId: "width" }]);
-	assert.deepEqual(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")["width:terminal"], home);
-	assert.equal(has(usePaneDock.getState().tree("width"), "terminal"), false);
+	assert.deepEqual(opened, [], "a cold start does not create windows nobody asked for");
+	assert.equal(has(usePaneDock.getState().tree("width"), "terminal"), true);
+	assert.equal(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")["width:terminal"], undefined);
 	stop();
 });

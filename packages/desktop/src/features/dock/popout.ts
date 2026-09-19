@@ -20,6 +20,7 @@ import { usePaneDock } from "./pane-store.ts";
 import { useDock } from "./store.ts";
 import { has, insert, kinds, remove, type DockNode, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
 import { sanitize } from "./persist.ts";
+import { detachOf } from "./panels/registry.ts";
 import type { PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
@@ -96,6 +97,21 @@ function sessionOf(scope: string): string | null {
 	return !scope || scope === "@draft" || scope === "window" ? null : scope;
 }
 
+/**
+ * Is this renderer a detached panel, rather than a window with docks in it?
+ *
+ * Guarded because `bridge` throws when the preload has not run, and the answer for every caller
+ * here is then "no" rather than an exception: a unit test drives these functions directly, and a
+ * renderer opened without a preload has no windows to talk to either way.
+ */
+function inPanelWindow(): boolean {
+	try {
+		return bridge.bootWindow?.kind === "panel";
+	} catch {
+		return false;
+	}
+}
+
 export async function popOutPanel(input: {
 	dock: "window" | "pane";
 	scope: string;
@@ -103,6 +119,10 @@ export async function popOutPanel(input: {
 	sessionId: string | null;
 }): Promise<boolean> {
 	if (!bridge.windows?.openPanel) return false;
+	// A panel that cannot survive a second renderer does not get moved into one. The header hides
+	// the button for these, so this is the second line rather than the first — a plugin, a
+	// shortcut, or a future caller must not be able to route around the panel's own answer.
+	if (detachOf(input.kind) === "none") return false;
 	if (isPopped(input.scope, input.kind)) return true;
 	const tree = input.dock === "pane" ? usePaneDock.getState().tree(input.scope) : useDock.getState().tree;
 	const previousHome = !has(tree, input.kind) ? homes.get(homeKey(input.scope, input.kind)) : undefined;
@@ -167,8 +187,19 @@ function dockBack(kind: PanelKind, scope: string): boolean {
 			const fitted = fitTree(tree, viewport, floor);
 			const preferred = home?.at ? insert(fitted, kind, home.at) : null;
 			const at = placePanel(fitted, viewport, floor, kind);
-			const next = preferred && fits(preferred) ? preferred : at ? insert(fitted, kind, at) : null;
-			if (!next) return false;
+			/*
+			 * A dock with no room still takes it back.
+			 *
+			 * Returning false here meant the panel had nowhere to go, and the caller answered that
+			 * by opening a native window again — on every cold start, for as long as the window
+			 * stayed narrow. Coming back squeezed is the behaviour everywhere else now.
+			 */
+			const next = preferred && fits(preferred) ? preferred : at ? insert(fitted, kind, at) : insert(fitted, kind, { side: "right", kind: null });
+			// Never `preferred` as the last resort: its anchor may have left the dock while this
+			// panel was away, and `insert` against a missing neighbour hands back a tree without
+			// the pane in it — which `restoreLayout` would then adopt, losing the panel for good
+			// while the home record was being deleted below. The root edge always exists.
+			if (!has(next, kind)) return false;
 			useDock.getState().restoreLayout(next);
 		}
 		homes.delete(homeKey(scope, kind));
@@ -195,8 +226,8 @@ function dockBack(kind: PanelKind, scope: string): boolean {
 		preferred && dropFits(tree, span, tilePaneFloor, kind, preferred)
 			? preferred
 			: placePanel(tree, span, tilePaneFloor, kind);
-	if (!at) return false;
-	if (!usePaneDock.getState().open(scope, kind, at)) return false;
+	// `open` no longer refuses a screen with no room — it lands the pane and draws it squeezed.
+	if (!usePaneDock.getState().open(scope, kind, at ?? preferred ?? undefined)) return false;
 	homes.delete(homeKey(scope, kind));
 	return true;
 }
@@ -228,6 +259,18 @@ export function provideScope(fn: () => string | null): void {
  */
 export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side: DropSide; share?: number }): void {
 	/*
+	 * A panel window has no dock, so the request goes to the window that does.
+	 *
+	 * Every branch below ends in `useDock` or `usePaneDock`, and in this renderer nothing is
+	 * subscribed to either — it draws one panel and nothing else. So clicking a file in a detached
+	 * file tree updated a store nobody was reading and the click did nothing at all, in a window
+	 * where the file tree is the entire point. See `2026-09-19-2304-02` 缺陷 1.
+	 */
+	if (inPanelWindow()) {
+		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ kind, ...(beside ? { beside } : {}) });
+		return;
+	}
+	/*
 	 * 已经在窗口 dock 上的，留在那儿，只把焦点给它。
 	 *
 	 * 把它从窗口 dock 搬进某一屏，等于替人做了一个他没提的决定——他上次把它放在那里是有意的。
@@ -246,9 +289,10 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 		return;
 	}
 	if (has(usePaneDock.getState().tree(scope), kind)) return;
-	// 那一屏挤不下就弹成独立窗口——和工具条上那排按钮同一条退路。
-	if (usePaneDock.getState().open(scope, kind, beside)) return;
-	void popOutPanel({ dock: "pane", scope, kind, sessionId: sessionOf(scope) });
+	// It goes into that screen even when the screen is too small for it, drawn squeezed. Handing
+	// it to a window instead is what `2026-09-19-2304-01` removed: opening a panel is not a
+	// request for a second window, and the panel was unusable once it got there.
+	usePaneDock.getState().open(scope, kind, beside);
 }
 
 export function toggleScopedPanel(scope: string | null, kind: PanelKind): void {
@@ -268,8 +312,7 @@ export function toggleScopedPanel(scope: string | null, kind: PanelKind): void {
 			usePaneDock.getState().close(scope, kind);
 			return;
 		}
-		if (usePaneDock.getState().open(scope, kind)) return;
-		void popOutPanel({ dock: "pane", scope, kind, sessionId: sessionOf(scope) });
+		usePaneDock.getState().open(scope, kind);
 		return;
 	}
 	const tree = useDock.getState().tree;
@@ -307,16 +350,13 @@ function adoptOrphans(deadline: number): void {
 		const kind = key.slice(cut + 1) as PanelKind;
 		if (isPopped(scope, kind)) continue;
 		if (dockBack(kind, scope)) continue;
-		const home = homes.get(key);
-		const live = home?.dock === "window" ? useDock.getState().viewport : usePaneDock.getState().size(scope);
-		if (home && live) {
-			// A measured home with no room still owns its tool across application restarts.
-			void popOutPanel({ dock: home.dock, scope, kind, sessionId: sessionOf(scope) }).catch((error: unknown) => {
-				// oxlint-disable-next-line no-console -- retain the home and report native restoration failures for diagnosis.
-				console.error("Failed to reopen detached panel", error);
-			});
-			continue;
-		}
+		/*
+		 * Still not placeable: the home has not measured itself yet, or that screen is gone.
+		 *
+		 * Both are answered by waiting and trying again. This used to open a native window instead
+		 * whenever the home was measured but had no room — which, with the floors being what they
+		 * are, meant a narrow window spat its panels back out on every launch.
+		 */
 		pending.push(key);
 	}
 	if (pending.length === 0) return;
@@ -352,6 +392,16 @@ export function watchPanelWindows(): () => void {
 		.then((result) => { if (first) apply(result.panels ?? []); })
 		.catch(() => {});
 	const stopChanged = bridge.windows.onChanged((state) => apply(state.panels ?? []));
+	/*
+	 * A panel window asking this window to open something, since only this one has docks.
+	 *
+	 * Deliberately the same `openScopedPanel` the local callers use, so a file opened from a
+	 * detached tree lands exactly where one opened from the transcript would — including which
+	 * screen it belongs to, which only this window can answer.
+	 */
+	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, beside }) => {
+		openScopedPanel(kind as PanelKind, beside as { kind: PaneKind; side: DropSide; share?: number } | undefined);
+	}) ?? (() => {});
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {
 		if (!dockBack(kind as PanelKind, scope)) return;
 		const restore = async () => {
@@ -369,6 +419,7 @@ export function watchPanelWindows(): () => void {
 	});
 	return () => {
 		stopChanged();
+		stopOpen();
 		stopRestore();
 	};
 }

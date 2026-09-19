@@ -22,6 +22,7 @@ import {
 	listSessionWindowIds,
 	openPanelWindow,
 	openSessionWindow,
+	requestOpenPanel,
 	requestRestorePanel,
 	revealSessionInMain,
 } from "../window.ts";
@@ -135,6 +136,28 @@ export function registerWindowsIpc(): void {
 			}
 		}
 		return { ok: true };
+	});
+	ipcMain.handle("windows:openPanelInMain", async (event, input: unknown) => {
+		if (!trustedWindow(event)) return { ok: false };
+		if (!input || typeof input !== "object" || !("kind" in input) || typeof input.kind !== "string") return { ok: false };
+		if (!PANEL_KINDS.has(input.kind)) return { ok: false };
+		/*
+		 * `beside` is a layout hint, not a capability: it names a pane to sit next to and a side.
+		 * Validated rather than forwarded as-is so a compromised renderer cannot post arbitrary
+		 * objects into the primary window's dock state.
+		 */
+		const hint = "beside" in input ? input.beside : undefined;
+		let beside: { kind: string; side: string; share?: number } | undefined;
+		if (hint !== undefined && hint !== null) {
+			if (typeof hint !== "object" || !("kind" in hint) || !("side" in hint)) return { ok: false };
+			if (typeof hint.kind !== "string" || typeof hint.side !== "string") return { ok: false };
+			if (!["left", "right", "top", "bottom"].includes(hint.side)) return { ok: false };
+			if (hint.kind !== "conversation" && !PANEL_KINDS.has(hint.kind)) return { ok: false };
+			const share = "share" in hint ? hint.share : undefined;
+			if (share !== undefined && (typeof share !== "number" || !(share > 0 && share < 1))) return { ok: false };
+			beside = { kind: hint.kind, side: hint.side, ...(share === undefined ? {} : { share }) };
+		}
+		return { ok: requestOpenPanel({ kind: input.kind, ...(beside ? { beside } : {}) }) };
 	});
 	ipcMain.handle("windows:filePanelState", (event, input?: unknown) => {
 		if (!trustedWindow(event)) return null;

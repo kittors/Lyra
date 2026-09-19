@@ -7,8 +7,13 @@
  * was treated as a drawing problem.
  *
  * The question this file answers is the one that has to come first: after this insert, does the
- * tile still clear every floor? If no edge does, the pane does not go in. The caller opens a
- * window instead of crushing the conversation.
+ * dock still clear every floor? The answer picks the edge a pane lands on — the one that keeps
+ * everything readable, where there is one.
+ *
+ * It does not decide *whether* the pane goes in. It used to: no clearing edge meant the caller
+ * moved the pane into a window of its own, which fired on an ordinary resize and left the pane
+ * somewhere it could not work. Now a dock with no good edge still takes the pane, on its preferred
+ * one, and `fitSizes` draws the squeeze. See `docs/issue/2026-09-19/…-2304-01-…`.
  */
 
 import { defaultDrop } from "./store.ts";
@@ -19,7 +24,6 @@ import {
 	kinds,
 	nodeAt,
 	pathTo,
-	remove,
 	type DockNode,
 	type DropAt,
 	type DropSide,
@@ -29,19 +33,6 @@ import {
 const SIDES: DropSide[] = ["right", "bottom", "left", "top"];
 
 export type Span = { width: number; height: number };
-
-/** Keep existing positions; move the trailing tools out until every remaining pane fits. */
-export function overflowPanels(tree: DockNode, span: Span, floor: (kind: PaneKind) => Floor): Exclude<PaneKind, "conversation">[] {
-	const out: Exclude<PaneKind, "conversation">[] = [];
-	let rest = tree;
-	for (const kind of kinds(tree).reverse()) {
-		if (clearsFloors(rest, span, floor)) break;
-		if (kind === "conversation") continue;
-		out.push(kind);
-		rest = remove(rest, kind);
-	}
-	return out;
-}
 
 const dropKey = (at: DropAt): string => `${at.side}:${at.kind ?? ""}`;
 

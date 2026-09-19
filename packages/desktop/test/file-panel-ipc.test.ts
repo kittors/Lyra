@@ -18,6 +18,7 @@ const fixtureUrl = `data:text/javascript,${encodeURIComponent(`
 export const handlers = new Map();
 export const windows = new Map();
 export const panels = new Map();
+export const openedInMain = [];
 let quitting = false;
 export const setQuitting = value => { quitting = value; };
 export const isAppQuitting = () => quitting;
@@ -49,6 +50,7 @@ export const listSessionWindowIds = () => [];
 export const broadcastSessionWindows = () => {};
 export const openSessionWindow = () => {};
 export const requestRestorePanel = () => false;
+export const requestOpenPanel = input => { openedInMain.push(input); return true; };
 export const revealSessionInMain = () => {};
 `)}`;
 const source = new URL("../electron/ipc/windows.ts", import.meta.url).href;
@@ -56,7 +58,7 @@ const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
 	if (context.parentURL === source && (specifier === "electron" || specifier === "../window.ts")) return { url: fixtureUrl, shortCircuit: true };
 	return nextResolve(specifier, context);
 } });
-const fixture: { handlers: Map<string, Handler>; makeWindow(): FakeWindow; panels: Map<string, FakeWindow>; setQuitting(value: boolean): void } = await import(fixtureUrl);
+const fixture: { handlers: Map<string, Handler>; makeWindow(): FakeWindow; panels: Map<string, FakeWindow>; setQuitting(value: boolean): void; openedInMain: unknown[] } = await import(fixtureUrl);
 const { registerWindowsIpc } = await import("../electron/ipc/windows.ts");
 hooks.deregister();
 registerWindowsIpc();
@@ -133,4 +135,34 @@ test("application quit does not enter a window-return handshake", async () => {
 		assert.equal(panel.isDestroyed(), true);
 		assert.deepEqual(panel.webContents.messages, []);
 	} finally { fixture.setQuitting(false); }
+});
+
+/*
+ * 面板窗口请主窗口开一个面板——它自己没有 dock。
+ *
+ * `beside` 是个布局提示（挨着谁、哪一边），转发前要逐字段验：它最终会被当成落点塞进主窗口的
+ * dock 状态，而发起方是另一个渲染进程。见 `2026-09-19-2304-02` 缺陷 1。
+ */
+test("openPanelInMain validates the kind and the layout hint before forwarding", async () => {
+	const panel = fixture.makeWindow();
+	fixture.openedInMain.length = 0;
+	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file" }), { ok: true });
+	assert.deepEqual(fixture.openedInMain, [{ kind: "file" }]);
+
+	fixture.openedInMain.length = 0;
+	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file", beside: { kind: "files", side: "bottom", share: 0.3 } }), { ok: true });
+	assert.deepEqual(fixture.openedInMain, [{ kind: "file", beside: { kind: "files", side: "bottom", share: 0.3 } }]);
+
+	for (const bad of [
+		undefined,
+		{ kind: "settings" },
+		{ kind: "file", beside: { kind: "file", side: "sideways" } },
+		{ kind: "file", beside: { kind: "not-a-panel", side: "left" } },
+		{ kind: "file", beside: { kind: "files", side: "left", share: 4 } },
+		{ kind: "file", beside: "files" },
+	]) {
+		fixture.openedInMain.length = 0;
+		assert.deepEqual(await call("windows:openPanelInMain", panel, bad), { ok: false }, JSON.stringify(bad));
+		assert.deepEqual(fixture.openedInMain, [], JSON.stringify(bad));
+	}
 });

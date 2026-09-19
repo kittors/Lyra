@@ -15,7 +15,6 @@ import { assignPaneKeys, paneKey, type PaneIdentity } from "./pane-key.ts";
 import { SplitPane } from "./SplitPane.tsx";
 import { SplitOverlay } from "./SplitOverlay.tsx";
 import { Splitter } from "./Splitter.tsx";
-import { useOverflowScreens } from "./useOverflowScreens.ts";
 import { sideOf } from "./drop.ts";
 import { dropAlreadyOpen, dropOnPane, resetSplit } from "./actions.ts";
 import {
@@ -62,9 +61,15 @@ export function SplitWorkspace() {
 	const sessions = useApp((s) => s.sessions);
 	const root = useRef<HTMLElement | null>(null);
 	const viewport = useRef<HTMLDivElement>(null);
-	const available = useBoxSize(viewport);
 	const size = useBoxSize(root);
-	useOverflowScreens(tree, available);
+	/*
+	 * A window too narrow for its screens keeps every one of them.
+	 *
+	 * It used to move the unfocused conversation into a window of its own — and before that it
+	 * popped each of that screen's panels into windows of their own, one native window each — the
+	 * moment two screens needed more width than the workspace had. Two screens ask for 840px, so
+	 * an ordinary resize was enough. `fitSplitTree` already squeezes to the floors.
+	 */
 
 	const windowId = bridge.bootWindow?.id ?? "primary";
 	const project = workspace?.path ?? "";

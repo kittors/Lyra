@@ -8,6 +8,8 @@
  */
 
 export { companionOf } from "./panels/definitions.tsx";
+/** 面板自己说它能不能搬进独立窗口——`PaneHeader` 据此决定给不给那颗按钮。 */
+export { detachOf } from "./panels/registry.ts";
 export { useSide } from "./sideStore.ts";
 export { useDock } from "./store.ts";
 export { emptyDockTree, usePaneDock } from "./pane-store.ts";
@@ -22,7 +24,6 @@ export { DockPane } from "./DockPane.tsx";
 export { PaneGrip } from "./PaneGrip.tsx";
 export { Splitter as DockSplitter } from "./Splitter.tsx";
 export { fitTree, layoutPanes, layoutSplitters, minimumSpan } from "./layout.ts";
-export { useOverflowWindows } from "./useOverflowWindows.ts";
 export { tilePaneFloor } from "./geometry.ts";
 export { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel, watchPanelWindows, usePanelWindows } from "./popout.ts";
 export { pct as dockPct } from "./css.ts";

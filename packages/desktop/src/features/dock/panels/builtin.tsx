@@ -222,6 +222,8 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 * the side for names".
 		 */
 		companion: { kind: "files", side: "bottom" },
+		// The draft and the open tabs move with it — `file-panel-handoff.ts` is that code.
+		detach: "handoff",
 		render: FilePanel,
 		/*
 		 * The file's name in place of the pane's, with the tree behind it.
@@ -283,7 +285,15 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		unavailable: needsSession,
 		render: TrajectoryPanel,
 	},
-	{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "⌘T", render: BrowserPanel },
+	/*
+	 * No window of its own: a `<webview>` cannot be moved between documents.
+	 *
+	 * The tab list is in the main process, so the *rows* would survive — but the page would be
+	 * loaded again from its URL in the new window, which throws away scroll position, anything
+	 * typed into a form, and whatever the page itself was holding. A button that silently reloads
+	 * your page is worse than no button.
+	 */
+	{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "⌘T", detach: "none", render: BrowserPanel },
 	{ kind: "review", label: "common.git", icon: GitCompare, shortcut: "⌘⇧R", unavailable: needsWorkspace, render: GitPanel },
 	/*
 	 * This turn's recorded diffs — opened from the delivery card, not the +

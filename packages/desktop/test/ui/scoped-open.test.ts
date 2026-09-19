@@ -90,3 +90,26 @@ test("没人注册过「在哪一屏」时，退回窗口 dock", () => {
 	openScopedPanel("files");
 	assert.ok(has(useDock.getState().tree, "files"));
 });
+
+/*
+ * 面板窗口里没有 dock，所以请求要转给有 dock 的那个窗口。
+ *
+ * 从前它落到这一行的最后一条分支——`useDock.open`——而面板窗口里没有任何东西订阅 `useDock`：
+ * 它只画一个面板。于是在弹出去的文件树里点文件，改的是一份没人读的状态，点下去什么也不发生，
+ * 而文件树正是那个窗口的全部用途。见 `2026-09-19-2304-02` 缺陷 1。
+ */
+test("面板窗口：请求转给主窗口，不动本地那两棵树", () => {
+	reset(null);
+	const asked: unknown[] = [];
+	Reflect.set(window, "lyra", {
+		bootWindow: { kind: "panel", panelKind: "files", panelScope: "window", sessionId: null, id: "p1" },
+		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
+	});
+	try {
+		openScopedPanel("file", { kind: "files", side: "bottom" });
+		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" } }]);
+		assert.ok(!has(useDock.getState().tree, "file"), "面板窗口的 dock 树是没人画的，往里写等于把点击吞掉");
+	} finally {
+		Reflect.deleteProperty(window, "lyra");
+	}
+});

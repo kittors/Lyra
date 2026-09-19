@@ -14,7 +14,7 @@
 import type { MessageKey } from "../../../i18n/messages/index.ts";
 import type { ComponentType } from "react";
 import type { GitCompare } from "lucide-react";
-import type { DropSide } from "../tree.ts";
+import type { DropSide, PaneKind } from "../tree.ts";
 import type { PanelKind } from "../sideStore.ts";
 
 interface PanelAvailability {
@@ -85,6 +85,27 @@ export interface PanelDefinition {
 		 */
 		share?: number;
 	};
+	/**
+	 * Whether this panel survives being moved into a window of its own.
+	 *
+	 * A panel window is a second renderer. Anything the panel keeps in this one — a store, a
+	 * `<webview>`, a subscription — does not travel with it, and the machinery that moves it has no
+	 * way to know that. So the panel says.
+	 *
+	 * - `"self"` (the default): its state comes from the main process or from disk, and the new
+	 *   window fetches it the same way this one did.
+	 * - `"handoff"`: it carries something this renderer owns, and there is explicit code to move it.
+	 *   The open file is the one — see `file-panel-handoff.ts`, and the `fileState` argument to
+	 *   `windows:openPanel`.
+	 * - `"none"`: it cannot go. The browser is the one: a `<webview>` belongs to the document that
+	 *   created it, so "the same page" in another window is a fresh navigation — scroll, forms and
+	 *   anything the page was holding are gone. Offering the button and then losing their work is
+	 *   worse than not offering it.
+	 *
+	 * Absent means `"self"`, which is true of most panels and wrong silently for the rest. A new
+	 * panel that needs one of the other two has to say so; `popOutPanel` refuses `"none"`.
+	 */
+	detach?: "self" | "handoff" | "none";
 	render: ComponentType;
 	/**
 	 * Drawn in the pane header in place of the title.
@@ -126,6 +147,16 @@ export function allPanels(): PanelDefinition[] {
 	const byKind = new Map<PanelKind, PanelDefinition>();
 	for (const set of registered) for (const panel of set) byKind.set(panel.kind, panel);
 	return [...byKind.values()];
+}
+
+/**
+ * Whether this kind may be moved into a window of its own — see `detach` on the definition.
+ *
+ * Unregistered kinds answer `"self"`: `conversation` is not a panel and never reaches this, and a
+ * kind the registry has not heard of has nothing of its own to lose.
+ */
+export function detachOf(kind: PaneKind): "self" | "handoff" | "none" {
+	return allPanels().find((panel) => panel.kind === kind)?.detach ?? "self";
 }
 
 /** Mobile gets only panels whose complete data and actions cross the sync boundary. */

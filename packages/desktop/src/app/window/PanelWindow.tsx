@@ -8,7 +8,7 @@
 import { AppWindow } from "lucide-react";
 import { useEffect } from "react";
 import { SessionScope } from "../session-scope.tsx";
-import { renderPanel, renderPanelHeader, renderPanelActions, usePanelDefinitions } from "../../features/dock/index.ts";
+import { renderPanel, renderPanelHeader, renderPanelActions, usePanelDefinitions, useSide } from "../../features/dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useLayout } from "../layout.tsx";
@@ -33,6 +33,21 @@ export function PanelWindow() {
 		if (!sessionId) return;
 		void useApp.getState().openSessionById(sessionId);
 	}, [sessionId]);
+
+	/*
+	 * The side chat has to be pointed at a conversation before it holds anything.
+	 *
+	 * `ChatShell` does this for the primary window, and a panel window does not have one — so this
+	 * panel opened empty, and stayed empty: `ask`, `abort` and `reset` all begin by reading
+	 * `useSide.sessionId`, which only `attach` sets, so the composer accepted text and sent
+	 * nothing. The transcript itself was never missing; nobody had asked for it.
+	 */
+	useEffect(() => {
+		if (kind !== "chat") return;
+		void useSide.getState().attach(sessionId).catch((error: unknown) => {
+			useApp.getState().notify(String(error), "error");
+		});
+	}, [kind, sessionId]);
 
 	useEffect(() => {
 		document.title = title;

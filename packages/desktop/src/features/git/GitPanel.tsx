@@ -140,6 +140,16 @@ function useGitPaneOnScreen(): boolean {
   const focused = useDock((s) => s.focused);
   const { compact } = useLayout();
 
+  /*
+   * In a window of its own this panel *is* the window, so the question is already answered.
+   *
+   * Asking the dock instead answered false forever: a panel window never mounts `DockView`, so
+   * its tree stays at the default conversation leaf and `paneVisible` refuses on the first line —
+   * membership. The effect below never ran, which meant a detached Git panel did not fetch once,
+   * not even the first time. Below the hooks, never above them: the count has to match.
+   */
+  if (bridge.bootWindow?.kind === "panel" && bridge.bootWindow.panelKind === "review") return true;
+
   return paneVisible("review", {
     present: kinds(tree),
     maximized: maximized?.panes ?? null,

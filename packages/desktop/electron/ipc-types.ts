@@ -203,12 +203,21 @@ export interface LyraApi {
 		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string; sessionId?: string | null }[] }>;
 		openInMain(input: { sessionId: string }): Promise<{ ok: boolean }>;
 		openPanel(input: { kind: string; scope: string; sessionId: string | null; fileState?: FilePanelState }): Promise<{ ok: boolean }>;
+		/**
+		 * Ask the primary window to open a panel, because this window has no dock to open it in.
+		 *
+		 * A panel window is one panel. Clicking a file in a detached file tree still means "show me
+		 * this file" — it just cannot mean "here". The request goes where the docks are.
+		 */
+		openPanelInMain(input: { kind: string; beside?: { kind: string; side: string; share?: number } }): Promise<{ ok: boolean }>;
 		filePanelState(input?: FilePanelVersion): Promise<FilePanelVersion | null>;
 		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string; sessionId?: string | null }[] }) => void): () => void;
 		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
 		onRestorePanel(handler: (state: { kind: string; scope: string; fileState?: FilePanelState }) => void): () => void;
+		/** The primary window's half of `openPanelInMain`. */
+		onOpenPanel(handler: (state: { kind: string; beside?: { kind: string; side: string; share?: number } }) => void): () => void;
 		onClosePanel(handler: () => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};

@@ -119,12 +119,23 @@ export const usePaneDock = create<PaneDockState>((set, get) => ({
 		if (has(tree, kind)) return true;
 		const span = get().sizes[scope];
 		const preferred = tree.type === "leaf" ? { side: "right" as const, kind: tree.kind } : defaultDrop(tree);
-		const drop = at
+		/*
+		 * The floors choose *where* it lands, never *whether* it does.
+		 *
+		 * `placePanel` returns nothing when no edge of this screen clears the floors, and this used
+		 * to answer that with `false` — which the caller turned into a native window, and later into
+		 * nothing at all once that route was removed. Two screens are already too narrow to hold a
+		 * panel beside a conversation, so "no viable edge" is the ordinary case rather than the
+		 * exceptional one. Falling back to the preferred edge puts it where it would have gone
+		 * anyway; `fitTree` then draws it squeezed, which is a layout the user can see and fix.
+		 */
+		// The asked-for edge only survives the fallback if its neighbour is actually here.
+		const fallback = at && (at.kind === null || has(tree, at.kind)) ? at : preferred;
+		const drop = (at
 			? allowedDrop(tree, span, kind, at) ?? (span ? placePanel(tree, span, tilePaneFloor, kind) : null)
 			: span
 				? allowedDrop(tree, span, kind, preferred) ?? placePanel(tree, span, tilePaneFloor, kind)
-				: preferred;
-		if (!drop) return false;
+				: preferred) ?? fallback;
 		set({ trees: write(get().trees, scope, insert(tree, kind, drop)) });
 		return true;
 	},

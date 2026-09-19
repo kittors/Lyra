@@ -222,6 +222,7 @@ export const METHODS = {
 		list: { channel: "windows:list", remote: false, why: "开的是本机的第二个窗口" },
 		openInMain: { channel: "windows:openInMain", remote: false, why: "开的是本机的第二个窗口" },
 		openPanel: { channel: "windows:openPanel", remote: false, why: "开的是本机的第二个窗口" },
+		openPanelInMain: { channel: "windows:openPanelInMain", remote: false, why: "请主窗口开一个面板，面板窗口自己没有 dock" },
 		filePanelState: { channel: "windows:filePanelState", remote: false, why: "只向文件面板的原宿主交接未保存编辑" },
 		restorePanel: { channel: "windows:restorePanel", remote: false, why: "开的是本机的第二个窗口" },
 		closePanel: { channel: "windows:closePanel", remote: false, why: "开的是本机的第二个窗口" },

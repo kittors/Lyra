@@ -37,8 +37,8 @@ import { useDock } from "./store.ts";
 import { canToggleMaximized } from "./visibility.ts";
 import type { PanelKind } from "./sideStore.ts";
 import type { PaneKind } from "./tree.ts";
+import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
-import { useOverflowWindows } from "./useOverflowWindows.ts";
 import { useDockDrag } from "./useDockDrag.ts";
 import { leafCount, subtreeMinPx, useSplit } from "../split/index.ts";
 
@@ -231,9 +231,17 @@ export function DockView({
 	 * returns the layout to them rather than to whatever a narrow window forced.
 	 */
 	const floorFor = (kind: PaneKind) => (kind === "conversation" ? { width: convW, height: convH } : paneFloor(kind));
+	/*
+	 * A dock that cannot hold its floors draws them anyway — it does not evict a pane.
+	 *
+	 * There used to be an overflow watcher here that handed the trailing panel to a real window
+	 * whenever `size` fell under what the tree needs. It fired on an ordinary window resize, and a
+	 * 980px window — the default — is already under the 720px a conversation plus one panel asks
+	 * for. Panels left for windows of their own that nothing brought back. `fitSizes` already has
+	 * the answer for a row that does not fit: the first pane keeps its own floor and the neighbour
+	 * covers the overhang. See `docs/issue/2026-09-19/2026-09-19-2304-01-…`.
+	 */
 	const fitted = compact || !size ? tree : fitTree(tree, size, floorFor);
-	useOverflowWindows({ tree: fitted, size, floor: floorFor, dock: "window", scope: "window", sessionId: session,
-		paused: Boolean(compact || solo || maximized || carried), container: containerRef, onFailure: (error) => useApp.getState().notify(String(error), "error") });
 	const laid = layoutPanes(fitted);
 
 	/*
@@ -517,7 +525,7 @@ export function DockView({
 							}
 							onClose={kind === "conversation" ? undefined : () => useDock.getState().close(kind)}
 							onPopOut={
-								kind === "conversation"
+								kind === "conversation" || detachOf(kind as PanelKind) === "none"
 									? undefined
 									: () =>
 											void popOutPanel({

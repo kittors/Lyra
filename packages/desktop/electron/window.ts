@@ -249,6 +249,22 @@ export function closePanelWindow(input: { kind: string; scope: string }): boolea
 	return true;
 }
 
+/**
+ * Ask the primary window to open a panel on behalf of a window that has no dock.
+ *
+ * Brought to the front as well: the request always comes from a click in another window, and a
+ * file that opened somewhere the user is not looking is indistinguishable from nothing happening
+ * — which is exactly the bug this fixes.
+ */
+export function requestOpenPanel(input: { kind: string; beside?: unknown }): boolean {
+	if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
+	if (mainWindow.isMinimized()) mainWindow.restore();
+	mainWindow.show();
+	mainWindow.focus();
+	mainWindow.webContents.send("windows:open-panel", input);
+	return true;
+}
+
 export function requestRestorePanel(input: { kind: string; scope: string }): boolean {
 	if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
 	if (mainWindow.isMinimized()) mainWindow.restore();
