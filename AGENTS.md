@@ -135,7 +135,7 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 ```
 
 `pnpm release` 会自己检查「这个提交有没有绿色的 dry run」，没有就停下来——这一步以前靠记性。
-版本号写在 8 个地方（7 个 package.json 加手机的 `app.json`），脚本一起改，`test/version-sync.test.ts`
+版本号写在 9 个地方（根目录和 7 个包的 `package.json` 加手机的 `app.json`），脚本一起改，`test/version-sync.test.ts`
 守着它们不跑偏；新加一个包而忘了登记，那条测试会红。
 
 以前汇总成草稿，要再手动 Publish 一次——结果 0.4.0、0.4.1、0.5.0、0.6.1 全都躺在草稿里：产
@@ -234,7 +234,7 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 | `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
 | `packages/desktop/src/lib/` | 纯逻辑，没有 React |
 | `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
-| `packages/contract/` | 渲染进程与主进程之间那条线，212 个方法写在一处 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，213 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
 | `packages/mobile/` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView |
 | `packages/relay/` | 中转服务。单文件，零依赖 |

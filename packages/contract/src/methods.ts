@@ -217,6 +217,7 @@ export const METHODS = {
 		open: { channel: "updates:open", remote: false, why: "下载并运行安装包" },
 	},
 	windows: {
+		keepOnTop: { channel: "windows:keepOnTop", remote: false, why: "仅控制请求方的本机窗口" },
 		open: { channel: "windows:open", remote: false, why: "开的是本机的第二个窗口" },
 		list: { channel: "windows:list", remote: false, why: "开的是本机的第二个窗口" },
 		openInMain: { channel: "windows:openInMain", remote: false, why: "开的是本机的第二个窗口" },

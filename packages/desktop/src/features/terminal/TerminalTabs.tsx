@@ -20,14 +20,14 @@
 import { translate } from "../../i18n/translate.ts";
 import { Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useApp } from "../../store/index.ts";
 import { useTerminals } from "../../store/terminals.ts";
 import { bridge } from "../../services/index.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
+import { useTerminalScope } from "./scope.ts";
 
 export function TerminalTabs() {
 	const tabs = useTerminals((s) => s.tabs);
-	const active = useTerminals((s) => s.active);
+	const { active, scope, cwd } = useTerminalScope();
 	const strip = useRef<HTMLDivElement>(null);
 
 
@@ -56,9 +56,8 @@ export function TerminalTabs() {
 	 * all and no way back to a shell that was still running.
 	 */
 	const openAnother = async () => {
-		const cwd = useApp.getState().meta?.cwd ?? useApp.getState().workspace?.path ?? "";
 		const opened = await bridge.terminal.open(cwd, 80, 24);
-		useTerminals.getState().add({ id: opened.id, title: opened.title });
+		useTerminals.getState().add({ id: opened.id, title: opened.title }, scope);
 	};
 
 	const close = (id: string) => {
@@ -88,7 +87,7 @@ export function TerminalTabs() {
 						>
 							<button
 								type="button"
-								onClick={() => useTerminals.getState().select(tab.id)}
+								onClick={() => useTerminals.getState().select(tab.id, scope)}
 								className="py-1 text-detail whitespace-nowrap"
 							>
 								{tab.title}

@@ -1,7 +1,8 @@
 import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import { SessionScope, useScopedSessionId } from "../../app/session-scope.tsx";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -13,7 +14,7 @@ import { Popover, MenuBody, MenuItem, MenuSeparator, usePopover } from "../../ui
 import { AddressBar } from "./AddressBar.tsx";
 import { BrowserPage } from "./BrowserPage.tsx";
 import { BrowserSelectionCard } from "./BrowserSelectionCard.tsx";
-import { browserChose, browserMounted, browserOwner, browserVisited, commandBrowser, useBrowser, useBrowserView } from "./browser-store.ts";
+import { browserChose, browserOwner, browserVisited, commandBrowser, useBrowser, useBrowserView, useBrowserPages } from "./browser-store.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 const VIEW_W = { min: 240, max: 3840, step: 1 };
@@ -23,9 +24,8 @@ export function BrowserPanel() {
 	const { t } = useI18n();
 	const all = useBrowser((state) => state.tabs);
 	const activeId = useBrowser((state) => state.activeId);
-	const sessionId = useApp((state) => state.activeSessionId);
-	const turns = useApp((state) => state.turns);
-	const recent = useBrowserView((state) => state.recent);
+	const scope = useContext(SessionScope);
+	const sessionId = useScopedSessionId();
 	const chosen = useBrowserView((state) => state.chosen);
 	const owner = browserOwner(sessionId);
 	useEffect(() => { browserVisited(sessionId); }, [sessionId]);
@@ -38,8 +38,10 @@ export function BrowserPanel() {
 	 * process last selected if that belongs here, else the one this conversation was left on.
 	 */
 	const tabs = all.filter((entry) => browserOwner(entry.sessionId) === owner);
+	const selectedHere = tabs.find((entry) => entry.id === activeId)?.id;
+	useEffect(() => { if (selectedHere) browserChose(sessionId, selectedHere); }, [sessionId, selectedHere]);
 	const tab = tabs.find((entry) => entry.id === activeId) ?? tabs.find((entry) => entry.id === chosen[owner]) ?? tabs.at(-1);
-	const mounted = browserMounted(all, owner, recent, turns);
+	const mounted = useBrowserPages(all, sessionId, scope !== undefined);
 	const settings = useApp((state) => state.settings);
 	const saveSettings = useApp((state) => state.saveSettings);
 	const addressInput = useRef<HTMLInputElement>(null);
@@ -54,7 +56,7 @@ export function BrowserPanel() {
 	const blank = !tab || tab.url === "about:blank";
 	useEffect(() => { setSelection(null); setInspecting(null); }, [tab?.id, tab?.url]);
 	const command = (type: "back" | "forward" | "reload" | "devtools") => { if (tab) void commandBrowser({ type, id: tab.id }); };
-	const open = (url: string, newTab = false) => void commandBrowser({ type: "open", url, sessionId: useApp.getState().activeSessionId, newTab });
+	const open = (url: string, newTab = false) => void commandBrowser({ type: "open", url, sessionId, newTab });
 	const mark = async () => {
 		if (!tab || !settings) return;
 		const list = settings.browser?.bookmarks ?? [];

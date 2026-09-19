@@ -2,11 +2,12 @@ import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { parseBrowserCommand } from "../../shared/browser.ts";
 import { browserCommand, browserState, configureBrowser, attachBrowser } from "../browser-workspace.ts";
 import { cancelBrowserInspect, inspectBrowser } from "../browser-inspect.ts";
+import { isAppWindowContents } from "../window.ts";
 
 export function registerBrowserIpc(window: () => BrowserWindow | null, settings: () => { defaultZoom?: number }): void {
 	configureBrowser(window, settings);
 	const trusted = (event: IpcMainInvokeEvent) => {
-		if (event.sender !== window()?.webContents || event.senderFrame !== event.sender.mainFrame) throw new Error("浏览器控制只允许来自 Lyra 主窗口");
+		if (!isAppWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame) throw new Error("浏览器控制只允许来自 Lyra 应用窗口");
 	};
 	ipcMain.handle("browser:state", (event) => { trusted(event); return browserState(); });
 	ipcMain.handle("browser:command", async (event, command: unknown) => {

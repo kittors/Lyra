@@ -304,6 +304,24 @@ export function nodeAt(tree: DockNode, path: number[]): DockNode | null {
 	return node;
 }
 
+/** Parallel arrows swap neighbors with their sizes; null requests a perpendicular split preview. */
+export function moveAlong(tree: DockNode, kind: PaneKind, side: DropSide): DockNode | null {
+	const path = pathTo(tree, kind);
+	if (!path?.length) return tree;
+	const parentPath = path.slice(0, -1);
+	const parent = nodeAt(tree, parentPath);
+	if (!parent || parent.type !== "split") return tree;
+	if (parent.dir !== axisOf(side)) return null;
+	const index = path[path.length - 1];
+	const next = index + (isLeading(side) ? -1 : 1);
+	if (next < 0 || next >= parent.children.length) return tree;
+	const children = [...parent.children];
+	const sizes = [...parent.sizes];
+	[children[index], children[next]] = [children[next], children[index]];
+	[sizes[index], sizes[next]] = [sizes[next], sizes[index]];
+	return replaceAt(tree, parentPath, () => ({ ...parent, children, sizes }));
+}
+
 /**
  * Whether two panes are sitting next to each other, with nothing in between.
  *

@@ -109,6 +109,16 @@ test("关掉那一屏里最后一个面板，盘上那行跟着消失", () => {
 	assert.equal(window.localStorage.getItem(paneStorageKey("sess-d")), null, "只剩转录的空树不该占一行");
 });
 
+test("rehydration cannot resurrect the last panel while its deletion is waiting to persist", () => {
+	clear();
+	usePaneDock.getState().open("pending-close", "terminal");
+	flushTree();
+	usePaneDock.getState().close("pending-close", "terminal");
+	usePaneDock.getState().hydrate("pending-close", ALLOWED);
+	assert.deepEqual(usePaneDock.getState().tree("pending-close"), leafOf("conversation"));
+	flushTree();
+});
+
 test("盘上是坏数据时，当作没有，而不是把界面弄崩", () => {
 	clear();
 	window.localStorage.setItem(paneStorageKey("sess-e"), "{ 这不是 JSON");
@@ -143,7 +153,7 @@ test("盘上写着一个已经不存在的面板，只丢那一个", () => {
  */
 function stubBridge(): void {
 	(window as unknown as { lyra: unknown }).lyra = {
-		windows: { openPanel: async () => {}, closePanel: async () => {}, list: async () => ({ panels: [], sessions: [] }) },
+		windows: { openPanel: async () => ({ ok: true }), closePanel: async () => ({ ok: true }), list: async () => ({ panels: [], sessions: [] }) },
 	};
 }
 
@@ -191,8 +201,8 @@ function stubPanelWindows(initial: { kind: string; scope: string }[]): {
 	let changed: ((state: { panels: { kind: string; scope: string }[] }) => void) | null = null;
 	(window as unknown as { lyra: unknown }).lyra = {
 		windows: {
-			openPanel: async () => {},
-			closePanel: async () => {},
+			openPanel: async () => ({ ok: true }),
+			closePanel: async () => ({ ok: true }),
 			list: async () => ({ panels: initial, sessions: [] }),
 			onChanged: (handler: (state: { panels: { kind: string; scope: string }[] }) => void) => {
 				changed = handler;
@@ -226,7 +236,8 @@ test("人直接关掉面板窗口，那条回家记录跟着清掉", async () =>
 
 test("弹出去没收回就退出应用，重开时面板回到它记着的位置", async () => {
 	clear();
-	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null });
+	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null,
+		viewport: { width: 1100, height: 800, conversation: { width: 420, height: 260 }, compact: false } });
 	// 重开之后一个面板窗口都没有——窗口列表从来不存盘。
 	stubPanelWindows([]);
 	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");

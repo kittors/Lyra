@@ -62,6 +62,9 @@ export const paneFloor = (kind: PaneKind): { width: number; height: number } =>
 		? { width: CONVERSATION_MIN_WIDTH_PX, height: CONVERSATION_MIN_HEIGHT_PX }
 		: { width: PANEL_MIN_WIDTH_PX, height: PANEL_MIN_HEIGHT_PX };
 
+/** Tiling does not make text or controls usable at a smaller size. */
+export const tilePaneFloor = paneFloor;
+
 /**
  * How many panes may share one column before that stops being a layout.
  *

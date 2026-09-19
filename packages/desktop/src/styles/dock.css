@@ -184,6 +184,17 @@
   z-index: 70;
 }
 
+/* Keep the original surface in the top layer; the UA popover box must not centre or clip it. */
+.ly-dock-pane[popover] {
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+
 .ly-dock-pane-carried .ly-dock-card {
   box-shadow:
     0 18px 40px -12px rgb(0 0 0 / 0.38),
@@ -304,4 +315,21 @@
 /* The narrow layout's pane picker, above the one pane on show. */
 .ly-dock-bar {
   border-bottom: 1px solid var(--color-line-soft);
+}
+.ly-dock-pane[data-ly-pane-slot="conversation"] {
+	container: ly-chat / inline-size;
+}
+
+@container ly-chat (width < 360px) {
+	[data-ly-split-chrome] [data-ly-panel-quick] {
+		display: none;
+	}
+}
+.ly-dock-keyboard-drop[data-dock-keyboard-drop="left"] { border-left: 3px solid var(--color-accent); }
+.ly-dock-keyboard-drop[data-dock-keyboard-drop="right"] { border-right: 3px solid var(--color-accent); }
+.ly-dock-keyboard-drop[data-dock-keyboard-drop="top"] { border-top: 3px solid var(--color-accent); }
+.ly-dock-keyboard-drop[data-dock-keyboard-drop="bottom"] { border-bottom: 3px solid var(--color-accent); }
+/* Preserve text layout independently of the dock's clipping and ownership handoff. */
+html:not([data-layout="compact"]) [data-dock-content="conversation"] {
+	min-width: 420px;
 }

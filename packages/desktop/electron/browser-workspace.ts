@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { webContents, type BrowserWindow, type WebContents } from "electron";
 import { browserUrl, browserViewport, browserZoom, type BrowserCommand, type BrowserPointer, type BrowserState, type BrowserTab } from "../shared/browser.ts";
+import { eachAppWindow } from "./window.ts";
 
 interface Tab { size?: {width: number; height: number}; scale?: number; state: BrowserTab; contents?: WebContents; ready: Promise<WebContents>; resolve: (contents: WebContents) => void; reject: (error: Error) => void }
 const tabs = new Map<string, Tab>();
@@ -25,7 +26,13 @@ export function configureBrowser(window: () => BrowserWindow | null, settings: (
 export function browserState(): BrowserState { return { tabs: [...tabs.values()].map((tab) => ({ ...tab.state })), activeId }; }
 function publish(reveal = false): void {
 	const window = host();
-	if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send("browser:changed", { ...browserState(), reveal });
+	const recipients = new Set<WebContents>();
+	if (window && !window.isDestroyed()) recipients.add(window.webContents);
+	// Empty detached browsers need the first tab before they have a guest of their own.
+	eachAppWindow((win) => recipients.add(win.webContents));
+	for (const recipient of recipients) {
+		if (!recipient.isDestroyed()) recipient.send("browser:changed", { ...browserState(), reveal });
+	}
 }
 export function browserContents(id: string, sessionId?: string): WebContents {
 	const tab = tabs.get(id);

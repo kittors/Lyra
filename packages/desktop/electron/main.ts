@@ -89,7 +89,9 @@ import {
 	applyNativeAppearance,
 	beginQuit,
 	createWindow,
+	eachAppWindow,
 	getWindow,
+	getPrimaryWindow,
 	registerWindowIpc,
 	useSettingsSource,
 	useTrayPresence,
@@ -797,7 +799,7 @@ app.on("before-quit", async () => {
 function registerIpc(): void {
 	registerDeliveryIpc(() => getWindow(), () => store);
 	registerRunningServicesIpc(() => getWindow());
-	registerBrowserIpc(() => getWindow(), () => settings.browser ?? {});
+	registerBrowserIpc(getPrimaryWindow, () => settings.browser ?? {});
 	registerWorkspaceIpc({ workspaceInfo });
 
 	registerWindowIpc();
@@ -815,7 +817,7 @@ function registerIpc(): void {
 	registerFileOpsIpc({ projectPath });
 	registerFormatIpc({ projectPath, projectRoot });
 
-	registerTerminalIpc({ terminals, spawnPty, projectPath, insideAProject, window: () => getWindow() });
+	registerTerminalIpc({ terminals, spawnPty, projectPath, insideAProject, eachWindow: eachAppWindow });
 	registerUpdateIpc();
 
 	registerServicesIpc({

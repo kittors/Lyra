@@ -894,12 +894,6 @@ export function migrateAppearance(appearance: AppearanceSettings): AppearanceSet
 	for (const key of ["uiFont", "codeFont"] as const) {
 		if (SUPERSEDED_FONTS[key].includes(next[key])) next[key] = DEFAULT_APPEARANCE[key];
 	}
-	/*
-	 * 13 was only ever the factory size. Anyone still on it never picked a size; they just
-	 * inherited the old default, which sat a step below native Mac UI and looked slight.
-	 * A value they typed (11, 12, 15…) stays.
-	 */
-	if (next.uiFontSize === 13) next.uiFontSize = DEFAULT_APPEARANCE.uiFontSize;
 	for (const key of REMOVED_APPEARANCE) delete (next as Record<string, unknown>)[key];
 	return next;
 }

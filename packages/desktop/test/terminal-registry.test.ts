@@ -32,6 +32,7 @@ function harness() {
 	const spawned: FakePty[] = [];
 	/** Every `terminal:data` that reached a renderer, so "was this forwarded?" is countable. */
 	const sent: { channel: string; payload: { id: string; data?: string } }[] = [];
+	const otherSent: typeof sent = [];
 	let nextPid = 1000;
 
 	const spawnPty = () => {
@@ -61,18 +62,70 @@ function harness() {
 		spawnPty,
 		// Every path is a project here; which paths qualify is decided elsewhere and tested there.
 		insideAProject: () => true,
-		window: () =>
-			({
+		eachWindow: (visit: (window: import("electron").BrowserWindow) => void) => {
+			for (const messages of [sent, otherSent]) visit({
 				isDestroyed: () => false,
-				webContents: {
-					isDestroyed: () => false,
-					send: (channel: string, payload: { id: string; data?: string }) => sent.push({ channel, payload }),
-				},
-			}) as never,
+				webContents: { isDestroyed: () => false, send: (channel: string, payload: { id: string; data?: string }) => messages.push({ channel, payload }) },
+			} as never);
+		},
 	});
 
-	return { registry, terminals, spawned, sent };
+	return { registry, terminals, spawned, sent, otherSent };
 }
+
+test("terminal output and exit reach every live app window without requiring focus", () => {
+	const { registry, spawned, sent, otherSent } = harness();
+	const shell = registry.open("/work/app", 80, 24);
+	registry.attach(shell.id, 80, 24);
+	spawned[0].say("background build output");
+	spawned[0].quit(7);
+	assert.deepEqual(otherSent, sent);
+	assert.equal(otherSent.length, 2);
+	assert.equal(otherSent[0].payload.data, "background build output");
+	assert.equal(otherSent[1].channel, "terminal:exit");
+});
+
+test("detaching the newest view keeps an older view of the same shell receiving output", () => {
+	const { registry, spawned, sent, terminals } = harness();
+	const shell = registry.open("/work/app", 80, 24);
+	const first = registry.attach(shell.id, 80, 24);
+	const second = registry.attach(shell.id, 40, 24);
+	assert.ok(first && second);
+	registry.detach(shell.id, second.epoch);
+	assert.equal(terminals.get(shell.id)?.attached, true);
+	spawned[0].say("older view is still listening");
+	assert.equal(sent.at(-1)?.payload.data, "older view is still listening");
+	registry.detach(shell.id, first.epoch);
+	assert.equal(terminals.get(shell.id)?.attached, false);
+	spawned[0].say("scrollback only");
+	assert.equal(sent.length, 1);
+});
+
+test("renderer cleanup removes all its connections while preserving another renderer's views", () => {
+	const { registry, spawned, sent, terminals } = harness();
+	const shared = registry.open("/work/app", 80, 24);
+	const own = registry.open("/work/app", 80, 24);
+	const survivor = registry.attach(shared.id, 80, 24, 10);
+	const gone = registry.attach(shared.id, 40, 24, 20);
+	registry.attach(shared.id, 50, 24, 20);
+	registry.attach(own.id, 50, 24, 20);
+	assert.ok(survivor && gone);
+	registry.detachOwner(20);
+	assert.equal(terminals.get(shared.id)?.connections.size, 1);
+	assert.equal(terminals.get(shared.id)?.attached, true);
+	assert.equal(terminals.get(own.id)?.attached, false);
+	registry.detach(shared.id, gone.epoch);
+	spawned[0].say("still connected elsewhere");
+	spawned[1].say("only scrollback");
+	assert.equal(sent.length, 1);
+	const reloaded = registry.attach(shared.id, 40, 24, 20);
+	assert.ok(reloaded);
+	registry.detachOwner(10);
+	assert.equal(terminals.get(shared.id)?.attached, true);
+	registry.detach(shared.id, reloaded.epoch);
+	assert.equal(terminals.get(shared.id)?.attached, false);
+	assert.equal(spawned.some((pty) => pty.killed), false);
+});
 
 test("opening always starts another shell — that is what the tab strip's + is for", () => {
 	const { registry, spawned } = harness();
@@ -428,8 +481,8 @@ test("data and exit events are silently ignored when window or webContents is de
 		terminals,
 		spawnPty: () => spawned as never,
 		insideAProject: () => true,
-		window: () =>
-			({
+		eachWindow: (visit) =>
+			visit({
 				isDestroyed: () => destroyed,
 				webContents: {
 					isDestroyed: () => destroyed,
@@ -437,7 +490,7 @@ test("data and exit events are silently ignored when window or webContents is de
 						sendCount++;
 					},
 				},
-			}) as never,
+			} as never),
 	});
 
 	const tab = registry.open("/work/app", 80, 24);
@@ -475,7 +528,7 @@ test("starts in home when outside a project, and starts in the normalized projec
 		},
 		projectPath: (target: string) => (target.startsWith(appPath) ? appPath : null),
 		insideAProject: (target: string) => target.startsWith(appPath),
-		window: () => null,
+		eachWindow: () => {},
 	});
 
 	projectRegistry.open("/work/app/src", 80, 24);

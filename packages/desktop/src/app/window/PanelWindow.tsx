@@ -8,13 +8,14 @@
 import { AppWindow } from "lucide-react";
 import { useEffect } from "react";
 import { SessionScope } from "../session-scope.tsx";
-import { renderPanel, usePanelDefinitions } from "../../features/dock/index.ts";
+import { renderPanel, renderPanelHeader, renderPanelActions, usePanelDefinitions } from "../../features/dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useLayout } from "../layout.tsx";
 import { ToolbarButton } from "./WindowControls.tsx";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { bridge } from "../../services/index.ts";
+import { KeepOnTopButton } from "./KeepOnTopButton.tsx";
 import type { PanelKind } from "../../features/dock/index.ts";
 
 export function PanelWindow() {
@@ -52,13 +53,15 @@ export function PanelWindow() {
 					paddingRight: (headerBar ? titlebar.end : 0) + 8,
 				}}
 			>
-				<span
+				<div
 					data-ly-panel-window-title
 					className="min-w-0 flex-1 truncate text-detail font-medium text-ink select-none"
 				>
-					{title}
-				</span>
+					<SessionScope.Provider value={sessionId}>{kind ? renderPanelHeader(kind) ?? title : title}</SessionScope.Provider>
+				</div>
 				<div data-ly-panel-window-tools className="no-drag ml-auto flex shrink-0 items-center gap-0.5">
+					<SessionScope.Provider value={sessionId}>{kind ? renderPanelActions(kind) : null}</SessionScope.Provider>
+					<KeepOnTopButton />
 					<ToolbarButton label={t("pane.restoreToDock")} onClick={restore}>
 						<span data-ly-restore-panel className="flex items-center justify-center">
 							<AppWindow size={13} strokeWidth={1.9} />

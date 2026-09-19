@@ -21,7 +21,7 @@ import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../u
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/index.ts";
-import { canOfferSplit, canSplit, contains, openInNewWindow, splitWith, useSplit } from "../split/index.ts";
+import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 
 export function SessionMenu({
 	anchor,
@@ -326,6 +326,7 @@ export function SessionMenu({
 							</Popover>
 						)}
 					</div>
+					<SplitMoveItems sessionId={session.id} onClose={onClose} />
 				</MenuBody>
 			</Popover>
 		</>

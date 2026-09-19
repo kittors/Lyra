@@ -544,12 +544,21 @@ test("our own messages are already specific and are passed through", () => {
 	assert.equal(describe(new Error(mine), 100), mine);
 });
 
-test("a blocked write on Windows names Defender, not the Node open() path", () => {
+test("an unknown Windows write failure does not guess which program blocked it", () => {
 	const raw = new Error("UNKNOWN: unknown error, open 'C:\\Users\\250377\\AppData\\Roaming\\@lyra\\desktop\\updates\\lyra-update-0.9.15\\Lyra-0.9.15-x64.exe.part'");
 	const message = describe(raw, 173_000_000);
-	assert.match(message, /安全中心/);
-	assert.doesNotMatch(message, /250377|exe\.part|UNKNOWN/i);
+	assert.match(message, /无法写入更新文件/);
+	assert.doesNotMatch(message, /250377|exe\.part|UNKNOWN|Defender|安全中心|排除项/i);
 	assert.match(message, /已经下好的部分还在/);
+});
+
+test("permission, busy and IO failures offer write checks without diagnosing Windows security", () => {
+	for (const code of ["EACCES", "EPERM", "EIO", "EBUSY", "ELOCKED"]) {
+		const message = describe(new Error(`${code}: open '/tmp/download.part'`), 0);
+		assert.match(message, /无法写入更新文件/);
+		assert.match(message, /权限/);
+		assert.doesNotMatch(message, /Windows|Defender|安全中心|排除项|已经下好的部分|\/tmp/);
+	}
 });
 
 test("the partial is never named like an installer", () => {

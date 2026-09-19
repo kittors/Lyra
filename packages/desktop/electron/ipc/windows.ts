@@ -46,6 +46,17 @@ function readPanel(input: { kind?: string; scope?: string; sessionId?: string | 
 }
 
 export function registerWindowsIpc(): void {
+	ipcMain.handle("windows:keepOnTop", (event, input: unknown) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (!win || win.isDestroyed()) return { ok: false, enabled: false };
+		if (input !== undefined) {
+			if (typeof input !== "object" || input === null || !("enabled" in input) || typeof input.enabled !== "boolean") {
+				return { ok: false, enabled: win.isAlwaysOnTop() };
+			}
+			win.setAlwaysOnTop(input.enabled);
+		}
+		return { ok: true, enabled: win.isAlwaysOnTop() };
+	});
 	ipcMain.handle("windows:open", async (_event, input: { sessionId: string }) => {
 		if (!input?.sessionId) return { ok: false };
 		openSessionWindow(input.sessionId);

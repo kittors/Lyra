@@ -25,6 +25,7 @@ import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
 import { ScreenshotLoupe } from "./ScreenshotLoupe.tsx";
 import { useToolbarPlacement } from "./useToolbarPlacement.ts";
 import { useSelectionGesture, EDGE_GRAB } from "./useSelectionGesture.ts";
+import { createCaptureActions } from "./capture-actions.ts";
 import { bridge } from "../../services/index.ts";
 import {
 	handlePoint,
@@ -56,14 +57,12 @@ const TOAST_FADE_MS = 200;
 /**
  * What the confirmation over the desktop says once the capture itself has gone.
  *
- * One line, and deliberately not more. It carried the file's path for a while — the thinking being
- * that a destination which is a setting genuinely varies, so the answer is worth showing — and the
- * result was a paragraph in a box that had held two words: 「已保存到」 above a wrapped absolute
- * path, twice the size of every other confirmation this overlay shows and slower to read than the
- * thing it was confirming. Where the file went belongs in settings, where it was chosen.
+ * Downloads include their actual destination. A short "Saved" cannot tell somebody which
+ * directory was used, especially when Windows redirects the desktop to OneDrive.
  */
 interface ToastMessage {
 	text: string;
+	detail?: string;
 	/** Whether this is a failure, which gets a warning mark rather than a tick. */
 	failed?: boolean;
 }
@@ -124,6 +123,8 @@ export function ScreenshotOverlay() {
 	 * different thing in a different place.
 	 */
 	const [toast, setToast] = useState<ToastMessage | null>(null);
+	const [captureActions] = useState(createCaptureActions);
+	useEffect(() => () => captureActions.reset(), [captureActions]);
 
 
 	/*
@@ -326,8 +327,8 @@ export function ScreenshotOverlay() {
 		if (leavingRef.current) return;
 		leavingRef.current = true;
 		setLeaving(true);
-		setTimeout(act, LEAVE_MS);
-	}, []);
+		captureActions.after(LEAVE_MS, act);
+	}, [captureActions]);
 
 	/**
 	 * Everything this page holds that belongs to one capture, put back.
@@ -346,6 +347,7 @@ export function ScreenshotOverlay() {
 	 * Marks are not here: `useAnnotator` clears those off the same session number.
 	 */
 	const resetSession = useCallback((frame?: ScreenshotInit) => {
+		captureActions.reset(frame?.session);
 		resetGesture(frame);
 		setToast(null);
 		setToastLeaving(false);
@@ -361,7 +363,7 @@ export function ScreenshotOverlay() {
 		 * could see.
 		 */
 		resetToolbar();
-	}, [resetGesture, resetToolbar]);
+	}, [captureActions, resetGesture, resetToolbar]);
 	useEffect(() => {
 		const cleanup = bridge.screenshot?.onInit((data: ScreenshotInit) => {
 			/*
@@ -428,9 +430,9 @@ export function ScreenshotOverlay() {
 		setToast(message);
 		setLeaving(true);
 		bridge.screenshot?.passThrough?.();
-		setTimeout(() => setToastLeaving(true), LEAVE_MS + holdMs);
-		setTimeout(() => bridge.screenshot?.cancel?.(), LEAVE_MS + holdMs + TOAST_FADE_MS);
-	}, []);
+		captureActions.after(LEAVE_MS + holdMs, () => setToastLeaving(true));
+		captureActions.after(LEAVE_MS + holdMs + TOAST_FADE_MS, () => bridge.screenshot?.cancel?.());
+	}, [captureActions]);
 
 	// Escape shortcut, and ⌘C while the loupe is reading a colour.
 	useEffect(() => {
@@ -570,31 +572,25 @@ export function ScreenshotOverlay() {
 		});
 	}, [withText, crop, selection, initData, leaveThen]);
 
-	/**
-	 * Write the picture to the download directory, and confirm it in one line.
-	 *
-	 * The same shape as taking a colour, deliberately: the errand is finished, the capture goes at
-	 * once, and a short confirmation stays over the real desktop for a beat. Where the file went is
-	 * a setting the user chose; repeating it here made the box four times the size for information
-	 * nobody asked for at that moment.
-	 *
-	 * Awaited before anything is said, which is also how the colour works — a message that has to be
-	 * corrected afterwards is worse than one that arrives a few milliseconds later, and writing a PNG
-	 * to a local folder is a few milliseconds.
-	 */
+	/** Only a completed write ends the capture; a failed destination leaves the selection retryable. */
 	const handleDownload = useCallback(() => {
+		if (!initData || leavingRef.current || !captureActions.startDownload(initData.session)) return;
+		setToast(null);
 		withText(() => {
+			if (!captureActions.isCurrent(initData.session)) return;
 			const png = crop();
-			if (!png || !initData) return;
-			void bridge.screenshot?.download?.(png, initData.settings).then(
-				(result) =>
-				leaveWithToast(
-					result?.ok ? { text: translate("screenshot.saved") } : { text: translate("screenshot.saveFailed"), failed: true },
-				),
-				() => leaveWithToast({ text: translate("screenshot.saveFailed"), failed: true }),
-			);
+			if (!png) { captureActions.finishDownload(initData.session); return; }
+			// Resolve the destination from current main-process settings, not the capture's snapshot.
+			void bridge.screenshot.download(png).then(
+				(result) => {
+					if (!captureActions.isCurrent(initData.session)) return;
+					if (result.ok && result.filePath) leaveWithToast({ text: translate("screenshot.saved"), detail: result.filePath }, 3500);
+					else setToast({ text: translate("screenshot.saveFailed"), detail: result.error, failed: true });
+				},
+				(error: unknown) => { if (captureActions.isCurrent(initData.session)) setToast({ text: translate("screenshot.saveFailed"), detail: String(error), failed: true }); },
+			).finally(() => captureActions.finishDownload(initData.session));
 		});
-	}, [withText, crop, initData, leaveWithToast]);
+	}, [captureActions, withText, crop, initData, leaveWithToast]);
 
 	/*
 	 * Between captures. The window still exists — it is never destroyed any more — so this is what
@@ -957,9 +953,10 @@ export function ScreenshotOverlay() {
 						transition: `opacity ${TOAST_FADE_MS}ms ease-out`,
 					}}
 				>
-					<div className="flex animate-[ly-tool-in_var(--ly-t-base)_ease-out] flex-col items-center gap-2 rounded-2xl bg-black/75 px-9 py-7 text-white shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+					<div className="flex max-w-[min(80vw,640px)] animate-[ly-tool-in_var(--ly-t-base)_ease-out] flex-col items-center gap-2 rounded-2xl bg-black/75 px-9 py-7 text-white shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
 						{toast.failed ? <TriangleAlert size={44} strokeWidth={2.2} /> : <Check size={44} strokeWidth={2.2} />}
 						<span className="text-label">{toast.text}</span>
+						{toast.detail && <span className="break-all text-center text-caption">{toast.detail}</span>}
 					</div>
 				</div>
 			)}

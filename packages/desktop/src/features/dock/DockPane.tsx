@@ -26,6 +26,7 @@ export function DockPane({
 	draggable,
 	onDragStart,
 	onMove,
+	onArrowMove,
 	actions,
 	title,
 	inset,
@@ -36,6 +37,7 @@ export function DockPane({
 	onFocus,
 	onLanded,
 	chrome = true,
+	customHeader,
 	children,
 }: {
 	kind: PaneKind;
@@ -66,6 +68,7 @@ export function DockPane({
 	draggable: boolean;
 	onDragStart: (event: React.PointerEvent<HTMLElement>) => void;
 	onMove: (side: DropSide) => void;
+	onArrowMove: (side: DropSide) => boolean;
 	/** Controls belonging to what the pane holds — the conversation's panel buttons. */
 	actions?: React.ReactNode;
 	/** Drawn in the header in place of the name — see `PanelDefinition.header`. */
@@ -87,6 +90,7 @@ export function DockPane({
 	 * its own title bar, and this shared dock chrome would sit above them as a fifth strip.
 	 */
 	chrome?: boolean;
+	customHeader?: React.ReactNode;
 	children: React.ReactNode;
 }) {
 	/** Panels are cards over the conversation's surface; so is anything currently in the air. */
@@ -98,6 +102,7 @@ export function DockPane({
 			carried={Boolean(carried)}
 			isHidden={hidden}
 			data-dock-pane={kind}
+			data-ly-pane-slot={customHeader ? "conversation" : undefined}
 			// Focus follows the click for the benefit of the collapsed layout and the keyboard;
 			// it costs nothing here and means the two forms agree about which pane is current.
 			onPointerDownCapture={onFocus}
@@ -201,7 +206,7 @@ export function DockPane({
 				carried ? "ly-dock-pane-carried" : floats ? "z-10" : "z-0"
 			} ${landing ? "ly-dock-pane-landing" : ""}`}
 			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: floats ? PANE_INSET + 1 : 0, background: "transparent" }}>
-				<PaneHeader
+				{customHeader ?? <PaneHeader
 					kind={kind}
 					label={label}
 					icon={icon}
@@ -212,6 +217,7 @@ export function DockPane({
 					title={title}
 					onDragStart={onDragStart}
 					onMove={onMove}
+					onArrowMove={onArrowMove}
 					actions={actions}
 					inset={inset}
 					insetEnd={insetEnd}
@@ -219,7 +225,7 @@ export function DockPane({
 					onToggleMaximized={onToggleMaximized}
 					onPopOut={onPopOut}
 					onClose={onClose}
-				/>
+				/>}
 			</div> : null}
 		>
 			{/*
@@ -245,7 +251,7 @@ export function DockPane({
 			>
 			{/* Controls keep their endpoint geometry while this retained surface composites its resize. */}
 			{chrome && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}
-			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+			<div data-dock-content={kind} className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 			</div>
 		</PaneSurface>
 	);

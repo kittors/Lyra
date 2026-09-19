@@ -9,15 +9,13 @@
 
 import { axisOf, MIN_FRACTION, sideFromBox, type Axis, type DropSide, type SplitNode } from "./tree.ts";
 
-/**
- * Same readability floor as the dock's conversation pane: below this the words break one per
- * line and the composer starts eating the transcript.
- */
+/** A screen must fit the same readable conversation as the standalone view. */
 export const SCREEN_MIN_WIDTH_PX = 420;
 /** Title bar, composer, and a few lines between them. */
 export const SCREEN_MIN_HEIGHT_PX = 260;
 
 export function canSplitSide(width: number, height: number, side: DropSide): boolean {
+	if (width < SCREEN_MIN_WIDTH_PX || height < SCREEN_MIN_HEIGHT_PX) return false;
 	return axisOf(side) === "row" ? width >= 2 * SCREEN_MIN_WIDTH_PX : height >= 2 * SCREEN_MIN_HEIGHT_PX;
 }
 
@@ -67,6 +65,22 @@ export function subtreeMinPx(node: SplitNode, axis: Axis): number {
 	return node.dir === axis
 		? parts.reduce((sum, size) => sum + size, 0)
 		: parts.reduce((largest, size) => Math.max(largest, size), 0);
+}
+
+/** Render saved shares within pixel floors; resizing must not turn a restored screen into a sliver. */
+export function fitSplitTree(node: SplitNode, span: { width: number; height: number }): SplitNode {
+	if (node.type === "leaf") return node;
+	const along = node.dir === "row" ? span.width : span.height;
+	const floors = node.children.map((child) => subtreeMinPx(child, node.dir));
+	const sizes = node.sizes.map((share) => share * along);
+	for (let pass = 0; pass < sizes.length; pass++) {
+		const deficit = sizes.reduce((sum, value, i) => sum + Math.max(0, floors[i] - value), 0);
+		const spare = sizes.reduce((sum, value, i) => sum + Math.max(0, value - floors[i]), 0);
+		if (deficit < 0.001 || spare < 0.001) break;
+		for (let i = 0; i < sizes.length; i++) sizes[i] = sizes[i] < floors[i] ? floors[i] : sizes[i] - Math.max(0, sizes[i] - floors[i]) / spare * Math.min(deficit, spare);
+	}
+	return { ...node, sizes: sizes.map((size) => size / along), children: node.children.map((child, i) =>
+		fitSplitTree(child, node.dir === "row" ? { width: sizes[i], height: span.height } : { width: span.width, height: sizes[i] })) };
 }
 
 export function resizeFloors(

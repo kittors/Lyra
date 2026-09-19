@@ -25,6 +25,7 @@ import {
 } from "./tree.ts";
 import { useApp } from "../../store/index.ts";
 import { loadSplit, saveSplit } from "./persist.ts";
+import { appendColumn, moveSplit, splitMoves, type MoveName } from "./moves.ts";
 
 export interface SplitState {
 	tree: SplitNode;
@@ -35,6 +36,8 @@ export interface SplitState {
 	focus: (sessionId: string | null) => void;
 	show: (sessionId: string) => void;
 	split: (target: string | null, incoming: string, side: DropSide) => "split" | "replace" | "focus" | "full";
+	addColumn: (sessionId: string) => boolean;
+	move: (sessionId: string, name: MoveName) => void;
 	close: (sessionId: string) => string | null;
 	resize: (path: number[], index: number, share: number, floor?: ResizeFloor) => void;
 	even: (path: number[], index: number, floor?: ResizeFloor) => void;
@@ -125,6 +128,22 @@ export const useSplit = create<SplitState>((set, get) => ({
 			return "replace";
 		}
 		return "full";
+	},
+
+	addColumn(sessionId) {
+		const tree = appendColumn(get().tree, sessionId);
+		if (!tree) return false;
+		set({ tree, focused: sessionId });
+		persist(get());
+		return true;
+	},
+
+	move(sessionId, name) {
+		const tree = get().tree;
+		const move = splitMoves(tree, sessionId).find((candidate) => candidate.name === name);
+		if (!move) return;
+		set({ tree: moveSplit(tree, sessionId, move) });
+		persist(get());
 	},
 
 	close(sessionId) {

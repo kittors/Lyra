@@ -15,6 +15,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { closePane } from "./actions.ts";
+import { SplitMoveItems } from "./SplitMoveItems.tsx";
 
 export function SplitChrome({
 	sessionId,
@@ -50,7 +51,7 @@ export function SplitChrome({
 				{title}
 			</span>
 			<div data-ly-split-tools className="no-drag relative z-[1] ml-auto flex shrink-0 items-center gap-0.5">
-				<PanelMenu scope={sessionId ?? "@draft"} />
+				<PanelMenu scope={sessionId ?? "@draft"} extras={sessionId ? (onClose) => <SplitMoveItems sessionId={sessionId} onClose={onClose} includeWindow /> : undefined} />
 				{sessionId && (
 					<ToolbarButton
 						label={t("split.closePane")}

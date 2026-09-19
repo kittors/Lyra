@@ -25,34 +25,50 @@ interface TerminalsState {
 	tabs: TerminalTab[];
 	/** Which one the pane is showing. */
 	active: string;
+	activeByScope: Record<string, string>;
 
 	/** Take what the main process reports as the truth of what is running. */
 	sync(tabs: TerminalTab[]): void;
-	add(tab: TerminalTab): void;
+	add(tab: TerminalTab, scope?: string): void;
 	remove(id: string): void;
-	select(id: string): void;
+	select(id: string, scope?: string): void;
+}
+
+/** Shared by the main and detached renderers, validated against the live shell list on attach. */
+export function savedTerminal(scope: string | undefined): string | null {
+	return typeof window === "undefined" ? null : window.localStorage.getItem(`ly:terminal-selection:${scope ?? "@window"}`);
+}
+
+function saveTerminal(scope: string | undefined, id: string): void {
+	if (typeof window !== "undefined") window.localStorage.setItem(`ly:terminal-selection:${scope ?? "@window"}`, id);
 }
 
 export const useTerminals = create<TerminalsState>((set, get) => ({
 	tabs: [],
 	active: "",
+	activeByScope: {},
 
 	sync: (tabs) => {
 		const active = get().active;
 		set({
 			tabs,
+			activeByScope: Object.fromEntries(Object.entries(get().activeByScope).filter(([, id]) => tabs.some((tab) => tab.id === id))),
 			// The tab that was showing may have exited while the pane was away.
 			active: tabs.some((tab) => tab.id === active) ? active : (tabs[0]?.id ?? ""),
 		});
 	},
 
-	add: (tab) => set({ tabs: [...get().tabs, tab], active: tab.id }),
+	add: (tab, scope) => {
+		set({ tabs: [...get().tabs.filter((entry) => entry.id !== tab.id), tab] });
+		get().select(tab.id, scope);
+	},
 
 	remove: (id) => {
 		const rest = get().tabs.filter((tab) => tab.id !== id);
 		const active = get().active;
 		set({
 			tabs: rest,
+			activeByScope: Object.fromEntries(Object.entries(get().activeByScope).map(([scope, active]) => [scope, active === id ? "" : active])),
 			/*
 			 * Closing the tab you are on moves to a neighbour, not to nothing.
 			 *
@@ -64,5 +80,9 @@ export const useTerminals = create<TerminalsState>((set, get) => ({
 		});
 	},
 
-	select: (id) => set({ active: id }),
+	select: (id, scope) => {
+		if (!get().tabs.some((tab) => tab.id === id)) return;
+		saveTerminal(scope, id);
+		set(scope === undefined ? { active: id } : { activeByScope: { ...get().activeByScope, [scope]: id } });
+	},
 }));

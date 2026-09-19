@@ -120,6 +120,7 @@ export function useDockDrag(
 	/** False until the pointer has travelled far enough for this to be a drag rather than a click. */
 	const moving = useRef(false);
 	const landingTimer = useRef<number | undefined>(undefined);
+	const landingFrame = useRef(0);
 	/** So the backstop timer and the transition both end the flight the same way. */
 	const settle = useRef<() => void>(() => {});
 	/** How far the pane has been carried from where it was picked up, in pixels. */
@@ -164,7 +165,7 @@ export function useDockDrag(
 			const container = dockBox.current ?? containerRef.current?.getBoundingClientRect();
 			if (!container) return null;
 			// Fitted, because that is where the pane actually is on screen — see `fitTree`.
-			const box = layoutPanes(fitTree(host.tree(), container, paneFloor)).find((pane) => pane.kind === kind);
+			const box = layoutPanes(fitTree(host.tree(), container, host.floor ?? paneFloor, host.preserveAxis)).find((pane) => pane.kind === kind);
 			if (!box) return null;
 			return {
 				left: container.left + box.left * container.width,
@@ -190,7 +191,8 @@ export function useDockDrag(
 	const landAt = useCallback((kind: PaneKind, from: Rect, rect: Rect | null) => {
 		flying.current = kind;
 		setCarried((current) => (current ? { ...current, landing: true } : null));
-		requestAnimationFrame(() => {
+		landingFrame.current = requestAnimationFrame(() => {
+			landingFrame.current = 0;
 			/*
 			 * Home is a transform too, so the flight is the same composited property the carry was.
 			 *
@@ -255,7 +257,7 @@ export function useDockDrag(
 	}, [carried, containerRef]);
 
 	const finish = useCallback(
-		(cancelled: boolean) => {
+		(cancelled: boolean, immediate = false) => {
 			const grabbed = held.current;
 			held.current = null;
 			if (!grabbed) return;
@@ -268,10 +270,17 @@ export function useDockDrag(
 			moving.current = false;
 			// Before `landAt`: the flight home is the one movement in a drag that should animate.
 			release();
+			const restored = cancelled || !host.currentDrag()?.at;
 			host.endDrag(cancelled);
 			// Cancelling restores the tree, so home is where the pane started; otherwise it is
 			// wherever the live rearrangement has already put it. Read after `endDrag` either way.
-			landAt(grabbed.kind, grabbed.from, cancelled ? grabbed.from : rectOf(grabbed.kind));
+			if (immediate) {
+				// Background windows throttle animation frames; cancellation must release the top layer now.
+				cancelAnimationFrame(landingFrame.current);
+				window.clearTimeout(landingTimer.current);
+				flying.current = grabbed.kind;
+				setCarried(null);
+			} else landAt(grabbed.kind, grabbed.from, restored ? grabbed.from : rectOf(grabbed.kind));
 		},
 		[host, landAt, rectOf, release],
 	);
@@ -403,7 +412,7 @@ export function useDockDrag(
 			 * because the carried pane really is out of the dock, `rest` is also what the panes
 			 * staying put are actually drawn at.
 			 */
-			const panes = layoutPanes(fitTree(drag.rest, container, paneFloor)).map((pane) => ({
+			const panes = layoutPanes(fitTree(drag.rest, container, host.floor ?? paneFloor, host.preserveAxis)).map((pane) => ({
 				kind: pane.kind,
 				box: {
 					left: container.left + pane.left * container.width,
@@ -427,6 +436,7 @@ export function useDockDrag(
 			finish(false);
 		};
 		const onCancel = () => finish(true);
+		const onSuspend = () => finish(true, true);
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Escape" || !held.current) return;
 			// Before anything else can act on it: an abandoned drag is what Escape means here.
@@ -438,13 +448,19 @@ export function useDockDrag(
 		window.addEventListener("pointermove", onMove);
 		window.addEventListener("pointerup", onUp);
 		window.addEventListener("pointercancel", onCancel);
+		window.addEventListener("blur", onSuspend);
+		window.addEventListener("resize", onSuspend);
 		window.addEventListener("keydown", onKey, true);
 		return () => {
 			window.removeEventListener("pointermove", onMove);
 			window.removeEventListener("pointerup", onUp);
 			window.removeEventListener("pointercancel", onCancel);
+			window.removeEventListener("blur", onSuspend);
+			window.removeEventListener("resize", onSuspend);
 			window.removeEventListener("keydown", onKey, true);
 			window.clearTimeout(landingTimer.current);
+			cancelAnimationFrame(landingFrame.current);
+			if (moving.current) host.endDrag(true);
 			// A drag torn down mid-flight would otherwise leave the panes frozen and untouchable.
 			release();
 		};

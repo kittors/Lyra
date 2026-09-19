@@ -7,7 +7,8 @@ import { Plus, SquareTerminal } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { useSide } from "../dock/index.ts";
-import { useTerminals } from "../../store/terminals.ts";
+import { savedTerminal, useTerminals } from "../../store/terminals.ts";
+import { useTerminalScope } from "./scope.ts";
 import { rememberTerminalSize } from "./prewarm.ts";
 import { type CodeTypography, terminalTypography } from "./typography.ts";
 import { CODE_DEFAULTS } from "../settings/index.ts";
@@ -33,6 +34,7 @@ import { bridge } from "../../services/index.ts";
  * decides one thing only: where a shell starts when you ask for a new one.
  */
 export function TerminalPane() {
+	const { active, scope, cwd: scopedCwd } = useTerminalScope();
 	const appearance = useApp((s) => s.settings?.appearance);
 	const host = useRef<HTMLDivElement>(null);
 	const term = useRef<Terminal | null>(null);
@@ -53,7 +55,8 @@ export function TerminalPane() {
 	 */
 	const size = useRef({ cols: 80, rows: 24 });
 	const [exited, setExited] = useState<number | null>(null);
-	const tabs = useTerminals((s) => s.tabs);
+	// The shared tab list includes background shells, even while this pane has no active connection.
+	useEffect(() => bridge.terminal.onExit(({ id }) => useTerminals.getState().remove(id)), []);
 
 	/*
 	 * Run what the transcript handed over.
@@ -66,6 +69,8 @@ export function TerminalPane() {
 	useEffect(() => {
 		const id = sessionId.current;
 		if (!pending || !ready || !id) return;
+		if (scope !== undefined && scope !== (useApp.getState().activeSessionId ?? "@draft")) return;
+		if (useSide.getState().pendingCommand !== pending) return;
 		/*
 		 * Claimed before it is written, not after.
 		 *
@@ -77,9 +82,8 @@ export function TerminalPane() {
 		useSide.getState().commandTaken();
 		bridge.terminal.write(id, `${pending}\r`);
 		term.current?.focus();
-	}, [pending, ready]);
+	}, [pending, ready, scope]);
 
-	const active = useTerminals((s) => s.active);
 
 	/**
 	 * Where a *new* shell would start. Empty string means "no project", which is home.
@@ -98,7 +102,7 @@ export function TerminalPane() {
 	 * home directory (`resolve` in `terminal-registry.ts`), so a shell with nowhere in particular to
 	 * be starts in `~` — which is what a terminal does everywhere else on the machine.
 	 */
-	const startingCwd = () => useApp.getState().meta?.cwd ?? useApp.getState().workspace?.path ?? "";
+	const startingCwd = () => scopedCwd;
 
 	/*
 	 * Find out what is already running before drawing anything.
@@ -131,6 +135,7 @@ export function TerminalPane() {
 		return () => {
 			cancelled = true;
 		};
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- Initial attachment is once per pane; subsequent directory changes use the serialized focus queue below.
 	}, []);
 
 	/**
@@ -163,10 +168,14 @@ export function TerminalPane() {
 	const openOrSelect = async (cwd: string, cancelled: () => boolean) => {
 		const here = await bridge.terminal.list(cwd);
 		if (cancelled()) return;
-		const known = new Set(useTerminals.getState().tabs.map((tab) => tab.id));
-		const mine = here.find((tab) => known.has(tab.id));
+		const state = useTerminals.getState();
+		const known = new Set(state.tabs.map((tab) => tab.id));
+		const claimed = new Set(Object.entries(state.activeByScope).filter(([owner]) => owner !== scope).map(([, id]) => id));
+		const saved = savedTerminal(scope);
+		const mine = here.find((tab) => tab.id === saved && !claimed.has(tab.id))
+			?? here.find((tab) => known.has(tab.id) && !claimed.has(tab.id));
 		if (mine) {
-			useTerminals.getState().select(mine.id);
+			useTerminals.getState().select(mine.id, scope);
 			return;
 		}
 		const opened = await bridge.terminal.open(cwd, Math.max(10, size.current.cols), Math.max(4, size.current.rows));
@@ -176,7 +185,7 @@ export function TerminalPane() {
 		 * shell 已经在主进程里起来了；这时候丢掉它，就多了一个没有标签、谁也够不着的 pty。
 		 * 加进去最多是多一个标签，那是看得见、关得掉的。
 		 */
-		useTerminals.getState().add({ id: opened.id, title: opened.title });
+		useTerminals.getState().add({ id: opened.id, title: opened.title }, scope);
 	};
 
 	/*
@@ -185,7 +194,7 @@ export function TerminalPane() {
 	 * 记住上一次的目录，而不是用一个「是不是第一次」的布尔：开发模式下 effect 每次挂载会跑两遍，
 	 * 布尔在第二遍已经是 false，于是照样开一个——那正是之前双开 shell 的成因。
 	 */
-	const workspacePath = useApp((s) => s.workspace?.path ?? "");
+	const workspacePath = scopedCwd;
 	/*
 	 * 起手就记着挂载时用的那个目录，而不是 `null`。
 	 *
@@ -355,10 +364,7 @@ export function TerminalPane() {
 		const offExit = bridge.terminal.onExit(({ id, code }) => {
 			if (id !== sessionId.current) return;
 			sessionId.current = null;
-			// The tab goes with the shell that backed it: a strip listing a shell that has exited
-			// is a list of things that do not exist. Including the project-less strip, which is
-			// keyed by the empty string rather than being absent.
-			useTerminals.getState().remove(id);
+			// A background shell disappearing must not replace this pane's own exit status.
 			setExited(code);
 		});
 
@@ -441,7 +447,7 @@ export function TerminalPane() {
 		return () => clearTimeout(timer);
 	}, [appearance]);
 
-	const empty = tabs.length === 0;
+	const empty = !active;
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
@@ -454,7 +460,7 @@ export function TerminalPane() {
 			 * strip and no terminal at all. Hidden and covered rather than replaced, so the element
 			 * xterm owns outlives every tab that comes and goes inside it.
 			 */}
-			<div ref={host} className={`ly-term min-h-0 flex-1 px-2 pt-1.5 ${empty ? "invisible" : ""}`} />
+			<div ref={host} data-terminal-id={active} className={`ly-term min-h-0 flex-1 px-2 pt-1.5 ${empty ? "invisible" : ""}`} />
 
 			{/*
 			 * Every tab closed.
@@ -478,7 +484,7 @@ export function TerminalPane() {
 						onClick={() => {
 							// The measured size, like everywhere else a shell is started — see `size`.
 							void bridge.terminal.open(startingCwd(), Math.max(10, size.current.cols), Math.max(4, size.current.rows)).then((opened) => {
-								useTerminals.getState().add({ id: opened.id, title: opened.title });
+								useTerminals.getState().add({ id: opened.id, title: opened.title }, scope);
 							});
 						}}
 						data-ly-tip={translate("terminal.new")}

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
 import type { Message, SessionStorage } from "@lyra/core";
 import { findUserImagesAt, loadUserImagesAt, readUserImagesAt } from "../electron/display-image.ts";
 
@@ -39,4 +40,34 @@ test("loadUserImagesAt prefers the live session and does not read the log", asyn
 	);
 	assert.equal(images[0]?.data, "live");
 	assert.equal(reads, 0);
+});
+
+test("a handled image read failure does not escape as an unhandled rejection and can be retried", () => {
+	// A child isolates Node's unhandled-rejection policy from the test runner's own listener.
+	const moduleUrl = new URL("../electron/display-image.ts", import.meta.url).href;
+	const script = `
+		import assert from "node:assert/strict";
+		import { loadUserImagesAt } from ${JSON.stringify(moduleUrl)};
+		let reads = 0;
+		const lookup = {
+			liveMessages: () => undefined,
+			read: async function* () {
+				reads++;
+				if (reads === 1) throw new Error("image log unavailable");
+				yield { seq: 1, ts: 1, type: "message", message: {
+					role: "user", timestamp: 1, content: [{ type: "image", mimeType: "image/png", data: "retry" }]
+				} };
+			},
+		};
+		await assert.rejects(loadUserImagesAt(lookup, "p", "read-failure", 1), /image log unavailable/);
+		await new Promise(resolve => setImmediate(resolve));
+		const images = await loadUserImagesAt(lookup, "p", "read-failure", 1);
+		assert.equal(images[0]?.data, "retry");
+		assert.equal(reads, 2);
+	`;
+	const result = spawnSync(process.execPath, ["--experimental-strip-types", "--unhandled-rejections=strict", "--input-type=module", "-e", script], {
+		encoding: "utf8",
+		timeout: 10_000,
+	});
+	assert.equal(result.status, 0, result.stderr || result.error?.message);
 });

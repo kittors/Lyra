@@ -21,6 +21,7 @@ import {
 	kinds,
 	areAdjacent,
 	move,
+	moveAlong,
 	nodeAt,
 	pathTo,
 	remove,
@@ -55,6 +56,8 @@ export interface DragState {
 
 interface DockState {
 	tree: DockNode;
+	/** Current render constraints also govern a detached panel's return. */
+	viewport: { width: number; height: number; conversation: { width: number; height: number }; compact: boolean } | null;
 	/** Which pane the collapsed (narrow-window) form is showing. */
 	focused: PaneKind;
 	/**
@@ -103,8 +106,10 @@ interface DockState {
 	close(kind: PaneKind): void;
 	toggle(kind: PaneKind): void;
 	moveTo(kind: PaneKind, at: DropAt): void;
+	moveAlong(kind: PaneKind, side: DropSide): boolean;
 	/** Leave full screen. Separate from the toggle, for the callers that only ever want out. */
 	restore(): void;
+	restoreLayout(tree: DockNode): void;
 	/** Preview a drop, always derived from the layout without the carried pane. */
 	preview(rest: DockNode, kind: PaneKind, at: DropAt | null): void;
 	/**
@@ -303,6 +308,7 @@ export const useDock = create<DockState>((set, get) => {
 
 	return {
 		tree: defaultTree(),
+		viewport: null,
 		focused: "conversation",
 		maximized: null,
 		crossRatio: FULL_SCREEN_RATIO,
@@ -344,6 +350,7 @@ export const useDock = create<DockState>((set, get) => {
 			});
 		},
 
+		restoreLayout: (tree) => commit(tree, { maximized: null }),
 		close: (kind) => commit(remove(get().tree, kind)),
 
 		toggle: (kind) => {
@@ -372,6 +379,13 @@ export const useDock = create<DockState>((set, get) => {
 		 * hand back a pane that is no longer part of the full screen it was dragged out of.
 		 */
 		moveTo: (kind, at) => commit(move(get().tree, kind, at), { maximized: null }),
+		moveAlong: (kind, side) => {
+			const tree = get().tree;
+			const next = moveAlong(tree, kind, side);
+			if (!next) return false;
+			if (next !== tree) commit(next, { maximized: null });
+			return true;
+		},
 
 		/**
 		 * Show what a drop would do, by inserting into the layout the carried pane has left.

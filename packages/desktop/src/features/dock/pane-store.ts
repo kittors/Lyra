@@ -7,14 +7,14 @@
  * uses the same insert / fit / drag moves.
  *
  * Inserts and moves ask the tile's pixel span first. A landing that would put any
- * pane below its floor is refused — that is the crushed conversation in a 2×2 tile,
- * and `fitTree` overlapping is not an answer to it.
+ * pane below its floor is refused. Tile floors allow dense tool layouts, while
+ * keeping their axes and preventing overlapping cards.
  */
 
 import { create } from "zustand";
 import { sameDrop } from "./drop.ts";
 import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "./persist.ts";
-import { paneFloor } from "./geometry.ts";
+import { tilePaneFloor } from "./geometry.ts";
 import { dropFits, placePanel } from "./place.ts";
 import { defaultDrop, type DragState } from "./store.ts";
 import {
@@ -23,10 +23,12 @@ import {
 	insert,
 	lift,
 	move,
+	moveAlong,
 	remove,
 	resize,
 	type DockNode,
 	type DropAt,
+	type DropSide,
 	type PaneKind,
 } from "./tree.ts";
 
@@ -34,6 +36,7 @@ export const emptyDockTree: DockNode = defaultTree();
 
 interface PaneDrag extends DragState {
 	scope: string;
+	maximized: PaneKind | null;
 }
 
 type DockSpan = { width: number; height: number };
@@ -42,6 +45,10 @@ interface PaneDockState {
 	trees: Record<string, DockNode>;
 	sizes: Record<string, DockSpan>;
 	drag: PaneDrag | null;
+	maximized: Record<string, PaneKind | null>;
+	toggleMaximized(scope: string, kind: PaneKind): void;
+	restore(scope: string): void;
+	restoreLayout(scope: string, tree: DockNode): void;
 	tree(scope: string): DockNode;
 	size(scope: string): DockSpan | undefined;
 	rememberSize(scope: string, span: DockSpan): void;
@@ -51,6 +58,7 @@ interface PaneDockState {
 	setShare(scope: string, path: number[], index: number, fraction: number): void;
 	even(scope: string, path: number[], index: number): void;
 	moveTo(scope: string, kind: PaneKind, at: DropAt): void;
+	moveAlong(scope: string, kind: PaneKind, side: DropSide): boolean;
 	/** 把盘上存着的那棵树读回来。`allowed` 只有渲染层知道，所以由 `PaneDock` 在挂载时递进来。 */
 	hydrate(scope: string, allowed: PaneKind[]): void;
 	preview(scope: string, rest: DockNode, kind: PaneKind, at: DropAt | null): void;
@@ -69,10 +77,8 @@ interface PaneDockState {
 function write(trees: Record<string, DockNode>, scope: string, tree: DockNode): Record<string, DockNode> {
 	if (tree.type === "leaf" && tree.kind === "conversation") {
 		dropTree(paneStorageKey(scope));
-		if (!(scope in trees)) return trees;
-		const next = { ...trees };
-		delete next[scope];
-		return next;
+		// Empty is a loaded layout, not permission to re-read a pending deletion from disk.
+		return { ...trees, [scope]: tree };
 	}
 	writeTree(paneStorageKey(scope), tree);
 	return { ...trees, [scope]: tree };
@@ -81,13 +87,24 @@ function write(trees: Record<string, DockNode>, scope: string, tree: DockNode): 
 function allowedDrop(tree: DockNode, span: DockSpan | undefined, kind: PaneKind, at: DropAt | null): DropAt | null {
 	if (!at) return null;
 	if (!span) return at;
-	return dropFits(tree, span, paneFloor, kind, at) ? at : null;
+	return dropFits(tree, span, tilePaneFloor, kind, at) ? at : null;
 }
 
 export const usePaneDock = create<PaneDockState>((set, get) => ({
 	trees: {},
 	sizes: {},
 	drag: null,
+	maximized: {},
+	toggleMaximized(scope, kind) {
+		if (!has(get().tree(scope), kind)) return;
+		set({ maximized: { ...get().maximized, [scope]: get().maximized[scope] === kind ? null : kind } });
+	},
+	restore(scope) {
+		if (get().maximized[scope]) set({ maximized: { ...get().maximized, [scope]: null } });
+	},
+	restoreLayout(scope, tree) {
+		set({ trees: write(get().trees, scope, tree) });
+	},
 	tree: (scope) => get().trees[scope] ?? emptyDockTree,
 	size: (scope) => get().sizes[scope],
 	rememberSize(scope, span) {
@@ -97,19 +114,22 @@ export const usePaneDock = create<PaneDockState>((set, get) => ({
 		set({ sizes: { ...get().sizes, [scope]: span } });
 	},
 	open(scope, kind, at) {
+		get().restore(scope);
 		const tree = get().tree(scope);
 		if (has(tree, kind)) return true;
 		const span = get().sizes[scope];
+		const preferred = tree.type === "leaf" ? { side: "right" as const, kind: tree.kind } : defaultDrop(tree);
 		const drop = at
-			? allowedDrop(tree, span, kind, at) ?? (span ? placePanel(tree, span, paneFloor, kind) : null)
+			? allowedDrop(tree, span, kind, at) ?? (span ? placePanel(tree, span, tilePaneFloor, kind) : null)
 			: span
-				? placePanel(tree, span, paneFloor, kind)
-				: defaultDrop(tree);
+				? allowedDrop(tree, span, kind, preferred) ?? placePanel(tree, span, tilePaneFloor, kind)
+				: preferred;
 		if (!drop) return false;
 		set({ trees: write(get().trees, scope, insert(tree, kind, drop)) });
 		return true;
 	},
 	close(scope, kind) {
+		if (get().maximized[scope] === kind) get().restore(scope);
 		set({ trees: write(get().trees, scope, remove(get().tree(scope), kind)) });
 	},
 	toggle(scope, kind) {
@@ -138,18 +158,31 @@ export const usePaneDock = create<PaneDockState>((set, get) => ({
 	},
 	moveTo(scope, kind, at) {
 		const tree = get().tree(scope);
-		const next = move(tree, kind, at);
+		const rest = lift(tree, kind);
+		if (!rest) return;
+		// With one neighbor, a keyboard edge move divides that pair evenly, like a leaf drop.
+		const target = at.kind === null && rest.type === "leaf" ? { ...at, kind: rest.kind } : at;
+		const next = move(tree, kind, target);
 		const span = get().sizes[scope];
-		if (span && !dropFits(lift(tree, kind) ?? tree, span, paneFloor, kind, at)) return;
+		if (span && !dropFits(rest, span, tilePaneFloor, kind, target)) return;
+		get().restore(scope);
 		set({ trees: write(get().trees, scope, next) });
+	},
+	moveAlong(scope, kind, side) {
+		const tree = get().tree(scope);
+		const next = moveAlong(tree, kind, side);
+		if (!next) return false;
+		if (next !== tree) set({ trees: write(get().trees, scope, next) });
+		return true;
 	},
 	preview(scope, rest, kind, at) {
 		const span = get().sizes[scope];
 		const drop = allowedDrop(rest, span, kind, at);
-		set({ trees: write(get().trees, scope, drop ? insert(rest, kind, drop) : rest) });
+		// A preview may omit the carried pane. Only endDrag may commit it to disk.
+		set({ trees: { ...get().trees, [scope]: drop ? insert(rest, kind, drop) : rest } });
 	},
 	beginDrag(scope, drag) {
-		set({ drag: { ...drag, scope } });
+		set({ drag: { ...drag, scope, maximized: get().maximized[scope] ?? null }, maximized: { ...get().maximized, [scope]: null } });
 	},
 	dragTo(pointer, at) {
 		const drag = get().drag;
@@ -164,11 +197,16 @@ export const usePaneDock = create<PaneDockState>((set, get) => ({
 	},
 	endDrag(cancelled) {
 		const drag = get().drag;
-		set({ drag: null });
 		if (!drag) return;
-		if (cancelled || !drag.at) set({ trees: write(get().trees, drag.scope, drag.before) });
+		const restore = cancelled || !drag.at;
+		set({
+			drag: null,
+			trees: write(get().trees, drag.scope, restore ? drag.before : get().tree(drag.scope)),
+			maximized: { ...get().maximized, [drag.scope]: restore ? drag.maximized : null },
+		});
 	},
 	forget(scope) {
+		if (get().drag?.scope === scope) get().endDrag(true);
 		/*
 		 * 只忘掉内存里那份，盘上的留着。
 		 *
@@ -181,9 +219,11 @@ export const usePaneDock = create<PaneDockState>((set, get) => ({
 			if (!(scope in state.trees) && !(scope in state.sizes) && state.drag?.scope !== scope) return state;
 			const trees = { ...state.trees };
 			const sizes = { ...state.sizes };
+			const maximized = { ...state.maximized };
 			delete trees[scope];
 			delete sizes[scope];
-			return { trees, sizes, drag: state.drag?.scope === scope ? null : state.drag };
+			delete maximized[scope];
+			return { trees, sizes, maximized, drag: state.drag?.scope === scope ? null : state.drag };
 		});
 	},
 }));

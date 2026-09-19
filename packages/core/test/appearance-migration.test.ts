@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { DEFAULT_APPEARANCE, migrateAppearance } from "../src/config/settings.ts";
+import { DEFAULT_APPEARANCE, migrateAppearance, normalizeSettings } from "../src/config/settings.ts";
 
 test("a setting that no longer exists is dropped rather than carried", () => {
 	const stored = { ...DEFAULT_APPEARANCE, translucentSidebar: true } as Record<string, unknown>;
@@ -78,10 +78,12 @@ test("自己写过的字体栈不动", () => {
 	assert.equal(migrateAppearance({ ...DEFAULT_APPEARANCE, uiFont: mine }).uiFont, mine);
 });
 
-test("曾经的默认 13px 跟着换成现在的 14px", () => {
-	assert.equal(DEFAULT_APPEARANCE.uiFontSize, 14);
-	assert.equal(migrateAppearance({ ...DEFAULT_APPEARANCE, uiFontSize: 13 }).uiFontSize, 14);
-	assert.equal(migrateAppearance({ ...DEFAULT_APPEARANCE, uiFontSize: 15 }).uiFontSize, 15);
+test("an explicit font size survives reload even when it matches an old default", () => {
+	for (const uiFontSize of [11, 12, 13, 14, 15, 20]) {
+		const stored = { appearance: { ...DEFAULT_APPEARANCE, uiFontSize } };
+		assert.equal(normalizeSettings(stored).appearance.uiFontSize, uiFontSize);
+	}
+	assert.equal(normalizeSettings({}).appearance.uiFontSize, DEFAULT_APPEARANCE.uiFontSize);
 });
 
 test("没表过态的人跟着系统走，表过态的人不动", () => {

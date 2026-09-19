@@ -232,6 +232,11 @@ function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): 
 		: children.reduce((largest, size) => Math.max(largest, size), 0);
 }
 
+/** A temporary overflow canvas preserves content while an undersized dock hands panels to windows. */
+export function minimumSpan(tree: DockNode, floor: (kind: PaneKind) => Floor): Floor {
+	return { width: floorOf(tree, "row", floor), height: floorOf(tree, "col", floor) };
+}
+
 /**
  * Whether this tree still clears every pane's floor inside `span`.
  *
@@ -257,7 +262,7 @@ export function clearsFloors(
  * layout expressed against a particular window size, which is the only frame in which "too small
  * to read" means anything.
  */
-export function fitTree(node: DockNode, span: { width: number; height: number }, floor: (kind: PaneKind) => Floor): DockNode {
+export function fitTree(node: DockNode, span: { width: number; height: number }, floor: (kind: PaneKind) => Floor, preserveAxis = false): DockNode {
 	if (node.type === "leaf") return node;
 	if (!(span.width > 0) || !(span.height > 0)) return node;
 
@@ -286,7 +291,7 @@ export function fitTree(node: DockNode, span: { width: number; height: number },
 	 * that the row keeps its shape and overflows instead — see `fitSizes`.
 	 */
 	const worthTurning = node.children.length <= COLUMN_LIMIT;
-	const dir = !fits(node.dir) && worthTurning && fits(other) ? other : node.dir;
+	const dir = !preserveAxis && !fits(node.dir) && worthTurning && fits(other) ? other : node.dir;
 	const along = dir === "row" ? span.width : span.height;
 	const sizes = node.children.map((_, i) => (node.sizes[i] ?? 0) * along);
 	const floors = node.children.map((child) => floorOf(child, dir, floor));
@@ -302,6 +307,7 @@ export function fitTree(node: DockNode, span: { width: number; height: number },
 				child,
 				dir === "row" ? { width: fitted[i], height: span.height } : { width: span.width, height: fitted[i] },
 				floor,
+				preserveAxis,
 			),
 		),
 	};

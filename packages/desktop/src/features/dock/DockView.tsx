@@ -38,6 +38,7 @@ import { canToggleMaximized } from "./visibility.ts";
 import type { PanelKind } from "./sideStore.ts";
 import type { PaneKind } from "./tree.ts";
 import { useBoxSize } from "./useBoxSize.ts";
+import { useOverflowWindows } from "./useOverflowWindows.ts";
 import { useDockDrag } from "./useDockDrag.ts";
 import { leafCount, subtreeMinPx, useSplit } from "../split/index.ts";
 
@@ -149,6 +150,10 @@ export function DockView({
 	const { carried, start, landed } = useDockDrag(containerRef);
 	const expectedDockWidth = compact ? windowWidth : navOpen ? Math.max(0, windowWidth - sidebarDrawn) : windowWidth;
 	const size = useBoxSize(containerRef, expectedDockWidth);
+	useLayoutEffect(() => {
+		useDock.setState({ viewport: size ? { ...size, conversation: { width: convW, height: convH }, compact } : null });
+		return () => { useDock.setState({ viewport: null }); };
+	}, [size, convW, convH, compact]);
 
 	/*
 	 * Point the dock at the project, which loads that project's saved layout.
@@ -227,6 +232,8 @@ export function DockView({
 	 */
 	const floorFor = (kind: PaneKind) => (kind === "conversation" ? { width: convW, height: convH } : paneFloor(kind));
 	const fitted = compact || !size ? tree : fitTree(tree, size, floorFor);
+	useOverflowWindows({ tree: fitted, size, floor: floorFor, dock: "window", scope: "window", sessionId: session,
+		paused: Boolean(compact || solo || maximized || carried), container: containerRef, onFailure: (error) => useApp.getState().notify(String(error), "error") });
 	const laid = layoutPanes(fitted);
 
 	/*
@@ -316,7 +323,8 @@ export function DockView({
 	 * Assigned during render and idempotent, so a double render under StrictMode produces the
 	 * same list rather than a duplicated one.
 	 */
-	const order = useRef<PaneKind[]>([]);
+	// A hidden browser also hosts wanted/background tabs when no conversation tile owns them.
+	const order = useRef<PaneKind[]>(["conversation", "browser"]);
 	// Fullscreen changes visibility, never ownership. Filtering by `boxes` here unmounted the
 	// transcript, terminal and thousands of task rows, then rebuilt them on every restore.
 	const present = laid.map((box) => box.kind);
@@ -487,6 +495,7 @@ export function DockView({
 							draggable={!compact && live.length > 1}
 							onDragStart={(event) => start(kind, event)}
 							onMove={(side) => useDock.getState().moveTo(kind, { side, kind: null })}
+							onArrowMove={(side) => useDock.getState().moveAlong(kind, side)}
 							/*
 							 * The conversation carries the window's panel menu; a panel carries its own
 							 * controls. Both land left of full screen and close — see `PaneHeader`.

@@ -18,6 +18,7 @@ import { useLayout } from "../layout.tsx";
 import { ToolbarButton } from "./WindowControls.tsx";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { bridge } from "../../services/index.ts";
+import { KeepOnTopButton } from "./KeepOnTopButton.tsx";
 
 export function SessionWindow() {
 	const { t } = useI18n();
@@ -61,6 +62,7 @@ export function SessionWindow() {
 					{title}
 				</span>
 				<div data-ly-session-window-tools className="no-drag ml-auto flex shrink-0 items-center gap-0.5">
+					<KeepOnTopButton />
 					<ToolbarButton label={t("sessionMenu.openInMainWindow")} onClick={openInMain}>
 						<span data-ly-open-in-main className="flex items-center justify-center">
 							<AppWindow size={13} strokeWidth={1.9} />

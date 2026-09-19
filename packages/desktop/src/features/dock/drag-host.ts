@@ -5,8 +5,11 @@
 
 import type { DropAt, DockNode, PaneKind } from "./tree.ts";
 import type { DragState } from "./store.ts";
+import type { Floor } from "./layout.ts";
 
 export interface DockDragHost {
+	floor?: (kind: PaneKind) => Floor;
+	preserveAxis?: boolean;
 	tree(): DockNode;
 	restore(): void;
 	beginDrag(drag: DragState): void;

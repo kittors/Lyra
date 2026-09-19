@@ -444,15 +444,10 @@ export function describe(error: unknown, received: number): string {
 	if (/fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT/i.test(raw)) {
 		return "连不上下载地址，检查一下网络再试。";
 	}
-	/*
-	 * Windows Defender (and friends) lock or delete a file the moment it looks like an unsigned
-	 * installer. Node then says `UNKNOWN: unknown error, open '…\Lyra-0.9.15-x64.exe.part'` —
-	 * which used to be printed next to the dialog buttons, path and all.
-	 */
+	// An open error identifies the failed operation, not the program or policy responsible.
 	if (isBlockedWrite(raw)) {
-		return received > 0
-			? "Windows 安全中心把安装包拦下了。到「病毒和威胁防护 → 保护历史记录」允许 Lyra，排除项里加上更新目录，再点重试。已经下好的部分还在。"
-			: "Windows 安全中心把安装包拦下了。到「病毒和威胁防护 → 保护历史记录」允许 Lyra，再点重试。";
+		const message = "无法写入更新文件。请检查更新目录的写入权限，并确认文件没有被其他程序占用，再点重试。";
+		return received > 0 ? `${message}已经下好的部分还在。` : message;
 	}
 	return raw || "下载失败";
 }

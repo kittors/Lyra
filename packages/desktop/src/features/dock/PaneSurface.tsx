@@ -36,6 +36,15 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	}
 
 	override componentDidUpdate(_previous: Props, _state: Record<string, never>, snapshot: Snapshot | null) {
+		const root = this.element.current;
+		// The top layer escapes paint containment without reparenting a live webview or shell.
+		if (root && this.props.carried && !_previous.carried) {
+			root.setAttribute("popover", "manual");
+			root.showPopover();
+		} else if (root && !this.props.carried && _previous.carried) {
+			root.hidePopover();
+			root.removeAttribute("popover");
+		}
 		if (!snapshot && !this.props.carried && !this.props.isHidden) return;
 		for (const motion of this.motions) motion.cancel();
 		this.motions = [];
@@ -71,6 +80,7 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	}
 
 	override componentWillUnmount() {
+		if (this.element.current?.matches(":popover-open")) this.element.current.hidePopover();
 		for (const motion of this.motions) motion.cancel();
 	}
 

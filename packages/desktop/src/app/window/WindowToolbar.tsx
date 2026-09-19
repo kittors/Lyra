@@ -118,7 +118,7 @@ const QUICK: PanelKind[] = ["terminal", "browser", "review"];
  * full-screen toggle, and the tab strip's add button. The dock removed the questions they answered
  * — there is no panel to open or collapse, and no full screen distinct from a pane being large.
  */
-export function PanelMenu({ scope }: { scope?: string } = {}) {
+export function PanelMenu({ scope, extras }: { scope?: string; extras?: (onClose: () => void) => React.ReactNode } = {}) {
 	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
@@ -136,6 +136,7 @@ export function PanelMenu({ scope }: { scope?: string } = {}) {
 	return (
 		<>
 			<div className="flex items-center gap-0.5">
+				<span data-ly-panel-quick className="contents">
 				{(phone ? (["tasks", "chat"] as PanelKind[]) : QUICK).map((kind) => {
 					const def = definitions.find((entry) => entry.kind === kind);
 					// Absent rather than disabled when it cannot be opened: a row of greyed buttons
@@ -153,6 +154,7 @@ export function PanelMenu({ scope }: { scope?: string } = {}) {
 						</ToolbarButton>
 					);
 				})}
+				</span>
 
 				{/* The overflow mark every toolbar uses for "the rest of it". */}
 				<ToolbarButton label={translate("toolbar.panels")} onClick={menu.toggle} active={menu.open}>
@@ -196,6 +198,7 @@ export function PanelMenu({ scope }: { scope?: string } = {}) {
 								</MenuItem>
 							);
 						})}
+						{extras?.(menu.close)}
 					</MenuBody>
 				</Popover>
 			)}

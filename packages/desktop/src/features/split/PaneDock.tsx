@@ -11,15 +11,18 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { translate } from "../../i18n/translate.ts";
+import { useApp } from "../../store/index.ts";
 import {
 	DockPane,
+	PaneGrip,
 	DockSplitter,
 	dockPct,
 	emptyDockTree,
 	fitTree,
 	layoutPanes,
 	layoutSplitters,
-	paneFloor,
+	minimumSpan,
+	tilePaneFloor,
 	popOutPanel,
 	renderPanel,
 	renderPanelActions,
@@ -28,9 +31,9 @@ import {
 	useDockDrag,
 	usePaneDock,
 	usePanelDefinitions,
+	useOverflowWindows,
 	type DockDragHost,
 	type PaneKind,
-	type PanelKind,
 } from "../dock/index.ts";
 
 export function PaneDock({
@@ -43,11 +46,15 @@ export function PaneDock({
 	children: ReactNode;
 }) {
 	const tree = usePaneDock((state) => state.trees[scope] ?? emptyDockTree);
+	const maximized = usePaneDock((state) => state.maximized[scope] ?? null);
 	const definitions = usePanelDefinitions();
 	const container = useRef<HTMLDivElement>(null);
+	const order = useRef<PaneKind[]>([]);
 	const size = useBoxSize(container);
 	const host = useMemo<DockDragHost>(
 		() => ({
+			floor: tilePaneFloor,
+			preserveAxis: true,
 			tree: () => usePaneDock.getState().tree(scope),
 			restore: () => {},
 			beginDrag: (drag) => usePaneDock.getState().beginDrag(scope, drag),
@@ -62,6 +69,8 @@ export function PaneDock({
 		[scope],
 	);
 	const { carried, start, landed } = useDockDrag(container, host);
+	useOverflowWindows({ tree, size, floor: tilePaneFloor, dock: "pane", scope, sessionId: scope === "@draft" ? null : scope,
+		paused: Boolean(carried || maximized), container, onFailure: (error) => useApp.getState().notify(String(error), "error") });
 
 	/*
 	 * 把这一屏存着的布局读回来。
@@ -84,24 +93,33 @@ export function PaneDock({
 	}, [scope, size]);
 
 	useEffect(() => () => usePaneDock.getState().forget(scope), [scope]);
+	useEffect(() => {
+		const escape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented || !maximized) return;
+			if (!(event.target instanceof Element) || !container.current?.contains(event.target)) return;
+			event.preventDefault();
+			usePaneDock.getState().restore(scope);
+		};
+		window.addEventListener("keydown", escape);
+		return () => window.removeEventListener("keydown", escape);
+	}, [scope, maximized]);
 
-	if (tree.type === "leaf") {
-		return (
-			<div ref={container} data-ly-pane-dock={scope} className="relative flex min-h-0 flex-1 flex-col">
-				{chrome}
-				{children}
-			</div>
-		);
-	}
 
-	const fitted = size ? fitTree(tree, size, paneFloor) : tree;
-	const boxes = layoutPanes(fitted);
-	const handles = layoutSplitters(fitted);
-	const present = boxes.map((box) => box.kind);
-	const live = carried && !present.includes(carried.kind) ? [...present, carried.kind] : present;
+	// Keep one flat keyed list even when lifting leaves only a single pane behind.
+	const minimum = minimumSpan(tree, tilePaneFloor);
+	const span = size && tree.type === "split" ? { width: Math.max(size.width, minimum.width), height: Math.max(size.height, minimum.height) } : size;
+	const fitted = span ? fitTree(tree, span, tilePaneFloor, true) : tree;
+	const storedBoxes = layoutPanes(fitted);
+	const boxes = maximized ? [{ kind: maximized, left: 0, top: 0, width: 1, height: 1 }] : storedBoxes;
+	const handles = maximized ? [] : layoutSplitters(fitted);
+	const present = storedBoxes.map((box) => box.kind);
+	const live = [...new Set<PaneKind>(["conversation", ...present, ...(carried ? [carried.kind] : [])])];
+	// Reordering an existing webview's ancestors destroys its guest even with a stable React key.
+	order.current = [...order.current.filter((kind) => live.includes(kind)), ...live.filter((kind) => !order.current.includes(kind))];
 
 	return (
-		<div ref={container} data-ly-pane-dock={scope} className="relative min-h-0 flex-1">
+		<div ref={container} data-ly-pane-dock={scope} className="relative min-h-0 flex-1 overflow-auto">
+		<div className="relative h-full w-full" style={tree.type === "split" && !maximized ? { minWidth: minimum.width, minHeight: minimum.height } : undefined}>
 			{handles.map((handle) => (
 				<DockSplitter
 					key={`${handle.path.join(".")}:${handle.index}`}
@@ -128,63 +146,48 @@ export function PaneDock({
 					/>
 				);
 			})()}
-			{live.map((kind) => {
-				if (kind === "conversation") {
-					const box = boxes.find((entry) => entry.kind === "conversation");
-					if (!box) return null;
-					return (
-						<div
-							key="conversation"
-							data-ly-pane-slot="conversation"
-							className="absolute flex min-h-0 min-w-0 flex-col overflow-hidden"
-							style={{
-								left: dockPct(box.left),
-								top: dockPct(box.top),
-								width: dockPct(box.width),
-								height: dockPct(box.height),
-							}}
-						>
-							{chrome}
-							{children}
-						</div>
-					);
-				}
+			{order.current.map((kind) => {
 				const placed = boxes.find((entry) => entry.kind === kind);
-				if (!placed && carried?.kind !== kind) return null;
 				const def = definitions.find((entry) => entry.kind === kind);
-				const box = placed ?? { left: 0, top: 0, width: 1, height: 1 };
+				const box = placed ?? storedBoxes.find((entry) => entry.kind === kind) ?? { left: 0, top: 0, width: 1, height: 1 };
+				const conversation = kind === "conversation";
+				const label = def ? translate(def.label) : translate("sidebar.chats");
+				const moving = carried?.kind === kind;
+				const onMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveTo(scope, kind, { side, kind: null });
+				const onArrowMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveAlong(scope, kind, side);
 				return (
 					<DockPane
 						key={kind}
 						kind={kind}
+						chrome={!conversation || Boolean(chrome)}
 						box={box}
-						label={def ? translate(def.label) : kind}
+						label={label}
 						icon={def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined}
-						maximized={false}
-						carried={carried?.kind === kind ? carried.rect : null}
-						landing={carried?.kind === kind && carried.landing}
-						hidden={!placed && carried?.kind !== kind}
+						maximized={maximized === kind}
+						carried={moving ? carried.rect : null}
+						landing={moving && carried.landing}
+						hidden={!placed && !moving}
 						draggable={live.length > 1}
 						onDragStart={(event) => start(kind, event)}
-						onMove={(side) => usePaneDock.getState().moveTo(scope, kind, { side, kind: null })}
-						actions={renderPanelActions(kind)}
-						title={renderPanelHeader(kind)}
-						onClose={() => usePaneDock.getState().close(scope, kind)}
-						onPopOut={() =>
-							void popOutPanel({
-								dock: "pane",
-								scope,
-								kind: kind as PanelKind,
-								sessionId: scope === "@draft" ? null : scope,
-							})
-						}
+						onMove={onMove}
+						onArrowMove={onArrowMove}
+						actions={conversation ? undefined : renderPanelActions(kind)}
+						title={conversation ? undefined : renderPanelHeader(kind)}
+						onClose={conversation ? undefined : () => usePaneDock.getState().close(scope, kind)}
+						onToggleMaximized={conversation ? undefined : () => usePaneDock.getState().toggleMaximized(scope, kind)}
+						onPopOut={conversation ? undefined : () => void popOutPanel({ dock: "pane", scope, kind, sessionId: scope === "@draft" ? null : scope })}
 						onFocus={() => {}}
 						onLanded={landed}
+						customHeader={conversation ? <>
+							{chrome}
+							{live.length > 1 && <PaneGrip kind={kind} label={label} carried={moving} onDragStart={(event) => start(kind, event)} onMove={onMove} onArrowMove={onArrowMove} />}
+						</> : undefined}
 					>
-						{renderPanel(kind)}
+						{conversation ? children : renderPanel(kind)}
 					</DockPane>
 				);
 			})}
+		</div>
 		</div>
 	);
 }

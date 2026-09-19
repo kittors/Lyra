@@ -61,16 +61,12 @@ const SplitScreen = memo(function SplitScreen({
 	);
 	return (
 		<SessionScope.Provider value={sessionId}>
-			{screen ? (
-				<PaneDock
-					scope={paneKey(sessionId)}
-					chrome={<SplitChrome sessionId={sessionId} inset={inset} insetEnd={insetEnd} />}
-				>
-					{body}
-				</PaneDock>
-			) : (
-				body
-			)}
+			<PaneDock
+				scope={paneKey(sessionId)}
+				chrome={screen ? <SplitChrome sessionId={sessionId} inset={inset} insetEnd={insetEnd} /> : undefined}
+			>
+				{body}
+			</PaneDock>
 		</SessionScope.Provider>
 	);
 });

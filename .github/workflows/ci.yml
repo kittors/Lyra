@@ -149,7 +149,7 @@ jobs:
       - name: Windows desktop and transcript regression
         env:
           LYRA_E2E_ARTIFACTS: ${{ runner.temp }}/lyra-windows-ui
-        run: pnpm --filter @lyra/desktop exec node --test --test-reporter=tap --test-concurrency=1 --test-timeout=120000 --experimental-strip-types e2e/desktop-compatibility.test.ts e2e/transcript-stability.test.ts e2e/interaction-polish.test.ts e2e/session-startup.test.ts e2e/definition-actions.test.ts e2e/command-workflow.test.ts e2e/visual-details.test.ts e2e/agent-profiles-sidechat.test.ts e2e/navigation-models.test.ts e2e/model-menu-polish.test.ts e2e/usage-dashboard.test.ts e2e/workspace-quality.test.ts e2e/browser-workspace.test.ts e2e/browser-cursor.test.ts e2e/dock-fullscreen.test.ts e2e/dock-native-header.test.ts e2e/trajectory.test.ts e2e/menu-scroll.test.ts e2e/cdp-lifetime.test.ts e2e/pipelines-loading.test.ts
+        run: pnpm --filter @lyra/desktop exec node --test --test-reporter=tap --test-concurrency=1 --test-timeout=120000 --experimental-strip-types e2e/desktop-compatibility.test.ts e2e/transcript-stability.test.ts e2e/interaction-polish.test.ts e2e/session-startup.test.ts e2e/definition-actions.test.ts e2e/command-workflow.test.ts e2e/visual-details.test.ts e2e/agent-profiles-sidechat.test.ts e2e/navigation-models.test.ts e2e/model-menu-polish.test.ts e2e/usage-dashboard.test.ts e2e/workspace-quality.test.ts e2e/browser-workspace.test.ts e2e/browser-cursor.test.ts e2e/dock-fullscreen.test.ts e2e/dock-native-header.test.ts e2e/trajectory.test.ts e2e/menu-scroll.test.ts e2e/cdp-lifetime.test.ts e2e/pipelines-loading.test.ts e2e/screenshot-download.test.ts
       - uses: actions/upload-artifact@v7
         if: always()
         with:

@@ -9,7 +9,8 @@ import type { SessionMeta } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { canSplit, contains, type DropSide } from "./tree.ts";
-import { canSplitSide, pickSplitTarget, preferredSide, type ScreenBox } from "./geometry.ts";
+import { canSplitSide, pickSplitTarget, preferredSide, SCREEN_MIN_WIDTH_PX, type ScreenBox } from "./geometry.ts";
+import { columnCount } from "./moves.ts";
 import { useSplit } from "./store.ts";
 import { useSplitOverlay } from "./overlay.ts";
 
@@ -95,9 +96,15 @@ function measurePanes(): ScreenBox[] {
 export function canOfferSplit(): boolean {
 	const tree = useSplit.getState().tree;
 	if (!canSplit(tree)) return false;
+	if (canAddColumn()) return true;
 	const panes = measurePanes();
 	if (panes.length === 0) return true;
-	return panes.some((pane) => preferredSide(pane.width, pane.height) !== null);
+	return Boolean(bridge.windows) || panes.some((pane) => preferredSide(pane.width, pane.height) !== null);
+}
+
+function canAddColumn(): boolean {
+	const root = document.querySelector("[data-ly-split-viewport]")?.getBoundingClientRect();
+	return Boolean(root && root.width / (columnCount(useSplit.getState().tree) + 1) >= SCREEN_MIN_WIDTH_PX);
 }
 
 export function splitWith(meta: SessionMeta, target: string | null, width: number, height: number, side?: DropSide): void {
@@ -106,9 +113,16 @@ export function splitWith(meta: SessionMeta, target: string | null, width: numbe
 		revealSession(meta);
 		return;
 	}
+	if (!side && canAddColumn() && useSplit.getState().addColumn(meta.id)) {
+		revealSession(meta);
+		return;
+	}
 	const panes = measurePanes();
 	const picked = pickSplitTarget(panes.length ? panes : [{ sessionId: target, width, height }], target);
-	if (!picked) return;
+	if (!picked) {
+		void openInNewWindow(meta.id);
+		return;
+	}
 	useSplit.getState().split(picked.target, meta.id, picked.side);
 	revealSession(meta);
 }

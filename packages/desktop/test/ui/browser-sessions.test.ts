@@ -12,19 +12,76 @@
  */
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
 import type { BrowserTab } from "../../shared/browser.ts";
 import { BrowserPanel } from "../../src/features/browser/BrowserPanel.tsx";
 import { useBrowser, useBrowserView } from "../../src/features/browser/browser-store.ts";
 import { useApp } from "../../src/store/index.ts";
 import { mount } from "../helpers/mount.ts";
+import { SessionScope } from "../../src/app/session-scope.tsx";
+import { usePaneDock } from "../../src/features/dock/pane-store.ts";
+import { usePanelWindows } from "../../src/features/dock/popout.ts";
+import { insert, leafOf } from "../../src/features/dock/tree.ts";
+import type { LyraApi } from "../../electron/ipc-types.ts";
+
+beforeEach(() => {
+	Object.defineProperty(window, "lyra", { configurable: true, value: {
+		bootWindow: { id: "test", kind: "primary", sessionId: null, panelKind: null, panelScope: null },
+	} satisfies Pick<LyraApi, "bootWindow"> });
+});
+afterEach(() => { Reflect.deleteProperty(window, "lyra"); });
 
 function tab(id: string, sessionId: string | null, extra: Partial<BrowserTab> = {}): BrowserTab {
 	return { id, sessionId, url: `https://${id}.example.com/`, title: id, loading: false, canGoBack: false, canGoForward: false, zoom: 1, viewport: null, ...extra };
 }
 
 const TABS = [tab("a1", "a"), tab("a2", "a"), tab("b1", "b"), tab("c1", "c"), tab("d1", "d")];
+
+test("a hidden window cache yields guests to tiled and detached browsers while hosting background work", async () => {
+	useBrowser.setState({ tabs: TABS, activeId: "a1" });
+	useBrowserView.setState({ recent: ["a", "b"], chosen: {} });
+	useApp.setState({ activeSessionId: "a", turns: { d: { startedAt: 1, tokens: 0 } }, settings: null });
+	const tree = insert(leafOf("conversation"), "browser", { kind: "conversation", side: "right" });
+	usePaneDock.setState({ trees: { a: tree, b: tree }, sizes: { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } } });
+	const view = await mount(h("div", null,
+		h("section", { id: "cache" }, h(BrowserPanel)),
+		h(SessionScope.Provider, { value: "a" }, h("section", { id: "scope-a" }, h(BrowserPanel))),
+		h(SessionScope.Provider, { value: "b" }, h("section", { id: "scope-b" }, h(BrowserPanel))),
+	));
+	try {
+		assert.deepEqual(view.all("#cache webview").map((el) => el.dataset.browserPage), ["d1"]);
+		assert.equal(view.all("webview").length, 4);
+		await act(() => { usePanelWindows.setState({ opening: [{ kind: "browser", scope: "a", sessionId: "a" }] }); });
+		assert.equal(view.all("#scope-a webview").length, 0);
+		assert.equal(view.all('[data-browser-page="a1"]').length, 0);
+		await act(() => { usePanelWindows.setState({ opening: [] }); });
+		assert.equal(view.all('[data-browser-page="a1"]').length, 1);
+	} finally {
+		await view.unmount();
+		usePaneDock.setState({ trees: {}, sizes: {} });
+		usePanelWindows.setState({ opening: [], panels: [] });
+	}
+});
+
+test("simultaneous scoped browsers own distinct guests and ignore another tile's focus", async () => {
+	useBrowser.setState({ tabs: TABS, activeId: "a1" });
+	useBrowserView.setState({ recent: ["a", "b"], chosen: {} });
+	useApp.setState({ activeSessionId: "a", turns: {}, settings: null });
+	const view = await mount(h("div", null,
+		h(SessionScope.Provider, { value: "a" }, h("section", { id: "scope-a" }, h(BrowserPanel))),
+		h(SessionScope.Provider, { value: "b" }, h("section", { id: "scope-b" }, h(BrowserPanel))),
+	));
+	try {
+		const a = view.find('[data-browser-page="a1"]');
+		assert.deepEqual(view.all("#scope-a webview").map((el) => el.dataset.browserPage), ["a1", "a2"]);
+		assert.deepEqual(view.all("#scope-b webview").map((el) => el.dataset.browserPage), ["b1"]);
+		await act(() => { useApp.setState({ activeSessionId: "b" }); useBrowser.setState({ activeId: "b1" }); });
+		assert.equal(view.find('[data-browser-page="a1"]'), a);
+		assert.equal(a.parentElement?.style.visibility, "");
+		assert.equal(view.all("webview").length, 3);
+	} finally { await view.unmount(); }
+});
 
 async function panel(sessionId: string | null, turns: Record<string, { startedAt: number; tokens: number }> = {}) {
 	useBrowser.setState({ tabs: TABS, activeId: "a1" });

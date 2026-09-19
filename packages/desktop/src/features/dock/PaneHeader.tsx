@@ -25,17 +25,9 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
-import { GRIP_REACH, GRIP_TOP, GRIP_WIDTH, HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
+import { HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
-import { shortcutLabel } from "../../ui/keyboard.ts";
-
-/** ⌥ plus an arrow moves the pane. Mapped here so the key and the meaning sit together. */
-const ARROWS: Record<string, DropSide> = {
-	ArrowLeft: "left",
-	ArrowRight: "right",
-	ArrowUp: "top",
-	ArrowDown: "bottom",
-};
+import { PaneGrip } from "./PaneGrip.tsx";
 
 export function PaneHeader({
 	kind,
@@ -48,6 +40,7 @@ export function PaneHeader({
 	title,
 	onDragStart,
 	onMove,
+	onArrowMove,
 	actions,
 	inset,
 	insetEnd,
@@ -76,6 +69,7 @@ export function PaneHeader({
 	onDragStart: (event: React.PointerEvent<HTMLElement>) => void;
 	/** ⌥ and an arrow, for the same rearrangement without a pointer. */
 	onMove: (side: DropSide) => void;
+	onArrowMove: (side: DropSide) => boolean;
 	/**
 	 * Controls belonging to what the pane holds, left of the pane's own.
 	 *
@@ -186,36 +180,14 @@ export function PaneHeader({
 			 *
 			 * A real button, not a decoration, because it carries the keyboard route too. Dragging
 			 * is the whole interaction here and a drag is one of the few gestures with no keyboard
-			 * equivalent at all; without this the dock would be unusable without a mouse. ⌥ rather
-			 * than bare arrows, which belong to whatever is being scrolled. Each arrow sends the
-			 * pane to that edge of the *dock*, so "left" means one thing wherever it is pressed —
-			 * which is what makes it usable without a preview to watch.
+			 * equivalent at all; without this the dock would be unusable without a mouse. Focused
+			 * arrows preview a destination, Enter commits, and Escape cancels. Alt+arrows preserve
+			 * the immediate edge-move shortcut.
 			 *
 			 * `touch-none` so a trackpad drag moves the pane instead of scrolling what is under it;
 			 * without it the browser claims the gesture before the first move arrives.
 			 */}
-			{draggable && (
-				<button
-					type="button"
-					data-dock-grip={kind}
-					data-dock-heading
-					aria-label={shortcutLabel(translate("pane.moveHint", { label }))}
-					data-ly-tip={translate("common.move")}
-					onPointerDown={onDragStart}
-					onKeyDown={(event) => {
-						const side = event.altKey ? ARROWS[event.key] : undefined;
-						if (!side) return;
-						event.preventDefault();
-						onMove(side);
-					}}
-					className={`ly-dock-grip no-drag absolute top-0 left-1/2 flex -translate-x-1/2 touch-none justify-center ${
-						carried ? "cursor-grabbing" : "cursor-grab"
-					}`}
-					style={{ height: GRIP_REACH, width: GRIP_WIDTH, paddingTop: GRIP_TOP }}
-				>
-					<span aria-hidden className="h-[3px] w-9 rounded-full bg-ink-faint" />
-				</button>
-			)}
+			{draggable && !maximized && <PaneGrip kind={kind} label={label} carried={carried} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />}
 
 			{/*
 			 * The controls stop the press from reaching the bar underneath them.

@@ -197,13 +197,14 @@ export interface LyraApi {
 		panelScope: string | null;
 	};
 	windows: {
+		keepOnTop(input?: { enabled: boolean }): Promise<{ ok: boolean; enabled: boolean }>;
 		open(input: { sessionId: string }): Promise<{ ok: boolean }>;
-		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string }[] }>;
+		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string; sessionId?: string | null }[] }>;
 		openInMain(input: { sessionId: string }): Promise<{ ok: boolean }>;
 		openPanel(input: { kind: string; scope: string; sessionId: string | null }): Promise<{ ok: boolean }>;
 		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
-		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string }[] }) => void): () => void;
+		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string; sessionId?: string | null }[] }) => void): () => void;
 		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
 		onRestorePanel(handler: (state: { kind: string; scope: string }) => void): () => void;
 	};

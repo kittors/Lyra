@@ -80,9 +80,11 @@ export function loadUserImagesAt(
 		return images;
 	})();
 	inflight.set(key, next);
-	next.finally(() => {
+	const release = () => {
 		if (inflight.get(key) === next) inflight.delete(key);
-	});
+	};
+	// An ignored finally promise rejects again even when the protocol caller handles the failure.
+	void next.then(release, release);
 	return next;
 }
 

@@ -5,28 +5,34 @@
  * returns nothing, this is what happens instead. The same path is the header button:
  * browser, terminal, files, git, all of them.
  *
- * Restore asks the same floor question. If the home tile is gone, the pane lands on
- * the window dock rather than vanishing with a closed screen.
+ * Restore checks the current tile size. If its home is gone, the floating window
+ * stays open until that conversation is available again.
  */
 
 import { create } from "zustand";
+import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
-import { paneFloor } from "./geometry.ts";
+import { paneFloor, tilePaneFloor } from "./geometry.ts";
+import { clearsFloors, fitTree } from "./layout.ts";
 import { dropFits, homeOf, placePanel } from "./place.ts";
 import { usePaneDock } from "./pane-store.ts";
 import { useDock } from "./store.ts";
-import { has, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
+import { has, insert, kinds, remove, type DockNode, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
+import { sanitize } from "./persist.ts";
 import type { PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
 	kind: string;
 	scope: string;
+	sessionId?: string | null;
 }
 
 interface Home {
 	dock: "window" | "pane";
 	scope: string;
 	at: DropAt | null;
+	before?: unknown;
+	rest?: unknown;
 }
 
 /**
@@ -78,10 +84,11 @@ const homes = {
 
 const homeKey = (scope: string, kind: string): string => `${scope}:${kind}`;
 
-const usePanelWindows = create<{ panels: PanelWindowRef[] }>(() => ({ panels: [] }));
+export const usePanelWindows = create<{ panels: PanelWindowRef[]; opening: PanelWindowRef[] }>(() => ({ panels: [], opening: [] }));
 
 function isPopped(scope: string, kind: string): boolean {
-	return usePanelWindows.getState().panels.some((panel) => panel.scope === scope && panel.kind === kind);
+	const { panels, opening } = usePanelWindows.getState();
+	return [...panels, ...opening].some((panel) => panel.scope === scope && panel.kind === kind);
 }
 
 function sessionOf(scope: string): string | null {
@@ -93,21 +100,50 @@ export async function popOutPanel(input: {
 	scope: string;
 	kind: PanelKind;
 	sessionId: string | null;
-}): Promise<void> {
+}): Promise<boolean> {
+	if (!bridge.windows?.openPanel) return false;
+	if (isPopped(input.scope, input.kind)) return true;
 	const tree = input.dock === "pane" ? usePaneDock.getState().tree(input.scope) : useDock.getState().tree;
-	homes.set(homeKey(input.scope, input.kind), {
+	const previousHome = !has(tree, input.kind) ? homes.get(homeKey(input.scope, input.kind)) : undefined;
+	const home = previousHome ?? {
 		dock: input.dock,
 		scope: input.scope,
 		at: has(tree, input.kind) ? homeOf(tree, input.kind) : null,
+		before: tree,
+		rest: remove(tree, input.kind),
+	};
+	homes.set(homeKey(input.scope, input.kind), home);
+	// Commit the ownership transfer before another document can attach the same browser tab.
+	flushSync(() => {
+		usePanelWindows.setState((state) => ({ opening: [...state.opening, input] }));
+		if (input.dock === "pane") usePaneDock.getState().close(input.scope, input.kind);
+		else useDock.getState().close(input.kind);
 	});
-	if (input.dock === "pane") usePaneDock.getState().close(input.scope, input.kind);
-	else useDock.getState().close(input.kind);
-	if (!bridge.windows?.openPanel) return;
-	await bridge.windows.openPanel({
-		kind: input.kind,
-		scope: input.scope,
-		sessionId: input.sessionId,
-	});
+	let opened = false;
+	try {
+		opened = (await bridge.windows.openPanel({ kind: input.kind, scope: input.scope, sessionId: input.sessionId })).ok;
+	} finally {
+		if (!opened) {
+			usePanelWindows.setState((state) => ({ opening: state.opening.filter((panel) => panel.scope !== input.scope || panel.kind !== input.kind) }));
+			// Rollback is a transaction, not a new placement request: a failed window must not lose its pane.
+			const current = input.dock === "pane" ? usePaneDock.getState().tree(input.scope) : useDock.getState().tree;
+			if (has(tree, input.kind) && !has(current, input.kind)) {
+				const restored = JSON.stringify(home.rest) === JSON.stringify(current) ? tree : insert(current, input.kind, home.at ?? { side: "right", kind: null });
+				if (input.dock === "pane") usePaneDock.getState().restoreLayout(input.scope, restored);
+				else useDock.getState().restoreLayout(restored);
+			}
+			if (previousHome) homes.set(homeKey(input.scope, input.kind), previousHome);
+			else homes.delete(homeKey(input.scope, input.kind));
+		}
+	}
+	return opened;
+}
+
+/** Restore exact geometry only while the remaining dock still matches the departure snapshot. */
+export function restoredHomeTree(home: { before?: unknown; rest?: unknown } | undefined, tree: DockNode, kind: PaneKind): DockNode | null {
+	if (!home?.before || JSON.stringify(home.rest) !== JSON.stringify(tree)) return null;
+	const restored = sanitize(home.before, [...kinds(tree), kind]);
+	return has(restored, kind) ? restored : null;
 }
 
 function dockBack(kind: PanelKind, scope: string): boolean {
@@ -115,7 +151,24 @@ function dockBack(kind: PanelKind, scope: string): boolean {
 	const dock = home?.dock ?? (scope === "window" ? "window" : "pane");
 	const paneLive = Boolean(usePaneDock.getState().size(scope));
 	if (dock === "window") {
-		if (!has(useDock.getState().tree, kind)) useDock.getState().open(kind);
+		const { tree, viewport } = useDock.getState();
+		if (has(tree, kind)) {
+			homes.delete(homeKey(scope, kind));
+			return true;
+		}
+		if (!viewport) return false;
+		const floor = (pane: PaneKind) => pane === "conversation" ? viewport.conversation : paneFloor(pane);
+		const fits = (candidate: DockNode) => viewport.compact || clearsFloors(fitTree(candidate, viewport, floor), viewport, floor);
+		const snapshot = restoredHomeTree(home, tree, kind);
+		if (snapshot && fits(snapshot)) useDock.getState().restoreLayout(snapshot);
+		else {
+			const fitted = fitTree(tree, viewport, floor);
+			const preferred = home?.at ? insert(fitted, kind, home.at) : null;
+			const at = placePanel(fitted, viewport, floor, kind);
+			const next = preferred && fits(preferred) ? preferred : at ? insert(fitted, kind, at) : null;
+			if (!next) return false;
+			useDock.getState().restoreLayout(next);
+		}
 		homes.delete(homeKey(scope, kind));
 		return true;
 	}
@@ -129,11 +182,17 @@ function dockBack(kind: PanelKind, scope: string): boolean {
 	const tree = usePaneDock.getState().tree(scope);
 	const span = usePaneDock.getState().size(scope);
 	if (!span) return false;
+	const snapshot = restoredHomeTree(home, tree, kind);
+	if (snapshot && clearsFloors(snapshot, span, tilePaneFloor)) {
+		usePaneDock.getState().restoreLayout(scope, snapshot);
+		homes.delete(homeKey(scope, kind));
+		return true;
+	}
 	const preferred = home?.at ?? null;
 	const at =
-		preferred && dropFits(tree, span, paneFloor, kind, preferred)
+		preferred && dropFits(tree, span, tilePaneFloor, kind, preferred)
 			? preferred
-			: placePanel(tree, span, paneFloor, kind);
+			: placePanel(tree, span, tilePaneFloor, kind);
 	if (!at) return false;
 	if (!usePaneDock.getState().open(scope, kind, at)) return false;
 	homes.delete(homeKey(scope, kind));
@@ -191,6 +250,10 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 }
 
 export function toggleScopedPanel(scope: string | null, kind: PanelKind): void {
+	if (scope && has(useDock.getState().tree, kind)) {
+		useDock.getState().focus(kind);
+		return;
+	}
 	const key = scope ?? "window";
 	if (isPopped(key, kind)) {
 		if (!bridge.windows?.openPanel) return;
@@ -233,15 +296,25 @@ export function toggleScopedPanel(scope: string | null, kind: PanelKind): void {
  * 到点还放不回去就清掉记录：那一屏多半是真的不在了，而把它的面板停到窗口 dock 上，
  * 正是这个功能一开始要避免的布局。
  */
-function adoptOrphans(panels: PanelWindowRef[], deadline: number): void {
+function adoptOrphans(deadline: number): void {
 	const pending: string[] = [];
 	for (const key of Object.keys(readHomes())) {
 		const cut = key.lastIndexOf(":");
 		if (cut <= 0) continue;
 		const scope = key.slice(0, cut);
 		const kind = key.slice(cut + 1) as PanelKind;
-		if (panels.some((panel) => panel.scope === scope && panel.kind === kind)) continue;
+		if (isPopped(scope, kind)) continue;
 		if (dockBack(kind, scope)) continue;
+		const home = homes.get(key);
+		const live = home?.dock === "window" ? useDock.getState().viewport : usePaneDock.getState().size(scope);
+		if (home && live) {
+			// A measured home with no room still owns its tool across application restarts.
+			void popOutPanel({ dock: home.dock, scope, kind, sessionId: sessionOf(scope) }).catch((error: unknown) => {
+				// oxlint-disable-next-line no-console -- retain the home and report native restoration failures for diagnosis.
+				console.error("Failed to reopen detached panel", error);
+			});
+			continue;
+		}
 		pending.push(key);
 	}
 	if (pending.length === 0) return;
@@ -249,7 +322,7 @@ function adoptOrphans(panels: PanelWindowRef[], deadline: number): void {
 		for (const key of pending) homes.delete(key);
 		return;
 	}
-	window.setTimeout(() => adoptOrphans(panels, deadline), 400);
+	window.setTimeout(() => adoptOrphans(deadline), 400);
 }
 
 export function watchPanelWindows(): () => void {
@@ -257,10 +330,10 @@ export function watchPanelWindows(): () => void {
 	let first = true;
 	const apply = (panels: PanelWindowRef[]) => {
 		const before = usePanelWindows.getState().panels;
-		usePanelWindows.setState({ panels });
+		usePanelWindows.setState((state) => ({ panels, opening: state.opening.filter((pending) => !panels.some((panel) => panel.scope === pending.scope && panel.kind === pending.kind)) }));
 		if (first) {
 			first = false;
-			adoptOrphans(panels, Date.now() + 6_000);
+			adoptOrphans(Date.now() + 6_000);
 			return;
 		}
 		/*
@@ -274,7 +347,7 @@ export function watchPanelWindows(): () => void {
 	};
 	void bridge.windows
 		.list()
-		.then((result) => apply(result.panels ?? []))
+		.then((result) => { if (first) apply(result.panels ?? []); })
 		.catch(() => {});
 	const stopChanged = bridge.windows.onChanged((state) => apply(state.panels ?? []));
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope }) => {

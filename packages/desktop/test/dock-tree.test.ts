@@ -23,6 +23,7 @@ import {
 	leafOf,
 	areAdjacent,
 	move,
+	moveAlong,
 	nodeAt,
 	normalize,
 	pathTo,
@@ -34,6 +35,39 @@ import {
 	type DockSplit,
 	type PaneKind,
 } from "../src/features/dock/tree.ts";
+
+test("parallel keyboard moves exchange neighbors and preserve each pane's share", () => {
+	const tree: DockNode = { type: "split", dir: "row", children: [leafOf("conversation"), leafOf("browser"), leafOf("terminal")], sizes: [0.5, 0.3, 0.2] };
+	const moved = moveAlong(tree, "browser", "left");
+	assert.ok(moved && moved.type === "split");
+	assert.deepEqual(kinds(moved), ["browser", "conversation", "terminal"]);
+	assert.deepEqual(moved.sizes, [0.3, 0.5, 0.2]);
+	assert.deepEqual(moveAlong(moved, "browser", "right"), tree);
+	assert.equal(moveAlong(moved, "browser", "left"), moved);
+	assert.equal(moveAlong(tree, "browser", "top"), null);
+	invariants(moved);
+});
+
+test("keyboard movement follows the immediate split axis without disturbing other columns", () => {
+	const stack: DockNode = { type: "split", dir: "col", children: [leafOf("browser"), leafOf("terminal")], sizes: [0.6, 0.4] };
+	const tree: DockNode = { type: "split", dir: "row", children: [leafOf("conversation"), stack], sizes: [0.5, 0.5] };
+	const moved = moveAlong(tree, "terminal", "top");
+	assert.ok(moved && moved.type === "split");
+	assert.equal(moved.children[0], tree.children[0]);
+	assert.deepEqual(nodeAt(moved, [1]), { type: "split", dir: "col", children: [leafOf("terminal"), leafOf("browser")], sizes: [0.4, 0.6] });
+	assert.equal(moveAlong(tree, "terminal", "left"), null);
+	const crossed = moveAlong(tree, "conversation", "right");
+	assert.ok(crossed && crossed.type === "split");
+	assert.equal(crossed.children[0], stack);
+	invariants(moved);
+	invariants(crossed);
+});
+
+test("a lone or absent pane never starts a keyboard split", () => {
+	const tree = defaultTree();
+	assert.equal(moveAlong(tree, "conversation", "right"), tree);
+	assert.equal(moveAlong(tree, "browser", "bottom"), tree);
+});
 
 function invariants(node: DockNode, what = "tree"): DockNode {
 	const seen = new Set<PaneKind>();

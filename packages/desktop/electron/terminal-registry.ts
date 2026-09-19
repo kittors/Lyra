@@ -19,8 +19,8 @@
  * is still running. `prewarm` starts the first one before anybody asks, which is what makes opening
  * the pane instant rather than a third of a second of empty rectangle.
  *
- * The window is reached through a getter rather than held: it is replaced when the app is reopened
- * from the dock, and a captured reference would go on writing to a window nobody can see.
+ * Windows are enumerated at delivery time: detached panes keep receiving output even while a
+ * different app window has keyboard focus, and destroyed renderers never remain recipients.
  *
  * No Electron values are imported here, only types — so this can be driven straight from a test,
  * which is where every claim above is checked.
@@ -64,6 +64,8 @@ export interface LiveTerminal {
 	 * went silent for good.
 	 */
 	epoch: number;
+	/** Concurrent views identify both their connection and its renderer for crash cleanup. */
+	connections: Map<number, number>;
 }
 
 /** One shell in a directory, as the tab strip lists it. */
@@ -88,7 +90,7 @@ export interface TerminalDeps {
 	spawnPty: (file: string, args: string[], options: Record<string, unknown>) => IPty;
 	projectPath?(target: string): string | null;
 	insideAProject(target: string): boolean;
-	window(): BrowserWindow | null;
+	eachWindow(visit: (window: BrowserWindow) => void): void;
 }
 
 /**
@@ -120,7 +122,7 @@ let clock = 0;
  * on, what a detach leaves running and which one gets retired are the whole point of this file,
  * and they are decided here rather than in a message handler.
  */
-export function createTerminalRegistry({ terminals, spawnPty, projectPath, insideAProject, window }: TerminalDeps) {
+export function createTerminalRegistry({ terminals, spawnPty, projectPath, insideAProject, eachWindow }: TerminalDeps) {
 	/** Where a terminal for this path actually starts: the project, or home if it is not one. */
 	// `homedir()`, not `process.env.HOME`: Windows spells it `USERPROFILE` and leaves `HOME` unset,
 	// so reading the variable there fell through to the process's own directory.
@@ -186,6 +188,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 			bytes: 0,
 			touched: ++clock,
 			epoch: 1,
+			connections: new Map(),
 		};
 
 		child.onData((data) => {
@@ -194,17 +197,15 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 			while (live.bytes > SCROLLBACK_BYTES && live.scrollback.length > 1) {
 				live.bytes -= live.scrollback.shift()?.length ?? 0;
 			}
-			const win = window();
-			if (live.attached && win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-				win.webContents.send("terminal:data", { id, data });
-			}
+			if (live.attached) eachWindow((win) => {
+				if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("terminal:data", { id, data });
+			});
 		});
 		child.onExit(({ exitCode }) => {
 			terminals.delete(id);
-			const win = window();
-			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-				win.webContents.send("terminal:exit", { id, code: exitCode });
-			}
+			eachWindow((win) => {
+				if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("terminal:exit", { id, code: exitCode });
+			});
 		});
 		terminals.set(id, live);
 		return { id, title: live.title, pid: child.pid, epoch: 1, replay: "" };
@@ -240,13 +241,14 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	 * that shell is gone — it may have exited while the pane was away, and the pane decides what
 	 * to do about that rather than being handed a surprise new shell.
 	 */
-	const attach = (id: string, cols: number, rows: number): Attached | null => {
+	const attach = (id: string, cols: number, rows: number, owner = 0): Attached | null => {
 		const live = terminals.get(id);
 		if (!live) return null;
 
 		live.attached = true;
 		live.touched = ++clock;
 		live.epoch++;
+		live.connections.set(live.epoch, owner);
 		/*
 		 * The pane it left is not the pane it came back to: the dock may have resized in between,
 		 * and a shell told nothing wraps every line to a width that is no longer there. A caller
@@ -267,11 +269,22 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	 * Output carries on being recorded so the next attach can redraw it; it just stops being sent
 	 * to a renderer with nothing to show it in.
 	 *
-	 * Ignored unless it names the connection that is actually current — see `epoch`.
+	 * One view leaving cannot silence another view of the same shell.
 	 */
 	const detach = (id: string, epoch: number): void => {
 		const live = terminals.get(id);
-		if (live && live.epoch === epoch) live.attached = false;
+		if (!live) return;
+		const removed = live.connections.delete(epoch);
+		if (removed || live.epoch === epoch) live.attached = live.connections.size > 0;
+	};
+
+	/** A renderer crash or close does not run its React effect cleanup. */
+	const detachOwner = (owner: number): void => {
+		for (const [id, live] of terminals) {
+			for (const [epoch, connectedOwner] of live.connections) {
+				if (connectedOwner === owner) detach(id, epoch);
+			}
+		}
 	};
 
 	/**
@@ -312,7 +325,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		terminals.delete(id);
 	};
 
-	return { list, listAll, open, prewarm, attach, detach, write, resize, kill };
+	return { list, listAll, open, prewarm, attach, detach, detachOwner, write, resize, kill };
 }
 
 

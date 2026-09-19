@@ -111,6 +111,16 @@ export function getWindow(): BrowserWindow | null {
 	return listAppWindows()[0] ?? null;
 }
 
+/** Browser ownership and IPC trust follow registered windows, never transient keyboard focus. */
+export function isAppWindowContents(contents: Electron.WebContents): boolean {
+	const win = BrowserWindow.fromWebContents(contents);
+	return Boolean(win && appWindows.has(win) && !win.isDestroyed() && win.webContents === contents);
+}
+
+export function getPrimaryWindow(): BrowserWindow | null {
+	return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+}
+
 function listAppWindows(): BrowserWindow[] {
 	return [...appWindows].filter((win) => !win.isDestroyed());
 }
@@ -183,12 +193,12 @@ export function listSessionWindowIds(): string[] {
 	return ids;
 }
 
-export function listPanelWindows(): { kind: string; scope: string }[] {
-	const panels: { kind: string; scope: string }[] = [];
+export function listPanelWindows(): { kind: string; scope: string; sessionId: string | null }[] {
+	const panels: { kind: string; scope: string; sessionId: string | null }[] = [];
 	for (const win of listAppWindows()) {
 		const meta = windowMeta.get(win);
 		if (meta?.role === "panel" && meta.panelKind && meta.panelScope) {
-			panels.push({ kind: meta.panelKind, scope: meta.panelScope });
+			panels.push({ kind: meta.panelKind, scope: meta.panelScope, sessionId: meta.sessionId ?? null });
 		}
 	}
 	return panels;

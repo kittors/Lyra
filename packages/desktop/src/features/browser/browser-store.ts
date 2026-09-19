@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { BrowserCommand, BrowserState, BrowserTab } from "../../../shared/browser.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { useSide, openScopedPanel } from "../dock/index.ts";
+import { useSide, openScopedPanel, has, useDock, usePaneDock, usePanelWindows } from "../dock/index.ts";
 
 export const useBrowser = create<BrowserState>(() => ({ tabs: [], activeId: null }));
 export async function commandBrowser(command: BrowserCommand): Promise<void> {
@@ -51,7 +51,7 @@ export function browserChose(sessionId: string | null, tabId: string): void {
  * covers the moment between the main process asking for a page and the store hearing that the turn
  * has started.
  */
-export function browserMounted(tabs: BrowserTab[], owner: string, recent: string[], running: Record<string, unknown>): BrowserTab[] {
+function browserMounted(tabs: BrowserTab[], owner: string, recent: string[], running: Record<string, unknown>): BrowserTab[] {
 	return tabs.filter((tab) => {
 		const key = browserOwner(tab.sessionId);
 		return key === owner || tab.wanted === true || recent.includes(key) || (tab.sessionId !== null && tab.sessionId in running);
@@ -82,4 +82,34 @@ export function useBrowserWorkspace(): void {
 		});
 		return () => { unsubscribe(); unwatch(); };
 	}, []);
+}
+
+/** A guest belongs to exactly one visible dock or detached window; the rest use the cache. */
+export function useBrowserPages(tabs: BrowserTab[], sessionId: string | null, scoped: boolean): BrowserTab[] {
+	const recent = useBrowserView((state) => state.recent);
+	const turns = useApp((state) => state.turns);
+	const activeSessionId = useApp((state) => state.activeSessionId);
+	const trees = usePaneDock((state) => state.trees);
+	const sizes = usePaneDock((state) => state.sizes);
+	const drag = usePaneDock((state) => state.drag);
+	const tree = useDock((state) => state.tree);
+	const panels = usePanelWindows((state) => state.panels);
+	const opening = usePanelWindows((state) => state.opening);
+	const owner = browserOwner(sessionId);
+	const own = tabs.filter((tab) => browserOwner(tab.sessionId) === owner);
+	if (bridge.bootWindow?.kind === "panel") return own;
+	const external = [...panels, ...opening].filter((panel) => panel.kind === "browser");
+	const outside = (tab: BrowserTab) => external.some((panel) =>
+		browserOwner(panel.sessionId === undefined ? panel.scope === "@draft" ? null : panel.scope : panel.sessionId) === browserOwner(tab.sessionId));
+	if (scoped) {
+		if (has(tree, "browser") && owner === browserOwner(activeSessionId)) return [];
+		return own.filter((tab) => !outside(tab));
+	}
+	return browserMounted(tabs, owner, recent, turns).filter((tab) => {
+		if (outside(tab)) return false;
+		if (has(tree, "browser") && browserOwner(tab.sessionId) === owner) return true;
+		const key = tab.sessionId ?? "@draft";
+		const inTile = sizes[key] && ((trees[key] && has(trees[key], "browser")) || (drag?.scope === key && drag.kind === "browser"));
+		return !inTile;
+	});
 }

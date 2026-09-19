@@ -1481,18 +1481,6 @@ export async function downloadScreenshot(
 	const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
 	const buffer = Buffer.from(base64Data, "base64");
 
-	/*
-	 * Copied as well, when that is on.
-	 *
-	 * Downloading and copying are not alternatives — the reason to keep a file is to have it later,
-	 * and the next thing anybody does with a fresh screenshot is paste it. Doing both means the
-	 * button never has to be chosen between.
-	 */
-	if (settings?.copyToClipboard !== false) {
-		const img = nativeImage.createFromBuffer(buffer);
-		if (!img.isEmpty()) clipboard.writeImage(img);
-	}
-
 	try {
 		const saveDir = resolveSaveDirectory(settings?.downloadLocation, app.getPath("desktop"));
 		const filePath = join(saveDir, generateScreenshotFilename());
@@ -1500,6 +1488,16 @@ export async function downloadScreenshot(
 		await mkdir(saveDir, { recursive: true });
 		await writeFile(filePath, buffer);
 		captureLog("download: written", { filePath, bytes: buffer.length });
+		// Windows clipboard ownership is independent of disk access. A failed optional copy must
+		// not abort the requested download or turn a successfully written file into a save failure.
+		if (settings?.copyToClipboard !== false) {
+			try {
+				const img = nativeImage.createFromBuffer(buffer);
+				if (!img.isEmpty()) clipboard.writeImage(img);
+			} catch (error) {
+				console.error("[screenshot] File saved, but clipboard copy failed:", error);
+			}
+		}
 		return { ok: true, filePath };
 	} catch (err) {
 		console.error("[screenshot] 下载截图失败:", err);

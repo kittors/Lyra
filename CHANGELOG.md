@@ -5,23 +5,29 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
-## [0.9.16](https://github.com/kittors/Lyra/releases/tag/v0.9.16) - 2026-09-18
+## [0.9.16](https://github.com/kittors/Lyra/releases/tag/v0.9.16) - 2026-09-19
 
 <!-- lyra:notes en -->
 
 ### New
 
-- **A window holds at most four conversations.** After you split, a terminal, browser, files or git panel stays in that tile. If the tile is too tight, the panel opens in a new window instead of crushing the chat into a sliver.
+- **Keep up to four conversations in one window.** Each chat owns its tools; chats stay at least 420 px wide, tools at least 300 px, and anything that no longer fits opens in a separate window.
 
-- **Number fields in Settings keep a draft while you type.** "1" can stay long enough to become "16". Leaving the field puts the value in range; a minus never enters a count that cannot be negative.
+- **Drag browsers and terminals with their contents visible.** Rearrange them with the pointer or arrow keys, expand a panel within its chat, or open a separate window with pin and return controls.
+
+- **Number fields in Settings keep a draft while you type.** You can finish entering “16” before the value is checked against its limits.
 
 ### Fixes
 
-- **Switching conversations no longer flashes the old highlight.** The sidebar stays on the row that is about to open.
+- **Screenshot downloads still save when the clipboard is busy.** The confirmation shows the file path; a failed save keeps the selection for retry, using the current download directory.
 
-- **On Windows, a live preview still shows its port when probing the connection table fails.** Saving on the agent page no longer leaves the reasoning effort menu dead — a click after save actually changes the level.
+- **Chats with large images open sooner, and expanding a section keeps your place.** Thumbnails are reused, and opening a section no longer jumps to the end of the conversation.
 
-- **Long branch names no longer sit under the hover icons.** Workspace and Local rows share one icon column, the same reserved slot a conversation row already used for archive.
+- **Switching conversations keeps the sidebar highlight on the selected chat.** Refreshing also restores its split layout and tools.
+
+- **Windows previews keep their ports when connection probing fails.** The reasoning effort menu also responds after saving an agent.
+
+- **Long branch names leave room for their action buttons.** Workspace and Local rows align their icons with the conversation list.
 
 <!-- lyra:notes zh-CN -->
 
@@ -30,17 +36,23 @@
 
 ### 新功能
 
-- **一个窗口最多四个会话。** 拆开之后，终端、浏览器、文件、Git 面板停在那一块瓷砖里。这块地方不够，就开新窗口，不会把对话挤成一条缝。
+- **一个窗口最多同时查看四个会话。** 每个会话有自己的工具；对话至少保留 420 px 宽，工具至少 300 px，缩小窗口后放不下的内容会转到独立窗口。
 
-- **设置里的数字框允许打到一半。** 「1」可以先停着，再变成「16」。离开输入框才收到上下限里；不能为负的数量，负号根本进不去。
+- **拖动浏览器和终端时，内容跟着容器一起移动。** 可以用鼠标或方向键调整位置，在当前会话内展开面板，也可以单独开窗、置顶、收回。
+
+- **设置里的数字可以输完再检查。** 输入「16」时，不会刚打出「1」就被改掉。
 
 ### 修复
 
-- **切换会话不再闪一下旧的高亮。** 侧栏跟着即将打开的那一行走。
+- **剪贴板被占用时，下载截图仍会保存文件。** 成功后显示完整路径，失败时保留选区供重试，下载位置按当前设置生效。
 
-- **Windows 上探测连接表失败时，还活着的预览仍然显示端口。** 智能体页存完盘，推理强度菜单不再是点了白点——存完再点，档位会变。
+- **带大图的会话打开更快，展开内容也不会跳到对话末尾。** 缩略图会复用，展开折叠区时保留阅读位置。
 
-- **分支名不再压在悬停图标底下。** 工作区和本地共用一列图标，让位方式和会话行把标题停在归档按钮前是同一套。
+- **切换会话时，侧栏高亮停在选中的那一行。** 刷新后也会恢复分屏和各会话里的工具。
+
+- **Windows 上探测连接表失败时，预览仍会显示端口。** 保存智能体后，推理强度菜单也能继续切换。
+
+- **长分支名会给操作按钮留位置。** 工作区和本地分支的图标与会话列表对齐。
 
 </details>
 
@@ -51,17 +63,23 @@
 
 ### 新功能
 
-- **一個視窗最多四個對話。** 拆開之後，終端機、瀏覽器、檔案、Git 面板停在那一塊磁磚裡。這塊地方不夠，就開新視窗，不會把對話擠成一條縫。
+- **同一視窗最多查看四個對話。** 每個對話保有自己的工具；對話至少保留 420 px 寬，工具至少 300 px，縮小視窗後放不下的內容會另開視窗。
 
-- **設定裡的數字框允許打到一半。** 「1」可以先停著，再變成「16」。離開輸入框才收到上下限裡；不能為負的數量，負號根本進不去。
+- **拖曳瀏覽器與終端機時，可以一直看見內容。** 支援滑鼠和方向鍵調整位置、在對話內展開面板，以及獨立視窗的置頂與收回。
+
+- **設定裡的數字可以輸入完再檢查。** 輸入「16」時，不會才打出「1」就被改掉。
 
 ### 修復
 
-- **切換對話不再閃一下舊的反白。** 側欄跟著即將打開的那一列走。
+- **剪貼簿被占用時，下載截圖仍會存成檔案。** 成功後顯示完整路徑，失敗時保留選取範圍供重試，下載位置依目前設定生效。
 
-- **Windows 上探測連線表失敗時，還活著的預覽仍然顯示連接埠。** 智能體頁存完盤，推理強度選單不再是點了白點——存完再點，檔位會變。
+- **包含大圖的對話開啟更快，展開內容不再跳到末尾。** 縮圖會重複使用，展開摺疊區時保留閱讀位置。
 
-- **分支名不再壓在懸停圖示底下。** 工作區和本機共用一欄圖示，讓位方式和對話列把標題停在封存按鈕前是同一套。
+- **切換對話時，側欄反白停在選取的那一列。** 重新整理後也會還原分割配置和各對話的工具。
+
+- **Windows 無法取得連線清單時，預覽仍會顯示連接埠。** 儲存智能體後，推理強度選單也能繼續切換。
+
+- **長分支名稱會為操作按鈕留出空間。** 工作區和本機分支的圖示與對話清單對齊。
 
 </details>
 
@@ -72,17 +90,23 @@
 
 ### 新機能
 
-- **ひとつのウィンドウに会話は最大4つです。** 分割したあとの端末、ブラウザ、ファイル、Gitパネルは、そのタイルの中に残ります。入らなければ新しいウィンドウを開き、会話を細い隙間にはしません。
+- **1つのウィンドウで最大4つの会話を表示できます。** ツールは会話ごとに配置され、会話は幅420 px、ツールは300 pxを下回らず、収まらなくなると別ウィンドウに移ります。
 
-- **設定の数値欄は、入力の途中を残せます。** 「1」のまま「16」まで打てます。欄を離したときに範囲へ収めます。負にできない数には、マイナス記号自体が入りません。
+- **ブラウザやターミナルの内容を見ながらドラッグできます。** 矢印キーでの配置変更、会話内での拡大、別ウィンドウへの切り離し、最前面表示、元の場所への復帰に対応しました。
+
+- **設定の数値は入力し終えてから検証されます。** 「16」と入力する途中の「1」が勝手に変わることはありません。
 
 ### 修正
 
-- **会話を切り替えても、前の行が一度光って戻りません。** サイドバーは、これから開く行のままです。
+- **クリップボードが使用中でもスクリーンショットを保存できます。** 保存先を表示し、失敗した場合は選択範囲を残して再試行でき、変更後の保存先もすぐに反映されます。
 
-- **Windowsで接続一覧の取得に失敗しても、生きているプレビューのポートは出ます。** エージェントのページを保存したあと、推理強度のメニューが反応しなくなりません。保存してから押すと、段階が変わります。
+- **大きな画像を含む会話が早く開きます。** サムネイルを再利用し、折りたたまれた内容を開いても会話の末尾へ飛ばなくなりました。
 
-- **長いブランチ名が、ホバーアイコンの下に潜り込みません。** ワークスペースとローカルは同じアイコン列です。会話行がアーカイブの手前でタイトルを止めるのと同じ隙間です。
+- **会話を切り替えたとき、サイドバーの選択表示が戻らなくなりました。** 再読み込み後も分割配置と各会話のツールを復元します。
+
+- **Windowsで接続一覧を取得できなくても、プレビューのポートを表示します。** エージェントを保存した後も推論レベルを変更できます。
+
+- **長いブランチ名が操作ボタンに重ならなくなりました。** ワークスペースとローカルのアイコン位置も会話一覧に合わせました。
 
 </details>
 
@@ -93,17 +117,23 @@
 
 ### 새로운 기능
 
-- **창 하나에는 대화를 최대 네 개까지 둡니다.** 나눈 뒤의 터미널, 브라우저, 파일, Git 패널은 그 타일 안에 남습니다. 자리가 부족하면 새 창을 열고, 대화를 가느다란 틈으로 찌그러뜨리지 않습니다.
+- **한 창에서 대화를 최대 4개까지 볼 수 있습니다.** 도구는 각 대화에 속하며, 대화 너비는 420 px, 도구는 300 px 이상을 유지하고 공간이 부족하면 별도 창으로 옮깁니다.
 
-- **설정의 숫자 칸은 입력 중간을 남겨 둡니다.** '1'을 잠시 둔 채로 '16'까지 칠 수 있습니다. 칸을 떠날 때 범위 안으로 맞춥니다. 음수가 될 수 없는 개수에는 마이너스 기호 자체가 들어가지 않습니다.
+- **브라우저와 터미널의 내용을 보면서 끌어 옮길 수 있습니다.** 방향키로 배치를 바꾸거나 대화 안에서 패널을 펼칠 수 있고, 별도 창에서 항상 위에 표시하거나 원래 위치로 돌려놓을 수도 있습니다.
+
+- **설정의 숫자는 입력을 마친 뒤에 검사합니다.** “16”을 입력하는 중간에 “1”이 다른 값으로 바뀌지 않습니다.
 
 ### 수정
 
-- **대화를 바꿔도 이전 줄이 한 번 다시 밝아지지 않습니다.** 사이드바는 곧 열릴 그 줄에 머뭅니다.
+- **클립보드가 사용 중이어도 스크린샷 파일은 저장됩니다.** 저장 경로를 표시하고 실패하면 선택 영역을 유지해 다시 시도할 수 있으며, 변경한 다운로드 폴더도 바로 적용됩니다.
 
-- **Windows에서 연결 목록 조회가 실패해도, 살아 있는 미리보기의 포트는 나옵니다.** 에이전트 페이지를 저장한 뒤 추론 강도 메뉴가 죽은 채로 남지 않습니다. 저장한 다음 누르면 단계가 바뀝니다.
+- **큰 이미지가 있는 대화가 더 빨리 열립니다.** 썸네일을 재사용하고, 접힌 내용을 펼쳐도 대화 끝으로 이동하지 않습니다.
 
-- **긴 브랜치 이름이 호버 아이콘 아래로 파고들지 않습니다.** 작업 공간과 로컬이 같은 아이콘 열을 씁니다. 대화 줄이 보관 버튼 앞에서 제목을 멈추는 것과 같은 자리입니다.
+- **대화를 전환할 때 사이드바 선택 표시가 이전 항목으로 돌아가지 않습니다.** 새로고침 후에도 분할 배치와 각 대화의 도구를 복원합니다.
+
+- **Windows에서 연결 목록을 읽지 못해도 미리보기 포트는 표시됩니다.** 에이전트를 저장한 뒤에도 추론 강도를 바꿀 수 있습니다.
+
+- **긴 브랜치 이름이 작업 버튼을 가리지 않습니다.** 작업 공간과 로컬 브랜치의 아이콘도 대화 목록에 맞춰 정렬했습니다.
 
 </details>
 
@@ -114,17 +144,23 @@
 
 ### Nouveautés
 
-- **Une fenêtre contient au plus quatre conversations.** Après un fractionnement, un terminal, un navigateur, des fichiers ou un panneau Git restent dans cette tuile. S'il n'y a pas la place, le panneau s'ouvre dans une nouvelle fenêtre au lieu d'écraser la conversation en une fente.
+- **Affichez jusqu’à quatre conversations dans une fenêtre.** Chaque conversation garde ses outils, avec une largeur minimale de 420 px pour le dialogue et de 300 px pour les outils ; ce qui ne tient plus s’ouvre dans une fenêtre séparée.
 
-- **Les champs numériques des Réglages gardent un brouillon pendant la saisie.** « 1 » peut rester assez longtemps pour devenir « 16 ». Quitter le champ ramène la valeur dans l'intervalle ; un moins n'entre jamais dans un compte qui ne peut pas être négatif.
+- **Déplacez le navigateur et le terminal sans perdre leur contenu de vue.** Utilisez la souris ou les flèches, agrandissez un panneau dans sa conversation ou détachez-le avec des commandes pour le garder au premier plan et le ramener.
+
+- **Les champs numériques attendent la fin de la saisie.** Le « 1 » de « 16 » n’est plus corrigé avant que vous ayez terminé.
 
 ### Corrections
 
-- **Changer de conversation ne fait plus clignoter l'ancienne surbrillance.** La barre latérale reste sur la ligne qui va s'ouvrir.
+- **Le téléchargement d’une capture fonctionne même si le presse-papiers est occupé.** Le chemin du fichier s’affiche ; en cas d’échec, la sélection reste disponible pour réessayer avec le dossier actuellement configuré.
 
-- **Sous Windows, un aperçu encore vivant affiche son port même si l'interrogation de la table des connexions échoue.** Enregistrer la page de l'agent ne laisse plus le menu d'effort de raisonnement inerte — un clic après l'enregistrement change bien le niveau.
+- **Les conversations contenant de grandes images s’ouvrent plus vite.** Les miniatures sont réutilisées et déplier une section ne vous envoie plus à la fin du dialogue.
 
-- **Les longs noms de branche ne passent plus sous les icônes au survol.** L'espace de travail et Local partagent une même colonne d'icônes, le même créneau qu'une ligne de conversation réserve déjà à l'archivage.
+- **La sélection de la barre latérale reste sur la conversation choisie.** Le rechargement restaure aussi la disposition et les outils de chaque conversation.
+
+- **Sous Windows, l’aperçu affiche son port même si la lecture des connexions échoue.** Le niveau de raisonnement reste modifiable après l’enregistrement d’un agent.
+
+- **Les noms de branche longs laissent de la place aux boutons.** Les icônes des branches locales et de l’espace de travail sont alignées avec celles des conversations.
 
 </details>
 
@@ -135,17 +171,23 @@
 
 ### Новое
 
-- **В одном окне не больше четырёх бесед.** После разделения терминал, браузер, файлы и панель Git остаются в этой плитке. Если места нет, панель открывается в новом окне, а не сжимает беседу в щель.
+- **В одном окне можно открыть до четырёх разговоров.** У каждого свои инструменты: ширина разговора не опускается ниже 420 px, инструмента ниже 300 px, а при нехватке места содержимое переносится в отдельное окно.
 
-- **Числовые поля в настройках держат черновик, пока вы печатаете.** «1» может подождать, пока не станет «16». Уход из поля ставит значение в диапазон; минус не входит в счёт, который не может быть отрицательным.
+- **При перетаскивании браузера и терминала их содержимое остаётся видимым.** Положение можно менять мышью или стрелками, панель можно развернуть внутри разговора, вынести в окно, закрепить поверх других окон и вернуть обратно.
+
+- **Числовые поля проверяют значение после окончания ввода.** Первая цифра в «16» больше не заменяется до ввода второй.
 
 ### Исправления
 
-- **Переключение беседы больше не вспыхивает старой подсветкой.** Боковая панель остаётся на строке, которая сейчас откроется.
+- **Снимок экрана сохраняется, даже если буфер обмена занят.** После сохранения виден путь к файлу, а при ошибке выделение остаётся для повторной попытки с текущей папкой загрузок.
 
-- **В Windows живой просмотр по-прежнему показывает порт, если опрос таблицы соединений не удался.** Сохранение на странице агента больше не оставляет меню глубины рассуждений мёртвым — нажатие после сохранения меняет уровень.
+- **Разговоры с большими изображениями открываются быстрее.** Миниатюры используются повторно, а раскрытие свёрнутого блока больше не переносит к концу разговора.
 
-- **Длинные имена веток больше не залезают под значки при наведении.** Рабочая область и локальные ветки делят одну колонку значков — тот же запас, которым строка беседы уже останавливает название перед архивацией.
+- **Выделение в боковой панели остаётся на выбранном разговоре.** После перезагрузки восстанавливаются также расположение панелей и инструменты каждого разговора.
+
+- **В Windows предпросмотр показывает порт, даже если не удалось прочитать список соединений.** После сохранения агента можно по-прежнему менять уровень рассуждения.
+
+- **Длинные имена веток не перекрывают кнопки действий.** Значки локальных веток и рабочего пространства выровнены со списком разговоров.
 
 </details>
 

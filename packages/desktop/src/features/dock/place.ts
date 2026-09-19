@@ -19,6 +19,7 @@ import {
 	kinds,
 	nodeAt,
 	pathTo,
+	remove,
 	type DockNode,
 	type DropAt,
 	type DropSide,
@@ -28,6 +29,19 @@ import {
 const SIDES: DropSide[] = ["right", "bottom", "left", "top"];
 
 export type Span = { width: number; height: number };
+
+/** Keep existing positions; move the trailing tools out until every remaining pane fits. */
+export function overflowPanels(tree: DockNode, span: Span, floor: (kind: PaneKind) => Floor): Exclude<PaneKind, "conversation">[] {
+	const out: Exclude<PaneKind, "conversation">[] = [];
+	let rest = tree;
+	for (const kind of kinds(tree).reverse()) {
+		if (clearsFloors(rest, span, floor)) break;
+		if (kind === "conversation") continue;
+		out.push(kind);
+		rest = remove(rest, kind);
+	}
+	return out;
+}
 
 const dropKey = (at: DropAt): string => `${at.side}:${at.kind ?? ""}`;
 

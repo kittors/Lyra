@@ -7,14 +7,15 @@ import { useBoxSize, provideScope } from "../dock/index.ts";
 import { canSplit, contains, firstSession, leafCount, nodeAt, sessionIds } from "./tree.ts";
 import { warmSession } from "./warm.ts";
 import { isOriginPane, isTopEndPane, layoutPanes, layoutSplitters } from "./layout.ts";
-import { canSplitSide, resizeFloors } from "./geometry.ts";
+import { canSplitSide, fitSplitTree, resizeFloors, subtreeMinPx } from "./geometry.ts";
 import { paneAtShare, panePixels, rememberSplitRoot } from "./hit.ts";
 import { useSplit } from "./store.ts";
 import { useSplitOverlay } from "./overlay.ts";
-import { paneKey } from "./pane-key.ts";
+import { assignPaneKeys, paneKey, type PaneIdentity } from "./pane-key.ts";
 import { SplitPane } from "./SplitPane.tsx";
 import { SplitOverlay } from "./SplitOverlay.tsx";
 import { Splitter } from "./Splitter.tsx";
+import { useOverflowScreens } from "./useOverflowScreens.ts";
 import { sideOf } from "./drop.ts";
 import { dropAlreadyOpen, dropOnPane, resetSplit } from "./actions.ts";
 import {
@@ -60,7 +61,10 @@ export function SplitWorkspace() {
 	const workspace = useApp((s) => s.workspace);
 	const sessions = useApp((s) => s.sessions);
 	const root = useRef<HTMLElement | null>(null);
+	const viewport = useRef<HTMLDivElement>(null);
+	const available = useBoxSize(viewport);
 	const size = useBoxSize(root);
+	useOverflowScreens(tree, available);
 
 	const windowId = bridge.bootWindow?.id ?? "primary";
 	const project = workspace?.path ?? "";
@@ -161,7 +165,7 @@ export function SplitWorkspace() {
 				return false;
 			}
 			const live = useSplit.getState().tree;
-			const pane = paneAtShare(layoutPanes(live), rootBox, x, y);
+			const pane = paneAtShare(layoutPanes(fitSplitTree(live, rootBox)), rootBox, x, y);
 			if (!pane) {
 				useSplitOverlay.getState().clear();
 				return false;
@@ -199,8 +203,16 @@ export function SplitWorkspace() {
 		return () => setSplitDropper(null);
 	}, []);
 
-	const panes = useMemo(() => layoutPanes(tree), [tree]);
-	const handles = useMemo(() => layoutSplitters(tree), [tree]);
+	const minimum = { width: subtreeMinPx(tree, "row"), height: subtreeMinPx(tree, "col") };
+	const fitted = useMemo(() => size ? fitSplitTree(tree, size) : tree, [tree, size]);
+	const panes = useMemo(() => layoutPanes(fitted), [fitted]);
+	const identities = useRef<PaneIdentity[]>([]);
+	identities.current = assignPaneKeys(identities.current, panes.map((pane) => pane.sessionId));
+	const mountedPanes = [...panes].sort((a, b) => {
+		const keyOf = (id: string | null) => identities.current.find((slot) => slot.sessionId === id)?.key ?? 0;
+		return keyOf(a.sessionId) - keyOf(b.sessionId);
+	});
+	const handles = useMemo(() => layoutSplitters(fitted), [fitted]);
 	const count = panes.length;
 	const focusedId = focused ?? activeSessionId;
 	const { navOpen, headerBar, titlebar } = useLayout();
@@ -208,17 +220,19 @@ export function SplitWorkspace() {
 	const endInset = headerBar || titlebar.end === 0 ? 0 : titlebar.end;
 
 	return (
+		<div ref={viewport} data-ly-split-viewport className="relative flex min-h-0 min-w-0 flex-1 overflow-auto">
 		<div
 			ref={(node) => {
 				root.current = node;
 			}}
 			data-ly-split-root
 			data-ly-split-count={count}
+			style={count > 1 ? { minWidth: minimum.width, minHeight: minimum.height } : undefined}
 			className="relative min-h-0 flex-1"
 		>
-			{panes.map((pane) => (
+			{mountedPanes.map((pane) => (
 				<SplitPane
-					key={pane.path.join(".") || "root"}
+					key={identities.current.find((slot) => slot.sessionId === pane.sessionId)?.key}
 					pane={pane}
 					count={count}
 					focused={pane.sessionId === focusedId || (pane.sessionId === null && !focusedId)}
@@ -252,6 +266,7 @@ export function SplitWorkspace() {
 				/>
 			))}
 			<SplitOverlay />
+		</div>
 		</div>
 	);
 }
