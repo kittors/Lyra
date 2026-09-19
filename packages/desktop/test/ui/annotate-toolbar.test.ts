@@ -12,8 +12,16 @@
  */
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { FLOATING_BAR } from "../../src/features/image/AnnotateToolbar.tsx";
+import { after, before, test } from "node:test";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { AnnotateToolbar, FLOATING_BAR } from "../../src/features/image/AnnotateToolbar.tsx";
+import { useAnnotator } from "../../src/features/image/Annotator.tsx";
+
+// These tests mount an empty annotator; happy-dom has no decoded bitmap constructor.
+// oxlint-disable-next-line typescript/no-extraneous-class -- Only an instanceof target is needed; no bitmap is constructed.
+before(() => Object.defineProperty(globalThis, "ImageBitmap", { value: class {}, configurable: true }));
+after(() => { Reflect.deleteProperty(globalThis, "ImageBitmap"); });
 
 /** Tailwind 里所有会写 `position` 的工具类。 */
 const POSITIONS = new Set(["static", "fixed", "absolute", "relative", "sticky"]);
@@ -33,4 +41,59 @@ test("it is placed against the window, not against whatever contains it", () => 
 	// 它就落在别的地方——而这三样分居两处，只有一起看才成立。
 	assert.match(FLOATING_BAR, /\bbottom-6\b/);
 	assert.match(FLOATING_BAR, /\bleft-1\/2\b/);
+});
+
+test("every download arrow saves a file; capture completion has its own checkmark", async () => {
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	let downloads = 0;
+	let finishes = 0;
+	function Toolbar() {
+		return createElement(AnnotateToolbar, {
+			annotator: useAnnotator(null), canReplace: false, requireDirty: false,
+			onCancel: () => {}, onSave: () => { finishes++; },
+			onDownload: () => { downloads++; }, saveLabel: "Complete capture",
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		const arrows = host.querySelectorAll<HTMLButtonElement>("button:has(.lucide-download)");
+		assert.equal(arrows.length, 1, "A completion button must not promise a downloaded file");
+		await act(async () => arrows[0]!.click());
+		assert.equal(downloads, 1);
+		assert.equal(finishes, 0);
+		const complete = host.querySelector<HTMLButtonElement>('button[aria-label="Complete capture"]');
+		assert.ok(complete);
+		assert.ok(complete.querySelector(".lucide-check"));
+		await act(async () => complete.click());
+		assert.equal(finishes, 1);
+		assert.equal(downloads, 1);
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
+});
+
+test("saving an image copy still uses a download arrow without a separate download button", async () => {
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	let copies = 0;
+	function Toolbar() {
+		return createElement(AnnotateToolbar, {
+			annotator: useAnnotator(null), canReplace: false, requireDirty: false,
+			onCancel: () => {}, onSave: () => { copies++; },
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		const arrow = host.querySelector<HTMLButtonElement>("button:has(.lucide-download)");
+		assert.ok(arrow);
+		await act(async () => arrow.click());
+		assert.equal(copies, 1);
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
 });

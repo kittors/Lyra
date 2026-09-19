@@ -507,8 +507,8 @@ export function AnnotateToolbar({
 				aria-label={saveLabel ?? translate(canReplace ? "common.save" : "annotate.saveCopy")}
 				className={`grid cursor-pointer place-items-center rounded-md bg-white text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
 			>
-				{/* 覆盖原图是一个勾，另存一份是一枚下载箭头——存到哪儿，形状上就分开了。 */}
-				{canReplace ? <Check size={metrics.icon - 1} strokeWidth={2.4} aria-hidden /> : <Download size={metrics.icon - 1} strokeWidth={2} aria-hidden />}
+				{/* A separate download button owns file saving; confirming a capture must not promise another download. */}
+				{canReplace || onDownload ? <Check size={metrics.icon - 1} strokeWidth={2.4} aria-hidden /> : <Download size={metrics.icon - 1} strokeWidth={2} aria-hidden />}
 			</button>
 		</div>
 	);
