@@ -41,13 +41,16 @@ panel 窗口（把面板弹出去）     只有一个面板，没有 dock
 
 | | 窗口级 dock | 分屏 tile 的 pane dock | panel 窗口 | aux 窗口 |
 |---|---|---|---|---|
-| 打开面板 | S1 ▲ 正常 | S2 ▲ 正常 | S3 | — |
-| 拖动换位 | S4 | S5 | — | — |
-| 调整大小到底线 | S6 | S7 | — | — |
-| 弹出为独立窗口 | S8 | S9 | — | — |
-| 收回 | S10 | S11 | S10/S11 | — |
-| 容器消失（关会话/关窗口） | S12 | S13 | S14 | S15 |
-| 刷新/重启后恢复 | S16 ▲ **坏** | S17 | S18 | S19 |
+| 打开面板 | S1 ▲ 正常 | S2 ▲ 正常 | S3 未跑 | — |
+| 拖动换位 | S4 ▲ 正常 | **S5 ▲ 坏** | — | — |
+| 调整大小到底线 | S6 ▲ 正常 | S7 ▲ 正常 | — | — |
+| 弹出为独立窗口 | S8 ▲ 正常 | S9 未跑 | — | — |
+| 收回 | S10 够不到 | S11 未跑 | S10/S11 够不到 | — |
+| 容器消失 | S12 够不到 | S13 ▲ 正常 | S14 未跑 | S15 ▲ 正常 |
+| 刷新后恢复 | **S16 ▲ 坏** | **S17 ▲ 坏** | S18 未跑 | S19 未跑 |
+
+跑法：`node --experimental-strip-types e2e/split-scenarios-probe.ts [场景前缀]`。
+「够不到」= 要操作另一个窗口的 DOM，而探针只连着主窗口那一个 CDP target。
 
 ---
 
@@ -88,6 +91,38 @@ if (screens > 1 && useDock.getState().adopted) return;
 
 分屏下用哪个会话的布局？用分屏树里的第一屏（`firstSession`），不是 `activeSessionId`——
 后者会随焦点漂移，而布局该跟着这个窗口装载时的样子走。
+
+---
+
+### C4. 把 tile 里的面板拖到另一屏，面板直接没了（S5，已复现）
+
+**复现**：分屏两屏 → 在第一屏的标题栏点「终端」→ 拖终端的把手到第二屏中央、松手。
+
+**实际**：终端从两屏里一起消失。再点一次第一屏的「终端」，它又开出来了——说明树里真的已经
+没有它，不是画不出来。
+
+**根因**（`pane-store.ts` 的 `endDrag`）：
+
+```js
+endDrag(cancelled) {
+  const drag = get().drag;
+  set({ drag: null });
+  if (!drag) return;
+  if (cancelled || !drag.at) set({ trees: write(get().trees, drag.scope, drag.before) });
+}
+```
+
+`drag.scope` 是**按下时**那一屏，整个拖拽过程都拿它当坐标系：`dragTo` 用
+`get().sizes[drag.scope]` 算落点、`preview` 往 `drag.scope` 那棵树写。拖到第二屏时落点算在
+别人的地盘上，`allowedDrop` 给不出合法位置，而 `preview` 早已把面板从第一屏的树里摘掉
+（它写的是 `rest`）。最后 `endDrag` 看到 `drag.at` 为空，本该拿 `drag.before` 复原——实测
+没复原，面板就这么没了。
+
+**怎么修**：两步。① 拖拽跨屏时，落点要按**指针所在**那一屏算，而不是按下时那一屏——
+`dragTo` 收一个 targetScope，`sizes` 和 `preview` 都用它。② `endDrag` 的复原必须无条件覆盖
+「摸过的每一屏」，而不是只有 `drag.scope` 一棵树；跨屏拖拽期间被改过的树不止一棵。
+
+在①做好之前，②是止血：至少面板会回到原处，而不是消失。
 
 ---
 
@@ -133,8 +168,8 @@ browser-store.ts:74              useDock.getState().open("browser")
 
 **期望**：和窗口 dock 一样恢复。
 
-**实际**：tile 里的面板全没了，只剩转录。（尚未单独跑过——S16 那一轮里窗口 dock 自己也没
-恢复，两者混在一起，要等 C0 修好之后才分得开。）
+**实际**（S17 已复现）：刷新前终端在 `tile:0f2ffd48`，刷新后不见了，而两屏本身都恢复了
+（屏数 2→2）。所以不是分屏没恢复，是 tile 里的面板没恢复。
 
 **根因**：`usePaneDock` 是纯内存的 `Record<scope, DockNode>`，全文件没有 `localStorage`。
 窗口 dock 有 `persist.ts`（`dw:dock:<session>`），pane dock 没有对应物。
@@ -162,20 +197,22 @@ sessionId，天然是对的粒度。要连 `sizes` 一起存吗——不要：�
 
 ---
 
-## 四、待测场景
+## 四、还没跑的
 
-下面这些有理由怀疑，但**还没实测**，不要当结论。
+**探针够不到的**（要操作第二个窗口的 DOM，而 `startApp` 只连主窗口那一个 CDP target）：
 
-- **S9/S11 tile 里的面板弹出再收回**：`popOutPanel` 收了 `dock: "pane" | "window"`，
-  `homes` 也记了，但 tile 可能在这期间被关掉。收回时那个 scope 已经不存在了会怎样。
-- **S13 关掉分屏里的一个会话**：`PaneDock.tsx:69` 在卸载时 `forget(scope)`。如果那一屏里
-  有面板被弹出去了，panel 窗口还开着，而它的 home 已经被 forget 掉。
-- **S5 拖动面板跨 tile**：`usePaneDock` 的 `drag` 是单个全局字段而不是按 scope 分的，
-  跨屏拖到底会发生什么。
-- **S7 tile 内调整到底线**：`paneFloor` 在 tile 的像素跨度上算，2×2 分屏里每屏本来就小。
-- **S12/S14 关掉 panel 窗口 vs 关掉 primary 窗口**：谁负责把面板放回树里。
-- **S15 会话弹到 aux 窗口**：它在分屏里的那一屏和 pane dock 怎么处理。
-- **S18/S19 panel/aux 窗口在重启后恢复吗**。
+- **S10/S11 收回**：收回按钮长在 panel 窗口里。
+- **S12/S14 关掉 panel 窗口**：谁负责把面板放回树里。
+
+补法：`startApp` 里加一条「按 target 标题挑 CDP 连接」的路，或者退一步——用
+`bridge.windows` 上已有的 IPC 从主窗口驱动关闭，只验状态不验那个窗口的界面。
+
+**还没写用例的**：
+
+- **S9 tile 里的面板弹出**：`popOutPanel` 收 `dock: "pane" | "window"`，但那一屏可能在弹出
+  期间被关掉，`PaneDock.tsx:69` 卸载时就 `forget(scope)` 了，home 跟着没。
+- **S3 panel 窗口里能不能再开面板**（看代码是不能，PanelWindow 里没有 dock）。
+- **S18/S19 panel/aux 窗口重启后恢复吗**。
 
 ---
 
