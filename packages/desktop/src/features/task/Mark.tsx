@@ -61,7 +61,9 @@ function Mark({ status, paused, failed, idle }: { status: TodoItem["status"]; pa
 	}
 	return (
 		<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-			<span className="block h-[9px] w-[9px] rounded-full border border-dashed border-ink-faint" />
+			<svg width={13} height={13} viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-ink-faint">
+				<circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeDasharray="5.236 5.236" />
+			</svg>
 		</span>
 	);
 }

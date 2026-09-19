@@ -161,7 +161,11 @@ export function FileDiffTree({
 							{file.removed > 0 && <span className="text-danger">−{file.removed}</span>}
 						</Text>
 					</button>
-					{actions?.(file)}
+					{actions && (
+						<div className="flex shrink-0 items-center opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/tree-file:opacity-100 group-focus-within/tree-file:opacity-100">
+							{actions(file)}
+						</div>
+					)}
 				</div>
 
 				{isExpanded && (

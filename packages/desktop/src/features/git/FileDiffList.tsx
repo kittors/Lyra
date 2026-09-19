@@ -147,7 +147,11 @@ export function FileDiffList({
 
                   </Text>
                 </button>
-                {actions?.(file)}
+                {actions && (
+                  <div className="flex shrink-0 items-center opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+                    {actions(file)}
+                  </div>
+                )}
               </div>
             </div>
 

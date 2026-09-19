@@ -12,7 +12,6 @@ import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 
-import { CommitComposer } from "./CommitComposer.tsx";
 import { FileDiffList } from "./FileDiffList.tsx";
 import { FileDiffTree } from "./FileDiffTree.tsx";
 
@@ -299,13 +298,6 @@ export function ChangesView({
         )}
       </Scroller>
 
-      <CommitComposer
-        cwd={cwd}
-        stagedCount={stagedPaths.length}
-        busy={busy}
-        disabled={nothing}
-        onCommit={(next) => act(() => bridge.git.commitStaged(cwd, next))}
-      />
 
       {confirm.element}
     </>

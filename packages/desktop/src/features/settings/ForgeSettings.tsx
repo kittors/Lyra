@@ -100,7 +100,9 @@ export function ForgeSettings() {
 							account.lastError && account.enabled ? (
 								<span className="text-danger">{account.lastError}</span>
 							) : (
-								`${account.login || t("forge.unknownUser")} · ${host(account.baseUrl)}`
+								`${account.login || t("forge.unknownUser")} · ${host(account.baseUrl)}` !== account.label ? (
+									`${account.login || t("forge.unknownUser")} · ${host(account.baseUrl)}`
+								) : null
 							)
 						}
 						actions={

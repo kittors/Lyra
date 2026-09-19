@@ -57,8 +57,7 @@ const TOAST_FADE_MS = 200;
 /**
  * What the confirmation over the desktop says once the capture itself has gone.
  *
- * Downloads include their actual destination. A short "Saved" cannot tell somebody which
- * directory was used, especially when Windows redirects the desktop to OneDrive.
+ * Success stays as brief as colour-copy confirmation; failures include details for retrying.
  */
 interface ToastMessage {
 	text: string;
@@ -118,7 +117,7 @@ export function ScreenshotOverlay() {
 	 *
 	 * Was a boolean called `copied`, because taking a colour was the only thing that ended a capture
 	 * without delivering a picture. Downloading and pinning end the same way and have different
-	 * things to say — one of them a file path — so the state holds the message rather than implying
+	 * things to say, so the state holds the message rather than implying
 	 * it. `copied` is still here, separately: the loupe shows its own 「已复制」 inline, which is a
 	 * different thing in a different place.
 	 */
@@ -584,7 +583,7 @@ export function ScreenshotOverlay() {
 			void bridge.screenshot.download(png).then(
 				(result) => {
 					if (!captureActions.isCurrent(initData.session)) return;
-					if (result.ok && result.filePath) leaveWithToast({ text: translate("screenshot.saved"), detail: result.filePath }, 3500);
+					if (result.ok && result.filePath) leaveWithToast({ text: translate("screenshot.saved") }, 3500);
 					else setToast({ text: translate("screenshot.saveFailed"), detail: result.error, failed: true });
 				},
 				(error: unknown) => { if (captureActions.isCurrent(initData.session)) setToast({ text: translate("screenshot.saveFailed"), detail: String(error), failed: true }); },
@@ -953,9 +952,9 @@ export function ScreenshotOverlay() {
 						transition: `opacity ${TOAST_FADE_MS}ms ease-out`,
 					}}
 				>
-					<div className="flex max-w-[min(80vw,640px)] animate-[ly-tool-in_var(--ly-t-base)_ease-out] flex-col items-center gap-2 rounded-2xl bg-black/75 px-9 py-7 text-white shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+					<div className={`flex animate-[ly-tool-in_var(--ly-t-base)_ease-out] flex-col items-center gap-2 rounded-2xl bg-black/75 text-white shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-md ${toast.failed ? "max-w-[min(80vw,640px)] px-9 py-7" : "size-36 shrink-0 justify-center p-4"}`}>
 						{toast.failed ? <TriangleAlert size={44} strokeWidth={2.2} /> : <Check size={44} strokeWidth={2.2} />}
-						<span className="text-label">{toast.text}</span>
+						<span className="text-center text-label">{toast.text}</span>
 						{toast.detail && <span className="break-all text-center text-caption">{toast.detail}</span>}
 					</div>
 				</div>

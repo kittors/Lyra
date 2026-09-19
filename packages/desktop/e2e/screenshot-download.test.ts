@@ -128,20 +128,23 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 		}
 		async function saved(directory: string) {
 			await until(page, `document.querySelector('[data-screenshot-toast]')?.textContent.startsWith('已保存') === true`);
-			const toast = await page.evaluate<{ text: string; opacity: number; width: number; height: number }>(`(() => {
-				const el=document.querySelector('[data-screenshot-toast]'),r=el.firstElementChild.getBoundingClientRect();
-				return {text:el.textContent,opacity:Number(getComputedStyle(el).opacity),width:r.width,height:r.height};
+			const toast = await page.evaluate<{ text: string; opacity: number; width: number; height: number; layoutWidth: number; layoutHeight: number }>(`(() => {
+				const el=document.querySelector('[data-screenshot-toast]'),box=el.firstElementChild,r=box.getBoundingClientRect(),style=getComputedStyle(box);
+				return {text:el.textContent,opacity:Number(getComputedStyle(el).opacity),width:r.width,height:r.height,layoutWidth:parseFloat(style.width),layoutHeight:parseFloat(style.height)};
 			})()`);
 			const names = (await readdir(directory)).filter(name => name.endsWith(".png"));
 			assert.equal(names.length, 1);
 			const file = join(directory, names[0]!);
-			assert.ok(toast.text.includes(file), toast.text);
+			assert.equal(toast.text, "已保存");
 			assert.ok(toast.opacity > 0.9 && toast.width > 100 && toast.height > 40, JSON.stringify(toast));
+			assert.ok(Math.abs(toast.width - toast.height) < 0.5, "The visible toast must stay square during its animation");
+			assert.equal(toast.layoutWidth, 144);
+			assert.equal(toast.layoutHeight, 144);
 			assert.ok(await app.main(`process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('#/screenshot-overlay')).isVisible()`));
 			const bytes = await readFile(file);
 			assert.equal(bytes.subarray(1, 4).toString(), "PNG");
 			assert.ok(bytes.readUInt32BE(16) >= 360 && bytes.readUInt32BE(20) >= 200);
-			check("visible saved toast names the file actually written", { directory, bytes: bytes.length, toast });
+			check("file is written and the square toast only says saved", { directory, bytes: bytes.length, toast });
 			await hold();
 			if (process.env.LYRA_E2E_ARTIFACTS) {
 				await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });

@@ -28,6 +28,8 @@ import { sameStatus } from "./sameStatus.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useNarrow } from "../../ui/hooks/useNarrow.ts";
+import { CommitPushPopover } from "./CommitPushPopover.tsx";
+import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
@@ -77,7 +79,7 @@ function SyncControl({
 	running: boolean;
 	disabled: boolean;
 	roomForWords: boolean;
-	onClick: () => void;
+	onClick: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
 	const { t } = useI18n();
 	const [hovered, setHovered] = useState(false);
@@ -369,6 +371,8 @@ export function GitPanel() {
   const [sync, setSync] = useState<"pull" | "push" | "fetch" | null>(null);
   const token = useRef<string | null>(null);
 
+  const pushPopover = usePopover();
+
   const remote = useCallback(
     async (kind: "pull" | "push" | "fetch", call: (id: string) => Promise<{ ok: boolean; error?: string; cancelled?: boolean }>) => {
       // Already running: this press means stop, not start again.
@@ -645,10 +649,61 @@ export function GitPanel() {
           word={plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream" ? t("git.publish") : t("common.push")}
           state={plan.push}
           running={sync === "push"}
-          disabled={plan.push.disabled || busy || (sync !== null && sync !== "push")}
+          disabled={busy || (sync !== null && sync !== "push")}
           roomForWords={roomForWords}
-          onClick={() => void remote("push", (id) => bridge.git.push(cwd, id))}
+          onClick={(e) => {
+            if (sync === "push") {
+              if (token.current) void bridge.git.cancelRemote(token.current);
+              return;
+            }
+            pushPopover.toggle(e);
+          }}
         />
+        {pushPopover.open && cwd && (
+          <CommitPushPopover
+            cwd={cwd}
+            branch={status?.branch ?? plan.branch}
+            stagedCount={status?.staged.length ?? 0}
+            unstagedCount={status?.unstaged.length ?? 0}
+            addedCount={status?.unstaged.reduce((acc, f) => acc + f.added, 0) ?? 0}
+            removedCount={status?.unstaged.reduce((acc, f) => acc + f.removed, 0) ?? 0}
+            busy={busy}
+            running={sync !== null}
+            anchor={pushPopover.anchor}
+            onClose={pushPopover.close}
+            onCommit={async (msg) => {
+              const res = await act(() => bridge.git.commitStaged(cwd, msg));
+              await read();
+              return res;
+            }}
+            onCommitAndPush={async (msg, includeUnstaged) => {
+              if (includeUnstaged) {
+                const curStatus = await bridge.git.status(cwd);
+                const paths = curStatus.unstaged.map((f) => f.path);
+                if (paths.length > 0) {
+                  await bridge.git.stage(cwd, paths);
+                }
+              }
+              let commitMsg = msg.trim();
+              if (!commitMsg) {
+                const gen = await bridge.git.generateCommitMessage(cwd);
+                if (!gen.ok || !gen.message) {
+                  notify(gen.error ?? t("commit.generateFailed"), "error");
+                  return false;
+                }
+                commitMsg = gen.message;
+              }
+              const commitRes = await act(() => bridge.git.commitStaged(cwd, commitMsg));
+              if (!commitRes) return false;
+              await read();
+              void remote("push", (id) => bridge.git.push(cwd, id));
+              return true;
+            }}
+            onPush={async () => {
+              void remote("push", (id) => bridge.git.push(cwd, id));
+            }}
+          />
+        )}
         </>}
         <IconButton
           icon={sync === "fetch" ? <ActionSpinner size={12} /> : <RefreshCw size={12} strokeWidth={1.9} />}
