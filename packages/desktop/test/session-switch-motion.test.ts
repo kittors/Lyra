@@ -29,7 +29,9 @@ test("file-change clicks open this turn's diff pane, not Git or a modal", async 
 	const source = await readFile(new URL("../src/features/conversation/TurnDelivery.tsx", import.meta.url), "utf8");
 	assert.doesNotMatch(source, /<Overlay/);
 	assert.doesNotMatch(source, /setReview/);
-	assert.doesNotMatch(source, /open\("review"/);
-	assert.match(source, /open\("delivery"/);
+	assert.doesNotMatch(source, /open\w*\("review"/);
+	// `open(` 和 `openScopedPanel(` 都算：要守的是「开的是这一轮的 diff 面板」，
+	// 不是某一个函数名。分屏之后这些入口改走认 scope 的那一个，语义没变。
+	assert.match(source, /open\w*\("delivery"/);
 	assert.match(source, /openInFilePane/, "the implementation report still opens as a file");
 });

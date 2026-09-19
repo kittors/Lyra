@@ -22,7 +22,7 @@ export { DockPane } from "./DockPane.tsx";
 export { Splitter as DockSplitter } from "./Splitter.tsx";
 export { fitTree, layoutPanes, layoutSplitters } from "./layout.ts";
 export { paneFloor } from "./geometry.ts";
-export { popOutPanel, toggleScopedPanel, watchPanelWindows } from "./popout.ts";
+export { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel, watchPanelWindows } from "./popout.ts";
 export { pct as dockPct } from "./css.ts";
 export { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
 export { useBoxSize } from "./useBoxSize.ts";

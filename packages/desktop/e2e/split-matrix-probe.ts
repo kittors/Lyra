@@ -210,6 +210,25 @@ async function reload(): Promise<void> {
 	await wait(1400);
 }
 
+/** 按标题开一个会话——有些场景需要转录里确实有那张卡片。 */
+async function openRowNamed(title: string): Promise<boolean> {
+	const at = await evaluate<{ x: number; y: number } | null>(`(() => {
+		const row = [...document.querySelectorAll('[data-ly-row]')].find((r) => (r.innerText || '').includes(${JSON.stringify(title)}));
+		if (!row) return null;
+		row.scrollIntoView({ block: 'center' });
+		const r = row.getBoundingClientRect();
+		if (r.width === 0) return null;
+		return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+	})()`);
+	if (!at) return false;
+	for (const type of ["mousePressed", "mouseReleased"] as const) {
+		await app.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
+	}
+	await until(`document.querySelector('[data-dock-pane="conversation"]') !== null`).catch(() => {});
+	await wait(1200);
+	return true;
+}
+
 async function openRow(index: number): Promise<void> {
 	const at = await evaluate<{ x: number; y: number } | null>(`(() => {
 		const row = document.querySelectorAll('[data-ly-row]')[${index}];
@@ -400,6 +419,51 @@ async function main(): Promise<void> {
 			if (!before || !after) return ["skip", "面板没开出来"];
 			const same = Math.abs(before.w - after.w) <= 8;
 			return [same ? "ok" : "bad", `关之前 ${before.w}x${before.h}，再开 ${after.w}x${after.h}${same ? "" : " ← 宽度没回来"}`];
+		});
+
+		await scene("A6", "分屏：从转录内容里打开面板，落在哪一屏", async () => {
+			/*
+			 * 这一条问的是 C1：从工具条点和从转录里点，落点该不该一致。
+			 *
+			 * 转录里的「审核」走 openScopedPanel("delivery")，工具条上那排走 toggleScopedPanel。
+			 * 从前前者写死窗口 dock，后者认 scope——同一个动作两个结果，看不出规律。
+			 */
+			// 先开一个转录里确实有「已编辑 N 个文件」卡片的会话，否则这一条无从点起。
+			if (!(await openRowNamed("整理图片需求到文档"))) return ["skip", "侧边栏里没有那个会话"];
+			if ((await splitTo(2)) < 2) return ["skip", `没分成两屏：${splitWhy}`];
+			// 「已编辑 N 个文件」那张卡在这一轮的末尾，先滚到底才点得到。
+			await evaluate(`(() => {
+				for (const el of document.querySelectorAll('[data-ly-split-pane] .ly-scroll-view')) el.scrollTop = el.scrollHeight;
+				return true;
+			})()`);
+			await wait(900);
+			const clicked = await evaluate<boolean>(`(() => {
+				const tile = [...document.querySelectorAll('[data-ly-split-pane]')].find((t) => [...t.querySelectorAll('button')].some((el) => /^(审核|Review)$/.test((el.innerText || '').trim())));
+				if (!tile) return false;
+				const b = [...tile.querySelectorAll('button')].find((el) => /^(审核|Review)$/.test((el.innerText || '').trim()));
+				if (!b) return false;
+				b.click();
+				return true;
+			})()`);
+			if (!clicked) {
+				/*
+				 * 跳过时把这一屏实际有哪些按钮印出来——下次不用再靠猜改正则。
+				 * C1 那条规矩本身由 `test/ui/scoped-open.test.ts` 的六条钉着，这里只是想在
+				 * 真窗口里再见一次。
+				 */
+				const seen = await evaluate<string[]>(`(() => {
+					const tile = document.querySelectorAll('[data-ly-split-pane]')[0];
+					if (!tile) return [];
+					return [...tile.querySelectorAll('button')].map((b) => ((b.innerText || '').trim() || b.getAttribute('aria-label') || '')).filter(Boolean).slice(0, 14);
+				})()`);
+				return ["skip", `这一屏的转录里没有「审核」卡片（规矩本身由 scoped-open.test.ts 钉着）。按钮有：${seen.join("、") || "（读不到）"}`];
+			}
+			await wait(1500);
+			const s2 = await shot();
+			const at = s2.panes["delivery"]?.at;
+			if (!at) return s2.panels.length ? ["ok", `那一屏放不下，弹成独立窗口 ${s2.panels.join(",")}`] : ["bad", "点了「审核」但面板既没出现也没弹窗"];
+			return [at.startsWith("tile") ? "ok" : "bad",
+				`从第一屏的转录里点「审核」，面板落在 ${at}${at.startsWith("tile") ? "" : " ← 期望落进那一屏，而不是横在两屏旁边"}`];
 		});
 
 		// ---- B 拖动 ----

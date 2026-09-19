@@ -11,14 +11,14 @@ import type { UserContent } from "@lyra/core";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { findModel } from "../models/index.ts";
-import { useSide } from "../dock/index.ts";
+import { useSide, openScopedPanel } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
 import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { openViewer } from "../image/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
-import { companionOf, useDock } from "../dock/index.ts";
+import { companionOf } from "../dock/index.ts";
 import {
 	AttachmentStrip,
 	ComposerSend,
@@ -218,7 +218,7 @@ export function SideComposer({
 							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
 							onOpenFile: (path: string, name: string) => {
 								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-								useDock.getState().open("file", companionOf("file"));
+								openScopedPanel("file", companionOf("file"));
 							},
 						},
 						rect,

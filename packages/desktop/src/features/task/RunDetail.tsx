@@ -5,7 +5,7 @@ import { useApp } from "../../store/index.ts";
 import { TraceText, showTrace } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
-import { companionOf, useDock } from "../dock/index.ts";
+import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function RunDetail({ run, query = "" }: { run: ToolRun; query?: string }) {
@@ -17,7 +17,7 @@ export function RunDetail({ run, query = "" }: { run: ToolRun; query?: string })
 		try {
 			const path = await bridge.sessions.exportTrajectory(meta.projectId, meta.id, "output", { correlationId: run.toolCallId });
 			await useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path, isDirectory: false, size: 0 });
-			useDock.getState().open("file", companionOf("file"));
+			openScopedPanel("file", companionOf("file"));
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};
 	const output = (run.result?.content ?? []).filter(part => part.type === "text").map(part => part.text).join("\n");

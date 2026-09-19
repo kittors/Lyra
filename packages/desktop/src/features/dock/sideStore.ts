@@ -9,7 +9,6 @@
 
 import type { SideChatUpdate, Message, QueuedTask, ThinkingLevel, UserContent } from "@lyra/core";
 import { create } from "zustand";
-import { useDock } from "./store.ts";
 import { reduceSideEvent, rebuildToolRuns, type SideConversation } from "./side-events.ts";
 import type { ToolRun } from "../../store/tool-run.ts";
 
@@ -143,11 +142,17 @@ export const useSide = create<SideState>((set, get) => ({
 	openPreview: (preview) => set({ browserTarget: { kind: "preview", preview } }),
 	openUrl: (url) => set({ browserTarget: { kind: "url", url } }),
 	pendingCommand: null,
+	/*
+	 * 只记下这条命令，开终端是调用方的事。
+	 *
+	 * 从前这里顺手把终端开出来，而「开在哪」在分屏之后不再有唯一答案——它得问「人在哪一屏」，
+	 * 那是 `openScopedPanel` 的事，而这个文件是 dock 的底层状态，反过来依赖它会连成一个环
+	 * （sideStore → popout → store → tree → sideStore，`pnpm arch` 当场报 no-circular）。
+	 *
+	 * 两个调用方（文件树的「在终端打开」、代码块的「在终端运行」）各自负责叫出一个终端来接。
+	 */
 	runInTerminal: (command) => {
 		set({ pendingCommand: command });
-		// Make sure there is a terminal to pick it up. `open` focuses one that already exists
-		// rather than adding a second, so a command run twice does not split the dock in two.
-		useDock.getState().open("terminal");
 	},
 	commandTaken: () => set({ pendingCommand: null }),
 

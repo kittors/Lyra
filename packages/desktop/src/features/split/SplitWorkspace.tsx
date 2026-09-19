@@ -3,7 +3,7 @@ import { useApp } from "../../store/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { toolbarReserved } from "../../app/window/WindowControls.tsx";
 import { bridge } from "../../services/index.ts";
-import { useBoxSize } from "../dock/index.ts";
+import { useBoxSize, provideScope } from "../dock/index.ts";
 import { canSplit, contains, firstSession, leafCount, nodeAt, sessionIds } from "./tree.ts";
 import { warmSession } from "./warm.ts";
 import { isOriginPane, isTopEndPane, layoutPanes, layoutSplitters } from "./layout.ts";
@@ -36,6 +36,19 @@ import {
  * tile's dock. A panel already on the window dock stays there. The tile title bar
  * is painted on the conversation slot, so it cannot sit empty over a panel.
  */
+/*
+ * 告诉 dock：「人此刻在哪一屏」这个问题该问谁。
+ *
+ * 写在模块顶层而不是组件里——它是一次性的接线，不该跟着渲染跑。没有分屏的窗口（会话窗口、
+ * 面板窗口）根本不加载这个文件，于是 dock 那边的默认答案 null 正好是它们的正确答案：
+ * 那里只有窗口 dock。
+ */
+provideScope(() => {
+	const split = useSplit.getState();
+	if (leafCount(split.tree) <= 1) return null;
+	return split.focused ?? firstSession(split.tree);
+});
+
 export function SplitWorkspace() {
 	const tree = useSplit((s) => s.tree);
 	const focused = useSplit((s) => s.focused);

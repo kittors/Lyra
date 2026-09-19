@@ -7,13 +7,12 @@ import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Undo2 } from "lucide-
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
-import { companionOf } from "../dock/index.ts";
+import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
-import { useDock } from "../dock/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
@@ -358,7 +357,7 @@ export function UserMessage({
                     isDirectory: false,
                     size: 0,
                   });
-                  useDock.getState().open("file", { kind: "conversation", side: "right", share: 0.45 });
+                  openScopedPanel("file", { kind: "conversation", side: "right", share: 0.45 });
                 } else {
                   useApp.getState().notify(t("userMessage.skillMissing", { name: skillRef?.name ?? "" }), "warn");
                 }
@@ -434,7 +433,7 @@ export function UserMessage({
                         },
                         onOpenFile: (filePath: string, name: string) => {
                           void useOpenFile.getState().open({ path: filePath, name, isDirectory: false, size: 0 });
-                          useDock.getState().open("file", companionOf("file"));
+                          openScopedPanel("file", companionOf("file"));
                         },
                       },
                       rect,

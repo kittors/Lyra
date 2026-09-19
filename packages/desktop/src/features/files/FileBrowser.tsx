@@ -13,8 +13,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Folder } from "lucide-react";
-import { useDock } from "../dock/index.ts";
-import { companionOf } from "../dock/index.ts";
+import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { FileTree } from "./FileTree.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { useApp } from "../../store/index.ts";
@@ -54,7 +53,7 @@ export function FileBrowser() {
 				 * clicking through a folder does not stack up editors — and if it was closed, the
 				 * click that needs it is what brings it back.
 				 */
-				useDock.getState().open("file", companionOf("file"));
+				openScopedPanel("file", companionOf("file"));
 			}}
 			onMoved={(from, to) => useOpenFile.getState().moved(from, to)}
 			onRemoved={(paths) => useOpenFile.getState().removed(paths)}

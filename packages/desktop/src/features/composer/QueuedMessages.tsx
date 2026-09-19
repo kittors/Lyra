@@ -22,7 +22,7 @@ import type { QueuedMessage } from "../../store/queue-slice.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { companionOf, useDock, useSide } from "../dock/index.ts";
+import { companionOf, useSide, openScopedPanel } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -282,7 +282,7 @@ function Row({
 		more.close();
 		const taken = dropQueued(sessionId, entry.id);
 		if (!taken) return;
-		useDock.getState().open("chat", companionOf("chat"));
+		openScopedPanel("chat", companionOf("chat"));
 		void useSide.getState().ask(taken.content);
 	};
 

@@ -30,8 +30,10 @@ test("the pane renders recorded hunks, not the worktree and not the open file", 
 	assert.doesNotMatch(source, /useOpenFile/);
 	assert.doesNotMatch(source, /bridge\.git/);
 	const card = await readFile(new URL("../src/features/conversation/TurnDelivery.tsx", import.meta.url), "utf8");
-	assert.match(card, /open\("delivery"\)/);
-	assert.doesNotMatch(card, /open\("review"\)/);
+	// 认的是「开的是这一轮的 diff 面板」，不是某一个函数名——分屏之后这些入口改走
+	// 认 scope 的 openScopedPanel，语义没变。
+	assert.match(card, /open\w*\("delivery"\)/);
+	assert.doesNotMatch(card, /open\w*\("review"\)/);
 });
 
 test("a mouse click on a file row does not open the hover preview", async () => {

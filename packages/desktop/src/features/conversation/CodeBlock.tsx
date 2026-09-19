@@ -4,7 +4,7 @@ import { Check, Copy, Play } from "lucide-react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
-import { useSide } from "../dock/index.ts";
+import { useSide, openScopedPanel } from "../dock/index.ts";
 
 /**
  * Fences that are commands rather than code.
@@ -99,7 +99,11 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 				<button
 					type="button"
 					data-ly-tip={translate("codeBlock.runInTerminal")}
-					onClick={() => useSide.getState().runInTerminal(commandFrom(code))}
+					onClick={() => {
+						useSide.getState().runInTerminal(commandFrom(code));
+						// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
+						openScopedPanel("terminal");
+					}}
 					className="absolute top-2 right-8 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
 				>
 					<Play size={13} strokeWidth={1.9} />

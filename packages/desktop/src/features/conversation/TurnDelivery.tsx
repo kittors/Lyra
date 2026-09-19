@@ -11,7 +11,7 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { companionOf, useDock } from "../dock/index.ts";
+import { companionOf, useDock, openScopedPanel } from "../dock/index.ts";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
 import { peekDelivery, rememberDelivery } from "./delivery-cache.ts";
@@ -131,12 +131,12 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		hideHover();
 		void useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path })
 			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		useDock.getState().open("file", companionOf("file"));
+		openScopedPanel("file", companionOf("file"));
 	};
 	const openTurn = (path?: string) => {
 		hideHover();
 		useDeliveryReview.getState().open({ sessionId, timestamp, path: path ?? null }, data);
-		useDock.getState().open("delivery");
+		openScopedPanel("delivery");
 	};
 	const remaining = files.length - PREVIEW_FILES;
 	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;

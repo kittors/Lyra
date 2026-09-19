@@ -27,7 +27,7 @@ import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
 import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
-import { companionOf, useDock } from "../dock/index.ts";
+import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 
 /**
@@ -350,7 +350,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 			.getState()
 			.open({ path, name })
 			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		useDock.getState().open("file", companionOf("file"));
+		openScopedPanel("file", companionOf("file"));
 	};
 	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
 

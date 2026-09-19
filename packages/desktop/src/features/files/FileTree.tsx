@@ -16,7 +16,7 @@ import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { useOpenTarget } from "../../store/open-targets.ts";
-import { useSide } from "../dock/index.ts";
+import { useSide, openScopedPanel } from "../dock/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
@@ -406,7 +406,11 @@ export function FileTree({
 						openWith: (path) => void bridge.system.openIn(openWith.id, path),
 						reveal: (path) => void bridge.workspace.reveal(path),
 						// Single-quoted so a space or a bracket in the path cannot become shell syntax.
-						openInTerminal: (dir) => runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`),
+						openInTerminal: (dir) => {
+							runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`);
+							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
+							openScopedPanel("terminal");
+						},
 						newFile: (dir) => startCreate(dir, "file"),
 						newFolder: (dir) => startCreate(dir, "directory"),
 						cut: () => actions.cut(acted()),

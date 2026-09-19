@@ -94,8 +94,8 @@ CI 里都是必过项：
    那一条只管域与域之间，从下面伸上去它看不见。壳（`app/`、`main.tsx`）不在此列——
    它们 `lazy()` 各域的整屏视图，而把那些视图放进域的出口会让打包器把整个域并回主 chunk。
 
-循环依赖是 error，垫着一份已有的 137 条的基线（`.dependency-cruiser-known-violations.json`，
-连同第 9 条那两处有理由的破例共 139 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
+循环依赖是 error，垫着一份已有的 133 条的基线（`.dependency-cruiser-known-violations.json`，
+连同第 9 条那两处有理由的破例共 135 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
 这个数字每次 `pnpm arch` 都会印出来，少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的
 正常动作，也是唯一能让它上升的动作。
 

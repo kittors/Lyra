@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { BrowserCommand, BrowserState, BrowserTab } from "../../../shared/browser.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { useDock, useSide } from "../dock/index.ts";
+import { useSide, openScopedPanel } from "../dock/index.ts";
 
 export const useBrowser = create<BrowserState>(() => ({ tabs: [], activeId: null }));
 export async function commandBrowser(command: BrowserCommand): Promise<void> {
@@ -71,7 +71,7 @@ export function useBrowserWorkspace(): void {
 			 * showing a tab that belongs to that conversation and is therefore blank here.
 			 */
 			const revealed = state.tabs.find((tab) => tab.id === state.activeId);
-			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) useDock.getState().open("browser");
+			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) openScopedPanel("browser");
 		});
 		void bridge.browser.state().then((state) => useBrowser.setState(state));
 		const unwatch = useSide.subscribe((state, previous) => {

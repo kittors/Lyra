@@ -18,8 +18,7 @@ import { useInputHistory } from "./useInputHistory.ts";
 import { commandEntries } from "./command-catalog.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { useDock } from "../dock/index.ts";
-import { companionOf } from "../dock/index.ts";
+import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
@@ -674,7 +673,7 @@ export function Composer() {
 				 * makes it invisible — for two minutes nothing on screen told a run reading forty
 				 * files apart from one that was stuck. The bar is that line, and it opens the pane.
 				 */}
-				<SubAgentBar onOpen={() => useDock.getState().open("subagents", companionOf("subagents"))} />
+				<SubAgentBar onOpen={() => openScopedPanel("subagents", companionOf("subagents"))} />
 				{/*
 				 * Where the turn will run, and what it has already changed.
 				 *
@@ -841,7 +840,7 @@ export function Composer() {
 								onPreviewImage: (originRect) => previewImage(hit.file, originRect),
 								onOpenFile: (path, name) => {
 									void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-									useDock.getState().open("file", companionOf("file"));
+									openScopedPanel("file", companionOf("file"));
 								},
 							},
 							rect,

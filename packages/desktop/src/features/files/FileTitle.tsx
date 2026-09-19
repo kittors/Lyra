@@ -23,7 +23,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { ChevronDown, FileText, PanelLeft } from "lucide-react";
 
 import { useLayout } from "../../app/layout.tsx";
-import { useDock } from "../dock/index.ts";
+import { useDock, openScopedPanel } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { kinds } from "../dock/index.ts";
 import { paneVisible } from "../dock/index.ts";
@@ -128,7 +128,7 @@ export function FileTitle() {
 						<button
 							type="button"
 							onClick={() => {
-								useDock.getState().open("files", companionOf("files"));
+								openScopedPanel("files", companionOf("files"));
 								menu.close();
 							}}
 							className="flex w-full items-center gap-1.5 px-3 py-2 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"

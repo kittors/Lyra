@@ -6,7 +6,7 @@ import { useOpenFile } from "../../store/openFile.ts";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { formatTokens } from "../conversation/index.ts";
-import { companionOf, useDock } from "../dock/index.ts";
+import { companionOf, openScopedPanel } from "../dock/index.ts";
 
 /** The paths come from the prompt sources, never guessed from the renderer's workspace. */
 export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdown; onOpen: () => void }) {
@@ -25,7 +25,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 					onClick={() => {
 						onOpen();
 						void useOpenFile.getState().open({ path: file.path, name: file.path.split(/[\\/]/).pop() || file.path, isDirectory: false, size: 0 });
-						useDock.getState().open("file", companionOf("file"));
+						openScopedPanel("file", companionOf("file"));
 					}}>
 					<FileText size={12} strokeWidth={1.8} className="shrink-0" />
 					<ScrollText text={file.path} className="min-w-0 flex-1 text-left font-mono text-caption" />

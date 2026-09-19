@@ -92,7 +92,7 @@ test("契约方法的数目", () => {
 test("循环依赖的数目", () => {
 	const baseline = JSON.parse(read(".dependency-cruiser-known-violations.json")) as Array<{ rule: { name: string } }>;
 	const actual = baseline.filter((one) => one.rule.name === "no-circular").length;
-	assert.equal(actual, 137);
+	assert.equal(actual, 133);
 	for (const written of counts(architecture, "条的基线").concat(counts(architecture, "条循环"))) {
 		assert.equal(written, actual);
 	}
@@ -131,5 +131,5 @@ test("pnpm arch 仍然把循环依赖的数目印出来", () => {
 		shell: process.platform === "win32",
 	});
 	assert.match(out, /known violations ignored/, "基线机制没生效，或者输出不再报数");
-	assert.match(out, /139 known violations/);
+	assert.match(out, /135 known violations/);
 });

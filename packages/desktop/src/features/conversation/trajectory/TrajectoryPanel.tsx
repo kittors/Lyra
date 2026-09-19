@@ -9,7 +9,7 @@ import { formatTokens } from "../../../lib/format-tokens.ts";
 import { TraceActions } from "./TraceActions.tsx";
 import { useApp } from "../../../store/index.ts";
 import { useOpenFile } from "../../../store/openFile.ts";
-import { useDock, companionOf } from "../../dock/index.ts";
+import { companionOf, openScopedPanel } from "../../dock/index.ts";
 import { SourceFilter } from "./SourceFilter.tsx";
 import { useTrajectory } from "./useTrajectory.ts";
 import { TraceList } from "./TraceList.tsx";
@@ -73,7 +73,7 @@ function SessionTrajectory() {
 		try {
 			const path = await bridge.sessions.exportTrajectory(meta.projectId, meta.id, format, entry ? { id: entryKey(entry) } : undefined);
 			await useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path, isDirectory: false, size: 0 });
-			useDock.getState().open("file", companionOf("file"));
+			openScopedPanel("file", companionOf("file"));
 			setSelected(null);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};
