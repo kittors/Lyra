@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { dropTree, flushTree, paneStorageKey, readTree, storageKey, writeTree } from "../../src/features/dock/persist.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
+import { useDock } from "../../src/features/dock/store.ts";
 import { leafOf, type DockNode, type PaneKind } from "../../src/features/dock/tree.ts";
 
 const ALLOWED: PaneKind[] = ["conversation", "terminal", "browser", "files"];
@@ -125,4 +126,48 @@ test("盘上写着一个已经不存在的面板，只丢那一个", () => {
 	const tree = JSON.stringify(usePaneDock.getState().tree("sess-f"));
 	assert.ok(!tree.includes("ghost-panel"), "认不出的面板该被丢掉");
 	assert.ok(tree.includes("terminal"), "不该连带把认得出的那个一起丢了");
+});
+
+/*
+ * 面板弹出去之前是从哪儿走的——这份记录要活过刷新。
+ *
+ * 从前它是一个模块作用域的 Map：主窗口一刷新就空了，而弹出去的那个面板窗口还好好地开着。
+ * 人在它上面点「收回」，回来的记录已经没了，于是落到窗口 dock 的默认位置，而不是它离开的
+ * 那个槽。面板窗口的寿命本来就独立于主窗口的刷新。
+ */
+/**
+ * 最小的 `window.lyra` 桩。
+ *
+ * `popOutPanel` 在记完「从哪儿走的」之后会去叫主进程开窗口，而那条路在测试环境里不存在——
+ * 没有桩就会在记录之后、断言之前抛掉。这里只需要它别抛。
+ */
+function stubBridge(): void {
+	(window as unknown as { lyra: unknown }).lyra = {
+		windows: { openPanel: async () => {}, closePanel: async () => {}, list: async () => ({ panels: [], sessions: [] }) },
+	};
+}
+
+test("面板回家的那条路，存在盘上而不是内存里", async () => {
+	clear();
+	stubBridge();
+	const { popOutPanel } = await import("../../src/features/dock/popout.ts");
+	useDock.setState({ tree: pair("conversation", "browser"), scope: null, adopted: false, drag: null });
+	await popOutPanel({ dock: "window", scope: "window", kind: "browser", sessionId: null });
+	const raw = window.localStorage.getItem("dw:homes");
+	assert.ok(raw, "回家的记录没落盘，刷新一次就找不到原位了");
+	const homes = JSON.parse(raw ?? "{}") as Record<string, { dock: string; scope: string }>;
+	assert.equal(homes["window:browser"]?.dock, "window");
+	assert.equal(homes["window:browser"]?.scope, "window");
+});
+
+test("盘上那份坏了，当作没记录，而不是把收回这件事弄崩", async () => {
+	clear();
+	stubBridge();
+	window.localStorage.setItem("dw:homes", "{ 这不是 JSON");
+	const { popOutPanel } = await import("../../src/features/dock/popout.ts");
+	useDock.setState({ tree: pair("conversation", "terminal"), scope: null, adopted: false, drag: null });
+	// 坏数据会被当成空记录，写入照常覆盖它。
+	await popOutPanel({ dock: "window", scope: "window", kind: "terminal", sessionId: null });
+	const homes = JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}") as Record<string, unknown>;
+	assert.ok(homes["window:terminal"], "坏数据应该被覆盖掉，而不是让写入也失败");
 });

@@ -29,7 +29,52 @@ interface Home {
 	at: DropAt | null;
 }
 
-const homes = new Map<string, Home>();
+/**
+ * 面板弹出去之前是从哪儿走的——这份记录要活过刷新。
+ *
+ * 从前它是一个模块作用域的 `Map`：主窗口一刷新就空了，而弹出去的那个面板窗口还好好地开着。
+ * 人在它上面点「收回」，回来的记录已经没了，于是落到窗口 dock 的默认位置，而不是它离开的
+ * 那个槽。面板窗口的寿命本来就独立于主窗口的刷新，所以这份记录的寿命也该如此。
+ *
+ * 存 localStorage，和 dock 布局同一个去处：它很小（kind → dock/scope/at），而且和布局同生
+ * 共死正是它该有的生命周期。
+ */
+const HOMES_KEY = "dw:homes";
+
+function readHomes(): Record<string, Home> {
+	try {
+		const raw = window.localStorage.getItem(HOMES_KEY);
+		if (!raw) return {};
+		const parsed = JSON.parse(raw) as unknown;
+		return parsed && typeof parsed === "object" ? (parsed as Record<string, Home>) : {};
+	} catch {
+		// 坏数据、存储关了、没有 window——都当作「没有记录」，收回时落默认位置而已。
+		return {};
+	}
+}
+
+function writeHomes(next: Record<string, Home>): void {
+	try {
+		window.localStorage.setItem(HOMES_KEY, JSON.stringify(next));
+	} catch {
+		// 存不下不该让弹出这件事失败。
+	}
+}
+
+const homes = {
+	get(key: string): Home | undefined {
+		return readHomes()[key];
+	},
+	set(key: string, home: Home): void {
+		writeHomes({ ...readHomes(), [key]: home });
+	},
+	delete(key: string): void {
+		const all = readHomes();
+		if (!(key in all)) return;
+		delete all[key];
+		writeHomes(all);
+	},
+};
 
 const homeKey = (scope: string, kind: string): string => `${scope}:${kind}`;
 

@@ -647,10 +647,19 @@ async function main(): Promise<void> {
 			await clickTopBar("在新窗口中打开");
 			await wait(1900);
 			const before = (await shot()).panels;
+			/*
+			 * 真正要问的是「回家的那条路还在不在」，不只是窗口还开着。
+			 *
+			 * 那份记录从前是个模块作用域的 Map：主窗口一刷新就空了，而弹出去的窗口还好好地开着，
+			 * 于是点「收回」时落到默认位置而不是它离开的那个槽。现在它和 dock 布局一起存盘。
+			 */
 			await reload();
 			const s = await shot();
-			return [s.panels.length === before.length ? "ok" : "bad",
-				`刷新前面板窗口 [${before.join(",")}]，刷新后 [${s.panels.join(",")}]；回家的记录在渲染进程内存里，刷新即清空（见 C3）`];
+			const homes = await evaluate<string[]>(`Object.keys(JSON.parse(localStorage.getItem("dw:homes") || "{}"))`);
+			const kept = s.panels.length === before.length;
+			return [kept && homes.length > 0 ? "ok" : "bad",
+				`刷新前面板窗口 [${before.join(",")}]，刷新后 [${s.panels.join(",")}]；` +
+				`刷新后盘上的回家记录 [${homes.join(",") || "空 ← 收回时会落默认位置"}]`];
 		});
 
 		await scene("D4", "弹出之后关掉那一屏", async () => {
