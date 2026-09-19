@@ -3,7 +3,7 @@
  *
  * The dock used to hand a panel to a real window whenever the layout could not hold its floors —
  * on a window resize, on a second split screen, on a cold start with a narrow window. It was
- * removed in `docs/issue/2026-09-19/2026-09-19-2304-01-dock-auto-popout-window-on-overflow.md`,
+ * removed in `docs/architecture/split-window-conflicts.md` §6,
  * and these are the guards that keep it removed: the three entry points that used to reach for
  * `windows.openPanel` on their own, plus the panel that must never be handed over at all.
  */

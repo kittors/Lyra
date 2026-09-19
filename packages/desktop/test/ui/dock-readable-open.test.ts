@@ -15,7 +15,7 @@ function reset() {
 /*
  * An overfull tile keeps its panel — it does not hand it to a native window.
  *
- * This used to assert the opposite. `2026-09-19-2304-01` removed that route: it fired on an
+ * This used to assert the opposite. `split-window-conflicts.md` §6 removed that route: it fired on an
  * ordinary resize, and the panel did not work once it arrived. The guards for the new rule are in
  * `dock-no-auto-popout.test.ts`; what is left here is the half that still matters — the tile's
  * own tree is the thing that changes.
@@ -76,7 +76,7 @@ test("a rejected native creation restores its panel after the old neighbour was 
  *
  * It used to refuse, leaving the panel in its floating window until the dock was made wider —
  * which paired with the automatic hand-off that has since been removed. On its own that refusal
- * is a button that does nothing and says nothing (`2026-09-19-2304-02`, 缺陷 3). The exact
+ * is a button that does nothing and says nothing (`split-window-conflicts.md` §7). The exact
  * departure snapshot is still preferred when it clears the floors; what changed is the fallback.
  */
 test("a window dock takes a panel back even with no room, using its remembered layout when it fits", async () => {
@@ -160,7 +160,7 @@ for (const dock of ["window", "pane"] as const) {
  *
  * This used to assert that a home with no room re-opened the native window. With the floors being
  * what they are that meant a narrow window spat its panels back out on every single launch, which
- * is the cold-start half of `2026-09-19-2304-01`.
+ * is the cold-start half of `split-window-conflicts.md` §6.
  */
 test("a tool left detached at quit comes back to its tile, however small the tile is", async () => {
 	reset();

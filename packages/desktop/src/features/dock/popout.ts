@@ -1,9 +1,14 @@
 /**
  * A docked panel leaving for a real window, and coming back to the slot it left.
  *
- * The tile never receives a pane that would crush its conversation — when `placePanel`
- * returns nothing, this is what happens instead. The same path is the header button:
- * browser, terminal, files, git, all of them.
+ * **Only ever because a person pressed the button.** The dock used to come here on its own
+ * whenever a layout could not hold its floors, which fired on an ordinary window resize; see
+ * `docs/architecture/split-window-conflicts.md` §6 for what that cost and why it is gone. A dock
+ * with no room now draws the squeeze instead.
+ *
+ * Which panels may go at all is the panel's own answer — `detach` on its definition. A second
+ * renderer does not inherit a `<webview>`, a store or a subscription, and the machinery here has
+ * no way to know which of those a given panel is holding. §7 has the table.
  *
  * Restore checks the current tile size. If its home is gone, the floating window
  * stays open until that conversation is available again.
@@ -264,7 +269,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	 * Every branch below ends in `useDock` or `usePaneDock`, and in this renderer nothing is
 	 * subscribed to either — it draws one panel and nothing else. So clicking a file in a detached
 	 * file tree updated a store nobody was reading and the click did nothing at all, in a window
-	 * where the file tree is the entire point. See `2026-09-19-2304-02` 缺陷 1.
+	 * where the file tree is the entire point. See `docs/architecture/split-window-conflicts.md` §7.
 	 */
 	if (inPanelWindow()) {
 		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ kind, ...(beside ? { beside } : {}) });
@@ -290,7 +295,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	}
 	if (has(usePaneDock.getState().tree(scope), kind)) return;
 	// It goes into that screen even when the screen is too small for it, drawn squeezed. Handing
-	// it to a window instead is what `2026-09-19-2304-01` removed: opening a panel is not a
+	// it to a window instead is what §6 of `docs/architecture/split-window-conflicts.md` removed:
 	// request for a second window, and the panel was unusable once it got there.
 	usePaneDock.getState().open(scope, kind, beside);
 }

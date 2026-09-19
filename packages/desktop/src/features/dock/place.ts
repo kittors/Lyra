@@ -13,7 +13,7 @@
  * It does not decide *whether* the pane goes in. It used to: no clearing edge meant the caller
  * moved the pane into a window of its own, which fired on an ordinary resize and left the pane
  * somewhere it could not work. Now a dock with no good edge still takes the pane, on its preferred
- * one, and `fitSizes` draws the squeeze. See `docs/issue/2026-09-19/…-2304-01-…`.
+ * one, and `fitSizes` draws the squeeze. See `docs/architecture/split-window-conflicts.md` §6.
  */
 
 import { defaultDrop } from "./store.ts";

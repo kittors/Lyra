@@ -141,7 +141,7 @@ test("application quit does not enter a window-return handshake", async () => {
  * 面板窗口请主窗口开一个面板——它自己没有 dock。
  *
  * `beside` 是个布局提示（挨着谁、哪一边），转发前要逐字段验：它最终会被当成落点塞进主窗口的
- * dock 状态，而发起方是另一个渲染进程。见 `2026-09-19-2304-02` 缺陷 1。
+ * dock 状态，而发起方是另一个渲染进程。见 `docs/architecture/split-window-conflicts.md` 第七节。
  */
 test("openPanelInMain validates the kind and the layout hint before forwarding", async () => {
 	const panel = fixture.makeWindow();

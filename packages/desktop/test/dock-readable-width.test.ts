@@ -17,7 +17,8 @@ test("tiled conversations and tools use readable pixel minima, not sliver-sized 
  *
  * These two used to assert the opposite — `open` returning false for a tile with no clearing
  * edge — because the caller answered that by moving the pane into a window of its own. That
- * route is gone (`2026-09-19-2304-01`): an ordinary window resize was enough to trigger it, and
+ * route is gone (`docs/architecture/split-window-conflicts.md` §6): an ordinary window resize was
+ * enough to trigger it, and
  * the pane did not work once it got there. A tile too small for its tools now keeps them and
  * draws them squeezed, which is a state the user can see and undo by widening the window.
  */

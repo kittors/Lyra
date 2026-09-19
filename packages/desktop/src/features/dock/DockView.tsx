@@ -239,7 +239,7 @@ export function DockView({
 	 * 980px window — the default — is already under the 720px a conversation plus one panel asks
 	 * for. Panels left for windows of their own that nothing brought back. `fitSizes` already has
 	 * the answer for a row that does not fit: the first pane keeps its own floor and the neighbour
-	 * covers the overhang. See `docs/issue/2026-09-19/2026-09-19-2304-01-…`.
+	 * covers the overhang. See `docs/architecture/split-window-conflicts.md` §6.
 	 */
 	const fitted = compact || !size ? tree : fitTree(tree, size, floorFor);
 	const laid = layoutPanes(fitted);
