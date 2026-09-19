@@ -171,3 +171,71 @@ test("盘上那份坏了，当作没记录，而不是把收回这件事弄崩",
 	const homes = JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}") as Record<string, unknown>;
 	assert.ok(homes["window:terminal"], "坏数据应该被覆盖掉，而不是让写入也失败");
 });
+
+/*
+ * 面板窗口不是只有「收回」一条出路。
+ *
+ * 那条路自己会把记录清掉（`dockBack` 成功之后才关窗口），所以从前看起来什么都对。另外两条
+ * 出路没人接：人直接关掉那个窗口，和整个应用重启。第一条留下一条永远没人读的垃圾记录；第二条
+ * 更重——那个面板弹出时已经从 dock 树里删了，重开之后它既不在树里也没有窗口，就这么没了，
+ * 盘上只剩一条指着空处的记录。
+ *
+ * 两条规则合起来才说得通：关窗口时当场清记录，于是到下一次启动，盘上还留着记录的就**只能是**
+ * 「没收回就退出」的那一种，照记录放回去就是对的。少任何一条，另一条都会做错事。
+ */
+
+/** 能从外面推事件的 `window.lyra` 桩，用来摆「面板窗口来了又走」。 */
+function stubPanelWindows(initial: { kind: string; scope: string }[]): {
+	change: (panels: { kind: string; scope: string }[]) => void;
+} {
+	let changed: ((state: { panels: { kind: string; scope: string }[] }) => void) | null = null;
+	(window as unknown as { lyra: unknown }).lyra = {
+		windows: {
+			openPanel: async () => {},
+			closePanel: async () => {},
+			list: async () => ({ panels: initial, sessions: [] }),
+			onChanged: (handler: (state: { panels: { kind: string; scope: string }[] }) => void) => {
+				changed = handler;
+				return () => {};
+			},
+			onRestorePanel: () => () => {},
+		},
+	};
+	return { change: (panels) => changed?.({ panels }) };
+}
+
+/** 第一次窗口列表是异步到的，而它决定了后面每一次变化算不算「消失」。 */
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const homesOnDisk = (): Record<string, unknown> =>
+	JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}") as Record<string, unknown>;
+
+test("人直接关掉面板窗口，那条回家记录跟着清掉", async () => {
+	clear();
+	const stub = stubPanelWindows([{ kind: "browser", scope: "window" }]);
+	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", at: null } }));
+	const stop = watchPanelWindows();
+	await settled();
+	assert.ok(homesOnDisk()["window:browser"], "窗口还开着，这时候不该动那条记录");
+
+	stub.change([]);
+	assert.equal(homesOnDisk()["window:browser"], undefined, "窗口关掉了，记录还留在盘上");
+	stop();
+});
+
+test("弹出去没收回就退出应用，重开时面板回到它记着的位置", async () => {
+	clear();
+	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null });
+	// 重开之后一个面板窗口都没有——窗口列表从来不存盘。
+	stubPanelWindows([]);
+	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", at: null } }));
+	const stop = watchPanelWindows();
+	await settled();
+
+	const { has } = await import("../../src/features/dock/tree.ts");
+	assert.ok(has(useDock.getState().tree, "browser"), "既没有窗口也不在 dock 里——那个面板就这么没了");
+	assert.equal(homesOnDisk()["window:browser"], undefined, "放回去了，指向空处的记录该清掉");
+	stop();
+});

@@ -163,7 +163,33 @@ export interface RunningApp {
 	 * which would leave the half of the dock that only exists below 760px unverified.
 	 */
 	send<T>(method: string, params?: Record<string, unknown>): Promise<T>;
+	/**
+	 * 此刻开着的每一个窗口，弹出去的面板和会话窗口都算。
+	 *
+	 * `evaluate` 只认主窗口，于是一整类场景从前写着「探针够不到」：收回按钮长在面板窗口里，
+	 * 关掉面板窗口之后该由谁把它放回树里，也只有那个窗口能告诉你。那些场景不是难，是没有路。
+	 *
+	 * 路其实一直在——每个 Electron 窗口在 `/json/list` 里都是一个独立的 page target，从前只
+	 * 取了第一个。认身份不靠 URL：三种窗口 `loadFile` 的是同一个 index.html，靠标题也不行
+	 * （页面自己会改）。问它 `window.lyra.bootWindow`——那是 preload 从 argv 里读出来的，
+	 * 每个窗口从生到死都只有一个答案。
+	 */
+	windows(): Promise<AppWindow[]>;
 	stop(): Promise<void>;
+}
+
+/** 一个还开着的窗口，和一条能对它说话的路。 */
+export interface AppWindow {
+	/** 它自己说的那份身份，从 argv 来，不会因为界面变了而变。 */
+	boot: {
+		id: string;
+		kind: string;
+		sessionId: string | null;
+		panelKind: string | null;
+		panelScope: string | null;
+	};
+	evaluate<T>(expression: string): Promise<T>;
+	send<T>(method: string, params?: Record<string, unknown>): Promise<T>;
 }
 
 /**
@@ -199,10 +225,19 @@ export async function startApp({
 	seed,
 	scaleFactor,
 	inspectPort,
+	reuseHome,
 }: {
 	/** A port per test file: two suites running at once must not share a debugger. */
 	port: number;
 	seed?: (home: string) => Promise<void>;
+	/**
+	 * 用一份已经存在的 profile 再起一次，`stop()` 也不删它。
+	 *
+	 * 「重启之后还在吗」这一类问题，只有同一份 profile 才问得出来：默认的一次性目录让第二次
+	 * 启动变成一台新机器，那样量到的「没恢复」说明不了任何事。给了这个就不再 `mkdtemp`，
+	 * `seed` 也不跑——那份数据正是上一次留下的。
+	 */
+	reuseHome?: string;
 	/** Exercise Chromium's actual DIP conversion, including native overlay geometry on Windows. */
 	scaleFactor?: number;
 	/**
@@ -264,9 +299,9 @@ export async function startApp({
 	if (inspectPort !== undefined) argv.unshift(`--inspect=${inspectPort}`);
 
 	// Validate the executable before creating a profile, so failed setup leaves no test data.
-	const home = await mkdtemp(join(tmpdir(), "lyra-e2e-"));
+	const home = reuseHome ?? (await mkdtemp(join(tmpdir(), "lyra-e2e-")));
 	try {
-		await seed?.(home);
+		if (!reuseHome) await seed?.(home);
 		const settingsPath = join(home, "settings.json");
 		const raw = await readFile(settingsPath, "utf8").catch((error: NodeJS.ErrnoException) => {
 			if (error.code === "ENOENT") return "{}";
@@ -279,7 +314,7 @@ export async function startApp({
 		// Text and animation assertions share defaults across runners; explicit fixtures still win.
 		await writeFile(settingsPath, JSON.stringify({ uiLocale: "zh-CN", ...settings, appearance: { reduceMotion: "off", ...appearance } }));
 	} catch (error) {
-		await rm(home, { recursive: true, force: true });
+		if (!reuseHome) await rm(home, { recursive: true, force: true });
 		throw error;
 	}
 
@@ -311,7 +346,7 @@ export async function startApp({
 		target = await waitForWindow(port, output);
 	} catch (error) {
 		await stopProcessGroup(app);
-		await rm(home, { recursive: true, force: true });
+		if (!reuseHome) await rm(home, { recursive: true, force: true });
 		throw error;
 	}
 	const evaluate = <T>(expression: string) => evaluateRenderer<T>(target, expression);
@@ -319,7 +354,7 @@ export async function startApp({
 		await waitForShell(evaluate);
 	} catch (error) {
 		await stopProcessGroup(app);
-		await rm(home, { recursive: true, force: true });
+		if (!reuseHome) await rm(home, { recursive: true, force: true });
 		throw error;
 	}
 
@@ -327,6 +362,7 @@ export async function startApp({
 		home,
 		evaluate,
 		send: <T>(method: string, params?: Record<string, unknown>) => call<T>(target, method, params ?? {}),
+		windows: () => listAppWindows(port),
 		main: async <T>(expression: string) => {
 			if (inspectPort === undefined) throw new Error("main() needs startApp({ inspectPort })");
 			// Looked up per call rather than kept: V8's inspector takes one client at a time, and
@@ -335,9 +371,43 @@ export async function startApp({
 		},
 		stop: async () => {
 			await stopProcessGroup(app);
-			await rm(home, { recursive: true, force: true }).catch(() => {});
+			// 借来的 profile 不归这一趟处理：借它的人还要再起一次，或者自己收拾。
+			if (!reuseHome) await rm(home, { recursive: true, force: true }).catch(() => {});
 		},
 	};
+}
+
+/**
+ * 每个窗口问一次「你是谁」。
+ *
+ * 一个刚开出来的窗口有一段时间还没有 `window.lyra`（preload 在文档之前跑，但 target 会在
+ * 那之前就出现在 `/json/list` 里）。答不上来的跳过而不是抛——调用方等的是「面板窗口开出来
+ * 了吗」，一次没答上来下一次轮询会答。
+ */
+async function listAppWindows(port: number): Promise<AppWindow[]> {
+	const targets = await fetch(`http://127.0.0.1:${port}/json/list`)
+		.then((r) => r.json() as Promise<{ type: string; webSocketDebuggerUrl?: string }[]>)
+		.catch(() => [] as { type: string; webSocketDebuggerUrl?: string }[]);
+	const found: AppWindow[] = [];
+	for (const one of targets) {
+		if (one.type !== "page" || !one.webSocketDebuggerUrl) continue;
+		const url = one.webSocketDebuggerUrl;
+		const boot = await evaluateRenderer<AppWindow["boot"] | null>(
+			url,
+			`(() => {
+				const b = window.lyra && window.lyra.bootWindow;
+				if (!b) return null;
+				return { id: b.id, kind: b.kind, sessionId: b.sessionId ?? null, panelKind: b.panelKind ?? null, panelScope: b.panelScope ?? null };
+			})()`,
+		).catch(() => null);
+		if (!boot) continue;
+		found.push({
+			boot,
+			evaluate: <T>(expression: string) => evaluateRenderer<T>(url, expression),
+			send: <T>(method: string, params?: Record<string, unknown>) => call<T>(url, method, params ?? {}),
+		});
+	}
+	return found;
 }
 
 /** The main process's inspector socket, once it is listening. */

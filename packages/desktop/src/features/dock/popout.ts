@@ -215,9 +215,63 @@ export function toggleScopedPanel(scope: string | null, kind: PanelKind): void {
 	useDock.getState().open(kind);
 }
 
+/**
+ * 启动时发现的孤儿：盘上有回家记录，却没有对应的面板窗口。
+ *
+ * 这只有一种来法——人把面板弹出去，然后**没有收回就退出了应用**。窗口列表从来不存盘，所以
+ * 重开之后那个面板既不在任何一棵 dock 树里（弹出时已经从树上删了），也没有窗口。它就这么
+ * 没了，而盘上只剩一条指着空处的记录。
+ *
+ * 那条记录本来就是为这件事存在的：它记着这个面板属于哪里。窗口没了，就照它把面板放回去。
+ * 用户重开应用看到终端还在它原来的位置，比「终端不见了」和「凭空多出一个终端窗口」都更接近
+ * 他离开时的样子。
+ *
+ * 「人主动关掉那个面板窗口」不会走到这里——那一刻应用还活着，`apply` 当场就把记录清了，
+ * 所以到下一次启动时它已经不在盘上。两条规则合起来才说得通，少一条另一条就会做错事。
+ *
+ * 一屏的 dock 要等它量出自己的尺寸才收得下面板，那比第一次窗口列表晚。所以这里重试，
+ * 到点还放不回去就清掉记录：那一屏多半是真的不在了，而把它的面板停到窗口 dock 上，
+ * 正是这个功能一开始要避免的布局。
+ */
+function adoptOrphans(panels: PanelWindowRef[], deadline: number): void {
+	const pending: string[] = [];
+	for (const key of Object.keys(readHomes())) {
+		const cut = key.lastIndexOf(":");
+		if (cut <= 0) continue;
+		const scope = key.slice(0, cut);
+		const kind = key.slice(cut + 1) as PanelKind;
+		if (panels.some((panel) => panel.scope === scope && panel.kind === kind)) continue;
+		if (dockBack(kind, scope)) continue;
+		pending.push(key);
+	}
+	if (pending.length === 0) return;
+	if (typeof window === "undefined" || Date.now() >= deadline) {
+		for (const key of pending) homes.delete(key);
+		return;
+	}
+	window.setTimeout(() => adoptOrphans(panels, deadline), 400);
+}
+
 export function watchPanelWindows(): () => void {
 	if (!bridge.windows) return () => {};
-	const apply = (panels: PanelWindowRef[]) => usePanelWindows.setState({ panels });
+	let first = true;
+	const apply = (panels: PanelWindowRef[]) => {
+		const before = usePanelWindows.getState().panels;
+		usePanelWindows.setState({ panels });
+		if (first) {
+			first = false;
+			adoptOrphans(panels, Date.now() + 6_000);
+			return;
+		}
+		/*
+		 * 一个面板窗口不见了，而它不是被「收回」收走的——那条路自己会清记录，清完窗口才关。
+		 * 剩下的就是人主动关掉了它：关掉就是关掉，面板不该自己跑回来，但那条记录也不该留着。
+		 */
+		for (const gone of before) {
+			if (panels.some((panel) => panel.scope === gone.scope && panel.kind === gone.kind)) continue;
+			homes.delete(homeKey(gone.scope, gone.kind));
+		}
+	};
 	void bridge.windows
 		.list()
 		.then((result) => apply(result.panels ?? []))
