@@ -55,6 +55,22 @@ export function SplitWorkspace() {
 	useEffect(() => {
 		const existing = new Set(useApp.getState().sessions.map((session) => session.id));
 		hydrate(windowId, existing, project);
+		/*
+		 * 恢复出来的那一屏，也要让应用知道它就是「当前会话」。
+		 *
+		 * `hydrate` 只接了一个方向：树是空的而 `activeSessionId` 有值时，把那个会话填进树。
+		 * 反过来——树里有会话、而 `activeSessionId` 还空着——正是刷新之后的常态，却没人接。
+		 *
+		 * 转录照样显示，所以这件事很不容易被发现：每一屏走的是 `SessionScope`，读的是树里的
+		 * id，不问 `activeSessionId`。但**窗口 dock 的布局是按 `activeSessionId` 存取的**
+		 * （`dw:dock:<id>`），于是刷新之后 dock 拿着 null 去读 `dw:dock:@draft`——一把永远
+		 * 空着的钥匙——用户开好的浏览器、终端一次也恢复不了，而盘上那份布局完好无损。
+		 *
+		 * 逐帧对过：刷新后只发生一次 `adopt`，`scope` 是 null，读的是 `dw:dock:@draft`；
+		 * 此后 `activeSessionId` 再没变过，所以 `DockView` 那个 effect 也再没跑过第二次。
+		 */
+		const restored = useSplit.getState().focused ?? firstSession(useSplit.getState().tree);
+		if (restored && !useApp.getState().activeSessionId) void useApp.getState().openSessionById(restored);
 	}, [hydrate, windowId, project]);
 
 	useEffect(() => {

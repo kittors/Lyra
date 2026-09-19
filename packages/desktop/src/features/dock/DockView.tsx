@@ -178,8 +178,17 @@ export function DockView({
 		 *
 		 * Tiled screens share one conversation slot. Swapping the dock for the focused chat would
 		 * close a terminal the user opened beside the grid the moment the incoming pane took focus.
+		 *
+		 * 但「切换焦点」和「这个窗口头一次装载」是两回事，而这一行从前把两者一起挡了：分屏状态
+		 * 下刷新，没有任何一次 `adopt` 跑过，dock 就永远停在默认树上——盘上那份布局好端端存着，
+		 * 存了，没读。
+		 *
+		 * 分开两者的是 `scope` 而不是 `adopted`：刷新之后第一次跑到这里时 `activeSessionId`
+		 * 还是 null，`adopt(null)` 会把 `adopted` 置真却把 `scope` 留在 null——拿 `adopted`
+		 * 当判据，接下来那次真正带着会话的 adopt 照样被挡在外面。`scope` 指向一个真实会话，
+		 * 才说明这个窗口已经认过布局，此后的变化才是焦点在屏之间移动。
 		 */
-		if (screens > 1) return;
+		if (screens > 1 && useDock.getState().scope) return;
 		const settled = freezeMotion();
 		document.documentElement.dataset.dockSettling = "";
 		useDock.getState().adopt(session, allowed.current);
