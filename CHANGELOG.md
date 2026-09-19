@@ -5,6 +5,164 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.17](https://github.com/kittors/Lyra/releases/tag/v0.9.17) - 2026-09-19
+
+<!-- lyra:notes en -->
+
+### Fixes
+
+- **Panels moved themselves into windows of their own whenever the window got narrow — and never came back.** 0.9.16 introduced this deliberately, to stop text being squeezed: anything that no longer fitted opened separately. The threshold turned out to be an everyday one. A conversation plus one panel needs 720 px of dock; a new window is 980 px wide and the sidebar takes 272 of that, leaving 708. So the default window size was already past the line, and dragging a window narrower — or putting a second conversation on the screen — handed your terminal or your browser to a window of its own. Widening it again did nothing; each one had to be fetched back by hand, and a cold start threw them out again. Splitting the screen was worse: one resize could open a window for every panel on that screen plus one for the conversation, all stacked on the same spot. That route is gone. A dock too small for its panels now draws them squeezed, which is something you can see and undo by widening the window.
+
+- **The side chat opened as an empty conversation in its own window, and would not send.** Everything it does — showing the transcript, sending what you type — reads the conversation it is attached to, and nothing in that window ever attached it. So the panel showed nothing, and the composer took your text and did nothing with it. The history was never lost; no one had asked for it.
+
+- **A detached terminal started a new shell instead of reconnecting to yours.** The panel window mounts the terminal in its first frame, before the project directory has resolved, so it looked for a terminal in an empty directory, found none, and opened one. The server you had running was still there, and unreachable from that window. It now goes back to the shell it left, with its output.
+
+- **The Git panel stopped refreshing once it was in a window of its own.** It worked out whether it was on screen by looking for itself in a dock that kind of window does not have, so the answer was always no — the first fetch and the five-minute poll never ran at all.
+
+- **Clicking a file in a detached file tree did nothing.** The click now goes to the main window, which is where the file opens, and brings that window to the front.
+
+### Changed
+
+- **The browser no longer offers "Open in a new window."** A live page cannot be moved between windows: the new one loads it again from its address, which loses the scroll position, anything typed into a form, and whatever the page itself was holding. Offering the button and then throwing that away is worse than not offering it. Panels now declare whether they survive the move, and only the browser says no.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 修复
+
+- **窗口一窄，面板就自己跑出去变成独立窗口，而且再也回不来。** 这是 0.9.16 特意加的，为的是别让文字被挤扁：放不下的就另开一个窗口。但那条线比想象中低得多——一个会话加一个面板要 720 px，而新窗口宽 980 px、侧边栏占掉 272，只剩 708。也就是说默认尺寸就已经过线了：把窗口拖窄一点，或者把第二个会话放上屏，终端或者浏览器就被送进了自己的窗口。再拖大也不会回来，得一个个去点「收回」，而下次开应用它们又会飞出去。分屏时更彻底：一次缩窗可能给那一屏的每个面板各开一个窗口，再加上会话本身一个，还全叠在同一个位置。这条路整个去掉了。dock 装不下面板时就画得挤一点——那是你看得见、拉宽窗口就能解决的事。
+
+- **侧边聊天弹成独立窗口之后是空的，打了字也发不出去。** 它做的每件事——显示对话、把你打的字发出去——都要先知道自己接在哪个会话上，而那个窗口里从来没有人帮它接。于是面板空着，输入框收下文字然后什么也不做。记录一直都在，只是没人去取。
+
+- **终端弹出去之后是一个新开的空 shell，不是你原来那个。** 面板窗口在第一帧就把终端挂上，那时项目目录还没解析出来，于是它在一个空目录里找终端，找不到，就新开了一个。你正跑着的服务还在，只是那个窗口里够不到。现在它会接回原来那个，连之前的输出一起。
+
+- **Git 面板弹成独立窗口后就不再刷新了。** 它判断「我在不在屏幕上」的办法是去 dock 里找自己，而那种窗口根本没有 dock，所以答案永远是否——首次拉取和五分钟一次的轮询一次都没跑过。
+
+- **在弹出去的文件树里点文件，什么也不会发生。** 现在这一下会转给主窗口，文件在那里打开，主窗口也会被带到前面。
+
+### 变更
+
+- **浏览器不再提供「在新窗口打开」。** 一个正开着的页面没法在窗口之间搬：新窗口只能按地址重新加载一遍，滚动位置、填了一半的表单、页面自己攥着的状态全都没了。给了按钮再把这些丢掉，比不给更糟。现在每个面板都要说明自己搬不搬得动，说不的只有浏览器。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 修復
+
+- **視窗一窄，面板就自己跑出去變成獨立視窗，而且再也回不來。** 這是 0.9.16 特意加的，為的是別讓文字被擠扁：放不下的就另開一個視窗。但那條線比想像中低得多——一個對話加一個面板要 720 px，而新視窗寬 980 px、側邊欄佔掉 272，只剩 708。也就是說預設尺寸就已經過線了：把視窗拖窄一點，或者把第二個對話放上螢幕，終端機或瀏覽器就被送進了自己的視窗。再拖大也不會回來，得一個個去點「收回」，而下次開應用它們又會飛出去。分割畫面時更徹底：一次縮小可能給那一畫面的每個面板各開一個視窗，再加上對話本身一個，還全疊在同一個位置。這條路整個拿掉了。dock 裝不下面板時就畫得擠一點——那是你看得見、拉寬視窗就能解決的事。
+
+- **側邊聊天彈成獨立視窗之後是空的，打了字也送不出去。** 它做的每件事——顯示對話、把你打的字送出去——都要先知道自己接在哪個對話上，而那個視窗裡從來沒有人幫它接。於是面板空著，輸入框收下文字然後什麼也不做。紀錄一直都在，只是沒人去取。
+
+- **終端機彈出去之後是一個新開的空 shell，不是你原來那個。** 面板視窗在第一個影格就把終端機掛上，那時專案目錄還沒解析出來，於是它在一個空目錄裡找終端機，找不到，就新開了一個。你正跑著的服務還在，只是那個視窗裡搆不到。現在它會接回原來那個，連之前的輸出一起。
+
+- **Git 面板彈成獨立視窗後就不再重新整理了。** 它判斷「我在不在畫面上」的辦法是去 dock 裡找自己，而那種視窗根本沒有 dock，所以答案永遠是否——首次抓取和五分鐘一次的輪詢一次都沒跑過。
+
+- **在彈出去的檔案樹裡點檔案，什麼也不會發生。** 現在這一下會轉給主視窗，檔案在那裡開啟，主視窗也會被帶到前面。
+
+### 變更
+
+- **瀏覽器不再提供「在新視窗開啟」。** 一個正開著的頁面沒辦法在視窗之間搬：新視窗只能按網址重新載入一遍，捲動位置、填了一半的表單、頁面自己攥著的狀態全都沒了。給了按鈕再把這些丟掉，比不給更糟。現在每個面板都要說明自己搬不搬得動，說不的只有瀏覽器。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 修正
+
+- **ウィンドウを狭めると、パネルが勝手に別ウィンドウへ移り、戻ってきませんでした。** 0.9.16 で意図的に入れた動きです。文字が潰れないよう、収まらないものを別ウィンドウで開く——ただ、その境目が日常的すぎました。会話ひとつとパネルひとつで dock に 720 px 必要ですが、新しいウィンドウは幅 980 px、サイドバーが 272 px を取るので残りは 708 px。つまり既定のサイズで既に越えていたのです。少し狭めるか、二つ目の会話を画面に出すだけで、ターミナルやブラウザーが自分のウィンドウへ送られました。広げ直しても戻らず、ひとつずつ「元に戻す」を押す必要があり、次の起動でまた出ていきました。画面分割時はさらに徹底していて、一度のサイズ変更でその画面のパネルの数だけウィンドウが開き、会話の分も加わって、すべて同じ位置に重なりました。この経路をまるごと廃止しました。パネルが収まらない dock は、詰めて描きます——目に見えますし、広げれば直ります。
+
+- **サイドチャットを別ウィンドウで開くと空で、入力しても送信できませんでした。** 会話の表示も送信も、どの会話に紐づいているかを先に知る必要がありますが、あのウィンドウでは誰もそれを結び付けていませんでした。パネルは空のまま、入力欄は文字を受け取って何もしません。履歴が消えていたわけではなく、誰も取りに行っていなかっただけです。
+
+- **切り離したターミナルが、元のシェルではなく新しいシェルを開いていました。** パネルウィンドウは最初のフレームでターミナルを配置しますが、その時点ではプロジェクトのディレクトリがまだ解決されていません。空のディレクトリでターミナルを探し、見つからず、新しく開いていたのです。動かしていたサーバーはそのまま残り、そのウィンドウからは届きませんでした。今は離れたときのシェルに、出力ごと戻ります。
+
+- **Git パネルは別ウィンドウに移ると更新を止めていました。** 「自分は画面に出ているか」を dock の中から自分を探して判断していましたが、その種類のウィンドウに dock はありません。答えは常に「いいえ」で、最初の取得も五分ごとの巡回も一度も走りませんでした。
+
+- **切り離したファイルツリーでファイルを押しても何も起きませんでした。** その操作はメインウィンドウへ渡るようになり、ファイルはそちらで開き、ウィンドウも前面に出ます。
+
+### 変更
+
+- **ブラウザーの「新しいウィンドウで開く」をなくしました。** 開いているページはウィンドウ間を移動できません。新しい側はアドレスから読み込み直すだけで、スクロール位置も、途中まで入力したフォームも、ページ自身が抱えていた状態も失われます。ボタンを出しておいてそれらを捨てるのは、出さないより悪い判断です。各パネルは移動に耐えられるかを自分で宣言するようになり、いいえと答えるのはブラウザーだけです。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 고친 것
+
+- **창을 좁히면 패널이 스스로 별도 창으로 나가고, 다시 돌아오지 않았습니다.** 0.9.16에서 일부러 넣은 동작입니다. 글자가 눌리지 않도록, 들어가지 않는 것은 따로 열었습니다. 그런데 그 경계가 너무 일상적이었습니다. 대화 하나와 패널 하나면 dock에 720 px이 필요한데, 새 창은 너비 980 px이고 사이드바가 272 px을 가져가 708 px만 남습니다. 기본 크기에서 이미 선을 넘어 있었던 셈입니다. 창을 조금 좁히거나 두 번째 대화를 화면에 올리기만 해도 터미널이나 브라우저가 자기 창으로 보내졌습니다. 다시 넓혀도 돌아오지 않아 하나씩 「되돌리기」를 눌러야 했고, 다음 실행 때 또 나갔습니다. 화면 분할에서는 더 심해서, 한 번 크기를 바꾸면 그 화면의 패널 수만큼 창이 열리고 대화 몫까지 더해져 모두 같은 자리에 겹쳤습니다. 이 경로를 통째로 없앴습니다. 패널이 들어가지 않는 dock은 이제 좁게 그립니다 — 눈에 보이고, 창을 넓히면 풀립니다.
+
+- **사이드 채팅을 별도 창으로 열면 비어 있었고, 입력해도 보내지지 않았습니다.** 대화를 보여 주는 일도 입력을 보내는 일도, 어느 대화에 붙어 있는지 먼저 알아야 합니다. 그런데 그 창에서는 아무도 그것을 붙여 주지 않았습니다. 패널은 비어 있었고 입력창은 글자를 받고도 아무 일도 하지 않았습니다. 기록이 사라진 게 아니라, 아무도 가지러 가지 않았을 뿐입니다.
+
+- **떼어 낸 터미널이 원래 셸 대신 새 셸을 열었습니다.** 패널 창은 첫 프레임에서 터미널을 붙이는데, 그때는 프로젝트 디렉터리가 아직 정해지지 않았습니다. 빈 디렉터리에서 터미널을 찾다가 못 찾고 새로 연 것입니다. 돌리고 있던 서버는 그대로 남았지만 그 창에서는 닿을 수 없었습니다. 이제는 떠날 때의 셸로, 그동안의 출력과 함께 돌아갑니다.
+
+- **Git 패널은 자기 창으로 옮겨지면 새로 고침을 멈췄습니다.** 「내가 화면에 있나」를 dock 안에서 자신을 찾아 판단했는데, 그런 창에는 dock이 없습니다. 답은 늘 아니오였고, 첫 가져오기도 5분마다의 확인도 한 번도 돌지 않았습니다.
+
+- **떼어 낸 파일 트리에서 파일을 눌러도 아무 일이 없었습니다.** 이제 그 동작은 메인 창으로 전달되어 거기서 파일이 열리고, 그 창이 앞으로 나옵니다.
+
+### 바뀐 것
+
+- **브라우저에는 「새 창에서 열기」가 더 이상 없습니다.** 열려 있는 페이지는 창 사이를 옮길 수 없습니다. 새 창은 주소로 다시 불러올 뿐이어서 스크롤 위치도, 쓰다 만 양식도, 페이지가 들고 있던 것도 모두 사라집니다. 버튼을 주고 그것들을 버리는 쪽이 안 주는 쪽보다 나쁩니다. 이제 각 패널이 옮겨 가도 되는지를 스스로 밝히고, 아니라고 답하는 것은 브라우저뿐입니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Corrections
+
+- **Dès que la fenêtre devenait étroite, les panneaux partaient d'eux-mêmes dans une fenêtre séparée — et ne revenaient jamais.** La 0.9.16 l'avait introduit exprès, pour que le texte ne soit pas écrasé : ce qui ne tenait plus s'ouvrait à part. Le seuil s'est avéré tout à fait ordinaire. Une conversation plus un panneau demandent 720 px de dock ; une nouvelle fenêtre fait 980 px de large et la barre latérale en prend 272, il en reste 708. La taille par défaut était donc déjà au-delà. Rétrécir un peu la fenêtre — ou mettre une deuxième conversation à l'écran — envoyait votre terminal ou votre navigateur dans une fenêtre à lui. L'élargir de nouveau ne changeait rien : il fallait aller les rechercher un par un, et au démarrage suivant ils repartaient. En écran partagé c'était pire : un seul redimensionnement pouvait ouvrir une fenêtre par panneau de cet écran, plus une pour la conversation, toutes empilées au même endroit. Ce chemin a été supprimé. Un dock trop petit pour ses panneaux les dessine désormais serrés — c'est visible, et élargir la fenêtre suffit.
+
+- **Le chat latéral s'ouvrait vide dans sa propre fenêtre et n'envoyait rien.** Afficher la conversation comme envoyer ce que vous tapez suppose de savoir à quelle conversation il est rattaché, et personne ne l'y rattachait dans cette fenêtre. Le panneau restait vide et le champ acceptait le texte sans rien en faire. L'historique n'avait pas disparu : personne n'était allé le chercher.
+
+- **Un terminal détaché ouvrait un nouveau shell au lieu de retrouver le vôtre.** La fenêtre de panneau monte le terminal dès sa première image, avant que le dossier du projet ne soit résolu : elle cherchait un terminal dans un dossier vide, n'en trouvait pas, et en ouvrait un. Le serveur que vous aviez lancé était toujours là, hors d'atteinte depuis cette fenêtre. Il retrouve maintenant le shell qu'il avait quitté, avec sa sortie.
+
+- **Le panneau Git cessait de se rafraîchir une fois dans sa propre fenêtre.** Pour savoir s'il était à l'écran, il se cherchait dans un dock que ce type de fenêtre n'a pas : la réponse était toujours non, et ni la première récupération ni le relevé toutes les cinq minutes n'ont jamais eu lieu.
+
+- **Cliquer un fichier dans une arborescence détachée ne faisait rien.** Le clic passe maintenant à la fenêtre principale, où le fichier s'ouvre, et cette fenêtre revient au premier plan.
+
+### Changements
+
+- **Le navigateur ne propose plus « Ouvrir dans une nouvelle fenêtre ».** Une page ouverte ne se déplace pas d'une fenêtre à l'autre : la nouvelle la recharge depuis son adresse, ce qui perd la position de défilement, un formulaire à moitié rempli et tout ce que la page gardait en mémoire. Proposer le bouton pour ensuite jeter tout cela est pire que ne pas le proposer. Chaque panneau déclare désormais s'il survit au déplacement ; seul le navigateur répond non.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Исправления
+
+- **Стоило сузить окно — и панели сами уходили в отдельные окна, откуда уже не возвращались.** В 0.9.16 это было сделано намеренно, чтобы текст не сплющивался: то, что не помещалось, открывалось отдельно. Порог оказался совершенно будничным. Разговору и одной панели нужно 720 px дока; новое окно шириной 980 px, боковая панель забирает 272 — остаётся 708. То есть размер по умолчанию уже был за чертой. Достаточно было немного сузить окно или вывести на экран второй разговор, чтобы терминал или браузер уехали в собственное окно. Обратное расширение ничего не меняло: каждую панель приходилось возвращать вручную, а при следующем запуске они улетали снова. При разделённом экране выходило хуже: одно изменение размера открывало по окну на каждую панель этого экрана плюс окно для самого разговора — и все в одной и той же точке. Этот путь убран целиком. Док, в который панели не помещаются, теперь рисует их сжатыми — это видно, и лечится расширением окна.
+
+- **Боковой чат открывался в своём окне пустым и ничего не отправлял.** И показ переписки, и отправка написанного требуют знать, к какому разговору он привязан, — а в том окне его никто не привязывал. Панель оставалась пустой, поле принимало текст и ничего с ним не делало. История никуда не девалась: за ней просто никто не пришёл.
+
+- **Отделённый терминал открывал новую оболочку вместо вашей.** Окно панели подключает терминал на первом же кадре, когда каталог проекта ещё не определён: оно искало терминал в пустом каталоге, не находило и открывало новый. Запущенный вами сервер продолжал работать, но из этого окна был недоступен. Теперь терминал возвращается к той оболочке, которую покинул, вместе с её выводом.
+
+- **Панель Git переставала обновляться, оказавшись в отдельном окне.** Она выясняла, видна ли она, поиском себя в доке, которого у такого окна нет: ответ всегда был «нет», и ни первая загрузка, ни пятиминутный опрос не выполнялись ни разу.
+
+- **Щелчок по файлу в отделённом дереве файлов ничего не делал.** Теперь он уходит в главное окно — файл открывается там, и это окно выходит на передний план.
+
+### Изменения
+
+- **У браузера больше нет пункта «Открыть в новом окне».** Открытую страницу нельзя перенести между окнами: новое окно просто загрузит её заново по адресу, потеряв положение прокрутки, наполовину заполненную форму и всё, что страница держала в памяти. Дать кнопку и затем всё это выбросить — хуже, чем не давать её вовсе. Теперь каждая панель сама сообщает, переживёт ли она переезд; отвечает «нет» только браузер.
+
+</details>
+
 ## [0.9.16](https://github.com/kittors/Lyra/releases/tag/v0.9.16) - 2026-09-19
 
 <!-- lyra:notes en -->
