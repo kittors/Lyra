@@ -11,9 +11,10 @@
  *
  * 所以这里对每种分屏形态量一遍 tile 的实际尺寸，再真去点一次「终端」，看落在哪：
  *
- *   落进这一屏     → 放得下
- *   弹成独立窗口   → 放不下，走了 popout 那条退路（popout.ts 说这是设计）
- *   什么也没发生   → 放不下，而且没有退路，这才是要修的
+ *   落进这一屏     → 对。放不放得下都该落进去，放不下就画得挤
+ *   弹成独立窗口   → ❌ 不该再发生。那条自动退路已经去掉了，见
+ *                     `docs/architecture/split-window-conflicts.md` 第六节
+ *   什么也没发生   → ❌ 点了没反应
  *
  * 窗口尺寸也压一遍：人说的「显示区域不足」既可能来自屏数，也可能来自窗口本身被拖小。
  *
@@ -115,7 +116,8 @@ async function tryTerminal(tileIndex: number): Promise<string> {
 	if (where) return "落进 " + where;
 	const after = await panelWindows();
 	const fresh = after.filter((p) => !before.includes(p));
-	if (fresh.length) return "弹成独立窗口 " + fresh.join(",");
+	// 这两条现在都是失败。窗口只由人来开，而点一颗面板按钮不是「我要第二个窗口」的意思。
+	if (fresh.length) return "❌ 弹成独立窗口 " + fresh.join(",");
 	return "❌ 什么也没发生";
 }
 

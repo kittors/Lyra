@@ -378,7 +378,8 @@ async function main(): Promise<void> {
 			await wait(1300);
 			const s = await shot();
 			const at = s.panes["terminal"]?.at;
-			if (!at) return s.panels.length ? ["ok", `放不下，弹成独立窗口 ${s.panels.join(",")}`] : ["bad", "既没落进 tile 也没弹窗"];
+			// 放不放得下都该落进那一屏——自动弹窗那条退路已经去掉了（第六节）。
+			if (!at) return ["bad", s.panels.length ? `不该弹成独立窗口：${s.panels.join(",")}` : "既没落进 tile，也没别的去处"];
 			return at.startsWith("tile") ? ["ok", `落在 ${at}`] : ["bad", `落在 ${at}，期望落进某一屏`];
 		});
 
@@ -461,7 +462,7 @@ async function main(): Promise<void> {
 			await wait(1500);
 			const s2 = await shot();
 			const at = s2.panes["delivery"]?.at;
-			if (!at) return s2.panels.length ? ["ok", `那一屏放不下，弹成独立窗口 ${s2.panels.join(",")}`] : ["bad", "点了「审核」但面板既没出现也没弹窗"];
+			if (!at) return ["bad", s2.panels.length ? `不该弹成独立窗口：${s2.panels.join(",")}` : "点了「审核」但面板没出现"];
 			return [at.startsWith("tile") ? "ok" : "bad",
 				`从第一屏的转录里点「审核」，面板落在 ${at}${at.startsWith("tile") ? "" : " ← 期望落进那一屏，而不是横在两屏旁边"}`];
 		});
@@ -606,8 +607,8 @@ async function main(): Promise<void> {
 			const s = await shot();
 			const at = s.panes["terminal"]?.at;
 			if (at) return ["ok", `${n} 屏，每屏 ${t.w}x${t.h}${fits ? "" : "（理论上放不下）"}，终端落在 ${at}`];
-			if (s.panels.length) return ["ok", `${n} 屏，每屏 ${t.w}x${t.h} 放不下，弹成独立窗口 ${s.panels.join(",")}`];
-			return ["bad", `${n} 屏，每屏 ${t.w}x${t.h}：既没落进 tile 也没弹窗，点了没反应`];
+			if (s.panels.length) return ["bad", `${n} 屏，每屏 ${t.w}x${t.h}：不该弹成独立窗口 ${s.panels.join(",")}`];
+			return ["bad", `${n} 屏，每屏 ${t.w}x${t.h}：点了没反应`];
 		});
 
 		await scene("C6", "屏太小时还让不让继续分", async () => {
@@ -864,8 +865,8 @@ async function main(): Promise<void> {
 				let s = await shot();
 				const at = s.panes["terminal"]?.at;
 				if (!at) {
-					say(`${st.id}a`, `${st.label}：开终端`, s.panels.length ? "ok" : "bad",
-						s.panels.length ? `放不下，弹成独立窗口 ${s.panels.join(",")}` : `点到按钮=${opened}，既没落进也没弹窗`);
+					say(`${st.id}a`, `${st.label}：开终端`, "bad",
+						s.panels.length ? `不该弹成独立窗口 ${s.panels.join(",")}` : `点到按钮=${opened}，面板没出现`);
 					continue;
 				}
 				say(`${st.id}a`, `${st.label}：开终端`, "ok", `落在 ${at}，${s.panes["terminal"]!.w}x${s.panes["terminal"]!.h}`);
