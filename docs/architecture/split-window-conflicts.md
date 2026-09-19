@@ -204,9 +204,16 @@ browser-store.ts:74              useDock.getState().open("browser")
 **根因**：`usePaneDock` 是纯内存的 `Record<scope, DockNode>`，全文件没有 `localStorage`。
 窗口 dock 有 `persist.ts`（`dw:dock:<session>`），pane dock 没有对应物。
 
-**怎么修**：给 pane dock 加一份持久化，key 用 `dw:panedock:<sessionId>`。scope 本来就是
-sessionId，天然是对的粒度。要连 `sizes` 一起存吗——不要：那是像素尺寸，窗口大小变了就不
-该照搬，`rememberSize` 会在下一帧重新量。
+**已修**：pane dock 走 `dw:panedock:<sessionId>`（scope 本来就是 sessionId，天然是对的粒度）。
+`sizes` 不存——那是像素尺寸，窗口一变就不该照搬，`rememberSize` 下一帧会重新量。
+
+顺带修掉一条**只有单写者时永远看不出来**的：`persist.ts` 的待写值从前是一个槽，后一次写把前
+一次顶掉。窗口 dock 独占时每次写的都是同一把钥匙，所以无从暴露；pane dock 也开始存之后，同一
+个 120ms 窗口里就有好几把钥匙争那个槽。改成按 key 排队。
+
+还有一条同源的：写那一侧从来没有防过「没有 window」。这个文件开头就写着「存储用不了时 dock
+照常工作，只是会忘事」，而读那一侧照做了（`readTree` 包了 try/catch），写那一侧没有——它一直
+只被渲染进程调用。pane dock 一接上，无 DOM 的单测里 `window.setTimeout` 当场就抛。
 
 ---
 

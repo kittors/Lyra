@@ -40,6 +40,14 @@ const SAVE_DELAY = 120;
 export const storageKey = (session: string | null | undefined): string => `dw:dock:${session || "@draft"}`;
 
 /**
+ * 分屏里某一屏自己的那棵 dock 树存在哪。
+ *
+ * 和窗口 dock 分开放：它们是两棵不同的树，同一个会话可以既在窗口 dock 上有布局，又作为一屏
+ * 有自己的面板。scope 就是会话 id，天然是对的粒度。
+ */
+export const paneStorageKey = (scope: string): string => `dw:panedock:${scope}`;
+
+/**
  * Rebuild a tree from unknown data, dropping whatever cannot be trusted.
  *
  * Structural nonsense is discarded outright. Panes are dropped when their kind is not registered
@@ -121,33 +129,63 @@ export function readTree(key: string, allowed: Iterable<PaneKind>): DockNode | n
 }
 
 /*
- * One pending write for the whole app, holding only the newest value.
+ * 每把钥匙一份待写值，只留最新的那个。
  *
- * A splitter drag over one second produces sixty calls to `writeTree` and should produce one
- * write. Keeping the latest rather than a queue is what makes that true regardless of how long
- * the drag ran.
+ * 一次持续一秒的分隔线拖拽会调六十次 `writeTree`，而它应该只产生一次写。按 key 留最新值而不是
+ * 排一条队，是这一点无论拖多久都成立的原因。
  */
 let timer: number | undefined;
-let queued: { key: string; tree: DockNode } | null = null;
+/**
+ * 按 key 排队，不是一个槽。
+ *
+ * 从前这里是单个 `{ key, tree }`：后一次写会把前一次顶掉，而两次的 key 可能不是同一个。
+ * 只有窗口 dock 一个写者时看不出来——它每次写的都是同一把钥匙。分屏里每一屏各有一棵 dock 树，
+ * 一旦它们也开始存，同一个 120ms 窗口里就会有好几把钥匙争这一个槽，先来的静静丢掉。
+ */
+const queued = new Map<string, DockNode | null>();
+
+/**
+ * 没有 window 就什么都不做。
+ *
+ * 这个文件开头就写着：存储用不了时 dock 照常工作，只是会忘事。从前只有读那一侧照着做了
+ * （`readTree` 包了 try/catch），写这一侧没有——它一直只被渲染进程调用，所以看不出来。
+ * pane dock 也开始存之后，无 DOM 的单测里 `window.setTimeout` 当场就抛了。
+ */
+const noWindow = (): boolean => typeof window === "undefined";
+
+function schedule(): void {
+	if (noWindow()) return;
+	if (timer === undefined) timer = window.setTimeout(flush, SAVE_DELAY);
+}
 
 function flush(): void {
+	if (noWindow()) return;
 	if (timer !== undefined) {
 		window.clearTimeout(timer);
 		timer = undefined;
 	}
-	const write = queued;
-	queued = null;
-	if (!write) return;
-	try {
-		window.localStorage.setItem(write.key, serialize(write.tree));
-	} catch {
-		// Out of quota, or storage turned off. Not worth interrupting anyone over.
+	if (queued.size === 0) return;
+	const writes = [...queued];
+	queued.clear();
+	for (const [key, tree] of writes) {
+		try {
+			if (tree === null) window.localStorage.removeItem(key);
+			else window.localStorage.setItem(key, serialize(tree));
+		} catch {
+			// Out of quota, or storage turned off. Not worth interrupting anyone over.
+		}
 	}
 }
 
 export function writeTree(key: string, tree: DockNode): void {
-	queued = { key, tree };
-	if (timer === undefined) timer = window.setTimeout(flush, SAVE_DELAY);
+	queued.set(key, tree);
+	schedule();
+}
+
+/** 这一份不再存在了——空树不值得占一行，留着还会在下次读出来。 */
+export function dropTree(key: string): void {
+	queued.set(key, null);
+	schedule();
 }
 
 /**

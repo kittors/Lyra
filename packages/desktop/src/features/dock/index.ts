@@ -14,6 +14,8 @@ export { emptyDockTree, usePaneDock } from "./pane-store.ts";
 export { useDockDrag } from "./useDockDrag.ts";
 export type { DockDragHost } from "./drag-host.ts";
 export { kinds } from "./tree.ts";
+/** 分屏那一层要拿它组 `allowed`——面板注册表在渲染层，只有它知道有哪些种类。 */
+export type { PaneKind } from "./tree.ts";
 export { paneVisible } from "./visibility.ts";
 export { DockView } from "./DockView.tsx";
 export { DockPane } from "./DockPane.tsx";

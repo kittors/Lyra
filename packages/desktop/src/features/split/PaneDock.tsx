@@ -29,6 +29,7 @@ import {
 	usePaneDock,
 	usePanelDefinitions,
 	type DockDragHost,
+	type PaneKind,
 	type PanelKind,
 } from "../dock/index.ts";
 
@@ -61,6 +62,22 @@ export function PaneDock({
 		[scope],
 	);
 	const { carried, start, landed } = useDockDrag(container, host);
+
+	/*
+	 * 把这一屏存着的布局读回来。
+	 *
+	 * 在 layout effect 里做，和窗口 dock 同一个理由：读 localStorage 是同步的，等到普通 effect
+	 * 就要先拿默认布局画一帧，面板会明显地「弹」出来一下。
+	 *
+	 * `allowed` 只有渲染层知道（面板注册表在这里），所以由它递给 store。
+	 */
+	const allowed = useMemo<PaneKind[]>(
+		() => ["conversation", ...definitions.filter((def) => !def.ephemeral).map((def) => def.kind)],
+		[definitions],
+	);
+	useLayoutEffect(() => {
+		usePaneDock.getState().hydrate(scope, allowed);
+	}, [scope, allowed]);
 
 	useLayoutEffect(() => {
 		if (size) usePaneDock.getState().rememberSize(scope, size);
