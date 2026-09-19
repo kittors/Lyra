@@ -62,7 +62,12 @@ async function commitSettle(target: SessionMeta): Promise<void> {
  */
 export function revealSession(meta: SessionMeta): void {
 	useApp.getState().previewSession(meta);
-	if (useApp.getState().activeSessionId === meta.id && useApp.getState().pendingSessionId == null) return;
+	const current = useApp.getState();
+	if (current.activeSessionId === meta.id && current.pendingSessionId == null) {
+		// A retained conversation can still be hidden behind another workspace page.
+		if (current.view !== "chat") current.setView("chat");
+		return;
+	}
 	queueSettle(meta);
 }
 

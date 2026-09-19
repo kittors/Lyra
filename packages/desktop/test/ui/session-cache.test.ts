@@ -123,6 +123,28 @@ test("previewing a session lights it without swapping the live transcript", () =
 	assert.equal(useApp.getState().pendingSessionId, "c");
 });
 
+test("clicking the loaded conversation from another page reveals it without reloading or replacing its state", async () => {
+	const reads: string[] = [];
+	readTranscript = async (_projectId, id) => { reads.push(id); return snapshot(id); };
+	useApp.setState({ running: true, drafts: { a: { text: "unsent draft", attachments: [] } } });
+	const original = useApp.getState();
+	for (const view of ["plugins", "pull-requests", "scheduled", "settings"] as const) {
+		useApp.setState({ view });
+		revealSession(meta("a"));
+		const current = useApp.getState();
+		assert.equal(current.view, "chat", `the sidebar must leave ${view}`);
+		assert.equal(current.messages, original.messages);
+		assert.equal(current.drafts, original.drafts);
+		assert.equal(current.running, true);
+		assert.equal(current.loadingSession, false);
+		assert.equal(current.selectionEpoch, original.selectionEpoch);
+	}
+	await afterPaint();
+	assert.deepEqual(reads, []);
+	assert.deepEqual(capabilityReads, []);
+	assert.deepEqual(rosterReads, []);
+});
+
 test("a single sidebar click hydrates in the same turn", async () => {
 	revealSession(meta("b"));
 	assert.equal(useApp.getState().activeSessionId, "b");

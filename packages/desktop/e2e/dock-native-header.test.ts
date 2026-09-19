@@ -116,6 +116,8 @@ test("a window resize finishes the visual flight before taking over pane geometr
 test("translated terminal tabs stay clipped before the fixed controls and reverse continuously", async (t) => {
 	await app.evaluate(`document.querySelector('${button}').click()`);
 	await frames(30);
+	// A third column cannot fit the conversation and tool floors at these viewport widths.
+	await app.evaluate(`document.querySelector('[data-dock-header="review"] button[aria-label^="关闭"]').click()`);
 	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
 	await until(`document.querySelector('[role="menuitem"]')`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim().startsWith('终端')).click()`);
@@ -131,6 +133,19 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 		await app.evaluate(`document.querySelector('[data-dock-grip="terminal"]').dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(width === 1200 ? "ArrowRight" : "ArrowLeft")},altKey:true,bubbles:true}))`);
 		await frames(30);
+		const layout = await app.evaluate<{ viewport: number; panes: { kind: string; width: number; height: number }[] }>(`(()=>{
+			const shown=[...document.querySelectorAll('[data-dock-pane]')].filter(el=>!el.closest('[inert]')&&el.checkVisibility({visibilityProperty:true,opacityProperty:true}));
+			// Measure the tiled conversation rather than counting its outer window wrapper again.
+			const leaves=shown.filter(el=>!shown.some(child=>child!==el&&el.contains(child)));
+			return {viewport:innerWidth,panes:leaves.map(el=>{const r=el.getBoundingClientRect();return {kind:el.dataset.dockPane,width:r.width,height:r.height}})};
+		})()`);
+		assert.equal(layout.viewport, width);
+		assert.deepEqual(layout.panes.map(pane => pane.kind).sort(), ["conversation", "terminal"]);
+		for (const pane of layout.panes) {
+			assert.ok(pane.width >= (pane.kind === "conversation" ? 420 : 300) - 0.5, JSON.stringify(pane));
+			assert.ok(pane.height >= (pane.kind === "conversation" ? 260 : 150) - 0.5, JSON.stringify(pane));
+		}
+		assert.equal((await app.windows()).filter(window => window.boot.kind === "panel").length, 0, "terminal header is tested inside the readable dock");
 		type Sample = { hit: boolean; boundary: boolean; noDrag: boolean; titleVisible: boolean; width: number; height: number; round: number; frame: number; tabs: { left: number; right: number; wide: boolean; own: boolean }[]; strip: { left: number; right: number }; edge: number; paneWidth: number };
 		const report = await app.evaluate<{ samples: Sample[]; deltas: number[]; retained: boolean }>(`(async()=>{
 			const pane=document.querySelector('[data-dock-pane="terminal"]'),title=pane.querySelector('[data-dock-heading-slot] > [data-dock-heading]'),original=pane.querySelector('.xterm-screen');

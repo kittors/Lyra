@@ -172,12 +172,12 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		const follow = (path: string) =>
 			path === from ? to : isDescendantPath(from, path) ? to + path.slice(from.length) : path;
 
-		const { path, drafts, tabs } = get();
-		if (path) {
-			const next = follow(path);
-			if (next !== path) set({ path: next, name: next.slice(next.lastIndexOf("/") + 1) });
-		}
+		const { path, opening, drafts, tabs } = get();
+		const next = path ? follow(path) : null;
+		const nextOpening = opening ? follow(opening) : null;
 		set({
+			...(next !== path && next ? { path: next, name: next.split(/[\\/]/).pop() ?? next } : {}),
+			opening: nextOpening,
 			drafts: Object.fromEntries(Object.entries(drafts).map(([at, text]) => [follow(at), text])),
 			// Renaming a file renames its tab; renaming a folder moves every tab beneath it.
 			tabs: tabs.map((tab) => {
@@ -185,13 +185,14 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 				return next === tab.path ? tab : { path: next, name: next.slice(next.lastIndexOf("/") + 1) };
 			}),
 		});
+		if (nextOpening && nextOpening !== opening) void get().open({ path: nextOpening, name: nextOpening.split(/[\\/]/).pop() ?? nextOpening });
 	},
 
 	removed(paths) {
 		const gone = (path: string) => paths.some((each) => path === each || isDescendantPath(each, path));
-		const { path, drafts, tabs } = get();
-		if (path && gone(path)) set({ ...EMPTY });
+		const { path, opening, drafts, tabs } = get();
 		set({
+			...(path && gone(path) ? EMPTY : opening && gone(opening) ? { opening: null, loading: false } : {}),
 			drafts: Object.fromEntries(Object.entries(drafts).filter(([at]) => !gone(at))),
 			// A tab for a file that no longer exists is a tab that opens onto an error.
 			tabs: tabs.filter((tab) => !gone(tab.path)),
@@ -205,8 +206,10 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		const rest = tabs.filter((tab) => tab.path !== path);
 		// The draft goes with the tab: keeping it would hold an edit for a file with no way back to it.
 		const { [path]: _gone, ...drafts } = get().drafts;
-		set({ tabs: rest, drafts });
-		if (open !== path) return;
+		if (open !== path && get().opening !== path) {
+			set({ tabs: rest, drafts });
+			return;
+		}
 		/*
 		 * Closing the file you are looking at moves to a neighbour, not to nothing.
 		 *
@@ -214,12 +217,13 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		 * every tab strip does, and the only choice that does not feel like the pane lost its place.
 		 */
 		const next = rest[at] ?? rest[rest.length - 1];
+		// Subscribers must never see an active path whose tab has already been removed.
+		set({ tabs: rest, drafts, ...(next ? { opening: next.path, loading: true } : EMPTY) });
 		if (next) void get().open({ name: next.name, path: next.path, isDirectory: false, size: 0 });
-		else set({ ...EMPTY });
 	},
 
 	closeTabs(paths) {
-		const { tabs, path: open, drafts } = get();
+		const { tabs, path: open, opening, drafts } = get();
 		const asked = new Set(paths);
 		const kept = tabs.filter((tab) => asked.has(tab.path) && tab.path in drafts).length;
 		const gone = new Set(
@@ -229,8 +233,10 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 
 		const openAt = tabs.findIndex((tab) => tab.path === open);
 		const rest = tabs.filter((tab) => !gone.has(tab.path));
-		set({ tabs: rest });
-		if (open === null || !gone.has(open)) return kept;
+		if ((open === null || !gone.has(open)) && (opening === null || !gone.has(opening))) {
+			set({ tabs: rest });
+			return kept;
+		}
 
 		/*
 		 * The same landing rule as `closeTab`, applied to whatever survived.
@@ -241,8 +247,8 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		 * still open to the right.
 		 */
 		const next = tabs.slice(openAt + 1).find((tab) => !gone.has(tab.path)) ?? rest[rest.length - 1];
+		set({ tabs: rest, ...(next ? { opening: next.path, loading: true } : EMPTY) });
 		if (next) void get().open({ name: next.name, path: next.path, isDirectory: false, size: 0 });
-		else set({ ...EMPTY });
 		return kept;
 	},
 

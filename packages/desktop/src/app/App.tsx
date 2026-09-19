@@ -72,6 +72,7 @@ const SettingsShell = lazy(() =>
 	import("../features/settings/SettingsShell.tsx").then((m) => ({ default: m.SettingsShell })),
 );
 import { useOpenFile } from "../store/openFile.ts";
+import { watchFilePanelState } from "../store/file-panel-handoff.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
@@ -491,5 +492,6 @@ function useProjectFiles(): void {
 	useEffect(() => {
 		useFileTreeStore.getState().setRoot(root);
 		useOpenFile.getState().clear();
+		return watchFilePanelState((error) => useApp.getState().notify(String(error), "error"));
 	}, [root]);
 }

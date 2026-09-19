@@ -797,8 +797,8 @@ app.on("before-quit", async () => {
 });
 
 function registerIpc(): void {
-	registerDeliveryIpc(() => getWindow(), () => store);
-	registerRunningServicesIpc(() => getWindow());
+	registerDeliveryIpc(() => store);
+	registerRunningServicesIpc();
 	registerBrowserIpc(getPrimaryWindow, () => settings.browser ?? {});
 	registerWorkspaceIpc({ workspaceInfo });
 

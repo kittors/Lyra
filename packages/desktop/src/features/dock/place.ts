@@ -69,7 +69,7 @@ export function dropFits(
 	kind: PaneKind,
 	at: DropAt,
 ): boolean {
-	if (has(tree, kind)) return false;
+	if (has(tree, kind) || (at.kind !== null && !has(tree, at.kind))) return false;
 	return clearsFloors(insert(tree, kind, at), span, floor);
 }
 

@@ -26,7 +26,7 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 	const metas = [];
-	for (const id of ["scroll-a", "scroll-b"]) {
+	for (const id of ["scroll-a", "scroll-b", "scroll-c", "scroll-d"]) {
 		const messages: object[] = [];
 		for (let i = 0; i < (id === "scroll-a" ? 42 : 5); i++) {
 			messages.push({
@@ -119,12 +119,19 @@ after(async () => {
 
 const UI = `
 	const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
-	const viewport = () => document.querySelector("main .ly-scroll-view");
+	const visibleTranscripts = () => [...document.querySelectorAll("main .ly-transcript")].filter(el => el.checkVisibility({visibilityProperty:true}));
+	const currentTranscript = () => {
+		const shown = visibleTranscripts();
+		if (shown.length !== 1) throw new Error("expected one visible transcript, got " + shown.length);
+		return shown[0];
+	};
+	const currentPage = () => currentTranscript().closest('[data-view][data-active="true"]');
+	const viewport = () => currentTranscript().closest('.ly-scroll-view');
 	const open = async (id) => {
 		document.querySelector('[data-ly-row="' + id + '"] > button').click();
 		for (let i = 0; i < 180; i++) {
 			await frame();
-			if (document.querySelector(".ly-transcript")?.textContent.includes(id + " complete")) break;
+			if (visibleTranscripts().length === 1 && currentTranscript().textContent.includes(id + " complete")) break;
 			if (i === 179) throw new Error("transcript did not arrive: " + id);
 		}
 		for (let i = 0; i < 15; i++) await frame();
@@ -138,21 +145,22 @@ test("switching split reasoning and answers never accumulates orphan DOM rows", 
 		const opened = [];
 		for (let i = 0; i < 8; i++) {
 			await open(i % 2 ? "scroll-b" : "scroll-a");
-			process.push(document.querySelectorAll("main [data-ly-turn-process]").length);
-			thinking.push(document.querySelectorAll("main [data-ly-thinking]").length);
-			document.querySelector('main [data-ly-turn-process] > button')?.click();
+			process.push(currentPage().querySelectorAll("[data-ly-turn-process]").length);
+			thinking.push(currentPage().querySelectorAll("[data-ly-thinking]").length);
+			currentPage().querySelector('[data-ly-turn-process] > button')?.click();
 			for (let n = 0; n < 20; n++) await frame();
-			opened.push(document.querySelectorAll("main [data-ly-thinking]").length);
-			document.querySelector('main [data-ly-turn-process] > button')?.click();
-			for (let n = 0; n < 20; n++) await frame();
+			opened.push(currentPage().querySelectorAll("[data-ly-thinking]").length);
+			currentPage().querySelector('[data-ly-turn-process] > button')?.click();
+			// Leave during the closing transition: Activity must release its cancelled body.
+			await frame();
 		}
 		return { process, thinking, opened };
 	})()`);
 	/*
 	 * Finished turns fold think+tools into one process row. The fixture still reasons twice —
 	 * once before the call, once before the answer — and both come back when that row is opened.
-	 * The number that must not grow is the mounted count after a switch: leftover keys leave
-	 * the previous session's process and thinking sitting under the new one.
+	 * Count the active page: retained hidden conversations deliberately keep their own rows.
+	 * The visible transcript must never acquire rows left over from another conversation.
 	 */
 	assert.deepEqual(counts.process, Array(8).fill(1));
 	assert.deepEqual(counts.thinking, Array(8).fill(0));
@@ -186,14 +194,14 @@ test("expanded history and disclosures return at the same reading position", asy
 		open: boolean;
 	}>(`(async () => { ${UI}
 		await open("scroll-a");
-		const initial = document.querySelectorAll('[data-ly-transcript-rows] > *').length;
-		const earlier = [...document.querySelectorAll(".ly-transcript button")].find(b => ${named("显示更早", "starts", "b")});
+		const initial = currentPage().querySelectorAll('[data-ly-transcript-rows] > *').length;
+		const earlier = [...currentTranscript().querySelectorAll("button")].find(b => ${named("显示更早", "starts", "b")});
 		if (!earlier) throw new Error("fixture must have hidden history");
 		earlier.click();
 		for (let i = 0; i < 20; i++) await frame();
-		document.querySelector('main [data-ly-turn-process] > button')?.click();
+		currentPage().querySelector('[data-ly-turn-process] > button')?.click();
 		for (let i = 0; i < 20; i++) await frame();
-		const think = document.querySelector('main [data-ly-thinking] > button');
+		const think = currentPage().querySelector('[data-ly-thinking] > button');
 		if (!think) throw new Error("fixture must expose thinking after the process row opens");
 		think.click();
 		for (let i = 0; i < 20; i++) await frame();
@@ -202,12 +210,12 @@ test("expanded history and disclosures return at the same reading position", asy
 		el.scrollTop = 800;
 		for (let i = 0; i < 4; i++) await frame();
 		const before = el.scrollTop;
-		const rowsBefore = document.querySelectorAll('[data-ly-transcript-rows] > *').length;
+		const rowsBefore = currentPage().querySelectorAll('[data-ly-transcript-rows] > *').length;
 		await open("scroll-b");
 		await open("scroll-a");
 		return { before, after: viewport().scrollTop, initial, rowsBefore,
-			rowsAfter: document.querySelectorAll('[data-ly-transcript-rows] > *').length,
-			open: document.querySelector('main [data-ly-thinking] > button').getAttribute('aria-expanded') === 'true' };
+			rowsAfter: currentPage().querySelectorAll('[data-ly-transcript-rows] > *').length,
+			open: currentPage().querySelector('[data-ly-thinking] > button').getAttribute('aria-expanded') === 'true' };
 	})()`);
 	assert.ok(result.rowsBefore > result.initial, `history was expanded: ${result.initial} → ${result.rowsBefore}`);
 	assert.equal(result.rowsAfter, result.rowsBefore);
@@ -222,7 +230,7 @@ test("a warm transcript is stable from its first painted frame", async () => {
 		const samples = [];
 		for (let i = 0; i < 24; i++) {
 			await frame();
-			const transcript = document.querySelector('.ly-transcript');
+			const transcript = currentTranscript();
 			if (!transcript?.textContent.includes('scroll-a complete')) throw new Error('warm content missed a frame');
 			const el = viewport();
 			samples.push({ top: el.scrollTop, height: el.scrollHeight, row: transcript.firstElementChild.getBoundingClientRect().top });
@@ -235,4 +243,24 @@ test("a warm transcript is stable from its first painted frame", async () => {
 		assert.equal(sample.height, samples[0].height);
 		assert.ok(Math.abs(sample.row - samples[0].row) <= 1, "historical row replayed an entrance animation");
 	}
+});
+
+test("visited transcript trees stay bounded while exactly one conversation remains visible", async () => {
+	const retained = await app.evaluate<{ total: number; visible: number; pages: string[] }[]>(`(async () => { ${UI}
+		const samples = [];
+		for (const id of ["scroll-a", "scroll-b", "scroll-c", "scroll-d", "scroll-a", "scroll-d"]) {
+			await open(id);
+			const transcripts = [...document.querySelectorAll('main .ly-transcript')];
+			samples.push({total:transcripts.length,visible:visibleTranscripts().length,
+				pages:transcripts.map(el=>el.closest('[data-view]').dataset.view)});
+		}
+		return samples;
+	})()`);
+	assert.equal(retained.length, 6);
+	for (const sample of retained) {
+		assert.equal(sample.visible, 1);
+		assert.ok(sample.total >= 1 && sample.total <= 3, JSON.stringify(sample));
+		assert.equal(new Set(sample.pages).size, sample.total, "a session must not leave duplicate retained trees");
+	}
+	assert.equal(retained.at(-1)?.total, 3, "the test must exercise cache eviction after more than three visits");
 });

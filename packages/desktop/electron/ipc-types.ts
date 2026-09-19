@@ -9,6 +9,7 @@
  */
 
 import type { SessionChange } from "./ipc-shapes.ts";
+import type { FilePanelState, FilePanelVersion } from "../shared/file-panel-state.ts";
 import type { TrajectoryEntry, TrajectoryChanges, AgentDefinitionRecord, AgentDefinitionSave } from "@lyra/core";
 import type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 import type {
@@ -201,12 +202,15 @@ export interface LyraApi {
 		open(input: { sessionId: string }): Promise<{ ok: boolean }>;
 		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string; sessionId?: string | null }[] }>;
 		openInMain(input: { sessionId: string }): Promise<{ ok: boolean }>;
-		openPanel(input: { kind: string; scope: string; sessionId: string | null }): Promise<{ ok: boolean }>;
+		openPanel(input: { kind: string; scope: string; sessionId: string | null; fileState?: FilePanelState }): Promise<{ ok: boolean }>;
+		filePanelState(input?: FilePanelVersion): Promise<FilePanelVersion | null>;
 		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string; sessionId?: string | null }[] }) => void): () => void;
 		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
-		onRestorePanel(handler: (state: { kind: string; scope: string }) => void): () => void;
+		onRestorePanel(handler: (state: { kind: string; scope: string; fileState?: FilePanelState }) => void): () => void;
+		onClosePanel(handler: () => void): () => void;
+		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};
 	/**
 	 * What is displaying this interface.

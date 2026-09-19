@@ -14,6 +14,11 @@ export function Collapse({ open, children, bodyClassName, className = "", keepMo
 		if (open) setRetained(true);
 		else if (!keepMounted && motionReduced()) setRetained(false);
 	}, [open, keepMounted]);
+	useLayoutEffect(() => () => {
+		// Activity hides cancel CSS transitions before transitionend can release a closing body.
+		// Open content still renders through `open` and restores retention when effects resume.
+		if (!keepMounted) setRetained(false);
+	}, [keepMounted]);
 	const settled = () => { if (!open && !keepMounted) setRetained(false); };
 	return <div className={`ly-reveal ly-freeze ${className}`.trim()} data-open={open} inert={!open} aria-hidden={!open}
 		onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === "grid-template-rows") settled(); }}>

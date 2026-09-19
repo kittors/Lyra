@@ -6,8 +6,11 @@ import { startApp, type RunningApp } from "./app.ts";
 import type { SessionRecord } from "@lyra/core";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { named } from "./named.ts";
+import { encode, startRecording, type Frame } from "./record.ts";
 
 let app: RunningApp;
+const recorded: Frame[] = [];
+let stopRecording: (() => Promise<void>) | undefined;
 /** 一个文件一个端口：几个文件共用一个，串行跑时上一个的 Electron 还没退，下一个就起不来。 */
 const PORT = 9701;
 
@@ -29,8 +32,15 @@ before(async () => { app = await startApp({ port: PORT, seed: async (home) => {
 		record.message.content.push({type:"image",mimeType:"image/png",data:icon}, {type:"image",mimeType:"image/png",data:icon});
 	}
 	await writeFile(log, records.map(record=>JSON.stringify(record)).join("\n")+"\n");
-} }); });
-after(async () => { await app?.stop(); });
+} });
+	if (process.env.LYRA_E2E_VIDEO) stopRecording = await startRecording(PORT, recorded);
+});
+after(async () => {
+	try {
+		await stopRecording?.();
+		if (process.env.LYRA_E2E_VIDEO && recorded.length) await encode(recorded, process.env.LYRA_E2E_VIDEO, 30);
+	} finally { await app?.stop(); }
+});
 async function frames(n = 20) { await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`); }
 async function until(expression: string) { await app.evaluate(`new Promise((r,j)=>{let n=300;const f=()=>(${expression})?r():--n?requestAnimationFrame(f):j(new Error('missing'));f();})`); }
 async function click(selector: string) {
@@ -303,7 +313,7 @@ test("a narrow column centres the transcript instead of parking the question rai
 	 */
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
 	await click('[data-ly-row="qa-long"] > button');
-	await until(`document.querySelectorAll('.ly-question-mark').length > 1`);
+	await until(`document.querySelector('[data-view="qa-long"][data-active="true"] .ly-transcript')?.checkVisibility({visibilityProperty:true,opacityProperty:true}) && document.querySelectorAll('[data-view="qa-long"][data-active="true"] .ly-question-mark').length > 1`);
 	const column = `(()=>{const view=document.querySelector('.ly-transcript').closest('.ly-scroll-view'),v=view.getBoundingClientRect(),c=document.querySelector('.ly-transcript').getBoundingClientRect(),rail=document.querySelector('.ly-question-nav');
 		return {width:Math.round(v.width),left:Math.round(c.left-v.left),right:Math.round(v.right-c.right),rail:rail?Math.round(rail.getBoundingClientRect().left-v.left):null}})()`;
 	// 两头都在阈值之内：520 是分界本身，拿它去量只会测到分界写在哪一侧。
@@ -312,6 +322,7 @@ test("a narrow column centres the transcript instead of parking the question rai
 		await frames(30);
 		const box = await app.evaluate<{ width: number; left: number; right: number; rail: number | null }>(column);
 		t.diagnostic(`${width}px → ${JSON.stringify(box)}`);
+		assert.ok(box.width > 0 && box.width <= width, `量到的必须是可见正文：${JSON.stringify(box)}`);
 		assert.equal(box.left, box.right, `窄列里正文要居中，实际左 ${box.left} 右 ${box.right}（列宽 ${box.width}）`);
 		assert.ok(box.rail !== null && box.rail >= 0 && box.rail < box.left, `导航条要贴着边缘并留在正文左侧：${JSON.stringify(box)}`);
 	}

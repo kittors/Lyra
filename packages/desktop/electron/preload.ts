@@ -183,6 +183,16 @@ const extras = {
 			ipcRenderer.on("windows:restore-panel", listener);
 			return () => ipcRenderer.removeListener("windows:restore-panel", listener);
 		},
+		onFilePanelState: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof handler>[0]) => handler(state);
+			ipcRenderer.on("windows:file-panel-state", listener);
+			return () => ipcRenderer.removeListener("windows:file-panel-state", listener);
+		},
+		onClosePanel: (handler) => {
+			const listener = () => handler();
+			ipcRenderer.on("windows:close-panel", listener);
+			return () => ipcRenderer.removeListener("windows:close-panel", listener);
+		},
 	},
 	settings: {
 		onChanged: (handler) => {

@@ -37,16 +37,31 @@ async function seed(home: string) {
 
 before(async () => {
 	app = await startApp({ port: 9712, seed });
+	// Native work areas may clamp the saved window; this workload requires three readable columns.
+	await app.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(`document.querySelector('[data-ly-row="fullscreen"] > button').click()`);
 	await until(`document.querySelector('.ly-transcript')`);
-	await openPane("任务");
-	await openPane("终端");
 	await openPane("文件");
 	await until(`document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]')`);
 	await app.evaluate(`document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]').click()`);
 	await until(`document.querySelector('[data-dock-pane="file"] .prose-dw h2')`);
 	await app.evaluate(`document.querySelector('[data-dock-header="files"] button[aria-label^="关闭"]').click()`);
+	await openPane("任务");
+	await openPane("终端");
 	await frames(30);
+	const layout = await app.evaluate<{ width: number; height: number; panes: { kind: string; width: number; height: number }[] }>(`(()=>{
+		const shown=[...document.querySelectorAll('[data-dock-pane]')].filter(el=>!el.closest('[inert]')&&el.checkVisibility({visibilityProperty:true,opacityProperty:true}));
+		// A window conversation can contain the tiled conversation; only its visible leaf owns content.
+		const leaves=shown.filter(el=>!shown.some(child=>child!==el&&el.contains(child)));
+		return {width:innerWidth,height:innerHeight,panes:leaves.map(el=>{const r=el.getBoundingClientRect();return {kind:el.dataset.dockPane,width:r.width,height:r.height}})};
+	})()`);
+	assert.deepEqual([layout.width, layout.height], [1440, 900]);
+	assert.deepEqual(layout.panes.map(pane => pane.kind).sort(), ["conversation", "file", "tasks", "terminal"]);
+	for (const pane of layout.panes) {
+		assert.ok(pane.width >= (pane.kind === "conversation" ? 420 : 300) - 0.5, JSON.stringify(pane));
+		assert.ok(pane.height >= (pane.kind === "conversation" ? 260 : 150) - 0.5, JSON.stringify(pane));
+	}
+	assert.equal((await app.windows()).filter(window => window.boot.kind === "panel").length, 0, "the workload stays inside one readable dock");
 });
 after(async () => { await app?.stop(); });
 
@@ -89,7 +104,9 @@ async function measure(kind: string, restore: boolean): Promise<Measurement> {
 		const pane = document.querySelector('[data-dock-pane="${kind}"]');
 		// The root owns final layout; its retained visual surface owns the composited movement.
 		const surface = pane.querySelector('[data-dock-motion]');
-		const peers = [...document.querySelectorAll('[data-dock-pane]')].map(e=>[e.dataset.dockPane,e,e.querySelector('.ly-scroll-view,.xterm-screen,.cm-editor,webview')]);
+		const contentSelector='.ly-scroll-view,.xterm-screen,.cm-editor,webview';
+		// Window and tile conversations share a kind, so retain each actual node and its own parent.
+		const peers = [...document.querySelectorAll('[data-dock-pane]')].map((node,index)=>({key:node.dataset.dockPane+':'+index,node,parent:node.parentElement,content:node.querySelector(contentSelector)}));
 		const scroller = pane.querySelector('.ly-scroll-view,.cm-scroller');
 		const scrollBefore = scroller?.scrollTop ?? 0;
 		let resizes=0; const observer=new ResizeObserver(()=>resizes++); observer.observe(pane);
@@ -103,7 +120,7 @@ async function measure(kind: string, restore: boolean): Promise<Measurement> {
 			out.push({interval:now-previous,left:box.left,top:box.top,width:box.width,height:box.height,layoutWidth:pane.offsetWidth,layoutHeight:pane.offsetHeight}); previous=now;
 		}
 		observer.disconnect();tasks.disconnect();loaf.disconnect();
-		return {frames:out,motion:{setting:document.documentElement.dataset.reduceMotion??null,systemReduced:matchMedia('(prefers-reduced-motion: reduce)').matches},resizes,retained:Object.fromEntries(peers.map(([kind,old,content])=>[kind,old===document.querySelector('[data-dock-pane="'+kind+'"]')&&(!content||content.isConnected)])),scrollBefore,scrollAfter:scroller?.scrollTop??0,longTasks,longFrames};
+		return {frames:out,motion:{setting:document.documentElement.dataset.reduceMotion??null,systemReduced:matchMedia('(prefers-reduced-motion: reduce)').matches},resizes,retained:Object.fromEntries(peers.map(({key,node,parent,content})=>[key,node.isConnected&&node.parentElement===parent&&node.querySelector(contentSelector)===content])),scrollBefore,scrollAfter:scroller?.scrollTop??0,longTasks,longFrames};
 	})()`);
 }
 

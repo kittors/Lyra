@@ -101,8 +101,12 @@ test("native input decorates commands, keeps arguments and undo, and lists inlin
 	await frames(3);
 	assert.equal(await app.evaluate(`document.querySelector('textarea').value`), "/review-0 ");
 	await input(value); await shot("command-input");
-	const metrics = await app.evaluate(`(()=>{const f=document.querySelector('textarea'),m=document.querySelector('[data-command-mirror]');return [f,m].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {x:r.x,y:r.y,width:r.width,font:s.fontFamily,size:s.fontSize,line:s.lineHeight,padding:s.padding,whiteSpace:s.whiteSpace};});})()`);
-	assert.deepEqual(metrics[0], metrics[1]); t.diagnostic(JSON.stringify(metrics));
+	const alignment = await app.evaluate(`(()=>{const f=document.querySelector('textarea'),m=document.querySelector('[data-command-mirror]');return {metrics:[f,m].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {x:r.x,y:r.y,width:r.width,font:s.fontFamily,size:s.fontSize,line:s.lineHeight,padding:s.padding,whiteSpace:s.whiteSpace};}),scrollTop:f.scrollTop,clientHeight:f.clientHeight,scrollHeight:f.scrollHeight,mirrorTransform:getComputedStyle(m).transform,mirrorOffset:new DOMMatrixReadOnly(getComputedStyle(m).transform).m42};})()`);
+	const metrics = alignment.metrics;
+	t.diagnostic(JSON.stringify(alignment));
+	// The mirror follows the text origin, including the native field's scroll offset.
+	assert.deepEqual(metrics[0], { ...metrics[1], y: metrics[1].y + alignment.scrollTop });
+	assert.equal(alignment.mirrorOffset + alignment.scrollTop, 0);
 	// Copyable source is the native value; the hint lives in an aria-hidden, unselectable layer.
 	assert.equal(await app.evaluate(`(()=>{const f=document.querySelector('textarea');f.select();return f.value.slice(f.selectionStart,f.selectionEnd);})()`), value);
 	await input("请保留这句 👩‍💻 /rev 后续内容");
@@ -173,78 +177,89 @@ test("narrow layouts, long drafts and IME keep the native input aligned and do n
 
 test("pasted compact with parameters executes once, reports progress, and survives session switching", async (t) => {
 	await click('[data-ly-row="qa-long"]');
-	await until(`document.querySelector('button[aria-label^="上下文占用"]')`);
-	const meterBefore = await app.evaluate<string>(`document.querySelector('button[aria-label^="上下文占用"] circle:last-child').getAttribute('stroke-dasharray')`);
+	await until(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"]')`);
+	const meterBefore = await app.evaluate<string>(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"] circle:last-child').getAttribute('stroke-dasharray')`);
 	const contextBefore = await app.evaluate<{used:number}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
-	hold = true; const before = requests.length;
-	await input("/compact 保留关键决策和未完成事项");
-	await key("Enter", 13);
-	await until(`document.querySelector('[data-command-status="running"]')`);
-	await until(`document.querySelector('button[aria-label="停止"]')`);
-	assert.equal(await app.evaluate(`document.querySelector('textarea').value`), "");
-	await shot("compact-running");
-	for (let n = 0; n < 120 && requests.length === before; n++) await frames(1);
-	assert.equal(requests.length, before + 1);
-	assert.match(requests.at(-1) ?? "", /保留关键决策和未完成事项/);
-	const finishCompaction = complete; hold = false;
-	await click('[data-ly-row="qa-short"]');
-	assert.equal(await app.evaluate(`document.querySelectorAll('[data-command-run]').length`), 0);
-	await input("另一个会话仍可发送"); await key("Enter", 13);
-	await until(`document.querySelector('main').textContent.includes('另一个会话仍可发送') && !document.querySelector('button[aria-label="停止"]')`);
-	assert.ok(requests.some((body) => body.includes("另一个会话仍可发送")));
-	await click('[data-ly-row="qa-long"]');
-	await until(`document.querySelector('[data-command-status="running"]')`);
-	finishCompaction?.();
-	await until(`document.querySelector('[data-command-status="done"]')`);
-	const result = await app.evaluate(`document.querySelector('[data-command-status="done"]').textContent`);
-	assert.match(result, /已压缩上下文/); t.diagnostic(result);
-	await until(`document.querySelector('button[aria-label^="上下文占用"] circle:last-child').getAttribute('stroke-dasharray') !== ${JSON.stringify(meterBefore)}`);
-	const contextAfter = await app.evaluate<{used:number}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
-	assert.ok(contextAfter.used < contextBefore.used * 0.7, JSON.stringify({contextBefore,contextAfter}));
-	t.diagnostic(JSON.stringify({contextBefore,contextAfter}));
-	await click('button[aria-label^="上下文占用"]');
-	await until(`document.querySelector('[aria-label="上下文窗口用量"] section button[aria-expanded]')`);
-	assert.deepEqual(await app.evaluate(`Array.from(document.querySelectorAll('[aria-label="上下文窗口用量"] section button[aria-expanded]')).map(e=>({open:e.getAttribute('aria-expanded'),title:e.textContent}))`), [{open:'false',title:'记忆文件'}]);
-	await shot("context-after-compaction");
-	await click('button[aria-label^="上下文占用"]');
-	await shot("compact-done");
-	// Use a clipboard sink so checking Copy never overwrites the user's system clipboard.
-	await app.evaluate(`Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:async text=>{document.documentElement.dataset.commandCopy=text;}})`);
+	hold = true; complete = undefined; const before = requests.length;
+	let finishCompaction: (() => void) | undefined;
 	try {
-		await click('[data-command-run] button[aria-label="复制这条消息"]');
-		assert.equal(await app.evaluate(`document.documentElement.dataset.commandCopy`), "/compact 保留关键决策和未完成事项");
-	} finally { await app.evaluate(`delete navigator.clipboard.writeText;delete document.documentElement.dataset.commandCopy`); }
-	await click('[data-ly-row="qa-short"]'); await click('[data-ly-row="qa-long"]');
-	await until(`document.querySelector('[data-command-status="done"]')`);
-	assert.equal(await app.evaluate(`document.querySelectorAll('[data-command-run]').length`), 1);
+		await input("/compact 保留关键决策和未完成事项");
+		await key("Enter", 13);
+		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] [data-command-status="running"]')`);
+		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label="停止"]')`);
+		assert.equal(await app.evaluate(`document.querySelector('[data-view="qa-long"][data-active="true"] textarea').value`), "");
+		await shot("compact-running");
+		for (let n = 0; n < 120 && requests.length === before; n++) await frames(1);
+		finishCompaction = complete; complete = undefined;
+		assert.equal(requests.length, before + 1);
+		assert.match(requests.at(-1) ?? "", /保留关键决策和未完成事项/);
+		assert.ok(finishCompaction, "the compact request must still be held by the fixture");
+		hold = false;
+		await click('[data-ly-row="qa-short"]');
+		await until(`document.querySelector('[data-view="qa-short"][data-active="true"]')`);
+		assert.equal(await app.evaluate(`document.querySelectorAll('[data-view="qa-short"][data-active="true"] [data-command-run]').length`), 0);
+		await input("另一个会话仍可发送"); await key("Enter", 13);
+		await until(`document.querySelector('[data-view="qa-short"][data-active="true"]').textContent.includes('另一个会话仍可发送') && !document.querySelector('[data-view="qa-short"][data-active="true"] button[aria-label="停止"]')`);
+		assert.ok(requests.some((body) => body.includes("另一个会话仍可发送")));
+		await click('[data-ly-row="qa-long"]');
+		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] [data-command-status="running"]')`);
+		finishCompaction(); finishCompaction = undefined;
+		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] [data-command-status="done"]')`);
+		const result = await app.evaluate(`document.querySelector('[data-view="qa-long"][data-active="true"] [data-command-status="done"]').textContent`);
+		assert.match(result, /已压缩上下文/); t.diagnostic(result);
+		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"] circle:last-child').getAttribute('stroke-dasharray') !== ${JSON.stringify(meterBefore)}`);
+		const contextAfter = await app.evaluate<{used:number}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
+		assert.ok(contextAfter.used < contextBefore.used * 0.7, JSON.stringify({contextBefore,contextAfter}));
+		t.diagnostic(JSON.stringify({contextBefore,contextAfter}));
+		await click('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"]');
+		await until(`document.querySelector('[aria-label="上下文窗口用量"] section button[aria-expanded]')`);
+		assert.deepEqual(await app.evaluate(`Array.from(document.querySelectorAll('[aria-label="上下文窗口用量"] section button[aria-expanded]')).map(e=>({open:e.getAttribute('aria-expanded'),title:e.textContent}))`), [{open:'false',title:'记忆文件'}]);
+		await shot("context-after-compaction");
+		await click('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"]');
+		await shot("compact-done");
+		// Use a clipboard sink so checking Copy never overwrites the user's system clipboard.
+		await app.evaluate(`Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:async text=>{document.documentElement.dataset.commandCopy=text;}})`);
+		try {
+			await click('[data-view="qa-long"][data-active="true"] [data-command-run] button[aria-label="复制这条消息"]');
+			assert.equal(await app.evaluate(`document.documentElement.dataset.commandCopy`), "/compact 保留关键决策和未完成事项");
+		} finally { await app.evaluate(`delete navigator.clipboard.writeText;delete document.documentElement.dataset.commandCopy`); }
+		await click('[data-ly-row="qa-short"]'); await click('[data-ly-row="qa-long"]');
+		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] [data-command-status="done"]')`);
+		assert.equal(await app.evaluate(`document.querySelectorAll('[data-view="qa-long"][data-active="true"] [data-command-run]').length`), 1);
+	} finally {
+		// An assertion before completion must not leave a background compact blocking later tests.
+		hold = false;
+		(finishCompaction ?? complete)?.();
+		complete = undefined;
+	}
 });
 
 test("bare commands execute from Enter and send; custom definitions expand fresh parameters", async () => {
 	await click('[data-ly-row="qa-short"]'); hold = true; complete = undefined; const before = requests.length;
 	await input("/compact"); await key("Enter", 13);
-	await until(`document.querySelector('[data-command-status="running"]')`);
+	await until(`document.querySelector('[data-view="qa-short"][data-active="true"] [data-command-status="running"]')`);
 	for (let n = 0; n < 120 && requests.length === before; n++) await frames(1);
-	await click('button[aria-label="停止"]'); hold = false;
-	await until(`document.querySelector('[data-command-status="cancelled"]')`);
+	await click('[data-view="qa-short"][data-active="true"] button[aria-label="停止"]'); hold = false;
+	await until(`document.querySelector('[data-view="qa-short"][data-active="true"] [data-command-status="cancelled"]')`);
 	await input('/review-0 "src/Main.cs" 额外说明');
-	await click('button[aria-label="发送"]');
-	await until(`document.querySelector('main').textContent.includes('自定义命令执行："src/Main.cs" 额外说明')`);
-	await until(`!document.querySelector('button[aria-label="停止"]')`);
+	await click('[data-view="qa-short"][data-active="true"] button[aria-label="发送"]');
+	await until(`document.querySelector('[data-view="qa-short"][data-active="true"]').textContent.includes('自定义命令执行："src/Main.cs" 额外说明')`);
+	await until(`!document.querySelector('[data-view="qa-short"][data-active="true"] button[aria-label="停止"]')`);
 	assert.ok(requests.some((request) => request.includes('自定义命令执行：')));
 	await writeFile(join(app.home, "commands", "review-0.md"), "---\ndescription: updated\n---\n磁盘上的最新命令内容");
-	await input("/review-0"); await click('button[aria-label="发送"]');
-	await until(`document.querySelector('main').textContent.includes('磁盘上的最新命令内容')`);
-	await until(`!document.querySelector('button[aria-label="停止"]')`);
+	await input("/review-0"); await click('[data-view="qa-short"][data-active="true"] button[aria-label="发送"]');
+	await until(`document.querySelector('[data-view="qa-short"][data-active="true"]').textContent.includes('磁盘上的最新命令内容')`);
+	await until(`!document.querySelector('[data-view="qa-short"][data-active="true"] button[aria-label="停止"]')`);
 	await mkdir(join(app.home, "commands", "git"));
 	await writeFile(join(app.home, "commands", "git", "audit.md"), "---\ndescription: nested command\n---\n无参数执行嵌套命令");
 	await input("/audit");
 	await until(`[...document.querySelectorAll('[role="option"]')].some(el => el.textContent.includes('git:audit'))`);
 	await key("Enter", 13);
-	await until(`document.querySelector('main').textContent.includes('无参数执行嵌套命令') && !document.querySelector('button[aria-label="停止"]')`);
+	await until(`document.querySelector('[data-view="qa-short"][data-active="true"]').textContent.includes('无参数执行嵌套命令') && !document.querySelector('[data-view="qa-short"][data-active="true"] button[aria-label="停止"]')`);
 	const requestCount = requests.length;
 	await input("/clear"); await key("Enter", 13);
-	await until(`document.querySelector('textarea') && !document.querySelector('[data-question-index]')`);
-	assert.equal(await app.evaluate(`document.querySelectorAll('[data-command-run]').length`), 0);
+	await until(`document.querySelector('[data-ly-split-pane="@draft"] textarea') && !document.querySelector('[data-ly-split-pane="@draft"] [data-question-index]')`);
+	assert.equal(await app.evaluate(`document.querySelectorAll('[data-ly-split-pane="@draft"] [data-command-run]').length`), 0);
 	assert.equal(requests.length, requestCount, "clear opens a blank session without a model call");
 	await input("/commands"); await key("Enter", 13);
 	await until(`[...document.querySelectorAll('nav button[aria-current]')].some(b=>b.textContent.trim()==='命令')`);

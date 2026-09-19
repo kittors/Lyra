@@ -13,7 +13,7 @@
 
 - **Keep up to four conversations in one window.** Each chat owns its tools; chats stay at least 420 px wide, tools at least 300 px, and anything that no longer fits opens in a separate window.
 
-- **Drag browsers and terminals with their contents visible.** Rearrange them with the pointer or arrow keys, expand a panel within its chat, or open a separate window with pin and return controls.
+- **Drag browsers and terminals with their contents visible.** Rearrange them with the pointer or arrow keys, expand a panel within its chat, or open a separate window with pin and return controls. File windows keep open tabs and unsaved edits.
 
 - **Number fields in Settings keep a draft while you type.** You can finish entering “16” before the value is checked against its limits.
 
@@ -38,7 +38,7 @@
 
 - **一个窗口最多同时查看四个会话。** 每个会话有自己的工具；对话至少保留 420 px 宽，工具至少 300 px，缩小窗口后放不下的内容会转到独立窗口。
 
-- **拖动浏览器和终端时，内容跟着容器一起移动。** 可以用鼠标或方向键调整位置，在当前会话内展开面板，也可以单独开窗、置顶、收回。
+- **拖动浏览器和终端时，内容跟着容器一起移动。** 可以用鼠标或方向键调整位置，在当前会话内展开面板，也可以单独开窗、置顶、收回。文件面板切换窗口时保留标签和未保存修改。
 
 - **设置里的数字可以输完再检查。** 输入「16」时，不会刚打出「1」就被改掉。
 
@@ -65,7 +65,7 @@
 
 - **同一視窗最多查看四個對話。** 每個對話保有自己的工具；對話至少保留 420 px 寬，工具至少 300 px，縮小視窗後放不下的內容會另開視窗。
 
-- **拖曳瀏覽器與終端機時，可以一直看見內容。** 支援滑鼠和方向鍵調整位置、在對話內展開面板，以及獨立視窗的置頂與收回。
+- **拖曳瀏覽器與終端機時，可以一直看見內容。** 支援滑鼠和方向鍵調整位置、在對話內展開面板，以及獨立視窗的置頂與收回。檔案面板移到其他視窗時，分頁和未儲存的修改都會保留。
 
 - **設定裡的數字可以輸入完再檢查。** 輸入「16」時，不會才打出「1」就被改掉。
 
@@ -92,7 +92,7 @@
 
 - **1つのウィンドウで最大4つの会話を表示できます。** ツールは会話ごとに配置され、会話は幅420 px、ツールは300 pxを下回らず、収まらなくなると別ウィンドウに移ります。
 
-- **ブラウザやターミナルの内容を見ながらドラッグできます。** 矢印キーでの配置変更、会話内での拡大、別ウィンドウへの切り離し、最前面表示、元の場所への復帰に対応しました。
+- **ブラウザやターミナルの内容を見ながらドラッグできます。** 矢印キーでの配置変更、会話内での拡大、別ウィンドウへの切り離し、最前面表示、元の場所への復帰に対応しました。ファイルのタブと未保存の編集内容も、ウィンドウを移る際に引き継ぎます。
 
 - **設定の数値は入力し終えてから検証されます。** 「16」と入力する途中の「1」が勝手に変わることはありません。
 
@@ -119,7 +119,7 @@
 
 - **한 창에서 대화를 최대 4개까지 볼 수 있습니다.** 도구는 각 대화에 속하며, 대화 너비는 420 px, 도구는 300 px 이상을 유지하고 공간이 부족하면 별도 창으로 옮깁니다.
 
-- **브라우저와 터미널의 내용을 보면서 끌어 옮길 수 있습니다.** 방향키로 배치를 바꾸거나 대화 안에서 패널을 펼칠 수 있고, 별도 창에서 항상 위에 표시하거나 원래 위치로 돌려놓을 수도 있습니다.
+- **브라우저와 터미널의 내용을 보면서 끌어 옮길 수 있습니다.** 방향키로 배치를 바꾸거나 대화 안에서 패널을 펼칠 수 있고, 별도 창에서 항상 위에 표시하거나 원래 위치로 돌려놓을 수도 있습니다. 파일 패널을 다른 창으로 옮겨도 열린 탭과 저장하지 않은 수정 사항은 유지됩니다.
 
 - **설정의 숫자는 입력을 마친 뒤에 검사합니다.** “16”을 입력하는 중간에 “1”이 다른 값으로 바뀌지 않습니다.
 
@@ -146,7 +146,7 @@
 
 - **Affichez jusqu’à quatre conversations dans une fenêtre.** Chaque conversation garde ses outils, avec une largeur minimale de 420 px pour le dialogue et de 300 px pour les outils ; ce qui ne tient plus s’ouvre dans une fenêtre séparée.
 
-- **Déplacez le navigateur et le terminal sans perdre leur contenu de vue.** Utilisez la souris ou les flèches, agrandissez un panneau dans sa conversation ou détachez-le avec des commandes pour le garder au premier plan et le ramener.
+- **Déplacez le navigateur et le terminal sans perdre leur contenu de vue.** Utilisez la souris ou les flèches, agrandissez un panneau dans sa conversation ou détachez-le avec des commandes pour le garder au premier plan et le ramener. Les onglets et les modifications non enregistrées suivent les fichiers d’une fenêtre à l’autre.
 
 - **Les champs numériques attendent la fin de la saisie.** Le « 1 » de « 16 » n’est plus corrigé avant que vous ayez terminé.
 
@@ -173,7 +173,7 @@
 
 - **В одном окне можно открыть до четырёх разговоров.** У каждого свои инструменты: ширина разговора не опускается ниже 420 px, инструмента ниже 300 px, а при нехватке места содержимое переносится в отдельное окно.
 
-- **При перетаскивании браузера и терминала их содержимое остаётся видимым.** Положение можно менять мышью или стрелками, панель можно развернуть внутри разговора, вынести в окно, закрепить поверх других окон и вернуть обратно.
+- **При перетаскивании браузера и терминала их содержимое остаётся видимым.** Положение можно менять мышью или стрелками, панель можно развернуть внутри разговора, вынести в окно, закрепить поверх других окон и вернуть обратно. Открытые вкладки файлов и несохранённые правки сохраняются при переносе между окнами.
 
 - **Числовые поля проверяют значение после окончания ввода.** Первая цифра в «16» больше не заменяется до ввода второй.
 

@@ -103,6 +103,10 @@ export function beginQuit(): void {
 	quitting = true;
 }
 
+export function isAppQuitting(): boolean {
+	return quitting;
+}
+
 /** The live window, or null before the first one is built. */
 export function getWindow(): BrowserWindow | null {
 	const focused = BrowserWindow.getFocusedWindow();

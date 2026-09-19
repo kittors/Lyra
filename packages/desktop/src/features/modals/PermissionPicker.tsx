@@ -15,7 +15,8 @@ import {
 	Popover,
 	type Anchor,
 } from "../../ui/overlay/Popover.tsx";
-import { Dialog, DialogAction } from "../../ui/overlay/Dialog.tsx";
+import { DialogFrame, DialogAction } from "../../ui/overlay/Dialog.tsx";
+import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { useApp } from "../../store/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
@@ -134,38 +135,41 @@ export function PermissionPicker({
 			)}
 
 			{confirming && (
-				<Dialog
+				<Overlay
 					onClose={() => { setConfirming(false); onClose(); }}
 					returnFocus={anchor instanceof HTMLElement ? anchor : undefined}
 					width={480}
-					icon={<TriangleAlert size={20} className="shrink-0 text-danger" />}
-					title={t("permission.confirmTitle")}
-					detail={t("permission.confirmSummary")}
-					actions={(
-						<>
-							<div className="flex-1" />
-							<DialogAction onClick={() => { setConfirming(false); onClose(); }}>{t("common.cancel")}</DialogAction>
-							<DialogAction tone="danger" onClick={() => { setConfirming(false); choose("full"); }}>{t("permission.confirmEnable")}</DialogAction>
-						</>
-					)}
 				>
-					<div className="rounded-2xl bg-card px-4 py-1">
-						{[
-							{ icon: <Folder size={23} className="text-accent" />, title: t("permission.files"), detail: t("permission.filesDetail") },
-							{ icon: <Terminal size={23} className="text-ink-muted" />, title: t("permission.terminal"), detail: t("permission.terminalDetail") },
-							{ icon: <Globe size={23} className="text-accent" />, title: t("permission.network"), detail: t("permission.networkDetail") },
-						].map((item) => (
-							<div key={item.title} className="flex items-center gap-3 py-3">
-								<span className="shrink-0">{item.icon}</span>
-								<div>
-									<p className="text-label font-medium text-ink">{item.title}</p>
-									<p className="mt-0.5 text-detail leading-relaxed text-ink-muted">{item.detail}</p>
+					{(dismiss) => <DialogFrame
+						icon={<TriangleAlert size={20} className="shrink-0 text-danger" />}
+						title={t("permission.confirmTitle")}
+						detail={t("permission.confirmSummary")}
+						actions={(
+							<>
+								<div className="flex-1" />
+								<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
+								<DialogAction tone="danger" onClick={() => dismiss(() => { setConfirming(false); choose("full"); })}>{t("permission.confirmEnable")}</DialogAction>
+							</>
+						)}
+					>
+						<div className="rounded-2xl bg-card px-4 py-1">
+							{[
+								{ icon: <Folder size={23} className="text-accent" />, title: t("permission.files"), detail: t("permission.filesDetail") },
+								{ icon: <Terminal size={23} className="text-ink-muted" />, title: t("permission.terminal"), detail: t("permission.terminalDetail") },
+								{ icon: <Globe size={23} className="text-accent" />, title: t("permission.network"), detail: t("permission.networkDetail") },
+							].map((item) => (
+								<div key={item.title} className="flex items-center gap-3 py-3">
+									<span className="shrink-0">{item.icon}</span>
+									<div>
+										<p className="text-label font-medium text-ink">{item.title}</p>
+										<p className="mt-0.5 text-detail leading-relaxed text-ink-muted">{item.detail}</p>
+									</div>
 								</div>
-							</div>
-						))}
-					</div>
-					<p className="mt-4 text-detail leading-relaxed text-ink-faint">{t("permission.risk")}</p>
-				</Dialog>
+							))}
+						</div>
+						<p className="mt-4 text-detail leading-relaxed text-ink-faint">{t("permission.risk")}</p>
+					</DialogFrame>}
+				</Overlay>
 			)}
 		</>
 	);

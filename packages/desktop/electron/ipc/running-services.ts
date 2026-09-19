@@ -1,8 +1,9 @@
-import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { listSessionServices, stopSessionService } from "../session-services.ts";
-export function registerRunningServicesIpc(window: () => BrowserWindow | null): void {
+import { isAppWindowContents } from "../window.ts";
+export function registerRunningServicesIpc(): void {
 	const trusted = (event: IpcMainInvokeEvent, sessionId: unknown) => {
-		if (event.sender !== window()?.webContents || event.senderFrame !== event.sender.mainFrame || typeof sessionId !== "string") throw new Error("无效的会话服务请求");
+		if (!isAppWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame || typeof sessionId !== "string") throw new Error("无效的会话服务请求");
 	};
 	ipcMain.handle("services:list", (event, sessionId: string) => { trusted(event, sessionId); return listSessionServices(sessionId); });
 	ipcMain.handle("services:stop", (event, sessionId: string, id: string, force: boolean) => {

@@ -51,6 +51,20 @@ test("a rejected native creation does not undo a different panel opened during t
 	assert.equal(usePanelWindows.getState().opening.length,0);
 });
 
+test("a rejected native creation restores its panel after the old neighbour was closed", async () => {
+	reset();
+	const result = Promise.withResolvers<{ ok: boolean }>();
+	Reflect.set(window, "lyra", { windows: { openPanel: () => result.promise } });
+	usePaneDock.getState().open("width", "files");
+	usePaneDock.getState().open("width", "terminal", { kind: "files", side: "bottom" });
+	const transfer = popOutPanel({ dock: "pane", scope: "width", kind: "terminal", sessionId: "width" });
+	usePaneDock.getState().close("width", "files");
+	result.resolve({ ok: false });
+	assert.equal(await transfer, false);
+	assert.equal(has(usePaneDock.getState().tree("width"), "terminal"), true);
+	assert.equal(has(usePaneDock.getState().tree("width"), "files"), false);
+});
+
 test("a window dock refuses a return without room and restores it after resize", async () => {
 	reset();
 	let restore = (_input: { kind: string; scope: string }) => {};
@@ -77,6 +91,44 @@ test("a window dock refuses a return without room and restores it after resize",
 	assert.equal(closed.length, 1);
 	stop();
 });
+
+for (const dock of ["window", "pane"] as const) {
+	test(`${dock} return cannot consume a home when its former neighbour also left the dock`, async () => {
+		reset();
+		const scope = dock === "window" ? "window" : "width";
+		let restore = (_input: { kind: string; scope: string }) => {};
+		const closed: unknown[] = [];
+		Reflect.set(window, "lyra", { windows: {
+			list: async () => ({ panels: [{ kind: "file", scope }, { kind: "files", scope }] }),
+			onChanged: () => () => {},
+			onRestorePanel: (listener: typeof restore) => { restore = listener; return () => {}; },
+			closePanel: async (input: unknown) => { closed.push(input); return { ok: true }; },
+		} });
+		const rest = insert(defaultTree(), "files", { kind: "conversation", side: "right" });
+		const at = { kind: "files", side: "bottom" } as const;
+		const home = { dock, scope, at, before: insert(rest, "file", at), rest };
+		window.localStorage.setItem("dw:homes", JSON.stringify({ [`${scope}:file`]: home }));
+		const resize = (width: number, height: number) => {
+			if (dock === "window") useDock.setState({ viewport: { width, height, conversation: { width: 420, height: 260 }, compact: false } });
+			else usePaneDock.getState().rememberSize(scope, { width, height });
+		};
+		const current = () => dock === "window" ? useDock.getState().tree : usePaneDock.getState().tree(scope);
+		resize(528, 330);
+		const stop = watchPanelWindows();
+		try {
+			await Promise.resolve();
+			restore({ kind: "file", scope });
+			assert.equal(closed.length, 0, "a vanished anchor is not a successful placement");
+			assert.equal(has(current(), "file"), false);
+			assert.deepEqual(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")[`${scope}:file`], home);
+			resize(900, 800);
+			restore({ kind: "file", scope });
+			assert.equal(has(current(), "file"), true, "a wider home finds a new valid neighbour");
+			assert.equal(closed.length, 1);
+			assert.equal(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")[`${scope}:file`], undefined);
+		} finally { stop(); }
+	});
+}
 
 test("a restored tool whose live conversation is too small reopens its native window", async () => {
 	reset();

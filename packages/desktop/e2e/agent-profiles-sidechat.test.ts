@@ -193,28 +193,33 @@ test("agent definitions can be created without a session, edited, copied, delete
 test("provider and effort controls persist, align, and adapt to narrow settings", async (t) => {
 	await click('[data-ly-row="qa-long"]');
 	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
-	await until(`document.querySelector('[data-agent-profile="explore"]')`);
-	assert.equal(await app.evaluate(`document.querySelectorAll('[aria-label="compact 思考等级"]').length`), 0);
-	await click('[aria-label="compact 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
-	await until(`document.querySelector('[aria-label="compact 模型"]').dataset.lyTip.includes('第二供应商')`);
-	await click('[aria-label="explore 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
-	await until(`document.querySelector('[aria-label="explore 模型"]').dataset.lyTip.includes('第二供应商')`);
-	await click('[aria-label="explore 思考等级"]');
-	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('极致'));if(!e)throw new Error('No ultra');e.setAttribute('data-effort-ultra','');})()`);
-	await click('[data-effort-ultra]');
-	await until(`document.querySelector('[aria-label="explore 思考等级"]').textContent.includes('极致')`);
-	const saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
-	assert.deepEqual(saved.subAgentProfiles.explore, { modelId: "secondary/model", thinking: "ultra" });
-	for (const width of [1280, 375]) {
-		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(30);
-		const boxes = await app.evaluate<{ x: number; right: number; y: number; height: number }[]>(`[...document.querySelectorAll('[data-agent-profile="explore"] fieldset > button')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,right:r.right,y:r.y,height:r.height};})`);
-		t.diagnostic(JSON.stringify({ width, boxes })); assert.equal(boxes.length, 2);
-		assert.ok(boxes.every((box) => box.x >= 0 && box.right <= width && box.height === 30));
-		if (width === 1280) assert.equal(boxes[0].y, boxes[1].y);
-		await shot(`agent-profiles-${width}`);
+	try {
+		await until(`document.querySelector('[data-agent-profile="explore"]')`);
+		assert.equal(await app.evaluate(`document.querySelectorAll('[aria-label="compact 思考等级"]').length`), 0);
+		await click('[aria-label="compact 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
+		await until(`document.querySelector('[aria-label="compact 模型"]').dataset.lyTip.includes('第二供应商')`);
+		await click('[aria-label="explore 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
+		await until(`document.querySelector('[aria-label="explore 模型"]').dataset.lyTip.includes('第二供应商')`);
+		await click('[aria-label="explore 思考等级"]');
+		await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('极致'));if(!e)throw new Error('No ultra');e.setAttribute('data-effort-ultra','');})()`);
+		await click('[data-effort-ultra]');
+		await until(`document.querySelector('[aria-label="explore 思考等级"]').textContent.includes('极致')`);
+		const saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
+		assert.deepEqual(saved.subAgentProfiles.explore, { modelId: "secondary/model", thinking: "ultra" });
+		for (const width of [1280, 375]) {
+			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(30);
+			const controlHeight = await app.evaluate<number>(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ly-control'))`);
+			assert.ok(Number.isFinite(controlHeight) && controlHeight > 0, `Invalid --ly-control: ${controlHeight}`);
+			const boxes = await app.evaluate<{ x: number; right: number; y: number; height: number }[]>(`[...document.querySelectorAll('[data-agent-profile="explore"] fieldset > button')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,right:r.right,y:r.y,height:r.height};})`);
+			t.diagnostic(JSON.stringify({ width, controlHeight, boxes })); assert.equal(boxes.length, 2);
+			assert.ok(boxes.every((box) => box.x >= 0 && box.right <= width && box.height === controlHeight));
+			if (width === 1280) assert.equal(boxes[0].y, boxes[1].y);
+			await shot(`agent-profiles-${width}`);
+		}
+	} finally {
+		await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
+		await label("返回工作区", "nav button");
 	}
-	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
-	await label("返回工作区", "nav button");
 });
 
 test("a dispatched subagent actually calls the selected provider with ultra reasoning", async (t) => {

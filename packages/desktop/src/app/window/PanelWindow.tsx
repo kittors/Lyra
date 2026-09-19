@@ -16,6 +16,7 @@ import { ToolbarButton } from "./WindowControls.tsx";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { bridge } from "../../services/index.ts";
 import { KeepOnTopButton } from "./KeepOnTopButton.tsx";
+import { flushFilePanelState } from "../../store/file-panel-handoff.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 
 export function PanelWindow() {
@@ -37,9 +38,30 @@ export function PanelWindow() {
 		document.title = title;
 	}, [title]);
 
-	const restore = () => {
+	useEffect(() => {
+		if (kind !== "file" || !bridge.windows?.onClosePanel) return;
+		let closing = false;
+		return bridge.windows.onClosePanel(() => {
+			if (closing) return;
+			closing = true;
+			void flushFilePanelState().then(async () => {
+				const result = await bridge.windows.closePanel({ kind, scope });
+				if (!result.ok) throw new Error("File panel close was rejected");
+			}).catch((error: unknown) => {
+				closing = false;
+				useApp.getState().notify(String(error), "error");
+			});
+		});
+	}, [kind, scope]);
+
+	const restore = async () => {
 		if (!kind || !bridge.windows?.restorePanel) return;
-		void bridge.windows.restorePanel({ kind, scope });
+		try {
+			if (kind === "file") await flushFilePanelState();
+			await bridge.windows.restorePanel({ kind, scope });
+		} catch (error) {
+			useApp.getState().notify(String(error), "error");
+		}
 	};
 
 	return (

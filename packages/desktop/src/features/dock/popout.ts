@@ -12,6 +12,7 @@
 import { create } from "zustand";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
+import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { paneFloor, tilePaneFloor } from "./geometry.ts";
 import { clearsFloors, fitTree } from "./layout.ts";
 import { dropFits, homeOf, placePanel } from "./place.ts";
@@ -121,14 +122,15 @@ export async function popOutPanel(input: {
 	});
 	let opened = false;
 	try {
-		opened = (await bridge.windows.openPanel({ kind: input.kind, scope: input.scope, sessionId: input.sessionId })).ok;
+		opened = (await bridge.windows.openPanel({ kind: input.kind, scope: input.scope, sessionId: input.sessionId, ...(input.kind === "file" ? { fileState: filePanelSnapshot() } : {}) })).ok;
 	} finally {
 		if (!opened) {
 			usePanelWindows.setState((state) => ({ opening: state.opening.filter((panel) => panel.scope !== input.scope || panel.kind !== input.kind) }));
 			// Rollback is a transaction, not a new placement request: a failed window must not lose its pane.
 			const current = input.dock === "pane" ? usePaneDock.getState().tree(input.scope) : useDock.getState().tree;
 			if (has(tree, input.kind) && !has(current, input.kind)) {
-				const restored = JSON.stringify(home.rest) === JSON.stringify(current) ? tree : insert(current, input.kind, home.at ?? { side: "right", kind: null });
+				const at = home.at && (home.at.kind === null || has(current, home.at.kind)) ? home.at : { side: "right", kind: null } as const;
+				const restored = JSON.stringify(home.rest) === JSON.stringify(current) ? tree : insert(current, input.kind, at);
 				if (input.dock === "pane") usePaneDock.getState().restoreLayout(input.scope, restored);
 				else useDock.getState().restoreLayout(restored);
 			}
@@ -158,7 +160,7 @@ function dockBack(kind: PanelKind, scope: string): boolean {
 		}
 		if (!viewport) return false;
 		const floor = (pane: PaneKind) => pane === "conversation" ? viewport.conversation : paneFloor(pane);
-		const fits = (candidate: DockNode) => viewport.compact || clearsFloors(fitTree(candidate, viewport, floor), viewport, floor);
+		const fits = (candidate: DockNode) => has(candidate, kind) && (viewport.compact || clearsFloors(fitTree(candidate, viewport, floor), viewport, floor));
 		const snapshot = restoredHomeTree(home, tree, kind);
 		if (snapshot && fits(snapshot)) useDock.getState().restoreLayout(snapshot);
 		else {
@@ -235,12 +237,12 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 		return;
 	}
 	const scope = readScope();
-	if (!scope) {
-		useDock.getState().open(kind, beside);
+	if (isPopped(scope ?? "window", kind)) {
+		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope: scope ?? "window", sessionId: sessionOf(scope ?? "window"), ...(kind === "file" ? { fileState: filePanelSnapshot() } : {}) });
 		return;
 	}
-	if (isPopped(scope, kind)) {
-		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope) });
+	if (!scope) {
+		useDock.getState().open(kind, beside);
 		return;
 	}
 	if (has(usePaneDock.getState().tree(scope), kind)) return;
@@ -350,8 +352,20 @@ export function watchPanelWindows(): () => void {
 		.then((result) => { if (first) apply(result.panels ?? []); })
 		.catch(() => {});
 	const stopChanged = bridge.windows.onChanged((state) => apply(state.panels ?? []));
-	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope }) => {
-		if (dockBack(kind as PanelKind, scope)) void bridge.windows.closePanel({ kind, scope });
+	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {
+		if (!dockBack(kind as PanelKind, scope)) return;
+		const restore = async () => {
+			if (fileState) {
+				const current = filePanelSnapshot();
+				const paths = new Set(fileState.tabs.map((tab) => tab.path));
+				await applyFilePanelState({ ...fileState, tabs: [...current.tabs.filter((tab) => !paths.has(tab.path)), ...fileState.tabs], drafts: { ...Object.fromEntries(Object.entries(current.drafts).filter(([path]) => !paths.has(path))), ...fileState.drafts } });
+			}
+			await bridge.windows.closePanel({ kind, scope });
+		};
+		void restore().catch((error: unknown) => {
+			// oxlint-disable-next-line no-console -- a failed handoff must keep the native editor and its draft alive.
+			console.error("Failed to restore panel", error);
+		});
 	});
 	return () => {
 		stopChanged();

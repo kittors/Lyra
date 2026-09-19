@@ -48,8 +48,8 @@ async function trajectoryGeometry(): Promise<string> {
 	})())`);
 }
 
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=300;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);
+async function until(expression: string, target: Pick<RunningApp, "evaluate"> = app) {
+	await target.evaluate(`new Promise((resolve,reject)=>{let n=300;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);
 }
 async function openPane(label: string) {
 	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
@@ -57,10 +57,10 @@ async function openPane(label: string) {
 	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent.includes(${JSON.stringify(label)}))`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.includes(${JSON.stringify(label)})).click()`);
 }
-async function shot(name: string) {
+async function shot(name: string, target: Pick<RunningApp, "send"> = app) {
 	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
-	const data = await app.send<{data: string}>("Page.captureScreenshot", { format: "png" });
+	const data = await target.send<{data: string}>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(data.data, "base64"));
 }
 
@@ -70,7 +70,7 @@ async function settle() {
 async function clickControl(selector: string) {
 	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
 	await settle();
-	const p = await app.evaluate<{x: number; y: number}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('control is covered');return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	const p = await app.evaluate<{x: number; y: number}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);if(!e.contains(hit))throw new Error('control is covered: '+JSON.stringify({selector:${JSON.stringify(selector)},x,y,hit:hit?.outerHTML.slice(0,1000),layers:document.elementsFromPoint(x,y).slice(0,5).map(n=>({tag:n.tagName,className:n.className,role:n.getAttribute('role'),inert:!!n.closest('[inert]')}))}));return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved", ...p});
 	await app.send("Input.dispatchMouseEvent", {type:"mousePressed", ...p, button:"left", clickCount:1});
 	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased", ...p, button:"left", clickCount:1});
@@ -193,10 +193,18 @@ test("task execution search includes omitted text, links to its trajectory and o
 	const read = await app.evaluate(`(async()=>{const m=(await window.lyra.sessions.list()).find(m=>m.id==='10000000-0000-4000-8000-000000000001');const p=await window.lyra.sessions.exportTrajectory(m.projectId,m.id,'output',{correlationId:'trace-run-2499'});const r=await window.lyra.files.read(p);return {path:p,read:r?{bytes:r.bytes,truncated:r.truncated,tail:r.text.slice(-20)}:null};})()`);
 	assert.ok(read.read, JSON.stringify(read));
 	assert.ok(read.read.bytes > 200000 && read.read.truncated === false && read.read.tail.endsWith("RAW_FILE_TAIL"), JSON.stringify(read));
-	await until(`document.querySelector('[data-dock-pane="file"] .cm-content')`);
-	const paths = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane="file"] [data-ly-tip]')].map(e=>e.getAttribute('data-ly-tip'))`);
+	let host: Pick<RunningApp, "evaluate" | "send"> | undefined;
+	for (let attempt = 0; attempt < 300; attempt++) {
+		const panel = (await app.windows()).find(window => window.boot.kind === "panel" && window.boot.panelKind === "file");
+		if (panel) { host = panel; break; }
+		if (await app.evaluate(`(()=>{const pane=document.querySelector('[data-dock-pane="file"]');return !!pane&&!pane.closest('[inert]')&&pane.checkVisibility({opacityProperty:true});})()`)) { host = app; break; }
+		await app.evaluate("new Promise(requestAnimationFrame)");
+	}
+	assert.ok(host, "raw output has a docked or detached file surface");
+	await until(`document.querySelector('.cm-content')?.textContent.includes('RAW_LOG')`, host);
+	const paths = await host.evaluate<string[]>(`[...document.querySelectorAll('[data-ly-tip]')].map(e=>e.getAttribute('data-ly-tip'))`);
 	assert.ok(paths.some(path => path.includes("build.log")), JSON.stringify(paths));
-	await shot("task-raw-output");
+	await shot("task-raw-output", host);
 });
 
 test("session switching never renders the previous trace selection or filter contents", async () => {
