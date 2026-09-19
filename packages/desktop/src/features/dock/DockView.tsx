@@ -32,6 +32,7 @@ import { DockPane } from "./DockPane.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
 import { popOutPanel } from "./popout.ts";
+import { readDockAt } from "./persist.ts";
 import { useDock } from "./store.ts";
 import { canToggleMaximized } from "./visibility.ts";
 import type { PanelKind } from "./sideStore.ts";
@@ -189,9 +190,21 @@ export function DockView({
 		 * 才说明这个窗口已经认过布局，此后的变化才是焦点在屏之间移动。
 		 */
 		if (screens > 1 && useDock.getState().scope) return;
+		/*
+		 * 分屏状态下刷新：该认哪把钥匙，盘上记着。
+		 *
+		 * 上一段说的是「分屏时不跟着焦点换布局」，而刷新恰好把那个决定抹掉了——`scope` 回到
+		 * null，这一行于是不再早退，拿着焦点那一屏的会话 id 去 adopt。进入分屏之前开好的
+		 * 浏览器属于**进入分屏时那个会话**，读焦点那一屏的钥匙只会读到空的，面板就没了。
+		 * 实测：刷新前两屏带浏览器，刷新后两屏、面板 [无]，而盘上只有一把 `dw:dock:9da154cc`。
+		 *
+		 * 只在分屏且还没认过布局时读它。单屏不读——那里「当前会话」就是答案，每会话布局
+		 * 正是它该有的样子。
+		 */
+		const at = screens > 1 && !useDock.getState().scope ? readDockAt() ?? session : session;
 		const settled = freezeMotion();
 		document.documentElement.dataset.dockSettling = "";
-		useDock.getState().adopt(session, allowed.current);
+		useDock.getState().adopt(at, allowed.current);
 		const frame = requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
 				settled();

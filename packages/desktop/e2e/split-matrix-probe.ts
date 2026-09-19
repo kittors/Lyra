@@ -733,6 +733,32 @@ async function main(): Promise<void> {
 				`刷新前 ${before.tiles.length} 屏带浏览器，刷新后 ${after.tiles.length} 屏、面板 [${kindsOf(after).join(",") || "无"}]`];
 		});
 
+		await scene("E2b", "先单屏开面板（落在窗口 dock），再分屏，再刷新", async () => {
+			/*
+			 * 这一条问的才是 E2 那个设计决策的真实形态，而 E2 自己绕开了它。
+			 *
+			 * E2 先分屏再开浏览器——分屏之后从工具条开的面板落在**那一屏**（pane dock），所以
+			 * 它量的其实是 E3。窗口 dock 在分屏下只会装着「进入分屏之前就开着的」面板，要摆出
+			 * 那个状态，顺序必须是先开后分。
+			 *
+			 * 而那正是难处所在：浏览器存在分屏之前那个会话名下，分屏把焦点交给新进来的一屏，
+			 * 刷新后 `activeSessionId` 恢复成焦点那一屏，读的是另一把钥匙。
+			 */
+			if (!(await clickTopBar("浏览器"))) return ["skip", "工具条上没有浏览器按钮"];
+			await wait(1300);
+			const single = await shot();
+			if (single.panes["browser"]?.at !== "window") return ["skip", `单屏下浏览器没落在窗口 dock，而在 ${single.panes["browser"]?.at ?? "哪儿都不在"}`];
+			if ((await splitTo(2)) < 2) return ["skip", `没分成两屏：${splitWhy}`];
+			const split = await shot();
+			if (split.panes["browser"]?.at !== "window") {
+				return ["bad", `分屏之后浏览器就从窗口 dock 上走了，现在在 ${split.panes["browser"]?.at ?? "哪儿都不在"}`];
+			}
+			await reload();
+			const after = await shot();
+			return [after.panes["browser"]?.at === "window" ? "ok" : "bad",
+				`刷新前 ${split.tiles.length} 屏、浏览器在窗口 dock，刷新后 ${after.tiles.length} 屏、浏览器在 ${after.panes["browser"]?.at ?? "哪儿都不在"}（面板 [${kindsOf(after).join(",") || "无"}]，钥匙 [${after.keys.join(" ")}]）`];
+		});
+
 		await scene("E3", "分屏：tile 里的面板刷新后恢复", async () => {
 			if ((await splitTo(2)) < 2) return ["skip", `没分成两屏：${splitWhy}`];
 			await clickTile(0, "终端");

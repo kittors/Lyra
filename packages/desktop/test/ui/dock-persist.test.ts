@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dropTree, flushTree, paneStorageKey, readTree, storageKey, writeTree } from "../../src/features/dock/persist.ts";
+import { dropTree, flushTree, paneStorageKey, readDockAt, readTree, storageKey, writeTree } from "../../src/features/dock/persist.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { useDock } from "../../src/features/dock/store.ts";
 import { leafOf, type DockNode, type PaneKind } from "../../src/features/dock/tree.ts";
@@ -238,4 +238,29 @@ test("弹出去没收回就退出应用，重开时面板回到它记着的位�
 	assert.ok(has(useDock.getState().tree, "browser"), "既没有窗口也不在 dock 里——那个面板就这么没了");
 	assert.equal(homesOnDisk()["window:browser"], undefined, "放回去了，指向空处的记录该清掉");
 	stop();
+});
+
+/*
+ * 分屏时窗口 dock 认的是哪一把钥匙。
+ *
+ * 那个决定一直都在——`DockView` 分屏时就不再跟着焦点换 scope，因为屏上有两三个会话，
+ * 「当前会话」对窗口 dock 没有意义。但它只活在内存里：刷新之后 `scope` 回到 null，dock
+ * 拿着焦点那一屏的会话 id 去读，读到一把空钥匙，进入分屏之前开好的浏览器就凭空消失了，
+ * 而它的布局在盘上好端端存着。实测 E2b：刷新前两屏带浏览器，刷新后两屏、面板 [无]。
+ */
+
+test("adopt 一个真实会话时，把那把钥匙记在盘上", () => {
+	clear();
+	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null });
+	useDock.getState().adopt("sess-a", ALLOWED);
+	assert.equal(readDockAt(), "sess-a");
+});
+
+test("刷新后那一下带着 null 的 adopt，不许把记着的钥匙抹掉", () => {
+	clear();
+	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null });
+	useDock.getState().adopt("sess-a", ALLOWED);
+	// 刷新之后第一次 adopt 必然是 null：`activeSessionId` 还没恢复。
+	useDock.getState().adopt(null, ALLOWED);
+	assert.equal(readDockAt(), "sess-a", "那一下把钥匙抹掉了——而它正是分屏刷新要找回来的东西");
 });

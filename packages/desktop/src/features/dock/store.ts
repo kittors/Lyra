@@ -13,7 +13,7 @@
 import { create } from "zustand";
 import { sameDrop } from "./drop.ts";
 import { COLUMN_LIMIT, MIN_FRACTION } from "./geometry.ts";
-import { flushTree, readTree, storageKey, writeTree } from "./persist.ts";
+import { flushTree, readTree, storageKey, writeDockAt, writeTree } from "./persist.ts";
 import {
 	defaultTree,
 	has,
@@ -548,6 +548,7 @@ export const useDock = create<DockState>((set, get) => {
 			if (adopted && scope && leaving === null && !stored && kinds(tree).length > 1) {
 				set({ scope, drag: null });
 				save(scope, tree);
+				writeDockAt(scope);
 				return;
 			}
 
@@ -559,6 +560,8 @@ export const useDock = create<DockState>((set, get) => {
 				maximized: null,
 				drag: null,
 			});
+			// 分屏状态下刷新之后，dock 要知道自己上一轮认的是哪把钥匙——见 `writeDockAt`。
+			writeDockAt(scope);
 		},
 	};
 });

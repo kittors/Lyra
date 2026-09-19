@@ -40,6 +40,45 @@ const SAVE_DELAY = 120;
 export const storageKey = (session: string | null | undefined): string => `dw:dock:${session || "@draft"}`;
 
 /**
+ * 窗口 dock 此刻认的是哪一把钥匙。
+ *
+ * 分屏一开，`DockView` 就不再跟着焦点换 scope——屏上有两三个会话，「当前会话」对窗口 dock
+ * 没有意义，而跟着焦点换布局会在焦点一动时关掉人刚在网格旁边开好的终端。那个决定一直都在，
+ * 只是活在内存里：刷新之后没人记得它，dock 拿着焦点那一屏的会话 id 去读，读到一把空钥匙，
+ * 进入分屏之前开好的浏览器就凭空消失了——而它的布局在盘上好端端存着，存了，读的是别处。
+ *
+ * 这不改「每会话布局」的语义，只是让那个已经做过的决定活过刷新。
+ *
+ * 不带 windowId：窗口 dock 只有 primary 窗口有（会话窗口和面板窗口里根本没有 dock），
+ * 而 primary 只会有一个。
+ */
+const AT_KEY = "dw:dock:at";
+
+export function readDockAt(): string | null {
+	try {
+		return window.localStorage.getItem(AT_KEY);
+	} catch {
+		// 读不到就退回「跟着当前会话走」，也就是从前的行为。
+		return null;
+	}
+}
+
+/**
+ * 只记真实会话，不记 null。
+ *
+ * 刷新之后第一次 `adopt` 必然带着 null——`activeSessionId` 还没恢复。那一下要是也写进去，
+ * 就把上一轮记着的钥匙抹掉了，而它正是这一整件事要找回来的东西。
+ */
+export function writeDockAt(scope: string | null): void {
+	if (!scope) return;
+	try {
+		window.localStorage.setItem(AT_KEY, scope);
+	} catch {
+		// 存不下就退回从前的行为，不值得打断任何人。
+	}
+}
+
+/**
  * 分屏里某一屏自己的那棵 dock 树存在哪。
  *
  * 和窗口 dock 分开放：它们是两棵不同的树，同一个会话可以既在窗口 dock 上有布局，又作为一屏
