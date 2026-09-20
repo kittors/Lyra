@@ -28,7 +28,7 @@ import { sameStatus } from "./sameStatus.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useNarrow } from "../../ui/hooks/useNarrow.ts";
-import { CommitPushPopover } from "./CommitPushPopover.tsx";
+import { CommitPushDialog } from "./CommitPushDialog.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
@@ -71,6 +71,7 @@ function SyncControl({
 	disabled,
 	roomForWords,
 	onClick,
+	mark,
 }: {
 	icon: React.ReactNode;
 	/** The verb, for the wide form. */
@@ -79,11 +80,20 @@ function SyncControl({
 	running: boolean;
 	disabled: boolean;
 	roomForWords: boolean;
+	/** 探针用的稳定抓手——见上面那段注释。 */
+	mark?: string;
 	onClick: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
 	const { t } = useI18n();
 	const [hovered, setHovered] = useState(false);
 	const label = running ? t("git.cancelAction", { word }) : state.tip;
+	/*
+	 * 给探针一个不随文案走的抓手。
+	 *
+	 * 这一颗的 aria-label 是 `state.tip`——「已与 origin/main 同步」「3 个提交尚未推送」，跟着
+	 * 仓库状态和界面语言一起变。探针按文字找它，换个仓库就找不着了（第一版正是如此，报出来像是
+	 * 「提交入口不见了」）。
+	 */
 	const currentIcon = running ? (hovered ? <X size={12} strokeWidth={2} className="text-ink" /> : <ActionSpinner size={12} />) : icon;
 
 	// Words only for the emphasised control, only when it is idle, and only when the row is wide
@@ -91,6 +101,7 @@ function SyncControl({
 	if (!roomForWords || !state.emphasis || running) {
 		return (
 			<span
+				data-ly-sync={mark}
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => setHovered(false)}
 				className="inline-flex"
@@ -112,6 +123,7 @@ function SyncControl({
 		<button
 			type="button"
 			aria-label={label}
+			data-ly-sync={mark}
 			data-ly-tip={label}
 			data-ly-count={state.count === null ? undefined : String(state.count)}
 			disabled={disabled}
@@ -655,6 +667,7 @@ export function GitPanel() {
           onClick={() => void remote("pull", (id) => bridge.git.pull(cwd, id))}
         />
         <SyncControl
+          mark="push"
           icon={<ArrowUpFromLine size={12} strokeWidth={1.9} />}
           word={plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream" ? t("git.publish") : t("common.push")}
           state={plan.push}
@@ -670,7 +683,7 @@ export function GitPanel() {
           }}
         />
         {pushPopover.open && cwd && (
-          <CommitPushPopover
+          <CommitPushDialog
             cwd={cwd}
             branch={status?.branch ?? plan.branch}
             stagedCount={status?.staged.length ?? 0}
@@ -682,8 +695,9 @@ export function GitPanel() {
             /* 同一份数目，和工具条上那颗推送按钮读的是同一处——两边不该各算各的。 */
             unpushed={plan.push.count ?? 0}
             pushTip={plan.push.tip}
-            anchor={pushPopover.anchor}
             onClose={pushPopover.close}
+            /* 分支换了，这一层的 status 和同步计划都要重读——否则弹窗关上后面板还写着旧分支。 */
+            onBranchChanged={() => void read()}
             onCommit={async (msg) => {
               const res = await act(() => bridge.git.commitStaged(cwd, msg));
               await read();

@@ -1,30 +1,29 @@
 /**
- * 从 Git 工具条上提交和推送的那个浮层。
+ * 提交与推送，一个居中的弹窗。
  *
- * 它替掉了常驻在面板底部的那个输入区。一个浮层能装下的东西有限，所以这里只放三件事：
- * 写什么、带上谁、做哪一个。
+ * 从前它是挂在 Git 工具条那颗按钮上的 popover——贴着窗口右上角展开，宽 340，底下压着半个面板。
+ * 提交是这个应用里少数几件「按下去就改变了磁盘」的事，它值得占住屏幕中间、把背后的东西压暗，
+ * 而不是像一个顺手的菜单那样挂在角上。
  *
- * **留空即自动生成**，这是这一版的中心。从前生成是一颗独立的魔杖按钮：人得先点它、等一下、
- * 看一眼、再点提交——四步做一件事，而且那颗按钮长在输入框右上角，和「写字」抢同一块地方。
- * 现在输入框自己说「留空将自动生成」，提交时如果还是空的就先生成再提交，生成出来的那句话
- * **写回输入框**——人看得见自己提交的是什么，这一点不能省：无声地替人写一句提交说明再提交，
- * 是把记录权拿走了。
+ * **留空即自动生成**：输入框自己说这句话，提交时空着就先生成再提交，生成出来的**写回输入框**
+ * ——人看得见自己提交的是什么。无声地替人写一句提交说明再提交，是把记录权拿走了。
  *
- * 生成这件事从前在两处各写了一遍（这里一份、`GitPanel` 的 `onCommitAndPush` 一份），于是
- * 「提交」能看见「正在生成」而「提交并推送」看不见——同一个等待，一个有反馈一个没有。现在
- * 只有 `withMessage` 一处，两个入口都走它。
+ * **提交到哪个分支**也在这里选。分支那一行是可以点的：展开是本地分支的清单，末尾一项是「新分支」。
+ * 选了新分支不会当场创建——名字先记着，等真的提交那一刻才 `git switch -c`。中途改了主意就什么
+ * 都没发生，而不是在仓库里留下一个空分支。
  */
 
-import { Check, ChevronDown, CloudUpload, GitBranch, GitCommitHorizontal, Languages, Upload } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, ChevronDown, CloudUpload, GitBranch, GitCommitHorizontal, Languages, Plus, Upload, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { MenuBody, MenuItem, Popover, usePopover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { COMMIT_LANGUAGES, commitLanguageLabel, resolveCommitLanguage } from "./commit-language.ts";
 
-export interface CommitPushPopoverProps {
+export interface CommitPushDialogProps {
 	cwd: string;
 	branch: string;
 	stagedCount: number;
@@ -33,23 +32,22 @@ export interface CommitPushPopoverProps {
 	removedCount: number;
 	busy: boolean;
 	running: boolean;
-	/**
-	 * 还没推上去的提交数，以及要不要拦住「推送」。
-	 *
-	 * 从前这一行永远可点、而且永远画成灰的——两句话互相矛盾，人点下去才知道是哪一句当真。
-	 * 数目来自 `syncPlan`，和工具条上那颗按钮读的是同一份。
-	 */
+	/** 还没推上去的提交数——没有可推的就真的禁用那一行，而不是画成灰的却照样可点。 */
 	unpushed: number;
 	/** `syncPlan` 已经写好的那句话：几个提交没推，或者已经同步。 */
 	pushTip: string;
-	anchor: Anchor;
 	onClose: () => void;
 	onCommit: (message: string) => Promise<boolean>;
 	onCommitAndPush: (message: string, includeUnstaged: boolean) => Promise<boolean>;
 	onPush: () => Promise<void>;
+	/** 分支换了，外面那份 status 要重读。 */
+	onBranchChanged?: () => void;
 }
 
-export function CommitPushPopover({
+/** 提交到哪里：当前这个分支，还是一个还没建出来的新分支。 */
+type Target = { kind: "current" } | { kind: "new"; name: string };
+
+export function CommitPushDialog({
 	cwd,
 	branch,
 	stagedCount,
@@ -60,30 +58,44 @@ export function CommitPushPopover({
 	running,
 	unpushed,
 	pushTip,
-	anchor,
 	onClose,
 	onCommit,
 	onCommitAndPush,
 	onPush,
-}: CommitPushPopoverProps) {
+	onBranchChanged,
+}: CommitPushDialogProps) {
 	const { t } = useI18n();
 	const [message, setMessage] = useState("");
 	const [generating, setGenerating] = useState(false);
 	const [includeUnstaged, setIncludeUnstaged] = useState(stagedCount === 0 && unstagedCount > 0);
 	const [workingAction, setWorkingAction] = useState<"commit" | "commitAndPush" | "push" | null>(null);
+	const [target, setTarget] = useState<Target>({ kind: "current" });
+	const [locals, setLocals] = useState<string[]>([]);
+	const newBranchField = useRef<HTMLInputElement>(null);
 
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const notify = useApp((s) => s.notify);
 
 	const languageMenu = usePopover();
+	const branchMenu = usePopover();
 	const language = resolveCommitLanguage(settings?.commitLanguage);
 
 	useEffect(() => {
-		if (stagedCount === 0 && unstagedCount > 0) {
-			setIncludeUnstaged(true);
-		}
+		if (stagedCount === 0 && unstagedCount > 0) setIncludeUnstaged(true);
 	}, [stagedCount, unstagedCount]);
+
+	/* 本地分支，开弹窗时读一次。读不到就只剩「当前分支」和「新分支」两项，仍然可用。 */
+	useEffect(() => {
+		let live = true;
+		void bridge.git.branches(cwd).then((list) => { if (live) setLocals(list.local); }).catch(() => {});
+		return () => { live = false; };
+	}, [cwd]);
+
+	/* 选了「新分支」就把光标送过去——多按一次 Tab 才能打字，是这一步最容易丢人的地方。 */
+	useEffect(() => {
+		if (target.kind === "new") newBranchField.current?.focus();
+	}, [target.kind]);
 
 	function setLanguage(id: string) {
 		if (!settings) return;
@@ -94,11 +106,10 @@ export function CommitPushPopover({
 	/**
 	 * 人写的那句话，没写就现生成一句。
 	 *
-	 * 生成出来的写回输入框再返回：这一步不是多余的。浮层在提交成功后才关，中间这一两秒里
-	 * 输入框是空的——把生成的句子填进去，人在提交发生之前看得到它，失败留在原地时也还在。
+	 * 生成出来的写回输入框再返回：弹窗在提交成功后才关，中间这一两秒里输入框是空的——把生成的
+	 * 句子填进去，人在提交发生之前看得到它，失败留在原地时也还在。
 	 *
-	 * 返回 `null` 表示「这一次不要往下走了」：生成失败已经弹过 toast，再拿一句空的去提交只会
-	 * 变成第二个错误。
+	 * 返回 `null` 是「这一次别往下走了」：生成失败已经弹过 toast，再拿一句空的去提交只会是第二个错误。
 	 */
 	async function withMessage(): Promise<string | null> {
 		const trimmed = message.trim();
@@ -117,18 +128,49 @@ export function CommitPushPopover({
 		}
 	}
 
-	/** 把未暂存的也带上——`includeUnstaged` 说要带的时候。 */
-	async function stageIfAsked(): Promise<void> {
-		if (!includeUnstaged || unstagedCount === 0) return;
-		const status = await bridge.git.status(cwd);
-		const paths = status.unstaged.map((file) => file.path);
-		if (paths.length > 0) await bridge.git.stage(cwd, paths);
+	/**
+	 * 要提交到别处的话，先把分支换过去。
+	 *
+	 * 新分支到这一刻才创建（`git switch -c` 带着工作区的改动过去），所以中途改主意不会在仓库里
+	 * 留下空分支。返回 false 表示换失败了，这一次提交不该继续——否则就提交到了人没选的那个分支上。
+	 */
+	async function moveToTarget(): Promise<boolean> {
+		if (target.kind === "current") return true;
+		const name = target.name.trim();
+		if (!name) {
+			notify(t("commit.branchNameEmpty"), "error");
+			return false;
+		}
+		const result = await bridge.git.createBranch(cwd, name);
+		if (!result.ok) {
+			notify(result.error ?? t("commit.branchCreateFailed"), "error");
+			return false;
+		}
+		setTarget({ kind: "current" });
+		onBranchChanged?.();
+		return true;
+	}
+
+	async function switchTo(name: string) {
+		branchMenu.close();
+		if (name === branch) {
+			setTarget({ kind: "current" });
+			return;
+		}
+		const result = await bridge.git.switchBranch(cwd, name);
+		if (!result.ok) {
+			notify(result.error ?? t("commit.branchSwitchFailed"), "error");
+			return;
+		}
+		setTarget({ kind: "current" });
+		onBranchChanged?.();
 	}
 
 	async function handleCommit() {
 		if (!hasChanges) return;
 		setWorkingAction("commit");
 		try {
+			if (!(await moveToTarget())) return;
 			await stageIfAsked();
 			const finalMessage = await withMessage();
 			if (!finalMessage) return;
@@ -141,10 +183,18 @@ export function CommitPushPopover({
 		}
 	}
 
+	async function stageIfAsked(): Promise<void> {
+		if (!includeUnstaged || unstagedCount === 0) return;
+		const status = await bridge.git.status(cwd);
+		const paths = status.unstaged.map((file) => file.path);
+		if (paths.length > 0) await bridge.git.stage(cwd, paths);
+	}
+
 	async function handleCommitAndPush() {
 		if (!hasChanges) return;
 		setWorkingAction("commitAndPush");
 		try {
+			if (!(await moveToTarget())) return;
 			// 暂存交给 `onCommitAndPush`：推送那一步要它先看一眼暂存区，两件事在同一处才对得上。
 			const finalMessage = await withMessage();
 			if (!finalMessage) return;
@@ -173,21 +223,87 @@ export function CommitPushPopover({
 	const willGenerate = !message.trim() && !generating;
 
 	return (
-		<Popover anchor={anchor} onClose={onClose} placement="bottom" align="end" width={340} label={t("commit.commit")}>
-			<div className="flex flex-col p-3.5 text-detail">
-				{/*
-				 * 分支是这里的上下文，不是一个可以点的东西。
-				 *
-				 * 它一度带着一枚下拉箭头——而箭头后面什么都没有。在一个「提交到哪里」的浮层里，
-				 * 一枚点了不动的箭头比没有箭头更糟：它看起来正好像是那个能改掉目的地的控件。
-				 * 换分支在分支页，那里才有它需要的上下文（未提交的改动怎么办、要不要新建）。
-				 */}
-				<div className="flex items-center gap-1.5 pb-2.5 text-ink">
-					<GitBranch size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />
-					<span className="min-w-0 truncate font-semibold text-label">{branch}</span>
+		<Overlay onClose={onClose} width={460} label={t("commit.commit")}>
+			<div data-ly-commit-dialog className="flex flex-col p-4 text-detail">
+				{/* 提交到哪儿。这一行是可以点的——展开是本地分支，末尾一项是新建。 */}
+				<div className="flex items-center gap-1.5 pb-2.5">
+					{target.kind === "new" ? (
+						<div className="flex min-w-0 flex-1 items-center gap-1.5">
+							<GitBranch size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />
+							<input
+								ref={newBranchField}
+								value={target.name}
+								onChange={(e) => setTarget({ kind: "new", name: e.target.value })}
+								placeholder={t("commit.newBranchPlaceholder")}
+								disabled={disabled}
+								data-ly-new-branch
+								className="min-w-0 flex-1 border-none bg-transparent p-0 text-label font-semibold text-ink placeholder:font-normal placeholder:text-ink-faint focus:outline-none"
+								onKeyDown={(e) => {
+									// Esc 收回这一步，回到当前分支——它不该连整个弹窗一起关掉。
+									if (e.key === "Escape") {
+										e.preventDefault();
+										e.stopPropagation();
+										setTarget({ kind: "current" });
+									}
+								}}
+							/>
+							<button
+								type="button"
+								aria-label={t("common.cancel")}
+								onClick={() => setTarget({ kind: "current" })}
+								className="flex size-5 shrink-0 items-center justify-center rounded text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
+							>
+								<X size={12} strokeWidth={2} />
+							</button>
+						</div>
+					) : (
+						<button
+							type="button"
+							data-ly-branch-picker
+							disabled={disabled}
+							onClick={branchMenu.toggle}
+							className="-ml-1 flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-ink transition-colors hover:bg-card-hover disabled:opacity-40"
+						>
+							<GitBranch size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />
+							<span className="min-w-0 truncate font-semibold text-label">{branch}</span>
+							<ChevronDown size={12} strokeWidth={2} className="shrink-0 text-ink-muted" />
+						</button>
+					)}
 				</div>
 
-				{/* 写什么。无边框——这一块本来就是浮层里唯一一处要打字的地方，再画个框是重复说明。 */}
+				{branchMenu.open && (
+					<Popover anchor={branchMenu.anchor} onClose={branchMenu.close} placement="bottom" align="start" width="compact" label={t("commit.commitTo")}>
+						<MenuBody>
+							<MenuLabel>{t("commit.commitTo")}</MenuLabel>
+							{(locals.length > 0 ? locals : [branch]).map((name) => (
+								<MenuItem
+									key={name}
+									selected={name === branch}
+									trailing={name === branch ? <Check size={13} strokeWidth={2.2} className="shrink-0 text-ink" /> : undefined}
+									onClick={() => void switchTo(name)}
+								>
+									<span className="flex min-w-0 items-center gap-1.5">
+										<GitBranch size={12} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
+										<span className="truncate">{name}</span>
+									</span>
+								</MenuItem>
+							))}
+							<MenuItem
+								onClick={() => {
+									branchMenu.close();
+									setTarget({ kind: "new", name: "" });
+								}}
+							>
+								<span className="flex items-center gap-1.5">
+									<Plus size={12} strokeWidth={2} className="shrink-0 text-ink-faint" />
+									<span>{t("commit.newBranch")}</span>
+								</span>
+							</MenuItem>
+						</MenuBody>
+					</Popover>
+				)}
+
+				{/* 写什么。无边框——这一块本来就是弹窗里唯一要打字的地方，再画个框是重复说明。 */}
 				<div className="relative">
 					<textarea
 						value={message}
@@ -207,9 +323,8 @@ export function CommitPushPopover({
 					{/*
 					 * 生成中的那一下，由输入框自己交代。
 					 *
-					 * 按钮上的 spinner 说的是「这个动作在跑」，而此刻真正在发生的是「模型在写字」——
-					 * 两三秒，放在字会出现的地方才对得上。placeholder 已经换成了「正在生成…」，
-					 * 这枚转圈只是让它不像一句静止的提示。
+					 * 按钮上的 spinner 说的是「这个动作在跑」，而此刻真正发生的是「模型在写字」——
+					 * 两三秒，放在字会出现的地方才对得上。
 					 */}
 					{generating && (
 						<span className="pointer-events-none absolute top-0.5 right-0">
@@ -218,12 +333,7 @@ export function CommitPushPopover({
 					)}
 				</div>
 
-				{/*
-				 * 用什么语言生成——只在真的会生成时才出现。
-				 *
-				 * 它从前和输入框抢右上角，不管人是不是打算让它生成。现在它只跟着「留空」这个状态走：
-				 * 输入框一有字，自动生成就不会发生，这一行也就没有意义了。
-				 */}
+				{/* 用什么语言生成——只在真的会生成时才出现。有字了就不会自动生成，这一行也就没意义。 */}
 				{willGenerate && (
 					<div className="flex justify-end pt-1">
 						<button
@@ -263,9 +373,8 @@ export function CommitPushPopover({
 					<label className="mt-1.5 flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 transition-colors select-none hover:bg-card-hover">
 						<span className="flex min-w-0 items-center gap-2">
 							{/*
-							 * 自己画的方框，不是原生 checkbox——后者在两个平台上长得不一样，而这一枚
-							 * 挨着的是我们自己的字号和圆角。真正的 input 留在 `sr-only` 里，键盘和
-							 * 读屏走的仍然是它。
+							 * 自己画的方框，不是原生 checkbox——后者在两个平台上长得不一样，而这一枚挨着的
+							 * 是我们自己的字号和圆角。真正的 input 留在 `sr-only` 里，键盘和读屏走的仍是它。
 							 */}
 							<span
 								aria-hidden
@@ -321,14 +430,14 @@ export function CommitPushPopover({
 					/>
 				</div>
 			</div>
-		</Popover>
+		</Overlay>
 	);
 }
 
 /**
- * 浮层底部那三行，一个样子。
+ * 弹窗底部那三行，一个样子。
  *
- * 抽出来是因为三行之间只差图标、文案和末尾那一点东西，而它们之前各写一遍的结果是高度、圆角和
+ * 抽出来是因为三行之间只差图标、文案和末尾那一点东西，而它们各写一遍的结果是高度、圆角和
  * spinner 尺寸三处都对不齐——同一组按钮，看得出是三次写出来的。
  */
 function ActionRow({
