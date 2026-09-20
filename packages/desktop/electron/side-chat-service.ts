@@ -1,6 +1,6 @@
 /** Shared side-chat operations used by Electron IPC and the mobile sync transport. */
 
-import { SideChat, restoredSideChatMessages, type SideChatEvent, type ThinkingLevel, type UserContent } from "@lyra/core";
+import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@lyra/core";
 import { settings } from "./app-settings.ts";
 import { broadcastSideChat, ensureLiveSession, sessions, sideChats } from "./session-hub.ts";
 import { loadSideChatSnapshot, saveSideChatTranscript, saveSideChat } from "./sidechat-store.ts";
@@ -86,17 +86,17 @@ export async function sideChatSetModel(sessionId: string, modelId: string | null
 	await chat.setModel(modelId);
 }
 
-export async function sideChatAsk(sessionId: string, content: UserContent[], options?: { thinking?: ThinkingLevel }): Promise<void> {
+export async function sideChatAsk(sessionId: string, content: UserContent[], options?: SideAskOptions): Promise<void> {
 	const chat = await ensureSideChat(sessionId);
 	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
 	// 不给 `thinking` 就回落到主会话，再回落到全局设置——见 `sidechat.ts` 的 `run`。
 	void chat.ask(content, options ?? {}).catch((error: unknown) => reportError(sessionId, error));
 }
 
-export async function sideChatEditAndResend(sessionId: string, index: number, content: UserContent[]): Promise<void> {
+export async function sideChatEditAndResend(sessionId: string, index: number, content: UserContent[], options?: SideAskOptions): Promise<void> {
 	const chat = await ensureSideChat(sessionId);
 	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
-	void chat.editAndResend(index, content).catch((error: unknown) => reportError(sessionId, error));
+	void chat.editAndResend(index, content, options ?? {}).catch((error: unknown) => reportError(sessionId, error));
 }
 
 export function sideChatAbort(sessionId: string): void {

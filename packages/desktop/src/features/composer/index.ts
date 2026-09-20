@@ -47,4 +47,4 @@ export type { PickedFile } from "./attachments/picked.ts";
  * 第二张图改」，在另外两处模型只能猜——那两个输入框收得下文件，句子里却什么都没有。
  */
 export { useAttachmentMarks } from "./useAttachmentMarks.ts";
-export { spellDraft } from "./outgoing.ts";
+export { attachmentMeta, spellDraft, type OutgoingMeta } from "./outgoing.ts";

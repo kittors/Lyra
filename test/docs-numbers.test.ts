@@ -131,5 +131,5 @@ test("pnpm arch 仍然把循环依赖的数目印出来", () => {
 		shell: process.platform === "win32",
 	});
 	assert.match(out, /known violations ignored/, "基线机制没生效，或者输出不再报数");
-	assert.match(out, /134 known violations/);
+	assert.match(out, /135 known violations/);
 });

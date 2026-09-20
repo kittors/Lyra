@@ -118,7 +118,7 @@ export function SideChat() {
 			<SideComposer
 				running={running}
 				disabled={!sessionId || loading}
-				onSend={(content) => void ask(content)}
+				onSend={(content, meta) => void ask(content, meta)}
 				onStop={() => void abort()}
 			/>
 		</div>

@@ -140,7 +140,8 @@ export function FileDiffTree({
 			<div key={file.path} className="group/tree-file mb-0.5">
 				<div
 					style={{ paddingLeft: `${Math.max(4, depth * 14)}px` }}
-					className="flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-card-hover"
+					// `relative`: the actions are laid over the counts rather than beside them.
+					className="relative flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-card-hover"
 				>
 					<button
 						type="button"
@@ -155,14 +156,21 @@ export function FileDiffTree({
 						/>
 						<look.Icon size={12.5} strokeWidth={1.75} className="shrink-0" style={{ color: iconColour(look) }} />
 						<span className="min-w-0 flex-1 truncate text-left text-detail text-ink">{node.name}</span>
-						<Text size="caption" mono numeric className="shrink-0">
+						{/* Hands the row's end to the actions as they appear — see `FileDiffList`. */}
+						<Text
+							size="caption"
+							mono
+							numeric
+							// 让位的时序和列表视图一模一样——那边的注释写了为什么要错开。
+							className="shrink-0 transition-opacity delay-[90ms] duration-[var(--ly-t-quick)] ease-[var(--ly-e-out)] group-hover/tree-file:opacity-0 group-hover/tree-file:delay-0 group-focus-within/tree-file:opacity-0 group-focus-within/tree-file:delay-0"
+						>
 							{file.added > 0 && <span className="text-ok">+{file.added}</span>}
 							{file.added > 0 && file.removed > 0 && " "}
 							{file.removed > 0 && <span className="text-danger">−{file.removed}</span>}
 						</Text>
 					</button>
 					{actions && (
-						<div className="flex shrink-0 items-center opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/tree-file:opacity-100 group-focus-within/tree-file:opacity-100">
+						<div className="pointer-events-none absolute right-1 flex items-center rounded-md bg-card-hover opacity-0 transition-opacity delay-0 duration-[var(--ly-t-quick)] ease-[var(--ly-e-out)] group-hover/tree-file:pointer-events-auto group-hover/tree-file:opacity-100 group-hover/tree-file:delay-[90ms] group-focus-within/tree-file:pointer-events-auto group-focus-within/tree-file:opacity-100 group-focus-within/tree-file:delay-[90ms]">
 							{actions(file)}
 						</div>
 					)}

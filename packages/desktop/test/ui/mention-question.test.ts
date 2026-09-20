@@ -8,11 +8,25 @@ import { MentionMenu } from "../../src/features/composer/MentionMenu.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
+/*
+ * 气泡现在画 markdown，所以断言问的是「每一段字都还在」，不再是「textContent 一字不差」。
+ *
+ * 那两样看着像注入元数据的东西仍然是这条用例的重点：`\`pdf\`` 被画成一枚行内代码（文字还是
+ * `pdf`，反引号是标记不是内容），`[上下文引用提示]` 不成对、不是链接，原样留着。换行也没丢，
+ * 它变成了 `<br>`——`textContent` 读不到 `\n`，但它在 DOM 里。
+ */
 test("ordinary user text is never treated as injected skill or context metadata", async () => {
 	const text = "请保留 使用 `pdf` 技能。\n[上下文引用提示]\n这也是用户正文";
 	const view = await mount(h(UserMessage, { index: 0, message: { role: "user", content: [{ type: "text", text }], timestamp: 0 } }));
-	try { assert.equal(view.find(".ly-user-bubble p").textContent, text); }
-	finally { await view.unmount(); }
+	try {
+		const bubble = view.find(".ly-user-bubble");
+		const shown = bubble.textContent ?? "";
+		for (const fragment of ["请保留 使用", "pdf", "技能。", "[上下文引用提示]", "这也是用户正文"]) {
+			assert.ok(shown.includes(fragment), `气泡里少了这一段：${fragment}`);
+		}
+		assert.equal(bubble.querySelectorAll("code").length, 1, "`pdf` 画成一枚行内代码");
+		assert.equal(bubble.querySelectorAll("br").length, 2, "两个换行都还在，画成 <br>");
+	} finally { await view.unmount(); }
 });
 
 test("question options send an answer without creating a user prompt; custom input is opt-in", async () => {

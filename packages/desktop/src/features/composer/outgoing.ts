@@ -9,7 +9,7 @@
  * 回车时看到的是什么，发出去的就该是什么。
  */
 
-import type { UserContent } from "@lyra/core";
+import type { MessageAttachment, UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
 
@@ -59,6 +59,43 @@ export interface Outgoing {
  *
  * 命令展开、skill、会话引用都不在这里：那几样只有主输入框有，而这一步是三个都有的那一半。
  */
+/**
+ * 一条消息里「给人看的那一份」。
+ *
+ * 和 `content`（给模型看的那一串）成对出现：那一串里带着展开的附件正文和 `### Attached file:`
+ * 这样的记号，都不是写给人的。气泡画的是这一份。
+ */
+export interface OutgoingMeta {
+	/** 人实际打的字，`【图片 1】` 这样的标记留着——句子里指的是哪一个，靠它。 */
+	displayText: string;
+	attachments: MessageAttachment[];
+}
+
+/**
+ * 附件的名字和门类——给气泡看的那一份，不含正文。
+ *
+ * 三个输入框都要它：主输入框、侧边聊天、子智能体的操控框。从前只有主输入框做了这一步，于是同一条
+ * 带附件的消息，在主会话里画的是一枚胶囊，在侧边聊天里画的是给模型看的 `### Attached file: …`
+ * ——那串字本来就不是写给人看的。
+ *
+ * 正文不进来。它已经在 `content` 里了，再存一份会让每份会话日志大一倍，而读的人从来不看它。
+ */
+export function attachmentMeta(files: OutgoingAttachment[]): MessageAttachment[] {
+	return files.map((file) => ({
+		name: file.name,
+		...(file.label ? { label: file.label } : {}),
+		...(file.kind ? { kind: file.kind } : {}),
+		...(file.mimeType ? { mimeType: file.mimeType } : {}),
+		/*
+		 * 位置也留下。
+		 *
+		 * 正文不留——那会让每份会话日志大一倍——但一行路径是另一回事：没有它，一条已经发出去的消息
+		 * 对着自己带的那份表格，唯一做得到的事就是把名字显示出来。
+		 */
+		...(file.path ? { path: file.path } : {}),
+	}));
+}
+
 export function spellDraft(text: string, attachments: OutgoingAttachment[]): UserContent[] {
 	const { segments, unplaced } = placeAttachments(text, attachments);
 	const content: UserContent[] = [];
@@ -274,23 +311,7 @@ export async function buildOutgoing(
 		...(displayText !== undefined ? { displayText } : {}),
 		...(skillRef ? { skillRef } : {}),
 		...(draft.sessionRefs.length > 0 ? { sessionRefs: draft.sessionRefs } : {}),
-		...(draft.attachments.length > 0
-			? {
-					attachments: draft.attachments.map((file) => ({
-						name: file.name,
-						...(file.label ? { label: file.label } : {}),
-						...(file.kind ? { kind: file.kind } : {}),
-						...(file.mimeType ? { mimeType: file.mimeType } : {}),
-						/*
-						 * 位置也留下。
-						 *
-						 * 正文不留——那会让每份会话日志大一倍——但一行路径是另一回事：没有它，一条已经
-						 * 发出去的消息对着自己带的那份表格，唯一做得到的事就是把名字显示出来。
-						 */
-						...(file.path ? { path: file.path } : {}),
-					})),
-				}
-			: {}),
+		...(draft.attachments.length > 0 ? { attachments: attachmentMeta(draft.attachments) } : {}),
 		...(deliver ? { deliver } : {}),
 	};
 }

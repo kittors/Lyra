@@ -8,8 +8,10 @@ import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
-import { isAttachmentBody, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
+import { BubbleText } from "./BubbleText.tsx";
+import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
@@ -204,10 +206,16 @@ export function UserMessage({
    * 「是哪一张」——那是文件名答不了的。
    */
   const shown = useMemo(() => files.filter((file) => file.src), [files]);
-  const spoken = useMemo(
+  /*
+   * 交给气泡的那份附件清单。
+   *
+   * 从前这里就地 `placeAttachments` 切好段再画。现在切段在 `BubbleText` 里——它要先知道有没有
+   * 标记，才能决定这段正文走 markdown 还是走行内。这里只负责把消息里存的附件整理成它认得的
+   * 形状。
+   */
+  const spokenFiles = useMemo(
     () =>
-      placeAttachments(
-        text,
+      (
         files.map((file) => ({
           name: file.name,
           label: file.label,
@@ -224,9 +232,9 @@ export function UserMessage({
           ...(file.path ? { path: file.path } : {}),
           // 图片的像素、文本的正文，两样都没有的才是「只有名字」。
           bodiless: !file.src && file.kind !== "text",
-        })),
-      ).segments,
-    [text, files],
+        }))
+      ),
+    [files],
   );
   const said = text.trim();
 
@@ -406,11 +414,14 @@ export function UserMessage({
           * 任何东西。
           */}
         {said && (
-          <p className="text-body leading-relaxed whitespace-pre-wrap break-words text-ink">
-            {spoken.map((segment, at) =>
-              segment.kind === "text" ? (
-                segment.text
-              ) : (
+          <BubbleText
+            text={text}
+            files={spokenFiles}
+            className="text-body leading-relaxed text-ink"
+            renderText={(plain) => <Markdown text={plain} />}
+            renderFile={(file, at) => {
+              const segment = { file };
+              return (
                 <span
                   key={at}
                   className="ly-attachment-token"
@@ -453,9 +464,9 @@ export function UserMessage({
                 >
                   {segment.file.label ?? segment.file.name}
                 </span>
-              ),
-            )}
-          </p>
+              );
+            }}
+          />
         )}
       </div>}
 

@@ -7,7 +7,7 @@
  * and invite exactly the bug that makes a side-chat reply appear in the main thread.
  */
 
-import type { SideChatUpdate, Message, QueuedTask, ThinkingLevel, UserContent } from "@lyra/core";
+import type { SideChatUpdate, Message, MessageAttachment, QueuedTask, ThinkingLevel, UserContent } from "@lyra/core";
 import { create } from "zustand";
 import { reduceSideEvent, rebuildToolRuns, type SideConversation } from "./side-events.ts";
 import type { ToolRun } from "../../store/tool-run.ts";
@@ -99,11 +99,11 @@ interface SideState {
 
 	/** Point at a session and pull whatever conversation it already has. */
 	attach(sessionId: string | null, force?: boolean): Promise<void>;
-	ask(content: UserContent[]): Promise<void>;
+	ask(content: UserContent[], meta?: SideSendMeta): Promise<void>;
 	abort(): Promise<void>;
 	reset(): Promise<void>;
 	/** Change a question already asked and answer from there. Everything after it is dropped. */
-	editAndResend(index: number, content: UserContent[]): Promise<void>;
+	editAndResend(index: number, content: UserContent[], meta?: SideSendMeta): Promise<void>;
 	cancelTask(taskId: string): Promise<void>;
 	/** Take a finished row off the list. What it did, if anything, stays in the transcript. */
 	dismissTask(taskId: string): Promise<void>;
@@ -114,6 +114,28 @@ interface SideState {
 	clearDraftSeed(): void;
 	applyEvent(sessionId: string, event: SideChatUpdate & { sideRevision?: number }): void;
 	setTasks(tasks: QueuedTask[]): void;
+}
+
+/**
+ * 一条侧边聊天消息里「给人看的那一份」。
+ *
+ * 和主会话存的是同一组字段（`displayText` + `attachments`），只是从这一侧递进去。
+ *
+ * 不导出：输入框那边交过来的是 `composer` 的 `OutgoingMeta`，两者字段相同，按结构对得上。
+ * 把它也导出去，就成了同一个概念在两个域里各有一个名字——knip 当场报的就是这件事。
+ */
+interface SideSendMeta {
+	displayText: string;
+	attachments: MessageAttachment[];
+}
+
+/** 空的就不要往消息上挂空字段——`undefined` 会被序列化成一个真的 key。 */
+function displayOf(meta?: SideSendMeta): { displayText?: string; attachments?: MessageAttachment[] } {
+	if (!meta) return {};
+	return {
+		displayText: meta.displayText,
+		...(meta.attachments.length > 0 ? { attachments: meta.attachments } : {}),
+	};
 }
 
 const reads = new Map<string, { events: (SideChatUpdate & { sideRevision?: number })[] }>();
@@ -193,7 +215,7 @@ export const useSide = create<SideState>((set, get) => ({
 		catch (error) { get().applyEvent(sessionId, { type: "notice", level: "error", message: String(error) }); }
 	},
 
-	async ask(content) {
+	async ask(content, meta) {
 		const sessionId = get().sessionId;
 		if (!sessionId || get().running || get().loading) return;
 
@@ -204,10 +226,16 @@ export const useSide = create<SideState>((set, get) => ({
 		 * takes a second or more. Without this the composer would clear and nothing would take
 		 * its place for that whole time.
 		 */
-		const pending: Message = { role: "user", content, timestamp: Date.now() };
+		/*
+		 * 先画出来的那一条，带的也是给人看的那一份。
+		 *
+		 * 不带的话，消息会先以「附件正文摊在气泡里」的样子出现，等主进程回存之后再换成胶囊——
+		 * 同一条消息在眼前变了一次形。
+		 */
+		const pending: Message = { role: "user", content, timestamp: Date.now(), ...displayOf(meta) };
 		set({ messages: [...get().messages, pending], pending, running: true, error: null });
 		const thinking = get().thinking;
-		try { await bridge.sideChat.ask(sessionId, content, thinking ? { thinking } : undefined); }
+		try { await bridge.sideChat.ask(sessionId, content, { ...(thinking ? { thinking } : {}), ...displayOf(meta) }); }
 		catch (error) { get().applyEvent(sessionId, { type: "notice", level: "error", message: String(error) }); get().applyEvent(sessionId, { type: "agent_end", reason: "error", error: String(error) }); }
 	},
 
@@ -218,13 +246,13 @@ export const useSide = create<SideState>((set, get) => ({
 	 * rule the main conversation follows. Painted immediately for the same reason `ask` is: the
 	 * round trip is long enough that a composer clearing to nothing reads as a lost message.
 	 */
-	async editAndResend(index, content) {
+	async editAndResend(index, content, meta) {
 		const sessionId = get().sessionId;
 		if (!sessionId || get().running || get().loading) return;
 		const kept = get().messages.slice(0, index);
-		const pending: Message = { role: "user", content, timestamp: Date.now() };
+		const pending: Message = { role: "user", content, timestamp: Date.now(), ...displayOf(meta) };
 		set({ messages: [...kept, pending], pending, running: true, error: null });
-		try { await bridge.sideChat.editAndResend(sessionId, index, content); }
+		try { await bridge.sideChat.editAndResend(sessionId, index, content, displayOf(meta)); }
 		catch (error) { get().applyEvent(sessionId, { type: "notice", level: "error", message: String(error) }); get().applyEvent(sessionId, { type: "agent_end", reason: "error", error: String(error) }); }
 	},
 

@@ -111,7 +111,11 @@ export function FileDiffList({
              * corners, which is a red notch travelling up the header as you scroll.
              */}
             <div className="ly-pin sticky top-0 z-10">
-              <div className="ly-scroll flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-card-hover">
+              {/*
+               * `relative`, because the row's actions are laid over the counts rather than
+               * beside them — see the note where they are drawn.
+               */}
+              <div className="ly-scroll relative flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-card-hover">
                 <button
                   type="button"
                   data-ly-tip={file.path}
@@ -136,7 +140,29 @@ export function FileDiffList({
                    * truncated from the left, where the shared prefix is.
                    */}
                   <ScrollText text={file.path} className="min-w-0 flex-1 text-left text-detail text-ink-muted" />
-                  <Text size="caption" mono numeric className="shrink-0">
+                  {/*
+                   * The counts give the row's end to the actions the moment they appear.
+                   *
+                   * They used to sit side by side, which cost twice: the counts were pushed off
+                   * the right edge by a strip of nothing whenever the pointer was elsewhere, and
+                   * on hover the two competed for the same corner with the name squeezed between
+                   * them. Only one of the two is ever wanted — the counts while you are reading
+                   * the list, the buttons once you have reached for one.
+                   */}
+                  <Text
+                    size="caption"
+                    mono
+                    numeric
+                    /*
+                     * 走的时候不等人，回来的时候等一等。
+                     *
+                     * 两样东西占同一个位置，同时淡入淡出会有一段两个都半透明地叠着——那一下看着
+                     * 像画糊了。所以错开：指针进来，数字立刻开始走（`delay-0`），按钮 90ms 后才
+                     * 开始来；指针离开，按钮立刻走，数字 90ms 后回来。90 是 150 的六成，配上
+                     * `ease-out` 的前快后慢，让位的那个到这时已经基本看不见了。
+                     */
+                    className="shrink-0 transition-opacity delay-[90ms] duration-[var(--ly-t-quick)] ease-[var(--ly-e-out)] group-hover/row:opacity-0 group-hover/row:delay-0 group-focus-within/row:opacity-0 group-focus-within/row:delay-0"
+                  >
                     {file.added > 0 && (
                       <span className="text-ok">+{file.added}</span>
                     )}
@@ -148,7 +174,14 @@ export function FileDiffList({
                   </Text>
                 </button>
                 {actions && (
-                  <div className="flex shrink-0 items-center opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+                  /*
+                   * Out of the flow, so the counts reach the edge when nothing is hovered.
+                   *
+                   * `pointer-events-none` is not decoration: laid over the counts at zero opacity
+                   * it would otherwise swallow the click meant for the row underneath it.
+                   * The fill matches the row's own hover fill, so it covers rather than blends.
+                   */
+                  <div className="pointer-events-none absolute right-1 flex items-center rounded-md bg-card-hover opacity-0 transition-opacity delay-0 duration-[var(--ly-t-quick)] ease-[var(--ly-e-out)] group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-hover/row:delay-[90ms] group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 group-focus-within/row:delay-[90ms]">
                     {actions(file)}
                   </div>
                 )}

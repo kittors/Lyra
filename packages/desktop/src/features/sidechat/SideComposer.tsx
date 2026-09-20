@@ -26,7 +26,9 @@ import {
 	fileKind,
 	type FileKind,
 	KIND_LABEL,
+	attachmentMeta,
 	spellDraft,
+	type OutgoingMeta,
 	useAttachmentMarks,
 	pickedFrom,
 	type PickedFile,
@@ -58,7 +60,7 @@ export function SideComposer({
 	running: boolean;
 	/** No session to be beside; the field stays visible but inert rather than vanishing. */
 	disabled?: boolean;
-	onSend: (content: UserContent[]) => void;
+	onSend: (content: UserContent[], meta: OutgoingMeta) => void;
 	onStop: () => void;
 }) {
 	const { t } = useI18n();
@@ -177,9 +179,16 @@ export function SideComposer({
 		 * 记号当初要治的毛病：三张截图送过去，模型看到的是三团分不出先后的像素。
 		 */
 		const content = spellDraft(trimmed, attachments);
+		/*
+		 * 再交一份给人看的：人打的那些字（`【图片 1】` 这样的标记留着），和附件的名字门类。
+		 *
+		 * 没有这一份的时候，面板只能把所有文本块拼起来画——于是 `### Attached file: image.png`
+		 * 这种写给模型的记号原样出现在气泡里，而同一条消息在主会话里画的是一枚胶囊。
+		 */
+		const meta = { displayText: trimmed, attachments: attachmentMeta(attachments) };
 		setText("");
 		setAttachments([]);
-		onSend(content);
+		onSend(content, meta);
 	}
 
 	// Inheritance stays a policy; the trigger names the model used by the next request.

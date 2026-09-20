@@ -11,14 +11,14 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { AssistantMessage, Message, UserContent } from "@lyra/core";
+import type { AssistantMessage, Message, MessageAttachment, UserContent } from "@lyra/core";
 import { openFromEvent } from "../image/index.ts";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MessageActions } from "../conversation/index.ts";
 import { MessageEditor } from "../conversation/index.ts";
 import { useSide } from "../dock/index.ts";
-import { Markdown } from "../conversation/index.ts";
+import { BubbleText, Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { ToolCard } from "../conversation/index.ts";
 
@@ -29,14 +29,31 @@ export function MessageRow({ message, index }: { message: Message; index: number
 		// The main-transcript snapshots injected before each question are context for the model,
 		// not something the user wrote — showing them would bury the actual conversation.
 		if (message.synthetic) return null;
-		const text = message.content
+		/*
+		 * 人打的那句话优先，拼起来的 `content` 只是退路。
+		 *
+		 * `content` 里带着展开给模型的附件正文——`### Attached file: image.png` 和围栏起来的内容。
+		 * 把它们拼起来画，等于把写给模型的记号摆到人眼前，而同一条消息在主会话里画的是一枚胶囊。
+		 * `displayText` 是这条消息发出时一并存下的那份「人打的字」，升级之前发的老消息没有它，
+		 * 那时仍然退回原来的拼法——少一枚胶囊，总好过整条消息不见。
+		 */
+		const spoken = message.content
 			.filter((block): block is Extract<UserContent, { type: "text" }> => block.type === "text")
 			.map((block) => block.text)
 			.join("\n");
+		const text = message.displayText ?? spoken;
 		const images = message.content.filter(
 			(block): block is Extract<UserContent, { type: "image" }> => block.type === "image",
 		);
-		return <UserRow index={index} text={text} images={images} timestamp={message.timestamp} />;
+		return (
+			<UserRow
+				index={index}
+				text={text}
+				attachments={message.attachments ?? []}
+				images={images}
+				timestamp={message.timestamp}
+			/>
+		);
 	}
 
 	return <AssistantRow message={message} />;
@@ -53,11 +70,14 @@ export function MessageRow({ message, index }: { message: Message; index: number
 function UserRow({
 	index,
 	text,
+	attachments,
 	images,
 	timestamp,
 }: {
 	index: number;
 	text: string;
+	/** 名字和门类，用来认出句子里的 `【图片 1】`——正文不在里面，它已经在 `content` 里了。 */
+	attachments: MessageAttachment[];
 	images: Extract<UserContent, { type: "image" }>[];
 	timestamp: number;
 }) {
@@ -95,8 +115,34 @@ function UserRow({
 
 	return (
 		<div className="group/msg ly-enter flex flex-col items-end">
-			<div className="max-w-[88%] rounded-[13px] rounded-br-[5px] bg-card px-3 py-2 text-label leading-relaxed text-ink">
-				{text && <div className="whitespace-pre-wrap">{text}</div>}
+			<div className="ly-user-bubble max-w-[88%] rounded-2xl bg-card px-4 py-2.5 text-ink">
+				{/*
+				 * 和主会话气泡同一个组件：没有附件标记时整段走 markdown，有标记时保持行内。
+				 *
+				 * 这一句从前是 `whitespace-pre-wrap` 的纯文本，于是 `# 需求1` 画出来就是一行井号；
+				 * 而附件那一段更明显——写给模型的 `### Attached file: …` 原样摆在人眼前。
+				 */}
+				{text && (
+					<BubbleText
+						text={text}
+						files={attachments}
+						className="text-body leading-relaxed"
+						renderText={(plain) => <Markdown text={plain} />}
+						/*
+						 * 这里的胶囊只认名字，不带动作。
+						 *
+						 * 主会话那边点一枚能开文件、能预览、能右键——靠的是消息里存下的路径和像素。
+						 * 侧边聊天的附件也存了名字和路径，但这个面板两百来像素宽，没有能承接
+						 * 「打开」的地方（文件面板属于主窗口）。所以先只认出它、画成一枚标签，
+						 * 不给一条点了没反应的路。
+						 */
+						renderFile={(file, at) => (
+							<span key={at} className="ly-attachment-token" data-kind={file.kind}>
+								{file.label ?? file.name}
+							</span>
+						)}
+					/>
+				)}
 				{images.length > 0 && (
 					<div className={`flex flex-wrap gap-1.5 ${text ? "mt-2" : ""}`}>
 						{images.map((block, i) => (

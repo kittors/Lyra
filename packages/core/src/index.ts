@@ -169,7 +169,7 @@ export { computeCost, costAtRates, selectPricingRates, type SelectedPricingRates
 export { hooksFor, makeAfterToolCall, makeBeforeToolCall, runHook } from "./runtime/hooks.ts";
 export type { SessionStatus } from "./runtime/reporting.ts";
 export { AgentSession, type AgentSessionOptions,  } from "./runtime/session.ts";
-export { SideChat, restoredSideChatMessages, type SideChatOptions, type SideChatState, type SideChatEvent, type SideChatUpdate } from "./runtime/sidechat.ts";
+export { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatOptions, type SideChatState, type SideChatEvent, type SideChatUpdate } from "./runtime/sidechat.ts";
 export {
 	lyraHome,
 	projectIdFor,

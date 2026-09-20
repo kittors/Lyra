@@ -679,6 +679,9 @@ export function GitPanel() {
             removedCount={status?.unstaged.reduce((acc, f) => acc + f.removed, 0) ?? 0}
             busy={busy}
             running={sync !== null}
+            /* 同一份数目，和工具条上那颗推送按钮读的是同一处——两边不该各算各的。 */
+            unpushed={plan.push.count ?? 0}
+            pushTip={plan.push.tip}
             anchor={pushPopover.anchor}
             onClose={pushPopover.close}
             onCommit={async (msg) => {
@@ -686,6 +689,11 @@ export function GitPanel() {
               await read();
               return res;
             }}
+            /*
+             * `msg` 到这里一定是非空的——留空时的生成发生在浮层里，那里才画得出「正在生成」。
+             * 这里曾经也写了一份生成，于是同一个等待，从「提交」进来看得见反馈，从这里进来
+             * 看不见。
+             */
             onCommitAndPush={async (msg, includeUnstaged) => {
               if (includeUnstaged) {
                 const curStatus = await bridge.git.status(cwd);
@@ -694,16 +702,7 @@ export function GitPanel() {
                   await bridge.git.stage(cwd, paths);
                 }
               }
-              let commitMsg = msg.trim();
-              if (!commitMsg) {
-                const gen = await bridge.git.generateCommitMessage(cwd);
-                if (!gen.ok || !gen.message) {
-                  notify(gen.error ?? t("commit.generateFailed"), "error");
-                  return false;
-                }
-                commitMsg = gen.message;
-              }
-              const commitRes = await act(() => bridge.git.commitStaged(cwd, commitMsg));
+              const commitRes = await act(() => bridge.git.commitStaged(cwd, msg));
               if (!commitRes) return false;
               await read();
               void remote("push", (id) => bridge.git.push(cwd, id));

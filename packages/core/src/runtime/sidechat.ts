@@ -29,7 +29,7 @@ import { stripStaleHandles } from "./model-switch.ts";
 import type { Settings } from "../config/settings.ts";
 import { resolveModel } from "../config/settings.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
-import type { Message, ThinkingLevel, UserContent } from "../types.ts";
+import type { Message, MessageAttachment, ThinkingLevel, UserContent } from "../types.ts";
 import type { AgentSession } from "./session.ts";
 
 export type SideChatUpdate = AgentEvent | { type: "side_model"; modelId: string | null };
@@ -55,6 +55,20 @@ export interface SideChatState {
 }
 
 /** Legacy main snapshots were hidden in the UI but shifted every persisted edit index. */
+/**
+ * 问一句话时可以捎带的东西。
+ *
+ * `thinking` 是这一问想让它想多久；另外两样是给**人**看的那一份——见 `run` 里构造 question
+ * 的地方。三样都可选，不给就是从前的行为。
+ */
+export interface SideAskOptions {
+	thinking?: ThinkingLevel;
+	/** 人实际打的字，不含被展开进 prompt 的附件正文。 */
+	displayText?: string;
+	/** 附件的名字和门类，不含正文——正文已经在 `content` 里。 */
+	attachments?: MessageAttachment[];
+}
+
 export function restoredSideChatMessages(messages: Message[]): Message[] {
 	return messages.filter((message) => !(message.role === "user" && message.synthetic));
 }
@@ -177,18 +191,18 @@ export class SideChat {
 	 * there is nothing to undo it with. That matches the panel: it is a scratch conversation about
 	 * the main one, cleared whenever you ask for it to be.
 	 */
-	async editAndResend(index: number, content: UserContent[], options: { thinking?: ThinkingLevel } = {}): Promise<void> {
+	async editAndResend(index: number, content: UserContent[], options: SideAskOptions = {}): Promise<void> {
 		if (this.running) return;
 		if (!Number.isInteger(index) || index < 0 || index >= this.messages.length) return;
 		if (this.messages[index]?.role !== "user") return;
 		await this.run(content, options, index);
 	}
 
-	async ask(content: UserContent[], options: { thinking?: ThinkingLevel } = {}): Promise<void> {
+	async ask(content: UserContent[], options: SideAskOptions = {}): Promise<void> {
 		await this.run(content, options);
 	}
 
-	private async run(content: UserContent[], options: { thinking?: ThinkingLevel }, rewind?: number): Promise<void> {
+	private async run(content: UserContent[], options: SideAskOptions, rewind?: number): Promise<void> {
 		if (this.running) return;
 
 		const controller = new AbortController();
@@ -219,7 +233,21 @@ export class SideChat {
 
 		// Capture one consistent transcript per question. Compaction only changes modelHistory.
 		const mainHistory = [...this.main.messages];
-		const question: Message = { role: "user", content, timestamp: Date.now() };
+		/*
+		 * 人打的那些字和附件的名字，和主会话存的是同一份东西。
+		 *
+		 * 从前这里只有 `content`——也就是送给模型的那一串，里面带着 `### Attached file: …` 和
+		 * 围栏起来的正文。面板把所有文本块拼起来画，于是那些给模型看的记号原样出现在气泡里，
+		 * 而同一条消息在主会话里画的是一枚胶囊。编辑它的时候更糟：附件正文被装进编辑框，成了
+		 * 「人写的字」，改完一发就连正文一起没了。
+		 */
+		const question: Message = {
+			role: "user",
+			content,
+			timestamp: Date.now(),
+			...(options.displayText !== undefined ? { displayText: options.displayText } : {}),
+			...(options.attachments?.length ? { attachments: options.attachments } : {}),
+		};
 		const tools = [readMainChatTool(this.mainSessionId, mainHistory, resolved.model), dispatchTaskTool(this.main), controlMainTool(this.main)];
 		const systemPrompt = this.systemPrompt();
 		try {
