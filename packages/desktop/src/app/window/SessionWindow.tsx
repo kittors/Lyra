@@ -16,7 +16,7 @@ import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useLayout } from "../layout.tsx";
 import { ToolbarButton } from "./WindowControls.tsx";
-import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { bridge } from "../../services/index.ts";
 import { KeepOnTopButton } from "./KeepOnTopButton.tsx";
 
@@ -46,11 +46,12 @@ export function SessionWindow() {
 
 	return (
 		<div data-ly-session-window className="ly-shell relative flex h-full flex-col overflow-hidden">
+			{/* 底色与高度都跟着平台走——理由在 `PanelWindow` 那条同样的带子上写着。 */}
 			<header
 				data-ly-session-window-chrome
-				className="drag-region relative z-40 flex shrink-0 items-center"
+				className={`drag-region relative z-40 flex shrink-0 items-center${headerBar ? " ly-window-header" : ""}`}
 				style={{
-					height: WINDOW_HEADER_HEIGHT,
+					height: headerBar ? NATIVE_HEADER_HEIGHT : WINDOW_HEADER_HEIGHT,
 					paddingLeft: titlebar.start + 10,
 					paddingRight: (headerBar ? titlebar.end : 0) + 8,
 				}}

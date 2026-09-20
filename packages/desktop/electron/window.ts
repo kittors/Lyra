@@ -12,7 +12,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { lyraHome, type Settings } from "@lyra/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
-import { MAC_TRAFFIC_LIGHT_POSITION, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
+import { MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 
 /**
  * Where the icon file is, packaged or not.
@@ -367,10 +367,18 @@ function buildAppWindow(options: {
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
 		trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
-		// Windows/Linux draw their own controls into this strip. The colours are a starting
-		// point; the renderer sends the real ones once the theme is resolved.
+		/*
+		 * Windows/Linux draw their own controls into this strip. The colours are a starting
+		 * point; the renderer sends the real ones once the theme is resolved.
+		 *
+		 * `height` is how big those three buttons come out — the system draws them to fill what it
+		 * is given. It used to be told 44, which is the macOS traffic lights' number, and the
+		 * result was a minimise/maximise/close visibly larger than every other window on the
+		 * desktop. `NATIVE_HEADER_HEIGHT` is Windows' own 32, and the renderer's header uses the
+		 * same constant so the strip and the buttons cannot drift apart.
+		 */
 		...(process.platform !== "darwin"
-			? { titleBarOverlay: { color: resolvedBackground(), symbolColor: "#9a9a9a", height: WINDOW_HEADER_HEIGHT } }
+			? { titleBarOverlay: { color: resolvedBackground(), symbolColor: "#9a9a9a", height: NATIVE_HEADER_HEIGHT } }
 			: {}),
 		webPreferences: {
 			preload: join(import.meta.dirname, "../preload/index.js"),
@@ -608,7 +616,8 @@ export function registerWindowIpc(): void {
 		 */
 		if (process.platform === "darwin") return;
 		try {
-			window.setTitleBarOverlay({ ...colors, height: WINDOW_HEADER_HEIGHT });
+			// 同一个高度，和创建时那次一致——这里漏掉的话，换一次主题按钮就变回另一个尺寸。
+			window.setTitleBarOverlay({ ...colors, height: NATIVE_HEADER_HEIGHT });
 		} catch {}
 	});
 }

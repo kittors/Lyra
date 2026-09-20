@@ -13,7 +13,7 @@ import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useLayout } from "../layout.tsx";
 import { ToolbarButton } from "./WindowControls.tsx";
-import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { bridge } from "../../services/index.ts";
 import { KeepOnTopButton } from "./KeepOnTopButton.tsx";
 import { flushFilePanelState } from "../../store/file-panel-handoff.ts";
@@ -81,11 +81,24 @@ export function PanelWindow() {
 
 	return (
 		<div data-ly-panel-window={kind ?? ""} className="ly-shell relative flex h-full flex-col overflow-hidden">
+			{/*
+			 * 这条带子在两个平台上是两样东西，所以三项都跟着 `headerBar` 走。
+			 *
+			 * **底色**：Windows/Linux 上它要和底下的内容分开——`ly-window-header` 取的是侧边栏那
+			 * 一档，比外壳亮/暗一级，于是两者之间有一道横平的边界。漏掉这个类的后果不是"少点样式"，
+			 * 是整条带子和内容同色糊成一片，第一行内容顶上去看着像被压住（那个类自己的注释写着
+			 * 「第一版写的是外壳色，拍出来整条带子根本看不见」，说的就是这个）。
+			 * macOS 不加：那里的红绿灯在窗口外，这条带子本来就该是透明的，加了反而多一道没来由的
+			 * 横线。
+			 *
+			 * **高度**：Windows/Linux 取原生那一档（32），因为这条带子要和系统画的三颗按钮同高；
+			 * macOS 取 44，那是红绿灯居中的数。
+			 */}
 			<header
 				data-ly-panel-window-chrome
-				className="drag-region relative z-40 flex shrink-0 items-center"
+				className={`drag-region relative z-40 flex shrink-0 items-center${headerBar ? " ly-window-header" : ""}`}
 				style={{
-					height: WINDOW_HEADER_HEIGHT,
+					height: headerBar ? NATIVE_HEADER_HEIGHT : WINDOW_HEADER_HEIGHT,
 					paddingLeft: titlebar.start + 10,
 					paddingRight: (headerBar ? titlebar.end : 0) + 8,
 				}}

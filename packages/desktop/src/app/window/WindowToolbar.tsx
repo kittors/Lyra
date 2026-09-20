@@ -15,7 +15,7 @@ import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
-import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { onPhone } from "../../services/host.ts";
 
 /*
@@ -88,7 +88,12 @@ export function WindowHeader({
 		<div
 			data-ly-window-header
 			className="drag-region ly-window-header relative z-40 flex shrink-0 items-center"
-			style={{ height: WINDOW_HEADER_HEIGHT, paddingLeft: titlebar.start, paddingRight: titlebar.end }}
+			/*
+			 * 这个组件只在 `headerBar` 那条分支里渲染（见 `App.tsx`），也就是只在 Windows 和
+			 * Linux 上——所以高度直接取原生那一档，不必再判一次平台。它和
+			 * `titleBarOverlay.height` 是同一个常量，带子和系统按钮因此不会错开。
+			 */
+			style={{ height: NATIVE_HEADER_HEIGHT, paddingLeft: titlebar.start, paddingRight: titlebar.end }}
 		>
 			<div className="no-drag flex items-center gap-0.5">
 				{children ?? <WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />}
