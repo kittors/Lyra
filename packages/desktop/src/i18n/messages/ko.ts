@@ -2087,7 +2087,6 @@ export const ko = {
 	"running.turnTokens": "이번 턴 {n} tokens",
 	"running.compacted": "앞선 대화를 요약했습니다",
 	"running.waitingForAnswer": "답변을 기다리는 중",
-	"running.waitingForTurn": "이전 답변이 끝나기를 기다리는 중",
 	"delivery.editedFiles": "파일 {n}개 고침",
 	"userMessage.fromSideChat": "사이드 챗에서",
 	"traceInspector.related": "연관 기록 · ",

@@ -2259,7 +2259,6 @@ export const zhCN = {
 	"running.turnTokens": "本轮 {n} tokens",
 	"running.compacted": "已压缩较早的对话",
 	"running.waitingForAnswer": "等待你的回答",
-	"running.waitingForTurn": "等上一条回复完成",
 	"delivery.editedFiles": "已编辑 {n} 个文件",
 	"userMessage.fromSideChat": "来自侧边聊天",
 	"traceInspector.related": "关联记录 · ",

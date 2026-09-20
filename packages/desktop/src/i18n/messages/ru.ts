@@ -2087,7 +2087,6 @@ export const ru = {
 	"running.turnTokens": "За этот ход: {n} tokens",
 	"running.compacted": "Ранние ходы свёрнуты в пересказ",
 	"running.waitingForAnswer": "Ждём ваш ответ",
-	"running.waitingForTurn": "Ждём завершения прошлого ответа",
 	"delivery.editedFiles": "Изменено файлов: {n}",
 	"userMessage.fromSideChat": "Из боковой беседы",
 	"traceInspector.related": "Связанные записи · ",

@@ -2087,7 +2087,6 @@ export const ja = {
 	"running.turnTokens": "このターン {n} tokens",
 	"running.compacted": "前のほうのやりとりを要約しました",
 	"running.waitingForAnswer": "回答を待っています",
-	"running.waitingForTurn": "前の返信の完了を待っています",
 	"delivery.editedFiles": "{n} 件のファイルを編集",
 	"userMessage.fromSideChat": "サイドチャットから",
 	"traceInspector.related": "関連する記録 · ",

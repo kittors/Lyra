@@ -2087,7 +2087,6 @@ export const en = {
 	"running.turnTokens": "This turn: {n} tokens",
 	"running.compacted": "Earlier turns have been summarised",
 	"running.waitingForAnswer": "Waiting for your answer",
-	"running.waitingForTurn": "Waiting for the previous reply",
 	"delivery.editedFiles": "{n} files edited",
 	"userMessage.fromSideChat": "From the side chat",
 	"traceInspector.related": "Related entries · ",

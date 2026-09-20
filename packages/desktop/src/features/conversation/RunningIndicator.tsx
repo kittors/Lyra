@@ -5,7 +5,7 @@ import { useCountUp } from "../../ui/primitives/useCountUp.ts";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { useApp } from "../../store/index.ts";
-import { useScopedApprovals, useScopedAwaitingTurn } from "../../app/session-scope.tsx";
+import { useScopedApprovals } from "../../app/session-scope.tsx";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
@@ -33,14 +33,6 @@ const TOOL_HOLD_MS = 2000;
  */
 const COMPACTED_NOTICE_MS = 8000;
 
-/**
- * 「还没轮到」要等多久才说出口。
- *
- * 短于一次正常的往返（按下回车到后台承认，几十毫秒），长于一帧——所以闲着时发的那一条不会
- * 闪出这一行，而真的排在上一轮后面时，几乎是立刻就说了。
- */
-const AWAIT_GRACE_MS = 400;
-
 export function RunningIndicator() {
 	const startedAt = useApp((s) => s.turnStartedAt);
 	const tokens = useApp((s) => s.turnTokens);
@@ -49,8 +41,6 @@ export function RunningIndicator() {
 	const compactedAt = useApp((s) => s.compactedAt);
 	const waiting = useScopedApprovals()[0];
 	const waitingKind = !waiting ? null : waiting.kind === "interactive" ? "question" : "approval";
-	/** 刚发出去的那条还没被后台受理——见下面 `awaitingTurn` 那一段。 */
-	const awaitingTurn = useScopedAwaitingTurn();
 	const [now, setNow] = useState(() => Date.now());
 	/*
 	 * The phrase advances on its own clock, slower than the seconds.
@@ -93,25 +83,6 @@ export function RunningIndicator() {
 	});
 	// 这一轮此刻产出了多少字——主 Agent 的加上委派出去的。抽在 `useLiveRate.ts` 里，那里说明了为什么。
 	const producedChars = useProducedChars();
-
-	/*
-	 * 等够了才说「在排队」。
-	 *
-	 * 会话闲着的时候发一条，这个标记也会短暂亮一下——从按下回车到后台把它落盘再广播回来，几十
-	 * 毫秒的事。那一瞬间闪一行「等上一条回复完成」，说的是一件没发生过的事，而且紧接着就被正常
-	 * 的 `Thinking…` 顶掉，看上去是界面自己抽了一下。
-	 *
-	 * 门槛跨过去才算数。真在等上一轮的时候，这个状态会持续整整一轮，不差这小半秒。
-	 */
-	const [awaitedLongEnough, setAwaitedLongEnough] = useState(false);
-	useEffect(() => {
-		if (!awaitingTurn) {
-			setAwaitedLongEnough(false);
-			return;
-		}
-		const timer = setTimeout(() => setAwaitedLongEnough(true), AWAIT_GRACE_MS);
-		return () => clearTimeout(timer);
-	}, [awaitingTurn]);
 
 	useEffect(() => {
 		if (!startedAt) return;
@@ -190,30 +161,16 @@ export function RunningIndicator() {
 	}
 
 	/*
-	 * 还没轮到这一条。
+	 * 这里一度多一支「等上一条回复完成」，判据是 `pendingUserMessage`——别再加回来。
 	 *
-	 * 上一轮还在写的时候又发一条，那条气泡已经画进转录了，可后台还没开始处理它——这一行说的
-	 * 就是这件事。从前这里画的是正常的 `Thinking…`，而它紧挨在新气泡下面，读起来是「正在想
-	 * 你这条」；真相是 agent 还在写上面那条，你这条还在后面排着。一个在等的人看着一个说它在
-	 * 想的转圈，等来的却是上一条的答案。
+	 * 想法本身有道理：上一轮还在写的时候又发一条，那条气泡已经在转录里了，而后台还没受理它。
+	 * 可 `pendingUserMessage` 只在后台把这条消息广播回来时才会清空，**消息被吞掉的时候它永远
+	 * 不会清**——于是那行字就永久挂在那儿，说着一件谁也看不懂的事。它把一个交互上的小别扭换成
+	 * 了一个卡死的提示。
 	 *
-	 * 排版和上面等回答那一支完全一致——同一个 `StatusSpinner`、同一行字号间距。它们是同一类
-	 * 东西：**转录末尾那行小字，说此刻在等什么**。
+	 * 真正要的是这一行**站在最后一条用户气泡底下**，也就是它现在的位置：转录末尾。至于后台到
+	 * 底受理了没有，那是后台的毛病，不该让这一行去替它解释。
 	 */
-	if (awaitingTurn && awaitedLongEnough) {
-		return (
-			<div
-				data-ly-running
-				data-ly-mood="waiting"
-				data-ly-awaiting-turn=""
-				className="ly-enter mt-2.5 flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-detail text-ink-muted whitespace-nowrap"
-			>
-				<StatusSpinner size={14} className="text-ink-muted" />
-				<span className="ly-fade-in">{translate("running.waitingForTurn")}</span>
-			</div>
-		);
-	}
-
 	return (
 		/*
 		 * Marked, because "is the turn still going" is a question asked from outside this file.

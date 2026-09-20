@@ -1,15 +1,17 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 上一轮还在跑的时候又发一条：那一条在屏幕上是什么样子。
+ * 上一轮还在跑的时候又发一条：转圈那一行站在哪儿。
  *
- * 用户说的是反馈，不是丢消息：新气泡发出去之后，它底下应该有一行「在等上一轮」，而不是直接
- * 一个转圈——转圈说的是「正在想你这条」，可这会儿 agent 还在写上一条。等真轮到它，那一行才
- * 该换成正常的 `Thinking…`。
+ * 它该跟着**最后一条用户气泡**走。新问题一发出去，它就挪到新气泡底下——接下来要答的是这一条，
+ * 它就站在这一条的回答位置上。留在上一轮的回答那儿是不对的：新气泡底下空着，人不知道自己那
+ * 句话有没有被听见。
  *
- * 所以这里不问 store，只按人看得见的东西读：转录里从上到下依次是什么，队列条上有没有东西，
- * 转圈站在谁下面。
+ * 这里也钉住一件不该再做的事：**不要在这一行上替后台解释它为什么还没动**。那一版写的是「等上
+ * 一条回复完成」，判据是 `pendingUserMessage`；消息被吞掉的时候那个标记永远不清，于是那行字
+ * 永久挂着，把一个交互上的小别扭换成了一个卡死的提示。
  *
- * 假模型先吐一句就卡住，闸门由探针决定什么时候放——那段「卡住」正是要观察的窗口。
+ * 不问 store，只按人看得见的东西读：转录里从上到下依次是什么，队列条上有没有东西，转圈的 y
+ * 落在谁下面。假模型先吐一句就卡住，闸门由探针决定什么时候放——那段「卡住」正是要观察的窗口。
  *
  * 用法：node --experimental-strip-types e2e/pending-turn-probe.ts
  */
@@ -115,7 +117,7 @@ const SKELETON = `(() => {
 	 * 报出来像是「底下什么都没有」，而实际上那一行一直在，只是探针看不见它。
 	 */
 	const spin = document.querySelector('[data-ly-running]');
-	if (spin) push(spin.hasAttribute('data-ly-awaiting-turn') ? '等待那行' : '转圈那行', spin.textContent, spin);
+	if (spin) push('转圈那行', spin.textContent, spin);
 	rows.sort((a, b) => a.y - b.y);
 	const queue = document.querySelector('[data-composer-queue]');
 	const queued = queue ? [...queue.querySelectorAll('.ly-queue-row')].map((r) => (r.textContent || '').trim().slice(0, 30)) : [];
@@ -126,6 +128,26 @@ interface Skeleton {
 	rows: { kind: string; text: string; y: number }[];
 	queued: string[];
 	hasQueueBar: boolean;
+}
+
+/**
+ * 转圈那行是不是画在这条气泡**底下**。
+ *
+ * 比的是 y，不是 DOM 顺序——要回答的问题是人看到它站在哪儿。转录末尾那一行本该跟着最后一条
+ * 用户气泡走：新问题发出去之后，它就该挪到新气泡下面，而不是留在上一轮的回答那儿。
+ */
+function below(skeleton: Skeleton, bubble: string): boolean {
+	const said = skeleton.rows.find((r) => r.kind === "人说的" && r.text.includes(bubble));
+	const spin = skeleton.rows.find((r) => r.kind === "转圈那行");
+	return Boolean(said && spin && spin.y > said.y);
+}
+
+function describe(skeleton: Skeleton): string {
+	const said = skeleton.rows.find((r) => r.kind === "人说的" && r.text.includes("第二条消息"));
+	const spin = skeleton.rows.find((r) => r.kind === "转圈那行");
+	if (!spin) return "屏幕上没有转圈那一行";
+	if (!said) return "转录里找不到那条气泡";
+	return `转圈在 y=${spin.y}，气泡在 y=${said.y}——它还留在上面`;
 }
 
 function show(title: string, skeleton: Skeleton): void {
@@ -181,32 +203,28 @@ async function main(): Promise<void> {
 		 * 正忙着写上一条，收到之后只是把它记下来，**不会广播「我受理了」**。于是气泡在转录里站着，
 		 * 底下那行小字说的是什么，就是这次要验的东西。
 		 */
-		console.log("\n【三】把它插进这一轮：气泡进转录，可后台还在写上一条");
+		console.log("\n【三】把它插进这一轮：气泡进转录，转圈要跟着站到它底下");
 		await evaluate(`(() => { const b = document.querySelector('[data-queue-steer]'); if (b) b.click(); return !!b; })()`);
-		await settle(60);
-		// 门槛是 400ms，等够再读——见 `RunningIndicator` 里 `AWAIT_GRACE_MS`。
-		await new Promise((r) => setTimeout(r, 900));
-		await settle(30);
+		await settle(90);
 		const pending = await evaluate<Skeleton>(SKELETON);
 		show("插进去之后：", pending);
-		const last = pending.rows[pending.rows.length - 1];
 		check("第二条的气泡进了转录", pending.rows.some((r) => r.kind === "人说的" && r.text.includes("第二条消息")), "转录里找不到它");
-		check(
-			"气泡底下是「等上一条回复完成」，不是「正在想」",
-			last?.kind === "等待那行" && /等上一条回复完成/.test(last.text),
-			last ? `最底下是：${last.kind}「${last.text}」` : "最底下什么都没有",
-		);
-		const marked = await evaluate<boolean>(`Boolean(document.querySelector('[data-ly-awaiting-turn]'))`);
-		check("那一行带着「还没轮到」的标记", marked, "没有 data-ly-awaiting-turn");
+		check("转圈站在新气泡底下", below(pending, "第二条消息"), describe(pending));
 
-		console.log("\n【四】放行第一轮，看它换成正常的「正在想」");
+		console.log("\n【四】放行第一轮：转圈仍旧跟着最后那条气泡");
 		release?.();
 		await settle(150);
 		const after = await evaluate<Skeleton>(SKELETON);
 		show("第一轮收尾之后：", after);
-		const stillWaiting = await evaluate<boolean>(`Boolean(document.querySelector('[data-ly-awaiting-turn]'))`);
-		check("轮到它了，「等上一条」那行退场", !stillWaiting, "还挂着「等上一条回复完成」");
 		check("第二条真的被答了", after.rows.filter((r) => r.kind === "模型写的" && /第一轮写完了/.test(r.text)).length >= 2, "只看到一条回答");
+		/*
+		 * 这一条钉的是「不许再长回来」。
+		 *
+		 * 这里一度有一支「等上一条回复完成」，判据是 `pendingUserMessage`。消息被后台吞掉的时候
+		 * 那个标记永远不清，于是那行字永久挂着——把一个交互上的小别扭换成了一个卡死的提示。
+		 */
+		const strayLine = await evaluate<boolean>(`document.body.innerText.includes('等上一条回复完成')`);
+		check("屏幕上没有「等上一条回复完成」这种话", !strayLine, "那一支又长回来了");
 	} finally {
 		await stopRecording();
 		for (const res of open) res.destroy();
