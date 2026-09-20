@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { beforeEach, mock, test } from "node:test";
+import { afterEach, beforeEach, mock, test } from "node:test";
 import { act, createElement as h } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { useApp } from "../../src/store/index.ts";
@@ -21,17 +21,51 @@ function deferredList() {
 	const promise = new Promise<SessionMeta[]>((done, fail) => { resolve = done; reject = fail; });
 	return { promise, resolve, reject };
 }
+/**
+ * 把此刻还在路上的异步工作等落地。
+ *
+ * 这个文件里有几笔写入是没人接着的：后台回合结束会顺手刷一次会话列表（`apply-event.ts` 里那句
+ * `void bridge.sessions.list()`），打开会话之后还跟着一趟读转录。它们落地时写的正是这里断言的东西
+ * ——`sessions`、`selectionEpoch`、当前会话。谁发起的谁等完，落在自己这一格里，下一条测试拿到的就
+ * 只有 `beforeEach` 摆好的那份。
+ *
+ * 判据是 store 不再变：zustand 每次 `set` 都换一个状态对象，连着几拍还是同一个，就是没人再写了。
+ */
+async function settle(): Promise<void> {
+	let state = useApp.getState();
+	// 上限只为兜底：真要有谁每拍都在写，与其在这里空转到超时，不如把这一格让给断言去说话。
+	for (let quiet = 0, spins = 0; quiet < 3 && spins < 100; spins++) {
+		await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+		const now = useApp.getState();
+		quiet = now === state ? quiet + 1 : 0;
+		state = now;
+	}
+}
+
+/** 真正的导航动作，在任何一条测试替换它之前拿在手上——每条测试开始时都还原成它。 */
+const openSessionById = useApp.getState().openSessionById;
+
 beforeEach(() => {
 	list = async () => [meta("a"), meta("b")];
 	onTray = undefined;
-	useApp.setState({ selectionEpoch: 0, activeSessionId: "a", meta: meta("a"), sessions: [meta("a"), meta("b")], activity: {}, turns: {}, carried: {}, notices: [],
-		messages: [], approvals: [], sessionCache: {}, toolRuns: {}, scratchRoots: ["/test"], scratchCwd: "/test", workspace: null, running: false, loadingSession: false });
+	/*
+	 * 动作和状态一起还原。
+	 *
+	 * `openSessionById` 在这里是因为它被替换过，而还回去这件事得有人兜底——这一整个文件问的就是它答
+	 * 什么，一条测试的桩漏出来，后面每一条都在问一个假的。`pendingSessionId` 是另一处：它留着上一条
+	 * 测试选到一半的 id，会让 `previewSessionId` 认成「这一行已经在选了」而不推进 `selectionEpoch`，
+	 * 后面比对世代的那几条就全错了位。
+	 */
+	useApp.setState({ selectionEpoch: 0, activeSessionId: "a", pendingSessionId: null, meta: meta("a"), sessions: [meta("a"), meta("b")], activity: {}, turns: {}, carried: {}, notices: [],
+		messages: [], approvals: [], sessionCache: {}, toolRuns: {}, scratchRoots: ["/test"], scratchCwd: "/test", workspace: null, running: false, loadingSession: false, view: "chat", openSessionById });
 	Object.defineProperty(window, "lyra", { configurable: true, value: {
 		onTrayCommand: (listener: Parameters<LyraApi["onTrayCommand"]>[0]) => { onTray = listener; return () => { onTray = undefined; }; },
 		sessions: { list: () => list(), transcript: async (_project: string, id: string) => ({ meta: meta(id), messages: [], running: false, pendingApprovals: [] }), capabilities: async () => null },
 		subAgents: { list: async () => [] },
 	} });
 });
+
+afterEach(settle);
 
 test("background completion is immediate, singular, and cleared when the session is opened", async () => {
 	const read = deferredList(); list = () => read.promise;
@@ -56,7 +90,8 @@ test("active and cancelled tasks stay quiet; a later background turn can notify 
 	}
 	assert.equal(useApp.getState().notices.length, 2);
 	assert.ok(useApp.getState().notices.every((notice) => notice.sessionId === "b" && notice.level === "error"));
-	await Promise.resolve();
+	// 三次后台结束各自甩出一次列表刷新，落地时会整份改写 `sessions`——在这里等完，别写进下一条测试。
+	await settle();
 });
 
 test("notification navigation resolves an unloaded target and respects newer navigation", async () => {
@@ -75,17 +110,37 @@ test("notification navigation resolves an unloaded target and respects newer nav
 test("cold tray commands use the same ID lookup as the toast action", async () => {
 	function Harness() { useTrayCommands(); return null; }
 	useApp.setState({ sessions: [] });
+	/*
+	 * 托盘那一脚是 `void openSessionById(id)`——发出去就不回头，测试没有任何把手能知道它什么时候落地。
+	 * 所以在这里替一层只做记录的壳，把那个 Promise 接住等完：等一个微任务只够它把冷查找发出去，剩下
+	 * 的「查到了、开会话」会漏到下一条测试里，写在别人的 store 上。
+	 */
+	const navigations: Promise<boolean>[] = [];
+	const original = useApp.getState().openSessionById;
+	useApp.setState({ openSessionById: (id: string) => { const navigation = original(id); navigations.push(navigation); return navigation; } });
 	const view = await mount(h(Harness));
 	try {
 		assert.ok(onTray); onTray("open-session:b");
-		await act(async () => { await Promise.resolve(); });
+		assert.equal(navigations.length, 1, "托盘命令必须当场走 ID 查找这条路");
+		await act(async () => { await Promise.all(navigations); });
 		assert.equal(useApp.getState().activeSessionId, "b");
-	} finally { await view.unmount(); }
+	} finally { useApp.setState({ openSessionById: original }); await view.unmount(); }
 });
 
 test("task toasts offer one action and keep the source session ID", async () => {
 	useApp.getState().notify("同名任务执行失败", "error", "b");
-	const open = mock.method(useApp.getState(), "openSessionById", async () => true);
+	/*
+	 * 换掉动作，走 `setState` 而不是 `mock.method`。
+	 *
+	 * zustand 每次 `set` 都交出一个新的状态对象，动作只是被复制过去的字段。`mock.method` 补的是当时
+	 * 取到的那一个对象，`restore()` 也只还得回那一个——而点完动作，提示条会排一个 170ms 的退场定时器，
+	 * 它落地时写一次 `notices`，store 就换了对象。机器一忙，这条测试走到 `finally` 已经超过 170ms，
+	 * 于是还回去的是被换下来的旧对象，活着的 store 一直留着这个「永远答 true」的桩：后面每一条问
+	 * `openSessionById` 的测试都被它答成了 true。整整六条红，全是这一个字段没还回去。
+	 */
+	const open = mock.fn(async (_id: string) => true);
+	const original = useApp.getState().openSessionById;
+	useApp.setState({ openSessionById: open });
 	// 提示条在应用里就挂在 `LayoutProvider` 里面（App.tsx），它要按侧边栏宽度让开位置。
 	const view = await mount(h(LayoutProvider, null, h(Toaster)));
 	try {
@@ -94,7 +149,7 @@ test("task toasts offer one action and keep the source session ID", async () => 
 		assert.equal(document.querySelector('[aria-label="新开一个对话来排查"]'), null);
 		await click(action);
 		assert.equal(open.mock.calls[0]?.arguments[0], "b");
-	} finally { open.mock.restore(); await view.unmount(); }
+	} finally { useApp.setState({ openSessionById: original }); await view.unmount(); }
 });
 
 test("collapsed sidebar distinguishes waiting, failed and done without animating the badge", async () => {
