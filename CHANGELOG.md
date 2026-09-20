@@ -5,6 +5,165 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.18](https://github.com/kittors/Lyra/releases/tag/v0.9.18) - 2026-09-20
+
+<!-- lyra:notes en -->
+
+### Fixes
+
+- **Commit and push dialog is now a focused modal with full branch control.** The commit interface is moved from a cramped popover overlapping the file list into a centered modal dialog with matching border radius and breathing room. The branch row now expands a full branch picker allowing instant selection or in-place branch creation that only commits and creates upon confirmation. The message input preserves generated drafts on retry, and the commit language selector remains permanently available without disappearing during typing.
+
+- **Action buttons on file diff rows no longer overlap or crowd file names.** Revert and stage buttons now sit smoothly at the far right edge when hovering without pushing the diff addition/deletion numbers away or leaving empty gaps. Transitions are carefully sequenced so counts yield before buttons fade in, preventing double-drawn transparent artifacts.
+
+- **User bubbles now render full Markdown, and side chat no longer displays internal attachment markers.** Messages in conversations format markdown blocks properly. Side chat now tracks separate display text so raw attachment headers (`### Attached file: ...`) intended for models are no longer exposed in the chat bubbles or restored into edit boxes.
+
+- **Window title bars and captions properly proportioned on Windows.** Windows native titlebar overlay height now uses standard caption button heights (32px) rather than macOS traffic-light centering heights (44px), and the header bar background color is consistently applied to panel and session windows instead of blending into the content below.
+
+- **Queue status spinner stays attached to the latest user bubble.** Spinning indicators follow the last user message rather than permanently sticking with an outdated "Waiting for previous response" notice when turns are queued or streaming.
+
+- **The Git changes view remembers your tree vs. flat view preference.** Toggling between tree view and flat list is preserved across panel closes, workspace switches, branch checkouts, and app reloads.
+
+- **Masked API keys in settings never overlap the visibility toggle button.** Long secret keys keep sufficient clearance from the show/hide eye button using flex layout, preventing text characters from drawing over the control.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 修复
+
+- **Git 提交改动改为居中弹窗，分支可直接选择或新建。** 提交界面从此前遮挡半个面板与文件列表的挤压浮层，改为居中弹窗模态，采用与主输入框一致的圆角、描边与内衬呼吸感。分支行可直接展开本地分支列表或新建分支，确认提交时才执行切换；生成的提交信息写回输入框，生成语言切换按钮常驻，不再因开始打字就突兀消失或让输入框变矮。
+
+- **文件改动列表行右侧按钮不再挤占文件名或留白。** 撤销与暂存按钮采用绝对定位与右边缘对齐，闲置时数字一直延伸到边框边缘，悬停时数字让位后按钮渐入，移开时按钮先走数字后回，消除同时半透明重叠的毛刺感。
+
+- **用户消息气泡支持 Markdown 渲染，侧边聊天不再把附件内部记号展示在气泡中。** 用户消息整段按 Markdown 正常排版；侧边聊天接入独立显示文本与附件结构，模型专用的附件展开正文与文件头不会再泄露在气泡内，重新编辑也不会把附件代码反填进输入框。
+
+- **Windows 顶栏与系统按钮高度恢复标准比例。** Windows/Linux 顶栏拆出专用的原生标题栏高度（32px），不再套用 macOS 红绿灯专用的 44px 高度，标题栏按钮恢复正常大小；面板与会话窗口补齐顶栏底色，消除内容顶住顶部的遮挡感。
+
+- **转录末尾思考指示器精准跟随最后一条用户气泡。** 移除了容易造成状态卡死的「等上一条回复完成」提示，在排队或连续提问时，等待动画始终紧跟最新发送的气泡。
+
+- **Git 改动列表记住树形与平铺视图偏好。** 切换为树形展示后偏好保存至本地，关闭面板、切换分支、切换会话或重启应用均不会意外重置回平铺。
+
+- **设置页长密钥不再遮挡眼睛显隐按钮。** 密钥输入框与眼睛切换按钮统一使用 flex 排版布局，长密钥字符与圆点停在按钮左侧，避免长字符串将切换按钮盖住。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 修復
+
+- **Git 提交變更改為居中彈窗，分支可直接選取或新建。** 提交介面從先前遮擋半個面板與檔案清單的浮層，改為居中彈窗，採用與主輸入框一致的圓角、邊框與間距。分支列可直接展開本機分支清單或新建分支，按下提交時才執行切換；產生的提交訊息會寫回輸入框，語言切換按鈕常駐顯示，不再因開始打字而跳動或縮排。
+
+- **檔案變更清單右側按鈕不再擠壓檔名或留白。** 復原與暫存按鈕採用絕對定位對齊右側邊緣，平時數字延伸至最右端，懸停時數字讓位後按鈕淡入，離開時按鈕先退後數字補回，避免兩者同時半透明重疊。
+
+- **使用者訊息對話框支援 Markdown 呈現，側邊聊天不再顯示內部附件標記。** 使用者訊息依 Markdown 正常排版；側邊聊天分離顯示文字與附件資料，不再將給模型讀取的附件檔頭曝露在對話框中，重新編輯時也不會帶入附件原始碼。
+
+- **Windows 頂欄與系統按鈕高度還原標準比例。** Windows/Linux 頂欄採用專屬原生高度（32px），不再誤套用 macOS 紅綠燈的 44px 高度；面板與對話視窗補齊標題列底色，內容不再被頂部邊界遮蓋。
+
+- **佇列狀態指示器精準跟隨最後一筆使用者訊息。** 移除容易卡住的「等上一條回覆完成」文字，在連續傳送訊息時，載入中旋轉圖示永遠緊跟在最新的使用者對話框下方。
+
+- **Git 變更清單記住樹狀與平鋪檢視偏好。** 切換為樹狀檢視後偏好自動儲存，關閉面板、切換分支或重啟應用均會維持設定。
+
+- **設定頁長金鑰不再覆蓋眼睛顯隱按鈕。** 金鑰輸入框與顯隱切換按鈕統一採用 flex 排版，避免長金鑰字元覆蓋按鈕導致無法點擊。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 修正
+
+- **Git コミット画面が中央モーダルダイアログになり、ブランチの切り替えや新規作成に対応しました。** ファイル一覧を覆っていた従来のポップオーバーから、メイン入力欄と統一感のある角丸と余白を持つ中央モーダルに変更しました。ブランチ行からローカルブランチの選択や新規ブランチ作成が可能になり、生成されたコミット文は入力欄に反映され、言語切り替えボタンも入力中常時表示されます。
+
+- **変更ファイル一覧右端のボタン配置を整理しました。** 取り消し・ステージングボタンを右端に絶対配置し、待機時は増減数が端まで表示され、ホバー時は数値を先に隠してからボタンを表示する段階的な遷移にすることで、半透明の重複表示を防ぎました。
+
+- **メッセージ吹き出しの Markdown 表示に対応し、サイドチャットの内部添付表記を隠しました。** 吹き出し内の Markdown が正しくレンダリングされるようになりました。サイドチャットでもモデル向けの展開記法（`### Attached file: ...`）が画面や再編集用テキストに混入しないよう分離しました。
+
+- **Windows のタイトルバーとボタンの大きさを標準比率に修正しました。** Windows/Linux のヘッダー高さを標準の 32px に設定し、macOS 向けの 44px を適用していたことによるボタン肥大化を解消しました。また、パネルおよび会話ウィンドウにも適切なヘッダー背景色を適用しました。
+
+- **処理中スピナーが常に最新のユーザーメッセージに追従するよう改善しました。** 状態が固まりやすかった「前の応答を待っています」表記を撤去し、キュー実行時もスピナーが最新メッセージの直下に自然に配置されます。
+
+- **Git 変更一覧のツリー表示・フラット表示設定を保持するようにしました。** 表示形式の切り替えがローカルに保存され、パネルの開閉やブランチ切り替え、再起動後も状態を維持します。
+
+- **設定画面の長い API キーが目のトグルボタンに被らないようレイアウトを修正しました。** flex レイアウトにより入力テキストがボタンの手前で収まるようになり、長いキーを入力してもボタンが覆われることがなくなりました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 고친 것
+
+- **Git 커밋 화면을 중앙 모달 다이얼로그로 개편하고 브랜치 생성 및 선택을 연결했습니다.** 파일 목록을 덮던 좁은 팝오버를 메인 입력창과 동일한 여백과 둥근 모서리를 가진 중앙 모달로 바꾸었습니다. 브랜치 행에서 로컬 브랜치 선택 및 새 브랜치 생성이 가능하며, 자동 생성된 커밋 메시지는 입력창에 표시되고 언어 선택 버튼도 입력 중 사라지지 않고 고정됩니다.
+
+- **파일 변경 목록 우측 버튼들의 겹침과 여백 문제를 해결했습니다.** 되돌리기 및 스테이징 버튼을 우측 끝에 배치하여 평소에는 변경 수치가 끝까지 늘어나고, 마우스를 올리면 수치가 먼저 물러난 뒤 버튼이 나타나 반투명하게 겹치는 현상을 방지했습니다.
+
+- **사용자 말풍선에 Markdown 렌더링을 적용하고 사이드 채팅의 내부 첨부 표기를 숨겼습니다.** 대화창의 Markdown이 정상적으로 표시됩니다. 사이드 채팅에서도 모델 전달용 첨부 헤더(`### Attached file: ...`)가 말풍선이나 편집창에 노출되지 않도록 표시 텍스트를 분리했습니다.
+
+- **Windows 상단 바와 캡션 버튼 높이를 표준 규격으로 복원했습니다.** Windows/Linux 전용 헤더 높이(32px)를 분리하여 macOS용 44px로 인해 버튼이 커지던 문제를 고치고, 패널 및 세션 창 상단에도 일관된 배경색을 적용했습니다.
+
+- **진행 스피너가 항상 마지막 사용자 말풍선 아래에 자연스럽게 위치합니다.** 멈춤 현상을 유발하던 「이전 응답 완료 대기」 문구를 제거하고, 큐에 대기 중일 때도 로딩 링이 최신 메시지 아래에 정확히 표시됩니다.
+
+- **Git 변경 목록의 트리/플랫 보기 설정이 유지됩니다.** 트리 뷰 선택 시 상태가 저장되어 패널을 닫거나 브랜치를 전환하고 앱을 다시 열어도 설정이 그대로 유지됩니다.
+
+- **설정 화면에서 긴 API 키가 눈 모양 토글 버튼을 가리지 않습니다.** flex 배치를 적용하여 입력 글자가 버튼 왼쪽에 안전하게 멈추도록 개선했습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Corrections
+
+- **La boîte de commit et push devient une boîte de dialogue centrale avec gestion complète des branches.** L'interface de validation quitte le popover étroit qui chevauchait la liste des fichiers pour une boîte modale centrée adoptant les mêmes arrondis et marges que le champ principal. La ligne de branche permet de basculer vers une autre branche locale ou d'en créer une nouvelle à la validation ; le message généré s'inscrit dans le champ et le sélecteur de langue reste toujours visible pendant la saisie.
+
+- **Les boutons d'action sur les lignes de fichiers modifiés ne se superposent plus.** Les boutons d'annulation et d'indexation sont positionnés à l'extrémité droite avec une transition soignée : au survol, les compteurs s'effacent avant l'apparition des boutons, évitant tout effet de chevauchement translucide.
+
+- **Les bulles utilisateur prennent en charge le Markdown et le chat latéral masque les balises techniques.** Les messages affichent désormais correctement les blocs Markdown. Le chat latéral sépare le texte affiché des données brutes transmises aux modèles, évitant l'affichage des en-têtes de pièces jointes dans les bulles ou dans la zone d'édition.
+
+- **Hauteur de barre de titre et des boutons système ajustée sous Windows.** La barre d'en-tête sous Windows/Linux adopte une hauteur standard de 32 px au lieu des 44 px hérités de macOS, redonnant aux boutons de contrôle leur taille normale. L'arrière-plan de la barre est également appliqué aux fenêtres de panneaux et de sessions.
+
+- **L'indicateur d'activité reste accroché à la dernière bulle envoyée.** Suppression de la mention fragile « En attente de la réponse précédente » : l'anneau de chargement s'aligne toujours sous le message le plus récent, y compris en cas de messages consécutifs.
+
+- **La vue des modifications Git conserve la préférence d'arborescence.** Le choix entre l'affichage en arborescence ou à plat reste mémorisé après la fermeture du panneau, le changement de branche ou le redémarrage.
+
+- **Les clés secrètes longues dans les paramètres ne masquent plus l'icône de visibilité.** Une disposition flex garantit que le texte s'arrête avant le bouton œil, permettant de masquer ou afficher la clé sans gêne.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Исправления
+
+- **Диалог фиксации и отправки стал центральным окном с полным управлением ветками.** Интерфейс коммита перенесён из тесного всплывающего окна, перекрывавшего список файлов, в центрированное модальное окно с такими же скруглениями и отступами, как у основного поля ввода. В строке ветки теперь можно выбрать локальную ветку или создать новую; сгенерированное сообщение выводится в поле ввода, а кнопка выбора языка не исчезает при начале набора.
+
+- **Кнопки действий в строках изменений больше не перекрывают имя файла и счётчики.** Кнопки отката и индексации выровнены по правому краю: при наведении счётчики изменений скрываются до появления кнопок, что исключает полупрозрачное наложение элементов.
+
+- **В сообщениях пользователя поддержан Markdown, а технические метки вложений скрыты в боковом чате.** Текст в пузырях форматируется по правилам Markdown. В боковом чате отделён текст для показа от данных модели, поэтому служебные заголовки вложений (`### Attached file: ...`) больше не отображаются в переписке и не попадают в поле редактирования.
+
+- **Корректные пропорции заголовка окна и кнопок управления в Windows.** Высота заголовка для Windows/Linux уменьшена до стандартных 32 px вместо 44 px (использовавшихся для кнопок macOS), что вернуло кнопкам стандартный размер. Панели и окна разговоров получили фон заголовка, исключающий наплыв содержимого.
+
+- **Индикатор обработки теперь прикреплён к последнему сообщению пользователя.** Удалена строка «Ожидание предыдущего ответа», приводившая к зависаниям: спиннер теперь всегда отображается под последним отправленным сообщением.
+
+- **Список изменений Git запоминает выбор между деревом и плоским списком.** Выбранный режим отображения сохраняется при закрытии панели, переключении веток и перезапуске приложения.
+
+- **Длинные ключи API в настройках не закрывают кнопку скрытия.** За счёт flex-разметки текст ввода останавливается перед кнопкой с иконкой глаза, позволяя свободно переключать видимость ключа.
+
+</details>
+
+
 ## [0.9.17](https://github.com/kittors/Lyra/releases/tag/v0.9.17) - 2026-09-19
 
 <!-- lyra:notes en -->
