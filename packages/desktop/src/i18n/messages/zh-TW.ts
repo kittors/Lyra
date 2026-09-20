@@ -2087,6 +2087,7 @@ export const zhTW = {
 	"running.turnTokens": "本輪 {n} tokens",
 	"running.compacted": "已壓縮較早的對話",
 	"running.waitingForAnswer": "等待你的回答",
+	"running.waitingForTurn": "等上一則回覆完成",
 	"delivery.editedFiles": "已編輯 {n} 個檔案",
 	"userMessage.fromSideChat": "來自側邊聊天",
 	"traceInspector.related": "關聯紀錄 · ",

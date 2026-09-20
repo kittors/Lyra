@@ -22,6 +22,27 @@ import type { Act } from "./types.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
+/** 平铺还是树，记在本地。 */
+const TREE_VIEW_KEY = "lyra.git.changes.tree";
+
+/**
+ * 人点出来的形状，活得过一次重建。
+ *
+ * 这里从前是 `useState(false)`：每次这个视图被重建就回到平铺，而「重建」比看上去频繁得多
+ * —— 关掉 Git 面板再打开、换一个项目的会话、重启应用，甚至只是切了个 git 分支（这个视图挂
+ * 在 `GitPanel` 里，key 就是当前分支名）。人明明没离开这个面板，形状自己变了回去。
+ *
+ * 全局一个键，不按仓库分：要的是「我习惯看树」，那是关于这个人怎么读改动的，不是关于某个
+ * 仓库的。侧边栏的标签页、排序、折叠也都这么记，见 `Sidebar`。
+ */
+function useTreeViewPreference(): [boolean, (next: (previous: boolean) => boolean) => void] {
+	const [treeView, setTreeView] = useState(() => localStorage.getItem(TREE_VIEW_KEY) === "1");
+	useEffect(() => {
+		localStorage.setItem(TREE_VIEW_KEY, treeView ? "1" : "0");
+	}, [treeView]);
+	return [treeView, setTreeView];
+}
+
 /**
  * Staged above unstaged, with the commit box under both.
  *
@@ -47,7 +68,7 @@ export function ChangesView({
   plan: SyncPlan;
 }) {
 	const { t } = useI18n();
-  const [treeView, setTreeView] = useState(false);
+  const [treeView, setTreeView] = useTreeViewPreference();
   const confirm = useConfirmer();
   /** The hunks, once they arrive. The rows themselves do not wait for them — see `rowsFor`. */
   const [hunks, setHunks] = useState<{ staged: WorkspaceDiffFile[]; unstaged: WorkspaceDiffFile[] }>({

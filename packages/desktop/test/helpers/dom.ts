@@ -83,6 +83,29 @@ const globals: Record<string, unknown> = {
 		removeListener() {},
 		dispatchEvent: () => false,
 	}),
+	/*
+	 * 记界面偏好的地方——在内存里，但真的记得住。
+	 *
+	 * 应用里好几处直接用裸 `localStorage` 存「上次选的是哪个」：侧边栏的标签页、排序、折叠，
+	 * 改动列表的平铺还是树。这套 DOM 不带它，于是第一个被挂进测试的这类组件会在渲染中途抛
+	 * `localStorage is not defined`——报出来是那个文件里所有用例一起红，看着像组件坏了。
+	 *
+	 * 不用 happy-dom 自带的：它按 window 走，而这些组件用的是全局那一个。行为完整（存得住、读
+	 * 得回、删得掉），因为「点了树形，重新挂上来还是不是树形」这类用例要的正是它记得住。
+	 */
+	localStorage: (() => {
+		const store = new Map<string, string>();
+		return {
+			getItem: (key: string) => store.get(key) ?? null,
+			setItem: (key: string, value: string) => void store.set(key, String(value)),
+			removeItem: (key: string) => void store.delete(key),
+			clear: () => store.clear(),
+			key: (index: number) => [...store.keys()][index] ?? null,
+			get length() {
+				return store.size;
+			},
+		};
+	})(),
 };
 
 for (const [key, value] of Object.entries(globals)) {

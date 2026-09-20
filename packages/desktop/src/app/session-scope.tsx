@@ -70,6 +70,25 @@ export function useScopedApprovals(): AppState["approvals"] {
 	});
 }
 
+/**
+ * 这条刚发出去的话，后台受理了没有。
+ *
+ * `pendingUserMessage` 是「已经乐观画进转录、但还没听见后台承认」的那一条。后台真正开始
+ * 处理它的时候会把它作为 `message_start` 广播回来，那一刻这里就空了（见 `message-event`）。
+ *
+ * 所以它不在了 ≠ 一定被答复了，而是**这一条已经轮到了**。上一轮还在写的时候又发一条，那条
+ * 消息在后台只是被记下来等着，`message_start` 迟迟不来——这段时间正是「排在后面」，而屏幕上
+ * 从前把它画成「正在想」。返回布尔而不是那条消息本身：问的是有没有，订阅整条消息会让每次
+ * 流式更新都重渲染一次。
+ */
+export function useScopedAwaitingTurn(): boolean {
+	const id = useScopedSessionId();
+	return useApp((s) => {
+		if (!id || s.activeSessionId === id) return s.pendingUserMessage !== null;
+		return (s.sessionCache[id]?.state?.pendingUserMessage ?? null) !== null;
+	});
+}
+
 export function useScopedCompactions() {
 	const id = useScopedSessionId();
 	return useApp((s) => {
