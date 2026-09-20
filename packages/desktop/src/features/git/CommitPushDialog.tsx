@@ -219,8 +219,6 @@ export function CommitPushDialog({
 
 	const hasChanges = stagedCount > 0 || (includeUnstaged && unstagedCount > 0);
 	const disabled = busy || running || workingAction !== null || generating;
-	/** 生成中时输入框自己在说话，不该再被当成「人留了空」。 */
-	const willGenerate = !message.trim() && !generating;
 
 	return (
 		<Overlay onClose={onClose} width={460} label={t("commit.commit")}>
@@ -303,53 +301,82 @@ export function CommitPushDialog({
 					</Popover>
 				)}
 
-				{/* 写什么。无边框——这一块本来就是弹窗里唯一要打字的地方，再画个框是重复说明。 */}
-				<div className="relative">
-					<textarea
-						value={message}
-						onChange={(e) => setMessage(e.target.value)}
-						placeholder={generating ? t("commit.generating") : t("commit.autoPlaceholder")}
-						disabled={disabled}
-						rows={3}
-						data-ly-commit-message
-						className="w-full resize-none border-none bg-transparent p-0 text-label leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none disabled:opacity-60"
-						onKeyDown={(e) => {
-							if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-								e.preventDefault();
-								void handleCommit();
-							}
-						}}
-					/>
-					{/*
-					 * 生成中的那一下，由输入框自己交代。
-					 *
-					 * 按钮上的 spinner 说的是「这个动作在跑」，而此刻真正发生的是「模型在写字」——
-					 * 两三秒，放在字会出现的地方才对得上。
-					 */}
-					{generating && (
-						<span className="pointer-events-none absolute top-0.5 right-0">
-							<ActionSpinner size={12} />
-						</span>
-					)}
-				</div>
+				{/*
+				 * 写什么。一个圆角框，和聊天那个输入框同一副样子——但**不带它的阴影**。
+				 *
+				 * 从前这里是裸的一片字，靠底下一条分隔线把它和三个动作隔开——于是「能打字的地方」
+				 * 没有边界，而那条线又凭空在弹窗中间画了一道。现在边界由框自己给：一样的圆角、一样
+				 * 的描边、聚焦时一样会加深。那条线也就不必存在了——框的下沿已经说清楚了到哪儿为止。
+				 *
+				 * 阴影是唯一没抄过来的东西，而且是故意的：主输入框那两层阴影是它和页面之间的距离，
+				 * 而这个框长在一个已经浮起来的弹窗里，再加一层就是浮起来的东西上面又浮了一块，整个
+				 * 框会从卡片里「鼓」出来。同一套视觉语言在不同的底子上，该换的是深度，不是圆角。
+				 *
+				 * 内衬用 `--ly-composer-in` / `--ly-composer-x` 这两个变量，不是抄两个数字过来：
+				 * 主输入框的呼吸感跟着它们走，哪天调了，这里跟着一起动。
+				 */}
+				<div
+					data-ly-commit-field
+					className="rounded-[18px] border border-line-soft transition-colors duration-[var(--ly-t-base)] focus-within:border-ink-faint/60"
+				>
+					<div className="relative">
+						<textarea
+							value={message}
+							onChange={(e) => setMessage(e.target.value)}
+							placeholder={generating ? t("commit.generating") : t("commit.autoPlaceholder")}
+							disabled={disabled}
+							rows={3}
+							data-ly-commit-message
+							className="block w-full resize-none border-none bg-transparent px-[var(--ly-composer-x)] py-[var(--ly-composer-in)] text-label leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none disabled:opacity-60"
+							onKeyDown={(e) => {
+								if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+									e.preventDefault();
+									void handleCommit();
+								}
+							}}
+						/>
+						{/*
+						 * 生成中的那一下，由输入框自己交代。
+						 *
+						 * 按钮上的 spinner 说的是「这个动作在跑」，而此刻真正发生的是「模型在写字」——
+						 * 两三秒，放在字会出现的地方才对得上。跟着第一行字走，所以它也站在内衬里面。
+						 */}
+						{generating && (
+							<span className="pointer-events-none absolute top-[calc(var(--ly-composer-in)+3px)] right-[var(--ly-composer-x)]">
+								<ActionSpinner size={12} />
+							</span>
+						)}
+					</div>
 
-				{/* 用什么语言生成——只在真的会生成时才出现。有字了就不会自动生成，这一行也就没意义。 */}
-				{willGenerate && (
-					<div className="flex justify-end pt-1">
+					{/*
+					 * 用什么语言生成。它**一直在**，不跟着输入框里有没有字来去。
+					 *
+					 * 从前它只在「这一次会自动生成」时才画出来：打第一个字的那一刻整行消失，框跟着矮
+					 * 一截，人正打着字，脚下的东西动了——而且一个刚刚还在那儿的控件突然不见，看上去
+					 * 像是被删掉了。清空输入它又会回来，这个来回本身就是毛病。
+					 *
+					 * 少画一个按钮省不下什么，跳一下却要人重新找一遍。常驻还让这个框有了固定的高度，
+					 * 和主输入框底下那排控件是同一个道理：那排东西也从不因为你开始打字就收起来。
+					 *
+					 * 它落在框**里面**的底边，位置跟主输入框那排控件一样（`.ly-composer-bar` 出的内衬）：
+					 * 这句话讲的是这个框里的字怎么来，挂在框外面就成了一句无主的小字。
+					 */}
+					<div className="ly-composer-bar flex justify-end">
 						<button
 							type="button"
+							data-ly-commit-language
 							data-ly-tip={t("commit.languageIs", { language: commitLanguageLabel(language) })}
 							aria-label={t("commit.languageIs", { language: commitLanguageLabel(language) })}
 							disabled={disabled}
 							onClick={languageMenu.toggle}
-							className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
+							className="-mr-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
 						>
 							<Languages size={11} strokeWidth={1.8} />
 							<span>{commitLanguageLabel(language)}</span>
 							<ChevronDown size={9} strokeWidth={2} />
 						</button>
 					</div>
-				)}
+				</div>
 
 				{languageMenu.open && (
 					<Popover anchor={languageMenu.anchor} onClose={languageMenu.close} placement="bottom" align="end" width="compact" label={t("commit.language")}>
@@ -401,8 +428,8 @@ export function CommitPushDialog({
 					</label>
 				)}
 
-				{/* 做哪一个。 */}
-				<div className="mt-2 space-y-0.5 border-t border-line-soft pt-2">
+				{/* 做哪一个。上面那个框已经画出了自己的下沿，再补一条分隔线就是同一件事说了两遍。 */}
+				<div className="mt-2.5 space-y-0.5">
 					<ActionRow
 						icon={<GitCommitHorizontal size={15} strokeWidth={1.9} />}
 						label={t("commit.commit")}

@@ -74,7 +74,18 @@ export function SecretInput({
 }) {
 	const [visible, setVisible] = useState(false);
 	return (
-		<div className="ly-field relative w-full pr-10" data-ly-field="">
+		/*
+		 * 那只眼睛是这一行里的一件东西，不是浮在它上面的。
+		 *
+		 * 从前它 `absolute` 贴在右边，靠外层的 `pr-10` 给它空出位置——而那条 padding 从来没生效过：
+		 * `.ly-field` 写的是 `padding: 0 16px` 这条合写，它在 `overlay.css` 里没有分层，而 Tailwind
+		 * 的 `pr-10` 在 `@layer utilities` 里——未分层的样式一律压过分层的，跟谁写在后面无关。于是
+		 * 输入框一路铺到距右边 16px，一把足够长的 key 打出来的圆点直接盖在眼睛上，看不清也点不准。
+		 *
+		 * 现在两者是同一条 flex 的两个孩子：位置由排版算出来，不由一条可能被覆盖的 padding 让出来。
+		 * 负的右外边距把它从 16px 的内衬里拉回 6px——`margin` 不在那条合写里，没有同一个坑。
+		 */
+		<div className="ly-field w-full gap-1.5" data-ly-field="">
 			<Input
 				type={visible ? "text" : "password"}
 				value={value}
@@ -83,13 +94,15 @@ export function SecretInput({
 				placeholder={placeholder}
 				spellCheck={false}
 				autoComplete="off"
-				className="h-full min-w-0 w-full bg-transparent tracking-wide text-ink placeholder:text-ink-faint"
+				data-ly-secret-input=""
+				className="h-full min-w-0 flex-1 bg-transparent tracking-wide text-ink placeholder:text-ink-faint"
 			/>
 			<button
 				type="button"
 				data-ly-tip={translate(visible ? "common.hide" : "common.show")}
+				data-ly-secret-toggle=""
 				onClick={() => setVisible((v) => !v)}
-				className="absolute top-1/2 right-2.5 -translate-y-1/2 text-ink-faint transition-colors hover:text-ink"
+				className="-mr-1.5 flex size-[26px] shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 			>
 				{visible ? <EyeOff size={15} strokeWidth={1.8} /> : <Eye size={15} strokeWidth={1.8} />}
 			</button>
