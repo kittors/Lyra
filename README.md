@@ -104,7 +104,9 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 - **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.lyra/agents/*.md`.
 - **Side chat.** A temporary conversation beside the current session. It can read the main chat. It writes nothing into it. Work that needs tools is queued on the main session.
 - **Right-hand dock.** Nine panes, all open at once if you want: Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace, Browser. The file pane is a syntax-highlighted editor. The terminal is a real pty.
-- **Replies render what the model wrote.** A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. A twelve-megabyte message still paints in one frame.
+- **Split workspace.** Keep up to four conversations side-by-side in one window. Each conversation slot owns its tools dock (at least 420 px for chat, 300 px for tools), and panels render squeezed rather than unexpectedly detaching into floating windows when narrow.
+- **Centered Git commit modal & branch workflows.** Commit changes through a focused dialog styled after the composer with matching border radius, breathing room, and in-place branch switching/creation. Changes support toggling between flat list and hierarchical tree view with persistent preference.
+- **Replies render what the model wrote.** User bubbles and assistant text render clean Markdown. A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. Side chat separates model-bound attachment payloads from display bubbles and edit inputs.
 - **Built-in formatters.** Saving a file can run Prettier, or the language's own formatter shipped in the app (Go, Rust/Python via Ruff, C/C++, Dart, Swift, PHP, and others). You do not have to install those toolchains first.
 - **Keep the computer awake while a task runs.** A switch in General settings. Closing the lid still sleeps.
 - **Mobile sync.** The phone replays the same session log: watch a turn, approve actions, keep asking. Three paths: LAN when you share a Wi-Fi, your own domain and TLS, or both ends dial out to the relay.
@@ -116,7 +118,7 @@ packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
   mobile/            Expo / React Native app
-  contract/          the line between the two processes; 205 methods in one place
+  contract/          the line between the two processes; 215 methods in one place
   relay/             public relay for when the phone is not on the same LAN. one file, no dependencies
   agent-cli/         command-line entry
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
@@ -210,7 +212,7 @@ The right-hand dock is a tab strip. Nine panes can stay open:
 | Files | ⌘P | File tree. Clicking a file opens File contents |
 | File contents | ⌥⌘P | Syntax-highlighted editor. The title is the file name, not "File contents" |
 | Terminal | ⌃` | A real pty, not echoed commands |
-| Git | ⌘⇧R | Workspace diff, one-column accordion, commit from here |
+| Git | ⌘⇧R | Workspace diff (flat or tree view), centered commit modal with branch switching & creation |
 | Side chat | ⌥⌘S | See above |
 | Sub-agents | ⌥⌘A | What each `task` worker is doing |
 | Tasks | ⌘J | The current todo list |
@@ -218,6 +220,7 @@ The right-hand dock is a tab strip. Nine panes can stay open:
 | Browser | ⌘T | Built-in browser. Boundary in [Built-in capabilities](docs/guide/capabilities.md) |
 
 - **Width is draggable.** Sidebar and pane edges drag, double-click restores the default, arrow keys nudge. Widths persist.
+- **Split layout & screen capacity.** A window can host up to four tiled conversations side-by-side. Each conversation slot owns its tools dock (at least 420 px for chat and 300 px for panels). If the workspace becomes narrow, panels are drawn squeezed rather than unexpectedly detaching into orphaned windows.
 - **Full screen.** A pane can fill the conversation column. Files then becomes tree on the left and file on the right. If the sidebar is collapsed, the window buttons move into the tab strip instead of floating on the pane.
 - **Editor.** Syntax highlight, wrap toggle (off by default), both scrollbars. The scrollbars paint over the content and take no width.
 
@@ -242,9 +245,9 @@ Anything that changes on screen has a matching motion, 140 to 260ms, gated by `p
 - **Sidebar.** `margin-left` slides from 0 to the negative of the current width, with a fade. The collapse control stays at the top-left of the window (to the right of the traffic lights) and does not travel with the sidebar. The fill inside the icon is the current state. ⌘B toggles.
 - **Tool running.** The card border turns blue, the icon pulses, a stopwatch and spinner sit on the right, a progress rail travels along the bottom.
 - **Tool done.** The status icon and `+N −M` counts pop in with a short overshoot.
-- **Waiting on the model.** A thin arc sweeps a faint track, with elapsed time and token count beside it. Monochrome, because the reply sits next to it.
+- **Waiting on the model.** A thin arc sweeps a faint track, with elapsed time and token count beside it. Monochrome, because the reply sits next to it. In queued or multi-turn chats, status indicators attach accurately to the latest user bubble.
 - **Approval sheet.** Slides up from the composer.
-- **Message actions.** Time and copy appear only while the pointer is on that message, without changing the line height.
+- **Message actions & Markdown rendering.** User bubbles render full Markdown with inline code and tables. Internal attachment markers intended for models are filtered out from side-chat bubbles and edit drafts. Time and copy appear only while the pointer is on that message, without changing the line height.
 - **Buttons.** Hover changes color, press is `scale(0.9)`. Suggestion cards lift 2px on hover.
 
 ## Permissions
