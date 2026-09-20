@@ -38,14 +38,3 @@ commit-msg:
   jobs:
     - name: commitlint
       run: ./node_modules/.bin/commitlint --edit {1}
-
-pre-push:
-  jobs:
-    - name: check
-      # Same set CI's linux jobs run before windows-ui: lint, style, i18n,
-      # typecheck, arch, test. typecheck-only was how knip and unused exports
-      # reached main and sat in a red dead-code job that all-green did not wait for.
-      run: pnpm check
-
-    - name: knip
-      run: pnpm knip
