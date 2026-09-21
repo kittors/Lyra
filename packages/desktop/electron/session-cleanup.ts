@@ -24,7 +24,7 @@ function dayKey(ms: number): string {
 }
 
 /** 一天里最后活动过的那些会话：几条，占多少。 */
-export interface StorageDay {
+interface StorageDay {
 	day: string;
 	sessions: number;
 	bytes: number;
