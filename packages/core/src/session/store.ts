@@ -316,17 +316,12 @@ export class SessionStore implements SessionStorage {
 			next.updatedAt = base.updatedAt;
 		}
 		if (payload.type === "move") {
-			next.cwd = payload.cwd;
-		if (payload.type === "archive" || payload.type === "move") {
 			// 同 `archive`：换个归属不是一次活动。
 			next.updatedAt = base.updatedAt;
-			if (payload.type === "move") {
-				const movePayload = payload as { cwd?: string; projectId?: string; projectName?: string };
-				if (movePayload.cwd !== undefined) next.cwd = movePayload.cwd;
-				if (movePayload.projectId !== undefined) next.projectId = movePayload.projectId;
-				if (movePayload.projectName !== undefined) next.projectName = movePayload.projectName;
-			}
-		}
+			const movePayload = payload as { cwd?: string; projectId?: string; projectName?: string };
+			if (movePayload.cwd !== undefined) next.cwd = movePayload.cwd;
+			if (movePayload.projectId !== undefined) next.projectId = movePayload.projectId;
+			if (movePayload.projectName !== undefined) next.projectName = movePayload.projectName;
 		}
 		if (payload.type === "meta") {
 			// A meta record carries caller-side changes such as the selected model.
