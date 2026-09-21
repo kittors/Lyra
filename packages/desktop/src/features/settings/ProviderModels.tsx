@@ -19,7 +19,8 @@ import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { ModelIcon } from "../models/index.ts";
 import { formatWindow } from "../models/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { Badge, GhostButton } from "./controls.tsx";
+import { Badge } from "./controls.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -67,29 +68,40 @@ export function ProviderModels({
 						</span>
 					)}
 				</div>
-				<div className="flex items-center gap-1.5">
+				{/*
+				 * 两颗都带字，都不画框。
+				 *
+				 * 之前这里是一颗手写的 `<button>`（28px，和 `Button` 的两档都对不上）加一颗描边的
+				 * `GhostButton`，于是同一行上并排站着两种高度、两种轮廓的东西，而它们做的是同一类事。
+				 * `subtle` 就是为这种成排的动作留的——`Button` 里写着：不给面板画出一张格子。
+				 *
+				 * 字补回来是因为这两个图标都认不出：云朵下载和一条脉冲，猜不到是「拉取模型」和
+				 * 「测试全部」，而这一行没有别的东西提示。tooltip 只留那句图标和标题都说不完的说明。
+				 */}
+				<div className="flex items-center gap-1">
 					{onFetchModels && (
-						<button
-							type="button"
+						<Button
+							variant="subtle"
+							size="sm"
 							onClick={onFetchModels}
 							disabled={fetchingModels || testing}
-							data-ly-tip={`${fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")} · ${t("providerModels.fetchDetail")}`}
-							aria-label={fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
-							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50 cursor-pointer"
+							label={t("providerModels.fetchDetail")}
+							icon={fetchingModels
+								? <ActionSpinner size={13} className="text-accent" />
+								: <CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />}
 						>
-							{fetchingModels ? (
-								<ActionSpinner size={13} className="text-accent" />
-							) : (
-								<CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />
-							)}
-						</button>
+							{fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
+						</Button>
 					)}
-					<GhostButton
+					<Button
+						variant="subtle"
+						size="sm"
 						onClick={onTest}
 						disabled={testing || !!testingModelId || fetchingModels}
-						title={testing ? t("providerModels.testing") : t("providerModels.testAll")}
-						icon={testing ? <ActionSpinner size={13} /> : <Activity size={13} strokeWidth={1.9} />}
-					/>
+						icon={testing ? <ActionSpinner size={13} /> : <Activity size={13} strokeWidth={1.9} aria-hidden />}
+					>
+						{testing ? t("providerModels.testing") : t("providerModels.testAll")}
+					</Button>
 				</div>
 			</div>
 
