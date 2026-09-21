@@ -713,9 +713,9 @@ export class SessionStore implements SessionStorage {
 		await rename(from, to);
 		const moved: SessionMeta = { ...base, cwd, projectId: nextProjectId, projectName };
 		try {
-			// 钥匙跟着文件搬。放进去的仍是 `base`，好让 `append` 从它当前的 `seq` 往下接。
+			// 钥匙跟着文件搬。放进去的必须带上新的 projectId，但保留 base.updatedAt 和 seq
 			this.latestMeta.delete(this.keyFor(base));
-			this.latestMeta.set(this.keyFor(moved), base);
+			this.latestMeta.set(this.keyFor(moved), { ...base, cwd, projectId: nextProjectId, projectName });
 			const result = await this.append(moved, { type: "move", cwd, projectId: nextProjectId, projectName });
 			// 显示缓存是按旧路径命名的，跟着旧目录留在那儿就是个孤儿。
 			await unlink(this.displayCacheFor(base.projectId, sessionId)).catch(() => undefined);
