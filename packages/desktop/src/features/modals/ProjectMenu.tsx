@@ -1,13 +1,12 @@
-import { Input } from "../../ui/inputs/NativeField.tsx";
-import { Archive, ArrowRight, Check, FolderOpen, GitBranch, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
-import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { Archive, FolderOpen, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useRevealLabel } from "../../store/open-targets.ts";
-import { startProjectSession } from "../sidebar/index.ts";
+import { startProjectSession } from "../../store/project-session.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
+import { ProjectDialog } from "./ProjectDialog.tsx";
 import { bridge } from "../../services/index.ts";
 
 /**
@@ -15,6 +14,15 @@ import { bridge } from "../../services/index.ts";
  *
  * Everything here is either reversible (pinning, archiving) or leaves the working tree alone
  * (removing only forgets the entry). Nothing on this menu deletes a directory.
+ *
+ * It got shorter, and the two that went are worth naming. 「切换到这个项目」 duplicated what opening
+ * any conversation inside already does — and 「在这里新建会话」, one row above it, does it too, with
+ * something to show for it afterwards. 「创建永久工作树」 was a text field in a menu that produced a
+ * directory somewhere else on disk; the same thing is configured in 设置 › 工作树 for every project
+ * at once rather than one branch name at a time.
+ *
+ * Renaming did not go — it moved. A name and the folders a project is made of are one form, and
+ * that form is `ProjectDialog`.
  */
 export function ProjectMenu({
 	anchor,
@@ -28,38 +36,19 @@ export function ProjectMenu({
 	onClose: () => void;
 }) {
 	const { t } = useI18n();
-	const openWorkspace = useApp((s) => s.openWorkspace);
 	const settings = useApp((s) => s.settings);
 	const sessions = useApp((s) => s.sessions);
 	const setPinned = useApp((s) => s.setProjectPinned);
 	const removeProject = useApp((s) => s.removeProject);
 	const archiveProjectSessions = useApp((s) => s.archiveProjectSessions);
-	const renameProject = useApp((s) => s.renameProject);
-	const refreshWorkspace = useApp((s) => s.refreshWorkspace);
 	const notify = useApp((s) => s.notify);
 	const reveal = useRevealLabel();
 
-	const [mode, setMode] = useState<"menu" | "rename" | "worktree" | "remove">("menu");
-	const [draft, setDraft] = useState(name);
-	const [busy, setBusy] = useState(false);
+	const [mode, setMode] = useState<"menu" | "edit" | "remove">("menu");
 
-	const pinned = settings?.projects.find((p) => p.path === path)?.pinned ?? false;
+	const entry = settings?.projects.find((project) => project.path === path);
+	const pinned = entry?.pinned ?? false;
 	const liveSessions = sessions.filter((s) => s.cwd === path && !s.archived).length;
-
-	async function makeWorktree() {
-		const branch = draft.trim();
-		if (!branch || busy) return;
-		setBusy(true);
-		const result = await bridge.git.createWorktree(path, branch);
-		setBusy(false);
-		if (!result.ok) {
-			notify(result.error ?? t("projectMenu.worktreeFailed"), "error");
-			return;
-		}
-		notify(t("projectMenu.worktreeMade", { path: result.path ?? "" }));
-		await refreshWorkspace();
-		onClose();
-	}
 
 	/*
 	 * The question is the app's modal, not a second panel hung off this menu.
@@ -87,97 +76,21 @@ export function ProjectMenu({
 		);
 	}
 
-	if (mode === "rename" || mode === "worktree") {
-		const worktree = mode === "worktree";
-		return (
-			// A form, not a menu — a text field announced as a menu item is worse than one
-			// announced as nothing.
-			<Popover
-				anchor={anchor}
-				onClose={onClose}
-				placement="right"
-				width="panel"
-				role="dialog"
-				label={worktree ? t("projectMenu.newWorktree") : t("projectMenu.editProject")}
-			>
-				<form
-					className="p-2.5"
-					onSubmit={(event) => {
-						event.preventDefault();
-						if (worktree) void makeWorktree();
-						else {
-							void renameProject(path, draft);
-							onClose();
-						}
-					}}
-				>
-					<label className="block pb-1.5 text-detail text-ink-faint">
-						{worktree ? t("projectMenu.branchName") : t("projectMenu.projectName")}
-					</label>
-					<Input
-						autoFocus
-						value={draft}
-						onChange={(e) => setDraft(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Escape") {
-								e.stopPropagation();
-								setMode("menu");
-								setDraft(name);
-							}
-						}}
-						placeholder={worktree ? "feature/…" : name}
-						className="h-8 w-full rounded-lg border border-line bg-input px-2.5 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
-					/>
-					{worktree && (
-						<p className="pt-1.5 text-caption leading-relaxed text-ink-faint">
-							{t("projectMenu.worktreeHint")}
-						</p>
-					)}
-					<div className="flex justify-end gap-1.5 pt-2.5">
-						<button
-							type="button"
-							data-ly-tip={t("common.cancel")}
-							aria-label={t("common.cancel")}
-							onClick={() => {
-								setMode("menu");
-								setDraft(name);
-							}}
-							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-						>
-							<X size={13} strokeWidth={2} aria-hidden />
-						</button>
-						{/*
-						 * 正在创建的时候按钮上转一个圈，而不是写「创建中…」。
-						 *
-						 * 进行时是三个字里最难画的一种，但也是最不需要画的一种：转圈本身就只在事情
-						 * 没做完的时候出现。字仍然在——在 tooltip 和 `aria-label` 上，并且跟着状态
-						 * 一起变，所以悬停和读屏读到的都还是「创建中…」。
-						 */}
-						<button
-							type="submit"
-							data-ly-tip={busy ? t("common.creating") : worktree ? t("common.create") : t("common.save")}
-							aria-label={busy ? t("common.creating") : worktree ? t("common.create") : t("common.save")}
-							disabled={busy || !draft.trim()}
-							className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
-						>
-							{busy ? <ActionSpinner size={12} /> : worktree ? <GitBranch size={13} strokeWidth={2} aria-hidden /> : <Check size={13} strokeWidth={2.2} aria-hidden />}
-						</button>
-					</div>
-				</form>
-			</Popover>
-		);
+	// Centred, like every other dialog — a form with two controls and a destructive action in it is
+	// not something to hang off the corner of a row.
+	if (mode === "edit") {
+		return <ProjectDialog project={{ path, name, folders: entry?.folders }} onClose={onClose} />;
 	}
 
 	return (
 		<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("projectMenu.actionsFor", { name })}>
 			<MenuBody>
 				{/*
-				 * The two ways of going somewhere, before the ways of changing something.
+				 * What the row is usually pressed for, first.
 				 *
-				 * Starting a conversation is first because it is what the row is usually pressed
-				 * for; the button on the row does the same thing, and this is the keyboard and
-				 * right-click path to it. Switching without starting one is the rarer intent — the
-				 * project name folds the group now, so it needs a home here.
+				 * The button on the row does the same thing; this is the keyboard and right-click
+				 * path to it. Starting a conversation here is also how you switch to the project,
+				 * which is why there is no separate item saying so.
 				 */}
 				<MenuItem
 					icon={<SquarePen size={13} strokeWidth={1.8} />}
@@ -187,15 +100,6 @@ export function ProjectMenu({
 					}}
 				>
 					{t("projectMenu.newSessionHere")}
-				</MenuItem>
-				<MenuItem
-					icon={<ArrowRight size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						void openWorkspace(path);
-						onClose();
-					}}
-				>
-					{t("projectMenu.switchTo")}
 				</MenuItem>
 
 				<MenuSeparator />
@@ -210,14 +114,8 @@ export function ProjectMenu({
 				>
 					{pinned ? t("projectMenu.unpin") : t("projectMenu.pin")}
 				</MenuItem>
-				<MenuItem
-					icon={<Pencil size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						setDraft(name);
-						setMode("rename");
-					}}
-				>
-					{t("common.rename")}
+				<MenuItem icon={<Pencil size={13} strokeWidth={1.8} />} onClick={() => setMode("edit")}>
+					{t("projectMenu.editProject")}
 				</MenuItem>
 				<MenuItem
 					icon={<FolderOpen size={13} strokeWidth={1.8} />}
@@ -227,15 +125,6 @@ export function ProjectMenu({
 					}}
 				>
 					{reveal}
-				</MenuItem>
-				<MenuItem
-					icon={<GitBranch size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						setDraft("");
-						setMode("worktree");
-					}}
-				>
-					{t("projectMenu.permanentWorktree")}
 				</MenuItem>
 
 				<MenuSeparator />

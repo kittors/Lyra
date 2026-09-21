@@ -20,6 +20,7 @@ import type { AgentRunConfig } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
+import { projectRootsFor } from "../config/project-roots.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
@@ -316,6 +317,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 		messages: withEnvironment(modelHistory(log, input.provider, input.model)),
 		systemPrompt: await buildSystemPrompt({
 			cwd,
+			projectRoots: projectRootsFor(settings.projects, cwd),
 			tools,
 			skills: can.skills,
 			agents: can.agents,

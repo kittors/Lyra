@@ -20,6 +20,7 @@ import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
+import { projectRootsFor } from "../config/project-roots.ts";
 import { withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
@@ -245,6 +246,7 @@ export async function runSubAgent(
 	// Build a complete, standalone system prompt for sub-agents
 	const subAgentPrompt = await buildSystemPrompt({
 		cwd: options.cwd,
+		projectRoots: projectRootsFor(options.settings.projects, options.cwd),
 		tools: allowed,
 		skills: options.skills,
 		agents: options.agents,
@@ -446,6 +448,10 @@ export async function runSubAgent(
 				sandboxNetwork: options.settings.denyCommandNetwork ? "deny" : "allow",
 				allowedHosts: options.settings.allowedHosts,
 				allowedPaths: options.allowedPaths,
+				// Derived rather than passed down: same settings, same cwd, same answer — and one
+				// fewer parameter that can be forgotten at a new call site. A delegated run reads
+				// across the project's folders exactly as the conversation that dispatched it does.
+				projectRoots: projectRootsFor(options.settings.projects, options.cwd),
 				scratchDir: join(lyraHome(), "scratch", options.sessionId),
 				beforeToolCall: makeBeforeToolCall(options.settings.hooks, options.cwd, controller.signal),
 				afterToolCall: makeAfterToolCall(options.settings.hooks, options.cwd, controller.signal),

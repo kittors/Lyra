@@ -35,6 +35,7 @@ import { writePreview } from "./previews.ts";
 import { runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
+import { projectRootsFor } from "../config/project-roots.ts";
 import type { TurnContext } from "./turn.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
@@ -100,6 +101,13 @@ export function buildTurnConfig(
 	 * 取决于「这一轮有没有派过活」——在没派活的会话里根本不存在，谁想看一眼都看不到。
 	 */
 	const gate = dispatchGate(deps, thinking);
+	/*
+	 * Read once per turn, for the same reason `sandboxMode` is decided here.
+	 *
+	 * The project list cannot change halfway through a turn in any way the turn should notice, and
+	 * a tool that looked it up itself could disagree with the one running beside it.
+	 */
+	const projectRoots = projectRootsFor(deps.settings.projects, deps.cwd);
 	return {
 
 			sessionId: deps.sessionId,
@@ -145,6 +153,7 @@ export function buildTurnConfig(
 			pruner: sessionPruner(deps.state),
 			artifacts: deps.artifacts,
 			allowedPaths: deps.allowedPaths,
+			projectRoots,
 			/*
 			 * Queued rather than run on demand.
 			 *

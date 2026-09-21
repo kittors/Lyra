@@ -71,6 +71,8 @@ export interface AgentRunConfig {
 	allowedHosts?: ToolContext["allowedHosts"];
 	/** Passed through to the tools; see `ToolContext.allowedPaths`. */
 	allowedPaths?: ToolContext["allowedPaths"];
+	/** Passed through to the tools; see `ToolContext.projectRoots`. */
+	projectRoots?: ToolContext["projectRoots"];
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
 	spawnSubAgent?: ToolContext["spawnSubAgent"];

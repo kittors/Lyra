@@ -7,5 +7,4 @@
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
  */
 
-export { startProjectSession } from "./newSession.ts";
 export { Sidebar } from "./Sidebar.tsx";

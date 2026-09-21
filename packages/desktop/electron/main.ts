@@ -53,6 +53,7 @@ import {
 	type TurnPipeline,
 	type ToolRegistry,
 } from "@lyra/core";
+import { projectFolders } from "@lyra/core/project-folders";
 import {
 	browsers,
 	configureHub,
@@ -193,7 +194,18 @@ const BROWSER_PARTITION = "persist:ly-browser";
  * explicitly opened projects, scratch/session workspaces, and managed git worktrees.
  */
 function allowedRoots(): string[] {
-	const projectPaths = (settings?.projects ?? []).map((project) => project.path);
+	/*
+	 * Every folder a project is made of, not only the one its sessions run in.
+	 *
+	 * This is the gate the *window* asks through — listing a directory, opening a file, renaming
+	 * one. A project configured with a second source folder that is not on this list is a project
+	 * whose second folder has a row in the file tree and no contents, and whose files never appear
+	 * under `@`: the dialog saves it, and every door it needs to come through is shut. Both sides
+	 * or neither.
+	 *
+	 * It is the user's own list, typed into 编辑项目, and it only ever grows by their choosing.
+	 */
+	const projectPaths = (settings?.projects ?? []).flatMap((project) => projectFolders(project));
 	const worktreeRoot = resolveWorktreesRoot(settings?.worktrees?.rootDir);
 	return [...projectPaths, ...scratchRoots(), worktreeRoot];
 }

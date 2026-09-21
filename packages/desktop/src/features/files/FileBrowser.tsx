@@ -17,13 +17,15 @@ import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { FileTree } from "./FileTree.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { useApp } from "../../store/index.ts";
+import { useProjectFolders } from "../../store/project-folders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 
 export function FileBrowser() {
 	const workspace = useApp((s) => s.workspace);
 	const openPath = useOpenFile((s) => s.path);
 	const dirty = useOpenFile((s) => s.drafts);
-	const root = workspace?.path ?? null;
+	// Every folder the project names, not only the one sessions run in — see `useProjectFolders`.
+	const folders = useProjectFolders();
 
 	/*
 	 * Letting go of the last project's file is not this pane's job — see `useProjectFiles` in
@@ -31,7 +33,7 @@ export function FileBrowser() {
 	 * closing the tree and then changing projects left the editor holding a file from the old one.
 	 */
 
-	if (!workspace || !root) {
+	if (!workspace || folders.length === 0) {
 		return (
 			<PanelEmpty icon={Folder} title={translate("common.files")}>
 				{translate("fileBrowser.needProject")}
@@ -41,7 +43,7 @@ export function FileBrowser() {
 
 	return (
 		<FileTree
-			root={root}
+			roots={folders}
 			openPath={openPath}
 			dirtyPaths={new Set(Object.keys(dirty))}
 			onOpen={(entry) => {

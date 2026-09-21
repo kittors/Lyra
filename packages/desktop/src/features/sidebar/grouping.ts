@@ -9,6 +9,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
+import { projectFolders } from "@lyra/core/project-folders";
 import { orderedSessions, type SessionSortKey } from "../../lib/sidebar-order.ts";
 
 export interface Group {
@@ -22,6 +23,8 @@ export interface ProjectRef {
 	name: string;
 	pinned: boolean;
 	lastOpenedAt: number;
+	/** Extra source folders, if this project was configured with more than one; see `projectFolders`. */
+	folders?: string[];
 }
 
 export interface Grouped {
@@ -88,8 +91,19 @@ export function groupSessions(
 	}
 
 	const byPath = new Map<string, Group>();
+	/*
+	 * Where an extra source folder files its conversations.
+	 *
+	 * A project may be several folders, and a chat started in the second one is a chat in that
+	 * project — it should not open a row of its own beside the project it is part of. Only the
+	 * folders themselves are redirected, not what is under them: a conversation in `api/src` keeps
+	 * building its own group exactly as one in `app/src` always has. Widening that is a separate
+	 * decision about every project in the list, not something adding a folder should smuggle in.
+	 */
+	const owner = new Map<string, string>();
 	for (const project of projects) {
 		byPath.set(project.path, { path: project.path, name: project.name, sessions: [] });
+		for (const folder of projectFolders(project)) if (folder !== project.path) owner.set(folder, project.path);
 	}
 
 	const loose: SessionMeta[] = [];
@@ -98,10 +112,11 @@ export function groupSessions(
 			loose.push(session);
 			continue;
 		}
-		let group = byPath.get(session.cwd);
+		const home = owner.get(session.cwd) ?? session.cwd;
+		let group = byPath.get(home);
 		if (!group) {
-			group = { path: session.cwd, name: session.projectName, sessions: [] };
-			byPath.set(session.cwd, group);
+			group = { path: home, name: session.projectName, sessions: [] };
+			byPath.set(home, group);
 		}
 		group.sessions.push(session);
 	}

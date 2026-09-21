@@ -27,6 +27,26 @@ export interface MentionCompletion {
 }
 
 /**
+ * A path offered by `@`, when what you insert is not what you read.
+ *
+ * Those two came apart when a project grew a second source folder. A name inside the working
+ * directory resolves on its own and reads as what it is; one in another folder has to be inserted
+ * absolute, because a relative path resolves against the working directory and would point at a
+ * file that is not there — and an absolute path is also the worst possible thing to put in a list
+ * you are scanning, since every row starts with the same forty characters.
+ *
+ * A plain string still works and means both at once, which is every path in a one-folder project.
+ */
+export interface MentionFile {
+	/** What is inserted into the message. */
+	path: string;
+	/** What the row shows, and what typing is matched against. */
+	label: string;
+	/** Which source folder it came from. Only set when the project has more than one. */
+	origin?: string;
+}
+
+/**
  * Detect mention trigger `@term` at the current caret.
  * Requires `@` to be at start of text or preceded by whitespace.
  */
@@ -77,7 +97,7 @@ export function formatMention(path: string): string {
 export function rankMentions(
 	term: string,
 	options: {
-		files?: string[];
+		files?: Array<string | MentionFile>;
 		agents?: Array<{ id: string; name: string; description: string }>;
 		sessions?: SessionMeta[];
 		skills?: SkillEntry[];
@@ -167,15 +187,18 @@ export function rankMentions(
 
 	// Project files / directories
 	if (options.files) {
-		for (const path of options.files) {
-			if (!lower || path.toLowerCase().includes(lower)) {
+		for (const file of options.files) {
+			const entry = typeof file === "string" ? { path: file, label: file, origin: undefined } : file;
+			if (!lower || entry.label.toLowerCase().includes(lower)) {
 				items.push({
-					id: `file:${path}`,
-					title: path,
+					id: `file:${entry.path}`,
+					title: entry.label,
 					description: translate("mention.projectPaths"),
 					kind: "file",
-					data: { path },
-					origin: translate("common.workspace"),
+					data: { path: entry.path },
+					// The folder it is in, when that is a question worth answering — two source
+					// folders can each have a `src/`, and without this they are two identical rows.
+					origin: entry.origin ?? translate("common.workspace"),
 				});
 			}
 		}

@@ -44,3 +44,25 @@ test("a root path is not eaten by the trailing-slash trim", () => {
 	assert.ok(sessionUnderProject("/", "/Users/x/proj"));
 	assert.ok(sessionUnderProject("/", "/"));
 });
+
+/*
+ * A project can be several folders, and the chats in any of them are its chats.
+ *
+ * This is what archiving and removing read. A project whose second source folder kept its
+ * conversations behind would archive to a half-empty row — and dropping the entry would bring that
+ * folder straight back as a group of its own, which is 「删不掉」 wearing another path.
+ */
+test("a project made of several folders owns the chats in all of them", () => {
+	const folders = ["/Users/x/app", "/Users/x/api"];
+	assert.ok(sessionUnderProject(folders, "/Users/x/app"));
+	assert.ok(sessionUnderProject(folders, "/Users/x/api"));
+	assert.ok(sessionUnderProject(folders, "/Users/x/api/src/routes"));
+	assert.ok(!sessionUnderProject(folders, "/Users/x/other"));
+	assert.ok(!sessionUnderProject(folders, "/Users/x/api-old"));
+});
+
+test("one folder given as a list means what it means given as a string", () => {
+	assert.ok(sessionUnderProject(["/Users/x/proj"], "/Users/x/proj/packages"));
+	assert.ok(!sessionUnderProject(["/Users/x/proj"], "/Users/x/proj-old"));
+	assert.ok(!sessionUnderProject([], "/Users/x/proj"));
+});

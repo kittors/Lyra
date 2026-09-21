@@ -296,6 +296,51 @@ test("with no roots known yet, nothing is treated as project-less", () => {
 });
 
 /*
+ * 一个项目可以由好几个文件夹组成，在第二个文件夹里开的会话不该另起一行。
+ *
+ * 这是「加了第二个源文件夹」在侧边栏上唯一看得见的地方：那个文件夹之前很可能自己是个项目，
+ * 或者是一堆没归属的会话——合进来之后它们要跟着走，否则列表上会同时出现「这个项目」和
+ * 「这个项目的一半」。
+ */
+const multi = [{ path: "/app", name: "app", pinned: false, lastOpenedAt: 1, folders: ["/app", "/api"] }];
+
+test("一个会话开在附加源文件夹里，归到这个项目下", () => {
+	const sessions = [session({ id: "in-app", cwd: "/app" }), session({ id: "in-api", cwd: "/api" })];
+	const { projects: rest } = groupSessions(sessions, multi, "");
+	assert.deepEqual(
+		rest.map((g) => g.path),
+		["/app"],
+	);
+	assert.deepEqual(
+		rest[0].sessions.map((s) => s.id).sort(),
+		["in-api", "in-app"],
+	);
+});
+
+/*
+ * 只认文件夹本身，不认它下面的子目录。
+ *
+ * `/app/packages/core` 里开的会话一直是自成一组的（见 `grouping.ts` 里 `owner` 那段注释），
+ * 加一个源文件夹不该顺手改掉这条，那是对列表上每一个项目的改动。
+ */
+test("附加文件夹的子目录还是自成一组，跟主文件夹的子目录一个待遇", () => {
+	const sessions = [session({ id: "deep-api", cwd: "/api/src" }), session({ id: "deep-app", cwd: "/app/packages" })];
+	const { projects: rest } = groupSessions(sessions, multi, "");
+	// `/app` itself is absent because it has no sessions of its own and is not pinned — the
+	// existing rule, unchanged. The point here is that neither subdirectory was folded into it.
+	assert.deepEqual(
+		rest.map((g) => g.path).sort(),
+		["/api/src", "/app/packages"],
+	);
+});
+
+test("名字只是前缀相同的邻居没被吃进来", () => {
+	const sessions = [session({ id: "neighbour", cwd: "/api-old" })];
+	const { projects: rest } = groupSessions(sessions, multi, "");
+	assert.ok(rest.some((g) => g.path === "/api-old"));
+});
+
+/*
  * 「移除项目」得真的把它从列表里去掉。
  *
  * `removeProject` 只把条目从 `settings.projects` 里滤掉，注释说这是「stop listing this, not

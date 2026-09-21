@@ -23,6 +23,16 @@ import type { ThinkingLevel, Tool } from "../types.ts";
 
 export interface SystemPromptInput {
 	cwd: string;
+	/**
+	 * The project's other source folders, when it was configured with more than one.
+	 *
+	 * Named here because a boundary the model cannot see is a boundary it works around. The read
+	 * rule below already allows these without asking (`tools/read-access.ts`), and a rule that
+	 * silently allows something is worth nothing: the model still believes the second repository is
+	 * off-limits, so it never opens it, and the folder the user added does nothing. Absent — and
+	 * empty, the overwhelmingly common case — adds not one token.
+	 */
+	projectRoots?: readonly string[];
 	tools: Tool[];
 	skills: Skill[];
 	/**
@@ -294,6 +304,27 @@ Environment:
 	}
 
 	prompt += `\n\nCurrent working directory: ${cwd}`;
+	/*
+	 * Only the folders that are not the cwd, and only when there are any.
+	 *
+	 * Repeating the working directory one line below itself reads as a second, subtly different
+	 * fact, and every session would pay for it. The one-folder project — almost all of them — gets
+	 * the prompt it has always had, byte for byte.
+	 */
+	const otherRoots = (input.projectRoots ?? []).map((root) => root.replace(/\\/g, "/")).filter((root) => root !== cwd);
+	if (otherRoots.length > 0) {
+		/*
+		 * Says what changes *and* what does not.
+		 *
+		 * `write` and `edit` refuse anything outside the working directory outright — not an
+		 * approval, a refusal (`tools/paths.ts`). Left unsaid, the model would meet that as the
+		 * failure the read rule was written to stop it reacting to: try, get refused, reach for
+		 * `sed` in a shell. Naming the asymmetry up front is cheaper than the detour.
+		 */
+		prompt += `\n\nThis project also covers these folders, and they are as much a part of it as the working directory — read, search and list them without asking:\n${otherRoots
+			.map((root) => `- ${root}`)
+			.join("\n")}\nUse absolute paths there; a relative path resolves against the working directory. These folders are readable, not writable: \`write\` and \`edit\` only work inside the working directory, and that is a rule rather than a fault. If a change is needed in one of them, say so instead of reaching for a shell.`;
+	}
 	if (input.scratchDir) {
 		prompt += `\n\nScratch directory: ${input.scratchDir.replace(/\\/g, "/")}
 This is where anything that is not part of the project goes. It is removed with the conversation, so nothing accumulates and nothing shows up in the user's \`git status\`.

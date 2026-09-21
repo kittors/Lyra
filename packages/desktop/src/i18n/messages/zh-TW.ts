@@ -28,6 +28,7 @@ export const zhTW = {
 	"command.builtin": "命令", "command.custom": "自訂命令", "command.skills": "技能", "command.slash": "斜線命令",
 	"permission.mode": "權限模式", "permission.question": "應如何核准 Lyra 的操作？", "permission.askDetail": "編輯檔案與存取網路時一律詢問", "permission.autoDetail": "只對偵測到的風險操作要求核准", "permission.fullDetail": "可不受限制地存取網路與此電腦上的所有檔案", "permission.confirmTitle": "開啟完整存取權限？", "permission.confirmSummary": "Lyra 將直接執行操作，不再逐項要求核准。", "permission.files": "檔案與資料夾", "permission.filesDetail": "讀寫、上傳或刪除此電腦上的檔案，不限於目前專案。", "permission.terminal": "終端與 Git", "permission.terminalDetail": "執行命令、安裝軟體、變更系統設定與 Git 歷史。", "permission.network": "網路與外掛", "permission.networkDetail": "存取網路、傳送資料及呼叫已連接的工具。", "permission.risk": "可能造成資料遺失或外洩，可隨時切回「自動核准」。", "permission.confirmEnable": "確認開啟",
 	"project.switch": "切換專案", "project.search": "搜尋專案", "project.new": "新增專案", "project.without": "不在專案中工作", "project.none": "還沒有專案", "model.unavailable": "模型無法使用",
+	"project.create": "建立專案", "project.edit": "編輯專案", "project.namePlaceholder": "專案名稱", "project.sourceFolders": "來源資料夾", "project.thisComputer": "這台電腦", "project.addFolderOnThisComputer": "在這台電腦上加入資料夾", "project.add": "加入", "project.addFolder": "加入資料夾", "project.removeFolder": "移出這個專案", "project.removeFolderNamed": "把 {name} 移出這個專案", "project.mainFolder": "主資料夾", "project.mainFolderHint": "工作階段在這個資料夾裡執行，要換成別的請用「移動到專案」", "project.removeLocal": "移除本機專案", "project.folderAlready": "{name} 已經在這個專案裡了",
 	"sidebar.manual": "手動排序",
 	"general.autoSummarizeTitle": "智慧標題摘要",
 	"general.autoSummarizeTitleDetail": "自動精簡長訊息標題，優先使用 @fast，會產生模型用量。",

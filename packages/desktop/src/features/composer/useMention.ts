@@ -2,12 +2,15 @@ import { useEffect, useId, useMemo, useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
+import { baseName } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
+import { useProjectFolders } from "../../store/project-folders.ts";
 import {
 	findMentionRanges,
 	formatMention,
 	parseMentionTrigger,
 	rankMentions,
+	type MentionFile,
 	type MentionItem,
 } from "./mention-catalog.ts";
 
@@ -29,7 +32,10 @@ export function useMention(
 	const [agents, setAgents] = useState<Array<{ id: string; name: string; description: string }>>([]);
 	const [skills, setSkills] = useState<SkillEntry[]>([]);
 	const [sessions, setSessions] = useState<SessionMeta[]>([]);
-	const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
+	const [workspaceFiles, setWorkspaceFiles] = useState<MentionFile[]>([]);
+	// Every folder the project is made of; usually just the working directory.
+	const folders = useProjectFolders();
+	const folderKey = folders.join("\0");
 
 	const nonce = useApp((state) => state.extensionsNonce);
 
@@ -59,19 +65,43 @@ export function useMention(
 			if (alive) setSessions(list);
 		}).catch(() => {});
 
-		// Fetch top-level / sub directory files from workspace
-		if (cwd) {
-			void bridge.files.list(cwd).then((entries) => {
-				if (alive) {
-					setWorkspaceFiles(entries.map((e) => e.isDirectory ? `${e.name}/` : e.name));
-				}
-			}).catch(() => {});
+		/*
+		 * The top level of every source folder the project has.
+		 *
+		 * The working directory's entries stay relative, exactly as they were — `src/` is what you
+		 * read and what gets inserted, and it resolves on its own. A second source folder cannot
+		 * work that way: `src/` there would resolve against the working directory and name a file
+		 * that does not exist, so those go in absolute and carry the folder's name as their origin
+		 * so two `src/` rows are telling you apart.
+		 */
+		// Rebuilt from the key rather than closed over: `folders` is a fresh array on every render
+		// of the composer, and depending on it would re-list every folder on each keystroke.
+		const sources = folderKey ? folderKey.split("\0") : [];
+		if (sources.length > 0) {
+			void Promise.all(
+				sources.map(async (folder, index) => {
+					const entries = await bridge.files.list(folder).catch(() => []);
+					const many = sources.length > 1;
+					return entries.map((entry) => {
+						const label = entry.isDirectory ? `${entry.name}/` : entry.name;
+						return {
+							path: index === 0 ? label : entry.isDirectory ? `${entry.path}/` : entry.path,
+							label,
+							origin: many ? baseName(folder) : undefined,
+						};
+					});
+				}),
+			)
+				.then((lists) => {
+					if (alive) setWorkspaceFiles(lists.flat());
+				})
+				.catch(() => {});
 		}
 
 		return () => {
 			alive = false;
 		};
-	}, [cwd, nonce, mentionMode]);
+	}, [cwd, folderKey, nonce, mentionMode]);
 
 	const term = completion?.term ?? null;
 

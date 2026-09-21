@@ -101,6 +101,14 @@ export interface ToolContext {
 	 */
 	allowedPaths?: ReadonlySet<string>;
 	/**
+	 * The other source folders of the project this session runs in.
+	 *
+	 * A project may be several directories; `cwd` is only the one the session runs in. Read
+	 * judgements ask about the whole set — see `config/project-roots.ts` for how it is derived and
+	 * `tools/read-access.ts` for what it changes.
+	 */
+	projectRoots?: readonly string[];
+	/**
 	 * Run a nested agent (used by the `task` tool).
 	 *
 	 * Returns prose plus, when the agent declared an output schema and yielded against it, the same

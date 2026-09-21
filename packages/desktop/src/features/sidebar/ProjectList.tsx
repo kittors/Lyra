@@ -11,8 +11,10 @@
 import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { GroupActivity } from "./GroupActivity.tsx";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
+import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
+import { ProjectDialog } from "../modals/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
 import type { Grouped } from "./grouping.ts";
 import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
@@ -65,6 +67,7 @@ export function ProjectList({
 }) {
 	const { compact } = useLayout();
 	const reorder = useSidebarReorder(groups, sort, onReordered);
+	const [creating, setCreating] = useState(false);
 	const pinnedShut = collapsed.includes(PINNED);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0 || groups.pinned.length > 0;
 	const pinnedCount = (groups.pinnedSessions?.length ?? 0) + groups.pinned.length;
@@ -75,6 +78,7 @@ export function ProjectList({
 	return (
 		<SidebarReorderContext.Provider value={reorder.contextValue}>
 			{reorder.dragging && <CarriedPill item={reorder.dragging} pointer={reorder.pointer} />}
+			{creating && <ProjectDialog onClose={() => setCreating(false)} />}
 			{hasPinned && (
 				<>
 					<SectionLabel section="pinned" sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
@@ -119,6 +123,25 @@ export function ProjectList({
 						count={groups.projects.length}
 						collapsed={collapsed.includes(PROJECTS)}
 						onToggle={() => onToggleCollapsed(PROJECTS)}
+						/*
+						 * 新建项目, at the top of the list it adds to.
+						 *
+						 * It already lives in the project switcher hanging off the composer's chip,
+						 * which is where you go when you want a *different* project. This is the
+						 * other intent — adding one — and the list of them is where you are when
+						 * you have it.
+						 */
+						action={
+							<button
+								type="button"
+								onClick={() => setCreating(true)}
+								data-ly-tip={translate("project.new")}
+								aria-label={translate("project.new")}
+								className="rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+							>
+								<Plus size={13} strokeWidth={2} aria-hidden />
+							</button>
+						}
 					>
 						{translate("projectList.projects")}
 					</SectionLabel>
@@ -189,6 +212,7 @@ function SectionLabel({
 	sessions,
 	collapsed,
 	onToggle,
+	action,
 }: {
 	children: React.ReactNode;
 	section: "pinned" | "projects" | "recent";
@@ -196,26 +220,52 @@ function SectionLabel({
 	sessions: SessionMeta[];
 	collapsed: boolean;
 	onToggle: () => void;
+	/**
+	 * One control that belongs to the section rather than to the fold.
+	 *
+	 * Overlaid rather than placed in the row, for the same reason the project rows overlay theirs:
+	 * a second element in the flow would hold a gutter open on all three headings to serve the one
+	 * that uses it. It sits on the count's pixels and they take turns — hovering is reaching for
+	 * the button, so the count is what yields.
+	 */
+	action?: React.ReactNode;
 }) {
 	return (
-		<button
-			type="button"
-			data-ly-section={section}
-			aria-expanded={!collapsed}
-			onClick={onToggle}
-			className="group/section flex w-full items-center gap-1 rounded-md px-2 pt-4 pb-1.5 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
-		>
-			{children}
-			<ChevronRight
-				size={12}
-				strokeWidth={2.2}
-				className={`shrink-0 opacity-0 transition-[opacity,transform] duration-[var(--ly-t-quick)] group-hover/section:opacity-100 ${
-					collapsed ? "" : "rotate-90"
-				}`}
-			/>
-			<span className="ml-auto flex min-w-5 items-center justify-end tabular-nums">
-				<GroupActivity sessions={sessions} collapsed={collapsed} count={count} />
-			</span>
-		</button>
+		// Not a button around a button. The heading stays the fold's target; the action is a
+		// sibling laid over its trailing edge.
+		<div className="group/section relative flex w-full items-center pt-4">
+			<button
+				type="button"
+				data-ly-section={section}
+				aria-expanded={!collapsed}
+				onClick={onToggle}
+				className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 pb-1.5 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+			>
+				{children}
+				<ChevronRight
+					size={12}
+					strokeWidth={2.2}
+					className={`shrink-0 opacity-0 transition-[opacity,transform] duration-[var(--ly-t-quick)] group-hover/section:opacity-100 ${
+						collapsed ? "" : "rotate-90"
+					}`}
+				/>
+				<span
+					data-ly-section-count
+					className={`ml-auto flex min-w-5 items-center justify-end tabular-nums transition-opacity duration-[var(--ly-t-quick)] ${
+						action ? "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0" : ""
+					}`}
+				>
+					<GroupActivity sessions={sessions} collapsed={collapsed} count={count} />
+				</span>
+			</button>
+			{action && (
+				<span
+					data-ly-section-action
+					className="absolute right-2 bottom-1.5 flex items-center opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100"
+				>
+					{action}
+				</span>
+			)}
+		</div>
 	);
 }

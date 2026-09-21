@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings, type UserContent } from "@lyra/core";
 import type { LyraApi, SessionSnapshot, WorkspaceInfo } from "../../electron/ipc-types.ts";
-import { startProjectSession } from "../../src/features/sidebar/newSession.ts";
+import { startProjectSession } from "../../src/store/project-session.ts";
 import { useApp } from "../../src/store/index.ts";
 
 const content: UserContent[] = [{ type: "text", text: "Continue in this project" }];

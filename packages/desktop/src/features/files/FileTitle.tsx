@@ -27,7 +27,7 @@ import { useDock, openScopedPanel } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { kinds } from "../dock/index.ts";
 import { paneVisible } from "../dock/index.ts";
-import { useApp } from "../../store/index.ts";
+import { useProjectFolders } from "../../store/project-folders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { FileTree } from "./FileTree.tsx";
@@ -46,7 +46,8 @@ const TREE_WIDTH = 320;
 
 export function FileTitle() {
 	const { t } = useI18n();
-	const root = useApp((s) => s.workspace?.path ?? null);
+	// Every source folder of the project, so this tree and the one in the file pane agree.
+	const folders = useProjectFolders();
 	const path = useOpenFile((s) => s.path);
 	const name = useOpenFile((s) => s.name);
 	const dirty = useOpenFile((s) => s.drafts);
@@ -139,9 +140,9 @@ export function FileTitle() {
 					}
 				>
 					<div className="flex flex-col" style={{ height: TREE_HEIGHT }}>
-						{root ? (
+						{folders.length > 0 ? (
 							<FileTree
-								root={root}
+								roots={folders}
 								openPath={path}
 								dirtyPaths={new Set(Object.keys(dirty))}
 								onOpen={(entry) => {

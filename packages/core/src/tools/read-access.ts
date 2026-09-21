@@ -53,6 +53,19 @@ export type ReadVerdict =
 export interface ReadAccessOptions {
 	/** Files outside the workspace this turn was explicitly given; see `ToolContext.allowedPaths`. */
 	allowedPaths?: ReadonlySet<string> | readonly string[];
+	/**
+	 * The other source folders of the project this session runs in; see `projectRootsFor`.
+	 *
+	 * "Outside the workspace" is a question about the project, and a project is allowed to be more
+	 * than one directory. Someone who put the API repo and the app repo in the same project has
+	 * already said those belong together — asking again on the first file read across the pair is
+	 * asking them to repeat themselves, which is how a boundary stops being read as a boundary.
+	 *
+	 * Deliberately not the same lever as `allowedPaths`: that is per-turn and per-file (an
+	 * attachment), this is per-project and per-tree, and it is configured in a dialog rather than
+	 * implied by a drag.
+	 */
+	projectRoots?: readonly string[];
 	/** Installed skill files the system prompt tells the model to open by absolute path. */
 	allowSkillReads?: boolean;
 	/** Overridable so a test does not depend on the machine it runs on. */
@@ -137,6 +150,9 @@ export function assessRead(absolute: string, cwd: string, options: ReadAccessOpt
 	if (SECRET_PATH.test(absolute)) return { decision: "ask", reason: "读取本机密钥文件", scope: "file" };
 
 	if (contains(cwd, absolute)) return { decision: "allow" };
+	// After the credential rule, like the cwd above it: naming a folder in a project says "this is
+	// mine to work on", which is not the same as "read the keys I keep in it".
+	for (const root of options.projectRoots ?? []) if (contains(root, absolute)) return { decision: "allow" };
 	if (contains(scratchHome(homeDir), absolute)) return { decision: "allow" };
 	if (options.allowSkillReads && isInstalledSkillFile(absolute, homeDir)) return { decision: "allow" };
 
@@ -287,6 +303,7 @@ export async function authorizeRead(
 	const absolute = toAbsolute(ctx.cwd, input);
 	const verdict = assessRead(absolute, ctx.cwd, {
 		allowedPaths: ctx.allowedPaths,
+		projectRoots: ctx.projectRoots,
 		allowSkillReads: options.allowSkillReads,
 	});
 	if (verdict.decision === "allow" || !worthAsking(absolute)) return { ok: true, absolute };
@@ -337,7 +354,11 @@ export async function authorizeCommandReads(command: string, ctx: ToolContext): 
 		 * tool. The system prompt hands the model absolute paths into installed skills; opening one
 		 * with `cat` instead of `read` does not make it a different file.
 		 */
-		const verdict = assessRead(absolute, ctx.cwd, { allowedPaths: ctx.allowedPaths, allowSkillReads: true });
+		const verdict = assessRead(absolute, ctx.cwd, {
+			allowedPaths: ctx.allowedPaths,
+			projectRoots: ctx.projectRoots,
+			allowSkillReads: true,
+		});
 		if (verdict.decision === "allow" || !worthAsking(absolute)) continue;
 		const grant = grantFor(absolute, verdict);
 		if (!asked.has(grant)) asked.set(grant, { absolute, verdict });

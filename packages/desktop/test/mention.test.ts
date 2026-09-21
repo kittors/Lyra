@@ -48,6 +48,47 @@ test("rankMentions filters items by search term", () => {
 	assert.ok(items.some((i) => i.id === "session:s-1" && i.title === "code review session"));
 });
 
+/*
+ * With a second source folder, what you read and what gets inserted come apart.
+ *
+ * A path in the working directory is offered relative and resolves on its own. One in another
+ * source folder has to go in absolute — the same `src/` inserted relative would resolve against
+ * the working directory and name a file that is not there — while the row still shows the short
+ * name, because a menu of absolute paths is a column of identical prefixes.
+ */
+test("a path outside the working directory is inserted absolute and shown short", () => {
+	const items = rankMentions("src", {
+		files: [
+			{ path: "src/", label: "src/" },
+			{ path: "/Users/x/api/src/", label: "src/", origin: "api" },
+		],
+	});
+	assert.deepEqual(
+		items.map((item) => [item.title, item.data?.path, item.origin]),
+		[
+			["src/", "src/", "工作区"],
+			["src/", "/Users/x/api/src/", "api"],
+		],
+	);
+});
+
+test("两个源文件夹各有一个同名目录时，它们是两行而不是一行", () => {
+	const items = rankMentions("", {
+		files: [
+			{ path: "src/", label: "src/", origin: "app" },
+			{ path: "/Users/x/api/src/", label: "src/", origin: "api" },
+		],
+	}).filter((item) => item.kind === "file");
+	assert.equal(items.length, 2);
+	assert.equal(new Set(items.map((item) => item.id)).size, 2, "同一个 id 会让列表只画出一行");
+});
+
+test("a plain string still means both the label and the path", () => {
+	const [item] = rankMentions("rev", { files: ["src/review.ts"] });
+	assert.equal(item.title, "src/review.ts");
+	assert.equal(item.data?.path, "src/review.ts");
+});
+
 test("a picked path survives quotes, whitespace, and Windows separators exactly", () => {
 	for (const path of ["/outside/project-neighbor/report.md", '/tmp/a "quote".md', "C:\\Users\\me\\test file.md"]) {
 		assert.equal(findMentionRanges(formatMention(path))[0].inner, path);

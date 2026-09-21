@@ -9,6 +9,7 @@
 
 export { BranchMenu } from "./BranchMenu.tsx";
 export { PermissionPicker } from "./PermissionPicker.tsx";
+export { ProjectDialog } from "./ProjectDialog.tsx";
 export { ProjectMenu } from "./ProjectMenu.tsx";
 export { ProjectPicker } from "./ProjectPicker.tsx";
 export { SessionMenu } from "./SessionMenu.tsx";

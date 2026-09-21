@@ -30,14 +30,21 @@ import { useTreeDrag } from "./useTreeDrag.ts";
 import { available, bridge } from "../../services/index.ts";
 
 export function FileTree({
-	root,
+	roots,
 	openPath,
 	dirtyPaths,
 	onOpen,
 	onMoved,
 	onRemoved,
 }: {
-	root: string;
+	/**
+	 * The project's source folders, first one first.
+	 *
+	 * Usually one. With several, they are drawn as a row each and the first is still where 新建
+	 * lands and what a drop on the background goes into — those need one answer, and the folder
+	 * the session runs in is the one to give.
+	 */
+	roots: string[];
 	/** The file the pane beside this one is showing, so the tree can mark it. */
 	openPath: string | null;
 	dirtyPaths: Set<string>;
@@ -46,7 +53,8 @@ export function FileTree({
 	onRemoved(paths: string[]): void;
 }) {
 	const { t } = useI18n();
-	const tree = useFileTree(root);
+	const root = roots[0];
+	const tree = useFileTree(roots);
 	const actions = useFileActions({ root, refresh: tree.refresh, onMoved, onRemoved });
 	const openWith = useOpenTarget();
 	const runInTerminal = useSide((s) => s.runInTerminal);

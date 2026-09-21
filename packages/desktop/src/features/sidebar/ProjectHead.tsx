@@ -22,7 +22,7 @@ import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GroupActivity } from "./GroupActivity.tsx";
 import type { Group } from "./grouping.ts";
-import { startProjectSession } from "./newSession.ts";
+import { startProjectSession } from "../../store/project-session.ts";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 

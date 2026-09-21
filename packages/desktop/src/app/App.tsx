@@ -29,6 +29,7 @@ import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
 import { useFileTreeStore } from "../store/fileTree.ts";
+import { useProjectFolders } from "../store/project-folders.ts";
 import { useMemoryPass } from "../features/memory/useMemoryPass.ts";
 import { WINDOW_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 import { useBrowserWorkspace } from "../features/browser/index.ts";
@@ -488,9 +489,22 @@ function ChatShell({ settings }: { settings: boolean }) {
  */
 function useProjectFiles(): void {
 	const root = useApp((s) => s.workspace?.path ?? null);
+	const folders = useProjectFolders();
+	const key = folders.join("\0");
+
+	/*
+	 * The tree follows the project's source folders, which can change without the project doing so.
+	 *
+	 * Adding a folder in 编辑项目 has to put it in the tree; removing one has to take it out. Kept
+	 * apart from the effect below because those two want opposite things from the open file: a
+	 * different project means the file on screen belongs to something else, while a folder added to
+	 * this one means nothing about the file you are in the middle of editing.
+	 */
+	useEffect(() => {
+		useFileTreeStore.getState().setRoots(key ? key.split("\0") : []);
+	}, [key]);
 
 	useEffect(() => {
-		useFileTreeStore.getState().setRoot(root);
 		useOpenFile.getState().clear();
 		return watchFilePanelState((error) => useApp.getState().notify(String(error), "error"));
 	}, [root]);

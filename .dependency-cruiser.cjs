@@ -73,6 +73,11 @@ module.exports = {
 				"而那个数字必须跟闸门真正拦人的那个来自同一份代码——界面自己算一遍，迟早会跟运行时说的不一样。" +
 				"它住在 `runtime/` 而名单上其余的都在 `config/`，所以往里加依赖之前先想一下：" +
 				"这个文件是靠「除了类型什么都不 import」才留在这儿的。" +
+				"`config/project-folders` 进名单的理由也是这一条，而且它比名单上任何一个都干净：" +
+				"一个 import 都没有，连 `import type` 都没有——需要的那个形状就在文件里声明着。" +
+				"进名单是因为「一个项目由哪几个文件夹组成」必须只有一个答案：侧边栏据此把会话归到哪个" +
+				"项目下，读取边界据此决定哪些路径不用问人。这两处各算各的，结果就是第二个文件夹的会话" +
+				"归了组、却每读一个文件弹一次窗。" +
 				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
@@ -80,7 +85,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/retry-policy|commands/builtin|plugins/install-record|ai/thinking-options|rules/condition|runtime/delegation)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|ai/thinking-options|rules/condition|runtime/delegation)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

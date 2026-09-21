@@ -378,8 +378,20 @@ export interface AppState extends QueueSlice {
    * question they did not ask.
    */
   adoptSidebarTab(tab: "projects" | "chats"): Promise<void>;
-  /** Rename a project, or drop it from the list without touching anything on disk. */
-  renameProject(path: string, name: string): Promise<void>;
+  /**
+   * Add a project from a name and one or more source folders; the first is where sessions run.
+   *
+   * Pointed at a folder that is already a project, it edits that one rather than making a second
+   * row for the same directory.
+   */
+  createProject(name: string, folders: string[]): Promise<void>;
+  /**
+   * Rename a project and/or replace its extra source folders. Omitted keys are left alone.
+   *
+   * The main folder is not among them: it is the working directory every session under this
+   * project records, and moving it is `moveSessionProject`'s business.
+   */
+  updateProject(path: string, patch: { name?: string; folders?: string[] }): Promise<void>;
   setProjectPinned(path: string, pinned: boolean): Promise<void>;
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>;
   reorderProjects(sourcePath: string, targetPath: string, placement: "before" | "after"): Promise<boolean>;

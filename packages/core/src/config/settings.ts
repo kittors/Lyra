@@ -42,7 +42,23 @@ export interface ProjectEntry {
 	path: string;
 	pinned: boolean;
 	lastOpenedAt: number;
+	/**
+	 * Every source folder this project is made of, `path` first.
+	 *
+	 * A project used to be one directory, and for most it still is — `path` remains the one the
+	 * session runs in, the one git reads, the one a new conversation opens under. The extra folders
+	 * are the rest of the same piece of work: the API repo beside the app repo, the design tokens
+	 * checked out one level up. Naming them is what makes reading across them ordinary instead of
+	 * a prompt per file (see `projectRootsFor`).
+	 *
+	 * Optional, and absent means `[path]`. Every settings file written before this existed says
+	 * nothing here and must keep meaning exactly what it meant — so the reader is `projectFolders`
+	 * rather than the field, everywhere.
+	 */
+	folders?: string[];
 }
+
+export { projectFolders } from "./project-folders.ts";
 
 /** Everything the appearance page controls. Applied as CSS variables at runtime. */
 export interface AppearanceSettings {

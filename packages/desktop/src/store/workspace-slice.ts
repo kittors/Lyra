@@ -13,6 +13,8 @@ import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/sidebar-order.ts";
 import { sessionUnderProject } from "../lib/project-scope.ts";
+import { baseName } from "../lib/paths.ts";
+import { projectFolders } from "@lyra/core/project-folders";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -56,7 +58,16 @@ export function workspaceSlice(set: Set, get: Get) {
      * "show me this one now".
      */
     const view = get().view;
-    set({ scratchCwd: null, workspace });
+    /*
+     * The other half of "a project keeps the name it was given".
+     *
+     * `workspaceInfo` reads the directory and can only answer with its `basename`; the name the
+     * user typed lives on the project entry. The header, the composer's chip and the git panel all
+     * read `workspace`, so a rename that only reached settings showed up in the sidebar and nowhere
+     * else — see `renameProject`, which has been patching this one case up by hand.
+     */
+    const named = get().settings?.projects.find((project) => project.path === path)?.name;
+    set({ scratchCwd: null, workspace: named ? { ...workspace, name: named } : workspace });
     // Park the previous session and finish resetting before the new draft can accept a send.
     await get().newSession();
     // Workspace pickers also serve settings and PR views; selecting a folder does not leave them.
@@ -65,8 +76,18 @@ export function workspaceSlice(set: Set, get: Get) {
     const settings = get().settings;
     if (!settings) return;
     const previous = settings.projects.find((project) => project.path === path);
+    /*
+     * Opening a project updates when it was opened. It does not re-describe it.
+     *
+     * This used to rebuild the entry from `workspace.name`, which is the directory's `basename` —
+     * so everything the user had said about the project was thrown away the next time they opened
+     * it. A renamed project silently reverted to its folder name on the next switch away and back,
+     * and the extra source folders would have gone the same way, which would have made configuring
+     * them pointless. Spreading `previous` keeps whatever is on the entry, named or not.
+     */
     const entry = {
-      id: previous?.id ?? path, name: workspace.name, path,
+      ...previous,
+      id: previous?.id ?? path, name: previous?.name ?? workspace.name, path,
       pinned: previous?.pinned ?? false, lastOpenedAt: Date.now(),
     };
     await get().saveSettings({
@@ -157,20 +178,68 @@ export function workspaceSlice(set: Set, get: Get) {
     useSubAgents.getState().clear();
   },
 
-  async renameProject(path: string, name: string) {
+  /**
+   * A project the user described, rather than a directory they pointed at.
+   *
+   * `pickWorkspace` — the old 「新建项目」 — opened a folder and took its name, so the name and the
+   * shape of the project were whatever the filesystem happened to say. This takes both: the first
+   * folder is where sessions run (git, the composer's cwd, every path a tool resolves), and the
+   * rest are the other parts of the same piece of work.
+   */
+  async createProject(name: string, folders: string[]) {
     const settings = get().settings;
+    const [main, ...rest] = folders.map((folder) => folder.trim()).filter(Boolean);
+    if (!settings || !main) return;
     const trimmed = name.trim();
-    if (!settings || !trimmed) return;
+    const existing = settings.projects.find((project) => project.path === main);
+    const entry = {
+      id: existing?.id ?? main,
+      name: trimmed || existing?.name || baseName(main),
+      path: main,
+      pinned: existing?.pinned ?? false,
+      lastOpenedAt: Date.now(),
+      folders: rest.length > 0 ? [main, ...rest] : undefined,
+    };
     await get().saveSettings({
       ...settings,
-      projects: settings.projects.map((p) =>
-        p.path === path ? { ...p, name: trimmed } : p,
+      projects: existing
+        ? settings.projects.map((project) => (project.path === main ? entry : project))
+        : [entry, ...settings.projects],
+    });
+    // Saved first, then opened: `openWorkspace` reads the entry back for the name and the folders.
+    await get().openWorkspace(main);
+  },
+
+  /**
+   * 「编辑项目」 — the name and the source folders, which are the two things the dialog shows.
+   *
+   * The main folder is not editable here and is not meant to be. It is the session's working
+   * directory: every stored conversation records it, git reads it, and changing it out from under
+   * them is `sessions:move`'s problem rather than a text field's. Extra folders can come and go
+   * freely because nothing is anchored to them.
+   */
+  async updateProject(path: string, patch: { name?: string; folders?: string[] }) {
+    const settings = get().settings;
+    if (!settings) return;
+    const trimmed = patch.name?.trim();
+    const rest = (patch.folders ?? []).map((folder) => folder.trim()).filter((folder) => folder && folder !== path);
+    await get().saveSettings({
+      ...settings,
+      projects: settings.projects.map((project) =>
+        project.path === path
+          ? {
+              ...project,
+              name: trimmed || project.name,
+              // `undefined` rather than `[path]`: a project back down to one folder should look
+              // exactly like one that never had a second, on disk and to every reader.
+              folders: patch.folders === undefined ? project.folders : rest.length > 0 ? [path, ...rest] : undefined,
+            }
+          : project,
       ),
     });
     // The header reads the workspace, not the project list, so it needs telling separately.
     const workspace = get().workspace;
-    if (workspace?.path === path)
-      set({ workspace: { ...workspace, name: trimmed } });
+    if (trimmed && workspace?.path === path) set({ workspace: { ...workspace, name: trimmed } });
   },
 
   async setProjectPinned(path: string, pinned: boolean) {
@@ -340,11 +409,20 @@ export function workspaceSlice(set: Set, get: Get) {
   },
 
   async archiveProjectSessions(path: string) {
-    const targets = get().sessions.filter((s) => sessionUnderProject(path, s.cwd) && !s.archived);
+    /*
+     * Every folder the project is made of, not only the one it is keyed on.
+     *
+     * Archiving a project is "put this piece of work away", and the conversations in its second
+     * source folder are part of that work — the sidebar already files them under this row. Leaving
+     * them behind would archive the project and leave its chats sitting in 「最近」, which is the
+     * shape of 「删不掉」 all over again.
+     */
+    const folders = projectFolders(get().settings?.projects.find((p) => p.path === path) ?? { path });
+    const targets = get().sessions.filter((s) => sessionUnderProject(folders, s.cwd) && !s.archived);
     if (targets.length === 0) return;
     set({
       sessions: get().sessions.map((s) =>
-        sessionUnderProject(path, s.cwd) && !s.archived ? { ...s, archived: true } : s,
+        sessionUnderProject(folders, s.cwd) && !s.archived ? { ...s, archived: true } : s,
       ),
     });
     if (targets.some((s) => s.id === get().activeSessionId)) {
