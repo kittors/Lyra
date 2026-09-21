@@ -100,14 +100,14 @@ test("对话内容一条不少", async () => {
 
 test("整理不是活动：移动不把它顶到列表最前面", async () => {
 	await withStore(async (store) => {
-		const meta = await store.create("/tmp/project-a", "fake/model");
-		const before = (await store.listSessions()).find((s) => s.id === meta.id)!.updatedAt;
+		const created = await store.create("/tmp/project-a", "fake/model");
+		const before = (await store.listSessions()).find((s) => s.id === created.id)!.updatedAt;
 		await new Promise((resolve) => setTimeout(resolve, 8));
 
-		const moved = await store.move(meta.projectId, meta.id, "/tmp/project-b", "B 项目");
+		const moved = await store.move(created.projectId, created.id, "/tmp/project-b", "B 项目");
 
 		assert.equal(moved?.updatedAt, before, "updatedAt 不该被一次归类刷新——否则半年没动的对话会窜到最前面");
-		assert.ok((moved?.seq ?? 0) > meta.seq, "但 seq 要往前走：这确实是日志里新的一条");
+		assert.ok((moved?.seq ?? 0) > created.seq, "但 seq 要往前走：这确实是日志里新的一条");
 	});
 });
 

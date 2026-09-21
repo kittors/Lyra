@@ -256,7 +256,7 @@ export class SessionStore implements SessionStorage {
 			seq: 0,
 		};
 		await mkdir(this.dirFor(projectId), { recursive: true });
-		await this.append(meta, { type: "meta", meta });
+		await this.appendExclusive(meta, { type: "meta", meta });
 		return meta;
 	}
 
@@ -317,10 +317,16 @@ export class SessionStore implements SessionStorage {
 		}
 		if (payload.type === "move") {
 			next.cwd = payload.cwd;
-			next.projectId = payload.projectId;
-			next.projectName = payload.projectName;
+		if (payload.type === "archive" || payload.type === "move") {
 			// 同 `archive`：换个归属不是一次活动。
 			next.updatedAt = base.updatedAt;
+			if (payload.type === "move") {
+				const movePayload = payload as { cwd?: string; projectId?: string; projectName?: string };
+				if (movePayload.cwd !== undefined) next.cwd = movePayload.cwd;
+				if (movePayload.projectId !== undefined) next.projectId = movePayload.projectId;
+				if (movePayload.projectName !== undefined) next.projectName = movePayload.projectName;
+			}
+		}
 		}
 		if (payload.type === "meta") {
 			// A meta record carries caller-side changes such as the selected model.
