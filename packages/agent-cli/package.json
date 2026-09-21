@@ -1,6 +1,6 @@
 {
   "name": "@lyra/agent-cli",
-  "version": "0.9.18",
+  "version": "0.9.19",
   "private": true,
   "type": "module",
   "description": "The agent that works on this repository, run from CI.",

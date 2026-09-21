@@ -5,6 +5,34 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.19](https://github.com/kittors/Lyra/releases/tag/v0.9.19) - 2026-09-21
+
+### 新功能
+
+- 完善设置项、用量统计、存储管理与界面体验 ([83099e4](https://github.com/kittors/Lyra/commit/83099e4177d09d5b33454ff7d04733379a3f69a4))
+- 一个项目可以由几个源文件夹组成，创建和编辑走同一个弹窗 ([660947d](https://github.com/kittors/Lyra/commit/660947d334a3c55e7e84f762b4be5b8c576cb49e))
+- **core**: 读取边界只留一条，越界读要经过人 ([c7cadd7](https://github.com/kittors/Lyra/commit/c7cadd7a97ff60954423d33659f141a980b3696b))
+
+### 修复
+
+- **core**: session move 保持 updatedAt 判定与 listSessions 一致 ([2da5fb6](https://github.com/kittors/Lyra/commit/2da5fb67c7b6ded64cca30eabcd43cf9a79062d6))
+- **core**: 修复 session move 时 latestMeta 缓存键与 projectId 匹配 ([21a90d6](https://github.com/kittors/Lyra/commit/21a90d6031588c3600996cc2bfafaea4c39fa6ce))
+- **core**: 修复 Windows 环境下的路径断言与 resolve 导入 ([faad993](https://github.com/kittors/Lyra/commit/faad993f37b8b0de54e8c6de3c1f6bd9f324ea45))
+- **core**: 修正 store 中 move payload 类型的比较 ([af6e3f2](https://github.com/kittors/Lyra/commit/af6e3f2b0ca3dac921733863dbe41871efa515dd))
+- **core**: 修复 session move 的 payload 解析与测试断言 ([2414b48](https://github.com/kittors/Lyra/commit/2414b48c60069cd809228e9f98ca6dd60fec7d79))
+- **core**: 修复 session move 时 updatedAt 保持不变 ([1bf5c9c](https://github.com/kittors/Lyra/commit/1bf5c9cec9d9dc02807b50f9515b886d7707ef03))
+- **core**: 修复 Windows 路径反斜杠下的密钥正则、prompt 断言及测试环境 ([3dc1559](https://github.com/kittors/Lyra/commit/3dc155928dbe0013a3150ee0b14347ef5df504e5))
+- **desktop**: 不要导出仅在文件内部使用的类型 ([24be428](https://github.com/kittors/Lyra/commit/24be4283246b14993b4ed3f0c88fcbc4d533cec9))
+- **desktop**: 撤回最后一条消息之后，回到空状态而不是一片空白 ([b11ddeb](https://github.com/kittors/Lyra/commit/b11ddeb86085c640a22a007e35b0217589c4de3f))
+
+### 重构
+
+- **desktop**: unify provider models header action buttons ([1bf3ffd](https://github.com/kittors/Lyra/commit/1bf3ffd8305f01a27ac056d9541c4fee1720ee45))
+
+### 文档
+
+- update README with split workspace, git modal, and layout details ([8a345e0](https://github.com/kittors/Lyra/commit/8a345e01432f2fd2f607f4ade070a189e37b6111))
+
 ## [0.9.18](https://github.com/kittors/Lyra/releases/tag/v0.9.18) - 2026-09-20
 
 <!-- lyra:notes en -->
@@ -162,7 +190,6 @@
 - **Длинные ключи API в настройках не закрывают кнопку скрытия.** За счёт flex-разметки текст ввода останавливается перед кнопкой с иконкой глаза, позволяя свободно переключать видимость ключа.
 
 </details>
-
 
 ## [0.9.17](https://github.com/kittors/Lyra/releases/tag/v0.9.17) - 2026-09-19
 
