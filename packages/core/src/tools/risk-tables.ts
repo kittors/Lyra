@@ -87,8 +87,7 @@ export const PLACES_FILES = new Set([
  * stop an agent reading its own configuration.
  */
 export const SECRET_PATH =
-	/(~|\$HOME|\/Users\/[^/\s]+|\/home\/[^/\s]+)?\/?\.(lyra\/(vault\.key|credentials\.json)|ssh\/id_[A-Za-z0-9_]+|aws\/credentials|gnupg\b|netrc|config\/gh\/hosts\.yml)/;
-
+	/(?:^|[/\\])(?:\.(?:lyra[/\\](?:vault\.key|credentials\.json)|ssh[/\\]id_[A-Za-z0-9_]+|aws[/\\]credentials|gnupg\b|netrc|config[/\\]gh[/\\]hosts\.yml))(?=[/\\]|$)/i;
 /**
  * Shells, which run whatever string they are handed.
  *

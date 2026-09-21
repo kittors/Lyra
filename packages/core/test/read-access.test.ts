@@ -11,6 +11,7 @@
  */
 
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -192,7 +193,7 @@ test("a redirection target is written, not read", () => {
 
 test("words a shell would rewrite are not guessed at", () => {
 	// Guessing produces both false grants and false prompts; neither is worth it.
-	const outside = (command: string) => commandReadTargets(command, WS).filter((p) => !p.startsWith(`${WS}/`));
+	const outside = (command: string) => commandReadTargets(command, WS).filter((p) => !p.replace(/\\/g, "/").startsWith(`${WS.replace(/\\/g, "/")}/`));
 	assert.deepEqual(outside("cat $SECRETS/key"), []);
 	assert.deepEqual(outside("cat ~/.ssh/*"), []);
 	assert.deepEqual(outside("cat `which node`"), []);
@@ -220,20 +221,35 @@ test("the read-only table still says cat is read-only — that was never the bug
 	assert.equal(isReadOnlyCommand(`cat ${HOME}/.ssh/id_ed25519`), true);
 });
 
-test("a credential read through bash asks, despite the read-only table", async () => {
+test("a credential read through bash asks, despite the read-only table", async (t) => {
 	/*
 	 * The heart of it. `bash.ts` documents `isReadOnlyCommand` as the one path around the whole
 	 * risk classifier: a command on that table never reaches `requestApproval`, in any permission
 	 * mode. `cat` is on it. So `SECRET_PATH` — the credential rule the 2026-09-12 audit raised as
 	 * H2 and the fix log marked done — was judging commands that could never arrive.
+	 *
+	 * `worthAsking` skips paths that do not exist on disk to save noise. In CI (especially a clean
+	 * runner or Linux arm64) `~/.ssh/id_ed25519` may not exist unless created for the test.
 	 */
+	const sshDir = join(HOME, ".ssh");
+	const keyFile = join(sshDir, "id_ed25519");
+	let created = false;
+	if (!existsSync(keyFile)) {
+		await mkdir(sshDir, { recursive: true });
+		await writeFile(keyFile, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n", "utf8");
+		created = true;
+	}
+	t.after(async () => {
+		if (created) await rm(keyFile, { force: true });
+	});
+
 	const approvals = { decisions: ["reject" as const], seen: [] as ApprovalRequest[] };
-	const result = await bashTool.execute({ command: `cat ${join(HOME, ".ssh/id_ed25519")}` } as never, ctxFor(WS, approvals));
+	const result = await bashTool.execute({ command: `cat ${keyFile}` } as never, ctxFor(WS, approvals));
 
 	assert.equal(approvals.seen.length, 1, "it must be asked about");
 	assert.equal(approvals.seen[0].kind, "read");
 	assert.match(approvals.seen[0].title, /密钥/);
-	assert.equal(approvals.seen[0].subject, `read:${join(HOME, ".ssh/id_ed25519")}`, "granted as the key alone");
+	assert.equal(approvals.seen[0].subject, `read:${keyFile}`, "granted as the key alone");
 	assert.equal(result.isError, true);
 	assert.doesNotMatch(textOf(result), /BEGIN .* PRIVATE KEY/, "and nothing may come back");
 });

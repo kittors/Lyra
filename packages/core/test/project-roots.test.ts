@@ -204,7 +204,7 @@ test("the system prompt names the other folders, and only when there are any", a
 	assert.ok(!plain.includes(API), "a one-folder project must not pay a single token for this");
 
 	const multi = await buildSystemPrompt({ ...base, projectRoots: [APP, API] });
-	assert.ok(multi.includes(API), "the extra folder is not named anywhere in the prompt");
+	assert.ok(multi.includes(API.replace(/\\/g, "/")), "the extra folder is not named anywhere in the prompt");
 	assert.equal(multi.split(APP).length - 1, 1, "the working directory is repeated as if it were a second fact");
 	assert.match(multi, /readable, not writable/, "the prompt does not say writing there is still refused");
 });
