@@ -6,6 +6,148 @@
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
 ## [0.9.19](https://github.com/kittors/Lyra/releases/tag/v0.9.19) - 2026-09-21
+<!-- lyra:notes en -->
+
+### Features
+
+- **Multi-folder projects.** A project is no longer tied to a single root directory. You can add multiple source folders to one project upon creation or edit them later through the project dialog. The model recognizes all folders as part of the project context and reads files across them without prompting.
+
+- **Unified read permission boundary.** The separate read-only command table is retired in favor of one simple, predictable rule: reading inside the project or system roots runs automatically; reading outside the project asks for confirmation. SSH keys, cloud credentials, and sensitive configurations always prompt wherever they are located.
+
+- **Granular storage management and usage insights in Settings.** A dedicated storage section visualizes disk space used by chat histories, cache files, and tool artifacts. You can clean up old sessions, clear temporary cache files, or purge data by retention periods.
+
+### Improvements & Fixes
+
+- **Graceful rewind to empty state.** Rewinding or undoing the only message in a conversation properly returns to the welcoming initial state with starters instead of leaving a blank canvas.
+
+- **Unified provider model actions and refined inline code styling.** Model actions across different providers use consistent icon controls and layout. Inline code blocks in messages and tool outputs feature calibrated padding, subtle tinting, and balanced typographic contrast.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **多文件夹项目支持。** 一个项目不再限制在单个根目录。创建项目或在项目设置中，可以向同一项目添加多个源码文件夹。模型会自动识别并覆盖所有关联目录，直接读取和检索跨目录文件无需重复确认。
+
+- **统一的文件读取安全边界。** 移除了容易误判的只读命令列表，改用清晰一致的判定原则：项目内以及系统常用目录的读取自动放行；项目外部路径的读取均需经过人工确认。对于 SSH 密钥、云服务凭据与敏感配置文件，无论放在何处都会弹出确认提示。
+
+- **设置页新增存储管理与用量分析。** 设置中提供了详细的存储占用可视化，清晰列出会话日志、缓存文件与运行产物所占磁盘空间。支持按保留周期清理历史对话、清除临时缓存与一键释放磁盘空间。
+
+### 优化与修复
+
+- **撤回唯一消息时平滑恢复初始状态。** 撤回对话中的最后一条消息后，窗口会优雅回到包含推荐提问与起始提示的初始界面，不再留下一片空白。
+
+- **统一服务商模型操作按钮与行内代码样式。** 各服务商模型卡片的刷新、编辑与删除动作按钮采用统一的图标控件与对齐规范；优化了转录中行内代码与代码块的内衬与字阶对比度。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **多資料夾專案支援。** 專案不再侷限於單一根目錄。在建立專案或專案設定中，可以將多個原始碼資料夾納入同一個專案。模型會自動辨識並包含所有關聯資料夾，跨資料夾讀取與搜尋檔案無需重複確認。
+
+- **統一的檔案讀取安全邊界。** 簡化讀取權限判斷規則：專案範圍內及系統常用目錄的讀取自動放行；讀取專案以外的路徑皆需經過人工確認。對於 SSH 金鑰、雲端憑證等敏感檔案，無論位於何處皆會跳出確認提示。
+
+- **設定頁新增儲存空間管理。** 設定中新增儲存空間視覺化圖表，清楚呈現對話紀錄、快取檔案與工具產物所佔用的磁碟容量，並支援依時間保留期限清除歷史資料與釋放空間。
+
+### 最佳化與修復
+
+- **撤回唯一訊息時平滑回到初始狀態。** 撤回對話中僅有的第一則訊息後，介面會正常顯示帶有起始引導的初始畫面，不再留下一片空白。
+
+- **統一模型服務商操作按鈕與行內代碼樣式。** 各服務商模型列表的操作按鈕統一採用一致的圖示與排版；調整對話中行內代碼的邊距與視覺對比度。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **複数フォルダープロジェクトのサポート。** 1つのプロジェクトが単一のディレクトリに縛られなくなりました。新規作成時やプロジェクト設定から複数のソースフォルダーを追加できます。モデルはすべてのフォルダーを認識し、確認なしで横断的に読み取りや検索を行えます。
+
+- **ファイル読み取り権限の境界を統一。** 読み取り専用コマンドの個別判定を廃止し、シンプルで一貫したルールに刷新しました。プロジェクト内およびシステムルートの読み取りは自動許可され、プロジェクト外のファイル読み取りは確認を求めます。SSH 鍵やクラウドアカウント情報などの機密ファイルは、場所を問わず必ず確認を挟みます。
+
+- **設定画面にストレージ管理機能を追加。** 会話履歴、キャッシュ、生成ファイルが占有するディスク容量を可視化しました。保持期間に応じた古い会話の整理や、一時キャッシュの削除を簡単に行えます。
+
+### 改善と修正
+
+- **最後のメッセージ取り消し時に初期画面へ正しく復帰。** 会話内の唯一のメッセージを取り消した際、空白画面にならず、ウェルカム表示と初期プロンプトへスムーズに戻るよう修正しました。
+
+- **プロバイダーモデルの操作ボタン統一とインラインコードスタイルの調整。** モデル一覧のアクションボタンのレイアウトとアイコンを統一しました。また、チャット内のインラインコードの余白とコントラストを最適化しました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **다중 폴더 프로젝트 지원.** 프로젝트가 더 이상 단일 루트 디렉터리에 제한되지 않습니다. 프로젝트 생성 시 또는 프로젝트 설정에서 여러 소스 폴더를 하나의 프로젝트로 묶을 수 있습니다. 모델은 모든 폴더를 인식하여 별도 확인 없이 폴더 간 파일을 읽고 탐색합니다.
+
+- **통합된 파일 읽기 보안 경계.** 읽기 전용 명령어 목록을 걷어내고 명확한 규칙으로 개편했습니다. 프로젝트 내부 및 시스템 루트 읽기는 자동으로 허용되며, 프로젝트 외부 경로를 읽을 때는 사용자 확인을 거칩니다. SSH 키와 클라우드 인증 정보 등 민감한 파일은 위치에 관계없이 항상 확인 창이 표시됩니다.
+
+- **설정 화면에 저장 공간 관리 기능 추가.** 대화 기록, 임시 캐시, 도구 결과물이 차지하는 디스크 용량을 시각화하여 보여줍니다. 보관 기간에 따른 오래된 대화 정리 및 임시 캐시 삭제를 간편하게 수행할 수 있습니다.
+
+### 개선 및 수정
+
+- **유일한 메시지 취소 시 초기 화면으로 자연스럽게 복원.** 대화 내의 유일한 메시지를 되돌렸을 때 빈 화면으로 남지 않고, 시작 프롬프트가 포함된 초기 화면으로 원활하게 복귀합니다.
+
+- **제공자 모델 작업 버튼 통일 및 인라인 코드 스타일 조정.** 모델 목록의 버튼 디자인과 배치를 일관되게 정돈하고, 메시지 내 인라인 코드 블록의 여백과 가독성을 다듬었습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouvelles fonctionnalités
+
+- **Projets multi-dossiers.** Un projet ne se limite plus à un seul répertoire racine. Vous pouvez ajouter plusieurs dossiers sources lors de la création ou via les paramètres du projet. Le modèle prend en compte l'ensemble des dossiers et accède aux fichiers sans demander de confirmation superflue.
+
+- **Frontière unifiée des permissions de lecture.** Remplacement de la liste des commandes en lecture seule par une règle claire et prévisible : les lectures dans le projet ou les répertoires système sont directes ; toute lecture en dehors du projet nécessite une approbation. Les clés SSH et identifiants cloud demandent toujours une confirmation, quel que soit leur emplacement.
+
+- **Gestion du stockage dans les paramètres.** Visualisation claire de l'espace disque occupé par l'historique des conversations, les caches et les fichiers temporaires. Permet de purger les anciennes sessions selon une durée de rétention et de libérer facilement de l'espace.
+
+### Améliorations et corrections
+
+- **Retour fluide à l'état initial lors de l'annulation du seul message.** Supprimer ou annuler le premier et unique message d'une conversation réaffiche correctement l'écran d'accueil avec les suggestions au lieu d'une page blanche.
+
+- **Harmonisation des boutons de modèles et ajustement du code en ligne.** Les actions sur les modèles adoptent des commandes et icônes cohérentes. Les blocs de code en ligne dans les messages bénéficient d'un contraste et d'espacements affinés.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новые возможности
+
+- **Поддержка нескольких папок в проекте.** Проект больше не ограничен одним корневым каталогом. При создании или в настройках проекта можно добавить несколько исходных папок. Модель видит все связанные каталоги и читает файлы между ними без лишних подтверждений.
+
+- **Единые границы доступа на чтение файлов.** Отдельный список безопасных команд упразднён в пользу понятного правила: чтение файлов внутри проекта и системных папок разрешено автоматически; чтение файлов вне проекта требует подтверждения. Ключи SSH и конфигурации облачных сервисов всегда запрашивают подтверждение независимо от расположения.
+
+- **Управление хранилищем в настройках.** Наглядная статистика занятого места на диске: история диалогов, временные файлы и кэш. Поддерживается удаление старых сессий по сроку давности и быстрая очистка кэша.
+
+### Улучшения и исправления
+
+- **Корректный возврат к начальному экрану при отмене единственного сообщения.** При удалении единственного сообщения диалог корректно возвращается к экрану приветствия с подсказками, а не остаётся пустым.
+
+- **Унификация кнопок моделей и улучшение стиля инлайн-кода.** Действия с моделями провайдеров приведены к единому оформлению. Оптимизированы отступы и контраст шрифта для инлайн-кода в сообщениях.
+
+</details>
+
 
 ### 新功能
 
