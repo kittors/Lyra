@@ -35,7 +35,7 @@
 		"fflate": "^0.8.3",
 		"unpdf": "^1.8.1",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-		"yaml": "2.9.0",
+		"yaml": "2.9.1",
 		"koffi": "^3.1.6"
 	},
 	"devDependencies": {
