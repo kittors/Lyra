@@ -60,6 +60,17 @@ export function ResumeRow() {
 	const carryOn = carryOnPrompt(stopped, unfinished);
 	if (running || !carryOn) return null;
 	/*
+	 * 没有转录，就没有「上一轮」可以接着。
+	 *
+	 * 这一行读的是 `stopped` 和待办数，两者都可能在消息已经没了之后还留着——撤回最后一条消息
+	 * 就是这样：转录空了，而 `stopped` 讲的是一轮已经不存在的对话。那时这里会在一张空白页上
+	 * 说「已暂停 · 继续」，点下去往空会话里发一句「继续」。
+	 *
+	 * `revertMessage` 现在会把 `stopped` 一起退回去，所以这条守卫多数时候不会触发。留着是因为
+	 * 它守的是这一行自己的前提：要接着的那一轮得真的在转录里。
+	 */
+	if (messages.length === 0) return null;
+	/*
 	 * 失败这件事，上面那条记录已经说过了。
 	 *
 	 * `HiccupTrace` 现在管着一次中断从开始到收场的全过程，包括没救回来的那一种——它自己带着「继续」。

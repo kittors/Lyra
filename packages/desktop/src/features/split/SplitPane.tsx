@@ -45,6 +45,19 @@ const SplitScreen = memo(function SplitScreen({
 		<div className="flex min-h-0 flex-1 flex-col">
 			{!sessionId ? (
 				surface === "skeleton" ? <ConversationSkeleton /> : <EmptyState />
+			) : surface === "empty" ? (
+				/*
+				 * 会话还在，消息没了——这一格也得是空状态。
+				 *
+				 * `chatSurface` 早就算得出这一种，但它只被问在 `!sessionId` 那一支上，于是「有
+				 * 会话」自动等同于「有转录」。撤回第一条消息之后两者第一次分开：会话还在侧边栏
+				 * 里选着，`messages` 已经空了，`Conversation` 照样挂上去，画出来是一整片空白
+				 * ——外加一行没人清掉的「已暂停」。那不是任何一个设计过的界面。
+				 *
+				 * 这里不用 `surface === "skeleton"`：那一支在有 sessionId 时仍然交给下面的
+				 * `RetainedViews`，和一直以来一样。这次只补上空的那一种。
+				 */
+				<EmptyState />
 			) : (
 				<RetainedViews
 					active={sessionId}

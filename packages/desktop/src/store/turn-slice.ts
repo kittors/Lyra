@@ -9,6 +9,7 @@
 import { translate } from "../i18n/translate.ts";
 import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { prune, without } from "./derive.ts";
+import { howItStopped } from "./turn-stop.ts";
 import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
@@ -269,13 +270,25 @@ export function turnSlice(set: Set, get: Get) {
     const message = messages[index];
     if (!message || message.role !== "user" || message.synthetic) return;
     const before = get();
+    const kept = messages.slice(0, index);
     set({
-      messages: messages.slice(0, index),
+      messages: kept,
       toolRuns: {},
       approvals: [],
       commandRuns: get().commandRuns.filter((run) => run.at <= index),
       compactions: get().compactions.filter((run) => run.at <= index),
       hiccups: get().hiccups.filter((one) => one.at <= index),
+      /*
+       * 「上一轮怎么结束的」也要跟着回到撤回点。
+       *
+       * `stopped` 讲的是最后那一轮的收场，而这一次撤回把那一轮整个拿掉了——它却被原样留着。
+       * 撤回唯一一条消息之后最明显：转录空了，`ResumeRow` 仍然照着旧的 `stopped` 说「已暂停 ·
+       * 继续」，而那个「继续」会往一个空会话里发一句「继续」。
+       *
+       * 重新推导而不是置空：撤回到中间某一条时，留下的那截自己可能就是中断的，`howItStopped`
+       * 从消息里读得出来，它本来就是这么算的（见 `cached-event.ts`）。
+       */
+      stopped: howItStopped(kept),
       sessionCache: without(get().sessionCache, sessionId),
     });
     try {
@@ -296,6 +309,8 @@ export function turnSlice(set: Set, get: Get) {
           commandRuns: before.commandRuns,
           compactions: before.compactions,
           hiccups: before.hiccups,
+          // 上面那次乐观更新把它算成了撤回后的样子；撤回没成，它也要跟着回来。
+          stopped: before.stopped,
         });
       }
       get().notify(translate("turn.revertFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
