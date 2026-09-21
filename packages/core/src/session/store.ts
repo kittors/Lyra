@@ -711,7 +711,7 @@ export class SessionStore implements SessionStorage {
 		if (await stat(to).catch(() => null)) throw new Error(`目标项目下已存在同名会话文件：${to}`);
 
 		await rename(from, to);
-		const moved: SessionMeta = { ...base, cwd, projectId: nextProjectId, projectName, updatedAt: base.updatedAt };
+		const moved: SessionMeta = { ...base, cwd, projectId: nextProjectId, projectName };
 		try {
 			// 钥匙跟着文件搬。放进去的仍是 `base`，好让 `append` 从它当前的 `seq` 往下接。
 			this.latestMeta.delete(this.keyFor(base));

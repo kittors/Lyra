@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { assessRead, commandReadTargets, readGrantRoot, toAbsolute } from "../src/tools/read-access.ts";
 import { bashTool, isReadOnlyCommand } from "../src/tools/bash.ts";
@@ -383,6 +383,6 @@ test("a path that is not there is not worth a question", async () => {
 test("toAbsolute leaves a workspace-relative path where it belongs", () => {
 	assert.equal(toAbsolute(WS, "src/a.ts"), join(WS, "src/a.ts"));
 	assert.equal(toAbsolute(WS, "~/x"), join(HOME, "x"));
-	assert.equal(toAbsolute(WS, "/etc/hosts"), "/etc/hosts");
+	assert.equal(toAbsolute(WS, "/etc/hosts"), resolve("/etc/hosts"));
 	assert.ok(CWD.length > 0);
 });
