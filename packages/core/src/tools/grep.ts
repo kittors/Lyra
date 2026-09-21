@@ -6,7 +6,8 @@ import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
 import { formatMatchWindow, formatMatchWindowAt, utf8ByteOffsetToIndex, type MatchOptions } from "./long-line.ts";
-import { looksBinary, resolveWorkspacePath } from "./paths.ts";
+import { looksBinary } from "./paths.ts";
+import { authorizeRead } from "./read-access.ts";
 
 const MAX_MATCHES = 200;
 // About 3.4k estimated tokens across all matches; more requires a narrower search.
@@ -108,11 +109,11 @@ export const grepTool: Tool<GrepArgs> = {
 			path: typeof raw.path === "string" ? raw.path : typeof raw.dir === "string" ? raw.dir : typeof raw.cwd === "string" ? raw.cwd : undefined,
 		};
 
-		let root: string;
-		try {
-			root = normalizedArgs.path ? resolveWorkspacePath(ctx.cwd, normalizedArgs.path) : ctx.cwd;
-		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
+		let root = ctx.cwd;
+		if (normalizedArgs.path) {
+			const authorized = await authorizeRead(ctx, normalizedArgs.path);
+			if (!authorized.ok) return errorResult(authorized.message);
+			root = authorized.absolute;
 		}
 
 		const viaRipgrep = await runRipgrep(normalizedArgs, root, ctx);

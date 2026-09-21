@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
 import { home } from "../platform.ts";
@@ -11,10 +11,17 @@ function contains(root: string, absolute: string): boolean {
 }
 
 /**
- * Resolve a model-supplied path against the session cwd and refuse anything that escapes it.
+ * Resolve a path the model wants to **write** and refuse anything that escapes the workspace.
  *
  * The model is not trusted to stay inside the workspace: `../../.ssh/id_rsa` is a normal-looking
- * argument. Every filesystem tool routes through here so the containment check exists once.
+ * argument. `write` and `edit` route through here so the containment check exists once.
+ *
+ * Reading is a different question and is asked elsewhere, in `read-access.ts`: a read outside the
+ * workspace is put to the user, because refusing one they could obviously grant is what taught the
+ * model to go around the file tools with `cat`. A write is not offered that way — the tools that
+ * change files stay inside the project, full stop. The asymmetry is the point, and it is why the
+ * attachment set (`ToolContext.allowedPaths`) is honoured over there and has no parameter here:
+ * dragging a file into the conversation says "look at this", not "you may overwrite it".
  *
  * The scratch directory is the one exception, because the system prompt sends the model there
  * for anything that should not end up in the user's repository. Refusing it would be telling the
@@ -22,36 +29,12 @@ function contains(root: string, absolute: string): boolean {
  * and what it worked around by reaching for an MCP filesystem server instead. Only the scratch
  * subtree is opened up: `~/.lyra` itself still holds settings and transcripts, and stays shut.
  */
-export function resolveWorkspacePath(
-	cwd: string,
-	input: string,
-	allowedPaths?: ReadonlySet<string> | readonly string[],
-	options?: { allowSkillReads?: boolean },
-): string {
+export function resolveWorkspacePath(cwd: string, input: string): string {
 	if (!input || typeof input !== "string") throw new Error("A path is required.");
 	const expanded = input.startsWith("~/") ? input.replace("~", home()) : input;
 	const absolute = isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
 	if (contains(cwd, absolute) || contains(scratchHome(lyraHome()), absolute)) return absolute;
-	if (options?.allowSkillReads && isInstalledSkillFile(absolute)) return absolute;
-	if (allowedPaths) {
-		const allowed = allowedPaths instanceof Set ? allowedPaths : new Set(allowedPaths);
-		if (allowed.has(absolute)) return absolute;
-	}
 	throw new Error(`Path escapes the workspace root (${cwd}): ${input}`);
-}
-
-/**
- * Installed skill files the system prompt tells the model to open by absolute path.
- *
- * Loose skills live in `~/.lyra/skills`. Plugin skills live under each bundle's `skills/`
- * directory. Settings, transcripts, credentials and the rest of `~/.lyra` stay closed.
- */
-function isInstalledSkillFile(absolute: string, homeDir = lyraHome()): boolean {
-	if (contains(join(homeDir, "skills"), absolute)) return true;
-	const plugins = join(homeDir, "plugins");
-	if (!contains(plugins, absolute)) return false;
-	const parts = relative(plugins, absolute).split(sep);
-	return parts.indexOf("skills") >= 1;
 }
 
 export function displayPath(cwd: string, absolute: string): string {

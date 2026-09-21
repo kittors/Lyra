@@ -19,7 +19,7 @@ import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import type { CodeLocation } from "../lsp/types.ts";
 import { walkFiles } from "../capability/fs.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
-import { resolveWorkspacePath } from "./paths.ts";
+import { authorizeRead } from "./read-access.ts";
 
 interface LspArgs {
 	operation: "references" | "definition" | "diagnostics" | "rename";
@@ -71,12 +71,9 @@ export const lspTool: Tool<LspArgs> = {
 	summarize: (args) => `lsp ${args.operation}: ${args.symbol ?? args.path}`,
 
 	async execute(args, ctx): Promise<ToolResult> {
-		let absolute: string;
-		try {
-			absolute = resolveWorkspacePath(ctx.cwd, args.path);
-		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
-		}
+		const authorized = await authorizeRead(ctx, args.path);
+		if (!authorized.ok) return errorResult(authorized.message);
+		const absolute = authorized.absolute;
 
 		const manager = getManager(ctx);
 		const backend = await manager.acquire(absolute, ctx.cwd).catch(() => null);

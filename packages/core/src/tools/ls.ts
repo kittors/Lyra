@@ -3,7 +3,8 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolResult } from "../types.ts";
-import { displayPath, resolveWorkspacePath } from "./paths.ts";
+import { displayPath } from "./paths.ts";
+import { authorizeRead } from "./read-access.ts";
 
 const MAX_ENTRIES = 400;
 
@@ -27,11 +28,11 @@ export const lsTool: Tool<LsArgs> = {
 	summarize: (args) => `List ${args.path ?? "."}`,
 
 	async execute(args, ctx): Promise<ToolResult> {
-		let absolute: string;
-		try {
-			absolute = args.path ? resolveWorkspacePath(ctx.cwd, args.path, ctx.allowedPaths) : ctx.cwd;
-		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
+		let absolute = ctx.cwd;
+		if (args.path) {
+			const authorized = await authorizeRead(ctx, args.path);
+			if (!authorized.ok) return errorResult(authorized.message);
+			absolute = authorized.absolute;
 		}
 
 		let entries: Dirent[];

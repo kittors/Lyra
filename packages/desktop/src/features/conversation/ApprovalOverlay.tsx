@@ -17,6 +17,7 @@ const KIND_LABEL: Record<string, MessageKey> = {
 	bash: "approval.bash",
 	write: "approval.write",
 	edit: "approval.edit",
+	read: "approval.read",
 	mcp: "approval.mcp",
 	network: "approval.network",
 };

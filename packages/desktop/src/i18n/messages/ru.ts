@@ -1804,6 +1804,7 @@ export const ru = {
 	"approval.bash": "Выполнить команду",
 	"approval.write": "Записать файл",
 	"approval.edit": "Изменить файл",
+	"approval.read": "Прочитать файл",
 	"approval.mcp": "Вызвать инструмент MCP",
 	"approval.network": "Выйти в сеть",
 	"permission.neverAskFor": "Больше не спрашивать про {subject}",

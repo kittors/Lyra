@@ -134,6 +134,17 @@ const BASE_GUIDELINES = [
 	"Finish the whole task. If part of it is blocked, complete the rest and say plainly what you left and why.",
 	"Do not invent file paths, APIs or command output. If you have not verified something, say so.",
 	"Leave nothing in the user's project that they did not ask for. Files you write to think with — scratch scripts, sample data, intermediate output, a demo written to illustrate an answer — belong outside the repository, and you are expected to make that call yourself rather than waiting to be told.",
+	/*
+	 * 越界读要经过用户，这件事模型必须**知道**，否则它只会看见一个莫名其妙的失败。
+	 *
+	 * 之前没有这一条，而边界只由工具报错来表达：`read` 拒绝工作区外的路径，`bash` 里的 `cat` 放行。
+	 * 模型读到的是「这个工具坏了，换一个」——于是它去 `cat`，而那条路当时真的通。真实会话里
+	 * 用户看到的就是「读另一个项目说没权限，然后它用 shell 去绕」。
+	 *
+	 * 所以这句话说的是两件事：这是规则不是故障，以及正门在哪。绕路现在也堵上了（两条路问同一个
+	 * 判定），但只堵不说等于让它把配额花在试错上。
+	 */
+	"Reading outside the workspace needs the user's approval — this is a rule, not a malfunction. Just read the path you need with the file tools: the user is asked once and can approve the whole project. Never route around a refusal with shell commands; `cat`, `grep` and the rest are judged by the same rule, and retrying there only spends the user's time.",
 ];
 
 /**

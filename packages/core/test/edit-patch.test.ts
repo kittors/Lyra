@@ -7,8 +7,8 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { editTool } from "../src/tools/edit.ts";
@@ -269,10 +269,19 @@ test("snapshotTag is four hex characters and content-sensitive", () => {
 	assert.notEqual(snapshotTag(FIVE), snapshotTag(FIVE.replace("alpha", "ALPHA")));
 });
 
-test("read and edit work cleanly on explicitly allowed paths outside workspace", async () => {
-	const externalDir = await mkdtemp(join(tmpdir(), "lyra-external-"));
+test("read and edit work cleanly on explicitly allowed paths outside workspace", async (t) => {
+	/*
+	 * Under the home directory rather than in a temp one, because the temp areas are readable.
+	 *
+	 * `assessRead` allows `/tmp` and `os.tmpdir()` for the same reason `writableRoots` grants them:
+	 * that is where work that should not touch the repository goes. A test that used a temp
+	 * directory to stand for "outside the workspace" was testing a path that is no longer outside
+	 * anything, and it passed for that reason rather than because the boundary held.
+	 */
+	const externalDir = await mkdtemp(join(homedir(), ".lyra-external-"));
 	const externalFile = join(externalDir, "external.txt");
 	await writeFile(externalFile, FIVE, "utf8");
+	t.after(() => rm(externalDir, { recursive: true, force: true }));
 
 	const workspaceDir = await mkdtemp(join(tmpdir(), "lyra-ws-"));
 	const ctxWithoutAllowed: ToolContext = {
@@ -285,10 +294,10 @@ test("read and edit work cleanly on explicitly allowed paths outside workspace",
 		allowedPaths: new Set([externalFile]),
 	};
 
-	// Without allowedPaths, read is blocked as workspace escape
+	// Without allowedPaths — and with nobody to ask — the read is refused.
 	const deniedRead = await readTool.execute({ path: externalFile } as never, ctxWithoutAllowed);
 	assert.equal(deniedRead.isError, true);
-	assert.match(deniedRead.content[0].type === "text" ? deniedRead.content[0].text : "", /escapes the workspace root/);
+	assert.match(deniedRead.content[0].type === "text" ? deniedRead.content[0].text : "", /没有可以询问的人/);
 
 	// With allowedPaths, read succeeds
 	const readRes = await readTool.execute({ path: externalFile } as never, ctxWithAllowed);

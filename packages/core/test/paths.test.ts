@@ -44,35 +44,24 @@ test("a missing path is an error rather than the workspace root", () => {
 	assert.throws(() => resolveWorkspacePath(CWD, ""), /A path is required/);
 });
 
-test("explicitly allowed paths outside workspace resolve cleanly", () => {
-	const externalFile = resolve("/tmp/some-external-doc.txt");
-	const allowed = new Set([externalFile]);
-
-	assert.equal(resolveWorkspacePath(CWD, externalFile, allowed), externalFile);
-	assert.throws(
-		() => resolveWorkspacePath(CWD, "/tmp/unallowed-file.txt", allowed),
-		/escapes the workspace root/,
-	);
-});
-
-test("installed skill files are readable, and nothing else under lyra home is", () => {
+/**
+ * 这里只剩「写」这一侧。
+ *
+ * 附件许可和技能文件例外都搬去了 `read-access.ts`——它们回答的是「能不能看」，而这个函数如今
+ * 只回答「能不能改」，两者故意不再是同一个答案（见该文件与 `read-access.test.ts`）。留在这里的
+ * 是那条不能松的：写不进工作区之外，技能文件也不行。
+ */
+test("nothing outside the workspace is writable, skill files included", () => {
 	const skill = join(HOME, "plugins", "waza", "skills", "check", "references", "mode-audit.md");
-	const loose = join(HOME, "skills", "ui", "SKILL.md");
-	assert.equal(resolveWorkspacePath(CWD, skill, undefined, { allowSkillReads: true }), skill);
-	assert.equal(resolveWorkspacePath(CWD, loose, undefined, { allowSkillReads: true }), loose);
-	assert.throws(
-		() => resolveWorkspacePath(CWD, skill),
-		/escapes the workspace root/,
-		"write-shaped callers do not inherit the skill exception",
-	);
-	assert.throws(
-		() => resolveWorkspacePath(CWD, join(HOME, "plugins", "waza", "manifest.json"), undefined, { allowSkillReads: true }),
-		/escapes the workspace root/,
-	);
-	assert.throws(
-		() => resolveWorkspacePath(CWD, join(HOME, "settings.json"), undefined, { allowSkillReads: true }),
-		/escapes the workspace root/,
-	);
+	for (const bad of [
+		resolve("/tmp/some-external-doc.txt"),
+		skill,
+		join(HOME, "skills", "ui", "SKILL.md"),
+		join(HOME, "plugins", "waza", "manifest.json"),
+		join(HOME, "settings.json"),
+	]) {
+		assert.throws(() => resolveWorkspacePath(CWD, bad), /escapes the workspace root/, bad);
+	}
 });
 
 test("read opens an installed plugin skill file that used to escape the workspace", async () => {

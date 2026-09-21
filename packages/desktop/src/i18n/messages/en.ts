@@ -1804,6 +1804,7 @@ export const en = {
 	"approval.bash": "Run a command",
 	"approval.write": "Write a file",
 	"approval.edit": "Change a file",
+	"approval.read": "Read a file",
 	"approval.mcp": "Call an MCP tool",
 	"approval.network": "Reach the network",
 	"permission.neverAskFor": "Stop asking about {subject}",

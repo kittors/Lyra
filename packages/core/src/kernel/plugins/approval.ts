@@ -18,6 +18,12 @@ class DefaultPolicy implements ApprovalPolicy {
 	assess(kind: string, subject: string, cwd: string): ApprovalVerdict {
 		if (kind === "bash") return assessCommand(subject, cwd);
 		if (kind === "edit" || kind === "write") return assessWrite(subject, cwd);
+		/*
+		 * A read that got this far has already been judged, by `assessRead`; see the longer note on
+		 * the same line in `runtime/approval-policy.ts`. Same answer as the fallback below, written
+		 * out so that narrowing the fallback has to be a decision about reads too.
+		 */
+		if (kind === "read") return { risky: true };
 		if (kind === "network") {
 				/*
 				 * Three answers folded into this seam's two.

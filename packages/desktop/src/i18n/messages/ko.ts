@@ -1804,6 +1804,7 @@ export const ko = {
 	"approval.bash": "명령 실행",
 	"approval.write": "파일 쓰기",
 	"approval.edit": "파일 고치기",
+	"approval.read": "파일 읽기",
 	"approval.mcp": "MCP 도구 호출",
 	"approval.network": "네트워크 접근",
 	"permission.neverAskFor": "앞으로 {subject}에 대해 묻지 않기",

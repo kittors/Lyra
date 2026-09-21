@@ -3,7 +3,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolResult } from "../types.ts";
-import { resolveWorkspacePath } from "./paths.ts";
+import { authorizeRead } from "./read-access.ts";
 
 const MAX_RESULTS = 500;
 const SKIP_DIRS = new Set([
@@ -56,11 +56,11 @@ export const globTool: Tool<GlobArgs> = {
 
 		const path = typeof raw.path === "string" ? raw.path : typeof raw.dir === "string" ? raw.dir : typeof raw.cwd === "string" ? raw.cwd : undefined;
 
-		let root: string;
-		try {
-			root = path ? resolveWorkspacePath(ctx.cwd, path) : ctx.cwd;
-		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
+		let root = ctx.cwd;
+		if (path) {
+			const authorized = await authorizeRead(ctx, path);
+			if (!authorized.ok) return errorResult(authorized.message);
+			root = authorized.absolute;
 		}
 		if (!pattern) return errorResult("`pattern` is required. Please specify the glob pattern to search for in the `pattern` parameter, e.g. {\"pattern\": \"**/*.ts\"}.");
 

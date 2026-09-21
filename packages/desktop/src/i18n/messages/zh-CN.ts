@@ -1976,6 +1976,7 @@ export const zhCN = {
 	"approval.bash": "执行命令",
 	"approval.write": "写入文件",
 	"approval.edit": "修改文件",
+	"approval.read": "读取文件",
 	"approval.mcp": "调用 MCP 工具",
 	"approval.network": "访问网络",
 	"permission.neverAskFor": "以后不再问：{subject}",

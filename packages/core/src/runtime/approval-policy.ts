@@ -13,6 +13,20 @@ const BUILT_IN: ApprovalPolicy = {
 	assess(kind, subject, cwd) {
 		if (kind === "bash") return assessCommand(subject, cwd);
 		if (kind === "edit" || kind === "write") return assessWrite(subject, cwd);
+		/*
+		 * A read that got this far has already been judged, by `assessRead`.
+		 *
+		 * Unlike a command or a write — where this seam *is* the judgement — the reading tools do
+		 * not ask about a path unless it already left the workspace. Re-deciding here could only
+		 * overturn that, and `risky: false` would mean the question is composed, shown to nobody,
+		 * and answered yes by the thing that was supposed to be asking.
+		 *
+		 * The line below is what the fallback would do anyway. It is written out because the two
+		 * agree by accident rather than by design: the fallback is "a kind this policy has never
+		 * heard of", and read is a kind it has. Someone narrowing that fallback later should have
+		 * to delete this line on purpose.
+		 */
+		if (kind === "read") return { risky: true };
 		if (kind === "network") {
 				/*
 				 * Three answers folded into this seam's two.

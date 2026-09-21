@@ -5,7 +5,8 @@ import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { snapshotTag } from "./hunk.ts";
 import { charWindow, coversChars, formatCharWindow, longLineFooter, MAX_LINE_CHARS, mergeCharRanges } from "./long-line.ts";
 import { outline, outlineFooter } from "./outline.ts";
-import { displayPath, imageMimeType, looksBinary, resolveWorkspacePath } from "./paths.ts";
+import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
+import { authorizeRead } from "./read-access.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
 
 const DEFAULT_LIMIT = 2000;
@@ -187,12 +188,9 @@ export const readTool: Tool<ReadArgs> = {
 		const resourceResult = await tryResource(path, ctx);
 		if (resourceResult) return resourceResult;
 
-		let absolute: string;
-		try {
-			absolute = resolveWorkspacePath(ctx.cwd, path, ctx.allowedPaths, { allowSkillReads: true });
-		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
-		}
+		const authorized = await authorizeRead(ctx, path, { allowSkillReads: true });
+		if (!authorized.ok) return errorResult(authorized.message);
+		const absolute = authorized.absolute;
 
 		let info: Stats;
 		try {

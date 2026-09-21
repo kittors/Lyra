@@ -152,7 +152,7 @@ export interface QuestionFields {
 }
 
 export interface ApprovalRequest extends QuestionFields {
-	kind: "bash" | "write" | "edit" | "mcp" | "network" | "interactive";
+	kind: "bash" | "write" | "edit" | "read" | "mcp" | "network" | "interactive";
 	title: string;
 	detail: string;
 	/**

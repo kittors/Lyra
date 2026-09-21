@@ -1804,6 +1804,7 @@ export const zhTW = {
 	"approval.bash": "執行命令",
 	"approval.write": "寫入檔案",
 	"approval.edit": "修改檔案",
+	"approval.read": "讀取檔案",
 	"approval.mcp": "呼叫 MCP 工具",
 	"approval.network": "存取網路",
 	"permission.neverAskFor": "以後不再問：{subject}",

@@ -1804,6 +1804,7 @@ export const ja = {
 	"approval.bash": "コマンドを実行",
 	"approval.write": "ファイルに書き込む",
 	"approval.edit": "ファイルを書き換える",
+	"approval.read": "ファイルを読む",
 	"approval.mcp": "MCP のツールを呼ぶ",
 	"approval.network": "ネットワークにつなぐ",
 	"permission.neverAskFor": "今後は {subject} について尋ねない",

@@ -14,6 +14,7 @@ import {
 } from "./escalation.ts";
 import { errorResult } from "../agent/tool-run.ts";
 import { clipOutput } from "./long-line.ts";
+import { authorizeCommandReads } from "./read-access.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -224,6 +225,17 @@ export const bashTool: Tool<BashArgs> = {
 		} catch (error) {
 			return errorResult(error instanceof Error ? error.message : String(error));
 		}
+
+		/*
+		 * What this command reads, judged the way the file tools judge it.
+		 *
+		 * Above the read-only table on purpose. That table decides whether a command is *changing*
+		 * anything, and it answers "no" for `cat` whatever `cat` is pointed at — which made this
+		 * tool the way around `read`'s workspace boundary and around the credential rule both.
+		 * Asking here means one answer to "may this be read", wherever the reading starts.
+		 */
+		const refusedRead = await authorizeCommandReads(args.command, ctx);
+		if (refusedRead) return errorResult(refusedRead);
 
 		if (ctx.requestApproval && !args.escalate && !isReadOnlyCommand(args.command)) {
 			const decision = await ctx.requestApproval({
