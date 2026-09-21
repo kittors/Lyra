@@ -676,7 +676,7 @@ export class SessionStore implements SessionStorage {
 		const current = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId);
 		if (!current) return null;
 		// 调用方手里的那份可能是旧的；store 自己记的才是权威，`seq` 尤其。
-		const base = this.latestMeta.get(this.keyFor(current)) ?? current;
+		const base = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId) ?? current;
 		const nextProjectId = projectIdFor(cwd);
 
 		/*
