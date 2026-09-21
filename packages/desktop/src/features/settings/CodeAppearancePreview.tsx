@@ -108,6 +108,12 @@ export function CodeAppearancePreview({
 		};
 	}, [code]);
 
+	/*
+	 * 只有这两个 specimen。
+	 *
+	 * 行内代码那条样例从前也在这里，现在搬去了 `InlineCodeSpecimen.tsx`，挂在调它的那几行控件底下
+	 * ——颜色是改一下就要看一眼的东西，预览离控件隔着半张卡片就等于没有。
+	 */
 	return (
 		<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 			<CodeSnippetBox

@@ -58,7 +58,7 @@ export function AccountTabs({
 			{shown.map((account) => (
 				<Tab
 					key={account.id}
-					label={short(account.label)}
+					label={account.label}
 					tip={`${account.label}${errors[account.id] ? ` — ${errors[account.id]}` : ""}`}
 					active={active === account.id}
 					failing={Boolean(errors[account.id])}
@@ -70,17 +70,11 @@ export function AccountTabs({
 	);
 }
 
-/**
- * The label, minus the host.
- *
- * Labels default to `login · host`, which is what disambiguates them in settings and is far too
- * long for a tab. The host is the part you already know by the time you are choosing between two
- * tabs, so it goes to the tooltip and the name stays.
+/*
+ * 这里从前有个 `short()`，按 ` · ` 切开只取前半截——因为名字默认是 `登录名 · 主机`，整串对一枚
+ * 标签页来说太长。那截主机现在不进名字了（见 `accounts.ts` 的 `defaultLabel`），所以切也没什么
+ * 可切的；留着反而会咬人：自己把账号叫做「公司 · 前端」的人，标签页上只剩「公司」。
  */
-function short(label: string): string {
-	const cut = label.indexOf(" · ");
-	return cut > 0 ? label.slice(0, cut) : label;
-}
 
 function Tab({
 	label,

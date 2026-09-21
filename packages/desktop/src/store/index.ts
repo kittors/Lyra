@@ -78,6 +78,7 @@ export type SettingsSection =
   | "access"
   | "forges"
   | "usage"
+  | "storage"
   | "sync"
   | "worktrees"
   | "about"
@@ -401,7 +402,14 @@ export interface AppState extends QueueSlice {
   removeProject(path: string): Promise<void>;
   /** Archive every session belonging to one project. */
   archiveProjectSessions(path: string): Promise<void>;
-  newSession(): Promise<void>;
+  /**
+   * 开一个空对话。
+   *
+   * `keepView` 给那些**不是用户主动要开新对话**的调用点：当前这条会话在别处被删掉或归档了，于是
+   * 得把窗口从它身上挪开——但挪开不等于「带你去聊天」。在设置页里清掉一段会话记录时，那一下会把
+   * 人从设置页甩回对话页，中间没有任何东西解释发生了什么。
+   */
+  newSession(options?: { keepView?: boolean }): Promise<void>;
   /** Light the row now. Returns the selection epoch so a later hydrate can tell if it is stale. */
   previewSession(meta: SessionMeta): number;
   previewSessionId(id: string): number;

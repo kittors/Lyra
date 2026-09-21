@@ -209,7 +209,7 @@ export async function signIn(input: {
 			id: existing?.id ?? draft.id,
 			login: identity.login,
 			avatarUrl: identity.avatarUrl,
-			label: draft.label || existing?.label || defaultLabel(identity, baseUrl),
+			label: draft.label || existing?.label || defaultLabel(identity),
 			addedAt: existing?.addedAt ?? draft.addedAt,
 			enabled: true,
 			lastError: "",
@@ -233,7 +233,7 @@ export async function renameAccount(id: string, label: string): Promise<ForgeAcc
 	const trimmed = label.trim();
 	const account = await accountById(id);
 	if (!account) return null;
-	return updateAccount(id, { label: trimmed || defaultLabel({ login: account.login, name: account.login, avatarUrl: null }, account.baseUrl) });
+	return updateAccount(id, { label: trimmed || defaultLabel({ login: account.login, name: account.login, avatarUrl: null }) });
 }
 
 export async function signOut(id: string): Promise<void> {

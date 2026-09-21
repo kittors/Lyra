@@ -174,6 +174,31 @@ test("real file changes produce one temporary card with internal expansion and s
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: last.x, y: last.top - 12 });
 	await new Promise((resolve) => setTimeout(resolve, 500));
 	assert.equal(await app.evaluate<string>(place), settled, "从最后一个文件往上抬一点，预览既不该关掉也不该跳到上一个文件");
+	/*
+	 * 而移到卡片里不是文件行的地方，预览要让开。
+	 *
+	 * 「离开」原本只问了一句「出卡片了没有」，而卡片头那一排、那三颗按钮、这一行「展开显示」全都
+	 * 在卡片里：`onMouseLeave` 一次也不响，于是预览一直挂着，指着一个指针早已离开的行——开在行
+	 * 上方时它还正压着「撤销」「审核」，去点它们反倒得先把鼠标移出整张卡片。
+	 *
+	 * 钉的是关掉的**理由**，不只是关掉：鼠标这一刻仍在卡片里、且不在任何文件行上，所以它只能是
+	 * 因为「不在任何一行上」才关的。少了后半句，这一条会被「移出了卡片」蒙过去。
+	 *
+	 * 「展开显示」而不是卡片头：预览紧贴着行的上方开，卡片头整个在它底下——移到那儿等于移进预览。
+	 * 卡片下缘这一行是露着的那一半，两者问的是同一个判定。
+	 */
+	const offRow = await app.evaluate<{ x: number; y: number; hit: string }>(`(()=>{const e=document.querySelector('[data-turn-delivery] button[aria-expanded]');const r=e.getBoundingClientRect();
+		const x=Math.round(r.x+50),y=Math.round(r.y+r.height/2),u=document.elementFromPoint(x,y);
+		return {x,y,hit:u?(e.contains(u)?'那一行':(u.closest('[data-ly-popover]')?'预览':'别处')):'null'}})()`);
+	assert.equal(offRow.hit, "那一行", `「展开显示」没露在预览外面，这一条就测不着：${JSON.stringify(offRow)}`);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: offRow.x, y: offRow.y });
+	await until(`!document.querySelector('[aria-label="文件变更预览"]')`);
+	assert.equal(
+		await app.evaluate(`(()=>{const u=document.elementFromPoint(${offRow.x},${offRow.y});return Boolean(u&&u.closest('[data-turn-delivery]')&&!u.closest('[data-delivery-file]'))})()`),
+		true,
+		"关掉的这一刻鼠标要还在卡片里、且不在任何文件行上，否则这条测的是「移出了卡片」",
+	);
+
 	// 同上：下一条用例第一件事就是点这张卡片上的「撤销」，浮层留着的话它正好压在上面。
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 75 });
 	await until(`!document.querySelector('[aria-label="文件变更预览"]')`);

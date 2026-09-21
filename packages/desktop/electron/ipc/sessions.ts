@@ -187,6 +187,33 @@ export function registerSessionsIpc({
 		},
 	);
 
+	/**
+	 * 把一条会话归到另一个项目下。
+	 *
+	 * 两件事非做不可，而它们都在主进程这一侧：日志文件要从 `sessions/<旧projectId>/` 搬到
+	 * `sessions/<新projectId>/`（`store.move` 干这件事），以及在那之前把还活着的那个 session 停掉
+	 * ——它手里攥着旧的 cwd 和旧的 projectId，接着写只会把记录写回旧目录，而文件已经不在那儿了。
+	 * 归档走的是同一条路子，理由一模一样。
+	 *
+	 * **正在跑的会话直接拒绝**，不像归档那样先打断它。换项目意味着换 cwd，而一个正在执行工具调用
+	 * 的 agent 的每一条路径都是从 cwd 量出来的——半路换掉，轻则后面的命令跑在别的目录里，重则
+	 * 写坏文件。停下来再移动是一句话的事，这个损失不值得替用户承担。
+	 */
+	ipcMain.handle(
+		"sessions:move",
+		async (_event, projectId: string, sessionId: string, cwd: string, projectName: string) => {
+			if (sessions.get(sessionId)?.running) return { ok: false as const, reason: "running" as const };
+			await disposeSession(sessionId);
+			try {
+				const meta = await store.move(projectId, sessionId, cwd, projectName);
+				if (!meta) return { ok: false as const, reason: "gone" as const };
+				return { ok: true as const, meta };
+			} catch (cause) {
+				return { ok: false as const, reason: "failed" as const, message: cause instanceof Error ? cause.message : String(cause) };
+			}
+		},
+	);
+
 	ipcMain.handle(
 		"sessions:setArchived",
 		async (_event, projectId: string, sessionId: string, archived: boolean) => {

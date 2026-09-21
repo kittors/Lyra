@@ -19,6 +19,7 @@ import type { SessionSnapshot, LyraApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
+import { discardSideChat } from "./sidechat-discard.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { eachAppWindow } from "./window.ts";
@@ -116,6 +117,13 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 	if (!session) throw new Error("找不到这个会话。");
 	if (session.running) throw new Error("回合进行中，无法撤销");
 	await session.revert(index);
+	// 整个撤空的话，旁边那场对话就没有了依附的对象，跟着一起收掉——见 `sidechat-discard.ts`。
+	await discardSideChat(sessionId, {
+		mainMessagesLeft: session.messages.length,
+		live: sideChats.get(sessionId),
+		defaultModelId: deps.settings().sideChatModelId || null,
+		broadcast: (event) => broadcastSideChat(sessionId, event),
+	});
 }
 
 export function broadcastSessionChange(change: SessionChange): void {

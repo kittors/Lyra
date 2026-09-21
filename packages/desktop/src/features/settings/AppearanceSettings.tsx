@@ -7,7 +7,8 @@ import { Card, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } f
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/code/themes.ts";
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
-import { CODE_DEFAULTS } from "./code-defaults.ts";
+import { InlineCodeSpecimen } from "./InlineCodeSpecimen.tsx";
+import { CODE_DEFAULTS, FACTORY_APPEARANCE } from "./appearance-defaults.ts";
 import { CODE_FONTS, fontAvailable, matchCodeFont } from "./code-fonts.ts";
 import {
 	CONTENT_DEFAULT,
@@ -21,34 +22,6 @@ import {
 const CUSTOM_FONT = "__custom__";
 
 
-/**
- * Mirrors `DEFAULT_APPEARANCE` in @lyra/core.
- *
- * It is duplicated rather than imported because a value import from the core package would
- * pull its `node:` modules into the renderer bundle; only types may cross that boundary.
- */
-const FACTORY_APPEARANCE: Appearance = {
-	theme: "dark",
-	accent: "#339CFF",
-	lightBackground: "#FFFFFF",
-	lightForeground: "#1A1C1F",
-	darkBackground: "#171717",
-	darkForeground: "#EDEDED",
-	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
-	codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
-	codeLightTheme: "lyra-light",
-	codeDarkTheme: "lyra-dark",
-	uiFontSize: 14,
-	codeFontSize: 12,
-	contrast: 60,
-	contentWidth: 640,
-	composerLines: 1,
-	pointerCursor: false,
-	reduceMotion: "system",
-	diffMarkers: "color",
-	fontSmoothing: true,
-};
-
 const PRESETS: { id: string; label: string; patch: Partial<Appearance> }[] = [
 	{ id: "lyra", label: "Lyra", patch: { accent: "#339CFF", darkBackground: "#171717", darkForeground: "#EDEDED" } },
 	{ id: "graphite", label: "Graphite", patch: { accent: "#8E8E93", darkBackground: "#1C1C1E", darkForeground: "#F2F2F7" } },
@@ -56,7 +29,8 @@ const PRESETS: { id: string; label: string; patch: Partial<Appearance> }[] = [
 	{ id: "ember", label: "Ember", patch: { accent: "#FF8B3D", darkBackground: "#1A1412", darkForeground: "#F5E9E2" } },
 ];
 
-import { ColorRow, PixelField, ThemePreview } from "./appearance-controls.tsx";
+import { ColorField, ColorRow, PixelField, ThemePreview } from "./appearance-controls.tsx";
+import { readableInk } from "./theme.ts";
 import { ComposerHeightPreview } from "./ComposerHeightPreview.tsx";
 import { NumberField } from "./pickers.tsx";
 import { Slider } from "./pickers.tsx";
@@ -98,6 +72,20 @@ export function AppearanceSettings() {
 	const savedLines = appearance.composerLines ?? COMPOSER_LINES_MIN;
 	if (linesDraft !== null && linesDraft === savedLines) setLinesDraft(null);
 	const composerLines = linesDraft ?? savedLines;
+
+	/*
+	 * 行内代码此刻这一套颜色，和「字色是不是还跟着底色」。
+	 *
+	 * 算在这里而不是在用到的地方各算一遍：底色的 `onChange` 要读字色，字色那一行要读判断结果，
+	 * 两处读的必须是同一个答案。深浅两套由 `isDark` 选，和上面那张主题卡片一样。
+	 */
+	const inlineBg =
+		(isDark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg) ??
+		(isDark ? CODE_DEFAULTS.inlineCodeDarkBg : CODE_DEFAULTS.inlineCodeLightBg);
+	const inlineFg =
+		(isDark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg) ??
+		(isDark ? CODE_DEFAULTS.inlineCodeDarkFg : CODE_DEFAULTS.inlineCodeLightFg);
+	const inlineFgIsAuto = inlineFg.toUpperCase() === readableInk(inlineBg).toUpperCase();
 
 	return (
 		<div className="pt-8">
@@ -229,6 +217,104 @@ export function AppearanceSettings() {
 						options={DARK_CODE_THEMES.map((theme) => ({ value: theme.id, label: theme.labelKey ? t(theme.labelKey) : theme.label }))}
 					/>
 				</div>
+
+				{/*
+				 * 行内代码，也就是句子里 `这样` 的一块。
+				 *
+				 * 放在两个语法主题下面、预览上面，因为它是「代码画成什么样」的一部分，而且「跟随
+				 * 代码主题」这一档直接指着上面那两行；放到偏好设置里就成了一个跟主题隔着半页的开关。
+				 */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
+					<div className="flex-1 min-w-0">
+						<span className="block text-label font-medium text-ink">{t("appearance.inlineCode")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.inlineCodeDetail")}</span>
+					</div>
+					<Segmented
+						value={appearance.inlineCode ?? CODE_DEFAULTS.inlineCode}
+						onChange={(inlineCode) => patch({ inlineCode })}
+						options={[
+							{ value: "app", label: t("appearance.inlineCodeApp") },
+							{ value: "syntax", label: t("appearance.inlineCodeSyntax") },
+							{ value: "custom", label: t("appearance.custom") },
+						]}
+					/>
+				</div>
+
+				{/*
+				 * 四个颜色，只在自定义那一档出现。
+				 *
+				 * 不是 disable 而是不画：跟着界面走的时候这两个值没有任何作用，摆四个灰掉的色块在那儿
+				 * 只会让人以为自己漏调了什么。这和对话宽度选「铺满」时那个像素输入框消失是同一条。
+				 *
+				 * 只编辑当前深浅色的那一套，和上面「深色主题 / 浅色主题」那张卡片一样——切一次主题
+				 * 就是切一次这两行编辑的是谁，标题也跟着换，所以任何时候屏幕上的颜色都是正在看的那套。
+				 */}
+				{(appearance.inlineCode ?? CODE_DEFAULTS.inlineCode) === "custom" && (
+					<div className="flex flex-col gap-3 border-t border-line-soft pt-3">
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-label text-ink">
+								{isDark ? t("appearance.inlineCodeDarkBg") : t("appearance.inlineCodeLightBg")}
+							</span>
+							<ColorField
+								label={isDark ? t("appearance.inlineCodeDarkBg") : t("appearance.inlineCodeLightBg")}
+								value={inlineBg}
+								/*
+								 * 改底色，字色跟着走——前提是字色还没被人动过。
+								 *
+								 * 不跟的话，把底色调深一点点就能配出黑底黑字：设置页上两行各自都合理，屏幕上
+								 * 那一小块直接消失。而反过来，每次都强行覆盖也不行——特意挑了个橙字的人，
+								 * 再动一次底色就会发现自己的选择被收走了，而且没有痕迹。
+								 *
+								 * 所以判「当前字色是不是当前底色派生出来的那个」。是，就说明它一直是自动跟来的，
+								 * 继续跟；不是，就说明有人手写过，不碰。不需要存一个「是否自动」的字段——那个
+								 * 字段和这两个颜色迟早会各说各话，而这里的答案本来就写在颜色自己身上。
+								 */
+								onChange={(value) => {
+									const followed = inlineFgIsAuto ? readableInk(value) : inlineFg;
+									patch(
+										isDark
+											? { inlineCodeDarkBg: value, inlineCodeDarkFg: followed }
+											: { inlineCodeLightBg: value, inlineCodeLightFg: followed },
+									);
+								}}
+							/>
+						</div>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-label text-ink">
+								{isDark ? t("appearance.inlineCodeDarkFg") : t("appearance.inlineCodeLightFg")}
+								{/* 说出来它此刻是跟着底色的，否则字色自己变了会像个 bug。 */}
+								{inlineFgIsAuto && (
+									<span className="ml-2 text-caption text-ink-faint">{t("appearance.inlineCodeFollowsBg")}</span>
+								)}
+							</span>
+							<ColorField
+								label={isDark ? t("appearance.inlineCodeDarkFg") : t("appearance.inlineCodeLightFg")}
+								value={inlineFg}
+								onChange={(value) => patch(isDark ? { inlineCodeDarkFg: value } : { inlineCodeLightFg: value })}
+							/>
+						</div>
+					</div>
+				)}
+
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
+					<div className="flex-1 min-w-0">
+						<span className="block text-label font-medium text-ink">{t("appearance.inlineCodeBorder")}</span>
+						<span className="block text-caption text-ink-muted">{t("appearance.inlineCodeBorderDetail")}</span>
+					</div>
+					<Toggle
+						checked={appearance.inlineCodeBorder ?? CODE_DEFAULTS.inlineCodeBorder}
+						onChange={(inlineCodeBorder) => patch({ inlineCodeBorder })}
+					/>
+				</div>
+
+				{/*
+				 * 实时预览，紧贴着它上面那几行。
+				 *
+				 * 和「输入框默认高度」底下那个框是同一个道理：颜色和高度都是没人能凭一串十六进制或者
+				 * 一个数字想象出来的东西，得看着改。位置也是那个道理——要看的东西必须在动手的地方旁边，
+				 * 放到卡片最底下就成了「改一下、滚下去看一眼、再滚回来」。
+				 */}
+				<InlineCodeSpecimen />
 
 				<div className="pt-2">
 					{/* Everything below feeds this: change a weight or a line height and both specimens
@@ -439,6 +525,44 @@ export function AppearanceSettings() {
 							label={t("appearance.uiScale")}
 							name="uiFontSize"
 						/>
+					}
+				/>
+				{/*
+				 * 字重，紧跟着字号。
+				 *
+				 * 两个控件和代码外观那边的字重一模一样——预设加一个输入框，同样的四档、同样的
+				 * 100–900——因为它们是同一个问题问了两遍，只是一次问界面、一次问代码。两处长得不一样
+				 * 才是要解释的事。
+				 *
+				 * 这里调的是*基准*：标题会跟着一起变重，它和正文之间的差保持不变（见 `tokens.css` 里
+				 * 的 `--font-weight-*`）。所以往细里调不会把标题抹平，往粗里调也不会让正文追上标题。
+				 */}
+				<Row
+					title={t("appearance.uiWeight")}
+					detail={t("appearance.uiWeightDetail")}
+					control={
+						<div className="flex items-center gap-2">
+							<Segmented
+								value={String(appearance.uiFontWeight ?? 400)}
+								onChange={(weight) => patch({ uiFontWeight: Number(weight) })}
+								options={[
+									{ value: "300", label: t("appearance.thin") },
+									{ value: "400", label: t("appearance.regular") },
+									{ value: "500", label: t("appearance.medium") },
+									{ value: "600", label: t("appearance.bold") },
+								]}
+							/>
+							<NumberField
+								value={appearance.uiFontWeight ?? 400}
+								min={100}
+								max={900}
+								step={50}
+								width={72}
+								label={t("appearance.weight")}
+								name="uiFontWeight"
+								onChange={(uiFontWeight) => patch({ uiFontWeight })}
+							/>
+						</div>
 					}
 				/>
 				{/*

@@ -3,11 +3,11 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { Textarea, Input } from "../../ui/inputs/NativeField.tsx";
+import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Save, Trash2 } from "lucide-react";
 import { useApp } from "../../store/index.ts";
-import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
+import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
@@ -211,12 +211,12 @@ export function PersonalizationSettings() {
 				</div>
 
 				<Card className="p-3.5 space-y-2">
-					<Textarea
+					<TextArea
 						value={customInstructions}
-						onChange={(e) => setCustomInstructions(e.target.value)}
+						onChange={setCustomInstructions}
 						placeholder={t("tone.sampleRules")}
 						rows={7}
-						className="w-full rounded-xl border border-line-soft bg-card-hover/20 p-3 font-mono text-detail text-ink leading-relaxed placeholder:text-ink-faint focus:border-ink-faint focus:outline-none resize-none"
+						className="ly-textarea-mono"
 					/>
 					<div className="flex items-center gap-1.5 text-micro text-ink-faint px-1">
 						<Info size={12} strokeWidth={1.8} />
@@ -291,15 +291,15 @@ export function PersonalizationSettings() {
 				{personalization.enableMemory !== false && (
 					<div className="mt-3 space-y-2">
 						<div className="flex items-center gap-2">
-							<Input
+							<TextInput
 								type="text"
 								value={newMemory}
-								onChange={(e) => setNewMemory(e.target.value)}
+								onChange={setNewMemory}
 								onKeyDown={(e) => {
 									if (e.key === "Enter" && newMemory.trim()) void handleAddMemory();
 								}}
 								placeholder={t("memory.addPlaceholder")}
-								className="h-[32px] flex-1 rounded-lg border border-line bg-input px-3 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
+								className="flex-1"
 							/>
 							<PrimaryButton disabled={!newMemory.trim()} onClick={handleAddMemory} icon={<Plus size={14} strokeWidth={2} />} title={t("memory.add")} />
 						</div>

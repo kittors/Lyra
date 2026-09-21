@@ -14,7 +14,7 @@ import { withCatalogDefaults } from "@lyra/core/model-catalog";
  * do; this decides when.
  */
 
-import { loadSettings, migrateSecrets, saveSettings as persist, type Settings } from "@lyra/core";
+import { loadSettings, migrateSecrets, rememberProviderNames, saveSettings as persist, type Settings } from "@lyra/core";
 
 type Listener = (next: Settings) => void | Promise<void>;
 
@@ -81,6 +81,13 @@ export async function applySettings(next: Settings): Promise<Settings> {
 		...next,
 		retryPolicy: normalizeRetryPolicy(next.retryPolicy, next.retryAttempts),
 		subAgentProfiles: normalizeSubAgentProfiles(next.subAgentProfiles),
+		/*
+		 * 记在这里，而不是只让 `persist` 记。
+		 *
+		 * 落盘那份是对的，内存这份才是窗口马上会读到的那份——删掉一个供应商之后，用量页要立刻还
+		 * 认得出它是谁，而不是等到下次启动重新读盘。同一个纯函数调两次，幂等。
+		 */
+		providerNames: rememberProviderNames(next),
 		providers: next.providers.map((provider) => ({ ...provider, models: provider.models.map((model) => withCatalogDefaults(provider, model)) })),
 	};
 	await persist(next);

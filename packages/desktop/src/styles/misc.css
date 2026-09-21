@@ -112,6 +112,103 @@
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
 }
 
+/*
+ * 模型清单是上面那条「选中不填充」的例外，而且是唯一的一个。
+ *
+ * 那条规则的理由在它自己的注释里：勾已经说清了是哪一行，再填一次，指针停在别处时就有两行同时看着
+ * 像激活的。模型行没有那个勾——最右边那一格被「上下文多少」和「收藏」轮流占着，腾不出第三样东西
+ * 的位置——所以「现在用的是哪个」只能由底色来说。
+ *
+ * 那两行还是得分得开，办法是让它们不同色：hover 是中性灰（松手会变成的那一行），选中是带色相的一
+ * 块（现在就是的那一行）。同时出现在一个列表里，一眼能认出哪个是哪个。
+ *
+ * 选中且被指着时要比不指着更明显，否则指针一压上去，底色反而像被 hover 的灰盖掉了，看着像刚刚取消
+ * 了选中。
+ *
+ * `.ly-item` 和 `.ly-model-row` 叠着写不是啰嗦：`.ly-item:hover:not(:disabled)` 和它特异性
+ * 一样，只靠「写在后面」赢，下次有人挪一下 `@import` 的顺序就会悄悄输掉，而且不报错。
+ */
+.ly-item.ly-model-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.ly-item.ly-model-row[data-selected="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+/*
+ * 一格两用：不指着的时候是上下文窗口，指上去换成收藏的星星。
+ *
+ * 两样东西叠在同一个位置，所以谁都不能改这一格的宽度——星星是绝对定位的，宽度由窗口那几个字定，
+ * 这样每一行的右边缘才在同一条线上，哪怕一行写「1M」另一行写「200K」。
+ *
+ * 换的时候要看得见是「换」：窗口往上抬一点淡出，星星从下面顶上来。两个都走 quick，因为这是一个
+ * 状态而不是一段位移——手还在动，画面不该让人等。
+ */
+.ly-model-window,
+.ly-model-star {
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-quick) var(--ly-e-out),
+    color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-model-star {
+  opacity: 0;
+  transform: translateY(4px);
+  /*
+   * 这颗按钮铺满了整格（热区要够大，星星本身才 12px），所以它的焦点框也是整格那么大。
+   * 描到里面去，不然 `outline-offset: 2px` 画出来的框比行还高，会压到上下两行上。
+   */
+  border-radius: var(--radius-item);
+}
+
+.ly-model-star:focus-visible {
+  outline-offset: -2px;
+}
+
+.ly-model-row:hover .ly-model-window {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.ly-model-row:hover .ly-model-star,
+.ly-model-star:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/*
+ * 键盘走到星星上时，底下的窗口也要让位——否则两行字叠在一格里，谁都读不成。
+ *
+ * `:focus-visible` 而不是 `:focus`：鼠标点一下收藏也会让按钮拿到焦点，那时候指针本来就在行上，
+ * 交换早就发生了，再来一遍只会在松手之后留下一格不肯变回去的星星。
+ */
+.ly-model-row:has(.ly-model-star:focus-visible) .ly-model-window {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/*
+ * 关掉动效时只去掉位移，淡入淡出留着。
+ *
+ * 留着是有用的：这一格本来就是两样东西轮流占，瞬间硬切会让人以为看错了。位移才是那个「动」。
+ */
+/* 选择器写满四段，是为了压过上面那条带 `:has()` 的——`:has()` 的特异性按括号里最高的那个算。 */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reduce-motion="system"] .ly-model-row .ly-model-window,
+  :root[data-reduce-motion="system"] .ly-model-row .ly-model-star {
+    transform: none;
+    transition: opacity var(--ly-t-quick) var(--ly-e-out);
+  }
+}
+
+:root[data-reduce-motion="on"] .ly-model-row .ly-model-window,
+:root[data-reduce-motion="on"] .ly-model-row .ly-model-star {
+  transform: none;
+  transition: opacity var(--ly-t-quick) var(--ly-e-out);
+}
+
 .ly-menu-card {
   border-radius: var(--radius-menu);
 }

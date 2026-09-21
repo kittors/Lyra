@@ -33,6 +33,7 @@ import {
 	renderRuleFile,
 	forkSession,
 	readTrajectory,
+	withinOrIs,
 	type AgentSession,
 	type CorrectionSuggestion,
 	type SessionStorage,
@@ -45,6 +46,7 @@ import { resolveSessionApproval } from "./approval-response.ts";
 import { readTrajectoryChanges } from "./trajectory-changes.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { settingsForPhone, settingsFromPhone } from "./phone-settings.ts";
+import { scratchRoots } from "./scratch.ts";
 import {
 	all,
 	bool,
@@ -258,6 +260,39 @@ export const RPC: Record<string, Handler> = {
 		await deps.store().setArchived(s(projectId), s(sessionId), Boolean(archived));
 		return deps.store().listSessions();
 	},
+	/*
+	 * 换个项目归属，规矩和桌面那条一样（见 `ipc/sessions.ts` 的 `sessions:move`）：正在跑的拒绝，
+	 * 其余的先把活着的那个停掉再搬——它攥着旧的 cwd 和旧的 projectId，接着写只会写回旧目录，而
+	 * 文件已经不在那儿了。
+	 *
+	 * 多一道桌面端没有的关：**目标只能是这台机器已经认识的目录**。
+	 *
+	 * 会话的 cwd 就是下一次对话开工的地方，而这个参数是从一部手机上来的。桌面端的菜单只列得出
+	 * 已配置的项目，手机发来的却是一个字符串——不拦的话，一部被拿走的手机可以把某条对话的工作
+	 * 目录指到这台机器上的任何地方，下次有人接着聊，agent 就在那儿动手了。这条清单这一侧的界线
+	 * 写在文件开头：整理这个应用自己的数据可以，伸进这台机器不行。
+	 */
+	"sessions.move": async (deps, [projectId, sessionId, cwd, projectName]) => {
+		const id = s(sessionId);
+		const target = s(cwd);
+		/*
+		 * 配置里的项目按原样比对；那几个 workspace 目录连它们底下的东西一起算——「不在项目中工作」
+		 * 用的是根底下的 `general/`，PR 评审用的是 `owner-repo-6381/`，都不是根本身。用 `withinOrIs`
+		 * 而不是比前缀：`workspaces/../../etc` 也以 `workspaces/` 开头，而它显然不在里面。
+		 */
+		const known =
+			deps.settings().projects.some((project) => project.path === target) ||
+			scratchRoots().some((root) => withinOrIs(root, target));
+		if (!known) return { ok: false, reason: "failed", message: "目标不在这台机器已知的项目里" };
+		if (deps.live(id)?.running) return { ok: false, reason: "running" };
+		await deps.dispose(id);
+		try {
+			const meta = await deps.store().move(s(projectId), id, target, s(projectName));
+			return meta ? { ok: true, meta } : { ok: false, reason: "gone" };
+		} catch (cause) {
+			return { ok: false, reason: "failed", message: cause instanceof Error ? cause.message : String(cause) };
+		}
+	},
 	"sessions.remove": async (deps, [projectId, sessionId]) => {
 		await deps.dispose(s(sessionId));
 		await deps.store().delete(s(projectId), s(sessionId));
@@ -416,6 +451,14 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), bool(archived, "archived"))),
 	"sessions.rename": ([projectId, sessionId, title]) =>
 		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), text(title, "title"))),
+	/*
+	 * `cwd` 走 `path` 而不是 `str`：它是一个会被当成目录用的字符串。
+	 *
+	 * 这一层只管形状，「是不是这台机器认识的目录」在 handler 里问——那句话需要 settings，而这张
+	 * 表只看得见参数。
+	 */
+	"sessions.move": ([projectId, sessionId, cwd, projectName]) =>
+		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), path(cwd, "cwd"), text(projectName, "projectName"))),
 	"sessions.compact": ([sessionId, instructions]) =>
 		fail(all(str(sessionId, "sessionId"), optionalStr(instructions, "instructions", 20_000))),
 	"sessions.contextBreakdown": ([sessionId]) => fail(str(sessionId, "sessionId")),

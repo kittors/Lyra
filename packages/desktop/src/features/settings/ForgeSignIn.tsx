@@ -138,6 +138,17 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 						{info?.scopes && <span className="text-caption text-ink-faint">{translate("forgeSignIn.needsScopes")} {info.scopes}</span>}
 					</div>
 					<SecretInput value={token} onChange={setToken} placeholder={t("forge.pasteToken")} />
+					{/*
+					 * 令牌存在哪儿、封到什么程度，说在粘贴框底下。
+					 *
+					 * 从前它是账号列表页底部常驻的一段小字，登录完之后再没人读——而关心这件事的那一刻
+					 * 正是此刻：手里捏着一个刚生成的令牌，在决定要不要交给这个程序。最后那句「介意的话
+					 * 给它设一个短一点的有效期」在这里是句能照做的建议，在列表页上只是一句感慨。
+					 */}
+					<p className="mt-2 flex items-start gap-1.5 text-caption leading-relaxed text-ink-faint">
+						<ShieldCheck size={12} strokeWidth={1.8} className="mt-0.5 shrink-0" />
+						{translate("forge.tokenStorageInline")}
+					</p>
 				</div>
 
 				<Field label={t("forge.nickname")} hint={t("forge.nicknameDetail")}>

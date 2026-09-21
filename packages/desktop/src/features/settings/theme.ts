@@ -105,6 +105,33 @@ export function applyAppearance(input: AppearanceSettings): void {
 	const codeSurface = codeTheme.inherit ? toHex(background) : codeTheme.background;
 	const codeInk = codeTheme.inherit ? toHex(foreground) : codeTheme.foreground;
 
+	/*
+	 * 句子里那一小块代码，三种来源算成同两个值。
+	 *
+	 * 算在这里而不是写进 CSS，是因为三选一里只有一支是常量：`app` 要跟着对比度滑条走，`syntax`
+	 * 要看当前是哪个语法主题、那个主题又是不是 `inherit`。CSS 表达不了「按 `inlineCode` 选一支」，
+	 * 真写成三套选择器就是同一个决定散在两个文件里。
+	 *
+	 * `syntax` 这支不直接拿主题声明的 background：默认的 `lyra-light` / `lyra-dark` 是 `inherit`，
+	 * 它的底色就是页面底色，照搬过来等于没有底——句子里那块代码会整个消失。所以统一往主题的字色
+	 * 方向兑 8%：`inherit` 的主题得到一层淡灰，Solarized 那样自带底色的得到一块暖调，两种情况下
+	 * 它都比它坐着的那张纸深一档。`--ly-code-bg-soft` 的 5% 是同一个思路，那是给整片区域用的，
+	 * 这里是一小块，所以重一点。
+	 */
+	const inlineMode = appearance.inlineCode ?? "app";
+	const inlineFg =
+		inlineMode === "syntax"
+			? codeInk
+			: inlineMode === "custom"
+				? ((dark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg) ?? toHex(foreground))
+				: toHex(foreground);
+	const inlineBg =
+		inlineMode === "syntax"
+			? `color-mix(in srgb, ${codeInk} 8%, ${codeSurface})`
+			: inlineMode === "custom"
+				? ((dark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg) ?? veil(dark ? 0.062 : 0.05))
+				: veil(dark ? 0.062 : 0.05);
+
 	const tokens: Record<string, string> = {
 		"--color-shell": toHex(background),
 		"--color-sidebar": surface(0.042),
@@ -138,6 +165,13 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--ly-ui-font": appearance.uiFont,
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
+		/*
+		 * 界面的基准字重。层级比它重一档、两档，那几档在 `tokens.css` 里从这个数推出来。
+		 *
+		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，而那些界面一直是
+		 * 400 画出来的。
+		 */
+		"--ly-ui-weight": String(appearance.uiFontWeight ?? 500),
 		"--ly-code-size": `${appearance.codeFontSize}px`,
 		/*
 		 * The conversation's measure, read by every column that is part of it.
@@ -190,6 +224,18 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * including one added later — without needing a value per theme.
 		 */
 		"--ly-code-bg-soft": `color-mix(in srgb, ${codeInk} 5%, ${codeSurface})`,
+		/*
+		 * 行内代码那三个值，读它们的是 `markdown.css` 里的 `.prose-dw code`。
+		 *
+		 * 描边走 inset 阴影而不是 border：border 要占 1px，开关一次整段话的行距就跟着动一次。关掉
+		 * 时给的是 `transparent` 而不是不给——不给的话 CSS 那边要写个 fallback，而 fallback 的值
+		 * 迟早和这里算出来的不是一回事。
+		 */
+		"--ly-inline-code-bg": inlineBg,
+		"--ly-inline-code-fg": inlineFg,
+		"--ly-inline-code-ring": appearance.inlineCodeBorder
+			? `color-mix(in srgb, ${inlineFg} 22%, transparent)`
+			: "transparent",
 		"--ly-diff-added-bg": dark ? darkTheme.addedBg : lightTheme.addedBg,
 		"--ly-diff-removed-bg": dark ? darkTheme.removedBg : lightTheme.removedBg,
 	};
@@ -222,6 +268,19 @@ export function applyAppearance(input: AppearanceSettings): void {
 		appearance.darkForeground,
 		appearance.codeLightTheme,
 		appearance.codeDarkTheme,
+		/*
+		 * 行内代码那几项也在名单里：它们换的是屏幕上一批小方块的底色和字色，正是「两拨颜色分头到
+		 * 达」会被看出来的地方——一段回答里的行内代码往往有十几处，慢慢爬的那 150ms 里它们参差不齐。
+		 *
+		 * `uiFontWeight` 不在名单里，和字号、字体、宽度、行数一样：字重改的是字的形状，形状没有
+		 * 过渡，按住它只会在改的那一下把整个界面的过渡一起冻掉。
+		 */
+		appearance.inlineCode,
+		appearance.inlineCodeLightBg,
+		appearance.inlineCodeLightFg,
+		appearance.inlineCodeDarkBg,
+		appearance.inlineCodeDarkFg,
+		appearance.inlineCodeBorder,
 	].join("|");
 	if (palette !== lastPalette) {
 		lastPalette = palette;
@@ -240,8 +299,16 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * stay dark over a light theme. And on every platform the window paints a backing colour
 	 * that shows through whenever a resize outruns the renderer's reflow — dragging an edge
 	 * quickly is exactly that, and a stale colour there is the black frame that flashes.
+	 *
+	 * 两件事两个颜色。那条 title strip 是 `.ly-window-header`，底色 `--color-sidebar`；窗口自己
+	 * 那层底是 `--color-shell`。一个值服务两处的时候，Windows 的右上角就是一块比 header 浅一档的
+	 * 补丁——取的是这里算好的那个 token，而不是再算一遍，公式只此一处。
 	 */
-	bridge.setWindowTheme?.({ color: toHex(background), symbolColor: text(0.62) });
+	bridge.setWindowTheme?.({
+		color: toHex(background),
+		headerColor: tokens["--color-sidebar"],
+		symbolColor: text(0.62),
+	});
 
 	root.classList.toggle("dark", dark);
 	root.classList.toggle("light", !dark);
@@ -336,4 +403,125 @@ export function contrastingInk(hex: string): string {
 	// Relative luminance, sRGB coefficients.
 	const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
 	return luminance > 0.6 ? "#1a1c1f" : "#ffffff";
+}
+
+/**
+ * 在给定底色上读得清、而且看着还是一家人的字色。
+ *
+ * 和上面那个 `contrastingInk` 的区别是它只答两个值——纯黑或纯白，够一枚色块用，不够一段文字用。
+ * 把一块浅橙底配上纯黑，读是读得清，但那是两个不相干的颜色凑在一起；而行内代码是嵌在句子里的，
+ * 一眼看过去先看到的是「协不协调」。
+ *
+ * 所以走 HSL，只动亮度和饱和度，色相原样留着：浅橙底配深橙字，淡蓝底配深蓝字。
+ *
+ * 饱和度两头不一样，因为人眼对它的反应两头也不一样：
+ *
+ *   浅底配深字   往上提。深色本来就吃饱和度，照搬底色那点淡淡的橙，出来是一团看不出颜色的深灰
+ *   深底配浅字   往下压。亮色配高饱和是荧光笔，盯着一段话里十几处那样的东西是折磨
+ *
+ * 亮度从两头起步（0.12 / 0.93），不跟着底色浮动：跟着浮动的那一版在中间调的底色上会挑出一个
+ * 只差两三档的字色，算出来对比度是够的，画在屏幕上是一块糊的。
+ *
+ * **深浅两头都算一遍，取读得更清的那个，而不是按底色的亮度挑一头。** 按 HSL 的 `l` 挑会挑错边，
+ * 这是量出来的：一个饱和的黄 `#D6C300` 在 HSL 里 `l` 只有 0.42，判作深底、配上浅字，而它看上去
+ * 比白纸还扎眼——全色域扫一遍，照 `l` 判有 1476 个底色配出低于 4.5:1 的字，最低到 1.07，也就是
+ * 一整片认不出字来。HSL 的亮度和眼睛看到的亮度是两回事，而这个函数要答的是后者。
+ *
+ * 选定方向之后还要往极端推：`#B34700` 那样的深橙配 0.93 的浅字只有 4.7:1，刚擦着 AA 过去，再深
+ * 一点的底就过不去了。中性灰那一带两头都够不到 4.5，那是物理，推到头取最好的那个。
+ */
+export function readableInk(background: string): string {
+	const rgb = parseHex(background);
+	if (!rgb) return "#1a1c1f";
+	const { h, s } = toHsl(rgb);
+	/*
+	 * 两头各自推到底，然后比终点——不是比起点。
+	 *
+	 * 比起点的那一版栽在橄榄绿 `#828C0A` 上：深字起点 3.30、浅字起点 3.26，几乎打平，于是挑了
+	 * 浅的那头；而这两头能走到的地方差得远，深的一路推到纯黑有 5.70，浅的推到纯白只有 3.68。
+	 * 起点接近不代表终点接近，中间调的饱和色恰恰是两者最不相干的地方。
+	 */
+	const deep = settle(rgb, { h, s: Math.min(s * 1.6, 0.85), l: 0.12 }, -0.03);
+	const pale = settle(rgb, { h, s: Math.min(s * 0.9, 0.35), l: 0.93 }, 0.03);
+	return toHex(contrast(rgb, deep) >= contrast(rgb, pale) ? deep : pale);
+}
+
+/**
+ * 从起点往一头推，过了线就停。
+ *
+ * AA 的正文线是 4.5:1，行内代码的字号比正文还小一档，所以这是下限不是目标——够了就不再推，
+ * 免得把一块本来协调的深橙硬推成纯黑。推到头还不够的那一带（中性灰、中间调的饱和色）是物理，
+ * 调用方拿两头里好的那个。
+ */
+function settle(background: Rgb, from: Hsl, step: number): Rgb {
+	let ink = fromHsl(from);
+	for (let l = from.l; contrast(background, ink) < 4.5 && l > 0 && l < 1; ) {
+		l = Math.max(0, Math.min(1, l + step));
+		ink = fromHsl({ ...from, l });
+	}
+	return ink;
+}
+
+/** WCAG 对比度，1 到 21。 */
+function contrast(a: Rgb, b: Rgb): number {
+	const [bright, dim] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+	return (bright + 0.05) / (dim + 0.05);
+}
+
+function relativeLuminance({ r, g, b }: Rgb): number {
+	// sRGB 要先解伽马再加权，直接拿 0.2126R+0.7152G+0.0722B 算的是另一回事（见 `contrastingInk`，
+	// 那里只需要分个明暗，够用）。
+	const channel = (value: number) => {
+		const v = value / 255;
+		return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+	};
+	return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+interface Hsl {
+	/** 0–360 */
+	h: number;
+	/** 0–1 */
+	s: number;
+	/** 0–1 */
+	l: number;
+}
+
+function toHsl({ r, g, b }: Rgb): Hsl {
+	const red = r / 255;
+	const green = g / 255;
+	const blue = b / 255;
+	const max = Math.max(red, green, blue);
+	const min = Math.min(red, green, blue);
+	const l = (max + min) / 2;
+	const delta = max - min;
+	// 灰色没有色相可言，问它是多少只会拿到除零的结果。
+	if (delta === 0) return { h: 0, s: 0, l };
+	const s = delta / (1 - Math.abs(2 * l - 1));
+	const h =
+		max === red
+			? 60 * (((green - blue) / delta) % 6)
+			: max === green
+				? 60 * ((blue - red) / delta + 2)
+				: 60 * ((red - green) / delta + 4);
+	return { h: (h + 360) % 360, s, l };
+}
+
+function fromHsl({ h, s, l }: Hsl): Rgb {
+	const c = (1 - Math.abs(2 * l - 1)) * s;
+	const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+	const m = l - c / 2;
+	const [r, g, b] =
+		h < 60
+			? [c, x, 0]
+			: h < 120
+				? [x, c, 0]
+				: h < 180
+					? [0, c, x]
+					: h < 240
+						? [0, x, c]
+						: h < 300
+							? [x, 0, c]
+							: [c, 0, x];
+	return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
 }

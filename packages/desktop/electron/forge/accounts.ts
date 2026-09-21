@@ -97,15 +97,40 @@ export function hostOf(baseUrl: string): string {
 }
 
 /**
- * What an account is called when the user did not say.
+ * What an account is called when the user did not say: the login, and only the login.
  *
- * The login alone is ambiguous the moment somebody has the same name on two hosts, which is the
- * normal case for anyone with a work GitLab and a personal GitHub — and the tab strip is exactly
- * where that ambiguity would bite. The host disambiguates and costs one word.
+ * 它从前是 `登录名 · 主机`，理由是同名歧义——一个人的工作 GitLab 和私人 GitHub 可能叫一样的名字。
+ * 理由本身没错，错在把答案塞进了名字里，而两个读它的地方都得再把那截主机弄掉：
+ *
+ *   `AccountTabs` 里有个 `short()`，专门按 ` · ` 切开取前半截，因为整串对一枚标签页来说太长
+ *   `ForgeSettings` 的第二行只说「标题行还没说的」，它认为标题行就是登录名——于是 label 带了主机
+ *   之后，`login !== label` 成立，第二行又把登录名写了一遍
+ *
+ * 屏幕上的结果是一行 `kittors · github.com`，下面跟一行 `kittors`：两行三个词，说的是同一件事，
+ * 而其中的 `github.com` 右边那枚徽章已经答过了。
+ *
+ * 所以歧义交回给那两个本来就在答它的地方：徽章说是哪一家，第二行在主机确实不是官方实例时说主机
+ * （见 `identityOf`）。名字只管名字。已经存成旧格式的账号在读取时换过来——见 `freshLabel`。
  */
-export function defaultLabel(identity: ForgeIdentity, baseUrl: string): string {
-	const login = identity.login.trim() || identity.name.trim() || "账号";
-	return `${login} · ${hostOf(baseUrl)}`;
+export function defaultLabel(identity: ForgeIdentity): string {
+	return identity.login.trim() || identity.name.trim() || "账号";
+}
+
+/**
+ * 存着的那个名字，除非它正是从前自动生成的那一串。
+ *
+ * 改 `defaultLabel` 只管以后新加的账号，磁盘上那些 `kittors · github.com` 一个都不会动——而它们
+ * 正是这次要收拾的东西。所以读的时候认一次：值恰好等于旧格式生成的结果，就当它从来没被人改过，
+ * 换成现在的默认。
+ *
+ * 判的是「等于旧的自动值」而不是「含有 ` · `」：自己把账号命名成「公司 · 前端」的人改过名了，
+ * 那是他的名字，不能因为长得像就收走。和 `migrateAppearance` 认旧默认字体是同一条规矩。
+ */
+function freshLabel(stored: string, login: string, baseUrl: string): string {
+	const name = stored.trim();
+	const fresh = defaultLabel({ login, name: login, avatarUrl: null });
+	if (!name) return fresh;
+	return name === `${fresh} · ${hostOf(baseUrl)}` ? fresh : name;
 }
 
 /**
@@ -153,7 +178,7 @@ export function parseAccounts(raw: unknown): ForgeAccount[] {
 			kind,
 			baseUrl,
 			login,
-			label: (typeof item.label === "string" && item.label.trim()) || defaultLabel({ login, name: login, avatarUrl: null }, baseUrl),
+			label: freshLabel(typeof item.label === "string" ? item.label : "", login, baseUrl),
 			avatarUrl: typeof item.avatarUrl === "string" ? item.avatarUrl : null,
 			addedAt: typeof item.addedAt === "number" ? item.addedAt : 0,
 			// Absent means on. A file written before this field existed should not arrive silent.

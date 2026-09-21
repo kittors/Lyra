@@ -1,0 +1,160 @@
+/* ---------------------------------------------------------------------------
+ * 装不下的那些字
+ *
+ * 输入框滚起来之后，上下两头是硬切的：最上面那行被拦腰截断，露出半截字形；最下面那行同样，而且
+ * 就压在工具栏上方几个像素处。截断本身不是问题——内容比框高，总得切在某个地方——问题是切口看着
+ * 像渲染坏了：半个「3」和一条边框之间没有任何过渡，人第一眼读到的是「这里画错了」，而不是「上
+ * 面还有」。
+ *
+ * 转录、侧栏、设置页早就不这样了，`.ly-fade-y`（`scroll.css`）把内容的 alpha 收下去，让它化进
+ * 边缘。那一套是给 `Scroller` 写的，而 `Scroller` 管不到 textarea：textarea 自己就是滚动容器，
+ * 里面没有可以包一层的节点。所以这里是同一个想法的第二种写法——同一条缓动曲线，同样是收 alpha
+ * 而不是刷一层颜色（理由见 `.ly-fade-y` 上面那段：刷颜色要猜底色，猜错就是一道横在内容上的带
+ * 子），只是变量少了五个，因为输入框里没有钉住的行要绕开。
+ *
+ * 两个变量**可继承**，这是和 `.ly-fade-y` 唯一实质的不同。主输入框的字有两层——底下是 textarea，
+ * 上面铺着画标记的镜像层（见 `CommandText`）——两层必须虚化得一模一样，否则滚到顶上时会看见一
+ * 层淡了、另一层还在。写在它们共同的外壳上继承下去，两层读的就是同一个数；各写各的，迟早有一处
+ * 漏掉。
+ * ------------------------------------------------------------------------- */
+
+@property --ly-field-fade-top {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --ly-field-fade-bottom {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0;
+}
+
+/*
+ * 深浅跟着滚动量走，不是两档开关。
+ *
+ * `useFieldFade` 写进来的是 `min(一行, 已经滚过去多少)`：刚推开两个像素，虚化就只有两个像素，
+ * 和手上的动作对得上。所以这里**没有** transition——补间会让虚化落在滚轮后面，而滚动本身每一帧
+ * 都在更新这个数，自己就是连续的。它只在「一整屏都装得下」和「开始滚了」之间跳变，而那一跳两端
+ * 都是 0。
+ */
+.ly-field-fade {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(0 0 0 / 0.06) calc(var(--ly-field-fade-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-field-fade-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-field-fade-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-field-fade-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-field-fade-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-field-fade-top) * 0.86),
+    #000 var(--ly-field-fade-top),
+    #000 calc(100% - var(--ly-field-fade-bottom)),
+    rgb(0 0 0 / 0.94) calc(100% - var(--ly-field-fade-bottom) * 0.86),
+    rgb(0 0 0 / 0.8) calc(100% - var(--ly-field-fade-bottom) * 0.72),
+    rgb(0 0 0 / 0.6) calc(100% - var(--ly-field-fade-bottom) * 0.57),
+    rgb(0 0 0 / 0.38) calc(100% - var(--ly-field-fade-bottom) * 0.41),
+    rgb(0 0 0 / 0.19) calc(100% - var(--ly-field-fade-bottom) * 0.26),
+    rgb(0 0 0 / 0.06) calc(100% - var(--ly-field-fade-bottom) * 0.12),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(0 0 0 / 0.06) calc(var(--ly-field-fade-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-field-fade-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-field-fade-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-field-fade-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-field-fade-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-field-fade-top) * 0.86),
+    #000 var(--ly-field-fade-top),
+    #000 calc(100% - var(--ly-field-fade-bottom)),
+    rgb(0 0 0 / 0.94) calc(100% - var(--ly-field-fade-bottom) * 0.86),
+    rgb(0 0 0 / 0.8) calc(100% - var(--ly-field-fade-bottom) * 0.72),
+    rgb(0 0 0 / 0.6) calc(100% - var(--ly-field-fade-bottom) * 0.57),
+    rgb(0 0 0 / 0.38) calc(100% - var(--ly-field-fade-bottom) * 0.41),
+    rgb(0 0 0 / 0.19) calc(100% - var(--ly-field-fade-bottom) * 0.26),
+    rgb(0 0 0 / 0.06) calc(100% - var(--ly-field-fade-bottom) * 0.12),
+    transparent 100%
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * 多行输入框，一家人
+ *
+ * 盘过一遍：发版说明 `rounded-xl p-3.5`、个性化指令 `rounded-xl p-3`、定时任务
+ * `rounded-[10px] px-3 py-2`、智能体指令 `rounded-lg p-3`、规则草稿 `rounded p-2`——五个地方
+ * 五种圆角、五种内衬、三种底色，而它们在界面上是同一件东西：一块可以写很多字的地方。差异不是设
+ * 计，是先后写下的五次即兴发挥。
+ *
+ * 内衬直接取 `--ly-composer-in` / `--ly-composer-x`，不是另起一套接近的数：主输入框的呼吸感由
+ * 那两个变量定，而「打字的地方」只该有一种呼吸感。往后调那两个数，这些框跟着一起动。
+ *
+ * 边框画在外壳上而不是这里，这一点是被虚化逼出来的：mask 收的是元素画出来的**一切**，边框也在
+ * 其中——描边和字写在同一个元素上，滚到顶端时框的上下两条边会跟着字一起淡掉，看上去像框破了个
+ * 口子。所以 `.ly-textarea-shell` 管边界，`.ly-textarea` 只管字。
+ * ------------------------------------------------------------------------- */
+
+/*
+ * 底和字色都由外壳出，成对地出。
+ *
+ * 规则草稿那个框的底是代码主题的（`.ly-rule-excerpt`，写在这层上，`misc.css` 排在后面所以赢），
+ * 而代码主题的底在浅色界面下可能是深的。字色若钉死在里面那层上，就会出现「深底 + 深字」——那一
+ * 段规则直接看不见了。所以这里定一对默认值，里面那层 `inherit`：谁换掉底，字跟着一起换。
+ */
+.ly-textarea-shell {
+  border: 1px solid var(--color-line-soft);
+  border-radius: 14px;
+  background: var(--color-card);
+  color: var(--color-ink);
+  transition: border-color var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-textarea-shell:focus-within {
+  border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+}
+
+.ly-textarea {
+  display: block;
+  width: 100%;
+  padding: var(--ly-composer-in) var(--ly-composer-x);
+  border: 0;
+  background: transparent;
+  /* 外壳说了算——见它上面那段：底和字色是一对，不能一个跟着主题走另一个钉死。 */
+  color: inherit;
+  font-size: var(--text-label);
+  line-height: 1.625;
+  resize: none;
+  outline: none;
+  overflow-wrap: break-word;
+}
+
+/*
+ * 按行读的那几个框：发版说明、自定义指令、规则草稿。
+ *
+ * 字号写在这里而不是留给调用方的 `text-detail`，是因为上面那条 `font-size` 未分层，压得过工具
+ * 类——写了也不生效，而且不报错。字体族没写进 `.ly-textarea`，所以 `font-mono` 那条工具类照常
+ * 有效；这里一并收进来，只是为了「等宽 + 小一号」这对固定搭配不必在三处各写一遍。
+ */
+.ly-textarea-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-detail);
+}
+
+/*
+ * 能拉高的那两处：一段规则、一份系统提示词，都是写着写着就长的东西。
+ *
+ * 属性选择器而不是一条 `resize-y` 工具类——`.ly-textarea` 的 `resize: none` 未分层，压得过
+ * `@layer utilities`，那条工具类会安静地不生效。
+ */
+.ly-textarea[data-resizable] {
+  resize: vertical;
+}
+
+.ly-textarea::placeholder {
+  color: var(--color-ink-faint);
+}
+
+.ly-textarea:disabled {
+  opacity: 0.6;
+}

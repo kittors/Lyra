@@ -42,11 +42,20 @@
     margin-bottom: 0;
   }
 
+  /*
+   * 标题的字重跟着「界面字重」走，不是钉死的 600。
+   *
+   * 回答的正文继承 `body`，而 `body` 现在是基准字重——基准一提到 500，h4 那句写死的 500 就和它
+   * 脚下的正文一样重了，h4 不再是个标题。一处写死的数只要旁边那个数会动，它迟早会撞上。
+   *
+   * 派生的值在基准 400 时恰好还原成 600 / 500 / 550 这三个原数，所以这不是改样子，是把同一套样子
+   * 接到那一个旋钮上。
+   */
   .prose-dw h1,
   .prose-dw h2,
   .prose-dw h3,
   .prose-dw h4 {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     line-height: 1.4;
     margin-top: 1.6em;
     margin-bottom: 0.6em;
@@ -63,7 +72,8 @@
   }
   .prose-dw h4 {
     font-size: var(--text-body);
-    font-weight: 500;
+    /* h3 和它同一个字号，靠这一档字重分开——所以它得比正文重，又得比 h3 轻。 */
+    font-weight: var(--font-weight-medium);
   }
 
   .prose-dw ul,
@@ -188,6 +198,8 @@
     background: transparent;
     /* Inherited from `pre`, which now carries the theme's foreground. */
     color: inherit;
+    /* 行内代码的描边不适用于围栏块里的那一枚：外面的 `pre` 自己已经有一圈边了，不撤掉就是两圈。 */
+    box-shadow: none;
     padding: 0;
     font-size: var(--text-code);
     line-height: var(--text-code--line-height);
@@ -204,8 +216,22 @@
     font-size: var(--text-code);
     font-weight: var(--text-code--weight);
     letter-spacing: var(--text-code--tracking);
-    background: var(--color-card-hover);
-    color: var(--color-ink);
+    /*
+     * 配得出来的颜色，不是钉死的两个。
+     *
+     * 这两行以前是 `--color-card-hover` 和 `--color-ink`：一块灰底黑字，而围栏代码块早就跟着
+     * 语法主题走了。一段讲代码的回答里，分支名、提交号、文件路径全是行内代码——它们是整段话里
+     * 最该一眼认出来的东西，偏偏是最没有颜色的那些。三种来源怎么算成这两个值，见 `theme.ts`。
+     *
+     * fallback 留着，因为这两个变量是主题应用之后才有的：第一帧之前照旧是它一直以来的样子，
+     * 而不是没有底色的一段字。
+     */
+    background: var(--ly-inline-code-bg, var(--color-card-hover));
+    color: var(--ly-inline-code-fg, var(--color-ink));
+    /*
+     * 描边（开了才看得见）。inset 阴影不占尺寸，所以开关它不会把整段话的行距顶开——用 border 会。
+     */
+    box-shadow: inset 0 0 0 1px var(--ly-inline-code-ring, transparent);
     border-radius: 5px;
     padding: 1.5px 5px;
     box-decoration-break: clone;
@@ -352,7 +378,8 @@
 
   .prose-dw thead th {
     background: var(--color-card);
-    font-weight: 550;
+    /* 半档，比 medium 轻：表头是标签不是标题。基准 400 时算回它原来的 550。 */
+    font-weight: clamp(100, calc(var(--ly-ui-weight, 500) + 150), 900);
     color: var(--color-ink-muted);
     /* The header's rule is the one line worth keeping: it separates labels from data. */
     border-bottom: 1px solid var(--color-line);
@@ -595,11 +622,18 @@
   white-space: nowrap;
 }
 
+/*
+ * 文件链接里那枚 `<code>` 不是一块行内代码，是这枚胶囊的内容。
+ *
+ * 底色、内边距、圆角归外面那个链接管，里面这枚什么都不画——描边同理：行内代码配了一圈边之后，
+ * 每个文件链接里会多出一个贴着文字的小框，套在胶囊自己的框里。
+ */
 [data-ly-file-link] code {
   background: transparent;
   padding: 0;
   border-radius: 0;
   color: inherit;
+  box-shadow: none;
 }
 
 [data-ly-file-actions] {

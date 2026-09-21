@@ -8,13 +8,12 @@
  * What replaced it is here: an account is a host, an address and a token, and there can be as many
  * as somebody actually has. Each one becomes a tab in the pane.
  *
- * The page says out loud where the token goes and how it is protected, including when it is not.
- * A machine with no keyring stores it in plain text, and a settings page that quietly implied
- * otherwise would be the one thing here worth being angry about.
+ * 令牌存在哪儿、封到什么程度，这件事仍然明说，只是不在这一页——它跟着令牌输入框走，在
+ * `ForgeSignIn` 里。关心它的那一刻是手里捏着令牌准备粘进去的那一刻，而不是之后每一次打开这一页。
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ForgeAccount, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { Avatar } from "../pull-requests/index.ts";
@@ -217,19 +216,15 @@ export function ForgeSettings() {
 			)}
 
 			{/*
-			 * Where the token lives, stated rather than assumed.
+			 * 令牌存在哪儿，这一段搬到登录表单里去了（见 `ForgeSignIn`）。
 			 *
-			 * One version, and it states the limit rather than implying there is none. The token was
-			 * sealed by the OS keychain until the keychain turned out not to survive an update on
-			 * macOS — every release is a different code identity to an ad-hoc signed app, so signing
-			 * in again was part of updating. It is now sealed with a key kept beside it, which is a
-			 * smaller claim: it keeps the token out of the files that travel, and it does not defend
-			 * against something already reading your home directory. Saying so is the point.
+			 * 它说的事没有作废——令牌是用旁边那把钥匙封的，不是系统钥匙串，所以它防的是「跟着文件
+			 * 一起旅行」，不防已经能读你主目录的东西。这句限度是要讲明的。
+			 *
+			 * 但它从前是常驻在账号列表下面的四行小字，而登录之后再读它的人是零：关心令牌存哪儿的
+			 * 那一刻，正是手里捏着令牌、准备粘进去的那一刻。所以它跟着令牌输入框走，列表页留给账号。
 			 */}
-			<p className="mt-8 flex max-w-[600px] items-start gap-2 pb-8 text-detail leading-relaxed text-ink-faint">
-				<ShieldCheck size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" />
-				{translate("forge.tokenStorageInline")}
-			</p>
+			<div className="pb-8" />
 		</div>
 	);
 }

@@ -11,6 +11,9 @@
  * **提交到哪个分支**也在这里选。分支那一行是可以点的：展开是本地分支的清单，末尾一项是「新分支」。
  * 选了新分支不会当场创建——名字先记着，等真的提交那一刻才 `git switch -c`。中途改了主意就什么
  * 都没发生，而不是在仓库里留下一个空分支。
+ *
+ * **写了什么、哪一步在跑，都不存在这里**：见 `commit-work.ts`。这个组件是那件事此刻的样子，
+ * 关掉它只是把样子收起来——事情还在跑，工具条上那颗按钮替它转着圈，按一下就又回到这儿。
  */
 
 import { Check, ChevronDown, CloudUpload, GitBranch, GitCommitHorizontal, Languages, Plus, Upload, X } from "lucide-react";
@@ -20,8 +23,11 @@ import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
+import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
+import { useFieldFade } from "../../ui/inputs/useFieldFade.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { COMMIT_LANGUAGES, commitLanguageLabel, resolveCommitLanguage } from "./commit-language.ts";
+import type { CommitWork } from "./commit-work.ts";
 
 export interface CommitPushDialogProps {
 	cwd: string;
@@ -32,6 +38,12 @@ export interface CommitPushDialogProps {
 	removedCount: number;
 	busy: boolean;
 	running: boolean;
+	/**
+	 * 这一次提交的现场：写了什么、提交到哪儿、哪一步正在跑。
+	 *
+	 * 它归面板持有，不归这个弹窗——关掉弹窗不该让一件正在跑的事从界面上消失。见 `commit-work.ts`。
+	 */
+	work: CommitWork;
 	/** 还没推上去的提交数——没有可推的就真的禁用那一行，而不是画成灰的却照样可点。 */
 	unpushed: number;
 	/** `syncPlan` 已经写好的那句话：几个提交没推，或者已经同步。 */
@@ -44,9 +56,6 @@ export interface CommitPushDialogProps {
 	onBranchChanged?: () => void;
 }
 
-/** 提交到哪里：当前这个分支，还是一个还没建出来的新分支。 */
-type Target = { kind: "current" } | { kind: "new"; name: string };
-
 export function CommitPushDialog({
 	cwd,
 	branch,
@@ -56,6 +65,7 @@ export function CommitPushDialog({
 	removedCount,
 	busy,
 	running,
+	work,
 	unpushed,
 	pushTip,
 	onClose,
@@ -65,13 +75,21 @@ export function CommitPushDialog({
 	onBranchChanged,
 }: CommitPushDialogProps) {
 	const { t } = useI18n();
-	const [message, setMessage] = useState("");
-	const [generating, setGenerating] = useState(false);
+	/*
+	 * 这四样都在 `work` 里，不在这儿。
+	 *
+	 * 它们是这次提交本身，而这个组件只是它此刻的样子：关掉弹窗只是把样子收起来，事情还在跑。
+	 * 顺手解构出来，下面的写法和从前一模一样。
+	 */
+	const { message, setMessage, generating, setGenerating, target, setTarget } = work;
+	const workingAction = work.action;
+	const setWorkingAction = work.setAction;
 	const [includeUnstaged, setIncludeUnstaged] = useState(stagedCount === 0 && unstagedCount > 0);
-	const [workingAction, setWorkingAction] = useState<"commit" | "commitAndPush" | "push" | null>(null);
-	const [target, setTarget] = useState<Target>({ kind: "current" });
 	const [locals, setLocals] = useState<string[]>([]);
 	const newBranchField = useRef<HTMLInputElement>(null);
+	const messageField = useRef<HTMLTextAreaElement>(null);
+	const messageScroller = useRef<HTMLDivElement>(null);
+	useFieldFade(messageField, messageScroller);
 
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
@@ -319,15 +337,23 @@ export function CommitPushDialog({
 					data-ly-commit-field
 					className="rounded-[18px] border border-line-soft transition-colors duration-[var(--ly-t-base)] focus-within:border-ink-faint/60"
 				>
-					<div className="relative">
+					{/*
+					 * 三行装不下的时候，它自己会滚——那就得有滑块，也得有两头的渐隐。
+					 *
+					 * 这两样在这里曾经都没有：原生滚动条是全局关掉的（见 `OverlayScrollbar`），于是
+					 * 一篇长提交信息滚起来没有任何东西说它有多长；上下又是硬切的，最后一行半截字就压
+					 * 在底下那行语言按钮上方几像素处，读起来像画坏了。跟主输入框走同一套。
+					 */}
+					<div ref={messageScroller} className="ly-scroll-host relative">
 						<textarea
+							ref={messageField}
 							value={message}
 							onChange={(e) => setMessage(e.target.value)}
 							placeholder={generating ? t("commit.generating") : t("commit.autoPlaceholder")}
 							disabled={disabled}
 							rows={3}
 							data-ly-commit-message
-							className="block w-full resize-none border-none bg-transparent px-[var(--ly-composer-x)] py-[var(--ly-composer-in)] text-label leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none disabled:opacity-60"
+							className="ly-field-fade block w-full resize-none overflow-y-auto border-none bg-transparent px-[var(--ly-composer-x)] py-[var(--ly-composer-in)] text-label leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none disabled:opacity-60"
 							onKeyDown={(e) => {
 								if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 									e.preventDefault();
@@ -346,6 +372,7 @@ export function CommitPushDialog({
 								<ActionSpinner size={12} />
 							</span>
 						)}
+						<OverlayScrollbar viewport={messageField} orientation="vertical" />
 					</div>
 
 					{/*

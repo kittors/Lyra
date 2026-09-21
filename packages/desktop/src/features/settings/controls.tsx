@@ -7,6 +7,7 @@
 
 
 import { useLayoutEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "../../ui/primitives/Button.tsx";
 
 export * from "./inputs.tsx";
@@ -200,6 +201,36 @@ export function PrimaryButton({
 	);
 }
 
-export function EmptyHint({ children }: { children: React.ReactNode }) {
-	return <p className="px-4 py-10 text-center text-label leading-relaxed text-ink-faint">{children}</p>;
+/**
+ * 一片什么都没有的地方。
+ *
+ * **一个记号，加两三个字。** 从前是一整句解释浮在一张空卡片中间——「这个区间还没有模型用量。」
+ * ——而空着这件事一眼就看得出来，用一句话把它再说一遍只是让这块空白更重。记号负责让这块地方
+ * 看起来是画好的而不是没画完，短句负责说清空的是什么。
+ *
+ * 进场分两拍：记号先落下（`ly-pop`，从 0.5 倍弹到位），字随后淡上来。两件事同时出现是一次闪现，
+ * 差 70ms 就成了一个动作——东西落定，然后它说了句话。`motion-reduce` 下两拍都不播。
+ *
+ * 记号可选，而且**默认没有**：十几处用到这个组件，多数是设置页里一行字就够的角落，每处都配图标
+ * 只会变成一片图标墙。传它是因为那块空白足够大——一张卡片、一整块图表——大到值得有东西站在中间。
+ */
+export function EmptyHint({ children, icon: Icon }: { children: React.ReactNode; icon?: LucideIcon }) {
+	return (
+		<div data-ly-empty="" className="flex flex-col items-center justify-center gap-3.5 px-6 py-12 text-center">
+			{Icon && (
+				/*
+				 * 44px 的圆底配 20px 的记号。
+				 *
+				 * 一个线性图标单独放在大片留白中间会显得太轻，像是没对齐；一块底给了它确定的位置和
+				 * 重量。底比图标大一圈有余，图标才像是被放进去的，而不是被框住的。
+				 */
+				<span className="flex h-11 w-11 items-center justify-center rounded-full bg-ink/[0.04] text-ink-faint/70 animate-[ly-pop_var(--ly-t-base)_var(--ly-e-out)_both] motion-reduce:animate-none">
+					<Icon size={20} strokeWidth={1.5} aria-hidden />
+				</span>
+			)}
+			<p className="max-w-[260px] text-label text-ink-faint animate-[ly-fade-up_var(--ly-t-base)_var(--ly-e-out)_70ms_both] motion-reduce:animate-none">
+				{children}
+			</p>
+		</div>
+	);
 }

@@ -85,6 +85,7 @@ export {
 	DEFAULT_FORMATTING,
 	loadSettings,
 	migrateSecrets,
+	rememberProviderNames,
 	resolveModel,
 	saveSettings,
 	settingsPath,

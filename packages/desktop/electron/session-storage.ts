@@ -20,6 +20,16 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 			if (meta) changed({ id: meta.id, projectId: meta.projectId, meta });
 			return meta;
 		},
+		/*
+		 * 推出去的 `projectId` 是**新**的那个，这正是侧边栏据以换组的依据：收到的一方按 id 找到
+		 * 原来那条、整条换成这一份（见渲染层的 `applySessionChange`），于是它就从旧项目底下消失、
+		 * 在新项目底下出现。
+		 */
+		async move(...args) {
+			const meta = await store.move(...args);
+			if (meta) changed({ id: meta.id, projectId: meta.projectId, meta });
+			return meta;
+		},
 		async truncateFrom(...args) {
 			const result = await store.truncateFrom(...args);
 			if (result) changed({ id: result.meta.id, projectId: result.meta.projectId, meta: result.meta });

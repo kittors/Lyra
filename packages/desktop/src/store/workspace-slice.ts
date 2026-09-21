@@ -330,41 +330,77 @@ export function workspaceSlice(set: Set, get: Get) {
     }
   },
 
+  /**
+   * 把一条对话归到另一个项目下——真的归过去，日志文件跟着走。
+   *
+   * 这里从前只改内存：三个字段在渲染层改掉、弹一句「已移动到 X」，磁盘上一个字节都没动，主进程
+   * 那边连「移动会话」这个操作都不存在。于是主进程下一次推送这条会话的任何变化，
+   * `applySessionChange` 就拿磁盘上那一份把整条 meta 换回去，界面上它自己飘回原来的项目——用户
+   * 报的「过 1 秒就恢复原样」。就算那一秒没人推送，重启一次照样打回原形。
+   *
+   * 真正的移动只有主进程做得了：会话日志按 `projectId` 分目录存，而 `projectId` 是 cwd 的哈希，
+   * 换项目就是换目录，得挪文件。乐观更新仍然留着——点完就该看见它到了新位置——但现在它只是一
+   * 张等着兑现的票：兑不了就连同一句说明一起退回去，和 `renameSession` 一个路子。
+   */
   async moveSessionProject(session: SessionMeta, targetPath: string) {
     const targetProject = get().settings?.projects.find((p) => p.path === targetPath);
     const segments = targetPath.split(/[/\\]/);
     const lastSegment = segments.length > 0 ? segments[segments.length - 1] : "";
     const projectName = targetProject?.name ?? (lastSegment || translate("common.project"));
-    // In our sessions metadata, cwd and projectName determine where it is filed.
-    // If targetPath is empty, it moves to loose/scratch.
-    const isLoose = !targetPath;
-    const nextCwd = isLoose ? (get().scratchRoots[0] ?? session.cwd) : targetPath;
-    const nextProjectId = isLoose ? "" : targetProject?.id ?? session.projectId;
-    const nextProjectName = isLoose ? "Chat" : projectName;
 
-    set({
-      sessions: get().sessions.map((s) =>
-        s.id === session.id
-          ? {
-              ...s,
-              cwd: nextCwd,
-              projectId: nextProjectId,
-              projectName: nextProjectName,
-            }
-          : s,
-      ),
-      ...(get().activeSessionId === session.id && get().meta
-        ? {
-            meta: {
-              ...get().meta!,
-              cwd: nextCwd,
-              projectId: nextProjectId,
-              projectName: nextProjectName,
-            },
-          }
-        : {}),
-    });
-    get().notify(translate("workspace.movedTo", { name: nextProjectName }));
+    /*
+     * 「从项目中移除」= 挪进那个「不在项目中工作」的共享目录。
+     *
+     * 从前这里取 `scratchRoots[0]`，那是这些目录的**根**；而 `isScratch` 认的是根底下的东西
+     * （前缀比到 `/`），根自己不算。所以就算当时那次移动落了盘，侧边栏也不会把它收进「聊天」，
+     * 而是照着它的 cwd 新开一个分组——等于从一个项目挪进了另一个假项目。`generalScratch()` 给
+     * 的才是那个目录本身，也正是「不在项目中工作」新建对话时用的那一个。
+     */
+    const isLoose = !targetPath;
+    const scratchCwd = isLoose ? await bridge.git.generalScratch().catch(() => null) : null;
+    if (isLoose && !scratchCwd) {
+      get().notify(translate("workspace.moveFailed", { reason: translate("workspace.noScratchDir") }), "error");
+      return;
+    }
+    const nextCwd = isLoose ? scratchCwd! : targetPath;
+    const nextProjectName = isLoose ? translate("workspace.looseChats") : projectName;
+
+    /*
+     * 乐观的这一下只动 cwd 和 projectName，不动 projectId。
+     *
+     * 侧边栏分组看的是 cwd（见 `grouping.ts`），所以这两样就够它当场换组；而 projectId 是文件在
+     * 磁盘上的住址，此刻还没搬完，渲染层也算不出新值（那是 cwd 的 sha256，在 core 里）。猜一个
+     * 填进去，万一用户正好在这几毫秒里点开这条对话，就会拿着一个查无此人的地址去读日志。
+     */
+    const previous = { cwd: session.cwd, projectName: session.projectName };
+    const patch = (fields: Partial<SessionMeta>) =>
+      set({
+        sessions: get().sessions.map((s) => (s.id === session.id ? { ...s, ...fields } : s)),
+        ...(get().activeSessionId === session.id && get().meta ? { meta: { ...get().meta!, ...fields } } : {}),
+      });
+
+    patch({ cwd: nextCwd, projectName: nextProjectName });
+    try {
+      const result = await bridge.sessions.move(session.projectId, session.id, nextCwd, nextProjectName);
+      if (!result.ok) {
+        patch(previous);
+        get().notify(
+          result.reason === "running"
+            ? translate("workspace.moveWhileRunning")
+            : result.reason === "gone"
+              ? translate("workspace.moveGone")
+              : translate("workspace.moveFailed", { reason: result.message ?? "" }),
+          result.reason === "running" ? "warn" : "error",
+        );
+        return;
+      }
+      // 主进程说了算的那一份，含着新的 projectId。广播多半已经先到了，这一下是补齐。
+      patch(result.meta);
+      get().notify(translate("workspace.movedTo", { name: nextProjectName }));
+    } catch (cause) {
+      patch(previous);
+      get().notify(translate("workspace.moveFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+    }
   },
 
   async removeProject(path: string) {

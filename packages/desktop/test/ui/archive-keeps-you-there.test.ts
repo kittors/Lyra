@@ -19,13 +19,16 @@ const meta = (id: string, over: Partial<SessionMeta> = {}): SessionMeta => ({
 
 /** 被带去新对话的次数——这是「人被弹走了」唯一说得清的迹象。 */
 let leftForNewSession: number;
+/** 每一次被带走时带的参数。视图换不换，全看它。 */
+let leftWith: ({ keepView?: boolean } | undefined)[];
 
 beforeEach(() => {
 	leftForNewSession = 0;
+	leftWith = [];
 	useApp.setState({
 		activeSessionId: "a", meta: meta("a"), messages: [], sessions: [meta("a")],
 		sessionCache: {}, queued: {}, drafts: {}, notices: [],
-		newSession: async () => { leftForNewSession++; },
+		newSession: async (options?: { keepView?: boolean }) => { leftForNewSession++; leftWith.push(options); },
 	});
 });
 
@@ -57,4 +60,20 @@ test("归档的是别人，谁也不用动", () => {
 	applySessionChange({ id: "b", projectId: "test", meta: meta("b", { archived: true, seq: 3 }) }, useApp.setState, useApp.getState);
 	assert.equal(leftForNewSession, 0);
 	assert.equal(useApp.getState().activeSessionId, "a");
+});
+
+test("被动挪开时不换页——在设置页清掉这条会话，人不该被甩回对话页", () => {
+	/*
+	 * 这一路是被动的：删掉这条会话的可能是手机、另一个窗口，也可能是设置页里的「清除会话记录」。
+	 * 窗口确实不能再停在一条已经没有的对话上，但「把你带去聊天」是另一回事——按下清除之后整个
+	 * 界面跳到对话页，而屏幕上没有任何东西解释刚才发生了什么。
+	 */
+	applySessionChange({ id: "a", projectId: "test", meta: null }, useApp.setState, useApp.getState);
+	assert.equal(leftForNewSession, 1, "当前这条没了，总得从它身上挪开");
+	assert.deepEqual(leftWith, [{ keepView: true }], "挪开，但留在原来那一页");
+});
+
+test("归档当前会话同样不换页", () => {
+	applySessionChange({ id: "a", projectId: "test", meta: meta("a", { archived: true, seq: 3 }) }, useApp.setState, useApp.getState);
+	assert.deepEqual(leftWith, [{ keepView: true }]);
 });

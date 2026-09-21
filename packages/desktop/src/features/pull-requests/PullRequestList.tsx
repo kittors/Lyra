@@ -13,8 +13,8 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
-import { Input } from "../../ui/inputs/NativeField.tsx";
-import { ChevronRight, RefreshCw, Search, UserPlus } from "lucide-react";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { ChevronRight, RefreshCw, UserPlus } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeAccount, PullRequestSummary } from "../../../electron/ipc-types.ts";
@@ -190,17 +190,12 @@ export function PullRequestList({
 			 */}
 			<AccountTabs accounts={accounts} active={account} onSelect={onAccount} errors={accountErrors} />
 
+			{/*
+			 * 侧栏、审核面板、文件树的搜索框早就合成了一个 `SearchField`（连同它的清除按钮和
+			 * Escape 的两段语义），这里是第四个手写的答案——32px 高、9px 圆角、只有这一处有。
+			 */}
 			<div className="shrink-0 px-3 pt-1 pb-2">
-				<label className="flex h-[32px] items-center gap-2 rounded-[9px] border border-line px-2.5 focus-within:border-ink-faint">
-					<Search size={13} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
-					<Input
-						value={query}
-						onChange={(event) => onQuery(event.target.value)}
-						placeholder={t("prList.search")}
-						spellCheck={false}
-						className="min-w-0 flex-1 bg-transparent text-label text-ink placeholder:text-ink-faint focus:outline-none"
-					/>
-				</label>
+				<SearchField value={query} onChange={onQuery} placeholder={t("prList.search")} size="comfortable" />
 			</div>
 
 			<Scroller className="flex-1" contentClassName="px-2 pb-3">

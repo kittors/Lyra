@@ -12,6 +12,31 @@ import { NumberField } from "./pickers.tsx";
 import { contrastingInk, parseHex } from "./theme.ts";
 
 export function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+	return (
+		<div className="flex items-center justify-between border-b border-line-soft px-4 py-3 last:border-b-0">
+			<span className="text-body text-ink">{label}</span>
+			<ColorField value={value} onChange={onChange} label={label} />
+		</div>
+	);
+}
+
+/**
+ * 那枚色块，不带它平时坐的那一行。
+ *
+ * 分出来是因为「代码外观」那张卡片排版和这里不一样——它的行是 `border-t` 加 `pt-3`，带标题和一行
+ * 小字，而 `ColorRow` 自带 `border-b px-4 py-3`。行内代码的两个颜色要放进那张卡片，就得跟着它的
+ * 排法走，否则是在一列对齐的行里插进两行缩进和分隔线都对不上的。控件是同一枚，行归各自的页面管。
+ */
+export function ColorField({
+	value,
+	onChange,
+	label,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	/** 给读屏用的名字。色块里只有一串十六进制，听不出它是哪一项的颜色。 */
+	label: string;
+}) {
 	const [draft, setDraft] = useState(value);
 	const valid = parseHex(draft) !== null;
 
@@ -23,26 +48,24 @@ export function ColorRow({ label, value, onChange }: { label: string; value: str
 	}, [value]);
 
 	return (
-		<div className="flex items-center justify-between border-b border-line-soft px-4 py-3 last:border-b-0">
-			<span className="text-body text-ink">{label}</span>
-			<label
-				className="flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2.5 transition-colors"
-				style={{ background: valid ? draft : "transparent", color: valid ? contrastingInk(draft) : undefined }}
-			>
-				<span className="h-3.5 w-3.5 rounded-full border border-current opacity-60" />
-				<Input
-					value={draft}
-					onChange={(e) => {
-						setDraft(e.target.value);
-						// Apply as soon as it parses, so dragging through values previews live.
-						if (parseHex(e.target.value)) onChange(e.target.value.toUpperCase());
-					}}
-					onBlur={() => !valid && setDraft(value)}
-					spellCheck={false}
-					className={`w-[74px] bg-transparent font-mono text-label tracking-wide ${valid ? "" : "text-danger"}`}
-				/>
-			</label>
-		</div>
+		<label
+			className="flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2.5 transition-colors"
+			style={{ background: valid ? draft : "transparent", color: valid ? contrastingInk(draft) : undefined }}
+		>
+			<span className="h-3.5 w-3.5 rounded-full border border-current opacity-60" />
+			<Input
+				value={draft}
+				onChange={(e) => {
+					setDraft(e.target.value);
+					// Apply as soon as it parses, so dragging through values previews live.
+					if (parseHex(e.target.value)) onChange(e.target.value.toUpperCase());
+				}}
+				onBlur={() => !valid && setDraft(value)}
+				spellCheck={false}
+				aria-label={label}
+				className={`w-[74px] bg-transparent font-mono text-label tracking-wide ${valid ? "" : "text-danger"}`}
+			/>
+		</label>
 	);
 }
 

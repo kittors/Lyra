@@ -212,6 +212,14 @@ test("数量对得上，且手机能力是逐项审过的清单", () => {
 			"sessions.fork",
 			"sessions.remove",
 			"sessions.setArchived",
+			/*
+			 * 归类，和归档同一档：挪错了再挪回来，日志一条没少。
+			 *
+			 * 它比归档多带一个 `cwd`，而 cwd 是下一次对话开工的地方——所以 `sync-rpc.ts` 那一侧多一道
+			 * 关：目标必须是这台机器已经认识的项目，或者那几个 workspace 目录底下的东西。不然一部被
+			 * 拿走的手机就能把某条对话的工作目录指到这台机器上的任何地方。
+			 */
+			"sessions.move",
 			"sessions.capabilities",
 			"sessions.rename",
 			"sessions.compact",

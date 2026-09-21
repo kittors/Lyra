@@ -11,14 +11,14 @@
  * and that is worth knowing before the import rather than at the next message.
  */
 
-import { Check, CheckSquare, KeyRound, Square, Upload, X } from "lucide-react";
+import { Check, CheckSquare, KeyRound, Square, Upload } from "lucide-react";
 import { useState } from "react";
 import type { ProviderConfig } from "@lyra/core";
 import { useI18n } from "../../i18n/index.ts";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { Badge, GhostButton } from "./controls.tsx";
+import { Badge, GhostButton, PrimaryButton } from "./controls.tsx";
 import type { ImportEntry } from "./provider-transfer.ts";
 
 export function ProviderImportModal({
@@ -59,19 +59,21 @@ export function ProviderImportModal({
 							{entries.length}
 						</span>
 						<div className="flex-1" />
+						{/* 跟 `FetchModelsModal` 同一颗：方块里一个勾选框认不出是「全选」，名字写出来就够了。 */}
 						<button
 							type="button"
 							onClick={() => {
 								setSelected(allSelected ? new Set() : new Set(entries.map((entry) => entry.provider.id)));
 							}}
-							className="grid place-items-center h-7 rounded-lg text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink w-7"
-			data-ly-tip={t(allSelected ? "common.deselectAll" : "common.selectAll")}
-			aria-label={t(allSelected ? "common.deselectAll" : "common.selectAll")}
-		>{allSelected ? (
+							className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+						>
+							{allSelected ? (
 								<CheckSquare size={14} className="text-accent" strokeWidth={2} />
 							) : (
 								<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
-							)}</button>
+							)}
+							{t(allSelected ? "common.deselectAll" : "common.selectAll")}
+						</button>
 					</div>
 
 					<Scroller className="max-h-[56vh]" contentClassName="space-y-1.5 px-5 py-4">
@@ -96,20 +98,17 @@ export function ProviderImportModal({
 								replace: chosen.filter((entry) => entry.kind === "replace").length,
 							})}
 						</span>
+						{/* 名字和数字一起留下，理由见 `FetchModelsModal` 的页脚：✓3 不说明这一按是导入还是保留。 */}
 						<div className="flex shrink-0 items-center gap-2">
-							<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={2} />} title={t("common.cancel")} />
-							<button
-								type="button"
-								data-ly-tip={t("providerTransfer.importAction", { n: chosen.length })}
-								aria-label={t("providerTransfer.importAction", { n: chosen.length })}
+							<GhostButton onClick={() => dismiss()}>{t("common.cancel")}</GhostButton>
+							<PrimaryButton
 								disabled={chosen.length === 0}
 								onClick={() => dismiss(() => onImport(chosen.map((entry) => entry.provider)))}
-								className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-2.5 text-caption font-medium text-shell tabular-nums transition-opacity hover:opacity-90 disabled:opacity-40"
+								icon={<Check size={14} strokeWidth={2.2} aria-hidden />}
+								className="tabular-nums"
 							>
-								{/* 数字留下：这一按会导入几个，不是这颗按钮叫什么。 */}
-								<Check size={13} strokeWidth={2.2} aria-hidden />
-								{chosen.length}
-							</button>
+								{t("providerTransfer.importAction", { n: chosen.length })}
+							</PrimaryButton>
 						</div>
 					</div>
 				</>

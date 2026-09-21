@@ -371,6 +371,10 @@ function buildAppWindow(options: {
 		 * Windows/Linux draw their own controls into this strip. The colours are a starting
 		 * point; the renderer sends the real ones once the theme is resolved.
 		 *
+		 * 起点用窗口底色是对的：此刻页面还没画，整扇窗就是这一个颜色，那三颗按钮落在它上面。
+		 * header 一渲染出来，`window:theme` 送来的 `headerColor` 就把它换成带子自己的底色——
+		 * 稳态归那一边管，这里不复制那条调色公式。
+		 *
 		 * `height` is how big those three buttons come out — the system draws them to fill what it
 		 * is given. It used to be told 44, which is the macOS traffic lights' number, and the
 		 * result was a minimise/maximise/close visibly larger than every other window on the
@@ -599,7 +603,7 @@ function writeWindowState(): void {
  * backing colour before the renderer has reflowed, so that colour has to track the theme.
  */
 export function registerWindowIpc(): void {
-	ipcMain.on("window:theme", (event, colors: { color: string; symbolColor: string }) => {
+	ipcMain.on("window:theme", (event, colors: { color: string; headerColor?: string; symbolColor: string }) => {
 		const window = BrowserWindow.fromWebContents(event.sender) ?? getWindow();
 		if (!window || window.isDestroyed()) return;
 		/*
@@ -616,8 +620,22 @@ export function registerWindowIpc(): void {
 		 */
 		if (process.platform === "darwin") return;
 		try {
-			// 同一个高度，和创建时那次一致——这里漏掉的话，换一次主题按钮就变回另一个尺寸。
-			window.setTitleBarOverlay({ ...colors, height: NATIVE_HEADER_HEIGHT });
+			/*
+			 * header 的底色，不是窗口的底色。
+			 *
+			 * 这两个值一直是同一个，而它们身处的地方不是同一处：系统把最小化/最大化/关闭画进
+			 * `.ly-window-header` 右端那一段里，而那条带子是 `--color-sidebar`——比窗口底色
+			 * （`--color-shell`）往前景挪了一档。同一条带子于是左右两个色，右上角多出一块比周围
+			 * 浅的补丁，看上去像那里少画了点什么。系统画的那块归我们指定颜色，指的就该是它落在
+			 * 谁身上。
+			 *
+			 * 高度和创建时那次一致——这里漏掉的话，换一次主题按钮就变回另一个尺寸。
+			 */
+			window.setTitleBarOverlay({
+				color: colors.headerColor ?? colors.color,
+				symbolColor: colors.symbolColor,
+				height: NATIVE_HEADER_HEIGHT,
+			});
 		} catch {}
 	});
 }

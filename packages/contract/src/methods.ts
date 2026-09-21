@@ -78,6 +78,14 @@ export const METHODS = {
 	},
 	usage: {
 		scan: { channel: "usage:scan", remote: false, why: "读本机日志" },
+		storage: { channel: "usage:storage", remote: false, why: "量的是本机磁盘上这些日志占了多少" },
+		/*
+		 * 手机不能删。
+		 *
+		 * 这一条删掉的是一整段时间的会话，连同它们的聊天记录，而且没有回收站。桌面端把它放在两层
+		 * 确认后面，手机上那两层不存在——一个误触就是半年的对话。
+		 */
+		clear: { channel: "usage:clear", remote: false, why: "删的是本机会话日志，不可撤销，只在桌面端问过两遍之后才做" },
 	},
 	workspace: {
 		pick: { channel: "workspace:pick", remote: false, why: "开的是本机的文件选择对话框" },
@@ -104,6 +112,14 @@ export const METHODS = {
 		fork: { channel: "sessions:fork", remote: true },
 		remove: { channel: "sessions:remove", remote: true },
 		setArchived: { channel: "sessions:setArchived", remote: true },
+		/*
+		 * `remote: true`：和归档、重命名一样是整理，不是破坏。
+		 *
+		 * 挪错了再挪回来就是了，日志一条没少——这正是它和 `removeArchived` 的区别，后者不可撤销，
+		 * 所以不让一部可能丢失的手机发起。目标项目取自同一份同步过来的项目列表，那些路径是桌面
+		 * 那台机器上的，真正搬文件的也是它。
+		 */
+		move: { channel: "sessions:move", remote: true },
 		removeArchived: { channel: "sessions:removeArchived", remote: false, why: "批量删除且不可撤销——不该由一部可能丢失的手机发起" },
 		capabilities: { channel: "sessions:capabilities", remote: true },
 		rename: { channel: "sessions:rename", remote: true },

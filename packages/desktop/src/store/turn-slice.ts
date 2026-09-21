@@ -8,7 +8,7 @@
 
 import { translate } from "../i18n/translate.ts";
 import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
-import { prune, without } from "./derive.ts";
+import { prune, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
 import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
@@ -289,6 +289,17 @@ export function turnSlice(set: Set, get: Get) {
        * 从消息里读得出来，它本来就是这么算的（见 `cached-event.ts`）。
        */
       stopped: howItStopped(kept),
+      /*
+       * 计划也一样：它是转录里那条 `todo_write` 的投影，而撤回把那条一起拿掉了。
+       *
+       * 留着的话，转录里已经没有任何东西写过这份计划，右上角那张浮卡却还在报「第 1 步 / 共 4
+       * 步」。而且它不只是看着不对——卡片上那颗按钮此时是「继续」，点下去会往这个已经撤空的
+       * 会话里发一句「继续未完成的 N 步」，和撤回前 `ResumeRow` 的「已暂停 · 继续」是同一种错。
+       *
+       * 同样重新推导而不是置空：撤回点之前可能自己就写过一份计划，那份还在转录里，`todosFrom`
+       * 从消息里读得出来（它也认 `clearsTaskPlan`），本来就是这么算的。
+       */
+      todos: todosFrom(kept),
       sessionCache: without(get().sessionCache, sessionId),
     });
     try {
@@ -309,8 +320,9 @@ export function turnSlice(set: Set, get: Get) {
           commandRuns: before.commandRuns,
           compactions: before.compactions,
           hiccups: before.hiccups,
-          // 上面那次乐观更新把它算成了撤回后的样子；撤回没成，它也要跟着回来。
+          // 上面那次乐观更新把它们算成了撤回后的样子；撤回没成，它们也要跟着回来。
           stopped: before.stopped,
+          todos: before.todos,
         });
       }
       get().notify(translate("turn.revertFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");

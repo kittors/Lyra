@@ -21,6 +21,7 @@ import { useSide } from "../dock/index.ts";
 import { BubbleText, Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { ToolCard } from "../conversation/index.ts";
+import { toolCardFallback } from "../conversation/index.ts";
 
 export function MessageRow({ message, index }: { message: Message; index: number }) {
 	if (message.role === "toolResult") return null;
@@ -200,6 +201,8 @@ function UserRow({
 
 function AssistantRow({ message }: { message: AssistantMessage }) {
 	const toolRuns = useSide((s) => s.toolRuns);
+	// 没有运行记录的卡片说什么，取决于这一轮跑完没有——见 `conversation/tool-status.ts`。
+	const turnRunning = useSide((s) => s.running);
 	/** What it actually said, for the copy button. Tool calls and thinking are not the answer. */
 	const spoken = message.content
 		.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")
@@ -236,7 +239,7 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 						toolName={block.name}
 						args={block.arguments}
 						summary={run?.summary ?? block.name}
-						status={run?.status ?? (message.stopReason === "pending" ? "running" : "error")}
+						status={run?.status ?? toolCardFallback(message.stopReason, turnRunning)}
 						result={run?.result}
 						startedAt={run?.startedAt}
 					/>

@@ -250,7 +250,7 @@ const extras = {
 		},
 	},
 	
-	setWindowTheme: (colors: { color: string; symbolColor: string }) =>
+	setWindowTheme: (colors: { color: string; headerColor: string; symbolColor: string }) =>
 		ipcRenderer.send("window:theme", colors),
 	onFullScreenChange: (handler) => {
 		const listener = (_e: Electron.IpcRendererEvent, full: boolean) => handler(full);

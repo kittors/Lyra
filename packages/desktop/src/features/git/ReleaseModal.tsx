@@ -1,4 +1,5 @@
-import { Input, Textarea } from "../../ui/inputs/NativeField.tsx";
+import { Input } from "../../ui/inputs/NativeField.tsx";
+import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import {
 	Check,
 	CheckCircle2,
@@ -281,7 +282,8 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 										</button>
 									</div>
 
-									<div className="mt-2 h-7">{selectedType === "custom" ? <Input aria-label={t("release.customVersion")} value={customVersion} onChange={(event) => setCustomVersion(event.target.value)} placeholder="x.y.z" className="h-7 w-full rounded-lg border border-line bg-input px-3 font-mono text-detail" /> : <p className="flex h-7 items-center text-caption text-ink-faint">{selectedType === "patch" ? t("release.patchHint") : selectedType === "minor" ? t("release.minorHint") : t("release.majorHint")}</p>}</div>
+									{/* 和别处的文字框同一颗胶囊，紧凑那一档；行高改由它自己撑，外层不再钉死 28px。 */}
+									<div className="mt-2 min-h-7">{selectedType === "custom" ? <Input aria-label={t("release.customVersion")} value={customVersion} onChange={(event) => setCustomVersion(event.target.value)} placeholder="x.y.z" data-ly-field="" className="ly-field ly-field-compact w-full font-mono" /> : <p className="flex h-7 items-center text-caption text-ink-faint">{selectedType === "patch" ? t("release.patchHint") : selectedType === "minor" ? t("release.minorHint") : t("release.majorHint")}</p>}</div>
 								</div>
 							</div>
 
@@ -352,11 +354,12 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 										<Markdown text={notes || t("release.notesEmpty")} />
 									</Scroller>
 								) : (
-									<Textarea
+									<TextArea
 										value={notes}
-										onChange={(e) => { notesRevision.current++; setNotes(e.target.value); }}
+										onChange={(next) => { notesRevision.current++; setNotes(next); }}
 										aria-label={t("release.notesBody")}
-										className="block h-[180px] w-full rounded-xl border border-line-soft bg-card p-3.5 text-detail font-mono text-ink focus:border-primary focus:outline-none resize-none leading-relaxed"
+										shell="h-[180px]"
+										className="ly-textarea-mono"
 										placeholder={t("release.notesPlaceholder")}
 									/>
 								)}

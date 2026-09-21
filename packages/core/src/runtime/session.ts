@@ -54,7 +54,7 @@ import { stripStaleHandles } from "./model-switch.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { SessionTitle } from "./session-title.ts";
-import { TODOS_KEY } from "../tools/todo.ts";
+import { TODOS_KEY, todosFromLog } from "../tools/todo.ts";
 
 export interface AgentSessionOptions {
 	cwd: string;
@@ -963,6 +963,18 @@ export class AgentSession {
 		if (!(await this.log.truncateFrom(messageIndex))) {
 			throw new Error(`Failed to truncate message at index ${messageIndex}`);
 		}
+		/*
+		 * 手边这份清单也要跟着回到撤回点。
+		 *
+		 * 清单写在两处——日志里那条 `todo_write` 的结果，和这份给这一轮用的状态。截断只动得到
+		 * 前者，后者原样留着，于是一份转录里已经没人写过的计划继续替续跑投票：下一轮撞上步数
+		 * 上限时，`continueWhileWorkRemains` 会照着它说「清单里还有 3 项」，再自花两百步。
+		 *
+		 * 从截断后的日志重新读，而不是一律清空：撤回点之前可能自己就写过一份，那份还算数。
+		 */
+		const plan = todosFromLog(this.log.messages);
+		if (plan.length > 0) this.can.state.set(TODOS_KEY, plan);
+		else this.can.state.delete(TODOS_KEY);
 		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
 	}
 

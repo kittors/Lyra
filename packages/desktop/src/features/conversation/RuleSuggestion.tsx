@@ -16,7 +16,7 @@
  * （第三个是节流，在 core 的 `OfferBudget` 里：一个会话最多三次，连着拒两次就此打住。）
  */
 
-import { Textarea } from "../../ui/inputs/NativeField.tsx";
+import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useEffect, useState } from "react";
 import { ChevronDown, FolderCheck, Pencil, Sparkles, UserCheck, X } from "lucide-react";
 import { bridge } from "../../services/host.ts";
@@ -125,12 +125,15 @@ export function RuleSuggestion() {
 
         {/* 展开的是完整文件，包括 frontmatter：批准的和写进去的必须是同一段文本。 */}
         {open && (
-          <Textarea
+          <TextArea
             value={draft ?? ""}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={setDraft}
             spellCheck={false}
+            resizable
             rows={Math.min(14, (draft ?? "").split("\n").length + 1)}
-            className="ly-rule-excerpt mt-1 w-full resize-y rounded p-2 font-mono text-detail leading-relaxed outline-none"
+            /* 代码主题的底色留在外壳上：这一段是要当文件读的，跟它上面那枚 `<code>` 同一个底。 */
+            shell="ly-rule-excerpt mt-1"
+            className="ly-textarea-mono"
           />
         )}
 

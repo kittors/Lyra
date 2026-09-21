@@ -84,6 +84,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 
 	return (
 		<div
+			// 认它不靠样式：这张卡片什么时候在、什么时候该消失，是 `e2e/revert-empties-session-probe.ts` 要量的东西。
+			data-ly-task-list={placement}
 			className={
 				placement === "floating"
 					? "ly-glass pointer-events-auto w-full overflow-hidden rounded-[11px] border border-line-soft shadow-lg shadow-black/[0.06]"

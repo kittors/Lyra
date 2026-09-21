@@ -176,12 +176,14 @@ export function BranchesView({
                 });
               }}
             >
+              {/* 和菜单、设置页里每一个文字框同一颗胶囊，紧凑那一档正好是这一行的 26px。 */}
               <Input
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t("branches.namePlaceholder")}
-                className="h-[26px] min-w-0 flex-1 rounded-md border border-line bg-input px-2 text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint"
+                data-ly-field=""
+                className="ly-field ly-field-compact min-w-0 flex-1"
               />
               <button
                 type="submit"

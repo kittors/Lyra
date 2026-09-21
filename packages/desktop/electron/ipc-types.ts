@@ -49,6 +49,7 @@ import type { TrayCommand } from "./tray-menu.ts";
 export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
 import type { ExtractedText } from "@lyra/core";
+import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
@@ -262,6 +263,15 @@ export interface LyraApi {
 		 * cheap afterwards. The page does its own slicing; see `usage-aggregate.ts`.
 		 */
 		scan(): Promise<UsageScan>;
+		/** 这些日志在磁盘上占了多少，有几条会话，最早和最晚那条是哪天。 */
+		storage(): Promise<StorageUse>;
+		/**
+		 * 把一段时间里最后活动过的会话删掉，连同它们的聊天记录。
+		 *
+		 * `{ from: null, to: null }` 是全部。正在跑的会话跳过并在 `skipped` 里报出来——不打断一个
+		 * 正在写东西的 agent，也不假装它被删掉了。**没有回收站**，调用方负责在此之前问过。
+		 */
+		clear(range: ClearRange): Promise<ClearResult>;
 	};
 	workspace: {
 		/**
@@ -299,6 +309,16 @@ export interface LyraApi {
 		remove(projectId: string, sessionId: string): Promise<void>;
 		/** Move a session in or out of the archive. Returns the whole list, already updated. */
 		setArchived(projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta[]>;
+		/**
+		 * 把会话归到另一个项目下：日志文件跟着搬，不只是改个名字。
+		 *
+		 * 答复分得比 `boolean` 细，因为三种失败要对用户说三句不同的话：`running` 是「先让它停下来」，
+		 * `gone` 是「这条对话已经不在了」，`failed` 带着原话（多半是磁盘那边的原因）。
+		 */
+		move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<
+			| { ok: true; meta: SessionMeta }
+			| { ok: false; reason: "running" | "gone" | "failed"; message?: string }
+		>;
 		/** Delete every archived session at once. Returns the remaining list. */
 		removeArchived(): Promise<SessionMeta[]>;
 		capabilities(sessionId: string): Promise<AgentCapabilities | null>;
@@ -697,8 +717,11 @@ export interface LyraApi {
 	 * Two things depend on it: the OS-drawn controls on Windows and Linux, and — on every
 	 * platform — the window's own backing colour, which is what a fast resize exposes before
 	 * the renderer catches up.
+	 *
+	 * 两个底色，不是一个。`color` 是窗口自己那层底，`headerColor` 是页面顶上那条 header 的底——
+	 * 系统画的那三颗按钮落在 header 里，所以它们身下那块要跟 header 同色，而不是跟窗口同色。
 	 */
-	setWindowTheme(colors: { color: string; symbolColor: string }): void;
+	setWindowTheme(colors: { color: string; headerColor: string; symbolColor: string }): void;
 	/**
 	 * Native full screen, reported by the window because the page cannot detect it.
 	 *

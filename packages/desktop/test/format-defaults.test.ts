@@ -3,7 +3,7 @@
  *
  * It is a copy because it has to be: importing a *value* from `@lyra/core` into this bundle drags
  * the native modules in with it and the build fails. Types are free, values are not — the same
- * constraint that produced `code-defaults.ts`. What a copy cannot do is notice when the original
+ * constraint that produced `appearance-defaults.ts`. What a copy cannot do is notice when the original
  * changes, so this notices for it.
  */
 

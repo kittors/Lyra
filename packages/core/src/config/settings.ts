@@ -76,6 +76,23 @@ export interface AppearanceSettings {
 	/** Syntax highlighting theme for dark mode. */
 	codeDarkTheme?: string;
 	uiFontSize: number;
+	/**
+	 * 界面文字的基准字重。
+	 *
+	 * 字号一直是可调的，字重不是——而这两件事在中文界面上是一回事：PingFang 的 Regular 在深色底
+	 * 上会发虚，同一个界面在浅色底上又嫌它重。屏幕、字体、视力各不相同，「多粗才读得舒服」没有
+	 * 一个对所有人成立的答案。
+	 *
+	 * 是*基准*而不是唯一那个值：界面上的层级由「比基准重一档」「重两档」搭出来（见 `tokens.css`
+	 * 里的 `--font-weight-*`），所以调这一个数会把整套层级一起搬走，标题始终比正文重。层级不会
+	 * 因为调了字重就塌掉，这是它和「把所有文字设成同一个字重」的区别。
+	 *
+	 * 代码有它自己的 `codeFontWeight`，不跟这个走：等宽字体的字重是另一个判断（见那条注释）。
+	 *
+	 * 可选。没有这一项的老配置文件跟着新默认走，不是停在 400——界面一直偏细是要修的那个问题，
+	 * 而不是要保住的那个现状。见 `DEFAULT_APPEARANCE` 那条。
+	 */
+	uiFontWeight?: number;
 	codeFontSize: number;
 	/**
 	 * How code is set, beyond which family it is in.
@@ -94,6 +111,45 @@ export interface AppearanceSettings {
 	codeLineHeight?: number;
 	/** In `em`, so it tracks the font size rather than fighting it. */
 	codeLetterSpacing?: number;
+	/**
+	 * 单反引号那一小块——`像这样`——的配色从哪儿来。
+	 *
+	 * 围栏代码块早就跟着语法主题走了，行内代码没有：它一直是界面自己的 `--color-card-hover` 打底、
+	 * `--color-ink` 写字，也就是一块灰底黑字。而一段讲代码的回答里，分支名、提交号、文件路径全都
+	 * 是行内代码——它们是这段话里最该一眼认出来的东西，却是最没有颜色的。
+	 *
+	 * 三条来源，不是三套颜色：
+	 *
+	 *   `app`     跟界面走，也就是它一直以来的样子。底色随背景和对比度一起动，任何主题下都成立。
+	 *   `syntax`  跟语法高亮主题走。选了 Solarized，句子里那块也跟着暖起来，和它下面的代码块同源。
+	 *   `custom`  下面那四个颜色。
+	 *
+	 * 默认是 `app`：装上就变个样子不是升级，是惊吓。
+	 */
+	inlineCode?: "app" | "syntax" | "custom";
+	/**
+	 * `custom` 时用的四个颜色，深浅各一套。
+	 *
+	 * 分两套而不是一套，和上面的 `lightBackground` / `darkBackground` 是同一个道理：一个在白底上
+	 * 好看的底色到了深色主题上就是一块亮斑。跟随系统的人一天之内会经过两种主题，两边都得能看。
+	 *
+	 * 默认值取的是 `app` 模式此刻算出来的那两个色，所以从「跟界面」切到「自定义」的那一下画面
+	 * 不跳——先原样接管，再由着人改。
+	 */
+	inlineCodeLightBg?: string;
+	inlineCodeLightFg?: string;
+	inlineCodeDarkBg?: string;
+	inlineCodeDarkFg?: string;
+	/**
+	 * 给它描一圈边。
+	 *
+	 * 为的是「只要文字变色、不要底色」这一种配法——不少人就喜欢那样，把底色调成和页面一样，句子
+	 * 里只剩一截彩色的字。那时候行内代码和正文之间没有任何界线，`git` 和它前面的「跑一下」会糊成
+	 * 一个词。描边是这种配法的退路，所以是个开关而不是固定行为。
+	 *
+	 * 画成 inset 的阴影而不是 border，因为 border 会把它撑高一圈：开关一次，整段话的行距跟着动。
+	 */
+	inlineCodeBorder?: boolean;
 	/** 0–100. Scales the distance between surface layers and text. */
 	contrast: number;
 	/**
@@ -169,10 +225,39 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	codeDarkTheme: "lyra-dark",
 	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
 	uiFontSize: 14,
+	/*
+	 * 500，不是 Regular。
+	 *
+	 * 界面一直是 400 画的，而在这个字体和这套渲染下它偏细：默认字体栈是 PingFang，加上 `body` 上
+	 * 那句 `-webkit-font-smoothing: antialiased`——macOS 上那是把字画细的那个开关，Mail 和系统自己
+	 * 也这么画，代价就是 Regular 在深色底上发虚。
+	 *
+	 * 换成 Medium 之后层级会挤一挤：PingFang 只到 Semibold，600 就是天花板，所以标题那两档
+	 * （+100、+200）在它上面都落到 600，正文和标题之间只剩一档而不是两档。这是认过的账，不是漏掉
+	 * 的——层级本来就不只靠字重扛：字号有七档，墨色有三级，这两样一点没动。装了可变字体的人则真能
+	 * 吃到 600 和 700。
+	 *
+	 * 嫌重的人把它调回 400 就是原来的样子，一项设置的事。
+	 */
+	uiFontWeight: 500,
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
 	codeLetterSpacing: 0,
+	// 跟界面走，也就是行内代码一直以来的样子；见 `inlineCode`。
+	inlineCode: "app",
+	/*
+	 * 这四个是 `app` 模式此刻算出来的颜色，抄成定值。
+	 *
+	 * 浅色的底是 `--color-ink` 5% 压在白底上，深色的是 6.2% 压在 #171717 上——也就是
+	 * `--color-color-hover` 那两个值。切到「自定义」的第一下因此没有任何变化，改的人是从现状开始
+	 * 改，而不是先被扔到一套陌生的颜色上再往回找。
+	 */
+	inlineCodeLightBg: "#F4F4F5",
+	inlineCodeLightFg: "#1C1C21",
+	inlineCodeDarkBg: "#242424",
+	inlineCodeDarkFg: "#EDEDED",
+	inlineCodeBorder: false,
 	contrast: 60,
 	// What the app has always rendered at; see `contentWidth`.
 	contentWidth: 640,
@@ -334,6 +419,20 @@ export interface Settings {
 	 */
 	version: 1;
 	providers: ProviderConfig[];
+	/**
+	 * 每个见过的供应商最后一次叫什么名字——**包括已经删掉的那些**。
+	 *
+	 * 用量是按 `providerId` 记的账，名字却只活在 `providers` 里。删掉一个供应商，它花过的钱一分
+	 * 不少地留在日志里，用量页上却只剩 `provider-mttnetnn` 这么一串——账还在，是谁花的没了。而那
+	 * 恰恰是看这一页时唯一想知道的事。
+	 *
+	 * 所以每次保存设置都把当前这批 id→名字合并进来（`rememberProviderNames`），**只增不删**：一个
+	 * 供应商从 `providers` 里消失，它在这张表里的那一行留着。用量页也写这张表——对早就删掉、名字
+	 * 已经丢了的那些，唯一还知道它是谁的人是用户自己。
+	 *
+	 * 一个 id 一行，几十字节。就算攒上一百个也还是几 KB，不值得为它写清理。
+	 */
+	providerNames?: Record<string, string>;
 	mcpServers: McpServerConfig[];
 	projects: ProjectEntry[];
 	/** Pinned session IDs across projects and loose chats. */
@@ -868,6 +967,10 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			pluginRegistries: migrateRegistries(parsed.pluginRegistries ?? [DEFAULT_PLUGIN_REGISTRY]),
 			skillRegistries: migrateRegistries(parsed.skillRegistries ?? [DEFAULT_SKILL_REGISTRY]),
 			providers: (parsed.providers ?? []).map((provider) => ({ ...provider, models: provider.models.map((model) => withCatalogDefaults(provider, model)) })),
+			// 只留 id→非空字符串那些行：这张表会被直接印到用量页上，一行 `undefined` 比没有那一行更糟。
+			providerNames: Object.fromEntries(
+				Object.entries(parsed.providerNames ?? {}).filter(([id, name]) => id && typeof name === "string" && name.trim()),
+			),
 			mcpServers: parsed.mcpServers ?? [],
 			projects: parsed.projects ?? [],
 			alwaysAllow: parsed.alwaysAllow ?? [],
@@ -925,6 +1028,25 @@ export function migrateAppearance(appearance: AppearanceSettings): AppearanceSet
  * nothing to spend it on, and leaving it behind would mean deleting a provider does not delete its
  * credential.
  */
+/**
+ * 把这批供应商的名字记进档案，一行都不删。
+ *
+ * 只增不删就是全部的意思：这张表存在的理由，就是活过 `providers` 里的那个删除动作。改名照样覆盖
+ * ——改完之后用量页该显示新名字——但 id 一旦进来就不再出去。
+ *
+ * 纯函数，幂等，所以落盘（`saveSettings`）和内存（desktop 的 `applySettings`）两头都调它：只写
+ * 一头的话，删掉一个供应商之后用量页要等到下次启动才认得出它是谁。
+ *
+ * 没名字的不记。一个刚点「添加」、名字还没填的供应商不该在档案里占一行叫「」。
+ */
+export function rememberProviderNames(settings: Pick<Settings, "providers" | "providerNames">): Record<string, string> {
+	const known = { ...settings.providerNames };
+	for (const provider of settings.providers) {
+		if (provider.name?.trim()) known[provider.id] = provider.name;
+	}
+	return known;
+}
+
 export async function saveSettings(settings: Settings): Promise<void> {
 	const keys: Record<string, string> = {};
 	for (const provider of settings.providers) keys[providerSecretId(provider.id)] = provider.apiKey ?? "";
@@ -936,6 +1058,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
 	const tmp = `${path}.${process.pid}.tmp`;
 	const scrubbed: Settings = {
 		...settings,
+		// 密钥跟着供应商一起走，名字不跟着走——见 `providerNames`。
+		providerNames: rememberProviderNames(settings),
 		providers: settings.providers.map((provider) => ({ ...provider, apiKey: "" })),
 	};
 	await writeFile(tmp, JSON.stringify(scrubbed, null, 2), "utf8");

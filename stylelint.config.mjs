@@ -171,6 +171,7 @@ export default {
 			 */
 			files: [
 				"**/styles/scroll.css",
+				"**/styles/fields.css",
 				"**/styles/marquee.css",
 				"**/styles/thinking-ticker.css",
 				"**/styles/markdown.css",

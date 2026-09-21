@@ -18,6 +18,7 @@
 import { Check, X } from "lucide-react";
 import { translate } from "../../../i18n/translate.ts";
 import { Textarea } from "../../../ui/inputs/NativeField.tsx";
+import { useFieldFade } from "../../../ui/inputs/useFieldFade.ts";
 import { useEffect, useRef } from "react";
 import { OverlayScrollbar } from "../../../ui/scroll/OverlayScrollbar.tsx";
 
@@ -43,6 +44,8 @@ export function MessageEditor({
 	maxHeight?: number;
 }) {
 	const box = useRef<HTMLTextAreaElement>(null);
+	const scroller = useRef<HTMLDivElement>(null);
+	useFieldFade(box, scroller);
 
 	// Grow to fit, so a long message is not edited through a three-line window.
 	useEffect(() => {
@@ -54,7 +57,7 @@ export function MessageEditor({
 
 	return (
 		<div className="ly-composer ly-composer-edit w-full rounded-[18px] border border-line-soft bg-transparent">
-			<div className="ly-scroll-host relative">
+			<div ref={scroller} className="ly-scroll-host relative">
 				<Textarea
 					ref={box}
 					autoFocus
@@ -73,7 +76,7 @@ export function MessageEditor({
 					}}
 					rows={1}
 					style={{ maxHeight }}
-					className="block w-full resize-none overflow-y-auto bg-transparent text-body leading-relaxed text-ink"
+					className="ly-field-fade block w-full resize-none overflow-y-auto bg-transparent text-body leading-relaxed text-ink"
 				/>
 				{/* Same treatment as the composer: a long edit scrolls, so it needs a thumb. */}
 				<OverlayScrollbar viewport={box} orientation="vertical" />

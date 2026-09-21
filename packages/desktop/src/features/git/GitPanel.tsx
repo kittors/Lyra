@@ -29,6 +29,7 @@ import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useNarrow } from "../../ui/hooks/useNarrow.ts";
 import { CommitPushDialog } from "./CommitPushDialog.tsx";
+import { useCommitWork } from "./commit-work.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
@@ -68,6 +69,8 @@ function SyncControl({
 	word,
 	state,
 	running,
+	cancellable = true,
+	busyLabel,
 	disabled,
 	roomForWords,
 	onClick,
@@ -78,6 +81,16 @@ function SyncControl({
 	word: string;
 	state: SyncButton;
 	running: boolean;
+	/**
+	 * 转着的这一下能不能叫停。
+	 *
+	 * 远端的三件事可以——它们跨网络，可能卡住，再按一次就是取消。本地那件不行：提交已经落在磁盘
+	 * 上的那一刻起没有中途可言，模型写到一半的句子也叫不回来。区别写在按钮上：能停的悬停变成
+	 * 一个叉，不能停的就一直转，而按下去是**回到弹窗**——那里有正在发生的事的全貌。
+	 */
+	cancellable?: boolean;
+	/** 停不了的那一下在做什么：「正在提交…」。没有就退回 `state.tip`。 */
+	busyLabel?: string;
 	disabled: boolean;
 	roomForWords: boolean;
 	/** 探针用的稳定抓手——见上面那段注释。 */
@@ -86,7 +99,7 @@ function SyncControl({
 }) {
 	const { t } = useI18n();
 	const [hovered, setHovered] = useState(false);
-	const label = running ? t("git.cancelAction", { word }) : state.tip;
+	const label = running ? (cancellable ? t("git.cancelAction", { word }) : (busyLabel ?? state.tip)) : state.tip;
 	/*
 	 * 给探针一个不随文案走的抓手。
 	 *
@@ -94,7 +107,7 @@ function SyncControl({
 	 * 仓库状态和界面语言一起变。探针按文字找它，换个仓库就找不着了（第一版正是如此，报出来像是
 	 * 「提交入口不见了」）。
 	 */
-	const currentIcon = running ? (hovered ? <X size={12} strokeWidth={2} className="text-ink" /> : <ActionSpinner size={12} />) : icon;
+	const currentIcon = running ? (hovered && cancellable ? <X size={12} strokeWidth={2} className="text-ink" /> : <ActionSpinner size={12} />) : icon;
 
 	// Words only for the emphasised control, only when it is idle, and only when the row is wide
 	// enough that spelling it out does not push the branch name out of view.
@@ -102,6 +115,8 @@ function SyncControl({
 		return (
 			<span
 				data-ly-sync={mark}
+				/* 「这颗在忙」，读得出来的那一份——转圈是一个 svg，从外面认它得靠 class。 */
+				data-ly-busy={running ? (cancellable ? "cancellable" : "working") : undefined}
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => setHovered(false)}
 				className="inline-flex"
@@ -394,6 +409,13 @@ export function GitPanel() {
   const token = useRef<string | null>(null);
 
   const pushPopover = usePopover();
+  /*
+   * 这一次提交的现场，存在面板上而不是弹窗里。
+   *
+   * 弹窗关掉就卸载，而「生成一句提交说明」要两三秒、「提交并推送」更久——状态跟着弹窗走，等于
+   * 一关就把正在发生的事从界面上抹掉。见 `commit-work.ts`。
+   */
+  const commitWork = useCommitWork(cwd);
 
   const remote = useCallback(
     async (kind: "pull" | "push" | "fetch", call: (id: string) => Promise<{ ok: boolean; error?: string; cancelled?: boolean }>) => {
@@ -666,13 +688,25 @@ export function GitPanel() {
           roomForWords={roomForWords}
           onClick={() => void remote("pull", (id) => bridge.git.pull(cwd, id))}
         />
+        {/*
+         * 提交的入口，也是提交这件事唯一的进度条。
+         *
+         * 它转圈的理由有两个，语义正相反：推送在跑，按一下是**取消**；提交或生成在跑，按一下是
+         * **打开弹窗**——本地提交没有中途叫停这回事，而正在发生什么只有弹窗里写得下。所以
+         * `cancellable` 跟着 `sync` 走，不跟着「在不在转」走。
+         *
+         * `busy` 那一条也要让开：提交是走 `act` 的，它自己就会把 `busy` 置上，照旧禁用等于人刚
+         * 按下提交，通往这件事的唯一入口就灰掉了，而且一灰就是整段提交的时间。
+         */}
         <SyncControl
           mark="push"
           icon={<ArrowUpFromLine size={12} strokeWidth={1.9} />}
           word={plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream" ? t("git.publish") : t("common.push")}
           state={plan.push}
-          running={sync === "push"}
-          disabled={busy || (sync !== null && sync !== "push")}
+          running={sync === "push" || commitWork.active}
+          cancellable={sync === "push"}
+          busyLabel={commitWork.generating ? t("commit.generating") : t("commit.committing")}
+          disabled={(busy && !commitWork.active) || (sync !== null && sync !== "push")}
           roomForWords={roomForWords}
           onClick={(e) => {
             if (sync === "push") {
@@ -692,6 +726,7 @@ export function GitPanel() {
             removedCount={status?.unstaged.reduce((acc, f) => acc + f.removed, 0) ?? 0}
             busy={busy}
             running={sync !== null}
+            work={commitWork}
             /* 同一份数目，和工具条上那颗推送按钮读的是同一处——两边不该各算各的。 */
             unpushed={plan.push.count ?? 0}
             pushTip={plan.push.tip}

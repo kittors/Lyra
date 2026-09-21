@@ -1,5 +1,5 @@
 import { errorResult } from "../agent/tool-run.ts";
-import type { Tool, ToolContext, ToolResult } from "../types.ts";
+import type { Message, Tool, ToolContext, ToolResult } from "../types.ts";
 
 export interface TodoItem {
 	content: string;
@@ -12,6 +12,26 @@ export const TODOS_KEY = "todos";
 
 export function readTodos(state: Map<string, unknown>): TodoItem[] {
 	return (state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [];
+}
+
+/**
+ * 转录里最后写下的那份清单。
+ *
+ * 和 `readTodos` 读的是同一件事的两种记法：运行时状态是这一轮手边的那份，日志才是原本。平时
+ * 两者一致——每次 `todo_write` 同时写了两边。会分家的只有一处：撤回把日志截短，却动不到状态，
+ * 于是一份没人写过的清单继续替续跑投票（见 `Session.revert` 与 `continueWhileWorkRemains`）。
+ *
+ * 倒着找：`todo_write` 每次发的都是整张清单，最新那份是唯一算数的，它前面的都是它的草稿。
+ */
+export function todosFromLog(messages: Message[]): TodoItem[] {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (message.role === "user" && message.clearsTaskPlan === true) return [];
+		if (message.role !== "toolResult" || message.toolName !== todoTool.name || message.isError) continue;
+		const details = message.details as { kind?: string; todos?: TodoItem[] } | undefined;
+		if (details?.kind === "todo" && Array.isArray(details.todos)) return details.todos;
+	}
+	return [];
 }
 
 interface TodoArgs {

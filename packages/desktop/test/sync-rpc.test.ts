@@ -268,6 +268,8 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"sessions.remove": ["p1", "s1"],
 		"sessions.capabilities": ["s1"],
 		"sessions.setArchived": ["p1", "s1", true],
+		// `cwd` 走的是 `path` 规格，得是一条真的绝对路径；它是不是这台机器认识的目录由 handler 自己问。
+		"sessions.move": ["p1", "s1", "/tmp/p", "目标项目"],
 		"sessions.rename": ["p1", "s1", "标题"],
 		"sessions.compact": ["s1"],
 		"sessions.contextBreakdown": ["s1"],

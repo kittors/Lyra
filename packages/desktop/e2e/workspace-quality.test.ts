@@ -143,7 +143,10 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	await shot("turn-delivery-diff");
 	assert.equal(await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').getBoundingClientRect().height`),row.height);
 	assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]').getBoundingClientRect().bottom <= document.querySelector('[data-delivery-file]').getBoundingClientRect().top`), "the preview must stay above its file row");await escape();
-	await click('[aria-label="查看实现与验证记录"]');await until(`document.querySelector('[data-dock-pane="file"]')?.innerText.includes('命令与验证证据')`);
+	// 这颗按钮现在带着「报告」两个字，可读名就是那两个字，那句长说明退到了 tooltip 上——
+	// 从前它是颗光图标的 `IconButton`，长说明只好去当 `aria-label`。同卡片的另外两颗一直是
+	// 这么找的。
+	await click('[data-turn-delivery] button[data-ly-tip="查看实现与验证记录"]');await until(`document.querySelector('[data-dock-pane="file"]')?.innerText.includes('命令与验证证据')`);
 	await shot("delivery-report-preview");await click('[data-dock-pane="file"] button[aria-label^="关闭"]');
 	await click('[aria-label="面板"]');await until(`document.querySelector('[role="menuitem"]')`);
 	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.innerText.split('\\n')[0]==='任务');if(!e)throw new Error('任务菜单不存在');e.setAttribute('data-qa-task','');})()`);await click('[data-qa-task]');

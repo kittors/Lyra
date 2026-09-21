@@ -34,8 +34,14 @@ const PREVIEW_FILES = 3;
  * the whole surface would jump a row and redraw, which from the outside is the preview vanishing.
  * Switching waits exactly as long as opening does: cross that row on the way into the preview and
  * the switch is cancelled before it ever happens.
+ *
+ * Long, then — but a full second was past where a wait still reads as a wait. A row is 36px, so
+ * crossing one takes well under a tenth of a second even slowly; everything above that is spent
+ * on a pointer that has already stopped. And a pointer that has stopped and got nothing back for
+ * a second reads as a row with nothing to show, so the hand moves — which starts the count over.
+ * Waiting longer is how you stop it opening at all.
  */
-const HOVER_OPEN_MS = 1000;
+const HOVER_OPEN_MS = 700;
 /**
  * And how long it has to mean leaving.
  *
@@ -87,6 +93,17 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	const schedule = (next: Hovered, delay: number) => { clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(() => setHover(next), delay); };
 	const keepHover = () => clearTimeout(hoverTimer.current);
 	const closeHover = () => schedule(null, HOVER_CLOSE_MS);
+	/**
+	 * 还在卡片里，但已经不在任何文件行上——那也算离开。
+	 *
+	 * 委托给整张卡片而不是逐行挂 `onMouseLeave`，理由和下面 `onMouseLeave` 那条一样：行与行
+	 * 之间、行与浮层之间的每一次跨越，逐行问都会答「离开了」。这里问的是另一件事——指针此刻
+	 * 压着的那个元素，到底还属不属于某一行。
+	 */
+	const offRows = (event: { target: EventTarget | null }) => {
+		if (event.target instanceof Element && event.target.closest("[data-delivery-file]")) return;
+		closeHover();
+	};
 	/** Gone now, and no pending intent left to bring it back a moment later. */
 	const hideHover = () => { clearTimeout(hoverTimer.current); setHover(null); };
 	const undo = async (path?: string) => {
@@ -168,14 +185,39 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 * while the pointer was still inside the thing it belongs to. Asked once, of the card, it
 		 * means what it says. The wrapper only exists to carry it: the handler belongs to the whole
 		 * card, and a `section` is not something a pointer listener may hang on.
+		 *
+		 * 只是卡片也不等于那一行。从文件行往上抬到「已编辑 N 个文件」那一排、抬到「报告」「撤销」
+		 * 「审核」上、或者落在行与卡片边框之间那几 px 内衬上——都已经出了它所预览的那一行，而一个
+		 * 都没出卡片。于是这条 `onMouseLeave` 一次也不响，预览就一直挂着，指着一个指针早就离开的
+		 * 行：屏幕上是一块从卡片底下长出来、不对应任何东西的面板，而它自己正压在那排按钮身上。
+		 *
+		 * 所以边界之外交给 `onMouseLeave`，边界之内改成问「现在压着的还是某一行吗」：`mouseover`
+		 * 会冒泡，卡片里每一次跨元素都经过这里。行与行、行与浮层之间那点空档由 `HOVER_CLOSE_MS`
+		 * 接住——跨过去只要几毫秒，远短于它；而往浮层去的那一路本来就是这么走的，浮层 portal 到
+		 * `<body>`，出卡片的那一刻这条延迟关闭早就在跑了，进去之后 `keepHover` 再把它取消。
+		 *
+		 * 键盘一起：焦点落到卡片头上的按钮时，预览同样要让开——它开在那些按钮上面。
 		 */}
-		<div className="mt-3" onMouseLeave={closeHover}>
+		<div className="mt-3" onMouseLeave={closeHover} onMouseOver={offRows} onFocus={offRows}>
 			<section data-turn-delivery aria-label={t("delivery.fileChanges")} className="rounded-xl border border-line bg-card/30 text-label">
 				<div className="flex min-h-16 flex-wrap items-center gap-3 px-3 py-3">
 					<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card-hover text-ink-muted"><FileDiff size={21} strokeWidth={1.7} /></span>
 					{/* 一行写不下就省略，不折行：折了这张卡就长高一截，而那一行字本来就是标题不是正文。 */}
 					<div className="min-w-0 flex-1"><p className="truncate font-medium text-ink">{translate("delivery.editedN", { n: files.length })}</p><Counts added={added} removed={removed} /></div>
 					<div className="ml-auto flex shrink-0 items-center gap-1">
+						{/*
+						 * 三颗都带字，都不画框，都是同一颗 `Button`。
+						 *
+						 * 「报告」原本是颗 `IconButton`：22px、`rounded-md`、静止时连底色都没有，而它旁边
+						 * 的「审核」是 26px、`rounded-lg`、描着一圈线。同一行上并排站着两种高度、两种圆角、
+						 * 两种轮廓，做的却是同一类事——`Button` 开头骂的就是这个：基线对不上的一排控件，读起
+						 * 来像两条工具栏推在了一起。矮的那颗还没有范围线，于是它根本不像个能按的东西，像张
+						 * 卡片顺手放的一个装饰图标。
+						 *
+						 * 不画框而不是都画上：`subtle` 就是为成排的动作留的，三颗描边挤在卡片右上角，等于在
+						 * 这张卡片的头上又画了一排小格子。字补回来是因为那个文档图标认不出来——猜不到它打开
+						 * 的是这一轮的实现与验证记录，而这一行没有别的东西会提。tooltip 留那句更长的说明。
+						 */}
 						{/*
 						 * Offered only when it can actually be done.
 						 *
@@ -189,10 +231,10 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 						 * Undoing one file at a time is on the hover preview, where the same
 						 * condition is per file and does carry its reason.
 						 */}
-						{report && <IconButton size="sm" icon={<FileText size={14} />} label={t("delivery.openReport")} onClick={() => openInFilePane(report)} />}
+						{report && <Button size="sm" variant="subtle" icon={<FileText size={14} />} label={t("delivery.openReport")} onClick={() => openInFilePane(report)}>{t("common.report")}</Button>}
 						{files.every((file) => file.canUndo) &&
 							<Button size="sm" variant="subtle" icon={<Undo2 size={14} />} loading={undoing} label={t("delivery.revertThis")} onClick={() => askUndo()}>{t("common.revert")}</Button>}
-						<Button size="sm" icon={<Files size={14} />} label={t("delivery.reviewAll")} onClick={() => openTurn()}>{t("common.review")}</Button>
+						<Button size="sm" variant="subtle" icon={<Files size={14} />} label={t("delivery.reviewAll")} onClick={() => openTurn()}>{t("common.review")}</Button>
 					</div>
 				</div>
 				<div className="px-1 pb-1">
@@ -228,6 +270,16 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		 */}
 		{hover && <Popover anchor={hover.anchor} onClose={hideHover} role="group" label={t("delivery.previewChanges")} placement="top" align="start" width={hover.anchor.offsetWidth} maxHeight={420}
 			surface="panel" onMouseEnter={keepHover} onMouseLeave={closeHover}
+			/*
+			 * 这一颗仍是 `IconButton`，和卡片头上那三颗不一样——不是漏改的。
+			 *
+			 * 它要在自己灰掉的时候说出为什么，而这正是 `explainDisabled` 干的事，`Button` 没有：
+			 * 禁用的按钮收不到指针事件，`data-ly-tip` 那条 tooltip 永远打不开，剩一个灰块。
+			 * 「这个文件后来被别的东西写过，撤不了了」恰恰是悬在它上面的人想知道的那句话。
+			 *
+			 * 另一半理由是这一行本来就不是一排动作：文件名、增删数，然后一颗操作，而浮层只有文件
+			 * 行那么宽。给它补上字，先被挤掉的是文件名。
+			 */
 			header={<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label"><FileName path={relative(hover.file.path)} /><Counts added={hover.file.added} removed={hover.file.removed} /><IconButton size="sm" icon={<Undo2 size={14} />} label={hover.file.canUndo ? t("delivery.revertOne") : t("delivery.cannotRevert")} explainDisabled disabled={!hover.file.canUndo || undoing} onClick={() => askUndo(hover.file)} /></div>}>
 			<DiffView path={hover.file.path} hunks={hover.file.hunks} maxLines={Infinity} />
 		</Popover>}

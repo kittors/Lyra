@@ -1,5 +1,5 @@
 import { MODEL_CATALOG_SOURCE } from "@lyra/core/model-catalog";
-import { RefreshCw } from "lucide-react";
+import { Boxes, CalendarDays, ChartLine, Layers, RefreshCw } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UsageScan } from "../../../electron/usage-scan.ts";
@@ -9,8 +9,8 @@ import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { SkeletonBar, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { ModelIcon } from "../models/index.ts";
-import { Card, EmptyHint, Segmented } from "./controls.tsx";
-import { dayTotals, providerLabel, summarise, type ModelUse, type Range } from "./usage-aggregate.ts";
+import { Card, EmptyHint, Segmented, TextInput } from "./controls.tsx";
+import { dayTotals, providerIdentity, providerLabel, summarise, type ModelUse, type ProviderIdentity, type ProviderNaming, type Range } from "./usage-aggregate.ts";
 import { heatLevel, heatmapWeeks, monthLabels, type DayUsage } from "./usage-heatmap.ts";
 import { trendColor, UsageTrendChart, type TrendMetric } from "./usage-charts.tsx";
 import { formatCompact, formatCost } from "./usage-format.ts";
@@ -34,7 +34,31 @@ function Figure({ value, format }: { value: number; format: (shown: number) => s
 
 export function UsageSettings() {
 	const { t } = useI18n();
-	const providers = useApp((state) => state.settings?.providers);
+	const settings = useApp((state) => state.settings);
+	const saveSettings = useApp((state) => state.saveSettings);
+	/*
+	 * 两个来源，因为这一页问的是「这笔账是谁花的」，而不是「现在配着谁」。
+	 *
+	 * 账按 `providerId` 记，名字只活在 `providers` 里——一个供应商删掉，它花过的钱照样在日志里，
+	 * 页面上却只剩一串 id。`providerNames` 是那份不会随删除消失的档案，见 core 里那条注释。
+	 */
+	const naming = useMemo<ProviderNaming>(
+		() => ({ providers: settings?.providers, names: settings?.providerNames }),
+		[settings?.providers, settings?.providerNames],
+	);
+	/** 给一个认不出的供应商起名字：只动档案那一张表，配置里的供应商一个字都不碰。 */
+	const nameProvider = useCallback(
+		async (id: string, name: string) => {
+			if (!settings) return;
+			const named = name.trim();
+			const names = { ...settings.providerNames };
+			// 清空就是收回这个名字，而不是记一行叫「」——下次它会退回显示 id。
+			if (named) names[id] = named;
+			else delete names[id];
+			await saveSettings({ ...settings, providerNames: names });
+		},
+		[settings, saveSettings],
+	);
 	const [scan, setScan] = useState<UsageScan | null>(null);
 	const [failed, setFailed] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
@@ -111,7 +135,7 @@ export function UsageSettings() {
 			</header>
 
 			{view ? (
-				<Dashboard view={view} providers={providers} metric={metric} setMetric={setMetric} hidden={hidden} onToggleProvider={toggleProvider} breakdown={breakdown} setBreakdown={setBreakdown} grid={grid} busiestDay={busiestDay} />
+				<Dashboard view={view} naming={naming} onNameProvider={nameProvider} metric={metric} setMetric={setMetric} hidden={hidden} onToggleProvider={toggleProvider} breakdown={breakdown} setBreakdown={setBreakdown} grid={grid} busiestDay={busiestDay} />
 			) : slow || failed ? (
 				<UsageSkeleton failed={failed} />
 			) : null}
@@ -123,7 +147,8 @@ type UsageView = ReturnType<typeof summarise>;
 
 function Dashboard({
 	view,
-	providers,
+	naming,
+	onNameProvider,
 	metric,
 	setMetric,
 	hidden,
@@ -134,7 +159,8 @@ function Dashboard({
 	busiestDay,
 }: {
 	view: UsageView;
-	providers: { id: string; name: string }[] | undefined;
+	naming: ProviderNaming;
+	onNameProvider: (id: string, name: string) => void | Promise<void>;
 	metric: TrendMetric;
 	setMetric: (metric: TrendMetric) => void;
 	hidden: ReadonlySet<string>;
@@ -175,9 +201,17 @@ function Dashboard({
 					 * 「这是同一个数，只是问的时段变了」。往下走也一样：区间从大改小，钱本来就该变少。
 					 */}
 					<div className="mt-1 text-[32px] leading-tight font-semibold tracking-[-0.03em] text-ink tabular-nums">
-						{pricedTokens > 0 ? <Figure value={totals.cost} format={costLabel} /> : t("usage.noPrice")}
+						{/*
+						 * 一分钱没花和「算不出多少钱」是两回事。
+						 *
+						 * 「暂无价格」说的是后者：有用量，但这些模型查不到价。一条记录都没有的时候它
+						 * 是错的——那时答案很确定，就是 $0.00。空着的那一屏顶上挂一个 32px 的「暂无
+						 * 价格」，读起来像出了什么问题。
+						 */}
+						{totals.tokens === 0 ? costLabel(0) : pricedTokens > 0 ? <Figure value={totals.cost} format={costLabel} /> : t("usage.noPrice")}
 					</div>
-					<div className="mt-1 text-detail text-ink-faint">{t("usage.estimatedCostDetail")}</div>
+					{/* 空着的时候不解释。这句话说的是「这些数字是怎么算出来的」，而此刻一个数字都没有。 */}
+						{totals.tokens > 0 && <div className="mt-1 text-detail text-ink-faint">{t("usage.estimatedCostDetail")}</div>}
 					{/*
 					 * The top three, not the top four.
 					 *
@@ -188,9 +222,21 @@ function Dashboard({
 					 */}
 					<div className="mt-4 space-y-3">
 						{view.providers.slice(0, 3).map((provider, index) => (
-							<ProviderSpend key={provider.id} name={providerLabel(providers, provider.id)} provider={provider} color={trendColor(index)} />
+							<ProviderSpend key={provider.id} identity={providerIdentity(naming, provider.id)} provider={provider} color={trendColor(index)} onName={onNameProvider} />
 						))}
-						{view.providers.length === 0 && <div className="py-5 text-center text-label text-ink-faint">{t("usage.noUsage")}</div>}
+						{view.providers.length === 0 && <EmptyHint icon={Boxes}>{t("usage.noUsage")}</EmptyHint>}
+						{/*
+						 * 第四个往后的那些，合成一行。
+						 *
+						 * 这张榜按费用排，所以一个**没有价格**的供应商永远垫底——哪怕它烧掉几百万 token。
+						 * 本机上就有这么一个：2.2M token、目录里查不到价、于是 $0.00 排在最后一位，在只显示
+						 * 前三名的卡片上等于不存在。用户的说法是「用得少的那个一点用量都不显示」，而它其实
+						 * 用得不少。
+						 *
+						 * 卡片高度的账还是要算（上面那条注释），所以不是把榜放开，而是让被截掉的那几个至少
+						 * 留下一行：几个、花了多少、多少 token。
+						 */}
+						{view.providers.length > 3 && <ProviderRest rows={view.providers.slice(3)} />}
 					</div>
 				</Card>
 
@@ -199,7 +245,7 @@ function Dashboard({
 					<div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3.5">
 						<div>
 							<div className="text-label font-medium text-ink">{t("usage.dailyTrend")}</div>
-							<div className="mt-0.5 text-detail text-ink-faint">{t("usage.dailyTrendDetail")}</div>
+							{totals.tokens > 0 && <div className="mt-0.5 text-detail text-ink-faint">{t("usage.dailyTrendDetail")}</div>}
 						</div>
 						<Segmented value={metric} onChange={setMetric} options={[{ value: "cost", label: t("common.cost") }, { value: "tokens", label: "Token" }]} />
 					</div>
@@ -231,15 +277,15 @@ function Dashboard({
 										className="h-2 w-2 rounded-full transition-all duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 										style={off ? { boxShadow: `inset 0 0 0 1.5px ${trendColor(index)}` } : { background: trendColor(index) }}
 									/>
-									{providerLabel(providers, provider.id)}
+									{providerLabel(naming, provider.id)}
 								</button>
 							);
 						})}
 					</div>
 					{totals.tokens > 0 ? (
-						<UsageTrendChart trends={view.providerTrends} metric={metric} labelOf={(id) => providerLabel(providers, id)} hidden={hidden} />
+						<UsageTrendChart trends={view.providerTrends} metric={metric} labelOf={(id) => providerLabel(naming, id)} hidden={hidden} />
 					) : (
-						<EmptyHint>{t("usage.noTrend")}</EmptyHint>
+						<EmptyHint icon={ChartLine}>{t("usage.noTrend")}</EmptyHint>
 					)}
 				</Card>
 			</div>
@@ -281,7 +327,7 @@ function Dashboard({
 					 * 淡入是这种换法唯一诚实的过渡：旧的那张读完了，新的这张开始。
 					 */}
 					<div key={`${breakdown}:${view.series.length}`} className="min-h-0 flex-1 overflow-y-auto animate-[ly-fade-up_var(--ly-t-base)_ease-out] motion-reduce:animate-none">
-						{breakdown === "model" ? <ModelBreakdown rows={view.models} providers={providers} totalCost={totals.cost} /> : <DayBreakdown rows={view.series} totalCost={totals.cost} />}
+						{breakdown === "model" ? <ModelBreakdown rows={view.models} naming={naming} totalCost={totals.cost} /> : <DayBreakdown rows={view.series} totalCost={totals.cost} />}
 					</div>
 				</Card>
 
@@ -303,21 +349,38 @@ function Dashboard({
 				</Card>
 			</div>
 
+			{/*
+			 * 清理会话记录不在这一页，在「存储」。
+			 *
+			 * 它一度排在这里的最后一格：这一页是拿来读的，而删除是读完之后偶尔做一次的事。但位置
+			 * 再靠后也改变不了它是一个不可撤销的动作，跟在一屏读数后面等于让每次查账都从「别点错」
+			 * 开始。它问的本来也是另一个问题——这台机器上存着什么、还要留多久。
+			 */}
 			<div className="pt-6 pb-4">
 				<div className="mb-3 text-title font-medium text-ink">{t("usage.rhythm")}</div>
-				<Card>{busiestDay === 0 ? <EmptyHint>{t("usage.noRecords")}</EmptyHint> : <div className="px-4 py-4"><Heatmap grid={grid} busiest={busiestDay} /></div>}</Card>
+				<Card>{busiestDay === 0 ? <EmptyHint icon={CalendarDays}>{t("usage.noRecords")}</EmptyHint> : <div className="px-4 py-4"><Heatmap grid={grid} busiest={busiestDay} /></div>}</Card>
 			</div>
 		</div>
 	);
 }
 
-function ProviderSpend({ name, provider, color }: { name: string; provider: UsageView["providers"][number]; color: string }) {
+function ProviderSpend({
+	identity,
+	provider,
+	color,
+	onName,
+}: {
+	identity: ProviderIdentity;
+	provider: UsageView["providers"][number];
+	color: string;
+	onName: (id: string, name: string) => void | Promise<void>;
+}) {
 	const { t } = useI18n();
 	return (
-		<div>
+		<div data-usage-spend={provider.id}>
 			<div className="flex items-center gap-2 text-label">
-				<ModelIcon model={provider.id} name={name} size={14} />
-				<span className="min-w-0 flex-1 truncate text-ink">{name}</span>
+				<ModelIcon model={provider.id} name={identity.label} size={14} />
+				<ProviderName identity={identity} id={provider.id} onName={onName} />
 				<span className="shrink-0 font-medium text-ink tabular-nums">
 					{provider.unpricedTokens === provider.tokens ? t("usage.unpriced") : <Figure value={provider.cost} format={costLabel} />}
 				</span>
@@ -337,29 +400,130 @@ function ProviderSpend({ name, provider, color }: { name: string; provider: Usag
 	);
 }
 
+/**
+ * 一个供应商的名字，以及删掉之后还能把它认回来的那个入口。
+ *
+ * 还配着的供应商这里就是一行字——名字归设置页管，在用量页上改它只会让两处说法不一。
+ *
+ * 删掉的不一样：它的账还在这一页上，而名字已经没人知道了。2026-09 之前删掉的那些连档案都没有，
+ * 页面上只剩 `mttnetnn` 这样一串——「这些不知道是啥」。这时唯一还认得它的是用户自己，所以名字
+ * 变成一个可以点的东西：点开就地改，写进那份不随删除消失的档案。
+ *
+ * 回车保存，Esc 放弃，失焦也保存——一个只能用键盘确认的内联输入，点到别处就丢掉刚打的字。
+ */
+function ProviderName({
+	identity,
+	id,
+	onName,
+}: {
+	identity: ProviderIdentity;
+	id: string;
+	onName: (id: string, name: string) => void | Promise<void>;
+}) {
+	const { t } = useI18n();
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState("");
+
+	if (identity.configured) return <span data-ly-tip={identity.label} data-ly-tip-when="truncated" className="min-w-0 flex-1 truncate text-ink">{identity.label}</span>;
+
+	if (editing) {
+		const commit = () => {
+			setEditing(false);
+			if (draft.trim() !== (identity.named ? identity.label : "")) void onName(id, draft);
+		};
+		return (
+			<TextInput
+				value={draft}
+				onChange={setDraft}
+				autoFocus
+				aria-label={t("usage.nameProvider")}
+				placeholder={t("usage.providerNameHint")}
+				className="ly-field-compact w-full min-w-0 flex-1"
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") commit();
+					if (event.key === "Escape") setEditing(false);
+				}}
+			/>
+		);
+	}
+
+	/*
+	 * 认领过的名字，和还配着的供应商长得一模一样——**不标「已删除」**。
+	 *
+	 * 那个标记说的是「这个供应商不在设置里了」，而看这一页的人不关心这件事：账是历史，「供应商A
+	 * 花了两百块」在它被删掉之后仍然是同一句话。标出来只是替一个内部状态占掉一行字的位置。
+	 *
+	 * 没认领的那些（只剩一串 id）淡一档。区别不在于它被删没删，而在于**这还不是一个名字**——
+	 * 一串 `mttnetnn` 用正文色印出来，读的人会以为那就是它的名字，于是不会想到它可以改。
+	 */
+	return (
+		<button
+			type="button"
+			data-usage-provider={id}
+			data-ly-tip={t("usage.nameProvider")}
+			onClick={() => {
+				setDraft(identity.named ? identity.label : "");
+				setEditing(true);
+			}}
+			className="flex min-w-0 flex-1 items-center rounded-md text-left transition-colors hover:text-accent"
+		>
+			<span className={`min-w-0 truncate ${identity.named ? "text-ink" : "text-ink-muted"}`}>{identity.label}</span>
+		</button>
+	);
+}
+
+/**
+ * 榜单截断处剩下的那些，合成一行。
+ *
+ * 不是「还有 N 个」这么一句——那只说明有东西被藏起来了，没说明藏起来的是什么。花了多少、多少
+ * token 才是看这张卡片的人要判断的：一行 $0.00 配着 2.2M token，一眼就知道那是个没配上价格的
+ * 供应商，而不是一个没在用的。
+ */
+function ProviderRest({ rows }: { rows: UsageView["providers"] }) {
+	const { t } = useI18n();
+	const cost = rows.reduce((sum, each) => sum + each.cost, 0);
+	const tokens = rows.reduce((sum, each) => sum + each.tokens, 0);
+	const unpriced = rows.every((each) => each.unpricedTokens === each.tokens);
+	return (
+		<div data-usage-rest="true" className="flex items-center gap-2 border-t border-line-soft pt-2.5 text-detail text-ink-faint">
+			<span className="min-w-0 flex-1 truncate">{t("usage.otherProviders", { n: rows.length })}</span>
+			<span className="shrink-0 tabular-nums">{unpriced ? t("usage.unpriced") : costLabel(cost)}</span>
+			<span className="shrink-0 tabular-nums">{formatCompact(tokens)} token</span>
+		</div>
+	);
+}
+
 function Metric({ label, value, format, sub }: { label: string; value: number; format: (shown: number) => string; sub: React.ReactNode }) {
 	return <div className="min-w-0 border-b border-line-soft px-3.5 py-3 odd:border-r even:border-r-0 last:col-span-2 last:border-b-0 @2xl:border-b-0 @2xl:odd:border-r @2xl:even:border-r @2xl:last:col-span-1 @2xl:last:border-r-0"><div className="truncate text-detail text-ink-muted">{label}</div><div className="mt-1 text-title font-medium text-ink tabular-nums"><Figure value={value} format={format} /></div><div className="mt-0.5 truncate text-detail text-ink-faint tabular-nums">{sub}</div></div>;
 }
 
-function ModelBreakdown({ rows, providers, totalCost }: { rows: ModelUse[]; providers: { id: string; name: string }[] | undefined; totalCost: number }) {
+function ModelBreakdown({ rows, naming, totalCost }: { rows: ModelUse[]; naming: ProviderNaming; totalCost: number }) {
 	const { t } = useI18n();
-	if (rows.length === 0) return <EmptyHint>{t("usage.noModelUsage")}</EmptyHint>;
-	return <BreakdownTable rows={rows.slice(0, 12).map((row) => ({ key: row.key, label: row.model, provider: providerLabel(providers, row.provider), cost: row.cost, tokens: row.tokens, unpriced: row.unpricedTokens === row.tokens, share: totalCost > 0 ? row.cost / totalCost : row.share }))} remaining={Math.max(0, rows.length - 12)} />;
+	if (rows.length === 0) return <EmptyHint icon={Layers}>{t("usage.noModelUsage")}</EmptyHint>;
+	return <BreakdownTable rows={rows.slice(0, 12).map((row) => ({ key: row.key, label: row.model, model: row.model, provider: providerLabel(naming, row.provider), cost: row.cost, tokens: row.tokens, unpriced: row.unpricedTokens === row.tokens, share: totalCost > 0 ? row.cost / totalCost : row.share }))} remaining={Math.max(0, rows.length - 12)} />;
 }
 
 function DayBreakdown({ rows, totalCost }: { rows: UsageView["series"]; totalCost: number }) {
 	const { t } = useI18n();
 	const ranked = [...rows].filter((row) => row.tokens > 0).sort((a, b) => b.cost - a.cost || b.tokens - a.tokens);
-	if (ranked.length === 0) return <EmptyHint>{t("usage.noDailyUsage")}</EmptyHint>;
+	if (ranked.length === 0) return <EmptyHint icon={CalendarDays}>{t("usage.noDailyUsage")}</EmptyHint>;
 	const totalTokens = viewTokens(ranked);
 	return <BreakdownTable rows={ranked.slice(0, 12).map((row) => ({ key: row.day, label: fullDate(row.day), provider: "", cost: row.cost, tokens: row.tokens, unpriced: row.cost === 0 && row.tokens > 0, share: totalCost > 0 ? row.cost / totalCost : row.tokens / Math.max(1, totalTokens) }))} remaining={Math.max(0, ranked.length - 12)} />;
 }
 
-interface BreakdownRow { key: string; label: string; provider: string; cost: number; tokens: number; unpriced: boolean; share: number }
+/** `model` 有值才画厂牌：按日期拆的那张表，每一行是一个日期，日期没有厂牌。 */
+interface BreakdownRow { key: string; label: string; model?: string; provider: string; cost: number; tokens: number; unpriced: boolean; share: number }
 
 function BreakdownTable({ rows, remaining }: { rows: BreakdownRow[]; remaining: number }) {
 	const { t } = useI18n();
-	return <div className="px-4 pb-2"><div className="grid grid-cols-[minmax(0,1fr)_78px_78px] gap-4 border-b border-line-soft py-2 text-detail text-ink-faint @xl:grid-cols-[minmax(0,1fr)_100px_78px_62px_90px]"><span>{t("common.project")}</span><span className="hidden text-right @xl:block">{t("common.provider")}</span><span className="text-right">{t("common.cost")}</span><span className="hidden text-right @xl:block">{t("usage.share")}</span><span className="text-right">Token</span></div>{rows.map((row) => <div key={row.key} className="grid min-h-[38px] grid-cols-[minmax(0,1fr)_78px_78px] items-center gap-4 border-b border-line-soft text-label last:border-b-0 @xl:grid-cols-[minmax(0,1fr)_100px_78px_62px_90px]"><div className="min-w-0"><div className="truncate text-ink">{row.label}</div>{row.provider && <div className="truncate text-detail text-ink-faint @xl:hidden">{row.provider}</div>}</div><div className="hidden truncate text-right text-detail text-ink-faint @xl:block">{row.provider}</div><div className="text-right text-ink tabular-nums">{row.unpriced ? t("usage.unpriced") : costLabel(row.cost)}</div><div className="hidden text-right text-ink-muted tabular-nums @xl:block">{(row.share * 100).toFixed(1)}%</div><div className="text-right text-ink-muted tabular-nums">{formatCompact(row.tokens)}</div></div>)}{remaining > 0 && <div className="py-2 text-center text-detail text-ink-faint">{t("usage.andMore", { n: remaining })}</div>}</div>;
+	return <div className="px-4 pb-2"><div className="grid grid-cols-[minmax(0,1fr)_78px_78px] gap-4 border-b border-line-soft py-2 text-detail text-ink-faint @xl:grid-cols-[minmax(0,1fr)_100px_78px_62px_90px]"><span>{t("common.project")}</span><span className="hidden text-right @xl:block">{t("common.provider")}</span><span className="text-right">{t("common.cost")}</span><span className="hidden text-right @xl:block">{t("usage.share")}</span><span className="text-right">Token</span></div>{rows.map((row) => <div key={row.key} className="grid min-h-[38px] grid-cols-[minmax(0,1fr)_78px_78px] items-center gap-4 border-b border-line-soft text-label last:border-b-0 @xl:grid-cols-[minmax(0,1fr)_100px_78px_62px_90px]">{/*
+		 * 厂牌在名字左边，和模型菜单、供应商花费那几处是同一个记号。
+		 *
+		 * 这一列本来是纯文字：`gemini-3.8-flash…`、`deepseek-flash`、`claude-opus-4-6-thinking`，
+		 * 一列长得几乎一样的字符串，而且列窄到要截断——读它等于逐行读完。别处的模型名旁边一直有
+		 * 厂牌，唯独这张表没有，于是同一个模型在两个地方长得不一样。
+		 */}<div className="flex min-w-0 items-center gap-2">{row.model !== undefined && <ModelIcon model={row.model} size={13} />}<div className="min-w-0"><div data-ly-tip={row.label} data-ly-tip-when="truncated" className="truncate text-ink">{row.label}</div>{row.provider && <div data-ly-tip={row.provider} data-ly-tip-when="truncated" className="truncate text-detail text-ink-faint @xl:hidden">{row.provider}</div>}</div></div><div data-ly-tip={row.provider} data-ly-tip-when="truncated" className="hidden truncate text-right text-detail text-ink-faint @xl:block">{row.provider}</div><div className="text-right text-ink tabular-nums">{row.unpriced ? t("usage.unpriced") : costLabel(row.cost)}</div><div className="hidden text-right text-ink-muted tabular-nums @xl:block">{(row.share * 100).toFixed(1)}%</div><div className="text-right text-ink-muted tabular-nums">{formatCompact(row.tokens)}</div></div>)}{remaining > 0 && <div className="py-2 text-center text-detail text-ink-faint">{t("usage.andMore", { n: remaining })}</div>}</div>;
 }
 
 /*

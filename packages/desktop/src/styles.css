@@ -41,6 +41,8 @@
 @import "./styles/working.css";
 @import "./styles/loading.css";
 @import "./styles/scroll.css";
+/* After `scroll.css`, whose `.ly-fade-y` this is the textarea-shaped answer to. */
+@import "./styles/fields.css";
 @import "./styles/motion.css";
 @import "./styles/update-badge.css";
 @import "./styles/overlay.css";

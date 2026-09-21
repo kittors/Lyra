@@ -22,7 +22,7 @@ import { ModelIcon } from "../models/index.ts";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
-import { GhostButton } from "./controls.tsx";
+import { GhostButton, PrimaryButton } from "./controls.tsx";
 import { defaultWindowLabel } from "./model-defaults.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -123,14 +123,21 @@ export function FetchModelsModal({
 						size="comfortable"
 						className="flex-1 bg-input"
 					/>
+					{/*
+					 * 全选说出自己的名字，并且跟搜索框同高同底。
+					 *
+					 * 它原先是一颗 32px 的圆角方块，里面单放一个勾选框——旁边的搜索框是 34px 的胶囊，于是这
+					 * 两件东西高度差 2px、圆角差得更多，看上去不像一排控件，像一个勾选框飘在框边上。而一个
+					 * 没有归属对象的勾选框本身就读不出意思：勾选框在这个界面里的含义由它左边那一行给，这一颗
+					 * 左边什么都没有。tooltip 答得了「它叫什么」，但那要先把鼠标停上去——先得有理由停上去。
+					 */}
 					<button
 						type="button"
-						data-ly-tip={allSelected ? t("common.deselectAll") : t("common.selectAll")}
-						aria-label={allSelected ? t("common.deselectAll") : t("common.selectAll")}
 						onClick={toggleAll}
-						className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-card text-ink-muted transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
+						className="flex h-[var(--ly-control)] shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-field)] bg-input px-3.5 text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 					>
 						<ChoiceMark kind="checkbox" checked={allSelected} indeterminate={!allSelected && someSelected} />
+						{allSelected ? t("common.deselectAll") : t("common.selectAll")}
 					</button>
 				</div>
 
@@ -139,7 +146,7 @@ export function FetchModelsModal({
 					top="fade"
 					bottom="fade"
 					className="min-h-[220px] max-h-[440px] flex-1"
-					contentClassName="px-5 py-2 space-y-1.5"
+					contentClassName="px-3 py-2 space-y-0.5"
 				>
 					{filtered.length === 0 ? (
 						<div className="py-12 text-center text-caption text-ink-faint">{t("fetchModels.noMatch")}</div>
@@ -147,15 +154,22 @@ export function FetchModelsModal({
 						filtered.map((modelId) => {
 							const checked = selected.has(modelId);
 							const isExisting = existingModelIds.has(modelId);
+							/*
+							 * 一行就是一行，不是一张卡片。
+							 *
+							 * 每行原先自带描边和底色，于是三十三个模型是三十三张摞起来的卡片；默认又是「全选」，那
+							 * 三十三张卡片同时亮成描边的蓝色——最该看清的是名字，而满屏在说的是边框。
+							 *
+							 * 选中也不染整行，这一条是拍了图才决定的：这一页打开时就是全选，三十三行一起上色等于
+							 * 没上色——一种状态铺满全屏的时候它区分不出任何东西，只是把白底换成了蓝底。勾选框本来
+							 * 就是说这件事的，一列蓝勾对着一列名字，比三十三块蓝底清楚。底色留给指针底下那一格：
+							 * 那是「你正在看这一行」，同一时刻只有一行成立。
+							 */
 							return (
 								<label
 									key={modelId}
-									className={`group flex items-center justify-between rounded-xl border p-2.5 transition-all select-none ${
-										isExisting
-											? "cursor-default border-line bg-card opacity-55"
-											: checked
-												? "cursor-pointer border-accent/40 bg-accent/[0.04]"
-												: "cursor-pointer border-line bg-card hover:border-ink-faint/30 hover:bg-card-hover/40"
+									className={`group flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors select-none ${
+										isExisting ? "cursor-default opacity-50" : "cursor-pointer hover:bg-card-hover"
 									}`}
 								>
 									<div className="flex items-center gap-3 min-w-0 pr-2">
@@ -195,27 +209,30 @@ export function FetchModelsModal({
 					)}
 				</Scroller>
 
-				{/* Footer */}
-				<div className="flex items-center justify-between px-5 pt-3 pb-4">
-					<span className="text-caption text-ink-muted">
+				{/*
+				 * Footer
+				 *
+				 * 这两颗按钮以前只有一个 ✕ 和一个 ✓33，名字挂在 tooltip 上。工具栏里的图标按钮可以这么省——
+				 * 周围一排东西替它说明它在哪一类里；对话框底下这两颗没有这个周围，它们是这次操作的结论本身，
+				 * 一个要说清按下去会发生什么，另一个要说清不按会怎样。✓33 尤其读不出来：数字是代价，不是动作，
+				 * 看到它的人得先猜这一按是导入三十三个还是保留三十三个。数字留在「导入所选（33）」里，位置没变。
+				 */}
+				<div className="flex items-center justify-between gap-3 px-5 pt-3 pb-4">
+					<span className="min-w-0 truncate text-caption text-ink-muted">
 						{t("fetchModels.selected", { n: selected.size })}
 					</span>
-					<div className="flex items-center gap-2">
-						<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={2} />} title={t("common.cancel")} />
-						<button
-							type="button"
-							data-ly-tip={translate("fetchModels.importSelected", { n: selected.size })}
-							aria-label={translate("fetchModels.importSelected", { n: selected.size })}
+					<div className="flex shrink-0 items-center gap-2">
+						<GhostButton onClick={() => dismiss()}>{t("common.cancel")}</GhostButton>
+						<PrimaryButton
 							disabled={selected.size === 0}
 							// Through `dismiss`, so the import runs on the way out rather than under a dialog
 							// that is still on screen — see the completion note in `Overlay`.
 							onClick={() => dismiss(() => onImport(Array.from(selected)))}
-							className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-2.5 text-caption font-medium text-shell tabular-nums transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
+							icon={<Check size={14} strokeWidth={2.2} aria-hidden />}
+							className="tabular-nums"
 						>
-							{/* 数字留下：这一按会导入几个，不是这颗按钮叫什么。 */}
-							<Check size={13} strokeWidth={2.2} aria-hidden />
-							{selected.size}
-						</button>
+							{t("fetchModels.importSelected", { n: selected.size })}
+						</PrimaryButton>
 					</div>
 				</div>
 				</>

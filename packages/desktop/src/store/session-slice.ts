@@ -51,7 +51,7 @@ export function sessionSlice(set: Set, get: Get) {
    * and pressing it twice produced two. A blank conversation is a UI state, not a stored
    * object; `send` turns it into one the moment there is something to store.
    */
-  async newSession() {
+  async newSession(options?: { keepView?: boolean }) {
     flushCoalesced();
     // A scratch directory counts: a conversation with no project is still a conversation.
     if (!get().workspace && !get().scratchCwd) {
@@ -92,7 +92,14 @@ export function sessionSlice(set: Set, get: Get) {
       loadingSession: false,
       pendingUserMessage: null,
       capabilities: null,
-      view: "chat",
+      /*
+       * 主动开新对话才切到聊天。
+       *
+       * 被动的那一路——当前这条在别处被删掉或归档，窗口不得不从它身上挪开——`keepView` 会让视图
+       * 留在原地。在设置页里清掉一段会话记录时，这一下曾经把人从设置页甩回对话页，而屏幕上没有
+       * 任何东西解释刚才发生了什么。
+       */
+      ...(options?.keepView ? {} : { view: "chat" as const }),
     });
 
     /*

@@ -164,42 +164,54 @@ export function CommandText({
 			aria-hidden
 			className={`pointer-events-none absolute inset-0 select-none overflow-hidden ${decoration.composing ? "z-10" : ""} ${commandHint ? "ly-fade-edge" : ""}`}
 		>
-			<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
-				{spans.map((s, idx) =>
-					s.className ? (
-						<span key={idx} className={s.className} data-kind={s.kind} data-bodiless={s.bodiless ? "" : undefined}>
-							{s.brackets && s.text.length > 2 ? (
-								/*
-								 * 底色只包图标和名字，收尾那个 `】` 仍占满 1em，但不进胶囊。
-								 *
-								 * 两端方括号必须留在镜像里：textarea 里有这两个字，删掉或改宽度，后面整段
-								 * 都会错位。原先把 `】` 也画进底色，右边就空出整整一格，左边图标却贴着边。
-								 * 底色改画在 `.ly-token-paint` 上，右侧只留和左边一样的 inset；`】` 用负边
-								 * 距叠回那一点 inset，字符格子一个都没动。
-								 */
-								<span className="ly-token-body">
-									<span className="ly-token-paint">
-										<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
-										{s.text.slice(1, -1)}
+			{/*
+			 * 上下化开自己占一层，横向那条留在外面。
+			 *
+			 * 两者都是 `mask-image`，写在同一个元素上是同一个属性的两次声明——后来的那条整个替换掉
+			 * 前一条，不会合成。而这两件事都真的会同时发生：打一条带长参数的斜杠命令，右端要为提示
+			 * 文字化开，上下又因为装不下要化开。叠成两层，遮罩就是相交而不是互相覆盖。
+			 *
+			 * `absolute inset-0` 是必须的：遮罩里的 `100% - fade-bottom` 算的是这一层自己的高度，
+			 * 而镜像里的字比可视区高得多。让它贴死外层，那个 100% 才是 textarea 看得见的那一段。
+			 */}
+			<div className="ly-field-fade absolute inset-0 overflow-hidden">
+				<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
+					{spans.map((s, idx) =>
+						s.className ? (
+							<span key={idx} className={s.className} data-kind={s.kind} data-bodiless={s.bodiless ? "" : undefined}>
+								{s.brackets && s.text.length > 2 ? (
+									/*
+									 * 底色只包图标和名字，收尾那个 `】` 仍占满 1em，但不进胶囊。
+									 *
+									 * 两端方括号必须留在镜像里：textarea 里有这两个字，删掉或改宽度，后面整段
+									 * 都会错位。原先把 `】` 也画进底色，右边就空出整整一格，左边图标却贴着边。
+									 * 底色改画在 `.ly-token-paint` 上，右侧只留和左边一样的 inset；`】` 用负边
+									 * 距叠回那一点 inset，字符格子一个都没动。
+									 */
+									<span className="ly-token-body">
+										<span className="ly-token-paint">
+											<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
+											{s.text.slice(1, -1)}
+										</span>
+										<span className="ly-token-bracket">{s.text.slice(-1)}</span>
 									</span>
-									<span className="ly-token-bracket">{s.text.slice(-1)}</span>
-								</span>
-							) : (
-								s.text
-							)}
+								) : (
+									s.text
+								)}
+							</span>
+						) : (
+							<span key={idx}>{s.text}</span>
+						),
+					)}
+					{/* A native textarea reserves a line after a trailing newline; an empty div line collapses. */}
+					{value.endsWith("\n") && "\u200b"}
+					{commandHint && (
+						<span className="ly-command-hint text-ink-faint">
+							{value.length === decoration.command?.end ? " " : ""}
+							{commandHint}
 						</span>
-					) : (
-						<span key={idx}>{s.text}</span>
-					),
-				)}
-				{/* A native textarea reserves a line after a trailing newline; an empty div line collapses. */}
-				{value.endsWith("\n") && "\u200b"}
-				{commandHint && (
-					<span className="ly-command-hint text-ink-faint">
-						{value.length === decoration.command?.end ? " " : ""}
-						{commandHint}
-					</span>
-				)}
+					)}
+				</div>
 			</div>
 		</div>
 	);

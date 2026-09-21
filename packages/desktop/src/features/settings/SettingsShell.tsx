@@ -33,6 +33,7 @@ import { AccessSettings } from "./AccessSettings.tsx";
 import { ForgeSettings } from "./ForgeSettings.tsx";
 import { SearchSettings } from "./SearchSettings.tsx";
 import { SyncSettings } from "./SyncSettings.tsx";
+import { StorageSettings } from "./StorageSettings.tsx";
 import { UsageSettings } from "./UsageSettings.tsx";
 import { WorktreesSettings } from "./WorktreesSettings.tsx";
 import { bridge, onPhone } from "../../services/index.ts";
@@ -269,6 +270,8 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <SyncSettings />;
 		case "usage":
 			return <UsageSettings />;
+		case "storage":
+			return <StorageSettings />;
 		case "worktrees":
 			return <WorktreesSettings />;
 		case "about":

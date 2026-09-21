@@ -43,6 +43,14 @@ export interface SessionStorage {
 		messageIndex: number,
 	): Promise<{ meta: SessionMeta; messages: Message[] } | null>;
 	setArchived(projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta | null>;
+	/**
+	 * Re-file a session under another project: a new `cwd`, and with it a new home on disk.
+	 *
+	 * 归属不是一个标签——`projectId` 是 cwd 的哈希，而日志按 `projectId` 分目录存，所以这个方法
+	 * 的实现必须真的把日志搬过去。放在接口上而不是留给调用方拼，正是因为「改字段」和「挪文件」
+	 * 必须一起发生或者一起不发生。
+	 */
+	move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null>;
 	delete(projectId: string, sessionId: string): Promise<void>;
 	deleteMany(targets: { projectId: string; id: string }[]): Promise<void>;
 	pruneEmpty(minAgeMs?: number): Promise<number>;

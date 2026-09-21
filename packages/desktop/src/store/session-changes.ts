@@ -17,7 +17,14 @@ export function applySessionChange(change: SessionChange, set: Set, get: () => A
 	 * take you off it when updates arrive; you are simply viewing an archived conversation.
 	 */
 	const justArchived = !previous?.archived && Boolean(meta?.archived);
-	if ((!meta || justArchived) && get().activeSessionId === id) void get().newSession();
+	/*
+	 * 挪开，但不换页。
+	 *
+	 * 这一路是被动的：删掉这条会话的可能是手机、另一个窗口，也可能是设置页里的「清除会话记录」。
+	 * 窗口确实不能再停在一条已经没有的对话上，但「把你带去聊天」是另一回事——在设置页按下清除，
+	 * 结果整个界面跳到对话页，中间没有任何东西解释发生了什么。
+	 */
+	if ((!meta || justArchived) && get().activeSessionId === id) void get().newSession({ keepView: true });
 	set((state) => {
 		const sessions = state.sessions.filter((session) => session.id !== id);
 		if (meta) sessions.push(meta);

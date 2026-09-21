@@ -40,3 +40,20 @@ export function formatCost(value: number): string | null {
 		maximumFractionDigits: 2,
 	}).format(value);
 }
+
+/**
+ * `264 MB`、`1.4 GB`、`812 KB`。
+ *
+ * 1024 进制，和访达、资源管理器报的数一致——一个说 264 MB、另一个说 277 MB 的时候，被怀疑的是
+ * 我们这一个。上了 GB 留一位小数，往下都取整：磁盘占用没人要读到小数点后两位，而 `0.26 GB` 比
+ * `264 MB` 难读。
+ */
+export function formatBytes(value: number): string {
+	if (!Number.isFinite(value) || value <= 0) return "0 KB";
+	const kb = value / 1024;
+	if (kb < 1) return "1 KB";
+	const mb = kb / 1024;
+	if (mb < 1) return `${Math.round(kb)} KB`;
+	const gb = mb / 1024;
+	return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(mb)} MB`;
+}

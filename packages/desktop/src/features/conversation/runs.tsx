@@ -12,6 +12,8 @@ import { ToolCard } from "./ToolCard.tsx";
 import { describeRun } from "./ToolGroup.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";
 import { useApp, type ToolRun as ToolRunState } from "../../store/index.ts";
+import { useScopedRunning } from "../../app/session-scope.tsx";
+import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
 
 /**
@@ -85,6 +87,13 @@ export function LiveToolCard({
   const stored = useApp((s) => s.toolRuns[block.id]);
   const run = runs ? runs[block.id] : stored;
   /*
+   * 这一轮还在不在跑，决定没有记录的卡片怎么说话——见 `tool-status.ts`。
+   *
+   * 子智能体那份转录（传了 `runs`）不看它：那是一段已经结束的记录，而这里读到的 `running` 是
+   * 主会话此刻的状态，拿它去判子智能体的旧卡片，会让它们跟着主会话一起转圈。
+   */
+  const turnRunning = useScopedRunning();
+  /*
    * A preview replaces its own tool card.
    *
    * The card would say "预览已生成" above the thing itself, which is a caption nobody needs —
@@ -98,15 +107,8 @@ export function LiveToolCard({
       toolName={block.name}
       args={block.arguments}
       summary={run?.summary ?? block.name}
-      /*
-       * No record does not mean "still going".
-       *
-       * A card with no run used to default to running, so any call whose record was lost — an id
-       * the provider never supplied, a session reloaded mid-command — sat there counting up
-       * forever. If the turn that produced it has finished, the call is over too, whatever
-       * became of its record.
-       */
-      status={run?.status ?? (stopReason === "pending" ? "running" : "error")}
+      // 没有记录时说什么，以及为什么不能只看这条消息定没定稿：见 `tool-status.ts`。
+      status={run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning)}
       result={run?.result}
       startedAt={run?.startedAt}
     />

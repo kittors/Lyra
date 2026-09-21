@@ -678,7 +678,7 @@ test("the reading stays inside a narrow window and does not survive a scroll", a
 test("the chart fills the height the spend list gives it, instead of leaving a band of empty card", async (t) => {
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-	const layout = await app.evaluate<{ left: number; right: number; slackUnderChart: number; rows: number; chart: number }>(`(() => {
+	const layout = await app.evaluate<{ left: number; right: number; slackUnderChart: number; rows: number; rest: number; chart: number }>(`(() => {
 		const chart = document.querySelector('[data-usage-chart="cost"]');
 		const right = chart.parentElement;
 		const left = right.parentElement.firstElementChild;
@@ -688,12 +688,25 @@ test("the chart fills the height the spend list gives it, instead of leaving a b
 			left: Math.round(l.height),
 			right: Math.round(r.height),
 			slackUnderChart: Math.round(r.bottom - svg.bottom),
-			rows: left.querySelectorAll('.space-y-3 > div').length,
+			rows: left.querySelectorAll('[data-usage-spend]').length,
+			rest: left.querySelectorAll('[data-usage-rest]').length,
 			chart: Math.round(svg.height),
 		};
 	})()`);
 
 	assert.equal(layout.rows, 3, `the spend list is the top three: ${JSON.stringify(layout)}`);
+	/*
+	 * 榜外那些合成一行，而且**永远只有一行**。
+	 *
+	 * 这条测的是「列表不能越长越高，把图表旁边的卡片撑开」，而它从前是数 `.space-y-3 > div` 的
+	 * 个数——第四个 `div` 一出现就红，不管那个 div 是第四个供应商还是一句汇总。这两件事在这条
+	 * 测试要守的东西上不是一回事：前者随供应商数量增长，后者是个常数。
+	 *
+	 * 那一行是为一个查不到价的供应商加的：这张榜按费用排，$0.00 永远垫底，于是它烧掉的两百多万
+	 * token 在只显示前三名的卡片上等于不存在。下面三条约束（两卡等高、图表触底、图表够高）照旧，
+	 * 它们才是这条测试真正在守的。
+	 */
+	assert.ok(layout.rest <= 1, `榜外只留一行汇总，不是第四个供应商: ${JSON.stringify(layout)}`);
 	assert.ok(Math.abs(layout.left - layout.right) <= 2, `the two cards share a row: ${JSON.stringify(layout)}`);
 	assert.ok(layout.slackUnderChart <= 24, `the chart must reach the bottom of its card: ${JSON.stringify(layout)}`);
 	assert.ok(layout.chart >= 220, `and take the height it was given: ${JSON.stringify(layout)}`);

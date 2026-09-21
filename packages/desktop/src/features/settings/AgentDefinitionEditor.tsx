@@ -2,9 +2,10 @@ import { ArrowLeft, PenLine, Save, Trash2 } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@lyra/core";
-import { Input, Textarea } from "../../ui/inputs/NativeField.tsx";
+import { Input } from "../../ui/inputs/NativeField.tsx";
+import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
-import { InlineSelect } from "./controls.tsx";
+import { InlineSelect, TextInput } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -63,10 +64,11 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 		{error && <p role="alert" className="my-3 text-label text-danger">{error}</p>}
 		<p className="mb-5 text-label text-ink-muted">{record?.scope === "builtin" && !copy ? t("agentEditor.saveAsCustom") : t("agentEditor.intro")}</p>
 		<fieldset disabled={busy} className="space-y-5 border-0 p-0 disabled:opacity-60">
-			<label className="block text-label">{t("agentEditor.nameLabel")}<div className="mt-2 flex items-center gap-2"><span className="text-ink-muted">@</span><Input aria-label={t("agentEditor.callName")} value={draft.name} readOnly={Boolean(record && !copy)} required pattern={record && !copy ? undefined : "[a-z][a-z0-9_-]{0,63}"} className="w-full rounded-lg border border-line bg-input px-3 py-2 font-mono" onChange={event => patch({ name: event.target.value })} /></div></label>
-			<label className="block text-label">{t("agentEditor.purposeLabel")}<Input aria-label={t("agentEditor.purpose")} required maxLength={2000} value={draft.description} className="mt-2 w-full rounded-lg border border-line bg-input px-3 py-2" onChange={event => patch({ description: event.target.value })} /></label>
+			{/* 和设置页其余每一个文字框同一颗胶囊（`.ly-field`）：这里曾经是三处各写各的方角描边框。 */}
+			<label className="block text-label">{t("agentEditor.nameLabel")}<div className="mt-2 flex items-center gap-2"><span className="text-ink-muted">@</span><TextInput aria-label={t("agentEditor.callName")} value={draft.name} readOnly={Boolean(record && !copy)} required mono pattern={record && !copy ? undefined : "[a-z][a-z0-9_-]{0,63}"} onChange={next => patch({ name: next })} /></div></label>
+			<label className="block text-label">{t("agentEditor.purposeLabel")}<TextInput aria-label={t("agentEditor.purpose")} required maxLength={2000} value={draft.description} className="mt-2 w-full" onChange={next => patch({ description: next })} /></label>
 			<div className="flex items-center justify-between gap-3 text-label"><span>{t("agentEditor.scopeLabel")}</span><fieldset disabled={Boolean(record && !copy)} className="border-0 p-0"><InlineSelect ariaLabel={t("agentEditor.scope")} value={scope} options={[{ value: "user", label: t("common.allProjects") }, ...(projectId ? [{ value: "project", label: projectName ?? t("common.currentProject") }] : [])]} onChange={value => { if (value === "project" || value === "user") setScope(value); }} /></fieldset></div>
-			<label className="block text-label">{t("agentEditor.instructionsLabel")}<Textarea aria-label={t("agentEditor.instructions")} required maxLength={200000} value={draft.systemPrompt} rows={12} className="mt-2 block min-h-[220px] w-full resize-y rounded-lg border border-line bg-input p-3 text-label leading-relaxed" onChange={event => patch({ systemPrompt: event.target.value })} /></label>
+			<label className="block text-label">{t("agentEditor.instructionsLabel")}<TextArea aria-label={t("agentEditor.instructions")} required maxLength={200000} value={draft.systemPrompt} rows={12} resizable shell="mt-2" className="min-h-[220px]" onChange={next => patch({ systemPrompt: next })} /></label>
 			<div><p className="mb-2 text-label">{t("agentEditor.allowedTools")}</p><label className="flex items-center gap-2 text-label"><Input type="checkbox" checked={draft.tools === "*"} onChange={event => patch({ tools: event.target.checked ? "*" : ["read", "glob", "grep", "ls"] })} />{t("agentEditor.allTools")}</label>
 				{draft.tools !== "*" && <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-line p-3">{[...new Set([...tools, ...draft.tools])].map(name => <label key={name} className="flex min-w-0 items-center gap-2 text-detail"><Input type="checkbox" checked={draft.tools !== "*" && draft.tools.includes(name)} onChange={event => { if (draft.tools !== "*") patch({ tools: event.target.checked ? [...draft.tools, name] : draft.tools.filter(tool => tool !== name) }); }} /><span className="break-all font-mono">{name}</span></label>)}</div>}
 				<p className="mt-2 text-caption text-ink-muted">{t("agentEditor.draftNote")}</p>

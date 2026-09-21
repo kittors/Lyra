@@ -71,6 +71,7 @@ export function MenuItem({
 	danger,
 	disabled,
 	title,
+	className = "",
 	onClick,
 }: {
 	icon?: React.ReactNode;
@@ -91,6 +92,15 @@ export function MenuItem({
 	danger?: boolean;
 	disabled?: boolean;
 	title?: string;
+	/**
+	 * Extra classes on the row itself, for a menu that marks its rows a different way.
+	 *
+	 * One caller: the model picker, whose selected row is filled rather than ticked because its
+	 * right-hand column is already spoken for. A row that opts into that has to be able to say
+	 * so — and saying it here keeps the height, radius and press states shared, which is the
+	 * whole point of the row living in one place.
+	 */
+	className?: string;
 	onClick?: () => void;
 }) {
 	const inset = useContext(InsetIcons);
@@ -106,7 +116,7 @@ export function MenuItem({
 			onClick={onClick}
 			className={`ly-scroll ly-item flex w-full gap-2.5 px-3 text-left text-label ${
 				detail ? "items-start py-2" : "h-[var(--ly-menu-row)] items-center"
-			}`}
+			} ${className}`}
 		>
 			{/*
 			 * A fixed column, whatever is in it.

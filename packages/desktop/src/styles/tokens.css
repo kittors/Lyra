@@ -130,6 +130,27 @@
 		ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace;
 
   /* -------------------------------------------------------------------------
+   * 字重，三档都从「界面字重」那一个数推出来
+   *
+   * Tailwind 自己的 `font-medium` / `font-semibold` 是写死的 500 和 600。界面字重因此只能改到
+   * 没人声明字重的那些文字——正文变细了，而它上面的标题还钉在 600。调一格，得到的不是一套更细的
+   * 界面，是一套层级被拉大了的界面；调粗则相反，正文追上标题，层级反而没了。
+   *
+   * 所以这里把 Tailwind 这三个变量接过来，按「比基准重一档」重新定义。`font-medium` 仍然是
+   * `font-weight: var(--font-weight-medium)`，值到运行时才解析——调一次基准，正文、`Text.tsx` 里
+   * 配好的 medium 标题、semibold 的页标题一起走，之间的距离不变。这是「基准」两个字的意思。
+   *
+   * `clamp` 是因为 900 以上不是字重：基准调到 600 的话 semibold 会算到 800，多数字体到那儿已经
+   * 没有对应的字形，浏览器只能合成一个——而合成出来的粗体正是这个界面一直在避免的东西。
+   *
+   * 代码不在里面：`--text-code--weight` 走 `--ly-code-weight`，那是另一个滑条、另一个判断。
+   * ---------------------------------------------------------------------- */
+  --font-weight-normal: var(--ly-ui-weight, 500);
+  --font-weight-medium: clamp(100, calc(var(--ly-ui-weight, 500) + 100), 900);
+  --font-weight-semibold: clamp(100, calc(var(--ly-ui-weight, 500) + 200), 900);
+  --font-weight-bold: clamp(100, calc(var(--ly-ui-weight, 500) + 300), 900);
+
+  /* -------------------------------------------------------------------------
    * The type scale
    *
    * Seven steps, derived from the one size the user actually sets. Two things were wrong before

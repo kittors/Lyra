@@ -1,4 +1,4 @@
-import { Box, Check, ChevronRight, Star } from "lucide-react";
+import { Box, ChevronRight, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
@@ -318,8 +318,10 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 		>
 			<MenuBody>
 				{error && <p role="alert" className="px-2 py-1 text-detail text-danger">{error}</p>}
+				{/* Filled, not ticked, like the model rows under it: it is one of the choices in this
+				    list, and a list that marks its rows two ways is a list you have to read twice. */}
 				{selection && !query && <>
-					<MenuItem icon={<Box size={14} />} selected={!current} trailing={!current ? <Check size={13} /> : undefined}
+					<MenuItem icon={<Box size={14} />} selected={!current} className="ly-model-row"
 						detail={selection.inheritDetail ? <ScrollText text={selection.inheritDetail} /> : undefined}
 						onClick={() => choose("")}>{selection.inheritLabel}</MenuItem>
 					<MenuSeparator />
@@ -352,24 +354,30 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 								onFold={() => fold(section.key)}
 							/>
 
-							{!folded &&
-								section.rows.map((row) => {
-									const at = reachable.findIndex((each) => each.model.id === row.model.id);
-									return (
-										<ModelItem
-											key={`${section.key}:${row.model.id}`}
-											row={row}
-											selected={current === row.model.id}
-											starred={Boolean(favourites?.includes(row.model.id))}
-											// Two houses offering one name: say which, on both rows.
-											showProvider={clashes.has(row.model.name.trim().toLowerCase())}
-											// Drawn only where the key it names actually does this; see `searchable`.
-											shortcut={!searchable && !query && at >= 0 && at < SHORTCUTS ? at + 1 : null}
-											onChoose={() => choose(row.model.id)}
-											onStar={() => star(row.model.id)}
-										/>
-									);
-								})}
+							{/* A hair of air between rows, so a filled one reads as a card of its own
+							    rather than as a stripe painted across a solid block of list. */}
+							{!folded && (
+								<div className="flex flex-col gap-0.5">
+									{section.rows.map((row) => {
+										const at = reachable.findIndex((each) => each.model.id === row.model.id);
+										return (
+											<ModelItem
+												key={`${section.key}:${row.model.id}`}
+												row={row}
+												selected={current === row.model.id}
+												starred={Boolean(favourites?.includes(row.model.id))}
+												// Two houses offering one name: say which, on both rows.
+												showProvider={clashes.has(row.model.name.trim().toLowerCase())}
+												// Drawn only where the key it names actually does this; see `searchable`.
+												numbered={!searchable && !query}
+												shortcut={at >= 0 && at < SHORTCUTS ? at + 1 : null}
+												onChoose={() => choose(row.model.id)}
+												onStar={() => star(row.model.id)}
+											/>
+										);
+									})}
+								</div>
+							)}
 						</div>
 					);
 				})}
@@ -464,6 +472,7 @@ function ModelItem({
 	selected,
 	starred,
 	showProvider,
+	numbered,
 	shortcut,
 	onChoose,
 	onStar,
@@ -472,6 +481,16 @@ function ModelItem({
 	selected: boolean;
 	starred: boolean;
 	showProvider: boolean;
+	/**
+	 * Whether this menu is handing out number keys at all, which is a fact about the menu and not
+	 * about this row — so the column is reserved on every row or on none of them.
+	 *
+	 * Per-row would put the window of the fifth model 13px right of the window of the fourth, and
+	 * a column that only lines up for the first four rows reads as a mistake rather than as a
+	 * shortcut. In a list long enough to be searched there are no digits anywhere, and the column
+	 * is not drawn — which is what lets the window sit at the edge it is measured from.
+	 */
+	numbered: boolean;
 	shortcut: number | null;
 	onChoose: () => void;
 	onStar: () => void;
@@ -491,13 +510,16 @@ function ModelItem({
 		 * at the edge, with no way to see the rest of it: `claude-opus-4-…` and `claude-opus-4-…`
 		 * being two different models you could not tell apart.
 		 */
-		<div data-model={model.id} className="ly-scroll ly-item group/model flex h-[var(--ly-menu-row)] items-center">
+		<div
+			data-model={model.id}
+			data-selected={selected ? "true" : undefined}
+			className="ly-scroll ly-item ly-model-row flex h-[var(--ly-menu-row)] items-center"
+		>
 			<button
 				type="button"
 				role="menuitem"
-				data-selected={selected ? "true" : undefined}
 				onClick={onChoose}
-				className="flex h-full min-w-0 flex-1 items-center gap-2.5 px-3 text-left text-label"
+				className="flex h-full min-w-0 flex-1 items-center gap-2.5 pl-3 pr-1 text-left text-label"
 			>
 				{/* The house, not the provider: one relay serves models from five of them, so a
 				    provider icon here would draw the same mark on every row. */}
@@ -507,50 +529,57 @@ function ModelItem({
 				<span className="min-w-0 flex-1">
 					<ScrollText text={showProvider ? `${model.name} · ${provider.name}` : model.name} />
 				</span>
-				{/*
-				 * The window, and nothing else.
-				 *
-				 * 「视觉 · 」 used to sit in front of it on every model that takes images, which is most
-				 * of them — so it was four characters of near-constant text charged to the one column
-				 * that is always short of room. The name is what tells two models apart and it was
-				 * being truncated to pay for a word that rarely varies. Image support is still on the
-				 * model in settings, where it is a property being managed rather than a label being
-				 * skimmed.
-				 */}
-				<span className="shrink-0 font-mono text-caption text-ink-faint">
-					{formatWindow(model.contextWindow)}
-				</span>
 			</button>
 
 			{/*
-			 * Two fixed columns, never one shared one.
+			 * The digits, where there are digits; see `numbered`.
 			 *
-			 * They were stacked at first — star on hover, digit otherwise — and that hid the digit
-			 * on every starred row, so a menu whose first three rows were starred or selected drew
-			 * a single 「4」 with nothing above it to count from. Two columns of reserved width
-			 * cost 13px and make the numbering readable as a sequence.
+			 * It used to share this column with the checkmark, which is why the checkmark is gone
+			 * rather than moved: the selected row now says so with a fill, and nothing is left that
+			 * needs a column of its own.
 			 */}
-			<span className="flex h-full w-[13px] shrink-0 items-center justify-center">
-				{selected ? (
-					<Check size={13} strokeWidth={2.2} className="text-ink" />
-				) : shortcut !== null ? (
-					<span className="font-mono text-caption text-ink-faint">{shortcut}</span>
-				) : null}
+			{numbered && (
+				<span className="flex h-full w-[13px] shrink-0 items-center justify-center font-mono text-caption text-ink-faint">
+					{shortcut}
+				</span>
+			)}
+
+			{/*
+			 * One column, two things, taking turns: how much context the model holds, and whether
+			 * you have starred it.
+			 *
+			 * They were side by side, and that was two columns charged to every row for two facts
+			 * you never need at the same moment — the window is what you read while choosing, and
+			 * the star is what you reach for once you have chosen. Worse, a starred row paid for
+			 * its star permanently: the lit star sat there on every favourite, on the shortlist
+			 * that already says they are favourites, so the mark was drawn twice and told you
+			 * nothing the heading had not.
+			 *
+			 * So the window holds the column at rest, and the pointer trades it for the star. The
+			 * width is whatever the window needs — the star is absolutely placed over it and
+			 * cannot change it — which is what keeps every row's right edge on one line while
+			 * 「1M」 and 「200K」 are different lengths.
+			 */}
+			{/* `pl-2.5` is the gap the name used to get from the row's own `gap-2.5`, back again now
+			    that the window has moved out of the button: without it 「claude-opus-4-2025」 and
+			    「200K」 run together into one word at the point where the name fades out. */}
+			<span className="relative flex h-full shrink-0 items-center justify-end pl-2.5 pr-3 text-caption">
+				<span className="ly-model-window font-mono text-ink-faint">
+					{formatWindow(model.contextWindow)}
+				</span>
+				<button
+					type="button"
+					aria-label={starred ? t("modelMenu.unfavouriteOne", { name: model.name }) : t("modelMenu.favouriteOne", { name: model.name })}
+					aria-pressed={starred}
+					data-ly-tip={starred ? t("modelMenu.unfavourite") : t("modelMenu.favourite")}
+					onClick={onStar}
+					className={`ly-model-star absolute inset-0 flex items-center justify-end pr-3 ${
+						starred ? "text-accent" : "text-ink-faint hover:text-ink"
+					}`}
+				>
+					<Star size={12.5} strokeWidth={1.9} className={starred ? "fill-current" : ""} />
+				</button>
 			</span>
-			<button
-				type="button"
-				aria-label={starred ? t("modelMenu.unfavouriteOne", { name: model.name }) : t("modelMenu.favouriteOne", { name: model.name })}
-				aria-pressed={starred}
-				data-ly-tip={starred ? t("modelMenu.unfavourite") : t("modelMenu.favourite")}
-				onClick={onStar}
-				className={`mr-1 ml-0.5 flex h-full w-[18px] shrink-0 items-center justify-center rounded transition-opacity duration-[var(--ly-t-quick)] ${
-					starred
-						? "text-accent opacity-100"
-						: "text-ink-faint opacity-0 group-hover/model:opacity-100 hover:text-ink"
-				}`}
-			>
-				<Star size={12} strokeWidth={1.9} className={starred ? "fill-current" : ""} />
-			</button>
 		</div>
 	);
 }

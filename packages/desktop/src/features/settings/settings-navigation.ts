@@ -9,6 +9,7 @@ import {
 	FolderGit2,
 	GitPullRequest,
 	Globe,
+	HardDrive,
 	Info,
 	Layers,
 	Palette,
@@ -68,6 +69,7 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 			{ id: "index", labelKey: "settings.index", icon: Database },
 			{ id: "sync", labelKey: "settings.sync", icon: Smartphone },
 			{ id: "usage", labelKey: "settings.usage", icon: BarChart3 },
+			{ id: "storage", labelKey: "settings.storage", icon: HardDrive },
 		],
 	},
 	{

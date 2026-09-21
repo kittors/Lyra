@@ -87,6 +87,15 @@ export type SessionRecord =
 	 */
 	| { seq: number; ts: number; type: "archive"; archived: boolean }
 	/**
+	 * 换了项目归属：`cwd`、`projectId`、`projectName` 三个一起变。
+	 *
+	 * 自成一条记录而不是写成 `meta`，和 `archive` 同一个道理：把一段对话归到别的项目下不是一次
+	 * 活动，`updatedAt` 不该跟着跳——否则一条半年没动过的会话，只因为被整理了一下就窜到列表最
+	 * 前面。走日志也让用 `?since=N` 同步的客户端知道它挪了窝，而这恰恰是它下次该去哪个目录找
+	 * 这个文件的依据：日志按 `projectId` 分目录存，换项目就是换目录。
+	 */
+	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string }
+	/**
 	 * Everything after `afterSeq` is void.
 	 *
 	 * Editing a message rewrites history — the reply it drew, and everything that followed,
@@ -306,6 +315,13 @@ export class SessionStore implements SessionStorage {
 			// Filing something away is not activity; the list stays sorted by last real use.
 			next.updatedAt = base.updatedAt;
 		}
+		if (payload.type === "move") {
+			next.cwd = payload.cwd;
+			next.projectId = payload.projectId;
+			next.projectName = payload.projectName;
+			// 同 `archive`：换个归属不是一次活动。
+			next.updatedAt = base.updatedAt;
+		}
 		if (payload.type === "meta") {
 			// A meta record carries caller-side changes such as the selected model.
 			Object.assign(next, payload.meta, { seq: next.seq, updatedAt: next.updatedAt, usage: payload.meta.usage ?? next.usage });
@@ -461,6 +477,11 @@ export class SessionStore implements SessionStorage {
 			}
 			else if (record.type === "usage") auxiliaryUsage = addUsage(auxiliaryUsage, record.usage);
 			else if (record.type === "archive" && meta) meta.archived = record.archived;
+			else if (record.type === "move" && meta) {
+				meta.cwd = record.cwd;
+				meta.projectId = record.projectId;
+				meta.projectName = record.projectName;
+			}
 			else if (record.type === "truncate") {
 				entries = entries.filter((e) => e.seq <= record.afterSeq);
 				subagentEntries = subagentEntries.filter((e) => e.seq <= record.afterSeq);
@@ -634,6 +655,77 @@ export class SessionStore implements SessionStorage {
 		const current = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId);
 		if (!current) return null;
 		return this.append(current, { type: "archive", archived });
+	}
+
+	/**
+	 * 把一条会话搬到另一个项目下。
+	 *
+	 * 搬的是**文件**，不只是几个字段：日志按 `projectId` 分目录存（`sessions/<projectId>/<id>.jsonl`），
+	 * 而 `projectId` 是 cwd 的哈希——换项目就是换目录。只改 meta 不挪文件的话，下一次
+	 * `load(新projectId, id)` 什么都找不到，那条对话就等于凭空消失了。
+	 *
+	 * 顺序是**先挪文件、再写记录**。`rename` 在同一个文件系统里是一步到位的，追加不是：挪成功而
+	 * 记录没写成，把文件挪回去就回到了原样；反过来先写记录，中途断电留下的是一条自称在新项目、
+	 * 文件却还躺在旧目录里的会话——那要靠 `rebuildIndex` 全盘重扫才捞得回来。
+	 *
+	 * 返回 null 表示索引里没有这条会话。一个还没刷新的侧边栏可以对着一条已经被删掉的会话点「移动
+	 * 到」，那不值得抛异常。
+	 */
+	async move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null> {
+		const current = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId);
+		if (!current) return null;
+		// 调用方手里的那份可能是旧的；store 自己记的才是权威，`seq` 尤其。
+		const base = this.latestMeta.get(this.keyFor(current)) ?? current;
+		const nextProjectId = projectIdFor(cwd);
+
+		/*
+		 * 已经在那个项目里了：不动文件，但该写的记录照写。
+		 *
+		 * 项目被重命名过的时候就是这一支——目录不变，`projectName` 变了。两样都没变才是真的无事
+		 * 可做，此时连一条空记录都不该留。
+		 */
+		if (nextProjectId === base.projectId) {
+			if (base.cwd === cwd && base.projectName === projectName) return base;
+			return this.append(base, { type: "move", cwd, projectId: nextProjectId, projectName });
+		}
+
+		/*
+		 * 等旧钥匙上排着的写入走完再动手。
+		 *
+		 * 写队列和 `latestMeta` 都按 `projectId/id` 索引，而下面要把钥匙换成新的。此刻还在路上的
+		 * 那一次追加认的是旧钥匙、写的是旧路径——文件已经不在那儿了，它会在旧目录里重新长出一个
+		 * 只有一条记录的残片。
+		 */
+		await this.writeQueues.get(this.keyFor(base))?.catch(() => undefined);
+
+		const from = this.fileFor(base.projectId, sessionId);
+		const to = this.fileFor(nextProjectId, sessionId);
+		await mkdir(this.dirFor(nextProjectId), { recursive: true });
+		/*
+		 * 目标目录里已经有同名文件——不覆盖。
+		 *
+		 * id 是 UUID，正常情况下撞不上；撞上的是手工拷贝过 profile 的机器，而那一次覆盖会把另一条
+		 * 对话整个抹掉，连日志都不剩。宁可这一步失败。
+		 */
+		if (await stat(to).catch(() => null)) throw new Error(`目标项目下已存在同名会话文件：${to}`);
+
+		await rename(from, to);
+		const moved: SessionMeta = { ...base, cwd, projectId: nextProjectId, projectName };
+		try {
+			// 钥匙跟着文件搬。放进去的仍是 `base`，好让 `append` 从它当前的 `seq` 往下接。
+			this.latestMeta.delete(this.keyFor(base));
+			this.latestMeta.set(this.keyFor(moved), base);
+			const result = await this.append(moved, { type: "move", cwd, projectId: nextProjectId, projectName });
+			// 显示缓存是按旧路径命名的，跟着旧目录留在那儿就是个孤儿。
+			await unlink(this.displayCacheFor(base.projectId, sessionId)).catch(() => undefined);
+			return result;
+		} catch (cause) {
+			// 记录没写成，文件挪回去——对外就当这次移动从没发生过。
+			await rename(to, from).catch(() => undefined);
+			this.latestMeta.delete(this.keyFor(moved));
+			this.latestMeta.set(this.keyFor(base), base);
+			throw cause;
+		}
 	}
 
 	async delete(projectId: string, sessionId: string): Promise<void> {

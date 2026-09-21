@@ -45,11 +45,27 @@ function ensureHost(): HTMLElement {
 	return host;
 }
 
+/**
+ * 「只有真被截断时才说」。
+ *
+ * 一列 `truncate` 的文字里，大多数是完整的——给每一个都挂一个气泡，等于把「这里还有没读到的
+ * 字」这个信号稀释成背景噪音，而那恰恰是唯一值得提示的时候。
+ *
+ * 现场量，不预先算：一个格子截不截断取决于窗口宽度、字体和当下的内容，任何一个变了上次的结论
+ * 就过期了。`pointerover` 时量一次是准的，而且只量指针底下那一个。
+ */
+function truncated(el: HTMLElement): boolean {
+	// 四舍五入：分数像素下 scrollWidth 会比 clientWidth 大零点几，那不是截断。
+	return Math.round(el.scrollWidth) > Math.round(el.clientWidth);
+}
+
 /** The nearest ancestor carrying a tip, so an icon inside a button still counts as the button. */
 function targetOf(node: EventTarget | null): HTMLElement | null {
 	if (!(node instanceof Element)) return null;
 	const el = node.closest<HTMLElement>("[data-ly-tip]");
-	return el && el.dataset.lyTip ? el : null;
+	if (!el || !el.dataset.lyTip) return null;
+	// `data-ly-tip-when="truncated"`：这句话屏幕上已经写着了，只在写不下的时候才重复一遍。
+	return el.dataset.lyTipWhen === "truncated" && !truncated(el) ? null : el;
 }
 
 interface Box {

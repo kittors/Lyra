@@ -23,7 +23,7 @@ import { useI18n } from "../../i18n/index.ts";
  * an afternoon tuning options that were never going to apply. See `FormatPreview`.
  */
 
-/** What 恢复默认 puts back. Restated rather than imported — see `code-defaults.ts` for why. */
+/** What 恢复默认 puts back. Restated rather than imported — see `appearance-defaults.ts` for why. */
 const DEFAULTS: Formatting = {
 	onSave: false,
 	tabWidth: 2,

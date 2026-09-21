@@ -1,10 +1,9 @@
 import { translate } from "../../i18n/translate.ts";
-import { Input } from "../../ui/inputs/NativeField.tsx";
 import { FolderGit2, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { Card, Row, SectionTitle } from "./controls.tsx";
+import { Card, Row, SectionTitle, TextInput } from "./controls.tsx";
 import { NumberField } from "./pickers.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -98,12 +97,13 @@ export function WorktreesSettings() {
 					title={t("worktrees.root")}
 					detail={t("worktrees.rootDetail")}
 					control={
-						<Input
+						<TextInput
 							type="text"
 							value={rootDir}
 							placeholder="~/.lyra/worktrees"
-							onChange={(e) => update({ rootDir: e.target.value })}
-							className="h-8 w-72 rounded-lg border border-line bg-input px-2.5 font-mono text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint"
+							onChange={(next) => update({ rootDir: next })}
+							mono
+							className="w-72"
 						/>
 					}
 				/>

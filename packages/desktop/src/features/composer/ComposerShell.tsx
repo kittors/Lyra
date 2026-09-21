@@ -1,5 +1,6 @@
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
+import { useFieldFade } from "../../ui/inputs/useFieldFade.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { CommandText } from "./CommandText.tsx";
@@ -106,6 +107,15 @@ export function ComposerShell({
   const own = useRef<HTMLTextAreaElement>(null);
   const field = fieldRef ?? own;
 	const mirror = useRef<HTMLDivElement>(null);
+	/*
+	 * 两头化开的那两个长度，写在 `.ly-scroll-host` 上。
+	 *
+	 * 写在外壳而不是 textarea 上，是因为这里的字有**两层**：底下的 textarea，和铺在它上面画命令、
+	 * 引用、附件标记的镜像层。两层必须虚化得一模一样，否则打着 `/` 或带着附件的时候，滚到顶上会
+	 * 看见一层淡了另一层还在。变量是可继承的，写一处，两层各自读同一个数。
+	 */
+	const scroller = useRef<HTMLDivElement>(null);
+	useFieldFade(field, scroller);
 	const [composing, setComposing] = useState(false);
 	/*
 	 * 正在组字的那几个字母在哪儿。
@@ -264,7 +274,7 @@ export function ComposerShell({
        * other scroller. Native bars are hidden globally, which left a long draft scrolling
        * with nothing to say so — and no way to see how much of it was above the fold.
        */}
-      <div className="ly-scroll-host relative">
+      <div ref={scroller} className="ly-scroll-host relative">
 				{highlighted && <CommandText value={value} decoration={highlighted} mirror={mirror} />}
         <Textarea
           ref={field}
@@ -405,7 +415,7 @@ export function ComposerShell({
           }}
           rows={1}
           placeholder={placeholder}
-          className="ly-composer-text relative block max-h-[min(300px,34vh)] w-full resize-none bg-transparent placeholder:text-ink-faint"
+          className="ly-composer-text ly-field-fade relative block max-h-[min(300px,34vh)] w-full resize-none bg-transparent placeholder:text-ink-faint"
         />
         <OverlayScrollbar viewport={field} orientation="vertical" />
       </div>

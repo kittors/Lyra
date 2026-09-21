@@ -15,6 +15,7 @@ export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";
 export { ToolCard } from "./ToolCard.tsx";
+export { toolCardFallback } from "./tool-status.ts";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { runs, runKey } from "./grouping.ts";
 export { spokenByPerson } from "./question-navigation.ts";

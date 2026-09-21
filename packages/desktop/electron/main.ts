@@ -847,7 +847,7 @@ function registerIpc(): void {
 	});
 
 	registerGitIpc({ insideAProject });
-	registerUsageIpc();
+	registerUsageIpc({ store: () => store });
 	registerRulesIpc();
 	registerAgentDefinitionsIpc();
 	registerCapabilitiesIpc();
