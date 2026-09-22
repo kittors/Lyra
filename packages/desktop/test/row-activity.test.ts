@@ -23,12 +23,12 @@ test("an unread main result yields to a live side chat", () => {
 	assert.equal(rowActivity("failed", true, false), "running");
 });
 
-test("sideChatRunning reads the attached pane, then the cache", () => {
-	assert.equal(sideChatRunning({ sessionId: "a", running: true, sessionCache: {} }, "a"), true);
-	assert.equal(sideChatRunning({ sessionId: "a", running: false, sessionCache: {} }, "a"), false);
-	assert.equal(
-		sideChatRunning({ sessionId: "a", running: false, sessionCache: { b: { running: true } } }, "b"),
-		true,
-	);
-	assert.equal(sideChatRunning({ sessionId: "a", running: true, sessionCache: {} }, "b"), false);
+test("sideChatRunning asks each session's own side chat, attached pane or not", () => {
+	assert.equal(sideChatRunning({ chats: { a: { running: true } } }, "a"), true);
+	assert.equal(sideChatRunning({ chats: { a: { running: false } } }, "a"), false);
+	// 分屏时两个会话的侧边聊天同时开着，一边在跑不代表另一边在跑。
+	assert.equal(sideChatRunning({ chats: { a: { running: false }, b: { running: true } } }, "b"), true);
+	assert.equal(sideChatRunning({ chats: { a: { running: true } } }, "b"), false);
+	// 没开过侧边聊天的会话问起来不是错，答案是「没在跑」。
+	assert.equal(sideChatRunning({ chats: {} }, "a"), false);
 });

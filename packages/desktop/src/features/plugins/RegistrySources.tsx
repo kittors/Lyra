@@ -13,13 +13,13 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { Plus, CircleAlert, Library, X } from "lucide-react";
+import { Plus, CircleAlert, Library } from "lucide-react";
 import { useState } from "react";
 
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { GhostButton } from "../settings/index.ts";
 import { TextInput } from "../settings/index.ts";
@@ -55,14 +55,20 @@ export function RegistrySources({
 	};
 
 	return (
-		<Overlay onClose={onClose} width={520}>{(dismiss) => <>
-			<Scroller contentClassName="px-5 py-4">
-				<div className="flex items-center justify-between"><h2 className="flex items-center gap-2.5 text-body font-semibold text-ink"><Library size={20} className="text-accent" />{translate("registry.title")}</h2><button type="button" aria-label={translate("registry.close")} data-ly-tip={translate("common.close")} onClick={() => dismiss()} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint hover:bg-card-hover hover:text-ink"><X size={16} /></button></div>
-				<p className="mt-1 text-detail leading-relaxed text-ink-muted">
-					{t("registry.intro")}
-				</p>
-
-				<div className="mt-4 flex flex-col gap-1.5">
+		<Overlay onClose={onClose} width={520}>{(dismiss) => (
+			<DialogFrame
+				icon={<Library size={20} className="shrink-0 text-accent" />}
+				title={translate("registry.title")}
+				detail={t("registry.intro")}
+				actions={(
+					<>
+						<div className="flex-1" />
+						{/* 这张卡片改的东西是即时存盘的，所以出口只有一个，写着「完成」而不是「取消」。 */}
+						<DialogAction tone="primary" onClick={() => dismiss()}>{translate("common.done")}</DialogAction>
+					</>
+				)}
+			>
+				<div className="flex flex-col gap-1.5">
 					{sources.map((url) => {
 						const failed = errors.find((e) => e.url === url);
 						return (
@@ -100,7 +106,7 @@ export function RegistrySources({
 
 					{confirm.element}
 				</div>
-			</Scroller>
-		</>}</Overlay>
+			</DialogFrame>
+		)}</Overlay>
 	);
 }

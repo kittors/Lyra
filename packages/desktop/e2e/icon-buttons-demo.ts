@@ -7,8 +7,9 @@
  * 原来那句话。视频里看到的和绿色的那一行是同一份证据——一个「跑过了但视频里没有」的演示，比没
  * 有演示更糟。
  *
- * 最后一段特意留给确认对话框。那是这轮改动里最该被看见的一处：两颗成对的按钮从「取消 / 删除」
- * 变成一个叉一个勾，代价写在标题里，动词留在 tooltip 上。
+ * 最后一段特意留给确认对话框，而它现在走的是相反的路：那两颗按钮又把字写了回去。图标 + tooltip
+ * 这笔交易在工具栏里划算——周围一排东西替每颗按钮说明它属于哪一类；对话框底下那两颗没有这个
+ * 周围，它们是这次操作的结论本身。所以这支演示的前三段和第四段结论相反，这是有意的。
  *
  * 帧是 JPEG，手势一步一步走。`Page.captureScreenshot` 的时间几乎全花在压缩上，PNG 在这个尺寸
  * 下一帧要几百毫秒——之前有一版把三分钟录成了 140 帧，放出来是一叠幻灯片。
@@ -376,7 +377,7 @@ try {
 		await pause(600);
 	}
 
-	console.log("\n[4] 确认对话框：一个叉一个勾");
+	console.log("\n[4] 确认对话框：动词写在按钮上");
 	// 已经在模型设置页上了——上一段就是在这儿开的下拉。
 	console.log(`   这一页的图标按钮：${(await iconButtonsOn()).slice(-12).join(" / ")}`);
 	/*
@@ -397,40 +398,41 @@ try {
 		await click(remove.x, remove.y);
 		await pause(1_200);
 
-		const dialog = await app.evaluate<{ title: string; buttons: { tip: string; glyph: boolean }[] } | null>(`(() => {
+		const dialog = await app.evaluate<{ title: string; buttons: { words: string; glyph: boolean }[] } | null>(`(() => {
 			const box = document.querySelector('[data-ly-modal], [role="dialog"]');
 			if (!box) return null;
 			return {
 				title: (box.querySelector('[data-dialog-title], h2') || {}).textContent || '',
 				buttons: [...box.querySelectorAll('button')].map((b) => ({
-					tip: b.getAttribute('data-ly-tip') || b.getAttribute('aria-label') || '',
+					words: (b.innerText || '').trim(),
 					glyph: Boolean(b.querySelector('svg')) && !(b.innerText || '').trim(),
 				})),
 			};
 		})()`);
 		console.log("   ", JSON.stringify(dialog));
 		check(Boolean(dialog), "确认对话框弹出来了");
+		/*
+		 * 读的是画出来的字，不是 `aria-label`——这一段要证的正是「不用把鼠标停上去也读得出来」。
+		 * `innerText` 只算渲染出来的文本，一个藏在 tooltip 里的动词在这里是空字符串。
+		 */
 		check(
-			Boolean(dialog) && dialog!.buttons.length >= 2 && dialog!.buttons.every((b) => b.glyph && b.tip.length > 0),
-			`对话框里两颗按钮都是图标，且都说得出自己是谁（${dialog?.buttons.map((b) => b.tip).join(" / ") ?? "?"}）`,
+			Boolean(dialog) && dialog!.buttons.length >= 2 && dialog!.buttons.every((b) => !b.glyph && b.words.length > 0),
+			`对话框里两颗按钮都把动词写在了脸上（${dialog?.buttons.map((b) => b.words).join(" / ") ?? "?"}）`,
 		);
 		check(Boolean(dialog?.title?.trim()), `代价写在标题上（「${dialog?.title?.trim() ?? ""}」）`);
 		await capture(join(OUT, "确认框-展开.png"));
 
-		// 悬停那个勾，让它把动词说出来。
+		// 移到那颗执行按钮上，把它的悬停态也录进去——字是常驻的，这里等的只是底色。
 		const confirmSpot = await centreOf(
 			`[...document.querySelectorAll('[data-ly-modal] button, [role="dialog"] button')].at(-1)`,
 		);
 		if (confirmSpot) {
 			await glideTo(confirmSpot, remove);
-			await pause(1_200);
-			const said = await tooltipText();
-			console.log(`   确认按钮 tooltip：「${said}」`);
-			check(said.length > 0, "勾上悬停，动词浮出来");
-			await capture(join(OUT, "确认框-勾的tooltip.png"));
+			await pause(900);
+			await capture(join(OUT, "确认框-悬停执行.png"));
 		}
 
-		// 按叉退出，不真删——演示不该把自己的固件改掉。
+		// 按取消退出，不真删——演示不该把自己的固件改掉。
 		const cancelSpot = await centreOf(
 			`[...document.querySelectorAll('[data-ly-modal] button, [role="dialog"] button')][0]`,
 		);

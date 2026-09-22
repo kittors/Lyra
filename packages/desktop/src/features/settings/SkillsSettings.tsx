@@ -108,8 +108,13 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 								{candidate.scope === "portable" ? t("skills.reusable") : t("skills.candidates")}
 								{candidate.sourceSessions && t("skills.fromSessions", { n: candidate.sourceSessions.length })}
 							</p>
-							{/* 正文全文摆出来。批准一段自己没读过的指令，跟没有这个确认步骤是一回事。 */}
-							<Scroller className="ly-rule-excerpt mt-2 max-h-52 rounded" contentClassName="p-2">
+							{/*
+							 * 正文全文摆出来。批准一段自己没读过的指令，跟没有这个确认步骤是一回事。
+							 *
+							 * `overscroll="auto"`：这是页面里的一段正文，不是一块独立的面——读到这一段的底
+							 * 还想接着往下看页面，默认的 `contain` 会把那一下拦住。
+							 */}
+							<Scroller className="ly-rule-excerpt mt-2 max-h-52 rounded" contentClassName="p-2" overscroll="auto">
 							<pre className="whitespace-pre-wrap break-words font-mono text-detail leading-relaxed">
 								{candidate.body}
 							</pre>

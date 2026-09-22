@@ -23,7 +23,7 @@ import {
 } from "react";
 
 import { OverlayDepth } from "./Overlay.tsx";
-import { setTooltipSuppressed } from "./tooltip.ts";
+import { claimHoverSuppression } from "./hover-layers.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
 import { portal } from "./portal.ts";
 
@@ -296,7 +296,16 @@ export function Popover({
 	}).current;
 	const chain = useMemo(() => [...ancestors, self], [ancestors, self]);
 	useLayoutEffect(() => {
-		setTooltipSuppressed(true);
+		/*
+		 * Nothing that appears on hover while this is up: see `hover-layers`.
+		 *
+		 * A claim held and released, rather than a flag set on the way in and cleared once
+		 * `openPopovers` looks empty on the way out. The old shape got the nesting right, but only
+		 * because two separate things agreed: the register of open popovers had to be maintained
+		 * correctly for the suppression state to come out correctly. A handle needs no such
+		 * agreement — whoever took it is who gives it back, and a submenu cannot end its parent's.
+		 */
+		const release = claimHoverSuppression();
 		for (const other of openPopovers) {
 			if (!chain.includes(other)) other.close();
 		}
@@ -304,9 +313,7 @@ export function Popover({
 		for (const each of chain) openPopovers.add(each);
 		return () => {
 			openPopovers.delete(self);
-			if (openPopovers.size === 0) {
-				setTooltipSuppressed(false);
-			}
+			release();
 		};
 	}, [chain, self]);
 

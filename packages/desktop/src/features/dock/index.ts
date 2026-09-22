@@ -10,7 +10,7 @@
 export { companionOf } from "./panels/definitions.tsx";
 /** 面板自己说它能不能搬进独立窗口——`PaneHeader` 据此决定给不给那颗按钮。 */
 export { detachOf } from "./panels/registry.ts";
-export { useSide } from "./sideStore.ts";
+export { useSide, sideChatOf } from "./sideStore.ts";
 export { useDock } from "./store.ts";
 export { emptyDockTree, usePaneDock } from "./pane-store.ts";
 export { useDockDrag } from "./useDockDrag.ts";

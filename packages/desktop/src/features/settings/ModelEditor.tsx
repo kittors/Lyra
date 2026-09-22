@@ -1,12 +1,12 @@
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
 import { catalogModelFor, catalogPricing, withCatalogDefaults, type CatalogMatch } from "@lyra/core/model-catalog";
 import { ModelCatalog } from "./ModelCatalog.tsx";
-import { Box, Check, X } from "lucide-react";
+import { Box } from "lucide-react";
 import { useState } from "react";
+import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { isLegalDraft } from "../../lib/number-draft.ts";
-import { Field, GhostButton, PrimaryButton, TextInput, Toggle } from "./controls.tsx";
+import { Field, TextInput, Toggle } from "./controls.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 const CONTEXT = { min: 1, max: 100_000_000, step: 1 };
@@ -149,15 +149,22 @@ export function ModelEditor({
 	return (
 		<Overlay onClose={onCancel} width={560}>
 			{(dismiss) => (
-				<>
-					<div className="border-b border-line px-5 py-3.5">
-						<h3 className="flex items-center gap-2.5 text-body font-semibold text-ink">
-							<Box size={20} className="text-accent" />
-							{model ? t("modelEditor.edit") : t("modelEditor.add")}
-						</h3>
-					</div>
-
-					<Scroller className="max-h-[64vh]" contentClassName="space-y-4 px-5 py-4">
+				<DialogFrame
+					icon={<Box size={20} className="shrink-0 text-accent" />}
+					title={model ? t("modelEditor.edit") : t("modelEditor.add")}
+					/* 这是一张表单，不是一个问题——默认那档高度一次只露三个字段。 */
+					bodyClassName="max-h-[min(560px,58dvh)]"
+					actions={(
+						<>
+							<div className="flex-1" />
+							<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
+							<DialogAction tone="primary" disabled={!valid} onClick={() => dismiss(submit)}>
+								{t("common.save")}
+							</DialogAction>
+						</>
+					)}
+				>
+					<div className="space-y-4">
 						<Field label={t("modelEditor.id")} hint={t("modelEditor.idDetail")}>
 							<TextInput value={modelId} onChange={changeModelId} placeholder="deepseek-v4-flash" mono spellCheck={false} />
 						</Field>
@@ -205,13 +212,8 @@ export function ModelEditor({
 							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={(value) => changeMetadata(setSupportsImages, value)} />
 							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />
 						</div>
-					</Scroller>
-
-					<div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-						<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={1.8} />} title={t("common.cancel")} />
-						<PrimaryButton onClick={() => dismiss(submit)} disabled={!valid} icon={<Check size={13} strokeWidth={1.8} />} title={t("common.save")} />
 					</div>
-				</>
+				</DialogFrame>
 			)}
 		</Overlay>
 	);

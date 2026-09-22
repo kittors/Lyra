@@ -46,6 +46,16 @@ export function Scroller({
 	children: React.ReactNode;
 	className?: string;
 	contentClassName?: string;
+	/**
+	 * 滚到自己的边界之后，滚轮还传不传给外面。
+	 *
+	 * 判断标准是这一块**是页面里的一段内容，还是一块独立的面**。一段内容——设置页里的发版说明、一段
+	 * 规则正文、一列搜索结果——读到底了还想接着往下看页面，是很自然的一件事，那就该给 `"auto"`。一块
+	 * 独立的面——弹窗、浮层、菜单、转录本身——滚到底就该停住，不然一个嵌套列表刚到底就把它背后的整页
+	 * 带跑了，那是默认的 `"contain"` 要挡的事。
+	 *
+	 * 「滚不动的面要不要拦」不用在这里操心：它一律放行，见下面 `chain` 那段。
+	 */
 	overscroll?: "contain" | "auto" | "none";
 	/**
 	 * How the top edge ends.
@@ -160,7 +170,6 @@ export function Scroller({
 			if (frame) return;
 			frame = requestAnimationFrame(() => {
 				frame = 0;
-				if (viewport.current) onResize?.(viewport.current);
 				measure();
 			});
 		};
@@ -182,14 +191,23 @@ export function Scroller({
 		 * arrive, and a new one has to be picked up by the size observer too.
 		 */
 		/*
-		 * 锚点在这里就地放平，其余的照旧推到下一帧。
+		 * 位置在这里就地改完，其余的照旧推到下一帧。
 		 *
 		 * 这个回调跑在布局之后、绘制之前——是这一帧最后一次还来得及改 `scrollTop` 的机会。测量和
 		 * 那些跟着重画的状态留在 rAF 里（它们不急，而且同步做会把布局搅乱）；位置不能等，展开动画
 		 * 每一帧都长高一点，晚一帧就是一串看得见的小抖。
+		 *
+		 * 上面这段话一直是对的，可只有锚点（`onSettle`）照着做了，贴底跟随（`onResize`）却被一起
+		 * 推进了 rAF——于是内容长高的那一帧先按没补偿的位置画了出来，下一帧才拉回去。录屏里逮到过
+		 * 一次：运行行上「本轮 N tokens」冒出来的同一帧，整块转录往下掉 38px，再一帧弹回原位。一
+		 * 帧 16 毫秒，看着就是「闪了一下」。
 		 */
 		const observer = new ResizeObserver(() => {
-			if (viewport.current) onSettle?.(viewport.current);
+			const el = viewport.current;
+			if (el) {
+				onSettle?.(el);
+				onResize?.(el);
+			}
 			scheduleMeasure();
 		});
 		const watch = () => {
@@ -272,6 +290,21 @@ export function Scroller({
 		};
 	}, [active, metrics.thumbHeight, onUserScroll, viewport]);
 
+	/*
+	 * 滚不动的时候不拦滚轮。
+	 *
+	 * `contain` 要拦的是「滚到边界了别带动外面」，不是「我自己滚不动也不让你滚」。可 `overflow-y: auto`
+	 * 的元素**即使内容没溢出**仍然是个 scroll container，`overscroll-behavior` 照样生效——于是设置页
+	 * 里一张内容没撑满的卡片，鼠标停上去整页就滚不动了，移开又好。
+	 *
+	 * 真窗口里拿真滚轮量过：滚不动的盒子挂 `contain`，外层一动不动；同一个盒子换成 `auto`，外层照常
+	 * 走 360px。两种溢出状态各试一遍才分得清——只测「可滚且到底」那一半，会把这个毛病当成 `contain`
+	 * 本来该做的事放过去。见 `e2e/overscroll-chain-probe.ts`。
+	 *
+	 * `none` 不在放行之列：那是调用方明说「这里一点都不要外溢」，和滚不滚得动无关。
+	 */
+	const chain = overscroll === "none" ? "overscroll-none" : overscroll === "auto" || !metrics.overflow ? "overscroll-auto" : "overscroll-contain";
+
 	// Both only mean anything once something is actually hidden that way.
 	const hiddenAbove = metrics.overflow && !metrics.atTop;
 	const showTopFade = top === "fade" && hiddenAbove;
@@ -327,7 +360,7 @@ export function Scroller({
 				 * anything genuinely wider than the window is wide *inside* its own box.
 				 */
 				className={`ly-scroll-view min-h-0 flex-auto overflow-x-hidden overflow-y-auto ${
-					overscroll === "auto" ? "overscroll-auto" : overscroll === "none" ? "overscroll-none" : "overscroll-contain"
+					chain
 				/*
 				 * `ly-fade-y`，不是 `ly-scroll-fade`——后者没有对应的 CSS 规则。
 				 *

@@ -119,6 +119,35 @@ export function relight(carried: CarriedTurn | undefined | null, now: number): T
 }
 
 /**
+ * 一次发送该用哪块表。
+ *
+ * 三种接法一种起法（见文件头），差别全在这里。从前它是 `send` 里的一行三元表达式，三个分支各自
+ * 对应上面一段不同的道理，而其中一个分支一直是错的。
+ *
+ * **会话正跑着的时候插的那句：钟接着走，账从零起。** 文件头讲的「同一件事」成立于时长——补一句
+ * 需求、改一改要求，人等的还是同一件事，钟不该归零。但运行行右边那个数标的是「本轮 N tokens」，
+ * 而插话开的是一次新的请求：上一轮产出的 token 早就结算在它自己那条回复底下（`MessageActions`
+ * 上是服务商报的真数），再算进这一轮就是同一笔钱记两遍。现场是回复还在写的时候插一句，新气泡一
+ * 上屏那行立刻写着「本轮 600 tokens」，而这一轮一个字都还没出。
+ *
+ * **「继续」：钟和账一起接。** 那是同一轮被按了暂停，两半本来就是一次请求的两段。
+ *
+ * **闲着的会话有人开口：从零起。** 那才是新的一件事。
+ */
+export function meterFor({ running, carried, carryOn, now }: {
+	/** 这个会话此刻台上那块表，会话不在跑就是 `undefined`。 */
+	running: TurnMeter | undefined;
+	/** `agent_end` 冻下来的那份，没有就是 `null`。 */
+	carried: CarriedTurn | null | undefined;
+	/** 这一次发送是不是「继续」。 */
+	carryOn: boolean;
+	now: number;
+}): TurnMeter {
+	if (running) return { startedAt: running.startedAt, tokens: 0 };
+	return relight(carryOn ? carried : null, now);
+}
+
+/**
  * What the running line will read off a relit meter, for the tests to state plainly.
  *
  * The whole point is that this is the total across the gap, not the length of the second leg.

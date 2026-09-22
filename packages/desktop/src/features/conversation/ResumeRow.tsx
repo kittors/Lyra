@@ -1,6 +1,7 @@
 import { Play, RotateCcw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
-import { useSide } from "../dock/index.ts";
+import { useSide, sideChatOf } from "../dock/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { carryOnPrompt, hasRetryPoint } from "../../store/derive.ts";
@@ -40,7 +41,8 @@ export function ResumeRow() {
 	 *
 	 * Above the early return, because hooks cannot be called conditionally.
 	 */
-	const interrupted = useSide((s) => s.tasks.find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
+	const sideSessionId = useScopedSessionId();
+	const interrupted = useSide((s) => sideChatOf(s, sideSessionId).tasks.find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
 	const resumeTask = useSide((s) => s.resumeTask);
 	/** 上面那条记录是不是已经把这次失败讲完了——讲完了这一行就不必再讲一遍。 */
 	const failedAlready = useApp((s) => s.hiccups.some((hiccup) => hiccup.outcome === "gave_up"));
@@ -131,7 +133,7 @@ export function ResumeRow() {
 					 * are two things stopped here and only one of them was being picked up.
 					 */
 					if (interrupted) {
-						void resumeTask(interrupted.id);
+						void resumeTask(sideSessionId, interrupted.id);
 						return;
 					}
 					/*

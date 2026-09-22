@@ -24,6 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { SessionMeta } from "@lyra/core";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
+import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
 import { portal } from "../../ui/overlay/portal.ts";
 
 /**
@@ -37,7 +38,20 @@ const OPEN_DELAY_MS = 420;
 const LEAVE_MS = 110;
 /** Distance from the row, matching the gap the app's tooltips keep. */
 const GAP = 8;
-/** Above the tooltips (200), because this is the one thing the pointer is deliberately holding. */
+/**
+ * Over the window's own layers (up to 120), under the tooltips (220).
+ *
+ * It was above them, on the grounds that this is the thing the pointer is deliberately holding —
+ * which is true of the card and false of the comparison. Resting on the archive icon summons both,
+ * and the bubble under that icon overhangs the pane by a few pixels, so 「归档会话」 was sliding
+ * under this card's left edge with no way to read it. The label for the button directly beneath the
+ * pointer is the more specific of the two, and it is also the smaller — it costs 8px of a card that
+ * is 248 wide.
+ *
+ * Menus (60) and dialogs (80+) are *below* this number and stay legible anyway, because this card
+ * gets out of their way rather than trying to out-rank them: a menu holds it back for as long as it
+ * is open, and a dialog's scrim leaves no row to hover in the first place. See `useSessionCard`.
+ */
 const CARD_Z = 210;
 
 /** `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster. */
@@ -255,12 +269,24 @@ export function useSessionCard(onOpen?: () => void): {
 		window.addEventListener("scroll", hide, true);
 		window.addEventListener("wheel", hide, true);
 		window.addEventListener("blur", hide);
+		/*
+		 * A menu or a dialog opening takes this away — see `hover-layers`.
+		 *
+		 * Not the same thing as the `dismiss()` in the row's `onContextMenu`. That one is about
+		 * *this* row's card at the moment of the press, and it covered the first frame and nothing
+		 * after it: the pointer wanders off, comes back to a row, and 420ms later a 248px card is
+		 * drawn over the menu that is still open — at 210 against the menu's 60, so it wins outright
+		 * and hides what it covers. This is about every row's card, and about the dialog that menu
+		 * goes on to raise.
+		 */
+		const unsubscribe = onHoverLayersDismissed(dismiss);
 		return () => {
 			window.clearTimeout(open.current);
 			window.clearTimeout(close.current);
 			window.removeEventListener("scroll", hide, true);
 			window.removeEventListener("wheel", hide, true);
 			window.removeEventListener("blur", hide);
+			unsubscribe();
 		};
 	}, [dismiss]);
 
@@ -270,12 +296,15 @@ export function useSessionCard(onOpen?: () => void): {
 		dismiss,
 		bind: {
 			onMouseEnter: (event) => {
+				if (hoverLayersSuppressed()) return;
 				const box = event.currentTarget.getBoundingClientRect();
 				window.clearTimeout(open.current);
 				window.clearTimeout(close.current);
 				// Coming back before the exit finished is a re-entry, not a second arrival.
 				setLeaving(false);
 				open.current = window.setTimeout(() => {
+					// Asked again on arrival: a menu can open during the wait without the pointer moving.
+					if (hoverLayersSuppressed()) return;
 					onOpen?.();
 					setAnchor(box);
 				}, OPEN_DELAY_MS);

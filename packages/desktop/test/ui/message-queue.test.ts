@@ -170,12 +170,22 @@ function running(elapsedMs: number, tokens: number): number {
 	return startedAt;
 }
 
-test("正跑着的时候插一句，表接着走", async () => {
+test("正跑着的时候插一句：钟接着走，账从零起", async () => {
 	const startedAt = running(10 * MINUTE, 31_400);
 	await useApp.getState().send([{ type: "text", text: "再补一句" }], { deliver: "steer" });
 	assert.equal(useApp.getState().turns.a?.startedAt, startedAt, "补一句需求不是另起一件事");
 	assert.equal(useApp.getState().turnStartedAt, startedAt, "运行行读的是同一块表");
-	assert.equal(useApp.getState().turnTokens, 31_400, "用量也接着数，否则每秒字数是一段没人跑过的速率");
+	/*
+	 * 这一条原先断言用量也接着数，理由写的是「否则每秒字数是一段没人跑过的速率」。那个理由对不上
+	 * 代码：屏幕上的 tok/s 出自 `useLiveRate`，它拿一个滑动窗口按产出字符估（`live-rate.ts` 的
+	 * `rateFrom`，分母是窗口时长），从头到尾没碰过 `turnTokens`。所以归零动不了那个速率。
+	 *
+	 * 接着数本身才是错的。那一行标的是「本轮 N tokens」，而插话开的是一次新的请求——上一轮产出的
+	 * token 早就结算在它自己那条回复底下了（`MessageActions` 上是服务商报的真数），再算进这一轮
+	 * 就是同一笔钱记两遍。现场是回复还在写的时候插一句，新气泡一上屏那行立刻写着「本轮 31,400
+	 * tokens」，而这一轮一个字都还没出。规则和它的三份道理都在 `turn-meter.ts` 的 `meterFor` 上。
+	 */
+	assert.equal(useApp.getState().turnTokens, 0, "但这一轮还没产出任何 token");
 });
 
 test("排着的那条出队时，接上这一轮已经跑掉的时间", async () => {

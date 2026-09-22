@@ -14,9 +14,46 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { elapsedOf, freeze, loadCarried, relight, saveCarried } from "../src/store/turn-meter.ts";
+import { elapsedOf, freeze, loadCarried, meterFor, relight, saveCarried } from "../src/store/turn-meter.ts";
 
 const MINUTE = 60_000;
+
+// ---------------------------------------------------------------------------
+// Which meter a send picks up
+// ---------------------------------------------------------------------------
+
+test("插进正在跑的回合：钟接着走，账从零起", () => {
+	/*
+	 * The reported bug: a reply is still being written, you add a line, and the moment the new bubble
+	 * lands the running line reads 「本轮 600 tokens」 — with this turn not a token old. Those 600 are
+	 * the *previous* reply's output, and they are already printed under it by `MessageActions`, so
+	 * counting them here bills the same work twice.
+	 *
+	 * The clock is the other half and it does carry: adding a requirement to a task in flight does not
+	 * restart how long you have been waiting on that task. See this file's header.
+	 */
+	const running = { startedAt: 1_000_000, tokens: 600, inputTokens: 4_000, cacheRead: 3_000 };
+	const meter = meterFor({ running, carried: null, carryOn: false, now: 1_000_000 + 5 * MINUTE });
+	assert.equal(meter.startedAt, 1_000_000, "同一件事，等了多久还是那么久");
+	assert.equal(meter.tokens, 0, "但这一轮还没产出任何 token");
+	assert.equal(meter.inputTokens, undefined, "输入和缓存计数一起从零起");
+	assert.equal(meter.cacheRead, undefined);
+});
+
+test("「继续」是同一轮被按了暂停，钟和账一起接", () => {
+	const carried = freeze({ startedAt: 0, tokens: 31_400 }, 5 * MINUTE);
+	const meter = meterFor({ running: undefined, carried, carryOn: true, now: 15 * MINUTE });
+	assert.equal(elapsedOf(meter, 15 * MINUTE), 5 * MINUTE, "读的那十分钟不算在回合头上");
+	assert.equal(meter.tokens, 31_400, "而账是接着的——两半本来就是一次请求");
+});
+
+test("闲着的会话有人开口，才是新的一件事", () => {
+	const carried = freeze({ startedAt: 0, tokens: 31_400 }, 5 * MINUTE);
+	// 不是「继续」，那份冻着的表就不该被接起来。
+	const meter = meterFor({ running: undefined, carried, carryOn: false, now: 15 * MINUTE });
+	assert.equal(meter.startedAt, 15 * MINUTE);
+	assert.equal(meter.tokens, 0);
+});
 
 test("freezing keeps how long it ran, not when it started", () => {
 	const frozen = freeze({ startedAt: 1_000_000, tokens: 31_400 }, 1_000_000 + 5 * MINUTE);

@@ -17,7 +17,8 @@ import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MessageActions } from "../conversation/index.ts";
 import { MessageEditor } from "../conversation/index.ts";
-import { useSide } from "../dock/index.ts";
+import { useSide, sideChatOf } from "../dock/index.ts";
+import { useSideSessionId } from "./scope.ts";
 import { BubbleText, Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { ToolCard } from "../conversation/index.ts";
@@ -82,8 +83,9 @@ function UserRow({
 	images: Extract<UserContent, { type: "image" }>[];
 	timestamp: number;
 }) {
+	const sessionId = useSideSessionId();
 	const editAndResend = useSide((s) => s.editAndResend);
-	const running = useSide((s) => s.running);
+	const running = useSide((s) => sideChatOf(s, sessionId).running);
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(text);
 
@@ -92,7 +94,7 @@ function UserRow({
 		setEditing(false);
 		if (!trimmed) return;
 		// The images came with the question and stay with it; the edit is to the wording.
-		void editAndResend(index, [...images, { type: "text", text: trimmed }]);
+		void editAndResend(sessionId, index, [...images, { type: "text", text: trimmed }]);
 	}
 
 	if (editing) {
@@ -200,9 +202,10 @@ function UserRow({
 }
 
 function AssistantRow({ message }: { message: AssistantMessage }) {
-	const toolRuns = useSide((s) => s.toolRuns);
+	const sessionId = useSideSessionId();
+	const toolRuns = useSide((s) => sideChatOf(s, sessionId).toolRuns);
 	// 没有运行记录的卡片说什么，取决于这一轮跑完没有——见 `conversation/tool-status.ts`。
-	const turnRunning = useSide((s) => s.running);
+	const turnRunning = useSide((s) => sideChatOf(s, sessionId).running);
 	/** What it actually said, for the copy button. Tool calls and thinking are not the answer. */
 	const spoken = message.content
 		.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")

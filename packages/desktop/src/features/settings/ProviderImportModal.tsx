@@ -11,14 +11,14 @@
  * and that is worth knowing before the import rather than at the next message.
  */
 
-import { Check, CheckSquare, KeyRound, Square, Upload } from "lucide-react";
+import { CheckSquare, KeyRound, Square, Upload } from "lucide-react";
 import { useState } from "react";
 import type { ProviderConfig } from "@lyra/core";
 import { useI18n } from "../../i18n/index.ts";
+import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { Badge, GhostButton, PrimaryButton } from "./controls.tsx";
+import { Badge } from "./controls.tsx";
 import type { ImportEntry } from "./provider-transfer.ts";
 
 export function ProviderImportModal({
@@ -49,34 +49,59 @@ export function ProviderImportModal({
 	return (
 		<Overlay onClose={onCancel} width={560}>
 			{(dismiss) => (
-				<>
-					<div className="flex items-center gap-2.5 border-b border-line px-5 py-3.5">
-						<h3 className="flex items-center gap-2.5 text-body font-semibold text-ink">
-							<Upload size={18} className="text-accent" />
-							{t("providerTransfer.importTitle")}
-						</h3>
-						<span className="rounded-full bg-card-hover px-2 py-0.5 text-micro font-medium text-ink-muted">
-							{entries.length}
+				<DialogFrame
+					icon={<Upload size={20} className="shrink-0 text-accent" />}
+					title={(
+						<span className="flex min-w-0 items-center gap-2">
+							<span className="truncate">{t("providerTransfer.importTitle")}</span>
+							<span className="shrink-0 rounded-full bg-card-hover px-2 py-0.5 text-micro font-medium text-ink-muted">
+								{entries.length}
+							</span>
 						</span>
-						<div className="flex-1" />
-						{/* 跟 `FetchModelsModal` 同一颗：方块里一个勾选框认不出是「全选」，名字写出来就够了。 */}
-						<button
-							type="button"
-							onClick={() => {
-								setSelected(allSelected ? new Set() : new Set(entries.map((entry) => entry.provider.id)));
-							}}
-							className="flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-						>
-							{allSelected ? (
-								<CheckSquare size={14} className="text-accent" strokeWidth={2} />
-							) : (
-								<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
-							)}
-							{t(allSelected ? "common.deselectAll" : "common.selectAll")}
-						</button>
-					</div>
-
-					<Scroller className="max-h-[56vh]" contentClassName="space-y-1.5 px-5 py-4">
+					)}
+					bodyClassName="max-h-[min(460px,50dvh)]"
+					status={(
+						/* 跟 `FetchModelsModal` 同一颗：方块里一个勾选框认不出是「全选」，名字写出来就够了。 */
+						<div className="flex items-center">
+							<button
+								type="button"
+								onClick={() => {
+									setSelected(allSelected ? new Set() : new Set(entries.map((entry) => entry.provider.id)));
+								}}
+								className="-ml-2 flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							>
+								{allSelected ? (
+									<CheckSquare size={14} className="text-accent" strokeWidth={2} />
+								) : (
+									<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
+								)}
+								{t(allSelected ? "common.deselectAll" : "common.selectAll")}
+							</button>
+						</div>
+					)}
+					actions={(
+						<>
+							{/* The consequence of the choice above, in the place a person looks before pressing. */}
+							<span className="min-w-0 flex-1 truncate text-caption text-ink-muted">
+								{t("providerTransfer.importPlan", {
+									add: chosen.filter((entry) => entry.kind === "new").length,
+									replace: chosen.filter((entry) => entry.kind === "replace").length,
+								})}
+							</span>
+							{/* 名字和数字一起留下，理由见 `FetchModelsModal` 的页脚：✓3 不说明这一按是导入还是保留。 */}
+							<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
+							<DialogAction
+								tone="primary"
+								disabled={chosen.length === 0}
+								onClick={() => dismiss(() => onImport(chosen.map((entry) => entry.provider)))}
+								className="tabular-nums"
+							>
+								{t("providerTransfer.importAction", { n: chosen.length })}
+							</DialogAction>
+						</>
+					)}
+				>
+					<div className="space-y-1.5">
 						{entries.map((entry) => (
 							<Row
 								key={entry.provider.id}
@@ -88,30 +113,8 @@ export function ProviderImportModal({
 						{dropped > 0 && (
 							<p className="pt-1 text-detail text-ink-faint">{t("providerTransfer.dropped", { n: dropped })}</p>
 						)}
-					</Scroller>
-
-					<div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3.5">
-						{/* The consequence of the choice above, in the place a person looks before pressing. */}
-						<span className="min-w-0 flex-1 truncate text-caption text-ink-muted">
-							{t("providerTransfer.importPlan", {
-								add: chosen.filter((entry) => entry.kind === "new").length,
-								replace: chosen.filter((entry) => entry.kind === "replace").length,
-							})}
-						</span>
-						{/* 名字和数字一起留下，理由见 `FetchModelsModal` 的页脚：✓3 不说明这一按是导入还是保留。 */}
-						<div className="flex shrink-0 items-center gap-2">
-							<GhostButton onClick={() => dismiss()}>{t("common.cancel")}</GhostButton>
-							<PrimaryButton
-								disabled={chosen.length === 0}
-								onClick={() => dismiss(() => onImport(chosen.map((entry) => entry.provider)))}
-								icon={<Check size={14} strokeWidth={2.2} aria-hidden />}
-								className="tabular-nums"
-							>
-								{t("providerTransfer.importAction", { n: chosen.length })}
-							</PrimaryButton>
-						</div>
 					</div>
-				</>
+				</DialogFrame>
 			)}
 		</Overlay>
 	);

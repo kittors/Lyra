@@ -25,9 +25,9 @@
 import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Check, CircleHelp, TriangleAlert, X } from "lucide-react";
+import { CircleHelp, TriangleAlert } from "lucide-react";
 import { Overlay } from "./Overlay.tsx";
-import { DialogFrame } from "./Dialog.tsx";
+import { DialogAction, DialogFrame } from "./Dialog.tsx";
 
 /** Narrow enough to read as a question rather than as a form. */
 const CONFIRM_WIDTH = 400;
@@ -82,28 +82,20 @@ export function ConfirmBody({
 			actions={(
 				<>
 					{/*
-					 * 一个叉一个勾，动词搬到 tooltip 上。是/否由标题负责；更新弹窗那种带字的
-					 * 动作走 `DialogAction`，不走这里。
+					 * 动词写在按钮上，不挂在 tooltip 上。
+					 *
+					 * 这里曾经是一个叉一个勾，理由是「是/否由标题负责」。标题确实问清了问题，但两颗
+					 * 图标没有回答它：✓ 的意思由它旁边那行字决定，而删除、卸载、清空、退出登录这几
+					 * 件事在同一个勾上长得一模一样。要读出按下去会发生什么，得先把鼠标停上去等一个
+					 * tooltip——而这正是一个「停下一切来问」的界面最不该要求的动作。
+					 *
+					 * 这也是应用里其它对话框的样子（权限确认、更新、新建项目），同一套 `DialogAction`。
 					 */}
 					<div className="flex-1" />
-					<button
-						type="button"
-						data-ly-tip={cancelLabel ?? translate("common.cancel")}
-						aria-label={cancelLabel ?? translate("common.cancel")}
-						onClick={onCancel}
-						className="ly-dialog-action ly-dialog-action-icon ly-dialog-action-secondary"
-					>
-						<X size={15} strokeWidth={2} aria-hidden />
-					</button>
-					<button
-						type="button"
-						data-ly-tip={confirmLabel}
-						aria-label={confirmLabel}
-						onClick={onConfirm}
-						className={`ly-dialog-action ly-dialog-action-icon ${tone === "danger" ? "ly-dialog-action-danger" : "ly-dialog-action-primary"}`}
-					>
-						<Check size={15} strokeWidth={2.4} aria-hidden />
-					</button>
+					<DialogAction onClick={onCancel}>{cancelLabel ?? translate("common.cancel")}</DialogAction>
+					<DialogAction tone={tone === "danger" ? "danger" : "primary"} onClick={onConfirm}>
+						{confirmLabel}
+					</DialogAction>
 				</>
 			)}
 		/>

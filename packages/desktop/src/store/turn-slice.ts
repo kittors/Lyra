@@ -10,7 +10,7 @@ import { translate } from "../i18n/translate.ts";
 import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { prune, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
-import { loadCarried, relight, saveCarried } from "./turn-meter.ts";
+import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
@@ -69,7 +69,8 @@ export function turnSlice(set: Set, get: Get) {
 		 */
 		const running = sessionId && get().activity[sessionId] === "running" ? get().turns[sessionId] : undefined;
 		const carriedMeter = sessionId ? (get().carried[sessionId] ?? loadCarried(sessionId)) : null;
-		const meter = running ?? relight(options.carryOn && sessionId ? carriedMeter : null, Date.now());
+		// 接哪一块、哪一半接哪一半不接，规则和它的三份道理都在 `meterFor` 上。
+		const meter = meterFor({ running, carried: carriedMeter, carryOn: Boolean(options.carryOn && sessionId), now: Date.now() });
 		if (sessionId) saveCarried(sessionId, null);
 		if (ownsSelection()) set({
 			messages: [...get().messages, pending], pendingUserMessage: { sessionId: sessionId ?? null, message: pending },

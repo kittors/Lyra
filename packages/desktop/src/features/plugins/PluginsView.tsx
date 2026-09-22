@@ -21,6 +21,7 @@
 
 import type { BundleKind, Skill } from "@lyra/core";
 import { Blocks, Cable, Plus, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useMemo, useState } from "react";
@@ -626,15 +627,22 @@ function Empty({
 			<p className="text-label leading-relaxed text-ink-faint">
 				{sources === 0 ? t("market.noRegistry") : mcp ? t("market.emptyMcp") : t("market.emptyPlugins")}
 			</p>
-			<button
-				type="button"
-				data-ly-tip={sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}
-				aria-label={sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}
-				onClick={onAddSource}
-				className="mx-auto mt-4 grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
-			>
-				{sources === 0 ? <Plus size={15} strokeWidth={2} aria-hidden /> : <SettingsIcon size={15} strokeWidth={1.9} aria-hidden />}
-			</button>
+			{/*
+			 * 这是这块空白唯一的出路，所以它说出自己是什么。
+			 *
+			 * 从前是一颗 32px 的方块，里面一个 ➕ 或一个齿轮，动词挂在 tooltip 上。工具栏里的图标
+			 * 按钮省得起这笔字，因为周围一排东西替它说明它在哪一类里；这一颗上面只有一句「这里还
+			 * 什么都没有」，下面什么都没有——一个孤零零的加号，得先猜它加的是插件还是市场。
+			 */}
+			<div className="mt-4 flex justify-center">
+				<Button
+					variant="primary"
+					icon={sources === 0 ? <Plus size={15} strokeWidth={2} aria-hidden /> : <SettingsIcon size={15} strokeWidth={1.9} aria-hidden />}
+					onClick={onAddSource}
+				>
+					{sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}
+				</Button>
+			</div>
 		</div>
 	);
 }

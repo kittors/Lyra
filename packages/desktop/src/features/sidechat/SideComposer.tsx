@@ -11,7 +11,8 @@ import type { UserContent } from "@lyra/core";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { findModel } from "../models/index.ts";
-import { useSide, openScopedPanel } from "../dock/index.ts";
+import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
+import { useSideSessionId } from "./scope.ts";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
@@ -66,9 +67,10 @@ export function SideComposer({
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
-	const modelId = useSide((s) => s.modelId);
-	const loading = useSide((s) => s.loading);
-	const thinking = useSide((s) => s.thinking);
+	const sessionId = useSideSessionId();
+	const modelId = useSide((s) => sideChatOf(s, sessionId).modelId);
+	const loading = useSide((s) => sideChatOf(s, sessionId).loading);
+	const thinking = useSide((s) => sideChatOf(s, sessionId).thinking);
 	const [text, setText] = useState("");
 	const [attachments, setAttachments] = useState<SideAttachment[]>([]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,12 +126,12 @@ export function SideComposer({
 	 * substituted when something is already half-typed: losing what you were writing to recover
 	 * something you asked for is a bad trade.
 	 */
-	const draftSeed = useSide((s) => s.draftSeed);
+	const draftSeed = useSide((s) => sideChatOf(s, sessionId).draftSeed);
 	useEffect(() => {
 		if (!draftSeed) return;
 		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n${draftSeed.text}` : draftSeed.text));
-		useSide.getState().clearDraftSeed();
-	}, [draftSeed]);
+		useSide.getState().clearDraftSeed(sessionId);
+	}, [draftSeed, sessionId]);
 
 	const addFiles = async (picked: PickedFile[]) => {
 		if (picked.length === 0) return;
@@ -315,7 +317,7 @@ export function SideComposer({
 								inheritLabel: t("sideChat.followMainLong"),
 								inheritDetail: modelName ?? t("sideChat.noModel"),
 								onChange: (value) => {
-									void useSide.getState().setModel(value || null);
+									void useSide.getState().setModel(sessionId, value || null);
 								},
 							}}
 						/>
@@ -332,7 +334,7 @@ export function SideComposer({
 							selection={{
 								modelId: modelId || model?.id,
 								value: thinking ?? sessionThinking(meta, settings),
-								onChange: (level) => useSide.getState().setThinking(level),
+								onChange: (level) => useSide.getState().setThinking(sessionId, level),
 							}}
 						/>
 						<ComposerSend

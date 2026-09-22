@@ -395,8 +395,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     }
 
     case "tasks":
-      // Reached only for the session on screen, which is the one whose queue is shown.
-      useSide.getState().setTasks(event.tasks);
+      // 记到这条事件自己的会话名下——分屏时屏上不止一个会话，「屏上那个」不再是唯一答案。
+      useSide.getState().setTasks(sessionId, event.tasks);
       break;
 
     /*

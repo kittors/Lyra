@@ -12,7 +12,6 @@ import {
 	Rocket,
 	Tag,
 	Info,
-	X,
 	XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,6 +20,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { releaseNotes } from "./release-notes.ts";
+import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { MenuBody, MenuItem } from "../../ui/overlay/Menu.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
@@ -178,37 +178,52 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 	};
 
 	return (
-		<Overlay onClose={onClose} width={560}>{(dismiss) => <>
-			<div className="ly-release-modal flex min-h-0 flex-col bg-float text-ink">
-				{/* Clean Header */}
-				<div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-line-soft">
-					<div className="flex items-center gap-2.5">
-						<div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink/5 text-ink">
-							<Tag size={15} strokeWidth={2} />
-						</div>
-						<div>
-							<h2 className="text-label font-semibold text-ink leading-none">{t("release.title")}</h2>
-							<p className="text-caption text-ink-faint mt-0.5">{t("release.subtitle")}</p>
-						</div>
-					</div>
-					<button
-						type="button"
-						onClick={() => dismiss()}
-						aria-label={t("release.close")} data-ly-tip={t("common.off")}
-						className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
-					>
-						<X size={15} />
-					</button>
-				</div>
-
-				{/* Body Content */}
-				<Scroller className="h-[min(520px,calc(85dvh-132px))] min-h-0" contentClassName="p-5 space-y-4">
+		<Overlay onClose={onClose} width={560}>{(dismiss) => (
+			<DialogFrame
+				className="ly-release-modal"
+				icon={(
+					<span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink/5 text-ink">
+						<Tag size={15} strokeWidth={2} />
+					</span>
+				)}
+				title={t("release.title")}
+				detail={t("release.subtitle")}
+				bodyClassName="h-[min(480px,calc(85dvh-190px))] min-h-0"
+				actions={publishSuccess ? (
+					<>
+						<div className="flex-1" />
+						<DialogAction tone="primary" onClick={() => dismiss()}>{t("common.done")}</DialogAction>
+					</>
+				) : (
+					<>
+						<span className="flex min-w-0 flex-1 items-center gap-1 truncate text-detail text-ink-muted">
+							<button type="button" aria-label={t("release.whatHappens")} data-ly-tip={t("release.whatHappensDetail")} className="shrink-0 text-ink-faint transition-colors hover:text-ink">
+								<Info size={12} aria-hidden />
+							</button>
+							<span className="truncate">
+								{t("release.target")} <span className="font-mono font-semibold text-ink">v{currentTargetVersion}</span>
+							</span>
+						</span>
+						<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
+						<DialogAction
+							tone="primary"
+							onClick={handlePublish}
+							disabled={publishing || !currentTargetVersion}
+						>
+							{publishing ? <ActionSpinner size={13} onFill /> : <Rocket size={14} strokeWidth={1.9} aria-hidden />}
+							{publishing ? t("release.publishing") : t("release.publish")}
+						</DialogAction>
+					</>
+				)}
+			>
+				<div className="space-y-4">
 					{loading && (
 						<div className="flex items-center justify-center py-12">
 							<ActionSpinner size={20} className="text-ink-faint" />
 						</div>
 					)}
 
+					{/* 「知道了」那一颗搬到了底下那排按钮里，跟别的对话框一样——这里只报结果。 */}
 					{publishSuccess && (
 						<div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center space-y-2">
 							<div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
@@ -218,15 +233,6 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 							<p className="text-detail text-ink-muted">
 								{t("release.actionsTakingOver")}
 							</p>
-							<button
-								type="button"
-								data-ly-tip={t("common.done")}
-								aria-label={t("common.done")}
-								onClick={() => dismiss()}
-								className="mt-2 grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell hover:opacity-90 cursor-pointer mx-auto"
-							>
-								<Check size={14} strokeWidth={2.2} aria-hidden />
-							</button>
 						</div>
 					)}
 
@@ -423,7 +429,8 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 										</div>
 
 										{dryRunStatus.jobs.length > 0 && (
-											<div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-line-soft">
+											/* 上面那行和这几格之间隔的是留白，不是一条线——这个应用里的边界都这么给。 */
+											<div className="grid grid-cols-2 gap-1.5 pt-2">
 												{dryRunStatus.jobs.map((job) => (
 													<div
 														key={job.name}
@@ -451,42 +458,8 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 						</>
 					)}
 					{error && <p role="alert" className="rounded-lg bg-danger/10 p-3 text-caption text-danger">{error}</p>}
-				</Scroller>
-
-				{/* Footer Actions */}
-				{!publishSuccess && (
-					<div className="flex items-center justify-between border-t border-line-soft px-5 py-3 bg-card-hover/20">
-						<div className="text-detail text-ink-muted">
-							<button type="button" aria-label={t("release.whatHappens")} data-ly-tip={t("release.whatHappensDetail")}><Info size={12} className="mr-1 inline-block" /></button>{t("release.target")} <span className="font-mono font-semibold text-ink">v{currentTargetVersion}</span>
-						</div>
-						<div className="flex items-center gap-2">
-							<button
-								type="button"
-								data-ly-tip={t("common.cancel")}
-								aria-label={t("common.cancel")}
-								onClick={() => dismiss()}
-								className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
-							>
-								<X size={14} strokeWidth={2} aria-hidden />
-							</button>
-							<button
-								type="button"
-								data-ly-tip={publishing ? t("release.publishing") : t("release.publish")}
-								aria-label={publishing ? t("release.publishing") : t("release.publish")}
-								onClick={handlePublish}
-								disabled={publishing || !currentTargetVersion}
-								className="grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-							>
-								{publishing ? (
-									<ActionSpinner size={13} onFill />
-								) : (
-									<Rocket size={14} strokeWidth={1.9} aria-hidden />
-								)}
-							</button>
-						</div>
-					</div>
-				)}
-			</div>
-		</>}</Overlay>
+				</div>
+			</DialogFrame>
+		)}</Overlay>
 	);
 }

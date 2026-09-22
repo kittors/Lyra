@@ -99,7 +99,14 @@ const AWAY_THRESHOLD = 160;
  */
 export type Reading = Geometry;
 
-/** The scrollTop that puts the end of the content against the foot of the viewport. */
+/**
+ * The scrollTop that puts the end of the content against the foot of the viewport.
+ *
+ * Integer, and only ever an approximation: `scrollHeight` and `clientHeight` are both rounded, so
+ * this lands up to a pixel short of where the content actually ends. Good enough for the distance
+ * tests below, which all have a pixel of slack in them; not good enough to write — see
+ * `targetScrollTop`.
+ */
 export function visualBottom(reading: Reading): number {
 	return Math.max(0, reading.scrollHeight - reading.clientHeight);
 }
@@ -268,7 +275,26 @@ export function targetScrollTop(state: FollowState, reading: Reading): number | 
 	// Already there. Writing it anyway is not free: assigning `scrollTop` cancels a fling in
 	// progress, and on a pinned transcript that assignment happens on every streamed token.
 	if (Math.abs(reading.scrollTop - target) < 1) return null;
-	return target;
+	/*
+	 * A pixel past the end, deliberately, so the browser clamps it to the real one.
+	 *
+	 * `visualBottom` is two rounded integers subtracted from each other, and the content's true
+	 * height is not an integer: CJK prose lays out at 26.25px a line, so a transcript's real
+	 * scrollable maximum has a fractional part that cycles .023 → .273 → .523 → .773 as it grows.
+	 * `scrollTop` itself is fractional, so writing the integer parks the content that far short of
+	 * the bottom — by a different amount every time the tail changes.
+	 *
+	 * That difference is the jitter. Measured through a scripted turn: of 220 follow writes, 73
+	 * moved the painted content by a sub-pixel amount — 0.25px and 0.75px — and the newest message
+	 * bubble and the running line under it slid together every time. On a 2× display that is one
+	 * physical pixel of shimmer under anything that keeps the tail moving.
+	 *
+	 * Overshooting is the only way to reach the real end: no DOM property reports it, and the
+	 * browser computes the clamp from the exact geometry. `write` reads the clamped value back, so
+	 * the self-write check in `onScroll` and everything else downstream sees where it actually
+	 * landed rather than what was asked for.
+	 */
+	return target + 1;
 }
 
 // ---------------------------------------------------------------------------

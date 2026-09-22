@@ -283,7 +283,7 @@ function Row({
 		const taken = dropQueued(sessionId, entry.id);
 		if (!taken) return;
 		openScopedPanel("chat", companionOf("chat"));
-		void useSide.getState().ask(taken.content);
+		void useSide.getState().ask(sessionId, taken.content);
 	};
 
 	return (

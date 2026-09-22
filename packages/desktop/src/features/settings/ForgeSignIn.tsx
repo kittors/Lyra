@@ -15,7 +15,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink, ShieldCheck, X } from "lucide-react";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
@@ -162,14 +162,16 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 				</p>
 			)}
 
+			{/* 动词写在按钮上。这两颗曾经是一个盾牌一个叉，名字挂在 tooltip 上——见 `DialogAction`。 */}
 			<div className="mt-4 flex items-center gap-2">
 				<PrimaryButton
 					onClick={() => void save()}
 					disabled={busy || !token.trim() || !baseUrl.trim()}
-					title={busy ? t("forge.verifying") : t("forge.verifyAndSave")}
 					icon={busy ? <ActionSpinner size={13} /> : <ShieldCheck size={13} strokeWidth={1.9} />}
-				/>
-				<GhostButton onClick={onCancel} icon={<X size={13} strokeWidth={1.8} />} title={t("common.cancel")} />
+				>
+					{busy ? t("forge.verifying") : t("forge.verifyAndSave")}
+				</PrimaryButton>
+				<GhostButton onClick={onCancel}>{t("common.cancel")}</GhostButton>
 			</div>
 		</div>
 	);

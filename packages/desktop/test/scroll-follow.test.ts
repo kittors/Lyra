@@ -131,7 +131,7 @@ test("a shrinking viewport keeps following — the composer growing as you type"
 	const squeezed = at(BOTTOM - 200);
 	assert.equal(atBottom(squeezed), false, "by distance alone it looks like the reader left");
 	assert.equal(nextState("following", { kind: "viewport" }, squeezed), "following");
-	assert.equal(targetScrollTop("following", squeezed), BOTTOM, "and it is put back against the bottom");
+	assert.equal(targetScrollTop("following", squeezed), BOTTOM + 1, "and it is put back against the bottom");
 });
 
 test("a reflow above does not decide anything either", () => {
@@ -186,7 +186,7 @@ test("scroll anchoring pulling the surface back does not end a follow", () => {
 	const anchored = at(800, { content: 3600 });
 	assert.equal(atBottom(anchored), false, "by distance it looks exactly like the reader left");
 	assert.equal(nextState("following", { kind: "arrived" }, anchored), "following");
-	assert.equal(targetScrollTop("following", anchored), 2800, "and the next frame puts it back on the end");
+	assert.equal(targetScrollTop("following", anchored), 2801, "and the next frame puts it back on the end");
 });
 
 test("a transcript clamped by its own shrinking keeps following", () => {
@@ -285,9 +285,30 @@ test("the write is skipped when there is nothing to move", () => {
 	// Assigning `scrollTop` cancels an inertial scroll in progress, and on a pinned transcript the
 	// assignment would otherwise happen on every streamed token.
 	assert.equal(targetScrollTop("following", at(BOTTOM)), null);
-	assert.equal(targetScrollTop("following", at(BOTTOM - 300)), BOTTOM);
+	assert.equal(targetScrollTop("following", at(BOTTOM - 300)), BOTTOM + 1);
 	assert.equal(targetScrollTop("detached", at(1000)), null, "a detached surface is never moved");
 	assert.equal(targetScrollTop("returning", at(1000)), null, "the animation owns the position");
+});
+
+test("the write overshoots the end, because the integer bottom is short of it", () => {
+	/*
+	 * The reported bug: a message sent while the previous reply is still writing lands, and from
+	 * then on it and the running line under it shimmer up and down by one physical pixel.
+	 *
+	 * `visualBottom` is `scrollHeight - clientHeight`, two rounded integers — but the content's real
+	 * height is fractional (CJK prose lays out at 26.25px a line), so the true scrollable maximum
+	 * has a fractional part, cycling .023 → .273 → .523 → .773 as the transcript grows. Writing the
+	 * integer parks the content that far short of the bottom, by a different amount every time the
+	 * tail changes, and *that* is what moves on screen. Measured in the real window: 73 of 220
+	 * follow writes shifted the painted transcript by 0.25px or 0.75px.
+	 *
+	 * Nothing in the DOM reports the fractional maximum, so the value written has to be past it and
+	 * the browser's own clamp — which does use the exact geometry — supplies the rest.
+	 */
+	assert.equal(targetScrollTop("following", at(0)), BOTTOM + 1);
+	// The re-entry tests keep using the integer: they all carry a pixel of slack already.
+	assert.equal(visualBottom(at(0)), BOTTOM);
+	assert.equal(atBottom(at(BOTTOM)), true);
 });
 
 // ---------------------------------------------------------------------------

@@ -49,7 +49,9 @@ test("Confirm: 焦点在取消上，不在那个不可逆的按钮上", async ()
 	assert.equal(buttons.length, 2, "两个出口：取消与执行");
 	const [cancel, confirm] = buttons;
 
-	assert.equal(cancel!.getAttribute("aria-label"), "取消");
+	// 名字写在按钮上，不在 aria-label 上：这两颗曾经是一个叉一个勾，动词藏在 tooltip 里。
+	assert.equal(cancel!.textContent, "取消");
+	assert.equal(confirm!.textContent, "卸载");
 	// The shell owns focus so short dialogs do not scroll past their title at mount.
 	assert.equal(document.activeElement, cancel, "取消必须持有焦点");
 	assert.notEqual(document.activeElement, confirm, "焦点不能落在不可逆的那一半上");

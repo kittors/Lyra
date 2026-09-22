@@ -12,6 +12,17 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { Overlay } from "./Overlay.tsx";
 import { Scroller } from "../scroll/Scroller.tsx";
 
+/**
+ * 对话框底下的那一颗按钮。上面写着它会做的那件事。
+ *
+ * **写字，不画图标。** 这些按钮曾经有好几处只放一个 ✕ 和一个 ✓，名字挂在 tooltip 上。工具栏
+ * 里的图标按钮可以这么省——周围一排东西替它说明它属于哪一类；对话框底下这两颗没有这个周围，
+ * 它们是这次操作的结论本身，一个要说清按下去会发生什么，另一个要说清不按会怎样。一个勾在
+ * 「删除会话」「卸载插件」「导入 33 个模型」上长得一模一样，而读出区别的唯一办法是把鼠标停
+ * 上去等一个 tooltip——这正是一个「停下一切来问」的界面最不该要求的动作。
+ *
+ * `label` 留着，但只当 tooltip 用：可见的字已经是它的名字了。
+ */
 export function DialogAction({
 	children,
 	onClick,
@@ -60,6 +71,7 @@ export function DialogFrame({
 	children,
 	actions,
 	height,
+	bodyClassName,
 	className = "",
 	...rest
 }: {
@@ -71,6 +83,12 @@ export function DialogFrame({
 	children?: ReactNode;
 	actions: ReactNode;
 	height?: number;
+	/**
+	 * How tall the scrolling body may grow. Only for the dialogs that are a form rather than a
+	 * question — the default is sized for a paragraph and a list, and a settings form under it
+	 * scrolls three fields at a time.
+	 */
+	bodyClassName?: string;
 	className?: string;
 } & Omit<HTMLAttributes<HTMLDivElement>, "title" | "children">) {
 	const locked = height !== undefined;
@@ -95,7 +113,7 @@ export function DialogFrame({
 						<Scroller
 							top="fade"
 							bottom="fade"
-							className={locked ? "min-h-0 flex-1" : "max-h-[min(420px,50dvh)]"}
+							className={locked ? "min-h-0 flex-1" : bodyClassName ?? "max-h-[min(420px,50dvh)]"}
 							contentClassName={status ? "pt-3 pb-1" : "pb-1"}
 						>
 							{children}

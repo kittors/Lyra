@@ -11,26 +11,40 @@
  */
 
 import { shortcutLabel } from "../keyboard.ts";
+import { hoverLayersSuppressed, onHoverLayersDismissed } from "./hover-layers.ts";
 
 const DELAY_MS = 420;
 /** Long enough to be seen leaving, short enough not to trail the pointer. Matches `ly-tip-out`. */
 const EXIT_MS = 110;
 const GAP = 6;
 const MARGIN = 6;
+/**
+ * Above the sidebar's hover card (210), which is the one other thing the pointer can summon.
+ *
+ * They meet on a conversation row: resting on the archive icon shows both, and the bubble is
+ * centred under an icon a few pixels from the pane's edge while the card starts 8px past it — so
+ * 「归档会话」 overhangs the row by just enough to slide under the card. At 200 it lost, and the
+ * label naming the button directly beneath the pointer is the more specific of the two.
+ *
+ * Still under the toasts (1000). CodeMirror's gutters are at 200, which this now clears outright
+ * rather than tying with and winning on document order.
+ */
+const TIP_Z = 220;
 
 let host: HTMLElement | null = null;
 let timer = 0;
 let leaving = 0;
 let current: HTMLElement | null = null;
 
-let popoverSuppressed = false;
-
-export function setTooltipSuppressed(suppressed: boolean) {
-	popoverSuppressed = suppressed;
-	if (suppressed) {
-		hideTooltipImmediate();
-	}
-}
+/*
+ * Menus and dialogs are asked about once, in `hover-layers`, rather than looked for here.
+ *
+ * This used to keep its own flag (set by `Popover` alone) *and* re-run a selector for the class
+ * list a popover happens to carry. `Overlay`'s dialogs matched neither, so a modal opened without
+ * a click left a bubble hanging over it — while a dialog's own tooltips, which it has plenty of,
+ * go on working: a modal clears the screen once rather than suppressing for its lifetime.
+ */
+onHoverLayersDismissed(hideTooltipImmediate);
 
 function ensureHost(): HTMLElement {
 	if (host) return host;
@@ -38,7 +52,7 @@ function ensureHost(): HTMLElement {
 	host.className = "ly-tooltip";
 	host.setAttribute("role", "tooltip");
 	host.style.position = "fixed";
-	host.style.zIndex = "200";
+	host.style.zIndex = String(TIP_Z);
 	host.style.pointerEvents = "none";
 	host.hidden = true;
 	document.body.appendChild(host);
@@ -166,7 +180,7 @@ export function installTooltips() {
 	document.addEventListener(
 		"pointerover",
 		(event) => {
-			if (popoverSuppressed || document.querySelector('.fixed.z-\\[60\\][role="menu"], .fixed.z-\\[60\\][role="dialog"]')) return;
+			if (hoverLayersSuppressed()) return;
 			const el = targetOf(event.target);
 			if (el === current) return;
 			hide();
@@ -174,7 +188,7 @@ export function installTooltips() {
 			current = el;
 			timer = window.setTimeout(() => {
 				// Still under the pointer, and still in the document, by the time the delay is up.
-				if (!popoverSuppressed && !document.querySelector('.fixed.z-\\[60\\][role="menu"], .fixed.z-\\[60\\][role="dialog"]') && current === el && el.isConnected) place(el);
+				if (!hoverLayersSuppressed() && current === el && el.isConnected) place(el);
 			}, DELAY_MS);
 		},
 		true,

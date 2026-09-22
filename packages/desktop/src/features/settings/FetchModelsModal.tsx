@@ -15,14 +15,12 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check, X } from "lucide-react";
 import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
 import { useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "../models/index.ts";
+import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
-import { GhostButton, PrimaryButton } from "./controls.tsx";
 import { defaultWindowLabel } from "./model-defaults.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -95,59 +93,73 @@ export function FetchModelsModal({
 	return (
 		<Overlay onClose={onClose} width={520} label={t("fetchModels.title")}>
 			{(dismiss) => (
-				<>
-				{/* Header */}
-				<div className="flex items-center justify-between px-5 pt-4 pb-2">
-					<div className="flex items-center gap-2">
-						<h3 className="text-body font-semibold text-ink">{t("fetchModels.title")}</h3>
-						<span className="rounded-full bg-card-hover px-2 py-0.5 text-micro font-medium text-ink-muted">
-							{translate("fetchModels.totalCount", { n: models.length })}
+				<DialogFrame
+					title={(
+						<span className="flex min-w-0 items-center gap-2">
+							<span className="truncate">{t("fetchModels.title")}</span>
+							<span className="shrink-0 rounded-full bg-card-hover px-2 py-0.5 text-micro font-medium text-ink-muted">
+								{translate("fetchModels.totalCount", { n: models.length })}
+							</span>
 						</span>
-					</div>
-					<button
-						type="button"
-						aria-label={t("common.cancel")}
-						onClick={() => dismiss()}
-						className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
-					>
-						<X size={15} strokeWidth={2} />
-					</button>
-				</div>
-
-				{/* Search & Actions Bar without harsh border lines */}
-				<div className="flex items-center gap-2 px-5 py-2">
-					<SearchField
-						value={search}
-						onChange={setSearch}
-						placeholder={t("fetchModels.search")}
-						size="comfortable"
-						className="flex-1 bg-input"
-					/>
-					{/*
-					 * 全选说出自己的名字，并且跟搜索框同高同底。
-					 *
-					 * 它原先是一颗 32px 的圆角方块，里面单放一个勾选框——旁边的搜索框是 34px 的胶囊，于是这
-					 * 两件东西高度差 2px、圆角差得更多，看上去不像一排控件，像一个勾选框飘在框边上。而一个
-					 * 没有归属对象的勾选框本身就读不出意思：勾选框在这个界面里的含义由它左边那一行给，这一颗
-					 * 左边什么都没有。tooltip 答得了「它叫什么」，但那要先把鼠标停上去——先得有理由停上去。
-					 */}
-					<button
-						type="button"
-						onClick={toggleAll}
-						className="flex h-[var(--ly-control)] shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-field)] bg-input px-3.5 text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-					>
-						<ChoiceMark kind="checkbox" checked={allSelected} indeterminate={!allSelected && someSelected} />
-						{allSelected ? t("common.deselectAll") : t("common.selectAll")}
-					</button>
-				</div>
-
-				{/* List Scroller with top & bottom edge softening */}
-				<Scroller
-					top="fade"
-					bottom="fade"
-					className="min-h-[220px] max-h-[440px] flex-1"
-					contentClassName="px-3 py-2 space-y-0.5"
+					)}
+					bodyClassName="min-h-[220px] max-h-[min(440px,48dvh)]"
+					status={(
+						<div className="flex items-center gap-2">
+							<SearchField
+								value={search}
+								onChange={setSearch}
+								placeholder={t("fetchModels.search")}
+								size="comfortable"
+								className="flex-1 bg-input"
+								/*
+								 * Escape 先清搜索，空了就关整张弹窗。
+								 *
+								 * 必须由这里转交：搜索框自己 `stopPropagation` 了那一下，而 `Overlay` 的
+								 * Escape 挂在 `window` 上——事件根本到不了它。以前看不出来，是因为标题栏
+								 * 右上角还有一颗 ✕ 排在搜索框前面，开场焦点落在那儿；那颗按钮没了之后，
+								 * 焦点落进搜索框，Escape 就成了一个按不动的键。
+								 */
+								onEscape={() => dismiss()}
+							/>
+							{/*
+							 * 全选说出自己的名字，并且跟搜索框同高同底。
+							 *
+							 * 它原先是一颗 32px 的圆角方块，里面单放一个勾选框——旁边的搜索框是 34px 的胶囊，于是这
+							 * 两件东西高度差 2px、圆角差得更多，看上去不像一排控件，像一个勾选框飘在框边上。而一个
+							 * 没有归属对象的勾选框本身就读不出意思：勾选框在这个界面里的含义由它左边那一行给，这一颗
+							 * 左边什么都没有。tooltip 答得了「它叫什么」，但那要先把鼠标停上去——先得有理由停上去。
+							 */}
+							<button
+								type="button"
+								onClick={toggleAll}
+								className="flex h-[var(--ly-control)] shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-field)] bg-input px-3.5 text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							>
+								<ChoiceMark kind="checkbox" checked={allSelected} indeterminate={!allSelected && someSelected} />
+								{allSelected ? t("common.deselectAll") : t("common.selectAll")}
+							</button>
+						</div>
+					)}
+					actions={(
+						<>
+							<span className="min-w-0 flex-1 truncate text-caption text-ink-muted">
+								{t("fetchModels.selected", { n: selected.size })}
+							</span>
+							<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
+							<DialogAction
+								tone="primary"
+								disabled={selected.size === 0}
+								// Through `dismiss`, so the import runs on the way out rather than under a dialog
+								// that is still on screen — see the completion note in `Overlay`.
+								onClick={() => dismiss(() => onImport(Array.from(selected)))}
+								className="tabular-nums"
+							>
+								{t("fetchModels.importSelected", { n: selected.size })}
+							</DialogAction>
+						</>
+					)}
 				>
+					{/* 行的底色比字宽出去一点，字本身还跟标题左缘对齐。 */}
+					<div className="-mx-2.5 space-y-0.5">
 					{filtered.length === 0 ? (
 						<div className="py-12 text-center text-caption text-ink-faint">{t("fetchModels.noMatch")}</div>
 					) : (
@@ -207,35 +219,8 @@ export function FetchModelsModal({
 							);
 						})
 					)}
-				</Scroller>
-
-				{/*
-				 * Footer
-				 *
-				 * 这两颗按钮以前只有一个 ✕ 和一个 ✓33，名字挂在 tooltip 上。工具栏里的图标按钮可以这么省——
-				 * 周围一排东西替它说明它在哪一类里；对话框底下这两颗没有这个周围，它们是这次操作的结论本身，
-				 * 一个要说清按下去会发生什么，另一个要说清不按会怎样。✓33 尤其读不出来：数字是代价，不是动作，
-				 * 看到它的人得先猜这一按是导入三十三个还是保留三十三个。数字留在「导入所选（33）」里，位置没变。
-				 */}
-				<div className="flex items-center justify-between gap-3 px-5 pt-3 pb-4">
-					<span className="min-w-0 truncate text-caption text-ink-muted">
-						{t("fetchModels.selected", { n: selected.size })}
-					</span>
-					<div className="flex shrink-0 items-center gap-2">
-						<GhostButton onClick={() => dismiss()}>{t("common.cancel")}</GhostButton>
-						<PrimaryButton
-							disabled={selected.size === 0}
-							// Through `dismiss`, so the import runs on the way out rather than under a dialog
-							// that is still on screen — see the completion note in `Overlay`.
-							onClick={() => dismiss(() => onImport(Array.from(selected)))}
-							icon={<Check size={14} strokeWidth={2.2} aria-hidden />}
-							className="tabular-nums"
-						>
-							{t("fetchModels.importSelected", { n: selected.size })}
-						</PrimaryButton>
 					</div>
-				</div>
-				</>
+				</DialogFrame>
 			)}
 		</Overlay>
 	);

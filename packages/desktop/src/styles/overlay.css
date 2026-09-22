@@ -305,17 +305,6 @@
 }
 
 /*
- * 同一颗按钮，只放一个图标的时候。
- *
- * 不是把左右内边距调小，是把它摆正：34 宽配 34 高，图标落在正中，两颗并排时是两个一样的圆。
- * 留着 padding 的话，一个叉和一个勾的宽度会差出几个像素——一对本该对称的按钮，一边胖一点。
- */
-.ly-dialog-action-icon {
-	width: var(--ly-control);
-	padding: 0;
-}
-
-/*
  * The same capsule the dialog actions use, for anything you type into or pick from.
  *
  * A bordered 10px field next to a borderless 34px pill is two answers to "what is a

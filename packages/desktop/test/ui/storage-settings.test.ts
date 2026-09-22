@@ -66,7 +66,11 @@ function inPanel<T extends Element = HTMLElement>(selector: string): T {
 }
 
 /** 确认框走 portal，落在 body 上，不在挂载点那棵子树里。 */
-const confirmButton = (label: string) => document.body.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+/* 按按钮上写着的字找。这两颗曾经是一个叉一个勾，动词只存在于 aria-label 里——见 `DialogAction`。 */
+const confirmButton = (label: string) =>
+	[...document.body.querySelectorAll<HTMLButtonElement>("[data-ly-dialog-actions] button")].find(
+		(button) => button.textContent === label,
+	) ?? null;
 
 /**
  * 按下确认之后，把这件事走完。

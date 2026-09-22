@@ -439,7 +439,10 @@ export function useFollowBottom({
 
 		const land = () => {
 			const settled = read(el);
-			write(el, visualBottom(settled));
+			// A pixel past the end, for the reason spelled out in `targetScrollTop`: the integer
+			// bottom is up to a pixel short of the real one, and landing short is what the ride back
+			// would leave behind — the same sub-pixel gap the follow writes were leaving.
+			write(el, visualBottom(settled) + 1);
 			state.current = nextState(state.current, { kind: "settle" }, settled);
 			seen.current = current.current;
 			setUnread(0);

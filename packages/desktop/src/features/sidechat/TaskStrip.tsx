@@ -16,7 +16,8 @@ import { translate } from "../../i18n/translate.ts";
 import type { QueuedTask } from "@lyra/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
-import { useSide } from "../dock/index.ts";
+import { useSide, sideChatOf } from "../dock/index.ts";
+import { useSideSessionId } from "./scope.ts";
 import { useApp } from "../../store/index.ts";
 
 const TASK_ICON: Record<QueuedTask["status"], typeof Clock> = {
@@ -45,7 +46,8 @@ function worthKeeping(task: QueuedTask): boolean {
 const RECENT_KEPT = 3;
 
 export function TaskStrip() {
-	const tasks = useSide((s) => s.tasks);
+	const sessionId = useSideSessionId();
+	const tasks = useSide((s) => sideChatOf(s, sessionId).tasks);
 
 	const active = tasks.filter((t) => t.status === "queued" || t.status === "running");
 	const recent = tasks.filter(worthKeeping).slice(-RECENT_KEPT);
@@ -83,6 +85,7 @@ function statusOf(task: QueuedTask): string {
 
 function TaskRow({ task }: { task: QueuedTask }) {
 	const { t } = useI18n();
+	const sessionId = useSideSessionId();
 	const cancelTask = useSide((s) => s.cancelTask);
 	const dismissTask = useSide((s) => s.dismissTask);
 	const resumeTask = useSide((s) => s.resumeTask);
@@ -137,7 +140,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 							type="button"
 							data-ly-tip={t("taskStrip.runNow")}
 							onClick={() => {
-								void cancelTask(task.id);
+								void cancelTask(sessionId, task.id);
 								void send([{ type: "text", text: task.text }]);
 							}}
 							className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
@@ -149,8 +152,8 @@ function TaskRow({ task }: { task: QueuedTask }) {
 							type="button"
 							data-ly-tip={t("taskStrip.withdraw")}
 							onClick={() => {
-								void cancelTask(task.id);
-								seedDraft(task.text);
+								void cancelTask(sessionId, task.id);
+								seedDraft(sessionId, task.text);
 							}}
 							className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
 							aria-label={t("taskStrip.withdrawOne")}
@@ -171,7 +174,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 					<button
 						type="button"
 						data-ly-tip={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
-						onClick={() => void resumeTask(task.id)}
+						onClick={() => void resumeTask(sessionId, task.id)}
 						className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
 						aria-label={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
 					>
@@ -182,7 +185,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 					<button
 						type="button"
 						data-ly-tip={t("taskStrip.remove")}
-						onClick={() => void dismissTask(task.id)}
+						onClick={() => void dismissTask(sessionId, task.id)}
 						className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-danger"
 						aria-label={t("taskStrip.removeOne")}
 					>

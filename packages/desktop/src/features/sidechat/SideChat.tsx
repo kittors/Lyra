@@ -13,7 +13,8 @@ import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus, RotateCcw } from "lucide-react";
 import type { Message } from "@lyra/core";
 import { useEffect, useState } from "react";
-import { useSide } from "../dock/index.ts";
+import { useSide, sideChatOf } from "../dock/index.ts";
+import { useSideSessionId } from "./scope.ts";
 import { BackToLatest } from "../conversation/index.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -26,13 +27,23 @@ import { SideComposer } from "./SideComposer.tsx";
 import { TaskStrip } from "./TaskStrip.tsx";
 
 export function SideChat() {
-	const messages = useSide((s) => s.messages);
-	const running = useSide((s) => s.running);
-	const loading = useSide((s) => s.loading);
-	const error = useSide((s) => s.error);
-	const sessionId = useSide((s) => s.sessionId);
+	const sessionId = useSideSessionId();
+	const messages = useSide((s) => sideChatOf(s, sessionId).messages);
+	const running = useSide((s) => sideChatOf(s, sessionId).running);
+	const loading = useSide((s) => sideChatOf(s, sessionId).loading);
+	const error = useSide((s) => sideChatOf(s, sessionId).error);
 	const ask = useSide((s) => s.ask);
 	const abort = useSide((s) => s.abort);
+
+	/*
+	 * 这一屏的那份对话，由这个面板自己去拉。
+	 *
+	 * 从前只有 `ChatShell` 拉一次「当前会话」的，于是分屏里另一屏的侧边聊天要么是空的，要么画
+	 * 的是别人的。面板知道自己属于谁，就该自己开口要；`attach` 是幂等的，重复叫不会多拉。
+	 */
+	useEffect(() => {
+		void useSide.getState().attach(sessionId);
+	}, [sessionId]);
 
 	/*
 	 * The same rule the main transcript follows, from the same place.
@@ -118,8 +129,8 @@ export function SideChat() {
 			<SideComposer
 				running={running}
 				disabled={!sessionId || loading}
-				onSend={(content, meta) => void ask(content, meta)}
-				onStop={() => void abort()}
+				onSend={(content, meta) => void ask(sessionId, content, meta)}
+				onStop={() => void abort(sessionId)}
 			/>
 		</div>
 	);
@@ -169,7 +180,8 @@ function SideThinking({ messages }: { messages: Message[] }) {
  * already on screen.
  */
 export function SideChatActions() {
-	const messages = useSide((s) => s.messages);
+	const sessionId = useSideSessionId();
+	const messages = useSide((s) => sideChatOf(s, sessionId).messages);
 	const reset = useSide((s) => s.reset);
 	if (messages.length === 0) return null;
 	return (
@@ -177,7 +189,7 @@ export function SideChatActions() {
 			type="button"
 			data-ly-tip={translate("sideChat.new")}
 			aria-label={translate("sideChat.new")}
-			onClick={() => void reset()}
+			onClick={() => void reset(sessionId)}
 			/* Sized and coloured like the pane's own header buttons — see `FileActions`. */
 			className="flex h-[20px] w-[20px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 		>

@@ -129,8 +129,15 @@ export function AboutSettings() {
 			<SectionTitle>{t("about.whatsNew")}</SectionTitle>
 			<Card className="mb-6">
 				<div className="p-4">
+					{/*
+					 * `overscroll="auto"`：这一块是嵌在设置页正文里的内容，不是一块独立的面。
+					 *
+					 * 发版说明长过 380px 时它自己会滚，而读到底还想接着往下看页面是很自然的一件事——默认的
+					 * `contain` 会把那一下拦住。`Scroller` 那边另外管了「内容没撑满时不拦滚轮」的情况，两
+					 * 处合起来才完整：撑不满时鼠标停上去也滚得动页面，撑满了读到底也接得下去。
+					 */}
 					{notes ? (
-						<Scroller className="max-h-[380px]" contentClassName="pr-2">
+						<Scroller className="max-h-[380px]" contentClassName="pr-2" overscroll="auto">
 							<div className="mb-3 flex items-center gap-2">
 								<Sparkles size={16} className="text-accent" />
 								<span className="font-medium text-ink">

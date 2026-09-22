@@ -11,14 +11,12 @@
 import { visibleActivity, type SessionActivity } from "@lyra/core/activity";
 
 export interface SideRunningSource {
-	sessionId: string | null;
-	running: boolean;
-	sessionCache: Readonly<Record<string, { running?: boolean }>>;
+	/** 每个会话一份——分屏之后「当前那一份」不再够用，见 `dock/sideStore.ts`。 */
+	chats: Readonly<Record<string, { running?: boolean }>>;
 }
 
 export function sideChatRunning(state: SideRunningSource, sessionId: string): boolean {
-	if (state.sessionId === sessionId) return state.running;
-	return state.sessionCache[sessionId]?.running === true;
+	return state.chats[sessionId]?.running === true;
 }
 
 export function rowActivity(

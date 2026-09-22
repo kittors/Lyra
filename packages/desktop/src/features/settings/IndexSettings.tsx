@@ -139,7 +139,7 @@ export function IndexSettings() {
 										: t("index.buildFirst")}
 							</EmptyHint>
 						) : (
-							<Scroller className="max-h-[340px]">
+							<Scroller className="max-h-[340px]" overscroll="auto">
 								{hits.map((hit) => (
 									<button
 										key={`${hit.file}:${hit.line}`}

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { dismissHoverLayers } from "./hover-layers.ts";
 import { portal } from "./portal.ts";
 
 export const OverlayDepth = createContext(0);
@@ -45,6 +46,17 @@ export function Overlay({ children, onClose, align = "center", width = 460, labe
 		completion.current = null;
 		complete?.();
 	}, []);
+	/*
+	 * Clear what the pointer had summoned, once — see `hover-layers`.
+	 *
+	 * Only what is on screen at this moment, deliberately. The scrim covers the window, so nothing
+	 * new can be provoked underneath it and a standing claim would buy nothing; what it would cost
+	 * is this dialog's own tooltips, and dialogs here are full of them. What needs clearing is the
+	 * tooltip or hover card that was already up: both are drawn above the scrim, and only a press
+	 * takes them away. Opening a dialog from the keyboard is not a press, which is how a 248px card
+	 * came to sit over a confirmation asking whether to delete the conversation it described.
+	 */
+	useLayoutEffect(() => dismissHoverLayers(), []);
 	useLayoutEffect(() => {
 		const previous = returnFocus ?? document.activeElement;
 		const element = card.current;
