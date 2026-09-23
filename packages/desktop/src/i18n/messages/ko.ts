@@ -913,6 +913,7 @@ export const ko = {
 	"toolCard.outputRunning": "출력(진행 중)",
 	"toolCard.image": "[이미지 {mime}]",
 	"toolCard.waiting": "출력을 기다리는 중…",
+	"toolCard.stopped": "중지됨",
 	"trajectory.loading": "불러오는 중…",
 	"common.discard": "변경 버리기",
 	"common.push": "푸시",

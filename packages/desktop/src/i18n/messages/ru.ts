@@ -913,6 +913,7 @@ export const ru = {
 	"toolCard.outputRunning": "Вывод (ещё идёт)",
 	"toolCard.image": "[изображение {mime}]",
 	"toolCard.waiting": "Ожидание вывода…",
+	"toolCard.stopped": "Остановлено",
 	"trajectory.loading": "Загрузка…",
 	"common.discard": "Отбросить изменения",
 	"common.push": "Отправить",

@@ -913,6 +913,7 @@ export const en = {
 	"toolCard.outputRunning": "Output (still running)",
 	"toolCard.image": "[image {mime}]",
 	"toolCard.waiting": "Waiting for output…",
+	"toolCard.stopped": "Stopped",
 	"trajectory.loading": "Loading…",
 	"common.discard": "Discard changes",
 	"common.push": "Push",

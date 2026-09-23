@@ -913,6 +913,7 @@ export const ja = {
 	"toolCard.outputRunning": "出力（実行中）",
 	"toolCard.image": "[画像 {mime}]",
 	"toolCard.waiting": "出力を待っています…",
+	"toolCard.stopped": "停止しました",
 	"trajectory.loading": "読み込み中…",
 	"common.discard": "変更を破棄",
 	"common.push": "プッシュ",

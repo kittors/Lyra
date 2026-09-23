@@ -1098,6 +1098,7 @@ export const zhCN = {
 	"toolCard.outputRunning": "输出（进行中）",
 	"toolCard.image": "[图片 {mime}]",
 	"toolCard.waiting": "等待输出…",
+	"toolCard.stopped": "已停止",
 	"trajectory.loading": "读取中…",
 	"common.discard": "放弃改动",
 	"common.push": "推送",

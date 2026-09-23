@@ -913,6 +913,7 @@ export const zhTW = {
 	"toolCard.outputRunning": "輸出（進行中）",
 	"toolCard.image": "[圖片 {mime}]",
 	"toolCard.waiting": "等待輸出…",
+	"toolCard.stopped": "已停止",
 	"trajectory.loading": "讀取中…",
 	"common.discard": "放棄改動",
 	"common.push": "推送",
