@@ -182,13 +182,18 @@ const AUDIT = `(()=>{
 		glyphOnly: Boolean(b.querySelector('svg')) && !(b.innerText || '').trim(),
 	}));
 	const title = card.querySelector('[data-dialog-title], h2, h3');
-	const scroller = card.querySelector('.ly-scroll-host');
+	/*
+	 * 正文的左缘是滚动视口内衬以内的那条边，不是滚动面的外框：滚动面伸进了弹窗两侧的边距（好让
+	 * 滑块落在边距里），外框比正文宽出去一截，量外框会报一个画面上并不存在的错位。
+	 */
+	const view = card.querySelector('.ly-scroll-view');
+	const bodyEdge = view ? view.getBoundingClientRect().left + view.clientLeft + parseFloat(getComputedStyle(view).paddingLeft) : null;
 	return {
 		width: Math.round(box.width),
 		height: Math.round(box.height),
 		title: (title?.innerText || '').trim(),
 		titleLeft: title ? Math.round(title.getBoundingClientRect().left - box.left) : null,
-		bodyLeft: scroller ? Math.round(scroller.getBoundingClientRect().left - box.left) : null,
+		bodyLeft: bodyEdge === null ? null : Math.round(bodyEdge - box.left),
 		actions,
 		rules,
 	};
