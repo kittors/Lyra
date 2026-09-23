@@ -50,8 +50,8 @@ test("原生全屏不豁免让位，只是让得少一些", () => {
 	 * 全屏拿走的是红绿灯，不是侧边栏开关。让位的量跟着 `titlebarInsets` 自己变小——78 变 12——
 	 * 但**不能变成零**，否则开关就压在标签栏上了。
 	 */
-	const windowed = titlebarInsets("darwin", false, 0);
-	const fullScreen = titlebarInsets("darwin", true, 0);
+	const windowed = titlebarInsets("darwin", false, { start: 0, end: 0 });
+	const fullScreen = titlebarInsets("darwin", true, { start: 0, end: 0 });
 	assert.equal(windowed.start, TRAFFIC_LIGHTS_WIDTH);
 	assert.equal(fullScreen.start, TOOLBAR_EDGE, "全屏之后红绿灯没了，起点回到普通边距");
 
@@ -104,7 +104,7 @@ test("Windows 和 Linux 的角上只有开关，没有系统控件", () => {
 	 * 它们的最小化/最大化/关闭在另一头，所以左边这一侧让的就只是开关那点宽度，和 macOS 全屏
 	 * 时是同一个数。右边那头由 `insetEnd` 单独让，不走这条路。
 	 */
-	const insets = titlebarInsets("win32", false, 138);
+	const insets = titlebarInsets("win32", false, { start: 0, end: 138 });
 	assert.equal(insets.start, TOOLBAR_EDGE);
 	assert.equal(insets.end, 138, "系统按钮占多宽，右边就让多宽");
 	assert.ok(cornerReserved(insets.start) >= TOOLBAR_BUTTON);
@@ -118,14 +118,14 @@ test("Windows 全屏之后，header 还在，只是右边不再留位", () => {
 	 * **header 本身不该消失**——侧边栏开关是应用自己的，全屏了也还得有地方按。macOS 那边的教训
 	 * 就是把这两件事混成了一件，见上面那条回归。
 	 */
-	const insets = titlebarInsets("win32", false, 0);
+	const insets = titlebarInsets("win32", false, { start: 0, end: 0 });
 	assert.equal(insets.end, 0, "overlay 藏起来之后右边不该再留位");
 	assert.equal(insets.start, TOOLBAR_EDGE, "左端始终是普通边距，那里本来就没有系统控件");
 	assert.equal(hasHeaderBar("win32"), true, "全屏不该把 header 拿掉——开关还在上面");
 
 	// overlay 开着但还没量出尺寸时，宁可按兜底值让位，也不要把控件塞到关闭按钮底下。
-	assert.equal(overlayReserved({ visible: true, getTitlebarAreaRect: () => ({ right: 0, width: 0 }) }, 1200), OVERLAY_FALLBACK);
-	assert.equal(overlayReserved({ visible: false, getTitlebarAreaRect: () => ({ right: 0, width: 0 }) }, 1200), 0);
+	assert.equal(overlayReserved({ visible: true, getTitlebarAreaRect: () => ({ x: 0, right: 0, width: 0 }) }, 1200).end, OVERLAY_FALLBACK);
+	assert.deepEqual(overlayReserved({ visible: false, getTitlebarAreaRect: () => ({ x: 0, right: 0, width: 0 }) }, 1200), { start: 0, end: 0 });
 });
 
 test("拉取请求那一页，谁在最左边谁让位", () => {
