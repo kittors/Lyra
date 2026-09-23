@@ -64,11 +64,13 @@ export function useBrowserWorkspace(): void {
 		const unsubscribe = bridge.browser.onChanged((state) => {
 			useBrowser.setState({ tabs: state.tabs, activeId: state.activeId });
 			/*
-			 * Only the conversation on screen may open the panel.
+			 * Only the conversation on screen may open the panel, and only when a person asked.
 			 *
-			 * `reveal` means a page was opened, and it used to open the browser for whoever was
-			 * watching — so an agent working in another conversation dropped a panel over your work
-			 * showing a tab that belongs to that conversation and is therefore blank here.
+			 * `reveal` is set by the main process for the address bar, a bookmark, a preview link or a
+			 * card's 「打开」 — never for an agent's own pages, which run with the panel closed (see
+			 * `openBrowser`). It used to mean any page opening, which dropped the panel over your work
+			 * each time an agent opened or clicked something — in another conversation too, showing a
+			 * tab that belongs there and is therefore blank here.
 			 */
 			const revealed = state.tabs.find((tab) => tab.id === state.activeId);
 			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) openScopedPanel("browser");

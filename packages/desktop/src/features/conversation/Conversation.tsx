@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
@@ -9,6 +9,7 @@ import { HiccupRow } from "./HiccupTrace.tsx";
 import { RuleSuggestion } from "./RuleSuggestion.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
+import { BrowserCards } from "./BrowserCard.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
@@ -446,21 +447,31 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
              * 现在认得每一种 Run，断言也就没有存在的理由了。
              */
             const key = `${activeSessionId}:process:${runKey(block.runs[0])}`;
+            /*
+             * 这一段里 agent 打开过的网页，画在过程块外面。
+             *
+             * 一轮跑完过程会收成一行，卡片要是长在里面就跟着收走了——而它是 agent 在后台开了网页这件事
+             * 在对话里仅有的痕迹（面板不再自己弹出来，见 `BrowserCard`）。紧跟在这一段后面，跑的时候就
+             * 在「打开页面」那段工作底下，跑完之后还在那一行底下，位置不动。
+             */
+            const pages = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "browser_open").map(({ block: call }) => call.id) : []));
             return (
-              <TurnProcess
-                key={key}
-                counts={block.counts}
-                /*
-                 * 按**回合**算，不是按块的位置算。
-                 *
-                 * 正文一开始流式输出，过程块就不再排在末尾——按位置判，折叠行会在回合中途冒出来
-                 * 并把正在进行的工作收起来，而那正是人盯着看的时候。录像里抓到过一次。
-                 */
-                running={running && block.turn === blocks[blocks.length - 1].turn}
-                stateKey={key}
-              >
-                {block.runs.map(draw)}
-              </TurnProcess>
+              <Fragment key={key}>
+                <TurnProcess
+                  counts={block.counts}
+                  /*
+                   * 按**回合**算，不是按块的位置算。
+                   *
+                   * 正文一开始流式输出，过程块就不再排在末尾——按位置判，折叠行会在回合中途冒出来
+                   * 并把正在进行的工作收起来，而那正是人盯着看的时候。录像里抓到过一次。
+                   */
+                  running={running && block.turn === blocks[blocks.length - 1].turn}
+                  stateKey={key}
+                >
+                  {block.runs.map(draw)}
+                </TurnProcess>
+                {pages.length > 0 && <BrowserCards calls={pages} />}
+              </Fragment>
             );
           })}
           </div>

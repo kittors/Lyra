@@ -1,5 +1,5 @@
 import type { WebContents } from "electron";
-import { browserContents, browserCommand, browserState, browserScale, pointBrowser } from "./browser-workspace.ts";
+import { browserContents, browserState, browserScale, pointBrowser, selectBrowser } from "./browser-workspace.ts";
 
 /** Automation chrome lives in an isolated world, never in a page's JavaScript globals. */
 const WORLD = 999;
@@ -46,7 +46,8 @@ async function pointAt(contents: WebContents, selector?: string): Promise<{ x: n
 
 export async function actBrowser(id: string, action: BrowserAction, sessionId?: string): Promise<unknown> {
 	const contents = browserContents(id, sessionId);
-	await browserCommand({ type: "select", id });
+	// Selected, never revealed: the panel is the person's to open. See `openBrowser`.
+	await selectBrowser(id, false);
 	if (action.action === "read") return readBrowser(id);
 	if (action.action === "links") return evaluatePage(contents, `Array.from(document.querySelectorAll('a[href]')).slice(0,200).map(a=>({text:a.innerText,href:a.href}))`);
 	if (action.action === "eval") {
@@ -78,8 +79,18 @@ export async function actBrowser(id: string, action: BrowserAction, sessionId?: 
 	if (action.action === "hover") return point;
 	contents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...position });
 	contents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...position });
-	// Native input is queued in the guest; a frame observes its committed focus and DOM effects.
-	await evaluatePage(contents, "new Promise(requestAnimationFrame)");
+	/*
+	 * Native input is queued in the guest; a frame observes its committed focus and DOM effects.
+	 *
+	 * A frame, or a tenth of a second if none comes. An agent's page whose conversation is off screen
+	 * sits in a `visibility: hidden` host and draws no frames — while telling itself it is visible:
+	 * measured, `document.visibilityState` reads "visible" there, so it cannot be asked. Waiting on
+	 * the frame alone timed out at 15 seconds and reported the page unresponsive after a click that
+	 * had in fact landed, on every click, for as long as the person looked at another conversation.
+	 * Press and release are discrete events and are not held for a frame, so the fallback still
+	 * waits on something real; on screen the frame arrives first and nothing changes.
+	 */
+	await evaluatePage(contents, "new Promise((resolve) => { requestAnimationFrame(() => resolve()); setTimeout(resolve, 100); })");
 	if (action.action === "type") {
 		if (action.text === undefined) throw new Error("type 需要 text");
 		await contents.executeJavaScriptInIsolatedWorld(WORLD, [{ code: `(() => {const el=document.activeElement;if(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement){el.select();}else if(el?.isContentEditable){const s=getSelection();const r=document.createRange();r.selectNodeContents(el);s.removeAllRanges();s.addRange(r);}else{throw new Error('目标不是输入框');}})()` }]);
