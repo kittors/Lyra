@@ -15,6 +15,20 @@ import { Window } from "happy-dom";
 const w = new Window({ url: "http://localhost" });
 
 /*
+ * 键盘所属的系统钉成 Mac，不跟着跑测试的那台机器走。
+ *
+ * happy-dom 的 `navigator.platform` 是从宿主系统推出来的：macOS 上是 "X11; Darwin arm64"，Linux 上
+ * 是 "X11; Linux x86_64"。`macKeyboard()` 读的就是它，于是「Mac 上仍是 ⌘C」这类用例在开发者的 Mac
+ * 上全绿、到了 Linux 和 Windows 的 CI 上成片地红——测的其实是 CI 用的哪种机器。
+ *
+ * 钉在原型上而不是实例上：测 PC 行为的用例用 `withKeyboard` 在实例上遮住它、结束时删掉遮挡
+ * （`helpers/keyboard.ts`），删掉之后露出来的仍是这里的 Mac。环境变量给探路用：想看某条用例在别的
+ * 系统上会怎样，`LYRA_TEST_KEYBOARD="X11; Linux x86_64"` 跑一遍即可。
+ */
+const pinnedPlatform = process.env.LYRA_TEST_KEYBOARD || "MacIntel";
+Object.defineProperty(Object.getPrototypeOf(w.navigator), "platform", { get: () => pinnedPlatform, configurable: true });
+
+/*
  * `defineProperty` rather than `Object.assign`.
  *
  * Node 24 defines `globalThis.navigator` as an accessor with only a getter, so assigning to it
