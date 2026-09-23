@@ -1,0 +1,41 @@
+# TEMPORARY — why confined PowerShell fails DLL init in the full CI test job. Remove once explained.
+name: diag-win
+
+on:
+  push:
+    branches: [fix/shell-stability]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: by hand, under a pwsh step
+        continue-on-error: true
+        run: node --experimental-strip-types --no-warnings scripts/diag/win-confined.ts
+      - name: by hand, under a bash step
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: node --experimental-strip-types --no-warnings scripts/diag/win-confined.ts
+      - name: one test file, pwsh step
+        if: always()
+        continue-on-error: true
+        working-directory: packages/core
+        run: node --test --import ./test/setup.ts --experimental-strip-types test/sandbox-bash.test.ts
+      - name: one test file, bash step
+        if: always()
+        continue-on-error: true
+        shell: bash
+        working-directory: packages/core
+        run: node --test --import ./test/setup.ts --experimental-strip-types test/sandbox-bash.test.ts
+      - name: the core suite alone, pwsh step
+        if: always()
+        continue-on-error: true
+        working-directory: packages/core
+        run: pnpm test
