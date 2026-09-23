@@ -226,6 +226,23 @@ test("our own runners' refusals are recognised under those runners only", () => 
 	assert.ok(!looksDenied("Permission denied, please try again.", "windows-acl"));
 });
 
+test("Windows: PowerShell's refusal and an MSYS program dying under the token are denials", () => {
+	// What a confined PowerShell prints for a write outside the grant, verbatim from a Windows runner.
+	const powershell =
+		"Set-Content : Access to the path 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\lyra-win-KHRkQe\\ps.txt' is denied.\n" +
+		"    + CategoryInfo          : PermissionDenied: (C:\\Users\\runner...n-KHRkQe\\ps.txt:String) [Set-Content], UnauthorizedAccessException";
+	assert.ok(looksDenied(powershell, "windows-acl"));
+	assert.ok(!looksDenied(powershell, "seatbelt"), "the same words are only ours under our runner");
+
+	// `git commit` in a confined PowerShell runs the hooks with Git's `sh`, which dies as it starts.
+	const hook = "      0 [main] sh (1396) C:\\Program Files\\Git\\usr\\bin\\sh.exe: *** fatal error - couldn't create signal pipe, Win32 error 5";
+	assert.ok(looksDenied(hook, "windows-acl"));
+	assert.ok(looksDenied("0 [main] bash (2104) bash.exe: *** fatal error - CreateFileMapping S-1-5-21-1-2-3-500.1, Win32 error 5.  Terminating.", "windows-acl"));
+	assert.ok(!looksDenied(hook, "landlock"), "Cygwin's wording means the Windows token and nothing else");
+	// Another Win32 error from the same runtime is not the sandbox.
+	assert.ok(!looksDenied("0 [main] bash (1) bash.exe: *** fatal error - couldn't allocate heap, Win32 error 487", "windows-acl"));
+});
+
 test("an ordinary failure is not read as a denial", () => {
 	// Being wrong in this direction is the expensive one: it would offer an escalation prompt for
 	// something the sandbox never blocked, and teach the user that the prompt means nothing.

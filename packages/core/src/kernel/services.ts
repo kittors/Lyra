@@ -6,6 +6,7 @@ import type { TurnMiddleware } from "../runtime/turn.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
+import type { CommandShell } from "../platform.ts";
 
 /**
  * The seams.
@@ -118,10 +119,14 @@ export interface Sandbox {
 	 * declares, so `LocalSandbox` honouring `network` while this signature omitted it compiled
 	 * fine and left every caller unable to pass it. The setting existed, the enforcement existed,
 	 * and nothing connected them.
+	 *
+	 * `shell` is the shell the command was written for, when the caller knows it — the bash tool
+	 * does, because it told the model which one (`commandShell`). Absent, an implementation runs its
+	 * own default for `mode`.
 	 */
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork },
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
 	): SandboxProcess;
 }
 

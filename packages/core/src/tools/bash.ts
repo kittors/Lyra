@@ -16,7 +16,7 @@ import { errorResult } from "../agent/tool-run.ts";
 import { clipOutput } from "./long-line.ts";
 import { authorizeCommandReads } from "./read-access.ts";
 import { describeStatus, readExit } from "./exit-status.ts";
-import { systemShell } from "../platform.ts";
+import { commandShell, type CommandShell } from "../platform.ts";
 import type { SandboxProcess } from "../kernel/services.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
@@ -128,41 +128,20 @@ export function isReadOnlyCommand(command: string): boolean {
 	return sub ? sub.has(args[0] ?? "") : false;
 }
 
-/**
- * What the model must know about the shell to write a command that runs in it.
- *
- * Nothing on macOS or Linux: the tool is called `bash`, and bash or zsh is what runs. On Windows it
- * is the difference between working and not — a Windows path pasted into bash loses its
- * backslashes, and in Windows PowerShell 5.1 `&&` is a parse error.
- */
-function shellGuidance(): string[] {
-	const shell = systemShell();
-	if (shell.kind === "powershell") {
-		return [
-			`Commands run in ${shell.label}, not bash: write PowerShell.` +
-				(shell.label.includes("5.1") ? " `&&` and `||` do not exist in this version: separate commands with `;` and test `$?` or `$LASTEXITCODE`." : "") +
-				" Environment variables are `$env:NAME`, `/dev/null` is `$null`, and `Select-String` / `Select-Object -First N` stand in for grep / head.",
-		];
-	}
-	if (process.platform === "win32") {
-		return [
-			"Commands run in Git Bash on Windows: write bash, and write paths with forward slashes (`C:/Users/me/app` or `/c/Users/me/app`) — a backslash is an escape character here. Windows programs run directly; reach cmd's built-ins with `cmd //c <command>`.",
-		];
-	}
-	return [];
-}
-
 export const bashTool: Tool<BashArgs> = {
 	name: "bash",
 	snippet: "Run shell commands",
-	get guidelines() {
-		return [
-			"Use the dedicated tools instead of their shell equivalents: read over `cat`, edit over `sed`, glob over `find`, grep over shell `grep`.",
-			"Quote paths that may contain spaces.",
-			"Use run_in_background for long-lived processes such as dev servers, then read them with bash_output.",
-			...shellGuidance(),
-		];
-	},
+	/*
+	 * What the model has to know about the shell itself is not here: it depends on the session's
+	 * permission mode (a confined command on Windows runs in PowerShell — see `commandShell`), which
+	 * a tool shared by every session cannot know. The system prompt adds it beside these, from the
+	 * shell it names; see `shellGuidance`.
+	 */
+	guidelines: [
+		"Use the dedicated tools instead of their shell equivalents: read over `cat`, edit over `sed`, glob over `find`, grep over shell `grep`.",
+		"Quote paths that may contain spaces.",
+		"Use run_in_background for long-lived processes such as dev servers, then read them with bash_output.",
+	],
 	description:
 		"Run a shell command in the workspace. The working directory persists between calls but shell state " +
 		"(variables, functions) does not. Use `run_in_background: true` for long-running processes such as dev servers, " +
@@ -284,7 +263,13 @@ export const bashTool: Tool<BashArgs> = {
 			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this command.");
 		}
 
-		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode });
+		/*
+		 * The shell the model was told it writes for: the session's mode picks it, not the mode this
+		 * one call was escalated to. A PowerShell command granted full access is still PowerShell.
+		 */
+		const shell = commandShell(ctx.sandboxMode);
+
+		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode }, shell);
 
 		/*
 		 * A timeout the model asked for is a limit; the default one is only a point to stop waiting.
@@ -301,7 +286,6 @@ export const bashTool: Tool<BashArgs> = {
 		let changeWarning: string | undefined;
 		try { baseline = await beforeCommand(ctx); } catch (error) { changeWarning = String(error); }
 		const outputLog = await createOutputLog(ctx.scratchDir);
-		const shell = systemShell();
 		/** Set when the command outlives this call: its log then stays open for the job that continues it. */
 		let handedOff = false;
 		const result = await new Promise<ToolResult>((resolve) => {
@@ -314,7 +298,7 @@ export const bashTool: Tool<BashArgs> = {
 			 */
 			let child: SandboxProcess;
 			try {
-				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork });
+				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork, shell });
 			} catch (error) {
 				// A sandbox that cannot confine says so by throwing; the model gets the sentence, not a crash.
 				resolve(errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`));
@@ -543,12 +527,12 @@ function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<R
 	});
 }
 
-async function startBackground(args: BashArgs, ctx: ToolContext): Promise<ToolResult> {
+async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandShell): Promise<ToolResult> {
 	const outputLog = await createOutputLog(ctx.scratchDir);
 	const id = randomUUID();
 	let child: SandboxProcess;
 	try {
-		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork });
+		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork, shell });
 	} catch (error) {
 		await outputLog?.close();
 		return errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`);

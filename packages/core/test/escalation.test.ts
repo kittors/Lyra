@@ -26,8 +26,11 @@ import {
 	validateEscalationArgs,
 } from "../src/tools/escalation.ts";
 import type { ApprovalRequest, ToolContext, ToolResult } from "../src/types.ts";
+import { shellFor } from "./shell-for.ts";
 
 const skip = selectRunner() === "none" ? "this host has no sandbox backend" : false;
+/** Read-only and workspace-write are both confined, so every command below is spelled for the same shell. */
+const sh = shellFor("read-only");
 
 // ---------------------------------------------------------------------------
 // The pairing a schema cannot express
@@ -163,7 +166,7 @@ test("denied, and told how to ask", { skip }, async (t) => {
 	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
-	const result = (await bashTool.execute({ command: `echo x > ${ws}/f.txt` }, context(ws, "read-only"))) as ToolResult;
+	const result = (await bashTool.execute({ command: sh.write(join(ws, "f.txt"), "x") }, context(ws, "read-only"))) as ToolResult;
 	assert.match(textOf(result), /策略拒绝/);
 	assert.match(textOf(result), /escalate/);
 	assert.equal(existsSync(join(ws, "f.txt")), false);
@@ -175,7 +178,7 @@ test("the same command, escalated with a reason, is approved and runs", { skip }
 
 	let prompt: ApprovalRequest | undefined;
 	const result = (await bashTool.execute(
-		{ command: `echo x > ${ws}/f.txt && echo DONE`, escalate: "workspace-write", justification: "要写测试用的文件" },
+		{ command: sh.thenDone(sh.write(join(ws, "f.txt"), "x")), escalate: "workspace-write", justification: "要写测试用的文件" },
 		context(ws, "read-only", (request) => {
 			prompt = request;
 			return "once";
@@ -193,7 +196,7 @@ test("a rejected escalation runs nothing at all", { skip }, async (t) => {
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const result = (await bashTool.execute(
-		{ command: `echo x > ${ws}/f.txt`, escalate: "workspace-write", justification: "要写文件" },
+		{ command: sh.write(join(ws, "f.txt"), "x"), escalate: "workspace-write", justification: "要写文件" },
 		context(ws, "read-only", () => "reject"),
 	)) as ToolResult;
 
@@ -211,9 +214,9 @@ test("a grant is spent on the call that asked for it", { skip }, async (t) => {
 		return "once";
 	});
 
-	await bashTool.execute({ command: `echo a > ${ws}/a.txt`, escalate: "workspace-write", justification: "第一次" }, ctx);
+	await bashTool.execute({ command: sh.write(join(ws, "a.txt"), "a"), escalate: "workspace-write", justification: "第一次" }, ctx);
 	// The next command carries no escalation, so it runs under the session's own mode again.
-	const after = (await bashTool.execute({ command: `echo b > ${ws}/b.txt` }, ctx)) as ToolResult;
+	const after = (await bashTool.execute({ command: sh.write(join(ws, "b.txt"), "b") }, ctx)) as ToolResult;
 
 	assert.ok(existsSync(join(ws, "a.txt")));
 	assert.equal(existsSync(join(ws, "b.txt")), false, "the widening did not outlive its call");
@@ -239,7 +242,7 @@ test("escalating outside the sandbox's reach still cannot write outside the work
 	});
 
 	await bashTool.execute(
-		{ command: `echo x > ${outside}`, escalate: "workspace-write", justification: "试试" },
+		{ command: sh.write(outside, "x"), escalate: "workspace-write", justification: "试试" },
 		context(ws, "read-only", () => "once"),
 	);
 	assert.equal(existsSync(outside), false);

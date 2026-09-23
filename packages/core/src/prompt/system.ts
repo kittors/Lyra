@@ -19,6 +19,8 @@ import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
+import { shellGuidance } from "../tools/shell-guidance.ts";
+import type { CommandShell } from "../platform.ts";
 import type { ThinkingLevel, Tool } from "../types.ts";
 
 export interface SystemPromptInput {
@@ -62,11 +64,13 @@ export interface SystemPromptInput {
 	tone?: string;
 	platform: string;
 	/**
-	 * The shell the `bash` tool runs commands in, by name — "zsh", "Git Bash", "Windows PowerShell
-	 * 5.1". `Platform: win32` alone left the model to guess between three grammars, and the one it
-	 * guessed was bash whichever it was.
+	 * The shell the `bash` tool runs commands in — named in the environment ("zsh", "Git Bash",
+	 * "Windows PowerShell 5.1") and, when `bash` is loaded, explained in the guidelines. `Platform:
+	 * win32` alone left the model to guess between three grammars, and the one it guessed was bash
+	 * whichever it was. The caller passes the one this session's mode runs (`commandShell`): on
+	 * Windows that is PowerShell when confined and Git Bash when not.
 	 */
-	shell?: string;
+	shell?: Pick<CommandShell, "kind" | "label">;
 	modelName: string;
 	isGitRepo: boolean;
 	/**
@@ -227,7 +231,12 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<strin
 	const base = input.guidelinesOverride?.trim()
 		? parseGuidelines(input.guidelinesOverride)
 		: [...BASE_GUIDELINES, isolationGuideline(input)];
-	for (const guideline of [...base, ...input.tools.flatMap((tool) => tool.guidelines ?? [])]) {
+	/*
+	 * The shell's own rules ride with the tool's: shown only when `bash` is loaded, and kept through a
+	 * guidelines override the same way — they are the manual for the shell that runs, not a style.
+	 */
+	const shellRules = input.shell && input.tools.some((tool) => tool.name === "bash") ? shellGuidance(input.shell) : [];
+	for (const guideline of [...base, ...input.tools.flatMap((tool) => tool.guidelines ?? []), ...shellRules]) {
 		const normalized = guideline.trim();
 		if (!normalized || seen.has(normalized)) continue;
 		seen.add(normalized);
@@ -258,7 +267,7 @@ Boundaries:
 ${BOUNDARIES.map((b) => `- ${b}`).join("\n")}
 
 Environment:
-- Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell}` : ""}
+- Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell.label}` : ""}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}
 - Model: ${input.modelName}`;
 

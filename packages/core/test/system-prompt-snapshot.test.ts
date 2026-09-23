@@ -76,8 +76,39 @@ Current working directory: /w/proj`,
 
 test("命令在哪种 shell 里跑，写在平台下面一行", async () => {
 	// `Platform: win32` 一行给模型留下三种语法去猜，而它猜的永远是 bash。
-	const prompt = await buildSystemPrompt({ ...INPUT, platform: "win32", shell: "Windows PowerShell 5.1" });
+	const prompt = await buildSystemPrompt({ ...INPUT, platform: "win32", shell: { kind: "powershell", label: "Windows PowerShell 5.1" } });
 	assert.ok(prompt.includes("Environment:\n- Platform: win32\n- Shell: Windows PowerShell 5.1\n- Git repository: yes"), prompt.slice(-200));
+});
+
+test("shell 的写法说明跟着提示词里写的那个 shell 走，只在有 bash 工具时出现", async () => {
+	/*
+	 * Windows 上受约束的命令跑在 PowerShell 里、不受约束的跑在 Git Bash 里，哪个取决于会话的权限
+	 * 模式。说明原来挂在 bash 工具上、自己去问系统 shell——那会说 Git Bash，而命令实际跑在
+	 * PowerShell 里，模型照着 bash 写，一条都跑不通。现在两处读的是同一个传进来的 shell。
+	 */
+	const confined = await buildSystemPrompt({ ...INPUT, platform: "win32", shell: { kind: "powershell", label: "PowerShell 7" } });
+	assert.match(confined, /- Commands run in PowerShell 7, not bash: write PowerShell\./);
+	assert.ok(!confined.includes("`&&` and `||` do not exist"), "PowerShell 7 有 && 和 ||，不该说它没有");
+
+	const legacy = await buildSystemPrompt({ ...INPUT, platform: "win32", shell: { kind: "powershell", label: "Windows PowerShell 5.1" } });
+	assert.match(legacy, /`&&` and `\|\|` do not exist in this version/);
+
+	const unconfined = await buildSystemPrompt({ ...INPUT, platform: "win32", shell: { kind: "posix", label: "Git Bash" } });
+	assert.match(unconfined, /- Commands run in Git Bash on Windows: write bash/);
+
+	const mac = await buildSystemPrompt({ ...INPUT, shell: { kind: "posix", label: "zsh" } });
+	assert.ok(!mac.includes("Commands run in"), "macOS 上什么都不用说");
+
+	const noBash = await buildSystemPrompt({ ...INPUT, tools: [tool("read", "读文件")], platform: "win32", shell: { kind: "powershell", label: "PowerShell 7" } });
+	assert.ok(!noBash.includes("Commands run in"), "没有 bash 工具的会话不该看到 shell 的说明");
+
+	const overridden = await buildSystemPrompt({
+		...INPUT,
+		platform: "win32",
+		shell: { kind: "powershell", label: "PowerShell 7" },
+		guidelinesOverride: "- 只说中文。\n",
+	});
+	assert.match(overridden, /- Commands run in PowerShell 7/, "换掉内置准则时它照样在：它是 shell 的说明书");
 });
 
 test("换掉行为准则，工具那几条仍然在", async () => {

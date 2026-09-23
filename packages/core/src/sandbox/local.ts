@@ -15,7 +15,7 @@ import { execFile, spawn, type ChildProcess, type StdioOptions } from "node:chil
 import { closeSync } from "node:fs";
 import { Socket } from "node:net";
 import type { Readable } from "node:stream";
-import { systemShell } from "../platform.ts";
+import { commandShell, type CommandShell } from "../platform.ts";
 import { osPipe } from "./linux/libc.ts";
 import type { Sandbox, SandboxProcess } from "../kernel/services.ts";
 import { confine } from "./backend.ts";
@@ -67,9 +67,10 @@ const DRAIN_AFTER_EXIT_MS = 250;
 export class LocalSandbox implements Sandbox {
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork },
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
 	): SandboxProcess {
-		const shell = systemShell();
+		// The shell the command was written for; without one, the shell this mode runs (see `commandShell`).
+		const shell = options.shell ?? commandShell(options.mode);
 		/*
 		 * The login environment, then the quiet settings, then whatever the caller asked for.
 		 *

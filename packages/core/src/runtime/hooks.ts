@@ -67,6 +67,10 @@ export async function runHook(
 		 * UTF-8 output nor `-NoProfile`, and a GUI launch without the user's `PATH`, so a hook
 		 * calling `node` or `jq` could not find it. Its own process group, so a timeout stops what
 		 * the hook started as well as the shell.
+		 *
+		 * `systemShell`, the unconfined one: a hook is the user's own command and runs outside the
+		 * sandbox, so on Windows it gets Git Bash — what a hook written for bash expects — even
+		 * while the agent's confined commands run in PowerShell (`commandShell`).
 		 */
 		const shell = systemShell();
 		const child = spawn(shell.file, shell.args(hook.command), {

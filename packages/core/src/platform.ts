@@ -53,6 +53,9 @@ export interface CommandShell {
  *
  * `LYRA_SHELL` overrides all of this, for a bash or zsh or PowerShell installed where none of the
  * searches look.
+ *
+ * This is the shell for a command that runs unconfined. A confined one on Windows runs in
+ * PowerShell instead — see `commandShell`.
  */
 export function systemShell(): CommandShell {
 	if (cachedShell && cachedFor === shellKey()) return cachedShell;
@@ -138,12 +141,53 @@ function powershell(file: string, label: string): CommandShell {
 function windowsShell(): CommandShell {
 	const bash = gitBash();
 	if (bash) return posix(bash, "Git Bash");
+	return windowsPowerShell();
+}
+
+/** PowerShell 7 where it is installed, and otherwise the Windows PowerShell 5.1 every Windows has. */
+function windowsPowerShell(): CommandShell {
 	const pwsh = onPath("pwsh.exe") ?? [join(process.env.ProgramFiles ?? "C:\\Program Files", "PowerShell", "7", "pwsh.exe")].find(existsSync);
 	if (pwsh) return powershell(pwsh, "PowerShell 7");
 	const root = process.env.SystemRoot ?? "C:\\Windows";
 	const legacy = join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 	return powershell(existsSync(legacy) ? legacy : "powershell.exe", "Windows PowerShell 5.1");
 }
+
+/** How far a command is confined — the vocabulary of `sandbox/policy.ts`, spelled out to keep this file a leaf. */
+type Confinement = "read-only" | "workspace-write" | "danger-full-access";
+
+/**
+ * The shell a command runs in, given how it is confined.
+ *
+ * `systemShell` everywhere but one place: a confined command on Windows runs in PowerShell. Git
+ * Bash cannot start under the restricted token that confines it. Every MSYS2 program — bash, and
+ * the `sh` Git runs hooks with — creates a private signal pipe for itself as it starts, with a DACL
+ * naming only the user, Administrators and SYSTEM, and then opens it for writing. A write-restricted
+ * token passes a write only through its restricting SIDs, and the user's own SID cannot be one of
+ * them without granting the whole profile back: so bash died on its first line, `couldn't create
+ * signal pipe, Win32 error 5`, before running anything. There is no granting around it — the pipe is
+ * made by bash itself, after the privileges are gone. PowerShell is an ordinary Win32 process and
+ * runs confined exactly as it should: writes inside the workspace, refused outside it.
+ *
+ * Chosen by the mode a session *announces* — the one its system prompt names the shell for — and
+ * not by what one call was escalated to: an escalated command is still the command the model wrote,
+ * in the grammar it was told to write in.
+ *
+ * `LYRA_SHELL` is honoured here only when it names a PowerShell; one that names Git Bash would
+ * fail on every command.
+ */
+export function commandShell(mode?: Confinement): CommandShell {
+	if (process.platform !== "win32" || mode === undefined || mode === "danger-full-access") return systemShell();
+	if (confinedShell && confinedFor === shellKey()) return confinedShell;
+	confinedFor = shellKey();
+	const override = process.env.LYRA_SHELL?.trim();
+	const chosen = override && existsSync(override) ? shellAt(override) : undefined;
+	confinedShell = chosen?.kind === "powershell" ? chosen : windowsPowerShell();
+	return confinedShell;
+}
+
+let confinedShell: CommandShell | undefined;
+let confinedFor: string | undefined;
 
 /**
  * Git for Windows' `bin\bash.exe`, found the way a person would find it.
@@ -215,18 +259,23 @@ export function loginShell(): string {
 /**
  * The grammars a command line should be read in, to judge it.
  *
- * Both, where the shell is PowerShell: the rules that read commands for risk and for reads were
- * written for bash, and a line that means one thing to bash and another to PowerShell has to be
- * judged by whichever reading finds more. Where the shell is bash or zsh, bash's alone.
+ * Both, wherever the shell may be PowerShell: the rules that read commands for risk and for reads
+ * were written for bash, and a line that means one thing to bash and another to PowerShell has to
+ * be judged by whichever reading finds more. That is every Windows — its confined modes run
+ * PowerShell and full access runs Git Bash (`commandShell`), and a verdict about a command must not
+ * hang on which of the two happens to run it — and anywhere `LYRA_SHELL` picked a PowerShell.
+ * Elsewhere, bash's reading alone.
  */
 export function commandDialects(): ("posix" | "powershell")[] {
-	return systemShell().kind === "powershell" ? ["posix", "powershell"] : ["posix"];
+	return process.platform === "win32" || systemShell().kind === "powershell" ? ["posix", "powershell"] : ["posix"];
 }
 
-/** Forget the chosen shell, for tests that change the environment it was chosen from. */
+/** Forget the chosen shells, for tests that change the environment they were chosen from. */
 export function resetSystemShell(): void {
 	cachedShell = undefined;
 	cachedFor = undefined;
+	confinedShell = undefined;
+	confinedFor = undefined;
 }
 
 /**

@@ -370,9 +370,21 @@ export class SandboxUnavailableError extends Error {
  */
 export function looksDenied(output: string, runner?: Runner): boolean {
 	if (DENIAL_PATTERNS.some((pattern) => pattern.test(output))) return true;
+	if (runner === "windows-acl" && MSYS_UNDER_TOKEN.test(output)) return true;
 	if (runner !== "landlock" && runner !== "windows-acl") return false;
 	return output.split("\n").some((line) => GENERIC_DENIAL.test(line) && !NOT_A_DENIAL.test(line));
 }
+
+/**
+ * An MSYS2 program dying as it starts under the restricted token.
+ *
+ * Confined commands on Windows run in PowerShell because Git Bash cannot start there (see
+ * `commandShell`), but a confined command can still start one: `git commit` runs its hooks with
+ * Git's own `sh`. That `sh` fails before it reads a line — `fatal error - couldn't create signal
+ * pipe, Win32 error 5` — which is the sandbox refusing it, and says nothing about the hook. Read as a
+ * denial, it reaches the model as one it can escalate, and unconfined the hook runs.
+ */
+const MSYS_UNDER_TOKEN = /\bfatal error - .*\bWin32 error 5\b/i;
 
 /**
  * Case-insensitive, because the shell writes this line and shells disagree.
@@ -395,11 +407,12 @@ const DENIAL_PATTERNS = [
  * The words our own runners' refusals arrive in, which carry no prefix of their own.
  *
  * Landlock refuses with `EACCES` — `Permission denied` — and the Windows token with `Access is
- * denied` from native programs and `Permission denied` from Git Bash. Those are common words, so
+ * denied` from native programs and `Access to the path '…' is denied` from PowerShell and anything
+ * else built on .NET, which is what a confined command runs in there. Those are common words, so
  * they count only under the runner that produces them, and never in the two sentences ssh uses for
  * a rejected key or password, which a `git push` prints under any sandbox or none.
  */
-const GENERIC_DENIAL = /\b(?:permission denied|access is denied)\b/i;
+const GENERIC_DENIAL = /\b(?:permission denied|access is denied)\b|\baccess to the path\b.*\bis denied\b/i;
 const NOT_A_DENIAL = /permission denied \(publickey|permission denied, please try again/i;
 
 /**
