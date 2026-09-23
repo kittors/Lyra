@@ -1,4 +1,4 @@
-# TEMPORARY — find why the Landlock runner dies of SIGSEGV on GitHub's x86_64 runners. Remove once fixed.
+# TEMPORARY — a fast Windows check of the sandbox tests while the confined shell moves to PowerShell. Remove before merging.
 name: diag-landlock
 
 on:
@@ -9,46 +9,13 @@ permissions:
   contents: read
 
 jobs:
-  stress:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - name: environment
-        run: |
-          uname -a
-          node --version
-          grep -m1 "model name" /proc/cpuinfo
-          nproc
-          cat /sys/kernel/security/lsm; echo
-          (cd packages/core && node --experimental-strip-types --no-warnings -e "import('./src/sandbox/linux/landlock.ts').then((m) => console.log('landlock ABI', m.landlockAbi()))") || echo "landlockAbi exit $?"
-          ldd --version | head -1
-      - name: koffi matrix
-        if: always()
-        run: node scripts/diag/koffi-matrix.mjs
-      - name: gdb
-        if: always()
-        run: bash scripts/diag/landlock-gdb.sh
-      - name: stress
-        if: always()
-        run: node --experimental-strip-types --no-warnings scripts/diag/landlock-stress.ts
-
   windows:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - name: runner, by hand — no MSYS process alive (pwsh)
-        shell: pwsh
-        run: node --experimental-strip-types --no-warnings scripts/diag/windows-runner.ts
-      - name: runner, by hand — under an unconfined Git Bash (bash)
-        if: always()
-        shell: bash
-        run: node --experimental-strip-types --no-warnings scripts/diag/windows-runner.ts
-      - name: sandbox tests
-        if: always()
+      - name: sandbox and shell tests
         shell: bash
         working-directory: packages/core
-        run: node --test --import ./test/setup.ts --experimental-strip-types test/sandbox-windows.test.ts test/sandbox-bash.test.ts test/windows-acl-layout.test.ts test/sandbox-backend.test.ts test/escalation.test.ts test/read-access.test.ts
+        run: node --test --import ./test/setup.ts --experimental-strip-types test/sandbox-windows.test.ts test/sandbox-bash.test.ts test/escalation.test.ts test/sandbox-backend.test.ts test/command-shell.test.ts test/windows-acl-layout.test.ts test/read-access.test.ts test/background-jobs.test.ts test/system-prompt-snapshot.test.ts
