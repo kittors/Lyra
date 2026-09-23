@@ -12,8 +12,8 @@
  * where they can be called directly. `plugins.ts` keeps the wiring and the ordering; this keeps the
  * rules.
  *
- * Every function returns the settings to save, or `null` for "nothing changed" — so a caller never
- * writes the settings file to record that it had nothing to record.
+ * Every `settingsAfter*` returns the settings to save, or `null` for "nothing changed" — so a caller
+ * never writes the settings file to record that it had nothing to record.
  */
 
 import type { Installed, McpBundle, McpServerConfig, Settings } from "@lyra/core";
@@ -89,4 +89,23 @@ export function settingsAfterReconcile(current: Settings, bundles: McpBundle[]):
 		})),
 	);
 	return { ...current, mcpServers: [...current.mcpServers, ...restored] };
+}
+
+/**
+ * Stop, in every live session, the servers a bundle brought — before its files are replaced or removed.
+ *
+ * On Windows a running server holds its own executable and loaded modules open, and none of the
+ * bundle's directory can be moved or deleted while it does: an update or uninstall with its servers
+ * still connected failed partway through (`installEntry` now refuses whole instead, but it still
+ * cannot proceed). Matched by `origin.bundle`, the same stamp that ties settings rows to the
+ * bundle. One session failing to let go does not keep the others connected.
+ */
+export async function releaseBundle(
+	// What it needs of a live session: `AgentSession.can`, and only that.
+	sessions: Iterable<{ can: { disconnectMcp(match: (server: McpServerConfig) => boolean): Promise<number> } }>,
+	id: string,
+): Promise<void> {
+	await Promise.all(
+		[...sessions].map((session) => session.can.disconnectMcp((server) => server.origin?.bundle === id).catch(() => 0)),
+	);
 }

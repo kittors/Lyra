@@ -26,6 +26,7 @@ import type { McpBundle, McpServerConfig, RegistryEntry, Settings } from "@lyra/
 import { bundleRoot, installEntry, uninstallEntry } from "@lyra/core";
 
 import {
+	releaseBundle,
 	settingsAfterInstall,
 	settingsAfterReconcile,
 	settingsAfterUninstall,
@@ -258,4 +259,32 @@ test("reconciliation does not resurrect a bundle that still has its row", () => 
 		null,
 		"a row that exists is the answer, whatever state it is in",
 	);
+});
+
+test("releasing a bundle disconnects its servers in every live session, and nothing else", async () => {
+	/*
+	 * What updating or uninstalling does before touching the bundle's files: on Windows its running
+	 * servers hold them open. Each fake session reports the servers the predicate picked out of what
+	 * it has connected.
+	 */
+	const connected: McpServerConfig[] = [
+		{ ...handMade("c7"), origin: { bundle: "context7" } } as McpServerConfig,
+		{ ...handMade("fs"), origin: { bundle: "filesystem" } } as McpServerConfig,
+		handMade("typed-in"),
+	];
+	const released: string[][] = [];
+	const session = () => ({
+		can: {
+			disconnectMcp: async (match: (server: McpServerConfig) => boolean) => {
+				const picked = connected.filter(match).map((server) => server.id);
+				released.push(picked);
+				return picked.length;
+			},
+		},
+	});
+	const refusing = { can: { disconnectMcp: () => Promise.reject(new Error("already disposed")) } };
+
+	await releaseBundle([session(), refusing, session()], "context7");
+
+	assert.deepEqual(released, [["c7"], ["c7"]], "one session failing must not keep the others connected");
 });
