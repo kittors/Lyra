@@ -38,3 +38,22 @@
 **`workspace-write` 的真实含义是「工作区**加上系统临时目录**」**，不是「只有工作区」。写 `/tmp`
 是允许的——`mkstemp` 类工具都写那里，不授权等于毁掉一半命令行工具。别把它理解成「只能碰项目
 目录」。
+
+## 2026-09-23 补：Linux 还是加了 Landlock
+
+上面「不做 Linux 的 Landlock」那一段推翻了，前提不成立：「bwrap 已经覆盖 Linux 主路径」。
+在一台原装的 Ubuntu 24.04（内核 6.8）上量过——没装 `bwrap`，而且
+`apparmor_restrict_unprivileged_userns=1`，装了也拿不到它要的用户命名空间。拿不到约束就拒绝，
+于是最常见的 Linux 桌面上，默认权限模式一条命令都跑不了。「绝不退回无保护」本身没错，错在
+只有一条路。
+
+Landlock 在 Ubuntu、Fedora、Debian 的内核里默认启用，无特权进程可以约束自己，约束对子进程
+继承且去不掉。它回答的正是这个沙箱问的问题：哪些目录可写。当初担心的「原生编译链」也没有
+出现——几个系统调用经 koffi 直接调 libc（`sandbox/linux/libc.ts`），和 Windows 受限令牌走的是
+同一套 FFI。顺序是 `bwrap` 优先：只有它能断网又留着本机回环；Landlock 按端口断网，连本机 TCP
+一起断，老内核断不了，探测时如实报告。
+
+同一时期还修了 Windows：runner 在 app 里从来没启动过（Electron 按 Node 跑时把
+`--lyra-sandbox-runner` 当成自己的选项，`bad option`，退出码 9，见 `sandbox/runner-entry.ts`），
+受限令牌也因为结构体偏移写错一直建不起来，默认模式下同样什么都不跑。Windows 上受约束的命令为什么改在 PowerShell 里跑，
+见 [ADR-0022](0022-windows-confined-commands-in-powershell.md)。
