@@ -16,6 +16,7 @@ import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import { contentMeasure } from "../../lib/content-width.ts";
 import { bridge } from "../../services/index.ts";
+import { drawnUiFont } from "./appearance-defaults.ts";
 
 interface Rgb {
 	r: number;
@@ -162,7 +163,8 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--color-ink-faint": text(0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
-		"--ly-ui-font": appearance.uiFont,
+		// The default widened with the faces Windows and Linux need for three weights; see `drawnUiFont`.
+		"--ly-ui-font": drawnUiFont(appearance.uiFont),
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
 		/*
