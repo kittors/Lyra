@@ -13,7 +13,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { AgentSession } from "../src/runtime/session.ts";
-import { SessionStore } from "../src/session/store.ts";
+import { SessionStore, type SessionMeta } from "../src/session/store.ts";
+import { forkSession } from "../src/trajectory/fork.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, ThinkingLevel } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
@@ -75,11 +76,13 @@ async function harness(settings: Settings = SETTINGS) {
 
 	const asked: (ThinkingLevel | undefined)[] = [];
 	const store = new SessionStore(join(root, "sessions"));
-	const make = async () => {
+	/** A new conversation, or — given a meta — an existing one reopened. */
+	const make = async (meta?: SessionMeta) => {
 		const session = new AgentSession({
 			cwd: root,
 			settings,
 			store,
+			meta,
 			emit: () => {},
 			// `(context, config)`; the level the turn resolved to is on the config.
 			streamFn: async (_context, config) => {
@@ -92,6 +95,7 @@ async function harness(settings: Settings = SETTINGS) {
 	};
 
 	return {
+		root,
 		store,
 		asked,
 		make,
@@ -104,13 +108,16 @@ async function harness(settings: Settings = SETTINGS) {
 	};
 }
 
-test("with nothing chosen, a turn runs at the app default", async () => {
+test("a new conversation starts at the app default, and has it written down", async () => {
 	const h = await harness();
 	try {
 		const session = await h.make();
 		await session.prompt([{ type: "text", text: "hi" }]);
 		assert.equal(h.last(), "medium");
-		assert.equal(session.meta.thinking, undefined, "a level nobody chose is not written down");
+		assert.equal(session.meta.thinking, "medium", "the default of the moment is the conversation's own from the start");
+
+		const loaded = await h.store.load(session.meta.projectId, session.meta.id);
+		assert.equal(loaded?.meta.thinking, "medium", "in the first record, not only in memory");
 	} finally {
 		await h.cleanup();
 	}
@@ -204,22 +211,51 @@ test("a level asked for by the caller still wins, for the one turn", async () =>
 	}
 });
 
-test("moving the app default moves the sessions that never chose, and only those", async () => {
+/*
+ * The 0.9.19 report, in the order it happened: a conversation started at `high`, a second new chat
+ * set to `medium` — which, with no session to hold it yet, moves the app default — and the first
+ * one came back at `medium`, in the label and in what it asked the provider for.
+ */
+test("moving the app default leaves conversations already under way where they were", async () => {
+	const h = await harness({ ...SETTINGS, thinking: "high" });
+	try {
+		const first = await h.make();
+		const lowered: Settings = { ...SETTINGS, thinking: "medium" };
+		first.updateSettings(lowered);
+
+		await first.prompt([{ type: "text", text: "hi" }]);
+		assert.equal(h.last(), "high", "it started at high, and a later default is not its business");
+		assert.equal(first.meta.thinking, "high");
+	} finally {
+		await h.cleanup();
+	}
+});
+
+test("a conversation from before levels were written down still follows the default", async () => {
 	const h = await harness();
 	try {
-		const chosen = await h.make();
-		const untouched = await h.make();
-		await chosen.setThinking("low");
+		// What every log written by 0.9.19 and earlier looks like: no level in it at all.
+		const old = await h.store.create(h.root, MODEL.id);
+		assert.equal(old.thinking, undefined);
+		const session = await h.make(old);
 
-		const raised: Settings = { ...SETTINGS, thinking: "high" };
-		chosen.updateSettings(raised);
-		untouched.updateSettings(raised);
+		session.updateSettings({ ...SETTINGS, thinking: "high" });
+		await session.prompt([{ type: "text", text: "hi" }]);
+		assert.equal(h.last(), "high", "nothing recorded, so there is nothing to keep it from the default");
+	} finally {
+		await h.cleanup();
+	}
+});
 
-		await untouched.prompt([{ type: "text", text: "hi" }]);
-		assert.equal(h.last(), "high", "it never had an opinion, so it follows the default");
+test("a fork keeps the level of the conversation it came from", async () => {
+	const h = await harness();
+	try {
+		const source = await h.make();
+		await source.setThinking("xhigh");
+		await source.prompt([{ type: "text", text: "hi" }]);
 
-		await chosen.prompt([{ type: "text", text: "hi" }]);
-		assert.equal(h.last(), "low", "it had one, so the default does not overrule it");
+		const fork = await forkSession(h.store, source.meta.projectId, source.meta.id, source.meta.seq);
+		assert.equal(fork?.meta.thinking, "xhigh");
 	} finally {
 		await h.cleanup();
 	}

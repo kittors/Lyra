@@ -49,16 +49,24 @@ export interface SessionMeta {
 	 */
 	modelSwitchedAt?: number;
 	/**
-	 * How hard this conversation asks the model to think, when it differs from the app default.
+	 * How hard this conversation asks the model to think.
 	 *
 	 * Per session because that is the unit the decision belongs to: one conversation is a long
 	 * refactor worth paying `high` for and the next is "what does this flag do". Held globally,
 	 * turning one up turned all of them up — including the ones already running somewhere else,
 	 * which is a bill nobody agreed to.
 	 *
-	 * Absent means "whatever the settings say", which is what every session written before this
-	 * existed means, and what a session nobody has expressed an opinion about should go on meaning
-	 * as the default moves.
+	 * Written when the session is created, with the app default of that moment (`create`). It used
+	 * to stay absent until someone changed it inside the conversation, so that a session nobody had
+	 * an opinion about would follow the default as it moved. Seen from the window there is no such
+	 * session: the level picked in a new chat before its first message is an opinion about that
+	 * chat, yet it can only land on the app default — there is no session to hold it yet — and the
+	 * session was then created without it. Picking a level in the next new chat moved the first one
+	 * along, in its label and in what its turns actually asked for (reported against 0.9.19). The
+	 * default is where new conversations start, not a dial for the ones already under way.
+	 *
+	 * Absent now only on sessions written before that, and after `setThinking(null)`; both mean
+	 * "whatever the settings say".
 	 */
 	thinking?: ThinkingLevel;
 	/**
@@ -240,7 +248,7 @@ export class SessionStore implements SessionStorage {
 		}
 	}
 
-	async create(cwd: string, modelId: string, title = "New session"): Promise<SessionMeta> {
+	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking"> = {}): Promise<SessionMeta> {
 		const projectId = projectIdFor(cwd);
 		const meta: SessionMeta = {
 			id: randomUUID(),
@@ -251,6 +259,7 @@ export class SessionStore implements SessionStorage {
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 			modelId,
+			...(options.thinking ? { thinking: options.thinking } : {}),
 			messageCount: 0,
 			usage: emptyUsage(),
 			seq: 0,

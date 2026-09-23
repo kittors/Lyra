@@ -23,8 +23,8 @@ export interface ForkResult {
 /**
  * Copy a session's history up to `seq` into a new session.
  *
- * The new session carries the same working directory and model, because a fork is a different
- * continuation of the same work rather than a different piece of work.
+ * The new session carries the same working directory, model and reasoning level, because a fork is
+ * a different continuation of the same work rather than a different piece of work.
  */
 export async function forkSession(
 	store: SessionStorage,
@@ -37,7 +37,7 @@ export async function forkSession(
 	if (!source || source.projectId !== projectId) return null;
 
 	const messages = await messagesUpTo(store, projectId, sessionId, seq);
-	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`);
+	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`, { thinking: source.thinking });
 	for (const message of messages) {
 		meta = await store.append(meta, { type: "message", message });
 	}
