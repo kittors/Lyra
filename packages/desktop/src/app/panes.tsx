@@ -14,6 +14,7 @@ import { translate } from "../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { ResizeHandle } from "../ui/layout/ResizeHandle.tsx";
 import { useFocusTrap, useLayout } from "./layout.tsx";
+import { NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 import { drawerWidth } from "../mobile/drawer-gesture.ts";
 import { onPhone } from "../mobile/useMobileShell.ts";
 
@@ -43,7 +44,7 @@ export function NavPane({
 	maxWidth?: number;
 	children: React.ReactNode;
 }) {
-	const { compact, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds } = useLayout();
+	const { compact, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds, headerBar } = useLayout();
 	const ref = useRef<HTMLElement>(null);
 	/**
 	 * Suppresses the transition for one beat after the breakpoint moves.
@@ -103,7 +104,19 @@ export function NavPane({
 								 */
 								transform: `translateX(calc((var(--ly-drawer, ${navOpen ? 1 : 0}) - 1) * 100%))`,
 							}
-						: { transform: navOpen ? "none" : "translateX(-100%)", opacity: navOpen ? 1 : 0 }
+						: {
+								transform: navOpen ? "none" : "translateX(-100%)",
+								opacity: navOpen ? 1 : 0,
+								/*
+								 * Below the header where there is one. It is z-40, opaque, and a drag
+								 * region the whole way across, so a drawer starting at the window's top
+								 * edge had its first row — search and notifications, or 设置's way back
+								 * to the workspace — underneath it: not visible, and a press there moved
+								 * the window. The pane's content assumes as much: it only leaves room for
+								 * the top row where there is no header (see `hasHeaderBar`).
+								 */
+								...(headerBar ? { top: NATIVE_HEADER_HEIGHT } : {}),
+							}
 					: undefined
 			}
 		>
