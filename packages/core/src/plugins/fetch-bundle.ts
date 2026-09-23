@@ -15,11 +15,22 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { promisify } from "node:util";
 
 import type { RegistryEntry } from "@lyra/registry-shared";
 
-const run = promisify(execFile);
+/**
+ * Run a console program to completion, without a console window.
+ *
+ * This runs in the Electron main process, which has no console of its own, so on Windows every
+ * console program it starts without `windowsHide` gets one: a black window that flashes up and takes
+ * focus, once for the clone and once for the unpack. One helper with the option built in, so the
+ * next command added here cannot forget it.
+ */
+function run(file: string, args: string[], timeout: number): Promise<void> {
+	return new Promise((resolve, reject) => {
+		execFile(file, args, { timeout, windowsHide: true }, (error) => (error ? reject(error) : resolve()));
+	});
+}
 
 /** How long a download has before we give up and fall back to git. */
 const DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -74,7 +85,7 @@ export async function fetchBundle(entry: RegistryEntry, staging: string): Promis
 }
 
 async function fromGit(entry: RegistryEntry, staging: string): Promise<void> {
-	await run("git", ["clone", "--depth", "1", entry.repository, staging], { timeout: 60_000 });
+	await run("git", ["clone", "--depth", "1", entry.repository, staging], 60_000);
 }
 
 /**
@@ -142,7 +153,7 @@ export async function unpackVerified(
 		 * `-C staging` so nothing can be written outside it even if the archive says otherwise, and
 		 * no `-P`, so tar strips any leading `/` and refuses `..` on every platform's implementation.
 		 */
-		await run("tar", ["-xzf", file, "-C", staging], { timeout: 60_000 });
+		await run("tar", ["-xzf", file, "-C", staging], 60_000);
 	} finally {
 		await rm(file, { force: true });
 	}
