@@ -11,21 +11,53 @@
  */
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { assessRead, commandReadTargets, readGrantRoot, toAbsolute } from "../src/tools/read-access.ts";
 import { bashTool, isReadOnlyCommand } from "../src/tools/bash.ts";
 import { readTool } from "../src/tools/read.ts";
 import { lsTool } from "../src/tools/ls.ts";
 import { grepTool } from "../src/tools/grep.ts";
 import { globTool } from "../src/tools/glob.ts";
+import { home } from "../src/platform.ts";
 import type { ApprovalRequest, ToolContext } from "../src/types.ts";
 
 const CWD = "/tmp/ws" === tmpdir() ? "/workspace" : join(tmpdir(), "..", "not-a-temp-workspace");
-const HOME = homedir();
+
+/*
+ * 这个文件里的家目录是借来的一间空屋，不是跑测试的那个人的家。
+ *
+ * 下面有一条测试要一把私钥摆在 `~/.ssh/id_ed25519`。它从前用的就是真家目录：机器上已经有钥匙，
+ * 就直接拿开发者的真钥匙来测；没有，就现写一把假的，还可能顺手建出一个 `~/.ssh`，事后只删钥匙
+ * 不删目录。前一种最糟——产品一回归，`cat` 真跑起来，那把真钥匙就进了断言信息和 CI 日志。
+ *
+ * `home()` 每次都现读 `os.homedir()`，换掉 `HOME`（Windows 上它认 `USERPROFILE`）代码就跟着换。
+ * 可这间屋子不能开在临时目录里：临时区按设计就是可读的（`assessRead` 的 `tmpdir()` 和
+ * `SYSTEM_ROOTS` 里的 `/tmp`、`/var/folders`），开在那里，每一条「项目之外要先问」的断言都会
+ * 变成空话。所以它开在真家目录底下，是一个新建的空目录——这里建的一切都在它里面，跑完连它一起
+ * 删掉；真家目录里原有的东西一样不读、不写。
+ *
+ * git 也要拦在这间屋子门口。「工作区里的日常操作一句都不问」那条会真的跑 `git commit`，而有人的
+ * 家目录本身就是个仓库（放 dotfiles 的那种）——不设天花板，git 会一路往上找到它，把人家暂存着的
+ * 改动提交掉。
+ */
+const HOME = await mkdtemp(join(homedir(), ".lyra-read-access-home-"));
+const borrowed = ["HOME", "USERPROFILE", "GIT_CEILING_DIRECTORIES"] as const;
+const saved = new Map(borrowed.map((key) => [key, process.env[key]]));
+for (const key of borrowed) process.env[key] = HOME;
+after(async () => {
+	for (const [key, value] of saved) {
+		if (value === undefined) delete process.env[key];
+		else process.env[key] = value;
+	}
+	await rm(HOME, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+});
+if (home() !== HOME) {
+	await rm(HOME, { recursive: true, force: true });
+	throw new Error(`the code under test sees ${home()} rather than the borrowed ${HOME}; refusing to run against a real home`);
+}
 
 /** A workspace that is not under a temp root, because temp roots are readable by design. */
 const WS = join(HOME, ".lyra-test-ws");
@@ -228,20 +260,16 @@ test("a credential read through bash asks, despite the read-only table", async (
 	 * mode. `cat` is on it. So `SECRET_PATH` — the credential rule the 2026-09-12 audit raised as
 	 * H2 and the fix log marked done — was judging commands that could never arrive.
 	 *
-	 * `worthAsking` skips paths that do not exist on disk to save noise. In CI (especially a clean
-	 * runner or Linux arm64) `~/.ssh/id_ed25519` may not exist unless created for the test.
+	 * `worthAsking` skips paths that do not exist on disk to save noise, so the key has to be there.
+	 * It is always one written here, into the borrowed home (see the top of the file): this used to
+	 * test against whatever `~/.ssh/id_ed25519` the machine already had, which on a developer's
+	 * laptop is their real key.
 	 */
 	const sshDir = join(HOME, ".ssh");
 	const keyFile = join(sshDir, "id_ed25519");
-	let created = false;
-	if (!existsSync(keyFile)) {
-		await mkdir(sshDir, { recursive: true });
-		await writeFile(keyFile, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n", "utf8");
-		created = true;
-	}
-	t.after(async () => {
-		if (created) await rm(keyFile, { force: true });
-	});
+	await mkdir(sshDir, { recursive: true });
+	await writeFile(keyFile, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n", "utf8");
+	t.after(() => rm(sshDir, { recursive: true, force: true }));
 
 	const approvals = { decisions: ["reject" as const], seen: [] as ApprovalRequest[] };
 	const result = await bashTool.execute({ command: `cat ${keyFile}` } as never, ctxFor(WS, approvals));
@@ -251,7 +279,8 @@ test("a credential read through bash asks, despite the read-only table", async (
 	assert.match(approvals.seen[0].title, /密钥/);
 	assert.equal(approvals.seen[0].subject, `read:${keyFile}`, "granted as the key alone");
 	assert.equal(result.isError, true);
-	assert.doesNotMatch(textOf(result), /BEGIN .* PRIVATE KEY/, "and nothing may come back");
+	// Whether anything came back, not what: a failure message is no place for a key's contents.
+	assert.ok(!/BEGIN .* PRIVATE KEY/.test(textOf(result)), "and nothing may come back");
 });
 
 test("the file tool and the shell now give the same answer for the same path", async (t) => {
