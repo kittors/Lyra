@@ -11,7 +11,8 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -63,6 +64,34 @@ test("Windows: LYRA_SHELL naming a PowerShell is used confined too", async (t) =
 	await pretend(t, "win32", pwsh);
 	assert.equal(commandShell("workspace-write").file, pwsh);
 	assert.equal(commandShell("workspace-write").label, "PowerShell 7");
+});
+
+test("PowerShell: a command too long for the Windows command line goes in a script file", async (t) => {
+	await pretend(t, "win32", await fakeShell(t, "pwsh.exe"));
+	const shell = commandShell("workspace-write");
+
+	// Short: encoded on the line, the command intact inside it.
+	const short = shell.args("Write-Output 中文");
+	const encoded = short[short.indexOf("-EncodedCommand") + 1];
+	assert.ok(encoded, JSON.stringify(short));
+	assert.match(Buffer.from(encoded, "base64").toString("utf16le"), /Write-Output 中文$/);
+
+	/*
+	 * Long: 12,000 characters would be 32,000 on the line once encoded — past what `CreateProcess`
+	 * accepts, so it never started (`spawn ENAMETOOLONG`). It runs from a file instead.
+	 */
+	const command = `Write-Output '${"x".repeat(12_000)}'`;
+	const long = shell.args(command);
+	assert.ok(!long.includes("-EncodedCommand"));
+	const file = long[long.indexOf("-File") + 1];
+	assert.ok(file && existsSync(file), JSON.stringify(long.slice(0, 7)));
+	t.after(() => rm(file, { force: true }));
+	assert.ok(long.join(" ").length < 1_000, "the line itself stays short");
+	const text = await readFile(file, "utf8");
+	assert.equal(text.charCodeAt(0), 0xfeff, "a BOM, or Windows PowerShell 5.1 reads it in the console's code page");
+	assert.ok(text.includes(command));
+	// `-File` reports 0 after a failed last command, where `-Command` reports failure; the last line keeps that.
+	assert.match(text.trimEnd(), /if \(-not \$\?\) \{ exit .+ \}$/);
 });
 
 test("macOS and Linux: the mode does not change the shell", async (t) => {

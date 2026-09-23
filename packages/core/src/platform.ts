@@ -12,8 +12,9 @@
  * concept happens to be spelled with, it belongs here rather than at the call site.
  */
 
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { createHash } from "node:crypto";
+import { existsSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, win32 } from "node:path";
 
 export interface CommandShell {
@@ -126,16 +127,40 @@ function powershell(file: string, label: string): CommandShell {
 		file,
 		kind: "powershell",
 		label,
-		args: (command) => [
-			"-NoLogo",
-			"-NoProfile",
-			"-NonInteractive",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-EncodedCommand",
-			Buffer.from(`${prelude}\n${command}`, "utf16le").toString("base64"),
-		],
+		args: (command) => {
+			const script = `${prelude}\n${command}`;
+			const encoded = Buffer.from(script, "utf16le").toString("base64");
+			const flags = ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"];
+			return encoded.length <= MAX_ENCODED_COMMAND ? [...flags, "-EncodedCommand", encoded] : [...flags, "-File", scriptFile(script)];
+		},
 	};
+}
+
+/**
+ * The longest `-EncodedCommand` passed on the command line itself.
+ *
+ * A Windows command line holds 32,767 characters, and base64 of UTF-16 spends about 2.7 of them on
+ * each character of the command — so anything past roughly twelve thousand characters did not start
+ * at all: `spawn ENAMETOOLONG`, for a `node -e` with a long script in it, or a file written out in a
+ * here-string. A confined command pays for the runner's own arguments on the same line as well.
+ * Past this, the command goes in a script file instead.
+ */
+const MAX_ENCODED_COMMAND = 24_000;
+
+/**
+ * A command too long for the command line, written where PowerShell can run it with `-File`.
+ *
+ * With a byte-order mark, which is what makes Windows PowerShell 5.1 read the file as UTF-8 rather
+ * than in the console's code page. The last line keeps `-Command`'s exit status: `-File` reports 0
+ * after a failed last command, where `-Command` reports failure. Named by content, so running the
+ * same long command again reuses its file; under the temp directory, which the sandbox lets every
+ * mode read.
+ */
+function scriptFile(script: string): string {
+	const body = `${script}\nif (-not $?) { exit $(if ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }) }\n`;
+	const file = join(tmpdir(), `lyra-command-${createHash("sha256").update(body).digest("hex").slice(0, 16)}.ps1`);
+	writeFileSync(file, `\uFEFF${body}`, "utf8");
+	return file;
 }
 
 function windowsShell(): CommandShell {

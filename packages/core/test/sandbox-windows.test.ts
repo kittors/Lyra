@@ -112,6 +112,13 @@ test("workspace-write: the project and its temp are writable, the rest of the di
 	assert.equal(r.out.trim(), "");
 
 	assert.equal((await run("exit 3", ws, "workspace-write")).code, 3);
+
+	// Too long for the command line once encoded: it runs from a script file, confined all the same.
+	r = await run(`$s = '${"x".repeat(12_000)}'; Write-Output "long-$($s.Length)"`, ws, "workspace-write");
+	assert.match(r.out, /long-12000/, r.out.slice(0, 300));
+	r = await run(`$s = '${"x".repeat(12_000)}'; Set-Content -LiteralPath ${ps(outside)} -Value $s`, ws, "workspace-write");
+	assert.equal(existsSync(outside), false, "a script file is no way around the token");
+	assert.notEqual(r.code, 0, "and its failure is still reported as one");
 });
 
 test("an MSYS program started by a confined command is reported as the sandbox refusing it", { skip, timeout: 60_000 }, async (t) => {
