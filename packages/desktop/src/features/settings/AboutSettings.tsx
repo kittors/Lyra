@@ -8,7 +8,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { check, useUpdate } from "../update/index.ts";
 import { notesForLocale, versionNote } from "../update/index.ts";
@@ -23,7 +23,8 @@ export function AboutSettings() {
 	const { t, resolvedLocale } = useI18n();
 	const { info, phase, checking } = useUpdate();
 	const [openDialog, setOpenDialog] = useState(false);
-	const [platform, setPlatform] = useState("darwin");
+	// Synchronous, from the preload: the IPC answer used to arrive a frame after "darwin" was drawn.
+	const platform = bridge.platform ?? "darwin";
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	/*
@@ -31,10 +32,6 @@ export function AboutSettings() {
 	 * 正文在 GitHub 上可以七种语言写在一起，这一屏不能一股脑铺开，见 `notesForLocale`。
 	 */
 	const notes = info?.notes ? notesForLocale(info.notes, resolvedLocale) : "";
-
-	useEffect(() => {
-		void bridge.system.platform().then(setPlatform);
-	}, []);
 
 	const available = Boolean(info?.available);
 	const interval = settings?.updateCheckIntervalHours ?? 6;

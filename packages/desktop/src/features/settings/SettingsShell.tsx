@@ -1,6 +1,6 @@
 import { composingKey } from "../../ui/keyboard.ts";
 import { ArrowLeft, Rocket } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { sectionFor } from "./sections-for.ts";
@@ -58,11 +58,8 @@ export function SettingsShell() {
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
 	const { compact, navOpen, headerBar, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
-	const [platform, setPlatform] = useState("darwin");
-
-	useEffect(() => {
-		void bridge.system.platform().then(setPlatform);
-	}, []);
+	// Synchronous, from the preload: waiting for `system.platform()` drew the first frame as macOS.
+	const platform = bridge.platform ?? "darwin";
 
 	const phone = onPhone();
 
