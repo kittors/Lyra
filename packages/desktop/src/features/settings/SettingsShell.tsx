@@ -1,4 +1,4 @@
-import { composingKey } from "../../ui/keyboard.ts";
+import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
 import { ArrowLeft, Rocket } from "lucide-react";
 import { useEffect } from "react";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
@@ -69,7 +69,8 @@ export function SettingsShell() {
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.repeat || composingKey(event)) return;
-			if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.code === "KeyB") {
+			// The workspace's ⌘B (`app/shortcuts.ts`), matched the same way so the two cannot disagree.
+			if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && shortcutLetter(event) === "b") {
 				event.preventDefault();
 				toggleNav();
 			} else if (event.key === "Escape" && compact && navOpen) {

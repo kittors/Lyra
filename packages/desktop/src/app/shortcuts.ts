@@ -16,7 +16,7 @@ import { useEffect } from "react";
 import { toggleScopedPanel, useDock } from "../features/dock/index.ts";
 import type { PanelKind } from "../features/dock/index.ts";
 import { firstSession, leafCount, useSplit } from "../features/split/index.ts";
-import { composingKey } from "../ui/keyboard.ts";
+import { composingKey, shortcutLetter } from "../ui/keyboard.ts";
 
 export interface ShortcutDeps {
 	/**
@@ -53,51 +53,54 @@ export function useShortcuts(deps: ShortcutDeps): void {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.repeat || composingKey(event)) return;
 			const mod = event.metaKey || event.ctrlKey;
+			/*
+			 * The letter on the key, not the key's position.
+			 *
+			 * This matched `code` alone, because Option is a dead-key modifier on macOS: ⌥S arrives as
+			 * "ß", so matching on `key` would never fire. That still holds, and `shortcutLetter` still
+			 * falls back to `code` for exactly that case. What `code` got wrong is every layout that
+			 * is not QWERTY: it names the QWERTY position, so on AZERTY ⌃⌥A was the key labelled Q.
+			 */
+			const letter = shortcutLetter(event);
 			// ⌘B is the conventional shortcut, and it makes the transition easy to feel.
-			if (mod && !event.altKey && !event.shiftKey && event.code === "KeyB") {
+			if (mod && !event.altKey && !event.shiftKey && letter === "b") {
 				event.preventDefault();
 				toggleNav();
 				return;
 			}
-			/*
-			 * `code`, not `key`.
-			 *
-			 * Option is a dead-key modifier on macOS: ⌥S arrives as "ß", so matching on `key`
-			 * would never fire. The physical key is what the shortcut is written as.
-			 */
-			if (mod && event.altKey && !event.shiftKey && event.code === "KeyS") {
+			if (mod && event.altKey && !event.shiftKey && letter === "s") {
 				event.preventDefault();
 				panel("chat", activeSessionId);
 				return;
 			}
-			if (mod && event.shiftKey && !event.altKey && event.code === "KeyR") {
+			if (mod && event.shiftKey && !event.altKey && letter === "r") {
 				event.preventDefault();
 				panel("review", workspace);
 				return;
 			}
-			if (mod && !event.altKey && !event.shiftKey && event.code === "KeyP") {
+			if (mod && !event.altKey && !event.shiftKey && letter === "p") {
 				event.preventDefault();
 				panel("files", workspace);
 				return;
 			}
 			// ⌥⌘P for the file itself — the tree's ⌘P with the modifier that means "the other one".
-			if (mod && event.altKey && !event.shiftKey && event.code === "KeyP") {
+			if (mod && event.altKey && !event.shiftKey && letter === "p") {
 				event.preventDefault();
 				panel("file", workspace);
 				return;
 			}
-			if (mod && event.altKey && !event.shiftKey && event.code === "KeyA") {
+			if (mod && event.altKey && !event.shiftKey && letter === "a") {
 				event.preventDefault();
 				panel("subagents", activeSessionId);
 				return;
 			}
-			if (mod && !event.altKey && !event.shiftKey && (event.code === "KeyT" || event.code === "KeyJ")) {
+			if (mod && !event.altKey && !event.shiftKey && (letter === "t" || letter === "j")) {
 				event.preventDefault();
-				panel(event.code === "KeyT" ? "browser" : "tasks", true);
+				panel(letter === "t" ? "browser" : "tasks", true);
 				return;
 			}
 			// ⌘L for the trajectory: the log of what actually happened, beside the conversation.
-			if (mod && !event.altKey && !event.shiftKey && event.code === "KeyL") {
+			if (mod && !event.altKey && !event.shiftKey && letter === "l") {
 				event.preventDefault();
 				panel("trajectory", activeSessionId);
 				return;

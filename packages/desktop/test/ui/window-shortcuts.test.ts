@@ -51,3 +51,55 @@ test("every advertised panel shortcut opens its panel, including a home terminal
 		await view.unmount();
 	}
 });
+
+/** A keydown as Chromium sends it: no AltGraph, which happy-dom would otherwise infer from Alt. */
+function keydown(key: string, code: string, init: KeyboardEventInit = {}) {
+	const event = new KeyboardEvent("keydown", { key, code, ctrlKey: true, bubbles: true, cancelable: true, ...init });
+	Object.defineProperty(event, "getModifierState", { value: () => false });
+	return event;
+}
+
+test("a letter shortcut is the key labelled with that letter, on any Latin layout", async () => {
+	let toggles = 0;
+	const original = useDock.getState().open;
+	const opened: string[] = [];
+	useDock.setState({ open: (kind: string) => void opened.push(kind) } as never);
+	const view = await mount(h(Harness, { toggleNav: () => toggles++ }));
+	try {
+		const input = view.find("textarea");
+		// Dvorak: the key labelled B sits where QWERTY has N.
+		await fire(input, keydown("b", "KeyN"));
+		assert.equal(toggles, 1, "Ctrl+B on Dvorak is the key labelled B");
+		await fire(input, keydown("x", "KeyB"));
+		assert.equal(toggles, 1, "the key in QWERTY's B position is X on Dvorak, and is not Ctrl+B");
+
+		// AZERTY: A and Q trade places. Ctrl+Alt+A is the key labelled A, not the one labelled Q.
+		await fire(input, keydown("a", "KeyQ", { altKey: true }));
+		assert.deepEqual(opened, ["subagents"]);
+		await fire(input, keydown("q", "KeyA", { altKey: true }));
+		assert.deepEqual(opened, ["subagents"], "the key labelled Q must not open the sub-agent pane");
+	} finally {
+		useDock.setState({ open: original } as never);
+		await view.unmount();
+	}
+});
+
+test("layouts with no Latin letters, and macOS Option, fall back to the key's position", async () => {
+	let toggles = 0;
+	const original = useDock.getState().open;
+	const opened: string[] = [];
+	useDock.setState({ open: (kind: string) => void opened.push(kind) } as never);
+	const view = await mount(h(Harness, { toggleNav: () => toggles++ }));
+	try {
+		const input = view.find("textarea");
+		// Russian ЙЦУКЕН: the key in B's position types "и"; there is no Latin B to press instead.
+		await fire(input, keydown("и", "KeyB"));
+		assert.equal(toggles, 1);
+		// macOS Option is a dead-key modifier: ⌥⌘S arrives as "ß" (the reason this used `code`).
+		await fire(input, keydown("ß", "KeyS", { ctrlKey: false, metaKey: true, altKey: true }));
+		assert.deepEqual(opened, ["chat"]);
+	} finally {
+		useDock.setState({ open: original } as never);
+		await view.unmount();
+	}
+});

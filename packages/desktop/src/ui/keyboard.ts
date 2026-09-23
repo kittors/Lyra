@@ -19,6 +19,23 @@ export function shortcutLabel(text: string, platform = navigator.platform): stri
 	});
 }
 
+/**
+ * Which letter a shortcut was pressed with: the one printed on the key.
+ *
+ * `key` when it is a Latin letter. On QWERTY, AZERTY, QWERTZ and Dvorak that is the letter on the
+ * keycap, which is what a shortcut is written as — matching `code` instead made AZERTY's Ctrl+Alt+A
+ * the key labelled Q, and Dvorak's Ctrl+B the key labelled X.
+ *
+ * `code` otherwise. A layout with no Latin letters (Russian, Greek, Hebrew) has nothing labelled A
+ * to press, and its users reach for the key in A's position — the fallback browsers apply to their
+ * own shortcuts and CodeMirror to its keymaps. macOS Option lands here too: it is a dead-key
+ * modifier, ⌥S arrives as "ß", and only the position still says S.
+ */
+export function shortcutLetter(event: Pick<KeyboardEvent, "key" | "code">): string | null {
+	if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
+	return /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : null;
+}
+
 /** Render Electron accelerators without confusing Control, Command and the Windows key. */
 export function acceleratorLabel(accelerator: string, platform = navigator.platform): string {
 	const mac = macKeyboard(platform);

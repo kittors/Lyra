@@ -16,6 +16,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
+import { shortcutLetter } from "../../ui/keyboard.ts";
 import { Check, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotSettings } from "@lyra/core";
@@ -447,7 +448,8 @@ export function ScreenshotOverlay() {
 			 * Only before a region exists, which is exactly when the loupe is on screen — once there
 			 * is something to annotate, copy belongs to whatever is being edited.
 			 */
-			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c" && reading && !selection) {
+			// `shortcutLetter`: on a Cyrillic layout the C key types "с", and Ctrl+C is still that key.
+			if ((e.metaKey || e.ctrlKey) && shortcutLetter(e) === "c" && reading && !selection) {
 				e.preventDefault();
 				/*
 				 * Taking a colour is the whole errand, so it ends the capture.
