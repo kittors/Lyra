@@ -36,6 +36,8 @@ const globals: Record<string, unknown> = {
 	KeyboardEvent: w.KeyboardEvent,
 	MouseEvent: w.MouseEvent,
 	navigator: w.navigator,
+	// A popover opened at a point — a right-click menu — builds its anchor rect with `new DOMRect`.
+	DOMRect: w.DOMRect,
 	getComputedStyle: w.getComputedStyle.bind(w),
 	/*
 	 * Timers rather than real frames.
