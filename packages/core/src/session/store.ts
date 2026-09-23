@@ -17,6 +17,7 @@ import type { AgentEvent, CommandRun } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 import type { SessionStorage } from "./storage.ts";
 import { addUsage, emptyUsage } from "../types.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
 import { readRecordChanges, type SessionReadCursor, type SessionRecordChanges } from "./read-changes.ts";
 
@@ -237,14 +238,12 @@ export class SessionStore implements SessionStorage {
 			compaction: Boundary | null;
 		},
 	): Promise<void> {
-		const path = this.displayCacheFor(projectId, sessionId);
-		const tmp = `${path}.${process.pid}.tmp`;
+		// Best-effort: a cache that is not written is rebuilt from the log next time.
 		try {
 			await mkdir(this.dirFor(projectId), { recursive: true });
-			await writeFile(tmp, JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
-			await rename(tmp, path);
+			await writeFileAtomic(this.displayCacheFor(projectId, sessionId), JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
 		} catch {
-			await unlink(tmp).catch(() => undefined);
+			// Nothing to clean up: the helper removes its own temporary file.
 		}
 	}
 
@@ -567,33 +566,13 @@ export class SessionStore implements SessionStorage {
 			/*
 			 * Write-then-rename so a crash cannot leave a truncated index.
 			 *
-			 * The temporary name carries more than the pid. Two writes racing inside one process — two
-			 * conversations created at once, which the desktop does whenever a window restores several
-			 * — both wrote to the same path, and the first rename took the file out from under the
-			 * second: `ENOENT ... index.json.NNN.tmp -> index.json`, and the session that lost is not
-			 * in the index at all.
-			 *
-			 * On Windows, renaming over an existing file while another write/read handle is open fails
-			 * with EPERM. Retrying briefly smooths over external scanners (e.g. antivirus or search indexer).
+			 * Through the shared helper, whose temporary name is unique per write: two conversations
+			 * created at once — which the desktop does whenever a window restores several — shared
+			 * `index.json.<pid>.tmp`, and the first rename took the file out from under the second
+			 * (`ENOENT`), leaving that session out of the index. It also waits out the moment a
+			 * scanner holds the file open on Windows. See `utils/atomic-write.ts`.
 			 */
-			const tmp = `${this.indexPath}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
-			await writeFile(tmp, JSON.stringify(next, null, 2), "utf8");
-			let renamed = false;
-			for (let attempt = 0; attempt < 8; attempt++) {
-				try {
-					await rename(tmp, this.indexPath);
-					renamed = true;
-					break;
-				} catch (err: unknown) {
-					const code = (err as { code?: string })?.code;
-					if ((code === "EPERM" || code === "EBUSY") && attempt < 7) {
-						await new Promise((r) => setTimeout(r, 20 * (attempt + 1)));
-						continue;
-					}
-					throw err;
-				}
-			}
-			if (!renamed) await rename(tmp, this.indexPath);
+			await writeFileAtomic(this.indexPath, JSON.stringify(next, null, 2));
 		});
 		this.indexQueue = nextTask;
 		await nextTask;

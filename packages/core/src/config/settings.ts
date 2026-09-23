@@ -2,11 +2,12 @@ import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./
 import { withCatalogDefaults } from "../model-catalog.ts";
 import { normalizeDelegationPolicy, normalizeMaxConcurrentSubAgents, type DelegationPolicy } from "../runtime/delegation.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { lyraHome } from "../session/store.ts";
 import type { ProviderConfig, ThinkingLevel } from "../types.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
 
 /** How much the agent may do without stopping to ask. */
@@ -1047,22 +1048,36 @@ export function rememberProviderNames(settings: Pick<Settings, "providers" | "pr
 	return known;
 }
 
-export async function saveSettings(settings: Settings): Promise<void> {
+/** The save in progress; the next one starts after it. See `saveSettings`. */
+let saving: Promise<unknown> = Promise.resolve();
+
+/**
+ * One save at a time, in the order they were asked for.
+ *
+ * The desktop app saves on every change without waiting for the previous save, so flipping two
+ * switches quickly puts two in flight. Run side by side they wrote the vault and this file through
+ * one shared temporary name and failed with ENOENT; and even with names of their own, whichever
+ * finished last would win — not necessarily the one made last.
+ */
+export function saveSettings(settings: Settings): Promise<void> {
+	const run = saving.then(() => writeSettings(settings));
+	saving = run.catch(() => {});
+	return run;
+}
+
+async function writeSettings(settings: Settings): Promise<void> {
 	const keys: Record<string, string> = {};
 	for (const provider of settings.providers) keys[providerSecretId(provider.id)] = provider.apiKey ?? "";
 	await putSecrets(keys);
 	await keepSecrets((id) => !id.startsWith("provider:") || id in keys);
 
-	const path = settingsPath();
 	await mkdir(lyraHome(), { recursive: true });
-	const tmp = `${path}.${process.pid}.tmp`;
 	const scrubbed: Settings = {
 		...settings,
 		// 密钥跟着供应商一起走，名字不跟着走——见 `providerNames`。
 		providerNames: rememberProviderNames(settings),
 		providers: settings.providers.map((provider) => ({ ...provider, apiKey: "" })),
 	};
-	await writeFile(tmp, JSON.stringify(scrubbed, null, 2), "utf8");
 	/*
 	 * 0600, which it never was.
 	 *
@@ -1070,8 +1085,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
 	 * and every endpoint it talks to. It was 0644 — readable by every other account on the box —
 	 * for no reason other than that nothing ever set it.
 	 */
-	await chmod(tmp, 0o600).catch(() => {});
-	await rename(tmp, path);
+	await writeFileAtomic(settingsPath(), JSON.stringify(scrubbed, null, 2), { mode: 0o600 });
 }
 
 /**

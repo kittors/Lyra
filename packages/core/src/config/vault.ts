@@ -28,10 +28,11 @@
  * to. That is a one-line change to where `key()` gets its bytes; the format below does not care.
  */
 
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { lyraHome } from "../session/store.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
 
 const KEY_FILE = () => join(lyraHome(), "vault.key");
 
@@ -47,9 +48,26 @@ const IV_BYTES = 12;
  * as on a fresh one.
  */
 let cached: Buffer | null = null;
+/**
+ * The key being read or made, so callers that arrive together share one.
+ *
+ * Two first uses at once — a settings save sealing a provider key while a forge token is being
+ * sealed — each generated a key and each wrote it. Through a shared temporary name one of them
+ * failed; through unique names both would succeed, and the key left on disk would not be the one
+ * half the secrets had been sealed with. That is found out on the next launch, as secrets that no
+ * longer open.
+ */
+let pending: Promise<Buffer> | null = null;
 
-async function key(): Promise<Buffer> {
-	if (cached) return cached;
+function key(): Promise<Buffer> {
+	if (cached) return Promise.resolve(cached);
+	pending ??= loadOrMakeKey().finally(() => {
+		pending = null;
+	});
+	return pending;
+}
+
+async function loadOrMakeKey(): Promise<Buffer> {
 	const path = KEY_FILE();
 
 	const existing = await readFile(path).catch(() => null);
@@ -59,11 +77,7 @@ async function key(): Promise<Buffer> {
 
 	const fresh = randomBytes(KEY_BYTES);
 	await mkdir(lyraHome(), { recursive: true });
-	const tmp = `${path}.${process.pid}.tmp`;
-	await writeFile(tmp, fresh);
-	// Before the rename, so the key is never readable by anyone else even for an instant.
-	await chmod(tmp, 0o600).catch(() => {});
-	await rename(tmp, path);
+	await writeFileAtomic(path, fresh, { mode: 0o600 });
 	return (cached = fresh);
 }
 
@@ -135,18 +149,15 @@ async function read(): Promise<VaultFile> {
 
 async function write(file: VaultFile): Promise<void> {
 	loaded = file;
-	const path = FILE();
 	await mkdir(lyraHome(), { recursive: true });
-	const tmp = `${path}.${process.pid}.tmp`;
-	await writeFile(tmp, JSON.stringify(file, null, 2), "utf8");
-	await chmod(tmp, 0o600).catch(() => {});
-	await rename(tmp, path);
+	await writeFileAtomic(FILE(), JSON.stringify(file, null, 2), { mode: 0o600 });
 }
 
 /** Forget what was read. For tests, and for anything that rewrites the file behind this. */
 export function resetVault(): void {
 	loaded = null;
 	cached = null;
+	pending = null;
 }
 
 /** The secret filed under `id`, or null when there is none or this key cannot open it. */
