@@ -1,7 +1,8 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { createInterface } from "node:readline";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
+import type { Readable } from "node:stream";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
@@ -12,6 +13,9 @@ import { authorizeRead } from "./read-access.ts";
 const MAX_MATCHES = 200;
 // About 3.4k estimated tokens across all matches; more requires a narrower search.
 const MAX_OUTPUT_CHARS = 12_000;
+/** ripgrep's stderr is drained in full but only this much is kept: a count and a few examples. */
+const ERROR_LINES_KEPT = 3;
+const ERROR_LINE_CHARS = 200;
 
 /**
  * Keep the file:line address. On a long line, keep a window around the match — not the
@@ -159,19 +163,23 @@ async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, litera
  * used to drop us back on the line head.
  */
 async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number): Promise<ToolResult | null> {
-	const argv = ["--json", "--max-count", String(limit)];
+	// `--crlf` so `$` matches before a `\r\n`: without it `foo$` never matched a line of a CRLF file.
+	const argv = ["--json", "--crlf", "--max-count", String(limit)];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
 	if (args.context) argv.push("-C", String(args.context));
 	if (args.glob) argv.push("--glob", args.glob);
 	argv.push("--", args.pattern, root);
-	return collectRipgrep(argv, ctx, (line, lines, keep) => {
+	let completed = false;
+	const run = await collectRipgrep(argv, ctx, (line, lines, keep) => {
 		let event: { type?: string; data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number; submatches?: { start?: number }[] } };
 		try {
 			event = JSON.parse(line) as typeof event;
 		} catch {
 			return false;
 		}
+		// The closing event, written only once a search has actually run — see `ripgrepResult`.
+		if (event.type === "summary") completed = true;
 		if (event.type !== "match" && event.type !== "context") return false;
 		if (!keep) return true;
 		const pathText = event.data?.path?.text ?? "";
@@ -182,29 +190,58 @@ async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, li
 		const matchAt = typeof byteStart === "number" ? utf8ByteOffsetToIndex(raw, byteStart) : undefined;
 		lines.push(shortenLine(`${rel}:${lineNo}:${raw}`, args.pattern, { literal, ignoreCase: args.case_insensitive }, matchAt));
 		return true;
-	}, limit, (code, lines, count) => {
-		if (code !== 0 && code !== 1) return null;
-		return formatMatches(lines, args, limit, literal, count);
-	});
+	}, limit);
+	return run && ripgrepResult(run, args, limit, literal, completed);
 }
 
 async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean): Promise<ToolResult | null> {
-	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--max-count", String(limit)];
+	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--crlf", "--max-count", String(limit)];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
 	if (filesOnly) argv.push("--files-with-matches");
 	if (args.context) argv.push("-C", String(args.context));
 	if (args.glob) argv.push("--glob", args.glob);
 	argv.push("--", args.pattern, root);
-	return collectRipgrep(argv, ctx, (line, lines, keep) => {
+	const run = await collectRipgrep(argv, ctx, (line, lines, keep) => {
 		if (!keep) return true;
 		const shown = line.startsWith(`${root}${sep}`) ? line.slice(root.length + 1) : line;
 		lines.push(shortenLine(shown, args.pattern, { literal, ignoreCase: args.case_insensitive }));
 		return true;
-	}, limit, (code, lines, count) => {
-		if (code !== 0 && code !== 1) return null;
-		return formatMatches(lines, args, limit, literal, count);
-	});
+	}, limit);
+	return run && ripgrepResult(run, args, limit, literal);
+}
+
+/** What one ripgrep run left behind: its exit code, the collected lines, and a sample of stderr. */
+interface RipgrepRun {
+	code: number | null;
+	lines: string[];
+	count: number;
+	errors: { total: number; first: string[] };
+}
+
+/**
+ * Whether ripgrep actually searched, and the result if it did.
+ *
+ * Exit 2 is "an error occurred", and ripgrep means two different things by it. A pattern its engine
+ * cannot compile — nothing was searched, stdout is empty — has to fall through, to the literal retry
+ * or to the JavaScript engine, which has the look-around ripgrep's lacks. But ripgrep also exits 2
+ * from a search that ran to the end and could not read some of the paths, matches and all; that one
+ * used to be thrown away with the first and redone by the slow scanner. Matches, or the JSON
+ * stream's closing `summary`, prove the search ran; what it could not read is reported alongside.
+ */
+function ripgrepResult(run: RipgrepRun, args: GrepArgs, limit: number, literal: boolean, completed = false): ToolResult | null {
+	const ran = run.code === 0 || run.code === 1 || (run.code === 2 && (run.count > 0 || completed));
+	if (!ran) return null;
+	return formatMatches(run.lines, args, limit, literal, run.count, run.code === 2 ? describeErrors(run.errors) : "");
+}
+
+function describeErrors(errors: RipgrepRun["errors"]): string {
+	if (errors.total === 0) return "";
+	const more = errors.total > errors.first.length ? `\n… ${errors.total - errors.first.length} more` : "";
+	return (
+		`[ripgrep reported ${errors.total} error${errors.total === 1 ? "" : "s"}; anything in the paths it could not read ` +
+		`is missing from these results:\n${errors.first.join("\n")}${more}]`
+	);
 }
 
 function collectRipgrep(
@@ -212,12 +249,18 @@ function collectRipgrep(
 	ctx: ToolContext,
 	onLine: (line: string, lines: string[], keep: boolean) => boolean,
 	limit: number,
-	finish: (code: number | null, lines: string[], count: number) => ToolResult | null,
-): Promise<ToolResult | null> {
-	return new Promise<ToolResult | null>((resolve) => {
-		let child: ChildProcessWithoutNullStreams;
+): Promise<RipgrepRun | null> {
+	return new Promise<RipgrepRun | null>((resolve) => {
+		let child: ChildProcessByStdio<null, Readable, Readable>;
 		try {
-			child = spawn("rg", argv, { cwd: ctx.cwd });
+			/*
+			 * Every stream accounted for. stderr used to be a pipe nobody read: a search across
+			 * `/proc` or `C:\Windows` writes one permission error per unreadable path, and once that
+			 * passed the pipe's buffer (~64KB) ripgrep blocked on the write and never exited — the
+			 * tool hung until the turn was aborted, then answered "No matches". stdin is closed so
+			 * ripgrep has nothing to wait on; `windowsHide` keeps a console from flashing up.
+			 */
+			child = spawn("rg", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 		} catch {
 			resolve(null);
 			return;
@@ -226,10 +269,17 @@ function collectRipgrep(
 		const lines: string[] = [];
 		let count = 0;
 		let failed = false;
+		const errors: RipgrepRun["errors"] = { total: 0, first: [] };
 		const reader = createInterface({ input: child.stdout });
 		reader.on("line", (line) => {
 			if (!line) return;
 			if (onLine(line, lines, lines.length < limit)) count++;
+		});
+		const errorReader = createInterface({ input: child.stderr });
+		errorReader.on("line", (line) => {
+			if (!line.trim()) return;
+			errors.total++;
+			if (errors.first.length < ERROR_LINES_KEPT) errors.first.push(line.slice(0, ERROR_LINE_CHARS));
 		});
 		child.on("error", () => {
 			failed = true;
@@ -242,8 +292,9 @@ function collectRipgrep(
 		child.on("close", (code) => {
 			ctx.signal?.removeEventListener("abort", abort);
 			reader.close();
+			errorReader.close();
 			if (failed) return;
-			resolve(finish(code, lines, count));
+			resolve({ code, lines, count, errors });
 		});
 	});
 }
@@ -274,7 +325,13 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		const buffer = await readFile(path).catch(() => null);
 		if (!buffer || looksBinary(buffer)) return;
 		const rel = relative(root, path).split(sep).join("/") || basename(path);
-		const fileLines = buffer.toString("utf8").split("\n");
+		/*
+		 * Lines as ripgrep (with `--crlf`) sees them: `\r\n` ends a line and a leading UTF-8 BOM is
+		 * not text. Split on `\n` alone, every line of a CRLF file kept its `\r` — shown to the model,
+		 * and in the way of `$` — and the BOM stood in front of `^` on line 1.
+		 */
+		const text = buffer.toString("utf8");
+		const fileLines = (text.startsWith("\uFEFF") ? text.slice(1) : text).split(/\r?\n/);
 
 		for (let i = 0; i < fileLines.length && lines.length < limit; i++) {
 			const found = regex.exec(fileLines[i]);
@@ -320,11 +377,13 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
  * @param literal Whether the pattern was searched for as text because it is not a valid regular
  *   expression. Said in the result rather than left silent: otherwise a search whose metacharacters
  *   were quietly disarmed reads as a search that ran as written and found nothing.
+ * @param warning What the search could not cover, appended as is; see `describeErrors`.
  */
-function formatMatches(lines: string[], args: GrepArgs, limit: number, literal = false, count = lines.length): ToolResult {
+function formatMatches(lines: string[], args: GrepArgs, limit: number, literal = false, count = lines.length, warning = ""): ToolResult {
 	const note = literal ? `\`${args.pattern}\` is not a valid regular expression, so it was searched for literally.` : "";
+	const trailer = warning ? `\n\n${warning}` : "";
 	if (lines.length === 0) {
-		const text = literal ? `${note}\nNo matches.` : `No matches for /${args.pattern}/.`;
+		const text = (literal ? `${note}\nNo matches.` : `No matches for /${args.pattern}/.`) + trailer;
 		return {
 			content: [{ type: "text", text }],
 			details: { kind: "grep", pattern: args.pattern, count: 0, literal },
@@ -336,7 +395,7 @@ function formatMatches(lines: string[], args: GrepArgs, limit: number, literal =
 	const header = literal ? `${note}\n\n` : "";
 	const footer = count > shown.length ? `\n\n[truncated: ${count - shown.length} collected matching/context lines omitted; narrow pattern, path or glob]` : "";
 	return {
-		content: [{ type: "text", text: header + shown.join("\n") + footer }],
+		content: [{ type: "text", text: header + shown.join("\n") + footer + trailer }],
 		details: { kind: "grep", pattern: args.pattern, count, matches: shown, literal },
 	};
 }
