@@ -4,8 +4,12 @@
 
 import { koffi } from "../native.ts";
 
+/** One argument to a system call: a number, or a buffer (or null) passed as a pointer. */
+export type SyscallArg = number | Buffer | null;
+
 export interface Libc {
-	syscall: (...args: unknown[]) => number | bigint;
+	/** `syscall(2)` with its six argument slots always filled — see `syscallThrough`. */
+	syscall: (number: number, ...args: SyscallArg[]) => number;
 	open: (path: string, flags: number) => number;
 	close: (fd: number) => number;
 	prctl: (...args: unknown[]) => number;
@@ -14,6 +18,39 @@ export interface Libc {
 }
 
 let cached: Libc | undefined;
+
+/**
+ * `syscall(2)`, declared with all six argument slots and called with all six.
+ *
+ * glibc's x86_64 `syscall` is a few lines of assembly that load the sixth argument from the stack,
+ * `8(%rsp)`, whether the caller passed one or not. Under a C compiler that is harmless — the slot
+ * is the caller's own frame. Under koffi it is not: koffi runs each foreign call on a stack of its
+ * own, and a call with no stack arguments puts the return address in the top eight bytes of it, so
+ * that slot is the first byte past the end of the mapping. Whether anything is mapped there is
+ * down to where the kernel happened to place it — so asking the kernel for its Landlock version
+ * killed the process with SIGSEGV on some runs and not others, only on x86_64 (aarch64's `syscall`
+ * reads nothing from the stack), and every confined command died with it: `(no output)`,
+ * `[terminated by SIGSEGV]`.
+ *
+ * Six arguments after the number are seven in all, and the seventh goes on koffi's stack — so the
+ * slot the assembly reads is one that was allocated and written. Each shape of argument list —
+ * which slots are pointers — is declared once, on first use.
+ */
+function syscallThrough(lib: ReturnType<ReturnType<typeof koffi>["load"]>): Libc["syscall"] {
+	const shapes = new Map<string, (...args: SyscallArg[]) => number | bigint>();
+	return (number, ...args) => {
+		if (args.length > 6) throw new Error(`syscall 最多六个参数，收到 ${args.length} 个`);
+		const filled: SyscallArg[] = [...args, ...Array<number>(6 - args.length).fill(0)];
+		const params = filled.map((arg) => (arg === null || Buffer.isBuffer(arg) ? "void *" : "long"));
+		const key = params.join(",");
+		let call = shapes.get(key);
+		if (!call) {
+			call = lib.func("syscall", "long", ["long", ...params]) as (...args: SyscallArg[]) => number | bigint;
+			shapes.set(key, call);
+		}
+		return Number(call(number, ...filled));
+	};
+}
 
 /** libc by its soname — glibc's, then musl's. Throws when neither loads. */
 export function libc(): Libc {
@@ -30,7 +67,7 @@ export function libc(): Libc {
 	}
 	if (!lib) throw new Error("找不到 libc");
 	cached = {
-		syscall: lib.func("long syscall(long number, ...)") as Libc["syscall"],
+		syscall: syscallThrough(lib),
 		open: lib.func("int open(const char *path, int flags, ...)") as Libc["open"],
 		close: lib.func("int close(int fd)") as Libc["close"],
 		prctl: lib.func("int prctl(int option, ...)") as Libc["prctl"],

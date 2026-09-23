@@ -130,3 +130,33 @@ test("a denied network refuses TCP", { skip: skip || (abi < 4 ? `Landlock ABI ${
 	const r = await run(`'${process.execPath}' -e "${script}"`, ws, "workspace-write", "deny");
 	assert.match(r.out, /refused EACCES/, r.out);
 });
+
+/*
+ * Asking the kernel anything through `syscall` from a fresh process — the way every confined
+ * command's runner starts — many times over.
+ *
+ * On x86_64 this killed about one process in eighteen with SIGSEGV: glibc's `syscall` reads its
+ * sixth argument from the stack whether or not there is one, and koffi's own call stack ends right
+ * there (see `syscallThrough`). Whether it crashed depended on what the kernel had mapped next to
+ * that stack, so a single run proves nothing; eighty in a row surviving by luck is under one in a
+ * hundred. Linux only, and on any architecture: aarch64 never crashed, and must not start to.
+ */
+test("the Landlock version query never takes the process down", { skip: process.platform === "linux" ? false : "Linux only" }, async () => {
+	const landlockModule = new URL("../src/sandbox/linux/landlock.ts", import.meta.url).href;
+	const script = `import(${JSON.stringify(landlockModule)}).then((m) => console.log(m.landlockAbi()))`;
+	const endings: string[] = [];
+	let started = 0;
+	const lane = async () => {
+		while (started < 80) {
+			started++;
+			endings.push(
+				await new Promise<string>((resolve) => {
+					const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", "-e", script], { stdio: "ignore" });
+					child.on("close", (code, signal) => resolve(signal ?? `exit ${code}`));
+				}),
+			);
+		}
+	};
+	await Promise.all(Array.from({ length: 8 }, lane));
+	assert.deepEqual([...new Set(endings)], ["exit 0"], JSON.stringify(endings.filter((ending) => ending !== "exit 0")));
+});

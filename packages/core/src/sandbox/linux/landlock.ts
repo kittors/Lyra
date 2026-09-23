@@ -125,7 +125,7 @@ export function landlockRules(args: Pick<LandlockArgs, "workspace" | "mode">, ab
 export function landlockAbi(): number {
 	if (process.platform !== "linux") return 0;
 	try {
-		const version = Number(libc().syscall(SYS_LANDLOCK_CREATE_RULESET, "void *", null, "size_t", 0, "uint32_t", LANDLOCK_CREATE_RULESET_VERSION));
+		const version = libc().syscall(SYS_LANDLOCK_CREATE_RULESET, null, 0, LANDLOCK_CREATE_RULESET_VERSION);
 		return version > 0 ? version : 0;
 	} catch {
 		return 0;
@@ -166,7 +166,7 @@ function restrictSelf(args: LandlockArgs): void {
 	const attr = Buffer.alloc(netHandled ? 16 : 8);
 	attr.writeBigUInt64LE(writeRights(abi), 0);
 	if (netHandled) attr.writeBigUInt64LE(netHandled, 8);
-	const ruleset = Number(api.syscall(SYS_LANDLOCK_CREATE_RULESET, "void *", attr, "size_t", attr.length, "uint32_t", 0));
+	const ruleset = api.syscall(SYS_LANDLOCK_CREATE_RULESET, attr, attr.length, 0);
 	if (ruleset < 0) throw new Error(`landlock_create_ruleset 失败（errno ${api.errno()}）`);
 
 	try {
@@ -179,7 +179,7 @@ function restrictSelf(args: LandlockArgs): void {
 				const beneath = Buffer.alloc(12);
 				beneath.writeBigUInt64LE(rule.rights, 0);
 				beneath.writeInt32LE(fd, 8);
-				const added = Number(api.syscall(SYS_LANDLOCK_ADD_RULE, "int", ruleset, "int", LANDLOCK_RULE_PATH_BENEATH, "void *", beneath, "uint32_t", 0));
+				const added = api.syscall(SYS_LANDLOCK_ADD_RULE, ruleset, LANDLOCK_RULE_PATH_BENEATH, beneath, 0);
 				if (added < 0) throw new Error(`landlock_add_rule 失败：${rule.path}（errno ${api.errno()}）`);
 			} finally {
 				api.close(fd);
@@ -189,7 +189,7 @@ function restrictSelf(args: LandlockArgs): void {
 		if (api.prctl(PR_SET_NO_NEW_PRIVS, "unsigned long", 1, "unsigned long", 0, "unsigned long", 0, "unsigned long", 0) !== 0) {
 			throw new Error(`prctl(PR_SET_NO_NEW_PRIVS) 失败（errno ${api.errno()}）`);
 		}
-		if (Number(api.syscall(SYS_LANDLOCK_RESTRICT_SELF, "int", ruleset, "uint32_t", 0)) < 0) {
+		if (api.syscall(SYS_LANDLOCK_RESTRICT_SELF, ruleset, 0) < 0) {
 			throw new Error(`landlock_restrict_self 失败（errno ${api.errno()}）`);
 		}
 	} finally {
