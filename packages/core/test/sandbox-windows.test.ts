@@ -113,7 +113,7 @@ test("workspace-write: the project and its temp are writable, the rest of the di
 
 	assert.equal((await run("exit 3", ws, "workspace-write")).code, 3);
 
-	// Too long for the command line once encoded: it runs from a script file, confined all the same.
+	// Longer than a command line could ever have carried it: from a script file, confined all the same.
 	r = await run(`$s = '${"x".repeat(12_000)}'; Write-Output "long-$($s.Length)"`, ws, "workspace-write");
 	assert.match(r.out, /long-12000/, r.out.slice(0, 300));
 	r = await run(`$s = '${"x".repeat(12_000)}'; Set-Content -LiteralPath ${ps(outside)} -Value $s`, ws, "workspace-write");
@@ -148,21 +148,34 @@ test("read-only: nothing in the project is writable, and reading still works", {
 	assert.match(r.out, /read-ok/, r.out);
 });
 
-test("confined PowerShell is the whole language, speaks UTF-8, and reports errors as text", { skip, timeout: 60_000 }, async (t) => {
+test("confined PowerShell is the whole language, speaks UTF-8, and reports errors as text", { skip, timeout: 120_000 }, async (t) => {
 	/*
 	 * Three things that each broke confined commands without failing a single write test:
 	 * ConstrainedLanguage when `%TEMP%` was not writable (read-only), which also took the UTF-8 setup
-	 * down with it; and errors serialized as CLIXML, the default for `-EncodedCommand`.
+	 * down with it; and errors serialized as CLIXML, which Windows PowerShell 5.1 does for every
+	 * `-EncodedCommand`. Both PowerShells, because 5.1 is the one every Windows has and the one that
+	 * did the CLIXML, while CI's `commandShell` finds 7.
 	 */
 	const ws = await mkdtemp(join(tmpdir(), "lyra-win-lang-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
-	for (const mode of ["read-only", "workspace-write"] as const) {
-		const r = await run("Write-Output $ExecutionContext.SessionState.LanguageMode; Write-Output 中文输出; Write-Error boom; Write-Output after", ws, mode);
-		assert.match(r.out, /FullLanguage/, `${mode}: ${r.out}`);
-		assert.match(r.out, /中文输出/, `${mode}: ${r.out}`);
-		assert.match(r.out, /boom/, `${mode}: ${r.out}`);
-		assert.ok(!r.out.includes("CLIXML"), `${mode}: an error as XML, not as text: ${r.out}`);
-		assert.match(r.out, /after/, `${mode}: ${r.out}`);
+	const seven = commandShell("workspace-write");
+	const legacy = { ...seven, file: join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe") };
+	for (const shell of [seven, legacy]) {
+		for (const mode of ["read-only", "workspace-write"] as const) {
+			const r = await new Promise<{ code: number | null; out: string }>((resolve) => {
+				const child = new LocalSandbox().run("Write-Output $ExecutionContext.SessionState.LanguageMode; Write-Output 中文输出; Write-Error boom; Write-Output after", { cwd: ws, mode, shell });
+				let out = "";
+				child.onOutput((chunk) => { out += chunk; });
+				child.onExit((code) => resolve({ code, out }));
+			});
+			const where = `${shell.file} ${mode}: ${r.out}`;
+			assert.match(r.out, /FullLanguage/, where);
+			assert.match(r.out, /中文输出/, where);
+			assert.match(r.out, /boom/, where);
+			assert.ok(!r.out.includes("CLIXML"), `an error as XML, not as text — ${where}`);
+			assert.ok(!r.out.includes("OutputEncoding"), `the prelude is not the model's to read — ${where}`);
+			assert.match(r.out, /after/, where);
+		}
 	}
 });
 

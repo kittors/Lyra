@@ -403,10 +403,10 @@ const MSYS_UNDER_TOKEN = /\bfatal error - .*\bWin32 error 5\b/i;
  * `Access is denied` is English. On a Chinese Windows, cmd says `拒绝访问。` and Windows PowerShell
  * 5.1 — on the .NET Framework, whose messages follow the system's language — says `对路径“…”的访问被拒绝。`,
  * so a write the sandbox refused read as an ordinary failure and the model was never told it could
- * ask. Two answers: the identifiers PowerShell prints beside its message, which are never translated
- * (`UnauthorizedAccessException`, in the `CategoryInfo` line that `$ErrorView = 'NormalView'` keeps —
- * see `powershell` in `platform.ts`), and the system's own sentence for error 5 in the languages
- * Windows is most used in.
+ * ask. Two answers: the identifiers Windows PowerShell prints beside its message, which are never
+ * translated (`UnauthorizedAccessException`, in its `CategoryInfo` line), and the system's own
+ * sentence for error 5 in the languages Windows is most used in. PowerShell 7 prints the message
+ * alone, but its messages come from .NET, whose are English everywhere.
  */
 const WINDOWS_DENIAL =
 	/UnauthorizedAccessException|拒绝访问|访问被拒绝|拒絕存取|存取被拒|アクセスが拒否されました|액세스가 거부되었습니다|Zugriff verweigert|Zugriff auf den Pfad .* verweigert|accès refusé|L'accès au chemin .* est refusé|Acceso denegado|Отказано в доступе|Acesso negado/i;

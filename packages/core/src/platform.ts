@@ -13,7 +13,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, win32 } from "node:path";
 
@@ -107,73 +107,74 @@ function posix(file: string, label: string): CommandShell {
 }
 
 /**
- * Run through PowerShell with the command encoded, and output forced to UTF-8.
+ * Run through PowerShell from a script file, with output forced to UTF-8.
  *
- * `-EncodedCommand` because a command line with quotes in it does not survive the trip through
- * `CreateProcess` into `-Command` intact — Windows has no argv, only a string each program splits
- * its own way. Base64 of UTF-16 has no quotes to lose.
+ * `-File` rather than `-Command` or `-EncodedCommand`, each of which failed a different way:
+ *
+ * - `-Command` takes the command through `CreateProcess`, and a command line with quotes in it does
+ *   not survive that trip intact — Windows has no argv, only a string each program splits its own
+ *   way, and Windows PowerShell 5.1's splitting loses embedded quotes.
+ * - `-EncodedCommand` fixed that, and brought two of its own. Windows PowerShell 5.1 writes every
+ *   error from an encoded command as serialized CLIXML — `#< CLIXML <Objs …><S S="Error">…` —
+ *   whatever `-OutputFormat` says, so the model read XML where a one-line error should have been;
+ *   and base64 of UTF-16 spends 2.7 characters of the 32,767 a command line holds on each character
+ *   of the command, so anything past about twelve thousand never started (`spawn ENAMETOOLONG`).
  *
  * The prelude: PowerShell writes to a pipe in the console's code page (936 on a Chinese Windows),
  * which arrives here as mojibake, and a progress bar in a non-interactive session is emitted as
  * CLIXML noise on stderr. `-NoProfile` because a profile is somebody's interactive setup, slow to
- * load and free to print; `Bypass` because under the default policy `.\build.ps1` is refused.
+ * load and free to print; `Bypass` because under the default policy a script — this one included —
+ * is refused.
  */
 function powershell(file: string, label: string): CommandShell {
-	/*
-	 * `NormalView`: PowerShell 7 shows an error as its message alone, and the message is in the
-	 * system's language on a Windows PowerShell. The classic view adds the `CategoryInfo` and
-	 * `FullyQualifiedErrorId` lines, whose identifiers are never translated — the one part of a
-	 * refusal that reads the same on every Windows (see `looksDenied`), and a line and column besides.
-	 */
-	const prelude =
-		"$ProgressPreference='SilentlyContinue';" +
-		"$ErrorView='NormalView';" +
-		"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;" +
-		"$OutputEncoding=[System.Text.Encoding]::UTF8;";
 	return {
 		file,
 		kind: "powershell",
 		label,
-		args: (command) => {
-			const script = `${prelude}\n${command}`;
-			const encoded = Buffer.from(script, "utf16le").toString("base64");
-			/*
-			 * `-OutputFormat Text` spelled out: a command given as `-EncodedCommand` otherwise gets its
-			 * errors written as serialized CLIXML — `#< CLIXML <Objs …><S S="Error">…` — which is what
-			 * the model then had to read in place of a one-line error.
-			 */
-			const flags = ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-OutputFormat", "Text"];
-			return encoded.length <= MAX_ENCODED_COMMAND ? [...flags, "-EncodedCommand", encoded] : [...flags, "-File", scriptFile(script)];
-		},
+		args: (command) => ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-OutputFormat", "Text", "-File", scriptFile(command)],
 	};
 }
 
-/**
- * The longest `-EncodedCommand` passed on the command line itself.
- *
- * A Windows command line holds 32,767 characters, and base64 of UTF-16 spends about 2.7 of them on
- * each character of the command — so anything past roughly twelve thousand characters did not start
- * at all: `spawn ENAMETOOLONG`, for a `node -e` with a long script in it, or a file written out in a
- * here-string. A confined command pays for the runner's own arguments on the same line as well.
- * Past this, the command goes in a script file instead.
- */
-const MAX_ENCODED_COMMAND = 24_000;
+const PRELUDE =
+	"$ProgressPreference='SilentlyContinue';" +
+	"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;" +
+	"$OutputEncoding=[System.Text.Encoding]::UTF8";
 
 /**
- * A command too long for the command line, written where PowerShell can run it with `-File`.
+ * A command written where PowerShell can run it with `-File`.
  *
  * With a byte-order mark, which is what makes Windows PowerShell 5.1 read the file as UTF-8 rather
- * than in the console's code page. The last line keeps `-Command`'s exit status: `-File` reports 0
- * after a failed last command, where `-Command` reports failure. Named by content, so running the
- * same long command again reuses its file; under the temp directory, which the sandbox lets every
- * mode read.
+ * than in the console's code page. The last line keeps the exit status a command is expected to have:
+ * `-File` reports 0 after a failed last command, so a failure reports the native exit code when
+ * there is one and 1 otherwise. The prelude is the first line and the command starts on the second,
+ * so an error's line number is one past the command's own.
+ *
+ * Named by content, so running the same command again reuses its file; in a directory of their own
+ * under the temp directory, which every sandbox mode can read, and cleared of week-old files the
+ * first time a process writes there.
  */
-function scriptFile(script: string): string {
-	const body = `${script}\nif (-not $?) { exit $(if ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }) }\n`;
-	const file = join(tmpdir(), `lyra-command-${createHash("sha256").update(body).digest("hex").slice(0, 16)}.ps1`);
+function scriptFile(command: string): string {
+	const body = `${PRELUDE}\n${command}\nif (-not $?) { exit $(if ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }) }\n`;
+	const dir = join(tmpdir(), "lyra-commands");
+	mkdirSync(dir, { recursive: true });
+	if (!sweptScripts) {
+		sweptScripts = true;
+		const stale = Date.now() - 7 * 24 * 60 * 60 * 1000;
+		for (const name of readdirSync(dir)) {
+			try {
+				const path = join(dir, name);
+				if (statSync(path).mtimeMs < stale) rmSync(path, { force: true });
+			} catch {
+				// Another process's file, or already gone: neither is worth failing a command over.
+			}
+		}
+	}
+	const file = join(dir, `${createHash("sha256").update(body).digest("hex").slice(0, 16)}.ps1`);
 	writeFileSync(file, `\uFEFF${body}`, "utf8");
 	return file;
 }
+
+let sweptScripts = false;
 
 function windowsShell(): CommandShell {
 	const bash = gitBash();
