@@ -7,7 +7,8 @@
  * has to be decided during `dragover`, where the payload cannot be read back out of the
  * `DataTransfer` (the browser hides it until the drop). So the dragged paths are held here.
  *
- * Which gesture is which follows the platform: dragging moves, and holding ⌥ copies.
+ * Which gesture is which follows the platform: dragging moves, and holding the platform's copy
+ * modifier copies — see `copiesOnDrop`.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +16,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { dirName, isDescendantPath } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
+import { macKeyboard } from "../../ui/keyboard.ts";
+
+/**
+ * Whether a drop copies rather than moves: the modifier this platform's own file manager uses.
+ *
+ * ⌥ on a Mac, as in the Finder. Ctrl on Windows (Explorer) and Linux (Files, Dolphin, Thunar) —
+ * and Alt there is worse than unfamiliar: several window managers take Alt+drag for themselves and
+ * move the whole window instead, so the drop never arrives.
+ */
+export function copiesOnDrop(held: { altKey: boolean; ctrlKey: boolean }, platform = navigator.platform): boolean {
+	return macKeyboard(platform) ? held.altKey : held.ctrlKey;
+}
 
 /** Our own type, so a drag from this tree is distinguishable from a drag out of the Finder. */
 const PATHS = "application/x-lyra-paths";
@@ -107,8 +120,8 @@ export function useTreeDrag({
 				return false;
 			}
 			event.preventDefault();
-			// ⌥ copies, matching the Finder; without it a drag inside one tree is a move.
-			event.dataTransfer.dropEffect = external || event.altKey ? "copy" : "move";
+			// The platform's copy modifier copies; without it a drag inside one tree is a move.
+			event.dataTransfer.dropEffect = external || copiesOnDrop(event) ? "copy" : "move";
 			setDropTarget(dir);
 			return true;
 		},
@@ -126,7 +139,7 @@ export function useTreeDrag({
 			const carried = event.dataTransfer.getData(PATHS);
 			if (carried) {
 				const paths = JSON.parse(carried) as string[];
-				if (allows(dir, false)) onTransfer(paths, dir, event.altKey ? "copy" : "cut");
+				if (allows(dir, false)) onTransfer(paths, dir, copiesOnDrop(event) ? "copy" : "cut");
 				setDragging([]);
 				return;
 			}

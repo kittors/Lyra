@@ -132,3 +132,48 @@ test("undo and redo name a PC's keys to a screen reader too, not only in the too
 		assert.equal(host.querySelector("button:has(.lucide-undo-2)")?.getAttribute("aria-label"), "撤销 ⌘Z");
 	});
 });
+
+/** Mount the bar over an annotator whose undo and redo only count, and press keys at the window. */
+async function countingHistory(run: (press: (init: KeyboardEventInit) => Promise<void>) => Promise<void>) {
+	const counts = { undo: 0, redo: 0 };
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	function Toolbar() {
+		const annotator = useAnnotator(null);
+		return createElement(AnnotateToolbar, {
+			annotator: { ...annotator, undo: () => void counts.undo++, redo: () => void counts.redo++ },
+			canReplace: false, requireDirty: false, onCancel: () => {}, onSave: () => {},
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		await run(async (init) => {
+			const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+			await act(async () => window.dispatchEvent(event));
+		});
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
+	return counts;
+}
+
+test("PC 上 Ctrl+Y 是重做，Ctrl+Shift+Z 也仍是", async () => {
+	await withKeyboard("Win32", async () => {
+		const counts = await countingHistory(async (press) => {
+			await press({ key: "y", code: "KeyY", ctrlKey: true });
+			await press({ key: "Z", code: "KeyZ", ctrlKey: true, shiftKey: true });
+			await press({ key: "z", code: "KeyZ", ctrlKey: true });
+		});
+		assert.deepEqual(counts, { undo: 1, redo: 2 });
+	});
+});
+
+test("Mac 上 ⌘Y 不是重做：那里重做只有 ⇧⌘Z", async () => {
+	const counts = await countingHistory(async (press) => {
+		await press({ key: "y", code: "KeyY", metaKey: true });
+		await press({ key: "z", code: "KeyZ", metaKey: true, shiftKey: true });
+	});
+	assert.deepEqual(counts, { undo: 0, redo: 1 });
+});

@@ -28,7 +28,7 @@ import { useFileActions } from "./useFileActions.ts";
 import { useFileTree } from "./useFileTree.ts";
 import { useTreeDrag } from "./useTreeDrag.ts";
 import { available, bridge } from "../../services/index.ts";
-import { shortcutLetter } from "../../ui/keyboard.ts";
+import { macKeyboard, shortcutLetter } from "../../ui/keyboard.ts";
 
 export function FileTree({
 	roots,
@@ -222,7 +222,18 @@ export function FileTree({
 		if (!readOnly && plain && letter === "x") return run(() => actions.cut(acted()));
 		if (!readOnly && plain && letter === "v") return run(() => void actions.paste(targetDir));
 		if (mod && event.altKey && letter === "c") return run(() => void actions.copyPath(acted(), event.shiftKey));
-		if (!readOnly && mod && (event.key === "Backspace" || event.key === "Delete")) {
+		/*
+		 * Deleting, in each system's own words; Shift makes it permanent on all of them.
+		 *
+		 * The Finder's is ⌘⌫, and a bare Delete there does nothing — which is what keeps a stray key
+		 * from binning a folder, so a Mac keeps it that way. Explorer and the Linux file managers
+		 * delete on Delete alone, and requiring Ctrl on top meant the key everyone presses did
+		 * nothing. The Ctrl forms keep working on a PC: they were the only way in until now.
+		 */
+		const deleting = macKeyboard()
+			? mod && (event.key === "Backspace" || event.key === "Delete")
+			: event.key === "Delete" || (mod && event.key === "Backspace");
+		if (!readOnly && deleting) {
 			return run(() => void removeSelected(event.shiftKey));
 		}
 
