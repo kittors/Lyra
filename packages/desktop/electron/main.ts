@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join } from "node:path";
-import { spawn as spawnPty } from "node-pty";
-import { app, BrowserWindow, Notification, powerSaveBlocker, protocol } from "electron";
+import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	createContext,
 	lyraHome,
@@ -117,6 +117,28 @@ import { registerScreenshotIpc } from "./ipc/screenshot.ts";
 import { destroyScreenshotOverlay, dismissStrayOverlay, isScreenshotOverlay, registerScreenshotShortcut, unregisterScreenshotShortcut, warmScreenshotOverlay } from "./screenshot.ts";
 import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
+import { applicationMenuTemplate } from "./app-menu.ts";
+import { shortcutFailureKey } from "./accelerator.ts";
+import { nativeTranslator } from "./i18n.ts";
+import { lazyPty } from "./pty-loader.ts";
+
+/*
+ * node-pty, loaded by the first terminal rather than by this file.
+ *
+ * A static import made it part of starting the app, and a `pty.node` built against a newer glibc
+ * than the machine has (Ubuntu 20.04, Debian 11) stopped the main process before any window
+ * existed. Now a failed load is the terminal's problem alone, reported in the terminal pane —
+ * see `pty-loader.ts`. `require` because node-pty is CommonJS and the registry spawns synchronously.
+ */
+const requireNative = createRequire(import.meta.url);
+const spawnPty = lazyPty(
+	() => requireNative("node-pty") as typeof import("node-pty"),
+	(error) => {
+		const reason = (error instanceof Error ? error.message : String(error)).split("\n")[0];
+		console.error("[terminal] node-pty 加载失败:", error);
+		return `${nativeTranslator(settings?.uiLocale ?? "system", app.getLocale())("terminal.unavailable")}\n${reason}`;
+	},
+);
 
 /*
  * A profile is a whole app, Chromium's half included.
@@ -407,6 +429,24 @@ function reportToTopLevel(error: unknown, origin: string): void {
 process.on("uncaughtException", (error) => reportToTopLevel(error, "uncaughtException"));
 process.on("unhandledRejection", (reason) => reportToTopLevel(reason, "unhandledRejection"));
 
+/** The screenshot-shortcut failure last told to the window. See `bindScreenshotShortcut`. */
+let announcedShortcutFailure: string | null = null;
+
+/**
+ * A notice for the main window, through the same channel as `reportToTopLevel` — the one the
+ * renderer already shows as a toast. Held until the page has loaded when it is still loading, as
+ * it is at startup, when a message sent into that gap is dropped without a trace.
+ */
+function tellPrimaryWindow(message: string): void {
+	const win = getPrimaryWindow();
+	if (!win || win.webContents.isDestroyed()) return;
+	const send = () => {
+		if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("app:mainError", { origin: "screenshot-shortcut", message });
+	};
+	if (win.webContents.isLoading() || !win.webContents.getURL()) win.webContents.once("did-finish-load", send);
+	else send();
+}
+
 app.whenReady().then(async () => {
 	/*
 	 * Started here and never awaited, because the answer is wanted long before it is needed.
@@ -421,6 +461,11 @@ app.whenReady().then(async () => {
 	 * judging by `PATH` never asked there. Any launch that is not from a terminal asks.
 	 */
 	void primeCommandPath({ always: true });
+
+	// Before any window exists, so none is ever built with the default menu's reload and DevTools
+	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why.
+	const menu = applicationMenuTemplate({ platform: process.platform, packaged: app.isPackaged });
+	if (menu) Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
 
 	/*
 	 * Before anything reads or writes it: the home directory was called `.deepwise` until the app
@@ -501,7 +546,7 @@ app.whenReady().then(async () => {
  * 症状是「启动后能用，改过设置之后不能用」或者反过来，而两处代码看起来都对。
  */
 function bindScreenshotShortcut(): void {
-	registerScreenshotShortcut(
+	const outcome = registerScreenshotShortcut(
 		() => settings,
 		() => {
 			const win = getWindow();
@@ -510,6 +555,20 @@ function bindScreenshotShortcut(): void {
 			}
 		},
 	);
+	/*
+	 * A shortcut that did not register is said out loud, once.
+	 *
+	 * It used to reach the console only, so the settings page kept showing a combination that did
+	 * nothing — Alt+A, the default, is WeChat's screenshot key on Windows. Told through the channel
+	 * the window already turns into a toast; `shortcutFailureKey` keeps an unrelated settings save
+	 * from repeating it.
+	 */
+	const failure = shortcutFailureKey(outcome);
+	if (failure && failure !== announcedShortcutFailure && (outcome.state === "taken" || outcome.state === "invalid")) {
+		const t = nativeTranslator(settings.uiLocale, app.getLocale());
+		tellPrimaryWindow(t(outcome.state === "taken" ? "shortcut.taken" : "shortcut.invalid").replace("{shortcut}", outcome.shortcut));
+	}
+	announcedShortcutFailure = failure;
 }
 	/*
 	 * What a settings change has to reach.

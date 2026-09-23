@@ -26,12 +26,16 @@
  * Both come out of `scripts/make-tray-icons.mjs`, from two source drawings.
  */
 
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { app, Menu, nativeImage, Tray } from "electron";
 import { trayMenu, type TrayAction, type TrayCommand, type TrayItem } from "./tray-menu.ts";
 import { resolveNativeLocale } from "./i18n.ts";
 import { settings } from "./app-settings.ts";
+import { autostartArgv, autostartFile, readAutostart, writeAutostart } from "./linux-autostart.ts";
+import { probeStatusNotifierHost, trayVisible } from "./tray-host.ts";
 
 export type { TrayCommand } from "./tray-menu.ts";
 
@@ -54,6 +58,36 @@ export interface TrayActions {
 
 let tray: Tray | null = null;
 let actions: TrayActions | null = null;
+
+/**
+ * Whether the session bus has a StatusNotifierWatcher to show the icon. Linux only; null until the
+ * bus has answered, and while it is null the icon is assumed visible, as it always was. See
+ * `tray-host.ts` for why a created Tray is not the same thing as a visible one.
+ */
+let watcher: boolean | null = null;
+
+function runQuietly(file: string, args: string[]): Promise<{ stdout: string } | null> {
+	return new Promise((resolve) => {
+		execFile(file, args, { timeout: 2000 }, (error, stdout) => resolve(error ? null : { stdout: String(stdout) }));
+	});
+}
+
+/**
+ * Ask the bus, and while it says no, ask again a few times.
+ *
+ * Launched at login, Lyra can be up before the shell extension that provides the watcher — Ubuntu's
+ * AppIndicator support is one — has registered it. A single early "no" would then make closing the
+ * window quit an app whose icon appears moments later. Three more tries over the first minute; the
+ * timers do not keep the process alive.
+ */
+async function watchForHost(): Promise<void> {
+	for (const delay of [0, 5_000, 15_000, 45_000]) {
+		if (delay) await new Promise((resolve) => setTimeout(resolve, delay).unref());
+		if (!tray) return;
+		watcher = await probeStatusNotifierHost(runQuietly);
+		if (watcher !== false) return;
+	}
+}
 
 /**
  * Where the icons are, packaged or not — the same two-place search the app icon does.
@@ -101,12 +135,22 @@ function currentIcon(): Electron.NativeImage {
 
 /** Whether the app is set to start with the system, as the system itself reports it. */
 function launchAtLogin(): boolean {
+	// Electron's login items are macOS and Windows only; Linux reads its XDG autostart entry.
+	if (process.platform === "linux") return readAutostart(autostartFile(process.env, homedir()));
 	try {
 		return app.getLoginItemSettings().openAtLogin;
 	} catch {
-		// Linux desktops without an autostart implementation; the item simply reads as off.
 		return false;
 	}
+}
+
+function setLaunchAtLogin(enabled: boolean): void {
+	if (process.platform === "linux") {
+		const argv = autostartArgv({ appImage: process.env.APPIMAGE, packaged: app.isPackaged, execPath: process.execPath, appPath: app.getAppPath() });
+		writeAutostart(autostartFile(process.env, homedir()), enabled, argv);
+		return;
+	}
+	app.setLoginItemSettings({ openAtLogin: enabled });
 }
 
 function perform(action: TrayAction): void {
@@ -125,7 +169,7 @@ function perform(action: TrayAction): void {
 			break;
 		case "toggle-login":
 			try {
-				app.setLoginItemSettings({ openAtLogin: !launchAtLogin() });
+				setLaunchAtLogin(!launchAtLogin());
 			} catch {
 				// Nothing to report to: this is a menu item, and the tick simply stays where it was.
 			}
@@ -213,15 +257,21 @@ export function createTray(next: TrayActions): void {
 	} else {
 		refreshMenu();
 	}
+	if (process.platform === "linux") void watchForHost();
 }
 
 export function destroyTray(): void {
 	tray?.destroy();
 	tray = null;
 	actions = null;
+	watcher = null;
 }
 
-/** Whether a status bar item exists, which is what decides if closing a window may hide it. */
+/**
+ * Whether there is a status bar item the user can see, which is what decides if closing a window
+ * may hide it. On stock GNOME the Tray exists and is invisible; there this is false, and closing
+ * the window quits instead of leaving a process nothing on screen leads back to.
+ */
 export function hasTray(): boolean {
-	return tray !== null;
+	return trayVisible({ platform: process.platform, created: tray !== null, env: process.env, watcher });
 }

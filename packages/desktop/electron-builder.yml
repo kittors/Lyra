@@ -138,6 +138,13 @@ win:
   files:
     - "!**/node_modules/@koromix/koffi-!(win32-${arch})/**"
     - "!**/node_modules/node-pty/prebuilds/!(win32-${arch})/**"
+  # The window and notification icon, read by path at runtime (`appIconPath` in `window.ts`).
+  # Nothing packaged it before, so every release's windows and notifications had none. Added to the
+  # top-level `extraResources` rather than replacing it — electron-builder concatenates the two.
+  # macOS does not need it: the bundle's .icns is what the dock and notifications use there.
+  extraResources:
+    - from: build/icon.png
+      to: build/icon.png
   icon: icon.png
   target:
     - target: nsis
@@ -153,8 +160,22 @@ linux:
   files:
     - "!**/node_modules/@koromix/koffi-!(linux-${arch})/**"
     - "!**/node_modules/node-pty/prebuilds/!(linux-${arch})/**"
+  # See the note under `win`.
+  extraResources:
+    - from: build/icon.png
+      to: build/icon.png
   icon: icon.png
   category: Development
+  # Name the installed .desktop file after `desktopName` in package.json.
+  #
+  # Electron takes the Wayland app_id (and the X11 WM_CLASS the shells match on) from
+  # `desktopName`. There was none, so it derived one from the package name — `@lyra/desktop` — which
+  # matches no installed .desktop file: a generic icon in the dock, windows that do not group under
+  # their launcher, notifications attributed to nothing, and the GlobalShortcuts portal refusing
+  # every binding without saying so. `desktopName` is `Lyra.desktop`, the same name the file has
+  # always had (it followed `executableName`), so existing installs keep their launcher and pins;
+  # this option ties the two together so they cannot drift. It becomes the default in v27.
+  syncDesktopName: true
   # No `arch:` here, and that asymmetry with `mac` and `win` is deliberate.
   #
   # Without it electron-builder builds for the architecture of the machine it is running on —
@@ -171,11 +192,52 @@ linux:
   #
   # AppImage and deb rather than an rpm as well: AppImage needs no package manager and runs on
   # every distribution, which is what Fedora and Arch users install. An rpm would also be a file
-  # the updater cannot use — `update-asset.ts` picks `.AppImage` and `.deb` only, so anyone who
-  # installed the rpm would be offered an AppImage as its update.
+  # the updater cannot put in place — `update-asset.ts` offers each install its own format, and an
+  # rpm install, finding no .rpm in a release, is sent to the release page (`linux-install.ts`).
   target:
     - AppImage
     - deb
+
+deb:
+  # The oldest glibc this package runs on, stated so apt refuses a machine that cannot load it.
+  #
+  # There was none: electron-builder does not run dpkg-shlibdeps, so the .deb installed on Ubuntu
+  # 20.04 and Debian 11 (glibc 2.31) and then died on startup — `pty.node` is compiled on the
+  # ubuntu-24.04 runner and needs 2.34 (`forkpty`/`openpty` moved into libc in that version).
+  # node-pty is now loaded lazily, so a missing symbol costs only the terminal; the package still
+  # has to tell the truth about what it ships. `scripts/check-glibc.mjs` runs after every Linux
+  # build and fails it when any binary in the package — Electron's own included — needs more than
+  # this. Build the native modules on an older glibc and this can come down; not before.
+  #
+  # `depends` replaces electron-builder's default list rather than adding to it (FpmTarget in
+  # app-builder-lib 26.15.3), so the defaults are repeated here; a test checks none goes missing.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libc6 (>= 2.34)
+
+# The AppImage runtime: the static one, not the legacy FUSE2 one.
+#
+# Left unset this is "0.0.0", the FUSE2 runtime, which needs libfuse2 — and Ubuntu 22.04 and later
+# do not install it, so on the most common desktop the AppImage did nothing when double-clicked.
+# 1.0.3 is runtime 20251108 (the 1.0.2 build with electron-builder #9598 fixed), the AppImage
+# project's static type2 runtime: no libfuse2 on the host. It still mounts through FUSE, so the
+# kernel module and `fusermount3` are needed — which the same releases do install by default.
+#
+# The sandbox fallback does not depend on this: the `AppRun` electron-builder writes is the same
+# for both runtimes, and it still probes `unshare -Ur true` and adds `--no-sandbox` itself when user
+# namespaces are unavailable. What changes is the .desktop entry's default `Exec`: the legacy
+# runtime hard-coded `AppRun --no-sandbox`, the static one leaves that decision to `AppRun`.
+# (`app-builder-lib` 26.15.3: `toolsets/linux.js`, `targets/appimage/*`.)
+toolsets:
+  appimage: "1.0.3"
 
 # Electron 的 fuses：**试过，没能验证，所以没有开。**
 #

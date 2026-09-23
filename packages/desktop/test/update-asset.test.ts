@@ -68,10 +68,27 @@ test("x86_64 is not read as 'not arm64' — it names an architecture of its own"
 	assert.equal(pickAsset(intelOnly, "linux", "arm64"), null);
 });
 
-test("Linux falls back to the .deb when no AppImage matches", () => {
+/*
+ * This used to be "Linux falls back to the .deb when no AppImage matches" — and to prefer the
+ * AppImage for everyone, so a .deb install was offered an AppImage nothing would put in place.
+ * Now the format follows the install, in both directions.
+ */
+test("a .deb install is offered the .deb, and never the AppImage", () => {
+	assert.equal(pickAsset(RELEASE, "linux", "x64", "deb")?.name, "Lyra-0.6.1-amd64.deb");
+	assert.equal(pickAsset(RELEASE, "linux", "arm64", "deb")?.name, "Lyra-0.6.1-arm64.deb");
+});
+
+test("an AppImage is offered an AppImage, and never a .deb it cannot install", () => {
 	const debs = RELEASE.filter((asset) => asset.name!.endsWith(".deb"));
-	assert.equal(pickAsset(debs, "linux", "x64")?.name, "Lyra-0.6.1-amd64.deb");
-	assert.equal(pickAsset(debs, "linux", "arm64")?.name, "Lyra-0.6.1-arm64.deb");
+	assert.equal(pickAsset(debs, "linux", "x64", "appimage"), null);
+	assert.equal(pickAsset(RELEASE, "linux", "x64", "appimage")?.name, "Lyra-0.6.1-x86_64.AppImage");
+});
+
+test("an rpm install, or a copy no package manager owns, is sent to the release page", () => {
+	assert.equal(pickAsset(RELEASE, "linux", "x64", "rpm"), null);
+	assert.equal(pickAsset(RELEASE, "linux", "x64", "unmanaged"), null);
+	const withRpm: ReleaseAsset[] = [{ name: "Lyra-0.6.1-x86_64.rpm", browser_download_url: "https://example.com/r", size: 1 }];
+	assert.equal(pickAsset(withRpm, "linux", "x64", "rpm")?.name, "Lyra-0.6.1-x86_64.rpm");
 });
 
 test("a release with nothing installable says so, rather than offering a source tarball", () => {

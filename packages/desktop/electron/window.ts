@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { lyraHome, type Settings } from "@lyra/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
 import { MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
+import { appIconCandidates } from "./app-icon-path.ts";
 
 /**
  * Where the icon file is, packaged or not.
@@ -36,16 +37,18 @@ export function appIconPath(): string | undefined {
 	 * for it here threw inside `whenReady`, which took the rest of startup with it: no kernel, no
 	 * IPC handlers, and a window whose session list came back empty for reasons that had nothing
 	 * to do with sessions. Electron's own answer works packaged and unpackaged alike.
+	 *
+	 * Packaged, the file is where `extraResources` puts it — see `app-icon-path.ts`, which is
+	 * checked against `electron-builder.yml`. It was never packaged before, so this was undefined in
+	 * every release.
 	 */
-	const base = app.getAppPath();
-	const candidates = [
-		join(base, "build", "icon.png"),
-		join(base, "..", "build", "icon.png"),
-		join(base, "packages", "desktop", "build", "icon.png"),
-		join(import.meta.dirname, "../build", "icon.png"),
-		join(process.resourcesPath ?? "", "build", "icon.png"),
-		join(process.resourcesPath ?? "", "icon.png"),
-	];
+	const candidates = appIconCandidates({
+		platform: process.platform,
+		packaged: app.isPackaged,
+		appPath: app.getAppPath(),
+		resourcesPath: process.resourcesPath ?? "",
+		moduleDir: import.meta.dirname,
+	});
 	iconPath = { found: candidates.find((path) => existsSync(path)) };
 	return iconPath.found;
 }

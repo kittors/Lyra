@@ -10,6 +10,8 @@ import { join } from "node:path";
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, nativeImage, screen, systemPreferences } from "electron";
 import type { ScreenshotSettings, Settings } from "@lyra/core";
 
+import { registerShortcut, type ShortcutOutcome } from "./accelerator.ts";
+import { hidesOverlayForSnapshot, warmupPlan } from "./screenshot-platform.ts";
 import { resolveSaveDirectory } from "./screenshot-path.ts";
 import { listWindows } from "./screenshot-windows.ts";
 import { canvasColorSpace, pickDisplaySource } from "./screenshot-displays.ts";
@@ -712,10 +714,23 @@ function ensureOverlay(): Promise<BrowserWindow> {
  * window-and-page cost, which is the very delay that makes the desktop appear to jump.
  */
 export function warmScreenshotOverlay(): void {
-	ensureOverlay().then(warmFirstPresentation).catch((err: unknown) => {
-		console.error("[screenshot] 预热截图窗口失败:", err);
-	});
-	void warmCapturePipeline();
+	/*
+	 * Only what this platform can do without being seen or asking anything — and nothing at all
+	 * when screenshots are switched off. See `warmupPlan`: on Linux the "invisible" presentation is
+	 * a visible full-screen window, and on Wayland the warm-up capture is a screen-sharing dialog.
+	 */
+	const plan = warmupPlan(process.platform, currentSettingsProvider?.()?.screenshot?.enabled !== false);
+	captureLog("warm: plan", { ...plan });
+	if (plan.overlay) {
+		ensureOverlay()
+			.then((win) => {
+				if (plan.present) warmFirstPresentation(win);
+			})
+			.catch((err: unknown) => {
+				console.error("[screenshot] 预热截图窗口失败:", err);
+			});
+	}
+	if (plan.capture) void warmCapturePipeline();
 }
 
 /**
@@ -878,6 +893,13 @@ function coverDisplay(win: BrowserWindow, bounds: { x: number; y: number; width:
 const CLEAR_SETTLE_MS = 32;
 
 /**
+ * The same wait where the overlay is hidden rather than faded (Linux). Not measured — five frames
+ * at 60Hz, for an unmap to reach the X server or the Wayland compositor and be repainted. See
+ * `clearOverlayForSnapshot`.
+ */
+const HIDE_SETTLE_MS = 80;
+
+/**
  * Take the overlay out of the picture that is about to be taken through it.
  *
  * A capture started while one is already up supersedes it, and `closeScreenshotOverlay({ restoreFocus: false })`
@@ -897,10 +919,24 @@ const CLEAR_SETTLE_MS = 32;
  *
  * Returns whether it did anything, because everything downstream has to know: the window is now
  * invisible, above everything, and still catching the mouse. See `dropClearedOverlay`.
+ *
+ * Linux hides the window instead, because there is nothing else to do: `setOpacity` is not
+ * implemented there, so the "cleared" overlay stayed in the picture — the second capture came up
+ * with the first one's frame and grips in it. Hidden, it goes back on screen through the ordinary
+ * first-show path in `revealOverlay`, once this capture's picture is in the page. The wait is
+ * longer than the one-frame margin measured on macOS because nothing was measured here: an unmap
+ * has to reach the X server or the Wayland compositor and be repainted before the capture reads
+ * the screen.
  */
 async function clearOverlayForSnapshot(): Promise<boolean> {
 	const win = overlay;
 	if (!win || win.isDestroyed() || !win.isVisible()) return false;
+	if (hidesOverlayForSnapshot(process.platform)) {
+		win.hide();
+		captureLog("snapshot: overlay hidden out of the picture (no window opacity on this platform)");
+		await new Promise((resolve) => setTimeout(resolve, HIDE_SETTLE_MS));
+		return true;
+	}
 	win.setOpacity(0);
 	captureLog("snapshot: overlay cleared out of the picture");
 	await new Promise((resolve) => setTimeout(resolve, CLEAR_SETTLE_MS));
@@ -1173,6 +1209,12 @@ function revealOverlay(win: BrowserWindow, takingOver: boolean): void {
 	 * pause arrives in 4ms, no slower than one taken seconds after the last capture. See
 	 * `first frame` in the capture log. What is left here is the cheap guarantee, not that
 	 * explanation; the difference on early captures is still unaccounted for.
+	 *
+	 * On Linux `setOpacity` does nothing, so the window is shown as it is. It is shown only after
+	 * the page has this capture's picture in its canvas (`screenshot:ready`), and the window is
+	 * `transparent`, so on a compositing desktop — every Wayland session, most X11 ones — a frame
+	 * not yet painted shows the desktop through it. An X11 desktop with no compositor draws that
+	 * frame black, and nothing on this side of the renderer can prevent it.
 	 */
 	win.setOpacity(0);
 	captureLog("reveal: before showInactive", { bounds: win.getBounds(), visible: win.isVisible() });
@@ -1506,22 +1548,20 @@ export async function downloadScreenshot(
 }
 
 /**
- * Register global shortcut
+ * Register the global shortcut, and say what became of it.
+ *
+ * The outcome is returned rather than logged: a combination another app already holds, or one that
+ * cannot be parsed, used to reach the console and nowhere else — see `accelerator.ts`.
  */
 export function registerScreenshotShortcut(
 	getSettings: () => Settings | undefined,
 	onTrigger: () => void,
-): void {
+): ShortcutOutcome {
 	// No platform gate: `globalShortcut` and the capture behind it work on all three. This used to
 	// return early anywhere but macOS, which left the shortcut unregistered and the setting for it
 	// on screen — a key combination the settings page offered to change and nothing would answer.
 	currentSettingsProvider = getSettings;
 	onCaptureTriggered = onTrigger;
-
-	let shortcut = getSettings()?.screenshot?.shortcut?.trim();
-	if (shortcut) {
-		shortcut = shortcut.replace(/Option/gi, "Alt");
-	}
 
 	if (activeShortcut) {
 		try {
@@ -1530,23 +1570,21 @@ export function registerScreenshotShortcut(
 		activeShortcut = null;
 	}
 
-	if (getSettings()?.screenshot?.enabled === false || !shortcut) return;
-
-	try {
-		const success = globalShortcut.register(shortcut, () => {
-			startScreenshotSession().catch((err: unknown) => {
-				console.error("[screenshot] 快捷键触发的截图失败:", err);
-			});
-			onCaptureTriggered?.();
-		});
-		if (success) {
-			activeShortcut = shortcut;
-		} else {
-			console.warn(`[screenshot] 快捷键注册失败: ${shortcut}`);
-		}
-	} catch (err) {
-		console.warn(`[screenshot] 快捷键格式错误: ${shortcut}`, err);
-	}
+	const outcome = registerShortcut({
+		raw: getSettings()?.screenshot?.shortcut,
+		enabled: getSettings()?.screenshot?.enabled !== false,
+		register: (accelerator) =>
+			globalShortcut.register(accelerator, () => {
+				startScreenshotSession().catch((err: unknown) => {
+					console.error("[screenshot] 快捷键触发的截图失败:", err);
+				});
+				onCaptureTriggered?.();
+			}),
+	});
+	if (outcome.state === "registered") activeShortcut = outcome.shortcut;
+	else if (outcome.state === "taken") console.warn(`[screenshot] 快捷键注册失败（可能已被占用）: ${outcome.shortcut}`);
+	else if (outcome.state === "invalid") console.warn(`[screenshot] 快捷键格式错误: ${outcome.shortcut}`, outcome.reason);
+	return outcome;
 }
 
 export function unregisterScreenshotShortcut(): void {
