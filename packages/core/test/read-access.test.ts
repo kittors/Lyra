@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { after, test } from "node:test";
 import { assessRead, commandReadTargets, readGrantRoot, toAbsolute } from "../src/tools/read-access.ts";
 import { bashTool, isReadOnlyCommand } from "../src/tools/bash.ts";
@@ -62,6 +62,18 @@ if (home() !== HOME) {
 /** A workspace that is not under a temp root, because temp roots are readable by design. */
 const WS = join(HOME, ".lyra-test-ws");
 const OUTSIDE = join(HOME, ".lyra-test-outside");
+
+/**
+ * A path as a model writes it for bash, which is the shell commands run in on Windows too (Git Bash).
+ *
+ * The scanner reads a command line the way bash does, and to bash an unquoted backslash escapes the
+ * character after it: `cat C:\Users\me\.ssh\id_ed25519` names `C:Usersme.sshid_ed25519`, to the
+ * shell and to the read boundary alike. Spliced in bare, every Windows path in these commands had
+ * stopped being a path, and seven of these tests failed on windows-latest for it. Quoted, with
+ * forward slashes — the same spelling as `sh()` in `sandbox-bash.test.ts`. What comes back from
+ * `commandReadTargets` is resolved to the native form, so expectations stay `join(…)`.
+ */
+const sh = (path: string) => `'${path.replaceAll("\\", "/").replaceAll("'", "'\\''")}'`;
 
 function ctxFor(cwd: string, approvals?: { decisions: ("once" | "always" | "reject")[]; seen: ApprovalRequest[] }): ToolContext {
 	return {
@@ -195,7 +207,7 @@ test("the home directory and the filesystem root are never granted", () => {
 // ---------------------------------------------------------------- reading a command line
 
 test("a command's paths are found, and the program name is not one of them", () => {
-	const targets = commandReadTargets(`cat ${HOME}/.ssh/id_ed25519`, WS);
+	const targets = commandReadTargets(`cat ${sh(join(HOME, ".ssh/id_ed25519"))}`, WS);
 	assert.deepEqual(targets, [join(HOME, ".ssh/id_ed25519")]);
 	assert.equal(commandReadTargets("pwd", WS).length, 0);
 });
@@ -216,11 +228,11 @@ test("a redirection target is written, not read", () => {
 	 * resolves to a path, harmlessly inside the workspace. That is by design — see the note on
 	 * `commandReadTargets` — and only the words that can leave the workspace matter here.
 	 */
-	assert.ok(!commandReadTargets(`echo hi > ${HOME}/notes.txt`, WS).includes(join(HOME, "notes.txt")));
-	assert.ok(!commandReadTargets(`echo hi >> ${HOME}/notes.txt`, WS).includes(join(HOME, "notes.txt")));
-	assert.ok(!commandReadTargets(`make 2> ${HOME}/err.log`, WS).includes(join(HOME, "err.log")));
+	assert.ok(!commandReadTargets(`echo hi > ${sh(join(HOME, "notes.txt"))}`, WS).includes(join(HOME, "notes.txt")));
+	assert.ok(!commandReadTargets(`echo hi >> ${sh(join(HOME, "notes.txt"))}`, WS).includes(join(HOME, "notes.txt")));
+	assert.ok(!commandReadTargets(`make 2> ${sh(join(HOME, "err.log"))}`, WS).includes(join(HOME, "err.log")));
 	// But reading from one is a read.
-	assert.ok(commandReadTargets(`sort < ${HOME}/notes.txt`, WS).includes(join(HOME, "notes.txt")));
+	assert.ok(commandReadTargets(`sort < ${sh(join(HOME, "notes.txt"))}`, WS).includes(join(HOME, "notes.txt")));
 });
 
 test("words a shell would rewrite are not guessed at", () => {
@@ -233,9 +245,10 @@ test("words a shell would rewrite are not guessed at", () => {
 
 test("a here-document's body is data, not a list of paths", () => {
 	const command = `python3 - <<'EOF'\nimport os\nopen('${HOME}/.ssh/id_ed25519').read()\nprint("/dist and /out")\nEOF`;
-	assert.deepEqual(commandReadTargets(command, WS).filter((p) => !p.startsWith(`${WS}/`)), []);
+	// Targets come back native: the delimiter word `EOF` resolves to `WS\EOF` on Windows, not `WS/EOF`.
+	assert.deepEqual(commandReadTargets(command, WS).filter((p) => !p.startsWith(`${WS}${sep}`)), []);
 	// And an unterminated one does not swallow the rest of the line it started on.
-	assert.ok(commandReadTargets(`cat ${HOME}/a.txt && python3 - <<'EOF'\nbody\n`, WS).includes(join(HOME, "a.txt")));
+	assert.ok(commandReadTargets(`cat ${sh(join(HOME, "a.txt"))} && python3 - <<'EOF'\nbody\n`, WS).includes(join(HOME, "a.txt")));
 });
 
 test("a script passed inline is not a path however long it is", () => {
@@ -272,7 +285,7 @@ test("a credential read through bash asks, despite the read-only table", async (
 	t.after(() => rm(sshDir, { recursive: true, force: true }));
 
 	const approvals = { decisions: ["reject" as const], seen: [] as ApprovalRequest[] };
-	const result = await bashTool.execute({ command: `cat ${keyFile}` } as never, ctxFor(WS, approvals));
+	const result = await bashTool.execute({ command: `cat ${sh(keyFile)}` } as never, ctxFor(WS, approvals));
 
 	assert.equal(approvals.seen.length, 1, "it must be asked about");
 	assert.equal(approvals.seen[0].kind, "read");
@@ -292,14 +305,14 @@ test("the file tool and the shell now give the same answer for the same path", a
 
 	// Refused by both, when refused.
 	const viaRead = await readTool.execute({ path: file } as never, ctxFor(ws, { decisions: ["reject"], seen: [] }));
-	const viaBash = await bashTool.execute({ command: `cat ${file}` } as never, ctxFor(ws, { decisions: ["reject"], seen: [] }));
+	const viaBash = await bashTool.execute({ command: `cat ${sh(file)}` } as never, ctxFor(ws, { decisions: ["reject"], seen: [] }));
 	assert.equal(viaRead.isError, true);
 	assert.equal(viaBash.isError, true);
 	assert.doesNotMatch(textOf(viaBash), /SECRET_FROM_OTHER_PROJECT/, "the command must not have run");
 
 	// Allowed by both, when approved.
 	const okRead = await readTool.execute({ path: file } as never, ctxFor(ws, { decisions: ["once"], seen: [] }));
-	const okBash = await bashTool.execute({ command: `cat ${file}` } as never, ctxFor(ws, { decisions: ["once"], seen: [] }));
+	const okBash = await bashTool.execute({ command: `cat ${sh(file)}` } as never, ctxFor(ws, { decisions: ["once"], seen: [] }));
 	assert.equal(okRead.isError, undefined);
 	assert.match(textOf(okRead), /SECRET_FROM_OTHER_PROJECT/);
 	assert.match(textOf(okBash), /SECRET_FROM_OTHER_PROJECT/);
@@ -313,7 +326,7 @@ test("one question per grant, not per path", async (t) => {
 	await writeFile(join(outside, "b.txt"), "b", "utf8");
 
 	const approvals = { decisions: ["once" as const, "once" as const], seen: [] as ApprovalRequest[] };
-	await bashTool.execute({ command: `cat ${join(outside, "a.txt")} ${join(outside, "b.txt")}` } as never, ctxFor(ws, approvals));
+	await bashTool.execute({ command: `cat ${sh(join(outside, "a.txt"))} ${sh(join(outside, "b.txt"))}` } as never, ctxFor(ws, approvals));
 	assert.equal(readsAsked(approvals.seen).length, 1, "两个文件同属一个授权范围，只该问一次");
 });
 
@@ -382,7 +395,7 @@ test("ordinary work inside the workspace asks nothing", async (t) => {
 		"echo done > build.log",
 		"ls /usr/bin",
 		"cat /etc/hosts",
-		`ls ${tmpdir()}`,
+		`ls ${sh(tmpdir())}`,
 		"ssh user@host echo hi",
 		"curl https://example.com/api/auth",
 	]) {
@@ -423,8 +436,8 @@ test("a path spelled with backslashes is the path bash opens", () => {
 
 test("a substitution in an unquoted heredoc is a read like any other", () => {
 	// bash runs the `$(…)` in the body; only a quoted delimiter makes the body inert.
-	const unquoted = `cat <<EOF\n$(cat ${HOME}/.ssh/id_ed25519)\nEOF`;
+	const unquoted = `cat <<EOF\n$(cat ${sh(join(HOME, ".ssh/id_ed25519"))})\nEOF`;
 	assert.ok(commandReadTargets(unquoted, WS).includes(join(HOME, ".ssh/id_ed25519")));
-	const quoted = `cat <<'EOF'\n$(cat ${HOME}/.ssh/id_ed25519)\nEOF`;
+	const quoted = `cat <<'EOF'\n$(cat ${sh(join(HOME, ".ssh/id_ed25519"))})\nEOF`;
 	assert.ok(!commandReadTargets(quoted, WS).includes(join(HOME, ".ssh/id_ed25519")));
 });
