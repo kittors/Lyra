@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn as spawnPty } from "node-pty";
-import { app, BrowserWindow, Notification, powerSaveBlocker, protocol } from "electron";
+import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	createContext,
 	lyraHome,
@@ -118,6 +118,7 @@ import { registerScreenshotIpc } from "./ipc/screenshot.ts";
 import { destroyScreenshotOverlay, dismissStrayOverlay, isScreenshotOverlay, registerScreenshotShortcut, unregisterScreenshotShortcut, warmScreenshotOverlay } from "./screenshot.ts";
 import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
+import { applicationMenuTemplate } from "./app-menu.ts";
 
 /*
  * A profile is a whole app, Chromium's half included.
@@ -424,6 +425,11 @@ app.whenReady().then(async () => {
 	 * judging by `PATH` never asked there. Any launch that is not from a terminal asks.
 	 */
 	void primeCommandPath({ always: true });
+
+	// Before any window exists, so none is ever built with the default menu's reload and DevTools
+	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why.
+	const menu = applicationMenuTemplate({ platform: process.platform, packaged: app.isPackaged });
+	if (menu) Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
 
 	/*
 	 * Before anything reads or writes it: the home directory was called `.deepwise` until the app
