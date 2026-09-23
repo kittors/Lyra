@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, nativeImage, screen, systemPreferences } from "electron";
 import type { ScreenshotSettings, Settings } from "@lyra/core";
 
+import { registerShortcut, type ShortcutOutcome } from "./accelerator.ts";
 import { resolveSaveDirectory } from "./screenshot-path.ts";
 import { listWindows } from "./screenshot-windows.ts";
 import { canvasColorSpace, pickDisplaySource } from "./screenshot-displays.ts";
@@ -1506,22 +1507,20 @@ export async function downloadScreenshot(
 }
 
 /**
- * Register global shortcut
+ * Register the global shortcut, and say what became of it.
+ *
+ * The outcome is returned rather than logged: a combination another app already holds, or one that
+ * cannot be parsed, used to reach the console and nowhere else — see `accelerator.ts`.
  */
 export function registerScreenshotShortcut(
 	getSettings: () => Settings | undefined,
 	onTrigger: () => void,
-): void {
+): ShortcutOutcome {
 	// No platform gate: `globalShortcut` and the capture behind it work on all three. This used to
 	// return early anywhere but macOS, which left the shortcut unregistered and the setting for it
 	// on screen — a key combination the settings page offered to change and nothing would answer.
 	currentSettingsProvider = getSettings;
 	onCaptureTriggered = onTrigger;
-
-	let shortcut = getSettings()?.screenshot?.shortcut?.trim();
-	if (shortcut) {
-		shortcut = shortcut.replace(/Option/gi, "Alt");
-	}
 
 	if (activeShortcut) {
 		try {
@@ -1530,23 +1529,21 @@ export function registerScreenshotShortcut(
 		activeShortcut = null;
 	}
 
-	if (getSettings()?.screenshot?.enabled === false || !shortcut) return;
-
-	try {
-		const success = globalShortcut.register(shortcut, () => {
-			startScreenshotSession().catch((err: unknown) => {
-				console.error("[screenshot] 快捷键触发的截图失败:", err);
-			});
-			onCaptureTriggered?.();
-		});
-		if (success) {
-			activeShortcut = shortcut;
-		} else {
-			console.warn(`[screenshot] 快捷键注册失败: ${shortcut}`);
-		}
-	} catch (err) {
-		console.warn(`[screenshot] 快捷键格式错误: ${shortcut}`, err);
-	}
+	const outcome = registerShortcut({
+		raw: getSettings()?.screenshot?.shortcut,
+		enabled: getSettings()?.screenshot?.enabled !== false,
+		register: (accelerator) =>
+			globalShortcut.register(accelerator, () => {
+				startScreenshotSession().catch((err: unknown) => {
+					console.error("[screenshot] 快捷键触发的截图失败:", err);
+				});
+				onCaptureTriggered?.();
+			}),
+	});
+	if (outcome.state === "registered") activeShortcut = outcome.shortcut;
+	else if (outcome.state === "taken") console.warn(`[screenshot] 快捷键注册失败（可能已被占用）: ${outcome.shortcut}`);
+	else if (outcome.state === "invalid") console.warn(`[screenshot] 快捷键格式错误: ${outcome.shortcut}`, outcome.reason);
+	return outcome;
 }
 
 export function unregisterScreenshotShortcut(): void {

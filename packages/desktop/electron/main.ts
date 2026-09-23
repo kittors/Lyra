@@ -119,6 +119,8 @@ import { destroyScreenshotOverlay, dismissStrayOverlay, isScreenshotOverlay, reg
 import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
+import { shortcutFailureKey } from "./accelerator.ts";
+import { nativeTranslator } from "./i18n.ts";
 
 /*
  * A profile is a whole app, Chromium's half included.
@@ -411,6 +413,24 @@ function reportToTopLevel(error: unknown, origin: string): void {
 process.on("uncaughtException", (error) => reportToTopLevel(error, "uncaughtException"));
 process.on("unhandledRejection", (reason) => reportToTopLevel(reason, "unhandledRejection"));
 
+/** The screenshot-shortcut failure last told to the window. See `bindScreenshotShortcut`. */
+let announcedShortcutFailure: string | null = null;
+
+/**
+ * A notice for the main window, through the same channel as `reportToTopLevel` — the one the
+ * renderer already shows as a toast. Held until the page has loaded when it is still loading, as
+ * it is at startup, when a message sent into that gap is dropped without a trace.
+ */
+function tellPrimaryWindow(message: string): void {
+	const win = getPrimaryWindow();
+	if (!win || win.webContents.isDestroyed()) return;
+	const send = () => {
+		if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("app:mainError", { origin: "screenshot-shortcut", message });
+	};
+	if (win.webContents.isLoading() || !win.webContents.getURL()) win.webContents.once("did-finish-load", send);
+	else send();
+}
+
 app.whenReady().then(async () => {
 	/*
 	 * Started here and never awaited, because the answer is wanted long before it is needed.
@@ -510,7 +530,7 @@ app.whenReady().then(async () => {
  * 症状是「启动后能用，改过设置之后不能用」或者反过来，而两处代码看起来都对。
  */
 function bindScreenshotShortcut(): void {
-	registerScreenshotShortcut(
+	const outcome = registerScreenshotShortcut(
 		() => settings,
 		() => {
 			const win = getWindow();
@@ -519,6 +539,20 @@ function bindScreenshotShortcut(): void {
 			}
 		},
 	);
+	/*
+	 * A shortcut that did not register is said out loud, once.
+	 *
+	 * It used to reach the console only, so the settings page kept showing a combination that did
+	 * nothing — Alt+A, the default, is WeChat's screenshot key on Windows. Told through the channel
+	 * the window already turns into a toast; `shortcutFailureKey` keeps an unrelated settings save
+	 * from repeating it.
+	 */
+	const failure = shortcutFailureKey(outcome);
+	if (failure && failure !== announcedShortcutFailure && (outcome.state === "taken" || outcome.state === "invalid")) {
+		const t = nativeTranslator(settings.uiLocale, app.getLocale());
+		tellPrimaryWindow(t(outcome.state === "taken" ? "shortcut.taken" : "shortcut.invalid").replace("{shortcut}", outcome.shortcut));
+	}
+	announcedShortcutFailure = failure;
 }
 	/*
 	 * What a settings change has to reach.
