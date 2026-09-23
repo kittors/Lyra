@@ -1,8 +1,8 @@
 /** Atomic, ordered side-chat snapshots, separate from the main transcript. */
 
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome, type Message } from "@lyra/core";
+import { lyraHome, writeFileAtomic, type Message } from "@lyra/core";
 
 const writes = new Map<string, Promise<void>>();
 
@@ -49,7 +49,11 @@ export async function loadSideChat(sessionId: string): Promise<Message[]> {
 /**
  * Write it out.
  *
- * Write-then-rename, so a crash midway leaves the previous version rather than half of this one.
+ * Write-then-rename, so a crash midway leaves the previous version rather than half of this one —
+ * through the shared helper, not a copy of its three lines. The copy renamed once: on Windows,
+ * where antivirus opens every file that has just been written, the save after each message could
+ * be refused for that moment and was reported as failed, and a failed write left its temporary
+ * file behind. See `utils/atomic-write.ts` in core.
  */
 export function saveSideChat(sessionId: string, messages: Message[], modelId?: string | null): Promise<void> {
 	const path = fileFor(sessionId);
@@ -72,9 +76,7 @@ export function saveSideChatTranscript(sessionId: string, messages: Message[], d
 async function writeSnapshot(path: string, snapshot: string | null): Promise<void> {
 	if (snapshot === null) { await rm(path, { force: true }); return; }
 	await mkdir(dir(), { recursive: true });
-	const tmp = `${path}.${process.pid}.tmp`;
-	await writeFile(tmp, snapshot, "utf8");
-	await rename(tmp, path);
+	await writeFileAtomic(path, snapshot);
 }
 
 /** Reset joins the same queue so an earlier save cannot resurrect the conversation. */

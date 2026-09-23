@@ -9,6 +9,7 @@ import { recordFileChange, readFileChange, undoFileChanges, undoFileChangeBatche
 import { beforeCommand, afterCommand } from "../src/tools/command-changes.ts";
 import { computeDiff } from "../src/tools/diff.ts";
 import type { ToolContext } from "../src/types.ts";
+import { asWindows, refuseRenames } from "./held-open.ts";
 let home: string, cwd: string, ctx: ToolContext;
 let prior: string | undefined;
 beforeEach(async () => {
@@ -140,4 +141,16 @@ test("undo and rollback preserve file modes despite the process umask", { skip: 
 	await assert.rejects(undoFileChangeBatches(cwd, await Promise.all([aId, bId].map(async id => [await readFileChange(ctx.sessionId, id)]))), /ENOSPC/);
 	assert.equal(await readFile(a, "utf8"), "created");
 	assert.equal((await fs.stat(a)).mode & 0o777, 0o764);
+});
+
+// The agent has just written the file, and on Windows whatever scans new files is holding it.
+test("on Windows an undo refused for a moment is retried rather than failed", async (t) => {
+	const path = join(cwd, "scanned.ts");
+	const id = await recordFileChange(ctx, path, "before", "after"); assert.ok(id); await writeFile(path, "after");
+	const change = await readFileChange(ctx.sessionId, id);
+	asWindows(t);
+	const { refused } = refuseRenames(t, "scanned.ts", "EPERM", 2);
+	await undoFileChanges(cwd, [change]);
+	assert.equal(refused(), 2, "the premise: the first two renames were refused");
+	assert.equal(await readFile(path, "utf8"), "before");
 });

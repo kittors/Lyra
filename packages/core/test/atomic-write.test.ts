@@ -12,15 +12,15 @@
  */
 
 import assert from "node:assert/strict";
-import fsPromises, { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { syncBuiltinESMExports } from "node:module";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
-import { after, beforeEach, test, type TestContext } from "node:test";
+import { join } from "node:path";
+import { after, beforeEach, test } from "node:test";
 
 import { DEFAULT_SETTINGS, saveSettings, settingsPath, type Settings } from "../src/config/settings.ts";
 import { resetVault, seal, unseal } from "../src/config/vault.ts";
 import { loadIndex, saveIndex, type SymbolIndex } from "../src/index/symbols.ts";
+import { asWindows, refuseRenames } from "./held-open.ts";
 
 let home: string;
 const made: string[] = [];
@@ -44,33 +44,6 @@ after(async () => {
 });
 
 const leftovers = async (dir: string) => (await readdir(dir)).filter((name) => name.endsWith(".tmp"));
-
-/** Run the rest of the test as if on Windows, restoring the real platform however it ends. */
-function asWindows(t: TestContext): void {
-	const platform = Object.getOwnPropertyDescriptor(process, "platform");
-	assert.ok(platform);
-	Object.defineProperty(process, "platform", { ...platform, value: "win32" });
-	t.after(() => Object.defineProperty(process, "platform", platform));
-}
-
-/** Answer every `rename` onto a file named `target` with `code`, `times` times, then really rename. */
-function refuseRenames(t: TestContext, target: string, code: string, times = Infinity): { refused: () => number } {
-	const real = fsPromises.rename;
-	let refused = 0;
-	const mocked = t.mock.method(fsPromises, "rename", async (from: string, to: string) => {
-		if (basename(to) === target && refused < times) {
-			refused += 1;
-			throw Object.assign(new Error(`${code}: operation not permitted, rename '${from}' -> '${to}'`), { code });
-		}
-		return real(from, to);
-	});
-	syncBuiltinESMExports();
-	t.after(() => {
-		mocked.mock.restore();
-		syncBuiltinESMExports();
-	});
-	return { refused: () => refused };
-}
 
 test("settings saved a click apart all land, and the last one asked for is the one on disk", async () => {
 	/*

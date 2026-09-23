@@ -7,10 +7,11 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import fsPromises, { mkdtemp, readdir, rm } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, before, test } from "node:test";
+import { basename, join } from "node:path";
+import { after, before, test, type TestContext } from "node:test";
 import type { Message } from "@lyra/core";
 
 let home = "";
@@ -99,4 +100,52 @@ test("empty model selections persist and message snapshots cannot overwrite queu
 	assert.deepEqual(await loadSideChatSnapshot("model-choice"), { messages: [said("arrived while saving")], modelId: "qa/changed" });
 	await saveSideChat("model-choice", [], null);
 	assert.deepEqual(await loadSideChatSnapshot("model-choice"), { messages: [], modelId: null });
+});
+
+/** Run the rest of the test as if on Windows, restoring the real platform however it ends. */
+function asWindows(t: TestContext): void {
+	const platform = Object.getOwnPropertyDescriptor(process, "platform");
+	assert.ok(platform);
+	Object.defineProperty(process, "platform", { ...platform, value: "win32" });
+	t.after(() => Object.defineProperty(process, "platform", platform));
+}
+
+/** Answer every `rename` onto a file named `target` with `code`, `times` times, then really rename. */
+function refuseRenames(t: TestContext, target: string, code: string, times = Infinity): { refused: () => number } {
+	const real = fsPromises.rename;
+	let refused = 0;
+	const mocked = t.mock.method(fsPromises, "rename", async (from: string, to: string) => {
+		if (basename(to) === target && refused < times) {
+			refused += 1;
+			throw Object.assign(new Error(`${code}: operation not permitted, rename '${from}' -> '${to}'`), { code });
+		}
+		return real(from, to);
+	});
+	syncBuiltinESMExports();
+	t.after(() => {
+		mocked.mock.restore();
+		syncBuiltinESMExports();
+	});
+	return { refused: () => refused };
+}
+
+/*
+ * The panel is saved after every message, and on Windows antivirus opens every file that has just
+ * been written: a rename onto it is refused for that moment. Once was all the save tried.
+ */
+test("on Windows a save refused for a moment is retried rather than lost", async (t) => {
+	const { loadSideChat, saveSideChat } = await import("../electron/sidechat-store.ts");
+	asWindows(t);
+	const { refused } = refuseRenames(t, "scanned.json", "EPERM", 2);
+	await saveSideChat("scanned", [said("kept")]);
+	assert.equal(refused(), 2, "the premise: the first two renames were refused");
+	assert.deepEqual(await loadSideChat("scanned"), [said("kept")]);
+});
+
+test("a save that fails leaves no temporary file behind", async (t) => {
+	const { saveSideChat } = await import("../electron/sidechat-store.ts");
+	// Not a code that means "held open": reported straight away, and it has to clean up after itself.
+	refuseRenames(t, "failing.json", "EXDEV");
+	await assert.rejects(saveSideChat("failing", [said("not saved")]), /EXDEV/);
+	assert.deepEqual((await readdir(join(home, "sidechats"))).filter((name) => name.endsWith(".tmp")), []);
 });
