@@ -612,8 +612,14 @@ export function Popover({
 				 * Both used to be z-50, so the winner was whichever came later in the DOM — the
 				 * panel — and a menu opened near it was simply cut in half. A popover is transient
 				 * and belongs on top of whatever it was opened over, always.
+				 *
+				 * `no-drag`, because being on top is not enough over the window's title strip. A
+				 * popover can sit as high as y=12, inside the header (Windows/Linux) or a pane's title
+				 * bar (macOS), and Electron hands a press in any `drag` rectangle to the window manager
+				 * unless a `no-drag` one is laid over it: the items there were drawn and unpressable.
+				 * The hole goes when the popover does, so the strip drags again once it closes.
 				 */
-				className={`${surface} ly-menu-card fixed z-[60] flex flex-col overflow-hidden border border-line ${
+				className={`${surface} ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line ${
 					leaving ? "ly-pop-out" : placed ? "ly-pop-in" : ""
 				} ${className}`}
 			>

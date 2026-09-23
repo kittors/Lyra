@@ -21,6 +21,7 @@ import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { fileKind } from "./FileViewer.tsx";
 import { available, bridge } from "../../services/index.ts";
+import { shortcutLabel } from "../../ui/keyboard.ts";
 
 /** How long 「已保存」 stays up: long enough to be read, gone before it is furniture. */
 const SAVED_NOTICE_MS = 1600;
@@ -151,7 +152,8 @@ function Mark({
 		<button
 			type="button"
 			data-ly-tip={tip}
-			aria-label={tip}
+			// The tooltip converts ⌘ on display; the accessible name is read straight off this.
+			aria-label={shortcutLabel(tip)}
 			aria-pressed={active}
 			disabled={disabled}
 			onClick={onClick}

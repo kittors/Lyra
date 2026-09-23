@@ -1,7 +1,8 @@
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useRef, useState } from "react";
-import { bridge } from "../../services/index.ts";
+import { bridge, hostPlatform } from "../../services/index.ts";
+import { systemWord } from "../../lib/system-words.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 
@@ -33,8 +34,9 @@ export function useDefinitionRemoval(kind: keyof typeof LABELS, cwd: string, rel
 		ask(name: string, path: string) {
 			confirm.ask({
 				title: translate("removal.confirm", { kind: translate(LABELS[kind]), name }),
-				detail: <><span>{kind === "skill" ? translate("removal.skillDetail") : translate("removal.fileDetail")}</span><span className="mt-2 block break-all font-mono">{path}</span></>,
-				confirmLabel: translate("removal.toTrash"),
+				// The bin's name follows the machine: 废纸篓 on a Mac, 回收站 elsewhere.
+				detail: <><span>{translate(systemWord(kind === "skill" ? "skillToTrash" : "definitionToTrash", hostPlatform()))}</span><span className="mt-2 block break-all font-mono">{path}</span></>,
+				confirmLabel: translate(systemWord("definitionMoveToTrash", hostPlatform())),
 				onConfirm: () => void remove(path),
 			});
 		},

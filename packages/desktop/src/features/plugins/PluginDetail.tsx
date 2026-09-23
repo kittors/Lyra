@@ -39,6 +39,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { PluginIcon, safeColour } from "../settings/index.ts";
 import { isEnabled, isInstalled, type CatalogItem } from "./useCatalog.ts";
 import { bridge } from "../../services/index.ts";
+import { tildeHome } from "../../lib/paths.ts";
 
 export function PluginDetail({
 	item,
@@ -368,7 +369,7 @@ export function PluginDetail({
 									onClick={() => void bridge.system.openPath(dir)}
 									className="inline-flex items-center gap-1 font-mono text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 								>
-									{dir.replace(/^\/Users\/[^/]+/, "~")}
+									{tildeHome(dir)}
 									<FolderOpen size={11} strokeWidth={1.9} />
 								</button>
 							</InfoRow>

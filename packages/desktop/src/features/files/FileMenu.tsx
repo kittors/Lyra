@@ -33,6 +33,7 @@ import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { openLabel, useOpenTarget, useRevealLabel } from "../../store/open-targets.ts";
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
+import { macKeyboard } from "../../ui/keyboard.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -166,10 +167,11 @@ export function FileMenu({
 							</MenuItem>
 						</>
 					)}
-					<MenuItem icon={<Trash2 {...ICON} />} hint="⌘⌫" danger onClick={() => actions.remove(false)}>
+					{/* The keys the tree answers to on this system — see the delete branch in `FileTree`. */}
+					<MenuItem icon={<Trash2 {...ICON} />} hint={macKeyboard() ? "⌘⌫" : "Delete"} danger onClick={() => actions.remove(false)}>
 						{t("fileMenu.delete", { what })}
 					</MenuItem>
-					<MenuItem icon={<Trash2 {...ICON} />} hint="⇧⌘⌫" danger onClick={() => actions.remove(true)}>
+					<MenuItem icon={<Trash2 {...ICON} />} hint={macKeyboard() ? "⇧⌘⌫" : "Shift+Delete"} danger onClick={() => actions.remove(true)}>
 						{t("fileMenu.deleteForever", { what })}
 					</MenuItem>
 				</>

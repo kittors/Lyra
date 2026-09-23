@@ -15,6 +15,7 @@ import { useApp, type ToolRun as ToolRunState } from "../../store/index.ts";
 import { useScopedRunning } from "../../app/session-scope.tsx";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
+import { baseName } from "../../lib/paths.ts";
 
 /**
  * How much of a long transcript is mounted at once, and how much each "show more" adds — **in turns**.
@@ -209,7 +210,8 @@ export const ToolRun = memo(ToolRunGroup, sameRun);
 /** The file a call is about, when it is about one — the part worth naming in a summary. */
 function subjectOf(block: Extract<AssistantContent, { type: "toolCall" }>): string | undefined {
   const path = (block.arguments as { path?: unknown } | undefined)?.path;
-  return typeof path === "string" ? path.split("/").pop() : undefined;
+  // Either separator: a Windows path split on "/" alone came back whole, drive letter and all.
+  return typeof path === "string" ? baseName(path) : undefined;
 }
 
 function diffOf(run: ToolRunState | undefined, key: "added" | "removed"): number {

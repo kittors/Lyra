@@ -3,6 +3,9 @@ export function macKeyboard(platform = navigator.platform): boolean {
 	return /Mac|iPhone|iPad|iPod|darwin/i.test(platform);
 }
 
+/** Mac key glyphs that a PC keyboard prints as a word. */
+const KEY_NAMES: Record<string, string> = { "⌫": "Backspace", "↩": "Enter" };
+
 /** Existing UI copy uses compact Mac notation; other keyboards need named modifiers. */
 export function shortcutLabel(text: string, platform = navigator.platform): string {
 	if (macKeyboard(platform)) return text;
@@ -11,9 +14,26 @@ export function shortcutLabel(text: string, platform = navigator.platform): stri
 		if (/[⌘⌃]/.test(modifiers)) parts.push("Ctrl");
 		if (modifiers.includes("⌥")) parts.push("Alt");
 		if (modifiers.includes("⇧")) parts.push("Shift");
-		if (key) parts.push(key === "⌫" ? "Backspace" : key);
+		if (key) parts.push(KEY_NAMES[key] ?? key);
 		return parts.join("+");
 	});
+}
+
+/**
+ * Which letter a shortcut was pressed with: the one printed on the key.
+ *
+ * `key` when it is a Latin letter. On QWERTY, AZERTY, QWERTZ and Dvorak that is the letter on the
+ * keycap, which is what a shortcut is written as — matching `code` instead made AZERTY's Ctrl+Alt+A
+ * the key labelled Q, and Dvorak's Ctrl+B the key labelled X.
+ *
+ * `code` otherwise. A layout with no Latin letters (Russian, Greek, Hebrew) has nothing labelled A
+ * to press, and its users reach for the key in A's position — the fallback browsers apply to their
+ * own shortcuts and CodeMirror to its keymaps. macOS Option lands here too: it is a dead-key
+ * modifier, ⌥S arrives as "ß", and only the position still says S.
+ */
+export function shortcutLetter(event: Pick<KeyboardEvent, "key" | "code">): string | null {
+	if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
+	return /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : null;
 }
 
 /** Render Electron accelerators without confusing Control, Command and the Windows key. */

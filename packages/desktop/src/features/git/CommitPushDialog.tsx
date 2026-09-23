@@ -26,6 +26,7 @@ import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 import { useFieldFade } from "../../ui/inputs/useFieldFade.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { shortcutLabel } from "../../ui/keyboard.ts";
 import { COMMIT_LANGUAGES, commitLanguageLabel, resolveCommitLanguage } from "./commit-language.ts";
 import type { CommitWork } from "./commit-work.ts";
 
@@ -460,7 +461,7 @@ export function CommitPushDialog({
 					<ActionRow
 						icon={<GitCommitHorizontal size={15} strokeWidth={1.9} />}
 						label={t("commit.commit")}
-						trailing={<kbd className="rounded border border-line-soft px-1 py-px font-mono text-[10px] text-ink-faint">⌘↩</kbd>}
+						trailing={<kbd className="rounded border border-line-soft px-1 py-px font-mono text-[10px] text-ink-faint">{shortcutLabel("⌘↩")}</kbd>}
 						working={workingAction === "commit"}
 						disabled={disabled || !hasChanges}
 						onClick={() => void handleCommit()}

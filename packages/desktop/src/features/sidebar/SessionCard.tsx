@@ -26,6 +26,7 @@ import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
 import { portal } from "../../ui/overlay/portal.ts";
+import { baseName } from "../../lib/paths.ts";
 
 /**
  * How long the pointer has to rest before this appears.
@@ -90,8 +91,8 @@ function cacheHitRate(usage: SessionMeta["usage"]): number | null {
  * One name, once.
  */
 function folderName(path: string): string {
-	const parts = path.split("/").filter(Boolean);
-	return parts[parts.length - 1] ?? path;
+	// Either separator, or a Windows cwd is shown whole. The root has no last segment; it names itself.
+	return baseName(path) || path;
 }
 
 /**

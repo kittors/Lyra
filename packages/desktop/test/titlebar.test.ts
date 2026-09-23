@@ -18,47 +18,50 @@ import {
 	TRAFFIC_LIGHTS_WIDTH,
 } from "../src/app/window/titlebar.ts";
 
+/** No system buttons at either end. */
+const NONE = { start: 0, end: 0 };
+
 test("macOS holds the corner open for its traffic lights, and nothing at the other end", () => {
-	assert.deepEqual(titlebarInsets("darwin", false, 0), { start: TRAFFIC_LIGHTS_WIDTH, end: 0 });
+	assert.deepEqual(titlebarInsets("darwin", false, NONE), { start: TRAFFIC_LIGHTS_WIDTH, end: 0 });
 });
 
 test("native full screen takes the lights away, so the inset goes with them", () => {
-	assert.deepEqual(titlebarInsets("darwin", true, 0), { start: TOOLBAR_EDGE, end: 0 });
+	assert.deepEqual(titlebarInsets("darwin", true, NONE), { start: TOOLBAR_EDGE, end: 0 });
 });
 
 test("Windows starts at the window's own margin and clears its buttons at the far end", () => {
-	assert.deepEqual(titlebarInsets("win32", false, 138), { start: TOOLBAR_EDGE, end: 138 });
+	assert.deepEqual(titlebarInsets("win32", false, { start: 0, end: 138 }), { start: TOOLBAR_EDGE, end: 138 });
 });
 
 test("Linux is Windows: an overlay at the trailing end, nothing at the leading one", () => {
-	assert.deepEqual(titlebarInsets("linux", false, 92), { start: TOOLBAR_EDGE, end: 92 });
+	assert.deepEqual(titlebarInsets("linux", false, { start: 0, end: 92 }), { start: TOOLBAR_EDGE, end: 92 });
 });
 
 test("an overlay reported wider than usual is cleared to whatever it says", () => {
 	// Display scaling changes this; it is not three fixed buttons.
-	assert.deepEqual(titlebarInsets("win32", false, 207), { start: TOOLBAR_EDGE, end: 207 });
+	assert.deepEqual(titlebarInsets("win32", false, { start: 0, end: 207 }), { start: TOOLBAR_EDGE, end: 207 });
 });
 
 test("a hidden overlay reserves nothing — full screen on Windows draws no buttons", () => {
-	assert.equal(overlayReserved({ visible: false, getTitlebarAreaRect: () => ({ right: 0, width: 0 }) }, 1200), 0);
-	assert.equal(overlayReserved(undefined, 1200), 0);
+	assert.deepEqual(overlayReserved({ visible: false, getTitlebarAreaRect: () => ({ x: 0, right: 0, width: 0 }) }, 1200), NONE);
+	assert.deepEqual(overlayReserved(undefined, 1200), NONE);
 });
 
 test("what the system took is whatever lies past the page's own strip", () => {
-	const overlay = { visible: true, getTitlebarAreaRect: () => ({ right: 1062, width: 1062 }) };
-	assert.equal(overlayReserved(overlay, 1200), 138);
+	const overlay = { visible: true, getTitlebarAreaRect: () => ({ x: 0, right: 1062, width: 1062 }) };
+	assert.deepEqual(overlayReserved(overlay, 1200), { start: 0, end: 138 });
 });
 
 test("an overlay that is on but not yet measured falls back rather than reserving nothing", () => {
 	// A rect of zeroes is what Chromium answers with before the first geometry arrives. Treating
 	// it as "nothing reserved" puts the panel controls back under the close button until it does.
-	const overlay = { visible: true, getTitlebarAreaRect: () => ({ right: 0, width: 0 }) };
-	assert.equal(overlayReserved(overlay, 1200), OVERLAY_FALLBACK);
+	const overlay = { visible: true, getTitlebarAreaRect: () => ({ x: 0, right: 0, width: 0 }) };
+	assert.deepEqual(overlayReserved(overlay, 1200), { start: 0, end: OVERLAY_FALLBACK });
 });
 
 test("a rect wider than the window never reserves a negative amount", () => {
-	const overlay = { visible: true, getTitlebarAreaRect: () => ({ right: 1400, width: 1400 }) };
-	assert.equal(overlayReserved(overlay, 1200), 0);
+	const overlay = { visible: true, getTitlebarAreaRect: () => ({ x: 0, right: 1400, width: 1400 }) };
+	assert.deepEqual(overlayReserved(overlay, 1200), NONE);
 });
 
 test("a phone has no window controls, so nothing is held open for them", () => {
@@ -68,12 +71,29 @@ test("a phone has no window controls, so nothing is held open for them", () => {
 	 * the top left for traffic lights that are not there, which left the sidebar toggle marooned in
 	 * the middle of the row instead of at the edge where every mark below it lines up.
 	 */
-	assert.deepEqual(titlebarInsets("darwin", false, 0, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
-	assert.deepEqual(titlebarInsets("win32", false, 138, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
+	assert.deepEqual(titlebarInsets("darwin", false, NONE, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
+	assert.deepEqual(titlebarInsets("win32", false, { start: 0, end: 138 }, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
 });
 
 test("a desktop window keeps its controls, whatever the platform", () => {
 	// The default is `windowed`, so nothing outside the phone had to be changed to read this.
-	assert.equal(titlebarInsets("darwin", false, 0).start, TRAFFIC_LIGHTS_WIDTH);
-	assert.equal(titlebarInsets("win32", false, 138).end, 138);
+	assert.equal(titlebarInsets("darwin", false, NONE).start, TRAFFIC_LIGHTS_WIDTH);
+	assert.equal(titlebarInsets("win32", false, { start: 0, end: 138 }).end, 138);
+});
+
+test("Linux with its window buttons on the left: the row starts past them", () => {
+	/*
+	 * GNOME's button-layout can put close/minimise/maximise at the leading end (elementary does by
+	 * default), and the overlay then reports the page's strip as starting past them. Reading only the
+	 * trailing end put the sidebar toggle underneath the close button there.
+	 */
+	const overlay = { visible: true, getTitlebarAreaRect: () => ({ x: 96, right: 1200, width: 1104 }) };
+	assert.deepEqual(overlayReserved(overlay, 1200), { start: 96, end: 0 });
+	assert.deepEqual(titlebarInsets("linux", false, { start: 96, end: 0 }), { start: 96, end: 0 });
+});
+
+test("buttons at both ends are cleared at both ends", () => {
+	const overlay = { visible: true, getTitlebarAreaRect: () => ({ x: 40, right: 1130, width: 1090 }) };
+	assert.deepEqual(overlayReserved(overlay, 1200), { start: 40, end: 70 });
+	assert.deepEqual(titlebarInsets("linux", false, { start: 40, end: 70 }), { start: 40, end: 70 });
 });

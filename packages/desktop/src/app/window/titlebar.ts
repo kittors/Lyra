@@ -7,7 +7,7 @@
  *
  *   macOS    traffic lights at the left, a fixed width, gone in native full screen
  *   Windows  minimise/maximise/close at the right, width set by display scaling
- *   Linux    the same overlay as Windows when the desktop draws one
+ *   Linux    the same overlay as Windows when the desktop draws one — at either end, as it is set
  *
  * Only macOS was ever handled. Everywhere else the window wore macOS's geometry: 78px held open at
  * the left for lights that are not there, so the sidebar toggle floated out of line with the marks
@@ -69,8 +69,8 @@ export function hasHeaderBar(platform: string, windowed = true): boolean {
 export function titlebarInsets(
 	platform: string,
 	nativeFullScreen: boolean,
-	/** What the system's own buttons take at the trailing end; see `overlayReserved`. */
-	overlayEnd: number,
+	/** What the system's own buttons take at each end; see `overlayReserved`. */
+	overlay: OverlayReserve,
 	/**
 	 * Whether this is a window at all.
 	 *
@@ -86,25 +86,38 @@ export function titlebarInsets(
 	if (platform === "darwin") {
 		return { start: nativeFullScreen ? TOOLBAR_EDGE : TRAFFIC_LIGHTS_WIDTH, end: 0 };
 	}
-	return { start: TOOLBAR_EDGE, end: overlayEnd };
+	/*
+	 * Wherever the overlay says the buttons are. Usually the trailing end; a Linux desktop set to
+	 * keep them on the left (GNOME's button-layout, elementary by default) puts them at the leading
+	 * one, and the row then starts past them — as it starts past the traffic lights on a Mac.
+	 */
+	return { start: overlay.start > 0 ? overlay.start : TOOLBAR_EDGE, end: overlay.end };
 }
 
 /** The shape of `navigator.windowControlsOverlay`, reduced to what this needs. */
 export interface OverlayLike {
 	visible: boolean;
-	getTitlebarAreaRect(): { right: number; width: number };
+	getTitlebarAreaRect(): { x: number; right: number; width: number };
+}
+
+/** What the system's own buttons take, in pixels from each end of the row. */
+export interface OverlayReserve {
+	start: number;
+	end: number;
 }
 
 /**
- * How wide the system's own buttons are, from the one API that knows.
+ * How wide the system's own buttons are at each end, from the one API that knows.
  *
  * `getTitlebarAreaRect` describes the strip left over *for the page*, so what the system took is
- * whatever lies beyond its right edge. Hidden — full screen, or a platform that draws no overlay —
- * leaves nothing to clear.
+ * whatever lies before its left edge and beyond its right one. Only the right used to be read,
+ * which on a Linux desktop with its buttons on the left left them on top of the sidebar toggle.
+ * Hidden — full screen, or a platform that draws no overlay — leaves nothing to clear.
  */
-export function overlayReserved(overlay: OverlayLike | undefined, windowWidth: number): number {
-	if (!overlay?.visible) return 0;
+export function overlayReserved(overlay: OverlayLike | undefined, windowWidth: number): OverlayReserve {
+	if (!overlay?.visible) return { start: 0, end: 0 };
 	const rect = overlay.getTitlebarAreaRect();
-	if (rect.width === 0) return OVERLAY_FALLBACK;
-	return Math.max(0, Math.round(windowWidth - rect.right));
+	// Not measured yet: assume the common case, Windows' three buttons at the trailing end.
+	if (rect.width === 0) return { start: 0, end: OVERLAY_FALLBACK };
+	return { start: Math.max(0, Math.round(rect.x)), end: Math.max(0, Math.round(windowWidth - rect.right)) };
 }

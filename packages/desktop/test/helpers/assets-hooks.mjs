@@ -13,9 +13,15 @@ const ASSET = /\.(png|jpe?g|gif|svg|webp|ico|css)(\?[a-z]+)?$/i;
  * Browser-only packages, stubbed by name. `@xterm/xterm` ships a bundle Node cannot read named
  * exports from; the terminal is not what any of these tests look at, but it sits on the same
  * import chain as the conversation.
+ *
+ * The terminal stub keeps what it was built with and the key handler it was handed, which is all
+ * a test can ask of the pane's wiring: which options it chose, and what it does with a key before
+ * xterm would see it. `defineProperty` for the options, not assignment: a test may already have put
+ * a read-only `options` on the prototype, and assigning over that throws.
  */
 const STUBS = {
-	"@xterm/xterm": "export class Terminal { open() {} write() {} dispose() {} loadAddon() {} }",
+	"@xterm/xterm":
+		"export class Terminal { constructor(options) { Object.defineProperty(this, 'options', { value: { ...options }, writable: true, configurable: true, enumerable: true }); } open() {} write() {} dispose() {} loadAddon() {} attachCustomKeyEventHandler(handler) { this.customKeyEventHandler = handler; } }",
 	"@xterm/addon-fit": "export class FitAddon { fit() {} activate() {} dispose() {} }",
 };
 

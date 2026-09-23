@@ -20,6 +20,7 @@ import { act, createElement as h, useState } from "react";
 import { CommitPushDialog, type CommitPushDialogProps } from "../../src/features/git/CommitPushDialog.tsx";
 import { useCommitWork } from "../../src/features/git/commit-work.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
+import { withKeyboard } from "../helpers/keyboard.ts";
 
 /**
  * `Overlay` 把卡片送进 portal，所以它不在挂载点的子树里。
@@ -320,4 +321,20 @@ test("没有可推的提交时，「推送」那一行是禁用的", async () =>
 		await view.unmount();
 		Reflect.deleteProperty(window, "lyra");
 	}
+});
+
+test("「提交」那一行的键帽按这台机器的键盘写：PC 上是 Ctrl+Enter，不是 ⌘↩", async () => {
+	stubBridge();
+	await withKeyboard("Win32", async () => {
+		const view = await mount(h(Panel, props));
+		try {
+			const keys = [...document.querySelectorAll("[data-ly-commit-dialog] kbd")].map((kbd) => kbd.textContent);
+			// 绑定本来就认 Ctrl+Enter（见 onKeyDown 里的 metaKey || ctrlKey），错的只是这枚键帽。
+			assert.ok(keys.includes("Ctrl+Enter"), `键帽写的是 ${JSON.stringify(keys)}`);
+			assert.ok(!keys.some((key) => key?.includes("⌘")));
+		} finally {
+			await view.unmount();
+			Reflect.deleteProperty(window, "lyra");
+		}
+	});
 });

@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeProviderLabel, groupSessions, listableSessions } from "../src/features/sidebar/grouping.ts";
+import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/features/sidebar/grouping.ts";
 
 type Session = Parameters<typeof listableSessions>[0][number];
 
@@ -286,6 +286,25 @@ test("a project whose path merely starts the same is still its own project", () 
 	const { projects: rest, loose } = groupSessions(sessions, [], "", ["/home/.lyra/pr"]);
 	assert.deepEqual(loose, []);
 	assert.equal(rest[0].path, "/home/.lyra/prototypes");
+});
+
+test("on Windows the roots are backslashed, and sessions under them are still project-less", () => {
+	// The roots come from the main process's `path.join`. Matching them with `root + "/"` never
+	// succeeded there, so every PR review and every project-less chat became a project of its own.
+	const root = "C:\\Users\\me\\.lyra";
+	const sessions = [
+		session({ id: "review", cwd: `${root}\\pr\\owner-repo-1` }),
+		session({ id: "chat", cwd: `${root}\\workspaces\\general` }),
+		session({ id: "project", cwd: `${root}\\prototypes` }),
+	];
+
+	const { projects: rest, loose } = groupSessions(sessions, [], "", [`${root}\\workspaces`, `${root}\\pr`]);
+	assert.deepEqual(loose.map((s) => s.id).sort(), ["chat", "review"]);
+	// The separator still counts: `…\prototypes` is not inside `…\pr`.
+	assert.deepEqual(rest.map((group) => group.path), [`${root}\\prototypes`]);
+	// And the root itself is not inside itself, as on the other platforms.
+	assert.equal(isScratch(`${root}\\pr`, [`${root}\\pr`]), false);
+	assert.equal(isScratch(`${root}\\pr\\x`, [`${root}\\pr\\`]), true);
 });
 
 test("with no roots known yet, nothing is treated as project-less", () => {
