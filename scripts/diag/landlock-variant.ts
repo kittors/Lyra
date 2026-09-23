@@ -14,7 +14,7 @@ if (variant !== "plain") {
 	if (variant === "ruleset" || variant === "restrict") {
 		const attr = Buffer.alloc(8);
 		attr.writeBigUInt64LE(writeRights(abi), 0);
-		const ruleset = Number(api.syscall(444, "void *", attr, "size_t", 8, "uint32_t", 0));
+		const ruleset = api.syscall(444, attr, 8, 0);
 		if (ruleset < 0) process.exit(90);
 		for (const rule of landlockRules({ workspace: ws, mode: "workspace-write" }, abi)) {
 			const fd = api.open(rule.path, O_PATH | O_CLOEXEC);
@@ -22,11 +22,11 @@ if (variant !== "plain") {
 			const beneath = Buffer.alloc(12);
 			beneath.writeBigUInt64LE(rule.rights, 0);
 			beneath.writeInt32LE(fd, 8);
-			if (Number(api.syscall(445, "int", ruleset, "int", 1, "void *", beneath, "uint32_t", 0)) < 0) process.exit(91);
+			if (api.syscall(445, ruleset, 1, beneath, 0) < 0) process.exit(91);
 			api.close(fd);
 		}
 		if (api.prctl(38, "unsigned long", 1, "unsigned long", 0, "unsigned long", 0, "unsigned long", 0) !== 0) process.exit(92);
-		if (variant === "restrict" && Number(api.syscall(446, "int", ruleset, "uint32_t", 0)) < 0) process.exit(93);
+		if (variant === "restrict" && api.syscall(446, ruleset, 0) < 0) process.exit(93);
 		api.close(ruleset);
 	}
 	if (variant === "restrict-fixed") {

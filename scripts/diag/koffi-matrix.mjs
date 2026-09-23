@@ -13,6 +13,7 @@ const cases = {
 	"variadic-long-long-long": `lib.func("long syscall(long number, ...)")(444, "long", 0, "long", 0, "long", 1);`,
 	"fixed-void*-size_t-uint32": `lib.func("syscall", "long", ["long", "void *", "size_t", "uint32_t"])(444, null, 0, 1);`,
 	"fixed-long-long-long": `lib.func("syscall", "long", ["long", "long", "long", "long"])(444, 0, 0, 1);`,
+	"fixed-7-args": `lib.func("syscall", "long", ["long", "void *", "long", "long", "long", "long", "long"])(444, null, 0, 1, 0, 0, 0);`,
 	"fixed-getpid": `lib.func("int getpid()")();`,
 	"variadic-prctl": `lib.func("int prctl(int option, ...)")(38, "unsigned long", 1, "unsigned long", 0, "unsigned long", 0, "unsigned long", 0);`,
 	"fixed-prctl": `lib.func("prctl", "int", ["int", "unsigned long", "unsigned long", "unsigned long", "unsigned long"])(38, 1, 0, 0, 0);`,
@@ -28,7 +29,8 @@ for (const [name, body] of Object.entries(cases)) {
 	const script = `const koffi = require(${JSON.stringify(koffiPath)}); const lib = koffi.load("libc.so.6"); const r = (() => { return ${body} })(); console.log(String(r));`;
 	const tally = {};
 	let sample = "";
-	for (let i = 0; i < 30; i++) {
+	const runs = name.includes("syscall") || name.startsWith("fixed-") || name.startsWith("variadic-") ? 200 : 30;
+	for (let i = 0; i < runs; i++) {
 		const run = spawnSync(process.execPath, ["-e", script], { encoding: "utf8" });
 		const key = run.signal ?? `exit ${run.status}`;
 		tally[key] = (tally[key] ?? 0) + 1;
