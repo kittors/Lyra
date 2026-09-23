@@ -15,7 +15,8 @@ import type { McpBundle, Settings } from "@lyra/core";
 import { collectSkills, lyraHome, fetchRegistry, installEntry, loadPlugins, uninstallEntry } from "@lyra/core";
 import { remoteImage } from "../avatars.ts";
 import { dropShared } from "../registry-icons.ts";
-import { settingsAfterInstall, settingsAfterReconcile, settingsAfterUninstall } from "./plugin-actions.ts";
+import { sessions } from "../session-hub.ts";
+import { releaseBundle, settingsAfterInstall, settingsAfterReconcile, settingsAfterUninstall } from "./plugin-actions.ts";
 import type { RegistryEntry } from "../ipc-types.ts";
 
 /*
@@ -73,7 +74,8 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 	// files are replaced only once the new ones are staged and verified. See `installEntry`.
 	ipcMain.handle("registry:install", async (_event, entry: RegistryEntry, registryName?: string, replace?: boolean) => {
 		try {
-			const installed = await installEntry(entry, registryName, replace);
+			// Its running servers let go of its files first, once the new version is ready to take their place.
+			const installed = await installEntry(entry, registryName, replace, { beforeReplace: () => releaseBundle(sessions.values(), entry.id) });
 			const next = settingsAfterInstall(settings(), entry.id, installed);
 			if (next) await saveSettings(next);
 			return { ok: true as const, dir: installed.dir, kind: installed.kind, servers: installed.servers.length };
@@ -90,6 +92,8 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 	 * disk. `origin.bundle` is what ties the two together.
 	 */
 	ipcMain.handle("registry:uninstall", async (_event, id: string) => {
+		// See `releaseBundle`: on Windows a running server keeps its bundle from being deleted.
+		await releaseBundle(sessions.values(), id);
 		await uninstallEntry(id);
 		const next = settingsAfterUninstall(settings(), id);
 		if (next) await saveSettings(next);

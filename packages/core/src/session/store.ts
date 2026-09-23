@@ -17,6 +17,7 @@ import type { AgentEvent, CommandRun } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 import type { SessionStorage } from "./storage.ts";
 import { addUsage, emptyUsage } from "../types.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
 import { readRecordChanges, type SessionReadCursor, type SessionRecordChanges } from "./read-changes.ts";
 
@@ -237,27 +238,34 @@ export class SessionStore implements SessionStorage {
 			compaction: Boundary | null;
 		},
 	): Promise<void> {
-		const path = this.displayCacheFor(projectId, sessionId);
-		const tmp = `${path}.${process.pid}.tmp`;
+		// Best-effort: a cache that is not written is rebuilt from the log next time.
 		try {
 			await mkdir(this.dirFor(projectId), { recursive: true });
-			await writeFile(tmp, JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
-			await rename(tmp, path);
+			await writeFileAtomic(this.displayCacheFor(projectId, sessionId), JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
 		} catch {
-			await unlink(tmp).catch(() => undefined);
+			// Nothing to clean up: the helper removes its own temporary file.
 		}
 	}
 
 	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking"> = {}): Promise<SessionMeta> {
 		const projectId = projectIdFor(cwd);
+		/*
+		 * One reading of the clock for the whole creation.
+		 *
+		 * It was read for `createdAt`, again for `updatedAt`, and again inside the append — so the
+		 * meta record on disk said one time and the index another whenever the calls straddled a
+		 * millisecond. A rebuilt index then disagreed with the one it replaced, and a session moved
+		 * or archived afterwards carried the wrong `updatedAt` into the list.
+		 */
+		const now = Date.now();
 		const meta: SessionMeta = {
 			id: randomUUID(),
 			title,
 			cwd,
 			projectId,
 			projectName: basename(cwd) || cwd,
-			createdAt: Date.now(),
-			updatedAt: Date.now(),
+			createdAt: now,
+			updatedAt: now,
 			modelId,
 			...(options.thinking ? { thinking: options.thinking } : {}),
 			messageCount: 0,
@@ -265,7 +273,7 @@ export class SessionStore implements SessionStorage {
 			seq: 0,
 		};
 		await mkdir(this.dirFor(projectId), { recursive: true });
-		await this.appendExclusive(meta, { type: "meta", meta });
+		await this.appendExclusive(meta, { type: "meta", meta }, now);
 		return meta;
 	}
 
@@ -281,12 +289,16 @@ export class SessionStore implements SessionStorage {
 		return next;
 	}
 
-	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput): Promise<SessionMeta> {
+	/**
+	 * `now` is both the record's `ts` and, for anything but filing it away, the session's new
+	 * `updatedAt` — one reading, so that `load` can rebuild the second from the first exactly.
+	 */
+	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput, now = Date.now()): Promise<SessionMeta> {
 		const key = this.keyFor(meta);
 		// Callers may hold a stale snapshot; the store's own copy is the source of truth.
 		const base = this.latestMeta.get(key) ?? meta;
 		if (payload.type === "title" && payload.source === "auto" && base.titleSetByUser) return base;
-		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: Date.now() };
+		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: now };
 
 		/*
 		 * 子 Agent 烧的 token 也是这个会话烧的。
@@ -342,7 +354,7 @@ export class SessionStore implements SessionStorage {
 		const persisted = payload.type === "meta" && base.titleSetByUser
 			? { ...payload, meta: { ...payload.meta, title: next.title, titleSetByUser: true } }
 			: payload;
-		const record: SessionRecord = { seq: next.seq, ts: Date.now(), ...parkRecordPayload(persisted) };
+		const record: SessionRecord = { seq: next.seq, ts: now, ...parkRecordPayload(persisted) };
 		await mkdir(this.dirFor(meta.projectId), { recursive: true });
 		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
 		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
@@ -500,7 +512,15 @@ export class SessionStore implements SessionStorage {
 				// A rewind past the boundary retires it: the tail it was paired with is gone.
 				if (compaction && compaction.keptFrom > entries.length) compaction = null;
 			}
-			if (meta) meta.seq = record.seq;
+			if (meta) {
+				meta.seq = record.seq;
+				/*
+				 * `updatedAt` the way `appendExclusive` set it: every record is activity except filing
+				 * the session away. Taken from the last meta record instead, a rebuilt index dated a
+				 * session by when it was created or its model last changed, not by when it was used.
+				 */
+				if (record.type !== "archive" && record.type !== "move" && typeof record.ts === "number") meta.updatedAt = record.ts;
+			}
 		}
 		if (!meta) return null;
 		let messages = entries.map((e) => e.message);
@@ -525,8 +545,18 @@ export class SessionStore implements SessionStorage {
 		if (totalUsage.total > 0 || meta.usage.total === 0) {
 			meta.usage = totalUsage;
 		}
-		// Seed the append queue's view so a reopened session keeps numbering where it left off.
-		this.latestMeta.set(this.keyFor(meta), meta);
+		/*
+		 * Seed the append queue's view so a reopened session keeps numbering where it left off —
+		 * unless an append has moved it past what this read saw.
+		 *
+		 * The file is read first and the view set afterwards, and an append can land in between.
+		 * Putting the older meta back then made the next append reuse a sequence number, which a
+		 * client syncing with `?since=N` skips. At the same `seq` the log wins: it is where counts
+		 * such as `messageCount` are right again after a truncation.
+		 */
+		const key = this.keyFor(meta);
+		const cached = this.latestMeta.get(key);
+		if (!cached || meta.seq >= cached.seq) this.latestMeta.set(key, meta);
 		const loaded = {
 			meta,
 			messages,
@@ -567,33 +597,13 @@ export class SessionStore implements SessionStorage {
 			/*
 			 * Write-then-rename so a crash cannot leave a truncated index.
 			 *
-			 * The temporary name carries more than the pid. Two writes racing inside one process — two
-			 * conversations created at once, which the desktop does whenever a window restores several
-			 * — both wrote to the same path, and the first rename took the file out from under the
-			 * second: `ENOENT ... index.json.NNN.tmp -> index.json`, and the session that lost is not
-			 * in the index at all.
-			 *
-			 * On Windows, renaming over an existing file while another write/read handle is open fails
-			 * with EPERM. Retrying briefly smooths over external scanners (e.g. antivirus or search indexer).
+			 * Through the shared helper, whose temporary name is unique per write: two conversations
+			 * created at once — which the desktop does whenever a window restores several — shared
+			 * `index.json.<pid>.tmp`, and the first rename took the file out from under the second
+			 * (`ENOENT`), leaving that session out of the index. It also waits out the moment a
+			 * scanner holds the file open on Windows. See `utils/atomic-write.ts`.
 			 */
-			const tmp = `${this.indexPath}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
-			await writeFile(tmp, JSON.stringify(next, null, 2), "utf8");
-			let renamed = false;
-			for (let attempt = 0; attempt < 8; attempt++) {
-				try {
-					await rename(tmp, this.indexPath);
-					renamed = true;
-					break;
-				} catch (err: unknown) {
-					const code = (err as { code?: string })?.code;
-					if ((code === "EPERM" || code === "EBUSY") && attempt < 7) {
-						await new Promise((r) => setTimeout(r, 20 * (attempt + 1)));
-						continue;
-					}
-					throw err;
-				}
-			}
-			if (!renamed) await rename(tmp, this.indexPath);
+			await writeFileAtomic(this.indexPath, JSON.stringify(next, null, 2));
 		});
 		this.indexQueue = nextTask;
 		await nextTask;

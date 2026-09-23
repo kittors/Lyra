@@ -8,11 +8,12 @@
 
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { syncBuiltinESMExports } from "node:module";
+import os, { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { expandCommand, parseInvocation, rankCommands, splitArguments } from "../src/commands/expand.ts";
-import { type CommandSource, loadCommands, type SlashCommand } from "../src/commands/loader.ts";
+import { type CommandSource, commandSources, loadCommands, type SlashCommand } from "../src/commands/loader.ts";
 
 let root: string;
 
@@ -136,6 +137,32 @@ test("a directory that does not exist is not an error", async () => {
 });
 
 // ---------------------------------------------------------------- invocation
+
+test("Claude Code's user commands are looked for under the same home directory as everything else", (t) => {
+	/*
+	 * It read `HOME || USERPROFILE`, the reverse of what `os.homedir()` asks on Windows — where Git
+	 * Bash and MSYS set `HOME` to a directory of their own. Every other path in the app, and Claude
+	 * Code itself, go by `USERPROFILE` there; this one list of commands went somewhere else.
+	 */
+	const saved = process.env.CLAUDE_CONFIG_DIR;
+	delete process.env.CLAUDE_CONFIG_DIR;
+	const homedir = t.mock.method(os, "homedir", () => join(root, "the-real-home"));
+	syncBuiltinESMExports();
+	t.after(() => {
+		homedir.mock.restore();
+		syncBuiltinESMExports();
+		if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+		else process.env.CLAUDE_CONFIG_DIR = saved;
+	});
+
+	const claude = commandSources(null, join(root, "lyra")).find((source) => source.origin === "claude" && source.scope === "user");
+	assert.equal(claude?.dir, join(root, "the-real-home", ".claude", "commands"));
+
+	// An explicit configuration directory still wins, as it does for Claude Code.
+	process.env.CLAUDE_CONFIG_DIR = join(root, "configured");
+	const configured = commandSources(null, join(root, "lyra")).find((source) => source.origin === "claude" && source.scope === "user");
+	assert.equal(configured?.dir, join(root, "configured", "commands"));
+});
 
 test("only a leading slash starts a command", () => {
 	assert.deepEqual(parseInvocation("/review src/a.ts"), { name: "review", rest: "src/a.ts" });

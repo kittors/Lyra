@@ -107,6 +107,8 @@ export {
  * never sees a token, which is the point of it living behind IPC.
  */
 export { isSealed, resetVault, seal, secret, unseal } from "./config/vault.ts";
+/** Replacing a file whole, for the main process's own files; see `utils/atomic-write.ts`. */
+export { renameWithRetry, writeFileAtomic } from "./utils/atomic-write.ts";
 export {
 	McpManager,
 	type McpHttpServer,

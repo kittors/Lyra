@@ -26,6 +26,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { home as userHome } from "../platform.ts";
 import { isUnparsable, parseFrontmatter } from "../skills/loader.ts";
 
 export interface SlashCommand {
@@ -107,9 +108,16 @@ export function commandSources(cwd: string | null, home: string): CommandSource[
 	return sources;
 }
 
-/** Where Claude Code keeps its user-level configuration. */
+/**
+ * Where Claude Code keeps its user-level configuration.
+ *
+ * The home directory is `platform.home()`, like every other path here. This read `HOME ||
+ * USERPROFILE`, the reverse of `os.homedir()` on Windows, where Git Bash and MSYS set `HOME` to a
+ * directory of their own — so this one list of commands was looked for somewhere Claude Code does
+ * not keep it.
+ */
 function claudeHome(): string {
-	return process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || process.env.USERPROFILE || "", ".claude");
+	return process.env.CLAUDE_CONFIG_DIR || join(userHome(), ".claude");
 }
 
 export async function loadCommands(

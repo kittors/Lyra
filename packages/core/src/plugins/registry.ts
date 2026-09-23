@@ -11,15 +11,17 @@
  * are markdown, MCP servers are declarations the user still has to enable.
  */
 
+import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, readdir, rename, rm, rmdir, stat } from "node:fs/promises";
+import { basename, join } from "node:path";
 
 import { normalisePath, readIndex } from "@lyra/registry-shared";
 import type { BundleKind, RegistryEntry } from "@lyra/registry-shared";
 
 import type { McpServerConfig } from "../mcp/client.ts";
 import { lyraHome } from "../session/store.ts";
+import { renameWithRetry } from "../utils/atomic-write.ts";
 import { fetchBundle } from "./fetch-bundle.ts";
 import { forgetInstall, recordInstall } from "./installs.ts";
 import { inspectBundle } from "./loader.ts";
@@ -94,6 +96,16 @@ export interface Installed {
 	name: string;
 }
 
+interface InstallHooks {
+	/**
+	 * Called once the new version is staged and verified, just before any installed file is touched —
+	 * and not at all when the download or the check fails. The desktop stops the bundle's running MCP
+	 * servers here: on Windows they hold its files open, and doing it before a download that then
+	 * failed would take them down for nothing.
+	 */
+	beforeReplace?(): Promise<void>;
+}
+
 /**
  * Install an entry, then file it by what it turned out to be.
  *
@@ -113,7 +125,7 @@ export interface Installed {
  * what gets kept; the rest, including the `.git` that would otherwise make a subdirectory look
  * like a checkout of the whole collection, is thrown away.
  */
-export async function installEntry(entry: RegistryEntry, registryName?: string, replace = false): Promise<Installed> {
+export async function installEntry(entry: RegistryEntry, registryName?: string, replace = false, hooks: InstallHooks = {}): Promise<Installed> {
 	// Shared with the platform, so that a path it accepted when building an archive is the same path
 	// this refuses to clone into. Two implementations of "cannot climb out" is one too many.
 	const inner = normalisePath(entry.path);
@@ -154,6 +166,7 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 	const staging = join(lyraHome(), "plugins", `.${entry.id}.staging`);
 	await mkdir(join(lyraHome(), "plugins"), { recursive: true });
 	await rm(staging, { recursive: true, force: true });
+	await sweepRetired();
 
 	try {
 		const fetched = await fetchBundle(entry, staging);
@@ -187,18 +200,24 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 			if (skills === 0) throw new Error("这个目录里没有技能（应当是一层含 SKILL.md 的子目录）");
 			const root = bundleRoot("skill");
 			/*
-			 * Clear the old scatter before laying down the new one.
+			 * The old scatter goes in the same step as the new one arrives.
 			 *
-			 * `moveInto` overwrites each skill it still ships and cannot know about the ones this
-			 * version dropped — those would stay in the skills directory forever, loaded into every
-			 * session, belonging to a version of the collection nobody has any more. A plugin does
-			 * not have this problem because its whole directory is replaced at once.
+			 * Laying the new skills down overwrites each one this version still ships and cannot know
+			 * about the ones it dropped — those would stay in the skills directory forever, loaded into
+			 * every session, belonging to a version of the collection nobody has any more. So on an
+			 * update every `<id>-` directory the new version does not bring is retired with the rest.
 			 *
 			 * Done here rather than before the download: by this point the new files are staged and
-			 * verified, so the window in which the collection is half-removed is one rename wide.
+			 * verified, and `swapIn` either does all of it or none.
 			 */
-			if (replace) await removeCollection(entry.id);
-			await moveInto(source, root, entry.id);
+			await mkdir(root, { recursive: true });
+			const moves: Move[] = (await skillDirs(source)).map((name) => ({ from: join(source, name), to: join(root, `${entry.id}-${name}`) }));
+			if (replace) {
+				const kept = new Set(moves.map((move) => move.to));
+				for (const dir of await collectionDirs(entry.id)) if (!kept.has(dir)) moves.push({ from: null, to: dir });
+				await hooks.beforeReplace?.();
+			}
+			await discard(await swapIn(moves));
 			await remember(entry, registryName);
 			// `dir` is the directory the skills went into; a collection has no directory of its own.
 			return { dir: root, kind: "skill", servers: [], name: `${entry.name}（${skills} 个技能）` };
@@ -212,7 +231,6 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 		const root = bundleRoot(found.kind);
 		await mkdir(root, { recursive: true });
 		const target = join(root, entry.id);
-		await rm(target, { recursive: true, force: true });
 		/*
 		 * The checkout goes; the files stay.
 		 *
@@ -228,7 +246,18 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 		 * and if it does, it is even less welcome.
 		 */
 		await rm(join(source, ".git"), { recursive: true, force: true });
-		await rename(source, target);
+		/*
+		 * Whatever is installed under this id goes in the same step — wherever it is filed, as
+		 * uninstalling does: a version filed under the other root (from before plugins and MCP were
+		 * told apart, or of a different kind) would otherwise stay installed beside the new one.
+		 */
+		const moves: Move[] = [{ from: source, to: target }];
+		const other = join(bundleRoot(found.kind === "mcp" ? "plugin" : "mcp"), entry.id);
+		if (replace) {
+			moves.push({ from: null, to: other });
+			await hooks.beforeReplace?.();
+		}
+		await discard(await swapIn(moves));
 		await remember(entry, registryName);
 
 		return {
@@ -277,12 +306,15 @@ async function remember(entry: RegistryEntry, registryName?: string): Promise<vo
  */
 export async function uninstallEntry(id: string): Promise<void> {
 	if (!id || id.includes("/") || id.includes("..")) throw new Error("非法的插件 id");
-	await rm(join(bundleRoot("plugin"), id), { recursive: true, force: true });
-	await rm(join(bundleRoot("mcp"), id), { recursive: true, force: true });
-
-	// And a collection's skills, which are not under either root. Removing only the two left a
-	// collection uninstalled everywhere except in the agent, which went on loading all of them.
-	await removeCollection(id);
+	await sweepRetired();
+	/*
+	 * Both roots, and a collection's skills, which are not under either: removing only the two left
+	 * a collection uninstalled everywhere except in the agent, which went on loading all of them.
+	 *
+	 * Retired as one step and deleted after, rather than `rm`'d one after another: see `swapIn`.
+	 */
+	const dirs = [join(bundleRoot("plugin"), id), join(bundleRoot("mcp"), id), ...(await collectionDirs(id))];
+	await discard(await swapIn(dirs.map((to) => ({ from: null, to }))));
 
 	// Last, and allowed to fail: a stale ledger entry is harmless because every reader joins it
 	// against what the scan actually found, while a bundle whose files are gone is uninstalled.
@@ -290,21 +322,104 @@ export async function uninstallEntry(id: string): Promise<void> {
 }
 
 /**
- * Remove the skills a collection scattered, which have no directory of their own.
+ * The skills a collection scattered, which have no directory of their own.
  *
- * `moveInto` flattened them in among the loose skills with an `<id>-` prefix, so this is the same
- * rename read backwards. Shared with the replace path in `installEntry`, because an update that
+ * Installing flattened them in among the loose skills with an `<id>-` prefix, so this is the same
+ * naming read backwards. Shared with the replace path in `installEntry`, because an update that
  * left the previous version's dropped skills behind would be the same bug in a different place.
  *
  * The prefix has to be followed by something: a skill genuinely named `waza` is not one of Waza's,
  * and removing it would be deleting a directory the user put there themselves.
  */
-async function removeCollection(id: string): Promise<void> {
+async function collectionDirs(id: string): Promise<string[]> {
 	const skills = bundleRoot("skill");
-	for (const entry of await readdir(skills, { withFileTypes: true }).catch((): Dirent[] => [])) {
-		if (entry.isDirectory() && entry.name.startsWith(`${id}-`)) {
-			await rm(join(skills, entry.name), { recursive: true, force: true });
+	return (await readdir(skills, { withFileTypes: true }).catch((): Dirent[] => []))
+		.filter((entry) => entry.isDirectory() && entry.name.startsWith(`${id}-`))
+		.map((entry) => join(skills, entry.name));
+}
+
+/** A directory to put in place (`from`), or only to take away (`from: null`), at `to`. */
+interface Move {
+	from: string | null;
+	to: string;
+}
+
+/**
+ * Moving a directory on Windows fails for a moment while antivirus or the indexer is still reading
+ * what was just written into it; see `renameWithRetry`. About a second and a half, per directory.
+ */
+const MOVE_RETRY = { attempts: 8, stepMs: 50 };
+
+/** How old a retired directory has to be before a later install may delete it. */
+const SWEEP_AFTER_MS = 10 * 60_000;
+
+/**
+ * Where replaced and removed bundles wait to be deleted.
+ *
+ * Under `plugins`, whose dot-directories the loader skips, and on the same filesystem as every
+ * root a bundle is installed into, so that moving one here is a rename. Not among the loose skills:
+ * the skill loader reads every directory there, and would load a retired copy.
+ */
+const retiredRoot = () => join(lyraHome(), "plugins", ".retired");
+
+/**
+ * Put every `from` at its `to` and take away what was there — all of it, or none of it.
+ *
+ * This was `rm -r` on the old directory, then `rename` of the new one. On Windows a file that
+ * something still has open — a server's running `.exe`, a `.node` module it loaded — cannot be
+ * deleted, and `rm -r` removes everything around it before failing on it. An update left the old
+ * version half deleted and threw the new one away with the staging directory; an uninstall left a
+ * bundle that was neither installed nor removable.
+ *
+ * Renaming a directory with an open file in it is refused whole, so the old directories are moved
+ * aside first, the new ones moved in, and only then is anything deleted (`discard`). A failure at
+ * any step puts back what had moved — the installed version is exactly as it was — and says what
+ * was in the way. Returns the retired directories, for the caller to discard.
+ */
+async function swapIn(moves: Move[]): Promise<string[]> {
+	const retired: { to: string; aside: string }[] = [];
+	const placed: { from: string; to: string }[] = [];
+	try {
+		for (const { to } of moves) {
+			if (!(await lstat(to).catch(() => null))) continue;
+			await mkdir(retiredRoot(), { recursive: true });
+			// Named by when, so a sweep can tell an abandoned one from one a swap is still holding.
+			const aside = join(retiredRoot(), `${Date.now()}-${randomUUID().slice(0, 8)}-${basename(to)}`);
+			await renameWithRetry(to, aside, MOVE_RETRY);
+			retired.push({ to, aside });
 		}
+		for (const { from, to } of moves) {
+			if (from === null) continue;
+			await renameWithRetry(from, to, MOVE_RETRY);
+			placed.push({ from, to });
+		}
+	} catch (cause) {
+		for (const { from, to } of placed.reverse()) await rename(to, from).catch(() => {});
+		for (const { to, aside } of retired.reverse()) await rename(aside, to).catch(() => {});
+		const code = (cause as { code?: string } | null)?.code;
+		if (code === "EPERM" || code === "EBUSY" || code === "EACCES") {
+			throw new Error("有文件正被占用（多半是它启动的 MCP 服务器，或打开着它的编辑器），什么都没有改动。关掉占用它的程序后再试。", { cause });
+		}
+		throw cause;
+	}
+	return retired.map(({ aside }) => aside);
+}
+
+/**
+ * Delete what `swapIn` retired. Best effort: the swap has already happened, and a file still held
+ * open is left for `sweepRetired` rather than turning a finished install into a failed one.
+ */
+async function discard(retired: string[]): Promise<void> {
+	for (const dir of retired) await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
+	if (retired.length > 0) await rmdir(retiredRoot()).catch(() => {});
+}
+
+/** Delete retired directories a previous run could not, once nothing can still be putting them back. */
+async function sweepRetired(): Promise<void> {
+	for (const name of await readdir(retiredRoot()).catch((): string[] => [])) {
+		const at = Number(name.split("-")[0]);
+		if (!Number.isFinite(at) || Date.now() - at < SWEEP_AFTER_MS) continue;
+		await rm(join(retiredRoot(), name), { recursive: true, force: true }).catch(() => {});
 	}
 }
 
@@ -329,21 +444,19 @@ async function countSkills(dir: string): Promise<number> {
 }
 
 /**
- * Put each skill directly among the loose skills, prefixed with where it came from.
+ * The skills a collection ships, each to be put directly among the loose skills as `<id>-<name>`.
  *
  * Not nested under a folder named after the collection: `loadSkills` reads one level, so a
  * collection dropped in whole would be invisible. The prefix is what keeps two collections that
  * both ship a `review` from overwriting each other, and it is also the only trace of provenance a
  * flat directory can carry.
  */
-async function moveInto(source: string, root: string, collection: string): Promise<void> {
-	await mkdir(root, { recursive: true });
+async function skillDirs(source: string): Promise<string[]> {
+	const names: string[] = [];
 	for (const item of await readdir(source, { withFileTypes: true })) {
 		if (!item.isDirectory()) continue;
 		const marker = await stat(join(source, item.name, "SKILL.md")).catch(() => null);
-		if (!marker?.isFile()) continue;
-		const target = join(root, `${collection}-${item.name}`);
-		await rm(target, { recursive: true, force: true });
-		await rename(join(source, item.name), target);
+		if (marker?.isFile()) names.push(item.name);
 	}
+	return names;
 }
