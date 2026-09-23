@@ -197,14 +197,19 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 
 		const id = randomUUID();
 		const shell = pickShell(platform, env, find);
-		const child = spawnPty(shell, [], {
-			name: "xterm-256color",
-			cols: Math.max(2, cols),
-			rows: Math.max(2, rows),
-			cwd: dir,
-			// TERM is what makes a shell emit colour and use cursor addressing at all.
-			env: { ...env, TERM: "xterm-256color" } as Record<string, string>,
-		});
+		let child: IPty;
+		try {
+			child = spawnPty(shell, [], {
+				name: "xterm-256color",
+				cols: Math.max(2, cols),
+				rows: Math.max(2, rows),
+				cwd: dir,
+				// TERM is what makes a shell emit colour and use cursor addressing at all.
+				env: { ...env, TERM: "xterm-256color" } as Record<string, string>,
+			});
+		} catch (error) {
+			return openUnavailable(id, dir, attached, error);
+		}
 
 		const live: LiveTerminal = {
 			pty: child,
@@ -236,6 +241,36 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		});
 		terminals.set(id, live);
 		return { id, title: live.title, pid: child.pid, epoch: 1, replay: "" };
+	};
+
+	/**
+	 * A tab for a shell that could not be started, holding the reason.
+	 *
+	 * Throwing from here reached the renderer as a rejected `terminal:open`, which the pane swallows —
+	 * an empty panel and no word of why. The likeliest reason is node-pty itself failing to load
+	 * (see `pty-loader.ts`), and the pane is exactly where someone looking for a terminal will look.
+	 * So the message is written into the tab's scrollback, and the first attach replays it.
+	 *
+	 * It never reports an exit: the renderer removes a tab whose shell exited, message and all. It
+	 * is closed like any other tab, and it counts as a terminal, so `prewarm` does not retry a load
+	 * that has just failed.
+	 */
+	const openUnavailable = (id: string, dir: string, attached: boolean, error: unknown): Attached => {
+		const message = (error instanceof Error ? error.message : String(error)).replace(/\r?\n/g, "\r\n");
+		const text = `\x1b[31m${message}\x1b[0m\r\n`;
+		const live: LiveTerminal = {
+			pty: inertPty(),
+			cwd: dir,
+			title: nextTitle(terminals),
+			attached,
+			scrollback: [text],
+			bytes: text.length,
+			touched: ++clock,
+			epoch: 1,
+			connections: new Map(),
+		};
+		terminals.set(id, live);
+		return { id, title: live.title, pid: 0, epoch: 1, replay: "" };
 	};
 
 	/**
@@ -375,6 +410,26 @@ function retireIdle(terminals: Map<string, LiveTerminal>, keep: string): void {
 		oldest[1].pty.kill();
 		terminals.delete(oldest[0]);
 	}
+}
+
+/** What stands in for a pty that never started: every call the registry makes is a no-op. */
+function inertPty(): IPty {
+	const nothing = { dispose() {} };
+	return {
+		pid: 0,
+		cols: 0,
+		rows: 0,
+		process: "",
+		handleFlowControl: false,
+		onData: () => nothing,
+		onExit: () => nothing,
+		write() {},
+		resize() {},
+		clear() {},
+		kill() {},
+		pause() {},
+		resume() {},
+	} as unknown as IPty;
 }
 
 /**

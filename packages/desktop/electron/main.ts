@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join } from "node:path";
-import { spawn as spawnPty } from "node-pty";
 import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	createContext,
@@ -121,6 +121,25 @@ import { configureNotify } from "./notify.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
 import { nativeTranslator } from "./i18n.ts";
+import { lazyPty } from "./pty-loader.ts";
+
+/*
+ * node-pty, loaded by the first terminal rather than by this file.
+ *
+ * A static import made it part of starting the app, and a `pty.node` built against a newer glibc
+ * than the machine has (Ubuntu 20.04, Debian 11) stopped the main process before any window
+ * existed. Now a failed load is the terminal's problem alone, reported in the terminal pane —
+ * see `pty-loader.ts`. `require` because node-pty is CommonJS and the registry spawns synchronously.
+ */
+const requireNative = createRequire(import.meta.url);
+const spawnPty = lazyPty(
+	() => requireNative("node-pty") as typeof import("node-pty"),
+	(error) => {
+		const reason = (error instanceof Error ? error.message : String(error)).split("\n")[0];
+		console.error("[terminal] node-pty 加载失败:", error);
+		return `${nativeTranslator(settings?.uiLocale ?? "system", app.getLocale())("terminal.unavailable")}\n${reason}`;
+	},
+);
 
 /*
  * A profile is a whole app, Chromium's half included.
