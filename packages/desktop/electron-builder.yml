@@ -198,6 +198,31 @@ linux:
     - AppImage
     - deb
 
+deb:
+  # The oldest glibc this package runs on, stated so apt refuses a machine that cannot load it.
+  #
+  # There was none: electron-builder does not run dpkg-shlibdeps, so the .deb installed on Ubuntu
+  # 20.04 and Debian 11 (glibc 2.31) and then died on startup — `pty.node` is compiled on the
+  # ubuntu-24.04 runner and needs 2.34 (`forkpty`/`openpty` moved into libc in that version).
+  # node-pty is now loaded lazily, so a missing symbol costs only the terminal; the package still
+  # has to tell the truth about what it ships. `scripts/check-glibc.mjs` runs after every Linux
+  # build and fails it when any binary in the package — Electron's own included — needs more than
+  # this. Build the native modules on an older glibc and this can come down; not before.
+  #
+  # `depends` replaces electron-builder's default list rather than adding to it (FpmTarget in
+  # app-builder-lib 26.15.3), so the defaults are repeated here; a test checks none goes missing.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libc6 (>= 2.34)
+
 # The AppImage runtime: the static one, not the legacy FUSE2 one.
 #
 # Left unset this is "0.0.0", the FUSE2 runtime, which needs libfuse2 — and Ubuntu 22.04 and later

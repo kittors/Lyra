@@ -92,6 +92,14 @@ jobs:
           # collected and released once, at the end, from one place.
           GH_TOKEN: ""
 
+      - name: Check the Linux build's glibc floor
+        if: runner.os == 'Linux'
+        # `objdump -T` over every ELF file in the unpacked build, against the `libc6 (>= …)` the
+        # .deb declares. `pty.node` compiled on this runner needs glibc 2.34, and nothing checked:
+        # the package installed on Ubuntu 20.04 and Debian 11 and the app died on startup there.
+        # See `packages/desktop/scripts/check-glibc.mjs`. A check only — it changes nothing it reads.
+        run: node packages/desktop/scripts/check-glibc.mjs
+
       - name: Check the macOS build signed durably
         if: matrix.os == 'macos-latest'
         env:
