@@ -473,13 +473,23 @@ function normalizeServer(
 	config: Record<string, unknown>,
 	pluginDir: string,
 ): McpServerConfig | null {
+	/*
+	 * `${CLAUDE_PLUGIN_ROOT}` is how a bundle written for Claude Code names the files it ships:
+	 * `"args": ["${CLAUDE_PLUGIN_ROOT}/server/index.js"]`. Nothing expanded it, so the server was
+	 * started with that literal text as a path and failed to start. Resolved here, where the bundle's
+	 * directory is known — in the command, the arguments and the env values, which is where Claude
+	 * Code expands it — and absolute, because the server does not run with the bundle as its cwd.
+	 */
+	const root = resolve(pluginDir);
+	const expand = (text: string) => text.replaceAll("${CLAUDE_PLUGIN_ROOT}", root);
+
 	const type = typeof config.type === "string" ? config.type : undefined;
-	const command = typeof config.command === "string" ? config.command : undefined;
+	const command = typeof config.command === "string" ? expand(config.command) : undefined;
 	const url = typeof config.url === "string" ? config.url : undefined;
 
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries((config.env as Record<string, unknown>) ?? {})) {
-		if (typeof value === "string") env[key] = value;
+		if (typeof value === "string") env[key] = expand(value);
 	}
 
 	if (command || type === "stdio") {
@@ -490,7 +500,7 @@ function normalizeServer(
 			transport: "stdio",
 			// A relative command is resolved against the plugin so bundled binaries work.
 			command: command.startsWith(".") ? join(pluginDir, command) : command,
-			args: Array.isArray(config.args) ? config.args.filter((a): a is string => typeof a === "string") : [],
+			args: Array.isArray(config.args) ? config.args.filter((a): a is string => typeof a === "string").map(expand) : [],
 			env,
 			enabled: true,
 		};
