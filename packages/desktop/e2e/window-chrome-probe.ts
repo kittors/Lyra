@@ -333,7 +333,8 @@ const PATCHES: { file: string; from: string; to: string }[] = [
 	{
 		file: "src/app/layout.tsx",
 		from: '() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved, !onPhone()),',
-		to: `() => titlebarInsets("win32", nativeFullScreen, ${WIN_OVERLAY_PX}, !onPhone()),`,
+		// Windows' own buttons sit at the right end only; see `overlayReserved`.
+		to: `() => titlebarInsets("win32", nativeFullScreen, { start: 0, end: ${WIN_OVERLAY_PX} }, !onPhone()),`,
 	},
 	{
 		file: "electron/window.ts",

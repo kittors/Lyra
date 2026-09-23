@@ -25,7 +25,7 @@ import { macKeyboard } from "../../ui/keyboard.ts";
  * and Alt there is worse than unfamiliar: several window managers take Alt+drag for themselves and
  * move the whole window instead, so the drop never arrives.
  */
-export function copiesOnDrop(held: { altKey: boolean; ctrlKey: boolean }, platform = navigator.platform): boolean {
+function copiesOnDrop(held: { altKey: boolean; ctrlKey: boolean }, platform = navigator.platform): boolean {
 	return macKeyboard(platform) ? held.altKey : held.ctrlKey;
 }
 
