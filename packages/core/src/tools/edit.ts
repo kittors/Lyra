@@ -266,7 +266,13 @@ function applyStringForm(
 		};
 	}
 
-	const after = args.replace_all ? before.split(args.old_string).join(args.new_string) : before.replace(args.old_string, args.new_string);
+	/*
+	 * A function, not the string itself, as the replacement: a string replacement reads `$$`, `$&`,
+	 * `` $` `` and `$'` as patterns, so shell and template code in `new_string` was rewritten on the
+	 * way in (`$$` lost a dollar, `$&` turned into the matched text).
+	 */
+	const replacement = args.new_string;
+	const after = args.replace_all ? before.split(args.old_string).join(replacement) : before.replace(args.old_string, () => replacement);
 	const count = args.replace_all ? occurrences : 1;
 	return { after, summary: `${count} replacement${count === 1 ? "" : "s"}` };
 }
