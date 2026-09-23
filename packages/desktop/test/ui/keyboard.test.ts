@@ -7,6 +7,8 @@ test("Windows shortcut labels name keys on its keyboard, preserving ordinary cop
 		["隐藏侧边栏 ⌘B", "隐藏侧边栏 Ctrl+B"], ["Git ⌘⇧R", "Git Ctrl+Shift+R"],
 		["⌥⌘P", "Ctrl+Alt+P"], ["终端 ⌃`", "终端 Ctrl+`"], ["⌘⌫", "Ctrl+Backspace"],
 		["或 ⌥ 加方向键", "或 Alt 加方向键"], ["128K", "128K"],
+		// The commit dialog's hint: a PC keyboard's key says "Enter", not a Mac return arrow.
+		["⌘↩", "Ctrl+Enter"],
 	]) {
 		assert.equal(shortcutLabel(input, "Win32"), expected);
 		assert.equal(shortcutLabel(input, "MacIntel"), input);

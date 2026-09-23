@@ -32,6 +32,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { shortcutLabel } from "../../ui/keyboard.ts";
 
 import type { Tool } from "./annotate.ts";
 import { COLOURS, type Annotator } from "./Annotator.tsx";
@@ -706,7 +707,8 @@ function ToolButton({
 			// Above: the bar sits at the bottom of the window, so a bubble below it would be off screen
 			// and get flipped anyway. Saying so directly avoids the flip.
 			data-ly-tip-side="top"
-			aria-label={label}
+			// The tooltip converts ⌘ on display; the accessible name is read straight off this.
+			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
 			disabled={disabled}
 			onClick={onClick}

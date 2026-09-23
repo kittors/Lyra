@@ -17,6 +17,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { AnnotateToolbar, FLOATING_BAR } from "../../src/features/image/AnnotateToolbar.tsx";
 import { useAnnotator } from "../../src/features/image/Annotator.tsx";
+import { withKeyboard } from "../helpers/keyboard.ts";
 
 // These tests mount an empty annotator; happy-dom has no decoded bitmap constructor.
 // oxlint-disable-next-line typescript/no-extraneous-class -- Only an instanceof target is needed; no bitmap is constructed.
@@ -96,4 +97,38 @@ test("saving an image copy still uses a download arrow without a separate downlo
 		await act(async () => root.unmount());
 		host.remove();
 	}
+});
+
+/** Mount the bar with an empty drawing and hand the host to `check`, unmounting whatever happens. */
+async function withToolbar(check: (host: HTMLElement) => Promise<void> | void) {
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	function Toolbar() {
+		return createElement(AnnotateToolbar, {
+			annotator: useAnnotator(null), canReplace: false, requireDirty: false,
+			onCancel: () => {}, onSave: () => {},
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		await check(host);
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
+}
+
+test("undo and redo name a PC's keys to a screen reader too, not only in the tooltip", async () => {
+	// The tooltip converts on display (`tooltip.ts`); the accessible name is read straight off the
+	// attribute, so a Windows screen reader announced "⌘Z".
+	await withKeyboard("Win32", () =>
+		withToolbar((host) => {
+			assert.equal(host.querySelector("button:has(.lucide-undo-2)")?.getAttribute("aria-label"), "撤销 Ctrl+Z");
+			assert.equal(host.querySelector("button:has(.lucide-redo-2)")?.getAttribute("aria-label"), "重做 Ctrl+Shift+Z");
+		}),
+	);
+	await withToolbar((host) => {
+		assert.equal(host.querySelector("button:has(.lucide-undo-2)")?.getAttribute("aria-label"), "撤销 ⌘Z");
+	});
 });

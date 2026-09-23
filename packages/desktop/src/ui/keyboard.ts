@@ -3,6 +3,9 @@ export function macKeyboard(platform = navigator.platform): boolean {
 	return /Mac|iPhone|iPad|iPod|darwin/i.test(platform);
 }
 
+/** Mac key glyphs that a PC keyboard prints as a word. */
+const KEY_NAMES: Record<string, string> = { "⌫": "Backspace", "↩": "Enter" };
+
 /** Existing UI copy uses compact Mac notation; other keyboards need named modifiers. */
 export function shortcutLabel(text: string, platform = navigator.platform): string {
 	if (macKeyboard(platform)) return text;
@@ -11,7 +14,7 @@ export function shortcutLabel(text: string, platform = navigator.platform): stri
 		if (/[⌘⌃]/.test(modifiers)) parts.push("Ctrl");
 		if (modifiers.includes("⌥")) parts.push("Alt");
 		if (modifiers.includes("⇧")) parts.push("Shift");
-		if (key) parts.push(key === "⌫" ? "Backspace" : key);
+		if (key) parts.push(KEY_NAMES[key] ?? key);
 		return parts.join("+");
 	});
 }
