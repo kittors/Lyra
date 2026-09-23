@@ -18,6 +18,7 @@ import { Worker } from "node:worker_threads";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { withoutBom } from "../utils/bom.ts";
 import { FAILURE_LIMIT, HANDLER_TIMEOUT_MS, validateManifest, type ExtensionDiagnostic, type ExtensionEvent, type ExtensionManifest, type ExtensionReply, type ExtensionStats } from "./types.ts";
 
 interface Pending {
@@ -103,7 +104,8 @@ export class ExtensionHost {
 
 		let parsed: unknown;
 		try {
-			parsed = JSON.parse(raw);
+			// A manifest saved as "UTF-8 with BOM" is still the same manifest; see `withoutBom`.
+			parsed = JSON.parse(withoutBom(raw));
 		} catch (error) {
 			this.diagnostics.push({ extension: dir, message: `清单不是合法的 JSON：${error instanceof Error ? error.message : String(error)}`, severity: "error" });
 			return false;
