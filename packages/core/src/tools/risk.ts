@@ -3,6 +3,7 @@ import { withinOrIs } from "../platform.ts";
 import { SAFE, risky, scratchRoots, underScratchRoot, wipesScratchRoot, type RiskVerdict } from "./risk-shared.ts";
 import {
 	COMMAND_PREFIXES,
+	FETCHERS,
 	INTERPRETERS,
 	NEVER_UNATTENDED,
 	PLACES_FILES,
@@ -35,8 +36,23 @@ import { pipelines, splitCommands, splitWords } from "./shell-split.ts";
 function firstWord(command: string): string {
 	// Leading `VAR=value` assignments are not the program being run.
 	const program = command.split(/\s+/).find((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
-	return (program ?? "").replace(/^.*\//, "");
+	// `C:\Windows\System32\format.com` and `rm.exe` are `format` and `rm`.
+	return (program ?? "").replace(/^.*[\\/]/, "").replace(/\.(exe|cmd|bat|com)$/i, "");
 }
+
+/** A table lookup that also accepts Windows' case-insensitive spelling of the name. */
+function lookup<T>(table: Map<string, T>, name: string): T | undefined {
+	return table.get(name) ?? table.get(name.toLowerCase());
+}
+
+/** Absolute on either platform's terms: `/x`, `\x`, `C:\x`, `C:/x`, Git Bash's `/c/x`. */
+const absoluteAnywhere = (path: string) => isAbsolute(path) || /^([A-Za-z]:[\\/]|[\\/])/.test(path);
+
+/** `..` as a path segment, whichever separator wrote it. */
+const climbsOut = (path: string) => path.split(/[\\/]/).includes("..");
+
+/** PowerShell's and cmd's delete commands, lower-cased. `rm` is judged by the POSIX rule. */
+const WINDOWS_DELETERS = new Set(["remove-item", "ri", "del", "erase", "rd", "rmdir"]);
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
@@ -52,7 +68,24 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 function wrappedCommand(command: string): string | null {
 	const words = splitWords(command);
 	if (words.length < 2) return null;
-	const head = words[0].replace(/^.*\//, "");
+	const head = words[0].replace(/^.*[\\/]/, "").replace(/\.exe$/i, "");
+	const lower = head.toLowerCase();
+
+	/*
+	 * PowerShell takes its command after `-Command` (any unambiguous prefix, any case), or base64
+	 * of UTF-16 after `-EncodedCommand` — which is exactly how a command hides from a reader, so it
+	 * is decoded and judged. cmd takes the rest of the line after `/c` or `/k`.
+	 */
+	if (lower === "powershell" || lower === "pwsh") {
+		const encoded = words.findIndex((word, index) => index > 0 && /^-e(c|nc|ncodedcommand)?$/i.test(word));
+		if (encoded !== -1 && words[encoded + 1]) return Buffer.from(words[encoded + 1], "base64").toString("utf16le");
+		const at = words.findIndex((word, index) => index > 0 && /^-c(o(m(m(a(n(d)?)?)?)?)?)?$/i.test(word));
+		return at === -1 || at + 1 >= words.length ? null : words.slice(at + 1).join(" ");
+	}
+	if (lower === "cmd") {
+		const at = words.findIndex((word, index) => index > 0 && /^\/[ck]$/i.test(word));
+		return at === -1 || at + 1 >= words.length ? null : words.slice(at + 1).join(" ");
+	}
 
 	// A shell takes its command as one string, after `-c`. `-lc`, `-ec` and friends count.
 	if (SHELLS.has(head)) {
@@ -136,8 +169,35 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 	const head = firstWord(command);
 	if (!head) return SAFE;
 
-	const never = NEVER_UNATTENDED.get(head);
+	const never = lookup(NEVER_UNATTENDED, head);
 	if (never) return risky(never);
+
+	/*
+	 * PowerShell's and cmd's recursive deletes, by the same rule as `rm -r` below.
+	 *
+	 * `-Recurse` may be abbreviated to any unambiguous prefix down to `-r`, in any case; cmd spells
+	 * it `/s`. Targets are judged the same way: a home or absolute path, `.`, anything climbing out
+	 * with `..` — either separator — or a chain that has left the workspace, asks.
+	 */
+	if (WINDOWS_DELETERS.has(head.toLowerCase())) {
+		const recursive = /(^|\s)-r(e(c(u(r(s(e)?)?)?)?)?)?(\s|:|$)/i.test(command) || /(^|\s)\/s(\s|$)/i.test(command);
+		if (recursive) {
+			const targets = splitWords(command)
+				.slice(1)
+				.filter((word) => !word.startsWith("-") && !/^\/[a-z]$/i.test(word));
+			const reckless = targets.some(
+				(t) => !t || t.startsWith("~") || t === "." || t === ".." || bareGlob(t.replaceAll("\\", "/")) || absoluteAnywhere(t),
+			);
+			if (targets.length === 0 || reckless || targets.some(climbsOut) || !contained) return risky("递归删除目录");
+		}
+	}
+
+	// `iex (irm https://…)`: the download-and-run without a pipe for the pipeline rule to see.
+	if (/\b(iex|invoke-expression)\b/i.test(command) && /\b(irm|iwr|invoke-(webrequest|restmethod)|downloadstring|net\.webclient)\b/i.test(command)) {
+		return risky("下载并直接执行脚本");
+	}
+	// `Start-Process … -Verb RunAs` is Windows' `sudo`.
+	if (head.toLowerCase() === "start-process" && /-verb\s+['"]?runas\b/i.test(command)) return risky("以管理员身份执行");
 
 	// `rm` is the one worth reading closely: removing a file is routine, removing a tree is not.
 	if (head === "rm") {
@@ -164,7 +224,7 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 					wipesScratchRoot(t, cwd) ||
 					(isAbsolute(t) && !underScratchRoot(t, cwd)),
 			);
-			const climbs = targets.some((t) => t.split("/").includes(".."));
+			const climbs = targets.some(climbsOut);
 			if (targets.length === 0 || reckless || climbs || !contained) return risky("递归删除目录");
 		}
 		/*
@@ -201,9 +261,9 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 		return SAFE;
 	}
 
-	const table = RISKY_SUBCOMMANDS.get(head);
+	const table = lookup(RISKY_SUBCOMMANDS, head);
 	if (table) {
-		const reason = table.get(command.split(/\s+/)[1] ?? "");
+		const reason = lookup(table, command.split(/\s+/)[1] ?? "");
 		if (reason) return risky(reason);
 	}
 
@@ -221,7 +281,7 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 	if (/>\s*[^&\s]/.test(command) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
 	if (/>\s*~?\/?\.(zshrc|bashrc|profile|zprofile)\b/.test(command)) return risky("修改 shell 启动文件");
 	// And the same destination reached without one: `cp payload /usr/local/bin/git`.
-	if (PLACES_FILES.has(head) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
+	if ((PLACES_FILES.has(head) || PLACES_FILES.has(head.toLowerCase())) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
 
 	/*
 	 * A local file going out over the network.
@@ -265,9 +325,9 @@ export function assessCommand(command: string, cwd?: string, depth = 0): RiskVer
 	 */
 	for (const stages of pipelines(command)) {
 		const heads = stages.map((stage) => firstWord(stage));
-		const fetched = heads.findIndex((head) => head === "curl" || head === "wget" || head === "fetch");
+		const fetched = heads.findIndex((head) => FETCHERS.has(head.toLowerCase()));
 		if (fetched === -1) continue;
-		const ran = heads.findIndex((head, index) => index > fetched && INTERPRETERS.has(head));
+		const ran = heads.findIndex((head, index) => index > fetched && (INTERPRETERS.has(head) || INTERPRETERS.has(head.toLowerCase())));
 		if (ran !== -1) return risky("下载并直接执行脚本");
 	}
 

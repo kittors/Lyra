@@ -16,7 +16,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { assessRead, commandReadTargets, readGrantRoot, toAbsolute } from "../src/tools/read-access.ts";
+import { assessRead, authorizeCommandReads, commandReadTargets, readGrantRoot, toAbsolute, windowsSpelling } from "../src/tools/read-access.ts";
 import { bashTool, isReadOnlyCommand } from "../src/tools/bash.ts";
 import { readTool } from "../src/tools/read.ts";
 import { lsTool } from "../src/tools/ls.ts";
@@ -385,6 +385,34 @@ test("toAbsolute leaves a workspace-relative path where it belongs", () => {
 	assert.equal(toAbsolute(WS, "~/x"), join(HOME, "x"));
 	assert.equal(toAbsolute(WS, "/etc/hosts"), resolve("/etc/hosts"));
 	assert.ok(CWD.length > 0);
+});
+
+test("a Windows shell's spellings are the Windows paths they name", () => {
+	const home = "C:\\Users\\me";
+	const temp = "C:\\Users\\me\\AppData\\Local\\Temp";
+	// Git Bash: `/c/...` is drive C. Read by Node it was `C:\c\...`, which does not exist.
+	assert.equal(windowsSpelling("/c/Users/me/.ssh/id_ed25519", home, temp), "C:\\Users\\me\\.ssh\\id_ed25519");
+	assert.equal(windowsSpelling("/cygdrive/d/work/x", home, temp), "D:\\work\\x");
+	assert.equal(windowsSpelling("/c", home, temp), "C:\\");
+	assert.equal(windowsSpelling("/tmp/a/b", home, temp), `${temp}\\a\\b`);
+	// PowerShell's home.
+	assert.equal(windowsSpelling("~\\Documents\\x", home, temp), "C:\\Users\\me\\Documents\\x");
+	// A one-letter directory is a drive only at the root, and anything else is left alone.
+	assert.equal(windowsSpelling("/cc/x", home, temp), "/cc/x");
+	assert.equal(windowsSpelling("/usr/bin/git", home, temp), "/usr/bin/git");
+	assert.equal(windowsSpelling("src/c/x", home, temp), "src/c/x");
+});
+
+test("a credential is asked about even where the path does not seem to exist", async () => {
+	/*
+	 * "Not there" is only as good as the path resolved: a spelling this code could not read made a
+	 * real key look absent, and absent was a reason not to ask. For a key, it no longer is.
+	 */
+	const ctx: ToolContext = { cwd: WS, sessionId: "t", state: new Map() };
+	const refusal = await authorizeCommandReads(`cat ${join(HOME, ".ssh", `id_lyra_absent_${process.pid}`)}`, ctx);
+	assert.ok(refusal, "a credential path must be put to a person, and there is none here");
+	// An ordinary path that does not exist is still not a question.
+	assert.equal(await authorizeCommandReads(`cat ${join(HOME, `lyra-absent-${process.pid}.txt`)}`, ctx), null);
 });
 
 test("a path spelled with backslashes is the path bash opens", () => {

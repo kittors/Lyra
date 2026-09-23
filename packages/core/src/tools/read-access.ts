@@ -122,8 +122,29 @@ function isInstalledSkillFile(absolute: string, homeDir: string): boolean {
 
 /** `~/x` as an absolute path, and anything already absolute resolved against the session's cwd. */
 export function toAbsolute(cwd: string, input: string): string {
-	const expanded = input.startsWith("~/") || input === "~" ? input.replace("~", home()) : input;
+	const native = process.platform === "win32" ? windowsSpelling(input, home(), tmpdir()) : input;
+	const expanded = native.startsWith("~/") || native === "~" ? native.replace("~", home()) : native;
 	return isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
+}
+
+/**
+ * A path as a Windows shell spelled it, as the Windows path it names.
+ *
+ * On Windows the agent's commands run in Git Bash, which reads `/c/Users/me` as `C:\Users\me` and
+ * `/tmp` as the user's temp directory. Node reads the same strings as `C:\c\Users\me` and `C:\tmp`
+ * — paths that do not exist, and a path that does not exist is not asked about (`worthAsking`).
+ * So `cat /c/Users/me/.ssh/id_ed25519` read the key without a question. `~\` is PowerShell's
+ * spelling of the home directory, which only `~/` was expanded for.
+ *
+ * Pure, with the home and temp directories handed in, so it can be tested on any platform.
+ */
+export function windowsSpelling(input: string, homeDir: string, tempDir: string): string {
+	const drive = /^(?:\/cygdrive)?\/([a-zA-Z])(?=\/|$)(.*)$/.exec(input);
+	if (drive) return `${drive[1].toUpperCase()}:\\${drive[2].replace(/^\//, "").replaceAll("/", "\\")}`;
+	const temp = /^\/tmp(?=\/|$)(.*)$/.exec(input);
+	if (temp) return `${tempDir}${temp[1].replaceAll("/", "\\")}`;
+	if (input === "~" || input.startsWith("~\\")) return `${homeDir}${input.slice(1)}`;
+	return input;
 }
 
 /**
@@ -296,7 +317,7 @@ export async function authorizeRead(
 		projectRoots: ctx.projectRoots,
 		allowSkillReads: options.allowSkillReads,
 	});
-	if (verdict.decision === "allow" || !worthAsking(absolute)) return { ok: true, absolute };
+	if (verdict.decision === "allow" || !worthAsking(absolute, verdict)) return { ok: true, absolute };
 
 	const approved = await askForRead(ctx, absolute, verdict);
 	return approved.ok ? { ok: true, absolute } : approved;
@@ -313,8 +334,14 @@ export async function authorizeRead(
  *
  * The race this ignores (absent when judged, present when opened) needs someone to win a
  * millisecond-wide window on the user's own machine, which is not the threat this boundary is for.
+ *
+ * A credential is asked about whether or not it seems to be there. "Not there" is only as good as
+ * the path this code resolved, and a shell can spell a path this code does not know how to read —
+ * Git Bash's `/c/Users/…` was one, and it turned the rule into a way around itself. For a key the
+ * cost of one needless question is nothing next to that.
  */
-function worthAsking(absolute: string): boolean {
+function worthAsking(absolute: string, verdict: ReadVerdict): boolean {
+	if (verdict.decision === "ask" && verdict.scope === "file") return true;
 	return existsSync(absolute);
 }
 
@@ -349,7 +376,7 @@ export async function authorizeCommandReads(command: string, ctx: ToolContext): 
 			projectRoots: ctx.projectRoots,
 			allowSkillReads: true,
 		});
-		if (verdict.decision === "allow" || !worthAsking(absolute)) continue;
+		if (verdict.decision === "allow" || !worthAsking(absolute, verdict)) continue;
 		const grant = grantFor(absolute, verdict);
 		if (!asked.has(grant)) asked.set(grant, { absolute, verdict });
 	}

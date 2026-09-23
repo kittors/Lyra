@@ -27,6 +27,25 @@ export const NEVER_UNATTENDED = new Map<string, string>([
 	["systemctl", "改动系统服务"],
 	["crontab", "改动定时任务"],
 	["killall", "批量结束进程"],
+	/*
+	 * Windows' spellings of the same things, lower-cased: PowerShell and cmd do not care about
+	 * case, so the lookup does not either. They matter where the agent's shell is PowerShell — a
+	 * Windows without Git — and they were absent, so `Format-Volume` was as safe as `ls`.
+	 */
+	["format", "格式化磁盘"],
+	["format-volume", "格式化磁盘"],
+	["diskpart", "修改磁盘分区"],
+	["clear-disk", "清空磁盘"],
+	["initialize-disk", "修改磁盘分区"],
+	["remove-partition", "修改磁盘分区"],
+	["stop-computer", "关机或重启"],
+	["restart-computer", "关机或重启"],
+	["set-executionpolicy", "改动系统的脚本执行策略"],
+	["takeown", "更改文件归属"],
+	["bcdedit", "改动系统启动配置"],
+	["vssadmin", "改动系统卷影副本"],
+	["wevtutil", "改动系统事件日志"],
+	["cipher", "可能不可恢复地擦除数据"],
 ]);
 
 /** Subcommands that discard work or rewrite shared history. */
@@ -47,10 +66,16 @@ export const RISKY_SUBCOMMANDS = new Map<string, Map<string, string>>([
 	["yarn", new Map([["publish", "发布到公共仓库"]])],
 	["docker", new Map([["system", "可能清理镜像与卷"]])],
 	["kubectl", new Map([["delete", "删除集群资源"]])],
+	// Windows: registry, scheduled tasks, services and the firewall, by their first argument.
+	["reg", new Map([["delete", "修改注册表"], ["add", "修改注册表"], ["import", "修改注册表"], ["restore", "修改注册表"]])],
+	["schtasks", new Map([["/create", "改动计划任务"], ["/delete", "改动计划任务"], ["/change", "改动计划任务"]])],
+	["sc", new Map([["delete", "改动系统服务"], ["create", "改动系统服务"], ["config", "改动系统服务"]])],
+	["netsh", new Map([["advfirewall", "改动防火墙配置"], ["firewall", "改动防火墙配置"]])],
 ]);
 
 /** Paths that are never the project, so writing to them is out of scope by definition. */
-export const PROTECTED_PATH = /(^|\s)(\/(bin|sbin|usr|etc|var|System|Library|Applications)\b|~\/\.(ssh|aws|gnupg|config\/gh)\b)/;
+export const PROTECTED_PATH =
+	/(^|\s|['"])(\/(bin|sbin|usr|etc|var|System|Library|Applications)\b|~\/\.(ssh|aws|gnupg|config\/gh)\b|[A-Za-z]:[\\/](Windows|Program Files|ProgramData)\b|\/[a-z]\/(Windows|Program Files|ProgramData)\b)/i;
 
 /**
  * Programs that put a file somewhere, as opposed to a shell redirect.
@@ -73,6 +98,18 @@ export const PLACES_FILES = new Set([
 	"touch",
 	"unzip",
 	"tar",
+	// PowerShell and cmd, lower-cased as the lookup is.
+	"copy",
+	"xcopy",
+	"robocopy",
+	"move",
+	"copy-item",
+	"move-item",
+	"new-item",
+	"set-content",
+	"add-content",
+	"out-file",
+	"rename-item",
 ]);
 
 /**
@@ -101,7 +138,7 @@ export const SECRET_PATH =
  * Named here rather than inline because two rules need the same list: "what does `bash -c` run"
  * and "what is on the far end of a `curl … |`".
  */
-export const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
+export const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "powershell", "pwsh", "cmd"]);
 
 /** Anything that runs code it is given, for the pipe-into-interpreter rule. */
 export const INTERPRETERS = new Set([
@@ -120,7 +157,13 @@ export const INTERPRETERS = new Set([
 	"lua",
 	"awk",
 	"tclsh",
+	// PowerShell's own: what `irm url | iex` hands the download to.
+	"iex",
+	"invoke-expression",
 ]);
+
+/** PowerShell's `curl` and `wget`, lower-cased, for the same rule. */
+export const FETCHERS = new Set(["curl", "wget", "fetch", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"]);
 
 /**
  * Programs whose argument list is another command, once their own options are out of the way.
