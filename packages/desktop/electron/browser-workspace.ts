@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { webContents, type BrowserWindow, type WebContents } from "electron";
+import { nativeImage, webContents, type BrowserWindow, type NativeImage, type WebContents } from "electron";
 import { browserUrl, browserViewport, browserZoom, type BrowserCommand, type BrowserPointer, type BrowserState, type BrowserTab } from "../shared/browser.ts";
 import { eachAppWindow } from "./window.ts";
 
@@ -67,7 +67,16 @@ function refresh(tab: Tab): void {
 	publish();
 }
 
-export async function openBrowser(url: string, sessionId: string | null, newTab = false): Promise<string> {
+/**
+ * Load a page into this conversation's current tab, or into a new one.
+ *
+ * `reveal` is whether the panel comes forward for it, and only a person asks for that: the address
+ * bar, a bookmark, a preview link. An agent opening a page to debug it used to pull the panel over
+ * the conversation, and then again on every click it made there (`selectBrowser`), even after it
+ * had just been closed. Its pages load and run the same either way — the panel is kept mounted
+ * while closed, see `DockView` — and the conversation shows a card to open them from.
+ */
+export async function openBrowser(url: string, sessionId: string | null, newTab = false, reveal = true): Promise<string> {
 	const location = browserUrl(url);
 	const current = tabs.get(activeBySession.get(sessionKey(sessionId)) ?? "");
 	const existing = !newTab && current?.state.sessionId === sessionId ? current : undefined;
@@ -78,7 +87,7 @@ export async function openBrowser(url: string, sessionId: string | null, newTab 
 		// screen, and `readyBrowser` below would wait out its full timeout for a page nobody built.
 		existing.state.wanted = true;
 		selectTab(existing);
-		publish(true);
+		publish(reveal);
 		const contents = await readyBrowser(existing);
 		await contents.loadURL(location);
 		return existing.state.id;
@@ -93,7 +102,7 @@ export async function openBrowser(url: string, sessionId: string | null, newTab 
 	const tab: Tab = { resolve, reject, ready, state: { id, sessionId, url: location, title: "新标签页", loading: true, canGoBack: false, canGoForward: false, zoom: browserZoom(preferences().defaultZoom ?? 1), viewport: null, wanted: true } };
 	tabs.set(id, tab);
 	selectTab(tab);
-	publish(true);
+	publish(reveal);
 	await readyBrowser(tab);
 	return id;
 }
@@ -131,8 +140,9 @@ export function attachBrowser(id: string, contentsId: number, sender: WebContent
 	contents.on("will-redirect", (event, next) => {
 		try { browserUrl(next); } catch { event.preventDefault(); }
 	});
+	// A page opening a window is not a person asking to look — least of all a page an agent is clicking through.
 	contents.setWindowOpenHandler(({ url: next }) => {
-		void openBrowser(next, tab.state.sessionId, true).catch((error: unknown) => { tab.state.error = String(error); publish(); });
+		void openBrowser(next, tab.state.sessionId, true, false).catch((error: unknown) => { tab.state.error = String(error); publish(); });
 		return { action: "deny" };
 	});
 	contents.setZoomFactor(tab.state.zoom);
@@ -160,8 +170,8 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
 	}
 	const contents = await awakeBrowser(command.id);
 	switch (command.type) {
-		// Chromium shares zoom by origin; restore this tab's preference when bringing it forward.
-		case "select": selectTab(tab); contents.setZoomFactor(tab.state.zoom); fitViewport(tab); publish(true); break;
+		// From the renderer, which means a person picked it.
+		case "select": await selectBrowser(command.id, true); break;
 		case "back": if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack(); break;
 		case "forward": if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward(); break;
 		case "reload": tab.state.error = undefined; contents.reload(); break;
@@ -177,6 +187,23 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
 	publish();
 	return browserState();
 }
+/**
+ * Make a tab its conversation's current one.
+ *
+ * `reveal` as in `openBrowser`. An agent selects a tab before every action it takes in it, so this
+ * is the path that brought a closed panel back on each click.
+ */
+export async function selectBrowser(id: string, reveal: boolean): Promise<void> {
+	const tab = tabs.get(id);
+	if (!tab) throw new Error("浏览器标签已关闭");
+	const contents = await awakeBrowser(id);
+	selectTab(tab);
+	// Chromium shares zoom by origin; restore this tab's preference when bringing it forward.
+	contents.setZoomFactor(tab.state.zoom);
+	fitViewport(tab);
+	publish(reveal);
+}
+
 /** Pointer coordinates belong to the tab, so navigation and page top layers cannot erase them. */
 export function pointBrowser(id: string, point: Omit<BrowserPointer, "sequence">): void {
 	const tab = tabs.get(id);
@@ -213,3 +240,61 @@ function fitViewport(tab: Tab): void {
 	else contents.disableDeviceEmulation();
 }
 export function browserScale(id: string): number { return tabs.get(id)?.scale ?? 1; }
+
+/** The card's picture: pixels across (its 420 CSS pixels on a 2× screen), and its shape — the top of the page. */
+const THUMB_WIDTH = 840;
+const THUMB_RATIO = 0.5;
+
+/**
+ * The top of what a tab shows, small, as JPEG — the picture on the conversation's browser card.
+ *
+ * `capturePage` takes its rectangle in the page's CSS pixels and hands back device pixels; `resize`
+ * then counts output pixels. So the crop is asked for in the one and the width given in the other.
+ * `null` for a tab with no page behind it: a picture is not worth waking a sleeping page for.
+ */
+export async function browserThumbnail(id: string): Promise<Buffer | null> {
+	const tab = tabs.get(id);
+	const contents = tab?.contents;
+	if (!tab?.size || !contents || contents.isDestroyed()) return null;
+	const width = Math.round(tab.size.width);
+	const height = Math.round(Math.min(tab.size.height, tab.size.width * THUMB_RATIO));
+	if (width <= 0 || height <= 0) return null;
+	const image = await contents.capturePage({ x: 0, y: 0, width, height });
+	if (image.isEmpty()) return null;
+	return onWhite(image.resize({ width: THUMB_WIDTH, quality: "good" })).toJPEG(72);
+}
+
+/**
+ * A capture flattened onto white — the canvas any browser draws under a page.
+ *
+ * A guest paints nothing where its page sets no background; on screen the `<webview>`'s white shows
+ * through, but a capture is of the guest alone. On a page with no background of its own, 98% of what
+ * `capturePage` returned was transparent: black once a thumbnail was made a JPEG, and a backdrop the
+ * model could only guess at behind a screenshot's text — whose antialiased edges are themselves
+ * half-transparent. Done on the pixels rather than by giving the page a background, so what an agent
+ * reads from the page, its computed styles included, stays the page's own.
+ *
+ * `toBitmap` is premultiplied, so the white that shows through is added to each channel as it is;
+ * clamped all the same, since the layout is the platform's to choose. The pixel size is read off the
+ * buffer, because which of pixels or points `getSize` reports is not something the API promises.
+ */
+export function onWhite(image: NativeImage): NativeImage {
+	const scaleFactor = Math.max(1, ...image.getScaleFactors());
+	const size = image.getSize(scaleFactor);
+	const pixels = image.toBitmap({ scaleFactor });
+	const scale = Math.round(Math.sqrt(pixels.length / 4 / Math.max(1, size.width * size.height))) || 1;
+	const width = size.width * scale;
+	const height = size.height * scale;
+	if (width * height * 4 !== pixels.length) return image;
+	let clear = false;
+	for (let alpha = 3; alpha < pixels.length; alpha += 4) {
+		const through = 255 - pixels[alpha];
+		if (through === 0) continue;
+		clear = true;
+		pixels[alpha - 3] = Math.min(255, pixels[alpha - 3] + through);
+		pixels[alpha - 2] = Math.min(255, pixels[alpha - 2] + through);
+		pixels[alpha - 1] = Math.min(255, pixels[alpha - 1] + through);
+		pixels[alpha] = 255;
+	}
+	return clear ? nativeImage.createFromBitmap(pixels, { width, height, scaleFactor: scale }) : image;
+}

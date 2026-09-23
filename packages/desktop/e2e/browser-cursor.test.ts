@@ -46,6 +46,16 @@ before(async () => {
 	const point = await app.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-ly-row="qa-short"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 	await app.send("Input.dispatchMouseEvent", {type:"mousePressed",button:"left",clickCount:1,...point});
 	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased",button:"left",clickCount:1,...point});
+	/*
+	 * What this file measures is the agent's pointer as seen by someone watching the panel — so that
+	 * person opens it first. An agent no longer opens the panel for its own pages (see `openBrowser`),
+	 * and never closes it either, so once is enough for every case below.
+	 */
+	await app.evaluate(`new Promise((resolve,reject)=>{let n=1800;const f=()=>{if(document.querySelector('textarea[aria-label="消息"]'))resolve();else if(--n)requestAnimationFrame(f);else reject(new Error('conversation did not open'));};f();})`);
+	const toggle = await app.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-ly-panel-quick] button[aria-label^="浏览器"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+	await app.send("Input.dispatchMouseEvent", {type:"mousePressed",button:"left",clickCount:1,...toggle});
+	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased",button:"left",clickCount:1,...toggle});
+	await app.evaluate(`new Promise((resolve,reject)=>{let n=600;const f=()=>{const pane=document.querySelector('[data-dock-pane="browser"]');if(pane&&!pane.hasAttribute('inert'))resolve();else if(--n)requestAnimationFrame(f);else reject(new Error('browser panel did not open'));};f();})`);
 });
 after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });
 

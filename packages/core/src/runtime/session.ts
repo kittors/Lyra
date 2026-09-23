@@ -217,7 +217,7 @@ export class AgentSession {
 	/** Load skills, agents and MCP tools. Safe to call again after settings change. */
 	async initialize(): Promise<void> {
 		if (!this.log.meta) {
-			this.log.meta = await this.store.create(this.cwd, this.settings.defaultModelId ?? "");
+			this.log.meta = await this.store.create(this.cwd, this.settings.defaultModelId ?? "", undefined, { thinking: this.settings.thinking });
 		}
 		await this.applyProjectConfig();
 		await this.can.load(this.cwd, this.settings);

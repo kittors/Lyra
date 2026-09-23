@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS, SessionStore, AgentSession, type AgentEvent } from "@lyra/core";
 import { createStoredSession } from "../electron/create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "../electron/prompt-input.ts";
+import { sessionThinking } from "../src/lib/thinking.ts";
 
 test("opening submissions have durable distinct identities before any runtime is initialized", async () => {
 	const root = await mkdtemp(join(tmpdir(), "lyra-create-"));
@@ -154,4 +155,29 @@ test("the same rule covers a session opened by a paired client", () => {
 
 	assert.equal(initialPrompt(initial)?.attachments?.[0].path, "/etc/passwd");
 	assert.equal(initialPrompt(initial, "remote")?.attachments?.[0].path, undefined);
+});
+
+/*
+ * 0.9.19 客户报的那一串：新对话里先把等级调成「高」，发第一句建出对话 a；再开一个新对话调成「中」——
+ * 那时还没有会话可写，只能落在全局默认上——回到 a，a 也成了「中」，标签和真正发给模型的都是。
+ *
+ * 断在 a 的记录上：界面读的 `sessionThinking` 和发请求的 `thinkingFor` 都先问会话自己那一份，
+ * 这一份在，两处就都对。
+ */
+test("the level a new chat started with stays when the next new chat moves the default", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-create-thinking-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const high = { ...DEFAULT_SETTINGS, thinking: "high" as const };
+		const a = await createStoredSession(store, high, root, "", { content: [{ type: "text", text: "对话 a" }] });
+		assert.equal(a.meta.thinking, "high");
+
+		const medium = { ...high, thinking: "medium" as const };
+		const b = await createStoredSession(store, medium, root, "", { content: [{ type: "text", text: "对话 b" }] });
+		assert.equal(b.meta.thinking, "medium");
+
+		const reloaded = await store.load(a.meta.projectId, a.meta.id);
+		assert.equal(reloaded?.meta.thinking, "high", "a 的记录里还是「高」");
+		assert.equal(sessionThinking(reloaded?.meta, medium), "high", "输入框那枚标签读到的也是");
+	} finally { await rm(root, { recursive: true, force: true }); }
 });

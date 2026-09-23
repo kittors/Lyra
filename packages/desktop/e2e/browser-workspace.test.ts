@@ -107,6 +107,15 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	assert.deepEqual(actual, { value: "测试输入", count: "3", width: 390, height: 844, cursor: false });
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-browser-cursor]').length`), 1);
 	assert.equal(results.some((item) => typeof item === "object" && item !== null && "is_error" in item && item.is_error), false, JSON.stringify(results));
+	/*
+	 * All of that ran with the panel closed: an agent's pages work in the background and the
+	 * conversation keeps a card for them (see `openBrowser`, `BrowserCard`). The person opens the
+	 * panel from that card — which is also what leaves it open for the cases below.
+	 */
+	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`), true, "the panel stayed closed while the agent worked");
+	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-card]')?.innerText ?? ''`), /Browser QA/);
+	await click('[data-browser-card] [data-browser-card-row] button');
+	await until(`!document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`);
 	const artifact = process.env.LYRA_E2E_ARTIFACTS;
 	if (artifact) { await mkdir(artifact, { recursive: true }); const screenshot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }); await writeFile(join(artifact, "browser-agent.png"), Buffer.from(screenshot.data, "base64")); }
 });
