@@ -8,7 +8,7 @@ import {
 	syntaxHighlighting,
 } from "@codemirror/language";
 import { closeSearchPanel, highlightSelectionMatches, openSearchPanel, search, searchKeymap, searchPanelOpen } from "@codemirror/search";
-import { Compartment, EditorState, type Extension } from "@codemirror/state";
+import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
 	EditorView,
 	drawSelection,
@@ -33,6 +33,30 @@ import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 /** Keep both the document model and its DOM semantics read-only. */
 export function editorAccess(readOnly: boolean): Extension[] {
 	return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
+}
+
+/**
+ * The line break a file is written with, so the text the editor hands back is written the same way.
+ *
+ * CodeMirror splits on every kind of line break and joins with `\n`, so a CRLF file came back
+ * different on every line: opening one counted as an edit, and saving it rewrote the whole file as
+ * LF. Only a file that is CRLF throughout is joined back with `\r\n`; a mixed one has no single
+ * answer and keeps CodeMirror's `\n`.
+ *
+ * Applied where text leaves the editor, not through `EditorState.lineSeparator`, which looks like
+ * the tool for this: that facet also decides how text coming *in* is split, and paste, the context
+ * menu's paste and the formatter all go through it — with `\r\n` set, pasting the clipboard's usual
+ * LF text landed as one line with a raw `\n` inside it.
+ */
+function lineBreakOf(text: string): "\n" | "\r\n" {
+	return text.includes("\r\n") && !/\r(?!\n)|(?<!\r)\n/.test(text) ? "\r\n" : "\n";
+}
+
+/** Marks the editor taking on text from outside, which is not an edit and must not be reported as one. */
+const adopted = Annotation.define<boolean>();
+
+function contentOf(state: EditorState, lineBreak: string): string {
+	return state.doc.sliceString(0, state.doc.length, lineBreak);
 }
 
 /**
@@ -138,6 +162,12 @@ export function CodeEditor({
 	pathRef.current = path;
 	onChangeRef.current = onChange;
 	onSaveRef.current = onSave;
+	/*
+	 * The file's own line break, and the text the document was last brought in line with — both
+	 * reset whenever the state is rebuilt, and read by the listener, which is built once.
+	 */
+	const lineBreak = useRef(lineBreakOf(text));
+	const synced = useRef(text);
 	const menu = useContextMenu();
 	/** Assigned below; held in a ref so the keymap built once can reach the current one. */
 	const openFindRef = useRef<(withReplace: boolean) => void>(() => {});
@@ -151,6 +181,8 @@ export function CodeEditor({
 		const element = host.current;
 		if (!element) return;
 
+		lineBreak.current = lineBreakOf(text);
+		synced.current = text;
 		const state = EditorState.create({
 			doc: text,
 			extensions: [
@@ -258,7 +290,10 @@ export function CodeEditor({
 				]),
 				editorTheme(),
 				EditorView.updateListener.of((update) => {
-					if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+					if (!update.docChanged) return;
+					// Taking on outside text is not an edit: reported back, a discard or a reload came back as a draft.
+					if (update.transactions.some((tr) => tr.annotation(adopted))) return;
+					onChangeRef.current(contentOf(update.state, lineBreak.current));
 				}),
 			],
 		});
@@ -308,13 +343,22 @@ export function CodeEditor({
 	 *
 	 * Only when the incoming text genuinely differs from what is on screen — otherwise this
 	 * fires on every keystroke, since our own `onChange` is what produced the new value.
+	 *
+	 * Checked against the text last seeded first, because a file with mixed line breaks never
+	 * equals what the editor hands back: comparing only against the document rewrote it on open,
+	 * and the rewrite was reported as an edit. `to` is the document's length, not the string's —
+	 * joined with `\r\n` the two differ by a character a line.
 	 */
 	useEffect(() => {
 		const instance = view.current;
-		if (!instance) return;
-		const current = instance.state.doc.toString();
-		if (current === text) return;
-		instance.dispatch({ changes: { from: 0, to: current.length, insert: text } });
+		if (!instance || text === synced.current) return;
+		synced.current = text;
+		if (contentOf(instance.state, lineBreak.current) === text) return;
+		lineBreak.current = lineBreakOf(text);
+		instance.dispatch({
+			changes: { from: 0, to: instance.state.doc.length, insert: text },
+			annotations: adopted.of(true),
+		});
 	}, [text]);
 
 	/**

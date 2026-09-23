@@ -164,7 +164,14 @@ export function FileViewer({
 					text={text}
 					readOnly={readOnly}
 					wrap={wrap}
-					onChange={(next) => onDraft(next === contents.text ? undefined : next)}
+					/*
+					 * Read-only is checked here too, not left to the editor: CodeMirror's read-only
+					 * stops the user, not a transaction dispatched from code, and a CRLF file used to
+					 * dirty itself that way on open — a draft of a file that cannot be saved.
+					 */
+					onChange={(next) => {
+						if (!readOnly) onDraft(next === contents.text ? undefined : next);
+					}}
 					/*
 					 * ⌘S and the header's button are the same save, so it lives in the store rather
 					 * than in either of them — see `useOpenFile.save`.
