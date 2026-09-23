@@ -136,25 +136,25 @@ const pinned: Buffer[] = [];
  * koffi passes Buffers by pointer, but a struct that *embeds* a pointer needs the address written
  * into it. `koffi.address` is the supported way to ask for one.
  */
-export function bufferAddress(buffer: Buffer): bigint {
+function bufferAddress(buffer: Buffer): bigint {
 	pinned.push(buffer);
 	// eslint-disable-next-line
 	return BigInt((koffi() as any).address(buffer));
 }
 
 /**
- * Whether the DACL already carries an explicit allow entry for `sid` with all of `mask` and all of
- * the `inheritance` bits.
+ * Whether the DACL already carries this capability's inheritable write grant, written here.
  *
  * Asked before every grant because writing a DACL is not a cheap no-op when nothing changes:
  * `SetNamedSecurityInfoW` walks the whole tree to re-propagate inheritance every time it is called.
  * The runner grants on every command, so without this each `ls` in a project with a `node_modules`
  * rewrote the security of a hundred thousand files first. Only the first command in a workspace pays.
  *
- * Only an explicit allow entry counts: an inherited copy on a subdirectory, or a narrower grant
- * somebody else wrote, is not the grant being asked about.
+ * Only an explicit allow entry counts, with the full write mask and both inheritance bits: an
+ * inherited copy on a subdirectory, or a narrower grant somebody else wrote, is not the grant this
+ * directory needs.
  */
-function hasGrant(api: Win32, dacl: Ptr | null, sid: Ptr | Buffer, mask: number, inheritance: number): boolean {
+function hasGrant(api: Win32, dacl: Ptr | null, capabilitySid: Ptr): boolean {
 	if (dacl === null) return false;
 	const info = Buffer.alloc(abi.ACL_SIZE_INFORMATION_SIZE);
 	if (api.getAclInformation(dacl, info, info.length, abi.AclSizeInformation) === 0) return false;
@@ -168,42 +168,13 @@ function hasGrant(api: Win32, dacl: Ptr | null, sid: Ptr | Buffer, mask: number,
 		api.rtlMoveMemory(head, ace, head.length);
 		const type = head.readUInt8(0);
 		const flags = head.readUInt8(1);
-		const granted = head.readUInt32LE(4);
+		const mask = head.readUInt32LE(4);
 		if (type !== abi.ACCESS_ALLOWED_ACE_TYPE || (flags & abi.INHERITED_ACE) !== 0) continue;
-		if ((flags & inheritance) !== inheritance) continue;
-		if (((granted & mask) >>> 0) !== mask >>> 0) continue;
-		if (api.equalSid(ace + BigInt(abi.ACE_SID_OFFSET), sid) !== 0) return true;
+		if ((flags & abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT) !== abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT) continue;
+		if (((mask & abi.GRANT_MASK) >>> 0) !== abi.GRANT_MASK >>> 0) continue;
+		if (api.equalSid(ace + BigInt(abi.ACE_SID_OFFSET), capabilitySid) !== 0) return true;
 	}
 	return false;
-}
-
-/**
- * Let `sid` have `mask` on a kernel object this process holds a handle to, unless it already has.
- *
- * The handle needs `READ_CONTROL | WRITE_DAC`. A null DACL — no DACL at all — already lets everyone
- * in, and merging an entry into it would *create* a DACL holding only that entry, locking out every
- * other process; so that is left alone.
- */
-export function grantOnObject(api: Win32, handle: Ptr, sid: Ptr | Buffer, mask: number): void {
-	const daclSlot = ptrSlot();
-	const descriptorSlot = ptrSlot();
-	const read = api.getSecurityInfo(handle, abi.SE_KERNEL_OBJECT, abi.DACL_SECURITY_INFORMATION, null, null, daclSlot, null, descriptorSlot);
-	if (read !== abi.ERROR_SUCCESS) fail(api, "GetSecurityInfo", "内核对象", read);
-	const oldDacl = readPtr(daclSlot);
-	const descriptor = readPtr(descriptorSlot);
-	try {
-		if (oldDacl === null || hasGrant(api, oldDacl, sid, mask, abi.NO_INHERITANCE)) return;
-		const merged = ptrSlot();
-		const result = api.setEntriesInAclW(1, explicitAccess(sid, abi.GRANT_ACCESS, mask, abi.NO_INHERITANCE), oldDacl, merged);
-		if (result !== abi.ERROR_SUCCESS) fail(api, "SetEntriesInAclW", "内核对象", result);
-		const newDacl = readPtr(merged);
-		if (newDacl === null) fail(api, "SetEntriesInAclW", "内核对象合并出空 DACL", result);
-		const applied = api.setSecurityInfo(handle, abi.SE_KERNEL_OBJECT, abi.DACL_SECURITY_INFORMATION, null, null, newDacl, null);
-		api.localFree(newDacl);
-		if (applied !== abi.ERROR_SUCCESS) fail(api, "SetSecurityInfo", "内核对象", applied);
-	} finally {
-		if (descriptor !== null) api.localFree(descriptor);
-	}
 }
 
 /**
@@ -232,7 +203,7 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
 
 	const oldDacl = readPtr(daclSlot);
 	const descriptor = readPtr(descriptorSlot);
-	if (hasGrant(api, oldDacl, capabilitySid, abi.GRANT_MASK, abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT)) {
+	if (hasGrant(api, oldDacl, capabilitySid)) {
 		if (descriptor !== null) api.localFree(descriptor);
 		return;
 	}
@@ -268,7 +239,7 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
 }
 
 /**
- * Add full-access ACEs for restricting SIDs to the token's *default* DACL.
+ * Add a full-access ACE for one restricting SID to the token's *default* DACL.
  *
  * Subtle and necessary. The default DACL is what every new object the process creates gets when it
  * does not supply one of its own — including the anonymous pipes Node makes for a child's stdio.
@@ -279,16 +250,13 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
  * Naming a restricting SID here lets new objects pass that check while leaving object *creation*
  * gated by the parent directory's DACL — a file outside the granted tree still cannot be made.
  *
- * Which SIDs: the logon SID always, and the workspace capability when there is one — never
- * Everyone, which would open every object the command creates to every account on the machine.
- * The logon SID reaches no further than this sign-in, whose user already has full access through
- * the user SID, and it is what every confined token has in common: an object one confined command
- * creates and another opens — Git Bash's per-user shared memory, made by whichever MSYS process
- * starts first — has to be writable by the next one, whatever workspace that one is confined to.
- * Not inheritable: a default DACL is not a container's, and the entries have nothing to be
- * inherited by.
+ * Which SID: the workspace capability when there is one — nothing else carries it — and otherwise
+ * the logon SID, never Everyone. Everyone would open every object the command creates to every
+ * account on the machine; the logon SID reaches no further than this sign-in, whose user already
+ * has full access to them through the user SID. Not inheritable: a default DACL is not a container's,
+ * and the entry has nothing to be inherited by.
  */
-export function extendDefaultDacl(api: Win32, token: Ptr, sids: readonly (Ptr | Buffer)[]): void {
+export function extendDefaultDacl(api: Win32, token: Ptr, sid: Ptr | Buffer): void {
 	const needed = uint32Slot();
 	api.getTokenInformation(token, abi.TokenDefaultDacl, null, 0, needed);
 	const size = needed.readUInt32LE(0);
@@ -304,8 +272,7 @@ export function extendDefaultDacl(api: Win32, token: Ptr, sids: readonly (Ptr | 
 	if (current === null) throw new Error("令牌没有默认 DACL 可以扩展");
 
 	const merged = ptrSlot();
-	const entries = Buffer.concat(sids.map((sid) => explicitAccess(sid, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS, abi.NO_INHERITANCE)));
-	const result = api.setEntriesInAclW(sids.length, entries, current, merged);
+	const result = api.setEntriesInAclW(1, explicitAccess(sid, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS, abi.NO_INHERITANCE), current, merged);
 	if (result !== abi.ERROR_SUCCESS) fail(api, "SetEntriesInAclW", "默认 DACL 合并", result);
 	const newDacl = readPtr(merged);
 	if (newDacl === null) fail(api, "SetEntriesInAclW", "默认 DACL 合并结果为空", result);

@@ -112,22 +112,6 @@ export const STD_INPUT_HANDLE = -10;
 export const STD_OUTPUT_HANDLE = -11;
 export const STD_ERROR_HANDLE = -12;
 
-// --- Kernel objects and the NT object namespace (winnt.h, ntdef.h, winternl.h) ---
-/** `SE_OBJECT_TYPE` for a section, mutex, event — anything reached by handle rather than by path. */
-export const SE_KERNEL_OBJECT = 6;
-export const READ_CONTROL = 0x00020000;
-export const WRITE_DAC = 0x00040000;
-/** `STANDARD_RIGHTS_REQUIRED | SECTION_QUERY | SECTION_MAP_WRITE | SECTION_MAP_READ | SECTION_MAP_EXECUTE | SECTION_EXTEND_SIZE`. */
-export const SECTION_ALL_ACCESS = 0x000f001f;
-export const DIRECTORY_QUERY = 0x0001;
-export const DIRECTORY_TRAVERSE = 0x0002;
-export const OBJ_CASE_INSENSITIVE = 0x00000040;
-export const TokenUser = 1;
-/** `NtQueryDirectoryObject`: the buffer filled up and there is more to read. */
-export const STATUS_MORE_ENTRIES = 0x00000105;
-/** `NtQueryDirectoryObject`: nothing (more) in the directory. */
-export const STATUS_NO_MORE_ENTRIES = 0x8000001a;
-
 // --- Errors ---
 export const ERROR_SUCCESS = 0;
 export const FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000;
@@ -150,9 +134,3 @@ export const TRUSTEE_W_PTSTRNAME_OFFSET = 24;
 export const STARTUPINFOW_SIZE = 104;
 /** `PROCESS_INFORMATION`. */
 export const PROCESS_INFORMATION_SIZE = 24;
-/** `UNICODE_STRING`: Length and MaximumLength (two USHORTs), padding, then the buffer pointer at 8. */
-export const UNICODE_STRING_SIZE = 16;
-/** `OBJECT_ATTRIBUTES`: Length, RootDirectory at 8, ObjectName at 16, Attributes at 24, then two pointers. */
-export const OBJECT_ATTRIBUTES_SIZE = 48;
-/** `OBJECT_DIRECTORY_INFORMATION`: two `UNICODE_STRING`s, the entry's name and its type's name. */
-export const OBJECT_DIRECTORY_INFORMATION_SIZE = 32;

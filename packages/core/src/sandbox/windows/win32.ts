@@ -86,32 +86,7 @@ export interface Win32 {
 	setHandleInformation(handle: Ptr, mask: number, flags: number): number;
 	getAclInformation(acl: Ptr, info: Buffer, length: number, cls: number): number;
 	getAce(acl: Ptr, index: number, aceOut: Buffer): number;
-	equalSid(a: Ptr, b: Ptr | Buffer): number;
-	getSecurityInfo(
-		handle: Ptr,
-		type: number,
-		info: number,
-		owner: Buffer | null,
-		group: Buffer | null,
-		dacl: Buffer,
-		sacl: Buffer | null,
-		descriptor: Buffer,
-	): number;
-	setSecurityInfo(handle: Ptr, type: number, info: number, owner: Ptr | null, group: Ptr | null, dacl: Ptr | null, sacl: Ptr | null): number;
-	/** NTSTATUS, unsigned. */
-	ntOpenDirectoryObject(handleOut: Buffer, access: number, attributes: Buffer): number;
-	/** NTSTATUS, unsigned. */
-	ntQueryDirectoryObject(
-		handle: Ptr,
-		buffer: Buffer,
-		length: number,
-		single: number,
-		restart: number,
-		context: Buffer,
-		returned: Buffer,
-	): number;
-	/** NTSTATUS, unsigned. */
-	ntOpenSection(handleOut: Buffer, access: number, attributes: Buffer): number;
+	equalSid(a: Ptr, b: Ptr): number;
 	/** Copy bytes out of memory we only hold a pointer to — an ACE inside a DACL. */
 	rtlMoveMemory(destination: Buffer, source: Ptr, length: number): void;
 }
@@ -137,7 +112,6 @@ export function win32(): Win32 {
 
 	const kernel32 = koffi.load("kernel32.dll");
 	const advapi32 = koffi.load("advapi32.dll");
-	const ntdll = koffi.load("ntdll.dll");
 	const bind = (lib: ReturnType<typeof koffi.load>, name: string, result: unknown, args: unknown[]) =>
 		// eslint-disable-next-line
 		(lib as any).func("__stdcall", name, result, args);
@@ -177,13 +151,6 @@ export function win32(): Win32 {
 		getAclInformation: bind(advapi32, "GetAclInformation", "int", [PVOID, PVOID, "uint32", "int"]),
 		getAce: bind(advapi32, "GetAce", "int", [PVOID, "uint32", PPVOID]),
 		equalSid: bind(advapi32, "EqualSid", "int", [PVOID, PVOID]),
-		getSecurityInfo: bind(advapi32, "GetSecurityInfo", "uint32", [PVOID, "int", "uint32", PPVOID, PPVOID, PPVOID, PPVOID, PPVOID]),
-		setSecurityInfo: bind(advapi32, "SetSecurityInfo", "uint32", [PVOID, "int", "uint32", PVOID, PVOID, PVOID, PVOID]),
-		ntOpenDirectoryObject: bind(ntdll, "NtOpenDirectoryObject", "uint32", [PPVOID, "uint32", PVOID]),
-		ntQueryDirectoryObject: bind(ntdll, "NtQueryDirectoryObject", "uint32", [
-			PVOID, PVOID, "uint32", "uint8", "uint8", koffi.pointer("uint32"), koffi.pointer("uint32"),
-		]),
-		ntOpenSection: bind(ntdll, "NtOpenSection", "uint32", [PPVOID, "uint32", PVOID]),
 		rtlMoveMemory: bind(kernel32, "RtlMoveMemory", "void", [PVOID, PVOID, "size_t"]),
 	} as Win32;
 	return cached;
