@@ -24,6 +24,8 @@ import { FAILURE_LIMIT, HANDLER_TIMEOUT_MS, validateManifest, type ExtensionDiag
 interface Pending {
 	resolve: (reply: ExtensionReply) => void;
 	timer: ReturnType<typeof setTimeout>;
+	/** The worker asked, so that its exit releases its own waiters and nobody else's. */
+	worker: Worker;
 }
 
 export interface LoadedExtension {
@@ -97,6 +99,38 @@ export class ExtensionHost {
 		this.timeoutMs = options.timeoutMs ?? HANDLER_TIMEOUT_MS;
 	}
 
+	/** The replacement in progress; the next one starts after it. See `replaceAll`. */
+	private replacing: Promise<unknown> = Promise.resolve();
+	private disposed = false;
+
+	/**
+	 * Replace every running extension with the ones in `dirs`.
+	 *
+	 * A capability reload used to call `load` for each directory again, and `load` put the new
+	 * worker in the map on top of the old one without stopping it: every reload left one more thread
+	 * per extension running for the rest of the session, and an extension removed from disk never
+	 * stopped. When an orphan did exit, its `exit` handler took the *new* worker out of the map and
+	 * failed the new worker's calls in flight. One replacement at a time, because three things reload
+	 * a session and nothing kept them apart — the same reason `McpManager.connectAll` queues.
+	 */
+	replaceAll(dirs: readonly string[]): Promise<void> {
+		const run = this.replacing.then(async () => {
+			await this.stopAll();
+			if (this.disposed) return;
+			for (const dir of dirs) await this.load(dir).catch(() => false);
+		});
+		this.replacing = run.catch(() => {});
+		return run;
+	}
+
+	/** Stop every worker and forget what was loaded; counts and diagnostics are the session's and stay. */
+	private async stopAll(): Promise<void> {
+		const running = [...this.workers.values()];
+		this.workers.clear();
+		this.loaded.clear();
+		await Promise.all(running.map((worker) => worker.terminate().catch(() => {})));
+	}
+
 	/** Load one extension directory. Returns false when it could not be started. */
 	async load(dir: string): Promise<boolean> {
 		const raw = await readFile(join(dir, "extension.json"), "utf8").catch(() => null);
@@ -118,6 +152,13 @@ export class ExtensionHost {
 		}
 		const { manifest } = checked;
 
+		// The same extension loaded again replaces the one running, rather than running beside it.
+		const previous = this.workers.get(manifest.name);
+		if (previous) {
+			this.workers.delete(manifest.name);
+			await previous.terminate().catch(() => {});
+		}
+
 		try {
 			const worker = new Worker(bridgeSource(join(dir, manifest.main)), {
 				eval: true,
@@ -138,15 +179,18 @@ export class ExtensionHost {
 			});
 			worker.on("exit", () => {
 				/*
-				 * Every waiter is released when the worker goes, whatever took it. A pending promise
-				 * for a thread that no longer exists is a turn that never ends.
+				 * Every waiter on this worker is released when it goes, whatever took it. A pending
+				 * promise for a thread that no longer exists is a turn that never ends. Only this
+				 * worker's: a replaced worker exits after its successor started, and must not fail the
+				 * successor's calls or take its place in the map.
 				 */
 				for (const [id, waiter] of this.pending) {
+					if (waiter.worker !== worker) continue;
 					clearTimeout(waiter.timer);
+					this.pending.delete(id);
 					waiter.resolve({ id, error: "扩展已经退出" });
 				}
-				this.pending.clear();
-				this.workers.delete(manifest.name);
+				if (this.workers.get(manifest.name) === worker) this.workers.delete(manifest.name);
 			});
 
 			this.workers.set(manifest.name, worker);
@@ -212,7 +256,7 @@ export class ExtensionHost {
 						// so two timeouts tripped a breaker documented as three.
 						resolve({ id, error: "timeout" });
 					}, this.timeoutMs);
-					this.pending.set(id, { resolve, timer });
+					this.pending.set(id, { resolve, timer, worker });
 					/*
 					 * `worker_threads`'s postMessage, not `window.postMessage`: there is no origin to
 					 * pass and no other document to reach. The lint rule matches on the method name.
@@ -313,10 +357,10 @@ export class ExtensionHost {
 	}
 
 	async dispose(): Promise<void> {
+		// A reload already queued when the session went away would otherwise start every worker again.
+		this.disposed = true;
 		for (const [, waiter] of this.pending) clearTimeout(waiter.timer);
 		this.pending.clear();
-		await Promise.all([...this.workers.values()].map((worker) => worker.terminate().catch(() => {})));
-		this.workers.clear();
-		this.loaded.clear();
+		await this.stopAll();
 	}
 }

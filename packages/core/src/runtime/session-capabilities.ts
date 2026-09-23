@@ -135,7 +135,8 @@ export class SessionCapabilities {
 		 * Failures here are diagnostics rather than exceptions: a broken extension must not stop a
 		 * session from starting, which is the same reason a broken skill does not.
 		 */
-		for (const dir of await extensionDirs(cwd)) await this.extensions.load(dir).catch(() => false);
+		// Replaced, not added to: a reload that loaded them again left the previous workers running.
+		await this.extensions.replaceAll(await extensionDirs(cwd));
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
