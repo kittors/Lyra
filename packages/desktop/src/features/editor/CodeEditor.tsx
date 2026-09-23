@@ -25,7 +25,7 @@ import { GRAMMARS, grammarKeyFor, highlightStyle } from "../../lib/code/highligh
 import { editorTheme } from "./theme.ts";
 import { applyFormat } from "./apply-format.ts";
 import { FORMAT_DEFAULTS } from "./format.ts";
-import { CHEVRON_DOWN, CHEVRON_RIGHT, OPTION_ICONS, SEARCH_ICONS, searchPhrases, searchTips } from "./chrome.ts";
+import { labelSearchPanel, searchPhrases } from "./chrome.ts";
 import { EditorMenu } from "./EditorMenu.tsx";
 import { useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
@@ -266,64 +266,8 @@ export function CodeEditor({
 		const instance = new EditorView({ state, parent: element });
 		view.current = instance;
 
-		/*
-		 * Tooltips for the find bar, which is not ours to render.
-		 *
-		 * The buttons show a glyph now, so the words have to live somewhere — and `phrases` only
-		 * controls the visible label. CodeMirror builds the panel on first open, so this watches
-		 * for it rather than running once. The app's own tooltip is driven by an attribute
-		 * precisely so a panel outside React's tree can still use it.
-		 */
-		const labelPanel = () => {
-			/*
-			 * Replace starts folded, behind a disclosure of its own.
-			 *
-			 * Eleven controls is more than a narrow pane can hold on one line, and unfolded they
-			 * wrapped to three rows with the close button stranded on one by itself. Most finds
-			 * never replace anything, so the second row is the part that should be asked for —
-			 * which is what every editor with a find bar does.
-			 */
-			const panel = element.querySelector<HTMLElement>(".cm-panel.cm-search");
-			// The app's floating surface, so the find card matches every menu and popover in it.
-			panel?.classList.add("ly-glass", "ly-pop-in");
-			if (panel && !panel.querySelector("[name=ly-replace-toggle]")) {
-				const toggle = document.createElement("button");
-				toggle.setAttribute("name", "ly-replace-toggle");
-				toggle.setAttribute("type", "button");
-				toggle.setAttribute("aria-label", translate("find.showReplace"));
-				toggle.dataset.dwTip = translate("find.showReplace");
-				toggle.innerHTML = CHEVRON_RIGHT;
-				toggle.addEventListener("click", () => {
-					const open = panel.classList.toggle("ly-replace-open");
-					toggle.setAttribute("aria-label", translate(open ? "find.hideReplace" : "find.showReplace"));
-					toggle.dataset.dwTip = translate(open ? "find.hideReplace" : "find.showReplace");
-					toggle.innerHTML = open ? CHEVRON_DOWN : CHEVRON_RIGHT;
-					if (open) panel.querySelector<HTMLInputElement>("input[name=replace]")?.focus();
-				});
-				panel.prepend(toggle);
-			}
-
-			for (const [name, hint] of Object.entries(searchTips())) {
-				const button = element.querySelector<HTMLElement>(`.cm-search button[name=${name}]`);
-				if (!button || button.querySelector("svg")) continue;
-				// The icon replaces the word, so the word has to survive as the accessible name.
-				button.setAttribute("aria-label", hint);
-				button.dataset.dwTip = hint;
-				button.innerHTML = SEARCH_ICONS[name] ?? "";
-			}
-			// The options are labels, and their text is hidden, so they need one too.
-			const options = element.querySelectorAll<HTMLElement>(".cm-search label");
-			const optionHints = [translate("find.matchCase"), translate("find.regexFull"), translate("find.wholeWord")];
-			for (const [i, hint] of optionHints.entries()) {
-				const option = options[i];
-				if (!option || option.querySelector("svg")) continue;
-				option.setAttribute("aria-label", hint);
-				option.dataset.dwTip = hint;
-				// Appended, not assigned: the checkbox inside is what holds the option's state.
-				option.insertAdjacentHTML("beforeend", OPTION_ICONS[i] ?? "");
-			}
-		};
-		const panels = new MutationObserver(labelPanel);
+		// CodeMirror builds the find bar on first open, so this watches for it rather than running once.
+		const panels = new MutationObserver(() => labelSearchPanel(element));
 		panels.observe(element, { childList: true, subtree: true });
 		setScroller(instance.scrollDOM);
 

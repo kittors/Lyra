@@ -23,7 +23,7 @@ import { translate } from "../../i18n/translate.ts";
 const icon = (paths: string, size = 13) =>
 	`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-export const SEARCH_ICONS: Record<string, string> = {
+const SEARCH_ICONS: Record<string, string> = {
 	next: icon('<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
 	prev: icon('<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),
 	select: icon('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>'),
@@ -39,7 +39,7 @@ export const SEARCH_ICONS: Record<string, string> = {
 };
 
 /** Three options, in lucide's own find-bar icons. */
-export const OPTION_ICONS = [
+const OPTION_ICONS = [
 	icon(
 		'<path d="m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16"/><path d="M22 9v7"/><path d="M3.304 13h6.392"/><circle cx="18.5" cy="12.5" r="3.5"/>',
 	),
@@ -51,20 +51,20 @@ export const OPTION_ICONS = [
 	),
 ];
 
-export const CHEVRON_RIGHT = icon('<path d="m9 18 6-6-6-6"/>');
-export const CHEVRON_DOWN = icon('<path d="m6 9 6 6 6-6"/>');
+const CHEVRON_RIGHT = icon('<path d="m9 18 6-6-6-6"/>');
+const CHEVRON_DOWN = icon('<path d="m6 9 6 6 6-6"/>');
 
 /**
  * The find bar's own words, looked up when the bar is built rather than when this file loads.
  *
  * Functions rather than tables: a module-level object would freeze whatever language the window
  * happened to be in at import time, which for a file imported at startup is the fallback and not
- * the choice. `CodeEditor` calls these inside the effect that installs the search extension, so a
- * language change rebuilds them.
+ * the choice. They run when the editor is built and when its find bar is, so a language change
+ * rebuilds them.
  *
  * `searchTips` is hover text for the icon-only buttons, keyed by CodeMirror's own `name` attribute.
  */
-export function searchTips(): Record<string, string> {
+function searchTips(): Record<string, string> {
 	return {
 		next: translate("common.next"),
 		prev: translate("common.previous"),
@@ -73,6 +73,64 @@ export function searchTips(): Record<string, string> {
 		replaceAll: translate("find.replaceAll"),
 		close: translate("find.closeEsc"),
 	};
+}
+
+/**
+ * Tooltips for the find bar, which is not ours to render.
+ *
+ * The buttons show a glyph now, so the words have to live somewhere — and `phrases` only
+ * controls the visible label. The app's own tooltip is driven by an attribute precisely so a
+ * panel outside React's tree can still use it. Safe to call repeatedly: `CodeEditor` runs it on
+ * every mutation under the editor, and each step checks whether it has already been done.
+ */
+export function labelSearchPanel(element: HTMLElement): void {
+	/*
+	 * Replace starts folded, behind a disclosure of its own.
+	 *
+	 * Eleven controls is more than a narrow pane can hold on one line, and unfolded they
+	 * wrapped to three rows with the close button stranded on one by itself. Most finds
+	 * never replace anything, so the second row is the part that should be asked for —
+	 * which is what every editor with a find bar does.
+	 */
+	const panel = element.querySelector<HTMLElement>(".cm-panel.cm-search");
+	// The app's floating surface, so the find card matches every menu and popover in it.
+	panel?.classList.add("ly-glass", "ly-pop-in");
+	if (panel && !panel.querySelector("[name=ly-replace-toggle]")) {
+		const toggle = document.createElement("button");
+		toggle.setAttribute("name", "ly-replace-toggle");
+		toggle.setAttribute("type", "button");
+		toggle.setAttribute("aria-label", translate("find.showReplace"));
+		toggle.dataset.lyTip = translate("find.showReplace");
+		toggle.innerHTML = CHEVRON_RIGHT;
+		toggle.addEventListener("click", () => {
+			const open = panel.classList.toggle("ly-replace-open");
+			toggle.setAttribute("aria-label", translate(open ? "find.hideReplace" : "find.showReplace"));
+			toggle.dataset.lyTip = translate(open ? "find.hideReplace" : "find.showReplace");
+			toggle.innerHTML = open ? CHEVRON_DOWN : CHEVRON_RIGHT;
+			if (open) panel.querySelector<HTMLInputElement>("input[name=replace]")?.focus();
+		});
+		panel.prepend(toggle);
+	}
+
+	for (const [name, hint] of Object.entries(searchTips())) {
+		const button = element.querySelector<HTMLElement>(`.cm-search button[name=${name}]`);
+		if (!button || button.querySelector("svg")) continue;
+		// The icon replaces the word, so the word has to survive as the accessible name.
+		button.setAttribute("aria-label", hint);
+		button.dataset.lyTip = hint;
+		button.innerHTML = SEARCH_ICONS[name] ?? "";
+	}
+	// The options are labels, and their text is hidden, so they need one too.
+	const options = element.querySelectorAll<HTMLElement>(".cm-search label");
+	const optionHints = [translate("find.matchCase"), translate("find.regexFull"), translate("find.wholeWord")];
+	for (const [i, hint] of optionHints.entries()) {
+		const option = options[i];
+		if (!option || option.querySelector("svg")) continue;
+		option.setAttribute("aria-label", hint);
+		option.dataset.lyTip = hint;
+		// Appended, not assigned: the checkbox inside is what holds the option's state.
+		option.insertAdjacentHTML("beforeend", OPTION_ICONS[i] ?? "");
+	}
 }
 
 /** What CodeMirror's own search UI says, in the window's language. `$` is its placeholder. */
