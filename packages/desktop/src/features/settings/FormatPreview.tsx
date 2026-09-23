@@ -20,7 +20,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
-import { macKeyboard } from "../../ui/keyboard.ts";
+import { macKeyboard, shortcutLetter } from "../../ui/keyboard.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw, Wand2 } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
@@ -346,8 +346,16 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 								setFailure(null);
 							}}
 							onKeyDown={(event) => {
-								// The same key the editor uses, so the muscle memory is not a lie.
-								if (event.key === "F" && event.shiftKey && (event.metaKey || event.ctrlKey)) {
+								/*
+								 * The same key the editor uses (`CodeEditor.tsx`) and the tip above names,
+								 * so the muscle memory is not a lie: ⇧⌘F on a Mac, where Option composes
+								 * characters, and Shift+Alt+F everywhere else. Ctrl+Shift+F, which this used
+								 * to take on a PC, is also Microsoft Pinyin's simplified/traditional switch.
+								 */
+								const withModifier = macKeyboard()
+									? event.metaKey && !event.ctrlKey && !event.altKey
+									: event.altKey && !event.ctrlKey && !event.metaKey;
+								if (withModifier && event.shiftKey && shortcutLetter(event) === "f") {
 									event.preventDefault();
 									void format();
 								}
