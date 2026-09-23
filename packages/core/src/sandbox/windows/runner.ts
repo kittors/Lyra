@@ -140,8 +140,8 @@ function runConfined(args: Args): number {
 	delete process.env.ELECTRON_RUN_AS_NODE;
 
 	const token = createRestrictedToken(api, source, logon, world, capabilities);
-	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl`.
-	extendDefaultDacl(api, token, capabilities[0] ?? world);
+	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl` for which SID.
+	extendDefaultDacl(api, token, capabilities[0] ?? logon);
 
 	return spawnUnder(api, token, args);
 }
@@ -169,7 +169,7 @@ function spawnUnder(api: Win32, token: Ptr, args: Args): number {
 		null,
 		null,
 		1,
-		abi.CREATE_NO_WINDOW,
+		abi.CREATE_NO_WINDOW | abi.CREATE_UNICODE_ENVIRONMENT,
 		// A null environment block means "inherit ours". Passing one explicitly through the FFI
 		// layer is what the reference implementation found trips ERROR_INVALID_PARAMETER.
 		null,

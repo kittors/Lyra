@@ -96,27 +96,48 @@ export function sidFromString(api: Win32, sddl: string): Ptr {
 }
 
 /** One `EXPLICIT_ACCESS_W`, built by hand because its layout is fixed and small. */
-function explicitAccess(sid: Ptr | Buffer, mode: number, permissions: number): Buffer {
+export function explicitAccess(sid: Ptr | Buffer, mode: number, permissions: number, inheritance: number): Buffer {
 	const entry = Buffer.alloc(abi.EXPLICIT_ACCESS_W_SIZE);
 	entry.writeUInt32LE(permissions, 0);
 	entry.writeUInt32LE(mode, 4);
-	entry.writeUInt32LE(abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT, 8);
+	entry.writeUInt32LE(inheritance, 8);
 	// TRUSTEE_W: pMultipleTrustee (null), MultipleTrusteeOperation, TrusteeForm, TrusteeType, ptstrName.
-	entry.writeUInt32LE(abi.NO_MULTIPLE_TRUSTEE, abi.TRUSTEE_W_OFFSET + 8);
-	entry.writeUInt32LE(abi.TRUSTEE_IS_SID, abi.TRUSTEE_W_OFFSET + 12);
-	entry.writeUInt32LE(abi.TRUSTEE_IS_UNKNOWN, abi.TRUSTEE_W_OFFSET + 16);
+	const trustee = abi.TRUSTEE_W_OFFSET;
+	entry.writeUInt32LE(abi.NO_MULTIPLE_TRUSTEE, trustee + 8);
+	entry.writeUInt32LE(abi.TRUSTEE_IS_SID, trustee + 12);
+	entry.writeUInt32LE(abi.TRUSTEE_IS_UNKNOWN, trustee + 16);
+	/*
+	 * Counted from the trustee, not from the entry.
+	 *
+	 * It was written at the trustee-relative offset alone — 24 — which is `MultipleTrusteeOperation`
+	 * and `TrusteeForm` in the entry. The SID's address landed on those two, `ptstrName` stayed null,
+	 * and `SetEntriesInAclW` answered ERROR_INVALID_PARAMETER: the first call that builds an entry,
+	 * on the first run the runner ever had on Windows, so no confined command could start there.
+	 */
 	const address = Buffer.isBuffer(sid) ? bufferAddress(sid) : sid;
-	entry.writeBigUInt64LE(address, abi.TRUSTEE_W_PTSTRNAME_OFFSET);
+	entry.writeBigUInt64LE(address, trustee + abi.TRUSTEE_W_PTSTRNAME_OFFSET);
 	return entry;
 }
 
 /**
- * The address of a Buffer's bytes.
+ * Buffers whose address Windows has been given inside another buffer, kept until the process exits.
+ *
+ * koffi keeps a Buffer passed *as an argument* alive for the call. One whose address was written
+ * into a struct is invisible to it, and to V8, which may collect it as soon as the last JavaScript
+ * reference is gone — however much the native side still has to read. A SID copied into a Buffer
+ * and referenced only by its address in a `SID_AND_ATTRIBUTES` array is exactly that. The runner
+ * lives for one command, so keeping every such Buffer until it exits costs nothing.
+ */
+const pinned: Buffer[] = [];
+
+/**
+ * The address of a Buffer's bytes, and the Buffer kept alive for as long as the address might be read.
  *
  * koffi passes Buffers by pointer, but a struct that *embeds* a pointer needs the address written
  * into it. `koffi.address` is the supported way to ask for one.
  */
 function bufferAddress(buffer: Buffer): bigint {
+	pinned.push(buffer);
 	// eslint-disable-next-line
 	return BigInt((koffi() as any).address(buffer));
 }
@@ -187,7 +208,12 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
 		return;
 	}
 	const merged = ptrSlot();
-	const result = api.setEntriesInAclW(1, explicitAccess(capabilitySid, abi.GRANT_ACCESS, abi.GRANT_MASK), oldDacl, merged);
+	const result = api.setEntriesInAclW(
+		1,
+		explicitAccess(capabilitySid, abi.GRANT_ACCESS, abi.GRANT_MASK, abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT),
+		oldDacl,
+		merged,
+	);
 	if (result !== abi.ERROR_SUCCESS) {
 		if (descriptor !== null) api.localFree(descriptor);
 		fail(api, "SetEntriesInAclW", directory, result);
@@ -213,7 +239,7 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
 }
 
 /**
- * Add a full-access ACE for the capability SID to the token's *default* DACL.
+ * Add a full-access ACE for one restricting SID to the token's *default* DACL.
  *
  * Subtle and necessary. The default DACL is what every new object the process creates gets when it
  * does not supply one of its own — including the anonymous pipes Node makes for a child's stdio.
@@ -223,8 +249,14 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
  *
  * Naming a restricting SID here lets new objects pass that check while leaving object *creation*
  * gated by the parent directory's DACL — a file outside the granted tree still cannot be made.
+ *
+ * Which SID: the workspace capability when there is one — nothing else carries it — and otherwise
+ * the logon SID, never Everyone. Everyone would open every object the command creates to every
+ * account on the machine; the logon SID reaches no further than this sign-in, whose user already
+ * has full access to them through the user SID. Not inheritable: a default DACL is not a container's,
+ * and the entry has nothing to be inherited by.
  */
-export function extendDefaultDacl(api: Win32, token: Ptr, capabilitySid: Ptr | Buffer): void {
+export function extendDefaultDacl(api: Win32, token: Ptr, sid: Ptr | Buffer): void {
 	const needed = uint32Slot();
 	api.getTokenInformation(token, abi.TokenDefaultDacl, null, 0, needed);
 	const size = needed.readUInt32LE(0);
@@ -234,16 +266,13 @@ export function extendDefaultDacl(api: Win32, token: Ptr, capabilitySid: Ptr | B
 	if (api.getTokenInformation(token, abi.TokenDefaultDacl, buffer, buffer.length, needed) === 0) {
 		fail(api, "GetTokenInformation", "TokenDefaultDacl");
 	}
+	// The ACL the pointer names lives in this same buffer, after the pointer.
+	pinned.push(buffer);
 	const current = readPtr(buffer, 0);
 	if (current === null) throw new Error("令牌没有默认 DACL 可以扩展");
 
 	const merged = ptrSlot();
-	const result = api.setEntriesInAclW(
-		1,
-		explicitAccess(capabilitySid, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS),
-		current,
-		merged,
-	);
+	const result = api.setEntriesInAclW(1, explicitAccess(sid, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS, abi.NO_INHERITANCE), current, merged);
 	if (result !== abi.ERROR_SUCCESS) fail(api, "SetEntriesInAclW", "默认 DACL 合并", result);
 	const newDacl = readPtr(merged);
 	if (newDacl === null) fail(api, "SetEntriesInAclW", "默认 DACL 合并结果为空", result);

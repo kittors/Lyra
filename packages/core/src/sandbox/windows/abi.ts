@@ -73,6 +73,8 @@ export const GRANT_ACCESS = 1;
 const REVOKE_ACCESS = 4;
 /** `OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE` — the grant reaches the whole tree. */
 export const SUB_CONTAINERS_AND_OBJECTS_INHERIT = 0x3;
+/** An entry that applies to the object it is on and to nothing beneath it. */
+export const NO_INHERITANCE = 0x0;
 /** `ACE_HEADER.AceType` of a plain allow entry. */
 export const ACCESS_ALLOWED_ACE_TYPE = 0;
 /** `ACE_HEADER.AceFlags` bit set on an entry that came down from a parent rather than being written here. */
@@ -95,6 +97,12 @@ export const STARTF_USESTDHANDLES = 0x00000100;
  * window on the desktop and took the focus with it.
  */
 export const CREATE_NO_WINDOW = 0x08000000;
+/**
+ * The environment block is UTF-16. `CreateProcessAsUserW` asks for it even when the block is null
+ * and inherited, because this process's own block is UTF-16 — without it, the documentation says,
+ * the child's environment is read as ANSI.
+ */
+export const CREATE_UNICODE_ENVIRONMENT = 0x00000400;
 // oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
 const HANDLE_FLAG_INHERIT = 0x1;
 export const INFINITE = 0xffffffff;
