@@ -16,10 +16,11 @@
 import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import fsPromises, { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, test } from "node:test";
+import { basename, join } from "node:path";
+import { after, test, type TestContext } from "node:test";
 import type { AddressInfo } from "node:net";
 
 import { describe, downloadDir, partialPath, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
@@ -66,6 +67,13 @@ async function serve(options: { ranges?: boolean; hold?: boolean; cut?: boolean;
 
 		const from = options.ranges !== false && range ? Number(/bytes=(\d+)-/.exec(range)?.[1] ?? 0) : 0;
 		const slice = BODY.subarray(from);
+
+		// What GitHub's CDN answers a range that starts at or past the end: there is nothing in it.
+		if (options.ranges !== false && from >= BODY.length) {
+			response.writeHead(416, { "content-range": `bytes */${BODY.length}` });
+			response.end();
+			return;
+		}
 
 		if (from > 0 && options.ranges !== false) {
 			response.writeHead(206, {
@@ -391,6 +399,70 @@ test("a file already downloaded in full is not fetched again", async () => {
 
 		assert.equal(phase.at, "preparing");
 		assert.equal(server.requests.length, 0, "已经有了就不该再问服务器要一遍");
+	} finally {
+		await server.close();
+	}
+});
+
+/** Answer every `rename` onto a file named `target` with `code`, `times` times, then really rename. */
+function refuseRenames(t: TestContext, target: string, code: string, times = Infinity): { refused: () => number; restore: () => void } {
+	const real = fsPromises.rename;
+	let refused = 0;
+	const mocked = t.mock.method(fsPromises, "rename", async (from: string, to: string) => {
+		if (basename(to) === target && refused < times) {
+			refused += 1;
+			throw Object.assign(new Error(`${code}: operation not permitted, rename '${from}' -> '${to}'`), { code });
+		}
+		return real(from, to);
+	});
+	syncBuiltinESMExports();
+	const restore = () => {
+		mocked.mock.restore();
+		syncBuiltinESMExports();
+	};
+	t.after(restore);
+	return { refused: () => refused, restore };
+}
+
+test("a download whose move into place failed is not downloaded again, or thrown away, on retry", async (t) => {
+	/*
+	 * Every byte down and verified, and then the rename refused — on Windows, antivirus still has the
+	 * installer it just watched being written. The retry used to resume from the full-size partial:
+	 * `Range: bytes=<size>-`, answered 416, reported as "已下载的部分和这个版本对不上", and the
+	 * complete download deleted.
+	 */
+	const server = await serve();
+	const dir = await workdir();
+	try {
+		const download = downloadInto(dir, server.url);
+		const blocked = refuseRenames(t, "Lyra.zip", "EXDEV");
+		assert.equal((await download.start()).at, "failed", "the premise: the move into place failed");
+		assert.equal(await exists(partialPath(join(dir, "Lyra.zip"))), true, "the verified bytes were kept");
+		blocked.restore();
+
+		const requested = server.requests.length;
+		const phase = await download.start();
+		assert.equal(phase.at, "preparing", JSON.stringify(phase));
+		assert.deepEqual(await readFile(join(dir, "Lyra.zip")), BODY);
+		assert.equal(server.requests.length, requested, "the retry asked the server for bytes it already had");
+	} finally {
+		await server.close();
+	}
+});
+
+test("on Windows a move into place refused for a moment is waited out", async (t) => {
+	const platform = Object.getOwnPropertyDescriptor(process, "platform");
+	assert.ok(platform);
+	Object.defineProperty(process, "platform", { ...platform, value: "win32" });
+	t.after(() => Object.defineProperty(process, "platform", platform));
+	const server = await serve();
+	const dir = await workdir();
+	try {
+		const { refused } = refuseRenames(t, "Lyra.zip", "EPERM", 2);
+		const phase = await downloadInto(dir, server.url).start();
+		assert.equal(phase.at, "preparing", JSON.stringify(phase));
+		assert.equal(refused(), 2, "the premise: the first two renames were refused");
+		assert.deepEqual(await readFile(join(dir, "Lyra.zip")), BODY);
 	} finally {
 		await server.close();
 	}
