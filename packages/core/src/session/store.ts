@@ -249,14 +249,23 @@ export class SessionStore implements SessionStorage {
 
 	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking"> = {}): Promise<SessionMeta> {
 		const projectId = projectIdFor(cwd);
+		/*
+		 * One reading of the clock for the whole creation.
+		 *
+		 * It was read for `createdAt`, again for `updatedAt`, and again inside the append — so the
+		 * meta record on disk said one time and the index another whenever the calls straddled a
+		 * millisecond. A rebuilt index then disagreed with the one it replaced, and a session moved
+		 * or archived afterwards carried the wrong `updatedAt` into the list.
+		 */
+		const now = Date.now();
 		const meta: SessionMeta = {
 			id: randomUUID(),
 			title,
 			cwd,
 			projectId,
 			projectName: basename(cwd) || cwd,
-			createdAt: Date.now(),
-			updatedAt: Date.now(),
+			createdAt: now,
+			updatedAt: now,
 			modelId,
 			...(options.thinking ? { thinking: options.thinking } : {}),
 			messageCount: 0,
@@ -264,7 +273,7 @@ export class SessionStore implements SessionStorage {
 			seq: 0,
 		};
 		await mkdir(this.dirFor(projectId), { recursive: true });
-		await this.appendExclusive(meta, { type: "meta", meta });
+		await this.appendExclusive(meta, { type: "meta", meta }, now);
 		return meta;
 	}
 
@@ -280,12 +289,16 @@ export class SessionStore implements SessionStorage {
 		return next;
 	}
 
-	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput): Promise<SessionMeta> {
+	/**
+	 * `now` is both the record's `ts` and, for anything but filing it away, the session's new
+	 * `updatedAt` — one reading, so that `load` can rebuild the second from the first exactly.
+	 */
+	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput, now = Date.now()): Promise<SessionMeta> {
 		const key = this.keyFor(meta);
 		// Callers may hold a stale snapshot; the store's own copy is the source of truth.
 		const base = this.latestMeta.get(key) ?? meta;
 		if (payload.type === "title" && payload.source === "auto" && base.titleSetByUser) return base;
-		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: Date.now() };
+		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: now };
 
 		/*
 		 * 子 Agent 烧的 token 也是这个会话烧的。
@@ -341,7 +354,7 @@ export class SessionStore implements SessionStorage {
 		const persisted = payload.type === "meta" && base.titleSetByUser
 			? { ...payload, meta: { ...payload.meta, title: next.title, titleSetByUser: true } }
 			: payload;
-		const record: SessionRecord = { seq: next.seq, ts: Date.now(), ...parkRecordPayload(persisted) };
+		const record: SessionRecord = { seq: next.seq, ts: now, ...parkRecordPayload(persisted) };
 		await mkdir(this.dirFor(meta.projectId), { recursive: true });
 		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
 		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
@@ -499,7 +512,15 @@ export class SessionStore implements SessionStorage {
 				// A rewind past the boundary retires it: the tail it was paired with is gone.
 				if (compaction && compaction.keptFrom > entries.length) compaction = null;
 			}
-			if (meta) meta.seq = record.seq;
+			if (meta) {
+				meta.seq = record.seq;
+				/*
+				 * `updatedAt` the way `appendExclusive` set it: every record is activity except filing
+				 * the session away. Taken from the last meta record instead, a rebuilt index dated a
+				 * session by when it was created or its model last changed, not by when it was used.
+				 */
+				if (record.type !== "archive" && record.type !== "move" && typeof record.ts === "number") meta.updatedAt = record.ts;
+			}
 		}
 		if (!meta) return null;
 		let messages = entries.map((e) => e.message);
@@ -524,8 +545,18 @@ export class SessionStore implements SessionStorage {
 		if (totalUsage.total > 0 || meta.usage.total === 0) {
 			meta.usage = totalUsage;
 		}
-		// Seed the append queue's view so a reopened session keeps numbering where it left off.
-		this.latestMeta.set(this.keyFor(meta), meta);
+		/*
+		 * Seed the append queue's view so a reopened session keeps numbering where it left off —
+		 * unless an append has moved it past what this read saw.
+		 *
+		 * The file is read first and the view set afterwards, and an append can land in between.
+		 * Putting the older meta back then made the next append reuse a sequence number, which a
+		 * client syncing with `?since=N` skips. At the same `seq` the log wins: it is where counts
+		 * such as `messageCount` are right again after a truncation.
+		 */
+		const key = this.keyFor(meta);
+		const cached = this.latestMeta.get(key);
+		if (!cached || meta.seq >= cached.seq) this.latestMeta.set(key, meta);
 		const loaded = {
 			meta,
 			messages,
