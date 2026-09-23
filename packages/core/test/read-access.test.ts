@@ -464,8 +464,15 @@ test("a path spelled with backslashes is the path bash opens", () => {
 
 test("a substitution in an unquoted heredoc is a read like any other", () => {
 	// bash runs the `$(…)` in the body; only a quoted delimiter makes the body inert.
-	const unquoted = `cat <<EOF\n$(cat ${sh(join(HOME, ".ssh/id_ed25519"))})\nEOF`;
-	assert.ok(commandReadTargets(unquoted, WS).includes(join(HOME, ".ssh/id_ed25519")));
-	const quoted = `cat <<'EOF'\n$(cat ${sh(join(HOME, ".ssh/id_ed25519"))})\nEOF`;
-	assert.ok(!commandReadTargets(quoted, WS).includes(join(HOME, ".ssh/id_ed25519")));
+	const key = join(HOME, ".ssh/id_ed25519");
+	const unquoted = `cat <<EOF\n$(cat ${sh(key)})\nEOF`;
+	assert.ok(commandReadTargets(unquoted, WS, ["posix"]).includes(key));
+	const quoted = `cat <<'EOF'\n$(cat ${sh(key)})\nEOF`;
+	assert.ok(!commandReadTargets(quoted, WS, ["posix"]).includes(key));
+	/*
+	 * PowerShell has no heredoc, so to its reading the same body is a live `$(…)`. Where PowerShell
+	 * may be the shell that runs it, that reading is kept — which is why the grammar is the shell's,
+	 * passed in by whoever knows it, and not every grammar there is.
+	 */
+	assert.ok(commandReadTargets(quoted, WS, ["posix", "powershell"]).includes(key));
 });

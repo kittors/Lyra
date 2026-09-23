@@ -34,11 +34,11 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
-import { commandDialects, home } from "../platform.ts";
+import { commandDialects, commandShell, dialectsOf, home } from "../platform.ts";
 import type { ToolContext } from "../types/tool.ts";
 import { displayPath } from "./paths.ts";
 import { SECRET_PATH } from "./risk-tables.ts";
-import { splitCommands, splitWords } from "./shell-split.ts";
+import { splitCommands, splitWords, type Dialect } from "./shell-split.ts";
 
 export type ReadVerdict =
 	| { decision: "allow" }
@@ -197,7 +197,7 @@ export function assessRead(absolute: string, cwd: string, options: ReadAccessOpt
  * only `/absolute`, `~/home` and `../climbing` paths can leave the workspace, and those are the
  * three shapes worth judging.
  */
-export function commandReadTargets(command: string, cwd: string): string[] {
+export function commandReadTargets(command: string, cwd: string, dialects: readonly Dialect[] = commandDialects()): string[] {
 	const found = new Set<string>();
 	/*
 	 * A here-document's body is data the command is fed, not paths it opens — `python3 - <<'EOF'`
@@ -207,11 +207,12 @@ export function commandReadTargets(command: string, cwd: string): string[] {
 	 * reads them — except for a `$(…)` in an unquoted one, which bash runs and so is judged here.
 	 */
 	/*
-	 * In every grammar the agent's shell might read the line in (`commandDialects`), keeping every
-	 * path any reading finds. Where the shell is PowerShell, `C:\Users\me\.ssh\id_rsa` is a path —
-	 * and bash's reading, which takes the backslashes for escapes, would never have seen it.
+	 * In every grammar the shell might read the line in, keeping every path any reading finds. Where
+	 * the shell is PowerShell, `C:\Users\me\.ssh\id_rsa` is a path — and bash's reading, which takes
+	 * the backslashes for escapes, would never have seen it. A caller that knows which shell runs the
+	 * command passes its grammars (`authorizeCommandReads` does); otherwise every one that could.
 	 */
-	for (const dialect of commandDialects())
+	for (const dialect of dialects)
 	for (const piece of splitCommands(command, dialect)) {
 		const words = splitWords(piece, dialect);
 		for (let i = 0; i < words.length; i++) {
@@ -371,7 +372,13 @@ export async function authorizeCommandReads(command: string, ctx: ToolContext): 
 	 * same project is how people learn to stop reading the question.
 	 */
 	const asked = new Map<string, { absolute: string; verdict: Extract<ReadVerdict, { decision: "ask" }> }>();
-	for (const absolute of commandReadTargets(command, ctx.cwd)) {
+	/*
+	 * Read in the grammar of the shell that will run it — the session's (`commandShell`), which on
+	 * Windows is PowerShell when confined and Git Bash when not. Judged by both there regardless, a
+	 * bash heredoc under Git Bash was read by PowerShell too, which has no heredocs: the inert body
+	 * of `<<'EOF'` became live code, and the user was asked about a file nothing would open.
+	 */
+	for (const absolute of commandReadTargets(command, ctx.cwd, dialectsOf(commandShell(ctx.sandboxMode)))) {
 		/*
 		 * `allowSkillReads` here too, because it is a fact about the file rather than about the
 		 * tool. The system prompt hands the model absolute paths into installed skills; opening one

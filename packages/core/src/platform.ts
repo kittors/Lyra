@@ -267,7 +267,15 @@ export function loginShell(): string {
  * Elsewhere, bash's reading alone.
  */
 export function commandDialects(): ("posix" | "powershell")[] {
-	return process.platform === "win32" || systemShell().kind === "powershell" ? ["posix", "powershell"] : ["posix"];
+	return process.platform === "win32" ? ["posix", "powershell"] : dialectsOf(systemShell());
+}
+
+/**
+ * The grammars to judge a command in when it is known which shell runs it: bash's always, because
+ * the rules were written for it, and PowerShell's as well when that is the shell.
+ */
+export function dialectsOf(shell: Pick<CommandShell, "kind">): ("posix" | "powershell")[] {
+	return shell.kind === "powershell" ? ["posix", "powershell"] : ["posix"];
 }
 
 /** Forget the chosen shells, for tests that change the environment they were chosen from. */

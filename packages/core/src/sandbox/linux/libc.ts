@@ -5,7 +5,7 @@
 import { koffi } from "../native.ts";
 
 /** One argument to a system call: a number, or a buffer (or null) passed as a pointer. */
-export type SyscallArg = number | Buffer | null;
+type SyscallArg = number | Buffer | null;
 
 export interface Libc {
 	/** `syscall(2)` with its six argument slots always filled — see `syscallThrough`. */
