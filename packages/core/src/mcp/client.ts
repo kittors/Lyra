@@ -7,9 +7,10 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { DEFAULT_INHERITED_ENV_VARS, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { commandEnv } from "../sandbox/login-path.ts";
 import type { JsonSchema, Tool, ToolResult, UserContent } from "../types.ts";
 
 /**
@@ -112,7 +113,7 @@ export class McpManager {
 				? new StdioClientTransport({
 						command: server.command,
 						args: server.args ?? [],
-						env: { ...(process.env as Record<string, string>), ...server.env },
+						env: stdioEnv(server.env),
 					})
 				: server.transport === "sse"
 					? new SSEClientTransport(new URL(server.url), {
@@ -215,6 +216,44 @@ export class McpManager {
 		this.connections.clear();
 		this.failures.clear();
 	}
+}
+
+/**
+ * The environment a stdio server is started with: the one the agent's own commands get, then the
+ * server's configured `env` on top.
+ *
+ * It was `process.env`. From an icon that is launchd's four system directories and nothing else,
+ * and most servers are configured as `npx -y @scope/server` — so `npx` was not found wherever nvm,
+ * fnm or volta put it, or it was found and the download timed out without the `https_proxy` the
+ * user's shell exports. `commandEnv` is what repairs both for `bash` and hooks; see `login-path.ts`.
+ *
+ * On Windows the SDK lays its own copy of a few variables underneath ours, spelled in capitals
+ * (`DEFAULT_INHERITED_ENV_VARS`), while `{ ...process.env }` keeps the system's spelling — `Path`,
+ * `SystemRoot`. Left alone, the child gets both `PATH` and `Path`, and which one it reads is decided
+ * by Node sorting the keys, not by us: a `Path` the user set in the server's `env` loses to the
+ * SDK's inherited `PATH`. So names are folded case-insensitively, the later write wins, and those
+ * few are written in the SDK's spelling so they replace its copy instead of sitting beside it.
+ */
+function stdioEnv(overrides: Record<string, string> | undefined): Record<string, string> {
+	const env: Record<string, string> = {};
+	const windows = process.platform === "win32";
+	const spelled = new Map<string, string>();
+	const put = (key: string, value: string | undefined) => {
+		if (value === undefined) return;
+		if (!windows) {
+			env[key] = value;
+			return;
+		}
+		const folded = key.toUpperCase();
+		const previous = spelled.get(folded);
+		if (previous !== undefined) delete env[previous];
+		const name = DEFAULT_INHERITED_ENV_VARS.includes(folded) ? folded : key;
+		spelled.set(folded, name);
+		env[name] = value;
+	};
+	for (const [key, value] of Object.entries(commandEnv(process.env))) put(key, value);
+	for (const [key, value] of Object.entries(overrides ?? {})) put(key, value);
+	return env;
 }
 
 interface RawMcpTool {
