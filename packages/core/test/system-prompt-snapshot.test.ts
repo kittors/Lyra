@@ -74,6 +74,12 @@ Current working directory: /w/proj`,
 	);
 });
 
+test("命令在哪种 shell 里跑，写在平台下面一行", async () => {
+	// `Platform: win32` 一行给模型留下三种语法去猜，而它猜的永远是 bash。
+	const prompt = await buildSystemPrompt({ ...INPUT, platform: "win32", shell: "Windows PowerShell 5.1" });
+	assert.ok(prompt.includes("Environment:\n- Platform: win32\n- Shell: Windows PowerShell 5.1\n- Git repository: yes"), prompt.slice(-200));
+});
+
 test("换掉行为准则，工具那几条仍然在", async () => {
 	/*
 	 * 这是覆盖语义的全部：换掉的是内置那份，工具贡献的照常追加。

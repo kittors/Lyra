@@ -13,6 +13,7 @@
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { gatherMemory } from "./memory-inject.ts";
 import { platform } from "node:os";
+import { systemShell } from "../platform.ts";
 import { access } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
@@ -327,6 +328,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			memorySnippet,
 			projectMemory,
 			platform: platform(),
+			shell: systemShell().label,
 			modelName: input.model.name,
 			isGitRepo: await pathExists(join(cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(cwd),

@@ -61,6 +61,12 @@ export interface SystemPromptInput {
 	/** Preferred personality tone. */
 	tone?: string;
 	platform: string;
+	/**
+	 * The shell the `bash` tool runs commands in, by name — "zsh", "Git Bash", "Windows PowerShell
+	 * 5.1". `Platform: win32` alone left the model to guess between three grammars, and the one it
+	 * guessed was bash whichever it was.
+	 */
+	shell?: string;
 	modelName: string;
 	isGitRepo: boolean;
 	/**
@@ -252,7 +258,7 @@ Boundaries:
 ${BOUNDARIES.map((b) => `- ${b}`).join("\n")}
 
 Environment:
-- Platform: ${input.platform}
+- Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell}` : ""}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}
 - Model: ${input.modelName}`;
 

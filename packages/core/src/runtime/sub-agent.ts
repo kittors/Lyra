@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 import { access } from "node:fs/promises";
 import { platform } from "node:os";
+import { systemShell } from "../platform.ts";
 import { join } from "node:path";
 import type { AgentEvent, AgentEventSink } from "../agent/events.ts";
 import type { AgentRunConfig, AgentRunResult } from "../agent/loop.ts";
@@ -268,6 +269,7 @@ export async function runSubAgent(
 		 */
 		thinking: chosen.thinking,
 		platform: platform(),
+		shell: systemShell().label,
 		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(options.cwd),
