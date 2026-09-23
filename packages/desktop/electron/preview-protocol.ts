@@ -46,7 +46,7 @@ export const PREVIEW_SCHEME = "ly-preview";
  * Injected rather than required of the agent, because a page that had to remember to include
  * this would sometimes forget, and the sizing would be right only some of the time.
  */
-function withHeightReporter(html: string): string {
+export function withHeightReporter(html: string): string {
 	/*
 	 * Two ways to measure, because either one alone is wrong half the time.
 	 *
@@ -108,7 +108,9 @@ setTimeout(report,50);setTimeout(report,200);setTimeout(report,500);setTimeout(r
 })();</script>`;
 	// Before the page's own scripts, so a page that never finishes loading still reports.
 	const head = html.match(/<head[^>]*>/i);
-	if (head) return html.replace(head[0], `${head[0]}${style}${script}`);
+	// A function as the replacement: the tag is the page's own text, and a `$'` or `$&` in it would
+	// otherwise be read as a pattern and copy the rest of the document into the attribute.
+	if (head) return html.replace(head[0], () => `${head[0]}${style}${script}`);
 	return style + script + html;
 }
 

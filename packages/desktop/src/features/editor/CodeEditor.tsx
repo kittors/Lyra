@@ -8,7 +8,7 @@ import {
 	syntaxHighlighting,
 } from "@codemirror/language";
 import { closeSearchPanel, highlightSelectionMatches, openSearchPanel, search, searchKeymap, searchPanelOpen } from "@codemirror/search";
-import { Compartment, EditorState, type Extension } from "@codemirror/state";
+import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
 	EditorView,
 	drawSelection,
@@ -25,7 +25,7 @@ import { GRAMMARS, grammarKeyFor, highlightStyle } from "../../lib/code/highligh
 import { editorTheme } from "./theme.ts";
 import { applyFormat } from "./apply-format.ts";
 import { FORMAT_DEFAULTS } from "./format.ts";
-import { CHEVRON_DOWN, CHEVRON_RIGHT, OPTION_ICONS, SEARCH_ICONS, searchPhrases, searchTips } from "./chrome.ts";
+import { labelSearchPanel, searchPhrases } from "./chrome.ts";
 import { EditorMenu } from "./EditorMenu.tsx";
 import { useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
@@ -33,6 +33,30 @@ import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 /** Keep both the document model and its DOM semantics read-only. */
 export function editorAccess(readOnly: boolean): Extension[] {
 	return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
+}
+
+/**
+ * The line break a file is written with, so the text the editor hands back is written the same way.
+ *
+ * CodeMirror splits on every kind of line break and joins with `\n`, so a CRLF file came back
+ * different on every line: opening one counted as an edit, and saving it rewrote the whole file as
+ * LF. Only a file that is CRLF throughout is joined back with `\r\n`; a mixed one has no single
+ * answer and keeps CodeMirror's `\n`.
+ *
+ * Applied where text leaves the editor, not through `EditorState.lineSeparator`, which looks like
+ * the tool for this: that facet also decides how text coming *in* is split, and paste, the context
+ * menu's paste and the formatter all go through it — with `\r\n` set, pasting the clipboard's usual
+ * LF text landed as one line with a raw `\n` inside it.
+ */
+function lineBreakOf(text: string): "\n" | "\r\n" {
+	return text.includes("\r\n") && !/\r(?!\n)|(?<!\r)\n/.test(text) ? "\r\n" : "\n";
+}
+
+/** Marks the editor taking on text from outside, which is not an edit and must not be reported as one. */
+const adopted = Annotation.define<boolean>();
+
+function contentOf(state: EditorState, lineBreak: string): string {
+	return state.doc.sliceString(0, state.doc.length, lineBreak);
 }
 
 /**
@@ -138,6 +162,12 @@ export function CodeEditor({
 	pathRef.current = path;
 	onChangeRef.current = onChange;
 	onSaveRef.current = onSave;
+	/*
+	 * The file's own line break, and the text the document was last brought in line with — both
+	 * reset whenever the state is rebuilt, and read by the listener, which is built once.
+	 */
+	const lineBreak = useRef(lineBreakOf(text));
+	const synced = useRef(text);
 	const menu = useContextMenu();
 	/** Assigned below; held in a ref so the keymap built once can reach the current one. */
 	const openFindRef = useRef<(withReplace: boolean) => void>(() => {});
@@ -151,6 +181,8 @@ export function CodeEditor({
 		const element = host.current;
 		if (!element) return;
 
+		lineBreak.current = lineBreakOf(text);
+		synced.current = text;
 		const state = EditorState.create({
 			doc: text,
 			extensions: [
@@ -258,7 +290,10 @@ export function CodeEditor({
 				]),
 				editorTheme(),
 				EditorView.updateListener.of((update) => {
-					if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+					if (!update.docChanged) return;
+					// Taking on outside text is not an edit: reported back, a discard or a reload came back as a draft.
+					if (update.transactions.some((tr) => tr.annotation(adopted))) return;
+					onChangeRef.current(contentOf(update.state, lineBreak.current));
 				}),
 			],
 		});
@@ -266,64 +301,8 @@ export function CodeEditor({
 		const instance = new EditorView({ state, parent: element });
 		view.current = instance;
 
-		/*
-		 * Tooltips for the find bar, which is not ours to render.
-		 *
-		 * The buttons show a glyph now, so the words have to live somewhere — and `phrases` only
-		 * controls the visible label. CodeMirror builds the panel on first open, so this watches
-		 * for it rather than running once. The app's own tooltip is driven by an attribute
-		 * precisely so a panel outside React's tree can still use it.
-		 */
-		const labelPanel = () => {
-			/*
-			 * Replace starts folded, behind a disclosure of its own.
-			 *
-			 * Eleven controls is more than a narrow pane can hold on one line, and unfolded they
-			 * wrapped to three rows with the close button stranded on one by itself. Most finds
-			 * never replace anything, so the second row is the part that should be asked for —
-			 * which is what every editor with a find bar does.
-			 */
-			const panel = element.querySelector<HTMLElement>(".cm-panel.cm-search");
-			// The app's floating surface, so the find card matches every menu and popover in it.
-			panel?.classList.add("ly-glass", "ly-pop-in");
-			if (panel && !panel.querySelector("[name=ly-replace-toggle]")) {
-				const toggle = document.createElement("button");
-				toggle.setAttribute("name", "ly-replace-toggle");
-				toggle.setAttribute("type", "button");
-				toggle.setAttribute("aria-label", translate("find.showReplace"));
-				toggle.dataset.dwTip = translate("find.showReplace");
-				toggle.innerHTML = CHEVRON_RIGHT;
-				toggle.addEventListener("click", () => {
-					const open = panel.classList.toggle("ly-replace-open");
-					toggle.setAttribute("aria-label", translate(open ? "find.hideReplace" : "find.showReplace"));
-					toggle.dataset.dwTip = translate(open ? "find.hideReplace" : "find.showReplace");
-					toggle.innerHTML = open ? CHEVRON_DOWN : CHEVRON_RIGHT;
-					if (open) panel.querySelector<HTMLInputElement>("input[name=replace]")?.focus();
-				});
-				panel.prepend(toggle);
-			}
-
-			for (const [name, hint] of Object.entries(searchTips())) {
-				const button = element.querySelector<HTMLElement>(`.cm-search button[name=${name}]`);
-				if (!button || button.querySelector("svg")) continue;
-				// The icon replaces the word, so the word has to survive as the accessible name.
-				button.setAttribute("aria-label", hint);
-				button.dataset.dwTip = hint;
-				button.innerHTML = SEARCH_ICONS[name] ?? "";
-			}
-			// The options are labels, and their text is hidden, so they need one too.
-			const options = element.querySelectorAll<HTMLElement>(".cm-search label");
-			const optionHints = [translate("find.matchCase"), translate("find.regexFull"), translate("find.wholeWord")];
-			for (const [i, hint] of optionHints.entries()) {
-				const option = options[i];
-				if (!option || option.querySelector("svg")) continue;
-				option.setAttribute("aria-label", hint);
-				option.dataset.dwTip = hint;
-				// Appended, not assigned: the checkbox inside is what holds the option's state.
-				option.insertAdjacentHTML("beforeend", OPTION_ICONS[i] ?? "");
-			}
-		};
-		const panels = new MutationObserver(labelPanel);
+		// CodeMirror builds the find bar on first open, so this watches for it rather than running once.
+		const panels = new MutationObserver(() => labelSearchPanel(element));
 		panels.observe(element, { childList: true, subtree: true });
 		setScroller(instance.scrollDOM);
 
@@ -364,13 +343,22 @@ export function CodeEditor({
 	 *
 	 * Only when the incoming text genuinely differs from what is on screen — otherwise this
 	 * fires on every keystroke, since our own `onChange` is what produced the new value.
+	 *
+	 * Checked against the text last seeded first, because a file with mixed line breaks never
+	 * equals what the editor hands back: comparing only against the document rewrote it on open,
+	 * and the rewrite was reported as an edit. `to` is the document's length, not the string's —
+	 * joined with `\r\n` the two differ by a character a line.
 	 */
 	useEffect(() => {
 		const instance = view.current;
-		if (!instance) return;
-		const current = instance.state.doc.toString();
-		if (current === text) return;
-		instance.dispatch({ changes: { from: 0, to: current.length, insert: text } });
+		if (!instance || text === synced.current) return;
+		synced.current = text;
+		if (contentOf(instance.state, lineBreak.current) === text) return;
+		lineBreak.current = lineBreakOf(text);
+		instance.dispatch({
+			changes: { from: 0, to: instance.state.doc.length, insert: text },
+			annotations: adopted.of(true),
+		});
 	}, [text]);
 
 	/**
