@@ -24,7 +24,7 @@ import { translate } from "../../i18n/translate.ts";
 import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";
+import { clampZoom, wheelZoomFactor, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";
 import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas, STAGE_FIT } from "./AnnotateCanvas.tsx";
 import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
@@ -488,9 +488,9 @@ export function ImageViewer() {
 			className="no-drag fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
 			onWheel={(event) => {
 				// Trackpad pinch arrives as a wheel with ctrlKey held; both gestures mean the same
-				// thing here, at different sensitivities.
-				const factor = Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0022));
-				zoomTo(zoom * factor, { x: event.clientX, y: event.clientY });
+				// thing here, at different sensitivities — and Ctrl+wheel looks like a pinch. See
+				// `wheelZoomFactor` for why one event is capped.
+				zoomTo(zoom * wheelZoomFactor(event.deltaY, event.ctrlKey), { x: event.clientX, y: event.clientY });
 			}}
 		>
 			{/*

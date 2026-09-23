@@ -489,6 +489,21 @@ export const ZOOM_STEP = 1.25;
 export const clampZoom = (zoom: number): number => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
 
 /**
+ * How much one wheel event zooms by.
+ *
+ * Two gestures arrive as the same event. A trackpad pinch is a wheel with `ctrlKey` held and deltas
+ * of a few pixels, dozens a second, so that path is sensitive. Ctrl+wheel — how Windows and Linux
+ * zoom — is also a wheel with `ctrlKey` held, but one notch is about 100px, and the pinch's
+ * sensitivity made that e¹: 2.7× a click. So no single event may zoom more than one press of the
+ * buttons. A pinch's deltas never come near the limit, and a plain notch was already about there.
+ */
+export function wheelZoomFactor(deltaY: number, pinch: boolean): number {
+	const limit = Math.log(ZOOM_STEP);
+	const exponent = -deltaY * (pinch ? 0.01 : 0.0022);
+	return Math.exp(Math.min(limit, Math.max(-limit, exponent)));
+}
+
+/**
  * Zoom about a point on the screen, keeping whatever is under that point under it.
  *
  * The stage is transformed as `translate(offset) scale(zoom)` about its own centre, so a point at
