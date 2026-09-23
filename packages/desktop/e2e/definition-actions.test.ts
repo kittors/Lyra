@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { after, before, test } from "node:test";
+import { after, afterEach, before, test, type TestContext } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { named } from "./named.ts";
+import { settleSharedWindow } from "./shared-window.ts";
 
 let app: RunningApp;
 let cwd: string;
@@ -49,6 +50,8 @@ after(async () => {
 		}
 	}
 });
+// The second test starts on the settings page the first one leaves, and the first opens confirmations.
+afterEach(async (context) => settleSharedWindow(app, context as TestContext, "definition-actions"));
 
 async function frames(n = 20) {
 	await app.evaluate(`new Promise(resolve=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):resolve();requestAnimationFrame(f);})`);

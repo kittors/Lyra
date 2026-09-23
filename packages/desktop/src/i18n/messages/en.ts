@@ -430,7 +430,7 @@ export const en = {
 	"tone.section": "Personality and tone",
 	"tone.customInstructions": "Custom instructions",
 	"tone.customDetail": "Markdown is supported. AGENTS.md, LYRA.md and CLAUDE.md in the project root are picked up as project-level instructions.",
-	"tone.sampleRules": "# Global agent rules and preferences&#10;&#10;- Answer in English; leave code, commands and error logs in their original form.&#10;- Prefer the smallest change that works, the standard library and native dependencies, and no premature abstraction.&#10;- Search the local code and docs before answering, and give a solution you have verified.",
+	"tone.sampleRules": "# Global agent rules and preferences\n\n- Answer in English; leave code, commands and error logs in their original form.\n- Prefer the smallest change that works, the standard library and native dependencies, and no premature abstraction.\n- Search the local code and docs before answering, and give a solution you have verified.",
 	"common.tools": "Tools",
 	"common.personal": "Personal",
 	"common.notSet": "Not set",

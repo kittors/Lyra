@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { before, after, test } from "node:test";
+import { before, after, afterEach, test, type TestContext } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import type { SessionRecord } from "@lyra/core";
+import { zhCN } from "../src/i18n/messages/zh-CN.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { named } from "./named.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
+import { settleSharedWindow } from "./shared-window.ts";
 
 let app: RunningApp;
 const recorded: Frame[] = [];
@@ -41,25 +43,39 @@ after(async () => {
 		if (process.env.LYRA_E2E_VIDEO && recorded.length) await encode(recorded, process.env.LYRA_E2E_VIDEO, 30);
 	} finally { await app?.stop(); }
 });
+/*
+ * 这些用例共用一扇窗，一条红了留下的弹窗会连着压垮后面几条——见 `shared-window.ts`。
+ * 失败的留截图和现场，还开着的弹窗按 Escape 关掉再交给下一条。
+ */
+afterEach(async (context) => settleSharedWindow(app, context as TestContext, "visual-details"));
 async function frames(n = 20) { await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`); }
-async function until(expression: string) { await app.evaluate(`new Promise((r,j)=>{let n=300;const f=()=>(${expression})?r():--n?requestAnimationFrame(f):j(new Error('missing'));f();})`); }
+async function until(expression: string) { await app.evaluate(`new Promise((r,j)=>{let n=300;const f=()=>(${expression})?r():--n?requestAnimationFrame(f):j(new Error('missing: '+${JSON.stringify(expression)}));f();})`); }
 async function click(selector: string) {
 	const point = (visible: boolean) => app.evaluate<{x: number; y: number}>(`(async()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true}));if(!e)throw new Error('missing '+${JSON.stringify(selector)});e.scrollIntoView({block:'nearest',behavior:'instant'});
 		const deadline=Date.now()+8000;
+		// Enough of an element to recognise it in a CI log: its tag, the attributes that name it, a few classes.
+		const describe=n=>{if(!n)return 'nothing';const attrs=[...n.attributes].filter(a=>a.name!=='class'&&a.name!=='style').slice(0,4).map(a=>'['+a.name+(a.value?'="'+a.value.slice(0,48)+'"':'')+']').join('');const cls=typeof n.className==='string'&&n.className.trim()?'.'+n.className.trim().split(/\\s+/).slice(0,4).join('.'):'';return n.tagName.toLowerCase()+attrs+cls;};
 		while(true) {
 			// A mounted portal can still be transparent and waiting for its final position.
-			let ready=e.isConnected&&!e.matches(':disabled');
+			let ready=e.isConnected&&!e.matches(':disabled'),blocker=ready?'':'disabled or detached';
 			for(let ancestor=e;ancestor;ancestor=ancestor.parentElement) {
 				const style=getComputedStyle(ancestor);
-				ready&&=style.visibility!=='hidden'&&(!${visible}||Number(style.opacity)>0);
-				ready&&=!ancestor.getAnimations().some(animation=>
+				if(style.visibility==='hidden'||(${visible}&&!(Number(style.opacity)>0))){ready=false;blocker||='hidden: '+describe(ancestor);}
+				if(ancestor.getAnimations().some(animation=>
 					Number.isFinite(animation.effect?.getComputedTiming().endTime)&&
-					(animation.pending||animation.playState==='running'));
+					(animation.pending||animation.playState==='running'))){ready=false;blocker||='animating: '+describe(ancestor);}
 			}
 			const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
 			const target=${visible}?e:(e.closest('[data-row-actions]')??e);
-			if(ready&&r.width>0&&r.height>0&&target.contains(document.elementFromPoint(x,y)))break;
-			if(Date.now()>deadline)throw new Error('click target did not become visible and stable '+${JSON.stringify(selector)});
+			const hit=document.elementFromPoint(x,y);
+			if(ready&&r.width>0&&r.height>0&&target.contains(hit))break;
+			if(Date.now()>deadline){
+				// Name what the press would have landed on: a scrim left open by an earlier test reads nothing like a hidden button.
+				const layer=hit?.closest('[data-ly-overlay],[data-ly-modal],[data-ly-popover],[data-dock-pane]');
+				throw new Error('click target did not become visible and stable '+${JSON.stringify(selector)}+' '+JSON.stringify({
+					blocker:blocker||(r.width>0&&r.height>0?'covered':'zero size'),at:[Math.round(x),Math.round(y)],
+					rect:[r.x,r.y,r.width,r.height].map(Math.round),hit:describe(hit),layer:layer&&layer!==hit?describe(layer):null}));
+			}
 			await new Promise(requestAnimationFrame);
 		}
 		const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
@@ -75,10 +91,30 @@ async function click(selector: string) {
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", {type,...at,button:"left",clickCount:1});
 	await frames(2);
 }
+/**
+ * Click the button a page expression finds, through `click` and its visibility and hit checks.
+ *
+ * Tagged for the selector, and untagged afterwards even when the click fails. A timed-out click
+ * used to leave its tag behind, and the next lookup could then land on the previous test's button.
+ */
+async function clickFound(find: string) {
+	await app.evaluate(`(()=>{for(const stale of document.querySelectorAll('[data-qa-click]'))stale.removeAttribute('data-qa-click');(${find}).setAttribute('data-qa-click','');})()`);
+	try { await click('[data-qa-click]'); }
+	finally { await app.evaluate(`document.querySelector('[data-qa-click]')?.removeAttribute('data-qa-click')`).catch(() => undefined); }
+}
 async function clickText(text: string) {
-	const match = named(text);
-	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.checkVisibility({visibilityProperty:true})&&${match});if(!e)throw new Error('missing text');e.setAttribute('data-qa-click','');})()`);
-	await click('[data-qa-click]'); await app.evaluate(`document.querySelector('[data-qa-click]')?.removeAttribute('data-qa-click')`);
+	await clickFound(`[...document.querySelectorAll('button')].find(e=>e.checkVisibility({visibilityProperty:true})&&${named(text)})??(()=>{throw new Error('missing text '+${JSON.stringify(text)});})()`);
+}
+/**
+ * One of the buttons along the bottom of the frontmost dialog.
+ *
+ * That row is the only way out of a dialog on the shared shell (`DialogFrame`): the corner ✕ went
+ * when the release centre and the plugin-market sources moved onto it, and 「取消」 or 「完成」 is
+ * the exit now. Searched for there rather than across the page, where a covered button with the
+ * same word can come first in document order.
+ */
+async function clickDialogAction(text: string) {
+	await clickFound(`(()=>{const row=[...document.querySelectorAll('[data-ly-modal]')].at(-1)?.querySelector('[data-ly-dialog-actions]');if(!row)throw new Error('no open dialog has an action row');const buttons=[...row.querySelectorAll('button')];return buttons.find(e=>e.checkVisibility({visibilityProperty:true})&&${named(text)})??(()=>{throw new Error('the dialog has no '+${JSON.stringify(text)}+' action: '+buttons.map(b=>(b.textContent||'').trim()).join(' | '));})();})()`);
 }
 async function screenshot(name: string) {
 	if (!process.env.LYRA_E2E_ARTIFACTS) return;
@@ -150,7 +186,8 @@ test("release preview and edit share a stable dialog and content height", async 
 	assert.deepEqual(await size(), before);
 	await click('[aria-label="预览更新日志"]');
 	await frames(); await screenshot("release-preview");
-	await click('[aria-label="关闭发版中心"]');
+	// No corner ✕ on the shared dialog shell: 「取消」 in the bottom row is the way out (ReleaseModal's actions).
+	await clickDialogAction(zhCN["common.cancel"]);
 	await until(`!document.querySelector('[data-ly-modal]')`);
 });
 
@@ -267,7 +304,8 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 		await clickText("插件"); await frames();
 		await clickText("添加");
 		await clickText("添加插件市场");
-		await until(`document.querySelector('[aria-label="关闭插件市场"]')`); await frames();
+		// The dialog no longer has a close button to wait for; its title is what says it arrived.
+		await until(`[...document.querySelectorAll('[data-ly-modal]')].some(e=>e.textContent.includes(${JSON.stringify(zhCN["registry.title"])}))`); await frames();
 	} catch (error) {
 		t.diagnostic(JSON.stringify(await app.evaluate(`({clicks:window.qaRegistryClicks,events:window.qaRegistryEvents,viewport:[innerWidth,innerHeight],native:[outerWidth,outerHeight],scale:devicePixelRatio,touch:navigator.maxTouchPoints,hover:matchMedia('(hover:hover)').matches,body:document.body.innerText.slice(-2000)})`)));
 		await screenshot("registry-open-failure");
@@ -291,7 +329,8 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 	assert.ok(narrow.x>=0 && narrow.right<=375 && narrow.bottom<=480,JSON.stringify(narrow));
 	assert.equal(narrow.overflow,0); assert.equal(narrow.action,"1"); assert.equal(narrow.hover,false); assert.equal(narrow.touch,1);
 	await screenshot("registry-dark-compact");
-	await click('[aria-label="关闭插件市场"]');
+	// Changes here save as they are made, so the dialog's one exit is 「完成」 (RegistrySources' actions).
+	await clickDialogAction(zhCN["common.done"]);
 	await until(`!document.querySelector('[data-ly-modal]')`);
 	t.diagnostic(JSON.stringify({box,narrow,layers}));
 	});

@@ -430,7 +430,7 @@ export const zhTW = {
 	"tone.section": "個性與語氣偏好",
 	"tone.customInstructions": "自訂指令",
 	"tone.customDetail": "支援 Markdown 格式。系統會自動讀取專案根目錄的 AGENTS.md / LYRA.md / CLAUDE.md 作為專案級指令。",
-	"tone.sampleRules": "# 全域 Agent 規則與偏好&#10;&#10;- 預設使用繁體中文回答；程式碼、命令與錯誤紀錄保留原文。&#10;- 遵循最小改動原則，標準函式庫與原生相依優先，不做過度抽象。&#10;- 遇到問題主動檢索本機程式碼與文件，給出經過驗證的方案。",
+	"tone.sampleRules": "# 全域 Agent 規則與偏好\n\n- 預設使用繁體中文回答；程式碼、命令與錯誤紀錄保留原文。\n- 遵循最小改動原則，標準函式庫與原生相依優先，不做過度抽象。\n- 遇到問題主動檢索本機程式碼與文件，給出經過驗證的方案。",
 	"common.tools": "工具",
 	"common.personal": "個人",
 	"common.notSet": "未設定",

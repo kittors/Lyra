@@ -430,7 +430,7 @@ export const fr = {
 	"tone.section": "Personnalité et ton",
 	"tone.customInstructions": "Instructions personnalisées",
 	"tone.customDetail": "Markdown pris en charge. AGENTS.md, LYRA.md et CLAUDE.md à la racine du projet sont lus comme instructions de projet.",
-	"tone.sampleRules": "# Règles et préférences globales de l'agent&#10;&#10;- Répondre en français ; laisser le code, les commandes et les journaux d'erreur dans leur langue d'origine.&#10;- Préférer le plus petit changement qui fonctionne, la bibliothèque standard et les dépendances natives, sans abstraction prématurée.&#10;- Chercher dans le code et la documentation locale avant de répondre, et proposer une solution vérifiée.",
+	"tone.sampleRules": "# Règles et préférences globales de l'agent\n\n- Répondre en français ; laisser le code, les commandes et les journaux d'erreur dans leur langue d'origine.\n- Préférer le plus petit changement qui fonctionne, la bibliothèque standard et les dépendances natives, sans abstraction prématurée.\n- Chercher dans le code et la documentation locale avant de répondre, et proposer une solution vérifiée.",
 	"common.tools": "Outils",
 	"common.personal": "Personnel",
 	"common.notSet": "Non défini",

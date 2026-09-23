@@ -615,7 +615,7 @@ export const zhCN = {
 	"tone.section": "个性与语气偏好",
 	"tone.customInstructions": "自定义指令",
 	"tone.customDetail": "支持 Markdown 格式。系统会自动读取项目根目录的 AGENTS.md / LYRA.md / CLAUDE.md 作为项目级指令。",
-	"tone.sampleRules": "# 全局 Agent 规则与偏好&#10;&#10;- 默认使用中文回答；代码、命令与错误日志保留原文。&#10;- 遵循最小改动原则，标准库与原生依赖优先，不做过度抽象。&#10;- 遇到问题主动检索本地代码与文档，给出经过验证的方案。",
+	"tone.sampleRules": "# 全局 Agent 规则与偏好\n\n- 默认使用中文回答；代码、命令与错误日志保留原文。\n- 遵循最小改动原则，标准库与原生依赖优先，不做过度抽象。\n- 遇到问题主动检索本地代码与文档，给出经过验证的方案。",
 	"common.tools": "工具",
 	"common.personal": "个人",
 	"common.notSet": "未设置",
