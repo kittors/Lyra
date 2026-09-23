@@ -32,6 +32,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { macKeyboard, shortcutLabel, shortcutLetter } from "../../ui/keyboard.ts";
 
 import type { Tool } from "./annotate.ts";
 import { COLOURS, type Annotator } from "./Annotator.tsx";
@@ -299,10 +300,17 @@ export function AnnotateToolbar({
 			// than no shortcut.
 			if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
 
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+			const letter = shortcutLetter(event);
+			if ((event.metaKey || event.ctrlKey) && letter === "z") {
 				event.preventDefault();
 				if (event.shiftKey) annotator.redo();
 				else annotator.undo();
+				return;
+			}
+			// Ctrl+Y is redo on Windows and Linux. Not ⌘Y on a Mac, where redo is only ⇧⌘Z.
+			if (!macKeyboard() && event.ctrlKey && !event.shiftKey && !event.altKey && letter === "y") {
+				event.preventDefault();
+				annotator.redo();
 				return;
 			}
 
@@ -706,7 +714,8 @@ function ToolButton({
 			// Above: the bar sits at the bottom of the window, so a bubble below it would be off screen
 			// and get flipped anyway. Saying so directly avoids the flip.
 			data-ly-tip-side="top"
-			aria-label={label}
+			// The tooltip converts ⌘ on display; the accessible name is read straight off this.
+			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
 			disabled={disabled}
 			onClick={onClick}

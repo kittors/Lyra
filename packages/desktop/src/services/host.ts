@@ -30,6 +30,19 @@ export function onPhone(): boolean {
 }
 
 /**
+ * Which system the desktop runs — the one whose files, bin and file manager these are, which on a
+ * phone is the paired desktop's rather than the phone's own.
+ *
+ * Read the way `host()` reads, without going through `bridge`: that throws when there is no
+ * bridge, and the words that depend on this are drawn during render, where a label is not worth
+ * taking the whole tree down for. macOS when nothing says otherwise, as the window chrome assumes.
+ */
+export function hostPlatform(): string {
+	const scope = globalThis as { lyra?: { platform?: string }; window?: { lyra?: { platform?: string } } };
+	return (scope.lyra ?? scope.window?.lyra)?.platform ?? "darwin";
+}
+
+/**
  * Whether a method answers in this host.
  *
  * Answered from the contract rather than by probing the object, so a component can ask *before*

@@ -150,6 +150,72 @@ async function main() {
 
 		await shot(`${phase}_01_弹窗默认全选`);
 
+		/*
+		 * 滑块压字：客户第二张截图里，右端那一列「200K」被滚动条盖掉了半个字。
+		 *
+		 * 量的是画出来的几何，四件事：
+		 *   - 最右那列字的右缘到滑块左缘隔多远——负数就是压上了；
+		 *   - 那列字的右缘还跟上面「全选」的右缘对不对齐。让开滑块有两种办法，一种是把列表缩窄，那会
+		 *     让这两条边错开一截，这一项就是冲着它来的；
+		 *   - 行的底色两边是不是都画得出来。行本来就比字宽出去一点（`-mx-2.5`），可滚动面按内容区
+		 *     裁横向，宽出去的那一点从来没显示过；
+		 *   - 滑块还在弹窗里面，没有贴到卡片边上。
+		 */
+		const edges = await app.evaluate<{
+			thumb: { left: number; right: number } | null;
+			text: number;
+			selectAll: number;
+			row: { left: number; right: number };
+			view: { left: number; right: number };
+			card: number;
+		}>(`(() => {
+			const modal = document.querySelector('[data-ly-modal]');
+			const rect = (el) => el.getBoundingClientRect();
+			const thumb = modal.querySelector('.ly-thumb');
+			const view = modal.querySelector('.ly-scroll-view');
+			const row = modal.querySelector('label');
+			const size = row.lastElementChild;
+			const selectAll = [...modal.querySelectorAll('button')].find((b) => /全选/.test(b.innerText || ''));
+			const box = rect(view);
+			return {
+				thumb: thumb ? { left: rect(thumb).left, right: rect(thumb).right } : null,
+				text: rect(size).right,
+				selectAll: rect(selectAll).right,
+				row: { left: rect(row).left, right: rect(row).right },
+				view: { left: box.left + view.clientLeft, right: box.left + view.clientLeft + view.clientWidth },
+				card: rect(modal).right,
+			};
+		})()`);
+		const gap = edges.thumb ? Math.round((edges.thumb.left - edges.text) * 10) / 10 : Number.NaN;
+		check(
+			"最右一列的字不压在滑块底下",
+			edges.thumb !== null && gap >= 4,
+			edges.thumb ? `字的右缘到滑块左缘 ${gap}px（负数 = 压住）` : "没有滑块——列表没溢出，量不到",
+		);
+		check(
+			"最右一列仍跟「全选」右缘对齐（列表没有被缩窄）",
+			Math.abs(edges.text - edges.selectAll) <= 1,
+			`字右缘 ${Math.round(edges.text)}，全选右缘 ${Math.round(edges.selectAll)}`,
+		);
+		check(
+			"行的底色两边都画得出来，不被滚动面裁掉",
+			edges.row.left >= edges.view.left - 0.5 && edges.row.right <= edges.view.right + 0.5,
+			`行 ${Math.round(edges.row.left)}–${Math.round(edges.row.right)}，滚动面可见区 ${Math.round(edges.view.left)}–${Math.round(edges.view.right)}`,
+		);
+		check(
+			"滑块在弹窗里面，离卡片边缘还有距离",
+			edges.thumb !== null && edges.card - edges.thumb.right >= 4,
+			edges.thumb ? `滑块右缘到卡片右缘 ${Math.round((edges.card - edges.thumb.right) * 10) / 10}px` : "没有滑块",
+		);
+		// 指针停在第二行上，拍一张底色：它该比字两边各宽出去一点，右边不该碰到滑块。
+		const hover = await app.evaluate<{ x: number; y: number }>(
+			`(() => { const r = document.querySelectorAll('[data-ly-modal] label')[1].getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`,
+		);
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...hover });
+		await app.evaluate(`(${WAIT})(250)`);
+		await shot(`${phase}_01b_悬停一行`);
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+
 		const measured = await app.evaluate<{
 			rows: number;
 			footerCount: number;
@@ -167,8 +233,9 @@ async function main() {
 			const fieldEl = modal.querySelector('[data-ly-field]');
 			const buttons = [...modal.querySelectorAll('button')].filter((b) => b.checkVisibility());
 			const selectAllEl = buttons.find((b) => /全选/.test(b.innerText||''));
-			// 页脚 = 弹窗最后一个块里的按钮。
-			const footerEl = modal.lastElementChild;
+			// 页脚按它自己的记号找。从前取「弹窗最后一个子元素」，弹窗换成 DialogFrame 之后那是整个框，
+			// 每一行的勾选框都被数成了页脚按钮。
+			const footerEl = modal.querySelector('[data-ly-dialog-actions]');
 			const footerButtons = [...footerEl.querySelectorAll('button')].filter((b) => b.checkVisibility());
 			const rows = [...modal.querySelectorAll('label')];
 			const root = getComputedStyle(document.documentElement);
@@ -249,7 +316,7 @@ async function main() {
 			const buttons = [...modal.querySelectorAll('button')].filter((b) => b.checkVisibility());
 			return {
 				selectAll: (buttons.find((b) => /全选/.test(b.innerText||''))?.innerText||'').trim(),
-				footer: [...modal.lastElementChild.querySelectorAll('button')].map((b) => (b.innerText||'').trim()),
+				footer: [...modal.querySelector('[data-ly-dialog-actions]').querySelectorAll('button')].map((b) => (b.innerText||'').trim()),
 			};
 		})()`);
 		check(

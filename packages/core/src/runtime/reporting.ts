@@ -13,6 +13,8 @@ import { projectMemoryEnabled } from "./project-memory.ts";
 import { gatherMemory } from "./memory-inject.ts";
 import { access } from "node:fs/promises";
 import { platform } from "node:os";
+import { commandShell } from "../platform.ts";
+import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { join } from "node:path";
 import type { Settings } from "../config/settings.ts";
 import { resolveModel } from "../config/settings.ts";
@@ -101,6 +103,7 @@ export async function describeContext(session: SessionFacts): Promise<ContextBre
 			customInstructions: session.settings.personalization?.customInstructions,
 			tone: session.settings.personalization?.tone,
 			platform: platform(),
+			shell: commandShell(sandboxModeFor(session.settings.permissionMode)),
 			modelName: resolved.model.name,
 			isGitRepo: await pathExists(join(session.cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(session.cwd),

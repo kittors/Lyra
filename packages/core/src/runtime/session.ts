@@ -32,7 +32,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agent/events.ts";
 import type { AgentRunConfig } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
-import { layerProjectSettings, resolveModel } from "../config/settings.ts";
+import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem } from "../config/settings.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
 import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
@@ -217,9 +217,16 @@ export class AgentSession {
 	/** Load skills, agents and MCP tools. Safe to call again after settings change. */
 	async initialize(): Promise<void> {
 		if (!this.log.meta) {
-			this.log.meta = await this.store.create(this.cwd, this.settings.defaultModelId ?? "");
+			this.log.meta = await this.store.create(this.cwd, this.settings.defaultModelId ?? "", undefined, { thinking: this.settings.thinking });
 		}
 		await this.applyProjectConfig();
+		/*
+		 * The global settings file could not be read, so this runs on defaults: no providers, no MCP
+		 * servers, no hooks. Said in the session because this is where it shows — an empty model list
+		 * reads as the app having lost everything, not as one file that would not parse.
+		 */
+		const damaged = settingsProblem();
+		if (damaged) await this.emit({ type: "notice", level: "error", message: describeSettingsProblem(damaged) });
 		await this.can.load(this.cwd, this.settings);
 		/*
 		 * `session://` 的数据源。

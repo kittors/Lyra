@@ -14,9 +14,11 @@
 
 import { BUILTIN_FORMATTER } from "../shared/format-builtin.ts";
 import { spawn } from "node:child_process";
-import { access, constants } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { homedir } from "node:os";
+import { posix, win32 } from "node:path";
+import { findExecutable, type FindExecutableOptions } from "./find-executable.ts";
 import { type BuiltinFormatOptions, formatWithBuiltinEngine, hasBuiltinEngine } from "./format-builtin-engines.ts";
+import { cmdInvocation, needsCmdShell } from "./windows-command.ts";
 
 interface ExternalFormatter {
 	/** Display name, and the binary to look for. */
@@ -101,27 +103,37 @@ const EXTERNAL: Record<string, ExternalFormatter[]> = {
 };
 
 /**
- * Where to look for a binary.
+ * Where to look for a binary beyond PATH.
  *
  * A GUI app on macOS does not inherit the shell's PATH — it gets the bare system one from launchd,
  * which has none of Homebrew, none of the version managers, and none of `~/.cargo/bin`. So
  * `gofmt` is on the machine, on the user's PATH in every terminal they own, and invisible to us.
  * The usual places are searched explicitly to cover it.
+ *
+ * The home directory is the operating system's answer, not `process.env.HOME`: Windows does not
+ * set `HOME`, and `join("", ".cargo/bin")` is a *relative* path, resolved against wherever the app
+ * happened to be started. The Unix directories are left out on Windows, where `/usr/local/bin`
+ * would quietly mean a folder at the root of the current drive.
  */
-function searchPath(): string[] {
-	const home = process.env.HOME ?? "";
-	const extra = [
-		"/opt/homebrew/bin",
-		"/usr/local/bin",
-		"/usr/bin",
-		"/bin",
-		join(home, ".cargo/bin"),
-		join(home, ".local/bin"),
-		join(home, "go/bin"),
-		join(home, ".bun/bin"),
-		"/opt/homebrew/opt/openjdk/bin",
-	];
-	return [...(process.env.PATH ?? "").split(delimiter).filter(Boolean), ...extra];
+export function formatterExtraDirs(platform: string, home: string): string[] {
+	const path = platform === "win32" ? win32 : posix;
+	const underHome = home ? [".cargo/bin", ".local/bin", "go/bin", ".bun/bin"].map((dir) => path.join(home, dir)) : [];
+	if (platform === "win32") return underHome;
+	return ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", ...underHome, "/opt/homebrew/opt/openjdk/bin"];
+}
+
+/** The binary's full path, or null. `rustfmt` on Windows is `rustfmt.exe`, found through `PATHEXT`. */
+export function locateFormatter(
+	command: string,
+	options: Pick<FindExecutableOptions, "isExecutable"> & { platform?: string; env?: NodeJS.ProcessEnv; home?: string } = {},
+): string | null {
+	const platform = options.platform ?? process.platform;
+	return findExecutable(command, {
+		platform,
+		env: options.env ?? process.env,
+		extraDirs: formatterExtraDirs(platform, options.home ?? homedir()),
+		isExecutable: options.isExecutable,
+	});
 }
 
 const found = new Map<string, string | null>();
@@ -130,14 +142,7 @@ const found = new Map<string, string | null>();
 async function locate(command: string): Promise<string | null> {
 	const cached = found.get(command);
 	if (cached !== undefined) return cached;
-	let result: string | null = null;
-	for (const directory of searchPath()) {
-		const candidate = join(directory, command);
-		if (await access(candidate, constants.X_OK).then(() => true, () => false)) {
-			result = candidate;
-			break;
-		}
-	}
+	const result = locateFormatter(command);
 	found.set(command, result);
 	return result;
 }
@@ -210,7 +215,15 @@ export async function formatExternally(extension: string, source: string, option
 
 function run(binary: string, args: string[], source: string, tool: string): Promise<ExternalResult> {
 	return new Promise((resolve) => {
-		const child = spawn(binary, args, { stdio: ["pipe", "pipe", "pipe"] });
+		/*
+		 * A tool installed with `npm i -g` is a `.cmd` shim on Windows, and Node refuses to start one
+		 * without a shell (EINVAL). It goes through cmd.exe with a line built for it — see
+		 * `windows-command.ts` for why `shell: true` would not be safe here.
+		 */
+		const shim = process.platform === "win32" && needsCmdShell(binary) ? cmdInvocation(binary, args, process.env) : null;
+		const child = shim
+			? spawn(shim.file, shim.args, { stdio: ["pipe", "pipe", "pipe"], windowsVerbatimArguments: true, windowsHide: true })
+			: spawn(binary, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
 		let out = "";
 		let err = "";
 		const timer = setTimeout(() => {

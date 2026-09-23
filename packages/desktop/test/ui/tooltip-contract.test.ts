@@ -91,3 +91,48 @@ test("IconButton 经 Tooltip 之后仍然带得动提示——两个组件的接
 
 	await view.unmount();
 });
+
+/*
+ * The find bar is the other writer.
+ *
+ * CodeMirror builds that panel itself, so its buttons get their tips from `labelSearchPanel` setting
+ * the attribute by hand — and that is exactly where the renamed-on-one-side accident survived: the
+ * four assignments there kept writing `dataset.dwTip`, which becomes `data-dw-tip`, which the
+ * listener's selector never matches. Every icon in the find bar hovered to nothing.
+ */
+test("查找面板：每个图标控件都挂着 tooltip.ts 读得到的提示", async () => {
+	const { EditorState } = await import("@codemirror/state");
+	const { EditorView } = await import("@codemirror/view");
+	const { openSearchPanel, search } = await import("@codemirror/search");
+	const { labelSearchPanel } = await import("../../src/features/editor/chrome.ts");
+
+	const parent = document.body.appendChild(document.createElement("div"));
+	const view = new EditorView({ state: EditorState.create({ doc: "abc", extensions: [search({ top: true })] }), parent });
+	try {
+		openSearchPanel(view);
+		labelSearchPanel(parent);
+
+		const panel = parent.querySelector<HTMLElement>(".cm-search");
+		assert.ok(panel, "openSearchPanel 之后应该有查找面板");
+		// Every control whose word was swapped for a glyph: the icon is all a sighted user gets.
+		const iconic = [...panel.querySelectorAll<HTMLElement>("button, label")].filter((el) => el.querySelector("svg"));
+		assert.ok(iconic.length >= 10, `换成图标的控件应有十来个（6 个按钮 + 3 个选项 + 展开替换），实际 ${iconic.length}`);
+		for (const el of iconic) {
+			const name = el.getAttribute("aria-label") ?? el.getAttribute("name") ?? el.outerHTML.slice(0, 60);
+			const found = el.closest<HTMLElement>(LISTENER_SELECTOR);
+			assert.ok(found, `「${name}」必须能被 ${LISTENER_SELECTOR} 找到`);
+			assert.ok(found.dataset[LISTENER_PROPERTY], `「${name}」的 dataset.${LISTENER_PROPERTY} 不能为空`);
+		}
+
+		// The disclosure rewrites its tip on every toggle; that path wrote the old key too.
+		const toggle = panel.querySelector<HTMLElement>("[name=ly-replace-toggle]");
+		assert.ok(toggle, "展开替换的按钮应该已经加上");
+		const before = toggle.dataset[LISTENER_PROPERTY];
+		toggle.click();
+		const after = toggle.dataset[LISTENER_PROPERTY];
+		assert.ok(before && after && before !== after, `展开前后提示应该换一句，实际「${before}」→「${after}」`);
+	} finally {
+		view.destroy();
+		parent.remove();
+	}
+});

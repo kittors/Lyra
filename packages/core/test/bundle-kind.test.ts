@@ -146,6 +146,34 @@ test("the location a bundle sits in does not decide what it is", async () => {
 	});
 });
 
+test("${CLAUDE_PLUGIN_ROOT} in a Claude Code bundle's .mcp.json becomes the bundle's directory", async () => {
+	await withRoot(async (root) => {
+		/*
+		 * How a bundle written for Claude Code names files it ships. Nothing expanded it, so the
+		 * server was started with the literal text as a path — `node ${CLAUDE_PLUGIN_ROOT}/server.js`
+		 * — and failed to start, with an error about a file that does not exist.
+		 */
+		const dir = await bundle(root, "bundled", {
+			mcp: {
+				local: {
+					command: "${CLAUDE_PLUGIN_ROOT}/bin/server",
+					args: ["--config", "${CLAUDE_PLUGIN_ROOT}/config.json", "--plain"],
+					env: { DATA_DIR: "${CLAUDE_PLUGIN_ROOT}/data", MODE: "fast" },
+				},
+			},
+			manifest: { mcpServers: ".mcp.json" },
+		});
+
+		const { mcpBundles } = await loadPlugins([{ dir: root, source: "user" }]);
+		const server = mcpBundles[0]?.servers[0];
+		assert.equal(server?.transport, "stdio");
+		if (server?.transport !== "stdio") return;
+		assert.equal(server.command, `${dir}/bin/server`);
+		assert.deepEqual(server.args, ["--config", `${dir}/config.json`, "--plain"]);
+		assert.deepEqual(server.env, { DATA_DIR: `${dir}/data`, MODE: "fast" });
+	});
+});
+
 test("inspectBundle answers the same question about one directory", async () => {
 	await withRoot(async (root) => {
 		const server = await bundle(root, "memory", { mcp: CONTEXT7, manifest: { mcpServers: ".mcp.json" } });

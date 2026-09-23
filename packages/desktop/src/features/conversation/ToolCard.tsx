@@ -1,6 +1,7 @@
 import type { DiffHunk, ToolResult } from "@lyra/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
+	Ban,
 	Cable,
 	ChevronRight,
 	CircleCheck,
@@ -25,6 +26,7 @@ import type { McpMark } from "./mcp-marks.ts";
 import { safeColour } from "../settings/index.ts";
 import { useMcpMark } from "./useMcpMark.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
+import { stoppedByUser } from "./tool-status.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
 
 const ICONS: Record<string, typeof FileText> = {
@@ -77,6 +79,9 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	const details = result?.details as Record<string, unknown> | undefined;
 	const hasDiff = Array.isArray(details?.hunks) && (details.hunks as DiffHunk[]).length > 0;
 	const running = status === "running";
+	// Stopped, not failed: said in neutral words rather than in red. See `stoppedByUser`.
+	const stopped = status === "error" && stoppedByUser(result);
+	const failed = status === "error" && !stopped;
 	const { command: _command, ...rest } = args as Record<string, unknown>;
 
 	// A visible timer is the honest signal that a long command is still going.
@@ -117,7 +122,12 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 					</span>
 				)}
 				{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-ok/75" />}
-				{status === "error" && <CircleX size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-danger/85" />}
+				{failed && <CircleX size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-danger/85" />}
+				{stopped && (
+					<span data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className="ly-pop flex shrink-0 text-ink-faint">
+						<Ban size={13} strokeWidth={1.9} aria-hidden />
+					</span>
+				)}
 
 				{hasDiff && (
 					<span className="ly-pop shrink-0 font-mono text-caption">
@@ -173,9 +183,9 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 							)}
 							{result && (
 								<Section
-									title={status === "error" ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
+									title={stopped ? t("toolCard.stopped") : failed ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
 									mono
-									tone={status === "error" ? "danger" : "muted"}
+									tone={failed ? "danger" : "muted"}
 								>
 									<Scroller className="max-h-[420px]" overscroll="auto">
 										{resultText(result)}

@@ -18,7 +18,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { Plus, ShieldCheck, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { TextInput } from "./inputs.tsx";
@@ -41,11 +41,9 @@ export function AccessSettings() {
 	 * every command failing to start, one turn into somebody's work. Asking the platform here
 	 * turns it into a sentence read before the switch is thrown.
 	 */
-	const [platform, setPlatform] = useState("darwin");
-	useEffect(() => {
-		void bridge.system.platform().then(setPlatform);
-	}, []);
-	const networkCanBeDenied = platform !== "win32";
+	// Read from the preload rather than over IPC, so a Windows machine never first draws a switch it
+	// cannot honour and then swaps it for the sentence once the answer arrives.
+	const networkCanBeDenied = (bridge.platform ?? "darwin") !== "win32";
 
 	if (!settings) return null;
 

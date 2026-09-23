@@ -6,16 +6,19 @@
  * NODE_MODULE_VERSION on boot, and the terminal panel is the least of what breaks.
  *
  * node-gyp directly rather than `@electron/rebuild`: the latter failed to fetch headers here,
- * and this is the same thing with one moving part instead of several.
+ * and this is the same thing with one moving part instead of several. It is run as a script by
+ * this Node rather than through `npx`, which on Windows is `npx.cmd` and cannot be started without
+ * a shell — see `rebuild-pty-plan.mjs`, which also decides when there is nothing to compile.
  *
  * Never fatal. A checkout without a network, or on a machine with no toolchain, should still
  * end up with a working app minus the terminal — not a failed install.
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { gypInvocation, nodeGypEntry, usablePrebuild } from "./rebuild-pty-plan.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -29,20 +32,40 @@ const HEADER_MIRRORS = [
 try {
 	const electron = require("electron/package.json").version;
 	const ptyDir = dirname(require.resolve("node-pty/package.json"));
+	const ptyPackage = JSON.parse(readFileSync(join(ptyDir, "package.json"), "utf8"));
 
-	const build = (env, distUrl) =>
-		execFileSync(
-			"npx",
-			[
-				"--yes",
-				"node-gyp",
-				"rebuild",
-				`--target=${electron}`,
-				`--arch=${process.arch}`,
-				`--dist-url=${distUrl}`,
-			],
-			{ cwd: ptyDir, stdio: "inherit", env },
-		);
+	/*
+	 * Nothing to compile where node-pty's own N-API prebuild will load.
+	 *
+	 * `build/` goes, because node-pty's loader prefers it over the prebuild: a `pnpm package` leaves
+	 * it compiled for the last architecture packaged — arm64, on an x64 machine — and this script is
+	 * what `package.mjs` runs afterwards to put the machine's own copy back.
+	 */
+	const prebuilt = usablePrebuild({ platform: process.platform, arch: process.arch, ptyDir, pkg: ptyPackage, exists: existsSync });
+	if (prebuilt) {
+		rmSync(join(ptyDir, "build"), { recursive: true, force: true });
+		console.log(`node-pty: using its N-API prebuild in ${prebuilt}; nothing to compile.`);
+		process.exit(0);
+	}
+
+	const entry = nodeGypEntry({
+		env: process.env,
+		execPath: process.execPath,
+		platform: process.platform,
+		fromRebuild: () => createRequire(require.resolve("@electron/rebuild")).resolve("node-gyp/bin/node-gyp.js"),
+		exists: existsSync,
+	});
+
+	const build = (env, distUrl) => {
+		const plan = gypInvocation({
+			entry,
+			execPath: process.execPath,
+			platform: process.platform,
+			args: ["rebuild", `--target=${electron}`, `--arch=${process.arch}`, `--dist-url=${distUrl}`],
+		});
+		if (!plan) throw new Error("没有找到 node-gyp（npm 自带的、@electron/rebuild 依赖的都不在）");
+		return execFileSync(plan.file, plan.args, { cwd: ptyDir, stdio: "inherit", env });
+	};
 
 	const buildWithMirrors = (env) => {
 		let last;

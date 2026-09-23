@@ -168,6 +168,17 @@ test("the string form still applies a unique replacement", async () => {
 	assert.equal(await readFile(file, "utf8"), "alpha\nBRAVO\ncharlie\ndelta\necho\n");
 });
 
+test("the string form writes `$` sequences in new_string literally", async () => {
+	// `String.replace` reads `$$`, `$&`, `` $` `` and `$'` in a string replacement as patterns, so
+	// shell and template code came out rewritten: `$$` lost a dollar, `$&` became the matched text.
+	const { file, ctx } = await fixture("alpha\nPLACEHOLDER\ncharlie\n");
+	await read(ctx, file);
+	const literal = "echo $$ and $& and $` and $' and $1";
+	const res = await editTool.execute({ path: file, old_string: "PLACEHOLDER", new_string: literal }, ctx);
+	assert.equal(res.isError, undefined);
+	assert.equal(await readFile(file, "utf8"), `alpha\n${literal}\ncharlie\n`);
+});
+
 test("an ambiguous string points at the patch form", async () => {
 	const { file, ctx } = await fixture("dup\ndup\n");
 	await read(ctx, file);

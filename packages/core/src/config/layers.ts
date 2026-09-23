@@ -20,6 +20,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { withoutBom } from "../utils/bom.ts";
 
 /**
  * Keys a project file may not set, whatever it says.
@@ -113,7 +114,8 @@ export async function readConfigFile(path: string): Promise<{ config: Plain; err
 	const raw = await readFile(path, "utf8").catch(() => null);
 	if (raw === null) return { config: {} };
 	try {
-		const parsed = JSON.parse(raw) as unknown;
+		// A byte-order mark — Notepad's "UTF-8 with BOM" — made this whole file a JSON syntax error; see `withoutBom`.
+		const parsed = JSON.parse(withoutBom(raw)) as unknown;
 		if (!isPlainObject(parsed)) return { config: {}, error: `${path} 的内容不是一个对象。` };
 		return { config: parsed };
 	} catch (error) {

@@ -1,5 +1,6 @@
 {
 	"name": "@lyra/desktop",
+	"desktopName": "Lyra.desktop",
 	"version": "0.9.19",
 	"homepage": "https://github.com/kittors/Lyra",
 	"author": {
@@ -74,6 +75,7 @@
 		"docx-preview": "^0.4.0",
 		"fflate": "^0.8.3",
 		"katex": "0.18.4",
+		"koffi": "^3.1.6",
 		"mermaid": "^12.0.0",
 		"node-pty": "1.1.0",
 		"prettier": "^3.9.6",

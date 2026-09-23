@@ -7,7 +7,16 @@
  * extension alone gets it wrong on some machine or other.
  */
 
+import type { LinuxInstall } from "./linux-install.ts";
 import { CHECKSUM_ASSET } from "./update-checksum.ts";
+
+/** What each kind of Linux install is updated with. Unmanaged has nothing; see `pickAsset`. */
+const LINUX_EXTENSIONS: Record<string, string[]> = {
+	appimage: [".appimage"],
+	deb: [".deb"],
+	rpm: [".rpm"],
+	unmanaged: [],
+};
 
 export interface ReleaseAsset {
 	name?: string;
@@ -41,7 +50,12 @@ const ARCH_TAGS: Record<string, string[]> = {
  * contains `Lyra.app` directly, so it can be unpacked and swapped in place. The dmg stays in the
  * release for people installing by hand the first time.
  *
- * Windows takes the setup executable, Linux the AppImage.
+ * Windows takes the setup executable. Linux takes the format this copy was installed as, and only
+ * that: an AppImage is replaced by an AppImage, a .deb by a .deb (see `linux-install.ts`). It used
+ * to prefer the AppImage for every Linux machine and fall back to the .deb, so a .deb install was
+ * offered an AppImage that `xdg-open` would not run and nothing would put in place. An rpm install
+ * finds no .rpm in a release, and a copy no package manager owns has nothing that can be swapped;
+ * both get null, which is the release page.
  *
  * **Architecture is checked on every platform, and a mismatch yields nothing rather than the wrong
  * file.** Only macOS used to look: Windows matched the first `.exe` in the list and Linux the first
@@ -58,6 +72,8 @@ export function pickAsset(
 	assets: ReleaseAsset[],
 	platform: string = process.platform,
 	arch: string = process.arch,
+	/** Linux only: how this copy was installed. The AppImage is the form a download takes by default. */
+	linux: LinuxInstall["kind"] = "appimage",
 ): PickedAsset | null {
 	const named = assets.filter((asset): asset is Required<ReleaseAsset> =>
 		Boolean(asset.name && asset.browser_download_url && typeof asset.size === "number"),
@@ -72,8 +88,7 @@ export function pickAsset(
 	// Universal only if it names *no* architecture — `x86_64` must not read as "not arm64".
 	const universal = (name: string) => !mine.some((tag) => name.includes(tag)) && !others.some((tag) => name.includes(tag));
 
-	const extensions =
-		platform === "darwin" ? [".zip"] : platform === "win32" ? [".exe", ".msi"] : [".appimage", ".deb"];
+	const extensions = platform === "darwin" ? [".zip"] : platform === "win32" ? [".exe", ".msi"] : (LINUX_EXTENSIONS[linux] ?? []);
 
 	for (const extension of extensions) {
 		const candidates = named.filter((asset) => asset.name.toLowerCase().endsWith(extension));

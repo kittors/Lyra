@@ -70,6 +70,18 @@ export function isDescendantPath(parent: string, child: string): boolean {
 }
 
 /**
+ * A path with its home folder written as `~`, for display only.
+ *
+ * Recognised by shape, because the renderer is never told where home is: `/Users/<name>` on a Mac,
+ * `/home/<name>` on Linux, `<drive>:\Users\<name>` on Windows — where each system puts one by
+ * default. A home kept anywhere else is simply shown in full, which is longer and still right.
+ * The separator after the name is left as it was, so a Windows path stays backslashed.
+ */
+export function tildeHome(path: string): string {
+	return path.replace(/^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)(?=$|[\\/])/, "~");
+}
+
+/**
  * Split a name into the part you would retype and the part you would keep.
  *
  * The last dot, not the first: `archive.tar.gz` is a `.gz`. A leading dot is not a separator —

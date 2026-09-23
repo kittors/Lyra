@@ -1,8 +1,7 @@
 import { RetrySettings } from "./RetrySettings.tsx";
 import type { PermissionMode, UiLocale } from "@lyra/core";
 import { FolderOpen, Languages } from "lucide-react";
-import { useEffect, useState } from "react";
-import { matchTarget, useOpenTargets } from "../../store/open-targets.ts";
+import { matchTarget, revealLabel, useOpenTargets } from "../../store/open-targets.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { ProjectLayerCard } from "./ProjectOverrideNotice.tsx";
@@ -20,7 +19,8 @@ export function GeneralSettings() {
 	const { resolvedLocale, t } = useI18n();
   const settings = useApp((s) => s.settings);
   const saveSettings = useApp((s) => s.saveSettings);
-  const [platform, setPlatform] = useState("darwin");
+  // Synchronous, from the preload: the IPC answer used to arrive a frame after "darwin" was drawn.
+  const platform = bridge.platform ?? "darwin";
   /*
    * What this machine can actually open a file with — see `electron/open-targets.ts`.
    *
@@ -30,10 +30,6 @@ export function GeneralSettings() {
    * problem, and the icons are the ones already in the user's own Dock or taskbar.
    */
   const targets = useOpenTargets();
-
-  useEffect(() => {
-    void bridge.system.platform().then(setPlatform);
-  }, []);
 
   if (!settings) return null;
 
@@ -141,7 +137,8 @@ export function GeneralSettings() {
               }
               options={options.map((target) => ({
                 value: target.id,
-                label: target.label,
+                // Reveal's own label from the main process is fixed Chinese; see `revealLabel`.
+                label: target.id === "reveal" ? revealLabel() : target.label,
                 icon: target.icon ? (
                   <img
                     src={target.icon}

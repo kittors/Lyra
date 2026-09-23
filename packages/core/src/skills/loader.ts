@@ -11,6 +11,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { normalizeKeys } from "../capability/fs.ts";
+import { withoutBom } from "../utils/bom.ts";
 
 export interface Skill {
 	name: string;
@@ -169,7 +170,8 @@ export const isUnparsable = (parsed: ParsedFrontmatter | UnparsableFrontmatter):
 	"invalid" in parsed;
 
 export function parseFrontmatter(raw: string): ParsedFrontmatter | UnparsableFrontmatter {
-	const normalized = raw.replace(/\r\n/g, "\n");
+	// A byte-order mark in front of `---` made the whole block body text; see `withoutBom`.
+	const normalized = withoutBom(raw).replace(/\r\n/g, "\n");
 	if (!normalized.startsWith("---\n")) return { frontmatter: {}, body: normalized };
 	const end = normalized.indexOf("\n---", 3);
 	if (end === -1) {

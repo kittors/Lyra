@@ -163,7 +163,8 @@
   src: local("STSongti-SC-Regular"), local("Songti SC"), local("SimSun"), local("NSimSun"),
     local("STHeitiSC-Light"), local("Heiti SC"), local("Microsoft YaHei UI"),
     local("Microsoft YaHei"), local("PingFangSC-Regular"), local("PingFang SC"),
-    local("Noto Sans SC");
+    local("Noto Sans SC"),
+    local("Noto Sans CJK SC"), local("Noto Sans CJK SC Regular"), local("NotoSansCJKsc-Regular");
   unicode-range: U+3000-303F, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
 }
 
@@ -173,7 +174,8 @@
   font-weight: 100 900;
   src: local("STSongti-TC-Regular"), local("Songti TC"), local("PMingLiU"), local("MingLiU"),
     local("Microsoft JhengHei"), local("PingFangTC-Regular"), local("PingFang TC"),
-    local("Noto Sans TC");
+    local("Noto Sans TC"),
+    local("Noto Sans CJK TC"), local("Noto Sans CJK TC Regular"), local("NotoSansCJKtc-Regular");
   unicode-range: U+3000-303F, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
 }
 
@@ -186,13 +188,20 @@
  *
  * Han only — punctuation lives on `Lyra Punct` so a bad TTC bind cannot serve a Japanese
  * period in a Chinese UI.
+ *
+ * Linux distributions install Noto Sans CJK, not the Google Fonts build called "Noto Sans SC":
+ * its faces are `Noto Sans CJK SC …` / `NotoSansCJKsc-…`, and a `local()` that knew only the
+ * other name missed on every one of them. Both spellings are listed — full name and PostScript
+ * name are what `local()` is matched against — for every family below. Noto CJK has no
+ * semibold, so its Bold is the 600 face, as YaHei's is.
  */
 @font-face {
   font-family: "Lyra CJK";
   font-style: normal;
   font-weight: 300;
   src: local("PingFangSC-Light"), local("PingFang SC Light"), local("Microsoft YaHei UI Light"),
-    local("Microsoft YaHei Light"), local("Noto Sans SC Light");
+    local("Microsoft YaHei Light"), local("Noto Sans SC Light"),
+    local("Noto Sans CJK SC Light"), local("NotoSansCJKsc-Light");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -201,7 +210,8 @@
   font-style: normal;
   font-weight: 400;
   src: local("PingFangSC-Regular"), local("PingFang SC"), local("Microsoft YaHei UI"),
-    local("Microsoft YaHei"), local("Noto Sans SC");
+    local("Microsoft YaHei"), local("Noto Sans SC"),
+    local("Noto Sans CJK SC"), local("Noto Sans CJK SC Regular"), local("NotoSansCJKsc-Regular");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -210,7 +220,8 @@
   font-style: normal;
   font-weight: 500;
   src: local("PingFangSC-Medium"), local("PingFang SC Medium"), local("Microsoft YaHei UI"),
-    local("Microsoft YaHei"), local("Noto Sans SC Medium");
+    local("Microsoft YaHei"), local("Noto Sans SC Medium"),
+    local("Noto Sans CJK SC Medium"), local("NotoSansCJKsc-Medium");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -219,7 +230,8 @@
   font-style: normal;
   font-weight: 600;
   src: local("PingFangSC-Semibold"), local("PingFang SC Semibold"), local("Microsoft YaHei UI Bold"),
-    local("Microsoft YaHei Bold"), local("Noto Sans SC Bold");
+    local("Microsoft YaHei Bold"), local("Noto Sans SC Bold"),
+    local("Noto Sans CJK SC Bold"), local("NotoSansCJKsc-Bold");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -230,7 +242,8 @@
   font-style: normal;
   font-weight: 400;
   src: local("PingFangTC-Regular"), local("PingFang TC"), local("Microsoft JhengHei"),
-    local("Noto Sans TC");
+    local("Noto Sans TC"),
+    local("Noto Sans CJK TC"), local("Noto Sans CJK TC Regular"), local("NotoSansCJKtc-Regular");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -239,7 +252,8 @@
   font-style: normal;
   font-weight: 500;
   src: local("PingFangTC-Medium"), local("PingFang TC Medium"), local("Microsoft JhengHei"),
-    local("Noto Sans TC Medium");
+    local("Noto Sans TC Medium"),
+    local("Noto Sans CJK TC Medium"), local("NotoSansCJKtc-Medium");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -248,7 +262,8 @@
   font-style: normal;
   font-weight: 600;
   src: local("PingFangTC-Semibold"), local("PingFang TC Semibold"), local("Microsoft JhengHei Bold"),
-    local("Noto Sans TC Bold");
+    local("Noto Sans TC Bold"),
+    local("Noto Sans CJK TC Bold"), local("NotoSansCJKtc-Bold");
   unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
 }
 
@@ -257,7 +272,8 @@
   font-style: normal;
   font-weight: 400;
   src: local("Hiragino Sans W3"), local("Hiragino Sans"), local("Yu Gothic UI"), local("Yu Gothic"),
-    local("Noto Sans JP");
+    local("Noto Sans JP"),
+    local("Noto Sans CJK JP"), local("Noto Sans CJK JP Regular"), local("NotoSansCJKjp-Regular");
   size-adjust: 102%;
   unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF,
     U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
@@ -267,7 +283,8 @@
   font-family: "Lyra Japanese";
   font-style: normal;
   font-weight: 500;
-  src: local("Hiragino Sans W5"), local("Yu Gothic UI"), local("Yu Gothic Medium"), local("Noto Sans JP Medium");
+  src: local("Hiragino Sans W5"), local("Yu Gothic UI"), local("Yu Gothic Medium"), local("Noto Sans JP Medium"),
+    local("Noto Sans CJK JP Medium"), local("NotoSansCJKjp-Medium");
   size-adjust: 102%;
   unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF,
     U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
@@ -278,7 +295,8 @@
   font-style: normal;
   font-weight: 600;
   src: local("Hiragino Sans W6"), local("Yu Gothic UI Semibold"), local("Yu Gothic Bold"),
-    local("Noto Sans JP Bold");
+    local("Noto Sans JP Bold"),
+    local("Noto Sans CJK JP Bold"), local("NotoSansCJKjp-Bold");
   size-adjust: 102%;
   unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF,
     U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
@@ -289,7 +307,8 @@
   font-style: normal;
   font-weight: 400;
   src: local("Apple SD Gothic Neo Regular"), local("Apple SD Gothic Neo"), local("Malgun Gothic"),
-    local("Noto Sans KR");
+    local("Noto Sans KR"),
+    local("Noto Sans CJK KR"), local("Noto Sans CJK KR Regular"), local("NotoSansCJKkr-Regular");
   size-adjust: 102%;
   unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3130-318F, U+3200-4DBF, U+4E00-9FFF,
     U+AC00-D7AF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
@@ -299,7 +318,8 @@
   font-family: "Lyra Korean";
   font-style: normal;
   font-weight: 500;
-  src: local("Apple SD Gothic Neo Medium"), local("Malgun Gothic"), local("Noto Sans KR Medium");
+  src: local("Apple SD Gothic Neo Medium"), local("Malgun Gothic"), local("Noto Sans KR Medium"),
+    local("Noto Sans CJK KR Medium"), local("NotoSansCJKkr-Medium");
   size-adjust: 102%;
   unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3130-318F, U+3200-4DBF, U+4E00-9FFF,
     U+AC00-D7AF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
@@ -309,7 +329,8 @@
   font-family: "Lyra Korean";
   font-style: normal;
   font-weight: 600;
-  src: local("Apple SD Gothic Neo SemiBold"), local("Malgun Gothic Bold"), local("Noto Sans KR Bold");
+  src: local("Apple SD Gothic Neo SemiBold"), local("Malgun Gothic Bold"), local("Noto Sans KR Bold"),
+    local("Noto Sans CJK KR Bold"), local("NotoSansCJKkr-Bold");
   size-adjust: 102%;
   unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3130-318F, U+3200-4DBF, U+4E00-9FFF,
     U+AC00-D7AF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;

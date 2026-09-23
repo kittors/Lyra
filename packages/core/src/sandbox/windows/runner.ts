@@ -21,6 +21,7 @@
  * a failure to confine is distinguishable from a command that merely failed.
  */
 
+import { mkdirSync } from "node:fs";
 import * as abi from "./abi.ts";
 import { buildCommandLine } from "./identity.ts";
 import {
@@ -38,8 +39,14 @@ interface Args {
 	workspace: string;
 	mode: "read-only" | "workspace-write";
 	writeSid?: string;
+	/** A private temp directory the command may write, and the capability that names it. */
+	temp?: string;
+	tempSid?: string;
 	command: string[];
 }
+
+/** `S-1-4-x-y`, or `S-1-4-x-y-1` for a temp identity — the only shapes `identity.ts` derives. */
+const CAPABILITY_SID = /^S-1-4-\d+-\d+(-\d+)?$/;
 
 /** Read the argv contract, refusing anything that does not match it exactly. */
 export function parseArgs(argv: readonly string[]): Args {
@@ -73,9 +80,15 @@ export function parseArgs(argv: readonly string[]): Args {
 	const writeSid = options.get("write-sid");
 	if (mode === "workspace-write" && !writeSid) throw new Error("workspace-write 必须带 --write-sid");
 	// A capability SID from an untrusted source would be a way to name somebody else's identity.
-	if (writeSid && !/^S-1-4-\d+-\d+(-\d+)?$/.test(writeSid)) throw new Error(`--write-sid 格式不对：${writeSid}`);
+	if (writeSid && !CAPABILITY_SID.test(writeSid)) throw new Error(`--write-sid 格式不对：${writeSid}`);
 
-	return { workspace, mode, ...(writeSid ? { writeSid } : {}), command };
+	const temp = options.get("temp");
+	const tempSid = options.get("temp-sid");
+	if (Boolean(temp) !== Boolean(tempSid)) throw new Error("--temp 和 --temp-sid 必须一起给");
+	// Both modes get one: without a writable temp, PowerShell runs constrained. See `runnerArgv`.
+	if (tempSid && !CAPABILITY_SID.test(tempSid)) throw new Error(`--temp-sid 格式不对：${tempSid}`);
+
+	return { workspace, mode, ...(writeSid ? { writeSid } : {}), ...(temp && tempSid ? { temp, tempSid } : {}), command };
 }
 
 /**
@@ -98,10 +111,36 @@ function runConfined(args: Args): number {
 		grantWrite(api, args.workspace, capability);
 		capabilities.push(capability);
 	}
+	/*
+	 * The temp area, which `workspace-write` promises on every platform.
+	 *
+	 * Seatbelt and bwrap grant `/tmp` and `os.tmpdir()`; this backend granted the workspace alone,
+	 * so a confined command could not create a temp file at all — every heredoc in Git Bash failed
+	 * with `cannot create temp file for here-document`, and every tool that stages through `%TEMP%`
+	 * with it. The user's own temp directory is not granted: it is shared by everything they run,
+	 * and a grant there would outlive the session in every other program's files. A private one
+	 * per workspace is created here, granted to its own identity, and handed to the command as its
+	 * `TEMP`, `TMP` and `TMPDIR` — which is also where Git Bash mounts `/tmp`.
+	 */
+	if (args.temp && args.tempSid) {
+		mkdirSync(args.temp, { recursive: true });
+		const capability = sidFromString(api, args.tempSid);
+		grantWrite(api, args.temp, capability);
+		capabilities.push(capability);
+		for (const name of ["TEMP", "TMP", "TMPDIR"]) process.env[name] = args.temp;
+	}
+	/*
+	 * How this process was started is not something the command should inherit.
+	 *
+	 * The runner is Electron with `ELECTRON_RUN_AS_NODE=1`, and the environment block the child
+	 * gets is this process's own. Left in, every Electron program the command ran — VS Code's
+	 * `code` among them — would start as a bare Node instead of itself.
+	 */
+	delete process.env.ELECTRON_RUN_AS_NODE;
 
 	const token = createRestrictedToken(api, source, logon, world, capabilities);
-	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl`.
-	extendDefaultDacl(api, token, capabilities[0] ?? world);
+	// Without this the child cannot open its own process or create its stdio pipes; see `extendDefaultDacl`.
+	extendDefaultDacl(api, token, [logon, ...capabilities]);
 
 	return spawnUnder(api, token, args);
 }
@@ -129,7 +168,7 @@ function spawnUnder(api: Win32, token: Ptr, args: Args): number {
 		null,
 		null,
 		1,
-		0,
+		abi.CREATE_NO_WINDOW | abi.CREATE_UNICODE_ENVIRONMENT,
 		// A null environment block means "inherit ours". Passing one explicitly through the FFI
 		// layer is what the reference implementation found trips ERROR_INVALID_PARAMETER.
 		null,
@@ -151,9 +190,22 @@ function spawnUnder(api: Win32, token: Ptr, args: Args): number {
 	return code.readUInt32LE(0);
 }
 
+/**
+ * One of this process's standard handles, made inheritable so the command really receives it.
+ *
+ * `STARTF_USESTDHANDLES` only names handle values; the child gets the handles themselves through
+ * inheritance, and a handle that is not inheritable arrives as a number that means nothing there.
+ * Node makes its stdio non-inheritable as it starts (`uv_disable_stdio_inheritance`), so every
+ * command ran with no stdout or stderr at all: `cmd /c echo` failed with exit 1 and printed
+ * nothing, and Git Bash died before it could say why. Marked here, on the runner's own handles:
+ * this process starts nothing else that could pick them up by accident.
+ */
 function handleOf(api: Win32, which: number): bigint {
 	const handle = api.getStdHandle(which);
-	if (isNull(handle)) fail(api, "GetStdHandle", `标准句柄 ${which}`);
+	if (isNull(handle) || BigInt.asUintN(64, BigInt(handle)) === abi.INVALID_HANDLE_VALUE) fail(api, "GetStdHandle", `标准句柄 ${which}`);
+	if (api.setHandleInformation(handle, abi.HANDLE_FLAG_INHERIT, abi.HANDLE_FLAG_INHERIT) === 0) {
+		fail(api, "SetHandleInformation", `标准句柄 ${which} 设为可继承`);
+	}
 	return handle;
 }
 

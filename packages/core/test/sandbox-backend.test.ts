@@ -8,6 +8,7 @@
  */
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { confine, looksDenied, resetProbeCache, SandboxUnavailableError, selectRunner } from "../src/sandbox/backend.ts";
 
@@ -55,6 +56,68 @@ test("the Windows wrapper re-spawns this executable as a plain Node process", ()
 	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1", "without this the runner would start a second copy of the app");
 	assert.ok(wrap.args.includes("--lyra-sandbox-runner"));
 	assert.equal(wrap.args.at(-1), "--", "the wrapped command follows the separator");
+});
+
+test("the runner's argv starts a script, not an option Node refuses", () => {
+	/*
+	 * The test above passed for the runner's whole broken life: the flag *was* in the arguments.
+	 * What mattered was where. In Node mode the first argument that is not an option of Node's own
+	 * must be the script, and `--lyra-sandbox-runner` in that position was `bad option`, exit 9.
+	 * So this one starts the process for real. On this platform the runner declines to confine —
+	 * which it can only say if it was started at all.
+	 */
+	resetProbeCache();
+	const wrap = confine({ mode: "workspace-write", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
+	assert.ok(wrap);
+	const script = wrap.args.findIndex((arg) => /runner-entry\.ts$|sandbox-runner\.js$/.test(arg));
+	assert.ok(script >= 0, wrap.args.join(" "));
+	assert.ok(script < wrap.args.indexOf("--lyra-sandbox-runner"), "the script has to come before the flag");
+
+	if (process.platform !== "win32" && process.platform !== "linux") {
+		const started = spawnSync(wrap.command, [...wrap.args, "true"], { encoding: "utf8", env: { ...process.env, ...wrap.env } });
+		assert.doesNotMatch(started.stderr, /bad option/);
+		assert.match(started.stderr, /不用这个 runner/);
+	}
+});
+
+test("workspace-write on Windows brings a private temp directory with an identity of its own", () => {
+	// Seatbelt and bwrap grant the temp areas; without one here, every heredoc in Git Bash failed.
+	resetProbeCache();
+	const wrap = confine({ mode: "workspace-write", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
+	assert.ok(wrap);
+	const temp = wrap.args[wrap.args.indexOf("--temp") + 1];
+	const sid = wrap.args[wrap.args.indexOf("--temp-sid") + 1];
+	assert.match(temp, /lyra-sandbox/);
+	assert.match(sid, /^S-1-4-\d+-\d+-1$/, "a temp identity, never the workspace's");
+	assert.notEqual(sid, wrap.args[wrap.args.indexOf("--write-sid") + 1]);
+
+	/*
+	 * Read-only gets the same private temp, and no workspace grant.
+	 *
+	 * The shell there is PowerShell, which runs in ConstrainedLanguage when it cannot write `%TEMP%`:
+	 * its own UTF-8 setup failed on every read-only command, and so did half of what a model writes.
+	 * The project stays unwritable — there is no `--write-sid`.
+	 */
+	const readOnly = confine({ mode: "read-only", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
+	assert.ok(readOnly);
+	assert.equal(readOnly.args[readOnly.args.indexOf("--temp") + 1], temp, "the same scratch directory as workspace-write");
+	assert.ok(!readOnly.args.includes("--write-sid"), "and nothing of the project");
+});
+
+test("Linux falls back to Landlock where bwrap cannot run", () => {
+	resetProbeCache();
+	assert.equal(selectRunner({ platform: "linux", probe: (runner) => runner === "landlock" }), "landlock");
+	// The verdicts are cached per host; a different host is a fresh cache.
+	resetProbeCache();
+	assert.equal(selectRunner({ platform: "linux", probe: () => true }), "bwrap", "bwrap stays first where it works");
+	resetProbeCache();
+	const wrap = confine({ mode: "workspace-write", workspaceRoot: "/work" }, { platform: "linux", probe: (runner) => runner === "landlock" });
+	assert.ok(wrap);
+	assert.equal(wrap.runner, "landlock");
+	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1");
+	assert.ok(wrap.args.includes("--lyra-sandbox-runner"));
+	const denied = confine({ mode: "workspace-write", workspaceRoot: "/work", network: "deny" }, { platform: "linux", probe: (runner) => runner === "landlock" });
+	assert.ok(denied?.args.includes("--network"), "the network half reaches the runner");
 });
 
 test("read-only carries no capability SID on Windows either", () => {
@@ -158,6 +221,54 @@ test("what the runners actually print counts as a denial", () => {
 	assert.ok(looksDenied("sandbox-exec: sandbox_apply: Operation not permitted"));
 	assert.ok(looksDenied("bwrap: Can't create file at /etc/x: Read-only file system"));
 	assert.ok(looksDenied("mkdir: cannot create directory '/x': Read-only file system"));
+});
+
+test("our own runners' refusals are recognised under those runners only", () => {
+	// Landlock and the Windows token refuse in common words, with no prefix of their own.
+	assert.ok(looksDenied("/bin/bash: line 1: /home/u/x: Permission denied", "landlock"));
+	assert.ok(looksDenied("Access is denied.", "windows-acl"));
+	// The same words under Seatbelt are an ordinary failure, as they always were.
+	assert.ok(!looksDenied("/bin/bash: line 1: /home/u/x: Permission denied", "seatbelt"));
+	assert.ok(!looksDenied("/bin/bash: line 1: /home/u/x: Permission denied"));
+	// And ssh's two sentences are never the sandbox, whatever runs them.
+	assert.ok(!looksDenied("git@github.com: Permission denied (publickey).", "landlock"));
+	assert.ok(!looksDenied("Permission denied, please try again.", "windows-acl"));
+});
+
+test("Windows: PowerShell's refusal and an MSYS program dying under the token are denials", () => {
+	// What a confined PowerShell prints for a write outside the grant, verbatim from a Windows runner.
+	const powershell =
+		"Set-Content : Access to the path 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\lyra-win-KHRkQe\\ps.txt' is denied.\n" +
+		"    + CategoryInfo          : PermissionDenied: (C:\\Users\\runner...n-KHRkQe\\ps.txt:String) [Set-Content], UnauthorizedAccessException";
+	assert.ok(looksDenied(powershell, "windows-acl"));
+	assert.ok(!looksDenied(powershell, "seatbelt"), "the same words are only ours under our runner");
+
+	// `git commit` in a confined PowerShell runs the hooks with Git's `sh`, which dies as it starts.
+	const hook = "      0 [main] sh (1396) C:\\Program Files\\Git\\usr\\bin\\sh.exe: *** fatal error - couldn't create signal pipe, Win32 error 5";
+	assert.ok(looksDenied(hook, "windows-acl"));
+	assert.ok(looksDenied("0 [main] bash (2104) bash.exe: *** fatal error - CreateFileMapping S-1-5-21-1-2-3-500.1, Win32 error 5.  Terminating.", "windows-acl"));
+	assert.ok(!looksDenied(hook, "landlock"), "Cygwin's wording means the Windows token and nothing else");
+	// Another Win32 error from the same runtime is not the sandbox.
+	assert.ok(!looksDenied("0 [main] bash (1) bash.exe: *** fatal error - couldn't allocate heap, Win32 error 487", "windows-acl"));
+});
+
+test("Windows: a refusal reads as one in the system's language too", () => {
+	// Windows PowerShell 5.1 on a Chinese Windows: the message is translated, the identifiers are not.
+	const zhPowerShell =
+		"Set-Content : 对路径“C:\\Users\\me\\x.txt”的访问被拒绝。\n" +
+		"所在位置 行:1 字符: 1\n" +
+		"    + CategoryInfo          : PermissionDenied: (C:\\Users\\me\\x.txt:String) [Set-Content], UnauthorizedAccessException";
+	assert.ok(looksDenied(zhPowerShell, "windows-acl"));
+	// The translated sentence alone is enough — PowerShell 7's concise view prints nothing else.
+	assert.ok(looksDenied("Set-Content: 对路径“C:\\Users\\me\\x.txt”的访问被拒绝。", "windows-acl"));
+	// cmd's built-ins print the system's message for error 5.
+	for (const message of ["拒绝访问。", "存取被拒。", "アクセスが拒否されました。", "액세스가 거부되었습니다.", "Zugriff verweigert", "Accès refusé.", "Acceso denegado.", "Отказано в доступе.", "Acesso negado."]) {
+		assert.ok(looksDenied(message, "windows-acl"), message);
+		assert.ok(!looksDenied(message, "seatbelt"), `${message} is only ours under our runner`);
+	}
+	// And a translated failure that is not a refusal stays a failure.
+	assert.ok(!looksDenied("系统找不到指定的文件。", "windows-acl"));
+	assert.ok(!looksDenied("Get-Content : 找不到路径“C:\\x”，因为该路径不存在。\n    + CategoryInfo          : ObjectNotFound: (C:\\x:String) [Get-Content], ItemNotFoundException", "windows-acl"));
 });
 
 test("an ordinary failure is not read as a denial", () => {

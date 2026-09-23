@@ -13,7 +13,7 @@
 import { ExtensionHost } from "../extensions/host.ts";
 import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
-import { McpManager, type McpServerStatus } from "../mcp/client.ts";
+import { McpManager, type McpServerConfig, type McpServerStatus } from "../mcp/client.ts";
 import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
 import { ResourceRouter } from "../resources/router.ts";
 import type { Settings } from "../config/settings.ts";
@@ -135,7 +135,8 @@ export class SessionCapabilities {
 		 * Failures here are diagnostics rather than exceptions: a broken extension must not stop a
 		 * session from starting, which is the same reason a broken skill does not.
 		 */
-		for (const dir of await extensionDirs(cwd)) await this.extensions.load(dir).catch(() => false);
+		// Replaced, not added to: a reload that loaded them again left the previous workers running.
+		await this.extensions.replaceAll(await extensionDirs(cwd));
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
@@ -201,11 +202,29 @@ export class SessionCapabilities {
 		invalidateIndex(this.state);
 	}
 
+	/**
+	 * Stop this session's connections to the servers `match` picks, and take their tools with them.
+	 *
+	 * The host calls it before an MCP bundle's files are replaced or removed — see
+	 * `McpManager.disconnect`. The tool list is built once per `load`, so without the second half the
+	 * model would go on being offered tools whose server is gone, each call failing as not connected.
+	 */
+	async disconnectMcp(match: (server: McpServerConfig) => boolean): Promise<number> {
+		const closed = await this.mcp.disconnect(match);
+		if (closed.length === 0) return 0;
+		const gone = new Set(closed.flatMap((connection) => connection.tools));
+		const ids = new Set(closed.map((connection) => connection.config.id));
+		this.tools = this.tools.filter((tool) => !gone.has(tool));
+		this.mcpStatuses = this.mcpStatuses.filter((status) => !ids.has(status.id));
+		if (this.state.has(TOOL_NAMES_KEY)) this.state.set(TOOL_NAMES_KEY, new Set(this.tools.map((tool) => tool.name)));
+		return closed.length;
+	}
+
 	async dispose(): Promise<void> {
 		try { backgroundJobs(this.state).dispose(); }
 		finally {
 			// A process kill failure must not skip unrelated session resources.
-			await this.mcp.closeAll();
+			await this.mcp.dispose();
 			await this.extensions.dispose().catch(() => {});
 			/*
 			 * Language servers are hundreds of megabytes each and outlive the session that started them

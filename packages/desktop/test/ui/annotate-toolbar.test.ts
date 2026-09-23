@@ -17,6 +17,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { AnnotateToolbar, FLOATING_BAR } from "../../src/features/image/AnnotateToolbar.tsx";
 import { useAnnotator } from "../../src/features/image/Annotator.tsx";
+import { withKeyboard } from "../helpers/keyboard.ts";
 
 // These tests mount an empty annotator; happy-dom has no decoded bitmap constructor.
 // oxlint-disable-next-line typescript/no-extraneous-class -- Only an instanceof target is needed; no bitmap is constructed.
@@ -96,4 +97,83 @@ test("saving an image copy still uses a download arrow without a separate downlo
 		await act(async () => root.unmount());
 		host.remove();
 	}
+});
+
+/** Mount the bar with an empty drawing and hand the host to `check`, unmounting whatever happens. */
+async function withToolbar(check: (host: HTMLElement) => Promise<void> | void) {
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	function Toolbar() {
+		return createElement(AnnotateToolbar, {
+			annotator: useAnnotator(null), canReplace: false, requireDirty: false,
+			onCancel: () => {}, onSave: () => {},
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		await check(host);
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
+}
+
+test("undo and redo name a PC's keys to a screen reader too, not only in the tooltip", async () => {
+	// The tooltip converts on display (`tooltip.ts`); the accessible name is read straight off the
+	// attribute, so a Windows screen reader announced "⌘Z".
+	await withKeyboard("Win32", () =>
+		withToolbar((host) => {
+			assert.equal(host.querySelector("button:has(.lucide-undo-2)")?.getAttribute("aria-label"), "撤销 Ctrl+Z");
+			assert.equal(host.querySelector("button:has(.lucide-redo-2)")?.getAttribute("aria-label"), "重做 Ctrl+Shift+Z");
+		}),
+	);
+	await withToolbar((host) => {
+		assert.equal(host.querySelector("button:has(.lucide-undo-2)")?.getAttribute("aria-label"), "撤销 ⌘Z");
+	});
+});
+
+/** Mount the bar over an annotator whose undo and redo only count, and press keys at the window. */
+async function countingHistory(run: (press: (init: KeyboardEventInit) => Promise<void>) => Promise<void>) {
+	const counts = { undo: 0, redo: 0 };
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	function Toolbar() {
+		const annotator = useAnnotator(null);
+		return createElement(AnnotateToolbar, {
+			annotator: { ...annotator, undo: () => void counts.undo++, redo: () => void counts.redo++ },
+			canReplace: false, requireDirty: false, onCancel: () => {}, onSave: () => {},
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		await run(async (init) => {
+			const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+			await act(async () => window.dispatchEvent(event));
+		});
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
+	return counts;
+}
+
+test("PC 上 Ctrl+Y 是重做，Ctrl+Shift+Z 也仍是", async () => {
+	await withKeyboard("Win32", async () => {
+		const counts = await countingHistory(async (press) => {
+			await press({ key: "y", code: "KeyY", ctrlKey: true });
+			await press({ key: "Z", code: "KeyZ", ctrlKey: true, shiftKey: true });
+			await press({ key: "z", code: "KeyZ", ctrlKey: true });
+		});
+		assert.deepEqual(counts, { undo: 1, redo: 2 });
+	});
+});
+
+test("Mac 上 ⌘Y 不是重做：那里重做只有 ⇧⌘Z", async () => {
+	const counts = await countingHistory(async (press) => {
+		await press({ key: "y", code: "KeyY", metaKey: true });
+		await press({ key: "z", code: "KeyZ", metaKey: true, shiftKey: true });
+	});
+	assert.deepEqual(counts, { undo: 0, redo: 1 });
 });

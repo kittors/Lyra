@@ -38,6 +38,13 @@ test("a temp capability's three-part SID is accepted too", () => {
 	assert.equal(args.writeSid, "S-1-4-1-2-1");
 });
 
+test("read-only takes a private temp too, and still no workspace grant", () => {
+	// Without a writable temp, PowerShell — the shell a confined command runs in here — runs constrained.
+	const args = parseArgs(["--workspace", "C:\\w", "--mode", "read-only", "--temp", "C:\\t", "--temp-sid", "S-1-4-1-2-1", "--", "x"]);
+	assert.equal(args.temp, "C:\\t");
+	assert.equal(args.writeSid, undefined);
+});
+
 // ---------------------------------------------------------------------------
 // What must be refused, each for its own reason
 // ---------------------------------------------------------------------------

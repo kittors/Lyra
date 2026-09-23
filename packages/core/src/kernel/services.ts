@@ -6,6 +6,7 @@ import type { TurnMiddleware } from "../runtime/turn.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
+import type { CommandShell } from "../platform.ts";
 
 /**
  * The seams.
@@ -92,7 +93,14 @@ export interface SandboxProcess {
 	readonly pid?: number;
 	/** stdout and stderr interleaved, in arrival order, as the shell would have shown them. */
 	onOutput(listener: (chunk: string) => void): void;
-	onExit(listener: (code: number | null) => void): void;
+	/**
+	 * The command finished. `signal` names what killed it when `code` is null.
+	 *
+	 * `lingering` is set when the command exited but left processes of its own running that still
+	 * hold its output — `server &` without a redirect. They are handed over rather than waited for:
+	 * the command is done, and they can be read or stopped through this handle.
+	 */
+	onExit(listener: (code: number | null, signal?: NodeJS.Signals | null, lingering?: SandboxProcess) => void): void;
 	/** The command could not be started at all. Exit is not reported after this. */
 	onError(listener: (error: Error) => void): void;
 	kill(signal?: "SIGTERM" | "SIGKILL"): void;
@@ -111,10 +119,14 @@ export interface Sandbox {
 	 * declares, so `LocalSandbox` honouring `network` while this signature omitted it compiled
 	 * fine and left every caller unable to pass it. The setting existed, the enforcement existed,
 	 * and nothing connected them.
+	 *
+	 * `shell` is the shell the command was written for, when the caller knows it — the bash tool
+	 * does, because it told the model which one (`commandShell`). Absent, an implementation runs its
+	 * own default for `mode`.
 	 */
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork },
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
 	): SandboxProcess;
 }
 

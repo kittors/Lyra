@@ -281,7 +281,12 @@ function useTitlebar(nativeFullScreen: boolean): TitlebarInsets {
 
 	useEffect(() => {
 		if (!overlay) return;
-		const update = () => setReserved(overlayReserved(overlay, window.innerWidth));
+		// Two ends now, so compared by value: a fresh object per `geometrychange` would re-render the
+		// whole shell for a resize that moved neither.
+		const update = () => {
+			const next = overlayReserved(overlay, window.innerWidth);
+			setReserved((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
+		};
 		update();
 		overlay.addEventListener("geometrychange", update);
 		return () => overlay.removeEventListener("geometrychange", update);

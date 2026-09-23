@@ -7,7 +7,9 @@ import { beforeEach, afterEach, test } from "node:test";
 import { execFileSync } from "node:child_process";
 import { recordFileChange, readFileChange, undoFileChanges, undoFileChangeBatches } from "../src/tools/file-changes.ts";
 import { beforeCommand, afterCommand } from "../src/tools/command-changes.ts";
+import { computeDiff } from "../src/tools/diff.ts";
 import type { ToolContext } from "../src/types.ts";
+import { asWindows, refuseRenames } from "./held-open.ts";
 let home: string, cwd: string, ctx: ToolContext;
 let prior: string | undefined;
 beforeEach(async () => {
@@ -50,6 +52,24 @@ test("command snapshots compare against the working file, including staged addit
 	const change = await readFileChange(ctx.sessionId, ids[0]); assert.equal(change.before, "one\ntwo\n"); assert.equal(change.after, "one\nupdated\n");
 	await assert.rejects(undoFileChanges(cwd, [change]), /命令/);
 	assert.equal(await readFile(join(cwd,"existing.ts"), "utf8"), "user dirty\n");
+});
+
+test("a CRLF checkout's command change is recorded against the file as checked out, not the LF blob", async () => {
+	// `.gitattributes` rather than `core.autocrlf`, so this reproduces on every platform: the blob is
+	// stored LF, the working file is CRLF, and `git show` hands back the blob as stored.
+	const git = (...args: string[]) => execFileSync("git", ["-C", cwd, ...args], {stdio:"pipe"});
+	git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "Test");
+	await writeFile(join(cwd, ".gitattributes"), "* text eol=crlf\n");
+	const lines = Array.from({ length: 50 }, (_, i) => `line ${i}`);
+	await writeFile(join(cwd, "big.txt"), `${lines.join("\r\n")}\r\n`); git("add", "."); git("commit", "-m", "base");
+	const snapshot = await beforeCommand(ctx);
+	lines[20] = "changed";
+	await writeFile(join(cwd, "big.txt"), `${lines.join("\r\n")}\r\n`);
+	const ids = await afterCommand(ctx, snapshot); assert.equal(ids.length, 1);
+	const change = await readFileChange(ctx.sessionId, ids[0]);
+	assert.ok(change.before?.includes("line 20\r\n"), "改动前的内容要和检出到磁盘上的一样是 CRLF");
+	const diff = computeDiff(change.before ?? "", change.after ?? "");
+	assert.deepEqual([diff.added, diff.removed], [1, 1], "命令只改了一行，记下来的就是一行");
 });
 
 test("batch undo preflights all files before touching any and preserves existing dirty work", async () => {
@@ -121,4 +141,16 @@ test("undo and rollback preserve file modes despite the process umask", { skip: 
 	await assert.rejects(undoFileChangeBatches(cwd, await Promise.all([aId, bId].map(async id => [await readFileChange(ctx.sessionId, id)]))), /ENOSPC/);
 	assert.equal(await readFile(a, "utf8"), "created");
 	assert.equal((await fs.stat(a)).mode & 0o777, 0o764);
+});
+
+// The agent has just written the file, and on Windows whatever scans new files is holding it.
+test("on Windows an undo refused for a moment is retried rather than failed", async (t) => {
+	const path = join(cwd, "scanned.ts");
+	const id = await recordFileChange(ctx, path, "before", "after"); assert.ok(id); await writeFile(path, "after");
+	const change = await readFileChange(ctx.sessionId, id);
+	asWindows(t);
+	const { refused } = refuseRenames(t, "scanned.ts", "EPERM", 2);
+	await undoFileChanges(cwd, [change]);
+	assert.equal(refused(), 2, "the premise: the first two renames were refused");
+	assert.equal(await readFile(path, "utf8"), "before");
 });

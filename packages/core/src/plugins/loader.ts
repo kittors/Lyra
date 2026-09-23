@@ -34,6 +34,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative as relativePath, resolve } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { loadSkills, type Skill } from "../skills/loader.ts";
+import { withoutBom } from "../utils/bom.ts";
 import { readBundleIcon } from "./bundle-icon.ts";
 import { readInstalls, type InstallRecord } from "./installs.ts";
 
@@ -350,7 +351,7 @@ async function readManifest(pluginDir: string): Promise<ManifestResult | null> {
 		const raw = await readFile(join(pluginDir, location), "utf8").catch(() => null);
 		if (raw === null) continue;
 		try {
-			const parsed = JSON.parse(raw) as PluginManifest;
+			const parsed = JSON.parse(withoutBom(raw)) as PluginManifest;
 			if (!parsed.name || typeof parsed.name !== "string") {
 				return { error: `${location} 缺少 name 字段` };
 			}
@@ -394,7 +395,7 @@ async function inferManifest(pluginDir: string): Promise<ManifestResult | null> 
 	const raw = await readFile(join(pluginDir, ".claude-plugin", "marketplace.json"), "utf8").catch(() => null);
 	if (raw) {
 		try {
-			const parsed = JSON.parse(raw) as {
+			const parsed = JSON.parse(withoutBom(raw)) as {
 				name?: string;
 				description?: string;
 				owner?: { name?: string };
@@ -446,7 +447,7 @@ async function readMcpServers(
 
 	let parsed: { mcpServers?: Record<string, Record<string, unknown>> };
 	try {
-		parsed = JSON.parse(raw);
+		parsed = JSON.parse(withoutBom(raw));
 	} catch (error) {
 		return { servers: [], error: `MCP 配置不是合法 JSON：${error instanceof Error ? error.message : String(error)}` };
 	}
@@ -472,13 +473,23 @@ function normalizeServer(
 	config: Record<string, unknown>,
 	pluginDir: string,
 ): McpServerConfig | null {
+	/*
+	 * `${CLAUDE_PLUGIN_ROOT}` is how a bundle written for Claude Code names the files it ships:
+	 * `"args": ["${CLAUDE_PLUGIN_ROOT}/server/index.js"]`. Nothing expanded it, so the server was
+	 * started with that literal text as a path and failed to start. Resolved here, where the bundle's
+	 * directory is known — in the command, the arguments and the env values, which is where Claude
+	 * Code expands it — and absolute, because the server does not run with the bundle as its cwd.
+	 */
+	const root = resolve(pluginDir);
+	const expand = (text: string) => text.replaceAll("${CLAUDE_PLUGIN_ROOT}", root);
+
 	const type = typeof config.type === "string" ? config.type : undefined;
-	const command = typeof config.command === "string" ? config.command : undefined;
+	const command = typeof config.command === "string" ? expand(config.command) : undefined;
 	const url = typeof config.url === "string" ? config.url : undefined;
 
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries((config.env as Record<string, unknown>) ?? {})) {
-		if (typeof value === "string") env[key] = value;
+		if (typeof value === "string") env[key] = expand(value);
 	}
 
 	if (command || type === "stdio") {
@@ -489,7 +500,7 @@ function normalizeServer(
 			transport: "stdio",
 			// A relative command is resolved against the plugin so bundled binaries work.
 			command: command.startsWith(".") ? join(pluginDir, command) : command,
-			args: Array.isArray(config.args) ? config.args.filter((a): a is string => typeof a === "string") : [],
+			args: Array.isArray(config.args) ? config.args.filter((a): a is string => typeof a === "string").map(expand) : [],
 			env,
 			enabled: true,
 		};

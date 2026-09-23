@@ -104,7 +104,7 @@ export async function collectWorkspaceDiff(
 			return;
 		}
 
-		const diff = computeDiff(before.text, after.text);
+		const diff = computeDiff(asCheckedOut(before.text, after.text), after.text);
 		totalAdded += diff.added;
 		totalRemoved += diff.removed;
 		files.push({ path, status: kind, added: diff.added, removed: diff.removed, hunks: capHunks(diff.hunks) });
@@ -170,6 +170,23 @@ async function readWorking(cwd: string, path: string): Promise<Side> {
 function sideOf(buffer: Buffer): Side {
 	const binary = buffer.length > MAX_BLOB_BYTES || buffer.includes(0);
 	return { text: binary ? "" : buffer.toString("utf8"), binary, bytes: buffer.length };
+}
+
+/**
+ * The committed text as a checkout writes it, when the file on disk shows that is what happened.
+ *
+ * A blob is stored normalized — LF — and Git for Windows checks out with CRLF by default
+ * (`core.autocrlf`, or `eol=crlf` in `.gitattributes`). Compared as stored, every line of every
+ * changed file differed, and a one-line edit was shown as the whole file rewritten. `cat-file
+ * --filters` would do the conversion, but not in batch mode: there its header gives the stored size
+ * while the body is the converted text, and the stream cannot be framed. So the one conversion that
+ * matters is done here — only when the working file is CRLF throughout and the committed one has no
+ * `\r` at all, which leaves a real change of line endings visible as the change it is.
+ */
+function asCheckedOut(committed: string, working: string): string {
+	if (committed.includes("\r") || !working.includes("\r\n")) return committed;
+	if (/\r(?!\n)|(?<!\r)\n/.test(working)) return committed;
+	return committed.replaceAll("\n", "\r\n");
 }
 
 /** Keep the payload sane for files with hundreds of hunks. */

@@ -49,7 +49,13 @@ export async function afterCommand(ctx: ToolContext, before: Snapshot | null): P
 		const after = await content(absolute);
 		let original = before.files.get(path);
 		if (original === undefined) {
-			try { original = before.head ? await git(before.root, ["show", `${before.head}:${relative(before.root, absolute).split("\\").join("/")}`]) : null; }
+			/*
+			 * `cat-file --filters`, not `show`: a blob is stored normalized and `show` returns it as stored
+			 * — LF — while the file on disk went through the checkout's conversion (CRLF under
+			 * `core.autocrlf` or `eol=crlf`). Every line differed, and a one-line change was recorded as
+			 * the whole file rewritten. `--filters` (Git 2.11+) converts the way a checkout does.
+			 */
+			try { original = before.head ? await git(before.root, ["cat-file", "--filters", `${before.head}:${relative(before.root, absolute).split("\\").join("/")}`]) : null; }
 			catch { original = null; }
 		}
 		if (original === after) continue;

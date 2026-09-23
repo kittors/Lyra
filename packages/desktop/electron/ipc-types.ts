@@ -186,6 +186,13 @@ export interface LyraApi {
 	 */
 	platform: NodeJS.Platform;
 	/**
+	 * The operating system's own version, `process.getSystemVersion()` — "10.0.22631" on Windows 11.
+	 *
+	 * Read by the terminal, which has to tell xterm which build of ConPTY it is drawing for (see
+	 * `windowsPtyFor`). Optional because a phone's bridge has no such thing to report.
+	 */
+	systemVersion?: string;
+	/**
 	 * Which window this renderer is, and which conversation it was born showing.
 	 *
 	 * Read from `additionalArguments` in the preload, not over IPC — the first frame of an

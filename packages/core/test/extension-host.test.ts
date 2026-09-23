@@ -15,6 +15,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import type { Worker } from "node:worker_threads";
 import { ExtensionHost } from "../src/extensions/host.ts";
 import { FAILURE_LIMIT, validateManifest } from "../src/extensions/types.ts";
 
@@ -223,6 +224,58 @@ test("a malformed manifest is reported", async () => {
 	assert.equal(await host.load(dir), false);
 	assert.ok(host.diagnostics.some((d) => /JSON/.test(d.message)));
 	await host.dispose();
+});
+
+/** The worker running an extension right now — private, and the only way to see a thread that was left behind. */
+const workerOf = (host: ExtensionHost, name: string) => (host as unknown as { workers: Map<string, Worker> }).workers.get(name);
+
+/** Whether a worker thread exits within `ms`. */
+const exits = (worker: Worker, ms = 5000) =>
+	new Promise<boolean>((resolve) => {
+		const timer = setTimeout(() => resolve(false), ms);
+		worker.once("exit", () => {
+			clearTimeout(timer);
+			resolve(true);
+		});
+	});
+
+test("a reload replaces an extension's worker instead of starting another beside it", async () => {
+	/*
+	 * A capability reload loaded every extension again, and the new worker went into the map on top of
+	 * the old one without stopping it: one more thread per extension per reload, for the rest of the
+	 * session. And when an orphan did exit, it took its successor out of the map.
+	 */
+	const dir = await extension("reloaded", { events: ["tool_call"] }, `export default { tool_call: () => ({}) };`);
+	const host = new ExtensionHost();
+	try {
+		await host.replaceAll([dir]);
+		const first = workerOf(host, "reloaded");
+		assert.ok(first);
+		const gone = exits(first);
+		await host.replaceAll([dir]);
+		assert.equal(await gone, true, "the first worker is still running after the reload");
+		assert.notEqual(workerOf(host, "reloaded"), first);
+		// Its exit did not take the new one's place.
+		assert.equal((await host.dispatch("tool_call", {})).length, 1);
+	} finally {
+		await host.dispose();
+	}
+});
+
+test("an extension gone from disk stops at the next reload", async () => {
+	const dir = await extension("removed", { events: ["tool_call"] }, `export default { tool_call: () => ({}) };`);
+	const host = new ExtensionHost();
+	try {
+		await host.replaceAll([dir]);
+		const worker = workerOf(host, "removed");
+		assert.ok(worker);
+		const gone = exits(worker);
+		await host.replaceAll([]);
+		assert.equal(await gone, true);
+		assert.deepEqual(await host.dispatch("tool_call", {}), []);
+	} finally {
+		await host.dispose();
+	}
 });
 
 test("dispose stops every worker", async () => {

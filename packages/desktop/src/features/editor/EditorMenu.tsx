@@ -82,10 +82,16 @@ export function EditorMenu({
 	const paste = async () => {
 		const text = await bridge.clipboard.read();
 		if (!text) return;
+		/*
+		 * Measured the way the document measures it. A line break is one position in the document
+		 * however the clipboard spelled it, so a CRLF paste — anything copied on Windows — counted
+		 * one too many per line, put the cursor past the end, and CodeMirror threw.
+		 */
+		const inserted = view.state.toText(text);
 		// Replaces the selection when there is one, which is what pasting over a selection means.
 		view.dispatch({
-			changes: { from: selection.from, to: selection.to, insert: text },
-			selection: { anchor: selection.from + text.length },
+			changes: { from: selection.from, to: selection.to, insert: inserted },
+			selection: { anchor: selection.from + inserted.length },
 		});
 		view.focus();
 	};

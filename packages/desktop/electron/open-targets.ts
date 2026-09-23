@@ -19,13 +19,14 @@
  * setting stored are accepted as aliases so nobody's choice is lost.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { app, shell } from "electron";
 import { appIcon, findApp } from "./app-icon.ts";
-import { ALIASES, CANDIDATES, type Candidate, resolveTargetId, revealLabel } from "./open-target-ids.ts";
+import { findExecutable } from "./find-executable.ts";
+import { ALIASES, CANDIDATES, type Candidate, launchPlan, resolveTargetId, revealLabel } from "./open-target-ids.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -63,10 +64,12 @@ async function locate(candidate: Candidate): Promise<string | null> {
 	}
 
 	if (!candidate.command) return null;
-	const finder = process.platform === "win32" ? "where" : "which";
-	const { stdout } = await execFileAsync(finder, [candidate.command]).catch(() => ({ stdout: "" }));
-	const hit = stdout.split("\n")[0]?.trim();
-	return hit || null;
+	/*
+	 * Walked here rather than asked of `which`/`where`: `which` is not installed on a minimal Arch
+	 * system, and there every candidate read as absent — no editor, no terminal, nothing to offer.
+	 * `findExecutable` also applies PATHEXT, which is what finds `code.cmd` and `wt.exe` on Windows.
+	 */
+	return findExecutable(candidate.command);
 }
 
 /**
@@ -159,9 +162,19 @@ export async function openWith(stored: string, path: string): Promise<void> {
 		 *
 		 * A GUI editor launched as a child of this process keeps a handle on our stdio; on Windows
 		 * an unreferenced child also keeps the app alive on quit. Neither matters until it does,
-		 * and both are one option each.
+		 * and both are one option each. (This said so before and passed neither: `execFile` piped
+		 * the child's output into a buffer nobody read.)
+		 *
+		 * The arguments are the target's own — `-d` for Windows Terminal, `--working-directory=`
+		 * for most Linux terminals — and a batch launcher goes through cmd.exe. See `launchPlan`.
 		 */
-		const child = execFile(located, [target], { windowsHide: false });
+		const plan = launchPlan(candidate, located, target, process.platform, process.env);
+		const child = spawn(plan.file, plan.args, {
+			...(plan.cwd ? { cwd: plan.cwd } : {}),
+			detached: true,
+			stdio: "ignore",
+			windowsVerbatimArguments: plan.windowsVerbatimArguments ?? false,
+		});
 		child.on("error", () => void shell.openPath(target));
 		child.unref();
 	} catch {

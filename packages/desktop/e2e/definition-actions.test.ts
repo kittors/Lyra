@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { after, before, test } from "node:test";
+import { after, afterEach, before, test, type TestContext } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { named } from "./named.ts";
+import { settleSharedWindow } from "./shared-window.ts";
 
 let app: RunningApp;
 let cwd: string;
@@ -14,6 +15,12 @@ let skill: string;
 let rule: string;
 const id = `lyra-row-qa-${randomUUID()}`;
 const trashed: string[] = [];
+/*
+ * The confirmation's button, in this system's own words: the Trash is a Mac's, and Windows and Linux
+ * call it the Recycle Bin (`removal.toTrash*`, see `lib/system-words.ts`). Written as the Mac's alone,
+ * every deletion here waited for a button a Windows window never draws.
+ */
+const TO_TRASH = process.platform === "darwin" ? "移入废纸篓" : "移入回收站";
 before(async () => {
 	app = await startApp({ port: 9603, seed: async (home) => {
 		cwd = join(home, "project");
@@ -49,6 +56,8 @@ after(async () => {
 		}
 	}
 });
+// The second test starts on the settings page the first one leaves, and the first opens confirmations.
+afterEach(async (context) => settleSharedWindow(app, context as TestContext, "definition-actions"));
 
 async function frames(n = 20) {
 	await app.evaluate(`new Promise(resolve=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):resolve();requestAnimationFrame(f);})`);
@@ -156,7 +165,7 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 		assert.ok(narrow.x >= 0 && narrow.x + narrow.width <= 375, JSON.stringify(narrow));
 	});
 	trashed.push(basename(command));
-	await click(selector); await select("移入废纸篓");
+	await click(selector); await select(TO_TRASH);
 	await until(`!document.querySelector('${selector}')`);
 	await assert.rejects(access(command));
 	const list = await app.evaluate<{ commands: { name: string }[] }>(`window.lyra.commands.list(${JSON.stringify(cwd)})`);
@@ -167,13 +176,13 @@ test("loose skill and rule rows delete their own definitions while related confi
 	await select("插件", true); await select("技能", false, true);
 	await until(`document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	trashed.push(basename(dirname(skill)));
-	await click('[aria-label="删除技能 loose-qa"]'); await select("移入废纸篓");
+	await click('[aria-label="删除技能 loose-qa"]'); await select(TO_TRASH);
 	await until(`!document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	await assert.rejects(access(dirname(skill)));
 	await select("规则", false, true);
 	await until(`document.querySelector('[aria-label="删除规则 ${id}-rule"]')`);
 	trashed.push(basename(rule));
-	await click(`[aria-label="删除规则 ${id}-rule"]`); await select("移入废纸篓");
+	await click(`[aria-label="删除规则 ${id}-rule"]`); await select(TO_TRASH);
 	await until(`!document.querySelector('[aria-label="删除规则 ${id}-rule"]')`);
 	await assert.rejects(access(rule));
 	assert.equal(await app.evaluate(`[...document.querySelectorAll('[data-row-actions]')].filter(row=>row.textContent.includes('内置')).some(row=>row.querySelector('.ly-row-action'))`), false);

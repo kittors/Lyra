@@ -22,7 +22,8 @@
 		"./model-catalog": "./src/model-catalog.ts",
 		"./commands-builtin": "./src/commands/builtin.ts",
 		"./rules-condition": "./src/rules/condition.ts",
-		"./install-record": "./src/plugins/install-record.ts"
+		"./install-record": "./src/plugins/install-record.ts",
+		"./sandbox-runner": "./src/sandbox/runner-entry.ts"
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",

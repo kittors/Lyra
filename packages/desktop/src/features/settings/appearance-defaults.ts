@@ -66,3 +66,20 @@ export const FACTORY_APPEARANCE: Appearance = {
 	errorDetail: "compact",
 	fontSmoothing: true,
 };
+
+/**
+ * The default UI stack as drawn: the stored one, with the faces Windows and Linux need.
+ *
+ * The stored default is core's (`DEFAULT_APPEARANCE.uiFont`, mirrored above) — PingFang, then
+ * YaHei. On Windows YaHei draws the Latin too, with only 300/400/700, so the three weights the UI
+ * uses (base 500, 600, 700) collapse to two; Linux falls to DejaVu or Liberation, 400/700. Why these
+ * faces and this order is written on `--font-sans` in `tokens.css`, which carries the same list.
+ *
+ * Widened here rather than by changing the stored default: that lives in core, and every install
+ * has it written into its settings file, so a new default would reach nobody without a migration
+ * there. Only the untouched default is widened. A stack somebody typed is theirs, as typed.
+ */
+export function drawnUiFont(stored: string): string {
+	if (stored !== FACTORY_APPEARANCE.uiFont) return stored;
+	return '"PingFang SC", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans", "Noto Sans CJK SC", sans-serif';
+}

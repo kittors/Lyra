@@ -28,7 +28,7 @@ export {
 	type ToolRegistry,
 } from "./kernel/index.ts";
 export { getSandbox, useSandbox, LocalSandbox, primeCommandPath } from "./sandbox/index.ts";
-export { WINDOWS_RUNNER_FLAG, runSandboxRunner, workspaceWriteSid, tempWriteSid } from "./sandbox/index.ts";
+export { useSandboxRunner, workspaceWriteSid, tempWriteSid } from "./sandbox/index.ts";
 export {
 	registerSearchProvider,
 	resetSearchProviders,
@@ -107,6 +107,8 @@ export {
  * never sees a token, which is the point of it living behind IPC.
  */
 export { isSealed, resetVault, seal, secret, unseal } from "./config/vault.ts";
+/** Replacing a file whole, for the main process's own files; see `utils/atomic-write.ts`. */
+export { renameWithRetry, writeFileAtomic } from "./utils/atomic-write.ts";
 export {
 	McpManager,
 	type McpHttpServer,

@@ -7,7 +7,7 @@
  */
 
 import { EditorState, type Extension } from "@codemirror/state";
-import { indentRange, indentUnit } from "@codemirror/language";
+import { ensureSyntaxTree, indentRange, indentUnit, syntaxTree } from "@codemirror/language";
 import type { FormatOptions } from "./format.ts";
 import { GRAMMARS } from "../../lib/code/highlight.ts";
 
@@ -120,6 +120,30 @@ function alignIndent(text: string, indentStr: string, tabSize: number): string {
 	return text.replace(/^\t+/gm, (tabs) => indentStr.repeat(tabs.length));
 }
 
+/** How long one document may take to parse before the grammar is given up on. */
+const PARSE_BUDGET_MS = 5_000;
+
+/**
+ * A state whose syntax tree covers the whole document, or null when it cannot be had in the budget.
+ *
+ * `EditorState.create` parses only the first 3,000 characters, and for at most 20ms — what an editor
+ * needs to paint its first screen, with the rest parsed later, in the background, by the view. There
+ * is no view here, and `indentRange` skips every line the tree does not reach: a longer file had its
+ * top reindented and the rest left as it was, and on a machine busy enough to spend the 20ms first,
+ * even a short one came out differently each time — a formatter that changed its own output on the
+ * second pass.
+ *
+ * `ensureSyntaxTree` finishes the parse, but in place, and `syntaxTree` — which indentation reads —
+ * still answers from the tree the state was created with. An empty transaction is what hands the
+ * finished tree to a state.
+ */
+function fullyParsed(doc: string, extensions: Extension[]): EditorState | null {
+	const created = EditorState.create({ doc, extensions });
+	if (!ensureSyntaxTree(created, created.doc.length, PARSE_BUDGET_MS)) return null;
+	const state = created.update({}).state;
+	return syntaxTree(state).length >= state.doc.length ? state : null;
+}
+
 /**
  * Format source text using built-in CodeMirror grammars and indentation engines.
  */
@@ -152,7 +176,9 @@ export async function formatWithBuiltin(
 			 */
 			let text = source;
 			for (let i = 0; i < 3; i++) {
-				const state = EditorState.create({ doc: text, extensions });
+				const state = fullyParsed(text, extensions);
+				// A grammar that cannot finish in the budget gets no half-indented file: the fallback below.
+				if (!state) throw new Error("the grammar did not finish parsing this document");
 				const tr = indentRange(state, 0, state.doc.length);
 				if (!tr || tr.length === 0) break;
 				const next = state.update({ changes: tr }).state.doc.toString();

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
+import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { startApp, type RunningApp } from "./app.ts";
 
 async function frames(app: RunningApp, count = 24): Promise<void> {
@@ -21,29 +22,71 @@ async function click(app: RunningApp, selector: string): Promise<void> {
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
 }
 
+/**
+ * Every control in the window's top rows sits on its row's centre line.
+ *
+ * Two rows, two heights — see `shared/window-chrome.ts`. Dock pane title bars are
+ * `WINDOW_HEADER_HEIGHT` on every platform, so their controls centre half of that below each
+ * pane's own top. The window's own row is not one number: Windows and Linux draw a header of
+ * `NATIVE_HEADER_HEIGHT` and the sidebar toggle rides on it, while macOS has no header and the
+ * toggle floats in the `WINDOW_HEADER_HEIGHT` corner the traffic lights centre on.
+ *
+ * The header's line is measured rather than assumed. When the band became 32px this compared the
+ * toggle and the caption buttons with a hard-coded 22, and a comparison with a constant only says
+ * which of the two happened to match it; measured, a band and buttons that disagree name each other.
+ */
 async function headerAlignment(app: RunningApp): Promise<void> {
-	const geometry = await app.evaluate<{ controls: number; maxError: number; overlayCenter: number | null }>(`(() => {
-		const errors = [];
-		const measure = (el, center) => {
+	const geometry = await app.evaluate<{
+		controls: number; maxError: number; drift: string[]; headerCenter: number; headerHeight: number | null;
+		overlayCenter: number | null; overlayHeight: number | null;
+	}>(`(() => {
+		const errors = []; const drift = [];
+		const measure = (el, center, name) => {
+			if (!el) return;
 			const r = el.getBoundingClientRect();
-			if (r.height > 0 && r.right > 0 && r.left < innerWidth) errors.push(Math.abs(r.y + r.height / 2 - center));
+			if (!(r.height > 0 && r.right > 0 && r.left < innerWidth)) return;
+			const error = Math.abs(r.y + r.height / 2 - center);
+			errors.push(error);
+			if (error > 0.5) drift.push(name + ': ' + (r.y + r.height / 2).toFixed(2) + ' vs ' + center.toFixed(2));
 		};
 		for (const pane of document.querySelectorAll('[data-dock-pane]')) {
-			const center = pane.getBoundingClientRect().top + 22;
-			for (const icon of pane.querySelectorAll('[data-dock-header] svg')) measure(icon, center);
-			for (const button of pane.querySelectorAll('[data-dock-header] button:not([data-dock-grip])')) measure(button, center);
+			const center = pane.getBoundingClientRect().top + ${WINDOW_HEADER_HEIGHT / 2};
+			const kind = pane.getAttribute('data-dock-pane');
+			for (const icon of pane.querySelectorAll('[data-dock-header] svg')) measure(icon, center, kind + ' svg');
+			for (const button of pane.querySelectorAll('[data-dock-header] button:not([data-dock-grip])')) measure(button, center, kind + ' ' + (button.getAttribute('aria-label') || 'button'));
 		}
+		const header = document.querySelector('[data-ly-window-header]');
+		const band = header ? header.getBoundingClientRect() : null;
+		const headerCenter = band ? band.top + band.height / 2 : ${WINDOW_HEADER_HEIGHT / 2};
 		for (const button of document.querySelectorAll('button[aria-label*="侧边栏 "], button[aria-label*="设置导航 "]')) {
-			measure(button, 22); measure(button.querySelector('svg'), 22);
+			const name = button.getAttribute('aria-label');
+			measure(button, headerCenter, name); measure(button.querySelector('svg'), headerCenter, name + ' svg');
 		}
 		const overlay = navigator.windowControlsOverlay;
 		const rect = overlay?.visible ? overlay.getTitlebarAreaRect() : null;
-		return { controls: errors.length, maxError: Math.max(...errors), overlayCenter: rect ? rect.y + rect.height / 2 : null };
+		return { controls: errors.length, maxError: Math.max(...errors), drift, headerCenter, headerHeight: band ? band.height : null,
+			overlayCenter: rect ? rect.y + rect.height / 2 : null, overlayHeight: rect ? rect.height : null };
 	})()`);
-	assert.ok(geometry.controls >= 2, "header controls are visible");
+	assert.ok(geometry.controls >= 2, `header controls are visible: ${JSON.stringify(geometry)}`);
 	// Chromium quantizes a card's 1px border at fractional DPI; allow at most half a CSS pixel.
 	assert.ok(geometry.maxError <= 0.5, `header centre-line drift: ${JSON.stringify(geometry)}`);
-	if (geometry.overlayCenter !== null) assert.ok(Math.abs(geometry.overlayCenter - 22) <= 0.5, "native overlay shares the header centre line");
+	// `WindowHeader` is only ever drawn at the native height, whichever platform draws it.
+	if (geometry.headerHeight !== null) {
+		assert.ok(Math.abs(geometry.headerHeight - NATIVE_HEADER_HEIGHT) <= 0.5, `the header is ${NATIVE_HEADER_HEIGHT}px: ${JSON.stringify(geometry)}`);
+	}
+	if (geometry.overlayCenter !== null) {
+		assert.ok(Math.abs(geometry.overlayCenter - geometry.headerCenter) <= 0.5, `native overlay shares the header centre line: ${JSON.stringify(geometry)}`);
+	}
+	if (process.platform === "win32") {
+		/*
+		 * The band and the caption buttons are one number: `titleBarOverlay.height` is told
+		 * `NATIVE_HEADER_HEIGHT`, at creation and again on every theme change. A shorter band leaves
+		 * the buttons poking out of it; a taller one floats them in a strip of empty space.
+		 */
+		assert.ok(geometry.headerHeight !== null && geometry.overlayHeight !== null
+			&& Math.abs(geometry.overlayHeight - geometry.headerHeight) <= 0.5,
+			`caption buttons are exactly as tall as the header: ${JSON.stringify(geometry)}`);
+	}
 }
 
 for (const [scale, width, height, theme] of [

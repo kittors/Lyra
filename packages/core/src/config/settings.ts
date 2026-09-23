@@ -2,11 +2,13 @@ import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./
 import { withCatalogDefaults } from "../model-catalog.ts";
 import { normalizeDelegationPolicy, normalizeMaxConcurrentSubAgents, type DelegationPolicy } from "../runtime/delegation.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { lyraHome } from "../session/store.ts";
 import type { ProviderConfig, ThinkingLevel } from "../types.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
+import { withoutBom } from "../utils/bom.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
 
 /** How much the agent may do without stopping to ask. */
@@ -886,13 +888,74 @@ export async function layerProjectSettings(
  * answer masking it.
  */
 async function readSettingsFile(): Promise<Settings> {
-	const raw = await readFile(settingsPath(), "utf8").catch(() => null);
-	if (!raw) return { ...DEFAULT_SETTINGS };
+	const path = settingsPath();
+	const raw = await readFile(path, "utf8").catch(() => null);
+	// Missing or empty is a fresh install, not damage: there is nothing in it to lose.
+	if (!raw?.trim()) return { ...DEFAULT_SETTINGS };
 	try {
-		return normalizeSettings(JSON.parse(raw) as Partial<Settings>);
-	} catch {
+		const parsed: unknown = JSON.parse(withoutBom(raw));
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("the top level is not a JSON object");
+		const settings = normalizeSettings(parsed as Partial<Settings>);
+		// Mended by hand before anything wrote over it. A copy already kept aside is still worth naming.
+		if (problem?.path === path && !problem.keptAt) problem = null;
+		return settings;
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		problem = { path, reason, keptAt: problem?.path === path ? problem.keptAt : undefined };
 		return { ...DEFAULT_SETTINGS };
 	}
+}
+
+/**
+ * Why `settings.json` could not be used, when it could not.
+ *
+ * It used to be a `catch` that returned the defaults and said nothing. The app then ran as a fresh
+ * install — no providers, no MCP servers, no hooks, no always-allow list — and the first save, which
+ * the desktop makes on any change at all, wrote those defaults over the file: the one copy of what
+ * had been configured, gone because it could not be parsed. The commonest cause was not damage but
+ * a byte-order mark (see `withoutBom`), which is now simply read; this is for a file that cannot be.
+ */
+export interface SettingsProblem {
+	/** The file it is about. A test, or a host that moved `LYRA_HOME`, reads another file entirely. */
+	path: string;
+	/** What the parser said. */
+	reason: string;
+	/** Where the unreadable file was copied before the first save replaced it; absent until then. */
+	keptAt?: string;
+}
+
+let problem: SettingsProblem | null = null;
+
+/** The trouble with the settings file in use, for a host to put in front of the user; null when none. */
+export function settingsProblem(): SettingsProblem | null {
+	return problem?.path === settingsPath() ? problem : null;
+}
+
+/** The same, as a sentence to show — see `AgentSession.initialize`. */
+export function describeSettingsProblem(found: SettingsProblem): string {
+	return found.keptAt
+		? `${found.path} 读不出来（${found.reason}），原文件已另存为 ${found.keptAt}。现在用的是默认设置：模型供应商、MCP 服务器、hooks 要从那份文件里找回来。`
+		: `${found.path} 读不出来（${found.reason}），这次按默认设置运行，模型供应商、MCP 服务器、hooks 都没有加载。文件本身没有动过：修好之后重启 Lyra；在那之前保存设置，会先把它另存一份再写入。`;
+}
+
+/**
+ * Copy an unreadable settings file aside, once, before the first write replaces it.
+ *
+ * Copied rather than moved, so that a crash between this and the write leaves the original where it
+ * was instead of no file at all — which would read as a fresh install, with nothing saying where the
+ * old one went.
+ */
+async function keepUnreadable(path: string): Promise<void> {
+	if (problem?.path !== path || problem.keptAt) return;
+	const aside = `${path}.corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+	try {
+		await copyFile(path, aside, constants.COPYFILE_EXCL);
+	} catch (error) {
+		// Deleted by hand since it was read: nothing left to protect. Anything else stops the save.
+		if ((error as { code?: string }).code === "ENOENT") return;
+		throw error;
+	}
+	problem = { ...problem, keptAt: aside };
 }
 
 /**
@@ -1047,22 +1110,38 @@ export function rememberProviderNames(settings: Pick<Settings, "providers" | "pr
 	return known;
 }
 
-export async function saveSettings(settings: Settings): Promise<void> {
+/** The save in progress; the next one starts after it. See `saveSettings`. */
+let saving: Promise<unknown> = Promise.resolve();
+
+/**
+ * One save at a time, in the order they were asked for.
+ *
+ * The desktop app saves on every change without waiting for the previous save, so flipping two
+ * switches quickly puts two in flight. Run side by side they wrote the vault and this file through
+ * one shared temporary name and failed with ENOENT; and even with names of their own, whichever
+ * finished last would win — not necessarily the one made last.
+ */
+export function saveSettings(settings: Settings): Promise<void> {
+	const run = saving.then(() => writeSettings(settings));
+	saving = run.catch(() => {});
+	return run;
+}
+
+async function writeSettings(settings: Settings): Promise<void> {
 	const keys: Record<string, string> = {};
 	for (const provider of settings.providers) keys[providerSecretId(provider.id)] = provider.apiKey ?? "";
 	await putSecrets(keys);
 	await keepSecrets((id) => !id.startsWith("provider:") || id in keys);
 
-	const path = settingsPath();
 	await mkdir(lyraHome(), { recursive: true });
-	const tmp = `${path}.${process.pid}.tmp`;
 	const scrubbed: Settings = {
 		...settings,
 		// 密钥跟着供应商一起走，名字不跟着走——见 `providerNames`。
 		providerNames: rememberProviderNames(settings),
 		providers: settings.providers.map((provider) => ({ ...provider, apiKey: "" })),
 	};
-	await writeFile(tmp, JSON.stringify(scrubbed, null, 2), "utf8");
+	// Never over a file that could not be read without keeping a copy first; see `SettingsProblem`.
+	await keepUnreadable(settingsPath());
 	/*
 	 * 0600, which it never was.
 	 *
@@ -1070,8 +1149,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
 	 * and every endpoint it talks to. It was 0644 — readable by every other account on the box —
 	 * for no reason other than that nothing ever set it.
 	 */
-	await chmod(tmp, 0o600).catch(() => {});
-	await rename(tmp, path);
+	await writeFileAtomic(settingsPath(), JSON.stringify(scrubbed, null, 2), { mode: 0o600 });
 }
 
 /**

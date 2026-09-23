@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { AgentDefinitionStore } from "../src/agents/definition-store.ts";
 import { renderAgentDocument, type AgentDraft } from "../src/agents/definition-document.ts";
+import { asWindows, refuseRenames } from "./held-open.ts";
 
 const draft: AgentDraft = { name: "qa-agent", description: "Inspect code", systemPrompt: "Read before acting.", tools: ["read"] };
 async function fixture(t: TestContext) {
@@ -65,6 +66,31 @@ test("path traversal, unknown tools and symbolic link destinations are rejected"
 	await assert.rejects(store.save(null, { scope: "user", draft: { ...draft, tools: ["unknown"] } }, ["read"]), /不可用/);
 	await symlink(cwd, join(home, "agents"), process.platform === "win32" ? "junction" : "dir");
 	await assert.rejects(store.save(null, { scope: "user", draft }, ["read"]), /符号链接/);
+});
+
+// Saved twice in a row, the second save lands on a file a Windows scanner is still reading.
+test("on Windows a save refused for a moment is retried rather than failed", async t => {
+	const { store } = await fixture(t);
+	await store.save(null, { scope: "user", draft }, ["read"]);
+	const record = (await store.list(null)).find(item => item.definition.name === draft.name); assert.ok(record);
+	asWindows(t);
+	const { refused } = refuseRenames(t, `${draft.name}.md`, "EPERM", 2);
+	await store.save(null, { id: record.id, revision: record.revision, scope: "user", draft: { ...draft, systemPrompt: "Saved again." } }, ["read"]);
+	assert.equal(refused(), 2, "the premise: the first two renames were refused");
+	const saved = (await store.list(null)).find(item => item.definition.name === draft.name); assert.ok(saved);
+	assert.match(saved.raw, /Saved again\./);
+});
+
+test("on Windows a removal refused for a moment is retried rather than failed", async t => {
+	const { store } = await fixture(t);
+	await store.save(null, { scope: "user", draft }, ["read"]);
+	const record = (await store.list(null)).find(item => item.definition.name === draft.name); assert.ok(record);
+	asWindows(t);
+	// Removing moves the file aside under a name made up on the spot; refuse whatever that is.
+	const { refused } = refuseRenames(t, /\.deleted$/, "EBUSY", 2);
+	await store.remove(null, record.id, record.revision);
+	assert.equal(refused(), 2, "the premise: the first two renames were refused");
+	assert.equal((await store.list(null)).some(item => item.definition.name === draft.name), false);
 });
 
 test("editing YAML preserves unknown nested metadata and rejects malformed documents", () => {

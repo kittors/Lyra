@@ -21,9 +21,9 @@
  *   made here.
  */
 
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome } from "@lyra/core";
+import { lyraHome, writeFileAtomic } from "@lyra/core";
 import { isSealed, seal, unseal } from "@lyra/core";
 import { parseAccounts } from "./accounts.ts";
 import type { ForgeAccount } from "./types.ts";
@@ -127,11 +127,26 @@ async function write(file: StoredFile): Promise<void> {
 	}
 
 	loaded = file;
-	const tmp = `${path}.${process.pid}.tmp`;
-	await writeFile(tmp, JSON.stringify(file, null, 2), "utf8");
-	// Before the rename, so the file is never readable by anyone else even for an instant.
-	await chmod(tmp, 0o600).catch(() => {});
-	await rename(tmp, path);
+	// 0600 from the moment the temporary file exists, so the tokens are never readable by anyone else.
+	await writeFileAtomic(path, JSON.stringify(file, null, 2), { mode: 0o600 });
+}
+
+/** The change in progress; the next one starts after it. See `change`. */
+let changing: Promise<unknown> = Promise.resolve();
+
+/**
+ * Read, modify and write the file as one step, one change at a time.
+ *
+ * Every change reads the list, awaits sealing a token, and writes the list back. Two at once —
+ * signing in to two hosts, or a token being resealed while another account is saved — both started
+ * from the same list: the second write failed on the shared temporary name, or it succeeded and
+ * dropped the first change, and an account that had signed in successfully was gone on the next
+ * launch.
+ */
+function change<T>(body: () => Promise<T>): Promise<T> {
+	const run = changing.then(body);
+	changing = run.catch(() => {});
+	return run;
 }
 
 /**
@@ -210,42 +225,50 @@ export async function tokenFor(id: string): Promise<string | null> {
 }
 
 /** Rewrite one account's token in the current format, leaving everything else alone. */
-async function reseal(id: string, token: string): Promise<void> {
-	const file = await read();
-	const at = file.entries.findIndex((e) => e.account.id === id);
-	if (at < 0) return;
-	const entries = [...file.entries];
-	entries[at] = { ...entries[at], token: await seal(token), encrypted: true };
-	await write({ version: 1, entries });
+function reseal(id: string, token: string): Promise<void> {
+	return change(async () => {
+		const file = await read();
+		const at = file.entries.findIndex((e) => e.account.id === id);
+		if (at < 0) return;
+		const entries = [...file.entries];
+		entries[at] = { ...entries[at], token: await seal(token), encrypted: true };
+		await write({ version: 1, entries });
+	});
 }
 
 /** Save an account and its token, replacing whatever was filed under the same id. */
-export async function saveAccount(account: ForgeAccount, token: string): Promise<void> {
-	const file = await read();
-	const entry: StoredEntry = { account, token: await seal(token), encrypted: true };
+export function saveAccount(account: ForgeAccount, token: string): Promise<void> {
+	return change(async () => {
+		const file = await read();
+		const entry: StoredEntry = { account, token: await seal(token), encrypted: true };
 
-	const at = file.entries.findIndex((e) => e.account.id === account.id);
-	const entries = [...file.entries];
-	if (at < 0) entries.push(entry);
-	else entries[at] = entry;
-	await write({ version: 1, entries });
+		const at = file.entries.findIndex((e) => e.account.id === account.id);
+		const entries = [...file.entries];
+		if (at < 0) entries.push(entry);
+		else entries[at] = entry;
+		await write({ version: 1, entries });
+	});
 }
 
 /** Change what is known about an account without touching its token. */
-export async function updateAccount(id: string, patch: Partial<ForgeAccount>): Promise<ForgeAccount | null> {
-	const file = await read();
-	const at = file.entries.findIndex((e) => e.account.id === id);
-	if (at < 0) return null;
+export function updateAccount(id: string, patch: Partial<ForgeAccount>): Promise<ForgeAccount | null> {
+	return change(async () => {
+		const file = await read();
+		const at = file.entries.findIndex((e) => e.account.id === id);
+		if (at < 0) return null;
 
-	const account = { ...file.entries[at].account, ...patch, id };
-	const entries = [...file.entries];
-	entries[at] = { ...file.entries[at], account };
-	await write({ version: 1, entries });
-	return account;
+		const account = { ...file.entries[at].account, ...patch, id };
+		const entries = [...file.entries];
+		entries[at] = { ...file.entries[at], account };
+		await write({ version: 1, entries });
+		return account;
+	});
 }
 
-export async function removeAccount(id: string): Promise<void> {
-	const file = await read();
-	const entries = file.entries.filter((entry) => entry.account.id !== id);
-	if (entries.length !== file.entries.length) await write({ version: 1, entries });
+export function removeAccount(id: string): Promise<void> {
+	return change(async () => {
+		const file = await read();
+		const entries = file.entries.filter((entry) => entry.account.id !== id);
+		if (entries.length !== file.entries.length) await write({ version: 1, entries });
+	});
 }

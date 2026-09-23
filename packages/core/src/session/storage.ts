@@ -16,7 +16,8 @@ import type { Boundary, SessionMeta, SessionRecord, SessionRecordInput } from ".
 import type { SessionReadCursor, SessionRecordChanges } from "./read-changes.ts";
 
 export interface SessionStorage {
-	create(cwd: string, modelId: string, title?: string): Promise<SessionMeta>;
+	/** `options.thinking` is written into the first record; see `SessionMeta.thinking` for why every new session gets one. */
+	create(cwd: string, modelId: string, title?: string, options?: Pick<SessionMeta, "thinking">): Promise<SessionMeta>;
 	/** Add one record and return the meta it produced. Never rewrites what is already there. */
 	append(meta: SessionMeta, payload: SessionRecordInput): Promise<SessionMeta>;
 	read(projectId: string, sessionId: string, sinceSeq?: number, options?: { display?: boolean }): AsyncGenerator<SessionRecord>;

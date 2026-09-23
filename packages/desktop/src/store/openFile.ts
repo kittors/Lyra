@@ -15,7 +15,7 @@
 import { translate } from "../i18n/translate.ts";
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
-import { isDescendantPath } from "../lib/paths.ts";
+import { baseName, isDescendantPath } from "../lib/paths.ts";
 import { bridge } from "../services/index.ts";
 
 /** One file the pane has had open, as its tab strip lists it. */
@@ -182,7 +182,7 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 			// Renaming a file renames its tab; renaming a folder moves every tab beneath it.
 			tabs: tabs.map((tab) => {
 				const next = follow(tab.path);
-				return next === tab.path ? tab : { path: next, name: next.slice(next.lastIndexOf("/") + 1) };
+				return next === tab.path ? tab : { path: next, name: baseName(next) };
 			}),
 		});
 		if (nextOpening && nextOpening !== opening) void get().open({ path: nextOpening, name: nextOpening.split(/[\\/]/).pop() ?? nextOpening });

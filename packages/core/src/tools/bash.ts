@@ -3,7 +3,7 @@ import { createOutputLog } from "./output-log.ts";
 import { randomUUID } from "node:crypto";
 import { backgroundJobs, type BackgroundJob } from "./background-jobs.ts";
 import { rerouteShellCommand, TOOL_NAMES_KEY } from "./reroute.ts";
-import { getSandbox, looksDenied, looksNetworkDenied } from "../sandbox/index.ts";
+import { getSandbox, looksDenied, looksNetworkDenied, selectRunner } from "../sandbox/index.ts";
 import {
 	approveEscalation,
 	escalationHint,
@@ -15,6 +15,9 @@ import {
 import { errorResult } from "../agent/tool-run.ts";
 import { clipOutput } from "./long-line.ts";
 import { authorizeCommandReads } from "./read-access.ts";
+import { describeStatus, readExit } from "./exit-status.ts";
+import { commandShell, type CommandShell } from "../platform.ts";
+import type { SandboxProcess } from "../kernel/services.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -128,6 +131,12 @@ export function isReadOnlyCommand(command: string): boolean {
 export const bashTool: Tool<BashArgs> = {
 	name: "bash",
 	snippet: "Run shell commands",
+	/*
+	 * What the model has to know about the shell itself is not here: it depends on the session's
+	 * permission mode (a confined command on Windows runs in PowerShell — see `commandShell`), which
+	 * a tool shared by every session cannot know. The system prompt adds it beside these, from the
+	 * shell it names; see `shellGuidance`.
+	 */
 	guidelines: [
 		"Use the dedicated tools instead of their shell equivalents: read over `cat`, edit over `sed`, glob over `find`, grep over shell `grep`.",
 		"Quote paths that may contain spaces.",
@@ -136,7 +145,9 @@ export const bashTool: Tool<BashArgs> = {
 	description:
 		"Run a shell command in the workspace. The working directory persists between calls but shell state " +
 		"(variables, functions) does not. Use `run_in_background: true` for long-running processes such as dev servers, " +
-		"then read their output with `bash_output`. Prefer the dedicated file tools over cat/sed/echo. " +
+		"then read their output with `bash_output`. A command still running when the default timeout passes is moved " +
+		"to the background instead of being killed; an explicit `timeout` is a hard limit. " +
+		"Prefer the dedicated file tools over cat/sed/echo. " +
 		"Commands may run under a file sandbox. A blocked write is reported as a policy denial, not a bug in the " +
 		"command — do not retry it another way. When one is denied and a wider mode would let it through, retry that " +
 		"exact command once with `escalate` and `justification`; the user is asked, and the grant covers only that call. " +
@@ -146,7 +157,12 @@ export const bashTool: Tool<BashArgs> = {
 		properties: {
 			command: { type: "string", description: "The command to run." },
 			description: { type: "string", description: "5-10 word description shown to the user." },
-			timeout: { type: "number", description: "Timeout in milliseconds. Default 120000, max 600000." },
+			timeout: {
+				type: "number",
+				description:
+					"Hard limit in milliseconds, max 600000: the command is killed when it passes. Without it, a command " +
+					"still running after 120000 ms keeps running as a background job.",
+			},
 			run_in_background: { type: "boolean", description: "Detach the process and return immediately." },
 			escalate: {
 				type: "string",
@@ -247,13 +263,31 @@ export const bashTool: Tool<BashArgs> = {
 			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this command.");
 		}
 
-		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode });
+		/*
+		 * The shell the model was told it writes for: the session's mode picks it, not the mode this
+		 * one call was escalated to. A PowerShell command granted full access is still PowerShell.
+		 */
+		const shell = commandShell(ctx.sandboxMode);
 
+		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode }, shell);
+
+		/*
+		 * A timeout the model asked for is a limit; the default one is only a point to stop waiting.
+		 *
+		 * Killing at the default threw away work that was nearly done — `bun install && bun test &&
+		 * bun run build` was two minutes in, and the retry started from nothing — and gave a watcher
+		 * like `gh run watch` a red cross for doing its job. Past the default the command keeps
+		 * running as a background job the model can read or stop. A `timeout` in the call still
+		 * kills, because then the model has said how long this may take.
+		 */
+		const hardLimit = args.timeout !== undefined;
 		const timeout = Math.min(args.timeout ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
 		let baseline: Awaited<ReturnType<typeof beforeCommand>> = null;
 		let changeWarning: string | undefined;
 		try { baseline = await beforeCommand(ctx); } catch (error) { changeWarning = String(error); }
 		const outputLog = await createOutputLog(ctx.scratchDir);
+		/** Set when the command outlives this call: its log then stays open for the job that continues it. */
+		let handedOff = false;
 		const result = await new Promise<ToolResult>((resolve) => {
 			/*
 			 * `mode` may have been widened by an escalation just now; `network` never is.
@@ -262,7 +296,14 @@ export const bashTool: Tool<BashArgs> = {
 			 * one switch with one position, and `escalation.ts` deliberately offers no grant for it
 			 * — so this reads the turn's setting rather than anything decided above.
 			 */
-			const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork });
+			let child: SandboxProcess;
+			try {
+				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork, shell });
+			} catch (error) {
+				// A sandbox that cannot confine says so by throwing; the model gets the sentence, not a crash.
+				resolve(errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`));
+				return;
+			}
 
 			let output = "";
 			let settled = false;
@@ -294,6 +335,8 @@ export const bashTool: Tool<BashArgs> = {
 				ticker = undefined;
 			};
 			child.onOutput((chunk) => {
+				// Once the call has answered, the output belongs to whatever took the command over.
+				if (settled) return;
 				outputLog?.append(chunk);
 				output = clip(output + chunk);
 				pending = true;
@@ -308,11 +351,27 @@ export const bashTool: Tool<BashArgs> = {
 				if (settled) return;
 				settled = true;
 				stopTicking();
-				child.kill();
+				ctx.signal?.removeEventListener("abort", onAbort);
+				if (hardLimit) {
+					child.kill();
+					resolve({
+						content: [{ type: "text", text: `${clip(output)}\n\n[timed out after ${timeout}ms]` }],
+						details: { kind: "bash", command: args.command, timedOut: true },
+						isError: true,
+					});
+					return;
+				}
+				handedOff = true;
+				const id = adoptJob(ctx, args.command, child, output, outputLog);
 				resolve({
-					content: [{ type: "text", text: `${clip(output)}\n\n[timed out after ${timeout}ms]` }],
-					details: { kind: "bash", command: args.command, timedOut: true },
-					isError: true,
+					content: [{
+						type: "text",
+						text:
+							`${clip(output).trim() || "(no output yet)"}\n\n[still running after ${Math.round(timeout / 1000)}s — ` +
+							`now background job ${id}. Read its output with bash_output({ id: "${id}" }); ` +
+							`stop it with bash_output({ id: "${id}", kill: true }).]`,
+					}],
+					details: { kind: "bash", command: args.command, backgrounded: true, jobId: id },
 				});
 			}, timeout);
 
@@ -339,7 +398,7 @@ export const bashTool: Tool<BashArgs> = {
 				resolve(errorResult(`Failed to start command: ${error.message}`));
 			});
 
-			child.onExit((code) => {
+			child.onExit((code, signal, lingering) => {
 				if (settled) return;
 				settled = true;
 				clearTimeout(timer);
@@ -356,7 +415,10 @@ export const bashTool: Tool<BashArgs> = {
 				 * refused", and the hint beside it is the sanctioned way forward.
 				 */
 				const ranUnder = mode;
-				const denied = ranUnder !== undefined && ranUnder !== "danger-full-access" && looksDenied(output);
+				const denied =
+					ranUnder !== undefined &&
+					ranUnder !== "danger-full-access" &&
+					looksDenied(output, selectRunner({}, ctx.sandboxNetwork ?? "allow"));
 				/*
 				 * And the same for the network, which needs it more.
 				 *
@@ -366,28 +428,48 @@ export const bashTool: Tool<BashArgs> = {
 				 * — see `looksNetworkDenied`, which will not answer without being told the policy.
 				 */
 				const cutOff = looksNetworkDenied(output, ctx.sandboxNetwork);
+				/*
+				 * Whether it failed, read the way a person reads it — see `exit-status.ts`. `grep`
+				 * finding nothing and `gh pr checks` reporting pending checks are answers.
+				 *
+				 * And the status always reaches the model in words. It used to be said only when
+				 * there was no output, and only providers with an `is_error` field carry the flag —
+				 * so behind an OpenAI-compatible endpoint a failed build and a passing one looked the
+				 * same whenever either printed anything.
+				 */
+				const reading = readExit(args.command, code, output, shell.kind);
+				const status =
+					code === 0 ? undefined : `[${describeStatus(code, signal)}${reading.meaning ? ` — ${reading.meaning}; not a failure` : ""}]`;
+				const leftBehind = lingering ? adoptJob(ctx, args.command, lingering, "", undefined) : undefined;
 				const markers = [
 					...(denied ? [sandboxDenialMarker(ranUnder), escalationHint("command")] : []),
 					...(cutOff ? [networkDenialMarker()] : []),
+					...(leftBehind
+						? [
+								`[processes it started in the background are still running and holding its output — background job ${leftBehind}. ` +
+									`Read it with bash_output({ id: "${leftBehind}" }); stop it with bash_output({ id: "${leftBehind}", kill: true }). ` +
+									"They are stopped when the session ends.]",
+							]
+						: []),
 				];
-				const body =
-					markers.length > 0
-						? [text || "(no output)", ...markers].join("\n")
-						: text || (code === null ? "(terminated without an exit code)" : `(no output, exit code ${code})`);
+				const body = [text || "(no output)", ...(status ? [status] : []), ...markers].join("\n\n");
 				resolve({
 					content: [{ type: "text", text: body }],
 					details: {
 						kind: "bash",
 						command: args.command,
 						exitCode: code,
+						...(signal ? { signal } : {}),
+						...(reading.meaning && !reading.failed ? { exitMeaning: reading.meaning } : {}),
 						...(denied ? { denied: true } : {}),
 						...(cutOff ? { networkDenied: true } : {}),
+						...(leftBehind ? { jobId: leftBehind } : {}),
 					},
-					isError: code !== 0,
+					isError: reading.failed || denied || cutOff,
 				});
 			});
 		});
-		const outputDetails = await outputLog?.close();
+		const outputDetails = handedOff ? { outputPath: outputLog?.path } : await outputLog?.close();
 		let changeIds: string[] = [];
 		try { changeIds = await afterCommand(ctx, baseline); } catch (error) { changeWarning = String(error); }
 		const details = result.details && typeof result.details === "object" ? result.details : {};
@@ -395,10 +477,66 @@ export const bashTool: Tool<BashArgs> = {
 	},
 };
 
-async function startBackground(args: BashArgs, ctx: ToolContext): Promise<ToolResult> {
+/**
+ * Keep a process that is still running as a background job of this session.
+ *
+ * For a command that outlived the default timeout, and for what a finished command left running
+ * with its output still attached. Either way it can be read and stopped like one started with
+ * `run_in_background`, and `dispose` stops it with the session.
+ */
+function adoptJob(
+	ctx: ToolContext,
+	command: string,
+	process: SandboxProcess,
+	output: string,
+	outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined,
+): string {
+	const id = randomUUID();
+	const job: BackgroundJob = {
+		id,
+		command,
+		startedAt: Date.now(),
+		exitCode: null,
+		output,
+		outputPath: outputLog?.path,
+		pid: process.pid,
+		status: "running",
+	};
+	track(job, process, outputLog);
+	backgroundJobs(ctx.state).add(job, process);
+	return id;
+}
+
+/** Follow a job's output and exit, whoever started it. */
+function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined): void {
+	process.onOutput((chunk) => {
+		outputLog?.append(chunk);
+		job.output = clip(job.output + chunk);
+	});
+	process.onExit((code) => {
+		void outputLog?.close().then((details) => Object.assign(job, details));
+		job.exitCode = code;
+		job.finishedAt = Date.now();
+		job.status = code !== null && code !== 0 ? "failed" : "exited";
+	});
+	process.onError((error) => {
+		void outputLog?.close().then((details) => Object.assign(job, details));
+		job.error = error.message;
+		job.status = "failed";
+		if (!job.pid) job.finishedAt = Date.now();
+	});
+}
+
+async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandShell): Promise<ToolResult> {
 	const outputLog = await createOutputLog(ctx.scratchDir);
 	const id = randomUUID();
-	const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork });
+	let child: SandboxProcess;
+	try {
+		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork, shell });
+	} catch (error) {
+		await outputLog?.close();
+		return errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`);
+	}
 
 	const job: BackgroundJob = {
 		id,
@@ -410,17 +548,7 @@ async function startBackground(args: BashArgs, ctx: ToolContext): Promise<ToolRe
 		pid: child.pid,
 		status: "running",
 	};
-	child.onOutput((chunk) => {
-		outputLog?.append(chunk);
-		job.output = clip(job.output + chunk);
-	});
-	child.onExit((code) => {
-		void outputLog?.close().then(details => Object.assign(job, details));
-		job.exitCode = code;
-		job.finishedAt = Date.now();
-		job.status = code !== null && code !== 0 ? "failed" : "exited";
-	});
-	child.onError((error) => { void outputLog?.close().then(details => Object.assign(job, details)); job.error = error.message; job.status = "failed"; if (!job.pid) job.finishedAt = Date.now(); });
+	track(job, child, outputLog);
 
 	backgroundJobs(ctx.state).add(job, child);
 	return {

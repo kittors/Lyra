@@ -28,6 +28,7 @@ import { useFileActions } from "./useFileActions.ts";
 import { useFileTree } from "./useFileTree.ts";
 import { useTreeDrag } from "./useTreeDrag.ts";
 import { available, bridge } from "../../services/index.ts";
+import { macKeyboard, shortcutLetter } from "../../ui/keyboard.ts";
 
 export function FileTree({
 	roots,
@@ -209,11 +210,30 @@ export function FileTree({
 		const index = tree.rows.findIndex((row) => row.entry.path === focus);
 		const row = index === -1 ? null : tree.rows[index];
 
-		if (!readOnly && mod && event.key === "c" && !event.altKey) return run(() => actions.copy(acted()));
-		if (!readOnly && mod && event.key === "x") return run(() => actions.cut(acted()));
-		if (!readOnly && mod && event.key === "v") return run(() => void actions.paste(targetDir));
-		if (mod && event.altKey && event.code === "KeyC") return run(() => void actions.copyPath(acted(), event.shiftKey));
-		if (!readOnly && mod && (event.key === "Backspace" || event.key === "Delete")) {
+		/*
+		 * The letter on the key (`shortcutLetter`), so a Cyrillic layout's Ctrl+C — which types "с" —
+		 * still copies. Copy, cut and paste take no other modifier: comparing `key` with a lower-case
+		 * letter used to rule out Shift implicitly, and Ctrl+Alt on Windows is AltGr, which types
+		 * characters on many layouts rather than asking for a cut.
+		 */
+		const letter = shortcutLetter(event);
+		const plain = mod && !event.altKey && !event.shiftKey;
+		if (!readOnly && plain && letter === "c") return run(() => actions.copy(acted()));
+		if (!readOnly && plain && letter === "x") return run(() => actions.cut(acted()));
+		if (!readOnly && plain && letter === "v") return run(() => void actions.paste(targetDir));
+		if (mod && event.altKey && letter === "c") return run(() => void actions.copyPath(acted(), event.shiftKey));
+		/*
+		 * Deleting, in each system's own words; Shift makes it permanent on all of them.
+		 *
+		 * The Finder's is ⌘⌫, and a bare Delete there does nothing — which is what keeps a stray key
+		 * from binning a folder, so a Mac keeps it that way. Explorer and the Linux file managers
+		 * delete on Delete alone, and requiring Ctrl on top meant the key everyone presses did
+		 * nothing. The Ctrl forms keep working on a PC: they were the only way in until now.
+		 */
+		const deleting = macKeyboard()
+			? mod && (event.key === "Backspace" || event.key === "Delete")
+			: event.key === "Delete" || (mod && event.key === "Backspace");
+		if (!readOnly && deleting) {
 			return run(() => void removeSelected(event.shiftKey));
 		}
 

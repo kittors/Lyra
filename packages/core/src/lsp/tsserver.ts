@@ -72,10 +72,21 @@ export class TsServerBackend implements CodeIntelBackend {
 		if (!entry) throw new Error("找不到 typescript/lib/tsserver.js。");
 
 		this.root = root;
+		/*
+		 * `ELECTRON_RUN_AS_NODE`, because in the app `process.execPath` is Lyra, not Node.
+		 *
+		 * Without it every code-intelligence question started a second copy of the app with
+		 * `tsserver.js` for an argument: the single-instance lock sent it away, the server never
+		 * answered, and the tool waited out its timeout into a textual fallback — on every platform,
+		 * in the packaged app only, since the tests and the CLI run under Node where the variable does
+		 * nothing. `windowsHide` because the main process has no console, and a program started from
+		 * it without the flag opens one.
+		 */
 		this.child = spawn(process.execPath, [entry, "--disableAutomaticTypingAcquisition"], {
 			cwd: root,
 			stdio: ["pipe", "pipe", "pipe"],
-			env: { ...process.env, NODE_OPTIONS: "" },
+			env: { ...process.env, NODE_OPTIONS: "", ELECTRON_RUN_AS_NODE: "1" },
+			windowsHide: true,
 		});
 		this.started = true;
 		/*

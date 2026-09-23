@@ -19,7 +19,19 @@ import { translate } from "../i18n/translate.ts";
 import { useEffect, useState } from "react";
 import type { OpenTarget } from "../../electron/ipc-types.ts";
 import { useApp } from "./index.ts";
-import { available, bridge } from "../services/index.ts";
+import { available, bridge, hostPlatform } from "../services/index.ts";
+import { systemWord } from "../lib/system-words.ts";
+
+/**
+ * 「在访达中显示」 — showing a file where it lives, in this platform's words and the window's language.
+ *
+ * Built here rather than taken from the main process's list. That list names the file manager
+ * too, but in Chinese only — the main process has no `translate` — so every language showed its
+ * fixed 「在资源管理器中显示」. The main process's entry still decides that a reveal target exists.
+ */
+export function revealLabel(): string {
+	return translate(systemWord("reveal", hostPlatform()));
+}
 
 /**
  * Revealing is the one target every platform has, and the one worth falling back to.
@@ -28,7 +40,7 @@ import { available, bridge } from "../services/index.ts";
  * keeps whatever language the window opened in. Everything else on this list is an application's
  * own name and never moves; this one is a sentence, so it has to be looked up when it is used.
  */
-const reveal = (): OpenTarget => ({ id: "reveal", label: translate("openTarget.reveal"), aliases: [] });
+const reveal = (): OpenTarget => ({ id: "reveal", label: revealLabel(), aliases: [] });
 
 let pending: Promise<OpenTarget[]> | null = null;
 let loaded: OpenTarget[] | null = null;
@@ -100,7 +112,7 @@ export function matchTarget(targets: OpenTarget[], stored: string | undefined): 
  * came out as 「在 在访达中显示 中打开」. Its own label is already the whole phrase.
  */
 export function openLabel(target: OpenTarget): string {
-	return target.id === "reveal" ? target.label : translate("openTarget.openIn", { app: target.label });
+	return target.id === "reveal" ? revealLabel() : translate("openTarget.openIn", { app: target.label });
 }
 
 /** The target the settings currently name, ready to be shown and acted on. */
@@ -113,9 +125,8 @@ export function useOpenTarget(): OpenTarget {
  * 「在访达中显示」 — the label for showing a file where it lives, in this platform's own words.
  *
  * The menus that offer this had it written into them in Chinese for macOS, so on Windows they
- * offered to show a file in the Finder.
+ * offered to show a file in the Finder. A hook for its callers' sake; the words are `revealLabel`'s.
  */
 export function useRevealLabel(): string {
-	const targets = useOpenTargets();
-	return targets.find((target) => target.id === "reveal")?.label ?? reveal().label;
+	return revealLabel();
 }

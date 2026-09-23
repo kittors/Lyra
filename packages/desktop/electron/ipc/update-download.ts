@@ -21,8 +21,9 @@
  * servers that deserve it.
  */
 
-import { mkdir, open, readdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, readdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { renameWithRetry } from "@lyra/core";
 import { parseChecksums, sha256, verify, type Verdict } from "../update-checksum.ts";
 
 /**
@@ -238,57 +239,16 @@ export class UpdateDownload {
 		this.set({ at: "downloading", received: have, total: this.target.size });
 
 		try {
-			await mkdir(dirname(this.partial), { recursive: true, mode: 0o700 });
-
-			const response = await fetch(this.target.url, {
-				signal: aborter.signal,
-				headers: {
-					"User-Agent": this.target.agent,
-					// Only when there is something to continue; an unconditional `bytes=0-` invites a 206
-					// on a fresh download and makes every response need the resume path.
-					...(have > 0 ? { Range: `bytes=${have}-` } : {}),
-				},
-			});
-
-			const plan = resumePlan(have, response.status);
-			if ("error" in plan) {
-				// A partial we cannot continue from is worse than none: it would be resumed again next
-				// time and fail again in the same way.
-				await rm(this.partial, { force: true });
-				throw new Error(plan.error);
-			}
-			if (!response.body) throw new Error("下载没有返回内容");
-
 			/*
-			 * The total, preferring what this response is actually going to deliver.
-			 *
-			 * On a 206 `content-length` is the length of the *range*, not of the file, so adding what
-			 * is already on disk is what turns it back into a total. `content-range` would say so
-			 * directly, and is not always sent; the release's own size is the backstop and is the one
-			 * number that was true before any of this started.
+			 * All of it is down already: an earlier run wrote every byte and then could not move the
+			 * file into place — on Windows, antivirus still scanning the installer it had just seen
+			 * written. Resuming asked the server for `bytes=<size>-`, a range with nothing in it, the
+			 * server answered 416, and that was reported as a partial belonging to some other release
+			 * and deleted: a complete, correct download thrown away and fetched again. A partial of
+			 * the full size goes straight to the checksum instead, which is what decides whether it is
+			 * the right file — and removes it if it is not.
 			 */
-			const chunkLength = Number(response.headers.get("content-length")) || 0;
-			const total = plan.append && chunkLength > 0 ? plan.from + chunkLength : chunkLength || this.target.size;
-
-			let received = plan.from;
-			this.set({ at: "downloading", received, total });
-
-			const sink = await openPartial(this.partial, plan.append ? "a" : "w");
-			const reader = response.body.getReader();
-			try {
-				while (true) {
-					const chunk = await reader.read();
-					if (chunk.done) break;
-					// Finish each write before publishing progress; aborting the reader must not discard it.
-					await sink.writeFile(chunk.value);
-					received += chunk.value.byteLength;
-					this.set({ at: "downloading", received, total });
-				}
-				aborter.signal.throwIfAborted();
-			} finally {
-				reader.releaseLock();
-				await sink.close();
-			}
+			if (have !== this.target.size) await this.fetchRest(have, aborter);
 
 			/*
 			 * A short file is a failure, not a finished download.
@@ -324,7 +284,13 @@ export class UpdateDownload {
 				throw new Error(verdict.message);
 			}
 
-			await rename(this.partial, this.target.file);
+			/*
+			 * Waited out rather than failed on, and for longer than a settings file gets (about 7s
+			 * against half a second): a scanner that opens a freshly written installer holds it for as
+			 * long as scanning a hundred megabytes takes. If it still has not let go, the verified
+			 * partial stays where it is, and the retry comes straight back to this line.
+			 */
+			await renameWithRetry(this.partial, this.target.file, { attempts: 8, stepMs: 250 });
 			this.aborter = null;
 			this.set({ at: "preparing", received: this.target.size, total: this.target.size });
 			return this.phase;
@@ -341,6 +307,61 @@ export class UpdateDownload {
 			}
 			this.set({ at: "failed", error: describe(error, received), received, total: this.target.size });
 			return this.phase;
+		}
+	}
+
+	/** Fetch what is not on disk yet into the partial, continuing it when the server allows. */
+	private async fetchRest(have: number, aborter: AbortController): Promise<void> {
+		await mkdir(dirname(this.partial), { recursive: true, mode: 0o700 });
+
+		const response = await fetch(this.target.url, {
+			signal: aborter.signal,
+			headers: {
+				"User-Agent": this.target.agent,
+				// Only when there is something to continue; an unconditional `bytes=0-` invites a 206
+				// on a fresh download and makes every response need the resume path.
+				...(have > 0 ? { Range: `bytes=${have}-` } : {}),
+			},
+		});
+
+		const plan = resumePlan(have, response.status);
+		if ("error" in plan) {
+			// A partial we cannot continue from is worse than none: it would be resumed again next
+			// time and fail again in the same way.
+			await rm(this.partial, { force: true });
+			throw new Error(plan.error);
+		}
+		if (!response.body) throw new Error("下载没有返回内容");
+
+		/*
+		 * The total, preferring what this response is actually going to deliver.
+		 *
+		 * On a 206 `content-length` is the length of the *range*, not of the file, so adding what
+		 * is already on disk is what turns it back into a total. `content-range` would say so
+		 * directly, and is not always sent; the release's own size is the backstop and is the one
+		 * number that was true before any of this started.
+		 */
+		const chunkLength = Number(response.headers.get("content-length")) || 0;
+		const total = plan.append && chunkLength > 0 ? plan.from + chunkLength : chunkLength || this.target.size;
+
+		let received = plan.from;
+		this.set({ at: "downloading", received, total });
+
+		const sink = await openPartial(this.partial, plan.append ? "a" : "w");
+		const reader = response.body.getReader();
+		try {
+			while (true) {
+				const chunk = await reader.read();
+				if (chunk.done) break;
+				// Finish each write before publishing progress; aborting the reader must not discard it.
+				await sink.writeFile(chunk.value);
+				received += chunk.value.byteLength;
+				this.set({ at: "downloading", received, total });
+			}
+			aborter.signal.throwIfAborted();
+		} finally {
+			reader.releaseLock();
+			await sink.close();
 		}
 	}
 

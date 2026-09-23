@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile, lstat, realpath, unlink } from "node:fs/pro
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { lyraHome } from "../session/store.ts";
 import type { ToolContext } from "../types.ts";
+import { renameWithRetry } from "../utils/atomic-write.ts";
 
 export interface RecordedChange { id: string; path: string; before: string | null; after: string | null; source?: "tool" | "command"; timestamp: number }
 function directory(sessionId: string): string { return join(lyraHome(), "changes", createHash("sha256").update(sessionId).digest("hex")); }
@@ -61,7 +62,9 @@ async function replaceRecorded(path: string, expected: string | null, content: s
 		else if (expected === null) {
 			// Exclusive creation cannot overwrite a file recreated by the user during rollback.
 			await fs.link(temporary, path);
-		} else await fs.rename(temporary, path);
+			// The file was just written, by the agent or by the rollback, and on Windows whatever scans
+			// new files holds it for a moment: waited out rather than reported as a failed undo.
+		} else await renameWithRetry(temporary, path);
 	} finally { await fs.rm(temporary, { force: true }); }
 }
 

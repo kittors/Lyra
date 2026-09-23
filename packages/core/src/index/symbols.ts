@@ -13,10 +13,11 @@
 
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { lyraHome } from "../session/store.ts";
 import { looksBinary } from "../tools/paths.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
 
 export interface SymbolEntry {
 	name: string;
@@ -138,11 +139,9 @@ function indexPath(cwd: string): string {
 }
 
 export async function saveIndex(index: SymbolIndex): Promise<void> {
-	const path = indexPath(index.cwd);
 	await mkdir(join(lyraHome(), "index"), { recursive: true });
-	const tmp = `${path}.${process.pid}.tmp`;
-	await writeFile(tmp, JSON.stringify(index), "utf8");
-	await rename(tmp, path);
+	// Two sessions in one project can finish building at the same moment; see `atomic-write.ts`.
+	await writeFileAtomic(indexPath(index.cwd), JSON.stringify(index));
 }
 
 export async function loadIndex(cwd: string): Promise<SymbolIndex | null> {

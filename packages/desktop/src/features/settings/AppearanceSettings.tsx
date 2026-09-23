@@ -3,6 +3,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { AppearanceSettings as Appearance } from "@lyra/core";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
+import { bridge } from "../../services/index.ts";
 import { Card, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/code/themes.ts";
@@ -673,11 +674,18 @@ export function AppearanceSettings() {
 						/>
 					}
 				/>
-				<Row
-					title={t("appearance.fontSmoothing")}
-					detail={t("appearance.fontSmoothingDetail")}
-					control={<Toggle checked={appearance.fontSmoothing} onChange={(fontSmoothing) => patch({ fontSmoothing })} />}
-				/>
+				{/*
+				 * macOS only. `-webkit-font-smoothing` is a hook into macOS's own text renderer;
+				 * Windows (DirectWrite/ClearType) and Linux (FreeType) ignore the property, so on
+				 * those systems the switch flips a setting and nothing on screen changes.
+				 */}
+				{(bridge.platform ?? "darwin") === "darwin" && (
+					<Row
+						title={t("appearance.fontSmoothing")}
+						detail={t("appearance.fontSmoothingDetail")}
+						control={<Toggle checked={appearance.fontSmoothing} onChange={(fontSmoothing) => patch({ fontSmoothing })} />}
+					/>
+				)}
 				<Row
 					title={t("appearance.resetDefaults")}
 					detail={t("appearance.resetDefaultsDetail")}

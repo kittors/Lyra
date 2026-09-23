@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { link, lstat, mkdir, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createRegistry } from "../capability/index.ts";
 import type { AgentDefinition } from "../agents-builtin.ts";
 import type { Settings } from "../config/settings.ts";
 import { renderAgentDocument, validateAgentDraft, type AgentDefinitionRecord, type AgentDefinitionSave } from "./definition-document.ts";
+import { renameWithRetry } from "../utils/atomic-write.ts";
 
 const hash = (raw: string) => createHash("sha256").update(raw).digest("hex");
 const inside = (root: string, path: string) => { const part = relative(root, path); return !isAbsolute(part) && part !== ".." && !part.startsWith(`..${sep}`); };
@@ -88,7 +89,8 @@ export class AgentDefinitionStore {
 				await this.guard(path, scope, cwd);
 				if (original) {
 					if (hash(await readFile(path, "utf8")) !== current?.revision) throw new Error("定义已被修改，请重新加载；当前草稿仍保留");
-					await rename(temporary, path);
+					// On Windows a scanner holds a file it has just seen written for a moment; wait that out.
+					await renameWithRetry(temporary, path);
 				} else await link(temporary, path);
 			} finally { await unlink(temporary).catch(error => { if (!missing(error)) throw error; }); }
 		});
@@ -103,7 +105,7 @@ export class AgentDefinitionStore {
 			await this.guard(path, record.scope, cwd);
 			if (hash(await readFile(path, "utf8")) !== revision) throw new Error("定义已被修改，请重新加载");
 			const token = randomUUID(), backup = join(dirname(path), `.${token}.deleted`);
-			await rename(path, backup);
+			await renameWithRetry(path, backup);
 			this.undo.set(token, { cwd, path, backup });
 			return token;
 		});

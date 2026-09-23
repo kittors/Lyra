@@ -198,3 +198,21 @@ test("an ordinary file is not moved aside — the guard only fires on damage", a
 	assert.equal(await tokenFor("acc-1"), "ghp_one");
 	assert.equal(await tokenFor("acc-2"), "ghp_two");
 });
+
+test("accounts saved at the same moment are all kept", async () => {
+	/*
+	 * Signing in to two hosts from two windows, or a token being resealed while another account is
+	 * saved: each change read the file, sealed its token, and wrote the file back through one shared
+	 * temporary name. The second write failed with ENOENT, or wrote a list that did not have the
+	 * first change in it — an account that had signed in successfully and was gone on next launch.
+	 */
+	const ids = ["acc-1", "acc-2", "acc-3", "acc-4"];
+	const results = await Promise.allSettled(ids.map((id) => saveAccount({ ...account, id }, `token-${id}`)));
+	assert.deepEqual(results.filter((result) => result.status === "rejected").map((result) => String((result as PromiseRejectedResult).reason)), []);
+
+	const { resetForgeStore } = await import("../electron/forge/vault.ts");
+	resetForgeStore();
+	assert.deepEqual((await stored()).entries.map((entry) => entry.account.id).sort(), ids);
+	for (const id of ids) assert.equal(await tokenFor(id), `token-${id}`);
+	assert.deepEqual((await readdir(home)).filter((name) => name.endsWith(".tmp")), []);
+});

@@ -14,6 +14,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef } from "react";
+import { shortcutLabel } from "../../ui/keyboard.ts";
 import type { Point } from "./screenshot-geometry.ts";
 
 /** How much of the snapshot is shown, in snapshot pixels across the whole loupe. */
@@ -122,7 +123,9 @@ export function ScreenshotLoupe({
 						{reading?.hex ?? "—"}
 					</span>
 				</div>
-				<div className="pt-0.5 text-center text-white/45">{translate(copied ? "screenshot.copied" : "screenshot.copyColour")}</div>
+				<div className="pt-0.5 text-center text-white/45">
+					{copied ? translate("screenshot.copied") : shortcutLabel(translate("screenshot.copyColour"))}
+				</div>
 			</div>
 		</div>
 	);

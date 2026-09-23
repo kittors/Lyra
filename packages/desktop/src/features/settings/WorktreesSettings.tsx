@@ -3,6 +3,7 @@ import { FolderGit2, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
+import { useRevealLabel } from "../../store/open-targets.ts";
 import { Card, Row, SectionTitle, TextInput } from "./controls.tsx";
 import { NumberField } from "./pickers.tsx";
 import { bridge } from "../../services/index.ts";
@@ -10,6 +11,8 @@ import { useI18n } from "../../i18n/index.ts";
 
 export function WorktreesSettings() {
 	const { t } = useI18n();
+	// 「在访达中显示」 only on a Mac; this platform's file manager everywhere else.
+	const revealLabel = useRevealLabel();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const notify = useApp((s) => s.notify);
@@ -226,9 +229,8 @@ export function WorktreesSettings() {
 									type="button"
 									onClick={() => void bridge.workspace.reveal(tree.path)}
 									className="rounded-md px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-
-							data-ly-tip={translate("worktrees.revealInFinder")}
-							aria-label={translate("worktrees.revealInFinder")}>
+									data-ly-tip={revealLabel}
+									aria-label={revealLabel}>
 									<FolderOpen size={13} strokeWidth={1.8} />
 								</button>
 								<button

@@ -9,7 +9,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -17,6 +17,7 @@ import type { AgentEvent, CommandRun } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 import type { SessionStorage } from "./storage.ts";
 import { addUsage, emptyUsage } from "../types.ts";
+import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
 import { readRecordChanges, type SessionReadCursor, type SessionRecordChanges } from "./read-changes.ts";
 
@@ -49,16 +50,24 @@ export interface SessionMeta {
 	 */
 	modelSwitchedAt?: number;
 	/**
-	 * How hard this conversation asks the model to think, when it differs from the app default.
+	 * How hard this conversation asks the model to think.
 	 *
 	 * Per session because that is the unit the decision belongs to: one conversation is a long
 	 * refactor worth paying `high` for and the next is "what does this flag do". Held globally,
 	 * turning one up turned all of them up — including the ones already running somewhere else,
 	 * which is a bill nobody agreed to.
 	 *
-	 * Absent means "whatever the settings say", which is what every session written before this
-	 * existed means, and what a session nobody has expressed an opinion about should go on meaning
-	 * as the default moves.
+	 * Written when the session is created, with the app default of that moment (`create`). It used
+	 * to stay absent until someone changed it inside the conversation, so that a session nobody had
+	 * an opinion about would follow the default as it moved. Seen from the window there is no such
+	 * session: the level picked in a new chat before its first message is an opinion about that
+	 * chat, yet it can only land on the app default — there is no session to hold it yet — and the
+	 * session was then created without it. Picking a level in the next new chat moved the first one
+	 * along, in its label and in what its turns actually asked for (reported against 0.9.19). The
+	 * default is where new conversations start, not a dial for the ones already under way.
+	 *
+	 * Absent now only on sessions written before that, and after `setThinking(null)`; both mean
+	 * "whatever the settings say".
 	 */
 	thinking?: ThinkingLevel;
 	/**
@@ -142,6 +151,11 @@ function displayImagesReady(messages: Message[]): boolean {
 		}
 	}
 	return true;
+}
+
+/** The order the sidebar lists sessions in: last used first. */
+function byRecent(a: SessionMeta, b: SessionMeta): number {
+	return b.updatedAt - a.updatedAt;
 }
 
 export class SessionStore implements SessionStorage {
@@ -229,34 +243,42 @@ export class SessionStore implements SessionStorage {
 			compaction: Boundary | null;
 		},
 	): Promise<void> {
-		const path = this.displayCacheFor(projectId, sessionId);
-		const tmp = `${path}.${process.pid}.tmp`;
+		// Best-effort: a cache that is not written is rebuilt from the log next time.
 		try {
 			await mkdir(this.dirFor(projectId), { recursive: true });
-			await writeFile(tmp, JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
-			await rename(tmp, path);
+			await writeFileAtomic(this.displayCacheFor(projectId, sessionId), JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
 		} catch {
-			await unlink(tmp).catch(() => undefined);
+			// Nothing to clean up: the helper removes its own temporary file.
 		}
 	}
 
-	async create(cwd: string, modelId: string, title = "New session"): Promise<SessionMeta> {
+	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking"> = {}): Promise<SessionMeta> {
 		const projectId = projectIdFor(cwd);
+		/*
+		 * One reading of the clock for the whole creation.
+		 *
+		 * It was read for `createdAt`, again for `updatedAt`, and again inside the append — so the
+		 * meta record on disk said one time and the index another whenever the calls straddled a
+		 * millisecond. A rebuilt index then disagreed with the one it replaced, and a session moved
+		 * or archived afterwards carried the wrong `updatedAt` into the list.
+		 */
+		const now = Date.now();
 		const meta: SessionMeta = {
 			id: randomUUID(),
 			title,
 			cwd,
 			projectId,
 			projectName: basename(cwd) || cwd,
-			createdAt: Date.now(),
-			updatedAt: Date.now(),
+			createdAt: now,
+			updatedAt: now,
 			modelId,
+			...(options.thinking ? { thinking: options.thinking } : {}),
 			messageCount: 0,
 			usage: emptyUsage(),
 			seq: 0,
 		};
 		await mkdir(this.dirFor(projectId), { recursive: true });
-		await this.appendExclusive(meta, { type: "meta", meta });
+		await this.appendExclusive(meta, { type: "meta", meta }, now);
 		return meta;
 	}
 
@@ -272,12 +294,16 @@ export class SessionStore implements SessionStorage {
 		return next;
 	}
 
-	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput): Promise<SessionMeta> {
+	/**
+	 * `now` is both the record's `ts` and, for anything but filing it away, the session's new
+	 * `updatedAt` — one reading, so that `load` can rebuild the second from the first exactly.
+	 */
+	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput, now = Date.now()): Promise<SessionMeta> {
 		const key = this.keyFor(meta);
 		// Callers may hold a stale snapshot; the store's own copy is the source of truth.
 		const base = this.latestMeta.get(key) ?? meta;
 		if (payload.type === "title" && payload.source === "auto" && base.titleSetByUser) return base;
-		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: Date.now() };
+		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: now };
 
 		/*
 		 * 子 Agent 烧的 token 也是这个会话烧的。
@@ -333,7 +359,7 @@ export class SessionStore implements SessionStorage {
 		const persisted = payload.type === "meta" && base.titleSetByUser
 			? { ...payload, meta: { ...payload.meta, title: next.title, titleSetByUser: true } }
 			: payload;
-		const record: SessionRecord = { seq: next.seq, ts: Date.now(), ...parkRecordPayload(persisted) };
+		const record: SessionRecord = { seq: next.seq, ts: now, ...parkRecordPayload(persisted) };
 		await mkdir(this.dirFor(meta.projectId), { recursive: true });
 		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
 		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
@@ -491,7 +517,15 @@ export class SessionStore implements SessionStorage {
 				// A rewind past the boundary retires it: the tail it was paired with is gone.
 				if (compaction && compaction.keptFrom > entries.length) compaction = null;
 			}
-			if (meta) meta.seq = record.seq;
+			if (meta) {
+				meta.seq = record.seq;
+				/*
+				 * `updatedAt` the way `appendExclusive` set it: every record is activity except filing
+				 * the session away. Taken from the last meta record instead, a rebuilt index dated a
+				 * session by when it was created or its model last changed, not by when it was used.
+				 */
+				if (record.type !== "archive" && record.type !== "move" && typeof record.ts === "number") meta.updatedAt = record.ts;
+			}
 		}
 		if (!meta) return null;
 		let messages = entries.map((e) => e.message);
@@ -516,8 +550,18 @@ export class SessionStore implements SessionStorage {
 		if (totalUsage.total > 0 || meta.usage.total === 0) {
 			meta.usage = totalUsage;
 		}
-		// Seed the append queue's view so a reopened session keeps numbering where it left off.
-		this.latestMeta.set(this.keyFor(meta), meta);
+		/*
+		 * Seed the append queue's view so a reopened session keeps numbering where it left off —
+		 * unless an append has moved it past what this read saw.
+		 *
+		 * The file is read first and the view set afterwards, and an append can land in between.
+		 * Putting the older meta back then made the next append reuse a sequence number, which a
+		 * client syncing with `?since=N` skips. At the same `seq` the log wins: it is where counts
+		 * such as `messageCount` are right again after a truncation.
+		 */
+		const key = this.keyFor(meta);
+		const cached = this.latestMeta.get(key);
+		if (!cached || meta.seq >= cached.seq) this.latestMeta.set(key, meta);
 		const loaded = {
 			meta,
 			messages,
@@ -540,58 +584,80 @@ export class SessionStore implements SessionStorage {
 	}
 
 	async listSessions(): Promise<SessionMeta[]> {
+		// Nothing to read is the usual case at first launch, for several callers at once: the first
+		// rebuilds, and the rest find what it wrote.
+		return (await this.readIndex()) ?? this.rebuild((current) => current ?? this.scan());
+	}
+
+	/** The index as written, or null when there is none to read — missing, or not an index. */
+	private async readIndex(): Promise<SessionMeta[] | null> {
 		const raw = await readFile(this.indexPath, "utf8").catch(() => null);
-		if (!raw) return this.rebuildIndex();
+		if (!raw) return null;
 		try {
 			const parsed = JSON.parse(raw) as SessionMeta[];
-			return Array.isArray(parsed) ? parsed.sort((a, b) => b.updatedAt - a.updatedAt) : [];
+			return Array.isArray(parsed) ? parsed.sort(byRecent) : null;
 		} catch {
-			return this.rebuildIndex();
+			return null;
 		}
 	}
 
-	private async writeIndex(meta: SessionMeta): Promise<void> {
-		const nextTask = this.indexQueue.catch(() => undefined).then(async () => {
-			const all = await this.listSessions();
-			const next = [meta, ...all.filter((s) => s.id !== meta.id)].sort((a, b) => b.updatedAt - a.updatedAt);
+	/**
+	 * Replace the index with what `change` makes of it: one change at a time, whole or not at all.
+	 *
+	 * Every write to the index goes through here. Deleting used to read it and write it back on its
+	 * own schedule, beside a queue it never joined: a session deleted while another one was being
+	 * written came back to the sidebar with its log gone, or took that other session's update with
+	 * it. Rebuilding did the same, whenever the index went missing.
+	 *
+	 * `current` is null when there is no index to change, and the change decides what to start from
+	 * — `scan`, usually. The queue never calls `listSessions` for it, because that rebuilds through
+	 * this same queue and would wait on itself.
+	 */
+	private updateIndex(change: (current: SessionMeta[] | null) => SessionMeta[] | Promise<SessionMeta[]>): Promise<SessionMeta[]> {
+		const task = this.indexQueue.catch(() => undefined).then(async () => {
+			const next = (await change(await this.readIndex())).sort(byRecent);
 			await mkdir(this.root, { recursive: true });
 			/*
 			 * Write-then-rename so a crash cannot leave a truncated index.
 			 *
-			 * The temporary name carries more than the pid. Two writes racing inside one process — two
-			 * conversations created at once, which the desktop does whenever a window restores several
-			 * — both wrote to the same path, and the first rename took the file out from under the
-			 * second: `ENOENT ... index.json.NNN.tmp -> index.json`, and the session that lost is not
-			 * in the index at all.
-			 *
-			 * On Windows, renaming over an existing file while another write/read handle is open fails
-			 * with EPERM. Retrying briefly smooths over external scanners (e.g. antivirus or search indexer).
+			 * Through the shared helper, whose temporary name is unique per write: two conversations
+			 * created at once — which the desktop does whenever a window restores several — shared
+			 * `index.json.<pid>.tmp`, and the first rename took the file out from under the second
+			 * (`ENOENT`), leaving that session out of the index. It also waits out the moment a
+			 * scanner holds the file open on Windows. See `utils/atomic-write.ts`.
 			 */
-			const tmp = `${this.indexPath}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
-			await writeFile(tmp, JSON.stringify(next, null, 2), "utf8");
-			let renamed = false;
-			for (let attempt = 0; attempt < 8; attempt++) {
-				try {
-					await rename(tmp, this.indexPath);
-					renamed = true;
-					break;
-				} catch (err: unknown) {
-					const code = (err as { code?: string })?.code;
-					if ((code === "EPERM" || code === "EBUSY") && attempt < 7) {
-						await new Promise((r) => setTimeout(r, 20 * (attempt + 1)));
-						continue;
-					}
-					throw err;
-				}
-			}
-			if (!renamed) await rename(tmp, this.indexPath);
+			await writeFileAtomic(this.indexPath, JSON.stringify(next, null, 2));
+			return next;
 		});
-		this.indexQueue = nextTask;
-		await nextTask;
+		this.indexQueue = task;
+		return task;
+	}
+
+	private async writeIndex(meta: SessionMeta): Promise<void> {
+		await this.updateIndex(async (current) => [meta, ...(current ?? (await this.scan())).filter((s) => s.id !== meta.id)]);
 	}
 
 	/** Reconstruct the index by scanning every session log. Used when the index is missing or corrupt. */
-	async rebuildIndex(): Promise<SessionMeta[]> {
+	rebuildIndex(): Promise<SessionMeta[]> {
+		return this.rebuild(() => this.scan());
+	}
+
+	/**
+	 * `updateIndex`, answering with the list even when it cannot be written down: it is right
+	 * either way, and the next change tries the write again. Only for rebuilding, where somebody is
+	 * waiting on the list rather than on the write.
+	 */
+	private async rebuild(change: (current: SessionMeta[] | null) => SessionMeta[] | Promise<SessionMeta[]>): Promise<SessionMeta[]> {
+		let found: SessionMeta[] = [];
+		try {
+			return await this.updateIndex(async (current) => (found = await change(current)));
+		} catch {
+			return found;
+		}
+	}
+
+	/** Every session, as its log tells it. */
+	private async scan(): Promise<SessionMeta[]> {
 		const metas: SessionMeta[] = [];
 		const projects = await readdir(this.root, { withFileTypes: true }).catch(() => []);
 		for (const project of projects) {
@@ -603,10 +669,7 @@ export class SessionStore implements SessionStorage {
 				if (loaded) metas.push(loaded.meta);
 			}
 		}
-		metas.sort((a, b) => b.updatedAt - a.updatedAt);
-		await mkdir(this.root, { recursive: true }).catch(() => {});
-		await writeFile(this.indexPath, JSON.stringify(metas, null, 2), "utf8").catch(() => {});
-		return metas;
+		return metas.sort(byRecent);
 	}
 
 	/**
@@ -730,10 +793,7 @@ export class SessionStore implements SessionStorage {
 	}
 
 	async delete(projectId: string, sessionId: string): Promise<void> {
-		await unlink(this.fileFor(projectId, sessionId)).catch(() => {});
-		const all = await this.listSessions();
-		await mkdir(this.root, { recursive: true });
-		await writeFile(this.indexPath, JSON.stringify(all.filter((s) => s.id !== sessionId), null, 2), "utf8");
+		await this.deleteMany([{ projectId, id: sessionId }]);
 	}
 
 	/**
@@ -758,10 +818,20 @@ export class SessionStore implements SessionStorage {
 
 	/** Delete several sessions with a single index rewrite, for "empty the archive". */
 	async deleteMany(targets: { projectId: string; id: string }[]): Promise<void> {
-		await Promise.all(targets.map((t) => unlink(this.fileFor(t.projectId, t.id)).catch(() => {})));
+		await Promise.all(
+			targets.map(async (target) => {
+				const key = this.keyFor(target);
+				// A write already on its way lands first, rather than recreating the log once it is gone
+				// and putting the session back in the index — the same wait `move` makes.
+				await this.writeQueues.get(key)?.catch(() => undefined);
+				this.writeQueues.delete(key);
+				this.latestMeta.delete(key);
+				await unlink(this.fileFor(target.projectId, target.id)).catch(() => {});
+				// A snapshot of the whole transcript, and nothing reads it once the log is gone.
+				await unlink(this.displayCacheFor(target.projectId, target.id)).catch(() => {});
+			}),
+		);
 		const gone = new Set(targets.map((t) => t.id));
-		const all = await this.listSessions();
-		await mkdir(this.root, { recursive: true });
-		await writeFile(this.indexPath, JSON.stringify(all.filter((s) => !gone.has(s.id)), null, 2), "utf8");
+		await this.updateIndex(async (current) => (current ?? (await this.scan())).filter((s) => !gone.has(s.id)));
 	}
 }

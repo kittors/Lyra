@@ -73,16 +73,40 @@ export const GRANT_ACCESS = 1;
 const REVOKE_ACCESS = 4;
 /** `OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE` — the grant reaches the whole tree. */
 export const SUB_CONTAINERS_AND_OBJECTS_INHERIT = 0x3;
-// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
-const ACCESS_ALLOWED_ACE_TYPE = 0;
-// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
-const INHERITED_ACE = 0x10;
+/** An entry that applies to the object it is on and to nothing beneath it. */
+export const NO_INHERITANCE = 0x0;
+/** `ACE_HEADER.AceType` of a plain allow entry. */
+export const ACCESS_ALLOWED_ACE_TYPE = 0;
+/** `ACE_HEADER.AceFlags` bit set on an entry that came down from a parent rather than being written here. */
+export const INHERITED_ACE = 0x10;
+/** `ACL_INFORMATION_CLASS` value asking `GetAclInformation` for the ACE count. */
+export const AclSizeInformation = 2;
+/** `ACL_SIZE_INFORMATION`: AceCount, AclBytesInUse, AclBytesFree — three DWORDs. */
+export const ACL_SIZE_INFORMATION_SIZE = 12;
+/** Where an `ACCESS_ALLOWED_ACE`'s SID begins: after the 4-byte header and the 4-byte mask. */
+export const ACE_SID_OFFSET = 8;
 
 // --- Process / handle (processthreadsapi.h, winbase.h) ---
 export const PROCESS_QUERY_INFORMATION = 0x0400;
 export const STARTF_USESTDHANDLES = 0x00000100;
-// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
-const HANDLE_FLAG_INHERIT = 0x1;
+/**
+ * A console program started from a process without a console gets a console *window* of its own.
+ *
+ * The runner is Electron in Node mode — a GUI-subsystem executable, so it has no console — and
+ * every shell it starts is a console program. Without this flag each command flashed a black
+ * window on the desktop and took the focus with it.
+ */
+export const CREATE_NO_WINDOW = 0x08000000;
+/**
+ * The environment block is UTF-16. `CreateProcessAsUserW` asks for it even when the block is null
+ * and inherited, because this process's own block is UTF-16 — without it, the documentation says,
+ * the child's environment is read as ANSI.
+ */
+export const CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+/** `SetHandleInformation`'s flag: a child created with `bInheritHandles` gets this handle. */
+export const HANDLE_FLAG_INHERIT = 0x1;
+/** What `GetStdHandle` answers when there is no such handle at all. */
+export const INVALID_HANDLE_VALUE = 0xffff_ffff_ffff_ffffn;
 export const INFINITE = 0xffffffff;
 export const STD_INPUT_HANDLE = -10;
 export const STD_OUTPUT_HANDLE = -11;

@@ -194,6 +194,17 @@ export async function encode(frames: Frame[], out: string, fps?: number, maxHold
 		);
 		let err = "";
 		ff.stderr.on("data", (c: Buffer) => { err = (err + c.toString()).slice(-4000); });
+		/*
+		 * 没装 ffmpeg 的机器——CI 就是——录像只是做不出来，测试本身已经跑完了。
+		 *
+		 * 原来没接 `error`：spawn 报 ENOENT 成了未捕获异常，`after` 钩子把整个文件判红，而那个文件
+		 * 里的每一条用例都是绿的。录像是给人看的证据，不是断言。
+		 */
+		ff.once("error", (error: NodeJS.ErrnoException) => {
+			if (error.code !== "ENOENT") return fail(error);
+			console.warn(`这台机器没有 ffmpeg，录像没有合成：${out}`);
+			done();
+		});
 		ff.once("close", (code) => (code === 0 ? done() : fail(new Error(`ffmpeg 失败：\n${err}`))));
 	});
 	await rm(dir, { recursive: true, force: true });

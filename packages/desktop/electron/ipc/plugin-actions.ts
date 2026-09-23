@@ -12,8 +12,8 @@
  * where they can be called directly. `plugins.ts` keeps the wiring and the ordering; this keeps the
  * rules.
  *
- * Every function returns the settings to save, or `null` for "nothing changed" — so a caller never
- * writes the settings file to record that it had nothing to record.
+ * Every `settingsAfter*` returns the settings to save, or `null` for "nothing changed" — so a caller
+ * never writes the settings file to record that it had nothing to record.
  */
 
 import type { Installed, McpBundle, McpServerConfig, Settings } from "@lyra/core";
@@ -29,14 +29,20 @@ import type { Installed, McpBundle, McpServerConfig, Settings } from "@lyra/core
  * Re-installing replaces that bundle's rows rather than adding to them. Without that, installing
  * something twice leaves two copies of every server it declares, and switching "it" on switches on
  * whichever copy the list happened to hit first.
+ *
+ * Replacing keeps the one thing that was the user's: whether a server they already had is on. An
+ * update rewrote every row as off, so the servers somebody had switched on stopped the moment the
+ * bundle updated, with nothing saying why. A server the new version brings for the first time still
+ * arrives off — that is the install decision, made again only for what is new.
  */
 export function settingsAfterInstall(current: Settings, entryId: string, installed: Installed): Settings | null {
 	if (installed.kind !== "mcp" || installed.servers.length === 0) return null;
 
 	const others = current.mcpServers.filter((server) => server.origin?.bundle !== entryId);
+	const before = new Map(current.mcpServers.filter((server) => server.origin?.bundle === entryId).map((server) => [server.id, server.enabled]));
 	return {
 		...current,
-		mcpServers: [...others, ...installed.servers.map((server) => ({ ...server, enabled: false }))],
+		mcpServers: [...others, ...installed.servers.map((server) => ({ ...server, enabled: before.get(server.id) ?? false }))],
 	};
 }
 
@@ -89,4 +95,23 @@ export function settingsAfterReconcile(current: Settings, bundles: McpBundle[]):
 		})),
 	);
 	return { ...current, mcpServers: [...current.mcpServers, ...restored] };
+}
+
+/**
+ * Stop, in every live session, the servers a bundle brought — before its files are replaced or removed.
+ *
+ * On Windows a running server holds its own executable and loaded modules open, and none of the
+ * bundle's directory can be moved or deleted while it does: an update or uninstall with its servers
+ * still connected failed partway through (`installEntry` now refuses whole instead, but it still
+ * cannot proceed). Matched by `origin.bundle`, the same stamp that ties settings rows to the
+ * bundle. One session failing to let go does not keep the others connected.
+ */
+export async function releaseBundle(
+	// What it needs of a live session: `AgentSession.can`, and only that.
+	sessions: Iterable<{ can: { disconnectMcp(match: (server: McpServerConfig) => boolean): Promise<number> } }>,
+	id: string,
+): Promise<void> {
+	await Promise.all(
+		[...sessions].map((session) => session.can.disconnectMcp((server) => server.origin?.bundle === id).catch(() => 0)),
+	);
 }

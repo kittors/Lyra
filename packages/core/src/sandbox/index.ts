@@ -33,9 +33,9 @@ export {
 	selectRunner,
 	resetProbeCache,
 	SandboxUnavailableError,
-	WINDOWS_RUNNER_FLAG,
+	SANDBOX_RUNNER_FLAG,
+	useSandboxRunner,
 } from "./backend.ts";
-export { main as runSandboxRunner } from "./windows/runner.ts";
 export { workspaceWriteSid, tempWriteSid, quoteArg, buildCommandLine } from "./windows/identity.ts";
 export type { Confinement, Runner } from "./backend.ts";
 export {

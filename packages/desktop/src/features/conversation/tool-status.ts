@@ -28,3 +28,22 @@ export function toolCardFallback(
 	if (stopReason === "toolUse" && turnRunning) return "running";
 	return "error";
 }
+
+/** The agent loop's words when it gives up on a call; see `cancelledResult` in core's `agent/tool-run.ts`. */
+const GAVE_UP = "Tool execution was cancelled.";
+
+/**
+ * Whether a call was stopped by the person rather than failed.
+ *
+ * A cancellation comes back with `isError: true` — that is how the model learns the step did not
+ * finish — so the card drew it as a failure: a red cross, and 「错误」 over its output. Nothing
+ * broke. Both places that cancel say so in `details.cancelled`: the bash tool when it kills its
+ * process, and the agent loop when it stops waiting for a call. The loop's text is matched as well,
+ * because records written before it carried the flag have only that.
+ */
+export function stoppedByUser(result: { content?: unknown; details?: unknown } | undefined): boolean {
+	if (!result) return false;
+	if ((result.details as { cancelled?: unknown } | undefined)?.cancelled === true) return true;
+	const content = Array.isArray(result.content) ? result.content : [];
+	return content.length === 1 && (content[0] as { text?: unknown }).text === GAVE_UP;
+}

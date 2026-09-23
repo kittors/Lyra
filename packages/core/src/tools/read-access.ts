@@ -34,11 +34,11 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
-import { home } from "../platform.ts";
+import { commandDialects, commandShell, dialectsOf, home } from "../platform.ts";
 import type { ToolContext } from "../types/tool.ts";
 import { displayPath } from "./paths.ts";
 import { SECRET_PATH } from "./risk-tables.ts";
-import { splitCommands, splitWords } from "./shell-split.ts";
+import { splitCommands, splitWords, type Dialect } from "./shell-split.ts";
 
 export type ReadVerdict =
 	| { decision: "allow" }
@@ -122,8 +122,29 @@ function isInstalledSkillFile(absolute: string, homeDir: string): boolean {
 
 /** `~/x` as an absolute path, and anything already absolute resolved against the session's cwd. */
 export function toAbsolute(cwd: string, input: string): string {
-	const expanded = input.startsWith("~/") || input === "~" ? input.replace("~", home()) : input;
+	const native = process.platform === "win32" ? windowsSpelling(input, home(), tmpdir()) : input;
+	const expanded = native.startsWith("~/") || native === "~" ? native.replace("~", home()) : native;
 	return isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
+}
+
+/**
+ * A path as a Windows shell spelled it, as the Windows path it names.
+ *
+ * On Windows the agent's commands run in Git Bash, which reads `/c/Users/me` as `C:\Users\me` and
+ * `/tmp` as the user's temp directory. Node reads the same strings as `C:\c\Users\me` and `C:\tmp`
+ * — paths that do not exist, and a path that does not exist is not asked about (`worthAsking`).
+ * So `cat /c/Users/me/.ssh/id_ed25519` read the key without a question. `~\` is PowerShell's
+ * spelling of the home directory, which only `~/` was expanded for.
+ *
+ * Pure, with the home and temp directories handed in, so it can be tested on any platform.
+ */
+export function windowsSpelling(input: string, homeDir: string, tempDir: string): string {
+	const drive = /^(?:\/cygdrive)?\/([a-zA-Z])(?=\/|$)(.*)$/.exec(input);
+	if (drive) return `${drive[1].toUpperCase()}:\\${drive[2].replace(/^\//, "").replaceAll("/", "\\")}`;
+	const temp = /^\/tmp(?=\/|$)(.*)$/.exec(input);
+	if (temp) return `${tempDir}${temp[1].replaceAll("/", "\\")}`;
+	if (input === "~" || input.startsWith("~\\")) return `${homeDir}${input.slice(1)}`;
+	return input;
 }
 
 /**
@@ -176,10 +197,24 @@ export function assessRead(absolute: string, cwd: string, options: ReadAccessOpt
  * only `/absolute`, `~/home` and `../climbing` paths can leave the workspace, and those are the
  * three shapes worth judging.
  */
-export function commandReadTargets(command: string, cwd: string): string[] {
+export function commandReadTargets(command: string, cwd: string, dialects: readonly Dialect[] = commandDialects()): string[] {
 	const found = new Set<string>();
-	for (const piece of splitCommands(stripHeredocs(command))) {
-		const words = splitWords(piece);
+	/*
+	 * A here-document's body is data the command is fed, not paths it opens — `python3 - <<'EOF'`
+	 * and `cat > file <<'EOF'` carry whole programs and file contents. Replaying real sessions, that
+	 * is where most of the paths that are not paths came from: a `/` from inside a Go import block,
+	 * a `/dist` from a script being written out. `splitCommands` leaves bodies out, the way bash
+	 * reads them — except for a `$(…)` in an unquoted one, which bash runs and so is judged here.
+	 */
+	/*
+	 * In every grammar the shell might read the line in, keeping every path any reading finds. Where
+	 * the shell is PowerShell, `C:\Users\me\.ssh\id_rsa` is a path — and bash's reading, which takes
+	 * the backslashes for escapes, would never have seen it. A caller that knows which shell runs the
+	 * command passes its grammars (`authorizeCommandReads` does); otherwise every one that could.
+	 */
+	for (const dialect of dialects)
+	for (const piece of splitCommands(command, dialect)) {
+		const words = splitWords(piece, dialect);
 		for (let i = 0; i < words.length; i++) {
 			// The first word is the program, not something it reads.
 			if (i === 0) continue;
@@ -216,23 +251,6 @@ export function commandReadTargets(command: string, cwd: string): string[] {
 
 /** `>`, `>>`, `2>`, `&>` — alone or stuck to the path that follows. */
 const REDIRECT_WRITE = /^\d*(>>?|&>)/;
-
-/**
- * A here-document's body is data the command is fed, not paths it opens.
- *
- * `python3 - <<'EOF' … EOF` and `cat > file <<'EOF' … EOF` carry whole programs and file contents,
- * and the word splitter has no idea: it sees the body as more command line. Replaying real
- * sessions, that is where most of the paths that are not paths came from — a `/` from inside a Go
- * import block, a `/dist` from a script being written out. The delimiter may be quoted, and `<<-`
- * allows the terminator to be indented.
- *
- * The tail is `(?![\s\S])` rather than `$`. With the `m` flag `$` matches at every line ending, so
- * a lazy body stopped at the first newline and left the whole document in place — the rule read as
- * "up to the terminator, or the end of the string" and behaved as "up to the end of this line".
- */
-function stripHeredocs(command: string): string {
-	return command.replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?(?:^[ \t]*\2[ \t]*$|(?![\s\S]))/gm, "");
-}
 
 /**
  * The directory an approval should cover, walked up to the project it belongs to.
@@ -306,7 +324,7 @@ export async function authorizeRead(
 		projectRoots: ctx.projectRoots,
 		allowSkillReads: options.allowSkillReads,
 	});
-	if (verdict.decision === "allow" || !worthAsking(absolute)) return { ok: true, absolute };
+	if (verdict.decision === "allow" || !worthAsking(absolute, verdict)) return { ok: true, absolute };
 
 	const approved = await askForRead(ctx, absolute, verdict);
 	return approved.ok ? { ok: true, absolute } : approved;
@@ -323,8 +341,14 @@ export async function authorizeRead(
  *
  * The race this ignores (absent when judged, present when opened) needs someone to win a
  * millisecond-wide window on the user's own machine, which is not the threat this boundary is for.
+ *
+ * A credential is asked about whether or not it seems to be there. "Not there" is only as good as
+ * the path this code resolved, and a shell can spell a path this code does not know how to read —
+ * Git Bash's `/c/Users/…` was one, and it turned the rule into a way around itself. For a key the
+ * cost of one needless question is nothing next to that.
  */
-function worthAsking(absolute: string): boolean {
+function worthAsking(absolute: string, verdict: ReadVerdict): boolean {
+	if (verdict.decision === "ask" && verdict.scope === "file") return true;
 	return existsSync(absolute);
 }
 
@@ -348,7 +372,13 @@ export async function authorizeCommandReads(command: string, ctx: ToolContext): 
 	 * same project is how people learn to stop reading the question.
 	 */
 	const asked = new Map<string, { absolute: string; verdict: Extract<ReadVerdict, { decision: "ask" }> }>();
-	for (const absolute of commandReadTargets(command, ctx.cwd)) {
+	/*
+	 * Read in the grammar of the shell that will run it — the session's (`commandShell`), which on
+	 * Windows is PowerShell when confined and Git Bash when not. Judged by both there regardless, a
+	 * bash heredoc under Git Bash was read by PowerShell too, which has no heredocs: the inert body
+	 * of `<<'EOF'` became live code, and the user was asked about a file nothing would open.
+	 */
+	for (const absolute of commandReadTargets(command, ctx.cwd, dialectsOf(commandShell(ctx.sandboxMode)))) {
 		/*
 		 * `allowSkillReads` here too, because it is a fact about the file rather than about the
 		 * tool. The system prompt hands the model absolute paths into installed skills; opening one
@@ -359,7 +389,7 @@ export async function authorizeCommandReads(command: string, ctx: ToolContext): 
 			projectRoots: ctx.projectRoots,
 			allowSkillReads: true,
 		});
-		if (verdict.decision === "allow" || !worthAsking(absolute)) continue;
+		if (verdict.decision === "allow" || !worthAsking(absolute, verdict)) continue;
 		const grant = grantFor(absolute, verdict);
 		if (!asked.has(grant)) asked.set(grant, { absolute, verdict });
 	}
