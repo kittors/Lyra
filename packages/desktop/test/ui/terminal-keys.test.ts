@@ -79,10 +79,13 @@ function stubTerminal(t: TestContext, methods: Record<string, unknown>) {
 type Built = { options: Record<string, unknown>; customKeyEventHandler?: (event: KeyboardEvent) => boolean };
 
 test("终端面板把这些接上：windowsPty、按键处理、右键菜单", async (t) => {
-	// The context menu places itself at a point with `new DOMRect`, which this DOM only has on `window`.
-	Object.defineProperty(globalThis, "DOMRect", { value: window.DOMRect, configurable: true });
+	// The context menu places itself at a point with `new DOMRect`; provided in case the shared DOM
+	// does not, and put back exactly as it was.
+	const domRect = Object.getOwnPropertyDescriptor(globalThis, "DOMRect");
+	Object.defineProperty(globalThis, "DOMRect", { value: window.DOMRect, configurable: true, writable: true });
 	t.after(() => {
-		Reflect.deleteProperty(globalThis, "DOMRect");
+		if (domRect) Object.defineProperty(globalThis, "DOMRect", domRect);
+		else Reflect.deleteProperty(globalThis, "DOMRect");
 	});
 	const css = Object.getOwnPropertyDescriptor(globalThis, "CSS");
 	Object.defineProperty(globalThis, "CSS", { value: window.CSS, configurable: true });

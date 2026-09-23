@@ -90,10 +90,16 @@ afterEach(() => {
 	Reflect.deleteProperty(window, "lyra");
 });
 
-// The context menu places itself at a point with `new DOMRect`, which this DOM only has on `window`.
-before(() => Object.defineProperty(globalThis, "DOMRect", { value: window.DOMRect, configurable: true }));
+/*
+ * The context menu places itself at a point with `new DOMRect`. Provided here in case the shared DOM
+ * does not, and put back exactly as it was afterwards — deleting it would take away a global the
+ * shared DOM may well provide.
+ */
+const domRect = Object.getOwnPropertyDescriptor(globalThis, "DOMRect");
+before(() => Object.defineProperty(globalThis, "DOMRect", { value: window.DOMRect, configurable: true, writable: true }));
 after(() => {
-	Reflect.deleteProperty(globalThis, "DOMRect");
+	if (domRect) Object.defineProperty(globalThis, "DOMRect", domRect);
+	else Reflect.deleteProperty(globalThis, "DOMRect");
 });
 
 test("俄语布局下 Ctrl+C、Ctrl+V 照样是复制粘贴", async () => {
