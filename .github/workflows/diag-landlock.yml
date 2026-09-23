@@ -1,0 +1,30 @@
+# TEMPORARY — find why the Landlock runner dies of SIGSEGV on GitHub's x86_64 runners. Remove once fixed.
+name: diag-landlock
+
+on:
+  push:
+    branches: [fix/shell-stability]
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: environment
+        run: |
+          uname -a
+          node --version
+          grep -m1 "model name" /proc/cpuinfo
+          nproc
+          cat /sys/kernel/security/lsm; echo
+          cd packages/core && node --experimental-strip-types --no-warnings -e "import('./src/sandbox/linux/landlock.ts').then((m) => console.log('landlock ABI', m.landlockAbi()))"
+      - name: stress
+        run: node --experimental-strip-types --no-warnings scripts/diag/landlock-stress.ts
+      - name: gdb
+        if: always()
+        run: bash scripts/diag/landlock-gdb.sh
