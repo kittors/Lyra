@@ -191,9 +191,22 @@ function spawnUnder(api: Win32, token: Ptr, args: Args): number {
 	return code.readUInt32LE(0);
 }
 
+/**
+ * One of this process's standard handles, made inheritable so the command really receives it.
+ *
+ * `STARTF_USESTDHANDLES` only names handle values; the child gets the handles themselves through
+ * inheritance, and a handle that is not inheritable arrives as a number that means nothing there.
+ * Node makes its stdio non-inheritable as it starts (`uv_disable_stdio_inheritance`), so every
+ * command ran with no stdout or stderr at all: `cmd /c echo` failed with exit 1 and printed
+ * nothing, and Git Bash died before it could say why. Marked here, on the runner's own handles:
+ * this process starts nothing else that could pick them up by accident.
+ */
 function handleOf(api: Win32, which: number): bigint {
 	const handle = api.getStdHandle(which);
-	if (isNull(handle)) fail(api, "GetStdHandle", `标准句柄 ${which}`);
+	if (isNull(handle) || BigInt.asUintN(64, BigInt(handle)) === abi.INVALID_HANDLE_VALUE) fail(api, "GetStdHandle", `标准句柄 ${which}`);
+	if (api.setHandleInformation(handle, abi.HANDLE_FLAG_INHERIT, abi.HANDLE_FLAG_INHERIT) === 0) {
+		fail(api, "SetHandleInformation", `标准句柄 ${which} 设为可继承`);
+	}
 	return handle;
 }
 

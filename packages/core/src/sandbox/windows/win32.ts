@@ -83,6 +83,7 @@ export interface Win32 {
 	getExitCodeProcess(handle: Ptr, codeOut: Buffer): number;
 	getStdHandle(which: number): Ptr;
 	terminateProcess(handle: Ptr, code: number): number;
+	setHandleInformation(handle: Ptr, mask: number, flags: number): number;
 	getAclInformation(acl: Ptr, info: Buffer, length: number, cls: number): number;
 	getAce(acl: Ptr, index: number, aceOut: Buffer): number;
 	equalSid(a: Ptr, b: Ptr): number;
@@ -146,6 +147,7 @@ export function win32(): Win32 {
 		getExitCodeProcess: bind(kernel32, "GetExitCodeProcess", "int", [PVOID, koffi.pointer("uint32")]),
 		getStdHandle: bind(kernel32, "GetStdHandle", PVOID, ["int"]),
 		terminateProcess: bind(kernel32, "TerminateProcess", "int", [PVOID, "uint32"]),
+		setHandleInformation: bind(kernel32, "SetHandleInformation", "int", [PVOID, "uint32", "uint32"]),
 		getAclInformation: bind(advapi32, "GetAclInformation", "int", [PVOID, PVOID, "uint32", "int"]),
 		getAce: bind(advapi32, "GetAce", "int", [PVOID, "uint32", PPVOID]),
 		equalSid: bind(advapi32, "EqualSid", "int", [PVOID, PVOID]),

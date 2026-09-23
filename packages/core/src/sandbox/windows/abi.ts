@@ -103,8 +103,10 @@ export const CREATE_NO_WINDOW = 0x08000000;
  * the child's environment is read as ANSI.
  */
 export const CREATE_UNICODE_ENVIRONMENT = 0x00000400;
-// oxlint-disable-next-line no-unused-vars -- 见上面那段：这张表要完整
-const HANDLE_FLAG_INHERIT = 0x1;
+/** `SetHandleInformation`'s flag: a child created with `bInheritHandles` gets this handle. */
+export const HANDLE_FLAG_INHERIT = 0x1;
+/** What `GetStdHandle` answers when there is no such handle at all. */
+export const INVALID_HANDLE_VALUE = 0xffff_ffff_ffff_ffffn;
 export const INFINITE = 0xffffffff;
 export const STD_INPUT_HANDLE = -10;
 export const STD_OUTPUT_HANDLE = -11;
