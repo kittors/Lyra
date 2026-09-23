@@ -6,6 +6,7 @@
  * name so two servers can both publish a `search` tool without colliding.
  */
 
+import { execFile } from "node:child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { DEFAULT_INHERITED_ENV_VARS, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -75,12 +76,47 @@ export interface McpConnection {
 
 const CONNECT_TIMEOUT_MS = 30_000;
 
+export interface McpManagerOptions {
+	/** How long connecting, and then listing tools, may each take. Tests shorten it. */
+	timeoutMs?: number;
+}
+
 export class McpManager {
 	private connections = new Map<string, McpConnection>();
 	private failures = new Map<string, string>();
+	private readonly timeoutMs: number;
+	/**
+	 * Bumped by every `closeAll`, so a connect that was already under way when it ran can tell that
+	 * its answer is no longer wanted — and stop the server instead of registering it.
+	 */
+	private epoch = 0;
+	private disposed = false;
+	/** The replacement in progress; the next one starts after it. See `connectAll`. */
+	private replacing: Promise<unknown> = Promise.resolve();
 
-	async connectAll(servers: McpServerConfig[]): Promise<McpServerStatus[]> {
+	constructor(options: McpManagerOptions = {}) {
+		this.timeoutMs = options.timeoutMs ?? CONNECT_TIMEOUT_MS;
+	}
+
+	/**
+	 * Replace every connection with ones to `servers`.
+	 *
+	 * One replacement at a time. Three things reload a session's capabilities — the file watcher,
+	 * the end of a turn releasing a change it held back, and the desktop app saving an agent
+	 * definition — and nothing kept them apart. Two replacements running together each closed what
+	 * was there when they started and then both connected; the second to finish overwrote the
+	 * first's connection in the map without closing it, and that server ran until the app quit.
+	 */
+	connectAll(servers: McpServerConfig[]): Promise<McpServerStatus[]> {
+		const run = this.replacing.then(() => this.replaceAll(servers));
+		this.replacing = run.catch(() => {});
+		return run;
+	}
+
+	private async replaceAll(servers: McpServerConfig[]): Promise<McpServerStatus[]> {
 		await this.closeAll();
+		// A reload that was queued behind the one running when the session was disposed.
+		if (this.disposed) return [];
 		const results = await Promise.all(
 			servers.map(async (server): Promise<McpServerStatus> => {
 				if (!server.enabled) {
@@ -107,10 +143,12 @@ export class McpManager {
 	}
 
 	async connect(server: McpServerConfig): Promise<McpConnection> {
+		if (this.disposed) throw new Error(`MCP server "${server.name}" was not started: its session has been closed`);
+		const epoch = this.epoch;
 		const client = new Client({ name: "lyra", version: "0.1.0" }, { capabilities: {} });
 		const transport =
 			server.transport === "stdio"
-				? new StdioClientTransport({
+				? new TreeKillingStdioTransport({
 						command: server.command,
 						args: server.args ?? [],
 						env: stdioEnv(server.env),
@@ -123,12 +161,34 @@ export class McpManager {
 							requestInit: { headers: server.headers },
 						});
 
-		// A misconfigured stdio server can hang forever on startup; do not block the session on it.
-		await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, `Connecting to MCP server "${server.name}"`);
+		/*
+		 * Every way out of here that does not register the connection closes it.
+		 *
+		 * A server that never answers must not hold the session up, so there is a deadline — but
+		 * giving up on a promise does not stop the process behind it. The SDK's own request timeout
+		 * was 60s against our 30s, and a server answering in between finished connecting a client
+		 * nobody held; one that connected and then failed `tools/list` was dropped the same way.
+		 * Both kept running until the app quit.
+		 *
+		 * The SDK is handed the same timeout so it gives up on its request when we do. Ours stays as
+		 * well: it also covers what the SDK does not time — an SSE stream that opens and never sends
+		 * its endpoint, the `initialized` notification over HTTP.
+		 */
+		let listed: Awaited<ReturnType<Client["listTools"]>>;
+		try {
+			await withTimeout(client.connect(transport, { timeout: this.timeoutMs }), this.timeoutMs, `Connecting to MCP server "${server.name}"`);
+			listed = await withTimeout(client.listTools(undefined, { timeout: this.timeoutMs }), this.timeoutMs, `Listing tools of "${server.name}"`);
+		} catch (error) {
+			await client.close().catch(() => {});
+			throw error;
+		}
+		// Closed while this one was starting: nobody is going to read this connection, or close it.
+		if (epoch !== this.epoch) {
+			await client.close().catch(() => {});
+			throw new Error(`MCP server "${server.name}" was disconnected while it was still starting`);
+		}
 
-		const listed = await withTimeout(client.listTools(), CONNECT_TIMEOUT_MS, `Listing tools of "${server.name}"`);
 		const tools = listed.tools.map((tool) => toAgentTool(server, client, tool));
-
 		const connection: McpConnection = {
 			config: server,
 			client,
@@ -137,8 +197,11 @@ export class McpManager {
 				await client.close().catch(() => {});
 			},
 		};
+		const previous = this.connections.get(server.id);
 		this.connections.set(server.id, connection);
 		this.failures.delete(server.id);
+		// A map entry is the only handle on a connection; overwriting it without closing is a leak.
+		if (previous) await previous.close();
 		return connection;
 	}
 
@@ -159,7 +222,7 @@ export class McpManager {
 	async allResources(): Promise<{ server: string; uri: string; name?: string; description?: string }[]> {
 		const perServer = await Promise.all(
 			[...this.connections.values()].map(async (connection) => {
-				const listed = await withTimeout(connection.client.listResources(), CONNECT_TIMEOUT_MS, `Listing resources of "${connection.config.name}"`).catch(
+				const listed = await withTimeout(connection.client.listResources(), this.timeoutMs, `Listing resources of "${connection.config.name}"`).catch(
 					() => null,
 				);
 				return (listed?.resources ?? []).map((resource) => ({
@@ -184,7 +247,7 @@ export class McpManager {
 		const connection = this.connections.get(serverId);
 		if (!connection) throw new Error(`没有连着叫 "${serverId}" 的 MCP 服务器。`);
 
-		const result = await withTimeout(connection.client.readResource({ uri }), CONNECT_TIMEOUT_MS, `Reading ${uri}`);
+		const result = await withTimeout(connection.client.readResource({ uri }), this.timeoutMs, `Reading ${uri}`);
 		const parts = (result.contents ?? [])
 			.map((part) => (typeof (part as { text?: unknown }).text === "string" ? ((part as { text: string }).text) : null))
 			.filter((text): text is string => text !== null);
@@ -212,10 +275,52 @@ export class McpManager {
 	}
 
 	async closeAll(): Promise<void> {
-		await Promise.all([...this.connections.values()].map((c) => c.close()));
+		this.epoch += 1;
+		const open = [...this.connections.values()];
 		this.connections.clear();
 		this.failures.clear();
+		await Promise.all(open.map((c) => c.close()));
 	}
+
+	/**
+	 * Close everything, for good.
+	 *
+	 * Separate from `closeAll`, which a reload also uses: a reload that was already queued when the
+	 * session went away would otherwise start every server again, for a session nobody will close.
+	 */
+	async dispose(): Promise<void> {
+		this.disposed = true;
+		await this.closeAll();
+	}
+}
+
+/**
+ * The SDK's stdio transport, with a close that reaches the server on Windows.
+ *
+ * There the SDK starts anything that is not an `.exe` — `npx`, a `.cmd` shim — through `cmd.exe /d
+ * /s /c` (cross-spawn), and its close ends stdin, waits, then `kill()`s: which terminates `cmd.exe`
+ * and nothing under it. The real server was orphaned, ran for the rest of the session and kept its
+ * files open, so updating or uninstalling the bundle it came from failed halfway with EPERM.
+ *
+ * The tree has to be taken while `cmd.exe` is still there to name it — once it is gone `/T` has no
+ * root to walk from — so this runs before the SDK's close rather than after. That skips the SDK's
+ * grace period on Windows: a server stopped this way does not see stdin close first. An orphan
+ * holding the plugin's files open is the worse of the two.
+ */
+class TreeKillingStdioTransport extends StdioClientTransport {
+	override async close(): Promise<void> {
+		const pid = this.pid;
+		// `pid` is null once the process has exited, so a PID the OS has since reused is never named.
+		if (process.platform === "win32" && pid !== null) await killTree(pid);
+		await super.close();
+	}
+}
+
+function killTree(pid: number): Promise<void> {
+	return new Promise((resolve) => {
+		// The Electron main process has no console; without `windowsHide` every stop flashes one.
+		execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => resolve());
+	});
 }
 
 /**

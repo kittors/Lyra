@@ -205,7 +205,7 @@ export class SessionCapabilities {
 		try { backgroundJobs(this.state).dispose(); }
 		finally {
 			// A process kill failure must not skip unrelated session resources.
-			await this.mcp.closeAll();
+			await this.mcp.dispose();
 			await this.extensions.dispose().catch(() => {});
 			/*
 			 * Language servers are hundreds of megabytes each and outlive the session that started them
