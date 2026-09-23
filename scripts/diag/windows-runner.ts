@@ -40,6 +40,19 @@ for (const mode of ["read-only", "workspace-write"] as const) {
 		continue;
 	}
 	console.log(`[${mode}] runner ${wrap.runner}: ${wrap.command} ${wrap.args.join(" ")}`);
+	const usrBash = join(shell.file, "..", "..", "usr", "bin", "bash.exe");
+	const direct: string[][] = [
+		["cmd.exe", "/d", "/c", "echo cmd-plain"],
+		["cmd.exe", "/d", "/c", "echo x> inside-cmd.txt && type inside-cmd.txt"],
+		["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Write-Output ps-plain; Set-Content -Path ps.txt -Value 1; Get-Content ps.txt"],
+		[usrBash, "-c", "echo usr-bash; echo x > inside-usr.txt; cat inside-usr.txt"],
+	];
+	for (const argv of direct) {
+		const started = Date.now();
+		const result = spawnSync(wrap.command, [...wrap.args, ...argv], { cwd: ws, env: { ...process.env, ...wrap.env }, encoding: "utf8", windowsHide: true, timeout: 60_000 });
+		const out = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim().replaceAll("\n", "\n      ");
+		console.log(`  [${mode}] ${JSON.stringify(argv.join(" ").slice(0, 70))} → status ${result.status} ${Date.now() - started}ms${result.error ? ` error ${result.error.message}` : ""}\n      ${out}`);
+	}
 	for (const command of commands) {
 		const started = Date.now();
 		const result = spawnSync(wrap.command, [...wrap.args, shell.file, ...shell.args(command)], {
