@@ -19,7 +19,8 @@ import type { FileOpResult } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
 import { useConfirmGate } from "../../ui/overlay/Confirm.tsx";
 import { baseName, dirName, joinPath, relativeTo } from "../../lib/paths.ts";
-import { bridge } from "../../services/index.ts";
+import { systemWord } from "../../lib/system-words.ts";
+import { bridge, hostPlatform } from "../../services/index.ts";
 
 export type ClipMode = "copy" | "cut";
 
@@ -176,10 +177,12 @@ export function useFileActions({ root, refresh, onMoved, onRemoved }: FileAction
 			 * putting a folder back means leaving the app for the Finder. The permanent one says so
 			 * in different words so the two cannot be told apart only by the button.
 			 */
+			// The bin is the files' machine's, and so are its names: 废纸篓 and 访达 only on a Mac.
+			const platform = hostPlatform();
 			const agreed = await ask({
 				title: t(permanent ? "fileAction.deleteForeverConfirm" : "fileAction.deleteConfirm", { what }),
-				detail: t(permanent ? "fileAction.noUndo" : "fileAction.toTrash"),
-				confirmLabel: t(permanent ? "fileAction.deleteForever" : "fileAction.moveToTrash"),
+				detail: t(permanent ? "fileAction.noUndo" : systemWord("fileToTrash", platform)),
+				confirmLabel: t(permanent ? "fileAction.deleteForever" : systemWord("fileMoveToTrash", platform)),
 			});
 			if (!agreed) return false;
 

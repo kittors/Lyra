@@ -7,4 +7,4 @@
  */
 
 export { bridge } from "./bridge.ts";
-export { available, onPhone } from "./host.ts";
+export { available, hostPlatform, onPhone } from "./host.ts";

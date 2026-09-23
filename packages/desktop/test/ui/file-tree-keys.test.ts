@@ -150,6 +150,30 @@ test("PC 上单按 Delete 就是删除，和资源管理器一样", async () => 
 	});
 });
 
+test("Windows 上的删除确认和右键菜单，说的是回收站和资源管理器，不是访达", async () => {
+	project([]);
+	await withKeyboard("Win32", async () => {
+		const menu = await showTree();
+		try {
+			await fire(menu.find('[data-path="/p/a.txt"]'), new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
+			const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent ?? "");
+			assert.ok(items.includes("在资源管理器中显示"), items.join(" | "));
+		} finally {
+			await menu.unmount();
+		}
+
+		const view = await showTree();
+		try {
+			await fire(view.find("[data-ly-tree]"), key("Delete", "Delete"));
+			const dialog = document.querySelector('[role="dialog"]')?.textContent ?? "";
+			assert.ok(dialog.includes("回收站"), dialog);
+			assert.ok(!dialog.includes("访达") && !dialog.includes("废纸篓"), dialog);
+		} finally {
+			await view.unmount();
+		}
+	});
+});
+
 test("Mac 上单按 Delete 不删，要 ⌘⌫——访达就是这样，免得一碰就删", async () => {
 	project([]);
 	const view = await showTree();

@@ -1,7 +1,7 @@
 import { RetrySettings } from "./RetrySettings.tsx";
 import type { PermissionMode, UiLocale } from "@lyra/core";
 import { FolderOpen, Languages } from "lucide-react";
-import { matchTarget, useOpenTargets } from "../../store/open-targets.ts";
+import { matchTarget, revealLabel, useOpenTargets } from "../../store/open-targets.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { ProjectLayerCard } from "./ProjectOverrideNotice.tsx";
@@ -137,7 +137,8 @@ export function GeneralSettings() {
               }
               options={options.map((target) => ({
                 value: target.id,
-                label: target.label,
+                // Reveal's own label from the main process is fixed Chinese; see `revealLabel`.
+                label: target.id === "reveal" ? revealLabel() : target.label,
                 icon: target.icon ? (
                   <img
                     src={target.icon}
