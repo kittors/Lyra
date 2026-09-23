@@ -108,8 +108,14 @@ function alive(pid: number): boolean {
 	}
 }
 
-/** Whether `pid` goes away within `ms` — a process asked to stop is not gone the same instant. */
-async function stopped(pid: number, ms = 3000): Promise<boolean> {
+/**
+ * Whether `pid` goes away within `ms` — a process asked to stop is not gone the same instant.
+ *
+ * Ten seconds, not three: on Windows a stop is a `taskkill /T /F` started as a process of its own,
+ * and on a runner busy with the whole suite that alone took past three. It returns the moment the
+ * process is gone, so the ceiling only costs anything when the stop really failed.
+ */
+async function stopped(pid: number, ms = 10_000): Promise<boolean> {
 	const deadline = Date.now() + ms;
 	while (alive(pid)) {
 		if (Date.now() > deadline) return false;
