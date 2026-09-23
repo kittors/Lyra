@@ -40,7 +40,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - name: runner, by hand
+      - name: runner, by hand — no MSYS process alive (pwsh)
+        shell: pwsh
+        run: node --experimental-strip-types --no-warnings scripts/diag/windows-runner.ts
+      - name: runner, by hand — under an unconfined Git Bash (bash)
+        if: always()
         shell: bash
         run: node --experimental-strip-types --no-warnings scripts/diag/windows-runner.ts
       - name: sandbox tests

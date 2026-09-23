@@ -24,6 +24,9 @@ const commands = [
 	"git --version && git init -q repo && cd repo && git status --short && echo git-ok",
 	"node -e \"console.log('node', process.version)\"",
 	"ls -la | head -5",
+	"(echo b; echo a) | sort | uniq && echo \"year $(date +%Y)\"",
+	"sleep 5 & kill $! ; wait $! ; echo \"killed=$?\"",
+	"timeout 2 sleep 5; echo \"timeout=$?\"",
 ];
 
 for (const mode of ["read-only", "workspace-write"] as const) {
