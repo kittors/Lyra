@@ -243,6 +243,25 @@ test("Windows: PowerShell's refusal and an MSYS program dying under the token ar
 	assert.ok(!looksDenied("0 [main] bash (1) bash.exe: *** fatal error - couldn't allocate heap, Win32 error 487", "windows-acl"));
 });
 
+test("Windows: a refusal reads as one in the system's language too", () => {
+	// Windows PowerShell 5.1 on a Chinese Windows: the message is translated, the identifiers are not.
+	const zhPowerShell =
+		"Set-Content : 对路径“C:\\Users\\me\\x.txt”的访问被拒绝。\n" +
+		"所在位置 行:1 字符: 1\n" +
+		"    + CategoryInfo          : PermissionDenied: (C:\\Users\\me\\x.txt:String) [Set-Content], UnauthorizedAccessException";
+	assert.ok(looksDenied(zhPowerShell, "windows-acl"));
+	// The translated sentence alone is enough — PowerShell 7's concise view prints nothing else.
+	assert.ok(looksDenied("Set-Content: 对路径“C:\\Users\\me\\x.txt”的访问被拒绝。", "windows-acl"));
+	// cmd's built-ins print the system's message for error 5.
+	for (const message of ["拒绝访问。", "存取被拒。", "アクセスが拒否されました。", "액세스가 거부되었습니다.", "Zugriff verweigert", "Accès refusé.", "Acceso denegado.", "Отказано в доступе.", "Acesso negado."]) {
+		assert.ok(looksDenied(message, "windows-acl"), message);
+		assert.ok(!looksDenied(message, "seatbelt"), `${message} is only ours under our runner`);
+	}
+	// And a translated failure that is not a refusal stays a failure.
+	assert.ok(!looksDenied("系统找不到指定的文件。", "windows-acl"));
+	assert.ok(!looksDenied("Get-Content : 找不到路径“C:\\x”，因为该路径不存在。\n    + CategoryInfo          : ObjectNotFound: (C:\\x:String) [Get-Content], ItemNotFoundException", "windows-acl"));
+});
+
 test("an ordinary failure is not read as a denial", () => {
 	// Being wrong in this direction is the expensive one: it would offer an escalation prompt for
 	// something the sandbox never blocked, and teach the user that the prompt means nothing.

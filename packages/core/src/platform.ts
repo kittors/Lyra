@@ -119,8 +119,15 @@ function posix(file: string, label: string): CommandShell {
  * load and free to print; `Bypass` because under the default policy `.\build.ps1` is refused.
  */
 function powershell(file: string, label: string): CommandShell {
+	/*
+	 * `NormalView`: PowerShell 7 shows an error as its message alone, and the message is in the
+	 * system's language on a Windows PowerShell. The classic view adds the `CategoryInfo` and
+	 * `FullyQualifiedErrorId` lines, whose identifiers are never translated — the one part of a
+	 * refusal that reads the same on every Windows (see `looksDenied`), and a line and column besides.
+	 */
 	const prelude =
 		"$ProgressPreference='SilentlyContinue';" +
+		"$ErrorView='NormalView';" +
 		"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;" +
 		"$OutputEncoding=[System.Text.Encoding]::UTF8;";
 	return {

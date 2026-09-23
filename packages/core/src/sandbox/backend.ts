@@ -370,7 +370,7 @@ export class SandboxUnavailableError extends Error {
  */
 export function looksDenied(output: string, runner?: Runner): boolean {
 	if (DENIAL_PATTERNS.some((pattern) => pattern.test(output))) return true;
-	if (runner === "windows-acl" && MSYS_UNDER_TOKEN.test(output)) return true;
+	if (runner === "windows-acl" && (MSYS_UNDER_TOKEN.test(output) || WINDOWS_DENIAL.test(output))) return true;
 	if (runner !== "landlock" && runner !== "windows-acl") return false;
 	return output.split("\n").some((line) => GENERIC_DENIAL.test(line) && !NOT_A_DENIAL.test(line));
 }
@@ -385,6 +385,20 @@ export function looksDenied(output: string, runner?: Runner): boolean {
  * denial, it reaches the model as one it can escalate, and unconfined the hook runs.
  */
 const MSYS_UNDER_TOKEN = /\bfatal error - .*\bWin32 error 5\b/i;
+
+/**
+ * A Windows refusal in whatever language Windows speaks.
+ *
+ * `Access is denied` is English. On a Chinese Windows, cmd says `拒绝访问。` and Windows PowerShell
+ * 5.1 — on the .NET Framework, whose messages follow the system's language — says `对路径“…”的访问被拒绝。`,
+ * so a write the sandbox refused read as an ordinary failure and the model was never told it could
+ * ask. Two answers: the identifiers PowerShell prints beside its message, which are never translated
+ * (`UnauthorizedAccessException`, in the `CategoryInfo` line that `$ErrorView = 'NormalView'` keeps —
+ * see `powershell` in `platform.ts`), and the system's own sentence for error 5 in the languages
+ * Windows is most used in.
+ */
+const WINDOWS_DENIAL =
+	/UnauthorizedAccessException|拒绝访问|访问被拒绝|拒絕存取|存取被拒|アクセスが拒否されました|액세스가 거부되었습니다|Zugriff verweigert|Zugriff auf den Pfad .* verweigert|accès refusé|L'accès au chemin .* est refusé|Acceso denegado|Отказано в доступе|Acesso negado/i;
 
 /**
  * Case-insensitive, because the shell writes this line and shells disagree.
