@@ -13,7 +13,7 @@
 import { ExtensionHost } from "../extensions/host.ts";
 import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
-import { McpManager, type McpServerStatus } from "../mcp/client.ts";
+import { McpManager, type McpServerConfig, type McpServerStatus } from "../mcp/client.ts";
 import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
 import { ResourceRouter } from "../resources/router.ts";
 import type { Settings } from "../config/settings.ts";
@@ -199,6 +199,24 @@ export class SessionCapabilities {
 	/** Drop the cached symbol index so the next lookup re-reads it from disk. */
 	invalidateSymbolIndex(): void {
 		invalidateIndex(this.state);
+	}
+
+	/**
+	 * Stop this session's connections to the servers `match` picks, and take their tools with them.
+	 *
+	 * The host calls it before an MCP bundle's files are replaced or removed — see
+	 * `McpManager.disconnect`. The tool list is built once per `load`, so without the second half the
+	 * model would go on being offered tools whose server is gone, each call failing as not connected.
+	 */
+	async disconnectMcp(match: (server: McpServerConfig) => boolean): Promise<number> {
+		const closed = await this.mcp.disconnect(match);
+		if (closed.length === 0) return 0;
+		const gone = new Set(closed.flatMap((connection) => connection.tools));
+		const ids = new Set(closed.map((connection) => connection.config.id));
+		this.tools = this.tools.filter((tool) => !gone.has(tool));
+		this.mcpStatuses = this.mcpStatuses.filter((status) => !ids.has(status.id));
+		if (this.state.has(TOOL_NAMES_KEY)) this.state.set(TOOL_NAMES_KEY, new Set(this.tools.map((tool) => tool.name)));
+		return closed.length;
 	}
 
 	async dispose(): Promise<void> {

@@ -283,6 +283,26 @@ export class McpManager {
 	}
 
 	/**
+	 * Close the connections to the servers `match` picks, and forget them.
+	 *
+	 * For when their files are about to change — an MCP bundle being updated or uninstalled. On
+	 * Windows a running server holds its own executable and modules open, and nothing in its
+	 * directory can be moved or deleted until it stops. Queued behind a replacement in progress, so a
+	 * server that replacement is still connecting is closed as well, not registered a moment after
+	 * this returned.
+	 */
+	disconnect(match: (server: McpServerConfig) => boolean): Promise<McpConnection[]> {
+		const run = this.replacing.then(async () => {
+			const closing = [...this.connections.values()].filter((connection) => match(connection.config));
+			for (const connection of closing) this.connections.delete(connection.config.id);
+			await Promise.all(closing.map((connection) => connection.close()));
+			return closing;
+		});
+		this.replacing = run.catch(() => {});
+		return run;
+	}
+
+	/**
 	 * Close everything, for good.
 	 *
 	 * Separate from `closeAll`, which a reload also uses: a reload that was already queued when the

@@ -17,7 +17,9 @@ import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
+import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { McpManager, type McpStdioServer } from "../src/mcp/client.ts";
+import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
 import { forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
 
 /**
@@ -301,4 +303,49 @@ test("on Windows closing a server stops its whole process tree, not only cmd.exe
 	assert.deepEqual(calls.map(({ file, args }) => [file, args]), [["taskkill", ["/PID", String(pid), "/T", "/F"]]]);
 	// The Electron main process has no console; without this every stop flashes one.
 	assert.equal(calls[0].options.windowsHide, true);
+});
+
+test("disconnecting one bundle stops its servers and leaves the others running", async (t) => {
+	const fx = await fixture(t);
+	const manager = new McpManager();
+	try {
+		await manager.connect({ ...fx.server({}, "a"), origin: { bundle: "bundle-a" } });
+		await manager.connect({ ...fx.server({}, "b"), origin: { bundle: "bundle-b" } });
+		const [first, second] = await fx.started();
+
+		/*
+		 * What updating or uninstalling a bundle does first. On Windows a running server holds its own
+		 * executable open, and nothing in the bundle's directory can be moved or deleted until it stops.
+		 */
+		const closed = await manager.disconnect((server) => server.origin?.bundle === "bundle-a");
+		assert.deepEqual(closed.map((connection) => connection.config.id), ["a"]);
+		assert.equal(await stopped(first), true, "the bundle's server is still running");
+		assert.equal(alive(second), true, "another bundle's server was stopped too");
+		assert.deepEqual(manager.allTools().map((tool) => tool.name), ["mcp__b__echo"]);
+	} finally {
+		await manager.closeAll();
+	}
+});
+
+test("a session stops offering the tools of a server it was disconnected from", async (t) => {
+	const fx = await fixture(t);
+	const previous = process.env.LYRA_HOME;
+	process.env.LYRA_HOME = join(fx.dir, "home");
+	t.after(() => {
+		if (previous === undefined) delete process.env.LYRA_HOME;
+		else process.env.LYRA_HOME = previous;
+	});
+	const can = new SessionCapabilities();
+	try {
+		const servers = [{ ...fx.server({}, "a"), origin: { bundle: "bundle-a" } }, { ...fx.server({}, "b"), origin: { bundle: "bundle-b" } }];
+		await can.load(fx.dir, { ...DEFAULT_SETTINGS, mcpServers: servers });
+		const mcpTools = () => can.tools.map((tool) => tool.name).filter((name) => name.startsWith("mcp__")).sort();
+		assert.deepEqual(mcpTools(), ["mcp__a__echo", "mcp__b__echo"], "the premise: both servers connected");
+
+		assert.equal(await can.disconnectMcp((server) => server.origin?.bundle === "bundle-a"), 1);
+		assert.deepEqual(mcpTools(), ["mcp__b__echo"], "the model is still offered a tool whose server is gone");
+		assert.deepEqual(can.mcpStatuses.map((status) => status.id), ["b"]);
+	} finally {
+		await can.dispose();
+	}
 });
