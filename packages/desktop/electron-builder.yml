@@ -192,8 +192,8 @@ linux:
   #
   # AppImage and deb rather than an rpm as well: AppImage needs no package manager and runs on
   # every distribution, which is what Fedora and Arch users install. An rpm would also be a file
-  # the updater cannot use — `update-asset.ts` picks `.AppImage` and `.deb` only, so anyone who
-  # installed the rpm would be offered an AppImage as its update.
+  # the updater cannot put in place — `update-asset.ts` offers each install its own format, and an
+  # rpm install, finding no .rpm in a release, is sent to the release page (`linux-install.ts`).
   target:
     - AppImage
     - deb
