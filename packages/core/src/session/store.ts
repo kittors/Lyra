@@ -9,7 +9,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -151,6 +151,11 @@ function displayImagesReady(messages: Message[]): boolean {
 		}
 	}
 	return true;
+}
+
+/** The order the sidebar lists sessions in: last used first. */
+function byRecent(a: SessionMeta, b: SessionMeta): number {
+	return b.updatedAt - a.updatedAt;
 }
 
 export class SessionStore implements SessionStorage {
@@ -579,20 +584,38 @@ export class SessionStore implements SessionStorage {
 	}
 
 	async listSessions(): Promise<SessionMeta[]> {
+		// Nothing to read is the usual case at first launch, for several callers at once: the first
+		// rebuilds, and the rest find what it wrote.
+		return (await this.readIndex()) ?? this.rebuild((current) => current ?? this.scan());
+	}
+
+	/** The index as written, or null when there is none to read — missing, or not an index. */
+	private async readIndex(): Promise<SessionMeta[] | null> {
 		const raw = await readFile(this.indexPath, "utf8").catch(() => null);
-		if (!raw) return this.rebuildIndex();
+		if (!raw) return null;
 		try {
 			const parsed = JSON.parse(raw) as SessionMeta[];
-			return Array.isArray(parsed) ? parsed.sort((a, b) => b.updatedAt - a.updatedAt) : [];
+			return Array.isArray(parsed) ? parsed.sort(byRecent) : null;
 		} catch {
-			return this.rebuildIndex();
+			return null;
 		}
 	}
 
-	private async writeIndex(meta: SessionMeta): Promise<void> {
-		const nextTask = this.indexQueue.catch(() => undefined).then(async () => {
-			const all = await this.listSessions();
-			const next = [meta, ...all.filter((s) => s.id !== meta.id)].sort((a, b) => b.updatedAt - a.updatedAt);
+	/**
+	 * Replace the index with what `change` makes of it: one change at a time, whole or not at all.
+	 *
+	 * Every write to the index goes through here. Deleting used to read it and write it back on its
+	 * own schedule, beside a queue it never joined: a session deleted while another one was being
+	 * written came back to the sidebar with its log gone, or took that other session's update with
+	 * it. Rebuilding did the same, whenever the index went missing.
+	 *
+	 * `current` is null when there is no index to change, and the change decides what to start from
+	 * — `scan`, usually. The queue never calls `listSessions` for it, because that rebuilds through
+	 * this same queue and would wait on itself.
+	 */
+	private updateIndex(change: (current: SessionMeta[] | null) => SessionMeta[] | Promise<SessionMeta[]>): Promise<SessionMeta[]> {
+		const task = this.indexQueue.catch(() => undefined).then(async () => {
+			const next = (await change(await this.readIndex())).sort(byRecent);
 			await mkdir(this.root, { recursive: true });
 			/*
 			 * Write-then-rename so a crash cannot leave a truncated index.
@@ -604,13 +627,37 @@ export class SessionStore implements SessionStorage {
 			 * scanner holds the file open on Windows. See `utils/atomic-write.ts`.
 			 */
 			await writeFileAtomic(this.indexPath, JSON.stringify(next, null, 2));
+			return next;
 		});
-		this.indexQueue = nextTask;
-		await nextTask;
+		this.indexQueue = task;
+		return task;
+	}
+
+	private async writeIndex(meta: SessionMeta): Promise<void> {
+		await this.updateIndex(async (current) => [meta, ...(current ?? (await this.scan())).filter((s) => s.id !== meta.id)]);
 	}
 
 	/** Reconstruct the index by scanning every session log. Used when the index is missing or corrupt. */
-	async rebuildIndex(): Promise<SessionMeta[]> {
+	rebuildIndex(): Promise<SessionMeta[]> {
+		return this.rebuild(() => this.scan());
+	}
+
+	/**
+	 * `updateIndex`, answering with the list even when it cannot be written down: it is right
+	 * either way, and the next change tries the write again. Only for rebuilding, where somebody is
+	 * waiting on the list rather than on the write.
+	 */
+	private async rebuild(change: (current: SessionMeta[] | null) => SessionMeta[] | Promise<SessionMeta[]>): Promise<SessionMeta[]> {
+		let found: SessionMeta[] = [];
+		try {
+			return await this.updateIndex(async (current) => (found = await change(current)));
+		} catch {
+			return found;
+		}
+	}
+
+	/** Every session, as its log tells it. */
+	private async scan(): Promise<SessionMeta[]> {
 		const metas: SessionMeta[] = [];
 		const projects = await readdir(this.root, { withFileTypes: true }).catch(() => []);
 		for (const project of projects) {
@@ -622,10 +669,7 @@ export class SessionStore implements SessionStorage {
 				if (loaded) metas.push(loaded.meta);
 			}
 		}
-		metas.sort((a, b) => b.updatedAt - a.updatedAt);
-		await mkdir(this.root, { recursive: true }).catch(() => {});
-		await writeFile(this.indexPath, JSON.stringify(metas, null, 2), "utf8").catch(() => {});
-		return metas;
+		return metas.sort(byRecent);
 	}
 
 	/**
@@ -749,10 +793,7 @@ export class SessionStore implements SessionStorage {
 	}
 
 	async delete(projectId: string, sessionId: string): Promise<void> {
-		await unlink(this.fileFor(projectId, sessionId)).catch(() => {});
-		const all = await this.listSessions();
-		await mkdir(this.root, { recursive: true });
-		await writeFile(this.indexPath, JSON.stringify(all.filter((s) => s.id !== sessionId), null, 2), "utf8");
+		await this.deleteMany([{ projectId, id: sessionId }]);
 	}
 
 	/**
@@ -777,10 +818,20 @@ export class SessionStore implements SessionStorage {
 
 	/** Delete several sessions with a single index rewrite, for "empty the archive". */
 	async deleteMany(targets: { projectId: string; id: string }[]): Promise<void> {
-		await Promise.all(targets.map((t) => unlink(this.fileFor(t.projectId, t.id)).catch(() => {})));
+		await Promise.all(
+			targets.map(async (target) => {
+				const key = this.keyFor(target);
+				// A write already on its way lands first, rather than recreating the log once it is gone
+				// and putting the session back in the index — the same wait `move` makes.
+				await this.writeQueues.get(key)?.catch(() => undefined);
+				this.writeQueues.delete(key);
+				this.latestMeta.delete(key);
+				await unlink(this.fileFor(target.projectId, target.id)).catch(() => {});
+				// A snapshot of the whole transcript, and nothing reads it once the log is gone.
+				await unlink(this.displayCacheFor(target.projectId, target.id)).catch(() => {});
+			}),
+		);
 		const gone = new Set(targets.map((t) => t.id));
-		const all = await this.listSessions();
-		await mkdir(this.root, { recursive: true });
-		await writeFile(this.indexPath, JSON.stringify(all.filter((s) => !gone.has(s.id)), null, 2), "utf8");
+		await this.updateIndex(async (current) => (current ?? (await this.scan())).filter((s) => !gone.has(s.id)));
 	}
 }
