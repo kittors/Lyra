@@ -49,6 +49,30 @@ after(async () => {
 	await rm(repo, { recursive: true, force: true });
 });
 
+test("a CRLF checkout with one line changed shows one line changed", async (t) => {
+	/*
+	 * Git for Windows checks out with CRLF by default. The committed side was read as stored — LF —
+	 * so against the CRLF file on disk every line differed, and a one-line edit was shown as the
+	 * whole file rewritten. `.gitattributes` gives the same checkout on any platform.
+	 */
+	const crlf = await mkdtemp(join(tmpdir(), "lyra-diff-crlf-"));
+	t.after(() => rm(crlf, { recursive: true, force: true }));
+	await exec("git", ["init", "-q"], { cwd: crlf });
+	await exec("git", ["config", "user.email", "t@example.com"], { cwd: crlf });
+	await exec("git", ["config", "user.name", "t"], { cwd: crlf });
+	await writeFile(join(crlf, ".gitattributes"), "*.txt text eol=crlf\n");
+	await writeFile(join(crlf, "notes.txt"), "one\r\ntwo\r\nthree\r\nfour\r\n");
+	await exec("git", ["add", "-A"], { cwd: crlf });
+	await exec("git", ["commit", "-qm", "seed"], { cwd: crlf });
+	await writeFile(join(crlf, "notes.txt"), "one\r\nTWO\r\nthree\r\nfour\r\n");
+
+	const diff = await collectWorkspaceDiff(crlf);
+	const notes = diff.files.find((file) => file.path === "notes.txt");
+	assert.ok(notes, JSON.stringify(diff.files.map((file) => file.path)));
+	assert.equal(notes.added, 1, JSON.stringify(notes));
+	assert.equal(notes.removed, 1, JSON.stringify(notes));
+});
+
 test("every changed file is listed, once, sorted by path", async () => {
 	const diff = await collectWorkspaceDiff(repo);
 	assert.deepEqual(
