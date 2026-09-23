@@ -27,11 +27,13 @@
  */
 
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { app, Menu, nativeImage, Tray } from "electron";
 import { trayMenu, type TrayAction, type TrayCommand, type TrayItem } from "./tray-menu.ts";
 import { resolveNativeLocale } from "./i18n.ts";
 import { settings } from "./app-settings.ts";
+import { autostartArgv, autostartFile, readAutostart, writeAutostart } from "./linux-autostart.ts";
 
 export type { TrayCommand } from "./tray-menu.ts";
 
@@ -101,12 +103,22 @@ function currentIcon(): Electron.NativeImage {
 
 /** Whether the app is set to start with the system, as the system itself reports it. */
 function launchAtLogin(): boolean {
+	// Electron's login items are macOS and Windows only; Linux reads its XDG autostart entry.
+	if (process.platform === "linux") return readAutostart(autostartFile(process.env, homedir()));
 	try {
 		return app.getLoginItemSettings().openAtLogin;
 	} catch {
-		// Linux desktops without an autostart implementation; the item simply reads as off.
 		return false;
 	}
+}
+
+function setLaunchAtLogin(enabled: boolean): void {
+	if (process.platform === "linux") {
+		const argv = autostartArgv({ appImage: process.env.APPIMAGE, packaged: app.isPackaged, execPath: process.execPath, appPath: app.getAppPath() });
+		writeAutostart(autostartFile(process.env, homedir()), enabled, argv);
+		return;
+	}
+	app.setLoginItemSettings({ openAtLogin: enabled });
 }
 
 function perform(action: TrayAction): void {
@@ -125,7 +137,7 @@ function perform(action: TrayAction): void {
 			break;
 		case "toggle-login":
 			try {
-				app.setLoginItemSettings({ openAtLogin: !launchAtLogin() });
+				setLaunchAtLogin(!launchAtLogin());
 			} catch {
 				// Nothing to report to: this is a menu item, and the tick simply stays where it was.
 			}
