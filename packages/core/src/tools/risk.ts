@@ -311,20 +311,21 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
  * A pipeline is risky if any stage is: `cat x | sudo tee /etc/hosts` is not made safe by
  * starting with `cat`.
  */
-export function assessCommand(command: string, cwd?: string, depth = 0): RiskVerdict {
+export function assessCommand(command: string, cwd?: string, depth = 0, dialects: readonly Dialect[] = commandDialects()): RiskVerdict {
 	/*
-	 * In every grammar the agent's shell might read it in — see `commandDialects`. Where that is
-	 * PowerShell, a line is judged by bash's reading and PowerShell's both, and either finding a
-	 * risk is enough.
+	 * In every grammar the shell might read it in — see `commandDialects`. Where PowerShell is one of
+	 * them, a line is judged by bash's reading and PowerShell's both, and either finding a risk is
+	 * enough: `echo "a\"; rm -rf ~; echo"` is one quoted string to bash, whose backslash escapes the
+	 * quote, and two commands to PowerShell, whose backslash is an ordinary character.
 	 */
-	for (const dialect of commandDialects()) {
-		const verdict = assessIn(command, cwd, depth, dialect);
+	for (const dialect of dialects) {
+		const verdict = assessIn(command, cwd, depth, dialect, dialects);
 		if (verdict.risky) return verdict;
 	}
 	return SAFE;
 }
 
-function assessIn(command: string, cwd: string | undefined, depth: number, dialect: Dialect): RiskVerdict {
+function assessIn(command: string, cwd: string | undefined, depth: number, dialect: Dialect, dialects: readonly Dialect[]): RiskVerdict {
 	/*
 	 * Downloading something and handing it to an interpreter.
 	 *
@@ -367,7 +368,7 @@ function assessIn(command: string, cwd: string | undefined, depth: number, diale
 		if (depth >= 4) continue;
 		const inner = wrappedCommand(piece, dialect);
 		if (!inner) continue;
-		const nested = assessCommand(inner, cwd, depth + 1);
+		const nested = assessCommand(inner, cwd, depth + 1, dialects);
 		if (nested.risky) return nested;
 	}
 	return SAFE;

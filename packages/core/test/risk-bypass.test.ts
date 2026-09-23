@@ -14,8 +14,17 @@ import { assessCommand } from "../src/tools/risk.ts";
 import { pipelines, splitCommands, splitWords } from "../src/tools/shell-split.ts";
 import { isReadOnlyCommand } from "../src/tools/bash.ts";
 
-const safe = (command: string) => assert.equal(assessCommand(command).risky, false, `应放行: ${command}`);
-const risky = (command: string) => assert.equal(assessCommand(command).risky, true, `应拦截: ${command}`);
+/*
+ * 都按 bash 的读法判断。
+ *
+ * 这个文件测的是「问题有没有问到对的那条命令上」，而那些绕法都是 bash 的语法。Windows 上
+ * `commandDialects()` 会同时给出 PowerShell 的读法（受约束的命令在那里跑 PowerShell），
+ * 于是 `echo "a\"; rm -rf ~; echo"`——bash 眼里反斜杠转义了引号、整行是一个字符串，PowerShell
+ * 眼里反斜杠就是个普通字符、后面是另一条命令——在 Windows 上被拦下来了，而这里恰恰要它放行。
+ * 拦下来在 Windows 上是对的（见 `assessCommand`），所以是这里把语法说明白，而不是那边放宽。
+ */
+const safe = (command: string) => assert.equal(assessCommand(command, undefined, 0, ["posix"]).risky, false, `应放行: ${command}`);
+const risky = (command: string) => assert.equal(assessCommand(command, undefined, 0, ["posix"]).risky, true, `应拦截: ${command}`);
 
 test("a wrapper is judged by what it wraps", () => {
 	// The first word is the wrapper in every one of these, and no wrapper is on any list.
@@ -315,7 +324,16 @@ test("a line is judged in both grammars where the shell is PowerShell", async (t
 		await rm(dir, { recursive: true, force: true });
 	});
 	assert.deepEqual(commandDialects(), ["posix", "powershell"]);
-	risky("Remove-Item -Recurse -Force ~");
+	// 默认的那组语法，而不是这个文件其余地方钉死的 bash——这条测的正是「默认那组是两种」。
+	assert.equal(assessCommand("Remove-Item -Recurse -Force ~").risky, true);
+	/*
+	 * 只有 PowerShell 的读法拦得住的那一条。
+	 *
+	 * bash 读这行：反斜杠转义了引号，整行是 `echo` 加一个字符串，里面的 `rm -rf ~` 是字面量。
+	 * PowerShell 读同一行：反斜杠不是转义，字符串在第二个引号处结束，后面是另一条命令。
+	 */
+	assert.equal(assessCommand('echo "a\\"; rm -rf ~; echo"', undefined, 0, ["posix"]).risky, false);
+	assert.equal(assessCommand('echo "a\\"; rm -rf ~; echo"').risky, true);
 });
 
 test("words lose their backslashes the way bash removes them", () => {
