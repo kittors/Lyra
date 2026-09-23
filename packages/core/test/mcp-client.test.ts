@@ -108,14 +108,8 @@ function alive(pid: number): boolean {
 	}
 }
 
-/**
- * Whether `pid` goes away within `ms` — a process asked to stop is not gone the same instant.
- *
- * Ten seconds, not three: on Windows a stop is a `taskkill /T /F` started as a process of its own,
- * and on a runner busy with the whole suite that alone took past three. It returns the moment the
- * process is gone, so the ceiling only costs anything when the stop really failed.
- */
-async function stopped(pid: number, ms = 10_000): Promise<boolean> {
+/** Whether `pid` goes away within `ms` — a process asked to stop is not gone the same instant. */
+async function stopped(pid: number, ms = 3000): Promise<boolean> {
 	const deadline = Date.now() + ms;
 	while (alive(pid)) {
 		if (Date.now() > deadline) return false;
@@ -315,9 +309,18 @@ test("disconnecting one bundle stops its servers and leaves the others running",
 	const fx = await fixture(t);
 	const manager = new McpManager();
 	try {
-		await manager.connect({ ...fx.server({}, "a"), origin: { bundle: "bundle-a" } });
-		await manager.connect({ ...fx.server({}, "b"), origin: { bundle: "bundle-b" } });
-		const [first, second] = await fx.started();
+		await manager.connect({ ...fx.server({ FAKE_MCP_DUMP_ENV: "1", WHICH: "a" }, "a"), origin: { bundle: "bundle-a" } });
+		await manager.connect({ ...fx.server({ FAKE_MCP_DUMP_ENV: "1", WHICH: "b" }, "b"), origin: { bundle: "bundle-b" } });
+		/*
+		 * Told apart by what each one says it is, not by the order of its pid file. `started()` lists
+		 * them as `readdir` does — by name — and Windows hands out pids from a free list rather than
+		 * counting up, so the second server's pid was often the smaller one: the test then waited for
+		 * the other bundle's server to stop, which it rightly never did.
+		 */
+		const which = new Map(await Promise.all((await fx.started()).map(async (pid) => [(await fx.env(pid)).WHICH, pid] as const)));
+		const first = which.get("a");
+		const second = which.get("b");
+		assert.ok(first !== undefined && second !== undefined, JSON.stringify([...which]));
 
 		/*
 		 * What updating or uninstalling a bundle does first. On Windows a running server holds its own
