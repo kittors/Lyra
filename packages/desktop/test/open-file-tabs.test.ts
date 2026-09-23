@@ -127,3 +127,19 @@ describe("closing tabs in bulk", () => {
 		assert.equal(useOpenFile.getState().drafts["/repo/c.ts"], undefined);
 	});
 });
+
+describe("renaming on Windows", () => {
+	it("a renamed tab is titled with the file's name, not the whole backslashed path", () => {
+		useOpenFile.setState({
+			tabs: [{ path: "C:\\repo\\a.ts", name: "a.ts" }],
+			path: null,
+			name: null,
+			contents: null,
+			opening: null,
+			loading: false,
+			drafts: {},
+		});
+		useOpenFile.getState().moved("C:\\repo\\a.ts", "C:\\repo\\b.ts");
+		assert.deepEqual(useOpenFile.getState().tabs, [{ path: "C:\\repo\\b.ts", name: "b.ts" }]);
+	});
+});
