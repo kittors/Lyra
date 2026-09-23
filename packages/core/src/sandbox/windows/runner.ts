@@ -24,6 +24,7 @@
 import { mkdirSync } from "node:fs";
 import * as abi from "./abi.ts";
 import { buildCommandLine } from "./identity.ts";
+import { shareMsysUserRegion, sidString, userSid } from "./msys.ts";
 import {
 	createRestrictedToken,
 	extendDefaultDacl,
@@ -140,8 +141,18 @@ function runConfined(args: Args): number {
 	delete process.env.ELECTRON_RUN_AS_NODE;
 
 	const token = createRestrictedToken(api, source, logon, world, capabilities);
-	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl` for which SID.
-	extendDefaultDacl(api, token, capabilities[0] ?? logon);
+	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl` for which SIDs.
+	extendDefaultDacl(api, token, [logon, ...capabilities]);
+	/*
+	 * Git Bash's per-user shared memory, when the user's own unconfined Git Bash made it first; see
+	 * `shareMsysUserRegion`. Done for every command, not only ones that start with bash: PowerShell
+	 * running `git commit` runs the hooks through Git's `sh`, which needs it just the same.
+	 */
+	try {
+		shareMsysUserRegion(api, sidString(userSid(api, source)), logon);
+	} catch {
+		// Best effort — see the function. A command that needed it fails with Cygwin's own message.
+	}
 
 	return spawnUnder(api, token, args);
 }
