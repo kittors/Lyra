@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { catalogModelFor } from "@lyra/core/model-catalog";
+import { zhCN } from "../src/i18n/messages/zh-CN.ts";
 import { startApp, type RunningApp } from "./app.ts";
 
 let app: RunningApp;
@@ -285,7 +286,13 @@ test("range, metric, breakdown and refresh controls update without blanking the 
 		const tokenChart = Boolean(document.querySelector('[data-usage-chart="tokens"]'));
 		click(byText("button", "日期"));
 		await wait(100);
-		const dayRows = /2026\\/\\d+\\/\\d+/.test(document.querySelector('[data-usage-dashboard="true"]')?.innerText || "");
+		/*
+		 * 读明细那张卡片，不读整页，年份也不写死。
+		 *
+		 * 整页顶上那行「2026/8/24 至 2026/9/22」本身就是个日期，这条一直是真的——按没按「日期」都一样；
+		 * 写死的 2026 又会在 fixture 的日期（相对今天往前推）跨年那天变红。
+		 */
+		const dayRows = /\\d{4}\\/\\d+\\/\\d+/.test(document.querySelector('[data-usage-breakdown="true"]')?.innerText || "");
 		const refresh = document.querySelector('button[aria-label="刷新用量统计"]');
 		click(refresh);
 		for (let index = 0; index < 100 && refresh.disabled; index++) await wait(20);
@@ -298,9 +305,18 @@ test("range, metric, breakdown and refresh controls update without blanking the 
 		};
 	`);
 
-	assert.match(result.emptyText, /暂无价格/);
-	assert.match(result.emptyText, /已处理 Token\s*0/);
-	assert.match(result.emptyText, /这个区间没有趋势数据/);
+	/*
+	 * 一条记录都没有的区间：一分钱没花，不是「算不出多少钱」。
+	 *
+	 * 「暂无价格」说的是有用量、但这些模型查不到价；空区间里那个数是确定的 $0.00（`UsageSettings`
+	 * 里 `totals.tokens === 0` 那一支）。文案从 zh-CN 读：这条上一次红，就是因为测试里抄了一份
+	 * 已经改掉的句子。
+	 */
+	const text = (key: keyof typeof zhCN) => new RegExp(zhCN[key].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+	assert.match(result.emptyText, new RegExp(`${text("usage.estimatedCost").source}\\s*\\$0\\.00`));
+	assert.doesNotMatch(result.emptyText, text("usage.noPrice"));
+	assert.match(result.emptyText, new RegExp(`${text("usage.tokensProcessed").source}\\s*0`));
+	assert.match(result.emptyText, text("usage.noTrend"));
 	assert.doesNotMatch(result.emptyText, /—/);
 	assert.ok(result.tokenChart, JSON.stringify(result));
 	assert.ok(result.dayRows, JSON.stringify(result));
