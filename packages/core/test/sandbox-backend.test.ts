@@ -91,8 +91,17 @@ test("workspace-write on Windows brings a private temp directory with an identit
 	assert.match(sid, /^S-1-4-\d+-\d+-1$/, "a temp identity, never the workspace's");
 	assert.notEqual(sid, wrap.args[wrap.args.indexOf("--write-sid") + 1]);
 
+	/*
+	 * Read-only gets the same private temp, and no workspace grant.
+	 *
+	 * The shell there is PowerShell, which runs in ConstrainedLanguage when it cannot write `%TEMP%`:
+	 * its own UTF-8 setup failed on every read-only command, and so did half of what a model writes.
+	 * The project stays unwritable — there is no `--write-sid`.
+	 */
 	const readOnly = confine({ mode: "read-only", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
-	assert.ok(readOnly && !readOnly.args.includes("--temp"), "a read-only command gets no temp to write either");
+	assert.ok(readOnly);
+	assert.equal(readOnly.args[readOnly.args.indexOf("--temp") + 1], temp, "the same scratch directory as workspace-write");
+	assert.ok(!readOnly.args.includes("--write-sid"), "and nothing of the project");
 });
 
 test("Linux falls back to Landlock where bwrap cannot run", () => {

@@ -137,7 +137,12 @@ function powershell(file: string, label: string): CommandShell {
 		args: (command) => {
 			const script = `${prelude}\n${command}`;
 			const encoded = Buffer.from(script, "utf16le").toString("base64");
-			const flags = ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"];
+			/*
+			 * `-OutputFormat Text` spelled out: a command given as `-EncodedCommand` otherwise gets its
+			 * errors written as serialized CLIXML — `#< CLIXML <Objs …><S S="Error">…` — which is what
+			 * the model then had to read in place of a one-line error.
+			 */
+			const flags = ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-OutputFormat", "Text"];
 			return encoded.length <= MAX_ENCODED_COMMAND ? [...flags, "-EncodedCommand", encoded] : [...flags, "-File", scriptFile(script)];
 		},
 	};

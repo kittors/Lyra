@@ -239,24 +239,29 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
 }
 
 /**
- * Add a full-access ACE for one restricting SID to the token's *default* DACL.
+ * Add full-access ACEs to the token's *default* DACL, for the SIDs given.
  *
  * Subtle and necessary. The default DACL is what every new object the process creates gets when it
- * does not supply one of its own — including the anonymous pipes Node makes for a child's stdio.
- * The restricted token inherits the user's default DACL, which names none of the restricting SIDs,
- * so those pipes fail the second write check at creation: `ERROR_ACCESS_DENIED`, surfacing as
- * `spawn EPERM`, and every piped grandchild fails to start.
+ * does not supply one of its own — its own process and thread objects, and the anonymous pipes Node
+ * makes for a child's stdio. A write-restricted token passes an access check only when *both* checks
+ * pass: the ordinary one, against the token's groups, and the second, against its restricting SIDs.
+ * So an entry here has to name a SID that each check accepts.
  *
- * Naming a restricting SID here lets new objects pass that check while leaving object *creation*
- * gated by the parent directory's DACL — a file outside the granted tree still cannot be made.
+ * Only the logon SID is in both lists, and that is why it is always here. The capability SID alone —
+ * which this used to add under `workspace-write` — satisfies the second check and never the first: it
+ * is not one of the token's groups. That went unnoticed wherever the inherited default DACL already
+ * granted the user, and failed wherever it did not. An elevated administrator's names Administrators
+ * and SYSTEM — Administrators being deny-only once the token is filtered — so a command could not
+ * open its own process object and died in loader initialisation, `0xC0000142`, before its first
+ * instruction: every confined command, for anyone running Lyra as administrator. It showed in CI only
+ * under a PowerShell step; Git Bash rewrites its own default DACL to grant the user, and everything
+ * started beneath it inherits that.
  *
- * Which SID: the workspace capability when there is one — nothing else carries it — and otherwise
- * the logon SID, never Everyone. Everyone would open every object the command creates to every
- * account on the machine; the logon SID reaches no further than this sign-in, whose user already
- * has full access to them through the user SID. Not inheritable: a default DACL is not a container's,
- * and the entry has nothing to be inherited by.
+ * Never Everyone, which would open every object the command creates to every account on the machine;
+ * the logon SID reaches no further than this sign-in. Not inheritable: a default DACL is not a
+ * container's, and the entries have nothing to be inherited by.
  */
-export function extendDefaultDacl(api: Win32, token: Ptr, sid: Ptr | Buffer): void {
+export function extendDefaultDacl(api: Win32, token: Ptr, sids: readonly (Ptr | Buffer)[]): void {
 	const needed = uint32Slot();
 	api.getTokenInformation(token, abi.TokenDefaultDacl, null, 0, needed);
 	const size = needed.readUInt32LE(0);
@@ -272,7 +277,8 @@ export function extendDefaultDacl(api: Win32, token: Ptr, sid: Ptr | Buffer): vo
 	if (current === null) throw new Error("令牌没有默认 DACL 可以扩展");
 
 	const merged = ptrSlot();
-	const result = api.setEntriesInAclW(1, explicitAccess(sid, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS, abi.NO_INHERITANCE), current, merged);
+	const entries = Buffer.concat(sids.map((sid) => explicitAccess(sid, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS, abi.NO_INHERITANCE)));
+	const result = api.setEntriesInAclW(sids.length, entries, current, merged);
 	if (result !== abi.ERROR_SUCCESS) fail(api, "SetEntriesInAclW", "默认 DACL 合并", result);
 	const newDacl = readPtr(merged);
 	if (newDacl === null) fail(api, "SetEntriesInAclW", "默认 DACL 合并结果为空", result);

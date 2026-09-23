@@ -85,8 +85,7 @@ export function parseArgs(argv: readonly string[]): Args {
 	const temp = options.get("temp");
 	const tempSid = options.get("temp-sid");
 	if (Boolean(temp) !== Boolean(tempSid)) throw new Error("--temp 和 --temp-sid 必须一起给");
-	// A read-only command gets no temp to write either, the same as under Seatbelt and bwrap.
-	if (temp && mode !== "workspace-write") throw new Error("只有 workspace-write 才有可写的临时目录");
+	// Both modes get one: without a writable temp, PowerShell runs constrained. See `runnerArgv`.
 	if (tempSid && !CAPABILITY_SID.test(tempSid)) throw new Error(`--temp-sid 格式不对：${tempSid}`);
 
 	return { workspace, mode, ...(writeSid ? { writeSid } : {}), ...(temp && tempSid ? { temp, tempSid } : {}), command };
@@ -140,8 +139,8 @@ function runConfined(args: Args): number {
 	delete process.env.ELECTRON_RUN_AS_NODE;
 
 	const token = createRestrictedToken(api, source, logon, world, capabilities);
-	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl` for which SID.
-	extendDefaultDacl(api, token, capabilities[0] ?? logon);
+	// Without this the child cannot open its own process or create its stdio pipes; see `extendDefaultDacl`.
+	extendDefaultDacl(api, token, [logon, ...capabilities]);
 
 	return spawnUnder(api, token, args);
 }

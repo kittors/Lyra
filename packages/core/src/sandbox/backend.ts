@@ -160,8 +160,19 @@ function runnerArgv(runner: "landlock" | "windows-acl", policy: SandboxPolicy): 
 	const args = [...(entry.endsWith(".ts") ? ["--experimental-strip-types", "--no-warnings"] : []), entry, SANDBOX_RUNNER_FLAG];
 	const workspace = canonicalPath(policy.workspaceRoot);
 	args.push("--workspace", workspace, "--mode", policy.mode);
-	if (runner === "windows-acl" && policy.mode === "workspace-write") {
-		args.push("--write-sid", workspaceWriteSid(workspace));
+	if (runner === "windows-acl") {
+		if (policy.mode === "workspace-write") args.push("--write-sid", workspaceWriteSid(workspace));
+		/*
+		 * A private temp in read-only too, on this platform alone.
+		 *
+		 * Confined commands run in PowerShell here, and PowerShell decides its language mode by
+		 * writing a probe script into `%TEMP%` and asking AppLocker about it. A temp it cannot write
+		 * reads as a locked-down machine, and it runs in ConstrainedLanguage: no property may be set
+		 * and no method called on anything but a handful of core types — its own UTF-8 setup among
+		 * them, so every read-only command began with an error and then half of what a model writes
+		 * failed. The directory is scratch of this workspace's own; the project and the rest of the
+		 * disk stay exactly as unwritable as read-only promises.
+		 */
 		const temp = privateTemp(workspace);
 		args.push("--temp", temp, "--temp-sid", tempWriteSid(temp));
 	}

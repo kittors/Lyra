@@ -148,6 +148,24 @@ test("read-only: nothing in the project is writable, and reading still works", {
 	assert.match(r.out, /read-ok/, r.out);
 });
 
+test("confined PowerShell is the whole language, speaks UTF-8, and reports errors as text", { skip, timeout: 60_000 }, async (t) => {
+	/*
+	 * Three things that each broke confined commands without failing a single write test:
+	 * ConstrainedLanguage when `%TEMP%` was not writable (read-only), which also took the UTF-8 setup
+	 * down with it; and errors serialized as CLIXML, the default for `-EncodedCommand`.
+	 */
+	const ws = await mkdtemp(join(tmpdir(), "lyra-win-lang-"));
+	t.after(() => rm(ws, { recursive: true, force: true }));
+	for (const mode of ["read-only", "workspace-write"] as const) {
+		const r = await run("Write-Output $ExecutionContext.SessionState.LanguageMode; Write-Output 中文输出; Write-Error boom; Write-Output after", ws, mode);
+		assert.match(r.out, /FullLanguage/, `${mode}: ${r.out}`);
+		assert.match(r.out, /中文输出/, `${mode}: ${r.out}`);
+		assert.match(r.out, /boom/, `${mode}: ${r.out}`);
+		assert.ok(!r.out.includes("CLIXML"), `${mode}: an error as XML, not as text: ${r.out}`);
+		assert.match(r.out, /after/, `${mode}: ${r.out}`);
+	}
+});
+
 test("full access runs Git Bash, unconfined", { skip, timeout: 60_000 }, async (t) => {
 	const ws = await mkdtemp(join(tmpdir(), "lyra-win-full-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
