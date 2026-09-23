@@ -196,7 +196,10 @@ function diffDeletionMarker(hunk: Hunk, lines: string[]): string | null {
 	const span = hunk.end - hunk.start + 1;
 	for (let n = 0; n < hunk.lines.length && n < span; n++) {
 		const payload = hunk.lines[n];
-		if (!payload.startsWith("-") || payload.slice(1) !== lines[hunk.start - 1 + n]) {
+		// A file with mixed breaks is patched as stored (see `text-layout.ts`), so its CRLF lines still
+		// end in `\r` here while a payload never does — compared as is, the guard missed every one.
+		const line = lines[hunk.start - 1 + n] ?? "";
+		if (!payload.startsWith("-") || payload.slice(1) !== (line.endsWith("\r") ? line.slice(0, -1) : line)) {
 			return n > 0 ? hunk.lines[0] : null;
 		}
 	}

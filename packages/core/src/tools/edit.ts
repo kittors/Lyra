@@ -28,6 +28,7 @@ import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag } from ".
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
 import { indexToLineCol } from "./long-line.ts";
 import { hasRead, markRead, readRecord, wasShown, wasShownChars } from "./read.ts";
+import { decodeInput, decodeText, encodeText, type TextLayout } from "./text-layout.ts";
 
 interface EditArgs {
 	path: string;
@@ -99,14 +100,20 @@ export const editTool: Tool<EditArgs> = {
 			return errorResult(`Read ${args.path} before editing it.`);
 		}
 
-		let before: string;
+		let raw: string;
 		try {
-			before = await readFile(absolute, "utf8");
+			raw = await readFile(absolute, "utf8");
 		} catch {
 			return errorResult(`File not found: ${args.path}`);
 		}
+		/*
+		 * Everything below works on the decoded text — the form `read` showed and fingerprinted — and
+		 * only what is written is re-encoded. `raw` is what the change record keeps, so an undo puts the
+		 * file back byte for byte, BOM and CRLF included.
+		 */
+		const { text: before, layout } = decodeText(raw);
 
-		const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, args.path, ctx, absolute);
+		const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, layout, ctx, absolute);
 		if ("error" in outcome) return errorResult(outcome.error);
 		const { after, summary } = outcome;
 
@@ -125,9 +132,10 @@ export const editTool: Tool<EditArgs> = {
 			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this edit.");
 		}
 
-		if (await readFile(absolute, "utf8") !== before) return errorResult("The file changed while awaiting approval. Read it again before editing.");
-		const changeId = await recordFileChange(ctx, absolute, before, after);
-		await writeFile(absolute, after, "utf8");
+		if (await readFile(absolute, "utf8") !== raw) return errorResult("The file changed while awaiting approval. Read it again before editing.");
+		const written = encodeText(after, layout);
+		const changeId = await recordFileChange(ctx, absolute, raw, written);
+		await writeFile(absolute, written, "utf8");
 		/*
 		 * Re-record against the file as it now is, so a follow-up edit in the same turn quotes the
 		 * new fingerprint. Without this every second edit would be rejected as stale — by us.
@@ -230,18 +238,23 @@ function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof h
 function applyStringForm(
 	args: EditArgs,
 	before: string,
-	path: string,
+	layout: TextLayout,
 	ctx: Parameters<typeof hasRead>[0],
 	absolute: string,
 ): Outcome {
+	const path = args.path;
 	if (typeof args.old_string !== "string" || typeof args.new_string !== "string") {
 		return { error: "`old_string` and `new_string` must both be strings." };
 	}
-	if (args.old_string === args.new_string) {
+	// In the file's decoded form: a multi-line `old_string` written with `\n` has to be found in a CRLF
+	// file (it never was), and `new_string` takes on the file's breaks when it is written back.
+	const oldString = decodeInput(args.old_string, layout);
+	const newString = decodeInput(args.new_string, layout);
+	if (oldString === newString) {
 		return { error: "`old_string` and `new_string` are identical, so this edit would do nothing." };
 	}
 
-	const occurrences = countOccurrences(before, args.old_string);
+	const occurrences = countOccurrences(before, oldString);
 	if (occurrences === 0) {
 		return {
 			error:
@@ -258,7 +271,7 @@ function applyStringForm(
 	}
 
 	const record = readRecord(ctx, absolute);
-	if (record && !stringSpanShown(record, before, args.old_string, Boolean(args.replace_all))) {
+	if (record && !stringSpanShown(record, before, oldString, Boolean(args.replace_all))) {
 		return {
 			error:
 				`\`old_string\` sits in a part of ${path} you have not read. ` +
@@ -271,8 +284,7 @@ function applyStringForm(
 	 * `` $` `` and `$'` as patterns, so shell and template code in `new_string` was rewritten on the
 	 * way in (`$$` lost a dollar, `$&` turned into the matched text).
 	 */
-	const replacement = args.new_string;
-	const after = args.replace_all ? before.split(args.old_string).join(replacement) : before.replace(args.old_string, () => replacement);
+	const after = args.replace_all ? before.split(oldString).join(newString) : before.replace(oldString, () => newString);
 	const count = args.replace_all ? occurrences : 1;
 	return { after, summary: `${count} replacement${count === 1 ? "" : "s"}` };
 }

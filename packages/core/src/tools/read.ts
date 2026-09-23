@@ -7,6 +7,7 @@ import { charWindow, coversChars, formatCharWindow, longLineFooter, MAX_LINE_CHA
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
 import { authorizeRead } from "./read-access.ts";
+import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
 
 const DEFAULT_LIMIT = 2000;
@@ -255,7 +256,8 @@ export const readTool: Tool<ReadArgs> = {
 			return errorResult(`${args.path} looks like a binary file (${info.size} bytes) and cannot be read as text.`);
 		}
 
-		const text = buffer.toString("utf8");
+		// Decoded, as edit and write decode it: the tag and the line numbers below must match theirs.
+		const { text } = decodeText(buffer.toString("utf8"));
 		const allLines = text.split("\n");
 		// A trailing newline produces a final empty element that is not a real line.
 		if (allLines.length > 1 && allLines[allLines.length - 1] === "") allLines.pop();
