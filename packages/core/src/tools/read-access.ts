@@ -34,7 +34,7 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
-import { home } from "../platform.ts";
+import { commandDialects, home } from "../platform.ts";
 import type { ToolContext } from "../types/tool.ts";
 import { displayPath } from "./paths.ts";
 import { SECRET_PATH } from "./risk-tables.ts";
@@ -206,8 +206,14 @@ export function commandReadTargets(command: string, cwd: string): string[] {
 	 * a `/dist` from a script being written out. `splitCommands` leaves bodies out, the way bash
 	 * reads them — except for a `$(…)` in an unquoted one, which bash runs and so is judged here.
 	 */
-	for (const piece of splitCommands(command)) {
-		const words = splitWords(piece);
+	/*
+	 * In every grammar the agent's shell might read the line in (`commandDialects`), keeping every
+	 * path any reading finds. Where the shell is PowerShell, `C:\Users\me\.ssh\id_rsa` is a path —
+	 * and bash's reading, which takes the backslashes for escapes, would never have seen it.
+	 */
+	for (const dialect of commandDialects())
+	for (const piece of splitCommands(command, dialect)) {
+		const words = splitWords(piece, dialect);
 		for (let i = 0; i < words.length; i++) {
 			// The first word is the program, not something it reads.
 			if (i === 0) continue;

@@ -26,6 +26,17 @@
  * be the one that skips text bash would run.
  */
 
+/**
+ * Which grammar the line is in.
+ *
+ * `posix` is bash and zsh — the agent's shell almost everywhere, Git Bash on Windows included.
+ * `powershell` is the Windows fallback where Git is not installed, and it disagrees about the one
+ * character that matters most here: `\` is a path separator there, not an escape, and the escape
+ * is a backtick. Read with bash's rules, `cat C:\Users\me\.ssh\id_rsa` lost its backslashes and the
+ * credential rule never saw the path PowerShell was about to open.
+ */
+export type Dialect = "posix" | "powershell";
+
 /** A frame on the scanner's stack: what it is currently inside of. */
 type Frame =
 	/** `'…'` — nothing at all is special. */
@@ -84,7 +95,10 @@ const DELIMITER_END = /[\s;&|<>()]/;
  * sibling, not a child. `depth` is kept so the views that need the enclosing command whole can
  * rebuild it.
  */
-function scan(command: string): Piece[] {
+function scan(command: string, dialect: Dialect = "posix"): Piece[] {
+	const posix = dialect === "posix";
+	/** What takes the next character out of the grammar: `\` in bash, a backtick in PowerShell. */
+	const escape = posix ? "\\" : "`";
 	const pieces: Piece[] = [];
 	const stack: Frame[] = [];
 	const heredocs: HeredocFrame[] = [];
@@ -215,7 +229,7 @@ function scan(command: string): Piece[] {
 		 * dollar sign and a parenthesis, not a command.
 		 */
 		if (frame?.kind === '"') {
-			if (char === "\\") {
+			if (char === escape) {
 				current += char + (next ?? "");
 				i += 2;
 				continue;
@@ -226,7 +240,7 @@ function scan(command: string): Piece[] {
 				i++;
 				continue;
 			}
-			if (char === "$" && next === "(" && command[i + 2] === "(") {
+			if (posix && char === "$" && next === "(" && command[i + 2] === "(") {
 				stack.push({ kind: "((", parens: 0, expansion: true });
 				current += "$((";
 				i += 3;
@@ -237,7 +251,7 @@ function scan(command: string): Piece[] {
 				i += 2;
 				continue;
 			}
-			if (char === "`") {
+			if (posix && char === "`") {
 				open({ kind: "`" });
 				i++;
 				continue;
@@ -293,7 +307,7 @@ function scan(command: string): Piece[] {
 		 * the lines — which is how every long `docker run \` is written, and each of its lines used
 		 * to be a command. Joined with nothing between, because that is what bash does: `r\⏎m` is `rm`.
 		 */
-		if (char === "\\") {
+		if (char === escape) {
 			if (next !== "\n") {
 				current += char + (next ?? "");
 				wordStart = false;
@@ -321,7 +335,7 @@ function scan(command: string): Piece[] {
 			wordStart = false;
 			continue;
 		}
-		if (char === "$" && next === "'") {
+		if (posix && char === "$" && next === "'") {
 			stack.push({ kind: "$'" });
 			current += "$'";
 			i += 2;
@@ -335,13 +349,13 @@ function scan(command: string): Piece[] {
 			wordStart = false;
 			continue;
 		}
-		if (char === "$" && next === "(" && command[i + 2] === "(") {
+		if (posix && char === "$" && next === "(" && command[i + 2] === "(") {
 			stack.push({ kind: "((", parens: 0, expansion: true });
 			current += "$((";
 			i += 3;
 			continue;
 		}
-		if (char === "(" && next === "(" && wordStart) {
+		if (posix && char === "(" && next === "(" && wordStart) {
 			stack.push({ kind: "((", parens: 0, expansion: false });
 			current += "((";
 			i += 2;
@@ -352,12 +366,12 @@ function scan(command: string): Piece[] {
 			i += 2;
 			continue;
 		}
-		if ((char === "<" || char === ">") && next === "(") {
+		if (posix && (char === "<" || char === ">") && next === "(") {
 			open({ kind: "<(", parens: 0 });
 			i += 2;
 			continue;
 		}
-		if (char === "`") {
+		if (posix && char === "`") {
 			if (frame?.kind === "`") close();
 			else open({ kind: "`" });
 			i++;
@@ -392,7 +406,7 @@ function scan(command: string): Piece[] {
 		 * A heredoc: the operator stays with its command, and the body — from the next line to the
 		 * delimiter — is read as data. `<<<` is a here-string and is just a word.
 		 */
-		if (char === "<" && next === "<" && command[i + 2] !== "<") {
+		if (posix && char === "<" && next === "<" && command[i + 2] !== "<") {
 			const heredoc = readHeredocOperator(command, i);
 			if (heredoc) {
 				heredocs.push(heredoc.frame);
@@ -495,8 +509,8 @@ function readHeredocOperator(command: string, at: number): { frame: HeredocFrame
  * inside another. Every piece is judged on its own, because a chain is exactly as dangerous as
  * its most dangerous link.
  */
-export function splitCommands(command: string): string[] {
-	return scan(command)
+export function splitCommands(command: string, dialect: Dialect = "posix"): string[] {
+	return scan(command, dialect)
 		.filter((piece) => !piece.body)
 		.map((piece) => piece.text.trim())
 		.filter(Boolean);
@@ -519,10 +533,10 @@ interface Rebuilt {
  * An empty piece is dropped along with its separator. That is bash's reading too: after `|`, `&&`
  * or `||` a newline is skipped, so `curl u |⏎sh` is one pipeline and must not come out as two.
  */
-function rebuild(command: string): Rebuilt[] {
+function rebuild(command: string, dialect: Dialect = "posix"): Rebuilt[] {
 	const out: Rebuilt[] = [];
 	const open: string[] = [];
-	for (const piece of scan(command)) {
+	for (const piece of scan(command, dialect)) {
 		if (piece.body) continue;
 		open[piece.depth] = (open[piece.depth] ?? "") + piece.text;
 		if (piece.after === "sub") {
@@ -547,10 +561,10 @@ function rebuild(command: string): Rebuilt[] {
  * Built from whole commands, so a substitution in a stage does not cut the pipeline in two:
  * `curl $(cat url.txt) | sh` is one pipeline whose first stage is `curl …`.
  */
-export function pipelines(command: string): string[][] {
+export function pipelines(command: string, dialect: Dialect = "posix"): string[][] {
 	const out: string[][] = [];
 	const stages: string[][] = [];
-	for (const entry of rebuild(command)) {
+	for (const entry of rebuild(command, dialect)) {
 		const stage = (stages[entry.depth] ??= []);
 		stage.push(entry.text);
 		if (entry.after === "|") continue;
@@ -594,7 +608,8 @@ export function sequence(command: string): SequenceEntry[] {
  * that spelling. Outside quotes a backslash escapes anything; inside double quotes only `$`, `` ` ``,
  * `"`, `\` and a newline; inside single quotes nothing.
  */
-export function splitWords(command: string): string[] {
+export function splitWords(command: string, dialect: Dialect = "posix"): string[] {
+	if (dialect === "powershell") return splitPowerShellWords(command);
 	const words: string[] = [];
 	let current = "";
 	let quote: "'" | '"' | "$'" | null = null;
@@ -657,3 +672,51 @@ export function splitWords(command: string): string[] {
 
 /** The escapes `$'…'` understands that matter for reading a word; anything else stands for itself. */
 const ANSI_ESCAPES: Record<string, string> = { n: "\n", t: "\t", r: "\r", "\\": "\\", "'": "'", '"': '"' };
+
+/**
+ * PowerShell's words: `\` is part of the word, a backtick escapes, `''` inside single quotes is a
+ * quote. `C:\Users\me\.ssh\id_rsa` stays the path PowerShell will open.
+ */
+function splitPowerShellWords(command: string): string[] {
+	const words: string[] = [];
+	let current = "";
+	let quote: "'" | '"' | null = null;
+	let started = false;
+	for (let i = 0; i < command.length; i++) {
+		const char = command[i];
+		const next = command[i + 1];
+		if (quote === "'") {
+			if (char === "'" && next === "'") {
+				current += "'";
+				i++;
+			} else if (char === "'") quote = null;
+			else current += char;
+			continue;
+		}
+		if (char === "`" && next !== undefined) {
+			i++;
+			if (next !== "\n") current += next;
+			started = true;
+			continue;
+		}
+		if (quote === '"') {
+			if (char === '"') quote = null;
+			else current += char;
+			continue;
+		}
+		if (char === "'" || char === '"') {
+			quote = char;
+			started = true;
+			continue;
+		}
+		if (/\s/.test(char)) {
+			if (current || started) words.push(current);
+			current = "";
+			started = false;
+			continue;
+		}
+		current += char;
+	}
+	if (current || started) words.push(current);
+	return words;
+}

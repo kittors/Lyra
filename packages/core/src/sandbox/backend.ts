@@ -192,44 +192,57 @@ function privateTemp(workspace: string): string {
  * it accepts the rest. `true` is the command because it exists everywhere, writes nothing, and its
  * exit code is unambiguous — `cmd.exe /c exit 0` being Windows' spelling of it.
  */
-function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string, network: SandboxNetwork): boolean {
+function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string, network: SandboxNetwork): { ok: boolean; why?: string } {
 	const policy: SandboxPolicy = {
 		mode: "read-only",
 		workspaceRoot: runner === "windows-acl" ? process.cwd() : "/",
 		network,
 	};
 	try {
+		let probe: ReturnType<typeof spawnSync>;
 		if (runner === "windows-acl" || runner === "landlock") {
 			// Landlock is not worth a process when the kernel has none; that answer is free.
-			if (runner === "landlock" && landlockAbi() < 2) return false;
+			if (runner === "landlock" && landlockAbi() < 2) return { ok: false, why: `Landlock ABI ${landlockAbi()}` };
 			const wrap = runnerArgv(runner, policy);
 			const command = runner === "windows-acl" ? ["cmd.exe", "/c", "exit 0"] : ["true"];
-			const probe = spawnSync(wrap.command, [...wrap.args, ...command], {
+			probe = spawnSync(wrap.command, [...wrap.args, ...command], {
 				timeout: PROBE_TIMEOUT_MS,
-				stdio: "ignore",
+				stdio: ["ignore", "ignore", "pipe"],
+				encoding: "utf8",
 				windowsHide: true,
 				env: { ...process.env, ...wrap.env },
 			});
-			// The runner exits 127 with its own prefix when it cannot confine; anything but a clean
-			// zero means this host cannot be trusted to enforce, so it is not offered.
-			return probe.status === 0;
+		} else {
+			probe =
+				runner === "seatbelt"
+					? spawnSync(seatbeltExec, [...seatbeltArgs(policy), "--", "true"], {
+							timeout: PROBE_TIMEOUT_MS,
+							stdio: ["ignore", "ignore", "pipe"],
+							encoding: "utf8",
+						})
+					: spawnSync("bwrap", [...bwrapArgs(policy), "--", "true"], {
+							timeout: PROBE_TIMEOUT_MS,
+							stdio: ["ignore", "ignore", "pipe"],
+							encoding: "utf8",
+						});
 		}
-		const probe =
-			runner === "seatbelt"
-				? spawnSync(seatbeltExec, [...seatbeltArgs(policy), "--", "true"], {
-						timeout: PROBE_TIMEOUT_MS,
-						stdio: "ignore",
-					})
-				: spawnSync("bwrap", [...bwrapArgs(policy), "--", "true"], {
-						timeout: PROBE_TIMEOUT_MS,
-						stdio: "ignore",
-					});
-		return probe.status === 0;
-	} catch {
+		/*
+		 * Our runners exit 127 with their own prefix when they cannot confine; anything but a clean
+		 * zero means this host cannot be trusted to enforce, so it is not offered. What the runner
+		 * said is kept: "no sandbox backend" with no reason was all anyone got, on the one platform
+		 * where the reason was a bug.
+		 */
+		if (probe.status === 0) return { ok: true };
+		const said = String(probe.stderr ?? "").trim().split("\n").slice(-3).join(" ").slice(0, 400);
+		return { ok: false, why: said || (probe.error ? probe.error.message : `exit ${probe.status ?? probe.signal}`) };
+	} catch (error) {
 		// Spawning the runner itself failed — it is not there, or not executable.
-		return false;
+		return { ok: false, why: error instanceof Error ? error.message : String(error) };
 	}
 }
+
+/** Why each runner that was tried could not be used here, for the error that says so. */
+const probeFailures = new Map<string, string>();
 
 /**
  * The probe result for this process.
@@ -243,6 +256,7 @@ const probed = new Map<string, boolean>();
 /** Forget the cached probes. For tests, which need to probe again with different hooks. */
 export function resetProbeCache(): void {
 	probed.clear();
+	probeFailures.clear();
 }
 
 /**
@@ -268,7 +282,12 @@ export function selectRunner(hooks: BackendHooks = {}, network: SandboxNetwork =
 		const key = `${platform}:${runner}:${seatbeltExec}:${network}:${runnerEntry ?? ""}`;
 		let ok = probed.get(key);
 		if (ok === undefined) {
-			ok = hooks.probe ? hooks.probe(runner) : probeRunner(runner, seatbeltExec, network);
+			if (hooks.probe) ok = hooks.probe(runner);
+			else {
+				const verdict = probeRunner(runner, seatbeltExec, network);
+				ok = verdict.ok;
+				if (verdict.why) probeFailures.set(`${platform}:${runner}`, verdict.why);
+			}
 			probed.set(key, ok);
 		}
 		if (ok) return runner;
@@ -296,8 +315,10 @@ export function confine(policy: SandboxPolicy, hooks: BackendHooks = {}): Confin
 	const runner = selectRunner(hooks, network);
 	if (runner === "none") {
 		const platform = hooks.platform ?? process.platform;
+		const reasons = [...probeFailures].filter(([key]) => key.startsWith(`${platform}:`)).map(([key, why]) => `${key.split(":")[1]}：${why}`);
 		throw new SandboxUnavailableError(
-			`这台机器上没有可用的沙箱后端（平台 ${platform}），无法以「${policy.mode}」模式运行。`,
+			`这台机器上没有可用的沙箱后端（平台 ${platform}），无法以「${policy.mode}」模式运行。` +
+				(reasons.length ? `原因：${reasons.join("；")}` : ""),
 		);
 	}
 	if (network === "deny" && !ENFORCES_NETWORK[runner]) {

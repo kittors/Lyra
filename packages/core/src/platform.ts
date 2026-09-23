@@ -212,6 +212,17 @@ export function loginShell(): string {
 	return existsSync("/bin/bash") ? "/bin/bash" : "/bin/sh";
 }
 
+/**
+ * The grammars a command line should be read in, to judge it.
+ *
+ * Both, where the shell is PowerShell: the rules that read commands for risk and for reads were
+ * written for bash, and a line that means one thing to bash and another to PowerShell has to be
+ * judged by whichever reading finds more. Where the shell is bash or zsh, bash's alone.
+ */
+export function commandDialects(): ("posix" | "powershell")[] {
+	return systemShell().kind === "powershell" ? ["posix", "powershell"] : ["posix"];
+}
+
 /** Forget the chosen shell, for tests that change the environment it was chosen from. */
 export function resetSystemShell(): void {
 	cachedShell = undefined;

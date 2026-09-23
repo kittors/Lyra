@@ -287,6 +287,37 @@ test("PowerShell and cmd are judged by what they do", () => {
 	safe("powershell -Command \"Get-Process\"");
 });
 
+test("PowerShell's words keep their backslashes, and its escape is a backtick", () => {
+	// Read with bash's rules this path lost its separators, and the credential rule never saw it.
+	assert.deepEqual(splitWords("cat C:\\Users\\me\\.ssh\\id_rsa", "powershell"), ["cat", "C:\\Users\\me\\.ssh\\id_rsa"]);
+	assert.deepEqual(splitWords("echo 'it''s'", "powershell"), ["echo", "it's"]);
+	assert.deepEqual(splitWords('echo "say `"hi`""', "powershell"), ["echo", 'say "hi"']);
+	assert.deepEqual(splitCommands("Get-Item x; Remove-Item -Recurse y", "powershell"), ["Get-Item x", "Remove-Item -Recurse y"]);
+	// A backtick is not a command substitution there.
+	assert.deepEqual(splitCommands("echo `$HOME", "powershell"), ["echo `$HOME"]);
+});
+
+test("a line is judged in both grammars where the shell is PowerShell", async (t) => {
+	const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+	const { tmpdir } = await import("node:os");
+	const { join } = await import("node:path");
+	const { commandDialects, resetSystemShell } = await import("../src/platform.ts");
+	const dir = await mkdtemp(join(tmpdir(), "lyra-pwsh-"));
+	const fake = join(dir, "pwsh");
+	await writeFile(fake, "");
+	const before = process.env.LYRA_SHELL;
+	process.env.LYRA_SHELL = fake;
+	resetSystemShell();
+	t.after(async () => {
+		if (before === undefined) delete process.env.LYRA_SHELL;
+		else process.env.LYRA_SHELL = before;
+		resetSystemShell();
+		await rm(dir, { recursive: true, force: true });
+	});
+	assert.deepEqual(commandDialects(), ["posix", "powershell"]);
+	risky("Remove-Item -Recurse -Force ~");
+});
+
 test("words lose their backslashes the way bash removes them", () => {
 	assert.deepEqual(splitWords("cat ~/.ss\\h/id_rsa"), ["cat", "~/.ssh/id_rsa"]);
 	assert.deepEqual(splitWords("cat my\\ file.txt"), ["cat", "my file.txt"]);

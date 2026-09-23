@@ -10,12 +10,13 @@
  */
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { resetProbeCache, selectRunner } from "../src/sandbox/backend.ts";
+import { confine, resetProbeCache, selectRunner } from "../src/sandbox/backend.ts";
 import { LocalSandbox } from "../src/sandbox/local.ts";
 import { resetSystemShell, systemShell } from "../src/platform.ts";
 import type { SandboxMode } from "../src/sandbox/policy.ts";
@@ -35,9 +36,33 @@ function run(command: string, cwd: string, mode: SandboxMode): Promise<{ code: n
 	});
 }
 
+test("the runner, started directly, confines a trivial command — and says why when it cannot", { skip, timeout: 60_000 }, () => {
+	// The probe's verdict is a boolean; this is the same call with everything it printed kept.
+	const wrap = confine({ mode: "read-only", workspaceRoot: process.cwd() }, { platform: "win32", probe: () => true });
+	assert.ok(wrap);
+	const started = spawnSync(wrap.command, [...wrap.args, "cmd.exe", "/c", "echo confined"], {
+		encoding: "utf8",
+		env: { ...process.env, ...wrap.env },
+		windowsHide: true,
+		timeout: 30_000,
+	});
+	assert.equal(
+		started.status,
+		0,
+		`runner exit ${started.status} signal ${started.signal}\nargv: ${JSON.stringify([wrap.command, ...wrap.args])}\nstderr: ${started.stderr}\nstdout: ${started.stdout}\nerror: ${started.error?.message}`,
+	);
+	assert.match(started.stdout, /confined/);
+});
+
 test("the runner really starts: the probe passes and the restricted token is selected", { skip }, () => {
 	resetProbeCache();
-	assert.equal(selectRunner(), "windows-acl");
+	let reason = "";
+	try {
+		confine({ mode: "read-only", workspaceRoot: process.cwd() });
+	} catch (error) {
+		reason = error instanceof Error ? error.message : String(error);
+	}
+	assert.equal(selectRunner(), "windows-acl", reason);
 });
 
 test("the agent's commands run in Git Bash on a Windows that has Git", { skip }, () => {

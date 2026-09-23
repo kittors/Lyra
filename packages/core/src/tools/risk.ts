@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import { withinOrIs } from "../platform.ts";
+import { commandDialects, withinOrIs } from "../platform.ts";
 import { SAFE, risky, scratchRoots, underScratchRoot, wipesScratchRoot, type RiskVerdict } from "./risk-shared.ts";
 import {
 	COMMAND_PREFIXES,
@@ -12,7 +12,7 @@ import {
 	SECRET_PATH,
 	SHELLS,
 } from "./risk-tables.ts";
-import { pipelines, splitCommands, splitWords } from "./shell-split.ts";
+import { pipelines, splitCommands, splitWords, type Dialect } from "./shell-split.ts";
 /**
  * How dangerous an operation is, so that "帮我批准" can mean what it says.
  *
@@ -65,8 +65,8 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
  * and neither is on any list, so both were safe. That is not a gap in the tables — the tables are
  * about `rm` — it is a gap in deciding what to look up.
  */
-function wrappedCommand(command: string): string | null {
-	const words = splitWords(command);
+function wrappedCommand(command: string, dialect: Dialect = "posix"): string | null {
+	const words = splitWords(command, dialect);
 	if (words.length < 2) return null;
 	const head = words[0].replace(/^.*[\\/]/, "").replace(/\.exe$/i, "");
 	const lower = head.toLowerCase();
@@ -165,7 +165,7 @@ function bareGlob(target: string): boolean {
 
 
 
-function judgeSingle(command: string, contained = false, cwd?: string): RiskVerdict {
+function judgeSingle(command: string, contained = false, cwd?: string, dialect: Dialect = "posix"): RiskVerdict {
 	const head = firstWord(command);
 	if (!head) return SAFE;
 
@@ -182,7 +182,7 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 	if (WINDOWS_DELETERS.has(head.toLowerCase())) {
 		const recursive = /(^|\s)-r(e(c(u(r(s(e)?)?)?)?)?)?(\s|:|$)/i.test(command) || /(^|\s)\/s(\s|$)/i.test(command);
 		if (recursive) {
-			const targets = splitWords(command)
+			const targets = splitWords(command, dialect)
 				.slice(1)
 				.filter((word) => !word.startsWith("-") && !/^\/[a-z]$/i.test(word));
 			const reckless = targets.some(
@@ -246,7 +246,7 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
 	}
 
 	if (head === "git") {
-		const sub = gitSubcommand(splitWords(command));
+		const sub = gitSubcommand(splitWords(command, dialect));
 		// A force push replaces what other people have; a plain push does not.
 		// `--force-with-lease` is the careful form, but it still replaces the remote branch.
 		if (sub === "push" && /(--force|(^|\s)-f(\s|$))/.test(command)) return risky("强制推送会覆盖远程历史");
@@ -313,6 +313,19 @@ function judgeSingle(command: string, contained = false, cwd?: string): RiskVerd
  */
 export function assessCommand(command: string, cwd?: string, depth = 0): RiskVerdict {
 	/*
+	 * In every grammar the agent's shell might read it in — see `commandDialects`. Where that is
+	 * PowerShell, a line is judged by bash's reading and PowerShell's both, and either finding a
+	 * risk is enough.
+	 */
+	for (const dialect of commandDialects()) {
+		const verdict = assessIn(command, cwd, depth, dialect);
+		if (verdict.risky) return verdict;
+	}
+	return SAFE;
+}
+
+function assessIn(command: string, cwd: string | undefined, depth: number, dialect: Dialect): RiskVerdict {
+	/*
 	 * Downloading something and handing it to an interpreter.
 	 *
 	 * The classic way to run code nobody has read, and invisible once the line is flattened,
@@ -323,7 +336,7 @@ export function assessCommand(command: string, cwd?: string, depth = 0): RiskVer
 	 * covered `curl u | sh` and missed both `curl u | python3` (any other interpreter) and
 	 * `curl u | tail -n +2 | sh` (anything in between). Both are the same sentence.
 	 */
-	for (const stages of pipelines(command)) {
+	for (const stages of pipelines(command, dialect)) {
 		const heads = stages.map((stage) => firstWord(stage));
 		const fetched = heads.findIndex((head) => FETCHERS.has(head.toLowerCase()));
 		if (fetched === -1) continue;
@@ -340,8 +353,8 @@ export function assessCommand(command: string, cwd?: string, depth = 0): RiskVer
 	 */
 	const contained = cwd ? staysInside(command, cwd) : false;
 
-	for (const piece of splitCommands(command)) {
-		const verdict = judgeSingle(piece, contained, cwd);
+	for (const piece of splitCommands(command, dialect)) {
+		const verdict = judgeSingle(piece, contained, cwd, dialect);
 		if (verdict.risky) return verdict;
 
 		/*
@@ -352,7 +365,7 @@ export function assessCommand(command: string, cwd?: string, depth = 0): RiskVer
 		 * anything written on purpose; the depth is what stops it, not the shape.
 		 */
 		if (depth >= 4) continue;
-		const inner = wrappedCommand(piece);
+		const inner = wrappedCommand(piece, dialect);
 		if (!inner) continue;
 		const nested = assessCommand(inner, cwd, depth + 1);
 		if (nested.risky) return nested;
