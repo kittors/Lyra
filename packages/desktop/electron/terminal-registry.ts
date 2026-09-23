@@ -29,7 +29,9 @@
 import type { BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
+import { win32 } from "node:path";
 import type { IPty } from "node-pty";
+import { envValue, findExecutable } from "./find-executable.ts";
 
 /**
  * One shell, and enough of what it has said to redraw it.
@@ -91,6 +93,28 @@ export interface TerminalDeps {
 	projectPath?(target: string): string | null;
 	insideAProject(target: string): boolean;
 	eachWindow(visit: (window: BrowserWindow) => void): void;
+	/** The machine's own, unless a test is standing in for Windows. */
+	platform?: string;
+	env?: NodeJS.ProcessEnv;
+	findExecutable?: (command: string) => string | null;
+}
+
+/**
+ * The shell a new terminal runs.
+ *
+ * On Windows `SHELL` is set only by something POSIX-flavoured — Git Bash, MSYS2, Cygwin — and it
+ * holds that world's path, `/usr/bin/bash`. Launched from Git Bash, Lyra passed that to node-pty,
+ * ConPTY could not open it, and no terminal ever started. So on Windows `SHELL` counts only when it
+ * is a Windows path to a file that exists; otherwise it is PowerShell 7, then Windows PowerShell
+ * (found in System32 even when PATH does not list it), then `%ComSpec%` — which is always there.
+ */
+export function pickShell(platform: string, env: NodeJS.ProcessEnv, find: (command: string) => string | null): string {
+	const declared = env.SHELL?.trim();
+	if (platform !== "win32") return declared || "/bin/bash";
+	if (declared && /^(?:[a-zA-Z]:[\\/]|\\\\)/.test(declared) && find(declared)) return declared;
+	const systemRoot = envValue(env, "SystemRoot", platform);
+	const inbox = systemRoot ? win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe") : null;
+	return find("pwsh.exe") ?? find("powershell.exe") ?? (inbox ? find(inbox) : null) ?? envValue(env, "ComSpec", platform) ?? "cmd.exe";
 }
 
 /**
@@ -122,7 +146,10 @@ let clock = 0;
  * on, what a detach leaves running and which one gets retired are the whole point of this file,
  * and they are decided here rather than in a message handler.
  */
-export function createTerminalRegistry({ terminals, spawnPty, projectPath, insideAProject, eachWindow }: TerminalDeps) {
+export function createTerminalRegistry({ terminals, spawnPty, projectPath, insideAProject, eachWindow, ...host }: TerminalDeps) {
+	const platform = host.platform ?? process.platform;
+	const env = host.env ?? process.env;
+	const find = host.findExecutable ?? ((command: string) => findExecutable(command, { platform, env }));
 	/** Where a terminal for this path actually starts: the project, or home if it is not one. */
 	// `homedir()`, not `process.env.HOME`: Windows spells it `USERPROFILE` and leaves `HOME` unset,
 	// so reading the variable there fell through to the process's own directory.
@@ -169,14 +196,14 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		retireIdle(terminals, dir);
 
 		const id = randomUUID();
-		const shell = process.env.SHELL || (process.platform === "win32" ? "powershell.exe" : "/bin/bash");
+		const shell = pickShell(platform, env, find);
 		const child = spawnPty(shell, [], {
 			name: "xterm-256color",
 			cols: Math.max(2, cols),
 			rows: Math.max(2, rows),
 			cwd: dir,
 			// TERM is what makes a shell emit colour and use cursor addressing at all.
-			env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
+			env: { ...env, TERM: "xterm-256color" } as Record<string, string>,
 		});
 
 		const live: LiveTerminal = {
