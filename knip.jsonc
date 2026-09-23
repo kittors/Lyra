@@ -108,6 +108,6 @@
 
   // External tools this code shells out to, which are meant to be absent on a machine that does
   // not need them: `rg` for grep, `bwrap` for the Linux sandbox, `ffmpeg` to encode the recording
-  // an e2e probe makes.
-  "ignoreBinaries": ["rg", "bwrap", "ffmpeg"]
+  // an e2e probe makes, `objdump` for the glibc check that runs after a Linux package is built.
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump"]
 }
