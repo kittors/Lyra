@@ -11,6 +11,8 @@ import { savedTerminal, useTerminals } from "../../store/terminals.ts";
 import { useTerminalScope } from "./scope.ts";
 import { rememberTerminalSize } from "./prewarm.ts";
 import { type CodeTypography, terminalTypography } from "./typography.ts";
+import { terminalKey, windowsPtyFor } from "./terminal-keys.ts";
+import { TerminalMenu } from "./TerminalMenu.tsx";
 import { CODE_DEFAULTS } from "../settings/index.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import type { AppearanceSettings } from "@lyra/core";
@@ -55,6 +57,8 @@ export function TerminalPane() {
 	 */
 	const size = useRef({ cols: 80, rows: 24 });
 	const [exited, setExited] = useState<number | null>(null);
+	/** The right-click menu: where, and whether there was anything selected to copy at that moment. */
+	const [menu, setMenu] = useState<{ at: { x: number; y: number }; selection: string } | null>(null);
 	// The shared tab list includes background shells, even while this pane has no active connection.
 	useEffect(() => bridge.terminal.onExit(({ id }) => useTerminals.getState().remove(id)), []);
 
@@ -282,6 +286,26 @@ export function TerminalPane() {
 			theme: paletteFromTheme(useApp.getState().settings?.appearance),
 			allowProposedApi: true,
 			scrollback: 5000,
+			// The shells are ConPTY's on Windows, and xterm has to be told; see `windowsPtyFor`.
+			windowsPty: windowsPtyFor(bridge.platform ?? "darwin", bridge.systemVersion),
+		});
+		/*
+		 * Keys xterm must not have, before it gets them — see `terminalKey` for which and why.
+		 *
+		 * `false` keeps xterm from turning the key into a control character and swallowing it; what
+		 * happens instead is done here (copy) or left to whoever is next (the browser's paste, the
+		 * window's shortcuts). Only the keydown acts; its keyup is kept from xterm the same way.
+		 */
+		terminal.attachCustomKeyEventHandler((event) => {
+			const action = terminalKey(event, terminal.hasSelection());
+			if (action === "shell") return true;
+			if (action === "copy" && event.type === "keydown") {
+				event.preventDefault();
+				const text = terminal.getSelection();
+				if (text) void bridge.clipboard.write(text);
+				terminal.clearSelection();
+			}
+			return false;
 		});
 		const fitter = new FitAddon();
 		terminal.loadAddon(fitter);
@@ -479,7 +503,41 @@ export function TerminalPane() {
 			 * strip and no terminal at all. Hidden and covered rather than replaced, so the element
 			 * xterm owns outlives every tab that comes and goes inside it.
 			 */}
-			<div ref={host} data-terminal-id={active} className={`ly-term min-h-0 flex-1 px-2 pt-1.5 ${empty ? "invisible" : ""}`} />
+			<div
+				ref={host}
+				data-terminal-id={active}
+				className={`ly-term min-h-0 flex-1 px-2 pt-1.5 ${empty ? "invisible" : ""}`}
+				/*
+				 * Copy and paste for the mouse — see `TerminalMenu` for why the app's text-field menu
+				 * never offered them here. Claimed with `preventDefault`, which is how that menu knows
+				 * to stand aside. The selection is read now: the menu taking focus can clear it.
+				 */
+				onContextMenu={(event) => {
+					const terminal = term.current;
+					if (!terminal || empty) return;
+					event.preventDefault();
+					setMenu({ at: { x: event.clientX, y: event.clientY }, selection: terminal.getSelection() });
+				}}
+			/>
+			{menu && (
+				<TerminalMenu
+					at={menu.at}
+					canCopy={menu.selection.length > 0}
+					onCopy={() => {
+						void bridge.clipboard.write(menu.selection);
+						term.current?.focus();
+					}}
+					onPaste={() => {
+						// Through xterm's own `paste`, which wraps it for a shell in bracketed-paste mode.
+						void bridge.clipboard.read().then((text) => {
+							if (!text || !term.current) return;
+							term.current.paste(text);
+							term.current.focus();
+						});
+					}}
+					onClose={() => setMenu(null)}
+				/>
+			)}
 
 			{/*
 			 * Every tab closed.

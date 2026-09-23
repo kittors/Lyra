@@ -140,6 +140,9 @@ const extras = {
 		},
 	},
 	platform: process.platform,
+	// Read-only, and in the sandboxed preload's `process` subset. The terminal needs the Windows
+	// build to tell xterm how ConPTY behaves; see `LyraApi.systemVersion`.
+	systemVersion: process.getSystemVersion(),
 	bootWindow: {
 		id: process.argv.find((arg) => arg.startsWith("--ly-window="))?.slice("--ly-window=".length) ?? "primary",
 		kind: process.argv.some((arg) => arg.includes("ly-kind=session"))
