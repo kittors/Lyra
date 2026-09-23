@@ -8,6 +8,7 @@
  */
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { confine, looksDenied, resetProbeCache, SandboxUnavailableError, selectRunner } from "../src/sandbox/backend.ts";
 
@@ -55,6 +56,59 @@ test("the Windows wrapper re-spawns this executable as a plain Node process", ()
 	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1", "without this the runner would start a second copy of the app");
 	assert.ok(wrap.args.includes("--lyra-sandbox-runner"));
 	assert.equal(wrap.args.at(-1), "--", "the wrapped command follows the separator");
+});
+
+test("the runner's argv starts a script, not an option Node refuses", () => {
+	/*
+	 * The test above passed for the runner's whole broken life: the flag *was* in the arguments.
+	 * What mattered was where. In Node mode the first argument that is not an option of Node's own
+	 * must be the script, and `--lyra-sandbox-runner` in that position was `bad option`, exit 9.
+	 * So this one starts the process for real. On this platform the runner declines to confine —
+	 * which it can only say if it was started at all.
+	 */
+	resetProbeCache();
+	const wrap = confine({ mode: "workspace-write", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
+	assert.ok(wrap);
+	const script = wrap.args.findIndex((arg) => /runner-entry\.ts$|sandbox-runner\.js$/.test(arg));
+	assert.ok(script >= 0, wrap.args.join(" "));
+	assert.ok(script < wrap.args.indexOf("--lyra-sandbox-runner"), "the script has to come before the flag");
+
+	if (process.platform !== "win32" && process.platform !== "linux") {
+		const started = spawnSync(wrap.command, [...wrap.args, "true"], { encoding: "utf8", env: { ...process.env, ...wrap.env } });
+		assert.doesNotMatch(started.stderr, /bad option/);
+		assert.match(started.stderr, /不用这个 runner/);
+	}
+});
+
+test("workspace-write on Windows brings a private temp directory with an identity of its own", () => {
+	// Seatbelt and bwrap grant the temp areas; without one here, every heredoc in Git Bash failed.
+	resetProbeCache();
+	const wrap = confine({ mode: "workspace-write", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
+	assert.ok(wrap);
+	const temp = wrap.args[wrap.args.indexOf("--temp") + 1];
+	const sid = wrap.args[wrap.args.indexOf("--temp-sid") + 1];
+	assert.match(temp, /lyra-sandbox/);
+	assert.match(sid, /^S-1-4-\d+-\d+-1$/, "a temp identity, never the workspace's");
+	assert.notEqual(sid, wrap.args[wrap.args.indexOf("--write-sid") + 1]);
+
+	const readOnly = confine({ mode: "read-only", workspaceRoot: "C:\\work" }, { platform: "win32", probe: () => true });
+	assert.ok(readOnly && !readOnly.args.includes("--temp"), "a read-only command gets no temp to write either");
+});
+
+test("Linux falls back to Landlock where bwrap cannot run", () => {
+	resetProbeCache();
+	assert.equal(selectRunner({ platform: "linux", probe: (runner) => runner === "landlock" }), "landlock");
+	// The verdicts are cached per host; a different host is a fresh cache.
+	resetProbeCache();
+	assert.equal(selectRunner({ platform: "linux", probe: () => true }), "bwrap", "bwrap stays first where it works");
+	resetProbeCache();
+	const wrap = confine({ mode: "workspace-write", workspaceRoot: "/work" }, { platform: "linux", probe: (runner) => runner === "landlock" });
+	assert.ok(wrap);
+	assert.equal(wrap.runner, "landlock");
+	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1");
+	assert.ok(wrap.args.includes("--lyra-sandbox-runner"));
+	const denied = confine({ mode: "workspace-write", workspaceRoot: "/work", network: "deny" }, { platform: "linux", probe: (runner) => runner === "landlock" });
+	assert.ok(denied?.args.includes("--network"), "the network half reaches the runner");
 });
 
 test("read-only carries no capability SID on Windows either", () => {
@@ -158,6 +212,18 @@ test("what the runners actually print counts as a denial", () => {
 	assert.ok(looksDenied("sandbox-exec: sandbox_apply: Operation not permitted"));
 	assert.ok(looksDenied("bwrap: Can't create file at /etc/x: Read-only file system"));
 	assert.ok(looksDenied("mkdir: cannot create directory '/x': Read-only file system"));
+});
+
+test("our own runners' refusals are recognised under those runners only", () => {
+	// Landlock and the Windows token refuse in common words, with no prefix of their own.
+	assert.ok(looksDenied("/bin/bash: line 1: /home/u/x: Permission denied", "landlock"));
+	assert.ok(looksDenied("Access is denied.", "windows-acl"));
+	// The same words under Seatbelt are an ordinary failure, as they always were.
+	assert.ok(!looksDenied("/bin/bash: line 1: /home/u/x: Permission denied", "seatbelt"));
+	assert.ok(!looksDenied("/bin/bash: line 1: /home/u/x: Permission denied"));
+	// And ssh's two sentences are never the sandbox, whatever runs them.
+	assert.ok(!looksDenied("git@github.com: Permission denied (publickey).", "landlock"));
+	assert.ok(!looksDenied("Permission denied, please try again.", "windows-acl"));
 });
 
 test("an ordinary failure is not read as a denial", () => {

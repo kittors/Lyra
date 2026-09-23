@@ -21,6 +21,7 @@
  * a failure to confine is distinguishable from a command that merely failed.
  */
 
+import { mkdirSync } from "node:fs";
 import * as abi from "./abi.ts";
 import { buildCommandLine } from "./identity.ts";
 import {
@@ -38,8 +39,14 @@ interface Args {
 	workspace: string;
 	mode: "read-only" | "workspace-write";
 	writeSid?: string;
+	/** A private temp directory the command may write, and the capability that names it. */
+	temp?: string;
+	tempSid?: string;
 	command: string[];
 }
+
+/** `S-1-4-x-y`, or `S-1-4-x-y-1` for a temp identity — the only shapes `identity.ts` derives. */
+const CAPABILITY_SID = /^S-1-4-\d+-\d+(-\d+)?$/;
 
 /** Read the argv contract, refusing anything that does not match it exactly. */
 export function parseArgs(argv: readonly string[]): Args {
@@ -73,9 +80,16 @@ export function parseArgs(argv: readonly string[]): Args {
 	const writeSid = options.get("write-sid");
 	if (mode === "workspace-write" && !writeSid) throw new Error("workspace-write 必须带 --write-sid");
 	// A capability SID from an untrusted source would be a way to name somebody else's identity.
-	if (writeSid && !/^S-1-4-\d+-\d+(-\d+)?$/.test(writeSid)) throw new Error(`--write-sid 格式不对：${writeSid}`);
+	if (writeSid && !CAPABILITY_SID.test(writeSid)) throw new Error(`--write-sid 格式不对：${writeSid}`);
 
-	return { workspace, mode, ...(writeSid ? { writeSid } : {}), command };
+	const temp = options.get("temp");
+	const tempSid = options.get("temp-sid");
+	if (Boolean(temp) !== Boolean(tempSid)) throw new Error("--temp 和 --temp-sid 必须一起给");
+	// A read-only command gets no temp to write either, the same as under Seatbelt and bwrap.
+	if (temp && mode !== "workspace-write") throw new Error("只有 workspace-write 才有可写的临时目录");
+	if (tempSid && !CAPABILITY_SID.test(tempSid)) throw new Error(`--temp-sid 格式不对：${tempSid}`);
+
+	return { workspace, mode, ...(writeSid ? { writeSid } : {}), ...(temp && tempSid ? { temp, tempSid } : {}), command };
 }
 
 /**
@@ -98,6 +112,32 @@ function runConfined(args: Args): number {
 		grantWrite(api, args.workspace, capability);
 		capabilities.push(capability);
 	}
+	/*
+	 * The temp area, which `workspace-write` promises on every platform.
+	 *
+	 * Seatbelt and bwrap grant `/tmp` and `os.tmpdir()`; this backend granted the workspace alone,
+	 * so a confined command could not create a temp file at all — every heredoc in Git Bash failed
+	 * with `cannot create temp file for here-document`, and every tool that stages through `%TEMP%`
+	 * with it. The user's own temp directory is not granted: it is shared by everything they run,
+	 * and a grant there would outlive the session in every other program's files. A private one
+	 * per workspace is created here, granted to its own identity, and handed to the command as its
+	 * `TEMP`, `TMP` and `TMPDIR` — which is also where Git Bash mounts `/tmp`.
+	 */
+	if (args.temp && args.tempSid) {
+		mkdirSync(args.temp, { recursive: true });
+		const capability = sidFromString(api, args.tempSid);
+		grantWrite(api, args.temp, capability);
+		capabilities.push(capability);
+		for (const name of ["TEMP", "TMP", "TMPDIR"]) process.env[name] = args.temp;
+	}
+	/*
+	 * How this process was started is not something the command should inherit.
+	 *
+	 * The runner is Electron with `ELECTRON_RUN_AS_NODE=1`, and the environment block the child
+	 * gets is this process's own. Left in, every Electron program the command ran — VS Code's
+	 * `code` among them — would start as a bare Node instead of itself.
+	 */
+	delete process.env.ELECTRON_RUN_AS_NODE;
 
 	const token = createRestrictedToken(api, source, logon, world, capabilities);
 	// Without this the child cannot create its own stdio pipes; see `extendDefaultDacl`.
@@ -129,7 +169,7 @@ function spawnUnder(api: Win32, token: Ptr, args: Args): number {
 		null,
 		null,
 		1,
-		0,
+		abi.CREATE_NO_WINDOW,
 		// A null environment block means "inherit ours". Passing one explicitly through the FFI
 		// layer is what the reference implementation found trips ERROR_INVALID_PARAMETER.
 		null,

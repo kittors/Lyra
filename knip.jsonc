@@ -22,6 +22,7 @@
       "entry": [
         "electron/main.ts",
         "electron/preload.ts",
+        "electron/sandbox-runner.ts",
         "src/main.tsx",
         "test/**/*.test.{ts,tsx}",
         "e2e/**/*.ts",
@@ -58,6 +59,12 @@
 
   "ignoreDependencies": [
     "lefthook",
+
+    // The desktop's own copy of the sandbox runners' FFI. Core loads it with
+    // `createRequire(import.meta.url)`, which resolves from wherever the code ended up — the
+    // desktop's `out/main` once bundled — and knip cannot follow a require it cannot see. Without
+    // the dependency the bundle cannot find it, and the Windows and Landlock runners cannot start.
+    "koffi",
 
     // Fonts, reached from `src/styles/fonts.css` as `url("@fontsource-variable/…/files/…woff2")`.
     // knip does not follow CSS — it says so itself, as a configuration hint — so every font this

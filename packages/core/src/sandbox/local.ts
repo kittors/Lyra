@@ -11,8 +11,12 @@
  * says confined, the logs say confined, and nothing is.
  */
 
-import { execFile, spawn } from "node:child_process";
+import { execFile, spawn, type ChildProcess, type StdioOptions } from "node:child_process";
+import { closeSync } from "node:fs";
+import { Socket } from "node:net";
+import type { Readable } from "node:stream";
 import { systemShell } from "../platform.ts";
+import { osPipe } from "./linux/libc.ts";
 import type { Sandbox, SandboxProcess } from "../kernel/services.ts";
 import { confine } from "./backend.ts";
 import { commandEnv } from "./login-path.ts";
@@ -101,17 +105,31 @@ export class LocalSandbox implements Sandbox {
 		 * reads it — `read`, a bare `cat`, an installer asking "continue? [y/N]" — waited on a pipe
 		 * nobody would write to, for the whole timeout. With nothing there it reads end-of-file at
 		 * once and carries on or fails with its own message, which is the only useful outcome.
+		 *
+		 * stdout and stderr, on Linux, are one real pipe — see `osPipe` for why a socketpair made
+		 * `> /dev/stderr` fail there — which also delivers the two in the order they were written.
+		 * Elsewhere they are Node's own pair.
 		 */
+		const pipe = osPipe();
 		const spawnOptions = {
 			cwd: options.cwd,
 			detached: process.platform !== "win32",
 			windowsHide: true,
-			stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
+			stdio: (pipe ? ["ignore", pipe.write, pipe.write] : ["ignore", "pipe", "pipe"]) as StdioOptions,
 		};
-		const child = wrap
-			? // The Windows runner needs `ELECTRON_RUN_AS_NODE`; the others contribute nothing.
-				spawn(wrap.command, [...wrap.args, shell.file, ...shell.args(command)], { ...spawnOptions, env: { ...env, ...wrap.env } })
-			: spawn(shell.file, shell.args(command), { ...spawnOptions, env });
+		let child: ChildProcess;
+		try {
+			child = wrap
+				? // Our own runners need `ELECTRON_RUN_AS_NODE`; the others contribute nothing.
+					spawn(wrap.command, [...wrap.args, shell.file, ...shell.args(command)], { ...spawnOptions, env: { ...env, ...wrap.env } })
+				: spawn(shell.file, shell.args(command), { ...spawnOptions, env });
+		} catch (error) {
+			if (pipe) closeSync(pipe.read);
+			throw error;
+		} finally {
+			// The child has its copy now. Ours would keep the pipe open and end-of-file would never come.
+			if (pipe) closeSync(pipe.write);
+		}
 		/*
 		 * Decoded by the stream, not chunk by chunk.
 		 *
@@ -119,16 +137,21 @@ export class LocalSandbox implements Sandbox {
 		 * boundary into two replacement characters. A command printing 40 000 Chinese characters
 		 * came back with three `�` in it; the stream's decoder carries the partial bytes over.
 		 */
-		const streams = [child.stdout, child.stderr].filter((stream) => stream !== null && stream !== undefined);
+		const streams: Readable[] = pipe
+			? [new Socket({ fd: pipe.read, readable: true, writable: false })]
+			: [child.stdout, child.stderr].filter((stream): stream is Readable => stream !== null && stream !== undefined);
 		for (const stream of streams) stream.setEncoding("utf8");
 
 		/*
 		 * The exit is reported once, when the output is complete or has stopped being the command's.
 		 *
-		 * `close` is the normal case: the shell exited and every pipe drained. `exit` without `close`
-		 * is the background-job case described at `DRAIN_AFTER_EXIT_MS`. After the grace period the
-		 * exit is reported, and whatever is still holding the pipes is handed over as `lingering` —
-		 * a process of its own, whose output can still be read and which can still be stopped.
+		 * The normal case: the shell exited and every stream reached its end. Exited with a stream
+		 * still open is the background-job case described at `DRAIN_AFTER_EXIT_MS`. After the grace
+		 * period the exit is reported, and whatever is still holding the output is handed over as
+		 * `lingering` — a process of its own, whose output can still be read and which can be stopped.
+		 *
+		 * Read off the streams rather than the child's `close`: with the pipe passed as a descriptor
+		 * the child has no streams of its own, and `close` would arrive before the output had.
 		 *
 		 * The grace period ends with one more pass of the event loop before anything is decided. A
 		 * main process busy for longer than the grace period would otherwise fire this timer ahead
@@ -174,12 +197,27 @@ export class LocalSandbox implements Sandbox {
 				if (streams.some((stream) => !stream.closed)) killTree(signal);
 			},
 		};
-		child.on("close", (code, signal) => report(code, signal));
+		let exited: [number | null, NodeJS.Signals | null] | undefined;
+		const ended = () => streams.every((stream) => stream.readableEnded || stream.destroyed);
+		const settle = () => {
+			if (exited && ended()) report(...exited);
+		};
+		for (const stream of streams) {
+			stream.once("end", settle);
+			stream.once("close", settle);
+		}
+		// A command that could not start reports no exit, and its streams must not outlive it.
+		child.on("error", () => {
+			for (const stream of streams) stream.destroy();
+		});
 		child.on("exit", (code, signal) => {
+			exited = [code, signal];
+			// Nobody reading would mean end-of-file is never observed; read it into nothing instead.
+			for (const stream of streams) if (!stream.readableFlowing) stream.resume();
+			if (ended()) return report(code, signal);
 			drain = setTimeout(() => setImmediate(() => {
 				if (reported) return;
-				// Every stream ended: `close` is already on its way, with everything in it.
-				if (streams.every((stream) => stream.readableEnded)) return;
+				if (ended()) return report(code, signal);
 				lingering = true;
 				for (const stream of streams) {
 					stream.removeAllListeners("data");

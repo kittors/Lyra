@@ -50,7 +50,12 @@ export default defineConfig({
 		plugins: [externalizeDepsPlugin({ exclude: ["@lyra/core"] })],
 		build: {
 			rollupOptions: {
-				input: { index: resolve("electron/main.ts") },
+				/*
+				 * The sandbox runner is an entry of its own: it is started in Node mode as a script,
+				 * and has to be a file that does nothing but confine and run a command. See
+				 * `electron/sandbox-runner.ts`.
+				 */
+				input: { index: resolve("electron/main.ts"), "sandbox-runner": resolve("electron/sandbox-runner.ts") },
 				/*
 				 * `electron` is a devDependency, so the externalize plugin leaves it in — and
 				 * bundling its CommonJS loader breaks on `__dirname` under ESM output.

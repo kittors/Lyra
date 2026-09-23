@@ -15,6 +15,7 @@
  */
 
 import * as abi from "./abi.ts";
+import { koffi } from "../native.ts";
 import { fail, isNull, ptrSlot, readPtr, uint32Slot, type Ptr, type Win32 } from "./win32.ts";
 
 /** Open this process's token with the rights `CreateRestrictedToken` needs. */
@@ -117,9 +118,42 @@ function explicitAccess(sid: Ptr | Buffer, mode: number, permissions: number): B
  */
 function bufferAddress(buffer: Buffer): bigint {
 	// eslint-disable-next-line
-	const koffi = require("koffi") as typeof import("koffi");
-	// eslint-disable-next-line
-	return BigInt((koffi as any).address(buffer));
+	return BigInt((koffi() as any).address(buffer));
+}
+
+/**
+ * Whether the DACL already carries this capability's inheritable write grant, written here.
+ *
+ * Asked before every grant because writing a DACL is not a cheap no-op when nothing changes:
+ * `SetNamedSecurityInfoW` walks the whole tree to re-propagate inheritance every time it is called.
+ * The runner grants on every command, so without this each `ls` in a project with a `node_modules`
+ * rewrote the security of a hundred thousand files first. Only the first command in a workspace pays.
+ *
+ * Only an explicit allow entry counts, with the full write mask and both inheritance bits: an
+ * inherited copy on a subdirectory, or a narrower grant somebody else wrote, is not the grant this
+ * directory needs.
+ */
+function hasGrant(api: Win32, dacl: Ptr | null, capabilitySid: Ptr): boolean {
+	if (dacl === null) return false;
+	const info = Buffer.alloc(abi.ACL_SIZE_INFORMATION_SIZE);
+	if (api.getAclInformation(dacl, info, info.length, abi.AclSizeInformation) === 0) return false;
+	const count = info.readUInt32LE(0);
+	const slot = ptrSlot();
+	const head = Buffer.alloc(abi.ACE_SID_OFFSET);
+	for (let index = 0; index < count; index++) {
+		if (api.getAce(dacl, index, slot) === 0) continue;
+		const ace = readPtr(slot);
+		if (ace === null) continue;
+		api.rtlMoveMemory(head, ace, head.length);
+		const type = head.readUInt8(0);
+		const flags = head.readUInt8(1);
+		const mask = head.readUInt32LE(4);
+		if (type !== abi.ACCESS_ALLOWED_ACE_TYPE || (flags & abi.INHERITED_ACE) !== 0) continue;
+		if ((flags & abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT) !== abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT) continue;
+		if (((mask & abi.GRANT_MASK) >>> 0) !== abi.GRANT_MASK >>> 0) continue;
+		if (api.equalSid(ace + BigInt(abi.ACE_SID_OFFSET), capabilitySid) !== 0) return true;
+	}
+	return false;
 }
 
 /**
@@ -148,6 +182,10 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
 
 	const oldDacl = readPtr(daclSlot);
 	const descriptor = readPtr(descriptorSlot);
+	if (hasGrant(api, oldDacl, capabilitySid)) {
+		if (descriptor !== null) api.localFree(descriptor);
+		return;
+	}
 	const merged = ptrSlot();
 	const result = api.setEntriesInAclW(1, explicitAccess(capabilitySid, abi.GRANT_ACCESS, abi.GRANT_MASK), oldDacl, merged);
 	if (result !== abi.ERROR_SUCCESS) {

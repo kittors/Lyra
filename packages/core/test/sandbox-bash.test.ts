@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -26,6 +26,18 @@ import type { ToolContext, ToolResult } from "../src/types.ts";
 
 const confined = selectRunner() !== "none";
 const skip = confined ? false : "this host has no sandbox backend";
+/** The Windows token governs files only, and the backend refuses a denied network there. */
+const netSkip = confined && selectRunner({}, "deny") !== "windows-acl" ? false : "this host's sandbox cannot deny the network";
+
+/**
+ * A path as the shell under test reads it.
+ *
+ * On Windows the shell is Git Bash, where an unquoted `C:\Users\…` loses its backslashes and names
+ * somewhere else. Single-quoted with forward slashes it is the same path to every POSIX shell on
+ * every platform — which is what these tests were silently assuming, having only run where `/` is
+ * the separator.
+ */
+const sh = (path: string) => `'${path.replaceAll("\\", "/").replaceAll("'", "'\\''")}'`;
 
 function context(cwd: string, mode: SandboxMode | undefined): ToolContext {
 	return { cwd, sessionId: "test", state: new Map(), sandboxMode: mode };
@@ -41,7 +53,7 @@ test("workspace-write lets a command write inside the project", { skip }, async 
 	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ws-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
-	const result = await run(ws, "workspace-write", `echo hi > ${ws}/inside.txt && echo DONE`);
+	const result = await run(ws, "workspace-write", `echo hi > ${sh(join(ws, "inside.txt"))} && echo DONE`);
 	assert.match(textOf(result), /DONE/);
 	assert.ok(existsSync(join(ws, "inside.txt")));
 });
@@ -55,7 +67,7 @@ test("workspace-write refuses a write outside the project, and nothing is create
 		await rm(outside, { force: true });
 	});
 
-	const result = await run(ws, "workspace-write", `echo hi > ${outside}`);
+	const result = await run(ws, "workspace-write", `echo hi > ${sh(outside)}`);
 	assert.equal(existsSync(outside), false, "the file must not exist — this is the whole point");
 	// And the model is told it was a policy decision rather than a broken command.
 	assert.match(textOf(result), /sandbox: 文件写入被拒/);
@@ -67,7 +79,7 @@ test("read-only refuses even inside the project", { skip }, async (t) => {
 	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
-	await run(ws, "read-only", `echo hi > ${ws}/nope.txt`);
+	await run(ws, "read-only", `echo hi > ${sh(join(ws, "nope.txt"))}`);
 	assert.equal(existsSync(join(ws, "nope.txt")), false);
 });
 
@@ -84,7 +96,15 @@ test("read-only can still read", { skip }, async (t) => {
 	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
-	const result = await run(ws, "read-only", "head -c 4 /etc/passwd > /dev/null && echo DONE");
+	/*
+	 * A file outside the workspace that exists on every platform and needs no approval to read:
+	 * the temp areas are readable without asking (`read-access.ts`), `/etc/passwd` is not a file
+	 * Git Bash promises, and anything under the home directory would be a question for a person.
+	 */
+	const other = join(tmpdir(), `lyra-sb-read-${process.pid}.txt`);
+	await writeFile(other, "data");
+	t.after(() => rm(other, { force: true }));
+	const result = await run(ws, "read-only", `head -c 4 ${sh(other)} > /dev/null && echo DONE`);
 	assert.match(textOf(result), /DONE/);
 });
 
@@ -96,7 +116,7 @@ test("danger-full-access is unconfined, and says nothing about denials", { skip 
 		await rm(outside, { force: true });
 	});
 
-	const result = await run(ws, "danger-full-access", `echo hi > ${outside} && echo DONE`);
+	const result = await run(ws, "danger-full-access", `echo hi > ${sh(outside)} && echo DONE`);
 	assert.match(textOf(result), /DONE/);
 	assert.ok(!textOf(result).includes("sandbox:"));
 });
@@ -109,13 +129,13 @@ test("no mode means no confinement, which is how the CLI and the tests run", { s
 	assert.match(textOf(result), /DONE/);
 });
 
-test("a path with a quote in it does not break out of the profile", { skip }, async (t) => {
+test("a path with a quote in it does not break out of the profile", { skip: skip || (process.platform === "win32" ? "a Windows path cannot contain a quote" : false) }, async (t) => {
 	// The escaping is unit-tested; this proves the escaped profile is one the kernel accepts.
 	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-q-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const weird = join(ws, 'we"ird dir');
-	const result = await run(ws, "workspace-write", `mkdir -p '${weird}' && echo hi > '${weird}/f.txt' && echo DONE`);
+	const result = await run(ws, "workspace-write", `mkdir -p ${sh(weird)} && echo hi > ${sh(join(weird, "f.txt"))} && echo DONE`);
 	assert.match(textOf(result), /DONE/, textOf(result));
 });
 
@@ -180,7 +200,7 @@ test("what the turn decided about the network is what the sandbox is told", asyn
 	assert.equal(asked[3]?.network, undefined);
 });
 
-test("a denied network is denied, and an allowed one is not", { skip }, async (t) => {
+test("a denied network is denied, and an allowed one is not", { skip: netSkip }, async (t) => {
 	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-net-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 

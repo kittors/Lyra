@@ -3,7 +3,7 @@ import { createOutputLog } from "./output-log.ts";
 import { randomUUID } from "node:crypto";
 import { backgroundJobs, type BackgroundJob } from "./background-jobs.ts";
 import { rerouteShellCommand, TOOL_NAMES_KEY } from "./reroute.ts";
-import { getSandbox, looksDenied, looksNetworkDenied } from "../sandbox/index.ts";
+import { getSandbox, looksDenied, looksNetworkDenied, selectRunner } from "../sandbox/index.ts";
 import {
 	approveEscalation,
 	escalationHint,
@@ -312,7 +312,14 @@ export const bashTool: Tool<BashArgs> = {
 			 * one switch with one position, and `escalation.ts` deliberately offers no grant for it
 			 * — so this reads the turn's setting rather than anything decided above.
 			 */
-			const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork });
+			let child: SandboxProcess;
+			try {
+				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork });
+			} catch (error) {
+				// A sandbox that cannot confine says so by throwing; the model gets the sentence, not a crash.
+				resolve(errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`));
+				return;
+			}
 
 			let output = "";
 			let settled = false;
@@ -424,7 +431,10 @@ export const bashTool: Tool<BashArgs> = {
 				 * refused", and the hint beside it is the sanctioned way forward.
 				 */
 				const ranUnder = mode;
-				const denied = ranUnder !== undefined && ranUnder !== "danger-full-access" && looksDenied(output);
+				const denied =
+					ranUnder !== undefined &&
+					ranUnder !== "danger-full-access" &&
+					looksDenied(output, selectRunner({}, ctx.sandboxNetwork ?? "allow"));
 				/*
 				 * And the same for the network, which needs it more.
 				 *
@@ -536,7 +546,13 @@ function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<R
 async function startBackground(args: BashArgs, ctx: ToolContext): Promise<ToolResult> {
 	const outputLog = await createOutputLog(ctx.scratchDir);
 	const id = randomUUID();
-	const child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork });
+	let child: SandboxProcess;
+	try {
+		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork });
+	} catch (error) {
+		await outputLog?.close();
+		return errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`);
+	}
 
 	const job: BackgroundJob = {
 		id,

@@ -10,8 +10,7 @@ import {
 	loadPlugins,
 	DEFAULT_PLUGINS,
 	pruneSessionArtifacts,
-	WINDOWS_RUNNER_FLAG,
-	runSandboxRunner,
+	useSandboxRunner,
 	registerSearchProvider,
 	duckDuckGoProvider,
 	instantAnswerProvider,
@@ -320,17 +319,15 @@ protocol.registerSchemesAsPrivileged([
  * after the app is ready.
  */
 /*
- * The one thing that has to happen before anything else.
+ * Where the sandbox runner lives, before any command can need it.
  *
- * On Windows a confined command is run by spawning this same executable with a marker flag; that
- * process must do the Win32 work and exit, never become a second copy of the app. Checked here
- * because "before the app is ready" is not early enough — module side effects would already have
- * run by then.
+ * On Windows (a restricted token) and on Linux without `bwrap` (Landlock), a confined command runs
+ * through a runner process of our own: this executable in Node mode, running `sandbox-runner.js`,
+ * which the build emits beside this bundle. It used to be this file, reached through a marker flag
+ * checked here — but in Node mode Electron reads a leading flag as one of Node's own, refused it
+ * with `bad option`, and the runner never once started. See `core/sandbox/runner-entry.ts`.
  */
-if (process.argv.includes(WINDOWS_RUNNER_FLAG)) {
-	const start = process.argv.indexOf(WINDOWS_RUNNER_FLAG) + 1;
-	process.exit(runSandboxRunner(process.argv.slice(start)));
-}
+useSandboxRunner(join(import.meta.dirname, "sandbox-runner.js"));
 
 app.setName("Lyra");
 

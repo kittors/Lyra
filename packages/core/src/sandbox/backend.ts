@@ -1,19 +1,29 @@
 /**
  * Which confinement this machine can actually provide, decided by trying it.
  *
- * Selection is by platform first: macOS has Seatbelt, Linux has `bwrap`, and Windows has neither
- * of them. Then the candidate is *probed* — really spawned, with the real profile, around a command
- * that does nothing — because the question is not "is the binary there" but "does the kernel accept
- * what we are about to ask it". `sandbox-exec` exists on every macOS and can still refuse a profile;
- * `bwrap` is often installed without the user namespaces it needs.
+ * Selection is by platform first: macOS has Seatbelt; Linux has `bwrap` and, where that cannot run,
+ * Landlock; Windows has a restricted token. Then the candidate is *probed* — really spawned, with
+ * the real profile, around a command that does nothing — because the question is not "is the
+ * binary there" but "does the kernel accept what we are about to ask it". `sandbox-exec` exists on
+ * every macOS and can still refuse a profile; `bwrap` is often installed without the user
+ * namespaces it needs.
  *
  * And when the answer is no, it is no. A backend that cannot confine reports that it cannot, and
  * the caller's choice is to run unconfined *knowingly* or not to run. The one thing that must never
  * happen is the quiet fallback: returning the original argv from a function whose whole purpose was
  * to wrap it, so a command runs with full access under a UI that says it is sandboxed.
+ *
+ * Which is exactly why every supported platform has to have a backend that works. The Windows
+ * runner never started (see `runner-entry.ts`), and a stock Ubuntu has no usable `bwrap` (see
+ * `linux/landlock.ts`) — on both, "fail closed" meant the default permission mode ran nothing.
  */
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { landlockAbi } from "./linux/landlock.ts";
 import {
 	bwrapArgs,
 	canonicalPath,
@@ -22,10 +32,13 @@ import {
 	type SandboxNetwork,
 	type SandboxPolicy,
 } from "./policy.ts";
-import { workspaceWriteSid } from "./windows/identity.ts";
+import { SANDBOX_RUNNER_FLAG } from "./runner-flag.ts";
+import { tempWriteSid, workspaceWriteSid } from "./windows/identity.ts";
+
+export { SANDBOX_RUNNER_FLAG } from "./runner-flag.ts";
 
 /** Where the platform's confinement comes from, or `none` when it has none we can use. */
-export type Runner = "seatbelt" | "bwrap" | "windows-acl" | "none";
+export type Runner = "seatbelt" | "bwrap" | "landlock" | "windows-acl" | "none";
 
 export interface Confinement {
 	/** The command to spawn instead of the original. */
@@ -34,26 +47,20 @@ export interface Confinement {
 	args: string[];
 	runner: Exclude<Runner, "none">;
 	enforcement: SandboxEnforcement;
-	/** Extra environment the wrapper needs. Only the Windows runner has any. */
+	/** Extra environment the wrapper needs. Only our own runners have any. */
 	env?: Record<string, string>;
 }
 
 /**
- * The flag that turns this executable into the Windows sandbox runner.
- *
- * Checked before anything else at startup, so a process spawned with it never becomes an app.
- */
-export const WINDOWS_RUNNER_FLAG = "--lyra-sandbox-runner";
-
-/**
  * How long a probe may take before it counts as a failure.
  *
- * A probe runs `true` inside the sandbox, so it is milliseconds when it works. This bound is for
- * the case where it does not — a runner that hangs waiting on something must not hang the app's
- * first command. Note that `spawnSync` treats `timeout: 0` as *no timeout*, which is why this is a
- * constant and not a caller-supplied number that could arrive as zero.
+ * A probe runs `true` inside the sandbox, so it is milliseconds when it works — a few hundred for
+ * our own runners, which start the app's runtime first. This bound is for the case where it does
+ * not work: a runner that hangs waiting on something must not hang the app's first command. Note
+ * that `spawnSync` treats `timeout: 0` as *no timeout*, which is why this is a constant and not a
+ * caller-supplied number that could arrive as zero.
  */
-const PROBE_TIMEOUT_MS = 5_000;
+const PROBE_TIMEOUT_MS = 8_000;
 
 /** Seams for the tests: they must be able to have a platform, and a verdict, that this host lacks. */
 export interface BackendHooks {
@@ -61,37 +68,42 @@ export interface BackendHooks {
 	probe?: (runner: Exclude<Runner, "none">) => boolean;
 	/** The `sandbox-exec` to invoke, so a test can point at a script that says no. */
 	seatbeltExec?: string;
+	/** The runners to consider, in order — so a test can ask for Landlock on a host that has `bwrap`. */
+	runners?: readonly Exclude<Runner, "none">[];
 }
 
 /** Which runners each platform could use, in preference order. */
 const PLATFORM_RUNNERS: Partial<Record<NodeJS.Platform, readonly Exclude<Runner, "none">[]>> = {
 	darwin: ["seatbelt"],
-	linux: ["bwrap"],
+	/*
+	 * `bwrap` first where it works: it is the only one that can deny the network while leaving
+	 * loopback open, and it confines the command in a mount namespace rather than by rule.
+	 * Landlock is what works everywhere else.
+	 */
+	linux: ["bwrap", "landlock"],
 	win32: ["windows-acl"],
 };
 
 /**
  * What a runner promises when it is selected.
  *
- * Both of ours govern every file effect the mode names, by construction of their profiles — so
- * `full`. This is a table rather than a constant because the honest answer for a third backend
- * (Windows ACL, say) is `partial`, and a caller that needs the absolute boundary has to be able to
- * tell the difference.
+ * `full` means it governs every file effect the mode names. The honest answer is not always that,
+ * and a caller that needs the absolute boundary has to be able to tell the difference.
  */
-const ENFORCEMENT: Record<Exclude<Runner, "none">, SandboxEnforcement> = {
-	seatbelt: "full",
-	bwrap: "full",
+function enforcementOf(runner: Exclude<Runner, "none">): SandboxEnforcement {
 	/*
 	 * Partial, and the reasons are structural rather than unfinished work.
 	 *
 	 * `WRITE_RESTRICTED` needs Everyone in its restricting list or the process dies during loader
 	 * initialisation — so any object whose DACL grants Everyone write access stays writable. And
 	 * NTFS hard links can alias a file inside the granted tree to a path outside it. Both are
-	 * documented boundaries of the mechanism, not gaps that a better implementation closes, and a
-	 * caller that needs the absolute promise has to be able to tell this apart from `full`.
+	 * documented boundaries of the mechanism, not gaps that a better implementation closes.
 	 */
-	"windows-acl": "partial",
-};
+	if (runner === "windows-acl") return "partial";
+	// Below ABI 3 Landlock does not govern `truncate(2)` by path.
+	if (runner === "landlock") return landlockAbi() >= 3 ? "full" : "partial";
+	return "full";
+}
 
 /**
  * Which runners can keep the network half of a policy.
@@ -101,42 +113,107 @@ const ENFORCEMENT: Record<Exclude<Runner, "none">, SandboxEnforcement> = {
  * denies the network is refused there rather than partly applied: this file's own rule is that the
  * one thing a sandbox must never do is run the command anyway while the UI says it is confined,
  * and "the writes are confined and the sockets are not" is exactly that, one axis down.
+ *
+ * Landlock can, from ABI 4 — and its probe is run with the network denied, so a kernel that
+ * cannot is found out there rather than here.
  */
 const ENFORCES_NETWORK: Record<Exclude<Runner, "none">, boolean> = {
 	seatbelt: true,
 	bwrap: true,
+	landlock: true,
 	"windows-acl": false,
 };
+
+// ---------------------------------------------------------------------------------------------
+// Our own runner process
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The script our runners are started from — see `runner-entry.ts`.
+ *
+ * The desktop bundles it as `sandbox-runner.js` next to the main bundle and says so at startup;
+ * everything that runs from source (the CLI, the tests) uses the TypeScript file beside this one.
+ * Built from this file's own location rather than written as a `new URL(…, import.meta.url)`
+ * literal, which a bundler would take for an asset and copy — without the modules it imports.
+ */
+let runnerEntry: string | undefined;
+
+export function useSandboxRunner(entry: string | undefined): void {
+	runnerEntry = entry;
+	resetProbeCache();
+}
+
+function sandboxRunnerEntry(): string {
+	return runnerEntry ?? join(dirname(fileURLToPath(import.meta.url)), "runner-entry.ts");
+}
+
+/**
+ * This process's runtime, run as Node, running the runner.
+ *
+ * `process.execPath` with `ELECTRON_RUN_AS_NODE` is the supported way to get a Node process out
+ * of an Electron app without shipping a second runtime; under plain Node the variable does
+ * nothing. The script goes first and the marker flag after it, because in Node mode anything in
+ * front of the script is read as an option of Node's own.
+ */
+function runnerArgv(runner: "landlock" | "windows-acl", policy: SandboxPolicy): { command: string; args: string[]; env: Record<string, string> } {
+	const entry = sandboxRunnerEntry();
+	const args = [...(entry.endsWith(".ts") ? ["--experimental-strip-types", "--no-warnings"] : []), entry, SANDBOX_RUNNER_FLAG];
+	const workspace = canonicalPath(policy.workspaceRoot);
+	args.push("--workspace", workspace, "--mode", policy.mode);
+	if (runner === "windows-acl" && policy.mode === "workspace-write") {
+		args.push("--write-sid", workspaceWriteSid(workspace));
+		const temp = privateTemp(workspace);
+		args.push("--temp", temp, "--temp-sid", tempWriteSid(temp));
+	}
+	if (runner === "landlock" && policy.network === "deny") args.push("--network", "deny");
+	args.push("--");
+	return { command: process.execPath, args, env: { ELECTRON_RUN_AS_NODE: "1" } };
+}
+
+/**
+ * A temp directory of the workspace's own, for the Windows runner — see its `runConfined`.
+ *
+ * Keyed by the workspace so its grant is as narrow as the workspace's: one project's commands
+ * cannot write another project's temp files.
+ */
+function privateTemp(workspace: string): string {
+	const key = createHash("sha256").update(workspace.toLowerCase(), "utf8").digest("hex").slice(0, 16);
+	return join(canonicalPath(tmpdir()), "lyra-sandbox", key);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Probing and selecting
+// ---------------------------------------------------------------------------------------------
 
 /**
  * Really run something trivial under the real profile.
  *
- * `read-only` with `/` as the workspace is the strictest profile the runner will ever be handed, so
- * a runner that accepts it accepts the rest. `true` is the command because it exists everywhere,
- * writes nothing, and its exit code is unambiguous.
+ * `read-only` is the strictest profile the runner will ever be handed, so a runner that accepts
+ * it accepts the rest. `true` is the command because it exists everywhere, writes nothing, and its
+ * exit code is unambiguous — `cmd.exe /c exit 0` being Windows' spelling of it.
  */
 function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string, network: SandboxNetwork): boolean {
 	const policy: SandboxPolicy = {
 		mode: "read-only",
-		workspaceRoot: process.platform === "win32" ? process.cwd() : "/",
+		workspaceRoot: runner === "windows-acl" ? process.cwd() : "/",
 		network,
 	};
-	if (runner === "windows-acl") {
-		try {
-			const wrap = windowsRunnerArgv(policy);
-			const probe = spawnSync(wrap.command, [...wrap.args, "cmd.exe", "/c", "exit 0"], {
+	try {
+		if (runner === "windows-acl" || runner === "landlock") {
+			// Landlock is not worth a process when the kernel has none; that answer is free.
+			if (runner === "landlock" && landlockAbi() < 2) return false;
+			const wrap = runnerArgv(runner, policy);
+			const command = runner === "windows-acl" ? ["cmd.exe", "/c", "exit 0"] : ["true"];
+			const probe = spawnSync(wrap.command, [...wrap.args, ...command], {
 				timeout: PROBE_TIMEOUT_MS,
 				stdio: "ignore",
-				env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+				windowsHide: true,
+				env: { ...process.env, ...wrap.env },
 			});
 			// The runner exits 127 with its own prefix when it cannot confine; anything but a clean
 			// zero means this host cannot be trusted to enforce, so it is not offered.
 			return probe.status === 0;
-		} catch {
-			return false;
 		}
-	}
-	try {
 		const probe =
 			runner === "seatbelt"
 				? spawnSync(seatbeltExec, [...seatbeltArgs(policy), "--", "true"], {
@@ -178,7 +255,7 @@ export function resetProbeCache(): void {
 export function selectRunner(hooks: BackendHooks = {}, network: SandboxNetwork = "allow"): Runner {
 	const platform = hooks.platform ?? process.platform;
 	const seatbeltExec = hooks.seatbeltExec ?? "/usr/bin/sandbox-exec";
-	for (const runner of PLATFORM_RUNNERS[platform] ?? []) {
+	for (const runner of hooks.runners ?? PLATFORM_RUNNERS[platform] ?? []) {
 		/*
 		 * Probed and cached per axis, not once for both.
 		 *
@@ -188,7 +265,7 @@ export function selectRunner(hooks: BackendHooks = {}, network: SandboxNetwork =
 		 * one shared `false` would take away file confinement from a host that has it, because
 		 * this host cannot deny the network.
 		 */
-		const key = `${platform}:${runner}:${seatbeltExec}:${network}`;
+		const key = `${platform}:${runner}:${seatbeltExec}:${network}:${runnerEntry ?? ""}`;
 		let ok = probed.get(key);
 		if (ok === undefined) {
 			ok = hooks.probe ? hooks.probe(runner) : probeRunner(runner, seatbeltExec, network);
@@ -234,30 +311,19 @@ export function confine(policy: SandboxPolicy, hooks: BackendHooks = {}): Confin
 			command: hooks.seatbeltExec ?? "/usr/bin/sandbox-exec",
 			args: [...seatbeltArgs(policy), "--"],
 			runner,
-			enforcement: ENFORCEMENT[runner],
+			enforcement: enforcementOf(runner),
 		};
 	}
-	if (runner === "windows-acl") {
-		const wrap = windowsRunnerArgv(policy);
-		return { command: wrap.command, args: wrap.args, runner, enforcement: ENFORCEMENT[runner], env: wrap.env };
+	if (runner === "windows-acl" || runner === "landlock") {
+		/*
+		 * `danger-full-access` with the network denied reaches here as a file mode our runners do
+		 * not know. Landlock can express it — no write rules, only the network — but the vocabulary
+		 * on the wire is the two confined modes, so it is sent as the wider of them.
+		 */
+		const wrap = runnerArgv(runner, { ...policy, mode: policy.mode === "danger-full-access" ? "workspace-write" : policy.mode });
+		return { command: wrap.command, args: wrap.args, runner, enforcement: enforcementOf(runner), env: wrap.env };
 	}
-	return { command: "bwrap", args: [...bwrapArgs(policy), "--"], runner, enforcement: ENFORCEMENT[runner] };
-}
-
-/**
- * The argv that runs one command through the Windows runner.
- *
- * Spawns *this executable* rather than a separate script. Under Electron there is no standalone
- * `node` to reach for, and shipping one would be a second runtime to keep in step; `execPath` with
- * `ELECTRON_RUN_AS_NODE` is the supported way to get a Node process out of the one already here.
- * The marker flag is what the entry point checks before doing anything else.
- */
-function windowsRunnerArgv(policy: SandboxPolicy): { command: string; args: string[]; env: Record<string, string> } {
-	const workspace = canonicalPath(policy.workspaceRoot);
-	const args = [WINDOWS_RUNNER_FLAG, "--workspace", workspace, "--mode", policy.mode];
-	if (policy.mode === "workspace-write") args.push("--write-sid", workspaceWriteSid(workspace));
-	args.push("--");
-	return { command: process.execPath, args, env: { ELECTRON_RUN_AS_NODE: "1" } };
+	return { command: "bwrap", args: [...bwrapArgs(policy), "--"], runner, enforcement: enforcementOf(runner) };
 }
 
 /** Confinement was required and this host cannot provide it. Distinct so a caller can catch it. */
@@ -281,8 +347,10 @@ export class SandboxUnavailableError extends Error {
  * offer an escalation prompt for something the sandbox never blocked. So the patterns are the ones
  * the runners actually emit, not a general net for the words "denied" or "permission".
  */
-export function looksDenied(output: string): boolean {
-	return DENIAL_PATTERNS.some((pattern) => pattern.test(output));
+export function looksDenied(output: string, runner?: Runner): boolean {
+	if (DENIAL_PATTERNS.some((pattern) => pattern.test(output))) return true;
+	if (runner !== "landlock" && runner !== "windows-acl") return false;
+	return output.split("\n").some((line) => GENERIC_DENIAL.test(line) && !NOT_A_DENIAL.test(line));
 }
 
 /**
@@ -292,6 +360,7 @@ export function looksDenied(output: string): boolean {
  * and therefore what most of these commands actually run under — writes `operation not permitted`,
  * lower case, in a differently shaped line. The unit tests used bash's wording and passed; the
  * first end-to-end run under a real user's shell is what showed the other half existed.
+ *
  */
 const DENIAL_PATTERNS = [
 	/\boperation not permitted\b/i,
@@ -300,6 +369,17 @@ const DENIAL_PATTERNS = [
 	/\bbwrap:.*(?:permission denied|read-only file system)/i,
 	/\bread-only file system\b/i,
 ];
+
+/**
+ * The words our own runners' refusals arrive in, which carry no prefix of their own.
+ *
+ * Landlock refuses with `EACCES` — `Permission denied` — and the Windows token with `Access is
+ * denied` from native programs and `Permission denied` from Git Bash. Those are common words, so
+ * they count only under the runner that produces them, and never in the two sentences ssh uses for
+ * a rejected key or password, which a `git push` prints under any sandbox or none.
+ */
+const GENERIC_DENIAL = /\b(?:permission denied|access is denied)\b/i;
+const NOT_A_DENIAL = /permission denied \(publickey|permission denied, please try again/i;
 
 /**
  * Whether this output is what a denied *network* looks like.
@@ -327,6 +407,7 @@ const NETWORK_DENIAL_PATTERNS = [
 	/\bcould not resolve proxy\b/i,
 	/\bconnect EPERM\b/i,
 	/\bEPERM\b.*\bconnect\b/i,
+	/\bconnect EACCES\b/i,
 	/\bnetwork is unreachable\b/i,
 	/\btemporary failure in name resolution\b/i,
 	/\bname or service not known\b/i,

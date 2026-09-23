@@ -16,13 +16,11 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, win32 } from "node:path";
 
-/** The grammar a command line is written in. Git Bash is `posix`: it is bash. */
-export type ShellKind = "posix" | "powershell";
-
 export interface CommandShell {
 	/** The executable to spawn. */
 	file: string;
-	kind: ShellKind;
+	/** The grammar a command line is written in. Git Bash is `posix`: it is bash. */
+	kind: "posix" | "powershell";
 	/** What to call it when telling the model or a person which shell this is. */
 	label: string;
 	/** The arguments that make `file` run one command line and exit. */

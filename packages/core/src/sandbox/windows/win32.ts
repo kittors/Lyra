@@ -16,6 +16,7 @@
  */
 
 import * as abi from "./abi.ts";
+import { koffi as loadKoffi } from "../native.ts";
 
 /** A native pointer as koffi hands it back. */
 export type Ptr = bigint;
@@ -82,6 +83,11 @@ export interface Win32 {
 	getExitCodeProcess(handle: Ptr, codeOut: Buffer): number;
 	getStdHandle(which: number): Ptr;
 	terminateProcess(handle: Ptr, code: number): number;
+	getAclInformation(acl: Ptr, info: Buffer, length: number, cls: number): number;
+	getAce(acl: Ptr, index: number, aceOut: Buffer): number;
+	equalSid(a: Ptr, b: Ptr): number;
+	/** Copy bytes out of memory we only hold a pointer to — an ACE inside a DACL. */
+	rtlMoveMemory(destination: Buffer, source: Ptr, length: number): void;
 }
 
 let cached: Win32 | null = null;
@@ -98,9 +104,8 @@ export function win32(): Win32 {
 		throw new Error("Windows 沙箱只能在 Windows 上加载");
 	}
 
-	// Required lazily. A static import would pull a native module into every platform's bundle.
-	// eslint-disable-next-line
-	const koffi = require("koffi") as typeof import("koffi");
+	// Loaded lazily. A static import would pull a native module into every platform's bundle.
+	const koffi = loadKoffi();
 	const PVOID = koffi.pointer("void");
 	const PPVOID = koffi.pointer(PVOID);
 
@@ -141,6 +146,10 @@ export function win32(): Win32 {
 		getExitCodeProcess: bind(kernel32, "GetExitCodeProcess", "int", [PVOID, koffi.pointer("uint32")]),
 		getStdHandle: bind(kernel32, "GetStdHandle", PVOID, ["int"]),
 		terminateProcess: bind(kernel32, "TerminateProcess", "int", [PVOID, "uint32"]),
+		getAclInformation: bind(advapi32, "GetAclInformation", "int", [PVOID, PVOID, "uint32", "int"]),
+		getAce: bind(advapi32, "GetAce", "int", [PVOID, "uint32", PPVOID]),
+		equalSid: bind(advapi32, "EqualSid", "int", [PVOID, PVOID]),
+		rtlMoveMemory: bind(kernel32, "RtlMoveMemory", "void", [PVOID, PVOID, "size_t"]),
 	} as Win32;
 	return cached;
 }
