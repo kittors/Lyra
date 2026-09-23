@@ -386,3 +386,16 @@ test("toAbsolute leaves a workspace-relative path where it belongs", () => {
 	assert.equal(toAbsolute(WS, "/etc/hosts"), resolve("/etc/hosts"));
 	assert.ok(CWD.length > 0);
 });
+
+test("a path spelled with backslashes is the path bash opens", () => {
+	// `\h` is `h` to bash, and the credential rule only knows the plain spelling.
+	assert.ok(commandReadTargets("cat ~/.ss\\h/id_ed25519", WS).includes(join(HOME, ".ssh/id_ed25519")));
+});
+
+test("a substitution in an unquoted heredoc is a read like any other", () => {
+	// bash runs the `$(…)` in the body; only a quoted delimiter makes the body inert.
+	const unquoted = `cat <<EOF\n$(cat ${HOME}/.ssh/id_ed25519)\nEOF`;
+	assert.ok(commandReadTargets(unquoted, WS).includes(join(HOME, ".ssh/id_ed25519")));
+	const quoted = `cat <<'EOF'\n$(cat ${HOME}/.ssh/id_ed25519)\nEOF`;
+	assert.ok(!commandReadTargets(quoted, WS).includes(join(HOME, ".ssh/id_ed25519")));
+});

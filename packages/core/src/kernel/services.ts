@@ -92,7 +92,14 @@ export interface SandboxProcess {
 	readonly pid?: number;
 	/** stdout and stderr interleaved, in arrival order, as the shell would have shown them. */
 	onOutput(listener: (chunk: string) => void): void;
-	onExit(listener: (code: number | null) => void): void;
+	/**
+	 * The command finished. `signal` names what killed it when `code` is null.
+	 *
+	 * `lingering` is set when the command exited but left processes of its own running that still
+	 * hold its output — `server &` without a redirect. They are handed over rather than waited for:
+	 * the command is done, and they can be read or stopped through this handle.
+	 */
+	onExit(listener: (code: number | null, signal?: NodeJS.Signals | null, lingering?: SandboxProcess) => void): void;
 	/** The command could not be started at all. Exit is not reported after this. */
 	onError(listener: (error: Error) => void): void;
 	kill(signal?: "SIGTERM" | "SIGKILL"): void;

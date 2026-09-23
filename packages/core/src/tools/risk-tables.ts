@@ -85,9 +85,16 @@ export const PLACES_FILES = new Set([
  * The vault's own two files are named explicitly rather than covered by a `~/.lyra` rule: that
  * directory also holds settings and session logs, and a rule broad enough to include them would
  * stop an agent reading its own configuration.
+ *
+ * Bounded on both sides by anything that ends a word in a command line, not only by a separator or
+ * the end of the string. This is matched against single paths *and* against whole commands, and
+ * the Windows fix that bounded it by `[/\\]|$` alone made every command with anything after the
+ * path safe: `scp ~/.ssh/id_ed25519 host:`, `cp ~/.lyra/vault.key backup.key`. The same change
+ * required a separator in front, which lost `cat .ssh/id_rsa` run from the home directory. What the
+ * bound is for is still true — `id_rsa.pub` is a public key, and `.` does not end the word.
  */
 export const SECRET_PATH =
-	/(?:^|[/\\])(?:\.(?:lyra[/\\](?:vault\.key|credentials\.json)|ssh[/\\]id_[A-Za-z0-9_]+|aws[/\\]credentials|gnupg\b|netrc|config[/\\]gh[/\\]hosts\.yml))(?=[/\\]|$)/i;
+	/(?:^|[/\\\s'"`=@:<>(|;&])(?:\.(?:lyra[/\\](?:vault\.key|credentials\.json)|ssh[/\\]id_[A-Za-z0-9_]+|aws[/\\]credentials|gnupg\b|netrc|config[/\\]gh[/\\]hosts\.yml))(?=$|[/\\\s'"`;&|<>)])/i;
 /**
  * Shells, which run whatever string they are handed.
  *

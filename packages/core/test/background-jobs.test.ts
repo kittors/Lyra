@@ -10,6 +10,7 @@ import type { SandboxProcess } from "../src/kernel/services.ts";
 import { useSandbox } from "../src/sandbox/index.ts";
 import { bashTool } from "../src/tools/bash.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
+import { systemShell } from "../src/platform.ts";
 test("a session can stop only its own process handle, and a terminated job cannot target a reused PID", () => {
 	const a=new BackgroundJobs(),b=new BackgroundJobs(),signals:string[]=[];
 	const info:BackgroundJob={id:"owned",command:"dev",startedAt:1,exitCode:null,output:"",pid:123,status:"running"};
@@ -71,7 +72,8 @@ const server=createServer((request,response)=>response.end(process.argv[2]));
 server.listen(0,'127.0.0.1',()=>console.log('SERVICE_READY '+process.pid+' '+server.address().port));
 `);
 	await writeFile(join(root, "launcher.cjs"), "require('node:child_process').spawn(process.execPath,['server.cjs','owned'],{stdio:'inherit'});\n");
-	const executable = process.platform === "win32" ? `& '${process.execPath.replaceAll("'", "''")}'` : `'${process.execPath.replaceAll("'", "'\\''")}'`;
+	// Written for the shell that will run it: Git Bash on a Windows that has Git, PowerShell otherwise.
+	const executable = systemShell().kind === "powershell" ? `& '${process.execPath.replaceAll("'", "''")}'` : `'${process.execPath.replaceAll("'", "'\\''")}'`;
 	await bashTool.execute({ command: `${executable} launcher.cjs`, run_in_background: true }, { cwd: root, sessionId: "owned", state: ownedState });
 	await bashTool.execute({ command: `${executable} server.cjs sibling`, run_in_background: true }, { cwd: root, sessionId: "sibling", state: siblingState });
 	const jobs = registries.map(registry => registry.list()[0]);

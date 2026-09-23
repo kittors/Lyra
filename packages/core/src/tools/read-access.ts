@@ -178,7 +178,14 @@ export function assessRead(absolute: string, cwd: string, options: ReadAccessOpt
  */
 export function commandReadTargets(command: string, cwd: string): string[] {
 	const found = new Set<string>();
-	for (const piece of splitCommands(stripHeredocs(command))) {
+	/*
+	 * A here-document's body is data the command is fed, not paths it opens — `python3 - <<'EOF'`
+	 * and `cat > file <<'EOF'` carry whole programs and file contents. Replaying real sessions, that
+	 * is where most of the paths that are not paths came from: a `/` from inside a Go import block,
+	 * a `/dist` from a script being written out. `splitCommands` leaves bodies out, the way bash
+	 * reads them — except for a `$(…)` in an unquoted one, which bash runs and so is judged here.
+	 */
+	for (const piece of splitCommands(command)) {
 		const words = splitWords(piece);
 		for (let i = 0; i < words.length; i++) {
 			// The first word is the program, not something it reads.
@@ -216,23 +223,6 @@ export function commandReadTargets(command: string, cwd: string): string[] {
 
 /** `>`, `>>`, `2>`, `&>` — alone or stuck to the path that follows. */
 const REDIRECT_WRITE = /^\d*(>>?|&>)/;
-
-/**
- * A here-document's body is data the command is fed, not paths it opens.
- *
- * `python3 - <<'EOF' … EOF` and `cat > file <<'EOF' … EOF` carry whole programs and file contents,
- * and the word splitter has no idea: it sees the body as more command line. Replaying real
- * sessions, that is where most of the paths that are not paths came from — a `/` from inside a Go
- * import block, a `/dist` from a script being written out. The delimiter may be quoted, and `<<-`
- * allows the terminator to be indented.
- *
- * The tail is `(?![\s\S])` rather than `$`. With the `m` flag `$` matches at every line ending, so
- * a lazy body stopped at the first newline and left the whole document in place — the rule read as
- * "up to the terminator, or the end of the string" and behaved as "up to the end of this line".
- */
-function stripHeredocs(command: string): string {
-	return command.replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?(?:^[ \t]*\2[ \t]*$|(?![\s\S]))/gm, "");
-}
 
 /**
  * The directory an approval should cover, walked up to the project it belongs to.

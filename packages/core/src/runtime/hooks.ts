@@ -9,9 +9,10 @@
  * model can react to — that is what makes hooks a guardrail rather than just logging.
  */
 
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { systemShell } from "../platform.ts";
+import { commandEnv } from "../sandbox/login-path.ts";
 import type { ExtensionHost } from "../extensions/host.ts";
 import type { HookConfig } from "../config/settings.ts";
 import type { ToolResult } from "../types.ts";
@@ -58,38 +59,60 @@ export async function runHook(
 			return;
 		}
 
-		const child = spawn(hook.command, {
+		/*
+		 * The same shell, arguments and environment as the agent's own commands.
+		 *
+		 * This used to be `spawn(command, { shell })`, which lets Node build the argv — and so a zsh
+		 * hook ran without the `NOMATCH` fix, a Windows one through `powershell -c` with neither the
+		 * UTF-8 output nor `-NoProfile`, and a GUI launch without the user's `PATH`, so a hook
+		 * calling `node` or `jq` could not find it. Its own process group, so a timeout stops what
+		 * the hook started as well as the shell.
+		 */
+		const shell = systemShell();
+		const child = spawn(shell.file, shell.args(hook.command), {
 			cwd,
-			shell: systemShell().file,
+			detached: process.platform !== "win32",
+			windowsHide: true,
 			env: {
-				...process.env,
+				...commandEnv(process.env),
 				DW_TOOL: String(payload.toolName ?? ""),
 				DW_EVENT: hook.event,
 				DW_ARGS: JSON.stringify(payload.args ?? {}),
 				DW_CWD: cwd,
 			},
 		});
+		const killTree = () => {
+			if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
+			if (process.platform === "win32") {
+				execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }, () => {});
+				return;
+			}
+			try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); }
+		};
 
 		let stdout = "";
 		let stderr = "";
 		let settled = false;
 
-		child.stdout.on("data", (chunk: Buffer) => {
-			if (stdout.length < MAX_CAPTURE) stdout += chunk.toString("utf8");
+		// Decoded by the stream, so a character split across two chunks is not two `�`.
+		child.stdout.setEncoding("utf8");
+		child.stderr.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
+			if (stdout.length < MAX_CAPTURE) stdout += chunk;
 		});
-		child.stderr.on("data", (chunk: Buffer) => {
-			if (stderr.length < MAX_CAPTURE) stderr += chunk.toString("utf8");
+		child.stderr.on("data", (chunk: string) => {
+			if (stderr.length < MAX_CAPTURE) stderr += chunk;
 		});
 
 		// A hook that hangs must not hang the agent.
 		const timer = setTimeout(() => {
 			if (settled) return;
 			settled = true;
-			child.kill("SIGKILL");
+			killTree();
 			resolve({ exitCode: null, stdout, stderr, timedOut: true });
 		}, HOOK_TIMEOUT_MS);
 
-		const onAbort = () => child.kill("SIGKILL");
+		const onAbort = () => killTree();
 		signal?.addEventListener("abort", onAbort, { once: true });
 
 		child.on("error", (error) => {

@@ -419,8 +419,11 @@ app.whenReady().then(async () => {
 	 * runs — see `core/sandbox/login-path.ts`. Recovering them means asking the user's shell, which
 	 * costs one to two seconds; kicking it off at the top of startup means it has long since
 	 * finished by the time anyone types anything, and nothing waits on it if it has not.
+	 *
+	 * `always`: a Linux desktop session hands its apps a `PATH` that already looks assembled, so
+	 * judging by `PATH` never asked there. Any launch that is not from a terminal asks.
 	 */
-	void primeCommandPath();
+	void primeCommandPath({ always: true });
 
 	/*
 	 * Before anything reads or writes it: the home directory was called `.deepwise` until the app
