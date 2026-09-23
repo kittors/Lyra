@@ -11,6 +11,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { projectFolders } from "@lyra/core/project-folders";
 import { orderedSessions, type SessionSortKey } from "../../lib/sidebar-order.ts";
+import { isDescendantPath } from "../../lib/paths.ts";
 
 export interface Group {
 	path: string;
@@ -161,9 +162,9 @@ export function groupSessions(
  * which as a caption is worse than none.
  */
 export function isScratch(cwd: string, scratchRoots: string[]): boolean {
-	return scratchRoots
-		.filter(Boolean)
-		.some((root) => cwd.startsWith(root.endsWith("/") ? root : `${root}/`));
+	// The roots are the main process's `path.join`, so backslashed on Windows, where appending "/"
+	// matched nothing and every scratch session grew a project row of its own.
+	return scratchRoots.filter(Boolean).some((root) => isDescendantPath(root, cwd));
 }
 
 /**
