@@ -100,12 +100,14 @@ export const writeTool: Tool<WriteArgs> = {
 		// What `read` will show of it from now on: the diff, the line count and the fingerprint are taken from this.
 		const before = previous?.text ?? "";
 		const after = decodeText(written).text;
+		// Once: the approval prompt and the result describe the same pair, and a whole-file diff is not free.
+		const diff = computeDiff(before, after);
 
 		if (ctx.requestApproval) {
 			const decision = await ctx.requestApproval({
 				kind: "write",
 				title: alreadyExists ? `Overwrite ${displayPath(ctx.cwd, absolute)}` : `Create ${displayPath(ctx.cwd, absolute)}`,
-				detail: formatDiff(computeDiff(before, after), displayPath(ctx.cwd, absolute)),
+				detail: formatDiff(diff, displayPath(ctx.cwd, absolute)),
 				subject: absolute,
 			});
 			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this write.");
@@ -120,7 +122,6 @@ export const writeTool: Tool<WriteArgs> = {
 		// blank, so the very next edit of this file was refused as unread.
 		if (lines > 0) markRead(ctx, absolute, after, 1, lines);
 		else markRead(ctx, absolute, after);
-		const diff = computeDiff(before, after);
 		return {
 			content: [
 				{
