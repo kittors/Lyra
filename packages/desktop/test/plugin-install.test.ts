@@ -171,6 +171,25 @@ test("re-installing replaces a bundle's servers rather than doubling them", asyn
 	});
 });
 
+test("updating a bundle keeps its servers switched on, and a server new in this version arrives off", async () => {
+	await withHome(async () => {
+		const repo = await repoWith(mcpRepo("context7"));
+		const entry: RegistryEntry = { id: "context7", name: "Context7", repository: repo, kind: "mcp" };
+		const installed = await installEntry(entry);
+		const [server] = installed.servers;
+		assert.ok(server);
+
+		// The user switched it on; an update then brings the same server and one more.
+		const on = settingsWith({ mcpServers: [{ ...server, enabled: true }] });
+		const update = { ...installed, servers: [server, { ...server, id: `${server.id}-extra`, name: "extra" }] };
+		const next = settingsAfterInstall(on, entry.id, update)!;
+
+		assert.equal(next.mcpServers.find((row) => row.id === server.id)?.enabled, true, "the update switched off a server the user had on");
+		assert.equal(next.mcpServers.find((row) => row.id === `${server.id}-extra`)?.enabled, false, "a server nobody chose is not on");
+		assert.equal(next.mcpServers.length, 2);
+	});
+});
+
 test("a server the user switched on survives a re-install of a different bundle", async () => {
 	await withHome(async () => {
 		const repo = await repoWith(mcpRepo("filesystem"));

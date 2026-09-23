@@ -29,14 +29,20 @@ import type { Installed, McpBundle, McpServerConfig, Settings } from "@lyra/core
  * Re-installing replaces that bundle's rows rather than adding to them. Without that, installing
  * something twice leaves two copies of every server it declares, and switching "it" on switches on
  * whichever copy the list happened to hit first.
+ *
+ * Replacing keeps the one thing that was the user's: whether a server they already had is on. An
+ * update rewrote every row as off, so the servers somebody had switched on stopped the moment the
+ * bundle updated, with nothing saying why. A server the new version brings for the first time still
+ * arrives off — that is the install decision, made again only for what is new.
  */
 export function settingsAfterInstall(current: Settings, entryId: string, installed: Installed): Settings | null {
 	if (installed.kind !== "mcp" || installed.servers.length === 0) return null;
 
 	const others = current.mcpServers.filter((server) => server.origin?.bundle !== entryId);
+	const before = new Map(current.mcpServers.filter((server) => server.origin?.bundle === entryId).map((server) => [server.id, server.enabled]));
 	return {
 		...current,
-		mcpServers: [...others, ...installed.servers.map((server) => ({ ...server, enabled: false }))],
+		mcpServers: [...others, ...installed.servers.map((server) => ({ ...server, enabled: before.get(server.id) ?? false }))],
 	};
 }
 
