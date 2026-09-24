@@ -6,8 +6,8 @@
  * 文字扫光、图标转圈）。每隔几行就要重新认一次这是什么，那种累不是哪一行不好看造成的，是它们
  * 互相不像造成的。
  *
- * 这个组件只管骨架，不管内容：一个前置图标、一句标题、一个点、一段会被省略的摘要、一个可选的
- * 尾部，最右边是展开箭头。展开与否、里面画什么，都还是各自的事。
+ * 这个组件只管骨架，不管内容：一个前置图标、一句标题、一个点、一段装不下就化开的摘要、一个可选
+ * 的尾部，最右边是展开箭头。展开与否、里面画什么，都还是各自的事。
  *
  * 图标和箭头分居两端，是因为它们说的是两件事：图标说「这一行是什么」，箭头说「点开还是收起」。
  * 它们一度共用最左边那一格（悬停时互换），于是鼠标一放上去，那一行的身份标志就没了。
@@ -17,6 +17,8 @@
  */
 
 import type { ReactNode } from "react";
+
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 
 export function FlowRow({
 	icon,
@@ -35,7 +37,7 @@ export function FlowRow({
 	icon: ReactNode;
 	/** 这一行是什么。不参与压缩——先被吃掉的永远该是摘要。 */
 	title?: ReactNode;
-	/** 这一行做了什么。长了省略号；运行中它是唯一带动效的东西。 */
+	/** 这一行做了什么。长了两头化开、鼠标放上去自己读出来；运行中它是唯一带动效的东西。 */
 	summary?: ReactNode;
 	/** 靠右的附注，比如改动行数。 */
 	trailing?: ReactNode;
@@ -77,14 +79,26 @@ export function FlowRow({
 					className={`ly-flow-summary ${running ? "ly-glide" : ""} ${followEnd ? "ly-fade-edge" : ""}`}
 					data-follow-end={followEnd ? "" : undefined}
 				>
-					{summary}
+					{/*
+					 * 停下来之后，这一句和侧边栏的标题是同一种东西：虚化代替省略号，鼠标放上去自己读出来。
+					 *
+					 * 从前它是 `text-overflow: ellipsis`，于是一行推理被剁在「…」上——那三个点报告了
+					 * 「这里被截了」，却不说截掉的是什么，而想知道的恰恰是那半句。点开能看全文，但那是
+					 * 另一件事：为了读完一行摘要而展开整段推理，代价比那半句话大得多。
+					 *
+					 * 正在写的时候不换。那会儿字尾顶在右边、两头的虚化另有深浅（见 flow-row.css），
+					 * 而且那一句是帧循环直接写进 DOM 的——`ScrollText` 会把它复制一份做无缝循环，复制件
+					 * 拿不到那支 ref，一行字就此分叉成两句。
+					 */}
+					{followEnd ? summary : <ScrollText text={summary} />}
 				</span>
 			)}
 			{trailing && <span className="ly-flow-trail">{trailing}</span>}
 		</>
 	);
 
-	const shell = `ly-flow-row text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted ${className}`;
+	/* `ly-scroll` 是摘要悬停自读的那个钩子：动画挂在文字上，触发它的 `:hover` 属于整行。 */
+	const shell = `ly-flow-row ly-scroll text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted ${className}`;
 
 	if (!expandable) {
 		return (

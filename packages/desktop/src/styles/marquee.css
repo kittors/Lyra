@@ -62,6 +62,29 @@
 }
 
 /*
+ * 静止时装得下，只有悬停时控件压上来才装不下的那一种：虚化跟着控件一起来，不常驻。
+ *
+ * `ScrollText` 现在把「装不下」分成两种（见那边的 `data-ly-scroll-fit`）。这一种静止时是一整行完好的
+ * 字，右边什么都没有——给它常驻一道虚化，等于把一个本来读得全的标题平白抹淡。
+ *
+ * 反过来，悬停时它必须有：那一刻遮罩要在控件底下清出一段空白（`--ly-fade-clear`），而从实到透明
+ * 之间如果没有长度，那就是一刀切——13 个字的标题鼠标一放上去少掉最后一个字，断口齐得像裁纸刀
+ * 裁的。两个长度都注册过，0 到 22px 是渐变的，所以虚化是跟着控件淡进来的。
+ */
+.ly-fade-edge[data-ly-scroll-fit="yield"] {
+  --ly-fade-right: 0;
+}
+
+/* 一条规则一个选择器：`:has()` 被当成不支持时，整个逗号组会连着 `:hover` 那半边一起被剪掉。 */
+[data-ly-hover-row]:hover .ly-fade-edge[data-ly-scroll-fit="yield"] {
+  --ly-fade-right: 22px;
+}
+
+[data-ly-hover-row]:has(:focus-visible) .ly-fade-edge[data-ly-scroll-fit="yield"] {
+  --ly-fade-right: 22px;
+}
+
+/*
  * One direction, continuously, with a trailing copy so the loop is seamless.
  *
  * This used to sweep left and right (`alternate`), which reads as the row twitching — the eye
@@ -111,13 +134,20 @@
  * Two delays, in the order the properties are declared. A single value would delay both, and the
  * right-hand side is answering the archive button appearing over the text — a control that is
  * already there while the title is still deciding whether to move.
+ *
+ * 只给会滚的那种壳（`data-ly-scroll-fit`，`ScrollText` 打的），不给每一个挂着 `ly-fade-edge` 的东西。
+ * 左边这道虚化存在的理由是接住滚出去的字；不滚的行左边没有东西在离开，化开就只是糊。
+ *
+ * 这条限定是踩出来的：过程行的骨架挂上 `ly-scroll` 之后，正在逐字写的那一句也被这里扫到了——
+ * 它自己在 flow-row.css 里声明了两头的深浅（20px/12px，而且短句子是 0），而这边的选择器权重一样
+ * 重、又排在后面，于是短句子悬停时左边平白淡掉 13px。那一句不换成滚动的壳，也就不带这个标记。
  */
-.ly-scroll:hover .ly-fade-edge {
+.ly-scroll:hover .ly-fade-edge[data-ly-scroll-fit] {
   --ly-fade-left: 13px;
   transition-delay: 320ms, 0ms, 0ms;
 }
 
-.ly-scroll:has(:focus-visible) .ly-fade-edge {
+.ly-scroll:has(:focus-visible) .ly-fade-edge[data-ly-scroll-fit] {
   --ly-fade-left: 13px;
   transition-delay: 320ms, 0ms, 0ms;
 }

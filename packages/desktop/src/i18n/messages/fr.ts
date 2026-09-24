@@ -15,6 +15,7 @@ export const fr = {
 	"question.collapse": "Replier la question ou la demande",
 	"question.expand": "Déplier la question ou la demande",
 	"question.fullAccessNote": "Cette question porte sur votre choix. L’accès complet dispense d’autoriser chaque action, mais ne répond pas à votre place.",
+	"question.expiresIn": "Expire dans {time}",
 
 	"common.cancel": "Annuler", "common.confirm": "Confirmer", "common.delete": "Supprimer", "common.hide": "Masquer", "common.loading": "Ouverture", "common.save": "Enregistrer", "common.show": "Afficher",
 	"app.backWorkspace": "Retour à l’espace de travail", "app.guide": "Guide", "app.hideSettingsNavigation": "Masquer la navigation des réglages {shortcut}", "app.mainProcessError": "Erreur du processus principal", "app.panel": "Panneaux", "app.plugins": "Extensions", "app.pullRequests": "Demandes de fusion", "app.scheduledTasks": "Tâches planifiées", "app.settingsNavigation": "Navigation des réglages", "app.showSettingsNavigation": "Afficher la navigation des réglages {shortcut}", "app.sidebar": "Barre latérale",
@@ -1722,6 +1723,7 @@ export const fr = {
 	"taskList.resume": "Poursuivre",
 	"taskList.resumeDetail": "Reprend là où c'était en pause.",
 	"taskList.pausedAt": "En pause · {step}",
+	"taskList.stalledAt": "Arrêté · {step}",
 	"taskList.allDone": "Tout est fait",
 	"taskList.notStarted": "Pas commencé",
 	"taskList.pending": "{n} restants",

@@ -43,7 +43,7 @@ const TYPE = {
  *
  * 运行中它自己把字写出来——这是它「在动」的说法，所以不再另外加扫光：一行上只有一种动效。写到
  * 一半的字尾被顶在右边，看到的永远是最新的那几个字。停下来之后它就是一条普通的收起行：开头那句
- * 话，长了省略号。点开是全文。
+ * 话，装不下就两头化开，鼠标放上去它自己读出来（见 `FlowRow` 里的 `ScrollText`）。点开是全文。
  */
 export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string; redacted: boolean; live?: boolean; stateKey?: string }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);

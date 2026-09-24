@@ -13,6 +13,7 @@ export const zhCN = {
 	"question.collapse": "收起提问或审批",
 	"question.expand": "展开提问或审批",
 	"question.fullAccessNote": "这是业务提问。完全访问免除操作审批，仍需你决定问题的答案。",
+	"question.expiresIn": "{time} 后失效",
 
 	"common.cancel": "取消",
 	"common.confirm": "确认",
@@ -1907,6 +1908,7 @@ export const zhCN = {
 	"taskList.resume": "继续",
 	"taskList.resumeDetail": "继续，从暂停的地方接着做。",
 	"taskList.pausedAt": "已暂停 · {step}",
+	"taskList.stalledAt": "停在 · {step}",
 	"taskList.allDone": "全部完成",
 	"taskList.notStarted": "待开始",
 	"taskList.pending": "{n} 项待处理",

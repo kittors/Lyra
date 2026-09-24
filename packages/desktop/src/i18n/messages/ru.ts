@@ -15,6 +15,7 @@ export const ru = {
 	"question.collapse": "Свернуть вопрос или запрос",
 	"question.expand": "Развернуть вопрос или запрос",
 	"question.fullAccessNote": "Это вопрос о задаче. Полный доступ отменяет запросы разрешений на действия, но не выбирает ответы за вас.",
+	"question.expiresIn": "Истекает через {time}",
 
 	"common.cancel": "Отмена", "common.confirm": "Подтвердить", "common.delete": "Удалить", "common.hide": "Скрыть", "common.loading": "Открытие", "common.save": "Сохранить", "common.show": "Показать",
 	"app.backWorkspace": "Вернуться в рабочую область", "app.guide": "Настройка", "app.hideSettingsNavigation": "Скрыть навигацию настроек {shortcut}", "app.mainProcessError": "Ошибка основного процесса", "app.panel": "Панели", "app.plugins": "Плагины", "app.pullRequests": "Запросы на слияние", "app.scheduledTasks": "Запланированные задачи", "app.settingsNavigation": "Навигация настроек", "app.showSettingsNavigation": "Показать навигацию настроек {shortcut}", "app.sidebar": "Боковая панель",
@@ -1722,6 +1723,7 @@ export const ru = {
 	"taskList.resume": "Продолжить",
 	"taskList.resumeDetail": "Продолжит с того места, где встало.",
 	"taskList.pausedAt": "Пауза · {step}",
+	"taskList.stalledAt": "Остановлено · {step}",
 	"taskList.allDone": "Всё готово",
 	"taskList.notStarted": "Не начато",
 	"taskList.pending": "осталось: {n}",

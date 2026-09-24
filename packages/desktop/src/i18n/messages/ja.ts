@@ -15,6 +15,7 @@ export const ja = {
 	"question.collapse": "質問・承認を折りたたむ",
 	"question.expand": "質問・承認を開く",
 	"question.fullAccessNote": "方針についての質問です。フルアクセスでも、質問への回答は自動では選ばれません。",
+	"question.expiresIn": "{time} 後に失効",
 
 	"common.cancel": "キャンセル", "common.confirm": "確認", "common.delete": "削除", "common.hide": "非表示", "common.loading": "開いています", "common.save": "保存", "common.show": "表示",
 	"app.backWorkspace": "ワークスペースに戻る", "app.guide": "ガイド", "app.hideSettingsNavigation": "設定ナビゲーションを隠す {shortcut}", "app.mainProcessError": "メインプロセスのエラー", "app.panel": "パネル", "app.plugins": "プラグイン", "app.pullRequests": "プルリクエスト", "app.scheduledTasks": "予約タスク", "app.settingsNavigation": "設定ナビゲーション", "app.showSettingsNavigation": "設定ナビゲーションを表示 {shortcut}", "app.sidebar": "サイドバー",
@@ -1722,6 +1723,7 @@ export const ja = {
 	"taskList.resume": "続ける",
 	"taskList.resumeDetail": "止まったところから続けます。",
 	"taskList.pausedAt": "一時停止中 · {step}",
+	"taskList.stalledAt": "中断 · {step}",
 	"taskList.allDone": "すべて完了",
 	"taskList.notStarted": "未着手",
 	"taskList.pending": "残り {n} 件",

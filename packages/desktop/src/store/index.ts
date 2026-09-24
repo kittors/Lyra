@@ -96,6 +96,14 @@ interface PendingApproval extends QuestionFields {
   reason?: string;
   /** What an "always" answer gets remembered against. */
   subject?: string;
+  /**
+   * When this question gives up waiting, as an instant.
+   *
+   * Optional because a card restored from a session that is no longer live has no deadline to
+   * show — nothing is counting down for it, and a countdown drawn anyway would be a second
+   * invented fact on top of the one this whole change is about.
+   */
+  expiresAt?: number;
 }
 
 export interface AppState extends QueueSlice {

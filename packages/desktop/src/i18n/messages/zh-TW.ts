@@ -15,6 +15,7 @@ export const zhTW = {
 	"question.collapse": "收合提問或核准",
 	"question.expand": "展開提問或核准",
 	"question.fullAccessNote": "這是業務提問。完整存取免除操作核准，問題的答案仍由你決定。",
+	"question.expiresIn": "{time} 後失效",
 
 	"common.cancel": "取消", "common.confirm": "確認", "common.delete": "刪除", "common.hide": "隱藏", "common.loading": "正在開啟", "common.save": "儲存", "common.show": "顯示",
 	"app.backWorkspace": "返回工作區", "app.guide": "引導", "app.hideSettingsNavigation": "隱藏設定導覽 {shortcut}", "app.mainProcessError": "主程序發生錯誤", "app.panel": "面板", "app.plugins": "外掛", "app.pullRequests": "拉取請求", "app.scheduledTasks": "排程任務", "app.settingsNavigation": "設定導覽", "app.showSettingsNavigation": "顯示設定導覽 {shortcut}", "app.sidebar": "側邊欄",
@@ -1722,6 +1723,7 @@ export const zhTW = {
 	"taskList.resume": "繼續",
 	"taskList.resumeDetail": "繼續，從暫停的地方接著做。",
 	"taskList.pausedAt": "已暫停 · {step}",
+	"taskList.stalledAt": "停在 · {step}",
 	"taskList.allDone": "全部完成",
 	"taskList.notStarted": "待開始",
 	"taskList.pending": "{n} 項待處理",

@@ -15,6 +15,7 @@ export const ko = {
 	"question.collapse": "질문 또는 승인 접기",
 	"question.expand": "질문 또는 승인 펼치기",
 	"question.fullAccessNote": "작업 방향을 묻는 질문입니다. 전체 접근은 작업 승인을 생략하지만 질문에 대신 답하지는 않습니다.",
+	"question.expiresIn": "{time} 후 만료",
 
 	"common.cancel": "취소", "common.confirm": "확인", "common.delete": "삭제", "common.hide": "숨기기", "common.loading": "여는 중", "common.save": "저장", "common.show": "표시",
 	"app.backWorkspace": "작업 공간으로 돌아가기", "app.guide": "안내", "app.hideSettingsNavigation": "설정 탐색 숨기기 {shortcut}", "app.mainProcessError": "메인 프로세스 오류", "app.panel": "패널", "app.plugins": "플러그인", "app.pullRequests": "Pull Request", "app.scheduledTasks": "예약 작업", "app.settingsNavigation": "설정 탐색", "app.showSettingsNavigation": "설정 탐색 표시 {shortcut}", "app.sidebar": "사이드바",
@@ -1722,6 +1723,7 @@ export const ko = {
 	"taskList.resume": "이어가기",
 	"taskList.resumeDetail": "멈춘 곳부터 이어서 합니다.",
 	"taskList.pausedAt": "멈춤 · {step}",
+	"taskList.stalledAt": "중단됨 · {step}",
 	"taskList.allDone": "모두 끝",
 	"taskList.notStarted": "아직 시작 안 함",
 	"taskList.pending": "{n}개 남음",

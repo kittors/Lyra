@@ -15,6 +15,7 @@ export const en = {
 	"question.collapse": "Collapse question or approval",
 	"question.expand": "Expand question or approval",
 	"question.fullAccessNote": "This asks for your decision. Full access skips action approvals; it does not answer questions for you.",
+	"question.expiresIn": "Expires in {time}",
 
 	"common.cancel": "Cancel", "common.confirm": "Confirm", "common.delete": "Delete", "common.hide": "Hide", "common.loading": "Opening", "common.save": "Save", "common.show": "Show",
 	"app.backWorkspace": "Back to workspace", "app.guide": "Guide", "app.hideSettingsNavigation": "Hide settings navigation {shortcut}", "app.mainProcessError": "Main process error", "app.panel": "Panels", "app.plugins": "Plugins", "app.pullRequests": "Pull requests", "app.scheduledTasks": "Scheduled tasks", "app.settingsNavigation": "Settings navigation", "app.showSettingsNavigation": "Show settings navigation {shortcut}", "app.sidebar": "Sidebar",
@@ -1722,6 +1723,7 @@ export const en = {
 	"taskList.resume": "Carry on",
 	"taskList.resumeDetail": "Pick up where it paused.",
 	"taskList.pausedAt": "Paused · {step}",
+	"taskList.stalledAt": "Stopped at · {step}",
 	"taskList.allDone": "All done",
 	"taskList.notStarted": "Not started",
 	"taskList.pending": "{n} to go",
