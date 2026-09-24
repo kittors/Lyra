@@ -235,9 +235,16 @@ async function pressStop(): Promise<boolean> {
 	})()`);
 }
 
+/**
+ * Press a button on screen by its name — the aria-label when it has one.
+ *
+ * The resume row's 继续 is an icon now, its word in the label and the tooltip; read by textContent
+ * it had no name at all, so 「the resume offer was not on screen」 while it plainly was.
+ */
 async function press(label: string): Promise<boolean> {
 	return app.evaluate<boolean>(`(() => {
-		const buttons = [...document.querySelectorAll("main button")].filter((b) => b.textContent?.trim() === ${JSON.stringify(label)});
+		const name = (b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim();
+		const buttons = [...document.querySelectorAll("main button")].filter((b) => b.checkVisibility() && name(b) === ${JSON.stringify(label)});
 		if (buttons.length === 0) return false;
 		buttons[buttons.length - 1].click();
 		return true;

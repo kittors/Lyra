@@ -167,8 +167,16 @@ test("a failed request offers to carry on, not only to start over", async () => 
 	/*
 	 * The one that was missing. 重试 was always there — it comes with the failed message — and on a
 	 * turn that had done real work it is the wrong half of the offer to be given alone.
+	 *
+	 * Found by the hook the button carries rather than by its word: it is an icon now, with 继续 in
+	 * its label and tooltip, so the transcript's text no longer contains it at all.
 	 */
-	assert.ok(offer.includes("继续"), `继续 is offered after a failure:\n${offer.slice(-400)}`);
+	const carryOn = await app.evaluate<{ label: string; visible: boolean } | null>(`(() => {
+		const b = document.querySelector("main [data-hiccup-trace] [data-resume-continue]");
+		return b ? { label: b.getAttribute("aria-label") ?? "", visible: b.checkVisibility() } : null;
+	})()`);
+	assert.ok(carryOn?.visible, `继续 is offered after a failure: ${JSON.stringify(carryOn)}\n${offer.slice(-400)}`);
+	assert.equal(carryOn.label, "继续");
 	// 同一件事只说一遍：`ResumeRow` 的那行让位给了上面那条记录，否则屏幕上又是两行讲同一件事。
 	assert.ok(!offer.includes("上次请求失败"), `失败只由一条记录来说：\n${offer.slice(-400)}`);
 	assert.ok(!offer.includes("这一轮出错了"), "红字加展开箭头那一套已经撤了");
@@ -183,7 +191,9 @@ test("a failed request offers to carry on, not only to start over", async () => 
 	const button = await app.evaluate<{ mode: string; label: string; d: string; fill: string } | null>(`(() => {
 		const all = [...document.querySelectorAll("[data-composer-send]")];
 		const b = all[all.length - 1];
-		const p = b?.querySelector("svg path");
+		// The shown icon, not the first: all three are stacked in the button and swap by data-active,
+		// and the first path is always the play triangle — so reading it proved nothing either way.
+		const p = b?.querySelector('.ly-send-icon[data-active="true"] svg path');
 		return b && p ? { mode: b.dataset.composerSend, label: b.getAttribute("aria-label"), d: p.getAttribute("d"), fill: p.getAttribute("fill") ?? "" } : null;
 	})()`);
 	assert.ok(button, "the composer's send button is on screen");
@@ -208,7 +218,8 @@ test("一句失败旁边只有一个动作，而且是安全的那个", async ()
 	const actions = await app.evaluate<string[]>(`(() => {
 		const trace = document.querySelector("[data-hiccup-trace]");
 		if (!trace) return [];
-		return [...trace.querySelectorAll("button")].map((b) => b.textContent?.trim() ?? "");
+		// By name: the record's actions are icons, their words in aria-label.
+		return [...trace.querySelectorAll("button")].map((b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim());
 	})()`);
 	assert.ok(actions.includes("继续"), `记录上给的是「继续」：${JSON.stringify(actions)}`);
 	assert.ok(!actions.includes("重试"), `而不是并排的「重试」：${JSON.stringify(actions)}`);
