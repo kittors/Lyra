@@ -184,7 +184,21 @@ export function turnSlice(set: Set, get: Get) {
    * because re-asking a question *is* replacing it with itself: everything after has to go,
    * for the same reason it does when the wording changes.
    */
-  async retryFrom(index: number) {
+  async retryFrom(index: number, sessionId?: string) {
+    /*
+     * 指名的会话不在台上，先把它请上台。
+     *
+     * `editMessage` 只会改台上那一份转录。分屏时非焦点那一屏的「重试」用键盘按下去不经过
+     * pointerdown，焦点不会先切过来——不先请上台，被丢掉重答的就是焦点那一屏的对话，一次要再花
+     * 整轮 token 的操作落在了别人头上。请上台在分屏里就是把焦点切到那一屏，和鼠标按下时一样。
+     */
+    if (sessionId && sessionId !== get().activeSessionId) {
+      const meta = get().sessions.find((session) => session.id === sessionId);
+      if (!meta) return;
+      await get().openSession(meta);
+      // 等待期间人又点开了别的对话：那是更新的选择，这次重试不再作数。
+      if (get().activeSessionId !== sessionId) return;
+    }
     const messages = get().messages;
     for (let i = Math.min(index, messages.length - 1); i >= 0; i--) {
       const message = messages[i];
