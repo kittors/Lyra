@@ -15,11 +15,38 @@ import { approvalPolicy } from "./approval-policy.ts";
 export interface PendingApproval {
 	id: string;
 	request: ApprovalRequest;
+	/**
+	 * When this stops waiting, as an instant rather than the delay it was born as.
+	 *
+	 * The window has to draw a countdown, and a duration measured from an event that has already
+	 * been emitted, sent across a process boundary and rendered is stale before anything can read
+	 * it. `retrying` in the desktop store carries its deadline the same way, for the same reason.
+	 */
+	expiresAt: number;
 	resolve: (decision: ApprovalDecision) => void;
 }
 
-/** How long a question waits for a person before it is treated as refused. */
+/** How long a permission request waits for a person before it is treated as refused. */
 const UNATTENDED_TIMEOUT_MS = 5 * 60_000;
+/**
+ * A question is not a permission request, and five minutes was the wrong answer for it.
+ *
+ * Refusing an unanswered *permission* request is coherent: it grants nothing that was not already
+ * granted, and five minutes of silence is decent evidence that nobody is at the keyboard to grant
+ * it. A question has neither property. `ask_user` is the model asking the person a question it
+ * cannot answer itself — there is nothing to refuse, and "no answer" is not an answer, it is a
+ * person who went to a meeting.
+ *
+ * It bit exactly that way: a run that rewrote 941 commits stopped to ask whether to push them,
+ * the person was away for six minutes, and the question expired into a refusal. The turn ended
+ * cleanly, the work was left undone, and nothing on screen said a question had ever been asked.
+ *
+ * Still finite, because the original worry is real — an unattended run that hangs on its first
+ * prompt is not deference either. Thirty minutes is long enough to come back from lunch, and the
+ * card now shows the time it has left, so the deadline is something you can see rather than
+ * something you discover afterwards.
+ */
+const QUESTION_TIMEOUT_MS = 30 * 60_000;
 
 export interface ApprovalGateOptions {
 	mode(): PermissionMode;
@@ -30,6 +57,8 @@ export interface ApprovalGateOptions {
 	remember(subject: string): void;
 	/** Overridable so a test does not have to wait five minutes to see the timeout work. */
 	unattendedTimeoutMs?: number;
+	/** The same, for the longer wait a question gets. */
+	questionTimeoutMs?: number;
 }
 
 export class ApprovalGate {
@@ -47,8 +76,8 @@ export class ApprovalGate {
 		this.allowList.add(subject);
 	}
 
-	list(): { id: string; request: ApprovalRequest }[] {
-		return [...this.pending.values()].map(({ id, request }) => ({ id, request }));
+	list(): { id: string; request: ApprovalRequest; expiresAt: number }[] {
+		return [...this.pending.values()].map(({ id, request, expiresAt }) => ({ id, request, expiresAt }));
 	}
 
 	resolve(requestId: string, decision: unknown): boolean {
@@ -108,12 +137,17 @@ export class ApprovalGate {
 			 * nothing that was not granted — and it lets the agent find another way, which is
 			 * usually what it does with a refusal.
 			 *
-			 * Long enough that someone who stepped away for a coffee still gets to decide.
+			 * How long depends on what is being asked; see `QUESTION_TIMEOUT_MS` for why a question
+			 * gets its own, much longer wait than a permission request does.
 			 */
+			const timeoutMs = request.kind === "interactive"
+				? this.options.questionTimeoutMs ?? QUESTION_TIMEOUT_MS
+				: this.options.unattendedTimeoutMs ?? UNATTENDED_TIMEOUT_MS;
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			const entry: PendingApproval = {
 				id,
 				request,
+				expiresAt: Date.now() + timeoutMs,
 				resolve: (decision) => {
 					if (timer) clearTimeout(timer);
 					this.pending.delete(id);
@@ -125,7 +159,7 @@ export class ApprovalGate {
 					resolve(decision === "always" ? "once" : decision);
 				},
 			};
-			timer = setTimeout(() => entry.resolve("reject"), this.options.unattendedTimeoutMs ?? UNATTENDED_TIMEOUT_MS);
+			timer = setTimeout(() => entry.resolve("reject"), timeoutMs);
 			this.pending.set(id, entry);
 			void this.options.ask(entry);
 		});
@@ -162,6 +196,8 @@ export function sessionApprovalGate(deps: {
 					requestId: pending.id,
 					toolCallId: pending.id,
 					...pending.request,
+					// The deadline travels with the question so the card can show what it has left.
+					expiresAt: pending.expiresAt,
 				}),
 			// Persisting an "always" answer is the host's job; the settings are not ours to write.
 			remember: () => {},

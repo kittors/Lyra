@@ -4,11 +4,15 @@
  * The gate exists so that a person decides the things a rule should not. When there is no person,
  * waiting forever is not deference — it is a run that never finishes. Refusing is the only safe
  * direction: it grants nothing, and the agent generally finds another way.
+ *
+ * 但「没人」这件事，对两种等待的意思不一样：权限请求沉默五分钟，合理推断是键盘前没人，拒绝也不
+ * 交出任何东西；而 `ask_user` 是模型在问人一个它自己答不了的问题，沉默五分钟只说明人去开会了。
+ * 下面那两条锁的就是这个区别。
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ApprovalGate } from "../src/runtime/approvals.ts";
+import { ApprovalGate, type PendingApproval } from "../src/runtime/approvals.ts";
 import type { ApprovalRequest } from "../src/types.ts";
 
 const request: ApprovalRequest = {
@@ -90,6 +94,71 @@ test("批准过的授权范围不再问第二次", async () => {
 	const [entry] = instance.list();
 	instance.resolve(entry.id, "reject");
 	assert.equal(await other, "reject");
+});
+
+const question: ApprovalRequest = {
+	kind: "interactive",
+	title: "需要你的意见",
+	detail: "本地 Git 历史重写已完成，是否立即强制推送到远程？",
+	subject: "ask_user",
+	options: ["确认推送", "暂缓推送"],
+};
+
+/**
+ * 真实的那一次：941 个提交重写完，它停下来问推不推，人离开了六分钟，问题过期成了「拒绝」。
+ *
+ * 权限请求那只五分钟的钟走完时，问题必须还在等——这条测试把两只钟设得差两个数量级，就是为了让
+ * 「共用同一个超时」这种写法没法悄悄绿过去。
+ */
+test("一个问题等的是自己那只钟，比权限请求长得多", async () => {
+	const asked: PendingApproval[] = [];
+	const instance = new ApprovalGate({
+		mode: () => "auto",
+		cwd: () => "/Users/me/project",
+		ask: async (pending) => void asked.push(pending),
+		remember: () => {},
+		unattendedTimeoutMs: 20,
+		questionTimeoutMs: 5_000,
+	});
+	const pending = instance.request({ ...question });
+	await new Promise((r) => setTimeout(r, 80));
+	assert.equal(instance.list().length, 1, "权限请求那只钟不该管到问题头上");
+
+	const [entry] = instance.list();
+	assert.ok(entry);
+	instance.resolve(entry.id, { answer: "确认推送" });
+	assert.deepEqual(await pending, { answer: "确认推送" });
+	assert.equal(asked.length, 1);
+});
+
+/** 截止时刻要跟着问题一起出门，否则窗口画不出还剩多少时间——而那正是上一次没人看见它的原因。 */
+test("每个等待都带着自己的截止时刻交到窗口手上", async () => {
+	const asked: PendingApproval[] = [];
+	const instance = new ApprovalGate({
+		mode: () => "auto",
+		cwd: () => "/Users/me/project",
+		ask: async (pending) => void asked.push(pending),
+		remember: () => {},
+		unattendedTimeoutMs: 40,
+		questionTimeoutMs: 5_000,
+	});
+	const before = Date.now();
+	const pending = instance.request({ ...question });
+	const [entry] = asked;
+	assert.ok(entry, "问题送到了窗口");
+	assert.ok(entry.expiresAt >= before + 5_000, "截止时刻按问题自己那只钟算");
+	assert.ok(entry.expiresAt <= Date.now() + 5_000);
+	assert.equal(instance.list()[0]?.expiresAt, entry.expiresAt, "从快照恢复的那份也看得见同一个时刻");
+
+	instance.resolve(entry.id, "reject");
+	await pending;
+
+	// 权限请求仍旧用它自己那只短钟，一分不多。
+	const permission = Date.now();
+	void instance.request({ ...request });
+	const [, second] = asked;
+	assert.ok(second);
+	assert.ok(second.expiresAt <= permission + 40 + 50, "权限请求没有被一起放宽");
 });
 
 test("full 模式不问读取，和它从不问 bash 是同一件事", async () => {

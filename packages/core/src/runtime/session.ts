@@ -133,6 +133,35 @@ export class AgentSession {
 	private activePrompt: Promise<void> | null = null;
 	private steering: Message[] = [];
 	/**
+	 * 此刻插话还有没有人接。
+	 *
+	 * 不是 `running` 的同义词，这正是它存在的理由。取走 `steering` 的只有 loop 自己
+	 * （`drainSteering`），而 loop 的起止就是 `agent_start` 和 `agent_end` 这一对；`running`
+	 * 管的范围要大一圈——回合说完之后还有一段收尾（末尾那次规则分类调用，见 `session-turn.ts`
+	 * 的 `offerRuleFromCorrection`，一次网络请求，上限 20 秒），那段时间里 `controller` 还在，
+	 * `running` 还是 true，而取件人已经下班了。
+	 *
+	 * 这一格没分开的时候：窗口收到 `agent_end` 就把排着的那条送出来，主进程照着 `running`
+	 * 把它塞进 `steering`，然后再没有人来取——消息既不在转录里也不在队列条上，屏幕上是「发出
+	 * 去了但一点反应都没有」，而下一次发送时它会被 `drainSteering` 顺带倒出来，看起来像旧话重
+	 * 放。这场赛跑必然是收尾那一段赢：它是一次网络请求，对面只是一趟进程内 IPC。
+	 *
+	 * 在 `emit` 里翻牌而不是在 `run` 里，为的是把窗口那一端也算进来：`agent_end` 写盘、发出
+	 * 去之前这里就已经是 false，所以窗口看到「说完了」的那一刻，主进程早就不再收插话了。
+	 */
+	private steerable = false;
+	/**
+	 * 这一轮说完了，但还没放手——收尾那一段正跑着。
+	 *
+	 * 和 `steerable` 是同一件事的两面，分开是因为它们的另一端不一样：`steerable` 在回合开始时
+	 * 也要为真，而这一格在那时必须为假。`run` 从创建 controller 到 loop 发出 `agent_start`
+	 * 之间要准备好这一轮的全部材料（读文件、拼提示词），那几百毫秒里 `steerable` 同样是 false，
+	 * 而那一段绝不能被当成收尾扯掉。
+	 */
+	private settling = false;
+	/** 收尾那一段的叫停绳——见 `session-turn.ts` 的 `settleSignal`，不能拿回合那根代替。 */
+	private settleController: AbortController | null = null;
+	/**
 	 * 说了「等这一轮做完再说」的那些消息。
 	 *
 	 * 跟 `steering` 分开的理由就是它们的区别：`steering` 会被塞进正在跑的那一轮，而这些要等
@@ -172,7 +201,22 @@ export class AgentSession {
 			// 见 `TitleDeps.stream` 那段：这两个要一起看，少看一个会在测试里真的发请求。
 			sessionStreamInjected: Boolean(options.streamFn),
 		});
-		this.log = new SessionLog(options.store, options.emit, options.meta);
+		/*
+		 * 每一个出门的事件都先过这里翻牌，然后才交给宿主。
+		 *
+		 * 翻的是 `steerable` / `settling`，看 loop 此刻在不在。必须挂在 log 的出口上：loop 自己
+		 * 的事件走 `session-turn.ts` 的 `recordTurnEvent` 直接进 `log.emit`，根本不经过
+		 * `Session.emit`——翻在那里的话 `agent_start` 一次都翻不到，`steerable` 永远是 false，
+		 * 于是插话悄悄退化成了「这一轮做完再说」，而测试照样是绿的。
+		 *
+		 * 在 `sink` 之前翻，所以窗口看到 `agent_end` 的那一刻，这边已经不收插话了——那正是
+		 * 排队出队要抢的那一拍。
+		 */
+		this.log = new SessionLog(options.store, (event) => {
+			if (event.type === "agent_start") { this.steerable = true; this.settling = false; }
+			else if (event.type === "agent_end") { this.steerable = false; this.settling = true; }
+			return options.emit(event);
+		}, options.meta);
 		this.can = new SessionCapabilities(options.extraTools ?? []);
 		this.approvals = sessionApprovalGate({
 			mode: () => this.settings.permissionMode,
@@ -692,8 +736,20 @@ export class AgentSession {
 			 * 五分钟就白说了。而 `followUp` 说的是「这一轮做完再说」，把它插进去反而会打断
 			 * 那件本来就该先做完的事。
 			 */
-			if (options.deliver === "followUp") this.pending.push({ message, thinking: options.thinking });
-			else this.steering.push(message);
+			if (options.deliver === "followUp" || !this.steerable) {
+				this.pending.push({ message, thinking: options.thinking });
+				/*
+				 * 正卡在收尾上的话，把那一段叫停。
+				 *
+				 * 收尾等的是一次「要不要把刚才那句纠正存成规则」的判断（`session-turn.ts`，一次
+				 * 网络调用，上限 20 秒），而排在后面的这句得等它跑完才轮得上——人看到的就是消息
+				 * 发出去了、助手那边却一直空着。按那个判断自己的道理，人一旦说了下一句它就已经
+				 * 在讲上一次交流了，作废正好。
+				 *
+				 * 扯的是收尾那根绳，不是回合那根：后者上面挂着这一轮派出去的子智能体。
+				 */
+				if (this.settling) this.settleController?.abort();
+			} else this.steering.push(message);
 			return;
 		}
 
@@ -728,7 +784,21 @@ export class AgentSession {
 	 * `this.running` 为真，所以循环里不会有第二个回合同时开始。
 	 */
 	private async drainPending(): Promise<void> {
-		while (this.pending.length > 0) {
+		while (this.pending.length > 0 || this.steering.length > 0) {
+			/*
+			 * 没人接走的插话，也在这里兜住。
+			 *
+			 * 走到这里 loop 已经结束了——`drainSteering` 不会再被调用——所以此刻还留在
+			 * `steering` 里的只可能是孤儿。孤儿不报错、不进转录、也不回到队列条上，人看到的
+			 * 只是「发出去了但一点反应都没有」，而它会在下一次发送时被顺带倒出来，看起来像
+			 * 旧话重放。`steerable` 那道判断堵的是已知的那条进法，这里堵的是「还有没有别的
+			 * 进法」——这类故障最不该靠推理来保证不发生。
+			 *
+			 * 排在 `pending` 前面，因为它们是更早说出口的。
+			 */
+			if (this.steering.length > 0) {
+				this.pending.unshift(...this.steering.splice(0, this.steering.length).map((message) => ({ message })));
+			}
 			const next = this.pending.shift();
 			if (!next) break;
 			if (this.controller?.signal.aborted) break;
@@ -766,6 +836,7 @@ export class AgentSession {
 		}
 
 		this.controller = new AbortController();
+		this.settleController = new AbortController();
 		try {
 			this.activeTurn = driveTurn({
 				cwd: this.cwd,
@@ -776,6 +847,7 @@ export class AgentSession {
 				provider: resolved.provider,
 				model: resolved.model,
 				signal: this.controller.signal,
+				settleSignal: this.settleController.signal,
 				thinking,
 				streamFn: this.streamFn,
 				scratchDir: scratchDir(this.log.meta.id),
@@ -787,7 +859,11 @@ export class AgentSession {
 			await this.activeTurn;
 		} finally {
 			this.activeTurn = null;
+			this.activeTurn = null;
 			this.controller = null;
+			// 收尾也做完了，两样都归位：绳子没了主人，这一格也不再是「还没放手」。
+			this.settleController = null;
+			this.settling = false;
 			// Anything still waiting for approval would hang forever once the run is over.
 			this.approvals.rejectAll();
 		}
@@ -908,7 +984,7 @@ export class AgentSession {
 		return this.approvals.resolve(requestId, decision);
 	}
 
-	listPendingApprovals(): { id: string; request: ApprovalRequest }[] {
+	listPendingApprovals(): { id: string; request: ApprovalRequest; expiresAt: number }[] {
 		return this.approvals.list();
 	}
 

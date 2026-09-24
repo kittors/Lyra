@@ -52,6 +52,14 @@ export type AgentEvent =
 			selectionMode?: "single" | "multi";
 			allowSkip?: boolean;
 			defaultOptionIndex?: number;
+			/**
+			 * The instant this question stops waiting and resolves itself into a refusal.
+			 *
+			 * Sent so the card can show the time it has left. Before this the deadline lived only
+			 * inside the gate's `setTimeout`, so a question looked like something that would wait
+			 * forever right up until it silently did not.
+			 */
+			expiresAt?: number;
 		}
 	| { type: "turn_end"; message: AssistantMessage; toolResults: ToolResultMessage[] }
 	/** `stalled`: the turn kept making the same call for the same answer and was stopped. */

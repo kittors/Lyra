@@ -13,8 +13,6 @@
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { gatherMemory } from "./memory-inject.ts";
 import { platform } from "node:os";
-import { commandShell } from "../platform.ts";
-import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { access } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
@@ -69,6 +67,17 @@ export interface TurnInputs {
 	provider: ProviderConfig;
 	model: ModelConfig;
 	signal: AbortSignal;
+	/**
+	 * 收尾那一段自己的叫停绳，和回合的 `signal` 分开。
+	 *
+	 * 回合说完之后还有一段（下面那次规则建议判断，一次网络调用，上限 20 秒），而 `Session` 要
+	 * 等这一段结束才算放手——排在后面的下一轮就卡在这儿等着。人说了下一句，这个建议按它自己的
+	 * 道理就已经作废了（见下面「After the work」那段），所以该有办法单独把它叫停。
+	 *
+	 * 不复用 `signal`：那一根上挂着这一轮派出去的每个子智能体（`sub-agent.ts` 的 `stopWithParent`），
+	 * 扯它等于顺手把它们也杀了。
+	 */
+	settleSignal?: AbortSignal;
 	thinking?: ThinkingLevel;
 	streamFn?: AgentRunConfig["streamFn"];
 	scratchDir: string;
@@ -138,6 +147,9 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 	 * A choice presented in the middle of an action is one people dismiss to get it out of the way,
 	 * and this one is worth reading. It is also the reason this is awaited rather than left running:
 	 * an offer that arrives after the next prompt has started would be about the wrong exchange.
+	 *
+	 * 「已经是上一次交流了」这件事，现在也是它被叫停的理由：`settleSignal` 就是那根绳，由
+	 * `Session` 在下一句话进来时扯——否则那一句得干等这次判断跑完才轮得上（见 `settleSignal`）。
 	 */
 	await offerRuleFromCorrection({
 		messages: input.log.messages,
@@ -146,7 +158,7 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		model: input.model,
 		stream: summaryStream(input.streamFn, { sessionId: log.meta.id, cwd, retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }) ?? streamAssistant,
 		budget: input.can.correctionBudget,
-		signal: input.signal,
+		signal: input.settleSignal ? AbortSignal.any([input.signal, input.settleSignal]) : input.signal,
 		emit: input.emit,
 	});
 }
@@ -329,8 +341,6 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			memorySnippet,
 			projectMemory,
 			platform: platform(),
-			// The shell this turn's commands run in, which on Windows follows the confinement; see `commandShell`.
-			shell: commandShell(sandboxModeFor(settings.permissionMode)),
 			modelName: input.model.name,
 			isGitRepo: await pathExists(join(cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(cwd),

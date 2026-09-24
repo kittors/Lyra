@@ -217,9 +217,11 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 		compactions: session.log.compactions,
 		commandRuns: session.log.commandRuns,
 		running: session.running || submitted.has(session.meta.id),
-		pendingApprovals: session.listPendingApprovals().map(({ id, request }) => ({
+		pendingApprovals: session.listPendingApprovals().map(({ id, request, expiresAt }) => ({
 			id,
 			...request,
+			// A question reopened from a snapshot still has a deadline, and still has to show it.
+			expiresAt,
 		})),
 	});
 }

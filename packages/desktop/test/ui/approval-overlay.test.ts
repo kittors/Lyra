@@ -27,6 +27,34 @@ test("approval bodies preserve full content once and omit whitespace-only reason
 	} finally { await view.unmount(); useApp.setState(previous, true); }
 });
 
+/**
+ * 一个会过期的问题，必须让人看见它在过期。
+ *
+ * 从前这个截止时刻只活在 gate 的 `setTimeout` 里：卡片看上去像会一直等下去，直到它悄悄地不等了。
+ * 那一次是 941 个提交重写完、停下来问推不推，人离开六分钟，问题过期成了「拒绝」，而屏幕上从头到
+ * 尾没有任何东西提过还剩多少时间。
+ */
+test("a question that can expire shows the time it has left, and one that cannot shows nothing", async (t) => {
+	const previous = useApp.getState();
+	t.mock.timers.enable({ apis: ["setInterval", "Date"], now: 1_000_000 });
+	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	useApp.setState({ activeSessionId: "owner", approvals: [{ id: "question", kind: "interactive", title: "需要你的意见", detail: "是否立即强制推送到远程？", options: ["确认推送"], expiresAt: 1_000_000 + 90_000 }] });
+	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay) }));
+	try {
+		assert.match(view.host.textContent ?? "", /1:30/, "问题带着截止时刻进来，就该看得见还剩多少");
+		await act(async () => { t.mock.timers.tick(31_000); });
+		assert.match(view.host.textContent ?? "", /0:59/, "而且它要真的在走");
+
+		// 早就过去的那个（崩在半路、没有 agent_end 收尾的一轮重放出来）不说「0:00 后失效」。
+		await act(async () => { t.mock.timers.tick(60_000); });
+		assert.doesNotMatch(view.host.textContent ?? "", /\d:\d\d/);
+
+		// 没有截止时刻的那种也一样，不该凭空画一个倒计时。
+		await act(async () => { useApp.setState({ approvals: [{ ...useApp.getState().approvals[0], expiresAt: undefined }] }); });
+		assert.doesNotMatch(view.host.textContent ?? "", /\d:\d\d/);
+	} finally { t.mock.timers.reset(); await view.unmount(); useApp.setState(previous, true); }
+});
+
 for (const permission of [false, true]) {
 	test(`${permission ? "permission" : "question"} failures retain actionable buttons and permit one retry`, async () => {
 		const answers: ApprovalDecision[] = [];

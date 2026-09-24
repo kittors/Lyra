@@ -64,7 +64,15 @@ export async function offerRuleFromCorrection(input: OfferInputs): Promise<boole
 	 */
 	const resolved = resolveModelRef(input.settings, "@fast", { provider: input.provider, model: input.model });
 
+	/*
+	 * 两种叫停都算数：等太久，和这次判断已经没有意义了。
+	 *
+	 * 从前只接了前者，`signal` 只在最上面查一次——于是按下停止之后、或者人已经说了下一句之后，
+	 * 这次请求照样跑满它自己的二十秒，而它要回答的那个问题此时已经作废。等它的不只是它自己：
+	 * 这一段跑在回合的收尾里，`Session` 要等它结束才放手（见 `session-turn.ts` 的调用点）。
+	 */
 	const timeout = AbortSignal.timeout(CLASSIFY_TIMEOUT_MS);
+	const signal = input.signal ? AbortSignal.any([timeout, input.signal]) : timeout;
 	let suggestion;
 	try {
 		suggestion = await classifyCorrection({
@@ -72,7 +80,7 @@ export async function offerRuleFromCorrection(input: OfferInputs): Promise<boole
 			provider: resolved.provider,
 			model: resolved.model,
 			stream: input.stream,
-			signal: timeout,
+			signal,
 		});
 	} catch {
 		return false;

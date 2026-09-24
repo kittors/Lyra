@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { MessageCircle, TriangleAlert } from "lucide-react";
@@ -21,6 +21,36 @@ const KIND_LABEL: Record<string, MessageKey> = {
 	mcp: "approval.mcp",
 	network: "approval.network",
 };
+
+/**
+ * How long this question has left, ticking.
+ *
+ * A pending decision has always had a deadline — the gate resolves it into a refusal when nobody
+ * answers — and the card never said so. A question that expires without warning is worse than one
+ * that waits forever: the run ends having been told "no" by someone who never saw it asked.
+ *
+ * Its own component so the second hand does not re-render `QuestionChoices` underneath it, which
+ * is where an answer is being typed.
+ */
+function Expiry({ at }: { at: number }) {
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	const left = at - now;
+	/*
+	 * 走到零就不说了。
+	 *
+	 * 正常情况下这一刻卡片自己也没了——gate 同时把它收掉。留这一行是为了另一种：一轮崩在半路，
+	 * 没有 `agent_end` 收尾，转录重放出来的那张卡片带着一个早就过去的截止时刻。「0:00 后失效」
+	 * 是这次修复最不该自己再造一遍的那种句子。
+	 */
+	if (left <= 0) return null;
+	const minutes = Math.floor(left / 60_000);
+	const seconds = Math.floor((left % 60_000) / 1000);
+	return <span className="shrink-0 tabular-nums text-caption text-ink-faint">{translate("question.expiresIn", { time: `${minutes}:${String(seconds).padStart(2, "0")}` })}</span>;
+}
 
 /** Keep the transcript readable while a decision blocks only the composer. */
 export function ApprovalOverlay() {
@@ -45,6 +75,7 @@ export function ApprovalOverlay() {
 				<Icon size={15} strokeWidth={1.8} className="shrink-0 text-accent" />
 				<span className="min-w-0 flex-1 break-words text-label font-medium text-ink">{interactive ? translate("question.title") : request.title}</span>
 				{!interactive && <span className="shrink-0 text-caption text-ink-faint">{KIND_LABEL[request.kind] ? translate(KIND_LABEL[request.kind]) : request.kind}</span>}
+				{request.expiresAt !== undefined && <Expiry at={request.expiresAt} />}
 				{approvals.length > 1 && <span className="shrink-0 text-caption text-ink-faint">+{approvals.length - 1}</span>}
 				<button type="button" aria-expanded={!collapsed} aria-label={translate(collapsed ? "question.expand" : "question.collapse")} onClick={() => setCollapsedId(collapsed ? null : request.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-card-hover"><Caret open={!collapsed} size={15} /></button>
 			</div>
