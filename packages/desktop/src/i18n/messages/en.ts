@@ -2192,7 +2192,6 @@ export const en = {
 	"extHost.failedTimesInline": "Failed {n} times",
 	"pipelines.eventIs": "Event: {event}",
 	"mcpSettings.configuredCount": "Configured ({n})",
-	"panelEmpty.cancelAction": "Cancel {action}",
 	"ruleCard.watches": " · watches {what}",
 	"traceInspector.relatedCount": "Related entries · {n}",
 	"trajectory.readFailedWith": "Could not read it: {reason}",

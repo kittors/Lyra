@@ -64,7 +64,7 @@ export function ChangesView({
   /** The checkout moved and this is being re-read; see `switching` in `GitPanel`. */
   loading?: boolean;
   act: Act;
-  /** What a clean tree should say, and what to offer doing about it. Computed in `GitPanel`. */
+  /** What a clean tree should say. Computed in `GitPanel`. */
   plan: SyncPlan;
 }) {
 	const { t } = useI18n();
@@ -146,11 +146,7 @@ export function ChangesView({
      * the two cannot disagree.
      */
     return (
-      <PanelEmpty
-        icon={Check}
-        title={t("changes.clean")}
-
-      >
+      <PanelEmpty icon={Check} title={t("changes.clean")}>
         {plan.empty.body}
       </PanelEmpty>
     );

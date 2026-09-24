@@ -2192,7 +2192,6 @@ export const ru = {
 	"extHost.failedTimesInline": "Сбоев: {n}",
 	"pipelines.eventIs": "Событие: {event}",
 	"mcpSettings.configuredCount": "Настроено ({n})",
-	"panelEmpty.cancelAction": "Отменить: {action}",
 	"ruleCard.watches": " · следит за {what}",
 	"traceInspector.relatedCount": "Связанные записи · {n}",
 	"trajectory.readFailedWith": "Прочитать не вышло: {reason}",

@@ -2192,7 +2192,6 @@ export const ja = {
 	"extHost.failedTimesInline": "{n} 回失敗",
 	"pipelines.eventIs": "イベント: {event}",
 	"mcpSettings.configuredCount": "設定済み（{n}）",
-	"panelEmpty.cancelAction": "{action}をやめる",
 	"ruleCard.watches": " · {what} を監視",
 	"traceInspector.relatedCount": "関連する記録 · {n}",
 	"trajectory.readFailedWith": "読めませんでした：{reason}",
