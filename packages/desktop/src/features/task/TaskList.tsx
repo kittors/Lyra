@@ -110,6 +110,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 						{
 							paused: t("taskList.pausedAt", { step: active?.content ?? "" }),
 							step: active?.activeForm ?? active?.content ?? "",
+							// 名字，不是进行时：这一步停在这里，没有谁正在做它。
+							stalled: t("taskList.stalledAt", { step: active?.content ?? "" }),
 							allDone: t("taskList.allDone"),
 							notStarted: t("taskList.notStarted"),
 						}[taskListHeadline({ running, stopped, active, done, total: todos.length })]
