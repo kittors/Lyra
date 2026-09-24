@@ -6,6 +6,7 @@ import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -43,7 +44,7 @@ before(async () => {
 		settings.alwaysAllow = [`http://127.0.0.1:${port}`]; settings.screenshot = { enabled: false, shortcut: "" };
 		await writeFile(path, JSON.stringify(settings));
 	} });
-	const point = await app.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-ly-row="qa-short"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+	const point = await app.evaluate<{x:number;y:number}>(`(()=>{const el=document.querySelector('[data-ly-row="qa-short"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn('[data-ly-row="qa-short"]')}return {x,y}})()`);
 	await app.send("Input.dispatchMouseEvent", {type:"mousePressed",button:"left",clickCount:1,...point});
 	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased",button:"left",clickCount:1,...point});
 	/*
@@ -52,7 +53,7 @@ before(async () => {
 	 * and never closes it either, so once is enough for every case below.
 	 */
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=1800;const f=()=>{if(document.querySelector('textarea[aria-label="消息"]'))resolve();else if(--n)requestAnimationFrame(f);else reject(new Error('conversation did not open'));};f();})`);
-	const toggle = await app.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-ly-panel-quick] button[aria-label^="浏览器"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+	const toggle = await app.evaluate<{x:number;y:number}>(`(()=>{const el=document.querySelector('[data-ly-panel-quick] button[aria-label^="浏览器"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn('[data-ly-panel-quick] button[aria-label^="浏览器"]')}return {x,y}})()`);
 	await app.send("Input.dispatchMouseEvent", {type:"mousePressed",button:"left",clickCount:1,...toggle});
 	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased",button:"left",clickCount:1,...toggle});
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=600;const f=()=>{const pane=document.querySelector('[data-dock-pane="browser"]');if(pane&&!pane.hasAttribute('inert'))resolve();else if(--n)requestAnimationFrame(f);else reject(new Error('browser panel did not open'));};f();})`);

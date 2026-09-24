@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { after, afterEach, before, test, type TestContext } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { landsOn } from "./lands-on.ts";
 import { named } from "./named.ts";
 import { settleSharedWindow } from "./shared-window.ts";
 
@@ -71,6 +72,8 @@ async function point(selector: string) {
 async function click(selector: string) {
 	const at = await point(selector);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	// Row actions take the pointer only once it is inside their row, so ask what is under it after moving there.
+	await app.evaluate(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(el=>el.checkVisibility({visibilityProperty:true})),x=${at.x},y=${at.y};${landsOn(selector)}})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
 	await frames(2);

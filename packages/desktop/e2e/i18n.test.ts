@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
 
@@ -39,7 +40,7 @@ after(async () => {
 
 test("switching every bundled locale updates visible UI without reloading or losing a draft", async () => {
 	await app.evaluate(`document.querySelector('.ly-shell').dataset.i18nMount = 'kept'`);
-	const textarea = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector('textarea');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	const textarea = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector('textarea');const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn("textarea", "e")}return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...textarea });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...textarea });
 	await app.send("Input.insertText", { text: "draft survives language changes" });

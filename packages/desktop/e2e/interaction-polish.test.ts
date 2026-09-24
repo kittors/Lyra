@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
 before(async () => { app = await startApp({ port: 9601, seed: seedInteractions }); });
@@ -19,6 +20,7 @@ async function click(selector: string): Promise<void> {
 		el.scrollIntoView({block:'nearest',behavior:'instant'}); const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
 	})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await app.evaluate(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true})),x=${at.x},y=${at.y};${landsOn(selector)}})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
 	await frames(2);

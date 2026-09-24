@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { landsOn } from "./lands-on.ts";
 import { named } from "./named.ts";
 
 let app: RunningApp;
@@ -44,10 +45,16 @@ async function until(expression: string) {
 async function point(selector: string) {
 	return app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw new Error(${JSON.stringify(selector)});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 }
+/** 页面里的一句 JS：指针停在 `at` 时，按下去落在不落在 `selector` 上。 */
+function landing(selector: string, at: { x: number; y: number }) {
+	return `(()=>{const el=document.querySelector(${JSON.stringify(selector)}),x=${at.x},y=${at.y};${landsOn(selector)}})();`;
+}
 async function click(selector: string) {
 	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
 	const at = await point(selector);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await app.evaluate(landing(selector, at));
+	for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
 	await frames(3);
 }
 async function label(text: string, scope = "nav button") {
@@ -98,7 +105,8 @@ test("navigation clicks land instantly inside and outside the transcript window,
 		}
 		const marks = await app.evaluate<number[]>(`[...document.querySelectorAll('.ly-question-mark')].map(e=>Number(e.dataset.position))`);
 
-		await app.evaluate(`document.addEventListener('click',()=>{window.qaBeforeWidths=[...document.querySelectorAll('.ly-question-mark span')].map(e=>e.getBoundingClientRect().width);window.qaSamples=new Promise(resolve=>{const out=[];const f=()=>{const row=document.querySelector('[data-question-index="${position * 2}"]'), viewport=document.querySelector('.ly-transcript').closest('.ly-scroll-view');out.push({y:row?.getBoundingClientRect().top-viewport.getBoundingClientRect().top,marks:[...document.querySelectorAll('.ly-question-mark')].map(e=>Number(e.dataset.position)),widths:[...document.querySelectorAll('.ly-question-mark span')].map(e=>e.getBoundingClientRect().width),preview:getComputedStyle(document.querySelector('.ly-question-preview')).opacity,rows:document.querySelector('[data-ly-transcript-rows]').children.length});if(out.length<24)requestAnimationFrame(f);else resolve(out);};requestAnimationFrame(f);});},{once:true,capture:true});void 0`);
+		// 落点并进布置采样的这一次：悬停到按下之间多一个来回，没停稳的那一轮就量不到展开到一半的宽度了。
+		await app.evaluate(`${landing(selector, at)}document.addEventListener('click',()=>{window.qaBeforeWidths=[...document.querySelectorAll('.ly-question-mark span')].map(e=>e.getBoundingClientRect().width);window.qaSamples=new Promise(resolve=>{const out=[];const f=()=>{const row=document.querySelector('[data-question-index="${position * 2}"]'), viewport=document.querySelector('.ly-transcript').closest('.ly-scroll-view');out.push({y:row?.getBoundingClientRect().top-viewport.getBoundingClientRect().top,marks:[...document.querySelectorAll('.ly-question-mark')].map(e=>Number(e.dataset.position)),widths:[...document.querySelectorAll('.ly-question-mark span')].map(e=>e.getBoundingClientRect().width),preview:getComputedStyle(document.querySelector('.ly-question-preview')).opacity,rows:document.querySelector('[data-ly-transcript-rows]').children.length});if(out.length<24)requestAnimationFrame(f);else resolve(out);};requestAnimationFrame(f);});},{once:true,capture:true});void 0`);
 		for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
 		const samples = await app.evaluate<{ y: number; marks: number[]; widths: number[]; preview: string; rows: number }[]>(`window.qaSamples`);
 		const widths = await app.evaluate<number[]>(`window.qaBeforeWidths`);
