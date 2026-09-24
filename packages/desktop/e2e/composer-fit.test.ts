@@ -361,16 +361,28 @@ test("and takes it back when the room comes back", async () => {
 
 test("a short model name keeps the whole row at a width a long one could not", async () => {
 	/*
-	 * The heart of it. 330px drops two things when the name is 436px wide and drops nothing when it
-	 * is 40px, because the question was never how wide the field is — it is whether what is in it
-	 * fits. No breakpoint can tell those two rows apart.
+	 * The heart of it. At one and the same width the long name gives things up and the short one
+	 * keeps everything, because the question was never how wide the field is — it is whether what is
+	 * in it fits. No breakpoint can tell those two rows apart.
+	 *
+	 * The width is measured off the short row rather than written down. It was 330px, which held
+	 * until the toolbar's padding, its buttons and the default type size each grew a few pixels —
+	 * then 330 was too narrow for the short name as well, and this compared two rows that had both
+	 * given something up. The narrowest width at which the short row still has everything is where
+	 * the two names differ most sharply, whatever the toolbar measures this month.
 	 */
-	await at(330);
-	const withLong = await app.evaluate<Row>(READ_ROW);
-	assert.ok(withLong.fit > 0, `the long name should have cost something at 330px: ${JSON.stringify(withLong)}`);
+	await useModel(SHORT_MODEL);
+	const roomy = await at(560);
+	assert.equal(roomy.fit, 0, `a short name keeps everything in a roomy row: ${JSON.stringify(roomy)}`);
+	// All the air between the two groups can go except their own 4px gap; 2px more for rounding.
+	const width = roomy.shell + roomy.overlap + 4 + 2;
+
+	await useModel(LONG_MODEL);
+	const withLong = await at(width);
+	assert.ok(withLong.fit > 0, `the long name should have cost something at ${width}px: ${JSON.stringify(withLong)}`);
 
 	await useModel(SHORT_MODEL);
-	const withShort = await at(330);
+	const withShort = await at(width);
 	assert.equal(withShort.fit, 0, `a short name at the same width keeps everything: ${JSON.stringify(withShort)}`);
 	assert.equal(withShort.meterShown, true);
 	assert.equal(withShort.labelShown, true);
