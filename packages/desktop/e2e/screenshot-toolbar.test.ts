@@ -491,7 +491,7 @@ test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖�
 	assert.equal(await app.evaluate<number>(`window.lyra.screenshot.pinnedCount()`), 0, "点了关闭按钮，置顶窗口还在");
 });
 
-test("下载截图：文件落在设置好的目录里，界面确认它保存了", async () => {
+test("下载截图：文件落在设置好的目录里，界面确认它保存了", async (t) => {
 	await frameRegion();
 	assert.ok(await pressTip(overlay, "下载截图"), "工具栏上没有「下载截图」按钮");
 
@@ -511,15 +511,42 @@ test("下载截图：文件落在设置好的目录里，界面确认它保存�
 		})()`).catch(() => "读不到");
 	}
 	assert.ok(said.includes("已保存"), `下载之后没有出现「已保存」的提示：「${said}」`);
+	const savedAt = Date.now();
 
-	await pause(2_000);
+	/*
+	 * And the capture ends on its own: the errand is finished, and staying in it means dismissing
+	 * something the user is already done with.
+	 *
+	 * 它分两段结束，所以分两段看。「已保存」一出来，截图本身当场就撤了：冻结的桌面不再画，暗层和
+	 * 工具栏 120ms 淡掉，点击穿透到底下（见 `leaveWithToast`）。提示再单独挂一会儿，然后窗口收起，
+	 * `data-capture` 才回到 idle。
+	 *
+	 * 这里原来是睡 2 秒、看一眼。写的时候提示只挂 700ms，约 1.3 秒就 idle；后来下载成功的提示改成
+	 * 挂 3500ms（`handleDownload` 里那个参数，当初是为了让人读完整路径，路径后来拿掉了，时长没动），
+	 * 要约 4.1 秒才 idle，那一眼就每次都落在提示还挂着的时候。退出没坏，是睡的那个数过时了——而且
+	 * 一个固定的数本来就只能管住「退没退」和「撤得快不快」里的一头。
+	 *
+	 * 第二段的期限给 10 秒：比现在宽出一倍多，提示时长再调也不必跟着改，真不退出照样红。等的是 idle
+	 * 出现，读不到不算退出：窗口是常驻的，截图结束只会让它变成 idle，而空白页、没应答的页面也都
+	 * 「没有 active」——原来那个 `.catch(() => true)` 正是这条假绿的路。
+	 */
+	const backdrop = await evaluator(overlay)<string>(`(() => {
+		const el = document.querySelector("[data-screenshot-backdrop]");
+		return el ? getComputedStyle(el).opacity : "没有这个元素";
+	})()`);
+	assert.equal(backdrop, "0", "「已保存」已经出来了，冻结的桌面还画在屏幕上——截图看上去没有退出");
+
+	let state = "读不到";
+	while (state !== "idle" && Date.now() - savedAt < 10_000) {
+		await pause(200);
+		state = await evaluator(overlay)<string>(`document.querySelector("[data-capture]")?.dataset.capture ?? "没有标记"`).catch(() => "读不到");
+	}
+	assert.equal(state, "idle", `下载完成之后截图没有自动退出：「已保存」之后 10 秒还是「${state}」`);
+	t.diagnostic(`「已保存」之后 ${((Date.now() - savedAt) / 1000).toFixed(1)} 秒回到 idle`);
+
+	// 文件在退出之后再数：这一轮已经结束，不会再有写入，「只有一张」才说得死。
 	const files = (await readdir(downloads).catch(() => [] as string[])).filter((name) => name.endsWith(".png"));
 	assert.equal(files.length, 1, `设置的下载目录里应该有一张 PNG，实际有 ${files.length} 个：${files.join(", ")}`);
-
-	// And the capture ends on its own: the errand is finished, and staying in it means dismissing
-	// something the user is already done with.
-	const over = await evaluator(overlay)<boolean>(`document.querySelector('[data-capture="active"]') === null`).catch(() => true);
-	assert.ok(over, "下载完成之后截图没有自动退出");
 });
 
 /**
