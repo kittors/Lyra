@@ -1252,6 +1252,8 @@ export const fr = {
 	"sessionMenu.newWindow": "Nouvelle fenêtre",
 	"split.view": "Vue scindée",
 	"split.replace": "Remplacer",
+	"split.moveHere": "Déplacer ici",
+	"split.noRoom": "Pas assez de place pour diviser cet écran",
 	"split.closePane": "Fermer le volet",
 	"split.move.left": "Déplacer le volet à gauche",
 	"split.move.right": "Déplacer le volet à droite",

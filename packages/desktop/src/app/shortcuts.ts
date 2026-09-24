@@ -13,9 +13,8 @@
  */
 
 import { useEffect } from "react";
-import { toggleScopedPanel, useDock } from "../features/dock/index.ts";
+import { currentScope, toggleScopedPanel, usePaneDock } from "../features/dock/index.ts";
 import type { PanelKind } from "../features/dock/index.ts";
-import { firstSession, leafCount, useSplit } from "../features/split/index.ts";
 import { composingKey, shortcutLetter } from "../ui/keyboard.ts";
 
 export interface ShortcutDeps {
@@ -39,15 +38,11 @@ export function useShortcuts(deps: ShortcutDeps): void {
 	useEffect(() => {
 		if (!enabled) return;
 
-		/** Open the pane, or put it away if it is already the one in front. */
+		/** Open the pane in the screen being worked in, or put it away if it is already there. */
 		const panel = (kind: PanelKind, allowed: unknown) => {
 			if (!allowed) return;
-			const split = useSplit.getState();
-			if (leafCount(split.tree) > 1) {
-				toggleScopedPanel(split.focused ?? firstSession(split.tree) ?? "@draft", kind);
-				return;
-			}
-			toggleScopedPanel(null, kind);
+			const scope = currentScope();
+			if (scope) toggleScopedPanel(scope, kind, { compact });
 		};
 
 		const onKey = (event: KeyboardEvent) => {
@@ -125,7 +120,11 @@ export function useShortcuts(deps: ShortcutDeps): void {
 			 */
 			if (event.key === "Escape" && !event.defaultPrevented) {
 				if (compact && navOpen) dismissNav();
-				else useDock.getState().restore();
+				else {
+					// Full screen is per screen: Escape steps back in the one being worked in.
+					const scope = currentScope();
+					if (scope) usePaneDock.getState().restore(scope);
+				}
 			}
 		};
 

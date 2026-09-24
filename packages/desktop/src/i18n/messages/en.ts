@@ -1252,6 +1252,8 @@ export const en = {
 	"sessionMenu.newWindow": "New window",
 	"split.view": "Split view",
 	"split.replace": "Replace",
+	"split.moveHere": "Move here",
+	"split.noRoom": "No room to split this screen",
 	"split.closePane": "Close pane",
 	"split.move.left": "Move split view left",
 	"split.move.right": "Move split view right",

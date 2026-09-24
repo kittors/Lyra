@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { SessionServices as Services } from "../../../shared/session-services.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -12,7 +13,8 @@ import { commandBrowser } from "../browser/index.ts";
 const cache = new Map<string, Services>();
 export function SessionServices() {
 	const { t } = useI18n();
-	const sessionId = useApp((state) => state.activeSessionId);
+	// This screen's conversation — the services a task panel lists are the ones its session started.
+	const sessionId = useScopedSessionId();
 	const [snapshot, setSnapshot] = useState<{ id: string; value: Services } | null>(null);
 	const [busy, setBusy] = useState<string | null>(null);
 	const root = useRef<HTMLDivElement>(null);

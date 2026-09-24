@@ -23,6 +23,7 @@ import type { SubAgentSummary } from "@lyra/core";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
+import { useScopedSessionId, useScopedSubAgents } from "../../app/session-scope.tsx";
 import { openFromEvent } from "../image/index.ts";
 import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { openViewer } from "../image/index.ts";
@@ -69,8 +70,9 @@ interface SubAgentAttachment {
 
 export function SubAgentPanel() {
 	const { t } = useI18n();
-	const sessionId = useApp((s) => s.activeSessionId);
-	const agents = useSubAgents((s) => s.agents);
+	// The conversation of the screen this panel is in, and its delegated work.
+	const sessionId = useScopedSessionId();
+	const agents = useScopedSubAgents();
 	const focused = useSubAgents((s) => s.focused);
 	const ordered = rosterOrder(agents);
 
@@ -564,7 +566,7 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
 							onOpenFile: (path: string, name: string) => {
 								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-								// Note: SubAgentPanel cannot import useDock directly due to dependency cycle.
+								// Note: SubAgentPanel cannot import the dock directly due to dependency cycle.
 								// It opens via useOpenFile and users view files in file panel or system.
 							},
 						},

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Entry } from "@lyra/core/trajectory-view";
-import { useApp } from "../../../store/index.ts";
+import { useScopedMeta } from "../../../app/session-scope.tsx";
 import { bridge } from "../../../services/index.ts";
 
 import { applyTrajectoryChanges } from "./trajectory-state.ts";
@@ -11,7 +11,8 @@ const durable = new Set(["command_status", "compacted", "message_end", "tool_sta
 
 /** Subscribe before reading; a single in-flight read drains invalidations without polling. */
 export function useTrajectory() {
-	const meta = useApp(state => state.meta);
+	// The trajectory of the conversation whose screen asks, not of whichever one has the focus.
+	const meta = useScopedMeta();
 	const sessionId = meta?.id, projectId = meta?.projectId;
 	const key = `${projectId}:${sessionId}`;
 	const [value, setValue] = useState<{ key: string; entries: Entry[] } | null>(null);

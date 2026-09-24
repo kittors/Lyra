@@ -12,6 +12,7 @@ import { intact } from "../../lib/transcript.ts";
 import { bridge } from "../../services/index.ts";
 import { howItStopped, prune, rebuildToolRuns, todosFrom } from "../../store/derive.ts";
 import { useApp } from "../../store/index.ts";
+import { useSubAgents } from "../../store/subAgents.ts";
 
 const inflight = new Set<string>();
 
@@ -22,6 +23,10 @@ export async function warmSession(meta: SessionMeta): Promise<void> {
 	if (cached && !cached.dirty && cached.messages.length > 0) return;
 	if (inflight.has(meta.id)) return;
 	inflight.add(meta.id);
+	// Its sub-agents too: the bar and panel in this screen show this conversation's, not the focused one's.
+	void bridge.subAgents.list(meta.id).then((list) => {
+		if (Array.isArray(list) && useApp.getState().activeSessionId !== meta.id) useSubAgents.getState().retain(meta.id, list);
+	}).catch(() => {});
 	try {
 		const snapshot = await bridge.sessions.transcript(meta.projectId, meta.id);
 		if (!snapshot) return;

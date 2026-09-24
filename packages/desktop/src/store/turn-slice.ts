@@ -124,7 +124,7 @@ export function turnSlice(set: Set, get: Get) {
 						state: { running: true, approvals: [], todos: [], compactions: [], stopped: null, retrying: null, capabilities: null, pendingUserMessage: null },
 					} }, sessionId),
 					...(ownsSelection() ? {
-						activeSessionId: sessionId, meta: listed, messages, toolRuns: {}, approvals: [],
+						activeSessionId: sessionId, draftBecame: sessionId, meta: listed, messages, toolRuns: {}, approvals: [],
 						loadingSession: false, pendingUserMessage: null,
 					} : {}),
 				});

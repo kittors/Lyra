@@ -1252,6 +1252,8 @@ export const ko = {
 	"sessionMenu.newWindow": "새 창",
 	"split.view": "분할 보기",
 	"split.replace": "이 화면 바꾸기",
+	"split.moveHere": "여기로 이동",
+	"split.noRoom": "이 화면은 더 나눌 공간이 없습니다",
 	"split.closePane": "화면 닫기",
 	"split.move.left": "분할 화면을 왼쪽으로 이동",
 	"split.move.right": "분할 화면을 오른쪽으로 이동",

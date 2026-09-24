@@ -11,6 +11,10 @@
  * 是「我们以为放哪了」，DOM 是「实际画在哪」。
  *
  * 用法：node --experimental-strip-types e2e/split-dock-probe.ts
+ *
+ * 这里说的「窗口 dock」已经没有了（ADR-0023）：面板只属于会话，单屏是只有一屏的分屏，每一屏
+ * 一个 `DockView`，布局都在 `dw:panedock:<会话>`。这个探针留着当回归用——场景里凡是期望
+ * 「落在窗口 dock」的，现在的正确答案都是「落在那个会话自己的屏里」。
  */
 
 import { startApp, type RunningApp } from "./app.ts";
@@ -181,7 +185,7 @@ async function main(): Promise<void> {
 			const out = {};
 			for (let i = 0; i < localStorage.length; i++) {
 				const k = localStorage.key(i);
-				if (k && k.startsWith('dw:dock:')) out[k.slice(8, 16)] = (localStorage.getItem(k) || '').slice(0, 150);
+				if (k && k.startsWith('dw:panedock:')) out[k.slice(12, 20)] = (localStorage.getItem(k) || '').slice(0, 150);
 			}
 			return out;
 		})()`);
@@ -242,7 +246,7 @@ async function main(): Promise<void> {
 			const stored = [];
 			for (let i = 0; i < localStorage.length; i++) {
 				const k = localStorage.key(i);
-				if (k && k.startsWith('dw:dock:')) stored.push(k.slice(8, 16));
+				if (k && k.startsWith('dw:panedock:')) stored.push(k.slice(12, 20));
 			}
 			return { active: (tiles[0] || '').slice(0, 8), stored: stored, focusedTile: (lit ? lit.dataset.lySplitPane || '' : '').slice(0, 8) };
 		})()`);

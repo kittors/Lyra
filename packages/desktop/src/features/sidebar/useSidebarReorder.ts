@@ -22,6 +22,20 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 	const dropTargetRef = useRef<DropTarget | null>(null);
 	const suppressClick = useRef(false);
 	const saving = useRef(false);
+	/*
+	 * Read through refs, not by the listeners' effect.
+	 *
+	 * `onReordered` arrives as a fresh function on every render of the sidebar. As an effect
+	 * dependency it tore the window listeners down and put them back on each of those renders —
+	 * including the render a drop onto the workspace causes *during* the pointerup that caused it.
+	 * A listener removed mid-dispatch is not called and one added mid-dispatch is not either, so
+	 * this hook never heard that release: the row stayed faded and the pill stayed in the air until
+	 * the pointer moved again.
+	 */
+	const reordered = useRef(onReordered);
+	reordered.current = onReordered;
+	const sorting = useRef(sort);
+	sorting.current = sort;
 
 	const eligible = useCallback((kind: "project" | "session", id: string, projectPath?: string) => {
 		if (!onReordered) return false;
@@ -88,8 +102,8 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 				const store = useApp.getState();
 				const changed = active.kind === "project"
 					? await store.reorderProjects(active.id, target.id, target.placement)
-					: active.projectPath && await store.reorderProjectSessions(active.projectPath, active.id, target.id, target.placement, sort);
-				if (changed && active.kind === "session") onReordered?.();
+					: active.projectPath && await store.reorderProjectSessions(active.projectPath, active.id, target.id, target.placement, sorting.current);
+				if (changed && active.kind === "session") reordered.current?.();
 			} catch (cause) {
 				useApp.getState().notify(translate("reorder.saveFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 			} finally { saving.current = false; }
@@ -139,7 +153,7 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 			window.removeEventListener("blur", reset);
 			window.removeEventListener("scroll", clearScrolledTarget, true);
 		};
-	}, [sort, onReordered, reset]);
+	}, [reset]);
 
 	return { contextValue: { dragging, dropTarget, startDrag, registerTarget, clearTarget }, dragging, dropTarget, pointer };
 }

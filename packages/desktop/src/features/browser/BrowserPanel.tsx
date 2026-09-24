@@ -1,8 +1,8 @@
 import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
-import { useContext, useEffect, useRef, useState } from "react";
-import { SessionScope, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useEffect, useRef, useState } from "react";
+import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -24,7 +24,7 @@ export function BrowserPanel() {
 	const { t } = useI18n();
 	const all = useBrowser((state) => state.tabs);
 	const activeId = useBrowser((state) => state.activeId);
-	const scope = useContext(SessionScope);
+	const scope = useDockScope();
 	const sessionId = useScopedSessionId();
 	const chosen = useBrowserView((state) => state.chosen);
 	const owner = browserOwner(sessionId);
@@ -41,7 +41,7 @@ export function BrowserPanel() {
 	const selectedHere = tabs.find((entry) => entry.id === activeId)?.id;
 	useEffect(() => { if (selectedHere) browserChose(sessionId, selectedHere); }, [sessionId, selectedHere]);
 	const tab = tabs.find((entry) => entry.id === activeId) ?? tabs.find((entry) => entry.id === chosen[owner]) ?? tabs.at(-1);
-	const mounted = useBrowserPages(all, sessionId, scope !== undefined);
+	const mounted = useBrowserPages(all, sessionId, scope);
 	const settings = useApp((state) => state.settings);
 	const saveSettings = useApp((state) => state.saveSettings);
 	const addressInput = useRef<HTMLInputElement>(null);

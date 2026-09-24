@@ -14,7 +14,7 @@
  */
 
 import { Archive, ListFilter, SquarePen } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -76,6 +76,8 @@ export function Sidebar() {
 		const val = localStorage.getItem(SORT_KEY);
 		return val === "updatedAt" ? "updatedAt" : val === "manual" ? "manual" : "createdAt";
 	});
+	// Stable, so the reorder hook's window listeners are not re-registered on every render.
+	const markManual = useCallback(() => setSort("manual"), []);
 	const hasManual = useApp((state) => Object.keys(state.settings?.sessionOrder ?? {}).length > 0);
 	const menu = usePopover();
 	/**
@@ -350,7 +352,7 @@ export function Sidebar() {
 							actions={actions}
 							empty={empty}
 							sort={sort}
-							onReordered={archiveOpen ? undefined : () => setSort("manual")}
+							onReordered={archiveOpen ? undefined : markManual}
 						/>
 					) : (
 						<ChatList
@@ -367,7 +369,7 @@ export function Sidebar() {
 				</div>
 			</Scroller>
 
-			<SessionCarryGhost suppressed={tab === "projects"} />
+			<SessionCarryGhost />
 			<SidebarFoot onNavigate={dismissNav} />
 
 			{menu.open && (

@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { BrowserCommand, BrowserState, BrowserTab } from "../../../shared/browser.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { useSide, openScopedPanel, has, useDock, usePaneDock, usePanelWindows } from "../dock/index.ts";
+import { useSide, openScopedPanel, usePaneDock, usePanelWindows } from "../dock/index.ts";
 
 export const useBrowser = create<BrowserState>(() => ({ tabs: [], activeId: null }));
 export async function commandBrowser(command: BrowserCommand): Promise<void> {
@@ -73,7 +73,8 @@ export function useBrowserWorkspace(): void {
 			 * tab that belongs there and is therefore blank here.
 			 */
 			const revealed = state.tabs.find((tab) => tab.id === state.activeId);
-			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) openScopedPanel("browser");
+			// Into the screen of the conversation that owns the page — the one the address bar was in.
+			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) openScopedPanel("browser", undefined, revealed.sessionId ?? "@draft");
 		});
 		void bridge.browser.state().then((state) => useBrowser.setState(state));
 		const unwatch = useSide.subscribe((state, previous) => {
@@ -86,15 +87,33 @@ export function useBrowserWorkspace(): void {
 	}, []);
 }
 
-/** A guest belongs to exactly one visible dock or detached window; the rest use the cache. */
-export function useBrowserPages(tabs: BrowserTab[], sessionId: string | null, scoped: boolean): BrowserTab[] {
+/**
+ * Which pages this browser panel gives a `<webview>` to.
+ *
+ * A page lives in exactly one place, because a `<webview>` moved or re-created is a page reloaded —
+ * its scroll, its form, whatever the agent had done in it. So each page has one host:
+ *
+ * - A detached browser window hosts its own conversation's pages.
+ * - A screen hosts its own conversation's pages, whether its browser panel is open or not. Every
+ *   screen's panel is mounted, hidden when closed, so closing it and opening it again shows the
+ *   page that was already running rather than loading it again.
+ * - Pages of conversations that are on no screen but still have to stay loaded — the few looked at
+ *   most recently, anything an agent is driving — are hosted by the screen that has been on screen
+ *   longest (`host`).
+ *
+ * Nothing here depends on the focus. There used to be a window-level browser as well, and pages
+ * were handed between it and a screen's according to which screen had the focus — a reload on
+ * every click between two screens. After that, a screen closing its panel handed its pages to the
+ * host and took them back on reopening — a reload each way, and the form typed into was gone.
+ *
+ * A screen counts from the moment it has been measured (`sizes`), on both sides of the rule at
+ * once: before that its pages stay with the host, so no page is ever drawn in two places.
+ */
+export function useBrowserPages(tabs: BrowserTab[], sessionId: string | null, scope: string | null): BrowserTab[] {
 	const recent = useBrowserView((state) => state.recent);
 	const turns = useApp((state) => state.turns);
-	const activeSessionId = useApp((state) => state.activeSessionId);
-	const trees = usePaneDock((state) => state.trees);
 	const sizes = usePaneDock((state) => state.sizes);
-	const drag = usePaneDock((state) => state.drag);
-	const tree = useDock((state) => state.tree);
+	const host = usePaneDock((state) => state.host);
 	const panels = usePanelWindows((state) => state.panels);
 	const opening = usePanelWindows((state) => state.opening);
 	const owner = browserOwner(sessionId);
@@ -103,15 +122,12 @@ export function useBrowserPages(tabs: BrowserTab[], sessionId: string | null, sc
 	const external = [...panels, ...opening].filter((panel) => panel.kind === "browser");
 	const outside = (tab: BrowserTab) => external.some((panel) =>
 		browserOwner(panel.sessionId === undefined ? panel.scope === "@draft" ? null : panel.scope : panel.sessionId) === browserOwner(tab.sessionId));
-	if (scoped) {
-		if (has(tree, "browser") && owner === browserOwner(activeSessionId)) return [];
-		return own.filter((tab) => !outside(tab));
-	}
+	const onScreen = (key: string) => Boolean(sizes[key]);
+	if (!scope) return [];
+	if (scope !== host) return onScreen(scope) ? own.filter((tab) => !outside(tab)) : [];
 	return browserMounted(tabs, owner, recent, turns).filter((tab) => {
 		if (outside(tab)) return false;
-		if (has(tree, "browser") && browserOwner(tab.sessionId) === owner) return true;
 		const key = tab.sessionId ?? "@draft";
-		const inTile = sizes[key] && ((trees[key] && has(trees[key], "browser")) || (drag?.scope === key && drag.kind === "browser"));
-		return !inTile;
+		return key === scope || !onScreen(key);
 	});
 }

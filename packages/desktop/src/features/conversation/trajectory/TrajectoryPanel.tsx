@@ -8,6 +8,7 @@ import { SearchField } from "../../../ui/inputs/SearchField.tsx";
 import { formatTokens } from "../../../lib/format-tokens.ts";
 import { TraceActions } from "./TraceActions.tsx";
 import { useApp } from "../../../store/index.ts";
+import { useScopedMeta } from "../../../app/session-scope.tsx";
 import { useOpenFile } from "../../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../../dock/index.ts";
 import { SourceFilter } from "./SourceFilter.tsx";
@@ -21,13 +22,14 @@ import { useI18n } from "../../../i18n/index.ts";
 
 export function TrajectoryPanel() {
 	const { t } = useI18n();
-	const meta = useApp(state => state.meta);
+	// The conversation of the screen this panel is in.
+	const meta = useScopedMeta();
 	return meta ? <SessionTrajectory key={meta.id} /> : <PanelEmpty icon={History} title={t("trajectory.title")}>{t("trajectory.openConversation")}</PanelEmpty>;
 }
 
 function SessionTrajectory() {
 	const { t } = useI18n();
-	const meta = useApp(state => state.meta);
+	const meta = useScopedMeta();
 	const { all, loading, refreshing, error, refresh } = useTrajectory();
 	const controls = useRef<HTMLDivElement>(null);
 	const [following, setFollowing] = useState(true);

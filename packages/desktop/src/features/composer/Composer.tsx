@@ -673,7 +673,8 @@ export function Composer() {
 				 * makes it invisible — for two minutes nothing on screen told a run reading forty
 				 * files apart from one that was stuck. The bar is that line, and it opens the pane.
 				 */}
-				<SubAgentBar onOpen={() => openScopedPanel("subagents", companionOf("subagents"))} />
+				{/* Into this conversation's own screen: the announcement is not a click, so the focus says nothing. */}
+				<SubAgentBar onOpen={() => openScopedPanel("subagents", companionOf("subagents"), activeSessionId ?? "@draft")} />
 				{/*
 				 * Where the turn will run, and what it has already changed.
 				 *

@@ -208,7 +208,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		await app.evaluate(`document.querySelector('.xterm-screen').setAttribute('data-qa-preserved','')`);
 		const measure = () => app.evaluate<{ conversation: { left: number; top: number; width: number; height: number }; terminal: { left: number; top: number; width: number; height: number }; saved: string | null; sameTerminal: boolean }>(`(()=>{
 			const box=kind=>{const r=document.querySelector('[data-dock-pane="'+kind+'"]').getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};};
-			return {conversation:box('conversation'),terminal:box('terminal'),saved:localStorage.getItem('dw:dock:@draft'),sameTerminal:!!document.querySelector('.xterm-screen[data-qa-preserved]')};
+			return {conversation:box('conversation'),terminal:box('terminal'),saved:localStorage.getItem('dw:panedock:@draft'),sameTerminal:!!document.querySelector('.xterm-screen[data-qa-preserved]')};
 		})()`);
 		const wide = await measure();
 		assert.ok(wide.saved?.includes("terminal"), "the original layout is persisted before resizing");
@@ -239,5 +239,15 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 			assert.ok(Math.abs(restored[kind].left - wide[kind].left) < 1);
 			assert.equal(restored[kind].top, wide[kind].top);
 		}
+		/*
+		 * Nor does a look at another page. The conversations' screens are put away behind the plugin
+		 * catalogue, not torn down: inside `RetainedViews` its `Activity` ran every effect's cleanup,
+		 * and the terminal was disposed while the catalogue was up and rebuilt on the way back
+		 * (ADR-0023, point 8).
+		 */
+		await app.evaluate(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '插件' && b.checkVisibility()).setAttribute('data-qa-nav', '')`);
+		await click(app, "[data-qa-nav]"); await frames(app);
+		assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-solo-screen]')?.checkVisibility())`), true, "the catalogue is up");
+		assert.equal(await app.evaluate(`Boolean(document.querySelector('.xterm-screen[data-qa-preserved]'))`), true, "and the terminal behind it is the same one");
 	} finally { await app.stop(); }
 });

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
-import { useApp } from "../../store/index.ts";
-import { useSubAgents } from "../../store/subAgents.ts";
+import { useScopedMessages, useScopedSubAgents } from "../../app/session-scope.tsx";
 import { CHARS_PER_TOKEN, pushSample, rateFrom, trustworthy, type RateSample } from "./live-rate.ts";
 
 /**
@@ -29,17 +28,18 @@ export function useProducedChars(): number {
 	 * 思考和正文都算：两者都是模型这一刻正在产出的东西，速度是同一件事。工具调用的参数不算——它是
 	 * 一次落地的，把它算进来会让曲线在调用那一帧凭空冲高。
 	 */
-	const live = useApp((s) => {
-		const last = s.messages[s.messages.length - 1];
-		if (last?.role !== "assistant" || last.stopReason !== "pending") return 0;
-		let chars = 0;
+	// This screen's conversation — the indicator under one transcript must not read another's speed.
+	const messages = useScopedMessages();
+	const last = messages[messages.length - 1];
+	let live = 0;
+	if (last?.role === "assistant" && last.stopReason === "pending") {
 		for (const block of last.content) {
-			if (block.type === "text") chars += block.text.length;
-			else if (block.type === "thinking") chars += block.thinking.length;
+			if (block.type === "text") live += block.text.length;
+			else if (block.type === "thinking") live += block.thinking.length;
 		}
-		return chars;
-	});
-	const delegated = useSubAgents((s) => s.agents.reduce((sum, one) => sum + (one.usage?.output ?? 0), 0) * CHARS_PER_TOKEN);
+	}
+	const agents = useScopedSubAgents();
+	const delegated = agents.reduce((sum, one) => sum + (one.usage?.output ?? 0), 0) * CHARS_PER_TOKEN;
 	return live + delegated;
 }
 

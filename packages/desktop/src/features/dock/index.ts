@@ -5,28 +5,25 @@
  *
  * 这张表也是这个域的公开承诺：里面的东西改了签名，别处会跟着断；不在里面的可以随便动。
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
+ *
+ * 面板只属于会话：每一屏一个 `DockView`，布局都在 `usePaneDock` 里按会话存。窗口本身没有面板。
  */
 
 export { companionOf } from "./panels/definitions.tsx";
-/** 面板自己说它能不能搬进独立窗口——`PaneHeader` 据此决定给不给那颗按钮。 */
-export { detachOf } from "./panels/registry.ts";
 export { useSide, sideChatOf } from "./sideStore.ts";
-export { useDock } from "./store.ts";
 export { emptyDockTree, usePaneDock } from "./pane-store.ts";
-export { useDockDrag } from "./useDockDrag.ts";
-export type { DockDragHost } from "./drag-host.ts";
-export { kinds } from "./tree.ts";
-/** 分屏那一层要拿它组 `allowed`——面板注册表在渲染层，只有它知道有哪些种类。 */
-export type { PaneKind } from "./tree.ts";
-export { paneVisible } from "./visibility.ts";
-export { DockView } from "./DockView.tsx";
-export { DockPane } from "./DockPane.tsx";
-export { PaneGrip } from "./PaneGrip.tsx";
-export { Splitter as DockSplitter } from "./Splitter.tsx";
-export { fitTree, layoutPanes, layoutSplitters, minimumSpan } from "./layout.ts";
-export { tilePaneFloor } from "./geometry.ts";
-export { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel, watchPanelWindows, usePanelWindows } from "./popout.ts";
-export { pct as dockPct } from "./css.ts";
+export { DockView, startInset } from "./DockView.tsx";
+export type { ScreenInsets } from "./DockView.tsx";
+export { usePaneOnScreen } from "./scope-context.ts";
+export {
+	currentScope,
+	openScopedPanel,
+	provideReveal,
+	provideScope,
+	toggleScopedPanel,
+	watchPanelWindows,
+	usePanelWindows,
+} from "./popout.ts";
 export { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
 export { useBoxSize } from "./useBoxSize.ts";
 export type { PanelKind } from "./sideStore.ts";

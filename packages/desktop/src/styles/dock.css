@@ -293,6 +293,17 @@
 }
 
 /*
+ * A screen that cannot take another half says so instead of staying blank under the pointer.
+ *
+ * Neutral rather than accented: the accent outline means "here", and this means "not here".
+ */
+.ly-split-drop-refused {
+  background: color-mix(in oklab, var(--color-shell) 55%, transparent);
+  border-color: color-mix(in oklab, var(--color-ink) 18%, transparent);
+  border-style: dashed;
+}
+
+/*
  * The splitter is the gap between two cards, so it draws nothing until you reach for it.
  *
  * It used to paint a hairline down the boundary. The cards' own edges say where that is now, and a

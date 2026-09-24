@@ -16,7 +16,7 @@
  * one, and `fitSizes` draws the squeeze. See `docs/architecture/split-window-conflicts.md` §6.
  */
 
-import { defaultDrop } from "./store.ts";
+import { COLUMN_LIMIT } from "./geometry.ts";
 import { clearsFloors, type Floor } from "./layout.ts";
 import {
 	has,
@@ -31,6 +31,36 @@ import {
 } from "./tree.ts";
 
 const SIDES: DropSide[] = ["right", "bottom", "left", "top"];
+
+/**
+ * Where a pane goes when it is opened from the menu rather than dragged.
+ *
+ * The first panel opens as a column beside the conversation and the second stacks under it; the
+ * third starts a column of its own, and so on in pairs.
+ *
+ * Stacking rather than opening a column every time is what keeps the conversation from being
+ * squeezed thinner with each panel; stopping at `COLUMN_LIMIT` is what keeps the stack worth
+ * looking at. See `geometry.ts` for why that number is two, and `fitTree` for the other decision
+ * it settles.
+ */
+export function defaultDrop(tree: DockNode): DropAt {
+	const others = kinds(tree).filter((kind) => kind !== "conversation");
+	if (others.length === 0) return { side: "right", kind: null };
+
+	const last = others[others.length - 1];
+	const path = pathTo(tree, last);
+	const parent = path && path.length > 0 ? nodeAt(tree, path.slice(0, -1)) : null;
+	const column = parent?.type === "split" && parent.dir === "col" ? parent.children.length : 1;
+
+	/*
+	 * A new column goes at the far right of the root, not beside `last`.
+	 *
+	 * Asking for the right of `last` would split the column it sits in and produce a row nested
+	 * inside a column — two panes side by side where one used to be, rather than the new column
+	 * this is trying to open.
+	 */
+	return column >= COLUMN_LIMIT ? { side: "right", kind: null } : { side: "bottom", kind: last };
+}
 
 export type Span = { width: number; height: number };
 

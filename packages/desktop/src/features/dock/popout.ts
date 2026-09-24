@@ -1,31 +1,32 @@
 /**
- * A docked panel leaving for a real window, and coming back to the slot it left.
+ * Which screen a panel opens in, and a panel leaving for a real window and coming back.
  *
- * **Only ever because a person pressed the button.** The dock used to come here on its own
- * whenever a layout could not hold its floors, which fired on an ordinary window resize; see
- * `docs/architecture/split-window-conflicts.md` §6 for what that cost and why it is gone. A dock
- * with no room now draws the squeeze instead.
+ * **A panel belongs to a conversation.** There is no window-level place for it: a single screen is
+ * a split of one, and every request — a toolbar button, a shortcut, a file link in the transcript,
+ * a page the address bar opened — lands in the dock of the screen it was made from. See
+ * `docs/adr/0023-containers-belong-to-sessions.md` for the layer this replaced and what it cost.
  *
- * Which panels may go at all is the panel's own answer — `detach` on its definition. A second
- * renderer does not inherit a `<webview>`, a store or a subscription, and the machinery here has
- * no way to know which of those a given panel is holding. §7 has the table.
+ * **Popping out only ever happens because a person pressed the button.** Which panels may go at all
+ * is the panel's own answer — `detach` on its definition. A second renderer does not inherit a
+ * `<webview>`, a store or a subscription; `docs/architecture/split-window-conflicts.md` §7 has the
+ * table.
  *
- * Restore checks the current tile size. If its home is gone, the floating window
- * stays open until that conversation is available again.
+ * **Coming back goes to the conversation it left from.** If that conversation is on screen the panel
+ * returns to its old slot; if not, pressing 「收回」 brings the conversation back on screen first,
+ * because docking a panel somewhere nobody can see looks exactly like losing it.
  */
 
 import { create } from "zustand";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
-import { paneFloor, tilePaneFloor } from "./geometry.ts";
-import { clearsFloors, fitTree } from "./layout.ts";
+import { paneFloor } from "./geometry.ts";
+import { clearsFloors } from "./layout.ts";
 import { dropFits, homeOf, placePanel } from "./place.ts";
-import { usePaneDock } from "./pane-store.ts";
-import { useDock } from "./store.ts";
+import { emptyDockTree, usePaneDock, type Placement } from "./pane-store.ts";
 import { has, insert, kinds, remove, type DockNode, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
-import { sanitize } from "./persist.ts";
-import { detachOf } from "./panels/registry.ts";
+import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
+import { allPanels, detachOf } from "./panels/registry.ts";
 import type { PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
@@ -35,7 +36,8 @@ interface PanelWindowRef {
 }
 
 interface Home {
-	dock: "window" | "pane";
+	/** Kept for records written before panels had a single home; `"window"` meant the old window layer. */
+	dock?: "window" | "pane";
 	scope: string;
 	at: DropAt | null;
 	before?: unknown;
@@ -45,12 +47,8 @@ interface Home {
 /**
  * 面板弹出去之前是从哪儿走的——这份记录要活过刷新。
  *
- * 从前它是一个模块作用域的 `Map`：主窗口一刷新就空了，而弹出去的那个面板窗口还好好地开着。
- * 人在它上面点「收回」，回来的记录已经没了，于是落到窗口 dock 的默认位置，而不是它离开的
- * 那个槽。面板窗口的寿命本来就独立于主窗口的刷新，所以这份记录的寿命也该如此。
- *
- * 存 localStorage，和 dock 布局同一个去处：它很小（kind → dock/scope/at），而且和布局同生
- * 共死正是它该有的生命周期。
+ * 面板窗口的寿命独立于主窗口的刷新，所以这份记录的寿命也该如此：存 localStorage，和布局同一个
+ * 去处。它很小（kind → scope/at），坏数据当作「没有记录」。
  */
 const HOMES_KEY = "dw:homes";
 
@@ -103,11 +101,10 @@ function sessionOf(scope: string): string | null {
 }
 
 /**
- * Is this renderer a detached panel, rather than a window with docks in it?
+ * Is this renderer a detached panel, rather than a window with a workspace in it?
  *
  * Guarded because `bridge` throws when the preload has not run, and the answer for every caller
- * here is then "no" rather than an exception: a unit test drives these functions directly, and a
- * renderer opened without a preload has no windows to talk to either way.
+ * here is then "no" rather than an exception: a unit test drives these functions directly.
  */
 function inPanelWindow(): boolean {
 	try {
@@ -117,22 +114,38 @@ function inPanelWindow(): boolean {
 	}
 }
 
-export async function popOutPanel(input: {
-	dock: "window" | "pane";
-	scope: string;
-	kind: PanelKind;
-	sessionId: string | null;
-}): Promise<boolean> {
+/*
+ * 「人此刻在哪一屏」和「把某个会话请上屏」——两个答案都由分屏那一层注入进来。
+ *
+ * 这里不直接去问 `useSplit`：dock 反过来依赖分屏会连出一个环（dock → split → dock），把这段挪进
+ * 分屏那一域也一样。注入是两边都不破的解法。没有工作区的窗口（会话窗口、面板窗口）根本不加载
+ * `SplitWorkspace`，于是默认答案 null 正好是它们的正确答案：那里没有可以开面板的地方。
+ */
+let readScope: () => string | null = () => null;
+let revealScope: (scope: string) => void = () => {};
+
+export function provideScope(fn: () => string | null): void {
+	readScope = fn;
+}
+
+export function provideReveal(fn: (scope: string) => void): void {
+	revealScope = fn;
+}
+
+/** The screen a request with no other answer belongs to: the one the person is working in. */
+export function currentScope(): string | null {
+	return readScope();
+}
+
+export async function popOutPanel(input: { scope: string; kind: PanelKind; sessionId: string | null }): Promise<boolean> {
 	if (!bridge.windows?.openPanel) return false;
 	// A panel that cannot survive a second renderer does not get moved into one. The header hides
-	// the button for these, so this is the second line rather than the first — a plugin, a
-	// shortcut, or a future caller must not be able to route around the panel's own answer.
+	// the button for these, so this is the second line rather than the first.
 	if (detachOf(input.kind) === "none") return false;
 	if (isPopped(input.scope, input.kind)) return true;
-	const tree = input.dock === "pane" ? usePaneDock.getState().tree(input.scope) : useDock.getState().tree;
+	const tree = usePaneDock.getState().tree(input.scope);
 	const previousHome = !has(tree, input.kind) ? homes.get(homeKey(input.scope, input.kind)) : undefined;
-	const home = previousHome ?? {
-		dock: input.dock,
+	const home: Home = previousHome ?? {
 		scope: input.scope,
 		at: has(tree, input.kind) ? homeOf(tree, input.kind) : null,
 		before: tree,
@@ -142,8 +155,7 @@ export async function popOutPanel(input: {
 	// Commit the ownership transfer before another document can attach the same browser tab.
 	flushSync(() => {
 		usePanelWindows.setState((state) => ({ opening: [...state.opening, input] }));
-		if (input.dock === "pane") usePaneDock.getState().close(input.scope, input.kind);
-		else useDock.getState().close(input.kind);
+		usePaneDock.getState().close(input.scope, input.kind);
 	});
 	let opened = false;
 	try {
@@ -152,12 +164,11 @@ export async function popOutPanel(input: {
 		if (!opened) {
 			usePanelWindows.setState((state) => ({ opening: state.opening.filter((panel) => panel.scope !== input.scope || panel.kind !== input.kind) }));
 			// Rollback is a transaction, not a new placement request: a failed window must not lose its pane.
-			const current = input.dock === "pane" ? usePaneDock.getState().tree(input.scope) : useDock.getState().tree;
+			const current = usePaneDock.getState().tree(input.scope);
 			if (has(tree, input.kind) && !has(current, input.kind)) {
-				const at = home.at && (home.at.kind === null || has(current, home.at.kind)) ? home.at : { side: "right", kind: null } as const;
+				const at = home.at && (home.at.kind === null || has(current, home.at.kind)) ? home.at : ({ side: "right", kind: null } as const);
 				const restored = JSON.stringify(home.rest) === JSON.stringify(current) ? tree : insert(current, input.kind, at);
-				if (input.dock === "pane") usePaneDock.getState().restoreLayout(input.scope, restored);
-				else useDock.getState().restoreLayout(restored);
+				usePaneDock.getState().restoreLayout(input.scope, restored);
 			}
 			if (previousHome) homes.set(homeKey(input.scope, input.kind), previousHome);
 			else homes.delete(homeKey(input.scope, input.kind));
@@ -173,178 +184,137 @@ export function restoredHomeTree(home: { before?: unknown; rest?: unknown } | un
 	return has(restored, kind) ? restored : null;
 }
 
-function dockBack(kind: PanelKind, scope: string): boolean {
-	const home = homes.get(homeKey(scope, kind));
-	const dock = home?.dock ?? (scope === "window" ? "window" : "pane");
-	const paneLive = Boolean(usePaneDock.getState().size(scope));
-	if (dock === "window") {
-		const { tree, viewport } = useDock.getState();
-		if (has(tree, kind)) {
-			homes.delete(homeKey(scope, kind));
-			return true;
-		}
-		if (!viewport) return false;
-		const floor = (pane: PaneKind) => pane === "conversation" ? viewport.conversation : paneFloor(pane);
-		const fits = (candidate: DockNode) => has(candidate, kind) && (viewport.compact || clearsFloors(fitTree(candidate, viewport, floor), viewport, floor));
-		const snapshot = restoredHomeTree(home, tree, kind);
-		if (snapshot && fits(snapshot)) useDock.getState().restoreLayout(snapshot);
-		else {
-			const fitted = fitTree(tree, viewport, floor);
-			const preferred = home?.at ? insert(fitted, kind, home.at) : null;
-			const at = placePanel(fitted, viewport, floor, kind);
-			/*
-			 * A dock with no room still takes it back.
-			 *
-			 * Returning false here meant the panel had nowhere to go, and the caller answered that
-			 * by opening a native window again — on every cold start, for as long as the window
-			 * stayed narrow. Coming back squeezed is the behaviour everywhere else now.
-			 */
-			const next = preferred && fits(preferred) ? preferred : at ? insert(fitted, kind, at) : insert(fitted, kind, { side: "right", kind: null });
-			// Never `preferred` as the last resort: its anchor may have left the dock while this
-			// panel was away, and `insert` against a missing neighbour hands back a tree without
-			// the pane in it — which `restoreLayout` would then adopt, losing the panel for good
-			// while the home record was being deleted below. The root edge always exists.
-			if (!has(next, kind)) return false;
-			useDock.getState().restoreLayout(next);
-		}
-		homes.delete(homeKey(scope, kind));
-		return true;
-	}
-	// The home tile is gone. Keep the floating window rather than parking a tile
-	// panel on the window dock — that is the layout this feature must not recreate.
-	if (!paneLive) return false;
-	if (has(usePaneDock.getState().tree(scope), kind)) {
-		homes.delete(homeKey(scope, kind));
-		return true;
-	}
-	const tree = usePaneDock.getState().tree(scope);
-	const span = usePaneDock.getState().size(scope);
+/** Put the panel back into a screen that is on screen and has measured itself. */
+function dockIntoLive(kind: PanelKind, scope: string, home: Home | undefined): boolean {
+	const dock = usePaneDock.getState();
+	const span = dock.size(scope);
 	if (!span) return false;
+	const tree = dock.tree(scope);
+	if (has(tree, kind)) return true;
 	const snapshot = restoredHomeTree(home, tree, kind);
-	if (snapshot && clearsFloors(snapshot, span, tilePaneFloor)) {
-		usePaneDock.getState().restoreLayout(scope, snapshot);
-		homes.delete(homeKey(scope, kind));
+	if (snapshot && clearsFloors(snapshot, span, paneFloor)) {
+		dock.restoreLayout(scope, snapshot);
 		return true;
 	}
 	const preferred = home?.at ?? null;
-	const at =
-		preferred && dropFits(tree, span, tilePaneFloor, kind, preferred)
-			? preferred
-			: placePanel(tree, span, tilePaneFloor, kind);
-	// `open` no longer refuses a screen with no room — it lands the pane and draws it squeezed.
-	if (!usePaneDock.getState().open(scope, kind, at ?? preferred ?? undefined)) return false;
-	homes.delete(homeKey(scope, kind));
+	const at = preferred && dropFits(tree, span, paneFloor, kind, preferred) ? preferred : placePanel(tree, span, paneFloor, kind);
+	// A screen with no room still takes it back, drawn squeezed — the floors choose where, never whether.
+	return dock.open(scope, kind, (at ?? preferred ?? undefined) as Placement | undefined);
+}
+
+/**
+ * Put the panel back into a conversation that is not on screen: into its stored layout, where it
+ * will be the next time that conversation is shown.
+ */
+function dockIntoStored(kind: PanelKind, scope: string, home: Home | undefined): void {
+	const dock = usePaneDock.getState();
+	const inMemory = dock.trees[scope];
+	const allowed: PaneKind[] = ["conversation", ...allPanels().filter((panel) => !panel.ephemeral).map((panel) => panel.kind)];
+	const tree = inMemory ?? readTree(paneStorageKey(scope), allowed) ?? emptyDockTree;
+	if (has(tree, kind)) return;
+	const snapshot = restoredHomeTree(home, tree, kind);
+	const at = home?.at && (home.at.kind === null || has(tree, home.at.kind)) ? home.at : ({ side: "right", kind: null } as const);
+	const next = snapshot ?? insert(tree, kind, at);
+	if (inMemory) dock.restoreLayout(scope, next);
+	else writeTree(paneStorageKey(scope), next);
+}
+
+/**
+ * Bring a detached panel home.
+ *
+ * `reveal` is whether the person asked for it (the 「收回」 button) rather than the app tidying up
+ * after a crash. A person asking wants to see it arrive, so a conversation that is off screen is
+ * brought on screen first; tidying up must never rearrange the workspace behind anyone's back, so
+ * it writes the panel into that conversation's stored layout instead.
+ */
+async function dockBack(kind: PanelKind, recorded: string, reveal: boolean): Promise<boolean> {
+	const home = homes.get(homeKey(recorded, kind));
+	// Records from before panels had one home named the old window layer, which no longer exists:
+	// they go to the conversation the person is working in.
+	const scope = recorded === "window" || home?.dock === "window" ? readScope() : recorded;
+	if (!scope) return false;
+	if (dockIntoLive(kind, scope, home)) {
+		homes.delete(homeKey(recorded, kind));
+		return true;
+	}
+	if (reveal && scope !== "@draft") {
+		revealScope(scope);
+		// The screen needs a frame or two to mount and measure itself before it can take the panel.
+		for (let waited = 0; waited < 3_000; waited += 50) {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			if (dockIntoLive(kind, scope, home)) {
+				homes.delete(homeKey(recorded, kind));
+				return true;
+			}
+		}
+	}
+	dockIntoStored(kind, scope, home);
+	homes.delete(homeKey(recorded, kind));
 	return true;
 }
 
 /**
- * 人此刻看着的是哪一个 dock——答案由分屏那一层注入进来。
+ * 从会话内容里打开一个面板——点一个文件链接、点「审核」、点子智能体、「在终端运行」、地址栏打开的网页。
  *
- * 这里不直接去问 `useSplit`，虽然那样写起来最短：dock 反过来依赖分屏会连出一个环
- * （dock → split → app store → dock），而把这段挪进分屏那一域也一样——它要用 dock 的东西，
- * 走前门就把整个 dock 域拉了进来，绕一圈还是回到分屏。前门规则和无环规则在这种「跨域协调」
- * 的代码上是正面冲突的，注入是唯一两边都不破的解法。
- *
- * 默认答案是 null，也就是「只有窗口 dock」。没有分屏的窗口（会话窗口、面板窗口）根本不会加载
- * `SplitWorkspace`，于是这个默认值正好就是它们的正确答案。
+ * 和工具条上那排按钮走同一套规矩：开在人此刻所在的那一屏，那一屏就是这个请求所属的会话。
  */
-let readScope: () => string | null = () => null;
-
-export function provideScope(fn: () => string | null): void {
-	readScope = fn;
-}
-
-/**
- * 从会话内容里打开一个面板——点一个文件链接、点「审核」、点子智能体、「在终端运行」。
- *
- * 和工具条上那排按钮走同一套规矩。从前这十几个入口一律写死 `useDock.open`，不问人在哪一屏：
- * 同一个「打开文件」，从工具条点落在这一屏，从转录里点却横在两屏旁边，看不出规律。而
- * `SplitWorkspace` 的注释早就定了规矩——「从 tile 打开的面板属于那个 tile 的 dock；已经在
- * 窗口 dock 上的留在那儿」。这个函数就是那条规矩的唯一实现。
- */
-export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side: DropSide; share?: number }): void {
+export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side: DropSide; share?: number }, target?: string): void {
 	/*
 	 * A panel window has no dock, so the request goes to the window that does.
 	 *
-	 * Every branch below ends in `useDock` or `usePaneDock`, and in this renderer nothing is
-	 * subscribed to either — it draws one panel and nothing else. So clicking a file in a detached
-	 * file tree updated a store nobody was reading and the click did nothing at all, in a window
-	 * where the file tree is the entire point. See `docs/architecture/split-window-conflicts.md` §7.
+	 * In this renderer nothing is subscribed to a dock — it draws one panel and nothing else. So
+	 * clicking a file in a detached file tree would update a store nobody reads. See
+	 * `docs/architecture/split-window-conflicts.md` §7.
 	 */
 	if (inPanelWindow()) {
 		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ kind, ...(beside ? { beside } : {}) });
 		return;
 	}
 	/*
-	 * 已经在窗口 dock 上的，留在那儿，只把焦点给它。
-	 *
-	 * 把它从窗口 dock 搬进某一屏，等于替人做了一个他没提的决定——他上次把它放在那里是有意的。
+	 * `target` names the screen when the request is not a click in it — an announcement, a page an
+	 * agent revealed. Anything a person clicked is already in the screen with the focus: pressing
+	 * inside a screen focuses it first.
 	 */
-	if (has(useDock.getState().tree, kind)) {
-		useDock.getState().focus(kind);
+	const scope = target && usePaneDock.getState().size(target) ? target : readScope();
+	if (!scope) return;
+	if (isPopped(scope, kind)) {
+		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope), ...(kind === "file" ? { fileState: filePanelSnapshot() } : {}) });
 		return;
 	}
-	const scope = readScope();
-	if (isPopped(scope ?? "window", kind)) {
-		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope: scope ?? "window", sessionId: sessionOf(scope ?? "window"), ...(kind === "file" ? { fileState: filePanelSnapshot() } : {}) });
-		return;
-	}
-	if (!scope) {
-		useDock.getState().open(kind, beside);
-		return;
-	}
-	if (has(usePaneDock.getState().tree(scope), kind)) return;
-	// It goes into that screen even when the screen is too small for it, drawn squeezed. Handing
-	// it to a window instead is what §6 of `docs/architecture/split-window-conflicts.md` removed:
-	// request for a second window, and the panel was unusable once it got there.
 	usePaneDock.getState().open(scope, kind, beside);
 }
 
-export function toggleScopedPanel(scope: string | null, kind: PanelKind): void {
-	if (scope && has(useDock.getState().tree, kind)) {
-		useDock.getState().focus(kind);
-		return;
-	}
-	const key = scope ?? "window";
-	if (isPopped(key, kind)) {
+/**
+ * The toolbar button and the shortcut: open it here, or put it away.
+ *
+ * In the narrow layout a panel that is open but behind the conversation is brought forward rather
+ * than closed — pressing its button is asking to see it, and closing it would be the opposite.
+ */
+export function toggleScopedPanel(scope: string, kind: PanelKind, options: { compact?: boolean } = {}): void {
+	if (isPopped(scope, kind)) {
 		if (!bridge.windows?.openPanel) return;
-		void bridge.windows.openPanel({ kind, scope: key, sessionId: sessionOf(key) });
+		void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope) });
 		return;
 	}
-	if (scope) {
-		const tree = usePaneDock.getState().tree(scope);
-		if (has(tree, kind)) {
-			usePaneDock.getState().close(scope, kind);
-			return;
-		}
-		usePaneDock.getState().open(scope, kind);
+	const dock = usePaneDock.getState();
+	if (has(dock.tree(scope), kind)) {
+		if (options.compact && dock.focused[scope] !== kind) dock.focus(scope, kind);
+		else dock.close(scope, kind);
 		return;
 	}
-	const tree = useDock.getState().tree;
-	if (has(tree, kind)) {
-		useDock.getState().close(kind);
-		return;
-	}
-	useDock.getState().open(kind);
+	dock.open(scope, kind);
 }
 
 /**
  * 启动时发现的孤儿：盘上有回家记录，却没有对应的面板窗口。
  *
  * 这只有一种来法——人把面板弹出去，然后**没有收回就退出了应用**。窗口列表从来不存盘，所以
- * 重开之后那个面板既不在任何一棵 dock 树里（弹出时已经从树上删了），也没有窗口。它就这么
- * 没了，而盘上只剩一条指着空处的记录。
+ * 重开之后那个面板既不在任何一棵树里（弹出时已经从树上删了），也没有窗口。那条记录记着它属于
+ * 哪个会话，就照它放回那个会话的布局里——那个会话在屏上就回到原位，不在屏上就等它下次出现。
  *
- * 那条记录本来就是为这件事存在的：它记着这个面板属于哪里。窗口没了，就照它把面板放回去。
- * 用户重开应用看到终端还在它原来的位置，比「终端不见了」和「凭空多出一个终端窗口」都更接近
- * 他离开时的样子。
+ * 「人主动关掉那个面板窗口」不会走到这里：那一刻应用还活着，`apply` 当场就把记录清了。
  *
- * 「人主动关掉那个面板窗口」不会走到这里——那一刻应用还活着，`apply` 当场就把记录清了，
- * 所以到下一次启动时它已经不在盘上。两条规则合起来才说得通，少一条另一条就会做错事。
- *
- * 一屏的 dock 要等它量出自己的尺寸才收得下面板，那比第一次窗口列表晚。所以这里重试，
- * 到点还放不回去就清掉记录：那一屏多半是真的不在了，而把它的面板停到窗口 dock 上，
- * 正是这个功能一开始要避免的布局。
+ * 旧记录指着已经不存在的窗口层时，要等工作区告诉我们人在哪一屏，所以那一种重试几次。
  */
 function adoptOrphans(deadline: number): void {
 	const pending: string[] = [];
@@ -354,15 +324,11 @@ function adoptOrphans(deadline: number): void {
 		const scope = key.slice(0, cut);
 		const kind = key.slice(cut + 1) as PanelKind;
 		if (isPopped(scope, kind)) continue;
-		if (dockBack(kind, scope)) continue;
-		/*
-		 * Still not placeable: the home has not measured itself yet, or that screen is gone.
-		 *
-		 * Both are answered by waiting and trying again. This used to open a native window instead
-		 * whenever the home was measured but had no room — which, with the floors being what they
-		 * are, meant a narrow window spat its panels back out on every launch.
-		 */
-		pending.push(key);
+		if ((scope === "window" || homes.get(key)?.dock === "window") && !readScope()) {
+			pending.push(key);
+			continue;
+		}
+		void dockBack(kind, scope, false);
 	}
 	if (pending.length === 0) return;
 	if (typeof window === "undefined" || Date.now() >= deadline) {
@@ -401,15 +367,14 @@ export function watchPanelWindows(): () => void {
 	 * A panel window asking this window to open something, since only this one has docks.
 	 *
 	 * Deliberately the same `openScopedPanel` the local callers use, so a file opened from a
-	 * detached tree lands exactly where one opened from the transcript would — including which
-	 * screen it belongs to, which only this window can answer.
+	 * detached tree lands exactly where one opened from the transcript would.
 	 */
 	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, beside }) => {
 		openScopedPanel(kind as PanelKind, beside as { kind: PaneKind; side: DropSide; share?: number } | undefined);
 	}) ?? (() => {});
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {
-		if (!dockBack(kind as PanelKind, scope)) return;
 		const restore = async () => {
+			if (!(await dockBack(kind as PanelKind, scope, true))) return;
 			if (fileState) {
 				const current = filePanelSnapshot();
 				const paths = new Set(fileState.tabs.map((tab) => tab.path));

@@ -38,6 +38,13 @@ export interface SplitState {
 	split: (target: string | null, incoming: string, side: DropSide) => "split" | "replace" | "focus" | "full";
 	addColumn: (sessionId: string) => boolean;
 	move: (sessionId: string, name: MoveName) => void;
+	/**
+	 * Put a conversation that is already on screen beside another one, on that one's `side`.
+	 *
+	 * What dragging it in from the sidebar means: it is already here, so the drop moves it rather
+	 * than opening a second copy somewhere. Its panels go with it — they are keyed by conversation.
+	 */
+	relocate: (sessionId: string, target: string | null, side: DropSide) => boolean;
 	close: (sessionId: string) => string | null;
 	resize: (path: number[], index: number, share: number, floor?: ResizeFloor) => void;
 	even: (path: number[], index: number, floor?: ResizeFloor) => void;
@@ -144,6 +151,18 @@ export const useSplit = create<SplitState>((set, get) => ({
 		if (!move) return;
 		set({ tree: moveSplit(tree, sessionId, move) });
 		persist(get());
+	},
+
+	relocate(sessionId, target, side) {
+		const { tree } = get();
+		if (!contains(tree, sessionId) || target === sessionId) return false;
+		const rest = removeLeaf(tree, sessionId);
+		if (rest === tree) return false;
+		const next = splitLeaf(rest, target, sessionId, side);
+		if (!next) return false;
+		set({ tree: next, focused: sessionId });
+		persist({ ...get(), tree: next, focused: sessionId });
+		return true;
 	},
 
 	close(sessionId) {

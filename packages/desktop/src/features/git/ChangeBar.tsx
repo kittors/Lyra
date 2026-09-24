@@ -3,7 +3,7 @@ import { GitCommitVertical } from "lucide-react";
 import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
-import { useDock } from "../dock/index.ts";
+import { openScopedPanel } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -23,7 +23,6 @@ import { bridge } from "../../services/index.ts";
 export function ChangeBar() {
   const workspace = useApp((s) => s.workspace);
   const running = useApp((s) => s.running);
-  const openPane = useDock((s) => s.open);
 
   const [stat, setStat] = useState<{
     added: number;
@@ -52,7 +51,7 @@ export function ChangeBar() {
       <button
         type="button"
         data-ly-tip={translate("changeBar.uncommitted", { n: stat.files })}
-        onClick={() => openPane("review")}
+        onClick={() => openScopedPanel("review")}
         className="ly-scroll flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
       >
         {/*
@@ -82,7 +81,7 @@ export function ChangeBar() {
       <button
         type="button"
         data-ly-tip={translate("changeBar.openGit")}
-        onClick={() => openPane("review")}
+        onClick={() => openScopedPanel("review")}
         className="grid place-items-center h-[26px] shrink-0 rounded-md text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[26px]"
 			aria-label={translate("commit.commit")}
 		><GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" /></button>

@@ -1252,6 +1252,8 @@ export const ru = {
 	"sessionMenu.newWindow": "Новое окно",
 	"split.view": "Разделённый вид",
 	"split.replace": "Заменить",
+	"split.moveHere": "Переместить сюда",
+	"split.noRoom": "Недостаточно места, чтобы разделить этот экран",
 	"split.closePane": "Закрыть панель",
 	"split.move.left": "Переместить область влево",
 	"split.move.right": "Переместить область вправо",

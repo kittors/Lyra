@@ -18,44 +18,43 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { openScopedPanel, provideScope } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
-import { useDock } from "../../src/features/dock/store.ts";
-import { defaultTree, has } from "../../src/features/dock/tree.ts";
+import { has } from "../../src/features/dock/tree.ts";
 
 function reset(scope: string | null): void {
 	window.localStorage.clear();
-	useDock.setState({ tree: defaultTree(), scope: null, adopted: false, drag: null });
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	provideScope(() => scope);
 }
 
 /** 一屏的像素跨度。给得宽是为了让落点唯一——放不下时面板照样进去，只是画得挤。 */
 const ROOMY = { width: 1200, height: 900 };
 
-test("单屏：落在窗口 dock，和从前一样", () => {
-	reset(null);
-	openScopedPanel("terminal");
-	assert.ok(has(useDock.getState().tree, "terminal"), "单屏时窗口 dock 就是唯一的 dock");
-	assert.equal(usePaneDock.getState().trees["any"], undefined);
-});
-
-test("分屏：落在人正看着的那一屏，不是窗口 dock", () => {
+test("单屏：落在那一屏自己的 dock——单屏就是只有一屏的分屏", () => {
 	reset("sess-a");
 	usePaneDock.getState().rememberSize("sess-a", ROOMY);
+	openScopedPanel("terminal");
+	assert.ok(has(usePaneDock.getState().tree("sess-a"), "terminal"), "面板属于这个会话，开在它这一屏");
+	assert.deepEqual(Object.keys(usePaneDock.getState().trees), ["sess-a"], "没有第二个地方可以落");
+});
+
+test("分屏：落在人正看着的那一屏", () => {
+	reset("sess-a");
+	usePaneDock.getState().rememberSize("sess-a", ROOMY);
+	usePaneDock.getState().rememberSize("sess-b", ROOMY);
 	openScopedPanel("terminal");
 	assert.ok(has(usePaneDock.getState().tree("sess-a"), "terminal"), "没落进那一屏");
-	assert.ok(!has(useDock.getState().tree, "terminal"), "落到窗口 dock 上了——那正是要修的毛病");
+	assert.ok(!has(usePaneDock.getState().tree("sess-b"), "terminal"), "落到了别的会话身上");
 });
 
-test("已经在窗口 dock 上的，留在那儿，只是把焦点给它", () => {
+test("另一屏开着同一种面板，不妨碍这一屏开自己的——面板各归各的会话", () => {
 	reset("sess-a");
 	usePaneDock.getState().rememberSize("sess-a", ROOMY);
-	useDock.getState().open("browser");
-	assert.ok(has(useDock.getState().tree, "browser"));
+	usePaneDock.getState().rememberSize("sess-b", ROOMY);
+	usePaneDock.getState().open("sess-b", "browser");
 
 	openScopedPanel("browser");
-	assert.ok(has(useDock.getState().tree, "browser"), "被从窗口 dock 搬走了");
-	assert.ok(!has(usePaneDock.getState().tree("sess-a"), "browser"), "在那一屏里又开了一个，成了两份");
-	assert.equal(useDock.getState().focused, "browser", "留在原处的同时该把焦点给它");
+	assert.ok(has(usePaneDock.getState().tree("sess-a"), "browser"), "从前这里只是把焦点给了另一处的浏览器，点了没反应");
+	assert.ok(has(usePaneDock.getState().tree("sess-b"), "browser"), "另一屏的那个原样留着");
 });
 
 test("那一屏里已经有了，不再开第二个", () => {
@@ -80,35 +79,43 @@ test("换一屏，就落到换过去的那一屏", () => {
 	assert.ok(!has(usePaneDock.getState().tree("sess-a"), "files"));
 });
 
-test("没人注册过「在哪一屏」时，退回窗口 dock", () => {
-	// 会话窗口和面板窗口根本不加载 SplitWorkspace，于是没人调用 provideScope——
-	// 默认答案必须是「只有窗口 dock」，而不是抛错或什么都不做。
-	window.localStorage.clear();
-	useDock.setState({ tree: defaultTree(), scope: null, adopted: false, drag: null });
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null });
-	provideScope(() => null);
+test("不是点出来的请求（比如子智能体开工的通报）落在它点名的那一屏，不跟着焦点", () => {
+	reset("sess-a");
+	usePaneDock.getState().rememberSize("sess-a", ROOMY);
+	usePaneDock.getState().rememberSize("sess-b", ROOMY);
+	openScopedPanel("subagents", undefined, "sess-b");
+	assert.ok(has(usePaneDock.getState().tree("sess-b"), "subagents"), "开工的是 b 的子智能体");
+	assert.ok(!has(usePaneDock.getState().tree("sess-a"), "subagents"), "焦点在 a，不代表通报属于 a");
+
+	// 点名的那一屏不在屏上时，退回人所在的那一屏，而不是写进一棵没人画的树。
+	openScopedPanel("tasks", undefined, "sess-gone");
+	assert.ok(has(usePaneDock.getState().tree("sess-a"), "tasks"));
+});
+
+test("没有工作区的窗口里（会话窗口），什么也不写", () => {
+	// 会话窗口不加载 SplitWorkspace，没人调用 provideScope——那里没有可以开面板的地方。
+	reset(null);
 	openScopedPanel("files");
-	assert.ok(has(useDock.getState().tree, "files"));
+	assert.deepEqual(usePaneDock.getState().trees, {});
 });
 
 /*
  * 面板窗口里没有 dock，所以请求要转给有 dock 的那个窗口。
  *
- * 从前它落到这一行的最后一条分支——`useDock.open`——而面板窗口里没有任何东西订阅 `useDock`：
- * 它只画一个面板。于是在弹出去的文件树里点文件，改的是一份没人读的状态，点下去什么也不发生，
- * 而文件树正是那个窗口的全部用途。见 `docs/architecture/split-window-conflicts.md` 第七节。
+ * 在弹出去的文件树里点文件，改一份没人读的状态等于把点击吞掉，而文件树正是那个窗口的全部用途。
+ * 见 `docs/architecture/split-window-conflicts.md` 第七节。
  */
-test("面板窗口：请求转给主窗口，不动本地那两棵树", () => {
+test("面板窗口：请求转给主窗口，不动本地的树", () => {
 	reset(null);
 	const asked: unknown[] = [];
 	Reflect.set(window, "lyra", {
-		bootWindow: { kind: "panel", panelKind: "files", panelScope: "window", sessionId: null, id: "p1" },
+		bootWindow: { kind: "panel", panelKind: "files", panelScope: "sess-a", sessionId: null, id: "p1" },
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
 	try {
 		openScopedPanel("file", { kind: "files", side: "bottom" });
 		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" } }]);
-		assert.ok(!has(useDock.getState().tree, "file"), "面板窗口的 dock 树是没人画的，往里写等于把点击吞掉");
+		assert.deepEqual(usePaneDock.getState().trees, {}, "面板窗口里的树是没人画的，往里写等于把点击吞掉");
 	} finally {
 		Reflect.deleteProperty(window, "lyra");
 	}

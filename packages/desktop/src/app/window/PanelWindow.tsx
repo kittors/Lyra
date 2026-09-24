@@ -1,8 +1,8 @@
 /**
  * A window that is only one docked panel — browser, terminal, files, git.
  *
- * "Open in a new window" is not a second workspace. The pane leaves the tile (or the
- * window dock) and this document holds it. One control puts it back in the slot it left.
+ * "Open in a new window" is not a second workspace. The pane leaves its conversation's screen
+ * and this document holds it. One control puts it back in the slot it left.
  */
 
 import { AppWindow } from "lucide-react";

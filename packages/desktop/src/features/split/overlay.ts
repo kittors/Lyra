@@ -9,7 +9,15 @@
 import { create } from "zustand";
 import type { DropSide } from "./tree.ts";
 
-type OverlayKind = "split" | "replace";
+/**
+ * What letting go here would do.
+ *
+ * `split` halves the screen under the pointer; `replace` swaps it (four screens is the most a window
+ * shows); `move` puts a conversation that is already on screen there instead; `full` says this
+ * screen has no room for another half — shown rather than left blank, so a drag never sits over a
+ * screen that silently refuses it.
+ */
+type OverlayKind = "split" | "replace" | "move" | "full";
 
 export interface SplitOverlayState {
 	/** Pane key: a session id, or `@draft` for the blank conversation. */

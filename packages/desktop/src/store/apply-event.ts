@@ -246,6 +246,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   }
 
   if (sessionId !== get().activeSessionId) {
+		// Delegated work of a conversation that is on screen without being the live one.
+		if (event.type === "subagents") useSubAgents.getState().retain(sessionId, event.agents);
 		if (completion) {
 			const target = get().sessions.find((session) => session.id === sessionId);
 			const who = target ? translate("applyEvent.named", { title: sessionTitle(target.title) }) : translate("applyEvent.task");
@@ -409,7 +411,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      * instead of having to have seen every event since.
      */
     case "subagents":
-      useSubAgents.getState().sync(event.agents);
+      useSubAgents.getState().sync(event.agents, sessionId);
       break;
 
     /*

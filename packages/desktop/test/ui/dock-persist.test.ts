@@ -12,10 +12,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dropTree, flushTree, paneStorageKey, readDockAt, readTree, storageKey, writeTree } from "../../src/features/dock/persist.ts";
+import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "../../src/features/dock/persist.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
-import { useDock } from "../../src/features/dock/store.ts";
-import { leafOf, type DockNode, type PaneKind } from "../../src/features/dock/tree.ts";
+import { provideScope, usePanelWindows } from "../../src/features/dock/popout.ts";
+import { has, leafOf, type DockNode, type PaneKind } from "../../src/features/dock/tree.ts";
 
 const ALLOWED: PaneKind[] = ["conversation", "terminal", "browser", "files"];
 
@@ -28,17 +28,19 @@ const pair = (a: PaneKind, b: PaneKind): DockNode => ({
 
 function clear(): void {
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePanelWindows.setState({ panels: [], opening: [] });
+	provideScope(() => null);
 }
 
 test("两把钥匙在同一拍里写，谁都不许丢", () => {
 	clear();
-	writeTree(storageKey("alpha"), pair("conversation", "browser"));
+	writeTree(paneStorageKey("alpha"), pair("conversation", "browser"));
 	writeTree(paneStorageKey("beta"), pair("conversation", "terminal"));
 	writeTree(paneStorageKey("gamma"), pair("conversation", "files"));
 	flushTree();
 
-	assert.ok(readTree(storageKey("alpha"), ALLOWED), "窗口 dock 那份被后来的顶掉了");
+	assert.ok(readTree(paneStorageKey("alpha"), ALLOWED), "第一个会话那份被后来的顶掉了");
 	assert.ok(readTree(paneStorageKey("beta"), ALLOWED), "第一屏那份被顶掉了");
 	assert.ok(readTree(paneStorageKey("gamma"), ALLOWED), "第二屏那份被顶掉了");
 });
@@ -161,13 +163,12 @@ test("面板回家的那条路，存在盘上而不是内存里", async () => {
 	clear();
 	stubBridge();
 	const { popOutPanel } = await import("../../src/features/dock/popout.ts");
-	useDock.setState({ tree: pair("conversation", "browser"), scope: null, adopted: false, drag: null });
-	await popOutPanel({ dock: "window", scope: "window", kind: "browser", sessionId: null });
+	usePaneDock.setState({ trees: { "sess-a": pair("conversation", "terminal") } });
+	await popOutPanel({ scope: "sess-a", kind: "terminal", sessionId: "sess-a" });
 	const raw = window.localStorage.getItem("dw:homes");
 	assert.ok(raw, "回家的记录没落盘，刷新一次就找不到原位了");
-	const homes = JSON.parse(raw ?? "{}") as Record<string, { dock: string; scope: string }>;
-	assert.equal(homes["window:browser"]?.dock, "window");
-	assert.equal(homes["window:browser"]?.scope, "window");
+	const homes = JSON.parse(raw ?? "{}") as Record<string, { scope: string }>;
+	assert.equal(homes["sess-a:terminal"]?.scope, "sess-a", "记着的是它属于哪个会话");
 });
 
 test("盘上那份坏了，当作没记录，而不是把收回这件事弄崩", async () => {
@@ -175,11 +176,11 @@ test("盘上那份坏了，当作没记录，而不是把收回这件事弄崩",
 	stubBridge();
 	window.localStorage.setItem("dw:homes", "{ 这不是 JSON");
 	const { popOutPanel } = await import("../../src/features/dock/popout.ts");
-	useDock.setState({ tree: pair("conversation", "terminal"), scope: null, adopted: false, drag: null });
+	usePaneDock.setState({ trees: { "sess-a": pair("conversation", "terminal") } });
 	// 坏数据会被当成空记录，写入照常覆盖它。
-	await popOutPanel({ dock: "window", scope: "window", kind: "terminal", sessionId: null });
+	await popOutPanel({ scope: "sess-a", kind: "terminal", sessionId: "sess-a" });
 	const homes = JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}") as Record<string, unknown>;
-	assert.ok(homes["window:terminal"], "坏数据应该被覆盖掉，而不是让写入也失败");
+	assert.ok(homes["sess-a:terminal"], "坏数据应该被覆盖掉，而不是让写入也失败");
 });
 
 /*
@@ -234,44 +235,53 @@ test("人直接关掉面板窗口，那条回家记录跟着清掉", async () =>
 	stop();
 });
 
-test("弹出去没收回就退出应用，重开时面板回到它记着的位置", async () => {
+test("弹出去没收回就退出应用，重开时面板回到它所属那一屏的原位", async () => {
 	clear();
-	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null,
-		viewport: { width: 1100, height: 800, conversation: { width: 420, height: 260 }, compact: false } });
+	// 那个会话此刻在屏上，量过了尺寸。
+	usePaneDock.setState({ trees: { "sess-a": leafOf("conversation") }, sizes: { "sess-a": { width: 1100, height: 800 } } });
 	// 重开之后一个面板窗口都没有——窗口列表从来不存盘。
 	stubPanelWindows([]);
 	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
-	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", at: null } }));
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "sess-a:terminal": { scope: "sess-a", at: null } }));
 	const stop = watchPanelWindows();
 	await settled();
+	await settled();
 
-	const { has } = await import("../../src/features/dock/tree.ts");
-	assert.ok(has(useDock.getState().tree, "browser"), "既没有窗口也不在 dock 里——那个面板就这么没了");
-	assert.equal(homesOnDisk()["window:browser"], undefined, "放回去了，指向空处的记录该清掉");
+	assert.ok(has(usePaneDock.getState().tree("sess-a"), "terminal"), "既没有窗口也不在屏里——那个面板就这么没了");
+	assert.equal(homesOnDisk()["sess-a:terminal"], undefined, "放回去了，指向空处的记录该清掉");
 	stop();
 });
 
-/*
- * 分屏时窗口 dock 认的是哪一把钥匙。
- *
- * 那个决定一直都在——`DockView` 分屏时就不再跟着焦点换 scope，因为屏上有两三个会话，
- * 「当前会话」对窗口 dock 没有意义。但它只活在内存里：刷新之后 `scope` 回到 null，dock
- * 拿着焦点那一屏的会话 id 去读，读到一把空钥匙，进入分屏之前开好的浏览器就凭空消失了，
- * 而它的布局在盘上好端端存着。实测 E2b：刷新前两屏带浏览器，刷新后两屏、面板 [无]。
- */
-
-test("adopt 一个真实会话时，把那把钥匙记在盘上", () => {
+test("它所属的会话不在屏上，就放回那个会话存着的布局，等它下次出现", async () => {
 	clear();
-	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null });
-	useDock.getState().adopt("sess-a", ALLOWED);
-	assert.equal(readDockAt(), "sess-a");
+	stubPanelWindows([]);
+	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "sess-b:terminal": { scope: "sess-b", at: null } }));
+	const stop = watchPanelWindows();
+	await settled();
+	await settled();
+
+	flushTree();
+	const stored = readTree(paneStorageKey("sess-b"), ALLOWED);
+	assert.ok(stored && has(stored, "terminal"), "面板跟着它的会话走，不是跟着此刻在屏上的那一个");
+	assert.equal(homesOnDisk()["sess-b:terminal"], undefined);
+	// 整理善后不许替人改工作区：屏上那个会话的布局一点没动。
+	assert.deepEqual(Object.keys(usePaneDock.getState().trees), []);
+	stop();
 });
 
-test("刷新后那一下带着 null 的 adopt，不许把记着的钥匙抹掉", () => {
+test("旧版记在窗口层上的，回到人此刻所在的那一屏", async () => {
 	clear();
-	useDock.setState({ tree: leafOf("conversation"), scope: null, adopted: false, drag: null });
-	useDock.getState().adopt("sess-a", ALLOWED);
-	// 刷新之后第一次 adopt 必然是 null：`activeSessionId` 还没恢复。
-	useDock.getState().adopt(null, ALLOWED);
-	assert.equal(readDockAt(), "sess-a", "那一下把钥匙抹掉了——而它正是分屏刷新要找回来的东西");
+	usePaneDock.setState({ trees: { "sess-a": leafOf("conversation") }, sizes: { "sess-a": { width: 1100, height: 800 } } });
+	provideScope(() => "sess-a");
+	stubPanelWindows([]);
+	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:terminal": { dock: "window", scope: "window", at: null } }));
+	const stop = watchPanelWindows();
+	await settled();
+	await settled();
+
+	assert.ok(has(usePaneDock.getState().tree("sess-a"), "terminal"), "窗口层已经不存在了，面板落到人在的那一屏");
+	assert.equal(homesOnDisk()["window:terminal"], undefined);
+	stop();
 });

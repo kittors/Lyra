@@ -36,21 +36,51 @@ const store: Record<string, string> = {};
 	removeEventListener: () => {},
 };
 
-const { useDock } = await import("../src/features/dock/store.ts");
-const { defaultTree, kinds } = await import("../src/features/dock/tree.ts");
+const { usePaneDock } = await import("../src/features/dock/pane-store.ts");
+const { kinds } = await import("../src/features/dock/tree.ts");
+type Tree = import("../src/features/dock/tree.ts").DockNode;
+type Kind = import("../src/features/dock/tree.ts").PaneKind;
+type At = import("../src/features/dock/tree.ts").DropAt;
+
+/**
+ * One screen's dock. Full screen is per screen — another conversation on the window is never
+ * touched — so every claim here is made about one scope, and read back live from the store.
+ */
+const S = "conversation-a";
+const useDock = {
+	getState: () => ({
+		get tree() { return usePaneDock.getState().tree(S); },
+		get maximized() { return usePaneDock.getState().maximized[S] ?? null; },
+		get focused() { return usePaneDock.getState().focused[S] ?? "conversation"; },
+		open: (kind: Kind, beside?: { kind: Kind; side: At["side"]; share?: number }) => usePaneDock.getState().open(S, kind, beside),
+		close: (kind: Kind) => usePaneDock.getState().close(S, kind),
+		toggleMaximized: (kind: Kind, partner?: Kind) => usePaneDock.getState().toggleMaximized(S, kind, partner),
+		moveTo: (kind: Kind, at: At) => usePaneDock.getState().moveTo(S, kind, at),
+		preview: (rest: Tree, kind: Kind, at: At | null) => usePaneDock.getState().preview(S, rest, kind, at),
+	}),
+};
 
 /** How the file panel names the tree it belongs beside — see `BUILTIN_PANELS`. */
 const BESIDE_TREE = { kind: "files", side: "bottom" } as const;
 const BESIDE_FILE = { kind: "file", side: "left", share: 0.3 } as const;
 
 beforeEach(() => {
-	useDock.setState({ tree: defaultTree(), maximized: null, focused: "conversation", drag: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, crossRatio: {}, drag: null, host: null });
 });
 
-/** Which panes are filling the dock, or null when the layout is showing all of them. */
+/** Which panes are filling the screen, or null when the layout is showing all of them. */
 function full(): string[] | null {
 	return useDock.getState().maximized?.panes ?? null;
 }
+
+test("full screen in one screen leaves another screen's dock alone", () => {
+	usePaneDock.getState().open("conversation-b", "terminal");
+	usePaneDock.getState().toggleMaximized("conversation-b", "terminal");
+	useDock.getState().open("files");
+
+	assert.equal(full(), null, "this screen was never maximised");
+	assert.deepEqual(usePaneDock.getState().maximized["conversation-b"]?.panes, ["terminal"]);
+});
 
 test("clicking a file in a maximised tree opens it beside the tree, still full screen", () => {
 	/*

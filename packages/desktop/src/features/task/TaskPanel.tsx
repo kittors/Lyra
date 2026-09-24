@@ -13,7 +13,7 @@ import { TaskRuns } from "./TaskRuns.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
-import { useApp } from "../../store/index.ts";
+import { useScopedMessages, useScopedRunning, useScopedSessionId, useScopedStopped, useScopedTodos, useScopedToolRuns } from "../../app/session-scope.tsx";
 
 /**
  * Everything this conversation set out to do and everything it actually did.
@@ -28,11 +28,17 @@ import { useApp } from "../../store/index.ts";
  */
 export const TaskPanel = memo(function TaskPanel() {
 	const { t } = useI18n();
-	const todos = useApp((s) => s.todos);
-	const toolRuns = useApp((s) => s.toolRuns);
-	const running = useApp((s) => s.running);
-	const stopped = useApp((s) => s.stopped);
-	const messages = useApp((s) => s.messages);
+	/*
+	 * The conversation whose screen this panel is in, never whichever one has the focus.
+	 *
+	 * This read the live slot, which is the focused conversation's — so with two screens the task
+	 * panel beside one of them showed the other's plan and runs the moment the other was clicked.
+	 */
+	const todos = useScopedTodos();
+	const toolRuns = useScopedToolRuns();
+	const running = useScopedRunning();
+	const stopped = useScopedStopped();
+	const messages = useScopedMessages();
 	/*
 	 * The same three answers the floating card gives, from the same evidence.
 	 *
@@ -42,7 +48,7 @@ export const TaskPanel = memo(function TaskPanel() {
 	const paused = isUserPaused(running, stopped);
 	const idle = !running && !paused && !failed;
 	const scrollRef = useRef<HTMLDivElement>(null);
-	const sessionId = useApp((s) => s.activeSessionId);
+	const sessionId = useScopedSessionId();
 	const runs = useMemo(() => Object.values(toolRuns).sort((a, b) => b.startedAt - a.startedAt), [toolRuns]);
 	const [query, setQuery] = useState("");
 	const [status, setStatus] = useState("");

@@ -7,9 +7,11 @@
  * messages that stream in, because a delegated run can read forty files and broadcasting all of
  * that on every change would put the run on the wire dozens of times over.
  *
- * Keyed by nothing: there is one session in front of you, and the roster is that session's. When
- * it changes, this is emptied — a sub-agent belongs to the conversation that dispatched it, and
- * showing one under another conversation would be a lie about where the work came from.
+ * The live fields are keyed by nothing: they belong to the session in the live slot, and when that
+ * changes they are emptied — a sub-agent belongs to the conversation that dispatched it, and
+ * showing one under another conversation would be a lie about where the work came from. With two
+ * screens the other conversation is on display too, so every roster is also kept by session id in
+ * `rosters`, and a screen reads its own through `useScopedSubAgents`.
  */
 
 import { create } from "zustand";
@@ -32,9 +34,21 @@ interface SubAgentState {
 	 * yet are two different and equally believable states.
 	 */
 	loading: string[];
+	/**
+	 * The last roster each conversation broadcast, by session id.
+	 *
+	 * The fields above are the conversation in the live slot. With two screens the other one is on
+	 * screen too — its sub-agent bar and panel have to show *its* agents, not the focused
+	 * conversation's, and its broadcasts arrive while it is not the live one.
+	 */
+	rosters: Record<string, SubAgentSummary[]>;
 
-	/** Take the roster the session just broadcast. */
-	sync(agents: SubAgentSummary[]): void;
+	/** Take the roster the session in the live slot just broadcast. */
+	sync(agents: SubAgentSummary[], sessionId?: string): void;
+	/** Keep the roster a conversation that is not in the live slot just broadcast. */
+	retain(sessionId: string, agents: SubAgentSummary[]): void;
+	/** A conversation's finished sub-agents were put away. */
+	forgetFinished(sessionId: string): void;
 	/** One message, as the sub-agent writes it. Ignored for a transcript nobody has opened. */
 	append(id: string, message: Message): void;
 	focus(id: string | null): void;
@@ -49,10 +63,21 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 	transcripts: {},
 	focused: null,
 	loading: [],
+	rosters: {},
 
-	sync(agents) {
+	retain(sessionId, agents) {
+		set({ rosters: { ...get().rosters, [sessionId]: agents } });
+	},
+
+	forgetFinished(sessionId) {
+		const kept = (get().rosters[sessionId] ?? []).filter((one) => one.status === "running");
+		set({ rosters: { ...get().rosters, [sessionId]: kept } });
+	},
+
+	sync(agents, sessionId) {
 		const { focused } = get();
 		set({
+			...(sessionId ? { rosters: { ...get().rosters, [sessionId]: agents } } : {}),
 			agents,
 			/*
 			 * Keep looking at what you were looking at.

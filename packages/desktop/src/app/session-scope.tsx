@@ -10,12 +10,25 @@
  */
 
 import { createContext, useContext } from "react";
-import type { Message, SessionMeta } from "@lyra/core";
+import type { Message, SessionMeta, SubAgentSummary } from "@lyra/core";
 import { useApp, type AppState } from "../store/index.ts";
+import { useSubAgents } from "../store/subAgents.ts";
 import type { Cache } from "../store/derive.ts";
 import type { ToolRun } from "../store/tool-run.ts";
 
 export const SessionScope = createContext<string | null | undefined>(undefined);
+
+/**
+ * Which screen's dock a pane is drawn in: that screen's key — its session id, or `@draft`.
+ *
+ * Null outside any screen, which is a panel window: it holds one panel and is that panel. Kept here
+ * beside `SessionScope` rather than in the dock so a panel can ask without importing the dock.
+ */
+export const DockScope = createContext<string | null>(null);
+
+export function useDockScope(): string | null {
+	return useContext(DockScope);
+}
 
 const EMPTY_MESSAGES: Message[] = [];
 const EMPTY_TODOS: AppState["todos"] = [];
@@ -23,6 +36,7 @@ const EMPTY_APPROVALS: AppState["approvals"] = [];
 const EMPTY_RUNS: AppState["commandRuns"] = [];
 const EMPTY_HICCUPS: AppState["hiccups"] = [];
 const EMPTY_TOOLS: Record<string, ToolRun> = {};
+const EMPTY_AGENTS: SubAgentSummary[] = [];
 
 export function useScopedSessionId(): string | null {
 	const scoped = useContext(SessionScope);
@@ -118,4 +132,17 @@ export function useScopedLoading(): boolean {
 		const cached = s.sessionCache[id] as Cache[string] | undefined;
 		return !cached;
 	});
+}
+
+/**
+ * This conversation's sub-agents: the live roster when it is the live conversation, and the last one
+ * it broadcast otherwise — a second screen shows its own delegated work, not the focused one's.
+ */
+export function useScopedSubAgents(): SubAgentSummary[] {
+	const id = useScopedSessionId();
+	const active = useApp((s) => s.activeSessionId);
+	const live = useSubAgents((s) => s.agents);
+	const retained = useSubAgents((s) => (id ? s.rosters[id] : undefined));
+	if (!id || id === active) return live;
+	return retained ?? EMPTY_AGENTS;
 }

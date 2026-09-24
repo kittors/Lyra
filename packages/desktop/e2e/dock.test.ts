@@ -653,12 +653,15 @@ test("the layout survives a reload, which is what per-conversation persistence r
 	assert.ok(near(after.tasks.top, before.tasks.top, 4), "and in the same place");
 });
 
-test("screens that are not a conversation get the dock to themselves, and give it back", async () => {
+test("screens that are not a conversation have no panels at all, and leave the conversation's alone", async () => {
 	/*
 	 * The panels are about the project you are working in — its files, its terminal, its diff. A
 	 * pull request is of someone else's branch in a repository this machine may never have cloned;
 	 * the schedule and the plugin catalogue are not in a project at all. Leaving a file tree beside
 	 * them is not merely unhelpful: it is pointing at somewhere else entirely.
+	 *
+	 * Panels belong to a conversation's screen (ADR-0023), and these are not one — so there is no
+	 * dock here to be alone in, not even a conversation pane framing the view.
 	 *
 	 * Hidden, not closed. Coming back to the conversation has to find the layout as it was.
 	 */
@@ -679,8 +682,10 @@ test("screens that are not a conversation get the dock to themselves, and give i
 	for (const screen of ["拉取请求", "已安排", "插件"]) {
 		await visit(screen);
 		const alone = await settledPanes();
-		assert.deepEqual(Object.keys(alone), ["conversation"], `${screen} has the dock to itself`);
-		const button = await app.evaluate<boolean>(`Boolean(document.querySelector('button[aria-label="面板"]'))`);
+		assert.deepEqual(Object.keys(alone), [], `${screen} is drawn without any pane around it`);
+		// Visible ones: the conversations' screens are still mounted behind the view, put away rather
+		// than torn down, so their panel menus are in the document — just not on offer.
+		const button = await app.evaluate<boolean>(`[...document.querySelectorAll('button[aria-label="面板"]')].some((b) => b.checkVisibility({ visibilityProperty: true }))`);
 		assert.equal(button, false, `${screen} does not offer panels either`);
 	}
 
@@ -697,6 +702,6 @@ test("screens that are not a conversation get the dock to themselves, and give i
 	 * is. What can be established without it is the part that would actually be lost: the panes are
 	 * still recorded while the other screen is up, so nothing was closed on the way there.
 	 */
-	const stored = await app.evaluate<string | null>(`localStorage.getItem("dw:dock:@draft")`);
+	const stored = await app.evaluate<string | null>(`localStorage.getItem("dw:panedock:@draft")`);
 	assert.ok(stored?.includes("tasks"), "the panes are still on record, so they were hidden and not closed");
 });

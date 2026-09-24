@@ -2,6 +2,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { History, ScrollText as OutputIcon } from "lucide-react";
 import type { ToolRun } from "../../store/index.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { TraceText, showTrace } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
@@ -10,8 +11,9 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function RunDetail({ run, query = "" }: { run: ToolRun; query?: string }) {
 	const { t } = useI18n();
-	const sessionId = useApp(state => state.activeSessionId);
-	const meta = useApp(state => state.meta);
+	// The run belongs to the conversation of the screen it is listed in.
+	const sessionId = useScopedSessionId();
+	const meta = useScopedMeta();
 	const openOutput = async () => {
 		if (!meta) return;
 		try {

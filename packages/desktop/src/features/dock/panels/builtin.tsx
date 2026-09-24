@@ -29,7 +29,8 @@ import { useConfirmer } from "../../../ui/overlay/Confirm.tsx";
 import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
-import { useDock } from "../store.ts";
+import { usePaneDock } from "../pane-store.ts";
+import { useDockScope, useScopedSessionId } from "../../../app/session-scope.tsx";
 import { registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**
@@ -73,7 +74,9 @@ function DeliveryTitle() {
 function DeliveryPanel() {
 	const { t } = useI18n();
 	const workspace = useApp((state) => state.workspace?.path);
-	const active = useApp((state) => state.activeSessionId);
+	// The conversation whose screen this panel is in — not whichever one has the focus.
+	const owner = useScopedSessionId();
+	const scope = useDockScope();
 	const target = useDeliveryReview((state) => state.target);
 	const cached = useDeliveryReview((state) => state.data);
 	const revision = useDeliveryReview((state) => state.revision);
@@ -82,12 +85,14 @@ function DeliveryPanel() {
 	const undoLock = useRef(false);
 	const confirm = useConfirmer();
 
+	/*
+	 * One review at a time, and it belongs to one conversation. When the review on show is another
+	 * conversation's, this screen's panel steps aside — it used to close whenever the focus moved to
+	 * another screen, taking the review with it though nothing about the review had changed.
+	 */
 	useEffect(() => {
-		if (target && target.sessionId !== active) {
-			useDeliveryReview.getState().close();
-			useDock.getState().close("delivery");
-		}
-	}, [active, target]);
+		if (target && target.sessionId !== owner && scope) usePaneDock.getState().close(scope, "delivery");
+	}, [owner, scope, target]);
 
 	useEffect(() => {
 		if (!target) {
@@ -120,7 +125,7 @@ function DeliveryPanel() {
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			if (!value.files.length) {
 				useDeliveryReview.getState().close();
-				useDock.getState().close("delivery");
+				if (scope) usePaneDock.getState().close(scope, "delivery");
 			} else useDeliveryReview.getState().touch();
 		} catch (error) {
 			useApp.getState().notify(String(error), "error");

@@ -10,7 +10,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "lucide-react";
-import { emptyDockTree, has, toggleScopedPanel, useDock, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
+import { emptyDockTree, has, toggleScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -113,30 +113,26 @@ export function WindowHeader({
 const QUICK: PanelKind[] = ["terminal", "browser", "review"];
 
 /**
- * Which panels are in the window: three buttons and a menu.
+ * Which panels this conversation has open: three buttons and a menu.
  *
- * Rendered *inside the conversation pane's own title bar* rather than in a toolbar of its own.
- * A toolbar cost a whole row of the window and put these buttons on a different line from the pane
- * titles they act on — two strips where the reference has one.
+ * Rendered *inside the conversation's own title bar* rather than in a toolbar of its own. A toolbar
+ * cost a whole row of the window and put these buttons on a different line from the pane titles
+ * they act on — two strips where the reference has one.
  *
- * This is also all that is left of what used to be three separate controls: a panel toggle, a
- * full-screen toggle, and the tab strip's add button. The dock removed the questions they answered
- * — there is no panel to open or collapse, and no full screen distinct from a pane being large.
+ * Always one screen's: `scope` is the conversation whose title bar this is, and every button opens,
+ * closes and reports on that conversation's panels. There is no window-wide set of panels for a
+ * button to be about.
  */
-export function PanelMenu({ scope, extras }: { scope?: string; extras?: (onClose: () => void) => React.ReactNode } = {}) {
+export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose: () => void) => React.ReactNode }) {
 	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
 	const phone = onPhone();
-	const windowTree = useDock((s) => s.tree);
-	const paneTree = usePaneDock((s) => (scope ? (s.trees[scope] ?? emptyDockTree) : emptyDockTree));
-	const tree = scope ? paneTree : windowTree;
-	const open = (kind: PanelKind) => toggleScopedPanel(scope ?? null, kind);
-	const close = (kind: PanelKind) => {
-		if (scope) usePaneDock.getState().close(scope, kind);
-		else useDock.getState().close(kind);
-	};
-	const toggle = (kind: PanelKind) => (has(tree, kind) ? close(kind) : open(kind));
+	const { compact } = useLayout();
+	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
+	const toggle = (kind: PanelKind) => toggleScopedPanel(scope, kind, { compact });
+	const open = (kind: PanelKind) => void usePaneDock.getState().open(scope, kind);
+	const close = (kind: PanelKind) => usePaneDock.getState().close(scope, kind);
 
 	return (
 		<>

@@ -1252,6 +1252,8 @@ export const ja = {
 	"sessionMenu.newWindow": "新しいウィンドウ",
 	"split.view": "分割表示",
 	"split.replace": "この画面を置き換え",
+	"split.moveHere": "ここに移動",
+	"split.noRoom": "この画面はこれ以上分割できません",
 	"split.closePane": "画面を閉じる",
 	"split.move.left": "分割画面を左へ移動",
 	"split.move.right": "分割画面を右へ移動",

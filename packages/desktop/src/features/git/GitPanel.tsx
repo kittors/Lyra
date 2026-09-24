@@ -1,10 +1,7 @@
 import { Activity, AlertCircle, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
-import { useDock } from "../dock/index.ts";
-import { kinds } from "../dock/index.ts";
-import { paneVisible } from "../dock/index.ts";
-import { useLayout } from "../../app/layout.tsx";
+import { usePaneOnScreen } from "../dock/index.ts";
 import { syncPlan, type SyncButton } from "./syncPlan.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 
@@ -162,27 +159,12 @@ function SyncControl({
  * calls for a panel nobody is looking at.
  */
 function useGitPaneOnScreen(): boolean {
-  const tree = useDock((s) => s.tree);
-  const maximized = useDock((s) => s.maximized);
-  const focused = useDock((s) => s.focused);
-  const { compact } = useLayout();
-
   /*
-   * In a window of its own this panel *is* the window, so the question is already answered.
-   *
-   * Asking the dock instead answered false forever: a panel window never mounts `DockView`, so
-   * its tree stays at the default conversation leaf and `paneVisible` refuses on the first line —
-   * membership. The effect below never ran, which meant a detached Git panel did not fetch once,
-   * not even the first time. Below the hooks, never above them: the count has to match.
+   * Asked of the screen this panel is drawn in. In a window of its own the panel *is* the window,
+   * and `usePaneOnScreen` answers that too — a detached Git panel that asked the main window's
+   * dock instead never fetched once, not even the first time.
    */
-  if (bridge.bootWindow?.kind === "panel" && bridge.bootWindow.panelKind === "review") return true;
-
-  return paneVisible("review", {
-    present: kinds(tree),
-    maximized: maximized?.panes ?? null,
-    compact,
-    focused,
-  });
+  return usePaneOnScreen("review");
 }
 
 /* 四个视图，存 key——这张表在模块加载时成型，那会儿还不知道窗口是哪种语言。 */

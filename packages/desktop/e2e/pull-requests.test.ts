@@ -292,7 +292,9 @@ test("with no account left, the pane is the sign-in screen rather than an empty 
 	const screen = await app.evaluate<{ rows: number; tabs: number; button: boolean; text: string }>(`(async () => {
 		const accounts = await window.lyra.forge.accounts();
 		for (const account of accounts) await window.lyra.forge.signOut(account.id);
-		const refresh = [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "刷新");
+		// This page's own: the conversations' screens stay mounted behind it, and a browser panel has
+		// a 刷新 of its own that comes first in the document.
+		const refresh = [...document.querySelectorAll('[data-view="pull-requests"] button')].find((b) => b.getAttribute("aria-label") === "刷新");
 		refresh?.click();
 		for (let i = 0; i < 40 && document.querySelectorAll(".ly-pr-row").length > 0; i++) {
 			await new Promise((r) => setTimeout(r, 250));
@@ -300,7 +302,8 @@ test("with no account left, the pane is the sign-in screen rather than an empty 
 		return {
 			rows: document.querySelectorAll(".ly-pr-row").length,
 			tabs: document.querySelectorAll("[aria-label='账号'] button").length,
-			button: [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "添加账号"),
+			// An icon button since the buttons were made one shape: its name is its label, not its text.
+			button: [...document.querySelectorAll('[data-view="pull-requests"] button')].some((b) => b.getAttribute("aria-label") === "添加账号"),
 			text: document.body.innerText,
 		};
 	})()`);

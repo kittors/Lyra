@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { popOutPanel, toggleScopedPanel, usePanelWindows, watchPanelWindows } from "../../src/features/dock/popout.ts";
+import { popOutPanel, provideScope, toggleScopedPanel, usePanelWindows, watchPanelWindows } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
-import { useDock } from "../../src/features/dock/store.ts";
 import { defaultTree, has, insert } from "../../src/features/dock/tree.ts";
 
 function reset() {
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {} });
-	useDock.setState({ tree: defaultTree() });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	usePanelWindows.setState({ panels: [], opening: [] });
+	provideScope(() => "width");
 }
+
+/** Coming back may first bring its conversation on screen, so it finishes a tick later. */
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /*
  * An overfull tile keeps its panel — it does not hand it to a native window.
@@ -37,7 +39,7 @@ test("failed native creation restores the original panel even after its tile bec
 	usePaneDock.getState().open("width", "terminal");
 	const before = usePaneDock.getState().tree("width");
 	usePaneDock.getState().rememberSize("width", { width: 500, height: 350 });
-	await assert.rejects(popOutPanel({ dock: "pane", scope: "width", kind: "terminal", sessionId: "width" }), /native window refused/);
+	await assert.rejects(popOutPanel({ scope: "width", kind: "terminal", sessionId: "width" }), /native window refused/);
 	assert.equal(usePaneDock.getState().tree("width"), before);
 	assert.equal(usePanelWindows.getState().opening.length, 0);
 	assert.deepEqual(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}"), {});
@@ -48,7 +50,7 @@ test("a rejected native creation does not undo a different panel opened during t
 	const result = Promise.withResolvers<{ok:boolean}>();
 	Reflect.set(window, "lyra", { windows: { openPanel: () => result.promise } });
 	usePaneDock.getState().open("width", "terminal");
-	const transfer = popOutPanel({dock:"pane",scope:"width",kind:"terminal",sessionId:"width"});
+	const transfer = popOutPanel({scope:"width",kind:"terminal",sessionId:"width"});
 	usePaneDock.getState().open("width", "files");
 	result.resolve({ok:false});
 	assert.equal(await transfer, false);
@@ -63,7 +65,7 @@ test("a rejected native creation restores its panel after the old neighbour was 
 	Reflect.set(window, "lyra", { windows: { openPanel: () => result.promise } });
 	usePaneDock.getState().open("width", "files");
 	usePaneDock.getState().open("width", "terminal", { kind: "files", side: "bottom" });
-	const transfer = popOutPanel({ dock: "pane", scope: "width", kind: "terminal", sessionId: "width" });
+	const transfer = popOutPanel({ scope: "width", kind: "terminal", sessionId: "width" });
 	usePaneDock.getState().close("width", "files");
 	result.resolve({ ok: false });
 	assert.equal(await transfer, false);
@@ -79,34 +81,36 @@ test("a rejected native creation restores its panel after the old neighbour was 
  * is a button that does nothing and says nothing (`split-window-conflicts.md` §7). The exact
  * departure snapshot is still preferred when it clears the floors; what changed is the fallback.
  */
-test("a window dock takes a panel back even with no room, using its remembered layout when it fits", async () => {
+test("a screen takes a panel back even with no room, using its remembered layout when it fits", async () => {
 	reset();
 	let restore = (_input: { kind: string; scope: string }) => {};
 	const closed: unknown[] = [];
 	Reflect.set(window, "lyra", { windows: {
-		list: async () => ({ panels: [{ kind: "browser", scope: "window" }] }),
+		list: async () => ({ panels: [{ kind: "terminal", scope: "width" }] }),
 		onChanged: () => () => {},
 		onRestorePanel: (listener: typeof restore) => { restore = listener; return () => {}; },
 		closePanel: async (input: unknown) => { closed.push(input); return { ok: true }; },
 	} });
-	const rest = insert(defaultTree(), "terminal", { kind: "conversation", side: "bottom" });
-	const before = insert(rest, "browser", { kind: "terminal", side: "bottom" });
-	useDock.setState({ tree: rest, viewport: { width: 590, height: 450, conversation: { width: 420, height: 260 }, compact: false } });
-	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", before, rest } }));
+	const rest = insert(defaultTree(), "files", { kind: "conversation", side: "bottom" });
+	const before = insert(rest, "terminal", { kind: "files", side: "bottom" });
+	usePaneDock.setState({ trees: { width: rest }, sizes: { width: { width: 590, height: 450 } } });
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "width:terminal": { scope: "width", before, rest } }));
 	const stop = watchPanelWindows();
-	await Promise.resolve();
-	restore({ kind: "browser", scope: "window" });
-	// No room at 590×450, and it comes back regardless — squeezed, in the dock, reachable.
-	assert.ok(has(useDock.getState().tree, "browser"), "the button did something");
+	await settled();
+	restore({ kind: "terminal", scope: "width" });
+	await settled();
+	// No room at 590×450, and it comes back regardless — squeezed, in its screen, reachable.
+	assert.ok(has(usePaneDock.getState().tree("width"), "terminal"), "the button did something");
 	assert.equal(closed.length, 1, "the floating window closes once its pane is home");
-	assert.equal(window.localStorage.getItem("dw:homes")?.includes("window:browser"), false);
+	assert.equal(window.localStorage.getItem("dw:homes")?.includes("width:terminal"), false);
 
 	// With room, the layout it left is restored exactly rather than approximated.
 	reset();
-	useDock.setState({ tree: rest, viewport: { width: 900, height: 800, conversation: { width: 420, height: 260 }, compact: false } });
-	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", before, rest } }));
-	restore({ kind: "browser", scope: "window" });
-	assert.deepEqual(useDock.getState().tree, before);
+	usePaneDock.setState({ trees: { width: rest }, sizes: { width: { width: 900, height: 800 } } });
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "width:terminal": { scope: "width", before, rest } }));
+	restore({ kind: "terminal", scope: "width" });
+	await settled();
+	assert.deepEqual(usePaneDock.getState().tree("width"), before);
 	stop();
 });
 
@@ -119,6 +123,7 @@ test("a window dock takes a panel back even with no room, using its remembered l
  * "refuse, keep the record" is now "land it on the root edge", but the pane must be in the tree
  * either way before anything is deleted.
  */
+// `window` is a record from before panels had one home: it returns to the screen the person is in.
 for (const dock of ["window", "pane"] as const) {
 	test(`${dock} return never deletes a home without actually placing the pane`, async () => {
 		reset();
@@ -135,16 +140,16 @@ for (const dock of ["window", "pane"] as const) {
 		const at = { kind: "files", side: "bottom" } as const;
 		const home = { dock, scope, at, before: insert(rest, "file", at), rest };
 		window.localStorage.setItem("dw:homes", JSON.stringify({ [`${scope}:file`]: home }));
-		const resize = (width: number, height: number) => {
-			if (dock === "window") useDock.setState({ viewport: { width, height, conversation: { width: 420, height: 260 }, compact: false } });
-			else usePaneDock.getState().rememberSize(scope, { width, height });
-		};
-		const current = () => dock === "window" ? useDock.getState().tree : usePaneDock.getState().tree(scope);
+		// Either way the pane lands in the screen `width`: its own, or the one the person is in.
+		const resize = (width: number, height: number) => usePaneDock.getState().rememberSize("width", { width, height });
+		const current = () => usePaneDock.getState().tree("width");
+		usePaneDock.setState({ trees: { width: rest } });
 		resize(528, 330);
 		const stop = watchPanelWindows();
 		try {
-			await Promise.resolve();
+			await settled();
 			restore({ kind: "file", scope });
+			await settled();
 			// The anchor is gone, so the remembered edge cannot be used — it lands anyway.
 			assert.equal(has(current(), "file"), true, "a vanished anchor falls back to an edge that exists");
 			assert.equal(closed.length, 1, "the window closes only because the pane really is home");

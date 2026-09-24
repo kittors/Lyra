@@ -19,12 +19,15 @@ import { useEffect, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
 import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
+import { useScopedSessionId, useScopedSubAgents } from "../../app/session-scope.tsx";
 import { elapsedSince, figuresWord, statusWord } from "./format.ts";
 import { bridge } from "../../services/index.ts";
 
 export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	const { t } = useI18n();
-	const agents = useSubAgents((s) => s.agents);
+	// This screen's conversation's delegated work — not the focused conversation's.
+	const agents = useScopedSubAgents();
+	const sessionId = useScopedSessionId();
 	const running = agents.filter((one) => one.status === "running").length;
 	/*
 	 * The bar opens the pane when work is delegated, not only when clicked.
@@ -115,9 +118,10 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 					data-ly-tip={t("subAgentBar.clear")}
 					aria-label={t("subAgentBar.clearFinished")}
 					onClick={() => {
-						const id = useApp.getState().activeSessionId;
-						if (id) void bridge.subAgents.dismissFinished(id);
-						useSubAgents.getState().clear();
+						if (!sessionId) return;
+						void bridge.subAgents.dismissFinished(sessionId);
+						useSubAgents.getState().forgetFinished(sessionId);
+						if (useApp.getState().activeSessionId === sessionId) useSubAgents.getState().clear();
 					}}
 					className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 				>
@@ -145,9 +149,9 @@ function headline(ordered: ReturnType<typeof rosterOrder>, running: number): str
  * surfacing; after that the bar is enough.
  */
 function useAnnounceSubAgents(open: () => void): void {
-	const agents = useSubAgents((s) => s.agents);
+	const agents = useScopedSubAgents();
 	const seen = useRef(0);
-	const session = useApp((s) => s.activeSessionId);
+	const session = useScopedSessionId();
 
 	useEffect(() => {
 		seen.current = 0;

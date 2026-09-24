@@ -2,24 +2,31 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
 import { Terminal } from "lucide-react";
-import { PaneDock } from "../../src/features/split/PaneDock.tsx";
+import { DockView } from "../../src/features/dock/DockView.tsx";
+import { LayoutProvider } from "../../src/app/layout.tsx";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { kinds, lift } from "../../src/features/dock/tree.ts";
 import { flushTree, paneStorageKey, readTree } from "../../src/features/dock/persist.ts";
 import { mount, press } from "../helpers/mount.ts";
 
+/** One screen, the way `SplitPane` draws it: the conversation's own title bar, then its body. */
+function screen(scope: string, children: React.ReactNode, header: () => React.ReactNode = () => null) {
+	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "darwin" } });
+	return h(LayoutProvider, { children: h(DockView, { scope, header, children }) });
+}
+
 test("a lifted last panel and the conversation retain their DOM through an empty landing", async () => {
 	// happy-dom has no top layer. Its geometry is verified by split-dock-demo in Electron.
 	HTMLElement.prototype.showPopover = () => {};
 	HTMLElement.prototype.hidePopover = () => {};
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	const unregister = registerPanels([{
 		kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "",
 		render: () => h("input", { "data-test-terminal": "", defaultValue: "shell scrollback" }),
 	}]);
-	const view = await mount(h(PaneDock, { scope: "retain", chrome: h("header", { "data-test-chrome": "" }), children: h("textarea", { "data-test-chat": "" }) }));
+	const view = await mount(screen("retain", h("textarea", { "data-test-chat": "" }), () => h("header", { "data-test-chrome": "" })));
 	try {
 		const conversation = view.find("[data-test-chat]");
 		assert.equal(view.find("[data-test-chrome]").closest('[data-ly-pane-slot="conversation"]'), conversation.closest('[data-ly-pane-slot="conversation"]'));
@@ -41,17 +48,18 @@ test("a lifted last panel and the conversation retain their DOM through an empty
 		unregister();
 		Reflect.deleteProperty(HTMLElement.prototype, "showPopover");
 		Reflect.deleteProperty(HTMLElement.prototype, "hidePopover");
+		Reflect.deleteProperty(window, "lyra");
 	}
 });
 
 test("arrow keys preview a pane move; Escape cancels and Enter commits without replacing the body", async () => {
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {} });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	const unregister = registerPanels([{
 		kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "",
 		render: () => h("textarea", { "data-test-shell": "" }),
 	}]);
-	const view = await mount(h(PaneDock, { scope: "keyboard", children: h("textarea", { "data-test-chat": "" }) }));
+	const view = await mount(screen("keyboard", h("textarea", { "data-test-chat": "" })));
 	try {
 		await act(() => { usePaneDock.getState().open("keyboard", "terminal"); });
 		const before = usePaneDock.getState().tree("keyboard");
@@ -78,6 +86,7 @@ test("arrow keys preview a pane move; Escape cancels and Enter commits without r
 	} finally {
 		await view.unmount();
 		unregister();
+		Reflect.deleteProperty(window, "lyra");
 	}
 });
 

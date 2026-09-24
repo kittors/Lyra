@@ -29,18 +29,7 @@ import { dropAt, sameDrop, type Rect } from "./drop.ts";
 import type { DockDragHost } from "./drag-host.ts";
 import { DRAG_THRESHOLD, paneFloor } from "./geometry.ts";
 import { fitTree, layoutPanes } from "./layout.ts";
-import { useDock } from "./store.ts";
 import { lift, type PaneKind } from "./tree.ts";
-
-const windowHost: DockDragHost = {
-	tree: () => useDock.getState().tree,
-	restore: () => useDock.getState().restore(),
-	beginDrag: (drag) => useDock.getState().beginDrag(drag),
-	preview: (rest, kind, at) => useDock.getState().preview(rest, kind, at),
-	dragTo: (pointer, at) => useDock.getState().dragTo(pointer, at),
-	endDrag: (cancelled) => useDock.getState().endDrag(cancelled),
-	currentDrag: () => useDock.getState().drag,
-};
 
 /**
  * A backstop for the landing, well past `--ly-t-base`.
@@ -108,7 +97,7 @@ function keptOnScreen(raw: { x: number; y: number }): { x: number; y: number } {
 
 export function useDockDrag(
 	containerRef: React.RefObject<HTMLElement | null>,
-	host: DockDragHost = windowHost,
+	host: DockDragHost,
 ): {
 	carried: Carried | null;
 	start: (kind: PaneKind, event: React.PointerEvent<HTMLElement>) => void;

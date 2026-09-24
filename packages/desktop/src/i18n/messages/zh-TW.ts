@@ -1252,6 +1252,8 @@ export const zhTW = {
 	"sessionMenu.newWindow": "新視窗",
 	"split.view": "分屏",
 	"split.replace": "取代此屏",
+	"split.moveHere": "移到這裡",
+	"split.noRoom": "這一屏放不下再分一屏",
 	"split.closePane": "關閉此屏",
 	"split.move.left": "向左移動分割畫面",
 	"split.move.right": "向右移動分割畫面",

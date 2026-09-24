@@ -35,7 +35,7 @@ function said(text: string): Message {
 }
 
 beforeEach(() => {
-	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [] });
+	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [], rosters: {} });
 });
 
 test("a roster event becomes the roster", () => {
@@ -258,4 +258,59 @@ test("sub-agent messages never leak into the main transcript", () => {
 		writes.every((write) => !("messages" in write)),
 		`a sub-agent message was written to the main transcript: ${JSON.stringify(writes)}`,
 	);
+});
+
+/*
+ * Two screens, two conversations, one live slot.
+ *
+ * Only one conversation is "the" session — the one the composer and the live fields above belong
+ * to. The other screen is on display all the same, and its sub-agent bar has to show its own
+ * delegated work: the roster it broadcast, not the focused conversation's, and not nothing.
+ */
+
+function dispatchFor(sessionId: string, event: Parameters<typeof applyAgentEvent>[1]) {
+	const state = {
+		activity: {},
+		turns: {},
+		sessionCache: {},
+		activeSessionId: "sess",
+		messages: [],
+		toolRuns: {},
+		carried: {},
+		queued: {},
+		sessions: [],
+	} as never;
+	applyAgentEvent(sessionId, event, () => {}, () => state);
+}
+
+test("a conversation on the other screen keeps its own roster, and the live one is left alone", () => {
+	dispatchFor("sess", { type: "subagents", agents: [summary({ id: "live-1", description: "焦点这边的" })] });
+	dispatchFor("other", { type: "subagents", agents: [summary({ id: "other-1", description: "另一屏的" })] });
+
+	const after = useSubAgents.getState();
+	assert.deepEqual(after.agents.map((one) => one.description), ["焦点这边的"], "the live slot is still the focused conversation's");
+	assert.deepEqual(after.rosters.other?.map((one) => one.description), ["另一屏的"]);
+	assert.deepEqual(after.rosters.sess?.map((one) => one.description), ["焦点这边的"], "and the live one is on record by id too");
+});
+
+test("a conversation's roster survives the live slot moving to another one", () => {
+	dispatchFor("sess", { type: "subagents", agents: [summary({ id: "s1" })] });
+
+	// Focus moves to the other screen: the live slot is emptied for whoever comes next.
+	useSubAgents.getState().clear();
+
+	assert.deepEqual(useSubAgents.getState().agents, []);
+	assert.deepEqual(useSubAgents.getState().rosters.sess?.map((one) => one.id), ["s1"], "its screen can still show what it delegated");
+});
+
+test("putting finished sub-agents away does so for that conversation only", () => {
+	const store = useSubAgents.getState();
+	store.retain("a", [summary({ id: "a-run" }), summary({ id: "a-done", status: "done" })]);
+	store.retain("b", [summary({ id: "b-done", status: "done" })]);
+
+	useSubAgents.getState().forgetFinished("a");
+
+	const { rosters } = useSubAgents.getState();
+	assert.deepEqual(rosters.a?.map((one) => one.id), ["a-run"]);
+	assert.deepEqual(rosters.b?.map((one) => one.id), ["b-done"], "the other conversation's list is not touched");
 });

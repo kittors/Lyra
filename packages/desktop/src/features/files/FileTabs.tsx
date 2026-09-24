@@ -15,7 +15,7 @@ import { Copy, CornerUpRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useOpenFile, type OpenFileTab } from "../../store/openFile.ts";
-import { useDock } from "../dock/index.ts";
+import { usePaneDock } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
@@ -35,7 +35,8 @@ const ICON = { size: 13, strokeWidth: 1.8 } as const;
  * 那时候自己关掉，这个面板就永远打不开了。
  */
 function retire(): void {
-	if (useOpenFile.getState().tabs.length === 0) useDock.getState().close("file");
+	// The open files are one shared set, so an empty set empties every file pane there is.
+	if (useOpenFile.getState().tabs.length === 0) usePaneDock.getState().closeEverywhere("file");
 }
 
 export function FileTabs() {

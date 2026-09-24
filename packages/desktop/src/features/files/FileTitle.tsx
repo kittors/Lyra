@@ -22,11 +22,8 @@
 import { useI18n } from "../../i18n/index.ts";
 import { ChevronDown, FileText, PanelLeft } from "lucide-react";
 
-import { useLayout } from "../../app/layout.tsx";
-import { useDock, openScopedPanel } from "../dock/index.ts";
+import { openScopedPanel, usePaneOnScreen } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
-import { kinds } from "../dock/index.ts";
-import { paneVisible } from "../dock/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -176,15 +173,6 @@ export function FileTitle() {
  * closing the tree, maximising this one, dragging the window narrow enough to collapse the dock.
  */
 function useTreeOnScreen(): boolean {
-	const tree = useDock((s) => s.tree);
-	const maximized = useDock((s) => s.maximized);
-	const focused = useDock((s) => s.focused);
-	const { compact } = useLayout();
-
-	return paneVisible("files", {
-		present: kinds(tree),
-		maximized: maximized?.panes ?? null,
-		compact,
-		focused,
-	});
+	// Asked of the screen this file pane is in — the tree beside it, not one in another conversation.
+	return usePaneOnScreen("files");
 }

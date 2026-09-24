@@ -8,7 +8,6 @@
 
 import { translate } from "../i18n/translate.ts";
 import { Activity, lazy, Suspense, useEffect, useState } from "react";
-import { CalendarClock, GitPullRequest, MessageSquare, Puzzle } from "lucide-react";
 import { RetainedViews } from "../ui/layout/RetainedViews.tsx";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
 import { SplitWorkspace } from "../features/split/SplitWorkspace.tsx";
@@ -18,12 +17,11 @@ import { InputMenu } from "../features/composer/index.ts";
 import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
-import { DragBand, PanelMenu, WindowButtons, WindowHeader } from "./window/WindowToolbar.tsx";
+import { DragBand, WindowButtons, WindowHeader } from "./window/WindowToolbar.tsx";
 import { SessionWindow } from "./window/SessionWindow.tsx";
 import { PanelWindow } from "./window/PanelWindow.tsx";
-import { DockView, watchPanelWindows } from "../features/dock/index.ts";
+import { watchPanelWindows } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
-import { sessionTitle } from "../lib/session-title.ts";
 import { useShortcuts } from "./shortcuts.ts";
 import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
@@ -315,53 +313,81 @@ function SettingsFallback() {
 	);
 }
 
+/** The views drawn in place of the conversations rather than as one of them. */
+const SOLO_VIEWS: ReadonlySet<string> = new Set(["plugins", "pull-requests", "scheduled"]);
+
 /**
- * What the conversation pane is called, and what it is showing.
+ * The main area: the conversations on screen, or one of the views that is not a conversation.
  *
- * The pull request list, the plugin catalogue and the schedule are not conversations, but they
- * occupy the same pane: they are the main thread of whatever you are doing, and giving them a
- * pane of their own would mean the dock rearranged itself every time you glanced at a review.
- * The pane keeps its place and changes what is in it — which is exactly what it did before the
- * dock existed, when it was the `main` column.
+ * The pull request list, the plugin catalogue and the schedule occupy the same place the
+ * conversations do — they are the main thread of whatever you are doing. They are not in a project,
+ * so no conversation's panels belong beside them, and none are drawn: panels live inside a
+ * conversation's screen, and these are not one.
+ *
+ * Those three are kept by `RetainedViews`; the workspace is not — see `Workspace`. While it is up,
+ * `RetainedViews` still holds its place with an empty page, inside a box that is not displayed.
  */
-function useMainPane() {
-	const view = useApp((s) => s.view);
-	const meta = useApp((s) => s.meta);
-	const { t } = useI18n();
-
-	/*
-	 * `solo` marks the screens that are not a conversation in a project.
-	 *
-	 * The panels are all about the project you are working in — its files, its terminal, its diff.
-	 * A pull request is of someone else's branch in a repository this machine may never have
-	 * cloned; the schedule and the plugin catalogue are not in a project at all. So the panes are
-	 * not merely empty on those screens, they are about somewhere else, and they step aside.
-	 */
-	if (view === "pull-requests") {
-		return { title: t("app.pullRequests"), icon: <GitPullRequest size={12.5} strokeWidth={1.8} />, solo: true };
-	}
-	if (view === "plugins") {
-		return { title: t("app.plugins"), icon: <Puzzle size={12.5} strokeWidth={1.8} />, solo: true };
-	}
-	if (view === "scheduled") {
-		return { title: t("app.scheduledTasks"), icon: <CalendarClock size={12.5} strokeWidth={1.8} />, solo: true };
-	}
-	return {
-		title: sessionTitle(meta?.title),
-		icon: <MessageSquare size={12.5} strokeWidth={1.8} />,
-		solo: false,
-	};
-}
-
 function MainContent() {
 	const view = useApp((state) => state.view);
 	const active = view === "settings" ? "chat" : view;
-	return <RetainedViews active={active} limit={4} render={(key) => {
-		if (key === "plugins") return <LazyScreen shape="grid"><PluginsView /></LazyScreen>;
-		if (key === "pull-requests") return <LazyScreen><PullRequestsView /></LazyScreen>;
-		if (key === "scheduled") return <LazyScreen><ScheduledView /></LazyScreen>;
-		return <SplitWorkspace />;
-	}} />;
+	const solo = SOLO_VIEWS.has(active);
+	return <>
+		<Workspace away={solo} />
+		<div className={solo ? "contents" : "hidden"}>
+			<RetainedViews active={active} limit={4} render={(key) => {
+				if (key === "plugins") return <SoloScreen><LazyScreen shape="grid"><PluginsView /></LazyScreen></SoloScreen>;
+				if (key === "pull-requests") return <SoloScreen><LazyScreen><PullRequestsView /></LazyScreen></SoloScreen>;
+				if (key === "scheduled") return <SoloScreen><LazyScreen><ScheduledView /></LazyScreen></SoloScreen>;
+				return null;
+			}} />
+		</div>
+	</>;
+}
+
+/**
+ * The conversations on screen — never torn down while another view is up.
+ *
+ * Not in `RetainedViews` with the views beside it. `Activity` hides with `display: none` *and* runs
+ * every effect's cleanup, and the workspace's effects are what keep its screens alive: a screen
+ * forgetting its size handed its pages to another screen (a reload each way, and whatever was typed
+ * into them gone), and its terminal, file tree and every other panel unmounted, all for a look at the
+ * plugin catalogue. Panels used to live in a window-level dock outside `RetainedViews`, which is why
+ * a single screen never showed this; they belong to the screens now (ADR-0023).
+ *
+ * Put away the way settings puts the whole shell away (see `Shell`): invisible and out of the flow,
+ * keeping its layout box — so every transcript's scroll position and every screen's measured size —
+ * untouched; and inert, so nothing in it takes the pointer, the focus or a drag region. Coming back
+ * plays the same arrival the retained views do: the class is off while it is away, so putting it
+ * back starts the animation again.
+ */
+function Workspace({ away }: { away: boolean }) {
+	return (
+		<div
+			data-view="chat"
+			data-active={away ? "false" : "true"}
+			inert={away}
+			className={`${away ? "pointer-events-none invisible absolute inset-0" : "ly-page-enter relative flex-1"} flex min-h-0 min-w-0 flex-col`}
+		>
+			<SplitWorkspace />
+		</div>
+	);
+}
+
+/**
+ * The frame a non-conversation view sits in: the window's top strip, then the view.
+ *
+ * The strip is where the window is dragged from and where the traffic lights sit. These views reach
+ * up into it with `-mt-11` so their own header rules start on the sidebar's line, keeping the strip
+ * as a drag region underneath — the same arrangement they had when a conversation pane framed them.
+ */
+function SoloScreen({ children }: { children: React.ReactNode }) {
+	return (
+		<div data-ly-solo-screen className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+			<div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />
+			<div aria-hidden className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
+			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+		</div>
+	);
 }
 
 function ChatShell({ settings }: { settings: boolean }) {
@@ -370,7 +396,6 @@ function ChatShell({ settings }: { settings: boolean }) {
 	const { compact, navOpen, headerBar, toggleNav, dismissNav } = useLayout();
 	const attach = useSide((s) => s.attach);
 	const { drawn: sidebarDrawn, max: sidebarMax } = useSidebarFit();
-	const main = useMainPane();
 	const { t } = useI18n();
 
 	// The side chat reads the session it is attached to, so it follows whichever one is open.
@@ -404,30 +429,16 @@ function ChatShell({ settings }: { settings: boolean }) {
 	 */
 	const dock = (
 		<main className="ly-opaque relative flex min-w-0 flex-1 flex-col">
-				{/*
-				 * The dock, holding the conversation and every panel alongside it.
-				 *
-				 * On macOS there is no toolbar row above it: the first row of panes *is* the window's
-				 * top row — their title bars are 44px and sit on the traffic lights' line, and the
-				 * controls that used to need a strip of their own ride on the conversation's own title
-				 * bar. A separate row would cost the height twice, once for the toolbar and once for
-				 * the titles under it, and put the buttons on a different line from the panes they act
-				 * on.
-				 *
-				 * Windows and Linux do get that row, and pay those 44px on purpose — see
-				 * `hasHeaderBar`. Their window controls are at the *right*, straight on top of a
-				 * pane's own controls, and the corner at the left held nothing but a floating sidebar
-				 * toggle. One band collects both ends and lets every pane start below it.
-				 */}
-				<DockView
-					title={main.title}
-					icon={main.icon}
-					// No panel controls on a screen the panels do not belong to.
-					actions={main.solo ? undefined : <PanelMenu />}
-					solo={main.solo}
-					renderConversation={() => <MainContent />}
-				/>
-			</main>
+			{/*
+			 * The conversations on screen, each with its own title bar and its own panels.
+			 *
+			 * On macOS there is no toolbar row above them: the first row of every screen *is* the
+			 * window's top row — its title bar is 44px and sits on the traffic lights' line, and the
+			 * panel buttons ride on it. Windows and Linux do get a row above, and pay those 44px on
+			 * purpose — see `hasHeaderBar`.
+			 */}
+			<MainContent />
+		</main>
 	);
 
 	/*

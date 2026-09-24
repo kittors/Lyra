@@ -210,6 +210,14 @@ export interface AppState extends QueueSlice {
    */
   pendingSessionId: string | null;
   selectionEpoch: number;
+  /**
+   * 空白对话发出第一条消息后拿到的那个 id。
+   *
+   * 屏幕上那一格从 `@draft` 变成这个 id 的时候，它摆好的面板要跟过去——人常在开口之前先把终端、
+   * 浏览器摆好。这里明说一句「是发出去变来的」，而不是让面板那边去猜：点开一个本来就存在、只是
+   * 没存过布局的会话，在界面上看起来和它一模一样，却不该继承草稿的面板。
+   */
+  draftBecame: string | null;
   meta: SessionMeta | null;
   messages: Message[];
   /** True between clicking a session and its transcript arriving. Drives the loading state. */
@@ -510,6 +518,7 @@ export const useApp = create<AppState>((set, get) => ({
   activeSessionId: null,
   pendingSessionId: null,
   selectionEpoch: 0,
+  draftBecame: null,
   meta: null,
   messages: [],
   loadingSession: false,

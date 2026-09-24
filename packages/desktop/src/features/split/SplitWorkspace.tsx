@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useApp } from "../../store/index.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { toolbarReserved } from "../../app/window/WindowControls.tsx";
 import { bridge } from "../../services/index.ts";
-import { useBoxSize, provideScope } from "../dock/index.ts";
+import { startInset, useBoxSize, provideReveal, provideScope, usePaneDock } from "../dock/index.ts";
 import { canSplit, contains, firstSession, leafCount, nodeAt, sessionIds } from "./tree.ts";
 import { warmSession } from "./warm.ts";
 import { isOriginPane, isTopEndPane, layoutPanes, layoutSplitters } from "./layout.ts";
@@ -15,39 +14,41 @@ import { assignPaneKeys, paneKey, type PaneIdentity } from "./pane-key.ts";
 import { SplitPane } from "./SplitPane.tsx";
 import { SplitOverlay } from "./SplitOverlay.tsx";
 import { Splitter } from "./Splitter.tsx";
-import { sideOf } from "./drop.ts";
-import { dropAlreadyOpen, dropOnPane, resetSplit } from "./actions.ts";
+import { sidesByDistance } from "./drop.ts";
+import { dropOnPane, moveOnto, resetSplit, revealInWorkspace } from "./actions.ts";
 import {
 	cancelSessionDrag,
 	dropSessionDrag,
 	moveSessionDrag,
+	sessionDragLive,
 	setSplitDropper,
 } from "./session-drag.ts";
 
 /**
- * The conversations this window is showing, tiled.
+ * The conversations this window is showing, tiled — one to four screens.
  *
- * Lives in the dock's conversation slot. One screen is today's layout; two to four are
- * independent chats, each with its own title bar. The dock still has exactly one conversation
- * leaf — its shared chrome turns off once there is more than one screen, so that bar does not
- * sit above four titles as a fifth strip.
- *
- * Tool panes never enter this tree. A panel opened from a tile belongs to that
- * tile's dock. A panel already on the window dock stays there. The tile title bar
- * is painted on the conversation slot, so it cannot sit empty over a panel.
+ * Each screen is one conversation and the panels it owns, drawn by that conversation's own dock
+ * (`DockView`). One screen is simply a split of one: the same title bar, the same dock, the same
+ * rules, so nothing changes shape when a second conversation arrives or the last but one leaves.
+ * Panels never enter this tree and never sit at the window level — they belong to a conversation
+ * and move with it. See `docs/adr/0023-containers-belong-to-sessions.md`.
  */
 /*
- * 告诉 dock：「人此刻在哪一屏」这个问题该问谁。
+ * 告诉 dock：「人此刻在哪一屏」和「把这个会话请上屏」这两个问题该问谁。
  *
- * 写在模块顶层而不是组件里——它是一次性的接线，不该跟着渲染跑。没有分屏的窗口（会话窗口、
- * 面板窗口）根本不加载这个文件，于是 dock 那边的默认答案 null 正好是它们的正确答案：
- * 那里只有窗口 dock。
+ * 写在模块顶层而不是组件里——它是一次性的接线，不该跟着渲染跑。没有工作区的窗口（会话窗口、
+ * 面板窗口）根本不加载这个文件，于是 dock 那边的默认答案 null 正好是它们的正确答案。
+ *
+ * 焦点那一屏按「它现在在不在树上」校一遍：`focused` 可能还指着刚关掉的一屏，那时答案是还在屏上
+ * 的第一屏，而不是一把没有屏的钥匙——面板开进一个画不出来的地方，就是开了个寂寞。
  */
 provideScope(() => {
-	const split = useSplit.getState();
-	if (leafCount(split.tree) <= 1) return null;
-	return split.focused ?? firstSession(split.tree);
+	const { tree, focused } = useSplit.getState();
+	const keys = layoutPanes(tree).map((pane) => paneKey(pane.sessionId));
+	const wanted = paneKey(focused ?? useApp.getState().activeSessionId);
+	return keys.includes(wanted) ? wanted : (keys[0] ?? null);
 });
+provideReveal((scope) => revealInWorkspace(scope));
 
 export function SplitWorkspace() {
 	const tree = useSplit((s) => s.tree);
@@ -84,12 +85,11 @@ export function SplitWorkspace() {
 		 * 反过来——树里有会话、而 `activeSessionId` 还空着——正是刷新之后的常态，却没人接。
 		 *
 		 * 转录照样显示，所以这件事很不容易被发现：每一屏走的是 `SessionScope`，读的是树里的
-		 * id，不问 `activeSessionId`。但**窗口 dock 的布局是按 `activeSessionId` 存取的**
-		 * （`dw:dock:<id>`），于是刷新之后 dock 拿着 null 去读 `dw:dock:@draft`——一把永远
-		 * 空着的钥匙——用户开好的浏览器、终端一次也恢复不了，而盘上那份布局完好无损。
+		 * id，不问 `activeSessionId`。可输入框、快捷键和只属于当前会话的那些实时状态（运行中的
+		 * 这一轮、子代理名单）认的都是它，刷新之后它们对着的是一个空会话。
 		 *
-		 * 逐帧对过：刷新后只发生一次 `adopt`，`scope` 是 null，读的是 `dw:dock:@draft`；
-		 * 此后 `activeSessionId` 再没变过，所以 `DockView` 那个 effect 也再没跑过第二次。
+		 * 面板布局从前也按它存取，刷新后读的是一把空钥匙，开好的浏览器、终端一次也恢复不了。
+		 * 那一层已经没有了——每一屏按自己的会话读布局，见 ADR-0023。
 		 */
 		const restored = useSplit.getState().focused ?? firstSession(useSplit.getState().tree);
 		if (restored && !useApp.getState().activeSessionId) void useApp.getState().openSessionById(restored);
@@ -150,60 +150,88 @@ export function SplitWorkspace() {
 			dropSessionDrag(event);
 		};
 		const onCancel = () => cancelSessionDrag();
+		/*
+		 * Escape abandons a carry, all of it.
+		 *
+		 * The sidebar's reorder hook answers Escape too and marks it handled, which used to leave this
+		 * half running: the chip vanished, the frost stayed, and letting go still split the screen.
+		 * Whoever answered first, a carry in flight ends here.
+		 */
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || !sessionDragLive()) return;
+			event.preventDefault();
+			cancelSessionDrag();
+		};
 		window.addEventListener("pointermove", onMove, true);
 		window.addEventListener("pointerup", onUp);
 		window.addEventListener("pointercancel", onCancel);
 		window.addEventListener("blur", onCancel);
+		window.addEventListener("keydown", onKey, true);
 		return () => {
 			window.removeEventListener("pointermove", onMove, true);
 			window.removeEventListener("pointerup", onUp);
 			window.removeEventListener("pointercancel", onCancel);
 			window.removeEventListener("blur", onCancel);
+			window.removeEventListener("keydown", onKey, true);
 		};
 	}, []);
 
 	useEffect(() => {
+		/*
+		 * What letting go at (x, y) would do — shown while moving, done on release. One function for
+		 * both, so the preview is never a promise the release does not keep.
+		 *
+		 * The target is a whole screen: its transcript, its title bar and the panels beside them.
+		 */
 		setSplitDropper((sessionId, x, y, phase) => {
+			const overlay = useSplitOverlay.getState();
 			const rootBox = rememberSplitRoot(root.current);
-			if (!rootBox) {
-				useSplitOverlay.getState().clear();
+			// Put away behind the plugin catalogue or the like (see `Workspace` in `App.tsx`), it is
+			// still mounted — and a drop nobody can see land would rearrange it behind their back.
+			if (!rootBox || root.current?.closest("[inert]")) {
+				overlay.clear();
 				return false;
 			}
 			const live = useSplit.getState().tree;
 			const pane = paneAtShare(layoutPanes(fitSplitTree(live, rootBox)), rootBox, x, y);
 			if (!pane) {
-				useSplitOverlay.getState().clear();
+				overlay.clear();
 				return false;
 			}
-			const targetKey = paneKey(pane.sessionId);
 			const target = pane.sessionId;
-			if (contains(live, sessionId)) {
-				useSplitOverlay.getState().clear();
-				if (phase === "move" || !bridge.windows) return false;
-				return dropAlreadyOpen(sessionId);
+			const targetKey = paneKey(target);
+			const onScreen = contains(live, sessionId);
+			// A conversation dropped onto its own screen is already where it was put.
+			if (onScreen && target === sessionId) {
+				overlay.clear();
+				return false;
 			}
 			const box = panePixels(pane, rootBox);
-			const side = sideOf(box, x, y);
-			if (!side) {
-				useSplitOverlay.getState().clear();
+			const sides = sidesByDistance(box, x, y);
+			if (sides.length === 0) {
+				overlay.clear();
 				return false;
 			}
-			if (!canSplit(live)) {
+			// Four screens is the most a window shows: a fifth replaces the one under the pointer.
+			if (!onScreen && !canSplit(live)) {
 				if (phase === "move") {
-					useSplitOverlay.getState().show(targetKey, "replace", side);
+					overlay.show(targetKey, "replace", sides[0]);
 					return false;
 				}
-				return dropOnPane(sessionId, target, side);
+				return dropOnPane(sessionId, target, sides[0]);
 			}
-			if (!canSplitSide(box.width, box.height, side)) {
-				useSplitOverlay.getState().clear();
+			// The nearest edge that can take a readable half, not merely the nearest edge.
+			const side = sides.find((candidate) => canSplitSide(box.width, box.height, candidate)) ?? null;
+			if (!side) {
+				if (phase === "move") overlay.show(targetKey, "full", null);
+				else overlay.clear();
 				return false;
 			}
 			if (phase === "move") {
-				useSplitOverlay.getState().show(targetKey, "split", side);
+				overlay.show(targetKey, onScreen ? "move" : "split", side);
 				return false;
 			}
-			return dropOnPane(sessionId, target, side);
+			return onScreen ? moveOnto(sessionId, target, side) : dropOnPane(sessionId, target, side);
 		});
 		return () => setSplitDropper(null);
 	}, []);
@@ -219,9 +247,19 @@ export function SplitWorkspace() {
 	});
 	const handles = useMemo(() => layoutSplitters(fitted), [fitted]);
 	const count = panes.length;
+	/*
+	 * Which screen's browser keeps the pages nobody else is showing: the one that has been on screen
+	 * longest. Stable across a conversation switching in and out of a screen, so a page does not
+	 * reload because the conversation beside it changed — see `useBrowserPages`.
+	 */
+	const hostKey = identities.current.reduce<PaneIdentity | null>((oldest, slot) => (!oldest || slot.key < oldest.key ? slot : oldest), null);
+	const host = hostKey ? paneKey(hostKey.sessionId) : null;
+	useEffect(() => {
+		usePaneDock.getState().setHost(host);
+	}, [host]);
 	const focusedId = focused ?? activeSessionId;
 	const { navOpen, headerBar, titlebar } = useLayout();
-	const cornerInset = !headerBar && !navOpen ? toolbarReserved(titlebar.start) - 11 : 0;
+	const cornerInset = startInset({ headerBar, navOpen, start: titlebar.start });
 	const endInset = headerBar || titlebar.end === 0 ? 0 : titlebar.end;
 
 	return (
@@ -270,7 +308,7 @@ export function SplitWorkspace() {
 					}}
 				/>
 			))}
-			<SplitOverlay />
+			<SplitOverlay panes={panes} />
 		</div>
 		</div>
 	);

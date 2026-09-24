@@ -11,7 +11,8 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { companionOf, useDock, openScopedPanel } from "../dock/index.ts";
+import { companionOf, openScopedPanel, usePaneDock } from "../dock/index.ts";
+import { useScopedMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
 import { peekDelivery, rememberDelivery } from "./delivery-cache.ts";
@@ -52,8 +53,11 @@ const HOVER_OPEN_MS = 700;
 const HOVER_CLOSE_MS = 160;
 
 export function TurnDeliveryCard({ timestamp }: { timestamp: number }) {
-	const sessionId = useApp((state) => state.activeSessionId);
-	const latest = useApp((state) => latestDeliveryTimestamp(state.messages, state.running));
+	// This transcript's conversation, not whichever one has the focus: every screen shows its own.
+	const sessionId = useScopedSessionId();
+	const messages = useScopedMessages();
+	const running = useScopedRunning();
+	const latest = latestDeliveryTimestamp(messages, running);
 	if (!sessionId || latest !== timestamp || onPhone()) return null;
 	return <Delivery key={sessionId + ":" + timestamp} sessionId={sessionId} timestamp={timestamp} />;
 }
@@ -117,7 +121,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			if (!value.files.length) {
 				useDeliveryReview.getState().close();
-				useDock.getState().close("delivery");
+				usePaneDock.getState().close(sessionId, "delivery");
 			} else {
 				useDeliveryReview.getState().setData(value);
 				useDeliveryReview.getState().touch();

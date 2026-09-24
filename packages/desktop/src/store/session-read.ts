@@ -221,9 +221,10 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 export async function restoreLiveState(id: string, set: Set, get: Get): Promise<void> {
 	// A cold read that merges events needs the same runtime details as an unchanged transcript.
 	void bridge.subAgents.list(id).then((subAgentsList) => {
-		if (get().activeSessionId === id && Array.isArray(subAgentsList)) {
-			useSubAgents.getState().sync(subAgentsList);
-		}
+		if (!Array.isArray(subAgentsList)) return;
+		// Kept for the conversation either way: another screen may be showing it.
+		if (get().activeSessionId === id) useSubAgents.getState().sync(subAgentsList, id);
+		else useSubAgents.getState().retain(id, subAgentsList);
 	});
 
 	// Capabilities describe a running agent; a transcript read from disk has none until the

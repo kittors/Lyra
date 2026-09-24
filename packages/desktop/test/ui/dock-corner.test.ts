@@ -12,35 +12,41 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cornerPane, cornerReserved } from "../../src/features/dock/DockView.tsx";
+import { cornerReserved, paneAtCorner, startInset } from "../../src/features/dock/DockView.tsx";
 import { prInsets } from "../../src/features/pull-requests/PullRequestsView.tsx";
 import { HEADER_PAD } from "../../src/features/dock/geometry.ts";
 import { TOOLBAR_BUTTON } from "../../src/app/window/WindowControls.tsx";
 import { OVERLAY_FALLBACK, TOOLBAR_EDGE, TRAFFIC_LIGHTS_WIDTH, hasHeaderBar, overlayReserved, titlebarInsets } from "../../src/app/window/titlebar.ts";
 
+/*
+ * 这件事分两半：工作区决定「占着窗口左上角的那一屏要让多少」（`startInset`），那一屏自己决定
+ * 「画在它左上角的是哪一块」（`paneAtCorner`）。单屏就是只有一屏的分屏，所以两半对单屏和分屏都成立。
+ */
+const at = (kind: string, left: number, top: number, width = 0.5, height = 1) => ({ kind: kind as never, left, top, width, height });
+
 test("侧边栏开着的时候，没有面板需要让位", () => {
 	// 那个角是侧边栏的，开关画在侧边栏自己身上，让位的事它自己办了。
-	for (const compact of [false, true]) {
-		assert.equal(
-			cornerPane({ headerBar: false, navOpen: true, compact, focusedPane: "terminal", origin: "terminal" }),
-			null,
-			`compact=${compact} 时侧边栏开着就不该有面板让位`,
-		);
-	}
+	assert.equal(startInset({ headerBar: false, navOpen: true, start: TRAFFIC_LIGHTS_WIDTH }), 0);
 });
 
 test("侧边栏收起来，让位的是画在原点的那个面板", () => {
-	assert.equal(cornerPane({ headerBar: false, navOpen: false, compact: false, focusedPane: "browser", origin: "terminal" }), "terminal");
-	// 原点上没有面板（整个 dock 是空的）时没人需要让。
-	assert.equal(cornerPane({ headerBar: false, navOpen: false, compact: false, focusedPane: "browser", origin: null }), null);
+	const boxes = [at("terminal", 0, 0), at("conversation", 0.5, 0)];
+	assert.equal(paneAtCorner({ compact: false, focusedPane: "browser", boxes, corner: "start" }), "terminal");
+	// 原点上没有面板时没人需要让。
+	assert.equal(paneAtCorner({ compact: false, focusedPane: "browser", boxes: [at("conversation", 0.5, 0)], corner: "start" }), null);
+	assert.ok(startInset({ headerBar: false, navOpen: false, start: TRAFFIC_LIGHTS_WIDTH }) > 0);
+});
+
+test("右上角让位的是摸到右边缘那一行最上面的面板", () => {
+	const boxes = [at("conversation", 0, 0, 0.7), at("browser", 0.7, 0, 0.3, 0.5), at("terminal", 0.7, 0.5, 0.3, 0.5)];
+	assert.equal(paneAtCorner({ compact: false, focusedPane: "conversation", boxes, corner: "end" }), "browser");
 });
 
 test("窄布局里让位的是当前那一个，不看它摆在哪", () => {
 	/*
-	 * 窄布局把一个面板铺满整个 dock，所以它就是角上那个——始终是，而不是「碰巧被排在原点时」。
-	 * 这里的侧边栏是盖上来的抽屉，收起来之后角上就剩面板自己。
+	 * 窄布局把一个面板铺满整个屏，所以它就是角上那个——始终是，而不是「碰巧被排在原点时」。
 	 */
-	assert.equal(cornerPane({ headerBar: false, navOpen: false, compact: true, focusedPane: "browser", origin: "terminal" }), "browser");
+	assert.equal(paneAtCorner({ compact: true, focusedPane: "browser", boxes: [at("terminal", 0, 0)], corner: "start" }), "browser");
 });
 
 test("原生全屏不豁免让位，只是让得少一些", () => {
@@ -55,36 +61,18 @@ test("原生全屏不豁免让位，只是让得少一些", () => {
 	assert.equal(windowed.start, TRAFFIC_LIGHTS_WIDTH);
 	assert.equal(fullScreen.start, TOOLBAR_EDGE, "全屏之后红绿灯没了，起点回到普通边距");
 
-	// 面板照让不误：`cornerPane` 里根本没有「全屏」这个概念，这是故意的。
-	const corner = cornerPane({ headerBar: false, navOpen: false, compact: false, focusedPane: null, origin: "terminal" });
-	assert.equal(corner, "terminal", "全屏 + 侧边栏收起，原点上的面板仍然要让位");
-
-	assert.ok(
-		cornerReserved(fullScreen.start) >= TOOLBAR_BUTTON,
-		`全屏时只让出 ${cornerReserved(fullScreen.start)}px，装不下 ${TOOLBAR_BUTTON}px 的开关`,
-	);
-	assert.ok(
-		cornerReserved(fullScreen.start) < cornerReserved(windowed.start),
-		"全屏该让得比不全屏少——红绿灯已经不在那儿了",
-	);
+	const full = startInset({ headerBar: false, navOpen: false, start: fullScreen.start });
+	assert.ok(full >= TOOLBAR_BUTTON, `全屏时只让出 ${full}px，装不下 ${TOOLBAR_BUTTON}px 的开关`);
+	assert.ok(full < startInset({ headerBar: false, navOpen: false, start: windowed.start }), "全屏该让得比不全屏少——红绿灯已经不在那儿了");
 });
 
 test("有 header 的平台上，没有任何面板需要让位", () => {
 	/*
 	 * Windows 和 Linux 顶上那条横贯的 header 把窗口的两端都收走了：开关在它左端，系统按钮在它
-	 * 右端，面板整体从它底下开始。让位是每个面板各让各的，一条 header 是让一次。
-	 *
-	 * 这一条要守的是「别让两遍」：header 已经占掉 44px，面板再各自缩进一次，标题就会莫名其妙地
-	 * 往右跳 39px，而那一段是空的。
+	 * 右端，屏整体从它底下开始。这一条要守的是「别让两遍」。
 	 */
-	for (const compact of [false, true]) {
-		for (const navOpen of [false, true]) {
-			assert.equal(
-				cornerPane({ headerBar: true, navOpen, compact, focusedPane: "terminal", origin: "terminal" }),
-				null,
-				`headerBar 下 compact=${compact} navOpen=${navOpen} 不该有面板让位`,
-			);
-		}
+	for (const navOpen of [false, true]) {
+		assert.equal(startInset({ headerBar: true, navOpen, start: TOOLBAR_EDGE }), 0, `headerBar 下 navOpen=${navOpen} 不该让位`);
 	}
 });
 

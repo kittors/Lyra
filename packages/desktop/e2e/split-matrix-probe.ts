@@ -12,6 +12,9 @@
  * 判据取自 DOM 和主进程的窗口列表，不问 store：store 说的是「我们以为放哪了」。
  *
  * 用法：node --experimental-strip-types e2e/split-matrix-probe.ts [场景前缀，如 B 或 B3]
+ *
+ * 场景表写于面板还有两个家的时候。窗口那一层已经拿掉了（ADR-0023）：面板只属于会话，单屏是
+ * 只有一屏的分屏，布局都在 `dw:panedock:<会话>`。注释里提到窗口 dock 的地方是在讲当时的病因。
  */
 
 import { startApp, type RunningApp } from "./app.ts";
@@ -699,7 +702,7 @@ async function main(): Promise<void> {
 				const out = {};
 				for (let i = 0; i < localStorage.length; i++) {
 					const k = localStorage.key(i);
-					if (k && k.startsWith('dw:dock:')) out[k.slice(8, 16)] = (localStorage.getItem(k) || '').replace(/"(type|dir|sizes)":/g, '').slice(0, 130);
+					if (k && k.startsWith('dw:panedock:')) out[k.slice(12, 20)] = (localStorage.getItem(k) || '').replace(/"(type|dir|sizes)":/g, '').slice(0, 130);
 				}
 				return out;
 			})()`);

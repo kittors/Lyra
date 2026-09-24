@@ -1,28 +1,28 @@
 /**
- * Pointing the dock at a conversation, which is the one place per-conversation layouts can be lost.
+ * Reading a conversation's panel layout back, which is the one place per-conversation layouts can
+ * be lost.
  *
  * Two things have to be true at once and they pull in opposite directions:
  *
- *   — A conversation you arranged panes in gets its id only when the first message is stored. The
- *     scope goes from `null` to that id, and reading the new key would find nothing and reset the
- *     dock, throwing away an arrangement made seconds earlier.
- *   — Clicking an existing conversation for the first time after launch *also* takes the scope
- *     from `null` to an id. There, the stored layout is the whole point, and carrying the draft's
- *     over it is exactly the loss per-conversation layouts exist to prevent.
+ *   — A blank conversation you arranged panes in gets its id only when the first message is stored.
+ *     Its screen goes from `@draft` to that id, and reading the new key would find nothing and throw
+ *     away an arrangement made seconds earlier.
+ *   — Clicking an existing conversation from a blank one *also* takes the screen from `@draft` to an
+ *     id. There, carrying the draft's panes across is exactly the loss per-conversation layouts exist
+ *     to prevent. The caller says which it is (`draftFrom`), so nothing here has to guess.
  *
- * They were not distinguished: the first branch fired on both, so the first conversation opened in
- * every session had its layout overwritten by an untouched draft. Nothing caught it because
- * `adopt` had no test at all — the store needs a `window`, and everything else about the dock is
- * testable without one.
+ * And one thing that only happens once per installation: panels used to have two homes — a window
+ * layer across every screen (`dw:dock:<id>`) and each screen's own (`dw:panedock:<id>`). They are
+ * one now, and whatever either held for a conversation comes back.
  */
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { flushTree, serialize, storageKey } from "../src/features/dock/persist.ts";
-import { defaultTree, has, kinds, leafOf, type DockNode, type PaneKind } from "../src/features/dock/tree.ts";
+import { flushTree, legacyStorageKey, paneStorageKey, serialize } from "../src/features/dock/persist.ts";
+import { has, kinds, leafOf, type DockNode, type PaneKind } from "../src/features/dock/tree.ts";
 
-const ALLOWED: PaneKind[] = ["conversation", "chat", "files", "terminal", "review", "browser"];
+const ALLOWED: PaneKind[] = ["conversation", "chat", "files", "terminal", "review", "browser", "tasks"];
 
 /** Just enough `window` for the store and its persistence, which is all either of them touches. */
 const saved = new Map<string, string>();
@@ -40,17 +40,17 @@ Object.defineProperty(globalThis, "window", {
 	},
 });
 
-const { useDock } = await import("../src/features/dock/store.ts");
+const { usePaneDock } = await import("../src/features/dock/pane-store.ts");
 
 const withPanel = (kind: PaneKind): DockNode => ({
 	type: "split",
 	dir: "row",
 	children: [leafOf("conversation"), leafOf(kind)],
-	sizes: [0.6, 0.4],
+	sizes: [0.7, 0.3],
 });
 
 /**
- * The state a freshly launched window is in: a draft, nothing adopted yet.
+ * A freshly launched window: nothing read yet.
  *
  * `flushTree` first, because writes are debounced by a tenth of a second — without it the previous
  * test's pending write lands in the middle of this one and overwrites what it just seeded.
@@ -58,94 +58,119 @@ const withPanel = (kind: PaneKind): DockNode => ({
 function launch(): void {
 	flushTree();
 	saved.clear();
-	useDock.setState({ tree: defaultTree(), scope: null, adopted: false, maximized: null, drag: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, crossRatio: {}, drag: null, host: null });
 }
 
 /** Write a layout to disk as if a previous session had left it there. */
-function store(session: string | null, tree: DockNode): void {
-	saved.set(storageKey(session), serialize(tree));
+function store(key: string, tree: DockNode): void {
+	saved.set(key, serialize(tree));
 }
+
+const tree = (scope: string) => usePaneDock.getState().tree(scope);
 
 beforeEach(launch);
 
-test("a conversation's own saved layout wins over the draft it was clicked from", () => {
-	store("s-1", withPanel("review"));
-	useDock.getState().adopt(null, ALLOWED);
-	useDock.getState().adopt("s-1", ALLOWED);
+test("a conversation's own saved layout comes back", () => {
+	store(paneStorageKey("s-1"), withPanel("review"));
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
 
-	assert.ok(has(useDock.getState().tree, "review"), "the saved panel should be back");
-	assert.equal(useDock.getState().scope, "s-1");
+	assert.ok(has(tree("s-1"), "review"), "the saved panel should be back");
 });
 
-test("and is not overwritten on disk by the draft's", () => {
-	store("s-1", withPanel("review"));
-	useDock.getState().adopt(null, ALLOWED);
-	useDock.getState().adopt("s-1", ALLOWED);
-
-	// The bug was silent until the *next* launch, because the damage was to what was written.
-	const back = saved.get(storageKey("s-1"));
-	assert.ok(back?.includes("review"), `the stored layout was replaced: ${back}`);
-});
-
-test("a draft that was arranged keeps its panes when it is given an id", () => {
-	useDock.getState().adopt(null, ALLOWED);
+test("a blank conversation that is sent keeps the panes it was arranged with", () => {
+	usePaneDock.getState().hydrate("@draft", ALLOWED);
 	// Arranged before the first message — which is when anyone sets up to work.
-	useDock.getState().open("terminal");
-	assert.ok(has(useDock.getState().tree, "terminal"));
+	usePaneDock.getState().open("@draft", "terminal");
 
-	// `send` stores the conversation, and the id arrives.
-	useDock.getState().adopt("s-new", ALLOWED);
+	// `send` stores the conversation, the id arrives, and the screen says where it came from.
+	usePaneDock.getState().hydrate("s-new", ALLOWED, { draftFrom: "@draft" });
 
-	assert.ok(has(useDock.getState().tree, "terminal"), "the arrangement should have come with it");
-	assert.equal(useDock.getState().scope, "s-new");
-	// Writes are debounced, so ask for the one that is pending rather than racing it.
+	assert.ok(has(tree("s-new"), "terminal"), "the arrangement should have come with it");
 	flushTree();
-	assert.ok(saved.get(storageKey("s-new"))?.includes("terminal"), "and been saved under the new key");
+	assert.ok(saved.get(paneStorageKey("s-new"))?.includes("terminal"), "and been saved under the new key");
+	assert.ok(has(tree("@draft"), "terminal"), "the next blank conversation starts from the same arrangement");
 });
 
-test("an untouched draft carries nothing into a conversation that has no layout of its own", () => {
-	useDock.getState().adopt(null, ALLOWED);
-	useDock.getState().adopt("s-blank", ALLOWED);
+test("clicking an existing conversation from a blank one does not hand it the blank one's panes", () => {
+	usePaneDock.getState().hydrate("@draft", ALLOWED);
+	usePaneDock.getState().open("@draft", "terminal");
 
-	assert.deepEqual(kinds(useDock.getState().tree), ["conversation"]);
+	usePaneDock.getState().hydrate("s-old", ALLOWED);
+
+	assert.deepEqual(kinds(tree("s-old")), ["conversation"]);
 });
 
-test("moving between two conversations gives each its own", () => {
-	store("s-1", withPanel("review"));
-	store("s-2", withPanel("terminal"));
-	useDock.getState().adopt(null, ALLOWED);
+test("a conversation's own layout wins even when it was just sent from a blank one", () => {
+	store(paneStorageKey("s-1"), withPanel("review"));
+	usePaneDock.getState().hydrate("@draft", ALLOWED);
+	usePaneDock.getState().open("@draft", "terminal");
 
-	useDock.getState().adopt("s-1", ALLOWED);
-	assert.ok(has(useDock.getState().tree, "review"));
+	usePaneDock.getState().hydrate("s-1", ALLOWED, { draftFrom: "@draft" });
 
-	useDock.getState().adopt("s-2", ALLOWED);
-	assert.ok(has(useDock.getState().tree, "terminal"));
-	assert.ok(!has(useDock.getState().tree, "review"), "the last one's panel must not follow");
-
-	useDock.getState().adopt("s-1", ALLOWED);
-	assert.ok(has(useDock.getState().tree, "review"), "and going back returns to what was there");
+	assert.deepEqual(kinds(tree("s-1")).sort(), ["conversation", "review"]);
 });
 
-test("adopting the same conversation twice does nothing", () => {
-	store("s-1", withPanel("review"));
-	useDock.getState().adopt(null, ALLOWED);
-	useDock.getState().adopt("s-1", ALLOWED);
-	useDock.getState().open("terminal");
+test("an untouched blank conversation carries nothing", () => {
+	usePaneDock.getState().hydrate("@draft", ALLOWED);
+	usePaneDock.getState().hydrate("s-blank", ALLOWED, { draftFrom: "@draft" });
 
-	// A re-render must not reset the dock to what is on disk under the user's hands.
-	useDock.getState().adopt("s-1", ALLOWED);
-	assert.ok(has(useDock.getState().tree, "terminal"));
+	assert.deepEqual(kinds(tree("s-blank")), ["conversation"]);
+});
+
+test("each conversation has its own", () => {
+	store(paneStorageKey("s-1"), withPanel("review"));
+	store(paneStorageKey("s-2"), withPanel("terminal"));
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
+	usePaneDock.getState().hydrate("s-2", ALLOWED);
+
+	assert.ok(has(tree("s-1"), "review") && !has(tree("s-1"), "terminal"));
+	assert.ok(has(tree("s-2"), "terminal") && !has(tree("s-2"), "review"), "one conversation's panel must not follow another");
+});
+
+test("reading the same conversation twice does not reset it to what is on disk", () => {
+	store(paneStorageKey("s-1"), withPanel("review"));
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
+	usePaneDock.getState().open("s-1", "terminal");
+
+	// A screen remounting must not reset the layout under the user's hands.
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
+	assert.ok(has(tree("s-1"), "terminal"));
 });
 
 test("a stored layout naming a panel that no longer exists still loads, minus that panel", () => {
-	store("s-1", {
+	store(paneStorageKey("s-1"), {
 		type: "split",
 		dir: "row",
 		children: [leafOf("conversation"), leafOf("notes" as PaneKind), leafOf("review")],
 		sizes: [0.5, 0.2, 0.3],
 	});
-	useDock.getState().adopt(null, ALLOWED);
-	useDock.getState().adopt("s-1", ALLOWED);
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
 
-	assert.deepEqual(kinds(useDock.getState().tree).sort(), ["conversation", "review"]);
+	assert.deepEqual(kinds(tree("s-1")).sort(), ["conversation", "review"]);
+});
+
+test("a layout from the old window layer comes back inside the conversation's own screen", () => {
+	// A single screen with a task panel beside it, from before panels had one home.
+	store(legacyStorageKey("s-1"), withPanel("tasks"));
+	saved.set("dw:dock:at", "s-1");
+
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
+
+	assert.ok(has(tree("s-1"), "tasks"), "the task panel belongs to this conversation and comes back with it");
+	flushTree();
+	assert.ok(saved.get(paneStorageKey("s-1"))?.includes("tasks"), "written to the one key there is now");
+	assert.equal(saved.has(legacyStorageKey("s-1")), false, "and the old key is gone, so it is not merged twice");
+	assert.equal(saved.has("dw:dock:at"), false, "the old layer's bookmark means nothing any more");
+});
+
+test("both old homes of one conversation are merged, nothing dropped", () => {
+	// Task panel opened on a single screen; browser opened in that conversation's screen during a split.
+	store(legacyStorageKey("s-1"), withPanel("tasks"));
+	store(paneStorageKey("s-1"), withPanel("browser"));
+
+	usePaneDock.getState().hydrate("s-1", ALLOWED);
+
+	assert.deepEqual(kinds(tree("s-1")).sort(), ["browser", "conversation", "tasks"]);
+	const top = tree("s-1");
+	assert.ok(top.type === "split" && top.dir === "row", "the full-size arrangement is the base");
 });

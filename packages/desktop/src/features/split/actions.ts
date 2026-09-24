@@ -152,11 +152,18 @@ export function dropOnPane(sessionId: string, target: string | null, side: DropS
 	return true;
 }
 
-/** This conversation is already a screen here, so the drop opens another window. */
-export function dropAlreadyOpen(sessionId: string): boolean {
-	if (!bridge.windows) return false;
+/**
+ * This conversation is already a screen here: the drop moves it beside `target`.
+ *
+ * It used to open the conversation in a second native window, with nothing on screen during the
+ * drag to say so — a reorder in the sidebar that overshot onto the workspace ended in a window
+ * popping up. Moving it is what dropping something already on screen means; a second window is one
+ * click away in its menu.
+ */
+export function moveOnto(sessionId: string, target: string | null, side: DropSide): boolean {
 	useSplitOverlay.getState().clear();
-	void openInNewWindow(sessionId);
+	if (!useSplit.getState().relocate(sessionId, target, side)) return false;
+	focusPane(sessionId);
 	return true;
 }
 

@@ -19,7 +19,7 @@ import { BrowserPanel } from "../../src/features/browser/BrowserPanel.tsx";
 import { useBrowser, useBrowserView } from "../../src/features/browser/browser-store.ts";
 import { useApp } from "../../src/store/index.ts";
 import { mount } from "../helpers/mount.ts";
-import { SessionScope } from "../../src/app/session-scope.tsx";
+import { DockScope, SessionScope } from "../../src/app/session-scope.tsx";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { usePanelWindows } from "../../src/features/dock/popout.ts";
 import { insert, leafOf } from "../../src/features/dock/tree.ts";
@@ -38,56 +38,126 @@ function tab(id: string, sessionId: string | null, extra: Partial<BrowserTab> = 
 
 const TABS = [tab("a1", "a"), tab("a2", "a"), tab("b1", "b"), tab("c1", "c"), tab("d1", "d")];
 
-test("a hidden window cache yields guests to tiled and detached browsers while hosting background work", async () => {
+/** One conversation's screen, with its browser panel mounted the way `DockView` mounts it. */
+function screen(scope: string, sessionId: string | null) {
+	return h(DockScope.Provider, { value: scope }, h(SessionScope.Provider, { value: sessionId }, h("section", { id: `screen-${scope}` }, h(BrowserPanel))));
+}
+
+test("the screen that keeps background pages yields a conversation's pages to the screen showing them, and to its own window", async () => {
 	useBrowser.setState({ tabs: TABS, activeId: "a1" });
 	useBrowserView.setState({ recent: ["a", "b"], chosen: {} });
 	useApp.setState({ activeSessionId: "a", turns: { d: { startedAt: 1, tokens: 0 } }, settings: null });
 	const tree = insert(leafOf("conversation"), "browser", { kind: "conversation", side: "right" });
-	usePaneDock.setState({ trees: { a: tree, b: tree }, sizes: { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } } });
-	const view = await mount(h("div", null,
-		h("section", { id: "cache" }, h(BrowserPanel)),
-		h(SessionScope.Provider, { value: "a" }, h("section", { id: "scope-a" }, h(BrowserPanel))),
-		h(SessionScope.Provider, { value: "b" }, h("section", { id: "scope-b" }, h(BrowserPanel))),
-	));
+	// Two screens, both with their browser open; `a` has been on screen longest, so it keeps the rest.
+	usePaneDock.setState({ trees: { a: tree, b: tree }, sizes: { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } }, host: "a" });
+	const view = await mount(h("div", null, screen("a", "a"), screen("b", "b")));
 	try {
-		assert.deepEqual(view.all("#cache webview").map((el) => el.dataset.browserPage), ["d1"]);
-		assert.equal(view.all("webview").length, 4);
+		assert.deepEqual(view.all("#screen-a webview").map((el) => el.dataset.browserPage).sort(), ["a1", "a2", "d1"], "its own, and the agent working off screen");
+		assert.deepEqual(view.all("#screen-b webview").map((el) => el.dataset.browserPage), ["b1"], "b's page lives in b's screen, once");
+		assert.equal(view.all("webview").length, 4, "one page per tab, never two");
 		await act(() => { usePanelWindows.setState({ opening: [{ kind: "browser", scope: "a", sessionId: "a" }] }); });
-		assert.equal(view.all("#scope-a webview").length, 0);
-		assert.equal(view.all('[data-browser-page="a1"]').length, 0);
+		assert.equal(view.all('[data-browser-page="a1"]').length, 0, "a window of its own takes a's pages");
 		await act(() => { usePanelWindows.setState({ opening: [] }); });
 		assert.equal(view.all('[data-browser-page="a1"]').length, 1);
 	} finally {
 		await view.unmount();
-		usePaneDock.setState({ trees: {}, sizes: {} });
+		usePaneDock.setState({ trees: {}, sizes: {}, host: null });
 		usePanelWindows.setState({ opening: [], panels: [] });
 	}
 });
 
-test("simultaneous scoped browsers own distinct guests and ignore another tile's focus", async () => {
+test("moving the focus between two screens moves no page", async () => {
+	/*
+	 * Pages used to be handed between a window-level browser and a screen's according to which
+	 * screen had the focus: a reload on every click between two screens. A page belongs to the screen
+	 * showing it, and the focus has nothing to say about that.
+	 */
 	useBrowser.setState({ tabs: TABS, activeId: "a1" });
 	useBrowserView.setState({ recent: ["a", "b"], chosen: {} });
 	useApp.setState({ activeSessionId: "a", turns: {}, settings: null });
-	const view = await mount(h("div", null,
-		h(SessionScope.Provider, { value: "a" }, h("section", { id: "scope-a" }, h(BrowserPanel))),
-		h(SessionScope.Provider, { value: "b" }, h("section", { id: "scope-b" }, h(BrowserPanel))),
-	));
+	const tree = insert(leafOf("conversation"), "browser", { kind: "conversation", side: "right" });
+	usePaneDock.setState({ trees: { a: tree, b: tree }, sizes: { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } }, host: "a" });
+	const view = await mount(h("div", null, screen("a", "a"), screen("b", "b")));
 	try {
 		const a = view.find('[data-browser-page="a1"]');
-		assert.deepEqual(view.all("#scope-a webview").map((el) => el.dataset.browserPage), ["a1", "a2"]);
-		assert.deepEqual(view.all("#scope-b webview").map((el) => el.dataset.browserPage), ["b1"]);
+		const b = view.find('[data-browser-page="b1"]');
 		await act(() => { useApp.setState({ activeSessionId: "b" }); useBrowser.setState({ activeId: "b1" }); });
-		assert.equal(view.find('[data-browser-page="a1"]'), a);
+		assert.equal(view.find('[data-browser-page="a1"]'), a, "a's page is the same element — not reloaded");
+		assert.equal(view.find('[data-browser-page="b1"]'), b);
 		assert.equal(a.parentElement?.style.visibility, "");
-		assert.equal(view.all("webview").length, 3);
-	} finally { await view.unmount(); }
+		await act(() => { useApp.setState({ activeSessionId: "a" }); useBrowser.setState({ activeId: "a1" }); });
+		assert.equal(view.find('[data-browser-page="b1"]'), b, "and back again");
+	} finally {
+		await view.unmount();
+		usePaneDock.setState({ trees: {}, sizes: {}, host: null });
+	}
+});
+
+test("a screen whose browser is closed still keeps its own pages; the host keeps the ones on no screen", async () => {
+	useBrowser.setState({ tabs: TABS, activeId: "a1" });
+	useBrowserView.setState({ recent: ["a", "b", "c"], chosen: {} });
+	useApp.setState({ activeSessionId: "a", turns: {}, settings: null });
+	usePaneDock.setState({ trees: {}, sizes: { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } }, host: "a" });
+	const view = await mount(h("div", null, screen("a", "a"), screen("b", "b")));
+	try {
+		assert.deepEqual(view.all("#screen-b webview").map((el) => el.dataset.browserPage), ["b1"], "closed panels still keep their pages running, in their own screen");
+		assert.deepEqual(view.all("#screen-a webview").map((el) => el.dataset.browserPage).sort(), ["a1", "a2", "c1"], "its own, and a recent conversation that is on no screen");
+	} finally {
+		await view.unmount();
+		usePaneDock.setState({ trees: {}, sizes: {}, host: null });
+	}
+});
+
+test("closing a screen's browser and opening it again is not a reload, on any screen", async () => {
+	/*
+	 * The screen that is not the host used to hand its pages to the host when its panel closed and
+	 * take them back when it opened: a new `<webview>` each way, and whatever was typed into the
+	 * page was gone. The page stays where it is now; only its panel is hidden.
+	 */
+	useBrowser.setState({ tabs: TABS, activeId: "b1" });
+	useBrowserView.setState({ recent: ["a", "b"], chosen: {} });
+	useApp.setState({ activeSessionId: "b", turns: {}, settings: null });
+	const open = insert(leafOf("conversation"), "browser", { kind: "conversation", side: "right" });
+	const sizes = { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } };
+	usePaneDock.setState({ trees: { a: open, b: open }, sizes, host: "a" });
+	const view = await mount(h("div", null, screen("a", "a"), screen("b", "b")));
+	try {
+		const b = view.find('#screen-b [data-browser-page="b1"]');
+		await act(() => { usePaneDock.setState({ trees: { a: open, b: leafOf("conversation") } }); });
+		// `assert.ok` on identity, never `assert.equal` on DOM nodes: a failing one hangs the whole file.
+		assert.ok(view.find('[data-browser-page="b1"]') === b, "closed: the same page, hidden in its own screen");
+		assert.equal(view.all('[data-browser-page="b1"]').length, 1);
+		await act(() => { usePaneDock.setState({ trees: { a: open, b: open } }); });
+		assert.ok(view.find('[data-browser-page="b1"]') === b, "and opened again: still that page");
+	} finally {
+		await view.unmount();
+		usePaneDock.setState({ trees: {}, sizes: {}, host: null });
+	}
+});
+
+test("a screen not measured yet leaves its pages with the host, so no page is ever drawn twice", async () => {
+	useBrowser.setState({ tabs: TABS, activeId: "a1" });
+	useBrowserView.setState({ recent: ["a", "b"], chosen: {} });
+	useApp.setState({ activeSessionId: "a", turns: {}, settings: null });
+	usePaneDock.setState({ trees: {}, sizes: { a: { width: 600, height: 800 } }, host: "a" });
+	const view = await mount(h("div", null, screen("a", "a"), screen("b", "b")));
+	try {
+		assert.deepEqual(view.all('[data-browser-page="b1"]').map((el) => el.closest("section")?.id), ["screen-a"]);
+		await act(() => { usePaneDock.setState({ sizes: { a: { width: 600, height: 800 }, b: { width: 600, height: 800 } } }); });
+		assert.deepEqual(view.all('[data-browser-page="b1"]').map((el) => el.closest("section")?.id), ["screen-b"], "measured: it moves to its own screen, once");
+	} finally {
+		await view.unmount();
+		usePaneDock.setState({ trees: {}, sizes: {}, host: null });
+	}
 });
 
 async function panel(sessionId: string | null, turns: Record<string, { startedAt: number; tokens: number }> = {}) {
 	useBrowser.setState({ tabs: TABS, activeId: "a1" });
 	useBrowserView.setState({ recent: [], chosen: {} });
 	useApp.setState({ activeSessionId: sessionId, turns, settings: null });
-	const view = await mount(h(BrowserPanel));
+	// The one screen there is, which is therefore the one that keeps pages.
+	usePaneDock.setState({ trees: {}, sizes: {}, host: "screen" });
+	const view = await mount(h(DockScope.Provider, { value: "screen" }, h(BrowserPanel)));
 	return {
 		view,
 		// Through `act`, because the panel subscribes to the store: switching conversations is a

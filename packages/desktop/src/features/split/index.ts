@@ -11,6 +11,5 @@ export { useSplit } from "./store.ts";
 export { SplitMoveItems } from "./SplitMoveItems.tsx";
 export { offerSessionDrag, dropSessionDrag } from "./session-drag.ts";
 export { openInPane, openInNewWindow, revealInWorkspace, splitWith, paneAtPoint, canOfferSplit } from "./actions.ts";
-export { subtreeMinPx } from "./geometry.ts";
-export { leafCount, canSplit, contains, firstSession } from "./tree.ts";
+export { canSplit, contains } from "./tree.ts";
 export { useSessionWindows, watchSessionWindows } from "./session-windows.ts";

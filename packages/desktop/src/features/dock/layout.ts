@@ -232,11 +232,6 @@ function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): 
 		: children.reduce((largest, size) => Math.max(largest, size), 0);
 }
 
-/** A temporary overflow canvas preserves content while an undersized dock hands panels to windows. */
-export function minimumSpan(tree: DockNode, floor: (kind: PaneKind) => Floor): Floor {
-	return { width: floorOf(tree, "row", floor), height: floorOf(tree, "col", floor) };
-}
-
 /**
  * Whether this tree still clears every pane's floor inside `span`.
  *

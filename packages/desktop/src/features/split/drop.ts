@@ -18,13 +18,6 @@ export interface Rect {
 const inside = (box: Rect, x: number, y: number): boolean =>
 	x >= box.left && x <= box.left + box.width && y >= box.top && y <= box.top + box.height;
 
-/** The nearest of four candidates, first one winning a tie so the answer is deterministic. */
-function nearest(candidates: [DropSide, number][]): [DropSide, number] {
-	let best = candidates[0]!;
-	for (const candidate of candidates) if (candidate[1] < best[1]) best = candidate;
-	return best;
-}
-
 /**
  * The edge the pointer is nearest, or null when it is not over the pane at all.
  *
@@ -32,16 +25,34 @@ function nearest(candidates: [DropSide, number][]): [DropSide, number] {
  * A rectangular carve-up would jump as the pointer crossed a corner.
  */
 export function sideOf(box: Rect, x: number, y: number): DropSide | null {
-	if (box.width <= 0 || box.height <= 0) return null;
-	if (!inside(box, x, y)) return null;
+	return sidesByDistance(box, x, y)[0] ?? null;
+}
+
+/**
+ * All four edges, nearest first — or none when the pointer is not over the pane.
+ *
+ * The nearest edge is not always one that can take a split: a screen too narrow to halve sideways
+ * can still be halved top and bottom. Asking only for the nearest one left every point closer to a
+ * side than to the top or bottom with no answer at all — half of a narrow screen dead to the drag,
+ * the preview blinking out whenever the pointer drifted sideways. The caller takes the first edge
+ * that fits.
+ */
+export function sidesByDistance(box: Rect, x: number, y: number): DropSide[] {
+	if (box.width <= 0 || box.height <= 0) return [];
+	if (!inside(box, x, y)) return [];
 	const u = (x - box.left) / box.width;
 	const v = (y - box.top) / box.height;
-	return nearest([
+	const ranked: [DropSide, number][] = [
 		["left", u],
 		["right", 1 - u],
 		["top", v],
 		["bottom", 1 - v],
-	])[0];
+	];
+	// Stable: equal distances keep the order above, so the answer is deterministic.
+	return ranked
+		.map((entry, index) => ({ entry, index }))
+		.sort((a, b) => a.entry[1] - b.entry[1] || a.index - b.index)
+		.map(({ entry }) => entry[0]);
 }
 
 /** How far the landing sits inside the conversation screen. The dock's card inset. */

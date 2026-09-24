@@ -4,21 +4,24 @@ import { Conversation, ConversationSkeleton, EmptyState } from "../conversation/
 import { chatSurface } from "../../lib/chat-surface.ts";
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { useApp } from "../../store/index.ts";
+import { DockView, type ScreenInsets } from "../dock/index.ts";
 import { pct } from "./layout.ts";
 import type { PaneBox } from "./layout.ts";
 import { paneKey } from "./pane-key.ts";
 import { focusPane } from "./actions.ts";
-import { PaneDock } from "./PaneDock.tsx";
 import { SplitChrome } from "./SplitChrome.tsx";
 
 /**
  * The conversation of one screen, isolated from the tile's geometry.
  *
- * A handle drag rewrites shares every frame. That has to move this section's box; it must
- * not rebuild the transcript or the composer. Those subscribe here, and this component's
- * props do not change while a boundary moves. Tool panes opened from this screen live in
- * this screen's dock. The title bar is passed into that dock so it covers the transcript
- * only — never the panel sitting beside it.
+ * A handle drag rewrites shares every frame. That has to move this section's box; it must not
+ * rebuild the transcript, the composer or the panels. Those subscribe here, and this component's
+ * props do not change while a boundary moves.
+ *
+ * Every screen is the same thing whatever the count: this conversation and the panels it owns,
+ * drawn by the conversation's own dock. A single screen is a split of one — there is no window
+ * layer above it that panels could fall into. The title bar is handed to that dock so it covers the
+ * transcript only, never a panel beside it.
  */
 const SplitScreen = memo(function SplitScreen({
 	sessionId,
@@ -27,6 +30,7 @@ const SplitScreen = memo(function SplitScreen({
 	insetEnd,
 }: {
 	sessionId: string | null;
+	/** More than one conversation on the window: each names itself and can be closed. */
 	screen: boolean;
 	inset: number;
 	insetEnd: number;
@@ -49,13 +53,9 @@ const SplitScreen = memo(function SplitScreen({
 				/*
 				 * 会话还在，消息没了——这一格也得是空状态。
 				 *
-				 * `chatSurface` 早就算得出这一种，但它只被问在 `!sessionId` 那一支上，于是「有
-				 * 会话」自动等同于「有转录」。撤回第一条消息之后两者第一次分开：会话还在侧边栏
-				 * 里选着，`messages` 已经空了，`Conversation` 照样挂上去，画出来是一整片空白
-				 * ——外加一行没人清掉的「已暂停」。那不是任何一个设计过的界面。
-				 *
-				 * 这里不用 `surface === "skeleton"`：那一支在有 sessionId 时仍然交给下面的
-				 * `RetainedViews`，和一直以来一样。这次只补上空的那一种。
+				 * 撤回第一条消息之后，会话还在侧边栏里选着，`messages` 已经空了；`Conversation` 照样
+				 * 挂上去画出来是一整片空白，外加一行没人清掉的「已暂停」。那不是任何一个设计过的界面。
+				 * 这里不用 `surface === "skeleton"`：那一支在有 sessionId 时仍然交给 `RetainedViews`。
 				 */
 				<EmptyState />
 			) : (
@@ -74,12 +74,13 @@ const SplitScreen = memo(function SplitScreen({
 	);
 	return (
 		<SessionScope.Provider value={sessionId}>
-			<PaneDock
+			<DockView
 				scope={paneKey(sessionId)}
-				chrome={screen ? <SplitChrome sessionId={sessionId} inset={inset} insetEnd={insetEnd} /> : undefined}
+				insets={{ start: inset, end: insetEnd }}
+				header={(room: ScreenInsets) => <SplitChrome sessionId={sessionId} screen={screen} inset={room.start} insetEnd={room.end} />}
 			>
 				{body}
-			</PaneDock>
+			</DockView>
 		</SessionScope.Provider>
 	);
 });
@@ -94,7 +95,9 @@ export const SplitPane = memo(function SplitPane({
 	pane: PaneBox;
 	count: number;
 	focused: boolean;
+	/** Room for the traffic lights and the sidebar toggle, when this screen holds the window's top-left. */
 	inset: number;
+	/** Room for the caption buttons Windows and Linux draw at the top-right. */
 	insetEnd: number;
 }) {
 	const key = paneKey(pane.sessionId);

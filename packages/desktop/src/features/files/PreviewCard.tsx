@@ -3,7 +3,7 @@ import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "luci
 import { useEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { useDock } from "../dock/index.ts";
+import { openScopedPanel } from "../dock/index.ts";
 import { useSide } from "../dock/index.ts";
 
 export interface PreviewInfo {
@@ -104,7 +104,6 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	 * default height.
 	 */
 	const survey = useRef({ settled: false, tallest: 0, adjustments: 0, timer: null as ReturnType<typeof setTimeout> | null });
-	const openPane = useDock((s) => s.open);
 	const openPreview = useSide((s) => s.openPreview);
 
 	/*
@@ -253,7 +252,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					aria-label={translate("preview.longer")}
 					onClick={() => {
 						openPreview(preview);
-						openPane("browser");
+						openScopedPanel("browser");
 					}}
 					className="absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-card via-card/80 to-transparent pb-2"
 				>
@@ -304,7 +303,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					tipSide="top"
 					onClick={() => {
 						openPreview(preview);
-						openPane("browser");
+						openScopedPanel("browser");
 					}}
 				/>
 			</div>

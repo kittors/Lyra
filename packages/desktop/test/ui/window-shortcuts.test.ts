@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
-import { test, mock } from "node:test";
+import { test } from "node:test";
 import { createElement as h } from "react";
 import { useShortcuts } from "../../src/app/shortcuts.ts";
-import { useDock } from "../../src/features/dock/index.ts";
+import { provideScope, usePaneDock } from "../../src/features/dock/index.ts";
+
+/*
+ * Panel shortcuts act on the screen the person is working in — the workspace answers which one.
+ * Replaced through `setState`, not `mock.method`: a method patched on a state snapshot is not put
+ * back, and the stub leaks into every test after it.
+ */
+function recordOpens(): { opened: string[]; restore(): void } {
+	const original = usePaneDock.getState().open;
+	const opened: string[] = [];
+	provideScope(() => "test");
+	usePaneDock.setState({ open: (_scope: string, kind: string) => { opened.push(kind); return true; } } as never);
+	return { opened, restore: () => { usePaneDock.setState({ open: original }); provideScope(() => null); } };
+}
 import { mount, press, fire } from "../helpers/mount.ts";
 
 function Harness({ toggleNav }: { toggleNav(): void }) {
@@ -31,7 +44,7 @@ test("global toggles leave consumed, composing and repeating keys alone", async 
 });
 
 test("every advertised panel shortcut opens its panel, including a home terminal", async () => {
-	const open = mock.method(useDock.getState(), "open", () => {});
+	const { opened, restore } = recordOpens();
 	const view = await mount(h(Harness, { toggleNav() {} }));
 	try {
 		for (const [key, code, extra, kind] of [
@@ -44,10 +57,10 @@ test("every advertised panel shortcut opens its panel, including a home terminal
 			// happy-dom aliases AltGraph to Alt; Chromium distinguishes these modifiers.
 			Object.defineProperty(event, "getModifierState", { value: () => false });
 			await fire(view.find("textarea"), event);
-			assert.equal(open.mock.calls.at(-1)?.arguments[0], kind);
+			assert.equal(opened.at(-1), kind);
 		}
 	} finally {
-		open.mock.restore();
+		restore();
 		await view.unmount();
 	}
 });
@@ -61,9 +74,7 @@ function keydown(key: string, code: string, init: KeyboardEventInit = {}) {
 
 test("a letter shortcut is the key labelled with that letter, on any Latin layout", async () => {
 	let toggles = 0;
-	const original = useDock.getState().open;
-	const opened: string[] = [];
-	useDock.setState({ open: (kind: string) => void opened.push(kind) } as never);
+	const { opened, restore } = recordOpens();
 	const view = await mount(h(Harness, { toggleNav: () => toggles++ }));
 	try {
 		const input = view.find("textarea");
@@ -79,16 +90,14 @@ test("a letter shortcut is the key labelled with that letter, on any Latin layou
 		await fire(input, keydown("q", "KeyA", { altKey: true }));
 		assert.deepEqual(opened, ["subagents"], "the key labelled Q must not open the sub-agent pane");
 	} finally {
-		useDock.setState({ open: original } as never);
+		restore();
 		await view.unmount();
 	}
 });
 
 test("layouts with no Latin letters, and macOS Option, fall back to the key's position", async () => {
 	let toggles = 0;
-	const original = useDock.getState().open;
-	const opened: string[] = [];
-	useDock.setState({ open: (kind: string) => void opened.push(kind) } as never);
+	const { opened, restore } = recordOpens();
 	const view = await mount(h(Harness, { toggleNav: () => toggles++ }));
 	try {
 		const input = view.find("textarea");
@@ -99,7 +108,7 @@ test("layouts with no Latin letters, and macOS Option, fall back to the key's po
 		await fire(input, keydown("ß", "KeyS", { ctrlKey: false, metaKey: true, altKey: true }));
 		assert.deepEqual(opened, ["chat"]);
 	} finally {
-		useDock.setState({ open: original } as never);
+		restore();
 		await view.unmount();
 	}
 });

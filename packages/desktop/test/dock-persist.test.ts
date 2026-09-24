@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { sanitize, serialize, storageKey } from "../src/features/dock/persist.ts";
+import { legacyStorageKey, paneStorageKey, sanitize, serialize } from "../src/features/dock/persist.ts";
 import { defaultTree, has, kinds, leafOf, type DockNode, type DockSplit, type PaneKind } from "../src/features/dock/tree.ts";
 
 /**
@@ -40,13 +40,16 @@ test("a layout survives being written and read back exactly", () => {
 });
 
 test("the key is per conversation, and the unsent one has a key of its own", () => {
-	assert.equal(storageKey("s-1a2b"), "dw:dock:s-1a2b");
-	assert.notEqual(storageKey("s-a"), storageKey("s-b"), "two conversations do not share a layout");
-	// No id yet means the conversation has not been sent. `adopt` hands this layout over to the
-	// real key the moment one is assigned, so arranging panes before the first message is not lost.
-	assert.equal(storageKey(null), "dw:dock:@draft");
-	assert.equal(storageKey(undefined), "dw:dock:@draft");
-	assert.equal(storageKey(""), "dw:dock:@draft", "an empty id is not a conversation either");
+	assert.equal(paneStorageKey("s-1a2b"), "dw:panedock:s-1a2b");
+	assert.notEqual(paneStorageKey("s-a"), paneStorageKey("s-b"), "two conversations do not share a layout");
+	// The unsent conversation's screen is `@draft`; a draft that is sent hands its layout over.
+	assert.equal(paneStorageKey("@draft"), "dw:panedock:@draft");
+});
+
+test("one key per conversation — the old window layer's key is only ever read to migrate", () => {
+	// Same conversation, two keys from when panels had two homes. Only `paneStorageKey` is written.
+	assert.equal(legacyStorageKey("s-1a2b"), "dw:dock:s-1a2b");
+	assert.notEqual(legacyStorageKey("s-1a2b"), paneStorageKey("s-1a2b"));
 });
 
 test("anything that is not a tree falls back to the default layout", () => {

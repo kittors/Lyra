@@ -1437,6 +1437,8 @@ export const zhCN = {
 	"sessionMenu.newWindow": "新窗口",
 	"split.view": "分屏",
 	"split.replace": "替换此屏",
+	"split.moveHere": "移到这里",
+	"split.noRoom": "这一屏放不下再分一屏",
 	"split.closePane": "关闭此屏",
 	"split.move.left": "向左移动分屏",
 	"split.move.right": "向右移动分屏",

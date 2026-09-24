@@ -4,15 +4,17 @@ import { createPortal } from "react-dom";
 import { subscribeSessionDrag, type SessionDragLive } from "./session-drag.ts";
 
 /**
- * The chip that follows the pointer when a conversation is carried from 「聊天」.
+ * The chip that follows the pointer while a conversation is carried — from either list.
  *
- * The project list already draws its own pill for reorder. This one is only for a carry that
- * did not start there — otherwise two ghosts sit on top of each other.
+ * The project list used to draw its own pill for reorder and suppress this one, which left every
+ * conversation that list does not reorder — the pinned ones, the ones outside a project — carried
+ * with nothing in the hand at all. One chip, owned by the carry itself, for every conversation; the
+ * project list's pill is for projects only.
  */
-export function SessionCarryGhost({ suppressed }: { suppressed: boolean }) {
+export function SessionCarryGhost() {
 	const [live, setLive] = useState<SessionDragLive | null>(null);
 	useEffect(() => subscribeSessionDrag(setLive), []);
-	if (suppressed || !live) return null;
+	if (!live) return null;
 	return createPortal(
 		<div
 			data-ly-split-ghost

@@ -109,7 +109,7 @@ async function main() {
 	try {
 		// The first conversation opens with the Git panel beside it; the second has nothing.
 		await app.evaluate(`(() => {
-			window.localStorage.setItem(${JSON.stringify(`dw:dock:${IDS[0]}`)}, JSON.stringify({
+			window.localStorage.setItem(${JSON.stringify(`dw:panedock:${IDS[0]}`)}, JSON.stringify({
 				v: 1,
 				tree: {
 					type: "split", dir: "row",
@@ -117,7 +117,7 @@ async function main() {
 					sizes: [0.62, 0.38],
 				},
 			}));
-			window.localStorage.removeItem(${JSON.stringify(`dw:dock:${IDS[1]}`)});
+			window.localStorage.removeItem(${JSON.stringify(`dw:panedock:${IDS[1]}`)});
 			return 1;
 		})()`);
 
@@ -144,7 +144,7 @@ async function main() {
 		console.log(`panes in the dock: ${panes.join(", ") || "(none)"}`);
 		if (!panes.includes("review")) {
 			const stored = await app.evaluate<string | null>(
-				`window.localStorage.getItem(${JSON.stringify(`dw:dock:${IDS[0]}`)})`,
+				`window.localStorage.getItem(${JSON.stringify(`dw:panedock:${IDS[0]}`)})`,
 			);
 			throw new Error(`the panel never opened. Stored layout was: ${stored}`);
 		}

@@ -32,59 +32,37 @@ const VERSION = 1;
 const SAVE_DELAY = 120;
 
 /**
- * Where one conversation's layout is kept.
+ * 一个会话的面板布局存在哪——每个会话一份，也只有这一份。
  *
- * `@draft` covers the conversation that has not been sent yet and so has no id — see `adopt`,
- * which hands that layout over the moment one is assigned rather than letting it be forgotten.
- */
-export const storageKey = (session: string | null | undefined): string => `dw:dock:${session || "@draft"}`;
-
-/**
- * 窗口 dock 此刻认的是哪一把钥匙。
+ * 面板属于会话，不属于窗口：单屏是只有一屏的分屏，所以单屏和分屏读写的是同一把钥匙。`@draft`
+ * 是还没发出第一条消息的那个空白对话，它没有 id，但一样可以摆好面板再开口。
  *
- * 分屏一开，`DockView` 就不再跟着焦点换 scope——屏上有两三个会话，「当前会话」对窗口 dock
- * 没有意义，而跟着焦点换布局会在焦点一动时关掉人刚在网格旁边开好的终端。那个决定一直都在，
- * 只是活在内存里：刷新之后没人记得它，dock 拿着焦点那一屏的会话 id 去读，读到一把空钥匙，
- * 进入分屏之前开好的浏览器就凭空消失了——而它的布局在盘上好端端存着，存了，读的是别处。
- *
- * 这不改「每会话布局」的语义，只是让那个已经做过的决定活过刷新。
- *
- * 不带 windowId：窗口 dock 只有 primary 窗口有（会话窗口和面板窗口里根本没有 dock），
- * 而 primary 只会有一个。
- */
-const AT_KEY = "dw:dock:at";
-
-export function readDockAt(): string | null {
-	try {
-		return window.localStorage.getItem(AT_KEY);
-	} catch {
-		// 读不到就退回「跟着当前会话走」，也就是从前的行为。
-		return null;
-	}
-}
-
-/**
- * 只记真实会话，不记 null。
- *
- * 刷新之后第一次 `adopt` 必然带着 null——`activeSessionId` 还没恢复。那一下要是也写进去，
- * 就把上一轮记着的钥匙抹掉了，而它正是这一整件事要找回来的东西。
- */
-export function writeDockAt(scope: string | null): void {
-	if (!scope) return;
-	try {
-		window.localStorage.setItem(AT_KEY, scope);
-	} catch {
-		// 存不下就退回从前的行为，不值得打断任何人。
-	}
-}
-
-/**
- * 分屏里某一屏自己的那棵 dock 树存在哪。
- *
- * 和窗口 dock 分开放：它们是两棵不同的树，同一个会话可以既在窗口 dock 上有布局，又作为一屏
- * 有自己的面板。scope 就是会话 id，天然是对的粒度。
+ * 钥匙名沿用分屏时代的 `dw:panedock:`，存量数据因此不用搬。
  */
 export const paneStorageKey = (scope: string): string => `dw:panedock:${scope}`;
+
+/**
+ * 旧版窗口 dock 按会话存的那一份，只读一次、并进上面那把钥匙之后就删。
+ *
+ * 从前面板有两个家：窗口一层（跨所有屏，`dw:dock:<会话>`）和每一屏自己一层（`dw:panedock:<会话>`）。
+ * 同一个会话可能两边都存着东西——单屏时开的任务面板在前者，分屏时开的浏览器在后者。合并时一个
+ * 都不丢，见 `pane-store.ts` 的 `hydrate`。
+ */
+export const legacyStorageKey = (scope: string): string => `dw:dock:${scope}`;
+
+/** 旧版窗口 dock 记「此刻认哪把钥匙」用的，两层合成一层之后没有意义了。 */
+const LEGACY_AT_KEY = "dw:dock:at";
+
+/** 把旧版那一行删掉。读不到、删不掉都不值得打断任何人。 */
+export function dropLegacy(scope: string): void {
+	if (noWindow()) return;
+	try {
+		window.localStorage.removeItem(legacyStorageKey(scope));
+		window.localStorage.removeItem(LEGACY_AT_KEY);
+	} catch {
+		// 存储关了，下次再读到也只是再合并一遍，结果相同。
+	}
+}
 
 /**
  * Rebuild a tree from unknown data, dropping whatever cannot be trusted.

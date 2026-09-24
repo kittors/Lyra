@@ -10,10 +10,9 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openScopedPanel, popOutPanel, toggleScopedPanel } from "../../src/features/dock/popout.ts";
+import { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
-import { useDock } from "../../src/features/dock/store.ts";
-import { defaultTree, has } from "../../src/features/dock/tree.ts";
+import { has } from "../../src/features/dock/tree.ts";
 import "../../src/features/dock/panels/builtin.tsx";
 
 /** Every call the renderer could make to open one, recorded instead of performed. */
@@ -36,8 +35,9 @@ function watchWindows(): { opened: unknown[] } {
 
 function reset(): void {
 	window.localStorage.clear();
-	useDock.setState({ tree: defaultTree(), maximized: null, focused: "conversation" });
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {} });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	// The workspace answers "which screen" — here a single screen, `tile`.
+	provideScope(() => "tile");
 }
 
 test("a tile with no room for a panel takes it rather than opening a window", () => {
@@ -46,6 +46,7 @@ test("a tile with no room for a panel takes it rather than opening a window", ()
 	// 700×400 clears no edge for a 300×150 panel beside a 420×260 conversation.
 	usePaneDock.getState().rememberSize("tile", { width: 700, height: 400 });
 	openScopedPanel("terminal");
+	assert.ok(has(usePaneDock.getState().tree("tile"), "terminal"), "the panel landed in the screen, squeezed");
 	assert.deepEqual(opened, [], "opening a panel is not a request for a second window");
 });
 
@@ -62,13 +63,13 @@ test("the browser refuses to be moved into a window of its own", async () => {
 	reset();
 	const { opened } = watchWindows();
 	// A `<webview>` belongs to the document that created it; "the same page" elsewhere is a reload.
-	assert.equal(await popOutPanel({ dock: "window", scope: "window", kind: "browser", sessionId: null }), false);
+	assert.equal(await popOutPanel({ scope: "tile", kind: "browser", sessionId: null }), false);
 	assert.deepEqual(opened, [], "a panel declaring detach: none is never handed over");
 });
 
 test("a panel that can travel still travels when a person asks", async () => {
 	reset();
 	const { opened } = watchWindows();
-	assert.equal(await popOutPanel({ dock: "window", scope: "window", kind: "terminal", sessionId: null }), true);
+	assert.equal(await popOutPanel({ scope: "tile", kind: "terminal", sessionId: null }), true);
 	assert.equal(opened.length, 1, "the header button still works — only the automatic route is gone");
 });

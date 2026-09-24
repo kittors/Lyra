@@ -77,7 +77,8 @@ export function ProjectList({
 	}
 	return (
 		<SidebarReorderContext.Provider value={reorder.contextValue}>
-			{reorder.dragging && <CarriedPill item={reorder.dragging} pointer={reorder.pointer} />}
+			{/* A conversation in the hand is drawn by the carry's own chip, `SessionCarryGhost`. */}
+			{reorder.dragging?.kind === "project" && <CarriedPill item={reorder.dragging} pointer={reorder.pointer} />}
 			{creating && <ProjectDialog onClose={() => setCreating(false)} />}
 			{hasPinned && (
 				<>

@@ -5,7 +5,7 @@ import type { AgentEvent, SessionMeta, TrajectoryChanges } from "@lyra/core";
 import type { Entry } from "@lyra/core/trajectory-view";
 import { useApp } from "../../src/store/index.ts";
 import { useOpenFile } from "../../src/store/openFile.ts";
-import { useDock } from "../../src/features/dock/index.ts";
+import { provideScope, usePaneDock } from "../../src/features/dock/index.ts";
 import { consumeTraceFocus, showTrace, useTraceFocus } from "../../src/features/conversation/trajectory/navigation.ts";
 import { TrajectoryPanel } from "../../src/features/conversation/trajectory/TrajectoryPanel.tsx";
 import { click, mount } from "../helpers/mount.ts";
@@ -20,7 +20,7 @@ function fixture(id: string) {
 	const panes: string[] = [], errors: string[] = [];
 	const listeners = new Set<(payload: { sessionId: string; event: AgentEvent }) => void>();
 	const previousBridge = Object.getOwnPropertyDescriptor(window, "lyra");
-	const app = useApp.getState(), dock = useDock.getState(), file = useOpenFile.getState(), focus = useTraceFocus.getState();
+	const app = useApp.getState(), dock = usePaneDock.getState(), file = useOpenFile.getState(), focus = useTraceFocus.getState();
 	Object.defineProperty(window, "lyra", { configurable: true, value: {
 		sessions: {
 			trajectoryChanges: (_project: string, sessionId: string) => new Promise<TrajectoryChanges>(resolve => reads.push({ id: sessionId, resolve })),
@@ -29,11 +29,13 @@ function fixture(id: string) {
 		agent: { onEvent: (listener: (payload: { sessionId: string; event: AgentEvent }) => void) => { listeners.add(listener); return () => listeners.delete(listener); } },
 	} });
 	useApp.setState({ meta, notify: message => errors.push(message) });
-	useDock.setState({ open: kind => panes.push(kind) });
+	// Panels open in the screen the person is in; record which ones were asked for.
+	provideScope(() => id);
+	usePaneDock.setState({ open: (_scope, kind) => { panes.push(kind); return true; } });
 	useOpenFile.setState({ open: entry => new Promise<void>((resolve, reject) => files.push({ path: entry.path, resolve, reject })) });
 	useTraceFocus.setState({ sessionId: "", correlationId: "", nonce: 0 });
 	return { meta, reads, exports, files, panes, errors, listeners, restore() {
-		useApp.setState(app); useDock.setState(dock); useOpenFile.setState(file); useTraceFocus.setState(focus);
+		useApp.setState(app); usePaneDock.setState(dock); useOpenFile.setState(file); useTraceFocus.setState(focus); provideScope(() => null);
 		if (previousBridge) Object.defineProperty(window, "lyra", previousBridge); else Reflect.deleteProperty(window, "lyra");
 	} };
 }

@@ -1,268 +1,222 @@
 /**
- * The dock: every pane in the window except the navigation, arranged by the tree.
+ * One conversation's screen: its transcript and the panels it has open, arranged by its own tree.
+ *
+ * Every screen is drawn by this — a single screen is a split of one. There is no window-level dock
+ * any more: a panel belongs to the conversation it was opened for, sits inside that conversation's
+ * screen at the screen's full height, and goes wherever the conversation goes. The screen's title
+ * bar (`header`) covers the transcript only, never a panel beside it. See
+ * `docs/adr/0023-containers-belong-to-sessions.md` for the two-layer arrangement this replaced.
  *
  * Two rules hold this together, and both exist to keep a pane's contents alive across a
  * rearrangement — a terminal's shell, a page in the browser, an editor's undo history.
  *
- * **One flat list of panes, positioned absolutely.** Never a recursive render of the tree; see
- * the note at the top of `layout.ts`.
+ * **One flat list of panes, positioned absolutely.** Never a recursive render of the tree; see the
+ * note at the top of `layout.ts`.
  *
- * **One DOM shape for both window sizes.** The narrow form is the same panes, each laid over the
- * whole dock with all but one hidden — not a different component. A layout that swaps its
- * structure at a breakpoint unmounts everything inside it, which is how this app has previously
- * shipped a transition that was a hard cut, and how it would now ship a terminal that dies when
- * you make the window small.
- *
- * Conversation tiling is a second tree, painted *inside* the conversation leaf. Opening a
- * terminal or dragging a files pane still mutates this tree. `fitTree` already knows how to
- * keep every floor, including a conversation cell that has grown to 2×2.
+ * **One DOM shape for every window size.** The narrow form is the same panes, each laid over the
+ * whole screen with all but one hidden — not a different component. A layout that swaps its
+ * structure at a breakpoint unmounts everything inside it.
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 
-import { useLayout, useSidebarFit } from "../../app/layout.tsx";
-import { freezeMotion } from "../../ui/motion/freeze.ts";
+import { useLayout } from "../../app/layout.tsx";
 import { toolbarReserved } from "../../app/window/WindowControls.tsx";
+import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
-import { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
+import { companionOf, renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
 import { pct } from "./css.ts";
 import { HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
 import { DockPane } from "./DockPane.tsx";
+import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
 import { popOutPanel } from "./popout.ts";
-import { readDockAt } from "./persist.ts";
-import { useDock } from "./store.ts";
+import { emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
+import type { DockDragHost } from "./drag-host.ts";
 import type { PanelKind } from "./sideStore.ts";
 import type { PaneKind } from "./tree.ts";
 import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
 import { useDockDrag } from "./useDockDrag.ts";
-import { leafCount, subtreeMinPx, useSplit } from "../split/index.ts";
 
 const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
 
+/** Room this screen has to leave at its corners of the window, for what the system draws there. */
+export interface ScreenInsets {
+	/** The traffic lights and the sidebar toggle, when this screen holds the window's top-left. */
+	start: number;
+	/** Windows and Linux caption buttons, when this screen holds the window's top-right. */
+	end: number;
+}
+
 /**
- * How far a pane's title must start in when it is the one holding the window's top-left corner.
+ * How far a pane's title must start in when it holds the window's top-left corner.
  *
  * What it has to leave clear is whatever the system drew there *and* the sidebar toggle beside it.
- * `toolbarReserved` is measured from the window's edge; a pane at the left edge is flush with it,
- * so what stands between the two is the card's border and the header's own padding — subtract
- * those and what is left is the extra the header has to add.
- *
- * The toggle used not to be counted, and with the sidebar closed it is the only way back — so the
- * pane in that corner drew its title over the one control that would have undone the thing that
- * put it there.
+ * `toolbarReserved` is measured from the window's edge; a pane at the left edge is flush with it, so
+ * what stands between the two is the header's own padding — subtract that and what is left is the
+ * extra the header has to add. The toggle used not to be counted, and with the sidebar closed it is
+ * the only way back.
  */
 export function cornerReserved(start: number): number {
 	return toolbarReserved(start) - HEADER_PAD - 1;
 }
 
 /**
- * Which pane, if any, has to make room for what is drawn over the window's top-left corner.
+ * How much the screen at the window's top-left must reserve.
  *
- * Split out of the component because it is the whole of a rule that was wrong in one case and
- * could not be tested where it was — see `test/ui/dock-corner.test.ts`.
- *
- * With the sidebar open the answer is none: the sidebar covers that corner and draws the inset
- * itself. Closed, the corner belongs to whichever pane is drawn at the very top-left, and only
- * that one.
- *
- * **Native full screen does not excuse anything.** It used to: the reasoning was that macOS takes
- * the traffic lights away in full screen, so the corner is free. The lights are not the only thing
- * up there — the sidebar toggle is this app's own button, it stays through full screen, and with
- * the sidebar closed it is the only way back. Excused, the pane at the origin drew its title strip
- * from x=0 and the toggle landed on top of it: the terminal's first tab was unreadable and the
- * button underneath looked like it had gone. What full screen changes is only *how much* room is
- * needed, and that is already handled — `titlebarInsets` drops `start` from 78 to 12, so
- * `cornerReserved` asks for the toggle's width and nothing more.
+ * Nothing while the sidebar is open — it covers that corner and draws the toggle itself — and
+ * nothing on Windows and Linux, whose header band takes both ends of the window once for everyone.
+ * **Native full screen does not excuse it**: full screen takes the traffic lights away, not the
+ * toggle, which stays and is the only way back with the sidebar closed. What full screen changes is
+ * how much — `titlebarInsets` drops `start` from 78 to 12.
  */
-export function cornerPane({
-	headerBar,
-	navOpen,
-	compact,
-	focusedPane,
-	origin,
-}: {
-	/**
-	 * Windows 和 Linux 顶上那条 header。
-	 *
-	 * 有它的时候没有任何面板需要让位：窗口的两端都收进那条带子里了，面板整体从它底下开始，根本
-	 * 碰不到窗口的顶行。这是它值那 44px 的地方——让位是每个面板各让各的，一条 header 是让一次。
-	 */
-	headerBar: boolean;
-	navOpen: boolean;
-	compact: boolean;
-	/**
-	 * The narrow layout shows one pane over the whole dock, so that pane is the corner — always,
-	 * rather than only when it happens to be laid out at the origin. It used to be excluded on the
-	 * assumption that the sidebar covers the corner, which is true at every width except this one:
-	 * here the sidebar is a drawer over the window, and with it closed the pane's own title started
-	 * underneath the buttons the system paints there.
-	 */
-	focusedPane: PaneKind | null;
-	/** The pane actually drawn at the origin, which full screen changes without touching the tree. */
-	origin: PaneKind | null;
-}): PaneKind | null {
-	if (headerBar || navOpen) return null;
-	return compact ? focusedPane : origin;
+export function startInset({ headerBar, navOpen, start }: { headerBar: boolean; navOpen: boolean; start: number }): number {
+	return headerBar || navOpen ? 0 : cornerReserved(start);
 }
 
-export function DockView({
-	title,
-	icon,
-	actions,
-	solo,
-	renderConversation,
+/**
+ * Which pane of a screen is drawn at a corner — the one that has to make room there.
+ *
+ * Asked of where panes are *drawn*, not of where the tree keeps them: full screen moves a pane to
+ * the origin without touching the tree. The narrow layout shows one pane over the whole screen, so
+ * that pane is every corner.
+ */
+export function paneAtCorner({
+	compact,
+	focusedPane,
+	boxes,
+	corner,
 }: {
-	/** The conversation's title, which is the session's rather than a fixed word. */
-	title: string;
-	icon?: React.ReactNode;
-	/** The window's panel controls, which ride on the conversation's own title bar. */
-	actions?: React.ReactNode;
-	/**
-	 * Show the main pane by itself, whatever else is open.
-	 *
-	 * For the screens that are not a conversation in a project — the pull request list, the
-	 * schedule, the plugin catalogue. A file tree and a terminal beside a list of someone else's
-	 * branches are not merely unhelpful, they are about a different place entirely: the repository
-	 * in the tree is not the repository being reviewed.
-	 *
-	 * Hidden rather than closed, and the tree is left alone. The panes come back exactly as they
-	 * were the moment the conversation does.
-	 */
-	solo?: boolean;
-	renderConversation: () => React.ReactNode;
-}) {
-	const tree = useDock((s) => s.tree);
-	const focusedPane = useDock((s) => s.focused);
-	const maximized = useDock((s) => s.maximized);
-	const screens = useSplit((s) => leafCount(s.tree));
-	const convW = useSplit((s) => subtreeMinPx(s.tree, "row"));
-	const convH = useSplit((s) => subtreeMinPx(s.tree, "col"));
-	const { compact, navOpen, headerBar, titlebar, width: windowWidth } = useLayout();
-	const { drawn: sidebarDrawn } = useSidebarFit();
-	const definitions = usePanelDefinitions();
+	compact: boolean;
+	focusedPane: PaneKind;
+	boxes: (Box & { kind: PaneKind })[];
+	corner: "start" | "end";
+}): PaneKind | null {
+	if (compact) return focusedPane;
+	const hit = boxes.find((box) =>
+		corner === "start" ? box.left <= 1e-6 && box.top <= 1e-6 : box.top <= 1e-6 && Math.abs(box.left + box.width - 1) < 0.001,
+	);
+	return hit?.kind ?? null;
+}
 
+/*
+ * Adopting a layout is not a movement, so it does not animate — and several screens may adopt in
+ * the same frame. Counted, so one screen finishing does not lift the flag under another.
+ */
+let settling = 0;
+function settle(): () => void {
+	const thaw = freezeMotion();
+	settling++;
+	document.documentElement.dataset.dockSettling = "";
+	let done = false;
+	return () => {
+		if (done) return;
+		done = true;
+		thaw();
+		settling--;
+		if (settling === 0) delete document.documentElement.dataset.dockSettling;
+	};
+}
+
+const sessionOf = (scope: string): string | null => (scope === "@draft" ? null : scope);
+
+/** A screen that holds neither corner of the window reserves nothing. */
+const NO_INSETS: ScreenInsets = { start: 0, end: 0 };
+
+export function DockView({
+	scope,
+	header,
+	insets = NO_INSETS,
+	children,
+}: {
+	/** The conversation this screen shows — its session id, or `@draft` for the blank one. */
+	scope: string;
+	/** The conversation's own title bar, given the insets it owes the window's corners. */
+	header: (insets: ScreenInsets) => ReactNode;
+	insets?: ScreenInsets;
+	/** The transcript and composer. */
+	children: ReactNode;
+}) {
+	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
+	const maximized = usePaneDock((s) => s.maximized[scope] ?? null);
+	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
+	const { compact } = useLayout();
+	const definitions = usePanelDefinitions();
 	const containerRef = useRef<HTMLDivElement>(null);
-	const { carried, start, landed } = useDockDrag(containerRef);
-	const expectedDockWidth = compact ? windowWidth : navOpen ? Math.max(0, windowWidth - sidebarDrawn) : windowWidth;
-	const size = useBoxSize(containerRef, expectedDockWidth);
-	useLayoutEffect(() => {
-		useDock.setState({ viewport: size ? { ...size, conversation: { width: convW, height: convH }, compact } : null });
-		return () => { useDock.setState({ viewport: null }); };
-	}, [size, convW, convH, compact]);
+	const host = useMemo<DockDragHost>(
+		() => ({
+			floor: paneFloor,
+			tree: () => usePaneDock.getState().tree(scope),
+			restore: () => usePaneDock.getState().restore(scope),
+			beginDrag: (drag) => usePaneDock.getState().beginDrag(scope, drag),
+			preview: (rest, kind, at) => usePaneDock.getState().preview(scope, rest, kind, at),
+			dragTo: (pointer, at) => usePaneDock.getState().dragTo(pointer, at),
+			endDrag: (cancelled) => usePaneDock.getState().endDrag(cancelled),
+			currentDrag: () => {
+				const drag = usePaneDock.getState().drag;
+				return drag?.scope === scope ? drag : null;
+			},
+		}),
+		[scope],
+	);
+	const { carried, start, landed } = useDockDrag(containerRef, host);
+	const size = useBoxSize(containerRef);
 
 	/*
-	 * Point the dock at the project, which loads that project's saved layout.
+	 * Read this conversation's layout back — in a layout effect, because reading storage is
+	 * synchronous and an ordinary effect would paint the default layout for a frame first, the panes
+	 * then snapping into place.
 	 *
-	 * A *layout* effect, not an ordinary one, and that is a visible difference rather than a
-	 * stylistic preference. An ordinary effect runs after the browser has painted, so the first
-	 * frame of every launch showed the default layout and the second showed the saved one — the
-	 * panes you arranged appearing to snap into place a frame after the window opened. Reading
-	 * storage is synchronous, so there is nothing to wait for and no reason to paint first.
-	 *
-	 * Keyed on the path alone. `definitions` is rebuilt on every render, so depending on it would
-	 * run this constantly — it is read through a ref instead, and only its contents matter here
-	 * (which kinds are loadable), never its identity.
+	 * `definitions` is rebuilt on every render, so it is read through a ref: only its contents
+	 * (which kinds are loadable) matter here, never its identity.
 	 */
 	const allowed = useRef<PaneKind[]>([]);
 	allowed.current = ["conversation", ...definitions.filter((def) => !def.ephemeral).map((def) => def.kind)];
-	const session = useApp((s) => s.activeSessionId);
+	const previousScope = useRef<string | null>(null);
 	useLayoutEffect(() => {
-		/*
-		 * Adopting a layout is not a movement, so it does not animate.
-		 *
-		 * The panes animate between arrangements because one arrangement became another and the
-		 * eye should be able to follow it. Loading a stored layout is not that: nothing moved, this
-		 * is simply where things are. Left to transition it read as the window assembling itself —
-		 * every launch began with the default layout and slid into the saved one, and every switch
-		 * between conversations slid from the last one's arrangement into this one's, as though the
-		 * panes had travelled between two unrelated places.
-		 *
-		 * Tiled screens share one conversation slot. Swapping the dock for the focused chat would
-		 * close a terminal the user opened beside the grid the moment the incoming pane took focus.
-		 *
-		 * 但「切换焦点」和「这个窗口头一次装载」是两回事，而这一行从前把两者一起挡了：分屏状态
-		 * 下刷新，没有任何一次 `adopt` 跑过，dock 就永远停在默认树上——盘上那份布局好端端存着，
-		 * 存了，没读。
-		 *
-		 * 分开两者的是 `scope` 而不是 `adopted`：刷新之后第一次跑到这里时 `activeSessionId`
-		 * 还是 null，`adopt(null)` 会把 `adopted` 置真却把 `scope` 留在 null——拿 `adopted`
-		 * 当判据，接下来那次真正带着会话的 adopt 照样被挡在外面。`scope` 指向一个真实会话，
-		 * 才说明这个窗口已经认过布局，此后的变化才是焦点在屏之间移动。
-		 */
-		if (screens > 1 && useDock.getState().scope) return;
-		/*
-		 * 分屏状态下刷新：该认哪把钥匙，盘上记着。
-		 *
-		 * 上一段说的是「分屏时不跟着焦点换布局」，而刷新恰好把那个决定抹掉了——`scope` 回到
-		 * null，这一行于是不再早退，拿着焦点那一屏的会话 id 去 adopt。进入分屏之前开好的
-		 * 浏览器属于**进入分屏时那个会话**，读焦点那一屏的钥匙只会读到空的，面板就没了。
-		 * 实测：刷新前两屏带浏览器，刷新后两屏、面板 [无]，而盘上只有一把 `dw:dock:9da154cc`。
-		 *
-		 * 只在分屏且还没认过布局时读它。单屏不读——那里「当前会话」就是答案，每会话布局
-		 * 正是它该有的样子。
-		 */
-		const at = screens > 1 && !useDock.getState().scope ? readDockAt() ?? session : session;
-		const settled = freezeMotion();
-		document.documentElement.dataset.dockSettling = "";
-		useDock.getState().adopt(at, allowed.current);
+		const from = previousScope.current;
+		previousScope.current = scope;
+		const settled = settle();
+		// Only a blank conversation that has just been *sent* keeps its panes under the new id — see
+		// `draftBecame`. Clicking an existing conversation from a blank one looks the same here.
+		const sent = from === "@draft" && scope !== "@draft" && useApp.getState().draftBecame === scope;
+		usePaneDock.getState().hydrate(scope, allowed.current, sent ? { draftFrom: "@draft" } : undefined);
 		const frame = requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				settled();
-				delete document.documentElement.dataset.dockSettling;
-			});
+			requestAnimationFrame(settled);
 		});
 		return () => {
 			cancelAnimationFrame(frame);
 			settled();
 		};
-	}, [session, screens]);
+	}, [scope]);
+
+	useLayoutEffect(() => {
+		if (size) usePaneDock.getState().rememberSize(scope, size);
+	}, [scope, size]);
+	useEffect(() => () => usePaneDock.getState().forget(scope), [scope]);
 
 	/*
-	 * The tree as stored, and the tree as it should be drawn at this window size.
+	 * The tree as stored, and the tree as it should be drawn at this screen's size.
 	 *
-	 * `fitted` is the one everything here uses — the panes, the splitters, and the drag's hit test —
-	 * because it is what is on screen, and a handle that did not sit on the boundary it moves would
-	 * be unusable. `tree` keeps the shares that were actually dragged to, so widening the window
-	 * returns the layout to them rather than to whatever a narrow window forced.
+	 * `fitted` is what everything here uses — panes, splitters and the drag's hit test — because it
+	 * is what is on screen. `tree` keeps the shares that were actually dragged to, so a wider screen
+	 * returns the layout to them. A screen that cannot hold its floors draws them anyway, the first
+	 * pane in a row covered rather than reflowed; it never evicts a pane.
 	 */
-	const floorFor = (kind: PaneKind) => (kind === "conversation" ? { width: convW, height: convH } : paneFloor(kind));
-	/*
-	 * A dock that cannot hold its floors draws them anyway — it does not evict a pane.
-	 *
-	 * There used to be an overflow watcher here that handed the trailing panel to a real window
-	 * whenever `size` fell under what the tree needs. It fired on an ordinary window resize, and a
-	 * 980px window — the default — is already under the 720px a conversation plus one panel asks
-	 * for. Panels left for windows of their own that nothing brought back. `fitSizes` already has
-	 * the answer for a row that does not fit: the first pane keeps its own floor and the neighbour
-	 * covers the overhang. See `docs/architecture/split-window-conflicts.md` §6.
-	 */
-	const fitted = compact || !size ? tree : fitTree(tree, size, floorFor);
+	const fitted = compact || !size ? tree : fitTree(tree, size, paneFloor);
 	const laid = layoutPanes(fitted);
 
-	/*
-	 * Showing one pane by itself covers two cases with the same machinery: a maximised pane, and a
-	 * screen that is not a conversation at all. The second one outranks the first — leaving a
-	 * maximised terminal on screen over the plugin catalogue would be the same mistake twice.
-	 */
-	const solitary: typeof maximized = solo ? { panes: ["conversation"], ratio: 1, axis: "row" } : null;
-	const focus = compact ? null : (solitary ?? maximized);
+	const focus = compact ? null : maximized;
 	const stacked = Boolean(focus && focus.panes.length === 2 && (!size || size.width < PANEL_MIN_WIDTH_PX * 2));
-	/*
-	 * Tell the store which way it went.
-	 *
-	 * The decision is the renderer's — it is the only thing that knows how much room there is —
-	 * and the store needs it on the way out, to know whether the ratio it is holding describes the
-	 * same axis the panes are going back to.
-	 */
+	// The renderer decides which way a maximised pair goes; the store needs it on the way out.
 	useEffect(() => {
-		// Not for the solitary case, which is a screen standing alone rather than a pair with an axis.
-		if (maximized && !solo) useDock.getState().setMaximizedAxis(stacked ? "col" : "row");
-	}, [maximized, solo, stacked]);
+		if (maximized) usePaneDock.getState().setMaximizedAxis(scope, stacked ? "col" : "row");
+	}, [scope, maximized, stacked]);
 
 	const focusBox = (kind: PaneKind): Box | null => {
 		if (!focus) return null;
@@ -271,19 +225,12 @@ export function DockView({
 		if (focus.panes.length === 1) return WHOLE;
 		const share = at === 0 ? focus.ratio : 1 - focus.ratio;
 		const offset = at === 0 ? 0 : focus.ratio;
-		return stacked
-			? { left: 0, top: offset, width: 1, height: share }
-			: { left: offset, top: 0, width: share, height: 1 };
+		return stacked ? { left: 0, top: offset, width: 1, height: share } : { left: offset, top: 0, width: share, height: 1 };
 	};
 
 	const boxes = focus ? laid.filter((box) => focus.panes.includes(box.kind)) : laid;
 
-	/*
-	 * One boundary while full screen, none when a single pane fills it.
-	 *
-	 * Given the geometry of what is drawn and a `share` that already is the ratio, so the splitter
-	 * needs no special case: what it reports back is the new ratio.
-	 */
+	// One boundary while a pair is full screen, none when a single pane fills the screen.
 	const focusSeam: SplitterBox | null =
 		focus && focus.panes.length === 2
 			? {
@@ -300,22 +247,14 @@ export function DockView({
 				}
 			: null;
 
-	/**
-	 * Apply a boundary drag.
-	 *
-	 * While full screen the reported share *is* the ratio between the two panes on screen;
-	 * otherwise it names a boundary in the tree.
-	 *
-	 * Read from the store rather than from a variable captured above. A drag holds this callback
-	 * for its whole length, so a captured value is one from before the drag — and full screen is
-	 * exactly the case being distinguished. Getting that wrong sent every full-screen drag into
-	 * the other branch, where it moved a boundary that was not on screen: nothing appeared to
-	 * happen at all.
+	/*
+	 * Apply a boundary drag. Read from the store rather than from a variable captured above: a drag
+	 * holds this callback for its whole length, and full screen is exactly the case distinguished.
 	 */
 	const applyShare = (share: number, handle: SplitterBox) => {
-		const dock = useDock.getState();
-		if (dock.maximized) dock.setMaximizedRatio(share);
-		else dock.setShare(handle.path, handle.index, share);
+		const dock = usePaneDock.getState();
+		if (dock.maximized[scope]) dock.setMaximizedRatio(scope, share);
+		else dock.setShare(scope, handle.path, handle.index, share);
 	};
 
 	const splitters = compact ? [] : focus ? (focusSeam ? [focusSeam] : []) : layoutSplitters(fitted);
@@ -323,226 +262,131 @@ export function DockView({
 	/*
 	 * The order panes are *mounted* in, which is not the order they are laid out in.
 	 *
-	 * React keys stop a moved pane from being recreated, but they do not stop it being moved in
-	 * the DOM — and moving an <iframe> or a <webview> reloads it, which is the same loss by
-	 * another route. Appending new panes and never reordering means an existing pane's DOM node
-	 * is only ever removed, never relocated.
-	 *
-	 * Assigned during render and idempotent, so a double render under StrictMode produces the
-	 * same list rather than a duplicated one.
+	 * Moving an <iframe> or a <webview> in the DOM reloads it, so new panes are appended and an
+	 * existing pane's node is only ever removed, never relocated. The browser is always mounted,
+	 * hidden when closed: its pages keep running while the panel is put away, and opening it again
+	 * shows them without a reload. Assigned during render and idempotent.
 	 */
-	// A hidden browser also hosts wanted/background tabs when no conversation tile owns them.
 	const order = useRef<PaneKind[]>(["conversation", "browser"]);
-	// Fullscreen changes visibility, never ownership. Filtering by `boxes` here unmounted the
-	// transcript, terminal and thousands of task rows, then rebuilt them on every restore.
 	const present = laid.map((box) => box.kind);
-	/*
-	 * A carried pane is *not in the tree* — it has been lifted out, and the panes staying put have
-	 * closed over the space it left. It is still mounted, obviously: it is the thing in your hand.
-	 * Counting it as live keeps it in the mounting order too, so putting a terminal down does not
-	 * append it to the end of the list and relocate every DOM node after it.
-	 */
+	// A carried pane has been lifted out of the tree and is still the thing in your hand.
 	const live = carried && !present.includes(carried.kind) ? [...present, carried.kind] : present;
 	order.current = [
 		...order.current.filter((kind) => live.includes(kind) || kind === "browser"),
 		...live.filter((kind) => !order.current.includes(kind)),
 	];
 
-	const describe = (kind: PaneKind) => {
-		if (kind === "conversation") return { label: title, icon };
-		const def = definitions.find((entry) => entry.kind === kind);
-		return { label: def ? translate(def.label) : kind, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined };
-	};
-
-	/*
-	 * Which pane, if any, has to make room for what sits in the window's top-left corner.
-	 *
-	 * The rule itself is `cornerPane` above, where it can be tested. This is the part that has to
-	 * live here: working out which pane is *drawn* at the origin, which is not what the tree says.
-	 *
-	 * This is the whole of what used to be a delayed handover of the window's own buttons between
-	 * the toolbar and the panel — 220ms of it, timed to a slide. A pane either starts at the
-	 * origin or it does not.
-	 *
-	 * Asked of where the pane is *drawn*, not of where the tree keeps it. Full screen moves a pane
-	 * to the origin without touching the tree, and this used to read the tree — so maximising any
-	 * pane that was not already at the top-left (a browser on the right, a terminal at the bottom)
-	 * covered the corner with a pane that had reserved nothing, and its title, its tab strip and
-	 * the sidebar toggle beside them were drawn underneath the three buttons the system paints
-	 * there. `focusBox` is the same function the layout below uses, so the two cannot disagree.
-	 */
-	const at = (box: Box & { kind: PaneKind }) => focusBox(box.kind) ?? box;
-	const corner = cornerPane({
-		headerBar,
-		navOpen,
-		compact,
-		focusedPane,
-		origin: boxes.find((box) => at(box).left === 0 && at(box).top === 0)?.kind ?? null,
-	});
-
-	/*
-	 * And which pane has to make room for the buttons at the *other* end.
-	 *
-	 * Windows and Linux draw minimise/maximise/close over the top-right of the page, which is
-	 * where this app puts a pane's own controls — the panel menu on the conversation, full screen
-	 * and close on a panel. They were underneath the system's buttons: drawn, and impossible to
-	 * press, because the press went to the window rather than to the page.
-	 *
-	 * Unlike the left corner the sidebar can never cover this one, so it belongs to whichever pane
-	 * reaches the right edge on the top row — always. Zero on macOS, where the system puts nothing
-	 * there, which leaves every one of these lines a no-op.
-	 *
-	 * Off the drawn geometry for the same reason as the corner above: a maximised pane reaches both
-	 * edges whatever the tree says about it.
-	 */
-	const endCorner =
-		headerBar || titlebar.end === 0
-			? null
-			: compact
-				? focusedPane
-				: (boxes.find((box) => at(box).top === 0 && Math.abs(at(box).left + at(box).width - 1) < 0.001)?.kind ?? null);
-
-
+	const at = (box: Box & { kind: PaneKind }) => ({ ...box, ...focusBox(box.kind) });
+	const drawn = boxes.map(at);
+	const startCorner = insets.start > 0 ? paneAtCorner({ compact, focusedPane, boxes: drawn, corner: "start" }) : null;
+	const endCorner = insets.end > 0 ? paneAtCorner({ compact, focusedPane, boxes: drawn, corner: "end" }) : null;
+	const conversationLabel = translate("sidebar.chats");
 
 	return (
-		<div className="ly-dock relative flex min-h-0 min-w-0 flex-1 flex-col">
-			{/* Marked so the drop geometry can be measured from outside — see `e2e/dock.test.ts`. */}
-			<div ref={containerRef} data-dock-panes className="relative min-h-0 min-w-0 flex-1">
-				{splitters.map((handle) => (
-					<Splitter
-						/*
-						 * The full-screen boundary is its own component, never a reused one.
-						 *
-						 * It is a synthesised handle, not one from the tree, and its path happens to
-						 * collide with the dock's first real boundary — so React kept the old
-						 * instance alive across the switch, complete with the listeners and refs
-						 * belonging to a boundary that no longer exists. The drag simply never
-						 * started.
-						 */
-						key={focus ? "maximised-seam" : `${handle.path.join(".")}:${handle.index}`}
-						handle={handle}
-						containerRef={containerRef}
-						onResize={(share) => applyShare(share, handle)}
-						onEven={() => applyShare(0.5, handle)}
-					/>
-				))}
+		<DockScope.Provider value={scope}>
+			<div className="ly-dock relative flex min-h-0 min-w-0 flex-1 flex-col">
+				{/* Marked so the drop geometry can be measured from outside — see `e2e/dock.test.ts`. */}
+				<div ref={containerRef} data-dock-panes={scope} data-ly-pane-dock={scope} className="relative min-h-0 min-w-0 flex-1">
+					{splitters.map((handle) => (
+						<Splitter
+							// The full-screen boundary is its own component, never a reused one: its path
+							// collides with the first real boundary, and a reused instance keeps that one's
+							// listeners — the drag simply never started.
+							key={focus ? "maximised-seam" : `${handle.path.join(".")}:${handle.index}`}
+							handle={handle}
+							containerRef={containerRef}
+							onResize={(share) => applyShare(share, handle)}
+							onEven={() => applyShare(0.5, handle)}
+						/>
+					))}
 
-				{/*
-				 * Where the carried pane would land.
-				 *
-				 * The panes staying put have already rearranged to make room, which leaves that room
-				 * empty — the pane that belongs in it is in the air. Without this the gap reads as
-				 * nothing at all rather than as a destination, and the drag has no target: you can
-				 * see that the layout changed but not that it changed *for you*.
-				 *
-				 * Not while landing. By then the pane is on its way into the space and outlining it
-				 * as well would be saying the same thing twice, in two places, for a fifth of a second.
-				 */}
-				{carried &&
-					!carried.landing &&
-					(() => {
-						const target = boxes.find((box) => box.kind === carried.kind);
-						if (!target) return null;
+					{/*
+					 * Where the carried pane would land. The panes staying put have already made room;
+					 * this says the room is for you. Not while landing — the pane is on its way there.
+					 */}
+					{carried &&
+						!carried.landing &&
+						(() => {
+							const target = boxes.find((box) => box.kind === carried.kind);
+							if (!target) return null;
+							return (
+								<div
+									aria-hidden
+									data-dock-drop
+									className="ly-dock-drop pointer-events-none absolute"
+									style={{ left: pct(target.left), top: pct(target.top), width: pct(target.width), height: pct(target.height) }}
+								/>
+							);
+						})()}
+
+					{order.current.map((kind) => {
+						const placed = boxes.find((box) => box.kind === kind);
+						if (!placed && carried?.kind !== kind && !present.includes(kind) && kind !== "browser") return null;
+						const conversation = kind === "conversation";
+						const def = definitions.find((entry) => entry.kind === kind);
+						const label = conversation ? conversationLabel : def ? translate(def.label) : kind;
+						const icon = !conversation && def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined;
+						const box = compact ? WHOLE : (focusBox(kind) ?? laid.find((entry) => entry.kind === kind) ?? WHOLE);
+						const moving = carried?.kind === kind;
+						const draggable = !compact && live.length > 1;
+						const onDragStart = (event: React.PointerEvent<HTMLElement>) => start(kind, event);
+						const onMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveTo(scope, kind, { side, kind: null });
+						const onArrowMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveAlong(scope, kind, side);
+						const inset = startCorner === kind ? insets.start : 0;
+						const insetEnd = endCorner === kind ? insets.end : 0;
 						return (
-							<div
-								aria-hidden
-								data-dock-drop
-								className="ly-dock-drop pointer-events-none absolute"
-								style={{
-									left: pct(target.left),
-									top: pct(target.top),
-									width: pct(target.width),
-									height: pct(target.height),
-								}}
-							/>
+							<DockPane
+								key={kind}
+								kind={kind}
+								box={box}
+								label={label}
+								icon={icon}
+								maximized={Boolean(focus) && Boolean(placed)}
+								carried={moving ? carried.rect : null}
+								landing={moving && carried.landing}
+								/*
+								 * A pane in the air is never hidden, whatever the tree says: it has been
+								 * lifted out of the tree and is positioned against the window.
+								 */
+								hidden={compact ? kind !== focusedPane : !placed && !moving}
+								draggable={draggable}
+								onDragStart={onDragStart}
+								onMove={onMove}
+								onArrowMove={onArrowMove}
+								actions={conversation ? undefined : renderPanelActions(kind as PanelKind)}
+								title={conversation ? undefined : renderPanelHeader(kind as PanelKind)}
+								inset={inset}
+								insetEnd={insetEnd}
+								onToggleMaximized={
+									canToggleMaximized(kind, { compact, maximized })
+										? () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind)
+										: undefined
+								}
+								onClose={conversation ? undefined : () => usePaneDock.getState().close(scope, kind)}
+								onPopOut={
+									conversation || detachOf(kind) === "none"
+										? undefined
+										: () => void popOutPanel({ scope, kind: kind as PanelKind, sessionId: sessionOf(scope) })
+								}
+								onFocus={() => usePaneDock.getState().focus(scope, kind)}
+								onLanded={landed}
+								customHeader={
+									conversation ? (
+										<>
+											{header({ start: inset, end: insetEnd })}
+											{draggable && !maximized && (
+												<PaneGrip kind={kind} label={label} carried={moving} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />
+											)}
+										</>
+									) : undefined
+								}
+							>
+								{conversation ? children : renderPanel(kind as PanelKind)}
+							</DockPane>
 						);
-					})()}
-
-				{order.current.map((kind) => {
-					const placed = boxes.find((box) => box.kind === kind);
-					// Outside a full screen, or closed altogether. Kept mounted either way — hidden
-					// below — unless it is genuinely gone from the tree.
-					if (!placed && carried?.kind !== kind && !present.includes(kind) && kind !== "browser") return null;
-					const { label, icon } = describe(kind);
-					// Collapsed and maximised are the same geometry — the whole dock — which is why
-					// neither needs a second component or a second code path. A carried pane's box is
-					// ignored entirely; it is positioned against the window, not against the dock.
-					const box = compact ? WHOLE : (focusBox(kind) ?? laid.find((box) => box.kind === kind) ?? WHOLE);
-					return (
-						<DockPane
-							key={kind}
-							kind={kind}
-							box={box}
-							label={label}
-							icon={icon}
-							maximized={Boolean(focus) && Boolean(placed)}
-							carried={carried?.kind === kind ? carried.rect : null}
-							landing={carried?.kind === kind && carried.landing}
-							/*
-							 * A pane in the air is never hidden, whatever the tree says.
-							 *
-							 * While it is carried it has been lifted *out* of the tree, so it has no box
-							 * — and hiding panes with no box is right for every pane except this one.
-							 * The moment the pointer was somewhere that is not a drop target — past the
-							 * edge of the window, most obviously — the card being dragged vanished, and
-							 * came back only if the pointer wandered over a target again. It is
-							 * positioned against the window and follows the pointer; where the tree
-							 * would put it is not a question that has an answer yet.
-							 */
-							hidden={compact ? kind !== focusedPane : !placed && carried?.kind !== kind}
-							/*
-							 * No grip when there is nowhere to go.
-							 *
-							 * With one pane in the dock a drag cannot do anything — `useDockDrag` already
-							 * refuses to pick it up, because lifting the only pane leaves no layout to drop
-							 * it into. But the handle was drawn anyway, so a conversation on its own had a
-							 * control above it that does nothing when pressed, and appears whenever the
-							 * pointer is anywhere in the pane. `live` rather than `present` so it does not
-							 * vanish mid-drag, when the carried pane has been lifted out of the tree.
-							 */
-							draggable={!compact && live.length > 1}
-							onDragStart={(event) => start(kind, event)}
-							onMove={(side) => useDock.getState().moveTo(kind, { side, kind: null })}
-							onArrowMove={(side) => useDock.getState().moveAlong(kind, side)}
-							/*
-							 * The conversation carries the window's panel menu; a panel carries its own
-							 * controls. Both land left of full screen and close — see `PaneHeader`.
-							 */
-							actions={kind === "conversation" ? actions : renderPanelActions(kind)}
-							title={kind === "conversation" ? undefined : renderPanelHeader(kind)}
-							inset={corner === kind ? cornerReserved(titlebar.start) : 0}
-							insetEnd={endCorner === kind ? titlebar.end : 0}
-							chrome={kind !== "conversation" || screens <= 1}
-							// Absent where full screen is not on offer, which is what hides the button —
-							// see `canToggleMaximized` for the rule and the bug it was written for.
-							onToggleMaximized={
-								canToggleMaximized(kind, { compact, maximized })
-									? () =>
-											useDock
-												.getState()
-												.toggleMaximized(kind, definitions.find((def) => def.kind === kind)?.companion?.kind)
-									: undefined
-							}
-							onClose={kind === "conversation" ? undefined : () => useDock.getState().close(kind)}
-							onPopOut={
-								kind === "conversation" || detachOf(kind as PanelKind) === "none"
-									? undefined
-									: () =>
-											void popOutPanel({
-												dock: "window",
-												scope: "window",
-												kind: kind as PanelKind,
-												sessionId: useApp.getState().activeSessionId,
-											})
-							}
-							onFocus={() => useDock.getState().focus(kind)}
-							onLanded={landed}
-						>
-							{kind === "conversation" ? renderConversation() : renderPanel(kind)}
-						</DockPane>
-					);
-				})}
+					})}
+				</div>
 			</div>
-		</div>
+		</DockScope.Provider>
 	);
 }
