@@ -15,14 +15,27 @@
  */
 
 import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 import { startApp, type RunningApp } from "./app.ts";
 
 let app: RunningApp;
 
+/*
+ * 主题钉成深色，其余全用出厂值。
+ *
+ * 出厂默认是跟随系统，而浅色主题的外壳本来就是 `#FFFFFF`——和样式表没到时的默认白一模一样。
+ * 不钉的话，下面「不是默认白」那句在浅色系统上必红、在深色系统上必绿，量的是跑它那台机器的系统
+ * 外观，而不是样式表。
+ */
+async function seed(home: string): Promise<void> {
+	await writeFile(join(home, "settings.json"), JSON.stringify({ appearance: { theme: "dark" } }));
+}
+
 before(async () => {
-	app = await startApp({ port: 9477 });
+	app = await startApp({ port: 9477, seed });
 });
 
 after(async () => {

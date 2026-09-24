@@ -214,6 +214,17 @@ test("一行 spawns 让第二层真的发生，面板画出树、算出账、并
 	 */
 	assert.equal(seen.rows[0][3], "3.0k · $0.01", "根节点是整个分支：2480 + 520");
 	assert.equal(seen.rows[1][3], "520 · <$0.01");
-	assert.ok(seen.totals.includes("本次编排 · 2 个子 Agent · 3.0k · $0.01"), `合计行：${JSON.stringify(seen.totals)}`);
-	assert.match(seen.bar ?? "", /2 个子 Agent 已结束[\s\S]*3\.0k · \$0\.01/, "状态条上也有合计——那是跑的时候大家都看着的一行");
+	/*
+	 * 整批的合计不在树的末行，也不在状态条上。
+	 *
+	 * 这里曾经反着断言：两处都要挂一行「本次编排合计」，作为铺开子代理的刹车。刹车装错了地方——
+	 * 子代理烧的 token 现在直接进这一轮的总数，运行指示器上那个一直在爬的数字就是账单（理由写在
+	 * `SubAgentBar.tsx` 那段注释里）。同一笔钱在屏幕上写三遍，口径但凡差一点就没人知道该信哪个。
+	 * 每行自己的花销留着（上面两条），那个回答的是另一个问题：这几个里哪个贵。
+	 *
+	 * 反过来守，和 `test/ui/subagent-bar.test.ts` 同一个理由：「再加回去」是个太自然的念头。
+	 */
+	assert.deepEqual(seen.totals, [], `整批合计不该再出现：${JSON.stringify(seen.totals)}`);
+	assert.match(seen.bar ?? "", /2 个子 Agent 已结束/, "状态条说的是这一批怎么样了");
+	assert.ok(!(seen.bar ?? "").includes("3.0k"), `状态条上不该再挂整批的账：${seen.bar}`);
 });
