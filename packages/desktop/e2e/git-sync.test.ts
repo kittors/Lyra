@@ -99,13 +99,22 @@ interface Panel {
 	state: string;
 	/** The branch line as drawn: name, then whatever follows it. */
 	branch: string;
-	/** The empty state's sentence, and the button under it. */
+	/**
+	 * The empty state's sentence.
+	 *
+	 * It used to have a button under it as well, repeating the sync row's next step. That button is
+	 * gone — the sync row carries the step, and its push control opens the commit dialog — so the
+	 * actions below go through those, the way a person's do.
+	 */
 	body: string;
-	action: string | null;
 	/** How much room the row has, which decides between the icon and the spelled-out form. */
 	rowWidth: number;
-	/** Each sync control: its accessible name, whether it is disabled, its badge, and its text. */
-	buttons: { label: string; disabled: boolean; badge: string | null; text: string }[];
+	/**
+	 * Each sync control: its accessible name, whether it is disabled, its badge, its text, and
+	 * whether it is the push control — told apart by the handle it carries, not by its name, which
+	 * is whatever the repository's state makes it.
+	 */
+	buttons: { label: string; disabled: boolean; badge: string | null; text: string; push: boolean }[];
 }
 
 /** Read the panel, after giving it a moment to have re-read the repository. */
@@ -121,7 +130,6 @@ async function panel(settleMs = 700): Promise<Panel> {
 			branch: row.dataset.lyBranch,
 			rowWidth: Math.round(row.clientWidth),
 			body: (block?.querySelector("p")?.textContent ?? "").trim(),
-			action: (block?.querySelector("button")?.textContent ?? "").trim() || null,
 			buttons: [...row.querySelectorAll("button")].map((b) => ({
 				label: b.getAttribute("aria-label") ?? "",
 				disabled: b.disabled,
@@ -129,6 +137,7 @@ async function panel(settleMs = 700): Promise<Panel> {
 				// the narrow form and part of 「推送 1」 in the wide one.
 				badge: b.dataset.lyCount ?? null,
 				text: (b.textContent ?? "").trim(),
+				push: Boolean(b.closest('[data-ly-sync="push"]')),
 			})),
 		};
 	})()`);
@@ -145,13 +154,55 @@ async function pressRefresh(): Promise<void> {
 	})()`);
 }
 
-/** Press the empty state's primary button and wait for the panel to settle. */
-async function pressAction(): Promise<void> {
-	await app.evaluate(`(async () => {
-		const heading = [...document.querySelectorAll("h2")].find((h) => h.textContent.includes("工作区"));
-		const button = heading?.parentElement?.querySelector("button");
-		if (!button) throw new Error("the empty state has no action button");
-		button.click();
+/**
+ * Open the commit dialog from the sync row, and read its rows.
+ *
+ * That is where pushing happens now: the row's push control opens the dialog rather than pushing.
+ * `close` puts it away again in the same evaluation, so a test that only looks leaves nothing open
+ * for the one after it.
+ */
+async function pushDialog({ close }: { close: boolean }): Promise<{ label: string; disabled: boolean }[]> {
+	return app.evaluate(`(async () => {
+		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+		const mark = document.querySelector("[data-ly-sync]")?.querySelector('[data-ly-sync="push"]');
+		if (!mark) throw new Error("no push control in the sync row");
+		(mark.matches("button") ? mark : mark.querySelector("button")).click();
+		let dialog = null;
+		for (let i = 0; i < 40 && !dialog; i++) {
+			await wait(50);
+			dialog = document.querySelector("[data-ly-commit-dialog]");
+		}
+		if (!dialog) throw new Error("the push control did not open the commit dialog");
+		const rows = [...dialog.querySelectorAll("button")].map((b) => ({ label: (b.textContent ?? "").trim(), disabled: b.disabled }));
+		if (${close}) {
+			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+			for (let i = 0; i < 40 && document.querySelector("[data-ly-commit-dialog]"); i++) await wait(50);
+		}
+		return rows;
+	})()`);
+}
+
+/** Open the commit dialog and press the row that starts with `label`. */
+async function pressInPushDialog(label: string): Promise<void> {
+	await pushDialog({ close: false });
+	await app.evaluate(`(() => {
+		const label = ${JSON.stringify(label)};
+		const dialog = document.querySelector("[data-ly-commit-dialog]");
+		const row = [...dialog.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim().startsWith(label));
+		if (!row) throw new Error("the commit dialog has no row for " + label);
+		if (row.disabled) throw new Error("the commit dialog's row for " + label + " is disabled");
+		row.click();
+		return true;
+	})()`);
+}
+
+/** Press the sync row's pull control, which still acts straight away. */
+async function pressPull(): Promise<void> {
+	await app.evaluate(`(() => {
+		const row = document.querySelector("[data-ly-sync]");
+		const pull = [...row.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "").includes("拉取"));
+		if (!pull) throw new Error("no pull button in the sync row");
+		pull.click();
 		return true;
 	})()`);
 }
@@ -163,11 +214,10 @@ test("a branch that has never been pushed says so, and offers to publish it", as
 	assert.equal(view.state, "no-upstream");
 	assert.equal(view.branch, "main · 未跟踪远端");
 	/*
-	 * The whole point. This used to read 「没有未提交的改动。」 with no button, over a commit that
-	 * existed nowhere else.
+	 * The whole point. This used to read 「没有未提交的改动。」 over a commit that existed nowhere
+	 * else.
 	 */
 	assert.equal(view.body, "这个分支还没有发布到 origin");
-	assert.equal(view.action, "发布分支");
 
 	const pull = view.buttons.find((b) => b.label.includes("上游"));
 	assert.ok(pull, `no disabled pull button among ${JSON.stringify(view.buttons.map((b) => b.label))}`);
@@ -179,16 +229,29 @@ test("a branch that has never been pushed says so, and offers to publish it", as
 	assert.ok(push, "push should offer to publish");
 	assert.equal(push.disabled, false);
 	assert.equal(push.badge, null, "no number: 「发布过没有」 is a yes-or-no question");
+
+	/*
+	 * And the offer holds up once it is taken. The push control opens the commit dialog, and with a
+	 * clean tree the push row is the only thing in it worth pressing — which, for a branch the
+	 * remote has never seen, read 「推送」 and stayed grey: it was enabled by a count of unpushed
+	 * commits, and 「发布过没有」 has no count. The button said 发布 and nothing behind it could.
+	 */
+	const rows = await pushDialog({ close: true });
+	const publish = rows.find((row) => row.label === "发布分支");
+	assert.ok(publish, `the commit dialog does not offer to publish: ${JSON.stringify(rows)}`);
+	assert.equal(publish.disabled, false, "publishing is the one thing left to do here, so it cannot be greyed out");
 });
 
 test("publishing it works, and the panel notices with no file having changed", async () => {
-	await pressAction();
+	await pressInPushDialog("发布分支");
 	const view = await panel(2500);
 
 	assert.equal(view.state, "tracking", "the branch has an upstream now");
 	assert.equal(view.branch, "main · origin/main");
 	assert.equal(view.body, "没有未提交的改动。");
-	assert.equal(view.action, null, "nothing left to do");
+	for (const button of view.buttons) {
+		assert.equal(button.badge, null, `nothing left to do, yet ${button.label} carries a badge`);
+	}
 
 	// The commit really is on the remote, not merely reported as sent.
 	const refs = await git(project, "ls-remote", remote);
@@ -205,7 +268,6 @@ test("a new commit shows up as unpushed, with the count on the button", async ()
 	const view = await panel(2500);
 	assert.equal(view.state, "tracking");
 	assert.equal(view.body, "1 个提交尚未推送到 origin/main");
-	assert.equal(view.action, "推送");
 
 	const push = view.buttons.find((b) => (b.label ?? "").includes("推送到"));
 	assert.ok(push, `no push button among ${JSON.stringify(view.buttons.map((b) => b.label))}`);
@@ -227,11 +289,10 @@ test("a new commit shows up as unpushed, with the count on the button", async ()
 });
 
 test("pressing 推送 sends it and the row goes quiet", async () => {
-	await pressAction();
+	await pressInPushDialog("推送");
 	const view = await panel(2500);
 
 	assert.equal(view.body, "没有未提交的改动。");
-	assert.equal(view.action, null);
 	for (const button of view.buttons) {
 		assert.equal(button.badge, null, `${button.label} still carries a badge`);
 	}
@@ -259,7 +320,6 @@ test("刷新 asks the remote, so 「落后」 can appear at all", async () => {
 	const view = await panel(3000);
 
 	assert.equal(view.body, "远端领先 1 个提交");
-	assert.equal(view.action, "拉取");
 	const pull = view.buttons.find((b) => (b.label ?? "").includes("拉取"));
 	assert.ok(pull, `no pull button among ${JSON.stringify(view.buttons.map((b) => b.label))}`);
 	assert.equal(pull.badge, "1");
@@ -267,42 +327,52 @@ test("刷新 asks the remote, so 「落后」 can appear at all", async () => {
 });
 
 test("拉取 brings it down and the row goes quiet again", async () => {
-	await pressAction();
+	await pressPull();
 	const view = await panel(2500);
 	assert.equal(view.body, "没有未提交的改动。");
-	assert.equal(view.action, null);
+	for (const button of view.buttons) {
+		assert.equal(button.badge, null, `${button.label} still carries a badge`);
+	}
 
 	const log = await git(project, "log", "--oneline");
 	assert.match(log, /third/, `the pull did not land:\n${log}`);
 });
 
 test("a failure is explained in words, not in the command that failed", async () => {
-	// Point the remote at nothing, then give it something to push.
-	await git(project, "remote", "set-url", "origin", join(project, "..", "gone.git"));
+	// Something to push, seen by the panel while the remote still answers.
 	await writeFile(join(project, "four.txt"), "four\n");
 	await git(project, "add", ".");
 	await git(project, "commit", "-qm", "fourth");
 	await pressRefresh();
 	await panel(1500);
-
-	await pressAction();
-	const message = await app.evaluate<string>(`(async () => {
-		await new Promise((r) => setTimeout(r, 2500));
-		const bar = document.querySelector("[class*=border-danger]");
-		return (bar?.textContent ?? "").trim();
-	})()`);
-
 	/*
-	 * Not 「Command failed: git push」 and not three lines of git's own advice block. The mapping is
-	 * in `git-errors.ts`; this is the check that the panel is actually going through it.
+	 * Only then point the remote at nothing. Before the refresh, the refresh's own fetch fails first
+	 * on the same missing remote and raises the same sentence — and a repeated message is folded into
+	 * the first toast with a count, so the push's failure showed up only as 「×2」 on a toast it did
+	 * not raise. Whether *the push* is explained would then be exactly the thing not being read.
 	 */
-	assert.equal(message, "远端仓库不存在，或没有访问权限。");
+	await git(project, "remote", "set-url", "origin", join(project, "..", "gone.git"));
 
-	// Put it back so the last test starts from a working repository.
-	await git(project, "remote", "set-url", "origin", remote);
+	try {
+		await pressInPushDialog("推送");
+		const message = await app.evaluate<string>(`(async () => {
+			await new Promise((r) => setTimeout(r, 2500));
+			const bar = document.querySelector("[class*=border-danger]");
+			return (bar?.textContent ?? "").trim();
+		})()`);
+
+		/*
+		 * Not 「Command failed: git push」 and not three lines of git's own advice block. The mapping
+		 * is in `git-errors.ts`; this is the check that the panel is actually going through it.
+		 */
+		assert.equal(message, "远端仓库不存在，或没有访问权限。");
+	} finally {
+		// Put it back so the last test starts from a working repository — whether or not this one passed.
+		await git(project, "remote", "set-url", "origin", remote);
+	}
 });
 
-test("a detached HEAD disables both, and says why on each", async () => {
+test("a detached HEAD disables pulling and pushing, and says why on each", async () => {
 	await git(project, "checkout", "-q", "--detach", "HEAD");
 	await pressRefresh();
 
@@ -314,12 +384,22 @@ test("a detached HEAD disables both, and says why on each", async () => {
 	 */
 	assert.match(view.branch, /^游离 HEAD · [0-9a-f]{7,}$/);
 	assert.equal(view.body, "当前不在任何分支上。");
-	assert.equal(view.action, null);
 
 	const sync = view.buttons.filter((b) => !b.label.includes("刷新"));
 	assert.equal(sync.length, 2);
-	for (const button of sync) {
-		assert.equal(button.disabled, true, `${button.label} should be disabled`);
-		assert.match(button.label, /当前不在任何分支上/);
-	}
+	for (const button of sync) assert.match(button.label, /当前不在任何分支上/);
+
+	const pull = sync.find((b) => !b.push);
+	assert.ok(pull, `no pull control among ${JSON.stringify(sync)}`);
+	assert.equal(pull.disabled, true, `${pull.label} should be disabled`);
+
+	/*
+	 * The push control itself stays pressable, and that is not a slip: it is also the only way into
+	 * the commit dialog, and a checkout with nowhere to push — no branch, no remote — can still
+	 * commit. What cannot happen here is the push, so that is what is disabled: the dialog's push row.
+	 */
+	const rows = await pushDialog({ close: true });
+	const push = rows.find((row) => row.label.startsWith("推送") || row.label.startsWith("发布"));
+	assert.ok(push, `no push row in the commit dialog: ${JSON.stringify(rows)}`);
+	assert.equal(push.disabled, true, "there is no branch to push");
 });
