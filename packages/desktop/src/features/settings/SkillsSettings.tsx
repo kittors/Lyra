@@ -1,5 +1,5 @@
 import type { Skill, SkillCandidate } from "@lyra/core";
-import { Check, Sparkles, TriangleAlert, X } from "lucide-react";
+import { Check, Sparkles, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
@@ -8,7 +8,7 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SkillMark } from "./PluginIcon.tsx";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
-import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
+import { Badge, Card, EmptyHint, GhostButton, ListRow, PrimaryButton } from "./controls.tsx";
 import { DiffView } from "../git/index.ts";
 import { ShadowedList } from "./ShadowedList.tsx";
 import { bridge } from "../../services/index.ts";
@@ -108,36 +108,28 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 								{candidate.scope === "portable" ? t("skills.reusable") : t("skills.candidates")}
 								{candidate.sourceSessions && t("skills.fromSessions", { n: candidate.sourceSessions.length })}
 							</p>
-							{/*
-							 * 正文全文摆出来。批准一段自己没读过的指令，跟没有这个确认步骤是一回事。
-							 *
-							 * `overscroll="auto"`：这是页面里的一段正文，不是一块独立的面——读到这一段的底
-							 * 还想接着往下看页面，默认的 `contain` 会把那一下拦住。
-							 */}
-							<Scroller className="ly-rule-excerpt mt-2 max-h-52 rounded" contentClassName="p-2" overscroll="auto">
+							{/* 正文全文摆出来。批准一段自己没读过的指令，跟没有这个确认步骤是一回事。 */}
+							<Scroller className="ly-rule-excerpt mt-2 max-h-52 rounded" contentClassName="p-2">
 							<pre className="whitespace-pre-wrap break-words font-mono text-detail leading-relaxed">
 								{candidate.body}
 							</pre>
 							</Scroller>
+							{/*
+							 * 动词写在按钮上，理由和 `FetchModelsModal` 的页脚是同一条：工具栏里的图标按钮
+							 * 可以把名字省进 tooltip，周围一排东西替它说明它在哪一类里；这两颗没有那个周围，
+							 * 它们是这次操作的结论本身。而这里比那里还重一些——按下左边那颗，这段正文就进了
+							 * 以后**每一个**会话，一个「哪颗是哪颗」要靠悬停才知道的选择，不该是这种选择。
+							 */}
 							<div className="mt-2 flex items-center gap-2">
-								<button
-									type="button"
-									data-ly-tip={t("common.enable")}
-									aria-label={t("common.enable")}
+								<PrimaryButton
 									onClick={() => void decide(candidate.name, true)}
-									className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90"
+									icon={<Check size={14} strokeWidth={2.2} aria-hidden />}
 								>
-									<Check size={13} strokeWidth={2.2} aria-hidden />
-								</button>
-								<button
-									type="button"
-									data-ly-tip={t("skillsSettings.reject")}
-									aria-label={t("skillsSettings.reject")}
-									onClick={() => void decide(candidate.name, false)}
-									className="grid h-7 w-7 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
-								>
-									<X size={13} strokeWidth={2} aria-hidden />
-								</button>
+									{t("common.enable")}
+								</PrimaryButton>
+								<GhostButton onClick={() => void decide(candidate.name, false)}>
+									{t("skillsSettings.reject")}
+								</GhostButton>
 							</div>
 						</div>
 					))}
