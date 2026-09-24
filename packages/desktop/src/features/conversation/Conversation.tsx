@@ -251,9 +251,24 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     if (!el) return;
     const target = el.querySelector<HTMLElement>(`[data-question-index="${jump.index}"]`);
     if (!target) return;
-    scrollTo(el.scrollTop + target.getBoundingClientRect().top - el.getBoundingClientRect().top - 40, true);
+    const top = el.scrollTop + target.getBoundingClientRect().top - el.getBoundingClientRect().top - 40;
+    /*
+     * 目标挂着，可它下面挂着的东西不够把它顶上去：先把窗口往后放一截，下一次再滚。
+     *
+     * 窗口按轮计、一次二十轮，跳到窗口末尾那几轮时，`scrollTo` 会被夹在 scrollHeight − clientHeight
+     * 上——问题停在屏幕半中间，而不是顶上 40px。`reveal` 对已经挂着的目标什么都不做，所以这里按
+     * 真实像素补一句。放宽窗口的 setState 在 layout effect 里，绘制之前就重渲染完，第一帧不会动；
+     * 窗口已经到底就照原样滚，那是真的没有更多可滚。
+     */
+    if (top > el.scrollHeight - el.clientHeight + 1 && range.end < allBlocks.length) {
+      range.later();
+      return;
+    }
+    scrollTo(top, true);
     setJump(null);
-  }, [jump, activeSessionId, range.start, range.end, scrollRef, scrollTo]);
+    // `range.later` is rebuilt every render; the window's own edges are what this reacts to.
+    // oxlint-disable-next-line exhaustive-deps
+  }, [jump, activeSessionId, range.start, range.end, allBlocks.length, scrollRef, scrollTo]);
 
   return (
     <div ref={column} data-ly-chat-surface="conversation" className="flex min-h-0 flex-1 flex-col">
