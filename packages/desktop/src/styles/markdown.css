@@ -649,8 +649,15 @@
   background: linear-gradient(to right, transparent, var(--color-card-hover) 12px);
 }
 
-[data-ly-file-link]:hover [data-ly-file-actions],
-[data-ly-file-actions]:focus-within {
+/*
+ * 接鼠标的只有那两颗按钮，左边那 14px 渐变底不接。
+ *
+ * 渐变是托底，让按钮从字上浮出来，不是一块可以按的地方。它一度跟着整个容器在悬停时接了鼠标，
+ * 而容器叠在链接的右沿上：短文件名一悬停，链接的后半截整块被它盖住——点「实现说明」的「说明」
+ * 两个字，什么都不发生，文件打不开。
+ */
+[data-ly-file-link]:hover [data-ly-file-actions] > button,
+[data-ly-file-actions]:focus-within > button {
   pointer-events: auto;
 }
 
