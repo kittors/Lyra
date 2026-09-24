@@ -175,11 +175,28 @@ interface Row {
 	running: boolean;
 }
 
+/*
+ * A button's name is its aria-label when it has one.
+ *
+ * The resume row's buttons are icons now, their words moved into the label (and the tooltip): a
+ * button that does one thing is an icon. Reading textContent, this row had no 继续 in it at all,
+ * so every test below failed to find it — and the first one passed without looking, because an
+ * empty reading also satisfies "the row is not there mid-turn".
+ */
+const NAME = `(b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim()`;
+
 const READ_ROW = `(() => {
+	const name = ${NAME};
 	const rows = [...document.querySelectorAll("main div")].filter((el) => {
+		/*
+		 * Only what is on screen. A conversation switched away from stays in the DOM, hidden, and a
+		 * hidden element's innerText falls back to its textContent — so the other conversation's
+		 * row would be read as this one's.
+		 */
+		if (!el.checkVisibility()) return false;
 		const text = el.innerText ?? "";
 		if (!/已暂停|上次执行被中断|计划还有/.test(text)) return false;
-		return [...el.querySelectorAll("button")].some((b) => b.textContent?.trim() === "继续");
+		return [...el.querySelectorAll("button")].some((b) => name(b) === "继续");
 	});
 	// The innermost match: the outer ones are its ancestors, which contain the whole transcript.
 	const row = rows[rows.length - 1];
@@ -188,7 +205,7 @@ const READ_ROW = `(() => {
 	const last = replies[replies.length - 1];
 	return {
 		text: row.innerText ?? "",
-		buttons: [...row.querySelectorAll("button")].map((b) => b.textContent?.trim() ?? ""),
+		buttons: [...row.querySelectorAll("button")].map(name),
 		belowTheReply: Boolean(last) && row.getBoundingClientRect().top >= last.getBoundingClientRect().bottom - 1,
 		running: Boolean(document.querySelector("main [data-ly-running]")),
 	};
@@ -231,7 +248,9 @@ async function pressStop(): Promise<boolean> {
 /** Press one of the resume row's own buttons — the last match, so it is that row's and no other. */
 async function press(label: string): Promise<void> {
 	await app.evaluate(`(() => {
-		const buttons = [...document.querySelectorAll("main button")].filter((b) => b.textContent?.trim() === ${JSON.stringify(label)});
+		const name = ${NAME};
+		const buttons = [...document.querySelectorAll("main button")].filter((b) => b.checkVisibility() && name(b) === ${JSON.stringify(label)});
+		if (buttons.length === 0) throw new Error("no button named " + ${JSON.stringify(label)} + " on screen");
 		buttons[buttons.length - 1].click();
 		return true;
 	})()`);

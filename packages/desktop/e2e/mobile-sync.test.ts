@@ -190,7 +190,11 @@ test("two real screens stream both ways and recover missed content without dropp
 	await until(phone, "document.querySelectorAll('main textarea').length===2");
 	await click(phone, 'main [data-question-index] textarea');
 	await phone.send("Input.insertText", { text: "离线编辑" });
-	await phone.evaluate("[...document.querySelectorAll('main [data-question-index] button')].find(e=>e.textContent==='发送')?.click()");
+	/*
+	 * 确认键是一枚勾，「发送」只在 aria-label 上。从前按文字找它：find 落空，`?.click()` 一声不吭地
+	 * 跳过，编辑从没发出去，下面等的那句「编辑重发失败」也就永远等不到。用 click()，找不到当场报错。
+	 */
+	await click(phone, 'main [data-question-index] button[aria-label="发送"]');
 	await until(phone, "document.body.innerText.includes('编辑重发失败')");
 	assert.equal(await phone.evaluate("document.querySelector('main')?.innerText.includes('断线期间桌面继续完成')"), true);
 	await desktop.evaluate("window.lyra.sync.start()");
@@ -199,7 +203,18 @@ test("two real screens stream both ways and recover missed content without dropp
 });
 
 /*
- * 手机上这个面板打开了，读数一直停在「0/0 读取中…」。
+ * 手机上这个面板打开了，读数一直停在「0/0 读取中…」——这是 2026-09-09 写下 todo 时的样子。
+ *
+ * 2026-09-24 查清：那是被上一条带出来的。上一条一直红在「编辑重发失败」之前（它按文字找一枚只剩
+ * 图标的确认键），于是它末尾那句 `sync.start()` 从没执行过，桌面的同步服务一直停着，面板的请求
+ * 回不来，「读取中」就一直挂着。上一条修好之后，切会话、条目出来、每行 44px 都走得通了。
+ *
+ * 现在停在后半截的时间概览：它从「点开的浮层」改成了面板里常驻的一段，默认展开、可以折叠。这里
+ * 还按浮层写——点「时间概览」本意是打开，实际把它收了起来，画布跟着隐藏（量出来 top 是 0），
+ * 缩放键也不见了；最后等 Esc 让它从 DOM 里消失，也不再成立。要按新设计重写，而且得先定下三种
+ * 尺寸下各该是什么样子（横屏 844×390 高度不够时，它本来就只留折叠键、不画画布）。
+ *
+ * 下面是当时的排查记录，仍然成立，留着：
  *
  * 已经排除的（都能靠读代码确认，不必起窗口）：
  *   · 通道在——`electron/sync-rpc.ts` 有 `sessions.trajectory` 和 `sessions.trajectoryChanges`；
@@ -216,7 +231,7 @@ test("two real screens stream both ways and recover missed content without dropp
  * seed 已经补上 `seedTrajectory`：交互 fixture 里一次工具调用也没有，面板本来就无从有条目，
  * 数据这一半现在就位了。
  */
-test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "面板停在 0/0；通道、contract、请求侧均已排除，待看运行时 projectId 是否为空" }, async (t) => {
+test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "时间概览已改成面板里默认展开、可折叠的一段，后半截还按点开的浮层写，要按新设计重写" }, async (t) => {
 	await size(390, 844);
 	// Dismiss the errors intentionally produced by the preceding offline test.
 	await phone.evaluate(`document.querySelectorAll('[role="alert"] button[aria-label="关闭"]').forEach(e=>e.click())`);
@@ -252,13 +267,14 @@ test("mobile trajectory keeps real touch targets and omits desktop file exports"
 });
 
 /*
- * 中转只转数据，不转界面。
+ * 走中转也拿得到界面：渲染产物经资源隧道送过去（中转服务的 /app/<assetKey>/ 转成 asset_request，
+ * 桌面端的同步服务回 asset_response）。
  *
- * 三条连接路径能力并不相同：局域网直连能把渲染产物一起发出去，走中转时那一份没有人送，于是
- * 手机侧一直等不到 `.ly-shell`。要让它成立得单独开一条资源隧道，那是没做的功能，不是这条
- * 断言写错了。
+ * 这条曾经标着 todo，理由是「中转只转数据、不转界面，需要单独的资源隧道」。隧道早就有了；它红，
+ * 是因为上一条红在半路、没走到末尾的 `sync.start()`，桌面的同步服务一直停着，走中转的手机端连
+ * 不上任何人，于是等不到 `.ly-shell`。上一条修好之后它就绿了。
  */
-test("relay serves the real mobile renderer and synchronizes settings and forked conversations", { todo: "中转路径尚未转发渲染资源，需要单独的资源隧道" }, async (t) => {
+test("relay serves the real mobile renderer and synchronizes settings and forked conversations", async (t) => {
 	await phone.stop();
 	phone = await startMobile(desktop.home, { host: "127.0.0.1", port: RELAY_PORT, token: TOKEN, relay: true, platform: "darwin" }, 9705);
 	await until(phone, "!!document.querySelector('.ly-shell')");

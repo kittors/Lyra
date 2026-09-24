@@ -161,9 +161,9 @@ async function ask(text: string): Promise<void> {
 
 const transcript = () => app.evaluate<string>(`(document.querySelector("main")?.innerText ?? "")`);
 
-/** 那条记录现在是什么样——文字、收场、以及它到底红不红。 */
+/** 那条记录现在是什么样——文字、收场、它到底红不红，以及行末给了哪几个动作。 */
 const trace = () =>
-	app.evaluate<{ text: string; outcome: string; colour: string; lines: number } | null>(`(() => {
+	app.evaluate<{ text: string; outcome: string; colour: string; lines: number; actions: string[] } | null>(`(() => {
 		const row = document.querySelector("[data-hiccup]");
 		if (!row) return null;
 		const label = row.querySelector("[data-ly-tip], span");
@@ -173,6 +173,8 @@ const trace = () =>
 			outcome: row.dataset.hiccup ?? "",
 			colour: style?.color ?? "",
 			lines: Math.round((label?.getBoundingClientRect().height ?? 0) / parseFloat(style?.lineHeight || "16")),
+			// 行末的动作是图标，名字在 aria-label 上——innerText 里读不到它们。
+			actions: [...row.querySelectorAll("button")].map((b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim()),
 		};
 	})()`);
 
@@ -264,5 +266,6 @@ test("密钥不对时当场停下，一次都不重试，并且指路", async ()
 
 	const row = await trace();
 	assert.match(row?.text ?? "", /密钥被拒绝/);
-	assert.match(row?.text ?? "", /去设置/, "并且给出下一步，而不是只说坏了");
+	// 「去设置」是一枚齿轮，字在 aria-label 和悬停里，所以按动作的名字找，不在文字里找。
+	assert.ok(row?.actions.includes("去设置"), `并且给出下一步，而不是只说坏了：${JSON.stringify(row?.actions)}`);
 });

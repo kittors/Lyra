@@ -41,7 +41,9 @@ test("question navigation is mouse reachable and jumps to an unmounted historica
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Home", windowsVirtualKeyCode: 36 });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Home", windowsVirtualKeyCode: 36 });
 	await until('document.querySelector("[data-question-index=\\"0\\"]")');
-	const samples = await app.evaluate<{ y: number; rows: number }[]>(`(async()=>{const out=[];for(let i=0;i<24;i++){await new Promise(requestAnimationFrame);out.push({y:document.querySelector('[data-question-index="0"]').getBoundingClientRect().top,rows:document.querySelector('.ly-transcript').children.length});}return out;})()`);
+	// 数的是 [data-ly-transcript-rows] 的子节点：行都包在它里面，从前数的 .ly-transcript 只有它和
+	// 「显示后 N 条」两个孩子，于是下面的「rows <= 62」不管挂了多少行都成立。
+	const samples = await app.evaluate<{ y: number; rows: number }[]>(`(async()=>{const out=[];for(let i=0;i<24;i++){await new Promise(requestAnimationFrame);out.push({y:document.querySelector('[data-question-index="0"]').getBoundingClientRect().top,rows:document.querySelector('[data-ly-transcript-rows]').children.length});}return out;})()`);
 	t.diagnostic(JSON.stringify(samples));
 	const header = await app.evaluate<number>(`document.querySelector('[data-ly-window-header]')?.getBoundingClientRect().height ?? 0`);
 	assert.ok(samples[0].y >= 44 + header && samples[0].y < 110 + header, `question 0 at ${samples[0].y} with header ${header}`);
@@ -51,9 +53,17 @@ test("question navigation is mouse reachable and jumps to an unmounted historica
 	await click('button[aria-label="跳转到第 10 个问题：qa-long 第 10 个问题：检查会话导航、缓存与滚动位置。"]');
 	const trajectory = await app.evaluate<number[]>(`(async()=>{const out=[];for(let i=0;i<120;i++){await new Promise(requestAnimationFrame);out.push(document.querySelector('[data-question-index="18"]').getBoundingClientRect().top);}return out;})()`);
 	t.diagnostic(JSON.stringify({question10:trajectory.filter((_,i)=>i%10===0)}));
-	const landed = await app.evaluate<{ y: number; viewTop: number }>(`(()=>{const q=document.querySelector('[data-question-index="18"]'),v=document.querySelector('main .ly-scroll-view');return {y:q.getBoundingClientRect().top,viewTop:v.getBoundingClientRect().top};})()`);
+	const landed = await app.evaluate<{ y: number; viewTop: number; rows: number }>(`(()=>{const q=document.querySelector('[data-question-index="18"]'),v=document.querySelector('main .ly-scroll-view');return {y:q.getBoundingClientRect().top,viewTop:v.getBoundingClientRect().top,rows:document.querySelector('[data-ly-transcript-rows]').children.length};})()`);
 	const position = landed.y;
-	assert.ok(position >= landed.viewTop - 8 && position <= landed.viewTop + 200, `question 10 at ${position} view ${landed.viewTop} header ${header}`);
+	/*
+	 * 滚动区顶上 40px，就是 Conversation 里跳转自己写的那个数。
+	 *
+	 * 这里一度放宽到「顶上 200px 以内」，而那时的落点是 237px：窗口改成按轮计之后，跳到窗口末尾
+	 * 那几轮时 scrollTo 被夹在滚动上限上，问题停在屏幕半中间。量准它，同样的截断再来一次就在这里红。
+	 */
+	assert.ok(Math.abs(position - (landed.viewTop + 40)) <= 1, `question 10 at ${position} view ${landed.viewTop} header ${header}`);
+	// 往后放窗口是为了把它顶上去，不是把后面两百多行全挂上。
+	assert.ok(landed.rows <= 62, `the jump mounted ${landed.rows} rows`);
 	await click('[data-ly-row="qa-short"] > button'); await frames();
 	await click('[data-ly-row="qa-long"] > button'); await frames();
 	assert.ok(Math.abs(await app.evaluate<number>(`document.querySelector('[data-question-index="18"]').getBoundingClientRect().top`) - position) <= 1);

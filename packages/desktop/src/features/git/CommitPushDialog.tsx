@@ -47,6 +47,14 @@ export interface CommitPushDialogProps {
 	work: CommitWork;
 	/** 还没推上去的提交数——没有可推的就真的禁用那一行，而不是画成灰的却照样可点。 */
 	unpushed: number;
+	/**
+	 * 远端从没见过这个分支：推送那一行就是发布。
+	 *
+	 * 这时没有数可报——`syncPlan` 把「发布过没有」当成是非题，数目是 null，传到 `unpushed` 就成了
+	 * 0——可整条分支都还没离开这台机器。只按 `unpushed` 判，工作区干净的新分支点进来三行全灰：
+	 * 工具条上那颗按钮写着「发布」，弹窗里却没有一行按得下去。
+	 */
+	publish: boolean;
 	/** `syncPlan` 已经写好的那句话：几个提交没推，或者已经同步。 */
 	pushTip: string;
 	onClose: () => void;
@@ -68,6 +76,7 @@ export function CommitPushDialog({
 	running,
 	work,
 	unpushed,
+	publish,
 	pushTip,
 	onClose,
 	onCommit,
@@ -475,12 +484,12 @@ export function CommitPushDialog({
 					/>
 					<ActionRow
 						icon={<Upload size={15} strokeWidth={1.9} />}
-						label={t("common.push")}
+						label={publish ? t("sync.publishBranch") : t("common.push")}
 						tip={pushTip}
 						/* 几个提交在等着推——这个数目本身就是按下去的理由。 */
 						trailing={unpushed > 0 ? <span className="font-mono text-caption tabular-nums text-ink-faint">{unpushed}</span> : undefined}
 						working={workingAction === "push"}
-						disabled={disabled || unpushed === 0}
+						disabled={disabled || (unpushed === 0 && !publish)}
 						onClick={() => void handlePush()}
 					/>
 				</div>

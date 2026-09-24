@@ -124,6 +124,24 @@ function images<T>(): Promise<T> {
 }
 
 test("a relative src resolves against the file's own folder, and the picture draws", async () => {
+	/*
+	 * Each picture brought into view first, and given a moment to finish.
+	 *
+	 * Pictures in Markdown load lazily — one below the fold is not asked for until it is scrolled
+	 * to — and the relative one here sits below the fold of a 900px window. Unscrolled it was never
+	 * requested, which read as "did not decode". What this guards is the path and the bytes, not
+	 * when they are fetched; afterwards the pane goes back to its top for the tests below.
+	 */
+	await app.evaluate(`(async () => {
+		const doc = document.querySelector(".prose-dw");
+		for (const img of doc.querySelectorAll("img")) {
+			img.scrollIntoView({ block: "nearest", behavior: "instant" });
+			// Settled either way — loaded or broken — is complete; the assertion below tells them apart.
+			for (let i = 0; i < 100 && !img.complete; i++) await new Promise((r) => setTimeout(r, 50));
+		}
+		doc.querySelector("img")?.scrollIntoView({ block: "nearest", behavior: "instant" });
+		return true;
+	})()`);
 	const drawn = await images<{ alt: string; scheme: string; loaded: boolean; width: number }[]>();
 
 	assert.ok(drawn.length >= 5, `expected the logo, three badges and the markdown image, got ${drawn.length}`);

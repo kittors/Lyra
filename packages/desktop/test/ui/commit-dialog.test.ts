@@ -63,6 +63,7 @@ const props = {
 	busy: false,
 	running: false,
 	unpushed: 0,
+	publish: false,
 	pushTip: "已与 origin/main 同步",
 	onClose: () => {},
 	onCommit: async () => true,
@@ -317,6 +318,42 @@ test("没有可推的提交时，「推送」那一行是禁用的", async () =>
 		const push = [...document.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim() === "推送");
 		assert.ok(push, "找不到「推送」那一行");
 		assert.equal((push as HTMLButtonElement).disabled, true, "它一度永远画成灰的却永远可点");
+	} finally {
+		await view.unmount();
+		Reflect.deleteProperty(window, "lyra");
+	}
+});
+
+test("远端没见过的分支：那一行是「发布分支」，没有数也按得下去", async () => {
+	/*
+	 * 上一条的另一面。「没有可推的」按数目判，而一个从没推过的分支数目是 null（「发布过没有」是
+	 * 是非题），传进来就是 0——于是工作区干净的新分支点进来三行全灰，工具条上那颗按钮写着「发布」，
+	 * 却哪儿都发不出去。
+	 */
+	stubBridge();
+	const pushed: string[] = [];
+	const view = await mount(
+		h(Panel, {
+			...props,
+			stagedCount: 0,
+			unstagedCount: 0,
+			addedCount: 0,
+			removedCount: 0,
+			unpushed: 0,
+			publish: true,
+			pushTip: "发布到 origin",
+			onPush: async () => {
+				pushed.push("push");
+			},
+		}),
+	);
+	try {
+		const rows = [...document.querySelectorAll<HTMLButtonElement>("[data-ly-commit-dialog] button")];
+		const publish = rows.find((b) => (b.textContent ?? "").trim() === "发布分支");
+		assert.ok(publish, `推送那一行该写着「发布分支」：${JSON.stringify(rows.map((b) => (b.textContent ?? "").trim()))}`);
+		assert.equal(publish.disabled, false, "整条分支都还没离开这台机器，这一行不该是灰的");
+		await click(publish);
+		assert.deepEqual(pushed, ["push"]);
 	} finally {
 		await view.unmount();
 		Reflect.deleteProperty(window, "lyra");

@@ -479,6 +479,13 @@ export function GitPanel() {
    */
   const plan = useMemo(() => syncPlan(status, { running }), [status, running]);
   /*
+   * 远端从没见过这个分支：推送就是发布。
+   *
+   * 工具条上那颗按钮的字和弹窗里推送那一行读同一个判断。从前只有按钮这头认得它——按钮写着
+   * 「发布」，弹窗里那一行却按「没有可推的提交」灰着，一个新分支哪儿也发不出去。
+   */
+  const neverPublished = plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream";
+  /*
    * Nothing is known yet: the repositories are still being found, or the one that was found has
    * not answered about its state.
    *
@@ -683,7 +690,7 @@ export function GitPanel() {
         <SyncControl
           mark="push"
           icon={<ArrowUpFromLine size={12} strokeWidth={1.9} />}
-          word={plan.push.count === null && plan.branch !== "—" && status?.remoteState === "no-upstream" ? t("git.publish") : t("common.push")}
+          word={neverPublished ? t("git.publish") : t("common.push")}
           state={plan.push}
           running={sync === "push" || commitWork.active}
           cancellable={sync === "push"}
@@ -711,6 +718,7 @@ export function GitPanel() {
             work={commitWork}
             /* 同一份数目，和工具条上那颗推送按钮读的是同一处——两边不该各算各的。 */
             unpushed={plan.push.count ?? 0}
+            publish={neverPublished && !plan.push.disabled}
             pushTip={plan.push.tip}
             onClose={pushPopover.close}
             /* 分支换了，这一层的 status 和同步计划都要重读——否则弹窗关上后面板还写着旧分支。 */

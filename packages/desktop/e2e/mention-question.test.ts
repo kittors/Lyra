@@ -15,7 +15,12 @@ let stopRecording: (() => Promise<void>) | undefined;
 let passed = 0;
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const { server, requests } = questionModel();
-const capsuleCount = `document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]').length`;
+/*
+ * Only what is on screen. A conversation switched away from stays in the DOM, hidden (RetainedViews),
+ * composer and draft capsules and pending question included — so counting across the whole document
+ * counted the other conversation's capsules as this one's, and the wait below could never settle.
+ */
+const capsuleCount = `[...document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]')].filter((e) => e.checkVisibility()).length`;
 type SessionId = "qa-long" | "qa-short";
 const clickTargets = {
 	composer: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('main textarea'))?.checkVisibility())`,
@@ -122,13 +127,13 @@ test("same-title references survive draft switching and fit dark, light and narr
 	}
 	await input("保留这份引用草稿");
 	await session("qa-short");
-	await until(`document.querySelector('main textarea').value === '' && document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]').length === 0`);
+	await until(`document.querySelector('main textarea').value === '' && ${capsuleCount} === 0`);
 	await session("qa-long");
-	await until(`document.querySelector('main textarea').value === '保留这份引用草稿' && document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]').length === 2`);
+	await until(`document.querySelector('main textarea').value === '保留这份引用草稿' && ${capsuleCount} === 2`);
 	for (const theme of ["dark", "light"] satisfies Array<"dark" | "light">) {
 		for (const width of [1280, 375]) {
 			await appearance(theme, width);
-			const bounds = await app.evaluate<{ width: number; shell: { left: number; right: number }; pills: Array<{ left: number; right: number; titleWidth: number; fullTitleWidth: number; overflow: string; icons: number[] }>; foreground: string; background: string }>(`(()=>{const shell=document.querySelector('main textarea').closest('.ly-composer'),r=shell.getBoundingClientRect(),pills=[...document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]')];return {width:innerWidth,shell:{left:r.left,right:r.right},pills:pills.map(p=>{const b=p.getBoundingClientRect(),s=p.querySelector('span');return {left:b.left,right:b.right,titleWidth:s.clientWidth,fullTitleWidth:s.scrollWidth,overflow:getComputedStyle(s).overflow,icons:[...p.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width)};}),foreground:getComputedStyle(pills[0]).color,background:getComputedStyle(pills[0]).backgroundColor};})()`);
+			const bounds = await app.evaluate<{ width: number; shell: { left: number; right: number }; pills: Array<{ left: number; right: number; titleWidth: number; fullTitleWidth: number; overflow: string; icons: number[] }>; foreground: string; background: string }>(`(()=>{const shell=document.querySelector('main textarea').closest('.ly-composer'),r=shell.getBoundingClientRect(),pills=[...document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]')].filter(p=>p.checkVisibility());return {width:innerWidth,shell:{left:r.left,right:r.right},pills:pills.map(p=>{const b=p.getBoundingClientRect(),s=p.querySelector('span');return {left:b.left,right:b.right,titleWidth:s.clientWidth,fullTitleWidth:s.scrollWidth,overflow:getComputedStyle(s).overflow,icons:[...p.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width)};}),foreground:getComputedStyle(pills[0]).color,background:getComputedStyle(pills[0]).backgroundColor};})()`);
 			t.diagnostic(JSON.stringify({ theme, ...bounds }));
 			assert.equal(bounds.pills.length, 2);
 			assert.ok(bounds.shell.left >= 0 && bounds.shell.right <= width);
@@ -166,7 +171,7 @@ test("real ask_user returns choices and custom answers to their own pending sess
 	const aRequests = requests.length;
 	await shot("question-options-dark");
 	await session("qa-short");
-	await until(`![...document.querySelectorAll('pre')].some(e=>e.textContent==='请选择本次实现方式')`);
+	await until(`![...document.querySelectorAll('pre')].some(e=>e.checkVisibility()&&e.textContent==='请选择本次实现方式')`);
 	assert.equal(requests.length, aRequests, "switching sessions does not answer the pending tool");
 	const bBefore = (await snapshot("qa-short")).messages.filter((message) => message.role === "user").length;
 	await input("ASK_CUSTOM"); await enter();

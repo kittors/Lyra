@@ -60,13 +60,33 @@ function sse(res: import("node:http").ServerResponse, payload: unknown): void {
 	res.write(`event: ${(payload as { type: string }).type}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
+/**
+ * Which step of the script a request is asking for: the replies already given since the person
+ * last typed something.
+ *
+ * Read off the request rather than counted, because the last test sends a second message and it
+ * has to get the whole script again — two batches and a sentence — not the closing sentence a
+ * running count would have reached by then.
+ */
+function stepOf(raw: string): number {
+	const body = JSON.parse(raw) as { messages?: { role: string; content: unknown }[] };
+	let step = 0;
+	for (const message of body.messages ?? []) {
+		const parts = Array.isArray(message.content) ? (message.content as { type?: string }[]) : [];
+		if (message.role === "user" && !parts.some((part) => part?.type === "tool_result")) step = 0;
+		else if (message.role === "assistant") step++;
+	}
+	return step;
+}
+
 function startModel(): Server {
+	/** Only for ids, which must not repeat across the two turns. */
 	let turn = 0;
 	const server = createServer((req, res) => {
-		// Drain the request; the body is not interesting, only which turn this is.
-		req.resume();
+		let raw = "";
+		req.on("data", (chunk) => (raw += chunk));
 		req.on("end", async () => {
-			const blocks = SCRIPT[Math.min(turn, SCRIPT.length - 1)];
+			const blocks = SCRIPT[Math.min(stepOf(raw), SCRIPT.length - 1)];
 			turn++;
 			res.writeHead(200, {
 				"content-type": "text/event-stream",
@@ -149,6 +169,8 @@ async function seed(home: string): Promise<void> {
 			mcpServers: [],
 			projects: [{ id: "e2e", name: "project", path: project, pinned: true, lastOpenedAt: 1 }],
 			defaultModelId: "local/scripted",
+			// The title request would be one more caller of the scripted model, and it is not a turn.
+			autoSummarizeTitle: false,
 			// Nothing here needs a human to nod at it, and an approval sheet would stall the stream.
 			permissionMode: "full",
 			thinking: "off",
@@ -219,7 +241,12 @@ async function runTurn(): Promise<Frame[]> {
 			}
 			return {
 				rows: runs.length,
-				says: runs.map((r) => (r.querySelector("button > span")?.innerText ?? "").replace(/\\s+/g, " ").trim()),
+				/*
+				 * 摘要按类名读，不按位置。这一行由 FlowRow 画，按钮的第一个 span 是前置图标槽——
+				 * 从前写的「button > span」读到的一直是那个空槽，于是整条测试量到的句子全是空串。
+				 * 「:scope > button」把范围收在这一行自己的按钮上：折叠区里的命令行也是 FlowRow。
+				 */
+				says: runs.map((r) => (r.querySelector(":scope > button .ly-flow-summary")?.innerText ?? "").replace(/\\s+/g, " ").trim()),
 				kept,
 				// The turn's own indicator: present for the whole turn, gaps between batches included.
 				turning: Boolean(document.querySelector('button[aria-label="停止"]')),
@@ -325,16 +352,52 @@ test("it is the same element the whole way, not a new one per batch", () => {
 });
 
 test("opening the group survives the work still arriving", async () => {
-	const kept = await app.evaluate<{ opened: boolean; stillOpen: boolean }>(`(async () => {
+	/*
+	 * Opened while the work is still coming in, which is the only time it can be lost.
+	 *
+	 * This used to click the group after the turn above had ended. By then nothing was arriving, so
+	 * it could not see the thing it is named for — and once a turn settles its whole process folds
+	 * into one line that draws nothing while closed (`TurnProcess`), so there was no group left in
+	 * the DOM to click at all. A second turn, then: open the row as soon as the first batch draws
+	 * it, and read it again once the second batch has joined the same line.
+	 */
+	const kept = await app.evaluate<{ opened: boolean; grew: boolean; stillOpen: boolean; same: boolean; line: string }>(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		const run = document.querySelector("[data-ly-run]");
-		run.querySelector("button").click();
+		const said = (run) => (run.querySelector(":scope > button .ly-flow-summary")?.innerText ?? "").replace(/\\s+/g, " ").trim();
+		for (const old of document.querySelectorAll("[data-ly-run]")) old.dataset.lyBefore = "1";
+
+		const field = document.querySelector("main textarea");
+		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+		setter.call(field, "再看一遍");
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+		field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+		let run = null;
+		for (let i = 0; i < 200 && !run; i++) {
+			await wait(50);
+			run = [...document.querySelectorAll("[data-ly-run]")].find((r) => !r.dataset.lyBefore) ?? null;
+		}
+		if (!run) throw new Error("the second turn never drew a tool row");
+		if (/读取文件/.test(said(run))) throw new Error("the second batch was already in before the row could be opened: " + said(run));
+
+		run.querySelector(":scope > button").click();
 		await wait(400);
-		const opened = Boolean(run.querySelector("[aria-expanded=true]"));
-		await wait(600);
-		return { opened, stillOpen: Boolean(run.querySelector("[aria-expanded=true]")) };
+		const expanded = () => run.querySelector(":scope > button")?.getAttribute("aria-expanded") === "true";
+		const opened = expanded();
+
+		for (let i = 0; i < 150 && !/读取文件/.test(said(run)); i++) await wait(80);
+		const grew = /读取文件/.test(said(run));
+		return {
+			opened,
+			grew,
+			stillOpen: run.isConnected && expanded(),
+			same: document.querySelector("[data-ly-run]:not([data-ly-before])") === run,
+			line: said(run),
+		};
 	})()`);
 
 	assert.equal(kept.opened, true, "the group did not open");
+	assert.equal(kept.grew, true, `the second batch never joined the open line: "${kept.line}"`);
+	assert.equal(kept.same, true, "the line the second batch joined is a different element from the one that was opened");
 	assert.equal(kept.stillOpen, true, "the group closed itself, so it was rebuilt rather than kept");
 });
