@@ -399,7 +399,8 @@ test("a refused operation says so, above everything else on screen", async () =>
 		highestName: string;
 		hitByItself: boolean;
 		inBody: boolean;
-		centred: boolean;
+		centre: number;
+		column: number;
 	}>(`
 		openMenu(row("/src")); await wait(350);
 		item("复制 ⌘C").click(); await wait(350);
@@ -424,7 +425,15 @@ test("a refused operation says so, above everything else on screen", async () =>
 			highestName: others[0]?.name ?? "(nothing)",
 			hitByItself: card.contains(hit),
 			inBody: host.parentElement === document.body,
-			centred: Math.abs((box.left + box.right) / 2 - window.innerWidth / 2) <= 2,
+			/*
+			 * The middle of the column beside the sidebar, not of the window: the toast steps out of
+			 * the sidebar's way, so it is centred on what you are looking at.
+			 */
+			centre: (box.left + box.right) / 2,
+			column: ((() => {
+				const side = document.querySelector('aside[data-pane="beside"]');
+				return side && side.checkVisibility() ? side.getBoundingClientRect().right : 0;
+			})() + window.innerWidth) / 2,
 		};
 	`);
 
@@ -436,7 +445,10 @@ test("a refused operation says so, above everything else on screen", async () =>
 	);
 	// The z-index is a claim; this is the observation. Nothing is painted over its middle.
 	assert.equal(shown.hitByItself, true, "something is on top of the toast");
-	assert.equal(shown.centred, true);
+	assert.ok(
+		Math.abs(shown.centre - shown.column) <= 2,
+		`the toast is centred at ${shown.centre}, not on the column beside the sidebar at ${shown.column}`,
+	);
 });
 
 test("nothing between the shell and the page can trap a layer above the toast", async () => {
@@ -693,7 +705,7 @@ test("dragged apart, the pair is two ordinary panes again", async (t) => {
 	 * The pairing is declared in the registry, but honouring it regardless of where the panes have
 	 * been moved would mean full screen occasionally swallowing whatever sits between them.
 	 */
-	// Three columns need 420 + 300 + 300px after the sidebar; 1280px would stack them instead.
+	// Three columns need 420 + 300 + 300px after the sidebar; at 1280px the row is squeezed instead.
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 860, deviceScaleFactor: 1, mobile: false });
 
 	/*
@@ -705,7 +717,13 @@ test("dragged apart, the pair is two ordinary panes again", async (t) => {
 	 */
 	await app.evaluate(`(async () => {
 		for (let guard = 0; guard < 12; guard++) {
-			const close = document.querySelector('[data-dock-header]:not([data-dock-header="conversation"]) button[aria-label^="关闭"]');
+			/*
+			 * Only a close button that is on screen. The browser pane is always mounted and, closed,
+			 * is only transparent and inert — its button came first every time, closing it does
+			 * nothing, and this spun twelve times without ever emptying the dock.
+			 */
+			const close = [...document.querySelectorAll('[data-dock-header]:not([data-dock-header="conversation"]) button[aria-label^="关闭"]')]
+				.find((b) => b.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
 			if (!close) break;
 			close.click();
 			await new Promise((r) => setTimeout(r, 140));
@@ -737,18 +755,29 @@ test("dragged apart, the pair is two ordinary panes again", async (t) => {
 	t.diagnostic(JSON.stringify(await app.evaluate(`({ width: innerWidth, dock: document.querySelector("[data-dock-panes]").getBoundingClientRect().toJSON(), panes: [...document.querySelectorAll("[data-dock-pane]")].map(el => ({ kind: el.dataset.dockPane, box: el.getBoundingClientRect().toJSON() })) })`)));
 	assert.deepEqual(order, ["file", "conversation", "files"], "they are no longer neighbours");
 
-	// At the former fixture width, responsive stacking preserves the separation along the y axis.
+	/*
+	 * At the former fixture width the row does not fit, and it stays a row.
+	 *
+	 * It used to be turned into a column of full-width strips. A row of three that does not fit now
+	 * keeps its shape, and the first pane takes the whole shortfall — drawn at its minimum and
+	 * overlapping its neighbour rather than squeezed below it; a turned axis is only for rows of two.
+	 * What this is here for holds either way: the conversation still separates the pair. Only the
+	 * panes on screen are counted — the browser pane is always mounted, closed as transparent and
+	 * inert, and a filter on display alone read it as a fourth pane.
+	 */
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 860, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(`new Promise(resolve => { let frames = 20; const tick = () => --frames ? requestAnimationFrame(tick) : resolve(); requestAnimationFrame(tick); })`);
-	const stacked = await app.evaluate<{ kind: string; left: number; top: number; bottom: number }[]>(`[...document.querySelectorAll("[data-dock-pane]")]
-		.filter(el => getComputedStyle(el).display !== "none")
+	const squeezed = await app.evaluate<{ kind: string; left: number; top: number; bottom: number }[]>(`[...document.querySelectorAll("[data-dock-pane]")]
+		.filter(el => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
 		.map(el => { const r = el.getBoundingClientRect(); return { kind: el.dataset.dockPane, left: r.left, top: r.top, bottom: r.bottom }; })
-		.sort((a, b) => a.top - b.top)`);
-	t.diagnostic(JSON.stringify({ width: 1280, stacked }));
-	assert.deepEqual(stacked.map(pane => pane.kind), ["file", "conversation", "files"], "the conversation still separates the stacked pair");
-	for (let index = 1; index < stacked.length; index++) {
-		assert.ok(Math.abs(stacked[index].left - stacked[0].left) < 1, "all three panes share a column");
-		assert.ok(Math.abs(stacked[index].top - stacked[index - 1].bottom) < 1, "stacked panes meet without a gap or overlap");
+		.sort((a, b) => a.left - b.left)`);
+	t.diagnostic(JSON.stringify({ width: 1280, squeezed }));
+	assert.deepEqual(squeezed.map(pane => pane.kind), ["file", "conversation", "files"], "the conversation still separates the squeezed pair");
+	for (const pane of squeezed.slice(1)) {
+		assert.ok(
+			Math.abs(pane.top - squeezed[0].top) < 1 && Math.abs(pane.bottom - squeezed[0].bottom) < 1,
+			`a row of three keeps its shape rather than turning into a column of strips: ${JSON.stringify(squeezed)}`,
+		);
 	}
 
 	await app.evaluate(`(async () => {
