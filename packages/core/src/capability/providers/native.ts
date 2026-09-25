@@ -191,6 +191,11 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 						? (frontmatter.output as JsonSchema)
 						: undefined,
 				schemaMode: frontmatter.schemaMode === "strict" || frontmatter.schemaMode === "permissive" ? frontmatter.schemaMode : undefined,
+				// `max-turns` 与 `maxTurns` 同一个键。不是正整数就当没写——写错一个数不该让它每轮都被叫停。
+				maxTurns:
+					typeof frontmatter.maxTurns === "number" && Number.isInteger(frontmatter.maxTurns) && frontmatter.maxTurns > 0
+						? frontmatter.maxTurns
+						: undefined,
 				provenance: meta(file, scope),
 			} as Sourced<AgentDefinition>);
 		}

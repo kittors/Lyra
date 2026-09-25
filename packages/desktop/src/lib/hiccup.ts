@@ -19,7 +19,7 @@ const LINE_MAX = 40;
 /** 悬停气泡里放多少。气泡最宽 360px，塞一页 JSON 只会得到一堵墙。 */
 const TIP_MAX = 220;
 
-type HiccupOutcome = "waiting" | "recovered" | "gave_up";
+type HiccupOutcome = "waiting" | "recovered" | "gave_up" | "switched";
 
 export interface Hiccup {
 	/** 一次中断一条。同一条里次数往上加，不新开。 */
@@ -49,6 +49,13 @@ export interface Hiccup {
 	hint?: string;
 	/** 不是「再发一次请求」，而是「这一轮被重新捡起来」。 */
 	resume: boolean;
+	/**
+	 * 人在它重试的时候换了模型，换成了谁。
+	 *
+	 * 这种收场既不是「恢复了」也不是「放弃了」：旧的那个没有接上，这一轮也没停，是换了个人接着问。
+	 * 说成哪一样都是在报一件没发生的事。
+	 */
+	switchedTo?: string;
 }
 
 /**
@@ -102,7 +109,7 @@ export interface HiccupFailure {
 /** 那一条等着的记录，收场了。 */
 export function settleHiccups(
 	hiccups: Hiccup[],
-	event: { outcome: "recovered" | "gave_up"; attempts: number; failure?: HiccupFailure },
+	event: { outcome: "recovered" | "gave_up" | "switched"; attempts: number; failure?: HiccupFailure; switchedTo?: string },
 	/** 只有下面那条凭空补出来的失败用得上——它没有「正在等」的记录可以接着。见 `Hiccup.at`。 */
 	at: number,
 ): Hiccup[] {
@@ -115,7 +122,7 @@ export function settleHiccups(
 		 * 这里没有「正在等」的记录可以收场。而它恰恰是最需要说清楚的一种失败：不说的话屏幕上只剩
 		 * 一片安静，人不知道刚才发生了什么，更不知道该去改哪里。
 		 */
-		if (event.outcome === "recovered" || !event.failure) return hiccups;
+		if (event.outcome !== "gave_up" || !event.failure) return hiccups;
 		return [
 			...hiccups,
 			{
@@ -140,6 +147,7 @@ export function settleHiccups(
 			...last,
 			outcome: event.outcome,
 			attempts: Math.max(last.attempts, event.attempts),
+			...(event.switchedTo ? { switchedTo: event.switchedTo } : {}),
 			// 放弃时以最后那个失败为准：等待途中报的可能只是过程里的一个，最后那个才是拦住它的。
 			summary: event.failure?.summary ?? last.summary,
 			detail: event.failure?.detail ?? last.detail,
@@ -162,6 +170,11 @@ export function describeHiccup(hiccup: Hiccup, now: number): string {
 	}
 	if (hiccup.outcome === "gave_up") {
 		return clip(hiccup.summary, LINE_MAX);
+	}
+	if (hiccup.outcome === "switched") {
+		return hiccup.switchedTo
+			? translate("hiccup.switchedTo", { model: hiccup.switchedTo, n: hiccup.attempts })
+			: translate("hiccup.switched", { n: hiccup.attempts });
 	}
 	const left = Math.ceil((hiccup.until - now) / 1000);
 	const wait = left > 0 ? translate("hiccup.retryIn", { n: left }) : translate("hiccup.retrying");

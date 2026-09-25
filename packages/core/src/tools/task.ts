@@ -1,7 +1,9 @@
 import { errorResult } from "../agent/tool-run.ts";
+import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DELEGATION_KEY, dispatchAllowed, type DelegationDecision } from "../runtime/delegation.ts";
 import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
-import type { Tool, ToolResult } from "../types.ts";
+import type { SubAgentRegistry } from "../runtime/sub-agents.ts";
+import type { SubAgentAnswer, Tool, ToolResult } from "../types.ts";
 
 export { BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
 import { resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
@@ -12,6 +14,7 @@ interface TaskArgs {
 	description: string;
 	prompt: string;
 	subagent_type?: string;
+	resume?: string;
 }
 
 /**
@@ -26,17 +29,28 @@ export const taskTool: Tool<TaskArgs> = {
 	guidelines: [
 		"Use task for open-ended searches across many files, so their contents never enter your own context.",
 		"The sub-agent cannot ask you questions; put everything it needs in the prompt.",
+		"A sub-agent that stopped before finishing keeps its context. Continue it with `resume` instead of dispatching the same work again — a new one starts from zero and re-reads everything.",
 	],
 	description:
 		"Run a sub-agent with its own context window and report back only its final answer. " +
 		"Use it for open-ended searches across many files, or for work whose intermediate output you do not need. " +
-		"The sub-agent cannot ask you questions, so put everything it needs in `prompt`.",
+		"The sub-agent cannot ask you questions, so put everything it needs in `prompt`. " +
+		"Each call starts a fresh sub-agent with an empty context, unless you pass `resume` with the id of one you dispatched earlier: " +
+		"then that same sub-agent continues with everything it already read and did, and `prompt` is what you tell it next.",
 	parameters: {
 		type: "object",
 		properties: {
 			description: { type: "string", description: "3-5 word summary of the task." },
-			prompt: { type: "string", description: "Self-contained instructions for the sub-agent." },
-			subagent_type: { type: "string", description: "Which agent definition to use. Defaults to `general`." },
+			prompt: {
+				type: "string",
+				description: "Self-contained instructions for the sub-agent. When resuming, what it should do next.",
+			},
+			subagent_type: { type: "string", description: "Which agent definition to use. Defaults to `general`. Ignored when resuming." },
+			resume: {
+				type: "string",
+				description:
+					"The id of a sub-agent you dispatched earlier (given at the end of its result). It continues from where it stopped, with its whole context — use this rather than dispatching the same work again.",
+			},
 		},
 		required: ["description", "prompt"],
 		additionalProperties: false,
@@ -58,12 +72,24 @@ export const taskTool: Tool<TaskArgs> = {
 		 * adjacent to what was asked.
 		 */
 		const agents = ctx.state.get(AGENTS_KEY) as AgentDefinition[] | undefined;
+		/*
+		 * 续跑：它是谁由它当初被派出去时定下，不看这次的 `subagent_type`。
+		 *
+		 * 能在这里认出来就在这里拦——找不到、还在跑、上下文已经没了，都给一句能据以行动的话，
+		 * 而不是一条「Sub-agent failed」。认不出来的（嵌套在子代理里、状态图里没有登记簿），交给
+		 * `runSubAgent` 自己认，它同样只放行自己派出去的那些。
+		 */
+		const resuming = typeof args.resume === "string" && args.resume.trim() ? args.resume.trim() : undefined;
+		const found = resuming ? (ctx.state.get(SUBAGENTS_KEY) as SubAgentRegistry | undefined)?.lookupResumable(resuming) : undefined;
+		if (found && "refusal" in found) return errorResult(found.refusal);
 		// 旧名先翻译一次：三天前的会话里那条 `task` 写的还是 `fast`，它指的人还在。见 `RENAMED_AGENTS`。
-		const requested = resolveAgentName(args.subagent_type ?? "general", agents ?? []);
-		if (agents && !agents.some((a) => a.name === requested)) {
+		const requested = found ? found.summary.agent : resolveAgentName(args.subagent_type ?? "general", agents ?? []);
+		if (!resuming && agents && !agents.some((a) => a.name === requested)) {
 			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
 			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);
 		}
+		// 名字只在认出来的时候可信；没认出来的续跑，下面两道按名字的关卡交给 `runSubAgent`。
+		const named = !resuming || found !== undefined;
 
 		/*
 		 * 深度与自递归，在这里拦。
@@ -74,7 +100,7 @@ export const taskTool: Tool<TaskArgs> = {
 		 *
 		 * 没有链就是主会话——`undefined` 在这里的意思是「第 0 层」，不是「不检查」。
 		 */
-		const refusal = refuseDispatch((ctx.state.get(DISPATCH_KEY) as DispatchContext | undefined) ?? rootDispatch(), requested);
+		const refusal = named ? refuseDispatch((ctx.state.get(DISPATCH_KEY) as DispatchContext | undefined) ?? rootDispatch(), requested) : null;
 		if (refusal) return errorResult(refusal);
 
 		/*
@@ -89,7 +115,7 @@ export const taskTool: Tool<TaskArgs> = {
 		 * 事」，不是「什么都不许派」。
 		 */
 		const decision = ctx.state.get(DELEGATION_KEY) as DelegationDecision | undefined;
-		if (!dispatchAllowed(decision, requested)) {
+		if (named && !dispatchAllowed(decision, requested)) {
 			const named = decision?.mentioned ?? [];
 			return errorResult(
 				`用户把子代理关掉了，这一轮只放行他自己点名的${named.length > 0 ? `（${named.map((name) => `\`${name}\``).join("、")}）` : "那些，而这一轮他一个也没点"}。` +
@@ -102,6 +128,7 @@ export const taskTool: Tool<TaskArgs> = {
 				description: args.description ?? "Sub-agent task",
 				prompt: args.prompt,
 				agentType: requested,
+				...(resuming ? { resume: resuming } : {}),
 			});
 			/*
 			 * The object rides in `details`, never flattened into the text.
@@ -121,7 +148,10 @@ export const taskTool: Tool<TaskArgs> = {
 				 * finished and said nothing" is not the one it makes after "it was cut off partway".
 				 */
 				content: [
-					{ type: "text", text: answer.text || "（子代理没有留下任何输出：既没有调用 `yield` 交付结果，也没有说任何话。）" },
+					{
+						type: "text",
+						text: withResumeHint(answer.text || "（子代理没有留下任何输出：既没有调用 `yield` 交付结果，也没有说任何话。）", answer),
+					},
 				],
 				details: {
 					kind: "task",
@@ -129,10 +159,34 @@ export const taskTool: Tool<TaskArgs> = {
 					agentType: requested,
 					output: answer.output,
 					warnings: answer.warnings?.length ? answer.warnings : undefined,
+					...(answer.id ? { subAgentId: answer.id } : {}),
+					...(resuming ? { resumed: true } : {}),
 				},
 			};
 		} catch (error) {
-			return errorResult(`Sub-agent failed: ${error instanceof Error ? error.message : String(error)}`);
+			const message = error instanceof Error ? error.message : String(error);
+			// 续跑被拒是一句该据以行动的话（找不到、还在跑、不是你派的），不是一次「失败」。
+			return errorResult(resuming ? message : `Sub-agent failed: ${message}`);
 		}
 	},
 };
+
+/**
+ * 结果末尾那一句：它还在，怎么接着用它。
+ *
+ * 只说给模型听——面板上的人有「接着跑」按钮，这段话不进登记簿、不进面板。没做完的那种要说得
+ * 最重：「从零重派」是反馈里白烧 token 的那条路，而模型不被明说就会走它——它只知道任务没完成，
+ * 不知道那个子代理还在。做完了的也给一个 id，追问一句它刚才的结论不该从头再查一遍。
+ */
+function withResumeHint(text: string, answer: SubAgentAnswer): string {
+	if (!answer.id) return text;
+	if (answer.stoppedByUser) return `${text}\n\n（这个子代理是用户在面板上手动停下的。除非用户要求，不要续跑它。）`;
+	if (answer.incomplete) {
+		return (
+			`${text}\n\n要它接着干：再调一次 \`task\`，传 \`resume: "${answer.id}"\`，prompt 里写接着做什么（可以照它交接里的下一步）。` +
+			"它会带着全部上下文从停下的地方继续，只多付新增的轮次。**不要**重新派一个做同样的事——新派的从零开始，会把它读过的东西再读一遍。" +
+			"剩下的不多，也可以自己接手。"
+		);
+	}
+	return `${text}\n\n（子代理 id：\`${answer.id}\`。要追问它、或让它在这个基础上接着做，用 \`task\` 的 \`resume\`。）`;
+}

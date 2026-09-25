@@ -108,6 +108,33 @@ export interface SubAgentSummary {
 	 * error where there is a partial result.
 	 */
 	incomplete?: boolean;
+	/**
+	 * 停下了，但上下文还留着：派它来的那一方可以让它从停下的地方接着跑。
+	 *
+	 * 只在不跑的时候为真。界面据此把「重新派发」换成「接着跑」——前者是从零再来一遍，把它读过
+	 * 的东西再读一遍；后者只付新增的那几轮。
+	 */
+	resumable?: boolean;
+	/** 被续跑过几次。没有就是一次都没有。 */
+	resumes?: number;
+}
+
+/**
+ * 续跑一个子代理需要的全部东西。
+ *
+ * `view` 是模型最后一次看到的历史（压缩、裁剪之后），`state` 是它自己的状态图——清单、读过哪些
+ * 文件、裁剪器。两样都原样留着：续跑时往 `view` 后面接一句话，前缀跟它上一次请求逐字相同，
+ * 缓存接得上；`state` 在，它不用为了改一个文件先把它重读一遍。
+ *
+ * 不进 `list`／`detail`：这是运行时的东西，状态图里甚至有不能序列化的对象，界面用不着它。
+ */
+export interface SubAgentConversation {
+	/** 它当初被派出去时用的定义名；续跑时不能换人。 */
+	agent: string;
+	view: Message[];
+	state: Map<string, unknown>;
+	/** `view` 里那条日期块写的是哪一天；隔了天续跑要补一条新的。 */
+	envDate: string;
 }
 
 /** A summary plus everything it said, for the pane showing one of them. */
@@ -125,6 +152,8 @@ export interface SubAgentDetail extends SubAgentSummary {
 interface SubAgentRecord extends SubAgentDetail {
 	/** Drained by the running loop between turns; see `drainSteering` in `agent/loop.ts`. */
 	steering: Message[];
+	/** 停下时留下的上下文，续跑用。跑着的时候没有——那一份在它自己的循环里。 */
+	conversation?: SubAgentConversation;
 	abort?: () => void;
 }
 
@@ -149,14 +178,89 @@ export class SubAgentRegistry {
 
 	/** Newest last, which is the order a tab strip reads in. */
 	list(): SubAgentSummary[] {
-		return [...this.records.values()].map(({ messages: _messages, steering: _steering, abort: _abort, ...rest }) => rest);
+		return [...this.records.values()].map(({ messages: _messages, steering: _steering, abort: _abort, conversation, ...rest }) => ({
+			...rest,
+			...(conversation && rest.status !== "running" ? { resumable: true } : {}),
+		}));
 	}
 
 	detail(id: string): SubAgentDetail | null {
 		const record = this.records.get(id);
 		if (!record) return null;
-		const { steering: _steering, abort: _abort, ...rest } = record;
-		return rest;
+		const { steering: _steering, abort: _abort, conversation, ...rest } = record;
+		return { ...rest, ...(conversation && rest.status !== "running" ? { resumable: true } : {}) };
+	}
+
+	/**
+	 * 找一个能续跑的。
+	 *
+	 * 认全名，也认冒号后面那一截（`sub:1a2b3c4d` 或 `1a2b3c4d`）——模型抄一串四十几个字符的 id
+	 * 容易抄错，而同一个会话里短的那截已经足够唯一。认不出来、不唯一、还在跑、上下文已经不在了，
+	 * 各给一句能据以行动的话，而不是一个笼统的「失败」。
+	 */
+	lookupResumable(wanted: string): { id: string; summary: SubAgentSummary; conversation: SubAgentConversation } | { refusal: string } {
+		const key = wanted.trim();
+		let found = this.records.get(key);
+		if (!found && key) {
+			const tail = key.replace(/^.*?(sub:)?([^:]+)$/, "$2");
+			const matches = [...this.records.values()].filter((record) => record.id.endsWith(`:sub:${tail}`) || record.id.endsWith(`:${tail}`));
+			if (matches.length > 1) return { refusal: `\`${wanted}\` 对得上不止一个子代理，请用完整的 id。` };
+			found = matches[0];
+		}
+		if (!found) {
+			return {
+				refusal:
+					`找不到子代理 \`${wanted}\`：它可能已经被从名单里清掉，或者这个会话只保留最近 ${MAX_KEPT} 个。` +
+					"要继续那件事，只能重新派一个——在 prompt 里把它之前交回来的结论带上，别让新的从零查起。",
+			};
+		}
+		if (found.status === "running") {
+			return { refusal: `子代理 \`${found.id}\` 还在跑，不需要续跑。等它交回结果，或者在面板里直接对它说话。` };
+		}
+		if (!found.conversation) {
+			return { refusal: `子代理 \`${found.id}\` 的上下文已经不在了（应用重启过，或它没能留下），没法续跑。要继续，重新派一个并把它交回的结论带上。` };
+		}
+		const { messages: _messages, steering: _steering, abort: _abort, conversation, ...summary } = found;
+		return { id: found.id, summary, conversation };
+	}
+
+	/**
+	 * 跑完之后把上下文留下来，续跑用。
+	 *
+	 * 放在 `finish` 之后单独调用而不是塞进它的参数：`finish` 说的是「它怎么结束的」，这里说的是
+	 * 「它还能不能接着来」，被按停的、正常做完的、跑到检查点的都可以有这一份。
+	 */
+	keep(id: string, conversation: SubAgentConversation): void {
+		const found = this.records.get(id);
+		if (!found || found.status === "running") return;
+		found.conversation = conversation;
+		this.onChange();
+	}
+
+	/**
+	 * 把一个停下的子代理重新打开，用的还是原来那个 id。
+	 *
+	 * 名单上还是那一行、转录接着往下长——对看着面板的人来说，这是同一个子代理干的同一件事，
+	 * 不是又派了一个。上一段的结论、错误、「没做完」的标记都清掉：它们说的是上一段怎么停的，
+	 * 这一段还没停。
+	 */
+	reopen(id: string, input: { abort: () => void }): boolean {
+		const found = this.records.get(id);
+		if (!found || found.status === "running") return false;
+		found.status = "running";
+		found.endedAt = undefined;
+		found.answer = undefined;
+		found.output = undefined;
+		found.warnings = undefined;
+		found.error = undefined;
+		found.incomplete = undefined;
+		found.retrying = undefined;
+		found.conversation = undefined;
+		found.steering = [];
+		found.abort = input.abort;
+		found.resumes = (found.resumes ?? 0) + 1;
+		this.onChange();
+		return true;
 	}
 
 	get running(): number {

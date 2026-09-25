@@ -15,6 +15,7 @@ import { streamAssistant } from "../ai/index.ts";
 import { dropUneventful, stripOversizedToolResults } from "../runtime/prune.ts";
 import type { ArtifactSink } from "../runtime/prune.ts";
 import { AgedToolPruner } from "../runtime/aged-prune.ts";
+import { stripStaleHandles } from "../runtime/model-switch.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type { Compaction } from "../runtime/compaction.ts";
 import type {
@@ -37,6 +38,17 @@ export interface AgentRunConfig {
 	cwd: string;
 	provider: ProviderConfig;
 	model: ModelConfig;
+	/**
+	 * 这场对话此刻该用哪个模型——由会话给，一轮之内也能变。
+	 *
+	 * `provider` / `model` 是这一轮开始时的那个。从前整轮都用它：人在一轮中途换了模型，剩下的
+	 * 几十个请求照旧发给旧的；旧的上游坏了、正在一刻不停地重试时，换模型等于没换——界面上写着
+	 * 「Model B」，服务器收到的一直是 a（`e2e/edit-resend-model-probe.ts` 量出来的）。重试策略早就
+	 * 是每次重试前现读的（`retry-policy.ts` 的 `RetryPolicySource`），模型是同一个道理。
+	 *
+	 * 省略就是整轮不变：子代理、侧聊、评测、测试都是这样。
+	 */
+	liveModel?: LiveModel;
 	systemPrompt: string;
 	tools: Tool[];
 	messages: Message[];
@@ -127,8 +139,40 @@ export interface AgentRunConfig {
 	}) => Promise<{ result?: ToolResult } | void>;
 }
 
+/**
+ * 会话此刻设定的模型，和它什么时候变。见 `AgentRunConfig.liveModel`。
+ */
+export interface LiveModel {
+	/** 现在该用哪个。解析不出来（模型被删了）就是 null，循环接着用手上那个。 */
+	current(): { provider: ProviderConfig; model: ModelConfig } | null;
+	/**
+	 * 它变了的时候通知一声，返回取消订阅。
+	 *
+	 * 光靠每轮开头读一次不够：一个正在重试的请求可能要等很久才轮到下一轮，而人换模型恰恰是因为
+	 * 那个请求在等一个坏掉的上游。
+	 */
+	onChange(listener: () => void): () => void;
+	/**
+	 * 循环真的换过去了：从下一个请求起用 `model`，在这之前的历史都出自别的模型。
+	 *
+	 * 会话据此把「换模型的位置」挪到此刻——人按下切换和循环真正换过去之间，旧模型可能又说完了
+	 * 一句，那一句的供应商句柄同样不能交给新模型。
+	 */
+	adopted?(model: ModelConfig): void;
+}
+
 export interface AgentRunResult {
 	messages: Message[];
+	/**
+	 * 这一轮结束时，模型眼里的整段历史——压缩、裁剪之后的那一份，末尾接着这一轮产出的消息。
+	 *
+	 * `messages` 只有这一轮新产出的部分，而压缩发生在循环内部，调用方从外面看不见。要在同一段
+	 * 上下文上接着跑（子代理续跑就是），拿这一份原样往后接：前缀跟上一次请求逐字相同，供应商的
+	 * 前缀缓存才接得上。从转录重建会丢掉压缩边界，也会把日期块挪位置，缓存从第二条起全部作废。
+	 *
+	 * 可选：换进来的别的循环（`useAgentLoop`）不一定给，调用方要有退路。
+	 */
+	view?: Message[];
 	reason: "done" | "aborted" | "error" | "max_turns" | "stalled";
 	error?: string;
 	/**
@@ -209,6 +253,14 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	 */
 	let reminders: Message[] = [];
 
+	/*
+	 * 这一轮此刻用的模型。起点是调用方给的那个，人中途换了就跟着换——见 `liveModel`。
+	 *
+	 * 只在循环顶上换：一个请求发出去之后它就是它，换人发生在两个请求之间。唯一的例外是一个还
+	 * 什么都没说出口的请求（在连、在重试），那个会被放手，见 `streamTurn`。
+	 */
+	let active: AgentRunConfig = config;
+
 	while (true) {
 		if (config.signal?.aborted) return finish("aborted");
 		if (turn >= maxTurns) return finish("max_turns");
@@ -236,6 +288,24 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		}
 
 		/*
+		 * 人换了模型：从这个请求起换过去。
+		 *
+		 * 手上这份历史全出自旧模型，它的供应商句柄交给新模型只会被整条拒掉（见 `model-switch.ts`），
+		 * 所以先摘掉。按「切换那一刻之前的都剥」来，不按每条消息的 `model` 字段比：有的供应商回报的
+		 * 模型名跟配置里的对不上（带日期、带别名），逐条比会把同一个模型自己的思考签名也剥掉。
+		 */
+		const wanted = config.liveModel?.current();
+		if (wanted && wanted.model.id !== active.model.id) {
+			const cleaned = stripStaleHandles(messages, messages.length);
+			if (cleaned !== messages) {
+				messages.length = 0;
+				messages.push(...cleaned);
+			}
+			active = { ...config, provider: wanted.provider, model: wanted.model };
+			config.liveModel?.adopted?.(wanted.model);
+		}
+
+		/*
 		 * Tidy away the results that were never going to be read again, when it is free to do so.
 		 *
 		 * Different from the pass inside compaction, which runs when the window is nearly full and
@@ -256,7 +326,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 
 		if (config.compact) {
 			const before = messages.length;
-			const compaction = await config.compact(messages, config.model);
+			const compaction = await config.compact(messages, active.model);
 			if (compaction) {
 				messages.length = 0;
 				messages.push(...compaction.messages);
@@ -285,7 +355,16 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		};
 
 		lastRequestAt = Date.now();
-		let { message: assistant, ruleMatches, deferredMatches } = await streamTurn(config, context, emit);
+		let { message: assistant, ruleMatches, deferredMatches, switched } = await streamTurn(active, context, emit);
+		/*
+		 * 还没说出一个字就被换下的请求：什么都不留，回到顶上用新模型从同一处重来。
+		 *
+		 * 不算一轮——它什么都没做，算进去等于让人为换模型付一轮的检查点额度。
+		 */
+		if (switched) {
+			turn -= 1;
+			continue;
+		}
 
 		/*
 		 * The far end refused the request itself. Try once more without the biggest thing in it.
@@ -312,7 +391,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				});
 				messages.length = 0;
 				messages.push(...stripped);
-				({ message: assistant, ruleMatches, deferredMatches } = await streamTurn(config, { ...context, messages }, emit));
+				({ message: assistant, ruleMatches, deferredMatches } = await streamTurn(active, { ...context, messages }, emit));
 			}
 		}
 		/*
@@ -567,10 +646,12 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			await emit({ type: "message_start", message: reminder });
 			await emit({ type: "message_end", message: reminder });
 		}
+		// 提醒不进 `messages`（那是这一轮自己的），但接着跑的那一段要看得见它——见 `view`。
+		const view = [...messages, ...reminders];
 		reminders = [];
 
 		await emit({ type: "agent_end", reason, error });
-		return { messages: produced, reason, error, ...(retryable ? { retryable } : {}) };
+		return { messages: produced, view, reason, error, ...(retryable ? { retryable } : {}) };
 	}
 }
 
@@ -591,15 +672,39 @@ interface TurnResult {
 	ruleMatches: RuleMatch[];
 	/** Rules that matched but did not interrupt: delivered once this turn has finished. */
 	deferredMatches: RuleMatch[];
+	/** 人换了模型，而这个请求还什么都没说出口：它被放手了，调用方该用新模型从同一处重来。 */
+	switched?: boolean;
 }
 
 async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: AgentEventSink): Promise<TurnResult> {
 	await emit({ type: "request", provider: config.provider.id, model: config.model.modelId, thinking: config.thinking, messageCount: context.messages.length });
+
+	/*
+	 * 换模型的那一下，单独一个控制器，理由和下面规则打断那个一样：它的意思不是「停」，是「换个人
+	 * 重来」，所以不能跟 `config.signal`（人按了停止）混为一谈。
+	 *
+	 * 只放手还什么都没说出口的请求——在连、在重试。那正是人会去换模型的时候：旧的上游坏了，这个请求
+	 * 在一遍遍地等它。已经在出字的不动：它在干活，说完了下一个请求自然用新的。
+	 */
+	const switchAbort = new AbortController();
+	let said = false;
+	const unsubscribe = config.liveModel?.onChange(() => {
+		const wanted = config.liveModel?.current();
+		if (!said && wanted && wanted.model.id !== config.model.id) switchAbort.abort();
+	});
+	const switched = () => switchAbort.signal.aborted && !config.signal?.aborted;
+
 	if (config.streamFn) {
-		const message = await config.streamFn(context, config);
-		await emit({ type: "message_start", message });
-		await emit({ type: "message_end", message });
-		return { message, ruleMatches: [], deferredMatches: [] };
+		try {
+			// 替身拿到的也是带着「换人」的那根信号，行为跟真实请求一样，才测得到。
+			const message = await config.streamFn(context, { ...config, signal: AbortSignal.any([...(config.signal ? [config.signal] : []), switchAbort.signal]) });
+			if (switched()) return { message, ruleMatches: [], deferredMatches: [], switched: true };
+			await emit({ type: "message_start", message });
+			await emit({ type: "message_end", message });
+			return { message, ruleMatches: [], deferredMatches: [] };
+		} finally {
+			unsubscribe?.();
+		}
 	}
 
 	/*
@@ -623,7 +728,8 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 	const ruleAbort = new AbortController();
 	const pendingMatches: RuleMatch[] = [];
 	const deferredMatches: RuleMatch[] = [];
-	const signal = config.signal ? AbortSignal.any([config.signal, ruleAbort.signal]) : ruleAbort.signal;
+
+	const signal = AbortSignal.any([...(config.signal ? [config.signal] : []), ruleAbort.signal, switchAbort.signal]);
 
 	const stream = streamAssistant(config.provider, config.model, context, {
 		signal,
@@ -672,9 +778,27 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		});
 	};
 
+	/**
+	 * 换了模型，这个请求放手。
+	 *
+	 * 没开始出流的，什么都不发、不进转录——它什么都没说，留一条空的「已停止」只会让人以为自己按了
+	 * 停。开始了但一个字没有的（极少见），照常收尾，免得界面上留着一个永远在转的气泡。重试过的，
+	 * 那行「正在重连」要收场，而且要说实话：不是重连上了，是换了人。
+	 */
+	const letGo = async (message: AssistantMessage): Promise<TurnResult> => {
+		if (started) await emit({ type: "message_end", message });
+		if (retries > 0) {
+			const to = config.liveModel?.current()?.model.name;
+			await emit({ type: "retry_settled", outcome: "switched", attempts: retries, ...(to ? { switchedTo: to } : {}) });
+		}
+		return { message, ruleMatches: [], deferredMatches: [], switched: true };
+	};
+
+	try {
 	while (true) {
 		const next = await stream.next();
 		if (next.done) {
+			if (switched()) return await letGo(next.value);
 			await settle(next.value);
 			return { message: next.value, ruleMatches: pendingMatches, deferredMatches };
 		}
@@ -689,12 +813,17 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			case "thinking_delta":
 			case "toolcall_delta":
 			case "toolcall_end":
+				said = true;
 				await emit({ type: "message_update", message: event.partial, delta: event });
 				if (config.rules && event.type !== "toolcall_end") observeDelta(config.rules, event, pendingMatches, deferredMatches, ruleAbort);
 				break;
 			case "done":
 			case "error": {
 				const message = event.message;
+				if (switched()) {
+					const tail = await stream.next();
+					return await letGo(tail.done ? tail.value : message);
+				}
 				if (!started) await emit({ type: "message_start", message });
 				await emit({ type: "message_end", message });
 				// Drain the generator so its `return` value is the authoritative final message.
@@ -706,6 +835,9 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			default:
 				break;
 		}
+	}
+	} finally {
+		unsubscribe?.();
 	}
 }
 

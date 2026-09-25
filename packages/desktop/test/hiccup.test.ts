@@ -131,3 +131,25 @@ test("摘要和原文一样时不重复说两遍", () => {
 	const tip = hiccupTip(hiccups[0]) ?? "";
 	assert.equal(tip.split("服务端异常").length - 1, 1, "同一句话不该在气泡里出现两遍");
 });
+
+test("重试中换了模型，说的是换了人，不是恢复也不是失败", () => {
+	/*
+	 * 旧模型的上游坏了、一直在重试，人换了模型——这一次请求当场放手，换新模型接着问。它既没有
+	 * 「恢复」，也没有「放弃」：说成恢复是报一件没发生的好事，说成失败会画出一张失败卡片、摆出
+	 * 一个「继续」按钮，而这一轮根本没停。
+	 */
+	let hiccups = foldRetry([], retry(1), 1000);
+	hiccups = foldRetry(hiccups, retry(2), 1000);
+	hiccups = settleHiccups(hiccups, { outcome: "switched", attempts: 2, switchedTo: "Model B" }, 0);
+	assert.equal(hiccups.length, 1);
+	assert.equal(hiccups[0].outcome, "switched");
+	const line = describeHiccup(hiccups[0], 2000);
+	assert.equal(line, "重试 2 次后换成 Model B 接着问");
+	assert.ok(!line.includes("恢复") && !line.includes("失败"));
+});
+
+test("没有正在等的那一条时，换模型不凭空补出一条", () => {
+	// 只有「一次都没重试就失败」才需要补一条；换模型的那一刻如果没在重试，就没有什么可收场的。
+	const hiccups = settleHiccups([], { outcome: "switched", attempts: 0, switchedTo: "Model B" }, 0);
+	assert.deepEqual(hiccups, []);
+});

@@ -28,7 +28,8 @@ export type AgentEvent =
 	 * 只转前一半，界面就只会看到「开始重连」而永远等不到「接上了」——那个状态会一直挂在那里，
 	 * 比不显示还糟。
 	 */
-	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" }> }
+	// `notice` 是检查点上那句「清单还有 N 项，接着跑」——子代理自己的事，留在它自己的流里。
+	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "notice" }> }
 	| { type: "message_start"; message: Message }
 	| { type: "message_update"; message: AssistantMessage; delta: StreamEvent }
 	| { type: "message_end"; message: Message }
@@ -135,7 +136,11 @@ export type AgentEvent =
 	 * Steps are summaries, not transcripts. A sub-agent exists so its forty file reads stay out of
 	 * the parent context; copying them into the parent log would give that back with interest.
 	 */
-	| { type: "subagent"; id: string; agent: string; description: string; prompt: string; tools: string[]; parentId?: string; provider?: string; model?: string }
+	/*
+	 * `resumed`：同一个 id 又跑起来一段，`prompt` 是这一段说给它的话。轨迹靠 id 把派发和回报配成
+	 * 一对，续跑的那一段要有自己的起点，不然第二份回报找到的是上一段的开头。
+	 */
+	| { type: "subagent"; id: string; agent: string; description: string; prompt: string; tools: string[]; parentId?: string; provider?: string; model?: string; resumed?: boolean }
 	/**
 	 * One message from inside a sub-agent, as it is written.
 	 *
@@ -198,8 +203,11 @@ export type AgentEvent =
 	 *
 	 * 于是那条记录能安静地收尾：重连成功就变成一行「重连 3 次后恢复」，灰的，不再动；真的没救了
 	 * 才换成一句失败。用户要的「重试解决了就别报错，留个轻微的痕迹」，落到数据上就是这个事件。
+	 *
+	 * `switched`：人在它重试的时候换了模型，这一次请求不再等旧的那个，换成 `switchedTo` 重发。它
+	 * 既没有接上也没有放弃——说成哪一样都是在报一件没发生的事。
 	 */
-	| { type: "retry_settled"; outcome: "recovered" | "gave_up"; attempts: number; failure?: Failure }
+	| { type: "retry_settled"; outcome: "recovered" | "gave_up" | "switched"; attempts: number; failure?: Failure; switchedTo?: string }
 	/**
 	 * The session got its name from the first prompt.
 	 *

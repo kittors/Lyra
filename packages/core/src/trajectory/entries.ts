@@ -116,7 +116,7 @@ function fromEvent(seq: number, ts: number, event: AgentEvent): Entry[] {
 				seq,
 				ts,
 				source: "subagent",
-				summary: `派发 ${event.agent}：${event.description}`,
+				summary: `${event.resumed ? "续跑" : "派发"} ${event.agent}：${event.description}`,
 				detail: `agent: ${event.agent}\n工具: ${event.tools.join(", ")}\n\n${event.prompt}`,
 				correlationId: event.id,
 			},

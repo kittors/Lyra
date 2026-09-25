@@ -46,6 +46,13 @@ export interface AgentDefinition {
 	 * agent spawns others by reading its frontmatter instead of its prompt.
 	 */
 	spawns?: string[] | "*";
+	/**
+	 * 每跑多少轮停下来看一眼。不写就是 `SUB_AGENT_CHECKPOINT_TURNS`（60）。
+	 *
+	 * 检查点，不是上限：清单在往前推就接着跑，否则交一份交接、留着上下文等人续跑。改大它是
+	 * 「少汇报几次」，改小是「多汇报几次」，都不会让它的活白干——见 `runtime/sub-agent.ts`。
+	 */
+	maxTurns?: number;
 }
 
 

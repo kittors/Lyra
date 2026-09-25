@@ -16,7 +16,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { MAX_SUB_AGENT_TURNS, runSubAgent } from "../src/runtime/sub-agent.ts";
+import { SUB_AGENT_CHECKPOINT_TURNS, runSubAgent } from "../src/runtime/sub-agent.ts";
 import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
 import type { AgentDefinition } from "../src/agents-builtin.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
@@ -168,10 +168,12 @@ test("running out of rounds is asked once more for a delivery, and that delivery
 				: looks(turn, `第 ${turn + 1} 轮：在看 auth.ts`),
 	});
 
-	assert.ok(turns > MAX_SUB_AGENT_TURNS, `the cap was reached and one more round was spent asking (${turns})`);
+	assert.ok(turns > SUB_AGENT_CHECKPOINT_TURNS, `the checkpoint was reached and one more round was spent asking (${turns})`);
 	assert.ok(answer.text.includes("登录在 auth.ts:42"), `the delivery came back: ${answer.text}`);
 	assert.deepEqual(answer.output, { summary: "登录在 auth.ts:42", files: [{ path: "auth.ts", why: "入口" }] }, "as an object too");
-	assert.ok(answer.text.includes("补交"), "and it is labelled as a delivery it was pressed for, not a finished piece of work");
+	assert.ok(answer.text.includes("阶段性交接"), "and it is labelled as a handoff it was pressed for, not a finished piece of work");
+	assert.ok(answer.text.includes("可以接着跑"), "and the parent is told the sub-agent is still there to continue");
+	assert.ok(!answer.text.includes("拆小"), `the old advice sent the parent into redispatching from zero: ${answer.text}`);
 	assert.equal(record.status, "done");
 	assert.equal(record.answer, answer.text, "the pane and the parent are told the same thing");
 	assert.equal(record.incomplete, true, "pressed for it, so the pane says so — the leading ⚠ is stripped before it reaches the screen");
@@ -200,8 +202,8 @@ test("a run that will not deliver even when pressed still says what happened", a
 		reply: (turn, tools) => (tools.length === 1 ? says("抱歉，时间不够了") : looks(turn, `第 ${turn + 1} 轮：在看 auth.ts`)),
 	});
 
-	assert.ok(answer.text.includes(`用满了 ${MAX_SUB_AGENT_TURNS} 步`), `the cause is named: ${answer.text}`);
-	assert.ok(!answer.text.includes("补交"), "没交出来就不能说成补交了");
+	assert.ok(answer.text.includes(`这一段 ${SUB_AGENT_CHECKPOINT_TURNS} 轮`), `the cause is named: ${answer.text}`);
+	assert.ok(!answer.text.includes("阶段性交接"), "没交出来就不能说成交了交接");
 	assert.ok(answer.text.includes("抱歉，时间不够了"), "最后说的那句仍然要交上去");
 	assert.equal(record.status, "done", "it did the work, it just did not get to the end of it");
 });
@@ -221,7 +223,7 @@ test("a run cut off mid-tool-call still reports the last thing it said", async (
 test("going in circles is reported as going in circles, not as finishing", async () => {
 	const { answer, record, turns } = await dispatch({ reply: (turn) => (turn === 0 ? looks(0, "先看一眼") : stuck(turn)) });
 
-	assert.ok(turns < MAX_SUB_AGENT_TURNS, "the repetition watch stopped it early");
+	assert.ok(turns < SUB_AGENT_CHECKPOINT_TURNS, "the repetition watch stopped it early");
 	assert.ok(answer.text.includes("反复用同样的参数"), `the cause is named: ${answer.text}`);
 	assert.equal(record.incomplete, true);
 	assert.ok(answer.text.includes("先看一眼"), "and what it had said is still delivered");

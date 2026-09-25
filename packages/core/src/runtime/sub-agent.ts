@@ -17,19 +17,22 @@ import { commandShell } from "../platform.ts";
 import { join } from "node:path";
 import type { AgentEvent, AgentEventSink } from "../agent/events.ts";
 import type { AgentRunConfig, AgentRunResult } from "../agent/loop.ts";
+import { RepetitionWatch } from "../agent/repetition.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
-import { withEnvironment } from "../prompt/environment.ts";
+import { today, withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveSubAgentModel } from "../config/model-roles.ts";
+import { sessionPruner } from "./aged-prune.ts";
 import { compactWith } from "./compaction.ts";
+import { continueWhileWorkRemains } from "./continuation.ts";
 import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
 import {
 	DELEGATION_KEY,
@@ -44,8 +47,9 @@ import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutc
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../tools/task.ts";
-import type { ApprovalDecision, ApprovalRequest, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
-import type { SubAgentRegistry } from "./sub-agents.ts";
+import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
+import type { ApprovalDecision, ApprovalRequest, JsonSchema, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
+import type { SubAgentConversation, SubAgentRegistry } from "./sub-agents.ts";
 import { isIsolatedWorktree } from "./workspace.ts";
 
 async function pathExists(path: string): Promise<boolean> {
@@ -70,16 +74,51 @@ export interface SubAgentAnswer {
 	output?: Record<string, unknown>;
 	/** Schema problems that were accepted rather than rejected. */
 	warnings?: string[];
+	/** 登记簿里的 id，续跑用。没有登记簿的宿主不给。 */
+	id?: string;
+	/** 没做完就停下了——`text` 开头那句话说了为什么。上下文还在，可以续跑。 */
+	incomplete?: boolean;
+	/** 人在面板上把它按停的。派它来的那一方不该自作主张地让它接着跑。 */
+	stoppedByUser?: boolean;
 }
 
 /**
- * How many rounds a delegated run gets.
+ * 子代理每跑多少轮停下来看一眼——检查点，不是上限。
  *
- * Named because the number appears in what a caller is told when it runs out — "用满了 60 步" is
- * actionable in a way that "步数用尽" is not, and a constant is the only way those two stay in step.
- * Deliberately below the main conversation's 200: a dozen of these can be in flight at once.
+ * 这个数从前是硬上限：到了就停，上下文整个扔掉，交回停下前最后说的那句话，派它来的模型只能
+ * 从零再派一个，把读过的文件再读一遍。反馈里「重开三个子代理、个个跑满 60 步、最后主会话自己
+ * 做了」就是这么来的。60 这个数也不是量出来的：它是 8 月引入子代理时写下的，后来补的理由是
+ * 「可能同时有十来个在跑」——而并发现在由派发闸门管着（默认 4 个、最多 8 个），不该再压在
+ * 每个子代理的轮数上。
+ *
+ * 现在到了检查点：
+ *   - 它的清单在往前推，就接着跑——判据和主会话的续跑链是同一个（`continuation.ts`），在
+ *     真实事故上校准过，不是另起的「它是不是在瞎忙」的启发式；
+ *   - 否则讨一份交接（做了什么、还剩什么、下一步），然后**停下但留着上下文**：派它来的那一方
+ *     用 `task` 的 `resume` 让它从停下的地方接着来，只付新增的那几轮。
+ *
+ * 按定义可以改（agent 文件里的 `maxTurns`）。改的是「多久汇报一次」，不是「最多干多少活」。
  */
-export const MAX_SUB_AGENT_TURNS = 60;
+export const SUB_AGENT_CHECKPOINT_TURNS = 60;
+
+/**
+ * 一个没有声明输出格式的子代理，到检查点时交的那份交接。
+ *
+ * `general` 之前在这里什么都不交：只有带 schema 的子代理有补交的那一轮，其余的交回的是「停下前
+ * 最后说的话」——一个读文件读到一半被截断的子代理，最后说的多半是「让我再看看 xxx」。
+ *
+ * 三个字段对着续跑的人要问的三件事，缺一不可：已经知道了什么（别再查一遍）、还差什么（接下来
+ * 干什么）、打算怎么干（接手的人照着走，或者改道）。
+ */
+export const HANDOFF_SCHEMA: JsonSchema = {
+	type: "object",
+	required: ["summary", "remaining"],
+	properties: {
+		summary: { type: "string", description: "已经做完了什么、查到的关键事实——带上 `path:line`，接手的人不用再查一遍。" },
+		remaining: { type: "string", description: "还没做完的部分，以及卡在哪。" },
+		next: { type: "string", description: "你打算接下来怎么做——接着跑的时候照这个走。" },
+	},
+};
 
 export interface SubAgentOptions {
 	sessionId: string;
@@ -129,13 +168,25 @@ export interface SubAgentOptions {
 
 export async function runSubAgent(
 	options: SubAgentOptions,
-	input: { description: string; prompt: string; agentType?: string },
+	input: { description: string; prompt: string; agentType?: string; resume?: string },
 	provider: ProviderConfig,
 	model: ModelConfig,
 	_parentSystemPrompt: string,
 ): Promise<SubAgentAnswer> {
+	/*
+	 * 续跑：还是那个子代理，带着它读过、做过的一切。
+	 *
+	 * 这是从零重派的反面。重派的那个什么都不知道，把上一个读过的文件再读一遍、把走过的弯路
+	 * 再走一遍；续跑的这个只往它自己的历史后面接一句话，前缀跟它上一次请求逐字相同，供应商的
+	 * 缓存还热着的话，那几十轮历史几乎不花钱。
+	 *
+	 * 只能续跑自己派出去的：主会话续跑它派的，子代理续跑它派的。别人的子代理不是你能指挥的。
+	 */
+	const earlier = input.resume === undefined ? undefined : resumable(options, input.resume);
+
 	// 旧名在这里也要认：历史记录重放和外部调用都可能带着 `fast`／`deep` 进来。见 `RENAMED_AGENTS`。
-	const wanted = resolveAgentName(input.agentType ?? "general", options.agents);
+	// 续跑的时候不换人：它是谁，当初派出去时就定了。
+	const wanted = earlier ? earlier.conversation.agent : resolveAgentName(input.agentType ?? "general", options.agents);
 	const definition = options.agents.find((a) => a.name === wanted) ?? BUILTIN_AGENTS[0];
 	const fromSession =
 		definition.tools === "*" ? options.tools : options.tools.filter((t) => (definition.tools as string[]).includes(t.name));
@@ -152,7 +203,8 @@ export async function runSubAgent(
 	 * got the tool and a refusal from it. The depth the prompt promised was not enforced anywhere.
 	 */
 	// Its registry id, minted before the dispatch context so a run one level down can name its parent.
-	const id = `${options.sessionId}:sub:${randomUUID().slice(0, 8)}`;
+	// A resumed run keeps the id it had: same row on the roster, same transcript, same `agent://`.
+	const id = earlier?.id ?? `${options.sessionId}:sub:${randomUUID().slice(0, 8)}`;
 	const here = childDispatch(options.dispatch ?? rootDispatch(), definition.name, id);
 	const maySpawn = definition.spawns === "*" || (Array.isArray(definition.spawns) && definition.spawns.length > 0);
 	const deepEnough = here.depth < DEFAULT_MAX_DEPTH;
@@ -183,12 +235,17 @@ export async function runSubAgent(
 
 	const yieldTool = definition.output ? makeYieldTool(definition.output, { mode: definition.schemaMode }) : undefined;
 	const allowed = yieldTool ? [...withoutTask, yieldTool as unknown as Tool] : withoutTask;
-	const subState = new Map<string, unknown>([
-		[SKILLS_KEY, options.skills],
-		[AGENTS_KEY, options.agents],
-		// So the `task` tool one level down knows where it is, and can refuse a cycle by name.
-		[DISPATCH_KEY, here],
-	]);
+	/*
+	 * 续跑的用它原来那一份：清单、读过哪些文件、裁剪器都在里面。丢了它，它要改一个文件得先
+	 * 重读一遍，清单也得从头写——那正是续跑要省下的东西。
+	 */
+	const subState = earlier?.conversation.state ?? new Map<string, unknown>();
+	subState.set(SKILLS_KEY, options.skills);
+	subState.set(AGENTS_KEY, options.agents);
+	// So the `task` tool one level down knows where it is, and can refuse a cycle by name.
+	subState.set(DISPATCH_KEY, here);
+	// 上一段交的东西说的是上一段。这一段要交，就得自己再交一次——否则一次什么都没交的续跑会把旧的那份当成新结论。
+	subState.delete(YIELD_KEY);
 	/*
 	 * 状态图是新建的，所以这一条要自己带下去。
 	 *
@@ -197,6 +254,8 @@ export async function runSubAgent(
 	 * 这个子代理本身，那次已经用掉了，它不继承任何人的通行证。
 	 */
 	if (delegationOff) subState.set(DELEGATION_KEY, { tier: "off", mentioned: [] } satisfies DelegationDecision);
+	// 续跑时设置可能已经改回来了；上一段留下的「关掉」不能跟着过来。
+	else subState.delete(DELEGATION_KEY);
 
 	// The sub-agent gets its own message list and its own state map, so its file reads and
 	// todo list cannot leak into the parent's.
@@ -213,15 +272,24 @@ export async function runSubAgent(
 	const stopWithParent = () => controller.abort();
 	options.signal?.addEventListener("abort", stopWithParent, { once: true });
 	const registry = options.registry;
-	registry?.start({
-		id,
-		agent: definition.name,
-		description: input.description,
-		abort: () => controller.abort(),
-		// Who asked, and how far down this is — the two things a lineage is made of.
-		parentId: options.dispatch?.id,
-		depth: here.depth,
-	});
+	/*
+	 * 面板上按停的那一下，要认得出是人按的。
+	 *
+	 * 父会话整轮被停和这一个被单独按停，落到这里都是 `abort`。前者整件事都停了，没人会读结果；
+	 * 后者父会话还在跑，会读到它交回的东西——它得知道这是人的决定，别转头就让它接着跑。
+	 */
+	const stopByUser = () => controller.abort(STOPPED_BY_USER);
+	if (earlier) registry?.reopen(id, { abort: stopByUser });
+	else
+		registry?.start({
+			id,
+			agent: definition.name,
+			description: input.description,
+			abort: stopByUser,
+			// Who asked, and how far down this is — the two things a lineage is made of.
+			parentId: options.dispatch?.id,
+			depth: here.depth,
+		});
 	/*
 	 * What it was asked to do, as the first line of its transcript.
 	 *
@@ -230,7 +298,15 @@ export async function runSubAgent(
 	 * been told, which is the one piece of context a reader has none of. It is also the thing worth
 	 * checking first when a sub-agent goes the wrong way: usually the prompt sent it there.
 	 */
-	registry?.record(id, { role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() });
+	const opening: Message = { role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() };
+	registry?.record(id, opening);
+	/*
+	 * 续跑的这一句是转录中间新添的，要单独发出去。
+	 *
+	 * 新派的那一句不用：`subagent` 事件里带着它，面板打开时从登记簿整份读。而续跑时面板多半
+	 * 正开着，只收增量——不发，这一句就只在登记簿里，屏幕上看到的是它没头没尾地又动起来了。
+	 */
+	if (earlier) await options.emit({ type: "subagent_message", id, message: opening });
 
 	await options.emit({
 		type: "subagent",
@@ -242,6 +318,7 @@ export async function runSubAgent(
 		parentId: options.dispatch?.id,
 		provider: runProvider.id,
 		model: runModel.modelId,
+		...(earlier ? { resumed: true } : {}),
 	});
 
 	// Build a complete, standalone system prompt for sub-agents
@@ -280,8 +357,22 @@ export async function runSubAgent(
 	});
 
 	// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
-	// 留成变量，因为讨要交付的那一轮要拿它当历史的头。
-	const history = withEnvironment([{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }]);
+	let envDate = earlier?.conversation.envDate ?? today();
+	let history: Message[];
+	if (!earlier) history = withEnvironment([opening]);
+	else if (today() === envDate) {
+		/*
+		 * 原样接在它上一次看到的历史后面，一个字节都不动。
+		 *
+		 * 不从转录重建：转录里没有压缩边界、没有那条日期块，重建出来的前缀从第二条起就跟上一次
+		 * 请求对不上，缓存整段作废——续跑省下的那部分又花回去了。
+		 */
+		history = [...earlier.conversation.view, opening];
+	} else {
+		// 隔了天再续：旧的日期块留在原位（前缀不动），新的一条接在末尾，模型读到的「今天」是对的。
+		envDate = today();
+		history = withEnvironment([...earlier.conversation.view, opening]);
+	}
 
 	/*
 	 * The same context compaction the parent gets, for the same reason.
@@ -344,26 +435,35 @@ export async function runSubAgent(
 	/**
 	 * Whether it is worth asking once more for a delivery.
 	 *
-	 * Only for a run that had more to do and no more rounds to do it in, that declares a schema,
-	 * and that has not already yielded. An aborted one is excluded on purpose: stopping it was
-	 * somebody's decision, and spending another request would be arguing with it.
+	 * Only for a run that stopped at a checkpoint with work left and has not already yielded — any
+	 * definition, not only the ones that declare a schema: a `general` sub-agent cut off at the
+	 * checkpoint used to hand back whatever sentence it happened to say last. An aborted one is
+	 * excluded on purpose: stopping it was somebody's decision, and spending another request would
+	 * be arguing with it.
 	 */
 	const needsFinalYield = (reason: AgentRunResult["reason"]) =>
-		reason === "max_turns" && yieldTool !== undefined && subState.get(YIELD_KEY) === undefined && !controller.signal.aborted;
+		reason === "max_turns" && subState.get(YIELD_KEY) === undefined && !controller.signal.aborted;
 
-	let result: Awaited<ReturnType<typeof runTurn>>;
-	/** Both rounds' messages, so the prose fallback can see what the last one said. */
-	let produced: Message[] = [];
+	let result: AgentRunResult;
+	/** Every round's messages, so the prose fallback can see what the last one said. */
+	const produced: Message[] = [];
+	/**
+	 * 模型眼里的历史，随着每一段往前走——续跑、检查点之后接着跑，都接在它后面。
+	 *
+	 * 讨交接的那一轮不算进来：那是跟派它来的人的一次交代，不是它干活的一部分。续跑时它从交代
+	 * 之前的地方接着干，「这是最后一轮、只剩 yield」那句话不该出现在它往后的历史里。
+	 */
+	let view: Message[] = history;
 	/** Whether the extra round got a delivery out of it, which changes what the answer says. */
 	let salvaged = false;
+	const checkpoint = definition.maxTurns ?? SUB_AGENT_CHECKPOINT_TURNS;
 	try {
 		await options.emit({ type: "subagent_event", id, event: {
 			type: "context", systemPrompt: subAgentPrompt, tools: allowed.map(tool => tool.name),
 			skills: options.skills.map(skill => skill.name),
 			schemas: allowed.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })),
 		} });
-		result = await runTurn(
-			{
+		const runConfig: AgentRunConfig = {
 				sessionId: id,
 				cwd: options.cwd,
 				provider: runProvider,
@@ -406,7 +506,11 @@ export async function runSubAgent(
 							const allowedNames = definition.spawns;
 							// 同样先认旧名，否则一条写着 `fast` 的 spawns 白名单会把改名后的它自己挡在外面。
 							const wanted = resolveAgentName(nested.agentType ?? "general", options.agents);
-							if (Array.isArray(allowedNames) && !allowedNames.map((name) => resolveAgentName(name, options.agents)).includes(wanted)) {
+							/*
+							 * 续跑不过白名单：能续的只有它自己派出去的那些，派的那一刻已经过过一次了。而这里
+							 * 拿到的名字是调用时填的，不是那个子代理真正的定义——拿它来查只会冤枉人。
+							 */
+							if (nested.resume === undefined && Array.isArray(allowedNames) && !allowedNames.map((name) => resolveAgentName(name, options.agents)).includes(wanted)) {
 								throw new Error(
 									`\`${definition.name}\` 只被允许派生 ${allowedNames.join("、")}，不包括 \`${wanted}\`。` +
 										`要放开，请在它的定义里把 \`${wanted}\` 加进 spawns。`,
@@ -479,26 +583,62 @@ export async function runSubAgent(
 				 */
 				drainSteering: registry ? () => registry.drainSteering(id) : undefined,
 				compact: compactHistory,
-				maxTurns: MAX_SUB_AGENT_TURNS,
-			},
-			relay,
-		);
-		produced = result.messages;
+				maxTurns: checkpoint,
+				/*
+				 * 一只表、一个裁剪器，跨检查点共用——和主会话续跑链同一个理由：跑满一段攒下的观察，
+				 * 不该在接着跑的时候清零。裁剪器放在它自己的状态图里，续跑时也还是那一个。
+				 */
+				repetition: new RepetitionWatch(),
+				pruner: sessionPruner(subState),
+			};
+		/** 跑一段，并记下模型此刻眼里的历史。 */
+		const segment = async (messages: Message[]): Promise<AgentRunResult> => {
+			const ran = await runTurn({ ...runConfig, messages }, relay);
+			produced.push(...ran.messages);
+			view = ran.view ?? [...messages, ...ran.messages];
+			return ran;
+		};
 
 		/*
-		 * 步数用尽时，讨一份交付回来。
+		 * 到了检查点，清单在往前推就接着跑。
 		 *
-		 * 有 schema 的子代理只认 `yield`——没调用就等于什么都没交。而「跑满 60 步」恰恰是它读了
-		 * 一路、手里有货、只是没走到收尾那一步的情形：报告的价值最高，拿到的却是零。四个 explore
-		 * 各跑了半小时、一份报告都没有，就是这么来的。
+		 * 判据和主会话的续跑链是同一个，直接用它：清单里还有没做完的、并且这一段确实打了勾，就再
+		 * 跑一段；连着两段一项没完成、或者根本没写清单，就停下来交接。这条判据在主会话上用真实事故
+		 * 校准过（见 `continuation.ts` 顶上那段），不是另起一个「它是不是在瞎忙」的猜测——那种猜测
+		 * 试过两次，两次都误伤了真实工作（`repetition.ts` 顶上）。
 		 *
-		 * 所以再给一轮，工具表里只剩 `yield`——它没有别的事可做，只能交。两轮而不是一轮：
-		 * 字段填错时校验会退回来，留一次改正的机会比让整轮白费划算。
+		 * 提示发到它自己的面板上，不进主对话：那是它的事。
+		 */
+		result = await continueWhileWorkRemains(await segment(history), {
+			run: segment,
+			messages: () => view,
+			todos: () => (subState.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
+			aborted: () => controller.signal.aborted,
+			notify: (message) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", message } }),
+			resuming: () => {},
+			signal: controller.signal,
+			// 请求那一层已经按设置重试过了，外面这层不再加码——理由见 `session-turn.ts` 同一处。
+			requestRetriesHandled: true,
+		});
+
+		/*
+		 * 停在检查点、还有活没干完时，讨一份交接回来。
+		 *
+		 * 有 schema 的子代理只认 `yield`——没调用就等于什么都没交。没有 schema 的，从前连这一轮都
+		 * 没有，交回的是它停下前最后说的那句话：一个读文件读到一半被截断的子代理，最后说的多半是
+		 * 「让我再看看 xxx」。四个 explore 各跑了半小时、一份报告都没有，就是这么来的。
+		 *
+		 * 所以再给一轮，工具表里只剩 `yield`——没有 schema 的用交接那一份（做了什么、还剩什么、
+		 * 下一步）。它没有别的事可做，只能交。两轮而不是一轮：字段填错时校验会退回来，留一次改正的
+		 * 机会比让整轮白费划算。
+		 *
+		 * 交完它并没有被扔掉：上下文留着（`view` 停在这一轮之前），派它来的那一方可以续跑。
 		 *
 		 * 只在这一种收尾上做。`stalled` 是它在原地打转，再问一次多半还是同一个圈；上游出错时
 		 * 连接本身就是坏的；被人按停的那次，用户要的就是它别再花钱了。
 		 */
 		if (needsFinalYield(result.reason)) {
+			const handoff = yieldTool ?? makeYieldTool(HANDOFF_SCHEMA, { mode: "permissive" });
 			const salvage = await runTurn(
 				{
 					sessionId: id,
@@ -507,22 +647,22 @@ export async function runSubAgent(
 					model: runModel,
 					systemPrompt: subAgentPrompt,
 					// 只有 yield。剩下的工具都拿走，它就没有第二条路可走了。
-					tools: [yieldTool as unknown as Tool],
-					messages: [...history, ...result.messages, finalDemand()],
+					tools: [handoff as unknown as Tool],
+					// 模型眼里的那一份：压缩过就是压缩过的。从前拼的是完整原文，压缩过的子代理在这一轮又撑爆一次。
+					messages: [...view, finalDemand(checkpoint)],
 					thinking: chosen.thinking,
 					retryAttempts: options.settings.retryAttempts,
 					retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
 					signal: controller.signal,
 					state: subState,
 					requestApproval: (request) => options.requestApproval(request),
-					// 跑满 60 步的历史多半装不下一次新请求，压缩这一步不能省。
 					compact: compactHistory,
 					streamFn: options.streamFn,
 					maxTurns: 2,
 				},
 				relay,
 			);
-			produced = [...produced, ...salvage.messages];
+			produced.push(...salvage.messages);
 			salvaged = subState.get(YIELD_KEY) !== undefined;
 		}
 	} catch (error) {
@@ -547,6 +687,8 @@ export async function runSubAgent(
 		 */
 		const codeIntel = subState.get(CODE_INTEL_KEY);
 		if (codeIntel instanceof CodeIntelManager) await codeIntel.dispose().catch(() => {});
+		// 状态图会留下来给续跑用，一个已经关掉的语言服务不能跟着留下——续跑时要用，就让它重新起一个。
+		subState.delete(CODE_INTEL_KEY);
 	}
 
 	/*
@@ -578,7 +720,7 @@ export async function runSubAgent(
 	 * being read as a conclusion — which has to happen before the finding, not after.
 	 */
 	const aborted = controller.signal.aborted;
-	const cutShort = aborted ? null : incompleteNote(result.reason, result.error, salvaged);
+	const cutShort = aborted ? null : incompleteNote(result.reason, result.error, salvaged, checkpoint);
 	const answer = cutShort ? [cutShort, delivered].filter(Boolean).join("\n\n") : delivered;
 
 	/*
@@ -588,7 +730,7 @@ export async function runSubAgent(
 	 * failure would put an error in the parent's transcript for a button the user pressed. A run
 	 * that used up its rounds or stopped going anywhere is not a failure either — it did the work,
 	 * it just did not get to the end of it, and the note above says so. Only a provider that failed
-	 * the request is `failed`, which is also what puts the 重新派发 button on the pane.
+	 * the request is `failed`.
 	 */
 	const status = aborted ? "aborted" : result.reason === "error" ? "failed" : "done";
 	/*
@@ -617,6 +759,14 @@ export async function runSubAgent(
 					...(result.error ? { error: result.error } : {}),
 				},
 	);
+	/*
+	 * 不管怎么结束的，上下文都留着。
+	 *
+	 * 跑到检查点的、上游出错的、原地打转的、被按停的、正常做完的——每一种都可能有人想让它接着来：
+	 * 接着干完、换个方向、服务恢复后再试、追问一句它刚才说的东西。留着的代价是内存里多一份引用
+	 * （消息对象跟转录是同一批），扔掉的代价是下一个从零开始，把它读过的再读一遍。
+	 */
+	registry?.keep(id, { agent: definition.name, view, state: subState, envDate });
 	await options.emit({
 		type: "subagent_done",
 		id,
@@ -625,7 +775,34 @@ export async function runSubAgent(
 		status,
 		...(result.error ? { error: result.error } : {}),
 	});
-	return { text: answer, output: yielded?.value, warnings: yielded?.warnings };
+	return {
+		text: answer,
+		output: yielded?.value,
+		warnings: yielded?.warnings,
+		// 没有登记簿就没有地方留上下文，给了 id 也续不上。
+		...(registry ? { id } : {}),
+		...(cutShort ? { incomplete: true } : {}),
+		...(aborted && controller.signal.reason === STOPPED_BY_USER ? { stoppedByUser: true } : {}),
+	};
+}
+
+/** 面板上按停时 `abort` 带的理由，用来跟「父会话整轮被停」分开。 */
+const STOPPED_BY_USER = "stopped-by-user";
+
+/**
+ * 要续跑的那一个，以及能不能续。
+ *
+ * 不能续的各给一句能据以行动的话——`task` 会把它原样交给模型。「只能续跑自己派出去的」在这里
+ * 拦：主会话派的，父亲是空；子代理派的，父亲是它自己的 id。
+ */
+function resumable(options: SubAgentOptions, wanted: string): { id: string; conversation: SubAgentConversation } {
+	if (!options.registry) throw new Error("这里不保留子代理的上下文，没法续跑；重新派一个，并把之前交回的结论写进 prompt。");
+	const found = options.registry.lookupResumable(wanted);
+	if ("refusal" in found) throw new Error(found.refusal);
+	if ((found.summary.parentId ?? undefined) !== (options.dispatch?.id ?? undefined)) {
+		throw new Error(`子代理 \`${found.id}\` 不是你派出去的，不能续跑它。`);
+	}
+	return { id: found.id, conversation: found.conversation };
 }
 
 /**
@@ -636,19 +813,23 @@ export async function runSubAgent(
  * will otherwise apologise for not finishing and deliver nothing, which is the failure this whole
  * round exists to prevent.
  *
+ * 「上下文会留着」也要说：交接是写给接着干的人看的，包括它自己。知道自己可能被续跑的模型，
+ * 会把「下一步」写成能照着走的样子，而不是一句「时间不够了」。
+ *
  * `synthetic`, because the runtime is speaking. It has to be a user message for the model to take
  * it as an instruction, and the pane must not draw it as something the person typed.
  */
-function finalDemand(): Message {
+function finalDemand(rounds: number): Message {
 	return {
 		role: "user",
 		content: [
 			{
 				type: "text",
 				text:
-					"（自动追加）步数已经用尽，这是最后一轮，你手上只剩 `yield` 这一个工具。" +
-					"把已经查到的东西按 `yield` 的字段交上去——不完整也要交，在 `summary` 里写清楚哪些没查完、卡在哪。" +
-					"不调用 `yield`，派你来的人就什么都拿不到。",
+					`（自动追加）到检查点了：这一段的 ${rounds} 轮已经用完，你手上只剩 \`yield\` 一个工具。` +
+					"按它的字段把目前的进展交上去：做完了什么、查到的关键事实（带 `path:line`）、还剩什么没做、下一步打算怎么做——" +
+					"没有对应字段的写进 `summary`。不完整也要交。" +
+					"你的上下文会原样留着，派你来的人可能让你从这里接着做。不调用 `yield`，他就什么都拿不到。",
 			},
 		],
 		timestamp: Date.now(),
@@ -680,21 +861,26 @@ function lastProse(messages: Message[]): string {
 /**
  * What to say about an ending that was not the end of the work.
  *
- * Written for the parent model first — it is the one that has to decide whether to redispatch,
- * narrow the task, or carry on with a partial answer — and read by a person second. Each names the
- * cause and what to do about it, because "没有输出" gives neither.
+ * Written for the parent model first — it is the one that has to decide whether to resume it, take
+ * over, or carry on with a partial answer — and read by a person second. Each names the cause and
+ * what is left, because "没有输出" gives neither.
+ *
+ * 从前这里对跑满的那种说「把任务拆小再派一次」。派它来的模型照做了：新派的那个从零开始，读
+ * 同样的文件，又跑满，再派，还是跑满——反馈里「重开三个子代理、个个 60 步、最后主会话自己做了」
+ * 就是这句话一手促成的。它的上下文明明还在，该说的是「它还在，可以接着跑」。具体怎么续由
+ * `task` 在结果末尾交代（那是说给模型的话，面板上用不着）。
  */
-function incompleteNote(reason: AgentRunResult["reason"], error: string | undefined, salvaged: boolean): string | null {
+function incompleteNote(reason: AgentRunResult["reason"], error: string | undefined, salvaged: boolean, rounds: number): string | null {
 	if (reason === "max_turns") {
 		return salvaged
-			? `⚠ 这次派发用满了 ${MAX_SUB_AGENT_TURNS} 步，下面是它被叫停时补交的结论——它没能自己跑完，可能有没查到的地方。要更完整的结果，把任务拆小再派一次。`
-			: `⚠ 这次派发用满了 ${MAX_SUB_AGENT_TURNS} 步就停了，下面是它停下前最后说的话，不是完整结论。要完整的结果，把任务拆小再派一次。`;
+			? `⚠ 到了检查点（这一段 ${rounds} 轮），它还没做完。下面是它交的阶段性交接，不是完整结论。它的上下文都还留着，可以接着跑。`
+			: `⚠ 到了检查点（这一段 ${rounds} 轮），它还没做完，也没交出交接，下面是它停下前最后说的话。它的上下文都还留着，可以接着跑。`;
 	}
 	if (reason === "stalled") {
-		return "⚠ 它反复用同样的参数调同一个工具、每次拿到的结果都一样，已经停下。下面是它停下前最后说的话，不是完整结论。";
+		return "⚠ 它反复用同样的参数调同一个工具、每次拿到的结果都一样，已经停下。下面是它停下前最后说的话，不是完整结论。它的上下文还留着，可以换个方向让它接着跑。";
 	}
 	if (reason === "error") {
-		return `⚠ 模型服务出错，这次派发没跑完${error ? `：${error}` : ""}。下面是它中断前最后说的话，不是完整结论。`;
+		return `⚠ 模型服务出错，这次派发没跑完${error ? `：${error}` : ""}。下面是它中断前最后说的话，不是完整结论。它的上下文还留着，服务恢复后可以让它接着跑，不必重派。`;
 	}
 	return null;
 }

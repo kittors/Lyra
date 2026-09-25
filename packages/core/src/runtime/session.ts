@@ -30,7 +30,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agent/events.ts";
-import type { AgentRunConfig } from "../agent/loop.ts";
+import type { AgentRunConfig, LiveModel } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem } from "../config/settings.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
@@ -178,6 +178,22 @@ export class AgentSession {
 	readonly subAgents = new SubAgentRegistry(() => {
 		void this.emit({ type: "subagents", agents: this.subAgents.list() });
 	});
+	/** 正在跑的那一轮对「模型换了」的订阅；见 `liveModel`。 */
+	private readonly modelListeners = new Set<() => void>();
+	/**
+	 * 这场对话此刻的模型，交给正在跑的那一轮。
+	 *
+	 * 人中途换了模型，它从下一个请求起就换；旧的上游坏了、请求正卡在重试上的，当场放手换人。
+	 * 见 `AgentRunConfig.liveModel`。
+	 */
+	private readonly liveModel: LiveModel = {
+		current: () => resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId),
+		onChange: (listener) => {
+			this.modelListeners.add(listener);
+			return () => this.modelListeners.delete(listener);
+		},
+		adopted: () => this.adoptModel(),
+	};
 	private readonly approvals: ApprovalGate;
 	private readonly tasks: TaskQueue = sessionTaskQueue({
 		run: (task) => this.prompt([{ type: "text", text: task.text }], { origin: task.origin }),
@@ -551,7 +567,8 @@ export class AgentSession {
 	 * the previous provider and cannot be replayed to this one. See `stripStaleHandles`.
 	 */
 	async setModel(modelId: string): Promise<boolean> {
-		const switching = this.log.messages.length > 0 && this.log.meta.modelId !== modelId;
+		const changed = this.log.meta.modelId !== modelId;
+		const switching = this.log.messages.length > 0 && changed;
 		const meta: SessionMeta = {
 			...this.log.meta,
 			modelId,
@@ -564,7 +581,33 @@ export class AgentSession {
 			// Same transcript, same marks — a model switch rewrites handles, not where history was summarised.
 			this.log.restore(stripStaleHandles(this.log.messages, meta.modelSwitchedAt), this.log.compaction, this.log.compactions);
 		}
+		/*
+		 * 正在跑的那一轮也要听到。
+		 *
+		 * 从前它听不到：一轮开始时拿到的模型用到这一轮结束。旧模型的上游坏了、请求在一遍遍重试时，
+		 * 人换了模型——界面上写着新的，服务器收到的一直是旧的，直到人按停止、再编辑重发。见
+		 * `AgentRunConfig.liveModel`。
+		 */
+		if (changed) for (const listener of this.modelListeners) listener();
 		return true;
+	}
+
+	/**
+	 * 正在跑的那一轮真的换过去了：把「换模型的位置」挪到此刻。
+	 *
+	 * `setModel` 记下的是人按下切换的那一刻。可正在出字的那个请求会说完，那一句出自旧模型、带着旧
+	 * 供应商的句柄，却落在切换位置之后——下一轮从日志重建历史时它原样交给新模型，整条被拒。循环在
+	 * 真正换人的时候叫这里，位置就对了。
+	 *
+	 * 同步地摘、同步地记位置：循环不等这里，下一条消息可能马上就要写进来。落盘那一下可以晚一点。
+	 */
+	private adoptModel(): void {
+		const at = this.log.messages.length;
+		if (at === 0 || this.log.meta.modelSwitchedAt === at) return;
+		const meta: SessionMeta = { ...this.log.meta, modelSwitchedAt: at };
+		this.log.meta = meta;
+		this.log.restore(stripStaleHandles(this.log.messages, at), this.log.compaction, this.log.compactions);
+		void this.log.append({ type: "meta", meta }).catch(() => {});
 	}
 
 	/**
@@ -855,6 +898,7 @@ export class AgentSession {
 				emit: (event) => this.emit(event),
 				drainSteering: () => this.steering.splice(0, this.steering.length),
 				subAgents: this.subAgents,
+				liveModel: this.liveModel,
 			});
 			await this.activeTurn;
 		} finally {

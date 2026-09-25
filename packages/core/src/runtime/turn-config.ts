@@ -86,6 +86,8 @@ export interface TurnConfigDeps {
 	scratchDir?: string;
 	/** Specific files outside the workspace explicitly granted to this turn. */
 	allowedPaths?: ReadonlySet<string>;
+	/** 见 `AgentRunConfig.liveModel`：人一轮中途换了模型，从下一个请求起就换。 */
+	liveModel?: AgentRunConfig["liveModel"];
 }
 
 export function buildTurnConfig(
@@ -114,6 +116,7 @@ export function buildTurnConfig(
 			cwd: deps.cwd,
 			provider: deps.provider,
 			model: deps.model,
+			liveModel: deps.liveModel,
 			systemPrompt,
 			tools: turn.tools,
 			messages: turn.messages,
@@ -194,8 +197,9 @@ export function buildTurnConfig(
 							allowedPaths: deps.allowedPaths,
 						},
 						input,
-						deps.provider,
-						deps.model,
+						// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。
+						deps.liveModel?.current()?.provider ?? deps.provider,
+						deps.liveModel?.current()?.model ?? deps.model,
 						systemPrompt,
 					),
 				),

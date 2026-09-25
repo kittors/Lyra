@@ -41,10 +41,10 @@ before(async () => {
 	await put("project/.lyra/commands/review.md", "---\ndescription: 我们的审查\n---\n审查改动");
 	await put("project/.lyra/rules/style.md", "---\ndescription: 我们的风格\nglobs: ['**/*.ts']\n---\n用 tab 缩进。");
 	await put("project/.lyra/agents/general.md", "---\nname: general\ndescription: 覆盖内置的 general\n---\n我是自定义的。");
-	await put("project/.lyra/agents/boss.md", "---\nname: boss\ndescription: 编排者\nspawns: \"*\"\n---\n派活。");
+	await put("project/.lyra/agents/boss.md", "---\nname: boss\ndescription: 编排者\nspawns: \"*\"\nmax-turns: 25\n---\n派活。");
 	await put(
 		"project/.lyra/agents/lead.md",
-		"---\nname: lead\ndescription: 组长\nspawns: [scout, reviewer]\nschema-mode: strict\noutput:\n  type: object\n  properties:\n    where:\n      type: string\n---\n带队。",
+		"---\nname: lead\ndescription: 组长\nspawns: [scout, reviewer]\nschema-mode: strict\nmaxTurns: 0\noutput:\n  type: object\n  properties:\n    where:\n      type: string\n---\n带队。",
 	);
 
 	// Claude Code's, one of which collides with ours.
@@ -110,6 +110,10 @@ test("an agent file can say whom it dispatches and what it must return", async (
 	assert.deepEqual(Object.keys((lead.output as { properties: Record<string, unknown> }).properties), ["where"]);
 	assert.equal(general.spawns, undefined, "the default stays: nobody dispatches unless the file says so");
 	assert.equal(general.output, undefined);
+	// 检查点间隔：`max-turns` 读成 camelCase；写成 0 这种没法用的数就当没写，而不是让它每一轮都被叫停。
+	assert.equal(boss.maxTurns, 25, "`max-turns` reaches the camelCase field");
+	assert.equal(lead.maxTurns, undefined, "a checkpoint of zero rounds is a typo, not a setting");
+	assert.equal(general.maxTurns, undefined, "unset means the default checkpoint");
 });
 
 test("the other built-in agents are untouched", async () => {

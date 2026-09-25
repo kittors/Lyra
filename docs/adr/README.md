@@ -30,5 +30,7 @@
 | [0021](0021-one-read-boundary.md) | 读取边界只有一条，越界读要经过人 |
 | [0022](0022-windows-confined-commands-in-powershell.md) | Windows 上受约束的命令在 PowerShell 里跑，Git Bash 只用在完全访问 |
 | [0023](0023-containers-belong-to-sessions.md) | 面板只属于会话，单屏是只有一屏的分屏，窗口本身没有面板 |
+| [0024](0024-sub-agents-stop-at-checkpoints.md) | 子代理停在检查点而不是终点，上下文留着，可以续跑 |
+| [0025](0025-model-switch-applies-from-next-request.md) | 一轮之内换模型从下一个请求起就换，卡在重试上的请求当场放手 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

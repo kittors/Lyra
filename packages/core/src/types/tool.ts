@@ -14,6 +14,12 @@ export interface SubAgentAnswer {
 	text: string;
 	output?: Record<string, unknown>;
 	warnings?: string[];
+	/** 登记簿里的 id——续跑它要用的就是这个。没有登记簿的宿主（CLI、测试）没有。 */
+	id?: string;
+	/** 没做完就停下了：到了检查点、原地打转、或者上游出错。它的上下文还在，可以续跑。 */
+	incomplete?: boolean;
+	/** 人在面板上把它按停的。派它来的那一方不该自作主张地让它接着跑。 */
+	stoppedByUser?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +187,13 @@ export interface SubAgentInput {
 	prompt: string;
 	agentType?: string;
 	model?: string;
+	/**
+	 * 接着跑哪一个，而不是新派一个。
+	 *
+	 * 设了它，`prompt` 就是说给那个子代理的下一句话：它带着自己读过、做过的全部上下文从停下的
+	 * 地方继续。`agentType` 此时不起作用——它是谁，由它当初被派出去时定下。
+	 */
+	resume?: string;
 }
 
 export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {

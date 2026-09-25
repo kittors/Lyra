@@ -16,7 +16,7 @@
  * for, and choosing between them *is* the title.
  */
 
-import { Bot, Check, CircleStop, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Bot, Check, CircleStop, Play, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
@@ -49,6 +49,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
 import { figuresWord, ranFor, statusTone } from "./format.ts";
+import { wayBack } from "./way-back.ts";
 import { SubAgentRoster } from "./SubAgentRoster.tsx";
 import { StructuredOutput } from "./StructuredOutput.tsx";
 import { SubAgentTranscript } from "./SubAgentMessageRow.tsx";
@@ -264,8 +265,13 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				 * does not re-run anything itself: it asks the main agent to, in as many words, and
 				 * the main agent decides whether that is still the right move. Same indirection as
 				 * steering, for the same reason — one executor per workspace.
+				 *
+				 * 上下文还在的，要的是「接着跑」，不是「重派」：重派的那个从零开始，把它读过的再读一遍。
+				 * 跑到检查点停下的那种（`done` + `incomplete`）从前在这里什么都没有——而那正是反馈里
+				 * 「60 步跑满、啥都没干好」的那一个，最需要一个出路。重派只留给上下文已经不在的。
 				 */}
-				{(agent.status === "failed" || agent.status === "aborted") && <Redispatch agent={agent} />}
+				{wayBack(agent) === "resume" && <Resume agent={agent} />}
+				{wayBack(agent) === "redispatch" && <Redispatch agent={agent} />}
 				{/* Where "you have seen the newest output" is decided — see `useFollowBottom`. */}
 				<div ref={follow.tailRef} aria-hidden className="h-px w-full shrink-0" />
 			</Scroller>
@@ -278,6 +284,34 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				<IdleComposer placeholder={t("subAgent.steering")} />
 			)}
 		</>
+	);
+}
+
+/**
+ * 让主 Agent 带着这个子代理的上下文把它续上。
+ *
+ * 和「重新派发」同一个间接法、同一个理由：落成输入框里的一份草稿，人读过、改过、或者扔掉之后才
+ * 花钱。草稿里带着 id——主 Agent 要用它调 `task` 的 `resume`，写一句「接着跑刚才那个」它不知道
+ * 是哪一个。
+ */
+function Resume({ agent }: { agent: SubAgentSummary }) {
+	const { t } = useI18n();
+	const [asked, setAsked] = useState(false);
+	return (
+		<button
+			type="button"
+			disabled={asked}
+			data-sub-resume
+			data-ly-tip={t("subAgent.resumeTip")}
+			onClick={() => {
+				useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), true);
+				setAsked(true);
+			}}
+			aria-label={asked ? t("subAgent.drafted") : t("subAgent.resume")}
+			className="mt-2 grid h-7 w-7 place-items-center rounded-lg border border-line-soft text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-50"
+		>
+			{asked ? <Check size={11.5} strokeWidth={2.2} aria-hidden /> : <Play size={11.5} strokeWidth={1.9} aria-hidden />}
+		</button>
 	);
 }
 
