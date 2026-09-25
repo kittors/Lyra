@@ -1,7 +1,14 @@
 import { Play, RotateCcw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { useSide, sideChatOf } from "../dock/index.ts";
-import { useScopedSessionId } from "../../app/session-scope.tsx";
+import {
+	useScopedHiccups,
+	useScopedMessages,
+	useScopedRunning,
+	useScopedSessionId,
+	useScopedStopped,
+	useScopedTodos,
+} from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { carryOnPrompt, hasRetryPoint } from "../../store/derive.ts";
@@ -28,10 +35,20 @@ export function ResumeRow() {
 	const { t } = useI18n();
 	const send = useApp((s) => s.send);
 	const retryFrom = useApp((s) => s.retryFrom);
-	const running = useApp((s) => s.running);
-	const stopped = useApp((s) => s.stopped);
-	const messages = useApp((s) => s.messages);
-	const todos = useApp((s) => s.todos);
+	/*
+	 * 这一屏的会话，不是焦点那一个。
+	 *
+	 * 分屏时每个转录底下都有一行这个。从前它读 store 里台上那一份，于是每一屏讲的都是焦点会话的
+	 * 收场：甲暂停、乙答完，焦点在甲时两屏都说「已暂停」，焦点挪到乙，甲那行又没了。按钮跟着错——
+	 * 鼠标按下时焦点先切过来，这一行改讲自己的事，文案一变长按钮就从指针底下滑走，松手落在字上，
+	 * 什么也没发出去；键盘按下去焦点不切，「继续」发给了焦点那个会话。
+	 */
+	const sessionId = useScopedSessionId();
+	const running = useScopedRunning();
+	const stopped = useScopedStopped();
+	const messages = useScopedMessages();
+	const todos = useScopedTodos();
+	const hiccups = useScopedHiccups();
 	const confirm = useConfirmer();
 	/*
 	 * A task that stopped when this session did, if there is one. See the click handler below.
@@ -41,11 +58,10 @@ export function ResumeRow() {
 	 *
 	 * Above the early return, because hooks cannot be called conditionally.
 	 */
-	const sideSessionId = useScopedSessionId();
-	const interrupted = useSide((s) => sideChatOf(s, sideSessionId).tasks.find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
+	const interrupted = useSide((s) => sideChatOf(s, sessionId).tasks.find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
 	const resumeTask = useSide((s) => s.resumeTask);
 	/** 上面那条记录是不是已经把这次失败讲完了——讲完了这一行就不必再讲一遍。 */
-	const failedAlready = useApp((s) => s.hiccups.some((hiccup) => hiccup.outcome === "gave_up"));
+	const failedAlready = hiccups.some((hiccup) => hiccup.outcome === "gave_up");
 
 	const unfinished = todos.filter((todo) => todo.status !== "completed").length;
 	/*
@@ -133,7 +149,7 @@ export function ResumeRow() {
 					 * are two things stopped here and only one of them was being picked up.
 					 */
 					if (interrupted) {
-						void resumeTask(sideSessionId, interrupted.id);
+						void resumeTask(sessionId, interrupted.id);
 						return;
 					}
 					/*
@@ -149,7 +165,7 @@ export function ResumeRow() {
 					 * sentences because a transcript read back from disk is all it has, but here we know —
 					 * this is the button.
 					 */
-					void send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true });
+					void send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true, sessionId: sessionId ?? undefined });
 				}}
 				aria-label={translate("resume.continueLabel")}
 				className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
@@ -200,7 +216,7 @@ export function ResumeRow() {
 								</>
 							),
 							confirmLabel: t("resume.regenerate"),
-							onConfirm: () => void retryFrom(messages.length - 1),
+							onConfirm: () => void retryFrom(messages.length - 1, sessionId ?? undefined),
 						})
 					}
 					aria-label={translate("common.retry2")}

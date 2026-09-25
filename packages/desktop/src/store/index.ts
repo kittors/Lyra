@@ -466,8 +466,11 @@ export interface AppState extends QueueSlice {
    * Does not start another turn.
    */
   revertMessage(index: number): Promise<void>;
-  /** Re-send the user message that produced the reply at `index`. */
-  retryFrom(index: number): Promise<void>;
+  /**
+   * Re-send the user message that produced the reply at `index`. Given `sessionId`, in that
+   * conversation, which is made the live one first if it is not already.
+   */
+  retryFrom(index: number, sessionId?: string): Promise<void>;
   abort(sessionId?: string): Promise<void>;
   respondToApproval(
     id: string,
