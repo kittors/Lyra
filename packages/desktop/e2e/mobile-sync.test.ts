@@ -49,8 +49,13 @@ async function until(page: Page, expression: string, label = expression, timeout
 	}
 	throw new Error(`${label}: ${await page.evaluate("document.body.innerText.slice(-2000)")}`);
 }
+/*
+ * 按下去之前先问 elementFromPoint 落点上是不是它。`checkVisibility` 只看 display 和 visibility，收在屏幕
+ * 外的抽屉照样算「看得见」：手机宽度下点侧栏里的一行，落点在 x=-323，什么也没按到，而后面那句等待
+ * 在原来的会话上也成立——轨迹那条就这样一路绿着，量的是别的会话。点不到就当场报错。
+ */
 async function click(page: Page, selector: string, last = false) {
-	const point = await page.evaluate<{ x: number; y: number }>(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].filter(e=>e.checkVisibility({visibilityProperty:true})).at(${last ? -1 : 0});if(!el)throw new Error(${JSON.stringify(selector)});el.scrollIntoView({block:'nearest',behavior:'instant'});const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	const point = await page.evaluate<{ x: number; y: number }>(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].filter(e=>e.checkVisibility({visibilityProperty:true})).at(${last ? -1 : 0});if(!el)throw new Error(${JSON.stringify(selector)});el.scrollIntoView({block:'nearest',behavior:'instant'});const r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);if(!hit||!el.contains(hit))throw new Error(${JSON.stringify(selector)}+' is off-screen or covered at '+Math.round(x)+','+Math.round(y)+': '+(hit?hit.outerHTML.slice(0,160):'nothing there'));return {x,y};})()`);
 	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point });
 	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
 }
@@ -77,8 +82,8 @@ before(async () => {
 	const address = model.address(); assert.ok(address && typeof address !== "string");
 	desktop = await startApp({ port: 9704, seed: async (home) => {
 		await seedInteractions(home, address.port);
-		// 交互 fixture 里一次工具调用也没有，轨迹面板于是永远是空的——手机那条要量的正是条目上的
-		// 触摸目标。借桌面那条轨迹测试用的同一份数据。
+		// 交互 fixture 里一次工具调用也没有，轨迹里只有问答（并不是空的，所以「条目出来了」证明不了
+		// 切对了会话）——手机那条要量的是工具调用和模型请求的条目。借桌面那条轨迹测试用的同一份数据。
 		await seedTrajectory(home);
 		const file = join(home, "settings.json");
 		const settings = JSON.parse(await readFile(file, "utf8"));
@@ -203,42 +208,34 @@ test("two real screens stream both ways and recover missed content without dropp
 });
 
 /*
- * 手机上这个面板打开了，读数一直停在「0/0 读取中…」——这是 2026-09-09 写下 todo 时的样子。
+ * 手机上的轨迹面板：条目和时间概览上的每个控件都是 44px 的真实触控目标，桌面才有的导出不出现。
  *
- * 2026-09-24 查清：那是被上一条带出来的。上一条一直红在「编辑重发失败」之前（它按文字找一枚只剩
- * 图标的确认键），于是它末尾那句 `sync.start()` 从没执行过，桌面的同步服务一直停着，面板的请求
- * 回不来，「读取中」就一直挂着。上一条修好之后，切会话、条目出来、每行 44px 都走得通了。
+ * 这条标过 todo，2026-09-24 去掉。当时面板停在「0/0 读取中…」，是被上一条带出来的：它红在半路，
+ * 末尾的 `sync.start()` 没执行，桌面的同步服务一直停着。上一条修好之后又查出两处：
  *
- * 现在停在后半截的时间概览：它从「点开的浮层」改成了面板里常驻的一段，默认展开、可以折叠。这里
- * 还按浮层写——点「时间概览」本意是打开，实际把它收了起来，画布跟着隐藏（量出来 top 是 0），
- * 缩放键也不见了；最后等 Esc 让它从 DOM 里消失，也不再成立。要按新设计重写，而且得先定下三种
- * 尺寸下各该是什么样子（横屏 844×390 高度不够时，它本来就只留折叠键、不画画布）。
+ * 切会话从来没切过去。390 宽时侧栏收成抽屉，那一行在屏幕外，点击落空；随后等的 `main textarea`
+ * 在原来的 qa-long 上也成立，于是一路量的都是 qa-long 的对话，不是 seed 进来的那 2500 次工具调用。
+ * 现在先拉开抽屉，等的是这一行成了当前会话。
  *
- * 下面是当时的排查记录，仍然成立，留着：
- *
- * 已经排除的（都能靠读代码确认，不必起窗口）：
- *   · 通道在——`electron/sync-rpc.ts` 有 `sessions.trajectory` 和 `sessions.trajectoryChanges`；
- *   · 手机上允许调——`contract/src/methods.ts` 里这两个都是 `remote: true`，不在被填成 reject
- *     的那一批里（机制见 `services/host.ts`）；
- *   · 面板照常发请求——`useTrajectory.ts` 挂载即 `read()`。
- * 所以不是「功能没做」。我先前查的是 `sync-server.ts`，没找见就下了那个结论，那是错的。
- *
- * 下一步该看的是运行时的实际值，两条分支：`useTrajectory` 开头有
- * `if (!sessionId || !projectId) return;`——`projectId` 在手机上要是空的，请求压根不会发出，
- * 面板就停在初始态，「读取中」是假象；否则就是请求回来了但条目为空，那要看
- * `readTrajectory` 拿到的 store 路径。分清这两条得起真实窗口读一次状态。
- *
- * seed 已经补上 `seedTrajectory`：交互 fixture 里一次工具调用也没有，面板本来就无从有条目，
- * 数据这一半现在就位了。
+ * 时间概览从「点开的浮层」改成了面板里常驻的一段（`TraceTimeline.tsx`）：面板矮于 240 只留折叠键，
+ * 矮于 160 整段隐藏。这里三种尺寸下实测面板高 516、792、338，都该展开——横屏的 338 也够，不是只留
+ * 折叠键。可展开与否还是人说了算：收起会记进 sessionStorage，没记过就看第一次打开时面板有没有 400
+ * 高。所以量之前读 aria-expanded、收着才点开；旧写法照浮层那样盲点一下，反而把它收了起来，画布
+ * 隐藏，量出来 top 是 0。旧写法最后按 Esc 等浮层从 DOM 里消失；常驻的一段不会消失，对应的是收起
+ * ——画布和三个缩放键一起走，折叠键自己仍是 44px。再点开，把展开的样子原样交给下一个尺寸。
  */
-test("mobile trajectory keeps real touch targets and omits desktop file exports", { todo: "时间概览已改成面板里默认展开、可折叠的一段，后半截还按点开的浮层写，要按新设计重写" }, async (t) => {
+test("mobile trajectory keeps real touch targets and omits desktop file exports", async (t) => {
 	await size(390, 844);
 	// Dismiss the errors intentionally produced by the preceding offline test.
 	await phone.evaluate(`document.querySelectorAll('[role="alert"] button[aria-label="关闭"]').forEach(e=>e.click())`);
 	await until(phone, `!document.querySelector('[role="alert"] button[aria-label="关闭"]')`);
 	// 轨迹条目在「大规模轨迹验证」那个会话里——前面几条留在别的会话上，那里一次工具调用都没有。
-	await click(phone, '[data-ly-row="10000000-0000-4000-8000-000000000001"] > button');
-	await until(phone, "!!document.querySelector('main textarea')", "trajectory session opened");
+	const trace = '[data-ly-row="10000000-0000-4000-8000-000000000001"]';
+	await click(phone, 'button[aria-label^="显示侧边栏"]');
+	await until(phone, `document.querySelector(${JSON.stringify(trace)}).getBoundingClientRect().left >= 0`, "drawer open");
+	await phone.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})))");
+	await click(phone, `${trace} > button`);
+	await until(phone, `!!document.querySelector(${JSON.stringify(`${trace} > button[aria-current="page"]`)})`, "trajectory session opened");
 	await click(phone, 'button[aria-label="面板"]');
 	t.diagnostic(await phone.evaluate("document.body.innerText.slice(-800)"));
 	await phone.evaluate("(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='轨迹');if(!e)throw new Error('trajectory action missing');e.click();})()");
@@ -246,6 +243,9 @@ test("mobile trajectory keeps real touch targets and omits desktop file exports"
 	// 轨迹是这一屏里最重的一次调用：五千条消息走中转再到手机端解析。等到 RPC 自己超时之后，
 	// 才分得清「还没回来」和「回来了是空的」。
 	await until(phone, "!!document.querySelector('[data-trace-entry]')", "trajectory entries", 25_000);
+	// 画布没画出来时 canvasTop 给 null：藏起来的画布量出来 top 是 0，拿 0 去比，哪个控件都「压着画布」。
+	const timeline = () => phone.evaluate<{ expanded: string | null; canvasTop: number | null; controls: { label: string | null; width: number; height: number; bottom: number }[] }>(`(()=>{const s=document.querySelector('[data-trace-timeline]'),c=s.querySelector('canvas');return {expanded:s.querySelector('button[aria-label="时间概览"]').getAttribute('aria-expanded'),canvasTop:c.checkVisibility()?c.getBoundingClientRect().top:null,controls:[...s.querySelectorAll('button')].filter(e=>e.checkVisibility()).map(e=>{const r=e.getBoundingClientRect();return {label:e.getAttribute('aria-label'),width:r.width,height:r.height,bottom:r.bottom}})}})()`);
+	const toggle = '[data-trace-timeline] button[aria-label="时间概览"]';
 	for (const [width, height] of [[320, 568], [390, 844], [844, 390]]) {
 		await size(width, height);
 		const rows = await phone.evaluate<{ top: number; height: number; bottom: number }[]>("[...document.querySelectorAll('[data-trace-list] [role=listitem]')].map(e=>{const r=e.getBoundingClientRect();return {top:r.top,height:r.height,bottom:r.bottom}})");
@@ -254,15 +254,23 @@ test("mobile trajectory keeps real touch targets and omits desktop file exports"
 		assert.equal(await phone.evaluate("document.documentElement.scrollWidth > innerWidth"), false);
 		assert.equal(await phone.evaluate("document.querySelectorAll('[data-trajectory] button[aria-label*=导出],[data-trajectory] button[aria-label*=完整记录]').length"), 0);
 		await shot(phone, `trajectory-${width}x${height}`);
-		await click(phone, 'button[aria-label="时间概览"]');
-		await until(phone, "!!document.querySelector('[data-trace-timeline] canvas')");
-		await phone.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})))");
-		const timeline = await phone.evaluate<{ controls: { height: number; width: number; bottom: number }[]; canvasTop: number }>("(()=>{const p=document.querySelector('[data-trace-timeline]');return {controls:[...p.querySelectorAll('button')].map(e=>{const r=e.getBoundingClientRect();return {height:r.height,width:r.width,bottom:r.bottom}}),canvasTop:p.querySelector('canvas').getBoundingClientRect().top}})()");
-		assert.ok(timeline.controls.length > 0 && timeline.controls.every(r=>r.height>=44 && r.width>=44 && r.bottom<=timeline.canvasTop), JSON.stringify(timeline));
+		// 三种尺寸都该展开。收着才点开——展开着的，点一下就收起来了。
+		if ((await timeline()).expanded === "false") await click(phone, toggle);
+		await until(phone, "!!document.querySelector('[data-trace-timeline] canvas')?.checkVisibility()", `timeline expanded at ${width}x${height}`);
+		const open = await timeline(), top = open.canvasTop;
+		assert.deepEqual(open.controls.map(control => control.label), ["时间概览", "缩小时间范围", "放大时间范围", "重置时间范围"], JSON.stringify(open));
+		assert.ok(top !== null && open.controls.every(r => r.height >= 44 && r.width >= 44 && r.bottom <= top), JSON.stringify(open));
 		await shot(phone, `trajectory-timeline-${width}x${height}`);
-		await phone.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
-		await phone.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
-		await until(phone, "!document.querySelector('[data-trace-timeline]')");
+		// 收起：画布和三个缩放键一起走，折叠键自己仍是 44px。
+		await click(phone, toggle);
+		await until(phone, `document.querySelector(${JSON.stringify(toggle)}).getAttribute('aria-expanded') === 'false'`, "timeline collapsed");
+		const closed = await timeline();
+		assert.equal(closed.canvasTop, null, JSON.stringify(closed));
+		assert.deepEqual(closed.controls.map(control => control.label), ["时间概览"], JSON.stringify(closed));
+		assert.ok(closed.controls[0].height >= 44 && closed.controls[0].width >= 44, JSON.stringify(closed));
+		// 再点开，把展开的样子原样交给下一个尺寸。
+		await click(phone, toggle);
+		await until(phone, "!!document.querySelector('[data-trace-timeline] canvas')?.checkVisibility()", "timeline expanded again");
 	}
 });
 
