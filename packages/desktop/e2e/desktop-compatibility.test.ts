@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { startApp, type RunningApp } from "./app.ts";
+import { landsOn } from "./lands-on.ts";
 
 async function frames(app: RunningApp, count = 24): Promise<void> {
 	await app.evaluate(`new Promise(resolve => {
@@ -16,7 +17,9 @@ async function click(app: RunningApp, selector: string): Promise<void> {
 	const at = await app.evaluate<{ x: number; y: number }>(`(() => {
 		const el = document.querySelector(${JSON.stringify(selector)});
 		if (!el) throw new Error('missing control: ' + ${JSON.stringify(selector)});
-		const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+		const r = el.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+		${landsOn(selector)}
+		return { x, y };
 	})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });

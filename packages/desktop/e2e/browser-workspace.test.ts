@@ -6,6 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -78,7 +79,7 @@ async function until(expression: string) {
 }
 
 async function click(selector: string) {
-	const point = await app.evaluate<{x:number;y:number}>(`new Promise((resolve,reject)=>{let previous='',same=0,left=180;const frame=()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el){reject(new Error('Missing '+${JSON.stringify(selector)}));return;}const r=el.getBoundingClientRect(),now=JSON.stringify(r);same=now===previous?same+1:0;previous=now;if(same>=3)resolve({x:r.x+r.width/2,y:r.y+r.height/2});else if(--left)requestAnimationFrame(frame);else reject(new Error('Unstable menu'));};frame();})`);
+	const point = await app.evaluate<{x:number;y:number}>(`new Promise((resolve,reject)=>{let previous='',same=0,left=180;const frame=()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el){reject(new Error('Missing '+${JSON.stringify(selector)}));return;}const r=el.getBoundingClientRect(),now=JSON.stringify(r);same=now===previous?same+1:0;previous=now;if(same>=3){const x=r.x+r.width/2,y=r.y+r.height/2;try{${landsOn(selector)}}catch(error){reject(error);return;}resolve({x,y});}else if(--left)requestAnimationFrame(frame);else reject(new Error('Unstable menu'));};frame();})`);
 	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
 }
@@ -92,7 +93,7 @@ async function menu(label: string) {
 }
 
 test("agent drives the user's actual browser: native input, click, viewport and screenshot", async (t) => {
-	const point = await app.evaluate<{x: number; y: number}>(`(()=>{const r=document.querySelector('[data-ly-row="qa-short"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	const point = await app.evaluate<{x: number; y: number}>(`(()=>{const el=document.querySelector('[data-ly-row="qa-short"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn('[data-ly-row="qa-short"]')}return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
 	await until(`document.querySelector('textarea[aria-label="消息"]')`);
@@ -137,7 +138,8 @@ test("element inspection blocks page clicks and sends a real screenshot with DOM
 	await until(`document.querySelector('[aria-label="退出检查"]')`);
 	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__lyra_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
 	await app.evaluate(`new Promise(resolve=>{let prior='',same=0;const f=()=>{const r=document.querySelector('webview').getBoundingClientRect();const now=JSON.stringify(r);same=now===prior?same+1:0;prior=now;if(same>=3)resolve();else requestAnimationFrame(f);};f();})`);
-	const point = await app.evaluate<{x:number;y:number}>(`(async()=>{const page=[...document.querySelectorAll('webview')].find(p=>getComputedStyle(p).visibility==='visible');const r=page.getBoundingClientRect();const state=await window.lyra.browser.state();const tab=state.tabs.find(t=>t.id===state.activeId);const scale=tab.viewport?Math.min(1,r.width/tab.viewport.width,r.height/tab.viewport.height):1;const el=await page.executeJavaScript("(()=>{const r=document.querySelector('#add').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");return {x:r.x+el.x*tab.zoom*scale,y:r.y+el.y*tab.zoom*scale};})()`);
+	// Only the host side can be asked: elementFromPoint stops at the webview, and inside it the inspect layer covers every element.
+	const point = await app.evaluate<{x:number;y:number}>(`(async()=>{const page=[...document.querySelectorAll('webview')].find(p=>getComputedStyle(p).visibility==='visible');const r=page.getBoundingClientRect();const state=await window.lyra.browser.state();const tab=state.tabs.find(t=>t.id===state.activeId);const scale=tab.viewport?Math.min(1,r.width/tab.viewport.width,r.height/tab.viewport.height):1;const el=await page.executeJavaScript("(()=>{const r=document.querySelector('#add').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");const x=r.x+el.x*tab.zoom*scale,y=r.y+el.y*tab.zoom*scale;${landsOn("the visible webview", "page")}return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});

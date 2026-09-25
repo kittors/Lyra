@@ -7,6 +7,7 @@ import type { SessionMeta } from "@lyra/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -71,6 +72,7 @@ afterEach(async (t) => {
 async function click(selector: string): Promise<void> {
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true}));if(!e)throw new Error(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest',behavior:'instant'});const r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;window.qaStartupTrace.push({type:'aim',selector:${JSON.stringify(selector)},time:performance.now(),rect:r.toJSON(),hit:document.elementFromPoint(x,y)?.outerHTML.slice(0,240),field:document.querySelector('textarea')?.value});return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await app.evaluate(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true})),x=${at.x},y=${at.y};${landsOn(selector)}})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
 	await frames(2);

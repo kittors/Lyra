@@ -21,6 +21,7 @@ import { after, before, test } from "node:test";
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
+import { landsOn } from "./lands-on.ts";
 
 const PORT = 9429;
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -76,10 +77,14 @@ async function call<T>(target: string, method: string, params: Record<string, un
 function evaluator(socket: string) {
 	return async <T>(expression: string): Promise<T> => {
 		const result = (await call(socket, "Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true })) as {
-			exceptionDetails?: { text: string };
+			exceptionDetails?: { text: string; exception?: { description?: string } };
 			result?: { value: T };
 		};
-		if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+		if (result.exceptionDetails) {
+			// `text` alone is just "Uncaught"; the thrown message lives in the description.
+			const { text, exception } = result.exceptionDetails;
+			throw new Error(exception?.description ? `${text}\n${exception.description}` : text);
+		}
 		return result.result?.value as T;
 	};
 }
@@ -169,7 +174,9 @@ async function pressTip(socket: string, tip: string): Promise<boolean> {
 		if (!b) return null;
 		const r = b.getBoundingClientRect();
 		if (!r.width || !r.height) return null;
-		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+		const x = Math.round(r.x + r.width / 2), y = Math.round(r.y + r.height / 2);
+		${landsOn(`[data-ly-tip^="${tip}"]`, "b")}
+		return { x, y };
 	})()`);
 	if (!at) return false;
 	await click(socket, at.x, at.y);
@@ -482,8 +489,9 @@ test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖�
 	const closeAt = await pin<{ x: number; y: number } | null>(`(() => {
 		const b = document.querySelector("[data-pinned-close]");
 		if (!b) return null;
-		const r = b.getBoundingClientRect();
-		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+		const r = b.getBoundingClientRect(), x = Math.round(r.x + r.width / 2), y = Math.round(r.y + r.height / 2);
+		${landsOn("[data-pinned-close]", "b")}
+		return { x, y };
 	})()`);
 	assert.ok(closeAt, "置顶窗口上没有关闭按钮");
 	await click(pinned, closeAt.x, closeAt.y);

@@ -6,6 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { landsOn } from "./lands-on.ts";
 import { seedTrajectory } from "./trajectory-fixture.ts";
 
 let app: RunningApp;
@@ -104,9 +105,7 @@ async function menuAction(label: string) {
 }
 
 test("manual compression is traceable with its command, summary and lifecycle while the panel stays mounted", async (t) => {
-	const at = await app.evaluate<{x: number; y: number}>(`(()=>{const r=document.querySelector('[data-ly-row="qa-long"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
-	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
+	await clickRow("qa-long");
 	await until(`document.querySelector('main').textContent.includes('第 120 个回答')`);
 	await openPane("轨迹");
 	await until(`document.querySelector('[data-dock-pane="trajectory"]')?.querySelector('[data-trace-entry]')`);
@@ -127,7 +126,7 @@ test("manual compression is traceable with its command, summary and lifecycle wh
 });
 
 async function clickRow(id: string) {
-	const at = await app.evaluate<{x: number; y: number}>(`(()=>{const r=document.querySelector('[data-ly-row="${id}"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	const at = await app.evaluate<{x: number; y: number}>(`(()=>{const el=document.querySelector('[data-ly-row="${id}"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn(`[data-ly-row="${id}"]`)}return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
 }
