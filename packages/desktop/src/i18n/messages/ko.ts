@@ -2197,7 +2197,6 @@ export const ko = {
 	"extHost.failedTimesInline": "{n}번 실패",
 	"pipelines.eventIs": "이벤트: {event}",
 	"mcpSettings.configuredCount": "설정됨({n})",
-	"panelEmpty.cancelAction": "{action} 취소",
 	"ruleCard.watches": " · {what} 지켜보는 중",
 	"traceInspector.relatedCount": "연관 기록 · {n}",
 	"trajectory.readFailedWith": "읽지 못했습니다: {reason}",

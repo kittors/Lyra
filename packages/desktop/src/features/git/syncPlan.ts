@@ -43,10 +43,9 @@ export interface SyncPlan {
 	detail: string | null;
 	pull: SyncButton;
 	push: SyncButton;
-	/** The sentence under 「工作区干净」, and the button under that. */
+	/** The sentence under 「工作区干净」. */
 	empty: {
 		body: string;
-		action: { label: string; kind: "push" | "pull" } | null;
 	};
 }
 
@@ -58,22 +57,14 @@ function blocked(reason: string): { pull: SyncButton; push: SyncButton } {
 	};
 }
 
-/**
- * The whole table.
- *
- * `running` only affects the empty state's button, and only by removing it. The agent commits on
- * its own, so the moment it does the tree is clean and a 「推送」 button would appear — until its
- * next edit takes it away again. A button that flickers in and out during a turn is worse than no
- * button, and pushing is a decision worth waiting for the turn to end. The badge on the sync row
- * stays either way: that is a fact about the repository, not a prompt.
- */
-export function syncPlan(status: GitStatus | null, { running = false }: { running?: boolean } = {}): SyncPlan {
+/** The whole table. */
+export function syncPlan(status: GitStatus | null): SyncPlan {
 	const branch = status?.branch ?? "—";
 	const state: RemoteState = status?.remoteState ?? "none";
 	const clean = translate("sync.clean");
 
 	if (!status) {
-		return { branch, detail: null, ...blocked(translate("sync.noRepo")), empty: { body: clean, action: null } };
+		return { branch, detail: null, ...blocked(translate("sync.noRepo")), empty: { body: clean } };
 	}
 
 	if (state === "in-progress") {
@@ -82,7 +73,7 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 			branch,
 			detail: translate("sync.inProgress", { what }),
 			...blocked(translate("sync.finishFirst")),
-			empty: { body: translate("sync.finishFirstOf", { what }), action: null },
+			empty: { body: translate("sync.finishFirstOf", { what }) },
 		};
 	}
 
@@ -93,7 +84,7 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 			// where, and the sha is what you would need to get back.
 			detail: status.head,
 			...blocked(translate("sync.notOnBranch")),
-			empty: { body: translate("sync.notOnBranchDot"), action: null },
+			empty: { body: translate("sync.notOnBranchDot") },
 		};
 	}
 
@@ -102,7 +93,7 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 			branch,
 			detail: null,
 			...blocked(translate("sync.noCommits")),
-			empty: { body: translate("sync.noCommitsDot"), action: null },
+			empty: { body: translate("sync.noCommitsDot") },
 		};
 	}
 
@@ -112,7 +103,7 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 			branch,
 			detail: translate("sync.noRemote"),
 			...blocked(translate("sync.noRemoteDetail")),
-			empty: { body: clean, action: null },
+			empty: { body: clean },
 		};
 	}
 
@@ -126,7 +117,7 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 				detail: translate("sync.untracked"),
 				pull: noUpstream,
 				push: { disabled: true, tip: translate("sync.manyRemotes"), emphasis: false, count: null },
-				empty: { body: translate("sync.manyRemotesDot"), action: null },
+				empty: { body: translate("sync.manyRemotesDot") },
 			};
 		}
 		/*
@@ -153,7 +144,6 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 				body: never
 					? translate("sync.notPublished", { remote: status.remote })
 					: translate("sync.unpushedTo", { count, remote: status.remote, branch }),
-				action: running ? null : { label: never ? translate("sync.publishBranch") : translate("common.push"), kind: "push" },
 			},
 		};
 	}
@@ -176,12 +166,6 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 		count: ahead > 0 ? ahead : null,
 	};
 
-	/*
-	 * Diverged offers no button of its own on purpose.
-	 *
-	 * Pull then push is two decisions with a failure in between — `--ff-only` can refuse, and what
-	 * to do about that is a judgement call. One 「同步」 button would hide both.
-	 */
 	const body =
 		ahead > 0 && behind > 0
 			? translate("sync.diverged", { ahead, behind })
@@ -190,14 +174,6 @@ export function syncPlan(status: GitStatus | null, { running = false }: { runnin
 				: behind > 0
 					? translate("sync.behindBy", { behind })
 					: clean;
-	const action =
-		running || (ahead > 0 && behind > 0)
-			? null
-			: ahead > 0
-				? ({ label: translate("common.push"), kind: "push" } as const)
-				: behind > 0
-					? ({ label: translate("common.pull"), kind: "pull" } as const)
-					: null;
 
-	return { branch, detail: upstream || null, pull, push, empty: { body, action } };
+	return { branch, detail: upstream || null, pull, push, empty: { body } };
 }

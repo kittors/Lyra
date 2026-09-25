@@ -2382,7 +2382,6 @@ export const zhCN = {
 	"extHost.failedTimesInline": "已失败 {n} 次",
 	"pipelines.eventIs": "事件: {event}",
 	"mcpSettings.configuredCount": "已配置（{n}）",
-	"panelEmpty.cancelAction": "取消{action}",
 	"ruleCard.watches": " · 监视 {what}",
 	"traceInspector.relatedCount": "关联记录 · {n}",
 	"trajectory.readFailedWith": "读取失败：{reason}",

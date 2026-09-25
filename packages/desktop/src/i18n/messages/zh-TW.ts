@@ -2197,7 +2197,6 @@ export const zhTW = {
 	"extHost.failedTimesInline": "已失敗 {n} 次",
 	"pipelines.eventIs": "事件: {event}",
 	"mcpSettings.configuredCount": "已設定（{n}）",
-	"panelEmpty.cancelAction": "取消{action}",
 	"ruleCard.watches": " · 監視 {what}",
 	"traceInspector.relatedCount": "關聯紀錄 · {n}",
 	"trajectory.readFailedWith": "讀取失敗：{reason}",

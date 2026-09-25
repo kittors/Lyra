@@ -33,14 +33,13 @@ function status(over: Partial<GitStatus> = {}): GitStatus {
 	};
 }
 
-/** The shape a failure should read as: which button is lit, and what the empty state offers. */
+/** The shape a failure should read as: which button is lit, and what the empty state says. */
 function shape(plan: ReturnType<typeof syncPlan>) {
 	return {
 		branch: `${plan.branch}${plan.detail ? ` · ${plan.detail}` : ""}`,
 		pull: plan.pull.disabled ? "disabled" : plan.pull.emphasis ? `lit${plan.pull.count ?? ""}` : "muted",
 		push: plan.push.disabled ? "disabled" : plan.push.emphasis ? `lit${plan.push.count ?? ""}` : "muted",
 		body: plan.empty.body,
-		action: plan.empty.action?.label ?? null,
 	};
 }
 
@@ -60,7 +59,6 @@ test("a branch that has never been published does not claim to be in sync", () =
 		pull: "disabled",
 		push: "lit",
 		body: "这个分支还没有发布到 origin",
-		action: "发布分支",
 	});
 });
 
@@ -78,7 +76,6 @@ test("published before but untracked counts against the remote's copy", () => {
 		pull: "disabled",
 		push: "lit2",
 		body: "2 个提交尚未推送到 origin/main",
-		action: "推送",
 	});
 });
 
@@ -93,7 +90,6 @@ test("in sync: both muted, and neither pretends to be the next step", () => {
 		pull: "muted",
 		push: "muted",
 		body: "没有未提交的改动。",
-		action: null,
 	});
 	// Muted, not hidden — someone looking for 拉取 has to be able to find it.
 	assert.equal(plan.pull.disabled, false);
@@ -106,7 +102,6 @@ test("ahead: push is the one thing to do", () => {
 		pull: "muted",
 		push: "lit1",
 		body: "1 个提交尚未推送到 origin/main",
-		action: "推送",
 	});
 });
 
@@ -116,11 +111,10 @@ test("behind: pull is", () => {
 		pull: "lit3",
 		push: "muted",
 		body: "远端领先 3 个提交",
-		action: "拉取",
 	});
 });
 
-test("diverged: both lit, and the empty state offers neither", () => {
+test("diverged: both lit", () => {
 	/*
 	 * Deliberate. Pull-then-push is two decisions with a failure in between — `--ff-only` can
 	 * refuse — and a single 「同步」 button would hide both. The two icons are there; the order is
@@ -131,7 +125,6 @@ test("diverged: both lit, and the empty state offers neither", () => {
 		pull: "lit1",
 		push: "lit2",
 		body: "本地超前 2，远端领先 1",
-		action: null,
 	});
 });
 
@@ -145,7 +138,6 @@ test("a fresh repository is not nagged about publishing", () => {
 		pull: "disabled",
 		push: "disabled",
 		body: "还没有任何提交。",
-		action: null,
 	});
 });
 
@@ -157,7 +149,6 @@ test("a repository with no remote is left alone", () => {
 		push: "disabled",
 		// Not 「尚未发布」: working without a remote is a choice, not an oversight.
 		body: "没有未提交的改动。",
-		action: null,
 	});
 	assert.equal(plan.push.tip, "仓库没有配置远端");
 });
@@ -169,7 +160,6 @@ test("a detached HEAD says where it is sitting", () => {
 		pull: "disabled",
 		push: "disabled",
 		body: "当前不在任何分支上。",
-		action: null,
 	});
 	assert.equal(plan.push.tip, "当前不在任何分支上");
 });
@@ -185,7 +175,6 @@ test("an unfinished operation names itself", () => {
 		pull: "disabled",
 		push: "disabled",
 		body: "变基进行中，先完成或中止。",
-		action: null,
 	});
 
 	const merging = syncPlan(status({ remoteState: "in-progress", operation: "merge" }));
@@ -198,11 +187,10 @@ test("several remotes and no origin: nothing to press, and it says why", () => {
 	const plan = syncPlan(status({ remoteState: "no-upstream", upstream: null, remote: null, unpushed: null }));
 	assert.equal(plan.push.disabled, true);
 	assert.equal(plan.push.tip, "有多个远端，请先设置上游分支");
-	assert.equal(plan.empty.action, null);
 });
 
 // ---------------------------------------------------------------------------
-// Two things that are about the panel rather than about git
+// About the panel rather than about git
 // ---------------------------------------------------------------------------
 
 test("no repository at all disables everything without inventing a branch", () => {
@@ -211,24 +199,7 @@ test("no repository at all disables everything without inventing a branch", () =
 		pull: "disabled",
 		push: "disabled",
 		body: "没有未提交的改动。",
-		action: null,
 	});
-});
-
-test("while the agent is working, the sync row still reports but the empty state stops offering", () => {
-	/*
-	 * The agent commits on its own. The instant it does, the tree is clean and a 「推送」 button
-	 * would appear — then vanish on its next edit. A button that flickers through a turn is worse
-	 * than none, and pushing is a decision that can wait for the turn to end.
-	 */
-	const idle = syncPlan(status({ ahead: 1, unpushed: 1 }), { running: false });
-	const busy = syncPlan(status({ ahead: 1, unpushed: 1 }), { running: true });
-
-	assert.equal(idle.empty.action?.label, "推送");
-	assert.equal(busy.empty.action, null, "no button mid-turn");
-	// The badge is a fact about the repository, not a prompt, so it stays.
-	assert.deepEqual([busy.push.emphasis, busy.push.count], [true, 1]);
-	assert.equal(busy.empty.body, idle.empty.body, "and it still says what is true");
 });
 
 test("the remote's real name is used everywhere, never assumed to be origin", () => {

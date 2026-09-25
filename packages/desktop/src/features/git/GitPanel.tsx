@@ -477,7 +477,7 @@ export function GitPanel() {
    * derived rather than stored so there is exactly one answer on screen at a time — the row and the
    * empty state disagreeing about whether a push is due is the failure this replaces.
    */
-  const plan = useMemo(() => syncPlan(status, { running }), [status, running]);
+  const plan = useMemo(() => syncPlan(status), [status]);
   /*
    * 远端从没见过这个分支：推送就是发布。
    *
