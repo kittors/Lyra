@@ -82,7 +82,7 @@ export function ProjectList({
 			{creating && <ProjectDialog onClose={() => setCreating(false)} />}
 			{hasPinned && (
 				<>
-					<SectionLabel section="pinned" sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
+					<SectionLabel first section="pinned" sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
 						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
@@ -119,6 +119,7 @@ export function ProjectList({
 			{groups.projects.length > 0 && (
 				<>
 					<SectionLabel
+						first={!hasPinned}
 						section="projects"
 						sessions={groups.projects.flatMap((group) => group.sessions)}
 						count={groups.projects.length}
@@ -157,6 +158,7 @@ export function ProjectList({
 			{groups.loose.length > 0 && (
 				<>
 					<SectionLabel
+						first={!hasPinned && groups.projects.length === 0}
 						section="recent"
 						sessions={groups.loose}
 						count={groups.loose.length}
@@ -208,6 +210,7 @@ export function ProjectList({
  */
 function SectionLabel({
 	children,
+	first,
 	section,
 	count,
 	sessions,
@@ -216,6 +219,12 @@ function SectionLabel({
 	action,
 }: {
 	children: React.ReactNode;
+	/**
+	 * 列表里的第一个分区，不留上间距。
+	 *
+	 * `pt-4` 是分区之间的间隔；列表顶上和标签栏之间的间距由 `Sidebar` 的列表容器统一给。
+	 */
+	first?: boolean;
 	section: "pinned" | "projects" | "recent";
 	count: number;
 	sessions: SessionMeta[];
@@ -234,7 +243,7 @@ function SectionLabel({
 	return (
 		// Not a button around a button. The heading stays the fold's target; the action is a
 		// sibling laid over its trailing edge.
-		<div className="group/section relative flex w-full items-center pt-4">
+		<div className={`group/section relative flex w-full items-center ${first ? "" : "pt-4"}`}>
 			<button
 				type="button"
 				data-ly-section={section}

@@ -9,9 +9,12 @@
  * under it, and the selected tab came out as the recessed one.
  *
  * So the track is a veil of the foreground — a film that darkens a light pane and lightens a dark
- * one, correct on both by construction — and the knob is `--color-float`, the one token that
- * genuinely means "above the surface" in both directions: near-white on light, a step brighter than
- * the page on dark.
+ * one, correct on both by construction — and the knob is `--color-shell`, the colour of the panel
+ * beside the sidebar.
+ *
+ * 滑块曾经是 `--color-float`。深色下它约是底色往前景混 10%，而底槽（侧边栏再叠 7% 前景）约 11%，
+ * 两者几乎同亮，选中项只能靠阴影分辨。换成右侧面板色后，深色下是比底槽暗一截的块，浅色下是灰槽
+ * 里的一块白，两个主题都分得开。
  * ------------------------------------------------------------------------- */
 
 .ly-tabs {
@@ -19,7 +22,7 @@
 }
 
 .ly-tabs-knob {
-  background: var(--color-float);
+  background: var(--color-shell);
   /*
    * A hairline and a short drop, which is most of what makes this read as lifted rather than as a
    * differently-coloured rectangle. On light the fill is near-white on near-white, so without an

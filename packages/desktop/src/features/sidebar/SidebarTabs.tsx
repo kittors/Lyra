@@ -209,7 +209,7 @@ export function SidebarTabs({
 			 * same control was a different size in every window. Its size is a property of what is
 			 * written on it. The buttons go to the far end on their own; see `ml-auto` below.
 			 */}
-			<div ref={list} role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-lg p-[3px]">
+			<div ref={list} role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-full p-[3px]">
 				{/*
 				 * One fill that moves, rather than a fill per tab that appears and disappears.
 				 *
@@ -222,7 +222,7 @@ export function SidebarTabs({
 						aria-hidden
 						// `ly-freeze`: the tabs give way as the sidebar narrows, so dragging its edge can
 						// move the knob every frame — see the freeze rule in `styles.css`.
-						className="ly-tabs-knob ly-freeze absolute inset-y-[3px] left-0 rounded-md transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+						className="ly-tabs-knob ly-freeze absolute inset-y-[3px] left-0 rounded-full transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 						style={{ width: knob.width, transform: `translateX(${knob.left}px)` }}
 					/>
 				)}
@@ -242,7 +242,7 @@ export function SidebarTabs({
 							/* Each as wide as its own word. `min-w-0` for the frame between the row
 							   narrowing and the fit catching up: the word is cut short for that frame
 							   rather than running under the buttons beside the strip. */
-							className={`relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-md transition-colors duration-[var(--ly-t-quick)] ${
+							className={`relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
 								compact ? "h-[32px] px-3.5 text-body" : "h-[26px] px-3 text-label"
 							} ${current ? "font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
 							style={squeeze === null ? undefined : { paddingInline: squeeze }}

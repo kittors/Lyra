@@ -354,8 +354,11 @@ export function Sidebar() {
 				 * Four states share this scroller and none of them is a change to the list on screen —
 				 * they are different lists. The animation is what says so; without it the rows simply
 				 * become other rows, which at a glance reads as the sidebar having reordered itself.
+				 *
+				 * `pt-3` 是标签栏和列表之间的间距，由这里统一给，两个列表的第一个标题都不再自带上间距——
+				 * 各自带的时候，项目列表比聊天列表远 16px，切换标签时标题上下跳。
 				 */}
-				<div key={`${archiveOpen ? "archive" : "live"}-${tab}`} className="ly-enter">
+				<div key={`${archiveOpen ? "archive" : "live"}-${tab}`} className="ly-enter pt-3">
 					{tab === "projects" ? (
 						<ProjectList
 							groups={groups}

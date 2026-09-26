@@ -23,6 +23,12 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 	 * so only when the section existed at all, which is what took a while to see.
 	 *
 	 * An open section has nothing to clip, so it does not need to.
+	 *
+	 * 裁剪用 `overflow: clip` 而不是 `hidden`。`hidden` 会让这一层成为里面吸顶行的参照容器：展开动画
+	 * 期间项目行要离这一层顶部 `--ly-rail` 那么远，被推到自己分组的底部，压在会话行上，动画结束解除
+	 * 裁剪才跳回原位。`clip` 只裁不滚，吸顶仍然以侧边栏为参照。
+	 *
+	 * 代价是它不算滚动容器，网格子项的最小高度回到内容高度，`0fr` 压不下去，所以要显式 `min-h-0`。
 	 */
 	const [clipped, setClipped] = useState(!open);
 	useEffect(() => {
@@ -46,7 +52,7 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 				if (open && event.propertyName === "grid-template-rows") setClipped(false);
 			}}
 		>
-			<div className={`${clipped ? "overflow-hidden" : ""} ${open ? "" : "pointer-events-none"}`} inert={!open}>
+			<div className={`min-h-0 ${clipped ? "overflow-clip" : ""} ${open ? "" : "pointer-events-none"}`} inert={!open}>
 				{children}
 			</div>
 		</div>
