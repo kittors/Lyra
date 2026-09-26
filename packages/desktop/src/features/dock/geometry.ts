@@ -128,9 +128,27 @@ export { WINDOW_HEADER_HEIGHT as HEADER_HEIGHT } from "../../../shared/window-ch
  *
  * Applied inside the pane's box rather than by shrinking the box, which keeps the tiling
  * arithmetic exact — the boxes still meet edge to edge, and the seam is each of two neighbours
- * holding back this much.
+ * holding back this much. Half of the 4px gap between frames, ZCode's number; the other half on
+ * the window's side is `FRAME_PAD`.
  */
-export const PANE_INSET = 3;
+export const PANE_INSET = 2;
+
+/**
+ * The workspace's own padding around its docks (`.ly-frames`), so a card stands the same 4px off
+ * the window's edge and off the sidebar as it does off its neighbour. Keep in step with
+ * `--ly-frame-pad` in tokens.css.
+ */
+export const FRAME_PAD = 2;
+
+/**
+ * Room a card at the window's corner still owes the system's controls.
+ *
+ * `cornerReserved` is measured from a pane flush with the window and counts the card's border; a
+ * card also stands `FRAME_PAD + PANE_INSET` off the edge, which is room already left.
+ */
+export function cardRoom(room: number): number {
+	return Math.max(0, room - FRAME_PAD - PANE_INSET);
+}
 
 /**
  * The header's own left padding, before any inset for the traffic lights.

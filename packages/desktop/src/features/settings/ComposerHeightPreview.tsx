@@ -17,17 +17,17 @@ import { ArrowUp, Camera, Plus } from "lucide-react";
 export function ComposerHeightPreview({ lines }: { lines: number }) {
 	return (
 		/*
-		 * `ly-composer` 和 `bg-shell`，这两样是「看起来像那个框」的全部。
+		 * `ly-composer` 和 `bg-float`，这两样是「看起来像那个框」的全部。
 		 *
-		 * 真框自己是透明的：它看着有底色，是因为它坐在对话区的 `--color-shell` 上，外加
-		 * `composer.css` 里那两层阴影——一层贴地，一层托起，深浅各一套。这里原来只抄了圆角和描边，
-		 * 于是透出来的是卡片的 `bg-card/40`，又没有阴影可言，一个框就这么化进背景里了。
+		 * 真框的底色不是它自己的：坐在对话区或面板上时，`composer.css` 给它 `--color-float`，外加
+		 * 那两层阴影——一层贴地，一层托起，深浅各一套。这里原来只抄了圆角和描边，于是透出来的是
+		 * 卡片的 `bg-card/40`，又没有阴影可言，一个框就这么化进背景里了。
 		 *
-		 * 底色写死成 `bg-shell` 而不是继续透明，是因为它脚下这次是卡片而不是对话区；要跟真框长
-		 * 得一样，就得自己把真框脚下那层颜色带上。阴影交给 `ly-composer`，深浅两套跟着主题走，
-		 * 不必在这里重写一遍——重写的那份迟早会跟真框走散。
+		 * 这里脚下是设置页的卡片，那条按位置给底色的规则够不着，所以把真框的那层颜色直接写上。
+		 * 阴影交给 `ly-composer`，深浅两套跟着主题走，不必在这里重写一遍——重写的那份迟早会跟真框
+		 * 走散。
 		 */
-		<div className="ly-composer mt-3 rounded-[18px] border border-line-soft bg-shell transition-[border-color,box-shadow] duration-[var(--ly-t-base)]">
+		<div className="ly-composer mt-3 rounded-[18px] border border-line-soft bg-float transition-[border-color,box-shadow] duration-[var(--ly-t-base)]">
 			{/*
 			 * 与真输入框同源的排版：`.ly-composer-text` 出 padding、字号与 1.625 的行高，这里
 			 * 只补上那条 `min-height` 的算式。上下 padding 读 `--ly-composer-in`，和真框同一条

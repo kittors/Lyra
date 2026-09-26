@@ -27,7 +27,7 @@ import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
 import { companionOf, renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
 import { pct } from "./css.ts";
-import { HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
+import { cardRoom, HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
 import { DockPane } from "./DockPane.tsx";
 import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
@@ -373,7 +373,8 @@ export function DockView({
 								customHeader={
 									conversation ? (
 										<>
-											{header({ start: inset, end: insetEnd })}
+											{/* A card, like every pane — see `DockPane`. */}
+											{header({ start: cardRoom(inset), end: cardRoom(insetEnd) })}
 											{draggable && !maximized && (
 												<PaneGrip kind={kind} label={label} carried={moving} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />
 											)}

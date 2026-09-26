@@ -222,7 +222,7 @@ export function SettingsShell() {
 				</nav>
 			</NavPane>
 
-			<main ref={mainRef} className="ly-opaque flex min-w-0 flex-1 flex-col">
+			<main ref={mainRef} className="ly-opaque ly-card-page flex min-w-0 flex-1 flex-col">
 				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 				{/*
 				 * Most sections are a column of settings and scroll as one page. A few are

@@ -10,7 +10,7 @@
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
-import { HEADER_HEIGHT, PANE_INSET, panePaintMinWidth } from "./geometry.ts";
+import { cardRoom, FRAME_PAD, HEADER_HEIGHT, PANE_INSET, panePaintMinWidth } from "./geometry.ts";
 import type { Box } from "./layout.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 
@@ -93,8 +93,16 @@ export function DockPane({
 	customHeader?: React.ReactNode;
 	children: React.ReactNode;
 }) {
-	/** Panels are cards over the conversation's surface; so is anything currently in the air. */
-	const floats = kind !== "conversation" || Boolean(carried);
+	/** Every pane is a card on the window's own surface. See the note on the card below. */
+	/** Where the card's inside starts within the pane's box: its inset and its border. */
+	const edge = PANE_INSET + 1;
+	/**
+	 * How far the header's row has to rise to sit on the window's top line: the card's edge plus the
+	 * workspace's padding above the top row. Every pane takes the same, so neighbours in any row
+	 * still put their titles on one line.
+	 */
+	const lift = FRAME_PAD + edge;
+	const edgeRoom = (room?: number) => (room ? cardRoom(room) : room);
 	const paintMinWidth = panePaintMinWidth(kind, box.width, maximized);
 
 	return (
@@ -203,9 +211,15 @@ export function DockPane({
 			 */
 			data-pane={kind}
 			className={`ly-dock-pane group/pane absolute flex min-w-0 flex-col ${
-				carried ? "ly-dock-pane-carried" : floats ? "z-10" : "z-0"
+				carried ? "ly-dock-pane-carried" : kind !== "conversation" ? "z-10" : "z-0"
 			} ${landing ? "ly-dock-pane-landing" : ""}`}
-			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: floats ? PANE_INSET + 1 : 0, background: "transparent" }}>
+			/*
+			 * The conversation's own title bar cannot be lifted from inside the way `PaneHeader` is, so
+			 * it is given the card's sides but not its top, and pulled back over the workspace's padding:
+			 * its row stays on the window's top line, level with the traffic lights and with a lifted
+			 * panel header beside it.
+			 */
+			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: customHeader ? `-${FRAME_PAD}px ${edge}px 0` : edge, background: "transparent" }}>
 				{customHeader ?? <PaneHeader
 					kind={kind}
 					label={label}
@@ -219,9 +233,9 @@ export function DockPane({
 					onMove={onMove}
 					onArrowMove={onArrowMove}
 					actions={actions}
-					inset={inset}
-					insetEnd={insetEnd}
-					lift={floats ? PANE_INSET + 1 : 0}
+					inset={edgeRoom(inset)}
+					insetEnd={edgeRoom(insetEnd)}
+					lift={lift}
 					onToggleMaximized={onToggleMaximized}
 					onPopOut={onPopOut}
 					onClose={onClose}
@@ -229,25 +243,23 @@ export function DockPane({
 			</div> : null}
 		>
 			{/*
-			 * Panels float; the conversation does not.
+			 * Every pane is its own card on the window's surface, the conversation included.
 			 *
-			 * That asymmetry is the whole visual idea, and it is not decoration. The conversation is
-			 * what the window is *for* — it runs flush to the window's edges and carries no border,
-			 * so it reads as the page itself. A panel is something brought alongside it: inset,
-			 * cornered and lifted slightly off, so it reads as sitting on top.
+			 * The conversation used to run flush to the window as "the page", with panels as cards
+			 * on top of it. Next to the sidebar that read as one flat field cut in two, and once the
+			 * workspace itself was framed, a panel became a card inside a card. Independent frames
+			 * with the window showing between them is what makes each one read as lifted; which pane
+			 * is the conversation is carried by its title bar and its composer, not by a missing
+			 * border.
 			 *
-			 * Making every pane a card lost that: five equal boxes with nothing to say which one is
-			 * the thing and which are the accessories.
-			 *
-			 * Anything in the air is a card, whichever it is — it is off the surface by definition,
-			 * and the conversation has to look picked up while it is being carried.
+			 * Anything in the air is a card, whichever it is — it is off the surface by definition.
 			 *
 			 * `overflow-hidden` is what makes the radius real: without it a scroller inside paints
 			 * its own square corners straight over the rounded ones.
 			 */}
 			<div
-				className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${floats ? "ly-dock-card" : ""}`}
-				style={floats ? { margin: PANE_INSET } : undefined}
+				className="ly-dock-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+				style={{ margin: PANE_INSET }}
 			>
 			{/* Controls keep their endpoint geometry while this retained surface composites its resize. */}
 			{chrome && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}

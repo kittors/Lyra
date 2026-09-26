@@ -113,8 +113,13 @@
   --ly-composer-x: 16px;
   --ly-composer-out: 24px;
   --ly-composer-control: 28px;
-  /* `PANE_INSET` (3) plus the dock card's 1px border. Keep in step with geometry.ts. */
-  --ly-pane-chrome: 4px;
+  /*
+   * The workspace's padding around its docks (`FRAME_PAD` in geometry.ts), and how far a card's
+   * inside stands off the window: that padding, `PANE_INSET` (2) and the card's 1px border. The 4px
+   * between two frames and between a frame and the window is ZCode's. Keep in step with geometry.ts.
+   */
+  --ly-frame-pad: 2px;
+  --ly-pane-chrome: 5px;
 
   /*
    * Punctuation, then Han, then the platform stack.

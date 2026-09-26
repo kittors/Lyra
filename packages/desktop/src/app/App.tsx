@@ -385,7 +385,7 @@ function Workspace({ away }: { away: boolean }) {
 			data-view="chat"
 			data-active={away ? "false" : "true"}
 			inert={away}
-			className={`${away ? "pointer-events-none invisible absolute inset-0" : "ly-page-enter relative flex-1"} flex min-h-0 min-w-0 flex-col`}
+			className={`${away ? "pointer-events-none invisible absolute inset-0" : "ly-page-enter relative flex-1"} ly-frames flex min-h-0 min-w-0 flex-col`}
 		>
 			<SplitWorkspace />
 		</div>
@@ -401,9 +401,10 @@ function Workspace({ away }: { away: boolean }) {
  */
 function SoloScreen({ children }: { children: React.ReactNode }) {
 	return (
-		<div data-ly-solo-screen className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+		<div data-ly-solo-screen className="ly-card-page relative flex min-h-0 min-w-0 flex-1 flex-col">
 			<div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />
-			<div aria-hidden className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
+			{/* Short by the card's own offset, so the view's header row stays on the traffic lights' line. */}
+			<div aria-hidden className="shrink-0" style={{ height: `calc(${WINDOW_HEADER_HEIGHT}px - var(--ly-card-lift, 0px))` }} />
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 		</div>
 	);
@@ -447,7 +448,11 @@ function ChatShell({ settings }: { settings: boolean }) {
 	 * 规矩不是风格——见下面它自己的注释。侧边栏只有一行，写两遍换来的是拖拽区的顺序还能读懂。
 	 */
 	const dock = (
-		<main className="ly-opaque relative flex min-w-0 flex-1 flex-col">
+		/*
+		 * No fill of its own: every pane in here is a card with its own surface, and the gaps between
+		 * them have to show the window's colour — the sidebar's — not another coat of the cards'.
+		 */
+		<main className="relative flex min-w-0 flex-1 flex-col">
 			{/*
 			 * The conversations on screen, each with its own title bar and its own panels.
 			 *

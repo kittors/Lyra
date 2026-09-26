@@ -126,9 +126,11 @@ export const SplitPane = memo(function SplitPane({
 				width: pct(pane.width),
 				height: pct(pane.height),
 			}}
-			className={`ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout ${
-				screen ? "bg-shell" : ""
-			} ${pane.left > 0.001 ? "border-l border-line" : ""} ${pane.top > 0.001 ? "border-t border-line" : ""}`}
+			/*
+			 * Screens are told apart by the gap between their cards — each screen's panes are cards of
+			 * their own (see `DockPane`) — so the section adds no fill and no dividing line.
+			 */
+			className="ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout contain-paint"
 		>
 			<SplitScreen sessionId={pane.sessionId} screen={screen} inset={inset} insetEnd={insetEnd} />
 		</section>

@@ -246,9 +246,10 @@ export function ComposerShell({
   return (
     <div
       /*
-       * No fill of its own. `bg-input` is a grey well; on the conversation page it almost
-       * vanished into the shell, and in a dock panel it stacked into a slab. Border and the
-       * `.ly-composer` shadow are what lift it; the surface underneath shows through.
+       * No fill of its own here. `bg-input` is a grey well; on the conversation page it almost
+       * vanished into the shell, and in a dock panel it stacked into a slab. Where the field sits
+       * on a pane, `composer.css` gives it the raised `--color-float`; anywhere else the surface
+       * underneath shows through. Border and the `.ly-composer` shadow do the rest.
        *
        * `@container` so the controls along the bottom can drop labels when *this* runs out
        * of room rather than when the window does. At 1100px wide with a sidebar and a panel

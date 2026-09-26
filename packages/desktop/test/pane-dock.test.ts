@@ -141,5 +141,5 @@ test("every screen's title bar is handed to its dock, so it covers the transcrip
 	assert.match(paneSrc, /header=\{\(room: ScreenInsets\) => <SplitChrome/);
 	assert.doesNotMatch(paneSrc, /screen \? <SplitChrome/);
 	assert.match(surfaceSrc, /data-ly-pane-slot=\{customHeader \? "conversation"/);
-	assert.match(dockSrc, /\{header\(\{ start: inset, end: insetEnd \}\)\}/);
+	assert.match(dockSrc, /\{header\(\{ start: cardRoom\(inset\), end: cardRoom\(insetEnd\) \}\)\}/);
 });

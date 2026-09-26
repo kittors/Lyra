@@ -228,8 +228,23 @@
  * `--ly-composer-out`, so a card and the messages it answers share one edge.
  * Compact windows drop to `--ly-composer-x` so 24+24 does not eat a 360px column.
  */
+/* The conversation is a card too, so its bottom pads like the panes below. */
 .ly-composer-dock {
-	padding: var(--ly-composer-in) var(--ly-composer-out) var(--ly-composer-out);
+	padding: var(--ly-composer-in) var(--ly-composer-out) calc(var(--ly-composer-out) - var(--ly-pane-chrome));
+}
+
+/*
+ * A raised fill where the field sits on a pane's own surface.
+ *
+ * `--color-float` rather than `bg-input`: the input well is one step off the page and on dark it all
+ * but vanished, which is why the field went transparent. `float` is the surface that means "above"
+ * in both themes — a clear step brighter on dark, near-white on light — and with the shadows above
+ * it is what makes the field read as sitting on the page rather than drawn into it. Scoped to the
+ * conversation and pane composers; a field placed on a card or a popover keeps that surface.
+ */
+.ly-composer-dock .ly-composer,
+.ly-composer-pad .ly-composer {
+	background: var(--color-float);
 }
 
 .ly-composer-dock[data-compact] {
@@ -252,7 +267,7 @@
  *
  * Those panes already sit `--ly-pane-chrome` off the window (inset + card border).
  * Padding the remainder on the bottom, not another full `--ly-composer-out`, is
- * what keeps the cards on one window line. Sides stay the full gutter so a
+ * what keeps the cards on one window line — the conversation's own card does the same above. Sides stay the full gutter so a
  * 12px pane next to a 32px conversation cannot happen again.
  */
 .ly-composer-pad {
