@@ -28,3 +28,14 @@ export function sessionUnderProject(project: string | readonly string[], cwd: st
 		return cwd === root || cwd === folder || isDescendantPath(root, cwd);
 	});
 }
+
+/**
+ * Whether this conversation runs in one of the app's own directories rather than in a project.
+ *
+ * 「不在项目中工作」 and a pull request review both need somewhere to run, and both get a directory
+ * under the app's home. Neither is a project, and the difference has to be made from the path,
+ * because by the time you are looking at a session all you have is a path.
+ */
+export function isProjectLess(cwd: string, scratchRoots: readonly string[]): boolean {
+	return scratchRoots.some((root) => root !== "" && isDescendantPath(root, cwd));
+}

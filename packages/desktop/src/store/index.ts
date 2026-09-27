@@ -144,6 +144,23 @@ export interface AppState extends QueueSlice {
   settings: Settings | null;
   sessions: SessionMeta[];
   workspace: WorkspaceInfo | null;
+  /**
+   * Projects already described this run, by path.
+   *
+   * `workspace` belongs to the live slot, and a split shows conversations that are not in it. Each
+   * screen names its own project from here: a project is written in when its conversation leaves
+   * the live slot, and read on demand for one that never held it (`describeWorkspace`).
+   */
+  workspaceByPath: Record<string, WorkspaceInfo>;
+  /**
+   * Where the blank conversation runs while another conversation holds the live slot.
+   *
+   * A split keeps a blank screen on show beside conversations that take the live slot in turn, and
+   * `workspace` then describes whichever of them has it. Parked here when the blank one leaves the
+   * slot, so its screen keeps naming — and its first message keeps going to — the project it was
+   * opened in; put back by `stageDraft`, dropped by `newSession`.
+   */
+  parkedDraft: { workspace: WorkspaceInfo | null; scratchCwd: string | null } | null;
   /** Every directory project-less conversations are stored under, so the sidebar can exclude them. */
   scratchRoots: string[];
   /**
@@ -368,6 +385,8 @@ export interface AppState extends QueueSlice {
   openWorkspace(path: string): Promise<void>;
   /** Re-read git state for the current project, after a branch switch or an external change. */
   refreshWorkspace(): Promise<void>;
+  /** Read a project into `workspaceByPath`, for a screen whose conversation is not the live one. */
+  describeWorkspace(path: string): Promise<void>;
   /**
    * Which branch a switch is currently trying to reach, or null when none is.
    *
@@ -426,6 +445,11 @@ export interface AppState extends QueueSlice {
    * 人从设置页甩回对话页，中间没有任何东西解释发生了什么。
    */
   newSession(options?: { keepView?: boolean }): Promise<void>;
+  /**
+   * Put the blank conversation a split still shows back in the live slot, in its own project.
+   * Focusing that screen does this; 新对话 is `newSession`.
+   */
+  stageDraft(): void;
   /** Light the row now. Returns the selection epoch so a later hydrate can tell if it is stale. */
   previewSession(meta: SessionMeta): number;
   previewSessionId(id: string): number;
@@ -452,8 +476,12 @@ export interface AppState extends QueueSlice {
    *
    * 队列才需要它：排队的消息等的是「那一轮结束」，而那一轮结束时人可能已经切到别的对话去了——
    * 没有它，出队要么发错对话，要么只能等人切回来。
+   *
+   * `null` names the blank conversation: a new one is created, whatever holds the live slot. A split's
+   * blank screen has no id to give, and leaving it out fell back to the live conversation — so what
+   * was typed into a split's fresh screen went to whichever conversation had focus.
    */
-	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string }): Promise<boolean>;
+	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null }): Promise<boolean>;
   /**
    * Replace a message and re-run from there; everything after it is discarded.
    *
@@ -511,6 +539,8 @@ export const useApp = create<AppState>((set, get) => ({
   settings: null,
   sessions: [],
   workspace: null,
+  workspaceByPath: {},
+  parkedDraft: null,
   switchingBranch: null,
   scratchRoots: [],
   scratchCwd: null,

@@ -39,12 +39,14 @@ import { useAttachmentActions } from "./attachments/actions.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import {
+	focusScreenOf,
 	useScopedMessages,
 	useScopedMeta,
 	useScopedRunning,
 	useScopedSessionId,
 	useScopedStopped,
 	useScopedTodos,
+	useScopedWorkspace,
 } from "../../app/session-scope.tsx";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { bridge } from "../../services/index.ts";
@@ -87,8 +89,8 @@ const MAX_FILES = 8;
 
 export function Composer() {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace);
-	const scratchCwd = useApp((s) => s.scratchCwd);
+	// This screen's project, not the focused conversation's: a split shows several at once.
+	const { workspace, scratchCwd } = useScopedWorkspace();
 	const settings = useApp((s) => s.settings);
 	const meta = useScopedMeta();
 	const messages = useScopedMessages();
@@ -430,13 +432,21 @@ export function Composer() {
 			return;
 		}
 
+		/*
+		 * A blank screen speaks for the blank conversation, and takes the live slot to do it.
+		 *
+		 * It has no id to name, and leaving the id out meant "the live one" — in a split, whichever
+		 * conversation had focus got the message. Pressing on the screen would have put it in the
+		 * live slot first; the keyboard reaches this field without that press, so it is done here.
+		 */
+		if (activeSessionId === null && useApp.getState().activeSessionId !== null) focusScreenOf(null);
 		const accepted = await send(outgoing.content, {
 			...(outgoing.deliver ? { deliver: outgoing.deliver } : {}),
 			...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 			...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
-			...(activeSessionId ? { sessionId: activeSessionId } : {}),
+			sessionId: activeSessionId,
 		});
 		if (!accepted) {
 			// A transport rejection must preserve the original files and command text for retry.

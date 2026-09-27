@@ -19,6 +19,9 @@ import { projectFolders } from "@lyra/core/project-folders";
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
 
+/** Paths being read for `describeWorkspace`: every screen on one project asks at once. */
+const describing = new Set<string>();
+
 export function workspaceSlice(set: Set, get: Get) {
   return {
   async pickWorkspace() {
@@ -106,6 +109,22 @@ export function workspaceSlice(set: Set, get: Get) {
     if (!current) return;
     const workspace = await bridge.workspace.info(current.path);
     if (workspace) set({ workspace });
+  },
+
+  async describeWorkspace(path: string) {
+    if (describing.has(path)) return;
+    describing.add(path);
+    try {
+      const workspace = await bridge.workspace.info(path);
+      if (!workspace) return;
+      // The name the project was given, as `openWorkspace` shows it; the directory only knows its own.
+      const named = get().settings?.projects.find((project) => project.path === path)?.name;
+      set({ workspaceByPath: { ...get().workspaceByPath, [path]: named ? { ...workspace, name: named } : workspace } });
+    } catch {
+      // A screen without its branch still names its project from the conversation; nothing to report.
+    } finally {
+      describing.delete(path);
+    }
   },
 
   /**

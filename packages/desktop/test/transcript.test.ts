@@ -91,6 +91,37 @@ test("a turn still in flight keeps its running calls", () => {
 	assert.equal(rebuildToolRuns(messages)["call-1"].status, "running");
 });
 
+test("a command the main process says is still running is not settled as failed", () => {
+	// What a live session hands back mid-command: the reply is final (`toolUse`), the result not yet written.
+	const messages: Message[] = [
+		{ role: "user", content: [{ type: "text", text: "跑一下" }], timestamp: 1 },
+		{
+			role: "assistant",
+			content: [{ type: "toolCall", id: "call-1", name: "bash", arguments: { command: "sleep 30" } }],
+			stopReason: "toolUse",
+			timestamp: 2,
+			usage: emptyUsage(),
+		},
+	];
+	assert.equal(rebuildToolRuns(messages)["call-1"].status, "error", "without the main process's word, the log looks settled");
+	assert.equal(rebuildToolRuns(messages, true)["call-1"].status, "running");
+	const live = { toolCallId: "call-1", toolName: "bash", summary: "sleep 30", args: {}, status: "running" as const, startedAt: 7, result: { content: [{ type: "text" as const, text: "tick" }] } };
+	assert.equal(rebuildToolRuns(messages, true, { "call-1": live })["call-1"], live, "the record already on screen is kept, with its start and its output");
+});
+
+test("only the reply being executed keeps calls without a result running", () => {
+	// An earlier call that never got a result belongs to a turn that is over, whatever this one is doing.
+	const messages: Message[] = [
+		{ role: "user", content: [{ type: "text", text: "跑一下" }], timestamp: 1 },
+		{ role: "assistant", content: [{ type: "toolCall", id: "old", name: "bash", arguments: {} }], stopReason: "stop", timestamp: 2, usage: emptyUsage() },
+		{ role: "user", content: [{ type: "text", text: "再跑一下" }], timestamp: 3 },
+		{ role: "assistant", content: [{ type: "toolCall", id: "new", name: "bash", arguments: {} }], stopReason: "toolUse", timestamp: 4, usage: emptyUsage() },
+	];
+	const runs = rebuildToolRuns(messages, true);
+	assert.equal(runs.old.status, "error");
+	assert.equal(runs.new.status, "running");
+});
+
 test("a call that did get its result is unaffected", () => {
 	const messages: Message[] = [
 		{ role: "user", content: [{ type: "text", text: "跑一下" }], timestamp: 1 },

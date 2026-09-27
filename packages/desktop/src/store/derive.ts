@@ -179,8 +179,13 @@ export function todosFrom(messages: Message[]): TodoItem[] {
 	return [];
 }
 
-/** Reconstruct tool cards when opening a stored session. */
-export function rebuildToolRuns(messages: Message[]): Record<string, ToolRun> {
+/**
+ * Reconstruct tool cards when opening a stored session.
+ *
+ * `running` is the main process's word that the turn is still in flight, and `live` the records this
+ * window already holds for the conversation — see the end of the function for what both are for.
+ */
+export function rebuildToolRuns(messages: Message[], running = false, live: Record<string, ToolRun> = {}): Record<string, ToolRun> {
   const runs: Record<string, ToolRun> = {};
   for (const message of messages) {
     if (message.role === "assistant") {
@@ -221,16 +226,32 @@ export function rebuildToolRuns(messages: Message[]): Record<string, ToolRun> {
    *
    * Only when the turn itself has settled: a session that is genuinely mid-turn in the
    * background has calls that legitimately have no result yet.
+   *
+   * The log alone cannot tell a settled turn from one that is running a command. The reply that
+   * asked for the command is final (`toolUse`) the moment it has asked, and the result is written
+   * when the command ends — so a busy conversation read back from the main process looked settled,
+   * and its running command came back drawn as failed: on focusing a split screen again, on warming
+   * one beside another, a red cross that stayed until the command finished. `running` is the main
+   * process saying the turn is not over; the calls of the reply being executed are then still
+   * running, and keep the record this window already had — when they started, what they printed.
    */
   const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
-  const turnInFlight = lastAssistant?.role === "assistant" && lastAssistant.stopReason === "pending";
-  if (!turnInFlight) {
-    for (const run of Object.values(runs)) {
-      if (run.status !== "running") continue;
-      run.status = "error";
-      run.result = { content: [{ type: "text", text: translate("derive.noResult") }], isError: true };
-      run.finishedAt = run.startedAt;
+  if (lastAssistant?.role === "assistant" && lastAssistant.stopReason === "pending") return runs;
+  const executing = new Set(
+    running && lastAssistant?.role === "assistant" && lastAssistant.stopReason === "toolUse"
+      ? lastAssistant.content.flatMap((block) => (block.type === "toolCall" ? [block.id] : []))
+      : [],
+  );
+  for (const run of Object.values(runs)) {
+    if (run.status !== "running") continue;
+    if (executing.has(run.toolCallId)) {
+      const kept = live[run.toolCallId];
+      if (kept) runs[run.toolCallId] = kept;
+      continue;
     }
+    run.status = "error";
+    run.result = { content: [{ type: "text", text: translate("derive.noResult") }], isError: true };
+    run.finishedAt = run.startedAt;
   }
 
   return runs;
