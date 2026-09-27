@@ -11,8 +11,11 @@ import type { ScheduledTask } from "@lyra/core";
  */
 import { nextRunAt } from "@lyra/core/schedule";
 import { Clock, ExternalLink, Play, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { motionReduced } from "../../ui/motion/reduced.ts";
+import { SessionStatus } from "../conversation/index.ts";
+import { markFailuresSeen, useScheduledNotices } from "./notices.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { NumberField, TimeField } from "../settings/index.ts";
 import { useLayout } from "../../app/layout.tsx";
@@ -31,6 +34,14 @@ export function ScheduledView() {
 	const openSession = useApp((s) => s.openSession);
 	const sessions = useApp((s) => s.sessions);
 	const { compact } = useLayout();
+	/*
+	 * On screen is seen. The failures the line above the composer and the sidebar's count stood for
+	 * are the cards below — a failure that arrives while this is open included.
+	 */
+	const unseen = useScheduledNotices((s) => s.unseen.length);
+	useEffect(() => {
+		if (unseen > 0) markFailuresSeen();
+	}, [unseen]);
 	if (!settings) return null;
 
 	const tasks = settings.scheduledTasks;
@@ -123,6 +134,31 @@ function describeNext(task: ScheduledTask): string | null {
 	return at === null ? null : new Date(at).toLocaleString(activeLocale());
 }
 
+/**
+ * The card that 查看 above the composer asked for: brought into view, its border lit for a moment.
+ *
+ * A moment rather than a state. It answers "which one was it", and after that it is a card like the
+ * others.
+ */
+function useFocusedCard(taskId: string) {
+	const ref = useRef<HTMLDivElement>(null);
+	const focused = useScheduledNotices((s) => s.focus === taskId);
+	const [lit, setLit] = useState(false);
+	useEffect(() => {
+		if (!focused) return;
+		useScheduledNotices.setState({ focus: null });
+		ref.current?.scrollIntoView({ block: "nearest", behavior: motionReduced() ? "auto" : "smooth" });
+		setLit(true);
+	}, [focused]);
+	// Its own effect: the one above re-runs as it clears `focus`, and would cancel the timer with it.
+	useEffect(() => {
+		if (!lit) return;
+		const timer = window.setTimeout(() => setLit(false), 1200);
+		return () => window.clearTimeout(timer);
+	}, [lit]);
+	return { ref, lit };
+}
+
 function TaskCard({
 	task,
 	lastSessionTitle,
@@ -137,6 +173,17 @@ function TaskCard({
 	onOpenLast: () => void;
 }) {
 	const { t } = useI18n();
+	/*
+	 * Whether a run is going: the session's own activity once it has any, and before that the start
+	 * the scheduler announced, which also says which session to watch — `lastSessionId` still names
+	 * the previous run until the attempt is saved. Waiting is said as waiting, because a task held on
+	 * an approval gets no further alone.
+	 */
+	const started = useScheduledNotices((s) => s.runs[task.id]);
+	const watched = started ?? task.lastSessionId;
+	const activity = useApp((s) => (watched ? s.activity[watched] : undefined));
+	const status = activity === "running" || activity === "waiting" ? activity : started && !activity ? "running" : null;
+	const card = useFocusedCard(task.id);
 	const [prompt, setPrompt] = useState(task.prompt);
 	const [name, setName] = useState(task.name);
 	const [running, setRunning] = useState(false);
@@ -144,7 +191,11 @@ function TaskCard({
 	const next = describeNext(task);
 
 	return (
-		<div className="ly-enter overflow-hidden rounded-[10px] border border-line bg-card/40">
+		<div
+			ref={card.ref}
+			data-scheduled-task={task.id}
+			className={`ly-enter overflow-hidden rounded-[10px] border bg-card/40 transition-colors duration-[var(--ly-t-slow)] ${card.lit ? "border-accent" : "border-line"}`}
+		>
 			<div className="flex items-center gap-2.5 border-b border-line-soft px-4 py-2.5">
 				<Clock size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
 				<Input
@@ -153,6 +204,13 @@ function TaskCard({
 					onBlur={() => name !== task.name && onChange({ name })}
 					className="min-w-0 flex-1 bg-transparent text-body text-ink focus:outline-none"
 				/>
+				{status && (
+					<span className="ly-enter flex shrink-0 items-center gap-1.5 text-detail text-ink-muted" data-scheduled-status={status}>
+						<SessionStatus activity={status} />
+						{/* The mark already names the state for a screen reader; the words are for the eye. */}
+						<span aria-hidden>{t(status === "waiting" ? "sessionStatus.waiting" : "sessionStatus.running")}</span>
+					</span>
+				)}
 				<button
 					type="button"
 					data-ly-tip={t("scheduled.runNow")}
@@ -270,7 +328,11 @@ function TaskCard({
 							<ExternalLink size={13} strokeWidth={1.8} />
 						</button>
 					)}
-					{task.lastError && <span className="text-danger">{task.lastError}</span>}
+					{task.lastError && (
+						<span className="text-danger" data-scheduled-error>
+							{t("scheduled.failedBecause", { reason: task.lastError })}
+						</span>
+					)}
 				</div>
 			</div>
 		</div>

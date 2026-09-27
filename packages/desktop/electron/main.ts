@@ -697,10 +697,11 @@ function bindScreenshotShortcut(): void {
 		getSettings: () => settings,
 		saveSettings: async (next) => void (await applySettings(next)),
 		createSession: (cwd, modelId) => getOrCreateSession(cwd, modelId),
-		notify: (message, level) => {
+		notify: (message, level, about) => {
 			const win = getWindow();
 			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-				win.webContents.send("scheduler:notice", { message, level });
+				// The shape is `SchedulerNotice`; `preload.ts` hands it to `lyra.scheduler.onNotice` as is.
+				win.webContents.send("scheduler:notice", { ...about, message, level });
 			}
 		},
 	});

@@ -18,11 +18,17 @@ export function NavItem({
 	label,
 	onClick,
 	active,
+	badge,
+	badgeLabel,
 }: {
 	icon: React.ReactNode;
 	label: string;
 	onClick?: () => void;
 	active?: boolean;
+	/** A count at the right-hand end — something there is waiting on you. Zero draws nothing. */
+	badge?: number;
+	/** What the count means, for a screen reader and the tooltip. */
+	badgeLabel?: string;
 }) {
 	// A drawer is reached by pointing at it rather than by muscle memory, so its rows get the
 	// taller touch-style hit area the reference mobile layout uses.
@@ -44,6 +50,15 @@ export function NavItem({
 		>
 			<span className={`shrink-0 ${active ? "text-ink" : "text-ink-muted"}`}>{icon}</span>
 			{label}
+			{badge ? (
+				<span
+					data-ly-tip={badgeLabel}
+					aria-label={badgeLabel}
+					className="ml-auto min-w-[18px] rounded-full bg-accent/15 px-1.5 text-center text-caption leading-[18px] font-medium text-accent tabular-nums"
+				>
+					{badge}
+				</span>
+			) : null}
 		</button>
 	);
 }

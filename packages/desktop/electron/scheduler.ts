@@ -14,12 +14,31 @@ import { nativeText } from "./i18n.ts";
 
 const TICK_MS = 60_000;
 
+/**
+ * What a task tells the window as it runs, and which task it is about.
+ *
+ * The sentence alone could only have gone into a corner of the window. With the task's id the window
+ * can put it on that task's card; with the session's id it can tell when the run is over — absent
+ * when there is no session, as when one could not be created. `kind` is there because the three are
+ * not shown alike: a start is a state of the card, while a failure is also worth telling someone who
+ * is not looking at the card.
+ */
+export interface SchedulerNotice {
+	taskId: string;
+	kind: "started" | "failed" | "cannotStart";
+	level: "info" | "error";
+	message: string;
+	sessionId?: string;
+}
+
+type NoticeSubject = Pick<SchedulerNotice, "taskId" | "kind" | "sessionId">;
+
 export interface SchedulerDeps {
 	getSettings(): Settings;
 	saveSettings(settings: Settings): Promise<void>;
 	createSession(cwd: string, modelId: string): Promise<AgentSession>;
-	/** A notice for the window, already in the interface language. */
-	notify(message: string, level: "info" | "warn" | "error"): void;
+	/** A notice for the window, already in the interface language, and the task it is about. */
+	notify(message: string, level: SchedulerNotice["level"], about: NoticeSubject): void;
 }
 
 export class Scheduler {
@@ -57,32 +76,59 @@ export class Scheduler {
 		this.running.add(task.id);
 		let sessionId: string | undefined;
 		let error: string | undefined;
+		/** This attempt on its way to disk. A failure later in the turn is written after it, not under it. */
+		let recorded: Promise<void> = Promise.resolve();
 
 		try {
 			const settings = this.deps.getSettings();
 			const session = await this.deps.createSession(task.cwd, settings.defaultModelId ?? "");
 			sessionId = session.meta.id;
-			this.deps.notify(nativeText("scheduled.started", { name: task.name }), "info");
+			this.deps.notify(nativeText("scheduled.started", { name: task.name }), "info", { taskId: task.id, kind: "started", sessionId });
 			// Not awaited: the turn can run for minutes and must not block the tick.
-			void session.prompt([{ type: "text", text: task.prompt }]).catch((cause: unknown) => {
-				this.deps.notify(
-					nativeText("scheduled.failed", { name: task.name, reason: cause instanceof Error ? cause.message : String(cause) }),
-					"error",
-				);
+			void session.prompt([{ type: "text", text: task.prompt }]).catch(async (cause: unknown) => {
+				const reason = cause instanceof Error ? cause.message : String(cause);
+				this.deps.notify(nativeText("scheduled.failed", { name: task.name, reason }), "error", {
+					taskId: task.id,
+					kind: "failed",
+					sessionId: session.meta.id,
+				});
+				// A save that failed has already been reported by the run it belongs to.
+				await recorded.catch(() => {});
+				await this.recordFailure(task.id, session.meta.id, reason);
 			});
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
-			this.deps.notify(nativeText("scheduled.couldNotStart", { name: task.name, reason: error }), "error");
+			this.deps.notify(nativeText("scheduled.couldNotStart", { name: task.name, reason: error }), "error", {
+				taskId: task.id,
+				kind: "cannotStart",
+			});
 		} finally {
 			this.running.delete(task.id);
 			// Record the attempt either way, so a failing task does not retry every minute.
 			const settings = this.deps.getSettings();
-			await this.deps.saveSettings({
+			recorded = this.deps.saveSettings({
 				...settings,
 				scheduledTasks: settings.scheduledTasks.map((t) =>
 					t.id === task.id ? { ...t, lastRunAt: now, lastSessionId: sessionId, lastError: error } : t,
 				),
 			});
+			await recorded;
 		}
+	}
+
+	/**
+	 * Puts a failure from later in the turn on the task, where its card shows it.
+	 *
+	 * The attempt was recorded when the run started, without an error, and a turn that fails minutes
+	 * afterwards had nowhere else to go: the card went on saying nothing was wrong. Only while that run
+	 * is still the task's latest — a run started since has an outcome of its own.
+	 */
+	private async recordFailure(taskId: string, sessionId: string, reason: string): Promise<void> {
+		const settings = this.deps.getSettings();
+		if (settings.scheduledTasks.find((t) => t.id === taskId)?.lastSessionId !== sessionId) return;
+		await this.deps.saveSettings({
+			...settings,
+			scheduledTasks: settings.scheduledTasks.map((t) => (t.id === taskId ? { ...t, lastError: reason } : t)),
+		});
 	}
 }

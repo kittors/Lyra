@@ -46,6 +46,8 @@ export type {
  */
 import type { DownloadPhase } from "./ipc/update-download.ts";
 import type { TrayCommand } from "./tray-menu.ts";
+import type { SchedulerNotice } from "./scheduler.ts";
+export type { SchedulerNotice } from "./scheduler.ts";
 export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
 import type { ExtractedText } from "@lyra/core";
@@ -955,6 +957,11 @@ export interface LyraApi {
 	scheduler: {
 		/** Run a scheduled task immediately, through the same path the timer uses. */
 		runNow(taskId: string): Promise<{ ok: boolean; error?: string }>;
+		/**
+		 * What a task says as it runs: that it has started, that its turn failed, that it could not
+		 * start at all. Sent to the main window only — see `notify` where `main.ts` builds the scheduler.
+		 */
+		onNotice(handler: (notice: SchedulerNotice) => void): () => void;
 	};
 	/**
 	 * Answering the card that offers to turn a correction into a rule.
