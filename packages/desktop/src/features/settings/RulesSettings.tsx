@@ -77,7 +77,16 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 	 */
 	const live = all.filter((rule) => !rule.shadowedBy);
 	const shadowed = all.filter((rule) => rule.shadowedBy);
-	const diagnostics = data?.diagnostics ?? [];
+	/*
+	 * Errors and warnings apart, each counted by file. Only an error is a file that could not be
+	 * read; a warning is a description cut short, a condition or scope entry dropped, a rule that
+	 * came to nothing (its line says which), and counted as unreadable it sent people looking for a
+	 * broken file. One file can have several lines, and both headers say how many rules.
+	 */
+	const diagnostics = (data?.diagnostics ?? []).filter((diagnostic) => diagnostic.severity !== "warning");
+	const warnings = (data?.diagnostics ?? []).filter((diagnostic) => diagnostic.severity === "warning");
+	const unreadable = new Set(diagnostics.map((diagnostic) => diagnostic.path)).size;
+	const warned = new Set(warnings.map((warning) => warning.path)).size;
 	const enabled = new Set(data?.enabledForeignUserRules ?? []);
 
 	const toggle = async (rule: RuleEntry, on: boolean) => {
@@ -93,11 +102,28 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("rules.unreadable", { n: diagnostics.length })}
+							{t("rules.unreadable", { n: unreadable })}
 						</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+						{/* By position: a path repeats when one file has two lines, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							</div>
+						))}
+					</div>
+				</Card>
+			)}
+
+			{warnings.length > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 py-3">
+						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
+							<TriangleAlert size={13} strokeWidth={1.9} />
+							{t("rules.warnings", { n: warned })}
+						</div>
+						{warnings.map((warning, index) => (
+							<div key={index} className="py-0.5 text-detail text-ink-faint">
+								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
 					</div>

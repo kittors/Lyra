@@ -116,7 +116,18 @@ function SlashCommands() {
 
 	const commands = list?.commands ?? [];
 	const builtins = list?.builtins ?? [];
-	const diagnostics = list?.diagnostics ?? [];
+	/*
+	 * Split by whether the file loaded, which the list below already says. A misspelt `deliver` is
+	 * taken as `prompt`, and a `---` never closed makes the whole file the prompt: both commands are
+	 * in the list, and counting them as failed to load contradicted their own rows. The loader gives
+	 * no severity, and one line could not settle it anyway: a never-closed file whose name is taken
+	 * does not load at all. So a file's lines stay under one header, and both headers count files.
+	 */
+	const loaded = new Set(commands.map((command) => command.path));
+	const diagnostics = (list?.diagnostics ?? []).filter((diagnostic) => !loaded.has(diagnostic.path));
+	const warnings = (list?.diagnostics ?? []).filter((diagnostic) => loaded.has(diagnostic.path));
+	const failed = new Set(diagnostics.map((diagnostic) => diagnostic.path)).size;
+	const warned = new Set(warnings.map((warning) => warning.path)).size;
 
 	return (
 		<div>
@@ -180,11 +191,28 @@ function SlashCommands() {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("commandsSettings.failedToLoad", { n: diagnostics.length })}
+							{t("commandsSettings.failedToLoad", { n: failed })}
 						</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+						{/* By position: a path repeats when one file has two lines, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							</div>
+						))}
+					</div>
+				</Card>
+			)}
+
+			{warnings.length > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 py-3">
+						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
+							<TriangleAlert size={13} strokeWidth={1.9} />
+							{t("commandsSettings.warnings", { n: warned })}
+						</div>
+						{warnings.map((warning, index) => (
+							<div key={index} className="py-0.5 text-detail text-ink-faint">
+								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
 					</div>
