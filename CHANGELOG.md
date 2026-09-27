@@ -5,6 +5,317 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.20](https://github.com/kittors/Lyra/releases/tag/v0.9.20) - 2026-09-27
+<!-- lyra:notes en -->
+
+### Features
+
+- **The phone app is redesigned for touch.** Press and hold a conversation or a message and it lifts out of a blurred list with its menu beside it, and the phone taps back. Conversations sit in two-line rows above a floating bar with settings, search and a new chat. Every control in the composer is at least 44 points, the model's full name fits, and the reasoning effort is a small gauge. Uploads show a card with their progress, a cancel and a retry.
+
+- **Large conversations and files get through to the phone.** Opening a big conversation through the relay server used to keep dropping the connection; it now opens in about a second. Sending 100 MB used to disconnect with the phone at 1.3 GB of memory; on the LAN it takes 5 seconds and the phone stays under 91 MB. Files stream to disk, resume after a dropped connection and can be up to 2 GB. Old and new versions of the desktop app, the phone app and the relay work with each other without pairing again.
+
+- **Sub-agents stop at checkpoints, not at the end.** A sub-agent that reaches its step limit hands back what it did, what is left and what it would do next, and keeps its context, so it can carry on instead of being dispatched again from nothing. On the same task that took about 74% fewer input tokens. An unfinished sub-agent can be handed back to the main agent to continue with one click.
+
+- **Sub-agents run side by side, and you can speak while they work.** Sub-agents that don't depend on each other go out together and the rest queue for a free slot; four used to run one after another. A message sent while the main conversation waits on them no longer sits for minutes: the conversation answers, the sub-agents finish in the background and their results come back to it. Requests carry a cache key, so a relay that pools accounts no longer misses the cache on each sub-agent's first requests. An approval card says which sub-agent is asking.
+
+- **Switching models mid-turn takes effect on the next request.** A request stuck retrying on a broken upstream lets go and goes to the new model — no need to stop or edit the message.
+
+- **The Plugin Market is one grid with one action per card,** filtered by kind and category. An MCP server that needs a key says which one and where to get it, and the key goes into the vault instead of settings.json. Installed plugins and skills update themselves (checked every 30 minutes, and it can be turned off), and a plugin's README is rendered.
+
+- **Each agent has its own look.** Pick a shape and a colour in the agent's editor, or shuffle one; the sub-agent panel and menu, @-mentions and the settings pages show it.
+
+- **Web pages the agent works in stay in the background.** The browser panel used to open over your work every time the agent clicked something; it now stays shut, and a card in the conversation shows a thumbnail, the title and an Open button.
+
+### Improvements & Fixes
+
+- **Windows and Linux: the sandbox actually confines commands.** On Windows it had never started — with Auto approve, every command reported that no sandbox backend was available. Constrained commands now run in PowerShell under a restricted token, and Linux systems without bubblewrap use Landlock.
+
+- **With Auto approve, running a command outside the sandbox always asks you first.** The request used to go to the risk check, which could let `rm -rf` through without asking.
+
+- **A command's result is read the way the shell means it.** `gh pr checks` exits with 8 while checks are still running — an answer, not a red cross; 13 of 59 "failures" in real sessions were answers like that. `read` and installer prompts no longer hang until the timeout, `server &` no longer blocks the call, and an app started from the Dock picks up your login shell's proxy, SSH agent and locale.
+
+- **In Split view, each screen acts on its own conversation.** Drafts, sending, the branch menu, model and reasoning effort, "Run it in the terminal", file links, panels, the Side chat, the project menu and delivery review all followed whichever screen had focus; from the keyboard, a message or an undo could land in the conversation next to the one you were in.
+
+- **The interface keeps to its language.** English no longer says "1 conversations" or "1 commits behind", and French and Russian choose the right form for each number. System notifications, scheduled-task notices, file and pull-request errors, dates and timestamps follow the interface language instead of staying in Chinese.
+
+- **A scheduled task that fails now says so.** Its notices had never been shown. A failed run is written on its card under Scheduled, and a line above the composer points to it.
+
+- **The skills, plugins, rules and commands pages count files, not lines.** With two skills installed, a page could say "4 skills have descriptions too short". Warnings now have a card of their own, and a list reordered by a rescan no longer draws the same row twice.
+
+- **On Windows and Linux:** editing a CRLF file keeps its line endings; letter shortcuts follow the keyboard layout (AZERTY, Dvorak, Russian); Delete removes a file and Ctrl+C copies in the terminal; the interface no longer collapses to two font weights; Linux installs its updates, and Wayland no longer asks to share the screen at every launch.
+
+- **On the phone:** every attachment sent from the phone failed; on iOS the page shrank to 68 points when the keyboard opened; over the LAN, no Copy button did anything.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **手机端按触控重新设计。** 长按会话或消息，它会从虚化的列表里浮起来，菜单出现在旁边，手机同时轻震一下。会话列表一条两行，底部浮着设置、搜索和新对话。输入框里每个控件至少 44 点，模型名显示完整，推理强度换成一个小仪表。上传有进度卡片，能取消、能重试。
+
+- **大会话、大文件能送到手机上了。** 经中转服务器打开一个大会话，以前反复断线，现在一秒左右打开。发 100 MB 以前会断线，手机内存涨到 1.3 GB；现在局域网下 5 秒传完，手机内存不到 91 MB。文件边收边写盘，断线能续传，最大 2 GB。新旧版本的桌面端、手机端和中转可以混用，不用重新配对。
+
+- **子 Agent 停在检查点，而不是停在终点。** 步数用完时，它交回做了什么、还剩什么、下一步打算做什么，上下文留着，可以接着跑，不用从零再派一次。同一件任务实测输入 token 少了约 74%。没跑完的子 Agent 点一下就能让主 Agent 接着跑它。
+
+- **子 Agent 一起跑，跑的时候你也能说话。** 互不依赖的子 Agent 同一轮一起派出，超出并发上限的自动排队；以前四个会排成一串，一个接一个跑。主会话等子 Agent 时你发一句话，不用再等两分多钟：主会话先回你，子 Agent 在后台跑完，结果再交回来。请求带上缓存键，经号池中转时，子 Agent 开头几次请求不再次次错过缓存。授权卡片会写明是哪个子 Agent 在要。
+
+- **一轮之内换模型，下一个请求就生效。** 卡在上游重试里的请求会当场放手，改由新模型接着回答，不用先停止或编辑消息。
+
+- **插件市场改成一个网格，一张卡片一个动作**，可按种类和分类筛选。需要密钥的 MCP 服务器会说明要哪一个、去哪申请，密钥存进保险箱，不再写进 settings.json。装过的插件和技能自动跟上新版（每 30 分钟检查一次，可以关掉），插件的 README 会渲染出来。
+
+- **每个智能体有了自己的形象。** 在智能体编辑页挑形状和颜色，或者随机换一个；子 Agent 面板和菜单、@ 提及、设置页里都显示它。
+
+- **智能体打开的网页留在后台。** 以前智能体每点一下，浏览器面板就弹出来盖住你正在看的东西；现在面板保持关闭，对话里留一张带缩略图、标题和「打开」按钮的卡片。
+
+### 优化与修复
+
+- **Windows 和 Linux 上沙箱真正起作用了。** Windows 上它从来没启动成功过：开着「帮我批准」时，每条命令都提示没有可用的沙箱后端。现在受约束的命令在受限令牌下的 PowerShell 里执行；Linux 上没装 bubblewrap 的系统改用 Landlock。
+
+- **开着「帮我批准」时，要到沙箱外执行的命令一律先问你。** 以前这类请求交给风险判定，`rm -rf` 可能不问就放行。
+
+- **命令的结果按 shell 的本意来读。** 检查还没跑完时 `gh pr checks` 的退出码是 8，这是回答，不是红叉；真实会话里 59 条「失败」有 13 条是这种。`read` 和安装程序的确认提示不再挂到超时，`server &` 不再卡住调用；从程序坞启动也能拿到登录 shell 的代理、SSH agent 和语言环境。
+
+- **分屏时每一屏只作用于自己的会话。** 草稿、发送、分支菜单、模型与推理强度、「在终端运行」、文件链接、面板、侧边聊天、项目菜单和交付审核，以前都跟着有焦点的那一屏走；用键盘操作时，一条消息或一次撤回可能落到旁边那个会话里。
+
+- **界面语言一贯到底。** 英文不再出现「1 conversations」「1 commits behind」，法语和俄语也按数量选对词形。系统通知、定时任务提示、文件和拉取请求的报错、日期和时间都跟随界面语言，不再停在中文。
+
+- **定时任务失败会说出来了。** 它的提示以前从来没显示过。现在失败写在「已安排」里的任务卡片上，输入框上方也有一行提示指过去。
+
+- **技能、插件、规则、命令页按文件计数，不再按行。** 只装了两个技能，页面却可能写着「4 个技能的描述太短」。警告现在单独一张卡片，重新扫描后列表换了顺序，也不会把同一行画两遍。
+
+- **Windows 和 Linux：** 编辑 CRLF 文件不再改掉原来的换行；字母快捷键按键盘布局识别（AZERTY、Dvorak、俄文）；Delete 删除文件，终端里 Ctrl+C 是复制；界面字重不再只剩两档；Linux 能装上自动更新，Wayland 不再每次启动都请求共享屏幕。
+
+- **手机端：** 从手机发的附件以前全部失败；iOS 上键盘弹出后页面缩成 68 点高；局域网连接时，每个「复制」按钮都不起作用。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **手機端依觸控重新設計。** 長按對話或訊息，它會從模糊的列表中浮起，選單出現在旁邊，手機同時輕震一下。對話列表一則兩行，底部浮著設定、搜尋與新對話。輸入框裡每個控制項至少 44 點，模型名稱完整顯示，推理強度改成一個小儀表。上傳有進度卡片，可以取消、可以重試。
+
+- **大型對話與大檔案能送到手機上了。** 透過中繼伺服器開啟大型對話，以前會一再斷線，現在約一秒就開啟。傳送 100 MB 以前會斷線，手機記憶體漲到 1.3 GB；現在區域網路下 5 秒傳完，手機記憶體不到 91 MB。檔案邊接收邊寫入磁碟，斷線可以續傳，最大 2 GB。新舊版本的桌面端、手機端與中繼可以混用，不必重新配對。
+
+- **子 Agent 停在檢查點，而不是停在終點。** 步數用完時，它會交回做了什麼、還剩什麼、下一步打算做什麼，並保留上下文，可以接著跑，不必從頭再派一次。同一項任務實測輸入 token 少了約 74%。沒跑完的子 Agent 點一下就能讓主 Agent 接著跑它。
+
+- **子 Agent 一起跑，跑的時候你也能說話。** 互不相依的子 Agent 在同一輪一起派出，超過並行上限的自動排隊；以前四個會排成一串，一個接一個跑。主對話等待子 Agent 時你送出一句話，不必再等兩分多鐘：主對話先回應你，子 Agent 在背景跑完，結果再交回來。請求帶上快取鍵，經帳號池中繼時，子 Agent 開頭幾次請求不再次次錯過快取。授權卡片會寫明是哪個子 Agent 在要求。
+
+- **一輪之內換模型，下一個請求就生效。** 卡在上游重試中的請求會當場放手，改由新模型接著回答，不必先停止或編輯訊息。
+
+- **外掛市集改成一個網格，一張卡片一個動作**，可依種類與分類篩選。需要金鑰的 MCP 伺服器會說明要哪一把、去哪裡申請，金鑰存進保險箱，不再寫入 settings.json。安裝過的外掛與技能會自動跟上新版（每 30 分鐘檢查一次，可以關閉），外掛的 README 會完整呈現排版。
+
+- **每個智慧體都有自己的形象。** 在編輯頁挑選形狀與顏色，或隨機換一個；子 Agent 面板與選單、@ 提及、設定頁都會顯示它。
+
+- **智慧體開啟的網頁留在背景。** 以前智慧體每點一下，瀏覽器面板就彈出來蓋住你正在看的內容；現在面板保持關閉，對話中留下一張附縮圖、標題與「開啟」按鈕的卡片。
+
+### 最佳化與修復
+
+- **Windows 與 Linux 上的沙箱真正發揮作用。** Windows 上它從來沒有成功啟動過：開啟「自動核准」時，每一條命令都提示沒有可用的沙箱後端。現在受約束的命令會在受限權杖下的 PowerShell 中執行；沒有安裝 bubblewrap 的 Linux 改用 Landlock。
+
+- **開啟「自動核准」時，要到沙箱外執行的命令一律先詢問你。** 以前這類請求交給風險判定，`rm -rf` 可能未經詢問就放行。
+
+- **命令的結果依 shell 的本意解讀。** 檢查尚未跑完時，`gh pr checks` 的結束代碼是 8，這是回答，不是紅叉；真實對話裡 59 筆「失敗」有 13 筆屬於這種。`read` 與安裝程式的確認提示不再卡到逾時，`server &` 不再讓呼叫停住；從 Dock 啟動也能取得登入 shell 的代理伺服器、SSH agent 與語系設定。
+
+- **分屏時，每個畫面只作用於自己的對話。** 草稿、送出、分支選單、模型與推理強度、「在終端機執行」、檔案連結、面板、側邊聊天、專案選單與交付審閱，以前都跟著取得焦點的那個畫面走；用鍵盤操作時，一則訊息或一次撤回可能落到旁邊那個對話裡。
+
+- **介面語言從頭到尾一致。** 英文不再出現「1 conversations」「1 commits behind」，法文與俄文也會依數量選對詞形。系統通知、排程任務提示、檔案與拉取請求的錯誤、日期與時間都跟隨介面語言，不再停留在中文。
+
+- **排程任務失敗時會說出來。** 它的提示以前從來沒有顯示過。現在失敗會寫在「已排程」的任務卡片上，輸入框上方也會有一行提示指過去。
+
+- **技能、外掛、規則、命令頁依檔案計數，不再依行。** 只安裝兩個技能，頁面卻可能寫著「4 個技能的描述太短」。警告現在獨立成一張卡片，重新掃描後列表換了順序，也不會把同一行畫兩次。
+
+- **Windows 與 Linux：** 編輯 CRLF 檔案不再改掉原本的換行；字母快速鍵依鍵盤配置辨識（AZERTY、Dvorak、俄文）；Delete 刪除檔案，終端機裡 Ctrl+C 是複製；介面字重不再只剩兩級；Linux 能裝上自動更新，Wayland 不再每次啟動都要求分享螢幕。
+
+- **手機端：** 從手機傳送的附件以前全部失敗；iOS 上鍵盤彈出後頁面縮成 68 點高；區域網路連線時，每個「複製」按鈕都沒有反應。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **スマホ版をタッチ操作向けに作り直しました。** 会話やメッセージを長押しすると、ぼかした一覧から浮き上がり、横にメニューが開いて端末が軽く振動します。会話一覧は 2 行表示になり、下部に設定・検索・新しい会話のボタンが浮かびます。入力欄の操作部品はどれも 44pt 以上、モデル名は省略されずに表示され、推論の強度は小さなゲージで示します。アップロードには進行状況のカードが付き、キャンセルと再試行ができます。
+
+- **大きな会話やファイルもスマホに届くようになりました。** 中継サーバー経由で大きな会話を開くと切断を繰り返していましたが、今は約 1 秒で開きます。100 MB の送信は以前は途中で切れ、スマホのメモリーが 1.3 GB まで膨らんでいました。今は LAN で 5 秒、メモリーは 91 MB 未満です。ファイルは受け取りながらディスクに書き込み、切断後は続きから再開し、最大 2 GB まで扱えます。新旧のデスクトップ版・スマホ版・中継サーバーが混在しても動き、ペアリングのやり直しは要りません。
+
+- **サブエージェントは終点ではなくチェックポイントで止まります。** ステップの上限に達すると、やったこと・残っていること・次にやることを返し、文脈を保ったまま続きから再開できます。最初から出し直す必要はありません。同じ作業で入力トークンが約 74% 減りました。終わっていないサブエージェントは、ワンクリックでメインのエージェントに続きをやらせられます。
+
+- **サブエージェントが並んで動き、その間も話しかけられます。** 互いに依存しないサブエージェントは同じ回でまとめて出され、上限を超えた分は自動で順番待ちになります。以前は 4 つが 1 つずつ順に動いていました。メインの会話がサブエージェントを待っている間に送ったメッセージも、2 分以上待たされることはなくなりました。会話が先に返事をし、サブエージェントはバックグラウンドで仕上げて結果を戻します。リクエストにキャッシュキーを付けたので、アカウントを共有する中継でも、各サブエージェントの最初のリクエストが毎回キャッシュを外すことはなくなりました。承認カードには、どのサブエージェントが求めているかが表示されます。
+
+- **ターンの途中でモデルを切り替えると、次のリクエストから反映されます。** 上流の不調で再試行を繰り返していたリクエストはその場で手を離し、新しいモデルで送り直します。停止やメッセージの編集は要りません。
+
+- **プラグインマーケットは、1 枚のカードに 1 つの操作を置いたグリッドになりました。** 種類とカテゴリーで絞り込めます。キーが必要な MCP サーバーは、どのキーをどこで取得するかを示し、キーは settings.json ではなく保管庫に入ります。インストール済みのプラグインとスキルは新しい版に自動で追随し（30 分ごとに確認、オフにもできます）、プラグインの README は整形して表示します。
+
+- **エージェントごとに見た目を持てるようになりました。** 編集画面で形と色を選ぶか、ランダムに変えられます。サブエージェントのパネルとメニュー、@ メンション、設定画面に表示されます。
+
+- **エージェントが開いた Web ページはバックグラウンドのままです。** 以前はエージェントがクリックするたびにブラウザーパネルが開き、作業中の画面を覆っていました。今はパネルは閉じたままで、会話にサムネイル・タイトル・「開く」ボタン付きのカードが残ります。
+
+### 改善と修正
+
+- **Windows と Linux でサンドボックスが実際に働くようになりました。** Windows では一度も起動しておらず、「自動承認」ではすべてのコマンドで使えるサンドボックスがないと表示されていました。制約付きのコマンドは制限トークンの下の PowerShell で実行します。bubblewrap のない Linux では Landlock を使います。
+
+- **「自動承認」でも、サンドボックスの外で実行するコマンドは必ず先に確認します。** 以前はリスク判定に回され、`rm -rf` が確認なしで通ることがありました。
+
+- **コマンドの結果をシェルの意図どおりに読みます。** チェックの実行中に `gh pr checks` が返す終了コード 8 は失敗ではなく答えです。実際のセッションでは「失敗」59 件のうち 13 件がこれでした。`read` やインストーラーの確認がタイムアウトまで固まることも、`server &` が呼び出しを止めることもなくなりました。Dock から起動しても、ログインシェルのプロキシ・SSH エージェント・ロケールを引き継ぎます。
+
+- **分割表示では、各画面が自分の会話だけに作用します。** 下書き・送信・ブランチメニュー・モデルと推論の強度・「ターミナルで実行」・ファイルリンク・パネル・サイドチャット・プロジェクトメニュー・納品レビューは、フォーカスのある画面に従っていました。キーボード操作では、メッセージや取り消しが隣の会話に届くことがありました。
+
+- **表示言語が最後までそろいます。** 英語で「1 conversations」「1 commits behind」と出なくなり、フランス語とロシア語も数に合った形を選びます。システム通知・予約タスクのお知らせ・ファイルやプルリクエストのエラー・日付と時刻も、中国語のまま残らず表示言語に従います。
+
+- **予約タスクが失敗すると知らせるようになりました。** そのお知らせは一度も表示されていませんでした。失敗は「予約済み」のタスクカードに書かれ、入力欄の上にもそこを指す一行が出ます。
+
+- **スキル・プラグイン・ルール・コマンドの画面は、行ではなくファイルを数えます。** スキルが 2 つしかないのに「4 つのスキルの説明が短すぎます」と出ることがありました。警告は専用のカードに分かれ、再スキャンで並びが変わっても同じ行を 2 回描くことはありません。
+
+- **Windows と Linux：** CRLF のファイルを編集しても改行が変わりません。文字のショートカットはキーボード配列（AZERTY、Dvorak、ロシア語）どおりに効きます。Delete でファイルを削除し、ターミナルの Ctrl+C はコピーです。文字の太さが 2 段階に潰れなくなりました。Linux で自動更新が入り、Wayland で起動のたびに画面共有を求められることもなくなりました。
+
+- **スマホ：** スマホから送った添付ファイルがすべて失敗していました。iOS ではキーボードを開くと画面の高さが 68pt に縮んでいました。LAN 接続では、どの「コピー」ボタンも反応しませんでした。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **모바일 앱을 터치에 맞게 새로 만들었습니다.** 대화나 메시지를 길게 누르면 흐려진 목록 위로 떠오르고, 옆에 메뉴가 열리며 휴대폰이 짧게 진동합니다. 대화 목록은 두 줄로 표시되고, 아래쪽에 설정·검색·새 대화 버튼이 떠 있습니다. 입력창의 모든 컨트롤은 44pt 이상이고, 모델 이름은 잘리지 않으며, 추론 강도는 작은 게이지로 보여 줍니다. 업로드에는 진행 카드가 붙어 취소와 재시도를 할 수 있습니다.
+
+- **큰 대화와 큰 파일도 휴대폰에 도착합니다.** 중계 서버를 거쳐 큰 대화를 열면 연결이 계속 끊겼는데, 이제 1초 정도면 열립니다. 100 MB를 보내면 연결이 끊기고 휴대폰 메모리가 1.3 GB까지 올라갔지만, 이제 LAN에서 5초가 걸리고 메모리는 91 MB 미만입니다. 파일은 받는 대로 디스크에 쓰고, 연결이 끊겨도 이어서 받으며, 최대 2 GB까지 됩니다. 이전 버전과 새 버전의 데스크톱 앱·모바일 앱·중계 서버를 섞어 써도 다시 페어링할 필요가 없습니다.
+
+- **하위 에이전트는 끝이 아니라 체크포인트에서 멈춥니다.** 단계 한도에 닿으면 한 일·남은 일·다음에 할 일을 돌려주고 맥락을 그대로 가진 채 이어서 할 수 있습니다. 처음부터 다시 보낼 필요가 없습니다. 같은 작업에서 입력 토큰이 약 74% 줄었습니다. 끝나지 않은 하위 에이전트는 한 번 눌러 메인 에이전트에게 이어서 하게 할 수 있습니다.
+
+- **하위 에이전트가 함께 돌고, 그동안에도 말을 걸 수 있습니다.** 서로 의존하지 않는 하위 에이전트는 같은 차례에 함께 보내지고, 한도를 넘는 것은 자동으로 대기합니다. 예전에는 네 개가 하나씩 차례로 돌았습니다. 메인 대화가 하위 에이전트를 기다리는 동안 보낸 메시지도 이제 2분 넘게 기다리지 않습니다. 대화가 먼저 답하고, 하위 에이전트는 백그라운드에서 마친 뒤 결과를 돌려줍니다. 요청에 캐시 키를 붙여, 계정을 나눠 쓰는 중계에서도 하위 에이전트의 첫 요청들이 매번 캐시를 놓치지 않습니다. 승인 카드에는 어느 하위 에이전트가 요청하는지 표시됩니다.
+
+- **턴 중간에 모델을 바꾸면 다음 요청부터 적용됩니다.** 상위 서버 문제로 재시도에 걸린 요청은 그 자리에서 놓고 새 모델로 다시 보냅니다. 멈추거나 메시지를 고칠 필요가 없습니다.
+
+- **플러그인 마켓은 카드 하나에 동작 하나를 둔 그리드가 되었습니다.** 종류와 분류로 거를 수 있습니다. 키가 필요한 MCP 서버는 어떤 키를 어디서 받는지 알려 주고, 키는 settings.json이 아니라 보관함에 들어갑니다. 설치한 플러그인과 스킬은 새 버전을 자동으로 따라가며(30분마다 확인, 끌 수 있음), 플러그인의 README는 서식을 갖춰 보여 줍니다.
+
+- **에이전트마다 자기 모습이 생겼습니다.** 편집 화면에서 모양과 색을 고르거나 무작위로 바꿀 수 있고, 하위 에이전트 패널과 메뉴, @ 멘션, 설정 화면에 표시됩니다.
+
+- **에이전트가 연 웹 페이지는 백그라운드에 머뭅니다.** 예전에는 에이전트가 무언가를 누를 때마다 브라우저 패널이 열려 보던 화면을 가렸습니다. 이제 패널은 닫힌 채로 있고, 대화에 미리보기·제목·"열기" 버튼이 있는 카드가 남습니다.
+
+### 개선 및 수정
+
+- **Windows와 Linux에서 샌드박스가 실제로 동작합니다.** Windows에서는 한 번도 시작되지 않았고, "자동 승인"에서는 모든 명령에 사용할 수 있는 샌드박스가 없다고 나왔습니다. 이제 제약된 명령은 제한 토큰 아래의 PowerShell에서 실행하고, bubblewrap이 없는 Linux에서는 Landlock을 씁니다.
+
+- **"자동 승인"이어도 샌드박스 밖에서 실행할 명령은 반드시 먼저 묻습니다.** 예전에는 위험 판정으로 넘어가 `rm -rf`가 묻지 않고 통과할 수 있었습니다.
+
+- **명령의 결과를 셸이 뜻한 대로 읽습니다.** 검사가 아직 도는 동안 `gh pr checks`가 돌려주는 종료 코드 8은 실패가 아니라 답입니다. 실제 세션에서 "실패" 59건 중 13건이 이런 경우였습니다. `read`나 설치 프로그램의 확인이 시간 초과까지 멈춰 있지 않고, `server &`가 호출을 붙잡지 않으며, Dock에서 실행해도 로그인 셸의 프록시·SSH 에이전트·로캘을 가져옵니다.
+
+- **분할 보기에서 각 화면은 자기 대화에만 작용합니다.** 초안·전송·브랜치 메뉴·모델과 추론 강도·"터미널에서 실행"·파일 링크·패널·사이드 챗·프로젝트 메뉴·결과 검토가 모두 포커스가 있는 화면을 따라갔습니다. 키보드로 조작하면 메시지나 되돌리기가 옆 대화에 들어갈 수 있었습니다.
+
+- **인터페이스 언어가 끝까지 일관됩니다.** 영어에서 "1 conversations", "1 commits behind"가 나오지 않고, 프랑스어와 러시아어도 수에 맞는 형태를 고릅니다. 시스템 알림·예약 작업 알림·파일과 풀 리퀘스트 오류·날짜와 시각도 중국어로 남지 않고 표시 언어를 따릅니다.
+
+- **예약 작업이 실패하면 알려 줍니다.** 그 알림은 한 번도 표시된 적이 없었습니다. 이제 실패는 "예약됨"의 작업 카드에 적히고, 입력창 위에도 그곳을 가리키는 한 줄이 나옵니다.
+
+- **스킬·플러그인·규칙·명령 화면은 줄이 아니라 파일을 셉니다.** 스킬이 두 개뿐인데 "스킬 4개의 설명이 너무 짧습니다"라고 나오기도 했습니다. 경고는 따로 카드에 모이고, 다시 스캔해 순서가 바뀌어도 같은 줄이 두 번 그려지지 않습니다.
+
+- **Windows와 Linux:** CRLF 파일을 편집해도 줄바꿈이 바뀌지 않습니다. 글자 단축키는 키보드 배열(AZERTY, Dvorak, 러시아어)대로 동작합니다. Delete로 파일을 지우고, 터미널에서 Ctrl+C는 복사입니다. 글꼴 굵기가 두 단계로 뭉개지지 않습니다. Linux에서 자동 업데이트가 설치되고, Wayland에서 실행할 때마다 화면 공유를 묻지 않습니다.
+
+- **모바일:** 휴대폰에서 보낸 첨부 파일이 모두 실패했습니다. iOS에서는 키보드를 열면 화면 높이가 68pt로 줄었습니다. LAN 연결에서는 어떤 "복사" 버튼도 반응하지 않았습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouvelles fonctionnalités
+
+- **L’application mobile est repensée pour le tactile.** Un appui long sur une conversation ou un message la détache d’une liste floutée, ouvre son menu à côté et fait vibrer le téléphone. Les conversations tiennent sur deux lignes, au-dessus d’une barre flottante avec les réglages, la recherche et une nouvelle conversation. Chaque commande du champ de saisie mesure au moins 44 points, le nom du modèle s’affiche en entier et l’effort de raisonnement devient une petite jauge. Les envois ont une carte avec leur progression, un bouton pour annuler et un pour réessayer.
+
+- **Les grosses conversations et les gros fichiers arrivent sur le téléphone.** Ouvrir une longue conversation par le serveur relais coupait la connexion encore et encore ; elle s’ouvre maintenant en une seconde environ. Envoyer 100 Mo coupait la connexion avec 1,3 Go de mémoire occupée sur le téléphone ; en réseau local, cela prend maintenant 5 secondes et le téléphone reste sous 91 Mo. Les fichiers s’écrivent sur le disque au fil de la réception, reprennent après une coupure et peuvent atteindre 2 Go. Anciennes et nouvelles versions de l’application de bureau, de l’application mobile et du relais fonctionnent ensemble sans nouvel appairage.
+
+- **Les sous-agents s’arrêtent à des points de reprise, pas à la fin.** Arrivé à sa limite d’étapes, un sous-agent rend ce qu’il a fait, ce qui reste et ce qu’il ferait ensuite, et garde son contexte : il peut reprendre au lieu d’être relancé de zéro. Sur la même tâche, cela a demandé environ 74 % de jetons d’entrée en moins. Un sous-agent inachevé peut être confié en un clic à l’agent principal, qui le reprend.
+
+- **Les sous-agents travaillent en même temps, et vous pouvez parler pendant ce temps.** Les sous-agents indépendants partent ensemble et les autres attendent une place libre ; avant, quatre s’exécutaient l’un après l’autre. Un message envoyé pendant que la conversation principale les attend n’attend plus deux minutes : la conversation répond, les sous-agents finissent en arrière-plan et leurs résultats lui reviennent. Les requêtes portent une clé de cache, si bien qu’un relais qui mutualise des comptes ne rate plus le cache aux premières requêtes de chaque sous-agent. La carte d’approbation indique quel sous-agent demande.
+
+- **Changer de modèle en cours de tour vaut dès la requête suivante.** Une requête bloquée à réessayer sur un service en panne lâche prise et part vers le nouveau modèle, sans devoir arrêter ni modifier le message.
+
+- **Le Marché des extensions devient une grille, une action par carte,** filtrable par type et par catégorie. Un serveur MCP qui demande une clé dit laquelle et où l’obtenir, et la clé va dans le coffre au lieu de settings.json. Les extensions et compétences installées suivent d’elles-mêmes les nouvelles versions (vérification toutes les 30 minutes, désactivable), et le README d’une extension s’affiche mis en forme.
+
+- **Chaque agent a son apparence.** Choisissez une forme et une couleur dans son éditeur, ou tirez-en une au hasard ; le panneau et le menu des sous-agents, les mentions @ et les pages de réglages l’affichent.
+
+- **Les pages web ouvertes par l’agent restent en arrière-plan.** Le panneau du navigateur s’ouvrait par-dessus votre travail à chaque clic de l’agent ; il reste maintenant fermé, et une carte dans la conversation montre une vignette, le titre et un bouton Ouvrir.
+
+### Améliorations et corrections
+
+- **Sous Windows et Linux, le bac à sable confine réellement les commandes.** Sous Windows, il ne s’était jamais lancé : en Validation automatique, chaque commande signalait qu’aucun bac à sable n’était disponible. Les commandes contraintes s’exécutent maintenant dans PowerShell sous un jeton restreint, et les systèmes Linux sans bubblewrap utilisent Landlock.
+
+- **En Validation automatique, exécuter une commande hors du bac à sable demande toujours votre accord.** La demande passait par l’évaluation des risques, qui pouvait laisser passer `rm -rf` sans rien demander.
+
+- **Le résultat d’une commande est lu comme le shell l’entend.** `gh pr checks` renvoie 8 tant que les vérifications tournent : c’est une réponse, pas une croix rouge ; 13 des 59 « échecs » relevés dans de vraies sessions étaient de ce genre. `read` et les invites d’installation ne restent plus bloqués jusqu’au délai, `server &` ne bloque plus l’appel, et l’application lancée depuis le Dock récupère le proxy, l’agent SSH et la langue de votre shell de connexion.
+
+- **En Vue scindée, chaque écran agit sur sa propre conversation.** Brouillons, envoi, menu des branches, modèle et effort de raisonnement, « L’exécuter dans le terminal », liens de fichiers, panneaux, Discussion latérale, menu du projet et revue de livraison suivaient l’écran qui avait le focus ; au clavier, un message ou une annulation pouvait atterrir dans la conversation d’à côté.
+
+- **L’interface garde sa langue jusqu’au bout.** L’anglais n’affiche plus « 1 conversations » ni « 1 commits behind », et le français comme le russe choisissent la bonne forme selon le nombre. Notifications système, avis des tâches planifiées, erreurs de fichiers et de demandes de fusion, dates et heures suivent la langue de l’interface au lieu de rester en chinois.
+
+- **Une tâche planifiée qui échoue le signale désormais.** Ses avis n’avaient jamais été affichés. Un échec s’inscrit sur sa carte dans Planifiées, et une ligne au-dessus du champ de saisie y renvoie.
+
+- **Les pages Compétences, Extensions, Règles et Commandes comptent des fichiers, pas des lignes.** Avec deux compétences installées, une page pouvait annoncer « 4 compétences ont une description trop courte ». Les avertissements ont maintenant leur propre carte, et une liste réordonnée par une nouvelle analyse ne dessine plus deux fois la même ligne.
+
+- **Sous Windows et Linux :** modifier un fichier CRLF conserve ses fins de ligne ; les raccourcis à lettre suivent la disposition du clavier (AZERTY, Dvorak, russe) ; Suppr supprime un fichier et Ctrl+C copie dans le terminal ; l’interface ne se réduit plus à deux graisses ; Linux installe ses mises à jour, et Wayland ne demande plus à partager l’écran à chaque lancement.
+
+- **Sur le téléphone :** toutes les pièces jointes envoyées depuis le téléphone échouaient ; sous iOS, la page se réduisait à 68 points de haut à l’ouverture du clavier ; en réseau local, aucun bouton Copier ne réagissait.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новые возможности
+
+- **Мобильное приложение переделано под касания.** Долгое нажатие на беседу или сообщение поднимает её над размытым списком, рядом открывается меню, а телефон коротко вибрирует. Беседы в списке занимают две строки, внизу плавает панель с настройками, поиском и новой беседой. Каждый элемент поля ввода не меньше 44 pt, название модели видно целиком, а глубина рассуждений показана маленькой шкалой. У загрузок есть карточка с прогрессом, отменой и повтором.
+
+- **Большие беседы и файлы доходят до телефона.** Большая беседа через сервер-релей раньше снова и снова обрывала соединение, теперь она открывается примерно за секунду. Отправка 100 МБ раньше обрывалась, а телефон занимал 1,3 ГБ памяти; теперь по локальной сети это 5 секунд и меньше 91 МБ. Файлы пишутся на диск по мере получения, докачиваются после обрыва и могут весить до 2 ГБ. Старые и новые версии настольного приложения, мобильного приложения и релея работают друг с другом без повторного сопряжения.
+
+- **Субагенты останавливаются на контрольных точках, а не в конце.** Дойдя до лимита шагов, субагент отдаёт, что сделал, что осталось и что собирался делать дальше, и сохраняет контекст — его можно продолжить, а не запускать заново с нуля. На той же задаче это заняло примерно на 74 % меньше входных токенов. Незавершённого субагента можно одним нажатием передать главному агенту, чтобы тот его продолжил.
+
+- **Субагенты работают одновременно, а вы можете писать, пока они заняты.** Независимые субагенты запускаются вместе, остальные ждут свободного места; раньше четыре шли один за другим. Сообщение, отправленное, пока главная беседа ждёт субагентов, больше не висит по две минуты: беседа отвечает, субагенты доделывают работу в фоне, и их результаты возвращаются в неё. Запросы несут ключ кэша, поэтому релей с общим пулом аккаунтов больше не промахивается мимо кэша на первых запросах каждого субагента. Карточка подтверждения говорит, какой субагент просит.
+
+- **Смена модели посреди хода действует со следующего запроса.** Запрос, застрявший на повторах из-за сбоя провайдера, отпускается и уходит к новой модели — не нужно ни останавливать, ни править сообщение.
+
+- **Магазин плагинов стал сеткой, по одному действию на карточку,** с фильтрами по типу и категории. MCP-сервер, которому нужен ключ, говорит, какой и где его взять, а ключ хранится в хранилище, а не в settings.json. Установленные плагины и навыки сами обновляются до новых версий (проверка каждые 30 минут, можно отключить), а README плагина отображается с разметкой.
+
+- **У каждого агента появился свой облик.** В редакторе агента выберите форму и цвет или случайный вариант; облик виден в панели и меню субагентов, в @-упоминаниях и на страницах настроек.
+
+- **Веб-страницы, которые открывает агент, остаются в фоне.** Раньше панель браузера открывалась поверх вашей работы при каждом клике агента; теперь она остаётся закрытой, а в беседе появляется карточка с миниатюрой, заголовком и кнопкой «Открыть».
+
+### Улучшения и исправления
+
+- **В Windows и Linux песочница действительно ограничивает команды.** В Windows она ни разу не запускалась: при автоподтверждении каждая команда сообщала, что песочницы нет. Теперь ограниченные команды выполняются в PowerShell под урезанным токеном, а в Linux без bubblewrap используется Landlock.
+
+- **При автоподтверждении команда вне песочницы всегда сначала спрашивает вас.** Раньше такой запрос уходил на оценку риска, и `rm -rf` мог пройти без вопроса.
+
+- **Результат команды читается так, как его понимает shell.** `gh pr checks` возвращает 8, пока проверки ещё идут, — это ответ, а не красный крестик; 13 из 59 «ошибок» в реальных сессиях были именно такими. `read` и вопросы установщиков больше не висят до таймаута, `server &` не блокирует вызов, а приложение, запущенное из Dock, получает прокси, SSH-агент и локаль вашего логин-шелла.
+
+- **В разделённом виде каждый экран работает со своей беседой.** Черновики, отправка, меню веток, модель и глубина рассуждений, «Выполнить в терминале», ссылки на файлы, панели, боковая беседа, меню проекта и проверка результата следовали за экраном в фокусе; с клавиатуры сообщение или отмена могли попасть в соседнюю беседу.
+
+- **Интерфейс говорит на своём языке до конца.** По-английски больше нет «1 conversations» и «1 commits behind», а французский и русский выбирают нужную форму для каждого числа. Системные уведомления, сообщения запланированных задач, ошибки файлов и запросов на слияние, даты и время следуют языку интерфейса и не остаются на китайском.
+
+- **Запланированная задача сообщает о сбое.** Её уведомления раньше вообще не показывались. Теперь сбой записан на карточке задачи в «Запланировано», а строка над полем ввода ведёт к ней.
+
+- **Страницы навыков, плагинов, правил и команд считают файлы, а не строки.** При двух установленных навыках страница могла писать, что у 4 навыков слишком короткое описание. Предупреждения теперь в отдельной карточке, а список, переупорядоченный после пересканирования, больше не рисует одну строку дважды.
+
+- **В Windows и Linux:** правка файла с CRLF сохраняет его переводы строк; буквенные сочетания клавиш следуют раскладке (AZERTY, Dvorak, русская); Delete удаляет файл, а Ctrl+C в терминале копирует; начертания шрифта больше не схлопываются до двух; Linux устанавливает обновления, а Wayland не просит доступ к экрану при каждом запуске.
+
+- **На телефоне:** все вложения, отправленные с телефона, не доходили; в iOS при открытии клавиатуры страница сжималась до 68 pt; в локальной сети ни одна кнопка «Копировать» не срабатывала.
+
+</details>
+
 ## [0.9.19](https://github.com/kittors/Lyra/releases/tag/v0.9.19) - 2026-09-21
 <!-- lyra:notes en -->
 
@@ -147,7 +458,6 @@
 - **Унификация кнопок моделей и улучшение стиля инлайн-кода.** Действия с моделями провайдеров приведены к единому оформлению. Оптимизированы отступы и контраст шрифта для инлайн-кода в сообщениях.
 
 </details>
-
 
 ### 新功能
 
