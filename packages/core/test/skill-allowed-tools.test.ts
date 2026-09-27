@@ -8,8 +8,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readAllowedTools } from "../src/skills/allowed-tools.ts";
 import { ACTIVE_SKILL_KEY, clearActiveSkill, skillRefusal, skillTool, SKILLS_KEY, syncSkillContext } from "../src/skills/tool.ts";
 import type { Skill } from "../src/skills/loader.ts";
+import { builtinToolGroups } from "../src/tools/groups.ts";
 import type { ToolContext } from "../src/types.ts";
 
 function skill(name: string, allowedTools?: string[]): Skill {
@@ -122,4 +124,42 @@ test("an empty list restricts nothing, rather than everything", async () => {
 	const context = ctx([skill("stub", [])]);
 	await skillTool.execute({ name: "stub" }, context);
 	assert.equal(skillRefusal(context.state, "bash"), undefined);
+});
+
+test("a Claude Code list restricts to the tools it names, not to nothing", async () => {
+	/*
+	 * `[Read, Grep]` used to reach this check as written, and `Read` is not `read`: every tool but
+	 * `skill` was refused, the two it named included.
+	 */
+	const context = ctx([skill("scan", readAllowedTools(["Read", "Grep"]).tools)]);
+	await skillTool.execute({ name: "scan" }, context);
+	assert.equal(skillRefusal(context.state, "read"), undefined);
+	assert.equal(skillRefusal(context.state, "grep"), undefined);
+	assert.ok(skillRefusal(context.state, "bash"));
+});
+
+test("a list that names nothing here still restricts, rather than lifting", async () => {
+	/*
+	 * The unmatched name is kept, not dropped. Dropped, the list would be empty — and an empty list
+	 * restricts nothing (see above), which is the opposite of what a one-tool list asked for.
+	 */
+	const context = ctx([skill("notebook", readAllowedTools("NotebookEdit").tools)]);
+	await skillTool.execute({ name: "notebook" }, context);
+	assert.ok(skillRefusal(context.state, "bash"));
+	assert.ok(skillRefusal(context.state, "edit"));
+});
+
+test("every built-in tool can be named the way Claude Code writes names", () => {
+	/*
+	 * The loader keeps its own copy of the built-in names; importing the tools would import this
+	 * module's own importer. A tool added without a line there still works under its exact name, but
+	 * its `WebFetch`-style spelling would be reported as matching nothing.
+	 */
+	for (const tool of builtinToolGroups().flat()) {
+		const pascal = tool.name
+			.split("_")
+			.map((part) => part[0].toUpperCase() + part.slice(1))
+			.join("");
+		assert.deepEqual(readAllowedTools(pascal), { tools: [tool.name], problems: [] }, pascal);
+	}
 });

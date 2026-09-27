@@ -11,6 +11,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { claudeProvider } from "../src/capability/providers/claude.ts";
 import { loadSkills } from "../src/skills/loader.ts";
 
 let root: string;
@@ -52,4 +53,35 @@ test("错误和 warning 分得开：没描述的是错误，太短的是 warning
 	assert.ok(errors[0].path.includes("broken"));
 	assert.equal(warnings.length, 1, "只有 short 是 warning");
 	assert.ok(!skills.some((s) => s.name === "broken"), "错误的确实没加载");
+});
+
+test("a Claude Code skill's warning is still a warning after the claude provider hands it on", async () => {
+	/*
+	 * `.claude/skills` is read through its own provider, which labelled every diagnostic an error.
+	 * A skill with a short description, or with a `Bash(git add *)` that can only be granted as the
+	 * whole tool here, loaded — and was counted among the skills that failed to.
+	 */
+	const cwd = await mkdtemp(join(tmpdir(), "ly-skilldesc-claude-"));
+	try {
+		const skills = join(cwd, ".claude", "skills");
+		await mkdir(join(skills, "terse"), { recursive: true });
+		await mkdir(join(skills, "commit"), { recursive: true });
+		await writeFile(join(skills, "terse", "SKILL.md"), '---\nname: terse\ndescription: "处理 PDF"\n---\n\n正文。\n');
+		await writeFile(
+			join(skills, "commit", "SKILL.md"),
+			"---\nname: commit\ndescription: Stage and commit the current changes with a conventional message\nallowed-tools: Bash(git add *) Bash(git commit *)\n---\n\n正文。\n",
+		);
+
+		const { items, diagnostics = [] } = await claudeProvider.load("skill", { cwd, home: cwd, userHome: cwd, repoRoot: null, userSourceEnabled: false });
+		assert.equal(items.length, 2, "both loaded");
+		assert.ok(diagnostics.some((d) => d.path.includes("terse")), `the short description is reported: ${JSON.stringify(diagnostics)}`);
+		assert.ok(diagnostics.some((d) => d.path.includes("commit")), `the scoped Bash is reported: ${JSON.stringify(diagnostics)}`);
+		assert.deepEqual(
+			diagnostics.map((d) => d.severity),
+			diagnostics.map(() => "warning"),
+			JSON.stringify(diagnostics),
+		);
+	} finally {
+		await rm(cwd, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
 });

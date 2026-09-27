@@ -62,7 +62,9 @@ export const claudeProvider: CapabilityProvider = {
 			const { skills, diagnostics } = await loadSkills(dirs);
 			return {
 				items: skills.map((s) => ({ ...s, provenance: meta(s.path, s.source === "workspace" ? "project" : "user") }) as Sourced<Skill>),
-				diagnostics: diagnostics.map((d) => ({ path: d.path, message: d.message, severity: "error" as const })),
+				// The loader's severity, kept: a skill that loaded with a warning is not one that failed to
+				// load, and the settings page counts only the latter.
+				diagnostics: diagnostics.map((d) => ({ path: d.path, message: d.message, severity: d.severity ?? ("error" as const) })),
 				watched: dirs.map((d) => d.dir),
 			};
 		}
