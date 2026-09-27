@@ -2210,7 +2210,7 @@ export const ja = {
 	"conversation.showLaterN": "あとの {n} ターンを表示",
 	"delivery.editedN": "{n} 件のファイルを編集",
 	"modelCatalog.line": "models.dev · {date} · 提供元 {n} 件。カタログの価格は概算用で、中継の実際の請求は提供元の言い値です。",
-	"formatting.otherLanguages": "リポジトリで既に決まっている書き方は、ここで上書きされません。Go、Rust、Python はそれぞれの公式ツール（gofmt、rustfmt、ruff/black）に任せてあり、ここの設定は届きません。",
+	"formatting.otherLanguages": "Go、Python、C/C++、Dart、Swift、Lua などは公式のフォーマッタ（gofmt、ruff、clang-format…）が Lyra に内蔵されているため、別途インストールする必要はありません。インデントと 1 行の最大幅はその大半に適用されますが、Go、Dart、Swift は常に独自のスタイルで整形されます。Rust など一部の言語は引き続きこのコンピューターにインストールされたツール（rustfmt など）を使うので、ここの設定は届きません。",
 	"index.recordsWhat": "索引には、関数・クラス・インターフェイス・型・定数について、その",
 	"agents.availableCount": "使える（{n}）",
 	"appearance.linesUnit": "行",

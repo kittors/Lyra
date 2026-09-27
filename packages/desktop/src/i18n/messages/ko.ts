@@ -2210,7 +2210,7 @@ export const ko = {
 	"conversation.showLaterN": "뒤의 {n}턴 보기",
 	"delivery.editedN": "파일 {n}개 고침",
 	"modelCatalog.line": "models.dev · {date} · 제공자 {n}곳. 카탈로그 가격은 어림용이고, 중계의 실제 청구는 제공자가 정합니다.",
-	"formatting.otherLanguages": "저장소가 이미 정한 스타일을 여기서 덮어쓰지 않습니다. Go, Rust, Python은 각자의 공식 도구(gofmt, rustfmt, ruff/black)에 맡기며, 여기 설정은 거기까지 닿지 않습니다.",
+	"formatting.otherLanguages": "Go, Python, C/C++, Dart, Swift, Lua 등은 공식 포매터(gofmt, ruff, clang-format…)가 Lyra에 내장되어 있어 따로 설치할 필요가 없습니다. 들여쓰기와 줄 최대 너비는 그중 대부분에 적용되고, Go, Dart, Swift는 항상 고유한 스타일을 따릅니다. Rust 등 몇몇 언어는 여전히 이 컴퓨터에 설치된 도구(예: rustfmt)를 쓰며, 여기 설정은 거기까지 닿지 않습니다.",
 	"index.recordsWhat": "색인에는 함수, 클래스, 인터페이스, 타입, 상수에 대해 그",
 	"agents.availableCount": "쓸 수 있음({n})",
 	"appearance.linesUnit": "줄",

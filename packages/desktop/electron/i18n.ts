@@ -22,12 +22,24 @@ const zhCN = {
 	"update.appImageNotWritable": "新版本没法写进 AppImage 所在的文件夹（{reason}）。把 AppImage 放到自己有写权限的位置，或者到发布页手动下载。",
 	"update.adminDismissed": "没有获得管理员授权，更新没有安装。重试时会再次询问密码。",
 	"update.installFailed": "安装没有完成：{reason}",
+	// System notifications. `detail` joins a status line to what the agent asked, so each language
+	// brings its own separator and quote marks instead of inheriting 「」 and ：.
+	"notification.done": "「{title}」已完成",
+	"notification.doneUntitled": "任务已完成",
+	"notification.approval": "「{title}」等待批准",
+	"notification.approvalUntitled": "等待批准",
+	"notification.reply": "「{title}」等待回复",
+	"notification.replyUntitled": "等待回复",
+	"notification.detail": "{status}：{detail}",
 } as const;
 
 type NativeMessageKey = keyof typeof zhCN;
 type NativeCatalog = Record<NativeMessageKey, string>;
+/** Values for a message's `{name}` slots. */
+type NativeMessageVariables = Readonly<Record<string, string | number>>;
 
-const catalogs: Record<NativeLocale, NativeCatalog> = {
+/** Exported so tests can hold every language to the same keys and slots. */
+export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 	"zh-CN": zhCN,
 	"zh-TW": {
 		"tray.show": "開啟 Lyra", "tray.hide": "隱藏 Lyra", "tray.newChat": "新對話", "tray.recent": "最近對話", "tray.noChats": "還沒有對話", "tray.pullRequests": "拉取請求", "tray.scheduled": "已排程", "tray.settings": "設定…", "tray.updates": "檢查更新…", "tray.launchAtLogin": "開機時啟動", "tray.quit": "結束 Lyra", "dialog.projectDirectory": "選擇專案目錄", "dialog.screenshotDirectory": "選擇截圖儲存位置",
@@ -37,6 +49,10 @@ const catalogs: Record<NativeLocale, NativeCatalog> = {
 		"update.appImageNotWritable": "新版本無法寫入 AppImage 所在的資料夾（{reason}）。請把 AppImage 放到自己有寫入權限的位置，或到發布頁手動下載。",
 		"update.adminDismissed": "沒有取得管理員授權，更新沒有安裝。重試時會再次詢問密碼。",
 		"update.installFailed": "安裝沒有完成：{reason}",
+		"notification.done": "「{title}」已完成", "notification.doneUntitled": "任務已完成",
+		"notification.approval": "「{title}」等待核准", "notification.approvalUntitled": "等待核准",
+		"notification.reply": "「{title}」等待回覆", "notification.replyUntitled": "等待回覆",
+		"notification.detail": "{status}：{detail}",
 	},
 	en: {
 		"tray.show": "Open Lyra", "tray.hide": "Hide Lyra", "tray.newChat": "New chat", "tray.recent": "Recent chats", "tray.noChats": "No chats yet", "tray.pullRequests": "Pull requests", "tray.scheduled": "Scheduled", "tray.settings": "Settings…", "tray.updates": "Check for updates…", "tray.launchAtLogin": "Launch at login", "tray.quit": "Quit Lyra", "dialog.projectDirectory": "Choose project folder", "dialog.screenshotDirectory": "Choose screenshot folder",
@@ -46,6 +62,10 @@ const catalogs: Record<NativeLocale, NativeCatalog> = {
 		"update.appImageNotWritable": "The new version could not be written next to the AppImage ({reason}). Move the AppImage somewhere you can write to, or download it from the release page.",
 		"update.adminDismissed": "Administrator permission was not given, so the update was not installed. Retrying will ask again.",
 		"update.installFailed": "The installation did not finish: {reason}",
+		"notification.done": "“{title}” finished", "notification.doneUntitled": "Task finished",
+		"notification.approval": "“{title}” needs your approval", "notification.approvalUntitled": "Waiting for your approval",
+		"notification.reply": "“{title}” needs your input", "notification.replyUntitled": "Waiting for your input",
+		"notification.detail": "{status}: {detail}",
 	},
 	fr: {
 		"tray.show": "Ouvrir Lyra", "tray.hide": "Masquer Lyra", "tray.newChat": "Nouvelle discussion", "tray.recent": "Discussions récentes", "tray.noChats": "Aucune discussion", "tray.pullRequests": "Demandes de fusion", "tray.scheduled": "Planifiées", "tray.settings": "Réglages…", "tray.updates": "Rechercher des mises à jour…", "tray.launchAtLogin": "Ouvrir à la connexion", "tray.quit": "Quitter Lyra", "dialog.projectDirectory": "Choisir le dossier du projet", "dialog.screenshotDirectory": "Choisir le dossier des captures",
@@ -55,6 +75,10 @@ const catalogs: Record<NativeLocale, NativeCatalog> = {
 		"update.appImageNotWritable": "La nouvelle version n’a pas pu être écrite à côté de l’AppImage ({reason}). Placez l’AppImage dans un dossier où vous pouvez écrire, ou téléchargez-la depuis la page de la version.",
 		"update.adminDismissed": "L’autorisation d’administrateur n’a pas été accordée ; la mise à jour n’a pas été installée. Réessayer la redemandera.",
 		"update.installFailed": "L’installation n’a pas abouti : {reason}",
+		"notification.done": "Terminé : « {title} »", "notification.doneUntitled": "Tâche terminée",
+		"notification.approval": "« {title} » attend votre validation", "notification.approvalUntitled": "En attente de votre validation",
+		"notification.reply": "« {title} » attend votre réponse", "notification.replyUntitled": "En attente de votre réponse",
+		"notification.detail": "{status} : {detail}",
 	},
 	ru: {
 		"tray.show": "Открыть Lyra", "tray.hide": "Скрыть Lyra", "tray.newChat": "Новый чат", "tray.recent": "Недавние чаты", "tray.noChats": "Чатов пока нет", "tray.pullRequests": "Запросы на слияние", "tray.scheduled": "Запланировано", "tray.settings": "Настройки…", "tray.updates": "Проверить обновления…", "tray.launchAtLogin": "Запускать при входе", "tray.quit": "Выйти из Lyra", "dialog.projectDirectory": "Выберите папку проекта", "dialog.screenshotDirectory": "Выберите папку для снимков",
@@ -64,6 +88,10 @@ const catalogs: Record<NativeLocale, NativeCatalog> = {
 		"update.appImageNotWritable": "Не удалось записать новую версию рядом с AppImage ({reason}). Переместите AppImage в папку, доступную для записи, или скачайте её со страницы выпуска.",
 		"update.adminDismissed": "Права администратора не получены, обновление не установлено. При повторной попытке пароль будет запрошен снова.",
 		"update.installFailed": "Установка не завершилась: {reason}",
+		"notification.done": "Готово: «{title}»", "notification.doneUntitled": "Задача выполнена",
+		"notification.approval": "«{title}» ждёт вашего подтверждения", "notification.approvalUntitled": "Ждёт вашего подтверждения",
+		"notification.reply": "«{title}» ждёт вашего ответа", "notification.replyUntitled": "Ждёт вашего ответа",
+		"notification.detail": "{status}: {detail}",
 	},
 	ko: {
 		"tray.show": "Lyra 열기", "tray.hide": "Lyra 숨기기", "tray.newChat": "새 대화", "tray.recent": "최근 대화", "tray.noChats": "아직 대화가 없습니다", "tray.pullRequests": "Pull request", "tray.scheduled": "예약됨", "tray.settings": "설정…", "tray.updates": "업데이트 확인…", "tray.launchAtLogin": "로그인할 때 실행", "tray.quit": "Lyra 종료", "dialog.projectDirectory": "프로젝트 폴더 선택", "dialog.screenshotDirectory": "스크린샷 저장 폴더 선택",
@@ -73,6 +101,10 @@ const catalogs: Record<NativeLocale, NativeCatalog> = {
 		"update.appImageNotWritable": "새 버전을 AppImage가 있는 폴더에 쓸 수 없습니다({reason}). AppImage를 쓰기 권한이 있는 위치로 옮기거나 릴리스 페이지에서 직접 내려받으세요.",
 		"update.adminDismissed": "관리자 권한을 받지 못해 업데이트를 설치하지 않았습니다. 다시 시도하면 비밀번호를 다시 묻습니다.",
 		"update.installFailed": "설치를 완료하지 못했습니다: {reason}",
+		"notification.done": "'{title}' 작업이 끝났습니다", "notification.doneUntitled": "작업이 끝났습니다",
+		"notification.approval": "'{title}'에서 승인을 기다립니다", "notification.approvalUntitled": "승인을 기다립니다",
+		"notification.reply": "'{title}'에서 답변을 기다립니다", "notification.replyUntitled": "답변을 기다립니다",
+		"notification.detail": "{status}: {detail}",
 	},
 	ja: {
 		"tray.show": "Lyra を開く", "tray.hide": "Lyra を隠す", "tray.newChat": "新しい会話", "tray.recent": "最近の会話", "tray.noChats": "会話はまだありません", "tray.pullRequests": "プルリクエスト", "tray.scheduled": "予約済み", "tray.settings": "設定…", "tray.updates": "アップデートを確認…", "tray.launchAtLogin": "ログイン時に起動", "tray.quit": "Lyra を終了", "dialog.projectDirectory": "プロジェクトフォルダーを選択", "dialog.screenshotDirectory": "スクリーンショットの保存先を選択",
@@ -82,6 +114,10 @@ const catalogs: Record<NativeLocale, NativeCatalog> = {
 		"update.appImageNotWritable": "新しいバージョンを AppImage と同じフォルダーに書き込めませんでした（{reason}）。AppImage を書き込み可能な場所に移すか、リリースのページから手動でダウンロードしてください。",
 		"update.adminDismissed": "管理者の許可が得られなかったため、アップデートはインストールされていません。再試行するともう一度パスワードを求められます。",
 		"update.installFailed": "インストールが完了しませんでした: {reason}",
+		"notification.done": "「{title}」が完了しました", "notification.doneUntitled": "タスクが完了しました",
+		"notification.approval": "「{title}」が承認を待っています", "notification.approvalUntitled": "承認を待っています",
+		"notification.reply": "「{title}」が回答を待っています", "notification.replyUntitled": "回答を待っています",
+		"notification.detail": "{status}：{detail}",
 	},
 };
 
@@ -97,7 +133,18 @@ export function resolveNativeLocale(locale: UiLocale, systemLocale: string): Nat
 	return "en";
 }
 
-export function nativeTranslator(locale: UiLocale, systemLocale: string): (key: NativeMessageKey) => string {
-	const catalog = catalogs[resolveNativeLocale(locale, systemLocale)];
-	return (key) => catalog[key];
+export function nativeTranslator(
+	locale: UiLocale,
+	systemLocale: string,
+): (key: NativeMessageKey, variables?: NativeMessageVariables) => string {
+	const catalog = NATIVE_CATALOGS[resolveNativeLocale(locale, systemLocale)];
+	return (key, variables) => {
+		const template = catalog[key];
+		if (!variables) return template;
+		// A replacer function, so `$&` in a session title stays text instead of becoming a pattern.
+		return template.replace(/\{([^}]+)\}/g, (slot, name: string) => {
+			const value = variables[name];
+			return value === undefined ? slot : String(value);
+		});
+	};
 }

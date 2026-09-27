@@ -2210,7 +2210,7 @@ export const en = {
 	"conversation.showLaterN": "Show {n} later",
 	"delivery.editedN": "{n} files edited",
 	"modelCatalog.line": "models.dev · {date} · {n} providers. Catalogue prices are for estimating; a relay's actual bill is whatever the provider charges.",
-	"formatting.otherLanguages": "Nothing here overrides the style a repository has already settled on. Go, Rust and Python are left to their own official tools (gofmt, rustfmt, ruff/black), and these settings do not reach them.",
+	"formatting.otherLanguages": "Go, Python, C/C++, Dart, Swift, Lua and more have their official formatters (gofmt, ruff, clang-format…) built into Lyra, so there is nothing to install. Indentation and line width reach most of them; Go, Dart and Swift always keep their own style. Rust and a few others still rely on a tool installed on this machine, such as rustfmt, which these settings do not reach.",
 	"index.recordsWhat": "The index records, for functions, classes, interfaces, types and constants, their",
 	"agents.availableCount": "Available ({n})",
 	"appearance.linesUnit": "lines",
