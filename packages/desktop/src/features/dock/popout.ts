@@ -257,8 +257,12 @@ async function dockBack(kind: PanelKind, recorded: string, reveal: boolean): Pro
  * 从会话内容里打开一个面板——点一个文件链接、点「审核」、点子智能体、「在终端运行」、地址栏打开的网页。
  *
  * 和工具条上那排按钮走同一套规矩：开在人此刻所在的那一屏，那一屏就是这个请求所属的会话。
+ *
+ * Answers with the screen the panel went to, so a caller that hands the panel something to do —
+ * a command for the terminal — can address the same screen, including when `target` was not on
+ * screen and the request fell back to the focused one. Null when no screen in this window took it.
  */
-export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side: DropSide; share?: number }, target?: string): void {
+export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side: DropSide; share?: number }, target?: string): string | null {
 	/*
 	 * A panel window has no dock, so the request goes to the window that does.
 	 *
@@ -268,7 +272,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	 */
 	if (inPanelWindow()) {
 		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ kind, ...(beside ? { beside } : {}) });
-		return;
+		return null;
 	}
 	/*
 	 * `target` names the screen the request belongs to. Without it the request goes to the screen
@@ -278,12 +282,13 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	 * announcement, a page an agent revealed.
 	 */
 	const scope = target && usePaneDock.getState().size(target) ? target : readScope();
-	if (!scope) return;
+	if (!scope) return null;
 	if (isPopped(scope, kind)) {
 		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope), ...(kind === "file" ? { fileState: filePanelSnapshot() } : {}) });
-		return;
+		return scope;
 	}
 	usePaneDock.getState().open(scope, kind, beside);
+	return scope;
 }
 
 /**

@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 afterEach(() => {
 	Reflect.deleteProperty(window, "lyra");
-	useApp.setState({ toolRuns: {} });
+	useApp.setState({ toolRuns: {}, activeSessionId: null });
 });
 
 /** Press 「打开」 and wait for the question to the main process and the command after it. */
@@ -128,7 +128,8 @@ test("a page that failed to open leaves no card; one still opening says so and o
 });
 
 test("「打开」 brings the tab that is still there forward, and reopens the address of one that is gone", async () => {
-	useApp.setState({ toolRuns: records(record("open-a", "browser_open", OPEN_A)) });
+	// The card's conversation holds the live slot, where its records are: a card reads its own screen's.
+	useApp.setState({ activeSessionId: "s", toolRuns: records(record("open-a", "browser_open", OPEN_A)) });
 	open = [tab("t1", "s")];
 	const live = await mount(h(SessionScope.Provider, { value: "s" }, h(BrowserCards, { calls: ["open-a"] })));
 	try {
@@ -150,7 +151,7 @@ test("「打开」 brings the tab that is still there forward, and reopens the a
 });
 
 test("a tab of the same id owned by another conversation is not this card's page", async () => {
-	useApp.setState({ toolRuns: records(record("open-a", "browser_open", OPEN_A)) });
+	useApp.setState({ activeSessionId: "s", toolRuns: records(record("open-a", "browser_open", OPEN_A)) });
 	open = [tab("t1", "someone-else")];
 	const view = await mount(h(SessionScope.Provider, { value: "s" }, h(BrowserCards, { calls: ["open-a"] })));
 	try {

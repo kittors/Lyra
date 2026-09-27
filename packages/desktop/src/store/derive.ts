@@ -16,7 +16,7 @@ import { summarizeToolCall } from "../lib/tool-summary.ts";
 import type { AppState } from "./index.ts";
 import type { ToolRun } from "./tool-run.ts";
 
-export type CachedSessionState = Pick<AppState, "running" | "todos" | "compactions" | "approvals" | "stopped" | "retrying" | "capabilities" | "pendingUserMessage"> & { commandRuns?: CommandRun[]; hiccups?: AppState["hiccups"] };
+export type CachedSessionState = Pick<AppState, "running" | "todos" | "compactions" | "approvals" | "stopped" | "retrying" | "capabilities" | "pendingUserMessage"> & { commandRuns?: CommandRun[]; hiccups?: AppState["hiccups"]; compactedAt?: AppState["compactedAt"] };
 
 export type Cache = Record<
   string,

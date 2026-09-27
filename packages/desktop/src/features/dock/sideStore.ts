@@ -86,7 +86,18 @@ interface SideState {
 	 * same command is never run twice.
 	 */
 	pendingCommand: string | null;
-	runInTerminal(command: string): void;
+	/**
+	 * The screen whose terminal runs `pendingCommand` — the key of the screen it was asked from — or
+	 * null for the screen with focus.
+	 *
+	 * Every screen can have a terminal open, and each of them watches the one slot above. They used
+	 * to settle it by the focus alone, and the keyboard presses 「在终端运行」 in a screen without
+	 * giving it the focus: the terminal opened in that screen while the command ran in the shell of
+	 * the conversation beside it, in the other project's directory.
+	 */
+	pendingScreen: string | null;
+	/** `screen` names the screen asking; left out, the command is for whichever screen has focus. */
+	runInTerminal(command: string, screen?: string | null): void;
 	commandTaken(): void;
 	/**
 	 * What the browser tab is showing.
@@ -94,9 +105,12 @@ interface SideState {
 	 * A preview handed over from the transcript, a URL typed into the address bar, or nothing.
 	 * Held here rather than inside the panel so "open this in the side panel" can be a single
 	 * call from a card that knows nothing about how the panel is built.
+	 *
+	 * A preview can name the conversation whose browser it opens in — the one whose transcript it
+	 * was opened from, which in a split need not be the one with focus. Unnamed, it is the live one.
 	 */
-	browserTarget: { kind: "preview"; preview: BrowserPreview } | { kind: "url"; url: string } | null;
-	openPreview(preview: BrowserPreview): void;
+	browserTarget: { kind: "preview"; preview: BrowserPreview; sessionId?: string | null } | { kind: "url"; url: string } | null;
+	openPreview(preview: BrowserPreview, sessionId?: string | null): void;
 	openUrl(url: string): void;
 
 	/** Pull whatever conversation this session already has. Safe to call for several at once. */
@@ -180,9 +194,10 @@ export const useSide = create<SideState>((set, get) => {
 		chats: {},
 		browserTarget: null,
 
-		openPreview: (preview) => set({ browserTarget: { kind: "preview", preview } }),
+		openPreview: (preview, sessionId) => set({ browserTarget: { kind: "preview", preview, ...(sessionId !== undefined ? { sessionId } : {}) } }),
 		openUrl: (url) => set({ browserTarget: { kind: "url", url } }),
 		pendingCommand: null,
+		pendingScreen: null,
 		/*
 		 * 只记下这条命令，开终端是调用方的事。
 		 *
@@ -192,10 +207,10 @@ export const useSide = create<SideState>((set, get) => {
 		 *
 		 * 两个调用方（文件树的「在终端打开」、代码块的「在终端运行」）各自负责叫出一个终端来接。
 		 */
-		runInTerminal: (command) => {
-			set({ pendingCommand: command });
+		runInTerminal: (command, screen) => {
+			set({ pendingCommand: command, pendingScreen: screen ?? null });
 		},
-		commandTaken: () => set({ pendingCommand: null }),
+		commandTaken: () => set({ pendingCommand: null, pendingScreen: null }),
 
 		/**
 		 * 把这个会话的侧边对话拉过来。

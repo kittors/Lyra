@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { findModel } from "../models/index.ts";
 import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
+import { useDockScope } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
@@ -68,6 +69,8 @@ export function SideComposer({
 	const settings = useApp((s) => s.settings);
 	const meta = useApp((s) => s.meta);
 	const sessionId = useSideSessionId();
+	// The screen this side chat is docked in, where a file marked here opens — not the one with focus.
+	const screen = useDockScope();
 	const modelId = useSide((s) => sideChatOf(s, sessionId).modelId);
 	const loading = useSide((s) => sideChatOf(s, sessionId).loading);
 	const thinking = useSide((s) => sideChatOf(s, sessionId).thinking);
@@ -229,7 +232,7 @@ export function SideComposer({
 							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
 							onOpenFile: (path: string, name: string) => {
 								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-								openScopedPanel("file", companionOf("file"));
+								openScopedPanel("file", companionOf("file"), screen ?? undefined);
 							},
 						},
 						rect,

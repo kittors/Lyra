@@ -12,7 +12,7 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { companionOf, openScopedPanel, usePaneDock } from "../dock/index.ts";
-import { useScopedMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedMessages, useScopedProjectPath, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
 import { peekDelivery, rememberDelivery } from "./delivery-cache.ts";
@@ -73,7 +73,13 @@ function FileName({ path }: { path: string }) {
 
 function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: number }) {
 	const { t } = useI18n();
-	const workspace = useApp((state) => state.workspace?.path);
+	/*
+	 * This conversation's project, and this screen: the live slot's project named the files by the
+	 * focused conversation's — none of them under it, so every path came out in full — and the report
+	 * and the review opened beside that conversation when the keyboard pressed them here.
+	 */
+	const workspace = useScopedProjectPath();
+	const screen = useDockScope();
 	const [data, setData] = useState<TurnDelivery | null>(() => peekDelivery(sessionId, timestamp) ?? null);
 	const [expanded, setExpanded] = useState(false);
 	const [undoing, setUndoing] = useState(false);
@@ -152,12 +158,12 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		hideHover();
 		void useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path })
 			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		openScopedPanel("file", companionOf("file"));
+		openScopedPanel("file", companionOf("file"), screen ?? undefined);
 	};
 	const openTurn = (path?: string) => {
 		hideHover();
 		useDeliveryReview.getState().open({ sessionId, timestamp, path: path ?? null }, data);
-		openScopedPanel("delivery");
+		openScopedPanel("delivery", undefined, screen ?? undefined);
 	};
 	const remaining = files.length - PREVIEW_FILES;
 	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;

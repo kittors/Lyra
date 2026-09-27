@@ -4,8 +4,14 @@ import { ThinkingOrb } from "thinking-orbs";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
-import { useApp } from "../../store/index.ts";
-import { useScopedApprovals } from "../../app/session-scope.tsx";
+import {
+	useScopedApprovals,
+	useScopedCompactedAt,
+	useScopedFromMessages,
+	useScopedFromToolRuns,
+	useScopedRetrying,
+	useScopedTurnMeter,
+} from "../../app/session-scope.tsx";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
@@ -34,11 +40,17 @@ const TOOL_HOLD_MS = 2000;
 const COMPACTED_NOTICE_MS = 8000;
 
 export function RunningIndicator() {
-	const startedAt = useApp((s) => s.turnStartedAt);
-	const tokens = useApp((s) => s.turnTokens);
-	const messages = useApp((s) => s.messages);
-	const retrying = useApp((s) => s.retrying);
-	const compactedAt = useApp((s) => s.compactedAt);
+	/*
+	 * This screen's turn, every part of it.
+	 *
+	 * Each of these has a copy in the live slot — `turnStartedAt`, `turnTokens`, `messages`,
+	 * `toolRuns`, `retrying`, `compactedAt` — that describes only the focused screen. Two screens
+	 * running at once drew that one line under both: the same clock, count and activity, which
+	 * jumped to the right ones only when focus arrived.
+	 */
+	const { startedAt, tokens } = useScopedTurnMeter();
+	const retrying = useScopedRetrying();
+	const compactedAt = useScopedCompactedAt();
 	const waiting = useScopedApprovals()[0];
 	const waitingKind = !waiting ? null : waiting.kind === "interactive" ? "question" : "approval";
 	const [now, setNow] = useState(() => Date.now());
@@ -59,8 +71,8 @@ export function RunningIndicator() {
 	 * running" answer. The window is applied in the component rather than here: a selector only
 	 * re-runs when the store changes, and nothing changes when a hold quietly expires.
 	 */
-	const doing = useApp((s) => {
-		const runs = Object.values(s.toolRuns);
+	const doing = useScopedFromToolRuns((toolRuns) => {
+		const runs = Object.values(toolRuns);
 		const running = runs.filter((run) => run.status === "running").sort((a, b) => b.startedAt - a.startedAt)[0];
 		if (running) return `${running.toolName}\u0000${running.summary}\u0000`;
 		const finished = runs
@@ -75,8 +87,8 @@ export function RunningIndicator() {
 	 * `text` is the reply arriving. From the outside both look like "no tool is running", and they
 	 * are the two halves the silence is actually made of.
 	 */
-	const writing = useApp((s) => {
-		const last = s.messages[s.messages.length - 1];
+	const writing = useScopedFromMessages((messages) => {
+		const last = messages[messages.length - 1];
 		if (last?.role !== "assistant" || last.stopReason !== "pending") return false;
 		const block = last.content[last.content.length - 1];
 		return block?.type === "text" && block.text.length > 0;
@@ -97,8 +109,10 @@ export function RunningIndicator() {
 
 	// The reply still streaming has usage of its own; counting it keeps the number moving
 	// between finished messages rather than jumping in steps.
-	const last = messages[messages.length - 1];
-	const live = last?.role === "assistant" && last.stopReason === "pending" ? freshTokens(last.usage) : 0;
+	const live = useScopedFromMessages((messages) => {
+		const last = messages[messages.length - 1];
+		return last?.role === "assistant" && last.stopReason === "pending" ? freshTokens(last.usage) : 0;
+	});
 	const total = tokens + live;
 	// Travelled to, not jumped to: usage lands per message, so this moves in steps of thousands.
 	const counted = useCountUp(total);

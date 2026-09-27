@@ -25,6 +25,7 @@ import { ChevronDown, FileText, PanelLeft } from "lucide-react";
 import { openScopedPanel, usePaneOnScreen } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
+import { useDockScope, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { FileTree } from "./FileTree.tsx";
@@ -43,8 +44,11 @@ const TREE_WIDTH = 320;
 
 export function FileTitle() {
 	const { t } = useI18n();
-	// Every source folder of the project, so this tree and the one in the file pane agree.
-	const folders = useProjectFolders();
+	// Every source folder of this screen's project, so this tree and the one in its Files panel agree.
+	const { workspace } = useScopedWorkspace();
+	const folders = useProjectFolders(workspace);
+	// The tree pane it hands off to opens in this screen, named rather than found by focus.
+	const screen = useDockScope();
 	const path = useOpenFile((s) => s.path);
 	const name = useOpenFile((s) => s.name);
 	const dirty = useOpenFile((s) => s.drafts);
@@ -126,7 +130,7 @@ export function FileTitle() {
 						<button
 							type="button"
 							onClick={() => {
-								openScopedPanel("files", companionOf("files"));
+								openScopedPanel("files", companionOf("files"), screen ?? undefined);
 								menu.close();
 							}}
 							className="flex w-full items-center gap-1.5 px-3 py-2 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"

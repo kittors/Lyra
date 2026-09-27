@@ -7,10 +7,14 @@ import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { formatTokens } from "../conversation/index.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
+import { useDockScope } from "../../app/session-scope.tsx";
 
 /** The paths come from the prompt sources, never guessed from the renderer's workspace. */
 export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdown; onOpen: () => void }) {
 	const [open, setOpen] = useState(false);
+	// The meter is this screen's, and so is the file pane a file here opens — the popover is a portal,
+	// but it is still inside this screen as far as React is concerned.
+	const screen = useDockScope();
 	const files = [...(detail.memoryFiles ?? []), ...(detail.projectMemoryFiles ?? [])];
 	const tokens = detail.segments.filter((segment) => segment.key === "memory" || segment.key === "projectMemory")
 		.reduce((total, segment) => total + segment.tokens, 0);
@@ -25,7 +29,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 					onClick={() => {
 						onOpen();
 						void useOpenFile.getState().open({ path: file.path, name: file.path.split(/[\\/]/).pop() || file.path, isDirectory: false, size: 0 });
-						openScopedPanel("file", companionOf("file"));
+						openScopedPanel("file", companionOf("file"), screen ?? undefined);
 					}}>
 					<FileText size={12} strokeWidth={1.8} className="shrink-0" />
 					<ScrollText text={file.path} className="min-w-0 flex-1 text-left font-mono text-caption" />

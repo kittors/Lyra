@@ -15,7 +15,7 @@ import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
-import { useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
@@ -53,7 +53,21 @@ function imageSrc(block: ImageBlock | undefined, path: string | undefined): { sr
 	return {};
 }
 
-
+/**
+ * Where a conversation runs, read at the moment it is needed rather than subscribed to.
+ *
+ * The answer `useScopedWorkspace` gives, as a directory: the live slot's project — or its directory
+ * outside any project — for the conversation holding it; the directory a parked conversation works
+ * in, which is its project or its project-less directory, the same path either way; and for a blank
+ * screen away from the live slot, where it was opened. Read on a press, because every message in
+ * every transcript would otherwise carry the subscriptions.
+ */
+function directoryOf(sessionId: string | null): string {
+	const state = useApp.getState();
+	if (sessionId === state.activeSessionId) return state.workspace?.path ?? state.scratchCwd ?? "";
+	if (sessionId === null) return state.parkedDraft?.workspace?.path ?? state.parkedDraft?.scratchCwd ?? "";
+	return (state.sessionCache[sessionId]?.meta ?? state.sessions.find((one) => one.id === sessionId))?.cwd ?? "";
+}
 
 /**
  * 带了哪几个文件，认回成一排。
@@ -81,7 +95,12 @@ function attachmentsOf(
     seen.set(kind, kindIndex);
     const block = kind === "image" ? images[at] : undefined;
     if (block) at++;
-    const refs = imageSrc(block, file.path);
+    /*
+     * Only a picture is drawn from its path. Any other file given a `src` became a picture to
+     * everything downstream: a tile in the row of pictures, and a mark whose press went to the image
+     * viewer — which found no picture to show and did nothing, so a sent document never opened.
+     */
+    const refs = imageSrc(block, kind === "image" ? file.path : undefined);
     files.push({
       key: `${index}-${file.name}`,
       name: file.name,
@@ -138,6 +157,8 @@ export function UserMessage({
 	 * beside it, on disk.
 	 */
 	const sessionId = useScopedSessionId();
+	// And the screen a file this message names opens in — the same fault, for the file pane.
+	const screen = useDockScope();
 	const running = useScopedRunning();
 	const editMessage = useApp((s) => s.editMessage);
 	const revertMessage = useApp((s) => s.revertMessage);
@@ -364,7 +385,8 @@ export function UserMessage({
               type="button"
               data-ly-tip={t("userMessage.openSkill")}
               onClick={async () => {
-                const cmdCwd = useApp.getState().workspace?.path ?? useApp.getState().scratchCwd ?? "";
+                // Listed from this conversation's directory; the live slot's is the focused screen's.
+                const cmdCwd = directoryOf(sessionId);
                 const list = await bridge.commands.list(cmdCwd).catch(() => null);
                 const targetPath = list?.skills?.find((skill: SkillEntry) => skill.name === skillRef.name && skill.pluginId === skillRef.pluginId)?.path;
                 if (targetPath) {
@@ -375,7 +397,7 @@ export function UserMessage({
                     isDirectory: false,
                     size: 0,
                   });
-                  openScopedPanel("file", { kind: "conversation", side: "right", share: 0.45 });
+                  openScopedPanel("file", { kind: "conversation", side: "right", share: 0.45 }, screen ?? undefined);
                 } else {
                   useApp.getState().notify(t("userMessage.skillMissing", { name: skillRef?.name ?? "" }), "warn");
                 }
@@ -454,7 +476,7 @@ export function UserMessage({
                         },
                         onOpenFile: (filePath: string, name: string) => {
                           void useOpenFile.getState().open({ path: filePath, name, isDirectory: false, size: 0 });
-                          openScopedPanel("file", companionOf("file"));
+                          openScopedPanel("file", companionOf("file"), screen ?? undefined);
                         },
                       },
                       rect,

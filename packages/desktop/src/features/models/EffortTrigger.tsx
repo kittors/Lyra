@@ -12,6 +12,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedMeta } from "../../app/session-scope.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { EffortMenu, effortLabel, type ThinkingSelection } from "./EffortMenu.tsx";
@@ -32,7 +33,9 @@ export function EffortTrigger({
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
-	const meta = useApp((s) => s.meta);
+	// This screen's conversation: the live slot's `meta` is the focused screen's, and read from there
+	// the button under the screen beside it named the focused conversation's effort.
+	const meta = useScopedMeta();
 	const menu = usePopover();
 	const model = findModel(settings, modelId ?? null);
 	const level = selection ? selection.value : sessionThinking(meta, settings);

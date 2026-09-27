@@ -2,7 +2,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { History, ScrollText as OutputIcon } from "lucide-react";
 import type { ToolRun } from "../../store/index.ts";
 import { useApp } from "../../store/index.ts";
-import { useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { TraceText, showTrace } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
@@ -14,12 +14,14 @@ export function RunDetail({ run, query = "" }: { run: ToolRun; query?: string })
 	// The run belongs to the conversation of the screen it is listed in.
 	const sessionId = useScopedSessionId();
 	const meta = useScopedMeta();
+	// And its output opens in that screen, named: the focus may be anywhere by the time the export is back.
+	const screen = useDockScope();
 	const openOutput = async () => {
 		if (!meta) return;
 		try {
 			const path = await bridge.sessions.exportTrajectory(meta.projectId, meta.id, "output", { correlationId: run.toolCallId });
 			await useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path, isDirectory: false, size: 0 });
-			openScopedPanel("file", companionOf("file"));
+			openScopedPanel("file", companionOf("file"), screen ?? undefined);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};
 	const output = (run.result?.content ?? []).filter(part => part.type === "text").map(part => part.text).join("\n");

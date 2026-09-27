@@ -17,7 +17,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { baseName } from "../../lib/paths.ts";
-import { useApp } from "../../store/index.ts";
 import { useFileTreeStore } from "../../store/fileTree.ts";
 
 export interface TreeNode {
@@ -120,7 +119,11 @@ export function treeRows({
 	return out;
 }
 
-export function useFileTree(roots: string[]): FileTree {
+/**
+ * `running` is whether the turn of the conversation this tree belongs to is running — its screen's,
+ * handed in by the view (`useScopedRunning`) so this module stays loadable where `treeRows` is tested.
+ */
+export function useFileTree(roots: string[], running: boolean): FileTree {
 	const children = useFileTreeStore((s) => s.children);
 	const expanded = useFileTreeStore((s) => s.expanded);
 	const [filter, setFilter] = useState("");
@@ -136,9 +139,9 @@ export function useFileTree(roots: string[]): FileTree {
 	const key = roots.join("\0");
 
 	// Idempotent, so every view can say which project it is looking at without the second one
-	// throwing away what the first has already loaded.
+	// throwing away what the first has already loaded — or what another screen's tree has open.
 	useEffect(() => {
-		useFileTreeStore.getState().setRoots(key ? key.split("\0") : []);
+		useFileTreeStore.getState().show(key ? key.split("\0") : []);
 	}, [key]);
 
 	/*
@@ -148,11 +151,13 @@ export function useFileTree(roots: string[]): FileTree {
 	 * once, when the project opened. Watching it work meant watching a list that had been true
 	 * several minutes ago: files it had just created were simply absent. Every directory that is
 	 * open gets re-read, since those are the ones being looked at.
+	 *
+	 * This screen's turn, and this tree's folders: asked of the live slot, a turn ending beside it
+	 * re-read this tree, and one ending here was missed while the focused conversation ran on.
 	 */
-	const running = useApp((s) => s.running);
 	useEffect(() => {
 		if (running || !key) return;
-		void useFileTreeStore.getState().refreshOpen();
+		void useFileTreeStore.getState().refreshOpen(key.split("\0"));
 	}, [running, key]);
 
 	/*
@@ -179,6 +184,15 @@ export function useFileTree(roots: string[]): FileTree {
 	// 两样都是：调用它是 hook，`.getState()` 是它上面的静态方法，规则分辨不了这两种用法。
 	// oxlint-disable-next-line react/hooks
 	const store = useRef(useFileTreeStore.getState()).current;
+	// The three that act on a whole tree act on this one's folders; bound per project, so as stable as the rest.
+	const own = useMemo(() => {
+		const folders = key ? key.split("\0") : [];
+		return {
+			refreshOpen: () => store.refreshOpen(folders),
+			collapseAll: () => store.collapseAll(folders),
+			reveal: (path: string) => store.reveal(path, folders),
+		};
+	}, [key, store]);
 
 	return {
 		children,
@@ -190,11 +204,11 @@ export function useFileTree(roots: string[]): FileTree {
 		setScope,
 		load: store.load,
 		refresh: store.refresh,
-		refreshOpen: store.refreshOpen,
+		refreshOpen: own.refreshOpen,
 		toggle: store.toggle,
 		expand: store.expand,
 		collapse: store.collapse,
-		collapseAll: store.collapseAll,
-		reveal: store.reveal,
+		collapseAll: own.collapseAll,
+		reveal: own.reveal,
 	};
 }

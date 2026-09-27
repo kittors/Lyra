@@ -282,7 +282,8 @@ function Row({
 		more.close();
 		const taken = dropQueued(sessionId, entry.id);
 		if (!taken) return;
-		openScopedPanel("chat", companionOf("chat"));
+		// Beside the conversation it was queued in, which the keyboard can reach without focusing it.
+		openScopedPanel("chat", companionOf("chat"), sessionId);
 		void useSide.getState().ask(sessionId, taken.content);
 	};
 

@@ -6,6 +6,7 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedFromMessages, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import {
@@ -79,8 +80,17 @@ export interface ModelSelection {
 export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onClose: () => void; selection?: ModelSelection }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
-	const meta = useApp((s) => s.meta);
-	const messages = useApp((s) => s.messages);
+	/*
+	 * The conversation of the screen whose composer opened this.
+	 *
+	 * The live slot's `meta` is the focused screen's. Read from there, a menu opened by keyboard
+	 * under the screen beside it ticked the focused conversation's model — and choosing one switched
+	 * that conversation, which is why every change below names this one.
+	 */
+	const sessionId = useScopedSessionId();
+	const meta = useScopedMeta();
+	// Whether anything has been said, not the list: the menu need not redraw for every streamed token.
+	const said = useScopedFromMessages((messages) => messages.length > 0);
 	const setModel = useApp((s) => s.setModel);
 	const confirmer = useConfirmer();
 	const setThinking = useApp((s) => s.setThinking);
@@ -155,7 +165,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	 * console and nothing else.
 	 */
 	const apply = (modelId: string, options?: { asDefault?: boolean }) => {
-		void setModel(modelId, options).catch((cause: unknown) => {
+		void setModel(modelId, { ...options, sessionId }).catch((cause: unknown) => {
 			useApp
 				.getState()
 				.notify(t("modelMenu.switchFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
@@ -168,7 +178,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 			onClose();
 			return;
 		}
-		const midConversation = messages.length > 0 && current !== modelId;
+		const midConversation = said && current !== modelId;
 		if (midConversation) {
 			confirmer.ask({
 				title: t("modelMenu.midConfirm"),
@@ -298,7 +308,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 						onClick={() => {
 							if (!settings) return;
 							// Per conversation, like the level itself; `lastThinking` is what it restores.
-							void setThinking(fastMode ? (settings.lastThinking ?? "medium") : "off");
+							void setThinking(fastMode ? (settings.lastThinking ?? "medium") : "off", sessionId);
 						}}
 					>
 						{t("modelMenu.noThinking")}

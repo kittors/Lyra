@@ -29,6 +29,7 @@ import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
+import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
 
 /**
  * What this text is, beyond the characters in it.
@@ -344,13 +345,16 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	const canOpen = available("system", "openPath");
 	const canReveal = available("system", "openIn");
 	const caption = fileLinkCaption(textOf(children), path);
+	// The file pane opens in the screen this link is drawn in: the keyboard reaches a link in a screen
+	// without the press that would have given that screen the focus.
+	const screen = useDockScope();
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
 		void useOpenFile
 			.getState()
 			.open({ path, name })
 			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		openScopedPanel("file", companionOf("file"));
+		openScopedPanel("file", companionOf("file"), screen ?? undefined);
 	};
 	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
 
@@ -413,9 +417,18 @@ function FileLinkAction({ tip, onClick, children }: { tip: string; onClick: () =
 
 function Link({ href, children }: { href: string; children: ReactNode }) {
 	const { baseDir, preview } = useContext(Doc);
-	const workspace = useApp((state) => state.workspace?.path);
+	/*
+	 * A relative path means the project of the conversation this text is in, which in a split is not
+	 * necessarily the one with focus: resolved against the focused one, a `README.md` in one screen's
+	 * reply opened the other project's. The path alone, as one subscription — a long transcript has a
+	 * great many links.
+	 */
+	const project = useScopedProjectPath();
+	// Context reads, not subscriptions: only a press needs them, and it reads the store then.
+	const scoped = useContext(SessionScope);
+	const screen = useDockScope();
 	const safe = href.startsWith("http://") || href.startsWith("https://");
-	const path = safe ? null : resolveAsset(baseDir ?? workspace ?? (isAbsolutePath(href) ? "/" : undefined), href.replace(/:\d+(?:-\d+)?$/, ""));
+	const path = safe ? null : resolveAsset(baseDir ?? project ?? (isAbsolutePath(href) ? "/" : undefined), href.replace(/:\d+(?:-\d+)?$/, ""));
 	if (preview || (!safe && !path)) return <>{children}</>;
 	if (path) return <FileLink href={href} path={path}>{children}</FileLink>;
 	return (
@@ -425,7 +438,15 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 				event.preventDefault();
 				const state = useApp.getState();
 				if (state.settings?.browser?.openLinks === "builtin" && !event.shiftKey) {
-					void bridge.browser.command({ type: "open", url: href, sessionId: state.activeSessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
+					// A tab of this screen's conversation, whichever screen has the focus.
+					const sessionId = scoped === undefined ? state.activeSessionId : scoped;
+					void bridge.browser.command({ type: "open", url: href, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
+					/*
+					 * Brought forward here rather than left to the main process's reveal, which only opens
+					 * the panel for the live conversation — the keyboard reached this link without making
+					 * its screen live, and the page would have loaded where nobody could see it.
+					 */
+					if (screen) openScopedPanel("browser", undefined, screen);
 				} else void bridge.system.openExternal(href);
 			}}
 		>

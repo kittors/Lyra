@@ -5,6 +5,7 @@ import type { BranchList } from "../../../electron/ipc-types.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuLabel, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 
 /**
@@ -24,27 +25,35 @@ const lastSeen = new Map<string, BranchList>();
  * being replaced with a generic failure.
  */
 export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => void }) {
-	const workspace = useApp((s) => s.workspace);
+	/*
+	 * The project of the screen whose chip opened this.
+	 *
+	 * `workspace` describes the live slot — the focused screen. Read from there, the chip under the
+	 * screen beside it listed the focused conversation's branches, and choosing one ran `git switch`
+	 * in that conversation's repository: the keyboard reaches the chip without the press that would
+	 * have focused its screen first.
+	 */
+	const { workspace } = useScopedWorkspace();
+	const path = workspace?.path ?? null;
 	const refreshWorkspace = useApp((s) => s.refreshWorkspace);
 	const setSwitching = useApp((s) => s.setSwitchingBranch);
 	const notify = useApp((s) => s.notify);
 
-	const [branches, setBranches] = useState<BranchList | null>(
-		() => (workspace ? (lastSeen.get(workspace.path) ?? null) : null),
-	);
+	const [branches, setBranches] = useState<BranchList | null>(() => (path ? (lastSeen.get(path) ?? null) : null));
 	const [query, setQuery] = useState("");
 
+	// Keyed on the path: away from the live slot the project is rebuilt on every render until it is read.
 	useEffect(() => {
-		if (!workspace) return;
+		if (!path) return;
 		let live = true;
-		void bridge.git.branches(workspace.path).then((list) => {
-			lastSeen.set(workspace.path, list);
+		void bridge.git.branches(path).then((list) => {
+			lastSeen.set(path, list);
 			if (live) setBranches(list);
 		});
 		return () => {
 			live = false;
 		};
-	}, [workspace]);
+	}, [path]);
 
 	const needle = query.trim().toLowerCase();
 	const match = (name: string) => !needle || name.toLowerCase().includes(needle);
@@ -52,7 +61,7 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 	const remote = (branches?.remote ?? []).filter(match);
 
 	async function switchTo(branch: string) {
-		if (!workspace) return;
+		if (!path) return;
 		/*
 		 * Handed over whole, remote prefix and all.
 		 *
@@ -86,14 +95,15 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 		 * the old name while the spinner runs says the same thing without ever being wrong.
 		 */
 		onClose();
-		setSwitching(target);
+		setSwitching({ path, branch: target });
 		try {
-			const result = await bridge.git.switchBranch(workspace.path, target);
+			const result = await bridge.git.switchBranch(path, target);
 			if (!result.ok) {
 				notify(result.error ?? translate("branchMenu.switchFailed"), "error");
 				return;
 			}
-			await refreshWorkspace();
+			// This screen's project, wherever it is read from — see `refreshWorkspace`.
+			await refreshWorkspace(path);
 		} finally {
 			setSwitching(null);
 		}

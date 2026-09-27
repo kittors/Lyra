@@ -16,7 +16,7 @@ import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { RuleCard } from "./RuleCard.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
-import { useApp } from "../../store/index.ts";
+import { useScopedRunning } from "../../app/session-scope.tsx";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 
@@ -149,7 +149,8 @@ function AssistantRow({
   turnStats?: TurnStats;
   viewKey?: string;
 }) {
-  const running = useApp((s) => s.running);
+  // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
+  const running = useScopedRunning();
 
   const own = message.content.slice(from, upTo);
 

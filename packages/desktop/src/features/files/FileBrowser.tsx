@@ -16,16 +16,24 @@ import { Folder } from "lucide-react";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { FileTree } from "./FileTree.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
-import { useApp } from "../../store/index.ts";
+import { useDockScope, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useProjectFolders } from "../../store/project-folders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 
 export function FileBrowser() {
-	const workspace = useApp((s) => s.workspace);
+	/*
+	 * The project of the screen this panel is in.
+	 *
+	 * The live slot's is the focused screen's: opened beside it, the panel listed the focused
+	 * conversation's project, and followed focus from one screen to the other.
+	 */
+	const { workspace } = useScopedWorkspace();
+	// And the file pane it hands a file to opens in this screen too, named rather than found by focus.
+	const screen = useDockScope();
 	const openPath = useOpenFile((s) => s.path);
 	const dirty = useOpenFile((s) => s.drafts);
 	// Every folder the project names, not only the one sessions run in — see `useProjectFolders`.
-	const folders = useProjectFolders();
+	const folders = useProjectFolders(workspace);
 
 	/*
 	 * Letting go of the last project's file is not this pane's job — see `useProjectFiles` in
@@ -55,7 +63,7 @@ export function FileBrowser() {
 				 * clicking through a folder does not stack up editors — and if it was closed, the
 				 * click that needs it is what brings it back.
 				 */
-				openScopedPanel("file", companionOf("file"));
+				openScopedPanel("file", companionOf("file"), screen ?? undefined);
 			}}
 			onMoved={(from, to) => useOpenFile.getState().moved(from, to)}
 			onRemoved={(paths) => useOpenFile.getState().removed(paths)}

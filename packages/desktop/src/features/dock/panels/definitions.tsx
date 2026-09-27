@@ -9,7 +9,7 @@
 import type { MessageKey } from "../../../i18n/messages/index.ts";
 import { allPanels, panelsForHost, type PanelDefinition } from "./registry.ts";
 import type { PanelKind } from "../sideStore.ts";
-import { useApp } from "../../../store/index.ts";
+import { useScopedSessionId, useScopedWorkspace } from "../../../app/session-scope.tsx";
 import { onPhone } from "../../../services/host.ts";
 import "./builtin.tsx";
 
@@ -17,13 +17,19 @@ import "./builtin.tsx";
 export type ResolvedPanel = Omit<PanelDefinition, "unavailable"> & { unavailable?: MessageKey };
 
 export function usePanelDefinitions(): ResolvedPanel[] {
-	const workspace = useApp((s) => s.workspace);
-	const scratchCwd = useApp((s) => s.scratchCwd);
-	const activeSessionId = useApp((s) => s.activeSessionId);
+	/*
+	 * What this screen's conversation has, asked from its own title bar and dock.
+	 *
+	 * The live slot describes the focused screen only. Read from there, a conversation in no project
+	 * with focus took the Git button away from the project's screen beside it and gave one to itself,
+	 * and the blank screen offered the panels of the conversation next to it.
+	 */
+	const { workspace, scratchCwd } = useScopedWorkspace();
+	const sessionId = useScopedSessionId();
 	const state = {
 		workspace: Boolean(workspace),
 		cwd: Boolean(workspace ?? scratchCwd),
-		session: Boolean(activeSessionId),
+		session: Boolean(sessionId),
 	};
 	return panelsForHost(allPanels(), onPhone()).map((panel) => ({ ...panel, unavailable: panel.unavailable?.(state) }));
 }

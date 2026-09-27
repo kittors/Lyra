@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
 import { useSide, openScopedPanel } from "../dock/index.ts";
+import { useDockScope } from "../../app/session-scope.tsx";
 
 /**
  * Fences that are commands rather than code.
@@ -35,6 +36,12 @@ function commandFrom(code: string): string {
 export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 	const [copied, setCopied] = useState(false);
 	const [language, setLanguage] = useState<Language | null>(null);
+	/*
+	 * The screen this block is drawn in, which the command belongs to. Named for both halves of
+	 * 「在终端运行」 — where the terminal opens and which terminal runs it — because the keyboard
+	 * presses the button without giving this screen the focus, and both halves used to follow the focus.
+	 */
+	const screen = useDockScope();
 
 	/*
 	 * Grammar fetched per language, colouring recomputed per edit.
@@ -100,9 +107,10 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 					type="button"
 					data-ly-tip={translate("codeBlock.runInTerminal")}
 					onClick={() => {
-						useSide.getState().runInTerminal(commandFrom(code));
 						// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-						openScopedPanel("terminal");
+						const at = openScopedPanel("terminal", undefined, screen ?? undefined);
+						// For that terminal, wherever the request landed: a command nobody's terminal takes is lost.
+						useSide.getState().runInTerminal(commandFrom(code), at);
 					}}
 					className="absolute top-2 right-8 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
 				>

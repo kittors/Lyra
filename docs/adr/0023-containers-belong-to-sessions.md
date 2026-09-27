@@ -135,3 +135,13 @@
   提交里被每一屏各接一份：空白屏上按一张建议卡片，字同时出现在旁边那屏，光标落在最后接的那一屏。
   接下草稿的那一屏不在台上时，会顺手 `focusScreenOf` 把自己请上台：光标去了哪一屏，台上就是哪一屏，
   键盘路径和鼠标按下落到同一个状态。
+- **菜单打开之后读的、改的，也是这一屏的。** 分支、模型、推理强度的菜单挂在每一屏的输入框上；读台上那
+  一份时，键盘在旁边那屏打开的菜单列的是焦点会话的分支和模型，选下去改的也是它——在别人的仓库里
+  `git switch`。store 的动作跟着指名：`setModel(…, { sessionId })`、`setThinking(…, sessionId)` 像
+  `editMessage` 一样先把那个会话请上台；`refreshWorkspace(path)` 把这个项目在台上和 `workspaceByPath`
+  里的两份一起重读，`switchingBranch` 带着仓库路径，只有那一屏的分支按钮转圈。
+- **运行行的每一项都按屏取。** 时钟和 token 读 `turns[会话]`（`useScopedTurnMeter`），「正在做什么」读
+  这一屏的 `toolRuns`，重连和「已压缩」也各记各的——`compactedAt` 跟着会话进出缓存。
+- **文件树按项目并存。** `useFileTreeStore` 不再只认一个项目、换一个就清空：每棵树用 `show(roots)` 说明
+  自己的源文件夹，刷新、全部收起、定位都只动这一棵的。`useProjectFolders(workspace)` 必须传项目，Files
+  面板、文件名下拉、`@` 菜单传的都是这一屏的。打开的文件（`useOpenFile`）仍然整个窗口一份。
