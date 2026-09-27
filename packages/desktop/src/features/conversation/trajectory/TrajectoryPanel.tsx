@@ -102,7 +102,7 @@ function SessionTrajectory() {
 		</div>
 		<TraceTimeline entries={all} range={time} selected={selected} onRange={setTime} onSelect={navigate} matches={matches} paused={!following || Boolean(picked)} />
 		<div className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 text-caption text-ink-faint tabular-nums" data-trace-count aria-live="polite">
-			<span data-ly-tip={t("trajectory.countOf", { shown: entries.length, total: all.length })}>{focused ? t("trajectory.focused", { n: focused.size }) : `${entries.length}/${all.length}`}</span>
+			<span data-ly-tip={t("trajectory.countOf", { shown: entries.length, n: all.length })}>{focused ? t("trajectory.focused", { n: focused.size }) : `${entries.length}/${all.length}`}</span>
 			<span className="ml-auto flex items-center gap-1" data-ly-tip={t("trajectory.toolCalls", { n: totals.tools })}><Terminal size={11} />{formatTokens(totals.tools)}</span>
 			<span className="flex items-center gap-1" data-ly-tip={`${totals.tokens.toLocaleString()} tokens`}><Zap size={11} />{formatTokens(totals.tokens)}</span>
 			{totals.cost > 0 && <span className="flex items-center gap-1" data-ly-tip={t("trajectory.estimatedCost", { cost: totals.cost.toFixed(4) })}><Coins size={11} />${totals.cost.toFixed(2)}</span>}

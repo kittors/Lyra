@@ -98,15 +98,27 @@ test("plural forms cover every category their language counts with, and nothing 
 test("an English sentence that counts something has a form for one", () => {
 	/*
 	 * The archive read "1 conversations": a count sentence written as one plain string. In English
-	 * that shape is `{n}` followed, a word or two later, by a plural — so a plain string of that shape
-	 * is a missing `one`. The two exceptions each say why they are not.
+	 * that shape is a count followed, a word or two later, by a plural — so a plain string of that
+	 * shape is a missing `one`. The exceptions each say why they are not.
+	 *
+	 * A count is `{n}`, or any slot the Chinese source puts a measure word after: 「{total} 行」,
+	 * 「{requests} 次请求」, 「{tokens} token」. Knowing only `{n}` let "1 commits" and "over 1 requests"
+	 * through, because their counts went by other names. Other slots are not asked about — `{name} is`
+	 * is not a plural. "device(s)" is: it is the same missing `one`, spelled so nobody has to write it.
 	 */
 	const exempt: Record<string, string> = {
 		"ruleTry.intro": "n is RECENT_LIMIT, which is 20",
 		"ruleTry.noHits": "\"matches\" is the verb: nothing in the last n matches",
+		"sheet.rowsOf": "only shown once a sheet passes MAX_ROWS (2000), so total is never 1",
 	};
+	const source = MESSAGE_CATALOGS["zh-CN"] as Record<MessageKey, string>;
+	const measured = /\{(\w+)\} ?(?:个|次|条|项|行|列|处|份|张|篇|位|台|页|组|轮|天|小时|分钟|秒|字|名|件|段|层|步|遍|场|批|封|token)/g;
+	const counts = (key: MessageKey) => ["n", ...Array.from(source[key].matchAll(measured), (match) => match[1])];
 	const plain = Object.entries(MESSAGE_CATALOGS.en).filter(
-		([key, entry]) => typeof entry === "string" && !(key in exempt) && /\{n\} (?:[a-z-]+ )?[a-z-]+s\b/i.test(entry),
+		([key, entry]) =>
+			typeof entry === "string" &&
+			!(key in exempt) &&
+			counts(key as MessageKey).some((slot) => new RegExp(`\\{${slot}\\} (?:[a-z-]+ )?[a-z-]+(?:s\\b|\\(s\\))`, "i").test(entry)),
 	);
 	assert.deepEqual(plain.map(([key, entry]) => `${key}: ${entry}`), []);
 });

@@ -143,7 +143,7 @@ export function syncPlan(status: GitStatus | null): SyncPlan {
 			empty: {
 				body: never
 					? translate("sync.notPublished", { remote: status.remote })
-					: translate("sync.unpushedTo", { count, remote: status.remote, branch }),
+					: translate("sync.unpushedTo", { n: count, remote: status.remote, branch }),
 			},
 		};
 	}
@@ -155,7 +155,7 @@ export function syncPlan(status: GitStatus | null): SyncPlan {
 
 	const pull: SyncButton = {
 		disabled: false,
-		tip: behind > 0 ? translate("sync.pullFf", { behind }) : translate("sync.upToDate", { upstream }),
+		tip: behind > 0 ? translate("sync.pullFf", { n: behind }) : translate("sync.upToDate", { upstream }),
 		emphasis: behind > 0,
 		count: behind > 0 ? behind : null,
 	};
@@ -170,9 +170,9 @@ export function syncPlan(status: GitStatus | null): SyncPlan {
 		ahead > 0 && behind > 0
 			? translate("sync.diverged", { ahead, behind })
 			: ahead > 0
-				? translate("sync.unpushed", { ahead, upstream })
+				? translate("sync.unpushed", { n: ahead, upstream })
 				: behind > 0
-					? translate("sync.behindBy", { behind })
+					? translate("sync.behindBy", { n: behind })
 					: clean;
 
 	return { branch, detail: upstream || null, pull, push, empty: { body } };

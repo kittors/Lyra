@@ -168,12 +168,12 @@ function formatDurationTip(
 			translate("messageActions.spanTip", {
 				total: formatSpan(durationMs),
 				model: formatSpan(requestMs),
-				requests: String(requests),
+				n: requests,
 			}),
 		);
 	}
 	if (tokens && tokens > 0 && sseDurationMs && sseDurationMs > 0) {
-		lines.push(translate("messageActions.rateTip", { tokens: String(tokens), decode: formatSpan(sseDurationMs) }));
+		lines.push(translate("messageActions.rateTip", { n: tokens, decode: formatSpan(sseDurationMs) }));
 	}
 	return lines.join("\n");
 }

@@ -15,6 +15,7 @@ import { test } from "node:test";
 
 import type { GitStatus } from "../electron/ipc-types.ts";
 import { syncPlan } from "../src/features/git/syncPlan.ts";
+import { setActiveLocale } from "../src/i18n/translate.ts";
 
 function status(over: Partial<GitStatus> = {}): GitStatus {
 	return {
@@ -249,5 +250,27 @@ test("a disabled button always says why", () => {
 			if (!button.disabled) continue;
 			assert.ok(button.tip.length > 0, `${name} disabled with no reason in ${JSON.stringify(over)}`);
 		}
+	}
+});
+
+test("one commit is said in the singular, in the languages that have one", () => {
+	/*
+	 * 「1 个提交」 has no plural to get wrong, so the cases above cannot see this. English said
+	 * "1 commits behind": the count was called `{behind}`, and only `{n}` picks a form.
+	 */
+	try {
+		setActiveLocale("en");
+		const behind = syncPlan(status({ behind: 1 }));
+		assert.equal(behind.pull.tip, "Pull 1 commit (--ff-only)");
+		assert.equal(behind.empty.body, "1 commit behind");
+		assert.equal(syncPlan(status({ ahead: 1, unpushed: 1 })).empty.body, "1 commit not yet on origin/main");
+		assert.equal(syncPlan(status({ remoteState: "no-upstream", upstream: null, unpushed: 1 })).empty.body, "1 commit not yet on origin/main");
+		assert.equal(syncPlan(status({ ahead: 2, unpushed: 2 })).empty.body, "2 commits not yet on origin/main");
+
+		setActiveLocale("ru");
+		const behindBy = (n: number) => syncPlan(status({ behind: n })).empty.body;
+		assert.deepEqual([1, 2, 5, 21].map(behindBy), ["Отстаёт на 1 коммит", "Отстаёт на 2 коммита", "Отстаёт на 5 коммитов", "Отстаёт на 21 коммит"]);
+	} finally {
+		setActiveLocale("zh-CN");
 	}
 });
