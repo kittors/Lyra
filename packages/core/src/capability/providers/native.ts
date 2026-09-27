@@ -159,12 +159,16 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 				});
 			}
 			// `schema-mode` and `schemaMode` are the same key, as they are for skills and commands.
+			// Written both ways, the hyphenated value wins, as it does there: `normalizeKeys` leaves an
+			// explicit camelCase key holding its own value, so the reads below take the hyphenated key first.
 			const frontmatter = normalizeKeys(parsed.frontmatter);
 			const { body } = parsed;
 			const name =
 				typeof frontmatter.name === "string" && frontmatter.name.trim()
 					? frontmatter.name.trim()
 					: file.split(/[/\\]/).pop()!.replace(/\.md$/i, "");
+			const mode = frontmatter["schema-mode"] ?? frontmatter.schemaMode;
+			const turns = frontmatter["max-turns"] ?? frontmatter.maxTurns;
 
 			items.push({
 				name,
@@ -190,12 +194,10 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 					frontmatter.output && typeof frontmatter.output === "object" && !Array.isArray(frontmatter.output)
 						? (frontmatter.output as JsonSchema)
 						: undefined,
-				schemaMode: frontmatter.schemaMode === "strict" || frontmatter.schemaMode === "permissive" ? frontmatter.schemaMode : undefined,
-				// `max-turns` 与 `maxTurns` 同一个键。不是正整数就当没写——写错一个数不该让它每轮都被叫停。
-				maxTurns:
-					typeof frontmatter.maxTurns === "number" && Number.isInteger(frontmatter.maxTurns) && frontmatter.maxTurns > 0
-						? frontmatter.maxTurns
-						: undefined,
+				schemaMode: mode === "strict" || mode === "permissive" ? mode : undefined,
+				// Anything but a positive integer counts as unwritten: one mistyped number shouldn't get the
+				// agent stopped every turn.
+				maxTurns: typeof turns === "number" && Number.isInteger(turns) && turns > 0 ? turns : undefined,
 				provenance: meta(file, scope),
 			} as Sourced<AgentDefinition>);
 		}

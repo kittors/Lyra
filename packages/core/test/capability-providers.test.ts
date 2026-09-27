@@ -116,6 +116,35 @@ test("an agent file can say whom it dispatches and what it must return", async (
 	assert.equal(general.maxTurns, undefined, "unset means the default checkpoint");
 });
 
+test("schema-mode and max-turns may be camelCase too, and the hyphenated one wins when both are written", async () => {
+	/*
+	 * The rule skills and commands follow. Agents read only the camelCase alias, and `normalizeKeys`
+	 * leaves an explicitly written camelCase key holding its own value, so an agent that wrote both
+	 * got the camelCase one. Both key orders, because YAML order is the author's accident.
+	 */
+	await put("project/.lyra/agents/camel-only.md", "---\nschemaMode: permissive\nmaxTurns: 7\n---\nBody.");
+	await put(
+		"project/.lyra/agents/both-hyphen-first.md",
+		"---\nschema-mode: strict\nschemaMode: permissive\nmax-turns: 12\nmaxTurns: 40\n---\nBody.",
+	);
+	await put(
+		"project/.lyra/agents/both-camel-first.md",
+		"---\nschemaMode: permissive\nschema-mode: strict\nmaxTurns: 40\nmax-turns: 12\n---\nBody.",
+	);
+
+	const result = await registry().load<AgentDefinition>("agent", { cwd: project });
+	const [camelOnly, hyphenFirst, camelFirst] = ["camel-only", "both-hyphen-first", "both-camel-first"].map((name) =>
+		result.items.find((a) => a.name === name),
+	);
+	assert.ok(camelOnly && hyphenFirst && camelFirst);
+	assert.equal(camelOnly.schemaMode, "permissive", "the camelCase spelling is read");
+	assert.equal(camelOnly.maxTurns, 7);
+	assert.equal(hyphenFirst.schemaMode, "strict", "the hyphenated spelling decides");
+	assert.equal(hyphenFirst.maxTurns, 12);
+	assert.equal(camelFirst.schemaMode, "strict", "wherever it sits in the file");
+	assert.equal(camelFirst.maxTurns, 12);
+});
+
 test("the other built-in agents are untouched", async () => {
 	const result = await registry().load<AgentDefinition>("agent", { cwd: project });
 	assert.ok(result.items.length > 1, "replacing one does not drop the rest");
