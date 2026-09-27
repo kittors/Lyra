@@ -1,10 +1,8 @@
 import type { UiLocale } from "@lyra/core";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { resolveUiLocale } from "./locales.ts";
-import { MESSAGE_CATALOGS, type MessageKey, type ResolvedUiLocale } from "./messages/index.ts";
-import { setActiveLocale } from "./translate.ts";
-
-type MessageVariables = Readonly<Record<string, string | number>>;
+import type { MessageKey, ResolvedUiLocale } from "./messages/index.ts";
+import { setActiveLocale, translateIn, type MessageVariables } from "./translate.ts";
 
 interface I18nValue {
 	locale: UiLocale;
@@ -21,15 +19,8 @@ function browserLanguages(): readonly string[] {
 
 function makeValue(locale: UiLocale, languages: readonly string[]): I18nValue {
 	const resolvedLocale = resolveUiLocale(locale, languages);
-	const catalog = MESSAGE_CATALOGS[resolvedLocale];
-	const t = (key: MessageKey, variables?: MessageVariables): string => {
-		const template = catalog[key] ?? MESSAGE_CATALOGS["zh-CN"][key];
-		if (!variables) return template;
-		return template.replace(/\{([^}]+)\}/g, (match, name: string) => {
-			const value = variables[name];
-			return value === undefined ? match : String(value);
-		});
-	};
+	// The same function `translate` calls, so a plural form cannot be picked one way here and another there.
+	const t = (key: MessageKey, variables?: MessageVariables): string => translateIn(resolvedLocale, key, variables);
 	return {
 		locale,
 		resolvedLocale,

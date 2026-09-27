@@ -2545,4 +2545,29 @@ export const zhCN = {
 } as const;
 
 export type MessageKey = keyof typeof zhCN;
-export type MessageCatalog = Record<MessageKey, string>;
+
+/**
+ * A sentence that changes with the number it counts: one form per CLDR plural category the language
+ * uses, picked with `Intl.PluralRules` (`i18n/plural.ts`). `other` is required because every
+ * language has it and a category left out falls back to it.
+ *
+ * English and French give `one` and `other`; Russian gives `one`, `few`, `many` and `other`. The
+ * Chinese, Japanese and Korean catalogues never need one — their only category is `other` — so this
+ * source catalogue stays plain strings, and `MessageKey` stays readable off it.
+ */
+export interface PluralForms {
+	readonly zero?: string;
+	readonly one?: string;
+	readonly two?: string;
+	readonly few?: string;
+	readonly many?: string;
+	readonly other: string;
+}
+
+/**
+ * The keys that count something: the source sentence has an `{n}`. Only these may take plural
+ * forms — on any other key nothing passes a count, so a form there could never be picked.
+ */
+type CountedKey = { [K in MessageKey]: (typeof zhCN)[K] extends `${string}{n}${string}` ? K : never }[MessageKey];
+
+export type MessageCatalog = { readonly [K in MessageKey]: K extends CountedKey ? string | PluralForms : string };
