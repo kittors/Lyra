@@ -15,6 +15,7 @@ import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
 import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@lyra/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
+import { attachmentFile } from "./attachment-reads.ts";
 
 export const MEDIA_SCHEME = "ly-media";
 export const PREVIEW_SCHEME = "ly-preview";
@@ -274,7 +275,11 @@ export function registerPreviewProtocols(options: {
 			return serveParkedMedia(url);
 		}
 		const target = decodeURIComponent(url.pathname.replace(/^\//, ""));
-		const allowed = target ? await resolveMedia(target) : null;
+		/*
+		 * 项目里的，或者某条消息带进来的那一份。后一种是给文件面板用的：消息里点「预览」打开一份项目外的
+		 * PDF，面板画它走的就是这里——凭什么放行、只放行到哪儿，见 `attachment-reads.ts`。
+		 */
+		const allowed = target ? ((await resolveMedia(target)) ?? (await attachmentFile(target))) : null;
 		if (!allowed) return new Response("forbidden", { status: 403 });
 		return net.fetch(pathToFileURL(allowed).toString(), { headers: request.headers, method: request.method });
 	});

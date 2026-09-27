@@ -1,33 +1,38 @@
-import { Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Scale, Sparkles, Store } from "lucide-react";
+import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Scale, Sparkles, Store } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useState } from "react";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { useLocalScan, useMarketMarks } from "../plugins/index.ts";
 
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { TabStrip } from "../../ui/primitives/TabStrip.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { type ExtensionsTab, useApp } from "../../store/index.ts";
 import { ExtensionHostSettings } from "./ExtensionHostSettings.tsx";
-import { McpSettings, newMcpServer } from "./McpSettings.tsx";
+import { McpSettings } from "./McpSettings.tsx";
+import { newMcpServer } from "./mcp-defaults.ts";
 import { PluginsSettings } from "./PluginsSettings.tsx";
 import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
-import { useI18n } from "../../i18n/index.ts";
+import { formatList, useI18n } from "../../i18n/index.ts";
 
 type Tab = ExtensionsTab;
 
+/** The strip's order, which is also the direction a page slides in from. */
+const TAB_ORDER: readonly Tab[] = ["plugins", "mcp", "skills", "rules", "extensions"];
+
 /**
- * Plugins, skills and MCP servers, in one place.
+ * 设置 › 插件：已经装上的东西，逐项管理。
  *
- * They were three separate pages in the sidebar, which put three names on something users have
- * one word for. A plugin *is* a bundle of skills and MCP servers — listing the container and
- * its two contents as siblings made them look like three competing mechanisms to choose
- * between, when the relationship is that one contains the others.
+ * 市场（侧栏的「插件」）回答「还能装什么」，这一页回答「装了什么、开着没有、配好没有」。两页是
+ * 同一件事的两半，所以标签、名字、「可更新」的判断都跟市场一致；从这里去市场是右上角那颗「插件
+ * 市场」，从市场回到这里是它头上的「管理已安装」。
  *
- * The counts sit in the tabs because that is the question the page answers at a glance: how
- * much is installed, and of what.
+ * 数字在标签上，因为那是这一页一眼要回答的：装了多少，各是什么。
  */
 export function ExtensionsSettings() {
 	const { t } = useI18n();
@@ -50,16 +55,31 @@ export function ExtensionsSettings() {
 		if (wanted.query !== undefined) setQuery(wanted.query);
 		setExtensionsFocus(null);
 	}, [wanted, setExtensionsFocus]);
-	const [counts, setCounts] = useState({ plugins: 0, skills: 0, rules: 0, extensions: 0 });
+	const [counts, setCounts] = useState({ rules: 0, extensions: 0 });
 	const add = usePopover();
 	const more = usePopover();
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
+	const updates = useApp((s) => s.pluginUpdates);
+	const [updatingAll, setUpdatingAll] = useState(false);
+	// The same scan the tabs below read — one trip to the main process, not three. See `useLocalScan`.
+	const { scan } = useLocalScan();
+	// The market's picture for each installed thing, looked up once for every tab below.
+	const markOf = useMarketMarks();
 
-	/** Whichever directory this tab is about — the two tabs that have one ask the same question. */
+	/** Whichever directory this tab is about. Only 插件 and 技能 have one of their own. */
 	const revealDir = (scope: "user" | "workspace") => {
 		const cwd = workspace?.path ?? "";
 		if (tab === "skills") return bridge.system.revealSkillsDir(scope, cwd);
 		return bridge.plugins.revealDir(scope, cwd);
+	};
+	const hasMenu = tab === "plugins" || tab === "skills" || tab === "mcp";
+	const autoUpdate = settings?.autoUpdatePlugins !== false;
+	const outdated = updates?.outdated ?? [];
+	const updateAll = async () => {
+		setUpdatingAll(true);
+		await bridge.plugins.updateAll().catch(() => undefined);
+		setUpdatingAll(false);
+		useApp.getState().bumpExtensions();
 	};
 
 	const addServer = (transport: "stdio" | "http") => {
@@ -81,14 +101,8 @@ export function ExtensionsSettings() {
 	useEffect(() => {
 		const cwd = workspace?.path ?? "";
 		/*
-		 * 两次扫描，各自到达。
-		 *
-		 * 规则和插件读的是不同的目录，用 `Promise.all` 会让先回来的那个等着后回来的——而这里
-		 * 是两个 tab 上的两个数字，谁也不依赖谁。
+		 * 各自到达：规则和扩展读的是不同的地方，谁也不等谁。插件和技能的数字来自上面那一次共用的扫盘。
 		 */
-		void bridge.plugins.list(cwd).then((scan) => {
-			setCounts((was) => ({ ...was, plugins: scan.plugins.length, skills: scan.skills.length }));
-		});
 		void bridge.extensions
 			.stats(null, cwd)
 			.then((scan) => setCounts((was) => ({ ...was, extensions: scan.extensions.length })))
@@ -102,9 +116,9 @@ export function ExtensionsSettings() {
 	// Same order as the catalogue's tabs. They are the two halves of one subject, and a page where
 	// 技能 is second and another where it is third is two orders for one list.
 	const tabs: { id: Tab; label: string; count: number; icon: typeof Blocks }[] = [
-		{ id: "plugins", label: t("common.plugins"), count: counts.plugins, icon: Blocks },
+		{ id: "plugins", label: t("common.plugins"), count: scan?.plugins.length ?? 0, icon: Blocks },
 		{ id: "mcp", label: "MCP", count: settings?.mcpServers.length ?? 0, icon: Cable },
-		{ id: "skills", label: t("common.skills"), count: counts.skills, icon: Sparkles },
+		{ id: "skills", label: t("common.skills"), count: scan?.skills.length ?? 0, icon: Sparkles },
 		/*
 		 * 规则跟技能并列，因为它们是同一类东西：磁盘上的 markdown，按同名覆盖，影响模型怎么做事。
 		 *
@@ -124,19 +138,14 @@ export function ExtensionsSettings() {
 			<header className={`mx-auto flex w-full max-w-[900px] shrink-0 items-start justify-between pt-8 pb-5 ${gutter}`}>
 				<div className="min-w-0">
 					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("common.plugins")}</h1>
-					{/* One line under the title, because the word 插件 is doing three jobs on this page —
-					    and the tabs below only make sense once you know it contains the other two. */}
 					<p className="pt-1 text-label text-ink-muted">{t("extensions.intro")}</p>
 				</div>
 
 				<div className="flex shrink-0 items-center gap-2 pt-1">
-					<button
-						type="button"
-						onClick={browse}
-						className="grid place-items-center h-[30px] rounded-lg border border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink w-[30px]"
-			data-ly-tip={t("extensions.browseMarket")}
-			aria-label={t("extensions.browseMarket")}
-		><Store size={13} strokeWidth={1.8} /></button>
+					{/* 字写出来：这颗是去另一页的门，不是这一页上的一个动作。 */}
+					<Button variant="subtle" icon={<Store size={14} strokeWidth={1.8} aria-hidden />} onClick={browse}>
+						{t("market.title")}
+					</Button>
 					{/* 同插件页那颗：开单子的入口留字，箭头跟着开合转身。 */}
 					<button
 						type="button"
@@ -178,24 +187,34 @@ export function ExtensionsSettings() {
 				</Popover>
 			)}
 
+			{(outdated.length > 0 || (updates?.updating.length ?? 0) > 0) && (
+				<div className={`mx-auto w-full max-w-[900px] shrink-0 pb-4 ${gutter}`}>
+					<div className="flex items-center gap-3 rounded-xl bg-accent/8 px-4 py-2.5" data-settings-updates="">
+						<ArrowUp size={14} strokeWidth={2.2} className="shrink-0 text-accent" />
+						<p className="min-w-0 flex-1 truncate text-label text-ink">
+							{updates?.updating.length ? t("market.updatingN", { n: updates.updating.length }) : t("market.updatesN", { n: outdated.length })}
+							<span className="pl-2 text-detail text-ink-muted">{formatList(outdated.map((entry) => entry.name).slice(0, 3))}</span>
+						</p>
+						<Button variant="subtle" size="sm" loading={updatingAll || (updates?.updating.length ?? 0) > 0} onClick={() => void updateAll()} className="bg-accent/12 text-accent hover:bg-accent/20 hover:text-accent">
+							{t("market.updateAll")}
+						</Button>
+					</div>
+				</div>
+			)}
+
 			{/* One row: what to look at, and what to look for. */}
 			<div className={`mx-auto flex w-full max-w-[900px] shrink-0 flex-wrap items-center gap-3 pb-5 ${gutter}`}>
-				<div className="flex max-w-full flex-wrap items-center gap-1">
-					{tabs.map((entry) => (
-						<button
-							key={entry.id}
-							type="button"
-							onClick={() => setTab(entry.id)}
-							className={`flex h-[30px] items-center gap-1.5 rounded-lg px-3 text-label transition-colors duration-[var(--ly-t-quick)] ${
-								tab === entry.id ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover/60"
-							}`}
-						>
-							<entry.icon size={13} strokeWidth={1.8} className="shrink-0" />
-							{entry.label}
-							<span className="text-ink-faint tabular-nums">{entry.count}</span>
-						</button>
-					))}
-				</div>
+				<TabStrip
+					label={t("common.plugins")}
+					value={tab}
+					onChange={setTab}
+					items={tabs.map((entry) => ({
+						id: entry.id,
+						label: entry.label,
+						count: entry.count,
+						icon: <entry.icon size={13} strokeWidth={1.8} className="shrink-0" aria-hidden />,
+					}))}
+				/>
 
 				<div className="min-w-2 flex-1" />
 				<SearchField
@@ -207,15 +226,11 @@ export function ExtensionsSettings() {
 				/>
 
 				{/*
-				 * What this tab can do besides list things.
-				 *
-				 * Each of the three used to open with a header of its own — two directory buttons on
-				 * plugins, the same two on skills, two 添加 buttons on MCP — so switching tab moved a
-				 * row of buttons around above a list that had not moved. They are the same kind of
-				 * thing (act on the tab, not on a row), and one ⋯ that changes contents is where that
-				 * kind of thing goes.
+				 * What this tab can do besides list things — only on the tabs that have something: the
+				 * directory items used to be offered on 规则 and 扩展 too, where they opened the plugins
+				 * directory, which is neither.
 				 */}
-				<button
+				{hasMenu && <button
 					type="button"
 					aria-label={t("common.more")}
 					aria-haspopup="menu"
@@ -224,7 +239,7 @@ export function ExtensionsSettings() {
 					className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink aria-expanded:bg-card-hover aria-expanded:text-ink"
 				>
 					<MoreHorizontal size={15} strokeWidth={1.9} />
-				</button>
+				</button>}
 			</div>
 
 			{more.open && (
@@ -275,11 +290,21 @@ export function ExtensionsSettings() {
 								</MenuItem>
 							</>
 						)}
+						{/* 自动更新管的是从市场装的一切，所以三栏都有它。 */}
+						<MenuItem
+							icon={<ArrowUp size={13} strokeWidth={1.9} />}
+							checked={autoUpdate}
+							onClick={() => {
+								if (settings) void saveSettings({ ...settings, autoUpdatePlugins: !autoUpdate });
+							}}
+						>
+							{t("market.autoUpdate")}
+						</MenuItem>
 					</MenuBody>
 				</Popover>
 			)}
 
-			<RetainedViews active={tab} limit={5} render={(shown) => (
+			<RetainedViews active={tab} limit={5} pageClassName="" slide={TAB_ORDER} render={(shown) => (
 				<Scroller className="flex-1" contentClassName="pb-10">
 					{/*
 					 * Column is inside the viewport, not the viewport itself.
@@ -290,10 +315,10 @@ export function ExtensionsSettings() {
 					 * pane; the page still reads as the same column the header uses.
 					 */}
 					<div className={`mx-auto w-full max-w-[900px] ${gutter}`} data-ly-extensions-column="">
-						{shown === "plugins" && <PluginsSettings filter={query} />}
+						{shown === "plugins" && <PluginsSettings filter={query} markOf={markOf} />}
 						{shown === "skills" && <SkillsSettings filter={query} />}
 						{shown === "rules" && <RulesSettings filter={query} />}
-						{shown === "mcp" && <McpSettings filter={query} />}
+						{shown === "mcp" && <McpSettings filter={query} markOf={markOf} />}
 						{shown === "extensions" && <ExtensionHostSettings filter={query} />}
 					</div>
 				</Scroller>

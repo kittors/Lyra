@@ -41,7 +41,11 @@ export function registerUsageIpc({ store: readStore }: UsageIpcDeps): void {
 	ipcMain.handle("usage:storage", () => storageUse(readStore()));
 
 	ipcMain.handle("usage:clear", async (_event, range: ClearRange) => {
-		const result = await clearSessions(readStore(), range, (id) => sessions.get(id)?.running ?? false);
+		// 子代理还在后台跑的也算在跑：主会话收尾了，活没停，结果还要送回来（ADR-0026）。
+		const result = await clearSessions(readStore(), range, (id) => {
+			const live = sessions.get(id);
+			return Boolean(live && (live.running || live.subAgents.list().some((one) => one.status === "running" || one.status === "queued")));
+		});
 		/*
 		 * 丢掉在飞的那次扫描。
 		 *

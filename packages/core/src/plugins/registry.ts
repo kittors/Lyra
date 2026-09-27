@@ -13,7 +13,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { lstat, mkdir, readdir, rename, rm, rmdir, stat } from "node:fs/promises";
+import { lstat, mkdir, readdir, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { normalisePath, readIndex } from "@lyra/registry-shared";
@@ -22,8 +22,8 @@ import type { BundleKind, RegistryEntry } from "@lyra/registry-shared";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { lyraHome } from "../session/store.ts";
 import { renameWithRetry } from "../utils/atomic-write.ts";
-import { fetchBundle } from "./fetch-bundle.ts";
-import { forgetInstall, recordInstall } from "./installs.ts";
+import { fetchBundle, type FetchResult } from "./fetch-bundle.ts";
+import { forgetInstall, readInstalls, recordInstall, type InstallRecord } from "./installs.ts";
 import { inspectBundle } from "./loader.ts";
 
 /*
@@ -148,17 +148,11 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 			}
 		}
 		/*
-		 * And a collection, which has no directory to look for — only its prefix among the loose
-		 * skills.
-		 *
-		 * Without this the same collection could be installed twice: the second run overwrites every
-		 * skill it still ships and silently leaves behind the ones it has since dropped, which is a
-		 * worse state than either version.
+		 * And a collection installed the old way, scattered among the loose skills with no directory
+		 * of its own — the check above cannot see it. Installing over it would leave two copies of
+		 * every skill, one under each layout.
 		 */
-		if (entry.kind === "skill") {
-			const loose = await readdir(bundleRoot("skill")).catch((): string[] => []);
-			if (loose.some((name) => name.startsWith(`${entry.id}-`))) throw new Error(`已经装过 ${entry.id} 了`);
-		}
+		if (entry.kind === "skill" && (await collectionDirs(entry.id)).length > 0) throw new Error(`已经装过 ${entry.id} 了`);
 	}
 
 	// Beside the eventual target rather than in the OS temp dir: same filesystem, so the move is a
@@ -198,29 +192,44 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 		if (entry.kind === "skill") {
 			const skills = await countSkills(source);
 			if (skills === 0) throw new Error("这个目录里没有技能（应当是一层含 SKILL.md 的子目录）");
-			const root = bundleRoot("skill");
 			/*
-			 * The old scatter goes in the same step as the new one arrives.
+			 * A collection goes in whole, as a bundle of its own: `plugins/<id>/skills/<name>`, the
+			 * directory names the upstream gave them, next to a manifest written from the entry.
 			 *
-			 * Laying the new skills down overwrites each one this version still ships and cannot know
-			 * about the ones it dropped — those would stay in the skills directory forever, loaded into
-			 * every session, belonging to a version of the collection nobody has any more. So on an
-			 * update every `<id>-` directory the new version does not bring is retired with the rest.
+			 * It used to be taken apart — each skill renamed `<id>-<name>` and dropped among the loose
+			 * skills — which is what `loadSkills` reading one level deep seemed to require. It broke
+			 * every skill that points at a sibling (`../brainstorming/template.md`), and a quarter of the
+			 * collections surveyed do; it left anything that was not a skill directory behind; and it
+			 * made "which of these are Waza's" a question answered by a name prefix, which also matched
+			 * a skill somebody had written themselves and called `waza-notes`. A bundle is loaded by the
+			 * plugin loader with its structure intact, removed as one directory, and switched on and
+			 * off like any plugin.
 			 *
-			 * Done here rather than before the download: by this point the new files are staged and
-			 * verified, and `swapIn` either does all of it or none.
+			 * What a collection installed the old way left behind is swept up by the same step when it
+			 * is updated — see `collectionDirs`.
 			 */
+			await rm(join(source, ".git"), { recursive: true, force: true });
+			const root = bundleRoot("plugin");
 			await mkdir(root, { recursive: true });
-			const moves: Move[] = (await skillDirs(source)).map((name) => ({ from: join(source, name), to: join(root, `${entry.id}-${name}`) }));
-			if (replace) {
-				const kept = new Set(moves.map((move) => move.to));
-				for (const dir of await collectionDirs(entry.id)) if (!kept.has(dir)) moves.push({ from: null, to: dir });
-				await hooks.beforeReplace?.();
+			const target = join(root, entry.id);
+			const bundle = join(lyraHome(), "plugins", `.${entry.id}.bundle`);
+			await rm(bundle, { recursive: true, force: true });
+			await mkdir(join(bundle, ".lyra-plugin"), { recursive: true });
+			await rename(source, join(bundle, "skills"));
+			await writeFile(join(bundle, ".lyra-plugin", "plugin.json"), `${JSON.stringify(collectionManifest(entry), null, 2)}\n`);
+			try {
+				const moves: Move[] = [{ from: bundle, to: target }, { from: null, to: join(bundleRoot("mcp"), entry.id) }];
+				if (replace) {
+					for (const dir of await collectionDirs(entry.id)) moves.push({ from: null, to: dir });
+					await hooks.beforeReplace?.();
+				}
+				await discard(await swapIn(moves));
+			} finally {
+				await rm(bundle, { recursive: true, force: true });
 			}
-			await discard(await swapIn(moves));
-			await remember(entry, registryName);
-			// `dir` is the directory the skills went into; a collection has no directory of its own.
-			return { dir: root, kind: "skill", servers: [], name: `${entry.name}（${skills} 个技能）` };
+			// No scattered skills to remember: the empty list is what tells `collectionDirs` so.
+			await remember(entry, registryName, fetched, []);
+			return { dir: target, kind: "skill", servers: [], name: `${entry.name}（${skills} 个技能）` };
 		}
 
 		const found = await inspectBundle(source);
@@ -258,7 +267,7 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 			await hooks.beforeReplace?.();
 		}
 		await discard(await swapIn(moves));
-		await remember(entry, registryName);
+		await remember(entry, registryName, fetched);
 
 		return {
 			dir: target,
@@ -285,13 +294,21 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
  * Failing to write the ledger must not fail the install: the files are already in place and the
  * bundle works. What is lost is the update badge, which is worth less than the bundle.
  */
-async function remember(entry: RegistryEntry, registryName?: string): Promise<void> {
+async function remember(entry: RegistryEntry, registryName: string | undefined, fetched: FetchResult, skills?: string[]): Promise<void> {
+	/*
+	 * What is on disk, not what the registry offered. A clone never saw the archive, so its hash is
+	 * not this install's; and its commit is the one the clone checked out, which is the registry's
+	 * only when `fromGit` managed to move to it. Recording the offer instead made the update check
+	 * compare the next offer against files that were never installed.
+	 */
+	const cloned = fetched.via === "git";
 	await recordInstall({
 		id: entry.id,
 		version: entry.version,
-		commit: entry.commit,
-		sha256: entry.sha256,
+		commit: cloned ? fetched.commit : entry.commit,
+		sha256: cloned ? undefined : entry.sha256,
 		from: registryName,
+		...(skills ? { skills } : {}),
 		installedAt: new Date().toISOString(),
 	}).catch(() => undefined);
 }
@@ -324,18 +341,23 @@ export async function uninstallEntry(id: string): Promise<void> {
 /**
  * The skills a collection scattered, which have no directory of their own.
  *
- * Installing flattened them in among the loose skills with an `<id>-` prefix, so this is the same
- * naming read backwards. Shared with the replace path in `installEntry`, because an update that
- * left the previous version's dropped skills behind would be the same bug in a different place.
+ * The ledger names them: installing records every directory it put down. Shared with the replace
+ * path in `installEntry`, because an update that left the previous version's dropped skills behind
+ * would be the same bug in a different place.
  *
- * The prefix has to be followed by something: a skill genuinely named `waza` is not one of Waza's,
- * and removing it would be deleting a directory the user put there themselves.
+ * Read from the ledger rather than guessed from the `<id>-` prefix, which is what this did — and
+ * which also matched a skill the person wrote themselves and happened to call `waza-notes`:
+ * uninstalling Waza deleted it. The prefix is still the answer for a collection installed before
+ * the ledger kept names, because for those it is the only one there is.
  */
 async function collectionDirs(id: string): Promise<string[]> {
 	const skills = bundleRoot("skill");
-	return (await readdir(skills, { withFileTypes: true }).catch((): Dirent[] => []))
-		.filter((entry) => entry.isDirectory() && entry.name.startsWith(`${id}-`))
-		.map((entry) => join(skills, entry.name));
+	const present = (await readdir(skills, { withFileTypes: true }).catch((): Dirent[] => [])).filter((entry) => entry.isDirectory());
+	const recorded = (await readInstalls().catch(() => ({}) as Record<string, InstallRecord>))[id]?.skills;
+	const ours = recorded
+		? present.filter((entry) => recorded.includes(entry.name))
+		: present.filter((entry) => entry.name.startsWith(`${id}-`));
+	return ours.map((entry) => join(skills, entry.name));
 }
 
 /** A directory to put in place (`from`), or only to take away (`from: null`), at `to`. */
@@ -444,19 +466,28 @@ async function countSkills(dir: string): Promise<number> {
 }
 
 /**
- * The skills a collection ships, each to be put directly among the loose skills as `<id>-<name>`.
+ * The manifest a collection is given when it is installed as a bundle.
  *
- * Not nested under a folder named after the collection: `loadSkills` reads one level, so a
- * collection dropped in whole would be invisible. The prefix is what keeps two collections that
- * both ship a `review` from overwriting each other, and it is also the only trace of provenance a
- * flat directory can carry.
+ * Written from the registry entry, because a skill collection has none of its own — the entry is
+ * the only place its name, line and author were ever written down.
  */
-async function skillDirs(source: string): Promise<string[]> {
-	const names: string[] = [];
-	for (const item of await readdir(source, { withFileTypes: true })) {
-		if (!item.isDirectory()) continue;
-		const marker = await stat(join(source, item.name, "SKILL.md")).catch(() => null);
-		if (marker?.isFile()) names.push(item.name);
-	}
-	return names;
+function collectionManifest(entry: RegistryEntry): Record<string, unknown> {
+	return {
+		name: entry.id,
+		...(entry.version ? { version: entry.version } : {}),
+		...(entry.description ? { description: entry.description } : {}),
+		...(entry.author ? { author: { name: entry.author } } : {}),
+		...(entry.homepage ? { homepage: entry.homepage } : {}),
+		...(entry.license ? { license: entry.license } : {}),
+		skills: "skills",
+		interface: {
+			displayName: entry.name,
+			...(entry.description ? { shortDescription: entry.description } : {}),
+			...(entry.author ? { developerName: entry.author } : {}),
+			...(entry.category ? { category: entry.category } : {}),
+			...(entry.brandColor ? { brandColor: entry.brandColor } : {}),
+			...(entry.logo ? { logo: entry.logo } : {}),
+			...(entry.homepage ? { websiteURL: entry.homepage } : {}),
+		},
+	};
 }

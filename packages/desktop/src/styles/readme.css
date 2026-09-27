@@ -1,0 +1,545 @@
+/* ---------------------------------------------------------------------------
+ * A README, on a bundle's page in the market.
+ *
+ * The same document the market's web page shows, set the same way — ported from Lyra-Registry's
+ * `packages/web/src/detail.css` (`.readme`), so an entry reads alike on the site and in the app.
+ * Sizes are in `em` of the page's own text size, which follows the interface font setting; weights
+ * stop at 600 because PingFang has nothing heavier (a 650 is drawn as 600 anyway).
+ *
+ * `Readme.tsx` builds the elements; every class here is one it sets.
+ * ------------------------------------------------------------------------- */
+
+.ly-readme {
+	--ly-rm-warn: rgb(154 103 0);
+	--ly-rm-sunken: color-mix(in srgb, var(--color-ink) 4%, var(--color-shell));
+	--ly-rm-strong-line: color-mix(in srgb, var(--color-ink) 22%, transparent);
+	color: var(--color-ink);
+	font-size: var(--text-body);
+	line-height: 1.75;
+	overflow-wrap: break-word;
+}
+
+:root.dark .ly-readme {
+	--ly-rm-warn: rgb(210 153 34);
+}
+
+.ly-readme > :first-child,
+.ly-readme td > :first-child,
+.ly-readme th > :first-child,
+.ly-readme li > :first-child,
+.ly-readme blockquote > :first-child,
+.ly-rm-details-body > :first-child,
+.ly-rm-center > :first-child {
+	margin-top: 0;
+}
+
+.ly-readme > :last-child,
+.ly-readme td > :last-child,
+.ly-readme th > :last-child,
+.ly-readme li > :last-child,
+.ly-readme blockquote > :last-child,
+.ly-rm-alert > :last-child,
+.ly-rm-details-body > :last-child,
+.ly-rm-center > :last-child {
+	margin-bottom: 0;
+}
+
+/* A centred block keeps the same distance from what follows as a paragraph does. */
+.ly-readme div.ly-rm-center,
+.ly-readme div.ly-rm-right {
+	margin: 0 0 1em;
+}
+
+.ly-readme p {
+	margin: 0 0 1em;
+	text-wrap: pretty;
+}
+
+.ly-readme h1,
+.ly-readme h2,
+.ly-readme h3,
+.ly-readme h4,
+.ly-readme h5,
+.ly-readme h6 {
+	position: relative;
+	margin: 1.9em 0 0.65em;
+	color: var(--color-ink);
+	font-weight: 600;
+	letter-spacing: -0.015em;
+	line-height: 1.35;
+	text-wrap: balance;
+	scroll-margin-top: 16px;
+}
+
+.ly-readme h1 {
+	font-size: 1.6em;
+	letter-spacing: -0.022em;
+}
+
+.ly-readme h2 {
+	padding-bottom: 0.4em;
+	border-bottom: 1px solid var(--color-line-soft);
+	font-size: 1.3em;
+}
+
+.ly-readme h3 {
+	font-size: 1.1em;
+}
+
+.ly-readme h4 {
+	font-size: 1em;
+}
+
+.ly-readme h5,
+.ly-readme h6 {
+	color: var(--color-ink-muted);
+	font-size: 0.93em;
+}
+
+/* A section's link, in the margin, when the heading is pointed at. */
+.ly-rm-anchor {
+	position: absolute;
+	top: 0.2em;
+	left: -24px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 1.2em;
+	color: var(--color-ink-faint);
+	opacity: 0;
+	text-decoration: none !important;
+	transition:
+		opacity var(--ly-t-quick) var(--ly-e-out),
+		color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-readme :is(h1, h2, h3, h4, h5, h6):hover > .ly-rm-anchor {
+	opacity: 1;
+}
+
+.ly-rm-anchor:hover {
+	color: var(--color-accent);
+}
+
+.ly-rm-center > .ly-rm-anchor,
+.ly-rm-center .ly-rm-anchor,
+.ly-rm-right .ly-rm-anchor {
+	display: none;
+}
+
+.ly-readme a {
+	color: var(--color-accent);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--color-accent) 32%, transparent);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+	cursor: pointer;
+	transition: text-decoration-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-readme a:hover {
+	text-decoration-color: currentColor;
+}
+
+/* A picture that is a link does not need a line under it. */
+.ly-readme a:has(> .ly-rm-img) {
+	text-decoration: none;
+}
+
+.ly-readme strong {
+	font-weight: 600;
+}
+
+.ly-readme del {
+	color: var(--color-ink-faint);
+}
+
+.ly-readme mark {
+	padding: 0 0.2em;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--ly-rm-warn) 20%, transparent);
+	color: inherit;
+}
+
+.ly-readme sup,
+.ly-readme sub {
+	font-size: 0.78em;
+	line-height: 0;
+}
+
+.ly-readme kbd {
+	margin: 0 1px;
+	padding: 0.05em 0.4em;
+	border-radius: 5px;
+	box-shadow: inset 0 -1px 0 var(--color-line), inset 0 0 0 1px var(--color-line-soft);
+	font-family: var(--font-mono);
+	font-size: 0.82em;
+	vertical-align: 0.1em;
+}
+
+.ly-readme ul,
+.ly-readme ol {
+	margin: 0 0 1em;
+	padding-left: 1.5em;
+}
+
+.ly-readme ul {
+	list-style: disc;
+}
+
+.ly-readme ol {
+	list-style: decimal;
+}
+
+.ly-readme li {
+	margin: 0.22em 0;
+	padding-left: 0.15em;
+}
+
+.ly-readme li::marker {
+	color: var(--color-ink-faint);
+}
+
+.ly-readme ol > li::marker {
+	font-variant-numeric: tabular-nums;
+}
+
+.ly-readme li > ul,
+.ly-readme li > ol {
+	margin: 0.3em 0 0.4em;
+}
+
+.ly-readme li > p {
+	margin: 0.45em 0;
+}
+
+.ly-readme li > .ly-rm-code,
+.ly-readme li > .ly-rm-table {
+	margin: 0.6em 0;
+}
+
+/* A task list: the box instead of the bullet. */
+.ly-readme ul.ly-rm-tasks {
+	padding-left: 0.2em;
+	list-style: none;
+}
+
+.ly-rm-task {
+	position: relative;
+	padding-left: 1.7em;
+}
+
+.ly-rm-check {
+	position: absolute;
+	top: 0.42em;
+	left: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	border-radius: 5px;
+	box-shadow: inset 0 0 0 1.5px var(--ly-rm-strong-line);
+	color: rgb(255 255 255);
+}
+
+.ly-rm-check[data-checked] {
+	background: var(--color-accent);
+	box-shadow: none;
+}
+
+.ly-readme :not(pre) > code {
+	padding: 0.14em 0.42em;
+	border-radius: 6px;
+	background: var(--color-card);
+	color: var(--color-ink);
+	font-family: var(--font-mono);
+	font-size: 0.86em;
+	overflow-wrap: anywhere;
+}
+
+/* A code block: set apart, never wrapped, with its copy button waiting in the corner. */
+.ly-rm-code {
+	position: relative;
+	margin: 0 0 1.15em;
+}
+
+/*
+ * Size and leading are set on the `pre`, not only the `code`: the block's own line box would
+ * otherwise carry the prose's 1.75 and space every line of code as if it were a paragraph.
+ */
+.ly-rm-code pre {
+	margin: 0;
+	padding: 14px 16px;
+	border-radius: 10px;
+	background: var(--ly-rm-sunken);
+	box-shadow: inset 0 0 0 1px var(--color-line-soft);
+	color: var(--color-ink);
+	font-family: var(--font-mono);
+	font-size: 0.85em;
+	line-height: 1.65;
+	overflow-x: auto;
+	tab-size: 4;
+}
+
+.ly-rm-code code {
+	font: inherit;
+}
+
+.ly-readme blockquote {
+	margin: 0 0 1em;
+	padding: 0.1em 0 0.1em 1.05em;
+	border-left: 3px solid var(--ly-rm-strong-line);
+	color: var(--color-ink-muted);
+}
+
+/* GitHub's note blocks: a quiet tint, the kind named in its own colour. */
+.ly-rm-alert {
+	--ly-rm-alert: var(--color-accent);
+	margin: 0 0 1.1em;
+	padding: 11px 16px 12px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--ly-rm-alert) 7%, transparent);
+	box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ly-rm-alert) 70%, transparent);
+}
+
+.ly-rm-alert-tip {
+	--ly-rm-alert: var(--color-ok);
+}
+
+.ly-rm-alert-important {
+	--ly-rm-alert: var(--color-violet);
+}
+
+.ly-rm-alert-warning {
+	--ly-rm-alert: var(--ly-rm-warn);
+}
+
+.ly-rm-alert-caution {
+	--ly-rm-alert: var(--color-danger);
+}
+
+.ly-readme .ly-rm-alert-title {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0 0 0.3em;
+	color: var(--ly-rm-alert);
+	font-size: 0.87em;
+	font-weight: 600;
+}
+
+.ly-readme hr {
+	height: 1px;
+	margin: 2.2em 0;
+	border: 0;
+	background: var(--color-line-soft);
+}
+
+/*
+ * Pictures arrive with a short fade, never with a jump from nothing. Badges keep text height and
+ * line up in a row; anything else takes the column's width at most.
+ */
+.ly-rm-img {
+	display: inline-block;
+	max-width: 100%;
+	height: auto;
+	border-radius: 6px;
+	vertical-align: middle;
+	opacity: 0;
+	transition: opacity var(--ly-t-slow) var(--ly-e-out);
+}
+
+.ly-rm-img[data-loaded] {
+	opacity: 1;
+}
+
+.ly-rm-img-badge {
+	width: auto;
+	height: 20px;
+	max-height: 22px;
+	border-radius: 3px;
+}
+
+.ly-rm-img-round {
+	border-radius: 50%;
+}
+
+.ly-readme .ly-rm-badges {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.ly-readme .ly-rm-badges > a {
+	display: inline-flex;
+}
+
+.ly-rm-center {
+	text-align: center;
+}
+
+.ly-rm-right {
+	text-align: right;
+}
+
+.ly-readme .ly-rm-badges.ly-rm-center,
+.ly-rm-center > .ly-rm-badges {
+	justify-content: center;
+}
+
+.ly-rm-center > .ly-rm-table,
+.ly-rm-table.ly-rm-center {
+	width: fit-content;
+	max-width: 100%;
+	margin-right: auto;
+	margin-left: auto;
+}
+
+/*
+ * Tables scroll inside a rounded frame rather than widening the page or crushing their cells. The
+ * header is a band of the page's fill; rows are divided by hairlines, not boxed.
+ */
+.ly-rm-table {
+	margin: 0 0 1.2em;
+	overflow-x: auto;
+	border-radius: 10px;
+	box-shadow: inset 0 0 0 1px var(--color-line);
+}
+
+.ly-rm-table table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: 0.9em;
+	line-height: 1.6;
+	text-align: left;
+}
+
+.ly-rm-table th,
+.ly-rm-table td {
+	padding: 9px 14px;
+	vertical-align: top;
+}
+
+.ly-rm-table thead th {
+	background: var(--color-card);
+	color: var(--color-ink);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.ly-rm-table thead th:first-child {
+	border-top-left-radius: 10px;
+}
+
+.ly-rm-table thead th:last-child {
+	border-top-right-radius: 10px;
+}
+
+.ly-rm-table tbody td,
+.ly-rm-table tbody th {
+	border-top: 1px solid var(--color-line-soft);
+}
+
+.ly-rm-table tbody tr:first-child > * {
+	border-top: 0;
+}
+
+.ly-rm-table thead + tbody tr:first-child > * {
+	border-top: 1px solid var(--color-line);
+}
+
+.ly-rm-table tbody tr {
+	transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-rm-table:not(.ly-rm-grid) tbody tr:hover {
+	background: color-mix(in srgb, var(--color-card) 55%, transparent);
+}
+
+/* An HTML table is a layout: its cells hold whole paragraphs, headings and quotes. */
+.ly-rm-grid td,
+.ly-rm-grid th {
+	padding: 12px 16px;
+	font-size: 0.93em;
+	text-align: inherit;
+}
+
+.ly-rm-grid td + td,
+.ly-rm-grid th + td,
+.ly-rm-grid td + th {
+	border-left: 1px solid var(--color-line-soft);
+}
+
+.ly-rm-grid :is(h1, h2, h3, h4) {
+	margin: 0.2em 0 0.5em;
+	padding: 0;
+	border: 0;
+	font-size: 1em;
+}
+
+.ly-rm-grid p {
+	margin: 0 0 0.6em;
+}
+
+/* A fold: a quiet row until it is opened, and a short fall into place when it is. */
+.ly-rm-details {
+	margin: 0 0 1em;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--color-card) 55%, transparent);
+	box-shadow: inset 0 0 0 1px var(--color-line-soft);
+}
+
+.ly-rm-details > summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 9px 14px;
+	border-radius: 10px;
+	color: var(--color-ink);
+	font-weight: 500;
+	list-style: none;
+	cursor: pointer;
+	user-select: none;
+	transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-rm-details > summary::-webkit-details-marker {
+	display: none;
+}
+
+.ly-rm-details > summary:hover {
+	background: var(--color-card);
+}
+
+.ly-rm-details-caret {
+	flex: none;
+	color: var(--color-ink-faint);
+	transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-rm-details[open] > summary .ly-rm-details-caret {
+	transform: rotate(90deg);
+}
+
+.ly-rm-details-body {
+	padding: 4px 16px 14px 36px;
+}
+
+.ly-rm-details[open] .ly-rm-details-body {
+	animation: ly-fade-up var(--ly-t-base) var(--ly-e-out);
+}
+
+/* No margin to hang a section link in when the page is narrow. */
+@media (max-width: 640px) {
+	.ly-rm-anchor {
+		display: none;
+	}
+
+	.ly-rm-details-body {
+		padding-left: 16px;
+	}
+}

@@ -28,12 +28,17 @@ export const taskTool: Tool<TaskArgs> = {
 	snippet: "Delegate work to a sub-agent with its own context",
 	guidelines: [
 		"Use task for open-ended searches across many files, so their contents never enter your own context.",
+		"Sub-agents can also do the work, not only look: `general`, `simple` and `reason` read, edit and run commands like you do. Their risky actions go through the same approvals as yours, asked of the user in this window — so hand them whole, independent pieces of an implementation, each touching its own files.",
+		"Dispatch independent tasks together: several `task` calls in one reply. Extra ones queue automatically; dispatching one per reply only makes each of them start a whole turn later.",
 		"The sub-agent cannot ask you questions; put everything it needs in the prompt.",
+		"What a sub-agent returns is material for you, not an answer for the user. When several report back, merge their findings into one answer organised by the question — deduplicate, check the key claims — rather than relaying each sub-agent's report in turn.",
 		"A sub-agent that stopped before finishing keeps its context. Continue it with `resume` instead of dispatching the same work again — a new one starts from zero and re-reads everything.",
 	],
 	description:
 		"Run a sub-agent with its own context window and report back only its final answer. " +
-		"Use it for open-ended searches across many files, or for work whose intermediate output you do not need. " +
+		"Use it for open-ended searches across many files, for work whose intermediate output you do not need, " +
+		"or to carry out an independent piece of a change (agents with write tools edit files directly; their approvals are asked of the user in this window). " +
+		"Several calls in one reply run in parallel; extra ones wait in a queue. " +
 		"The sub-agent cannot ask you questions, so put everything it needs in `prompt`. " +
 		"Each call starts a fresh sub-agent with an empty context, unless you pass `resume` with the id of one you dispatched earlier: " +
 		"then that same sub-agent continues with everything it already read and did, and `prompt` is what you tell it next.",
@@ -161,6 +166,8 @@ export const taskTool: Tool<TaskArgs> = {
 					warnings: answer.warnings?.length ? answer.warnings : undefined,
 					...(answer.id ? { subAgentId: answer.id } : {}),
 					...(resuming ? { resumed: true } : {}),
+					// 父会话没等它跑完：卡片据此跟着登记簿画它的实时状态，而不是把这句「转到后台」当结论。
+					...(answer.detached ? { detached: true } : {}),
 				},
 			};
 		} catch (error) {
@@ -180,6 +187,8 @@ export const taskTool: Tool<TaskArgs> = {
  */
 function withResumeHint(text: string, answer: SubAgentAnswer): string {
 	if (!answer.id) return text;
+	// 还在后台跑的，结果会自己送回来——这时候给一句「用 resume 追问它」，正好把模型往重复派活上引。
+	if (answer.detached) return `${text}\n\n（子代理 id：\`${answer.id}\`。）`;
 	if (answer.stoppedByUser) return `${text}\n\n（这个子代理是用户在面板上手动停下的。除非用户要求，不要续跑它。）`;
 	if (answer.incomplete) {
 		return (
@@ -188,5 +197,12 @@ function withResumeHint(text: string, answer: SubAgentAnswer): string {
 			"剩下的不多，也可以自己接手。"
 		);
 	}
-	return `${text}\n\n（子代理 id：\`${answer.id}\`。要追问它、或让它在这个基础上接着做，用 \`task\` 的 \`resume\`。）`;
+	/*
+	 * 末尾那半句「这是材料」是说给正要写回答的那个模型的。
+	 *
+	 * 指引里也写了，但指引在系统提示词里、隔着几万字；模型写最后那段回答时，眼前是这几份结果。
+	 * 没有这半句，几个子代理的结果一起回来时，它最顺手的写法就是按人头逐个转述——「子智能体 2：
+	 * 核心逻辑……」——把它自己该做的合并推给了读的人（2026-09-26 的真实会话就是这么答的）。
+	 */
+	return `${text}\n\n（子代理 id：\`${answer.id}\`。要追问它、或让它在这个基础上接着做，用 \`task\` 的 \`resume\`。它交的是材料：回答用户时和别的结论合在一起、按问题组织。）`;
 }

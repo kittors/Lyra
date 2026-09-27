@@ -12,6 +12,11 @@
  * TLS protects the two network hops, but the relay operator can read and inject frames. The room
  * itself is a bearer capability on this transport, so a relay must be trusted.
  *
+ * Frames are streamed, not collected: a frame's header is forwarded as soon as it is read and its
+ * payload follows chunk by chunk, so a 100 MB message costs this process a socket buffer rather than
+ * 100 MB. See docs/adr/0028-sync-link-streams-large-data.md for why the relay changed from
+ * "decode whole frames up to 8 MiB" to this.
+ *
  * No dependencies, one file, Node 18.17+. `node server.mjs`, `PORT` to move it.
  */
 
@@ -19,40 +24,60 @@ import { createHash, randomUUID } from "node:crypto";
 import { createServer, validateHeaderValue } from "node:http";
 
 const PORT = Number(process.env.PORT ?? 8787);
+const MiB = 1024 * 1024;
+
+/** A byte limit from the environment, for operators and for tests that cannot send gigabytes. */
+function envBytes(name, fallback) {
+	const value = Number(process.env[name]);
+	return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 /*
- * 限流，防的是失控而不是攻击。
+ * Limits against runaway clients, not attacks.
  *
- * 这个中转不认识任何人——房间号是配对令牌的 SHA-256，它既不知道两端是谁，也不知道它们在说
- * 什么。所以这里能做的判断只有「一个来源要了多少」，而这恰好也够用：真正要挡的是一个重连循环
- * 跑飞的客户端，或者一个把房间当消息队列用的脚本，而不是一次有针对性的攻击——那种情况下换个
- * 令牌就是换个房间，限流拦不住，靠的是令牌本身。
+ * The relay knows no one: a room is a token hash, so the only judgement available is "how much has
+ * one source asked for". That is enough for what these are for — a reconnect loop gone wrong, or a
+ * script using a room as a pipe. A targeted attacker changes token and gets a new room; that is
+ * stopped by the token, not by these.
  *
- * 三个数都取得比任何正常用法宽得多。一次配对建一个房间；一个会话的一天也到不了 1GB。
+ * The per-connection quota was 1 GiB when nothing bigger than a transcript crossed the link. Phones
+ * now upload files of up to 2 GiB through here (resumable, so a cut costs a retry rather than the
+ * file), and one connection can carry several; 8 GiB keeps a runaway bounded without cutting a
+ * legitimate transfer in half. An operator who wants a bandwidth cap should set one at the reverse
+ * proxy, which can throttle instead of disconnect.
  */
 const MAX_ROOMS_PER_MINUTE = 30;
-const MAX_BYTES_PER_CONNECTION = 1024 * 1024 * 1024;
-const MAX_ASSET_RESPONSE_BYTES = 7 * 1024 * 1024;
+const MAX_BYTES_PER_CONNECTION = envBytes("LYRA_RELAY_MAX_BYTES", 8 * 1024 * MiB);
+/**
+ * The largest single frame accepted.
+ *
+ * Not a memory bound any more — a streamed frame costs the same at any size — but a sanity bound on
+ * what a length field may claim. Current clients send large data as 256 KiB frames; older desktops
+ * send a whole transcript as one frame, and 256 MiB covers any of those with room to spare.
+ */
+const MAX_FRAME_BYTES = envBytes("LYRA_RELAY_MAX_FRAME", 256 * MiB);
+/** The hello is a few hundred bytes. Anything much larger before joining is not this protocol. */
+const MAX_HELLO_BYTES = 16 * 1024;
+const MAX_ASSET_RESPONSE_BYTES = 7 * MiB;
+/** How much of a desktop text frame is read before deciding whether it is an asset response. */
+const SNIFF_BYTES = 64;
 const ASSET_TIMEOUT_MS = 15_000;
 const RATE_WINDOW_MS = 60_000;
-
 /**
- * 一条连接上还没凑成完整帧的字节，最多攒到这里。
+ * Unflushed bytes toward one receiver at which its sender is paused.
  *
- * `MAX_BYTES_PER_CONNECTION` 管的是一条连接一共转了多少，它不看这些字节是不是还堆在内存里。
- * 中间那个缺口是这样的：`decode` 对声明长度超过 8 MiB 的帧返回 `null`，而 `onData` 把 `null`
- * 读成「这块还不完整，等下一块」——于是缓冲再也不会被清空，对面只要一直发，进程的内存就一直
- * 涨。不需要是攻击，一个把长度字段写错了的客户端就能做到。
- *
- * 8 MiB 是 `decode` 允许的最大帧，加一点富余放帧头（最多 14 字节）和紧跟着的下一个帧头。攒到
- * 这个数还没成帧，说明对面发来的不是这个协议里的东西，等下去不会变好。
+ * Without this, a desktop on a fast uplink talking to a phone on a slow one parked the whole
+ * difference in this process's memory. Pausing the sender's socket pushes the wait back through TCP
+ * to the sender, where it belongs; the receiver's `drain` resumes it.
  */
-const MAX_BUFFERED_BYTES = 8 * 1024 * 1024 + 64;
+const HIGH_WATER_BYTES = envBytes("LYRA_RELAY_HIGH_WATER", 1 * MiB);
+/** How long a receiver may take nothing before it is treated as gone. */
+const STALL_MS = envBytes("LYRA_RELAY_STALL_MS", 60_000);
 
-/** 每个来源最近一分钟建了几次房。键是 IP，值是时间戳数组。 */
+/** Room creations per source in the last minute. Keyed by IP, valued by timestamps. */
 const recentJoins = new Map();
 
-/** 这个来源现在还能不能建房。顺手把过期的记录清掉，免得表无限长。 */
+/** Whether this source may open another room now. Expired entries are dropped on the way. */
 function withinRate(address) {
 	const now = Date.now();
 	const seen = (recentJoins.get(address) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
@@ -66,10 +91,9 @@ function withinRate(address) {
 }
 
 /*
- * 记录只在有人来的时候清。
- *
- * 不用定时器：一个每分钟醒一次的进程，在没有连接的时候也醒着，而这个服务大部分时间没有连接。
- * 表的大小与最近一分钟的来源数同阶，那本来就是有界的。
+ * The table is swept when someone arrives, not on a timer: a process that wakes every minute is
+ * awake when nobody is connected, which is most of the time. Its size is bounded by the sources seen
+ * in the last minute anyway.
  */
 function forgetStale() {
 	const now = Date.now();
@@ -80,9 +104,9 @@ function forgetStale() {
 	}
 }
 
-/** Rooms hold at most two: a host and a guest. `Map<room, Set<socket>>`. */
+/** Rooms hold at most two: a host and a guest. `Map<room, Set<client>>`. */
 const rooms = new Map();
-/** Renderer capability → the desktop socket that can read that public build. */
+/** Renderer capability → the desktop client that can read that public build. */
 const assetHosts = new Map();
 /** Asset request id → the HTTP response waiting for the desktop. */
 const assetRequests = new Map();
@@ -92,7 +116,8 @@ const WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const server = createServer((req, res) => {
 	if (req.url === "/health") {
 		res.writeHead(200, { "content-type": "application/json" });
-		res.end(JSON.stringify({ app: "lyra-relay", version: 1, rooms: rooms.size }));
+		// Version 2: frames are streamed with backpressure, and fragmented messages are kept whole.
+		res.end(JSON.stringify({ app: "lyra-relay", version: 2, rooms: rooms.size }));
 		return;
 	}
 	// Routing needs only the request target; an untrusted Host must never become a URL base.
@@ -109,9 +134,16 @@ const server = createServer((req, res) => {
 	res.writeHead(404).end();
 });
 
-server.on("upgrade", (req, socket) => {
+server.on("upgrade", (req, socket, head) => {
 	const key = req.headers["sec-websocket-key"];
 	if (!key) return socket.destroy();
+	// Small frames — a keystroke, a streamed token — should not wait for Nagle.
+	socket.setNoDelay(true);
+	/*
+	 * A phone that loses its network sends neither FIN nor RST, and its member would hold the room's
+	 * mobile role until something tried to write to it. Keepalive probes find it in about a minute.
+	 */
+	socket.setKeepAlive(true, 30_000);
 
 	socket.write(
 		[
@@ -129,17 +161,43 @@ server.on("upgrade", (req, socket) => {
 		room: null,
 		role: null,
 		assetKey: null,
-		/** Bytes not yet forming a whole frame. */
-		buffer: Buffer.alloc(0),
-		/** 这条连接转发过多少字节，用来对上上限。 */
+		/** Payload bytes this connection has sent, checked against the quota. */
 		bytes: 0,
-		/** 建房限流按它算。反代后面这会是反代的地址——那种部署下限流该由反代做。 */
+		/** Room creation is rate limited by this. Behind a reverse proxy it is the proxy's address. */
 		address: socket.remoteAddress ?? "unknown",
+		/** Incoming frame being read; see `onData`. */
+		reader: { header: Buffer.alloc(14), have: 0, need: 2, frame: null },
+		/** This client is in the middle of sending a fragmented message. */
+		fragmented: false,
+		/** Where the rest of that fragmented message goes: the peer it started on, or nobody. */
+		fragmentTo: null,
+		/** A forwarded frame's payload is partway written *to* this client. */
+		midFrame: false,
+		/** A fragmented message is partway forwarded *to* this client. */
+		midMessage: false,
+		/** The relay's own frames for this client, held until it is at a frame or message boundary. */
+		pending: [],
+		/** The receiver this client's socket is paused for, if any. */
+		pausedFor: null,
+		/** Fires if that receiver takes nothing for too long. */
+		stall: null,
+		/** No more input is read from this client. */
+		dead: false,
+		/** `leave` has run. */
+		gone: false,
 	};
 
 	socket.on("data", (chunk) => onData(client, chunk));
+	/*
+	 * The HTTP server hands over upgraded sockets half-open, so a client's FIN emits `end` and
+	 * nothing else — the socket never closes, `leave` never runs, and the member keeps its role in
+	 * the room. The next connection from the same phone was then refused as `role-full` for as long
+	 * as the dead one lingered. Nothing more will come from a client that has sent FIN.
+	 */
+	socket.on("end", () => socket.destroy());
 	socket.on("error", () => leave(client));
 	socket.on("close", () => leave(client));
+	if (head?.length) onData(client, head);
 	/*
 	 * A socket that says nothing is a socket that will hold a room forever.
 	 *
@@ -151,67 +209,279 @@ server.on("upgrade", (req, socket) => {
 	}, 10_000).unref?.();
 });
 
-/** Decode as many whole frames as `chunk` completes, and act on each. */
+// ---------------------------------------------------------------------------
+// Reading frames, a chunk at a time
+// ---------------------------------------------------------------------------
+
+/**
+ * Consume one TCP chunk: header bytes are gathered, payload bytes are handled as they arrive.
+ *
+ * Nothing is concatenated per chunk. The previous reader appended every chunk to one buffer and
+ * re-scanned it, which copied a large frame once per chunk (quadratic in its size) and held all of
+ * it in memory until the last byte arrived.
+ */
 function onData(client, chunk) {
-	client.buffer = Buffer.concat([client.buffer, chunk]);
-
-	/*
-	 * 攒不出帧的字节有个上限，越过就断。
-	 *
-	 * 放在解码之前：要挡的正是那种解码永远不会成功的情况，解完再查等于永远查不到。断开而不是
-	 * 丢弃缓冲——半截帧丢掉之后，后面的字节会从一个不是帧边界的位置开始读，那比断开更难查。
-	 */
-	if (client.buffer.length > MAX_BUFFERED_BYTES) {
-		client.buffer = Buffer.alloc(0);
-		return client.socket.destroy();
-	}
-
-	for (;;) {
-		const frame = decode(client.buffer);
-		if (!frame) return;
-		client.buffer = client.buffer.subarray(frame.size);
-
-		// 0x8 close, 0x9 ping, 0xA pong.
-		if (frame.opcode === 0x8) return client.socket.destroy();
-		if (frame.opcode === 0x9) {
-			client.socket.write(encode(frame.payload, 0xa));
+	let at = 0;
+	while (at < chunk.length && !client.dead) {
+		const reader = client.reader;
+		if (!reader.frame) {
+			const take = Math.min(reader.need - reader.have, chunk.length - at);
+			chunk.copy(reader.header, reader.have, at, at + take);
+			reader.have += take;
+			at += take;
+			if (reader.have < reader.need) return;
+			if (reader.need === 2) {
+				// The first two bytes say how long the rest of the header is.
+				const size = reader.header[1] & 0x7f;
+				reader.need = 2 + (size === 126 ? 2 : size === 127 ? 8 : 0) + (reader.header[1] & 0x80 ? 4 : 0);
+				if (reader.have < reader.need) continue;
+			}
+			if (!beginFrame(client)) return;
+			if (client.reader.frame?.length === 0) endFrame(client);
 			continue;
 		}
-		if (frame.opcode === 0xa) continue;
-
-		if (!client.room) {
-			join(client, frame.payload);
-			continue;
-		}
-
-		/*
-		 * Relayed verbatim, opcode included.
-		 *
-		 * The two ends speak the sync server's own protocol through here — JSON text today, and
-		 * whatever it becomes later. Re-encoding as text would corrupt a binary frame the day one
-		 * is sent, and this has no business knowing which is which.
-		 */
-		/*
-		 * 转发之前先记账。
-		 *
-		 * 超过上限就断开这一条，而不是丢帧继续——一个只转发一半的连接，两端都不会知道它坏了，
-		 * 而同步协议靠 seq 补齐，缺帧的表现是「手机上少了一条消息」，比断开难查得多。
-		 */
-		client.bytes += frame.payload.length;
-		if (client.bytes > MAX_BYTES_PER_CONNECTION) {
-			refuse(client, "quota-exceeded");
-			return;
-		}
-
-		if (client.role === "desktop" && frame.opcode === 0x1 && acceptAssetResponse(client, frame.payload)) {
-			continue;
-		}
-
-		for (const peer of rooms.get(client.room) ?? []) {
-			if (peer !== client && !peer.socket.destroyed) peer.socket.write(encode(frame.payload, frame.opcode));
-		}
+		const frame = reader.frame;
+		const take = Math.min(frame.length - frame.done, chunk.length - at);
+		const piece = chunk.subarray(at, at + take);
+		if (frame.mask) unmask(piece, frame.mask, frame.done);
+		frame.done += take;
+		at += take;
+		if (frame.mode === "stream") forward(client, frame.peer, piece);
+		else if (frame.mode !== "drop") frame.parts.push(piece);
+		if (frame.mode === "sniff" && (frame.done >= SNIFF_BYTES || frame.done === frame.length)) sniff(client, frame);
+		if (frame.done === frame.length) endFrame(client);
 	}
 }
+
+/**
+ * A header has been read: validate it and decide what happens to the payload.
+ *
+ * Three outcomes. Small frames the relay itself must read — control frames, the hello, and desktop
+ * text frames that may be an asset response — are buffered. Everything else is streamed to the peer
+ * with its FIN bit and opcode intact, which is what keeps a fragmented message a message: the old
+ * relay re-sent every fragment with FIN set, turning a phone's 1 MB prompt (Chromium splits anything
+ * over ~128 KiB) into a truncated message followed by orphan continuation frames, and the desktop
+ * closed the link on the protocol error. With no peer in the room, the payload is dropped.
+ */
+function beginFrame(client) {
+	const reader = client.reader;
+	const header = reader.header;
+	const fin = (header[0] & 0x80) !== 0;
+	const reserved = header[0] & 0x70;
+	const opcode = header[0] & 0x0f;
+	const masked = (header[1] & 0x80) !== 0;
+	let length = header[1] & 0x7f;
+	let at = 2;
+	if (length === 126) {
+		length = header.readUInt16BE(2);
+		at = 4;
+	} else if (length === 127) {
+		const big = header.readBigUInt64BE(2);
+		if (big > BigInt(MAX_FRAME_BYTES)) return fail(client);
+		length = Number(big);
+		at = 10;
+	}
+	const mask = masked ? Buffer.from(header.subarray(at, at + 4)) : null;
+	reader.have = 0;
+	reader.need = 2;
+
+	// No extension is negotiated, so a reserved bit is a client that does not speak this protocol.
+	if (reserved) return fail(client);
+	const control = opcode >= 0x8;
+	if (control && (!fin || length > 125 || opcode > 0xa)) return fail(client);
+	if (!control && opcode > 0x2) return fail(client);
+	if (length > MAX_FRAME_BYTES) return fail(client);
+	// A continuation needs a message to continue, and a new message cannot start inside one.
+	if (!control && (opcode === 0x0) !== client.fragmented) return fail(client);
+
+	const frame = { fin, opcode, mask, length, done: 0, mode: "drop", parts: [], peer: null };
+	reader.frame = frame;
+	if (control) {
+		frame.mode = "buffer";
+		return true;
+	}
+	if (!client.room) {
+		if (length > MAX_HELLO_BYTES || !fin) {
+			refuse(client, "bad-hello");
+			return false;
+		}
+		frame.mode = "buffer";
+		return true;
+	}
+
+	/*
+	 * Counted before a byte is forwarded, and over the limit the connection is closed rather than
+	 * the frame dropped: a link that silently loses half its frames looks healthy to both ends, and
+	 * the sync protocol would show it as "a message is missing on the phone" — far harder to find.
+	 */
+	client.bytes += length;
+	if (client.bytes > MAX_BYTES_PER_CONNECTION) {
+		refuse(client, "quota-exceeded");
+		return false;
+	}
+
+	/*
+	 * A desktop's text frame may be an asset response, which the relay answers itself instead of
+	 * forwarding. Its first bytes say which: the frame is held only until they arrive, then either
+	 * kept whole (an asset response, at most 7 MiB) or streamed like any other.
+	 */
+	if (client.role === "desktop" && opcode === 0x1 && fin && length <= MAX_ASSET_RESPONSE_BYTES) {
+		frame.mode = "sniff";
+		return true;
+	}
+
+	const peer = opcode === 0x0 ? client.fragmentTo : peerOf(client);
+	if (opcode !== 0x0) client.fragmentTo = fin ? null : peer;
+	startStream(client, frame, peer, []);
+	return true;
+}
+
+/** Announce the frame to the peer and forward whatever of its payload is already here. */
+function startStream(client, frame, peer, already) {
+	if (!peer || peer.socket.destroyed) {
+		frame.mode = "drop";
+		frame.parts = [];
+		return;
+	}
+	frame.mode = "stream";
+	frame.peer = peer;
+	frame.parts = [];
+	peer.midFrame = frame.length > 0;
+	forward(client, peer, already.length ? Buffer.concat([frameHeader(frame.length, frame.opcode, frame.fin), ...already]) : frameHeader(frame.length, frame.opcode, frame.fin));
+}
+
+/** Enough of a desktop text frame to tell an asset response from a session message. */
+function sniff(client, frame) {
+	const head = Buffer.concat(frame.parts).subarray(0, SNIFF_BYTES).toString("latin1");
+	if (head.startsWith('{"type":"asset_response"')) {
+		frame.mode = "buffer";
+		return;
+	}
+	startStream(client, frame, peerOf(client), frame.parts);
+}
+
+/** The whole payload has arrived: finish forwarding it, or act on it if it was buffered. */
+function endFrame(client) {
+	const frame = client.reader.frame;
+	client.reader.frame = null;
+	if (frame.opcode >= 0x8) return control(client, frame.opcode, Buffer.concat(frame.parts));
+
+	if (frame.opcode !== 0x0) client.fragmented = !frame.fin;
+	else if (frame.fin) {
+		client.fragmented = false;
+		client.fragmentTo = null;
+	}
+
+	if (frame.mode === "stream") {
+		const peer = frame.peer;
+		peer.midFrame = false;
+		peer.midMessage = !frame.fin;
+		flushPending(peer);
+		return;
+	}
+	if (frame.mode !== "buffer") return;
+
+	const payload = Buffer.concat(frame.parts);
+	if (!client.room) return join(client, payload);
+	if (acceptAssetResponse(client, payload)) return;
+	/*
+	 * Relayed verbatim, opcode included.
+	 *
+	 * The two ends speak the sync server's own protocol through here — JSON text and binary parts
+	 * today, and whatever it becomes later. Re-encoding as text would corrupt a binary frame, and this
+	 * has no business knowing which is which.
+	 */
+	const peer = peerOf(client);
+	if (peer) forward(client, peer, Buffer.concat([frameHeader(payload.length, frame.opcode, true), payload]));
+}
+
+function control(client, opcode, payload) {
+	// 0x8 close, 0x9 ping, 0xA pong.
+	if (opcode === 0x8) {
+		client.dead = true;
+		client.socket.destroy();
+		return;
+	}
+	if (opcode === 0x9) deliver(client, encode(payload, 0xa), true);
+}
+
+/** The other member of this client's room, or null. */
+function peerOf(client) {
+	for (const member of rooms.get(client.room) ?? []) {
+		if (member !== client && !member.socket.destroyed) return member;
+	}
+	return null;
+}
+
+// ---------------------------------------------------------------------------
+// Writing: forwarded bytes with backpressure, the relay's own frames at boundaries
+// ---------------------------------------------------------------------------
+
+/**
+ * Bytes from one member to the other, pausing the sender while the receiver is behind.
+ *
+ * `pause()` stops reading the sender's socket, so its TCP window fills and the sender's own writes
+ * back up. At most one chunk past the mark is held here.
+ */
+function forward(from, to, data) {
+	if (to.socket.destroyed || to.socket.writableEnded) return;
+	to.socket.write(data);
+	if (to.socket.writableLength <= HIGH_WATER_BYTES || from.pausedFor) return;
+	from.pausedFor = to;
+	from.socket.pause();
+	to.socket.once("drain", () => resume(from, to));
+	/*
+	 * A receiver that takes nothing for a whole minute is not slow, it is gone — and while the sender
+	 * is paused this process cannot even see the sender leave (a paused socket does not report its
+	 * end). Closing the receiver resumes the sender through `leave`.
+	 */
+	from.stall = setTimeout(() => {
+		if (from.pausedFor === to) to.socket.destroy();
+	}, STALL_MS);
+	from.stall.unref?.();
+}
+
+function resume(from, to) {
+	if (from.pausedFor !== to) return;
+	from.pausedFor = null;
+	clearTimeout(from.stall);
+	if (!from.socket.destroyed) from.socket.resume();
+}
+
+/**
+ * One of the relay's own frames, written only where the stream to this client allows it.
+ *
+ * A frame cannot be written into the middle of another frame's payload, and a data frame cannot be
+ * written into the middle of a fragmented message — the receiver would read either as a protocol
+ * error. Control frames (pong) may go between fragments; data frames (`ready`, `peer-left`,
+ * `asset_request`) wait for the message to finish.
+ */
+function deliver(client, frame, isControl) {
+	if (client.socket.destroyed) return;
+	if (client.midFrame || (!isControl && client.midMessage) || client.pending.length > 0) {
+		client.pending.push({ frame, isControl });
+		flushPending(client);
+		return;
+	}
+	client.socket.write(frame);
+}
+
+function flushPending(client) {
+	while (client.pending.length > 0 && !client.socket.destroyed) {
+		const next = client.pending[0];
+		if (client.midFrame || (!next.isControl && client.midMessage)) return;
+		client.pending.shift();
+		client.socket.write(next.frame);
+	}
+}
+
+function send(client, message) {
+	deliver(client, encode(Buffer.from(JSON.stringify(message), "utf8"), 0x1), false);
+}
+
+// ---------------------------------------------------------------------------
+// Rooms
+// ---------------------------------------------------------------------------
 
 function join(client, payload) {
 	let hello;
@@ -265,6 +535,9 @@ function join(client, payload) {
 }
 
 function leave(client) {
+	if (client.gone) return;
+	client.gone = true;
+	client.dead = true;
 	if (client.assetKey && assetHosts.get(client.assetKey) === client) assetHosts.delete(client.assetKey);
 	for (const [id, pending] of assetRequests) {
 		if (pending.desktop !== client) continue;
@@ -276,12 +549,32 @@ function leave(client) {
 	const members = rooms.get(client.room);
 	if (!members) return;
 	members.delete(client);
-	for (const peer of members) send(peer, { type: "peer-left" });
+	for (const peer of members) {
+		resume(peer, client);
+		/*
+		 * A message this client was halfway through sending cannot be finished for it.
+		 *
+		 * The peer is partway into reading it: another frame written now would be read as the rest
+		 * of the payload, or as a data frame inside a fragmented message — a protocol error either
+		 * way, or worse, bytes read as the wrong thing. Closing the peer's socket is the honest end;
+		 * it reconnects and both sides resynchronise, which they do after any drop.
+		 */
+		if (peer.midFrame || peer.midMessage) {
+			peer.dead = true;
+			peer.socket.destroy();
+			continue;
+		}
+		send(peer, { type: "peer-left" });
+	}
 	if (members.size === 0) rooms.delete(client.room);
 	client.room = null;
 	client.role = null;
 	client.assetKey = null;
 }
+
+// ---------------------------------------------------------------------------
+// The renderer asset tunnel
+// ---------------------------------------------------------------------------
 
 async function requestAsset(pathname, res) {
 	const match = /^\/app\/([a-f0-9]{64})(\/.*)?$/.exec(pathname);
@@ -313,7 +606,7 @@ async function requestAsset(pathname, res) {
 }
 
 function acceptAssetResponse(client, payload) {
-	if (payload.length > MAX_ASSET_RESPONSE_BYTES) return false;
+	if (client.role !== "desktop" || payload.length > MAX_ASSET_RESPONSE_BYTES) return false;
 	let message;
 	try {
 		message = JSON.parse(payload.toString("utf8"));
@@ -353,75 +646,50 @@ function safeHeader(value, fallback) {
 	}
 }
 
+/** Say why, then close. Nothing more is read from a refused client. */
 function refuse(client, reason) {
+	client.dead = true;
 	send(client, { type: "error", reason });
-	client.socket.destroy();
+	client.socket.end();
+	setTimeout(() => client.socket.destroy(), 1000).unref?.();
 }
 
-function send(client, message) {
-	if (!client.socket.destroyed) client.socket.write(encode(Buffer.from(JSON.stringify(message), "utf8"), 0x1));
+/** Not this protocol, or not a well-formed frame: there is nothing to say that it would read. */
+function fail(client) {
+	client.dead = true;
+	client.socket.destroy();
+	return false;
 }
 
 // ---------------------------------------------------------------------------
 // The two bits of RFC 6455 this needs
 // ---------------------------------------------------------------------------
 
-/**
- * One frame, if the buffer holds a whole one.
- *
- * Only the client-to-server direction, which is always masked. Returns the payload and how many
- * bytes it consumed, so the caller can keep the remainder for the next frame — TCP does not
- * preserve message boundaries, and a large frame arrives in pieces.
- */
-function decode(buffer) {
-	if (buffer.length < 2) return null;
-	const opcode = buffer[0] & 0x0f;
-	const masked = (buffer[1] & 0x80) !== 0;
-	let length = buffer[1] & 0x7f;
-	let offset = 2;
-
-	if (length === 126) {
-		if (buffer.length < offset + 2) return null;
-		length = buffer.readUInt16BE(offset);
-		offset += 2;
-	} else if (length === 127) {
-		if (buffer.length < offset + 8) return null;
-		const big = buffer.readBigUInt64BE(offset);
-		// A frame this large is not something a pairing exchange produces.
-		if (big > 8n * 1024n * 1024n) return null;
-		length = Number(big);
-		offset += 8;
-	}
-
-	const maskLength = masked ? 4 : 0;
-	if (buffer.length < offset + maskLength + length) return null;
-
-	const mask = masked ? buffer.subarray(offset, offset + 4) : null;
-	offset += maskLength;
-	const payload = Buffer.from(buffer.subarray(offset, offset + length));
-	if (mask) for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4];
-
-	return { opcode, payload, size: offset + length };
+/** Client-to-server payloads are masked with a 4-byte key that cycles by payload offset. */
+function unmask(piece, mask, offset) {
+	for (let i = 0; i < piece.length; i++) piece[i] ^= mask[(offset + i) & 3];
 }
 
-/** Server-to-client, so never masked. */
-function encode(payload, opcode = 0x1) {
-	const length = payload.length;
-	let header;
-	if (length < 126) {
-		header = Buffer.from([0x80 | opcode, length]);
-	} else if (length < 65536) {
-		header = Buffer.alloc(4);
-		header[0] = 0x80 | opcode;
+/** Server-to-client, so never masked. FIN is kept as given: fragments stay fragments. */
+function frameHeader(length, opcode, fin) {
+	const first = (fin ? 0x80 : 0) | opcode;
+	if (length < 126) return Buffer.from([first, length]);
+	if (length < 65536) {
+		const header = Buffer.alloc(4);
+		header[0] = first;
 		header[1] = 126;
 		header.writeUInt16BE(length, 2);
-	} else {
-		header = Buffer.alloc(10);
-		header[0] = 0x80 | opcode;
-		header[1] = 127;
-		header.writeBigUInt64BE(BigInt(length), 2);
+		return header;
 	}
-	return Buffer.concat([header, payload]);
+	const header = Buffer.alloc(10);
+	header[0] = first;
+	header[1] = 127;
+	header.writeBigUInt64BE(BigInt(length), 2);
+	return header;
+}
+
+function encode(payload, opcode = 0x1) {
+	return Buffer.concat([frameHeader(payload.length, opcode, true), payload]);
 }
 
 server.on("error", (error) => {

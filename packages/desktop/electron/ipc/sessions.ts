@@ -43,6 +43,7 @@ import {
 	touchSession,
 } from "../session-hub.ts";
 import { slimSnapshot } from "../display-transcript.ts";
+import { steerDisplay } from "../prompt-input.ts";
 
 export interface SessionsIpcDeps {
 	store(): SessionStorage;
@@ -300,6 +301,8 @@ export function registerSessionsIpc({
 					source: a.source,
 				model: a.model,
 					tools: a.tools,
+					// 逐字段重建的名单，漏一个字段界面就拿不到它——脸就是这么丢过的。
+					...(a.avatar ? { avatar: a.avatar } : {}),
 				})),
 				toolNames: status.toolNames,
 			};
@@ -335,9 +338,9 @@ export function registerSessionsIpc({
 		return session?.subAgents.list() ?? [];
 	});
 
-	ipcMain.handle("subagents:steer", async (_event, sessionId: string, id: string, said: string | UserContent[]) => {
+	ipcMain.handle("subagents:steer", async (_event, sessionId: string, id: string, said: string | UserContent[], display?: unknown) => {
 		const session = sessions.get(sessionId);
-		return session?.steerSubAgent(id, said) ?? false;
+		return session?.steerSubAgent(id, said, steerDisplay(display)) ?? false;
 	});
 
 	ipcMain.handle("subagents:abort", async (_event, sessionId: string, id: string) => {

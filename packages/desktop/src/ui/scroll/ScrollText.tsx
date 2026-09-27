@@ -78,7 +78,20 @@ export function ScrollText({ text, className = "" }: { text: ReactNode; classNam
 		const observer = new ResizeObserver(measure);
 		observer.observe(outer);
 		observer.observe(inner);
-		return () => observer.disconnect();
+		/*
+		 * The overlap (`--ly-row-controls`) is measured by the hover strip and written onto the row.
+		 * Writing it need not change any size here, and when a size does change this observer fires
+		 * first: fold a project and the count pushes in, the title narrows, and this re-judges with
+		 * the old overlap before the strip has written the new one. The strip announces each write on
+		 * the row, and this measures again when it hears it. Outside a hover row nothing announces
+		 * anything, so nothing changes there.
+		 */
+		const row = outer.closest("[data-ly-hover-row]");
+		row?.addEventListener("ly-row-controls", measure);
+		return () => {
+			observer.disconnect();
+			row?.removeEventListener("ly-row-controls", measure);
+		};
 	}, []);
 
 	/** 悬停时读不全就滚：被控件盖住和越出盒子，对读的人是同一件事。 */

@@ -32,6 +32,14 @@ interface CapabilityModule {
 	plugins?: CapabilityPlugin[];
 }
 
+/**
+ * How long one bundle's `capability.js` may take to load.
+ *
+ * A module with a top-level `await` that never settles held the app's start up for good: this runs
+ * before the window exists, so what the person saw was an app that never opened.
+ */
+const LOAD_TIMEOUT_MS = 10_000;
+
 export interface LoadedCapabilityPlugins {
 	plugins: CapabilityPlugin[];
 	diagnostics: PluginDiagnostic[];
@@ -53,7 +61,13 @@ export async function loadCapabilityPlugins(bundles: Plugin[]): Promise<LoadedCa
 		if (!(await stat(entry).then((s) => s.isFile()).catch(() => false))) continue;
 
 		try {
-			const module = (await import(pathToFileURL(entry).href)) as CapabilityModule;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const module = (await Promise.race([
+				import(pathToFileURL(entry).href),
+				new Promise<never>((_, reject) => {
+					timer = setTimeout(() => reject(new Error(`加载超过 ${LOAD_TIMEOUT_MS / 1000} 秒，已跳过`)), LOAD_TIMEOUT_MS);
+				}),
+			]).finally(() => clearTimeout(timer))) as CapabilityModule;
 			const exported = module.plugins ?? module.default;
 			const list = Array.isArray(exported) ? exported : exported ? [exported] : [];
 

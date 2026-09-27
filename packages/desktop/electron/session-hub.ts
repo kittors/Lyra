@@ -321,6 +321,14 @@ async function evictStaleSessions(keep: string): Promise<void> {
 		if (id === keep || session.running || session.meta.pendingPrompt || initializing.has(id) || sideChats.has(id)) continue;
 		if (browserState().tabs.some((tab) => tab.sessionId === id)) continue;
 		if (backgroundJobs(session.can.state).list().some((job) => job.status === "running" || job.status === "stopping")) continue;
+		/*
+		 * 主会话已经收尾、子代理还在后台跑的，也是一场进行中的对话。
+		 *
+		 * 人在主会话等子代理时插了话，主会话回应完就收尾了（`running` 为假），子代理留在后台接着跑，
+		 * 跑完结果会送回来（ADR-0026）。按「没在跑」把它回收掉，等于把那几个子代理连同它们要送回来
+		 * 的结果一起扔了——而人只是去别的对话看了一眼。
+		 */
+		if (session.subAgents.list().some((one) => one.status === "running" || one.status === "queued")) continue;
 		await disposeSession(id);
 	}
 }

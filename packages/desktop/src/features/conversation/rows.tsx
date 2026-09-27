@@ -14,6 +14,7 @@ import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { RuleCard } from "./RuleCard.tsx";
+import { DeliveryRow } from "./DeliveryRow.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
 import { useApp } from "../../store/index.ts";
@@ -118,6 +119,8 @@ export const MessageRow = memo(function MessageRow({
      * the model having thought better of it on its own.
      */
     if (message.ruleMatch) return <RuleCard match={message.ruleMatch} />;
+    // 后台子智能体的结果送回来了：一行说明，不是人说的话。见 `DeliveryRow`。
+    if (message.delivery) return <DeliveryRow delivery={message.delivery} />;
     if (message.synthetic || isNudge(message)) return null;
     return <>{showTime && <div className="ly-conversation-time py-2 text-center text-caption text-ink-faint"><time dateTime={new Date(message.timestamp).toISOString()}>{conversationTime(message.timestamp)}</time></div>}<UserMessage message={message} index={index} /></>;
   }

@@ -1,0 +1,486 @@
+/* ---------------------------------------------------------------------------
+ * What a finger does: pressing, holding, and the menus and sheets it opens.
+ *
+ * Part of `phone.css`; every rule is scoped to the phone host or to an element only the phone
+ * creates. Motion here is plain CSS transitions and animations, so the app-wide reduce-motion rule
+ * in `motion.css` collapses all of it without this file having to know.
+ * ------------------------------------------------------------------------ */
+
+/*
+ * Pressed.
+ *
+ * A pointer gets a hover before it clicks; a finger gets nothing until it lifts, which on a phone
+ * reads as a button that did not notice. So controls answer the touch itself: a small give inwards
+ * and, for rows, the fill a hover would have drawn. The give is quick in and eased out, so a tap
+ * that is already over looks like one press rather than a wobble.
+ */
+[data-lyra-host="mobile"] .ly-press,
+[data-lyra-host="mobile"] [data-ly-toolbar-button],
+[data-lyra-host="mobile"] .ly-composer-control,
+[data-lyra-host="mobile"] [data-ly-window-buttons] button {
+  transition:
+    transform var(--ly-t-base) var(--ly-e-out),
+    background-color var(--ly-t-quick) ease-out,
+    color var(--ly-t-quick) ease-out,
+    opacity var(--ly-t-quick) ease-out;
+}
+
+[data-lyra-host="mobile"] .ly-press:active,
+[data-lyra-host="mobile"] [data-ly-toolbar-button]:active,
+[data-lyra-host="mobile"] .ly-composer-control:active,
+[data-lyra-host="mobile"] [data-ly-window-buttons] button:active {
+  transform: scale(0.92);
+  transition-duration: var(--ly-t-quick);
+}
+
+[data-lyra-host="mobile"] [data-ly-toolbar-button]:active,
+[data-lyra-host="mobile"] .ly-composer-control:not([data-composer-send]):active {
+  background-color: var(--color-card-hover);
+}
+
+/*
+ * A row being held settles slightly — the beginning of the lift that follows if the finger stays.
+ * Slow on purpose: a tap lifts long before it shows, and only a press that is becoming a long press
+ * gets far enough into it to be seen.
+ */
+[data-lyra-host="mobile"] [data-ly-hover-row] {
+  transition:
+    transform var(--ly-t-slow) var(--ly-e-soft),
+    background-color var(--ly-t-quick) ease-out;
+}
+
+[data-lyra-host="mobile"] [data-ly-hover-row]:active {
+  transform: scale(0.975);
+  background-color: var(--color-card-hover);
+}
+
+/* A menu row under the finger: the same fill a pointer hovering it would have drawn. */
+[data-lyra-host="mobile"] .ly-item:active:not(:disabled) {
+  background-color: var(--color-card-hover);
+}
+
+/* ---------------------------------------------------------------------------
+ * The lift: what a long press holds, raised over a blurred page. Built by `mobile/lift.ts`.
+ *
+ * Above the drawer and the window's own buttons, below the menu that opens with it (a popover is
+ * 60 too, and is added to the document after this, so it lands on top).
+ * ------------------------------------------------------------------------ */
+
+.ly-lift {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.ly-lift-scrim {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background: rgb(15 16 18 / 0.16);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
+  opacity: 0;
+  transition: opacity var(--ly-t-base) ease-out;
+}
+
+:root.dark .ly-lift-scrim {
+  background: rgb(0 0 0 / 0.46);
+}
+
+.ly-lift-card {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 16px;
+  pointer-events: none;
+  background: var(--color-float);
+  transform-origin: 50% 50%;
+  transition:
+    translate var(--ly-t-slow) var(--ly-e-out),
+    box-shadow var(--ly-t-base) ease-out;
+}
+
+/* A sent message already has its shape and its colour; the copy keeps both and adds only the lift. */
+.ly-lift-card[data-kind="bubble"] {
+  background: var(--color-card);
+}
+
+.ly-lift-window {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ly-lift-card[data-clip="top"] .ly-lift-window {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0) 36px);
+  mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0) 36px);
+}
+
+.ly-lift-card[data-clip="bottom"] .ly-lift-window {
+  -webkit-mask-image: linear-gradient(to top, transparent 0, rgb(0 0 0) 36px);
+  mask-image: linear-gradient(to top, transparent 0, rgb(0 0 0) 36px);
+}
+
+.ly-lift-card[data-clip="top bottom"] .ly-lift-window {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0) 36px, rgb(0 0 0) calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0) 36px, rgb(0 0 0) calc(100% - 36px), transparent 100%);
+}
+
+.ly-lift-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* The copy draws itself as the row does at rest — no pressed fill, no hover state baked in. */
+.ly-lift-content [data-ly-hover-row],
+.ly-lift-content > * {
+  transform: none !important;
+  background-color: transparent;
+}
+
+.ly-lift[data-open] .ly-lift-scrim {
+  opacity: 1;
+}
+
+.ly-lift[data-open] .ly-lift-card {
+  --ly-lift-scale: 1.035;
+  transform: scale(var(--ly-lift-scale));
+  animation: ly-lift-rise 380ms cubic-bezier(0.2, 0.9, 0.2, 1.18);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.05),
+    0 18px 44px -14px rgb(0 0 0 / 0.34),
+    0 3px 10px -4px rgb(0 0 0 / 0.14);
+}
+
+/* Big things lift by less: two percent of a reply the width of the screen is a jump, not a rise. */
+.ly-lift[data-open] .ly-lift-card[data-kind="message"] {
+  --ly-lift-scale: 1.012;
+}
+
+.ly-lift[data-open] .ly-lift-card[data-kind="bubble"] {
+  --ly-lift-scale: 1.025;
+}
+
+@keyframes ly-lift-rise {
+  0% {
+    transform: scale(0.975);
+  }
+  100% {
+    transform: scale(var(--ly-lift-scale));
+  }
+}
+
+@keyframes ly-lift-fall {
+  0% {
+    transform: scale(var(--ly-lift-scale, 1.03));
+  }
+  100% {
+    transform: none;
+  }
+}
+
+:root.dark .ly-lift[data-open] .ly-lift-card {
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 20px 48px -14px rgb(0 0 0 / 0.7),
+    0 3px 10px -4px rgb(0 0 0 / 0.4);
+}
+
+.ly-lift[data-closing] .ly-lift-scrim {
+  opacity: 0;
+}
+
+.ly-lift[data-closing] .ly-lift-card {
+  transform: none;
+  box-shadow: none;
+  animation: ly-lift-fall 200ms var(--ly-e-out);
+}
+
+/* The original waits under the copy, out of sight, so a copy that moved leaves no twin behind. */
+[data-ly-lift-source] {
+  visibility: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+ * Menus, sized for a thumb.
+ *
+ * The same popovers as on the desktop — `Popover`, `MenuItem` — with rows as tall as a fingertip,
+ * the type one step up, and the icons a size a phone can show. The widths scale with them
+ * (`--ly-menu-width-scale`, read by `Popover`), so every menu keeps the proportions it was drawn
+ * with rather than each picking a phone width of its own.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] {
+  --ly-menu-row: 46px;
+  --radius-menu: 20px;
+  --ly-menu-inset: 6px;
+  --radius-item: 14px;
+  --ly-menu-width-scale: 1.3;
+}
+
+[data-lyra-host="mobile"] .ly-item {
+  gap: 12px;
+  padding-inline: 14px;
+  font-size: var(--text-label);
+}
+
+/* The icon's column in `MenuItem` — the leading span that holds a mark — and what is in it. */
+[data-lyra-host="mobile"] .ly-item > span:first-child:has(> svg, > .ly-phone-glyph) {
+  width: 22px;
+}
+
+[data-lyra-host="mobile"] .ly-item > span:first-child > svg,
+[data-lyra-host="mobile"] .ly-item > span:first-child > .ly-phone-glyph > svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* A redrawn button icon keeps its own strokes and takes the row's colour, like any other icon. */
+[data-lyra-host="mobile"] .ly-phone-glyph {
+  color: inherit;
+}
+
+
+/*
+ * Forms inside a popover — renaming a conversation, naming a branch. The field as tall as a
+ * fingertip and in sixteen pixels, below which iOS zooms the page to show what is being typed;
+ * the two buttons under it the same 44pt as every other control.
+ */
+[data-lyra-host="mobile"] [data-ly-popover] input:not([type="checkbox"]):not([type="radio"]) {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+[data-lyra-host="mobile"] [data-ly-popover] form button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+}
+
+/*
+ * Arriving: grown out of the thing that opened it, with a little give at the end — a menu that
+ * appears under a held finger should feel like it came out of the finger, not faded in beside it.
+ * Leaving stays quick and straight. `transform-origin` is set by `Popover` for each placement.
+ */
+@keyframes ly-phone-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ly-phone-pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+[data-lyra-host="mobile"] .ly-pop-in {
+  animation: ly-phone-pop-in 300ms cubic-bezier(0.2, 0.9, 0.25, 1.12);
+}
+
+[data-lyra-host="mobile"] .ly-pop-out {
+  animation: ly-phone-pop-out 150ms ease-in forwards;
+}
+
+/* ---------------------------------------------------------------------------
+ * Sheets, from the bottom edge. Built by `mobile/PhoneSheet.tsx`.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.32);
+  animation: ly-phone-sheet-scrim-in 260ms ease-out;
+}
+
+.ly-phone-sheet-layer[data-leaving] {
+  animation: ly-phone-sheet-scrim-out 220ms ease-in forwards;
+}
+
+.ly-phone-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: calc(100% - var(--ly-safe-top, 0px) - 24px);
+  border-radius: 24px 24px 0 0;
+  background: var(--color-float);
+  box-shadow: 0 -12px 40px -16px rgb(0 0 0 / 0.35);
+  animation: ly-phone-sheet-in 360ms var(--ly-e-out);
+  transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-phone-sheet[data-dragging] {
+  transition: none;
+}
+
+.ly-phone-sheet-layer[data-leaving] .ly-phone-sheet {
+  animation: ly-phone-sheet-out 240ms var(--ly-e-in) forwards;
+}
+
+.ly-phone-sheet-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 10px 56px 4px;
+  touch-action: none;
+}
+
+.ly-phone-sheet-grabber {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 38px;
+  height: 5px;
+  margin-left: -19px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+}
+
+.ly-phone-sheet-title {
+  font-size: var(--text-label);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.ly-phone-sheet-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-ink-muted);
+}
+
+.ly-phone-sheet-close:active {
+  background: var(--color-card-hover);
+}
+
+.ly-phone-sheet-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px calc(var(--ly-safe-bottom, 0px) + 20px);
+}
+
+/* The message, copied in for selecting: its own type, none of its bubble. */
+.ly-read {
+  font-size: var(--text-body);
+  line-height: 1.7;
+  color: var(--color-ink);
+}
+
+.ly-read .ly-read-copy {
+  max-width: none !important;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  transform: none;
+  visibility: visible;
+}
+
+@keyframes ly-phone-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes ly-phone-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes ly-phone-sheet-scrim-in {
+  from {
+    background: rgb(0 0 0 / 0);
+  }
+}
+
+@keyframes ly-phone-sheet-scrim-out {
+  to {
+    background: rgb(0 0 0 / 0);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Dialogs, as sheets.
+ *
+ * On a phone held upright every dialog comes up from the bottom edge instead of appearing in the
+ * middle: the question and its buttons land under the thumb, the keyboard (when the dialog has a
+ * field) pushes it up rather than covering it, and it goes back down the way it came. The dialog is
+ * the same component — `Overlay` — only where it sits and how it arrives change. A tablet, with room
+ * for a dialog in the middle, keeps it there.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] {
+  /* Fields, dropdowns and dialog buttons share one height (`tokens.css`); on a phone it is a thumb's. */
+  --ly-control: 44px;
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-overlay] {
+  align-items: flex-end;
+  padding: calc(var(--ly-safe-top) + 12px) 0 0;
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-overlay] > [data-ly-modal] {
+  position: relative;
+  width: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
+  padding-bottom: var(--ly-safe-bottom);
+  border-width: 0.5px 0 0;
+  border-radius: 26px 26px 0 0;
+  box-shadow: 0 -16px 48px -20px rgb(0 0 0 / 0.4);
+  animation: ly-phone-sheet-in 380ms var(--ly-e-out);
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-overlay] > [data-ly-modal].ly-dialog-out {
+  animation: ly-phone-sheet-out 240ms var(--ly-e-in) forwards;
+}
+
+/* A handle on top, which says the sheet is a sheet — and where it is pulled from. */
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-overlay] > [data-ly-modal]::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 38px;
+  height: 5px;
+  margin-left: -19px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  pointer-events: none;
+}
+
+/* The actions along the bottom of a sheet are the thumb's, so they share the width between them. */
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-modal] .ly-dialog-action {
+  flex: 1 1 0;
+  font-size: var(--text-label);
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-dialog-actions] > div:empty {
+  display: none;
+}

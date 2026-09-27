@@ -123,7 +123,7 @@ export interface AgentCapabilities {
 	plugins: Plugin[];
 	pluginDiagnostics: { path: string; message: string }[];
 	mcp: McpServerStatus[];
-	agents: { name: string; description: string; source: string; tools: string[] | "*"; model?: string | string[] }[];
+	agents: { name: string; description: string; source: string; tools: string[] | "*"; model?: string | string[]; avatar?: string }[];
 	toolNames: string[];
 }
 
@@ -276,4 +276,25 @@ export interface PullRequestCheck {
 	state: "pass" | "fail" | "pending";
 	/** Where to go read it. Absent for checks GitHub reports without a details page. */
 	url?: string;
+}
+
+/**
+ * 后台对账的结果：装过的东西里谁落后了市场，正在换谁，哪几个上次没换成。
+ *
+ * 主进程算、推给每个窗口（`plugins:changed`）。侧栏据此画那个数，两个插件页据此画「可更新」和
+ * 「全部更新」——它们不各自再算一遍，因为各算各的就会一个说有新版、一个说没有。
+ */
+export interface PluginUpdateState {
+	outdated: { id: string; name: string; version?: string; from: string }[];
+	/** 上次读市场索引的时刻；启动后还没看过是 null。 */
+	checkedAt: number | null;
+	/** 自动更新开着没有（设置里的 `autoUpdatePlugins`，缺省为开）。 */
+	auto: boolean;
+	updating: string[];
+	failed: { id: string; name: string; message: string }[];
+	/**
+	 * 磁盘上装着的东西变过几次（装、卸、更新）。窗口看到它变了就重扫——不管是哪个窗口、哪个页面
+	 * 动的手，别的窗口里的市场和设置页都跟着变。
+	 */
+	revision: number;
 }

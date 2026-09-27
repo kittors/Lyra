@@ -23,8 +23,11 @@ import {
 	type DelegationTier,
 } from "@lyra/core/delegation";
 import type { Settings } from "@lyra/core";
+import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import { Check } from "lucide-react";
 import { useState } from "react";
+import { parseAvatar, type Avatar } from "../../lib/agent-avatar.ts";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle, Toggle } from "./controls.tsx";
@@ -225,7 +228,12 @@ export function DelegationSettings() {
 							onCommit={(maxConcurrentSubAgents) => write({ maxConcurrentSubAgents })}
 						/>
 					}
-				/>
+				>
+					<ConcurrencySlots
+						value={normalizeMaxConcurrentSubAgents(settings.maxConcurrentSubAgents)}
+						onPick={(maxConcurrentSubAgents) => write({ maxConcurrentSubAgents })}
+					/>
+				</Row>
 			</Card>
 		</div>
 	);
@@ -247,6 +255,43 @@ const THINKING_LABELS: Record<string, MessageKey> = {
 	max: "thinking.max",
 	ultra: "thinking.ultra",
 };
+
+/*
+ * 八个座位的脸：内置的七个，再加一颗黄星星。只是座位的样子，不是说这八个会被派——派谁由模型
+ * 按活来挑。
+ */
+const SEATS: Avatar[] = [
+	...BUILTIN_AGENTS.flatMap((agent) => {
+		const face = parseAvatar(agent.avatar);
+		return face ? [face] : [];
+	}),
+	{ shape: "star", color: "yellow" } satisfies Avatar,
+].slice(0, MAX_CONCURRENT_SUB_AGENTS);
+
+/**
+ * 「最多同时运行 4 个」，画成八个座位：四个醒着、四个在睡。
+ *
+ * 数字框说的是多少，这一排说的是「那是什么意思」——同一时刻最多这么多张脸在干活，其余的排队等
+ * 座位空出来。点哪一张就设成几，和旁边的数字框是同一个设置的两种拨法。
+ */
+function ConcurrencySlots({ value, onPick }: { value: number; onPick: (value: number) => void }) {
+	const { t } = useI18n();
+	return (
+		<div role="radiogroup" aria-label={t("delegation.concurrencyAria")} className="mt-3 flex flex-wrap items-center gap-1" data-concurrency-slots="">
+			{SEATS.map((face, index) => {
+				const seat = index + 1;
+				const awake = seat <= value;
+				return (
+					<button key={seat} type="button" role="radio" aria-checked={seat === value} aria-label={t("delegation.seat", { n: seat })} data-ly-tip={t("delegation.seat", { n: seat })}
+						data-seat={seat} data-awake={awake || undefined} data-ly-avatar-host="" onClick={() => onPick(seat)}
+						className="grid h-10 w-10 place-items-center rounded-[12px] transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover">
+						<AgentAvatar avatar={face} size={awake ? 26 : 22} mood={awake ? "idle" : "stopped"} seed={`seat-${seat}`} host="[data-ly-avatar-host]" cheer={seat === value ? value : null} />
+					</button>
+				);
+			})}
+		</div>
+	);
+}
 
 /**
  * 1–8, and never a negative sitting in the box.

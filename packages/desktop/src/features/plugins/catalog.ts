@@ -18,12 +18,14 @@
  * registry says it is.
  */
 
-import type { BundleKind, ClientId, InstallRecord, McpBundle, McpServerConfig, Plugin, RegistryEntry, Skill } from "@lyra/core";
+import type { BundleKind, ClientId, InstallRecord, McpBundle, McpNeed, McpServerConfig, Plugin, RegistryEntry, Skill } from "@lyra/core";
 // A sub-entry, not the root: importing a value from `@lyra/core` pulls its whole index — and with
 // it `node:fs` — into this bundle. See AGENTS.md.
 import { isOutdated } from "@lyra/core/install-record";
+import { needsOf } from "@lyra/core/mcp-placeholders";
+import { CATEGORY_ORDER, canonicalCategory } from "@lyra/registry-shared";
 
-/** Bundles with nothing to file them under. Not a category anyone chose — see `groupByCategory`. */
+/** Bundles with nothing to file them under. Not a category anyone chose — see `shelves`. */
 export const UNFILED = " unfiled";
 
 export interface CatalogItem {
@@ -91,6 +93,17 @@ export interface CatalogItem {
 	origin?: InstallRecord;
 	/** Installed, and what the registry now offers is not what was installed. See `isOutdated`. */
 	outdated: boolean;
+	/**
+	 * What an MCP server asks for from whoever installs it — API keys, tokens, connection strings.
+	 *
+	 * Once installed, read off its servers (their placeholders, and what the bundle's manifest says
+	 * about each); before that, whatever the index says. Empty for everything else.
+	 */
+	needs: McpNeed[];
+	/** Extra words it can be found by. */
+	keywords?: string[];
+	/** When the platform last saw it change upstream. */
+	updatedAt?: string;
 }
 
 /** On disk, in whichever way this kind arrives — the question every "do I have this" check asks. */
@@ -128,6 +141,8 @@ export function merge(
 	configured: McpServerConfig[],
 	remote: { from: string; entry: RegistryEntry }[],
 	skills: Skill[] = [],
+	/** The install ledger — the only record of which skills a collection put down. */
+	installs: Record<string, InstallRecord> = {},
 ): CatalogItem[] {
 	/*
 	 * Every list is defaulted, because three of the four crossed a process boundary to get here.
@@ -143,6 +158,7 @@ export function merge(
 	configured = configured ?? [];
 	remote = remote ?? [];
 	skills = skills ?? [];
+	installs = installs ?? {};
 
 	/*
 	 * Loose skills only — a plugin's skills are the plugin's, and are already accounted for.
@@ -173,7 +189,7 @@ export function merge(
 			description: ui?.shortDescription ?? plugin.manifest.description ?? "",
 			logo: ui?.logo,
 			brandColor: ui?.brandColor,
-			category: ui?.category ?? UNFILED,
+			category: canonicalCategory(ui?.category) ?? UNFILED,
 			kind: "plugin",
 			collected: 0,
 			collectedIn: null,
@@ -195,11 +211,13 @@ export function merge(
 			skillCount: plugin.skills.length,
 			origin: plugin.origin,
 			outdated: false,
+			needs: [],
 		});
 	}
 
 	for (const bundle of bundles) {
 		const ui = bundle.manifest.interface;
+		const rows = configured.filter((server) => server.origin?.bundle === bundle.id);
 		byId.set(bundle.id, {
 			key: bundle.id,
 			id: bundle.id,
@@ -207,14 +225,14 @@ export function merge(
 			description: ui?.shortDescription ?? bundle.manifest.description ?? "",
 			logo: ui?.logo,
 			brandColor: ui?.brandColor,
-			category: ui?.category ?? UNFILED,
+			category: canonicalCategory(ui?.category) ?? UNFILED,
 			kind: "mcp",
 			collected: 0,
 			collectedIn: null,
 			installed: null,
 			bundle,
 			// Matched on the directory name, which is what install stamped into every row it wrote.
-			servers: configured.filter((server) => server.origin?.bundle === bundle.id),
+			servers: rows,
 			entry: null,
 			from: null,
 			version: bundle.manifest.version,
@@ -223,6 +241,7 @@ export function merge(
 			serverCount: bundle.servers.length,
 			origin: bundle.origin,
 			outdated: false,
+			needs: bundleNeeds(bundle, rows),
 		});
 	}
 
@@ -231,10 +250,36 @@ export function merge(
 		if (existing) {
 			existing.entry = entry;
 			existing.from = from;
+			/*
+			 * The market's name and line, unless the bundle chose display text of its own.
+			 *
+			 * A manifest's `name` is usually an identifier — `superpowers`, `brave-search` — and its
+			 * `description` is whatever the upstream wrote, in whatever language. The card said
+			 * "Superpowers" and a Chinese sentence until the moment it was installed, and then
+			 * "superpowers" and an English paragraph: the same thing, renamed by installing it. A
+			 * bundle that set `interface.displayName` / `shortDescription` meant those for exactly
+			 * this place, and keeps them.
+			 */
+			/*
+			 * A skill collection is installed as a bundle of skills — which on disk is a plugin, and
+			 * the scan says so. It is still what the market listed it as: filed under 技能 before it
+			 * was installed and after, rather than moving tabs the moment it arrived.
+			 */
+			if (entry.kind === "skill" && existing.kind === "plugin") existing.kind = "skill";
+			const ui = existing.installed?.manifest.interface ?? existing.bundle?.manifest.interface;
+			/*
+			 * Except where a maintainer wrote the index's wording by hand (`curated`): that is a decision
+			 * about how this market presents the thing, where a manifest's `displayName` is the author's
+			 * default — and for the market's own entries it is the Chinese name and line the card showed
+			 * before installing, which the card should go on showing after.
+			 */
+			const curated = new Set(entry.curated ?? []);
+			if ((curated.has("name") || !ui?.displayName) && entry.name) existing.name = entry.name;
+			if ((curated.has("description") || !ui?.shortDescription) && entry.description) existing.description = entry.description;
 			// Only where the local copy said nothing; the manifest wins wherever it spoke.
 			if (!existing.description) existing.description = entry.description ?? "";
 			if (!existing.logo) existing.logo = entry.logo;
-			if (existing.category === UNFILED && entry.category) existing.category = entry.category;
+			if (existing.category === UNFILED && entry.category) existing.category = canonicalCategory(entry.category) ?? UNFILED;
 			/*
 			 * The same rule for everything the index also knows: fill the gaps, overwrite nothing.
 			 *
@@ -250,6 +295,9 @@ export function merge(
 			existing.serverCount ??= entry.serverCount;
 			existing.downloads = entry.downloads;
 			existing.clients = entry.clients;
+			existing.keywords = entry.keywords;
+			existing.updatedAt = entry.updatedAt;
+			if (existing.needs.length === 0 && existing.kind === "mcp" && entry.needs) existing.needs = entry.needs;
 			/*
 			 * Whether what is on offer differs from what was installed.
 			 *
@@ -260,8 +308,21 @@ export function merge(
 			existing.outdated = isOutdated(existing.origin, entry);
 			continue;
 		}
-		// Which of the loose skills this collection put there — none, unless it is a collection.
-		const mine = entry.kind === "skill" ? loose.filter((skill) => skill.name.startsWith(`${entry.id}-`)) : [];
+		/*
+		 * Which of the loose skills this collection put there — none, unless it is a collection.
+		 *
+		 * The ledger names them when it can. The `<id>-` prefix is the fallback for collections
+		 * installed before it did, and is wrong in one way the ledger is not: a skill somebody wrote
+		 * and happened to call `waza-notes` would count as one of Waza's.
+		 */
+		const record = entry.kind === "skill" ? installs[entry.id] : undefined;
+		const recorded = record?.skills;
+		const mine =
+			entry.kind !== "skill"
+				? []
+				: recorded
+					? loose.filter((skill) => recorded.includes(skill.name))
+					: loose.filter((skill) => skill.name.startsWith(`${entry.id}-`));
 		byId.set(entry.id, {
 			key: `${from}:${entry.id}`,
 			id: entry.id,
@@ -269,7 +330,7 @@ export function merge(
 			description: entry.description ?? "",
 			logo: entry.logo,
 			brandColor: entry.brandColor,
-			category: entry.category ?? UNFILED,
+			category: canonicalCategory(entry.category) ?? UNFILED,
 			kind: entry.kind,
 			collected: mine.length,
 			collectedIn: mine[0] ? mine[0].dir.slice(0, mine[0].dir.length - mine[0].name.length - 1) : null,
@@ -285,9 +346,15 @@ export function merge(
 			skillCount: entry.skillCount,
 			serverCount: entry.serverCount,
 			clients: entry.clients,
-			// Nothing is installed, so there is nothing to be behind. A collection whose skills are
-			// on disk has no record either — `moveInto` leaves no directory to have written one for.
-			outdated: false,
+			keywords: entry.keywords,
+			updatedAt: entry.updatedAt,
+			/*
+			 * A collection is the one entry here that can be installed: its skills are among the loose
+			 * ones, and the ledger remembers which version put them there.
+			 */
+			origin: mine.length > 0 ? record : undefined,
+			outdated: mine.length > 0 && isOutdated(record, entry),
+			needs: entry.kind === "mcp" ? (entry.needs ?? []) : [],
 		});
 	}
 
@@ -295,31 +362,71 @@ export function merge(
 }
 
 /**
- * Group into the sections the page draws, in a stable order.
+ * What an installed MCP bundle asks for, across its servers.
  *
- * Named categories come first, alphabetically — any other order would need a notion of importance
- * that nothing in a registry index provides, and inventing one (a "Featured" row picked by us)
- * would be a claim we cannot back. Whatever declared no category goes last, under a heading the
- * caller supplies, so the common case of a registry with no categories at all is one plain grid
- * rather than a section called 其他 containing everything.
+ * The settings rows are what will be started, so their placeholders count; the bundle's own copy of
+ * each server carries the manifest's notes about them, which rows written before those notes existed
+ * do not have. One entry per name, the first description found.
  */
-export function groupByCategory(items: CatalogItem[]): { category: string; items: CatalogItem[] }[] {
+function bundleNeeds(bundle: McpBundle, rows: McpServerConfig[]): McpNeed[] {
+	const byName = new Map<string, McpNeed>();
+	const declared = new Map(bundle.servers.map((server) => [server.id, server]));
+	for (const server of rows.length > 0 ? rows : bundle.servers) {
+		const notes = server.needs ?? declared.get(server.id)?.needs;
+		for (const need of needsOf(notes ? { ...server, needs: notes } : server)) {
+			if (!byName.has(need.name)) byName.set(need.name, need);
+		}
+	}
+	return [...byName.values()];
+}
+
+/**
+ * Whether a bundle answers to what was typed: its name, id, the two descriptions, who made it, its
+ * category and the words it can be found by. Every word typed has to match somewhere, so 「浏览器
+ * 截图」 narrows rather than widens.
+ */
+export function matches(item: CatalogItem, query: string): boolean {
+	const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+	if (words.length === 0) return true;
+	const haystack = [item.name, item.id, item.tagline, item.description, item.author, item.category === UNFILED ? "" : item.category, ...(item.keywords ?? [])]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+	return words.every((word) => haystack.includes(word));
+}
+
+/**
+ * The order the shelves come in — the market's own list, shared with everything else that shows
+ * categories; see `CATEGORY_ORDER`. Categories not on it follow, by how much is in them.
+ */
+const SHELF_ORDER: readonly string[] = CATEGORY_ORDER;
+
+/**
+ * Group into the sections the page draws, in a stable order: known categories first in the order
+ * above, then the rest by size, then whatever declared none. Within a shelf, the most installed first
+ * — the one number every entry has that says anything about which of two similar ones to try.
+ */
+export function shelves(items: CatalogItem[]): { category: string; items: CatalogItem[] }[] {
 	const groups = new Map<string, CatalogItem[]>();
 	for (const item of items) {
 		const list = groups.get(item.category);
 		if (list) list.push(item);
 		else groups.set(item.category, [item]);
 	}
-
-	const named = [...groups.entries()]
-		.filter(([category]) => category !== UNFILED)
-		.sort((a, b) => a[0].localeCompare(b[0]))
-		.map(([category, items]) => ({ category, items: items.sort(byName) }));
-
-	const unfiled = groups.get(UNFILED);
-	return unfiled ? [...named, { category: UNFILED, items: unfiled.sort(byName) }] : named;
+	const rank = (category: string) => {
+		const index = SHELF_ORDER.indexOf(category);
+		return index === -1 ? SHELF_ORDER.length : index;
+	};
+	return [...groups.entries()]
+		.sort(([a, left], [b, right]) => {
+			if (a === UNFILED || b === UNFILED) return a === UNFILED ? 1 : -1;
+			return rank(a) - rank(b) || right.length - left.length || a.localeCompare(b);
+		})
+		.map(([category, list]) => ({ category, items: list.sort(byPopularity) }));
 }
 
-function byName(a: CatalogItem, b: CatalogItem): number {
-	return a.name.localeCompare(b.name);
+/** Most installed first; the name settles ties so the order does not shuffle between visits. */
+export function byPopularity(a: CatalogItem, b: CatalogItem): number {
+	return (b.downloads ?? 0) - (a.downloads ?? 0) || a.name.localeCompare(b.name);
 }
+

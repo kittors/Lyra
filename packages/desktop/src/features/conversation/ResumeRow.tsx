@@ -4,7 +4,7 @@ import { useSide, sideChatOf } from "../dock/index.ts";
 import {
 	useScopedHiccups,
 	useScopedMessages,
-	useScopedRunning,
+	useScopedWorking,
 	useScopedSessionId,
 	useScopedStopped,
 	useScopedTodos,
@@ -44,7 +44,8 @@ export function ResumeRow() {
 	 * 什么也没发出去；键盘按下去焦点不切，「继续」发给了焦点那个会话。
 	 */
 	const sessionId = useScopedSessionId();
-	const running = useScopedRunning();
+	// 后台的子智能体还在跑，就不是「停了」——结果回来主会话会接着干，这时候不该请人按「继续」。
+	const running = useScopedWorking();
 	const stopped = useScopedStopped();
 	const messages = useScopedMessages();
 	const todos = useScopedTodos();

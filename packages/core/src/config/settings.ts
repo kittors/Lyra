@@ -9,6 +9,7 @@ import { lyraHome } from "../session/store.ts";
 import type { ProviderConfig, ThinkingLevel } from "../types.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
+import { isPlaceholder, looksSecret } from "../mcp/placeholders.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
 
 /** How much the agent may do without stopping to ask. */
@@ -628,6 +629,13 @@ export interface Settings {
 	 * asking which sort of entry it was looking at.
 	 */
 	skillRegistries: string[];
+	/**
+	 * 装过的插件、MCP 服务和技能集，市场上一有新版就自己换上。
+	 *
+	 * 缺省（`undefined`）算开，跟编辑器和启动器的扩展一样：一个装了就不再打开市场的人，不该一直
+	 * 用着三个月前的那一版。关掉之后照旧提示「可更新」，只是等人点。
+	 */
+	autoUpdatePlugins?: boolean;
 	/** Rules the user chose to always allow, keyed by tool kind. */
 	alwaysAllow: string[];
 	sync: {
@@ -808,6 +816,20 @@ export function settingsPath(): string {
 /** Where a provider's key is filed in the vault. */
 const providerSecretId = (providerId: string): string => `provider:${providerId}`;
 
+/** Where one value an MCP server needs — a key, a token, a connection string — is filed. */
+const mcpSecretId = (serverId: string, name: string): string => `mcp:${serverId}:${name}`;
+
+/** What stands in the file where a vaulted MCP value was: the placeholder that names it. */
+const holeFor = (name: string): string => `\${${name}}`;
+
+/**
+ * Whether one of a server's `env` values belongs in the vault: what its bundle said about it, and
+ * otherwise what the name suggests (`mcp/placeholders.ts`).
+ */
+function isSecretEnv(server: McpServerConfig, name: string): boolean {
+	return server.needs?.find((need) => need.name === name)?.secret ?? looksSecret(name);
+}
+
 /**
  * Put the API keys back on the providers, from the vault.
  *
@@ -821,7 +843,7 @@ const providerSecretId = (providerId: string): string => `provider:${providerId}
  * write; `migrateSecrets` moves it without waiting for one.
  */
 async function withKeys(settings: Settings): Promise<Settings> {
-	if (settings.providers.length === 0) return settings;
+	if (settings.providers.length === 0 && settings.mcpServers.length === 0) return settings;
 	const providers = await Promise.all(
 		settings.providers.map(async (provider) => {
 			const stored = await secret(providerSecretId(provider.id));
@@ -829,7 +851,26 @@ async function withKeys(settings: Settings): Promise<Settings> {
 			return stored === null ? provider : { ...provider, apiKey: stored };
 		}),
 	);
-	return { ...settings, providers };
+	/*
+	 * An MCP server's keys come back the same way, into the `env` they were taken out of. Only where
+	 * the file holds the placeholder naming itself — which is what `writeSettings` leaves behind. A
+	 * value typed into the file by hand is newer than anything in the vault, and is kept.
+	 */
+	const mcpServers = await Promise.all(
+		settings.mcpServers.map(async (server) => {
+			if (!server.env) return server;
+			let env: Record<string, string> | null = null;
+			for (const [name, value] of Object.entries(server.env)) {
+				if (value !== holeFor(name)) continue;
+				const stored = await secret(mcpSecretId(server.id, name));
+				if (stored === null) continue;
+				env ??= { ...server.env };
+				env[name] = stored;
+			}
+			return env ? { ...server, env } : server;
+		}),
+	);
+	return { ...settings, providers, mcpServers };
 }
 
 export async function loadSettings(): Promise<Settings> {
@@ -1130,8 +1171,24 @@ export function saveSettings(settings: Settings): Promise<void> {
 async function writeSettings(settings: Settings): Promise<void> {
 	const keys: Record<string, string> = {};
 	for (const provider of settings.providers) keys[providerSecretId(provider.id)] = provider.apiKey ?? "";
+	/*
+	 * An MCP server's secrets leave the file the same way: into the vault, with the placeholder that
+	 * names them left in their place — so the file still says where the value goes, and a copy of it
+	 * on another machine asks for the key instead of starting without one.
+	 */
+	const mcpServers = settings.mcpServers.map((server) => {
+		if (!server.env) return server;
+		const env = { ...server.env };
+		for (const [name, value] of Object.entries(env)) {
+			if (!value || isPlaceholder(value) || !isSecretEnv(server, name)) continue;
+			keys[mcpSecretId(server.id, name)] = value;
+			env[name] = holeFor(name);
+		}
+		return { ...server, env };
+	});
 	await putSecrets(keys);
-	await keepSecrets((id) => !id.startsWith("provider:") || id in keys);
+	// Removed providers and servers — and a key somebody cleared — are forgotten in the same pass.
+	await keepSecrets((id) => (!id.startsWith("provider:") && !id.startsWith("mcp:")) || id in keys);
 
 	await mkdir(lyraHome(), { recursive: true });
 	const scrubbed: Settings = {
@@ -1139,6 +1196,7 @@ async function writeSettings(settings: Settings): Promise<void> {
 		// 密钥跟着供应商一起走，名字不跟着走——见 `providerNames`。
 		providerNames: rememberProviderNames(settings),
 		providers: settings.providers.map((provider) => ({ ...provider, apiKey: "" })),
+		mcpServers,
 	};
 	// Never over a file that could not be read without keeping a copy first; see `SettingsProblem`.
 	await keepUnreadable(settingsPath());
@@ -1163,12 +1221,16 @@ async function writeSettings(settings: Settings): Promise<void> {
  */
 export async function migrateSecrets(): Promise<number> {
 	const onDisk = await readSettingsFile();
-	const plaintext = onDisk.providers.filter((provider) => provider.apiKey);
-	if (plaintext.length === 0) return 0;
+	const plaintext =
+		onDisk.providers.filter((provider) => provider.apiKey).length +
+		onDisk.mcpServers
+			.flatMap((server) => Object.entries(server.env ?? {}).map(([name, value]) => ({ server, name, value })))
+			.filter(({ server, name, value }) => value && !isPlaceholder(value) && isSecretEnv(server, name)).length;
+	if (plaintext === 0) return 0;
 	// Through `withKeys` so a provider already in the vault is not overwritten by the stale copy
 	// the file still carries.
 	await saveSettings(await withKeys(onDisk));
-	return plaintext.length;
+	return plaintext;
 }
 
 /*

@@ -117,13 +117,97 @@ export function tipPlacement(
 	return { left, top };
 }
 
+/**
+ * Where a long label may end a line, beyond what the browser already allows.
+ *
+ * To the line breaker a path or a filename is one unbroken word — `_`, `.` and `/` are not break
+ * opportunities — so a tip naming `REQUIREMENTS_POLICY_PORTAL_v2_final_review_notes.md` filled the
+ * width cap and `overflow-wrap` cut it wherever the cap fell, leaving 「d」 alone on the second line.
+ * Inside long runs of ASCII (16 characters or more: paths, filenames, URLs, identifiers — not "85.3%"
+ * or "v1.2" in a sentence) a line may now end right after any of `/ \ _ - . : ? & = # + @`.
+ *
+ * Returns the pieces between those places; the caller joins them with `<wbr>`, a break opportunity
+ * that adds nothing to the text.
+ */
+export function softBreaks(text: string): string[] {
+	const pieces: string[] = [];
+	let from = 0;
+	for (const run of text.matchAll(/[!-~]{16,}/g)) {
+		for (const mark of run[0].matchAll(/[/\\_.:?&=#+@-](?=[!-~])/g)) {
+			const at = run.index + mark.index + 1;
+			pieces.push(text.slice(from, at));
+			from = at;
+		}
+	}
+	pieces.push(text.slice(from));
+	return pieces;
+}
+
+/**
+ * The narrowest width at which the tip is still no taller than it is at its widest.
+ *
+ * `max-content` capped by `max-width` fills the first line to the cap and leaves whatever is over for
+ * the next one — the filename above came out as a 343px line and a 7px one. Narrowing the bubble
+ * until one more pixel would cost a line spreads the text evenly over the lines it needs anyway,
+ * whichever break the browser takes, `overflow-wrap`'s break inside a word included. That is also
+ * why this is not `text-wrap: balance`: it evens the lines but leaves the box at the cap, with the
+ * space beside the shorter lines still inside the bubble.
+ *
+ * `heightAt` lays the tip out at a width and reports its height. Passed in so the search can be
+ * tested without a layout engine.
+ */
+export function balancedWidth(widest: number, heightAt: (width: number) => number): number {
+	const height = heightAt(widest);
+	let lo = 0;
+	let hi = Math.ceil(widest);
+	while (hi - lo > 1) {
+		const mid = Math.floor((lo + hi) / 2);
+		if (heightAt(mid) <= height) hi = mid;
+		else lo = mid;
+	}
+	return hi;
+}
+
+/** The label, with a `<wbr>` wherever `softBreaks` lets a line end. */
+function fill(tip: HTMLElement, text: string) {
+	const nodes: Node[] = [];
+	for (const [index, piece] of softBreaks(text).entries()) {
+		if (index > 0) nodes.push(document.createElement("wbr"));
+		nodes.push(document.createTextNode(piece));
+	}
+	tip.replaceChildren(...nodes);
+}
+
+/**
+ * Narrow the bubble to its balanced width, when the label had to wrap at all.
+ *
+ * Only then: a label that fits on one line is already as narrow as it gets, and searching for its
+ * width would be a dozen layouts for nothing. Lines the caller broke with `\n` do not count as
+ * wrapping — `natural` is measured with them in place.
+ */
+function fit(tip: HTMLElement) {
+	tip.style.width = "";
+	const widest = tip.offsetWidth;
+	tip.style.maxWidth = "none";
+	const natural = tip.offsetWidth;
+	tip.style.maxWidth = "";
+	if (natural <= widest) return;
+	const width = balancedWidth(widest, (candidate) => {
+		tip.style.width = `${candidate}px`;
+		return tip.offsetHeight;
+	});
+	tip.style.width = `${width}px`;
+}
+
 function place(el: HTMLElement) {
 	const tip = ensureHost();
 	// Cancel a departure in progress, or the bubble would vanish mid-arrival.
 	window.clearTimeout(leaving);
 	delete tip.dataset.leaving;
-	tip.textContent = shortcutLabel(el.dataset.lyTip ?? "");
+	fill(tip, shortcutLabel(el.dataset.lyTip ?? ""));
 	tip.hidden = false;
+	// Before measuring for placement: the balanced width is the width the bubble is placed with.
+	fit(tip);
 
 	const a = el.getBoundingClientRect();
 	// Entrance transforms must not shrink the dimensions used to keep the bubble on screen.

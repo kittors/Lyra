@@ -53,6 +53,17 @@ export function attachmentStub(name: string, mimeType?: string, label = "Attache
 }
 
 /**
+ * A file a phone uploaded: where the desktop keeps it, so the agent reads it with its own tools.
+ *
+ * The same bracketed shape as `attachmentStub`, so `isAttachmentBody` recognises it when a sent
+ * message is edited. The path is only a pointer for the model; reading it is allowed because the
+ * desktop records it on the message itself, see `prompt-input.ts`.
+ */
+export function attachmentOnDesktop(name: string, path: string, mimeType?: string, label = "Attached file"): string {
+	return `\n\n[${label}: ${name}${mimeType ? ` (${mimeType})` : ""} — uploaded from the phone to ${path}; read it from there]\n\n`;
+}
+
+/**
  * 图片块前面那一行。
  *
  * 图片自己是一个 `image` 内容块，没有地方能写字，所以名字和序号只能作为**紧挨着它的一段文字**送过去。

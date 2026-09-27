@@ -13,9 +13,16 @@ export async function startMobile(home: string, connection: Connection, port: nu
 	const profile = join(home, `phone-profile-${port}`);
 	await mkdir(profile, { recursive: true });
 	await writeFile(preload, bridgeScript(connection));
+	/*
+	 * Drawn even while covered. A phone window hidden behind whatever the person running the suite
+	 * is doing stops producing frames, and every wait for the page then times out — five red tests
+	 * that say nothing about the phone. The desktop app sets the same switches for its own window.
+	 */
 	await writeFile(entry, `const {app,BrowserWindow}=require("electron");
 app.setPath('userData',${JSON.stringify(profile)});
-app.whenReady().then(()=>{const win=new BrowserWindow({width:390,height:844,webPreferences:{preload:${JSON.stringify(preload)},contextIsolation:false,nodeIntegration:false,sandbox:false}});win.loadURL(${JSON.stringify(appUrlOf(connection))});});
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.whenReady().then(()=>{const win=new BrowserWindow({width:390,height:844,webPreferences:{preload:${JSON.stringify(preload)},contextIsolation:false,nodeIntegration:false,sandbox:false,backgroundThrottling:false}});win.loadURL(${JSON.stringify(appUrlOf(connection))});});
 app.on('window-all-closed',()=>app.quit());`);
 	const executable: unknown = createRequire(import.meta.url)("electron");
 	if (typeof executable !== "string") throw new Error("Electron executable unavailable");

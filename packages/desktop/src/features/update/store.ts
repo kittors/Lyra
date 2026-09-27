@@ -96,6 +96,18 @@ function start(): void {
 
 	void check();
 	restartCheckTimer(DEFAULT_INTERVAL_HOURS);
+	/*
+	 * Then the interval chosen in 设置 → 关于, once the settings file has answered. Starting on the
+	 * default and never looking again meant the choice held until the next launch and silently went
+	 * back to six hours after it — the selector still showing the saved value the whole time.
+	 */
+	void Promise.resolve()
+		.then(() => bridge.settings.get())
+		.then((settings) => {
+			const hours = settings.updateCheckIntervalHours;
+			if (typeof hours === "number" && hours !== DEFAULT_INTERVAL_HOURS) restartCheckTimer(hours);
+		})
+		.catch(() => {});
 
 	/*
 	 * Asked once, because a download already in progress emits nothing until its next chunk — and a

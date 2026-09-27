@@ -21,6 +21,7 @@ import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
 import { MessageRow } from "./rows.tsx";
 import { TurnProcess } from "./TurnProcess.tsx";
+import { DispatchFaces, useDispatches } from "./DelegationCard.tsx";
 import { useTranscriptWindow } from "./view-state.ts";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
@@ -470,6 +471,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
              * 在「打开页面」那段工作底下，跑完之后还在那一行底下，位置不动。
              */
             const pages = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "browser_open").map(({ block: call }) => call.id) : []));
+            // 这一轮派出去的子智能体。收起之后「调用工具 N 个」那一行尾巴上还挂着它们的脸。
+            const delegated = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "task").map(({ block: call }) => call) : []));
             return (
               <Fragment key={key}>
                 <TurnProcess
@@ -482,6 +485,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                    */
                   running={running && block.turn === blocks[blocks.length - 1].turn}
                   stateKey={key}
+                  trailing={delegated.length > 0 ? <TurnFaces calls={delegated} /> : undefined}
                 >
                   {block.runs.map(draw)}
                 </TurnProcess>
@@ -581,8 +585,12 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        */}
       <div className="relative shrink-0">
         <ApprovalOverlay />
+        {/*
+         * 只有卡片在的时候才留那道缝。清单是空的（或者做完收起了）时这一层什么都不画，
+         * 却照样垫着 6px，输入框上方平白多出一截空白。
+         */}
         {!roomToFloat && (
-          <div className={`${gutter} pb-1.5`}>
+          <div className={`${gutter} has-[[data-ly-task-list]]:pb-1.5`} data-ly-task-inline="">
             <div className="mx-auto w-full max-w-[var(--ly-content)]">
               <TaskList placement="inline" />
             </div>
@@ -630,4 +638,9 @@ export function ConversationSkeleton() {
       <Composer />
     </div>
   );
+}
+
+/** 一轮里派出去的子智能体的脸：收起那一行的行尾。自己订阅这几条记录，整篇对话不跟着它重画。 */
+function TurnFaces({ calls }: { calls: Parameters<typeof useDispatches>[0] }) {
+	return <DispatchFaces dispatches={useDispatches(calls)} />;
 }

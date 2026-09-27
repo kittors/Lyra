@@ -6,7 +6,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store/index.ts";
-import { useScopedMessages, useScopedRunning, useScopedSessionId, useScopedStopped, useScopedTodos } from "../../app/session-scope.tsx";
+import { useScopedMessages, useScopedSessionId, useScopedStopped, useScopedTodos, useScopedWorking } from "../../app/session-scope.tsx";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { Mark, lastTurnFailed } from "./Mark.tsx";
 import { isUserPaused, taskListHeadline } from "./task-list-state.ts";
@@ -35,7 +35,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	 * originally tied to a detected interruption, which was too narrow — a model that simply
 	 * stopped without finishing leaves a perfectly intact log and a step that spins forever.
 	 */
-	const running = useScopedRunning();
+	// 后台的子智能体还在跑也算：主会话收尾了，活没停，结果回来它会接着干。见 `useScopedWorking`。
+	const running = useScopedWorking();
 	const stopped = useScopedStopped();
 	const paused = isUserPaused(running, stopped);
 	const sessionId = useScopedSessionId();

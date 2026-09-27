@@ -33,6 +33,11 @@ const SHARED_AT = 2;
  * Judged on the whole batch at once, which is why this is one call rather than one per card. Asked
  * card by card, the first entry would be drawn with the avatar and the rest without it, and which
  * one won would depend on which request came back first.
+ *
+ * Only logos the registry did not vouch for reach this: one whose `iconSource` says a maintainer
+ * uploaded it or the bundle shipped it was chosen for that entry on purpose, and the renderer
+ * resolves it on its own — Supabase's server and Supabase's skills both wearing Supabase's logo is
+ * two entries of one brand, not one person's face pasted onto everything they published.
  */
 export function dropShared(resolved: Map<string, string | null>): Map<string, string | null> {
 	const owners = new Map<string, number>();

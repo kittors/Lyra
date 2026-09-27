@@ -154,21 +154,46 @@ test("an installed server carries where it came from, which is what uninstalling
 	});
 });
 
-test("a skill collection is flattened in among the loose skills, prefixed with its id", async () => {
+test("a skill collection goes in whole, as a bundle: its skills keep their names and their neighbours", async () => {
 	await withHome(async () => {
 		/*
-		 * A collection has no directory of its own, and that is not an oversight: `loadSkills` reads
-		 * one level, so a collection dropped in whole would be invisible to the agent. The prefix is
-		 * what keeps two collections that both ship a `review` from overwriting each other.
+		 * 从前拆开改名成 `waza-check`、`waza-hunt` 铺进零散技能里——指向兄弟技能的相对路径全断了，
+		 * 不是技能的目录也被丢下。现在整个放进 `plugins/waza/skills/`，结构原样。
 		 */
-		const repo = await repoWith(skillFiles("skills/", "check", "hunt"));
+		const repo = await repoWith({
+			...skillFiles("skills/", "check", "hunt"),
+			"skills/hunt/SKILL.md": "---\nname: hunt\ndescription: 测试用的技能，先读 ../check/SKILL.md 再动手。\n---\n\n读 ../shared/rules.md。\n",
+			"skills/shared/rules.md": "不是技能，是两个技能共用的一份规则。",
+		});
 
-		const installed = await installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" }));
+		const installed = await installEntry(entryFor("waza", repo, { kind: "skill", path: "skills", name: "Waza", description: "工程习惯" }));
 
 		assert.equal(installed.kind, "skill");
-		assert.equal(installed.dir, bundleRoot("skill"), "the skills directory, not one of its own");
+		assert.equal(installed.dir, join(bundleRoot("plugin"), "waza"), "a directory of its own");
 		assert.match(installed.name, /2 个技能/, "the count is the fact worth reporting back");
-		assert.deepEqual((await readdir(bundleRoot("skill"))).sort(), ["waza-check", "waza-hunt"]);
+		assert.deepEqual((await readdir(join(installed.dir, "skills"))).sort(), ["check", "hunt", "shared"]);
+		assert.deepEqual(await readdir(bundleRoot("skill")).catch(() => []), [], "nothing scattered among the loose skills");
+		const manifest = JSON.parse(await readFile(join(installed.dir, ".lyra-plugin", "plugin.json"), "utf8"));
+		assert.equal(manifest.interface.displayName, "Waza", "labelled from the entry, since a collection has no manifest of its own");
+		assert.equal(manifest.skills, "skills");
+	});
+});
+
+test("a collection installed the old way is swept up when it is updated", async () => {
+	await withHome(async () => {
+		const repo = await repoWith(skillFiles("skills/", "check"));
+		// What the flattening install left behind, with a ledger that names it.
+		for (const name of ["waza-check", "waza-dropped"]) {
+			await mkdir(join(bundleRoot("skill"), name), { recursive: true });
+			await writeFile(join(bundleRoot("skill"), name, "SKILL.md"), `---\nname: ${name}\ndescription: 旧版装下的技能。\n---\n`);
+		}
+		await writeFile(join(process.env.LYRA_HOME!, "installs.json"), JSON.stringify({ waza: { id: "waza", skills: ["waza-check", "waza-dropped"], installedAt: "x" } }));
+
+		await assert.rejects(() => installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" })), /已经装过/);
+		await installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" }), undefined, true);
+
+		assert.deepEqual(await readdir(bundleRoot("skill")), [], "the scattered copies went with the update");
+		assert.deepEqual(await readdir(join(bundleRoot("plugin"), "waza", "skills")), ["check"]);
 	});
 });
 
@@ -199,12 +224,11 @@ test("installing the same id twice is refused rather than merged", async () => {
 	});
 });
 
-test("a collection already on disk is recognised by its prefix, not by a directory", async () => {
+test("a collection already on disk is refused a second install", async () => {
 	await withHome(async () => {
 		/*
-		 * The check a collection needs is different from the one a bundle needs, and getting it wrong
-		 * is silent: a second install overwrites every skill the collection still ships and leaves
-		 * behind the ones it has since dropped, which is a worse state than either version.
+		 * Getting this wrong is silent: a second install over the first would leave two copies of
+		 * every skill it ships, one per layout, both loaded.
 		 */
 		const repo = await repoWith(skillFiles("skills/", "check"));
 		const entry = entryFor("waza", repo, { kind: "skill", path: "skills" });
@@ -286,5 +310,50 @@ test("a tarball that cannot be had falls back to cloning, and the install still 
 
 		assert.equal(installed.kind, "plugin");
 		assert.ok((await stat(join(installed.dir, "skills", "review", "SKILL.md"))).isFile());
+	});
+});
+
+test("卸载一个技能集只删它自己装下的那些，人自己写的同前缀技能留着", async () => {
+	await withHome(async () => {
+		/*
+		 * 从前按 `<id>-` 前缀认：人自己写了一个叫 `waza-notes` 的技能，卸载 Waza 把它一起删了。
+		 * 现在账本记着装下的是哪几个目录，卸载只认账本。
+		 */
+		const repo = await repoWith(skillFiles("skills/", "check", "think"));
+		await installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" }));
+		const mine = join(bundleRoot("skill"), "waza-notes");
+		await mkdir(mine, { recursive: true });
+		await writeFile(join(mine, "SKILL.md"), "---\nname: waza-notes\ndescription: 我自己的笔记技能。\n---\n");
+
+		// 整个装成一个目录，账本上「散落的技能」是空的——卸载按它来，不按前缀猜。
+		const ledger = JSON.parse(await readFile(join(process.env.LYRA_HOME!, "installs.json"), "utf8")) as Record<string, { skills?: string[] }>;
+		assert.deepEqual(ledger.waza?.skills, []);
+
+		await uninstallEntry("waza");
+		assert.deepEqual(await readdir(bundleRoot("skill")), ["waza-notes"]);
+		assert.deepEqual(await readdir(bundleRoot("plugin")).then((names) => names.filter((name) => !name.startsWith("."))), []);
+	});
+});
+
+test("走 git 装下的，账本记的是克隆出来的那个提交，不记没下载过的包的哈希", async () => {
+	await withHome(async () => {
+		const repo = await repoWith({ "plugin.json": JSON.stringify({ name: "demo", skills: "skills" }), ...skillFiles("skills/", "review") });
+		const first = (await run("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+		// 上游又往前走了一步；注册表的包还是从第一个提交构建的。
+		await writeFile(join(repo, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: 第二版的技能。\n---\n");
+		await run("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qam", "second"], { cwd: repo });
+
+		await installEntry(
+			entryFor("demo", repo, {
+				tarball: "https://lyra-registry.invalid/v1/download/demo/1.0.0",
+				sha256: "0".repeat(64),
+				commit: first,
+			}),
+		);
+		const ledger = JSON.parse(await readFile(join(process.env.LYRA_HOME!, "installs.json"), "utf8")) as Record<string, { commit?: string; sha256?: string }>;
+		assert.equal(ledger.demo?.commit, first, "对到注册表构建的那个提交上，而不是分支现在指着的");
+		assert.equal(ledger.demo?.sha256, undefined, "包没下载成，它的哈希就不是这次安装的");
+		const skill = await readFile(join(bundleRoot("plugin"), "demo", "skills", "review", "SKILL.md"), "utf8");
+		assert.match(skill, /测试用的技能/, "文件也是那个提交的");
 	});
 });

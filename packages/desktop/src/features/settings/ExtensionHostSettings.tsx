@@ -12,7 +12,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import type { ExtensionDiagnostic, ExtensionStats } from "@lyra/core";
-import { TriangleAlert } from "lucide-react";
+import { Puzzle, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
@@ -63,7 +63,7 @@ export function ExtensionStatsList({
 	const { t } = useI18n();
 	if (extensions.length === 0 && diagnostics.length === 0) {
 		return (
-			<EmptyHint>{t("extHost.empty")}</EmptyHint>
+			<EmptyHint icon={Puzzle}>{t("extHost.empty")}</EmptyHint>
 		);
 	}
 	return (

@@ -23,12 +23,23 @@ test("the chooser skips unlisted panes and storage skips ephemeral ones", async 
 });
 
 test("the pane renders recorded hunks, not the worktree and not the open file", async () => {
-	const source = await readFile(new URL("../src/features/dock/panels/builtin.tsx", import.meta.url), "utf8");
+	const file = await readFile(new URL("../src/features/dock/panels/builtin.tsx", import.meta.url), "utf8");
+	/*
+	 * 只看交付面板自己那几段——标题和正文。
+	 *
+	 * 这个文件还挂着别的面板：子智能体面板从这里拿到「把一份文件打开到旁边」（它那个域不能引 dock），
+	 * 那一段当然要碰打开的文件。这条要守的是「交付面板画的是记录下来的 diff，不是打开的文件」，不是
+	 * 「这个文件里不许出现 useOpenFile」。
+	 */
+	const start = file.indexOf("function DeliveryTitle(");
+	const end = file.indexOf("const BUILTIN_PANELS");
+	assert.ok(start > 0 && end > start, "交付面板那几段还在原处");
+	const source = file.slice(start, end);
 	assert.match(source, /data-delivery-diff/);
-	assert.match(source, /DiffView/);
+	assert.match(file, /DiffView/);
 	assert.match(source, /useDeliveryReview/);
 	assert.doesNotMatch(source, /useOpenFile/);
-	assert.doesNotMatch(source, /bridge\.git/);
+	assert.doesNotMatch(file, /bridge\.git/);
 	const card = await readFile(new URL("../src/features/conversation/TurnDelivery.tsx", import.meta.url), "utf8");
 	// 认的是「开的是这一轮的 diff 面板」，不是某一个函数名——分屏之后这些入口改走
 	// 认 scope 的 openScopedPanel，语义没变。

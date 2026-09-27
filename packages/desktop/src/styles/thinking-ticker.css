@@ -48,10 +48,20 @@
  * translucent veil — so that hover would read on the translucent sidebar — the gradient stopped
  * covering anything and the archive icon landed on top of the last characters.
  *
- * The mask that replaced it is shared with `ly-fade-edge` above. Hover writes `--ly-fade-clear`
+ * The mask that replaced it is shared with `ly-fade-edge` above. Hover reveals `--ly-fade-clear`
  * so the last N pixels are gone, not merely thinner — a longer `--ly-fade-right` still left
  * glyphs sitting under the icons at ~70% opacity.
+ *
+ * The width is always set; whether it shows is `--ly-fade-reveal` (see marquee.css). A new width
+ * lands on the frame it changes, and only showing and hiding ease: folding or unfolding a project
+ * under the pointer widens or narrows the covered run along with the count, and it must not creep.
  */
+[data-ly-hover-row] .ly-fade-tail {
+  /* Solid clear under the icons — the row says how wide that strip is.
+   * One attribute, every list. Per-row group names drifted and the fade missed the icons. */
+  --ly-fade-clear: var(--ly-row-controls, 30px);
+}
+
 /*
  * `:focus-visible`, not `:focus-within`.
  *
@@ -63,9 +73,7 @@
  */
 [data-ly-hover-row]:hover .ly-fade-tail,
 [data-ly-hover-row]:has(:focus-visible) .ly-fade-tail {
-  /* Solid clear under the icons — the row says how wide that strip is.
-   * One attribute, every list. Per-row group names drifted and the fade missed the icons. */
-  --ly-fade-clear: var(--ly-row-controls, 30px);
+  --ly-fade-reveal: 1;
 }
 
 /*

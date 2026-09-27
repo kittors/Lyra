@@ -9,7 +9,11 @@ import { ModelMenu, type ModelSelection } from "./ModelMenu.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 /** Configuration picks share the model catalogue without changing the active conversation. */
-export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSource, ...selection }: ModelSelection & { ariaLabel: string; disabled?: boolean; inheritedModelId?: string; inheritedSource?: string }) {
+/**
+ * `quiet` 是列表行里那一种：平时只有字，悬停、展开时才浮出一块底。设置页一列七行、每行两颗
+ * 灰底胶囊的时候，页面读起来是十四个输入框，而用户要找的是那一两行改过的。
+ */
+export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSource, quiet, ...selection }: ModelSelection & { ariaLabel: string; disabled?: boolean; inheritedModelId?: string; inheritedSource?: string; quiet?: boolean }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const menu = usePopover();
@@ -20,10 +24,14 @@ export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSo
 	return <>
 		<button type="button" aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={menu.open} disabled={disabled}
 			onClick={menu.toggle} data-ly-select="" data-ly-tip={selected ? `${selected.provider.name} · ${selected.model.name}${!selection.value ? ` · ${selection.inheritDetail ?? selection.inheritLabel}` : ""}` : selection.value || selection.inheritDetail}
-			className="ly-field ly-scroll max-w-[240px] justify-between gap-2 disabled:opacity-60">
+			data-set={selection.value ? "" : undefined}
+			className={`${quiet ? "ly-field-quiet" : "ly-field"} ly-scroll max-w-[240px] justify-between gap-2 disabled:opacity-60`}>
 			{selected ? <ModelIcon model={selected.model.modelId} name={selected.model.name} size={14} /> : <Box size={14} className="shrink-0 text-ink-muted" />}
-			<span className="min-w-0 flex-1 text-left"><ScrollText text={label} /></span>
-			{!selection.value && inheritedSource && <span className="shrink-0 text-caption text-ink-muted">{inheritedSource}</span>}
+			{/* 安静的那种把「随主会话」贴在名字后面读成一句，空白留到箭头前；框里那种照旧两端对齐。 */}
+			{/* 挤不下时先让出位置的是「随主会话」，不是模型名——模型名才是这一格要回答的。 */}
+			<span className={`min-w-0 text-left ${quiet ? "shrink" : "flex-1"}`}><ScrollText text={label} /></span>
+			{!selection.value && inheritedSource && <span className={`text-caption ${quiet ? "min-w-0 shrink-[100] truncate text-ink-faint" : "shrink-0 text-ink-muted"}`}>{inheritedSource}</span>}
+			{quiet && <span className="flex-1" />}
 			<ChevronDown size={12} className={`shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-quick)] ${menu.open ? "rotate-180" : ""}`} />
 		</button>
 		{menu.open && !disabled && <ModelMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}

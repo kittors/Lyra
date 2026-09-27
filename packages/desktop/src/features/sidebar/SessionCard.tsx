@@ -55,8 +55,12 @@ const GAP = 8;
  */
 const CARD_Z = 210;
 
-/** `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster. */
-function when(at: number): string {
+/**
+ * `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster.
+ *
+ * Also the second line of a row on a phone, where there is no card to hover for it.
+ */
+export function when(at: number): string {
 	const days = Math.floor((Date.now() - at) / 86_400_000);
 	if (days === 0) {
 		return new Date(at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });

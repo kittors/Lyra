@@ -54,6 +54,8 @@ export function SideChat() {
 	 * conversation left the incoming session's side chat parked at an offset that belonged to the
 	 * one before it.
 	 */
+	/** 正在答的那一条——它末尾那段工具调用亮着，别的都已经是记录了。 */
+	const lastReply = messages.findLastIndex((message) => message.role === "assistant");
 	const follow = useFollowBottom({
 		surfaceId: sessionId,
 		namespace: "sidechat",
@@ -96,7 +98,7 @@ export function SideChat() {
 					{/* Bottom padding leaves 「回到最新」 somewhere to float that is not the newest reply. */}
 					<div className="mx-auto flex w-full max-w-[var(--ly-content)] flex-col gap-2.5 pt-3 pb-[var(--ly-bottom-inset)]">
 						{messages.map((message, index) => (
-							<MessageRow key={rowKey(message, index)} message={message} index={index} />
+							<MessageRow key={rowKey(message, index)} message={message} index={index} live={running && index === lastReply} />
 						))}
 						{/*
 						 * The same line the main transcript shows while it waits, minus the meter.

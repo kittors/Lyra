@@ -1,6 +1,6 @@
 # ADR-0024：子代理停在检查点，不停在终点——上下文留着，可以续跑
 
-- 状态：已采纳
+- 状态：已采纳；第 2 条由 [ADR-0026](0026-parent-lets-go-when-spoken-to.md) 修订——没写清单就撞上检查点的，再给一段让它列出剩下的步骤
 - 日期：2026-09-24
 - 相关：`packages/core/src/runtime/sub-agent.ts`、`runtime/sub-agents.ts`、`runtime/continuation.ts`、`tools/task.ts`、`agent/loop.ts`（`AgentRunResult.view`）、`agents-builtin.ts`（`maxTurns`）、`capability/providers/native.ts`、desktop `features/subagents/SubAgentPanel.tsx`、`features/subagents/way-back.ts`
 

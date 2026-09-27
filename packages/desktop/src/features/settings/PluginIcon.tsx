@@ -25,6 +25,7 @@ import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { Blocks, FileText, Server } from "lucide-react";
 import { useEffect, useState } from "react";
+import { iconFit, type IconFit } from "./icon-fit.ts";
 
 import type { BundleKind } from "@lyra/core";
 import { bridge } from "../../services/index.ts";
@@ -117,6 +118,13 @@ function KindMark({ kind, brandColor, size }: { kind: BundleKind; brandColor?: s
 }
 
 /**
+ * Pictures this window has resolved, by the URL they were asked for. Only successes: a failure is
+ * asked again next time, when the network may have come back. The main process has its own cache
+ * and does the real work; this one only saves the round trip that makes a remounted card flicker.
+ */
+const RESOLVED = new Map<string, string | null>();
+
+/**
  * A remote logo, resolved to something the page is allowed to draw.
  *
  * `img-src` is `self data: blob:` and stays that way — see `registry:icon`. So a logo that is an
@@ -132,14 +140,25 @@ function KindMark({ kind, brandColor, size }: { kind: BundleKind; brandColor?: s
  */
 function useResolved(logo: string | undefined): string | null {
 	const remote = logo?.startsWith("https://") ? logo : null;
-	const [resolved, setResolved] = useState<string | null>(null);
+	/*
+	 * Started from what this window already resolved, not from nothing. Switching the market's tab
+	 * mounts the grid afresh, and a card that has to ask again draws its placeholder for a frame and
+	 * fades its logo back in — every card, every switch. Remembered here, a remounted card has its
+	 * picture on the first frame.
+	 */
+	const [resolved, setResolved] = useState<string | null>(() => (remote ? (RESOLVED.get(remote) ?? null) : null));
 
 	useEffect(() => {
 		if (!remote) return setResolved(null);
+		const known = RESOLVED.get(remote);
+		if (known !== undefined) return setResolved(known);
 		let alive = true;
 		void bridge.plugins
 			.icon(remote)
-			.then((data) => alive && setResolved(data))
+			.then((data) => {
+				if (data) RESOLVED.set(remote, data);
+				if (alive) setResolved(data);
+			})
 			.catch(() => alive && setResolved(null));
 		return () => {
 			alive = false;
@@ -148,6 +167,7 @@ function useResolved(logo: string | undefined): string | null {
 
 	return remote ? resolved : (logo ?? null);
 }
+
 
 /**
  * A bundle's icon, or the mark for what it is.
@@ -172,17 +192,58 @@ export function PluginIcon({
 	size?: number;
 }) {
 	const src = useResolved(logo);
+	/*
+	 * What the picture turned out to be once it loaded — a tile, or a glyph that needs a plate behind
+	 * it (see `iconFit`) — keyed by the picture it describes. Until then the kind's mark stands in
+	 * underneath and the picture fades in over it, rather than a blank square becoming a logo in one
+	 * frame, or one frame of a full-size logo shrinking onto its plate.
+	 */
+	const [shown, setShown] = useState<{ src: string; fit: IconFit } | null>(null);
+	const loaded = src !== null && shown?.src === src;
+	const plate = loaded && shown.fit !== "tile" ? shown.fit : null;
 
 	if (src) {
+		const radius = Math.round(size * 0.28);
+		const settle = (img: HTMLImageElement) => {
+			if (!loaded) setShown({ src, fit: iconFit(img) });
+		};
 		return (
-			<img
-				src={src}
-				alt=""
-				width={size}
-				height={size}
-				style={{ borderRadius: Math.round(size * 0.28) }}
-				className="shrink-0 object-cover"
-			/>
+			<span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
+				{!loaded && <KindMark kind={kind} brandColor={brandColor} size={size} />}
+				{/*
+				 * Fixed colours rather than theme tokens for the plate, on purpose: it exists so that
+				 * the mark reads the same on both themes, which a plate that followed the theme would undo.
+				 */}
+				<span
+					className={`absolute inset-0 flex items-center justify-center transition-opacity duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${loaded ? "opacity-100" : "opacity-0"}`}
+					style={{
+						borderRadius: radius,
+						...(plate === "light" ? { background: "#fff", boxShadow: "inset 0 0 0 1px rgb(15 23 42 / 0.1)" } : {}),
+						...(plate === "dark" ? { background: "#1b1f24", boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.12)" } : {}),
+					}}
+				>
+					<img
+						// A picture already decoded — the same data URL on the next card — can be complete
+						// before `onLoad` is attached, and then the event never comes.
+						ref={(img) => {
+							if (img?.complete && img.naturalWidth > 0) settle(img);
+						}}
+						src={src}
+						alt=""
+						width={plate ? Math.round(size * 0.68) : size}
+						height={plate ? Math.round(size * 0.68) : size}
+						/*
+						 * Light whatever the window's theme. An SVG can carry its own
+						 * `prefers-color-scheme: dark` rules, and in a dark window it turned its strokes
+						 * white — on the white plate chosen for the dark strokes `iconFit` measured, so the
+						 * logo vanished. The plate is fixed per picture; the picture has to be too.
+						 */
+						style={plate ? { colorScheme: "light" } : { borderRadius: radius, colorScheme: "light" }}
+						className={plate ? "object-contain" : "object-cover"}
+						onLoad={(event) => settle(event.currentTarget)}
+					/>
+				</span>
+			</span>
 		);
 	}
 

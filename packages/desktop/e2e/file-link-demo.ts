@@ -1,17 +1,19 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 录一段「文件链接旁边那两个出口」的演示：真窗口、真悬停、真 tooltip。
+ * A recording of the two exits beside a file link: a real window, a real hover, real tooltips.
  *
- * 要拍的是三件事，按顺序：
+ * What it has to show, in order:
  *
- *   1. 平时什么都没有——两个图标不占视觉，一行字就是一行字
- *   2. 鼠标过来，它们淡入并各自向右落位，第二个晚 45ms（依次登场，不是一起冒出来）
- *   3. 停在图标上，tooltip 说清楚它是什么（「用默认应用打开」/「在访达中显示」）
- *   4. 鼠标离开，两个一起淡出（登场可以有先后，退场不该拖泥带水）
+ *   1. At rest there is nothing — the icons take no attention, a line of text is a line of text
+ *   2. With the pointer resting on the chip, they fade in inside a small bar above it (right above
+ *      the pointer), and not one letter of the filename is covered
+ *   3. Resting on an icon, the tooltip says what it is (open with the default app / reveal in Finder)
+ *   4. Pointer gone, the bar waits a moment and then fades — time for a pointer on its way over
  *
- * 拍窗口不拍屏幕——录全屏会把这台机器上别人的窗口一起录进去。怎么录在 `record.ts`，这里只有剧本。
+ * It records the window, not the screen: a full-screen capture would take in whatever else is open
+ * on this machine. How recording works is in `record.ts`; this file is only the script.
  *
- * 用法：node --experimental-strip-types e2e/file-link-demo.ts [输出文件]
+ * Usage: node --experimental-strip-types e2e/file-link-demo.ts [output file]
  */
 
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -85,22 +87,22 @@ async function main() {
 		console.log("② 平时：什么都没有");
 		await pause(1400);
 
-		console.log("③ 鼠标移到文件名上 —— 两个图标依次落位");
+		console.log("③ 鼠标移到文件名上 —— 上方浮出两个出口");
 		await mark("[data-ly-file-link] a", "data-demo");
 		await hover("[data-demo]");
 		await pause(1800);
 
 		console.log("④ 停在第一个图标上 —— tooltip：用默认应用打开");
-		await mark("[data-ly-file-actions] > button:nth-child(1)", "data-demo2");
+		await mark("[data-ly-file-actions] button:nth-child(1)", "data-demo2");
 		await hover("[data-demo2]");
 		await pause(2200);
 
 		console.log("⑤ 移到第二个图标 —— tooltip：在访达中显示");
-		await mark("[data-ly-file-actions] > button:nth-child(2)", "data-demo3");
+		await mark("[data-ly-file-actions] button:nth-child(2)", "data-demo3");
 		await hover("[data-demo3]");
 		await pause(2200);
 
-		console.log("⑥ 鼠标离开 —— 两个一起淡出");
+		console.log("⑥ 鼠标离开 —— 浮条淡出");
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 60, y: 600 });
 		await pause(1600);
 	} finally {

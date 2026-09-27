@@ -8,7 +8,7 @@
  * permanent row. A destination can be scrolled to.
  */
 
-import { AtSign, Clock, GitPullRequest } from "lucide-react";
+import { Blocks, Clock, GitPullRequest } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/host.ts";
 import { NavItem } from "./NavItem.tsx";
@@ -18,6 +18,11 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 	const { t } = useI18n();
 	const view = useApp((s) => s.view);
 	const setView = useApp((s) => s.setView);
+	/*
+	 * 自动更新关着时，有新版的数目挂在这里——人不打开市场也知道。开着的话它们一会儿就自己换上了，
+	 * 挂一个转眼就消失的数字只是晃一下眼。
+	 */
+	const waiting = useApp((s) => (s.pluginUpdates && !s.pluginUpdates.auto ? s.pluginUpdates.outdated.length : 0));
 	if (onPhone()) return null;
 	const go = (next: Parameters<typeof setView>[0]) => () => {
 		setView(next);
@@ -41,7 +46,14 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 			 * now split along that line: here to browse and install, settings to configure. The gear
 			 * in this view's header is the way across.
 			 */}
-			<NavItem active={view === "plugins"} icon={<AtSign size={15} strokeWidth={1.8} />} label={t("sidebar.plugins")} onClick={go("plugins")} />
+			<NavItem
+				active={view === "plugins"}
+				icon={<Blocks size={15} strokeWidth={1.8} />}
+				label={t("sidebar.plugins")}
+				onClick={go("plugins")}
+				badge={waiting}
+				badgeLabel={t("sidebar.pluginUpdates", { n: waiting })}
+			/>
 		</div>
 	);
 }

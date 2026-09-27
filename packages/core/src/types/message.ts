@@ -217,8 +217,11 @@ export interface UserMessage {
 	 * A task dispatched from the side chat lands in the main conversation as an ordinary user
 	 * message. Without this you would scroll back and find an instruction you have no memory
 	 * of writing, in your own voice, with no way to tell where it came from.
+	 *
+	 * `parent` 是子智能体转录里「派它出去的那个 Agent 说的话」——开头那份任务、续跑时补的那一句。
+	 * 面板上它不该画成人发的气泡：那不是看着面板的人说的。
 	 */
-	origin?: "side-chat";
+	origin?: "side-chat" | "parent";
 	/**
 	 * What a rule matched, when this message is a rule correction.
 	 *
@@ -251,6 +254,15 @@ export interface UserMessage {
 	}>;
 
 	/**
+	 * 后台子代理送回来的结果——这条消息是运行时替它们递过来的，不是人说的话。
+	 *
+	 * 人在主会话等子代理的时候插了话，父会话先去回应人，子代理留在后台接着跑；它们跑完之后，结果
+	 * 作为这样一条消息回到主会话（见 `runtime/delegation-waits.ts`）。`content` 是给模型读的报告
+	 * 原文；这一项给界面画成一行「谁的结果到了」，而不是一个人发的气泡——那不是人说的话，而报告
+	 * 本身在派发卡片和子智能体面板里都看得到。
+	 */
+	delivery?: DeliveredReport[];
+	/**
 	 * The files that were attached, by name and kind — never their contents.
 	 *
 	 * A text attachment's body is expanded into the prompt, which is what the model needs and the
@@ -262,6 +274,17 @@ export interface UserMessage {
 	 * double the size of every session log for something no reader ever looks at.
 	 */
 	attachments?: MessageAttachment[];
+}
+
+/** 送达消息里的一份报告是谁的、怎么收场的。 */
+export interface DeliveredReport {
+	/** 登记簿里的 id。 */
+	id: string;
+	agent: string;
+	description: string;
+	status: "done" | "failed" | "aborted";
+	/** 没做完就停下了（检查点、原地打转、上游出错）——报告是阶段性的。 */
+	incomplete?: boolean;
 }
 
 export interface AssistantMessage {

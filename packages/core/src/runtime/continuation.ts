@@ -123,6 +123,18 @@ export interface ContinuationDeps {
 	resuming(info: { attempt: number; delayMs: number; reason: string }): Promise<void> | void;
 	/** Cuts the wait short when the turn is stopped; see `waitOrStop`. */
 	signal?: AbortSignal;
+	/**
+	 * 步数用尽、手上又没有清单时，再给一段，并用这句话开头。
+	 *
+	 * 主会话不给：没有清单的两百轮本身就是一个答案，停下来让人看是对的。子代理不一样——它的一段
+	 * 只有六十轮，一个没写清单的审查者跑到那里，多半正读到一半（2026-09-26 那三个 review 就是这样
+	 * 停在检查点上的，交回的全是「阶段性交接」）。于是给它一次：这句话让它把剩下的步骤列进清单、
+	 * 或者现在收尾；之后的检查点就按清单有没有往前推来判断——跟主会话同一条判据，不另起一个
+	 * 「它是不是在瞎忙」的猜测。
+	 *
+	 * 只给一次。给过之后还是没有清单，就照常停下交接。
+	 */
+	planless?: () => Message;
 	/** Injected in tests so they do not sleep. */
 	sleep?(ms: number): Promise<void>;
 }
@@ -149,6 +161,8 @@ export async function continueWhileWorkRemains(
 	 */
 	let done = completed(deps.todos());
 	let stalled = 0;
+	/** 「没有清单」的那一次宽限给过没有——见 `planless`。 */
+	let graced = false;
 
 	let extra = 0;
 	for (; extra < MAX_CONTINUATIONS; extra++) {
@@ -158,6 +172,18 @@ export async function continueWhileWorkRemains(
 			const todos = deps.todos();
 			const unfinished = todos.filter((todo) => todo.status !== "completed");
 			if (unfinished.length === 0) {
+				/*
+				 * 清单是空的，和清单做完了，是两件事。
+				 *
+				 * 做完了还撞上限，说明它在清单之外还在忙——停下是对的。一份清单都没写过，只说明
+				 * 它没记账，不说明它没事可做；给了宽限的调用方（子代理）在这里再跑一段。
+				 */
+				if (todos.length === 0 && deps.planless && !graced) {
+					graced = true;
+					await deps.notify("这一段的轮数用完了，还没写清单——让它把剩下的步骤列出来，接着做。");
+					result = await deps.run([...deps.messages(), deps.planless()]);
+					continue;
+				}
 				await deps.notify("本轮已达到步数上限，已停下。执行记录已保留，需要时可继续。");
 				break;
 			}

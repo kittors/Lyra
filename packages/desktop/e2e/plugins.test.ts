@@ -132,14 +132,15 @@ async function openPlugins(): Promise<void> {
 /**
  * Move to one of the page's three tabs.
  *
- * Matched from the end of the document, because 插件 is both a tab on this page and the entry in
- * the sidebar that opened it — and the sidebar comes first in the DOM. Taking the first match
- * clicks the navigation, which lands back where we already are and looks exactly like a tab that
- * refused to switch.
+ * Looked for inside the market's own tab list, because 插件 is both a tab on this page and the entry
+ * in the sidebar that opened it — and the sidebar comes first in the DOM. Taking the first match
+ * anywhere clicks the navigation, which lands back where we already are and looks exactly like a
+ * tab that refused to switch.
  */
 async function switchTab(label: string): Promise<void> {
 	await app.evaluate(`(() => {
-		const tab = [...document.querySelectorAll("header button")].find((b) => b.checkVisibility({ visibilityProperty: true }) && b.textContent?.trim() === ${JSON.stringify(label)});
+		// The strip shows a count after each label (MCP 3); the label is what is matched.
+		const tab = [...document.querySelectorAll("[data-market] [role=tab]")].find((b) => b.checkVisibility({ visibilityProperty: true }) && b.textContent?.replace(/\\d+$/, "").trim() === ${JSON.stringify(label)});
 		if (!tab) throw new Error("no tab called " + ${JSON.stringify(label)});
 		tab.click();
 		return true;
@@ -164,12 +165,12 @@ test("a bundle on disk gets a card, under the tab for what it is", async () => {
 	 */
 	assert.match(await app.evaluate<string>(`document.body.innerText`), /demo-plugin/, "the 插件 tab opens first");
 
-	await switchTab("MCP 服务");
+	await switchTab("MCP");
 	await waitFor(`document.body.innerText.includes("demo-mcp")`, "the MCP bundle never appeared on its own tab");
 
 	// And it is not on both: a bundle has one kind, so it gets one card.
 	const onMcpTab = await app.evaluate<string>(`document.body.innerText`);
-	assert.doesNotMatch(onMcpTab, /demo-plugin/, "the plugin does not also show up under MCP 服务");
+	assert.doesNotMatch(onMcpTab, /demo-plugin/, "the plugin does not also show up under MCP");
 });
 
 test("marks are drawn for bundles with no icon, and they are not all one picture", async () => {
@@ -232,15 +233,23 @@ test("installing puts the bundle on disk and a card on the page, under its own n
 });
 
 test("uninstalling from the ⋯ menu removes the directory and the settings row together", async () => {
-	await switchTab("MCP 服务");
+	await switchTab("MCP");
 	await waitFor(`document.body.innerText.includes("demo-mcp")`, "the MCP tab never came back");
 
-	// Open the menu on the installed card. It is the one whose accessible name says so.
+	/*
+	 * Open the bundle's own page, then its ⋯ menu. A card offers one action — install, update, or
+	 * what state it is in — and everything else about an installed bundle lives on its page.
+	 */
 	await app.evaluate(`(() => {
-		const more = [...document.querySelectorAll("button")].find(
-			(b) => b.getAttribute("aria-label")?.includes("demo-mcp") && b.getAttribute("aria-haspopup") === "menu",
-		);
-		if (!more) throw new Error("no ⋯ menu on the installed card");
+		const card = [...document.querySelectorAll("[data-card]")].find((c) => c.textContent?.includes("demo-mcp"));
+		if (!card) throw new Error("no card for demo-mcp");
+		card.querySelector("button").click();
+		return true;
+	})()`);
+	await waitFor(`Boolean(document.querySelector("[data-plugin-detail]"))`, "the card did not open its page");
+	await app.evaluate(`(() => {
+		const more = document.querySelector('[data-plugin-detail] button[aria-label="更多操作"]');
+		if (!more) throw new Error("no ⋯ menu on the bundle's page");
 		more.click();
 		return true;
 	})()`);

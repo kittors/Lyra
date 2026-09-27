@@ -9,19 +9,17 @@
 
 export { BackToLatest } from "./BackToLatest.tsx";
 export { Markdown } from "./Markdown.tsx";
-export { BubbleText } from "./BubbleText.tsx";
 export { MessageActions } from "./MessageActions.tsx";
 export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";
-export { ToolCard } from "./ToolCard.tsx";
-export { toolCardFallback } from "./tool-status.ts";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { runs, runKey } from "./grouping.ts";
-export { spokenByPerson } from "./question-navigation.ts";
 export { MessageEditor } from "./message/MessageEditor.tsx";
 export { ThinkingLine } from "./message/ThinkingLine.tsx";
-export { ToolRun } from "./runs.tsx";
+export { ToolRun, segments } from "./runs.tsx";
+/* 人说的一句话画成气泡——侧边聊天和子智能体面板共用，见 `SpokenBubble`。 */
+export { SpokenBubble, spokenText } from "./SpokenBubble.tsx";
 export { TrajectoryPanel } from "./trajectory/TrajectoryPanel.tsx";
 export { useDeliveryReview } from "./delivery-review.ts";
 export { TraceText } from "./detail/TraceText.tsx";

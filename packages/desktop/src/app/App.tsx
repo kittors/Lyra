@@ -74,8 +74,9 @@ import { useOpenFile } from "../store/openFile.ts";
 import { watchFilePanelState } from "../store/file-panel-handoff.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
-import { bridge } from "../services/index.ts";
+import { bridge, onPhone } from "../services/index.ts";
 import { I18nProvider, useI18n } from "../i18n/index.ts";
+import { PhoneTouch } from "../mobile/PhoneTouch.tsx";
 
 export function App() {
 	const ready = useApp((s) => s.ready);
@@ -176,6 +177,12 @@ export function App() {
 			 * transcript with twelve screenshots in it twelve idle overlays.
 			 */}
 			<ImageViewer />
+			{/*
+			 * Long press, on a phone only: the menus a pointer reaches by hovering and right-clicking.
+			 * Mounted once and listening to the document, like the drawer's own gesture — see
+			 * `PhoneTouch`.
+			 */}
+			{onPhone() && <PhoneTouch />}
 			{/*
 			 * Cut/copy/paste for every plain text field, mounted once for the same reason.
 			 *

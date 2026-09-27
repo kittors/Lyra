@@ -78,6 +78,8 @@ module.exports = {
 				"进名单是因为「一个项目由哪几个文件夹组成」必须只有一个答案：侧边栏据此把会话归到哪个" +
 				"项目下，读取边界据此决定哪些路径不用问人。这两处各算各的，结果就是第二个文件夹的会话" +
 				"归了组、却每读一个文件弹一次窗。" +
+				"`mcp/placeholders` 也只有一个 `import type`：「这台服务还缺哪几个值」界面上画、连接时拦，" +
+				"两处必须是同一个答案——设置页说齐了、启动时却报缺，比两处都不说更糟。" +
 				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
@@ -85,7 +87,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|ai/thinking-options|rules/condition|runtime/delegation)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|rules/condition|runtime/delegation)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

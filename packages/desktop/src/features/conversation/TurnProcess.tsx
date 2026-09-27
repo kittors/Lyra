@@ -24,8 +24,11 @@ export function TurnProcess({
 	running,
 	stateKey,
 	children,
+	trailing,
 }: {
 	counts: { tools: number; thinking: number };
+	/** 收起那一行的行尾：这一轮派出去的子智能体的脸。 */
+	trailing?: React.ReactNode;
 	/** 正在跑的那一轮全程摊开——那时候人是在看着它的。 */
 	running: boolean;
 	stateKey?: string;
@@ -46,6 +49,7 @@ export function TurnProcess({
 				<FlowRow
 					icon={<Layers size={13} strokeWidth={1.8} />}
 					summary={summarize(counts)}
+					trailing={trailing}
 					label={translate("process.turn")}
 					open={shown}
 					onToggle={() => setOpen((value) => !value)}

@@ -88,6 +88,8 @@ export interface AgentRunConfig {
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
 	spawnSubAgent?: ToolContext["spawnSubAgent"];
+	/** 这段对话的缓存键，每个请求都带上——见 `RequestOptions.cacheKey`。 */
+	cacheKey?: string;
 	/** The session's address space; see `ToolContext.resources`. */
 	resources?: ToolContext["resources"];
 	/** Where `scratch://` writes; see `ToolContext.scratchDir`. */
@@ -738,6 +740,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		temperature: config.temperature,
 		retryAttempts: config.retryAttempts,
 		retryPolicy: config.retryPolicy,
+		cacheKey: config.cacheKey,
 		/*
 		 * Said out loud, because the alternative is a turn that appears to hang.
 		 *

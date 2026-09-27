@@ -343,6 +343,37 @@ div.ly-field {
 	color: var(--color-danger);
 }
 
+/*
+ * 列表里重复出现的下拉：平时只有字，指到、展开、聚焦时才浮出底色。
+ *
+ * 一列七行，每行两颗灰底胶囊，页面读起来是十四个输入框——而真正要找的是那一两个改过的。
+ * 没改过的（跟随默认）字淡一档，改过的（`data-set`）是正常的字色，扫一眼就看得出哪里动过。
+ */
+.ly-field-quiet {
+	display: flex;
+	align-items: center;
+	/* 和框里那种一样高：同一页上、同一排里的控件共用一个高度（`--ly-control`），只是不画底。 */
+	height: var(--ly-control);
+	padding: 0 10px;
+	border: 0;
+	border-radius: var(--radius-field);
+	background: transparent;
+	color: var(--color-ink-muted);
+	font-size: var(--text-label);
+	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
+}
+
+.ly-field-quiet[data-set] {
+	color: var(--color-ink);
+}
+
+.ly-field-quiet:hover,
+.ly-field-quiet:focus-visible,
+.ly-field-quiet[aria-expanded="true"] {
+	background: var(--color-card-hover);
+	color: var(--color-ink);
+}
+
 .ly-field-compact {
 	height: 26px;
 	padding: 0 10px;

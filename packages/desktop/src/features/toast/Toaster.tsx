@@ -171,6 +171,8 @@ export function Toaster() {
 		 * `pointer-events-none` on the column so only the cards themselves take the pointer.
 		 */
 		<div
+			/* Found by the phone's stylesheet, which moves the stack clear of the status bar. */
+			data-ly-toaster=""
 			style={{
 				zIndex: TOAST_Z,
 				left: !compact && navOpen ? `${sidebarWidth}px` : "0px",

@@ -174,6 +174,8 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 					? (frontmatter.tools as unknown[]).filter((t): t is string => typeof t === "string")
 					: "*",
 				model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+				// 原样带着，认不认得出由界面决定——见 `AgentDefinition.avatar`。
+				avatar: typeof frontmatter.avatar === "string" && frontmatter.avatar.trim() ? frontmatter.avatar.trim() : undefined,
 				/*
 				 * Who it may dispatch — `"*"` or a list of names. Declared on the type, enforced in
 				 * `runSubAgent`, tested with definitions built in memory, and never read from a file:

@@ -124,7 +124,7 @@ export function ContextMeter({
 							<span className="text-label text-ink">{t("context.window")}</span>
 							<span className={`text-label tabular-nums ${tight ? "text-danger" : "text-ink-muted"}`}>
 								{detail
-									? `${formatTokens(used)} / ${formatTokens(limit)}（${percent}%）`
+									? t("context.usedOfLimit", { used: formatTokens(used), limit: formatTokens(limit), percent })
 									: current?.error
 										? t("context.unreadable")
 										: t("context.loading")}

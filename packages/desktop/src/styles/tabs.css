@@ -101,6 +101,11 @@
 .ly-tooltip {
   width: max-content;
   max-width: min(360px, calc(100vw - 12px));
+  /*
+   * The last resort, for a run with no break opportunity at all. Long paths and filenames get breaks
+   * after `/`, `_`, `.` and the like in `tooltip.ts`, which also narrows a wrapped label to its
+   * balanced width (an inline `width`) — so a line is never left holding a single character.
+   */
   overflow-wrap: anywhere;
   padding: 4px 8px;
   border-radius: 6px;

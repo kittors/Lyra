@@ -71,7 +71,7 @@ my-plugin/
 `task` 工具把一件事交给拥有**独立上下文窗口**的下属，只把结论带回主对话。适合「读二十个文件
 找出哪里定义了 X」这种——过程很长，结论很短。
 
-内置 `general` / `explore` / `review`。自定义放在 `.lyra/agents/<名>.md`，格式与技能一样：
+内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`。自定义放在 `.lyra/agents/<名>.md`，格式与技能一样：
 
 ```markdown
 ---
@@ -91,8 +91,16 @@ model: deepseek-v4-flash
 | `tools` | 数组则限定，省略则全部可用 |
 | `model` | 指定模型，省略则用当前会话的 |
 | `max-turns` | 每跑多少轮停下来看一眼，省略则 60。是检查点，不是上限，见下 |
+| `avatar` | 它的脸：`形状-颜色`，如 `cloud-violet`。省略则按名字算一张，和名单里别人的不重复 |
 
 正文是这个子智能体的系统提示。
+
+**每个智能体一张脸。** 设置页、`@` 菜单、对话里的派发行、输入框上方的状态条和子智能体面板画的
+都是同一张：一块有颜色的形状配一双会眨的眼睛，表情就是状态——颠着的在干活、眯着眼褪了色的在
+排队、弯眼的交了差、叉眼的出了事。形状 16 种（`circle` `drop` `squircle` `blob` `cloud` `pill`
+`triangle` `flower` `hexagon` `ghost` `star` `bean` `arch` `diamond` `heart` `burst`），颜色 16 种
+（`blue` `green` `pink` `teal` `violet` `brown` `orange` `red` `yellow` `indigo` `lime` `sky` `rose`
+`mint` `coral` `plum`）。在设置页新建时会先挑好一张没人用的，写进这一行；手写的定义不写也行。
 
 **检查点，不是上限。** 子智能体每跑 `max-turns` 轮停下来看一眼：它自己的清单（`todo_write`）
 在往前推，就接着跑；否则交一份交接（做了什么、还剩什么、下一步），然后**停下但留着上下文**。

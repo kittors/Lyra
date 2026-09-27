@@ -575,13 +575,16 @@
  * ------------------------------------------------------------------------- */
 
 /*
- * 文件链接只有一种形态：单行胶囊。短的跟着字走，长的到上限就省略，永不折行。
+ * A file link has one form: a single-line chip. A short one follows the text; a long one is
+ * ellipsised at the cap and never wraps.
  *
- * `--ly-file-chip-max` 是宽栏里的封顶，免得文件名把整行铺成一条横幅；窄栏再和行宽取小。
- * 整枚是原子行盒，行末放不下就整枚换到下一行，不会图标在上行、名字在下行。
+ * `--ly-file-chip-max` is the ceiling in a wide column, so a filename cannot run the whole line as a
+ * banner; in a narrow one the line width is the smaller of the two. The chip is one atomic inline
+ * box, so when it does not fit at the end of a line it moves down whole — never the icon on one line
+ * and the name on the next.
  *
- * 打开 / 访达叠在右沿：不进文档流，悬停才显形。浮在胶囊外会在贴栏边时溢出或把后面的字压住；
- * 叠在右沿用胶囊底色把末尾托住，宽窄都是同一套。
+ * Open and reveal are not inside the chip: on hover they float above it, see `[data-ly-file-actions]`
+ * below.
  */
 [data-ly-file-link] {
   --ly-file-chip-max: 20em;
@@ -595,6 +598,19 @@
   vertical-align: middle;
   line-height: 1;
   white-space: nowrap;
+  transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+/*
+ * One step darker while the pointer is on the chip, its bar included.
+ *
+ * The bar lives outside the chip, so something has to say which chip it belongs to: when the two
+ * light up together nobody has to guess. The link's underline is switched off and the default cursor
+ * is still an arrow, so this is also the only hover response a clickable thing gets here.
+ */
+[data-ly-file-link]:hover,
+[data-ly-file-link]:has(:focus-visible) {
+  background: var(--color-elevated);
 }
 
 [data-ly-file-link] > a {
@@ -636,82 +652,221 @@
   box-shadow: none;
 }
 
+/*
+ * The exit bar: a small card that floats above the chip on hover, with the two buttons in it.
+ *
+ * They used to sit on the chip's right edge — 17px buttons, 11.5px icons — over the last 30px of the
+ * filename. The gradient meant to hold the end up with the chip's background held nothing: that
+ * background is itself a 5% translucent wash of ink, so the letters showed through between the icons
+ * and the two ran together, and at rest it stacked a darker patch onto the chip's right end. Moved
+ * outside the chip, not one letter of the name is covered; out of flow, not a pixel of the text moves
+ * between rest and hover.
+ *
+ * This outer layer only positions: it is as wide as the chip, and the card sits across it facing
+ * wherever the pointer came in (`Markdown.tsx` works that out and writes `--ly-file-actions-x`);
+ * focus has no pointer to face, so it goes right. The layer itself takes no pointer events — a
+ * transparent strip the width of the chip lying over the line above would swallow every click and
+ * selection on that line for as long as the hover lasts.
+ *
+ * Above or below is measured by `actionsSide` in `Markdown.tsx` as the pointer arrives: every message
+ * carries `contain: paint`, so the part of the bar that leaves the row is never painted, and a chip
+ * on a first line gets the bar below. The height arithmetic (28 + 4) lives on both sides.
+ */
 [data-ly-file-actions] {
   position: absolute;
-  inset-block: 0;
-  right: 2px;
-  z-index: 1;
+  inset-inline: 0;
+  bottom: 100%;
+  z-index: 2;
   display: flex;
-  align-items: center;
-  gap: 1px;
-  padding-left: 14px;
+  padding-bottom: 4px;
   pointer-events: none;
-  background: linear-gradient(to right, transparent, var(--color-card-hover) 12px);
+}
+
+[data-ly-file-link][data-ly-file-actions-side="below"] > [data-ly-file-actions] {
+  top: 100%;
+  bottom: auto;
+  padding-top: 4px;
+  padding-bottom: 0;
 }
 
 /*
- * 接鼠标的只有那两颗按钮，左边那 14px 渐变底不接。
+ * The card itself.
  *
- * 渐变是托底，让按钮从字上浮出来，不是一块可以按的地方。它一度跟着整个容器在悬停时接了鼠标，
- * 而容器叠在链接的右沿上：短文件名一悬停，链接的后半截整块被它盖住——点「实现说明」的「说明」
- * 两个字，什么都不发生，文件打不开。
+ * The material of a small surface pinned inside scrolling content: an opaque floating fill
+ * (`--color-float`, a step lighter than the page it covers in either theme), the hairline meant for
+ * floating things, and a very light shadow — enough to lift it off the text, far less than a menu's,
+ * because it is far smaller than a menu. The line has to be `--color-line-float`: `--color-line-soft`
+ * is stepped from the page background, so on a surface lighter than the page it comes out darker,
+ * and in the dark theme the outline vanished and the bar sank into the text (the note on that token
+ * in `theme.ts` describes exactly this).
+ *
+ * The buttons are `IconButton`'s `sm` (22px, `rounded-md`); with 2px of padding, the card's 8px
+ * corners are concentric with the buttons' 6px.
  */
-[data-ly-file-link]:hover [data-ly-file-actions] > button,
-[data-ly-file-actions]:focus-within > button {
+[data-ly-file-actions-bar] {
+  position: relative;
+  /*
+   * `auto` when there is no pointer position: an auto margin in a flex row pushes the card to the
+   * right end, and when the card is wider than the chip it resolves to 0, so the card sits flush left
+   * instead of hanging off the left edge — one value covers both cases.
+   */
+  margin-inline-start: var(--ly-file-actions-x, auto);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-line-float);
+  border-radius: 8px;
+  background: var(--color-float);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 4px 12px -4px rgb(0 0 0 / 0.14);
   pointer-events: auto;
 }
 
+:root.dark [data-ly-file-actions-bar] {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 6px 16px -6px rgb(0 0 0 / 0.5);
+}
+
 /*
- * 平时看不见。不占文档流：叠在右沿，显隐只动 opacity。
+ * The card reaches back across the 4px gap to the chip.
+ *
+ * Otherwise a pointer moving straight up from the filename is, for an instant, on neither. The grace
+ * period on leaving (below) would catch it, but the most direct path has no reason to depend on the
+ * safety net.
  */
-[data-ly-file-actions] > button {
+[data-ly-file-actions-bar]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 5px;
+}
+
+[data-ly-file-link][data-ly-file-actions-side="below"] [data-ly-file-actions-bar]::after {
+  top: auto;
+  bottom: 100%;
+}
+
+/*
+ * The keyboard focus ring hugs the button instead of standing off it.
+ *
+ * The global `outline-offset: 2px` is right in a loosely spaced row of buttons; the card has only 2px
+ * of padding, so offset like that the ring lands on the card's hairline and looks as if it has
+ * slipped out of the card.
+ */
+[data-ly-file-actions-bar] > button:focus-visible {
+  outline-offset: 0;
+}
+
+/*
+ * Showing and hiding. It is the outer layer that moves: `visibility` decides whether it takes the
+ * pointer, `opacity` and a 3px shift make it rise into place.
+ *
+ * The two waits are intent rather than animation, so they do not go to zero with the reduce-motion
+ * setting (「减少动态效果」), which clamps durations:
+ *
+ * - Arriving, it waits `--ly-file-actions-settle` first: a pointer sweeping across a paragraph would
+ *   otherwise flash a bar on every chip it passes; only the one it stops on counts.
+ * - Leaving, it waits `--ly-file-actions-linger` before fading, and only turns `hidden` once faded.
+ *   A pointer heading for the bar from the far end of a long filename leaves the chip on the way;
+ *   the wait is for that diagonal. The bar stays `visible` meanwhile, so once the pointer lands on it
+ *   the chip counts as hovered again and the bar stays.
+ *
+ * `visibility` steps rather than using a zero duration: `step-start` on the way in, so it takes the
+ * pointer as soon as the wait ends; `step-end` on the way out, so it lets go the moment the fade
+ * finishes. With motion reduced the fade collapses to an instant and it lets go in that same instant,
+ * leaving no invisible patch that still catches the pointer.
+ */
+[data-ly-file-actions] {
+  --ly-file-actions-settle: 60ms;
+  --ly-file-actions-linger: 100ms;
+  visibility: hidden;
   opacity: 0;
-  transform: translateX(-2px);
+  transform: translateY(3px);
   transition:
-    opacity var(--ly-t-quick) var(--ly-e-out),
-    transform var(--ly-t-quick) var(--ly-e-out),
-    background-color var(--ly-t-quick) var(--ly-e-out),
-    color var(--ly-t-quick) var(--ly-e-out);
+    opacity var(--ly-t-quick) var(--ly-e-in) var(--ly-file-actions-linger),
+    transform var(--ly-t-quick) var(--ly-e-in) var(--ly-file-actions-linger),
+    visibility var(--ly-t-quick) step-end var(--ly-file-actions-linger);
 }
 
-[data-ly-file-link]:hover [data-ly-file-actions] > button,
-[data-ly-file-actions]:focus-within > button {
+[data-ly-file-link][data-ly-file-actions-side="below"] > [data-ly-file-actions] {
+  transform: translateY(-3px);
+}
+
+/* After the placement rules: same specificity, so order is what overrides the `translateY(-3px)` above. */
+[data-ly-file-link]:hover > [data-ly-file-actions],
+[data-ly-file-link]:has(:focus-visible) > [data-ly-file-actions] {
+  visibility: visible;
   opacity: 1;
   transform: none;
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out) var(--ly-file-actions-settle),
+    transform var(--ly-t-quick) var(--ly-e-out) var(--ly-file-actions-settle),
+    visibility var(--ly-t-quick) step-start var(--ly-file-actions-settle);
 }
 
 /*
- * 第二个晚一步到，走的时候一起走。
+ * No wait and no animation when the keyboard gets here — on the link, or on a button in the bar.
  *
- * 出现时错开 45ms，两个图标是「依次落位」而不是「啪地一起冒出来」——同时出现的两个东西读起来像一个色块，
- * 错开一点点，眼睛才分得清那是两个可以分别去按的东西。
- *
- * 延迟只写在 hover 那一侧，所以离开时两个同时淡出：登场可以有先后，退场拖泥带水就成了犹豫。
+ * Someone tabbing wants to know where they are, and the focus ring should not arrive before the
+ * thing it frames. The next Tab goes into the bar, so the bar has to be there the moment the link
+ * takes focus.
  */
-[data-ly-file-link]:hover [data-ly-file-actions] > button:nth-child(2) {
-  transition-delay: 45ms;
+[data-ly-file-link]:has(:focus-visible) > [data-ly-file-actions] {
+  transition: none;
 }
 
 /*
- * 键盘走到这儿时不要动画。
+ * On a device without hover the exits stay out, inside the chip after the filename.
  *
- * Tab 过来的人要的是「我现在在哪」，一个 150ms 的淡入会让焦点框在还没画完的时候就已经在那儿了。
+ * The bar assumes a pointer will stop on the chip first; on a screen that only has fingers it would
+ * never appear, and the two exits would not exist. Always visible, it cannot float either (it would
+ * cover the line above for good), so it goes back into the chip without the card's fill, hairline
+ * and shadow, and without facing the pointer (the `--ly-file-actions-x` left by the last hover would
+ * only push a gap in after the filename). The buttons keep their 22px hit area, with 3.5px of
+ * negative margin top and bottom so the line is not pushed taller.
+ *
+ * The selectors weigh the same as the rules above and win by coming last; the card's has to outweigh
+ * the `:root.dark` shadow.
  */
-[data-ly-file-actions] > button:focus-visible {
-  opacity: 1;
-  transform: none;
-  transition-delay: 0ms;
-}
-
-/* 关掉动效偏好下，只留最终状态——位移和延迟都是装饰。 */
-@media (prefers-reduced-motion: reduce) {
-  [data-ly-file-actions] > button {
+@media (hover: none) {
+  [data-ly-file-link][data-ly-file-actions-side] > [data-ly-file-actions] {
+    position: static;
+    visibility: visible;
+    opacity: 1;
     transform: none;
-    transition: opacity var(--ly-t-quick) linear;
+    padding: 0;
+    margin-inline: 2px -4px;
+    pointer-events: auto;
+    transition: none;
   }
 
-  [data-ly-file-link]:hover [data-ly-file-actions] > button:nth-child(2) {
-    transition-delay: 0ms;
+  [data-ly-file-actions-bar],
+  :root.dark [data-ly-file-actions-bar] {
+    gap: 0;
+    padding: 0;
+    margin-inline-start: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  [data-ly-file-actions-bar]::after {
+    content: none;
+  }
+
+  [data-ly-file-actions-bar] > button {
+    margin-block: -3.5px;
+  }
+
+  /* A tap leaves hover stuck on; the chip should not stay dark because of it. */
+  [data-ly-file-link]:hover {
+    background: var(--color-card-hover);
   }
 }
 

@@ -1,9 +1,13 @@
 import type { CommandDecoration } from "./command-catalog.ts";
+import type { Avatar } from "../../lib/agent-avatar.ts";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 
 interface MentionDecoration {
 	start: number;
 	end: number;
 	kind?: "file" | "subagent" | "plugin" | "session";
+	/** 点名的是一个智能体：`@` 那一格画成它的脸。 */
+	avatar?: Avatar;
 }
 
 export interface ComposerDecorations {
@@ -29,6 +33,8 @@ export interface ComposerDecorations {
 interface TextSpan {
 	text: string;
 	className?: string;
+	/** 点名智能体的那一段：`@` 那一格换成它的脸，见下面组装 span 的地方。 */
+	avatar?: Avatar;
 	/** 附件标记按门类上色，色值由 `.ly-attachment-token[data-kind]` 给。 */
 	kind?: string;
 	/** 只有名字进了提示词，内容没有——图标淡一档说这件事。 */
@@ -47,6 +53,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		kind?: string;
 		/** 同上，只有名字进了提示词的那些。 */
 		bodiless?: boolean;
+		avatar?: Avatar;
 	}
 
 
@@ -66,6 +73,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 					start: m.start,
 					end: m.end,
 					className: "ly-mention-token",
+					...(m.avatar ? { avatar: m.avatar } : {}),
 				});
 			}
 		}
@@ -116,6 +124,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 			className: seg.className,
 			...(seg.kind ? { kind: seg.kind } : {}),
 			...(seg.bodiless ? { bodiless: true } : {}),
+			...(seg.avatar ? { avatar: seg.avatar } : {}),
 			/*
 			 * 附件标记的那对方括号留着占位，但不画出来。
 			 *
@@ -195,6 +204,20 @@ export function CommandText({
 										</span>
 										<span className="ly-token-bracket">{s.text.slice(-1)}</span>
 									</span>
+								) : s.avatar && s.text.startsWith("@") ? (
+									/*
+									 * 点名一个智能体：`@` 那一格画成它的脸。
+									 *
+									 * 字还得留着——这一层是镜像，`@` 在 textarea 里占着一格，删掉它后面整段都
+									 * 错位。所以 `@` 照样排版、只是透明，脸绝对定位盖在那一格上，一个像素都不挤。
+									 */
+									<>
+										<span className="ly-mention-face">
+											@
+											<AgentAvatar avatar={s.avatar} size={14} seed={s.text} interactive={false} />
+										</span>
+										{s.text.slice(1)}
+									</>
 								) : (
 									s.text
 								)}

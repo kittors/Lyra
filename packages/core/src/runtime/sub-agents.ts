@@ -21,18 +21,36 @@
  * What this is *not*: a scheduler. `runSubAgent` still owns running the thing, and the parent's
  * `task` call still waits for the answer. This only makes what happens in between visible and
  * reachable.
+ *
+ * 登记从派出去的那一刻开始，不是从开跑的那一刻：闸门后面排着的那几个也在名单上（`queued`）。
+ * 从前它们要等轮到自己才登记，于是一次派四个、闸门只放一个的时候，名单上只有一个——界面只好
+ * 从对话里的工具调用倒推「还有三个在排队」，而那条推算在人插话、父会话不再等它们之后就断了。
  */
 
-import { addUsage, emptyUsage, type Message, type UserContent, type Usage } from "../types/message.ts";
+import { addUsage, emptyUsage, type Message, type MessageAttachment, type UserContent, type Usage } from "../types/message.ts";
 
 /**
  * Where a sub-agent is in its life.
  *
- * Four, and the last three are all terminal — which is the distinction that matters to everything
+ * Five, and the last three are all terminal — which is the distinction that matters to everything
  * reading this: `running` is the only state you can steer, and the difference between the other
  * three is what the transcript should say happened.
+ *
+ * `queued` 是派出去了、还在并发闸门后面等名额。它和 `running` 一样是「还没完」（能停、不能续跑、
+ * 不会被挤出名单），但不能操控——它还一句话都没读过。
  */
-export type SubAgentStatus = "running" | "done" | "failed" | "aborted";
+export type SubAgentStatus = "queued" | "running" | "done" | "failed" | "aborted";
+
+/** 还没完：排着或者在跑。停它、清名单、挤掉旧记录时，这两种是一样的。 */
+function isActive(status: SubAgentStatus): boolean {
+	return status === "queued" || status === "running";
+}
+
+/** 操控框里说的那句话，给人看的那一份——见 `SubAgentRegistry.steer`。 */
+export interface SteerDisplay {
+	displayText?: string;
+	attachments?: MessageAttachment[];
+}
 
 /** What the tab strip and the tip need to describe one sub-agent without opening it. */
 export interface SubAgentSummary {
@@ -117,6 +135,16 @@ export interface SubAgentSummary {
 	resumable?: boolean;
 	/** 被续跑过几次。没有就是一次都没有。 */
 	resumes?: number;
+	/**
+	 * 派它来的那一方已经不等它了。
+	 *
+	 * 主会话在等子代理的时候，人插了一句话：父会话先去回应人，这个子代理留在后台接着跑，跑完后
+	 * 结果由运行时作为一条消息送回主会话（见 `delegation-waits.ts`）。界面据此不再把它算作
+	 * 「主会话正卡在它身上」——那正是决定人再说话时要不要等的那件事。
+	 */
+	background?: boolean;
+	/** 它正停在一次授权上，等人在主窗口里点。 */
+	awaitingApproval?: boolean;
 }
 
 /**
@@ -170,17 +198,23 @@ const MAX_KEPT = 24;
 export class SubAgentRegistry {
 	private readonly records = new Map<string, SubAgentRecord>();
 	private readonly onChange: () => void;
+	private readonly onFinish: (id: string) => void;
 
-	/** `onChange` is how the host learns to re-broadcast; the registry does no IPC of its own. */
-	constructor(onChange: () => void = () => {}) {
+	/**
+	 * `onChange` is how the host learns to re-broadcast; the registry does no IPC of its own.
+	 *
+	 * `onFinish` 在一个子代理停下时叫一次——宿主要收回它还挂着的授权，见 `AgentSession.subAgents`。
+	 */
+	constructor(onChange: () => void = () => {}, onFinish: (id: string) => void = () => {}) {
 		this.onChange = onChange;
+		this.onFinish = onFinish;
 	}
 
 	/** Newest last, which is the order a tab strip reads in. */
 	list(): SubAgentSummary[] {
 		return [...this.records.values()].map(({ messages: _messages, steering: _steering, abort: _abort, conversation, ...rest }) => ({
 			...rest,
-			...(conversation && rest.status !== "running" ? { resumable: true } : {}),
+			...(conversation && !isActive(rest.status) ? { resumable: true } : {}),
 		}));
 	}
 
@@ -188,7 +222,7 @@ export class SubAgentRegistry {
 		const record = this.records.get(id);
 		if (!record) return null;
 		const { steering: _steering, abort: _abort, conversation, ...rest } = record;
-		return { ...rest, ...(conversation && rest.status !== "running" ? { resumable: true } : {}) };
+		return { ...rest, ...(conversation && !isActive(rest.status) ? { resumable: true } : {}) };
 	}
 
 	/**
@@ -214,8 +248,12 @@ export class SubAgentRegistry {
 					"要继续那件事，只能重新派一个——在 prompt 里把它之前交回来的结论带上，别让新的从零查起。",
 			};
 		}
-		if (found.status === "running") {
-			return { refusal: `子代理 \`${found.id}\` 还在跑，不需要续跑。等它交回结果，或者在面板里直接对它说话。` };
+		if (isActive(found.status)) {
+			return {
+				refusal: found.background
+					? `子代理 \`${found.id}\` 还在后台跑，跑完后结果会自动送到你这里，不需要续跑。`
+					: `子代理 \`${found.id}\` 还在跑，不需要续跑。等它交回结果，或者在面板里直接对它说话。`,
+			};
 		}
 		if (!found.conversation) {
 			return { refusal: `子代理 \`${found.id}\` 的上下文已经不在了（应用重启过，或它没能留下），没法续跑。要继续，重新派一个并把它交回的结论带上。` };
@@ -232,7 +270,7 @@ export class SubAgentRegistry {
 	 */
 	keep(id: string, conversation: SubAgentConversation): void {
 		const found = this.records.get(id);
-		if (!found || found.status === "running") return;
+		if (!found || isActive(found.status)) return;
 		found.conversation = conversation;
 		this.onChange();
 	}
@@ -244,10 +282,12 @@ export class SubAgentRegistry {
 	 * 不是又派了一个。上一段的结论、错误、「没做完」的标记都清掉：它们说的是上一段怎么停的，
 	 * 这一段还没停。
 	 */
-	reopen(id: string, input: { abort: () => void }): boolean {
+	reopen(id: string, input: { abort: () => void; queued?: boolean }): boolean {
 		const found = this.records.get(id);
-		if (!found || found.status === "running") return false;
-		found.status = "running";
+		if (!found || isActive(found.status)) return false;
+		found.status = input.queued ? "queued" : "running";
+		found.background = undefined;
+		found.awaitingApproval = undefined;
 		found.endedAt = undefined;
 		found.answer = undefined;
 		found.output = undefined;
@@ -269,7 +309,7 @@ export class SubAgentRegistry {
 		return count;
 	}
 
-	/** Called by `runSubAgent` as it starts one. */
+	/** Called by `runSubAgent` as it starts one — or, with `queued`, as it gets in line for a slot. */
 	start(input: {
 		id: string;
 		agent: string;
@@ -278,13 +318,15 @@ export class SubAgentRegistry {
 		parentId?: string;
 		/** Defaults to 1: dispatched by the main conversation. */
 		depth?: number;
+		/** 派出去了，但还要在闸门后面排队。轮到它时调 `admit`。 */
+		queued?: boolean;
 	}): void {
 		this.retire();
 		this.records.set(input.id, {
 			id: input.id,
 			agent: input.agent,
 			description: input.description,
-			status: "running",
+			status: input.queued ? "queued" : "running",
 			startedAt: Date.now(),
 			toolCalls: 0,
 			...(input.parentId ? { parentId: input.parentId } : {}),
@@ -294,6 +336,36 @@ export class SubAgentRegistry {
 			steering: [],
 			abort: input.abort,
 		});
+		this.onChange();
+	}
+
+	/**
+	 * 轮到它了：排着的那一个开跑。
+	 *
+	 * 起跑时刻从这里算，不从派出去那一刻算——界面上那只表说的是「它干了多久」，在队里站着的
+	 * 那几分钟不是它干的活。
+	 */
+	admit(id: string): void {
+		const found = this.records.get(id);
+		if (!found || found.status !== "queued") return;
+		found.status = "running";
+		found.startedAt = Date.now();
+		this.onChange();
+	}
+
+	/** 父会话不再等它了——见 `SubAgentSummary.background`。 */
+	background(id: string): void {
+		const found = this.records.get(id);
+		if (!found || found.background || !isActive(found.status)) return;
+		found.background = true;
+		this.onChange();
+	}
+
+	/** 它在等一次授权，或者等到了。 */
+	awaitingApproval(id: string, waiting: boolean): void {
+		const found = this.records.get(id);
+		if (!found || Boolean(found.awaitingApproval) === waiting) return;
+		found.awaitingApproval = waiting || undefined;
 		this.onChange();
 	}
 
@@ -351,7 +423,7 @@ export class SubAgentRegistry {
 	finish(
 		id: string,
 		outcome: {
-			status: Exclude<SubAgentStatus, "running">;
+			status: Exclude<SubAgentStatus, "queued" | "running">;
 			answer?: string;
 			error?: string;
 			output?: Record<string, unknown>;
@@ -370,10 +442,12 @@ export class SubAgentRegistry {
 		found.incomplete = outcome.incomplete;
 		// 停下来的那一刻，「正在重连」就成了过去时——被按停的那次尤其，它正是在重连里被按停的。
 		found.retrying = undefined;
+		found.awaitingApproval = undefined;
 		// The levers go with the run: a finished sub-agent must not look steerable.
 		found.steering.length = 0;
 		found.abort = undefined;
 		this.onChange();
+		this.onFinish(id);
 	}
 
 	/**
@@ -387,7 +461,7 @@ export class SubAgentRegistry {
 	 * Recorded in the transcript on the way past, so the pane shows what was said to it rather than
 	 * a reply appearing out of nowhere.
 	 */
-	steer(id: string, said: string | UserContent[]): Message | null {
+	steer(id: string, said: string | UserContent[], display?: SteerDisplay): Message | null {
 		const found = this.records.get(id);
 		if (!found || found.status !== "running") return null;
 		/*
@@ -400,7 +474,17 @@ export class SubAgentRegistry {
 		const content: UserContent[] = typeof said === "string" ? [{ type: "text", text: said }] : said;
 		// 全是空白的一条只会让子代理白转一轮。`every` 对空数组返回 true，空的那一种也在里面。
 		if (content.every((part) => part.type === "text" && !part.text.trim())) return null;
-		const message: Message = { role: "user", content, timestamp: Date.now() };
+		/*
+		 * 给人看的那一份也带上：人打的字（标记留着）和附件的名字门类，和主会话的消息同一组字段。
+		 * 不带的话，面板只能把内容块拼起来画——附一份文件，气泡里就是整篇正文。
+		 */
+		const message: Message = {
+			role: "user",
+			content,
+			timestamp: Date.now(),
+			...(display?.displayText !== undefined ? { displayText: display.displayText } : {}),
+			...(display?.attachments?.length ? { attachments: display.attachments } : {}),
+		};
 		found.steering.push(message);
 		found.messages.push(message);
 		this.onChange();
@@ -427,7 +511,7 @@ export class SubAgentRegistry {
 	 */
 	abort(id: string): boolean {
 		const found = this.records.get(id);
-		if (!found || found.status !== "running" || !found.abort) return false;
+		if (!found || !isActive(found.status) || !found.abort) return false;
 		found.abort();
 		return true;
 	}
@@ -446,7 +530,7 @@ export class SubAgentRegistry {
 	dismiss(id: string): "removed" | "stopping" | "unknown" {
 		const found = this.records.get(id);
 		if (!found) return "unknown";
-		if (found.status === "running") {
+		if (isActive(found.status)) {
 			found.abort?.();
 			return "stopping";
 		}
@@ -465,7 +549,7 @@ export class SubAgentRegistry {
 	dismissFinished(): number {
 		let removed = 0;
 		for (const [id, record] of this.records) {
-			if (record.status === "running") continue;
+			if (isActive(record.status)) continue;
 			this.records.delete(id);
 			removed += 1;
 		}
@@ -476,7 +560,7 @@ export class SubAgentRegistry {
 	/** Everything still running, for a session being torn down. */
 	abortAll(): void {
 		for (const record of this.records.values()) {
-			if (record.status === "running") record.abort?.();
+			if (isActive(record.status)) record.abort?.();
 		}
 	}
 
@@ -485,7 +569,7 @@ export class SubAgentRegistry {
 		while (this.records.size >= MAX_KEPT) {
 			let oldest: SubAgentRecord | null = null;
 			for (const record of this.records.values()) {
-				if (record.status === "running") continue;
+				if (isActive(record.status)) continue;
 				if (!oldest || (record.endedAt ?? record.startedAt) < (oldest.endedAt ?? oldest.startedAt)) oldest = record;
 			}
 			if (!oldest) return;

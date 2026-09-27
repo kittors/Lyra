@@ -134,6 +134,11 @@ test("its transcript is recorded as it speaks", async () => {
 
 	assert.ok(transcript.length >= 3, `expected prompt + tool call + result + answer, got ${transcript.length}`);
 	assert.equal(transcript[0].role, "user", "starting with what it was asked");
+	/*
+	 * 开头那一句是派它出去的那一方说的，不是看着面板的人——面板据此把它画成一张任务卡片，而不是
+	 * 一个人发出去的气泡。
+	 */
+	assert.equal(transcript[0].role === "user" && transcript[0].origin, "parent", "and marked as the parent's words");
 	assert.ok(
 		transcript.some((m) => m.role === "assistant" && m.content.some((c) => c.type === "toolCall")),
 		"including the tool call",

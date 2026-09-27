@@ -105,6 +105,8 @@ export interface RpcDeps {
 	filesRead: LyraApi["files"]["read"];
 	scratchRoots: LyraApi["git"]["scratchRoots"];
 	generalScratch: LyraApi["git"]["generalScratch"];
+	/** A finished upload from the phone — by id, or by the path it was given — as its path here; see `sync-uploads.ts`. */
+	uploadPath?(idOrPath: string): string | null;
 }
 
 /**
@@ -181,11 +183,11 @@ export const RPC: Record<string, Handler> = {
 		forkSession(deps.store(), s(projectId), s(sessionId), Number(seq)),
 	"sessions.create": async (deps, [cwd, modelId, initial]) =>
 		// "remote"：对面递来的附件路径不作数，见 `prompt-input.ts` 的 `PromptOrigin`。
-		deps.create(s(cwd), s(modelId), initialPrompt(initial, "remote")),
+		deps.create(s(cwd), s(modelId), initialPrompt(initial, "remote", deps.uploadPath)),
 
 	// -- Driving a turn --------------------------------------------------------
 	"agent.prompt": async (deps, [sessionId, content, options]) =>
-		deps.prompt(s(sessionId), promptContent(content), promptOptions(options, "remote")),
+		deps.prompt(s(sessionId), promptContent(content), promptOptions(options, "remote", deps.uploadPath)),
 	"agent.abort": async (deps, [sessionId]) => {
 		await deps.abort(s(sessionId));
 		return null;
@@ -217,7 +219,7 @@ export const RPC: Record<string, Handler> = {
 	 * 是「怎么发出去」，由这一次编辑自己决定，不该由对面说了算。
 	 */
 	"agent.editMessage": async (deps, [sessionId, index, content, options]) => {
-		const { displayText, attachments } = promptOptions(options, "remote");
+		const { displayText, attachments } = promptOptions(options, "remote", deps.uploadPath);
 		return deps.editMessage(s(sessionId), Number(index), promptContent(content), {
 			...(displayText === undefined ? {} : { displayText }),
 			...(attachments === undefined ? {} : { attachments }),
@@ -362,6 +364,7 @@ export const RPC: Record<string, Handler> = {
 				source: agent.source,
 				model: agent.model,
 				tools: agent.tools,
+				...(agent.avatar ? { avatar: agent.avatar } : {}),
 			})),
 			toolNames: status.toolNames,
 		};

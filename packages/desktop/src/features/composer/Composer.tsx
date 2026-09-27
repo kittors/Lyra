@@ -2,7 +2,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
 import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
-import { openFromEvent, openViewer } from "../image/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChangeBar } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
@@ -18,7 +17,7 @@ import { useInputHistory } from "./useInputHistory.ts";
 import { commandEntries } from "./command-catalog.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { companionOf, openScopedPanel } from "../dock/index.ts";
+import { companionOf, openScopedPanel, useSide } from "../dock/index.ts";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
@@ -29,13 +28,8 @@ import { BranchMenu } from "../modals/index.ts";
 import { PermissionPicker } from "../modals/index.ts";
 import { ProjectPicker } from "../modals/index.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { fileKind, isReadableAsText, KIND_LABEL, looksBinary, type FileKind } from "./attachments/file-kind.ts";
-import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
-import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
-import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
-import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
-import { useAttachmentMarks } from "./useAttachmentMarks.ts";
-import { useAttachmentActions } from "./attachments/actions.ts";
+import type { DraftAttachment } from "./attachments/read.ts";
+import { useComposerAttachments } from "./useComposerAttachments.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import {
@@ -44,46 +38,17 @@ import {
 	useScopedRunning,
 	useScopedSessionId,
 	useScopedStopped,
+	useScopedSubAgents,
 	useScopedTodos,
+	useScopedWorking,
 } from "../../app/session-scope.tsx";
+import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
-import { bridge } from "../../services/index.ts";
+import { bridge, onPhone } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
-interface Attachment {
-	id: string;
-	name: string;
-	mimeType: string;
-	/** What it is, for the icon and for whether its bytes may enter the prompt. */
-	kind?: FileKind;
-	data?: string;
-	text?: string;
-	isText: boolean;
-	/**
-	 * 它在磁盘上的位置，来自一个文件的话。
-	 *
-	 * 有它才谈得上「打开」和「在访达中显示」——这两件事在附件条上一直缺着，不是因为界面没给按钮，
-	 * 是因为附件里从来就没记下这个。粘贴进来的截图没有：那是剪贴板里的一团像素，不是某个文件。
-	 */
-	path?: string;
-	/**
-	 * 界面上管它叫什么——附件条上那一格写的，和正文里那枚标记写的，是同一个。
-	 *
-	 * 和 `name` 分开：一张粘贴进来的图的 `name` 是剪贴板给的 `image.png`，而屏幕上它是「图片 1」。
-	 * 模型看到的仍然是 `name`，人看到的是这个。序号会随删除变动，所以它不是一次算定的——见
-	 * `relabel`。
-	 */
-	label?: string;
-}
-
-/**
- * 一次放得进来几个。
- *
- * 四十个文件一起拖进来多半是拖错了目录，而每一个都要读字节、抽文本，窗口会停住。超出的部分现在
- * 会说出来——从前是默默丢掉，人以为都在里面，模型手里却只有前八个。
- */
-const MAX_FILES = 8;
-
+/** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
+type Attachment = DraftAttachment;
 
 export function Composer() {
 	const { t } = useI18n();
@@ -106,35 +71,14 @@ export function Composer() {
 	const flushQueue = useApp((s) => s.flushQueue);
 	/** 排着几条。只要不是零，新说的这句就得排到它们后面，不然先后就乱了。 */
 	const queuedCount = useApp((s) => (activeSessionId ? s.queued[activeSessionId]?.length ?? 0 : 0));
-	const { compact } = useLayout();
-	/** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
-	const [markMenu, setMarkMenu] = useState<{ point: { x: number; y: number }; file: Attachment } | null>(null);
-
-	/**
-	 * 从句子里那枚标记上打开图片查看器。
+	/*
+	 * 主会话此刻只是在等它派出去的子智能体。
 	 *
-	 * 查看器是从一个矩形放大开的，而这里没有被点中的那个元素——点中的是 textarea。上面那一排里有这
-	 * 张图自己的格子，就从那儿长出来；要是连那一排都被滚走了，退回从右键点的位置长，一个点放大总
-	 * 好过凭空出现。
+	 * 这时候说的话直接送进去，不排队：排队等的是「这一轮做完」，而这一轮在等子智能体，可能是十几
+	 * 分钟。送进去之后运行时让主会话放手、先回应人，子智能体留在后台跑完（`delegation-waits.ts`）。
 	 */
-	const previewImage = (target: Attachment, originRect?: DOMRect) => {
-		const index = previewable.findIndex((file) => file.id === target.id);
-		if (index < 0) return;
-		const tile = document.querySelector<HTMLElement>(`[data-ly-attachment="${CSS.escape(target.id)}"] .ly-attachment-body`);
-		const origin = originRect ?? tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
-		openViewer(
-			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
-			index,
-			origin,
-			tile,
-		);
-	};
-
-	const attachmentActions = useAttachmentActions();
-
-
-
-
+	const parked = awaitingSubAgents(useScopedSubAgents()) && running;
+	const { compact } = useLayout();
 	const draftKey = activeSessionId
 		? activeSessionId
 		: workspace
@@ -159,6 +103,11 @@ export function Composer() {
 	 */
 	const carryOn = carryOnPrompt(stopped, unfinished);
 	/*
+	 * 后台的子智能体还在跑，活就没停：它们跑完，结果送回来，主会话接着干。这时候右下角画成「继续」，
+	 * 按下去是让主会话把一件正在进行的事再启动一遍。见 `useScopedWorking`。
+	 */
+	const working = useScopedWorking();
+	/*
 	 * 「继续」只在真有活没干完时出现，而那正是 `carryOn` 的问题。
 	 *
 	 * 这里曾经还有一条 `|| lastMessage.stopReason === "stop"`，理由是「上一轮好好地结束了、你
@@ -174,7 +123,7 @@ export function Composer() {
 	 * 三是模型收尾时十有八九是在反问——「请问你想查哪座城市？」——这时候按下去发出去的是
 	 * 「继续推进当前任务」，而没有任务在推进，它在等一个地名。一次白跑的往返。
 	 */
-	const continueReady = Boolean(activeSessionId) && !running && !text.trim() && !attachments.length && !sessionRefs.length
+	const continueReady = Boolean(activeSessionId) && !working && !text.trim() && !attachments.length && !sessionRefs.length
 		&& carryOn !== null;
 	const textRef = useRef(text);
 	textRef.current = text;
@@ -229,7 +178,19 @@ export function Composer() {
 	 * 抽出去是因为侧边聊天和子智能体的输入框也要它——它们此前收得下文件，句子里却什么也没有，于是
 	 * 一句「照着第二张图改」在那两处模型只能猜。见 `useAttachmentMarks`。
 	 */
-	const marks = useAttachmentMarks<Attachment>({ attachments, setAttachments, setText, field });
+	const kit = useComposerAttachments<Attachment>({
+		text,
+		attachments,
+		setAttachments,
+		setText,
+		field,
+		/* 标记点开的文件进右边的文件面板——这个组件本来就引着 dock，那件事在这里做。 */
+		openFile: (path, name) => {
+			void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+			openScopedPanel("file", companionOf("file"));
+		},
+	});
+	const { marks } = kit;
 	/*
 	 * 往回翻自己说过的话。
 	 *
@@ -318,7 +279,6 @@ export function Composer() {
 	const permissionMenu = usePopover();
 	const projectMenu = usePopover();
 	const branchMenu = usePopover();
-	const fileRef = useRef<HTMLInputElement>(null);
 
 	/** No project behind this conversation, and that was the choice — not a step left undone. */
 	const chatting = !workspace && Boolean(scratchCwd);
@@ -414,7 +374,7 @@ export function Composer() {
 		 *
 		 * 队列里还排着东西的时候，即使这会儿空着也要接着排——否则新说的这句会越过前面那几句先到。
 		 */
-		if (activeSessionId && outgoing.deliver !== "steer" && (running || queuedCount > 0)) {
+		if (activeSessionId && outgoing.deliver !== "steer" && !(parked && queuedCount === 0) && (running || queuedCount > 0)) {
 			enqueue(activeSessionId, {
 				content: outgoing.content,
 				...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
@@ -431,7 +391,7 @@ export function Composer() {
 		}
 
 		const accepted = await send(outgoing.content, {
-			...(outgoing.deliver ? { deliver: outgoing.deliver } : {}),
+			...(outgoing.deliver ? { deliver: outgoing.deliver } : parked ? { deliver: "steer" as const } : {}),
 			...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
@@ -450,137 +410,6 @@ export function Composer() {
 			}
 		}
 	}
-
-	/**
-	 * Take files on, without pretending every one of them is text.
-	 *
-	 * This used to be two branches: images were read as bytes, and *everything else* went through
-	 * `file.text()`. A `.doc` is a compound binary document, so decoding it as UTF-8 produced a few
-	 * thousand replacement characters — which were then pasted into the message and sent. The person
-	 * saw their contract rendered as noise, and the model received the same noise.
-	 *
-	 * Three outcomes now, and which one applies is decided before anything is read:
-	 *
-	 *   - an image, carried as image content the model can actually look at;
-	 *   - a kind that is known not to be text — a document, a video, an archive — attached by name
-	 *     and type only, with nothing pasted into the prompt;
-	 *   - anything else read as text, and *then* checked: the extension is a first guess, and a file
-	 *     can be named anything.
-	 */
-	async function addFiles(picked: PickedFile[]) {
-		if (picked.length === 0) return;
-		const next: Attachment[] = [];
-		/** 本该有文字却没有的那些——只有这一类要说出来。 */
-		const scanned: string[] = [];
-		/* 在读字节之前问一次：抽一份三百页 PDF 的文本要几百毫秒，那之后光标早不在原地了。 */
-		const caret = field.current?.selectionStart ?? textRef.current.length;
-
-		/*
-		 * 一次最多八个，而且要说出来。
-		 *
-		 * 上限本身是对的——一次拖进四十个文件多半是拖错了目录。静默截断不对：第九个之后的那些
-		 * 连个说法都没有，人以为它们在里面，模型手里却没有。
-		 */
-		if (picked.length > MAX_FILES) {
-			useApp.getState().notify(translate("composer.tooManyFiles", { count: MAX_FILES, dropped: picked.length - MAX_FILES }), "warn");
-		}
-
-		for (const { file, path } of picked.slice(0, MAX_FILES)) {
-			const id = `${file.name}-${Date.now()}-${Math.random()}`;
-			const kind = fileKind(file.name, file.type);
-			// 每一条出口都要带上它，所以在这里摊平一次——漏在某一条分支上，那一类附件就打不开了。
-			const from = path ? { path } : {};
-
-			if (kind === "image") {
-				const buffer = await file.arrayBuffer();
-				next.push({ id, name: file.name, mimeType: file.type, data: bytesToBase64(new Uint8Array(buffer)), isText: false, kind, ...from });
-				continue;
-			}
-
-			if (!isReadableAsText(kind, file.name)) {
-				/*
-				 * 不是文本，但未必读不出字来。
-				 *
-				 * PDF、Word、Excel、PPT 里的字是拿得到的——`document-text.ts` 一直能做这件事，只是从来
-				 * 没有人调用它（`extractDocumentText` 在仓库里零调用点）。于是拖一份合同进来，得到的是
-				 * 一句「内容无法作为文本读取」，而那句话在能力上并不成立。
-				 *
-				 * 抽取在主进程：架构规则不许页面伸手进 `electron/`，而且 pdf.js 解析一份三百页的文档要
-				 * 几百毫秒，卡住一个没有界面的进程比卡住正在打字的窗口好。哪些格式认得由那边说了算，
-				 * 这里不复制一份清单——两处清单迟早分家。
-				 */
-				const bytes = new Uint8Array(await file.arrayBuffer());
-				const extracted = await bridge.files.documentText(file.name, bytes).catch(() => null);
-
-				if (extracted?.text) {
-					next.push({
-						id,
-						name: file.name,
-						mimeType: file.type || "application/octet-stream",
-						text: extracted.truncated
-							? `${extracted.text}\n\n${translate("composer.textTruncated", { count: extracted.fullLength - extracted.text.length })}`
-							: extracted.text,
-						isText: true,
-						// 门类不改：图标该是 PDF 就还是 PDF，变的只是「内容进不进 prompt」。
-						kind,
-						...from,
-					});
-					continue;
-				}
-
-				next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind, ...from });
-				/*
-				 * 读不出来的两种，只有一种要说。
-				 *
-				 * 扫描件是「这份 PDF 本该有文字，但它是一张图」——人得换个做法（OCR、或者换个文件），
-				 * 不说他不会知道。格式本身不支持（压缩包、可执行文件）是可预期的：为一件本来如此的事
-				 * 横一条提示在屏幕上，读的人会去找自己哪里做错了。那一类改由标记上那枚淡一档的图标说，
-				 * 见 `.ly-attachment-token[data-bodiless]`。
-				 */
-				if (extracted?.imageOnly) scanned.push(translate("composer.scannedDocument", { name: file.name }));
-				continue;
-			}
-
-			try {
-				const buffer = new Uint8Array(await file.arrayBuffer());
-				if (looksBinary(buffer)) {
-					// Named like text, and is not. Same treatment as the known kinds above.
-					next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind: "binary", ...from });
-					continue;
-				}
-				next.push({
-					id,
-					name: file.name,
-					mimeType: file.type || "text/plain",
-					text: new TextDecoder().decode(buffer),
-					isText: true,
-					kind,
-					...from,
-				});
-			} catch {
-				useApp.getState().notify(translate("subAgent.fileUnreadable", { name: file.name }), "warn");
-			}
-		}
-
-		/*
-		 * 「模型只看得到文件名」标在附件自己身上，不弹提示。
-		 *
-		 * 这件事得说——附一个 zip 进去，人会以为模型看了里面，而它只拿到一个名字。但它不是出错：一
-		 * 个压缩包本来就没有正文可读，为一件可预期的事横一条提示在屏幕上，读的人会去找自己哪里做错
-		 * 了。标记上那枚图标淡一档，说的是同一件事，而且一直在那儿。
-		 *
-		 * 扫描件是另一回事，仍然提示：那是「这份 PDF 本该有文字，但它是一张图」——人得换个做法（OCR
-		 * 或者换个文件），这是只有说出来才知道的。
-		 */
-		if (scanned.length > 0) {
-			useApp.getState().notify(scanned.join("\n"), "warn");
-		}
-		if (next.length === 0) return;
-
-		// 标记、编号、光标落点，都在这一步里——见 `useAttachmentMarks`。
-		marks.attach(next, caret);
-	}
-
 
 	const takeScreenshot = useCallback(async () => {
 		try { await bridge.screenshot.start(settings?.screenshot); }
@@ -615,48 +444,6 @@ export function Composer() {
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
 	};
-
-	/**
-	 * 带着像素的那几个，按它们在附件里的先后。
-	 *
-	 * 查看器里的序号只能在这一份里数：混着文档一起数，附件里有图有文档时点开的就是另一张图。
-	 */
-	const previewable = attachments.filter((a) => !a.isText && a.data);
-
-	/**
-	 * 输入框上方那一排，只有图片。
-	 *
-	 * 文件不在这里。一份表格的全部信息就是它的名字，而名字已经写在句子里那枚标记上了——再在上面摆一
-	 * 个同样写着名字的格子，是同一件事说两遍，还把那一排撑得老长。图片不一样：缩略图答的是「是哪一
-	 * 张」，那是文件名答不了的，所以它留在上面，句子里只放一个序号。
-	 *
-	 * 两者的删除入口也因此不同：图片在格子上按叉，文件是把句子里那枚标记删掉——见 `onChange`。
-	 *
-	 * `key` 就是附件 id，取下时按它找回原件——名字会重，id 不会。
-	 */
-	const strip: StripFile[] = attachments
-		.filter((attachment) => attachment.data && !attachment.isText)
-		.map((attachment) => {
-		const kind = attachment.kind ?? (attachment.isText ? "text" : "binary");
-		// 只有正文和像素都进不了提示词的，才是「仅文件名」。一张图的字节是送到了的。
-		const bodiless = !attachment.isText && !attachment.data;
-		return {
-			key: attachment.id,
-			name: attachment.name,
-			kind,
-			/*
-			 * 格子上写全名，正文里那枚标记写「表格 2」——两者不是同一个字符串，也不该是。
-			 * 这里传的是标记名，格子拿它只用在一种情况下：文件本来就没有像样的名字（粘贴进来的图）。
-			 */
-			...(attachment.label ? { label: attachment.label } : {}),
-			...(attachment.data && !attachment.isText
-				? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
-				: {}),
-			...(attachment.path ? { path: attachment.path } : {}),
-			// 悬停时说全名，因为格子上那一份是截过的。能拿它做什么由 `AttachmentStrip` 自己补一行。
-			tip: `${attachment.name}\n${t(KIND_LABEL[kind])}${bodiless ? ` · ${t("composer.filenameOnly")}` : ""}`,
-		};
-	});
 
 	return (
 		/*
@@ -736,9 +523,24 @@ export function Composer() {
 				 * 几句。摆到转录里去就成了「已经发生的事」，而它们一件都还没发生。
 				 */}
 				{/* 按会话重挂：换个对话，条上的进退场和拖动状态都属于上一个对话，不该跟着过来。 */}
-				{activeSessionId && <QueuedMessages key={activeSessionId} sessionId={activeSessionId} running={running} onEdit={restoreQueued} />}
+				{activeSessionId && (
+					<QueuedMessages
+						key={activeSessionId}
+						sessionId={activeSessionId}
+						running={running}
+						onEdit={restoreQueued}
+						/*
+						 * 拿到侧边聊天去问：它碰不到项目，读得到这个对话在做什么但不写进去——「这句话我先问问，
+						 * 别占用正在跑的这一轮」正是它的用途。
+						 */
+						onAside={(taken) => {
+							openScopedPanel("chat", companionOf("chat"));
+							void useSide.getState().ask(activeSessionId, taken.content);
+						}}
+					/>
+				)}
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
-				<MentionMenu id={mention.id} items={mention.matches} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
+				<MentionMenu id={mention.id} items={mention.matches} agents={mention.agents} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
 				<ComposerShell
 					fieldRef={field}
 					/*
@@ -794,59 +596,9 @@ export function Composer() {
 							: { id: slash.id, active: slash.active, open: slash.matches.length > 0 }
 					}
 					onSubmit={() => void submit()}
-					/*
-					 * 右键点在一枚标记上，弹出它的菜单。
-					 *
-					 * 被点到的是 textarea，不是标记——那一层高亮是铺在它上面的镜像，而镜像整层
-					 * `pointer-events: none`（不然连把光标放进句子里都做不到）。所以得自己回答「点的是
-					 * 哪一枚」。
-					 *
-					 * 问镜像层里那些 span 的位置，不问 `caretPositionFromPoint`。后者是这件事看上去最
-					 * 该用的 API，而它在 textarea 上给的偏移对不上：点第一枚标记，算出来的位置落在另一
-					 * 枚里，于是右键一张图弹出来的是隔壁那份 mov 的菜单——「复制图片」成了「复制路径」，
-					 * 「预览」成了灰的。span 的矩形是排版算完的结果，没有这一层不确定。
-					 *
-					 * 逐个 rect 比，不用 `getBoundingClientRect`：一枚跨行的标记有两个矩形，而它们的并
-					 * 集会把中间整片空白也算进去。
-					 */
-					onContextMenu={(event) => {
-						const mirror = field.current?.closest(".ly-composer")?.querySelector("[data-command-mirror]");
-						const tokens = [...(mirror?.querySelectorAll(".ly-attachment-token") ?? [])];
-						const at = tokens.findIndex((token) =>
-							[...token.getClientRects()].some(
-								(rect) =>
-									event.clientX >= rect.left &&
-									event.clientX <= rect.right &&
-									event.clientY >= rect.top &&
-									event.clientY <= rect.bottom,
-							),
-						);
-						if (at < 0) return;
-						/* 镜像里 span 的先后和扫描出来的先后是同一个——两边都是文档顺序。 */
-						const hit = scanPlaceholders(text, attachments)[at];
-						if (!hit) return;
-						event.preventDefault();
-						setMarkMenu({ point: { x: event.clientX, y: event.clientY }, file: hit.file });
-					}}
-					onAttachmentClick={(index, rect) => {
-						const hit = scanPlaceholders(text, attachments)[index];
-						if (!hit) return;
-						attachmentActions.openOrPreview(
-							{
-								name: hit.file.label ?? hit.file.name,
-								path: hit.file.path,
-								src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
-								mimeType: hit.file.mimeType,
-								isImage: !hit.file.isText && Boolean(hit.file.data),
-								onPreviewImage: (originRect) => previewImage(hit.file, originRect),
-								onOpenFile: (path, name) => {
-									void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-									openScopedPanel("file", companionOf("file"));
-								},
-							},
-							rect,
-						);
-					}}
+					/* 右键点在一枚标记上弹出它的菜单，点开一枚走预览或打开——三个输入框同一份，见 `useComposerAttachments`。 */
+					onContextMenu={kit.onContextMenu}
+					onAttachmentClick={kit.onAttachmentClick}
 					onKeyDown={(event) => {
 						/*
 						 * 退格吃掉整枚标记，不是一个字符。
@@ -864,50 +616,23 @@ export function Composer() {
 						if (event.defaultPrevented) return;
 						history.keyDown(event);
 					}}
-					placeholder={t("composer.placeholder")}
-					onFiles={(files) => void addFiles(files)}
+					// A phone's field is one line of a thumb's width, and the full hint wraps in most languages.
+					placeholder={t(onPhone() ? "phone.composerPlaceholder" : "composer.placeholder")}
+					onFiles={(picked) => void kit.addFiles(picked)}
 					attachments={
-						<div className="ly-reveal" data-open={attachments.length > 0 || sessionRefs.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
+						/*
+						 * 只在真有东西可画时展开：这一排只画图片（文件在句子里那枚标记上，见 `strip`）。从前按
+						 * `attachments.length` 开，贴进来一个压缩包，这一行就撑开一道空的内衬——输入框上沿平白
+						 * 高出 12px，里面什么都没有。
+						 */
+						<div className="ly-reveal" data-open={kit.strip.length > 0 || sessionRefs.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
 							<div className="ly-composer-attachments">
 								{sessionRefs.length > 0 && (
 									<div className="flex flex-wrap gap-2">
 										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
 									</div>
 								)}
-								{strip.length > 0 && <AttachmentStrip
-									files={strip}
-									/*
-									 * 独占一行，多了横着滚。
-									 *
-									 * 这一块地方是拿来打字的：一排附件换到第三行时，被挤出屏幕的是输入框
-									 * 自己。气泡那一侧没有这个问题，所以那边照样铺开。
-									 */
-									layout="row"
-										onRemove={(file) => {
-										const target = attachments.find((a) => a.id === file.key);
-										if (target) marks.detach(target);
-									}}
-									/*
-									 * 这一份还能被改：在查看器里标注完，改的是还没发出去的草稿本身。
-									 * 气泡外那一排就没有 `onReplace`——那一份已经发出去了，是记录。
-									 */
-									onOpen={(index, event) =>
-										openFromEvent(
-											event,
-											previewable.map((a) => ({
-												src: `data:${a.mimeType};base64,${a.data}`,
-												alt: a.name,
-												onReplace: (dataUrl: string) =>
-													setAttachments((prev) =>
-														prev.map((item) =>
-															item.id === a.id ? { ...item, ...fromDataUrl(dataUrl, item) } : item,
-														),
-													),
-											})),
-											index,
-										)
-									}
-								/>}
+								{kit.stripNode}
 							</div>
 						</div>
 					}
@@ -917,7 +642,7 @@ export function Composer() {
 								type="button"
 								data-ly-tip={t("composer.addAttachment")}
 								aria-label={t("composer.addAttachment")}
-								onClick={() => fileRef.current?.click()}
+								onClick={kit.picker.open}
 								className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 							>
 								<Plus size={16} strokeWidth={1.9} />
@@ -933,17 +658,7 @@ export function Composer() {
 									<Camera size={15} strokeWidth={1.9} />
 								</button>
 							)}
-							<input
-								ref={fileRef}
-								type="file"
-								multiple
-								hidden
-								onChange={(e) => {
-									// 选进来的也要取路径，和拖进来的走同一条路——见 `attachments/picked.ts`。
-									void addFiles(pickedFrom(e.target.files));
-									e.target.value = "";
-								}}
-							/>
+							{kit.picker.input}
 
 							<button
 								type="button"
@@ -1028,44 +743,8 @@ export function Composer() {
 			{permissionMenu.open && <PermissionPicker anchor={permissionMenu.anchor} onClose={permissionMenu.close} />}
 			{projectMenu.open && <ProjectPicker anchor={projectMenu.anchor} onClose={projectMenu.close} />}
 			{branchMenu.open && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
-			{/*
-			 * 句子里那一枚被右键点中时，弹的是和附件条上同一份菜单。
-			 *
-			 * 同一份，不是长得一样的另一份——打开、在访达中显示、复制路径，以及「先确认文件还在」那一
-			 * 步，都只有一处实现。见 `AttachmentMenu`。
-			 */}
-			<AttachmentMenu
-				anchor={markMenu?.point ?? null}
-				file={
-					markMenu
-						? {
-								name: markMenu.file.label ?? markMenu.file.name,
-								...(markMenu.file.path ? { path: markMenu.file.path } : {}),
-								...(markMenu.file.data && !markMenu.file.isText
-									? { src: `data:${markMenu.file.mimeType};base64,${markMenu.file.data}` }
-									: {}),
-								/*
-								 * 预览只给图片。
-								 *
-								 * 图片的预览不需要磁盘上有文件——像素就在手上，查看器要的只是一个放大的起
-								 * 点；这一行一度写成「有 path 才给」，于是一张粘贴进来的截图右键出来，连它
-								 * 明明做得到的那件事都是灰的。
-								 *
-								 * 文件不给：它的「预览」只能是右边那个文件面板，而面板读不到项目外的东西
-								 * （`files.read` 要过 `resolveReadablePath`），而附件绝大多数来自项目外。
-								 * 一个点下去会失败的菜单项比没有更糟——文件要打开，有「打开」那一行。
-								 */
-								...(markMenu.file.data && !markMenu.file.isText ? { onPreview: () => previewImage(markMenu.file) } : {}),
-							}
-						: null
-				}
-				onClose={() => setMarkMenu(null)}
-				onRemove={() => {
-					const target = markMenu?.file;
-					setMarkMenu(null);
-					if (target) marks.detach(target);
-				}}
-			/>
+			{/* 句子里那一枚被右键点中时弹的菜单——见 `useComposerAttachments`。 */}
+			{kit.menu}
 		</div>
 	);
 }
@@ -1107,26 +786,4 @@ function Chip({
 			<ScrollText key={label} text={label} className={`min-w-0 ${rolls ? "ly-roll" : ""}`} />
 		</button>
 	);
-}
-
-/** btoa cannot take a raw byte array; chunk it so large images do not blow the call stack. */
-function bytesToBase64(bytes: Uint8Array): string {
-	let binary = "";
-	const chunk = 0x8000;
-	for (let i = 0; i < bytes.length; i += chunk) {
-		binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-	}
-	return btoa(binary);
-}
-
-/**
- * Split an annotated `data:` URL back into the shape an attachment is stored in.
- *
- * The annotator always hands back PNG, whatever went in — flattening a JPEG with marks on it and
- * calling it a JPEG would re-compress the original a second time.
- */
-function fromDataUrl(dataUrl: string, previous: { mimeType: string }): { data: string; mimeType: string } {
-	const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
-	if (!match) return { data: "", mimeType: previous.mimeType };
-	return { mimeType: match[1], data: match[2] };
 }

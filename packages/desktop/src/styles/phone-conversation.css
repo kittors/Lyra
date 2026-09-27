@@ -1,0 +1,519 @@
+/* ---------------------------------------------------------------------------
+ * The conversation, on a phone: the empty screen, and the composer along the bottom.
+ *
+ * Part of `phone.css`.
+ * ------------------------------------------------------------------------ */
+
+/* ---------------------------------------------------------------------------
+ * The empty screen. See `PhoneEmpty` in `EmptyState.tsx`.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  margin: auto;
+  padding: 24px 8px 12px;
+  animation: ly-phone-hero-in 520ms var(--ly-e-out);
+}
+
+.ly-phone-hero img {
+  width: 92px;
+  height: 92px;
+}
+
+.ly-phone-hero-title {
+  max-width: 320px;
+  font-size: var(--text-heading);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--color-ink);
+}
+
+@keyframes ly-phone-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/*
+ * The four starting points, one row, sideways. The ends fade so the chip cut off at the edge reads
+ * as "more this way" rather than as clipped.
+ */
+.ly-phone-suggest {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 4px 16px 10px;
+  scroll-padding-inline: 16px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0) 14px, rgb(0 0 0) calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0) 14px, rgb(0 0 0) calc(100% - 28px), transparent 100%);
+}
+
+.ly-phone-suggest::-webkit-scrollbar {
+  display: none;
+}
+
+.ly-phone-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 17px 0 14px;
+  border: 0.5px solid var(--ly-phone-well-edge);
+  border-radius: 999px;
+  background: var(--ly-phone-well);
+  font-size: var(--text-label);
+  color: var(--color-ink);
+  white-space: nowrap;
+  scroll-snap-align: start;
+  animation: ly-phone-chip-in 460ms var(--ly-e-out) backwards;
+}
+
+.ly-phone-chip:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.ly-phone-chip:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.ly-phone-chip:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.ly-phone-chip:active {
+  background: color-mix(in srgb, var(--color-ink) 9%, var(--color-shell));
+}
+
+@keyframes ly-phone-chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * The composer.
+ *
+ * A filled well rather than an outlined card: on a phone it is the one thing on screen the thumb
+ * goes to, and a solid shape at the bottom is how every messaging app says "type here". The shadow
+ * the desktop gives it is the distance between it and a page it floats over; here it sits in the
+ * page, so the fill does that work and the shadow goes.
+ *
+ * Its controls in one row, in reading order: add, access, the model; then the reasoning level and
+ * send at the far end, under the thumb. The desktop splits them into two groups either side of the
+ * row; on a phone that left the model with whatever the other side did not need, which at 390pt
+ * was `Claude So…`. The model is now the only thing in the row that can give way, and it goes first
+ * among the things it sits beside, so it gets every point the row has spare.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] .ly-composer-dock {
+  padding-top: 6px;
+  padding-inline: 12px;
+}
+
+[data-lyra-host="mobile"] .ly-composer {
+  border-radius: 26px;
+  border-color: var(--ly-phone-well-edge);
+  background: var(--ly-phone-well);
+  box-shadow: none;
+  transition:
+    border-color var(--ly-t-base) ease-out,
+    background-color var(--ly-t-base) ease-out;
+}
+
+[data-lyra-host="mobile"] .ly-composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  box-shadow: none;
+}
+
+[data-lyra-host="mobile"] .ly-composer-text {
+  padding-inline: 18px;
+}
+
+/*
+ * No gap between the controls: each is a 44pt target whose own padding is the space around its
+ * mark, and a gap on top of that is width the model's name needs more.
+ */
+[data-lyra-host="mobile"] .ly-composer-bar {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 6px 8px 4px;
+}
+
+/* The two groups dissolve into one row, so the order below can interleave them. */
+[data-lyra-host="mobile"] .ly-composer-bar > div {
+  display: contents;
+}
+
+[data-lyra-host="mobile"] .ly-composer-control {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+[data-lyra-host="mobile"] .ly-composer-bar .ly-composer-control > svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Add and access first: the access mode as its mark alone — red when it is full access. */
+[data-lyra-host="mobile"] .ly-composer-bar > div:first-child > * {
+  order: 1;
+}
+
+[data-lyra-host="mobile"] .ly-composer-bar [data-ly-fit-drop="1"] {
+  display: none;
+}
+
+/* The model, next, with every point the row does not need. */
+[data-lyra-host="mobile"] .ly-composer-bar button:has(.ly-fit-probe) {
+  order: 2;
+  flex: 0 1 auto;
+  gap: 7px;
+  padding-inline: 8px 10px;
+  border-radius: 999px;
+  font-size: var(--text-label);
+}
+
+[data-lyra-host="mobile"] .ly-composer-bar button:has(.ly-fit-probe) > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/*
+ * The model's name in two parts, where it leads with its house's word (see `ModelTrigger`).
+ *
+ * Laid out so that word is the one that goes when the row is short. The rest comes first in the
+ * line (`order`) and the line runs right to left, so it reads `Claude Sonnet 5` whenever both fit;
+ * when they do not, the house's word wraps onto a second line the box is one line too short to
+ * show, and `Sonnet 5` keeps the first line whole. Only a rest too long to fit even alone is cut,
+ * with an ellipsis. No measuring: the wrap is the decision, made again at every width.
+ */
+[data-lyra-host="mobile"] .ly-fit-probe > .ly-model-name {
+  display: flex;
+  flex-flow: row-reverse wrap;
+  justify-content: flex-end;
+  column-gap: 0.25em;
+  /* One line of the chip's text: `lh` where the WebView has it, the chip's own leading before iOS 16.4. */
+  height: 1.5em;
+  height: 1lh;
+  overflow: hidden;
+}
+
+[data-lyra-host="mobile"] .ly-model-name > span {
+  flex: none;
+  white-space: nowrap;
+}
+
+[data-lyra-host="mobile"] .ly-model-name > span:not([data-ly-model-house]) {
+  order: -1;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The context meter stays on the desktop. At a phone's width it could only have its 44pt by taking
+ * them from the model's name — the trade `composer/fit.ts` already makes on a narrow desktop window,
+ * where the meter is the second thing to go. Made here once rather than re-measured on every
+ * keystroke, so the row does not change shape as a conversation grows.
+ */
+[data-lyra-host="mobile"] .ly-composer-bar [data-ly-fit-drop="2"] {
+  display: none;
+}
+
+/* Then the far end: the reasoning level, the queue button while a turn runs, send. */
+[data-lyra-host="mobile"] .ly-composer-bar button:has(.ly-fit-probe) + button {
+  order: 4;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: 0;
+  border-radius: 999px;
+  font-size: var(--text-label);
+}
+
+/*
+ * The reasoning level, drawn (see `EffortMeter`): one bar per level the model offers, climbing,
+ * lit up to the chosen one. The same width in every language, where the word was not.
+ */
+[data-lyra-host="mobile"] .ly-effort-meter {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+  color: var(--color-ink-muted);
+}
+
+[data-lyra-host="mobile"] .ly-effort-meter > span {
+  width: 3px;
+  border-radius: 1.5px;
+  background: currentColor;
+  opacity: 0.3;
+  transition: opacity var(--ly-t-base) var(--ly-e-out);
+}
+
+[data-lyra-host="mobile"] .ly-effort-meter[data-dense] {
+  gap: 1.5px;
+}
+
+[data-lyra-host="mobile"] .ly-effort-meter[data-dense] > span {
+  width: 2.5px;
+}
+
+[data-lyra-host="mobile"] .ly-effort-meter > span[data-on] {
+  opacity: 1;
+}
+
+[data-lyra-host="mobile"] [aria-expanded="true"] > .ly-effort-meter {
+  color: var(--color-ink);
+}
+
+[data-lyra-host="mobile"] .ly-composer-bar .ly-queue-send {
+  order: 5;
+}
+
+[data-lyra-host="mobile"] .ly-composer-bar > div:last-child > button:last-child {
+  order: 6;
+}
+
+/*
+ * The chips above it — which project, which branch — look a touch shorter than the controls in the
+ * card, so the row reads as a caption to it rather than as a second toolbar. Only look: the button
+ * is still the full 44pt a thumb needs, and the pill is painted inside it (`padding-box`), so the
+ * target and the shape are two different sizes on purpose.
+ */
+[data-lyra-host="mobile"] .ly-composer-dock button.ly-composer-control.ly-scroll {
+  min-height: 44px;
+  height: 44px;
+  padding-inline: 10px;
+  border-block: 4px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  font-size: var(--text-detail);
+}
+
+[data-lyra-host="mobile"] .ly-composer-dock button.ly-composer-control.ly-scroll svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---------------------------------------------------------------------------
+ * A question or an approval, waiting over the composer.
+ *
+ * The title has the header's row to itself: the kind and the countdown are its caption, on the line
+ * under it (see `ApprovalOverlay`), so it wraps between words at any width and in any language. The
+ * mark and the chevron stay level with its first line rather than floating beside the middle of a
+ * two-line title, and every control in the card is a thumb's 44pt.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] [data-approval-head] {
+  align-items: flex-start;
+}
+
+/* Level with the first line: half of what the line has over the mark's own height. */
+[data-lyra-host="mobile"] [data-approval-head] > svg {
+  margin-top: calc((var(--text-label--line-height) * var(--text-label) - 15px) / 2);
+}
+
+[data-lyra-host="mobile"] [data-approval-head] > .ly-avatar {
+  margin-top: calc((var(--text-label--line-height) * var(--text-label) - 18px) / 2);
+}
+
+/*
+ * Set apart by space alone, as they are beside the title on the desktop: a separator mark would be
+ * left at the start or the end of a line wherever a narrow screen wraps them.
+ */
+[data-lyra-host="mobile"] [data-approval-meta] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  margin-top: 1px;
+}
+
+/*
+ * The chevron gets its 44pt without making the header taller: the negative margins give back what
+ * the target adds, so it sits centred on the first line and the title sets the height.
+ */
+[data-lyra-host="mobile"] [data-approval-head] > button[aria-expanded] {
+  width: 44px;
+  height: 44px;
+  margin-block: calc((var(--text-label--line-height) * var(--text-label) - 44px) / 2);
+  margin-inline: -4px -12px;
+}
+
+[data-lyra-host="mobile"] [data-approval-card] [data-ly-question-footer] button,
+[data-lyra-host="mobile"] [data-approval-card] [data-ly-permission-choices] button {
+  min-height: 44px;
+  border-radius: 999px;
+}
+
+[data-lyra-host="mobile"] [data-approval-card] [data-ly-question-option],
+[data-lyra-host="mobile"] [data-approval-card] [data-ly-question-other] {
+  min-height: 44px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Going to settings is going somewhere: on a phone it comes in from the right, the way a pushed
+ * screen does, rather than replacing the conversation in place. `Activity` hides the screen with
+ * `display: none`, so the arrival replays every time it is opened and never on the way back.
+ * ------------------------------------------------------------------------ */
+
+@keyframes ly-phone-push-in {
+  from {
+    opacity: 0.6;
+    transform: translateX(24%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] [data-ly-settings] {
+  animation: ly-phone-push-in 360ms var(--ly-e-out);
+}
+
+/* ---------------------------------------------------------------------------
+ * Files on their way to the desktop. See `PhoneUploads`.
+ *
+ * The tray above the text opens for them even with no image in it: every composer opens it on
+ * `strip.length`, and an upload is not an image, so the phone opens it here whenever one is listed.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] .ly-reveal:has(.ly-phone-uploads) {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+[data-lyra-host="mobile"] .ly-reveal:has(.ly-phone-uploads) .ly-composer-attachments {
+  padding-top: var(--ly-composer-in);
+}
+
+.ly-phone-uploads {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ly-phone-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 6px 4px 6px 12px;
+  border: 0.5px solid var(--ly-phone-well-edge, var(--color-line-soft));
+  border-radius: 16px;
+  background: var(--color-float);
+  animation: ly-phone-upload-in 320ms var(--ly-e-out);
+}
+
+.ly-phone-upload-icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--color-card-hover);
+}
+
+.ly-phone-upload-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ly-phone-upload-name {
+  overflow: hidden;
+  font-size: var(--text-detail);
+  line-height: 1.3;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-phone-upload-track {
+  position: relative;
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-card-hover);
+}
+
+/* Scaled rather than resized, so progress is compositor work and not a relayout per tick. */
+.ly-phone-upload-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transform-origin: left center;
+  transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-phone-upload-meta,
+.ly-phone-upload-error {
+  font-size: var(--text-caption);
+  line-height: 1.3;
+  color: var(--color-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ly-phone-upload-error {
+  color: var(--color-danger);
+}
+
+.ly-phone-upload[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+
+.ly-phone-upload-retry {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 44px;
+  padding-inline: 12px;
+  border-radius: 999px;
+  font-size: var(--text-detail);
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.ly-phone-upload-cancel {
+  display: grid;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-ink-muted);
+}
+
+.ly-phone-upload-retry:active,
+.ly-phone-upload-cancel:active {
+  background: var(--color-card-hover);
+}
+
+@keyframes ly-phone-upload-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

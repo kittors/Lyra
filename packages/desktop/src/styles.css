@@ -34,6 +34,7 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
 @import "./styles/markdown.css";
+@import "./styles/readme.css";
 
 /* Components, in the order they were written. */
 @import "./styles/composer.css";
@@ -58,6 +59,7 @@
 @import "./styles/dock.css";
 @import "./styles/pull-requests.css";
 @import "./styles/trajectory.css";
+@import "./styles/avatar.css";
 
 /* Last, so it can override anything above when the interface is on a phone. */
 @import "./styles/phone.css";

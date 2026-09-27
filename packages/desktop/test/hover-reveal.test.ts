@@ -99,3 +99,70 @@ test("every hover-revealed control in the tree is covered by the rule", async ()
 	 */
 	assert.deepEqual(missed, [], `这些 hover 控件在手机上仍然不可见：\n${missed.join("\n")}`);
 });
+
+/**
+ * A stylesheet's rules, split as far as the question here needs: rules inside `@media` are opened
+ * too and carry their condition.
+ *
+ * Not a CSS parser — it knows this repository's own style of comments, selectors and braces and
+ * nothing more. The only question is which selector, under which media condition, declares what, and
+ * a parsing library is not worth pulling in for that.
+ */
+function cssRules(css: string, media = ""): { media: string; selector: string; body: string }[] {
+	const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+	const found: { media: string; selector: string; body: string }[] = [];
+	let at = 0;
+	while (at < text.length) {
+		const open = text.indexOf("{", at);
+		if (open < 0) break;
+		const prelude = (text.slice(at, open).split(/[;}]/).pop() ?? "").trim();
+		let depth = 1;
+		let end = open + 1;
+		for (; end < text.length && depth > 0; end++) {
+			if (text[end] === "{") depth++;
+			else if (text[end] === "}") depth--;
+		}
+		const body = text.slice(open + 1, end - 1);
+		if (prelude.startsWith("@media")) found.push(...cssRules(body, prelude.slice("@media".length).trim()));
+		else found.push({ media, selector: prelude, body });
+		at = end;
+	}
+	return found;
+}
+
+test("the file-link exits, revealed by the stylesheet rather than a class, are reachable without hover", async () => {
+	/*
+	 * The open / reveal bar beside a file link is shown and hidden in `markdown.css` rather than by the
+	 * component's classes: it has to coordinate `visibility`, opacity, a shift and two waits, and split
+	 * into Tailwind classes that would live in two places. So the scan of component classes above never
+	 * sees it — which is how it came to be unreachable on a device without hover: the buttons sat at
+	 * opacity 0 with only `:hover` to bring them out, and at 0 with the keyboard on the link as well.
+	 */
+	const css = await readFile(fileURLToPath(new URL("../src/styles/markdown.css", import.meta.url)), "utf8");
+	const rules = cssRules(css);
+	const says = (body: string, property: string, value: string) =>
+		new RegExp(`(^|;)\\s*${property}\\s*:\\s*${value.replace(/[()]/g, "\\$&")}\\s*(;|$)`).test(body);
+	const exits = rules.filter((rule) => rule.selector.includes("[data-ly-file-actions]"));
+	assert.ok(exits.length > 0, "markdown.css 里应当有 [data-ly-file-actions] 的规则");
+
+	assert.ok(
+		exits.some((rule) => !rule.media && rule.selector === "[data-ly-file-actions]" && says(rule.body, "visibility", "hidden")),
+		"平时藏着，而且藏到不接鼠标（visibility: hidden），不是只把不透明度调成 0",
+	);
+	const shown = exits.filter((rule) => !rule.media && says(rule.body, "visibility", "visible") && says(rule.body, "opacity", "1"));
+	assert.ok(shown.some((rule) => /:hover\s*>\s*\[data-ly-file-actions\]/.test(rule.selector)), "指针停上来要显形");
+	assert.ok(
+		shown.some((rule) => /:has\(:focus-visible\)\s*>\s*\[data-ly-file-actions\]/.test(rule.selector)),
+		"键盘走到链接上也要显形——下一次 Tab 就进浮条里的按钮",
+	);
+	assert.ok(
+		exits.some(
+			(rule) =>
+				/hover:\s*none/.test(rule.media) &&
+				says(rule.body, "visibility", "visible") &&
+				says(rule.body, "opacity", "1") &&
+				says(rule.body, "position", "static"),
+		),
+		"没有悬停的设备上要常驻，并且回到胶囊里（static），不能一直浮着盖住上一行",
+	);
+});

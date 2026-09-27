@@ -17,6 +17,7 @@ import { create } from "zustand";
 import { reduceSideEvent, rebuildToolRuns, type SideConversation } from "./side-events.ts";
 
 import { bridge } from "../../services/index.ts";
+import type { QueuedMessage } from "../../store/queued-message.ts";
 
 /**
  * What can occupy a pane. One of each at a time — two diffs of one worktree is not a thing.
@@ -72,6 +73,13 @@ export interface SideChatSlot extends SideConversation {
 	thinking: ThinkingLevel | null;
 	/** Text waiting to be put back into the composer, and a counter so repeats still register. */
 	draftSeed: { text: string; nonce: number } | null;
+	/**
+	 * 正在答的时候问出口的那几句，排着等这一轮答完。
+	 *
+	 * 从前这时候按回车什么都不发生——字留在框里，没有一句话说为什么。主会话早就是这样排的（见
+	 * `store/queue-slice.ts`），条也是同一条：看得见、改得了、排得出先后。只活在界面上，不落盘。
+	 */
+	queued: QueuedMessage[];
 }
 
 interface SideState {
@@ -116,6 +124,11 @@ interface SideState {
 	/** Hand text back to the composer — see the note on the implementation. */
 	seedDraft(sessionId: string | null, text: string): void;
 	clearDraftSeed(sessionId: string | null): void;
+	/** 排到队尾。这一轮干净答完之后，队首自己发出去。 */
+	enqueue(sessionId: string | null, entry: Omit<QueuedMessage, "id" | "queuedAt">): void;
+	/** 拿走一条并交还给调用者——删掉是丢弃，编辑是放回输入框。 */
+	dropQueued(sessionId: string | null, id: string): QueuedMessage | null;
+	moveQueued(sessionId: string | null, id: string, targetId: string, placement: "before" | "after"): boolean;
 	applyEvent(sessionId: string, event: SideChatUpdate & { sideRevision?: number }): void;
 	setTasks(sessionId: string, tasks: QueuedTask[]): void;
 }
@@ -160,7 +173,8 @@ const EMPTY: SideConversation = {
  * 一个常量而不是每次新建一个：selector 直接把它交给组件，每次换一个新对象等于每次都「变了」，
  * React 会一直重画。
  */
-const EMPTY_SLOT: SideChatSlot = { ...EMPTY, loading: false, thinking: null, draftSeed: null };
+const NO_QUEUE: QueuedMessage[] = [];
+const EMPTY_SLOT: SideChatSlot = { ...EMPTY, loading: false, thinking: null, draftSeed: null, queued: NO_QUEUE };
 
 /** 这个会话的那一份。问一个没开过的会话不是错，答案是空的。 */
 export function sideChatOf(state: { chats: Record<string, SideChatSlot> }, sessionId: string | null): SideChatSlot {
@@ -174,6 +188,21 @@ export const useSide = create<SideState>((set, get) => {
 			const slot = state.chats[sessionId] ?? EMPTY_SLOT;
 			return { chats: { ...state.chats, [sessionId]: { ...slot, ...(typeof changes === "function" ? changes(slot) : changes) } } };
 		});
+	};
+
+	/**
+	 * 发队首——只在真的空着的时候。
+	 *
+	 * 「先取走再发」：条上那一行要在这一刻就走，而 `ask` 自己会先把这句画进对话里。它要是被拒了
+	 * （正在加载、刚好又开了一轮），放回原处，下一次答完再轮到它。
+	 */
+	const flush = (sessionId: string) => {
+		const slot = sideChatOf(get(), sessionId);
+		const first = slot.queued[0];
+		if (!first || slot.running || slot.loading) return;
+		patch(sessionId, { queued: slot.queued.slice(1) });
+		const meta = first.displayText !== undefined ? { displayText: first.displayText, attachments: (first.attachments ?? []) as MessageAttachment[] } : undefined;
+		void get().ask(sessionId, first.content, meta);
 	};
 
 	return {
@@ -297,7 +326,8 @@ export const useSide = create<SideState>((set, get) => {
 
 		async reset(sessionId) {
 			if (!sessionId || sideChatOf(get(), sessionId).loading) return;
-			patch(sessionId, { loading: true, error: null });
+			// 重新开始：排着的那几句是问给上一段对话的，不跟过来。
+			patch(sessionId, { loading: true, error: null, queued: NO_QUEUE });
 			try {
 				await bridge.sideChat.reset(sessionId);
 				await get().attach(sessionId, true);
@@ -356,6 +386,41 @@ export const useSide = create<SideState>((set, get) => {
 			// 正在拉快照的会话，事件先攒着，等快照回来再按 revision 决定放不放。
 			reads.get(sessionId)?.events.push(event);
 			patch(sessionId, (slot) => reduceSideEvent(slot, event));
+			/*
+			 * 这一轮干净答完了，排着的下一句接上。
+			 *
+			 * 只认 done，理由同主会话（`apply-event.ts`）：按了停止、报了错，接着把排着的灌进去是最
+			 * 不该做的事——那几句留在条上，发不发由人定。推到微任务里，等这一轮的收尾先落定。
+			 */
+			if (event.type === "agent_end" && event.reason === "done") queueMicrotask(() => flush(sessionId));
+		},
+
+		enqueue(sessionId, entry) {
+			if (!sessionId) return;
+			patch(sessionId, (slot) => ({ queued: [...slot.queued, { ...entry, id: crypto.randomUUID(), queuedAt: Date.now() }] }));
+			// 空着却排上了——多半是上一轮被停掉、队里还压着别的：由这一次推它一把。
+			queueMicrotask(() => flush(sessionId));
+		},
+
+		dropQueued(sessionId, id) {
+			if (!sessionId) return null;
+			const taken = sideChatOf(get(), sessionId).queued.find((entry) => entry.id === id) ?? null;
+			if (taken) patch(sessionId, (slot) => ({ queued: slot.queued.filter((entry) => entry.id !== id) }));
+			return taken;
+		},
+
+		moveQueued(sessionId, id, targetId, placement) {
+			if (!sessionId || id === targetId) return false;
+			const list = sideChatOf(get(), sessionId).queued;
+			const from = list.findIndex((entry) => entry.id === id);
+			if (from < 0 || !list.some((entry) => entry.id === targetId)) return false;
+			// 目标的位置在拿走之后重新找一遍——见 `queue-slice.ts` 同名的那一段。
+			const without = list.toSpliced(from, 1);
+			const at = without.findIndex((entry) => entry.id === targetId);
+			const to = placement === "before" ? at : at + 1;
+			if (to === from) return false;
+			patch(sessionId, { queued: without.toSpliced(to, 0, list[from]!) });
+			return true;
 		},
 	};
 });

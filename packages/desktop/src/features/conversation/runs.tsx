@@ -9,10 +9,12 @@ import { memo } from "react";
 import type { AssistantContent, AssistantMessage } from "@lyra/core";
 import { PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
+import { DispatchFaces, useDelegation, useDispatches } from "./DelegationCard.tsx";
 import { describeRun } from "./ToolGroup.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";
 import { useApp, type ToolRun as ToolRunState } from "../../store/index.ts";
 import { useScopedRunning } from "../../app/session-scope.tsx";
+import type { Dispatch } from "../../lib/dispatches.ts";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
 import { baseName } from "../../lib/paths.ts";
@@ -72,6 +74,7 @@ export function LiveToolCard({
   block,
   stopReason,
   runs,
+  dispatch,
 }: {
   block: Extract<AssistantContent, { type: "toolCall" }>;
   stopReason: AssistantMessage["stopReason"];
@@ -84,6 +87,8 @@ export function LiveToolCard({
    * and passes them in.
    */
   runs?: Record<string, ToolRunState>;
+  /** 这一张要是一次派发，整组对过号之后它是哪一个——见 `DelegationCard`。 */
+  dispatch?: Dispatch;
 }) {
   const stored = useApp((s) => s.toolRuns[block.id]);
   const run = runs ? runs[block.id] : stored;
@@ -94,6 +99,22 @@ export function LiveToolCard({
    * 主会话此刻的状态，拿它去判子智能体的旧卡片，会让它们跟着主会话一起转圈。
    */
   const turnRunning = useScopedRunning();
+  if (block.name === "task") return <DelegationCard block={block} run={run} stopReason={stopReason} dispatch={dispatch} detached={Boolean(runs)} />;
+  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} />;
+}
+
+/** 一次派发：它的脸、派给了谁、在排队还是在跑——见 `DelegationCard.tsx`。 */
+function DelegationCard(props: Parameters<typeof useDelegation>[0]) {
+  return <ToolCard {...useDelegation(props)} />;
+}
+
+function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
+  block: Extract<AssistantContent, { type: "toolCall" }>;
+  run?: ToolRunState;
+  stopReason: AssistantMessage["stopReason"];
+  runs?: Record<string, ToolRunState>;
+  turnRunning: boolean;
+}) {
   /*
    * A preview replaces its own tool card.
    *
@@ -173,12 +194,17 @@ const ToolRunGroup = function ToolRun({
   const added = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? s.toolRuns)[block.id], "added"), 0));
   const removed = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? s.toolRuns)[block.id], "removed"), 0));
 
+  // 这一段里派出去的子智能体：整组一起对号，收起时行尾摆一排它们的脸。见 `useDispatches`。
+  const dispatches = useDispatches(calls.map(({ block }) => block), runs);
+  const byCall = new Map(dispatches.map((one) => [one.callId, one]));
+
   const cards = calls.map(({ block, stopReason }) => (
-    <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} />
+    <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} dispatch={byCall.get(block.id)} />
   ));
 
   return (
-    <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}>
+    <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}
+      extra={dispatches.length > 0 ? <DispatchFaces dispatches={dispatches} /> : undefined}>
       {cards}
     </ToolGroup>
   );

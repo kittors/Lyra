@@ -1,14 +1,24 @@
 /* ---------------------------------------------------------------------------
  * On a phone
  *
- * The same interface, held in a hand instead of pointed at. What changes is not the layout — the
- * narrow layout already exists and is the one a dragged-in desktop window uses — but the things a
- * mouse implies and a thumb does not: hit areas measured for a cursor, states that depend on
- * hovering, and the browser's own idea of what a tap should look like.
+ * The same interface, held in a hand instead of pointed at. The narrow layout already exists — it is
+ * the one a dragged-in desktop window uses — so what changes here is everything a mouse implies and
+ * a thumb does not: hit areas measured for a cursor, states that depend on hovering, the browser's
+ * own idea of what a tap should look like, and a screen whose edges belong partly to the phone.
  *
  * Scoped to `[data-lyra-host="mobile"]`, which the bridge sets before the app boots. Nothing here
  * reaches the desktop, and a narrow desktop window stays a desktop window — it still has a mouse.
+ *
+ * Four files, by what they are about:
+ *   phone.css               the page: safe areas, type, hit areas, hover, the keyboard
+ *   phone-touch.css         what a finger does: pressing, holding, menus and sheets
+ *   phone-drawer.css        the navigation drawer and its bottom bar
+ *   phone-conversation.css  the conversation: its top bar, the empty screen, the composer
  * ------------------------------------------------------------------------ */
+
+@import "./phone-touch.css";
+@import "./phone-drawer.css";
+@import "./phone-conversation.css";
 
 [data-lyra-host="mobile"] {
   /*
@@ -21,40 +31,147 @@
   -webkit-tap-highlight-color: transparent;
 
   /*
-   * Text selection off by default, on where text is.
+   * No selection and no callout under a held finger.
    *
-   * A long press on a phone selects, and on a page built out of buttons and labels that means the
-   * magnifier and a selection handle appear when someone meant to scroll. Restored for the parts
-   * that are prose — a transcript you cannot copy from would be worse than the alternative.
+   * A long press is the app's own gesture on a phone — it opens the row's or the message's menu
+   * (see `PhoneTouch`) — and the system's two answers to it, a selection handle and the "open link /
+   * save image" sheet, would start at the same moment. Text that is meant to be selected opts back
+   * in below; the rest of the transcript is reached through the menu's 「选择文本」, which opens it
+   * in a sheet where selecting is the only thing a finger can do.
    */
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+
+  /*
+   * The phone's own chrome, as the native shell measured it.
+   *
+   * The WebView runs under the status bar and the home indicator (see `desk.tsx`); these say how
+   * much of each edge is the phone's. `--ly-native-*` comes from the shell, which knows on both
+   * platforms; `env()` is the fallback for a WebView opened some other way. Everything that has to
+   * keep clear of an edge reads `--ly-safe-*`, and nothing else does — backgrounds run to the edge.
+   */
+  --ly-safe-top: var(--ly-native-top, env(safe-area-inset-top, 0px));
+  --ly-safe-right: var(--ly-native-right, env(safe-area-inset-right, 0px));
+  --ly-safe-bottom: var(--ly-native-bottom, env(safe-area-inset-bottom, 0px));
+  --ly-safe-left: var(--ly-native-left, env(safe-area-inset-left, 0px));
+
+  /*
+   * One step up the type scale.
+   *
+   * Every size in the app is `calc()` off `--ly-ui-size` (see `tokens.css`), and that number is the
+   * desktop's own setting, carried across with the rest of them. A CSS pixel on a phone is a third
+   * smaller than on a laptop's screen, so the same fourteen pixels that read comfortably at arm's
+   * length are small in the hand. Stepping the whole scale keeps its proportions and still follows
+   * the setting.
+   */
+  --text-caption: calc(var(--ly-ui-size, 14px) - 1px);
+  --text-detail: var(--ly-ui-size, 14px);
+  --text-label: calc(var(--ly-ui-size, 14px) + 1px);
+  --text-body: calc(var(--ly-ui-size, 14px) + 2px);
+  --text-title: calc(var(--ly-ui-size, 14px) + 4px);
+  --text-heading: calc(var(--ly-ui-size, 14px) + 8px);
+  --text-display: calc(var(--ly-ui-size, 14px) + 14px);
+
+  /* A filled well for the things a thumb works in — the composer, the search, the chips. */
+  --ly-phone-well: color-mix(in srgb, var(--color-ink) 4.5%, var(--color-shell));
+  --ly-phone-well-edge: color-mix(in srgb, var(--color-ink) 7%, transparent);
+
+  /* How much of the window the keyboard is covering, published by `useKeyboardInset`. */
+  --ly-keyboard: 0px;
 }
 
-[data-lyra-host="mobile"] .ly-md,
-[data-lyra-host="mobile"] .prose-dw,
-[data-lyra-host="mobile"] pre,
-[data-lyra-host="mobile"] code,
+:root.dark[data-lyra-host="mobile"] {
+  --ly-phone-well: color-mix(in srgb, var(--color-ink) 7.5%, var(--color-shell));
+  --ly-phone-well-edge: color-mix(in srgb, var(--color-ink) 9%, transparent);
+}
+
+[data-lyra-host="mobile"] body {
+  font-size: calc(var(--ly-ui-size, 14px) + 1px);
+}
+
 [data-lyra-host="mobile"] textarea,
 [data-lyra-host="mobile"] input,
 [data-lyra-host="mobile"] .cm-content,
-[data-lyra-host="mobile"] [data-ly-selectable] {
+[data-lyra-host="mobile"] [data-ly-selectable],
+[data-lyra-host="mobile"] [data-ly-selectable] * {
   -webkit-user-select: text;
   user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* ---------------------------------------------------------------------------
+ * The edges.
+ *
+ * The page keeps everything clear of the status bar, and of a notch turned sideways; the parts
+ * that run along the bottom — the composer, the drawer's bar, a sheet — keep themselves clear of
+ * the home indicator, each by its own amount, so the page as a whole does not stop short of it.
+ * What shows in the strips is the page's own background, not a frame around it.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] #root {
+  box-sizing: border-box;
+  padding-left: var(--ly-safe-left);
+  padding-right: var(--ly-safe-right);
+  /*
+   * On its side the notch is at one end, and the strip kept clear of it takes the colour of whatever
+   * is next to it — the sidebar when it is open beside the conversation — so it reads as that pane
+   * running to the edge rather than as a margin.
+   */
+  background:
+    linear-gradient(to right, var(--ly-root-left, var(--color-shell)) var(--ly-safe-left), transparent 0),
+    var(--color-shell);
+}
+
+[data-lyra-host="mobile"] #root:has(aside[data-pane="beside"]:not([inert])) {
+  --ly-root-left: var(--color-sidebar);
 }
 
 /*
+ * The status bar is kept clear column by column rather than across the top of the whole page, so
+ * the strip under it is the colour of the column it belongs to: the sidebar's over a sidebar laid
+ * out beside the conversation (a tablet, a phone on its side), the page's over the page. The drawer
+ * pads itself (`phone-drawer.css`).
+ */
+[data-lyra-host="mobile"] .ly-shell main.ly-opaque,
+[data-lyra-host="mobile"] aside[data-pane="beside"] > .ly-sidebar-fill {
+  padding-top: var(--ly-safe-top);
+}
+
+/* Controls laid over the shell's top edge move down with it. */
+[data-lyra-host="mobile"] [data-ly-window-buttons],
+[data-lyra-host="mobile"] [data-ly-settings] > .drag-region {
+  top: var(--ly-safe-top);
+}
+
+/* Toasts come down from the top, so they start below the status bar rather than under it. */
+[data-lyra-host="mobile"] [data-ly-toaster] {
+  top: calc(var(--ly-safe-top) + 52px);
+}
+
+/*
+ * Dialogs are centred in what is left once the phone's chrome is taken out, so a tall one never
+ * slides its title under the status bar or its buttons under the home indicator.
+ */
+[data-lyra-host="mobile"] [data-ly-overlay] {
+  padding: calc(var(--ly-safe-top) + 16px) calc(var(--ly-safe-right) + 16px) calc(var(--ly-safe-bottom) + 16px)
+    calc(var(--ly-safe-left) + 16px);
+}
+
+/* ---------------------------------------------------------------------------
  * Thumb-sized hit areas.
  *
  * The toolbar marks are 28px squares, which is right for a cursor and small for a thumb — Apple's
  * own guidance is 44pt. The box itself owns that area so neighbouring controls never overlap and
  * one tap cannot resolve to the wrong button.
- */
+ * ------------------------------------------------------------------------ */
+
 [data-lyra-host="mobile"] [data-ly-toolbar-button] {
   width: 44px;
   min-width: 44px;
   height: 44px;
   min-height: 44px;
+  border-radius: 999px;
 }
 
 /*
@@ -65,17 +182,76 @@
  * some of the sizes would break the optical alignment between them.
  */
 [data-lyra-host="mobile"] [data-ly-toolbar-button] > svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
+}
+
+/* Menus and file rows are navigation too, and need the same target even when their text is short. */
+[data-lyra-host="mobile"] [role="menuitem"],
+[data-lyra-host="mobile"] [role="menuitemcheckbox"],
+[data-lyra-host="mobile"] [role="treeitem"] {
+  min-height: 44px;
 }
 
 /*
+ * Pane chrome shares a 44px title row. Let each action consume that row instead of leaving a
+ * 20px square floating inside it; the drag grip stays narrow because it is a gesture handle.
+ */
+[data-lyra-host="mobile"] [data-dock-header] button:not([data-dock-grip]) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/*
+ * File tabs sit directly below the pane header, so their close control must not reach back into
+ * that header. Giving the strip and each tab the same 44px row also makes both the filename and
+ * close mark independent thumb targets; horizontal scrolling absorbs the extra width.
+ */
+[data-lyra-host="mobile"] .ly-file-tabs,
+[data-lyra-host="mobile"] .ly-file-tab {
+  height: 44px;
+  min-height: 44px;
+}
+
+[data-lyra-host="mobile"] .ly-file-tab > button {
+  min-height: 44px;
+}
+
+/*
+ * The question rail is capped to a small nearby window, so 44px per question remains bounded and
+ * gives each jump its own target instead of stacking overlapping invisible hit areas on 12px rows.
+ */
+[data-lyra-host="mobile"] .ly-question-rail {
+  width: 44px;
+}
+
+[data-lyra-host="mobile"] .ly-question-mark {
+  width: 44px;
+  height: 44px;
+}
+
+[data-lyra-host="mobile"] [data-trajectory] button,
+[data-lyra-host="mobile"] [data-trajectory] select,
+[data-lyra-host="mobile"] .ly-trace-inspector button,
+[data-lyra-host="mobile"] [data-trace-timeline] button,
+[data-lyra-host="mobile"] [aria-label="重命名会话"] button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+[data-lyra-host="mobile"] [data-trace-inspector-header],
+[data-lyra-host="mobile"] [data-trace-timeline] > div:first-child {
+  height: 44px;
+}
+
+/* ---------------------------------------------------------------------------
  * Hover states, which a touch screen fakes and then leaves behind.
  *
  * A tap makes iOS deliver a hover before the click, and nothing takes it away afterwards — so the
  * last thing tapped stays lit until something else is. On a row of toggles that reads as a
  * selection, which is exactly what those particular buttons use their background to mean.
- */
+ * ------------------------------------------------------------------------ */
+
 @media (hover: none) {
   [data-lyra-host="mobile"] .hover\:bg-card-hover:hover,
   [data-lyra-host="mobile"] .hover\:bg-card:hover,
@@ -115,82 +291,42 @@
   display: none;
 }
 
-/*
- * The composer's own controls, given the same treatment as the toolbar.
+/* ---------------------------------------------------------------------------
+ * Controls that only appear on hover, on a device that has no hover.
  *
- * These sit in a row along the bottom edge — the most-used strip in the app and the hardest to
- * hit accurately, because a thumb approaches it from below and covers what it is aiming at.
- */
-[data-lyra-host="mobile"] .ly-composer-control {
-  min-width: 44px;
-  min-height: 44px;
-}
+ * Twenty-odd places in the interface hide a control until the pointer is over its row. Where a long
+ * press now offers the same actions — conversations, projects and messages, see `PhoneTouch` — the
+ * controls stay out of sight, and the rows get their width and their calm back. The rest have no
+ * long press, so they stay out, quieter than on the desktop.
+ *
+ * `[class~="opacity-0"]` matches the *whole* class name, which is the entire point. A substring
+ * match would also catch `group-hover/project:opacity-0` — the reverse case, where something is
+ * shown and hidden on hover — and forcing both halves of such a pair to full opacity stacks two
+ * absolutely-positioned elements on top of each other. See `hover-reveal.test.ts`.
+ *
+ * Under `(hover: none)` rather than the host attribute alone, so a tablet with a trackpad keeps the
+ * reveal it can actually use.
+ * ------------------------------------------------------------------------ */
 
-/*
- * The drawer is the phone's primary navigation, so every row and every trailing action owns a
- * full thumb target. Several of these are deliberately 20–40px on desktop; scaling only the icon
- * would leave the same hard-to-hit box around it.
- */
-[data-lyra-host="mobile"] .ly-sidebar-fill button {
-  min-width: 44px;
-  min-height: 44px;
-}
-
-[data-lyra-host="mobile"] .ly-sidebar-head {
-  height: 44px;
-  min-height: 44px;
-}
-
-/*
- * Project and session rows carry trailing actions in an absolute strip. On desktop the strip
- * overlaps the row only while hovering, which is harmless because the pointer is already over the
- * chosen action. Those actions are persistent on touch, so the row's own button stops before them:
- * one coordinate can now resolve to exactly one action.
- */
-[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-project] > button:first-of-type {
-  width: calc(100% - 96px);
-}
-
-[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-row] > button:first-of-type {
-  width: calc(100% - 94px);
-  padding-right: 8px;
-}
-
-/* Menus and file rows are navigation too, and need the same target even when their text is short. */
-[data-lyra-host="mobile"] [role="menuitem"],
-[data-lyra-host="mobile"] [role="treeitem"] {
-  min-height: 44px;
-}
-
-/*
- * Pane chrome shares a 44px title row. Let each action consume that row instead of leaving a
- * 20px square floating inside it; the drag grip stays narrow because it is a gesture handle.
- */
-[data-lyra-host="mobile"] [data-dock-header] button:not([data-dock-grip]) {
-  min-width: 44px;
-  min-height: 44px;
-}
-
-/*
- * File tabs sit directly below the pane header, so their close control must not reach back into
- * that header. Giving the strip and each tab the same 44px row also makes both the filename and
- * close mark independent thumb targets; horizontal scrolling absorbs the extra width.
- */
-[data-lyra-host="mobile"] .ly-file-tabs,
-[data-lyra-host="mobile"] .ly-file-tab {
-  height: 44px;
-  min-height: 44px;
-}
-
-[data-lyra-host="mobile"] .ly-file-tab > button {
-  min-height: 44px;
-}
-
-/*
- * Message actions are always present on touch devices, so their container must grow with their
- * hit areas instead of keeping the desktop's 24px hover slot and overlapping the next message.
- */
 @media (hover: none) {
+  [data-lyra-host="mobile"] [data-ly-hover-row][data-ly-row] [data-ly-hover-reveal],
+  [data-lyra-host="mobile"] [data-ly-hover-row][data-ly-project] [data-ly-hover-reveal] {
+    display: none;
+  }
+
+  /*
+   * A message's row keeps its place and gives up its content: the gap it leaves is the space
+   * between one message and the next, and the time it carried is at the top of the long-press menu.
+   */
+  [data-lyra-host="mobile"] .group\/msg > [data-ly-hover-reveal] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  [data-lyra-host="mobile"] [data-ly-hover-reveal] {
+    opacity: 0.55;
+  }
+
   [data-lyra-host="mobile"] [data-ly-hover-reveal]:has(button) {
     min-height: 44px;
     height: auto;
@@ -201,130 +337,35 @@
     min-width: 44px;
     min-height: 44px;
   }
-}
-
-/*
- * The question rail is capped to a small nearby window, so 44px per question remains bounded and
- * gives each jump its own target instead of stacking overlapping invisible hit areas on 12px rows.
- */
-[data-lyra-host="mobile"] .ly-question-rail {
-  width: 44px;
-}
-
-[data-lyra-host="mobile"] .ly-question-mark {
-  width: 44px;
-  height: 44px;
-}
-
-[data-lyra-host="mobile"] [data-trajectory] button,
-[data-lyra-host="mobile"] [data-trajectory] select,
-[data-lyra-host="mobile"] .ly-trace-inspector button,
-[data-lyra-host="mobile"] [data-trace-timeline] button,
-[data-lyra-host="mobile"] [aria-label="重命名会话"] button {
-  min-width: 44px;
-  min-height: 44px;
-}
-
-[data-lyra-host="mobile"] [data-trace-inspector-header],
-[data-lyra-host="mobile"] [data-trace-timeline] > div:first-child {
-  height: 44px;
-}
-
-/*
- * ---------------------------------------------------------------------------------------------
- * The drawer, while a finger is on it.
- *
- * `--ly-drawer` is set only during a drag (see `useMobileShell.ts`); the rest of the time the
- * drawer and its scrim read the fallback in their own inline styles and animate between the two
- * states normally. These rules cover the in-between: no transition while the finger is down, or
- * the panel eases toward each frame's target and arrives behind the hand.
- */
-[data-drawer-dragging] .ly-drawer,
-[data-drawer-dragging] .ly-drawer-scrim {
-  transition: none !important;
-}
-
-/*
- * Landing after a drag that ends where it started.
- *
- * Releasing part-way changes no React state, so nothing would animate the drawer back — it would
- * snap the moment the variable was removed. This carries it home over the same interval a state
- * change would have taken.
- */
-[data-drawer-settling] .ly-drawer,
-[data-drawer-settling] .ly-drawer-scrim {
-  transition:
-    transform var(--ly-t-base) ease-out,
-    opacity var(--ly-t-base) ease-out;
-}
-
-/*
- * The drawer holds the whole screen's height and reaches under the status bar, so its own content
- * has to keep clear of the notch and the home indicator rather than relying on the shell's padding.
- */
-[data-lyra-host="mobile"] .ly-drawer {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/*
- * ---------------------------------------------------------------------------------------------
- * Room for the keyboard.
- *
- * `--ly-keyboard` is how much of the window the keyboard is covering. The composer is the only
- * thing that has to move — the transcript stays where it is and keeps its scroll position, which
- * is what stops the conversation jumping every time the keyboard opens.
- */
-[data-lyra-host="mobile"] {
-  --ly-keyboard: 0px;
-}
-
-[data-lyra-host="mobile"] .ly-composer-dock {
-  padding-bottom: calc(var(--ly-keyboard) + env(safe-area-inset-bottom) + 8px);
-  transition: padding-bottom var(--ly-t-base) var(--ly-e-out);
-}
-
-/*
- * With the keyboard up, the home indicator is behind it and its inset is being reserved twice —
- * once here and once by the keyboard itself, leaving a band of empty page under the composer.
- */
-[data-lyra-host="mobile"][data-keyboard] .ly-composer-dock {
-  padding-bottom: calc(var(--ly-keyboard) + 8px);
-}
-
-/*
- * ---------------------------------------------------------------------------------------------
- * Controls that only appear on hover, on a device that has no hover.
- *
- * Twenty-odd places in the interface hide a control until the pointer is over its row and reveal
- * it with `group-hover`. On a phone the pointer never arrives, so those controls are not merely
- * hard to reach — they do not exist. That includes copying or editing a message, and renaming,
- * archiving or deleting a session: not decoration, but most of what you would pick up a phone to
- * do.
- *
- * `[class~="opacity-0"]` matches the *whole* class name, which is the entire point. A substring
- * match would also catch `group-hover/project:opacity-0` — the reverse case, where something is
- * shown and hidden on hover — and forcing both halves of such a pair to full opacity stacks two
- * absolutely-positioned elements on top of each other. See `hover-reveal.test.ts`.
- *
- * Under `(hover: none)` rather than the host attribute alone, so a phone connected to a mouse
- * keeps the quieter behaviour it can actually use.
- */
-@media (hover: none) {
-  /*
-   * Quieter than on the desktop, where they are only ever seen deliberately.
-   *
-   * Permanently visible, a full-strength row of icons under every message competes with the
-   * message. Dimmed, they stay legible and findable without becoming the loudest thing on a
-   * screen that is mostly conversation — and they go to full strength while being pressed, which
-   * is the only feedback a finger gets.
-   */
-  [data-lyra-host="mobile"] [data-ly-hover-reveal] {
-    opacity: 0.55;
-  }
 
   [data-lyra-host="mobile"] [data-ly-hover-reveal]:active,
   [data-lyra-host="mobile"] [data-ly-hover-reveal]:has(:active) {
     opacity: 1;
   }
+
+  [data-lyra-host="mobile"] .group\/msg > [data-ly-hover-reveal]:has(button) {
+    min-height: 0;
+    height: 12px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Room for the keyboard.
+ *
+ * `--ly-keyboard` is how much of the window the keyboard is covering, for the WebViews that slide
+ * it over the page rather than being resized by the shell. The composer is the only thing that has
+ * to move — the transcript stays where it is and keeps its scroll position, which is what stops the
+ * conversation jumping every time the keyboard opens.
+ *
+ * With the keyboard up the home indicator is behind it, so its inset is not reserved twice; the
+ * shell also zeroes `--ly-native-bottom` while the keyboard is up, which covers the resized case.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] .ly-composer-dock {
+  padding-bottom: calc(var(--ly-keyboard) + max(var(--ly-safe-bottom), 12px));
+  transition: padding-bottom var(--ly-t-base) var(--ly-e-out);
+}
+
+[data-lyra-host="mobile"][data-keyboard] .ly-composer-dock {
+  padding-bottom: calc(var(--ly-keyboard) + 12px);
 }

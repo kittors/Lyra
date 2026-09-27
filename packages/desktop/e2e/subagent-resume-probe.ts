@@ -9,8 +9,10 @@
  * 文件再读一遍。
  *
  * 模型是假的，但走的是真适配器（anthropic-messages）：
- *   - scout（工作区里的 agent 定义，`max-turns: 3`）每轮读一个没读过的文件；只剩 `yield` 的那一轮
- *     交一份交接；被续上之后把没读的读完再给结论——它要是把读过的又读一遍，下面会查出来。
+ *   - scout（工作区里的 agent 定义，`max-turns: 3`）每轮读一个没读过的文件，从不写清单；第一个检查点
+ *     上运行时再给它一段、请它列清单（ADR-0026），它照旧不写，于是第二个检查点上交交接——一共读了
+ *     六个；只剩 `yield` 的那一轮交一份交接；被续上之后把没读的读完再给结论——它要是把读过的又读一遍，
+ *     下面会查出来。
  *   - 主会话第一次派 scout；拿到检查点的结果后先停下（留出时间看面板、点按钮）；收到带 id 的那
  *     句草稿后调 `task` 的 `resume`；续跑的结果回来后收尾。
  *
@@ -28,7 +30,7 @@ const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "子�
 const MODEL_PORT = 9876;
 const CDP_PORT = 9502;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const FILES = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"];
+const FILES = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "g.ts", "h.ts"];
 /** 主会话续跑时对 scout 说的那一句——scout 靠它认出自己是被续上的。 */
 const RESUME_PROMPT = "接着把剩下的读完";
 
@@ -101,7 +103,7 @@ function startModel(): Server {
 				if (tools.length === 1 && tools[0] === "yield") {
 					reply(res, {
 						text: "",
-						tool: { name: "yield", input: { summary: `读了 ${scoutReads.join("、")}，登录入口在 a.ts:1`, remaining: "d.ts、e.ts 还没读", next: "读 d.ts 和 e.ts" } },
+						tool: { name: "yield", input: { summary: `读了 ${scoutReads.join("、")}，登录入口在 a.ts:1`, remaining: "g.ts、h.ts 还没读", next: "读 g.ts 和 h.ts" } },
 					});
 					return;
 				}
@@ -112,7 +114,7 @@ function startModel(): Server {
 						reply(res, { text: `接着读 ${next}`, tool: { name: "read", input: { path: next } } });
 						return;
 					}
-					reply(res, { text: "PROBE-SCOUT-DONE 五个文件都读完了：登录在 a.ts:1，刷新在 d.ts:1，登出在 e.ts:1。" });
+					reply(res, { text: "PROBE-SCOUT-DONE 八个文件都读完了：登录在 a.ts:1，刷新在 g.ts:1，登出在 h.ts:1。" });
 					return;
 				}
 				const next = FILES.find((file) => !scoutReads.includes(file)) ?? "a.ts";
@@ -140,7 +142,7 @@ function startModel(): Server {
 
 			if (results.length === 0) {
 				mainPhases.push("dispatch");
-				reply(res, { text: "派一个 scout 去梳理。", tool: { name: "task", input: { description: "梳理登录流程", prompt: "梳理登录流程：把五个文件都读一遍", subagent_type: "scout" } } });
+				reply(res, { text: "派一个 scout 去梳理。", tool: { name: "task", input: { description: "梳理登录流程", prompt: "梳理登录流程：把八个文件都读一遍", subagent_type: "scout" } } });
 				return;
 			}
 			if (draftId && !resumeAnswered) {
@@ -242,13 +244,21 @@ const film = (async () => {
 	}
 })();
 
-/** 名单条上说有几个子代理——「还是同一个」看这个，而不是看分页（只有一个时根本不画分页）。 */
+/**
+ * 名单上有几个子代理——「还是同一个」看这个。
+ *
+ * 从面板顶上数：不止一个时那里是一摞脸，一个时是一张脸、没有切换器。输入框上方那一条在主会话
+ * 收尾之后会自己收起（ADR-0026），不能再拿它数。
+ */
 const rosterCount = () =>
 	app.evaluate<number>(`(() => {
-		const label = document.querySelector("[data-ly-subagent-bar]")?.getAttribute("aria-label") ?? "";
-		const n = label.match(/(\\d+)/);
-		return n ? Number(n[1]) : -1;
+		const header = document.querySelector('[data-dock-pane="subagents"] [data-sub-header]');
+		if (!header) return -1;
+		return header.querySelectorAll("[data-pile-face]").length || 1;
 	})()`);
+
+/** 打开面板、翻到那个子代理：点对话里那张派发卡片（输入框上方那一条收尾后已经收起了）。 */
+const openPane = () => press('main button[aria-label^="在面板里看"]');
 
 const checks: { name: string; ok: boolean; detail?: string }[] = [];
 const check = (name: string, ok: boolean, detail?: string) => {
@@ -319,17 +329,19 @@ try {
 	const log = logs.join("\n");
 	check("父模型被告知用 resume 续跑", /resume: \\"[\w-]+:sub:[0-9a-f]{8}\\"/.test(log), "task 结果里带着那句「传 resume」");
 	check("父模型没有再被劝「拆小再派一次」", !log.includes("拆小"));
-	check("第一段 scout 只读了检查点那么多轮", scoutReads.length === 3, `读了 ${scoutReads.join("、")}`);
+	// 两段：第一个检查点上没写清单，再给了一段（ADR-0026）；第二个检查点上照旧没有，才交交接。
+	check("没写清单的 scout 多给了一段，两段各读了检查点那么多轮", scoutReads.length === 6, `读了 ${scoutReads.join("、")}`);
 	check("到检查点时讨了一份交接（只剩 yield 的那一轮）", scoutRequests.some((r) => r.tools.length === 1 && r.tools[0] === "yield"));
 
 	// 2. 面板：打开名单条，看有没有「接着跑」。
-	await press("[data-ly-subagent-bar]");
+	await openPane();
 	await pause(1200);
 	const pane = await app.evaluate<{ partial: boolean; resume: boolean; redispatch: boolean; rows: number }>(`(() => ({
 		partial: (document.body.innerText ?? "").includes("\\u6ca1\\u8dd1\\u5b8c"),
 		resume: !!document.querySelector("[data-sub-resume]"),
-		redispatch: [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") ?? "").includes("\\u91cd\\u65b0\\u6d3e\\u53d1")),
-		rows: document.querySelectorAll("[data-sub-tab]").length,
+		redispatch: !!document.querySelector("[data-sub-redispatch]"),
+		// 面板顶上：一个人时是一张脸，不止一个时叠成一摞——摞里有几张脸就是几个。
+		rows: Math.max(document.querySelectorAll("[data-sub-header] [data-pile-face]").length, document.querySelector("[data-sub-header]") ? 1 : 0),
 	}))()`);
 	check("面板标出「没跑完」", pane.partial);
 	const countAtCheckpoint = await rosterCount();
@@ -357,7 +369,7 @@ try {
 	const done = await until(async () => (await mainText()).includes("PROBE-MAIN-DONE"));
 	check("主 Agent 按草稿续跑并收尾", done, `主会话走过：${mainPhases.join(" → ")}`);
 	await pause(1000);
-	await press("[data-ly-subagent-bar]");
+	await openPane();
 	await pause(1000);
 	await shot("04-续跑做完.png");
 
@@ -370,7 +382,7 @@ try {
 	const reread = scoutReads.filter((file, index) => scoutReads.indexOf(file) !== index);
 	check("续上之后没有把读过的文件再读一遍", reread.length === 0, `scout 一共读了：${scoutReads.join("、")}`);
 	const after = await app.evaluate<{ rows: number; partial: boolean; resume: boolean }>(`(() => ({
-		rows: document.querySelectorAll("[data-sub-tab]").length,
+		rows: Math.max(document.querySelectorAll("[data-sub-header] [data-pile-face]").length, document.querySelector("[data-sub-header]") ? 1 : 0),
 		partial: (document.body.innerText ?? "").includes("\\u6ca1\\u8dd1\\u5b8c"),
 		resume: !!document.querySelector("[data-sub-resume]"),
 	}))()`);

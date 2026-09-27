@@ -76,3 +76,14 @@ test("one side having a field the other lacks falls through rather than guessing
 	// first visit after an upgrade. Falls to version, where both sides agree.
 	assert.equal(isOutdated(installed({ version: "1.0.0" }), { commit: "bbb", version: "1.0.0" }), false);
 });
+
+test("一个大仓库里的子目录：仓库动了、它的版本没动，不算更新", () => {
+	// 默认市场的 MCP 包装都在同一个仓库里：别的包装一改，这一个的提交也跟着变。
+	const record = installed({ commit: "aaa", version: "4.1.1" });
+	assert.equal(isOutdated(record, { commit: "bbb", version: "4.1.1", path: "plugins/context7" }), false);
+	assert.equal(isOutdated(record, { commit: "bbb", version: "4.1.2", path: "plugins/context7" }), true, "版本动了就是更新");
+	// 由提交派生出来的版本号还是那个提交，照旧按提交判断。
+	assert.equal(isOutdated(installed({ commit: "aaa", version: "0.0.0-aaa1234" }), { commit: "bbb", version: "0.0.0-aaa1234", path: "skills" }), true);
+	// 整个仓库就是这一个包：提交就是它自己的，照旧按提交。
+	assert.equal(isOutdated(record, { commit: "bbb", version: "4.1.1" }), true);
+});

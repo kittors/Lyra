@@ -1,4 +1,5 @@
 import type { UserContent } from "@lyra/core";
+import { noteAttachmentPath } from "./attachment-reads.ts";
 import type { InitialPrompt } from "./create-session.ts";
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -34,9 +35,18 @@ export function promptContent(value: unknown): UserContent[] {
  */
 type PromptOrigin = "local" | "remote";
 
+/**
+ * A finished phone upload's path on this desktop, by the id the phone was given; see `sync-uploads.ts`.
+ *
+ * The one way a remote attachment gets a `path`: the phone names an upload, never a location, and the
+ * location is the one this desktop wrote the file to.
+ */
+export type UploadResolver = (idOrPath: string) => string | null;
+
 function presentation(
 	value: Record<string, unknown>,
 	origin: PromptOrigin = "local",
+	uploads?: UploadResolver,
 ): Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs" | "attachments"> {
 	const result: Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs" | "attachments"> = {};
 	if (value.displayText !== undefined) {
@@ -74,35 +84,69 @@ function presentation(
 			if (!object(file) || typeof file.name !== "string" || !file.name.trim()) throw new Error("Invalid attachment");
 			if (file.kind !== undefined && typeof file.kind !== "string") throw new Error("Invalid attachment kind");
 			if (file.mimeType !== undefined && typeof file.mimeType !== "string") throw new Error("Invalid attachment type");
-			if (file.path !== undefined && typeof file.path !== "string") throw new Error("Invalid attachment path");
+			// A remote path is discarded below whatever its type, so only a local one has to be well-formed.
+			if (origin === "local" && file.path !== undefined && typeof file.path !== "string") throw new Error("Invalid attachment path");
 			if (file.label !== undefined && typeof file.label !== "string") throw new Error("Invalid attachment label");
+			/*
+			 * A remote attachment gets a path only from the upload store: by the id a phone was given,
+			 * or — when a sent message is edited — by the path the store gave out, and only if it is one.
+			 */
+			const uploaded = origin !== "remote"
+				? undefined
+				: file.upload !== undefined
+					? uploadedPath(file.upload, uploads)
+					: typeof file.path === "string"
+						? (uploads?.(file.path) ?? undefined)
+						: undefined;
 			return {
 				name: file.name,
 				...(file.kind === undefined ? {} : { kind: file.kind }),
 				...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
 				// 远端给的 `path` 丢掉，理由见 `PromptOrigin`。丢掉只损失气泡上的右键菜单，留着是放行任意文件。
-				...(file.path === undefined || origin === "remote" ? {} : { path: file.path }),
+				...(file.path === undefined || origin === "remote" || typeof file.path !== "string" ? {} : { path: file.path }),
+				...(uploaded ? { path: uploaded } : {}),
 				...(file.label === undefined ? {} : { label: file.label }),
 			};
 		});
+		/*
+		 * 本机递进来的附件，右边的文件面板也认——见 `attachment-reads.ts`。
+		 *
+		 * 记在这道门上，因为「这个路径算不算数」就是在这里定的：远端的上面已经丢了，留下来的正是 core
+		 * 那边会当成「这一轮可以读」的那一份。等转录下一次交给窗口时再记就晚了——刚发出去的那条消息，
+		 * 点「预览」只会得到一句「无法读取」。整批都过了校验才记，被拒掉的那一次什么都不留。
+		 */
+		if (origin === "local") for (const file of result.attachments) noteAttachmentPath(file.path);
 	}
 	return result;
 }
 
-export function initialPrompt(value: unknown, origin: PromptOrigin = "local"): InitialPrompt | undefined {
+/**
+ * The upload an attachment names, as a path — or a refusal the phone can show.
+ *
+ * Refused rather than dropped: a message that says "see the attached log" and arrives without it
+ * would have the agent answer about a file it was never given.
+ */
+function uploadedPath(id: unknown, uploads: UploadResolver | undefined): string {
+	const path = typeof id === "string" && uploads ? uploads(id) : null;
+	if (!path) throw new Error("upload-missing: the attached file has not finished uploading, or has expired");
+	return path;
+}
+
+export function initialPrompt(value: unknown, origin: PromptOrigin = "local", uploads?: UploadResolver): InitialPrompt | undefined {
 	if (value === undefined) return undefined;
 	if (!object(value)) throw new Error("initial must be an object");
 	if (value.synthetic !== undefined && typeof value.synthetic !== "boolean") throw new Error("synthetic must be boolean");
 	return {
 		content: promptContent(value.content),
 		...(value.synthetic === undefined ? {} : { synthetic: value.synthetic }),
-		...presentation(value, origin),
+		...presentation(value, origin, uploads),
 	};
 }
 
 export function promptOptions(
 	value: unknown,
 	origin: PromptOrigin = "local",
+	uploads?: UploadResolver,
 ): Omit<InitialPrompt, "content"> & {
 	deliver?: "steer" | "followUp";
 	resumePending?: boolean;
@@ -117,6 +161,19 @@ export function promptOptions(
 		...(synthetic === undefined ? {} : { synthetic }),
 		...(deliver === undefined ? {} : { deliver }),
 		...(resumePending === undefined ? {} : { resumePending }),
-		...presentation(value, origin),
+		...presentation(value, origin, uploads),
 	};
+}
+
+/**
+ * 操控框里那句话给人看的那一份：人打的字和附件的名字门类。
+ *
+ * 和主会话的消息过同一道门（`presentation`）——附件的 `path` 是写在消息里的通行证，这道白名单
+ * 不能因为换了个入口就少过一遍。只收本机递进来的：手机那一侧发的仍然是一段字，不带这一项。
+ */
+export function steerDisplay(value: unknown): { displayText?: string; attachments?: NonNullable<InitialPrompt["attachments"]> } | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (!object(value)) throw new Error("display must be an object");
+	const { displayText, attachments } = presentation(value, "local");
+	return { ...(displayText === undefined ? {} : { displayText }), ...(attachments?.length ? { attachments } : {}) };
 }

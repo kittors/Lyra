@@ -13,49 +13,15 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { commandEnv } from "../sandbox/login-path.ts";
 import type { JsonSchema, Tool, ToolResult, UserContent } from "../types.ts";
+import { McpMissingValues, resolveServer } from "./placeholders.ts";
+import type { McpOrigin, McpServerConfig } from "./types.ts";
 
-/**
- * Where a server's configuration came from.
- *
- * Set for one installed from a registry, absent for one somebody typed in. The distinction is
- * what lets the settings page offer 卸载 for the first and 删除 for the second, and clean up the
- * bundle's directory when the last server it brought is gone.
- *
- * It replaced a `pluginId`, which said something that is no longer true: a plugin is a bundle of
- * *skills*. A directory whose entire content is a `.mcp.json` was never a plugin — it is an MCP
- * server that arrived in a git repository, and calling it a plugin is what put the same Context7
- * in two places at once, with two switches that could not see each other.
+/*
+ * The shapes of a server's configuration live in `types.ts`, apart from the client that starts them,
+ * so the placeholder rules (`placeholders.ts`) can read them without importing the client that
+ * imports those rules.
  */
-export interface McpOrigin {
-	/** Directory name under `~/.lyra/mcp`; also the entry's id in the registry it came from. */
-	bundle: string;
-	/** Which registry listed it, for telling two entries of the same name apart. */
-	registry?: string;
-	version?: string;
-}
-
-export interface McpStdioServer {
-	id: string;
-	name: string;
-	transport: "stdio";
-	command: string;
-	args?: string[];
-	env?: Record<string, string>;
-	enabled: boolean;
-	origin?: McpOrigin;
-}
-
-export interface McpHttpServer {
-	id: string;
-	name: string;
-	transport: "http" | "sse";
-	url: string;
-	headers?: Record<string, string>;
-	enabled: boolean;
-	origin?: McpOrigin;
-}
-
-export type McpServerConfig = McpStdioServer | McpHttpServer;
+export type { McpHttpServer, McpOrigin, McpServerConfig, McpStdioServer } from "./types.ts";
 
 export interface McpServerStatus {
 	id: string;
@@ -64,6 +30,8 @@ export interface McpServerStatus {
 	state: "connected" | "failed" | "disabled";
 	toolCount: number;
 	error?: string;
+	/** 没启动，是因为这几个值还没填——界面据此画「去填」，而不是一段报错。 */
+	missing?: string[];
 	tools: { name: string; description: string }[];
 }
 
@@ -75,6 +43,27 @@ export interface McpConnection {
 }
 
 const CONNECT_TIMEOUT_MS = 30_000;
+
+/**
+ * How long the first start of a server launched through a package runner may take.
+ *
+ * `npx -y pkg@latest` and `uvx pkg@latest` download the package — and for a Python server its whole
+ * dependency tree — the first time they are run on a machine. Measured cold: markitdown 131s,
+ * mongodb 106s, grafana 60s, the first Python server about a minute. Against a 30s deadline every
+ * one of those failed the first time it was switched on and worked the second, which reads as
+ * "this server is broken" rather than "it was downloading". Once one start has succeeded in this
+ * process the package is cached and the ordinary deadline applies again.
+ */
+const FIRST_RUN_TIMEOUT_MS = 180_000;
+const PACKAGE_RUNNERS = new Set(["npx", "uvx", "bunx", "pnpx", "uv", "pnpm", "yarn", "pipx"]);
+/** Servers that have started once in this process, by what starts them. */
+const warmed = new Set<string>();
+
+function startKey(server: McpServerConfig): string | null {
+	if (server.transport !== "stdio") return null;
+	const runner = server.command.split(/[\\/]/).pop()?.replace(/\.(cmd|exe)$/i, "") ?? "";
+	return PACKAGE_RUNNERS.has(runner) ? JSON.stringify([server.command, ...(server.args ?? [])]) : null;
+}
 
 export interface McpManagerOptions {
 	/** How long connecting, and then listing tools, may each take. Tests shorten it. */
@@ -135,15 +124,29 @@ export class McpManager {
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
 					this.failures.set(server.id, message);
-					return { id: server.id, name: server.name, origin: server.origin, state: "failed", toolCount: 0, error: message, tools: [] };
+					return {
+						id: server.id,
+						name: server.name,
+						origin: server.origin,
+						state: "failed",
+						toolCount: 0,
+						error: message,
+						...(error instanceof McpMissingValues ? { missing: error.missing } : {}),
+						tools: [],
+					};
 				}
 			}),
 		);
 		return results;
 	}
 
-	async connect(server: McpServerConfig): Promise<McpConnection> {
-		if (this.disposed) throw new Error(`MCP server "${server.name}" was not started: its session has been closed`);
+	async connect(declared: McpServerConfig): Promise<McpConnection> {
+		if (this.disposed) throw new Error(`MCP server "${declared.name}" was not started: its session has been closed`);
+		/*
+		 * 空位先填上，缺值就不启动——见 `mcp/placeholders.ts`。取值的环境和启动用的是同一份（登录
+		 * shell 的），所以「我在 .zshrc 里 export 过」的人不用再填一遍。
+		 */
+		const server = resolveServer(declared, commandEnv(process.env));
 		const epoch = this.epoch;
 		const client = new Client({ name: "lyra", version: "0.1.0" }, { capabilities: {} });
 		const transport =
@@ -174,23 +177,27 @@ export class McpManager {
 		 * well: it also covers what the SDK does not time — an SSE stream that opens and never sends
 		 * its endpoint, the `initialized` notification over HTTP.
 		 */
+		const cold = startKey(declared);
+		const deadline = cold && !warmed.has(cold) ? Math.max(this.timeoutMs, FIRST_RUN_TIMEOUT_MS) : this.timeoutMs;
 		let listed: Awaited<ReturnType<Client["listTools"]>>;
 		try {
-			await withTimeout(client.connect(transport, { timeout: this.timeoutMs }), this.timeoutMs, `Connecting to MCP server "${server.name}"`);
+			await withTimeout(client.connect(transport, { timeout: deadline }), deadline, `Connecting to MCP server "${server.name}"`);
 			listed = await withTimeout(client.listTools(undefined, { timeout: this.timeoutMs }), this.timeoutMs, `Listing tools of "${server.name}"`);
 		} catch (error) {
 			await client.close().catch(() => {});
 			throw error;
 		}
+		if (cold) warmed.add(cold);
 		// Closed while this one was starting: nobody is going to read this connection, or close it.
 		if (epoch !== this.epoch) {
 			await client.close().catch(() => {});
 			throw new Error(`MCP server "${server.name}" was disconnected while it was still starting`);
 		}
 
-		const tools = listed.tools.map((tool) => toAgentTool(server, client, tool));
+		const tools = listed.tools.map((tool) => toAgentTool(declared, client, tool));
 		const connection: McpConnection = {
-			config: server,
+			// 记声明本身，不记填好的那份：密钥只在启动那一刻用，不跟着连接到处传。
+			config: declared,
 			client,
 			tools,
 			close: async () => {

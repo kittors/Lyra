@@ -18,7 +18,7 @@ import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";
-import { SessionCard, useSessionCard } from "./SessionCard.tsx";
+import { SessionCard, useSessionCard, when } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -30,6 +30,7 @@ import { offerSessionDrag } from "../split/index.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
 import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
+import { onPhone } from "../../services/index.ts";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -245,7 +246,21 @@ export function SessionRow({
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
-				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
+				{onPhone() ? (
+					/*
+					 * Two lines on a phone: the title, and when it was last touched under it.
+					 *
+					 * The desktop keeps that date in the card that opens on hover, and a finger never
+					 * hovers. Under the title rather than beside it, so the title keeps the whole width
+					 * the icons used to take — they are behind a long press now.
+					 */
+					<span className="flex min-w-0 flex-1 flex-col">
+						<ScrollText text={title} className="ly-fade-tail min-w-0" />
+						<span className="ly-row-when">{when(session.updatedAt)}</span>
+					</span>
+				) : (
+					<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
+				)}
 			</button>
 
 			<HoverRowReveal className="rounded-r-lg">

@@ -44,6 +44,21 @@ export function isEntryStatus(value: unknown): value is EntryStatus {
 	return value === "pending" || value === "approved" || value === "rejected" || value === "delisted";
 }
 
+/**
+ * A value an MCP server needs from whoever installs it — an API key, a token, a connection string.
+ *
+ * The same shape a bundle's manifest declares under `env` (see `mcp/placeholders.ts` in core). An
+ * index repeats it so a catalogue can say "needs an API key" before anything is installed; the
+ * bundle's own copy is what counts once it is.
+ */
+export interface EntryNeed {
+	name: string;
+	description?: string;
+	/** Where to get one. */
+	url?: string;
+	optional?: boolean;
+}
+
 export interface RegistryEntry {
 	/** Directory name it installs as; also its identity within a registry. */
 	id: string;
@@ -117,6 +132,22 @@ export interface RegistryEntry {
 	 * have room for five words.
 	 */
 	tagline?: string;
+	/** What an MCP server will ask for once installed. See `EntryNeed`. */
+	needs?: EntryNeed[];
+	/** Extra words to find it by — what it works with, what it is for — beyond its name and description. */
+	keywords?: string[];
+	/**
+	 * Where the picture behind `logo` came from, when the index says: a maintainer's upload, the
+	 * bundle's own file, a URL from its manifest, or nothing. A picture somebody chose for this entry
+	 * — the first two — is its mark even when another entry of the same brand wears the same one.
+	 */
+	iconSource?: "uploaded" | "bundled" | "remote" | "none";
+	/**
+	 * The presented fields a maintainer set by hand on the platform — `name`, `description` and so on.
+	 * Installed, a bundle's own manifest also says what it is called; where the index marks a field
+	 * curated, the index's wording is a decision and the manifest's is only a default.
+	 */
+	curated?: string[];
 }
 
 /**
@@ -194,7 +225,35 @@ export function normalise(item: unknown): RegistryEntry | null {
 		// above, so accepting them here would make an index that uses one of them produce a card
 		// showing the same sentence twice.
 		tagline: pick(raw, "tagline"),
+		needs: needsOf(raw.needs ?? raw.env),
+		keywords: Array.isArray(raw.keywords)
+			? raw.keywords.filter((word): word is string => typeof word === "string" && word.trim() !== "").slice(0, 24)
+			: undefined,
+		iconSource: ICON_SOURCES.find((source) => source === raw.iconSource),
+		curated: Array.isArray(raw.curated) ? raw.curated.filter((field): field is string => typeof field === "string") : undefined,
 	};
+}
+
+const ICON_SOURCES = ["uploaded", "bundled", "remote", "none"] as const;
+
+/** An index's `needs` (or `env`, the manifest's word for it), keeping only well-formed names. */
+function needsOf(raw: unknown): EntryNeed[] | undefined {
+	if (!Array.isArray(raw)) return undefined;
+	const needs = raw.flatMap((item): EntryNeed[] => {
+		if (!item || typeof item !== "object") return [];
+		const need = item as Record<string, unknown>;
+		if (typeof need.name !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(need.name)) return [];
+		const url = typeof need.url === "string" && /^https:\/\//i.test(need.url) ? need.url : undefined;
+		return [
+			{
+				name: need.name,
+				...(typeof need.description === "string" && need.description.trim() ? { description: need.description.trim() } : {}),
+				...(url ? { url } : {}),
+				...(need.optional === true ? { optional: true } : {}),
+			},
+		];
+	});
+	return needs.length > 0 ? needs : undefined;
 }
 
 /** The index document itself, in either of the two shapes found in the wild. */

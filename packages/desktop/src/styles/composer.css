@@ -237,6 +237,17 @@
 }
 
 /*
+ * 任务清单和子智能体那一条挨着的时候，是一摞，不是两段。
+ *
+ * 清单卡片压在输入框上方（窄的时候没地方浮在角上），子智能体那一条是输入框区域的第一行——两者
+ * 之间原本隔着卡片下面那 6px 加上这里的 12px，比那一条到下面那排小签的 6px 宽出两倍，读起来像
+ * 两块不相干的东西（2026-09-26 用户圈出来的那道缝）。这时候把上边距收掉，只留卡片自己那 6px。
+ */
+[data-ly-task-inline]:has([data-ly-task-list]) + .ly-composer-dock:has(> * > .ly-reveal[data-open="true"] [data-ly-subagent-bar]) {
+	padding-top: 0;
+}
+
+/*
  * Side chat, sub-agent, commit: same outer number as the main dock.
  *
  * Those panes already sit `--ly-pane-chrome` off the window (inset + card border).

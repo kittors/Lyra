@@ -1,0 +1,381 @@
+/* ---------------------------------------------------------------------------
+ * The navigation drawer, on a phone.
+ *
+ * Part of `phone.css`. The drawer is the sidebar in a phone's shape: it runs the full height of the
+ * screen under the status bar and the home indicator, its list scrolls on under a bar that floats
+ * along the bottom (`PhoneDock`), and its rows are laid out for reading and pressing rather than
+ * for a pointer that hovers them for their actions.
+ * ------------------------------------------------------------------------ */
+
+/*
+ * The panel itself.
+ *
+ * Its own fill, so the strip under the status bar is the drawer rather than whatever is behind it.
+ * `content-box`, so the notch's inset in landscape is added to the drawer's width instead of taken
+ * out of the list's. The shadow only while it is out: a closed drawer sits just off the left edge,
+ * and its shadow used to lie across the conversation as a grey band down that side of the screen.
+ */
+[data-lyra-host="mobile"] .ly-drawer {
+  box-sizing: content-box;
+  padding-top: var(--ly-safe-top);
+  padding-left: var(--ly-safe-left);
+  background: var(--color-sidebar);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--color-ink) 8%, transparent),
+    18px 0 48px -18px rgb(0 0 0 / 0.38);
+}
+
+[data-lyra-host="mobile"] .ly-drawer[inert] {
+  box-shadow: none;
+}
+
+[data-drawer-dragging] .ly-drawer[inert] {
+  box-shadow: 18px 0 48px -18px rgb(0 0 0 / 0.38);
+}
+
+/* The page behind it darkens with it; a little lighter in a light theme, where black reads as heavy. */
+[data-lyra-host="mobile"] .ly-drawer-scrim {
+  background: rgb(10 10 12 / 0.34);
+}
+
+:root.dark[data-lyra-host="mobile"] .ly-drawer-scrim {
+  background: rgb(0 0 0 / 0.55);
+}
+
+/*
+ * The drawer, while a finger is on it.
+ *
+ * `--ly-drawer` is set only during a drag (see `useMobileShell.ts`); the rest of the time the drawer
+ * and its scrim read the fallback in their own inline styles and animate between the two states
+ * normally. These rules cover the in-between: no transition while the finger is down, or the panel
+ * eases toward each frame's target and arrives behind the hand.
+ */
+[data-drawer-dragging] .ly-drawer,
+[data-drawer-dragging] .ly-drawer-scrim {
+  transition: none !important;
+}
+
+/*
+ * Landing after a drag that ends where it started.
+ *
+ * Releasing part-way changes no React state, so nothing would animate the drawer back — it would
+ * snap the moment the variable was removed. This carries it home over the same interval a state
+ * change would have taken.
+ */
+[data-drawer-settling] .ly-drawer,
+[data-drawer-settling] .ly-drawer-scrim {
+  transition:
+    transform var(--ly-t-base) var(--ly-e-out),
+    opacity var(--ly-t-base) var(--ly-e-out);
+}
+
+/*
+ * Opening and closing, on the curve a phone's own drawers use: out fast and settle, rather than the
+ * linear-ish ease of a desktop panel sliding in.
+ */
+[data-lyra-host="mobile"] .ly-drawer {
+  transition-duration: var(--ly-t-slow);
+  transition-timing-function: var(--ly-e-out);
+}
+
+[data-lyra-host="mobile"] .ly-drawer-scrim {
+  transition-duration: var(--ly-t-slow);
+}
+
+/*
+ * The conversation's sidebar button sits under the drawer rather than over it.
+ *
+ * On the desktop it floats above everything, because it shares its corner with the window's own
+ * buttons. On a phone that corner is the drawer's, and the button left standing on top of the
+ * drawer's title read as a grey square pasted over it. Here it belongs to the page, and dims with
+ * the page when the drawer comes out.
+ */
+[data-lyra-host="mobile"] [data-ly-window-buttons] {
+  z-index: 15;
+}
+
+/*
+ * The strip a desktop window is dragged by. A phone has no window to move, and at its desktop
+ * z-index it lay invisibly over the sidebar button and took its taps. Only the empty one: the
+ * settings screen's strip is also the row its own sidebar button sits in.
+ */
+[data-lyra-host="mobile"] .ly-shell > .drag-region:empty {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Inside it — as a drawer, and as the column beside the conversation on a tablet, which is the same
+ * sidebar held the same way.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] .ly-sidebar-fill {
+  position: relative;
+}
+
+/* The title: large, and quiet underneath. See `PhoneHead`. */
+.ly-phone-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px 6px 22px;
+}
+
+.ly-phone-head-title {
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+
+.ly-phone-head-subtitle {
+  margin-top: 3px;
+  overflow: hidden;
+  font-size: var(--text-detail);
+  line-height: 1.35;
+  color: var(--color-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-phone-head-button {
+  display: grid;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-ink-muted);
+}
+
+.ly-phone-head-button:active {
+  background: var(--color-card-hover);
+}
+
+/*
+ * The strip that switches between 项目 and 聊天, and the two controls beside it.
+ *
+ * 40px of strip and 8px either side — `PHONE_RAIL` in `Sidebar.tsx`, which is where the headings
+ * below come to rest, has to say the same number.
+ */
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-rail] {
+  padding-block: 8px;
+}
+
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-rail] [role="tablist"] {
+  height: 40px;
+}
+
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-rail] [role="tab"] {
+  height: 34px;
+  padding-inline: 16px;
+  font-size: var(--text-label);
+}
+
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-rail] [role="tab"] svg {
+  width: 15px;
+  height: 15px;
+}
+
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-rail] button[aria-pressed] {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+}
+
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-rail] button[aria-pressed] svg {
+  width: 17px;
+  height: 17px;
+}
+
+/*
+ * The list runs on under the dock and fades out behind it; this is how far past its last row it can
+ * be scrolled, so that row can rest above the dock rather than under it.
+ */
+[data-lyra-host="mobile"] .ly-sidebar-fill:has(> .ly-phone-dock) .ly-scroll-view {
+  padding-bottom: calc(var(--ly-safe-bottom) + 96px);
+}
+
+/* A project heading: the name a step bolder than the rows under it, the full height of a thumb. */
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-project] > button {
+  height: 46px;
+  gap: 12px;
+  padding-inline: 10px;
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-project] > button > span:first-child {
+  width: 17px;
+  height: 17px;
+}
+
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-project] > button > span:first-child svg {
+  width: 17px;
+  height: 17px;
+}
+
+/*
+ * A conversation: its title, and when it was last touched on the line under it.
+ *
+ * The title in full ink. On the desktop a muted title is how the open one stands out from forty
+ * others; on a phone the list is read one screen at a time and a whole screen of grey titles is a
+ * list that looks disabled. The open one still has its fill.
+ */
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-row] {
+  border-radius: 14px;
+}
+
+[data-lyra-host="mobile"] [data-ly-hover-row][data-ly-row] > button {
+  height: auto;
+  min-height: 56px;
+  gap: 12px;
+  padding: 8px 12px 8px 10px;
+  border-radius: 14px;
+  font-size: var(--text-body);
+  line-height: 1.35;
+  color: var(--color-ink);
+}
+
+.ly-row-when {
+  margin-top: 2px;
+  font-size: var(--text-detail);
+  line-height: 1.3;
+  color: var(--color-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* An idle conversation has nothing to say in its status column; the ring was one more thing per row. */
+[data-lyra-host="mobile"] [data-ly-row] [data-ly-status-mark="idle"] {
+  opacity: 0;
+}
+
+[data-lyra-host="mobile"] [data-ly-row] [data-ly-status-mark] {
+  transform: scale(1.15);
+}
+
+/* Section labels in the list — 「今天」, 「项目」 — with the same air a phone's own lists give them. */
+[data-lyra-host="mobile"] .ly-sidebar-fill [data-ly-head] > div:not([data-ly-hover-row]) {
+  height: 36px;
+  padding-inline: 10px;
+  font-size: var(--text-detail);
+}
+
+/* ---------------------------------------------------------------------------
+ * The dock along the bottom: settings, search, a new conversation. See `PhoneDock`.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-dock {
+  position: absolute;
+  z-index: 40;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 14px calc(var(--ly-safe-bottom, 0px) + 12px);
+  /*
+   * The list thins out behind the bar rather than being cut off at a line: solid where the controls
+   * are, clear by the time it reaches the rows above them.
+   */
+  background: linear-gradient(
+    to top,
+    var(--color-sidebar) 0%,
+    var(--color-sidebar) calc(var(--ly-safe-bottom, 0px) + 40px),
+    color-mix(in srgb, var(--color-sidebar) 0%, transparent) 100%
+  );
+  pointer-events: none;
+}
+
+.ly-phone-dock > * {
+  pointer-events: auto;
+}
+
+.ly-phone-dock-round,
+.ly-phone-dock-search {
+  height: 48px;
+  border: 0.5px solid var(--ly-phone-well-edge);
+  background: var(--color-float);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 8px 22px -10px rgb(0 0 0 / 0.28);
+}
+
+.ly-phone-dock-round {
+  display: grid;
+  flex-shrink: 0;
+  width: 48px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-ink);
+}
+
+.ly-phone-dock-primary {
+  border-color: transparent;
+  background: var(--color-ink);
+  color: var(--color-shell);
+}
+
+.ly-phone-dock-search {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 16px 10px;
+  border-radius: 999px;
+  cursor: text;
+  transition: box-shadow var(--ly-t-base) ease-out;
+}
+
+.ly-phone-dock-search:focus-within {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent),
+    0 8px 22px -10px rgb(0 0 0 / 0.28);
+}
+
+/* Sixteen pixels: any less and iOS zooms the page to read what is being typed. */
+.ly-phone-dock-search input {
+  height: 100%;
+  font-size: 16px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ly-phone-dock-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.ly-phone-dock-clear {
+  display: grid;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 22%, transparent);
+  color: var(--color-float);
+}
+
+.ly-phone-dock-cancel {
+  flex-shrink: 0;
+  height: 48px;
+  padding-inline: 8px;
+  font-size: var(--text-label);
+  font-weight: 500;
+  color: var(--color-accent);
+  animation: ly-fade-in var(--ly-t-base) var(--ly-e-out);
+}
+
+:root.dark .ly-phone-dock-round,
+:root.dark .ly-phone-dock-search {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 10px 26px -10px rgb(0 0 0 / 0.7);
+}
+
+:root.dark .ly-phone-dock-primary {
+  background: var(--color-ink);
+}

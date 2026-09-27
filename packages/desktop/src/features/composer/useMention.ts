@@ -5,6 +5,7 @@ import { bridge } from "../../services/index.ts";
 import { baseName } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
+import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import {
 	findMentionRanges,
 	formatMention,
@@ -29,7 +30,7 @@ export function useMention(
 	const [focused, setFocused] = useState(false);
 	const id = useId();
 
-	const [agents, setAgents] = useState<Array<{ id: string; name: string; description: string }>>([]);
+	const [agents, setAgents] = useState<Array<{ id: string; name: string; description: string; avatar?: string }>>([]);
 	const [skills, setSkills] = useState<SkillEntry[]>([]);
 	const [sessions, setSessions] = useState<SessionMeta[]>([]);
 	const [workspaceFiles, setWorkspaceFiles] = useState<MentionFile[]>([]);
@@ -170,16 +171,22 @@ export function useMention(
 	}
 
 	// Decoration ranges for all mentions in the text
+	const avatarOf = useAgentAvatars(agents.length > 0 ? agents : null);
 	const mentionDecorations = useMemo(() => {
+		// 点名的是名单里的一个智能体，就带上它的脸——输入框里那个 `@` 换成它。
+		const named = new Set(agents.map((agent) => agent.name));
 		return findMentionRanges(text).map((r) => ({
 			start: r.start,
 			end: r.end,
+			...(named.has(r.inner) ? { kind: "subagent" as const, avatar: avatarOf(r.inner) } : {}),
 		}));
-	}, [text]);
+	}, [text, agents, avatarOf]);
 
 	return {
 		id,
 		matches,
+		/** 菜单里那几个智能体的完整名单：它们的脸要按这份名单排，才和设置页里的是同一张。 */
+		agents,
 		term: term ?? "",
 		active: current,
 		keyboardSelection,

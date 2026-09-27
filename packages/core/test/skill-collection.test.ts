@@ -1,11 +1,10 @@
 /**
- * A skill collection, once it is on disk.
+ * A skill collection installed the old way, once it is on disk.
  *
- * It is the one installable thing with no directory of its own: `moveInto` flattens its skills in
- * among the loose ones so `loadSkills`, which reads a single level, can see them at all. Everything
- * that asks "do I have this" therefore has to ask a different question about a collection than about
- * a plugin — and every place that forgot to answered "no" forever, which is invisible in a type
- * check and looks exactly like an install that failed.
+ * Collections are installed as bundles of their own now (`plugins/<id>/skills/…`, see
+ * `installEntry`). Before that they were flattened in among the loose skills as `<id>-<name>`, and
+ * those installs are still on people's machines: uninstalling or updating one has to find the
+ * scattered directories — and only those. These tests are about that older layout.
  */
 
 import assert from "node:assert/strict";

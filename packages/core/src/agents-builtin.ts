@@ -47,6 +47,14 @@ export interface AgentDefinition {
 	 */
 	spawns?: string[] | "*";
 	/**
+	 * 它的脸：`形状-颜色`，比如 `cloud-violet`。界面在设置页、提及菜单、子智能体面板里都画这一张。
+	 *
+	 * 写在定义里而不是存在界面的偏好里，是因为它是身份的一部分——定义文件拷到另一台机器上，
+	 * 来的应该是同一个「人」。运行时不读它；形状和颜色的名单归界面（`desktop/src/lib/agent-avatar.ts`），
+	 * 认不出来的值界面按名字另算一张，所以这里只管存，不管对不对。
+	 */
+	avatar?: string;
+	/**
 	 * 每跑多少轮停下来看一眼。不写就是 `SUB_AGENT_CHECKPOINT_TURNS`（60）。
 	 *
 	 * 检查点，不是上限：清单在往前推就接着跑，否则交一份交接、留着上下文等人续跑。改大它是
@@ -60,6 +68,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 	{
 		name: "general",
 		description: "通用研究与代码修改",
+		avatar: "circle-blue",
 		systemPrompt:
 			"You are a sub-agent working on one delegated task. Complete it fully, then reply with a concise report of " +
 			"what you found or changed. Your final message is the only thing the parent agent sees, so it must stand alone.",
@@ -69,6 +78,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 	{
 		name: "explore",
 		description: "只读搜索与代码定位",
+		avatar: "drop-green",
 		systemPrompt:
 			"You are a read-only exploration agent. Search broadly, read only what you need, and never modify files. " +
 			"Do not paste large file contents.",
@@ -120,6 +130,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 	{
 		name: "review",
 		description: "检查代码缺陷与风险",
+		avatar: "squircle-pink",
 		systemPrompt:
 			"You are a code review agent. Inspect the changes you are pointed at and report concrete defects: " +
 			"correctness bugs, missing error handling, security issues. Do not report style preferences.",
@@ -164,6 +175,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 	{
 		name: "verify",
 		description: "执行检查并报告结果",
+		avatar: "blob-teal",
 		systemPrompt:
 			"You run one verification — a test suite, a typecheck, a build, a lint — and report what happened. " +
 			"You do not fix anything, and you do not speculate about causes beyond what the output states. " +
@@ -214,6 +226,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 	{
 		name: "plan",
 		description: "只读分析与实施规划",
+		avatar: "cloud-violet",
 		systemPrompt:
 			"You plan a change without making it. Read what you need to understand the task, then yield a plan: " +
 			"ordered steps each naming the files it touches, the risks you can see, and what you could not determine " +
@@ -243,11 +256,11 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		source: "builtin",
 	},
 	{
-		name: "simple", description: "边界清楚的小改动，直接做完", model: "@fast", tools: "*", source: "builtin",
+		name: "simple", description: "边界清楚的小改动，直接做完", avatar: "pill-brown", model: "@fast", tools: "*", source: "builtin",
 		systemPrompt: "Complete the delegated task efficiently. Read the necessary context, make only requested changes, verify them and report the result concisely.",
 	},
 	{
-		name: "reason", description: "先想清楚再动手的难题", model: "@deep", tools: "*", source: "builtin",
+		name: "reason", description: "先想清楚再动手的难题", avatar: "triangle-orange", model: "@deep", tools: "*", source: "builtin",
 		systemPrompt: "Investigate the delegated problem carefully. Ground decisions in evidence, implement the requested solution, verify the result and report remaining uncertainty.",
 	},
 ];

@@ -11,7 +11,7 @@
  * what has arrived only ever grows.
  */
 
-import { translate } from "../../i18n/translate.ts";
+import { isNudge } from "../../lib/spoken.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@lyra/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
@@ -61,11 +61,8 @@ export type Run =
 	 */
 	| { kind: "tools"; calls: Call[]; live?: boolean };
 
-/** The runtime's "carry on" message, recognised by what it says as well as by its flag. */
-export function isNudge(message: Message | undefined): boolean {
-	if (message?.role !== "user") return false;
-	return message.content.some((c) => c.type === "text" && c.text.startsWith(translate("grouping.autoContinue")));
-}
+/* 「继续」那一句怎么认，搬到了 `lib/spoken.ts`——输入框也要用它，见那边的说明。 */
+export { isNudge };
 
 /**
  * A split reply has two identities; neither identity changes when more text arrives.
@@ -255,9 +252,14 @@ function resumesTurn(messages: Message[], index: number): boolean {
 	return false;
 }
 
-/** Whether this message is a person starting a turn, rather than the runtime keeping one going. */
+/**
+ * Whether this message is a person starting a turn, rather than the runtime keeping one going.
+ *
+ * 后台子智能体的结果送回来也算开了一轮：主智能体是被它叫醒的，那一轮的时长和花销是它的，不该
+ * 并进人上一次问的那一轮里。
+ */
 function opensTurn(message: Message): boolean {
-	return message.role === "user" && !message.synthetic && !isNudge(message);
+	return message.role === "user" && (!message.synthetic || Boolean(message.delivery)) && !isNudge(message);
 }
 
 /**
@@ -328,7 +330,7 @@ function liveWork(messages: Message[], live: number, rowOfCalls: Map<number, num
 		const message = messages[at];
 		if (message.role === "user") {
 			// The runtime's own messages are not the person speaking; see `opensTurn`.
-			if (message.synthetic || isNudge(message)) continue;
+			if ((message.synthetic && !message.delivery) || isNudge(message)) continue;
 			return -1;
 		}
 		// A tool result is the contents of a card, not a step of its own.
@@ -542,7 +544,11 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * stretch — hiding the seam leaves a transcript where the model appears to have changed
 		 * its mind unprompted, which is the one thing a reader needs explained.
 		 */
-		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.ruleMatch) continue;
+		/*
+		 * 送回来的结果也是一道缝：主智能体收尾之后被它叫醒，重新干起来。不画出来，读的人看到的是
+		 * 主智能体说完一段话、隔了几分钟又自己动了起来。
+		 */
+		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.ruleMatch && !message.delivery) continue;
 
 		if (message.role !== "assistant") {
 			out.push({ kind: "message", message, index, upTo: message.content.length });

@@ -228,6 +228,8 @@ export function WindowButtons({
 	const { titlebar } = useLayout();
 	return (
 		<div
+			/* Found by the phone's stylesheet, which puts this under the drawer rather than over it. */
+			data-ly-window-buttons=""
 			className="no-drag absolute top-0 z-[60] flex items-center gap-0.5"
 			/*
 			 * Past whatever the system drew in this corner: the traffic lights on macOS, nothing on

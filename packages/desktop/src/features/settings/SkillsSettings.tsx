@@ -1,31 +1,52 @@
-import type { Skill, SkillCandidate } from "@lyra/core";
-import { Check, Sparkles, TriangleAlert } from "lucide-react";
+import type { Plugin, Skill, SkillCandidate } from "@lyra/core";
+import { Sparkles, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SkillMark } from "./PluginIcon.tsx";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
-import { Badge, Card, EmptyHint, GhostButton, ListRow, PrimaryButton } from "./controls.tsx";
+import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
+import { SkillCandidates } from "./SkillCandidates.tsx";
 import { DiffView } from "../git/index.ts";
 import { ShadowedList } from "./ShadowedList.tsx";
 import { bridge } from "../../services/index.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
+import { useLocalScan } from "../plugins/index.ts";
 
 /**
- * Where a skill came from, in one word.
+ * The skills, in groups by where they came from — the project's, your own, each plugin's, the
+ * built-in ones — rather than one list with the origin repeated at the end of every row.
  *
- * A plugin's name beats the directory it happens to sit in: `~/.lyra/skills` is where a collection
- * flattens its skills too, so t("common.personal") there would be false in the way that matters — it would say
- * "you wrote this" about something that arrives and leaves with the plugin.
+ * Where a skill came from is the one thing about it you cannot work out from its name: two skills
+ * called `review` behave the same way and live in different places, and which one is yours to edit
+ * depends entirely on this. Said once above a group, it is read once; said on every row, eight rows
+ * of 「waza」 down the right edge were the loudest thing on the page. A plugin's group goes by the
+ * plugin's name, because `~/.lyra/skills` is where a collection flattens its skills too, and 「个人」
+ * there would say "you wrote this" about something that arrives and leaves with the plugin.
  */
-function originOf(skill: Skill): string {
-	if (skill.pluginId) return skill.pluginId;
-	if (skill.source === "workspace") return translate("common.project");
-	if (skill.source === "builtin") return translate("common.builtin");
-	return translate("common.personal");
+function groupSkills(skills: Skill[], plugins: Plugin[]): { key: string; title: string; skills: Skill[] }[] {
+	const groups = new Map<string, { key: string; title: string; rank: number; skills: Skill[] }>();
+	for (const skill of skills) {
+		const key = skill.pluginId ? `plugin:${skill.pluginId}` : skill.source;
+		let group = groups.get(key);
+		if (!group) {
+			const plugin = skill.pluginId ? plugins.find((entry) => entry.id === skill.pluginId) : undefined;
+			const title = skill.pluginId
+				? (plugin?.manifest.interface?.displayName ?? plugin?.manifest.name ?? skill.pluginId)
+				: skill.source === "workspace"
+					? translate("common.project")
+					: skill.source === "builtin"
+						? translate("common.builtin")
+						: translate("common.personal");
+			const rank = skill.pluginId ? 2 : skill.source === "workspace" ? 0 : skill.source === "builtin" ? 3 : 1;
+			group = { key, title, rank, skills: [] };
+			groups.set(key, group);
+		}
+		group.skills.push(skill);
+	}
+	return [...groups.values()].sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title));
 }
 
 export function SkillsSettings({ filter = "" }: { filter?: string }) {
@@ -33,7 +54,8 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	const workspace = useApp((s) => s.workspace);
 	// A plugin carries skills, so installing one moves this list without touching this page.
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
-	const [scan, setScan] = useState<Awaited<ReturnType<typeof bridge.plugins.list>> | null>(null);
+	// The one scan the whole 插件 page shares — see `useLocalScan`.
+	const { scan } = useLocalScan();
 	/** Only when the scan is slow enough to notice; below that the list simply appears. */
 
 
@@ -52,15 +74,13 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 
 	const slow = useSlowLoad(scan === null || pending === null);
 
-	// Scanned directly so the page works before any session exists.
-	const reloadScan = useCallback(() => {
-		void bridge.plugins.list(workspace?.path ?? "").then(setScan);
-	}, [workspace?.path]);
+	// Scanned without a session, so the page works before any conversation exists. A change here is
+	// a change for every list that reads the same directories.
+	const reloadScan = useCallback(() => useApp.getState().bumpExtensions(), []);
 	const removal = useDefinitionRemoval("skill", workspace?.path ?? "", reloadScan);
 	useEffect(() => {
-		reloadScan();
 		reloadPending();
-	}, [reloadScan, extensionsNonce, reloadPending]);
+	}, [extensionsNonce, reloadPending]);
 
 	// Name or description, because you remember a skill by either.
 	const needle = filter.trim().toLowerCase();
@@ -89,52 +109,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 			{/* The two directory buttons that used to sit here are in the page's ⋯ now — three tabs
 			    each opening with its own pair of them was a header that said nothing about the tab. */}
 
-			{pending && pending.length > 0 && (
-				<Card className="mb-6 border-accent/35 bg-accent/6">
-					<div className="px-4 pt-3 pb-1">
-						<div className="flex items-center gap-1.5 text-label text-accent">
-							<Sparkles size={13} strokeWidth={1.9} />
-							{t("skillsSettings.pending", { n: pending?.length ?? 0 })}
-						</div>
-						<p className="mt-0.5 text-detail text-ink-muted">
-							{t("skillsSettings.pendingDetail")}
-						</p>
-					</div>
-					{pending.map((candidate) => (
-						<div key={candidate.name} className="px-4 py-3">
-							<div className="ly-scroll"><ScrollText text={candidate.name} className="font-mono text-body" /></div>
-							<p className="mt-0.5 text-detail text-ink-muted">{candidate.description}</p>
-							<p className="mt-1 text-caption text-ink-faint">
-								{candidate.scope === "portable" ? t("skills.reusable") : t("skills.candidates")}
-								{candidate.sourceSessions && t("skills.fromSessions", { n: candidate.sourceSessions.length })}
-							</p>
-							{/* 正文全文摆出来。批准一段自己没读过的指令，跟没有这个确认步骤是一回事。 */}
-							<Scroller className="ly-rule-excerpt mt-2 max-h-52 rounded" contentClassName="p-2">
-							<pre className="whitespace-pre-wrap break-words font-mono text-detail leading-relaxed">
-								{candidate.body}
-							</pre>
-							</Scroller>
-							{/*
-							 * 动词写在按钮上，理由和 `FetchModelsModal` 的页脚是同一条：工具栏里的图标按钮
-							 * 可以把名字省进 tooltip，周围一排东西替它说明它在哪一类里；这两颗没有那个周围，
-							 * 它们是这次操作的结论本身。而这里比那里还重一些——按下左边那颗，这段正文就进了
-							 * 以后**每一个**会话，一个「哪颗是哪颗」要靠悬停才知道的选择，不该是这种选择。
-							 */}
-							<div className="mt-2 flex items-center gap-2">
-								<PrimaryButton
-									onClick={() => void decide(candidate.name, true)}
-									icon={<Check size={14} strokeWidth={2.2} aria-hidden />}
-								>
-									{t("common.enable")}
-								</PrimaryButton>
-								<GhostButton onClick={() => void decide(candidate.name, false)}>
-									{t("skillsSettings.reject")}
-								</GhostButton>
-							</div>
-						</div>
-					))}
-				</Card>
-			)}
+			{pending && pending.length > 0 && <SkillCandidates candidates={pending} onDecide={decide} />}
 			{diagnostics.length > 0 && (
 				<Card className="mb-6 border-accent/35 bg-accent/6">
 					<div className="px-4 py-3">
@@ -191,7 +166,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 			{slow ? (
 				<SkeletonList count={6} label={t("skills.reading")} />
 			) : scan === null || pending === null ? null : skills.length === 0 ? (
-				<EmptyHint>{needle ? t("common.noMatchingSkills") : t("skills.empty")}</EmptyHint>
+				<EmptyHint icon={Sparkles}>{needle ? t("common.noMatchingSkills") : t("skills.empty")}</EmptyHint>
 			) : (
 				/*
 				 * The same row as the plugin list, because it is the same kind of thing: a mark, a
@@ -203,24 +178,33 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 				 * this word. `仅手动调用` stays beside the name instead, because that is not provenance
 				 * — it changes what the model will do.
 				 */
-				skills.map((skill) => (
-					<ListRow
-						key={skill.path}
-						icon={<SkillMark size={30} />}
-						title={
-							<span className="flex min-w-0 items-center gap-2">
-								<ScrollText text={skill.name} className="min-w-0 font-mono" />
-								{skill.disableModelInvocation && <Badge tone="accent">{t("skills.manualOnly")}</Badge>}
-							</span>
-						}
-						detail={skill.description}
-						actions={<>
-							<span className="text-detail whitespace-nowrap text-ink-faint">{originOf(skill)}</span>
-							{skill.source !== "builtin" && !skill.pluginId && <RowDeleteButton label={t("skills.deleteNamed", { name: skill.name })} pending={removal.pending.has(skill.path)} onClick={() => removal.ask(skill.name, skill.path)} />}
-						</>}
-						onOpen={() => void bridge.system.openPath(skill.path)}
-						openLabel={t("skills.openNamed", { name: skill.name })}
-					/>
+				groupSkills(skills, scan?.plugins ?? []).map((group, groupIndex) => (
+					<section key={group.key} className={groupIndex === 0 ? "" : "pt-4"} data-skill-group={group.key}>
+						<h3 className="flex items-baseline gap-1.5 px-2 pb-1 text-detail font-medium text-ink-faint">
+							{group.title}
+							<span className="font-normal tabular-nums">{group.skills.length}</span>
+						</h3>
+						{group.skills.map((skill) => (
+							<ListRow
+								key={skill.path}
+								icon={<SkillMark size={28} />}
+								title={
+									<span className="flex min-w-0 items-center gap-2">
+										<ScrollText text={skill.name} className="min-w-0 font-mono" />
+										{skill.disableModelInvocation && <Badge tone="accent">{t("skills.manualOnly")}</Badge>}
+									</span>
+								}
+								detail={skill.description}
+								actions={
+									skill.source !== "builtin" && !skill.pluginId ? (
+										<RowDeleteButton label={t("skills.deleteNamed", { name: skill.name })} pending={removal.pending.has(skill.path)} onClick={() => removal.ask(skill.name, skill.path)} />
+									) : undefined
+								}
+								onOpen={() => void bridge.system.openPath(skill.path)}
+								openLabel={t("skills.openNamed", { name: skill.name })}
+							/>
+						))}
+					</section>
 				))
 			)}
 			{removal.element}

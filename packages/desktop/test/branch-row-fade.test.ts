@@ -31,8 +31,16 @@ test("the fade keys off the shared hover-row attribute", async () => {
 test("the shared mask keeps a solid clear zone under the icons", async () => {
 	const css = await readFile(new URL("src/styles/marquee.css", root), "utf8");
 	assert.match(css, /@property --ly-fade-clear/);
-	assert.match(css, /transparent calc\(100% - var\(--ly-fade-clear\)\)/);
-	assert.match(css, /#000 calc\(100% - var\(--ly-fade-right\) - var\(--ly-fade-clear\)\)/);
+	assert.match(css, /transparent calc\(100% - var\(--ly-fade-clear\) \* var\(--ly-fade-reveal\)\)/);
+	assert.match(css, /#000 calc\(100% - var\(--ly-fade-right\) - var\(--ly-fade-clear\) \* var\(--ly-fade-reveal\)\)/);
+	// The transition is on whether the run shows, not on its width. The width lands with the
+	// layout: folding a project under the pointer moves the count in and out, the covered run
+	// changes with it, and easing that change drew the title's tail under the buttons and back.
+	assert.match(css, /@property --ly-fade-reveal/);
+	assert.match(css, /--ly-fade-reveal var\(--ly-t-quick\)/);
+	assert.doesNotMatch(css, /--ly-fade-clear var\(--ly-t/);
+	const ticker = await readFile(new URL("src/styles/thinking-ticker.css", root), "utf8");
+	assert.match(ticker, /--ly-fade-reveal:\s*1/);
 });
 
 test("the reveal is a shrink-wrap overlay on group/row", async () => {

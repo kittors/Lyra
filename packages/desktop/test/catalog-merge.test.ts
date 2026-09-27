@@ -206,3 +206,20 @@ test("an update is only claimed when the installed copy carries a comparable rec
 	// And nothing that is not installed can be behind anything.
 	assert.equal(merge([], [], [], [{ from: "r", entry: moved }])[0].outdated, false);
 });
+
+test("installed, a bundle keeps its own display name — unless the market's maintainer wrote one", () => {
+	const installed = plugin("waza", {
+		manifest: { name: "waza", interface: { displayName: "waza", shortDescription: "Installs the full Waza toolkit." } },
+	});
+	const listed = { ...entry("waza", "plugin"), name: "Waza", description: "八件工程上的老规矩" };
+
+	// An index that only repeats what the build read: the author's own wording stands.
+	const plain = merge([installed], [], [], [{ from: "r", entry: listed }]);
+	assert.equal(plain[0].name, "waza");
+	assert.equal(plain[0].description, "Installs the full Waza toolkit.");
+
+	// A maintainer set both on the platform: the card says what it said before it was installed.
+	const curated = merge([installed], [], [], [{ from: "r", entry: { ...listed, curated: ["name", "description"] } }]);
+	assert.equal(curated[0].name, "Waza");
+	assert.equal(curated[0].description, "八件工程上的老规矩");
+});

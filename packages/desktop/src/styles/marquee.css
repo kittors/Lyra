@@ -34,14 +34,31 @@
   initial-value: 0;
 }
 
+/*
+ * Whether the cleared run is showing, from 0 to 1. The transition lives on this number, not on the
+ * `--ly-fade-clear` length.
+ *
+ * How wide the run is belongs to layout; whether it shows belongs to the pointer, and the two move
+ * separately. The length used to carry the transition itself. With the pointer resting on a project
+ * row, a click to fold it pushed the count in and narrowed the title, the covered run went from 48px
+ * to 29px, and that change was eased too: the dissolve first retreated 19px with the box, then crept
+ * back to the buttons. Unfolding did the reverse, the text reaching under the buttons before backing
+ * out. The length has to land on the frame the layout changes; only showing and hiding should ease.
+ */
+@property --ly-fade-reveal {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .ly-fade-edge,
 .ly-fade-tail {
   mask-image: linear-gradient(
     to right,
     transparent 0,
     #000 var(--ly-fade-left),
-    #000 calc(100% - var(--ly-fade-right) - var(--ly-fade-clear)),
-    transparent calc(100% - var(--ly-fade-clear)),
+    #000 calc(100% - var(--ly-fade-right) - var(--ly-fade-clear) * var(--ly-fade-reveal)),
+    transparent calc(100% - var(--ly-fade-clear) * var(--ly-fade-reveal)),
     transparent 100%
   );
   /* Order matches the properties: the left fade waits for the scroll, the right pair tracks the
@@ -49,7 +66,7 @@
   transition:
     --ly-fade-left var(--ly-t-quick) var(--ly-e-out),
     --ly-fade-right var(--ly-t-quick) var(--ly-e-out),
-    --ly-fade-clear var(--ly-t-quick) var(--ly-e-out);
+    --ly-fade-reveal var(--ly-t-quick) var(--ly-e-out);
 }
 
 /*

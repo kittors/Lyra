@@ -14,6 +14,7 @@ import { useEffect } from "react";
 
 import { begin, drawerWidth, extend, progress, release, type Gesture } from "./drawer-gesture.ts";
 import { watchKeyboard } from "./keyboard.ts";
+import { touchClaimed } from "./long-press.ts";
 
 /*
  * Re-exported rather than defined here.
@@ -41,7 +42,26 @@ export function useKeyboardInset(): void {
 		if (!onPhone()) return;
 		// The window itself, so `innerHeight` is re-read on every update rather than captured —
 		// rotating the phone changes it, and a stale one mis-measures the keyboard by the difference.
-		return watchKeyboard(window, document.documentElement);
+		const stop = watchKeyboard(window, document.documentElement);
+		/*
+		 * The field being typed in stays in sight when the keyboard takes the bottom of the window.
+		 *
+		 * On iOS the shell ends the WebView at the keyboard's top edge and the WebView's own
+		 * scroll-to-reveal is switched off (see `desk.tsx`), so revealing the field is this page's
+		 * job: a setting half way down a scrolled page would otherwise be under the keyboard. The
+		 * scrollers around it move only as far as it takes to bring the field into view, and not at
+		 * all when it already is — which is the composer, every time.
+		 */
+		const reveal = () => {
+			const field = document.activeElement;
+			if (!(field instanceof HTMLElement) || !field.matches("input, textarea, [contenteditable]")) return;
+			requestAnimationFrame(() => field.scrollIntoView({ block: "nearest", inline: "nearest" }));
+		};
+		window.addEventListener("resize", reveal);
+		return () => {
+			stop();
+			window.removeEventListener("resize", reveal);
+		};
 	}, []);
 }
 
@@ -93,6 +113,15 @@ export function useDrawerGesture(open: boolean, setOpen: (next: boolean) => void
 
 		const onMove = (event: TouchEvent) => {
 			if (!gesture || event.touches.length !== 1) return;
+			/*
+			 * A long press has turned this touch into a menu (see `PhoneTouch`). The finger drifting
+			 * while it reads the menu is not a pull on the drawer, and following it would slide the
+			 * whole pane out from under the row it is holding.
+			 */
+			if (touchClaimed()) {
+				clear();
+				return;
+			}
 			const touch = event.touches[0];
 			gesture = extend(gesture, { x: touch.clientX, y: touch.clientY, t: event.timeStamp });
 			if (gesture.declined || gesture.deciding) return;

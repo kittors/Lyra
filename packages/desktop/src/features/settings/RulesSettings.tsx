@@ -23,13 +23,14 @@
 import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import type { RuleEntry } from "@lyra/core";
-import { FileText, Play, TriangleAlert, Zap } from "lucide-react";
+import { FileText, Play, Scale, TriangleAlert, Zap } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Badge, Card, EmptyHint, ListRow, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 import { RuleTryPanel } from "./RuleTryPanel.tsx";
+import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { DiffView } from "../git/index.ts";
 import { ShadowedList } from "./ShadowedList.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
@@ -56,6 +57,7 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 	 * `condition` is a list and the monitor fires on whichever matches first.
 	 */
 	const [tryPatterns, setTryPatterns] = useState<string[]>([""]);
+	const [tryOpen, setTryOpen] = useState(false);
 	const slow = useSlowLoad(data === null);
 
 	const reload = useCallback(() => {
@@ -113,45 +115,12 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 				renderDiff={(hunks, path) => <DiffView hunks={hunks} path={path} />}
 			/>
 
-			{(data?.foreignUserSources.length ?? 0) > 0 && (
-				<Card className="mb-6">
-					<div className="px-4 pt-3 pb-1">
-						<div className="text-label text-ink-muted">{t("rules.foreignPersonal")}</div>
-						<p className="mt-0.5 text-detail text-ink-faint">
-							{t("rules.foreignPersonalDetail")}
-						</p>
-					</div>
-					{data?.foreignUserSources.map((source) => (
-						<ListRow
-							key={source.id}
-							title={source.label}
-							detail={source.describe}
-							control={
-								<Toggle
-									checked={enabled.has(source.id)}
-									onChange={(on) => {
-										void bridge.rules.setForeignUser(source.id, on).then(reload);
-									}}
-								/>
-							}
-						/>
-					))}
-				</Card>
-			)}
-
-			{/*
-			 * Above the list rather than inside an editor, because there is no editor: rules are
-			 * files, and the page sends you to the file. What the file cannot do is meet the
-			 * conversation — this can, and it is the one check the plan says people need most.
-			 */}
-			<RuleTryPanel patterns={tryPatterns} onChange={setTryPatterns} messages={messages} />
-
 			{slow ? (
 				<SkeletonList count={5} label={t("rules.reading")} />
 			) : data === null ? null : live.length === 0 ? (
-				<EmptyHint>{t(needle ? "rules.noMatch" : "rules.empty")}</EmptyHint>
+				<EmptyHint icon={Scale}>{t(needle ? "rules.noMatch" : "rules.empty")}</EmptyHint>
 			) : (
-				<Card>
+				<Card className="px-2 py-1">
 					{live.map((rule) => {
 						const bucket = BUCKETS[rule.bucket];
 						return (
@@ -175,33 +144,95 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 									)
 								}
 								actions={
-									/* 路径在提示里，不在行上：它很长，而且只在你打算去改它的时候才需要。 */
-									<span className="flex items-center gap-1.5" data-ly-tip={rule.path}>
-										{rule.condition && rule.condition.length > 0 && (
-											<button
-												type="button"
-												data-rule-try-fill={rule.name}
-												onClick={() => setTryPatterns([...(rule.condition ?? [])])}
-												className="text-caption text-ink-faint underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
-
-							data-ly-tip={t("rules.tryIt")}
-							aria-label={t("rules.tryIt")}>
-												<Play size={13} strokeWidth={1.8} />
-											</button>
-										)}
-										<Badge tone="muted">{t(bucket.label)}</Badge>
-										<Badge tone="muted">{rule.sourceLabel}</Badge>
+									/*
+									 * 路径在提示里，不在行上：它很长，而且只在你打算去改它的时候才需要。
+									 *
+									 * 来源一直在，其余等悬停：「常驻 / 流规则」行首的图标已经说了（文档 / 闪电），
+									 * 试一下的 ▶ 只对写条件的人有用——五行各挂两枚徽章一颗按钮，读起来比规则本身还多。
+									 */
+									<span className="flex items-center gap-2" data-ly-tip={rule.path}>
+										<span className="flex items-center gap-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-100 focus-within:opacity-100">
+											{rule.condition && rule.condition.length > 0 && (
+												<button
+													type="button"
+													data-rule-try-fill={rule.name}
+													onClick={() => {
+														setTryPatterns([...(rule.condition ?? [])]);
+														setTryOpen(true);
+													}}
+													className="flex h-[22px] w-[22px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+													data-ly-tip={t("rules.tryIt")}
+													aria-label={t("rules.tryIt")}
+												>
+													<Play size={12} strokeWidth={1.9} />
+												</button>
+											)}
+											<Badge tone="muted">{t(bucket.label)}</Badge>
+										</span>
+										<span className="text-detail whitespace-nowrap text-ink-faint">{rule.sourceLabel}</span>
 									</span>
 								}
+								/*
+								 * The delete slot is kept even where there is nothing to delete, so every toggle in the
+								 * list lines up — built-in rules used to push theirs half a button further right.
+								 */
 								control={<div className="flex items-center gap-2">
 									<Toggle checked={!rule.disabled} onChange={(on) => void toggle(rule, on)} />
-									{!rule.path.startsWith("builtin:") && <RowDeleteButton label={t("rules.deleteOne", { name: rule.name })} pending={removal.pending.has(rule.path)} onClick={() => removal.ask(rule.name, rule.path)} />}
+									{rule.path.startsWith("builtin:") ? (
+										<span aria-hidden className="w-[26px] shrink-0" />
+									) : (
+										<RowDeleteButton label={t("rules.deleteOne", { name: rule.name })} pending={removal.pending.has(rule.path)} onClick={() => removal.ask(rule.name, rule.path)} />
+									)}
 								</div>}
 							/>
 						);
 					})}
 				</Card>
 			)}
+
+			{(data?.foreignUserSources.length ?? 0) > 0 && (
+				<Card className="mt-6">
+					<div className="px-4 pt-3 pb-1">
+						<div className="text-label text-ink-muted">{t("rules.foreignPersonal")}</div>
+						<p className="mt-0.5 text-detail text-ink-faint">
+							{t("rules.foreignPersonalDetail")}
+						</p>
+					</div>
+					{/* Inset by the rows' own padding, so their text starts where the heading's does. */}
+					<div className="px-2 pb-1">
+						{data?.foreignUserSources.map((source) => (
+							<ListRow
+								key={source.id}
+								title={source.label}
+								detail={source.describe}
+								control={
+									/* The same trailing slot as the rules above, so the two cards' switches line up. */
+									<div className="flex items-center gap-2">
+										<Toggle
+											checked={enabled.has(source.id)}
+											onChange={(on) => {
+												void bridge.rules.setForeignUser(source.id, on).then(reload);
+											}}
+										/>
+										<span aria-hidden className="w-[26px] shrink-0" />
+									</div>
+								}
+							/>
+						))}
+					</div>
+				</Card>
+			)}
+
+			{/*
+			 * The regex tester, folded away until it is wanted: it is a tool for someone writing a
+			 * condition, not something everyone opening the page needs a paragraph about. The ▶ on a
+			 * rule with conditions opens it, filled in.
+			 */}
+			<div className="mt-6">
+				<Disclosure title={t("ruleTry.title")} open={tryOpen} onToggle={() => setTryOpen((was) => !was)}>
+					<RuleTryPanel patterns={tryPatterns} onChange={setTryPatterns} messages={messages} titled={false} />
+				</Disclosure>
+			</div>
 			{removal.element}
 		</div>
 	);

@@ -11,7 +11,7 @@ import { dirname } from "node:path";
 import { findRule } from "../rules/session.ts";
 import type { RuleSet } from "../rules/types.ts";
 import { RULES_KEY } from "../tools/rule.ts";
-import type { Skill } from "../skills/loader.ts";
+import { expandSkillPaths, type Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { artifactResource, mcpResource, pluginResource, sessionResource } from "./more-handlers.ts";
 import { resolveInside, stillInside } from "./router.ts";
@@ -71,7 +71,8 @@ const skillResource: ResourceHandler = {
 		if (rest.length === 0) {
 			return {
 				url: url.raw,
-				content: skill.content,
+				// 同 `skill` 工具交给模型的那份一样，路径变量已经填好——见 `expandSkillPaths`。
+				content: expandSkillPaths(skill),
 				contentType: "text/markdown",
 				label: `技能“${skill.name}”的完整正文`,
 				meta: { name: skill.name, dir: skill.dir, source: skill.source },

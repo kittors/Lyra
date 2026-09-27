@@ -5,10 +5,11 @@ import type {
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Undo2 } from "lucide-react";
 import { openFromEvent, openViewer } from "../image/index.ts";
-import { AttachmentMenu, AttachmentStrip, displayName, fileKind, KIND_LABEL, type FileKind, type StripFile } from "../composer/index.ts";
+import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
+import { baseName } from "../../lib/paths.ts";
 import { useMemo, useState } from "react";
 import { BubbleText } from "./BubbleText.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -16,7 +17,7 @@ import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge, onPhone } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -75,12 +76,26 @@ function attachmentsOf(
   /* 「图片 2」里的那个 2 数的是同门类里的第几个，和输入框那边、和提示词里是同一个数。 */
   const seen = new Map<FileKind, number>();
   for (const [index, file] of (message.attachments ?? []).entries()) {
-    const kind = (file.kind as FileKind | undefined) ?? fileKind(file.name, file.mimeType ?? "");
+    // 转录里躺着的是一段没人再校验过的数据，缺了一项的整条跳过，别让它把整段对话一起带走。
+    if (!file || typeof file !== "object") continue;
+    /*
+     * 记下来的门类要复核一遍，见 `sentKind`。一份被记成图片的文档，在下面会去配一个本不属于它的图片块，
+     * 把后面的每一张图都往后错一位。
+     */
+    const kind = sentKind(file);
     const kindIndex = (seen.get(kind) ?? 0) + 1;
     seen.set(kind, kindIndex);
     const block = kind === "image" ? images[at] : undefined;
     if (block) at++;
-    const refs = imageSrc(block, file.path);
+    /*
+     * 像素只属于图片。
+     *
+     * `imageSrc` 的最后一档是「没有图片块，就按路径去磁盘上取」——那是给图片兜底的：像素万一没跟着消息
+     * 走，磁盘上那一份就是它。这一问一度对每份附件都问，于是一份带着路径的 `.md` 也拿到了一个
+     * `ly-media://` 地址：气泡外面多出一张裂开的图，alt 是它的文件名；句子里那枚标记被当成图片，点它、
+     * 点「预览」都去查看器里找一张不存在的图，什么都不发生；菜单里还多出一行「复制图片」。
+     */
+    const refs: { src?: string; full?: string } = kind === "image" ? imageSrc(block, file.path) : {};
     files.push({
       key: `${index}-${file.name}`,
       name: file.name,
@@ -120,6 +135,23 @@ function attachmentsOf(
   return files;
 }
 
+/**
+ * 这份附件进提示词的，是不是只有它的名字。
+ *
+ * 看消息里实际装了什么，不按门类猜：一份 PDF 抽得出字就整篇进了提示词，扫描件和压缩包才只剩一行
+ * `[… — contents not included]`（见 `attachmentStub`）。按门类猜的那一版把每一份 PDF、每一张表格都画成
+ * 「只有文件名」，而那句悬停说明对一份模型明明读完了的合同是错的。
+ */
+function onlyNameSent(content: UserContent[], name: string): boolean {
+  return content.some(
+    (block) =>
+      block.type === "text" &&
+      isAttachmentBody(block.text) &&
+      block.text.includes(`: ${name}`) &&
+      block.text.trimEnd().endsWith("contents not included]"),
+  );
+}
+
 export function UserMessage({
   message,
   index,
@@ -149,10 +181,43 @@ export function UserMessage({
     );
   };
 
+  /**
+   * 在右边的文件面板里打开一份发出去的文件——句子里那枚标记的左键，和它菜单里的「预览」，都是这一个。
+   *
+   * 项目外的也打得开：主进程认得转录里记下的附件路径，面板可以只读地读它们（见
+   * `electron/attachment-reads.ts`）。先问一句它还在不在：转录活得比文件久，挪走了的文件在面板里只是
+   * 一句「无法读取」，而这里说得清是它不在原处了。
+   *
+   * 标签页叫它在磁盘上的名字，不叫句子里那枚标记的名字：面板按扩展名决定怎么画，`.md` 才渲染成文档。
+   */
+  const previewFile = async (file: { name: string; label?: string; path?: string }) => {
+    const path = file.path;
+    if (!path) return;
+    /*
+     * 手机那一侧答不了这一问：`system.pathExists` 不过中转，那边的桥对它一律答空——问了就只会报一句
+     * 「文件不在原处」。那边照旧直接打开，读不到由面板自己说。
+     */
+    if (available("system", "pathExists") && !(await attachmentActions.ensureThere({ name: file.label ?? file.name, path }))) return;
+    void useOpenFile
+      .getState()
+      .open({ path, name: baseName(path) || file.name, isDirectory: false, size: 0 })
+      .catch((error: unknown) => useApp.getState().notify(String(error), "error"));
+    openScopedPanel("file", companionOf("file"));
+  };
+
+  /**
+   * 这一份文件能不能在面板里预览，不论它在不在项目里。
+   *
+   * 只在桌面自己的窗口里成立：项目外附件的放行在桌面主进程里（`electron/attachment-reads.ts`），手机那
+   * 一侧读文件走同步服务，只认已打开的项目。那边照旧——项目里的点一下进面板，项目外的不给「预览」。
+   */
+  const panelPreview = (file: { name: string; kind: FileKind; path?: string }) =>
+    Boolean(file.path) && !onPhone() && previewableInPanel(file.kind, file.name);
+
   /** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
   const [markMenu, setMarkMenu] = useState<{
     point: { x: number; y: number };
-    file: { name: string; label?: string; path?: string; src?: string };
+    file: { name: string; label?: string; kind: FileKind; path?: string; src?: string };
   } | null>(null);
 
   const rawText = message.content
@@ -230,11 +295,11 @@ export function UserMessage({
            * （`MessageAttachment.path`），只是没走到这儿。
            */
           ...(file.path ? { path: file.path } : {}),
-          // 图片的像素、文本的正文，两样都没有的才是「只有名字」。
-          bodiless: !file.src && file.kind !== "text",
+          // 图片的像素、文件的正文，两样都没有的才是「只有名字」——正文有没有，看消息里装了什么。
+          bodiless: !file.src && onlyNameSent(message.content, file.name),
         }))
       ),
-    [files],
+    [files, message.content],
   );
   const said = text.trim();
 
@@ -437,15 +502,17 @@ export function UserMessage({
                         path: segment.file.path,
                         src: segment.file.src,
                         isImage: Boolean(segment.file.src || segment.file.kind === "image"),
+                        /*
+                         * 发出去的文件，项目外的也进得了面板——面板打开它看得到东西的话。其余的照旧：项目里
+                         * 的进面板，项目外的在访达中指出来。
+                         */
+                        panelReadable: panelPreview(segment.file),
                         onPreviewImage: (originRect?: DOMRect) => {
                           if (segment.file.src) {
                             previewImage(segment.file.src, originRect);
                           }
                         },
-                        onOpenFile: (filePath: string, name: string) => {
-                          void useOpenFile.getState().open({ path: filePath, name, isDirectory: false, size: 0 });
-                          openScopedPanel("file", companionOf("file"));
-                        },
+                        onOpenFile: () => void previewFile(segment.file),
                       },
                       rect,
                     );
@@ -479,10 +546,18 @@ export function UserMessage({
                 ...(markMenu.file.path ? { path: markMenu.file.path } : {}),
                 ...(markMenu.file.src ? { src: markMenu.file.src } : {}),
                 /*
-                 * 预览只给图片：像素就在消息里，查看器要的只是一个放大的起点。文件不给——它的预览只
-                 * 能是右边那个面板，而面板读不到项目外的东西，而附件绝大多数来自项目外。
+                 * 「预览」：图片进查看器，像素就在消息里，查看器要的只是一个放大的起点；文件进右边的文件
+                 * 面板。
+                 *
+                 * 文件这一半从前不给，理由是面板读不到项目外的东西，而附件绝大多数来自项目外。现在主进程
+                 * 认得消息里记下的附件路径（`electron/attachment-reads.ts`），面板只读地打得开它们——只要
+                 * 打开之后看得到的是它本身，见 `previewableInPanel`。
                  */
-                ...(markMenu.file.src ? { onPreview: () => previewImage(markMenu.file.src ?? "") } : {}),
+                ...(markMenu.file.src
+                  ? { onPreview: () => previewImage(markMenu.file.src ?? "") }
+                  : panelPreview(markMenu.file)
+                    ? { onPreview: () => void previewFile(markMenu.file) }
+                    : {}),
               }
             : null
         }

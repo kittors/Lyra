@@ -26,9 +26,9 @@ import type { RegistryEntry } from "@lyra/registry-shared";
  * focus, once for the clone and once for the unpack. One helper with the option built in, so the
  * next command added here cannot forget it.
  */
-function run(file: string, args: string[], timeout: number): Promise<void> {
+function run(file: string, args: string[], timeout: number): Promise<string> {
 	return new Promise((resolve, reject) => {
-		execFile(file, args, { timeout, windowsHide: true }, (error) => (error ? reject(error) : resolve()));
+		execFile(file, args, { timeout, windowsHide: true }, (error, stdout) => (error ? reject(error) : resolve(String(stdout))));
 	});
 }
 
@@ -42,6 +42,11 @@ export interface FetchResult {
 	via: "tarball" | "git";
 	/** Set when the tarball route was tried and failed, so the fallback can be explained. */
 	fellBackBecause?: string;
+	/**
+	 * The commit a clone actually checked out. The ledger records this, not the registry's, when the
+	 * files came from git — see `remember` in `registry.ts`.
+	 */
+	commit?: string;
 }
 
 /**
@@ -74,18 +79,41 @@ export async function fetchBundle(entry: RegistryEntry, staging: string): Promis
 			 * has files in it fails with a message about the directory rather than about the download.
 			 */
 			await rm(staging, { recursive: true, force: true });
-			await fromGit(entry, staging);
-			return { via: "git", fellBackBecause: because };
+			return { via: "git", fellBackBecause: because, ...(await fromGit(entry, staging)) };
 		}
 	}
 
 	if (!entry.repository) throw new Error("这个条目既没有下载地址也没有仓库地址");
-	await fromGit(entry, staging);
-	return { via: "git" };
+	return { via: "git", ...(await fromGit(entry, staging)) };
 }
 
-async function fromGit(entry: RegistryEntry, staging: string): Promise<void> {
-	await run("git", ["clone", "--depth", "1", entry.repository, staging], 60_000);
+/**
+ * Clone, and move to the commit the registry built from when it named one.
+ *
+ * `--` before the address: an index is somebody else's file, and a "repository" beginning with `-`
+ * is an option to git, not a place to clone from.
+ *
+ * The commit, because a clone takes whatever the branch points at now. The registry's archive was
+ * built from `entry.commit`; installing a newer tree under the older one's name made the update
+ * check compare against a commit that was never on disk. Fetching one commit by hash is something
+ * GitHub allows and some servers do not — then the clone stays where it is, and the ledger records
+ * where that is.
+ */
+async function fromGit(entry: RegistryEntry, staging: string): Promise<{ commit?: string }> {
+	await run("git", ["clone", "--depth", "1", "--", entry.repository, staging], 60_000);
+	const commit = entry.commit;
+	if (commit && /^[0-9a-f]{7,40}$/i.test(commit)) {
+		// Already here when the branch has not moved (or the clone is a full one); fetched when not.
+		await run("git", ["-C", staging, "checkout", "--quiet", "--detach", commit], 30_000)
+			.catch(() =>
+				run("git", ["-C", staging, "fetch", "--depth", "1", "origin", commit], 60_000).then(() =>
+					run("git", ["-C", staging, "checkout", "--quiet", "--detach", "FETCH_HEAD"], 30_000),
+				),
+			)
+			.catch(() => undefined);
+	}
+	const head = (await run("git", ["-C", staging, "rev-parse", "HEAD"], 10_000).catch(() => "")).trim();
+	return /^[0-9a-f]{40}$/i.test(head) ? { commit: head } : {};
 }
 
 /**

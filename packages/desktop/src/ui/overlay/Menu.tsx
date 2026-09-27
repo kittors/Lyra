@@ -67,6 +67,7 @@ export function MenuItem({
 	detail,
 	hint,
 	trailing,
+	checked,
 	selected,
 	danger,
 	disabled,
@@ -88,6 +89,14 @@ export function MenuItem({
 	hint?: React.ReactNode;
 	/** Right-aligned element, for a checkmark or a chevron. */
 	trailing?: React.ReactNode;
+	/**
+	 * Makes the row an on/off setting: a small switch at its end, and `menuitemcheckbox` semantics.
+	 *
+	 * The label stays the name of the setting — 自动更新 — and the switch says its state. The row
+	 * used to carry both in words, 「自动更新：开（点击关闭）」, which is a sentence to parse where a
+	 * glance should do, and which ran off the end of the menu.
+	 */
+	checked?: boolean;
 	selected?: boolean;
 	danger?: boolean;
 	disabled?: boolean;
@@ -108,7 +117,8 @@ export function MenuItem({
 	return (
 		<button
 			type="button"
-			role="menuitem"
+			role={checked === undefined ? "menuitem" : "menuitemcheckbox"}
+			aria-checked={checked}
 			disabled={disabled}
 			data-ly-tip={title}
 			data-selected={selected ? "true" : undefined}
@@ -145,6 +155,17 @@ export function MenuItem({
 				</span>
 			)}
 			{trailing}
+			{checked !== undefined && (
+				<span
+					aria-hidden
+					className={`relative h-[16px] w-[28px] shrink-0 rounded-full transition-colors duration-[var(--ly-t-base)] ${checked ? "bg-accent" : "bg-line"}`}
+				>
+					<span
+						className="ly-knob absolute top-[2px] left-[2px] h-3 w-3 rounded-full border transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+						style={{ transform: checked ? "translateX(12px)" : "none" }}
+					/>
+				</span>
+			)}
 		</button>
 	);
 }

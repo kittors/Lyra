@@ -106,6 +106,30 @@ export function fileKind(name: string, mimeType = ""): FileKind {
 }
 
 /**
+ * 一份已经发出去的附件，该按什么门类画。
+ *
+ * 记下来的 `kind` 是发送那一刻 `fileKind` 的答案，绝大多数时候就是对的——但它是一段之后再没人校验过
+ * 的字符串：旧版本写下的、手机同步过来的、将来哪个入口写错的，都会原样躺在转录里。而渲染端对「图片」
+ * 这个答案的信任是一路到底的：去取像素、画成缩略图、菜单里给「复制图片」。一份 `.md` 被记成图片，
+ * 屏幕上就是一张裂开的图，alt 是它的文件名。
+ *
+ * 所以「图片」要经得起名字和类型的复核：名字带着扩展名、或者存了 mimeType，而它们都说不是图，就听它们
+ * 的。两样都没有的（剪贴板编的名字、没存类型的老消息）才只能信记下来的那一个——那时没有别的证据可听。
+ * 真的图片过得了这一关：它的扩展名或 mimeType 总有一样说得出「图」。
+ *
+ * 别的门类不复核：记错了顶多是图标不对，不会凭空长出一张图来。认不出的字符串（将来或过去的门类名）
+ * 退回现算——拿它去查 `KIND_LABEL` 只会查出一个 `undefined`。
+ */
+export function sentKind(file: { name: string; kind?: string | null; mimeType?: string | null }): FileKind {
+	const mime = typeof file.mimeType === "string" ? file.mimeType : "";
+	const guessed = fileKind(file.name, mime);
+	const recorded = typeof file.kind === "string" && Object.hasOwn(KIND_LABEL, file.kind) ? (file.kind as FileKind) : undefined;
+	if (!recorded) return guessed;
+	if (recorded === "image" && guessed !== "image" && (extensionOf(file.name) !== "" || mime !== "")) return guessed;
+	return recorded;
+}
+
+/**
  * 图标归图标，能不能当文本读是另一件事。
  *
  * `csv` 和 `tsv` 是这条区别的全部理由。它们被归进 `excel` 是为了画一个表格图标——一列数字顶着一个

@@ -16,7 +16,7 @@
  * never writes the settings file to record that it had nothing to record.
  */
 
-import type { Installed, McpBundle, McpServerConfig, Settings } from "@lyra/core";
+import { isPlaceholder, needsOf, type Installed, type McpBundle, type McpServerConfig, type Settings } from "@lyra/core";
 
 /**
  * The settings an install leaves behind, or null when it has nothing to say.
@@ -30,20 +30,36 @@ import type { Installed, McpBundle, McpServerConfig, Settings } from "@lyra/core
  * something twice leaves two copies of every server it declares, and switching "it" on switches on
  * whichever copy the list happened to hit first.
  *
- * Replacing keeps the one thing that was the user's: whether a server they already had is on. An
- * update rewrote every row as off, so the servers somebody had switched on stopped the moment the
- * bundle updated, with nothing saying why. A server the new version brings for the first time still
- * arrives off — that is the install decision, made again only for what is new.
+ * Replacing keeps what was the user's: whether a server they already had is on, and the values they
+ * filled in for it. An update rewrote every row as off, so the servers somebody had switched on
+ * stopped the moment the bundle updated, with nothing saying why — and it would have done the same
+ * to a key: the new declaration carries the placeholder, the row the person filled carries the key.
+ * A server the new version brings for the first time still arrives off — that is the install
+ * decision, made again only for what is new.
  */
 export function settingsAfterInstall(current: Settings, entryId: string, installed: Installed): Settings | null {
 	if (installed.kind !== "mcp" || installed.servers.length === 0) return null;
 
 	const others = current.mcpServers.filter((server) => server.origin?.bundle !== entryId);
-	const before = new Map(current.mcpServers.filter((server) => server.origin?.bundle === entryId).map((server) => [server.id, server.enabled]));
+	const before = new Map(current.mcpServers.filter((server) => server.origin?.bundle === entryId).map((server) => [server.id, server]));
 	return {
 		...current,
-		mcpServers: [...others, ...installed.servers.map((server) => ({ ...server, enabled: before.get(server.id) ?? false }))],
+		mcpServers: [...others, ...installed.servers.map((server) => carriedOver(server, before.get(server.id)))],
 	};
+}
+
+/**
+ * A freshly declared server, with what the person had set on its previous row.
+ *
+ * Only the values the new declaration still asks for: one it no longer has a placeholder or a note
+ * for is not the person's answer to anything any more.
+ */
+function carriedOver(server: McpServerConfig, previous: McpServerConfig | undefined): McpServerConfig {
+	if (!previous) return { ...server, enabled: false };
+	const asked = new Set(needsOf(server).map((need) => need.name));
+	const filled = Object.entries(previous.env ?? {}).filter(([name, value]) => value && !isPlaceholder(value) && asked.has(name));
+	if (filled.length === 0) return { ...server, enabled: previous.enabled };
+	return { ...server, env: { ...server.env, ...Object.fromEntries(filled) }, enabled: previous.enabled };
 }
 
 /**
