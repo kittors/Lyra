@@ -8,7 +8,7 @@ import { SearchField } from "../../../ui/inputs/SearchField.tsx";
 import { formatTokens } from "../../../lib/format-tokens.ts";
 import { TraceActions } from "./TraceActions.tsx";
 import { useApp } from "../../../store/index.ts";
-import { useScopedMeta } from "../../../app/session-scope.tsx";
+import { useDockScope, useScopedMeta } from "../../../app/session-scope.tsx";
 import { useOpenFile } from "../../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../../dock/index.ts";
 import { SourceFilter } from "./SourceFilter.tsx";
@@ -30,6 +30,8 @@ export function TrajectoryPanel() {
 function SessionTrajectory() {
 	const { t } = useI18n();
 	const meta = useScopedMeta();
+	// What this panel exports opens beside it, in its own screen — not in the one with focus.
+	const screen = useDockScope();
 	const { all, loading, refreshing, error, refresh } = useTrajectory();
 	const controls = useRef<HTMLDivElement>(null);
 	const [following, setFollowing] = useState(true);
@@ -75,7 +77,7 @@ function SessionTrajectory() {
 		try {
 			const path = await bridge.sessions.exportTrajectory(meta.projectId, meta.id, format, entry ? { id: entryKey(entry) } : undefined);
 			await useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path, isDirectory: false, size: 0 });
-			openScopedPanel("file", companionOf("file"));
+			openScopedPanel("file", companionOf("file"), screen ?? undefined);
 			setSelected(null);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};

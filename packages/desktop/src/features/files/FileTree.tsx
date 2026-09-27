@@ -17,6 +17,7 @@ import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { useOpenTarget } from "../../store/open-targets.ts";
 import { useSide, openScopedPanel } from "../dock/index.ts";
+import { useDockScope, useScopedRunning } from "../../app/session-scope.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
@@ -55,10 +56,12 @@ export function FileTree({
 }) {
 	const { t } = useI18n();
 	const root = roots[0];
-	const tree = useFileTree(roots);
+	// Re-read when this screen's turn ends, not the focused one's — see `useFileTree`.
+	const tree = useFileTree(roots, useScopedRunning());
 	const actions = useFileActions({ root, refresh: tree.refresh, onMoved, onRemoved });
 	const openWith = useOpenTarget();
 	const runInTerminal = useSide((s) => s.runInTerminal);
+	const screen = useDockScope();
 	const readOnly = !available("files", "write");
 
 	/** Ordered, so ⇧-click has an anchor and the last one decides where 新建 lands. */
@@ -435,9 +438,11 @@ export function FileTree({
 						reveal: (path) => void bridge.workspace.reveal(path),
 						// Single-quoted so a space or a bracket in the path cannot become shell syntax.
 						openInTerminal: (dir) => {
-							runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`);
 							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-							openScopedPanel("terminal");
+							// In this tree's screen, and run by that screen's terminal: the keyboard reaches the menu
+							// without giving the screen the focus, and both used to follow the focus.
+							const at = openScopedPanel("terminal", undefined, screen ?? undefined);
+							runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`, at);
 						},
 						newFile: (dir) => startCreate(dir, "file"),
 						newFolder: (dir) => startCreate(dir, "directory"),

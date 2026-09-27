@@ -5,6 +5,7 @@ import { bridge } from "../../services/index.ts";
 import { baseName } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import {
 	findMentionRanges,
 	formatMention,
@@ -33,8 +34,9 @@ export function useMention(
 	const [skills, setSkills] = useState<SkillEntry[]>([]);
 	const [sessions, setSessions] = useState<SessionMeta[]>([]);
 	const [workspaceFiles, setWorkspaceFiles] = useState<MentionFile[]>([]);
-	// Every folder the project is made of; usually just the working directory.
-	const folders = useProjectFolders();
+	// Every folder this screen's project is made of; usually just the working directory. The live
+	// slot's is the focused screen's, and the `@` under the screen beside it listed that project's files.
+	const folders = useProjectFolders(useScopedWorkspace().workspace);
 	const folderKey = folders.join("\0");
 
 	const nonce = useApp((state) => state.extensionsNonce);

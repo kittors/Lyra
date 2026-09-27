@@ -157,6 +157,38 @@ export function useScopedToolRuns(): Record<string, ToolRun> {
 	});
 }
 
+/** One fact read off this screen's tool runs, redrawing only when the fact changes — see `useScopedFromMessages`. */
+export function useScopedFromToolRuns<T>(read: (runs: Record<string, ToolRun>) => T): T {
+	const id = useScopedSessionId();
+	return useApp((s) => read(id === s.activeSessionId ? s.toolRuns : (parked(s, id)?.toolRuns ?? EMPTY_TOOLS)));
+}
+
+/**
+ * This screen's turn meter: when its turn began, and what it has spent so far.
+ *
+ * `turnStartedAt` and `turnTokens` mirror `turns[activeSessionId]` — the live slot's. A conversation
+ * running beside it keeps its own meter in `turns`; read from the pair, its running line showed the
+ * focused conversation's clock and count.
+ */
+export function useScopedTurnMeter(): { startedAt: number | null; tokens: number } {
+	const id = useScopedSessionId();
+	const startedAt = useApp((s) => (id === s.activeSessionId ? s.turnStartedAt : id === null ? null : (s.turns[id]?.startedAt ?? null)));
+	const tokens = useApp((s) => (id === s.activeSessionId ? s.turnTokens : id === null ? 0 : (s.turns[id]?.tokens ?? 0)));
+	return { startedAt, tokens };
+}
+
+/** Whether this screen's turn is waiting out a dropped connection. */
+export function useScopedRetrying(): AppState["retrying"] {
+	const id = useScopedSessionId();
+	return useApp((s) => (id === s.activeSessionId ? s.retrying : (parked(s, id)?.state?.retrying ?? null)));
+}
+
+/** When this screen's history was last summarised, for the running line's passing mention of it. */
+export function useScopedCompactedAt(): number | null {
+	const id = useScopedSessionId();
+	return useApp((s) => (id === s.activeSessionId ? s.compactedAt : (parked(s, id)?.state?.compactedAt ?? null)));
+}
+
 export function useScopedMeta(): SessionMeta | null {
 	const id = useScopedSessionId();
 	return useApp((s) => {
@@ -186,6 +218,23 @@ export function useScopedSubAgents(): SubAgentSummary[] {
 	const retained = useSubAgents((s) => (id ? s.rosters[id] : undefined));
 	if (id === active) return live;
 	return retained ?? EMPTY_AGENTS;
+}
+
+/**
+ * The project this screen's conversation works in, as its path — null for one in no project.
+ *
+ * The same answer `useScopedWorkspace` gives as `workspace.path`, for the many small readers that
+ * need only the path: every relative link in a transcript resolves against it, and one subscription
+ * each is what a long transcript can afford where a dozen is not.
+ */
+export function useScopedProjectPath(): string | null {
+	const id = useScopedSessionId();
+	return useApp((s) => {
+		if (id === s.activeSessionId) return s.workspace?.path ?? null;
+		if (id === null) return s.parkedDraft?.workspace?.path ?? null;
+		const cwd = (s.sessionCache[id]?.meta ?? s.sessions.find((one) => one.id === id))?.cwd ?? null;
+		return cwd !== null && !isProjectLess(cwd, s.scratchRoots) ? cwd : null;
+	});
 }
 
 const NO_WORKSPACE: { workspace: WorkspaceInfo | null; scratchCwd: string | null } = { workspace: null, scratchCwd: null };

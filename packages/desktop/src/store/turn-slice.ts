@@ -396,8 +396,12 @@ export function turnSlice(set: Set, get: Get) {
    * is lost is the earlier reasoning context, which the warning below says plainly — the visible
    * transcript, and everything the new model reads, is unchanged.
    */
-  async setModel(modelId: string, options: { asDefault?: boolean } = {}) {
-    const { activeSessionId, settings, meta } = get();
+  async setModel(modelId: string, options: { asDefault?: boolean; sessionId?: string | null } = {}) {
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (options.sessionId && options.sessionId !== get().activeSessionId && !(await onStage(options.sessionId))) return;
+    const { settings, meta } = get();
+    // The blank screen has no session for the choice to land on, whoever holds the live slot.
+    const activeSessionId = options.sessionId === null ? null : get().activeSessionId;
     if (activeSessionId) {
       /*
        * Paint this conversation's choice before the write crosses IPC.
@@ -445,8 +449,11 @@ export function turnSlice(set: Set, get: Get) {
    * read by the composer's label, and a control that lags a frame behind the press reads as one
    * that did not take.
    */
-  async setThinking(thinking: ThinkingLevel) {
-    const { activeSessionId, meta, settings } = get();
+  async setThinking(thinking: ThinkingLevel, sessionId?: string | null) {
+    // Named the way `setModel` names it: another screen's conversation comes on stage, `null` is the blank one.
+    if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
+    const { meta, settings } = get();
+    const activeSessionId = sessionId === null ? null : get().activeSessionId;
     if (activeSessionId) {
 			const optimistic = meta ? { ...meta, thinking } : null;
 			if (optimistic) set({ meta: optimistic });

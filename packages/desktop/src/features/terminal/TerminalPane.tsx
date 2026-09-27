@@ -73,7 +73,13 @@ export function TerminalPane() {
 	useEffect(() => {
 		const id = sessionId.current;
 		if (!pending || !ready || !id) return;
-		if (scope !== undefined && scope !== (useApp.getState().activeSessionId ?? "@draft")) return;
+		/*
+		 * One terminal runs it: the one in the screen it was asked from, or with no screen named, the
+		 * one with focus. Every screen's terminal sees the same queued command, and deciding by focus
+		 * alone gave a command pressed from the keyboard in another screen to the shell beside it.
+		 */
+		const owner = useSide.getState().pendingScreen ?? (useApp.getState().activeSessionId ?? "@draft");
+		if (scope !== undefined && scope !== owner) return;
 		if (useSide.getState().pendingCommand !== pending) return;
 		/*
 		 * Claimed before it is written, not after.

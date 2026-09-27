@@ -100,15 +100,27 @@ export function workspaceSlice(set: Set, get: Get) {
     });
   },
 
-  setSwitchingBranch(switchingBranch: string | null) {
+  setSwitchingBranch(switchingBranch: { path: string; branch: string } | null) {
     set({ switchingBranch });
   },
 
-  async refreshWorkspace() {
-    const current = get().workspace;
-    if (!current) return;
-    const workspace = await bridge.workspace.info(current.path);
-    if (workspace) set({ workspace });
+  async refreshWorkspace(path?: string) {
+    const target = path ?? get().workspace?.path;
+    if (!target) return;
+    const workspace = await bridge.workspace.info(target);
+    if (!workspace) return;
+    if (get().workspace?.path === target) set({ workspace });
+    /*
+     * And the copy the other screens read, when a screen named the project.
+     *
+     * A screen away from the live slot names its project from `workspaceByPath`. Re-reading only the
+     * live slot left a switch made under that screen unsaid there — its chip kept the branch git had
+     * already left — and, with both screens on one repository, left the two chips disagreeing.
+     */
+    if (path !== undefined) {
+      const named = get().settings?.projects.find((project) => project.path === target)?.name;
+      set({ workspaceByPath: { ...get().workspaceByPath, [target]: named ? { ...workspace, name: named } : workspace } });
+    }
   },
 
   async describeWorkspace(path: string) {

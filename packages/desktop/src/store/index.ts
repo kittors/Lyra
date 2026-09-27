@@ -403,8 +403,14 @@ export interface AppState extends QueueSlice {
 
   pickWorkspace(): Promise<void>;
   openWorkspace(path: string): Promise<void>;
-  /** Re-read git state for the current project, after a branch switch or an external change. */
-  refreshWorkspace(): Promise<void>;
+  /**
+   * Re-read git state for a project, after a branch switch or an external change.
+   *
+   * `path` names the project of the screen that asked; without it, the live slot's. A named project
+   * is re-read wherever a screen reads it from — the live slot when it is on that project, and
+   * `workspaceByPath` for the screens beside it.
+   */
+  refreshWorkspace(path?: string): Promise<void>;
   /** Read a project into `workspaceByPath`, for a screen whose conversation is not the live one. */
   describeWorkspace(path: string): Promise<void>;
   /**
@@ -415,9 +421,12 @@ export interface AppState extends QueueSlice {
    * snapped to `main`, which is worse than no feedback at all: it says the thing happened and then
    * unsays it. This drives a loading state instead, so the name on screen is only ever a branch
    * git has actually confirmed.
+   *
+   * The repository is named with it: a split shows several, and a bare flag pulsed the branch chip
+   * under every screen while one of them switched.
    */
-  switchingBranch: string | null;
-  setSwitchingBranch(branch: string | null): void;
+  switchingBranch: { path: string; branch: string } | null;
+  setSwitchingBranch(switching: { path: string; branch: string } | null): void;
   /** Work without a project. Sessions still run; they just have no repo behind them. */
   clearWorkspace(): Promise<void>;
   /**
@@ -533,10 +542,13 @@ export interface AppState extends QueueSlice {
    *
    * `asDefault` additionally makes it what new conversations start on — a separate decision, and
    * one that used to be taken silently on every pick. See the note in `turn-slice`.
+   *
+   * `sessionId` names the conversation, the way `send` does: a conversation on another screen is
+   * brought on stage first, `null` is the blank screen, and leaving it out means the live one.
    */
-  setModel(modelId: string, options?: { asDefault?: boolean }): Promise<void>;
-  /** How hard this conversation asks the model to think. Falls back to the app default. */
-  setThinking(thinking: ThinkingLevel): Promise<void>;
+  setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
+  /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
+  setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
   refreshSync(): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;

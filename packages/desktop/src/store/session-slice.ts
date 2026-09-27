@@ -53,6 +53,7 @@ function blankSlot(get: Get): Partial<AppState> {
 		turnStartedAt: null,
 		turnTokens: 0,
 		retrying: null,
+		compactedAt: null,
 		hiccups: [],
 		stopped: null,
 		loadingSession: false,
@@ -337,6 +338,8 @@ export function sessionSlice(set: Set, get: Get) {
       turnTokens: get().turns[meta.id]?.tokens ?? 0,
       // Belongs to the turn being left behind; see the note in `newSession`.
       retrying: cached?.state?.retrying ?? null,
+      // This conversation's own summary, if it has just had one — never the last conversation's.
+      compactedAt: cached?.state?.compactedAt ?? null,
       hiccups: cached?.state?.hiccups ?? [],
       stopped: cached?.state?.stopped ?? null,
       // Only a session with nothing to show is "loading"; a cached one is already on screen
@@ -477,7 +480,7 @@ function readOutcome(
 function cachedState(state: AppState): CachedSessionState {
   return {
     running: state.running, todos: state.todos, compactions: state.compactions, commandRuns: state.commandRuns,
-    approvals: state.approvals, stopped: state.stopped, retrying: state.retrying, hiccups: state.hiccups,
+    approvals: state.approvals, stopped: state.stopped, retrying: state.retrying, hiccups: state.hiccups, compactedAt: state.compactedAt,
 		capabilities: state.capabilities, pendingUserMessage: state.pendingUserMessage,
   };
 }

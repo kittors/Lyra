@@ -81,7 +81,9 @@ export function useBrowserWorkspace(): void {
 			if (state.browserTarget === previous.browserTarget || !state.browserTarget) return;
 			const target = state.browserTarget;
 			const url = target.kind === "url" ? target.url : `ly-preview://${target.preview.sessionId}/${target.preview.id}/${target.preview.entry}`;
-			void commandBrowser({ type: "open", url, sessionId: useApp.getState().activeSessionId, newTab: true });
+			// The conversation that asked, when it said: a preview pressed in a screen without focus is that screen's page.
+			const owner = target.kind === "preview" && target.sessionId !== undefined ? target.sessionId : useApp.getState().activeSessionId;
+			void commandBrowser({ type: "open", url, sessionId: owner, newTab: true });
 		});
 		return () => { unsubscribe(); unwatch(); };
 	}, []);

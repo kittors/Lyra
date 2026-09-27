@@ -4,7 +4,7 @@ import type { Message, Settings } from "@lyra/core";
 import { useEffect, useState } from "react";
 
 import type { ContextBreakdown, ContextSegmentKey } from "../../../electron/ipc-types.ts";
-import { useApp } from "../../store/index.ts";
+import { useScopedCompactions, useScopedRunning } from "../../app/session-scope.tsx";
 import { findModel } from "../models/index.ts";
 import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { formatTokens } from "../conversation/index.ts";
@@ -41,8 +41,15 @@ export function ContextMeter({
 	const current = snapshot?.sessionId === sessionId && snapshot.modelId === modelId ? snapshot : null;
 	const detail = current?.detail;
 	const hasMessages = messages.length > 0;
-	const compacted = useApp((s) => s.compactions.length);
-	const running = useApp((s) => s.running);
+	/*
+	 * This screen's turn and summaries, the two things that decide when to re-read.
+	 *
+	 * The live slot's are the focused screen's: beside a running conversation the reading froze
+	 * across this conversation's finished turns, and beside an idle one it re-read on every message of
+	 * a turn still running here.
+	 */
+	const compacted = useScopedCompactions().length;
+	const running = useScopedRunning();
 	const open = popover.open;
 	const revision = open || !running ? messages.length : 0;
 

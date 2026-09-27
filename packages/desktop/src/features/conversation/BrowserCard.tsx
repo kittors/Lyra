@@ -19,7 +19,7 @@ import { Globe, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 import type { BrowserResultDetails } from "../../../shared/browser.ts";
 import { sessionMediaUrl } from "../../../shared/session-image.ts";
-import { useScopedSessionId } from "../../app/session-scope.tsx";
+import { useScopedFromToolRuns, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp, type ToolRun } from "../../store/index.ts";
@@ -83,7 +83,8 @@ function hostOf(url: string): string {
  * 在卡片上也就不必再占一张。
  */
 export function BrowserCards({ calls }: { calls: string[] }) {
-	const tabs = useApp((s) => calls.map((id) => (s.toolRuns[id]?.result?.details as BrowserResultDetails | undefined)?.tabId ?? "").join("\n"));
+	// This screen's records: the live slot's are the focused conversation's, where none of these calls is.
+	const tabs = useScopedFromToolRuns((toolRuns) => calls.map((id) => (toolRuns[id]?.result?.details as BrowserResultDetails | undefined)?.tabId ?? "").join("\n"));
 	const ids = tabs.split("\n");
 	const shown = calls.filter((_, i) => !ids[i] || !ids.slice(i + 1).includes(ids[i]));
 	if (shown.length === 0) return null;
@@ -97,7 +98,7 @@ export function BrowserCards({ calls }: { calls: string[] }) {
 function BrowserCard({ callId }: { callId: string }) {
 	const { t } = useI18n();
 	const sessionId = useScopedSessionId();
-	const raw = useApp((s) => viewOf(s.toolRuns, callId));
+	const raw = useScopedFromToolRuns((toolRuns) => viewOf(toolRuns, callId));
 	// 记的是哪一张图坏了，而不是「坏了」：换成下一张图时它自然就不作数了。
 	const [broken, setBroken] = useState("");
 	if (!raw) return null;

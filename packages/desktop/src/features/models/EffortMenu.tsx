@@ -14,6 +14,7 @@ import { useState } from "react";
 import { Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
@@ -45,7 +46,14 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const setThinking = useApp((s) => s.setThinking);
-	const meta = useApp((s) => s.meta);
+	/*
+	 * The conversation of the screen whose composer opened this, read and changed by name.
+	 *
+	 * From the live slot, a slider opened by keyboard under the screen beside the focused one started
+	 * at the focused conversation's level and moved it.
+	 */
+	const sessionId = useScopedSessionId();
+	const meta = useScopedMeta();
 	const [showHelp, setShowHelp] = useState(false);
 
 	const model = settings?.providers
@@ -73,7 +81,7 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 		if (!settings || options.length === 0) return;
 		const next = options[Math.min(options.length - 1, Math.max(0, nextIndex))].id;
 		if (selection) selection.onChange(next);
-		else void setThinking(next);
+		else void setThinking(next, sessionId);
 		/*
 		 * The last level above 「关闭」, so fast mode has something to put back.
 		 *

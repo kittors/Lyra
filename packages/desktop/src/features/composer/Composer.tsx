@@ -101,7 +101,8 @@ export function Composer() {
 	const activeSessionId = useScopedSessionId();
 	// "底部面板" in Settings → 常规. Saved but read by nothing until now.
 	const showBottomPanel = useApp((s) => s.settings?.editor.showBottomPanel) ?? true;
-	const switchingBranch = useApp((s) => s.switchingBranch);
+	// A switch in this screen's repository — a switch under the screen beside it is not this chip's to show.
+	const switchingBranch = useApp((s) => s.switchingBranch !== null && s.switchingBranch.path === workspace?.path);
 	const send = useApp((s) => s.send);
 	const abort = useApp((s) => s.abort);
 	const enqueue = useApp((s) => s.enqueue);
@@ -864,7 +865,8 @@ export function Composer() {
 								onPreviewImage: (originRect) => previewImage(hit.file, originRect),
 								onOpenFile: (path, name) => {
 									void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-									openScopedPanel("file", companionOf("file"));
+									// In this composer's screen, as the sub-agent bar does: the keyboard reaches it without focusing it.
+									openScopedPanel("file", companionOf("file"), activeSessionId ?? "@draft");
 								},
 							},
 							rect,

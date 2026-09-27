@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { openScopedPanel } from "../dock/index.ts";
 import { useSide } from "../dock/index.ts";
+import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
 
 export interface PreviewInfo {
 	id: string;
@@ -104,7 +105,18 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	 * default height.
 	 */
 	const survey = useRef({ settled: false, tallest: 0, adjustments: 0, timer: null as ReturnType<typeof setTimeout> | null });
-	const openPreview = useSide((s) => s.openPreview);
+	/*
+	 * Into this screen's browser, as a page of this screen's conversation.
+	 *
+	 * Both used to follow the focus. The keyboard presses these buttons in a screen without giving
+	 * it the focus, and the page became a tab of the conversation beside it, in that one's panel.
+	 */
+	const sessionId = useScopedSessionId();
+	const screen = useDockScope();
+	const show = () => {
+		useSide.getState().openPreview(preview, sessionId);
+		openScopedPanel("browser", undefined, screen ?? undefined);
+	};
 
 	/*
 	 * Grow to the page, within reason.
@@ -250,10 +262,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					type="button"
 					data-ly-tip={translate("preview.longer")}
 					aria-label={translate("preview.longer")}
-					onClick={() => {
-						openPreview(preview);
-						openScopedPanel("browser");
-					}}
+					onClick={show}
 					className="absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-card via-card/80 to-transparent pb-2"
 				>
 					{/* Solid, not frosted: this card scrolls inside the transcript, and a masked scroller
@@ -301,10 +310,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					label={translate("preview.openInPanel")}
 					size="sm"
 					tipSide="top"
-					onClick={() => {
-						openPreview(preview);
-						openScopedPanel("browser");
-					}}
+					onClick={show}
 				/>
 			</div>
 		</div>
