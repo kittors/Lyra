@@ -106,7 +106,8 @@ export function PluginsView() {
 	 */
 	const startWith = (prompt: string) => {
 		void newSession();
-		setComposerDraft(prompt);
+		// The conversation `newSession` just put in the live slot, not every screen a split shows.
+		setComposerDraft(prompt, { sessionId: useApp.getState().activeSessionId });
 		setView("chat");
 	};
 

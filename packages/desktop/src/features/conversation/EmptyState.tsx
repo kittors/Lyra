@@ -3,7 +3,7 @@ import mark from "../../assets/empty-mark.png?inline";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Composer } from "../composer/index.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { useScopedWorkspace } from "../../app/session-scope.tsx";
+import { useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
@@ -38,6 +38,8 @@ export function EmptyState() {
 	const { t } = useI18n();
 	// The project this blank screen was opened in, even while a conversation beside it has focus.
 	const { workspace, scratchCwd } = useScopedWorkspace();
+	// The cards fill this screen's composer, not the one on whichever screen has focus.
+	const screen = useScopedSessionId();
 	const { compact } = useLayout();
 
 	/** No project behind this conversation, and that was the choice — see the composer's chip. */
@@ -116,7 +118,7 @@ export function EmptyState() {
 									 * review at once.
 									 */
 									onClick={() =>
-										useApp.getState().setComposerDraft(t(card.promptKey), true)
+										useApp.getState().setComposerDraft(t(card.promptKey), { sessionId: screen, replace: true })
 									}
 									/*
 									 * Stacked from the top, not spread to the edges.

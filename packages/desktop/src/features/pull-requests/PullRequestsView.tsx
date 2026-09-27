@@ -156,7 +156,8 @@ export function PullRequestsView() {
 			useApp.getState().setDraft(key, { text: draftText, attachments: [], sessionRefs: [] });
 		}
 
-		setComposerDraft(draftText);
+		// For the conversation opened above, the live one now; each screen of a split has a composer.
+		setComposerDraft(draftText, { sessionId: useApp.getState().activeSessionId });
 		setView("chat");
 	};
 

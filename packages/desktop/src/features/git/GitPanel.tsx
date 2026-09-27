@@ -13,6 +13,7 @@ import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 
 import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { BranchesView } from "./BranchesView.tsx";
@@ -203,6 +204,8 @@ export function GitPanel() {
   const notify = useApp((s) => s.notify);
   const workspace = useApp((s) => s.workspace);
   const running = useApp((s) => s.running);
+  // What the panel asks the agent goes to the composer of the screen it is drawn in.
+  const screen = useScopedSessionId();
   const [view, setView] = useState<View>("changes");
 	const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   /*
@@ -563,7 +566,7 @@ export function GitPanel() {
                 .getState()
                 .setComposerDraft(
                   t("git.brokenRepoPrompt", { error: workspace.gitProblem ?? "" }),
-                  true,
+                  { sessionId: screen, replace: true },
                 );
             }}
           >
@@ -603,7 +606,7 @@ export function GitPanel() {
                 .getState()
                 .setComposerDraft(
                   t("git.noRepoPrompt", { path: workspace.path }),
-                  true,
+                  { sessionId: screen, replace: true },
                 );
             }}
           >
