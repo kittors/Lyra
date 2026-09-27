@@ -177,7 +177,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	const remaining = files.length - PREVIEW_FILES;
 	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;
 	const row = (file: DeliveryFile) => <button key={file.path} type="button" data-delivery-file={file.path}
-		className="flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-label transition-colors hover:bg-card-hover focus-visible:bg-card-hover"
+		className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-label transition-colors hover:bg-card-hover focus-visible:bg-card-hover"
 		// No `onMouseLeave` here: leaving a row for the row below it, or for the card's own header,
 		// is not leaving the preview. The card answers that, once, below.
 		// Not while the right-click menu is open: a preview opening over it would close it.
@@ -268,7 +268,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 					{remaining > 0 && <>
 						<div id={"delivery-" + timestamp + "-more"} className="ly-reveal" data-open={expanded} aria-hidden={!expanded} inert={!expanded}><div>{files.slice(PREVIEW_FILES).map(row)}</div></div>
 						{/* 展开的是一串文件，还有几个是这行唯一的信息——留字，箭头跟着开合转身。 */}
-					<button type="button" aria-expanded={expanded} aria-controls={"delivery-" + timestamp + "-more"} onClick={() => { hideHover(); setExpanded(!expanded); }} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md text-detail text-ink-muted hover:bg-card-hover hover:text-ink">
+					<button type="button" aria-expanded={expanded} aria-controls={"delivery-" + timestamp + "-more"} onClick={() => { hideHover(); setExpanded(!expanded); }} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-detail text-ink-muted hover:bg-card-hover hover:text-ink">
 			{expanded ? t("delivery.collapse") : t("delivery.showMore", { n: remaining })}
 			<Caret open={expanded} size={14} />
 		</button>

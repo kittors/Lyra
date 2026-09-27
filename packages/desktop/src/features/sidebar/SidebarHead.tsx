@@ -39,7 +39,7 @@ export function SidebarHead({
 						aria-label={t("sidebar.search")}
 						aria-pressed={searching}
 						onClick={onToggleSearch}
-						className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-card-hover hover:text-ink ${
+						className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-card-hover hover:text-ink ${
 							searching ? "bg-card-hover text-ink" : "text-ink-muted"
 						}`}
 					>
@@ -49,7 +49,7 @@ export function SidebarHead({
 						type="button"
 						data-ly-tip={t("sidebar.notifications")}
 						aria-label={t("sidebar.notifications")}
-						className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+						className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 					>
 						<Bell size={15} strokeWidth={1.9} />
 					</button>

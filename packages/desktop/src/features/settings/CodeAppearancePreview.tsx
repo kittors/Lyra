@@ -214,7 +214,7 @@ function CodeSnippetBox({
 							data-ly-tip={t("codePreview.restore")}
 							aria-label={t("codePreview.restore")}
 							onClick={() => onDraft(null)}
-							className="flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/spec:opacity-70 hover:!opacity-100 group-has-[:focus-visible]/spec:opacity-70"
+							className="flex h-4 w-4 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/spec:opacity-70 hover:!opacity-100 group-has-[:focus-visible]/spec:opacity-70"
 						>
 							<RotateCcw size={11} strokeWidth={2} />
 						</button>

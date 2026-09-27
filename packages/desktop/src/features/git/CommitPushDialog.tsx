@@ -277,7 +277,7 @@ export function CommitPushDialog({
 								type="button"
 								aria-label={t("common.cancel")}
 								onClick={() => setTarget({ kind: "current" })}
-								className="flex size-5 shrink-0 items-center justify-center rounded text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
+								className="flex size-5 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 							>
 								<X size={12} strokeWidth={2} />
 							</button>
@@ -288,7 +288,7 @@ export function CommitPushDialog({
 							data-ly-branch-picker
 							disabled={disabled}
 							onClick={branchMenu.toggle}
-							className="-ml-1 flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-ink transition-colors hover:bg-card-hover disabled:opacity-40"
+							className="-ml-1 flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5 text-ink transition-colors hover:bg-card-hover disabled:opacity-40"
 						>
 							<GitBranch size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />
 							<span className="min-w-0 truncate font-semibold text-label">{branch}</span>

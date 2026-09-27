@@ -98,6 +98,7 @@ export function Button({
 			aria-label={bare ? label : undefined}
 			data-variant={variant}
 			className={[
+				// 按钮圆角全应用两档：约 22px 及以上 8px（与 `--radius-item` 同），20px 及以下的小图标按钮 6px。
 				"flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-lg text-label",
 				"transition-[background-color,border-color,opacity] duration-[var(--ly-t-quick)]",
 				HEIGHT[size],

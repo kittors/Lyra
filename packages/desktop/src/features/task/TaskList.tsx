@@ -148,7 +148,7 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 							event.stopPropagation();
 							action.run();
 						}}
-						className="flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded text-ink-faint transition-colors hover:bg-elevated hover:text-ink"
+						className="flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-elevated hover:text-ink"
 					>
 						<action.icon size={11.5} strokeWidth={2} />
 					</span>

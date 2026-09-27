@@ -300,7 +300,7 @@ function MonthStep({ direction, onClick, disabled }: { direction: -1 | 1; onClic
 			onClick={onClick}
 			disabled={disabled}
 			aria-label={translate(direction === -1 ? "cleanup.prevMonth" : "cleanup.nextMonth")}
-			className="flex h-[22px] w-[22px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35"
+			className="flex h-[22px] w-[22px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35"
 		>
 			<Icon size={14} strokeWidth={1.9} aria-hidden />
 		</button>

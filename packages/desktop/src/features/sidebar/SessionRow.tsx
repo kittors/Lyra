@@ -272,7 +272,7 @@ export function SessionRow({
 								data-ly-tip={t("sessionRow.unarchive")}
 								aria-label={t("sessionRow.unarchiveOne", { title: sessionTitle(session.title) })}
 								onClick={onRestore}
-								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+								className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 							>
 								<ArchiveRestore size={12.5} strokeWidth={1.8} />
 							</button>
@@ -283,7 +283,7 @@ export function SessionRow({
 								data-ly-tip={t("common.delete")}
 								aria-label={t("sessionRow.deleteOne", { title: sessionTitle(session.title) })}
 								onClick={onDelete}
-								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
+								className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
 							>
 								<Trash2 size={12.5} strokeWidth={1.8} />
 							</button>
@@ -296,7 +296,7 @@ export function SessionRow({
 							data-ly-tip={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
 							aria-label={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
 							onClick={() => void setSessionPinned(session.id, !isPinned)}
-							className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+							className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 						>
 							{isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
 						</button>
@@ -309,7 +309,7 @@ export function SessionRow({
 									title: sessionTitle(session.title),
 								})}
 								onClick={onArchive}
-								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+								className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 							>
 								<Archive size={12.5} strokeWidth={1.8} />
 							</button>

@@ -139,7 +139,7 @@ export function ProjectList({
 								onClick={() => setCreating(true)}
 								data-ly-tip={translate("project.new")}
 								aria-label={translate("project.new")}
-								className="rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+								className="rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 							>
 								<Plus size={13} strokeWidth={2} aria-hidden />
 							</button>
@@ -249,7 +249,7 @@ function SectionLabel({
 				data-ly-section={section}
 				aria-expanded={!collapsed}
 				onClick={onToggle}
-				className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 pb-1.5 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+				className="flex min-w-0 flex-1 items-center gap-1 rounded-lg px-2 pb-1.5 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 			>
 				{children}
 				<ChevronRight

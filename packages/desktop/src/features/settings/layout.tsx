@@ -116,7 +116,7 @@ export function ListRow({
 		 * by rhythm, and the only line left on the page is the one under the tabs, which is the one
 		 * that means something.
 		 */
-		<div data-row-actions className="ly-scroll group/row relative flex items-center gap-3 rounded-[10px] px-2 py-3">
+		<div data-row-actions className="ly-scroll group/row relative flex items-center gap-3 rounded-lg px-2 py-3">
 			{/*
 			 * The row's own hit area, underneath everything on it.
 			 *
@@ -129,7 +129,7 @@ export function ListRow({
 					type="button"
 					aria-label={openLabel}
 					onClick={onOpen}
-					className="absolute inset-0 rounded-[10px] transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
+					className="absolute inset-0 rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
 				/>
 			)}
 

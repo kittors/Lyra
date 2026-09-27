@@ -288,7 +288,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 						<button
 							type="button"
 							onClick={() => setInspectRun(null)}
-							className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
+							className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
 							data-ly-tip={t("pipelines.back")}
 						>
 							<ArrowLeft size={15} />

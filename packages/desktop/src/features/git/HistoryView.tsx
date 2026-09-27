@@ -176,7 +176,7 @@ export function HistoryView({ cwd }: { cwd: string }) {
                 /* `ly-scroll` is what lets the subject scroll on hover — the marquee keys off an
                  * ancestor carrying it, which is why the same component scrolls in the sidebar
                  * and merely clipped here. */
-                className="ly-scroll flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left transition-colors hover:bg-card-hover"
+                className="ly-scroll flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 text-left transition-colors hover:bg-card-hover"
               >
                 <span className="min-w-0 flex-1">
                   {/*

@@ -68,7 +68,7 @@ export function IconButton({
 			// The count, readable without knowing how it is drawn — a badge in the corner here, part
 			// of a word in the wide form of the git panel's sync row.
 			data-ly-count={showBadge ? String(badge) : undefined}
-			className={`relative flex shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--ly-t-quick)] disabled:opacity-40 ${
+			className={`relative flex shrink-0 items-center justify-center rounded-lg transition-colors duration-[var(--ly-t-quick)] disabled:opacity-40 ${
 				size === "sm" ? "h-[22px] w-[22px]" : "h-[26px] w-[26px]"
 			} ${
 				tone === "danger"

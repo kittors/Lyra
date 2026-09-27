@@ -130,7 +130,7 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 								data-ly-tip={translate("forgeSignIn.create")}
 								aria-label={translate("forgeSignIn.create")}
 								onClick={() => void bridge.system.openExternal(help)}
-								className="grid h-5 w-5 place-items-center rounded text-ink-faint transition-colors hover:text-ink"
+								className="grid h-5 w-5 place-items-center rounded-md text-ink-faint transition-colors hover:text-ink"
 							>
 								<ExternalLink size={11} strokeWidth={2} aria-hidden />
 							</button>

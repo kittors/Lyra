@@ -104,7 +104,7 @@ export function ForeignConfigBanner({
 				data-foreign-config-look
 				aria-haspopup={places > 1 ? "menu" : undefined}
 				aria-expanded={places > 1 ? menu.open : undefined}
-				className="flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-caption text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+				className="flex h-5 shrink-0 items-center gap-0.5 rounded-md px-1 text-caption text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 			>
 				{/*
 				 * 这颗在句子末尾，留字。

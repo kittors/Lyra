@@ -95,7 +95,7 @@ function SourceFolders({
 										onClick={() => onRemove(folder)}
 										data-ly-tip={t("project.removeFolder")}
 										aria-label={t("project.removeFolderNamed", { name: baseName(folder) })}
-										className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+										className="shrink-0 rounded-lg p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 									>
 										<X size={14} strokeWidth={2} aria-hidden />
 									</button>

@@ -149,7 +149,7 @@ export function ProjectHead({
 					data-ly-tip={translate("projectHead.newSession")}
 					aria-label={translate("projectHead.newSessionIn", { name: group.name })}
 					onClick={() => void startProjectSession(group.path, collapsed ? onToggleCollapsed : undefined)}
-					className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+					className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 				>
 					<SquarePen size={13} strokeWidth={1.8} />
 				</button>
@@ -159,7 +159,7 @@ export function ProjectHead({
 					aria-label={translate("projectHead.actionsFor", { name: group.name })}
 					aria-haspopup="menu"
 					onClick={menu.toggle}
-					className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+					className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
 				>
 					<MoreHorizontal size={13} strokeWidth={1.8} />
 				</button>

@@ -227,7 +227,7 @@ export function Toaster() {
 								onClick={() => {
 									if (group.sessionId) void openSessionById(group.sessionId).then((opened) => { if (opened) dismiss(group); });
 								}}
-								className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded text-accent transition-colors hover:bg-card-hover"
+								className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-md text-accent transition-colors hover:bg-card-hover"
 								data-ly-tip={t("toaster.goToSession")}
 								aria-label={t("toaster.goToSession")}
 							>

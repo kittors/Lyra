@@ -29,7 +29,7 @@ export function CheckoutRow({
 			data-ly-tip={entry.path}
 			aria-current={here ? "location" : undefined}
 			onClick={() => onSelect(entry.path)}
-			className={`ly-scroll flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors ${
+			className={`ly-scroll flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors ${
 				here ? "text-accent" : "text-ink-muted hover:text-ink"
 			}`}
 		>

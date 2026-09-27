@@ -431,7 +431,7 @@ function HeaderButton({
 			aria-label={label}
 			aria-expanded={expanded}
 			onClick={onClick}
-			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink aria-expanded:bg-card-hover aria-expanded:text-ink"
+			className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink aria-expanded:bg-card-hover aria-expanded:text-ink"
 		>
 			{children}
 		</button>

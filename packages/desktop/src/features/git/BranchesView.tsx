@@ -190,7 +190,7 @@ export function BranchesView({
                 aria-label={t("branches.createAndSwitch")}
                 data-ly-tip={t("branches.createAndSwitch")}
                 disabled={busy || !name.trim()}
-                className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md bg-ink text-detail font-medium text-shell disabled:opacity-40"
+                className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg bg-ink text-detail font-medium text-shell disabled:opacity-40"
               >
                 <GitBranchPlus size={14} />
               </button>

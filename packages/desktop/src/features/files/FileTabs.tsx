@@ -158,7 +158,7 @@ export function FileTabs() {
 								data-ly-hover-reveal
 								aria-label={t("tabs.closeOne", { name: tab.name })}
 								onClick={() => closeOne(tab.path)}
-								className={`rounded p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
+								className={`rounded-md p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
 									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
 								} ${unsaved ? "hidden group-hover/tab:block" : ""}`}
 							>

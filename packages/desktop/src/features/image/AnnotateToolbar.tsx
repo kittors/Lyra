@@ -499,7 +499,7 @@ export function AnnotateToolbar({
 				data-ly-tip-side="top"
 				aria-label={cancelLabel ?? translate("annotate.exit")}
 				onClick={onCancel}
-				className={`flex cursor-pointer items-center rounded-md text-white/65 transition-colors duration-[var(--ly-t-quick)] hover:text-white ${metrics.action}`}
+				className={`flex cursor-pointer items-center rounded-lg text-white/65 transition-colors duration-[var(--ly-t-quick)] hover:text-white ${metrics.action}`}
 			>
 				<X size={metrics.icon - 1} strokeWidth={2} />
 			</button>
@@ -513,7 +513,7 @@ export function AnnotateToolbar({
 				// its padding: without it "保存副本" wrapped to two lines and took the whole bar's
 				// height with it.
 				aria-label={saveLabel ?? translate(canReplace ? "common.save" : "annotate.saveCopy")}
-				className={`grid cursor-pointer place-items-center rounded-md bg-white text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
+				className={`grid cursor-pointer place-items-center rounded-lg bg-white text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
 			>
 				{/* A separate download button owns file saving; confirming a capture must not promise another download. */}
 				{canReplace || onDownload ? <Check size={metrics.icon - 1} strokeWidth={2.4} aria-hidden /> : <Download size={metrics.icon - 1} strokeWidth={2} aria-hidden />}
@@ -618,7 +618,7 @@ function ToolProperties({
 						label: translate(label),
 					})}
 					aria-pressed={annotator.weight === value}
-					className={`flex cursor-pointer items-center justify-center rounded transition-colors ${metrics.weight} ${
+					className={`flex cursor-pointer items-center justify-center rounded-md transition-colors ${metrics.weight} ${
 						annotator.weight === value ? "bg-white/20 text-white" : "text-white/55 hover:bg-white/10 hover:text-white"
 					}`}
 				>

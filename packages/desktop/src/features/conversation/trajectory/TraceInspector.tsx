@@ -63,7 +63,7 @@ export function TraceInspector({ anchor, entry, all, query, onSelect, onClose, o
 			<MenuItem icon={<GitBranch size={14} />} onClick={() => { menu.close(); onFork(); }}>{t("trace.forkHere")}</MenuItem>
 		</MenuBody></Popover>}
 		<div role="tablist" aria-label={t("trace.content")} className="flex shrink-0 gap-1 border-b border-line-soft px-2 pb-1">
-			{(["content", "info", "raw"] as const).map(value => <button key={value} type="button" role="tab" aria-selected={tab === value} className={`rounded px-3 py-1 text-caption ${tab === value ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-hover"}`} onClick={() => setTab(value)}>{value === "content" ? t("common.content") : value === "info" ? t("common.info") : t("common.raw")}</button>)}
+			{(["content", "info", "raw"] as const).map(value => <button key={value} type="button" role="tab" aria-selected={tab === value} className={`rounded-lg px-3 py-1 text-caption ${tab === value ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-hover"}`} onClick={() => setTab(value)}>{value === "content" ? t("common.content") : value === "info" ? t("common.info") : t("common.raw")}</button>)}
 		</div>
 		<div className="min-h-0 flex-1 overflow-auto pb-3 pr-2" role="tabpanel" key={entryKey(entry)}>
 		<div hidden={tab !== "content"}>

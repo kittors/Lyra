@@ -264,7 +264,7 @@ function IconAction({
 			data-ly-tip={label}
 			aria-label={label}
 			onClick={onClick}
-			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
+			className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 		>
 			{/* 忙的时候整个换成那个亮弧，而不是把这个按钮自己的图标转起来。 */}
 			{spinning ? <ActionSpinner size={13.5} /> : children}

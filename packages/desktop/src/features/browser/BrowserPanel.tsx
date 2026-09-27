@@ -88,7 +88,7 @@ export function BrowserPanel() {
 			<IconButton size="sm" label={t("browser.forward")} icon={<ArrowRight size={13} />} disabled={!tab?.canGoForward} onClick={() => command("forward")} />
 			<IconButton size="sm" label={t("common.refresh")} icon={<RotateCw size={13} className={tab?.loading ? "ly-pulse" : ""} />} disabled={!tab} onClick={() => command("reload")} />
 			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={(url) => open(url)} inputRef={addressInput} />
-			<button type="button" aria-label={t("browser.menu")} aria-haspopup="menu" aria-expanded={options.open} onClick={(event) => { setMenu("actions"); options.toggle(event); }} className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md hover:bg-card-hover ${options.open || inspecting ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"}`}>
+			<button type="button" aria-label={t("browser.menu")} aria-haspopup="menu" aria-expanded={options.open} onClick={(event) => { setMenu("actions"); options.toggle(event); }} className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg hover:bg-card-hover ${options.open || inspecting ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"}`}>
 				<Ellipsis size={16} />
 			</button>
 		</div>
@@ -107,7 +107,7 @@ export function BrowserPanel() {
 			footer={menu === "viewport" && tab && <form className="flex items-center gap-1.5 p-2" onSubmit={(event) => { event.preventDefault(); const nextWidth = commitDraft(width, VIEW_W); const nextHeight = commitDraft(height, VIEW_H); if (nextWidth === null || nextHeight === null) return; void commandBrowser({ type: "viewport", id: tab.id, viewport: { width: nextWidth, height: nextHeight } }); options.close(); }}>
 				<Input aria-label={t("browser.viewportWidth")} type="text" inputMode="numeric" required value={width} onChange={(event) => { if (isLegalDraft(event.target.value, VIEW_W)) setWidth(event.target.value); }} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />×
 				<Input aria-label={t("browser.viewportHeight")} type="text" inputMode="numeric" required value={height} onChange={(event) => { if (isLegalDraft(event.target.value, VIEW_H)) setHeight(event.target.value); }} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />
-				<button type="submit" data-ly-tip={t("browser.apply")} aria-label={t("browser.apply")} className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-muted hover:bg-card-hover"><Check size={13} strokeWidth={2.2} aria-hidden /></button>
+				<button type="submit" data-ly-tip={t("browser.apply")} aria-label={t("browser.apply")} className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-card-hover"><Check size={13} strokeWidth={2.2} aria-hidden /></button>
 			</form>}>
 			<MenuBody>
 				{menu === "actions" && <>
@@ -123,7 +123,7 @@ export function BrowserPanel() {
 					<div className="flex h-8 items-center gap-1 px-2 text-label text-ink-muted">
 						<span className="flex-1">{t("browser.zoomLabel")}</span>
 						<IconButton size="sm" label={t("browser.zoomOut")} icon={<Minus size={13} />} disabled={!tab || tab.zoom <= 0.25} onClick={() => { if (tab) void commandBrowser({ type: "zoom", id: tab.id, factor: Math.max(0.25, Math.round((tab.zoom - 0.25) * 100) / 100) }); }} />
-						<button type="button" aria-label={t("browser.zoomReset")} disabled={!tab} onClick={() => { if (tab) void commandBrowser({ type: "zoom", id: tab.id, factor: 1 }); }} className="h-6 w-11 rounded text-detail tabular-nums hover:bg-card-hover disabled:opacity-40">{Math.round((tab?.zoom ?? 1) * 100)}%</button>
+						<button type="button" aria-label={t("browser.zoomReset")} disabled={!tab} onClick={() => { if (tab) void commandBrowser({ type: "zoom", id: tab.id, factor: 1 }); }} className="h-6 w-11 rounded-lg text-detail tabular-nums hover:bg-card-hover disabled:opacity-40">{Math.round((tab?.zoom ?? 1) * 100)}%</button>
 						<IconButton size="sm" label={t("browser.zoomIn")} icon={<Plus size={13} />} disabled={!tab || tab.zoom >= 3} onClick={() => { if (tab) void commandBrowser({ type: "zoom", id: tab.id, factor: Math.min(3, Math.round((tab.zoom + 0.25) * 100) / 100) }); }} />
 					</div>
 					<MenuItem icon={<Scan size={14} />} disabled={!tab} hint={tab?.viewport ? `${tab.viewport.width} × ${tab.viewport.height}` : t("browser.fit")} trailing={<ChevronRight size={13} />} onClick={() => { setWidth(String(tab?.viewport?.width ?? 1440)); setHeight(String(tab?.viewport?.height ?? 900)); setMenu("viewport"); }}>{t("browser.viewport")}</MenuItem>

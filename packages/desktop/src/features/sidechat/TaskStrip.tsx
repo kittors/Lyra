@@ -143,7 +143,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 								void cancelTask(sessionId, task.id);
 								void send([{ type: "text", text: task.text }]);
 							}}
-							className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
+							className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
 							aria-label={t("taskStrip.runNow")}
 						>
 							<Play size={11} strokeWidth={2} />
@@ -155,7 +155,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 								void cancelTask(sessionId, task.id);
 								seedDraft(sessionId, task.text);
 							}}
-							className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
+							className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
 							aria-label={t("taskStrip.withdrawOne")}
 						>
 							<RotateCcw size={11} strokeWidth={2} />
@@ -175,7 +175,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 						type="button"
 						data-ly-tip={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
 						onClick={() => void resumeTask(sessionId, task.id)}
-						className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-ink"
+						className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
 						aria-label={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
 					>
 						<Play size={11} strokeWidth={2} />
@@ -186,7 +186,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 						type="button"
 						data-ly-tip={t("taskStrip.remove")}
 						onClick={() => void dismissTask(sessionId, task.id)}
-						className="flex h-5 w-5 items-center justify-center rounded text-ink-faint transition-colors hover:text-danger"
+						className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-danger"
 						aria-label={t("taskStrip.removeOne")}
 					>
 						<X size={11} strokeWidth={2} />

@@ -25,7 +25,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 			</span>
 		}>
 			{files.map((file) => (
-				<button key={file.path} type="button" data-ly-tip={file.path} className="group/file ly-scroll flex w-full items-center gap-1.5 rounded py-1 text-detail text-ink-faint transition-colors hover:text-ink"
+				<button key={file.path} type="button" data-ly-tip={file.path} className="group/file ly-scroll flex w-full items-center gap-1.5 rounded-lg py-1 text-detail text-ink-faint transition-colors hover:text-ink"
 					onClick={() => {
 						onOpen();
 						void useOpenFile.getState().open({ path: file.path, name: file.path.split(/[\\/]/).pop() || file.path, isDirectory: false, size: 0 });

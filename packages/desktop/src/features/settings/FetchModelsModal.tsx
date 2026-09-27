@@ -132,7 +132,7 @@ export function FetchModelsModal({
 							<button
 								type="button"
 								onClick={toggleAll}
-								className="flex h-[var(--ly-control)] shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-field)] bg-input px-3.5 text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+								className="flex h-[var(--ly-control)] shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-input px-3.5 text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 							>
 								<ChoiceMark kind="checkbox" checked={allSelected} indeterminate={!allSelected && someSelected} />
 								{allSelected ? t("common.deselectAll") : t("common.selectAll")}

@@ -243,7 +243,7 @@ function PluginRow({
 							aria-haspopup="menu"
 							aria-expanded={menu.open}
 							onClick={menu.toggle}
-							className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/row:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
+							className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/row:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
 						>
 							{busy === "uninstall" ? <ActionSpinner size={13} /> : <MoreHorizontal size={15} strokeWidth={1.9} />}
 						</button>

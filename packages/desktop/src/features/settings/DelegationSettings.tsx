@@ -170,7 +170,7 @@ export function DelegationSettings() {
 								 * 相同，于是这一列记号的高度全跟着各自那行说明走——五档摞起来，左边那一列
 								 * 是参差的，右边那一列等级也是。它们标的是整整一条，就该站在整条的中间。
 								 */
-								className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-[var(--ly-t-quick)] ${
+								className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-[var(--ly-t-quick)] ${
 									auto ? "cursor-default" : "hover:bg-card-hover"
 								} ${selected ? "bg-card-hover" : ""}`}
 							>

@@ -120,7 +120,7 @@ export function ApprovalOverlay() {
 					{phone && <span className="empty:hidden" data-approval-meta="">{tags}</span>}
 				</span>
 				{!phone && tags}
-				<button type="button" aria-expanded={!collapsed} aria-label={translate(collapsed ? "question.expand" : "question.collapse")} onClick={() => setCollapsedId(collapsed ? null : request.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-card-hover"><Caret open={!collapsed} size={15} /></button>
+				<button type="button" aria-expanded={!collapsed} aria-label={translate(collapsed ? "question.expand" : "question.collapse")} onClick={() => setCollapsedId(collapsed ? null : request.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-card-hover"><Caret open={!collapsed} size={15} /></button>
 			</div>
 			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{interactive ? <>
 				<p className="shrink-0 px-4 pb-1 text-caption text-ink-muted">{translate("question.fullAccessNote")}</p>
