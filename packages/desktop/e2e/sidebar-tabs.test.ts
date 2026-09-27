@@ -240,6 +240,101 @@ async function selectTab(value: "projects" | "chats"): Promise<void> {
 	await new Promise((r) => setTimeout(r, 500));
 }
 
+/** Switch the interface language the way the settings page does, and wait until it is drawn. */
+async function setLocale(locale: string): Promise<void> {
+	await app.evaluate(
+		`window.lyra.settings.get().then((s) => window.lyra.settings.save({ ...s, uiLocale: ${JSON.stringify(locale)} }))`,
+	);
+	for (let i = 0; i < 40; i++) {
+		if ((await app.evaluate<string>("document.documentElement.lang")) === locale) break;
+		await new Promise((r) => setTimeout(r, 100));
+	}
+	// Past the knob's own transition, so what is read is where it settled.
+	await new Promise((r) => setTimeout(r, 500));
+}
+
+interface Strip {
+	knob: { left: number; right: number };
+	tabs: {
+		name: string;
+		chosen: boolean;
+		left: number;
+		right: number;
+		/** Whether the word is drawn, or the tab is its mark alone. */
+		words: boolean;
+		/** A drawn word cut short by its box. */
+		cut: boolean;
+		tip: string | null;
+		/** Where the word's glyphs are painted, when it is drawn. */
+		glyphs: { left: number; right: number } | null;
+		mark: { left: number; right: number };
+	}[];
+	/** Where the first of the buttons beside the strip begins. */
+	buttons: number;
+	rowOverflow: number;
+}
+
+/** The strip as drawn: the knob, each tab, and where the buttons beside it start. */
+async function strip(): Promise<Strip> {
+	return app.evaluate<Strip>(`(() => {
+		const rail = document.querySelector(".ly-sidebar-fill [data-ly-rail]");
+		const list = rail.querySelector("[role='tablist']");
+		const row = list.parentElement;
+		const edges = (el) => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right }; };
+		const tabs = [...list.querySelectorAll("[role='tab']")].map((tab) => {
+			const label = [...tab.querySelectorAll("span")].find((span) => span.textContent.trim());
+			// A word hidden for screen readers still has a box, one pixel wide and painting nothing.
+			const words = label.getBoundingClientRect().width > 2;
+			const range = document.createRange();
+			range.selectNodeContents(label);
+			return {
+				name: label.textContent.trim(),
+				chosen: tab.getAttribute("aria-selected") === "true",
+				...edges(tab),
+				words,
+				cut: words && label.scrollWidth > label.clientWidth,
+				tip: tab.getAttribute("data-ly-tip"),
+				glyphs: words ? edges(range) : null,
+				mark: edges(tab.querySelector("svg")),
+			};
+		});
+		const buttons = [...rail.querySelectorAll("button")].filter((b) => !b.closest("[role='tablist']"));
+		return {
+			knob: edges(list.querySelector(".ly-tabs-knob")),
+			tabs,
+			buttons: buttons.length ? buttons[0].getBoundingClientRect().left : window.innerWidth,
+			rowOverflow: row.scrollWidth - row.clientWidth,
+		};
+	})()`);
+}
+
+/** Everything that has to hold of the strip whatever the words are and however wide the pane is. */
+function assertStripHolds(at: Strip, where: string): void {
+	const chosen = at.tabs.find((tab) => tab.chosen);
+	assert.ok(chosen, `${where}: a tab is chosen`);
+	assert.ok(
+		Math.abs(at.knob.left - chosen.left) < 1 && Math.abs(at.knob.right - chosen.right) < 1,
+		`${where}: the knob is exactly the chosen tab (knob ${at.knob.left}–${at.knob.right}, tab ${chosen.left}–${chosen.right})`,
+	);
+	assert.ok(at.rowOverflow <= 1, `${where}: the row fits the width it is given (overflow ${at.rowOverflow}px)`);
+	const reach = Math.max(...at.tabs.map((tab) => Math.max(tab.right, tab.glyphs?.right ?? 0)));
+	assert.ok(reach <= at.buttons + 0.5, `${where}: nothing in the strip runs under the buttons beside it (${reach} vs ${at.buttons})`);
+	assert.ok(at.tabs.every((tab) => tab.words === chosen.words), `${where}: both tabs show their words, or neither does`);
+	if (chosen.words) {
+		for (const tab of at.tabs) assert.equal(tab.cut, false, `${where}: 「${tab.name}」 is shown whole`);
+		assert.ok(
+			chosen.glyphs && chosen.glyphs.left >= at.knob.left - 0.5 && chosen.glyphs.right <= at.knob.right + 0.5,
+			`${where}: 「${chosen.name}」 is drawn inside the knob (${JSON.stringify(chosen.glyphs)} in ${JSON.stringify(at.knob)})`,
+		);
+	} else {
+		for (const tab of at.tabs) assert.equal(tab.tip, tab.name, `${where}: the mark alone still names 「${tab.name}」 on hover`);
+		assert.ok(
+			chosen.mark.left >= at.knob.left - 0.5 && chosen.mark.right <= at.knob.right + 0.5,
+			`${where}: the chosen mark is inside the knob`,
+		);
+	}
+}
+
 test("at rest the strip travels with the list and nothing is erased", async () => {
 	const at = await scrollTo(0);
 	assert.ok(at.railInList > 60, `the strip sits below the destinations, not at the top: ${JSON.stringify(at)}`);
@@ -475,7 +570,6 @@ test("the strip is the size of what is written on it, not of the pane", async ()
 	})()`);
 
 	const [first, second] = measured.tabs;
-	assert.ok(Math.abs(first - second) < 1, `both tabs are the same width, so the knob can be half (${first}, ${second})`);
 	// The 6px is the track's own padding. Anything beyond that is the strip having been stretched.
 	assert.ok(
 		Math.abs(measured.strip - (first + second + 6)) < 1.5,
@@ -512,6 +606,35 @@ test("the selected tab reads as lifted out of the track, not pressed into it", a
 		lightness(tones.knob) > lightness(tones.track) + 4,
 		`the knob sits above the track it is in (knob ${tones.knob}, track ${tones.track})`,
 	);
+});
+
+/*
+ * The knob is the chosen tab in every language, and no word runs out of it.
+ *
+ * The strip was drawn for two two-character words, with a knob half the strip wide. 「プロジェクト」
+ * is three times 「会話」: in Japanese the chosen word ran out of the knob, across its neighbour and
+ * under the buttons beside the strip, Russian and French the same, and English stayed inside only by
+ * a pixel of luck. Asserted as what must hold whatever this machine's fonts make of each word — the
+ * words whole or the marks alone, and the knob exactly the tab it is on — rather than as which of
+ * the two a given language comes out as, which is `fitTabs`'s to decide and its own test's to pin.
+ */
+test("in every language the knob is the chosen tab, and no word runs out of it", async () => {
+	const was = await app.evaluate<"projects" | "chats">(
+		`document.querySelector(".ly-sidebar-fill [role='tab'][aria-selected='true']").getAttribute("data-ly-tab")`,
+	);
+	try {
+		for (const locale of ["en", "ja", "ru", "fr", "ko", "zh-TW"]) {
+			await setLocale(locale);
+			for (const tab of ["projects", "chats"] as const) {
+				await selectTab(tab);
+				assertStripHolds(await strip(), `${locale}, ${tab}`);
+			}
+		}
+	} finally {
+		// Borrowed state goes back: the tests after this one read the Chinese labels.
+		await setLocale("zh-CN");
+		await selectTab(was);
+	}
 });
 
 test("「聊天」 is every conversation, banded by when it was last touched", async () => {
@@ -672,4 +795,20 @@ test("at its narrowest, the strip and its buttons are still inside the pane", as
 		fit.lastButtonPast <= 0,
 		`the last control is inside the pane, not past its edge (${fit.lastButtonPast}px)`,
 	);
+
+	/*
+	 * And in the languages with longer words, which reach this floor long before Chinese does.
+	 *
+	 * The row's own overflow cannot see this one. The tabs used to spill out of the strip rather
+	 * than out of the row — the strip shrank, its tabs did not — so the row measured as fitting
+	 * while 「会話」 sat under the list-settings button. What is asserted is where things are drawn.
+	 */
+	try {
+		for (const locale of ["en", "ja", "ru", "fr"]) {
+			await setLocale(locale);
+			assertStripHolds(await strip(), `${locale} at ${SIDEBAR_MIN}px`);
+		}
+	} finally {
+		await setLocale("zh-CN");
+	}
 });
