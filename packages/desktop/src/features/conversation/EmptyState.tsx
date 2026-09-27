@@ -3,6 +3,7 @@ import mark from "../../assets/empty-mark.png?inline";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Composer } from "../composer/index.ts";
 import { useLayout } from "../../app/layout.tsx";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
@@ -35,8 +36,8 @@ const CARDS: { icon: typeof Telescope; tint: string; labelKey: MessageKey; promp
 
 export function EmptyState() {
 	const { t } = useI18n();
-	const scratchCwd = useApp((s) => s.scratchCwd);
-	const workspace = useApp((s) => s.workspace);
+	// The project this blank screen was opened in, even while a conversation beside it has focus.
+	const { workspace, scratchCwd } = useScopedWorkspace();
 	const { compact } = useLayout();
 
 	/** No project behind this conversation, and that was the choice — see the composer's chip. */

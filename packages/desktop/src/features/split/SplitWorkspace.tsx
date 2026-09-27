@@ -3,7 +3,7 @@ import { useApp } from "../../store/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { bridge } from "../../services/index.ts";
 import { startInset, useBoxSize, provideReveal, provideScope, usePaneDock } from "../dock/index.ts";
-import { canSplit, contains, firstSession, leafCount, nodeAt, sessionIds } from "./tree.ts";
+import { canSplit, contains, firstSession, hasBlank, leafCount, nodeAt, sessionIds } from "./tree.ts";
 import { warmSession } from "./warm.ts";
 import { isOriginPane, isTopEndPane, layoutPanes, layoutSplitters } from "./layout.ts";
 import { canSplitSide, fitSplitTree, resizeFloors, subtreeMinPx } from "./geometry.ts";
@@ -15,7 +15,8 @@ import { SplitPane } from "./SplitPane.tsx";
 import { SplitOverlay } from "./SplitOverlay.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { sidesByDistance } from "./drop.ts";
-import { dropOnPane, moveOnto, resetSplit, revealInWorkspace } from "./actions.ts";
+import { dropOnPane, focusPane, moveOnto, resetSplit, revealInWorkspace } from "./actions.ts";
+import { provideScreenFocus } from "../../app/session-scope.tsx";
 import {
 	cancelSessionDrag,
 	dropSessionDrag,
@@ -49,6 +50,8 @@ provideScope(() => {
 	return keys.includes(wanted) ? wanted : (keys[0] ?? null);
 });
 provideReveal((scope) => revealInWorkspace(scope));
+// And to a composer on a screen the keyboard reached without the press that focuses it.
+provideScreenFocus(focusPane);
 
 export function SplitWorkspace() {
 	const tree = useSplit((s) => s.tree);
@@ -77,6 +80,8 @@ export function SplitWorkspace() {
 
 	useEffect(() => {
 		const existing = new Set(useApp.getState().sessions.map((session) => session.id));
+		// `hydrate` takes a window's tiling once; after that this runs again only because the project changed.
+		const fresh = useSplit.getState().windowId !== windowId;
 		hydrate(windowId, existing, project);
 		/*
 		 * 恢复出来的那一屏，也要让应用知道它就是「当前会话」。
@@ -91,8 +96,14 @@ export function SplitWorkspace() {
 		 * 面板布局从前也按它存取，刷新后读的是一把空钥匙，开好的浏览器、终端一次也恢复不了。
 		 * 那一层已经没有了——每一屏按自己的会话读布局，见 ADR-0023。
 		 */
+		/*
+		 * Only for the tiling just restored. Later an empty live slot is a blank screen that has
+		 * focus — which changes the project, since it takes the one it was opened in — and opening
+		 * the first conversation then took the slot straight back from it: its first message
+		 * started a conversation that never reached its screen.
+		 */
 		const restored = useSplit.getState().focused ?? firstSession(useSplit.getState().tree);
-		if (restored && !useApp.getState().activeSessionId) void useApp.getState().openSessionById(restored);
+		if (fresh && restored && !useApp.getState().activeSessionId) void useApp.getState().openSessionById(restored);
 	}, [hydrate, windowId, project]);
 
 	useEffect(() => {
@@ -128,8 +139,13 @@ export function SplitWorkspace() {
 		 * Leaving a conversation for a blank one is 新对话. That is a statement that the next
 		 * thing typed belongs alone on the screen. Booting with `activeSessionId === null`
 		 * is not the same fact — a saved tiling would be thrown away before the list arrived.
+		 *
+		 * Nor is focusing a blank screen that is already one of several: that is moving between
+		 * screens, and `focusPane` moves the split's focus onto it before the live slot changes.
 		 */
-		if (previousSession.current && activeSessionId === null) resetSplit(null);
+		const tiled = useSplit.getState();
+		const blankFocused = tiled.focused === null && leafCount(tiled.tree) > 1 && hasBlank(tiled.tree);
+		if (previousSession.current && activeSessionId === null && !blankFocused) resetSplit(null);
 		previousSession.current = activeSessionId;
 		if (!activeSessionId) return;
 		const split = useSplit.getState();

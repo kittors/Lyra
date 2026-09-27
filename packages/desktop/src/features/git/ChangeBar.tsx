@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { openScopedPanel } from "../dock/index.ts";
-import { useApp } from "../../store/index.ts";
+import { useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 
 /**
@@ -21,8 +21,9 @@ import { bridge } from "../../services/index.ts";
  * they belong in the one place that can show both.
  */
 export function ChangeBar() {
-  const workspace = useApp((s) => s.workspace);
-  const running = useApp((s) => s.running);
+  // This screen's project and turn: beside the focused conversation it counted that one's changes.
+  const { workspace } = useScopedWorkspace();
+  const running = useScopedRunning();
 
   const [stat, setStat] = useState<{
     added: number;

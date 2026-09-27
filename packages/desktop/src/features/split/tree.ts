@@ -85,6 +85,12 @@ export function contains(node: SplitNode, sessionId: string): boolean {
 	return node.children.some((child) => contains(child, sessionId));
 }
 
+/** Whether one of the screens is the blank conversation, the one not sent yet. */
+export function hasBlank(node: SplitNode): boolean {
+	if (node.type === "leaf") return node.sessionId === null;
+	return node.children.some(hasBlank);
+}
+
 export function firstSession(node: SplitNode): string | null {
 	if (node.type === "leaf") return node.sessionId;
 	for (const child of node.children) {

@@ -17,21 +17,10 @@ import { bridge } from "../services/index.ts";
 import { loadCarried } from "./turn-meter.ts";
 import { flushCoalesced } from "./coalesce.ts";
 import { readSelectedSession, restoreLiveState } from "./session-read.ts";
-import { isDescendantPath } from "../lib/paths.ts";
+import { isProjectLess } from "../lib/project-scope.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
-
-/**
- * Whether this conversation runs in one of the app's own directories rather than in a project.
- *
- * 「不在项目中工作」 and a pull request review both need somewhere to run, and both get a directory
- * under the app's home. Neither is a project, and the difference has to be made here because by the
- * time you are looking at a session all you have is a path.
- */
-function isProjectLess(cwd: string, scratchRoots: string[]): boolean {
-	return scratchRoots.some((root) => root !== "" && isDescendantPath(root, cwd));
-}
 
 /** True when a newer click or open owns the live slot. */
 function lostSelection(get: Get, id: string): boolean {
@@ -39,6 +28,38 @@ function lostSelection(get: Get, id: string): boolean {
 	if (pending && pending !== id) return true;
 	if (!pending && get().activeSessionId != null && get().activeSessionId !== id) return true;
 	return false;
+}
+
+/**
+ * The live slot holding nobody: what 新对话 and a focused blank screen both leave in it.
+ *
+ * Everything here belongs to the conversation being left, and carrying any of it into the blank one
+ * reports on the wrong conversation — a turn meter, a connection shown as broken, a pause offered
+ * for resuming. See the notes in `newSession`.
+ */
+function blankSlot(get: Get): Partial<AppState> {
+	return {
+		selectionEpoch: get().selectionEpoch + 1,
+		activeSessionId: null,
+		pendingSessionId: null,
+		meta: null,
+		messages: [],
+		toolRuns: {},
+		approvals: [],
+		running: false,
+		todos: [],
+		compactions: [],
+		commandRuns: [],
+		turnStartedAt: null,
+		turnTokens: 0,
+		retrying: null,
+		hiccups: [],
+		stopped: null,
+		ruleOffer: null,
+		loadingSession: false,
+		pendingUserMessage: null,
+		capabilities: null,
+	};
 }
 
 export function sessionSlice(set: Set, get: Get) {
@@ -69,29 +90,13 @@ export function sessionSlice(set: Set, get: Get) {
       }, previous.activeSessionId) });
     }
     set({
-			selectionEpoch: get().selectionEpoch + 1,
-      activeSessionId: null,
-      pendingSessionId: null,
-      meta: null,
-      messages: [],
-      toolRuns: {},
-      approvals: [],
-      running: false,
-      todos: [],
-      compactions: [],
-			commandRuns: [],
-      turnStartedAt: null,
-      turnTokens: 0,
-      // Belongs to the turn being left behind; carrying it over would report this conversation's
-      // connection as broken on the strength of another one's — or, for `stopped`, offer to
-      // resume a blank conversation on the strength of a pause in the last one.
-      retrying: null,
-      hiccups: [],
-      stopped: null,
-      ruleOffer: null,
-      loadingSession: false,
-      pendingUserMessage: null,
-      capabilities: null,
+      // `retrying`, `hiccups` and `stopped` in here belong to the turn being left behind; carrying
+      // them over would report this conversation's connection as broken on the strength of another
+      // one's — or, for `stopped`, offer to resume a blank conversation on the strength of a pause
+      // in the last one.
+      ...blankSlot(get),
+      // A new blank conversation starts in the project that is open, not in one a screen parked.
+      parkedDraft: null,
       /*
        * 主动开新对话才切到聊天。
        *
@@ -135,6 +140,41 @@ export function sessionSlice(set: Set, get: Get) {
     }
   },
 
+
+  /**
+   * Put the blank conversation a split still shows back in the live slot.
+   *
+   * Not 新对话. That starts a conversation in whatever project is open and, in a split, clears the
+   * screens around it. This is a screen already on show taking focus: the conversation that held the
+   * slot is parked the way `openSession` parks one — it stays on its own screen, reading the cache —
+   * and the blank one comes back in the project it was opened in, not the one that had focus.
+   */
+  stageDraft() {
+    flushCoalesced();
+    const previous = get();
+    if (previous.activeSessionId === null && previous.pendingSessionId === null) return;
+    const leaving = previous.activeSessionId;
+    if (leaving && previous.meta && !previous.loadingSession) {
+      const parked = previous.sessionCache[leaving];
+      set({ sessionCache: prune({
+        ...without(previous.sessionCache, leaving),
+        [leaving]: {
+          meta: previous.meta, messages: previous.messages, toolRuns: previous.toolRuns, state: cachedState(previous),
+          scrollTop: parked?.scrollTop, pinnedToBottom: parked?.pinnedToBottom,
+        },
+      }, leaving) });
+    }
+    const draft = previous.parkedDraft;
+    set({
+      ...blankSlot(get),
+      ...(draft ? { workspace: draft.workspace, scratchCwd: draft.scratchCwd } : {}),
+      ...(previous.workspace ? { workspaceByPath: { ...previous.workspaceByPath, [previous.workspace.path]: previous.workspace } } : {}),
+      parkedDraft: null,
+    });
+    // Delegated work belongs to the conversation that dispatched it; the screen left behind keeps its
+    // own roster in `rosters`.
+    useSubAgents.getState().clear();
+  },
 
 	previewSession(meta: SessionMeta) {
 		return get().previewSessionId(meta.id);
@@ -238,7 +278,16 @@ export function sessionSlice(set: Set, get: Get) {
      */
     const projectLess = isProjectLess(meta.cwd, get().scratchRoots);
     if (lostSelection(get, meta.id)) return;
+    const leftWorkspace = get().workspace;
     set({
+      /*
+       * Where the conversation being left runs, for the screen that may go on showing it.
+       *
+       * In a split it does: the screen stays, and `workspace` is about to describe this one. The
+       * blank conversation has nothing else to remember its project by — see `parkedDraft`.
+       */
+      ...(leftWorkspace ? { workspaceByPath: { ...get().workspaceByPath, [leftWorkspace.path]: leftWorkspace } } : {}),
+      ...(leaving === null ? { parkedDraft: { workspace: leftWorkspace, scratchCwd: get().scratchCwd } } : {}),
       /*
        * Opening it is reading it, and reading a result clears it.
        *

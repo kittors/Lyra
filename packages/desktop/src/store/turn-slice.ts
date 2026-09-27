@@ -22,10 +22,19 @@ export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
-		let sessionId = options.sessionId ?? get().activeSessionId;
-		const cwd = workspace?.path ?? scratchCwd;
+		// `null` is the blank conversation, named on purpose; only leaving it out means "the live one".
+		let sessionId = options.sessionId === undefined ? get().activeSessionId : options.sessionId;
+		/*
+		 * The blank conversation while another holds the live slot runs where its own screen was opened.
+		 *
+		 * The composer puts its screen in the live slot before it sends, so this is only a send that
+		 * got here without that — and it must still not become a message to the conversation that has
+		 * focus, nor start one in that conversation's project.
+		 */
+		const draft = options.sessionId === null && get().activeSessionId !== null ? get().parkedDraft : null;
+		const cwd = draft ? (draft.workspace?.path ?? draft.scratchCwd) : (workspace?.path ?? scratchCwd);
 		if (!sessionId && !cwd) { await get().pickWorkspace(); return false; }
 		// A second submission in the same draft shares its identity, never its title as a key.
 		const inFlight = !sessionId ? creating.get(epoch) : undefined;
@@ -40,7 +49,7 @@ export function turnSlice(set: Set, get: Get) {
 		 * 消息发的就是屏幕上这个——队列出队时是指名会话的（见 `queue-slice`），而那一刻人常常已经
 		 * 在看别的对话了，乐观地把消息画进转录会画进别人的转录。
 		 */
-		const ownsSelection = () => get().selectionEpoch === epoch && (!options.sessionId || options.sessionId === get().activeSessionId);
+		const ownsSelection = () => get().selectionEpoch === epoch && (options.sessionId === undefined || options.sessionId === get().activeSessionId);
 		const pending: Message = {
 			role: "user",
 			content,

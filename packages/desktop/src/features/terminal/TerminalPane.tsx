@@ -13,7 +13,7 @@ import { rememberTerminalSize } from "./prewarm.ts";
 import { type CodeTypography, terminalTypography } from "./typography.ts";
 import { terminalKey, windowsPtyFor } from "./terminal-keys.ts";
 import { TerminalMenu } from "./TerminalMenu.tsx";
-import { CODE_DEFAULTS } from "../settings/index.ts";
+import { CODE_DEFAULTS, onAppearanceApplied } from "../settings/index.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import type { AppearanceSettings } from "@lyra/core";
 import { bridge } from "../../services/index.ts";
@@ -438,14 +438,30 @@ export function TerminalPane() {
 	}, [active]);
 
 	/*
-	 * Follow 代码外观 without rebuilding the shell under the user.
+	 * Follow the theme the moment the document has it.
 	 *
-	 * Colours were already handled here; type was not, and could not be — the four typographic
-	 * options were read once inside `new Terminal()` and never again, so changing the code font
-	 * did nothing to the terminal until the pane happened to be rebuilt. It is the one surface in
-	 * the app that CSS cannot reach: xterm measures a character and paints to a canvas, so the
-	 * variables the diff viewer and the Markdown blocks pick up on their own have to be pushed in
-	 * by hand.
+	 * Not from the effect below: that runs before `App`'s effect writes the theme onto the document,
+	 * and the palette is read off the document — the `dark` class, and the code background the
+	 * default themes inherit. Assigned there, the terminal showed the theme being left for a frame or
+	 * two after every switch (measured), and never followed the system turning dark under 「跟随系统」,
+	 * which changes nothing React can see. `onAppearanceApplied` is called by the writer itself.
+	 */
+	useEffect(
+		() =>
+			onAppearanceApplied(() => {
+				if (term.current) term.current.options.theme = paletteFromTheme(useApp.getState().settings?.appearance);
+			}),
+		[],
+	);
+
+	/*
+	 * Follow 代码外观's type without rebuilding the shell under the user.
+	 *
+	 * The four typographic options were read once inside `new Terminal()` and never again, so
+	 * changing the code font did nothing to the terminal until the pane happened to be rebuilt. It is
+	 * the one surface in the app that CSS cannot reach: xterm measures a character and paints to a
+	 * canvas, so the variables the diff viewer and the Markdown blocks pick up on their own have to
+	 * be pushed in by hand.
 	 *
 	 * From `appearance` rather than `readVar`, and that ordering is the whole reason this is
 	 * subtle: the variables are written by an effect in `App.tsx`, which is a parent, and React
@@ -460,7 +476,6 @@ export function TerminalPane() {
 	useEffect(() => {
 		const terminal = term.current;
 		if (!terminal) return;
-		terminal.options.theme = paletteFromTheme(appearance);
 
 		const timer = setTimeout(() => {
 			if (!term.current) return;
@@ -625,11 +640,13 @@ function paletteFromTheme(appearance?: AppearanceSettings): Terminal["options"][
 	 * which lines were added.
 	 */
 	/*
-	 * Resolved from the settings object, not from the DOM.
+	 * Which code theme is chosen comes from the settings object; whether it is dark, and the
+	 * background an inheriting theme takes, from the document.
 	 *
-	 * `--ly-code-bg` is written by an effect in `App.tsx`, which is a parent — and React runs
-	 * child effects first, so reading it here lands one theme change behind, every time. The
-	 * same ordering caught the font settings; this is the colour half of it.
+	 * Reading the document is only right after `applyAppearance` has written it — from a component's
+	 * own effect it is the theme being left, because `App`'s effect writes it and React runs a
+	 * child's effects first. So a theme change reaches the terminal through `onAppearanceApplied`,
+	 * and the only other caller is the terminal being built, long after the app themed itself.
 	 */
 	const theme = appearance
 		? findCodeTheme(dark ? appearance.codeDarkTheme : appearance.codeLightTheme, dark ? "dark" : "light")

@@ -7,10 +7,17 @@
  *
  * `undefined` means "not inside a pane" — Composer on the empty state, the skeleton — and
  * falls back to the store's active id. `null` is the blank conversation that has not been sent.
+ *
+ * A pane reads the live fields only when its conversation is the one in the live slot — the blank
+ * one included. A split can show a blank screen while a conversation beside it holds the slot, and
+ * that screen reading the live fields drew the other conversation's state: its running turn, its
+ * stop button, its project.
  */
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import type { Message, SessionMeta, SubAgentSummary } from "@lyra/core";
+import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
+import { isProjectLess } from "../lib/project-scope.ts";
 import { useApp, type AppState } from "../store/index.ts";
 import { useSubAgents } from "../store/subAgents.ts";
 import type { Cache } from "../store/derive.ts";
@@ -30,6 +37,24 @@ export function useDockScope(): string | null {
 	return useContext(DockScope);
 }
 
+/**
+ * Put a screen's conversation in the live slot — what pressing anywhere on that screen does.
+ *
+ * Registered by the split workspace, which owns the screens; a window without one shows a single
+ * conversation that is live already. Kept here beside `SessionScope` so a composer can ask without
+ * importing the split, which draws the composer and would close a loop.
+ */
+let focusScreen: ((sessionId: string | null) => void) | null = null;
+
+export function provideScreenFocus(focus: ((sessionId: string | null) => void) | null): void {
+	focusScreen = focus;
+}
+
+/** For the keyboard, which reaches a screen's controls without the press that would have focused it. */
+export function focusScreenOf(sessionId: string | null): void {
+	focusScreen?.(sessionId);
+}
+
 const EMPTY_MESSAGES: Message[] = [];
 const EMPTY_TODOS: AppState["todos"] = [];
 const EMPTY_APPROVALS: AppState["approvals"] = [];
@@ -37,6 +62,11 @@ const EMPTY_RUNS: AppState["commandRuns"] = [];
 const EMPTY_HICCUPS: AppState["hiccups"] = [];
 const EMPTY_TOOLS: Record<string, ToolRun> = {};
 const EMPTY_AGENTS: SubAgentSummary[] = [];
+
+/** A screen's parked copy — none for a blank screen away from the live slot, which has said nothing yet. */
+function parked(s: AppState, id: string | null): Cache[string] | undefined {
+	return id === null ? undefined : s.sessionCache[id];
+}
 
 export function useScopedSessionId(): string | null {
 	const scoped = useContext(SessionScope);
@@ -47,80 +77,80 @@ export function useScopedSessionId(): string | null {
 export function useScopedMessages(): Message[] {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.messages;
-		return s.sessionCache[id]?.messages ?? EMPTY_MESSAGES;
+		if (id === s.activeSessionId) return s.messages;
+		return parked(s, id)?.messages ?? EMPTY_MESSAGES;
 	});
 }
 
 export function useScopedRunning(): boolean {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.running;
-		return s.sessionCache[id]?.state?.running ?? s.activity[id] === "running";
+		if (id === s.activeSessionId) return s.running;
+		return parked(s, id)?.state?.running ?? (id !== null && s.activity[id] === "running");
 	});
 }
 
 export function useScopedStopped() {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.stopped;
-		return s.sessionCache[id]?.state?.stopped ?? null;
+		if (id === s.activeSessionId) return s.stopped;
+		return parked(s, id)?.state?.stopped ?? null;
 	});
 }
 
 export function useScopedTodos() {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.todos;
-		return s.sessionCache[id]?.state?.todos ?? EMPTY_TODOS;
+		if (id === s.activeSessionId) return s.todos;
+		return parked(s, id)?.state?.todos ?? EMPTY_TODOS;
 	});
 }
 
 export function useScopedApprovals(): AppState["approvals"] {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.approvals;
-		return s.sessionCache[id]?.state?.approvals ?? EMPTY_APPROVALS;
+		if (id === s.activeSessionId) return s.approvals;
+		return parked(s, id)?.state?.approvals ?? EMPTY_APPROVALS;
 	});
 }
 
 export function useScopedCompactions() {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.compactions;
-		return s.sessionCache[id]?.state?.compactions ?? EMPTY_RUNS;
+		if (id === s.activeSessionId) return s.compactions;
+		return parked(s, id)?.state?.compactions ?? EMPTY_RUNS;
 	});
 }
 
 export function useScopedCommandRuns() {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.commandRuns;
-		return s.sessionCache[id]?.state?.commandRuns ?? EMPTY_RUNS;
+		if (id === s.activeSessionId) return s.commandRuns;
+		return parked(s, id)?.state?.commandRuns ?? EMPTY_RUNS;
 	});
 }
 
 export function useScopedHiccups() {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.hiccups;
-		return s.sessionCache[id]?.state?.hiccups ?? EMPTY_HICCUPS;
+		if (id === s.activeSessionId) return s.hiccups;
+		return parked(s, id)?.state?.hiccups ?? EMPTY_HICCUPS;
 	});
 }
 
 export function useScopedToolRuns(): Record<string, ToolRun> {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.toolRuns;
-		return s.sessionCache[id]?.toolRuns ?? EMPTY_TOOLS;
+		if (id === s.activeSessionId) return s.toolRuns;
+		return parked(s, id)?.toolRuns ?? EMPTY_TOOLS;
 	});
 }
 
 export function useScopedMeta(): SessionMeta | null {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (!id || s.activeSessionId === id) return s.meta;
-		return s.sessionCache[id]?.meta ?? s.sessions.find((session) => session.id === id) ?? null;
+		if (id === s.activeSessionId) return s.meta;
+		return parked(s, id)?.meta ?? (id === null ? null : (s.sessions.find((session) => session.id === id) ?? null));
 	});
 }
 
@@ -143,6 +173,40 @@ export function useScopedSubAgents(): SubAgentSummary[] {
 	const active = useApp((s) => s.activeSessionId);
 	const live = useSubAgents((s) => s.agents);
 	const retained = useSubAgents((s) => (id ? s.rosters[id] : undefined));
-	if (!id || id === active) return live;
+	if (id === active) return live;
 	return retained ?? EMPTY_AGENTS;
+}
+
+const NO_WORKSPACE: { workspace: WorkspaceInfo | null; scratchCwd: string | null } = { workspace: null, scratchCwd: null };
+
+/**
+ * Where this screen's conversation runs: its own project, not the one that has focus.
+ *
+ * `workspace` and `scratchCwd` describe the live slot. Another conversation's screen takes its
+ * project from that conversation's directory, split into project and project-less the way
+ * `openSession` splits it, and named from what the project was when it last held the live slot — or
+ * read once, for one that never did. A blank screen away from the live slot runs where it was parked.
+ */
+export function useScopedWorkspace(): { workspace: WorkspaceInfo | null; scratchCwd: string | null } {
+	const id = useScopedSessionId();
+	const live = useApp((s) => id === s.activeSessionId);
+	const workspace = useApp((s) => s.workspace);
+	const scratchCwd = useApp((s) => s.scratchCwd);
+	const draft = useApp((s) => (id === null ? s.parkedDraft : null));
+	const meta = useApp((s) => (id === null ? null : (s.sessionCache[id]?.meta ?? s.sessions.find((one) => one.id === id) ?? null)));
+	const cwd = meta?.cwd ?? null;
+	const projectLess = useApp((s) => cwd !== null && isProjectLess(cwd, s.scratchRoots));
+	const known = useApp((s) => (cwd === null ? undefined : s.workspaceByPath[cwd]));
+	const named = useApp((s) => (cwd === null ? undefined : s.settings?.projects.find((project) => project.path === cwd)?.name));
+	const describe = useApp((s) => s.describeWorkspace);
+	const unread = !live && cwd !== null && !projectLess && !known;
+	useEffect(() => {
+		if (unread && cwd) void describe(cwd);
+	}, [unread, cwd, describe]);
+	if (live) return { workspace, scratchCwd };
+	if (id === null) return draft ?? NO_WORKSPACE;
+	if (cwd === null) return NO_WORKSPACE;
+	if (projectLess) return { workspace: null, scratchCwd: cwd };
+	// Named at once from the conversation; the branch arrives with the read.
+	return { workspace: known ?? { path: cwd, name: named ?? meta?.projectName ?? cwd, isGitRepo: false, branch: null }, scratchCwd: null };
 }

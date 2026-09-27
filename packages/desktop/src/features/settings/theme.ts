@@ -326,6 +326,26 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
+	for (const listener of applied) listener();
+}
+
+/**
+ * Told once a theme is on the document: for what paints colours the stylesheet cannot reach.
+ *
+ * The terminal is one — xterm draws to its own surface, so its palette is read off the document and
+ * pushed in by hand. Reading it from its own effect got the theme being left: the document is
+ * written by `App`'s effect, and React runs a child's effects before its parent's. And when the
+ * system appearance changes under 「跟随系统」, `watchSystemTheme` applies it with no React change
+ * at all, so no effect of any kind runs. Told from here, the reader runs after the writer on both
+ * paths.
+ */
+const applied = new Set<() => void>();
+
+export function onAppearanceApplied(listener: () => void): () => void {
+	applied.add(listener);
+	return () => {
+		applied.delete(listener);
+	};
 }
 
 /**

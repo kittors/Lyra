@@ -13,7 +13,7 @@ export { formatCost } from "./usage-format.ts";
 export { GhostButton, Toggle } from "./controls.tsx";
 export { TextInput, InlineSelect } from "./inputs.tsx";
 export { NumberField, TimeField } from "./pickers.tsx";
-export { applyAppearance, watchSystemTheme } from "./theme.ts";
+export { applyAppearance, onAppearanceApplied, watchSystemTheme } from "./theme.ts";
 
 /*
  * 顶层视图不在这张表上。

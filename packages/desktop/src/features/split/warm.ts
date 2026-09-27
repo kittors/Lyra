@@ -32,8 +32,9 @@ export async function warmSession(meta: SessionMeta): Promise<void> {
 		if (!snapshot) return;
 		if (useApp.getState().activeSessionId === meta.id) return;
 		const messages = intact(snapshot.messages);
-		const toolRuns = rebuildToolRuns(messages);
 		const live = useApp.getState();
+		// A command still running there stays running, with what it has printed — see `rebuildToolRuns`.
+		const toolRuns = rebuildToolRuns(messages, snapshot.running, live.sessionCache[meta.id]?.toolRuns);
 		useApp.setState({
 			sessionCache: prune(
 				{
