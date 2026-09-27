@@ -2454,7 +2454,7 @@ export const ru = {
 	"market.manageInSettings": "Управлять в настройках",
 	"market.noTagline": "Автор не добавил описание",
 	"market.downloads": "Установок: {n}",
-	"market.downloadsShort": "{n} установок",
+	"market.downloadsShort": "установок: {n}",
 	"market.needsKey": "Нужен ключ",
 	"market.needsSetup": "Настроить",
 	"market.installNamed": "Установить {name}",
