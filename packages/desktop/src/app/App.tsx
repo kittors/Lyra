@@ -359,6 +359,12 @@ function MainContent() {
  * untouched; and inert, so nothing in it takes the pointer, the focus or a drag region. Coming back
  * plays the same arrival the retained views do: the class is off while it is away, so putting it
  * back starts the animation again.
+ *
+ * Invisible reaches only what inherits it. Anything in here that transitions `visibility` stays
+ * visible for the length of that transition, and `transition-all` transitions it: the suggestion
+ * cards, the send button and the title bar's panel buttons went on painting over the view that had
+ * just replaced this one for 150–220ms, and on the way back turned up a frame after everything else.
+ * So what sits in here names what it transitions — Tailwind's `transition` leaves `visibility` out.
  */
 function Workspace({ away }: { away: boolean }) {
 	return (

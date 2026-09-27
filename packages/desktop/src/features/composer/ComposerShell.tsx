@@ -445,7 +445,12 @@ export function ComposerShell({
   );
 }
 
-/** One stable button lets the icon and colours interpolate when the run changes state. */
+/**
+ * One stable button lets the icon and colours interpolate when the run changes state.
+ *
+ * `transition`, not `transition-all`, which transitions `visibility` too — see `Workspace` in
+ * `app/App.tsx` for what that did.
+ */
 export function ComposerSend({ running, disabled, onSend, onStop, continueReady = false, tip, active = true }: {
 	running: boolean;
 	continueReady?: boolean;
@@ -460,7 +465,7 @@ export function ComposerSend({ running, disabled, onSend, onStop, continueReady 
 	const label = running ? t("composer.stop") : tip ?? t("composer.send");
 	return <button type="button" data-composer-send={active ? mode : undefined} data-ly-tip={label} aria-label={label}
 		disabled={!running && disabled} onClick={running ? onStop : onSend}
-		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-full transition-all duration-[var(--ly-t-quick)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
+		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-full transition duration-[var(--ly-t-quick)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
 		<span className="ly-send-icon" data-active={mode === "stop"}><svg width="11" height="11" viewBox="0 0 11 11" aria-hidden><rect width="11" height="11" rx="1.5" fill="currentColor" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "continue"}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M5 3.5 12.5 8 5 12.5Z" fill="currentColor" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "send"}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 19V5M5 12l7-7 7 7" /></svg></span>
