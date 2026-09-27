@@ -165,7 +165,9 @@ export function projectTrajectory(records: SessionRecord[], live = false): Entry
 			return;
 		}
 		if (data.type === "approval_request") {
-			const entry = basic("approval", data.title, data.detail);
+			// The gate's finding travels beside `detail` now (`ApprovalRequest.risk`); the record keeps
+			// it on top, where it sat when the gate still wrote it into the text.
+			const entry = basic("approval", data.title, data.risk ? `${data.risk.text}\n\n${data.detail}`.trim() : data.detail);
 			entry.correlationId = data.toolCallId; entry.metadata = data;
 			const call = calls.get(key(data.toolCallId, parentId)); if (call) link(call, entry);
 			return;

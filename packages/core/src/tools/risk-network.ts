@@ -27,11 +27,24 @@
  */
 
 import { isIP } from "node:net";
+import { riskReason, type RiskCode, type RiskParams } from "./risk-reasons.ts";
 
+/**
+ * `reason` is the rule's own sentence — it is what the model is told when a fetch is refused —
+ * and `code` names the rule, for the approval card to say in the interface's language.
+ */
 export type NetworkVerdict =
 	| { decision: "allow" }
-	| { decision: "refuse"; reason: string }
-	| { decision: "ask"; reason: string };
+	| { decision: "refuse"; reason: string; code: RiskCode; params?: RiskParams }
+	| { decision: "ask"; reason: string; code: RiskCode; params?: RiskParams };
+
+function refuse(code: RiskCode, params?: RiskParams): NetworkVerdict {
+	return { decision: "refuse", reason: riskReason(code, params), code, ...(params ? { params } : {}) };
+}
+
+function ask(code: RiskCode, params?: RiskParams): NetworkVerdict {
+	return { decision: "ask", reason: riskReason(code, params), code, ...(params ? { params } : {}) };
+}
 
 /** Methods that only read. Anything else changes something at the other end. */
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -89,10 +102,10 @@ function isPrivateV6(address: string): boolean {
 }
 
 /** What a private destination is called when the refusal has to be explained. */
-function privateReason(address: string): string {
-	if (/^169\.254\.169\.254$/.test(address)) return "云元数据地址（这是取实例凭据的地方）";
-	if (isIP(address) === 4 && /^(127\.|0\.)/.test(address)) return "本机回环地址";
-	return "私有网段地址";
+function privateCode(address: string): RiskCode {
+	if (/^169\.254\.169\.254$/.test(address)) return "cloud-metadata";
+	if (isIP(address) === 4 && /^(127\.|0\.)/.test(address)) return "loopback";
+	return "private-network";
 }
 
 export interface NetworkRequest {
@@ -124,14 +137,14 @@ export function assessNetwork(request: NetworkRequest): NetworkVerdict {
 	try {
 		url = new URL(request.url.trim());
 	} catch {
-		return { decision: "refuse", reason: "解析不了的地址" };
+		return refuse("unparsable-url");
 	}
 
 	if (url.protocol !== "http:" && url.protocol !== "https:") {
-		return { decision: "refuse", reason: `不支持的协议 ${url.protocol}` };
+		return refuse("unsupported-protocol", { protocol: url.protocol });
 	}
 	if (url.username || url.password) {
-		return { decision: "refuse", reason: "地址里带着账号密码" };
+		return refuse("credentials-in-url");
 	}
 
 	const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -153,16 +166,14 @@ export function assessNetwork(request: NetworkRequest): NetworkVerdict {
 			 * exception to anything that *lands* on loopback would hand it to every such name.
 			 */
 			if (isLoopbackName(host) || isLoopbackV4OrV6(host)) {
-				return READ_METHODS.has(method)
-					? { decision: "allow" }
-					: { decision: "ask", reason: "本机服务，但这个请求会改动它" };
+				return READ_METHODS.has(method) ? { decision: "allow" } : ask("local-service-write");
 			}
-			return { decision: "refuse", reason: privateReason(candidate) };
+			return refuse(privateCode(candidate));
 		}
 	}
 
 	if (request.allowHosts?.some((allowed) => allowed.toLowerCase() === host)) return { decision: "allow" };
-	if (!READ_METHODS.has(method)) return { decision: "ask", reason: `${method} 会改动对方的数据` };
+	if (!READ_METHODS.has(method)) return ask("method-writes", { method });
 	return { decision: "allow" };
 }
 

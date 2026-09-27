@@ -32,6 +32,7 @@ import { homedir } from "node:os";
 import { win32 } from "node:path";
 import type { IPty } from "node-pty";
 import { envValue, findExecutable } from "./find-executable.ts";
+import { nativeTranslator, type NativeLocale } from "./i18n.ts";
 
 /**
  * One shell, and enough of what it has said to redraw it.
@@ -44,8 +45,14 @@ export interface LiveTerminal {
 	pty: IPty;
 	cwd: string;
 	attached: boolean;
-	/** What the tab is called. Numbered across every shell, and kept when its neighbours close. */
-	title: string;
+	/**
+	 * The tab's number: unique across every shell, and kept when its neighbours close.
+	 *
+	 * A number rather than the tab's name, which is put together each time it is asked for (see
+	 * `tabTitle`). A stored name stays in whatever language it was made in, and uniqueness checked
+	 * by name misses that 「终端 1」 and "Terminal 1" are the same tab number.
+	 */
+	number: number;
 	/** Raw output, in the chunks it arrived in, capped by `SCROLLBACK_BYTES`. */
 	scrollback: string[];
 	bytes: number;
@@ -97,6 +104,11 @@ export interface TerminalDeps {
 	platform?: string;
 	env?: NodeJS.ProcessEnv;
 	findExecutable?: (command: string) => string | null;
+	/**
+	 * The language tab names are written in, already resolved from the settings and the system.
+	 * Asked on every read, so switching language renames tabs that are already open.
+	 */
+	locale?: () => NativeLocale;
 }
 
 /**
@@ -150,6 +162,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	const platform = host.platform ?? process.platform;
 	const env = host.env ?? process.env;
 	const find = host.findExecutable ?? ((command: string) => findExecutable(command, { platform, env }));
+	const titleOf = (live: LiveTerminal): string => tabTitle(live.number, host.locale?.() ?? "zh-CN");
 	/** Where a terminal for this path actually starts: the project, or home if it is not one. */
 	// `homedir()`, not `process.env.HOME`: Windows spells it `USERPROFILE` and leaves `HOME` unset,
 	// so reading the variable there fell through to the process's own directory.
@@ -167,7 +180,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	const list = (cwd: string): TerminalTab[] =>
 		[...terminals]
 			.filter(([, live]) => live.cwd === resolve(cwd))
-			.map(([id, live]) => ({ id, title: live.title }));
+			.map(([id, live]) => ({ id, title: titleOf(live) }));
 
 	/**
 	 * Every shell there is, whatever directory it was started in.
@@ -179,7 +192,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	 * the current project, so changing projects swapped it for a different set and moving to no
 	 * project at all emptied it, while every one of those shells carried on running unseen.
 	 */
-	const listAll = (): TerminalTab[] => [...terminals].map(([id, live]) => ({ id, title: live.title }));
+	const listAll = (): TerminalTab[] => [...terminals].map(([id, live]) => ({ id, title: titleOf(live) }));
 
 	/**
 	 * Start another shell here.
@@ -214,7 +227,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		const live: LiveTerminal = {
 			pty: child,
 			cwd: dir,
-			title: nextTitle(terminals),
+			number: nextNumber(terminals),
 			attached,
 			scrollback: [],
 			bytes: 0,
@@ -240,7 +253,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 			});
 		});
 		terminals.set(id, live);
-		return { id, title: live.title, pid: child.pid, epoch: 1, replay: "" };
+		return { id, title: titleOf(live), pid: child.pid, epoch: 1, replay: "" };
 	};
 
 	/**
@@ -261,7 +274,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		const live: LiveTerminal = {
 			pty: inertPty(),
 			cwd: dir,
-			title: nextTitle(terminals),
+			number: nextNumber(terminals),
 			attached,
 			scrollback: [text],
 			bytes: text.length,
@@ -270,7 +283,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 			connections: new Map(),
 		};
 		terminals.set(id, live);
-		return { id, title: live.title, pid: 0, epoch: 1, replay: "" };
+		return { id, title: titleOf(live), pid: 0, epoch: 1, replay: "" };
 	};
 
 	/**
@@ -322,7 +335,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 				live.pty.resize(Math.max(2, cols), Math.max(2, rows));
 			} catch {}
 		}
-		return { id, title: live.title, pid: live.pty.pid, epoch: live.epoch, replay: live.scrollback.join("") };
+		return { id, title: titleOf(live), pid: live.pty.pid, epoch: live.epoch, replay: live.scrollback.join("") };
 	};
 
 	/**
@@ -433,16 +446,23 @@ function inertPty(): IPty {
 }
 
 /**
- * `终端 1`, `终端 2`, … never reusing a number a live tab still has.
+ * 1, 2, … never reusing a number a live tab still has.
  *
  * Across every shell, not per directory. The strip shows all of them side by side, so numbering
  * within a directory produced two tabs both called 「终端 1」 the moment a shell was started
  * somewhere else — a strip whose entire job is to let you pick one by name.
  */
-function nextTitle(terminals: Map<string, LiveTerminal>): string {
-	const taken = new Set([...terminals.values()].map((live) => live.title));
+function nextNumber(terminals: Map<string, LiveTerminal>): number {
+	const taken = new Set([...terminals.values()].map((live) => live.number));
 	for (let n = 1; ; n++) {
-		const title = `终端 ${n}`;
-		if (!taken.has(title)) return title;
+		if (!taken.has(n)) return n;
 	}
+}
+
+/**
+ * "Terminal 2". From the main process's catalogue because tabs are named here: the renderer shows
+ * the title it is handed and never words one of its own.
+ */
+function tabTitle(n: number, locale: NativeLocale): string {
+	return nativeTranslator(locale, "en")("terminal.tab").replace("{n}", String(n));
 }

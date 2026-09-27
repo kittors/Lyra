@@ -7,70 +7,75 @@
  *
  * Every entry is something you cannot take back. Writing files is not on the list; writing is the
  * job.
+ *
+ * Entries name the rule by its code; what each one says, in any language, is not decided here —
+ * see `risk-reasons.ts`.
  */
 
+import type { RiskCode } from "./risk-reasons.ts";
+
 /** Programs that are dangerous whatever their arguments. */
-export const NEVER_UNATTENDED = new Map<string, string>([
-	["sudo", "以管理员身份执行"],
-	["doas", "以管理员身份执行"],
-	["su", "切换用户"],
-	["shutdown", "关机或重启"],
-	["reboot", "关机或重启"],
-	["halt", "关机或重启"],
-	["mkfs", "格式化磁盘"],
-	["fdisk", "修改磁盘分区"],
-	["diskutil", "修改磁盘"],
-	["dd", "按块写设备，可能覆盖磁盘"],
-	["shred", "不可恢复地擦除文件"],
-	["chown", "更改文件归属"],
-	["launchctl", "改动系统服务"],
-	["systemctl", "改动系统服务"],
-	["crontab", "改动定时任务"],
-	["killall", "批量结束进程"],
+export const NEVER_UNATTENDED = new Map<string, RiskCode>([
+	["sudo", "run-as-admin"],
+	["doas", "run-as-admin"],
+	["su", "switch-user"],
+	["shutdown", "shutdown"],
+	["reboot", "shutdown"],
+	["halt", "shutdown"],
+	["mkfs", "format-disk"],
+	["fdisk", "partition-disk"],
+	["diskutil", "modify-disk"],
+	["dd", "raw-disk-write"],
+	["shred", "shred"],
+	["chown", "change-owner"],
+	["launchctl", "system-service"],
+	["systemctl", "system-service"],
+	["crontab", "crontab"],
+	["killall", "kill-all"],
 	/*
 	 * Windows' spellings of the same things, lower-cased: PowerShell and cmd do not care about
 	 * case, so the lookup does not either. They matter where the agent's shell is PowerShell — a
 	 * Windows without Git — and they were absent, so `Format-Volume` was as safe as `ls`.
 	 */
-	["format", "格式化磁盘"],
-	["format-volume", "格式化磁盘"],
-	["diskpart", "修改磁盘分区"],
-	["clear-disk", "清空磁盘"],
-	["initialize-disk", "修改磁盘分区"],
-	["remove-partition", "修改磁盘分区"],
-	["stop-computer", "关机或重启"],
-	["restart-computer", "关机或重启"],
-	["set-executionpolicy", "改动系统的脚本执行策略"],
-	["takeown", "更改文件归属"],
-	["bcdedit", "改动系统启动配置"],
-	["vssadmin", "改动系统卷影副本"],
-	["wevtutil", "改动系统事件日志"],
-	["cipher", "可能不可恢复地擦除数据"],
+	["format", "format-disk"],
+	["format-volume", "format-disk"],
+	["diskpart", "partition-disk"],
+	["clear-disk", "clear-disk"],
+	["initialize-disk", "partition-disk"],
+	["remove-partition", "partition-disk"],
+	["stop-computer", "shutdown"],
+	["restart-computer", "shutdown"],
+	["set-executionpolicy", "execution-policy"],
+	["takeown", "change-owner"],
+	["bcdedit", "boot-config"],
+	["vssadmin", "shadow-copies"],
+	["wevtutil", "event-log"],
+	["cipher", "wipe-data"],
 ]);
 
 /** Subcommands that discard work or rewrite shared history. */
-export const RISKY_SUBCOMMANDS = new Map<string, Map<string, string>>([
+export const RISKY_SUBCOMMANDS = new Map<string, Map<string, RiskCode>>([
 	[
 		"git",
-		new Map([
-			["reset", "可能丢弃未提交的改动"],
-			["clean", "删除未跟踪的文件"],
-			["rebase", "重写提交历史"],
-			["filter-branch", "重写提交历史"],
-			["checkout", "可能覆盖未提交的改动"],
-			["restore", "可能丢弃未提交的改动"],
+		new Map<string, RiskCode>([
+			["reset", "discard-changes"],
+			["clean", "delete-untracked"],
+			["rebase", "rewrite-history"],
+			["filter-branch", "rewrite-history"],
+			["checkout", "overwrite-changes"],
+			["restore", "discard-changes"],
 		]),
 	],
-	["npm", new Map([["publish", "发布到公共仓库"]])],
-	["pnpm", new Map([["publish", "发布到公共仓库"]])],
-	["yarn", new Map([["publish", "发布到公共仓库"]])],
-	["docker", new Map([["system", "可能清理镜像与卷"]])],
-	["kubectl", new Map([["delete", "删除集群资源"]])],
+	["npm", new Map<string, RiskCode>([["publish", "publish-package"]])],
+	["pnpm", new Map<string, RiskCode>([["publish", "publish-package"]])],
+	["yarn", new Map<string, RiskCode>([["publish", "publish-package"]])],
+	["docker", new Map<string, RiskCode>([["system", "docker-prune"]])],
+	["kubectl", new Map<string, RiskCode>([["delete", "delete-cluster-resource"]])],
 	// Windows: registry, scheduled tasks, services and the firewall, by their first argument.
-	["reg", new Map([["delete", "修改注册表"], ["add", "修改注册表"], ["import", "修改注册表"], ["restore", "修改注册表"]])],
-	["schtasks", new Map([["/create", "改动计划任务"], ["/delete", "改动计划任务"], ["/change", "改动计划任务"]])],
-	["sc", new Map([["delete", "改动系统服务"], ["create", "改动系统服务"], ["config", "改动系统服务"]])],
-	["netsh", new Map([["advfirewall", "改动防火墙配置"], ["firewall", "改动防火墙配置"]])],
+	["reg", new Map<string, RiskCode>([["delete", "registry-edit"], ["add", "registry-edit"], ["import", "registry-edit"], ["restore", "registry-edit"]])],
+	["schtasks", new Map<string, RiskCode>([["/create", "scheduled-task"], ["/delete", "scheduled-task"], ["/change", "scheduled-task"]])],
+	["sc", new Map<string, RiskCode>([["delete", "system-service"], ["create", "system-service"], ["config", "system-service"]])],
+	["netsh", new Map<string, RiskCode>([["advfirewall", "firewall"], ["firewall", "firewall"]])],
 ]);
 
 /** Paths that are never the project, so writing to them is out of scope by definition. */

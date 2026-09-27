@@ -141,6 +141,7 @@ function TaskCard({
 	const [name, setName] = useState(task.name);
 	const [running, setRunning] = useState(false);
 	const confirm = useConfirmer();
+	const next = describeNext(task);
 
 	return (
 		<div className="ly-enter overflow-hidden rounded-[10px] border border-line bg-card/40">
@@ -246,21 +247,22 @@ function TaskCard({
 				</div>
 
 				<div className="flex flex-wrap items-center gap-x-3 text-detail text-ink-faint">
+					{/*
+					 * The time goes into the sentence rather than beside a label ending in a colon:
+					 * whether a space follows the colon is the language's call. A full-width 「：」
+					 * wants none, English and French do, and the glued version read "Last run:9/26".
+					 */}
 					<span>
-							{t("scheduled.lastRun")}
-							{task.lastRunAt ? new Date(task.lastRunAt).toLocaleString(activeLocale()) : t("common.never")}
-						</span>
+						{t("scheduled.lastRun", {
+							time: task.lastRunAt ? new Date(task.lastRunAt).toLocaleString(activeLocale()) : t("common.never"),
+						})}
+					</span>
 					{/*
 					 * Computed from the same rules the scheduler runs on, not from a second copy of
 					 * them: `nextRunAt` lives in core precisely so the badge and the run cannot
 					 * disagree about when 09:00 is.
 					 */}
-					{describeNext(task) && (
-							<span>
-								{t("scheduled.nextRun")}
-								{describeNext(task)}
-							</span>
-						)}
+					{next && <span>{t("scheduled.nextRun", { time: next })}</span>}
 					{task.lastSessionId && lastSessionTitle && (
 						<button type="button" onClick={onOpenLast} className="text-ink-muted transition-colors hover:text-ink"
 							data-ly-tip={t("scheduled.openLast")}

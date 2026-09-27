@@ -38,7 +38,7 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			break;
 		case "approval_request":
 			// The second field-by-field rebuild of this event; `apply-event.ts` has the other one.
-			state = { ...state, approvals: [...state.approvals, { id: event.requestId, kind: event.kind, title: event.title, detail: event.detail, subject: event.subject, ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}), selectionMode: event.selectionMode, allowSkip: event.allowSkip, defaultOptionIndex: event.defaultOptionIndex, ...(event.expiresAt !== undefined ? { expiresAt: event.expiresAt } : {}) }] };
+			state = { ...state, approvals: [...state.approvals, { id: event.requestId, kind: event.kind, title: event.title, detail: event.detail, ...(event.risk ? { risk: event.risk } : {}), subject: event.subject, ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}), selectionMode: event.selectionMode, allowSkip: event.allowSkip, defaultOptionIndex: event.defaultOptionIndex, ...(event.expiresAt !== undefined ? { expiresAt: event.expiresAt } : {}) }] };
 			break;
 		case "title": meta = { ...meta, title: event.title }; break;
 		case "rewound":

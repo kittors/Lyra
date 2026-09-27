@@ -7,6 +7,7 @@ import type { Skill } from "../skills/loader.ts";
 import type { Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { CommandShell } from "../platform.ts";
+import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 
 /**
  * The seams.
@@ -50,8 +51,16 @@ export const APPROVAL = "approval";
 
 export interface ApprovalVerdict {
 	risky: boolean;
-	/** Why, in the user's language, when it is risky. */
+	/** Why, as a sentence, when it is risky. Shown as is wherever `code` is absent. */
 	reason?: string;
+	/**
+	 * Which built-in rule found it, when one did. A host says it in its own language from this
+	 * (`risk.<code>` in the desktop's catalogues); a policy with rules of its own leaves it out and
+	 * gives only `reason`.
+	 */
+	code?: RiskCode;
+	/** The values `code`'s sentence needs. */
+	params?: RiskParams;
 }
 
 export interface ApprovalPolicy {

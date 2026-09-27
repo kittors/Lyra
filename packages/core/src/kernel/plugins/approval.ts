@@ -34,7 +34,8 @@ class DefaultPolicy implements ApprovalPolicy {
 				 * before anything reaches a prompt.
 				 */
 				const verdict = assessNetwork({ url: subject });
-				return verdict.decision === "allow" ? { risky: false } : { risky: true, reason: verdict.reason };
+				if (verdict.decision === "allow") return { risky: false };
+				return { risky: true, reason: verdict.reason, code: verdict.code, ...(verdict.params ? { params: verdict.params } : {}) };
 			}
 		// An unfamiliar kind is one this policy was not written for, so it defers to a person.
 		return { risky: true };

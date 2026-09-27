@@ -173,7 +173,8 @@ async function checkTarget(input: string, ctx: ToolContext): Promise<{ url: URL 
 			title: `Fetch ${url.host}`,
 			detail: url.toString(),
 			subject: url.origin,
-			reason: verdict.reason,
+			// A rule's finding, not the asker's words: it goes where the card can translate it.
+			risk: { text: verdict.reason, code: verdict.code, ...(verdict.params ? { params: verdict.params } : {}) },
 		});
 		if (decision !== "once" && decision !== "always") return { error: "The user rejected this network request." };
 	}

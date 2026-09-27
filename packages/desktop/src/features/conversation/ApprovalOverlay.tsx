@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { MessageCircle, TriangleAlert } from "lucide-react";
@@ -10,7 +11,7 @@ import { useApp } from "../../store/index.ts";
 import { useScopedApprovals, useScopedSessionId } from "../../app/session-scope.tsx";
 import { QuestionChoices } from "./QuestionChoices.tsx";
 import { PermissionChoices } from "./PermissionChoices.tsx";
-import { approvalReason } from "./approval-content.ts";
+import { approvalReason, riskSentence } from "./approval-content.ts";
 
 /** What is being asked for, by kind. Keys — this table is built at import time. */
 const KIND_LABEL: Record<string, MessageKey> = {
@@ -58,6 +59,11 @@ export function ApprovalOverlay() {
 	const approvals = useScopedApprovals();
 	const respond = useApp(s => s.respondToApproval);
 	const { compact } = useLayout();
+	/*
+	 * Subscribed, not only read through `translate`: the card sits under the memoised
+	 * `Conversation`, and a context is what reaches through that when the language changes.
+	 */
+	const { t } = useI18n();
 	const [collapsedId, setCollapsedId] = useState<string | null>(null);
 	const request = approvals[0];
 	if (!request) return null;
@@ -65,9 +71,11 @@ export function ApprovalOverlay() {
 	const interactive = request.kind === "interactive";
 	const Icon = interactive ? MessageCircle : TriangleAlert;
 	const reason = approvalReason(request.reason, request.detail);
+	// On top of the command, where the gate used to write it into the text in one language.
+	const risk = riskSentence(request.risk, t);
 	const context = <>
 		{reason && <p className="mb-2.5 whitespace-pre-wrap break-words text-label leading-relaxed text-ink">{reason}</p>}
-		<pre className={`whitespace-pre-wrap break-words ${interactive ? "font-sans text-label leading-relaxed text-ink" : "font-mono text-code text-ink-muted"}`}>{request.detail}</pre>
+		<pre className={`whitespace-pre-wrap break-words ${interactive ? "font-sans text-label leading-relaxed text-ink" : "font-mono text-code text-ink-muted"}`}>{risk ? `${risk}\n\n${request.detail}`.trim() : request.detail}</pre>
 	</>;
 	return <div data-approval-region className={`flex shrink-0 justify-center pb-2 ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}>
 		<div data-approval-card className="ly-glass flex w-full max-w-[var(--ly-content)] max-h-[min(560px,calc(100dvh-14rem))] flex-col overflow-hidden rounded-xl border border-line">

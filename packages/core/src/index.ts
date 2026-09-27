@@ -266,6 +266,8 @@ export {
 	type DiffLine,
 	type FileDiff,
 } from "./tools/index.ts";
+// Every risk rule's code with its own wording — what a host's translations of `risk.<code>` cover.
+export { RISK_REASONS } from "./tools/risk-reasons.ts";
 export { home, systemShell, within, withinOrIs } from "./platform.ts";
 export * from "./types.ts";
 export {
