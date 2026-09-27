@@ -210,11 +210,11 @@ export function Composer() {
 	}, [text, attachments, sessionRefs, draftKey, setDraft]);
 
 	/*
-	 * Text left here by something outside the composer — opening a review, so far.
+	 * Text left here by something outside the composer — a suggestion card, a review, an error.
 	 *
 	 * Taken and cleared, so it lands once and is then the user's to edit or discard. Appended
-	 * rather than replacing anything already typed: whatever is in the field was typed by hand and
-	 * losing it would be worse than an awkward join.
+	 * rather than replacing anything already typed, unless the draft says to replace: whatever is in
+	 * the field was typed by hand and losing it would be worse than an awkward join.
 	 */
 	const draft = useApp((s) => s.composerDraft);
 	const browserAttachment = useApp((s) => s.browserAttachment);
@@ -250,6 +250,14 @@ export function Composer() {
 		resetKey: draftKey,
 	});
 	useEffect(() => {
+		/*
+		 * Only a draft left for this screen, and only while it is still in the slot.
+		 *
+		 * A split mounts a composer per screen, and every one of them took the same draft in the same
+		 * commit. Checking the slot as well keeps it to one taker should two ever answer to one screen.
+		 */
+		if (!draft || draft.sessionId !== activeSessionId || useApp.getState().composerDraft !== draft) return;
+		useApp.setState({ composerDraft: null });
 		const files = draft.attachments ?? [];
 		const refs = draft.sessionRefs ?? [];
 		if (!draft.text && !files.length && !refs.length) return;
@@ -262,7 +270,12 @@ export function Composer() {
 		if (refs.length) {
 			setSessionRefs((current) => [...new Map([...current, ...refs].map((ref) => [ref.id, ref])).values()]);
 		}
-		useApp.getState().setComposerDraft("");
+		/*
+		 * The caret is coming to this screen, so the screen takes the live slot — what a press on it
+		 * does. A card or a panel button reached by keyboard got here with no press, and left the caret
+		 * in one screen while another had focus.
+		 */
+		if (activeSessionId !== useApp.getState().activeSessionId) focusScreenOf(activeSessionId);
 		/*
 		 * And put the caret in it.
 		 *
@@ -282,7 +295,7 @@ export function Composer() {
 		void shell.offsetWidth;
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
-	}, [draft]);
+	}, [draft, activeSessionId]);
 
 
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";

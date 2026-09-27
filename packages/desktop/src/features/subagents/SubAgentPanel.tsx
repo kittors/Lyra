@@ -303,6 +303,8 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
  */
 function Resume({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
+	// The conversation that dispatched it, whose screen this panel is on — not the focused one.
+	const screen = useScopedSessionId();
 	const [asked, setAsked] = useState(false);
 	return (
 		<button
@@ -311,7 +313,7 @@ function Resume({ agent }: { agent: SubAgentSummary }) {
 			data-sub-resume
 			data-ly-tip={t("subAgent.resumeTip")}
 			onClick={() => {
-				useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), true);
+				useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), { sessionId: screen, replace: true });
 				setAsked(true);
 			}}
 			aria-label={asked ? t("subAgent.drafted") : t("subAgent.resume")}
@@ -324,6 +326,7 @@ function Resume({ agent }: { agent: SubAgentSummary }) {
 
 function Redispatch({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
+	const screen = useScopedSessionId();
 	const [asked, setAsked] = useState(false);
 	return (
 		<button
@@ -344,7 +347,7 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
 						t(agent.status === "failed" ? "subAgent.redispatchDraftFailed" : "subAgent.redispatchDraftAborted", {
 							name: agent.description,
 						}),
-						true,
+						{ sessionId: screen, replace: true },
 					);
 				setAsked(true);
 			}}

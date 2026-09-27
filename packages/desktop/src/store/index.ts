@@ -87,6 +87,23 @@ export type SettingsSection =
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */
 export type ExtensionsTab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
 
+/** Text left for a composer by something that is not the composer — see `composerDraft`. */
+interface ComposerDraft {
+  /**
+   * Whose composer: that conversation's id, or null for the blank conversation — named the way `send`
+   * names where a message goes.
+   *
+   * There is one slot for the window and a composer on every screen of a split. A draft that named
+   * no screen was taken by all of them in the same commit: a suggestion card pressed on one screen
+   * typed itself into every other, and the caret went to whichever took it last.
+   */
+  sessionId: string | null;
+  text: string;
+  replace: boolean;
+  attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
+  sessionRefs?: Array<{ id: string; title: string }>;
+}
+
 interface PendingApproval extends QuestionFields {
   id: string;
   kind: string;
@@ -189,10 +206,11 @@ export interface AppState extends QueueSlice {
    */
   parkedProject: string | null;
   /**
-   * Text to put in the composer, for callers that are not the composer.
+   * Text to put in a composer, for callers that are not the composer; null while nothing waits.
    *
    * Opening a review's conversation fills in what to ask rather than asking it: the user should
-   * see the question, be able to change it, and press send themselves. Consumed on read.
+   * see the question, be able to change it, and press send themselves. Consumed on read, by the
+   * composer of the screen the draft names.
    *
    * `replace` decides what happens to whatever is already in the field, and the two callers want
    * opposite things. A review or an error arrives while you may be part-way through typing, and
@@ -200,20 +218,11 @@ export interface AppState extends QueueSlice {
    * alternatives, so pressing a second one means "that one instead": appending there stacks three
    * unrelated requests into one message nobody wrote.
    */
-  composerDraft: {
-    text: string;
-    replace: boolean;
-    attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
-    sessionRefs?: Array<{ id: string; title: string }>;
-  };
+  composerDraft: ComposerDraft | null;
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
   setComposerDraft(
     text: string,
-    replace?: boolean,
-    extras?: {
-      attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
-      sessionRefs?: Array<{ id: string; title: string }>;
-    },
+    options: Pick<ComposerDraft, "sessionId" | "attachments" | "sessionRefs"> & { replace?: boolean },
   ): void;
 
   /**
@@ -559,7 +568,7 @@ export const useApp = create<AppState>((set, get) => ({
   scratchRoots: [],
   scratchCwd: null,
   parkedProject: null,
-  composerDraft: { text: "", replace: false },
+  composerDraft: null,
   browserAttachment: null,
   drafts: {},
   activeSessionId: null,
@@ -680,15 +689,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
-  setComposerDraft: (text, replace = false, extras) =>
-    set({
-      composerDraft: {
-        text,
-        replace,
-        attachments: extras?.attachments ?? [],
-        sessionRefs: extras?.sessionRefs ?? [],
-      },
-    }),
+  setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [] }) =>
+    set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs } }),
   setDraft: (key, draft) =>
     set((state) => {
       if (!draft || (!draft.text.trim() && (!draft.attachments || draft.attachments.length === 0) && !draft.sessionRefs?.length)) {

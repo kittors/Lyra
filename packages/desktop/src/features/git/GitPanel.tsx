@@ -2,7 +2,7 @@ import { Activity, AlertCircle, ArrowDownToLine, ArrowUpFromLine, GitBranch, Git
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { usePaneOnScreen } from "../dock/index.ts";
-import { useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
+import { useScopedRunning, useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { syncPlan, type SyncButton } from "./syncPlan.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 
@@ -210,6 +210,8 @@ export function GitPanel() {
    */
   const { workspace } = useScopedWorkspace();
   const running = useScopedRunning();
+  // What the panel asks the agent goes to the composer of the screen it is drawn in.
+  const screen = useScopedSessionId();
   const [view, setView] = useState<View>("changes");
 	const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   /*
@@ -570,7 +572,7 @@ export function GitPanel() {
                 .getState()
                 .setComposerDraft(
                   t("git.brokenRepoPrompt", { error: workspace.gitProblem ?? "" }),
-                  true,
+                  { sessionId: screen, replace: true },
                 );
             }}
           >
@@ -610,7 +612,7 @@ export function GitPanel() {
                 .getState()
                 .setComposerDraft(
                   t("git.noRepoPrompt", { path: workspace.path }),
-                  true,
+                  { sessionId: screen, replace: true },
                 );
             }}
           >

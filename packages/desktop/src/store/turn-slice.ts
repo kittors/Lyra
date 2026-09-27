@@ -340,7 +340,8 @@ export function turnSlice(set: Set, get: Get) {
       await bridge.agent.revertMessage(sessionId, index);
       if (get().activeSessionId !== sessionId) return;
       const draft = draftFromUserMessage(message as UserMessage);
-      get().setComposerDraft(draft.text, false, {
+      get().setComposerDraft(draft.text, {
+        sessionId,
         attachments: draft.attachments,
         sessionRefs: draft.sessionRefs,
       });

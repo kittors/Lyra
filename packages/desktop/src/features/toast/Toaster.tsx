@@ -80,6 +80,8 @@ export function Toaster() {
 					message,
 					...(context.length > 0 ? ["", ...context] : []),
 				].join("\n"),
+				// The conversation just started, which is the live one now — not every screen a split shows.
+				{ sessionId: useApp.getState().activeSessionId },
 			);
 		},
 		[newSession, setComposerDraft],

@@ -85,7 +85,7 @@ test("undoing the last user message cuts the tail and fills the composer", async
 		meta: active.meta,
 		messages: active.messages,
 		running: false,
-		composerDraft: { text: "", replace: false, attachments: [], sessionRefs: [] },
+		composerDraft: null,
 	});
 	const called: number[] = [];
 	Object.defineProperty(window, "lyra", { configurable: true, value: {
@@ -94,7 +94,8 @@ test("undoing the last user message cuts the tail and fills the composer", async
 	await useApp.getState().revertMessage(0);
 	assert.deepEqual(called, [0]);
 	assert.deepEqual(useApp.getState().messages, []);
-	assert.equal(useApp.getState().composerDraft.text, "相同的问题");
+	assert.equal(useApp.getState().composerDraft?.text, "相同的问题");
+	assert.equal(useApp.getState().composerDraft?.sessionId, "a", "for the conversation it was undone in, not every screen");
 	assert.equal(useApp.getState().running, false);
 });
 
@@ -105,14 +106,14 @@ test("an offline undo restores the transcript and does not fill the composer", a
 		meta: active.meta,
 		messages: active.messages,
 		running: false,
-		composerDraft: { text: "", replace: false, attachments: [], sessionRefs: [] },
+		composerDraft: null,
 	});
 	Object.defineProperty(window, "lyra", { configurable: true, value: {
 		agent: { revertMessage: async () => { throw new Error("offline"); } },
 	} });
 	await useApp.getState().revertMessage(0);
 	assert.equal(useApp.getState().messages, active.messages);
-	assert.equal(useApp.getState().composerDraft.text, "");
+	assert.equal(useApp.getState().composerDraft, null);
 	assert.ok(useApp.getState().notices.some((notice) => notice.message.includes("撤销失败")));
 });
 
