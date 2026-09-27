@@ -11,6 +11,7 @@
  * about a failure is exactly the code you cannot test by causing the failure.
  */
 
+import { nativeText, type NativeMessageKey } from "../i18n.ts";
 import type { ForgeKind } from "./types.ts";
 
 /** A failure with the host's own status attached, so callers can tell 401 from 500. */
@@ -24,12 +25,16 @@ export class ForgeError extends Error {
 	}
 }
 
-/** What each host calls the thing you have to go fix when it says 401. */
-const TOKEN_NAME: Record<ForgeKind, string> = {
-	github: "GitHub 令牌",
-	gitlab: "GitLab 令牌",
-	gitee: "Gitee 私人令牌",
-	gitea: "Gitea 令牌",
+/**
+ * What to say when a host answers 401, naming the thing you have to go fix the way that host names
+ * it. A whole sentence per host rather than a name dropped into one sentence, because where the
+ * name goes, and what form it takes there, is up to each language.
+ */
+const TOKEN_INVALID: Record<ForgeKind, NativeMessageKey> = {
+	github: "forge.githubTokenInvalid",
+	gitlab: "forge.gitlabTokenInvalid",
+	gitee: "forge.giteeTokenInvalid",
+	gitea: "forge.giteaTokenInvalid",
 };
 
 /**
@@ -40,9 +45,11 @@ const TOKEN_NAME: Record<ForgeKind, string> = {
  * internal service nobody outside that company can act on — so it is never the whole message.
  */
 export function describeStatus(status: number, detail: string, kind: ForgeKind): string {
-	const extra = detail.trim() ? `：${detail.trim().split("\n")[0].slice(0, 160)}` : "";
+	const said = detail.trim().split("\n")[0].slice(0, 160);
+	// Joined with the interface language's own separator: 「：」 in Chinese, ": " in English.
+	const withDetail = (message: string) => (said ? nativeText("forge.withDetail", { message, detail: said }) : message);
 
-	if (status === 401) return `${TOKEN_NAME[kind]}无效或已过期，去设置里重新填一个`;
+	if (status === 401) return nativeText(TOKEN_INVALID[kind]);
 	/*
 	 * 403 is two different problems wearing one number, and the fix is opposite in each case.
 	 *
@@ -51,14 +58,14 @@ export function describeStatus(status: number, detail: string, kind: ForgeKind):
 	 * why it is read rather than merely appended here.
 	 */
 	if (status === 403) {
-		if (/rate limit|too many/i.test(detail)) return "被限流了，过一会儿会自动恢复";
-		return `没有权限做这件事${extra || "，检查令牌的 scope"}`;
+		if (/rate limit|too many/i.test(detail)) return nativeText("forge.rateLimited");
+		return said ? withDetail(nativeText("forge.forbidden")) : nativeText("forge.forbiddenScope");
 	}
-	if (status === 404) return "找不到这个仓库或 PR，可能是没有访问权限，也可能是令牌 scope 不够";
-	if (status === 422) return `对方拒绝了这次提交${extra}`;
-	if (status === 429) return "被限流了，过一会儿会自动恢复";
-	if (status >= 500) return `对方服务出错了（${status}）${extra}`;
-	return `请求失败（${status}）${extra}`;
+	if (status === 404) return nativeText("forge.notFound");
+	if (status === 422) return withDetail(nativeText("forge.rejected"));
+	if (status === 429) return nativeText("forge.rateLimited");
+	if (status >= 500) return withDetail(nativeText("forge.serverError", { status }));
+	return withDetail(nativeText("forge.requestFailed", { status }));
 }
 
 /**
@@ -72,18 +79,18 @@ export function networkMessage(error: unknown, baseUrl: string): string {
 	const host = hostLabel(baseUrl);
 	const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 
-	if (/TimeoutError|AbortError|timed? ?out/i.test(message)) return `连接 ${host} 超时`;
-	if (/ENOTFOUND|EAI_AGAIN|getaddrinfo|NAME_NOT_RESOLVED/i.test(message)) return `解析不到 ${host}，检查地址或网络`;
-	if (/ECONNREFUSED|CONNECTION_REFUSED/i.test(message)) return `${host} 拒绝连接，服务可能没在跑`;
-	if (/CERT|certificate|SSL|TLS/i.test(message)) return `${host} 的证书没通过校验`;
-	return `连不上 ${host}`;
+	if (/TimeoutError|AbortError|timed? ?out/i.test(message)) return nativeText("forge.timeout", { host });
+	if (/ENOTFOUND|EAI_AGAIN|getaddrinfo|NAME_NOT_RESOLVED/i.test(message)) return nativeText("forge.unresolved", { host });
+	if (/ECONNREFUSED|CONNECTION_REFUSED/i.test(message)) return nativeText("forge.refused", { host });
+	if (/CERT|certificate|SSL|TLS/i.test(message)) return nativeText("forge.certificate", { host });
+	return nativeText("forge.unreachable", { host });
 }
 
 function hostLabel(baseUrl: string): string {
 	try {
 		return new URL(baseUrl).host;
 	} catch {
-		return baseUrl || "服务器";
+		return baseUrl || nativeText("forge.theServer");
 	}
 }
 
@@ -97,5 +104,5 @@ function hostLabel(baseUrl: string): string {
 export function describe(error: unknown): string {
 	if (error instanceof ForgeError) return error.message;
 	const message = error instanceof Error ? error.message : String(error);
-	return message.split("\n")[0].slice(0, 200) || "出错了";
+	return message.split("\n")[0].slice(0, 200) || nativeText("forge.unknownError");
 }

@@ -10,6 +10,7 @@
 
 import { isDue } from "@lyra/core";
 import type { AgentSession, ScheduledTask, Settings } from "@lyra/core";
+import { nativeText } from "./i18n.ts";
 
 const TICK_MS = 60_000;
 
@@ -17,6 +18,7 @@ export interface SchedulerDeps {
 	getSettings(): Settings;
 	saveSettings(settings: Settings): Promise<void>;
 	createSession(cwd: string, modelId: string): Promise<AgentSession>;
+	/** A notice for the window, already in the interface language. */
 	notify(message: string, level: "info" | "warn" | "error"): void;
 }
 
@@ -60,17 +62,17 @@ export class Scheduler {
 			const settings = this.deps.getSettings();
 			const session = await this.deps.createSession(task.cwd, settings.defaultModelId ?? "");
 			sessionId = session.meta.id;
-			this.deps.notify(`已安排任务「${task.name}」开始运行`, "info");
+			this.deps.notify(nativeText("scheduled.started", { name: task.name }), "info");
 			// Not awaited: the turn can run for minutes and must not block the tick.
 			void session.prompt([{ type: "text", text: task.prompt }]).catch((cause: unknown) => {
 				this.deps.notify(
-					`已安排任务「${task.name}」失败：${cause instanceof Error ? cause.message : String(cause)}`,
+					nativeText("scheduled.failed", { name: task.name, reason: cause instanceof Error ? cause.message : String(cause) }),
 					"error",
 				);
 			});
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
-			this.deps.notify(`已安排任务「${task.name}」无法启动：${error}`, "error");
+			this.deps.notify(nativeText("scheduled.couldNotStart", { name: task.name, reason: error }), "error");
 		} finally {
 			this.running.delete(task.id);
 			// Record the attempt either way, so a failing task does not retry every minute.

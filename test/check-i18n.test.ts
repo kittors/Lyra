@@ -87,3 +87,22 @@ test("a comment inside a template expression is still a comment", () => {
 	const source = "const a = `${/* 这里解释一下 */ value}`;\nconst b = \"标签\";\n";
 	assert.deepEqual(found(source), ['"标签"']);
 });
+
+test("what only reaches a log is not a finding, and what reaches a person still is", () => {
+	/*
+	 * The main process is scanned too, and it logs in Chinese on purpose: those lines are for
+	 * whoever is debugging. A console call is skipped whole, however many lines its arguments run
+	 * to — but only a real one, not a string that happens to mention one, and nothing after it.
+	 */
+	const source = [
+		'console.error("[terminal] node-pty 加载失败:", error);',
+		"console.warn(",
+		"\t`[lyra] 清理了 ${n} 个空会话（${reason(\"原因\")}）`,",
+		");",
+		'notify("已安排任务开始运行");',
+		"page.run(\"console.log('不是日志')\");",
+	].join("\n");
+	assert.deepEqual(found(source, { jsx: false }), ['"已安排任务开始运行"', "\"console.log('不是日志')\""]);
+	const lines = (findings(source, { jsx: false }) as { line: number }[]).map((one) => one.line);
+	assert.deepEqual(lines, [5, 6], "a call spread over lines leaves the numbering after it intact");
+});

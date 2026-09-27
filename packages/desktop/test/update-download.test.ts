@@ -23,7 +23,9 @@ import { basename, join } from "node:path";
 import { after, test, type TestContext } from "node:test";
 import type { AddressInfo } from "node:net";
 
-import { describe, downloadDir, partialPath, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
+import { describe, DownloadError, downloadDir, partialPath, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
+import { NATIVE_CATALOGS, nativeText, setInterfaceLocaleSource, type NativeLocale } from "../electron/i18n.ts";
+import { verify } from "../electron/update-checksum.ts";
 
 /** The payload every test downloads: big enough to arrive in several chunks, small enough to be quick. */
 const BODY = Buffer.from(Array.from({ length: 200_000 }, (_, i) => i % 251));
@@ -613,7 +615,15 @@ test("a connection that never opened points at the network, not at the download"
 
 test("our own messages are already specific and are passed through", () => {
 	const mine = "下载不完整：拿到 100 字节，应为 200";
-	assert.equal(describe(new Error(mine), 100), mine);
+	assert.equal(describe(new DownloadError(mine), 100), mine);
+	/*
+	 * Recognised by their type, not by their wording. They used to be picked out by starting with
+	 * 「下载」, which is true in exactly one language. One that happens to read like a dropped
+	 * connection still goes through untouched — the same words thrown by anything else do not.
+	 */
+	const worded = "Download aborted: the server sent 100 of 200 bytes";
+	assert.equal(describe(new DownloadError(worded), 100), worded);
+	assert.notEqual(describe(new Error(worded), 100), worded);
 });
 
 test("an unknown Windows write failure does not guess which program blocked it", () => {
@@ -630,6 +640,50 @@ test("permission, busy and IO failures offer write checks without diagnosing Win
 		assert.match(message, /无法写入更新文件/);
 		assert.match(message, /权限/);
 		assert.doesNotMatch(message, /Windows|Defender|安全中心|排除项|已经下好的部分|\/tmp/);
+	}
+});
+
+/** Run `read` with the interface language set to `locale`, and put the default back after. */
+async function inLanguage<T>(locale: NativeLocale, read: () => T | Promise<T>): Promise<T> {
+	setInterfaceLocaleSource(() => locale);
+	try {
+		return await read();
+	} finally {
+		setInterfaceLocaleSource(() => "zh-CN");
+	}
+}
+
+test("a failure is worded in the interface language", async () => {
+	await inLanguage("en", () => {
+		assert.equal(
+			describe(new Error("terminated"), 50_000),
+			"The download was interrupted. What is already down is kept, and resuming carries on from there.",
+		);
+		assert.equal(describe(new Error("terminated"), 0), "The download was interrupted. You can try again.");
+		assert.equal(describe(new TypeError("fetch failed"), 0), "Could not reach the download address. Check the network and try again.");
+		assert.match(describe(new Error("EACCES: open '/tmp/download.part'"), 10), /^The update file could not be written\. .* What is already down is kept\.$/);
+		assert.equal(describe(new Error(""), 0), "Download failed");
+		assert.deepEqual(resumePlan(10, 416), { error: "The part already downloaded does not match this version" });
+	});
+	await inLanguage("ja", () => {
+		assert.equal(describe(new Error("read ECONNRESET"), 0), "ダウンロードが中断されました。やり直せます。");
+	});
+});
+
+test("what verification says reaches the dialog as written, in every language", async () => {
+	/*
+	 * A failed check is thrown as a plain error and worded by the same function as a network
+	 * failure, so a translation that happened to contain "aborted", or "open" beside "EIO", would be
+	 * swapped for a sentence about the connection. None of them may.
+	 */
+	const [a, b] = ["a".repeat(64), "b".repeat(64)];
+	for (const locale of Object.keys(NATIVE_CATALOGS) as NativeLocale[]) {
+		await inLanguage(locale, () => {
+			const said = [verify(new Map(), "x.zip", a), verify(new Map([["y.zip", a]]), "x.zip", a), verify(new Map([["x.zip", a]]), "x.zip", b)]
+				.map((verdict) => (verdict.ok ? "" : verdict.message))
+				.concat(nativeText("update.noChecksums"));
+			for (const message of said) assert.equal(describe(new Error(message), 100), message, `${locale}: ${message}`);
+		});
 	}
 });
 
@@ -724,4 +778,31 @@ test("发布没有带校验文件时，宁可不装", async () => {
 	assert.equal(await exists(join(dir, "Lyra.zip")), false);
 
 	await harness.close();
+});
+
+test("a refused package says why in the interface language", async () => {
+	// The whole way through — checksum, verdict, the phase a window draws — not just the catalog.
+	const unlisted = await serve();
+	const bad = await serve({ sums: `${"0".repeat(64)}  Lyra.zip\n` });
+	try {
+		const missing = await inLanguage("en", () => downloadInto(dir(), unlisted.url, null).start());
+		assert.equal(
+			missing.at === "failed" ? missing.error : missing.at,
+			"This release has no checksum file, so the package cannot be confirmed intact. Download it by hand from the release page.",
+		);
+		const wrong = await inLanguage("fr", () => downloadInto(dir(), bad.url).start());
+		assert.match(
+			wrong.at === "failed" ? wrong.error : wrong.at,
+			/^La somme de contrôle du paquet ne correspond pas à celle publiée \(attendue 0{12}…, obtenue [0-9a-f]{12}…\)\. Le fichier téléchargé a été supprimé\.$/,
+		);
+	} finally {
+		await unlisted.close();
+		await bad.close();
+	}
+
+	function dir(): string {
+		const path = join(tmpdir(), `lyra-dl-lang-${Math.random().toString(36).slice(2)}`);
+		dirs.push(path);
+		return path;
+	}
 });

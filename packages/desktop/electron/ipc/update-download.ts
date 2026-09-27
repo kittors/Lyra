@@ -24,6 +24,7 @@
 import { mkdir, open, readdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { renameWithRetry } from "@lyra/core";
+import { nativeText } from "../i18n.ts";
 import { parseChecksums, sha256, verify, type Verdict } from "../update-checksum.ts";
 
 /**
@@ -42,6 +43,21 @@ export type DownloadPhase =
 	/** Done. `relaunch` distinguishes an update we can swap in from an installer the OS now has. */
 	| { at: "ready"; relaunch: boolean }
 	| { at: "failed"; error: string; received: number; total: number };
+
+/**
+ * A failure this file raised itself, already worded for whoever reads it.
+ *
+ * Told apart from everything else by its type. `describe` used to recognise these by how they
+ * began — 「下载」, 「已下载」 — which held only while they were written in one language: in any
+ * other, "Download incomplete: …" would have been taken for a raw socket error and swapped for a
+ * guess about the network.
+ */
+export class DownloadError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "DownloadError";
+	}
+}
 
 /**
  * What a partial file and a response say to do with them.
@@ -66,8 +82,8 @@ export function resumePlan(
 	 * asset. That is not resumable and not trustworthy — most likely the release was rebuilt under
 	 * the same name — so the partial goes and the caller starts again.
 	 */
-	if (status === 416) return { error: "已下载的部分和这个版本对不上" };
-	return { error: `下载失败：${status}` };
+	if (status === 416) return { error: nativeText("update.partialMismatch") };
+	return { error: nativeText("update.downloadStatus", { status }) };
 }
 
 /** How a caller is told about every change, including the ones it did not ask for. */
@@ -172,11 +188,7 @@ export class UpdateDownload {
 	 */
 	private async check(): Promise<Verdict> {
 		if (!this.target.checksums) {
-			return {
-				ok: false,
-				reason: "no-checksums",
-				message: "这个版本没有发布校验文件，无法确认安装包完整。请到发布页手动下载。",
-			};
+			return { ok: false, reason: "no-checksums", message: nativeText("update.noChecksums") };
 		}
 
 		let text: string;
@@ -190,7 +202,7 @@ export class UpdateDownload {
 			return {
 				ok: false,
 				reason: "no-checksums",
-				message: `没能取到校验文件（${error instanceof Error ? error.message : String(error)}），这次不安装。`,
+				message: nativeText("update.checksumsUnreachable", { reason: error instanceof Error ? error.message : String(error) }),
 			};
 		}
 
@@ -260,7 +272,7 @@ export class UpdateDownload {
 			 */
 			const written = await this.have();
 			if (written !== this.target.size) {
-				throw new Error(`下载不完整：拿到 ${written} 字节，应为 ${this.target.size}`);
+				throw new DownloadError(nativeText("update.incomplete", { received: written, expected: this.target.size }));
 			}
 
 			/*
@@ -329,9 +341,9 @@ export class UpdateDownload {
 			// A partial we cannot continue from is worse than none: it would be resumed again next
 			// time and fail again in the same way.
 			await rm(this.partial, { force: true });
-			throw new Error(plan.error);
+			throw new DownloadError(plan.error);
 		}
-		if (!response.body) throw new Error("下载没有返回内容");
+		if (!response.body) throw new DownloadError(nativeText("update.emptyBody"));
 
 		/*
 		 * The total, preferring what this response is actually going to deliver.
@@ -453,24 +465,16 @@ export async function sweepDownloads(root: string, keep: string | string[]): Pro
  * Exported for the test, because the mapping is the whole of what this does.
  */
 export function describe(error: unknown, received: number): string {
-	const raw = error instanceof Error ? error.message : String(error);
-
 	// Ours already, and already specific: it says how many bytes short it came.
-	if (raw.startsWith("下载") || raw.startsWith("已下载")) return raw;
+	if (error instanceof DownloadError) return error.message;
 
+	const raw = error instanceof Error ? error.message : String(error);
 	const dropped = /terminated|ECONNRESET|socket hang up|aborted|other side closed/i.test(raw);
-	if (dropped) {
-		return received > 0 ? "下载中断了。已经下好的部分留着，继续会接着下。" : "下载中断了，可以重试。";
-	}
-	if (/fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT/i.test(raw)) {
-		return "连不上下载地址，检查一下网络再试。";
-	}
+	if (dropped) return nativeText(received > 0 ? "update.interruptedKept" : "update.interrupted");
+	if (/fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT/i.test(raw)) return nativeText("update.unreachable");
 	// An open error identifies the failed operation, not the program or policy responsible.
-	if (isBlockedWrite(raw)) {
-		const message = "无法写入更新文件。请检查更新目录的写入权限，并确认文件没有被其他程序占用，再点重试。";
-		return received > 0 ? `${message}已经下好的部分还在。` : message;
-	}
-	return raw || "下载失败";
+	if (isBlockedWrite(raw)) return nativeText(received > 0 ? "update.notWritableKept" : "update.notWritable");
+	return raw || nativeText("update.downloadFailed");
 }
 
 /** A sibling of the finished file, deliberately not named `*.exe.part`. */

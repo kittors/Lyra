@@ -8,6 +8,7 @@
  */
 
 import { isAbsolute, relative, resolve } from "node:path";
+import { nativeText } from "./i18n.ts";
 
 /**
  * The deepest root containing `target`, with both sides resolved — or null.
@@ -85,25 +86,28 @@ const WINDOWS_ILLEGAL = /["*:<>?|]/;
  *
  * The Windows rules are applied on Windows only, but they are applied — a project synced between
  * machines does not stop being one because the name was typed on a Mac.
+ *
+ * The reason is in the interface language: it goes back to the renderer as the operation's error,
+ * and is shown as it is.
  */
 export function validateName(name: string, platform: string = process.platform): string | null {
-	if (name === "") return "名字不能为空";
-	if (name !== name.trim()) return "名字前后不能有空格";
-	if (name === "." || name === "..") return "不能用 . 或 .. 作为名字";
-	if (name.includes("\0")) return "名字里有不允许的字符";
-	if (name.includes("/")) return "名字里不能有 /";
+	if (name === "") return nativeText("files.nameEmpty");
+	if (name !== name.trim()) return nativeText("files.nameSpaceAround");
+	if (name === "." || name === "..") return nativeText("files.nameDots");
+	if (name.includes("\0")) return nativeText("files.nameNul");
+	if (name.includes("/")) return nativeText("files.nameSlash");
 	// Rejected on every platform: it is a separator on Windows, and a name carrying one would mean
 	// two different paths depending on where the project is opened.
-	if (name.includes("\\")) return "名字里不能有 \\";
+	if (name.includes("\\")) return nativeText("files.nameBackslash");
 	// The limit is per component on every filesystem worth naming, and it is counted in bytes —
 	// which is four per character for an emoji and three for most Chinese.
-	if (Buffer.byteLength(name, "utf8") > 255) return "名字太长";
+	if (Buffer.byteLength(name, "utf8") > 255) return nativeText("files.nameTooLong");
 
 	if (platform === "win32") {
-		if (WINDOWS_ILLEGAL.test(name)) return '名字里不能有 " * : < > ? |';
-		if (name.endsWith(".")) return "名字不能以点结尾";
+		if (WINDOWS_ILLEGAL.test(name)) return nativeText("files.nameWindowsChars");
+		if (name.endsWith(".")) return nativeText("files.nameTrailingDot");
 		const stem = name.split(".")[0]?.toLowerCase() ?? "";
-		if (RESERVED.has(stem)) return `${name} 是系统保留名`;
+		if (RESERVED.has(stem)) return nativeText("files.nameReserved", { name });
 	}
 	return null;
 }

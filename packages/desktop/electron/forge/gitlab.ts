@@ -15,6 +15,7 @@
 
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import { parseUnifiedDiff } from "../diff-parse.ts";
+import { nativeText } from "../i18n.ts";
 import type { Relation } from "../pr-summary.ts";
 import { assembleDiff } from "./patch.ts";
 import { DIFF_TIMEOUT_MS, json } from "./http.ts";
@@ -126,7 +127,7 @@ export const gitlab: ForgeDriver = {
 
 	async identify(conn: ForgeConnection): Promise<ForgeIdentity> {
 		const user = await json<{ username?: string; name?: string; avatar_url?: string }>(conn, "/user");
-		if (!user?.username) throw new Error("令牌有效，但读不到用户信息");
+		if (!user?.username) throw new Error(nativeText("forge.noUserInfo"));
 		return { login: user.username, name: user.name || user.username, avatarUrl: user.avatar_url ?? null };
 	},
 
@@ -157,7 +158,7 @@ export const gitlab: ForgeDriver = {
 		 * avoid, so the first error is rethrown when nothing at all came back.
 		 */
 		const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-		if (ok.length === 0) throw results.find((r) => r.status === "rejected")?.reason ?? new Error("读不到合并请求");
+		if (ok.length === 0) throw results.find((r) => r.status === "rejected")?.reason ?? new Error(nativeText("forge.noMergeRequests"));
 
 		const seen = new Set<string>();
 		return ok

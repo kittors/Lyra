@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { nativeText } from "../i18n.ts";
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import { defaultLabel, normalizeServer, sameIdentity } from "./accounts.ts";
 import { describe } from "./errors.ts";
@@ -40,9 +41,9 @@ export type ListResult = {
  */
 async function connect(accountId: string): Promise<ForgeConnection> {
 	const account = await accountById(accountId);
-	if (!account) throw new Error("这个账号已经不在了，去设置里重新添加");
+	if (!account) throw new Error(nativeText("forge.accountGone"));
 	const token = await tokenFor(accountId);
-	if (!token) throw new Error(`${account.label} 的令牌读不出来了，去设置里重新填一次`);
+	if (!token) throw new Error(nativeText("forge.tokenUnreadable", { account: account.label }));
 	return { account, token };
 }
 
@@ -70,7 +71,7 @@ export function listPullRequests(): Promise<ListResult> {
 async function collect(): Promise<ListResult> {
 	const accounts = (await listAccounts()).filter((account) => account.enabled);
 	if (accounts.length === 0) {
-		return { pullRequests: [], errors: {}, error: "还没有添加代码托管账号" };
+		return { pullRequests: [], errors: {}, error: nativeText("forge.noAccounts") };
 	}
 
 	const results = await Promise.all(
@@ -105,7 +106,7 @@ async function collect(): Promise<ListResult> {
 	return {
 		pullRequests,
 		errors,
-		...(allFailed ? { error: results.length === 1 ? results[0].error! : "所有账号都没能读到 Pull Request" } : {}),
+		...(allFailed ? { error: results.length === 1 ? results[0].error! : nativeText("forge.allAccountsFailed") } : {}),
 	};
 }
 
@@ -141,7 +142,7 @@ export async function commentOnPullRequest(
 	number: number,
 	body: string,
 ): Promise<{ error?: string }> {
-	if (!body.trim()) return { error: "评论不能为空" };
+	if (!body.trim()) return { error: nativeText("forge.emptyComment") };
 	try {
 		const conn = await connect(accountId);
 		await driverFor(conn.account.kind).comment(conn, repo, number, body);
@@ -160,7 +161,7 @@ export async function reviewPullRequest(
 ): Promise<{ error?: string }> {
 	// Every host refuses a change request with no explanation, and the errors they return for it
 	// are opaque. Answering here costs a round trip nobody has to think about.
-	if (verdict === "request-changes" && !body.trim()) return { error: "请求修改需要说明理由" };
+	if (verdict === "request-changes" && !body.trim()) return { error: nativeText("forge.changesNeedReason") };
 	try {
 		const conn = await connect(accountId);
 		await driverFor(conn.account.kind).review(conn, repo, number, verdict, body);
@@ -185,8 +186,8 @@ export async function signIn(input: {
 	label?: string;
 }): Promise<{ account?: ForgeAccount; error?: string }> {
 	const baseUrl = normalizeServer(input.baseUrl);
-	if (!baseUrl) return { error: "服务地址填得不对，应该像 https://gitlab.com" };
-	if (!input.token.trim()) return { error: "把令牌粘贴进来" };
+	if (!baseUrl) return { error: nativeText("forge.badServer") };
+	if (!input.token.trim()) return { error: nativeText("forge.noToken") };
 
 	const draft: ForgeAccount = {
 		id: randomUUID(),
