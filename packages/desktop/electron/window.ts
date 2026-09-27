@@ -259,7 +259,7 @@ export function closePanelWindow(input: { kind: string; scope: string }): boolea
  * file that opened somewhere the user is not looking is indistinguishable from nothing happening
  * — which is exactly the bug this fixes.
  */
-export function requestOpenPanel(input: { kind: string; beside?: unknown }): boolean {
+export function requestOpenPanel(input: { kind: string; beside?: unknown; scope?: string; file?: { path: string; name: string } }): boolean {
 	if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
 	if (mainWindow.isMinimized()) mainWindow.restore();
 	mainWindow.show();

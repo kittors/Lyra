@@ -733,7 +733,18 @@ export function Composer() {
 						 */
 						icon={chatting ? <MessageSquare size={13} strokeWidth={1.8} /> : <Folder size={13} strokeWidth={1.8} />}
 						label={workspace?.name ?? (chatting ? "Chat" : t("composer.selectProject"))}
-						onClick={projectMenu.toggle}
+						onClick={(event) => {
+							/*
+							 * What this menu does happens in the live slot: a project chosen from it, or 不在项目中工作,
+							 * starts the slot's next conversation. A press on the screen puts it in the live slot
+							 * first; the keyboard reaches the chip without that press, and a project chosen from a
+							 * blank screen started 新对话 from the conversation beside it — which in a split closes
+							 * every other screen, this one included. Taking the slot the way the press does makes
+							 * the two the same.
+							 */
+							if (!projectMenu.open && activeSessionId !== useApp.getState().activeSessionId) focusScreenOf(activeSessionId);
+							projectMenu.toggle(event);
+						}}
 						active={projectMenu.open}
 					/>
 					{workspace?.branch && (

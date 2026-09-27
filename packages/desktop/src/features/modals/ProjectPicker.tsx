@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { ProjectDialog } from "./ProjectDialog.tsx";
 import { useLayout } from "../../app/layout.tsx";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -16,7 +17,8 @@ import { useI18n } from "../../i18n/index.ts";
 export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: () => void }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
-	const workspace = useApp((s) => s.workspace);
+	// The project of the screen the chip is on, which is what the tick answers — not the focused one's.
+	const { workspace } = useScopedWorkspace();
 	const openWorkspace = useApp((s) => s.openWorkspace);
 	const clearWorkspace = useApp((s) => s.clearWorkspace);
 	// Switching projects changes what is behind the drawer, so the drawer has to go with it.

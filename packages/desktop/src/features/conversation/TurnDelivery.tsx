@@ -125,12 +125,15 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			rememberDelivery(sessionId, timestamp, value);
 			if (live.current) setData(value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
+			// This conversation's review, and only while it shows this turn: another turn's is not this undo's to touch.
+			const showing = useDeliveryReview.getState().reviews[sessionId]?.target.timestamp === timestamp;
+			if (!showing) return;
 			if (!value.files.length) {
-				useDeliveryReview.getState().close();
+				useDeliveryReview.getState().close(sessionId);
 				usePaneDock.getState().close(sessionId, "delivery");
 			} else {
-				useDeliveryReview.getState().setData(value);
-				useDeliveryReview.getState().touch();
+				useDeliveryReview.getState().setData(sessionId, value);
+				useDeliveryReview.getState().touch(sessionId);
 			}
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 		finally { undoLock.current = false; if (live.current) setUndoing(false); }

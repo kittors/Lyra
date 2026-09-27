@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { findModel } from "../models/index.ts";
 import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
-import { useDockScope } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
@@ -67,7 +67,14 @@ export function SideComposer({
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
-	const meta = useApp((s) => s.meta);
+	/*
+	 * The conversation this side chat is beside, which is what 「跟随主会话」 follows.
+	 *
+	 * Not the live slot's `meta`: that is the focused screen's, and under another screen it named the
+	 * focused conversation's model and effort as the ones the next question would use. The request
+	 * itself was always right — the main process reads the side chat's own conversation.
+	 */
+	const meta = useScopedMeta();
 	const sessionId = useSideSessionId();
 	// The screen this side chat is docked in, where a file marked here opens — not the one with focus.
 	const screen = useDockScope();

@@ -8,7 +8,7 @@ import { SearchField } from "../../../ui/inputs/SearchField.tsx";
 import { formatTokens } from "../../../lib/format-tokens.ts";
 import { TraceActions } from "./TraceActions.tsx";
 import { useApp } from "../../../store/index.ts";
-import { useDockScope, useScopedMeta } from "../../../app/session-scope.tsx";
+import { focusScreenOf, useDockScope, useScopedMeta } from "../../../app/session-scope.tsx";
 import { useOpenFile } from "../../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../../dock/index.ts";
 import { SourceFilter } from "./SourceFilter.tsx";
@@ -83,7 +83,17 @@ function SessionTrajectory() {
 	};
 	const fork = async () => {
 		if (!meta || !picked) return;
-		try { const result = await bridge.sessions.fork(meta.projectId, meta.id, picked.seq); if (result) await useApp.getState().openSession(result.meta); else throw new Error(t("trajectory.forkFailed")); }
+		try {
+			const result = await bridge.sessions.fork(meta.projectId, meta.id, picked.seq);
+			if (!result) throw new Error(t("trajectory.forkFailed"));
+			/*
+			 * In this panel's screen, where it was asked for. A press there focuses the screen first, so
+			 * the fork took its place; from the keyboard it replaced the screen with focus instead. This
+			 * screen takes the live slot the way the press does — the capsule in `UserMessage` is the same.
+			 */
+			if (meta.id !== useApp.getState().activeSessionId) focusScreenOf(meta.id);
+			await useApp.getState().openSession(result.meta);
+		}
 		catch (error) { useApp.getState().notify(String(error), "error"); }
 	};
 	const selectedIndex = entries.findIndex(entry => entryKey(entry) === selected);

@@ -157,7 +157,24 @@ export function registerWindowsIpc(): void {
 			if (share !== undefined && (typeof share !== "number" || !(share > 0 && share < 1))) return { ok: false };
 			beside = { kind: hint.kind, side: hint.side, ...(share === undefined ? {} : { share }) };
 		}
-		return { ok: requestOpenPanel({ kind: input.kind, ...(beside ? { beside } : {}) }) };
+		/*
+		 * The screen the panel came from and, for the file pane, the file to open: two plain strings
+		 * each, and nothing else of them is forwarded. A screen the main window no longer shows falls
+		 * back to its focused one there, and the file is read by the main window through the same
+		 * boundary a click there goes through — naming a path grants nothing.
+		 */
+		const origin = "scope" in input ? input.scope : undefined;
+		if (origin !== undefined && origin !== null && (typeof origin !== "string" || !origin)) return { ok: false };
+		const named = "file" in input ? input.file : undefined;
+		let file: { path: string; name: string } | undefined;
+		if (named !== undefined && named !== null) {
+			if (input.kind !== "file" || typeof named !== "object" || !("path" in named) || !("name" in named)) return { ok: false };
+			if (typeof named.path !== "string" || !named.path || typeof named.name !== "string") return { ok: false };
+			file = { path: named.path, name: named.name };
+		}
+		return {
+			ok: requestOpenPanel({ kind: input.kind, ...(beside ? { beside } : {}), ...(typeof origin === "string" ? { scope: origin } : {}), ...(file ? { file } : {}) }),
+		};
 	});
 	ipcMain.handle("windows:filePanelState", (event, input?: unknown) => {
 		if (!trustedWindow(event)) return null;
