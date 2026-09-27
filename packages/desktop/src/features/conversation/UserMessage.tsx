@@ -15,6 +15,7 @@ import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
@@ -128,10 +129,19 @@ export function UserMessage({
   index: number;
 }) {
 	const { t } = useI18n();
-	const running = useApp((s) => s.running);
+	/*
+	 * This screen's conversation, for what the two buttons below show and for whom they act.
+	 *
+	 * They read the live slot — the focused screen's conversation. Pressing a message on another
+	 * screen focuses that screen first, so clicks happened to act on the right one; from the keyboard
+	 * 撤回 and 编辑并重新发送 took back or rewrote the message at the same place in the conversation
+	 * beside it, on disk.
+	 */
+	const sessionId = useScopedSessionId();
+	const running = useScopedRunning();
 	const editMessage = useApp((s) => s.editMessage);
 	const revertMessage = useApp((s) => s.revertMessage);
-	const lastUser = useApp((s) => lastUserMessageIndex(s.messages));
+	const lastUser = useScopedFromMessages(lastUserMessageIndex);
 	const confirm = useConfirmer();
   const attachmentActions = useAttachmentActions();
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
@@ -275,7 +285,7 @@ export function UserMessage({
     void editMessage(index, [...images, ...bodies, { type: "text", text: trimmed }], {
       displayText: trimmed,
       ...(message.attachments?.length ? { attachments: message.attachments } : {}),
-    });
+    }, sessionId ?? undefined);
   }
 
   if (editing) {
@@ -503,7 +513,7 @@ export function UserMessage({
           disabled={running}
           onClick={() => {
             if (running) return;
-            const run = () => void revertMessage(index);
+            const run = () => void revertMessage(index, sessionId ?? undefined);
             if (index === lastUser) {
               run();
               return;

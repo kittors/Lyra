@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { openScopedPanel } from "../dock/index.ts";
-import { useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 
 /**
@@ -24,6 +24,15 @@ export function ChangeBar() {
   // This screen's project and turn: beside the focused conversation it counted that one's changes.
   const { workspace } = useScopedWorkspace();
   const running = useScopedRunning();
+  /*
+   * And the Git panel opens in this screen, named rather than inferred from focus.
+   *
+   * A press focuses its screen first, so the focused screen used to be the right answer for a click.
+   * The keyboard reaches this bar under a screen without focus, and the panel opened beside the
+   * other conversation.
+   */
+  const screen = useDockScope();
+  const openGit = () => openScopedPanel("review", undefined, screen ?? undefined);
 
   const [stat, setStat] = useState<{
     added: number;
@@ -52,7 +61,7 @@ export function ChangeBar() {
       <button
         type="button"
         data-ly-tip={translate("changeBar.uncommitted", { n: stat.files })}
-        onClick={() => openScopedPanel("review")}
+        onClick={openGit}
         className="ly-scroll flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
       >
         {/*
@@ -82,7 +91,7 @@ export function ChangeBar() {
       <button
         type="button"
         data-ly-tip={translate("changeBar.openGit")}
-        onClick={() => openScopedPanel("review")}
+        onClick={openGit}
         className="grid place-items-center h-[26px] shrink-0 rounded-md text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[26px]"
 			aria-label={translate("commit.commit")}
 		><GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" /></button>

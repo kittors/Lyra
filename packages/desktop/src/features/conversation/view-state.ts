@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp } from "../../store/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 
 interface TranscriptView {
 	windowSize?: number;
@@ -50,7 +50,15 @@ export function useTranscriptWindow(id: string | null, step: number, total: numb
 }
 
 export function useTranscriptDisclosure(key?: string): [boolean, (update: (open: boolean) => boolean) => void] {
-	const id = useApp((s) => (key ? s.activeSessionId : null));
+	/*
+	 * Kept under the conversation this transcript belongs to — its screen's, not the focused one's.
+	 *
+	 * Keyed by the live slot, a split kept every screen's open blocks under whichever conversation had
+	 * focus, so moving focus changed the key under all of them at once: everything opened in every
+	 * screen folded, and came back only when focus did.
+	 */
+	const scoped = useScopedSessionId();
+	const id = key ? scoped : null;
 	const [local, setLocal] = useState({ id, key, open: Boolean(id && key && views.get(id)?.expanded.has(key)) });
 	const open =
 		local.id === id && local.key === key ? local.open : Boolean(id && key && views.get(id)?.expanded.has(key));

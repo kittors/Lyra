@@ -33,15 +33,19 @@ export function applySessionChange(change: SessionChange, set: Set, get: () => A
 		const drafts = { ...state.drafts };
 		// 排着的那几条跟草稿一起走：它们本来就是没发出去的草稿，而要说给它听的那个对话已经没了。
 		const queued = { ...state.queued };
+		// An offer to keep a correction from a conversation that is gone has nothing left to be about.
+		const ruleOffers = !meta && state.ruleOffers?.[id] ? { ...state.ruleOffers } : null;
 		if (!meta) {
 			delete sessionCache[id];
 			delete drafts[id];
 			delete queued[id];
+			if (ruleOffers) delete ruleOffers[id];
 		} else if (sessionCache[id]) {
 			sessionCache[id] = { ...sessionCache[id], meta, dirty: true };
 		}
 		return {
 			sessions, sessionCache, drafts, queued,
+			...(ruleOffers ? { ruleOffers } : {}),
 			...(state.activeSessionId === id && meta ? { meta } : {}),
 			...(!meta && state.pendingSessionId === id ? { pendingSessionId: null } : {}),
 		};

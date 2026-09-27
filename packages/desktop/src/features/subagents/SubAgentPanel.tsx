@@ -125,7 +125,14 @@ export function SubAgentPanel() {
 
 function Dismiss({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
-	const sessionId = useApp((s) => s.activeSessionId);
+	/*
+	 * The conversation of this panel's screen, which dispatched the agent.
+	 *
+	 * It asked the live slot, which is whichever screen has focus. A press focuses its screen first so
+	 * the mouse got it right; the keyboard reaches a panel beside another screen's focus, and there the
+	 * main process was asked to close an agent the focused conversation never had — nothing happened.
+	 */
+	const sessionId = useScopedSessionId();
 	const running = agent.status === "running";
 	return (
 		<button
