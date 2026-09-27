@@ -44,7 +44,6 @@
 	"electron/side-chat-service.ts": 1,
 	"electron/sync-rpc.ts": 5,
 	"electron/sync.ts": 1,
-	"electron/terminal-registry.ts": 1,
 	"electron/trajectory-export.ts": 7,
 	"electron/tray-menu.ts": 1,
 	"electron/turn-delivery.ts": 4
