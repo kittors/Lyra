@@ -8,7 +8,7 @@ import { ModelEditor } from "../../src/features/settings/ModelEditor.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 import { I18nProvider } from "../../src/i18n/index.ts";
-import { MESSAGE_CATALOGS } from "../../src/i18n/messages/index.ts";
+import { translateIn } from "../../src/i18n/translate.ts";
 
 const models = Array.from({ length: 12 }, (_, i) => ({ id: `qa/${i}`, modelId: `model-${i}`, providerId: "qa", name: `Model ${i}`, supportsThinking: true, supportsImages: false, supportsTools: true, contextWindow: 128000, maxOutputTokens: 8192 }));
 const settings: Settings = { ...DEFAULT_SETTINGS, providers: [{ id: "qa", name: "QA", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models }], defaultModelId: "qa/0", favoriteModelIds: ["qa/9"] };
@@ -63,9 +63,9 @@ test("a failed role save leaves the explicit unavailable model visible", async (
 });
 
 test("editing a model retains its explicit thinking capabilities and unrelated protocol settings", async () => {
-	assert.equal(effortLabel("medium", models[0], (key) => MESSAGE_CATALOGS.en[key]), "Medium");
+	assert.equal(effortLabel("medium", models[0], (key) => translateIn("en", key)), "Medium");
 	assert.equal(effortLabel("ultra", { ...models[0], thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "" }] }), "自适应");
-	assert.equal(effortLabel("ultra", { ...models[0], thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "" }] }, (key) => MESSAGE_CATALOGS.en[key]), "自适应");
+	assert.equal(effortLabel("ultra", { ...models[0], thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "" }] }, (key) => translateIn("en", key)), "自适应");
 	assert.equal(effortLabel("off", { ...models[0], thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "" }] }), "关闭");
 	const model = { ...models[0], supportsTools: false, thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "Provider-defined", budgetTokens: 4096 }], samplingParams: { top_p: 0.9 } };
 	let saved: typeof models[number] | undefined;
