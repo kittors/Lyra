@@ -110,7 +110,7 @@ export class ApprovalGate {
 	 *
 	 * For permissions, `full` never asks; `auto` asks only about what cannot be taken back, judged by the
 	 * approval policy rather than here — that judgement is a matter of where the agent is running,
-	 * and a plugin can replace it. Anything else asks.
+	 * and a plugin can replace it. An escalation is never that policy's to judge. Anything else asks.
 	 */
 	async request(request: ApprovalRequest): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
@@ -119,7 +119,19 @@ export class ApprovalGate {
 			if (mode === "full") return "once";
 			if (this.allowList.has(request.subject)) return "once";
 
-			if (mode === "auto") {
+			/*
+			 * An escalation skips the policy and goes to a person.
+			 *
+			 * `auto` can let the policy wave commands through because they still run confined. An
+			 * escalation asks to run one without that, so the policy's guess cannot be what answers
+			 * it: that left a blacklist as the only thing between the model and an unconfined run.
+			 * It was not even judging the command — to `assessCommand` the subject
+			 * `escalate:danger-full-access:rm -rf ~` names a program called
+			 * `escalate:danger-full-access:rm`, and that ran with nobody asked. Here rather than in
+			 * the policy, because a plugin can replace the policy and this has to hold whichever one
+			 * is loaded.
+			 */
+			if (mode === "auto" && request.escalation === undefined) {
 				const verdict = approvalPolicy().assess(request.kind, request.subject, this.options.cwd());
 				if (!verdict.risky) return "once";
 				if (verdict.reason) request.detail = `${verdict.reason}\n\n${request.detail ?? ""}`.trim();

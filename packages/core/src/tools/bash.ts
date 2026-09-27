@@ -225,13 +225,14 @@ export const bashTool: Tool<BashArgs> = {
 						subject: "命令",
 					},
 					ctx.requestApproval
-						? async (reason) =>
+						? async (reason, target) =>
 								(await ctx.requestApproval!({
 									kind: "bash",
 									title: `提权运行：${args.description ?? args.command.split("\n")[0].slice(0, 60)}`,
 									detail: args.command,
 									subject: `escalate:${args.escalate}:${args.command}`,
 									reason,
+									escalation: target,
 								})) === "reject"
 									? "reject"
 									: "once"
