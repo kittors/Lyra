@@ -366,6 +366,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
             title: event.title,
             detail: event.detail,
             ...(event.reason ? { reason: event.reason } : {}),
+            ...(event.risk ? { risk: event.risk } : {}),
             subject: event.subject,
             ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}), selectionMode: event.selectionMode, allowSkip: event.allowSkip, defaultOptionIndex: event.defaultOptionIndex,
             // Rebuilt field by field, so anything added to the event has to be added here too.

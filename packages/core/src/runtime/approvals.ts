@@ -9,7 +9,9 @@
 
 import { randomUUID } from "node:crypto";
 import type { PermissionMode } from "../config/settings.ts";
-import type { ApprovalDecision, ApprovalRequest } from "../types.ts";
+import type { ApprovalVerdict } from "../kernel/services.ts";
+import { riskReason } from "../tools/risk-reasons.ts";
+import type { ApprovalDecision, ApprovalRequest, ApprovalRisk } from "../types.ts";
 import { approvalPolicy } from "./approval-policy.ts";
 
 export interface PendingApproval {
@@ -122,7 +124,13 @@ export class ApprovalGate {
 			if (mode === "auto") {
 				const verdict = approvalPolicy().assess(request.kind, request.subject, this.options.cwd());
 				if (!verdict.risky) return "once";
-				if (verdict.reason) request.detail = `${verdict.reason}\n\n${request.detail ?? ""}`.trim();
+				/*
+				 * Beside `detail`, not written into it. Written in, the finding reached the card as
+				 * the Chinese sentence it was composed in, whatever language the window was in; as a
+				 * code the card can say it in the window's language. See `ApprovalRequest.risk`.
+				 */
+				const risk = findingOf(verdict);
+				if (risk) request.risk = risk;
 			}
 		}
 
@@ -170,6 +178,18 @@ export class ApprovalGate {
 		for (const entry of this.pending.values()) entry.resolve("reject");
 		this.pending.clear();
 	}
+}
+
+/**
+ * A risky verdict as the card receives it, or nothing when it gave no reason.
+ *
+ * `text` is always filled: a policy that names a rule without a sentence gets the rule's own
+ * wording, so whatever cannot translate the code still has something to show.
+ */
+function findingOf(verdict: ApprovalVerdict): ApprovalRisk | undefined {
+	const text = verdict.reason || (verdict.code ? riskReason(verdict.code, verdict.params) : "");
+	if (!text) return undefined;
+	return { text, ...(verdict.code ? { code: verdict.code } : {}), ...(verdict.params ? { params: verdict.params } : {}) };
 }
 
 /**

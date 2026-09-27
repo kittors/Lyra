@@ -8,7 +8,10 @@
 
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
+import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 import type { UserContent } from "./message.ts";
+
+export type { RiskCode, RiskParams };
 
 export interface SubAgentAnswer {
 	text: string;
@@ -177,8 +180,28 @@ export interface ApprovalRequest extends QuestionFields {
 	 * model requesting an escalation, it is the model's own sentence, shown verbatim.
 	 */
 	reason?: string;
+	/**
+	 * What the approval policy found dangerous, when that is why this is being asked.
+	 *
+	 * Set by the gate, beside `detail` rather than written into it: written in, it was a sentence
+	 * in the language it was composed in, whatever the window was set to.
+	 */
+	risk?: ApprovalRisk;
 	/** Command / path the approval applies to, used for "always allow" rules. */
 	subject: string;
+}
+
+/**
+ * The policy's finding, in two forms.
+ *
+ * `code` names the built-in rule, for the host to say in the interface's language; `text` is the
+ * policy's own sentence — what a plugin's policy has to offer, and what is shown for a code the
+ * host has no words for.
+ */
+export interface ApprovalRisk {
+	text: string;
+	code?: RiskCode;
+	params?: RiskParams;
 }
 export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
 

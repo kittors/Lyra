@@ -119,7 +119,7 @@ import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
-import { nativeTranslator } from "./i18n.ts";
+import { nativeTranslator, resolveNativeLocale } from "./i18n.ts";
 import { lazyPty } from "./pty-loader.ts";
 
 /*
@@ -888,7 +888,14 @@ function registerIpc(): void {
 	registerFileOpsIpc({ projectPath });
 	registerFormatIpc({ projectPath, projectRoot });
 
-	registerTerminalIpc({ terminals, spawnPty, projectPath, insideAProject, eachWindow: eachAppWindow });
+	registerTerminalIpc({
+		terminals,
+		spawnPty,
+		projectPath,
+		insideAProject,
+		eachWindow: eachAppWindow,
+		locale: () => resolveNativeLocale(settings?.uiLocale ?? "system", app.getLocale()),
+	});
 	registerUpdateIpc();
 
 	registerServicesIpc({

@@ -15,6 +15,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import type { NativeLocale } from "../electron/i18n.ts";
 import { createTerminalRegistry, type LiveTerminal } from "../electron/terminal-registry.ts";
 
 interface FakePty {
@@ -27,7 +28,7 @@ interface FakePty {
 }
 
 /** A registry and the shells it started, with nothing real on the other end. */
-function harness() {
+function harness({ locale }: { locale?: () => NativeLocale } = {}) {
 	const terminals = new Map<string, LiveTerminal>();
 	const spawned: FakePty[] = [];
 	/** Every `terminal:data` that reached a renderer, so "was this forwarded?" is countable. */
@@ -62,6 +63,7 @@ function harness() {
 		spawnPty,
 		// Every path is a project here; which paths qualify is decided elsewhere and tested there.
 		insideAProject: () => true,
+		locale,
 		eachWindow: (visit: (window: import("electron").BrowserWindow) => void) => {
 			for (const messages of [sent, otherSent]) visit({
 				isDestroyed: () => false,
@@ -164,6 +166,39 @@ test("tab names are unique across every shell, not restarted in each directory",
 	const titles = registry.listAll().map((tab) => tab.title);
 	assert.deepEqual(titles, ["终端 1", "终端 2", "终端 3"]);
 	assert.equal(new Set(titles).size, titles.length, "no two tabs answer to the same name");
+});
+
+test("a tab is named in the interface's language", () => {
+	// Every terminal used to be 「终端 N」, whatever the language; the English strip read 终端 1, 终端 2.
+	for (const [locale, names] of [
+		["en", ["Terminal 1", "Terminal 2"]],
+		["zh-CN", ["终端 1", "终端 2"]],
+		["zh-TW", ["終端機 1", "終端機 2"]],
+		["ja", ["ターミナル 1", "ターミナル 2"]],
+	] as const) {
+		const { registry } = harness({ locale: () => locale });
+		registry.open("/work/app", 80, 24);
+		registry.open("/work/docs", 80, 24);
+		assert.deepEqual(registry.listAll().map((tab) => tab.title), names, locale);
+	}
+});
+
+test("switching language renames the tabs already open without renumbering them", () => {
+	/*
+	 * A tab holds a number and is named when asked, so a strip opened in Chinese reads in English
+	 * after the switch — and the next shell is 3, not a second "1" because 「终端 1」 and
+	 * "Terminal 1" are different strings.
+	 */
+	let locale: NativeLocale = "zh-CN";
+	const { registry } = harness({ locale: () => locale });
+	const first = registry.open("/work/app", 80, 24);
+	registry.open("/work/app", 80, 24);
+	assert.equal(first.title, "终端 1");
+
+	locale = "en";
+	assert.deepEqual(registry.listAll().map((tab) => tab.title), ["Terminal 1", "Terminal 2"]);
+	assert.equal(registry.attach(first.id, 80, 24)?.title, "Terminal 1");
+	assert.equal(registry.open("/work/app", 80, 24).title, "Terminal 3");
 });
 
 test("attaching reaches the shell that is already there rather than starting one", () => {

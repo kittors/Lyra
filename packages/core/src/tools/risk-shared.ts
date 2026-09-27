@@ -9,16 +9,26 @@
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { within } from "../platform.ts";
+import { riskReason, type RiskCode, type RiskParams } from "./risk-reasons.ts";
 
 export interface RiskVerdict {
 	risky: boolean;
-	/** Shown to the user in the approval prompt, so it says what specifically is dangerous. */
+	/** What specifically is dangerous, in the rules' own wording — for anything that shows it as is. */
 	reason?: string;
+	/** Which rule said so. The approval card is written from this, in the interface's language. */
+	code?: RiskCode;
+	/** The values the rule's sentence needs. */
+	params?: RiskParams;
 }
 
 export const SAFE: RiskVerdict = { risky: false };
 
-export const risky = (reason: string): RiskVerdict => ({ risky: true, reason });
+export const risky = (code: RiskCode, params?: RiskParams): RiskVerdict => ({
+	risky: true,
+	reason: riskReason(code, params),
+	code,
+	...(params ? { params } : {}),
+});
 
 /**
  * The places work legitimately happens.

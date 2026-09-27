@@ -24,10 +24,10 @@ export function assessWrite(path: string, cwd: string): RiskVerdict {
 	 * temporary file look like an attempt on the system.
 	 */
 	if (underScratchRoot(normalised, cwd)) return SAFE;
-	if (PROTECTED_PATH.test(` ${normalised}`)) return risky("写入项目之外的敏感路径");
-	if (/(^|\/)\.(zshrc|bashrc|profile|zprofile)$/.test(normalised)) return risky("修改 shell 启动文件");
+	if (PROTECTED_PATH.test(` ${normalised}`)) return risky("write-sensitive-path");
+	if (/(^|\/)\.(zshrc|bashrc|profile|zprofile)$/.test(normalised)) return risky("shell-startup");
 	if (!normalised.startsWith(`${cwd.replace(/\/+$/, "")}/`) && normalised !== cwd.replace(/\/+$/, "")) {
-		return risky("写入当前项目之外的位置");
+		return risky("write-outside-project");
 	}
 	return SAFE;
 }

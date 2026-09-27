@@ -188,16 +188,16 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 			const reckless = targets.some(
 				(t) => !t || t.startsWith("~") || t === "." || t === ".." || bareGlob(t.replaceAll("\\", "/")) || absoluteAnywhere(t),
 			);
-			if (targets.length === 0 || reckless || targets.some(climbsOut) || !contained) return risky("递归删除目录");
+			if (targets.length === 0 || reckless || targets.some(climbsOut) || !contained) return risky("recursive-delete");
 		}
 	}
 
 	// `iex (irm https://…)`: the download-and-run without a pipe for the pipeline rule to see.
 	if (/\b(iex|invoke-expression)\b/i.test(command) && /\b(irm|iwr|invoke-(webrequest|restmethod)|downloadstring|net\.webclient)\b/i.test(command)) {
-		return risky("下载并直接执行脚本");
+		return risky("download-and-run");
 	}
 	// `Start-Process … -Verb RunAs` is Windows' `sudo`.
-	if (head.toLowerCase() === "start-process" && /-verb\s+['"]?runas\b/i.test(command)) return risky("以管理员身份执行");
+	if (head.toLowerCase() === "start-process" && /-verb\s+['"]?runas\b/i.test(command)) return risky("run-as-admin");
 
 	// `rm` is the one worth reading closely: removing a file is routine, removing a tree is not.
 	if (head === "rm") {
@@ -225,7 +225,7 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 					(isAbsolute(t) && !underScratchRoot(t, cwd)),
 			);
 			const climbs = targets.some(climbsOut);
-			if (targets.length === 0 || reckless || climbs || !contained) return risky("递归删除目录");
+			if (targets.length === 0 || reckless || climbs || !contained) return risky("recursive-delete");
 		}
 		/*
 		 * A glob delete is judged by where it points, not by the glob.
@@ -240,31 +240,31 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 			const outside = targets.some(
 				(t) => t.startsWith("~") || wipesScratchRoot(t, cwd) || (isAbsolute(t) && !underScratchRoot(t, cwd)),
 			);
-			if (outside || !contained) return risky("强制删除通配匹配的文件");
+			if (outside || !contained) return risky("force-delete-glob");
 		}
-		if (/(^|\s)\/(\s|$)|\s~\/?(\s|$)/.test(command)) return risky("删除根目录或主目录");
+		if (/(^|\s)\/(\s|$)|\s~\/?(\s|$)/.test(command)) return risky("delete-root-or-home");
 	}
 
 	if (head === "git") {
 		const sub = gitSubcommand(splitWords(command, dialect));
 		// A force push replaces what other people have; a plain push does not.
 		// `--force-with-lease` is the careful form, but it still replaces the remote branch.
-		if (sub === "push" && /(--force|(^|\s)-f(\s|$))/.test(command)) return risky("强制推送会覆盖远程历史");
-		if (sub === "reset" && /--hard/.test(command)) return risky("丢弃所有未提交的改动");
+		if (sub === "push" && /(--force|(^|\s)-f(\s|$))/.test(command)) return risky("force-push");
+		if (sub === "reset" && /--hard/.test(command)) return risky("hard-reset");
 		const table = RISKY_SUBCOMMANDS.get("git");
-		const reason = table?.get(sub);
+		const code = table?.get(sub);
 		// `git checkout -b` and `git restore --staged` take nothing away.
 		if (sub === "checkout" && /\s-b(\s|$)/.test(command)) return SAFE;
 		if (sub === "restore" && /--staged/.test(command) && !/--worktree/.test(command)) return SAFE;
-		if (sub === "reset" || sub === "clean") return reason ? risky(reason) : SAFE;
-		if (reason && (sub === "rebase" || sub === "filter-branch")) return risky(reason);
+		if (sub === "reset" || sub === "clean") return code ? risky(code) : SAFE;
+		if (code && (sub === "rebase" || sub === "filter-branch")) return risky(code);
 		return SAFE;
 	}
 
 	const table = lookup(RISKY_SUBCOMMANDS, head);
 	if (table) {
-		const reason = lookup(table, command.split(/\s+/)[1] ?? "");
-		if (reason) return risky(reason);
+		const code = lookup(table, command.split(/\s+/)[1] ?? "");
+		if (code) return risky(code);
 	}
 
 	/*
@@ -275,13 +275,13 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 	 * and `curl -d @~/.ssh/id_ed25519` is the same sentence with somewhere to send it. Both were
 	 * safe, because the only path rule in here fired on a redirect.
 	 */
-	if (SECRET_PATH.test(command)) return risky("读写本机密钥文件");
+	if (SECRET_PATH.test(command)) return risky("secret-file");
 
 	// A redirect into a system location, or an edit of the shell's own startup files.
-	if (/>\s*[^&\s]/.test(command) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
-	if (/>\s*~?\/?\.(zshrc|bashrc|profile|zprofile)\b/.test(command)) return risky("修改 shell 启动文件");
+	if (/>\s*[^&\s]/.test(command) && PROTECTED_PATH.test(command)) return risky("write-system-path");
+	if (/>\s*~?\/?\.(zshrc|bashrc|profile|zprofile)\b/.test(command)) return risky("shell-startup");
 	// And the same destination reached without one: `cp payload /usr/local/bin/git`.
-	if ((PLACES_FILES.has(head) || PLACES_FILES.has(head.toLowerCase())) && PROTECTED_PATH.test(command)) return risky("写入项目之外的系统路径");
+	if ((PLACES_FILES.has(head) || PLACES_FILES.has(head.toLowerCase())) && PROTECTED_PATH.test(command)) return risky("write-system-path");
 
 	/*
 	 * A local file going out over the network.
@@ -299,7 +299,7 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 		 */
 		const uploads = /(^|\s)(-d|--data(-binary|-raw)?|-F|--form)(\s+|=)['"]?([A-Za-z0-9_.-]+=)?@/;
 		const puts = /(^|\s)(-T|--upload-file)(\s|=)/;
-		if (uploads.test(command) || puts.test(command)) return risky("把本机文件上传到网络");
+		if (uploads.test(command) || puts.test(command)) return risky("upload-file");
 	}
 
 	return SAFE;
@@ -342,7 +342,7 @@ function assessIn(command: string, cwd: string | undefined, depth: number, diale
 		const fetched = heads.findIndex((head) => FETCHERS.has(head.toLowerCase()));
 		if (fetched === -1) continue;
 		const ran = heads.findIndex((head, index) => index > fetched && (INTERPRETERS.has(head) || INTERPRETERS.has(head.toLowerCase())));
-		if (ran !== -1) return risky("下载并直接执行脚本");
+		if (ran !== -1) return risky("download-and-run");
 	}
 
 	/*

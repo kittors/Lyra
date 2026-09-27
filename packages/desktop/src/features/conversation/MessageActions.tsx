@@ -2,6 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 import { Text } from "../../ui/primitives/Text.tsx";
 
 /**
@@ -55,6 +56,12 @@ export function MessageActions({
 	children?: React.ReactNode;
 }) {
 	const [copied, setCopied] = useState(false);
+	/*
+	 * From the context rather than `activeLocale()`: the rows that render this are memoised
+	 * (`MessageRow`), and a language switch only reaches through a memo by context. Reading the
+	 * module-level locale would leave every message already on screen in the old language.
+	 */
+	const { resolvedLocale } = useI18n();
 
 	useEffect(() => {
 		if (!copied) return;
@@ -62,7 +69,7 @@ export function MessageActions({
 		return () => clearTimeout(timer);
 	}, [copied]);
 
-	const timeTip = formatTimestampTip(timestamp);
+	const timeTip = formatTimestampTip(timestamp, resolvedLocale);
 	const durationBadge = formatDurationBadge(durationMs, sseDurationMs, tokens);
 	const durationTip = formatDurationTip(durationMs, requestMs, sseDurationMs, tokens, requests);
 
@@ -79,7 +86,7 @@ export function MessageActions({
 		>
 			<span data-ly-tip={timeTip || undefined} className="inline-flex items-center">
 				<Text size="caption" tone="faint" numeric>
-					{formatSentAt(timestamp)}
+					{formatSentAt(timestamp, resolvedLocale)}
 				</Text>
 			</span>
 			{durationBadge && (
@@ -170,26 +177,51 @@ function formatDurationTip(
 	return lines.join("\n");
 }
 
-function formatTimestampTip(timestamp: number): string {
-	return new Date(timestamp).toLocaleString("zh-CN", {
+/**
+ * Whether the hour gets a leading zero, which depends on the clock the language tells time by.
+ *
+ * On a 24-hour clock "09:05" is the ordinary way to write it, and the Chinese row has always shown
+ * it that way. On a 12-hour clock the zero reads as a typo — "02:28 PM" — so English, Korean and
+ * Traditional Chinese go without. Kept per language: every message row asks, and the answer only
+ * changes with the language.
+ */
+const hourStyles = new Map<ResolvedUiLocale, "numeric" | "2-digit">();
+
+function hourStyle(locale: ResolvedUiLocale): "numeric" | "2-digit" {
+	let style = hourStyles.get(locale);
+	if (!style) {
+		style = new Intl.DateTimeFormat(locale, { hour: "numeric" }).resolvedOptions().hour12 ? "numeric" : "2-digit";
+		hourStyles.set(locale, style);
+	}
+	return style;
+}
+
+function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string {
+	return new Date(timestamp).toLocaleString(locale, {
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
-		hour: "2-digit",
+		hour: hourStyle(locale),
 		minute: "2-digit",
 		second: "2-digit",
 	});
 }
 
-/** Same shape as the reference: month, day, time — the year only once it stops being obvious. */
-function formatSentAt(timestamp: number): string {
+/**
+ * Same shape as the reference: month, day, time — the year only once it stops being obvious.
+ *
+ * The month is the short form. Chinese, Japanese and Korean write it the same either way (「9月」),
+ * but spelled out it made the English row "September 26 at 2:28 PM", in a caption that sits under
+ * every message and on a phone never hides.
+ */
+function formatSentAt(timestamp: number, locale: ResolvedUiLocale): string {
 	const sent = new Date(timestamp);
 	const sameYear = sent.getFullYear() === new Date().getFullYear();
-	return sent.toLocaleString("zh-CN", {
+	return sent.toLocaleString(locale, {
 		...(sameYear ? {} : { year: "numeric" }),
-		month: "long",
+		month: "short",
 		day: "numeric",
-		hour: "2-digit",
+		hour: hourStyle(locale),
 		minute: "2-digit",
 	});
 }

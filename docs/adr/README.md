@@ -32,5 +32,6 @@
 | [0023](0023-containers-belong-to-sessions.md) | 面板只属于会话，单屏是只有一屏的分屏，窗口本身没有面板 |
 | [0024](0024-sub-agents-stop-at-checkpoints.md) | 子代理停在检查点而不是终点，上下文留着，可以续跑 |
 | [0025](0025-model-switch-applies-from-next-request.md) | 一轮之内换模型从下一个请求起就换，卡在重试上的请求当场放手 |
+| [0026](0026-core-names-the-rule-hosts-say-it.md) | core 报的是哪条规则（给码），说成哪种语言由宿主按码翻译，不把界面语言传进 core |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

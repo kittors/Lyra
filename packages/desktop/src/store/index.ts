@@ -1,5 +1,5 @@
 import type { TurnMeter, CarriedTurn } from "./turn-meter.ts";
-import type { QuestionFields } from "@lyra/core";
+import type { ApprovalRisk, QuestionFields } from "@lyra/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { SessionChange } from "../../electron/ipc-types.ts";
@@ -94,6 +94,8 @@ interface PendingApproval extends QuestionFields {
   detail: string;
   /** Why the asker is asking, in its own words. Present when a model requested an escalation. */
   reason?: string;
+  /** What the approval policy found dangerous; the card words it in the window's language. */
+  risk?: ApprovalRisk;
   /** What an "always" answer gets remembered against. */
   subject?: string;
   /**
