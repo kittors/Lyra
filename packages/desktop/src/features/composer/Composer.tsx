@@ -16,6 +16,7 @@ import type { ComposerDecorations } from "./CommandText.tsx";
 import { useCommands } from "./useCommands.ts";
 import { useInputHistory } from "./useInputHistory.ts";
 import { commandEntries } from "./command-catalog.ts";
+import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
@@ -699,6 +700,11 @@ export function Composer() {
 				 */}
 				{/* Into this conversation's own screen: the announcement is not a click, so the focus says nothing. */}
 				<SubAgentBar onOpen={() => openScopedPanel("subagents", companionOf("subagents"), activeSessionId ?? "@draft")} />
+				{/*
+				 * A scheduled task failed, in a session nobody was watching. Said where someone is —
+				 * and only on the screen in front, which `ScheduledAlert` decides for itself.
+				 */}
+				<ScheduledAlert />
 				{/*
 				 * Where the turn will run, and what it has already changed.
 				 *

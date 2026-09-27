@@ -13,9 +13,12 @@ import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/host.ts";
 import { NavItem } from "./NavItem.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { useScheduledNotices } from "../scheduled/index.ts";
 
 export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 	const { t } = useI18n();
+	// Scheduled tasks that failed with nobody looking. Opening the schedule is what clears it.
+	const failures = useScheduledNotices((s) => s.unseen.length);
 	const view = useApp((s) => s.view);
 	const setView = useApp((s) => s.setView);
 	if (onPhone()) return null;
@@ -32,7 +35,14 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 				label={t("sidebar.pullRequests")}
 				onClick={go("pull-requests")}
 			/>
-			<NavItem active={view === "scheduled"} icon={<Clock size={15} strokeWidth={1.8} />} label={t("sidebar.scheduled")} onClick={go("scheduled")} />
+			<NavItem
+				active={view === "scheduled"}
+				icon={<Clock size={15} strokeWidth={1.8} />}
+				label={t("sidebar.scheduled")}
+				onClick={go("scheduled")}
+				badge={view === "scheduled" ? 0 : failures}
+				badgeLabel={t("scheduled.unseenFailures", { n: failures })}
+			/>
 			{/*
 			 * The catalogue, not the settings pane it used to open.
 			 *

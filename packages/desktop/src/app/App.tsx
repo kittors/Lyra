@@ -70,6 +70,7 @@ const SettingsShell = lazy(() =>
 );
 import { useOpenFile } from "../store/openFile.ts";
 import { watchFilePanelState } from "../store/file-panel-handoff.ts";
+import { useSchedulerNotices } from "../features/scheduled/index.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
@@ -114,6 +115,13 @@ export function App() {
 			}),
 		[],
 	);
+
+	/*
+	 * What the scheduler says as its tasks run, which had been sent since the first version and
+	 * never listened to. Not as toasts: a start shows on the task's card, and a failure on the card,
+	 * above the composer and on the sidebar — see `features/scheduled/notices.ts`.
+	 */
+	useSchedulerNotices();
 
 	// Before the `ready` gate below, so a command sent to a window that is still booting is not
 	// dropped for the one or two frames the boot screen is up.

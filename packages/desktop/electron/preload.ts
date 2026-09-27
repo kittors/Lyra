@@ -279,6 +279,13 @@ const extras = {
 			return () => ipcRenderer.off("updates:progress", handler);
 		},
 	},
+	scheduler: {
+		onNotice: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, notice: Parameters<typeof handler>[0]) => handler(notice);
+			ipcRenderer.on("scheduler:notice", listener);
+			return () => ipcRenderer.removeListener("scheduler:notice", listener);
+		},
+	},
 	screenshot: {
 		onInit: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
