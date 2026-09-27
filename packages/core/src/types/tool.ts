@@ -189,6 +189,13 @@ export interface ApprovalRequest extends QuestionFields {
 	risk?: ApprovalRisk;
 	/** Command / path the approval applies to, used for "always allow" rules. */
 	subject: string;
+	/**
+	 * The wider sandbox mode this asks to run under, set only on an escalation.
+	 *
+	 * A field rather than something read out of `subject`, because the gate has to know it for
+	 * certain: the approval policy never answers an escalation (see `ApprovalGate.request`).
+	 */
+	escalation?: SandboxMode;
 }
 
 /**

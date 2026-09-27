@@ -127,10 +127,13 @@ export interface EscalationRequest {
  * The granted mode is returned for the caller to use on **this call**. It is deliberately not
  * written anywhere: an escalation that outlived its call would be a permission the user granted
  * once and lost track of.
+ *
+ * `ask` is handed the mode already checked, for the caller to put on its `ApprovalRequest` as
+ * `escalation` — that field is what keeps the approval policy from answering in the user's place.
  */
 export async function approveEscalation(
 	request: EscalationRequest,
-	ask: ((reason: string) => Promise<"once" | "always" | "reject">) | undefined,
+	ask: ((reason: string, target: SandboxMode) => Promise<"once" | "always" | "reject">) | undefined,
 ): Promise<SandboxMode> {
 	const { requested, current, justification, subject } = request;
 	if (!(WIDER[current] ?? []).includes(requested as SandboxMode)) {
@@ -142,7 +145,7 @@ export async function approveEscalation(
 		throw new EscalationError("提权需要用户批准，但当前没有可用的批准通道。");
 	}
 
-	const decision = await ask(justification);
+	const decision = await ask(justification, requested as SandboxMode);
 	if (decision !== "once" && decision !== "always") {
 		throw new EscalationError(`用户拒绝了把这条${subject}提权到「${MODE_LABEL[requested as SandboxMode]}」。`);
 	}
