@@ -1877,6 +1877,8 @@ export const fr = {
 	"sideMessage.attachedImage": "Image jointe",
 	"sideMessage.busy": "Une réponse est en cours — modification impossible",
 	"sideMessage.editAndReask": "Modifier et redemander",
+	"pluginsSettings.warnings": "Compétences d'extension à vérifier : {n}",
+	"skillsSettings.warnings": "Compétences à vérifier : {n}",
 	"address.searchWith": "Rechercher avec {engine}",
 	"address.openUrl": "Ouvrir l'adresse",
 	"address.label": "Adresse ou recherche",

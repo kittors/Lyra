@@ -68,11 +68,18 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 		(s) => !needle || `${s.name} ${s.description}`.toLowerCase().includes(needle),
 	);
 	/*
-	 * 错误和警告分开数。「N 个技能未能加载」数的是没加载的；描述太短的那些加载了，混进去
-	 * 那句话就说错了——而且会让人去找一个不存在的加载失败。
+	 * Errors and warnings are counted apart. The failed-to-load header counts skills that did not
+	 * load, and a warning counted in would send someone looking for a load failure that never
+	 * happened. The warning header names no one problem — a short description, an `allowed-tools`
+	 * entry Lyra cannot honour as written — because each row below it already says which.
+	 *
+	 * Both count files, not lines: one skill can fail for two reasons (a frontmatter never closed,
+	 * then no description) or carry three warnings, and a header that says "skills" means skills.
 	 */
 	const diagnostics = (scan?.skillDiagnostics ?? []).filter((d) => d.severity !== "warning");
 	const warnings = (scan?.skillDiagnostics ?? []).filter((d) => d.severity === "warning");
+	const failed = new Set(diagnostics.map((d) => d.path)).size;
+	const warned = new Set(warnings.map((d) => d.path)).size;
 	const shadowed = scan?.shadowedSkills ?? [];
 
 	const decide = async (name: string, keep: boolean) => {
@@ -140,10 +147,11 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("skillsSettings.failedToLoad", { n: diagnostics.length })}
+							{t("skillsSettings.failedToLoad", { n: failed })}
 						</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+						{/* By position: a path repeats when one file has two diagnostics, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
 							</div>
 						))}
@@ -156,10 +164,10 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("skillsSettings.shortDescriptions", { n: warnings.length })}
+							{t("skillsSettings.warnings", { n: warned })}
 						</div>
-						{warnings.map((warning) => (
-							<div key={warning.path} className="py-0.5 text-detail text-ink-faint">
+						{warnings.map((warning, index) => (
+							<div key={index} className="py-0.5 text-detail text-ink-faint">
 								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}

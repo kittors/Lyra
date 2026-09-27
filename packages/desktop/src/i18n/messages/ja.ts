@@ -1877,6 +1877,8 @@ export const ja = {
 	"sideMessage.attachedImage": "添付の画像",
 	"sideMessage.busy": "回答の途中なので編集できません",
 	"sideMessage.editAndReask": "直してもう一度きく",
+	"pluginsSettings.warnings": "{n} 件のプラグインスキルに警告があります",
+	"skillsSettings.warnings": "{n} 件のスキルに警告があります",
 	"address.searchWith": "{engine} で検索",
 	"address.openUrl": "アドレスを開く",
 	"address.label": "アドレスまたは検索",
