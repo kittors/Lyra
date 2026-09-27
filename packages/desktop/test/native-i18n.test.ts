@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NATIVE_CATALOGS, nativeTranslator, resolveNativeLocale } from "../electron/i18n.ts";
+import { NATIVE_CATALOGS, nativeText, nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource, type NativeLocale } from "../electron/i18n.ts";
 import { trayMenu } from "../electron/tray-menu.ts";
 
 /** The `{name}` slots a message fills in, so a translation cannot drop or rename one. */
@@ -39,4 +39,50 @@ test("tray menu labels use the selected language", () => {
 	assert.equal(menu[0].type === "item" ? menu[0].label : "", "Ouvrir Lyra");
 	const last = menu.at(-1);
 	assert.equal(last?.type === "item" ? last.label : "", "Quitter Lyra");
+});
+
+test("main-process text follows the interface language, asked again for every message", () => {
+	/*
+	 * The scheduler, the file operations and the code-host and update clients have no settings of
+	 * their own to ask, so they write through `nativeText`. What it must not do is settle on one
+	 * language: the setting changes while the app runs, and the very next message has to follow it.
+	 */
+	let language: NativeLocale = "en";
+	setInterfaceLocaleSource(() => language);
+	try {
+		assert.equal(nativeText("files.exists", { name: "notes.md" }), "“notes.md” already exists");
+		language = "ja";
+		assert.equal(nativeText("files.exists", { name: "notes.md" }), "「notes.md」はすでにあります");
+		language = "fr";
+		assert.equal(nativeText("scheduled.failed", { name: "Revue", reason: "boom" }), "La tâche planifiée « Revue » a échoué : boom");
+	} finally {
+		setInterfaceLocaleSource(() => "zh-CN");
+	}
+});
+
+test("each language joins a reason on with its own punctuation, not with Chinese", () => {
+	/*
+	 * Punctuation is what is left once every word is translated: while this text was a template
+	 * literal, 「：」 and 「（）」 sat between the words of every language. Chinese and Japanese keep
+	 * the full-width marks; everyone else gets their own, and French its space before a colon.
+	 */
+	const fullWidth = new Set(["zh-CN", "zh-TW", "ja"]);
+	for (const [locale, catalog] of Object.entries(NATIVE_CATALOGS)) {
+		for (const [key, text] of Object.entries(catalog)) {
+			if (fullWidth.has(locale)) {
+				assert.doesNotMatch(text, /\}\s*:|:\s*\{|\(\{|\}\)/, `${locale} ${key} puts a half-width mark beside a slot: ${text}`);
+			} else {
+				assert.doesNotMatch(text, /[：（），、。；！？]/, `${locale} ${key} carries Chinese punctuation: ${text}`);
+			}
+		}
+	}
+
+	const joined = (locale: NativeLocale) => nativeTranslator(locale, "en")("forge.withDetail", { message: "M", detail: "D" });
+	assert.deepEqual(
+		(["zh-CN", "zh-TW", "ja", "en", "ru", "ko", "fr"] as const).map(joined),
+		["M：D", "M：D", "M：D", "M: D", "M: D", "M: D", "M : D"],
+	);
+	assert.equal(nativeTranslator("zh-CN", "en")("forge.serverError", { status: 502 }), "对方服务出错了（502）");
+	assert.equal(nativeTranslator("en", "en")("forge.serverError", { status: 502 }), "The host's service ran into an error (502)");
+	assert.equal(nativeTranslator("ko", "en")("forge.serverError", { status: 502 }), "상대 서비스에서 오류가 났습니다 (502)");
 });

@@ -25,9 +25,8 @@ import { promisify } from "node:util";
 import { installedAppBundle, scheduleSwap } from "./install-update.ts";
 import { downloadDir, sweepDownloads, UpdateDownload, type DownloadPhase } from "./update-download.ts";
 import { pickAsset, pickChecksums, type ReleaseAsset } from "../update-asset.ts";
-import { settings } from "../app-settings.ts";
 import { findExecutable } from "../find-executable.ts";
-import { nativeTranslator } from "../i18n.ts";
+import { nativeText } from "../i18n.ts";
 import { debInstallCommand, detectLinuxInstall, stageAppImage, stagedAppImagePath, swapAppImage, type LinuxInstall } from "../linux-install.ts";
 import { finishUpdate, type PendingUpdate } from "../update-finish.ts";
 
@@ -141,9 +140,12 @@ function runCollecting(command: { file: string; args: string[] }): Promise<{ cod
 	});
 }
 
-/** Main-process words in the interface language. */
-function say(key: "update.appImageNotWritable" | "update.adminDismissed" | "update.installFailed", reason = ""): string {
-	return nativeTranslator(settings().uiLocale, app.getLocale())(key).replace("{reason}", reason);
+/** Main-process words in the interface language, with what went wrong in `{reason}`. */
+function say(
+	key: "update.appImageNotWritable" | "update.adminDismissed" | "update.installFailed" | "update.cannotOpenInstaller",
+	reason = "",
+): string {
+	return nativeText(key, { reason });
 }
 
 /**
@@ -301,7 +303,7 @@ export function registerUpdateIpc(): void {
 	const downloadFor = (version: string): UpdateDownload | { error: string } => {
 		const info = cached?.info;
 		const asset = info?.asset;
-		if (!asset || info?.latest !== version) return { error: "没有找到适用于这台机器的安装包" };
+		if (!asset || info?.latest !== version) return { error: nativeText("update.noAsset") };
 
 		if (active?.version === version) return active.download;
 
@@ -342,10 +344,10 @@ export function registerUpdateIpc(): void {
 				 * look installed — so swapping it for a release replaces the runtime `pnpm dev` depends
 				 * on: a white window, and a development tree that has to be reinstalled to get back.
 				 */
-				if (!app.isPackaged) return download?.fail("开发模式下不做就地更新");
+				if (!app.isPackaged) return download?.fail(nativeText("update.devMode"));
 
 				const target = installedAppBundle(app.getPath("exe"));
-				if (!target) return download?.fail("这个副本不是从「应用程序」运行的，无法就地更新");
+				if (!target) return download?.fail(nativeText("update.notInApplications"));
 
 				const staged = join(downloadDir(updateRoot, version), "unpacked");
 				await rm(staged, { recursive: true, force: true });
@@ -353,7 +355,7 @@ export function registerUpdateIpc(): void {
 				await unzip(file, staged);
 				const bundle = join(staged, `${app.getName()}.app`);
 				if (!(await stat(bundle).catch(() => null))?.isDirectory()) {
-					return download?.fail("下载的更新包里没有找到应用");
+					return download?.fail(nativeText("update.noAppInPackage"));
 				}
 
 				pending = { kind: "bundle", staged: bundle, target };
@@ -406,14 +408,14 @@ export function registerUpdateIpc(): void {
 			// Everything else is handed to the OS: an .msi, or a .deb with no way to ask for the right.
 			const err = await shell.openPath(file);
 			if (err) {
-				return download?.fail(`无法打开安装包: ${err}`);
+				return download?.fail(say("update.cannotOpenInstaller", err));
 			}
 			// Remembered so 重新打开安装包 has something to open. The installer window is easy to
 			// dismiss by accident, and without this the only way back to it is the file system.
 			opened = file;
 			download?.finish(false);
 		} catch (error) {
-			download?.fail(error instanceof Error ? error.message : "安装失败");
+			download?.fail(error instanceof Error ? error.message : nativeText("update.installFailedPlain"));
 		}
 	};
 

@@ -11,6 +11,12 @@
  * the renderer's source. Comments do not — this codebase reasons in Chinese in its comments on
  * purpose, and that is writing for the people who maintain it rather than for the people using it.
  *
+ * The main process is read as well. It writes its own share of what people read — notifications,
+ * the notices the scheduler puts up, the errors the file tree, the pull request panel and the update
+ * dialog show — and it is where 「已完成」 went on being hardcoded long after the renderer had
+ * stopped. Its logs are the exception, for the reason comments are: a `console.*` call is written
+ * for whoever is debugging, so what it is passed is not a finding.
+ *
  *   node scripts/check-i18n.mjs             # 报告，非零退出表示有新增
  *   node scripts/check-i18n.mjs --list      # 把每一条打出来，改的时候看
  *   node scripts/check-i18n.mjs --update    # 把当前状况写回基线（只允许变小）
@@ -30,6 +36,7 @@ import { dirname } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = join(ROOT, "packages/desktop/src");
+const MAIN = join(ROOT, "packages/desktop/electron");
 const BASELINE = join(ROOT, "scripts/i18n-baseline.json");
 
 const HAN = /[一-鿿]/;
@@ -62,6 +69,9 @@ const HAN = /[一-鿿]/;
  * 「Русский」. That is how a language picker is supposed to read, and translating an entry would
  * make it name a language in a language its speaker may not read.
  *
+ * `electron/i18n.ts` is the main process's catalog, all seven languages in one file — exempt for the
+ * same reason `i18n/messages` is.
+ *
  * Nothing else belongs here. Other text going *to* a model would qualify on the same reasoning —
  * the language a prompt is written in is a property of the prompt — but the renderer has none of
  * it; what looked like it (`lib/thinking-words`) is the phrase beside the timer, which is exactly
@@ -75,6 +85,7 @@ const EXEMPT = [
 	"features/git/commit-language.ts",
 	"i18n/locales.ts",
 	"lib/markdown/inline.ts",
+	"electron/i18n.ts",
 ];
 
 /**
@@ -142,6 +153,34 @@ function stripComments(src) {
 		else if (char === "}" && state === "{") stack.pop();
 		out += char;
 		i += 1;
+	}
+	return out;
+}
+
+/**
+ * Blank out what is only ever logged: the arguments of every `console.*` call.
+ *
+ * Whole arguments, however many lines they run to, with the newlines kept for the reason
+ * `stripComments` keeps them. The calls are looked for with every string's contents masked, so a
+ * string that merely contains `console.log(` — script text sent to a page, say — is not taken for
+ * one, and a bracket inside a logged string does not end the call early.
+ */
+function stripLogs(stripped) {
+	const masked = stripped.replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g, (literal) =>
+		literal[0] + literal.slice(1, -1).replace(/[^\n]/g, " ") + literal.at(-1),
+	);
+	let out = stripped;
+	for (const call of masked.matchAll(/\bconsole\s*\.\s*(?:log|info|warn|error|debug|trace)\s*\(/g)) {
+		const open = call.index + call[0].length - 1;
+		let close = masked.length;
+		for (let i = open, depth = 0; i < masked.length; i++) {
+			if (masked[i] === "(") depth += 1;
+			else if (masked[i] === ")" && --depth === 0) {
+				close = i;
+				break;
+			}
+		}
+		out = out.slice(0, open + 1) + out.slice(open + 1, close).replace(/[^\n]/g, " ") + out.slice(close);
 	}
 	return out;
 }
@@ -240,7 +279,7 @@ function exemptLines(source) {
  * stop at, the "run" swallows half the module and reports whatever Chinese it passed on the way.
  */
 export function findings(source, { jsx = true } = {}) {
-	const stripped = stripComments(source);
+	const stripped = stripLogs(stripComments(source));
 	const spared = exemptLines(source);
 	const found = [];
 	const at = (index) => stripped.slice(0, index).split("\n").length;
@@ -271,11 +310,19 @@ function walk(dir, out = []) {
 }
 
 const args = new Set(process.argv.slice(2));
-const files = walk(SOURCE).sort();
+/*
+ * The renderer's files keep the keys they always had, relative to `src` — the baseline and `EXEMPT`
+ * are written in them — and the main process's go under `electron/`, a folder `src` does not have,
+ * so the two can never be mistaken for each other.
+ */
+const files = [
+	...walk(SOURCE).sort().map((path) => ({ path, key: relative(SOURCE, path) })),
+	...walk(MAIN).sort().map((path) => ({ path, key: join("electron", relative(MAIN, path)) })),
+];
 const counts = {};
 const detail = {};
 
-for (const path of files) {
+for (const { path, key: native } of files) {
 	/*
 	 * 一律用正斜杠，因为这个字符串有两个读者，而它们都只认正斜杠。
 	 *
@@ -286,7 +333,7 @@ for (const path of files) {
 	 * 本机三个平台里只有 Windows 会这样，而这个检查本机跑、CI 也跑——所以它在 mac 上绿了整整一天，
 	 * 直到发版前的 Windows 打包才红出来。
 	 */
-	const key = relative(SOURCE, path).replaceAll("\\", "/");
+	const key = native.replaceAll("\\", "/");
 	if (EXEMPT.some((prefix) => key.startsWith(prefix))) continue;
 	const found = findings(await readFile(path, "utf8"), { jsx: path.endsWith(".tsx") });
 	if (found.length > 0) {
@@ -338,7 +385,8 @@ if (grown.length > 0) {
 		`\n✖ 这些文件里的硬编码中文变多了：\n${grown.join("\n")}\n\n` +
 		`界面文案要走 i18n：组件里用 useI18n() 的 t()，别处用 translate()，key 加进\n` +
 		`packages/desktop/src/i18n/messages/ 的七个目录里（zh-CN.ts 是源，其余 satisfies 它，\n` +
-		`所以漏掉一种语言是类型错误）。\n\n` +
+		`所以漏掉一种语言是类型错误）。主进程（electron/）里的用 electron/i18n.ts 的 nativeText()，\n` +
+		`七种语言写在同一个文件里；只进日志的写进 console.*，不算。\n\n` +
 		`看清单：  node scripts/check-i18n.mjs --list\n` +
 		`清完之后：node scripts/check-i18n.mjs --update\n`,
 	);

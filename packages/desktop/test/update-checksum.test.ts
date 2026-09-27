@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { parseChecksums, sha256, verify } from "../electron/update-checksum.ts";
+import { setInterfaceLocaleSource } from "../electron/i18n.ts";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -86,4 +87,22 @@ test("判定：改一个字节就会被抓住", async () => {
 	const tampered = verify(digests, "pkg.zip", await sha256(file));
 	assert.equal(tampered.ok, false);
 	assert.equal(tampered.ok === false && tampered.reason, "mismatch");
+});
+
+test("the verdicts are worded in the interface language", () => {
+	// Shown in the update dialog as they are, so the language is decided here, not there.
+	setInterfaceLocaleSource(() => "en");
+	try {
+		const empty = verify(new Map(), "x.dmg", A);
+		assert.equal(empty.ok === false && empty.message, "This release has no checksum file (SHA256SUMS), so the package cannot be confirmed intact.");
+		const missing = verify(new Map([["y.dmg", A]]), "x.dmg", A);
+		assert.equal(missing.ok === false && missing.message, "The checksum file has no entry for x.dmg.");
+		const wrong = verify(new Map([["x.dmg", A]]), "x.dmg", B);
+		assert.equal(
+			wrong.ok === false && wrong.message,
+			"The package's checksum does not match the one released (expected aaaaaaaaaaaa…, got bbbbbbbbbbbb…). The download has been deleted.",
+		);
+	} finally {
+		setInterfaceLocaleSource(() => "zh-CN");
+	}
 });

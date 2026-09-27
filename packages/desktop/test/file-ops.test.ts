@@ -17,6 +17,7 @@ import {
 	uniqueName,
 	validateName,
 } from "../electron/file-ops.ts";
+import { setInterfaceLocaleSource } from "../electron/i18n.ts";
 
 /*
  * Built with `resolve`, not written out.
@@ -142,4 +143,17 @@ test("byte length is what is counted, not character count", () => {
 	// 85 three-byte characters is 255 bytes; one more is over, while `length` would say 86.
 	assert.equal(validateName("字".repeat(85), "darwin"), null);
 	assert.notEqual(validateName("字".repeat(86), "darwin"), null);
+});
+
+test("the reason a name is refused is in the interface language", () => {
+	// It is what the rename box shows, word for word.
+	setInterfaceLocaleSource(() => "en");
+	try {
+		assert.equal(validateName("", "darwin"), "A name cannot be empty");
+		assert.equal(validateName("a\\b", "darwin"), "A name cannot contain \\");
+		assert.equal(validateName("con.txt", "win32"), "con.txt is a reserved system name");
+	} finally {
+		setInterfaceLocaleSource(() => "zh-CN");
+	}
+	assert.equal(validateName("", "darwin"), "名字不能为空", "and the source reads as it did");
 });

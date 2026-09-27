@@ -13,6 +13,7 @@
 import { parseUnifiedDiff } from "../diff-parse.ts";
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import { BUCKETS, dedupe, parseSearch, PER_BUCKET, SEARCH_QUERY, toSummary } from "../pr-summary.ts";
+import { nativeText } from "../i18n.ts";
 import { ForgeError } from "./errors.ts";
 import { DETAIL_QUERY, type DetailNode, toDetail } from "./github-gql.ts";
 import { DIFF_TIMEOUT_MS, json, text } from "./http.ts";
@@ -21,7 +22,7 @@ import type { ForgeConnection, ForgeDriver, ForgeIdentity, ReviewVerdict } from 
 /** `owner/name`, refused rather than guessed at — every path below interpolates both halves. */
 function split(repo: string): { owner: string; name: string } {
 	const parts = repo.split("/").filter(Boolean);
-	if (parts.length < 2) throw new ForgeError(`仓库名 ${repo} 不是 owner/name 的形式`, 0);
+	if (parts.length < 2) throw new ForgeError(nativeText("forge.badRepoName", { repo }), 0);
 	return { owner: parts[parts.length - 2], name: parts[parts.length - 1] };
 }
 
@@ -47,9 +48,9 @@ async function graphql<T>(conn: ForgeConnection, query: string, variables: Recor
 	if (body.errors?.length) {
 		const message = body.errors.map((e) => e.message).filter(Boolean).join("; ");
 		const limited = body.errors.some((e) => e.type === "RATE_LIMITED") || /rate limit/i.test(message);
-		throw new ForgeError(limited ? "GitHub 暂时限流了，过一会儿会自动恢复" : message || "GitHub 拒绝了这次查询", 0);
+		throw new ForgeError(limited ? nativeText("forge.githubRateLimited") : message || nativeText("forge.githubRejected"), 0);
 	}
-	if (!body.data) throw new ForgeError("GitHub 没有返回数据", 0);
+	if (!body.data) throw new ForgeError(nativeText("forge.githubNoData"), 0);
 	return body.data;
 }
 
@@ -58,7 +59,7 @@ export const github: ForgeDriver = {
 
 	async identify(conn: ForgeConnection): Promise<ForgeIdentity> {
 		const user = await json<{ login?: string; name?: string; avatar_url?: string }>(conn, "/user");
-		if (!user?.login) throw new ForgeError("令牌有效，但读不到用户信息", 0);
+		if (!user?.login) throw new ForgeError(nativeText("forge.noUserInfo"), 0);
 		return { login: user.login, name: user.name || user.login, avatarUrl: user.avatar_url ?? null };
 	},
 
@@ -87,7 +88,7 @@ export const github: ForgeDriver = {
 			number,
 		});
 		const node = data.repository?.pullRequest;
-		if (!node) throw new ForgeError(`${repo} 里没有 #${number}`, 404);
+		if (!node) throw new ForgeError(nativeText("forge.pullRequestMissing", { repo, number }), 404);
 		return toDetail(conn.account.id, repo, node);
 	},
 

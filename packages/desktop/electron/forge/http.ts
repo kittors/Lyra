@@ -12,6 +12,7 @@
  * OS proxy settings, Node ignores them entirely. Outside Electron — in tests — it falls back.
  */
 
+import { nativeText } from "../i18n.ts";
 import { apiRoot } from "./accounts.ts";
 import { describeStatus, ForgeError, networkMessage } from "./errors.ts";
 import type { ForgeConnection } from "./types.ts";
@@ -132,7 +133,7 @@ export async function json<T>(conn: ForgeConnection, path: string, options: Call
 	try {
 		return JSON.parse(text) as T;
 	} catch {
-		throw new ForgeError("接口返回的不是 JSON，检查一下服务地址填对了没有", response.status);
+		throw new ForgeError(nativeText("forge.notJson"), response.status);
 	}
 }
 

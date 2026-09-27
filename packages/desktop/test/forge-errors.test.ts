@@ -10,6 +10,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { describe, describeStatus, ForgeError, networkMessage } from "../electron/forge/errors.ts";
+import { setInterfaceLocaleSource, type NativeLocale } from "../electron/i18n.ts";
+
+/** Run `read` with the interface language set to `locale`, and put the default back after. */
+function inLanguage<T>(locale: NativeLocale, read: () => T): T {
+	setInterfaceLocaleSource(() => locale);
+	try {
+		return read();
+	} finally {
+		setInterfaceLocaleSource(() => "zh-CN");
+	}
+}
 
 test("401 names the token to go and replace, in that host's own words", () => {
 	assert.match(describeStatus(401, "", "gitlab"), /GitLab 令牌/);
@@ -61,4 +72,33 @@ test("an unexpected failure is trimmed rather than dressed up", () => {
 	assert.equal(describe(new Error("boom\nsecond line")), "boom");
 	assert.equal(describe("plain string"), "plain string");
 	assert.equal(describe(new Error("")), "出错了");
+});
+
+test("a failure is told in the interface language, joined with that language's punctuation", () => {
+	/*
+	 * These reach the pull request panel and the sign-in form as they are, so they were Chinese in
+	 * every language — and what the host said was stuck on with a 「：」 even once the words were not.
+	 */
+	assert.equal(describeStatus(422, "Validation Failed", "github"), "对方拒绝了这次提交：Validation Failed", "the source reads as before");
+
+	inLanguage("en", () => {
+		assert.equal(describeStatus(401, "", "gitlab"), "The GitLab token is invalid or has expired — enter a new one in Settings");
+		assert.equal(describeStatus(422, "Validation Failed", "github"), "The host rejected this change: Validation Failed");
+		assert.equal(describeStatus(403, "", "github"), "No permission to do this — check the token's scopes");
+		assert.equal(describeStatus(500, "", "gitea"), "The host's service ran into an error (500)");
+		assert.equal(
+			networkMessage(new Error("getaddrinfo ENOTFOUND git.corp.example"), "https://git.corp.example"),
+			"Could not resolve git.corp.example — check the address or the network",
+		);
+		assert.equal(networkMessage(new Error("something else entirely"), ""), "Could not reach the server");
+		assert.equal(describe(new Error("")), "Something went wrong");
+		assert.ok(describeStatus(422, "x".repeat(500), "github").length < 220, "a paragraph from an API is still not a message");
+	});
+
+	inLanguage("fr", () => {
+		assert.equal(describeStatus(502, "Bad Gateway", "gitlab"), "Le service de l’hébergeur a rencontré une erreur (502) : Bad Gateway");
+	});
+	inLanguage("ja", () => {
+		assert.equal(describeStatus(429, "", "gitee"), "レート制限にかかりました。しばらくすると自然に解除されます");
+	});
 });

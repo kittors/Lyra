@@ -17,6 +17,7 @@
  */
 
 import { parseUnifiedDiff } from "../diff-parse.ts";
+import { nativeText } from "../i18n.ts";
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import { ForgeError } from "./errors.ts";
 import { assembleDiff, type PatchFile } from "./patch.ts";
@@ -61,7 +62,7 @@ interface RawPull {
 
 function split(repo: string): { owner: string; name: string } {
 	const parts = repo.split("/").filter(Boolean);
-	if (parts.length < 2) throw new ForgeError(`仓库名 ${repo} 不是 owner/name 的形式`, 0);
+	if (parts.length < 2) throw new ForgeError(nativeText("forge.badRepoName", { repo }), 0);
 	return { owner: parts[parts.length - 2], name: parts[parts.length - 1] };
 }
 
@@ -111,7 +112,7 @@ export const gitee: ForgeDriver = {
 
 	async identify(conn: ForgeConnection): Promise<ForgeIdentity> {
 		const user = await json<{ login?: string; name?: string; avatar_url?: string }>(conn, "/user");
-		if (!user?.login) throw new ForgeError("令牌有效，但读不到用户信息", 0);
+		if (!user?.login) throw new ForgeError(nativeText("forge.noUserInfo"), 0);
 		return { login: user.login, name: user.name || user.login, avatarUrl: user.avatar_url ?? null };
 	},
 

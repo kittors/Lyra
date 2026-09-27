@@ -18,6 +18,7 @@
 
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
+import { nativeText } from "./i18n.ts";
 
 /** The name `sha256sum` writes, and what the release workflow uploads. */
 export const CHECKSUM_ASSET = "SHA256SUMS";
@@ -65,21 +66,17 @@ export type Verdict =
  */
 export function verify(digests: Map<string, string>, name: string, actual: string): Verdict {
 	if (digests.size === 0) {
-		return {
-			ok: false,
-			reason: "no-checksums",
-			message: "这个版本没有发布校验文件（SHA256SUMS），无法确认安装包是否完整。",
-		};
+		return { ok: false, reason: "no-checksums", message: nativeText("update.checksumsMissing") };
 	}
 	const expected = digests.get(name);
 	if (!expected) {
-		return { ok: false, reason: "not-listed", message: `校验文件里没有 ${name} 这一项。` };
+		return { ok: false, reason: "not-listed", message: nativeText("update.checksumNotListed", { name }) };
 	}
 	if (expected !== actual.toLowerCase()) {
 		return {
 			ok: false,
 			reason: "mismatch",
-			message: `安装包的校验和与发布的不一致（应为 ${expected.slice(0, 12)}…，实为 ${actual.slice(0, 12)}…）。已删除下载的文件。`,
+			message: nativeText("update.checksumMismatch", { expected: expected.slice(0, 12), actual: actual.slice(0, 12) }),
 		};
 	}
 	return { ok: true };
