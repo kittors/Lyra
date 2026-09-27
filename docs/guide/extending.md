@@ -32,10 +32,15 @@ description: 从提交记录整理一份更新说明。要写 release notes 或�
 | --- | --- |
 | `name` | 小写、短横线分隔。必填，也是 slash 命令的名字 |
 | `description` | 什么时候该用它。最多 1024 字 |
-| `allowed-tools` | 只让这个技能用列出的工具，写成列表：`[read, grep]`。省略就是不限制 |
+| `allowed-tools` | 只让这个技能用列出的工具：列表 `[read, grep]`，或用逗号、空格隔开的一串 `read, grep`。省略就是不限制 |
 | `disable-model-invocation` | 设为 true 则模型看不到它，只能由用户从命令菜单调用 |
 
 字段名和 Claude Code 的 SKILL.md 一样用短横线。驼峰写法（`allowedTools`）也认，两种都写时听短横线的。
+
+给 Claude Code 写的 `allowed-tools` 照原样能读：`Read`、`WebFetch` 这类名字按 Lyra 的工具认，大小写不论；
+`Bash(git add *)` 这种带范围的按整个 `bash` 放行，Lyra 不按命令或路径细分；对应不到的名字（如
+`NotebookEdit`）留在名单里、不放行任何调用，名单不会因此变空而失去限制。这几种加载时都会提示一句。
+两边的意思也不一样：Claude Code 里这个字段是「这几样不用问」，别的工具照常能用；Lyra 里是「只用这几样」。
 
 技能目录里可以放 `scripts/`、`assets/` 等资源，正文里的相对路径按技能目录解析——注入时会告诉
 模型这一点。

@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { normalizeKeys } from "../capability/fs.ts";
 import { withoutBom } from "../utils/bom.ts";
+import { readAllowedTools } from "./allowed-tools.ts";
 
 export interface Skill {
 	name: string;
@@ -24,7 +25,10 @@ export interface Skill {
 	dir: string;
 	/** Where the skill came from, shown in the UI. */
 	source: "workspace" | "user" | "builtin";
-	/** Restrict which tools the agent may use while the skill is active. */
+	/**
+	 * Restrict which tools the agent may use while the skill is active. Always our tool names,
+	 * however the frontmatter spelled them: see `readAllowedTools`.
+	 */
 	allowedTools?: string[];
 	/** Hide from the model; only invocable by the user through a slash command. */
 	disableModelInvocation: boolean;
@@ -126,6 +130,8 @@ export async function loadSkills(
 			 * documented one, shared with Claude Code's SKILL.md, so it is the one that decides.
 			 */
 			const tools = frontmatter["allowed-tools"] ?? frontmatter.allowedTools;
+			const allowed = readAllowedTools(tools);
+			for (const problem of allowed.problems) diagnostics.push({ path: file, message: problem, severity: "warning" });
 			skills.push({
 				name,
 				description,
@@ -133,7 +139,7 @@ export async function loadSkills(
 				path: file,
 				dir: skillDir,
 				source,
-				allowedTools: Array.isArray(tools) ? (tools as unknown[]).filter((t): t is string => typeof t === "string") : undefined,
+				allowedTools: allowed.tools,
 				disableModelInvocation: (frontmatter["disable-model-invocation"] ?? frontmatter.disableModelInvocation) === true,
 			});
 		}

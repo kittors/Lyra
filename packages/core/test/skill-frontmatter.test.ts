@@ -108,8 +108,8 @@ async function loadSpelled(fields: Record<string, string>) {
 				"utf8",
 			);
 		}
-		const { skills } = await loadSkills([{ dir, source: "workspace" }]);
-		return new Map(skills.map((s) => [s.name, s]));
+		const { skills, diagnostics } = await loadSkills([{ dir, source: "workspace" }]);
+		return { skills: new Map(skills.map((s) => [s.name, s])), diagnostics };
 	} finally {
 		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
@@ -121,7 +121,7 @@ test("allowed-tools takes effect under either spelling", async () => {
 	 * A skill written by the book loaded with no restriction at all, and nothing said the field
 	 * had been ignored.
 	 */
-	const skills = await loadSpelled({
+	const { skills } = await loadSpelled({
 		hyphen: "allowed-tools: [read, grep]",
 		camel: "allowedTools: [read, grep]",
 	});
@@ -135,7 +135,7 @@ test("with both spellings present, the hyphenated one decides", async () => {
 	 * camelCase key would let it win. The hyphenated spelling is the documented one, shared with
 	 * Claude Code's SKILL.md. Both key orders, because YAML order is the author's accident.
 	 */
-	const skills = await loadSpelled({
+	const { skills } = await loadSpelled({
 		"tools-hyphen-first": "allowed-tools: [read]\nallowedTools: [bash]",
 		"tools-camel-first": "allowedTools: [bash]\nallowed-tools: [read]",
 		"hidden-hyphen-first": "disable-model-invocation: false\ndisableModelInvocation: true",
@@ -150,12 +150,156 @@ test("with both spellings present, the hyphenated one decides", async () => {
 test("non-string entries in allowed-tools are dropped under either spelling", async () => {
 	// Dropping a stray entry keeps the rest of the list in force; rejecting the whole field
 	// would quietly lift the restriction instead.
-	const skills = await loadSpelled({
+	const { skills } = await loadSpelled({
 		hyphen: "allowed-tools: [read, 42, true, null, {name: bash}, grep]",
 		camel: "allowedTools: [read, 42, true, null, {name: bash}, grep]",
 	});
 	assert.deepEqual(skills.get("hyphen")?.allowedTools, ["read", "grep"]);
 	assert.deepEqual(skills.get("camel")?.allowedTools, ["read", "grep"]);
+});
+
+/** What the loader said about one skill. Nothing `allowed-tools` says may stop a skill loading. */
+function warningsFor(result: Awaited<ReturnType<typeof loadSpelled>>, name: string): string[] {
+	assert.ok(result.skills.has(name), `${name} should have loaded: ${JSON.stringify(result.diagnostics)}`);
+	const own = result.diagnostics.filter((d) => d.path.split(/[\\/]/).at(-2) === name);
+	assert.ok(
+		own.every((d) => d.severity === "warning"),
+		`${name} should have only warnings: ${JSON.stringify(own)}`,
+	);
+	return own.map((d) => d.message);
+}
+
+test("a Claude Code string is a list, split on commas or on spaces", async () => {
+	/*
+	 * Claude Code documents `allowed-tools: Read, Grep` and `allowed-tools: Bash Read Grep` beside
+	 * the YAML list. Only the list was read here: a string was dropped without a word, and the skill
+	 * it belonged to ran with every tool.
+	 */
+	const result = await loadSpelled({
+		comma: "allowed-tools: Read, Grep",
+		space: "allowed-tools: Read Grep",
+		camel: "allowedTools: read,grep",
+	});
+	for (const name of ["comma", "space", "camel"]) {
+		assert.deepEqual(result.skills.get(name)?.allowedTools, ["read", "grep"], name);
+		assert.deepEqual(warningsFor(result, name), [], name);
+	}
+});
+
+test("Claude Code's tool names become ours, whatever the case", async () => {
+	/*
+	 * Enforcement compares names exactly, and ours are lowercase. `[Read, Grep]` reached it as
+	 * written and matched nothing, so the skill was refused every tool but `skill` — the two it
+	 * named included.
+	 */
+	const result = await loadSpelled({
+		same: "allowed-tools: [Read, Write, Edit, Glob, Grep, LS, Bash, WebFetch, WebSearch, TodoWrite, LSP, Skill]",
+		renamed: "allowed-tools: [Agent, Task, AskUserQuestion, MultiEdit, BashOutput, KillShell, TaskCreate]",
+		shouted: "allowed-tools: [READ, Web_Fetch]",
+	});
+	assert.deepEqual(result.skills.get("same")?.allowedTools, [
+		"read",
+		"write",
+		"edit",
+		"glob",
+		"grep",
+		"ls",
+		"bash",
+		"web_fetch",
+		"web_search",
+		"todo_write",
+		"lsp",
+		"skill",
+	]);
+	assert.deepEqual(result.skills.get("renamed")?.allowedTools, ["task", "ask_user", "edit", "bash_output", "todo_write"]);
+	assert.deepEqual(result.skills.get("shouted")?.allowedTools, ["read", "web_fetch"]);
+	for (const name of ["same", "renamed", "shouted"]) assert.deepEqual(warningsFor(result, name), [], name);
+});
+
+test("a permission pattern keeps its tool, and the author is told the pattern does nothing here", async () => {
+	/*
+	 * Claude Code narrows a tool with a pattern, `Bash(git add *)`. There is no per-command scope
+	 * here, so the entry grants all of `bash` — not something an author would guess, so it is said.
+	 * Parentheses keep their own commas and spaces: `Agent(a, b)` is one entry, the way Claude
+	 * Code's own skills write it.
+	 */
+	const result = await loadSpelled({
+		commit: "allowed-tools: Bash(git add *) Bash(git commit *) Bash(git status *)",
+		scan: "allowed-tools: Agent(scan-inventory, scan-verifier), Read",
+	});
+	assert.deepEqual(result.skills.get("commit")?.allowedTools, ["bash"]);
+	assert.deepEqual(result.skills.get("scan")?.allowedTools, ["task", "read"]);
+	const commit = warningsFor(result, "commit");
+	assert.equal(commit.length, 1, "one warning for the field, not one per entry");
+	assert.match(commit[0], /`Bash\(git add \*\)`/, "it names what was written");
+	assert.match(commit[0], /`bash` 按整个工具放行/, "and what that amounts to");
+	assert.match(warningsFor(result, "scan").join("\n"), /`Agent\(scan-inventory, scan-verifier\)`/);
+});
+
+test("a name with nothing here to match is kept, so the restriction holds, and it is reported", async () => {
+	/*
+	 * Dropping it would be quieter and wrong. An empty list restricts nothing, so a skill naming only
+	 * `NotebookEdit` would go from one tool to every tool. Kept as written it matches none, which is
+	 * as close as this runtime gets to what the author asked for.
+	 */
+	const result = await loadSpelled({
+		notebook: "allowed-tools: [NotebookEdit]",
+		mixed: "allowed-tools: Read Workflow",
+	});
+	assert.deepEqual(result.skills.get("notebook")?.allowedTools, ["NotebookEdit"]);
+	assert.deepEqual(result.skills.get("mixed")?.allowedTools, ["read", "Workflow"]);
+	assert.match(warningsFor(result, "notebook").join("\n"), /对应不到 Lyra 工具的项.*`NotebookEdit`/);
+	const mixed = warningsFor(result, "mixed").join("\n");
+	assert.match(mixed, /对应不到 Lyra 工具的项.*`Workflow`/);
+	assert.doesNotMatch(mixed, /`Read`/, "only the name that failed is named");
+});
+
+test("tools the loader cannot see are taken on trust", async () => {
+	/*
+	 * The desktop adds `browser_*` tools and MCP servers add `mcp__<server>__<tool>`, and none of
+	 * them exist yet when skills load. A warning for each would teach people to skip the warnings.
+	 */
+	const result = await loadSpelled({
+		host: "allowed-tools: [browser_open, mcp__github__create_issue, mcp__My-Server__getIssue]",
+	});
+	assert.deepEqual(result.skills.get("host")?.allowedTools, ["browser_open", "mcp__github__create_issue", "mcp__My-Server__getIssue"]);
+	assert.deepEqual(warningsFor(result, "host"), []);
+});
+
+test("a whole MCP server cannot be named here, and that is said", async () => {
+	// Claude Code reads `mcp__github` as every tool the server has; enforcement here compares exact names.
+	const result = await loadSpelled({ server: "allowed-tools: [mcp__github, mcp__linear__*]" });
+	assert.deepEqual(result.skills.get("server")?.allowedTools, ["mcp__github", "mcp__linear__*"]);
+	assert.match(warningsFor(result, "server").join("\n"), /指整个 MCP 服务的项.*`mcp__github`、`mcp__linear__\*`/);
+});
+
+test("what is skipped or ignored is said, too", async () => {
+	/*
+	 * A stray entry is still dropped, so the rest of the list stays in force, and a value that is
+	 * neither a list nor a string still restricts nothing. Both used to happen in silence. The list
+	 * that contains itself is the stray that cannot be printed; saying so must not take the loader
+	 * down, and every skill in the directory with it.
+	 */
+	const result = await loadSpelled({
+		strays: "allowed-tools: [read, 42]",
+		cyclic: "allowed-tools: &x [read, *x]",
+		flag: "allowed-tools: true",
+	});
+	assert.deepEqual(result.skills.get("strays")?.allowedTools, ["read"]);
+	assert.match(warningsFor(result, "strays").join("\n"), /不是工具名的项已跳过：`42`/);
+	assert.deepEqual(result.skills.get("cyclic")?.allowedTools, ["read"]);
+	assert.match(warningsFor(result, "cyclic").join("\n"), /不是工具名的项已跳过/);
+	assert.equal(result.skills.get("flag")?.allowedTools, undefined);
+	assert.match(warningsFor(result, "flag").join("\n"), /要写成列表或字符串.*不限制工具/);
+});
+
+test("the hyphenated key still decides when it holds a Claude Code string", async () => {
+	const { skills } = await loadSpelled({
+		"string-first": "allowed-tools: Read\nallowedTools: [bash]",
+		"string-last": "allowedTools: [bash]\nallowed-tools: Read, Grep",
+	});
+	assert.deepEqual(skills.get("string-first")?.allowedTools, ["read"]);
+	assert.deepEqual(skills.get("string-last")?.allowedTools, ["read", "grep"]);
 });
 
 test("两种拼写的 disable-model-invocation 都算数", async () => {
