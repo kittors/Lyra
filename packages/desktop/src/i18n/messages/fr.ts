@@ -2258,7 +2258,7 @@ export const fr = {
 	"conversation.showLaterN": "Afficher les {n} suivants",
 	"delivery.editedN": "{n} fichiers modifiés",
 	"modelCatalog.line": "models.dev · {date} · {n} fournisseurs. Les prix du catalogue servent à estimer ; la facture réelle d'un relais est celle du fournisseur.",
-	"formatting.otherLanguages": "Rien ici ne remplace le style déjà fixé par un dépôt. Go, Rust et Python sont laissés à leurs propres outils officiels (gofmt, rustfmt, ruff/black), et ces réglages ne les atteignent pas.",
+	"formatting.otherLanguages": "Go, Python, C/C++, Dart, Swift, Lua et d'autres ont leur formateur officiel (gofmt, ruff, clang-format…) intégré à Lyra : rien à installer. L'indentation et la largeur de ligne s'appliquent à la plupart d'entre eux ; Go, Dart et Swift gardent toujours leur propre style. Rust et quelques autres dépendent encore d'un outil installé sur cette machine, comme rustfmt, que ces réglages n'atteignent pas.",
 	"index.recordsWhat": "L'index enregistre, pour les fonctions, classes, interfaces, types et constantes, leurs",
 	"agents.availableCount": "Disponibles ({n})",
 	"appearance.linesUnit": "lignes",

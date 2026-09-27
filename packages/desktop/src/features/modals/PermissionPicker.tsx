@@ -20,6 +20,11 @@ import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { useApp } from "../../store/index.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
+/*
+ * Titled with the composer chip's own keys, so the menu names each mode exactly as the chip it
+ * hangs off does. The full-access row once borrowed the settings page's title and read
+ * 「完整访问权限」 under a chip that said 「完全访问」.
+ */
 const MODES: {
 	value: PermissionMode;
 	icon: typeof Hand;
@@ -42,7 +47,7 @@ const MODES: {
 	{
 		value: "full",
 		icon: CircleAlert,
-		titleKey: "general.fullAccess",
+		titleKey: "composer.permissionFull",
 		detailKey: "permission.fullDetail",
 		danger: true,
 	},

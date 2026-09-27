@@ -188,10 +188,15 @@ export function FormattingSettings() {
 				</Card>
 			</div>
 
-			<p className="px-1 text-detail text-ink-faint">
-				{translate("formatting.projectWinsInline")}
-				{translate("formatting.otherLanguages")}
-			</p>
+			{/*
+			 * Two paragraphs, not one run of text. The messages used to sit side by side with nothing
+			 * between them, which is invisible in Chinese and Japanese and ran the sentences together
+			 * everywhere else, with no space after the full stop.
+			 */}
+			<div className="flex flex-col gap-1 px-1 text-detail text-ink-faint">
+				<p>{translate("formatting.projectWinsInline")}</p>
+				<p>{translate("formatting.otherLanguages")}</p>
+			</div>
 		</div>
 	);
 }

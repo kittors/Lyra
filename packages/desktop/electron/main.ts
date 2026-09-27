@@ -794,6 +794,8 @@ configureNotify({
 	window: () => getWindow(),
 	appIcon: () => appIconPath(),
 	createNotification: (options) => new Notification(options),
+	uiLocale: () => settings?.uiLocale ?? "system",
+	systemLocale: () => app.getLocale(),
 });
 
 app.on("window-all-closed", () => {

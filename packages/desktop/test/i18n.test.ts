@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveUiLocale } from "../src/i18n/locales.ts";
-import { MESSAGE_CATALOGS } from "../src/i18n/messages/index.ts";
+import { MESSAGE_CATALOGS, type MessageKey } from "../src/i18n/messages/index.ts";
 
 test("system languages resolve by BCP 47 family, including traditional Chinese regions", () => {
 	assert.equal(resolveUiLocale("system", ["zh-Hant-HK"]), "zh-TW");
@@ -21,6 +21,33 @@ test("all bundled language packs cover the same interface keys", () => {
 	const source = Object.keys(MESSAGE_CATALOGS["zh-CN"]).sort();
 	for (const [locale, catalog] of Object.entries(MESSAGE_CATALOGS)) {
 		assert.deepEqual(Object.keys(catalog).sort(), source, `${locale} 缺少界面文案`);
+	}
+});
+
+test("every translation keeps the {slots} of its Chinese source", () => {
+	// A renamed or dropped slot shows up as a literal `{name}`, or as a missing value, in that one
+	// language only — and the types never look inside the strings.
+	const slots = (text: string) => [...new Set([...text.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]))].sort();
+	const source = MESSAGE_CATALOGS["zh-CN"];
+	for (const [locale, catalog] of Object.entries(MESSAGE_CATALOGS)) {
+		for (const [key, text] of Object.entries(catalog)) {
+			assert.deepEqual(slots(text), slots(source[key as MessageKey]), `${locale} ${key}`);
+		}
+	}
+});
+
+test("full access has one name per language, wherever the interface says it", () => {
+	/*
+	 * The composer chip said 「完全访问」 while the menu it opens and the settings row said
+	 * 「完整访问权限」. The chip's wording is the name: the other places either are it or contain it.
+	 */
+	for (const [locale, catalog] of Object.entries(MESSAGE_CATALOGS)) {
+		const name = catalog["composer.permissionFull"];
+		assert.equal(catalog["general.fullAccess"], name, `${locale}: the settings row`);
+		for (const key of ["permission.confirmTitle", "question.fullAccessNote"] as const) {
+			const text = catalog[key];
+			assert.ok(text.toLocaleLowerCase(locale).includes(name.toLocaleLowerCase(locale)), `${locale} ${key}: ${text}`);
+		}
 	}
 });
 
