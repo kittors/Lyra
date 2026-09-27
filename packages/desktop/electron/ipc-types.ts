@@ -996,7 +996,8 @@ export interface LyraApi {
 		/** 这个项目现在有哪些规则，包括被关掉的和被同名文件盖掉的。 */
 		list(cwd: string): Promise<{
 			rules: RuleEntry[];
-			diagnostics: { path: string; message: string }[];
+			/** A warning is a rule to look at again; only an error is a file that could not be read. */
+			diagnostics: { path: string; message: string; severity: "error" | "warning" }[];
 			/** 有个人级规则可以勾的外部工具。 */
 			foreignUserSources: { id: string; label: string; describe: string }[];
 			/** 已经勾上的那些。 */

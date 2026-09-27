@@ -20,7 +20,7 @@ import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
 import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
-import type { Rule, RuleSet } from "../rules/types.ts";
+import type { Rule, RuleDiagnostic, RuleSet } from "../rules/types.ts";
 import { conditionSource } from "../rules/condition.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
@@ -124,7 +124,7 @@ export async function collectRules(
 	cwd: string,
 	settings: Settings,
 	plugins: Plugin[],
-): Promise<{ rules: RuleEntry[]; diagnostics: { path: string; message: string }[] }> {
+): Promise<{ rules: RuleEntry[]; diagnostics: RuleDiagnostic[] }> {
 	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
 	const off = new Set(settings.disabledRules ?? []);
 
@@ -140,7 +140,12 @@ export async function collectRules(
 			disabled: off.has(item.name),
 			shadowedBy: item.shadowedBy ? { path: item.shadowedBy.path, label: item.shadowedBy.providerLabel } : undefined,
 		})),
-		diagnostics: result.diagnostics.map((d) => ({ path: d.path, message: d.message })),
+		/*
+		 * With their severity, as the session gets them. The settings page splits on it: a file that
+		 * could not be read is one thing, a description cut short is another, and without it every
+		 * line arrived as the first.
+		 */
+		diagnostics: ruleDiagnostics(result.diagnostics),
 	};
 }
 
@@ -298,8 +303,17 @@ function groupRules(rules: Rule[], disabled: string[], diagnostics: { path: stri
 		if (off.has(rule.name)) continue;
 		set[rule.bucket].push(rule);
 	}
-	set.diagnostics = diagnostics
+	set.diagnostics = ruleDiagnostics(diagnostics);
+	return set;
+}
+
+/**
+ * The registry's diagnostics as rules report them: `info` dropped, the rest an error or a warning.
+ *
+ * One function for the session and the settings page, so the page lists what the session was told.
+ */
+function ruleDiagnostics(diagnostics: { path: string; message: string; severity: string }[]): RuleDiagnostic[] {
+	return diagnostics
 		.filter((d) => d.severity !== "info")
 		.map((d) => ({ path: d.path, message: d.message, severity: d.severity === "warning" ? "warning" : "error" }));
-	return set;
 }
