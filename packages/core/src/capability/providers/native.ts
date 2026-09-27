@@ -159,6 +159,8 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 				});
 			}
 			// `schema-mode` and `schemaMode` are the same key, as they are for skills and commands.
+			// Written both ways, though, the camelCase value wins here, because the reads below take
+			// the alias; skills and commands read the hyphenated key first and let it win.
 			const frontmatter = normalizeKeys(parsed.frontmatter);
 			const { body } = parsed;
 			const name =
