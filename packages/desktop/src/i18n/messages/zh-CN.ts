@@ -2058,6 +2058,8 @@ export const zhCN = {
 	"sideMessage.attachedImage": "附图",
 	"sideMessage.busy": "回答进行中，无法编辑",
 	"sideMessage.editAndReask": "编辑并重新提问",
+	"pluginsSettings.warnings": "{n} 个插件技能需要留意",
+	"skillsSettings.warnings": "{n} 个技能需要留意",
 	"address.searchWith": "用{engine}搜索",
 	"address.openUrl": "打开网址",
 	"address.label": "地址栏或搜索",

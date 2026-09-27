@@ -1873,6 +1873,8 @@ export const ko = {
 	"sideMessage.attachedImage": "첨부 이미지",
 	"sideMessage.busy": "답하는 중이라 고칠 수 없습니다",
 	"sideMessage.editAndReask": "고쳐서 다시 묻기",
+	"pluginsSettings.warnings": "플러그인 스킬 {n}개에 경고가 있습니다",
+	"skillsSettings.warnings": "스킬 {n}개에 경고가 있습니다",
 	"address.searchWith": "{engine}(으)로 검색",
 	"address.openUrl": "주소 열기",
 	"address.label": "주소 또는 검색",

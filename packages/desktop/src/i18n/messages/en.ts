@@ -1873,6 +1873,8 @@ export const en = {
 	"sideMessage.attachedImage": "Attached image",
 	"sideMessage.busy": "It is answering — cannot edit now",
 	"sideMessage.editAndReask": "Edit and ask again",
+	"pluginsSettings.warnings": "Plugin skills with warnings: {n}",
+	"skillsSettings.warnings": "Skills with warnings: {n}",
 	"address.searchWith": "Search with {engine}",
 	"address.openUrl": "Open the address",
 	"address.label": "Address or search",

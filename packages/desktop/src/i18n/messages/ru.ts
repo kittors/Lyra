@@ -1873,6 +1873,8 @@ export const ru = {
 	"sideMessage.attachedImage": "Приложенное изображение",
 	"sideMessage.busy": "Сейчас идёт ответ — править нельзя",
 	"sideMessage.editAndReask": "Поправить и спросить снова",
+	"pluginsSettings.warnings": "Навыков из плагинов с предупреждениями: {n}",
+	"skillsSettings.warnings": "Навыков с предупреждениями: {n}",
 	"address.searchWith": "Искать через {engine}",
 	"address.openUrl": "Открыть адрес",
 	"address.label": "Адрес или поиск",

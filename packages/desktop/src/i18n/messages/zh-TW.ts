@@ -1873,6 +1873,8 @@ export const zhTW = {
 	"sideMessage.attachedImage": "附圖",
 	"sideMessage.busy": "回答進行中，無法編輯",
 	"sideMessage.editAndReask": "編輯並重新提問",
+	"pluginsSettings.warnings": "{n} 個外掛技能需要注意",
+	"skillsSettings.warnings": "{n} 個技能需要注意",
 	"address.searchWith": "用{engine}搜尋",
 	"address.openUrl": "開啟網址",
 	"address.label": "網址列或搜尋",
