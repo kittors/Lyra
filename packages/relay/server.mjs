@@ -37,6 +37,17 @@ const ASSET_TIMEOUT_MS = 15_000;
 const RATE_WINDOW_MS = 60_000;
 
 /**
+ * 房间成员多久没发任何一帧，就当作已经不在了。
+ *
+ * 手机切后台时操作系统回收 socket，经常一个 FIN 都不给——服务端看到的是一条永远
+ * ESTABLISHED 的 TCP，房间里坐着一个幽灵。幽灵不清，同令牌的下一次连接就是
+ * `room-full`，而两端都只看到「连不上」。移动端的桥每 15 秒发一次 ping（见
+ * `bridge.ts` 的 heartbeat），所以 75 秒收不到任何一帧只可能是对端没了：正常
+ * 心跳的三倍宽。测试里用环境变量把它压到亚秒级——等 75 秒的测试没人会跑。
+ */
+const MEMBER_IDLE_MS = Number(process.env.LYRA_MEMBER_IDLE_MS ?? 75_000);
+
+/**
  * 一条连接上还没凑成完整帧的字节，最多攒到这里。
  *
  * `MAX_BYTES_PER_CONNECTION` 管的是一条连接一共转了多少，它不看这些字节是不是还堆在内存里。
@@ -135,11 +146,19 @@ server.on("upgrade", (req, socket) => {
 		bytes: 0,
 		/** 建房限流按它算。反代后面这会是反代的地址——那种部署下限流该由反代做。 */
 		address: socket.remoteAddress ?? "unknown",
+		/** 上次收到任何一帧的时刻，idle 清理按它算。 */
+		lastSeen: Date.now(),
 	};
 
 	socket.on("data", (chunk) => onData(client, chunk));
 	socket.on("error", () => leave(client));
 	socket.on("close", () => leave(client));
+	/*
+	 * 对端优雅关闭时 TCP 只送到一个 FIN，Node 的流会 emit `end` 而不是 `close`——
+	 * 不监听它，socket 就停在 CLOSE_WAIT，房间成员也留着。移动网络下这是常态而不
+	 * 是例外：切后台、换基站、Wi-Fi 与流量互切，每一种都可能只送半个告别。
+	 */
+	socket.on("end", () => leave(client));
 	/*
 	 * A socket that says nothing is a socket that will hold a room forever.
 	 *
@@ -150,6 +169,31 @@ server.on("upgrade", (req, socket) => {
 		if (!client.room) socket.destroy();
 	}, 10_000).unref?.();
 });
+
+/*
+ * 定期把没心跳的成员请出房间。
+ *
+ * 一条连接失联的两种样子，两种都要清：只送了 FIN 的（上面 `end` 已处理）和什么都没
+ * 送的——后者对端进程可能整个没了，TCP 还假装 ESTABLISHED。清的理由不是省内存，是
+ * 房间只有两个座位：幽灵坐一个，真设备就 `room-full`。
+ *
+ * 巡查间隔也跟着 idle 窗口走：等 75 秒的幽灵再多等 30 秒无所谓，而测试里把 idle
+ * 压到 200ms 时，30 秒才巡一次就等于永远巡不到。
+ */
+const SWEEP_MS = Math.min(30_000, Math.max(50, Math.floor(MEMBER_IDLE_MS / 2)));
+setInterval(() => {
+	const now = Date.now();
+	for (const client of members()) {
+		if (now - client.lastSeen < MEMBER_IDLE_MS) continue;
+		client.socket.destroy();
+		leave(client);
+	}
+}, SWEEP_MS).unref?.();
+
+/** 所有房间里所有成员，展平成一个可遍历的序列。 */
+function* members() {
+	for (const set of rooms.values()) yield* set;
+}
 
 /** Decode as many whole frames as `chunk` completes, and act on each. */
 function onData(client, chunk) {
@@ -170,6 +214,7 @@ function onData(client, chunk) {
 		const frame = decode(client.buffer);
 		if (!frame) return;
 		client.buffer = client.buffer.subarray(frame.size);
+		client.lastSeen = Date.now();
 
 		// 0x8 close, 0x9 ping, 0xA pong.
 		if (frame.opcode === 0x8) return client.socket.destroy();
