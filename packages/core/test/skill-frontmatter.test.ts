@@ -96,6 +96,68 @@ test("a skill with unterminated frontmatter loads but is reported", async () => 
 	);
 });
 
+// A fresh directory per call, because `root/skills` still holds the skills written above.
+async function loadSpelled(fields: Record<string, string>) {
+	const dir = await mkdtemp(join(tmpdir(), "ly-skill-spelling-"));
+	try {
+		for (const [name, yaml] of Object.entries(fields)) {
+			await mkdir(join(dir, name), { recursive: true });
+			await writeFile(
+				join(dir, name, "SKILL.md"),
+				`---\nname: ${name}\ndescription: A skill whose frontmatter spelling is under test.\n${yaml}\n---\nBody.\n`,
+				"utf8",
+			);
+		}
+		const { skills } = await loadSkills([{ dir, source: "workspace" }]);
+		return new Map(skills.map((s) => [s.name, s]));
+	} finally {
+		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+}
+
+test("allowed-tools takes effect under either spelling", async () => {
+	/*
+	 * The guide told authors to write `allowedTools` while the loader read only `allowed-tools`.
+	 * A skill written by the book loaded with no restriction at all, and nothing said the field
+	 * had been ignored.
+	 */
+	const skills = await loadSpelled({
+		hyphen: "allowed-tools: [read, grep]",
+		camel: "allowedTools: [read, grep]",
+	});
+	assert.deepEqual(skills.get("hyphen")?.allowedTools, ["read", "grep"]);
+	assert.deepEqual(skills.get("camel")?.allowedTools, ["read", "grep"]);
+});
+
+test("with both spellings present, the hyphenated one decides", async () => {
+	/*
+	 * `normalizeKeys` leaves an explicit camelCase key holding its own value, so reading only the
+	 * camelCase key would let it win. The hyphenated spelling is the documented one, shared with
+	 * Claude Code's SKILL.md. Both key orders, because YAML order is the author's accident.
+	 */
+	const skills = await loadSpelled({
+		"tools-hyphen-first": "allowed-tools: [read]\nallowedTools: [bash]",
+		"tools-camel-first": "allowedTools: [bash]\nallowed-tools: [read]",
+		"hidden-hyphen-first": "disable-model-invocation: false\ndisableModelInvocation: true",
+		"hidden-camel-first": "disableModelInvocation: true\ndisable-model-invocation: false",
+	});
+	assert.deepEqual(skills.get("tools-hyphen-first")?.allowedTools, ["read"]);
+	assert.deepEqual(skills.get("tools-camel-first")?.allowedTools, ["read"]);
+	assert.equal(skills.get("hidden-hyphen-first")?.disableModelInvocation, false);
+	assert.equal(skills.get("hidden-camel-first")?.disableModelInvocation, false);
+});
+
+test("non-string entries in allowed-tools are dropped under either spelling", async () => {
+	// Dropping a stray entry keeps the rest of the list in force; rejecting the whole field
+	// would quietly lift the restriction instead.
+	const skills = await loadSpelled({
+		hyphen: "allowed-tools: [read, 42, true, null, {name: bash}, grep]",
+		camel: "allowedTools: [read, 42, true, null, {name: bash}, grep]",
+	});
+	assert.deepEqual(skills.get("hyphen")?.allowedTools, ["read", "grep"]);
+	assert.deepEqual(skills.get("camel")?.allowedTools, ["read", "grep"]);
+});
+
 test("两种拼写的 disable-model-invocation 都算数", async () => {
 	/*
 	 * 连字符和驼峰在外面都有人写——启发这些格式的那几个工具彼此就不一致。原本只认连字符那一种，
