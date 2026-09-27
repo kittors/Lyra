@@ -116,6 +116,7 @@
   // External tools this code shells out to, which are meant to be absent on a machine that does
   // not need them: `rg` for grep, `bwrap` for the Linux sandbox, `ffmpeg` to encode the recording
   // an e2e probe makes, `objdump` for the glibc check that runs after a Linux package is built,
-  // `sips` (part of macOS) to crop an e2e probe's screenshots.
-  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips"]
+  // `sips` (part of macOS) to crop an e2e probe's screenshots, `tasklist` (part of Windows) for the
+  // relay test that weighs the relay process there.
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "tasklist"]
 }

@@ -12,6 +12,21 @@ const hash = (value: string) => createHash("sha256").update(value).digest("hex")
 /** The relay process behind each port, for the test that weighs it. */
 const pids = new Map<number, number>();
 
+/**
+ * Another process's resident memory, in MiB.
+ *
+ * `ps -o rss=` on macOS and Linux. On Windows the `ps` on PATH is Git Bash's, which has no `-o`, so
+ * the working set comes from `tasklist`: its CSV row ends in `"52,344 K"`, in the machine's own
+ * thousands separator, so only the digits are kept.
+ */
+function residentMiB(pid: number): number {
+	if (process.platform === "win32") {
+		const row = execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"]).toString().trim();
+		return Number(row.split('","').at(-1)?.replace(/\D/g, "")) / 1024;
+	}
+	return Number(execFileSync("ps", ["-o", "rss=", "-p", String(pid)]).toString().trim()) / 1024;
+}
+
 async function relay(t: TestContext): Promise<number> {
 	// Fixed high ports may belong to Windows' excluded ranges; let the OS allocate one.
 	const child: ChildProcess = spawn(process.execPath, [fileURLToPath(SERVER)], {
@@ -130,7 +145,7 @@ test("a frame that is never finished costs the relay no memory", async (t) => {
 	const port = await relay(t);
 	const { socket } = await desktop(t, port, hash("buffer-token"), hash(`lyra-assets\0${hash("buffer-token")}`));
 	const pid = pids.get(port) ?? 0;
-	const rss = () => Number(execFileSync("ps", ["-o", "rss=", "-p", String(pid)]).toString().trim()) / 1024;
+	const rss = () => residentMiB(pid);
 
 	// Handshake and hello through ws, then raw bytes: this shape is not one ws will send itself.
 	const raw = (socket as unknown as { _socket: import("node:net").Socket })._socket;
