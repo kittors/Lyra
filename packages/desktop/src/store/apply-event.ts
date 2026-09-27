@@ -16,7 +16,7 @@ import { cachedEvent } from "./cached-event.ts";
 import { messageEvent } from "./message-event.ts";
 import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
-import { howItStopped } from "./derive.ts";
+import { howItStopped, without } from "./derive.ts";
 import { freeze, relight, saveCarried } from "./turn-meter.ts";
 /*
  * `sideStore.ts` directly, not the domain's index.
@@ -245,6 +245,27 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     }
   }
 
+  /*
+   * The offer to keep a correction, for whichever conversation made it — a question, not a record,
+   * which is why it is state rather than a message.
+   *
+   * It used to be kept only for the conversation in the live slot, on the reasoning that an offer
+   * about a conversation nobody is looking at would be answered with no idea what it referred to.
+   * With several screens the live slot is only where focus is: the conversation beside it is being
+   * looked at, and its offer was dropped. The card is drawn at the end of its own transcript, under
+   * the exchange it asks about, so it has that context wherever it is seen — a conversation opened
+   * later included. The session spends its budget either way, which is the honest cost: it did ask.
+   *
+   * Its next turn takes it away, answered or not. The offer is about the exchange that had just
+   * happened; left up, it would sit under a reply to a different question — still offering to save a
+   * rule about something the conversation has moved past.
+   */
+  if (event.type === "rule_suggested") {
+    set({ ruleOffers: { ...get().ruleOffers, [sessionId]: { name: event.name, body: event.body, condition: event.condition, scope: event.scope } } });
+  } else if (event.type === "agent_start" && get().ruleOffers?.[sessionId]) {
+    set({ ruleOffers: without(get().ruleOffers, sessionId) });
+  }
+
   if (sessionId !== get().activeSessionId) {
 		// Delegated work of a conversation that is on screen without being the live one.
 		if (event.type === "subagents") useSubAgents.getState().retain(sessionId, event.agents);
@@ -312,14 +333,6 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
          */
         hiccups: [],
         stopped: null,
-        /*
-         * An unanswered offer does not survive into the next turn.
-         *
-         * It is about the exchange that had just happened. Left up, it would sit under a reply to
-         * a different question — still offering to save a rule about something the conversation
-         * has moved past, and still looking like it is about what is on screen now.
-         */
-        ruleOffer: null,
         // The composer already started the clock when it sent, and the ~2s of session
         // setup before the agent starts is part of the wait. Overwriting it here made
         // the elapsed time jump backwards. A turn driven from the phone or the
@@ -514,20 +527,6 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       }
       break;
     }
-
-    case "rule_suggested":
-      /*
-       * A question, not a record — which is why it is state rather than a message.
-       *
-       * Everything above this point has already returned for sessions that are not on screen, and
-       * that is the behaviour this one needs: an offer about a conversation somebody is not
-       * looking at would be answered with no idea what it referred to. The session spends its
-       * budget either way, which is the honest cost — it did ask.
-       */
-      set({
-        ruleOffer: { name: event.name, body: event.body, condition: event.condition, scope: event.scope },
-      });
-      break;
 
     case "agent_end": {
       /*

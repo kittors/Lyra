@@ -2,6 +2,7 @@ import { Activity, AlertCircle, ArrowDownToLine, ArrowUpFromLine, GitBranch, Git
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { usePaneOnScreen } from "../dock/index.ts";
+import { useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { syncPlan, type SyncButton } from "./syncPlan.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 
@@ -201,8 +202,14 @@ export function GitPanel() {
    * 那些换成 toast 会在原地留下一块没人解释的空白。
    */
   const notify = useApp((s) => s.notify);
-  const workspace = useApp((s) => s.workspace);
-  const running = useApp((s) => s.running);
+  /*
+   * The project of the conversation whose screen this panel is in.
+   *
+   * `workspace` and `running` describe the live slot — the focused screen. Read from there, a split's
+   * other Git panel showed the focused conversation's repository, and swapped every time focus moved.
+   */
+  const { workspace } = useScopedWorkspace();
+  const running = useScopedRunning();
   const [view, setView] = useState<View>("changes");
 	const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   /*

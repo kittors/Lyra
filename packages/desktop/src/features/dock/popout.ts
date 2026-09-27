@@ -271,9 +271,11 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 		return;
 	}
 	/*
-	 * `target` names the screen when the request is not a click in it — an announcement, a page an
-	 * agent revealed. Anything a person clicked is already in the screen with the focus: pressing
-	 * inside a screen focuses it first.
+	 * `target` names the screen the request belongs to. Without it the request goes to the screen
+	 * with focus: right for a press, which focuses its screen first, and wrong for the keyboard, which
+	 * reaches a control in another screen without that press. So a control drawn inside a screen
+	 * passes its own (`useDockScope`), and so does a request that is not a click at all — an
+	 * announcement, a page an agent revealed.
 	 */
 	const scope = target && usePaneDock.getState().size(target) ? target : readScope();
 	if (!scope) return;

@@ -20,7 +20,8 @@ import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useEffect, useState } from "react";
 import { ChevronDown, FolderCheck, Pencil, Sparkles, UserCheck, X } from "lucide-react";
 import { bridge } from "../../services/host.ts";
-import { useApp } from "../../store/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
+import { useApp, type RuleOffer } from "../../store/index.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
 
 /** 触发条件说的是「在哪儿看」，把 scope 翻成人话。 */
@@ -32,10 +33,28 @@ function where(scope: string | undefined): string {
   return scope;
 }
 
+/** Answered: this conversation's offer goes, unless a newer one has taken its place meanwhile. */
+function settle(sessionId: string, offer: RuleOffer): void {
+  useApp.setState((s) => {
+    if (s.ruleOffers[sessionId] !== offer) return {};
+    const rest = { ...s.ruleOffers };
+    delete rest[sessionId];
+    return { ruleOffers: rest };
+  });
+}
+
 export function RuleSuggestion() {
 	const { t } = useI18n();
-  const offer = useApp((s) => s.ruleOffer);
-  const sessionId = useApp((s) => s.activeSessionId);
+  /*
+   * The offer of the conversation this transcript belongs to, not of the focused one.
+   *
+   * Every screen of a split draws a transcript, and each one's end drew the live conversation's
+   * offer: the card stood under both screens, asking about an exchange that was not there. Pressing
+   * the copy under the other screen focused that screen first, which took the card away from under
+   * the pointer. The answer goes to this conversation too — the rule is saved into its project.
+   */
+  const sessionId = useScopedSessionId();
+  const offer = useApp((s) => (sessionId ? s.ruleOffers[sessionId] : undefined)) ?? null;
   const notify = useApp((s) => s.notify);
 
   const [open, setOpen] = useState(false);
@@ -71,7 +90,7 @@ export function RuleSuggestion() {
   const dismiss = () => {
     // 先告诉会话，再从界面上拿掉：预算记在 core 那边，少记一次就是多问一次。
     void bridge.rules.decline(sessionId).catch(() => {});
-    useApp.setState({ ruleOffer: null });
+    settle(sessionId, offer);
   };
 
   const keep = (scope: "project" | "user") => {
@@ -80,7 +99,7 @@ export function RuleSuggestion() {
     void bridge.rules
       .keep(sessionId, scope, offer.name, draft)
       .then((saved) => {
-        useApp.setState({ ruleOffer: null });
+        settle(sessionId, offer);
         /*
          * 说出落到哪儿了，而且要说重命名。
          *

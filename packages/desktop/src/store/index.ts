@@ -106,6 +106,14 @@ interface PendingApproval extends QuestionFields {
   expiresAt?: number;
 }
 
+/** A correction offered as a rule: what `rule_suggested` carries, and what the card asks about. */
+export interface RuleOffer {
+  name: string;
+  body: string;
+  condition?: string;
+  scope?: string;
+}
+
 export interface AppState extends QueueSlice {
   ready: boolean;
   view: View;
@@ -361,13 +369,16 @@ export interface AppState extends QueueSlice {
 	commandRuns: CommandRun[];
   notices: { id: string; level: "info" | "warn" | "error"; message: string; sessionId?: string }[];
   /**
-   * A correction the runtime thinks could become a rule, waiting to be answered.
+   * Corrections the runtime thinks could become rules, waiting to be answered — by conversation.
    *
-   * One at a time and not kept in the transcript. An offer is about the exchange that just
-   * happened, and one still sitting there three turns later would be asking about something the
-   * person has moved on from — so a new turn clears it whether or not it was answered.
+   * Not kept in the transcript. An offer is about the exchange that just happened, and one still
+   * sitting there three turns later would be asking about something the person has moved on from —
+   * so the conversation's next turn clears it whether or not it was answered.
+   *
+   * Keyed rather than one slot for the live conversation: a split shows several at once, and a slot
+   * drew the offer under every screen, then dropped it unanswered when focus moved to another one.
    */
-  ruleOffer: { name: string; body: string; condition?: string; scope?: string } | null;
+  ruleOffers: Record<string, RuleOffer>;
   capabilities: AgentCapabilities | null;
   sync: SyncStatus | null;
 
@@ -488,12 +499,15 @@ export interface AppState extends QueueSlice {
    * `meta` 是这条消息除措辞之外的样子——附了哪几个文件，气泡里该显示哪一份文本。编辑改的是
    * 措辞，这两样得原样带过去，否则每编辑一次就把附件从界面上抹掉一次。
    */
-  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
+  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }, sessionId?: string): Promise<void>;
   /**
    * Take a user message back: cut it and everything after, then put the wording in the composer.
    * Does not start another turn.
+   *
+   * Both act on the live conversation. Given `sessionId`, on that one, which is made the live one
+   * first if it is not already — a split's other screen names its own.
    */
-  revertMessage(index: number): Promise<void>;
+  revertMessage(index: number, sessionId?: string): Promise<void>;
   /**
    * Re-send the user message that produced the reply at `index`. Given `sessionId`, in that
    * conversation, which is made the live one first if it is not already.
@@ -573,7 +587,7 @@ export const useApp = create<AppState>((set, get) => ({
 	commandRuns: [],
   todos: [],
   notices: [],
-  ruleOffer: null,
+  ruleOffers: {},
   capabilities: null,
   sync: null,
 

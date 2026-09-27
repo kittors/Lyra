@@ -21,6 +21,23 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
 export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
+	/*
+	 * Put a named conversation in the live slot before acting on its transcript; false if it did not
+	 * get there.
+	 *
+	 * Editing, taking back and re-asking all work on the live slot's copy. In a split the conversation
+	 * asked for can be on another screen: pressing there focuses it first, the keyboard does not, and
+	 * acting on the live slot then rewrote the conversation beside it — a turn's worth of tokens spent
+	 * on, or a message taken out of, somebody else's work. Bringing it on stage is what the press would
+	 * have done; in a split that moves the focus to its screen.
+	 */
+	const onStage = async (sessionId: string): Promise<boolean> => {
+		const meta = get().sessions.find((session) => session.id === sessionId);
+		if (!meta) return false;
+		await get().openSession(meta);
+		// Another conversation was opened while this one was being read: that is the newer choice.
+		return get().activeSessionId === sessionId;
+	};
 	return {
 	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
@@ -194,20 +211,8 @@ export function turnSlice(set: Set, get: Get) {
    * for the same reason it does when the wording changes.
    */
   async retryFrom(index: number, sessionId?: string) {
-    /*
-     * 指名的会话不在台上，先把它请上台。
-     *
-     * `editMessage` 只会改台上那一份转录。分屏时非焦点那一屏的「重试」用键盘按下去不经过
-     * pointerdown，焦点不会先切过来——不先请上台，被丢掉重答的就是焦点那一屏的对话，一次要再花
-     * 整轮 token 的操作落在了别人头上。请上台在分屏里就是把焦点切到那一屏，和鼠标按下时一样。
-     */
-    if (sessionId && sessionId !== get().activeSessionId) {
-      const meta = get().sessions.find((session) => session.id === sessionId);
-      if (!meta) return;
-      await get().openSession(meta);
-      // 等待期间人又点开了别的对话：那是更新的选择，这次重试不再作数。
-      if (get().activeSessionId !== sessionId) return;
-    }
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
     const messages = get().messages;
     for (let i = Math.min(index, messages.length - 1); i >= 0; i--) {
       const message = messages[i];
@@ -226,7 +231,10 @@ export function turnSlice(set: Set, get: Get) {
     index: number,
     content: UserContent[],
     meta: { displayText?: string; attachments?: MessageAttachment[] } = {},
+    target?: string,
   ) {
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (target && target !== get().activeSessionId && !(await onStage(target))) return;
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;
     const before = get();
@@ -287,7 +295,9 @@ export function turnSlice(set: Set, get: Get) {
 		}
   },
 
-  async revertMessage(index: number) {
+  async revertMessage(index: number, target?: string) {
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (target && target !== get().activeSessionId && !(await onStage(target))) return;
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;
     const messages = get().messages;

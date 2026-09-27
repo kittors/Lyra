@@ -82,6 +82,17 @@ export function useScopedMessages(): Message[] {
 	});
 }
 
+/**
+ * One fact read off this screen's transcript, redrawing only when the fact changes.
+ *
+ * For a row that needs something about the whole transcript — which message was said last — and
+ * would otherwise redraw on every streamed token by holding the list itself.
+ */
+export function useScopedFromMessages<T>(read: (messages: Message[]) => T): T {
+	const id = useScopedSessionId();
+	return useApp((s) => read(id === s.activeSessionId ? s.messages : (parked(s, id)?.messages ?? EMPTY_MESSAGES)));
+}
+
 export function useScopedRunning(): boolean {
 	const id = useScopedSessionId();
 	return useApp((s) => {
