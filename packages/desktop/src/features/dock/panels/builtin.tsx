@@ -30,7 +30,7 @@ import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
 import { usePaneDock } from "../pane-store.ts";
-import { useDockScope, useScopedSessionId } from "../../../app/session-scope.tsx";
+import { useDockScope, useScopedProjectPath, useScopedSessionId } from "../../../app/session-scope.tsx";
 import { registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**
@@ -61,7 +61,8 @@ function deliveryName(path: string) {
  */
 function DeliveryTitle() {
 	const { t } = useI18n();
-	const path = useDeliveryReview((state) => state.target?.path ?? null);
+	const owner = useScopedSessionId();
+	const path = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.target.path ?? null) : null));
 	const name = path ? path.split(/[\\/]/).pop() : null;
 	return (
 		<span className="flex min-w-0 items-center gap-1 py-0.5 pl-1 text-detail">
@@ -73,39 +74,32 @@ function DeliveryTitle() {
 
 function DeliveryPanel() {
 	const { t } = useI18n();
-	const workspace = useApp((state) => state.workspace?.path);
+	// Named from the project of this screen's conversation; the live slot's is the focused screen's.
+	const workspace = useScopedProjectPath();
 	// The conversation whose screen this panel is in — not whichever one has the focus.
 	const owner = useScopedSessionId();
 	const scope = useDockScope();
-	const target = useDeliveryReview((state) => state.target);
-	const cached = useDeliveryReview((state) => state.data);
-	const revision = useDeliveryReview((state) => state.revision);
+	// That conversation's own review: one opened under another screen is that screen's, and leaves this one be.
+	const target = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.target ?? null) : null));
+	const cached = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.data ?? null) : null));
+	const revision = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.revision ?? 0) : 0));
 	const [data, setData] = useState<TurnDelivery | null>(cached);
 	const [undoing, setUndoing] = useState(false);
 	const undoLock = useRef(false);
 	const confirm = useConfirmer();
-
-	/*
-	 * One review at a time, and it belongs to one conversation. When the review on show is another
-	 * conversation's, this screen's panel steps aside — it used to close whenever the focus moved to
-	 * another screen, taking the review with it though nothing about the review had changed.
-	 */
-	useEffect(() => {
-		if (target && target.sessionId !== owner && scope) usePaneDock.getState().close(scope, "delivery");
-	}, [owner, scope, target]);
 
 	useEffect(() => {
 		if (!target) {
 			setData(null);
 			return;
 		}
-		const fromStore = useDeliveryReview.getState().data;
+		const fromStore = useDeliveryReview.getState().reviews[target.sessionId]?.data;
 		if (fromStore) setData(fromStore);
 		let live = true;
 		void bridge.delivery.get(target.sessionId, target.timestamp).then((value) => {
 			if (live) {
 				setData(value);
-				useDeliveryReview.getState().setData(value);
+				useDeliveryReview.getState().setData(target.sessionId, value);
 			}
 		}).catch((error: unknown) => {
 			if (live) useApp.getState().notify(String(error), "error");
@@ -121,12 +115,12 @@ function DeliveryPanel() {
 			await bridge.delivery.undo(target.sessionId, target.timestamp, path);
 			const value = await bridge.delivery.get(target.sessionId, target.timestamp);
 			setData(value);
-			useDeliveryReview.getState().setData(value);
+			useDeliveryReview.getState().setData(target.sessionId, value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			if (!value.files.length) {
-				useDeliveryReview.getState().close();
+				useDeliveryReview.getState().close(target.sessionId);
 				if (scope) usePaneDock.getState().close(scope, "delivery");
-			} else useDeliveryReview.getState().touch();
+			} else useDeliveryReview.getState().touch(target.sessionId);
 		} catch (error) {
 			useApp.getState().notify(String(error), "error");
 		} finally {

@@ -15,7 +15,7 @@ import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
-import { useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import { focusScreenOf, useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
@@ -421,6 +421,14 @@ export function UserMessage({
                 onClick={() => {
                   const target = useApp.getState().sessions.find((s) => s.id === sRef.id);
                   if (target) {
+                    /*
+                     * Where it was pressed. A press on another screen focuses that screen first, so the
+                     * conversation took its place; the keyboard reaches the capsule without that press,
+                     * and it replaced the screen with focus instead. This screen takes the live slot the
+                     * way the press does, and the split does the rest — in place of this screen, or by
+                     * moving the focus to the screen already showing it.
+                     */
+                    if (sessionId !== useApp.getState().activeSessionId) focusScreenOf(sessionId);
                     const epoch = useApp.getState().previewSession(target);
                     void afterPaint().then(() => {
                       if (useApp.getState().selectionEpoch !== epoch) return;

@@ -20,6 +20,7 @@ import { create } from "zustand";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
+import { useOpenFile } from "../../store/openFile.ts";
 import { paneFloor } from "./geometry.ts";
 import { clearsFloors } from "./layout.ts";
 import { dropFits, homeOf, placePanel } from "./place.ts";
@@ -271,7 +272,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	 * `docs/architecture/split-window-conflicts.md` §7.
 	 */
 	if (inPanelWindow()) {
-		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ kind, ...(beside ? { beside } : {}) });
+		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain(inMain(kind, beside, target));
 		return null;
 	}
 	/*
@@ -289,6 +290,25 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	}
 	usePaneDock.getState().open(scope, kind, beside);
 	return scope;
+}
+
+/**
+ * What a panel window asks the main window for, with the two things the main window cannot know.
+ *
+ * The screen: the one this panel was popped out of, which is where the request was made — the main
+ * window's focus is on some other screen as often as not. And, for the file pane, the file: this
+ * window's open-file store is its own, so without it the main window opened its file pane on
+ * whatever file it already had, or on nothing.
+ */
+function inMain(kind: PanelKind, beside: { kind: PaneKind; side: DropSide; share?: number } | undefined, target: string | undefined) {
+	const scope = target ?? bridge.bootWindow?.panelScope ?? undefined;
+	const path = kind === "file" ? filePanelSnapshot().path : null;
+	return {
+		kind,
+		...(beside ? { beside } : {}),
+		...(scope ? { scope } : {}),
+		...(path ? { file: { path, name: path.split(/[\\/]/).pop() || path } } : {}),
+	};
 }
 
 /**
@@ -374,10 +394,13 @@ export function watchPanelWindows(): () => void {
 	 * A panel window asking this window to open something, since only this one has docks.
 	 *
 	 * Deliberately the same `openScopedPanel` the local callers use, so a file opened from a
-	 * detached tree lands exactly where one opened from the transcript would.
+	 * detached tree lands exactly where one opened from the transcript would: in the screen the panel
+	 * came from while that screen is here, and in the one with focus once it is not. The file is read
+	 * through this window's own file boundary, as a click here would read it.
 	 */
-	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, beside }) => {
-		openScopedPanel(kind as PanelKind, beside as { kind: PaneKind; side: DropSide; share?: number } | undefined);
+	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, beside, scope, file }) => {
+		if (file) void useOpenFile.getState().open({ path: file.path, name: file.name, isDirectory: false, size: 0 });
+		openScopedPanel(kind as PanelKind, beside as { kind: PaneKind; side: DropSide; share?: number } | undefined, scope);
 	}) ?? (() => {});
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {
 		const restore = async () => {

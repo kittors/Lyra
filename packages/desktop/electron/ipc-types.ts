@@ -121,6 +121,20 @@ import type { SkillEntry } from "./ipc/commands.ts";
  */
 export type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 
+/**
+ * A panel window asking the main window to open a panel: what `windows:openPanelInMain` takes and
+ * `windows:open-panel` hands over. The main process rebuilds it field by field in between.
+ */
+interface PanelInMain {
+	kind: string;
+	/** A pane to sit next to, and on which side — a layout hint, validated before it reaches a dock. */
+	beside?: { kind: string; side: string; share?: number };
+	/** The screen the panel was popped out of, where the request was made. */
+	scope?: string;
+	/** For the file pane: the file to open. */
+	file?: { path: string; name: string };
+}
+
 /** One shell in a directory, as the tab strip lists it. */
 /** What `settings.layers` answers; see there. */
 export interface ProjectLayerView {
@@ -218,8 +232,11 @@ export interface LyraApi {
 		 *
 		 * A panel window is one panel. Clicking a file in a detached file tree still means "show me
 		 * this file" — it just cannot mean "here". The request goes where the docks are.
+		 *
+		 * `scope` is the screen the panel was popped out of, where the request was made; `file` is the
+		 * file to open, which the main window's own open-file store cannot know.
 		 */
-		openPanelInMain(input: { kind: string; beside?: { kind: string; side: string; share?: number } }): Promise<{ ok: boolean }>;
+		openPanelInMain(input: PanelInMain): Promise<{ ok: boolean }>;
 		filePanelState(input?: FilePanelVersion): Promise<FilePanelVersion | null>;
 		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
@@ -227,7 +244,7 @@ export interface LyraApi {
 		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
 		onRestorePanel(handler: (state: { kind: string; scope: string; fileState?: FilePanelState }) => void): () => void;
 		/** The primary window's half of `openPanelInMain`. */
-		onOpenPanel(handler: (state: { kind: string; beside?: { kind: string; side: string; share?: number } }) => void): () => void;
+		onOpenPanel(handler: (state: PanelInMain) => void): () => void;
 		onClosePanel(handler: () => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};

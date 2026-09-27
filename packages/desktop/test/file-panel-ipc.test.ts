@@ -166,3 +166,29 @@ test("openPanelInMain validates the kind and the layout hint before forwarding",
 		assert.deepEqual(fixture.openedInMain, [], JSON.stringify(bad));
 	}
 });
+
+/*
+ * The screen a detached panel came from and, for the file pane, the file it opened: what the main
+ * window cannot know on its own. Plain strings, forwarded field by field like `beside`, so nothing
+ * else a renderer puts beside them reaches the primary window.
+ */
+test("openPanelInMain forwards the screen and the file a panel window names, and nothing else of them", async () => {
+	const panel = fixture.makeWindow();
+	fixture.openedInMain.length = 0;
+	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file", scope: "sess-b", file: { path: "/project/b.ts", name: "b.ts", contents: "not forwarded" } }), { ok: true });
+	assert.deepEqual(fixture.openedInMain, [{ kind: "file", scope: "sess-b", file: { path: "/project/b.ts", name: "b.ts" } }]);
+
+	for (const bad of [
+		{ kind: "file", scope: 3 },
+		{ kind: "file", scope: "" },
+		{ kind: "file", file: "/project/b.ts" },
+		{ kind: "file", file: { path: "", name: "b.ts" } },
+		{ kind: "file", file: { path: "/project/b.ts", name: 1 } },
+		// Only the file pane opens a file.
+		{ kind: "files", file: { path: "/project/b.ts", name: "b.ts" } },
+	]) {
+		fixture.openedInMain.length = 0;
+		assert.deepEqual(await call("windows:openPanelInMain", panel, bad), { ok: false }, JSON.stringify(bad));
+		assert.deepEqual(fixture.openedInMain, [], JSON.stringify(bad));
+	}
+});

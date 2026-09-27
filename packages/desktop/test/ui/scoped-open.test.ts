@@ -16,9 +16,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openScopedPanel, provideScope } from "../../src/features/dock/popout.ts";
+import { openScopedPanel, provideScope, watchPanelWindows } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { has } from "../../src/features/dock/tree.ts";
+import { useOpenFile } from "../../src/store/openFile.ts";
 
 function reset(scope: string | null): void {
 	window.localStorage.clear();
@@ -114,9 +115,68 @@ test("面板窗口：请求转给主窗口，不动本地的树", () => {
 	});
 	try {
 		openScopedPanel("file", { kind: "files", side: "bottom" });
-		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" } }]);
+		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-a" }]);
 		assert.deepEqual(usePaneDock.getState().trees, {}, "面板窗口里的树是没人画的，往里写等于把点击吞掉");
 	} finally {
+		Reflect.deleteProperty(window, "lyra");
+	}
+});
+
+/*
+ * The two things a panel window's request has to carry, because the main window cannot know them.
+ *
+ * Measured in a real window (`e2e/split-scope-tail-probe.ts popout`): a file clicked in a Files panel
+ * popped out of 乙's screen opened the file pane in 甲's screen, which had the focus — and on nothing,
+ * since the file had been opened only in the panel window's own store.
+ */
+test("a panel window's request names the screen it was popped out of, and the file it just opened", () => {
+	reset(null);
+	const asked: unknown[] = [];
+	Reflect.set(window, "lyra", {
+		bootWindow: { kind: "panel", panelKind: "files", panelScope: "sess-b", sessionId: "sess-b", id: "p1" },
+		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
+	});
+	const previous = useOpenFile.getState();
+	// What `open` sets at once, before its read lands: the file the tree was just clicked on.
+	useOpenFile.setState({ opening: "/work/beta/lib.ts" });
+	try {
+		openScopedPanel("file", { kind: "files", side: "bottom" });
+		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } }]);
+	} finally {
+		useOpenFile.setState(previous, true);
+		Reflect.deleteProperty(window, "lyra");
+	}
+});
+
+test("the main window opens what a panel window asked for in the screen it came from, and opens that file", async () => {
+	// 甲 has the focus; the panel window came from 乙.
+	reset("sess-a");
+	usePaneDock.getState().rememberSize("sess-a", ROOMY);
+	usePaneDock.getState().rememberSize("sess-b", ROOMY);
+	let asked: ((request: unknown) => void) | undefined;
+	Reflect.set(window, "lyra", {
+		windows: {
+			list: async () => ({ panels: [], sessions: [] }),
+			onChanged: () => () => {},
+			onRestorePanel: () => () => {},
+			onOpenPanel: (handler: (request: unknown) => void) => {
+				asked = handler;
+				return () => {};
+			},
+		},
+	});
+	const opened: string[] = [];
+	const previous = useOpenFile.getState();
+	useOpenFile.setState({ open: async (entry) => { opened.push(entry.path); } });
+	const stop = watchPanelWindows();
+	try {
+		asked?.({ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } });
+		assert.deepEqual(opened, ["/work/beta/lib.ts"], "the file clicked in the panel window was not opened here");
+		assert.ok(has(usePaneDock.getState().tree("sess-b"), "file"), "the file pane did not open in the screen the panel came from");
+		assert.ok(!has(usePaneDock.getState().tree("sess-a"), "file"), "the file pane opened in the screen with focus");
+	} finally {
+		stop();
+		useOpenFile.setState(previous, true);
 		Reflect.deleteProperty(window, "lyra");
 	}
 });
