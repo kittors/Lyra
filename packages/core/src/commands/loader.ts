@@ -26,6 +26,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { normalizeKeys } from "../capability/fs.ts";
 import { home as userHome } from "../platform.ts";
 import { isUnparsable, parseFrontmatter } from "../skills/loader.ts";
 
@@ -47,7 +48,7 @@ export interface SlashCommand {
 	 * usually looking in the wrong one of two directories that both exist.
 	 */
 	origin: "lyra" | "claude" | "agents";
-	/** From frontmatter `argument-hint`. Shown as a placeholder once the command is chosen. */
+	/** From frontmatter `argument-hint` or `argumentHint`. Shown as a placeholder once the command is chosen. */
 	argumentHint?: string;
 	/**
 	 * 展开后的文本怎么送出去。默认 `prompt`。
@@ -139,7 +140,8 @@ export async function loadCommands(
 				continue;
 			}
 			if (parsed.problem) diagnostics.push({ path: file, message: "开头的 `---` 没有闭合，整个文件都被当成了正文。" });
-			const { frontmatter, body } = parsed;
+			const { body } = parsed;
+			const frontmatter = normalizeKeys(parsed.frontmatter);
 
 			const name =
 				typeof frontmatter.name === "string" && frontmatter.name.trim()
@@ -193,7 +195,13 @@ export async function loadCommands(
 			}
 			seen.set(name, file);
 
-			const hint = frontmatter["argument-hint"];
+			/*
+			 * Either spelling, hyphenated first. `normalizeKeys` makes `argumentHint` an alias of
+			 * `argument-hint` except when an author writes both: then each keeps its own value, and
+			 * reading the alias alone would let the camelCase one win. The hyphenated key is the
+			 * documented spelling, shared with Claude Code, so it is the one that decides.
+			 */
+			const hint = frontmatter["argument-hint"] ?? frontmatter.argumentHint;
 			commands.push({
 				name,
 				description,

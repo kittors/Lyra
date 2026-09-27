@@ -51,6 +51,24 @@ test("a markdown file becomes a command, described by its frontmatter", async ()
 	assert.equal(review.content, "请审查 $ARGUMENTS。");
 });
 
+test("argument-hint may also be spelled argumentHint, and the hyphenated one wins when both are written", async () => {
+	/*
+	 * Only `argument-hint` was read, so a command written with `argumentHint` lost its placeholder
+	 * and nothing said so. The two files that write both pin the tie-break skills use: reading the
+	 * camelCase alias alone would let it win, because `normalizeKeys` leaves an explicitly written
+	 * camelCase key holding its own value. Both key orders, because YAML order is the author's accident.
+	 */
+	await put("home/commands/hint-camel.md", "---\nargumentHint: <branch>\n---\nMerge $1.");
+	await put("home/commands/hint-hyphen-first.md", "---\nargument-hint: <hyphenated>\nargumentHint: <camel>\n---\nBody.");
+	await put("home/commands/hint-camel-first.md", "---\nargumentHint: <camel>\nargument-hint: <hyphenated>\n---\nBody.");
+
+	const { commands } = await loadCommands(sources());
+	const hint = (name: string) => commands.find((c) => c.name === name)?.argumentHint;
+	assert.equal(hint("hint-camel"), "<branch>", "the camelCase spelling is read");
+	assert.equal(hint("hint-hyphen-first"), "<hyphenated>", "the hyphenated spelling decides");
+	assert.equal(hint("hint-camel-first"), "<hyphenated>", "wherever it sits in the file");
+});
+
 test("a nested directory namespaces the command", async () => {
 	await put("project/.lyra/commands/git/commit.md", "写一条提交信息");
 
