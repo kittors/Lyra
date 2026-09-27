@@ -17,7 +17,7 @@
  * beside a row would be cut off at the pane's edge — which is exactly where it needs to be.
  */
 
-import { translate } from "../../i18n/translate.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -27,6 +27,8 @@ import { formatTokens } from "../conversation/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
 import { portal } from "../../ui/overlay/portal.ts";
 import { baseName } from "../../lib/paths.ts";
+import { hourStyle } from "../../lib/hour-style.ts";
+import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 
 /**
  * How long the pointer has to rest before this appears.
@@ -56,14 +58,14 @@ const GAP = 8;
 const CARD_Z = 210;
 
 /** `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster. */
-function when(at: number): string {
+function when(at: number, locale: ResolvedUiLocale = activeLocale()): string {
 	const days = Math.floor((Date.now() - at) / 86_400_000);
 	if (days === 0) {
-		return new Date(at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+		return new Date(at).toLocaleTimeString(locale, { hour: hourStyle(locale), minute: "2-digit" });
 	}
 	if (days === 1) return translate("sessionCard.yesterday");
 	if (days < 30) return translate("sessionCard.daysAgo", { n: days });
-	return new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+	return new Date(at).toLocaleDateString(locale, { month: "numeric", day: "numeric" });
 }
 
 /**
@@ -152,6 +154,7 @@ export function SessionCard({
 	/** Playing its exit; see `useSessionCard`. */
 	leaving?: boolean;
 }) {
+	const { resolvedLocale } = useI18n();
 	const card = useRef<HTMLDivElement>(null);
 	const [at, setAt] = useState<{ left: number; top: number } | null>(null);
 
@@ -187,7 +190,7 @@ export function SessionCard({
 			<div className="flex items-start gap-2 px-3 pt-2.5 pb-2">
 				{/* Three lines at most: a title derived from a long first message can be a paragraph. */}
 				<p className="line-clamp-3 min-w-0 flex-1 text-label leading-[18px] text-ink">{session.title}</p>
-				<span className="mt-[1px] shrink-0 text-caption text-ink-faint tabular-nums">{when(session.updatedAt)}</span>
+				<span className="mt-[1px] shrink-0 text-caption text-ink-faint tabular-nums">{when(session.updatedAt, resolvedLocale)}</span>
 			</div>
 
 			{/*

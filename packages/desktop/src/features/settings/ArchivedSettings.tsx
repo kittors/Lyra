@@ -11,7 +11,8 @@ import { InlineSelect } from "./controls.tsx";
 import { groupIsOpen, toggleOpened } from "./archived-groups.ts";
 import { useApp } from "../../store/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
-import { useI18n } from "../../i18n/index.ts";
+import { hourStyle } from "../../lib/hour-style.ts";
+import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 
 /**
  * The archive: everything filed away from the sidebar, grouped by project.
@@ -189,7 +190,7 @@ function Row({
 	onRestore: () => void;
 	onDelete: () => void;
 }) {
-	const { t } = useI18n();
+	const { t, resolvedLocale } = useI18n();
 	const confirm = useConfirmer();
 
 	return (
@@ -202,7 +203,7 @@ function Row({
 			<button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" data-ly-tip={t("common.open")}>
 				<ScrollText text={sessionTitle(session.title)} className="text-label text-ink" />
 				<span className="mt-0.5 block text-detail text-ink-faint">
-					{formatDate(session.updatedAt)}
+					{formatDate(session.updatedAt, resolvedLocale)}
 					{t("archived.messageCount", { n: session.messageCount })}
 				</span>
 			</button>
@@ -234,12 +235,12 @@ function Row({
 	);
 }
 
-function formatDate(ts: number): string {
-	return new Date(ts).toLocaleString("zh-CN", {
+function formatDate(ts: number, locale: ResolvedUiLocale): string {
+	return new Date(ts).toLocaleString(locale, {
 		year: "numeric",
 		month: "long",
 		day: "numeric",
-		hour: "2-digit",
+		hour: hourStyle(locale),
 		minute: "2-digit",
 	});
 }

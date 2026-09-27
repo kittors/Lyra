@@ -17,6 +17,7 @@ import { RuleCard } from "./RuleCard.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
 import { useApp } from "../../store/index.ts";
+import { useI18n } from "../../i18n/index.ts";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 
@@ -119,7 +120,7 @@ export const MessageRow = memo(function MessageRow({
      */
     if (message.ruleMatch) return <RuleCard match={message.ruleMatch} />;
     if (message.synthetic || isNudge(message)) return null;
-    return <>{showTime && <div className="ly-conversation-time py-2 text-center text-caption text-ink-faint"><time dateTime={new Date(message.timestamp).toISOString()}>{conversationTime(message.timestamp)}</time></div>}<UserMessage message={message} index={index} /></>;
+    return <>{showTime && <ConversationTime timestamp={message.timestamp} />}<UserMessage message={message} index={index} /></>;
   }
 
   // Tool results are rendered inside their tool card, not as standalone rows.
@@ -129,6 +130,22 @@ export const MessageRow = memo(function MessageRow({
     <AssistantRow message={message} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
   );
 });
+
+/**
+ * The date over a message that follows a pause.
+ *
+ * Its own component so it can subscribe to the language: `MessageRow` is memoised, and a context
+ * subscription is the one thing that reaches through a memo when the language changes. Drawn
+ * inline in the row, it kept whatever language the transcript was first rendered in.
+ */
+function ConversationTime({ timestamp }: { timestamp: number }) {
+  const { resolvedLocale } = useI18n();
+  return (
+    <div className="ly-conversation-time py-2 text-center text-caption text-ink-faint">
+      <time dateTime={new Date(timestamp).toISOString()}>{conversationTime(timestamp, Date.now(), resolvedLocale)}</time>
+    </div>
+  );
+}
 
 function AssistantRow({
   message,

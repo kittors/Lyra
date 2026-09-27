@@ -12,6 +12,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { useI18n } from "../../i18n/index.ts";
 import { exactTime, shortRelativeTime } from "../../lib/relative-time.ts";
 
 /**
@@ -47,9 +48,12 @@ function subscribe(listener: () => void): () => void {
 
 export function TimeAgo({ iso, className = "" }: { iso: string; className?: string }) {
 	const at = useSyncExternalStore(subscribe, () => now);
+	// Read here rather than left to `activeLocale()`: the rows around this are memoised, and a
+	// language switch would otherwise wait for the next tick to reach the label.
+	const { resolvedLocale } = useI18n();
 
 	return (
-		<span className={`tabular-nums ${className}`} data-ly-tip={exactTime(iso)}>
+		<span className={`tabular-nums ${className}`} data-ly-tip={exactTime(iso, resolvedLocale)}>
 			{shortRelativeTime(iso, at)}
 		</span>
 	);

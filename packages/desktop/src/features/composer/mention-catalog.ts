@@ -1,4 +1,4 @@
-import { translate } from "../../i18n/translate.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
@@ -176,7 +176,7 @@ export function rankMentions(
 				items.push({
 					id: `session:${s.id}`,
 					title,
-					description: [s.projectName, s.updatedAt ? new Date(s.updatedAt).toLocaleDateString("zh-CN") : ""].filter(Boolean).join(" · "),
+					description: [s.projectName, s.updatedAt ? new Date(s.updatedAt).toLocaleDateString(activeLocale()) : ""].filter(Boolean).join(" · "),
 					kind: "session",
 					data: { sessionId: s.id },
 					origin: translate("mention.pastSessions"),
