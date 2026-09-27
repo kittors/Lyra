@@ -543,7 +543,7 @@ export function Composer() {
 						name: file.name,
 						mimeType: file.type || "application/octet-stream",
 						text: extracted.truncated
-							? `${extracted.text}\n\n${translate("composer.textTruncated", { count: extracted.fullLength - extracted.text.length })}`
+							? `${extracted.text}\n\n${translate("composer.textTruncated", { n: extracted.fullLength - extracted.text.length })}`
 							: extracted.text,
 						isText: true,
 						// 门类不改：图标该是 PDF 就还是 PDF，变的只是「内容进不进 prompt」。

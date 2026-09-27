@@ -96,7 +96,7 @@ export function SyncSettings() {
 				/>
 				<Row
 					title={t("sync.status")}
-						detail={running ? t("sync.clients", { count: sync?.clients ?? 0 }) : t("sync.notRunning")}
+						detail={running ? t("sync.clients", { n: sync?.clients ?? 0 }) : t("sync.notRunning")}
 						control={<Badge tone={running ? "ok" : "muted"}>{running ? t("sync.running") : t("sync.stopped")}</Badge>}
 				/>
 				<Row

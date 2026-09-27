@@ -558,10 +558,11 @@ const SHADES = ["bg-ink/[0.06]", "bg-info/25", "bg-info/45", "bg-info/70", "bg-i
 function heatTip(day: DayUsage): string {
 	const date = translate("usage.monthDay", { month: day.date.getMonth() + 1, day: day.date.getDate() });
 	if (day.messages === 0) return translate("usage.dayIdle", { date });
+	// Two counts, so two keys: a sentence takes its plural form from one number, and here that is the sessions.
 	return translate("usage.dayUsed", {
 		date,
-		sessions: day.sessions,
-		tokens: day.tokens.toLocaleString(),
+		n: day.sessions,
+		tokens: translate("usage.dayTokens", { n: day.tokens.toLocaleString() }),
 		cost: day.cost > 0 ? ` · ${costLabel(day.cost)}` : "",
 	});
 }
