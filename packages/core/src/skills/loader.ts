@@ -119,6 +119,13 @@ export async function loadSkills(
 			}
 
 			seen.add(name);
+			/*
+			 * The hyphenated spelling is read first. `normalizeKeys` makes `allowedTools` an alias of
+			 * `allowed-tools`, except when an author writes both: then each key keeps its own value, and
+			 * reading the alias alone would let the camelCase one win. The hyphenated form is the
+			 * documented one, shared with Claude Code's SKILL.md, so it is the one that decides.
+			 */
+			const tools = frontmatter["allowed-tools"] ?? frontmatter.allowedTools;
 			skills.push({
 				name,
 				description,
@@ -126,10 +133,8 @@ export async function loadSkills(
 				path: file,
 				dir: skillDir,
 				source,
-				allowedTools: Array.isArray(frontmatter["allowed-tools"])
-					? (frontmatter["allowed-tools"] as unknown[]).filter((t): t is string => typeof t === "string")
-					: undefined,
-				disableModelInvocation: frontmatter["disable-model-invocation"] === true || frontmatter.disableModelInvocation === true,
+				allowedTools: Array.isArray(tools) ? (tools as unknown[]).filter((t): t is string => typeof t === "string") : undefined,
+				disableModelInvocation: (frontmatter["disable-model-invocation"] ?? frontmatter.disableModelInvocation) === true,
 			});
 		}
 	}

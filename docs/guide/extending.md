@@ -32,8 +32,10 @@ description: 从提交记录整理一份更新说明。要写 release notes 或�
 | --- | --- |
 | `name` | 小写、短横线分隔。必填，也是 slash 命令的名字 |
 | `description` | 什么时候该用它。最多 1024 字 |
-| `allowedTools` | 只让这个技能用列出的工具。省略就是不限制 |
-| `disableModelInvocation` | 设为 true 则模型看不到它，只能由用户从命令菜单调用 |
+| `allowed-tools` | 只让这个技能用列出的工具，写成列表：`[read, grep]`。省略就是不限制 |
+| `disable-model-invocation` | 设为 true 则模型看不到它，只能由用户从命令菜单调用 |
+
+字段名和 Claude Code 的 SKILL.md 一样用短横线。驼峰写法（`allowedTools`）也认，两种都写时听短横线的。
 
 技能目录里可以放 `scripts/`、`assets/` 等资源，正文里的相对路径按技能目录解析——注入时会告诉
 模型这一点。
