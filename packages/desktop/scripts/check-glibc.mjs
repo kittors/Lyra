@@ -69,6 +69,17 @@ export function declaredGlibcFloor(config) {
 	return null;
 }
 
+/**
+ * Whether `objdump -T` failed because the file is statically linked.
+ *
+ * Such a program carries its own libc, so it needs nothing of the system's and is not a problem —
+ * `prettier-plugin-sh` ships `dockerfmt` as a static Go binary for every platform. Any other failure
+ * still is: a file this cannot read is a file it cannot vouch for.
+ */
+export function staticallyLinked(objdumpStderr) {
+	return /not a dynamic object/.test(objdumpStderr ?? "");
+}
+
 /** Every ELF file under `dir`, by its magic number rather than its name — `.so.1` and `Lyra` alike. */
 function elfFiles(dir, found = []) {
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -110,6 +121,10 @@ function main() {
 		for (const file of elfFiles(join(release, build))) {
 			const name = relative(release, file);
 			const dump = spawnSync("objdump", ["-T", file], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+			if (dump.status !== 0 && staticallyLinked(dump.stderr)) {
+				console.log(`[glibc] ${name}: statically linked, needs no system glibc`);
+				continue;
+			}
 			if (dump.status !== 0) {
 				console.error(`::error::objdump 读不了 ${name}: ${dump.stderr || dump.error?.message || ""}`);
 				problems++;
