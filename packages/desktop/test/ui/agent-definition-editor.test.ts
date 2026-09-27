@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createElement as h } from "react";
 import { BUILTIN_AGENTS, type AgentDefinitionRecord, type AgentDefinitionSave } from "@lyra/core";
 import { AgentDefinitionEditor } from "../../src/features/settings/AgentDefinitionEditor.tsx";
+import { avatarResolver } from "../../src/store/agent-avatars.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
 const record: AgentDefinitionRecord = { id: "editor-fixture", definition: BUILTIN_AGENTS[0], scope: "builtin", editable: true, customized: false, revision: "initial", raw: "", shadowedSources: [] };
@@ -11,7 +12,7 @@ test("a failed definition save retains the draft across navigation and never rep
 	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
 	let submitted: AgentDefinitionSave | undefined; let saved = 0;
 	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { save: async (_project: string | null, input: AgentDefinitionSave) => { submitted = input; throw new Error("definition changed externally"); } } } });
-	const props = { record, projectId: null, tools: ["read"], onClose: () => {}, onSaved: () => { saved++; } };
+	const props = { record, projectId: null, tools: ["read"], avatarOf: avatarResolver(BUILTIN_AGENTS), taken: [], onClose: () => {}, onSaved: () => { saved++; } };
 	const view = await mount(h(AgentDefinitionEditor, props));
 	try {
 		const field = view.find<HTMLTextAreaElement>('[aria-label="智能体指令"]');

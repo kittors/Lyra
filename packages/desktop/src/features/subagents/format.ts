@@ -9,6 +9,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { SubAgentStatus } from "@lyra/core";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { formatCost } from "../settings/index.ts";
+import { describeActivity } from "../../lib/tool-kinds.ts";
 
 /** `18s`, `2m 14s`, `1h 3m` — the same shape the running turn's own meter uses. */
 function elapsed(ms: number): string {
@@ -39,18 +40,11 @@ export function ranFor(one: { startedAt: number; endedAt?: number }): string {
 
 /** One word for a terminal state — running has a clock instead, which says more. */
 export function statusWord(status: SubAgentStatus): string {
+	if (status === "queued") return translate("subAgent.queued");
 	if (status === "done") return translate("subAgentStatus.done");
 	if (status === "failed") return translate("subAgentStatus.failed");
 	if (status === "aborted") return translate("subAgentStatus.aborted");
 	return translate("subAgentStatus.running");
-}
-
-/** The dot's colour, matched to the app's own semantics for the same three outcomes. */
-export function statusTone(status: SubAgentStatus): string {
-	if (status === "running") return "bg-accent";
-	if (status === "done") return "bg-ok";
-	if (status === "failed") return "bg-danger";
-	return "bg-ink-faint";
 }
 
 /**
@@ -65,4 +59,15 @@ export function figuresWord(figures: { tokens: number; cost: number }): string |
 	if (!(figures.tokens > 0)) return null;
 	const cost = formatCost(figures.cost);
 	return cost ? `${formatTokens(figures.tokens)} · ${cost}` : formatTokens(figures.tokens);
+}
+
+/**
+ * 它此刻在做什么，一句人话。
+ *
+ * 正在重连时说重连——那才是此刻的实话：卡在重试上的，最后一次工具调用可能是半小时前的事。否则是
+ * 最近那次工具调用，和转录里那一行同一种说法（「读取文件 a.ts」），不是 core 给的英文摘要。
+ */
+export function doingWord(one: { retrying?: { attempt: number; reason: string }; lastActivity?: string }): string | undefined {
+	if (one.retrying) return translate("subAgent.retrying", { attempt: one.retrying.attempt, reason: one.retrying.reason });
+	return one.lastActivity ? describeActivity(one.lastActivity) : undefined;
 }

@@ -1,8 +1,8 @@
 import type { TurnMeter, CarriedTurn } from "./turn-meter.ts";
-import type { ApprovalRisk, QuestionFields } from "@lyra/core";
+import type { ApprovalOrigin, ApprovalRisk, QuestionFields } from "@lyra/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
-import type { SessionChange } from "../../electron/ipc-types.ts";
+import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
 import type { AgentEvent, ApprovalDecision, CommandRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
@@ -123,6 +123,13 @@ interface PendingApproval extends QuestionFields {
    * invented fact on top of the one this whole change is about.
    */
   expiresAt?: number;
+  /**
+   * 哪个子智能体在问；主会话自己问的没有。
+   *
+   * 也决定这张卡活多久：主会话的问题跟着它那一轮走，一轮收尾就收掉；子智能体的问题可能是在
+   * 主会话收尾之后才问出来的（它在后台跑），要等核心说它收场了（`approval_settled`）才拿走。
+   */
+  from?: ApprovalOrigin;
 }
 
 /** A correction offered as a rule: what `rule_suggested` carries, and what the card asks about. */
@@ -145,6 +152,12 @@ export interface AppState extends QueueSlice {
    * cannot hand a parameter to a view it is not rendering.
    */
   pluginFocus: string | null;
+  /**
+   * 后台对账的结果：谁落后了市场、正在换谁。主进程推过来的，见 `plugin-updates.ts`。
+   *
+   * 放在 store 里，是因为画它的地方不在同一棵树上：侧栏那个数、市场页的「全部更新」、设置页的横条。
+   */
+  pluginUpdates: PluginUpdateState | null;
   /**
    * Which tab the 插件 page should open on, and what to have typed into its search — or null for
    * whichever it was on.
@@ -399,6 +412,13 @@ export interface AppState extends QueueSlice {
   /** Open one bundle's page in the catalogue, or return to the grid with null. */
   setPluginFocus(key: string | null): void;
   setExtensionsFocus(focus: { tab: ExtensionsTab; query?: string } | null): void;
+  /**
+   * 去设置 › 插件的某一栏。
+   *
+   * 从前各处写 `setSettingsSection("mcp")`——可设置的导航里没有「mcp」这一项，那是插件页里的一个
+   * 标签，于是落到了「常规」上。标签页要经 `extensionsFocus` 交给插件页自己切。
+   */
+  openExtensions(tab: ExtensionsTab, query?: string): void;
   /** Say that what is installed has changed, so every list showing it re-reads. */
   bumpExtensions(): void;
   saveSettings(settings: Settings): Promise<void>;
@@ -571,6 +591,7 @@ export const useApp = create<AppState>((set, get) => ({
   view: "chat",
   settingsSection: "models",
   pluginFocus: null,
+  pluginUpdates: null,
   extensionsFocus: null,
   extensionsNonce: 0,
   settings: null,
@@ -648,6 +669,20 @@ export const useApp = create<AppState>((set, get) => ({
 				extensionsNonce: state.extensionsNonce + (scanKey(state.settings) === scanKey(next) ? 0 : 1),
 			})),
 		);
+		/*
+		 * 磁盘上装着的东西一变（这个窗口、别的窗口、后台自动更新，谁动的手都算），扫盘的那几张列表
+		 * 跟着重扫：`revision` 就是为这个数的。手机那头没有这组方法（插件只在桌面上装），问不到就算了。
+		 */
+		bridge.plugins.onChanged?.((next) =>
+			set((state) => ({
+				pluginUpdates: next,
+				extensionsNonce: state.extensionsNonce + ((state.pluginUpdates?.revision ?? 0) !== (next.revision ?? 0) ? 1 : 0),
+			})),
+		);
+		void bridge.plugins
+			.updates?.()
+			.then((pluginUpdates) => set({ pluginUpdates }))
+			.catch(() => {});
 		bridge.agent.onEvent(({ sessionId, event }) =>
 			get().applyEvent(sessionId, event),
 		);
@@ -727,6 +762,8 @@ export const useApp = create<AppState>((set, get) => ({
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
   setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
+  openExtensions: (tab, query) =>
+    set({ view: "settings", settingsSection: "plugins", extensionsFocus: query === undefined ? { tab } : { tab, query } }),
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {

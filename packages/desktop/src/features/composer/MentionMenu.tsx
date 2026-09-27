@@ -4,6 +4,8 @@ import { Minimize2, Bot, FileCode, FolderArchive, MessageSquare, Paperclip, Puzz
 import { useLayoutEffect, useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
+import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import type { MentionItem, MentionKind } from "./mention-catalog.ts";
 
 /** Section headings, as keys — this table is built at import time. */
@@ -17,6 +19,7 @@ const GROUPS: Record<MentionKind, MessageKey> = {
 
 export function MentionMenu({
 	items,
+	agents,
 	term,
 	active,
 	keyboardSelection,
@@ -25,6 +28,8 @@ export function MentionMenu({
 	id,
 }: {
 	items: MentionItem[];
+	/** 智能体的完整名单，给它们排脸——见 `useAgentAvatars`。 */
+	agents?: readonly { name: string; avatar?: string }[];
 	term: string;
 	active: number;
 	keyboardSelection: boolean;
@@ -41,6 +46,7 @@ export function MentionMenu({
 		active,
 	});
 	const [height, setHeight] = useState(340);
+	const avatarOf = useAgentAvatars(agents && agents.length > 0 ? agents : null);
 	const open = items.length > 0;
 	const shown = open ? items : previous.current.items;
 	const shownTerm = open ? term : previous.current.term;
@@ -116,7 +122,7 @@ export function MentionMenu({
 									type="button"
 									role={open ? "option" : undefined}
 									tabIndex={-1}
-									aria-label={`${item.title}，${item.description ?? ""}，${item.origin ?? ""}`}
+									aria-label={[item.title, item.description, item.origin].filter(Boolean).join(translate("common.comma"))}
 									aria-selected={index === shownActive}
 									data-index={index}
 									data-mention-kind={item.kind}
@@ -135,7 +141,16 @@ export function MentionMenu({
 										index === shownActive ? "bg-card-hover" : ""
 									}`}
 								>
-									<Icon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
+									{/*
+									 * 智能体用它自己的脸，别的还是线性图标。高亮的那一行眼睛跟着指针、身子弹一下：
+									 * 键盘上下翻的时候，那张脸就是「选中了谁」最快的回答。
+									 */}
+									{item.kind === "subagent" ? (
+										<AgentAvatar avatar={avatarOf(item.data?.subagentId ?? item.title)} size={18} seed={item.title} host=".ly-mention-option"
+											cheer={keyboardSelection && index === shownActive ? shownActive : null} />
+									) : (
+										<Icon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
+									)}
 									<ScrollText text={item.title} className="min-w-0 max-w-[42%] shrink-0 text-ink" />
 									{item.description && (
 										<ScrollText text={item.description} className="min-w-0 flex-1 text-ink-muted" />

@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { ChevronDown, ShieldCheck } from "lucide-react";
 import type { Message } from "@lyra/core";
-import { translate, useI18n } from "../../i18n/index.ts";
+import { formatList, translate, useI18n } from "../../i18n/index.ts";
 
 type RuleMatch = NonNullable<Extract<Message, { role: "user" }>["ruleMatch"]>;
 
@@ -29,7 +29,7 @@ function where(rule: RuleMatch["rules"][number]): string {
 export function RuleCard({ match }: { match: RuleMatch }) {
 	const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const names = match.rules.map((rule) => rule.name).join("、");
+  const names = formatList(match.rules.map((rule) => rule.name));
 
   return (
     <div className="my-2 overflow-hidden rounded-md border border-line-soft">

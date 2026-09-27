@@ -7,9 +7,10 @@
  * mechanism behind the translations — a `t()` call happened where somebody remembered one, and the
  * next component written did not. Memory is not a mechanism, so this is.
  *
- * What counts as a finding: a string literal or a piece of JSX text containing Han characters, in
- * the renderer's source. Comments do not — this codebase reasons in Chinese in its comments on
- * purpose, and that is writing for the people who maintain it rather than for the people using it.
+ * What counts as a finding: a string literal or a piece of JSX text containing Han characters or
+ * Chinese punctuation, in the renderer's source. Comments do not — this codebase reasons in Chinese in
+ * its comments on purpose, and that is writing for the people who maintain it rather than for the
+ * people using it.
  *
  * The main process is read as well. It writes its own share of what people read — notifications,
  * the notices the scheduler puts up, the errors the file tree, the pull request panel and the update
@@ -39,7 +40,16 @@ const SOURCE = join(ROOT, "packages/desktop/src");
 const MAIN = join(ROOT, "packages/desktop/electron");
 const BASELINE = join(ROOT, "scripts/i18n-baseline.json");
 
-const HAN = /[一-鿿]/;
+/**
+ * Han characters, and the punctuation a Chinese sentence is built with.
+ *
+ * The punctuation is its own case because it is what is left once every word has been translated:
+ * `parts.join("、")` and `${name}：${message}` hold no Han at all, so a Han-only scan passed them while
+ * they put a Chinese comma between English words in every other language. The set is separators and
+ * brackets, not every full-width code point — `【name】` in `lib/attachment-placeholders.ts` is a
+ * token that message text is parsed for, not interface text.
+ */
+const CHINESE = /[一-鿿、，：；（）「」『』。！？]/;
 
 /**
  * Where Chinese is the content rather than the interface.
@@ -290,11 +300,11 @@ export function findings(source, { jsx = true } = {}) {
 	// under-counted, so it hid nothing — but a count that is wrong in either direction is a count
 	// nobody can reason about, and this is the file that asks people to reason about counts.
 	for (const match of stripped.matchAll(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g)) {
-		if (HAN.test(match[0])) keep(at(match.index), match[0].trim().slice(0, 80));
+		if (CHINESE.test(match[0])) keep(at(match.index), match[0].trim().slice(0, 80));
 	}
 	if (jsx) {
 		for (const run of jsxRuns(stripped)) {
-			if (HAN.test(run.text)) keep(at(run.index), run.text.trim().replace(/\s+/g, " ").slice(0, 80));
+			if (CHINESE.test(run.text)) keep(at(run.index), run.text.trim().replace(/\s+/g, " ").slice(0, 80));
 		}
 	}
 	return found;
@@ -387,6 +397,7 @@ if (grown.length > 0) {
 		`packages/desktop/src/i18n/messages/ 的七个目录里（zh-CN.ts 是源，其余 satisfies 它，\n` +
 		`所以漏掉一种语言是类型错误）。主进程（electron/）里的用 electron/i18n.ts 的 nativeText()，\n` +
 		`七种语言写在同一个文件里；只进日志的写进 console.*，不算。\n\n` +
+		`标点也算：列表用 i18n/list.ts 的 formatList，夹在变量两边的「：」「（）」写进词条模板。\n\n` +
 		`看清单：  node scripts/check-i18n.mjs --list\n` +
 		`清完之后：node scripts/check-i18n.mjs --update\n`,
 	);

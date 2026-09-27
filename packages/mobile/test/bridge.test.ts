@@ -284,7 +284,9 @@ test("file browsing uses read-only RPC frames and never exposes a write call", a
 	assert.deepEqual(await lyra.files.list("/project"), answers.get("files.list"));
 	assert.deepEqual(await lyra.files.read("/project/src/index.ts"), answers.get("files.read"));
 
-	const frames = page.calls.map((call) => call.body as { type?: string; method?: string; args?: unknown[] });
+	// The wire handshake goes first on every link; the question here is which calls follow it.
+	const calls = () => page.calls.filter((call) => (call.body as { type?: string }).type !== "wire");
+	const frames = calls().map((call) => call.body as { type?: string; method?: string; args?: unknown[] });
 	assert.deepEqual(
 		frames.map(({ type, method, args }) => ({ type, method, args })),
 		[
@@ -294,7 +296,7 @@ test("file browsing uses read-only RPC frames and never exposes a write call", a
 	);
 
 	assert.equal(await lyra.files.write("/project/src/index.ts", "changed"), null);
-	assert.equal(page.calls.length, 2, "手机文件写入不能越过原生 bridge");
+	assert.equal(calls().length, 2, "手机文件写入不能越过原生 bridge");
 });
 
 test("two calls in flight at once do not answer each other", async () => {
@@ -710,7 +712,8 @@ test("calls wait for the far end to arrive", () => {
 	assert.deepEqual(kinds(), ["hello"], "还没 ready，调用要压着");
 
 	page.receive({ type: "ready" });
-	assert.deepEqual(kinds(), ["hello", "rpc"], "对端到了，压着的调用就发出去");
+	// The wire handshake is said to the desktop first, so it can answer the queued call in parts.
+	assert.deepEqual(kinds(), ["hello", "wire", "rpc"], "对端到了，压着的调用就发出去");
 });
 
 test("a timed-out queued mutation is never replayed after reconnect", async () => {
@@ -721,7 +724,7 @@ test("a timed-out queued mutation is never replayed after reconnect", async () =
 	await assert.rejects(renaming, /没有响应/);
 
 	page.receive({ type: "ready" });
-	assert.deepEqual(page.calls.map((call) => (call.body as { type?: string }).type), ["hello"]);
+	assert.deepEqual(page.calls.map((call) => (call.body as { type?: string }).type), ["hello", "wire"]);
 });
 
 test("peer-left rejects inflight work and later mutations fail instead of waiting invisibly", async () => {
@@ -752,7 +755,7 @@ test("a direct connection does not wait for anything", () => {
 	void lyra.sessions.list();
 	assert.deepEqual(
 		page.calls.map((c) => (c.body as { type?: string }).type),
-		["rpc"],
-		"直连不发 hello，也不用等",
+		["wire", "rpc"],
+		"直连不发 hello，也不用等——只先说一句自己懂 wire 2",
 	);
 });

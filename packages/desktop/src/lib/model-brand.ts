@@ -50,3 +50,46 @@ export function brandOf(modelId: string | null | undefined, displayName?: string
 	if (!haystack.trim()) return null;
 	return RULES.find((rule) => rule.test.test(haystack))?.brand ?? null;
 }
+
+/**
+ * The words a house calls its own models by, when a display name leads with one.
+ *
+ * Only the house's name — never a family inside it. `Sonnet` is Anthropic's as surely as `Claude`
+ * is, but `Sonnet 5` without it is still a name; `5` without `Sonnet` is not. Latin words only:
+ * a Chinese display name runs its house into the rest (「通义千问3」) with no space to split at.
+ */
+const HOUSE_WORDS: Record<Brand, readonly string[]> = {
+	openai: ["openai", "chatgpt"],
+	claude: ["claude", "anthropic"],
+	deepseek: ["deepseek"],
+	gemini: ["gemini", "google"],
+	qwen: ["qwen", "tongyi"],
+	grok: ["grok", "xai"],
+	mistral: ["mistral"],
+	hunyuan: ["hunyuan", "tencent"],
+	kimi: ["kimi", "moonshot"],
+	minimax: ["minimax"],
+	stepfun: ["stepfun"],
+	baichuan: ["baichuan"],
+	doubao: ["doubao"],
+	yi: ["yi"],
+};
+
+/**
+ * A display name split into the house's word at its front and the rest: `Claude` and `Sonnet 5`,
+ * `Gemini` and `3.7 Flash`. Null when the name does not lead with its house, or when what follows
+ * would not name anything on its own — `Grok 4` leaves `4`.
+ *
+ * For a row too narrow for the whole name. The mark beside it already says whose model it is, so
+ * the house's word is the one part that can go while the rest still identifies the model — which
+ * cutting the tail never does: `Claude So…` could be any of three.
+ */
+export function splitHouse(name: string, brand: Brand | null): { house: string; rest: string } | null {
+	if (!brand) return null;
+	const match = /^(\S+)\s+(\S.*)$/u.exec(name.trim());
+	if (!match) return null;
+	const [, house, rest] = match;
+	if (!HOUSE_WORDS[brand].includes(house.toLowerCase())) return null;
+	if (!/\p{L}/u.test(rest)) return null;
+	return { house, rest };
+}

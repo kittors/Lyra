@@ -6,7 +6,7 @@
 	"electron/browser-workspace.ts": 16,
 	"electron/create-session.ts": 1,
 	"electron/definition-trash.ts": 4,
-	"electron/delivery-record.ts": 14,
+	"electron/delivery-record.ts": 15,
 	"electron/documents.ts": 2,
 	"electron/forge/accounts.ts": 1,
 	"electron/forge/gitea.ts": 1,

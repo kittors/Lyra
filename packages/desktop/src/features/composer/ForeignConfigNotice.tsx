@@ -7,6 +7,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
+import { formatList } from "../../i18n/list.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { ForeignConfigLine } from "@lyra/core";
 import { Blocks, X } from "lucide-react";
@@ -64,7 +65,7 @@ export function describeLine(line: ForeignConfigLine): string {
  */
 export function summarize(lines: ForeignConfigLine[]): { tools: string; places: number } {
 	return {
-		tools: [...new Set(lines.map((line) => line.label))].join("、"),
+		tools: formatList([...new Set(lines.map((line) => line.label))]),
 		places: lines.length,
 	};
 }

@@ -69,6 +69,7 @@ import type {
 	ExtensionDiagnostic,
 	ExtensionStats,
 	ForeignConfigLine,
+	InstallRecord,
 	LayerOverride,
 	McpBundle,
 	MessageAttachment,
@@ -98,6 +99,7 @@ import type {
 	FileContents,
 	FileEntry,
 	FileOpResult,
+	PluginUpdateState,
 	ProviderTestResult,
 	PullRequestSummary,
 	RefDiff,
@@ -167,6 +169,35 @@ type ExternalFormatResult =
 	| { ok: false; reason: "unsupported" }
 	| { ok: false; reason: "failed"; message: string; tool: string }
 	| { ok: false; reason: "missing"; tool: string; install: string };
+
+/**
+ * One large transfer on the phone link, as it moves: an upload, or a large message in parts.
+ *
+ * Emitted by the phone's bridge (see `mobile/src/bridge-wire.ts`); the desktop never sends these.
+ * `done` counts bytes the far end has acknowledged — for an upload, bytes on the desktop's disk.
+ */
+interface SyncTransfer {
+	/** Stable for the life of one transfer: `u1` for an upload, `down7` / `up3` for a message. */
+	id: string;
+	kind: "upload" | "message";
+	direction: "up" | "down";
+	/** The file name for an upload; the method being answered for a message, when known. */
+	name: string | null;
+	done: number;
+	total: number;
+	state: "starting" | "active" | "paused" | "done" | "failed" | "cancelled";
+	/** Why, when `state` is `failed` — already worded for a person. */
+	error?: string;
+}
+
+/** A file a phone uploaded, as the desktop stored it. `id` is what a prompt's attachment names. */
+interface UploadedFile {
+	id: string;
+	name: string;
+	size: number;
+	mimeType: string;
+	path: string;
+}
 
 export interface LyraApi {
 	agentDefinitions: {
@@ -399,7 +430,7 @@ export interface LyraApi {
 		 * context intact. False when it has already finished — there is no loop left to read it.
 		 */
 		/** 一段字，或者一串内容块——操控框现在也能附图，见 `core/runtime/sub-agents.ts`。 */
-		steer(sessionId: string, id: string, said: string | UserContent[]): Promise<boolean>;
+		steer(sessionId: string, id: string, said: string | UserContent[], display?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<boolean>;
 		/** Stop one. The parent and its siblings carry on. */
 		abort(sessionId: string, id: string): Promise<boolean>;
 		/**
@@ -569,6 +600,13 @@ export interface LyraApi {
 		pathForDrop(file: File): string;
 		/** Open native dialog to pick files or directories. */
 		pick(options?: { directory?: boolean; multiple?: boolean }): Promise<string[]>;
+		/**
+		 * Phone only: stream a picked file to the desktop, a slice at a time, and answer with where
+		 * it landed. Null when this phone app or the paired desktop cannot take uploads — the caller
+		 * falls back to reading the file itself. Not an IPC method: the phone's bridge implements it
+		 * over the sync link (`mobile/src/bridge-wire.ts`), and the desktop's preload has none.
+		 */
+		upload?(file: Blob, options?: { name?: string; signal?: AbortSignal; onProgress?(transfer: SyncTransfer): void }): Promise<UploadedFile | null>;
 	};
 	/**
 	 * The system clipboard, for text.
@@ -641,6 +679,13 @@ export interface LyraApi {
 		start(): Promise<SyncStatus>;
 		stop(): Promise<SyncStatus>;
 		rotateToken(): Promise<SyncStatus>;
+		/**
+		 * Phone only: large answers and uploads as they move, for a progress bar. The same updates
+		 * are dispatched on `window` as `lyra:transfer` events.
+		 */
+		onTransfer?(handler: (transfer: SyncTransfer) => void): () => void;
+		/** Phone only: what the paired desktop takes. An older phone app answers null. */
+		capabilities?(): Promise<{ wire: number; uploads: boolean; maxUpload: number } | null>;
 	};
 	commands: {
 		/**
@@ -663,7 +708,7 @@ export interface LyraApi {
 			 * them, so the menu cannot offer something the agent does not have.
 			 */
 			skills: SkillEntry[];
-			agents?: Array<{ id: string; name: string; description: string }>;
+			agents?: Array<{ id: string; name: string; description: string; avatar?: string }>;
 		}>;
 		/** Write a starter file and answer with its path, or say why it could not be written. */
 		create(
@@ -695,18 +740,34 @@ export interface LyraApi {
 			 * to parse or was never found at all.
 			 */
 			shadowedSkills: { name: string; path: string; by: string; byLabel: string }[];
+			/**
+			 * 账本：装过什么、从哪个市场、哪一版。技能集没有自己的目录，「装了没有」「落后没有」只能
+			 * 从这里问；插件和 MCP 包的那一行已经挂在各自的 `origin` 上。
+			 */
+			installs?: Record<string, InstallRecord>;
 		}>;
 		/** Absolute path to the plugins directory, created if missing. */
 		revealDir(scope: "workspace" | "user", cwd: string): Promise<string>;
 		/** Write a runnable example bundle so the format is discoverable. */
 		/** Read a registry index. Failures come back as data — a bad URL is routine, not exceptional. */
 		/** `force` skips the main process's cache — what 刷新 means, and the only thing that does. */
+		/**
+		 * `allowStale`: with nothing fetched yet this launch, answer at once with the copy kept from the
+		 * last one (`stale: true`) instead of waiting on the network. Ask again without it for the fresh one.
+		 */
 		fetchRegistry(
 			url: string,
 			force?: boolean,
-		): Promise<{ ok: true; registry: Registry } | { ok: false; message: string }>;
+			allowStale?: boolean,
+		): Promise<{ ok: true; registry: Registry; stale?: boolean } | { ok: false; message: string }>;
 		/** A registry logo as a data URL, or null. Fetched in the main process; see `registry:icon`. */
 		icon(url: string): Promise<string | null>;
+		/**
+		 * A bundle's README as text, with the repository and directory its relative links are written
+		 * against — from the platform it was listed on, its installed directory, or GitHub; null when
+		 * none of them has one. See `plugin-readme.ts`.
+		 */
+		readme(query: { id: string; repository?: string; path?: string; dir?: string }): Promise<{ markdown: string; repo?: string; dir?: string } | null>;
 		/**
 		 * A whole catalogue's logos at once, keyed by the URL each was asked for.
 		 *
@@ -736,6 +797,19 @@ export interface LyraApi {
 			replace?: boolean,
 		): Promise<{ ok: true; dir: string; kind: BundleKind; servers: number } | { ok: false; message: string }>;
 		uninstall(id: string): Promise<void>;
+		/** 后台对账的结果：谁落后了、正在更新谁、上次什么时候看的。见 `plugin-updates.ts`。 */
+		updates(): Promise<PluginUpdateState>;
+		/** 更新这几个（缺省：全部落后的）。人点的，不管自动更新开没开。 */
+		updateAll(ids?: string[]): Promise<PluginUpdateState>;
+		/**
+		 * 这几个环境变量名里，哪些在登录 shell 里已经有值——只回名字，不回值。
+		 *
+		 * 「这台 MCP 服务还缺什么」要算上环境：已经在 `.zshrc` 里 export 过 `GITHUB_TOKEN` 的人，
+		 * 不该被界面要求再填一遍。窗口读不到那个环境，只能问主进程。
+		 */
+		environment(names: string[]): Promise<string[]>;
+		/** 对账结果一变就推过来：自动更新完了、有新的落后了、装卸之后重新数过了。 */
+		onChanged(handler: (state: PluginUpdateState) => void): () => void;
 	};
 	/**
 	 * Tell the window itself what the theme is.

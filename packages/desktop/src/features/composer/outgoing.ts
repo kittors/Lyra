@@ -13,7 +13,8 @@ import type { MessageAttachment, UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
 
-import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { formatList } from "../../i18n/list.ts";
+import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentOnDesktop, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -30,6 +31,8 @@ interface OutgoingAttachment {
 	path?: string;
 	/** 界面上叫什么。正文里那枚标记写的是它，附件要按标记的位置排就得靠它配对。 */
 	label?: string;
+	/** The desktop's id for a file a phone uploaded; see `attachments/phone-upload.ts`. */
+	upload?: string;
 }
 
 export interface OutgoingDraft {
@@ -45,7 +48,7 @@ export interface Outgoing {
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: { id: string; title: string }[];
 	/** 名字和门类，给气泡外那排格子用；正文不在里面，见 `UserMessage.attachments`。 */
-	attachments?: { name: string; kind?: string; mimeType?: string; path?: string; label?: string }[];
+	attachments?: { name: string; kind?: string; mimeType?: string; path?: string; label?: string; upload?: string }[];
 	/** 命令自己声明的投递方式——见 `SlashCommand.deliver`。 */
 	deliver?: "steer" | "followUp";
 }
@@ -80,7 +83,7 @@ export interface OutgoingMeta {
  *
  * 正文不进来。它已经在 `content` 里了，再存一份会让每份会话日志大一倍，而读的人从来不看它。
  */
-export function attachmentMeta(files: OutgoingAttachment[]): MessageAttachment[] {
+export function attachmentMeta(files: OutgoingAttachment[]): (MessageAttachment & { upload?: string })[] {
 	return files.map((file) => ({
 		name: file.name,
 		...(file.label ? { label: file.label } : {}),
@@ -93,6 +96,8 @@ export function attachmentMeta(files: OutgoingAttachment[]): MessageAttachment[]
 		 * 对着自己带的那份表格，唯一做得到的事就是把名字显示出来。
 		 */
 		...(file.path ? { path: file.path } : {}),
+		// The desktop swaps this for the path it wrote the upload to; a phone's own path counts for nothing.
+		...(file.upload ? { upload: file.upload } : {}),
 	}));
 }
 
@@ -158,6 +163,12 @@ export function spellDraft(text: string, attachments: OutgoingAttachment[]): Use
 			flush();
 			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
 			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+			return;
+		}
+		if (file.upload && file.path) {
+			// Uploaded from a phone: on the desktop's disk, where the agent's tools can read it.
+			flush();
+			content.push({ type: "text", text: attachmentOnDesktop(file.name, file.path, file.mimeType, label) });
 			return;
 		}
 		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from
@@ -328,8 +339,8 @@ export function queuePreview(draft: OutgoingDraft): string {
 	const text = draft.text.trim();
 	if (text) return text;
 	const named = draft.attachments.map((file) => file.name).filter(Boolean);
-	if (named.length > 0) return named.join("、");
-	return draft.sessionRefs.map((session) => session.title).join("、");
+	if (named.length > 0) return formatList(named);
+	return formatList(draft.sessionRefs.map((session) => session.title));
 }
 
 /** 条上那个缩略图：第一张真的带着像素的图片。 */

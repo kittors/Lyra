@@ -11,54 +11,34 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { AssistantMessage, Message, MessageAttachment, UserContent } from "@lyra/core";
-import { openFromEvent } from "../image/index.ts";
+import type { AssistantMessage, Message, UserContent, UserMessage } from "@lyra/core";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MessageActions } from "../conversation/index.ts";
 import { MessageEditor } from "../conversation/index.ts";
 import { useSide, sideChatOf } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
-import { BubbleText, Markdown } from "../conversation/index.ts";
+import { Markdown, SpokenBubble, spokenText } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
-import { ToolCard } from "../conversation/index.ts";
-import { toolCardFallback } from "../conversation/index.ts";
+import { segments, ToolRun } from "../conversation/index.ts";
+import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 
-export function MessageRow({ message, index }: { message: Message; index: number }) {
+export function MessageRow({ message, index, live }: {
+	message: Message;
+	index: number;
+	/** 这是正在答的那一条：它末尾那一段工具调用正在跑，那一行要亮着。 */
+	live?: boolean;
+}) {
 	if (message.role === "toolResult") return null;
 
 	if (message.role === "user") {
 		// The main-transcript snapshots injected before each question are context for the model,
 		// not something the user wrote — showing them would bury the actual conversation.
 		if (message.synthetic) return null;
-		/*
-		 * 人打的那句话优先，拼起来的 `content` 只是退路。
-		 *
-		 * `content` 里带着展开给模型的附件正文——`### Attached file: image.png` 和围栏起来的内容。
-		 * 把它们拼起来画，等于把写给模型的记号摆到人眼前，而同一条消息在主会话里画的是一枚胶囊。
-		 * `displayText` 是这条消息发出时一并存下的那份「人打的字」，升级之前发的老消息没有它，
-		 * 那时仍然退回原来的拼法——少一枚胶囊，总好过整条消息不见。
-		 */
-		const spoken = message.content
-			.filter((block): block is Extract<UserContent, { type: "text" }> => block.type === "text")
-			.map((block) => block.text)
-			.join("\n");
-		const text = message.displayText ?? spoken;
-		const images = message.content.filter(
-			(block): block is Extract<UserContent, { type: "image" }> => block.type === "image",
-		);
-		return (
-			<UserRow
-				index={index}
-				text={text}
-				attachments={message.attachments ?? []}
-				images={images}
-				timestamp={message.timestamp}
-			/>
-		);
+		return <UserRow index={index} message={message} />;
 	}
 
-	return <AssistantRow message={message} />;
+	return <AssistantRow message={message} live={live} />;
 }
 
 /**
@@ -69,23 +49,15 @@ export function MessageRow({ message, index }: { message: Message; index: number
  * leaves focus behind and the button would stay out after the pointer had gone — see
  * `e2e/hover-controls-probe.ts`.
  */
-function UserRow({
-	index,
-	text,
-	attachments,
-	images,
-	timestamp,
-}: {
-	index: number;
-	text: string;
-	/** 名字和门类，用来认出句子里的 `【图片 1】`——正文不在里面，它已经在 `content` 里了。 */
-	attachments: MessageAttachment[];
-	images: Extract<UserContent, { type: "image" }>[];
-	timestamp: number;
-}) {
+function UserRow({ index, message }: { index: number; message: UserMessage }) {
 	const sessionId = useSideSessionId();
 	const editAndResend = useSide((s) => s.editAndResend);
 	const running = useSide((s) => sideChatOf(s, sessionId).running);
+	/*
+	 * 人打的那句话优先，拼起来的 `content` 只是退路——见 `spokenText`。`content` 里带着展开给模型的
+	 * 附件正文，把它们拼起来画，等于把写给模型的记号摆到人眼前。
+	 */
+	const text = spokenText(message);
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(text);
 
@@ -93,8 +65,16 @@ function UserRow({
 		const trimmed = draft.trim();
 		setEditing(false);
 		if (!trimmed) return;
-		// The images came with the question and stay with it; the edit is to the wording.
-		void editAndResend(sessionId, index, [...images, { type: "text", text: trimmed }]);
+		/*
+		 * 带的东西原样跟过去：改的是措辞，不是文件。
+		 *
+		 * 从前只带了图片——编辑框改的是 `displayText`，不含附件正文，于是重问一遍，【报告.md】 还在
+		 * 句子里，文件本身已经没了，模型对着一份看不见的文件作答；气泡也退回原文。和主会话同一个做法
+		 * （`UserMessage` 的 `submit`）：图片、正文、新措辞，再加上给人看的那一份。
+		 */
+		const images = message.content.filter((block): block is Extract<UserContent, { type: "image" }> => block.type === "image");
+		const bodies = message.content.filter((block): block is Extract<UserContent, { type: "text" }> => block.type === "text" && isAttachmentBody(block.text));
+		void editAndResend(sessionId, index, [...images, ...bodies, { type: "text", text: trimmed }], { displayText: trimmed, attachments: message.attachments ?? [] });
 	}
 
 	if (editing) {
@@ -118,71 +98,15 @@ function UserRow({
 
 	return (
 		<div className="group/msg ly-enter flex flex-col items-end">
-			<div className="ly-user-bubble max-w-[88%] rounded-2xl bg-card px-4 py-2.5 text-ink">
-				{/*
-				 * 和主会话气泡同一个组件：没有附件标记时整段走 markdown，有标记时保持行内。
-				 *
-				 * 这一句从前是 `whitespace-pre-wrap` 的纯文本，于是 `# 需求1` 画出来就是一行井号；
-				 * 而附件那一段更明显——写给模型的 `### Attached file: …` 原样摆在人眼前。
-				 */}
-				{text && (
-					<BubbleText
-						text={text}
-						files={attachments}
-						className="text-body leading-relaxed"
-						renderText={(plain) => <Markdown text={plain} />}
-						/*
-						 * 这里的胶囊只认名字，不带动作。
-						 *
-						 * 主会话那边点一枚能开文件、能预览、能右键——靠的是消息里存下的路径和像素。
-						 * 侧边聊天的附件也存了名字和路径，但这个面板两百来像素宽，没有能承接
-						 * 「打开」的地方（文件面板属于主窗口）。所以先只认出它、画成一枚标签，
-						 * 不给一条点了没反应的路。
-						 */
-						renderFile={(file, at) => (
-							<span key={at} className="ly-attachment-token" data-kind={file.kind}>
-								{file.label ?? file.name}
-							</span>
-						)}
-					/>
-				)}
-				{images.length > 0 && (
-					<div className={`flex flex-wrap gap-1.5 ${text ? "mt-2" : ""}`}>
-						{images.map((block, i) => (
-							<button
-								key={i}
-								type="button"
-								aria-label={translate("sideMessage.previewImage")}
-								onClick={(event) =>
-									openFromEvent(
-										event,
-										images.map((img) => ({ src: `data:${img.mimeType};base64,${img.data}` })),
-										i,
-									)
-								}
-								className="block overflow-hidden rounded-md border border-line bg-card shadow-xs transition-opacity duration-[var(--ly-t-quick)] hover:opacity-85"
-							>
-								<img
-									src={`data:${block.mimeType};base64,${block.data}`}
-									alt={translate("sideMessage.attachedImage")}
-									className="h-14 w-20 object-cover"
-								/>
-							</button>
-						))}
-					</div>
-				)}
-			</div>
+			{/* 和子智能体面板同一个气泡——见 `SpokenBubble`。 */}
+			<SpokenBubble message={message} renderText={(plain) => <Markdown text={plain} />} />
 
 			{/*
 			 * The same row the main transcript puts under a sent message — the same component, not a
 			 * lookalike. It carries the time, the copy button and, as its child, whatever this side
 			 * offers beyond copying. Here that is editing, exactly as it is there.
-			 *
-			 * The panel had none of it: no timestamp, no copy, and an edit button invented on the
-			 * spot in a different size and position. Two conversations, two vocabularies for the same
-			 * three actions.
 			 */}
-			<MessageActions timestamp={timestamp} text={text} className="pr-1">
+			<MessageActions timestamp={message.timestamp} text={text} className="pr-1">
 				<button
 					type="button"
 					data-ly-tip={translate(running ? "sideMessage.busy" : "sideMessage.editAndReask")}
@@ -201,11 +125,9 @@ function UserRow({
 	);
 }
 
-function AssistantRow({ message }: { message: AssistantMessage }) {
+function AssistantRow({ message, live }: { message: AssistantMessage; live?: boolean }) {
 	const sessionId = useSideSessionId();
 	const toolRuns = useSide((s) => sideChatOf(s, sessionId).toolRuns);
-	// 没有运行记录的卡片说什么，取决于这一轮跑完没有——见 `conversation/tool-status.ts`。
-	const turnRunning = useSide((s) => sideChatOf(s, sessionId).running);
 	/** What it actually said, for the copy button. Tool calls and thinking are not the answer. */
 	const spoken = message.content
 		.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")
@@ -214,7 +136,25 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 
 	return (
 		<div className="group/msg ly-enter flex flex-col gap-2.5">
-			{message.content.map((block, index) => {
+			{/*
+			 * 连着的几次工具调用收成一行，和主会话一样。
+			 *
+			 * 这里从前每次调用一张卡片：问一句「这个函数在哪儿用到了」，面板里竖着排出六张「读取文件」，
+			 * 答案被挤到屏幕外。主会话早就把它们收成「读取文件 6 个」一行、点开才看每一张——同一件事在
+			 * 两个对话里两种长相。
+			 */}
+			{segments(message.content).map((segment, position, all) => {
+				if (segment.kind === "tools") {
+					return (
+						<ToolRun
+							key={`tools-${position}`}
+							calls={segment.blocks.map((block) => ({ block, stopReason: message.stopReason }))}
+							runs={toolRuns}
+							live={Boolean(live) && position === all.length - 1}
+						/>
+					);
+				}
+				const { block, index } = segment;
 				if (block.type === "thinking") {
 					return (
 						<ThinkingBlock
@@ -227,26 +167,13 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 				}
 				if (block.type === "text") {
 					return block.text ? (
-						// The same rhythm as the main transcript — see `rows.tsx`. Two conversations
-						// showing the same kind of answer at two different spacings is the drift this
-						// panel keeps accumulating.
+						// The same rhythm as the main transcript — see `rows.tsx`.
 						<div key={index}>
 							<Markdown text={block.text} />
 						</div>
 					) : null;
 				}
-				const run = toolRuns[block.id];
-				return (
-					<ToolCard
-						key={block.id}
-						toolName={block.name}
-						args={block.arguments}
-						summary={run?.summary ?? block.name}
-						status={run?.status ?? toolCardFallback(message.stopReason, turnRunning)}
-						result={run?.result}
-						startedAt={run?.startedAt}
-					/>
-				);
+				return null;
 			})}
 
 			{message.stopReason === "error" && message.errorMessage && (
@@ -257,14 +184,9 @@ function AssistantRow({ message }: { message: AssistantMessage }) {
 
 			{/*
 			 * The same row the main transcript puts under a finished reply: when it was said, and a
-			 * way to take it with you.
-			 *
-			 * No duration and no token count — those belong to the main session's turn, and this
-			 * panel has no turn of its own to report. `MessageActions` leaves them out when they are
-			 * not given, which is why it can be the same component rather than a similar one.
-			 *
-			 * Only once the reply has finished. A row of controls under a message that is still
-			 * arriving offers to copy half a sentence.
+			 * way to take it with you. No duration and no token count — those belong to the main
+			 * session's turn. Only once the reply has finished: a row of controls under a message that
+			 * is still arriving offers to copy half a sentence.
 			 */}
 			{message.stopReason !== "pending" && spoken.trim() && (
 				<MessageActions timestamp={message.timestamp} text={spoken} />

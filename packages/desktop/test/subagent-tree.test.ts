@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SubAgentSummary } from "@lyra/core";
-import { rosterNested, rosterRows, rosterTree } from "../src/store/subAgents.ts";
+import { rosterRows, rosterTree } from "../src/store/subAgents.ts";
 
 function summary(over: Partial<SubAgentSummary> & { id: string; tokens?: number; cost?: number }): SubAgentSummary {
 	const { tokens = 0, cost = 0, ...rest } = over;
@@ -71,10 +71,4 @@ test("a branch total includes grandchildren; the root's own share stays separate
 	assert.equal(root.branch.tokens, 1350);
 	assert.ok(Math.abs(root.branch.cost - 0.135) < 1e-9);
 	assert.equal(root.children[0].branch.tokens, 350, "the middle node's branch is itself plus its child");
-});
-
-
-test("nested means someone below the main conversation dispatched", () => {
-	assert.equal(rosterNested([summary({ id: "a" }), summary({ id: "b" })]), false, "peers are a strip, not a tree");
-	assert.equal(rosterNested([summary({ id: "a" }), summary({ id: "a1", parentId: "a", depth: 2 })]), true);
 });

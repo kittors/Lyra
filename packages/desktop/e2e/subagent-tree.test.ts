@@ -2,7 +2,7 @@
  * 派生树与合计成本，在真窗口里、走完整条链。
  *
  * 面板上那棵树的每一环都有自己的测试：`sub-agent-lineage` 证明注册表记下了父子与账单，
- * `subagent-tree` 证明 store 把名单折成树，`ui/subagent-roster` 证明组件按层缩进。它们
+ * `subagent-tree` 证明 store 把名单折成树，`ui/subagent-switcher` 证明切换单按层缩进。它们
  * 都碰不到的是这条链本身——`.lyra/agents/boss.md` 里一行 `spawns: "*"` 能不能真的让
  * 第二层发生、摘要能不能原样穿过 IPC、面板会不会在派发时自己打开。这三样以前各断过一次，
  * 而且断得很安静：树画不出来，看起来跟「没人派过第二层」一模一样。
@@ -182,23 +182,29 @@ test("一行 spawns 让第二层真的发生，面板画出树、算出账、并
 
 	assert.deepEqual(asked, ["main", "boss", "explore", "boss", "main"], "两层各自问了模型，顺序是派下去再收回来");
 
+	/*
+	 * 树在面板顶上那张切换单里：派了不止一个，顶上是一摞脸，点开是按派生树缩进的一张单子。
+	 * 从前它常驻在面板顶上，四个人就把正文往下推了一百多像素。
+	 */
+	await app.evaluate(`document.querySelector('[data-dock-pane="subagents"] [data-sub-switch]')?.click()`);
+	for (let i = 0; i < 40 && !(await app.evaluate<boolean>(`Boolean(document.querySelector("[data-sub-menu]"))`)); i++) await new Promise((r) => setTimeout(r, 100));
 	const seen = await app.evaluate<{
 		pane: boolean;
 		rows: [string | null, string | null, string, string | null][];
 		totals: string[];
-		header: string | null;
 		bar: string | null;
+		barOpen: string | null;
 	}>(`(() => ({
 		pane: !!document.querySelector('[data-dock-pane="subagents"]'),
-		rows: [...document.querySelectorAll("[role=treeitem]")].map((r) => [
-			r.querySelector("button")?.textContent ?? null,
-			r.getAttribute("aria-level"),
-			r.style.paddingLeft,
-			r.querySelector("[data-sub-figures]")?.textContent ?? null,
+		rows: [...document.querySelectorAll("[data-sub-menu] [data-sub-row]")].map((r) => [
+			r.querySelector("[role=menuitem]")?.textContent ?? null,
+			r.getAttribute("data-sub-level"),
+			r.style.paddingLeft || "0px",
+			(r.querySelector("[data-sub-figures]")?.textContent ?? "").replace(/^·\\s*/, "") || null,
 		]),
 		totals: [...document.querySelectorAll("[data-sub-total]")].map((t) => t.textContent),
-		header: document.querySelector('[data-dock-pane="subagents"] [data-sub-figures]:not([role] *)')?.textContent ?? null,
 		bar: document.querySelector("[data-ly-subagent-bar]")?.innerText ?? null,
+		barOpen: document.querySelector("[data-ly-subagent-bar]")?.closest(".ly-reveal")?.dataset.open ?? null,
 	}))()`);
 
 	assert.ok(seen.pane, "派发时面板自己打开了——不用先去点状态条");
@@ -225,6 +231,10 @@ test("一行 spawns 让第二层真的发生，面板画出树、算出账、并
 	 * 反过来守，和 `test/ui/subagent-bar.test.ts` 同一个理由：「再加回去」是个太自然的念头。
 	 */
 	assert.deepEqual(seen.totals, [], `整批合计不该再出现：${JSON.stringify(seen.totals)}`);
-	assert.match(seen.bar ?? "", /2 个子 Agent 已结束/, "状态条说的是这一批怎么样了");
+	/*
+	 * 这一批都交了差、主会话也收尾了：输入框上方那一条自己收起来（从前停在那儿写着「2 个子 Agent
+	 * 已结束」，要人去点叉）。记录还在——上面那张树形单子就是从面板里点开的。
+	 */
+	assert.notEqual(seen.barOpen, "true", `收尾之后状态条该收起来了：${seen.bar}`);
 	assert.ok(!(seen.bar ?? "").includes("3.0k"), `状态条上不该再挂整批的账：${seen.bar}`);
 });

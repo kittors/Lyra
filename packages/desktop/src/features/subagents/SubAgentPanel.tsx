@@ -12,64 +12,47 @@
  * per workspace — two agents writing to one working tree is a conflict waiting to happen, and the
  * indirection is the design rather than a limitation of it.
  *
- * A tab strip above, because a parent dispatching three searches at once is the case this exists
- * for, and choosing between them *is* the title.
+ * 派了不止一个时，顶上那一行就是切换器：脸叠成一摞，点开一张单子换人——见 `SubAgentHeader`。
  */
 
-import { Bot, Check, CircleStop, Play, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Bot, Check, Copy, CornerLeftUp, Play, Plus, RotateCcw, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
-import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
+import { rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { useScopedSessionId, useScopedSubAgents } from "../../app/session-scope.tsx";
-import { openFromEvent } from "../image/index.ts";
-import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
-import { openViewer } from "../image/index.ts";
-import { useOpenFile } from "../../store/openFile.ts";
 import { BackToLatest } from "../conversation/index.ts";
 import {
-	AttachmentStrip,
+	attachmentMeta,
 	ComposerSend,
 	ComposerShell,
-	fileKind,
-	type FileKind,
+	type DraftAttachment,
 	spellDraft,
-	useAttachmentMarks,
-	KIND_LABEL,
-	pickedFrom,
-	type PickedFile,
-	type StripFile,
-	useAttachmentActions,
+	useComposerAttachments,
+	useDraft,
+	useInputHistory,
 } from "../composer/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
-import { figuresWord, ranFor, statusTone } from "./format.ts";
+import { useAgentAvatars } from "../../store/agent-avatars.ts";
+import { stateOf } from "../../lib/dispatches.ts";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { wayBack } from "./way-back.ts";
-import { SubAgentRoster } from "./SubAgentRoster.tsx";
-import { StructuredOutput } from "./StructuredOutput.tsx";
-import { SubAgentTranscript } from "./SubAgentMessageRow.tsx";
+import { SubAgentHeader } from "./SubAgentHeader.tsx";
+import { hasContent, StructuredOutput } from "./StructuredOutput.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { fromParent, SubAgentTranscript } from "./SubAgentMessageRow.tsx";
 import { bridge } from "../../services/index.ts";
 
-interface SubAgentAttachment {
-	id: string;
-	name: string;
-	mimeType: string;
-	data?: string;
-	text?: string;
-	isText: boolean;
-	/** 磁盘上的位置，来自一个文件的话——「打开」和「在访达中显示」靠它。 */
-	path?: string;
-	/** 界面上叫什么：「图片 1」或者文件名。正文里那枚标记写的就是它——见 `useAttachmentMarks`。 */
-	label?: string;
-	kind?: FileKind;
-}
+/** 在应用里打开一个磁盘上的文件——由挂这个面板的那一层给，见 `dock/panels/builtin.tsx`。 */
+type OpenFile = (path: string, name: string) => void;
 
-export function SubAgentPanel() {
+export function SubAgentPanel({ openFile }: { openFile?: OpenFile } = {}) {
 	const { t } = useI18n();
 	// The conversation of the screen this panel is in, and its delegated work.
 	const sessionId = useScopedSessionId();
@@ -91,9 +74,10 @@ export function SubAgentPanel() {
 	}, [current, sessionId]);
 
 	if (agents.length === 0) {
+		// 排在闸门后面的也在名单上（派出去那一刻就登记了），所以这里只剩「真的一个都没派」。
 		return (
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-				<PanelEmpty icon={Bot} title={t("subAgent.title")}>
+				<PanelEmpty icon={Bot} art={<IdleCrew />} title={t("subAgent.title")}>
 					{t("subAgent.empty")}
 				</PanelEmpty>
 				<IdleComposer placeholder={t("subAgent.empty")} />
@@ -103,12 +87,6 @@ export function SubAgentPanel() {
 
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<SubAgentRoster
-				agents={ordered}
-				current={current?.id ?? null}
-				onFocus={(id) => useSubAgents.getState().focus(id)}
-				trailing={(one) => <Dismiss agent={one} />}
-			/>
 			{/*
 			 * No `key`, deliberately.
 			 *
@@ -118,43 +96,30 @@ export function SubAgentPanel() {
 			 * delegate it is showing and gets the right position back, the same way the conversation
 			 * does when you switch sessions.
 			 */}
-			{current && <Transcript agent={current} sessionId={sessionId} />}
+			{current && <Transcript agent={current} agents={ordered} sessionId={sessionId} openFile={openFile} />}
 		</div>
 	);
 }
 
-function Dismiss({ agent }: { agent: SubAgentSummary }) {
-	const { t } = useI18n();
-	/*
-	 * The conversation of this panel's screen, which dispatched the agent.
-	 *
-	 * It asked the live slot, which is whichever screen has focus. A press focuses its screen first so
-	 * the mouse got it right; the keyboard reaches a panel beside another screen's focus, and there the
-	 * main process was asked to close an agent the focused conversation never had — nothing happened.
-	 */
-	const sessionId = useScopedSessionId();
-	const running = agent.status === "running";
+/** 没活的时候，几张醒着的脸在这儿等着——比一枚机器人图标更像「派活就会有人来」。 */
+function IdleCrew() {
+	const avatarOf = useAgentAvatars();
+	const names = ["explore", "general", "plan"];
 	return (
-		<button
-			type="button"
-			data-ly-hover-reveal
-			data-ly-tip={running ? t("subAgent.stopAndClose") : t("common.close")}
-			aria-label={running ? t("subAgent.stopAndCloseOne", { name: agent.description }) : t("subAgent.closeOne", { name: agent.description })}
-			onClick={async () => {
-				if (!sessionId) return;
-				const what = await bridge.subAgents.dismiss(sessionId, agent.id);
-				// Stopping is not instant: the run files itself as aborted, and the row goes on the
-				// second press. Saying so beats a click that appears to do nothing.
-				if (what === "stopping") useApp.getState().notify(t("subAgent.stopping"), "info");
-			}}
-			className="rounded p-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/subtab:opacity-60 hover:!opacity-100 hover:bg-elevated"
-		>
-			<X size={11} strokeWidth={2.2} />
-		</button>
+		<span className="flex items-end gap-2" aria-hidden data-ly-avatar-host="">
+			{names.map((name, index) => (
+				<AgentAvatar key={name} avatar={avatarOf(name)} size={index === 1 ? 34 : 26} seed={name} host="[data-ly-avatar-host]" />
+			))}
+		</span>
 	);
 }
 
-function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string | null }) {
+function Transcript({ agent, agents, sessionId, openFile }: {
+	agent: SubAgentSummary;
+	agents: SubAgentSummary[];
+	sessionId: string | null;
+	openFile?: OpenFile;
+}) {
 	const { t } = useI18n();
 	const messages = useSubAgents((s) => s.transcripts[agent.id]);
 	const loading = useSubAgents((s) => s.loading.includes(agent.id));
@@ -176,7 +141,7 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 
 	return (
 		<>
-			<Header agent={agent} sessionId={sessionId} />
+			<SubAgentHeader agent={agent} agents={agents} sessionId={sessionId} />
 			<div className="relative flex min-h-0 flex-1 flex-col">
 			<Scroller
 				className="flex-1"
@@ -189,10 +154,15 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 			>
 				{!messages || messages.length === 0 ? (
 					<p className="px-2 py-8 text-center text-detail text-ink-faint">
-						{loading || agent.status === "running" ? t("subAgent.waiting") : t("subAgent.noOutput")}
+						{loading || agent.status === "running" || agent.status === "queued" ? t("subAgent.waiting") : t("subAgent.noOutput")}
 					</p>
 				) : (
-					<SubAgentTranscript messages={messages} isLive={agent.status === "running"} />
+					<SubAgentTranscript
+						messages={messages}
+						isLive={agent.status === "running"}
+						// 回报是一段话的时候，那段话只在回报卡片里画一次——见 `echo`。
+						echo={agent.answer && !(agent.output && hasContent(agent.output)) ? agent.answer : undefined}
+					/>
 				)}
 				{/*
 				 * The answer, marked as the one thing the parent actually saw.
@@ -209,59 +179,10 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 				 * this on `done` hid exactly the reports worth reading, and left the pane for a
 				 * half-hour run showing one red line.
 				 */}
-				{agent.answer && (
-					/*
-					 * A report that was cut short is drawn as one.
-					 *
-					 * Its first line already says so in words, and that is what the parent model reads
-					 * — but a person skims, and the window strips symbols out of text it did not write
-					 * (`strip-emoji`), so the `⚠` that leads the sentence never reaches the screen. The
-					 * label is the part a reader cannot miss; `status` could not carry it, because a
-					 * run that used up its rounds is `done` — the work happened, it just did not
-					 * finish.
-					 *
-					 * `danger` rather than a warning hue of its own: this app has three semantic
-					 * colours and has already turned down a sixth for exactly this kind of case (see
-					 * `SessionStatus`). Only the label takes it and the border is barely tinted — a
-					 * whole card in red would read as "this failed", and it did not.
-					 */
-					<div
-						className={`mt-2 min-w-0 max-w-full overflow-hidden rounded-lg border bg-card/50 px-3 py-2 ${
-							agent.incomplete ? "border-danger/25" : "border-line-soft"
-						}`}
-					>
-						<p className={`mb-1 flex items-center gap-1.5 text-caption ${agent.incomplete ? "text-danger" : "text-ink-faint"}`}>
-							{agent.incomplete && <TriangleAlert size={12} strokeWidth={2} className="shrink-0" />}
-							{t(agent.incomplete ? "subAgent.reportedBackPartial" : "subAgent.reportedBack")}
-						</p>
-						{/*
-						 * The object first, drawn by its shape, when the agent declared one.
-						 *
-						 * It is what the parent indexes into (`agent://<id>/passed`), and printing it as
-						 * JSON would make the one structured thing on this pane the hardest to read.
-						 * The prose below it is still shown: the report and the object answer
-						 * different questions.
-						 */}
-						{agent.output && (
-							<div className="mb-2 border-b border-line-soft pb-2">
-								<StructuredOutput output={agent.output} />
-							</div>
-						)}
-						{/*
-						 * Rendered, not printed.
-						 *
-						 * A sub-agent's report is written for the model to read and is Markdown like any
-						 * other reply — file paths in backticks, findings in a list, emphasis on what
-						 * matters. Shown raw it was a wall of asterisks and hyphens, which is both
-						 * harder to read than the plain prose it replaced and inconsistent with the
-						 * same text everywhere else in the window.
-						 */}
-						<Markdown text={agent.answer} className="min-w-0 max-w-full break-words" />
-					</div>
-				)}
+				{agent.answer && <Report agent={agent} />}
 				{/* Only when it is the whole story: the report above already opens with the cause. */}
 				{agent.status === "failed" && agent.error && !agent.answer && (
-					<p className="mt-2 rounded-lg border border-danger/30 px-3 py-2 text-detail text-danger">{agent.error}</p>
+					<p className="mt-3 rounded-xl border border-danger/25 px-3.5 py-2.5 text-detail leading-relaxed text-danger">{agent.error}</p>
 				)}
 				{/*
 				 * A way back from the two endings that were not the point.
@@ -286,11 +207,81 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
 			<BackToLatest show={follow.away} unread={follow.unread} onClick={follow.returnToBottom} />
 			</div>
 			{agent.status === "running" && sessionId ? (
-				<Steer agent={agent} sessionId={sessionId} />
+				<Steer agent={agent} sessionId={sessionId} openFile={openFile} />
 			) : (
-				<IdleComposer placeholder={t("subAgent.steering")} />
+				<IdleComposer placeholder={t("subAgent.finishedSteer")} agent={agent} />
 			)}
 		</>
+	);
+}
+
+/**
+ * 它交回来的东西，一张卡片。
+ *
+ * A report that was cut short is drawn as one. Its first line already says so in words, and that
+ * is what the parent model reads — but a person skims, and the window strips symbols out of text it
+ * did not write (`strip-emoji`), so the `⚠` that leads the sentence never reaches the screen. The
+ * label is the part a reader cannot miss; `status` could not carry it, because a run that used up
+ * its rounds is `done` — the work happened, it just did not finish. `danger` only on the label and a
+ * barely tinted border: a whole card in red would read as "this failed", and it did not.
+ *
+ * 声明了输出格式的，画的是那个对象，不再在下面把 `answer` 也画一遍。`answer` 是同一个对象给
+ * 模型读的写法（`renderYield`：结论、每条记录压成一行、报告全文），两份叠在一起，读的人是把每条
+ * 发现从表格里读一遍、再从一串「- `a.ts` — severity: high，problem: …」里读一遍。只有对象里
+ * 什么都没写（`{ summary: "", files: [] }` 也能过校验）的时候，才退回那段文字——那时它是
+ * 子智能体最后说的话。
+ */
+function Report({ agent }: { agent: SubAgentSummary }) {
+	const { t } = useI18n();
+	const answer = agent.answer ?? "";
+	const structured = agent.output && hasContent(agent.output) ? agent.output : null;
+	/*
+	 * 没跑完的那种，开头一段是 core 写的「为什么没跑完、下面是什么」。只画对象的时候那段话会跟着
+	 * `answer` 一起消失，而标题只说了「没跑完」，没说是跑满了检查点、原地打转，还是服务出错。
+	 */
+	const note = agent.incomplete && structured ? answer.split(/\n{2,}/)[0].replace(/^⚠\s*/, "") : null;
+	const prose = (text: string) => <Markdown text={text} className="min-w-0 max-w-full break-words" />;
+	return (
+		<section
+			data-sub-report=""
+			className={`group/report mt-3 min-w-0 max-w-full overflow-hidden rounded-xl border px-3.5 pt-2 pb-3.5 ${agent.incomplete ? "border-danger/25 bg-card/40" : "border-line-soft bg-card/50"}`}
+		>
+			<header className={`mb-2 flex h-7 items-center gap-1.5 text-caption ${agent.incomplete ? "text-danger" : "text-ink-faint"}`}>
+				{agent.incomplete ? (
+					<TriangleAlert size={12.5} strokeWidth={2} aria-hidden className="shrink-0" />
+				) : (
+					<CornerLeftUp size={12.5} strokeWidth={2} aria-hidden className="shrink-0" />
+				)}
+				<span className="min-w-0 truncate">{t(agent.incomplete ? "subAgent.reportedBackPartial" : "subAgent.reportedBack")}</span>
+				<span className="flex-1" />
+				<CopyReport text={answer} />
+			</header>
+			{note && <p className="mb-3 text-detail leading-relaxed text-ink-muted" data-sub-report-note="">{note}</p>}
+			{structured ? <StructuredOutput output={structured} warnings={agent.warnings} prose={prose} /> : prose(answer)}
+		</section>
+	);
+}
+
+/** 复制它交回来的全文——给模型读的那一份，带着每一条，贴到哪儿都能读。 */
+function CopyReport({ text }: { text: string }) {
+	const { t } = useI18n();
+	const [copied, setCopied] = useState(false);
+	useEffect(() => {
+		if (!copied) return;
+		const timer = setTimeout(() => setCopied(false), 1600);
+		return () => clearTimeout(timer);
+	}, [copied]);
+	return (
+		<button
+			type="button"
+			data-ly-hover-reveal
+			data-ly-tip={copied ? t("common.copied") : t("common.copy")}
+			aria-label={t("subAgent.copyReport")}
+			onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true))}
+			className="grid size-6 shrink-0 place-items-center rounded-md text-ink-faint opacity-0 transition duration-[var(--ly-t-quick)] group-hover/report:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100"
+		>
+			{copied ? <Check size={12.5} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12.5} strokeWidth={1.8} />}
+		</button>
 	);
 }
 
@@ -300,6 +291,9 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
  * 和「重新派发」同一个间接法、同一个理由：落成输入框里的一份草稿，人读过、改过、或者扔掉之后才
  * 花钱。草稿里带着 id——主 Agent 要用它调 `task` 的 `resume`，写一句「接着跑刚才那个」它不知道
  * 是哪一个。
+ *
+ * 从前这两个是一枚带描边的小方块，只有一个播放 / 回转图标：看的人得先悬停才知道它是干什么的，
+ * 而这恰恰是一次派发没做完之后唯一的出路。现在写着字。
  */
 function Resume({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
@@ -307,20 +301,21 @@ function Resume({ agent }: { agent: SubAgentSummary }) {
 	const screen = useScopedSessionId();
 	const [asked, setAsked] = useState(false);
 	return (
-		<button
-			type="button"
-			disabled={asked}
-			data-sub-resume
-			data-ly-tip={t("subAgent.resumeTip")}
-			onClick={() => {
-				useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), { sessionId: screen, replace: true });
-				setAsked(true);
-			}}
-			aria-label={asked ? t("subAgent.drafted") : t("subAgent.resume")}
-			className="mt-2 grid h-7 w-7 place-items-center rounded-lg border border-line-soft text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-50"
-		>
-			{asked ? <Check size={11.5} strokeWidth={2.2} aria-hidden /> : <Play size={11.5} strokeWidth={1.9} aria-hidden />}
-		</button>
+		<div className="mt-2 w-fit" data-sub-resume>
+			<Button
+				variant="subtle"
+				size="sm"
+				disabled={asked}
+				label={t("subAgent.resumeTip")}
+				icon={asked ? <Check size={13} strokeWidth={2.2} aria-hidden /> : <Play size={13} strokeWidth={1.9} aria-hidden />}
+				onClick={() => {
+					useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), { sessionId: screen, replace: true });
+					setAsked(true);
+				}}
+			>
+				{asked ? t("subAgent.drafted") : t("subAgent.resume")}
+			</Button>
+		</div>
 	);
 }
 
@@ -329,95 +324,35 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
 	const screen = useScopedSessionId();
 	const [asked, setAsked] = useState(false);
 	return (
-		<button
-			type="button"
-			disabled={asked}
-			data-ly-tip={t("subAgent.redispatchTip")}
-			onClick={() => {
-				/*
-				 * Through the composer, not straight to the model.
-				 *
-				 * It lands as a draft you can read, edit, or throw away before anything runs — the
-				 * request is a sentence about work that already cost something once, and pressing a
-				 * button should not be the last word on spending it again.
-				 */
-				useApp
-					.getState()
-					.setComposerDraft(
-						t(agent.status === "failed" ? "subAgent.redispatchDraftFailed" : "subAgent.redispatchDraftAborted", {
-							name: agent.description,
-						}),
-						{ sessionId: screen, replace: true },
-					);
-				setAsked(true);
-			}}
-			aria-label={asked ? t("subAgent.drafted") : t("subAgent.redispatch")}
-			className="mt-2 grid h-7 w-7 place-items-center rounded-lg border border-line-soft text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-50"
-		>
-			{/* 派过之后变成一个勾：草稿已经在输入框里了，再按一次不会有第二份。 */}
-			{asked ? <Check size={11.5} strokeWidth={2.2} aria-hidden /> : <RotateCcw size={11.5} strokeWidth={1.9} aria-hidden />}
-		</button>
-	);
-}
-
-function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string | null }) {
-	const { t } = useI18n();
-	/* A clock while it runs, frozen at the end once it has. */
-	const [, tick] = useState(0);
-	useEffect(() => {
-		if (agent.status !== "running") return;
-		const timer = window.setInterval(() => tick((n) => n + 1), 1000);
-		return () => window.clearInterval(timer);
-	}, [agent.status]);
-
-	return (
-		<div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2.5 text-caption text-ink-faint">
-			<span className={`size-[5px] shrink-0 rounded-full ${statusTone(agent.status)}`} />
-			<span className="shrink-0 whitespace-nowrap">{agent.agent}</span>
-			<span className="shrink-0 text-line">·</span>
-			<span className="shrink-0 whitespace-nowrap tabular-nums">{ranFor(agent)}</span>
-			{agent.toolCalls > 0 && (
-				<>
-					<span className="shrink-0 text-line">·</span>
-					<span className="shrink-0 whitespace-nowrap tabular-nums">{t("subAgent.calls", { n: agent.toolCalls })}</span>
-				</>
-			)}
-			{/* What it has cost so far — the number that decides whether delegating this was worth it. */}
-			{figuresWord(figuresOf(agent)) && (
-				<>
-					<span className="shrink-0 text-line">·</span>
-					<span data-sub-figures data-ly-tip={t("subAgent.figuresTip")} className="shrink-0 whitespace-nowrap tabular-nums">
-						{figuresWord(figuresOf(agent))}
-					</span>
-				</>
-			)}
-			{/*
-			 * The newest thing it did, which is what answers "is this stuck?".
-			 *
-			 * 正在重连时说重连——那才是此刻的实话。卡在重试上的子代理，最后一次工具调用可能是半小时
-			 * 前的事，把它顶在这里等于告诉人「它在读文件」，而它其实什么都没在做。
-			 *
-			 * 重连那行稍重一档，但不用警告色：重试不是错误，是在等。
-			 */}
-			{agent.status === "running" && (agent.retrying || agent.lastActivity) && (
-				<span className={`ly-fade-tail min-w-0 flex-1 truncate ${agent.retrying ? "text-ink-muted" : "text-ink-faint"}`}>
-					{agent.retrying
-						? t("subAgent.retrying", { attempt: agent.retrying.attempt, reason: agent.retrying.reason })
-						: agent.lastActivity}
-				</span>
-			)}
-			<span className="min-w-2 flex-1" />
-			{agent.status === "running" && sessionId && (
-				<button
-					type="button"
-					data-ly-tip={t("subAgent.stopTip")}
-					aria-label={t("subAgent.stop")}
-					onClick={() => void bridge.subAgents.abort(sessionId, agent.id)}
-					className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-danger"
-				>
-					<CircleStop size={12} strokeWidth={1.9} />
-				</button>
-			)}
+		<div className="mt-2 w-fit" data-sub-redispatch>
+			<Button
+				variant="subtle"
+				size="sm"
+				disabled={asked}
+				label={t("subAgent.redispatchTip")}
+				icon={asked ? <Check size={13} strokeWidth={2.2} aria-hidden /> : <RotateCcw size={13} strokeWidth={1.9} aria-hidden />}
+				onClick={() => {
+					/*
+					 * Through the composer, not straight to the model.
+					 *
+					 * It lands as a draft you can read, edit, or throw away before anything runs — the
+					 * request is a sentence about work that already cost something once, and pressing a
+					 * button should not be the last word on spending it again.
+					 */
+					useApp
+						.getState()
+						.setComposerDraft(
+							t(agent.status === "failed" ? "subAgent.redispatchDraftFailed" : "subAgent.redispatchDraftAborted", {
+								name: agent.description,
+							}),
+							{ sessionId: screen, replace: true },
+						);
+					setAsked(true);
+				}}
+			>
+				{/* 派过之后变成一个勾：草稿已经在输入框里了，再按一次不会有第二份。 */}
+				{asked ? t("subAgent.drafted") : t("subAgent.redispatch")}
+			</Button>
 		</div>
 	);
 }
@@ -430,8 +365,9 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
  * window's bottom became two, then one, and the remaining cards sat on a
  * different line. A disabled twin holds the slot.
  */
-function IdleComposer({ placeholder }: { placeholder: string }) {
+function IdleComposer({ placeholder, agent }: { placeholder: string; agent?: SubAgentSummary }) {
 	const { t } = useI18n();
+	const avatarOf = useAgentAvatars();
 	return (
 		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
 			<ComposerShell
@@ -441,25 +377,29 @@ function IdleComposer({ placeholder }: { placeholder: string }) {
 				disabled
 				placeholder={placeholder}
 				left={
-					<button
-						type="button"
-						disabled
-						data-ly-tip={t("subAgent.attach")}
-						aria-label={t("subAgent.attach")}
-						className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted"
-					>
-						<Plus size={16} strokeWidth={1.9} />
-					</button>
-				}
-				right={
 					<>
-						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-label text-ink-faint">
-							<span className="size-[5px] shrink-0 rounded-full bg-ink-faint" />
-							<span className="truncate">{t("subAgent.steering")}</span>
-						</span>
-						<ComposerSend running={false} disabled onSend={() => undefined} onStop={() => undefined} />
+						<button
+							type="button"
+							disabled
+							data-ly-tip={t("composer.addAttachment")}
+							aria-label={t("composer.addAttachment")}
+							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted"
+						>
+							<Plus size={16} strokeWidth={1.9} />
+						</button>
+						{/*
+						 * 和在跑时那一格同一个位置、同一张脸，只是淡下去：跑完的那一刻这一行不跳。从前这里在右边
+						 * 另画一个「• 定向纠偏」，和占位里那句一字不差，一个框里说了两遍同一个词。
+						 */}
+						{agent && (
+							<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-label text-ink-faint opacity-60">
+								<AgentAvatar avatar={avatarOf(agent.agent)} size={14} mood={stateOf(agent)} seed={agent.agent} interactive={false} />
+								<span className="truncate">{t("subAgent.steering")}</span>
+							</span>
+						)}
 					</>
 				}
+				right={<ComposerSend running={false} disabled onSend={() => undefined} onStop={() => undefined} />}
 			/>
 		</div>
 	);
@@ -468,118 +408,60 @@ function IdleComposer({ placeholder }: { placeholder: string }) {
 /**
  * Say something to a sub-agent that is still running.
  *
- * Designed with the exact same visual styling and interaction polish as SideComposer / ComposerShell:
- * Supports text, multi-format attachments (images, code files, logs, docs), and unified buttons.
+ * 和主输入框、侧边聊天是同一套：收附件的那一整套（`useComposerAttachments`）、按对象存着的草稿
+ * （`useDraft`）、方向键翻自己说过的话（`useInputHistory`）。从前这里各样自己抄一份最早的：所有
+ * 文件都摆成卡片、PDF 读成乱码、草稿放在组件里——而面板不按子智能体重挂，于是给 A 写到一半切到
+ * B，那半句话跟着过去，回车一按说给了另一个。现在草稿按子智能体存。
+ *
+ * 发送键就是发送键。它从前在「发送中」那一瞬变成停止键，而那颗停止停的是整个子智能体：连点两下
+ * 回车，第二下就把它杀了。停止在面板顶上，写着字。
  */
-function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string }) {
+function Steer({ agent, sessionId, openFile }: { agent: SubAgentSummary; sessionId: string; openFile?: OpenFile }) {
 	const { t } = useI18n();
-	const [text, setText] = useState("");
-	const [attachments, setAttachments] = useState<SubAgentAttachment[]>([]);
+	const avatarOf = useAgentAvatars();
+	const { text, setText, attachments, setAttachments, clear } = useDraft<DraftAttachment>(`subagent:${sessionId}:${agent.id}`);
 	const [sending, setSending] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
 	const field = useRef<HTMLTextAreaElement>(null);
-	const attachmentActions = useAttachmentActions();
+	const kit = useComposerAttachments<DraftAttachment>({ text, attachments, setAttachments, setText, field, openFile, thumbnail: 56 });
+	const { marks } = kit;
 	/*
-	 * 正文里那枚标记，和主输入框是同一套。
-	 *
-	 * 这个框从前收得下图片、也画得出缩略图，但发出去的时候图片是被静默丢掉的——`steer` 只收一段字，
-	 * 于是只有文本附件被拼进正文。现在 `steer` 收内容块了，见 `core/runtime/sub-agents.ts`。
+	 * 只翻人自己在这里说过的。开头那份任务、续跑时补的那句，是派它出去的那一方说的——翻出来再发一遍，
+	 * 等于把主 Agent 的话当成自己的又说一遍。
 	 */
-	const marks = useAttachmentMarks<SubAgentAttachment>({ attachments, setAttachments, setText, field });
-
-	const previewable = useMemo(
-		() => attachments.filter((a) => !a.isText && a.data),
-		[attachments],
-	);
-
-	const previewImage = (target: SubAgentAttachment, originRect?: DOMRect) => {
-		const index = previewable.findIndex((file) => file.id === target.id);
-		if (index < 0) return;
-		const origin = originRect ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 1, 1);
-		openViewer(
-			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
-			index,
-			origin,
-		);
-	};
-	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
-	const strip: StripFile[] = useMemo(
-		() =>
-			attachments.map((attachment) => {
-				const kind = attachment.kind ?? fileKind(attachment.name, attachment.mimeType);
-				return {
-					key: attachment.id,
-					name: attachment.label ?? attachment.name,
-					kind,
-					...(attachment.data && !attachment.isText
-						? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
-						: {}),
-					...(attachment.path ? { path: attachment.path } : {}),
-					tip: `${attachment.name}\n${t(KIND_LABEL[kind])}`,
-				};
-			}),
-		[attachments, t],
-	);
-
-	const addFiles = async (picked: PickedFile[]) => {
-		if (picked.length === 0) return;
-		// 读文件之前记下来：读一份大文件要几百毫秒，那期间光标早就不在原地了。
-		const caret = field.current?.selectionStart ?? text.length;
-		const next: SubAgentAttachment[] = [];
-		for (const { file, path } of picked) {
-			const from = path ? { path } : {};
-			if (file.type.startsWith("image/")) {
-				const buffer = await file.arrayBuffer();
-				const base64 = bytesToBase64(new Uint8Array(buffer));
-				next.push({
-					id: `${Date.now()}-${Math.random()}`,
-					name: file.name,
-					mimeType: file.type,
-					data: base64,
-					isText: false,
-					...from,
-				});
-			} else {
-				// Non-image attachments (text, markdown, code, config, logs, etc.)
-				try {
-					const content = await file.text();
-					next.push({
-						id: `${Date.now()}-${Math.random()}`,
-						name: file.name,
-						mimeType: file.type || "text/plain",
-						text: content,
-						isText: true,
-						...from,
-					});
-				} catch {
-					useApp.getState().notify(t("subAgent.fileUnreadable", { name: file.name }), "warn");
-				}
-			}
-		}
-		// 标记、编号、光标落点都在这一步里——和主输入框是同一段代码。
-		marks.attach(next, caret);
-	};
+	const transcript = useSubAgents((s) => s.transcripts[agent.id]);
+	const spoken = useMemo(() => (transcript ?? []).filter((message, index) => !fromParent(message, index)), [transcript]);
+	const history = useInputHistory({
+		messages: spoken,
+		value: text,
+		attachments,
+		onPick: (next, files) => {
+			setText(next);
+			setAttachments(files as DraftAttachment[]);
+		},
+		field,
+		resetKey: agent.id,
+	});
+	const empty = !text.trim() && attachments.length === 0;
 
 	const send = async () => {
 		const trimmed = text.trim();
-		if ((!trimmed && attachments.length === 0) || sending) return;
-
+		if (empty || sending) return;
 		/*
-		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。
-		 *
-		 * 这里从前是自己拼的，而且只拼得动文本附件——图片一路收到这儿就没了，因为 `steer` 当时只收
-		 * 一段字。界面上那一格缩略图是真的，发出去的东西里没有它，这中间没有任何提示。
+		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。再交一份给人看的
+		 * ——人打的字和附件的名字门类——气泡里画的就是它，而不是一整篇文件正文。
 		 */
 		const content = spellDraft(trimmed, attachments);
 		if (content.length === 0) return;
-
+		const display = { displayText: trimmed, attachments: attachmentMeta(attachments) };
+		/* 先清空再送：送不到再原样放回去，接在这期间新打的字前面。 */
+		const kept = { text, attachments };
+		clear();
 		setSending(true);
-		const delivered = await bridge.subAgents.steer(sessionId, agent.id, content);
+		const delivered = await bridge.subAgents.steer(sessionId, agent.id, content, display).catch(() => false);
 		setSending(false);
-		if (delivered) {
-			setText("");
-			setAttachments([]);
-		} else {
+		if (!delivered) {
+			setText((current) => (current.trim() ? `${kept.text}\n${current}` : kept.text));
+			setAttachments((current) => [...kept.attachments, ...current]);
 			useApp.getState().notify(t("subAgent.gone"), "error");
 		}
 	};
@@ -589,6 +471,13 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 			<ComposerShell
 				value={text}
 				fieldRef={field}
+				hint={
+					history.position ? (
+						<div data-ly-history="" className="ly-composer-hint text-caption text-ink-faint">
+							{t("composer.history", { current: history.position.current, total: history.position.total })}
+						</div>
+					) : undefined
+				}
 				onChange={(next) => {
 					setText(next);
 					// 句子里那枚标记被删掉，附件跟着卸下来——删除是双向的。
@@ -596,109 +485,43 @@ function Steer({ agent, sessionId }: { agent: SubAgentSummary; sessionId: string
 				}}
 				onKeyDown={(event) => {
 					// 退格吃掉整枚标记，而不是把它啃成一串没人认得的方括号。
-					marks.keyDown(event);
+					if (marks.keyDown(event)) return;
+					history.keyDown(event);
 				}}
-				onAttachmentClick={(index, rect) => {
-					const hit = scanPlaceholders(text, attachments)[index];
-					if (!hit) return;
-					attachmentActions.openOrPreview(
-						{
-							name: hit.file.label ?? hit.file.name,
-							path: hit.file.path,
-							src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
-							isImage: !hit.file.isText && Boolean(hit.file.data),
-							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
-							onOpenFile: (path: string, name: string) => {
-								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-								// Note: SubAgentPanel cannot import the dock directly due to dependency cycle.
-								// It opens via useOpenFile and users view files in file panel or system.
-							},
-						},
-						rect,
-					);
-				}}
+				onContextMenu={kit.onContextMenu}
+				onAttachmentClick={kit.onAttachmentClick}
 				decoration={{ attachments: marks.decorationFor(text) }}
 				onSubmit={() => void send()}
-				disabled={sending}
 				placeholder={t("subAgent.steerPlaceholder")}
-				onFiles={(picked) => void addFiles(picked)}
+				onFiles={(picked) => void kit.addFiles(picked)}
 				attachments={
-					/*
-					 * 和主输入框、侧边聊天、气泡外面，是同一排东西。
-					 *
-					 * 这里从前自己画了一份：56px 高的卡片、一行「文件附件」、常驻的叉。于是同一份 PDF 在应用里
-					 * 有四种长相，而它们说的是同一件事。四份实现也意味着新增的能力只会长在其中一份上——打开、
-					 * 指出位置、复制路径，这一份一样都没有。
-					 */
-					attachments.length > 0 ? (
-						<div className="ly-composer-attachments">
-							<AttachmentStrip
-								files={strip}
-								layout="row"
-								/* 面板本来就窄，格子跟着小一号——一排还是一排，只是每个矮一点。 */
-								thumbnail={56}
-								onOpen={(index, event) =>
-									openFromEvent(
-										event,
-										attachments
-											.filter((a) => !a.isText && a.data)
-											.map((a) => ({ src: `data:${a.mimeType};base64,${a.data}`, alt: a.name })),
-										index,
-									)
-								}
-								onRemove={(file) => {
-									const target = attachments.find((a) => a.id === file.key);
-									if (target) marks.detach(target);
-								}}
-							/>
-						</div>
-					) : undefined
+					/* 和主输入框同一排：只有图片，文件在句子里那枚标记上；没有图就不撑开。 */
+					<div className="ly-reveal" data-open={kit.strip.length > 0 ? "true" : "false"}>
+						<div className="ly-composer-attachments">{kit.stripNode}</div>
+					</div>
 				}
 				left={
 					<>
 						<button
 							type="button"
-							data-ly-tip={t("subAgent.attach")}
-							aria-label={t("subAgent.attach")}
-							onClick={() => fileInputRef.current?.click()}
+							data-ly-tip={t("composer.addAttachment")}
+							aria-label={t("composer.addAttachment")}
+							onClick={kit.picker.open}
 							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Plus size={16} strokeWidth={1.9} />
 						</button>
-						<input
-							ref={fileInputRef}
-							type="file"
-							multiple
-							hidden
-							onChange={(e) => {
-								void addFiles(pickedFrom(e.target.files));
-								e.target.value = "";
-							}}
-						/>
+						{kit.picker.input}
+						{/* 说给谁听：它的脸在这儿，字就不用再写一遍名字。 */}
 						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-label text-ink-faint">
-							<span className={`size-[5px] shrink-0 rounded-full ${statusTone(agent.status)}`} />
+							<AgentAvatar avatar={avatarOf(agent.agent)} size={14} mood={stateOf(agent)} seed={agent.agent} interactive={false} />
 							<span className="truncate">{t("subAgent.steering")}</span>
 						</span>
 					</>
 				}
-				right={
-					<ComposerSend
-						running={sending}
-						disabled={!text.trim() && attachments.length === 0}
-						onSend={() => void send()}
-						onStop={() => void bridge.subAgents.abort(sessionId, agent.id)}
-					/>
-				}
+				right={<ComposerSend running={false} disabled={empty || sending} onSend={() => void send()} onStop={() => undefined} />}
 			/>
+			{kit.menu}
 		</div>
 	);
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-	let binary = "";
-	const chunk = 0x8000;
-	for (let i = 0; i < bytes.length; i += chunk) {
-		binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-	}
-	return btoa(binary);
 }

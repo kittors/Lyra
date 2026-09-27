@@ -11,11 +11,13 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedMeta } from "../../app/session-scope.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { EffortMenu, effortLabel, type ThinkingSelection } from "./EffortMenu.tsx";
+import { EffortMeter } from "./EffortMeter.tsx";
 import { findModel } from "./models.ts";
 
 export function EffortTrigger({
@@ -54,7 +56,8 @@ export function EffortTrigger({
 					menu.open ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
 				}`}
 			>
-				<RollingText>{label}</RollingText>
+				{/* A phone draws the level rather than naming it, so the row is as wide in every language. */}
+				{onPhone() ? <EffortMeter level={level} model={model} /> : <RollingText>{label}</RollingText>}
 			</button>
 			{menu.open && !disabled && <EffortMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}
 		</>

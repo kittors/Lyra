@@ -110,6 +110,14 @@ export interface RequestOptions {
 	retryPolicy?: RetryPolicySource;
 	/** Told about each wait, so the UI can say why a turn is taking longer than usual. */
 	onRetry?: (info: { attempt: number; delayMs: number; reason: string; failure?: Failure }) => void;
+	/**
+	 * 同一段对话的请求共用的缓存键——主会话是会话 id，子代理是它自己的 id。
+	 *
+	 * OpenAI 按「前缀 + 这个键」把请求路由到同一台机器，前缀缓存才接得上；中转站（sub2api 之类）
+	 * 按它把同一段对话钉在同一个上游账号上。没有它，号池随机分，换一个没见过这段前缀的账号就是
+	 * 一次全额的冷启动。见 `ai/cache-key.ts`。
+	 */
+	cacheKey?: string;
 }
 
 export interface LlmContext {

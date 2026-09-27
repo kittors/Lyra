@@ -1,7 +1,7 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { Wrench } from "lucide-react";
 import { FlowRow } from "./FlowRow.tsx";
-import { translate, type MessageKey } from "../../i18n/index.ts";
+import { translate } from "../../i18n/index.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
 
@@ -24,6 +24,7 @@ export function ToolGroup({
 	running,
 	children,
 	stateKey,
+	extra,
 }: {
 	/** What this run did, in words — see `describeRun`. */
 	summary: string;
@@ -33,6 +34,8 @@ export function ToolGroup({
 	running?: boolean;
 	children: React.ReactNode;
 	stateKey?: string;
+	/** 行尾、改动行数之前的那一小块：派出去的子智能体的脸。 */
+	extra?: React.ReactNode;
 }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 
@@ -68,9 +71,14 @@ export function ToolGroup({
 					</span>
 				}
 				trailing={
-					(added ?? 0) + (removed ?? 0) > 0 ? (
-						<span className="font-mono text-caption">
-							<span className="text-ok/80">+{added ?? 0}</span> <span className="text-danger/80">-{removed ?? 0}</span>
+					extra || (added ?? 0) + (removed ?? 0) > 0 ? (
+						<span className="flex items-center gap-2">
+							{extra}
+							{(added ?? 0) + (removed ?? 0) > 0 && (
+								<span className="font-mono text-caption">
+									<span className="text-ok/80">+{added ?? 0}</span> <span className="text-danger/80">-{removed ?? 0}</span>
+								</span>
+							)}
 						</span>
 					) : undefined
 				}
@@ -87,69 +95,5 @@ export function ToolGroup({
 	);
 }
 
-/**
- * What a run of calls did, in the words someone would use to describe it afterwards.
- *
- * Grouped by the kind of action rather than by tool name, because "读取" is what three different
- * tools amount to from the outside. One action of one kind names its subject — that is the case
- * where the detail fits and is worth having; anything more is counted.
- */
-export function describeRun(calls: { toolName: string; subject?: string }[]): string {
-	const buckets = new Map<string, string[]>();
-	for (const call of calls) {
-		const kind = KIND[call.toolName] ? translate(KIND[call.toolName]) : translate("tools.using");
-		const list = buckets.get(kind) ?? [];
-		if (call.subject) list.push(call.subject);
-		buckets.set(kind, list);
-	}
-
-	const counts = new Map<string, number>();
-	for (const call of calls) {
-		const kind = KIND[call.toolName] ? translate(KIND[call.toolName]) : translate("tools.using");
-		counts.set(kind, (counts.get(kind) ?? 0) + 1);
-	}
-
-	const parts: string[] = [];
-	for (const [kind, count] of counts) {
-		const subjects = buckets.get(kind) ?? [];
-		// One of a kind, with a name worth saying: say it.
-		if (count === 1 && subjects.length === 1) parts.push(`${kind} ${subjects[0]}`);
-		// One of a kind with nothing to name — "执行命令 1 个" counts to one, which is just noise.
-		else if (count === 1) parts.push(kind);
-		else parts.push(translate("tools.countOf", { kind, count }));
-	}
-	return parts.join("、");
-}
-
-/*
- * 工具名到「它在做什么」的那个说法，存 key。
- *
- * 这张表在模块加载时成型，那会儿窗口还没说自己是哪种语言。译发生在读它的地方。
- */
-const KIND: Record<string, MessageKey> = {
-	write: "tools.create",
-	edit: "tools.edit",
-	read: "tools.read",
-	bash: "tools.bash",
-	bash_output: "tools.output",
-	glob: "tools.find",
-	grep: "tools.grep",
-	ls: "tools.ls",
-	todo_write: "tools.todo",
-	web_fetch: "tools.fetch",
-	web_search: "tools.webSearch",
-	task: "tools.delegate",
-	preview: "tools.preview",
-	symbol: "tools.symbol",
-	/*
-	 * 技能、学习、回忆、语言服务、问一句——这五个从前不在表里，一律落到「使用 …」。
-	 *
-	 * 于是一行摘要读作「使用 3 个」，而那三个各是各的事。表里缺一项的代价不是报错，是那一行悄悄
-	 * 变成一句废话——`describeRun` 的兜底本来就是给真正没见过的工具准备的，不是给自家工具的。
-	 */
-	skill: "tools.skill",
-	learn: "tools.learn",
-	recall: "tools.recall",
-	lsp: "tools.lsp",
-	ask_user: "tools.askUser",
-};
+/* 「这一段做了什么」的说法搬到了 `lib/tool-kinds.ts`：子智能体那几处读数也要用它。 */
+export { describeRun } from "../../lib/tool-kinds.ts";

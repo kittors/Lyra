@@ -30,8 +30,10 @@ import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
 import { usePaneDock } from "../pane-store.ts";
+import { openScopedPanel } from "../popout.ts";
+import { useOpenFile } from "../../../store/openFile.ts";
 import { useDockScope, useScopedProjectPath, useScopedSessionId } from "../../../app/session-scope.tsx";
-import { registerPanels, type PanelDefinition } from "./registry.ts";
+import { allPanels, registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**
  * The tree's portion when it opens beside the file.
@@ -40,6 +42,23 @@ import { registerPanels, type PanelDefinition } from "./registry.ts";
  * the other side of the boundary. Matches the proportion full screen gives the pair.
  */
 const TREE_SHARE = 0.3;
+
+/**
+ * 子智能体面板，带着「把一份文件打开到旁边」这件事。
+ *
+ * 那个域不能引 dock（dock 的门后面挂着整棵面板树，会绕回它自己），而操控框里点开一枚文件标记，
+ * 该去的正是旁边的文件面板——和主输入框、侧边聊天一样。所以这件事由已经站在 dock 里的这一层替它做。
+ */
+function SubAgentPane() {
+	return (
+		<SubAgentPanel
+			openFile={(path, name) => {
+				void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+				openScopedPanel("file", allPanels().find((panel) => panel.kind === "file")?.companion);
+			}}
+		/>
+	);
+}
 
 const needsWorkspace = (state: { workspace: boolean }) => (state.workspace ? undefined : "dock.needProject");
 const needsSession = (state: { session: boolean }) => (state.session ? undefined : "dock.needSession");
@@ -248,7 +267,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		shortcut: "⌥⌘A",
 		mobile: true,
 		unavailable: needsSession,
-		render: SubAgentPanel,
+		render: SubAgentPane,
 	},
 	{
 		kind: "chat",

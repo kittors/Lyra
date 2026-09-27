@@ -102,6 +102,25 @@ test("steering a running sub-agent queues the message and shows it in the transc
 	assert.deepEqual(registry.drainSteering("s1"), [], "drained once, not twice");
 });
 
+test("steering carries what the person typed, so the pane draws their words and not the file bodies", () => {
+	/*
+	 * 操控框里附了一份文件：发给子智能体的内容块里是整篇正文（它要读），给人看的是那句话和附件的名字。
+	 * 两份一起记在同一条消息上——和主会话的消息是同一组字段——面板才画得出「看看【报告.md】」而不是整篇报告。
+	 */
+	const { registry, dispatch } = harness();
+	dispatch("s1");
+	const message = registry.steer(
+		"s1",
+		[{ type: "text", text: "看看【报告.md】" }, { type: "text", text: "\n\n### Attached file: 报告.md\n```\n第一章\n```" }],
+		{ displayText: "看看【报告.md】", attachments: [{ name: "报告.md", kind: "text" }] },
+	);
+	assert.ok(message && message.role === "user");
+	assert.equal(message.displayText, "看看【报告.md】");
+	assert.deepEqual(message.attachments, [{ name: "报告.md", kind: "text" }]);
+	assert.equal(message.content.length, 2, "正文照样送到它手上");
+	assert.equal(registry.steer("s1", "再看一眼")?.displayText, undefined, "只给了一段字的，不凭空造一份");
+});
+
 test("a finished sub-agent cannot be steered", () => {
 	// The message would be queued against a loop that will never drain it — accepted, and silently
 	// never delivered, which is the worst of the three possible answers.
@@ -308,4 +327,50 @@ test("a dismissed sub-agent cannot be steered or stopped afterwards", () => {
 	assert.equal(registry.steer("s1", "喂"), null);
 	assert.equal(registry.abort("s1"), false);
 	assert.equal(registry.detail("s1"), null);
+});
+
+test("排队的也在名单上：派出去那一刻登记，轮到它才开跑，表从开跑算起", async () => {
+	const registry = new SubAgentRegistry();
+	let stopped = false;
+	registry.start({ id: "q1", agent: "review", description: "审查一块", abort: () => (stopped = true), queued: true });
+	const queued = registry.list()[0];
+	assert.equal(queued.status, "queued");
+	assert.equal(registry.running, 0, "排着的不算在跑");
+	assert.equal(registry.steer("q1", "别看了"), null, "还一句话都没读过的，不能插话");
+	assert.equal(registry.lookupResumable("q1").hasOwnProperty("refusal"), true, "也不能续跑——它还没开始");
+
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	registry.admit("q1");
+	const running = registry.list()[0];
+	assert.equal(running.status, "running");
+	assert.ok(running.startedAt > queued.startedAt, "在队里站着的时间不算它干的活");
+
+	// 排着的也能停：停止拉的是同一根绳子。
+	registry.start({ id: "q2", agent: "review", description: "另一块", abort: () => (stopped = true), queued: true });
+	assert.equal(registry.abort("q2"), true);
+	assert.equal(stopped, true);
+	assert.equal(registry.dismiss("q2"), "stopping", "还没收场的不直接抹掉");
+});
+
+test("父会话放了手：名单上标出它在后台，只标一次", () => {
+	let changes = 0;
+	const registry = new SubAgentRegistry(() => (changes += 1));
+	registry.start({ id: "b1", agent: "general", description: "改一处", abort: () => {} });
+	const before = changes;
+	registry.background("b1");
+	registry.background("b1");
+	assert.equal(registry.list()[0].background, true);
+	assert.equal(changes, before + 1, "重复标不重复广播");
+	assert.match((registry.lookupResumable("b1") as { refusal: string }).refusal, /后台/, "续跑被拒时说清楚它在后台、结果会自己回来");
+});
+
+test("等授权时名单上说得出来，收场时一并清掉，并且告诉宿主它停了", () => {
+	const finished: string[] = [];
+	const registry = new SubAgentRegistry(() => {}, (id) => finished.push(id));
+	registry.start({ id: "a1", agent: "general", description: "写文件", abort: () => {} });
+	registry.awaitingApproval("a1", true);
+	assert.equal(registry.list()[0].awaitingApproval, true);
+	registry.finish("a1", { status: "aborted" });
+	assert.equal(registry.list()[0].awaitingApproval, undefined);
+	assert.deepEqual(finished, ["a1"], "宿主据此收回它还挂着的授权");
 });

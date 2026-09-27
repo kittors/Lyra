@@ -201,6 +201,8 @@ function dispatch(event: Parameters<typeof applyAgentEvent>[1]) {
 	const state = {
 		activity: {},
 		turns: {},
+		// 名单一来就要看这个会话有没有排着的话——主会话在等子智能体时，排着的要送进去。
+		queued: {},
 		sessionCache: {},
 		activeSessionId: "sess",
 		messages: [],
@@ -236,6 +238,8 @@ test("sub-agent messages never leak into the main transcript", () => {
 	const state = {
 		activity: {},
 		turns: {},
+		// 名单一来就要看这个会话有没有排着的话——主会话在等子智能体时，排着的要送进去。
+		queued: {},
 		sessionCache: {},
 		activeSessionId: "sess",
 		messages: [],

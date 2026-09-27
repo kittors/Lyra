@@ -1,109 +1,92 @@
 /**
- * The catalogue: what you could have, and what you already do.
+ * 插件市场: what you could add to Lyra, and what you already have.
  *
- * This is the browsing half of a subject that has two halves. It answers "what is out there and
- * what did I install" — a page of marks and one-line descriptions, laid out to be skimmed. The
- * other half is 设置, which answers "what is this one doing": switches, versions, parameters,
- * where its directory is. The sidebar used to go straight there, which meant the first question
- * had nowhere to be asked. The gear in the header is the way from here to there, and it points
- * at whichever settings tab matches the tab you are on.
+ * This is the browsing half of a subject that has two halves. It answers "what is out there" — a
+ * shelf of marks and one-line descriptions, laid out to be skimmed, with one action on each. The
+ * other half is 设置 › 插件, which answers "what have I got, and is it on": a list with switches.
+ * The bundle's own page (`PluginDetail`) is where the two meet.
  *
- * Three tabs, because there are three things and they are not interchangeable: a plugin is a
- * bundle of skills, an MCP server is a program that gets started, and a skill is a page of
- * instructions. They used to share one tab called 插件, which is how seven MCP servers came to be
- * listed, installed and described as plugins — and then failed to appear on the MCP settings page,
- * because that page reads the settings file and these had been written somewhere else.
+ * What changed, and why, since the page was three tabs of three different layouts:
  *
- * Its header lives in the window's own 44px strip, level with the sidebar's controls, the same
- * way the pull request view does — see `PullRequestList` for why `no-drag` sits on the controls
- * and never on the row.
+ *   - One grid for all three kinds, filtered by a tab in the header (全部 · 插件 · MCP · 技能)
+ *     rather than three pages that each explained themselves in a paragraph.
+ *   - Shelves by category, most installed first, with a row of category chips to jump to one. The
+ *     公开 / 个人 split is gone: "from a registry" and "only on this machine" is a fact about a
+ *     bundle, and the few that only exist here get a shelf of their own at the end.
+ *   - No strip of installed icons above the grid: every card already says whether it is installed,
+ *     and the strip was the same information a second time.
+ *   - Updates are one line with one button, and they happen on their own unless that is switched
+ *     off (`autoUpdatePlugins`); see `plugin-updates.ts` in the main process.
+ *   - The catalogue re-reads itself while open and when the window comes back into focus.
+ *
+ * Its header lives in the window's own 44px strip, level with the sidebar's controls, the same way
+ * the pull request view does — see `PullRequestList` for why `no-drag` sits on the controls and
+ * never on the row.
  */
 
-import type { BundleKind, Skill } from "@lyra/core";
-import { Blocks, Cable, Plus, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
-import { Button } from "../../ui/primitives/Button.tsx";
-import { Caret } from "../../ui/primitives/Caret.tsx";
-import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { ArrowUp, CircleAlert, Info, MoreHorizontal, Plus, RefreshCw, Settings2, Store, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { useI18n } from "../../i18n/index.ts";
+import { formatList, useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
-import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SkeletonGrid, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
-import { PluginIcon, SkillMark } from "../settings/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { GitHubMark } from "../../ui/primitives/GitHubMark.tsx";
+import { TabStrip } from "../../ui/primitives/TabStrip.tsx";
+import { newMcpServer } from "../settings/index.ts";
 import { CatalogCard } from "./CatalogCard.tsx";
+import { missingOf, useEnvironment } from "./McpKeys.tsx";
 import { PluginDetail } from "./PluginDetail.tsx";
 import { RegistrySources } from "./RegistrySources.tsx";
-import { settingsAfterToggle } from "./toggle.ts";
-import { groupByCategory, isEnabled, isInstalled, UNFILED, useCatalog, type CatalogItem } from "./useCatalog.ts";
-import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { byPopularity, matches, shelves, UNFILED, useCatalog, type CatalogItem } from "./useCatalog.ts";
+import type { InstallReports } from "./useInstall.ts";
 import { bridge } from "../../services/index.ts";
 
-/**
- * Which of the three the page is showing.
- *
- * `plugins` and `mcp` are the two things a registry offers, and they are separated because they
- * are not the same thing — a plugin is a bundle of skills, an MCP server is a program that gets
- * started and speaks a protocol. One tab called 插件 holding both is what let seven MCP servers
- * be advertised as plugins, installed as plugins, and then not appear on the MCP settings page.
- */
-type Tab = "plugins" | "mcp" | "skills";
-/**
- * Which half of the catalogue is on show.
- *
- * `public` is everything a registry offers, installed or not. `personal` is what only exists on
- * this machine — a directory somebody dropped in, or an example that was installed to be read.
- * The split is the one distinction the page can draw honestly: everything else it knows about a
- * bundle came out of the same two sources.
- */
-type Scope = "public" | "personal";
+/** The market's own repository: where its catalogue and platform are, and where to ask for an entry. */
+const MARKET_REPO = "https://github.com/kittors/Lyra-Registry";
+
+/** Which kinds the grid shows. `all` is the market's front door; the other three narrow it. */
+type Kind = "all" | "plugin" | "mcp" | "skill";
+
+type Notice = { tone: "error" | "note"; text: string };
 
 export function PluginsView() {
 	const { t } = useI18n();
 	const setView = useApp((s) => s.setView);
-	const setSettingsSection = useApp((s) => s.setSettingsSection);
 	const setComposerDraft = useApp((s) => s.setComposerDraft);
 	const newSession = useApp((s) => s.newSession);
-
+	const openExtensions = useApp((s) => s.openExtensions);
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
+	const updates = useApp((s) => s.pluginUpdates);
 
 	const catalog = useCatalog();
-	const [tab, setTab] = useState<Tab>("plugins");
+	const [kind, setKind] = useState<Kind>("all");
+	const [category, setCategory] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
-	const [scope, setScope] = useState<Scope | null>(null);
 	const [sourcesOpen, setSourcesOpen] = useState(false);
-	const [failure, setFailure] = useState<string | null>(null);
+	const [notice, setNotice] = useState<Notice | null>(null);
+	const [updatingAll, setUpdatingAll] = useState(false);
 	/**
-	 * Which bundle is open, by key rather than by value.
-	 *
-	 * Holding the object would freeze it at the moment it was clicked: install something from its
-	 * own page and the page would go on describing the version that had no directory yet. The key
-	 * is looked up against the live catalogue on every render, so a refresh flows through.
-	 *
-	 * In the store rather than here because 设置 › 插件 opens this page too, from a window this
-	 * component is not on screen for.
+	 * Which bundle is open, by key rather than by value — looked up against the live catalogue on
+	 * every render, so installing something from its own page shows it installed. In the store
+	 * because 设置 › 插件 opens a bundle's page too, from a view this component is not on screen for.
 	 */
 	const openKey = useApp((s) => s.pluginFocus);
 	const setOpenKey = useApp((s) => s.setPluginFocus);
-	const add = usePopover();
+	const more = usePopover();
 
-	// The settings page has a tab per kind now, so the gear points at the matching one rather
-	// than always at 插件 — which, from the MCP tab, was the wrong half of the answer.
-	const openSettings = (section: "plugins" | "mcp" = "plugins") => {
-		setView("settings");
-		setSettingsSection(section);
+	const reports: InstallReports = {
+		onChanged: () => catalog.refresh(),
+		onError: (text) => setNotice({ tone: "error", text }),
+		onNote: (text) => setNotice({ tone: "note", text }),
 	};
 
-	/**
-	 * Leave for a new conversation with one of a bundle's own example prompts already typed.
-	 *
-	 * Shared by the cards and the detail page, because 立即试用 has to mean the same thing in both
-	 * — the card reached it through a menu and the page through a bubble, and they were two
-	 * copies of the same three calls in the same order.
-	 */
+	/** Leave for a new conversation with one of a bundle's own example prompts already typed. */
 	const startWith = (prompt: string) => {
 		void newSession();
 		// The conversation `newSession` just put in the live slot, not every screen a split shows.
@@ -111,427 +94,300 @@ export function PluginsView() {
 		setView("chat");
 	};
 
-	/**
-	 * Switch a plugin on or off from its card, without going to 设置 first.
-	 *
-	 * The rule is `settingsAfterToggle`, shared with the settings list — the wildcard case is not
-	 * obvious and two copies of it would be right in one place only.
-	 *
-	 * Only a plugin has one switch: an MCP bundle has one per server it brought, which is a
-	 * different control on a different page, and a collection has none at all. `CatalogCard` draws
-	 * nothing when this returns without acting.
+	/*
+	 * What each installed MCP bundle still needs before it can start — computed once for the page,
+	 * so the cards and the count agree. The login shell counts: a key already exported there is not
+	 * missing.
 	 */
-	const toggle = (item: CatalogItem, enabled: boolean) => {
-		const plugin = item.installed;
-		if (!plugin || !settings) return;
-		void saveSettings(
-			settingsAfterToggle(
-				settings,
-				plugin,
-				enabled,
-				catalog.items.flatMap((entry) => (entry.installed ? [entry.installed] : [])),
-			),
-		);
+	const present = useEnvironment(catalog.items.flatMap((item) => item.servers.flatMap((server) => Object.keys(server.env ?? {}))));
+	const missing = useMemo(() => {
+		const out = new Map<string, string[]>();
+		for (const item of catalog.items) {
+			if (item.servers.length === 0) continue;
+			const names = [...new Set(item.servers.flatMap((server) => missingOf(server, present)))];
+			if (names.length > 0) out.set(item.key, names);
+		}
+		return out;
+	}, [catalog.items, present]);
+
+	const ofKind = (which: Kind) => (which === "all" ? catalog.items : catalog.items.filter((item) => item.kind === which));
+	const counts = { all: catalog.items.length, plugin: ofKind("plugin").length, mcp: ofKind("mcp").length, skill: ofKind("skill").length };
+	const inKind = ofKind(kind);
+	const published = inKind.filter((item) => item.entry !== null);
+	const localOnly = inKind.filter((item) => item.entry === null);
+	const categories = useMemo(() => shelves(published).map((shelf) => ({ name: shelf.category, count: shelf.items.length })), [published]);
+	const searching = query.trim().length > 0;
+	const narrowed = searching || category !== null;
+	const flat = useMemo(
+		() =>
+			narrowed
+				? inKind.filter((item) => (category === null || item.category === category) && matches(item, query)).sort(byPopularity)
+				: [],
+		[narrowed, inKind, category, query],
+	);
+	const outdated = catalog.items.filter((item) => item.outdated && item.entry);
+	const slow = useSlowLoad(catalog.loading);
+	// Bundles that did not load. A skill with a short description loaded fine and is not one of these.
+	const problems = catalog.diagnostics.filter((diagnostic) => diagnostic.severity !== "warning");
+
+	const updateAll = async () => {
+		setUpdatingAll(true);
+		try {
+			const state = await bridge.plugins.updateAll(outdated.map((item) => item.id));
+			if (state.failed.length > 0) {
+				setNotice({ tone: "error", text: state.failed.map((failure) => t("install.failedWith", { name: failure.name, message: failure.message })).join("\n") });
+			}
+		} finally {
+			setUpdatingAll(false);
+			catalog.refresh();
+		}
 	};
 
-	// Whichever kind this tab is about. Everything below — the counts, the two scopes, the
-	// installed strip — is scoped to it, so the page never mixes the two.
-	/*
-	 * One tab, one kind — including the skills tab, which used to be lumped in with plugins.
-	 *
-	 * That was fine while the only skills in existence were the ones a plugin brought with it: there
-	 * was nothing of kind `skill` to show. Now the registry offers collections directly, and a
-	 * collection filed under 插件 is the same mistake this page already made once with MCP servers.
-	 */
-	const ofKind = catalog.items.filter((item) => item.kind === (tab === "skills" ? "skill" : tab === "mcp" ? "mcp" : "plugin"));
-	const published = ofKind.filter((item) => item.entry !== null);
-	const personal = ofKind.filter((item) => item.entry === null);
-	/*
-	 * Undecided until the user decides, then fixed.
-	 *
-	 * Landing on 公开 with no registries configured shows an empty page as the first thing this
-	 * view ever does, which reads as broken rather than as unconfigured. Landing on whichever side
-	 * has something in it costs nothing and is right in both directions — a fresh install has only
-	 * personal bundles, a configured one has both.
-	 */
-	/*
-	 * While the registries are still answering, 公开 is empty because it has not been filled yet —
-	 * which is not the same fact as being empty, and choosing between the two sides on it lands you
-	 * on 个人 and then moves you to 公开 a moment later. Waiting means the default is decided once,
-	 * against the finished answer, and the empty side shows a placeholder instead of a verdict.
-	 */
-	const current: Scope = scope ?? (published.length > 0 || catalog.loading ? "public" : "personal");
-	const shown = current === "public" ? published : personal;
-
-	const needle = query.trim().toLowerCase();
-	const filtered = useMemo(
-		() =>
-			needle
-				? shown.filter((item) => `${item.name} ${item.id} ${item.description}`.toLowerCase().includes(needle))
-				: shown,
-		[shown, needle],
-	);
-	const groups = useMemo(() => groupByCategory(filtered), [filtered]);
-
-	const installed = ofKind.filter(isInstalled);
-	/** Long enough to be worth a placeholder; a fetch that beats the threshold shows nothing. */
-	const slow = useSlowLoad(catalog.loading);
-	const slowLocal = useSlowLoad(catalog.localLoading);
-	/*
-	 * The collections the skills tab can offer, searched by the same box as everything else.
-	 *
-	 * Not grouped by category: three or four collections do not need shelves, and a heading over a
-	 * single card says less than the card does.
-	 */
-	const collections = tab === "skills" ? filtered : [];
-
-	/* Whichever sources failed, shown on every tab — a tab that hides it reads as "nothing here". */
-	const sourceErrors =
-		catalog.errors.length > 0 ? (
-			<div className="mt-3 rounded-[10px] border border-accent/35 bg-accent/6 px-3 py-2">
-				{catalog.errors.map((error) => (
-					<p key={error.url} className="py-0.5 text-detail leading-relaxed text-accent">
-						<span className="font-mono">{error.url}</span> — {error.message}
-					</p>
-				))}
-			</div>
-		) : null;
-
-	/*
-	 * Looked up rather than remembered — see `openKey`. Falls back to the grid if the key stops
-	 * resolving, which is what uninstalling from the detail page does to it.
-	 */
-	const open = openKey ? (catalog.items.find((entry) => entry.key === openKey) ?? null) : null;
+	const open = openKey ? (catalog.items.find((entry) => entry.key === openKey || entry.id === openKey) ?? null) : null;
 	if (open) {
 		return (
 			<PluginDetail
 				item={open}
+				installedPlugins={catalog.plugins}
+				localSkills={catalog.skills}
 				onBack={() => setOpenKey(null)}
-				onChanged={() => {
-					setFailure(null);
-					catalog.refresh();
-				}}
-				onError={setFailure}
 				onTry={startWith}
+				reports={reports}
 			/>
 		);
 	}
 
-	return (
-		<div className="-mt-11 flex min-h-0 flex-1 flex-col">
-			<header
-				className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3"
-			>
-				{/*
-				 * 三个 tab，说出来它们是三个 tab。
-				 *
-				 * 光看样式已经是一条 tab 条了——选中的那个有底色——但 DOM 上是三个平的按钮，读屏读到
-				 * 三个名字，听不出它们互斥、也听不出现在在哪一个。补上 `tablist`/`tab` 之后，键盘和
-				 * 读屏才拿到这层结构。
-				 */}
-				<div className="no-drag flex items-center gap-1" role="tablist" aria-label={t("common.plugins")}>
-					{(
-						[
-							{ id: "plugins" as const, label: t("common.plugins"), icon: Blocks },
-							{ id: "mcp" as const, label: t("market.mcp"), icon: Cable },
-							{ id: "skills" as const, label: t("common.skills"), icon: Sparkles },
-						] satisfies { id: Tab; label: string; icon: typeof Blocks }[]
-					).map((entry) => (
-						<button
-							key={entry.id}
-							type="button"
-							role="tab"
-							aria-selected={tab === entry.id}
-							onClick={() => {
-								setTab(entry.id);
-								// The two scopes are counted per kind, so a choice made under one tab
-								// says nothing about the next: start it undecided again.
-								setScope(null);
-							}}
-							className={`h-[26px] rounded-lg px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
-								tab === entry.id ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
-							}`}
-						>
-							{entry.label}
-						</button>
-					))}
-				</div>
+	/*
+	 * Each card's place in the order they arrive in, counted across shelves — the second shelf's
+	 * first card follows the first shelf's last. Reset every render, so a re-render does not keep
+	 * pushing the count up.
+	 */
+	let arrival = 0;
+	const card = (item: CatalogItem) => (
+		<CatalogCard
+			key={item.key}
+			index={arrival++}
+			item={item}
+			missing={missing.get(item.key) ?? []}
+			showKind={kind === "all"}
+			onOpen={() => setOpenKey(item.key)}
+			reports={reports}
+		/>
+	);
 
-				{/* Everything between the tabs and the actions is the window's to drag. */}
+	return (
+		<div className="-mt-11 flex min-h-0 flex-1 flex-col" data-market="">
+			<header className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3">
+				{/* The whole strip is the window's to drag, bar the buttons at its end. */}
 				<div className="flex-1" />
 
-				<div className="no-drag flex items-center gap-1">
+				<div className="no-drag flex items-center gap-0.5">
+					<HeaderButton label={t("market.repo")} onClick={() => void bridge.system.openExternal(MARKET_REPO)}>
+						<GitHubMark size={14} />
+					</HeaderButton>
 					<HeaderButton label={t("market.reload")} onClick={catalog.refresh}>
 						{catalog.loading ? <ActionSpinner size={13.5} /> : <RefreshCw size={13.5} strokeWidth={1.8} />}
 					</HeaderButton>
 					<HeaderButton
-						label={tab === "mcp" ? t("market.mcpSettings") : t("market.pluginSettings")}
-						onClick={() => openSettings(tab === "mcp" ? "mcp" : "plugins")}
+						label={t("market.manage")}
+						onClick={() => openExtensions(kind === "mcp" ? "mcp" : kind === "skill" ? "skills" : "plugins")}
 					>
-						<SettingsIcon size={13.5} strokeWidth={1.8} />
+						<Settings2 size={14} strokeWidth={1.8} />
 					</HeaderButton>
-					{/*
-					 * 这颗留着字。
-					 *
-					 * 它不做事，它开一张单子——单子里有三四个去处，按钮本身只是入口。剩一个光箭头的
-					 * 话，入口通向哪儿要按下去才知道；而箭头这时也就只剩装饰，因为「有东西会展开」
-					 * 这件事已经由那张单子自己说了。字在左、箭头在右，开的时候箭头转过去，这一下
-					 * 转身就是它和普通按钮的全部区别。
-					 */}
-					<button
-						type="button"
-						onClick={add.toggle}
-						aria-haspopup="menu"
-						aria-expanded={add.open}
-						className="ml-1 flex h-[26px] items-center gap-1 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
-					>
-						{t("mcp.add")}
-						<Caret open={add.open} size={12} />
-					</button>
+					<HeaderButton label={t("common.more")} onClick={more.toggle} expanded={more.open}>
+						<MoreHorizontal size={15} strokeWidth={1.9} />
+					</HeaderButton>
 				</div>
 			</header>
 
-			{add.open && (
-				<Popover anchor={add.anchor} onClose={add.close} placement="bottom" align="end" width="default">
+			{more.open && (
+				<Popover anchor={more.anchor} onClose={more.close} placement="bottom" align="end" width="default" role="menu" label={t("common.more")}>
 					<MenuBody>
 						<MenuItem
 							icon={<Store size={14} strokeWidth={1.8} />}
 							onClick={() => {
-								add.close();
+								more.close();
 								setSourcesOpen(true);
 							}}
 						>
-							{t("market.addRegistry")}
+							{t("market.sources")}
 						</MenuItem>
 						<MenuItem
-							icon={<Cable size={14} strokeWidth={1.8} />}
+							icon={<Plus size={14} strokeWidth={1.9} />}
 							onClick={() => {
-								add.close();
-								setView("settings");
-								setSettingsSection("mcp");
+								more.close();
+								if (settings) void saveSettings({ ...settings, mcpServers: [...settings.mcpServers, newMcpServer("stdio")] });
+								openExtensions("mcp");
 							}}
 						>
 							{t("market.addMcpServer")}
 						</MenuItem>
-						</MenuBody>
+						<MenuSeparator />
+						<MenuItem
+							icon={<ArrowUp size={14} strokeWidth={1.9} />}
+							checked={settings?.autoUpdatePlugins !== false}
+							onClick={() => {
+								if (settings) void saveSettings({ ...settings, autoUpdatePlugins: settings.autoUpdatePlugins === false });
+							}}
+						>
+							{t("market.autoUpdate")}
+						</MenuItem>
+					</MenuBody>
 				</Popover>
 			)}
 
 			<Scroller className="flex-1" contentClassName="px-6 pb-16">
-				{/* `@container`, so the grid answers to this column's width rather than the window's —
-				    the sidebar and the panel both take from it. */}
-				<div className="@container mx-auto w-full max-w-[860px]">
-					<h1 className="pt-6 text-display leading-tight font-semibold tracking-tight text-ink">
-						<RollingText>{tab === "plugins" ? t("common.plugins") : tab === "mcp" ? t("market.mcp") : t("common.skills")}</RollingText>
-					</h1>
-					{/*
-					 * Each one says what it is, because they are three different things.
-					 *
-					 * The plugin line used to read "一个插件是一组技能和 MCP 服务", which is what the
-					 * whole page was built on and is not true: a plugin is skills. A server that runs
-					 * a command on this machine is not a kind of skill bundle, and saying so is what
-					 * made 安装 mean two different things under one word.
-					 */}
-					<p className="pt-2 pb-6 text-label leading-relaxed text-ink-muted">
-						{tab === "plugins"
-							? t("market.pluginsIntro")
-							: tab === "mcp"
-								? t("market.mcpIntro")
-								: t("market.skillsIntro")}
-					</p>
+				{/* `@container`, so the grid answers to this column's width rather than the window's. */}
+				<div className="@container mx-auto w-full max-w-[1040px]">
+					<div className="pt-2 pb-5">
+						<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("market.title")}</h1>
+						<p className="pt-1.5 text-label text-ink-muted">{t("market.subtitle")}</p>
+					</div>
 
 					<SearchField
 						size="comfortable"
 						value={query}
 						onChange={setQuery}
-						placeholder={tab === "plugins" ? t("market.searchPlugins") : tab === "mcp" ? t("market.searchMcp") : t("market.searchSkills")}
+						placeholder={t("market.search")}
 						className="w-full"
 					/>
 
-					{failure && (
-						<p className="mt-4 rounded-[10px] border border-danger/35 bg-danger/6 px-3 py-2 text-detail leading-relaxed text-danger">
-							{failure}
-						</p>
-					)}
+					{notice && <NoticeLine notice={notice} onDismiss={() => setNotice(null)} />}
 
-					{tab !== "skills" ? (
-						<>
-							{installed.length > 0 && (
-								<section className="pt-8">
-									<div className="flex items-center gap-2 pb-3">
-										<h2 className="text-body font-medium text-ink">{t("common.installed")}</h2>
-										<span className="text-detail text-ink-faint tabular-nums">{installed.length}</span>
-										<div className="flex-1" />
-										<HeaderButton
-											label={tab === "mcp" ? t("market.manageMcp") : t("market.managePlugins")}
-											onClick={() => openSettings(tab === "mcp" ? "mcp" : "plugins")}
-										>
-											<SettingsIcon size={13} strokeWidth={1.8} />
-										</HeaderButton>
-									</div>
-									<div className="flex flex-wrap gap-2">
-										{installed.map((item) => (
-											<button
-												key={item.key}
-												type="button"
-												data-ly-tip={isEnabled(item) ? item.name : t("market.notEnabled", { name: item.name })}
-												aria-label={item.name}
-												onClick={() => setOpenKey(item.key)}
-												className={`flex h-[52px] w-[52px] items-center justify-center rounded-xl transition-[background-color,opacity] duration-[var(--ly-t-quick)] hover:bg-card-hover/60 ${
-													isEnabled(item) ? "" : "opacity-40"
-												}`}
-											>
-												<PluginIcon
-													name={item.name}
-													logo={item.logo}
-													brandColor={item.brandColor}
-													kind={item.kind}
-													size={34}
-												/>
-											</button>
-										))}
-									</div>
-								</section>
-							)}
-
-							<div className="flex items-center gap-1 pt-8 pb-1">
-								<ScopeTab active={current === "public"} count={published.length} onClick={() => setScope("public")}>
-									{t("common.public")}
-								</ScopeTab>
-								<ScopeTab active={current === "personal"} count={personal.length} onClick={() => setScope("personal")}>
-									{t("common.personal")}
-								</ScopeTab>
-							</div>
-
-							{/*
-							 * Shown whichever side is open, which it was not.
-							 *
-							 * It was gated on the 公开 tab, and the tab that opens by default is whichever
-							 * one has anything in it — so a registry that failed to load left 公开 empty,
-							 * dropped you on 个人, and hid the reason on the tab you were not looking at.
-							 * The page then read as "there is nothing here", which is a different problem
-							 * with a different fix.
-							 */}
-							{sourceErrors}
-
-							{catalog.loading && groups.length === 0 ? (
-								/* Shaped like the grid it precedes, so nothing moves when the answer lands. */
-								slow ? <SkeletonGrid count={6} label={t("market.readingPlugins")} /> : null
-							) : groups.length === 0 ? (
-								<Empty
-									kind={tab === "mcp" ? "mcp" : "plugin"}
-									scope={current}
-									searching={needle.length > 0}
-									sources={catalog.sources.length}
-									onAddSource={() => setSourcesOpen(true)}
-								/>
-							) : (
-								groups.map((group) => (
-									<section key={group.category} className="pt-6">
-										{/*
-										 * A single unnamed group needs no heading — the page title already said
-										 * what these are, and 其他 over the only section on screen names nothing.
-										 */}
-										{!(group.category === UNFILED && groups.length === 1) && (
-											<h2 className="pb-1 text-body font-medium text-ink">
-												{group.category === UNFILED ? t("common.other") : group.category}
-											</h2>
-										)}
-										<div className="grid grid-cols-1 gap-x-4 @2xl:grid-cols-2">
-											{group.items.map((item) => (
-												<div key={item.key} data-item={item.key}>
-													<CatalogCard
-														item={item}
-														onOpen={() => setOpenKey(item.key)}
-											onToggle={(enabled) => toggle(item, enabled)}
-														onChanged={() => {
-															setFailure(null);
-															catalog.refresh();
-														}}
-														onError={setFailure}
-														onTry={startWith}
-													/>
-												</div>
-											))}
-										</div>
-									</section>
-								))
-							)}
-						</>
-					) : (
-						/*
-						 * Two things, in the order you need them.
-						 *
-						 * This tab used to be the second list alone, which made the skill market unreachable:
-						 * the sources were configured, the collections were fetched, and nothing on screen
-						 * ever drew them. A market you cannot see is not a market.
-						 *
-						 * Collections come first because they are what the page can act on, and the skills
-						 * below are partly the result of having acted. There are no 公开 / 个人 scopes here:
-						 * a personal skill is a directory, not a collection, and it is already in the list
-						 * underneath rather than being a second kind of card.
-						 */
-						<>
-							{sourceErrors}
-
-							{slow && collections.length === 0 && (
-								<section className="pt-6">
-									<h2 className="pb-1 text-body font-medium text-ink">{t("market.skillPacks")}</h2>
-									<SkeletonGrid count={4} label={t("market.readingSkills")} />
-								</section>
-							)}
-
-							{collections.length > 0 && (
-								<section className="pt-6">
-									<h2 className="pb-1 text-body font-medium text-ink">{t("market.skillPacks")}</h2>
-									<div className="grid grid-cols-1 gap-x-4 @2xl:grid-cols-2">
-										{collections.map((item) => (
-											<div key={item.key} data-item={item.key}>
-												<CatalogCard
-													item={item}
-													onOpen={() => setOpenKey(item.key)}
-											onToggle={(enabled) => toggle(item, enabled)}
-													onChanged={() => {
-														setFailure(null);
-														catalog.refresh();
-													}}
-													onError={setFailure}
-													onTry={startWith}
-												/>
-											</div>
-										))}
-									</div>
-								</section>
-							)}
-
-							<section className="pt-8">
-								<div className="flex items-baseline gap-2 pb-1">
-									<h2 className="text-body font-medium text-ink">{t("market.localSkills")}</h2>
-									<span className="text-detail text-ink-faint tabular-nums">{catalog.localLoading ? "" : catalog.skills.length}</span>
-								</div>
-								{catalog.localLoading ? (slowLocal ? <SkeletonGrid count={4} label={t("market.readingLocal")} /> : null) : <SkillList skills={catalog.skills} needle={needle} />}
-							</section>
-						</>
-					)}
-
-					{catalog.diagnostics.length > 0 && (
-						<div className="mt-8 rounded-[10px] border border-accent/35 bg-accent/6 px-3 py-2">
-							<p className="pb-1 text-detail font-medium text-accent">
-								{t("market.unreadable", { n: catalog.diagnostics.length })}
+					{outdated.length > 0 && (
+						<div className="ly-swap-in mt-4 flex items-center gap-3 rounded-xl bg-accent/8 px-4 py-2.5" data-market-updates="">
+							<ArrowUp size={14} strokeWidth={2.2} className="shrink-0 text-accent" />
+							<p className="min-w-0 flex-1 text-label text-ink">
+								{updates?.updating.length ? t("market.updatingN", { n: updates.updating.length }) : t("market.updatesN", { n: outdated.length })}
+								<span className="pl-2 text-detail text-ink-muted">{formatList(outdated.map((item) => item.name).slice(0, 3))}{outdated.length > 3 ? "…" : ""}</span>
 							</p>
-							{catalog.diagnostics.map((diagnostic) => (
-								<p key={diagnostic.path} className="py-0.5 text-detail leading-relaxed text-accent/85">
-									<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							<Button variant="subtle" size="sm" loading={updatingAll} onClick={() => void updateAll()} className="bg-accent/12 text-accent hover:bg-accent/20 hover:text-accent">
+								{t("market.updateAll")}
+							</Button>
+						</div>
+					)}
+
+					{catalog.errors.length > 0 && (
+						<div className="mt-4 rounded-xl bg-danger/6 px-4 py-2.5">
+							{catalog.errors.map((error) => (
+								<p key={error.url} className="flex items-start gap-2 py-0.5 text-detail leading-relaxed text-danger">
+									<CircleAlert size={13} strokeWidth={2} className="mt-0.5 shrink-0" />
+									<span className="min-w-0">
+										{t("market.sourceFailed")} <span className="font-mono">{error.url}</span> — {error.message}
+									</span>
 								</p>
 							))}
 						</div>
+					)}
+
+					{/*
+					 * What to show, then what to narrow it to — kind first, because it changes which
+					 * categories exist. The kind used to be a row of words in the window's title strip,
+					 * above the page's own title, where it read as the window's tabs rather than this
+					 * list's filter.
+					 */}
+					<div className="flex flex-col items-start gap-3 pt-5">
+						<TabStrip
+							label={t("market.title")}
+							value={kind}
+							onChange={(next) => {
+								setKind(next);
+								setCategory(null);
+							}}
+							items={[
+								{ id: "all", label: t("market.all"), count: counts.all },
+								{ id: "plugin", label: t("common.plugins"), count: counts.plugin },
+								{ id: "mcp", label: "MCP", count: counts.mcp },
+								{ id: "skill", label: t("common.skills"), count: counts.skill },
+							]}
+						/>
+						{!searching && categories.length > 1 && (
+							<div className="flex flex-wrap gap-1.5" role="group" aria-label={t("pluginDetail.category")}>
+								<Chip active={category === null} onClick={() => setCategory(null)}>
+									{t("market.allCategories")}
+								</Chip>
+								{categories.map((entry) => (
+									<Chip key={entry.name} active={category === entry.name} onClick={() => setCategory(category === entry.name ? null : entry.name)}>
+										{entry.name === UNFILED ? t("common.other") : entry.name}
+										<span className="tabular-nums opacity-60">{entry.count}</span>
+									</Chip>
+								))}
+							</div>
+						)}
+					</div>
+
+					{/*
+					 * Keyed on what is being shown, so choosing another kind or shelf replays the arrival —
+					 * the content fades and its cards rise into place a beat apart — while typing into the
+					 * search (the same view, narrower) only reflows. See `.ly-swap-in` / `.ly-rise-in`.
+					 */}
+					<div key={`${kind}|${category ?? ""}|${searching ? "search" : ""}`} className="ly-swap-in">
+						{/*
+						 * The skeleton until the market has answered once — not only until anything at all is
+						 * known. Installed bundles are known first, from disk, and shown alone they landed on the
+						 * 「本机添加 · 不在任何市场里」 shelf for the second before the market arrived, which is a
+						 * wrong sentence about every one of them.
+						 */}
+						{catalog.loading && published.length === 0 ? (
+							slow ? <div className="pt-8"><SkeletonGrid count={6} label={t("market.readingPlugins")} /></div> : null
+						) : narrowed ? (
+							flat.length === 0 ? (
+								<Empty
+									text={searching ? t("market.noMatch", { query: query.trim() }) : t("market.emptyCategory")}
+									action={searching ? { label: t("market.clearSearch"), onClick: () => setQuery("") } : undefined}
+								/>
+							) : (
+								<Shelf title={searching ? `“${query.trim()}”` : category === UNFILED ? t("common.other") : (category ?? "")} count={flat.length}>
+									{flat.map(card)}
+								</Shelf>
+							)
+						) : published.length === 0 && localOnly.length === 0 ? (
+							<Empty
+								text={catalog.sources.length === 0 ? t("market.noRegistry") : t("market.empty")}
+								action={{ label: catalog.sources.length === 0 ? t("market.addRegistry") : t("market.manageRegistry"), onClick: () => setSourcesOpen(true) }}
+							/>
+						) : (
+							<>
+								{shelves(published).map((shelf) => (
+									<Shelf key={shelf.category} id={shelf.category} title={shelf.category === UNFILED ? t("common.other") : shelf.category} count={shelf.items.length}>
+										{shelf.items.map(card)}
+									</Shelf>
+								))}
+								{localOnly.length > 0 && (
+									<Shelf id="local" title={t("market.localOnly")} note={t("market.localOnlyNote")} count={localOnly.length}>
+										{localOnly.sort(byPopularity).map(card)}
+									</Shelf>
+								)}
+							</>
+						)}
+					</div>
+
+					{kind === "skill" && catalog.skills.length > 0 && !narrowed && (
+						<button
+							type="button"
+							onClick={() => openExtensions("skills")}
+							className="mt-8 flex w-full items-center gap-2 rounded-xl bg-card/50 px-4 py-3 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60 hover:text-ink"
+						>
+							{t("market.localSkillsCount", { n: catalog.skills.length })}
+							<span className="ml-auto text-detail">{t("market.manageInSettings")} →</span>
+						</button>
+					)}
+
+					{problems.length > 0 && (
+						<button
+							type="button"
+							onClick={() => openExtensions("plugins")}
+							className="mt-6 flex items-center gap-1.5 text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
+						>
+							<CircleAlert size={12} strokeWidth={2} />
+							{t("market.unreadable", { n: problems.length })}
+						</button>
 					)}
 				</div>
 			</Scroller>
 
 			{sourcesOpen && (
 				<RegistrySources
-					sources={catalog.sources}
 					errors={catalog.errors}
 					onClose={() => {
 						setSourcesOpen(false);
@@ -543,13 +399,29 @@ export function PluginsView() {
 	);
 }
 
+/** A heading, how many are under it, and the grid. Every list on the page is one of these, so they all sit the same distance below whatever is above them. */
+function Shelf({ id, title, note, count, children }: { id?: string; title: string; note?: string; count: number; children: React.ReactNode }) {
+	return (
+		<section className="pt-8" data-shelf={id}>
+			<div className="flex items-baseline gap-2 pb-3">
+				<h2 className="text-body font-medium text-ink">{title}</h2>
+				<span className="text-detail text-ink-faint tabular-nums">{count}</span>
+				{note && <span className="text-detail text-ink-faint">· {note}</span>}
+			</div>
+			<div className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3">{children}</div>
+		</section>
+	);
+}
+
 function HeaderButton({
 	label,
 	onClick,
+	expanded,
 	children,
 }: {
 	label: string;
-	onClick: () => void;
+	onClick: (event: React.MouseEvent<HTMLElement>) => void;
+	expanded?: boolean;
 	children: React.ReactNode;
 }) {
 	return (
@@ -557,138 +429,67 @@ function HeaderButton({
 			type="button"
 			data-ly-tip={label}
 			aria-label={label}
+			aria-expanded={expanded}
 			onClick={onClick}
-			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink aria-expanded:bg-card-hover aria-expanded:text-ink"
 		>
 			{children}
 		</button>
 	);
 }
 
-function ScopeTab({
-	active,
-	count,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	count: number;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
 	return (
 		<button
 			type="button"
 			aria-pressed={active}
 			onClick={onClick}
-			className={`flex h-[28px] items-center gap-1.5 rounded-lg px-2.5 text-label whitespace-nowrap transition-colors duration-[var(--ly-t-quick)] ${
-				active ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
+			/*
+			 * The chosen chip in the accent, not inverted to black: a solid black pill was the loudest
+			 * thing on the page and said "this is a button to press" about the one that already is.
+			 */
+			className={`flex h-[28px] items-center gap-1.5 rounded-full px-3 text-detail whitespace-nowrap transition-[background-color,color,transform] duration-[var(--ly-t-quick)] active:scale-[0.96] ${
+				active ? "bg-accent/12 font-medium text-accent" : "bg-card/70 text-ink-muted hover:bg-card-hover hover:text-ink"
 			}`}
 		>
 			{children}
-			<span className="shrink-0 text-detail text-ink-faint tabular-nums">{count}</span>
 		</button>
 	);
 }
 
-/**
- * Why there is nothing here, which is four different situations wearing the same blank page.
- *
- * Told apart because the useful next step differs every time: wait, clear the search, add a
- * registry, or accept that a configured registry is genuinely empty. A single "没有插件" would be
- * accurate in all four and actionable in none.
- */
-function Empty({
-	kind,
-	scope,
-	searching,
-	sources,
-	onAddSource,
-}: {
-	kind: BundleKind;
-	scope: Scope;
-	searching: boolean;
-	sources: number;
-	onAddSource: () => void;
-}) {
-	const { t } = useI18n();
-	const mcp = kind === "mcp";
-	if (searching) {
-		return <p className="py-16 text-center text-label text-ink-faint">{mcp ? t("mcp.noMatch") : t("plugins.noMatch")}</p>;
-	}
-	if (scope === "personal") {
-		return (
-			<p className="py-16 text-center text-label leading-relaxed text-ink-faint">
-				{mcp ? t("market.noLocalMcp") : t("market.noLocalPlugins")}
-			</p>
-		);
-	}
+function Empty({ text, action }: { text: string; action?: { label: string; onClick: () => void } }) {
 	return (
 		<div className="py-16 text-center">
-			<p className="text-label leading-relaxed text-ink-faint">
-				{sources === 0 ? t("market.noRegistry") : mcp ? t("market.emptyMcp") : t("market.emptyPlugins")}
-			</p>
-			{/*
-			 * 这是这块空白唯一的出路，所以它说出自己是什么。
-			 *
-			 * 从前是一颗 32px 的方块，里面一个 ➕ 或一个齿轮，动词挂在 tooltip 上。工具栏里的图标
-			 * 按钮省得起这笔字，因为周围一排东西替它说明它在哪一类里；这一颗上面只有一句「这里还
-			 * 什么都没有」，下面什么都没有——一个孤零零的加号，得先猜它加的是插件还是市场。
-			 */}
-			<div className="mt-4 flex justify-center">
-				<Button
-					variant="primary"
-					icon={sources === 0 ? <Plus size={15} strokeWidth={2} aria-hidden /> : <SettingsIcon size={15} strokeWidth={1.9} aria-hidden />}
-					onClick={onAddSource}
-				>
-					{sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}
-				</Button>
-			</div>
+			<p className="text-label leading-relaxed text-ink-faint">{text}</p>
+			{action && (
+				<div className="mt-4 flex justify-center">
+					<Button variant="subtle" onClick={action.onClick}>
+						{action.label}
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }
 
 /**
- * Every skill on this machine, whoever brought it.
- *
- * Flat rather than grouped by plugin: a skill is reached by name when the agent decides it is
- * relevant, and which bundle it arrived in is a fact about installation, not about use. The
- * source is on the row for the one moment it matters — working out which directory to edit.
+ * One line about the last thing that happened — a failure in red, anything else in the page's own
+ * ink. It stays until dismissed or replaced: an install that failed while you were reading the card
+ * below it should still be saying so when you look up.
  */
-function SkillList({ skills, needle }: { skills: Skill[]; needle: string }) {
+function NoticeLine({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
 	const { t } = useI18n();
-	const filtered = needle
-		? skills.filter((skill) => `${skill.name} ${skill.description}`.toLowerCase().includes(needle))
-		: skills;
-
-	if (filtered.length === 0) {
-		return (
-			<p className="py-16 text-center text-label text-ink-faint">
-				<RollingText>{needle ? t("common.noMatchingSkills") : t("skills.empty")}</RollingText>
-			</p>
-		);
-	}
-
+	const error = notice.tone === "error";
 	return (
-		<div className="grid grid-cols-1 gap-x-4 pt-8 @2xl:grid-cols-2">
-			{filtered.map((skill) => (
-				<button
-					key={`${skill.source}:${skill.name}`}
-					type="button"
-					data-ly-tip={t("common.openFolder")}
-					onClick={() => void bridge.system.openPath(skill.dir)}
-					className="flex items-start gap-3 rounded-xl p-3 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
-				>
-					<SkillMark size={36} />
-					<div className="min-w-0 flex-1 pt-0.5">
-						<div className="flex items-center gap-2">
-							<span className="truncate text-label font-medium text-ink">{skill.name}</span>
-							{skill.pluginId && <span className="shrink-0 text-caption text-ink-faint">{skill.pluginId}</span>}
-						</div>
-						<p className="mt-0.5 line-clamp-2 text-detail leading-relaxed text-ink-muted">{skill.description}</p>
-					</div>
-				</button>
-			))}
+		<div
+			role={error ? "alert" : "status"}
+			className={`mt-4 flex items-start gap-2.5 rounded-xl px-4 py-2.5 text-detail leading-relaxed ${error ? "bg-danger/6 text-danger" : "bg-card/70 text-ink-muted"}`}
+		>
+			{error ? <CircleAlert size={13} strokeWidth={2} className="mt-0.5 shrink-0" /> : <Info size={13} strokeWidth={2} className="mt-0.5 shrink-0" />}
+			<p className="min-w-0 flex-1 whitespace-pre-line">{notice.text}</p>
+			<button type="button" aria-label={t("common.close")} data-ly-tip={t("common.close")} onClick={onDismiss} className="shrink-0 opacity-70 transition-opacity hover:opacity-100">
+				<X size={13} strokeWidth={2} />
+			</button>
 		</div>
 	);
 }

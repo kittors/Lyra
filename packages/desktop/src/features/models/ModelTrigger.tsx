@@ -15,8 +15,10 @@
  * 会话」, which is a sentence about configuration in a place meant for writing a message.
  */
 
+import { brandOf, splitHouse } from "../../lib/model-brand.ts";
 import { modelIdentity, modelTooltip } from "../../lib/model-grouping.ts";
-import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
+import { ROLL_VALUE, RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
+import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -52,6 +54,17 @@ export function ModelTrigger({
 	const name = identity ? (identity.ambiguous ? `${identity.provider.name} · ${identity.model.name}` : identity.model.name) : null;
 	const rolls = useRolled(modelId ?? "");
 	const tooltip = modelTooltip(identity, formatWindow);
+	/*
+	 * On a phone the name comes in two parts, so the house's word can be the part that goes.
+	 *
+	 * At 320pt the row has about 67pt for a name, and `Claude Sonnet 5` wants 118: cut from the end
+	 * it read `Claude So…`, which could be any of three models. The mark in front already says
+	 * Claude, so there the name drops that word and reads `Sonnet 5` whole; wherever the full name
+	 * fits it is shown as it is. Which of the two happens is decided by the layout rather than by a
+	 * measured breakpoint (see `.ly-model-name` in `phone-conversation.css`), because what fits
+	 * depends on the name.
+	 */
+	const parts = onPhone() && identity && !identity.ambiguous ? splitHouse(identity.model.name, brandOf(identity.model.modelId, identity.model.name)) : null;
 	return (
 		<>
 			<button
@@ -75,7 +88,15 @@ export function ModelTrigger({
 				 * there was not enough width to go round. `fit.ts` reads this element — the class is
 				 * the handle — which is why a short name keeps its meter at any width.
 				 */}
-				<RollingText className="ly-fit-probe min-w-0 truncate">{name ?? t("composer.selectModel")}</RollingText>
+				{parts ? (
+					<span className="ly-fit-probe min-w-0 truncate">
+						<span key={modelId} className={`${ROLL_VALUE} ly-model-name ${rolls ? "ly-roll" : ""}`}>
+							<span data-ly-model-house="">{parts.house}</span> <span>{parts.rest}</span>
+						</span>
+					</span>
+				) : (
+					<RollingText className="ly-fit-probe min-w-0 truncate">{name ?? t("composer.selectModel")}</RollingText>
+				)}
 			</button>
 			{menu.open && !disabled && <ModelMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}
 		</>

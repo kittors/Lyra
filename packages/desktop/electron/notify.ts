@@ -34,7 +34,9 @@ export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: s
 	if (event.type === "agent_end" && event.reason === "done") notifyTaskDone({ sessionId, title });
 	if (event.type === "approval_request") {
 		const question = event.kind === "interactive" || event.subject === "ask_user";
-		notifyNeedAssistance({ sessionId, title, kind: question ? "question" : "approval", question: question ? event.detail || event.reason : event.title });
+		// 后台子智能体问的，说出是谁在问——人要据此决定的，正是「这个活该不该由它来干」。
+		const asking = question ? event.detail || event.reason : event.title;
+		notifyNeedAssistance({ sessionId, title, kind: question ? "question" : "approval", question: event.from && asking ? translator()("notification.asking", { agent: event.from.description, question: asking }) : asking });
 	}
 }
 

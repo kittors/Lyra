@@ -8,6 +8,13 @@
  */
 
 export { settingsAfterToggle } from "./toggle.ts";
+/*
+ * 设置 › 插件要用的三样：共用的那一次扫盘、填 MCP 钥匙的那一块、以及「还缺什么」怎么算。都是市场
+ * 这一侧的东西——设置页只是另一个画它们的地方，和市场用同一份，才不会一处说齐了、一处说还缺。
+ */
+export { useLocalScan } from "./useLocalScan.ts";
+export { useMarketMarks, type MarketMark } from "./useMarketMarks.ts";
+export { McpKeys, missingOf, useEnvironment } from "./McpKeys.tsx";
 
 /*
  * 顶层视图不在这张表上。

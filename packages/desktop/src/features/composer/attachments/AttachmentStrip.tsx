@@ -20,7 +20,7 @@
  */
 
 import { X } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { AttachmentMenu } from "./AttachmentMenu.tsx";
@@ -149,6 +149,20 @@ export function AttachmentStrip({
 	const bodies = useRef(new Map<string, HTMLButtonElement | null>());
 	const count = files.length;
 	const loadNow = eager ?? Boolean(onRemove);
+	/*
+	 * 解不出来的图，退回成一份文件。
+	 *
+	 * 一个 `src` 不保证那头真有一张图：磁盘上那一份被挪走了、存下的像素指针找不到了、项目外的路径被
+	 * `ly-media` 拒掉了——更糟的是它压根不是图，是一份被当成图片的文档。浏览器对这些一律画一个裂开的
+	 * 图标，旁边是 alt 文字，看上去是应用坏了。解码失败的那一格改画门类图标加名字，和任何一份文件一个
+	 * 样子；能做的事也按文件算：不开查看器，不「复制图片」。
+	 *
+	 * 按地址记，不按格子记：输入框里标注完替换了原图，同一格换了一个新地址，它该重新得到一次机会。
+	 */
+	const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
+	const markBroken = useCallback((src: string) => {
+		setBroken((previous) => (previous.has(src) ? previous : new Set(previous).add(src)));
+	}, []);
 
 	/*
 	 * 一份附件在这一排里的全部身份：叫什么、排第几、能被怎么处置。
@@ -163,7 +177,13 @@ export function AttachmentStrip({
 		return files.map((file) => {
 			const kindIndex = (kindSeen.get(file.kind) ?? 0) + 1;
 			kindSeen.set(file.kind, kindIndex);
+			/*
+			 * 序号照旧按「有地址的」数，坏掉的也占一位：调用方点开查看器时用的是它自己那份有地址的清单，
+			 * 这里少数一个，后面每一张都会打开成前一张。
+			 */
 			if (file.src) imageAt += 1;
+			/* 真能画出来的像素。解码失败过的地址不算，见 `broken`。 */
+			const pixels = file.src && !broken.has(file.src) ? file.src : undefined;
 			/*
 			 * 格子上是全名。
 			 *
@@ -176,6 +196,7 @@ export function AttachmentStrip({
 			const { onDisk, inProject } = actions.abilities(file.path);
 			return {
 				file,
+				pixels,
 				label,
 				parts: nameParts(label),
 				imageIndex: imageAt,
@@ -186,11 +207,11 @@ export function AttachmentStrip({
 				 * 读不到项目外的东西（`files.read` 要过 `resolveReadablePath`），所以项目外的文档
 				 * 点一下什么也不会发生，它的「打开」只能是交给外部应用。
 				 */
-				canPreview: file.src ? Boolean(onOpen) : Boolean(onPreviewFile) && inProject,
+				canPreview: pixels ? Boolean(onOpen) : Boolean(onPreviewFile) && inProject,
 				canOpenExternal: onDisk,
 			};
 		});
-	}, [files, t, regionShot, actions, onOpen, onPreviewFile]);
+	}, [files, t, regionShot, actions, onOpen, onPreviewFile, broken]);
 
 	/*
 	 * 两头化不化开，是量出来的。
@@ -270,12 +291,12 @@ export function AttachmentStrip({
 				data-ly-attachments-track=""
 				className={`ly-attachments-track ${layout === "row" ? "ly-attachments-row ly-fade-tail" : "flex-wrap"} ${align === "end" ? "justify-end" : "justify-start"}`}
 			>
-				{tiles.map(({ file, label, parts, imageIndex, canPreview, canOpenExternal }) => (
+				{tiles.map(({ file, pixels, label, parts, imageIndex, canPreview, canOpenExternal }) => (
 					<div
 						key={file.key}
 						data-ly-attachment={file.key}
 						/* 图片和横条挂的控件位置不同，CSS 按这个分。 */
-						data-ly-shape={file.src ? "image" : "file"}
+						data-ly-shape={pixels ? "image" : "file"}
 						className="ly-attachment group/tile"
 						onContextMenu={(event) => menu.show(event, file.key)}
 					>
@@ -306,7 +327,7 @@ export function AttachmentStrip({
 							disabled={!canPreview && !canOpenExternal}
 							onClick={
 								canPreview
-									? file.src && onOpen
+									? pixels && onOpen
 										? (event) => onOpen(imageIndex, event)
 										: onPreviewFile
 											? () => onPreviewFile(file)
@@ -319,18 +340,19 @@ export function AttachmentStrip({
 									: undefined
 							}
 							className="ly-attachment-body"
-							{...(file.src ? { style: { width: thumbnail, height: thumbnail } } : {})}
+							{...(pixels ? { style: { width: thumbnail, height: thumbnail } } : {})}
 						>
-							{file.src ? (
+							{pixels ? (
 								/* `cover`：一排等大的方块读起来是一组东西。按各自比例留黑边的缩略图读起来
 								    像是排版放弃了。 */
 								<img
-									src={file.src}
+									src={pixels}
 									alt={label}
 									loading={loadNow ? "eager" : "lazy"}
 									decoding="async"
 									data-ly-lazy={loadNow ? "ready" : "lazy"}
 									className="h-full w-full object-cover"
+									onError={() => markBroken(pixels)}
 								/>
 							) : (
 								<span className="flex h-full items-center gap-1.5">
@@ -397,7 +419,8 @@ export function AttachmentStrip({
 								 * 张图，位置不同不该换一套能做的事。粘贴进来的截图尤其靠这一条：它在磁盘上没有对应
 								 * 的文件，像素是它唯一能被复制的形式。
 								 */
-								...(picked.file.full ?? picked.file.src ? { src: picked.file.full ?? picked.file.src } : {}),
+								// 缩略图都没解出来的那一格，没有像素可复制——按文件给菜单，见 `broken`。
+								...(picked.pixels ? { src: picked.file.full ?? picked.pixels } : {}),
 								...(picked.canPreview ? { onPreview: () => bodies.current.get(picked.file.key)?.click() } : {}),
 							}
 						: null

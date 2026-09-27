@@ -24,6 +24,7 @@ import { failedStreamEvent, joinUrl } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { cacheKeyFields, cacheKeyHeaders } from "./cache-key.ts";
 
 export const openaiChatCompletionsProvider: Provider = {
 	api: "openai-chat-completions",
@@ -117,7 +118,7 @@ export function learnChatCompletionsCompat(providerId: string, modelId: string, 
 	const before = new Set(droppedParams(providerId, modelId));
 	learnDroppedParam(providerId, modelId, error);
 	const after = droppedParams(providerId, modelId);
-	const readHere = ["sampling", "tool-choice", "reasoning-off"] as const;
+	const readHere = ["sampling", "tool-choice", "reasoning-off", "cache-key"] as const;
 	const droppedHere = readHere.some((param) => after.has(param) && !before.has(param));
 	return learnedField || droppedHere;
 }
@@ -336,6 +337,8 @@ async function* streamChatCompletions(
 			),
 			stream: true,
 			stream_options: { include_usage: true },
+			// 同一段对话落在同一台机器、同一个上游账号上，前缀缓存才接得上。见 `cache-key.ts`。
+			...cacheKeyFields(options.cacheKey, dropped),
 			/*
 			 * 字段名是学出来的，不是写死的。
 			 *
@@ -470,6 +473,7 @@ async function* streamChatCompletions(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
+							...cacheKeyHeaders(options.cacheKey),
 							...provider.headers,
 						},
 						body: JSON.stringify(body),

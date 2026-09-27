@@ -19,7 +19,7 @@ export interface CommandsList {
 	builtins: BuiltinCommand[];
 	diagnostics: { path: string; message: string }[];
 	skills: SkillEntry[];
-	agents: Array<{ id: string; name: string; description: string }>;
+	agents: Array<{ id: string; name: string; description: string; avatar?: string }>;
 }
 
 export interface SkillEntry {
@@ -33,17 +33,22 @@ export interface SkillEntry {
 export async function listCommands(cwd: string, settings: Settings): Promise<CommandsList> {
 	const home = lyraHome();
 	const { commands, diagnostics } = await loadCommands(commandSources(cwd || null, home));
+	/*
+	 * The switched-off list, not `[]`. With nothing disabled every plugin counted as on, so a plugin
+	 * somebody had switched off in settings still offered its skills in the `/` menu — skills the
+	 * session would then not have.
+	 */
 	const bundles = await loadPlugins(
 		[
 			{ dir: join(cwd || home, ".lyra", "plugins"), source: "workspace" as const },
 			{ dir: join(home, "plugins"), source: "user" as const },
 		],
-		[],
+		settings.disabledPlugins,
 	).catch(() => ({ plugins: [] }));
 	const { skills } = await collectSkills(cwd || home, bundles.plugins, settings).catch(() => ({ skills: [] }));
 	const agents = await collectAgents(cwd || home, settings);
 	return {
-		agents: agents.map(agent => ({ id: agent.name, name: agent.name, description: agent.description })),
+		agents: agents.map(agent => ({ id: agent.name, name: agent.name, description: agent.description, ...(agent.avatar ? { avatar: agent.avatar } : {}) })),
 		commands,
 		diagnostics,
 		builtins: builtinCommandsFor(["compact", "clear", "manage-commands"]),

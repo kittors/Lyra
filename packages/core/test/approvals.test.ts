@@ -178,3 +178,29 @@ test("full 模式不问读取，和它从不问 bash 是同一件事", async () 
 	assert.equal(await full.request({ ...readRequest }), "once");
 	assert.equal(asked.length, 0);
 });
+
+test("每一张卡怎么收场都说一声；收回时只收该收的那几张", async () => {
+	const settled: string[] = [];
+	const asked: string[] = [];
+	const instance = new ApprovalGate({
+		mode: () => "ask",
+		cwd: () => "/Users/me/project",
+		ask: async (pending) => void asked.push(pending.id),
+		remember: () => {},
+		settled: (id) => void settled.push(id),
+		unattendedTimeoutMs: 60_000,
+	});
+	const own = instance.request({ ...request, subject: "a" });
+	const fromSub = instance.request({ ...request, subject: "b", from: { subAgentId: "s:sub:1", agent: "general", description: "改 b" } });
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	// 主会话一轮收尾：只收它自己的，后台子代理的那张还等着人。
+	instance.rejectWhere((one) => !one.from);
+	assert.equal(await own, "reject");
+	assert.deepEqual(settled, [asked[0]]);
+	assert.equal(instance.list().length, 1, "后台子代理的问题还挂着");
+
+	instance.resolve(asked[1], "once");
+	assert.equal(await fromSub, "once");
+	assert.deepEqual(settled, asked, "答了的那张也说一声，窗口据此把卡拿走");
+});

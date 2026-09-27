@@ -34,6 +34,7 @@ import { textTokens, toolTokens } from "./context.ts";
 import { writePreview } from "./previews.ts";
 import { runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
+import type { DelegationWaits } from "./delegation-waits.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import type { TurnContext } from "./turn.ts";
@@ -60,6 +61,11 @@ export interface TurnConfigDeps {
 	 * exactly as before. See `runtime/sub-agents.ts`.
 	 */
 	subAgents?: SubAgentRegistry;
+	/**
+	 * 父会话在等的派发，人一开口就放手——见 `delegation-waits.ts`。会话给，CLI 和测试可以不给：
+	 * 不给就是从前的样子，`task` 等到子代理跑完为止。
+	 */
+	delegations?: DelegationWaits;
 	signal?: AbortSignal;
 	streamFn?: AgentRunConfig["streamFn"];
 	requestApproval(request: ApprovalRequest): Promise<ApprovalDecision>;
@@ -158,6 +164,10 @@ export function buildTurnConfig(
 			allowedPaths: deps.allowedPaths,
 			projectRoots,
 			/*
+			 * 同一段对话的每个请求都带同一个键，落在同一台机器、同一个上游账号上。见 `ai/cache-key.ts`。
+			 */
+			cacheKey: deps.sessionId,
+			/*
 			 * Queued rather than run on demand.
 			 *
 			 * A model asked to look at eight things dispatches eight, which is a reasonable thought
@@ -165,44 +175,52 @@ export function buildTurnConfig(
 			 * own context and their own model calls. The gate turns "do these eight" into "do these
 			 * eight, four at a time", which is what was wanted; the prompt says the number so the
 			 * model does not read the queue as slowness and try harder.
+			 *
+			 * 排队发生在 `runSubAgent` 里面（`admission`）：它先上名单、说出自己在排队，再等名额。
+			 * 外面再包一层 `delegations.hold`——父会话等它，但人一开口就放手，见 `delegation-waits.ts`。
 			 */
-			spawnSubAgent: (input) =>
-				gate.run(() =>
-					runSubAgent(
-						{
-							sessionId: deps.sessionId,
-							cwd: deps.cwd,
-							settings: deps.settings,
-							getSettings: deps.getSettings,
-							tools: deps.tools,
-							skills: deps.skills,
-							agents: deps.agents,
-							signal: deps.signal,
-							streamFn: deps.streamFn,
-							requestApproval: (request) => deps.requestApproval(request),
-							emit: (event) => deps.emit(event),
-							// Where the run registers itself so it can be watched and steered. Absent for
-							// hosts that only want the answer — see `SubAgentOptions.registry`.
-							registry: deps.subAgents,
-							// So a delegated run compacts through the same model call this session does.
-							summaryStream: deps.summaryStream,
-							/*
-							 * 整棵派生树共用同一个闸门和同一条链。
-							 *
-							 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
-							 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
-							 */
-							gate,
-							dispatch: rootDispatch(),
-							allowedPaths: deps.allowedPaths,
+			spawnSubAgent: (input) => {
+				let registered: string | undefined;
+				const run = runSubAgent(
+					{
+						sessionId: deps.sessionId,
+						cwd: deps.cwd,
+						settings: deps.settings,
+						getSettings: deps.getSettings,
+						tools: deps.tools,
+						skills: deps.skills,
+						agents: deps.agents,
+						signal: deps.signal,
+						streamFn: deps.streamFn,
+						requestApproval: (request) => deps.requestApproval(request),
+						emit: (event) => deps.emit(event),
+						// Where the run registers itself so it can be watched and steered. Absent for
+						// hosts that only want the answer — see `SubAgentOptions.registry`.
+						registry: deps.subAgents,
+						// So a delegated run compacts through the same model call this session does.
+						summaryStream: deps.summaryStream,
+						/*
+						 * 整棵派生树共用同一个闸门和同一条链。
+						 *
+						 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
+						 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
+						 */
+						gate,
+						admission: (signal) => gate.acquire(signal),
+						onRegistered: (id) => {
+							registered = id;
 						},
-						input,
-						// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。
-						deps.liveModel?.current()?.provider ?? deps.provider,
-						deps.liveModel?.current()?.model ?? deps.model,
-						systemPrompt,
-					),
-				),
+						dispatch: rootDispatch(),
+						allowedPaths: deps.allowedPaths,
+					},
+					input,
+					// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。
+					deps.liveModel?.current()?.provider ?? deps.provider,
+					deps.liveModel?.current()?.model ?? deps.model,
+					systemPrompt,
+				);
+				return deps.delegations ? deps.delegations.hold(run, () => registered) : run;
+			},
 			drainSteering: deps.drainSteering,
 			resources: deps.resources,
 			scratchDir: deps.scratchDir,
@@ -255,11 +273,7 @@ const GATE_KEY = "dispatchGate";
 function dispatchGate(deps: TurnConfigDeps, thinking?: ThinkingLevel): DispatchGate {
 	// 现读，不用组装这一轮时的副本：宽度和档位都能在对话中途改，而这两个正是要跟上的东西。
 	const live = deps.getSettings?.() ?? deps.settings;
-	const width = delegationConcurrency(
-		live.maxConcurrentSubAgents,
-		thinking ?? deps.settings.thinking,
-		normalizeDelegationPolicy(live.subAgentDelegation),
-	);
+	const width = gateWidth(live, thinking ?? deps.settings.thinking);
 	const existing = deps.state.get(GATE_KEY);
 	if (existing instanceof DispatchGate) {
 		existing.setLimit(width);
@@ -268,4 +282,22 @@ function dispatchGate(deps: TurnConfigDeps, thinking?: ThinkingLevel): DispatchG
 	const gate = new DispatchGate(width);
 	deps.state.set(GATE_KEY, gate);
 	return gate;
+}
+
+function gateWidth(settings: Settings, thinking?: ThinkingLevel): number {
+	return delegationConcurrency(settings.maxConcurrentSubAgents, thinking, normalizeDelegationPolicy(settings.subAgentDelegation));
+}
+
+/**
+ * 设置改了，闸门当场跟着改宽度——不等下一轮。
+ *
+ * 宽度原本只在组装一轮时重算。可正是「一轮」出了问题：主会话派出去四个、闸门只放一个的时候，
+ * 这一轮要等四个依次跑完才结束，人在设置页把并发从 1 调到 4，排着的那三个照样一个一个地等——
+ * 新的宽度要到下一轮才生效，而下一轮要等它们全部跑完。
+ *
+ * 还没派过活的会话没有闸门，什么都不用做：第一次派活时自然按新设置建。
+ */
+export function refreshDispatchGate(state: Map<string, unknown>, settings: Settings, thinking?: ThinkingLevel): void {
+	const existing = state.get(GATE_KEY);
+	if (existing instanceof DispatchGate) existing.setLimit(gateWidth(settings, thinking ?? settings.thinking));
 }

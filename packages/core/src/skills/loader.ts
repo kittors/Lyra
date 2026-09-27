@@ -34,6 +34,8 @@ export interface Skill {
 	disableModelInvocation: boolean;
 	/** Set when the skill came from a plugin bundle rather than a loose directory. */
 	pluginId?: string;
+	/** That bundle's directory — what `${CLAUDE_PLUGIN_ROOT}` means inside the skill. */
+	pluginRoot?: string;
 }
 
 export interface SkillDiagnostic {
@@ -206,7 +208,23 @@ export function parseFrontmatter(raw: string): ParsedFrontmatter | UnparsableFro
 /** Wrap a skill body for injection, telling the model where its relative paths resolve. */
 export function formatSkillInvocation(skill: Skill, extra?: string): string {
 	const header = `<skill name="${skill.name}" dir="${skill.dir}">\nFile references inside this skill are relative to ${skill.dir}.\n\n`;
-	return `${header}${skill.content}\n</skill>${extra ? `\n\n${extra}` : ""}`;
+	return `${header}${expandSkillPaths(skill)}\n</skill>${extra ? `\n\n${extra}` : ""}`;
+}
+
+/**
+ * A skill written for Claude Code names its own files through two variables: `${CLAUDE_SKILL_DIR}`
+ * (this skill's directory) and `${CLAUDE_PLUGIN_ROOT}` (the bundle it shipped in). Nothing replaced
+ * them here, so the model was told to run `python ${CLAUDE_SKILL_DIR}/scripts/search.py` and ran it
+ * literally — against a path that does not exist. Filled in with the real directories, absolute,
+ * because the agent's working directory is the user's project, not the skill.
+ *
+ * A loose skill has no bundle; its plugin root is taken to be its own directory, which is where
+ * anything it names relative to "the plugin" would have to be for it to work at all.
+ */
+export function expandSkillPaths(skill: Skill): string {
+	return skill.content
+		.replaceAll("${CLAUDE_SKILL_DIR}", skill.dir)
+		.replaceAll("${CLAUDE_PLUGIN_ROOT}", skill.pluginRoot ?? skill.dir);
 }
 
 /** The compact catalogue injected into the system prompt. */

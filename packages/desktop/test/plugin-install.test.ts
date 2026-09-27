@@ -307,3 +307,32 @@ test("releasing a bundle disconnects its servers in every live session, and noth
 
 	assert.deepEqual(released, [["c7"], ["c7"]], "one session failing must not keep the others connected");
 });
+
+test("更新一个要钥匙的 MCP 包，人填过的钥匙和开关都留着；新版不再要的不带过去", async () => {
+	await withHome(async () => {
+		const declaration = (env: Record<string, string>) => ({
+			".mcp.json": JSON.stringify({ mcpServers: { brave: { command: "npx", args: ["-y", "@brave/brave-search-mcp-server"], env } } }),
+		});
+		const repo = await repoWith(declaration({ BRAVE_API_KEY: "${BRAVE_API_KEY}", OLD_ONE: "${OLD_ONE}" }));
+		const entry: RegistryEntry = { id: "brave", name: "Brave", repository: repo, kind: "mcp" };
+		const first = settingsAfterInstall(settingsWith(), entry.id, await installEntry(entry));
+		assert.ok(first);
+		// 人打开了它、填了两个钥匙。
+		const filled: Settings = {
+			...first,
+			mcpServers: first.mcpServers.map((server) =>
+				server.transport === "stdio" ? { ...server, enabled: true, env: { ...server.env, BRAVE_API_KEY: "bsa-typed", OLD_ONE: "old-typed" } } : server,
+			),
+		};
+
+		// 新版不再要 OLD_ONE。
+		await writeFile(join(repo, ".mcp.json"), declaration({ BRAVE_API_KEY: "${BRAVE_API_KEY}" })[".mcp.json"]);
+		await run("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qam", "v2"], { cwd: repo });
+		const next = settingsAfterInstall(filled, entry.id, await installEntry(entry, undefined, true));
+
+		const row = next?.mcpServers[0];
+		assert.equal(row?.enabled, true, "开着的还开着");
+		assert.equal(row?.transport === "stdio" && row.env?.BRAVE_API_KEY, "bsa-typed", "填过的钥匙还在");
+		assert.equal(row?.transport === "stdio" && "OLD_ONE" in (row.env ?? {}), false, "新版不再问的，就不是谁的答案了");
+	});
+});

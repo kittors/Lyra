@@ -24,6 +24,7 @@ import {
 
 import { OverlayDepth } from "./Overlay.tsx";
 import { claimHoverSuppression } from "./hover-layers.ts";
+import { heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
 import { portal } from "./portal.ts";
 
@@ -157,6 +158,36 @@ export interface PopoverProps {
 
 const GAP = 8;
 const MARGIN = 12;
+
+/**
+ * How far from each window edge a popover must stay: the margin, or clear of the host's chrome.
+ *
+ * On a phone the page runs under the status bar and the home indicator, so twelve pixels from the
+ * top edge is under the Dynamic Island. Everywhere else the insets are zero and this is `MARGIN`.
+ */
+function edges(): { top: number; bottom: number; left: number; right: number } {
+	const inset = safeInsets();
+	return {
+		top: Math.max(MARGIN, inset.top + GAP),
+		bottom: Math.max(MARGIN, inset.bottom + GAP),
+		left: MARGIN + inset.left,
+		right: MARGIN + inset.right,
+	};
+}
+
+/**
+ * How much wider a surface's named width is drawn here, declared by the host's stylesheet.
+ *
+ * The four widths are sized for a pointer and fourteen-pixel labels. A thumb on a phone gets the
+ * same menu with larger type and taller rows, and at 190px its labels start to cut — so the phone
+ * says `--ly-menu-width-scale` and every menu keeps its proportions rather than each one picking a
+ * phone width of its own.
+ */
+function widthScale(): number {
+	if (typeof document === "undefined" || !document.documentElement) return 1;
+	const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ly-menu-width-scale"));
+	return Number.isFinite(value) && value > 0 ? value : 1;
+}
 
 /**
  * The column a popover belongs to, so it does not spill into the one next door.
@@ -325,9 +356,12 @@ export function Popover({
 		const measure = () => {
 			const a = rectOf(anchor);
 			if (!a) return;
+			const edge = edges();
 			// A menu wider than the window cannot be nudged into view — it has to give up width.
-			const limit = window.innerWidth - MARGIN * 2;
-			const fixed = widthOf(resolvedWidth(width, role));
+			const limit = window.innerWidth - edge.left - edge.right;
+			const named = widthOf(resolvedWidth(width, role));
+			// A caller's own number is its own business; only the named sizes follow the host's scale.
+			const fixed = named === undefined || typeof width === "number" ? named : Math.round(named * widthScale());
 			/*
 			 * Width first, then measure — because height depends on it.
 			 *
@@ -343,17 +377,43 @@ export function Popover({
 			const box = { width: element.offsetWidth, height: element.offsetHeight };
 			const w = Math.min(fixed ?? box.width, limit);
 
-			const fitsAbove = a.top - box.height - GAP >= MARGIN;
+			/*
+			 * Hung from a point with something to keep clear of: a long press, whose menu must not
+			 * cover the row it is about. See `keep-clear.ts` — the rest of this pass is for anchors
+			 * that are the thing being acted on, where overlapping them is the lesser harm.
+			 */
+			const clear = anchor instanceof HTMLElement ? null : heldClear();
+			if (clear) {
+				const spot = placeBeside(
+					clear.rect,
+					{ width: w, height: box.height },
+					{ top: edge.top, bottom: window.innerHeight - edge.bottom, left: edge.left, right: window.innerWidth - edge.right },
+				);
+				setPlaced(true);
+				setStyle({
+					left: spot.left,
+					top: spot.top,
+					width: fixed === undefined ? undefined : w,
+					maxWidth: limit,
+					transformOrigin: spot.origin,
+					maxHeight: Math.min(spot.maxHeight, maxHeight ?? Infinity),
+					opacity: 1,
+				});
+				clear.onPlace?.(spot);
+				return;
+			}
+
+			const fitsAbove = a.top - box.height - GAP >= edge.top;
 			const fitsBelow =
-				a.bottom + box.height + GAP <= window.innerHeight - MARGIN;
+				a.bottom + box.height + GAP <= window.innerHeight - edge.bottom;
 
 			// Stay inside the trigger's own column when it has room, otherwise inside the window.
 			const column = columnBounds(anchor, w);
-			const minLeft = Math.max(MARGIN, column ? column.left : MARGIN);
+			const minLeft = Math.max(edge.left, column ? column.left : edge.left);
 			const maxLeft =
 				Math.min(
-					window.innerWidth - MARGIN,
-					column ? column.right : window.innerWidth - MARGIN,
+					window.innerWidth - edge.right,
+					column ? column.right : window.innerWidth - edge.right,
 				) - w;
 			const clampX = (x: number) =>
 				Math.min(Math.max(minLeft, x), Math.max(minLeft, maxLeft));
@@ -392,16 +452,16 @@ export function Popover({
 				const fitsRight = a.right + GAP + w <= maxLeft + w;
 				left = clampX(fitsRight ? a.right + GAP : a.left - GAP - w);
 				const top = Math.min(
-					Math.max(MARGIN, a.top - 4),
-					window.innerHeight - box.height - MARGIN,
+					Math.max(edge.top, a.top - 4),
+					window.innerHeight - box.height - edge.bottom,
 				);
 				anchorEdge = { top };
 				origin = `${fitsRight ? "0px" : "100%"} ${clamp(a.top + a.height / 2 - top, 0, box.height)}px`;
 			} else {
 				// For point anchors (contextmenu / right-click) or element anchors, prefer top/bottom
 				// based on whichever side has more room if neither side completely fits.
-				const spaceAbove = a.top - MARGIN;
-				const spaceBelow = window.innerHeight - a.bottom - MARGIN;
+				const spaceAbove = a.top - edge.top;
+				const spaceBelow = window.innerHeight - a.bottom - edge.bottom;
 				resolved =
 					placement === "top"
 						? fitsAbove
@@ -450,13 +510,13 @@ export function Popover({
 					kind === "menu" &&
 					!fitsAbove &&
 					!fitsBelow &&
-					box.height + MARGIN * 2 <= window.innerHeight;
+					box.height + edge.top + edge.bottom <= window.innerHeight;
 				anchorEdge = shifted
 					? {
 							top: clamp(
 								a.bottom + GAP,
-								MARGIN,
-								window.innerHeight - box.height - MARGIN,
+								edge.top,
+								window.innerHeight - box.height - edge.bottom,
 							),
 						}
 					: resolved === "top"
@@ -480,12 +540,12 @@ export function Popover({
 					// Shifted into place, the ceiling is the window rather than the gap it started from
 					// — the gap is precisely what it stopped being bound by.
 					shifted
-						? window.innerHeight - MARGIN * 2
+						? window.innerHeight - edge.top - edge.bottom
 						: resolved === "top"
-							? Math.max(0, a.top - GAP - MARGIN)
+							? Math.max(0, a.top - GAP - edge.top)
 							: resolved === "bottom"
-								? Math.max(0, window.innerHeight - a.bottom - GAP - MARGIN)
-								: Math.max(0, window.innerHeight - MARGIN * 2),
+								? Math.max(0, window.innerHeight - a.bottom - GAP - edge.bottom)
+								: Math.max(0, window.innerHeight - edge.top - edge.bottom),
 					maxHeight ?? Infinity,
 				),
 				opacity: 1,

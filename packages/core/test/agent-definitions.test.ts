@@ -100,3 +100,38 @@ test("editing YAML preserves unknown nested metadata and rejects malformed docum
 	assert.match(rendered, /Read before acting/);
 	assert.throws(() => renderAgentDocument(draft, "broken"), /YAML/);
 });
+
+test("the avatar travels with the definition: written, read back, kept across a builtin customisation, and validated", async t => {
+	const { store, home } = await fixture(t);
+	await store.save(null, { scope: "user", draft: { ...draft, avatar: "cloud-violet" } }, ["read"]);
+	const record = (await store.list(null)).find(item => item.definition.name === draft.name); assert.ok(record);
+	assert.match(await readFile(join(home, "agents", `${draft.name}.md`), "utf8"), /^avatar: cloud-violet$/m);
+	assert.equal(record.definition.avatar, "cloud-violet", "the loader hands the field back to whoever lists definitions");
+
+	// Editing without touching the face leaves the line that is already in the file.
+	await store.save(null, { id: record.id, revision: record.revision, scope: "user", draft: { ...draft, systemPrompt: "Edited." } }, ["read"]);
+	assert.equal((await store.list(null)).find(item => item.definition.name === draft.name)?.definition.avatar, "cloud-violet");
+
+	// A customised builtin is still the same character unless somebody picks another face for it.
+	const builtin = (await store.list(null)).find(item => item.scope === "builtin" && item.definition.name === "general"); assert.ok(builtin);
+	assert.equal(builtin.definition.avatar, "circle-blue");
+	await store.save(null, { id: builtin.id, revision: builtin.revision, scope: "user", draft: { ...draft, name: "general", tools: "*", systemPrompt: "Custom" } }, []);
+	assert.equal((await store.list(null)).find(item => item.definition.name === "general")?.definition.avatar, "circle-blue");
+	const custom = (await store.list(null)).find(item => item.definition.name === "general"); assert.ok(custom);
+	await store.save(null, { id: custom.id, revision: custom.revision, scope: "user", draft: { ...draft, name: "general", tools: "*", systemPrompt: "Custom", avatar: "star-lime" } }, []);
+	assert.equal((await store.list(null)).find(item => item.definition.name === "general")?.definition.avatar, "star-lime");
+
+	for (const avatar of ["Cloud-Violet", "cloud", "cloud-violet-x", "../x-y", "a-b", 42]) {
+		await assert.rejects(store.save(null, { scope: "user", draft: { ...draft, name: "qa-bad", avatar: avatar as string } }, ["read"]), /形象/, String(avatar));
+	}
+});
+
+test("a hand-written avatar line is read as it is, and a definition without one simply has none", async t => {
+	const { store, home } = await fixture(t);
+	await mkdir(join(home, "agents"), { recursive: true });
+	await writeFile(join(home, "agents", "hand.md"), "---\nname: hand\ndescription: Written by hand\navatar: '  ghost-plum  '\n---\nHello\n");
+	await writeFile(join(home, "agents", "plain.md"), "---\nname: plain\ndescription: No face given\n---\nHello\n");
+	const records = await store.list(null);
+	assert.equal(records.find(item => item.definition.name === "hand")?.definition.avatar, "ghost-plum");
+	assert.equal(records.find(item => item.definition.name === "plain")?.definition.avatar, undefined);
+});

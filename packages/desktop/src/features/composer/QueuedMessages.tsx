@@ -22,7 +22,6 @@ import type { QueuedMessage } from "../../store/queue-slice.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { companionOf, useSide, openScopedPanel } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -35,10 +34,29 @@ interface Leaving {
 	at: number;
 }
 
+/**
+ * 一条队伍从哪儿来、能对它做什么。
+ *
+ * 主会话的队伍在 app store 里（`queue-slice.ts`），侧边聊天的在它自己的 store 里——两个对话、两条
+ * 队，但条是同一条：同样的行、同样的拖动、同样的「编辑就是整份退回输入框」。做不到的事就不给：
+ * 侧边聊天没有「插进这一轮」，也没有「拿到侧边聊天去问」。
+ */
+export interface QueueSource {
+	items: QueuedMessage[];
+	/** 拿走一条并交还——删掉和编辑是同一个动作。 */
+	drop: (id: string) => QueuedMessage | null;
+	move: (id: string, targetId: string, placement: "before" | "after") => void;
+	/** 现在就送出去，不打断正在跑的那一轮。 */
+	steer?: (id: string) => void;
+	/** 拿到侧边聊天去问。 */
+	aside?: (id: string) => void;
+}
+
 export function QueuedMessages({
 	sessionId,
 	running,
 	onEdit,
+	onAside,
 }: {
 	sessionId: string;
 	/**
@@ -50,9 +68,38 @@ export function QueuedMessages({
 	running: boolean;
 	/** 编辑：整份草稿回到输入框，由输入框自己决定怎么接。 */
 	onEdit: (entry: QueuedMessage) => void;
+	/**
+	 * 拿到侧边聊天去问。由输入框给——那件事要开侧边栏，而这个文件引 dock 会连回输入框自己（`pnpm arch`
+	 * 管这叫环）。输入框本来就站在 dock 旁边。
+	 */
+	onAside?: (entry: QueuedMessage) => void;
 }) {
-	const { t } = useI18n();
 	const items = useApp((state) => state.queued[sessionId] ?? NONE);
+	const moveQueued = useApp((state) => state.moveQueued);
+	const dropQueued = useApp((state) => state.dropQueued);
+	const steerQueued = useApp((state) => state.steerQueued);
+	const source: QueueSource = {
+		items,
+		drop: (id) => dropQueued(sessionId, id),
+		move: (id, targetId, placement) => void moveQueued(sessionId, id, targetId, placement),
+		steer: (id) => void steerQueued(sessionId, id),
+		/* 同样从队列里取走：一句话只该被问一次。 */
+		...(onAside
+			? {
+					aside: (id: string) => {
+						const taken = dropQueued(sessionId, id);
+						if (taken) onAside(taken);
+					},
+				}
+			: {}),
+	};
+	return <QueueList source={source} running={running} onEdit={onEdit} />;
+}
+
+/** 那条队，画出来。数据和动作由 `source` 给——主会话和侧边聊天各给各的。 */
+export function QueueList({ source, running, onEdit }: { source: QueueSource; running: boolean; onEdit: (entry: QueuedMessage) => void }) {
+	const { t } = useI18n();
+	const items = source.items;
 	const [leaving, setLeaving] = useState<Leaving[]>([]);
 	const previous = useRef(items);
 
@@ -78,7 +125,7 @@ export function QueuedMessages({
 	if (rows.length === 0) return null;
 	return (
 		<Rows
-			sessionId={sessionId}
+			source={source}
 			rows={rows}
 			onEdit={onEdit}
 			label={t("composer.queueLabel")}
@@ -101,20 +148,19 @@ interface Drag {
 }
 
 function Rows({
-	sessionId,
+	source,
 	rows,
 	onEdit,
 	label,
 	status,
 }: {
-	sessionId: string;
+	source: QueueSource;
 	rows: { entry: QueuedMessage; leaving: boolean }[];
 	onEdit: (entry: QueuedMessage) => void;
 	label: string;
 	/** 这一条在等什么，写在它的悬停说明里。 */
 	status: string;
 }) {
-	const moveQueued = useApp((state) => state.moveQueued);
 	const list = useRef<HTMLDivElement>(null);
 	const [drag, setDrag] = useState<Drag | null>(null);
 	const [settling, setSettling] = useState(false);
@@ -168,7 +214,7 @@ function Rows({
 		if (target && drag.to !== drag.from) {
 			// 顺序变更落定时，先进入 settling 状态阻断 transition 回弹，避免坐标对冲跳动
 			setSettling(true);
-			moveQueued(sessionId, drag.id, target.id, drag.to > drag.from ? "after" : "before");
+			source.move(drag.id, target.id, drag.to > drag.from ? "after" : "before");
 			// 下一帧清除 settling，恢复正常过渡状态
 			requestAnimationFrame(() => {
 				setSettling(false);
@@ -190,7 +236,7 @@ function Rows({
 	const nudge = (index: number, id: string, by: -1 | 1) => {
 		const target = rows[index + by]?.entry;
 		if (!target) return;
-		moveQueued(sessionId, id, target.id, by > 0 ? "after" : "before");
+		source.move(id, target.id, by > 0 ? "after" : "before");
 	};
 
 	return (
@@ -208,7 +254,7 @@ function Rows({
 			{rows.map((row, index) => (
 				<Row
 					key={row.entry.id}
-					sessionId={sessionId}
+					source={source}
 					entry={row.entry}
 					leaving={row.leaving}
 					index={index}
@@ -229,7 +275,7 @@ function Rows({
 }
 
 function Row({
-	sessionId,
+	source,
 	entry,
 	leaving,
 	index,
@@ -244,7 +290,7 @@ function Row({
 	onDragEnd,
 	onNudge,
 }: {
-	sessionId: string;
+	source: QueueSource;
 	entry: QueuedMessage;
 	leaving: boolean;
 	index: number;
@@ -260,31 +306,19 @@ function Row({
 	onNudge: (index: number, id: string, by: -1 | 1) => void;
 }) {
 	const { t } = useI18n();
-	const dropQueued = useApp((state) => state.dropQueued);
-	const steerQueued = useApp((state) => state.steerQueued);
 	const more = usePopover();
 	const [recalled, setRecalled] = useState(false);
 
-	const remove = () => dropQueued(sessionId, entry.id);
+	const remove = () => source.drop(entry.id);
 	const edit = () => {
 		more.close();
 		setRecalled(true);
-		const taken = dropQueued(sessionId, entry.id);
+		const taken = source.drop(entry.id);
 		if (taken) onEdit(taken);
 	};
-	/*
-	 * 拿到侧边聊天去问。
-	 *
-	 * 侧边聊天碰不到项目，它读得到这个对话在做什么但不写进去——所以「这句话我先问问，别占用正在跑
-	 * 的这一轮」正是它的用途。同样从队列里取走：一句话只该被问一次。
-	 */
 	const aside = () => {
 		more.close();
-		const taken = dropQueued(sessionId, entry.id);
-		if (!taken) return;
-		// Beside the conversation it was queued in, which the keyboard can reach without focusing it.
-		openScopedPanel("chat", companionOf("chat"), sessionId);
-		void useSide.getState().ask(sessionId, taken.content);
+		source.aside?.(entry.id);
 	};
 
 	return (
@@ -344,16 +378,18 @@ function Row({
 					 * 事，而它们正是这个功能存在的理由。淡到不抢，指过去才亮，比藏起来诚实。
 					 */}
 					<div className="flex shrink-0 items-center gap-1 text-ink-faint">
-						<button
-							type="button"
-							data-queue-steer
-							data-ly-tip={t("composer.queueSteer")}
-							aria-label={t("composer.queueSteer")}
-							onClick={() => void steerQueued(sessionId, entry.id)}
-							className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
-						>
-							<CornerDownLeft size={13.5} strokeWidth={1.9} />
-						</button>
+						{source.steer && (
+							<button
+								type="button"
+								data-queue-steer
+								data-ly-tip={t("composer.queueSteer")}
+								aria-label={t("composer.queueSteer")}
+								onClick={() => source.steer?.(entry.id)}
+								className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
+							>
+								<CornerDownLeft size={13.5} strokeWidth={1.9} />
+							</button>
+						)}
 						<button
 							type="button"
 							data-queue-remove
@@ -364,18 +400,32 @@ function Row({
 						>
 							<Trash2 size={13.5} strokeWidth={1.9} />
 						</button>
-						<button
-							type="button"
-							data-queue-more
-							data-ly-tip={t("composer.queueMore")}
-							aria-label={t("composer.queueMore")}
-							aria-haspopup="menu"
-							aria-expanded={more.open}
-							onClick={more.toggle}
-							className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
-						>
-							<MoreHorizontal size={14} strokeWidth={1.9} />
-						</button>
+						{/* 侧边聊天的条上只有「编辑」一样，就直接是那一样——一个只装一行的菜单是多点一下。 */}
+						{source.aside || source.steer ? (
+							<button
+								type="button"
+								data-queue-more
+								data-ly-tip={t("composer.queueMore")}
+								aria-label={t("composer.queueMore")}
+								aria-haspopup="menu"
+								aria-expanded={more.open}
+								onClick={more.toggle}
+								className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
+							>
+								<MoreHorizontal size={14} strokeWidth={1.9} />
+							</button>
+						) : (
+							<button
+								type="button"
+								data-queue-edit
+								data-ly-tip={t("composer.queueEdit")}
+								aria-label={t("composer.queueEdit")}
+								onClick={edit}
+								className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
+							>
+								<PencilLine size={13.5} strokeWidth={1.9} />
+							</button>
+						)}
 					</div>
 				</div>
 			</div>
@@ -386,9 +436,11 @@ function Row({
 						<MenuItem icon={<PencilLine size={14} />} onClick={edit}>
 							{t("composer.queueEdit")}
 						</MenuItem>
-						<MenuItem icon={<MessageSquarePlus size={14} />} onClick={aside}>
-							{t("composer.queueSideChat")}
-						</MenuItem>
+						{source.aside && (
+							<MenuItem icon={<MessageSquarePlus size={14} />} onClick={aside}>
+								{t("composer.queueSideChat")}
+							</MenuItem>
+						)}
 					</MenuBody>
 				</Popover>
 			)}

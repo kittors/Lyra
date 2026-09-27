@@ -23,6 +23,11 @@ export interface SubAgentAnswer {
 	incomplete?: boolean;
 	/** 人在面板上把它按停的。派它来的那一方不该自作主张地让它接着跑。 */
 	stoppedByUser?: boolean;
+	/**
+	 * 父会话没等它跑完就放手了：人插了话，父会话先去回应。它在后台接着跑，跑完后结果由运行时
+	 * 作为一条消息送回——见 `runtime/delegation-waits.ts`。这时 `text` 说的是「它还在跑」，不是结论。
+	 */
+	detached?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +201,13 @@ export interface ApprovalRequest extends QuestionFields {
 	 * certain: the approval policy never answers an escalation (see `ApprovalGate.request`).
 	 */
 	escalation?: SandboxMode;
+	/**
+	 * 是哪个子代理在问。主会话自己问的没有这一项。
+	 *
+	 * 子代理的授权一直送到主窗口的同一张卡片上，只是卡片说不出是谁在要——而后台可能同时有四个
+	 * 在跑，人要据以决定的恰恰是「这个活该不该由它来干」。
+	 */
+	from?: ApprovalOrigin;
 }
 
 /**
@@ -209,6 +221,13 @@ export interface ApprovalRisk {
 	text: string;
 	code?: RiskCode;
 	params?: RiskParams;
+}
+
+/** 提出授权请求的那个子代理。 */
+export interface ApprovalOrigin {
+	subAgentId: string;
+	agent: string;
+	description: string;
 }
 export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
 

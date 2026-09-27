@@ -185,3 +185,35 @@ test("a repository that is not a git URL is still refused", () => {
 	assert.equal(normalise({ id: "x", name: "x", repository: "ftp://example.com/x.git" }), null);
 	assert.equal(normalise({ id: "x", name: "x", repository: "javascript:alert(1)" }), null);
 });
+
+test("一台 MCP 服务要的钥匙跟着索引走，名字不合规的、链接不是 https 的丢掉", () => {
+	const entry = normalise({
+		...base,
+		kind: "mcp",
+		env: [
+			{ name: "BRAVE_API_KEY", description: " Brave 搜索的 API key ", url: "https://brave.com/search/api/" },
+			{ name: "OPTIONAL_REGION", optional: true, url: "javascript:alert(1)" },
+			{ name: "not a name" },
+			"BRAVE_API_KEY",
+		],
+		keywords: ["search", "", 3, "web"],
+	});
+	assert.deepEqual(entry?.needs, [
+		{ name: "BRAVE_API_KEY", description: "Brave 搜索的 API key", url: "https://brave.com/search/api/" },
+		{ name: "OPTIONAL_REGION", optional: true },
+	]);
+	assert.deepEqual(entry?.keywords, ["search", "web"]);
+	assert.equal(normalise({ ...base, needs: [] })?.needs, undefined, "空的就是没有");
+});
+
+test("where the logo came from survives when it is one of the four, and is dropped otherwise", () => {
+	assert.equal(normalise({ ...base, iconSource: "uploaded" })?.iconSource, "uploaded");
+	assert.equal(normalise({ ...base, iconSource: "bundled" })?.iconSource, "bundled");
+	assert.equal(normalise({ ...base, iconSource: "made-up" })?.iconSource, undefined);
+	assert.equal(normalise({ ...base })?.iconSource, undefined);
+});
+
+test("the fields a maintainer curated come through, and nothing that is not a field name", () => {
+	assert.deepEqual(normalise({ ...base, curated: ["name", "description", 3, null] })?.curated, ["name", "description"]);
+	assert.equal(normalise({ ...base, curated: "name" })?.curated, undefined);
+});

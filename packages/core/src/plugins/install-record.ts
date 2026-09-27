@@ -22,6 +22,11 @@ export interface InstallRecord {
 	sha256?: string;
 	/** Which registry it came from, for the rare case of two offering the same id. */
 	from?: string;
+	/**
+	 * For a skill collection: the directories it put among the loose skills, by name. Removing the
+	 * collection removes these and nothing else — see `collectionDirs` in `registry.ts`.
+	 */
+	skills?: string[];
 	installedAt: string;
 }
 
@@ -47,9 +52,21 @@ export interface InstallRecord {
  */
 export function isOutdated(
 	record: InstallRecord | undefined | null,
-	offered: { commit?: string; sha256?: string; version?: string } | null | undefined,
+	offered: { commit?: string; sha256?: string; version?: string; path?: string } | null | undefined,
 ): boolean {
 	if (!record || !offered) return false;
+	/*
+	 * One directory of a repository that holds many: its commit is the whole repository's.
+	 *
+	 * The default registry's MCP wrappers all live in one repository, so a commit that touches one of
+	 * them moves the commit of every one — and each installed wrapper then read as "has an update",
+	 * which (updates being automatic) restarted every MCP server somebody had, for nothing. What does
+	 * say whether *this* directory changed is the version it publishes, when it publishes a real one:
+	 * a wrapper's is its upstream package's. A derived `0.0.0-<sha>` is the commit again, and `0.0.0`
+	 * is nothing at all, so those fall through to the commit as before.
+	 */
+	const released = (version: string | undefined) => !!version && version !== "0.0.0" && !version.startsWith("0.0.0-");
+	if (offered.path && released(offered.version) && record.version === offered.version) return false;
 	if (record.commit && offered.commit) return record.commit !== offered.commit;
 	if (record.sha256 && offered.sha256) return record.sha256 !== offered.sha256;
 	if (record.version && offered.version) return record.version !== offered.version;

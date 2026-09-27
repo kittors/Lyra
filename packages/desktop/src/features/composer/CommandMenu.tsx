@@ -62,7 +62,7 @@ export function CommandMenu({ commands, active, keyboardSelection, onPick, onHov
 					return <div key={`${command.kind}:${command.name}`}>
 						{!shownTerm && command.kind !== shown[index - 1]?.kind && <div className="px-3 pb-1 pt-2 text-detail text-ink-faint">{t(GROUPS[command.kind])}</div>}
 						<button id={`${id}-${index}`} type="button" role={open ? "option" : undefined} tabIndex={-1}
-							aria-label={`${command.name}，${command.description}，${command.origin}`} aria-selected={index === shownActive}
+							aria-label={[command.name, command.description, command.origin].filter(Boolean).join(t("common.comma"))} aria-selected={index === shownActive}
 							data-index={index} data-command-kind={command.kind}
 							onMouseDown={(event) => event.preventDefault()} onClick={() => onPick(command)} onMouseMove={(event) => {
 								// Scrolling can move a new row under a stationary pointer without a new selection intent.

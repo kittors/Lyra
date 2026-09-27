@@ -64,14 +64,35 @@ export function HoverRowReveal({ className = "", children }: { className?: strin
 			if (overlay.width < 1) return;
 			const title = row.querySelector(".ly-fade-tail");
 			const titleRight = title?.getBoundingClientRect().right ?? overlay.right;
-			const clear = Math.round(titleRight - overlay.left);
-			if (clear > 0) row.style.setProperty("--ly-row-controls", `${clear}px`);
+			/*
+			 * No overlap is written as 0, not skipped.
+			 *
+			 * The `controls` fallback is an estimate for a title that fills the row with the buttons over
+			 * its tail. Where the title stops short of the strip, the measurement comes out negative, and
+			 * skipping it left the fallback in place for good: on hover the mask cleared a stretch off the
+			 * title's end for nothing, and `ScrollText` counted that stretch as unreadable, so a name that
+			 * fit started scrolling the moment it was hovered. Project rows did exactly this.
+			 */
+			const clear = `${Math.max(0, Math.round(titleRight - overlay.left))}px`;
+			if (row.style.getPropertyValue("--ly-row-controls") === clear) return;
+			row.style.setProperty("--ly-row-controls", clear);
+			/*
+			 * Tell any `ScrollText` in the row to measure again. Its hover verdict depends on this value,
+			 * but its own observer only watches sizes, and it fires before this one: when a project folds,
+			 * the count pushes in and the title narrows, and it re-judges with the old overlap before this
+			 * writes the new one.
+			 */
+			row.dispatchEvent(new Event("ly-row-controls"));
 		};
 		sync();
 		if (typeof ResizeObserver === "undefined") return;
 		const observer = new ResizeObserver(sync);
 		observer.observe(el);
 		observer.observe(row);
+		// The title too: folding a project pushes the count in and narrows the title, while the row
+		// and the strip keep their size.
+		const title = row.querySelector(".ly-fade-tail");
+		if (title) observer.observe(title);
 		return () => observer.disconnect();
 	}, []);
 	return (

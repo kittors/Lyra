@@ -5,12 +5,44 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { StatusBar } from "expo-status-bar";
 import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { backPress, type BackState } from "../src/back";
 import { bridgeScript } from "../src/bridge";
 import { keyboardOverlap, type ScreenFrame } from "../src/keyboard";
+import { insetScript, pageInsets } from "../src/shell-insets";
 import { useMobile } from "../src/store";
 import { appUrlOf, isAppUrl, originOf } from "../src/connection";
 import { mobileTranslator } from "../src/i18n";
+
+/**
+ * One named feel, played on the Taptic Engine.
+ *
+ * The page names what happened — a long press landing is `medium`, picking from a menu is
+ * `selection` — rather than asking for an engine setting, so the vocabulary stays the page's and the
+ * mapping stays here. A name this build does not know plays nothing.
+ */
+function haptic(style: unknown): Promise<void> {
+	switch (style) {
+		case "selection":
+			return Haptics.selectionAsync();
+		case "light":
+			return Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+		case "medium":
+			return Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+		case "heavy":
+			return Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+		case "rigid":
+			return Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid);
+		case "success":
+			return Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+		case "warning":
+			return Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+		case "error":
+			return Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+		default:
+			return Promise.resolve();
+	}
+}
 
 /**
  * The desktop's own interface, on the phone.
@@ -20,10 +52,12 @@ import { mobileTranslator } from "../src/i18n";
  * things a WebView cannot work out for itself: where to load from, what `window.lyra` is, and how
  * to sit inside a phone's chrome.
  *
- * The safe area is handled here rather than in the page. The renderer's layout already knows how
- * to be narrow (it goes there whenever a desktop window is dragged in), and it has no notion of a
- * notch or a home indicator — those are the phone's, so they are padding around the WebView
- * instead of a media query inside it.
+ * The WebView runs edge to edge and the page keeps its own controls clear of the notch and the
+ * home indicator. It used to be the other way round — the insets were padding around the WebView —
+ * which left a band of flat colour under every screen: the drawer stopped short of the bottom, its
+ * scrim did not reach the status bar, and nothing could scroll under the home indicator the way it
+ * does in every other app. Only the page knows which of its parts are background and which are
+ * buttons, so the numbers are handed to it (`shell-insets.ts`) and it spends them.
  */
 export default function DeskScreen() {
 	const t = useMemo(() => mobileTranslator(), []);
@@ -59,6 +93,12 @@ export default function DeskScreen() {
 	const webviewHost = useRef<View>(null);
 	const keyboardFrame = useRef<ScreenFrame | null>(null);
 	const [nativeKeyboardInset, setNativeKeyboardInset] = useState(0);
+	/*
+	 * Whether a keyboard is up at all, which is not the same as whether it overlaps: an Android window
+	 * resized for the keyboard ends at its top edge and overlaps nothing, and the home indicator (or
+	 * the gesture bar) is behind the keyboard either way.
+	 */
+	const [keyboardUp, setKeyboardUp] = useState(false);
 
 	/*
 	 * Resize the native WebView to the visible screen, before iOS scrolls the entire page to reveal
@@ -69,11 +109,15 @@ export default function DeskScreen() {
 		const keyboard = keyboardFrame.current;
 		if (!keyboard) {
 			setNativeKeyboardInset(0);
+			setKeyboardUp(false);
 			return;
 		}
 		webviewHost.current?.measureInWindow((x, y, width, height) => {
 			if (keyboardFrame.current !== keyboard) return;
-			setNativeKeyboardInset(keyboardOverlap({ x, y, width, height }, keyboard));
+			const overlap = keyboardOverlap({ x, y, width, height }, keyboard);
+			setNativeKeyboardInset(overlap);
+			// iOS reports the keyboard leaving as a frame change too; only a frame over the view is one that is up.
+			setKeyboardUp(Platform.OS === "android" || overlap > 0);
 		});
 	}, []);
 
@@ -90,12 +134,23 @@ export default function DeskScreen() {
 		const hidden = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => {
 			keyboardFrame.current = null;
 			setNativeKeyboardInset(0);
+			setKeyboardUp(false);
 		});
 		return () => {
 			shown.remove();
 			hidden.remove();
 		};
 	}, [measureKeyboardOverlap]);
+
+	/*
+	 * What the page should keep its controls clear of, re-sent whenever it changes: rotating the
+	 * phone moves the notch to a side, and a keyboard puts the home indicator behind it.
+	 */
+	const chrome = pageInsets(insets, keyboardUp);
+	const chromeScript = insetScript(chrome);
+	useEffect(() => {
+		webview.current?.injectJavaScript(`${chromeScript}\ntrue;`);
+	}, [chromeScript]);
 
 	const reload = useCallback(() => {
 		setFailed(null);
@@ -159,7 +214,7 @@ export default function DeskScreen() {
 	};
 
 	const onPageMessage = async (raw: string) => {
-		let message: { type?: string; depth?: number; dark?: boolean; shell?: string; status?: string; id?: string; method?: string; value?: unknown };
+		let message: { type?: string; depth?: number; dark?: boolean; shell?: string; status?: string; id?: string; method?: string; value?: unknown; style?: unknown };
 		try {
 			message = JSON.parse(raw) as typeof message;
 		} catch {
@@ -171,6 +226,14 @@ export default function DeskScreen() {
 		}
 		if (message.type === "theme" && typeof message.dark === "boolean") {
 			setTheme({ dark: message.dark, shell: message.shell || (message.dark ? "#171717" : "#ffffff") });
+			return;
+		}
+		/*
+		 * A tap the page wants felt: a long press landing, a menu choice. Fire and forget — a
+		 * device without a Taptic Engine resolves to nothing, and a failure is not worth a reply.
+		 */
+		if (message.type === "haptic") {
+			void haptic(message.style).catch(() => {});
 			return;
 		}
 		if (message.type === "connection" && typeof message.status === "string") {
@@ -210,14 +273,18 @@ export default function DeskScreen() {
 			ref={webviewHost}
 			className="flex-1"
 			onLayout={measureKeyboardOverlap}
-			// The page's own background, so the safe areas read as part of it rather than as a frame
-			// around it. `bg-shell` was right for exactly one of the two themes.
+			/*
+			 * Edge to edge, except for the keyboard.
+			 *
+			 * The background is the page's own, so whatever the WebView has not painted yet — the
+			 * strip a keyboard uncovers on its way down — reads as part of it. The only padding left
+			 * is the keyboard's: resizing the WebView to end at its top edge is what stops iOS
+			 * scrolling the whole page to reveal the focused field. Everything else the page keeps
+			 * clear of itself, from the numbers in `chromeScript`.
+			 */
 			style={{
 				backgroundColor: theme.shell,
-				paddingTop: insets.top,
-				paddingLeft: insets.left,
-				paddingRight: insets.right,
-				paddingBottom: Math.max(insets.bottom, nativeKeyboardInset),
+				paddingBottom: nativeKeyboardInset,
 			}}
 		>
 			<StatusBar style={theme.dark ? "light" : "dark"} />
@@ -228,10 +295,11 @@ export default function DeskScreen() {
 				 * Injected before the page's own scripts, because the very first thing the app does
 				 * is read `window.lyra`. `injectedJavaScript` — without the suffix — runs after
 				 * load, which is far too late: the renderer would already have crashed looking for
-				 * an interface that was not there yet.
+				 * an interface that was not there yet. The insets ride along so the first frame is
+				 * already laid out around the notch rather than jumping clear of it a moment later.
 				 */
-				injectedJavaScriptBeforeContentLoaded={bridgeScript(connection)}
-				onLoadStart={() => webview.current?.injectJavaScript(`${bridgeScript(connection)}\ntrue;`)}
+				injectedJavaScriptBeforeContentLoaded={`${bridgeScript(connection)}\n${chromeScript}`}
+				onLoadStart={() => webview.current?.injectJavaScript(`${bridgeScript(connection)}\n${chromeScript}\ntrue;`)}
 				/*
 				 * What the page tells us about itself: how many layers it has open, for the back
 				 * button, and which theme it is in, for the status bar and the safe areas.
@@ -241,7 +309,12 @@ export default function DeskScreen() {
 				 * socket handler.
 				 */
 				onMessage={({ nativeEvent }) => void onPageMessage(nativeEvent.data)}
-				onLoadEnd={() => setLoading(false)}
+				onLoadEnd={() => {
+					setLoading(false);
+					// Again once the document exists: an Android WebView can skip the early injection
+					// on a reload, and a page without the numbers lays its controls under the notch.
+					webview.current?.injectJavaScript(`${chromeScript}\ntrue;`);
+				}}
 				onError={({ nativeEvent }) => {
 					setLoading(false);
 					setFailed(nativeEvent.description || t("desk.openFailed"));
@@ -259,6 +332,14 @@ export default function DeskScreen() {
 				 * settle it at the WebView rather than relying on the page being obeyed.
 				 */
 				scalesPageToFit={false}
+				/*
+				 * No ↑ ↓ ✓ bar above the keyboard. That strip is WebKit's form navigation — it is
+				 * what makes a page's text field look like a web form — and the composer already
+				 * has what it offers: its own send, and a tap anywhere else to put the keyboard away.
+				 * The iOS 26 simulator still draws it despite this; it stays on for the versions
+				 * that honour it.
+				 */
+				hideKeyboardAccessoryView
 				setBuiltInZoomControls={false}
 				// The renderer manages its own scrolling regions; a bouncing page underneath them
 				// makes the whole interface feel detached from the phone.
@@ -266,6 +347,16 @@ export default function DeskScreen() {
 				overScrollMode="never"
 				// Native layout handles IME overlap; the page still covers visualViewport cases.
 				automaticallyAdjustContentInsets={false}
+				/*
+				 * And only native layout. WKWebView has keyboard handling of its own — it shrinks its
+				 * visible area by the keyboard and scrolls the document to reveal the field — and on
+				 * top of the resize above that counts the keyboard twice: measured on iOS 26, the page
+				 * was left 68pt tall and scrolled 403pt, the composer pinned under the status bar over
+				 * an empty screen. Whether it happened depended on which of the two ran first. Removing
+				 * the WebView's observers leaves one account of the keyboard; the page reveals a focused
+				 * field itself when it is resized (`useKeyboardInset`).
+				 */
+				removeIosKeyboardObserver
 				contentInsetAdjustmentBehavior="never"
 				// Other relay capabilities belong in the external browser, outside this session bridge.
 				originWhitelist={["http://*", "https://*", "about:blank"]}

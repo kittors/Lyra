@@ -374,3 +374,16 @@ test("a session title goes in as text, even when it looks like a replacement pat
 		["“Swap $& for $'” finished", "“Fill {detail}” needs your approval: Run command"],
 	);
 });
+
+test("a sub-agent's question names the agent, joined the way the interface language joins things", () => {
+	const asked = {
+		type: "approval_request",
+		kind: "interactive",
+		subject: "ask_user",
+		title: "",
+		detail: "Which branch?",
+		from: { subAgentId: "a1", agent: "reviewer", description: "Review auth" },
+	} as unknown as AgentEvent;
+	assert.deepEqual(bodiesIn("en", "zh-CN", () => notifyAgentEvent("s", asked, "Refactor")), ["“Refactor” needs your input: Review auth: Which branch?"]);
+	assert.deepEqual(bodiesIn("zh-CN", "en-US", () => notifyAgentEvent("s", asked, "Refactor")), ["「Refactor」等待回复：Review auth：Which branch?"]);
+});

@@ -7,11 +7,12 @@
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
  */
 
-export { PluginIcon, SkillMark, safeColour } from "./PluginIcon.tsx";
+export { PluginIcon, safeColour } from "./PluginIcon.tsx";
 export { CODE_DEFAULTS } from "./appearance-defaults.ts";
 export { formatCost } from "./usage-format.ts";
-export { GhostButton, Toggle } from "./controls.tsx";
-export { TextInput, InlineSelect } from "./inputs.tsx";
+export { Toggle } from "./controls.tsx";
+export { TextInput, InlineSelect, SecretInput } from "./inputs.tsx";
+export { newMcpServer } from "./mcp-defaults.ts";
 export { NumberField, TimeField } from "./pickers.tsx";
 export { applyAppearance, onAppearanceApplied, watchSystemTheme } from "./theme.ts";
 

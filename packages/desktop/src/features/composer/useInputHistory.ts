@@ -16,11 +16,10 @@ import type { KeyboardEvent, RefObject } from "react";
 
 import type { Message } from "@lyra/core";
 /*
- * 走前门，不伸进 `conversation/grouping.ts`——`pnpm arch` 的 features-through-the-front-door 拦这个。
- *
- * 「哪几条是人自己打的」本来就是转录的语义，判断留在那个域里，这边只消费结果。
+ * 「哪几条是人自己打的」在 `lib/spoken.ts`：从前走对话域的大门去拿，而这个 hook 如今是输入框域对外
+ * 的东西（侧边聊天、子智能体也用），经大门去引对话域就连成了「输入框 → 对话 → 输入框」的环。
  */
-import { spokenByPerson } from "../conversation/index.ts";
+import { spokenByPerson } from "../../lib/spoken.ts";
 import { attachmentsFrom, type RestoredAttachment } from "./attachments/restore.ts";
 
 export interface InputHistory {

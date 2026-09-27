@@ -219,8 +219,12 @@ export const METHODS = {
 		fetchRegistry: { channel: "registry:fetch", remote: false, why: "装一个插件等于同意运行它的代码" },
 		icon: { channel: "registry:icon", remote: false, why: "装一个插件等于同意运行它的代码" },
 		icons: { channel: "registry:icons", remote: false, why: "装一个插件等于同意运行它的代码" },
+		readme: { channel: "registry:readme", remote: false, why: "读本机装好的插件目录和它的仓库" },
 		installFromRegistry: { channel: "registry:install", remote: false, why: "装一个插件等于同意运行它的代码" },
 		uninstall: { channel: "registry:uninstall", remote: false, why: "装一个插件等于同意运行它的代码" },
+		updates: { channel: "plugins:updates", remote: false, why: "装一个插件等于同意运行它的代码" },
+		updateAll: { channel: "plugins:updateAll", remote: false, why: "装一个插件等于同意运行它的代码" },
+		environment: { channel: "plugins:environment", remote: false, why: "读本机登录环境里有哪些变量" },
 	},
 	updates: {
 		check: { channel: "updates:check", remote: false, why: "下载并运行安装包" },

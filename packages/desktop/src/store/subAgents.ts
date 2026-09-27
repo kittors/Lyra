@@ -42,6 +42,15 @@ interface SubAgentState {
 	 * conversation's, and its broadcasts arrive while it is not the live one.
 	 */
 	rosters: Record<string, SubAgentSummary[]>;
+	/**
+	 * 每个会话最近一次收尾的时刻。
+	 *
+	 * 输入框上方那条据此收起：在这之前结束的子智能体，它们的结果已经进了那一轮，这一行就没什么
+	 * 可说的了（见 `barAgents`）。记在这里而不是那个组件里，因为收尾可能发生在人没看着这个会话的
+	 * 时候——切回来时那一行不该又冒出来。
+	 */
+	settled: Record<string, number>;
+	settle(sessionId: string): void;
 
 	/** Take the roster the session in the live slot just broadcast. */
 	sync(agents: SubAgentSummary[], sessionId?: string): void;
@@ -52,6 +61,15 @@ interface SubAgentState {
 	/** One message, as the sub-agent writes it. Ignored for a transcript nobody has opened. */
 	append(id: string, message: Message): void;
 	focus(id: string | null): void;
+	/**
+	 * 有人要看某一个——在对话里点了它的派发卡片。
+	 *
+	 * 翻到它那一页之外，还要把面板打开；而打开面板是 dock 的事，对话那一侧够不着它（从对话里
+	 * 直接引 dock，会在依赖图上绕出一个新的环）。所以这里只记下「谁、在哪个会话里、什么时候」，
+	 * 由输入框上方那条状态条——它本来就负责在派活时把面板打开——看到之后去开。
+	 */
+	revealed: { id: string; sessionId: string | null; at: number } | null;
+	reveal(id: string, sessionId: string | null): void;
 	/** Read one sub-agent's transcript. Idempotent while a read is in flight. */
 	load(sessionId: string, id: string): Promise<void>;
 	/** A different conversation is in front of you; this one's delegated work is not. */
@@ -64,13 +82,23 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 	focused: null,
 	loading: [],
 	rosters: {},
+	settled: {},
+	revealed: null,
+
+	settle(sessionId) {
+		set({ settled: { ...get().settled, [sessionId]: Date.now() } });
+	},
+
+	reveal(id, sessionId) {
+		set({ focused: id, revealed: { id, sessionId, at: Date.now() } });
+	},
 
 	retain(sessionId, agents) {
 		set({ rosters: { ...get().rosters, [sessionId]: agents } });
 	},
 
 	forgetFinished(sessionId) {
-		const kept = (get().rosters[sessionId] ?? []).filter((one) => one.status === "running");
+		const kept = (get().rosters[sessionId] ?? []).filter((one) => isActive(one));
 		set({ rosters: { ...get().rosters, [sessionId]: kept } });
 	},
 
@@ -128,13 +156,31 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 	},
 }));
 
-/** Running first, then the most recently finished — which is the order they are worth reading in. */
+/**
+ * Running first, then the ones queued behind the gate, then the finished ones — which is the order
+ * they are worth reading in.
+ */
 export function rosterOrder(agents: SubAgentSummary[]): SubAgentSummary[] {
-	return [...agents].sort((a, b) => {
-		if (a.status === "running" && b.status !== "running") return -1;
-		if (b.status === "running" && a.status !== "running") return 1;
-		return a.startedAt - b.startedAt;
-	});
+	const rank = (one: SubAgentSummary) => (one.status === "running" ? 0 : one.status === "queued" ? 1 : 2);
+	return [...agents].sort((a, b) => rank(a) - rank(b) || a.startedAt - b.startedAt);
+}
+
+/** 还没完：在跑，或者在闸门后面排着。 */
+export function isActive(one: Pick<SubAgentSummary, "status">): boolean {
+	return one.status === "running" || one.status === "queued";
+}
+
+/**
+ * 主会话此刻卡在它派出去的子代理上。
+ *
+ * 人这时候说的话不该排在它们后面：主会话不是在干活，是在等——等的那十几分钟里，排着的消息一句都
+ * 发不出去（2026-09-26 的真实会话）。人一开口，运行时就让主会话放手（`delegation-waits.ts`），
+ * 所以这时候消息应当直接送进去，而不是在输入框上方排队。
+ *
+ * 转到后台的那些不算：主会话已经不等它们了。
+ */
+export function awaitingSubAgents(roster: readonly SubAgentSummary[]): boolean {
+	return roster.some((one) => one.depth === 1 && isActive(one) && !one.background);
 }
 
 /** What a sub-agent has spent, in the two numbers a person reads: tokens, and dollars when priced. */
@@ -187,8 +233,23 @@ function addFigures(a: RosterFigures, b: RosterFigures): RosterFigures {
 export function rosterTree(agents: SubAgentSummary[]): RosterNode[] {
 	const known = new Set(agents.map((one) => one.id));
 	const byParent = new Map<string | null, SubAgentSummary[]>();
+	/*
+	 * 父亲指回自己（或者绕成一个圈）的那几条，当成根。
+	 *
+	 * 正常的登记簿不会这样——父亲在孩子之前登记，孩子的 id 是新铸的——但这份名单是跨进程传过来的
+	 * 数据，一条坏的记录不该让整个面板在递归里爆栈。沿着父亲往上走，走回自己就是圈。
+	 */
+	const parentOf = new Map(agents.map((one) => [one.id, one.parentId && known.has(one.parentId) ? one.parentId : null]));
+	const circular = (id: string) => {
+		const seen = new Set([id]);
+		for (let at = parentOf.get(id); at; at = parentOf.get(at)) {
+			if (seen.has(at)) return true;
+			seen.add(at);
+		}
+		return false;
+	};
 	for (const one of rosterOrder(agents)) {
-		const parent = one.parentId && known.has(one.parentId) ? one.parentId : null;
+		const parent = circular(one.id) ? null : (parentOf.get(one.id) ?? null);
 		byParent.set(parent, [...(byParent.get(parent) ?? []), one]);
 	}
 	const build = (agent: SubAgentSummary, level: number): RosterNode => {
@@ -208,9 +269,4 @@ export function rosterRows(agents: SubAgentSummary[]): RosterNode[] {
 	};
 	for (const root of rosterTree(agents)) walk(root);
 	return rows;
-}
-
-/** Whether anything on the roster was dispatched by another sub-agent — the tree is only drawn when there is one. */
-export function rosterNested(agents: SubAgentSummary[]): boolean {
-	return agents.some((one) => one.depth > 1);
 }

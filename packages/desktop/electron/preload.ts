@@ -125,6 +125,13 @@ type DeepPartial<T> = {
 };
 
 const extras = {
+	plugins: {
+		onChanged: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof handler>[0]) => handler(state);
+			ipcRenderer.on("plugins:changed", listener);
+			return () => ipcRenderer.removeListener("plugins:changed", listener);
+		},
+	},
 	sessions: {
 		onChanged: (handler) => {
 			const listener = (_event: Electron.IpcRendererEvent, change: Parameters<typeof handler>[0]) => handler(change);

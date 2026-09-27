@@ -16,6 +16,7 @@ export {
 	slugOf,
 	type BundleKind,
 	type EntryStatus,
+	type EntryNeed,
 	type RegistryEntry,
 	type RegistryIndex,
 } from "./entry.ts";
@@ -56,3 +57,5 @@ export {
 	type ClientId,
 	type Evidence,
 } from "./clients.ts";
+
+export { CATEGORY_ORDER, canonicalCategory } from "./categories.ts";

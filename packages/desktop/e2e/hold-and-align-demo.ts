@@ -226,7 +226,6 @@ async function main() {
 				return {
 					icon: pick(link.querySelector('svg')),
 					label,
-					button: pick(wrap.querySelector('[data-ly-file-actions] > button')),
 					linkLine: lp ? +lp.getBoundingClientRect().height.toFixed(2) : -1,
 					proseLine: lp ? +parseFloat(getComputedStyle(lp).lineHeight).toFixed(2) : -1,
 					plainLine: pp.length ? +parseFloat(getComputedStyle(pp[0]).lineHeight).toFixed(2) : -1,
@@ -238,10 +237,7 @@ async function main() {
 			const delta = +(box.icon.mid - box.label.mid).toFixed(2);
 			check(`图标和文件名垂直居中（差 ${delta > 0 ? "+" : ""}${delta}px）`, Math.abs(delta) < 0.6, `${delta}px`);
 		}
-		if (box.button && box.label) {
-			const delta = +(box.button.mid - box.label.mid).toFixed(2);
-			check(`两个出口按钮也在同一条中线上（差 ${delta > 0 ? "+" : ""}${delta}px）`, Math.abs(delta) < 0.6, `${delta}px`);
-		}
+		// The exits no longer sit on this line (on hover they float above the chip, see FileLink in Markdown.tsx), so there is no shared midline to compare.
 		/*
 		 * 和**正文自己的行高**比，不和「另一个段落的总高」比。
 		 *
@@ -255,18 +251,18 @@ async function main() {
 			`${box.linkLine} vs ${box.proseLine}`,
 		);
 
-		console.log("\n   悬停：两个图标依次落位，各自的 tooltip");
+		console.log("\n   悬停：标签上方浮出两个出口，各自的 tooltip");
 		await pause(1200);
 		await mark("[data-ly-file-link] a", "data-demo");
 		await hover("[data-demo]");
 		await pause(1800);
-		const shown = await app.evaluate<number>(`document.querySelectorAll('[data-ly-file-actions] > button').length`);
+		const shown = await app.evaluate<number>(`document.querySelectorAll('[data-ly-file-actions] button').length`);
 		check("悬停后出现了两个出口", shown === 2, `出现了 ${shown} 个`);
 
-		await mark("[data-ly-file-actions] > button:nth-child(1)", "data-demo2");
+		await mark("[data-ly-file-actions] button:nth-child(1)", "data-demo2");
 		await hover("[data-demo2]");
 		await pause(2200);
-		await mark("[data-ly-file-actions] > button:nth-child(2)", "data-demo3");
+		await mark("[data-ly-file-actions] button:nth-child(2)", "data-demo3");
 		await hover("[data-demo3]");
 		await pause(2200);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 60, y: 640 });

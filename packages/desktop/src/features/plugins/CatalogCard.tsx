@@ -1,121 +1,83 @@
 /**
- * One bundle in the catalogue.
+ * One bundle in the catalogue: what it is, and the one thing to do about it.
  *
- * A card with a border, which it did not used to have: it was a row that grew a background on
- * hover, and a grid of those reads as a list of links rather than as a shelf of things. The border
- * is what makes the icon, the name and the lines under it belong to each other — and it is what the
- * site's own catalogue has always done, so the two views of one registry now agree.
+ * A card is read in a grid of thirty, so it says four things and no more — the mark, the name, a
+ * line about what it does, and who made it — and offers one action on its right edge. Everything
+ * else is one click further, on the bundle's own page, which has the room to say it properly.
  *
- * What it says has grown for a plainer reason: the data was already there. `version`, `author`,
- * `downloads`, `skillCount` and `clients` have been in every index the platform serves since it
- * existed, and this card drew a name and a sentence. See `CardMeta` for what the two lines are for.
+ * It used to say a great deal more, all of it true: which half of the catalogue it came from, its
+ * version, its directory name, its author, a bordered chip for each agent that can install it, a
+ * skill count and a download count — two lines of metadata under every name, repeated down the
+ * page until the names were the hardest thing on it to find. Those facts now live on the detail
+ * page (`PluginDetail`), where somebody deciding about one bundle reads them, instead of on every
+ * card, where somebody looking for one skims past them.
  *
- * The actions stay minimal, and the rule is unchanged — one obvious thing, everything else behind
- * the ⋯:
+ * The action on the right is the state of the thing, and the button when there is something to do:
  *
- *   - not installed — 安装. It is why the page exists, so it is stated rather than revealed on
- *     hover, because a button you have to find is a button most people do not.
- *   - installed — the switch, and ⋯ for the rest.
- *   - installed and superseded — 更新 as well, because that is now the one obvious thing. It is
- *     the only control here that appears on its own evidence rather than on a state the user set.
+ *   - not installed — 安装;
+ *   - installed and behind the registry — 更新, in the accent, because it is the one state that
+ *     appeared on its own rather than because somebody chose it;
+ *   - installed but waiting for a key (an MCP server with a placeholder nobody filled) — 待配置,
+ *     which opens the page where the key is typed;
+ *   - installed, and fine — a quiet ✓, or 已停用 when it is switched off.
+ *
+ * Switching on and off, trying a prompt, opening the folder and uninstalling are all on the detail
+ * page and in 设置 › 插件. A card is for finding things; managing them has two places already.
  */
 
-import { useI18n } from "../../i18n/index.ts";
-import { ArrowUp, Download, FolderOpen, MoreHorizontal, Play, Settings2, Trash2 } from "lucide-react";
-import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { ArrowUp, Check, Download, KeyRound } from "lucide-react";
 
-import { Confirm } from "../../ui/overlay/Confirm.tsx";
-import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { useI18n } from "../../i18n/index.ts";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { PluginIcon } from "../settings/index.ts";
-import { FootprintLine, IdentityLine } from "./CardMeta.tsx";
 import { isEnabled, isInstalled, type CatalogItem } from "./catalog.ts";
-import { useInstall } from "./useInstall.ts";
-import { bridge } from "../../services/index.ts";
+import { compactCount } from "./format.ts";
+import { useInstall, type Install, type InstallReports } from "./useInstall.ts";
 
 export function CatalogCard({
 	item,
+	index = 0,
+	missing,
+	showKind,
 	onOpen,
-	onChanged,
-	onError,
-	onTry,
-	onToggle,
+	reports,
 }: {
 	item: CatalogItem;
+	/** Where it comes in the order the grid arrives in; see `.ly-rise-in`. */
+	index?: number;
+	/** Values this MCP bundle still needs before it can start. */
+	missing: string[];
+	/** Say which of the three it is — only where the grid mixes them. */
+	showKind: boolean;
 	onOpen: () => void;
-	/** Something on disk moved; the catalogue has to be re-read. */
-	onChanged: () => void;
-	onError: (message: string) => void;
-	/** Starts a conversation with one of the bundle's own example prompts already typed. */
-	onTry: (prompt: string) => void;
-	/**
-	 * Switch it on or off. Absent for kinds that have no single switch.
-	 *
-	 * An MCP bundle has one per server it brought and a collection has none at all — its skills are
-	 * simply among the loose ones once installed. The caller decides, because it is the one holding
-	 * the settings.
-	 */
-	onToggle?: (enabled: boolean) => void;
+	reports: InstallReports;
 }) {
 	const { t } = useI18n();
-	const menu = usePopover();
-	const act = useInstall(item, onChanged, onError);
-
-	const plugin = item.installed;
-	const bundle = item.bundle;
+	const act = useInstall(item, reports);
 	const installed = isInstalled(item);
-	/*
-	 * Where "打开目录" goes, and the thing whose absence used to hide the whole menu.
-	 *
-	 * A skill collection has no directory of its own — its skills sit among the loose ones. That
-	 * left `dir` null, and the menu is gated on it, so an installed collection had no way to be
-	 * uninstalled at all: no 安装 button any more, and no ⋯ menu either. The folder its skills went
-	 * into is the honest answer to "show me this", even though it holds more than this.
-	 */
-	const dir = plugin?.dir ?? bundle?.dir ?? item.collectedIn;
-	/*
-	 * Trying it means running one of its own example prompts, so it takes both a prompt to run and
-	 * something that is actually live — offering it while the bundle is switched off would open a
-	 * conversation that silently lacks the thing being demonstrated. For an MCP bundle "live"
-	 * means at least one of its servers is enabled, which is a per-server switch on the MCP page.
-	 */
-	const manifest = plugin?.manifest ?? bundle?.manifest;
-	const trial = isEnabled(item) ? (manifest?.interface?.defaultPrompt?.[0] ?? null) : null;
-	/** A bundle that lives in the project's own directory is removed by deleting it there. */
-	const removable = installed && (plugin?.source ?? bundle?.source) !== "workspace";
-	/* Only a plugin has one switch. See `onToggle`. */
-	const switchable = onToggle && plugin !== null;
-
-	const close = () => {
-		menu.close();
-		act.setConfirming(false);
-	};
+	const author = item.author;
+	const downloads = (item.downloads ?? 0) > 0 ? compactCount(item.downloads ?? 0) : null;
+	const needsKey = !installed && item.needs.some((need) => !need.optional);
 
 	return (
 		/*
-		 * The click target is underneath, not around.
-		 *
-		 * A button cannot contain a button, so the switch and the ⋯ cannot sit inside the card's own
-		 * button — they used to be absolutely positioned over its right-hand end, with the text
-		 * column given a fixed right inset to keep clear of them. That inset is a guess about how
-		 * wide the controls are, and it was wrong in both directions at once: too much for a card
-		 * whose only control is a 26px ⋯ (the identity line lost 96px it had no reason to give up,
-		 * and `agent-browser-cli` truncated by nine pixels), and too little for one showing 更新 as
-		 * well as a switch (measured: 118px of controls under a 92px reservation, a 25px overlap).
-		 *
-		 * With the button as a layer behind the content, the controls are ordinary flex children on
-		 * the title row and take exactly the space they take. Nothing is reserved and nothing
-		 * collides. The content layer passes pointer events through to the button; the controls opt
-		 * back in.
+		 * The click target is underneath, not around: a button cannot hold the action button, so the
+		 * card's own button is a layer behind the content and the action opts back into pointer events.
 		 */
-		<div className="group/card relative mb-4">
+		/*
+		 * `h-full` and a column that pushes its last line down: cards in one row of the grid come out
+		 * the same height with their footers level, and a card alone in its row is as short as it can
+		 * be — rather than every card reserving two lines of text it may not have.
+		 */
+		<div className="ly-rise-in group/card relative h-full" data-card={item.key} style={{ "--ly-i": index } as React.CSSProperties}>
 			<button
 				type="button"
 				onClick={onOpen}
 				aria-label={item.name}
-				className="absolute inset-0 rounded-xl border border-line-soft bg-card/40 transition-[background-color,border-color] duration-[var(--ly-t-quick)] hover:border-line hover:bg-card-hover/60"
+				className="absolute inset-0 rounded-xl border border-line-soft/70 bg-card/30 transition-[background-color,border-color,transform] duration-[var(--ly-t-quick)] hover:border-line-soft hover:bg-card-hover/60 active:scale-[0.992]"
 			/>
 
-			<div className="pointer-events-none relative flex items-start gap-3 p-3.5">
+			<div className="pointer-events-none relative flex h-full items-start gap-3 px-3.5 py-3">
 				<PluginIcon
 					name={item.name}
 					id={item.id}
@@ -123,221 +85,102 @@ export function CatalogCard({
 					brandColor={item.brandColor}
 					category={item.category}
 					kind={item.kind}
-					size={38}
+					size={40}
 				/>
 
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-2">
-						<span className="truncate text-label font-medium text-ink">{item.name}</span>
-						{item.outdated && (
-							<span className="shrink-0 whitespace-nowrap rounded-md bg-accent/12 px-1.5 py-px text-caption leading-[1.5] text-accent">
-								{t("catalogCard.updatable")}
+				<div className="flex min-h-full min-w-0 flex-1 flex-col">
+					<div className="flex min-h-[26px] items-center gap-2">
+						<span data-card-name="" className="truncate text-label font-medium text-ink">{item.name}</span>
+						{showKind && item.kind !== "plugin" && (
+							<span className="shrink-0 rounded-md bg-card-hover px-1.5 text-caption leading-[18px] text-ink-faint">
+								{item.kind === "mcp" ? "MCP" : t("common.skills")}
 							</span>
 						)}
-						{/*
-						 * Installed-and-off is worth a word; installed-and-on is what the switch beside
-						 * it already says. An MCP bundle starts with every server off, so "未启用" is
-						 * where it begins rather than something the user did.
-						 */}
-						{installed && !isEnabled(item) && item.collected === 0 && (
-							<span className="shrink-0 whitespace-nowrap text-caption text-ink-faint">
-								{item.kind === "mcp" ? t("catalogCard.notEnabled") : t("catalogCard.disabled")}
-							</span>
-						)}
-						{/*
-						 * Installed-and-off is worth a word; installed-and-on is what the switch beside
-						 * it already says. An MCP bundle starts with every server off, so "未启用" is
-						 * where it begins rather than something the user did.
-						 */}
-						{installed && !isEnabled(item) && item.collected === 0 && (
-							<span className="shrink-0 text-caption text-ink-faint">
-								{item.kind === "mcp" ? t("catalogCard.notEnabled") : t("catalogCard.disabled")}
-							</span>
-						)}
-
-						{/* At the end of the title row rather than over it. `ml-auto` is the whole
-						    layout: the title truncates against whatever these leave. */}
-						<div className="ml-auto flex shrink-0 items-center gap-1">
-							{item.outdated && (
-								<button
-									type="button"
-									disabled={act.busy !== null}
-									data-ly-tip={
-											item.entry?.version
-												? t("catalogCard.updateTo", { version: `v${item.entry.version}` })
-												: t("catalogCard.updateToLatest")
-										}
-									onClick={() => void act.update()}
-									className="grid place-items-center pointer-events-auto h-[26px] rounded-lg bg-accent/12 text-detail font-medium text-accent transition-opacity duration-[var(--ly-t-quick)] hover:opacity-80 disabled:opacity-50 w-[26px]"
-			aria-label={t("common.update")}
-		>{act.busy === "update" ? (
-										<ActionSpinner size={11.5} />
-									) : (
-										<ArrowUp size={11.5} strokeWidth={2.2} />
-									)}</button>
-							)}
-
-							{switchable && <Switch on={isEnabled(item)} label={item.name} onChange={(next) => onToggle(next)} />}
-
-							{installed ? (
-								<button
-									type="button"
-									aria-label={t("catalogCard.moreFor", { name: item.name })}
-									aria-haspopup="menu"
-									aria-expanded={menu.open}
-									onClick={menu.toggle}
-									className="pointer-events-auto flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/card:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
-								>
-									{act.busy === "uninstall" ? (
-										<ActionSpinner size={13} />
-									) : (
-										<MoreHorizontal size={15} strokeWidth={1.9} />
-									)}
-								</button>
-							) : (
-								item.entry && (
-									<button
-										type="button"
-										disabled={act.busy !== null}
-										onClick={() => void act.install()}
-										className="grid place-items-center pointer-events-auto h-[26px] rounded-lg border border-line bg-shell/80 text-detail text-ink-muted transition-[color,border-color,opacity] duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink disabled:opacity-50 w-[26px]"
-			data-ly-tip={t("common.install")}
-			aria-label={t("common.install")}
-		>{act.busy === "install" ? (
-											<ActionSpinner size={11.5} />
-										) : (
-											<Download size={11.5} strokeWidth={1.9} />
-										)}</button>
-								)
-							)}
+						<div className="ml-auto shrink-0">
+							<Action item={item} act={act} missing={missing} installed={installed} />
 						</div>
 					</div>
 
-					<IdentityLine item={item} />
-
-					{/*
-					 * The tagline when a maintainer wrote one, because it was written for this space.
-					 * A description is written to be read whole and wraps to three lines in a card.
-					 */}
-					<p className="mt-1.5 line-clamp-2 text-detail leading-relaxed text-ink-muted">
-						{item.tagline || item.description || t("plugins.noDescription")}
+					<p className="line-clamp-2 text-detail leading-relaxed text-ink-muted">
+						{item.tagline || item.description || t("market.noTagline")}
 					</p>
 
-					<FootprintLine item={item} />
+					{(author || downloads || needsKey) && (
+						<div className="mt-auto flex min-w-0 items-center gap-1.5 pt-1.5 text-caption text-ink-faint">
+							{author && <span className="truncate">{author}</span>}
+							{author && downloads && <span aria-hidden className="shrink-0 text-ink-faint/50">·</span>}
+							{downloads && (
+								<span className="shrink-0 tabular-nums" aria-label={t("market.downloads", { n: item.downloads ?? 0 })}>
+									<Download size={10} strokeWidth={2} className="mr-0.5 inline -translate-y-px" aria-hidden />
+									{downloads}
+								</span>
+							)}
+							{needsKey && (
+								<span className="ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap">
+									<KeyRound size={10} strokeWidth={2} aria-hidden />
+									{t("market.needsKey")}
+								</span>
+							)}
+						</div>
+					)}
 				</div>
 			</div>
-
-			{/* The question is a modal, so the menu is only ever a menu — see `Confirm`. */}
-			{act.confirming && (
-				<Confirm
-					title={t("plugins.uninstallConfirm", { name: item.name })}
-					detail={
-						item.kind === "mcp"
-							? t("pluginDetail.uninstallMcpDetail", { n: item.servers.length })
-							: item.collected > 0
-								? t("catalogCard.uninstallSkillsDetail", { n: item.collected })
-								: t("plugins.uninstallDetail")
-					}
-					confirmLabel={t("mcp.uninstall")}
-					onCancel={() => act.setConfirming(false)}
-					onConfirm={() => {
-						act.setConfirming(false);
-						void act.uninstall();
-					}}
-				/>
-			)}
-			{/* Being installed is what opens this menu, and being installed is what gives it a
-			    directory — named again so the rows below can use it without re-asking. */}
-			{menu.open && dir && (
-				<Popover
-					anchor={menu.anchor}
-					onClose={close}
-					placement="bottom"
-					align="end"
-					width="compact"
-					role="menu"
-					label={item.name}
-				>
-					<MenuBody>
-						{trial && (
-							<MenuItem
-								icon={<Play size={13} strokeWidth={1.8} />}
-								onClick={() => {
-									close();
-									onTry(trial);
-								}}
-							>
-								{t("catalogCard.tryNow")}
-							</MenuItem>
-						)}
-						<MenuItem
-							icon={<Settings2 size={13} strokeWidth={1.8} />}
-							onClick={() => {
-								close();
-								onOpen();
-							}}
-						>
-							{t("common.manage")}
-						</MenuItem>
-						<MenuItem
-							icon={<FolderOpen size={13} strokeWidth={1.8} />}
-							onClick={() => {
-								close();
-								void bridge.system.openPath(dir);
-							}}
-						>
-							{t("common.openFolder")}
-						</MenuItem>
-
-						<MenuSeparator />
-
-						<MenuItem
-							danger
-							icon={<Trash2 size={13} strokeWidth={1.8} />}
-							disabled={act.busy !== null || !removable}
-							title={removable ? undefined : t("catalogCard.workspaceOwned")}
-							onClick={() => {
-								// The menu gives way to the question rather than sitting behind it.
-								menu.close();
-								act.setConfirming(true);
-							}}
-						>
-							{t("mcp.uninstall")}
-						</MenuItem>
-					</MenuBody>
-				</Popover>
-			)}
 		</div>
 	);
 }
 
-/**
- * On or off, for the one kind that has a single answer.
- *
- * Drawn rather than an `<input type=checkbox>` because the platform control cannot be restyled to
- * this size on every OS the app ships to, and a switch that looks different on Windows than on
- * macOS in the middle of a card that looks the same is worse than one we draw.
- */
-function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (next: boolean) => void }) {
+/** The right-hand end of the title row: the state, or the one thing to press. */
+function Action({ item, act, missing, installed }: { item: CatalogItem; act: Install; missing: string[]; installed: boolean }) {
 	const { t } = useI18n();
+	const pill =
+		"pointer-events-auto flex h-[24px] items-center gap-1 rounded-full px-2.5 text-caption font-medium whitespace-nowrap transition-[background-color,color,opacity] duration-[var(--ly-t-quick)] disabled:opacity-60";
+
+	if (!installed) {
+		if (!item.entry) return null;
+		return (
+			<button
+				type="button"
+				disabled={act.busy !== null}
+				onClick={() => void act.install()}
+				aria-label={t("market.installNamed", { name: item.name })}
+				className={`${pill} bg-card-hover text-ink hover:bg-ink hover:text-shell`}
+			>
+				{act.busy === "install" ? <ActionSpinner size={11} /> : null}
+				{act.busy === "install" ? t("market.installing") : t("common.install")}
+			</button>
+		);
+	}
+
+	if (item.outdated && item.entry) {
+		return (
+			<button
+				type="button"
+				disabled={act.busy !== null}
+				onClick={() => void act.update()}
+				data-ly-tip={item.entry.version ? t("catalogCard.updateTo", { version: `v${item.entry.version}` }) : t("catalogCard.updateToLatest")}
+				aria-label={t("market.updateNamed", { name: item.name })}
+				className={`${pill} bg-accent/12 text-accent hover:bg-accent/20`}
+			>
+				{act.busy === "update" ? <ActionSpinner size={11} /> : <ArrowUp size={11} strokeWidth={2.2} aria-hidden />}
+				{act.busy === "update" ? t("market.updating") : t("common.update")}
+			</button>
+		);
+	}
+
+	if (missing.length > 0) {
+		return (
+			<span className="flex h-[24px] items-center gap-1 text-caption whitespace-nowrap text-accent">
+				<KeyRound size={11} strokeWidth={2} aria-hidden />
+				{t("market.needsSetup")}
+			</span>
+		);
+	}
+
+	const on = isEnabled(item) || item.collected > 0;
 	return (
-		<button
-			type="button"
-			role="switch"
-			aria-checked={on}
-			aria-label={on ? t("catalogCard.toggleOn", { label }) : t("catalogCard.toggleOff", { label })}
-			data-ly-tip={on ? t("common.disable") : t("common.enable")}
-			onClick={() => onChange(!on)}
-			className={`pointer-events-auto flex h-[16px] w-[28px] shrink-0 items-center rounded-full px-[2px] transition-colors duration-[var(--ly-t-quick)] ${
-				on ? "bg-ok" : "bg-line"
-			}`}
-		>
-			{/* 跟设置页那颗开关同一条曲线、同一个时长——两处是同一个手势，不该有两种手感。 */}
-			<span
-				className={`h-[12px] w-[12px] rounded-full bg-shell transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${
-					on ? "translate-x-[12px]" : "translate-x-0"
-				}`}
-			/>
-		</button>
+		<span className="flex h-[24px] items-center gap-1 text-caption whitespace-nowrap text-ink-faint">
+			{on && <Check size={11} strokeWidth={2.4} aria-hidden />}
+			{on ? t("common.installed") : item.kind === "mcp" ? t("catalogCard.notEnabled") : t("catalogCard.disabled")}
+		</span>
 	);
 }

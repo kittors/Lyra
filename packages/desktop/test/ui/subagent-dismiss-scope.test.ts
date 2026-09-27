@@ -59,6 +59,10 @@ afterEach(async () => {
 
 test("the close button in a screen without focus names that screen's conversation", async () => {
 	view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(SessionScope.Provider, { value: "a" }, h(SubAgentPanel)) }));
-	await click(view.find('button[aria-label="关闭 找入口"]'));
+	// One close button per agent, in the switcher's menu (`SubAgentMenu`).
+	await click(view.find("[data-sub-switch]"));
+	const close = document.querySelector<HTMLButtonElement>('[data-sub-menu] button[aria-label="关闭 找入口"]');
+	assert.ok(close, "the menu drew no close button for 找入口");
+	await click(close);
 	assert.deepEqual(asked, [["a", "a:sub:1"]], "asked the focused conversation, which never dispatched it");
 });

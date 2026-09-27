@@ -13,7 +13,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { isUnparsable, loadSkills, parseFrontmatter } from "../src/skills/loader.ts";
+import { formatSkillInvocation, isUnparsable, loadSkills, parseFrontmatter, type Skill } from "../src/skills/loader.ts";
 
 let root: string;
 
@@ -328,4 +328,25 @@ test("两种拼写的 disable-model-invocation 都算数", async () => {
 	} finally {
 		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
+});
+
+test("给 Claude Code 写的技能：正文里的 ${CLAUDE_SKILL_DIR} 和 ${CLAUDE_PLUGIN_ROOT} 交给模型前换成真路径", () => {
+	const skill: Skill = {
+		name: "ui-ux",
+		description: "测试用的技能。",
+		content: "先跑 python ${CLAUDE_SKILL_DIR}/scripts/search.py，规则在 ${CLAUDE_PLUGIN_ROOT}/shared/rules.md。",
+		path: "/home/.lyra/plugins/pro/skills/ui-ux/SKILL.md",
+		dir: "/home/.lyra/plugins/pro/skills/ui-ux",
+		source: "user",
+		disableModelInvocation: false,
+		pluginId: "pro",
+		pluginRoot: "/home/.lyra/plugins/pro",
+	};
+	const text = formatSkillInvocation(skill);
+	assert.match(text, /python \/home\/\.lyra\/plugins\/pro\/skills\/ui-ux\/scripts\/search\.py/);
+	assert.match(text, /\/home\/\.lyra\/plugins\/pro\/shared\/rules\.md/);
+	assert.doesNotMatch(text, /\$\{CLAUDE_/);
+	// 零散技能没有包：插件根就当它自己的目录。
+	const loose = formatSkillInvocation({ ...skill, pluginId: undefined, pluginRoot: undefined });
+	assert.match(loose, /\/skills\/ui-ux\/shared\/rules\.md/);
 });

@@ -19,21 +19,24 @@ export function RuleTryPanel({
 	patterns,
 	onChange,
 	messages,
+	titled = true,
 }: {
 	/** One per input. A rule with three conditions is three inputs. */
 	patterns: string[];
 	onChange: (next: string[]) => void;
 	/** The active conversation; only its assistant messages are looked at. */
 	messages: Message[];
+	/** Off when something around it — a disclosure — already carries the title. */
+	titled?: boolean;
 }) {
 	const { t } = useI18n();
 	const outcomes = patterns.map((pattern) => tryCondition(pattern, messages));
 	const checked = outcomes[0]?.checked ?? 0;
 
 	return (
-		<Card className="mb-6">
+		<Card className={titled ? "mb-6" : ""}>
 			<div className="px-4 py-3" data-rule-try>
-				<div className="mb-1 text-label text-ink">{t("ruleTry.title")}</div>
+				{titled && <div className="mb-1 text-label text-ink">{t("ruleTry.title")}</div>}
 				<p className="mb-3 text-detail leading-relaxed text-ink-muted">
 					{t("ruleTry.intro", { n: RECENT_LIMIT })}
 					{checked === 0 && t("ruleTry.noMessages")}

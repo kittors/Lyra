@@ -106,3 +106,15 @@ test("what only reaches a log is not a finding, and what reaches a person still 
 	const lines = (findings(source, { jsx: false }) as { line: number }[]).map((one) => one.line);
 	assert.deepEqual(lines, [5, 6], "a call spread over lines leaves the numbering after it intact");
 });
+
+test("Chinese punctuation is a finding even with no Han character beside it", () => {
+	/*
+	 * `parts.join("、")` holds no Han character, so the Han-only scan passed it — and every language
+	 * read the tool summary with a Chinese enumeration comma between its own words. The same went for
+	 * a 「：」 or a pair of 「（）」 wrapped around translated text in a template.
+	 */
+	assert.deepEqual(found('return parts.join("、");\n'), ['"、"']);
+	assert.deepEqual(found("onError(`${item.name}：${result.message}`);\n"), ["`${item.name}：${result.message}`"]);
+	assert.deepEqual(found("<span>（{count}）</span>\n"), ["（ ）"]);
+	assert.deepEqual(found('return parts.join(", ");\n'), [], "Latin punctuation is not Chinese");
+});

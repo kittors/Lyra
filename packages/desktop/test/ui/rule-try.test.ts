@@ -69,7 +69,7 @@ test("a rule's conditions arrive one box each, and a miss says how much was look
 
 test("with no conversation open, syntax is still checked and the page says what is missing", async () => {
 	const view = await mount(h(RuleTryPanel, { patterns: ["(?i)todo"], onChange: () => {}, messages: [] }));
-	assert.match(view.text(), /现在没有可试的消息/);
+	assert.match(view.text(), /先打开一个有过回复的会话/);
 	assert.match(view.find("[data-rule-try-status]").textContent ?? "", /正则没问题/);
 	await view.unmount();
 });

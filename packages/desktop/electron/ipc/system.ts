@@ -9,7 +9,7 @@ import { access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome } from "@lyra/core";
 import { clipboard, ipcMain, nativeImage, shell } from "electron";
-import { remoteImage } from "../avatars.ts";
+import { documentImage } from "../avatars.ts";
 import { openExternalSafely } from "../window-security.ts";
 import { openTargets, openWith, type OpenTarget } from "../open-targets.ts";
 
@@ -59,13 +59,14 @@ export function registerSystemIpc(): void {
 	 *
 	 * The same trade as `registry:icon` and `git:avatar`, for the same reason: `img-src` is
 	 * `self data: blob:` and widening it to the whole web — so that a README's build badge draws —
-	 * would widen it for every screen in the app, permanently. `remoteImage` bounds what comes back
-	 * (https only, an image content-type, half a megabyte, nine seconds) and caches it, so a
+	 * would widen it for every screen in the app, permanently. `documentImage` bounds what comes back
+	 * (https only, an image content-type, five megabytes, nine seconds) and caches it, so a
 	 * document with twenty badges is twenty requests once and none after.
 	 *
-	 * Only reached for documents the user opened off their own disk — see `Markdown`'s `remoteImages`.
+	 * Reached for documents the user opened off their own disk — see `Markdown`'s `remoteImages` —
+	 * and for a bundle's README on its market page.
 	 */
-	ipcMain.handle("system:remoteImage", async (_event, url: string): Promise<string | null> => remoteImage(url));
+	ipcMain.handle("system:remoteImage", async (_event, url: string): Promise<string | null> => documentImage(url));
 
 	/*
 	 * The clipboard, from here rather than from `navigator.clipboard`.

@@ -51,13 +51,33 @@ export function relaySocketUrl(configured: string): string | null {
 }
 
 export interface RelayHandlers {
-	/** A frame from the far end — a phone, speaking the sync server's own protocol. */
-	message(socket: WebSocket, data: unknown): void;
+	/**
+	 * The socket to the relay is open, before any phone is in the room.
+	 *
+	 * The relay's asset requests arrive from this moment — a phone loads the interface over HTTP
+	 * before its WebSocket joins — so the socket needs its channel before `joined`.
+	 */
+	opened(socket: WebSocket): void;
+	/**
+	 * A frame from the far end — a phone, speaking the sync server's own protocol — or the relay's
+	 * own asset request. Passed as it arrived: wire 2 sends binary parts as well as JSON text.
+	 */
+	message(socket: WebSocket, data: Buffer, isBinary: boolean): void;
 	/** The far end arrived. The socket can be treated as a connected client from here. */
 	joined(socket: WebSocket): void;
+	/**
+	 * The phone left the room; the socket to the relay stays open for the next one.
+	 *
+	 * Whatever was in flight to or from it belonged to that phone, and the next one to arrive may be
+	 * a different build that has never heard of it.
+	 */
+	peerLeft(socket: WebSocket): void;
 	/** The link went away, by either end. */
 	left(socket: WebSocket): void;
 }
+
+/** The relay's own words, which come as small JSON text frames. */
+const RELAY_WORDS = new Set(["waiting", "ready", "peer-left", "error"]);
 
 /** How long to wait before dialling again, doubling to a ceiling. */
 const FIRST_RETRY = 1000;
@@ -120,6 +140,7 @@ export class RelayLink {
 		this.socket = socket;
 
 		socket.on("open", () => {
+			this.handlers.opened(socket);
 			// The room, and nothing else: the relay refuses anything that is not a well-formed hello,
 			// and closes a socket that says nothing within ten seconds.
 			socket.send(JSON.stringify({
@@ -131,25 +152,29 @@ export class RelayLink {
 			this.retry = FIRST_RETRY;
 		});
 
-		socket.on("message", (data) => {
-			let message: { type?: unknown };
-			try {
-				message = JSON.parse(String(data)) as typeof message;
-			} catch {
-				return;
-			}
+		socket.on("message", (data: Buffer, isBinary: boolean) => {
 			/*
-			 * The relay's own two words, which are not from the phone.
+			 * The relay's own words, which are not from the phone.
 			 *
-			 * `waiting` means the room is ours alone so far; `ready` means the phone has arrived.
-			 * Everything else came from the far end and is the sync protocol.
+			 * `waiting` means the room is ours alone so far; `ready` means a phone has arrived and
+			 * `peer-left` that it went. Everything else came from the far end and is the sync
+			 * protocol — including binary parts, which used to be dropped here by a `JSON.parse` that
+			 * could never succeed on them. Only short text frames are looked at.
 			 */
-			if (message.type === "waiting") return;
-			if (message.type === "ready") {
-				this.handlers.joined(socket);
-				return;
+			if (!isBinary && data.length < 256) {
+				let word: unknown;
+				try {
+					word = (JSON.parse(data.toString("utf8")) as { type?: unknown }).type;
+				} catch {
+					word = null;
+				}
+				if (typeof word === "string" && RELAY_WORDS.has(word)) {
+					if (word === "ready") this.handlers.joined(socket);
+					else if (word === "peer-left") this.handlers.peerLeft(socket);
+					return;
+				}
 			}
-			this.handlers.message(socket, message);
+			this.handlers.message(socket, data, isBinary);
 		});
 
 		const gone = () => {

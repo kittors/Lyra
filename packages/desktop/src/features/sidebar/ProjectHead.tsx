@@ -120,8 +120,25 @@ export function ProjectHead({
 				 * lives at this exact spot, and the two drawn together was not two things
 				 * crowding each other — it was a numeral and an icon on the same pixels, legible
 				 * as neither. Hovering is reaching for the button, so the count is what yields.
+				 *
+				 * It takes space only when there is something in it, and only as much as that needs.
+				 *
+				 * This used to be a fixed 46px slot. In an open project it is always empty, since the
+				 * count only exists while shut, yet the name gave up 64px to it counting the gap before
+				 * and the padding after: at rest the name dissolved well short of the row's end, with
+				 * nothing to its right. On hover the buttons landed in that empty space, clear of the
+				 * name, so the measured overlap was negative and the 48px fallback stayed in force. The
+				 * mask cleared another 48px off a name that had already stopped, and names that fit
+				 * were judged to need scrolling.
+				 *
+				 * Now it works the way a session row does. With no count the name fills the row, the
+				 * buttons land on its tail, `HoverRowReveal` measures how much they cover, and the mask
+				 * clears exactly that, so the text dissolves right against the buttons. Shut, the count
+				 * pushes in and the name stops short of it; on hover the count fades, the buttons land,
+				 * and the name yields only what they actually cover. `pr-0.5` lines the count's right
+				 * edge up with the ⋯ icon's.
 				 */}
-				<span className="flex w-[46px] shrink-0 items-center justify-end pr-0.5 text-caption text-ink-faint tabular-nums transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0">
+				<span className="flex shrink-0 items-center pr-0.5 text-caption text-ink-faint tabular-nums transition-opacity duration-[var(--ly-t-quick)] empty:hidden group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0">
 					<GroupActivity sessions={group.sessions} collapsed={collapsed} count={group.sessions.length} />
 				</span>
 			</button>

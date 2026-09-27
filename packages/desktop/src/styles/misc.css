@@ -810,3 +810,25 @@ textarea.ly-composer-text[data-highlighted="true"] {
 .ly-command-option[aria-selected="true"] .ly-fade-edge {
 	--ly-fade-left: 13px;
 }
+
+/* ---------------------------------------------------------------------------
+ * 关于页的头图：应用的标志、名字和版本，垫在一层很淡的强调色光晕上。
+ *
+ * 光晕从左上角标志的位置漫出来，而不是一块平涂的底色：平涂读起来是「又一张卡片」，从标志那里
+ * 散开的光读起来是这一块属于它。两层渐变都混进卡片色里再用，深浅主题各自落在正确的一侧。
+ * ------------------------------------------------------------------------- */
+
+.ly-about-hero {
+	background:
+		radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 62%),
+		radial-gradient(70% 120% at 100% 100%, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 70%),
+		color-mix(in srgb, var(--color-card) 70%, transparent);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 6%, transparent);
+}
+
+/* 图标本身是一张满幅的圆角方块；一道极细的描边和一点下沉，让它在浅色底上也有轮廓。 */
+.ly-about-icon {
+	box-shadow:
+		0 0 0 0.5px rgb(0 0 0 / 0.08),
+		0 6px 16px -6px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}

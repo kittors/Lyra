@@ -57,6 +57,8 @@ export interface ApprovalGateOptions {
 	ask(pending: PendingApproval): Promise<void>;
 	/** Remember an "always" answer beyond this process. */
 	remember(subject: string): void;
+	/** 一个待决的问题收场了（答了、超时、被收回），窗口据此把那张卡拿走。 */
+	settled?(id: string): void;
 	/** Overridable so a test does not have to wait five minutes to see the timeout work. */
 	unattendedTimeoutMs?: number;
 	/** The same, for the longer wait a question gets. */
@@ -170,7 +172,8 @@ export class ApprovalGate {
 				expiresAt: Date.now() + timeoutMs,
 				resolve: (decision) => {
 					if (timer) clearTimeout(timer);
-					this.pending.delete(id);
+					if (!this.pending.delete(id)) return;
+					this.options.settled?.(id);
 					if (decision === "always") {
 						this.allowList.add(request.subject);
 						this.options.remember(request.subject);
@@ -187,8 +190,18 @@ export class ApprovalGate {
 
 	/** Reject everything still waiting. Called when a run ends, so nothing hangs forever. */
 	rejectAll(): void {
-		for (const entry of this.pending.values()) entry.resolve("reject");
-		this.pending.clear();
+		this.rejectWhere(() => true);
+	}
+
+	/**
+	 * 只收回一部分。
+	 *
+	 * 主会话一轮收尾时，它自己的问题不可能还有人等（循环是等到回答才往下走的），收掉是兜底；
+	 * 后台子代理的问题却正是在主会话收尾之后问出来的，一并收掉就等于替人答了「不行」。
+	 */
+	rejectWhere(match: (request: ApprovalRequest) => boolean): void {
+		// 边走边删是安全的：Map 的迭代会跳过已经删掉的项，不会漏掉还没走到的。
+		for (const entry of this.pending.values()) if (match(entry.request)) entry.resolve("reject");
 	}
 }
 
@@ -215,7 +228,7 @@ function findingOf(verdict: ApprovalVerdict): ApprovalRisk | undefined {
 export function sessionApprovalGate(deps: {
 	mode(): PermissionMode;
 	cwd(): string;
-	emit(event: Extract<import("../agent/events.ts").AgentEvent, { type: "approval_request" }>): Promise<void>;
+	emit(event: Extract<import("../agent/events.ts").AgentEvent, { type: "approval_request" | "approval_settled" }>): Promise<void>;
 	alwaysAllow: Iterable<string>;
 }): ApprovalGate {
 	return new ApprovalGate(
@@ -233,6 +246,7 @@ export function sessionApprovalGate(deps: {
 				}),
 			// Persisting an "always" answer is the host's job; the settings are not ours to write.
 			remember: () => {},
+			settled: (id) => void deps.emit({ type: "approval_settled", requestId: id }),
 		},
 		deps.alwaysAllow,
 	);

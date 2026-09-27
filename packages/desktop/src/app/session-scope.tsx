@@ -101,6 +101,21 @@ export function useScopedRunning(): boolean {
 	});
 }
 
+/**
+ * 这场对话此刻有没有活在干：主会话这一轮在跑，或者它放到后台的子智能体还没跑完。
+ *
+ * 清单和「接着做」那一行看这个，而不是 `useScopedRunning`。人在主会话等子智能体时插了话，主会话
+ * 回应完就收尾了——可活并没有停：后台那几个跑完，结果会送回来，主会话接着干。那时候清单说「停在
+ * 这一步」、再给一个 ▶，是请人把一件本来就在进行的事再启动一遍（按下去还会让它重派一遍）。
+ *
+ * 输入框不看这个：它问的是「现在说话会不会插进一轮」，而后台的子智能体不占着主会话。
+ */
+export function useScopedWorking(): boolean {
+	const running = useScopedRunning();
+	const background = useScopedSubAgents().some((one) => one.background && (one.status === "running" || one.status === "queued"));
+	return running || background;
+}
+
 export function useScopedStopped() {
 	const id = useScopedSessionId();
 	return useApp((s) => {

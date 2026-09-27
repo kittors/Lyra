@@ -136,3 +136,43 @@ test("编辑：那一条整份回到输入框，草稿也跟着回来", async ()
 		assert.equal(useApp.getState().drafts.a?.text, "等这一轮完了再看这个", "存下来的草稿也要跟着回到这一份上");
 	} finally { await view.unmount(); useApp.setState(previous, true); }
 });
+
+test("主智能体只是在等子智能体：按下去直接送进去，不排队——运行时会让它放手、先回应", async () => {
+	/*
+	 * 2026-09-26 的真实会话：主会话派了四个子智能体，人发的一句话排在条上，一直等到最后一个子智能体
+	 * 交差。排队的意思是「等这一轮做完」，而这一轮此刻在等的是子智能体。
+	 */
+	setup();
+	const { useSubAgents } = await import("../../src/store/subAgents.ts");
+	const waitingOn = { id: "a:sub:1", agent: "review", description: "审查", status: "running" as const, startedAt: Date.now(), toolCalls: 0, depth: 1, usage };
+	useSubAgents.setState({ agents: [waitingOn], rosters: { a: [waitingOn] } });
+	const view = await mount(composer());
+	try {
+		await click(view.find('[data-composer-send="send"]'));
+		await act(async () => {});
+		assert.deepEqual(sent, [{ text: "等这一轮完了再看这个", deliver: "steer" }], "直接送进这一轮");
+		assert.equal(useApp.getState().queued.a, undefined, "条上没有它");
+	} finally {
+		await view.unmount();
+		useApp.setState(previous, true);
+		useSubAgents.setState({ agents: [], rosters: {} });
+	}
+});
+
+test("转到后台的子智能体不算：主智能体已经不等它了，这时候照常排队", async () => {
+	setup();
+	const { useSubAgents } = await import("../../src/store/subAgents.ts");
+	const background = { id: "a:sub:1", agent: "review", description: "审查", status: "running" as const, startedAt: Date.now(), toolCalls: 0, depth: 1, usage, background: true };
+	useSubAgents.setState({ agents: [background], rosters: { a: [background] } });
+	const view = await mount(composer());
+	try {
+		await click(view.find('[data-composer-send="send"]'));
+		await act(async () => {});
+		assert.deepEqual(sent, []);
+		assert.deepEqual(useApp.getState().queued.a?.map((item) => item.preview), ["等这一轮完了再看这个"]);
+	} finally {
+		await view.unmount();
+		useApp.setState(previous, true);
+		useSubAgents.setState({ agents: [], rosters: {} });
+	}
+});

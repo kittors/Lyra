@@ -6,12 +6,14 @@
  * exposing a port is not something to do just in case.
  */
 
-import { type SessionStorage } from "@lyra/core";
+import { join } from "node:path";
+import { lyraHome, type SessionStorage } from "@lyra/core";
 import { workspaceInfo } from "./workspace-info.ts";
 import { applySettings, onSettingsChanged, settings } from "./app-settings.ts";
 import type { SyncStatus } from "./ipc-types.ts";
 import { editSessionMessage, revertSessionMessage, activateSession, createSession, abortSession, disposeSession, promptSession, sessions, snapshot, touchSession } from "./session-hub.ts";
 import { SyncServer } from "./sync-server.ts";
+import { UploadStore } from "./sync-uploads.ts";
 import { listCommands } from "./commands-service.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "./file-read-service.ts";
 import { generalScratchDir, scratchRoots } from "./scratch.ts";
@@ -105,6 +107,7 @@ export async function startSync(): Promise<SyncStatus> {
 			filesRead: async (path) => readReadableFile(await phoneProjectPath(path), true),
 			scratchRoots: async () => scratchRoots(),
 			generalScratch: generalScratchDir,
+			uploads: new UploadStore(join(lyraHome(), "uploads")),
 		});
 	}
 	/*

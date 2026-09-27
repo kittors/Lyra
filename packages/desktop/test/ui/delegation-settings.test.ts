@@ -233,3 +233,23 @@ test("保存失败要说出来，界面上的值也不该假装已经改了", as
 		await view.unmount();
 	}
 });
+
+test("并发上限画成八个座位：醒着的几个就是上限，点哪一个就设成几", async () => {
+	let saved: Settings | undefined;
+	const view = await open({ maxConcurrentSubAgents: 4 }, async (next) => { saved = next; return next; });
+	try {
+		const seats = view.all<HTMLElement>("[data-concurrency-slots] [data-seat]");
+		assert.equal(seats.length, 8);
+		assert.equal(view.all("[data-concurrency-slots] [data-awake]").length, 4, "four awake for a limit of four");
+		assert.deepEqual(
+			seats.map((seat) => seat.querySelector<HTMLElement>(".ly-avatar")?.dataset.mood),
+			["idle", "idle", "idle", "idle", "stopped", "stopped", "stopped", "stopped"],
+			"the rest are asleep",
+		);
+		assert.equal(new Set(seats.map((seat) => seat.querySelector<HTMLElement>(".ly-avatar")?.dataset.avatar)).size, 8, "eight different faces");
+		await click(seats[5]);
+		assert.equal(saved?.maxConcurrentSubAgents, 6, "clicking the sixth seat sets six");
+	} finally {
+		await view.unmount();
+	}
+});

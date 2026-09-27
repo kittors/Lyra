@@ -12,6 +12,8 @@
 
 import { splitExtension } from "../../../lib/paths.ts";
 import { isDescendantPath } from "../../../lib/paths.ts";
+import { documentKind } from "../../../../shared/document-kind.ts";
+import { isReadableAsText, type FileKind } from "./file-kind.ts";
 
 /**
  * 这个名字是不是等于没说。
@@ -88,4 +90,15 @@ export function abilitiesOf(path: string | undefined, projectRoots: readonly str
 		onDisk: true,
 		inProject: projectRoots.some((root) => root === path || isDescendantPath(root, path)),
 	};
+}
+
+/**
+ * 右边的文件面板打开它之后，看得到的是它本身，还是一句「这是二进制文件」。
+ *
+ * 「预览」只该出现在前一种上。文本、代码、Markdown、csv 进编辑器或渲染成文档；PDF、docx、表格和数据库
+ * 有各自的视图——那一份清单在 `shared/document-kind.ts`，面板和主进程认的是同一张。压缩包、设计稿、
+ * 老式 `.doc` 这些，面板能给的只有一个文件大小，一行点下去只得到这个的「预览」不如不列。
+ */
+export function previewableInPanel(kind: FileKind, name: string): boolean {
+	return isReadableAsText(kind, name) || documentKind(name) !== null;
 }

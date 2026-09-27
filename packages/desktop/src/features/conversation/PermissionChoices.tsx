@@ -30,7 +30,7 @@ export function PermissionChoices({ subject, answer }: {
 	 * 「拒绝」推到最左，和右边那两个隔开：相邻的一次误点代价不对称，最贵的那个不该挨着最便宜的。
 	 */
 	const base = "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-label transition-colors disabled:opacity-50";
-	return <div className="shrink-0 px-4 pb-3 pt-1">
+	return <div className="shrink-0 px-4 pb-3 pt-1" data-ly-permission-choices="">
 		<div className="flex flex-wrap items-center justify-end gap-1.5" aria-busy={pending}>
 			<button type="button" disabled={pending} onClick={() => void submit("reject")} className={`${base} mr-auto text-ink-muted hover:bg-card-hover hover:text-ink active:bg-elevated`}
 		><X size={14} />{translate("permission.reject")}</button>

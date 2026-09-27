@@ -9,6 +9,9 @@
 import { Bell, Search } from "lucide-react";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { onPhone } from "../../services/index.ts";
+import { useApp } from "../../store/index.ts";
+import { activeProviderLabel } from "./grouping.ts";
 
 export function SidebarHead({
 	searching,
@@ -23,6 +26,8 @@ export function SidebarHead({
 	onToggleSearch: () => void;
 }) {
 	const { t } = useI18n();
+	// The search moved to the dock along the bottom on a phone — see `PhoneDock`.
+	if (onPhone()) return <PhoneHead />;
 	return (
 		<>
 			<div className="ly-sidebar-head flex h-[34px] shrink-0 items-center justify-between px-4">
@@ -64,5 +69,29 @@ export function SidebarHead({
 				</div>
 			)}
 		</>
+	);
+}
+
+/**
+ * The drawer's title on a phone: the name, what it is set up with, and the bell.
+ *
+ * The line under the name is the one the desktop keeps in its footer — the motto if there is one,
+ * otherwise which providers are configured. The footer is gone on a phone (its settings button is
+ * in the dock), and a large title with a quiet line under it is how a phone names a list anyway.
+ */
+function PhoneHead() {
+	const { t } = useI18n();
+	const settings = useApp((s) => s.settings);
+	const subtitle = settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? []);
+	return (
+		<div className="ly-phone-head">
+			<div className="min-w-0 flex-1">
+				<div className="ly-phone-head-title">Lyra</div>
+				{subtitle && <div className="ly-phone-head-subtitle">{subtitle}</div>}
+			</div>
+			<button type="button" aria-label={t("sidebar.notifications")} className="ly-phone-head-button ly-press">
+				<Bell size={19} strokeWidth={1.8} aria-hidden />
+			</button>
+		</div>
 	);
 }

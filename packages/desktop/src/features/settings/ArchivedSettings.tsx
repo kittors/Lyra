@@ -114,7 +114,7 @@ export function ArchivedSettings() {
 							onChange={setProject}
 							options={[
 								{ value: "all", label: t("common.allProjects") },
-								...projects.map((p) => ({ value: p.path, label: `${p.name}（${p.count}）` })),
+								...projects.map((p) => ({ value: p.path, label: t("archived.projectCount", { name: p.name, count: p.count }) })),
 							]}
 						/>
 					</div>

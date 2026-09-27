@@ -21,7 +21,7 @@
  */
 
 /** 一个可以在撞墙后撤掉的请求参数。 */
-export type DroppedParam = "reasoning-off" | "tool-choice" | "sampling" | "include-encrypted";
+export type DroppedParam = "reasoning-off" | "tool-choice" | "sampling" | "include-encrypted" | "cache-key";
 
 /**
  * 端点拒绝某个参数时的说法，以及该撤哪个。
@@ -62,6 +62,17 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 		pattern: /include.{0,30}encrypted_content|encrypted_content.{0,30}(not supported|unsupported|invalid)/i,
 		drop: "include-encrypted",
 		source: "我们无条件请求上游回密文；不认识这个 include 值的端点会拒",
+	},
+	{
+		/*
+		 * 严格校验请求体的兼容实现对不认识的字段一律拒，错误串里会点名字段——Mistral 的 422 是
+		 * `{"loc":["body","prompt_cache_key"],"msg":"Extra inputs are not permitted"}`，
+		 * OpenAI 系的是 `Unrecognized request argument supplied: prompt_cache_key`。
+		 * 字段名只有这一个东西叫，点到它就能判定。
+		 */
+		pattern: /prompt_cache_key/i,
+		drop: "cache-key",
+		source: "错误串点名这个字段即可判定；见 `ai/cache-key.ts`",
 	},
 ];
 

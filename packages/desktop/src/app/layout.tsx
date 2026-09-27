@@ -353,7 +353,12 @@ export function useFocusTrap(ref: React.RefObject<HTMLElement | null>, active: b
 		const focusable = () =>
 			[...container.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
 
-		focusable()[0]?.focus();
+		/*
+		 * Not on a phone. There is no Tab key to be ready for, and the first control in the drawer is
+		 * the bell: focusing it on the way in drew a focus ring round it every time the drawer opened.
+		 * The trap still holds a keyboard that is attached — only the opening move is skipped.
+		 */
+		if (!onPhone()) focusable()[0]?.focus();
 
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Tab") return;

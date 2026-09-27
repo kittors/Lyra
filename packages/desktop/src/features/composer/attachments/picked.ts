@@ -45,8 +45,13 @@ export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
 		 * 调它不会抛」，而这是一次同步调用，抛出来就直接掀掉了整个 drop 处理。
 		 */
 		try {
-			const path = bridge.files.pathForDrop(file);
-			return path ? { file, path } : { file };
+			const path: unknown = bridge.files.pathForDrop(file);
+			/*
+			 * A string or nothing. An older phone app answers every method it does not know with a
+			 * function that resolves to null, so this "path" was a promise — which was sent along with
+			 * the attachment, and the desktop refused the whole message as an invalid attachment.
+			 */
+			return typeof path === "string" && path ? { file, path } : { file };
 		} catch {
 			return { file };
 		}

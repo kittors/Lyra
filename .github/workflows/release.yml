@@ -114,3 +114,29 @@ jobs:
           files: dist/*
           draft: false
           fail_on_unmatched_files: true
+
+      # The website (lyra.07230805.xyz, kittors/Lyra-Website) learns about the release here.
+      #
+      # Each call records the new version — the download page shows it from the first call on — and
+      # copies one installer to the mirror that readers in mainland China download from, checked
+      # against the SHA256SUMS above as it is written. So the loop runs until the site answers
+      # `done`, a dozen calls for a whole release.
+      #
+      # Never fails the release: the site checks GitHub every ten minutes on its own and would finish
+      # the copy within the hour. This only makes "released" and "downloadable in China" the same
+      # moment instead of an hour apart.
+      - name: Tell the website
+        continue-on-error: true
+        env:
+          SYNC_TOKEN: ${{ secrets.LYRA_SITE_SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::notice::LYRA_SITE_SYNC_TOKEN is not set; the website will pick the release up on its own within ten minutes."
+            exit 0
+          fi
+          for attempt in $(seq 1 40); do
+            answer=$(curl -fsS --max-time 300 -X POST https://lyra.07230805.xyz/api/sync -H "authorization: Bearer $SYNC_TOKEN") || { sleep 15; continue; }
+            echo "$answer"
+            case "$answer" in *'"done":true'*) exit 0 ;; esac
+          done
+          echo "::warning::The website's mirror is not complete yet; its own sync will finish it."

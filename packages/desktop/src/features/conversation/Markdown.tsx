@@ -11,11 +11,12 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { FileText, ExternalLink, FolderOpen } from "lucide-react";
-import { createContext, Fragment, isValidElement, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type CSSProperties, Fragment, isValidElement, memo, type ReactNode, type SyntheticEvent, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";
 import { MarkdownTable } from "./MarkdownTable.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
 import { parseMarkdown } from "../../lib/markdown/blocks.ts";
 import { resolveAsset, isAbsolutePath } from "../../lib/markdown/assets.ts";
@@ -319,19 +320,6 @@ function renderToken(token: Inline): ReactNode {
 }
 
 /** Local artifacts use the bounded file reader; executable URI schemes never navigate the app. */
-/**
- * 一个指向本机文件的链接，外加两个只在鼠标过来时才出现的出口。
- *
- * 点链接本身还是老样子——在内置面板里打开，那是对 `.md`、`.ts` 这类最快的读法。问题出在打不开的那些：
- * 点一个 `.exe`，dock 面板被挤掉，换来一句「二进制文件，无法以文本显示」。用户付出了正在看的东西，
- * 得到的是一句「打不开」，而他真正想做的两件事——运行它、看它在哪——一件也做不到。
- *
- * 所以旁边给两个出口，而不是改点击的含义：同一个链接有时开面板、有时开访达，那种不可预测比多两个图标
- * 更让人不敢点。
- *
- * 只在悬停时显形，理由和 `MessageActions` 那一排一样：它们重复出现在整页的每一个文件名旁边，常驻的话
- * 会和正文抢注意力。手机上没有悬停，`data-ly-hover-reveal` 让样式表那边把它们常驻出来。
- */
 function textOf(node: ReactNode): string {
 	if (node == null || typeof node === "boolean") return "";
 	if (typeof node === "string" || typeof node === "number") return String(node);
@@ -340,6 +328,100 @@ function textOf(node: ReactNode): string {
 	return "";
 }
 
+/**
+ * The room the exit bar needs: a 28px card (22px buttons, 2px padding above and below, a 1px
+ * hairline), a 4px gap, and 2px to spare. It is the same arithmetic as `[data-ly-file-actions]` in
+ * `markdown.css` — change one and the other has to follow.
+ */
+const ACTIONS_CLEARANCE = 34;
+
+/**
+ * The `overflow` values that cut off whatever sticks out. Listed rather than written as "anything
+ * but visible": where there is no computed value the answer is an empty string, and that is not a clip.
+ */
+const CLIPPING_OVERFLOW = /^(hidden|clip|auto|scroll|overlay)$/;
+
+/**
+ * Whether the exit bar goes above the chip or below it.
+ *
+ * Above by default: the line above has already been read, so covering a piece of it costs the least,
+ * while the line below is the one about to be read — and the link's own path tooltip opens there too.
+ * But reaching upward runs into whatever clips the chip. Every message row carries `contain: paint`
+ * (`.group/msg` in `base.css`), so the part of the bar that leaves the row is never painted, and a
+ * chip on a message's first line hits that every time; the top of the scroller and a table's
+ * horizontal scroll box do the same. So measure: if it does not fit above and there is more room
+ * below, go below.
+ *
+ * Measured once, as the pointer or focus arrives, with no listener kept: where the chip is at that
+ * moment is where the bar will appear.
+ */
+function actionsSide(chip: HTMLElement): "above" | "below" {
+	const box = chip.getBoundingClientRect();
+	let top = 0;
+	let bottom = window.innerHeight;
+	for (let el = chip.parentElement; el && el !== document.body; el = el.parentElement) {
+		const style = getComputedStyle(el);
+		const clips =
+			CLIPPING_OVERFLOW.test(style.overflowX) ||
+			CLIPPING_OVERFLOW.test(style.overflowY) ||
+			/paint|strict|content/.test(style.contain) ||
+			style.contentVisibility === "auto";
+		if (!clips) continue;
+		const edge = el.getBoundingClientRect();
+		top = Math.max(top, edge.top);
+		bottom = Math.min(bottom, edge.bottom);
+	}
+	const above = box.top - top;
+	return above >= ACTIONS_CLEARANCE || above >= bottom - box.bottom ? "above" : "below";
+}
+
+/**
+ * How far the bar's left edge sits from the chip's: straight above where the pointer came in, but
+ * never overhanging either end of the chip.
+ *
+ * Pinned to the top-right corner, a 300px filename put the bar 250px diagonally away from a pointer
+ * that entered at the left end. Most of that path is off the chip, so only the grace period on
+ * leaving kept the bar alive — and measured, it had faded out before the pointer got there. Above
+ * the pointer, it is 20px straight up.
+ *
+ * Placed once, on entry, and not after: a bar that chases the pointer is wobbling, not waiting to be
+ * pressed. A chip narrower than the bar gets it flush left rather than hanging off the left edge.
+ */
+function actionsOffset(chip: HTMLElement, pointerX: number): number {
+	const box = chip.getBoundingClientRect();
+	const width = chip.querySelector<HTMLElement>("[data-ly-file-actions-bar]")?.offsetWidth ?? 0;
+	return Math.round(Math.max(0, Math.min(pointerX - box.left - width / 2, box.width - width)));
+}
+
+/**
+ * A link to a file on this machine, plus two ways out that only appear when the pointer arrives.
+ *
+ * Clicking the link itself works as it always has — it opens in the built-in panel, the fastest way
+ * to read a `.md` or a `.ts`. The trouble is the files it cannot open: click an `.exe` and the dock
+ * panel is pushed aside in exchange for "binary file, cannot be shown as text". The reader gives up
+ * what they were looking at to be told it cannot be opened, while the two things they actually wanted
+ * — run it, see where it is — are both out of reach.
+ *
+ * So there are two exits beside it, rather than a change to what clicking means: a link that
+ * sometimes opens the panel and sometimes Finder is unpredictable, and that makes people warier of
+ * clicking than two extra icons do.
+ *
+ * They only show on hover, for the same reason as the `MessageActions` row: they repeat beside every
+ * filename on the page, and left visible they would compete with the text. Where they show is a
+ * small bar *above* the chip, not inside it:
+ *
+ * - They used to sit on the chip's right edge — 17px buttons, 11.5px icons — directly over the last
+ *   30px of the filename. The gradient meant to hold the end up with the chip's own background held
+ *   nothing: that background is itself a 5% translucent wash of ink, so the letters showed through
+ *   between the icons and the two ran together.
+ * - Growing the chip to the right to make room pushes the following words along and can re-wrap the
+ *   line, so the text jumps under the pointer.
+ *
+ * The bar is out of flow, so not a pixel of the text moves, and the buttons can be the size small
+ * icon buttons are everywhere else (`IconButton`'s `sm`: 22px, 14px icons) instead of being squeezed
+ * into the height of a line. How it shows, how it hides and what happens on a device without hover
+ * are all in `markdown.css`, under `[data-ly-file-actions]`.
+ */
 function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
 	const revealLabel = useRevealLabel();
 	const canOpen = available("system", "openPath");
@@ -348,6 +430,9 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	// The file pane opens in the screen this link is drawn in: the keyboard reaches a link in a screen
 	// without the press that would have given that screen the focus.
 	const screen = useDockScope();
+	const [side, setSide] = useState<"above" | "below">("above");
+	/** Pixels from the chip's left edge to the bar's; `null` keeps it right, for focus, which has no pointer to face. */
+	const [offset, setOffset] = useState<number | null>(null);
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
 		void useOpenFile
@@ -357,14 +442,46 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 		openScopedPanel("file", companionOf("file"), screen ?? undefined);
 	};
 	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
+	const place = (event: SyntheticEvent<HTMLElement>, pointerX?: number) => {
+		// Already inside the bar: leave it where it is, or it moves out from under the pointer.
+		if (event.target instanceof Element && event.target.closest("[data-ly-file-actions]")) return;
+		setSide(actionsSide(event.currentTarget));
+		setOffset(pointerX === undefined ? null : actionsOffset(event.currentTarget, pointerX));
+	};
+	/*
+	 * Tooltips open away from the bar. With the bar above, the buttons' tips go up too rather than back
+	 * down over the chip; with the bar below, the link's own path tip moves above so the two do not stack.
+	 */
+	const buttonTip = side === "above" ? "top" : "bottom";
 
 	return (
 		/*
-		 * 几何在 `markdown.css` 的 `[data-ly-file-link]`。这里只负责 DOM：链接、文件名、两个出口。
-		 * 出口叠在胶囊右沿，不进文档流。太长由样式表省略，不在这里截字。
+		 * The geometry is `[data-ly-file-link]` in `markdown.css`; this only builds the DOM — link,
+		 * filename, two exits. A name that is too long is ellipsised by the stylesheet, not cut here.
 		 */
-		<span data-ly-file-link>
-			<a href={href} data-ly-tip={caption.tip} onClick={(event) => { event.preventDefault(); openFile(); }}>
+		<span
+			data-ly-file-link
+			data-ly-file-actions-side={side}
+			style={offset === null ? undefined : ({ "--ly-file-actions-x": `${offset}px` } as CSSProperties)}
+			onPointerEnter={(event) => place(event, event.clientX)}
+			/*
+			 * Only focus that arrives from the keyboard. Clicking the link focuses it too, and then the
+			 * pointer is already on the chip with the bar lined up above it; placing the bar again as if
+			 * there were no pointer makes it jump to the right end at the moment of the press.
+			 */
+			onFocus={(event) => {
+				if (!event.currentTarget.matches(":hover")) place(event);
+			}}
+		>
+			<a
+				href={href}
+				data-ly-tip={caption.tip}
+				data-ly-tip-side={side === "below" ? "top" : undefined}
+				onClick={(event) => {
+					event.preventDefault();
+					openFile();
+				}}
+			>
 				<FileText size={13} />
 				<span data-ly-file-name>{caption.text}</span>
 			</a>
@@ -376,42 +493,55 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 			 */}
 			{(canOpen || canReveal) && (
 				<span data-ly-file-actions>
-					{canOpen && (
-						<FileLinkAction
-							tip={translate("openTarget.defaultApp")}
-							onClick={() => void bridge.system.openPath(path).catch(fail)}
-						>
-							<ExternalLink size={11.5} strokeWidth={1.9} />
-						</FileLinkAction>
-					)}
-					{canReveal && (
-						<FileLinkAction tip={revealLabel} onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}>
-							<FolderOpen size={11.5} strokeWidth={1.9} />
-						</FileLinkAction>
-					)}
+					<span data-ly-file-actions-bar>
+						{canOpen && (
+							<FileLinkAction
+								label={translate("openTarget.defaultApp")}
+								tipSide={buttonTip}
+								icon={<ExternalLink size={14} />}
+								onClick={() => void bridge.system.openPath(path).catch(fail)}
+							/>
+						)}
+						{canReveal && (
+							<FileLinkAction
+								label={revealLabel}
+								tipSide={buttonTip}
+								icon={<FolderOpen size={14} />}
+								onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}
+							/>
+						)}
+					</span>
 				</span>
 			)}
 		</span>
 	);
 }
 
-/** 一个出口按钮。尺寸比 `MessageActions` 那排小一圈——它坐在一行字里，24px 会把行撑高。 */
-function FileLinkAction({ tip, onClick, children }: { tip: string; onClick: () => void; children: ReactNode }) {
+/** One exit: the app's small icon button, which gives the tooltip and the accessible name together. */
+function FileLinkAction({
+	label,
+	icon,
+	tipSide,
+	onClick,
+}: {
+	label: string;
+	icon: ReactNode;
+	tipSide: "top" | "bottom";
+	onClick: () => void;
+}) {
 	return (
-		<button
-			type="button"
-			data-ly-tip={tip}
-			aria-label={tip}
+		<IconButton
+			size="sm"
+			label={label}
+			icon={icon}
+			tipSide={tipSide}
 			onClick={(event) => {
-				// 链接是它的父元素，不拦住的话按一下会顺带把文件在内置面板里也开一遍。
+				// Stop here: the link and the message row around it each give a click a meaning of their own.
 				event.preventDefault();
 				event.stopPropagation();
 				onClick();
 			}}
-			className="flex h-[17px] w-[17px] items-center justify-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/[0.06] hover:text-ink"
-		>
-			{children}
-		</button>
+		/>
 	);
 }
 
@@ -507,7 +637,8 @@ function Image({ src, alt, width, height }: { src: string; alt: string; width?: 
 	return (
 		<Link href={src}>
 			<span className="ly-md-image-link">
-				<ExternalLink size={11.5} strokeWidth={1.9} />
+				{/* The same size as the file chip's `FileText`: two kinds of link prefix in one paragraph, and at 11.5px beside body text it is only x-height tall and reads as punctuation. */}
+				<ExternalLink size={13} strokeWidth={1.9} />
 				{name}
 			</span>
 		</Link>

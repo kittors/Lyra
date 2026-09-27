@@ -31,7 +31,6 @@ import { DockScope, SessionScope } from "../../src/app/session-scope.tsx";
 import { useBrowser, useBrowserWorkspace } from "../../src/features/browser/browser-store.ts";
 import { Composer } from "../../src/features/composer/Composer.tsx";
 import { ContextMemoryFiles } from "../../src/features/composer/ContextMemoryFiles.tsx";
-import { QueuedMessages } from "../../src/features/composer/QueuedMessages.tsx";
 import { CodeBlock } from "../../src/features/conversation/CodeBlock.tsx";
 import { Markdown } from "../../src/features/conversation/Markdown.tsx";
 import { TurnDeliveryCard } from "../../src/features/conversation/TurnDelivery.tsx";
@@ -431,10 +430,13 @@ test("a memory file in the context meter of the screen without focus opens in th
 });
 
 test("taking a queued message to the side chat, on the screen without focus, opens the side chat in that screen", async () => {
+	lyra.commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
+	lyra.sessions = { contextBreakdown: async () => null, list: async () => [] };
 	const asked: Array<string | null> = [];
 	useSide.setState({ ask: async (sessionId) => { asked.push(sessionId); } });
 	useApp.getState().enqueue("b", { content: [{ type: "text", text: "先问问" }], draft: { text: "先问问", attachments: [], sessionRefs: [] }, preview: "先问问" });
-	view = await inScreen("b", h(QueuedMessages, { sessionId: "b", running: true, onEdit() {} }));
+	// Through the composer: the queue is handed its way to the side chat from there (`onAside`).
+	view = await inScreen("b", h(Composer));
 	await click(view.find("[data-queue-more]"));
 	await click(menuItem("在侧边聊天中打开"));
 	assert.deepEqual(asked, ["b"]);

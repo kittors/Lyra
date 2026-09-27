@@ -22,6 +22,8 @@ import { allowedMethods, callRpc, type RpcDeps } from "./sync-rpc.ts";
 import { RelayLink, relaySocketUrl } from "./sync-relay.ts";
 import { readAppAsset, serveApp } from "./sync-app.ts";
 import { settingsForPhone } from "./phone-settings.ts";
+import { SyncChannel, WIRE_VERSION } from "./sync-wire.ts";
+import { MAX_UPLOAD_BYTES, UploadLink, type UploadStore } from "./sync-uploads.ts";
 
 export interface SyncServerDeps {
 	getSettings(): Settings;
@@ -61,6 +63,8 @@ export interface SyncServerDeps {
 	filesRead: RpcDeps["filesRead"];
 	scratchRoots: RpcDeps["scratchRoots"];
 	generalScratch: RpcDeps["generalScratch"];
+	/** Where files sent from the phone land. Without one, the phone is told uploads are unavailable. */
+	uploads?: UploadStore;
 }
 
 export class SyncServer {
@@ -70,6 +74,8 @@ export class SyncServer {
 	/** The outbound half, when a relay is configured. See `sync-relay.ts`. */
 	private relay: RelayLink | null = null;
 	private clients = new Set<WebSocket>();
+	/** Each socket's framing and in-flight streams; see `sync-wire.ts`. */
+	private channels = new Map<WebSocket, SyncChannel>();
 	private token: string | null = null;
 	private port = 4517;
 
@@ -133,12 +139,14 @@ export class SyncServer {
 				return;
 			}
 			this.wss?.handleUpgrade(request, socket, head, (ws) => {
+				const channel = this.attach(ws);
 				this.clients.add(ws);
-				ws.on("close", () => this.clients.delete(ws));
-				ws.on("error", () => this.clients.delete(ws));
-				// Calls can arrive here as well as over HTTP — see `onSocketMessage`.
-				ws.on("message", (data) => void this.onSocketMessage(ws, data));
-				ws.send(JSON.stringify({ type: "hello", version: 1 }));
+				const gone = () => this.detach(ws);
+				ws.on("close", gone);
+				ws.on("error", gone);
+				// Calls can arrive here as well as over HTTP — see `onMessage`.
+				ws.on("message", (data: Buffer, isBinary: boolean) => channel.receive(data, isBinary));
+				channel.raw(this.hello());
 			});
 		});
 
@@ -174,6 +182,8 @@ export class SyncServer {
 	async stop(): Promise<void> {
 		for (const client of this.clients) client.close();
 		this.clients.clear();
+		for (const channel of this.channels.values()) channel.reset();
+		this.channels.clear();
 		this.relay?.stop();
 		this.relay = null;
 		this.wss?.close();
@@ -201,14 +211,49 @@ export class SyncServer {
 		if (!url || !this.token) return;
 
 		this.relay = new RelayLink(url, this.token, {
+			opened: (socket) => void this.attach(socket),
 			joined: (socket) => {
+				// A new phone at the far end of the same socket: nothing from the last one carries over.
+				const channel = this.channels.get(socket) ?? this.attach(socket);
+				channel.reset();
 				this.clients.add(socket);
-				socket.send(JSON.stringify({ type: "hello", version: 1 }));
+				channel.raw(this.hello());
 			},
-			left: (socket) => this.clients.delete(socket),
-			message: (socket, data) => void this.onSocketMessage(socket, JSON.stringify(data)),
+			peerLeft: (socket) => {
+				this.channels.get(socket)?.reset();
+				this.clients.delete(socket);
+			},
+			left: (socket) => this.detach(socket),
+			message: (socket, data, isBinary) => this.channels.get(socket)?.receive(data, isBinary),
 		});
 		this.relay.start();
+	}
+
+	/**
+	 * What this desktop speaks, sent first on every link.
+	 *
+	 * `version` stays 1 — the message shapes an old phone knows have not changed. `wire: 2` offers the
+	 * large-data framing, taken up only when the phone answers with its own `wire`; `maxUpload` is the
+	 * limit a phone checks before it starts sending a file.
+	 */
+	private hello(): string {
+		return JSON.stringify({ type: "hello", version: 1, wire: WIRE_VERSION, ...(this.deps.uploads ? { maxUpload: MAX_UPLOAD_BYTES } : {}) });
+	}
+
+	private attach(socket: WebSocket): SyncChannel {
+		const channel: SyncChannel = new SyncChannel(
+			socket,
+			(message) => void this.onMessage(channel, message),
+			this.deps.uploads ? new UploadLink(this.deps.uploads) : null,
+		);
+		this.channels.set(socket, channel);
+		return channel;
+	}
+
+	private detach(socket: WebSocket): void {
+		this.channels.get(socket)?.reset();
+		this.channels.delete(socket);
+		this.clients.delete(socket);
 	}
 
 	/** What the allowlist needs, in one place: it is asked for from two transports now. */
@@ -243,6 +288,7 @@ export class SyncServer {
 			filesRead: this.deps.filesRead,
 			scratchRoots: this.deps.scratchRoots,
 			generalScratch: this.deps.generalScratch,
+			uploadPath: (id) => this.deps.uploads?.pathFor(id) ?? null,
 		};
 	}
 
@@ -256,32 +302,28 @@ export class SyncServer {
 	 *
 	 * Errors answer rather than throw, for the same reason the HTTP route returns 200 on a refusal:
 	 * this connection is the phone's only one, and an exception in a message handler takes it down.
+	 *
+	 * Messages arrive here already whole: a large one may have come in parts, and the channel only
+	 * hands it over once the last part is in.
 	 */
-	private async onSocketMessage(ws: WebSocket, raw: unknown): Promise<void> {
-		let message: { type?: unknown; id?: unknown; method?: unknown; args?: unknown; path?: unknown };
-		try {
-			message = JSON.parse(String(raw)) as typeof message;
-		} catch {
-			return;
-		}
+	private async onMessage(channel: SyncChannel, message: { type?: unknown; id?: unknown; method?: unknown; args?: unknown; path?: unknown }): Promise<void> {
 		if (message.type === "ping") {
-			if (ws.readyState === 1) ws.send(JSON.stringify({ type: "pong" }));
+			channel.raw(JSON.stringify({ type: "pong" }));
 			return;
 		}
 		if (typeof message.id !== "string") return;
 
 		if (message.type === "asset_request" && typeof message.path === "string") {
 			const asset = await readAppAsset(message.path);
-			if (ws.readyState === 1) {
-				ws.send(JSON.stringify({
-					type: "asset_response",
-					id: message.id,
-					status: asset.status,
-					contentType: asset.contentType,
-					cacheControl: asset.cacheControl,
-					bodyBase64: asset.body.toString("base64"),
-				}));
-			}
+			// Raw, never in parts: the relay reads this frame itself to answer the browser.
+			channel.raw(JSON.stringify({
+				type: "asset_response",
+				id: message.id,
+				status: asset.status,
+				contentType: asset.contentType,
+				cacheControl: asset.cacheControl,
+				bodyBase64: asset.body.toString("base64"),
+			}));
 			return;
 		}
 
@@ -295,7 +337,7 @@ export class SyncServer {
 		} catch (error) {
 			result = { ok: false, error: error instanceof Error ? error.message : String(error) };
 		}
-		if (ws.readyState === 1) ws.send(JSON.stringify({ type: "rpc_result", id: message.id, ...result }));
+		channel.reply(JSON.stringify({ type: "rpc_result", id: message.id, ...result }), { for: message.id, label: method });
 	}
 
 	broadcast(sessionId: string, event: AgentEvent): void {
@@ -325,11 +367,16 @@ export class SyncServer {
 		this.send(JSON.stringify({ type: "settings_changed", settings: settingsForPhone(settings) }));
 	}
 
-	/** To every client still connected. A closing socket is not an error worth reporting. */
+	/**
+	 * To every client still connected. A closing socket is not an error worth reporting.
+	 *
+	 * As a push: pushes keep their order per link, even when one of them is large enough to go in
+	 * parts — an agent's `message_end` must not overtake the `message_update` before it.
+	 */
 	private send(payload: string): void {
 		if (this.clients.size === 0) return;
 		for (const client of this.clients) {
-			if (client.readyState === 1) client.send(payload);
+			if (client.readyState === 1) this.channels.get(client)?.push(payload);
 		}
 	}
 

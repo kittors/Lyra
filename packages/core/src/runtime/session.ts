@@ -48,7 +48,9 @@ import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { compactWith } from "./compaction.ts";
 import { driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
-import { SubAgentRegistry } from "./sub-agents.ts";
+import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
+import { DelegationWaits, deliveryMessage, type SettledDispatch } from "./delegation-waits.ts";
+import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
 import { stripStaleHandles } from "./model-switch.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
@@ -99,6 +101,15 @@ function renderMessage(message: Message): string {
 	const parts = [text && `助手：${text}`, calls.length > 0 && `（调用了 ${calls.join("、")}）`].filter(Boolean);
 	return parts.join("\n");
 }
+
+/**
+ * 后台结果攒多久再送。
+ *
+ * 并行派出去的几个常常前后脚跑完——同一个模型、差不多的活，结束时间差几百毫秒是常事。攒这么
+ * 一小会儿，它们就是一条消息、一个回合；不攒，就是几个回合，每一个都把整段前缀重发一遍。再长
+ * 就是让先跑完的那个白等：人看得见它已经结束了，主会话却还没动。
+ */
+const DELIVERY_GATHER_MS = 400;
 
 export class AgentSession {
 	readonly store: SessionStorage;
@@ -175,9 +186,35 @@ export class AgentSession {
 	 * reading after the turn that asked for it has ended, and the pane showing it outlives both.
 	 * Emitting on change is what keeps a window in step without polling.
 	 */
-	readonly subAgents = new SubAgentRegistry(() => {
-		void this.emit({ type: "subagents", agents: this.subAgents.list() });
+	readonly subAgents = new SubAgentRegistry(
+		() => {
+			void this.emit({ type: "subagents", agents: this.subAgents.list() });
+		},
+		/*
+		 * 一个子代理停下了，它还挂着的授权也就没人等了——收回，卡片跟着下来。
+		 *
+		 * 被按停的那一刻它可能正停在一次授权上：循环不再等那个回答，可问题还挂在闸门里，卡片要在
+		 * 屏幕上一直留到五分钟超时，点了也没人接。
+		 */
+		(id) => this.approvals.rejectWhere((request) => request.from?.subAgentId === id),
+	);
+	/**
+	 * 主会话在等的派发：人一开口就放手，放了手的跑完后结果送回来。见 `delegation-waits.ts`。
+	 */
+	private readonly delegations = new DelegationWaits({
+		detached: (id) => this.subAgents.background(id),
+		settled: (report) => this.collectDelivery(report),
 	});
+	/**
+	 * 跑完了、还没送回主会话的后台结果。
+	 *
+	 * 攒一小会儿再送：并行派出去的几个常常前后脚跑完，一个一条地送，就是一个一条地开回合——
+	 * 每一次都要把整段前缀重发一遍。
+	 */
+	private deliveries: SettledDispatch[] = [];
+	private deliveryTimer: ReturnType<typeof setTimeout> | null = null;
+	/** 正在跑的这一轮的推理等级。设置中途改了，闸门按它重算宽度——见 `refreshDispatchGate`。 */
+	private turnThinking: ThinkingLevel | undefined;
 	/** 正在跑的那一轮对「模型换了」的订阅；见 `liveModel`。 */
 	private readonly modelListeners = new Set<() => void>();
 	/**
@@ -405,6 +442,8 @@ export class AgentSession {
 			});
 		}
 		if (layered.error) await this.emit({ type: "notice", level: "warn", message: layered.error });
+		// 项目层可能改了并发上限：闸门要跟上叠好的那一份，不是全局那一份。
+		refreshDispatchGate(this.can.state, this.settings, this.turnThinking ?? this.log.meta?.thinking);
 	}
 
 	async status(): Promise<SessionStatus> {
@@ -551,6 +590,13 @@ export class AgentSession {
 		this.can.state.set(PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled(settings));
 		for (const subject of settings.alwaysAllow) this.approvals.allow(subject);
 		/*
+		 * 并发上限当场生效，不等下一轮。
+		 *
+		 * 主会话派了四个、闸门只放一个的时候，这一轮要等四个依次跑完才结束；人这时候去设置页把
+		 * 并发调大，排着的那几个应该马上开跑，而不是等一个永远轮不到的「下一轮」。
+		 */
+		refreshDispatchGate(this.can.state, settings, this.turnThinking ?? this.log.meta?.thinking);
+		/*
 		 * 项目层重新叠一遍，不等这次调用。
 		 *
 		 * 它要读一次盘，而这个方法是同步的（每一个改设置的路径都在调它）。不重新叠的话，
@@ -656,8 +702,8 @@ export class AgentSession {
 	 * workspace: steering changes what the sub-agent reports back, and the parent acts on the
 	 * report. Two agents writing to one working tree is a conflict waiting to happen.
 	 */
-	async steerSubAgent(id: string, said: string | UserContent[]): Promise<boolean> {
-		const message = this.subAgents.steer(id, said);
+	async steerSubAgent(id: string, said: string | UserContent[], display?: SteerDisplay): Promise<boolean> {
+		const message = this.subAgents.steer(id, said, display);
 		if (!message) return false;
 		/*
 		 * Announced, or a window watching this sub-agent would not see what was said to it.
@@ -771,6 +817,31 @@ export class AgentSession {
 			...(options.attachments?.length ? { attachments: options.attachments } : {}),
 		};
 
+		return this.submit(message, {
+			thinking: options.thinking,
+			deliver: options.deliver,
+			fromPerson: true,
+			// Names the conversation after its opening line — unless it already has a name someone
+			// chose, which this must not overwrite. See `SessionMeta.titleSetByUser`.
+			title: async () => {
+				if (!this.log.meta.titleSetByUser && this.log.messages.filter((m) => m.role === "user").length === 1) {
+					await this.title.fromPrompt(content, options.displayText === "" ? options.skillRef?.name ?? options.sessionRefs?.[0]?.title ?? "" : options.displayText);
+				}
+			},
+		});
+	}
+
+	/**
+	 * 一条消息进会话：忙着就插话或排队，闲着就开一个回合。
+	 *
+	 * 人说的话和运行时替后台子代理递回来的结果都走这里，差别只有一处：`fromPerson`。人开口时，
+	 * 父会话不再干等它派出去的子代理（见 `delegation-waits.ts`）；送达的结果不是人在说话，它只是
+	 * 排进去，不打断任何人。
+	 */
+	private async submit(
+		message: Message,
+		options: { thinking?: ThinkingLevel; deliver?: "steer" | "followUp"; fromPerson: boolean; title?: () => Promise<void> },
+	): Promise<void> {
 		if (this.running) {
 			/*
 			 * 插话，还是排队。
@@ -791,8 +862,18 @@ export class AgentSession {
 				 *
 				 * 扯的是收尾那根绳，不是回合那根：后者上面挂着这一轮派出去的子智能体。
 				 */
-				if (this.settling) this.settleController?.abort();
-			} else this.steering.push(message);
+				if (options.fromPerson && this.settling) this.settleController?.abort();
+			} else {
+				this.steering.push(message);
+				/*
+				 * 人开口了，父会话别再干等子代理。
+				 *
+				 * 插话只在两轮之间才有人取，而父会话正卡在一个 `task` 上的时候，「两轮之间」要等到
+				 * 子代理全部跑完——十几分钟。放手之后这一轮当场往下走，下一个回合开头就读到这句话；
+				 * 子代理留在后台接着跑，跑完的结果另外送回来。
+				 */
+				if (options.fromPerson) this.delegations.release();
+			}
 			return;
 		}
 
@@ -800,24 +881,45 @@ export class AgentSession {
 		this.acceptingPrompt = true;
 		const epoch = this.abortEpoch;
 		const accept = async () => {
-		await this.cancelPendingPrompt();
-		await this.log.commit(message);
-		await this.emit({ type: "message_start", message });
-		await this.emit({ type: "message_end", message });
+			await this.cancelPendingPrompt();
+			await this.log.commit(message);
+			await this.emit({ type: "message_start", message });
+			await this.emit({ type: "message_end", message });
+			await options.title?.();
 
-		// Names the conversation after its opening line — unless it already has a name someone
-		// chose, which this must not overwrite. See `SessionMeta.titleSetByUser`.
-		if (!this.log.meta.titleSetByUser && this.log.messages.filter((m) => m.role === "user").length === 1) {
-			await this.title.fromPrompt(content, options.displayText === "" ? options.skillRef?.name ?? options.sessionRefs?.[0]?.title ?? "" : options.displayText);
-		}
-
-		if (this.abortEpoch !== epoch) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
-		await this.run(options.thinking);
-		await this.drainPending();
+			if (this.abortEpoch !== epoch) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
+			await this.run(options.thinking);
+			await this.drainPending();
 		};
 		this.activePrompt = accept();
 		try { await this.activePrompt; }
 		finally { this.activePrompt = null; this.acceptingPrompt = false; void this.tasks.drain(); }
+	}
+
+	/** 一个放了手的子代理跑完了：先攒着，一小会儿之后连同前后脚跑完的一起送。 */
+	private collectDelivery(report: SettledDispatch): void {
+		this.deliveries.push(report);
+		this.deliveryTimer ??= setTimeout(() => {
+			this.deliveryTimer = null;
+			void this.flushDeliveries();
+		}, DELIVERY_GATHER_MS);
+	}
+
+	/**
+	 * 把攒下的后台结果作为一条消息送回主会话。
+	 *
+	 * 主会话正在跑就插进去——下一个回合开头读到；闲着就开一个回合，让它接着用这些结论。被人
+	 * 按停的不送：停它是人的决定，拿一份半截的结果去叫醒主会话，是在跟那个决定争辩。
+	 */
+	private async flushDeliveries(): Promise<void> {
+		const settled = this.deliveries.splice(0, this.deliveries.length);
+		const reports = settled
+			.map((report) => ({ report, summary: this.subAgents.detail(report.id) }))
+			.filter(({ report, summary }) => summary?.status !== "aborted" && !report.answer?.stoppedByUser);
+		if (reports.length === 0) return;
+		// 手动压缩正在改写历史：等它写完边界再进来，和人发消息一样。
+		if (this.compactionTask) await this.compactionTask;
+		await this.submit(deliveryMessage(reports), { fromPerson: false });
 	}
 
 	/**
@@ -880,6 +982,7 @@ export class AgentSession {
 
 		this.controller = new AbortController();
 		this.settleController = new AbortController();
+		this.turnThinking = thinking;
 		try {
 			this.activeTurn = driveTurn({
 				cwd: this.cwd,
@@ -898,6 +1001,7 @@ export class AgentSession {
 				emit: (event) => this.emit(event),
 				drainSteering: () => this.steering.splice(0, this.steering.length),
 				subAgents: this.subAgents,
+				delegations: this.delegations,
 				liveModel: this.liveModel,
 			});
 			await this.activeTurn;
@@ -908,8 +1012,14 @@ export class AgentSession {
 			// 收尾也做完了，两样都归位：绳子没了主人，这一格也不再是「还没放手」。
 			this.settleController = null;
 			this.settling = false;
-			// Anything still waiting for approval would hang forever once the run is over.
-			this.approvals.rejectAll();
+			this.turnThinking = undefined;
+			/*
+			 * Anything still waiting for approval would hang forever once the run is over.
+			 *
+			 * 后台子代理问的除外：它们的问题本来就是在主会话收尾之后问出来的，人还没看见，这里一并
+			 * 收掉就等于替人答了「不行」。它们停下时由登记簿那一头收回（见 `subAgents` 的 `onFinish`）。
+			 */
+			this.approvals.rejectWhere((request) => !request.from);
 		}
 
 		/*
@@ -942,6 +1052,16 @@ export class AgentSession {
 		 */
 		this.subAgents.abortAll();
 		this.approvals.rejectAll();
+		/*
+		 * 放了手的那些也不再送回来。
+		 *
+		 * 它们已经被上面那一行停下了；停下之后照样会「跑完」，而跑完的那一刻如果还有人等着送，
+		 * 一份被腰斩的结果会把刚刚停下的主会话又叫醒——屏幕上刚说完「已停止」，它又动起来了。
+		 */
+		this.delegations.forget();
+		this.deliveries.length = 0;
+		if (this.deliveryTimer) clearTimeout(this.deliveryTimer);
+		this.deliveryTimer = null;
 		/*
 		 * 排队等着的那些也一并取消。
 		 *

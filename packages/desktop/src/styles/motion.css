@@ -256,3 +256,48 @@
 
 /* Clicking navigation has no exit motion; hover alone owns the preview transition. */
 .ly-question-preview[data-dismissed="true"] { transition: none; }
+
+/* ---------------------------------------------------------------------------
+ * A list whose contents were swapped — another tab, another shelf, a search.
+ *
+ * The container only fades; the cards inside rise, a beat apart. Both moving would move every card
+ * twice, and a column that slides while its rows slide inside it reads as a stutter rather than as
+ * one arrival (`--ly-i` is each card's place in line). The beat stops growing at the twelfth card: past a screenful, a later card waiting
+ * longer is only a slower page.
+ * ------------------------------------------------------------------------- */
+
+@keyframes ly-swap-fade {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes ly-rise-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.ly-swap-in {
+	animation: ly-swap-fade var(--ly-t-quick) var(--ly-e-out) both;
+}
+
+.ly-rise-in {
+	animation: ly-rise-in var(--ly-t-slow) var(--ly-e-out) both;
+	animation-delay: calc(min(var(--ly-i, 0), 12) * 24ms);
+}
+
+/* The global switch shortens durations; a delay is not a duration, so it is cleared here. */
+@media (prefers-reduced-motion: reduce) {
+	:root[data-reduce-motion="system"] .ly-rise-in {
+		animation-delay: 0s !important;
+	}
+}
+
+:root[data-reduce-motion="on"] .ly-rise-in {
+	animation-delay: 0s !important;
+}

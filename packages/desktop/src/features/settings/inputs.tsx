@@ -125,6 +125,8 @@ function Dropdown<T extends string>({
 	options,
 	size,
 	ariaLabel,
+	quiet,
+	set,
 }: {
 	value: T;
 	onChange: (value: T) => void;
@@ -133,6 +135,10 @@ function Dropdown<T extends string>({
 	size: "field" | "inline";
 	/** For a dropdown whose own label does not say what it is — two of them reading `09` and `30`. */
 	ariaLabel?: string;
+	/** No fill until it is pointed at — for a control repeated down a list. See `ModelSelect`. */
+	quiet?: boolean;
+	/** In the quiet form, whether this is a choice somebody made rather than the default showing through. */
+	set?: boolean;
 }) {
 	const menu = usePopover();
 	const current = options.find((option) => option.value === value);
@@ -148,7 +154,8 @@ function Dropdown<T extends string>({
 				aria-expanded={menu.open}
 				data-ly-field=""
 				data-ly-select=""
-				className={`ly-field justify-between gap-2 ${field ? "w-full" : ""}`}
+				data-set={set ? "" : undefined}
+				className={`${quiet ? "ly-field-quiet" : "ly-field"} justify-between gap-2 ${field ? "w-full" : ""}`}
 			>
 				<span className="flex min-w-0 items-center gap-2">
 					{current?.icon}
@@ -278,6 +285,8 @@ export function InlineSelect<T extends string>(props: {
 	onChange: (value: T) => void;
 	options: { value: T; label: string; detail?: string; icon?: React.ReactNode }[];
 	ariaLabel?: string;
+	quiet?: boolean;
+	set?: boolean;
 }) {
 	return <Dropdown {...props} size="inline" />;
 }

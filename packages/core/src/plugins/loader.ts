@@ -33,6 +33,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative as relativePath, resolve } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
+import { placeholdersOf, type McpNeed } from "../mcp/placeholders.ts";
 import { loadSkills, type Skill } from "../skills/loader.ts";
 import { withoutBom } from "../utils/bom.ts";
 import { readBundleIcon } from "./bundle-icon.ts";
@@ -61,8 +62,16 @@ export interface PluginManifest {
 	keywords?: string[];
 	/** Directory holding this plugin's skills, relative to the plugin root. */
 	skills?: string;
-	/** JSON file declaring MCP servers, relative to the plugin root. */
-	mcpServers?: string;
+	/**
+	 * JSON file declaring MCP servers, relative to the plugin root — or the declarations themselves,
+	 * `{ "<name>": { command, args, env } }`, the way a Claude Code `plugin.json` may inline them.
+	 */
+	mcpServers?: string | Record<string, unknown>;
+	/**
+	 * What the servers' `${NAME}` placeholders are: a sentence each, where to get one, whether it may
+	 * be left empty. See `mcp/placeholders.ts`.
+	 */
+	env?: McpNeed[];
 	interface?: PluginInterface;
 }
 
@@ -149,6 +158,7 @@ export async function loadPlugins(
 	 * "where did this come from" and the reason nothing may be inferred from its absence.
 	 */
 	const installs = await readInstalls();
+	const scan: Scan = { plugins, mcpBundles, diagnostics, seen, installs, disabled };
 
 	for (const { dir, source } of sources) {
 		const entries = await readdir(dir, { withFileTypes: true }).catch(() => null);
@@ -157,103 +167,129 @@ export async function loadPlugins(
 		for (const entry of entries) {
 			if (entry.name.startsWith(".")) continue;
 			const pluginDir = join(dir, entry.name);
-			if (!(await stat(pluginDir).then((s) => s.isDirectory()).catch(() => false))) continue;
-
-			const found = await readManifest(pluginDir);
-			if (!found) continue;
-			if (!found.manifest) {
-				diagnostics.push({ path: pluginDir, message: found.error });
-				continue;
-			}
-
-			const manifest = found.manifest;
 			/*
-			 * The directory is the identity; the manifest is the label.
-			 *
-			 * This used to be `manifest.name || entry.name`, which is the same string almost always
-			 * and silently wrong when it is not. `inferManifest` deliberately prefers the name inside
-			 * a `.claude-plugin/marketplace.json` — a bundle installed as `agentic-note-taking` comes
-			 * back calling itself `Agentic Note Taking` — and every part of installing and removing a
-			 * bundle works on the directory: install creates `<root>/<entry.id>`, uninstall removes
-			 * `<root>/<id>`, and the servers are stamped with the same id so the settings rows can be
-			 * found again.
-			 *
-			 * With the two disagreeing, all three broke at once and none of them said so. Uninstalling
-			 * removed a directory that did not exist and reported success; the settings rows were
-			 * matched on a name nothing had been stamped with, so the server stayed in the list; and
-			 * the next scan found a bundle with no row and appended its servers again — once per scan,
-			 * which is once per visit to the plugins page.
-			 *
-			 * What the manifest called it is not lost: it is `manifest.name`, and every list that shows
-			 * a bundle reads `interface.displayName ?? manifest.name ?? id` for exactly this reason.
+			 * One bundle, one verdict. A bundle this loop cannot read is a diagnostic on that bundle —
+			 * never an exception out of the loop, which took every other bundle on the page down with it:
+			 * a manifest with `"skills": ["a", "b"]` threw inside `resolveInside`, and the plugins page
+			 * showed nothing at all.
 			 */
-			const id = entry.name;
-			// Workspace plugins are loaded first, so a user-level plugin of the same name loses.
-			if (seen.has(id)) {
-				diagnostics.push({ path: pluginDir, message: `插件 "${id}" 已由更高优先级的来源提供` });
-				continue;
+			try {
+				await scanBundle(pluginDir, entry.name, source, scan);
+			} catch (error) {
+				scan.diagnostics.push({ path: pluginDir, message: `读不了这个包：${error instanceof Error ? error.message : String(error)}` });
 			}
-			seen.add(id);
-
-			/*
-			 * `*` turns everything off.
-			 *
-			 * A session that must be reproducible — one running in CI, or one being used to
-			 * reproduce a report — cannot have its capabilities decided by whatever happens to be
-			 * installed on the machine. Naming every plugin to disable it is not an option there,
-			 * because the point is precisely not knowing what is installed.
-			 */
-			const read = await readContents(pluginDir, manifest, id, source);
-			diagnostics.push(...read.diagnostics);
-			await attachIcon(pluginDir, manifest);
-
-			/*
-			 * No skills and a server declaration: this is an MCP server, whatever the directory it
-			 * sits in is called. It contributes nothing to a session on its own — its servers are
-			 * merged into settings at install time, and settings is what the session reads.
-			 */
-			if (read.kind === "mcp") {
-				mcpBundles.push({
-					id,
-					dir: pluginDir,
-					manifest,
-					source,
-					origin: installs[id],
-					// `id`, so that what stamps a row and what looks the row up are the same string.
-					servers: read.servers.map((server) => ({
-						...server,
-						origin: { bundle: id, version: manifest.version },
-					})),
-				});
-				continue;
-			}
-
-			plugins.push({
-				id,
-				dir: pluginDir,
-				manifest,
-				source,
-				origin: installs[id],
-				// Tag skills so the UI can show which plugin brought them in.
-				skills: read.skills.map((skill) => ({ ...skill, pluginId: id })),
-				/*
-				 * Both names, because this list was written by earlier versions.
-				 *
-				 * `disabledPlugins` holds whatever `id` meant when the user switched something off, and
-				 * until this file changed that was the manifest's name. Reading only the directory
-				 * would quietly re-enable every renamed bundle anybody had disabled — and a migration
-				 * that turns things *on* is the one direction that cannot be undone by noticing.
-				 *
-				 * Costs a comparison and never expires: a bundle disabled under either name stays that
-				 * way, and new entries are written under the directory like everything else now is.
-				 */
-				enabled:
-					!disabled.includes("*") && !disabled.includes(id) && !(!!manifest.name && disabled.includes(manifest.name)),
-			});
 		}
 	}
 
 	return { plugins, mcpBundles, diagnostics };
+}
+
+interface Scan {
+	plugins: Plugin[];
+	mcpBundles: McpBundle[];
+	diagnostics: PluginDiagnostic[];
+	seen: Set<string>;
+	installs: Awaited<ReturnType<typeof readInstalls>>;
+	disabled: string[];
+}
+
+/** One directory of a scan: skipped, a plugin, an MCP bundle, or a diagnostic. */
+async function scanBundle(pluginDir: string, name: string, source: Plugin["source"], scan: Scan): Promise<void> {
+	const { plugins, mcpBundles, diagnostics, seen, installs, disabled } = scan;
+	if (!(await stat(pluginDir).then((s) => s.isDirectory()).catch(() => false))) return;
+
+	const found = await readManifest(pluginDir);
+	if (!found) return;
+	if (!found.manifest) {
+		diagnostics.push({ path: pluginDir, message: found.error });
+		return;
+	}
+
+	const manifest = found.manifest;
+	/*
+	 * The directory is the identity; the manifest is the label.
+	 *
+	 * This used to be `manifest.name || entry.name`, which is the same string almost always
+	 * and silently wrong when it is not. `inferManifest` deliberately prefers the name inside
+	 * a `.claude-plugin/marketplace.json` — a bundle installed as `agentic-note-taking` comes
+	 * back calling itself `Agentic Note Taking` — and every part of installing and removing a
+	 * bundle works on the directory: install creates `<root>/<entry.id>`, uninstall removes
+	 * `<root>/<id>`, and the servers are stamped with the same id so the settings rows can be
+	 * found again.
+	 *
+	 * With the two disagreeing, all three broke at once and none of them said so. Uninstalling
+	 * removed a directory that did not exist and reported success; the settings rows were
+	 * matched on a name nothing had been stamped with, so the server stayed in the list; and
+	 * the next scan found a bundle with no row and appended its servers again — once per scan,
+	 * which is once per visit to the plugins page.
+	 *
+	 * What the manifest called it is not lost: it is `manifest.name`, and every list that shows
+	 * a bundle reads `interface.displayName ?? manifest.name ?? id` for exactly this reason.
+	 */
+	const id = name;
+	// Workspace plugins are loaded first, so a user-level plugin of the same name loses.
+	if (seen.has(id)) {
+		diagnostics.push({ path: pluginDir, message: `插件 "${id}" 已由更高优先级的来源提供` });
+		return;
+	}
+	seen.add(id);
+
+	/*
+	 * `*` turns everything off.
+	 *
+	 * A session that must be reproducible — one running in CI, or one being used to
+	 * reproduce a report — cannot have its capabilities decided by whatever happens to be
+	 * installed on the machine. Naming every plugin to disable it is not an option there,
+	 * because the point is precisely not knowing what is installed.
+	 */
+	const read = await readContents(pluginDir, manifest, id, source);
+	diagnostics.push(...read.diagnostics);
+	await attachIcon(pluginDir, manifest);
+
+	/*
+	 * No skills and a server declaration: this is an MCP server, whatever the directory it
+	 * sits in is called. It contributes nothing to a session on its own — its servers are
+	 * merged into settings at install time, and settings is what the session reads.
+	 */
+	if (read.kind === "mcp") {
+		mcpBundles.push({
+			id,
+			dir: pluginDir,
+			manifest,
+			source,
+			origin: installs[id],
+			// `id`, so that what stamps a row and what looks the row up are the same string.
+			servers: read.servers.map((server) => ({
+				...server,
+				origin: { bundle: id, version: manifest.version },
+			})),
+		});
+		return;
+	}
+
+	plugins.push({
+		id,
+		dir: pluginDir,
+		manifest,
+		source,
+		origin: installs[id],
+		// Tag skills so the UI can show which plugin brought them in — and so a skill written for Claude
+		// Code can find its bundle's files through `${CLAUDE_PLUGIN_ROOT}`; see `expandSkillPaths`.
+		skills: read.skills.map((skill) => ({ ...skill, pluginId: id, pluginRoot: resolve(pluginDir) })),
+		/*
+		 * Both names, because this list was written by earlier versions.
+		 *
+		 * `disabledPlugins` holds whatever `id` meant when the user switched something off, and
+		 * until this file changed that was the manifest's name. Reading only the directory
+		 * would quietly re-enable every renamed bundle anybody had disabled — and a migration
+		 * that turns things *on* is the one direction that cannot be undone by noticing.
+		 *
+		 * Costs a comparison and never expires: a bundle disabled under either name stays that
+		 * way, and new entries are written under the directory like everything else now is.
+		 */
+		enabled:
+			!disabled.includes("*") && !disabled.includes(id) && !(!!manifest.name && disabled.includes(manifest.name)),
+	});
 }
 
 /**
@@ -323,17 +359,32 @@ async function readContents(
 		);
 	}
 
-	const mcp = manifest.mcpServers
-		? await readMcpServers(dir, manifest.mcpServers, id)
-		: { servers: [], error: undefined };
+	const mcp =
+		typeof manifest.mcpServers === "string"
+			? await readMcpServers(dir, manifest.mcpServers, id, manifest.env)
+			: manifest.mcpServers
+				? { servers: serversFrom(manifest.mcpServers, dir, id, manifest.env) }
+				: { servers: [], error: undefined };
 	if (mcp.error) diagnostics.push({ path: dir, message: mcp.error });
 
 	if (loaded.skills.length === 0 && mcp.servers.length > 0) {
-		return { kind: "mcp", skills: [], servers: mcp.servers, diagnostics };
+		/*
+		 * A bundle of one server is that server: it goes by the bundle's display name. The key in its
+		 * `.mcp.json` is an identifier — `brave-search` — and it was what the MCP settings page showed
+		 * as the name of the thing the market had just called "Brave Search". The id is untouched; tool
+		 * names are built from it.
+		 */
+		const title = manifest.interface?.displayName;
+		const servers = mcp.servers.length === 1 && title ? [{ ...mcp.servers[0]!, name: title }] : mcp.servers;
+		return { kind: "mcp", skills: [], servers, diagnostics };
 	}
 
-	// Both, which nothing in the wild actually does. Kept as a plugin, and said out loud: dropping
-	// the servers in silence would be exactly the ambiguity this split exists to remove.
+	/*
+	 * Both — which Claude Code plugins do (Expo, Anthropic's knowledge-work plugins). Kept as a plugin,
+	 * and said out loud: dropping the servers in silence would be exactly the ambiguity this split
+	 * exists to remove. Not a `warning`: those are the "description too short" notes, listed under a
+	 * heading that says so, and servers that did not load are something to act on.
+	 */
 	if (mcp.servers.length > 0) {
 		diagnostics.push({
 			path: dir,
@@ -350,17 +401,84 @@ async function readManifest(pluginDir: string): Promise<ManifestResult | null> {
 	for (const location of MANIFEST_LOCATIONS) {
 		const raw = await readFile(join(pluginDir, location), "utf8").catch(() => null);
 		if (raw === null) continue;
+		let parsed: unknown;
 		try {
-			const parsed = JSON.parse(withoutBom(raw)) as PluginManifest;
-			if (!parsed.name || typeof parsed.name !== "string") {
-				return { error: `${location} 缺少 name 字段` };
-			}
-			return { manifest: parsed };
+			parsed = JSON.parse(withoutBom(raw));
 		} catch (error) {
 			return { error: `${location} 不是合法 JSON：${error instanceof Error ? error.message : String(error)}` };
 		}
+		if (!isRecord(parsed) || !parsed.name || typeof parsed.name !== "string") {
+			return { error: `${location} 缺少 name 字段` };
+		}
+		return { manifest: sanitizeManifest(parsed as Record<string, unknown> & { name: string }) };
 	}
 	return inferManifest(pluginDir);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A manifest, keeping each field only when it has the type we read it as.
+ *
+ * This used to be `JSON.parse(raw) as PluginManifest`, which checks nothing. A bundle declaring
+ * `"skills": ["a", "b"]`, or a `logo` object, carried that into `resolveInside` and `readBundleIcon`,
+ * which threw — out of the scan, which is one loop over every bundle, so the plugins page showed
+ * none of them. A field of the wrong type is now simply absent: the bundle loads with whatever else
+ * it declared, and a wrong `skills` falls back to `./skills/` like a missing one does.
+ */
+function sanitizeManifest(raw: Record<string, unknown> & { name: string }): PluginManifest {
+	const text = (value: unknown) => (typeof value === "string" ? value : undefined);
+	const texts = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined);
+	const manifest: PluginManifest = { name: raw.name };
+	for (const key of ["version", "description", "homepage", "license", "skills"] as const) {
+		const value = text(raw[key]);
+		if (value !== undefined) manifest[key] = value;
+	}
+	if (typeof raw.author === "string") manifest.author = raw.author;
+	else if (isRecord(raw.author)) manifest.author = { name: text(raw.author.name) };
+	const keywords = texts(raw.keywords);
+	if (keywords) manifest.keywords = keywords;
+	if (typeof raw.mcpServers === "string" || isRecord(raw.mcpServers)) manifest.mcpServers = raw.mcpServers;
+	if (Array.isArray(raw.env)) {
+		const needs = raw.env.flatMap((need): McpNeed[] => {
+			if (!isRecord(need) || typeof need.name !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(need.name)) return [];
+			return [
+				{
+					name: need.name,
+					...(text(need.description) ? { description: text(need.description) } : {}),
+					...(text(need.url) ? { url: text(need.url) } : {}),
+					...(typeof need.secret === "boolean" ? { secret: need.secret } : {}),
+					...(need.optional === true ? { optional: true } : {}),
+				},
+			];
+		});
+		if (needs.length > 0) manifest.env = needs;
+	}
+	if (isRecord(raw.interface)) {
+		const ui = raw.interface;
+		const shown: PluginInterface = {};
+		for (const key of [
+			"displayName",
+			"shortDescription",
+			"longDescription",
+			"developerName",
+			"category",
+			"brandColor",
+			"logo",
+			"websiteURL",
+		] as const) {
+			const value = text(ui[key]);
+			if (value !== undefined) shown[key] = value;
+		}
+		const capabilities = texts(ui.capabilities);
+		if (capabilities) shown.capabilities = capabilities;
+		const prompts = texts(ui.defaultPrompt);
+		if (prompts) shown.defaultPrompt = prompts;
+		manifest.interface = shown;
+	}
+	return manifest;
 }
 
 /**
@@ -438,6 +556,7 @@ async function readMcpServers(
 	pluginDir: string,
 	relative: string,
 	pluginId: string,
+	needs: McpNeed[] | undefined,
 ): Promise<{ servers: McpServerConfig[]; error?: string }> {
 	const path = resolveInside(pluginDir, relative);
 	if (!path) return { servers: [], error: `mcpServers 路径逃出了插件目录：${relative}` };
@@ -445,27 +564,59 @@ async function readMcpServers(
 	const raw = await readFile(path, "utf8").catch(() => null);
 	if (raw === null) return { servers: [], error: `找不到 MCP 配置文件：${relative}` };
 
-	let parsed: { mcpServers?: Record<string, Record<string, unknown>> };
+	let parsed: unknown;
 	try {
 		parsed = JSON.parse(withoutBom(raw));
 	} catch (error) {
 		return { servers: [], error: `MCP 配置不是合法 JSON：${error instanceof Error ? error.message : String(error)}` };
 	}
+	if (!isRecord(parsed)) return { servers: [], error: "MCP 配置不是一个对象" };
+	/*
+	 * `{ "mcpServers": { … } }` is the documented shape. Some bundles written for Claude Code ship
+	 * the inner object on its own — the same thing a `plugin.json` may inline — and Claude Code
+	 * loads both, so a bundle that works there must not arrive here as "no servers".
+	 */
+	const declared = isRecord(parsed.mcpServers) ? parsed.mcpServers : parsed;
+	return { servers: serversFrom(declared, pluginDir, pluginId, needs) };
+}
 
+/**
+ * Each declaration of a `{ "<name>": { … } }` map, normalised; whatever cannot be a server is
+ * skipped rather than thrown.
+ *
+ * The manifest's `env` notes are handed to the servers they are about: those whose declaration
+ * has that placeholder — and, when the bundle has a single server, every note, because a server
+ * may read a variable straight from its environment without the declaration naming it.
+ */
+function serversFrom(
+	declared: Record<string, unknown>,
+	pluginDir: string,
+	pluginId: string,
+	needs: McpNeed[] | undefined,
+): McpServerConfig[] {
 	const servers: McpServerConfig[] = [];
-	for (const [name, config] of Object.entries(parsed.mcpServers ?? {})) {
+	for (const [name, config] of Object.entries(declared)) {
+		if (!isRecord(config)) continue;
 		const normalized = normalizeServer(`${pluginId}__${name}`, name, config, pluginDir);
 		if (normalized) servers.push(normalized);
 	}
-	return { servers };
+	if (!needs?.length) return servers;
+	return servers.map((server) => {
+		const holes = placeholdersOf(server);
+		const own = servers.length === 1 ? needs : needs.filter((need) => holes.includes(need.name));
+		return own.length > 0 ? { ...server, needs: own } : server;
+	});
 }
 
 /**
  * Translate one entry of a `.mcp.json` into our config shape.
  *
  * `type` is optional in the wild — a `command` implies stdio and a `url` implies HTTP.
- * `bearer_token_env_var` is resolved from the environment rather than stored, so a bundle
- * can be shared without embedding a token.
+ *
+ * `${NAME}` placeholders are kept as they are and filled when the server is started — see
+ * `mcp/placeholders.ts`. `bearer_token_env_var` becomes one of them, `Authorization: Bearer
+ * ${NAME}`: it used to be read from the environment here, once, and the token itself written into
+ * settings — in plain text, and never read again after the person rotated it.
  */
 function normalizeServer(
 	id: string,
@@ -488,7 +639,7 @@ function normalizeServer(
 	const url = typeof config.url === "string" ? config.url : undefined;
 
 	const env: Record<string, string> = {};
-	for (const [key, value] of Object.entries((config.env as Record<string, unknown>) ?? {})) {
+	for (const [key, value] of Object.entries(isRecord(config.env) ? config.env : {})) {
 		if (typeof value === "string") env[key] = expand(value);
 	}
 
@@ -508,12 +659,12 @@ function normalizeServer(
 
 	if (url) {
 		const headers: Record<string, string> = {};
-		const tokenVar = config.bearer_token_env_var;
-		if (typeof tokenVar === "string" && process.env[tokenVar]) {
-			headers.authorization = `Bearer ${process.env[tokenVar]}`;
-		}
-		for (const [key, value] of Object.entries((config.headers as Record<string, unknown>) ?? {})) {
+		for (const [key, value] of Object.entries(isRecord(config.headers) ? config.headers : {})) {
 			if (typeof value === "string") headers[key] = value;
+		}
+		const tokenVar = config.bearer_token_env_var;
+		if (typeof tokenVar === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(tokenVar)) {
+			if (!Object.keys(headers).some((key) => key.toLowerCase() === "authorization")) headers.Authorization = `Bearer \${${tokenVar}}`;
 		}
 		return {
 			id,

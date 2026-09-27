@@ -125,7 +125,28 @@ export class DispatchGate {
 	}
 
 	/** Run `body` when a slot is free. The slot is always released, including on a throw. */
-	async run<T>(body: () => Promise<T>): Promise<T> {
+	async run<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		const release = await this.acquire(signal);
+		try {
+			return await body();
+		} finally {
+			release();
+		}
+	}
+
+	/**
+	 * 拿一个名额，还回去的办法作为返回值交出来。
+	 *
+	 * 和 `run` 是同一件事的两种写法。`run` 把「拿、干、还」包成一个调用，适合身体就是一个函数的
+	 * 场合；子代理不是——它要先登记、说出自己排在队里，**然后**才等名额，而登记和干活中间隔着的正是
+	 * 这一次等待。把它的一整段身体塞进一个闭包，只为了在中间插一个 `await`，读的人要跳过五百行
+	 * 缩进才看得到那一行。
+	 *
+	 * `signal` 管的是排队这一段：排着的时候被叫停，它当场离队，不再占着一个会在以后某一刻被放进来
+	 * 的位置。从前没有这个——整轮被停的时候，排在闸门后面的那几个会在前面的跑完之后照样被放进来，
+	 * 对着一个已经停下的会话开跑。
+	 */
+	async acquire(signal?: AbortSignal): Promise<() => void> {
 		if (this.active < this.limit) {
 			this.active += 1;
 		} else {
@@ -136,14 +157,36 @@ export class DispatchGate {
 			 * 一个放行点的时候那样没问题；`setLimit` 一次放三个人，就不行了——三个人的记账都排在
 			 * 循环之后，循环里读到的 `active` 三次都是同一个老数字。
 			 */
-			await new Promise<void>((resolve) => this.waiting.push(resolve));
+			await this.wait(signal);
 		}
-		try {
-			return await body();
-		} finally {
+		let released = false;
+		return () => {
+			// 还两次是一个 bug，但不该让闸门从此多出一个谁也拿不走的空位。
+			if (released) return;
+			released = true;
 			this.active -= 1;
 			this.admit();
-		}
+		};
+	}
+
+	/** 排队，直到 `admit` 叫到自己；被叫停就离队。 */
+	private wait(signal?: AbortSignal): Promise<void> {
+		if (signal?.aborted) return Promise.reject(cancelled(signal));
+		return new Promise<void>((resolve, reject) => {
+			const turn = () => {
+				signal?.removeEventListener("abort", leave);
+				resolve();
+			};
+			const leave = () => {
+				const at = this.waiting.indexOf(turn);
+				// 已经被叫到（`admit` 把它取走了）的不算离队：名额记在它头上，由它自己还。
+				if (at < 0) return;
+				this.waiting.splice(at, 1);
+				reject(cancelled(signal));
+			};
+			this.waiting.push(turn);
+			signal?.addEventListener("abort", leave, { once: true });
+		});
 	}
 
 	/**
@@ -162,15 +205,34 @@ export class DispatchGate {
 	 * 取回的时候不排队，无条件加回去——排队等的可能正是自己刚让出去的那个位置，而那个位置上的人
 	 * 在等自己。宁可有那么一瞬多出一个，也不要一个永远解不开的环。
 	 */
-	async nested<T>(body: () => Promise<T>): Promise<T> {
+	async nested<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		const release = await this.acquireNested(signal);
+		try {
+			return await body();
+		} finally {
+			release();
+		}
+	}
+
+	/** `nested` 的拿/还两段写法，理由同 `acquire`。 */
+	async acquireNested(signal?: AbortSignal): Promise<() => void> {
 		// 走到这里的一定是个已经拿到名额的子代理；0 只可能是没有会话的宿主临时开的一道新闸门。
 		const held = this.active > 0;
 		if (held) this.active -= 1;
+		let release: () => void;
 		try {
-			return await this.run(body);
-		} finally {
+			release = await this.acquire(signal);
+		} catch (error) {
 			if (held) this.active += 1;
+			throw error;
 		}
+		let returned = false;
+		return () => {
+			if (returned) return;
+			returned = true;
+			release();
+			if (held) this.active += 1;
+		};
 	}
 
 	/** 在宽度允许的范围内依次放行，名额在这里记账。 */
@@ -184,16 +246,42 @@ export class DispatchGate {
 	}
 }
 
+/** 排队时被叫停。和 `AbortSignal` 的原因一起抛，调用方据此分辨「被停」和「出错」。 */
+export class DispatchCancelled extends Error {
+	readonly reason: unknown;
+
+	constructor(reason: unknown) {
+		super("dispatch cancelled while queued");
+		this.name = "DispatchCancelled";
+		this.reason = reason;
+	}
+}
+
+function cancelled(signal?: AbortSignal): DispatchCancelled {
+	return new DispatchCancelled(signal?.reason);
+}
+
 /**
  * The sentence in the prompt that tells the model the limit.
  *
  * Without it a model dispatches twelve and then wonders why the answers are so slow to arrive —
  * it has no way to know that eight of them are sitting in a queue, and the natural reading of
  * "this is slow" is to try harder.
+ *
+ * 但这句话从前说反了一半。它写的是「一次派超过 N 个只会让结果更晚到，不会更快」，模型读到的是
+ * 「一次别派超过 N 个」——闸门开到 1 的时候，就成了「一轮只派一个」：派一个、等它跑完、再开一轮
+ * 派下一个。2026-09-26 的真实会话里四个审查子代理就是这样排成一串的，每两个之间隔着一整轮主模型
+ * 的请求，而那几分钟里主会话的缓存也凉了。
+ *
+ * 排队本来就是闸门替模型做的事：一次交齐，多出来的自己排着，前面的跑完一个就补上一个——这比
+ * 模型自己一轮一个地喂，每一个都早到一整轮。所以现在说的是「一起派，排队不用你管」，数字只用来
+ * 解释为什么有的回来得晚。
  */
 export function concurrencyNote(limit: number, maxDepth: number): string {
 	return (
-		`最多 ${limit} 个子代理同时跑，超出的会排队——一次派超过 ${limit} 个只会让结果更晚到，不会更快。` +
+		"互不依赖的几件事，在同一条回复里一起派出去（一次发出多个 `task` 调用）：" +
+		`最多 ${limit} 个子代理同时跑，多出来的自动排队，前面的跑完一个就补上一个——排队不用你管，也不多花钱。` +
+		"别为了等前一个的结果而一轮只派一个，那样每多派一个就多等一整轮。" +
 		`派生最多嵌套 ${maxDepth} 层。`
 	);
 }

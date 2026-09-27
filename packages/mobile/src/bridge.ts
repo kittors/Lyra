@@ -12,6 +12,7 @@
  */
 
 import type { Connection } from "./connection.ts";
+import { wireSource } from "./bridge-wire.ts";
 import { roomFor } from "./sha256.ts";
 
 /**
@@ -53,6 +54,12 @@ export function bridgeScript(connection: Connection): string {
 	/** Non-null when this connection goes through a relay; see the note where it is computed. */
 	const ROOM = ${JSON.stringify(room)};
 	const TOKEN = ${JSON.stringify(connection.token)};
+
+	/*
+	 * Large messages and file uploads: the phone half of wire 2. A factory defined here and handed
+	 * the few things of the bridge it needs; see bridge-wire.ts.
+	 */
+	${wireSource()}
 
 	/** Listeners for each kind of push the desktop sends. */
 	const subscribers = { agent: new Set(), sideChat: new Set(), settings: new Set(), sessions: new Set(), sync: new Set() };
@@ -97,6 +104,8 @@ export function bridgeScript(connection: Connection): string {
 			scheduleReconnect();
 			return;
 		}
+		// Wire 2's parts are binary; the default Blob would make every one of them an async read.
+		socket.binaryType = "arraybuffer";
 		const current = socket;
 		socket.onopen = () => {
 			if (socket !== current) return;
@@ -112,8 +121,17 @@ export function bridgeScript(connection: Connection): string {
 		};
 		socket.onmessage = (event) => {
 			if (socket !== current) return;
+			/*
+			 * Anything at all from the far end proves the link is alive, not only a pong. A large
+			 * answer arriving in parts holds the pong behind it, and a probe that insisted on the pong
+			 * declared a working link dead halfway through the transfer — then reconnected and asked
+			 * for the same answer again.
+			 */
+			clearProbe();
+			if (typeof event.data !== "string") { wire.receive(event.data); return; }
 			let message;
 			try { message = JSON.parse(event.data); } catch { return; }
+			if (!message || typeof message !== "object") return;
 			/*
 			 * The relay's own two words. A waiting frame means we are alone in the room so far; ready
 			 * means the desktop has arrived and anything queued can go.
@@ -122,22 +140,15 @@ export function bridgeScript(connection: Connection): string {
 			if (message.type === "ready") { connected(); return; }
 			if (message.type === "peer-left") {
 				linked = false;
+				wire.closed();
 				if (everConnected) rejectPending("连接已断开，请重试");
 				reportConnection("reconnecting");
 				return;
 			}
-			if (message.type === "pong") { clearProbe(); return; }
-			if (message.type === "rpc_result") {
-				settle(message);
-			} else if (message.type === "agent_event") {
-				for (const fn of subscribers.agent) fn({ sessionId: message.sessionId, event: message.event });
-			} else if (message.type === "side_chat_event") {
-				for (const fn of subscribers.sideChat) fn({ sessionId: message.sessionId, event: message.event });
-			} else if (message.type === "session_changed") {
-				for (const fn of subscribers.sessions) fn(message.change);
-			} else if (message.type === "settings_changed") {
-				for (const fn of subscribers.settings) fn(message.settings);
-			}
+			if (message.type === "pong") return;
+			if (message.type === "hello") { wire.hello(message); return; }
+			if (wire.control(message)) return;
+			wire.deliver(message);
 		};
 		socket.onclose = () => {
 			if (socket !== current) return;
@@ -145,6 +156,7 @@ export function bridgeScript(connection: Connection): string {
 			socket = null;
 			// A new socket has to claim the room again before anything can be sent through it.
 			linked = false;
+			wire.closed();
 			if (everConnected) rejectPending("连接已断开，请重试");
 			reportConnection(everConnected ? "reconnecting" : "connecting");
 			scheduleReconnect();
@@ -173,12 +185,37 @@ export function bridgeScript(connection: Connection): string {
 	 */
 	let linked = false;
 
+	/** One whole message from the desktop, however it arrived. */
+	function dispatch(message) {
+		if (message.type === "rpc_result") {
+			settle(message);
+		} else if (message.type === "agent_event") {
+			for (const fn of subscribers.agent) fn({ sessionId: message.sessionId, event: message.event });
+		} else if (message.type === "side_chat_event") {
+			for (const fn of subscribers.sideChat) fn({ sessionId: message.sessionId, event: message.event });
+		} else if (message.type === "session_changed") {
+			for (const fn of subscribers.sessions) fn(message.change);
+		} else if (message.type === "settings_changed") {
+			for (const fn of subscribers.settings) fn(message.settings);
+		}
+	}
+
+	/** A call's deadline counts from its last sign of life, so a large answer is not cut off mid-way. */
+	function touch(id) {
+		const entry = pending.get(id);
+		if (entry) entry.arm();
+	}
+
+	const wire = createWire({ socket: () => socket, linked: () => linked, touch, dispatch, relay: ROOM !== null, origin: ORIGIN });
+
 	function connected() {
 		clearProbe();
 		linked = true;
 		everConnected = true;
 		backoff = 500;
 		reportConnection("connected");
+		// Before anything queued: the desktop has to know to answer in parts before it answers.
+		wire.opened();
 		flush();
 	}
 
@@ -191,7 +228,7 @@ export function bridgeScript(connection: Connection): string {
 	}
 
 	function send(entry) {
-		if (linked && socket && socket.readyState === 1) socket.send(entry.frame);
+		if (linked && socket && socket.readyState === 1) wire.send(entry.frame, entry.id);
 		else waiting.push(entry);
 	}
 
@@ -248,13 +285,21 @@ export function bridgeScript(connection: Connection): string {
 			 * A call that never comes back has to fail eventually. Without this a dropped socket
 			 * leaves the renderer with a promise that never settles — a spinner that never stops,
 			 * which reads as the app having hung rather than as the connection having gone.
+			 *
+			 * Twenty seconds of silence, not twenty seconds in total: a large answer that is still
+			 * arriving re-arms it with every part (see touch).
 			 */
-			const timer = setTimeout(() => {
-				pending.delete(id);
-				removeWaiting(id);
-				reject(new Error("桌面端没有响应"));
-			}, 20000);
-			pending.set(id, { resolve, reject, timer });
+			const entry = { resolve, reject, timer: null, arm: null };
+			entry.arm = () => {
+				clearTimeout(entry.timer);
+				entry.timer = setTimeout(() => {
+					pending.delete(id);
+					removeWaiting(id);
+					reject(new Error("桌面端没有响应"));
+				}, 20000);
+			};
+			entry.arm();
+			pending.set(id, entry);
 			send({ id, frame: JSON.stringify({ type: "rpc", id, method, args }) });
 		});
 	}
@@ -517,6 +562,10 @@ export function bridgeScript(connection: Connection): string {
 			rotateToken: absent,
 			onStatus: subscribe(subscribers.sync),
 			connectionStatus: () => connectionStatus,
+			/** Progress of large answers and uploads, for a progress bar; also a lyra:transfer event on window. */
+			onTransfer: (handler) => wire.onTransfer(handler),
+			/** What the paired desktop takes: wire version, and whether and how large an upload. */
+			capabilities: () => Promise.resolve(wire.capabilities()),
 		},
 		system: {
 			platform: () => Promise.resolve(window.lyra.platform),
@@ -524,10 +573,29 @@ export function bridgeScript(connection: Connection): string {
 			openExternal: (url) => nativeCall("openExternal", url),
 		},
 		clipboard: {
+			// The names the desktop's own API uses, which the renderer calls first.
+			write: (text) => nativeCall("clipboardWrite", text),
+			read: () => nativeCall("clipboardRead"),
+			// The names this bridge offered before it matched them, kept for the pages already asking for them.
 			writeText: (text) => nativeCall("clipboardWrite", text),
 			readText: () => nativeCall("clipboardRead"),
 		},
-		files: { list: call("files.list"), read: call("files.read"), document: absent, bytes: absent, write: absent, mediaUrl: () => "" },
+		files: {
+			list: call("files.list"),
+			read: call("files.read"),
+			document: absent,
+			bytes: absent,
+			write: absent,
+			mediaUrl: () => "",
+			/*
+			 * A picked file has no path the desktop could use, and the answer must be a string: the
+			 * floor below would answer with a promise, which the composer took for a path and sent,
+			 * and the desktop refused the whole message as an invalid attachment.
+			 */
+			pathForDrop: () => "",
+			/** Stream a picked file to the desktop; null when the desktop cannot take uploads. */
+			upload: (file, options) => wire.upload(file, options),
+		},
 
 		/*
 		 * Everything below is a desktop capability with no phone equivalent, present so the

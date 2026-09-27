@@ -9,49 +9,30 @@
 import { useI18n } from "../../i18n/index.ts";
 import type { UserContent } from "@lyra/core";
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { findModel } from "../models/index.ts";
 import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
 import { useDockScope, useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
-import { openFromEvent } from "../image/index.ts";
-import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
-import { openViewer } from "../image/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf } from "../dock/index.ts";
 import {
-	AttachmentStrip,
 	ComposerSend,
 	ComposerShell,
-	fileKind,
-	type FileKind,
-	KIND_LABEL,
 	attachmentMeta,
 	spellDraft,
+	type DraftAttachment,
 	type OutgoingMeta,
-	useAttachmentMarks,
-	pickedFrom,
-	type PickedFile,
-	type StripFile,
-	useAttachmentActions,
+	QueueList,
+	queuePreview,
+	queueThumbnail,
+	useComposerAttachments,
+	useDraft,
+	useInputHistory,
 } from "../composer/index.ts";
 import { EffortTrigger, ModelTrigger } from "../models/index.ts";
-
-interface SideAttachment {
-	id: string;
-	name: string;
-	mimeType: string;
-	data?: string;
-	text?: string;
-	isText: boolean;
-	/** 磁盘上的位置，来自一个文件的话——「打开」和「在访达中显示」靠它。 */
-	path?: string;
-	/** 界面上叫什么：「图片 1」或者文件名。正文里那枚标记写的就是它——见 `useAttachmentMarks`。 */
-	label?: string;
-	kind?: FileKind;
-}
 
 export function SideComposer({
 	running,
@@ -78,55 +59,40 @@ export function SideComposer({
 	const sessionId = useSideSessionId();
 	// The screen this side chat is docked in, where a file marked here opens — not the one with focus.
 	const screen = useDockScope();
+	/** 标记点开的文件进右边的文件面板——和主输入框同一个去处，开在这一屏。 */
+	const openFile = (path: string, name: string) => {
+		void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
+		openScopedPanel("file", companionOf("file"), screen ?? undefined);
+	};
 	const modelId = useSide((s) => sideChatOf(s, sessionId).modelId);
 	const loading = useSide((s) => sideChatOf(s, sessionId).loading);
 	const thinking = useSide((s) => sideChatOf(s, sessionId).thinking);
-	const [text, setText] = useState("");
-	const [attachments, setAttachments] = useState<SideAttachment[]>([]);
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const field = useRef<HTMLTextAreaElement>(null);
-	const attachmentActions = useAttachmentActions();
+	const messages = useSide((s) => sideChatOf(s, sessionId).messages);
+	const queued = useSide((s) => sideChatOf(s, sessionId).queued);
 	/*
-	 * 正文里那枚标记，和主输入框是同一套。
-	 *
-	 * 这个输入框从前收得下文件，句子里却什么也没有：附件一律「图片在前、文本缀在后」地送出去，于是
-	 * 「照着第二张图改」这种再普通不过的话，模型只能猜是哪一张。
+	 * 草稿按会话存，和主输入框同一个仓库——面板关了、换个会话再回来，打了一半的话还在。
+	 * 从前它是这个组件自己的 state，面板一关就没了。
 	 */
-	const marks = useAttachmentMarks<SideAttachment>({ attachments, setAttachments, setText, field });
-
-	const previewable = useMemo(
-		() => attachments.filter((a) => !a.isText && a.data),
-		[attachments],
-	);
-
-	const previewImage = (target: SideAttachment, originRect?: DOMRect) => {
-		const index = previewable.findIndex((file) => file.id === target.id);
-		if (index < 0) return;
-		const origin = originRect ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 1, 1);
-		openViewer(
-			previewable.map((file) => ({ src: `data:${file.mimeType};base64,${file.data}`, alt: file.name })),
-			index,
-			origin,
-		);
-	};
-	/** 这一排要画的东西，和主输入框那一排是同一种形状——见 `AttachmentStrip`。 */
-	const strip: StripFile[] = useMemo(
-		() =>
-			attachments.map((attachment) => {
-				const kind = attachment.kind ?? fileKind(attachment.name, attachment.mimeType);
-				return {
-					key: attachment.id,
-					name: attachment.label ?? attachment.name,
-					kind,
-					...(attachment.data && !attachment.isText
-						? { src: `data:${attachment.mimeType};base64,${attachment.data}` }
-						: {}),
-					...(attachment.path ? { path: attachment.path } : {}),
-					tip: `${attachment.name}\n${t(KIND_LABEL[kind])}`,
-				};
-			}),
-		[attachments, t],
-	);
+	const { text, setText, attachments, setAttachments, clear } = useDraft<DraftAttachment>(sessionId ? `side:${sessionId}` : null);
+	const field = useRef<HTMLTextAreaElement>(null);
+	/*
+	 * 收附件的那一整套，和主输入框是同一份：八个的上限、PDF 抽字、上方只摆图片（文件在句子里那枚
+	 * 标记上）、右键标记弹出同一份菜单。见 `useComposerAttachments`。
+	 */
+	const kit = useComposerAttachments<DraftAttachment>({ text, attachments, setAttachments, setText, field, openFile, thumbnail: 56 });
+	const { marks } = kit;
+	/* 方向键往回翻自己在这个侧边聊天里问过的话——和主输入框同一套手感。 */
+	const history = useInputHistory({
+		messages,
+		value: text,
+		attachments,
+		onPick: (next, files) => {
+			setText(next);
+			setAttachments(files as DraftAttachment[]);
+		},
+		field,
+		resetKey: sessionId ?? "",
+	});
 
 	/*
 	 * Text handed back by withdrawing a task.
@@ -141,67 +107,54 @@ export function SideComposer({
 		if (!draftSeed) return;
 		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n${draftSeed.text}` : draftSeed.text));
 		useSide.getState().clearDraftSeed(sessionId);
-	}, [draftSeed, sessionId]);
+	}, [draftSeed, sessionId, setText]);
 
-	const addFiles = async (picked: PickedFile[]) => {
-		if (picked.length === 0) return;
-		// 读文件之前记下来：读一份大文件要几百毫秒，那期间光标早就不在原地了。
-		const caret = field.current?.selectionStart ?? text.length;
-		const next: SideAttachment[] = [];
-		for (const { file, path } of picked) {
-			const from = path ? { path } : {};
-			if (file.type.startsWith("image/")) {
-				const buffer = await file.arrayBuffer();
-				const base64 = bytesToBase64(new Uint8Array(buffer));
-				next.push({
-					id: `${Date.now()}-${Math.random()}`,
-					name: file.name,
-					mimeType: file.type,
-					data: base64,
-					isText: false,
-					...from,
-				});
-			} else {
-				try {
-					const content = await file.text();
-					next.push({
-						id: `${Date.now()}-${Math.random()}`,
-						name: file.name,
-						mimeType: file.type || "text/plain",
-						text: content,
-						isText: true,
-						...from,
-					});
-				} catch {
-					useApp.getState().notify(t("subAgent.fileUnreadable", { name: file.name }), "warn");
-				}
-			}
-		}
-		// 标记、编号、光标落点都在这一步里——和主输入框是同一段代码。
-		marks.attach(next, caret);
-	};
+	const empty = !text.trim() && attachments.length === 0;
 
 	function submit() {
 		const trimmed = text.trim();
-		if ((!trimmed && attachments.length === 0) || running || disabled) return;
+		if (empty || disabled) return;
 		/*
-		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。
-		 *
-		 * 这里从前是自己拼的——图片一律排最前，文本附件一律缀在最后，而且什么标签都不带。那正是这套
-		 * 记号当初要治的毛病：三张截图送过去，模型看到的是三团分不出先后的像素。
+		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。再交一份给人看的：
+		 * 人打的那些字（`【图片 1】` 这样的标记留着），和附件的名字门类——没有这一份，气泡里摆的是
+		 * 写给模型的 `### Attached file: …`。
 		 */
 		const content = spellDraft(trimmed, attachments);
+		const sent = { displayText: trimmed, attachments: attachmentMeta(attachments) };
 		/*
-		 * 再交一份给人看的：人打的那些字（`【图片 1】` 这样的标记留着），和附件的名字门类。
+		 * 正在答的时候，排到后面，而不是什么都不发生。
 		 *
-		 * 没有这一份的时候，面板只能把所有文本块拼起来画——于是 `### Attached file: image.png`
-		 * 这种写给模型的记号原样出现在气泡里，而同一条消息在主会话里画的是一枚胶囊。
+		 * 从前这里直接 return：字留在框里，没有一句话说为什么，看着像回车键坏了。现在和主输入框一样
+		 * 排在输入框上方那条上，这一轮答完自己发出去；条上改得了、删得掉、排得出先后。队里还压着
+		 * 别的时候也排——不然新说的这句会越过前面那几句先到。
 		 */
-		const meta = { displayText: trimmed, attachments: attachmentMeta(attachments) };
-		setText("");
-		setAttachments([]);
-		onSend(content, meta);
+		if (running || queued.length > 0) {
+			const composed = { text: trimmed, attachments, sessionRefs: [] };
+			const thumbnail = queueThumbnail(composed);
+			useSide.getState().enqueue(sessionId, {
+				content,
+				displayText: sent.displayText,
+				...(sent.attachments.length ? { attachments: sent.attachments } : {}),
+				draft: { text: trimmed, attachments, sessionRefs: [] },
+				preview: queuePreview(composed),
+				...(thumbnail ? { thumbnail } : {}),
+			});
+			clear();
+			return;
+		}
+		clear();
+		onSend(content, sent);
 	}
+
+	/** 排着的那一条退回来：整份草稿——字和附件——接在框里已有的后面。 */
+	const restoreQueued = (entry: { draft: { text: string; attachments: unknown[] } }) => {
+		setText((current) => (current.trim() ? `${current.trimEnd()}\n\n${entry.draft.text}` : entry.draft.text));
+		setAttachments((current) => [...current, ...(entry.draft.attachments as DraftAttachment[])]);
+		const el = field.current;
+		if (!el) return;
+		el.focus();
+		requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
+	};
 
 	// Inheritance stays a policy; the trigger names the model used by the next request.
 	const model = findModel(settings, meta?.modelId ?? settings?.defaultModelId ?? null);
@@ -214,9 +167,27 @@ export function SideComposer({
 	return (
 		// Same cap as the transcript above it, so the field stays under the messages it answers.
 		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
+			{sessionId && (
+				<QueueList
+					source={{
+						items: queued,
+						drop: (id) => useSide.getState().dropQueued(sessionId, id),
+						move: (id, targetId, placement) => void useSide.getState().moveQueued(sessionId, id, targetId, placement),
+					}}
+					running={running}
+					onEdit={restoreQueued}
+				/>
+			)}
 			<ComposerShell
 				value={text}
 				fieldRef={field}
+				hint={
+					history.position ? (
+						<div data-ly-history="" className="ly-composer-hint text-caption text-ink-faint">
+							{t("composer.history", { current: history.position.current, total: history.position.total })}
+						</div>
+					) : undefined
+				}
 				onChange={(next) => {
 					setText(next);
 					// 句子里那枚标记被删掉，附件跟着卸下来——删除是双向的。
@@ -224,98 +195,43 @@ export function SideComposer({
 				}}
 				onKeyDown={(event) => {
 					// 退格吃掉整枚标记，而不是把它啃成一串没人认得的方括号。
-					marks.keyDown(event);
+					if (marks.keyDown(event)) return;
+					history.keyDown(event);
 				}}
-				onAttachmentClick={(index, rect) => {
-					const hit = scanPlaceholders(text, attachments)[index];
-					if (!hit) return;
-					attachmentActions.openOrPreview(
-						{
-							name: hit.file.label ?? hit.file.name,
-							path: hit.file.path,
-							src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
-							mimeType: hit.file.mimeType,
-							isImage: !hit.file.isText && Boolean(hit.file.data),
-							onPreviewImage: (originRect?: DOMRect) => previewImage(hit.file, originRect),
-							onOpenFile: (path: string, name: string) => {
-								void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-								openScopedPanel("file", companionOf("file"), screen ?? undefined);
-							},
-						},
-						rect,
-					);
-				}}
+				onContextMenu={kit.onContextMenu}
+				onAttachmentClick={kit.onAttachmentClick}
 				decoration={{ attachments: marks.decorationFor(text) }}
 				onSubmit={submit}
 				disabled={disabled}
 				placeholder={t(disabled ? "sideChat.noSession" : "sideChat.placeholder")}
-				onFiles={(picked) => void addFiles(picked)}
+				onFiles={(picked) => void kit.addFiles(picked)}
 				attachments={
 					/*
-					 * 和主输入框、和气泡外面，是同一排东西。
-					 *
-					 * 这里从前自己画了一份：14px 高的卡片、20px 宽的缩略图、常驻的叉、一行「文件附件」。
-					 * 于是同一份 PDF 在应用里有四种长相（主输入框、气泡、这儿、子智能体那儿），而它们
-					 * 说的是同一件事。四份实现也意味着新增的能力只会长在其中一份上——打开、指出位置、
-					 * 复制路径，这一份一样都没有。
+					 * 和主输入框同一排：只有图片，文件在句子里那枚标记上。只在真有图时展开，不然贴进来一个
+					 * 文件，输入框上沿平白高出一道空的内衬。
 					 */
-					attachments.length > 0 ? (
-						<div className="ly-composer-attachments">
-							<AttachmentStrip
-								files={strip}
-								layout="row"
-								/* 面板本来就窄，格子跟着小一号——一排还是一排，只是每个矮一点。 */
-								thumbnail={56}
-								onOpen={(index, event) =>
-									openFromEvent(
-										event,
-										attachments
-											.filter((a) => !a.isText && a.data)
-											.map((a) => ({ src: `data:${a.mimeType};base64,${a.data}`, alt: a.name })),
-										index,
-									)
-								}
-								onRemove={(file) => {
-									const target = attachments.find((a) => a.id === file.key);
-									if (target) marks.detach(target);
-								}}
-							/>
-						</div>
-					) : undefined
+					<div className="ly-reveal" data-open={kit.strip.length > 0 ? "true" : "false"}>
+						<div className="ly-composer-attachments">{kit.stripNode}</div>
+					</div>
 				}
 				left={
 					<>
 						<button
 							type="button"
-							data-ly-tip={t("subAgent.attach")}
-							aria-label={t("subAgent.attach")}
-							onClick={() => fileInputRef.current?.click()}
+							data-ly-tip={t("composer.addAttachment")}
+							aria-label={t("composer.addAttachment")}
+							onClick={kit.picker.open}
 							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Plus size={16} strokeWidth={1.9} />
 						</button>
-						<input
-							ref={fileInputRef}
-							type="file"
-							multiple
-							hidden
-							onChange={(e) => {
-								void addFiles(pickedFrom(e.target.files));
-								e.target.value = "";
-							}}
-						/>
+						{kit.picker.input}
 					</>
 				}
 				right={
 					<>
 						{/*
-						 * 和主输入框同一枚，不是一个长得像它的。
-						 *
-						 * 这里从前用的是设置页那个 `ModelSelect`：描了边、按输入框高度做的表单控件，外加一句
-						 * 「随主会话」。摆进这一行，就成了在输入框的边框里面再画一个框；而那句话说的是配置，
-						 * 不是正在写的这条消息。两样东西，全应用只有这一个输入框上有。
-						 *
-						 * 继承没被藏起来，只是挪进了提示里——见 `inheriting`。
+						 * 和主输入框同一枚，不是一个长得像它的。继承没被藏起来，只是挪进了提示里——见 `inheriting`。
 						 */}
 						<ModelTrigger
 							modelId={modelId || model?.id}
@@ -331,12 +247,8 @@ export function SideComposer({
 								},
 							}}
 						/>
-					{/*
-						 * 想多久，也是这一条消息的属性。
-						 *
-						 * 侧边聊天此前只能挑模型，等级一律跟着主会话——而它本来就是另一个对话，模型
-						 * 都能单独挑，想多久却挑不了。`sidechat.ts` 的 `ask` 一直收这个参数，缺的只是
-						 * 界面和中间那几层。不选就还是跟着主会话走，也就是从前的行为。
+						{/*
+						 * 想多久，也是这一条消息的属性。不选就还是跟着主会话走，也就是从前的行为。
 						 */}
 						<EffortTrigger
 							modelId={modelId || model?.id}
@@ -347,24 +259,17 @@ export function SideComposer({
 								onChange: (level) => useSide.getState().setThinking(sessionId, level),
 							}}
 						/>
-						<ComposerSend
-							running={running}
-							disabled={(!text.trim() && attachments.length === 0) || disabled}
-							onSend={submit}
-							onStop={onStop}
-						/>
+						{/* 正在答的时候按下去是排队，所以它说的也不再是「发送」——和主输入框同一个说法。 */}
+						<div className="ly-queue-send" data-visible={running && !empty} inert={!running || empty}>
+							<div>
+								<ComposerSend running={false} active={running && !empty} disabled={!running || empty} tip={t("composer.queueWaiting")} onSend={submit} onStop={onStop} />
+							</div>
+						</div>
+						<ComposerSend running={running} disabled={empty || disabled} onSend={submit} onStop={onStop} />
 					</>
 				}
 			/>
+			{kit.menu}
 		</div>
 	);
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-	let binary = "";
-	const chunk = 0x8000;
-	for (let i = 0; i < bytes.length; i += chunk) {
-		binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-	}
-	return btoa(binary);
 }

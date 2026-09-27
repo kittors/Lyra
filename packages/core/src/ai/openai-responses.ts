@@ -30,6 +30,7 @@ import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { cacheKeyFields, cacheKeyHeaders } from "./cache-key.ts";
 
 export const openaiResponsesProvider: Provider = {
 	api: "openai-responses",
@@ -83,6 +84,8 @@ async function* streamResponses(
 			stream: true,
 			// Sessions live in Lyra's own store, not on the provider.
 			store: false,
+			// 同一段对话落在同一台机器、同一个上游账号上，前缀缓存才接得上。见 `cache-key.ts`。
+			...cacheKeyFields(options.cacheKey, dropped),
 			max_output_tokens: options.maxTokens ?? model.maxOutputTokens,
 			...(context.systemPrompt ? { instructions: context.systemPrompt } : {}),
 			/*
@@ -188,6 +191,7 @@ async function* streamResponses(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
+							...cacheKeyHeaders(options.cacheKey),
 							...provider.headers,
 						},
 						body: JSON.stringify(body),

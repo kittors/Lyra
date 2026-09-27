@@ -1,0 +1,315 @@
+/* ---------------------------------------------------------------------------
+ * 智能体的脸（`ui/avatar/AgentAvatar.tsx`）
+ *
+ * 分四层套着动，各管一件事，互不抢 `transform`：
+ *
+ *   .ly-avatar-bob     干活时上下颠、排队时慢慢喘气、做完蹦一下
+ *   .ly-avatar-squish  悬停时的果冻、出错时的抖——以脚底为原点，像落在地上
+ *   .ly-avatar-look    眼睛看向指针（位移由脚本写进两个变量）
+ *   .ly-avatar-scan    干活时眼睛左右扫
+ *   .ly-avatar-eyes    眨眼
+ *
+ * 全部是一次性的或者只在干活时循环。「减少动态效果」由 `motion.css` 的总开关统一压掉时长，
+ * 这里不用再写一遍。
+ * ------------------------------------------------------------------------- */
+
+.ly-avatar {
+	position: relative;
+	display: inline-grid;
+	flex-shrink: 0;
+	width: var(--ly-avatar-size);
+	height: var(--ly-avatar-size);
+	vertical-align: middle;
+}
+
+.ly-avatar > svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+.ly-avatar-body {
+	fill: var(--ly-avatar-color);
+	transition: fill var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-avatar-eyes {
+	fill: var(--ly-avatar-eye);
+	stroke: var(--ly-avatar-eye);
+}
+
+.ly-avatar-eyes rect {
+	stroke: none;
+}
+
+.ly-avatar-bob,
+.ly-avatar-squish,
+.ly-avatar-look,
+.ly-avatar-scan,
+.ly-avatar-eyes {
+	transform-box: fill-box;
+	transform-origin: 50% 50%;
+}
+
+.ly-avatar-squish {
+	transform-origin: 50% 100%;
+}
+
+.ly-avatar-look {
+	transform: translate(var(--ly-look-x, 0), var(--ly-look-y, 0));
+	transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+/* 眨眼：眼睛压成一条缝再睁开，190ms，比一次悬停反馈还快一点。 */
+.ly-avatar[data-blink] .ly-avatar-eyes {
+	animation: ly-avatar-blink 190ms ease-in-out;
+}
+
+@keyframes ly-avatar-blink {
+	0%,
+	100% {
+		transform: scaleY(1);
+	}
+	45%,
+	55% {
+		transform: scaleY(0.1);
+	}
+}
+
+/* 指针进来：先被按扁，再弹高，再落稳。 */
+.ly-avatar[data-poke] .ly-avatar-squish {
+	animation: ly-avatar-jelly 640ms var(--ly-e-out);
+}
+
+@keyframes ly-avatar-jelly {
+	0% {
+		transform: scale(1, 1);
+	}
+	20% {
+		transform: scale(1.13, 0.87);
+	}
+	42% {
+		transform: scale(0.93, 1.09);
+	}
+	63% {
+		transform: scale(1.04, 0.97);
+	}
+	82% {
+		transform: scale(0.99, 1.01);
+	}
+	100% {
+		transform: scale(1, 1);
+	}
+}
+
+/* 干活：颠，眼睛扫。颠的幅度是身高的 6%——再大就像在跳，而它只是忙。 */
+.ly-avatar[data-mood="working"] .ly-avatar-bob {
+	animation: ly-avatar-bob 1.15s ease-in-out infinite;
+}
+
+.ly-avatar[data-mood="working"] .ly-avatar-scan {
+	animation: ly-avatar-scan 2.8s ease-in-out infinite;
+}
+
+@keyframes ly-avatar-bob {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-6%);
+	}
+}
+
+@keyframes ly-avatar-scan {
+	0%,
+	16% {
+		transform: translateX(0);
+	}
+	28%,
+	46% {
+		transform: translateX(-4.5px);
+	}
+	58%,
+	76% {
+		transform: translateX(4.5px);
+	}
+	88%,
+	100% {
+		transform: translateX(0);
+	}
+}
+
+/* 排队：褪色、慢慢起伏。它存在，只是还没轮到。 */
+.ly-avatar[data-mood="waiting"] {
+	opacity: 0.5;
+}
+
+.ly-avatar[data-mood="waiting"] .ly-avatar-bob {
+	animation: ly-avatar-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes ly-avatar-breathe {
+	0%,
+	100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(0.95);
+	}
+}
+
+/* 被叫停的：灰一点，闭着眼。出错的不褪色——出错要被看见。 */
+.ly-avatar[data-mood="stopped"] {
+	filter: saturate(0.25);
+	opacity: 0.75;
+}
+
+/* 做完的那一刻蹦一下：起跳、落地压扁、弹回。 */
+.ly-avatar[data-cheer] .ly-avatar-bob {
+	animation: ly-avatar-cheer 560ms var(--ly-e-out);
+}
+
+@keyframes ly-avatar-cheer {
+	0% {
+		transform: translateY(0) scale(1, 1);
+	}
+	30% {
+		transform: translateY(-16%) scale(0.96, 1.05);
+	}
+	62% {
+		transform: translateY(0) scale(1.08, 0.92);
+	}
+	100% {
+		transform: translateY(0) scale(1, 1);
+	}
+}
+
+/* 出错、被停的那一刻摇两下头。 */
+.ly-avatar[data-shake] .ly-avatar-squish {
+	animation: ly-avatar-shake 460ms ease-in-out;
+}
+
+@keyframes ly-avatar-shake {
+	0%,
+	100% {
+		transform: rotate(0);
+	}
+	20% {
+		transform: rotate(-9deg);
+	}
+	45% {
+		transform: rotate(7deg);
+	}
+	70% {
+		transform: rotate(-4deg);
+	}
+}
+
+/*
+ * 右下角的状态点，外面一圈底色把它从脸上剥开——所在的面是什么颜色，调用方用
+ * `--ly-avatar-ring` 说，默认是窗口底色。
+ */
+.ly-avatar-badge {
+	position: absolute;
+	right: -8%;
+	bottom: -8%;
+	width: max(6px, 32%);
+	height: max(6px, 32%);
+	max-width: 11px;
+	max-height: 11px;
+	border-radius: 9999px;
+	box-shadow: 0 0 0 2px var(--ly-avatar-ring, var(--color-shell));
+}
+
+.ly-avatar-badge[data-tone="running"] {
+	background: var(--color-accent);
+}
+
+.ly-avatar-badge[data-tone="running"]::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background: var(--color-accent);
+	animation: ly-avatar-ping 1.6s var(--ly-e-out) infinite;
+}
+
+.ly-avatar-badge[data-tone="failed"] {
+	background: var(--color-danger);
+}
+
+@keyframes ly-avatar-ping {
+	0% {
+		transform: scale(1);
+		opacity: 0.55;
+	}
+	70%,
+	100% {
+		transform: scale(2.4);
+		opacity: 0;
+	}
+}
+
+/*
+ * 输入框里点名的智能体：`@` 那一格画成它的脸（`CommandText`）。
+ *
+ * 镜像层上的字必须和底下 textarea 的字一格一格对齐，所以 `@` 本身留着、只是透明，脸绝对定位在
+ * 那一格的正中——排版一个像素都不动。
+ */
+.ly-mention-face {
+	position: relative;
+	color: transparent;
+}
+
+.ly-mention-face > .ly-avatar {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+
+/*
+ * 一摞脸（`AvatarPile`）：每张垫一枚圆底，后一枚压住前一枚的三成。外圈那道底色把它们剥开，
+ * 颜色由所在的面说——`--ly-avatar-ring`，默认窗口底色。
+ *
+ * 指针进来时往右松开一点：挂在最近的 `.group/pile` 上，谁拿它当触发器谁就是那个 group。
+ */
+/*
+ * 右边那一截留白要算上「松开」挪出去的距离。
+ *
+ * 指针进来时每张往右挪一点（见下面 `:hover` 那条），最后一张挪得最远。从前留白只够抵掉最后一张的
+ * 负边距，挪出去的那几像素就压到了旁边的字上——「2 个子 Agent 运行中」的「2」被一张脸盖住半个。
+ * 留白一直留着而不是悬停时才加：字跟着指针左右晃，比那几像素的空白难看得多。
+ */
+.ly-avatar-pile {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	padding-right: calc(var(--ly-pile-size) * 0.32 + (var(--ly-pile-n, 1) - 1) * 2px);
+}
+
+.ly-avatar-coin {
+	position: relative;
+	display: inline-grid;
+	place-items: center;
+	width: var(--ly-pile-size);
+	height: var(--ly-pile-size);
+	margin-right: calc(var(--ly-pile-size) * -0.32);
+	border-radius: 9999px;
+	background: var(--color-elevated);
+	box-shadow: 0 0 0 2px var(--ly-avatar-ring, var(--color-shell));
+	transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-avatar-coin-more {
+	font-size: var(--text-caption);
+	font-variant-numeric: tabular-nums;
+	color: var(--color-ink-muted);
+}
+
+.group\/pile:hover .ly-avatar-coin,
+.group\/pile[aria-expanded="true"] .ly-avatar-coin {
+	transform: translateX(calc(var(--ly-pile-i) * 2px));
+}

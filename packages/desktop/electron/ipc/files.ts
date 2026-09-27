@@ -19,6 +19,7 @@ import { readDatabase, readWorkbook, type DocumentData } from "../documents.ts";
 import { extractDocumentText, type ExtractedText } from "@lyra/core";
 import type { FileContents, FileEntry } from "../ipc-types.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../file-read-service.ts";
+import { attachmentFile } from "../attachment-reads.ts";
 
 export interface FilesIpcDeps {
 	projectRoots(): readonly string[];
@@ -26,6 +27,13 @@ export interface FilesIpcDeps {
 
 export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 	const projectPath = (target: string) => resolveReadablePath(target, projectRoots());
+	/*
+	 * 只读的那几扇门，多认一样：发出去的消息带着的文件。
+	 *
+	 * 附件绝大多数来自项目外，而消息里点「预览」打开的就是这个面板——不认的话，拖进对话的每一份文档在
+	 * 面板里都只是一句「无法读取」。凭什么放行、只放行到哪儿，见 `attachment-reads.ts`。写那扇门不在此列。
+	 */
+	const readablePath = async (target: string) => (await projectPath(target)) ?? (await attachmentFile(target));
 	ipcMain.handle("files:pick", async (_event, options?: { directory?: boolean; multiple?: boolean }): Promise<string[]> => {
 		const window = getWindow();
 		if (!window) return [];
@@ -72,7 +80,7 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 	 * project boundary on it is less machinery and one fewer thing to get subtly wrong.
 	 */
 	ipcMain.handle("files:bytes", async (_event, raw: string): Promise<Uint8Array | null> => {
-		const path = await projectPath(raw);
+		const path = await readablePath(raw);
 		if (!path) return null;
 		const info = await stat(path).catch(() => null);
 		if (!info?.isFile() || info.size > DOCUMENT_READ_CAP) return null;
@@ -100,7 +108,7 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 	);
 
 	ipcMain.handle("files:document", async (_event, raw: string): Promise<DocumentData | null> => {
-		const path = await projectPath(raw);
+		const path = await readablePath(raw);
 		if (!path) return null;
 		const info = await stat(path).catch(() => null);
 		if (!info?.isFile()) return null;
@@ -109,7 +117,7 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 
 	ipcMain.handle("files:read", async (_event, raw: string): Promise<FileContents | null> => {
 		const writable = await projectPath(raw);
-		const path = writable ?? readableArtifact(raw) ?? await referenceFile(raw);
+		const path = writable ?? readableArtifact(raw) ?? await referenceFile(raw) ?? await attachmentFile(raw);
 		return readReadableFile(path, !writable);
 	});
 

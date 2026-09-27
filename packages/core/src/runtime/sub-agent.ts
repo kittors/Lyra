@@ -33,7 +33,7 @@ import { resolveSubAgentModel } from "../config/model-roles.ts";
 import { sessionPruner } from "./aged-prune.ts";
 import { compactWith } from "./compaction.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
-import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
+import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchCancelled, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
 import {
 	DELEGATION_KEY,
 	delegationConcurrency,
@@ -47,7 +47,7 @@ import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutc
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../tools/task.ts";
-import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
+import { TODOS_KEY, todoTool, type TodoItem } from "../tools/todo.ts";
 import type { ApprovalDecision, ApprovalRequest, JsonSchema, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
 import type { SubAgentConversation, SubAgentRegistry } from "./sub-agents.ts";
 import { isIsolatedWorktree } from "./workspace.ts";
@@ -80,6 +80,8 @@ export interface SubAgentAnswer {
 	incomplete?: boolean;
 	/** 人在面板上把它按停的。派它来的那一方不该自作主张地让它接着跑。 */
 	stoppedByUser?: boolean;
+	/** 父会话没等它跑完就放手了：它在后台接着跑，结果由运行时另外送回。见 `delegation-waits.ts`。 */
+	detached?: boolean;
 }
 
 /**
@@ -164,6 +166,23 @@ export interface SubAgentOptions {
 	 * four at the top and four under each of those.
 	 */
 	gate?: DispatchGate;
+	/**
+	 * 怎么拿到一个名额：顶层用 `gate.acquire`，派生里的派生用 `gate.acquireNested`（先让出自己的）。
+	 *
+	 * 在 `runSubAgent` 里面等，而不是像从前那样由调用方把整个调用包进 `gate.run`：它要先登记、在
+	 * 名单上说出自己在排队，然后才等。包在外面的话，排着的那几个在名单上一个字都没有——一次派四个、
+	 * 闸门只放一个的时候，界面上只看得见一个。
+	 *
+	 * 不给就是不排队（CLI、测试）。
+	 */
+	admission?: (signal: AbortSignal) => Promise<() => void>;
+	/**
+	 * 登记好了、有了 id——在它开始排队之前就会叫到。
+	 *
+	 * 给派它的那一方用：人插话时父会话要放手，放手时得说得出放下的是哪一个（见
+	 * `delegation-waits.ts`）。只属于这一次派发，不往下传给它派的孩子。
+	 */
+	onRegistered?: (id: string) => void;
 }
 
 export async function runSubAgent(
@@ -182,14 +201,30 @@ export async function runSubAgent(
 	 *
 	 * 只能续跑自己派出去的：主会话续跑它派的，子代理续跑它派的。别人的子代理不是你能指挥的。
 	 */
+	/*
+	 * 派出去之前会话就已经停了：一步都不做，也不上名单。
+	 *
+	 * 挂在父信号上的 `stopWithParent` 只听得到「将来」的 abort——已经 aborted 的信号不会再发一次
+	 * 事件，于是从前这样的一次派发会带着一根早就断了的绳子跑完全程。
+	 */
+	if (options.signal?.aborted) return { text: "（派发时会话已经停下，这个子代理没有开始。）" };
 	const earlier = input.resume === undefined ? undefined : resumable(options, input.resume);
 
 	// 旧名在这里也要认：历史记录重放和外部调用都可能带着 `fast`／`deep` 进来。见 `RENAMED_AGENTS`。
 	// 续跑的时候不换人：它是谁，当初派出去时就定了。
 	const wanted = earlier ? earlier.conversation.agent : resolveAgentName(input.agentType ?? "general", options.agents);
 	const definition = options.agents.find((a) => a.name === wanted) ?? BUILTIN_AGENTS[0];
+	/*
+	 * 清单总在：它是子代理自己的记事本，不是一件能力。
+	 *
+	 * 定义里的 `tools` 管的是它能对世界做什么——`review` 只读，所以没有 `write`。`todo_write`
+	 * 什么都不碰，写的是它自己状态图里的一张单子；而检查点上「要不要接着跑」看的正是这张单子
+	 * （`continuation.ts`）。一个只读审查者没有它，就只能在第六十轮被一刀切下，不管它读到哪了。
+	 */
 	const fromSession =
-		definition.tools === "*" ? options.tools : options.tools.filter((t) => (definition.tools as string[]).includes(t.name));
+		definition.tools === "*"
+			? options.tools
+			: options.tools.filter((t) => (definition.tools as string[]).includes(t.name) || t.name === todoTool.name);
 
 	/*
 	 * Recursive dispatch is off unless the definition asks for it, and off again at the depth limit.
@@ -279,7 +314,9 @@ export async function runSubAgent(
 	 * 后者父会话还在跑，会读到它交回的东西——它得知道这是人的决定，别转头就让它接着跑。
 	 */
 	const stopByUser = () => controller.abort(STOPPED_BY_USER);
-	if (earlier) registry?.reopen(id, { abort: stopByUser });
+	// 要排队的，先以「排队中」上名单——排着的时候也看得见、停得下。
+	const queued = options.admission !== undefined;
+	if (earlier) registry?.reopen(id, { abort: stopByUser, queued });
 	else
 		registry?.start({
 			id,
@@ -289,7 +326,9 @@ export async function runSubAgent(
 			// Who asked, and how far down this is — the two things a lineage is made of.
 			parentId: options.dispatch?.id,
 			depth: here.depth,
+			queued,
 		});
+	options.onRegistered?.(id);
 	/*
 	 * What it was asked to do, as the first line of its transcript.
 	 *
@@ -298,7 +337,8 @@ export async function runSubAgent(
 	 * been told, which is the one piece of context a reader has none of. It is also the thing worth
 	 * checking first when a sub-agent goes the wrong way: usually the prompt sent it there.
 	 */
-	const opening: Message = { role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() };
+	// 派它出去的那一方说的，不是看着面板的人——面板据此把它画成任务，而不是一个人发的气泡。
+	const opening: Message = { role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now(), origin: "parent" };
 	registry?.record(id, opening);
 	/*
 	 * 续跑的这一句是转录中间新添的，要单独发出去。
@@ -320,6 +360,57 @@ export async function runSubAgent(
 		model: runModel.modelId,
 		...(earlier ? { resumed: true } : {}),
 	});
+
+	/*
+	 * 排队：拿到名额才开跑。
+	 *
+	 * 排着的时候被停（人在面板上按停、整个会话被停），当场离队、记作停下，一轮都不跑。从前闸门
+	 * 在调用方那一层，排着的那几个既不在名单上、也听不到停止——会话停下之后，前面的一跑完，它们
+	 * 照样被放进来，对着一个已经停下的会话开跑。
+	 */
+	let release: (() => void) | undefined;
+	if (options.admission) {
+		try {
+			release = await options.admission(controller.signal);
+		} catch (error) {
+			options.signal?.removeEventListener("abort", stopWithParent);
+			if (!(error instanceof DispatchCancelled)) {
+				registry?.finish(id, { status: "failed", error: error instanceof Error ? error.message : String(error) });
+				throw error;
+			}
+			registry?.finish(id, { status: "aborted" });
+			// 续跑的那一个还没动过：上一段留下的上下文原样放回去，以后照样能接着跑。
+			if (earlier) registry?.keep(id, earlier.conversation);
+			await options.emit({ type: "subagent_done", id, steps: [], answer: "", status: "aborted" });
+			return {
+				text: "（它还在排队的时候就被停下了，一步都没做。）",
+				...(registry ? { id } : {}),
+				...(controller.signal.reason === STOPPED_BY_USER ? { stoppedByUser: true } : {}),
+			};
+		}
+		registry?.admit(id);
+	}
+
+	/*
+	 * 它要授权的时候，主窗口得说得出是谁在要。
+	 *
+	 * 子代理的授权从来就是送到主窗口那张卡片上的（`requestApproval` 一路传到会话的闸门），只是
+	 * 卡片不知道是谁在问：同一句「允许写入 src/a.ts？」可能来自主会话，也可能来自后台四个子代理
+	 * 里的任何一个，而人要据此决定的恰恰是「这个活该不该由它来干」。
+	 *
+	 * 嵌套的那一层已经写上自己的名字了，就不覆盖——问的人是最里面那一个。
+	 */
+	const ask = async (request: ApprovalRequest): Promise<ApprovalDecision> => {
+		registry?.awaitingApproval(id, true);
+		try {
+			return await options.requestApproval({
+				...request,
+				from: request.from ?? { subAgentId: id, agent: definition.name, description: input.description },
+			});
+		} finally {
+			registry?.awaitingApproval(id, false);
+		}
+	};
 
 	// Build a complete, standalone system prompt for sub-agents
 	const subAgentPrompt = await buildSystemPrompt({
@@ -351,9 +442,9 @@ export async function runSubAgent(
 		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(options.cwd),
-		appendSystemPrompt: definition.output
-			? `${definition.systemPrompt}\n${yieldInstruction(definition.output)}`
-			: definition.systemPrompt,
+		appendSystemPrompt: [definition.systemPrompt, workingNote(definition.maxTurns ?? SUB_AGENT_CHECKPOINT_TURNS), definition.output ? yieldInstruction(definition.output) : ""]
+			.filter(Boolean)
+			.join("\n"),
 	});
 
 	// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
@@ -527,7 +618,7 @@ export async function runSubAgent(
 							 * 等级在决定划不划算，用天花板开一道全宽的闸门，等于在唯一没人看着的地方把这个
 							 * 设置关掉。
 							 */
-							return (
+							const gate =
 								options.gate ??
 								new DispatchGate(
 									delegationConcurrency(
@@ -535,13 +626,30 @@ export async function runSubAgent(
 										chosen.thinking,
 										normalizeDelegationPolicy(options.settings.subAgentDelegation),
 									),
-								)
-							).nested(() =>
-								runSubAgent({ ...options, dispatch: here }, nested, runProvider, runModel, subAgentPrompt),
+								);
+							/*
+							 * 孩子挂在它自己的绳子上，不是会话那根。
+							 *
+							 * 从前传下去的是 `options.signal`——会话那一轮的。于是在面板上按停一个正在
+							 * 派孩子的子代理，它自己停了，它派出去的孩子接着跑，没有任何东西够得着它们。
+							 */
+							return runSubAgent(
+								{
+									...options,
+									dispatch: here,
+									gate,
+									signal: controller.signal,
+									admission: (signal) => gate.acquireNested(signal),
+									onRegistered: undefined,
+								},
+								nested,
+								runProvider,
+								runModel,
+								subAgentPrompt,
 							);
 						}
 					: undefined,
-				requestApproval: (request) => options.requestApproval(request),
+				requestApproval: ask,
 				/*
 				 * The session's policy, which does not stop applying because the work was delegated.
 				 *
@@ -590,6 +698,14 @@ export async function runSubAgent(
 				 */
 				repetition: new RepetitionWatch(),
 				pruner: sessionPruner(subState),
+				/*
+				 * 它自己的缓存键：一个子代理从头到尾（包括续跑）都落在同一个上游、同一台机器上。
+				 *
+				 * 中转站按这个键把请求钉在同一个账号上（sub2api 认 `prompt_cache_key` / `session_id`），
+				 * 没有它就随机分——2026-09-26 那四个审查子代理每个开头三五次请求全部未命中，中间还
+				 * 隔三岔五掉回 0%，就是落到了没见过这段前缀的账号上。见 `ai/cache-key.ts`。
+				 */
+				cacheKey: id,
 			};
 		/** 跑一段，并记下模型此刻眼里的历史。 */
 		const segment = async (messages: Message[]): Promise<AgentRunResult> => {
@@ -615,6 +731,8 @@ export async function runSubAgent(
 			todos: () => (subState.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 			aborted: () => controller.signal.aborted,
 			notify: (message) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", message } }),
+			// 没写清单就撞上检查点的，再给一段——见 `ContinuationDeps.planless`。
+			planless: () => planDemand(checkpoint),
 			resuming: () => {},
 			signal: controller.signal,
 			// 请求那一层已经按设置重试过了，外面这层不再加码——理由见 `session-turn.ts` 同一处。
@@ -655,8 +773,9 @@ export async function runSubAgent(
 					retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
 					signal: controller.signal,
 					state: subState,
-					requestApproval: (request) => options.requestApproval(request),
+					requestApproval: ask,
 					compact: compactHistory,
+					cacheKey: id,
 					streamFn: options.streamFn,
 					maxTurns: 2,
 				},
@@ -676,6 +795,8 @@ export async function runSubAgent(
 		await options.emit({ type: "subagent_done", id, steps, answer: "", status: "failed", error: error instanceof Error ? error.message : String(error) });
 		throw error;
 	} finally {
+		// 模型那部分跑完了，名额先还：后面只剩记账，排着的下一个不该等它记完。
+		release?.();
 		options.signal?.removeEventListener("abort", stopWithParent);
 		/*
 		 * A delegated run has its own state map, so anything heavy it started is its own to stop.
@@ -835,6 +956,50 @@ function finalDemand(rounds: number): Message {
 		timestamp: Date.now(),
 		synthetic: true,
 	};
+}
+
+/**
+ * 没写清单就撞上检查点时，接着跑的那一段以这句话开头。
+ *
+ * 两条路都给：列清单接着做，或者现在收尾。只给第一条的话，一个其实已经查够了的子代理会为了
+ * 「有清单」而硬凑三项、再跑六十轮；只给第二条，就退回了从前那一刀。
+ *
+ * `synthetic`：这是运行时在说话，不是派它来的人。
+ */
+function planDemand(rounds: number): Message {
+	return {
+		role: "user",
+		content: [
+			{
+				type: "text",
+				text:
+					`（自动追加）这一段的 ${rounds} 轮用完了。还没做完的话，先用 \`todo_write\` 把剩下的步骤列出来再接着做——` +
+					"之后每到检查点，清单在往前推就会让你继续；手上的信息已经够了，就现在收尾交付。" +
+					"接下来把互不依赖的读取和搜索放在同一条回复里一起发。",
+			},
+		],
+		timestamp: Date.now(),
+		synthetic: true,
+	};
+}
+
+/**
+ * 子代理怎么干活才不浪费，跟在每个定义自己的提示词后面。
+ *
+ * 2026-09-26 的真实会话：四个 review 子代理跑在 gemini-3.8-flash 上，61 轮就是 61 次工具调用，
+ * 一次并行都没有，于是个个撞上六十轮的检查点。系统提示词里「独立的调用放在同一条回复里」那条
+ * 它是看得见的，但那条夹在十几条准则中间，说的也只是道理。放在它自己那一段的末尾，并且说清楚
+ * 这对它意味着什么——每一轮都要把整段上下文再发一遍，检查点按轮算——才压得住。
+ *
+ * 最后一句是写给派它来的那一方的：它交回的东西是材料，不是给人看的成品。
+ */
+function workingNote(checkpoint: number): string {
+	return [
+		`你是被派出来做一件事的子代理，按轮计：每一轮都要把整段上下文再发一遍，每跑 ${checkpoint} 轮会停下来检查一次进度。`,
+		"所以每一轮都把能同时做的事一起做——要读的几个文件、要跑的几条 grep / glob，放在同一条回复里一起发出去；只有后一步确实要用前一步的结果时才分开。一轮只调一个工具，会让你在做完之前就耗光这一段的轮数。",
+		"活有三步以上，就用 `todo_write` 记下步骤、做完一项勾一项：到检查点时，清单在往前推就会让你接着跑。",
+		"你交回的东西是给派你来的 Agent 读的材料：结论先行、关键事实带 `path:line`，不要复述过程。",
+	].join("\n");
 }
 
 /**

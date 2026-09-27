@@ -138,7 +138,6 @@ test("导入供应商：计划写在左边，两颗按钮写在右边", async ()
 
 test("插件市场源：一个出口，写着「完成」", async () => {
 	const view = await mount(zh(h(RegistrySources, {
-		sources: ["https://one.example/registry.json"],
 		errors: [],
 		onClose: () => {},
 	})));

@@ -1,4 +1,7 @@
-import { Activity, useEffect, useRef, useState } from "react";
+import { Activity, useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import { motionReduced } from "../motion/reduced.ts";
+import { DURATION, EASING } from "../motion/tokens.ts";
 
 /** Retain a small number of visited pages; hidden pages suspend effects and keep local state. */
 export function RetainedViews<T extends string>({
@@ -6,12 +9,25 @@ export function RetainedViews<T extends string>({
 	render,
 	limit = 3,
 	pageClassName = "ly-page-enter",
+	slide,
 }: {
 	active: T;
 	render: (key: T) => React.ReactNode;
 	limit?: number;
 	/** Arrival class. Settings uses a longer fade-and-rise than the workspace pages. */
 	pageClassName?: string;
+	/**
+	 * Tabs, in the order a strip shows them: every switch then slides the new page in from the side
+	 * it sits on, and fades it up, rather than swapping in one frame.
+	 *
+	 * Played with the Web Animations API from a layout effect, not from a class. The class version is
+	 * what the note above is about — a page coming back from `display: none` painted one frame at its
+	 * destination before the animation caught it. A layout effect runs after the page is shown and
+	 * before anything is painted, so the first frame anyone sees is already the first frame of the
+	 * slide. Returning to a page plays it too: a tab strip is somewhere you go back and forth, and a
+	 * switch that only animates the first time reads as broken the second.
+	 */
+	slide?: readonly T[];
 }) {
 	const [recent, setRecent] = useState<T[]>([active]);
 	/*
@@ -30,6 +46,24 @@ export function RetainedViews<T extends string>({
 	useEffect(() => {
 		seen.current.add(active);
 	}, [active]);
+	const pages = useRef(new Map<T, HTMLDivElement>());
+	const previous = useRef(active);
+	useLayoutEffect(() => {
+		const from = previous.current;
+		previous.current = active;
+		if (!slide || from === active || motionReduced()) return;
+		const page = pages.current.get(active);
+		if (!page) return;
+		// From the side the new tab is on: moving right along the strip, the page arrives from the right.
+		const direction = Math.sign(slide.indexOf(active) - slide.indexOf(from)) || 1;
+		page.animate(
+			[
+				{ opacity: 0, transform: `translateX(${direction * 14}px)` },
+				{ opacity: 1, transform: "none" },
+			],
+			{ duration: DURATION.base, easing: EASING.out },
+		);
+	}, [active, slide]);
 	let keys = recent;
 	if (recent[recent.length - 1] !== active) {
 		keys = [...recent.filter((key) => key !== active), active].slice(-limit);
@@ -39,6 +73,10 @@ export function RetainedViews<T extends string>({
 	return <>{shown.map((key) => (
 		<Activity key={key} mode={key === active ? "visible" : "hidden"}>
 			<div
+				ref={(node) => {
+					if (node) pages.current.set(key, node);
+					else pages.current.delete(key);
+				}}
 				className={`${pageClassName} flex min-h-0 min-w-0 flex-1 flex-col`}
 				data-view={key}
 				data-active={key === active ? "true" : "false"}

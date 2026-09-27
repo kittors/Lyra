@@ -1,6 +1,7 @@
 import type { DiffHunk, ToolResult } from "@lyra/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
+	ArrowUpRight,
 	Ban,
 	Cable,
 	ChevronRight,
@@ -60,9 +61,21 @@ interface ToolCardProps {
 	 * screenshot, which is how it was noticed.
 	 */
 	startedAt?: number;
+	/** 换掉前面那枚工具图标——派出去的子智能体用它自己的脸。 */
+	mark?: React.ReactNode;
+	/** 摘要后面的一小段附注：派给了谁。 */
+	aside?: React.ReactNode;
+	/**
+	 * 点这一行不是展开，而是去别处看——子智能体的全过程在它自己的面板里，比卡片里那一段参数和
+	 * 结果完整得多。给了它，箭头换成「↗」。
+	 */
+	onOpen?: () => void;
+	openLabel?: string;
+	/** 还在跑、但还没真正开始：不转圈、不计时，只说一句为什么。 */
+	pending?: string;
 }
 
-export function ToolCard({ toolName, summary, args, status, result, stateKey, startedAt }: ToolCardProps) {
+export function ToolCard({ toolName, summary, args, status, result, stateKey, startedAt, mark, aside, onOpen, openLabel, pending }: ToolCardProps) {
 	const { t } = useI18n();
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const [elapsed, setElapsed] = useState(0);
@@ -96,26 +109,31 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 
 	return (
 		<div
+			data-ly-avatar-host={mark ? "" : undefined}
 			className={`ly-enter overflow-hidden rounded-[10px] border transition-colors duration-[var(--ly-t-base)] ${
-				running ? "ly-rail border-info/30 bg-card/60" : "border-line-soft bg-card/45"
+				running && !pending ? "ly-rail border-info/30 bg-card/60" : "border-line-soft bg-card/45"
 			}`}
 		>
 			<button
 				type="button"
-				aria-expanded={open}
-				onClick={() => setOpen((v) => !v)}
+				aria-expanded={onOpen ? undefined : open}
+				aria-label={onOpen ? openLabel : undefined}
+				data-ly-tip={onOpen ? openLabel : undefined}
+				onClick={() => (onOpen ? onOpen() : setOpen((v) => !v))}
 				className="ly-scroll flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/50"
 			>
-				<ToolMark mark={mcpMark} Icon={Icon} running={running} />
+				{mark ?? <ToolMark mark={mcpMark} Icon={Icon} running={running} />}
 				<span
 					className={`min-w-0 flex-1 truncate text-label transition-colors duration-[var(--ly-t-base)] ${
-						running ? "text-ink" : "text-ink-muted"
+						running && !pending ? "text-ink" : "text-ink-muted"
 					}`}
 				>
 					{summary}
 				</span>
+				{aside}
 
-				{running && (
+				{running && pending && <span className="shrink-0 text-caption text-ink-faint">{pending}</span>}
+				{running && !pending && (
 					<span className="flex shrink-0 items-center gap-1.5 text-caption text-info/80">
 						{elapsed > 0 && <span className="tabular-nums">{elapsed}s</span>}
 						<StatusSpinner size={12} />
@@ -136,15 +154,19 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 					</span>
 				)}
 
-				<ChevronRight
-					size={13}
-					strokeWidth={2}
-					className="shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-base)]"
-					style={open ? { transform: "rotate(90deg)" } : undefined}
-				/>
+				{onOpen ? (
+					<ArrowUpRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" aria-hidden />
+				) : (
+					<ChevronRight
+						size={13}
+						strokeWidth={2}
+						className="shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-base)]"
+						style={open ? { transform: "rotate(90deg)" } : undefined}
+					/>
+				)}
 			</button>
 
-			{open && (
+			{open && !onOpen && (
 				<div className="ly-enter border-t border-line-soft">
 					{hasDiff ? (
 						<DiffView hunks={details?.hunks as DiffHunk[]} path={String(details?.path ?? "")} showPath />
@@ -230,7 +252,7 @@ function ToolMark({ mark, Icon, running }: { mark: McpMark | null; Icon: typeof 
 		<Icon
 			size={14}
 			strokeWidth={1.8}
-			aria-label={mark ? `MCP：${mark.name}` : undefined}
+			aria-label={mark ? translate("toolCard.mcpServer", { name: mark.name }) : undefined}
 			// A server that declared a colour and shipped no picture is still told apart from the next
 			// one. Only while idle: the running state is the app speaking, and it owns that colour.
 			style={tint && !running ? { color: tint } : undefined}

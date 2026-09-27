@@ -98,7 +98,7 @@ export function rankMentions(
 	term: string,
 	options: {
 		files?: Array<string | MentionFile>;
-		agents?: Array<{ id: string; name: string; description: string }>;
+		agents?: Array<{ id: string; name: string; description: string; avatar?: string }>;
 		sessions?: SessionMeta[];
 		skills?: SkillEntry[];
 		allowAction?: boolean;

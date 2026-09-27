@@ -31,7 +31,14 @@ export function BranchRow({
 	onDelete?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
 	const actions = current ? 0 : 1 + (onCompare ? 1 : 0) + (onDelete ? 1 : 0);
-	const controls = actions === 0 ? "36px" : hoverSlot(actions as 1 | 2 | 3);
+	/*
+	 * With no buttons there is no strip to measure over this value, so it is final: the current row
+	 * gives way nothing. Its "current" tag sits in the flow, and the name's box already ends before
+	 * it. This was a fixed 36px once: hover cleared that much off the name's tail for nothing, and
+	 * `ScrollText` then judged a name that fits as unreadable and scrolled it. Written as 0 rather
+	 * than left unset, which would fall through to the stylesheet's 30px default.
+	 */
+	const controls = actions === 0 ? "0px" : hoverSlot(actions as 1 | 2 | 3);
 	return (
 		<HoverRow controls={controls} className="rounded-md transition-colors hover:bg-card-hover">
 			<div

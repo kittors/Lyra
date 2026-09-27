@@ -210,7 +210,8 @@ test("provider and effort controls persist, align, and adapt to narrow settings"
 			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(30);
 			const controlHeight = await app.evaluate<number>(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ly-control'))`);
 			assert.ok(Number.isFinite(controlHeight) && controlHeight > 0, `Invalid --ly-control: ${controlHeight}`);
-			const boxes = await app.evaluate<{ x: number; right: number; y: number; height: number }[]>(`[...document.querySelectorAll('[data-agent-profile="explore"] fieldset > button')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,right:r.right,y:r.y,height:r.height};})`);
+			// 两颗下拉各自套了一层定宽的格子（一列列对齐），所以不再是 fieldset 的直接孩子；按「会弹出菜单」认。
+			const boxes = await app.evaluate<{ x: number; right: number; y: number; height: number }[]>(`[...document.querySelectorAll('[data-agent-profile="explore"] fieldset button[aria-haspopup="menu"]')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,right:r.right,y:r.y,height:r.height};})`);
 			t.diagnostic(JSON.stringify({ width, controlHeight, boxes })); assert.equal(boxes.length, 2);
 			assert.ok(boxes.every((box) => box.x >= 0 && box.right <= width && box.height === controlHeight));
 			if (width === 1280) assert.equal(boxes[0].y, boxes[1].y);

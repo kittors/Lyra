@@ -53,7 +53,7 @@ MB，能确定架构就别下它），`SHA256SUMS` 是全部文件的校验值�
 发布包是 ad-hoc 签名的，没有 Apple 开发者证书，也没有公证。双击会被 Gatekeeper 拦下来，说
 「无法打开，因为无法验证开发者」。两种放行方式，选一种：
 
-- 在「访达」里右键点 Lyra.app → 打开 → 再点一次「打开」；或到「系统设置 → 隐私与安全性」点「仍要打开」。
+- 打开「系统设置 → 隐私与安全性」，点「仍要打开」，再输入密码确认。（从 macOS 15 起，右键「打开」已经绕不过 Gatekeeper。）
 - 或者去掉隔离标记：
 
 ```bash
@@ -115,12 +115,12 @@ Windows 安装包同样没有代码签名。第一次运行会撞上 SmartScreen
 ## 先配一个模型
 
 Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置 → 模型设置」添加供应商：填 Base URL、
-选 API 格式（**Responses** 或 **Anthropic Messages**，不支持 Chat Completions）、填 API Key，
+选 API 格式（**Responses**、**Anthropic Messages** 或 **Chat Completions**，按供应商文档选）、填 API Key，
 再添加至少一个模型。
 
 ## 能力
 
-- **自定义模型**：任意数量的供应商，每个供应商挂任意数量的模型。只对接 **Responses**（`/v1/responses`）和 **Anthropic Messages**（`/v1/messages`）两种格式，不支持 Chat Completions。
+- **自定义模型**：任意数量的供应商，每个供应商挂任意数量的模型。对接 **Responses**（`/v1/responses`）、**Anthropic Messages**（`/v1/messages`）和 **Chat Completions**（`/v1/chat/completions`）三种格式。
 - **20 个内置工具**，按代码里的分组：
   - 文件与代码：`read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - 执行命令：`bash` `bash_output`

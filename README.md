@@ -45,7 +45,7 @@ The packages are not signed with a paid certificate, so each OS blocks the first
 
 The published build is ad-hoc signed. There is no Apple Developer certificate and no notarization. A double-click hits Gatekeeper: "cannot be opened because the developer cannot be verified." Two ways through:
 
-- In Finder, right-click Lyra.app → Open → Open again. Or open System Settings → Privacy & Security and click Open Anyway.
+- Open System Settings → Privacy & Security, click Open Anyway, and confirm with your password. (Right-click → Open no longer gets past Gatekeeper since macOS 15.)
 - Or drop the quarantine flag:
 
 ```bash
@@ -89,7 +89,7 @@ The phone app is a shell. It talks to Lyra on your computer. Sessions, models, a
 
 ## Add a model first
 
-Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses** or **Anthropic Messages**. Chat Completions is not supported.
+Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents.
 
 ## What it does
 

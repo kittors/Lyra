@@ -14,6 +14,7 @@ import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
+import { outlivingTurn } from "../lib/approval-scope.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -257,7 +258,7 @@ export function turnSlice(set: Set, get: Get) {
       messages: [...get().messages.slice(0, index), pending],
       pendingUserMessage: { sessionId, message: pending },
       toolRuns: {},
-      approvals: [],
+      approvals: outlivingTurn(get().approvals),
       running: true,
       turnStartedAt: Date.now(),
       turnTokens: 0,
@@ -308,7 +309,7 @@ export function turnSlice(set: Set, get: Get) {
     set({
       messages: kept,
       toolRuns: {},
-      approvals: [],
+      approvals: outlivingTurn(get().approvals),
       commandRuns: get().commandRuns.filter((run) => run.at <= index),
       compactions: get().compactions.filter((run) => run.at <= index),
       hiccups: get().hiccups.filter((one) => one.at <= index),
