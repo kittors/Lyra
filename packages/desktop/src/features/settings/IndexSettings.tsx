@@ -18,7 +18,7 @@ interface Stats {
 }
 
 export function IndexSettings() {
-	const { t } = useI18n();
+	const { t, resolvedLocale } = useI18n();
 	const workspace = useApp((s) => s.workspace);
 	const [stats, setStats] = useState<Stats | null>(null);
 	const [building, setBuilding] = useState(false);
@@ -112,7 +112,7 @@ export function IndexSettings() {
 							title={t("index.lastBuilt")}
 							control={
 								<span className="text-label text-ink-muted">
-									{stats?.builtAt ? new Date(stats.builtAt).toLocaleString("zh-CN") : t("common.never")}
+									{stats?.builtAt ? new Date(stats.builtAt).toLocaleString(resolvedLocale) : t("common.never")}
 								</span>
 							}
 						/>

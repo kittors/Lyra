@@ -2,7 +2,9 @@
  * How long ago, in the units a person would use.
  */
 
-import { translate } from "../i18n/translate.ts";
+import { activeLocale, translate } from "../i18n/translate.ts";
+import type { ResolvedUiLocale } from "../i18n/index.ts";
+import { hourStyle } from "./hour-style.ts";
 
 /** Coarse on purpose: the exact minute of a commit is never the question in a list. */
 export function relativeTime(iso: string, now = Date.now()): string {
@@ -27,14 +29,14 @@ export function shortRelativeTime(iso: string, now = Date.now()): string {
 }
 
 /** The exact moment, for the tooltip behind a rounded-off one. */
-export function exactTime(iso: string): string {
+export function exactTime(iso: string, locale: ResolvedUiLocale = activeLocale()): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return at.toLocaleString("zh-CN", {
+  return at.toLocaleString(locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
+    hour: hourStyle(locale),
     minute: "2-digit",
   });
 }

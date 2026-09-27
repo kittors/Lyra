@@ -1,4 +1,5 @@
-import { translate } from "../../i18n/translate.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
+import type { ResolvedUiLocale } from "../../i18n/index.ts";
 import type { Message } from "@lyra/core";
 import { stripPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { isNudge } from "./grouping.ts";
@@ -92,11 +93,13 @@ export function timeSeparators(messages: readonly Message[]) {
 	return result;
 }
 
-export function conversationTime(timestamp: number, now = Date.now()) {
+export function conversationTime(timestamp: number, now = Date.now(), locale: ResolvedUiLocale = activeLocale()) {
 	const date = new Date(timestamp);
 	const today = new Date(now);
 	const yesterday = new Date(now);
 	yesterday.setDate(yesterday.getDate() - 1);
-	const day = date.toDateString() === today.toDateString() ? translate("recency.today") : date.toDateString() === yesterday.toDateString() ? translate("recency.yesterday") : date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", ...(date.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
-	return `${day} ${date.toLocaleTimeString("zh-CN", { hour: "numeric", minute: "2-digit", hour12: false })}`;
+	const day = date.toDateString() === today.toDateString() ? translate("recency.today") : date.toDateString() === yesterday.toDateString() ? translate("recency.yesterday") : date.toLocaleDateString(locale, { month: "long", day: "numeric", ...(date.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+	// The language's own clock, so 2:28 PM in English. `numeric` rather than `hourStyle`: this label
+	// has always written 9:05, not 09:05.
+	return `${day} ${date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" })}`;
 }
