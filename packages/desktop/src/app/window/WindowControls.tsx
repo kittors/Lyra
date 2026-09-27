@@ -104,7 +104,9 @@ export function ToolbarButton({
 			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
 			onClick={onClick}
-			className={`no-drag flex h-7 w-7 items-center justify-center rounded-md transition-all duration-[var(--ly-t-quick)] ${
+			// `transition`, not `transition-all`, which transitions `visibility` too — see `Workspace`
+			// in `app/App.tsx` for what that did.
+			className={`no-drag flex h-7 w-7 items-center justify-center rounded-md transition duration-[var(--ly-t-quick)] ${
 				active ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
 			}`}
 		>

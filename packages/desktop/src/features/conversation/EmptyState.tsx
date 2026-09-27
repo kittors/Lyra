@@ -128,8 +128,11 @@ export function EmptyState() {
 									 * four captions started at two different heights. Ordinary flow puts
 									 * every label the same distance under its own mark; the cards are a
 									 * uniform height anyway, so what varies is the space left below.
+									 *
+									 * `transition`, not `transition-all`, which transitions `visibility`
+									 * too — see `Workspace` in `app/App.tsx` for what that did.
 									 */
-									className="group flex min-h-[72px] flex-col gap-2 rounded-[11px] border border-line bg-transparent p-3 text-left transition-all duration-[var(--ly-t-base)] hover:-translate-y-0.5 hover:border-ink-faint/60 hover:bg-card/60 active:translate-y-0"
+									className="group flex min-h-[72px] flex-col gap-2 rounded-[11px] border border-line bg-transparent p-3 text-left transition duration-[var(--ly-t-base)] hover:-translate-y-0.5 hover:border-ink-faint/60 hover:bg-card/60 active:translate-y-0"
 								>
 									<card.icon
 										size={17}
