@@ -17,6 +17,7 @@ import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
 import { peekDelivery, rememberDelivery } from "./delivery-cache.ts";
 import { useDeliveryReview } from "./delivery-review.ts";
+import { usePathMenu } from "./PathMenu.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 const PREVIEW_FILES = 3;
@@ -80,6 +81,8 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	 */
 	const workspace = useScopedProjectPath();
 	const screen = useDockScope();
+	// Right-click on a file row: open it, in which application, show it in the file manager, copy its path.
+	const pathMenu = usePathMenu(workspace);
 	const [data, setData] = useState<TurnDelivery | null>(() => peekDelivery(sessionId, timestamp) ?? null);
 	const [expanded, setExpanded] = useState(false);
 	const [undoing, setUndoing] = useState(false);
@@ -174,7 +177,10 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		className="flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-label transition-colors hover:bg-card-hover focus-visible:bg-card-hover"
 		// No `onMouseLeave` here: leaving a row for the row below it, or for the card's own header,
 		// is not leaving the preview. The card answers that, once, below.
-		onMouseEnter={(event) => schedule({ anchor: event.currentTarget, file }, HOVER_OPEN_MS)}
+		// Not while the right-click menu is open: a preview opening over it would close it.
+		onMouseEnter={(event) => {
+			if (!pathMenu.open) schedule({ anchor: event.currentTarget, file }, HOVER_OPEN_MS);
+		}}
 		// Press already chose the row. Kill any pending open so a timer cannot land between
 		// pointerdown and click and paint one frame of preview.
 		onPointerDown={() => hideHover()}
@@ -186,7 +192,11 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			keepHover();
 			setHover({ anchor: event.currentTarget, file });
 		}} onBlur={closeHover}
-		onClick={() => openTurn(file.path)}>
+		onClick={() => openTurn(file.path)}
+		onContextMenu={(event) => {
+			hideHover();
+			pathMenu.onContextMenu(event, { path: file.path, onOpen: () => openInFilePane(file.path) });
+		}}>
 		<FileName path={relative(file.path)} /><Counts added={file.added} removed={file.removed} />
 	</button>;
 	return <>
@@ -297,5 +307,6 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			<DiffView path={hover.file.path} hunks={hover.file.hunks} maxLines={Infinity} />
 		</Popover>}
 		{confirm.element}
+		{pathMenu.element}
 	</>;
 }

@@ -31,6 +31,7 @@ import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
+import { usePathMenu } from "./PathMenu.tsx";
 
 /**
  * What this text is, beyond the characters in it.
@@ -430,6 +431,8 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	// The file pane opens in the screen this link is drawn in: the keyboard reaches a link in a screen
 	// without the press that would have given that screen the focus.
 	const screen = useDockScope();
+	// Right-click: the same menu a file the turn edited offers, with 打开 doing what a click does.
+	const pathMenu = usePathMenu(useScopedProjectPath());
 	const [side, setSide] = useState<"above" | "below">("above");
 	/** Pixels from the chip's left edge to the bar's; `null` keeps it right, for focus, which has no pointer to face. */
 	const [offset, setOffset] = useState<number | null>(null);
@@ -481,6 +484,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 					event.preventDefault();
 					openFile();
 				}}
+				onContextMenu={(event) => pathMenu.onContextMenu(event, { path, onOpen: openFile })}
 			>
 				<FileText size={13} />
 				<span data-ly-file-name>{caption.text}</span>
@@ -513,6 +517,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 					</span>
 				</span>
 			)}
+			{pathMenu.element}
 		</span>
 	);
 }

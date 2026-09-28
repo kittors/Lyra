@@ -2334,6 +2334,7 @@ export const zhCN = {
 	"openTarget.revealExplorer": "在资源管理器中显示",
 	"openTarget.openIn": "在 {app} 中打开",
 	"openTarget.defaultApp": "用默认应用打开",
+	"pathMenu.openWith": "打开方式",
 	"pinnedShot.title": "置顶截图",
 	"pinnedShot.close": "关闭置顶截图",
 	"effort.title": "推理强度",

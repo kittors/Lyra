@@ -65,7 +65,7 @@ function forget(sessionId: string): void {
 }
 
 /** The target a window last opened for this conversation, if any window did. */
-export function rememberedTarget(sessionId: string): DeliveryTarget | null {
+function rememberedTarget(sessionId: string): DeliveryTarget | null {
 	try {
 		const raw = localStorage.getItem(storageKey(sessionId));
 		if (!raw) return null;

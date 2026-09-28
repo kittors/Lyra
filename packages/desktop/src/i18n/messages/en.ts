@@ -2149,6 +2149,7 @@ export const en = {
 	"openTarget.revealExplorer": "Show in File Explorer",
 	"openTarget.openIn": "Open in {app}",
 	"openTarget.defaultApp": "Open with default app",
+	"pathMenu.openWith": "Open with",
 	"pinnedShot.title": "Pinned screenshot",
 	"pinnedShot.close": "Close the pinned screenshot",
 	"effort.title": "Thinking effort",

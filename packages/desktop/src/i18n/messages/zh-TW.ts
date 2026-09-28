@@ -2149,6 +2149,7 @@ export const zhTW = {
 	"openTarget.revealExplorer": "在檔案總管中顯示",
 	"openTarget.openIn": "在 {app} 中開啟",
 	"openTarget.defaultApp": "用預設應用程式開啟",
+	"pathMenu.openWith": "開啟方式",
 	"pinnedShot.title": "置頂截圖",
 	"pinnedShot.close": "關閉置頂截圖",
 	"effort.title": "推理強度",
