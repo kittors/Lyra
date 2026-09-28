@@ -9,6 +9,8 @@
  * single review made them share it: opening 乙's review took the one 甲's screen had open, and an
  * undo on 乙's card rewrote whatever review was on show. Keyed by the conversation, each screen's
  * pane reads its own, the way ADR-0023 has containers belong to their conversation.
+ *
+ * An undo made on either surface reaches the other, and other windows, through `delivery-undo.ts`.
  */
 
 import { useEffect } from "react";
@@ -25,8 +27,6 @@ interface DeliveryTarget {
 interface DeliveryReview {
 	target: DeliveryTarget;
 	data: TurnDelivery | null;
-	/** Bumped after an undo so the pane re-reads the same turn. */
-	revision: number;
 }
 
 interface DeliveryReviewState {
@@ -36,7 +36,6 @@ interface DeliveryReviewState {
 	/** Take a target another window chose, without writing it back. */
 	adopt(target: DeliveryTarget): void;
 	setData(sessionId: string, data: TurnDelivery | null): void;
-	touch(sessionId: string): void;
 	close(sessionId: string): void;
 }
 
@@ -82,22 +81,17 @@ export const useDeliveryReview = create<DeliveryReviewState>((set) => ({
 	open: (target, data) => {
 		remember(target);
 		set((state) => ({
-			reviews: { ...state.reviews, [target.sessionId]: { target, data: data ?? null, revision: state.reviews[target.sessionId]?.revision ?? 0 } },
+			reviews: { ...state.reviews, [target.sessionId]: { target, data: data ?? null } },
 		}));
 	},
 	adopt: (target) =>
 		set((state) => ({
-			reviews: { ...state.reviews, [target.sessionId]: { target, data: null, revision: state.reviews[target.sessionId]?.revision ?? 0 } },
+			reviews: { ...state.reviews, [target.sessionId]: { target, data: null } },
 		})),
 	setData: (sessionId, data) =>
 		set((state) => {
 			const review = state.reviews[sessionId];
 			return review ? { reviews: { ...state.reviews, [sessionId]: { ...review, data } } } : {};
-		}),
-	touch: (sessionId) =>
-		set((state) => {
-			const review = state.reviews[sessionId];
-			return review ? { reviews: { ...state.reviews, [sessionId]: { ...review, revision: review.revision + 1 } } } : {};
 		}),
 	close: (sessionId) => {
 		forget(sessionId);

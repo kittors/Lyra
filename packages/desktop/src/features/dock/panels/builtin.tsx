@@ -19,7 +19,7 @@ import { SideChat, SideChatActions } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane } from "../../terminal/index.ts";
 import { TerminalTabs } from "../../terminal/index.ts";
-import { TrajectoryPanel, useDeliveryReview, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
+import { announceUndo, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
 import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
 import { useI18n } from "../../../i18n/index.ts";
 import { relativeTo } from "../../../lib/paths.ts";
@@ -106,7 +106,6 @@ function DeliveryPanel() {
 	// That conversation's own review: one opened under another screen is that screen's, and leaves this one be.
 	const target = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.target ?? null) : null));
 	const cached = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.data ?? null) : null));
-	const revision = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.revision ?? 0) : 0));
 	const [data, setData] = useState<TurnDelivery | null>(cached);
 	const [undoing, setUndoing] = useState(false);
 	const undoLock = useRef(false);
@@ -129,7 +128,9 @@ function DeliveryPanel() {
 			if (live) useApp.getState().notify(String(error), "error");
 		});
 		return () => { live = false; };
-	}, [target, revision]);
+	}, [target]);
+	// Undos made on the turn's card, or in another window, change which of these files can still be undone.
+	useDeliveryUndos(target?.sessionId ?? null, target?.timestamp ?? null, setData);
 
 	const undo = async (path?: string) => {
 		if (!target || undoLock.current) return;
@@ -138,13 +139,13 @@ function DeliveryPanel() {
 		try {
 			await bridge.delivery.undo(target.sessionId, target.timestamp, path);
 			const value = await bridge.delivery.get(target.sessionId, target.timestamp);
-			setData(value);
-			useDeliveryReview.getState().setData(target.sessionId, value);
+			// To this pane and everything else showing the turn — its card, in this window or the one it popped out of.
+			announceUndo(target.sessionId, target.timestamp, value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			if (!value.files.length) {
 				useDeliveryReview.getState().close(target.sessionId);
 				if (scope) usePaneDock.getState().close(scope, "delivery");
-			} else useDeliveryReview.getState().touch(target.sessionId);
+			}
 		} catch (error) {
 			useApp.getState().notify(String(error), "error");
 		} finally {

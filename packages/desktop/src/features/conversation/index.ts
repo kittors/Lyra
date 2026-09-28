@@ -22,6 +22,7 @@ export { ToolRun, segments } from "./runs.tsx";
 export { SpokenBubble, spokenText } from "./SpokenBubble.tsx";
 export { TrajectoryPanel } from "./trajectory/TrajectoryPanel.tsx";
 export { useDeliveryReview, useSharedDeliveryTarget } from "./delivery-review.ts";
+export { announceUndo, useDeliveryUndos } from "./delivery-undo.ts";
 export { usePathMenu } from "./PathMenu.tsx";
 export { TraceText } from "./detail/TraceText.tsx";
 export { showTrace } from "./trajectory/navigation.ts";
