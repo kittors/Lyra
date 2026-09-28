@@ -76,15 +76,35 @@
 }
 
 /*
- * 圆角要收两层。
+ * The corner is painted over, not cut out.
  *
- * `main` 自己收了不算数：它里面的 `.ly-dock` 铺满整块并且自带底色，而 `border-radius` 只裁背景、
- * 不裁子元素——除非给 `overflow: hidden`，而那会连带裁掉 dock 拖拽时溢出的那些浮层。所以两层各
- * 收各的角，转角处才真的空出来。第一版只收了 `main`，量出来整个角落还是内容区的白。
+ * `border-radius` on `main` clips its own background and none of its children, and whatever fills
+ * the content area paints its own square background over the curve. This used to round the dock as
+ * well, as `main > .ly-dock` — until splitting put the dock five wrappers down, in a section per
+ * screen, and the selector quietly matched nothing: the corner was square again with no rule that
+ * said so. Rounding whatever happens to be first would have to be done again at every such change,
+ * and would still miss a split, a terminal in the top-left pane, anything else with a background.
+ * `overflow: hidden` on `main` would also cut off what a drag carries past its edge.
+ *
+ * So a 10px patch in the band's own colour sits on top of the content, outside the curve only, and
+ * takes no pointer. What is under it no longer matters. `z-index: 1` is enough: the content is in
+ * the split sections, each a stacking context of its own; the header, the sidebar's edge and every
+ * floating layer are well above.
  */
-.ly-window-body > main,
-.ly-window-body > main > .ly-dock {
+.ly-window-body > main {
   border-top-left-radius: 10px;
+}
+
+.ly-window-body > main::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  background: radial-gradient(circle at 100% 100%, transparent 9.5px, var(--color-sidebar) 10px);
 }
 
 .ly-opaque {

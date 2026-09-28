@@ -325,3 +325,28 @@ test("a pane's toolbar icons keep their pixel column wherever the sidebar's edge
 		}
 	} finally { await app.stop(); }
 });
+
+test("the content area's corner under the window header is round, whatever is drawn in it", async (t) => {
+	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
+	try {
+		await frames(app);
+		const corner = await app.evaluate<{ x: number; y: number; band: string; content: string } | null>(`(() => {
+			const main = document.querySelector('.ly-window-body > main');
+			if (!main) return null;
+			const r = main.getBoundingClientRect();
+			return { x: r.x, y: r.y, band: getComputedStyle(main.parentElement).backgroundColor, content: getComputedStyle(main.querySelector('.ly-dock') ?? main).backgroundColor };
+		})()`);
+		if (!corner) { t.skip("macOS draws no header band, so the content area has no inner corner"); return; }
+		const rgbOf = (css: string) => css.match(/\d+/g)!.slice(0, 3).map(Number);
+		const image = await paintedPixels(app, { x: corner.x, y: corner.y, width: 12, height: 12 });
+		const dpr = image.width / 12;
+		const at = (x: number, y: number) => image.rgb[Math.floor(y * dpr) * image.width + Math.floor(x * dpr)];
+		const near = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) <= 1);
+		const outside = at(0, 0), inside = at(8, 8);
+		t.diagnostic(JSON.stringify({ corner, outside, inside }));
+		// The very corner is the band showing through; well inside the curve is the content itself.
+		assert.ok(near(outside, rgbOf(corner.band)), `the corner shows the band's colour, not the content's: ${JSON.stringify({ outside, band: corner.band })}`);
+		assert.ok(near(inside, rgbOf(corner.content)), `inside the curve is the content: ${JSON.stringify({ inside, content: corner.content })}`);
+		assert.ok(!near(rgbOf(corner.band), rgbOf(corner.content)), "band and content differ, or the corner proves nothing");
+	} finally { await app.stop(); }
+});
