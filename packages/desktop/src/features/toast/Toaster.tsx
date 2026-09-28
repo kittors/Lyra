@@ -42,7 +42,7 @@ const TONE = {
 
 export function Toaster() {
 	const { t } = useI18n();
-	const { compact, navOpen, sidebarWidth } = useLayout();
+	const { compact, hasNav, navOpen, sidebarWidth } = useLayout();
 	const notices = useApp((s) => s.notices);
 	const remove = useApp((s) => s.dismissNotice);
 	const newSession = useApp((s) => s.newSession);
@@ -177,7 +177,8 @@ export function Toaster() {
 			data-ly-toaster=""
 			style={{
 				zIndex: TOAST_Z,
-				left: !compact && navOpen ? `${sidebarWidth}px` : "0px",
+				// Centred on what is beside the sidebar — in a window that has one. See `hasNav`.
+				left: hasNav && !compact && navOpen ? `${sidebarWidth}px` : "0px",
 				right: 0,
 			}}
 			className="no-drag pointer-events-none fixed top-[52px] flex flex-col items-center gap-1.5 px-4 transition-[left] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"

@@ -173,7 +173,7 @@ export function App() {
 
 	return (
 		<I18nProvider locale={uiLocale}>
-		{!ready || !settled ? <BootScreen /> : <LayoutProvider>
+		{!ready || !settled ? <BootScreen /> : <LayoutProvider nav={!panelWindow && !sessionWindow}>
 			{panelWindow ? <PanelWindow /> : sessionWindow ? <SessionWindow /> : <Shell />}
 			{/*
 			 * One viewer for the whole window, outside the shell.
