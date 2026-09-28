@@ -93,7 +93,7 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 
 ## What it does
 
-- **Your models.** Any number of providers, any number of models on each. Only **Responses** (`/v1/responses`) and **Anthropic Messages** (`/v1/messages`).
+- **Your models.** Any number of providers, any number of models on each, over **Responses** (`/v1/responses`), **Anthropic Messages** (`/v1/messages`) or **Chat Completions** (`/v1/chat/completions`).
 - **20 built-in tools**, in the groups the code uses:
   - Files and code: `read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - Commands: `bash` `bash_output`

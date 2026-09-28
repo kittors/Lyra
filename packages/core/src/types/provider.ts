@@ -3,7 +3,7 @@ import type { Failure } from "../ai/failure.ts";
 /**
  * Models, providers, and the stream a request comes back as.
  *
- * Lyra speaks two wire formats and no others. Everything above this line is expressed in the
+ * Lyra speaks three wire formats and no others. Everything above this line is expressed in the
  * neutral message shape; everything below it is a provider's own idea of a request.
  */
 
@@ -15,8 +15,9 @@ import type { ToolSpec } from "./tool.ts";
 // ---------------------------------------------------------------------------
 
 /**
- * Wire formats Lyra speaks. Chat Completions is deliberately excluded: the product
- * targets Responses and Anthropic Messages only.
+ * Wire formats Lyra speaks: OpenAI Responses, Anthropic Messages, and OpenAI Chat Completions — the
+ * one most OpenAI-compatible services and relays speak. Each has its adapter in `ai/`, and every path
+ * that sends a request (the settings page's connection test included) goes through that adapter.
  */
 export type ApiFormat = "openai-responses" | "anthropic-messages" | "openai-chat-completions";
 

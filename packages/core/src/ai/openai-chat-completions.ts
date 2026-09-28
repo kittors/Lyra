@@ -23,7 +23,7 @@ import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_ID
 import { failedStreamEvent, joinUrl } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
-import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { droppedParams, learnDroppedParam, refusesReasoningNone } from "./request-params-compat.ts";
 import { cacheKeyFields, cacheKeyHeaders } from "./cache-key.ts";
 
 export const openaiChatCompletionsProvider: Provider = {
@@ -409,11 +409,15 @@ async function* streamChatCompletions(
 			 * `none is not a valid ThinkingLevel enum value`，`effort: "none"` 也是 GPT-5.1 之后才加的），
 			 * 所以它挂在可学的轴下面：撞上就退回「什么都不发」，也就是这条链原来的行为。两条 OpenAI 链现在
 			 * 用的是同一条轴、同一个信号。
+			 *
+			 * Gemini is not left to learn it: it is a known refuser (`refusesReasoningNone`), and Gemini 2.5
+			 * behind a relay rejects `"none"` with a 400 that names nothing, so there would be nothing to
+			 * learn from — every request with thinking off simply failed.
 			 */
 			...(model.supportsThinking
 				? thinkingEnabled && reasoningEffort
 					? { reasoning_effort: reasoningEffort }
-					: dropped.has("reasoning-off")
+					: refusesReasoningNone(model.modelId || model.id || "") || dropped.has("reasoning-off")
 						? {}
 						: { reasoning_effort: "none" }
 				: {}),
