@@ -302,8 +302,9 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 	})()`);
 	try {
 		await clickText("插件"); await frames();
-		await clickText("添加");
-		await clickText("添加插件市场");
+		// The sources left the header's 「添加」 menu for its ⋯, beside reload and 管理已安装 (PluginsView).
+		await click(`[data-market] header button[aria-label="${zhCN["common.more"]}"]`);
+		await clickText(zhCN["market.sources"]);
 		// The dialog no longer has a close button to wait for; its title is what says it arrived.
 		await until(`[...document.querySelectorAll('[data-ly-modal]')].some(e=>e.textContent.includes(${JSON.stringify(zhCN["registry.title"])}))`); await frames();
 	} catch (error) {

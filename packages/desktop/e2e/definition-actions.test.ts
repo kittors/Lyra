@@ -175,7 +175,7 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 	assert.ok(!list.commands.some((item) => item.name === "xiaorong"));
 });
 
-test("loose skill and rule rows delete their own definitions while related configuration rows share hover actions", async () => {
+test("loose skill and rule rows delete their own definitions while MCP servers and hooks ask before deleting theirs", async () => {
 	await select("插件", true); await select("技能", false, true);
 	await until(`document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	trashed.push(basename(dirname(skill)));
@@ -189,9 +189,16 @@ test("loose skill and rule rows delete their own definitions while related confi
 	await until(`!document.querySelector('[aria-label="删除规则 ${id}-rule"]')`);
 	await assert.rejects(access(rule));
 	assert.equal(await app.evaluate(`[...document.querySelectorAll('[data-row-actions]')].filter(row=>row.textContent.includes('内置')).some(row=>row.querySelector('.ly-row-action'))`), false);
+	/*
+	 * A server is a card now (McpSettings' ServerCard), and its delete is a row of the card's ⋯ menu
+	 * rather than a button that shows on hover. The dialog is named so that a click landing on some
+	 * other 删除 cannot pass for this one.
+	 */
 	await select("MCP", false, true);
-	await until(`document.querySelector('[aria-label="删除 QA 服务"]')`);
-	await click('[aria-label="删除 QA 服务"]'); await select("取消"); await until(`!document.querySelector('[role="dialog"]')`);
+	await until(`document.querySelector('[aria-label="QA 服务 的更多操作"]')`);
+	await click('[aria-label="QA 服务 的更多操作"]'); await select("删除");
+	await until(`document.querySelector('[role="dialog"]')?.textContent.includes('删除 QA 服务？')`);
+	await select("取消"); await until(`!document.querySelector('[role="dialog"]')`);
 	await select("钩子", true);
 	await until(`document.querySelector('[aria-label="删除这个钩子"]')`);
 	await click('[aria-label="删除这个钩子"]'); await select("取消"); await until(`!document.querySelector('[role="dialog"]')`);
