@@ -254,3 +254,74 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('.xterm-screen[data-qa-preserved]'))`), true, "and the terminal behind it is the same one");
 	} finally { await app.stop(); }
 });
+
+/** A light, empty profile: no projects, so the sidebar shows its empty hint. */
+async function plainProfile(home: string, theme: "light" | "dark" = "light"): Promise<void> {
+	await writeFile(join(home, "window.json"), JSON.stringify({ width: 984, height: 684 }));
+	await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], sync: { enabled: false }, appearance: { theme } }));
+}
+
+/**
+ * The pixels actually painted in a region, decoded by the page itself.
+ *
+ * Layout positions cannot show the faults below: they were identical to the hundredth of a pixel
+ * while the painted icons moved and the corner stayed square. So these read the screenshot back —
+ * a data URL drawn into a canvas is same-origin, and Node has no PNG decoder of its own. The clip
+ * is in CSS pixels; what comes back is device pixels, `dpr` of them per CSS pixel.
+ */
+async function paintedPixels(app: RunningApp, clip: { x: number; y: number; width: number; height: number }): Promise<{ width: number; height: number; gray: number[]; rgb: number[][] }> {
+	const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png", clip: { ...clip, scale: 1 } });
+	return app.evaluate(`(async () => {
+		const img = new Image(); img.src = 'data:image/png;base64,${shot.data}'; await img.decode();
+		const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+		const g = canvas.getContext('2d'); g.drawImage(img, 0, 0);
+		const px = g.getImageData(0, 0, img.width, img.height).data;
+		const gray = [], rgb = [];
+		for (let i = 0; i < px.length; i += 4) { gray.push((px[i] + px[i + 1] + px[i + 2]) / 3); rgb.push([px[i], px[i + 1], px[i + 2]]); }
+		return { width: img.width, height: img.height, gray, rgb };
+	})()`);
+}
+
+test("a pane's toolbar icons keep their pixel column wherever the sidebar's edge falls, at 125%", async (t) => {
+	/*
+	 * Opening or closing the sidebar walks the content area's left edge through fractional device
+	 * pixels, and with `contain: paint` on the split section each icon snapped against that section's
+	 * rounded origin: one device column left or right depending on the edge, icon by icon, which read
+	 * as the toolbar shaking for the length of the slide. Held at a series of edges here, since a
+	 * screenshot per animation frame is not something a test can ask for reliably.
+	 */
+	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
+	try {
+		await frames(app);
+		// The three that were reported shaking; the toolbar also holds buttons that only show on hover.
+		const toolbar = `[...document.querySelectorAll('[data-dock-header] button')].filter(b => /^(终端|浏览器|面板)/.test(b.getAttribute('aria-label') ?? '') && b.checkVisibility({ opacityProperty: true }))`;
+		const icons = await app.evaluate<{ x: number; width: number }[]>(`${toolbar}.map(b => b.getBoundingClientRect()).map(r => ({ x: r.x, width: r.width })).sort((a, b) => a.x - b.x)`);
+		assert.equal(icons.length, 3, `terminal, browser and panels are on the pane toolbar: ${JSON.stringify(icons)}`);
+		const left = Math.floor(icons[0].x) - 4, right = Math.ceil(icons.at(-1)!.x + icons.at(-1)!.width) + 4;
+		const top = await app.evaluate<number>(`Math.floor(document.querySelector('[data-dock-header] button').getBoundingClientRect().top) - 4`);
+		const dpr = await app.evaluate<number>("devicePixelRatio");
+		const edges = [0, -1, -2, -3, -5, -6, -7];
+		const rows: { edge: number; layout: number[]; painted: number[] }[] = [];
+		for (const edge of edges) {
+			await app.evaluate(`(() => { const frame = document.querySelector('aside[data-pane="beside"]').parentElement; frame.style.transition = 'none'; frame.style.marginLeft = '${edge}px'; })()`);
+			await frames(app, 4);
+			const layout = await app.evaluate<number[]>(`${toolbar}.map(b => b.getBoundingClientRect().x).sort((a, b) => a - b)`);
+			const image = await paintedPixels(app, { x: left, y: top, width: right - left, height: 36 });
+			// The ink's x-centroid inside each icon's own cell, in device pixels from the clip's edge.
+			const painted = icons.map((icon) => {
+				const from = Math.round((icon.x - left) * dpr), to = Math.round((icon.x - left + icon.width) * dpr);
+				let ink = 0, weighted = 0;
+				for (let x = from; x < to; x++) for (let y = 0; y < image.height; y++) { const v = 255 - image.gray[y * image.width + x]; ink += v; weighted += v * x; }
+				return Math.round((weighted / ink) * 100) / 100;
+			});
+			rows.push({ edge, layout, painted });
+		}
+		await app.evaluate(`(() => { const frame = document.querySelector('aside[data-pane="beside"]').parentElement; frame.style.marginLeft = ''; frame.style.transition = ''; })()`);
+		t.diagnostic(JSON.stringify({ dpr, rows }));
+		for (const row of rows) assert.deepEqual(row.layout, rows[0].layout, "the icons' layout does not move with the sidebar's edge");
+		for (const [index] of icons.entries()) {
+			const columns = new Set(rows.map((row) => row.painted[index]));
+			assert.equal(columns.size, 1, `icon ${index} is painted on one column wherever the edge is: ${[...columns].join(", ")}`);
+		}
+	} finally { await app.stop(); }
+});
