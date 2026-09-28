@@ -3,7 +3,7 @@ import type {
   UserContent,
   UserMessage as UserMessageType,
 } from "@lyra/core";
-import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Undo2 } from "lucide-react";
+import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Split, Undo2 } from "lucide-react";
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
@@ -189,6 +189,9 @@ export function UserMessage({
 	const running = useScopedRunning();
 	const editMessage = useApp((s) => s.editMessage);
 	const revertMessage = useApp((s) => s.revertMessage);
+	const forkFrom = useApp((s) => s.forkFrom);
+	/** Pressed and not yet opened: a second press would fork the same point twice. */
+	const [forking, setForking] = useState(false);
 	const lastUser = useScopedFromMessages(lastUserMessageIndex);
 	const confirm = useConfirmer();
   const attachmentActions = useAttachmentActions();
@@ -642,6 +645,29 @@ export function UserMessage({
         >
           <Pencil size={12.5} strokeWidth={1.8} />
         </button>
+        {/*
+          * 撤回's sibling, done to a copy: a new conversation from just before this message, with the
+          * message back in its composer — this one stays as it is. Last in the row, where Claude Code
+          * puts its "Fork from here". Offered while a turn runs, unlike the two beside it: it changes
+          * nothing here.
+          */}
+        {sessionId && available("sessions", "forkBefore") && (
+          <button
+            type="button"
+            data-message-fork=""
+            data-ly-tip={t("userMessage.fork")}
+            aria-label={t("userMessage.fork")}
+            disabled={forking}
+            onClick={() => {
+              if (forking) return;
+              setForking(true);
+              void forkFrom(index, message, sessionId).finally(() => setForking(false));
+            }}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <Split size={12.5} strokeWidth={1.8} className="rotate-90" />
+          </button>
+        )}
       </MessageActions>
       {confirm.element}
     </div>

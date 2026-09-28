@@ -3,7 +3,7 @@ import type { ApprovalOrigin, ApprovalRequest, ApprovalRisk, QuestionFields } fr
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
-import type { AgentEvent, ApprovalDecision, CommandRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
+import type { AgentEvent, ApprovalDecision, CommandRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
@@ -550,6 +550,12 @@ export interface AppState extends QueueSlice {
    * first if it is not already — a split's other screen names its own.
    */
   revertMessage(index: number, sessionId?: string): Promise<void>;
+  /**
+   * 撤回, done to a copy: a new conversation holding everything before the user message at `index`,
+   * opened in this one's screen with the message's wording back in its composer. This conversation is
+   * left exactly as it is. Given `sessionId`, that conversation is the one forked.
+   */
+  forkFrom(index: number, message: UserMessage, sessionId?: string): Promise<void>;
   /**
    * Re-send the user message that produced the reply at `index`. Given `sessionId`, in that
    * conversation, which is made the live one first if it is not already.

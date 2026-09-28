@@ -51,6 +51,7 @@ export type { SessionStorage } from "./session/storage.ts";
 export {
 	countBySource,
 	filterTrajectory,
+	forkBeforeMessage,
 	forkSession,
 	matchRanges,
 	messagesUpTo,

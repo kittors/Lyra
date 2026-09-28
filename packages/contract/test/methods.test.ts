@@ -210,6 +210,7 @@ test("数量对得上，且手机能力是逐项审过的清单", () => {
 			// The delta endpoint reads the same paired session scope as the full trajectory.
 			"sessions.trajectoryChanges",
 			"sessions.fork",
+			"sessions.forkBefore",
 			"sessions.remove",
 			"sessions.setArchived",
 			/*
