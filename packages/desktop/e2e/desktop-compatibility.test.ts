@@ -350,3 +350,72 @@ test("the content area's corner under the window header is round, whatever is dr
 		assert.ok(!near(rgbOf(corner.band), rgbOf(corner.content)), "band and content differ, or the corner proves nothing");
 	} finally { await app.stop(); }
 });
+
+/**
+ * Which font files drew a node's text, asked over one connection of its own.
+ *
+ * The DOM agent's node ids belong to the session that handed them out, and `app.send` opens a
+ * connection per call — so enabling it and querying through `send` answers "DOM agent needs to be
+ * enabled first". Same pattern as the touch viewport in `definition-actions`.
+ */
+async function platformFonts(port: number, selector: string): Promise<{ familyName: string; postScriptName?: string; glyphCount: number }[]> {
+	const targets: { url: string; webSocketDebuggerUrl?: string }[] = await fetch(`http://127.0.0.1:${port}/json/list`).then((response) => response.json());
+	const target = targets.find((entry) => entry.url.endsWith("/index.html"));
+	assert.ok(target?.webSocketDebuggerUrl, "the main window is a debugging target");
+	const socket = new WebSocket(target.webSocketDebuggerUrl);
+	await new Promise<void>((resolve, reject) => {
+		socket.addEventListener("open", () => resolve(), { once: true });
+		socket.addEventListener("error", () => reject(new Error("font query connection failed")), { once: true });
+	});
+	let id = 0;
+	const send = <T>(method: string, params = {}) => new Promise<T>((resolve, reject) => {
+		const request = ++id;
+		const listener = (event: MessageEvent) => {
+			const message: { id?: number; error?: { message: string }; result?: T } = JSON.parse(String(event.data));
+			if (message.id !== request) return;
+			socket.removeEventListener("message", listener);
+			if (message.error) reject(new Error(message.error.message)); else resolve(message.result as T);
+		};
+		socket.addEventListener("message", listener);
+		socket.send(JSON.stringify({ id: request, method, params }));
+	});
+	try {
+		await send("DOM.enable");
+		await send("CSS.enable");
+		const { root } = await send<{ root: { nodeId: number } }>("DOM.getDocument", { depth: -1 });
+		const { nodeId } = await send<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector });
+		const { fonts } = await send<{ fonts: { familyName: string; postScriptName?: string; glyphCount: number }[] }>("CSS.getPlatformFontsForNode", { nodeId });
+		return fonts;
+	} finally {
+		socket.close();
+	}
+}
+
+test("Chinese punctuation on Windows is drawn by the face drawing the Han around it, at the calibrated size", async (t) => {
+	if (process.platform !== "win32") { t.skip("YaHei, SimSun and the Windows faces exist only on Windows"); return; }
+	const app = await startApp({ port: 9598, seed: (home) => plainProfile(home) });
+	try {
+		await frames(app);
+		// 「还没有会话。点击「新对话」开始。」: Han and full-width punctuation in one line of grey.
+		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => {
+			const hint = [...document.querySelectorAll('body *')].filter(e => e.checkVisibility() && [...e.childNodes].some(c => c.nodeType === 3 && c.textContent.includes('还没有会话'))).at(-1);
+			if (hint) { hint.setAttribute('data-qa-hint', ''); resolve(); } else if (--n) requestAnimationFrame(step); else reject(new Error('no empty hint in the sidebar')); }; step(); })`);
+		const fonts = await platformFonts(9598, "[data-qa-hint]");
+		t.diagnostic(JSON.stringify(fonts));
+		// A machine without YaHei (a bare CI image can be one) never reaches the Windows faces at all.
+		if (!fonts.some((font) => /YaHei/.test(font.familyName))) { t.skip(`no YaHei on this machine: ${JSON.stringify(fonts)}`); return; }
+		assert.equal(fonts.length, 1, `one face draws the whole line, punctuation included: ${JSON.stringify(fonts)}`);
+		/*
+		 * YaHei at 94%: its Han is a larger design than PingFang's, and `size-adjust` scales the
+		 * advance with the outline, so a run of Han comes out at 0.94em a character. Unadjusted it
+		 * is a full em, and the interface reads a size up again.
+		 */
+		const run = await app.evaluate<{ width: number; size: number; chars: number }>(`(() => {
+			const el = [...document.querySelectorAll('body *')].find(e => e.checkVisibility() && e.childElementCount === 0 && /^[\\u4e00-\\u9fff]{4,}$/.test(e.textContent.trim()));
+			const range = document.createRange(); range.selectNodeContents(el);
+			return { width: range.getBoundingClientRect().width, size: parseFloat(getComputedStyle(el).fontSize), chars: el.textContent.trim().length };
+		})()`);
+		t.diagnostic(JSON.stringify(run));
+		assert.ok(Math.abs(run.width / (run.chars * run.size) - 0.94) < 0.01, `Han is set at 94% of the em: ${JSON.stringify(run)}`);
+	} finally { await app.stop(); }
+});

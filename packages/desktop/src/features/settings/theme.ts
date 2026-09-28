@@ -75,6 +75,33 @@ export function applyAppearance(input: AppearanceSettings): void {
 	const rule = (step: number) =>
 		toHex(mix(background, foreground, Math.min(0.9, step * strength * (dark ? 1 : RULE_ON_LIGHT))));
 	const text = (weight: number) => toHex(mix(background, foreground, Math.min(1, weight)));
+	/*
+	 * The two text greys sit closer to the ink where the type is drawn thin.
+	 *
+	 * The interface is set at 500, and on a Mac that is PingFang Medium. YaHei has no Medium, so on
+	 * Windows the same text is its Regular, rendered with Windows' antialiasing, and a grey chosen
+	 * on the Mac washed out: the faint one measured 2.5:1 on white — 「还没有会话」, the composer's
+	 * placeholder, the off switch's 关. Only light themes: on a dark page the same thin stroke is a
+	 * light line on dark and does not fade the same way.
+	 *
+	 * `data-ly-platform` rather than `window.lyra.platform`, which on a phone names the desktop.
+	 */
+	const windowsType = document.documentElement.dataset.lyPlatform === "win32";
+	const thinType = !dark && windowsType;
+	/*
+	 * And on Windows every weight is drawn one step lighter, never below 400.
+	 *
+	 * The levels are the base and one and two steps above it (`tokens.css`), which a Mac draws in
+	 * PingFang's Regular, Medium and Semibold. YaHei has Light, Regular and Bold only, so the base
+	 * 500 came out as its Regular and the 600 above it as its Bold — the whole distance at once —
+	 * while Segoe UI Variable drew the Latin of the same 500 visibly heavier than the Han beside it:
+	 * 「Agent 能力」 half bold, half thin. One step down, body text is Regular in both scripts, the
+	 * medium level stays Regular for Han and 500 for Latin, and only what sits two steps up — headings,
+	 * titles — reaches YaHei's Bold. Six mappings were drawn side by side on a Windows machine with its
+	 * own fonts; this one read as one weight where the page means one. The stored value is untouched:
+	 * the slider still says what was chosen, and a Mac draws it as chosen.
+	 */
+	const uiWeight = appearance.uiFontWeight ?? 500;
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */
 	const veil = (alpha: number) => `color-mix(in srgb, ${toHex(foreground)} ${(alpha * 100).toFixed(1)}%, transparent)`;
 
@@ -159,8 +186,8 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 */
 		"--color-line-float": veil(dark ? 0.14 : 0.12),
 		"--color-ink": toHex(foreground),
-		"--color-ink-muted": text(0.62),
-		"--color-ink-faint": text(0.4),
+		"--color-ink-muted": text(thinType ? 0.68 : 0.62),
+		"--color-ink-faint": text(thinType ? 0.5 : 0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
 		// The default widened with the faces Windows and Linux need for three weights; see `drawnUiFont`.
@@ -173,7 +200,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，而那些界面一直是
 		 * 400 画出来的。
 		 */
-		"--ly-ui-weight": String(appearance.uiFontWeight ?? 500),
+		"--ly-ui-weight": String(windowsType ? Math.max(400, uiWeight - 100) : uiWeight),
 		"--ly-code-size": `${appearance.codeFontSize}px`,
 		/*
 		 * The conversation's measure, read by every column that is part of it.

@@ -336,9 +336,79 @@
     U+AC00-D7AF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2A6DF;
 }
 
+/*
+ * Windows: Han and punctuation both from YaHei, a size smaller.
+ *
+ * The stacks above are written for a Mac first, and on Windows they came apart. `Lyra Punct` found
+ * no Songti and took SimSun, so every 。，「」？ in the interface was a thin serif mark — Regular
+ * even in a bold heading, beside YaHei's bold Han. YaHei draws its own marks in the Chinese
+ * position, lower-left; the reason a Mac takes its marks from Songti is PingFang's mid-line 。,
+ * which YaHei does not have.
+ *
+ * And YaHei is a larger design. Twenty-four common characters at 1000px average 960×920 of ink in
+ * YaHei UI against 893×880 in PingFang SC, so the same 14px read a size up. `size-adjust: 94%`
+ * puts them back where the interface was drawn; with it, Han against Segoe UI's capitals keeps the
+ * proportion PingFang has on a Mac (1.235 against 1.232).
+ *
+ * Chosen by `data-ly-platform`, which the preload sets from the machine drawing the window: a phone
+ * paired with a Windows desktop is not drawing with YaHei.
+ */
+@font-face {
+  font-family: "Lyra Punct Windows";
+  font-style: normal;
+  font-weight: 100 599;
+  src: local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  size-adjust: 94%;
+  unicode-range: U+3000-303F, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Lyra Punct Windows";
+  font-style: normal;
+  font-weight: 600 900;
+  src: local("Microsoft YaHei UI Bold"), local("Microsoft YaHei Bold");
+  size-adjust: 94%;
+  unicode-range: U+3000-303F, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Lyra CJK Windows";
+  font-style: normal;
+  font-weight: 300;
+  src: local("Microsoft YaHei UI Light"), local("Microsoft YaHei Light");
+  size-adjust: 94%;
+  unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
+}
+
+/* YaHei has no Medium: 400 and the 500 the interface is set in are both its Regular. */
+@font-face {
+  font-family: "Lyra CJK Windows";
+  font-style: normal;
+  font-weight: 400 500;
+  src: local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  size-adjust: 94%;
+  unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
+}
+
+@font-face {
+  font-family: "Lyra CJK Windows";
+  font-style: normal;
+  font-weight: 600 900;
+  src: local("Microsoft YaHei UI Bold"), local("Microsoft YaHei Bold");
+  size-adjust: 94%;
+  unicode-range: U+2E80-2EFF, U+3040-30FF, U+3200-4DBF, U+4E00-9FFF, U+F900-FAFF, U+20000-2A6DF;
+}
+
 html {
   --ly-script-font: "Lyra CJK";
   --ly-punct-font: "Lyra Punct";
+}
+
+/* Before the locale rules on purpose: the same specificity, so Traditional, Japanese and Korean
+   still take their own faces. */
+html[data-ly-platform="win32"] {
+  --ly-script-font: "Lyra CJK Windows";
+  --ly-punct-font: "Lyra Punct Windows";
 }
 
 html:lang(zh-TW) {

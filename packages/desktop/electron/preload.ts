@@ -60,8 +60,24 @@ function markWindowKind(): void {
 	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
 }
 
+/**
+ * The operating system drawing this window, for the styles that answer to how it renders type.
+ *
+ * `window.lyra.platform` names the machine the files are on, which on a phone is the desktop it is
+ * paired with. Glyphs are drawn by the machine the window is on, and only this side knows that for
+ * certain — a phone has no preload, so nothing there is marked and nothing there changes.
+ */
+function markPlatform(): void {
+	const apply = () => {
+		if (document.documentElement) document.documentElement.dataset.lyPlatform = process.platform;
+	};
+	apply();
+	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
+}
+
 paintBootTheme();
 markWindowKind();
+markPlatform();
 
 /**
  * The renderer gets exactly this surface and nothing else — no `ipcRenderer`, no `require`.
