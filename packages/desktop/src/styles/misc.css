@@ -81,7 +81,8 @@
  * hover is the card radius minus the inset, so the active fill follows
  * the card instead of turning into a pill inside it.
  */
-.ly-menu-scroll .ly-item {
+.ly-menu-scroll .ly-item,
+.ly-menu-foot .ly-item {
   border-radius: var(--radius-item);
 }
 
