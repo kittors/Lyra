@@ -110,6 +110,8 @@ export const METHODS = {
 		trajectoryChanges: { channel: "sessions:trajectoryChanges", remote: true },
 		exportTrajectory: { channel: "sessions:exportTrajectory", remote: false, why: "生成本机完整轨迹检查文件" },
 		fork: { channel: "sessions:fork", remote: true },
+		// `remote: true`, like `fork`: a copy, the original untouched — and the phone shows the same button.
+		forkBefore: { channel: "sessions:forkBefore", remote: true },
 		remove: { channel: "sessions:remove", remote: true },
 		setArchived: { channel: "sessions:setArchived", remote: true },
 		/*

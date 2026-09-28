@@ -31,6 +31,7 @@
 
 import {
 	renderRuleFile,
+	forkBeforeMessage,
 	forkSession,
 	readTrajectory,
 	withinOrIs,
@@ -181,6 +182,8 @@ export const RPC: Record<string, Handler> = {
 		readTrajectoryChanges(deps.store(), s(projectId), s(sessionId), typeof cursor === "string" ? cursor : undefined, deps.live(s(sessionId))?.running ?? false),
 	"sessions.fork": async (deps, [projectId, sessionId, seq]) =>
 		forkSession(deps.store(), s(projectId), s(sessionId), Number(seq)),
+	"sessions.forkBefore": async (deps, [projectId, sessionId, messageIndex, timestamp, title]) =>
+		forkBeforeMessage(deps.store(), s(projectId), s(sessionId), Number(messageIndex), Number(timestamp), typeof title === "string" ? title : undefined),
 	"sessions.create": async (deps, [cwd, modelId, initial]) =>
 		// "remote"：对面递来的附件路径不作数，见 `prompt-input.ts` 的 `PromptOrigin`。
 		deps.create(s(cwd), s(modelId), initialPrompt(initial, "remote", deps.uploadPath)),
@@ -439,6 +442,8 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 
 	"workspace.info": ([path_]) => fail(path(path_, "path")),
 	"sessions.fork": ([projectId, sessionId, seq]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), index(seq, "seq"))),
+	"sessions.forkBefore": ([projectId, sessionId, messageIndex, timestamp, title]) =>
+		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), index(timestamp, "timestamp"), optionalStr(title, "title", 1_000))),
 	"sessions.create": ([cwd, modelId]) => fail(all(path(cwd, "cwd"), optionalStr(modelId, "modelId"))),
 	"sessions.open": ([projectId, sessionId]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
 	"sessions.running": ([sessionId]) => fail(str(sessionId, "sessionId")),

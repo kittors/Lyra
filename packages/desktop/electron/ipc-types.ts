@@ -363,6 +363,12 @@ export interface LyraApi {
 		exportTrajectory(projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }): Promise<string>;
 		/** Copy history up to `seq` into a new session, leaving this one untouched. */
 		fork(projectId: string, sessionId: string, seq: number): Promise<{ meta: SessionMeta; messages: number } | null>;
+		/**
+		 * Fork from just before a message the person wrote: everything before it in a new session, this
+		 * one untouched. `messageIndex` is its place in the transcript the window shows, checked against
+		 * `timestamp`; `title` names the fork in the window's language. Null when the message is not found.
+		 */
+		forkBefore(projectId: string, sessionId: string, messageIndex: number, timestamp: number, title?: string): Promise<{ meta: SessionMeta; messages: number } | null>;
 		remove(projectId: string, sessionId: string): Promise<void>;
 		/** Move a session in or out of the archive. Returns the whole list, already updated. */
 		setArchived(projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta[]>;

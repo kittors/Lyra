@@ -513,6 +513,7 @@ export function bridgeScript(connection: Connection): string {
 			trajectory: call("sessions.trajectory"),
 			trajectoryChanges: call("sessions.trajectoryChanges"),
 			fork: call("sessions.fork"),
+			forkBefore: call("sessions.forkBefore"),
 			remove: call("sessions.remove"),
 			setArchived: call("sessions.setArchived"),
 			removeArchived: absentList,

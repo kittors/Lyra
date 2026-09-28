@@ -10,6 +10,7 @@
 import type { MessageAttachment } from "@lyra/core";
 import {
 	lyraHome,
+	forkBeforeMessage,
 	forkSession,
 	readTrajectory,
 	removeSessionArtifacts,
@@ -117,6 +118,11 @@ export function registerSessionsIpc({
 		"sessions:fork",
 		async (_event, projectId: string, sessionId: string, seq: number) =>
 			forkSession(store, projectId, sessionId, seq),
+	);
+	ipcMain.handle(
+		"sessions:forkBefore",
+		async (_event, projectId: string, sessionId: string, messageIndex: number, timestamp: number, title?: string) =>
+			forkBeforeMessage(store, projectId, sessionId, messageIndex, timestamp, title),
 	);
 
 	ipcMain.handle(

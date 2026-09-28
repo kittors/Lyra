@@ -365,6 +365,39 @@ export function turnSlice(set: Set, get: Get) {
     }
   },
 
+  async forkFrom(index: number, message: UserMessage, target?: string) {
+    const sessionId = target ?? get().activeSessionId;
+    const source = sessionId ? get().sessions.find((session) => session.id === sessionId) : undefined;
+    if (!source || message.role !== "user" || message.synthetic) return;
+    /*
+     * Not refused while a turn runs, unlike 撤回: nothing here touches this conversation, and branching
+     * off while it works is exactly when a second line of thought is wanted. The log is only read up
+     * to this message, which a running turn does not rewrite.
+     */
+    let forked: Awaited<ReturnType<typeof bridge.sessions.forkBefore>>;
+    try {
+      forked = await bridge.sessions.forkBefore(source.projectId, source.id, index, message.timestamp, translate("userMessage.forkTitle", { title: source.title }));
+    } catch (cause) {
+      get().notify(`${translate("userMessage.forkFailed")}: ${cause instanceof Error ? cause.message : String(cause)}`, "error");
+      return;
+    }
+    if (!forked) {
+      get().notify(translate("userMessage.forkFailed"), "error");
+      return;
+    }
+    // It opens where the button was pressed: that screen's conversation takes the live slot first (ADR-0023).
+    if (source.id !== get().activeSessionId && !(await onStage(source.id))) return;
+    await get().openSession(forked.meta);
+    // Another conversation was opened meanwhile: that is the newer choice, and the draft is not its.
+    if (get().activeSessionId !== forked.meta.id) return;
+    const draft = draftFromUserMessage(message);
+    get().setComposerDraft(draft.text, {
+      sessionId: forked.meta.id,
+      attachments: draft.attachments,
+      sessionRefs: draft.sessionRefs,
+    });
+  },
+
   async abort(sessionId?: string) {
     const id = sessionId ?? get().activeSessionId;
     if (id) await bridge.agent.abort(id);

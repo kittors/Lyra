@@ -12,7 +12,8 @@ import type { SessionStorage } from "../session/storage.ts";
  */
 
 import type { SessionMeta } from "../session/store.ts";
-import { messagesUpTo } from "./replay.ts";
+import type { Message } from "../types.ts";
+import { historyUpTo } from "./replay.ts";
 
 export interface ForkResult {
 	meta: SessionMeta;
@@ -36,10 +37,48 @@ export async function forkSession(
 	const source = (await store.listSessions()).find((candidate) => candidate.id === sessionId);
 	if (!source || source.projectId !== projectId) return null;
 
-	const messages = await messagesUpTo(store, projectId, sessionId, seq);
+	const history = await historyUpTo(store, projectId, sessionId, seq);
 	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`, { thinking: source.thinking });
-	for (const message of messages) {
-		meta = await store.append(meta, { type: "message", message });
+	/*
+	 * Where the model changed, carried over — or the fork replays one provider's opaque handles to
+	 * another, which rejects them (see `modelSwitchedAt`). A change made after the fork point still
+	 * counts: the fork continues on the session's current model, and every message it inherits came
+	 * from the one before.
+	 */
+	const switchedAt = source.modelSwitchedAt === undefined ? 0 : Math.min(source.modelSwitchedAt, history.messages);
+	if (switchedAt > 0) meta = await store.append(meta, { type: "meta", meta: { ...meta, modelSwitchedAt: switchedAt } });
+	for (const item of history.items) {
+		meta = await store.append(meta, "message" in item ? { type: "message", message: item.message } : { type: "event", event: item.compacted });
 	}
-	return { meta, messages: messages.length };
+	return { meta, messages: history.messages };
+}
+
+/**
+ * Fork from just before a message the person wrote — Claude Code's "Fork from here".
+ *
+ * The same thing 撤回 does to a conversation, done to a copy: the fork holds everything before the
+ * message, and the message itself goes back to the composer (the caller's job) to be sent as it was
+ * or rewritten. The original is not touched.
+ *
+ * The window names the message by its position in the transcript it shows, which is not a sequence
+ * number, and positions drift — a message the window drew before the log had it. So the position is
+ * checked against the message's timestamp and, when they disagree, the message is looked up by its
+ * timestamp; a message that cannot be found is not forked, rather than forking from the wrong place.
+ */
+export async function forkBeforeMessage(
+	store: SessionStorage,
+	projectId: string,
+	sessionId: string,
+	messageIndex: number,
+	timestamp: number,
+	title?: string,
+): Promise<ForkResult | null> {
+	const loaded = await store.load(projectId, sessionId);
+	if (!loaded) return null;
+	const isIt = (message: Message | undefined) => message?.role === "user" && message.timestamp === timestamp;
+	const target = isIt(loaded.entries[messageIndex]?.message)
+		? loaded.entries[messageIndex]
+		: loaded.entries.find((entry) => isIt(entry.message));
+	if (!target) return null;
+	return forkSession(store, projectId, sessionId, target.seq - 1, title);
 }
