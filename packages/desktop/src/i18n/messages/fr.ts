@@ -2149,6 +2149,7 @@ export const fr = {
 	"openTarget.revealExplorer": "Afficher dans l'Explorateur de fichiers",
 	"openTarget.openIn": "Ouvrir dans {app}",
 	"openTarget.defaultApp": "Ouvrir avec l'app par défaut",
+	"pathMenu.openWith": "Ouvrir avec",
 	"pinnedShot.title": "Capture épinglée",
 	"pinnedShot.close": "Fermer la capture épinglée",
 	"effort.title": "Effort de réflexion",

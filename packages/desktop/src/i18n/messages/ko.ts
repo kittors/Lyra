@@ -2149,6 +2149,7 @@ export const ko = {
 	"openTarget.revealExplorer": "파일 탐색기에서 보기",
 	"openTarget.openIn": "{app}에서 열기",
 	"openTarget.defaultApp": "기본 앱으로 열기",
+	"pathMenu.openWith": "다음으로 열기",
 	"pinnedShot.title": "고정한 스크린샷",
 	"pinnedShot.close": "고정한 스크린샷 닫기",
 	"effort.title": "생각의 깊이",

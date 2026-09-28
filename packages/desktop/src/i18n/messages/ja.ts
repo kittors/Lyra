@@ -2149,6 +2149,7 @@ export const ja = {
 	"openTarget.revealExplorer": "エクスプローラーで表示",
 	"openTarget.openIn": "{app} で開く",
 	"openTarget.defaultApp": "既定のアプリで開く",
+	"pathMenu.openWith": "このアプリケーションで開く",
 	"pinnedShot.title": "ピン留めしたスクリーンショット",
 	"pinnedShot.close": "ピン留めしたスクリーンショットを閉じる",
 	"effort.title": "思考の深さ",

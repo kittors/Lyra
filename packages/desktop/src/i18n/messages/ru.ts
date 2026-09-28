@@ -2149,6 +2149,7 @@ export const ru = {
 	"openTarget.revealExplorer": "Показать в Проводнике",
 	"openTarget.openIn": "Открыть в {app}",
 	"openTarget.defaultApp": "Открыть приложением по умолчанию",
+	"pathMenu.openWith": "Открыть в программе",
 	"pinnedShot.title": "Закреплённый снимок",
 	"pinnedShot.close": "Закрыть закреплённый снимок",
 	"effort.title": "Глубина размышления",

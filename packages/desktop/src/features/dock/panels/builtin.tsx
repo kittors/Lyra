@@ -19,7 +19,7 @@ import { SideChat, SideChatActions } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane } from "../../terminal/index.ts";
 import { TerminalTabs } from "../../terminal/index.ts";
-import { TrajectoryPanel, useDeliveryReview, useSharedDeliveryTarget } from "../../conversation/index.ts";
+import { TrajectoryPanel, useDeliveryReview, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
 import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
 import { useI18n } from "../../../i18n/index.ts";
 import { relativeTo } from "../../../lib/paths.ts";
@@ -100,6 +100,9 @@ function DeliveryPanel() {
 	const scope = useDockScope();
 	// A popped-out pane starts with an empty store; the turn it shows is on the shared record.
 	useSharedDeliveryTarget(owner);
+	// Right-click on a file's header: the same menu as the file's row on the card, minus 打开 — this
+	// pane is the turn's recorded diff, and opening the file's current contents is the card's to offer.
+	const pathMenu = usePathMenu(workspace);
 	// That conversation's own review: one opened under another screen is that screen's, and leaves this one be.
 	const target = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.target ?? null) : null));
 	const cached = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.data ?? null) : null));
@@ -168,7 +171,7 @@ function DeliveryPanel() {
 			{files.map((file) => (
 				<section key={file.path} data-delivery-diff={file.path} className="mb-1">
 					<div className="ly-pin sticky top-0 z-10">
-						<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label">
+						<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label" onContextMenu={(event) => pathMenu.onContextMenu(event, { path: file.path })}>
 							{deliveryName(relative(file.path))}
 							{deliveryCounts(file.added, file.removed)}
 							<IconButton
@@ -186,6 +189,7 @@ function DeliveryPanel() {
 			))}
 		</Scroller>
 		{confirm.element}
+		{pathMenu.element}
 	</>;
 }
 
