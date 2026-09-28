@@ -5,6 +5,79 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.21](https://github.com/kittors/Lyra/releases/tag/v0.9.21) - 2026-09-28
+<!-- lyra:notes en -->
+
+### Improvements & Fixes
+
+- **Running a command outside the sandbox is approved one call at a time.** The card that asks to leave the sandbox offered "Stop asking", and one click was a standing permission: that command then ran outside the sandbox in every mode, without asking again. The card now offers only "No" and "Allow once". Permissions of this kind remembered by earlier versions no longer apply and are no longer listed under Always allowed in Settings › Access. An approval request that arrives while you are in another conversation also keeps the agent's reason for when you come back.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 优化与修复
+
+- **到沙箱外执行的命令，每次都单独问你。** 申请到沙箱外执行的卡片以前带「以后不再问」，点一下就成了长期许可：同一条命令此后在任何模式下都直接到沙箱外执行，不再问你。现在这张卡片只有「拒绝」和「允许一次」；旧版本记下的这类许可不再生效，也不再列在「访问授权」的「始终允许」里。你在别的会话时收到的授权请求，切回来后也不会丢掉智能体写的理由。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 最佳化與修復
+
+- **到沙箱外執行的命令，每次都單獨詢問你。** 申請到沙箱外執行的卡片以前有「以後不再問」，點一下就成了長期許可：同一條命令此後在任何模式下都直接到沙箱外執行，不再詢問你。現在這張卡片只有「拒絕」和「允許一次」；舊版本記下的這類許可不再生效，也不再列在「存取授權」的「始終允許」中。你在其他對話時收到的授權請求，切回來後也不會遺失智慧體寫的理由。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 改善と修正
+
+- **サンドボックスの外で実行するコマンドは、毎回個別に確認します。** サンドボックスの外での実行を求めるカードには以前「今後は尋ねない」があり、一度押すと恒久的な許可になっていました。同じコマンドはその後どのモードでも、確認なしにサンドボックスの外で実行されていました。このカードには今「断る」と「一度だけ許可」しかありません。以前のバージョンが記録したこの種の許可は無効になり、「アクセス権」の「常に許可」にも表示されなくなりました。別の会話を開いている間に届いた承認リクエストも、戻ったときにエージェントが書いた理由を失わなくなりました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 개선 및 수정
+
+- **샌드박스 밖에서 실행할 명령은 매번 따로 묻습니다.** 샌드박스 밖 실행을 요청하는 카드에는 예전에 "앞으로 묻지 않기"가 있었고, 한 번 누르면 영구 허가가 되었습니다. 같은 명령이 이후 어떤 모드에서든 묻지 않고 샌드박스 밖에서 실행되었습니다. 이제 이 카드에는 "거절"과 "한 번만 허용"만 있습니다. 이전 버전이 기록한 이런 허가는 더 이상 적용되지 않으며, "접근 권한"의 "항상 허용" 목록에도 나오지 않습니다. 다른 대화를 보고 있는 동안 도착한 승인 요청도 돌아왔을 때 에이전트가 쓴 이유를 잃지 않습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Améliorations et corrections
+
+- **Exécuter une commande hors du bac à sable se valide à chaque fois.** La carte qui demande à sortir du bac à sable proposait « Ne plus demander », et un clic valait autorisation permanente : la même commande s’exécutait ensuite hors du bac à sable, dans tous les modes, sans plus rien demander. La carte ne propose désormais que « Refuser » et « Autoriser une fois ». Les autorisations de ce type enregistrées par les versions précédentes ne s’appliquent plus et ne figurent plus dans « Toujours autorisé », dans Accès. Une demande d’approbation reçue pendant que vous étiez dans une autre conversation garde aussi la raison donnée par l’agent.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Улучшения и исправления
+
+- **Команда вне песочницы подтверждается каждый раз отдельно.** В карточке запуска вне песочницы была кнопка «Больше не спрашивать», и одно нажатие становилось постоянным разрешением: та же команда потом выполнялась вне песочницы в любом режиме без вопросов. Теперь в этой карточке только «Отказать» и «Разрешить один раз». Такие разрешения, сохранённые прежними версиями, больше не действуют и не показываются в списке «Всегда разрешено» в разделе «Доступ». Запрос на подтверждение, пришедший, пока вы были в другой беседе, тоже сохраняет объяснение агента.
+
+</details>
+
 ## [0.9.20](https://github.com/kittors/Lyra/releases/tag/v0.9.20) - 2026-09-27
 <!-- lyra:notes en -->
 
