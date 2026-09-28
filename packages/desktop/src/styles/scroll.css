@@ -95,6 +95,14 @@
 }
 
 /*
+ * The same gutter for the rows under a menu's divider (`MenuFooter`). Padding rather than
+ * margin: the footer's box carries the divider, and the divider still spans the card.
+ */
+.ly-menu-foot {
+  padding: var(--ly-menu-inset);
+}
+
+/*
  * Just enough to clear the thumb, not a column of its own.
  *
  * It was 20px, and the thumb is 8px of it (6 wide, 2 in from the edge) with 4 more already given

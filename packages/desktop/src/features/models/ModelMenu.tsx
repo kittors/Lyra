@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { MenuBody, MenuFooter, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedFromMessages, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
@@ -284,7 +284,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 				) : undefined
 			}
 			footer={selection ? undefined :
-				<div className="p-1">
+				<MenuFooter>
 					<MenuItem
 						detail={meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
 						trailing={
@@ -323,7 +323,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 					>
 						<RollingText>{t("modelMenu.manageProviders")}</RollingText>
 					</MenuItem>
-				</div>
+				</MenuFooter>
 			}
 		>
 			<MenuBody>

@@ -54,6 +54,19 @@ export function MenuBody({
 }
 
 /**
+ * Rows under a menu's divider: 新建项目 under the project list, the fast-mode switch under the models.
+ *
+ * The popover's footer slot has no gutter of its own, because not everything put there is a row —
+ * the file dropdown's full-width strip, the browser's viewport form. Rows need the list's gutter and
+ * the list's corner radius (`.ly-menu-foot`), or their hover fill runs edge to edge and they sit 6px
+ * left of the rows above them. That is how the project picker's footer looked; the model menu made
+ * up a 4px gutter of its own instead.
+ */
+export function MenuFooter({ children }: { children: React.ReactNode }) {
+	return <MenuBody className="ly-menu-foot">{children}</MenuBody>;
+}
+
+/**
  * One row in a menu.
  *
  * Every menu in the app had grown its own version of this — different heights, different

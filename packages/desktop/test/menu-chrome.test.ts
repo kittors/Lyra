@@ -21,5 +21,9 @@ test("menu cards share one radius and one even inset", async () => {
 	assert.match(tokens, /--ly-menu-row:\s*36px/);
 	assert.match(scroll, /margin:\s*var\(--ly-menu-inset\)/);
 	assert.doesNotMatch(scroll, /margin-right:\s*4px/);
-	assert.match(misc, /\.ly-menu-scroll \.ly-item \{[\s\S]*?border-radius:\s*var\(--radius-item\)/);
+	// The rows under a menu's divider (`MenuFooter`) take the same gutter and the same radius.
+	assert.match(scroll, /\.ly-menu-foot \{\s*padding:\s*var\(--ly-menu-inset\)/);
+	const radius = misc.match(/([^{}]*)\{[^{}]*border-radius:\s*var\(--radius-item\)/)?.[1] ?? "";
+	assert.match(radius, /\.ly-menu-scroll \.ly-item/);
+	assert.match(radius, /\.ly-menu-foot \.ly-item/);
 });
