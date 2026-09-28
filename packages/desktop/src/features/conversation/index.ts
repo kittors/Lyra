@@ -21,7 +21,7 @@ export { ToolRun, segments } from "./runs.tsx";
 /* 人说的一句话画成气泡——侧边聊天和子智能体面板共用，见 `SpokenBubble`。 */
 export { SpokenBubble, spokenText } from "./SpokenBubble.tsx";
 export { TrajectoryPanel } from "./trajectory/TrajectoryPanel.tsx";
-export { useDeliveryReview } from "./delivery-review.ts";
+export { useDeliveryReview, useSharedDeliveryTarget } from "./delivery-review.ts";
 export { TraceText } from "./detail/TraceText.tsx";
 export { showTrace } from "./trajectory/navigation.ts";
 export { Conversation, ConversationSkeleton } from "./Conversation.tsx";
