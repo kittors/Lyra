@@ -17,6 +17,7 @@ import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
 import { peekDelivery, rememberDelivery } from "./delivery-cache.ts";
 import { useDeliveryReview } from "./delivery-review.ts";
+import { announceUndo, useDeliveryUndos } from "./delivery-undo.ts";
 import { usePathMenu } from "./PathMenu.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -100,6 +101,12 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		}).catch((error: unknown) => { if (live.current) useApp.getState().notify(String(error), "error"); });
 		return () => { live.current = false; clearTimeout(hoverTimer.current); };
 	}, [sessionId, timestamp]);
+	/*
+	 * What can still be undone changes after mount: an undo in the review beside this card, in a pane
+	 * popped out into its own window, or on this card in another window. Missing those, the card went
+	 * on offering 「撤销」 for a turn the main process would no longer undo.
+	 */
+	useDeliveryUndos(sessionId, timestamp, setData);
 	// Opening, switching and closing are the same decision made three ways, so they share one timer:
 	// whichever happened last is the one that gets to land.
 	type Hovered = { anchor: HTMLElement; file: DeliveryFile } | null;
@@ -125,18 +132,14 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 		try {
 			await bridge.delivery.undo(sessionId, timestamp, path);
 			const value = await bridge.delivery.get(sessionId, timestamp);
-			rememberDelivery(sessionId, timestamp, value);
-			if (live.current) setData(value);
+			// To this card and everything else showing the turn — the review beside it, a popped-out one.
+			announceUndo(sessionId, timestamp, value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			// This conversation's review, and only while it shows this turn: another turn's is not this undo's to touch.
 			const showing = useDeliveryReview.getState().reviews[sessionId]?.target.timestamp === timestamp;
-			if (!showing) return;
-			if (!value.files.length) {
+			if (showing && !value.files.length) {
 				useDeliveryReview.getState().close(sessionId);
 				usePaneDock.getState().close(sessionId, "delivery");
-			} else {
-				useDeliveryReview.getState().setData(sessionId, value);
-				useDeliveryReview.getState().touch(sessionId);
 			}
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 		finally { undoLock.current = false; if (live.current) setUndoing(false); }
