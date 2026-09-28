@@ -1,6 +1,6 @@
 import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
 import { ArrowLeft, Rocket } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { sectionFor } from "./sections-for.ts";
@@ -8,6 +8,8 @@ import { settingsGroups } from "./settings-navigation.ts";
 import { SettingsNav } from "./SettingsNav.tsx";
 import type { SettingsSection } from "../../store/index.ts";
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
+import { motionReduced } from "../../ui/motion/reduced.ts";
+import { DURATION } from "../../ui/motion/tokens.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
@@ -80,6 +82,41 @@ export function SettingsShell() {
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, [compact, navOpen, toggleNav, dismissNav]);
+
+	/*
+	 * The content takes its final width the moment the navigation is toggled; only its position
+	 * follows the slide.
+	 *
+	 * The navigation pushes the content by animating its own margin, so the content area's width
+	 * used to change on every frame of the slide. Every page here is laid out by container queries —
+	 * a row puts its control beside its label from `@md`, the providers sit beside their editor from
+	 * `@2xl`, the usage charts pair up from `@3xl` — and a window narrow enough for the column to
+	 * cross one of those while the pane slid rearranged the page in the middle of the motion: in a
+	 * 984px window the model page went from stacked to side by side a third of the way through, and
+	 * the text rewrapped under the eye all the way. A Mac window wide enough to keep the 900px column
+	 * whole never showed it, since there the column only moves.
+	 *
+	 * So the column is given its final width at once (`--ly-settings-hold`), rearranges once if it
+	 * has to, and then only slides; it may overhang the window's edge for the length of the slide,
+	 * where the scroller clips it. After the slide the width is the column's own again. A drawer
+	 * lies over the content rather than pushing it, so the compact layout has nothing to hold.
+	 */
+	const mainRef = useRef<HTMLElement>(null);
+	const heldFor = useRef(navOpen);
+	useLayoutEffect(() => {
+		if (heldFor.current === navOpen) return;
+		heldFor.current = navOpen;
+		const main = mainRef.current;
+		const shell = main?.closest<HTMLElement>("[data-ly-settings]");
+		if (!main || !shell || compact || motionReduced()) return;
+		main.style.setProperty("--ly-settings-hold", `${shell.getBoundingClientRect().width - (navOpen ? sidebarWidth : 0)}px`);
+		const release = () => main.style.removeProperty("--ly-settings-hold");
+		const timer = window.setTimeout(release, DURATION.base + 60);
+		return () => {
+			window.clearTimeout(timer);
+			release();
+		};
+	}, [navOpen, compact, sidebarWidth]);
 
 	/*
 	 * 开合章节列表的那颗开关，两条外壳路径共用一个。
@@ -185,7 +222,7 @@ export function SettingsShell() {
 				</nav>
 			</NavPane>
 
-			<main className="ly-opaque flex min-w-0 flex-1 flex-col">
+			<main ref={mainRef} className="ly-opaque flex min-w-0 flex-1 flex-col">
 				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 				{/*
 				 * Most sections are a column of settings and scroll as one page. A few are
@@ -197,15 +234,15 @@ export function SettingsShell() {
 					<div
 						className={
 							section === "plugins"
-								? "flex min-h-0 w-full flex-1 flex-col"
-								: `mx-auto flex min-h-0 w-full max-w-[900px] flex-1 flex-col pb-6 ${compact ? "px-4" : "px-9"}`
+								? "flex min-h-0 w-[var(--ly-settings-hold,100%)] flex-1 flex-col"
+								: `mx-auto flex min-h-0 w-[var(--ly-settings-hold,100%)] max-w-[900px] flex-1 flex-col pb-6 ${compact ? "px-4" : "px-9"}`
 						}
 					>
 						<SectionBody section={section} />
 					</div>
 				) : (
 				<Scroller className="flex-1">
-					<div className={`mx-auto w-full max-w-[900px] pb-16 ${compact ? "px-4" : "px-9"}`}>
+					<div className={`mx-auto w-[var(--ly-settings-hold,100%)] max-w-[900px] pb-16 ${compact ? "px-4" : "px-9"}`}>
 						<SectionBody section={section} />
 					</div>
 				</Scroller>

@@ -419,3 +419,48 @@ test("Chinese punctuation on Windows is drawn by the face drawing the Han around
 		assert.ok(Math.abs(run.width / (run.chars * run.size) - 0.94) < 0.01, `Han is set at 94% of the em: ${JSON.stringify(run)}`);
 	} finally { await app.stop(); }
 });
+
+test("the settings column takes its final width at once when the navigation slides, and only moves", async (t) => {
+	/*
+	 * The navigation pushes the page by animating its margin, and the page used to be laid out anew
+	 * on every frame of that: in a 984px window the model page crossed its side-by-side breakpoint a
+	 * third of the way through and rearranged under the eye, and every page's text rewrapped as it
+	 * slid. Now the column goes to its final width the moment the navigation is toggled and then
+	 * only moves (`--ly-settings-hold` in `SettingsShell`).
+	 */
+	const app = await startApp({ port: 9598, seed: (home) => plainProfile(home) });
+	try {
+		await frames(app);
+		await click(app, "button:has(svg.lucide-settings)");
+		const column = `[...document.querySelectorAll('[data-ly-settings] main [class*="max-w-[900px]"]')].find(e => e.checkVisibility())`;
+		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => (${column}) ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('settings did not open')); step(); })`);
+		await frames(app, 30);
+		for (const phase of ["collapse", "expand"]) {
+			// The pointer goes there first, as a hand would: toolbar buttons take the press only once hovered.
+			const at = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('button[aria-label*="设置导航"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+			await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+			// Sampled until the slide has started and settled, not for a fixed count: a busy machine can
+			// take longer to deliver the press than a slide lasts.
+			await app.evaluate(`(() => { window.__qaHold = (async () => {
+				const out = []; let moved = false, still = 0;
+				for (let i = 0; i < 400 && still < 12; i++) {
+					await new Promise(requestAnimationFrame);
+					const main = document.querySelector('[data-ly-settings] main');
+					const sample = { width: Math.round((${column}).getBoundingClientRect().width * 10) / 10, left: Math.round(main.getBoundingClientRect().x * 10) / 10 };
+					const last = out.at(-1);
+					if (last && last.left !== sample.left) { moved = true; still = 0; } else if (moved) still++;
+					out.push(sample);
+				}
+				return out;
+			})(); })()`);
+			for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
+			const samples = await app.evaluate<{ width: number; left: number }[]>("window.__qaHold");
+			const widths = [...new Set(samples.map((s) => s.width))];
+			const lefts = new Set(samples.map((s) => s.left));
+			t.diagnostic(`${phase}: widths ${JSON.stringify(widths)}, ${lefts.size} positions`);
+			assert.ok(lefts.size >= 3, `${phase}: the navigation slid, with a frame between its ends, or the widths prove nothing`);
+			assert.ok(widths.length <= 2, `${phase}: the column went straight to its final width: ${JSON.stringify(widths)}`);
+			await frames(app, 30);
+		}
+	} finally { await app.stop(); }
+});

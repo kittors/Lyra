@@ -115,14 +115,20 @@ export function ModelSettings() {
        * 70px, and every field became a slot with one character in it. Measured against
        * this container rather than the window, because the settings pane is the full width
        * of a narrow window and a fraction of a wide one.
+       *
+       * From `@xl` (576px) rather than `@2xl`: at 672 a window about a thousand pixels wide stacked
+       * the two with its settings navigation open and put them side by side with it closed, so the
+       * page rearranged every time the navigation was toggled. At 576 the editor still keeps 308px
+       * — every field fits, a long model name truncates first — and that window stays side by side
+       * either way.
        */}
       {/* The query element and the queried element cannot be the same one: a container is
 				    sized by its contents, so it is only ever asked about by its descendants. */}
       <div className="@container flex min-h-[340px] flex-1">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-card/30 @2xl:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-card/30 @xl:flex-row">
           {/* Each pane scrolls on its own, so a long provider list never moves the editor. */}
           <Scroller
-            className="max-h-[168px] shrink-0 border-b border-line @2xl:max-h-none @2xl:w-[268px] @2xl:border-r @2xl:border-b-0"
+            className="max-h-[168px] shrink-0 border-b border-line @xl:max-h-none @xl:w-[268px] @xl:border-r @xl:border-b-0"
             contentClassName="p-2.5"
           >
             <div className="px-2 pt-1.5 pb-1 text-detail text-ink-faint">
@@ -162,7 +168,7 @@ export function ModelSettings() {
             </div>
           </Scroller>
 
-          <Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:p-6">
+          <Scroller className="min-w-0 flex-1" contentClassName="p-4 @xl:p-6">
             {!p.selected ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="text-label text-ink-muted">
