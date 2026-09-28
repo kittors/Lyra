@@ -32,6 +32,21 @@ test("both OpenAI protocols honour explicit relay levels and the existing terra 
 	}
 });
 
+test("with thinking off, both OpenAI protocols leave the reasoning field out for Gemini and say none elsewhere", async () => {
+	// Gemini refuses an explicit "none" (a 400 on the user's relay for gemini-3.8-flash-high and
+	// gemini-2.5-flash). The Chat Completions adapter used to send it anyway, so thinking off failed there.
+	for (const adapter of [openaiResponsesProvider, openaiChatCompletionsProvider]) {
+		for (const modelId of ["gemini-3.8-flash-high", "Gemini-2.5-Flash", "gemma-3-27b"]) {
+			const body = await payload(adapter, { ...model, id: `qa/${modelId}`, modelId }, "off");
+			assert.equal(body.reasoning, undefined, `${adapter.api} ${modelId}`);
+			assert.equal(body.reasoning_effort, undefined, `${adapter.api} ${modelId}`);
+		}
+		const other = await payload(adapter, { ...model, id: "qa/deepseek-v4-flash", modelId: "deepseek-v4-flash" }, "off");
+		assert.deepEqual(adapter.api === "openai-responses" ? other.reasoning : other.reasoning_effort,
+			adapter.api === "openai-responses" ? { effort: "none" } : "none");
+	}
+});
+
 test("Anthropic uses the same fallback and an explicit budget for custom levels; invalid budgets never reach fetch", async () => {
 	assert.deepEqual((await payload(anthropicMessagesProvider, model, "ultra")).thinking, { type: "enabled", budget_tokens: 12288 });
 	const custom = { ...model, thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "", budgetTokens: 2048 }] };

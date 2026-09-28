@@ -6,10 +6,11 @@
  * or not anything is running.
  */
 
-import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@lyra/core";
+import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath, type ThinkingLevel } from "@lyra/core";
 import { ipcMain } from "electron";
 import type { ProviderTestResult, SyncStatus } from "../ipc-types.ts";
 import { applySettings, settings } from "../app-settings.ts";
+import { nativeText } from "../i18n.ts";
 import { registerCommandsIpc } from "./commands.ts";
 import { registerPluginsIpc } from "./plugins.ts";
 import { registerSystemIpc } from "./system.ts";
@@ -19,6 +20,7 @@ export interface ServicesIpcDeps {
 	testProvider(
 		provider: ReturnType<typeof settings>["providers"][number],
 		targetModelId?: string,
+		thinking?: ThinkingLevel,
 	): Promise<ProviderTestResult>;
 	fetchEndpointModels?(
 		provider: ReturnType<typeof settings>["providers"][number],
@@ -38,8 +40,9 @@ export function registerServicesIpc(deps: ServicesIpcDeps): void {
 		"providers:test",
 		async (_event, providerId: string, modelId?: string): Promise<ProviderTestResult> => {
 			const provider = settings().providers.find((p) => p.id === providerId);
-			if (!provider) return { ok: false, latencyMs: 0, message: "未找到该供应商配置" };
-			return testProvider(provider, modelId);
+			if (!provider) return { ok: false, latencyMs: 0, message: nativeText("provider.notFound") };
+			// The level a new conversation starts at, so the test sends what a conversation would.
+			return testProvider(provider, modelId, settings().thinking);
 		},
 	);
 
@@ -47,8 +50,8 @@ export function registerServicesIpc(deps: ServicesIpcDeps): void {
 		"providers:fetchModels",
 		async (_event, providerId: string): Promise<{ ok: boolean; models: string[]; error?: string }> => {
 			const provider = settings().providers.find((p) => p.id === providerId);
-			if (!provider) return { ok: false, models: [], error: "未找到该供应商配置" };
-			if (!fetchEndpointModels) return { ok: false, models: [], error: "未实现模型获取" };
+			if (!provider) return { ok: false, models: [], error: nativeText("provider.notFound") };
+			if (!fetchEndpointModels) return { ok: false, models: [], error: nativeText("provider.listUnavailable") };
 			return fetchEndpointModels(provider);
 		},
 	);

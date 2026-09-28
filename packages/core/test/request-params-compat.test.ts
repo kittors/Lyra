@@ -52,6 +52,26 @@ test("端点不认 include 里的密文项就别再要", () => {
 	assert.ok(droppedParams("qa", "m").has("include-encrypted"));
 });
 
+test("Vertex behind a Chat Completions relay names thinking_level and the value — that is claimed", () => {
+	resetRequestParamsCompat();
+	// Measured 2026-09-28 on the user's relay with gemini-3.8-flash-high and `reasoning_effort: "none"`.
+	const said = `Invalid value at 'request.generation_config.thinking_config.thinking_level' (type.googleapis.com/google.cloud.aiplatform.master.GenerationConfig.ThinkingConfig.ThinkingLevel), "none"`;
+	assert.equal(learnDroppedParam("qa", "vertex", said), true);
+	assert.ok(droppedParams("qa", "vertex").has("reasoning-off"));
+	// The failure detail can be the raw body, where the same quotes arrive escaped.
+	assert.equal(learnDroppedParam("qa", "raw", JSON.stringify({ error: { message: said } })), true);
+	assert.ok(droppedParams("qa", "raw").has("reasoning-off"));
+});
+
+test("a thinking_level complaint about another value, or Gemini 2.5's sentence that names nothing, is not claimed", () => {
+	resetRequestParamsCompat();
+	// Dropping `reasoning_effort: "none"` cannot fix a rejected "minimal": the resend would fail the same way.
+	assert.equal(learnDroppedParam("qa", "m", `Invalid value at 'request.generation_config.thinking_config.thinking_level' (…ThinkingLevel), "minimal"`), false);
+	// What gemini-2.5-flash answers on the same relay. `refusesReasoningNone` covers it; learning cannot.
+	assert.equal(learnDroppedParam("qa", "m", "Request contains an invalid argument."), false);
+	assert.equal(droppedParams("qa", "m").size, 0);
+});
+
 test("认不出来的 400 一个参数都不动——削过的请求比原样发出去更糟", () => {
 	resetRequestParamsCompat();
 	assert.equal(learnDroppedParam("qa", "m", "Rate limit exceeded"), false);
