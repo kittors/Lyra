@@ -5,6 +5,176 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.22](https://github.com/kittors/Lyra/releases/tag/v0.9.22) - 2026-09-29
+<!-- lyra:notes en -->
+
+### Features
+
+- **Fork a conversation from any message.** A new "Fork from here" button on your own messages starts a fresh conversation containing everything up to that point, places that message (along with any attachments, images or referenced sessions) back into the input box ready to edit, and leaves the original conversation untouched. It can be triggered while a turn is running, respects previous context compaction boundaries, and carries over any mid-turn model switches.
+
+- **Context menu for files in conversations.** Right-clicking any file row in the delivery card, the title bar of the diff panel, or a file link in markdown opens a menu with options to open it in your default editor (such as Zed, Cursor or VS Code), choose an application, reveal in Finder or File Explorer, and copy absolute or relative paths.
+
+### Improvements & Fixes
+
+- **Delivery card and changes panel stay in sync after undoing.** Undoing changes to a file from the changes panel (docked or popped out into its own window) immediately updates the delivery card so it no longer shows an invalid undo action that fails when clicked.
+
+- **Notice toasts in popped-out windows return to center.** In detached panel windows and standalone conversation windows without a sidebar, notice toasts are now centered instead of shifting to the right by the width of a nonexistent sidebar.
+
+- **Detached changes panel displays the selected file diff.** Popping out the file changes panel into an independent window now properly shows the selected file's diff and responds to file selection changes in the main window, rather than showing an empty state.
+
+- **Testing connection on Chat Completions proxies and Gemini compatibility.** Testing a connection against a Chat Completions proxy no longer returns a 404. Gemini models on Chat Completions no longer return 400 errors when reasoning is disabled.
+
+- **Typography and layout polish on Windows and Linux.** Windows font rendering now aligns Chinese punctuation and character sizing with macOS (avoiding SimSun fallbacks), light-mode gray text contrast is improved, and header corner radii and sidebar toggling behaviors are smoothed out.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **用户消息上可以「从这里分叉」了。** 在自己说过的一句话上点「从这里分叉」，新开一个会话装着它之前的全部历史，这句话（连同图片、附件、会话引用）回到新会话的输入框里，原会话一个字不动。在回合运行中也能分叉，保留已有的上下文压缩边界，并完整带走中途换过的模型设置。
+
+- **对话里的文件支持右键菜单。** 在「已编辑文件」交付卡片的文件行、差异面板里每个文件的标题行、以及回复里的文件链接上点击右键，可以快速在默认编辑器（如 Zed、Cursor、VS Code）中打开、选择打开方式、在访达或资源管理器中定位，以及复制绝对或相对路径。
+
+### 优化与修复
+
+- **文件变更面板撤销后，交付卡片同步更新。** 在文件变更面板（停靠或弹出成独立窗口）中撤销某个文件的改动后，交付卡片立即同步最新状态，不再留着一个按下去就报错的「撤销」按钮。
+
+- **弹出窗口与独立会话窗口中，提示条回到正中。** 在没有侧栏的面板窗口和独立会话窗口里，提示条不再错误让出不存在的侧栏宽度，居中显示在窗口正中央。
+
+- **文件变更面板弹出成独立窗口后显示文件差异。** 弹出为独立窗口后，面板能正确显示选中文件的 diff 内容，且在主窗口切换文件时同步跟随更新，不再显示空状态。
+
+- **Chat Completions 中转测试连接与 Gemini 兼容性修复。** 在 Chat Completions 端点上测试连接不再错误报 404；Chat Completions 下关闭推理的 Gemini 模型不再因 reasoning_effort 参数报错 400。
+
+- **Windows 与 Linux 排版及界面细节对齐。** Windows 平台上的中文标点与字号对齐 macOS 显示效果（不再退回宋体），浅色主题下灰字对比度提升，顶部圆角与侧栏折叠动画更平滑。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **使用者訊息上可以「從這裡分叉」了。** 在自己說過的一句話上點「從這裡分叉」，新開一個工作階段裝著它之前的所有歷史，這句話（連同圖片、附件、工作階段引用）回到新工作階段的輸入框中，原工作階段完全不動。在回合執行中也能分叉，保留已有的上下文壓縮邊界，並完整帶走中途換過的模型設定。
+
+- **對話裡的檔案支援右鍵選單。** 在「已編輯檔案」交付卡片的檔案列、差異面板中每個檔案的標題列、以及回覆裡的檔案連結上點擊右鍵，可以快速在預設編輯器（如 Zed、Cursor、VS Code）中開啟、選擇開啟方式、在訪達或檔案總管中定位，以及複製絕對或相對路徑。
+
+### 最佳化與修復
+
+- **檔案變更面板撤銷後，交付卡片同步更新。** 在檔案變更面板（停靠或彈出成獨立視窗）中撤銷某個檔案的變更後，交付卡片立即同步最新狀態，不再留著一個按下去就報錯的「撤銷」按鈕。
+
+- **彈出視窗與獨立工作階段視窗中，提示條回到正中。** 在沒有側欄的面板視窗和獨立工作階段視窗裡，提示條不再錯誤讓出不存在的側欄寬度，置中顯示在視窗正中央。
+
+- **檔案變更面板彈出成獨立視窗後顯示檔案差異。** 彈出為獨立視窗後，面板能正確顯示選中檔案的 diff 內容，且在主視窗切換檔案時同步跟隨更新，不再顯示空狀態。
+
+- **Chat Completions 中轉測試連線與 Gemini 相容性修復。** 在 Chat Completions 端點上測試連線不再錯誤報 404；Chat Completions 下關閉推理的 Gemini 模型不再因 reasoning_effort 參數報錯 400。
+
+- **Windows 與 Linux 排版及介面細節對齊。** Windows 平台上的中文標點與字級對齊 macOS 顯示效果（不再退回宋體），淺色主題下灰字對比度提升，頂部圓角與側欄折疊動畫更平滑。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **ユーザーメッセージから「ここから分岐」できるようになりました。** 自分が送信したメッセージで「ここから分岐」をクリックすると、それ以前の履歴をすべて引き継いだ新しい会話が開きます。その発言（画像、添付ファイル、会話の参照を含む）は新しい会話の入力欄に戻り、元の会話はそのまま維持されます。ターンの実行中でも分岐可能で、圧縮境界を正しく引き継ぎ、途中で切り替えたモデルの設定もそのまま反映されます。
+
+- **会話内のファイルに右クリックメニューを追加しました。** 変更ファイルカードの行、差分パネルの各ファイルの見出し行、返信内のファイルリンクを右クリックすると、デフォルトのエディター（Zed、Cursor、VS Code など）で開く、アプリケーションの選択、Finder やエクスプローラーでの表示、絶対パスや相対パスのコピーを行えます。
+
+### 改善と修正
+
+- **変更パネルでの取り消し後、配信カードが即座に同期されます。** ファイル変更パネル（ドッキングまたは独立ウィンドウ）でファイルの変更を取り消した際、配信カードの状態が即時更新され、クリックしても失敗する無効な「取り消し」ボタンが残らなくなりました。
+
+- **ポップアウトしたウィンドウで通知トーストが中央に戻りました。** サイドバーのない独立したパネルウィンドウや単独会話ウィンドウで、存在しないサイドバー分の余白を避けることなく、ウィンドウの正確な中央に通知が表示されます。
+
+- **独立ウィンドウにポップアウトしたファイル変更パネルで差分が正常に表示されます。** 独立ウィンドウとして分離した際も選択されたファイルの diff が正しく表示され、メインウィンドウでの選択変更にも連動するようになりました。空状態にはなりません。
+
+- **Chat Completions プロキシでの接続テストと Gemini の互換性を修正しました。** Chat Completions エンドポイントでの接続テストが 404 で失敗しなくなりました。また、Chat Completions 経由で推論をオフにした Gemini モデルが reasoning_effort パラメーターによって 400 エラーになる問題を解決しました。
+
+- **Windows および Linux でのタイポグラフィとレイアウトの改善。** Windows での句読点や文字サイズを macOS の表示に揃え（SimSun へのフォールバックを防止）、ライトテーマ時のグレー文字のコントラストを向上させ、ヘッダー角丸やサイドバー開閉アニメーションを整えました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **사용자 메시지에서 "여기서 갈라내기"가 가능해졌습니다.** 본인이 보낸 메시지에서 "여기서 갈라내기"를 누르면, 그 이전까지의 모든 기록을 담은 새 대화가 열립니다. 해당 메시지(이미지, 첨부 파일, 대화 참조 포함)는 새 대화의 입력창에 그대로 복원되며, 기존 대화는 전혀 변경되지 않습니다. 턴이 실행 중일 때도 갈라낼 수 있고, 이전의 컨텍스트 압축 경계를 유지하며, 대화 도중 바꾼 모델 설정도 함께 이어집니다.
+
+- **대화 내 파일에 우클릭 메뉴가 추가되었습니다.** 전달 카드의 파일 목록, 변경 사항 패널의 파일 제목 줄, 답변 속 파일 링크에서 마우스 오른쪽 버튼을 누르면 기본 편집기(Zed, Cursor, VS Code 등)로 열기, 다른 앱으로 열기, Finder 또는 파일 탐색기에서 보기, 절대 경로 및 상대 경로 복사가 가능합니다.
+
+### 개선 및 수정
+
+- **파일 변경 패널에서 되돌린 후 전달 카드가 즉시 동기화됩니다.** 패널(도킹 또는 독립 창)에서 파일 변경을 되돌리면 전달 카드에 최신 상태가 즉시 반영되어, 누르면 오류가 나는 쓸모없는 "되돌리기" 버튼이 남아 있지 않습니다.
+
+- **독립 창에서 알림 토스트가 다시 가운데로 배치됩니다.** 사이드바가 없는 독립 패널 창이나 단독 대화 창에서 존재하지 않는 사이드바 너비만큼 밀려나지 않고 창의 정중앙에 알림이 표시됩니다.
+
+- **독립 창으로 분리한 파일 변경 패널이 파일 차이(diff)를 정상 표시합니다.** 독립 창으로 띄웠을 때 선택한 파일의 diff가 정상 출력되며, 메인 창에서 파일을 바꿀 때도 즉시 연동되어 빈 화면이 나타나지 않습니다.
+
+- **Chat Completions 프록시 연결 테스트 및 Gemini 호환성 수정.** Chat Completions 엔드포인트에서 연결 테스트 시 404가 발생하지 않습니다. Chat Completions 환경에서 추론 강도를 끈 Gemini 모델이 reasoning_effort 매개변수로 인해 400 오류를 반환하던 문제를 해결했습니다.
+
+- **Windows 및 Linux 서체 및 레이아웃 개선.** Windows에서 한자 및 문장 부호 렌더링을 macOS 수준으로 맞추고(바탕체 대체 방지), 라이트 모드 회색 텍스트 대비를 개선했으며 상단 모서리 라운딩과 사이드바 전환 동작을 매끄럽게 다듬었습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Fonctionnalités
+
+- **Bifurquer une conversation depuis n'importe quel message.** Un nouveau bouton « Bifurquer d'ici » sur vos messages ouvre une nouvelle conversation reprenant l'historique complet jusqu'à ce point, replace votre message (avec ses images, pièces jointes et références) dans la zone de saisie prêt à être modifié, tout en laissant la conversation d'origine intacte. La bifurcation fonctionne pendant qu'un tour est en cours, conserve les limites de compactage de contexte et préserve les changements de modèle intervenus en cours de route.
+
+- **Menu contextuel pour les fichiers dans les conversations.** Un clic droit sur une ligne de fichier dans la carte de livraison, sur le titre d'un fichier dans le panneau des différences ou sur un lien de fichier dans le texte ouvre un menu complet : ouvrir dans votre éditeur par défaut (Zed, Cursor, VS Code, etc.), choisir une application, afficher dans le Finder ou l'Explorateur de fichiers, et copier le chemin absolu ou relatif.
+
+### Améliorations et corrections
+
+- **Synchronisation immédiate après annulation dans le panneau des modifications.** Annuler les modifications d'un fichier depuis le panneau des différences (ancré ou détaché) met aussitôt à jour la carte de livraison, évitant d'afficher un bouton d'annulation périmé qui échoue au clic.
+
+- **Centrage des notifications dans les fenêtres détachées.** Dans les fenêtres de panneau détachées et les fenêtres de conversation autonomes sans barre latérale, les notifications s'affichent désormais au centre exact de la fenêtre au lieu d'être décalées de la largeur d'une barre latérale inexistante.
+
+- **Affichage des différences dans le panneau détaché.** Ouvrir le panneau des modifications de fichiers dans une fenêtre indépendante affiche correctement les différences du fichier sélectionné et suit les sélections de la fenêtre principale, au lieu de rester sur un état vide.
+
+- **Test de connexion des proxys Chat Completions et compatibilité Gemini.** Tester la connexion sur un proxy Chat Completions ne renvoie plus d'erreur 404. Les modèles Gemini appelés via Chat Completions ne renvoient plus d'erreur 400 lorsque le raisonnement est désactivé.
+
+- **Harmonisation de la typographie et de la mise en page sous Windows et Linux.** Le rendu typographique sous Windows aligne désormais la ponctuation et la taille des caractères sur macOS (évitant le repli sur SimSun), le contraste du texte gris en mode clair est rehaussé, et les arrondis de bordure ainsi que l'animation de la barre latérale sont affinés.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новые возможности
+
+- **Ответвление беседы от любого сообщения.** Новая кнопка «Ответвиться отсюда» на вашем сообщении открывает новую беседу со всей историей до этой точки, возвращает сообщение (включая изображения, вложения и ссылки на беседы) в поле ввода для правки и оставляет исходную беседу без изменений. Ответвление работает даже во время выполнения хода, сохраняет границы сжатия контекста и учитывает переключения моделей, сделанные в процессе.
+
+- **Контекстное меню для файлов в беседах.** Щелчок правой кнопкой мыши по строке файла в карточке доставки, заголовку файла в панели изменений или ссылке на файл в тексте открывает меню: открыть в редакторе по умолчанию (Zed, Cursor, VS Code и др.), выбрать приложение, показать в Finder или Проводнике, а также скопировать абсолютный или относительный путь.
+
+### Улучшения и исправления
+
+- **Карточка доставки синхронизируется при отмене изменений.** Отмена изменений файла в панели изменений (закреплённой или открытой в отдельном окне) сразу обновляет карточку доставки, так что в ней больше не остаётся устаревшая кнопка отмены, вызывающая ошибку при нажатии.
+
+- **Уведомления в отдельных окнах снова отображаются по центру.** В откреплённых окнах панелей и автономных окнах бесед уведомления центрируются ровно по окну, не смещаясь вправо на ширину отсутствующей боковой панели.
+
+- **Откреплённая панель изменений отображает различия выбранного файла.** При открытии панели изменений файлов в отдельном окне корректно показываются различия для выбранного файла, а при смене файла в основном окне содержимое синхронно обновляется вместо пустого экрана.
+
+- **Проверка подключения для прокси Chat Completions и совместимость с Gemini.** Проверка подключения к конечным точкам Chat Completions больше не возвращает ошибку 404. Модели Gemini при обращении через Chat Completions больше не завершаются ошибкой 400 при отключённом рассуждении.
+
+- **Шрифты и интерфейс в Windows и Linux.** Отображение знаков препинания и размер символов в Windows согласованы с macOS (без переключения на SimSun), контраст серого текста в светлой теме повышен, а скругления заголовков и поведение боковой панели стали более плавными.
+
+</details>
 ## [0.9.21](https://github.com/kittors/Lyra/releases/tag/v0.9.21) - 2026-09-28
 <!-- lyra:notes en -->
 

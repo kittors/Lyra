@@ -1,7 +1,7 @@
 {
 	"name": "@lyra/desktop",
 	"desktopName": "Lyra.desktop",
-	"version": "0.9.21",
+	"version": "0.9.22",
 	"homepage": "https://github.com/kittors/Lyra",
 	"author": {
 		"name": "kittors",
