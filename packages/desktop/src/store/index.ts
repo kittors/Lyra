@@ -1,5 +1,5 @@
 import type { TurnMeter, CarriedTurn } from "./turn-meter.ts";
-import type { ApprovalOrigin, ApprovalRisk, QuestionFields } from "@lyra/core";
+import type { ApprovalOrigin, ApprovalRequest, ApprovalRisk, QuestionFields } from "@lyra/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
@@ -115,6 +115,8 @@ interface PendingApproval extends QuestionFields {
   risk?: ApprovalRisk;
   /** What an "always" answer gets remembered against. */
   subject?: string;
+  /** The wider sandbox mode an escalation asks for. Such a card offers no "always": nothing is remembered. */
+  escalation?: ApprovalRequest["escalation"];
   /**
    * When this question gives up waiting, as an instant.
    *

@@ -198,7 +198,8 @@ export interface ApprovalRequest extends QuestionFields {
 	 * The wider sandbox mode this asks to run under, set only on an escalation.
 	 *
 	 * A field rather than something read out of `subject`, because the gate has to know it for
-	 * certain: the approval policy never answers an escalation (see `ApprovalGate.request`).
+	 * certain: neither the approval policy nor an "always" answer ever answers an escalation (see
+	 * `ApprovalGate.request`).
 	 */
 	escalation?: SandboxMode;
 	/**

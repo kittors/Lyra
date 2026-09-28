@@ -1077,7 +1077,17 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			),
 			mcpServers: parsed.mcpServers ?? [],
 			projects: parsed.projects ?? [],
-			alwaysAllow: parsed.alwaysAllow ?? [],
+			/*
+			 * Without the escalations an earlier version remembered.
+			 *
+			 * Its escalation card offered "stop asking" and wrote the answer here. An escalation is
+			 * granted for one call, and the gate consults nothing remembered for one, so such a line
+			 * grants nothing — kept, the settings page would list it as always allowed. The prefix is
+			 * the one `bash.ts` gives an escalation's subject.
+			 */
+			alwaysAllow: (Array.isArray(parsed.alwaysAllow) ? parsed.alwaysAllow : []).filter(
+				(subject) => typeof subject === "string" && !subject.startsWith("escalate:"),
+			),
 		};
 }
 

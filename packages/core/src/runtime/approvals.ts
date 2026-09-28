@@ -114,14 +114,22 @@ export class ApprovalGate {
 	 *
 	 * For permissions, `full` never asks; `auto` asks only about what cannot be taken back, judged by the
 	 * approval policy rather than here — that judgement is a matter of where the agent is running,
-	 * and a plugin can replace it. An escalation is never that policy's to judge. Anything else asks.
+	 * and a plugin can replace it. An escalation is never that policy's to judge, nor the allow
+	 * list's. Anything else asks.
 	 */
 	async request(request: ApprovalRequest): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
 		// A permission grant cannot answer a question, even in unattended/full-access mode.
 		if (request.kind !== "interactive") {
 			if (mode === "full") return "once";
-			if (this.allowList.has(request.subject)) return "once";
+			/*
+			 * Nothing remembered answers an escalation.
+			 *
+			 * The list is what "stop asking" wrote, and an escalation is granted for the one call that
+			 * asked (`approveEscalation`). Consulted here, a single click on an escalation card was a
+			 * standing grant to run that command unconfined, in every mode, from then on.
+			 */
+			if (request.escalation === undefined && this.allowList.has(request.subject)) return "once";
 
 			/*
 			 * An escalation skips the policy and goes to a person.
@@ -174,7 +182,8 @@ export class ApprovalGate {
 					if (timer) clearTimeout(timer);
 					if (!this.pending.delete(id)) return;
 					this.options.settled?.(id);
-					if (decision === "always") {
+					// Not for an escalation, which has no future to answer for: see the top of `request`.
+					if (decision === "always" && request.escalation === undefined) {
 						this.allowList.add(request.subject);
 						this.options.remember(request.subject);
 					}

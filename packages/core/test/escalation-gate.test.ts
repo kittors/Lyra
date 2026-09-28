@@ -17,6 +17,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { normalizeSettings } from "../src/config/settings.ts";
 import type { SandboxProcess } from "../src/kernel/services.ts";
 import { useApprovalPolicy } from "../src/runtime/approval-policy.ts";
 import { ApprovalGate, type PendingApproval } from "../src/runtime/approvals.ts";
@@ -35,8 +36,12 @@ function immediateExit(): SandboxProcess {
 	return { onOutput() {}, onExit(listener) { exited = listener; }, onError() {}, kill() {} };
 }
 
-/** A session in `auto` mode, wired the way `Session` wires it, answering every prompt with `answer`. */
-async function autoSession(t: TestContext, answer: "once" | "reject") {
+/**
+ * A session in `auto` mode, wired the way `Session` wires it, answering every prompt with `answer`.
+ *
+ * `alwaysAllow` is what the settings file hands the gate at start-up.
+ */
+async function autoSession(t: TestContext, answer: "once" | "always" | "reject", alwaysAllow: string[] = []) {
 	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-gate-"));
 	const ran: Array<{ command: string; mode?: SandboxMode }> = [];
 	// oxlint-disable-next-line react-hooks/rules-of-hooks -- `useSandbox` binds the sandbox seam; it is not a React hook
@@ -52,6 +57,7 @@ async function autoSession(t: TestContext, answer: "once" | "reject") {
 	});
 
 	const asked: PendingApproval[] = [];
+	const remembered: string[] = [];
 	const gate: ApprovalGate = new ApprovalGate({
 		mode: () => "auto",
 		cwd: () => ws,
@@ -59,10 +65,10 @@ async function autoSession(t: TestContext, answer: "once" | "reject") {
 			asked.push(pending);
 			gate.resolve(pending.id, answer);
 		},
-		remember: () => {},
+		remember: (subject) => void remembered.push(subject),
 		// A prompt that somehow goes unanswered fails the test in a second rather than in five minutes.
 		unattendedTimeoutMs: 1_000,
-	});
+	}, alwaysAllow);
 	const ctx: ToolContext = {
 		cwd: ws,
 		sessionId: "escalation-gate",
@@ -70,7 +76,7 @@ async function autoSession(t: TestContext, answer: "once" | "reject") {
 		sandboxMode: sandboxModeFor("auto"),
 		requestApproval: (request) => gate.request(request),
 	};
-	return { ws, ran, asked, ctx };
+	return { ws, ran, asked, remembered, ctx };
 }
 
 const textOf = (result: ToolResult) => result.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -134,4 +140,42 @@ test("no approval policy can answer an escalation for the user", async (t) => {
 	assert.equal(asked.length, 1);
 	assert.equal(ran.length, 1, "the escalated run never started");
 	assert.ok(result.isError);
+});
+
+/*
+ * "Stop asking" does not outlive an escalation.
+ *
+ * The card offered it and the gate kept it: the subject went on the allow list and to the settings,
+ * and the list was consulted before anything asked whether the request was an escalation. One click
+ * was a standing grant to run that command unconfined, in every mode, from then on.
+ */
+test("an 'always' answer to an escalation is spent on that call, like any other grant", async (t) => {
+	const { ran, asked, remembered, ctx } = await autoSession(t, "always");
+	const escalated = { command: "echo hi", escalate: "danger-full-access", justification: "要写工作区外面" };
+
+	await bashTool.execute(escalated, ctx);
+	await bashTool.execute(escalated, ctx);
+
+	assert.equal(asked.length, 2, "the second escalation went through on the first one's answer");
+	assert.deepEqual(remembered, [], "an escalation was handed over to be kept");
+	assert.deepEqual(ran.map((one) => one.mode), ["danger-full-access", "danger-full-access"]);
+});
+
+test("an escalation an earlier version remembered grants nothing", async (t) => {
+	const command = "echo hi";
+	const stored = `escalate:danger-full-access:${command}`;
+	const { ran, asked, ctx } = await autoSession(t, "reject", [stored]);
+
+	const result = (await bashTool.execute(
+		{ command, escalate: "danger-full-access", justification: "要写工作区外面" },
+		ctx,
+	)) as ToolResult;
+
+	assert.equal(asked.length, 1, "a line in the settings answered in the user's place");
+	assert.equal(asked[0]?.request.subject, stored, "precondition: the stored line names this very request");
+	assert.deepEqual(ran, []);
+	assert.ok(result.isError);
+
+	// Nor is it listed as allowed: the settings page would be showing a grant that does not exist.
+	assert.deepEqual(normalizeSettings({ alwaysAllow: ["npm test", stored] }).alwaysAllow, ["npm test"]);
 });

@@ -127,7 +127,7 @@ export function ApprovalOverlay() {
 				<QuestionChoices key={request.id} options={request.options ?? []} allowCustomInput={request.allowCustomInput !== false} selectionMode={request.selectionMode} allowSkip={request.allowSkip !== false} defaultOptionIndex={request.defaultOptionIndex} answer={decision => respond(request.id, decision, sessionId ?? undefined)}>{context}</QuestionChoices>
 			</> : <>
 				<Scroller className="ly-approval-scroll mx-2 max-h-[min(280px,30dvh)]" contentClassName="px-2 py-2">{context}</Scroller>
-				<PermissionChoices key={request.id} subject={request.subject} answer={decision => respond(request.id, decision, sessionId ?? undefined)} />
+				<PermissionChoices key={request.id} subject={request.subject} onceOnly={request.escalation !== undefined} answer={decision => respond(request.id, decision, sessionId ?? undefined)} />
 			</>}</Collapse>
 		</div>
 	</div>;

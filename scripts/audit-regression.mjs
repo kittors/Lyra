@@ -76,6 +76,11 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/escalation-gate.test.ts", "packages/core/test/escalation.test.ts"]],
 	},
 	{
+		id: "ISSUE-escalate-always",
+		what: "提权卡片点了「以后不再问」，同样的提权从此在任何模式下都不问人就到沙箱外跑",
+		run: ["node", ["--test", "--import", "./packages/desktop/test/setup.ts", "--experimental-strip-types", "packages/core/test/escalation-gate.test.ts", "packages/desktop/test/approval-response.test.ts"]],
+	},
+	{
 		id: "H3",
 		what: "七条 HTTP 写路由绕过手机白名单，sessions.create 的 cwd 不限项目",
 		run: ["node", ["--test", "--import", "./packages/desktop/test/setup.ts", "--experimental-strip-types", "packages/desktop/test/sync-rpc.test.ts"]],
@@ -141,6 +146,12 @@ const CHECKS = [
 		what: "截图浮层拆出两个 hook 之后，退出与连续两次捕获还对吗",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/screenshot-exit-probe.ts", "/tmp/regression-exit"]],
+	},
+	{
+		id: "ISSUE-escalate-always-window",
+		what: "跑起来的桌面端里，提权卡片还有「以后不再问」吗；设置里旧版本记下的那条还替人答吗",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/escalation-approval-probe.ts", "/tmp/regression-escalate"]],
 	},
 	{
 		id: "C1-window",

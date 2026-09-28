@@ -2,8 +2,10 @@ import { translate } from "../../i18n/translate.ts";
 import { Check, ShieldCheck, X } from "lucide-react";
 import { useRef, useState } from "react";
 
-export function PermissionChoices({ subject, answer }: {
+export function PermissionChoices({ subject, onceOnly = false, answer }: {
 	subject?: string;
+	/** Only this one call can be granted — an escalation — so there is no "stop asking" to offer. */
+	onceOnly?: boolean;
 	answer(decision: "once" | "always" | "reject"): Promise<void>;
 }) {
 	const submitting = useRef(false);
@@ -34,8 +36,8 @@ export function PermissionChoices({ subject, answer }: {
 		<div className="flex flex-wrap items-center justify-end gap-1.5" aria-busy={pending}>
 			<button type="button" disabled={pending} onClick={() => void submit("reject")} className={`${base} mr-auto text-ink-muted hover:bg-card-hover hover:text-ink active:bg-elevated`}
 		><X size={14} />{translate("permission.reject")}</button>
-			<button type="button" disabled={pending} onClick={() => void submit("always")} data-ly-tip={subject ? translate("permission.neverAskFor", { subject }) : translate("permission.neverAsk")} className={`${base} text-ink-muted hover:bg-card-hover hover:text-ink active:bg-elevated`}
-		><ShieldCheck size={14} />{translate("permission.never")}</button>
+			{!onceOnly && <button type="button" disabled={pending} onClick={() => void submit("always")} data-ly-tip={subject ? translate("permission.neverAskFor", { subject }) : translate("permission.neverAsk")} className={`${base} text-ink-muted hover:bg-card-hover hover:text-ink active:bg-elevated`}
+		><ShieldCheck size={14} />{translate("permission.never")}</button>}
 			<button type="button" disabled={pending} onClick={() => void submit("once")} className={`${base} bg-ink px-3 font-medium text-shell transition-opacity hover:opacity-90 active:opacity-75`}
 		><Check size={14} />{translate("permission.once")}</button>
 		</div>

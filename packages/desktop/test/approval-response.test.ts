@@ -33,6 +33,21 @@ test("always persists the runtime subject even though resolution removes the pen
 	assert.deepEqual(f.saved, ["deploy"]);
 });
 
+/*
+ * The gate keeps nothing from an escalation, and neither may the host: a line written to the settings
+ * would stand on the settings page as a grant, and one that grants nothing.
+ */
+test("always on an escalation resolves once and persists nothing", async () => {
+	const f = fixture({
+		kind: "bash", subject: "escalate:danger-full-access:rm -rf ../build", title: "提权运行", detail: "rm -rf ../build",
+		escalation: "danger-full-access",
+	});
+	await resolveSessionApproval(f.session, f.id, "always", f.remember);
+	assert.equal(await f.result, "once");
+	assert.deepEqual(f.gate.list(), []);
+	assert.deepEqual(f.saved, []);
+});
+
 for (const decision of ["once", "reject"] as const) {
 	test(`${decision} resolves without persisting an allowance`, async () => {
 		const f = fixture();

@@ -7,6 +7,7 @@ import { ApprovalOverlay } from "../../src/features/conversation/ApprovalOverlay
 import { PermissionChoices } from "../../src/features/conversation/PermissionChoices.tsx";
 import { QuestionChoices } from "../../src/features/conversation/QuestionChoices.tsx";
 import { RunningIndicator } from "../../src/features/conversation/RunningIndicator.tsx";
+import { translate } from "../../src/i18n/translate.ts";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
@@ -53,6 +54,44 @@ test("a question that can expire shows the time it has left, and one that cannot
 		await act(async () => { useApp.setState({ approvals: [{ ...useApp.getState().approvals[0], expiresAt: undefined }] }); });
 		assert.doesNotMatch(view.host.textContent ?? "", /\d:\d\d/);
 	} finally { t.mock.timers.reset(); await view.unmount(); useApp.setState(previous, true); }
+});
+
+/**
+ * An escalation card has no "stop asking".
+ *
+ * An escalation grants the one call and the core remembers nothing of it, so the button would be a
+ * promise nothing keeps. The flag has to travel from the event to the card, and the window rebuilds
+ * that event field by field in two places — either one drops a field it was not told about.
+ */
+test("an escalation card offers no 'stop asking', whichever way its event arrived", async () => {
+	const { cachedEvent } = await import("../../src/store/cached-event.ts");
+	const previous = useApp.getState();
+	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	const command = { type: "approval_request" as const, requestId: "cmd", toolCallId: "cmd", kind: "bash", title: "清理构建目录", detail: "rm -rf ../build", subject: "rm -rf ../build" };
+	const escalation = {
+		...command, requestId: "esc", toolCallId: "esc", title: "提权运行：清理构建目录",
+		subject: "escalate:danger-full-access:rm -rf ../build", reason: "构建目录在工作区外面", escalation: "danger-full-access" as const,
+	};
+	useApp.setState({ activeSessionId: "owner", approvals: [] });
+	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay) }));
+	const labels = () => view.all("[data-ly-permission-choices] button").map((button) => button.textContent);
+	try {
+		await act(async () => { useApp.getState().applyEvent("owner", escalation); });
+		assert.deepEqual(labels(), [translate("permission.reject"), translate("permission.once")]);
+		assert.match(view.text(), /构建目录在工作区外面/, "the model's reason is what the card leads with");
+
+		// An ordinary command keeps all three: the flag takes the button away, not the kind.
+		await act(async () => { useApp.getState().applyEvent("owner", { type: "approval_settled", requestId: "esc" }); });
+		await act(async () => { useApp.getState().applyEvent("owner", command); });
+		assert.deepEqual(labels(), [translate("permission.reject"), translate("permission.never"), translate("permission.once")]);
+	} finally { await view.unmount(); useApp.setState(previous, true); }
+
+	// A conversation that is not on screen keeps the flag, and the reason, for when it comes back.
+	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+	const cached = { messages: [], toolRuns: {}, meta: { id: "away", title: "fixture", cwd: "/test", projectId: "p", projectName: "p", createdAt: 1, updatedAt: 1, modelId: "", messageCount: 0, seq: 1, usage } };
+	const [kept] = cachedEvent(cached, escalation).state?.approvals ?? [];
+	assert.equal(kept?.escalation, "danger-full-access");
+	assert.equal(kept?.reason, "构建目录在工作区外面");
 });
 
 for (const permission of [false, true]) {

@@ -49,6 +49,13 @@ export type AgentEvent =
 			risk?: ApprovalRisk;
 			/** What an "always" answer would be remembered against, so the prompt can say so. */
 			subject: string;
+			/**
+			 * The wider sandbox mode an escalation asks for; absent on everything else.
+			 *
+			 * The card needs it to leave "stop asking" out: an escalation is granted for one call, and
+			 * nothing about it is remembered. See `ApprovalRequest.escalation`.
+			 */
+			escalation?: import("../types.ts").ApprovalRequest["escalation"];
 			/** Interactive choices for user selection. */
 			options?: import("../types.ts").QuestionFields["options"];
 			allowCustomInput?: boolean;
