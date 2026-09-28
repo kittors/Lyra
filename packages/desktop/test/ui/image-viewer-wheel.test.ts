@@ -46,8 +46,17 @@ afterEach(async () => {
 // The annotator is mounted with the viewer; happy-dom has no decoded bitmap constructor.
 // oxlint-disable-next-line typescript/no-extraneous-class -- Only an instanceof target is needed; no bitmap is constructed.
 before(() => Object.defineProperty(globalThis, "ImageBitmap", { value: class {}, configurable: true }));
+/*
+ * And an `Image` that never loads.
+ *
+ * The viewer hands the annotator its picture once the opening flight is over, `DURATION + 80`ms in,
+ * and this DOM has no `Image`. A test that ran past that — a loaded machine stretched one to 777ms —
+ * failed on `new Image()` rather than on anything it checks.
+ */
+before(() => Object.defineProperty(globalThis, "Image", { value: class { onload: unknown = null; src = ""; }, configurable: true }));
 after(() => {
 	Reflect.deleteProperty(globalThis, "ImageBitmap");
+	Reflect.deleteProperty(globalThis, "Image");
 });
 
 async function viewer() {

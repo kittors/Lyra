@@ -158,8 +158,16 @@ test("都结束了、主智能体也把结果用上了（这一轮收尾），�
 		const shell = () => view.find<HTMLElement>(".ly-reveal");
 		assert.equal(shell().dataset.open, "true");
 
+		/*
+		 * One instant for `a`, taken before the turn settles.
+		 *
+		 * Written as `Date.now() - 10` at each sync, the last sync put it later than the settle
+		 * whenever the renders in between took more than 10ms — a full parallel run does — and `a`
+		 * then counted as ended after it: the bar said "2 ended" instead of naming `b`.
+		 */
+		const aEnded = Date.now() - 10;
 		await act(async () => {
-			useSubAgents.getState().sync([summary({ id: "a", status: "done", endedAt: Date.now() - 10 })], "s1");
+			useSubAgents.getState().sync([summary({ id: "a", status: "done", endedAt: aEnded })], "s1");
 		});
 		assert.equal(shell().dataset.open, "true", "结束了，但主智能体还没用上它的结果——这一行还得说");
 
@@ -171,7 +179,7 @@ test("都结束了、主智能体也把结果用上了（这一轮收尾），�
 
 		// 后台跑完、结果刚送回去的那个，主智能体还在用——在收尾之后结束的，这一行重新说它。
 		await act(async () => {
-			useSubAgents.getState().sync([summary({ id: "a", status: "done", endedAt: Date.now() - 10 }), summary({ id: "b", status: "done", endedAt: Date.now() + 5 })], "s1");
+			useSubAgents.getState().sync([summary({ id: "a", status: "done", endedAt: aEnded }), summary({ id: "b", status: "done", endedAt: Date.now() + 5 })], "s1");
 		});
 		assert.equal(shell().dataset.open, "true");
 		assert.match(view.find("[data-ly-subagent-bar]").textContent ?? "", /b/);
