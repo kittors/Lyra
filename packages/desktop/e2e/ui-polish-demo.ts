@@ -131,7 +131,7 @@ try {
 	console.log("\n[1] 打开设置 → 代码格式化");
 	const nav = await app.evaluate<string>(`(async () => {
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
-		document.querySelector('.ly-sidebar-foot button')?.click();
+		document.querySelector('[data-ly-open-settings]')?.click();
 		await wait(1300);
 		const item = [...document.querySelectorAll('button, a')].find((b) => (b.textContent || '').trim() === '代码格式化');
 		if (!item) return '没找到入口';

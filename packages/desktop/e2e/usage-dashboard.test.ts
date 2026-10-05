@@ -177,7 +177,7 @@ const UI = `
 		input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
 	};
 	const openUsage = async () => {
-		click(document.querySelector(".ly-sidebar-foot button"));
+		click(document.querySelector("[data-ly-open-settings]"));
 		await wait(500);
 		const nav = byText("nav button", "使用统计");
 		if (!nav) throw new Error("no 使用统计 nav item");

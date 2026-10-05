@@ -61,7 +61,7 @@ async function geometry(): Promise<Geometry> {
 /** The sidebar's bottom row is the way in to settings; the first item on its own nav is the way out. */
 async function toSettings(): Promise<void> {
 	await app.evaluate(`(() => {
-		document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return true;
 	})()`);
 	await settle(1000);

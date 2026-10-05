@@ -201,7 +201,7 @@ async function main(): Promise<void> {
 		await preview({ at: "idle" });
 
 		console.log("\n【一】设置 → 关于，打开空闲弹窗");
-		await d.click(".ly-sidebar-foot button");
+		await d.click("[data-ly-open-settings]");
 		await pause(800);
 		await press("关于");
 		await pause(1000);

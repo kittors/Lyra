@@ -99,7 +99,7 @@ try {
 	await settle(2500);
 
 	// 设置 → 个性化
-	if (!(await clickSelector(".ly-sidebar-foot button"))) throw new Error("没找到设置入口");
+	if (!(await clickSelector("[data-ly-open-settings]"))) throw new Error("没找到设置入口");
 	await settle(1600);
 	const navigated = await wire.evaluate<boolean>(
 		`(() => {

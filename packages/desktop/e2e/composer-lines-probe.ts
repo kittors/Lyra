@@ -68,7 +68,7 @@ const openSettings = (page: string) =>
 		const shown = (el) => Boolean(el && el.offsetParent && el.getBoundingClientRect().height > 0);
 		const inSettings = () => [...document.querySelectorAll("button")].some((b) => (b.textContent || "").includes("返回工作区") && shown(b));
 		if (!inSettings()) {
-			document.querySelector(".ly-sidebar-foot button")?.click();
+			document.querySelector("[data-ly-open-settings]")?.click();
 			await wait(1200);
 		}
 		if (!inSettings()) return "设置没打开";

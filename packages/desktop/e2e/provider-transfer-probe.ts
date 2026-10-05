@@ -98,7 +98,7 @@ async function shot(name: string): Promise<void> {
 try {
 	await mkdir(out, { recursive: true });
 	await pause(2600);
-	await app.evaluate(`(() => { const e = document.querySelector(".ly-sidebar-foot button"); if (e) e.click(); })()`);
+	await app.evaluate(`(() => { const e = document.querySelector("[data-ly-open-settings]"); if (e) e.click(); })()`);
 	await pause(1500);
 	await app.evaluate(`(() => {
 		const nav = [...document.querySelectorAll("nav button")].find((b) => b.innerText.trim() === "模型设置");

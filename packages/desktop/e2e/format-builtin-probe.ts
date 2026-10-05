@@ -101,7 +101,7 @@ try {
 
 	// 设置页截图：语言列表现在应当标着「内置」而不是「需要安装」。
 	const openedSettings = await wire.evaluate<boolean>(
-		`(() => { const b = document.querySelector(".ly-sidebar-foot button"); if (!b) return false; b.click(); return true; })()`,
+		`(() => { const b = document.querySelector("[data-ly-open-settings]"); if (!b) return false; b.click(); return true; })()`,
 	);
 	await settle(1600);
 	if (openedSettings) {

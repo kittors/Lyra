@@ -170,7 +170,7 @@ try {
 	const openAppearance = () => app!.evaluate<boolean>(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 		const hit = (text) => { const el = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === text); el?.click(); return Boolean(el); };
-		if (!hit("外观")) { document.querySelector(".ly-sidebar-foot button")?.click(); await wait(1300); if (!hit("外观")) return false; }
+		if (!hit("外观")) { document.querySelector("[data-ly-open-settings]")?.click(); await wait(1300); if (!hit("外观")) return false; }
 		await wait(1000);
 		return true;
 	})()`);

@@ -206,7 +206,7 @@ try {
 
 	/* ---------- switch theme without reloading ---------- */
 	await app.evaluate(`(() => {
-		document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return true;
 	})()`);
 	await settle(1100);
@@ -233,7 +233,7 @@ try {
 
 	/* ---------- dark, which must not have regressed ---------- */
 	await app.evaluate(`(() => {
-		document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return true;
 	})()`);
 	await settle(1100);

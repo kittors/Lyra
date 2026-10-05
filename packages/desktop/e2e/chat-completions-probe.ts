@@ -182,7 +182,7 @@ async function main() {
 
 		console.log("② 设置 → 模型设置 → 测试全部");
 		const before = seen.length;
-		await click(".ly-sidebar-foot button");
+		await click("[data-ly-open-settings]");
 		await pause(900);
 		await app.evaluate(`(()=>{document.querySelector('[data-probe-nav]')?.removeAttribute('data-probe-nav');[...document.querySelectorAll("nav button")].find((b)=>b.textContent.trim()==="模型设置")?.setAttribute('data-probe-nav','');})()`);
 		await click("[data-probe-nav]");

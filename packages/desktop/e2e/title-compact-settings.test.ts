@@ -17,7 +17,7 @@ before(async () => {
 		}));
 	} });
 	await resize(1440);
-	await click('document.querySelector(".ly-sidebar-foot button")');
+	await click('document.querySelector("[data-ly-open-settings]")');
 	await waitFor('Boolean([...document.querySelectorAll("button")].find((button) => button.innerText.trim() === "常规"))');
 });
 after(async () => { await app?.stop(); });

@@ -86,7 +86,7 @@ try {
 	// Into settings, which the sidebar's bottom row opens.
 	await app.evaluate(`(() => {
 		// The bottom row of the sidebar, which is the way in to settings.
-		const hit = document.querySelector(".ly-sidebar-foot button");
+		const hit = document.querySelector("[data-ly-open-settings]");
 		hit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return Boolean(hit);
 	})()`);

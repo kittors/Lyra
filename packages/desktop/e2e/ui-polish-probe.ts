@@ -128,7 +128,7 @@ try {
 	console.log("\n[2] 打开设置 → 代码格式化");
 	const opened = await app.evaluate<string>(`(async () => {
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
-		const gear = document.querySelector('.ly-sidebar-foot button');
+		const gear = document.querySelector('[data-ly-open-settings]');
 		if (!gear) return '找不到侧边栏底部的设置按钮';
 		gear.click();
 		await wait(1400);

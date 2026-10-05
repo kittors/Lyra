@@ -61,7 +61,7 @@ const app = await startApp({ port: PORT, seed });
 try {
 	// 进设置：侧边栏最底下那条（齿轮 + 供应商名），见 SidebarFoot。
 	await app.evaluate(`(() => {
-		const foot = document.querySelector(".ly-sidebar-foot button");
+		const foot = document.querySelector("[data-ly-open-settings]");
 		if (foot) foot.click();
 		return true;
 	})()`);

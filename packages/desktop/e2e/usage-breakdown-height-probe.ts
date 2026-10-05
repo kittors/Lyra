@@ -77,7 +77,7 @@ try {
 
 	const opened = await app.evaluate<string>(`(async () => {
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
-		document.querySelector(".ly-sidebar-foot button")?.click();
+		document.querySelector("[data-ly-open-settings]")?.click();
 		await wait(600);
 		const nav = [...document.querySelectorAll("nav button")].find(b => (b.textContent || "").includes("使用统计"));
 		if (!nav) return "找不到使用统计入口";

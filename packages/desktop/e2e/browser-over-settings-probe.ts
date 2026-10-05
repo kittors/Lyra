@@ -102,7 +102,7 @@ try {
 	await shot("01-工作区里的浏览器.png");
 	console.log(`\n工作区里：webview ${inWorkspace.found ? "在" : "不在"}，画着=${inWorkspace.visible}，矩形=${inWorkspace.rect}`);
 
-	await app.evaluate(`(() => { const e = document.querySelector(".ly-sidebar-foot button"); if (e) e.click(); })()`);
+	await app.evaluate(`(() => { const e = document.querySelector("[data-ly-open-settings]"); if (e) e.click(); })()`);
 	await pause(1600);
 
 	const inSettings = await painted();

@@ -77,7 +77,7 @@ async function main(): Promise<void> {
 		// ------------------------------------------------------------------
 		console.log("\n【一】API Key：那只眼睛要站在字的旁边，不是被字压住");
 		// ------------------------------------------------------------------
-		await ui.click(".ly-sidebar-foot button");
+		await ui.click("[data-ly-open-settings]");
 		await pause(1400);
 		const toModels = await evaluate<boolean>(`(() => {
 			const nav = [...document.querySelectorAll("nav button")].find((b) => /模型设置|Models/.test((b.innerText || "").trim()));

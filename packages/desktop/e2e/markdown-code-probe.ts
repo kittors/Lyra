@@ -196,7 +196,7 @@ try {
 
 	const before = blocks[0];
 	await app.evaluate(`(() => {
-		document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return true;
 	})()`);
 	await settle(1100);

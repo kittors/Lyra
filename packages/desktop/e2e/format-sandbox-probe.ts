@@ -62,7 +62,7 @@ const openPage = (page: string) =>
 	app.evaluate(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 		if (![...document.querySelectorAll("button")].some((b) => b.textContent?.trim() === "返回工作区")) {
-			document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 			await wait(1100);
 		}
 		[...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === ${JSON.stringify(page)})?.click();

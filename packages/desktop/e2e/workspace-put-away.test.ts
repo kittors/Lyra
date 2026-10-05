@@ -70,7 +70,7 @@ async function waitFor(expression: string, what: string): Promise<void> {
 /** A real press on a sidebar entry: the sidebar answers pointer events, not synthetic clicks. */
 async function clickSidebar(label: string): Promise<void> {
 	const at = await app.evaluate<{ x: number; y: number }>(`(() => {
-		const el = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim().startsWith(${JSON.stringify(label)}) && b.checkVisibility({ visibilityProperty: true }));
+		const el = [...document.querySelectorAll('button')].find((b) => ((b.textContent || '').trim().startsWith(${JSON.stringify(label)}) || (b.getAttribute('aria-label') || '').startsWith(${JSON.stringify(label)})) && b.checkVisibility({ visibilityProperty: true }));
 		if (!el) throw new Error(${JSON.stringify(`no sidebar entry ${label}`)});
 		const r = el.getBoundingClientRect();
 		const x = r.x + r.width / 2, y = r.y + r.height / 2;

@@ -111,7 +111,7 @@ try {
 	await pause(2600);
 	// 侧边栏最底下那个入口，跟 `delegation-settings-probe.ts` 走同一条路。
 	const entered = await app.evaluate<boolean>(`(() => {
-		const entry = document.querySelector(".ly-sidebar-foot button");
+		const entry = document.querySelector("[data-ly-open-settings]");
 		if (!entry) return false;
 		entry.click();
 		return true;

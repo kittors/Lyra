@@ -265,7 +265,7 @@ try {
 	await shot("8-cancelled-still-there");
 
 	say("9. 设置 → 常规 → 关于 也说得出同一件事");
-	await app.evaluate(`document.querySelector(".ly-sidebar-foot button").click()`);
+	await app.evaluate(`document.querySelector("[data-ly-open-settings]").click()`);
 	await wait(600);
 	await press("常规");
 	await wait(600);

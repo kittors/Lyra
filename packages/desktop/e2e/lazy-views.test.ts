@@ -32,7 +32,7 @@ async function navigate(label: string): Promise<void> {
 	const clicked = await app.evaluate<boolean>(`
 		(() => {
 			const button = [...document.querySelectorAll("button")]
-				.find((b) => b.textContent?.trim() === ${JSON.stringify(label)});
+				.find((b) => b.textContent?.trim() === ${JSON.stringify(label)} || b.getAttribute("aria-label") === ${JSON.stringify(label)});
 			if (!button) return false;
 			button.click();
 			return true;
@@ -83,11 +83,11 @@ test("设置也是懒加载的，打开之后它的分区名在页面上", async
 	 * 设置是四个里最大的一个——独立出来 344KB——也是最值得确认真的会到的那个。
 	 *
 	 * 它的入口在侧边栏底部，按钮上的文字是当前供应商的名字而不是「设置」，所以按图标的
-	 * 容器找：那一行是 `.ly-sidebar-foot` 里的第一个按钮。
+	 * 容器找：设置的入口带 `data-ly-open-settings`（图标栏里，窄窗口时在抽屉底部）。
 	 */
 	const opened = await app.evaluate<boolean>(`
 		(() => {
-			const button = document.querySelector(".ly-sidebar-foot button");
+			const button = document.querySelector("[data-ly-open-settings]");
 			if (!button) return false;
 			button.click();
 			return true;

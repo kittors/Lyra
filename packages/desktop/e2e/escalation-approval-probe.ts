@@ -180,7 +180,7 @@ async function main() {
 				return Boolean(el);
 			};
 			if (!hit("访问授权")) {
-				document.querySelector(".ly-sidebar-foot button")?.click();
+				document.querySelector("[data-ly-open-settings]")?.click();
 				await wait(1300);
 				if (!hit("访问授权")) return false;
 			}

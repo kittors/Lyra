@@ -118,7 +118,7 @@ async function main() {
 		await pause(3000);
 
 		console.log("⑦ 设置页 —— 拉取模型：遮罩盖满整窗，上下文 200K");
-		await click(".ly-sidebar-foot button");
+		await click("[data-ly-open-settings]");
 		await pause(1200);
 		await mark("nav button", "data-nope");
 		await app.evaluate(`(()=>{document.querySelector('[data-demo3]')?.removeAttribute('data-demo3');[...document.querySelectorAll("nav button")].find((b)=>b.textContent.trim()==="模型设置")?.setAttribute('data-demo3','');})()`);

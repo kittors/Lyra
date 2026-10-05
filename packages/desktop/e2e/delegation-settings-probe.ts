@@ -131,7 +131,7 @@ try {
 	// 1. 导航里点得到吗——组件写好了、菜单里没有它，是这类改动最常见的失败形态。
 	const opened = await app.evaluate<{ settings: boolean; nav: boolean }>(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		const entry = document.querySelector(".ly-sidebar-foot button");
+		const entry = document.querySelector("[data-ly-open-settings]");
 		if (!entry) return { settings: false, nav: false };
 		entry.click();
 		await wait(1400);

@@ -673,7 +673,8 @@ test("screens that are not a conversation have no panels at all, and leave the c
 	const visit = (label: string) =>
 		app.evaluate(`(async () => {
 			const want = ${JSON.stringify(label)};
-			const item = [...document.querySelectorAll("button, a")].find((el) => el.textContent.trim() === want);
+			// The places are icon buttons in the rail now; their accessible name is the word.
+			const item = [...document.querySelectorAll("button, a")].find((el) => el.textContent.trim() === want || el.getAttribute("aria-label") === want);
 			if (!item) throw new Error("no sidebar item " + want);
 			item.click();
 			await new Promise((r) => setTimeout(r, 600));

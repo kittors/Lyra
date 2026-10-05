@@ -130,7 +130,7 @@ const openSettings = (section: string) =>
 			return Boolean(el);
 		};
 		if (!hit(${JSON.stringify(section)})) {
-			document.querySelector(".ly-sidebar-foot button")?.click();
+			document.querySelector("[data-ly-open-settings]")?.click();
 			await wait(1300);
 			if (!hit(${JSON.stringify(section)})) return false;
 		}

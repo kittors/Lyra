@@ -98,7 +98,7 @@ const UI = `
 	const label = (element) => (element.innerText || "").replace(/\\s+/g, " ").trim();
 	const byText = (selector, text) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility({ visibilityProperty: true }) && label(el) === text);
 	const openStorage = async () => {
-		click(document.querySelector(".ly-sidebar-foot button"));
+		click(document.querySelector("[data-ly-open-settings]"));
 		await wait(600);
 		const nav = byText("nav button", "存储");
 		if (!nav) throw new Error("侧边栏里没有「存储」");

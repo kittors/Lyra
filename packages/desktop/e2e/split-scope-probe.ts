@@ -664,7 +664,7 @@ async function themeLag(): Promise<{ frames: Array<{ at: number; state: string }
 
 /** 设置 › 外观 › one of the three theme cards, then back to the workspace. */
 async function pickTheme(card: string, record = false): Promise<void> {
-	await click(".ly-sidebar-foot button");
+	await click("[data-ly-open-settings]");
 	await until(`document.querySelector('[data-ly-settings]')?.checkVisibility()`, 8000, "设置页");
 	await markText("[data-ly-settings] nav button", "外观", "data-probe-nav");
 	await click("[data-probe-nav]");

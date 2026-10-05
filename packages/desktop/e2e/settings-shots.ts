@@ -85,7 +85,7 @@ async function openPane(label: string): Promise<void> {
 try {
 	await mkdir(out, { recursive: true });
 	await pause(2600);
-	await app.evaluate(`(() => { const e = document.querySelector(".ly-sidebar-foot button"); if (e) e.click(); })()`);
+	await app.evaluate(`(() => { const e = document.querySelector("[data-ly-open-settings]"); if (e) e.click(); })()`);
 	await pause(1500);
 
 	console.log(`\n出图到 ${out}`);

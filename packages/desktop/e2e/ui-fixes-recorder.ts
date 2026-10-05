@@ -115,7 +115,7 @@ async function main() {
 		measured = `${measured} 收起=${closed}px`;
 
 		console.log("⑥ 设置页 → 模型设置 → 添加模型：三个开关默认都开着");
-		await d.click(".ly-sidebar-foot button");
+		await d.click("[data-ly-open-settings]");
 		await pause(1200);
 		await app.evaluate(`(()=>{document.querySelector('[data-demo3]')?.removeAttribute('data-demo3');[...document.querySelectorAll("nav button")].find((b)=>b.textContent.trim()==="模型设置")?.setAttribute('data-demo3','');})()`);
 		await d.click("[data-demo3]");

@@ -141,7 +141,7 @@ async function main() {
 		await app.evaluate("document.fonts.ready");
 
 		// 设置页 → 模型设置 → 拉取模型。走真实导航，不直接改 store。
-		await click(".ly-sidebar-foot button");
+		await click("[data-ly-open-settings]");
 		await byLabel("模型设置", "nav button");
 		await until(`[...document.querySelectorAll("button")].some((b)=>b.checkVisibility()&&/拉取模型/.test(b.innerText+(b.getAttribute('data-ly-tip')??'')))`);
 		await byLabel("拉取模型");

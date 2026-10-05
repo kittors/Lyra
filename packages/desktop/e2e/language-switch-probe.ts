@@ -103,7 +103,7 @@ const CJK = /[一-鿿]/;
 /** 进设置页，并停在某一节上——设置是文案最密的地方，不扫等于没扫。 */
 const openSettings = async (section: string): Promise<boolean> => {
 	await app.evaluate(`(() => {
-		const hit = document.querySelector(".ly-sidebar-foot button");
+		const hit = document.querySelector("[data-ly-open-settings]");
 		hit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return Boolean(hit);
 	})()`);
