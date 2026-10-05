@@ -27,21 +27,13 @@
 		var(--ly-ui-font, var(--font-sans));
     font-size: var(--ly-ui-size, 14px);
     /*
-     * 基准字重，界面上没声明字重的文字全都继承这里。
-     *
-     * 比它重的那几档不在这儿：`font-medium` / `font-semibold` 从同一个数推出来（见 `tokens.css`
-     * 里的 `--font-weight-*`），所以这一行管的是正文，那边管的是层级，两边一起动。
+     * The base weight every undeclared run inherits. The heavier steps are derived from the same
+     * number (`--font-weight-*` in `tokens.css`), so this line moves body text and that one moves
+     * the hierarchy, together. 400 by default: with the system stack it is the weight ZCode draws.
      */
-    font-weight: var(--ly-ui-weight, 500);
+    font-weight: var(--ly-ui-weight, 400);
     line-height: 1.6;
-    /*
-     * Disambiguating figures. Inter honours `cv05`/`cv08`/`ss03`; Plex ignores them and already
-     * draws I / l / 1 as three shapes. Tabular numbers keep counters from shuffling as they tick.
-     */
-    font-feature-settings:
-      "cv05" 1,
-      "cv08" 1,
-      "ss03" 1;
+    /* Tabular numbers keep counters from shuffling as they tick. */
     font-variant-numeric: tabular-nums;
     /*
      * No `text-rendering: optimizeLegibility`.

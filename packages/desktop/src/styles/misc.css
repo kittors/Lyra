@@ -55,14 +55,6 @@
 }
 
 /*
- * Frosted panel for menus.
- *
- * A flat fill reads as pasted onto the list behind it; letting that list blur through says
- * "floating above" without needing a heavier shadow. The colour is mixed from the same
- * surface token, so it follows the theme — and the fallback below keeps menus opaque where
- * backdrop-filter is unavailable, since a translucent menu over unblurred text is unreadable.
- */
-/*
  * Shared menu-row states.
  *
  * Kept as a class rather than repeated utility strings so every menu in the app highlights
@@ -77,12 +69,12 @@
 }
 
 /*
- * Menus only. List rows in the inspector keep the 6px default. The menu
- * hover is the card radius minus the inset, so the active fill follows
- * the card instead of turning into a pill inside it.
+ * Menus only. List rows in the inspector keep the 6px default.
+ *
+ * 挂在卡片上而不是滚动区上：钉在底部的那几行（「新建项目」之类）不在滚动区里，
+ * 之前拿的是 6px 的默认值，和上面列表里的行不是一个弧度。
  */
-.ly-menu-scroll .ly-item,
-.ly-menu-foot .ly-item {
+.ly-menu-card .ly-item {
   border-radius: var(--radius-item);
 }
 
@@ -210,8 +202,19 @@
   transition: opacity var(--ly-t-quick) var(--ly-e-out);
 }
 
+/*
+ * 菜单和浮层的卡片：照 shadcn 的 dropdown / popover，实底、一层淡阴影。
+ *
+ * 之前用 `.ly-glass`：半透明加 40px 模糊、顶边一道内高光、深色下 50% 的重阴影，放在一张小菜单上
+ * 显得又厚又花。浮层本来就几乎不透明（92%），模糊透不出什么东西，只剩那些装饰。阴影是 Tailwind
+ * 的 `shadow-md`，深浅主题同一组。
+ */
 .ly-menu-card {
   border-radius: var(--radius-menu);
+  background: var(--color-float);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 .ly-glass,
@@ -246,10 +249,10 @@
  * transparent background rather than the page, and comes out with its tint and its shadow but no
  * blur at all, with whatever is beneath it still sharp.
  *
- * A popover escapes by rendering into `<body>`; something pinned to a card that scrolls cannot.
+ * Something portalled into `<body>` escapes that; something pinned to a card that scrolls cannot.
  * That is what this is for: the same border, shadow and shape, an opaque fill instead of a blurred
- * one. Reach for it when the surface is part of scrolling content — never for a menu, which should
- * be portalled out instead and keep the real thing.
+ * one. Reach for it when the surface is part of scrolling content. Menus and popovers use neither —
+ * see `.ly-menu-card`.
  */
 .ly-glass-solid {
   background: var(--color-float);

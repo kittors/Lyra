@@ -205,7 +205,7 @@
 	right: 0;
 	top: 0;
 	z-index: 0;
-	border-radius: 8px;
+	border-radius: 12px;
 	background: var(--color-card-hover);
 	height: var(--ly-nav-pill-h, 32px);
 	transform: translateY(var(--ly-nav-pill-y, 0));

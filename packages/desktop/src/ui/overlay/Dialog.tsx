@@ -99,15 +99,15 @@ export function DialogFrame({
 			className={`flex min-h-0 flex-col ${className}`}
 			{...rest}
 		>
-			<div className="shrink-0 px-6 pt-6">
-				<h2 className="flex items-center gap-2.5 text-body font-semibold text-ink" data-dialog-title>
+			<div className="shrink-0 px-5 pt-5">
+				<h2 className="flex items-center gap-2.5 text-label font-medium text-ink" data-dialog-title>
 					{icon}
 					{title}
 				</h2>
 				{detail ? <div className="mt-3 text-label leading-relaxed text-ink-muted">{detail}</div> : null}
 			</div>
 			{(status || children) ? (
-				<div className={`flex min-h-0 flex-col px-6 pt-4 ${locked ? "flex-1" : ""}`}>
+				<div className={`flex min-h-0 flex-col px-5 pt-4 ${locked ? "flex-1" : ""}`}>
 					{status}
 					{children ? (
 						/*
@@ -121,7 +121,7 @@ export function DialogFrame({
 						 * 滚动条都不重排，滑块落在右边距里。两侧对称，是因为行和控件比字宽出去的底色、聚焦环
 						 * 以前被滚动面按内容区裁掉了，现在两边都画得出来。
 						 *
-						 * 20 而不是 24：滑块离卡片边缘留 6px；行底色宽出去的 10px 和滑块之间还剩 2px。
+						 * 伸出去的正好是整条边距（20）：滑块离卡片边缘 2px；行底色宽出去的 10px 和滑块之间还剩 2px。
 						 */
 						<Scroller
 							top="fade"
@@ -134,7 +134,7 @@ export function DialogFrame({
 					) : null}
 				</div>
 			) : null}
-			<div className="flex shrink-0 items-center gap-2 px-6 pt-5 pb-6" data-ly-dialog-actions>
+			<div className="flex shrink-0 items-center gap-2 px-5 pt-5 pb-5" data-ly-dialog-actions>
 				{actions}
 			</div>
 		</div>

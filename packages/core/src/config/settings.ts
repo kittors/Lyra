@@ -92,8 +92,8 @@ export interface AppearanceSettings {
 	 *
 	 * 代码有它自己的 `codeFontWeight`，不跟这个走：等宽字体的字重是另一个判断（见那条注释）。
 	 *
-	 * 可选。没有这一项的老配置文件跟着新默认走，不是停在 400——界面一直偏细是要修的那个问题，
-	 * 而不是要保住的那个现状。见 `DEFAULT_APPEARANCE` 那条。
+	 * Optional. A file written before it existed follows the default, and a file still on the old
+	 * factory look is moved to the new one — see `migrateAppearance`.
 	 */
 	uiFontWeight?: number;
 	codeFontSize: number;
@@ -208,20 +208,28 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	 */
 	theme: "system",
 	accent: "#339CFF",
-	lightBackground: "#FFFFFF",
-	lightForeground: "#1A1C1F",
-	darkBackground: "#171717",
-	darkForeground: "#EDEDED",
 	/*
-	 * Same-family Chinese UI, not a shipped Latin face in front of PingFang.
-	 *
-	 * Doubao has no public UI webfont. What reads as "豆包字体" on a Mac is PingFang drawing
-	 * both Han and Latin. `-apple-system` first would split that again (SF Pro + PingFang),
-	 * which is the mix people just asked to leave. Inter / IBM Plex stay bundled for anyone
-	 * who types them; they are no longer the factory stack.
+	 * The neutral greys ZCode draws with (its zai-light / zai-dark themes): a page one step off white,
+	 * text at neutral-800 / neutral-300 rather than near-black and near-white. Floating surfaces — menus,
+	 * the composer — are mixed from the background towards white, so an off-white page is what lets
+	 * them read as lifted at all.
 	 */
-	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
-	codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	lightBackground: "#F8F8F8",
+	lightForeground: "#262626",
+	darkBackground: "#171717",
+	darkForeground: "#D4D4D4",
+	/*
+	 * The platform's own UI and monospace stacks, as ZCode sets them: SF Pro / Segoe UI for latin,
+	 * SF Mono / Consolas for code. Han and CJK punctuation are not left to these stacks — `body` puts
+	 * `Lyra Punct` and `Lyra CJK` in front of whatever is configured here (see `base.css`).
+	 *
+	 * Inter, IBM Plex and JetBrains Mono stay bundled for anyone who picks them; they are no longer
+	 * the factory stacks. The monospace stack names a Chinese face before `monospace` because Consolas
+	 * has no Han, and code in Chinese would otherwise fall to SimSun.
+	 */
+	uiFont: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+	codeFont:
+		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
 	// Lyra's own — see `lyra-light` in `code-themes.ts`. It takes the app's background rather than
 	// bringing one, so a fresh install looks like Lyra and picking any other theme is a real choice.
 	codeLightTheme: "lyra-light",
@@ -229,20 +237,15 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
 	uiFontSize: 14,
 	/*
-	 * 500，不是 Regular。
+	 * 400, with `fontSmoothing` off.
 	 *
-	 * 界面一直是 400 画的，而在这个字体和这套渲染下它偏细：默认字体栈是 PingFang，加上 `body` 上
-	 * 那句 `-webkit-font-smoothing: antialiased`——macOS 上那是把字画细的那个开关，Mail 和系统自己
-	 * 也这么画，代价就是 Regular 在深色底上发虚。
-	 *
-	 * 换成 Medium 之后层级会挤一挤：PingFang 只到 Semibold，600 就是天花板，所以标题那两档
-	 * （+100、+200）在它上面都落到 600，正文和标题之间只剩一档而不是两档。这是认过的账，不是漏掉
-	 * 的——层级本来就不只靠字重扛：字号有七档，墨色有三级，这两样一点没动。装了可变字体的人则真能
-	 * 吃到 600 和 700。
-	 *
-	 * 嫌重的人把它调回 400 就是原来的样子，一项设置的事。
+	 * The base was 500 for a while, because 400 looked thin — but what thinned it was `antialiased`
+	 * smoothing, the switch that turns off macOS's stem darkening. With smoothing left to the system,
+	 * as ZCode leaves it, Regular is drawn at the weight the system draws it everywhere else, and the
+	 * steps above it are Tailwind's own 500 / 600 / 700: three levels on every face that has them,
+	 * where a 500 base pushed both heading steps onto PingFang's 600 ceiling.
 	 */
-	uiFontWeight: 500,
+	uiFontWeight: 400,
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
@@ -271,7 +274,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	diffMarkers: "color",
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
-	fontSmoothing: true,
+	// Left to the system, as ZCode does; see `uiFontWeight`.
+	fontSmoothing: false,
 };
 
 /**
@@ -1104,8 +1108,18 @@ const SUPERSEDED_FONTS: Record<"uiFont" | "codeFont", string[]> = {
 		'-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif',
 		'"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 		'"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+		'"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
 	],
-	codeFont: ['ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace'],
+	codeFont: [
+		'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace',
+		'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	],
+};
+
+/** Foreground colours that were once the default; same reasoning as `SUPERSEDED_FONTS`. */
+const SUPERSEDED_FOREGROUNDS: Record<"lightForeground" | "darkForeground", string[]> = {
+	lightForeground: ["#1A1C1F", "#404040"],
+	darkForeground: ["#EDEDED", "#E5E5E5"],
 };
 
 /**
@@ -1124,6 +1138,22 @@ const REMOVED_APPEARANCE = ["translucentSidebar"] as const;
 
 export function migrateAppearance(appearance: AppearanceSettings): AppearanceSettings {
 	const next = { ...appearance };
+	/*
+	 * The rest of the factory look moves only with an untouched factory font.
+	 *
+	 * 500, smoothing on and a white page are each a choice someone could make on purpose, so unlike the
+	 * tables here they cannot be replaced wherever they appear — that would undo the choice on every
+	 * launch. A UI font still on a stack the app once shipped says nobody has been through 外观, and then
+	 * these three are the old factory values too. The font is moved below, so this cannot run twice.
+	 */
+	if (SUPERSEDED_FONTS.uiFont.includes(next.uiFont)) {
+		if (next.uiFontWeight === 500) next.uiFontWeight = DEFAULT_APPEARANCE.uiFontWeight;
+		if (next.fontSmoothing) next.fontSmoothing = DEFAULT_APPEARANCE.fontSmoothing;
+		if (next.lightBackground.toUpperCase() === "#FFFFFF") next.lightBackground = DEFAULT_APPEARANCE.lightBackground;
+	}
+	for (const key of ["lightForeground", "darkForeground"] as const) {
+		if (SUPERSEDED_FOREGROUNDS[key].includes(next[key].toUpperCase())) next[key] = DEFAULT_APPEARANCE[key];
+	}
 	for (const key of ["uiFont", "codeFont"] as const) {
 		if (SUPERSEDED_FONTS[key].includes(next[key])) next[key] = DEFAULT_APPEARANCE[key];
 	}

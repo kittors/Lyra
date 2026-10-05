@@ -16,7 +16,6 @@ import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import { contentMeasure } from "../../lib/content-width.ts";
 import { bridge } from "../../services/index.ts";
-import { drawnUiFont } from "./appearance-defaults.ts";
 
 interface Rgb {
 	r: number;
@@ -101,7 +100,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * own fonts; this one read as one weight where the page means one. The stored value is untouched:
 	 * the slider still says what was chosen, and a Mac draws it as chosen.
 	 */
-	const uiWeight = appearance.uiFontWeight ?? 500;
+	const uiWeight = appearance.uiFontWeight ?? 400;
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */
 	const veil = (alpha: number) => `color-mix(in srgb, ${toHex(foreground)} ${(alpha * 100).toFixed(1)}%, transparent)`;
 
@@ -181,24 +180,27 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * the wrong frame of reference.
 		 *
 		 * A veil instead, like `--color-elevated` above: a wash of the foreground at a fixed opacity,
-		 * which lands the same distance above whatever it is over. Slightly stronger than `elevated`
-		 * because a hairline has one pixel to make its case.
+		 * which lands the same distance above whatever it is over. 10%, as ZCode draws it: 12–14% drew a
+		 * menu's outline and separators as a visible frame rather than an edge.
 		 */
-		"--color-line-float": veil(dark ? 0.14 : 0.12),
+		"--color-line-float": veil(0.1),
 		"--color-ink": toHex(foreground),
-		"--color-ink-muted": text(thinType ? 0.68 : 0.62),
-		"--color-ink-faint": text(thinType ? 0.5 : 0.4),
+		/*
+		 * Secondary text at 60% of the body colour, the faintest at 40% — ZCode's subtle / subtlest. The
+		 * faintest goes to 50% on a dark page: at 30–40% the process rows there (thinking, tool calls) sat
+		 * near 2.2:1 and could not be read. Light Windows stays a step darker still, for the reason above.
+		 */
+		"--color-ink-muted": text(thinType ? 0.68 : 0.6),
+		"--color-ink-faint": text(thinType || dark ? 0.5 : 0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
-		// The default widened with the faces Windows and Linux need for three weights; see `drawnUiFont`.
-		"--ly-ui-font": drawnUiFont(appearance.uiFont),
+		"--ly-ui-font": appearance.uiFont,
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
 		/*
 		 * 界面的基准字重。层级比它重一档、两档，那几档在 `tokens.css` 里从这个数推出来。
 		 *
-		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，而那些界面一直是
-		 * 400 画出来的。
+		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，跟着默认的 400 走。
 		 */
 		"--ly-ui-weight": String(windowsType ? Math.max(400, uiWeight - 100) : uiWeight),
 		"--ly-code-size": `${appearance.codeFontSize}px`,
@@ -336,7 +338,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	bridge.setWindowTheme?.({
 		color: toHex(background),
 		headerColor: tokens["--color-sidebar"],
-		symbolColor: text(0.62),
+		symbolColor: text(0.6),
 	});
 
 	root.classList.toggle("dark", dark);

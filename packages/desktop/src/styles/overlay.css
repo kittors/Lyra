@@ -322,6 +322,8 @@
 	padding: 0 16px;
 	border-radius: var(--radius-field);
 	font-size: var(--text-label);
+	/* 中文可在任意字间断行，放进 flex 行会被挤成竖排；不换行后 min-content 即整段文字，flex 压不动它。 */
+	white-space: nowrap;
 	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
 }
 
@@ -356,6 +358,52 @@ div.ly-field {
 
 .ly-field::placeholder {
 	color: var(--color-ink-faint);
+}
+
+/*
+ * 设置卡片和对话框里的线和控件。
+ *
+ * 两者都是 `float` 那张纸，比页面亮一档；而 `line` / `line-soft` 是从页面底色往前景走出来的，
+ * 画在这张纸上反而比纸暗——分隔线成了一道暗槽，滑块的轨道、关着的开关几乎看不见。和
+ * `--color-line-float` 同一个道理，所以在这张纸这一层把两条线换成那一套：`line` 就是它，
+ * `line-soft` 取它的三分之二，和页面上两条线的比例一样。
+ *
+ * 控件和卡片同底，靠一圈细线立住，而不是垫一块比卡片暗的底。线用 inset 阴影画，
+ * 不占尺寸，行高和控件的中线都不动。只改底和线，出错时的红底仍然由下面那条规则给。
+ */
+:is(.ly-settings-card, [data-ly-modal]) {
+	--color-line: var(--color-line-float);
+	--color-line-soft: color-mix(in srgb, var(--color-line-float) 65%, transparent);
+}
+
+:is(.ly-settings-card, [data-ly-modal]) :is(.ly-field, [data-segmented]) {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--color-line);
+	transition-property: background-color, color, box-shadow;
+}
+
+:is(.ly-settings-card, [data-ly-modal]) .ly-field:is(:hover, :focus, :focus-within) {
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+}
+
+:is(.ly-settings-card, [data-ly-modal]) .ly-textarea-shell {
+	background: transparent;
+}
+
+/*
+ * 设置页和对话框里的控件和按钮收成 8px 的小圆角。
+ *
+ * 只在这两处：别处（输入区、侧栏）的控件仍是 `--radius-field` 的胶囊，所以不改那个 token，
+ * 在这里覆盖。设置页按整页算而不是只算卡片：页头的「新建」、卡片外的搜索框也在这一页上，
+ * 只收卡片里的，它们就成了同一页上唯一的胶囊。
+ * 分段选择里滑动的底和每一格比外框小一圈内边距（2px），是 6px，内外两道圆弧才同心。
+ */
+:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell) {
+	border-radius: 8px;
+}
+
+:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) [data-segmented] :is([data-segment], [data-segment-rail]) {
+	border-radius: 6px;
 }
 
 .ly-field.ly-field-invalid,
