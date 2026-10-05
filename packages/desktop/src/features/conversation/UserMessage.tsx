@@ -520,7 +520,7 @@ export function UserMessage({
           <BubbleText
             text={text}
             files={spokenFiles}
-            className="text-body leading-relaxed text-ink"
+            className="text-label leading-6 text-ink"
             renderText={(plain) => <Markdown text={plain} />}
             renderFile={(file, at) => {
               const segment = { file };

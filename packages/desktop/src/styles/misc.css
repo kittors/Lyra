@@ -677,6 +677,12 @@ textarea.ly-composer-text[data-highlighted="true"] {
   margin-left: calc(var(--ly-token-inset) * -1);
 }
 
+/* The user's text is 14px / 24px with no tracking; Markdown inside the bubble follows it, not the reply's body. */
+.ly-user-bubble .prose-dw {
+  line-height: 24px;
+  letter-spacing: 0;
+}
+
 .ly-user-bubble .ly-attachment-token {
   padding: 2px 6px;
   margin: 0 1px;

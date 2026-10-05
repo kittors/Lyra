@@ -17,9 +17,11 @@
  * deeper than the container is tall.
  */
 @layer components {
+  /* 回复正文的字号、行高、字距和各元素字重。 */
   .prose-dw {
-    font-size: var(--text-body);
+    font-size: var(--text-label);
     line-height: 1.75;
+    letter-spacing: 0.025em;
     color: var(--color-ink);
   }
 
@@ -43,36 +45,30 @@
   }
 
   /*
-   * 标题的字重跟着「界面字重」走，不是钉死的 600。
-   *
-   * 回答的正文继承 `body`，而 `body` 现在是基准字重——基准一提到 500，h4 那句写死的 500 就和它
-   * 脚下的正文一样重了，h4 不再是个标题。一处写死的数只要旁边那个数会动，它迟早会撞上。
-   *
-   * 派生的值在基准 400 时恰好还原成 600 / 500 / 550 这三个原数，所以这不是改样子，是把同一套样子
-   * 接到那一个旋钮上。
+   * Heading weights come from 界面字重 (the derived steps in `tokens.css`), never a fixed number: a
+   * fixed 500 under a body that had moved to 500 was the same weight as the text it headed.
    */
   .prose-dw h1,
   .prose-dw h2,
   .prose-dw h3,
   .prose-dw h4 {
     font-weight: var(--font-weight-semibold);
-    line-height: 1.4;
     margin-top: 1.6em;
     margin-bottom: 0.6em;
   }
 
   .prose-dw h1 {
-    font-size: var(--text-heading);
+    font-size: calc(var(--text-label) + 4px);
   }
   .prose-dw h2 {
-    font-size: var(--text-title);
+    font-size: calc(var(--text-label) + 2px);
   }
-  .prose-dw h3 {
-    font-size: var(--text-body);
-  }
+  .prose-dw h3,
   .prose-dw h4 {
-    font-size: var(--text-body);
-    /* h3 和它同一个字号，靠这一档字重分开——所以它得比正文重，又得比 h3 轻。 */
+    font-size: var(--text-label);
+  }
+
+  .prose-dw strong {
     font-weight: var(--font-weight-medium);
   }
 
@@ -93,6 +89,10 @@
 
   .prose-dw li {
     margin-top: 0.3em;
+  }
+
+  .prose-dw li::marker {
+    color: var(--color-ink-faint);
   }
 
   .prose-dw li > ul,
@@ -139,7 +139,7 @@
     /*
      * No synthesised italics, which is what made comments look wrong.
      *
-     * Comments are set in italic, and the bundled mono faces ship upright only — so the browser
+     * Comments are set in italic, and many mono faces ship upright only — so the browser
      * slanted the upright glyphs geometrically to fake it. That is passable for latin and bad for
      * Chinese, which has no italic tradition and no design that survives being sheared: a comment
      * reading 「// 滚动条默认样式」 came out visibly skewed and slightly broken, right next to
@@ -287,6 +287,7 @@
 
   .prose-dw a {
     color: var(--color-info);
+    font-weight: var(--font-weight-medium);
     text-decoration: none;
   }
 
@@ -409,7 +410,6 @@
   .prose-dw table {
     border-collapse: collapse;
     font-size: var(--text-label);
-    line-height: 1.55;
   }
 
   .prose-dw th,
@@ -423,9 +423,9 @@
 
   .prose-dw thead th {
     background: var(--color-card);
-    /* 半档，比 medium 轻：表头是标签不是标题。基准 400 时算回它原来的 550。 */
-    font-weight: clamp(100, calc(var(--ly-ui-weight, 500) + 150), 900);
-    color: var(--color-ink-muted);
+    /* 表头是标签不是标题：常规字重、最浅那档颜色。 */
+    font-weight: var(--font-weight-normal);
+    color: var(--color-ink-faint);
     /* The header's rule is the one line worth keeping: it separates labels from data. */
     border-bottom: 1px solid var(--color-line);
   }
@@ -620,8 +620,7 @@
  * ------------------------------------------------------------------------- */
 
 /*
- * A file link has one form: a single-line chip. A short one follows the text; a long one is
- * ellipsised at the cap and never wraps.
+ * 文件链接只有一种形态：单行，类型图标加链接色的名字，悬停才托出胶囊底色。短的跟着字走，长的到上限就省略，永不折行。
  *
  * `--ly-file-chip-max` is the ceiling in a wide column, so a filename cannot run the whole line as a
  * banner; in a narrow one the line width is the smaller of the two. The chip is one atomic inline
@@ -637,10 +636,13 @@
   display: inline-flex;
   align-items: center;
   max-width: min(100%, var(--ly-file-chip-max));
-  padding: 1.5px 6px;
+  padding: 1.5px 4px;
   border-radius: 5px;
-  background: var(--color-card-hover);
-  vertical-align: middle;
+  /*
+   * On the sentence's baseline, taken from the name (see `[data-ly-file-name]`). `middle` centred the
+   * box on the Latin x-height, which sat the name 1.3px below the Chinese around it.
+   */
+  vertical-align: baseline;
   line-height: 1;
   white-space: nowrap;
   transition: background-color var(--ly-t-quick) var(--ly-e-out);
@@ -655,7 +657,7 @@
  */
 [data-ly-file-link]:hover,
 [data-ly-file-link]:has(:focus-visible) {
-  background: var(--color-elevated);
+  background: var(--color-card-hover);
 }
 
 [data-ly-file-link] > a {
@@ -664,7 +666,7 @@
   min-width: 0;
   max-width: 100%;
   gap: 0.3em;
-  color: var(--color-ink);
+  color: var(--color-info);
   text-decoration: none;
 }
 
@@ -677,6 +679,8 @@
 }
 
 [data-ly-file-name] {
+  /* The chip's baseline comes from the name; left to the icon, an SVG's bottom edge stands in and lifts the name 1.5px. */
+  align-self: baseline;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

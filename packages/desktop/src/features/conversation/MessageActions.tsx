@@ -98,7 +98,7 @@ export function MessageActions({
 				 */
 				<span
 					data-ly-tip={durationTip || undefined}
-					className="inline-flex items-center rounded px-1 py-0.5 text-[11px] font-mono text-ink-faint/80 tabular-nums"
+					className="inline-flex items-center rounded px-1 py-0.5 text-caption font-mono text-ink-faint tabular-nums"
 				>
 					{durationBadge}
 				</span>
