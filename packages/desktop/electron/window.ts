@@ -12,7 +12,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { lyraHome, type Settings } from "@lyra/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
-import { MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
+import { MAC_MAIN_TRAFFIC_LIGHT_POSITION, MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { appIconCandidates } from "./app-icon-path.ts";
 
 /**
@@ -408,7 +408,8 @@ function buildAppWindow(options: {
 		...(canVibrate(options.role) ? { visualEffectState: "active" as const } : {}),
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-		trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
+		// 主窗口的顶行在浮起的卡片里，低 5px；会话和面板窗口贴顶。见 `MAIN_WINDOW_ROW_OFFSET`。
+		trafficLightPosition: options.role === "primary" ? MAC_MAIN_TRAFFIC_LIGHT_POSITION : MAC_TRAFFIC_LIGHT_POSITION,
 		/*
 		 * Windows/Linux draw their own controls into this strip. The colours are a starting
 		 * point; the renderer sends the real ones once the theme is resolved.

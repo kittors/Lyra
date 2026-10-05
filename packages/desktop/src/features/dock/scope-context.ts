@@ -13,6 +13,7 @@ import { useDockScope } from "../../app/session-scope.tsx";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { kinds, type PaneKind } from "./tree.ts";
 import { paneVisible } from "./visibility.ts";
+import { activeTab, usePanelLayout } from "./tabs.ts";
 
 /**
  * Whether `kind` is on screen in the dock this component is drawn in.
@@ -27,6 +28,8 @@ export function usePaneOnScreen(kind: PaneKind): boolean {
 	const tree = usePaneDock((state) => (scope ? (state.trees[scope] ?? emptyDockTree) : null));
 	const maximized = usePaneDock((state) => (scope ? (state.maximized[scope] ?? null) : null));
 	const focused = usePaneDock((state) => (scope ? (state.focused[scope] ?? "conversation") : "conversation"));
+	const tab = usePaneDock((state) => (scope ? state.tab[scope] : undefined));
+	const tabbed = usePanelLayout() === "tabs";
 	if (!scope || !tree) {
 		try {
 			return bridge.bootWindow?.kind === "panel" && bridge.bootWindow.panelKind === kind;
@@ -34,5 +37,7 @@ export function usePaneOnScreen(kind: PaneKind): boolean {
 			return false;
 		}
 	}
-	return paneVisible(kind, { present: kinds(tree), maximized: maximized?.panes ?? null, compact, focused });
+	// 标签页排法下后台标签开着、却不在屏上。
+	if (tabbed && !compact && kind !== "conversation" && activeTab(tree, tab) !== kind) return false;
+	return paneVisible(kind, { present: kinds(tree), maximized: tabbed ? null : (maximized?.panes ?? null), compact, focused });
 }

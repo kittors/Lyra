@@ -28,6 +28,7 @@ import { emptyDockTree, usePaneDock, type Placement } from "./pane-store.ts";
 import { has, insert, kinds, remove, type DockNode, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
 import { allPanels, detachOf } from "./panels/registry.ts";
+import { activeTab, panelLayout } from "./tabs.ts";
 import type { PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
@@ -324,8 +325,11 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
 		return;
 	}
 	const dock = usePaneDock.getState();
-	if (has(dock.tree(scope), kind)) {
-		if (options.compact && dock.focused[scope] !== kind) dock.focus(scope, kind);
+	const tree = dock.tree(scope);
+	if (has(tree, kind)) {
+		// 标签页排法下，开着但在后台的标签也是「想看它」：切过去，不关。
+		const behind = options.compact ? dock.focused[scope] !== kind : panelLayout() === "tabs" && activeTab(tree, dock.tab[scope]) !== kind;
+		if (behind) dock.focus(scope, kind);
 		else dock.close(scope, kind);
 		return;
 	}

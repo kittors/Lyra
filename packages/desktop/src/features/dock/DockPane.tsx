@@ -10,7 +10,7 @@
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
-import { cardRoom, FRAME_PAD, HEADER_HEIGHT, PANE_INSET, panePaintMinWidth } from "./geometry.ts";
+import { cardRoom, HEADER_HEIGHT, PANE_INSET, panePaintMinWidth } from "./geometry.ts";
 import type { Box } from "./layout.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 
@@ -96,12 +96,6 @@ export function DockPane({
 	/** Every pane is a card on the window's own surface. See the note on the card below. */
 	/** Where the card's inside starts within the pane's box: its inset and its border. */
 	const edge = PANE_INSET + 1;
-	/**
-	 * How far the header's row has to rise to sit on the window's top line: the card's edge plus the
-	 * workspace's padding above the top row. Every pane takes the same, so neighbours in any row
-	 * still put their titles on one line.
-	 */
-	const lift = FRAME_PAD + edge;
 	const edgeRoom = (room?: number) => (room ? cardRoom(room) : room);
 	const paintMinWidth = panePaintMinWidth(kind, box.width, maximized);
 
@@ -214,12 +208,10 @@ export function DockPane({
 				carried ? "ly-dock-pane-carried" : kind !== "conversation" ? "z-10" : "z-0"
 			} ${landing ? "ly-dock-pane-landing" : ""}`}
 			/*
-			 * The conversation's own title bar cannot be lifted from inside the way `PaneHeader` is, so
-			 * it is given the card's sides but not its top, and pulled back over the workspace's padding:
-			 * its row stays on the window's top line, level with the traffic lights and with a lifted
-			 * panel header beside it.
+			 * 标题栏就放在卡片里面，在卡片顶上那 44px 里居中，不往上提去够窗口顶线。顶行统一低
+			 * `MAIN_WINDOW_ROW_OFFSET`，红绿灯跟着挪下来，所以仍然对在一条线上。
 			 */
-			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: customHeader ? `-${FRAME_PAD}px ${edge}px 0` : edge, background: "transparent" }}>
+			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: edge, background: "transparent" }}>
 				{customHeader ?? <PaneHeader
 					kind={kind}
 					label={label}
@@ -235,7 +227,6 @@ export function DockPane({
 					actions={actions}
 					inset={edgeRoom(inset)}
 					insetEnd={edgeRoom(insetEnd)}
-					lift={lift}
 					onToggleMaximized={onToggleMaximized}
 					onPopOut={onPopOut}
 					onClose={onClose}

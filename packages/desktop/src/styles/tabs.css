@@ -129,8 +129,6 @@
   background: var(--color-shell);
   /* 圆角要真的裁得住：里面的滚动区和整列的底色都是方角。菜单和提示走 portal，不受影响。 */
   overflow: hidden;
-  /* 卡片顶边离窗口顶的距离（内缩加边线），页内顶行扣掉它，才和红绿灯在一条线上。 */
-  --ly-card-lift: var(--ly-pane-chrome);
 }
 
 .ly-window-body > main::after {

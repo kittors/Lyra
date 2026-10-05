@@ -690,6 +690,20 @@ export function AppearanceSettings() {
 						/>
 					}
 				/>
+				<Row
+					title={t("appearance.panelLayout")}
+					detail={t("appearance.panelLayoutDetail")}
+					control={
+						<Segmented
+							value={appearance.panelLayout ?? "tabs"}
+							onChange={(panelLayout) => patch({ panelLayout })}
+							options={[
+								{ value: "tabs", label: t("appearance.panelLayoutTabs") },
+								{ value: "split", label: t("appearance.panelLayoutSplit") },
+							]}
+						/>
+					}
+				/>
 				{/*
 				 * macOS only. `-webkit-font-smoothing` is a hook into macOS's own text renderer;
 				 * Windows (DirectWrite/ClearType) and Linux (FreeType) ignore the property, so on

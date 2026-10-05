@@ -267,11 +267,78 @@ function Shell() {
  * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
  * phone, loading the same bundle across a relay, that this is for.
  */
-function LazyScreen({ children, shape = "list" }: { children: React.ReactNode; shape?: "settings" | "list" | "grid" }) {
-	const { t } = useI18n();
+function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" }) {
 	const fallback =
-		shape === "settings" ? <SettingsFallback /> : shape === "grid" ? <SkeletonGrid count={6} label={t("common.loading")} /> : <SkeletonList count={6} label={t("common.loading")} />;
+		shape === "settings" ? <SettingsFallback />
+		: shape === "plugins" ? <PluginsFallback />
+		: shape === "pull-requests" ? <PullRequestsFallback />
+		: <ScheduledFallback />;
 	return <Suspense fallback={fallback}>{children}</Suspense>;
+}
+
+/*
+ * 下面三个和 `SettingsFallback` 同一个道理：骨架照着各自视图的外壳摆。
+ *
+ * 原先三个视图共用一个裸的 `SkeletonList`/`SkeletonGrid`，那两个是给设置页内部用的，自己不带边距，
+ * 默认外面已经有一层内容栏。直接放进 `SoloScreen` 就贴着卡片两边铺满，内容一到，边距、居中宽度和
+ * 标题一起冒出来，整页重排一次。边距和宽度要跟着视图本身改。
+ */
+
+/** `ScheduledView`：880px 居中、px-8，标题和说明在列表上面。 */
+function ScheduledFallback() {
+	const { compact } = useLayout();
+	const { t } = useI18n();
+	return (
+		<div className={`mx-auto w-full max-w-[880px] py-6 ${compact ? "px-4" : "px-8"}`}>
+			<div className="pb-6">
+				<SkeletonBar width="112px" height={20} />
+				<SkeletonBar width="min(420px, 70%)" height={10} className="mt-3.5" />
+			</div>
+			<SkeletonList count={4} label={t("common.loading")} />
+		</div>
+	);
+}
+
+/** `PluginsView`：顶上 44px 的 tab 条，下面 px-6 里收在 860px 的标题和卡片网格。 */
+function PluginsFallback() {
+	const { t } = useI18n();
+	return (
+		<div className="px-6">
+			{/* `@container`，网格的两列才会按这一栏的宽度切换，和真实页面一样。 */}
+			<div className="@container mx-auto w-full max-w-[860px]">
+				<SkeletonBar width="96px" height={24} className="mt-6" />
+				<SkeletonBar width="min(360px, 60%)" height={10} className="mt-3.5" />
+				<SkeletonGrid count={6} label={t("common.loading")} />
+			</div>
+		</div>
+	);
+}
+
+/**
+ * `PullRequestsView`：左边一根 300px 的列表栏，右边是详情。
+ *
+ * 列表栏往上顶进窗口顶条（`-mt-11`），分隔线才和真实页面一样从顶到底；顶条那 44px 留空，筛选按钮
+ * 会给红绿灯让位，这里画上去反而压在红绿灯上。
+ */
+function PullRequestsFallback() {
+	const { t } = useI18n();
+	return (
+		<div className="-mt-11 flex min-h-0 flex-1" role="status" aria-label={t("common.loading")}>
+			<div className="flex w-[300px] shrink-0 flex-col border-r border-line-soft">
+				<div className="h-11 shrink-0" />
+				<div className="px-3 pt-1 pb-2">
+					<span className="ly-skeleton block h-8 rounded-[9px]" />
+				</div>
+				{[72, 58, 84, 66, 78, 52].map((width, index) => (
+					<div key={index} className="px-5 py-3">
+						<SkeletonBar width={`${width}%`} height={10} />
+						<SkeletonBar width="40%" height={8} className="mt-2" />
+					</div>
+				))}
+			</div>
+			<div className="flex-1" />
+		</div>
+	);
 }
 
 /**
@@ -348,9 +415,9 @@ function MainContent() {
 		<Workspace away={solo} />
 		<div className={solo ? "contents" : "hidden"}>
 			<RetainedViews active={active} limit={4} render={(key) => {
-				if (key === "plugins") return <SoloScreen><LazyScreen shape="grid"><PluginsView /></LazyScreen></SoloScreen>;
-				if (key === "pull-requests") return <SoloScreen><LazyScreen><PullRequestsView /></LazyScreen></SoloScreen>;
-				if (key === "scheduled") return <SoloScreen><LazyScreen><ScheduledView /></LazyScreen></SoloScreen>;
+				if (key === "plugins") return <SoloScreen><LazyScreen shape="plugins"><PluginsView /></LazyScreen></SoloScreen>;
+				if (key === "pull-requests") return <SoloScreen><LazyScreen shape="pull-requests"><PullRequestsView /></LazyScreen></SoloScreen>;
+				if (key === "scheduled") return <SoloScreen><LazyScreen shape="scheduled"><ScheduledView /></LazyScreen></SoloScreen>;
 				return null;
 			}} />
 		</div>
@@ -403,8 +470,12 @@ function SoloScreen({ children }: { children: React.ReactNode }) {
 	return (
 		<div data-ly-solo-screen className="ly-card-page relative flex min-h-0 min-w-0 flex-1 flex-col">
 			<div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />
-			{/* Short by the card's own offset, so the view's header row stays on the traffic lights' line. */}
-			<div aria-hidden className="shrink-0" style={{ height: `calc(${WINDOW_HEADER_HEIGHT}px - var(--ly-card-lift, 0px))` }} />
+			{/*
+			 * 满 44px，不扣卡片离窗口顶的那 5px。扣掉能让顶行和红绿灯压在一条线上，代价是 tab 离卡片
+			 * 顶边只剩 4px 左右、左右却有 12px，看着顶在边上。卡片已经浮起来了，行在卡片里居中比和
+			 * 窗口顶线对齐更要紧。
+			 */}
+			<div aria-hidden className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 		</div>
 	);

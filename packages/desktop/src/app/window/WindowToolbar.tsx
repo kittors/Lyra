@@ -15,7 +15,7 @@ import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
-import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { MAIN_WINDOW_ROW_OFFSET, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { onPhone } from "../../services/host.ts";
 
 /*
@@ -48,7 +48,7 @@ export function DragBand({ navOpen, sidebarWidth }: { navOpen: boolean; sidebarW
 			 * no draggable pixels; a little more than the toggle's own start is what makes the
 			 * corner grabbable without claiming the pane title next to it.
 			 */
-			style={{ height: WINDOW_HEADER_HEIGHT, width: navOpen ? sidebarWidth : titlebar.start + TOOLBAR_BUTTON }}
+			style={{ height: WINDOW_HEADER_HEIGHT + MAIN_WINDOW_ROW_OFFSET, width: navOpen ? sidebarWidth : titlebar.start + TOOLBAR_BUTTON }}
 		/>
 	);
 }
@@ -230,13 +230,14 @@ export function WindowButtons({
 		<div
 			/* Found by the phone's stylesheet, which puts this under the drawer rather than over it. */
 			data-ly-window-buttons=""
-			className="no-drag absolute top-0 z-[60] flex items-center gap-0.5"
+			className="no-drag absolute z-[60] flex items-center gap-0.5"
 			/*
 			 * Past whatever the system drew in this corner: the traffic lights on macOS, nothing on
 			 * Windows and Linux — where this used to sit 78px in anyway, out of line with the marks
 			 * directly below it and adrift from the edge. `useTitlebar` is the whole rule.
 			 */
-			style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}
+			// 和红绿灯同一条线：主窗口的顶行在卡片里，低 `MAIN_WINDOW_ROW_OFFSET`。
+			style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}
 		>
 			<WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />
 		</div>
