@@ -17,9 +17,10 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScheduledNotices } from "../../features/scheduled/index.ts";
 import { UpdateBadge } from "../../features/update/index.ts";
+import { MAIN_RAIL_WIDTH } from "../../../shared/window-chrome.ts";
 
-/** The rail's width; the sidebar card starts right after it. */
-export const RAIL_WIDTH = 48;
+/** The rail's width; the panel with the sidebar and the content starts right after it. */
+export const RAIL_WIDTH = MAIN_RAIL_WIDTH;
 
 type Place = "chat" | "pull-requests" | "scheduled" | "plugins" | "settings";
 

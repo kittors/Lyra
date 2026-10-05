@@ -44,13 +44,19 @@ export function WindowControls({
 	navOpen,
 	onToggleNav,
 	active,
+	labels,
 }: {
 	navOpen: boolean;
 	onToggleNav: () => void;
 	/** Filled in, for the compact layout where the sidebar is a drawer that is currently over you. */
 	active?: boolean;
+	/**
+	 * What the button opens, when it is not the sidebar — settings' section list. Nor does it then
+	 * carry the conversations' unread mark: opening it would show sections, not the conversation.
+	 */
+	labels?: { hide: string; show: string };
 }) {
-	const unread = useApp((s) => navOpen ? null : unreadActivity(s.activity, s.activeSessionId));
+	const unread = useApp((s) => (navOpen || labels ? null : unreadActivity(s.activity, s.activeSessionId)));
 	const status =
 		unread === "waiting"
 			? translate("windowControls.waiting")
@@ -63,8 +69,8 @@ export function WindowControls({
 		<>
 			<ToolbarButton label={
 					navOpen
-						? translate("windowControls.hideSidebar")
-						: translate("windowControls.showSidebar", { status: status ? ` · ${status}` : "" })
+						? (labels?.hide ?? translate("windowControls.hideSidebar"))
+						: (labels?.show ?? translate("windowControls.showSidebar", { status: status ? ` · ${status}` : "" }))
 				} onClick={onToggleNav} active={active}>
 				<span className="relative flex items-center justify-center">
 					<SidebarIcon open={navOpen} />

@@ -222,11 +222,13 @@ export function DockPane({
 				carried ? "ly-dock-pane-carried" : kind !== "conversation" ? "z-10" : "z-0"
 			} ${landing ? "ly-dock-pane-landing" : ""}`}
 			/*
-			 * The title bar sits inside the card, centred in the card's top 44px, not raised to reach the
-			 * window's top line. The whole top row is `MAIN_WINDOW_ROW_OFFSET` lower and the traffic lights
-			 * move down with it, so they still line up.
+			 * The title bar sits inside the card, centred in the card's top 44px.
+			 *
+			 * Flat, it lies over the hairline rather than stepping past it. Stepping past it moved the title
+			 * a pixel whenever the line came or went — on every full screen and back — and put the bar's
+			 * centre a pixel off its row. The bar is transparent, so the line still shows through it.
 			 */
-			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: flat ? `${edges.top ? 1 : 0}px 0 0 ${edges.left ? 1 : 0}px` : edge, background: "transparent" }}>
+			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: flat ? 0 : edge, background: "transparent" }}>
 				{customHeader ?? <PaneHeader
 					kind={kind}
 					label={label}

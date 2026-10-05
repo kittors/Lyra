@@ -14,7 +14,6 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { WindowFrame } from "../../app/window/WindowFrame.tsx";
-import { RAIL_WIDTH } from "../../app/window/AppRail.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { DelegationSettings } from "./DelegationSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
@@ -60,7 +59,7 @@ export function SettingsShell() {
 	const wanted = useApp((s) => s.settingsSection);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
-	const { compact, navOpen, framed, rail, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
+	const { compact, navOpen, framed, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
 	// Synchronous, from the preload: waiting for `system.platform()` drew the first frame as macOS.
 	const platform = bridge.platform ?? "darwin";
 
@@ -110,14 +109,20 @@ export function SettingsShell() {
 		const main = mainRef.current;
 		const shell = main?.closest<HTMLElement>("[data-ly-settings]");
 		if (!main || !shell || compact || motionReduced()) return;
-		main.style.setProperty("--ly-settings-hold", `${shell.getBoundingClientRect().width - (rail ? RAIL_WIDTH : 0) - (navOpen ? sidebarWidth : 0)}px`);
+		/*
+		 * The room the column will end up with. In the frame that is the inside of the panel (its
+		 * `clientWidth` leaves out the panel's border; the rail and the right margin are outside it)
+		 * less the section list; elsewhere, the whole shell less the list.
+		 */
+		const room = framed && main.parentElement ? main.parentElement.clientWidth : shell.getBoundingClientRect().width;
+		main.style.setProperty("--ly-settings-hold", `${room - (navOpen ? sidebarWidth : 0)}px`);
 		const release = () => main.style.removeProperty("--ly-settings-hold");
 		const timer = window.setTimeout(release, DURATION.base + 60);
 		return () => {
 			window.clearTimeout(timer);
 			release();
 		};
-	}, [navOpen, compact, sidebarWidth, rail]);
+	}, [navOpen, compact, sidebarWidth, framed]);
 
 	/*
 	 * 开合章节列表的那颗开关，两条外壳路径共用一个。
@@ -248,7 +253,11 @@ export function SettingsShell() {
 	 */
 	if (framed) {
 		return (
-			<WindowFrame data-ly-settings="" nav={nav}>
+			<WindowFrame
+				data-ly-settings=""
+				nav={nav}
+				navLabels={{ hide: t("app.hideSettingsNavigation", { shortcut: "⌘B" }), show: t("app.showSettingsNavigation", { shortcut: "⌘B" }) }}
+			>
 				{main}
 			</WindowFrame>
 		);

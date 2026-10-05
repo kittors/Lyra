@@ -23,6 +23,7 @@ import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.
 
 export function WindowFrame({
 	nav,
+	navLabels,
 	toolbarTitle,
 	toolbarEnd,
 	children,
@@ -30,6 +31,8 @@ export function WindowFrame({
 }: {
 	/** The sidebar, or settings' section list — a `NavPane`. */
 	nav: React.ReactNode;
+	/** The toggle's names when `nav` is not the sidebar — see `WindowControls`. */
+	navLabels?: { hide: string; show: string };
 	/** Drawn over the content's card: the open conversation's title, when there is one. */
 	toolbarTitle?: React.ReactNode;
 	/** At the toolbar's far end: the open conversation's panel buttons. */
@@ -39,7 +42,7 @@ export function WindowFrame({
 	const { rail } = useLayout();
 	return (
 		<div {...rest} className="ly-shell ly-framed relative flex h-full flex-col overflow-hidden">
-			<MainToolbar title={toolbarTitle} end={toolbarEnd} />
+			<MainToolbar title={toolbarTitle} end={toolbarEnd} navLabels={navLabels} />
 			<div className="ly-window-body relative flex min-h-0 flex-1">
 				{rail && <AppRail />}
 				{/*
@@ -70,7 +73,7 @@ export function WindowFrame({
  * cluster itself, so the title in the middle starts over the content's card and follows the sidebar
  * as it is dragged, opened and closed.
  */
-function MainToolbar({ title, end }: { title?: React.ReactNode; end?: React.ReactNode }) {
+function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?: React.ReactNode; navLabels?: { hide: string; show: string } }) {
 	const { t } = useI18n();
 	const { titlebar, toolbarHeight, navOpen, compact, rail, toggleNav } = useLayout();
 	const { drawn } = useSidebarFit();
@@ -99,7 +102,7 @@ function MainToolbar({ title, end }: { title?: React.ReactNode; end?: React.Reac
 					<ToolbarButton label={`${t("toolbar.forward")} ${forwardKey}`} onClick={() => void goForward()} disabled={!canForward}>
 						<ArrowRight size={15} strokeWidth={1.9} />
 					</ToolbarButton>
-					<WindowControls navOpen={navOpen} onToggleNav={toggleNav} active={compact && navOpen} />
+					<WindowControls navOpen={navOpen} onToggleNav={toggleNav} active={compact && navOpen} labels={navLabels} />
 				</div>
 			</div>
 			<div data-ly-toolbar-middle className="relative flex h-full min-w-0 flex-1 items-center gap-1.5 pl-3.5">

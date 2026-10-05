@@ -164,10 +164,26 @@
   background: var(--color-shell);
 }
 
-/* The sidebar's column: a shade off the content, and the hairline that divides the two. */
+/*
+ * The sidebar's column: a shade off the content, and the hairline that divides the two.
+ *
+ * The hairline is drawn over the column's last pixel rather than taking one of its own. As a border it
+ * took that pixel from the list: at its narrowest the column held 239px of the 240 its tab strip is
+ * laid out for (`SIDEBAR_MIN`).
+ */
 .ly-nav-column {
-  border-right: 1px solid var(--ly-frame-line);
+  position: relative;
   background: color-mix(in oklab, var(--color-shell) 60%, var(--color-sidebar));
+}
+
+.ly-nav-column::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 2;
+  width: 1px;
+  background: var(--ly-frame-line);
+  pointer-events: none;
 }
 
 .ly-nav-column .ly-sidebar-fill {
