@@ -9,6 +9,11 @@ import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { kinds, lift } from "../../src/features/dock/tree.ts";
 import { flushTree, paneStorageKey, readTree } from "../../src/features/dock/persist.ts";
 import { mount, press } from "../helpers/mount.ts";
+import { DEFAULT_SETTINGS } from "@lyra/core";
+import { useApp } from "../../src/store/index.ts";
+
+// Dragging panels exists only in the split layout; the tabs layout has no grip.
+useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "split" } } });
 
 /** One screen, the way `SplitPane` draws it: the conversation's own title bar, then its body. */
 function screen(scope: string, children: React.ReactNode, header: () => React.ReactNode = () => null) {

@@ -520,7 +520,7 @@ export function UserMessage({
           <BubbleText
             text={text}
             files={spokenFiles}
-            className="text-body leading-relaxed text-ink"
+            className="text-label leading-6 text-ink"
             renderText={(plain) => <Markdown text={plain} />}
             renderFile={(file, at) => {
               const segment = { file };
@@ -628,7 +628,7 @@ export function UserMessage({
               onConfirm: run,
             });
           }}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
+          className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <Undo2 size={12.5} strokeWidth={1.8} />
         </button>
@@ -641,7 +641,7 @@ export function UserMessage({
             setDraft(text);
             setEditing(true);
           }}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
+          className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <Pencil size={12.5} strokeWidth={1.8} />
         </button>

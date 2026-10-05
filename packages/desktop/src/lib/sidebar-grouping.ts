@@ -2,16 +2,16 @@
  * Turning a flat list of sessions into the sidebar's three lists.
  *
  * Pure, and separate from the pane that renders it, because the rules are the sort you want to be
- * able to state and check: a project keeps its configured order, a project with no sessions is
- * only worth a row when it was pinned, and searching filters sessions without dissolving the
- * projects they belong to.
+ * able to state and check: a project keeps its configured order, a project that never had a session
+ * takes a row when it is pinned or where asked to, and searching filters sessions without dissolving
+ * the projects they belong to.
  */
 
-import { translate } from "../../i18n/translate.ts";
+import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { projectFolders } from "@lyra/core/project-folders";
-import { orderedSessions, type SessionSortKey } from "../../lib/sidebar-order.ts";
-import { isDescendantPath } from "../../lib/paths.ts";
+import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
+import { isDescendantPath } from "./paths.ts";
 
 export interface Group {
 	path: string;
@@ -75,6 +75,14 @@ export function groupSessions(
 	emptied: ReadonlySet<string> = new Set(),
 	/** Whether an emptied project should fold away with its conversations; see `hideEmptiedProjects`. */
 	hideEmptied = false,
+	/**
+	 * Whether a registered project that never had a conversation takes a row.
+	 *
+	 * Off by default because the archive groups the same way, and there a project with nothing filed
+	 * is not something to show. The ordinary list turns it on: a project just created has no
+	 * conversation yet, and hiding it left nowhere to click to start the first one.
+	 */
+	showUnused = false,
 ): Grouped {
 	const needle = query.trim().toLowerCase();
 	const filtered = needle ? sessions.filter((s) => s.title.toLowerCase().includes(needle)) : sessions;
@@ -137,11 +145,11 @@ export function groupSessions(
 			 * `hideEmptiedProjects`；默认不打开，因为一个登记过的项目突然从侧边栏消失，比多留
 			 * 一行更让人找不着北。
 			 *
-			 * 另一种是「一条会话都没有过」，那是刚加进列表的项目，藏起来就没地方点着开第一条了。
-			 * 这一条按老规矩：只有置顶的才值得占一行。
+			 * 另一种是「一条会话都没有过」，多半是刚建好的项目：置顶的照旧占一行，其余由 `showUnused`
+			 * 决定。搜索时不占行：它没有会话可以匹配，列出来只是一排和搜索词无关的空项目。
 			 */
 			if (emptied.has(group.path)) return !hideEmptied;
-			return pinnedPaths.has(group.path);
+			return pinnedPaths.has(group.path) || (showUnused && !needle);
 		})
 		.sort((a, b) => (order.get(a.path) ?? 999) - (order.get(b.path) ?? 999));
 
@@ -151,6 +159,20 @@ export function groupSessions(
 		projects: all.filter((g) => !pinnedPaths.has(g.path)),
 		loose: loose.sort((a, b) => b.updatedAt - a.updatedAt),
 	};
+}
+
+/**
+ * Projects whose conversations are all in the archive.
+ *
+ * Takes both halves because the question — "did this project have conversations before they were
+ * archived?" — cannot be answered from either alone: `listable` is what the list shows and
+ * `archived` is what it does not.
+ */
+export function emptiedProjects(listable: SessionMeta[], archived: SessionMeta[]): Set<string> {
+	const live = new Set(listable.map((s) => s.cwd));
+	const out = new Set<string>();
+	for (const session of archived) if (!live.has(session.cwd)) out.add(session.cwd);
+	return out;
 }
 
 /**

@@ -223,7 +223,7 @@ function TaskCard({
 							setTimeout(() => setRunning(false), 1500);
 						}
 					}}
-					className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
+					className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
 				>
 					<Play size={12} strokeWidth={2} />
 				</button>
@@ -270,7 +270,7 @@ function TaskCard({
 										schedule: kind === "daily" ? { kind: "daily", time: "09:00" } : { kind: "interval", minutes: 60 },
 									})
 								}
-								className={`h-[26px] rounded-md px-3 text-detail transition-colors ${
+								className={`h-[26px] rounded-lg px-3 text-detail transition-colors ${
 									task.schedule.kind === kind ? "bg-elevated text-ink" : "text-ink-muted hover:text-ink"
 								}`}
 							>

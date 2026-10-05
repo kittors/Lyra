@@ -130,7 +130,7 @@ export function SheetView({ path }: { path: string }) {
 						key={entry.name}
 						type="button"
 						onClick={() => setActive(index)}
-						className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-caption transition-colors ${
+						className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-caption transition-colors ${
 							index === active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
 						}`}
 					>

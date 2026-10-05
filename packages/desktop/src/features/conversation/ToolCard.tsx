@@ -18,8 +18,11 @@ import {
 	Terminal,
 	Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
+import { Collapse } from "../../ui/layout/Collapse.tsx";
+import { FlowRow } from "./FlowRow.tsx";
+import { useCallChain } from "./call-chain.ts";
 import { CodeText } from "./detail/CodeText.tsx";
 import { Section } from "./detail/Section.tsx";
 import { DiffView } from "../git/index.ts";
@@ -107,116 +110,165 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 		return () => clearInterval(timer);
 	}, [running, since]);
 
-	return (
-		<div
-			data-ly-avatar-host={mark ? "" : undefined}
-			className={`ly-enter overflow-hidden rounded-[10px] border transition-colors duration-[var(--ly-t-base)] ${
-				running && !pending ? "ly-rail border-info/30 bg-card/60" : "border-line-soft bg-card/45"
-			}`}
-		>
-			<button
-				type="button"
-				aria-expanded={onOpen ? undefined : open}
-				aria-label={onOpen ? openLabel : undefined}
-				data-ly-tip={onOpen ? openLabel : undefined}
-				onClick={() => (onOpen ? onOpen() : setOpen((v) => !v))}
-				className="ly-scroll flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/50"
-			>
-				{mark ?? <ToolMark mark={mcpMark} Icon={Icon} running={running} />}
-				<span
-					className={`min-w-0 flex-1 truncate text-label transition-colors duration-[var(--ly-t-base)] ${
-						running && !pending ? "text-ink" : "text-ink-muted"
-					}`}
+	const live = running && !pending;
+	const chain = useCallChain();
+
+	// What opens under the call, in either layout.
+	const body = hasDiff ? (
+		<DiffView hunks={details?.hunks as DiffHunk[]} path={String(details?.path ?? "")} showPath />
+	) : (
+		<>
+			{/*
+			 * A command is shown as a command, not as a field in a JSON object.
+			 *
+			 * What was run is the thing you check first when something looks wrong, and
+			 * `{"command": "cd … && npm install …", "timeout": 300000}` makes you read
+			 * around the syntax to find it. The rest of the arguments still print as
+			 * JSON below, because for every other tool that is the honest shape.
+			 */}
+			{typeof args.command === "string" && (
+				<Section title={t("commands.title")} mono tone="ink">
+					<span className="mr-2 select-none text-ink-faint">$</span>
+					<CodeText text={args.command} kind="shell" />
+				</Section>
+			)}
+			{Object.keys(rest).length > 0 && (
+				<Section title={t("mcp.args")} mono>
+					<CodeText text={JSON.stringify(rest, null, 2)} kind="json" />
+				</Section>
+			)}
+			{/*
+			 * Silence is a state too.
+			 *
+			 * A long install prints nothing for minutes while it downloads, and a card
+			 * with a command and no output section looks like a card that has lost its
+			 * output. Saying so is the difference between waiting and wondering.
+			 */}
+			{!result && running && (
+				<Section title={t("toolCard.outputRunning")} mono>
+					<span className="text-ink-faint">{t("toolCard.waiting")}</span>
+				</Section>
+			)}
+			{result && (
+				<Section
+					title={stopped ? t("toolCard.stopped") : failed ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
+					mono
+					tone={failed ? "danger" : "muted"}
 				>
-					{summary}
-				</span>
-				{aside}
+					<Scroller className="max-h-[420px]" overscroll="auto">
+						{resultText(result)}
+					</Scroller>
+				</Section>
+			)}
+		</>
+	);
 
-				{running && pending && <span className="shrink-0 text-caption text-ink-faint">{pending}</span>}
-				{running && !pending && (
-					<span className="flex shrink-0 items-center gap-1.5 text-caption text-info/80">
-						{elapsed > 0 && <span className="tabular-nums">{elapsed}s</span>}
-						<StatusSpinner size={12} />
+	if (chain === "expanded") {
+		// The earlier layout (Settings › Appearance › Tool calls › Expanded): a bordered card with a spinner and a tick.
+		return (
+			<div
+				data-ly-avatar-host={mark ? "" : undefined}
+				data-ly-tool={status}
+				className={`ly-enter overflow-hidden rounded-[10px] border transition-colors duration-[var(--ly-t-base)] ${
+					live ? "ly-rail border-info/30 bg-card/60" : "border-line-soft bg-card/45"
+				}`}
+			>
+				<button
+					type="button"
+					aria-expanded={onOpen ? undefined : open}
+					aria-label={onOpen ? openLabel : undefined}
+					data-ly-tip={onOpen ? openLabel : undefined}
+					onClick={() => (onOpen ? onOpen() : setOpen((v) => !v))}
+					className="ly-scroll flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/50"
+				>
+					{mark ?? <ToolMark mark={mcpMark} Icon={Icon} running={running} size={14} />}
+					<span className={`min-w-0 flex-1 truncate text-label transition-colors duration-[var(--ly-t-base)] ${live ? "text-ink" : "text-ink-faint"}`}>
+						{summary}
 					</span>
-				)}
-				{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-ok/75" />}
-				{failed && <CircleX size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-danger/85" />}
-				{stopped && (
-					<span data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className="ly-pop flex shrink-0 text-ink-faint">
-						<Ban size={13} strokeWidth={1.9} aria-hidden />
-					</span>
-				)}
+					{aside}
 
-				{hasDiff && (
-					<span className="ly-pop shrink-0 font-mono text-caption">
-						<span className="text-ok">+{String(details?.added ?? 0)}</span>{" "}
-						<span className="text-danger">-{String(details?.removed ?? 0)}</span>
-					</span>
-				)}
-
-				{onOpen ? (
-					<ArrowUpRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" aria-hidden />
-				) : (
-					<ChevronRight
-						size={13}
-						strokeWidth={2}
-						className="shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-base)]"
-						style={open ? { transform: "rotate(90deg)" } : undefined}
-					/>
-				)}
-			</button>
-
-			{open && !onOpen && (
-				<div className="ly-enter border-t border-line-soft">
-					{hasDiff ? (
-						<DiffView hunks={details?.hunks as DiffHunk[]} path={String(details?.path ?? "")} showPath />
-					) : (
-						<>
-							{/*
-							 * A command is shown as a command, not as a field in a JSON object.
-							 *
-							 * What was run is the thing you check first when something looks wrong, and
-							 * `{"command": "cd … && npm install …", "timeout": 300000}` makes you read
-							 * around the syntax to find it. The rest of the arguments still print as
-							 * JSON below, because for every other tool that is the honest shape.
-							 */}
-							{typeof args.command === "string" && (
-								<Section title={t("commands.title")} mono tone="ink">
-									<span className="mr-2 select-none text-ink-faint">$</span>
-									<CodeText text={args.command} kind="shell" />
-								</Section>
-							)}
-							{Object.keys(rest).length > 0 && (
-								<Section title={t("mcp.args")} mono>
-									<CodeText text={JSON.stringify(rest, null, 2)} kind="json" />
-								</Section>
-							)}
-							{/*
-							 * Silence is a state too.
-							 *
-							 * A long install prints nothing for minutes while it downloads, and a card
-							 * with a command and no output section looks like a card that has lost its
-							 * output. Saying so is the difference between waiting and wondering.
-							 */}
-							{!result && running && (
-								<Section title={t("toolCard.outputRunning")} mono>
-									<span className="text-ink-faint">{t("toolCard.waiting")}</span>
-								</Section>
-							)}
-							{result && (
-								<Section
-									title={stopped ? t("toolCard.stopped") : failed ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
-									mono
-									tone={failed ? "danger" : "muted"}
-								>
-									<Scroller className="max-h-[420px]" overscroll="auto">
-										{resultText(result)}
-									</Scroller>
-								</Section>
-							)}
-						</>
+					{running && pending && <span className="shrink-0 text-caption text-ink-faint">{pending}</span>}
+					{live && (
+						<span className="flex shrink-0 items-center gap-1.5 text-caption text-info/80">
+							{elapsed > 0 && <span className="tabular-nums">{elapsed}s</span>}
+							<StatusSpinner size={12} />
+						</span>
 					)}
-				</div>
+					{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-ok/75" />}
+					{failed && <CircleX size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-danger/85" />}
+					{stopped && (
+						<span data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className="ly-pop flex shrink-0 text-ink-faint">
+							<Ban size={13} strokeWidth={1.9} aria-hidden />
+						</span>
+					)}
+
+					{hasDiff && (
+						<span className="ly-pop shrink-0 font-mono text-caption">
+							<span className="text-ok">+{String(details?.added ?? 0)}</span>{" "}
+							<span className="text-danger">-{String(details?.removed ?? 0)}</span>
+						</span>
+					)}
+
+					{onOpen ? (
+						<ArrowUpRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" aria-hidden />
+					) : (
+						<ChevronRight
+							size={13}
+							strokeWidth={2}
+							className="shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-base)]"
+							style={open ? { transform: "rotate(90deg)" } : undefined}
+						/>
+					)}
+				</button>
+
+				{open && !onOpen && <div className="ly-enter border-t border-line-soft">{body}</div>}
+			</div>
+		);
+	}
+
+	const notes = [
+		aside ? <Fragment key="aside">{aside}</Fragment> : null,
+		running && pending ? <span key="pending" className="text-caption text-ink-faint">{pending}</span> : null,
+		live && elapsed > 0 ? <span key="elapsed" className="tabular-nums text-caption">{elapsed}s</span> : null,
+		failed ? <CircleX key="failed" size={13} strokeWidth={1.9} className="ly-pop text-danger/85" /> : null,
+		stopped ? (
+			<span key="stopped" data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className="ly-pop flex">
+				<Ban size={13} strokeWidth={1.9} aria-hidden />
+			</span>
+		) : null,
+		hasDiff ? (
+			<span key="diff" className="ly-pop font-mono text-caption">
+				<span className="text-ok">+{String(details?.added ?? 0)}</span> <span className="text-danger">-{String(details?.removed ?? 0)}</span>
+			</span>
+		) : null,
+		onOpen ? <ArrowUpRight key="open" size={12} strokeWidth={2} aria-hidden /> : null,
+	].filter(Boolean);
+
+	/*
+	 * One call is one line, the same skeleton as the thinking and turn lines around it (`FlowRow`).
+	 *
+	 * The bordered card above, inside an open turn, made a stack of boxes between lines of prose.
+	 * Running is said the way every other row says it — the glide on the words, plus the seconds —
+	 * and done is the quiet state; failure and stopping still carry their marks. The details open in
+	 * a framed box under the line.
+	 */
+	return (
+		<div data-ly-avatar-host={mark ? "" : undefined} data-ly-tool={status} className="ly-enter">
+			<FlowRow
+				icon={mark ?? <ToolMark mark={mcpMark} Icon={Icon} />}
+				summary={summary}
+				running={live}
+				trailing={notes.length > 0 ? <span className="flex items-center gap-2">{notes}</span> : undefined}
+				open={onOpen ? undefined : open}
+				onToggle={() => (onOpen ? onOpen() : setOpen((v) => !v))}
+				label={onOpen ? openLabel : undefined}
+				data-ly-tip={onOpen ? openLabel : undefined}
+			/>
+
+			{!onOpen && (
+				<Collapse open={open} bodyClassName="pt-1.5 pl-[22px]">
+					<div className="overflow-hidden rounded-[10px] border border-line-soft bg-card/45">{body}</div>
+				</Collapse>
 			)}
 		</div>
 	);
@@ -233,16 +285,18 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
  * tile treatment the catalogue uses would make the busiest thing in a transcript the logo of
  * whatever the model happened to call.
  */
-function ToolMark({ mark, Icon, running }: { mark: McpMark | null; Icon: typeof FileText; running: boolean }) {
+function ToolMark({ mark, Icon, running, size = 13 }: { mark: McpMark | null; Icon: typeof FileText; running?: boolean; size?: number }) {
 	const tint = safeColour(mark?.brandColor);
+	// Only the bordered card passes `running`: it pulses the mark. A row says running with its glide.
+	const card = running !== undefined;
 
 	if (mark?.logo) {
 		return (
 			<img
 				src={mark.logo}
 				alt=""
-				width={14}
-				height={14}
+				width={size}
+				height={size}
 				className={`shrink-0 rounded-[3px] object-cover transition-opacity duration-[var(--ly-t-base)] ${running ? "ly-pulse" : "opacity-90"}`}
 			/>
 		);
@@ -250,13 +304,13 @@ function ToolMark({ mark, Icon, running }: { mark: McpMark | null; Icon: typeof 
 
 	return (
 		<Icon
-			size={14}
+			size={size}
 			strokeWidth={1.8}
 			aria-label={mark ? translate("toolCard.mcpServer", { name: mark.name }) : undefined}
 			// A server that declared a colour and shipped no picture is still told apart from the next
 			// one. Only while idle: the running state is the app speaking, and it owns that colour.
 			style={tint && !running ? { color: tint } : undefined}
-			className={`shrink-0 transition-colors duration-[var(--ly-t-base)] ${running ? "ly-pulse text-info" : "text-ink-faint"}`}
+			className={card ? `shrink-0 transition-colors duration-[var(--ly-t-base)] ${running ? "ly-pulse text-info" : "text-ink-faint"}` : "shrink-0"}
 		/>
 	);
 }

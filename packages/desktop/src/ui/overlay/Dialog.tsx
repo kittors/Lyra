@@ -99,29 +99,35 @@ export function DialogFrame({
 			className={`flex min-h-0 flex-col ${className}`}
 			{...rest}
 		>
-			<div className="shrink-0 px-6 pt-6">
-				<h2 className="flex items-center gap-2.5 text-body font-semibold text-ink" data-dialog-title>
+			<div className="shrink-0 px-5 pt-5">
+				<h2 className="flex items-center gap-2.5 text-label font-medium text-ink" data-dialog-title>
 					{icon}
 					{title}
 				</h2>
 				{detail ? <div className="mt-3 text-label leading-relaxed text-ink-muted">{detail}</div> : null}
 			</div>
 			{(status || children) ? (
-				<div className={`flex min-h-0 flex-col px-6 pt-4 ${locked ? "flex-1" : ""}`}>
+				<div className={`flex min-h-0 flex-col px-5 pt-4 ${locked ? "flex-1" : ""}`}>
 					{status}
 					{children ? (
 						/*
-						 * 滚动面伸进两侧的边距，视口再用同样的内衬收回来。
+						 * The scroll area reaches into the margins on both sides, and the viewport takes them back
+						 * with the same inset.
 						 *
-						 * 滑块是叠在内容上的（见 `Scroller`），而这里内容的右缘原来就是滚动面的右缘——于是右
-						 * 对齐的那一列正好落在滑块底下：拉取模型弹窗里每行末尾的「200K」被盖掉半个字。
+						 * The thumb is laid over the content (see `Scroller`), and the content's right edge used to
+						 * be the scroll area's right edge — so the right-aligned column sat exactly under the thumb:
+						 * the 「200K」 at the end of each row in the fetch-models dialog lost half a character to it.
 						 *
-						 * 不学菜单那样给视口加右内衬（`.ly-menu-scroll`）：那会让列表比上面的状态行窄一截，
-						 * 右对齐的列和「全选」就错开了。这样伸出去再收回来，内容的位置和宽度一点不变，有没有
-						 * 滚动条都不重排，滑块落在右边距里。两侧对称，是因为行和控件比字宽出去的底色、聚焦环
-						 * 以前被滚动面按内容区裁掉了，现在两边都画得出来。
+						 * Not a right inset on the viewport as menus have (`.ly-menu-scroll`): that would make the
+						 * list narrower than the status row above it, and the right-aligned column would stop lining
+						 * up with 「全选」. Reaching out and taking it back leaves the content's position and width
+						 * unchanged, nothing reflows with or without a scrollbar, and the thumb lands in the right
+						 * margin. Both sides, because the fills and focus rings that rows and controls draw wider
+						 * than their text used to be clipped by the scroll area to the content box; now either side
+						 * can draw them.
 						 *
-						 * 20 而不是 24：滑块离卡片边缘留 6px；行底色宽出去的 10px 和滑块之间还剩 2px。
+						 * It reaches out by exactly the whole margin (20): the thumb is 2px from the card's edge,
+						 * and 2px remain between it and the 10px a row's fill extends past the text.
 						 */
 						<Scroller
 							top="fade"
@@ -134,7 +140,7 @@ export function DialogFrame({
 					) : null}
 				</div>
 			) : null}
-			<div className="flex shrink-0 items-center gap-2 px-6 pt-5 pb-6" data-ly-dialog-actions>
+			<div className="flex shrink-0 items-center gap-2 px-5 pt-5 pb-5" data-ly-dialog-actions>
 				{actions}
 			</div>
 		</div>

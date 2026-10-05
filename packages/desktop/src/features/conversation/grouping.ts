@@ -639,19 +639,23 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 }
 
 /**
- * 一整轮的过程，和它最后说出口的那句话，分开。
+ * A turn's process, kept apart from what it says.
  *
- * 一轮读下来是「想 → 做 → 说」：模型先推理，然后调命令、读文件、跑技能，全部做完了才给出真正的
- * 回答。前两步是过程——它值得看，但看过一次之后，翻回一段旧对话时四十行工具卡片挡在答案前面，
- * 就只是噪音了。所以过程可以收成一行，而那句回答永远在外面。
+ * A turn reads "think → do → say": the model reasons, runs commands, reads files, uses skills, and stops
+ * to say something along the way. Reasoning and tools are the process — worth seeing, but once seen,
+ * forty tool cards in front of an old conversation are only noise. So the process can fold into one
+ * line, while what is said always stays outside.
  *
- * 「最后那句话」的定义就是字面意思：这一轮里**最后一条带正文的助手消息**。中间那些「我先看一下
- * 配置」属于过程——它们是在解说自己正在做什么，不是结论。
+ * What folds is **one continuous stretch** of process, not the whole turn. The 「已定位到两个原因……」
+ * along the way are the model reporting to a person; folded in with the whole turn, only the last
+ * sentence would stay visible and every report before it would be hidden. So what is said cuts the
+ * process into stretches, each with a line of its own.
  *
- * 在 Run 这一层分，不在渲染时分：这是一条关于转录形状的规则，规则性的东西要能单独测。
+ * Split at the level of runs, not while rendering: it is a rule about the transcript's shape, and rules
+ * need to be testable on their own.
  */
 export interface TurnBlock {
-	/** 一整轮的过程，收得起来。 */
+	/** One continuous stretch of process, which can fold. */
 	kind: "process" | "plain";
 	runs: Run[];
 	/** 过程里有什么，用来写那一行摘要。 */
@@ -666,11 +670,24 @@ export interface TurnBlock {
 	turn: number;
 }
 
-/** 这一条 run 是不是「过程」——相对于「最后说出口的那句话」。 */
+/** Whether this run is process — as opposed to what is said. */
 function isProcess(run: Run): boolean {
 	if (run.kind === "tools" || run.kind === "hiccup" || run.kind === "compaction") return true;
 	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
-	return run.kind === "message" && run.lead === true;
+	return run.kind === "message" && (run.lead === true || thinkingOnly(run));
+}
+
+/**
+ * A reply row that is nothing but reasoning — a reply that thought and then only called tools.
+ *
+ * It gets no `lead` (there is no prose row below it to lead into), so it used to count as an
+ * answer: drawn outside the fold and missing from the turn line's tally of thoughts. Rows with no
+ * reasoning in them stay out of this, above all the empty row that is a failure's only trace.
+ */
+function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
+	if (run.message.role !== "assistant") return false;
+	const own = run.message.content.slice(run.from ?? 0, run.upTo);
+	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
@@ -685,54 +702,33 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 
 	let at = 0;
 	while (at < list.length) {
-		if (opensBlock(list[at])) {
-			turn++;
-			plain(list[at++]);
+		const run = list[at];
+		if (opensBlock(run)) turn++;
+		if (!isProcess(run)) {
+			plain(run);
+			at++;
 			continue;
 		}
-		/*
-		 * 从这里到这一轮结束，先框出来，再决定哪一段是过程。
-		 *
-		 * 边界是下一次「人开的口」——不是下一条助手消息：一轮里助手会说很多次话。
-		 */
+		// A stretch of process runs until the next thing said (or the next time a person speaks).
 		let end = at;
-		while (end < list.length && !opensBlock(list[end])) end++;
+		while (end < list.length && isProcess(list[end])) end++;
 
 		/*
-		 * 最后一条带正文的助手消息，就是这一轮的回答。它和它后面的一切都留在外面。
-		 *
-		 * 找不到（还在跑、或者这一轮只有工具活）时，过程就一直延伸到边界——正在跑的那一轮本来就
-		 * 该全程看得见，而 `TurnProcess` 只在收起时才折叠。
+		 * A stretch with only markers such as a reconnect or a compaction, and not one reasoning step or tool,
+		 * is not worth a "thought for a while" line — it is laid out as it is.
 		 */
-		let answer = end;
-		for (let n = end - 1; n >= at; n--) {
-			const run = list[n];
-			if (run.kind === "message" && run.message.role === "assistant" && !isProcess(run)) {
-				answer = n;
-				break;
-			}
-		}
-
-		/*
-		 * 过程之间夹着的助手解说（「我先看一下配置」）也归过程。
-		 *
-		 * 它们是在说自己正在做什么，不是结论——所以整段按位置原样收进去，只有计数只算真正的过程行。
-		 */
-		const body = list.slice(at, answer);
-		const process = body.filter(isProcess);
-		if (process.length > 0) {
+		const body = list.slice(at, end);
+		if (body.some((item) => item.kind === "tools" || item.kind === "message")) {
 			out.push({
 				kind: "process",
 				runs: body,
 				counts: {
-					tools: process.reduce((n, run) => n + (run.kind === "tools" ? run.calls.length : 0), 0),
-					thinking: process.filter((run) => run.kind === "message" && run.lead === true).length,
+					tools: body.reduce((n, item) => n + (item.kind === "tools" ? item.calls.length : 0), 0),
+					thinking: body.filter((item) => item.kind === "message").length,
 				},
 				turn,
 			});
-		} else for (const run of body) plain(run);
-
-		for (let n = answer; n < end; n++) plain(list[n]);
+		} else for (const item of body) plain(item);
 		at = end;
 	}
 	return out;

@@ -198,7 +198,7 @@ export function WorktreesSettings() {
 					aria-label={translate("common.refresh")}
 					onClick={() => void refreshList()}
 					disabled={refreshing}
-					className="grid h-6 w-6 place-items-center rounded text-ink-muted hover:text-ink"
+					className="grid h-6 w-6 place-items-center rounded-lg text-ink-muted hover:text-ink"
 				>
 					{refreshing ? <ActionSpinner size={12} /> : <RefreshCw size={12} aria-hidden />}
 				</button>
@@ -228,7 +228,7 @@ export function WorktreesSettings() {
 								<button
 									type="button"
 									onClick={() => void bridge.workspace.reveal(tree.path)}
-									className="rounded-md px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+									className="rounded-lg px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 									data-ly-tip={revealLabel}
 									aria-label={revealLabel}>
 									<FolderOpen size={13} strokeWidth={1.8} />
@@ -237,7 +237,7 @@ export function WorktreesSettings() {
 									type="button"
 									disabled={deletingPath === tree.path}
 									onClick={() => void removeTree(tree.repoPath, tree.path)}
-									className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-card-hover hover:text-red-500 disabled:opacity-50"
+									className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-card-hover hover:text-red-500 disabled:opacity-50"
 									aria-label={t("worktrees.delete")}
 									data-ly-tip={t("worktrees.delete")}
 								>

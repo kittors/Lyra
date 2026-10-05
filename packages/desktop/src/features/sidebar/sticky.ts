@@ -9,8 +9,10 @@
  * An earlier version placed the rows by hand, outside the scroller's mask, so they needed no fill
  * of their own and the translucent pane stayed translucent. It worked and it was wrong: the list
  * scrolls on the compositor and the placement ran on the main thread, so every pinned row sat one
- * wheel tick behind the list — measured at 14px of wobble on a trackpad. Pinned rows carry an
- * opaque fill now, and this number is all that is left.
+ * wheel tick behind the list — measured at 14px of wobble on a trackpad. Pinned rows stay inside
+ * the scroller now, and this number is all that is left: the mask softens below it, and the list
+ * rows fade out against it before they slide under a pinned row (`ly-under-pin`), since the pinned
+ * rows have no fill to hide them — the pane is translucent on macOS.
  *
  * Being a frame late here costs nothing, which is the point of the split: the rows are placed by
  * CSS and cannot lag, and a fade whose start is a few pixels stale is a gradient in a slightly
@@ -33,23 +35,6 @@ export interface StickyRow {
  * makes them differ in the ninth decimal.
  */
 const EPSILON = 0.5;
-
-/**
- * Whether this row is currently being held rather than travelling with the list.
- *
- * A row counts once it has reached its rail — at or above it, which also covers the one being
- * pushed out by the next, since that travels upwards past its rail on the way out. A row still
- * arriving is not being held and covers nothing; it is part of the list, and the list is what the
- * fade is for.
- *
- * Asked twice, for two different reasons. The fade needs the depth below; the row itself needs to
- * know because being held is the only moment it may draw a fill — see `.ly-pin` and `data-ly-stuck`.
- * A row flowing with the list has nothing to hide and an opaque backing on it is just a band of the
- * wrong colour laid across a translucent pane.
- */
-export function isPinned(row: StickyRow): boolean {
-	return row.top <= row.rail + EPSILON;
-}
 
 /**
  * The band the list must not be softened through, as a top and an underside.
@@ -126,7 +111,7 @@ export function heldBand(rows: StickyRow[], fade: number): HeldBand {
  * The underside of the pinned band: the lowest edge of everything that has actually landed.
  *
  * `heldBand` with no fade to allow for — the same question this always asked, kept because it is
- * the one the tests are written against and the one `isPinned` agrees with row by row.
+ * the one the tests are written against.
  */
 export function pinnedDepth(rows: StickyRow[]): number {
 	// The lower of the two runs, on the rare frame where landed rows are not touching.

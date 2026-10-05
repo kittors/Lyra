@@ -47,16 +47,13 @@
  *
  * Put it on the element that sticks, and let the row inside it keep the radius.
  *
- * The variable is there for a panel that is not the usual colour: set `--ly-behind` on the scroll
- * container and the backing follows it, rather than every such panel needing its own rule.
- *
- * Unconditional here because the panels that use it — a diff's file headings, a detail card — are
+ * Unconditional because the panels that use it — a diff's file headings, a detail card — are
  * opaque, so a backing that matches them is invisible whether the row is held or not. The sidebar
- * is the one place that is not true; it narrows this to the moment the row is actually held, and
- * the rule is with the rest of that pane.
+ * does not use it: that pane is translucent on macOS, so its list fades out before reaching a held
+ * row instead (`ly-under-pin`).
  */
 .ly-pin {
-  background: var(--ly-behind, var(--color-shell));
+  background: var(--color-shell);
 }
 
 .ly-pulse {

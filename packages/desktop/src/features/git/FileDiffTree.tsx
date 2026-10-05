@@ -114,7 +114,7 @@ export function FileDiffTree({
 							type="button"
 							onClick={() => toggleFolder(node.path)}
 							style={{ paddingLeft: `${Math.max(4, depth * 14)}px` }}
-							className="flex w-full items-center gap-1.5 rounded-md py-1 pr-1 text-left text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="flex w-full items-center gap-1.5 rounded-lg py-1 pr-1 text-left text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
 							<Caret open={isExpanded} from="right" size={11} strokeWidth={2} className="text-ink-faint" />
 							{isExpanded ? (

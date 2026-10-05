@@ -25,9 +25,9 @@
    */
   --color-line-float: #3a3a3a;
 
-  --color-ink: #ededed;
-  --color-ink-muted: #9a9a9a;
-  --color-ink-faint: #6e6e6e;
+  --color-ink: #d4d4d4;
+  --color-ink-muted: #888;
+  --color-ink-faint: #505050;
 
   /* Overwritten from Settings at boot; this is only what the first frame paints with. */
   --color-accent: #339cff;
@@ -77,18 +77,20 @@
   --radius-field: 999px;
   --ly-control: 34px;
   /*
-   * Floating menus are a soft card, and the hover follows the card.
+   * Floating menus are a card with rows inside it.
    *
-   * 16px stays a card at one row and at ten. The inset is the same on every
-   * side so a hover fill is not closer to the left edge than the right. The
-   * row radius is that leftover (16 − 6): an active row and the card share
-   * one curve instead of a pill sitting inside a box. 999 was the other
-   * language, and it read as two menus glued together.
+   * The inset is the same on every side so a hover fill is not closer to the
+   * left edge than the right. 999 was the other language, and it read as two
+   * menus glued together.
+   *
+   * The numbers: an 8px (`rounded-lg`) card, 6px (`rounded-md`) rows and a 4px inset; a 32px row is about
+   * the 31px that `py-1` and relaxed leading make at 14px. It was a 12 / 8 card and row before, and a
+   * small menu came out soft as a bubble.
    */
-  --radius-menu: 16px;
-  --ly-menu-inset: 6px;
-  --radius-item: 10px;
-  --ly-menu-row: 36px;
+  --radius-menu: 8px;
+  --ly-menu-inset: 4px;
+  --radius-item: 6px;
+  --ly-menu-row: 32px;
   /*
    * Composer chrome. Three numbers, used by every field that looks like the
    * main one: conversation, side chat, sub-agent, commit, the in-place editor.
@@ -113,51 +115,52 @@
   --ly-composer-x: 16px;
   --ly-composer-out: 24px;
   --ly-composer-control: 28px;
-  /* `PANE_INSET` (3) plus the dock card's 1px border. Keep in step with geometry.ts. */
-  --ly-pane-chrome: 4px;
+  /*
+   * The workspace's padding around its docks (`FRAME_PAD` in geometry.ts), and how far a card's
+   * inside stands off the window: that padding, `PANE_INSET` (2) and the card's 1px border. The 4px
+   * between two frames and between a frame and the window. Keep in step with geometry.ts.
+   */
+  --ly-frame-pad: 2px;
+  --ly-pane-chrome: 5px;
 
   /*
-   * Punctuation, then Han, then the platform stack.
+   * Punctuation, then Han, then the platform's own stack.
    *
-   * Menlo and `-apple-system` both ship a handful of CJK punctuation and draw `。` as a
-   * mid-height circle. `Lyra Punct` claims those code points first so the Chinese lower-left
-   * form wins; `Lyra CJK` then takes Han; latin comes from PingFang on a Mac, so both scripts
-   * share one family when no UI font is set.
+   * The platform stack is Tailwind 4.2's default, written out so a Tailwind upgrade cannot move it
+   * (4.3 switched to another one that leads with `-apple-system`): latin in SF Pro on a Mac and Segoe
+   * UI on Windows, as ZCode draws it. The monospace stack names a Chinese face before `monospace`
+   * because Consolas has no Han, and code in Chinese would otherwise fall to SimSun.
    *
-   * Not from YaHei on Windows any more, although that was the same idea. YaHei has 300, 400 and
-   * 700, so the three weights below (base 500, then 600, 700) landed on two, and body, labels and
-   * headings stopped being three levels. Its latin glyphs are Segoe UI's, so Segoe first changes
-   * the weights and not the look: the variable Text cut has every weight, plain Segoe UI has 600.
-   * Linux fell through to DejaVu or Liberation, 400 and 700 only; Noto Sans has the full range, and
-   * Noto Sans CJK SC is the Han face distributions actually install. PingFang still leads, so a
-   * Mac draws exactly what it did. `drawnUiFont` widens the stored default the same way.
+   * The two aliases still lead. Menlo and `-apple-system` both ship a handful of CJK punctuation and
+   * draw `。` as a mid-height circle; `Lyra Punct` claims those code points first so the Chinese
+   * lower-left form wins, and `Lyra CJK` takes Han per locale and platform (see `fonts.css`).
    */
-	--font-sans: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"), "PingFang SC",
-		"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans",
-		"Noto Sans CJK SC", Roboto, sans-serif;
-	--font-mono: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"), "JetBrains Mono Variable",
-		ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace;
+	--font-sans: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"),
+		ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+		"Noto Color Emoji";
+	--font-mono: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"),
+		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+		"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace;
 
   /* -------------------------------------------------------------------------
-   * 字重，三档都从「界面字重」那一个数推出来
+   * Weights, all three steps derived from the one 「界面字重」 number
    *
-   * Tailwind 自己的 `font-medium` / `font-semibold` 是写死的 500 和 600。界面字重因此只能改到
-   * 没人声明字重的那些文字——正文变细了，而它上面的标题还钉在 600。调一格，得到的不是一套更细的
-   * 界面，是一套层级被拉大了的界面；调粗则相反，正文追上标题，层级反而没了。
+   * Tailwind's own `font-medium` / `font-semibold` are a fixed 500 and 600. A base weight on its own
+   * would then only reach text nobody declared a weight for: body text thins while the headings above
+   * it stay at 600, and one notch gives a wider hierarchy rather than a lighter interface.
    *
-   * 所以这里把 Tailwind 这三个变量接过来，按「比基准重一档」重新定义。`font-medium` 仍然是
-   * `font-weight: var(--font-weight-medium)`，值到运行时才解析——调一次基准，正文、`Text.tsx` 里
-   * 配好的 medium 标题、semibold 的页标题一起走，之间的距离不变。这是「基准」两个字的意思。
+   * So the three variables are taken over and defined as "one step above the base". At the default
+   * base of 400 they are exactly Tailwind's 500 / 600 / 700 — the weights ZCode uses — and moving the
+   * base moves the body, the medium headings in `Text.tsx` and the semibold page titles together.
    *
-   * `clamp` 是因为 900 以上不是字重：基准调到 600 的话 semibold 会算到 800，多数字体到那儿已经
-   * 没有对应的字形，浏览器只能合成一个——而合成出来的粗体正是这个界面一直在避免的东西。
-   *
-   * 代码不在里面：`--text-code--weight` 走 `--ly-code-weight`，那是另一个滑条、另一个判断。
+   * `clamp` because above 900 is not a weight: a face with no glyph there gets a synthesised bold,
+   * which is the very thing this interface avoids. Code is not in here: `--text-code--weight` reads
+   * `--ly-code-weight`, a separate slider and a separate judgement.
    * ---------------------------------------------------------------------- */
-  --font-weight-normal: var(--ly-ui-weight, 500);
-  --font-weight-medium: clamp(100, calc(var(--ly-ui-weight, 500) + 100), 900);
-  --font-weight-semibold: clamp(100, calc(var(--ly-ui-weight, 500) + 200), 900);
-  --font-weight-bold: clamp(100, calc(var(--ly-ui-weight, 500) + 300), 900);
+  --font-weight-normal: var(--ly-ui-weight, 400);
+  --font-weight-medium: clamp(100, calc(var(--ly-ui-weight, 400) + 100), 900);
+  --font-weight-semibold: clamp(100, calc(var(--ly-ui-weight, 400) + 200), 900);
+  --font-weight-bold: clamp(100, calc(var(--ly-ui-weight, 400) + 300), 900);
 
   /* -------------------------------------------------------------------------
    * The type scale
@@ -206,7 +209,7 @@
   --text-heading--line-height: 1.3;
   --text-heading--letter-spacing: -0.015em;
 
-  --text-display: calc(var(--ly-ui-size, 14px) + 13px);
+  --text-display: calc(var(--ly-ui-size, 14px) + 16px);
   --text-display--line-height: 1.2;
   --text-display--letter-spacing: -0.022em;
 

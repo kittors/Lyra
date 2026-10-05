@@ -23,6 +23,15 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 	 * so only when the section existed at all, which is what took a while to see.
 	 *
 	 * An open section has nothing to clip, so it does not need to.
+	 *
+	 * Clipped with `overflow: clip`, not `hidden`. `hidden` makes this layer the reference box for the
+	 * sticky rows inside: during the unfold animation a project row wants to stay `--ly-rail` from this
+	 * layer's top, gets pushed to the bottom of its own group on top of the session rows, and jumps back
+	 * only when the clipping is lifted at the end. `clip` clips without scrolling, so sticky rows still
+	 * take the sidebar as their reference.
+	 *
+	 * The cost is that it is not a scroll container: the grid child's minimum height falls back to its
+	 * content height and `0fr` cannot squeeze it, hence the explicit `min-h-0`.
 	 */
 	const [clipped, setClipped] = useState(!open);
 	useEffect(() => {
@@ -46,7 +55,7 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 				if (open && event.propertyName === "grid-template-rows") setClipped(false);
 			}}
 		>
-			<div className={`${clipped ? "overflow-hidden" : ""} ${open ? "" : "pointer-events-none"}`} inert={!open}>
+			<div className={`min-h-0 ${clipped ? "overflow-clip" : ""} ${open ? "" : "pointer-events-none"}`} inert={!open}>
 				{children}
 			</div>
 		</div>

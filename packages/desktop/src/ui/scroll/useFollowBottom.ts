@@ -39,6 +39,42 @@ const GLIDE_MS = 420;
  * 按住。滚一下就作废，所以宁可稍长。
  */
 const HOLD_MS = 900;
+/**
+ * While pinned to the bottom, how much growth is chased rather than jumped to.
+ *
+ * A reply written at the bottom grows the transcript a line at a time (twenty-odd pixels). Writing the
+ * position straight to the bottom each time pushed the whole reply up in steps, one jolt per line.
+ * Growth this small is chased instead: slid to rather than jumped to, so line after line joins into one
+ * steady rise while the new line's characters fade in — the two together are what read as a stream.
+ *
+ * A bigger block (a tool card, an expanded output) is not chased by the spring but slid over
+ * `SWEEP_MS` with an ease-out: from rest, a spring takes nearly half a second to cover a few hundred
+ * pixels. More than a screen (opening a session, a long answer poured in at once) still jumps: sliding
+ * that far is making someone wait.
+ */
+const CHASE_MAX = 200;
+/** How long a growth bigger than `CHASE_MAX`, and no more than a screen, takes to slide over. */
+const SWEEP_MS = 240;
+/**
+ * How fast the chase is: a critically damped spring, and this is its angular frequency (per ms).
+ *
+ * Not the "close a fraction of the remaining distance each frame" ease: with it every new line threw
+ * the speed from zero to its peak and let it decay, one surge per line — measured as 7px in a line's
+ * first frame, then 3, 2, 1. A spring carries its velocity: the next line arrives before the last has
+ * settled and the speed carries on, which joins into one even rise.
+ *
+ * Under steady output it trails the bottom by about `2 × speed / ω`. Slow, that trail is what makes each
+ * line slide softly; fast, a fixed ω falls further and further behind — at a thousand characters a
+ * second the last line was measured nearly 30px under the composer. So ω rises with the recent output
+ * rate to keep the trail around `CHASE_LAG`. The rate is the content's growth, not the spring's own
+ * speed: setting the stiffness from its own speed feeds on itself, and a big block shot hundreds of
+ * pixels in its first frame.
+ */
+const CHASE_OMEGA = 1 / 45;
+/** How far behind the bottom fast output may trail. The transcript keeps a dozen-odd pixels of room below, so text inside this is never covered. */
+const CHASE_LAG = 12;
+/** The window the output rate is estimated over. */
+const FLOW_TAU = 400;
 
 export interface FollowBottom {
 	/** Hand to `Scroller`'s `scrollRef`. */
@@ -105,6 +141,7 @@ export function useFollowBottom({
 	tail,
 	namespace,
 	ready = true,
+	live,
 }: {
 	/** Which conversation, side chat or delegate this is. `null` while there is nothing to show. */
 	surfaceId: string | null;
@@ -116,6 +153,12 @@ export function useFollowBottom({
 	namespace: string;
 	/** A restored offset is meaningful only after this surface's content has arrived. */
 	ready?: boolean;
+	/**
+	 * Whether this transcript is being written right now. Only then is growth output, and only
+	 * output is chased: at rest it is a card or an image landing late — the delivery card fetches
+	 * its files after mount — and sliding for that drags the whole history up from below.
+	 */
+	live: boolean;
 }): FollowBottom {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	/*
@@ -157,10 +200,20 @@ export function useFollowBottom({
 	const written = useRef<number | null>(null);
 	const lastTop = useRef(0);
 	const glide = useRef(0);
+	/** The frame chasing the bottom, and the content and viewport heights at the last pin — what tells "the content grew a little". */
+	const chase = useRef(0);
+	const size = useRef({ content: 0, view: 0 });
+	/** Recent small growth, decaying over `FLOW_TAU`; divided by `FLOW_TAU` it is the output rate (px/ms). */
+	const flow = useRef({ amount: 0, at: 0 });
+	/** The ease-out slide in progress: where and when it started. Its end is the live bottom. */
+	const sweep = useRef<{ from: number; at: number } | null>(null);
 	const restoredSurface = useRef<string | null | undefined>(undefined);
 	const selectedSurface = useRef<string | null | undefined>(undefined);
 	const restore = useRef<FollowSnapshot | undefined>(undefined);
 	const clearWritten = useRef(0);
+	/** Read by `pin`, which is memoised and must not be rebuilt on every token. */
+	const writing = useRef(live);
+	writing.current = live;
 
 	/**
 	 * 手指上一次的位置，给 touchmove 定方向用。
@@ -242,6 +295,98 @@ export function useFollowBottom({
 		// button would be offering to do what is already happening.
 		setAway(state.current === "detached" && isAway(reading));
 	}, []);
+
+	/**
+	 * Take the position to the bottom while following: small growth chased by the spring, larger slid with
+	 * an ease-out, the rest jumped — see `CHASE_MAX`.
+	 *
+	 * Two callers share it: a changed content signature (the layout effect) and a changed size
+	 * (`onResize`). While streaming both arrive every frame, so "already chasing" is itself the reason to
+	 * keep chasing; the second caller must not cut it short into a jump.
+	 *
+	 * A changed viewport is not chased: when the composer grows two lines, the last line has to make room
+	 * at once, or the composer covers it for a while.
+	 */
+	const pin = useCallback(
+		(el: HTMLDivElement) => {
+			const reading = read(el);
+			const grew = reading.scrollHeight - size.current.content;
+			const known = size.current.content > 0;
+			const sameView = reading.clientHeight === size.current.view;
+			size.current = { content: reading.scrollHeight, view: reading.clientHeight };
+			const now = performance.now();
+			flow.current = {
+				amount: flow.current.amount * Math.exp(-(now - flow.current.at) / FLOW_TAU) + (grew > 0 && grew <= CHASE_MAX ? grew : 0),
+				at: now,
+			};
+			const target = targetScrollTop("following", reading);
+			if (target === null) return;
+
+			const moving = chase.current !== 0;
+			const slide =
+				writing.current && known && sameView && grew >= 0 && grew <= reading.clientHeight && target > reading.scrollTop && (moving || grew > 0) && !motionReduced();
+			if (!slide) {
+				cancelAnimationFrame(chase.current);
+				chase.current = 0;
+				sweep.current = null;
+				write(el, target);
+				return;
+			}
+			if (grew > CHASE_MAX) sweep.current = { from: reading.scrollTop, at: now };
+			if (moving) return;
+
+			// The position is kept as a fraction here: the browser rounds `scrollTop` to device pixels, frames
+			// that move less than half a pixel read back unchanged, and continuing from the read-back value would always fall short.
+			let position = reading.scrollTop;
+			let velocity = 0;
+			let last = 0;
+			const step = (now: number) => {
+				chase.current = 0;
+				// The reader scrolled away, is holding something, or the session changed: stop chasing.
+				if (state.current !== "following" || anchor.current || !el.isConnected) {
+					sweep.current = null;
+					return;
+				}
+				const here = read(el);
+				if (isDegenerate(here)) return;
+				// Someone else moved it (a browser clamp, native anchoring): the real position wins.
+				if (Math.abs(here.scrollTop - position) > 1) position = here.scrollTop;
+				// The first frame has nothing to compare with, so it counts as one; a frame back from the background is clamped rather than finishing in one jump.
+				const dt = last ? Math.min(50, Math.max(0, now - last)) : 16;
+				last = now;
+				const end = visualBottom(here);
+				let next: number;
+				const sliding = sweep.current;
+				if (sliding) {
+					// Cubic ease-out, the curve the return-to-bottom uses; it ends at zero speed, so handing back to the spring does not jolt.
+					const progress = Math.min(1, (now - sliding.at) / SWEEP_MS);
+					next = (sliding.from - end) * (1 - progress) ** 3;
+					velocity = 0;
+					if (progress >= 1) sweep.current = null;
+				} else {
+					const rate = (flow.current.amount * Math.exp(-(now - flow.current.at) / FLOW_TAU)) / FLOW_TAU;
+					const omega = Math.max(CHASE_OMEGA, (2 * rate) / CHASE_LAG);
+					// The exact solution of a critically damped spring: no step size overshoots or diverges.
+					const offset = position - end;
+					const decay = Math.exp(-omega * dt);
+					const pull = velocity + omega * offset;
+					next = (offset + pull * dt) * decay;
+					velocity = (velocity - omega * pull * dt) * decay;
+				}
+				if (next >= -0.5) {
+					// One pixel over, so the browser clamps to the true bottom; see `targetScrollTop`.
+					write(el, end + 1);
+					publish(read(el));
+					return;
+				}
+				position = end + next;
+				write(el, position);
+				chase.current = requestAnimationFrame(step);
+			};
+			chase.current = requestAnimationFrame(step);
+		},
+		[write, publish],
+	);
 
 	// ---------------------------------------------------------------------------
 	// The reader's intention
@@ -403,11 +548,10 @@ export function useFollowBottom({
 				publish(read(el));
 				return;
 			}
-			const target = targetScrollTop(state.current, reading);
-			if (target !== null) write(el, target);
+			if (state.current === "following") pin(el);
 			publish(read(el));
 		},
-		[publish, write, ready, surfaceId, settle],
+		[publish, write, ready, surfaceId, settle, pin],
 	);
 
 	/**
@@ -481,6 +625,7 @@ export function useFollowBottom({
 
 	useEffect(() => () => {
 		cancelAnimationFrame(glide.current);
+		cancelAnimationFrame(chase.current);
 		cancelAnimationFrame(clearWritten.current);
 	}, []);
 
@@ -530,6 +675,10 @@ export function useFollowBottom({
 	 */
 	useLayoutEffect(() => {
 		cancelAnimationFrame(glide.current);
+		cancelAnimationFrame(chase.current);
+		chase.current = 0;
+		sweep.current = null;
+		size.current = { content: 0, view: 0 };
 		cancelAnimationFrame(clearWritten.current);
 		written.current = null;
 		touchY.current = 0;
@@ -546,6 +695,8 @@ export function useFollowBottom({
 			// A glide belongs to the outgoing surface. Its intention is saved below, while its frames
 			// must stop before the incoming surface reuses the same state and element refs.
 			cancelAnimationFrame(glide.current);
+			cancelAnimationFrame(chase.current);
+			chase.current = 0;
 			/*
 			 * The position comes from `lastTop`, not from the element.
 			 *
@@ -592,8 +743,7 @@ export function useFollowBottom({
 		}
 
 		if (state.current === "following") {
-			const target = targetScrollTop("following", reading);
-			if (target !== null) write(el, target);
+			pin(el);
 			seen.current = current.current;
 			setUnread(0);
 
@@ -601,7 +751,7 @@ export function useFollowBottom({
 			setUnread(unreadSince(seen.current, current.current));
 		}
 		publish(read(el));
-	}, [count, tail, publish, write, ready, surfaceId]);
+	}, [count, tail, publish, write, ready, surfaceId, pin]);
 
 	const detach = useCallback(() => {
 		cancelAnimationFrame(glide.current);

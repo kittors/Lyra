@@ -80,7 +80,7 @@ function under(id: string, body: ReturnType<typeof h>): Promise<Mounted> {
 test("a finished call under a screen without focus shows its own record, not a failure", async () => {
 	view = await under("b", h(LiveToolCard, { block: ls, stopReason: "toolUse" }));
 	assert.equal(view.all("svg.lucide-circle-x").length, 0, "the finished call was drawn as a failure");
-	assert.equal(view.all("svg.lucide-circle-check").length, 1, "the finished call was not drawn as done");
+	assert.equal(view.find("[data-ly-tool]").getAttribute("data-ly-tool"), "done", "the finished call was not drawn as done");
 	assert.match(view.text(), /bash 的摘要/, "the card lost its own summary");
 });
 

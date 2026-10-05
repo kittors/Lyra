@@ -62,7 +62,7 @@ export function ChangeBar() {
         type="button"
         data-ly-tip={translate("changeBar.uncommitted", { n: stat.files })}
         onClick={openGit}
-        className="ly-scroll flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
+        className="ly-scroll flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
       >
         {/*
          * Travelled to, not jumped to.
@@ -92,7 +92,7 @@ export function ChangeBar() {
         type="button"
         data-ly-tip={translate("changeBar.openGit")}
         onClick={openGit}
-        className="grid place-items-center h-[26px] shrink-0 rounded-md text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[26px]"
+        className="grid place-items-center h-[26px] shrink-0 rounded-lg text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[26px]"
 			aria-label={translate("commit.commit")}
 		><GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" /></button>
     </>

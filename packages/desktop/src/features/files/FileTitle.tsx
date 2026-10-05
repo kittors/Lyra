@@ -79,7 +79,7 @@ export function FileTitle() {
 			<button
 				type="button"
 				// `no-drag`, like every control in a pane header: the bar around it moves the window.
-				className="no-drag group/title flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-1 pl-1 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
+				className="no-drag group/title flex min-w-0 items-center gap-1 rounded-lg py-0.5 pr-1 pl-1 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
 				aria-haspopup="tree"
 				aria-expanded={menu.open}
 				data-ly-tip={path ?? undefined}

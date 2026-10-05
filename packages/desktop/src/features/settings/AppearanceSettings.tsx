@@ -12,6 +12,7 @@ import { InlineCodeSpecimen } from "./InlineCodeSpecimen.tsx";
 import { CODE_DEFAULTS, FACTORY_APPEARANCE } from "./appearance-defaults.ts";
 import { CODE_FONTS, fontAvailable, matchCodeFont } from "./code-fonts.ts";
 import {
+	CONTENT_AUTO,
 	CONTENT_DEFAULT,
 	CONTENT_FILL,
 	CONTENT_MAX,
@@ -70,7 +71,7 @@ export function AppearanceSettings() {
 	const isDark = appearance.theme === "dark" || (appearance.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
 
 	/* 设置追上草稿了就把控制权交还——松手之后这两个数必然汇合，不需要另一个作废的时机。 */
-	const savedLines = appearance.composerLines ?? COMPOSER_LINES_MIN;
+	const savedLines = appearance.composerLines ?? 2;
 	if (linesDraft !== null && linesDraft === savedLines) setLinesDraft(null);
 	const composerLines = linesDraft ?? savedLines;
 
@@ -567,12 +568,12 @@ export function AppearanceSettings() {
 					}
 				/>
 				{/*
-				 * The measure, as four choices and a number.
+				 * The measure, as five choices and a number.
 				 *
 				 * Presets first because almost nobody wants a specific pixel count — they want
 				 * "wider than this". The field is for the person who does, and it is hidden under
-				 * 铺满 rather than disabled: a number that has no effect is worse than one that is
-				 * not offered.
+				 * 铺满 and 自动 rather than disabled: a number that has no effect is worse than one that
+				 * is not offered.
 				 */}
 				<Row
 					title={t("appearance.chatWidth")}
@@ -583,13 +584,14 @@ export function AppearanceSettings() {
 								value={contentPreset(appearance.contentWidth)}
 								onChange={(choice) => patch({ contentWidth: Number(choice) })}
 								options={[
+									{ value: String(CONTENT_AUTO), label: t("appearance.chatWidthAuto") },
 									{ value: String(CONTENT_DEFAULT), label: t("common.standard") },
 									{ value: "800", label: t("appearance.wide") },
 									{ value: "960", label: t("appearance.extraWide") },
 									{ value: String(CONTENT_FILL), label: t("appearance.full") },
 								]}
 							/>
-							{appearance.contentWidth !== CONTENT_FILL && (
+							{appearance.contentWidth !== CONTENT_FILL && (appearance.contentWidth ?? CONTENT_AUTO) !== CONTENT_AUTO && (
 								<PixelField
 									value={appearance.contentWidth ?? CONTENT_DEFAULT}
 									min={CONTENT_MIN}
@@ -674,6 +676,34 @@ export function AppearanceSettings() {
 						/>
 					}
 				/>
+				<Row
+					title={t("appearance.callChain")}
+					detail={t("appearance.callChainDetail")}
+					control={
+						<Segmented
+							value={appearance.callChain ?? "collapsed"}
+							onChange={(callChain) => patch({ callChain })}
+							options={[
+								{ value: "expanded", label: t("appearance.callChainExpanded") },
+								{ value: "collapsed", label: t("appearance.callChainCollapsed") },
+							]}
+						/>
+					}
+				/>
+				<Row
+					title={t("appearance.panelLayout")}
+					detail={t("appearance.panelLayoutDetail")}
+					control={
+						<Segmented
+							value={appearance.panelLayout ?? "tabs"}
+							onChange={(panelLayout) => patch({ panelLayout })}
+							options={[
+								{ value: "tabs", label: t("appearance.panelLayoutTabs") },
+								{ value: "split", label: t("appearance.panelLayoutSplit") },
+							]}
+						/>
+					}
+				/>
 				{/*
 				 * macOS only. `-webkit-font-smoothing` is a hook into macOS's own text renderer;
 				 * Windows (DirectWrite/ClearType) and Linux (FreeType) ignore the property, so on
@@ -684,6 +714,14 @@ export function AppearanceSettings() {
 						title={t("appearance.fontSmoothing")}
 						detail={t("appearance.fontSmoothingDetail")}
 						control={<Toggle checked={appearance.fontSmoothing} onChange={(fontSmoothing) => patch({ fontSmoothing })} />}
+					/>
+				)}
+				{/* macOS only, for the same reason: the material is the system's, see `electron/window.ts`. */}
+				{(bridge.platform ?? "darwin") === "darwin" && (
+					<Row
+						title={t("appearance.vibrancy")}
+						detail={t("appearance.vibrancyDetail")}
+						control={<Toggle checked={appearance.vibrancy !== false} onChange={(vibrancy) => patch({ vibrancy })} />}
 					/>
 				)}
 				<Row

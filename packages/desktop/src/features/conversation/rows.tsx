@@ -7,7 +7,7 @@
  * person said, and showing it where a person's messages go is a lie about who is talking.
  */
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { AssistantMessage, Message } from "@lyra/core";
 import { TurnDeliveryCard } from "./TurnDelivery.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -171,6 +171,13 @@ function AssistantRow({
 }) {
   // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
   const running = useScopedRunning();
+  /*
+   * Whether this reply was watched being written: it was still being written when it mounted. Only then
+   * does the row of actions under it open out when it finishes — appearing at once, it would make the
+   * transcript pinned to the bottom jump up a whole row. Opening a stored conversation, they are already
+   * there and nothing plays.
+   */
+  const [watched] = useState(() => message.stopReason === "pending");
 
   const own = message.content.slice(from, upTo);
 
@@ -218,7 +225,7 @@ function AssistantRow({
           if (block.type === "text") {
             return block.text ? (
               <div key={at}>
-                <Markdown text={block.text} />
+                <Markdown text={block.text} streaming={message.stopReason === "pending" && at === message.content.length - 1} />
               </div>
             ) : null;
           }
@@ -226,7 +233,7 @@ function AssistantRow({
         }
 
         const calls = segment.blocks.map((block) => ({ block, stopReason: message.stopReason }));
-        return <ToolRunGroup key={`group-${position}`} calls={calls} />;
+        return <ToolRunGroup key={`group-${position}`} calls={calls} flat />;
       })}
 
       {/*
@@ -253,6 +260,7 @@ function AssistantRow({
       {!lead && settled(message.stopReason) && !continued && <TurnDeliveryCard timestamp={message.timestamp} />}
       {!lead && settled(message.stopReason) && !continued && text.trim() && (
         <MessageActions
+          className={watched ? "ly-actions-in" : undefined}
           timestamp={message.timestamp}
           text={text}
           durationMs={turnStats?.durationMs ?? message.durationMs}

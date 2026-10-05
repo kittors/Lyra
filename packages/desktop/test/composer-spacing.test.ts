@@ -20,13 +20,16 @@ test("composer attachments, text and toolbar share --ly-composer-in", async () =
 	assert.match(tokens, /--ly-composer-x:\s*16px/);
 	assert.match(tokens, /--ly-composer-out:\s*24px/);
 	assert.match(tokens, /--ly-composer-control:\s*28px/);
-	assert.match(tokens, /--ly-pane-chrome:\s*4px/);
-	assert.match(geometry, /export const PANE_INSET = 3/);
+	// chrome = FRAME_PAD + PANE_INSET + the card's 1px border: the two sides have to agree.
+	assert.match(tokens, /--ly-frame-pad:\s*2px/);
+	assert.match(tokens, /--ly-pane-chrome:\s*5px/);
+	assert.match(geometry, /export const FRAME_PAD = 2/);
+	assert.match(geometry, /export const PANE_INSET = 2/);
 	assert.match(composer, /\.ly-composer-attachments[\s\S]*gap:\s*var\(--ly-composer-in\)/);
 	assert.match(composer, /\.ly-composer-attachments[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-x\) 0/);
 	assert.match(composer, /\.ly-reveal:not\(\[data-open="true"\]\) \.ly-composer-attachments[\s\S]*padding-block:\s*0/);
 	assert.match(composer, /\.ly-composer-bar[\s\S]*padding:\s*0 var\(--ly-composer-x\) var\(--ly-composer-in\)/);
-	assert.match(composer, /\.ly-composer-dock[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) var\(--ly-composer-out\)/);
+	assert.match(composer, /\.ly-composer-dock[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
 	assert.match(composer, /\.ly-composer-pad[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
 	assert.match(composer, /\.ly-content-gutter[\s\S]*padding-inline:\s*var\(--ly-composer-out\)/);
 	assert.match(composer, /\.ly-composer-control[\s\S]*height:\s*var\(--ly-composer-control\)/);

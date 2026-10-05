@@ -14,9 +14,8 @@
 import type { AppearanceSettings } from "@lyra/core";
 import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
-import { contentMeasure } from "../../lib/content-width.ts";
+import { CONTENT_AUTO, contentMeasure } from "../../lib/content-width.ts";
 import { bridge } from "../../services/index.ts";
-import { drawnUiFont } from "./appearance-defaults.ts";
 
 interface Rgb {
 	r: number;
@@ -101,7 +100,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * own fonts; this one read as one weight where the page means one. The stored value is untouched:
 	 * the slider still says what was chosen, and a Mac draws it as chosen.
 	 */
-	const uiWeight = appearance.uiFontWeight ?? 500;
+	const uiWeight = appearance.uiFontWeight ?? 400;
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */
 	const veil = (alpha: number) => `color-mix(in srgb, ${toHex(foreground)} ${(alpha * 100).toFixed(1)}%, transparent)`;
 
@@ -181,24 +180,29 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * the wrong frame of reference.
 		 *
 		 * A veil instead, like `--color-elevated` above: a wash of the foreground at a fixed opacity,
-		 * which lands the same distance above whatever it is over. Slightly stronger than `elevated`
-		 * because a hairline has one pixel to make its case.
+		 * which lands the same distance above whatever it is over. 10%, as ZCode draws it: 12–14% drew a
+		 * menu's outline and separators as a visible frame rather than an edge.
 		 */
-		"--color-line-float": veil(dark ? 0.14 : 0.12),
+		"--color-line-float": veil(0.1),
 		"--color-ink": toHex(foreground),
-		"--color-ink-muted": text(thinType ? 0.68 : 0.62),
-		"--color-ink-faint": text(thinType ? 0.5 : 0.4),
+		/*
+		 * Secondary text at 60% of the body colour, the faintest at 40% — ZCode's subtle / subtlest. The
+		 * faintest goes to 50% on a dark page: at 30–40% the process rows there (thinking, tool calls) sat
+		 * near 2.2:1 and could not be read. Light Windows stays a step darker still, for the reason above.
+		 */
+		"--color-ink-muted": text(thinType ? 0.68 : 0.6),
+		"--color-ink-faint": text(thinType || dark ? 0.5 : 0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
-		// The default widened with the faces Windows and Linux need for three weights; see `drawnUiFont`.
-		"--ly-ui-font": drawnUiFont(appearance.uiFont),
+		"--ly-ui-font": appearance.uiFont,
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
 		/*
-		 * 界面的基准字重。层级比它重一档、两档，那几档在 `tokens.css` 里从这个数推出来。
+		 * The interface's base weight. The steps one and two heavier are derived from this number in
+		 * `tokens.css`.
 		 *
-		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，而那些界面一直是
-		 * 400 画出来的。
+		 * The same fallback reasoning as the font size: this setting came later, settings files written
+		 * before it do not have it, and they follow the default 400.
 		 */
 		"--ly-ui-weight": String(windowsType ? Math.max(400, uiWeight - 100) : uiWeight),
 		"--ly-code-size": `${appearance.codeFontSize}px`,
@@ -216,7 +220,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * 走变量而不是走属性，是因为 `rows` 只有 textarea 有，而这条高度还要管到浮在它上面的
 		 * 高亮镜像层；也因为改一次设置就该立刻看见，不必等下一次按键把高度重算一遍。
 		 */
-		"--ly-composer-lines": String(appearance.composerLines ?? 1),
+		"--ly-composer-lines": String(appearance.composerLines ?? 2),
 		/*
 		 * How code is set, beyond the family.
 		 *
@@ -336,7 +340,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	bridge.setWindowTheme?.({
 		color: toHex(background),
 		headerColor: tokens["--color-sidebar"],
-		symbolColor: text(0.62),
+		symbolColor: text(0.6),
 	});
 
 	root.classList.toggle("dark", dark);
@@ -353,6 +357,20 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
+	// Switches on the pane-width steps in `dock.css`; a fixed or full measure is the token alone.
+	root.dataset.contentWidth = (appearance.contentWidth ?? CONTENT_AUTO) === CONTENT_AUTO ? "auto" : "set";
+	/*
+	 * The material exists only in a window the preload marked (the macOS main window); here it only
+	 * follows the setting between on and off — the window's own layer is swapped by the main process
+	 * when the setting changes. Off, `<html>` goes back to the theme colour; on, it has to be clear, or
+	 * a solid layer sits over the material.
+	 */
+	if (root.dataset.vibrancy) {
+		const vibrant = appearance.vibrancy !== false;
+		root.dataset.vibrancy = vibrant ? "on" : "off";
+		root.style.background = vibrant ? "transparent" : "var(--color-shell)";
+	}
+	root.dataset.callChain = appearance.callChain ?? "collapsed";
 	for (const listener of applied) listener();
 }
 

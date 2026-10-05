@@ -103,7 +103,7 @@ export function TerminalTabs() {
 								type="button"
 								aria-label={translate("terminal.closeOne", { name: tab.title })}
 								onClick={() => close(tab.id)}
-								className={`rounded p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
+								className={`rounded-md p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
 									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
 								}`}
 							>

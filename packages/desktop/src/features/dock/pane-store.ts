@@ -19,6 +19,7 @@ import type { DragState } from "./drag-host.ts";
 import { dropLegacy, dropTree, flushTree, legacyStorageKey, paneStorageKey, readTree, writeTree } from "./persist.ts";
 import { MIN_FRACTION, paneFloor } from "./geometry.ts";
 import { defaultDrop, dropFits, placePanel } from "./place.ts";
+import { clampTabShare, panelsOf, readTabShare, writeTabShare } from "./tabs.ts";
 import {
 	areAdjacent,
 	defaultTree,
@@ -74,6 +75,10 @@ interface PaneDockState {
 	focused: Record<string, PaneKind>;
 	/** A pair's split while full screen has it on the *other* axis from its dock. */
 	crossRatio: Record<string, number>;
+	/** In the tabs layout, the panel each screen last looked at. See `tabs.ts`. */
+	tab: Record<string, PaneKind>;
+	/** In the tabs layout, how wide the right-hand column is; one value for the whole window. */
+	tabShare: number;
 	drag: ScopedDrag | null;
 	/**
 	 * Which screen's browser hosts the pages nobody else is showing.
@@ -102,6 +107,7 @@ interface PaneDockState {
 	moveTo(scope: string, kind: PaneKind, at: DropAt): void;
 	moveAlong(scope: string, kind: PaneKind, side: DropSide): boolean;
 	setShare(scope: string, path: number[], index: number, fraction: number, floor?: number): void;
+	setTabShare(share: number): void;
 	even(scope: string, path: number[], index: number): void;
 	restoreLayout(scope: string, tree: DockNode): void;
 	toggleMaximized(scope: string, kind: PaneKind, partner?: PaneKind): void;
@@ -226,7 +232,9 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		const present = kinds(tree);
 		const focused = extra?.focused ?? state.focused[scope] ?? "conversation";
 		const maximized = extra && "maximized" in extra ? (extra.maximized ?? null) : survivingMaximized(state.maximized[scope] ?? null, present);
+		const tab = focused !== "conversation" && present.includes(focused) ? { ...state.tab, [scope]: focused } : state.tab;
 		set({
+			tab,
 			trees: { ...state.trees, [scope]: tree },
 			// A pane that left the tree cannot go on being the focused one.
 			focused: { ...state.focused, [scope]: present.includes(focused) ? focused : "conversation" },
@@ -241,6 +249,8 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		maximized: {},
 		focused: {},
 		crossRatio: {},
+		tab: {},
+		tabShare: readTabShare(),
 		drag: null,
 		host: null,
 
@@ -285,11 +295,13 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 				const sizes = { ...state.sizes };
 				const maximized = { ...state.maximized };
 				const focused = { ...state.focused };
+				const tab = { ...state.tab };
+				delete tab[scope];
 				delete trees[scope];
 				delete sizes[scope];
 				delete maximized[scope];
 				delete focused[scope];
-				return { trees, sizes, maximized, focused, drag: state.drag?.scope === scope ? null : state.drag };
+				return { trees, sizes, maximized, focused, tab, drag: state.drag?.scope === scope ? null : state.drag };
 			});
 		},
 
@@ -315,7 +327,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			const state = get();
 			const tree = state.tree(scope);
 			if (has(tree, kind)) {
-				set({ focused: { ...state.focused, [scope]: kind } });
+				get().focus(scope, kind);
 				return true;
 			}
 			const paired = Boolean(at && at.kind !== null && has(tree, at.kind));
@@ -346,8 +358,19 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		},
 
 		close(scope, kind) {
-			const tree = get().tree(scope);
+			const state = get();
+			const tree = state.tree(scope);
 			if (!has(tree, kind)) return;
+			// Closing the current tab lands on the one to its right, failing that the left — as a browser does.
+			if (state.tab[scope] === kind) {
+				const panels = panelsOf(tree);
+				const at = panels.indexOf(kind);
+				const next = panels[at + 1] ?? panels[at - 1];
+				const tab = { ...state.tab };
+				if (next) tab[scope] = next;
+				else delete tab[scope];
+				set({ tab });
+			}
 			commit(scope, remove(tree, kind));
 		},
 
@@ -359,8 +382,13 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 
 		// Guarded: this runs on every pointer-down inside a pane.
 		focus(scope, kind) {
-			if (get().focused[scope] === kind) return;
-			set({ focused: { ...get().focused, [scope]: kind } });
+			const state = get();
+			const panel = kind !== "conversation";
+			if (state.focused[scope] === kind && (!panel || state.tab[scope] === kind)) return;
+			set({
+				focused: { ...state.focused, [scope]: kind },
+				...(panel ? { tab: { ...state.tab, [scope]: kind } } : null),
+			});
 		},
 
 		/*
@@ -390,6 +418,13 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			if (next === tree) return;
 			set({ trees: { ...get().trees, [scope]: next } });
 			persist(scope, next);
+		},
+
+		setTabShare(share) {
+			const next = clampTabShare(share);
+			if (Math.abs(next - get().tabShare) < 1e-6) return;
+			set({ tabShare: next });
+			writeTabShare(next);
 		},
 
 		even(scope, path, index) {

@@ -18,13 +18,14 @@ import { MarkdownTable } from "./MarkdownTable.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
-import { parseMarkdown } from "../../lib/markdown/blocks.ts";
+import { parseMarkdown, parseMarkdownChunks } from "../../lib/markdown/blocks.ts";
 import { resolveAsset, isAbsolutePath } from "../../lib/markdown/assets.ts";
 import { fileLinkCaption } from "../../lib/markdown/file-link.ts";
 import { groupTokens, HUGE_BLOCK } from "../../lib/markdown/slice.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
+import { completeTail } from "../../lib/markdown/stream-tail.ts";
 import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
@@ -32,6 +33,8 @@ import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
 import { usePathMenu } from "./PathMenu.tsx";
+import { useSmoothText } from "./useSmoothText.ts";
+import { FadeText } from "./FadeText.tsx";
 
 /**
  * What this text is, beyond the characters in it.
@@ -70,6 +73,7 @@ export const Markdown = memo(function Markdown({
 	baseDir,
 	remoteImages = false,
 	preview = false,
+	streaming = false,
 }: {
 	text: string;
 	className?: string;
@@ -92,6 +96,15 @@ export const Markdown = memo(function Markdown({
 	remoteImages?: boolean;
 	/** A bounded, non-interactive excerpt without code tools or image loading. */
 	preview?: boolean;
+	/**
+	 * This text is still arriving a few characters at a time.
+	 *
+	 * On, it does three things: lets the characters out at an even pace (see `useSmoothText`), fades new
+	 * ones in (see `FadeText`), and closes the unfinished markers of the last paragraph first (see
+	 * `completeTail`). Only the place drawing the reply being written turns it on; turned off, the
+	 * remaining characters are let out and faded first, and only then is the original text drawn.
+	 */
+	streaming?: boolean;
 }) {
 	/*
 	 * System emoji come out first.
@@ -113,7 +126,9 @@ export const Markdown = memo(function Markdown({
 	 * 这只省掉**重复**的那些次。第一次仍然要老老实实解析一遍，那一次的成本由 `CodeBlock` 的高亮
 	 * 上限和下面的块数上限管。
 	 */
-	const clean = useMemo(() => stripEmoji(text), [text]);
+	// Finished writing still has to finish showing: `active` drops only when the rest is let out and the last character has faded. See `useSmoothText`.
+	const { text: shown, active } = useSmoothText(text, streaming);
+	const clean = useMemo(() => (active ? completeTail(stripEmoji(shown)) : stripEmoji(shown)), [shown, active]);
 
 	// The class rides alongside `prose-dw` rather than replacing it, so a caller can dial the
 	// size or colour down — reasoning is secondary text — without losing the block styling.
@@ -128,7 +143,15 @@ export const Markdown = memo(function Markdown({
 	// Memoised because a new object here re-renders every picture in the document on every keystroke
 	// of a streaming reply — which for a remote one means dropping and re-requesting it.
 	const doc = useMemo(() => ({ baseDir, remoteImages, preview }), [baseDir, remoteImages, preview]);
-	const blocks = useMemo(() => renderBlocks(clean, preview), [clean, preview]);
+	// With reduced motion `active` never turns on: the fade's duration is squashed to zero, but characters not yet due would still wait out `animation-delay`.
+	const fade = active;
+	const blocks = useMemo(
+		() =>
+			parseMarkdownChunks(clean).map(({ block, raw }, index) => (
+				<BlockView key={index} block={block} raw={raw} preview={preview} fade={fade} />
+			)),
+		[clean, preview, fade],
+	);
 
 	return (
 		<Doc.Provider value={doc}>
@@ -137,15 +160,34 @@ export const Markdown = memo(function Markdown({
 	);
 });
 
-function renderBlocks(source: string, preview = false): ReactNode {
-	return parseMarkdown(source).map((block, index) => <Fragment key={index}>{renderBlock(block, preview)}</Fragment>);
+/**
+ * One top-level block, not redrawn while its source is unchanged.
+ *
+ * While streaming the whole message is parsed again every frame, which is cheap in itself; what costs
+ * is going over every block before it again afterwards — every link, every table, every code block. A
+ * block with the same source draws the same, so only the source is compared: far into a long reply, the
+ * only block redrawn each frame is the one being written.
+ *
+ * `fade` turns off for every block together when the reply is finished, each redraws once, and the
+ * fading spans turn back into plain text.
+ */
+const BlockView = memo(
+	function BlockView({ block, preview, fade }: { block: Block; raw: string; preview: boolean; fade: boolean }) {
+		return renderBlock(block, preview, fade);
+	},
+	(before, after) => before.raw === after.raw && before.preview === after.preview && before.fade === after.fade,
+);
+
+function renderBlocks(source: string, preview = false, fade = false): ReactNode {
+	return parseMarkdown(source).map((block, index) => <Fragment key={index}>{renderBlock(block, preview, fade)}</Fragment>);
 }
 
-function renderBlock(block: Block, preview = false): ReactNode {
+/** `fade`: this block is still being written, and new characters fade in. See `FadeText`. */
+function renderBlock(block: Block, preview = false, fade = false): ReactNode {
 	switch (block.kind) {
 		case "heading": {
 			const Tag = `h${Math.min(block.level, 4)}` as "h1" | "h2" | "h3" | "h4";
-			return <Tag style={block.align ? { textAlign: block.align } : undefined}>{inline(block.text)}</Tag>;
+			return <Tag style={block.align ? { textAlign: block.align } : undefined}>{inline(block.text, fade)}</Tag>;
 		}
 		/*
 		 * A `<div align="center">` and what it holds.
@@ -158,14 +200,14 @@ function renderBlock(block: Block, preview = false): ReactNode {
 			return (
 				<div className="ly-md-html" style={block.align ? { textAlign: block.align } : undefined}>
 					{block.children.map((child, index) => (
-						<Fragment key={index}>{renderBlock(child, preview)}</Fragment>
+						<Fragment key={index}>{renderBlock(child, preview, fade)}</Fragment>
 					))}
 				</div>
 			);
 		case "paragraph":
 			// 大到会把浏览器按住不放的那种，切开画；正常的一段走原路，一行代码都不多跑。
 			if (block.text.length > HUGE_BLOCK) return <HugeParagraph text={block.text} />;
-			return <p>{inline(block.text)}</p>;
+			return <p>{inline(block.text, fade)}</p>;
 		case "code":
 			if (preview) return <pre><code>{block.code}</code></pre>;
 			/*
@@ -177,29 +219,29 @@ function renderBlock(block: Block, preview = false): ReactNode {
 			 * Markdown 的事。
 			 */
 			if (isMermaid(block.lang)) {
-				return <MermaidBlock code={block.code} fallback={<CodeBlock lang={block.lang} code={block.code} />} />;
+				return <MermaidBlock code={block.code} fallback={<CodeBlock lang={block.lang} code={block.code} fade={fade} />} />;
 			}
-			return <CodeBlock lang={block.lang} code={block.code} />;
+			return <CodeBlock lang={block.lang} code={block.code} fade={fade} />;
 		case "rule":
 			return <hr />;
 		case "quote":
-			return <blockquote>{renderBlocks(block.text, preview)}</blockquote>;
+			return <blockquote>{renderBlocks(block.text, preview, fade)}</blockquote>;
 		case "math":
 			return <MathBlock tex={block.tex} />;
 		case "details":
-			return preview ? <p>{inline(block.summary)}</p> : <Details summary={block.summary} blocks={block.children} />;
+			return preview ? <p>{inline(block.summary)}</p> : <Details summary={block.summary} blocks={block.children} fade={fade} />;
 		case "list": {
 			const Tag = block.ordered ? "ol" : "ul";
 			return (
 				<Tag>
 					{block.items.map((item, index) => (
-						<Item key={index} item={item} preview={preview} />
+						<Item key={index} item={item} preview={preview} fade={fade} />
 					))}
 				</Tag>
 			);
 		}
 		case "table":
-			return <MarkdownTable block={block} inline={inline} preview={preview} />;
+			return <MarkdownTable block={block} inline={fade ? fadingInline : inline} preview={preview} />;
 		default:
 			return null;
 	}
@@ -234,12 +276,12 @@ function HugeParagraph({ text }: { text: string }) {
 	);
 }
 
-function Item({ item, preview }: { item: ListItem; preview: boolean }) {
+function Item({ item, preview, fade }: { item: ListItem; preview: boolean; fade: boolean }) {
 	const body = (
 		<>
-			{inline(item.text)}
+			{inline(item.text, fade)}
 			{item.children.map((child, index) => (
-				<Fragment key={index}>{renderBlock(child, preview)}</Fragment>
+				<Fragment key={index}>{renderBlock(child, preview, fade)}</Fragment>
 			))}
 		</>
 	);
@@ -261,11 +303,11 @@ function Item({ item, preview }: { item: ListItem; preview: boolean }) {
 }
 
 /** `<details>`, folded the way every other section in the app folds rather than the browser's way. */
-function Details({ summary, blocks }: { summary: string; blocks: Block[] }) {
+function Details({ summary, blocks, fade }: { summary: string; blocks: Block[]; fade: boolean }) {
 	return (
-		<Disclosure variant="framed" title={inline(summary)}>
+		<Disclosure variant="framed" title={inline(summary, fade)}>
 			{blocks.map((child, index) => (
-				<Fragment key={index}>{renderBlock(child)}</Fragment>
+				<Fragment key={index}>{renderBlock(child, false, fade)}</Fragment>
 			))}
 		</Disclosure>
 	);
@@ -279,40 +321,48 @@ function MathBlock({ tex }: { tex: string }) {
 	return <div className="ly-math-block" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function inline(text: string): ReactNode[] {
-	return renderTokens(parseInline(text));
+function inline(text: string, fade = false): ReactNode[] {
+	return renderTokens(parseInline(text), fade);
 }
 
-function renderTokens(tokens: Inline[]): ReactNode[] {
-	return tokens.map((token, index) => <Fragment key={index}>{renderToken(token)}</Fragment>);
+/** The table is handed a function; give it a fixed one so it is not a new identity on every redraw. */
+const fadingInline = (text: string) => inline(text, true);
+
+function renderTokens(tokens: Inline[], fade = false): ReactNode[] {
+	return tokens.map((token, index) => <Fragment key={index}>{renderToken(token, fade)}</Fragment>);
 }
 
-function renderToken(token: Inline): ReactNode {
+function renderToken(token: Inline, fade: boolean): ReactNode {
 	switch (token.kind) {
 		case "text":
-			return token.text;
+			return fade ? <FadeText text={token.text} /> : token.text;
 		case "code":
-			return <code className="[box-decoration-break:clone] [-webkit-box-decoration-break:clone]">{token.text}</code>;
+			/*
+			 * Inline code appears only once it is written (see `completeTail`) and fades in as a whole. The
+			 * `ly-fade-char` animation runs once, when it mounts; redraws of this code afterwards do not
+			 * start the fade again.
+			 */
+			return <code className={`[box-decoration-break:clone] [-webkit-box-decoration-break:clone]${fade ? " ly-fade-char" : ""}`}>{token.text}</code>;
 		case "break":
 			return <br />;
 		case "strong":
-			return <strong>{renderTokens(token.children)}</strong>;
+			return <strong>{renderTokens(token.children, fade)}</strong>;
 		case "em":
-			return <em>{renderTokens(token.children)}</em>;
+			return <em>{renderTokens(token.children, fade)}</em>;
 		case "del":
-			return <del>{renderTokens(token.children)}</del>;
+			return <del>{renderTokens(token.children, fade)}</del>;
 		case "tag": {
 			const Tag = token.name;
-			return <Tag>{renderTokens(token.children)}</Tag>;
+			return <Tag>{renderTokens(token.children, fade)}</Tag>;
 		}
 		case "math": {
 			const html = renderMath(token.tex, false);
 			if (!html) return `$${token.tex}$`;
 			// noDangerouslySetInnerHtml 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: KaTeX's own output, built from a parse tree it escapes.
-			return <span className="ly-math" dangerouslySetInnerHTML={{ __html: html }} />;
+			return <span className={fade ? "ly-math ly-fade-char" : "ly-math"} dangerouslySetInnerHTML={{ __html: html }} />;
 		}
 		case "link":
-			return <Link href={token.href}>{renderTokens(token.children)}</Link>;
+			return <Link href={token.href}>{renderTokens(token.children, fade)}</Link>;
 		case "image":
 			return <Image src={token.src} alt={token.alt} width={token.width} height={token.height} />;
 		default:

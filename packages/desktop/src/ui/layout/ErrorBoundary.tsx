@@ -128,7 +128,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 							data-ly-tip={translate("errorBoundary.reload")}
 							aria-label={translate("errorBoundary.reload")}
 							onClick={() => window.location.reload()}
-							className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+							className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
 							<RotateCw size={13} strokeWidth={2} aria-hidden />
 						</button>

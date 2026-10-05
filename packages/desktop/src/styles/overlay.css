@@ -68,6 +68,28 @@
 }
 
 /*
+ * Under a reply watched as it was written, the row of actions grows in rather than appearing at once.
+ *
+ * The row is clear at rest (it shows on hover), but it takes up height from the moment the reply
+ * finishes. With the transcript pinned to the bottom, a row appearing at once jumped the whole reply
+ * above it up — the text had just faded in and was shoved straight up. Growing from zero to its own
+ * height, follow-bottom keeps pace frame by frame and the reply moves up evenly.
+ *
+ * Only `from` is written: the end is the row's own height and margin. `margin-top` starts from minus the
+ * gap so the reply column's `gap-2.5` comes in with it — otherwise those 10px would still appear at once.
+ */
+@keyframes ly-actions-in {
+  from {
+    height: 0;
+    margin-top: -0.625rem;
+  }
+}
+
+.ly-actions-in {
+  animation: ly-actions-in var(--ly-t-base) var(--ly-e-out);
+}
+
+/*
  * A row arriving at the top of a list, rather than simply being there.
  *
  * The opposite direction to `ly-enter`, and for the opposite reason. A message enters at the
@@ -301,6 +323,8 @@
 	padding: 0 16px;
 	border-radius: var(--radius-field);
 	font-size: var(--text-label);
+	/* Chinese breaks between any two characters, so a flex row squeezes it into a column; unwrapped, min-content is the whole label and flex cannot shrink it. */
+	white-space: nowrap;
 	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
 }
 
@@ -335,6 +359,55 @@ div.ly-field {
 
 .ly-field::placeholder {
 	color: var(--color-ink-faint);
+}
+
+/*
+ * Lines and controls in settings cards and dialogs.
+ *
+ * Both are on the `float` sheet, a step lighter than the page; `line` / `line-soft` are mixed from the
+ * page's background towards the foreground, so on this sheet they come out darker than the sheet — a
+ * divider becomes a dark groove, a slider's track and an off switch nearly vanish. The reasoning of
+ * `--color-line-float`, so on this sheet the two lines are swapped for that set: `line` is it, and
+ * `line-soft` two thirds of it, the ratio between the two lines on the page.
+ *
+ * Controls share the card's background and stand on a hairline rather than on a patch darker than the
+ * card. The line is an inset shadow, which takes no space, so row heights and control midlines do not
+ * move. Only the fill and the line change; the red of an error still comes from the rule below.
+ */
+:is(.ly-settings-card, [data-ly-modal]) {
+	--color-line: var(--color-line-float);
+	--color-line-soft: color-mix(in srgb, var(--color-line-float) 65%, transparent);
+}
+
+:is(.ly-settings-card, [data-ly-modal]) :is(.ly-field, [data-segmented]) {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--color-line);
+	transition-property: background-color, color, box-shadow;
+}
+
+:is(.ly-settings-card, [data-ly-modal]) .ly-field:is(:hover, :focus, :focus-within) {
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+}
+
+:is(.ly-settings-card, [data-ly-modal]) .ly-textarea-shell {
+	background: transparent;
+}
+
+/*
+ * Controls and buttons in the settings page and dialogs take the small 8px corner.
+ *
+ * Only in these two: controls elsewhere (the composer, the sidebar) remain `--radius-field` pills, so
+ * that token is left alone and overridden here. The settings page counts as a whole, not just its cards:
+ * the header's 「新建」 and a search box outside a card are on the same page, and with only the cards
+ * changed they would be the one pill left on it. A segmented control's sliding fill and segments sit one
+ * inset (2px) inside the frame, at 6px, so the inner and outer curves are concentric.
+ */
+:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell) {
+	border-radius: 8px;
+}
+
+:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) [data-segmented] :is([data-segment], [data-segment-rail]) {
+	border-radius: 6px;
 }
 
 .ly-field.ly-field-invalid,

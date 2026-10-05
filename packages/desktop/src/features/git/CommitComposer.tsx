@@ -98,7 +98,7 @@ export function CommitComposer({
 							aria-haspopup="menu"
 							aria-expanded={languageMenu.open}
 							onClick={languageMenu.toggle}
-							className={`ly-composer-control flex min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors ${
+							className={`ly-composer-control flex min-w-0 items-center gap-1.5 rounded-lg px-2 text-label transition-colors ${
 								languageMenu.open ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
 							}`}
 						>

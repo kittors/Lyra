@@ -11,7 +11,7 @@ import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { activeProviderLabel } from "./grouping.ts";
+import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarHead({
 	searching,
@@ -39,7 +39,7 @@ export function SidebarHead({
 						aria-label={t("sidebar.search")}
 						aria-pressed={searching}
 						onClick={onToggleSearch}
-						className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-card-hover hover:text-ink ${
+						className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-card-hover hover:text-ink ${
 							searching ? "bg-card-hover text-ink" : "text-ink-muted"
 						}`}
 					>
@@ -49,7 +49,7 @@ export function SidebarHead({
 						type="button"
 						data-ly-tip={t("sidebar.notifications")}
 						aria-label={t("sidebar.notifications")}
-						className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+						className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 					>
 						<Bell size={15} strokeWidth={1.9} />
 					</button>

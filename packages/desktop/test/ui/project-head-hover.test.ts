@@ -19,7 +19,7 @@ import type { SessionMeta } from "@lyra/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { ProjectHead } from "../../src/features/sidebar/ProjectHead.tsx";
-import type { Group } from "../../src/features/sidebar/grouping.ts";
+import type { Group } from "../../src/lib/sidebar-grouping.ts";
 import { mount } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
@@ -119,7 +119,7 @@ function layout(t: TestContext) {
 }
 
 const head = (name: string, collapsed = false) =>
-	h(LayoutProvider, null, h(ProjectHead, { group: group(name), active: false, collapsed, onToggleCollapsed: () => {} }));
+	h(LayoutProvider, null, h(ProjectHead, { group: group(name), collapsed, onToggleCollapsed: () => {} }));
 
 beforeEach(() => {
 	useApp.setState({ activity: {}, activeSessionId: null });

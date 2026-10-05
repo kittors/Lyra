@@ -116,7 +116,7 @@ function UserRow({ index, message }: { index: number; message: UserMessage }) {
 						setDraft(text);
 						setEditing(true);
 					}}
-					className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
+					className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
 				>
 					<Pencil size={12.5} strokeWidth={1.8} />
 				</button>
@@ -169,7 +169,7 @@ function AssistantRow({ message, live }: { message: AssistantMessage; live?: boo
 					return block.text ? (
 						// The same rhythm as the main transcript — see `rows.tsx`.
 						<div key={index}>
-							<Markdown text={block.text} />
+							<Markdown text={block.text} streaming={message.stopReason === "pending" && index === message.content.length - 1} />
 						</div>
 					) : null;
 				}

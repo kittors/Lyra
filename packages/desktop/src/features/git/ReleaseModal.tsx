@@ -385,7 +385,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 										aria-label={triggeringDryRun ? t("release.triggering") : dryRunStatus?.status === "in_progress" ? t("release.building") : t("release.triggerDryRun")}
 										onClick={handleTriggerDryRun}
 										disabled={triggeringDryRun || dryRunStatus?.status === "in_progress"}
-										className="grid h-6 w-6 place-items-center rounded-md border border-line bg-card text-ink hover:bg-card-hover transition-colors cursor-pointer disabled:opacity-50"
+										className="grid h-6 w-6 place-items-center rounded-lg border border-line bg-card text-ink hover:bg-card-hover transition-colors cursor-pointer disabled:opacity-50"
 									>
 										{triggeringDryRun ? (
 											<ActionSpinner size={11} className="text-ink-muted" />

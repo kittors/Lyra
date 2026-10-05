@@ -104,7 +104,7 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 						aria-label={translate(open ? "common.collapse" : "common.details")}
 						onClick={() => setOpen((was) => !was)}
 						aria-expanded={open}
-						className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+						className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 					>
 						<ChevronRight size={10} strokeWidth={2} aria-hidden className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />
 					</button>
@@ -178,7 +178,7 @@ function Next({ hint }: { hint?: string }) {
 					setView("settings");
 					setSettingsSection("models");
 				}}
-				className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+				className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 			>
 				<Settings2 size={11.5} strokeWidth={1.9} aria-hidden />
 			</button>
@@ -203,7 +203,7 @@ function Next({ hint }: { hint?: string }) {
 			 */
 			onClick={() => void send([{ type: "text", text: carryOnPrompt("error", 0) ?? CARRY_ON_PROMPTS[1] }], { synthetic: true, carryOn: true, sessionId: sessionId ?? undefined })}
 			aria-label={translate("common.continue")}
-			className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+			className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 		>
 			<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />
 		</button>

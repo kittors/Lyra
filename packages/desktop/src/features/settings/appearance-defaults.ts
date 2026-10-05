@@ -20,7 +20,7 @@ export const CODE_DEFAULTS = {
 	codeLightTheme: "lyra-light",
 	codeDarkTheme: "lyra-dark",
 	codeFont:
-		'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
@@ -49,37 +49,23 @@ export const FACTORY_APPEARANCE: Appearance = {
 	// 跟着系统走。没表过态的人是什么主题，按下这颗按钮之后就该回到什么主题。
 	theme: "system",
 	accent: "#339CFF",
-	lightBackground: "#FFFFFF",
-	lightForeground: "#1A1C1F",
+	lightBackground: "#F8F8F8",
+	lightForeground: "#262626",
 	darkBackground: "#171717",
-	darkForeground: "#EDEDED",
-	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
+	darkForeground: "#D4D4D4",
+	uiFont: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
 	uiFontSize: 14,
-	uiFontWeight: 500,
+	uiFontWeight: 400,
 	...CODE_DEFAULTS,
 	contrast: 60,
-	contentWidth: 640,
-	composerLines: 1,
+	contentWidth: -1,
+	composerLines: 2,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",
 	errorDetail: "compact",
-	fontSmoothing: true,
+	callChain: "collapsed",
+	panelLayout: "tabs",
+	fontSmoothing: false,
+	vibrancy: true,
 };
-
-/**
- * The default UI stack as drawn: the stored one, with the faces Windows and Linux need.
- *
- * The stored default is core's (`DEFAULT_APPEARANCE.uiFont`, mirrored above) — PingFang, then
- * YaHei. On Windows YaHei draws the Latin too, with only 300/400/700, so the three weights the UI
- * uses (base 500, 600, 700) collapse to two; Linux falls to DejaVu or Liberation, 400/700. Why these
- * faces and this order is written on `--font-sans` in `tokens.css`, which carries the same list.
- *
- * Widened here rather than by changing the stored default: that lives in core, and every install
- * has it written into its settings file, so a new default would reach nobody without a migration
- * there. Only the untouched default is widened. A stack somebody typed is theirs, as typed.
- */
-export function drawnUiFont(stored: string): string {
-	if (stored !== FACTORY_APPEARANCE.uiFont) return stored;
-	return '"PingFang SC", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans", "Noto Sans CJK SC", sans-serif';
-}

@@ -88,7 +88,7 @@ export function AccessSettings() {
 								onClick={() =>
 									void saveSettings({ ...settings, alwaysAllow: allowed.filter((entry) => entry !== subject) })
 								}
-								className="shrink-0 rounded p-1 text-ink-faint opacity-0 transition-all group-hover/row:opacity-100 hover:text-danger focus-visible:opacity-100"
+								className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition-all group-hover/row:opacity-100 hover:text-danger focus-visible:opacity-100"
 							>
 								<Trash2 size={13} strokeWidth={1.8} />
 							</button>

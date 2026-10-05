@@ -16,23 +16,42 @@
 
 import type { ReactNode, MouseEvent } from "react";
 
+/**
+ * `data-*` passed straight through to the `<button>`.
+ *
+ * The tests find controls by these rather than by their words, so a label can be reworded without
+ * breaking a suite. Nothing else passes through: no style, no class of events — see the top of this file.
+ */
+export type DataAttributes = { [key: `data-${string}`]: string | boolean | undefined };
+
 export type ButtonVariant = "primary" | "ghost" | "subtle" | "danger";
-export type ButtonSize = "md" | "sm";
+export type ButtonSize = "md" | "sm" | "xs";
 
 /**
  * `md` is 32px and is the default: it is what a dialog's buttons are, and what the two older
  * components settled on after they spent a while being 26 and 32.
  *
  * `sm` is 26px, for the rows inside a panel where a full-height button would dominate.
+ *
+ * `xs` is 20px, for an action at the end of a sentence or a caption-sized line: a 26px button
+ * there makes the line taller than the text it belongs to.
  */
 const HEIGHT: Record<ButtonSize, string> = {
-	md: "h-[32px]",
-	sm: "h-[26px]",
+	md: "h-[32px] rounded-lg text-label",
+	sm: "h-[26px] rounded-lg text-label",
+	xs: "h-[20px] rounded-md text-caption",
 };
 
 const SQUARE: Record<ButtonSize, string> = {
 	md: "w-[32px]",
 	sm: "w-[26px]",
+	xs: "w-[20px]",
+};
+
+const PAD: Record<ButtonSize, string> = {
+	md: "gap-1.5 px-3",
+	sm: "gap-1.5 px-3",
+	xs: "gap-1 px-1.5",
 };
 
 const TONE: Record<ButtonVariant, string> = {
@@ -46,6 +65,12 @@ const TONE: Record<ButtonVariant, string> = {
 	danger: "border border-line text-danger hover:border-danger/50 hover:bg-danger/10 disabled:opacity-45",
 };
 
+/** The chosen one of a row of choices: the hover state, held. */
+const PRESSED: Partial<Record<ButtonVariant, string>> = {
+	ghost: "border border-ink-faint bg-card-hover text-ink disabled:opacity-45",
+	subtle: "bg-card-hover text-ink disabled:opacity-45",
+};
+
 export function Button({
 	children,
 	icon,
@@ -55,9 +80,14 @@ export function Button({
 	disabled,
 	loading,
 	label,
+	ariaLabel,
+	menu,
+	expanded,
+	pressed,
 	className = "",
 	type = "button",
-}: {
+	...data
+}: DataAttributes & {
 	/**
 	 * Omit it for an icon-only button.
 	 *
@@ -82,6 +112,14 @@ export function Button({
 	loading?: boolean;
 	/** Tooltip, and the accessible name when there is no visible text. */
 	label?: string;
+	/** The accessible name, when the visible text alone does not say what the button does — `中文` is a value, not an action. */
+	ariaLabel?: string;
+	/** Opens a menu; the value is whether it is open now. Omit it for an ordinary button. */
+	menu?: boolean;
+	/** Shows or hides a section in place — `aria-expanded` without `menu`'s popup claim. */
+	expanded?: boolean;
+	/** Chosen among a row of choices — a filter, a view. Omit it for a button that is not one of a set. */
+	pressed?: boolean;
 	className?: string;
 	type?: "button" | "submit";
 }) {
@@ -90,19 +128,24 @@ export function Button({
 
 	return (
 		<button
+			{...data}
 			type={type}
 			disabled={inert}
 			onClick={onClick}
 			aria-busy={loading || undefined}
+			aria-haspopup={menu === undefined ? undefined : "menu"}
+			aria-expanded={menu ?? expanded}
+			aria-pressed={pressed}
 			data-ly-tip={label}
-			aria-label={bare ? label : undefined}
+			aria-label={ariaLabel ?? (bare ? label : undefined)}
 			data-variant={variant}
 			className={[
-				"flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-lg text-label",
+				// Button radii come in two tiers app-wide: 8px from about 22px tall up, 6px for small icon buttons of 20px and under.
+				"flex shrink-0 cursor-pointer items-center whitespace-nowrap",
 				"transition-[background-color,border-color,opacity] duration-[var(--ly-t-quick)]",
 				HEIGHT[size],
-				bare ? `${SQUARE[size]} justify-center` : "gap-1.5 px-3",
-				TONE[variant],
+				bare ? `${SQUARE[size]} justify-center` : PAD[size],
+				(pressed && PRESSED[variant]) || TONE[variant],
 				// Held apart from `disabled:` so a busy button reads as busy rather than as unavailable.
 				loading ? "opacity-60" : "",
 				className,

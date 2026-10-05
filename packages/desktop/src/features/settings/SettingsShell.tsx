@@ -1,7 +1,7 @@
 import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
 import { ArrowLeft, Rocket } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { MAIN_WINDOW_ROW_OFFSET, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { sectionFor } from "./sections-for.ts";
 import { settingsGroups } from "./settings-navigation.ts";
@@ -175,18 +175,18 @@ export function SettingsShell() {
 					 * here before highlighted its border instead, which made the one button you
 					 * press most often behave unlike everything around it.
 					 */}
-					<div className={`pb-2 ${compact ? "px-3" : "px-2.5"}`}>
+					<div className={`pb-3 ${compact ? "px-3" : "px-2"}`}>
 						<button
 							type="button"
 							onClick={() => {
 								setView("chat");
 								dismissNav();
 							}}
-							className={`flex w-full items-center gap-2.5 rounded-lg px-2 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated ${
+							className={`m-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl px-1.5 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated ${
 								compact ? "h-[40px]" : "h-[32px]"
 							}`}
 						>
-							<ArrowLeft size={15} strokeWidth={1.8} className="shrink-0" />
+							<ArrowLeft size={16} className="shrink-0" />
 							{t("app.backWorkspace")}
 						</button>
 					</div>
@@ -222,7 +222,7 @@ export function SettingsShell() {
 				</nav>
 			</NavPane>
 
-			<main ref={mainRef} className="ly-opaque flex min-w-0 flex-1 flex-col">
+			<main ref={mainRef} className="ly-opaque ly-card-page flex min-w-0 flex-1 flex-col">
 				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 				{/*
 				 * Most sections are a column of settings and scroll as one page. A few are
@@ -254,7 +254,7 @@ export function SettingsShell() {
 			{/* Last child, for the same DOM-order reason as the chat shell's toolbar. */}
 			{!headerBar && (
 				<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
-					<div className="no-drag absolute top-0 flex items-center gap-0.5" style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}>
+					<div className="no-drag absolute flex items-center gap-0.5" style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}>
 						{navToggle}
 					</div>
 				</div>

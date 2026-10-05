@@ -174,7 +174,7 @@ export function PullRequestList({
 					data-ly-tip={t("common.refresh")}
 					aria-label={t("common.refresh")}
 					onClick={onRefresh}
-					className="no-drag flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
+					className="no-drag flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 				>
 					{loading ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={1.8} />}
 				</button>
@@ -294,7 +294,7 @@ function GroupHeading({
 			type="button"
 			onClick={onToggle}
 			aria-expanded={open}
-			className="group/head flex w-full items-center gap-1 rounded-md px-2 py-1 text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+			className="group/head flex w-full items-center gap-1 rounded-lg px-2 py-1 text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 		>
 			<span>{label}</span>
 			<ChevronRight

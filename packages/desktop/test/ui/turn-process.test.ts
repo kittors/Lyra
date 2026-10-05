@@ -52,17 +52,17 @@ test("opening it renders the contents, closing it takes them back out", async ()
 	}
 });
 
-test("the turn that is still running is rendered whether or not anyone opened it", async () => {
-	/*
-	 * 正在跑的那一轮全程摊开——那时候人就是在看着它。
-	 *
-	 * 这一条是上面那条的反面，缺了它，「收起即不渲染」很容易被写成「只要没点开就不渲染」，而那会让
-	 * 正在跑的一轮变成一片空白。
-	 */
+test("the turn that is still running starts folded too, and can be opened", async () => {
+	// Not expanded by default: while it runs, the line's counts already say what is happening, and what is said stays outside the fold.
 	const view = await mount(h(TurnProcess, { counts: COUNTS, running: true, children: inside }));
 	try {
-		assert.equal(view.all("[data-probe]").length, 1, "正在跑的一轮必须看得见");
-		assert.equal(view.all("button[aria-expanded]").length, 0, "跑的时候不画那个开关——此刻它什么也不做");
+		const toggle = view.find<HTMLButtonElement>("button[aria-expanded]");
+		assert.equal(toggle.getAttribute("aria-expanded"), "false", "跑的时候开关就在，默认收着");
+		assert.equal(view.all("[data-probe]").length, 0);
+		await click(toggle);
+		assert.equal(toggle.getAttribute("aria-expanded"), "true", "跑的时候也能点开");
+		await view.rerender(h(TurnProcess, { counts: COUNTS, running: false, children: inside }));
+		assert.equal(toggle.getAttribute("aria-expanded"), "true", "点开的，跑完也不收走");
 	} finally {
 		await view.unmount();
 	}

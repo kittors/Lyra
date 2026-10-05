@@ -27,7 +27,7 @@ import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
 import { companionOf, renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
 import { pct } from "./css.ts";
-import { HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
+import { cardRoom, HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
 import { DockPane } from "./DockPane.tsx";
 import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
@@ -38,10 +38,12 @@ import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
 import type { DockDragHost } from "./drag-host.ts";
 import type { PanelKind } from "./sideStore.ts";
-import type { PaneKind } from "./tree.ts";
+import { kinds, type PaneKind } from "./tree.ts";
 import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
 import { useDockDrag } from "./useDockDrag.ts";
+import { activeTab, panelsOf, tabbedTree, usePanelLayout } from "./tabs.ts";
+import { PanelTabs, type AddablePanel, type PanelTab } from "./PanelTabs.tsx";
 
 const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
 
@@ -145,6 +147,9 @@ export function DockView({
 	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
 	const maximized = usePaneDock((s) => s.maximized[scope] ?? null);
 	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
+	const rememberedTab = usePaneDock((s) => s.tab[scope]);
+	const tabShare = usePaneDock((s) => s.tabShare);
+	const tabbed = usePanelLayout() === "tabs";
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -208,10 +213,22 @@ export function DockView({
 	 * returns the layout to them. A screen that cannot hold its floors draws them anyway, the first
 	 * pane in a row covered rather than reflowed; it never evicts a pane.
 	 */
-	const fitted = compact || !size ? tree : fitTree(tree, size, paneFloor);
+	/*
+	 * The tabs layout draws a two-cell tree, the conversation plus the current tab; every other panel
+	 * borrows the current tab's cell and stays mounted there, hidden. The stored tree is untouched — see
+	 * `tabs.ts`.
+	 */
+	const panels = tabbed ? panelsOf(tree) : [];
+	const tab = tabbed ? activeTab(tree, rememberedTab) : null;
+	const shown = tabbed ? tabbedTree(tab, tabShare) : tree;
+	/** Whose cell a tab is drawn in: in the tabs layout every panel is in the current tab's. */
+	const slotOf = (kind: PaneKind): PaneKind => (tab && panels.includes(kind) ? tab : kind);
+	const fitted = compact || !size ? shown : fitTree(shown, size, paneFloor);
 	const laid = layoutPanes(fitted);
 
-	const focus = compact ? null : maximized;
+	// In the tabs layout it is the whole column that goes full screen, not one tab: switching tabs must not leave full screen.
+	const tabsMaximized = tabbed && tab && maximized?.panes.some((kind) => kind !== "conversation") ? { ...maximized, panes: [tab] } : null;
+	const focus = compact ? null : tabbed ? tabsMaximized : maximized;
 	const stacked = Boolean(focus && focus.panes.length === 2 && (!size || size.width < PANEL_MIN_WIDTH_PX * 2));
 	// The renderer decides which way a maximised pair goes; the store needs it on the way out.
 	useEffect(() => {
@@ -253,7 +270,9 @@ export function DockView({
 	 */
 	const applyShare = (share: number, handle: SplitterBox) => {
 		const dock = usePaneDock.getState();
-		if (dock.maximized[scope]) dock.setMaximizedRatio(scope, share);
+		// The conversation is on the near side of that divider; the tab column takes the rest.
+		if (tabbed) dock.setTabShare(1 - share);
+		else if (dock.maximized[scope]) dock.setMaximizedRatio(scope, share);
 		else dock.setShare(scope, handle.path, handle.index, share);
 	};
 
@@ -268,7 +287,8 @@ export function DockView({
 	 * shows them without a reload. Assigned during render and idempotent.
 	 */
 	const order = useRef<PaneKind[]>(["conversation", "browser"]);
-	const present = laid.map((box) => box.kind);
+	// In the tabs layout the background tabs are not in the drawn tree, yet they stay mounted — they are the hidden panes.
+	const present = tabbed ? kinds(tree) : laid.map((box) => box.kind);
 	// A carried pane has been lifted out of the tree and is still the thing in your hand.
 	const live = carried && !present.includes(carried.kind) ? [...present, carried.kind] : present;
 	order.current = [
@@ -281,6 +301,16 @@ export function DockView({
 	const startCorner = insets.start > 0 ? paneAtCorner({ compact, focusedPane, boxes: drawn, corner: "start" }) : null;
 	const endCorner = insets.end > 0 ? paneAtCorner({ compact, focusedPane, boxes: drawn, corner: "end" }) : null;
 	const conversationLabel = translate("sidebar.chats");
+	const tabs: PanelTab[] = panels.map((kind) => {
+		const def = definitions.find((entry) => entry.kind === kind);
+		return { kind, label: def ? translate(def.label) : kind, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined };
+	});
+	// The same rule as the title bar's ⋮ menu: nothing that cannot be opened, nothing that menu does not list.
+	const addable: AddablePanel[] = tabbed
+		? definitions
+				.filter((def) => !def.unavailable && def.listed !== false && !panels.includes(def.kind))
+				.map((def) => ({ kind: def.kind, label: translate(def.label), icon: <def.icon size={16} strokeWidth={1.7} />, shortcut: def.shortcut }))
+		: [];
 
 	return (
 		<DockScope.Provider value={scope}>
@@ -326,9 +356,11 @@ export function DockView({
 						const def = definitions.find((entry) => entry.kind === kind);
 						const label = conversation ? conversationLabel : def ? translate(def.label) : kind;
 						const icon = !conversation && def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined;
-						const box = compact ? WHOLE : (focusBox(kind) ?? laid.find((entry) => entry.kind === kind) ?? WHOLE);
+						const slot = slotOf(kind);
+						const box = compact ? WHOLE : (focusBox(slot) ?? laid.find((entry) => entry.kind === slot) ?? WHOLE);
 						const moving = carried?.kind === kind;
-						const draggable = !compact && live.length > 1;
+						const draggable = !compact && !tabbed && live.length > 1;
+						const panelHeader = conversation ? null : renderPanelHeader(kind as PanelKind);
 						const onDragStart = (event: React.PointerEvent<HTMLElement>) => start(kind, event);
 						const onMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveTo(scope, kind, { side, kind: null });
 						const onArrowMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveAlong(scope, kind, side);
@@ -354,15 +386,28 @@ export function DockView({
 								onMove={onMove}
 								onArrowMove={onArrowMove}
 								actions={conversation ? undefined : renderPanelActions(kind as PanelKind)}
-								title={conversation ? undefined : renderPanelHeader(kind as PanelKind)}
+								title={
+									conversation ? undefined : tabbed ? (
+										<PanelTabs scope={scope} tabs={tabs} addable={addable} current={kind} />
+									) : (
+										panelHeader
+									)
+								}
 								inset={inset}
 								insetEnd={insetEnd}
 								onToggleMaximized={
-									canToggleMaximized(kind, { compact, maximized })
-										? () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind)
-										: undefined
+									!canToggleMaximized(kind, { compact, maximized })
+										? undefined
+										: tabbed
+											? () => {
+													const dock = usePaneDock.getState();
+													if (dock.maximized[scope]) dock.restore(scope);
+													else dock.toggleMaximized(scope, kind);
+												}
+											: () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind)
 								}
-								onClose={conversation ? undefined : () => usePaneDock.getState().close(scope, kind)}
+								// In the tabs layout the close button is on the tab itself; the title bar does not get a second one.
+								onClose={conversation || tabbed ? undefined : () => usePaneDock.getState().close(scope, kind)}
 								onPopOut={
 									conversation || detachOf(kind) === "none"
 										? undefined
@@ -373,7 +418,8 @@ export function DockView({
 								customHeader={
 									conversation ? (
 										<>
-											{header({ start: inset, end: insetEnd })}
+											{/* A card, like every pane — see `DockPane`. */}
+											{header({ start: cardRoom(inset), end: cardRoom(insetEnd) })}
 											{draggable && !maximized && (
 												<PaneGrip kind={kind} label={label} carried={moving} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />
 											)}
@@ -381,7 +427,24 @@ export function DockView({
 									) : undefined
 								}
 							>
-								{conversation ? children : renderPanel(kind as PanelKind)}
+								{conversation ? (
+									children
+								) : (
+									/*
+									 * One structure for both layouts: switching layout leaves the panel body where it is, so the
+									 * terminal and the browser are not rebuilt. In the tabs layout the title bar gives way to the
+									 * tab strip, and the panel's own title controls (the terminal's sub-tabs, a file name) move to
+									 * a row beneath it.
+									 */
+									<>
+										{tabbed && panelHeader && (
+											<div data-dock-subheader={kind} className="flex shrink-0 items-center px-2 pb-1">
+												{panelHeader}
+											</div>
+										)}
+										<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{renderPanel(kind as PanelKind)}</div>
+									</>
+								)}
 							</DockPane>
 						);
 					})}

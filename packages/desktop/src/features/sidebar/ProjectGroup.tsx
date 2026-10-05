@@ -8,14 +8,16 @@
  * The heading itself is in `ProjectHead`, because it is also drawn pinned over the list.
  */
 
+import { useRef } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { Collapsible } from "./Collapsible.tsx";
-import type { Group } from "./grouping.ts";
+import type { Group } from "../../lib/sidebar-grouping.ts";
 import { ProjectHead } from "./ProjectHead.tsx";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
+import { useUnfold } from "./useUnfold.ts";
 
 /**
  * How many sessions a project shows before the rest are behind 展开显示, and how many more each
@@ -31,7 +33,6 @@ export const SESSION_PAGE = COLLAPSED_SESSION_COUNT;
 
 export function ProjectGroup({
 	group,
-	active,
 	pins = true,
 	shown,
 	collapsed,
@@ -41,7 +42,6 @@ export function ProjectGroup({
 	actions,
 }: {
 	group: Group;
-	active: boolean;
 	/**
 	 * Whether this heading takes part in pinning.
 	 *
@@ -59,6 +59,8 @@ export function ProjectGroup({
 	actions: RowActions;
 }) {
 	const { compact } = useLayout();
+	const rows = useRef<HTMLDivElement>(null);
+	const unfold = useUnfold(rows);
 	const visible = group.sessions.slice(0, Math.max(COLLAPSED_SESSION_COUNT, shown));
 	const hidden = group.sessions.length - visible.length;
 	// Only worth offering once something has actually been opened up.
@@ -69,6 +71,7 @@ export function ProjectGroup({
 
 	return (
 		<div
+			data-ly-band
 			className={`relative mb-2 flex flex-col transition-opacity duration-[var(--ly-t-quick)] ${
 				isDraggingThisProject ? "opacity-35" : ""
 			}`}
@@ -82,27 +85,36 @@ export function ProjectGroup({
 			 * heading arrives on its own. There is no code for that anywhere — it falls out of where
 			 * the element sits.
 			 *
-			 * `ly-pin` is the opaque fill it needs to hide the rows passing underneath, and
-			 * `data-ly-head` is what the fade measures against so the list softens below it rather
-			 * than through it.
+			 * No fill: the rows passing underneath fade out before they get there, and so does this
+			 * heading before the next one pushes it under the strip — `data-ly-band` is what that
+			 * fade reads (`ly-under-pin`). `data-ly-head` is what the fade measures against so the
+			 * list softens below it rather than through it.
 			 */}
-			<div data-ly-head={pins ? "" : undefined} className="ly-pin sticky top-[var(--ly-rail)] z-20">
-				<ProjectHead group={group} active={active} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
+			<div data-ly-head={pins ? "" : undefined} className="sticky top-[var(--ly-rail)] z-20">
+				<ProjectHead group={group} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 
 			<Collapsible open={!collapsed}>
 				{/* The gap lives here rather than on the outer column, or a folded project would keep
 				    the space between rows it no longer has. */}
-				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[4px] pt-[4px]"}`}>
-					{visible.map((session) => (
-						<SessionRow
-							key={session.id}
-							session={session}
-							{...rowActions(actions, session)}
-						/>
-					))}
+				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
+					{/* Wraps only the rows: the show-more button stays outside, so it rides the bottom edge while unfolding and folding (see `useUnfold`). */}
+					<div ref={rows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
+						{visible.map((session) => (
+							<SessionRow
+								key={session.id}
+								session={session}
+								{...rowActions(actions, session)}
+							/>
+						))}
+					</div>
 
-					<ShowMore hidden={hidden} canCollapse={canCollapse} onShowMore={onShowMore} onCollapse={onCollapse} />
+					<ShowMore
+						hidden={hidden}
+						canCollapse={canCollapse}
+						onShowMore={unfold.unfold(onShowMore)}
+						onCollapse={unfold.fold(COLLAPSED_SESSION_COUNT, onCollapse)}
+					/>
 				</div>
 			</Collapsible>
 		</div>

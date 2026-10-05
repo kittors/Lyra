@@ -18,7 +18,7 @@ import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";
-import { SessionCard, useSessionCard, when } from "./SessionCard.tsx";
+import { SessionCard, useSessionCard } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -30,6 +30,8 @@ import { offerSessionDrag } from "../split/index.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
 import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
 import { onPhone } from "../../services/index.ts";
 
 /**
@@ -238,28 +240,34 @@ export function SessionRow({
 				 * Title fills the row. Icons overlay. Growing padding on hover used to shrink
 				 * ScrollText and jitter a long name.
 				 */
-				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pr-1.5 pl-2 text-left text-label ${
-					compact ? "h-[34px]" : "h-[27px]"
-				} ${
-					active ? "text-ink" : "text-ink-muted group-hover/row:text-ink"
+				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pr-1.5 pl-2.5 text-left text-label text-ink ${
+					compact ? "h-[34px]" : "h-[32px]"
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
 				{onPhone() ? (
 					/*
-					 * Two lines on a phone: the title, and when it was last touched under it.
-					 *
-					 * The desktop keeps that date in the card that opens on hover, and a finger never
-					 * hovers. Under the title rather than beside it, so the title keeps the whole width
-					 * the icons used to take — they are behind a long press now.
+					 * Two lines on a phone: the title, and when it was last touched under it — so the
+					 * title keeps the whole width of a narrow drawer instead of sharing it with the age.
 					 */
 					<span className="flex min-w-0 flex-1 flex-col">
 						<ScrollText text={title} className="ly-fade-tail min-w-0" />
-						<span className="ly-row-when">{when(session.updatedAt)}</span>
+						<TimeAgo iso={new Date(session.updatedAt).toISOString()} className="ly-row-when" />
 					</span>
 				) : (
-					<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
+					<>
+						<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
+						{/*
+						 * How long since the last activity, in the corner the hover buttons drop into: it makes way
+						 * when they come out, and the two never show at once. Whatever time the list is sorted by,
+						 * this is updatedAt — what a glance has to answer is "how long has this sat untouched".
+						 */}
+						<TimeAgo
+							iso={new Date(session.updatedAt).toISOString()}
+							className="shrink-0 text-caption text-ink-muted transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0"
+						/>
+					</>
 				)}
 			</button>
 
@@ -267,52 +275,48 @@ export function SessionRow({
 				{inArchive ? (
 					<>
 						{onRestore && (
-							<button
-								type="button"
-								data-ly-tip={t("sessionRow.unarchive")}
-								aria-label={t("sessionRow.unarchiveOne", { title: sessionTitle(session.title) })}
+							<IconButton
+								size="sm"
+								label={t("sessionRow.unarchive")}
+								ariaLabel={t("sessionRow.unarchiveOne", { title: sessionTitle(session.title) })}
 								onClick={onRestore}
-								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-							>
-								<ArchiveRestore size={12.5} strokeWidth={1.8} />
-							</button>
+								className="pointer-events-auto"
+								icon={<ArchiveRestore size={12.5} strokeWidth={1.8} />}
+							/>
 						)}
 						{onDelete && (
-							<button
-								type="button"
-								data-ly-tip={t("common.delete")}
-								aria-label={t("sessionRow.deleteOne", { title: sessionTitle(session.title) })}
+							<IconButton
+								size="sm"
+								tone="danger"
+								label={t("common.delete")}
+								ariaLabel={t("sessionRow.deleteOne", { title: sessionTitle(session.title) })}
 								onClick={onDelete}
-								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
-							>
-								<Trash2 size={12.5} strokeWidth={1.8} />
-							</button>
+								className="pointer-events-auto"
+								icon={<Trash2 size={12.5} strokeWidth={1.8} />}
+							/>
 						)}
 					</>
 				) : (
 					<>
-						<button
-							type="button"
-							data-ly-tip={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
-							aria-label={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
+						<IconButton
+							size="sm"
+							label={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
 							onClick={() => void setSessionPinned(session.id, !isPinned)}
-							className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-						>
-							{isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
-						</button>
+							className="pointer-events-auto"
+							icon={isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
+						/>
 						{onArchive && (
-							<button
-								type="button"
-								data-ly-tip={t("sessionRow.archive")}
-								aria-label={t("sessionRow.fileOne", {
+							<IconButton
+								size="sm"
+								label={t("sessionRow.archive")}
+								ariaLabel={t("sessionRow.fileOne", {
 									what: t("sessionRow.archive"),
 									title: sessionTitle(session.title),
 								})}
 								onClick={onArchive}
-								className="pointer-events-auto rounded p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-							>
-								<Archive size={12.5} strokeWidth={1.8} />
-							</button>
+								className="pointer-events-auto"
+								icon={<Archive size={12.5} strokeWidth={1.8} />}
+							/>
 						)}
 					</>
 				)}

@@ -110,7 +110,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 	const point = (el: HTMLCanvasElement, clientX: number, clientY: number) => { const bounds = el.getBoundingClientRect(); return { x: clientX - bounds.left, y: clientY - bounds.top, width: bounds.width }; };
 	return <section ref={root} hidden={cramped} className="shrink-0 px-3 pb-1" aria-label={t("timeline.overview")} data-trace-timeline>
 		<div className="flex h-8 items-center gap-1 text-caption text-ink-muted">
-			<button type="button" data-ly-tip={short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")} aria-label={t("timeline.overview")} aria-expanded={visible} className="mr-auto grid h-5 w-5 place-items-center rounded hover:text-ink" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }}><ChevronDown size={12} aria-hidden style={{ transform: expanded ? undefined : "rotate(-90deg)" }} /></button>
+			<button type="button" data-ly-tip={short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")} aria-label={t("timeline.overview")} aria-expanded={visible} className="mr-auto grid h-5 w-5 place-items-center rounded-md hover:text-ink" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }}><ChevronDown size={12} aria-hidden style={{ transform: expanded ? undefined : "rotate(-90deg)" }} /></button>
 			{/*
 			 * 收起的时候，这三个不在。
 			 *
@@ -125,7 +125,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 			</>}
 		</div>
 		<div hidden={!visible}>
-		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? t("timeline.focusRange", { from: offset(brush.start - domain.start), to: offset(brush.end - domain.start) }) : t("timeline.clickHint")}</span>{brush && <button type="button" data-ly-tip={t("timeline.clearRange")} aria-label={t("timeline.clearRange")} className="grid h-5 w-5 place-items-center rounded hover:bg-hover" onClick={() => { setDraft(null); onRange(null); }}><X size={11} strokeWidth={2} aria-hidden /></button>}</div>
+		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? t("timeline.focusRange", { from: offset(brush.start - domain.start), to: offset(brush.end - domain.start) }) : t("timeline.clickHint")}</span>{brush && <button type="button" data-ly-tip={t("timeline.clearRange")} aria-label={t("timeline.clearRange")} className="grid h-5 w-5 place-items-center rounded-md hover:bg-hover" onClick={() => { setDraft(null); onRange(null); }}><X size={11} strokeWidth={2} aria-hidden /></button>}</div>
 
 		<div className="flex items-start gap-2">
 			<div aria-hidden className="flex w-7 shrink-0 flex-col text-caption text-ink-faint" style={{ lineHeight: `${LANE_HEIGHT}px` }}><span>{t("common.model")}</span><span>{t("common.tools")}</span><span>{t("timeline.collab")}</span></div>

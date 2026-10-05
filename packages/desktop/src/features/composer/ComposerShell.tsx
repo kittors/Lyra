@@ -207,11 +207,10 @@ export function ComposerShell({
   useLayoutEffect(remeasure);
 
   /*
-   * Grow with the text, but never past a third of the window.
+   * Grow with the text, up to eight lines (160px of text), and never past a third of the window.
    *
-   * Measured against the window rather than a fixed ceiling because the same component now
-   * runs inside a 368px panel and across a full-width column; a 300px field in a short window
-   * would leave no transcript above it in either.
+   * Also measured against the window because the same component runs inside a 368px panel and
+   * across a full-width column; even 160px in a short window would leave no transcript above it.
    *
    * 下限不在这里定：`min-height` 读设置里的行数，见 `misc.css` 的 `.ly-composer-text`。这里只
    * 需要认得它——`height: auto` 之后量到的 `clientHeight` 就是那条线，上限再低也不能低过它，
@@ -226,7 +225,9 @@ export function ComposerShell({
 			el.style.transition = "none";
       el.style.height = "auto";
       const floor = el.clientHeight;
-      const ceiling = Math.max(floor, Math.min(300, window.innerHeight * 0.34));
+      const style = getComputedStyle(el);
+      const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const ceiling = Math.max(floor, Math.min(160 + padding, window.innerHeight * 0.34));
       el.style.maxHeight = `${ceiling}px`;
 			const target = Math.min(el.scrollHeight, ceiling);
       el.style.overflowY = el.scrollHeight > ceiling ? "auto" : "hidden";
@@ -246,15 +247,16 @@ export function ComposerShell({
   return (
     <div
       /*
-       * No fill of its own. `bg-input` is a grey well; on the conversation page it almost
-       * vanished into the shell, and in a dock panel it stacked into a slab. Border and the
-       * `.ly-composer` shadow are what lift it; the surface underneath shows through.
+       * No fill of its own here. `bg-input` is a grey well; on the conversation page it almost
+       * vanished into the shell, and in a dock panel it stacked into a slab. Where the field sits
+       * on a pane, `composer.css` gives it the raised `--color-float`; anywhere else the surface
+       * underneath shows through. Border and the `.ly-composer` shadow do the rest.
        *
        * `@container` so the controls along the bottom can drop labels when *this* runs out
        * of room rather than when the window does. At 1100px wide with a sidebar and a panel
        * open, this field is 350px.
        */
-      className="ly-composer @container rounded-[18px] border border-line-soft bg-transparent transition-[border-color,box-shadow] duration-[var(--ly-t-base)]"
+      className="ly-composer @container rounded-2xl border bg-transparent transition-[border-color] duration-[var(--ly-t-quick)] ease-[var(--ly-e-soft)]"
       onDragOver={onFiles ? (e) => e.preventDefault() : undefined}
       onDrop={
         onFiles
@@ -415,7 +417,7 @@ export function ComposerShell({
           }}
           rows={1}
           placeholder={placeholder}
-          className="ly-composer-text ly-field-fade relative block max-h-[min(300px,34vh)] w-full resize-none bg-transparent placeholder:text-ink-faint"
+          className="ly-composer-text ly-field-fade relative block max-h-[min(calc(160px+var(--ly-composer-in)*2),34vh)] w-full resize-none bg-transparent placeholder:text-ink-faint"
         />
         <OverlayScrollbar viewport={field} orientation="vertical" />
       </div>
@@ -465,7 +467,7 @@ export function ComposerSend({ running, disabled, onSend, onStop, continueReady 
 	const label = running ? t("composer.stop") : tip ?? t("composer.send");
 	return <button type="button" data-composer-send={active ? mode : undefined} data-ly-tip={label} aria-label={label}
 		disabled={!running && disabled} onClick={running ? onStop : onSend}
-		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-full transition duration-[var(--ly-t-quick)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
+		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-lg transition-colors duration-[var(--ly-t-quick)] ease-[var(--ly-e-soft)] ${running ? "bg-elevated text-ink hover:bg-card-hover" : "bg-ink text-shell enabled:hover:bg-ink/80 disabled:opacity-50"}`}>
 		<span className="ly-send-icon" data-active={mode === "stop"}><svg width="11" height="11" viewBox="0 0 11 11" aria-hidden><rect width="11" height="11" rx="1.5" fill="currentColor" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "continue"}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M5 3.5 12.5 8 5 12.5Z" fill="currentColor" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "send"}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 19V5M5 12l7-7 7 7" /></svg></span>

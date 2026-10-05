@@ -17,7 +17,7 @@
  * beside a row would be cut off at the pane's edge — which is exactly where it needs to be.
  */
 
-import { activeLocale, translate } from "../../i18n/translate.ts";
+import { translate } from "../../i18n/translate.ts";
 import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -57,12 +57,8 @@ const GAP = 8;
  */
 const CARD_Z = 210;
 
-/**
- * `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster.
- *
- * Also the second line of a row on a phone, where there is no card to hover for it.
- */
-export function when(at: number, locale: ResolvedUiLocale = activeLocale()): string {
+/** `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster. */
+function when(at: number, locale: ResolvedUiLocale): string {
 	const days = Math.floor((Date.now() - at) / 86_400_000);
 	if (days === 0) {
 		return new Date(at).toLocaleTimeString(locale, { hour: hourStyle(locale), minute: "2-digit" });

@@ -17,7 +17,6 @@ test("session and project rows use the shared HoverRow shell", async () => {
 	const session = await readFile(new URL("src/features/sidebar/SessionRow.tsx", root), "utf8");
 	assert.match(session, /pr-1\.5/);
 	assert.doesNotMatch(session, /actionsCount === 2 \? "pr-14" : "pr-8"/);
-	assert.match(session, /group-hover\/row:text-ink/);
 });
 
 test("the fade keys off the shared hover-row attribute", async () => {

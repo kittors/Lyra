@@ -4,7 +4,7 @@ import { createElement as h } from "react";
 import { DEFAULT_SETTINGS, type SessionMeta, type Settings } from "@lyra/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { useApp } from "../../src/store/index.ts";
-import { groupSessions } from "../../src/features/sidebar/grouping.ts";
+import { groupSessions } from "../../src/lib/sidebar-grouping.ts";
 import { ProjectHead } from "../../src/features/sidebar/ProjectHead.tsx";
 import { SessionRow } from "../../src/features/sidebar/SessionRow.tsx";
 import { SidebarReorderContext } from "../../src/features/sidebar/reorder-context.ts";
@@ -34,7 +34,7 @@ function Harness({ enabled = true }: { enabled?: boolean }) {
 	const reorder = useSidebarReorder(groups, "updatedAt", enabled ? () => { reordered++; } : undefined);
 	return h(SidebarReorderContext.Provider, { value: reorder.contextValue },
 		h("output", null, reorder.dragging?.id ?? "idle"),
-		h(ProjectHead, { group: groups.projects[0], active: false, collapsed: false, onToggleCollapsed: () => { opened++; } }),
+		h(ProjectHead, { group: groups.projects[0], collapsed: false, onToggleCollapsed: () => { opened++; } }),
 		...sessions.map((item) => h(SessionRow, { key: item.id, session: item, onOpen: () => { opened++; }, onArchive: () => {} })),
 	);
 }

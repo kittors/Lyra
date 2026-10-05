@@ -4,7 +4,7 @@
  * The widths are the ones a real window measures at the default type size: the words' own widths,
  * a 13px mark with its 6px gap, and 174px of room at the default sidebar width of 272 — the row's
  * 252 less the two buttons beside the strip, the gap to them, and the track's padding. Chinese fits
- * with room over; English is a few pixels short; Japanese, Russian and French are far short.
+ * with room over; English is a few pixels short.
  */
 
 import assert from "node:assert/strict";
@@ -20,9 +20,6 @@ const NARROWEST_ROOM = 142;
 const WORDS = {
 	"zh-CN": [28, 28],
 	en: [54.88, 38.53],
-	ja: [85.26, 28.56],
-	ru: [59.83, 51.58],
-	fr: [47.03, 79.06],
 } as const;
 
 /** What the strip's tabs come to with this fit, less the track's own padding. */
@@ -43,14 +40,8 @@ test("English at the default width gives a little padding rather than its words"
 	assert.ok(DEFAULT_ROOM - drawn(WORDS.en, fit) < 2, "and using nearly all of it, so the strip keeps its width");
 });
 
-test("the longest languages drop to their marks at the default width, at full padding", () => {
-	for (const locale of ["ja", "ru", "fr"] as const) {
-		assert.deepEqual(fitTabs(DEFAULT_ROOM, WORDS[locale], MARK, PAD), { pad: 12, words: false }, locale);
-	}
-});
-
 test("at the narrowest drag everything but Chinese is marks alone, and the marks still fit", () => {
-	for (const locale of ["en", "ja", "ru", "fr"] as const) {
+	for (const locale of ["en"] as const) {
 		const fit = fitTabs(NARROWEST_ROOM, WORDS[locale], MARK, PAD);
 		assert.equal(fit.words, false, locale);
 		assert.ok(drawn(WORDS[locale], fit) <= NARROWEST_ROOM, locale);

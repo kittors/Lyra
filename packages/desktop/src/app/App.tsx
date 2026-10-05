@@ -267,11 +267,82 @@ function Shell() {
  * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
  * phone, loading the same bundle across a relay, that this is for.
  */
-function LazyScreen({ children, shape = "list" }: { children: React.ReactNode; shape?: "settings" | "list" | "grid" }) {
-	const { t } = useI18n();
+function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" }) {
 	const fallback =
-		shape === "settings" ? <SettingsFallback /> : shape === "grid" ? <SkeletonGrid count={6} label={t("common.loading")} /> : <SkeletonList count={6} label={t("common.loading")} />;
+		shape === "settings" ? <SettingsFallback />
+		: shape === "plugins" ? <PluginsFallback />
+		: shape === "pull-requests" ? <PullRequestsFallback />
+		: <ScheduledFallback />;
 	return <Suspense fallback={fallback}>{children}</Suspense>;
+}
+
+/*
+ * The three below follow the reasoning of `SettingsFallback`: each skeleton is laid out like its view's
+ * own shell.
+ *
+ * The three views used to share a bare `SkeletonList`/`SkeletonGrid`, made for inside the settings page:
+ * they carry no margins of their own and assume a content column around them. Dropped straight into
+ * `SoloScreen` they ran edge to edge across the card, and when the content arrived the margins, the
+ * centred width and the heading all appeared at once and the whole page reflowed. Margins and width have
+ * to follow the view itself.
+ */
+
+/** `ScheduledView`: centred at 880px, px-8, with the heading and description above the list. */
+function ScheduledFallback() {
+	const { compact } = useLayout();
+	const { t } = useI18n();
+	return (
+		<div className={`mx-auto w-full max-w-[880px] py-6 ${compact ? "px-4" : "px-8"}`}>
+			<div className="pb-6">
+				<SkeletonBar width="112px" height={20} />
+				<SkeletonBar width="min(420px, 70%)" height={10} className="mt-3.5" />
+			</div>
+			<SkeletonList count={4} label={t("common.loading")} />
+		</div>
+	);
+}
+
+/** `PluginsView`: a 44px tab strip on top, then a heading and card grid kept to 860px inside px-6. */
+function PluginsFallback() {
+	const { t } = useI18n();
+	return (
+		<div className="px-6">
+			{/* `@container`, so the grid's two columns switch on this column's width, as on the real page. */}
+			<div className="@container mx-auto w-full max-w-[860px]">
+				<SkeletonBar width="96px" height={24} className="mt-6" />
+				<SkeletonBar width="min(360px, 60%)" height={10} className="mt-3.5" />
+				<SkeletonGrid count={6} label={t("common.loading")} />
+			</div>
+		</div>
+	);
+}
+
+/**
+ * `PullRequestsView`: a 300px list column on the left, the detail on the right.
+ *
+ * The list column reaches up into the window's top strip (`-mt-11`) so its divider runs top to bottom as
+ * on the real page; the strip's 44px is left empty — the filter buttons there make way for the traffic
+ * lights, and drawn here they would sit on top of them.
+ */
+function PullRequestsFallback() {
+	const { t } = useI18n();
+	return (
+		<div className="-mt-11 flex min-h-0 flex-1" role="status" aria-label={t("common.loading")}>
+			<div className="flex w-[300px] shrink-0 flex-col border-r border-line-soft">
+				<div className="h-11 shrink-0" />
+				<div className="px-3 pt-1 pb-2">
+					<span className="ly-skeleton block h-8 rounded-[9px]" />
+				</div>
+				{[72, 58, 84, 66, 78, 52].map((width, index) => (
+					<div key={index} className="px-5 py-3">
+						<SkeletonBar width={`${width}%`} height={10} />
+						<SkeletonBar width="40%" height={8} className="mt-2" />
+					</div>
+				))}
+			</div>
+			<div className="flex-1" />
+		</div>
+	);
 }
 
 /**
@@ -348,9 +419,9 @@ function MainContent() {
 		<Workspace away={solo} />
 		<div className={solo ? "contents" : "hidden"}>
 			<RetainedViews active={active} limit={4} render={(key) => {
-				if (key === "plugins") return <SoloScreen><LazyScreen shape="grid"><PluginsView /></LazyScreen></SoloScreen>;
-				if (key === "pull-requests") return <SoloScreen><LazyScreen><PullRequestsView /></LazyScreen></SoloScreen>;
-				if (key === "scheduled") return <SoloScreen><LazyScreen><ScheduledView /></LazyScreen></SoloScreen>;
+				if (key === "plugins") return <SoloScreen><LazyScreen shape="plugins"><PluginsView /></LazyScreen></SoloScreen>;
+				if (key === "pull-requests") return <SoloScreen><LazyScreen shape="pull-requests"><PullRequestsView /></LazyScreen></SoloScreen>;
+				if (key === "scheduled") return <SoloScreen><LazyScreen shape="scheduled"><ScheduledView /></LazyScreen></SoloScreen>;
 				return null;
 			}} />
 		</div>
@@ -385,7 +456,7 @@ function Workspace({ away }: { away: boolean }) {
 			data-view="chat"
 			data-active={away ? "false" : "true"}
 			inert={away}
-			className={`${away ? "pointer-events-none invisible absolute inset-0" : "ly-page-enter relative flex-1"} flex min-h-0 min-w-0 flex-col`}
+			className={`${away ? "pointer-events-none invisible absolute inset-0" : "ly-page-enter relative flex-1"} ly-frames flex min-h-0 min-w-0 flex-col`}
 		>
 			<SplitWorkspace />
 		</div>
@@ -401,8 +472,14 @@ function Workspace({ away }: { away: boolean }) {
  */
 function SoloScreen({ children }: { children: React.ReactNode }) {
 	return (
-		<div data-ly-solo-screen className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+		<div data-ly-solo-screen className="ly-card-page relative flex min-h-0 min-w-0 flex-1 flex-col">
 			<div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />
+			{/*
+			 * A full 44px, not short by the 5px the card stands off the window's top. Short by that, the top
+			 * row would line up with the traffic lights, at the cost of tabs about 4px from the card's top
+			 * edge with 12px either side, jammed against it. The card floats now; the row centred in the
+			 * card matters more than lining up with the window's top line.
+			 */}
 			<div aria-hidden className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 		</div>
@@ -447,7 +524,11 @@ function ChatShell({ settings }: { settings: boolean }) {
 	 * 规矩不是风格——见下面它自己的注释。侧边栏只有一行，写两遍换来的是拖拽区的顺序还能读懂。
 	 */
 	const dock = (
-		<main className="ly-opaque relative flex min-w-0 flex-1 flex-col">
+		/*
+		 * No fill of its own: every pane in here is a card with its own surface, and the gaps between
+		 * them have to show the window's colour — the sidebar's — not another coat of the cards'.
+		 */
+		<main className="relative flex min-w-0 flex-1 flex-col">
 			{/*
 			 * The conversations on screen, each with its own title bar and its own panels.
 			 *

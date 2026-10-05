@@ -16,6 +16,7 @@
  * 陪着它——同一件事说两遍，就是长任务让人觉得吵的原因。
  */
 
+import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -60,7 +61,7 @@ export function FlowRow({
 		<>
 			{/* 图标一直在：它说的是这一行是什么（在想 / 在动手 / 在跑命令），不该被别的东西顶掉。 */}
 			<span className="ly-flow-lead">{icon}</span>
-			{title && <span className="ly-flow-title text-ink-muted">{title}</span>}
+			{title && <span className="ly-flow-title font-medium text-ink-faint">{title}</span>}
 			{title && summary ? <span className="ly-flow-dot" aria-hidden /> : null}
 			{/*
 			 * 扫光挂在外层，字挂在内层，而且 key 在内层——这一条是踩出来的。
@@ -94,6 +95,12 @@ export function FlowRow({
 				</span>
 			)}
 			{trailing && <span className="ly-flow-trail">{trailing}</span>}
+			{/*
+			 * The chevron is back, and it follows the words rather than sitting at the far edge. It was
+			 * dropped when the process rows were unified, and a row that opens then looked exactly like
+			 * one that does not. A row that navigates elsewhere passes no `open` and draws its own mark.
+			 */}
+			{expandable && open !== undefined && <ChevronRight size={12} strokeWidth={2} className="ly-flow-chevron" aria-hidden />}
 		</>
 	);
 

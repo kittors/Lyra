@@ -12,15 +12,23 @@ import { Text } from "../../ui/primitives/Text.tsx";
 /** Section heading above a card group, as used by the reference settings pages. */
 export function SectionTitle({ children }: { children: React.ReactNode }) {
 	return (
-		<Text as="h2" size="title" weight="medium" className="mb-3">
+		<Text as="h2" size="title" weight="semibold" className="mb-3">
 			{children}
 		</Text>
 	);
 }
 
-/** Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by. */
+/**
+ * Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by.
+ *
+ * Cards use the `float` sheet, not `card/40`, after ZCode, whose settings cards and pop-up menus are
+ * one colour — a solid fill a step brighter than the page in both themes. Laid over a dark page,
+ * `card/40` is only three or four grey levels brighter, and the card dissolves into the background.
+ * The border follows, to `line-float`, which is meant for lines drawn on a sheet of their own; how the
+ * lines and controls inside a card follow along is `.ly-settings-card` in `overlay.css`.
+ */
 export function Card({ children, className = "", ...rest }: React.ComponentProps<"div">) {
-	return <div {...rest} className={`overflow-hidden rounded-[12px] border border-line bg-card/40 ${className}`}>{children}</div>;
+	return <div {...rest} className={`ly-settings-card overflow-hidden rounded-[12px] border border-line-float bg-float ${className}`}>{children}</div>;
 }
 
 /** One labelled row inside a card, with the control right-aligned. */
@@ -56,7 +64,7 @@ export function Row({
 			 */}
 			<div data-settings-row className="flex flex-col gap-2 @md:flex-row @md:items-center @md:gap-4">
 				<div className="min-w-0 flex-1">
-					<Text as="div" size="body">
+					<Text as="div" size="label" weight="medium">
 						{title}
 					</Text>
 					{detail && (
@@ -116,7 +124,7 @@ export function ListRow({
 		 * by rhythm, and the only line left on the page is the one under the tabs, which is the one
 		 * that means something.
 		 */
-		<div data-row-actions className="ly-scroll group/row relative flex items-center gap-3 rounded-[10px] px-2 py-3">
+		<div data-row-actions className="ly-scroll group/row relative flex items-center gap-3 rounded-lg px-2 py-3">
 			{/*
 			 * The row's own hit area, underneath everything on it.
 			 *
@@ -129,7 +137,7 @@ export function ListRow({
 					type="button"
 					aria-label={openLabel}
 					onClick={onOpen}
-					className="absolute inset-0 rounded-[10px] transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
+					className="absolute inset-0 rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
 				/>
 			)}
 

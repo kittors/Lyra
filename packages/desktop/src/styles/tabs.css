@@ -9,9 +9,13 @@
  * under it, and the selected tab came out as the recessed one.
  *
  * So the track is a veil of the foreground — a film that darkens a light pane and lightens a dark
- * one, correct on both by construction — and the knob is `--color-float`, the one token that
- * genuinely means "above the surface" in both directions: near-white on light, a step brighter than
- * the page on dark.
+ * one, correct on both by construction — and the knob is `--color-shell`, the colour of the panel
+ * beside the sidebar.
+ *
+ * The knob used to be `--color-float`. On dark that is the background mixed about 10% towards the
+ * foreground, and the track (the sidebar with another 7% of foreground) about 11% — nearly the same, so
+ * the selected tab could only be told by its shadow. As the panel's colour it is a block a step darker
+ * than the track on dark and a white piece in a grey track on light: apart on both.
  * ------------------------------------------------------------------------- */
 
 .ly-tabs {
@@ -19,7 +23,7 @@
 }
 
 .ly-tabs-knob {
-  background: var(--color-float);
+  background: var(--color-shell);
   /*
    * A hairline and a short drop, which is most of what makes this read as lifted rather than as a
    * differently-coloured rectangle. On light the fill is near-white on near-white, so without an
@@ -62,37 +66,72 @@
 }
 
 /* ---------------------------------------------------------------------------
- * header 底下那一行：侧边栏，和一张卡片一样的内容区
+ * Panels floating in the window
  *
- * 这一行的底色是侧边栏那一档，和 header 连成一片；内容区自己是外壳那一档，比周围亮（深色主题下
- * 是比周围暗）一级，左上角收一个圆角——于是它读起来是一张嵌在窗口里的卡片，而不是被两条边框
- * 切出来的一块。转角只收左上这一个：其余三边都贴着窗口的边，那里没有东西可以嵌进去。
+ * The window's base takes the sidebar's shade, and every piece of the content area — the conversation,
+ * the terminal and other panels, standalone pages such as plugins, the settings page — is a card: set
+ * back a little from the window's edge and from each other, fully rounded, with a hairline of 10%
+ * foreground. So they read as panels resting in the window rather than pieces cut out against its edges.
+ * The content area used to fill the window, one step of shade from the sidebar, with no sense of layers.
  *
- * 圆角必须由**这一行**给出底色才看得见。内容区本身就是外壳色，圆角外如果还是外壳色，等于没画。
+ * Cards in the dock are `.ly-dock-card` (see `dock.css` and `DockPane`); these are the pages that do
+ * not go through the dock. The spacing is ZCode's: 4px between cards and between a card and the window.
+ * In the dock that is each card's own 2px (`PANE_INSET`) plus the workspace's 2px padding
+ * (`.ly-frames`); standalone pages are set back 4px directly.
  * ------------------------------------------------------------------------- */
 
-.ly-window-body {
+.ly-window-body,
+[data-ly-workspace-window],
+[data-ly-settings] {
   background: var(--color-sidebar);
 }
 
 /*
- * The corner is painted over, not cut out.
+ * The macOS main window on its frosted material: the window base is a translucent wash over the
+ * system material, the sidebar paints no fill of its own, and it shows through together with the
+ * gaps between the cards. Light takes the background at 70%, dark the float colour at 60% — tokens
+ * that follow 外观, not fixed colours.
  *
- * `border-radius` on `main` clips its own background and none of its children, and whatever fills
- * the content area paints its own square background over the curve. This used to round the dock as
- * well, as `main > .ly-dock` — until splitting put the dock five wrappers down, in a section per
- * screen, and the selector quietly matched nothing: the corner was square again with no rule that
- * said so. Rounding whatever happens to be first would have to be done again at every such change,
- * and would still miss a split, a terminal in the top-left pane, anything else with a background.
- * `overflow: hidden` on `main` would also cut off what a drag carries past its edge.
- *
- * So a 10px patch in the band's own colour sits on top of the content, outside the curve only, and
- * takes no pointer. What is under it no longer matters. `z-index: 1` is enough: the content is in
- * the split sections, each a stacking context of its own; the header, the sidebar's edge and every
- * floating layer are well above.
+ * The mark is set by the preload on the main process's decision (`isVibrant` in `electron/window.ts`).
+ * A window without the material never has it, these rules do nothing there, and the base stays the
+ * opaque sidebar colour above.
  */
-.ly-window-body > main {
-  border-top-left-radius: 10px;
+:root[data-vibrancy="on"] {
+  --ly-window-tint: color-mix(in oklab, var(--color-shell) 70%, transparent);
+}
+
+:root.dark[data-vibrancy="on"] {
+  --ly-window-tint: color-mix(in oklab, var(--color-float) 60%, transparent);
+}
+
+:root[data-vibrancy="on"] body {
+  background: transparent;
+}
+
+:root[data-vibrancy="on"] :is(.ly-window-body, [data-ly-workspace-window], [data-ly-settings]) {
+  background: var(--ly-window-tint);
+}
+
+:root[data-vibrancy="on"] .ly-sidebar-fill {
+  background: transparent;
+}
+
+/* The drawer lies over the transcript; clear, it would be two layers of text. It keeps the opaque colour. */
+:root[data-vibrancy="on"] [data-pane="drawer"] .ly-sidebar-fill {
+  background: var(--color-sidebar);
+}
+
+.ly-frames {
+  padding: var(--ly-frame-pad);
+}
+
+.ly-card-page {
+  margin: calc(var(--ly-frame-pad) * 2);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+  border-radius: var(--radius-panel);
+  background: var(--color-shell);
+  /* The corners have to actually clip: the scroll area inside and the column's background are square. Menus and tips go through a portal and are unaffected. */
+  overflow: hidden;
 }
 
 .ly-window-body > main::after {
@@ -238,14 +277,13 @@
 
 @theme {
   /*
-   * Max width of the chat column.
+   * Max width of the chat column, for the first frame — `applyAppearance` sets it from 对话宽度.
    *
-   * Sized to fit the main column at the default window with the sidebar open, so toggling the
-   * sidebar never changes it. Applied as a max — a hard width overflowed the window and cut
-   * the send button in half once the padding was added, and it leaves the column free to
-   * shrink with a compact window instead of running off the edge.
+   * The whole column by default: 自动 starts there and the pane's container queries narrow it
+   * (`dock.css`). Applied as a max — a hard width overflowed the window and cut the send button in
+   * half once the padding was added, and it leaves the column free to shrink with a narrow pane.
    */
-  --ly-content: 640px;
+  --ly-content: 100%;
 }
 
 /*

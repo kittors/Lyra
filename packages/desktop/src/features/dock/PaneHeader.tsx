@@ -44,7 +44,6 @@ export function PaneHeader({
 	actions,
 	inset,
 	insetEnd,
-	lift,
 	onToggleMaximized,
 	onPopOut,
 	onClose,
@@ -94,15 +93,6 @@ export function PaneHeader({
 	 */
 	insetEnd?: number;
 	/**
-	 * How far to raise the content inside the bar.
-	 *
-	 * A floating pane's card is inset from its box, so its title bar starts a few pixels lower than
-	 * a flush one's. Left alone, two panes side by side would put their titles on lines that differ
-	 * by exactly that inset — visible, and worse on the top row, where one of them is also meant to
-	 * line up with the traffic lights.
-	 */
-	lift?: number;
-	/**
 	 * Absent where full screen means nothing — the conversation, which is already what the dock is
 	 * showing, and the collapsed layout, where one pane is all there is room for.
 	 *
@@ -127,7 +117,6 @@ export function PaneHeader({
 				paddingLeft: (inset ?? 0) + HEADER_PAD,
 				// 6px is `pr-1.5`, which is what this row used before there was anything to clear.
 				paddingRight: (insetEnd ?? 0) + 6,
-				paddingBottom: (lift ?? 0) * 2,
 			}}
 			/*
 			 * `touch-none` so a trackpad drag moves the pane instead of scrolling whatever is

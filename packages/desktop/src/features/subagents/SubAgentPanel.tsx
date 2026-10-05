@@ -135,6 +135,7 @@ function Transcript({ agent, agents, sessionId, openFile }: {
 	const follow = useFollowBottom({
 		surfaceId: sessionId ? `${sessionId}:${agent.id}` : null,
 		namespace: "subagent",
+		live: agent.status === "running",
 		count: messages?.length ?? 0,
 		tail: tailSignature(messages ?? [], `${agent.status}:${agent.answer?.length ?? 0}:${agent.error ? 1 : 0}`),
 	});

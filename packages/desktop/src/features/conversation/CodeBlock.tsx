@@ -1,11 +1,13 @@
 import { translate } from "../../i18n/translate.ts";
 import type { Language } from "@codemirror/language";
-import { Check, Copy, Play } from "lucide-react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Check, Copy, Play, WrapText } from "lucide-react";
+import { type CSSProperties, memo, type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
+import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize, tokenizeGrowing, type Grown, type Token } from "../../lib/code/highlight.ts";
+import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { useSide, openScopedPanel } from "../dock/index.ts";
 import { useDockScope } from "../../app/session-scope.tsx";
+import { useFade } from "./FadeText.tsx";
 
 /**
  * Fences that are commands rather than code.
@@ -15,6 +17,25 @@ import { useDockScope } from "../../app/session-scope.tsx";
  * button — offering to "run" a TypeScript block would be offering something that cannot happen.
  */
 const SHELL = new Set(["bash", "sh", "zsh", "shell", "console", "terminal"]);
+
+/** Fence language names to file extensions, only to pick the title bar the same icon the file tree uses; anything not listed is taken as the extension itself. */
+const LANG_EXTENSION: Record<string, string> = {
+	typescript: "ts",
+	javascript: "js",
+	python: "py",
+	rust: "rs",
+	golang: "go",
+	ruby: "rb",
+	kotlin: "kt",
+	csharp: "cs",
+	"c++": "cpp",
+	markdown: "md",
+	shell: "sh",
+	console: "sh",
+	terminal: "sh",
+	text: "txt",
+	plaintext: "txt",
+};
 
 /**
  * 超过这么多字符就不高亮了。
@@ -33,8 +54,11 @@ function commandFrom(code: string): string {
 		.trim();
 }
 
-export function CodeBlock({ lang, code }: { lang: string; code: string }) {
+export function CodeBlock({ lang, code, fade = false }: { lang: string; code: string; fade?: boolean }) {
 	const [copied, setCopied] = useState(false);
+	const [wrap, setWrap] = useState(false);
+	const label = lang.toLowerCase() || "text";
+	const look = lookFor(`code.${LANG_EXTENSION[label] ?? label}`, false);
 	const [language, setLanguage] = useState<Language | null>(null);
 	/*
 	 * The screen this block is drawn in, which the command belongs to. Named for both halves of
@@ -69,6 +93,9 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 	 */
 	const generation = useSyncExternalStore(onHighlightChange, highlightGeneration, highlightGeneration);
 
+	/** The last parse while the block is being written; the next frame parses only what grew, see `tokenizeGrowing`. */
+	const grown = useRef<Grown | undefined>(undefined);
+
 	const tokens = useMemo(() => {
 		if (!language) return null;
 		/*
@@ -87,63 +114,183 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 		 */
 		if (code.length > HIGHLIGHT_LIMIT) return null;
 		try {
-			return tokenize(code, language, sharedHighlightStyle());
+			if (!fade) {
+				grown.current = undefined;
+				return tokenize(code, language, sharedHighlightStyle());
+			}
+			grown.current = tokenizeGrowing(code, language, sharedHighlightStyle(), grown.current);
+			return grown.current.tokens;
 		} catch {
 			// A half-written fence mid-stream is not a reason to lose the text.
 			return null;
 		}
 		// oxlint-disable-next-line exhaustive-deps -- `generation` 不出现在函数体里，它就是「重算」的信号
-	}, [code, language, generation]);
+	}, [code, language, generation, fade]);
+
+	// A code block being written fades new characters in like the body text, see `FadeText`. A finished block records no appearance times.
+	const { settled, style } = useFade(fade ? Array.from(code).length : 0);
 
 	return (
-		<div className="group relative">
-			{lang && (
-				<span className="absolute top-2.5 left-3.5 font-mono text-caption tracking-wide text-ink-faint select-none">
-					{lang}
-				</span>
-			)}
-			{SHELL.has(lang.toLowerCase()) && commandFrom(code) && (
-				<button
-					type="button"
-					data-ly-tip={translate("codeBlock.runInTerminal")}
+		<div className="ly-code-block" data-wrap={wrap || undefined}>
+			<div className="ly-code-head">
+				<look.Icon size={14} strokeWidth={1.9} className="shrink-0" style={{ color: iconColour(look) }} />
+				<span className="min-w-0 flex-1 truncate">{label}</span>
+				{SHELL.has(label) && commandFrom(code) && (
+					<CodeAction
+						tip={translate("codeBlock.runInTerminal")}
+						onClick={() => {
+							// Call up a terminal to take this command. One that already exists is focused rather than another opened.
+							const at = openScopedPanel("terminal", undefined, screen ?? undefined);
+							// For that terminal, wherever the request landed: a command nobody's terminal takes is lost.
+							useSide.getState().runInTerminal(commandFrom(code), at);
+						}}
+					>
+						<Play size={14} strokeWidth={1.9} />
+					</CodeAction>
+				)}
+				<CodeAction tip={translate("fileActions.wrap")} active={wrap} onClick={() => setWrap(!wrap)}>
+					<WrapText size={14} strokeWidth={1.9} />
+				</CodeAction>
+				<CodeAction
+					tip={translate("common.copy")}
 					onClick={() => {
-						// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-						const at = openScopedPanel("terminal", undefined, screen ?? undefined);
-						// For that terminal, wherever the request landed: a command nobody's terminal takes is lost.
-						useSide.getState().runInTerminal(commandFrom(code), at);
+						void navigator.clipboard.writeText(code);
+						setCopied(true);
+						setTimeout(() => setCopied(false), 1400);
 					}}
-					className="absolute top-2 right-8 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
 				>
-					<Play size={13} strokeWidth={1.9} />
-				</button>
-			)}
-			<button
-				type="button"
-				data-ly-tip={translate("common.copy")}
-				onClick={() => {
-					void navigator.clipboard.writeText(code);
-					setCopied(true);
-					setTimeout(() => setCopied(false), 1400);
-				}}
-				className="absolute top-2 right-2 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
-			>
-				{copied ? <Check size={13} strokeWidth={2} className="text-ok" /> : <Copy size={13} strokeWidth={1.9} />}
-			</button>
-			<pre className={lang ? "pt-7" : undefined}>
-				<code>
-					{tokens
-						? tokens.map((token, index) =>
-								token.className ? (
-									<span key={index} className={token.className}>
-										{token.text}
-									</span>
-								) : (
-									token.text
-								),
-							)
-						: code}
-				</code>
+					{copied ? <Check size={14} strokeWidth={2} className="text-ok" /> : <Copy size={14} strokeWidth={1.9} />}
+				</CodeAction>
+			</div>
+			<pre>
+				{fade ? (
+					fading(tokens ?? [{ text: code, className: "" }], settled, style)
+				) : (
+					<code>
+						{tokens
+							? tokens.map((token, index) =>
+									token.className ? (
+										<span key={index} className={token.className}>
+											{token.text}
+										</span>
+									) : (
+										token.text
+									),
+								)
+							: code}
+					</code>
+				)}
 			</pre>
 		</div>
 	);
 }
+
+function CodeAction({ tip, active, onClick, children }: { tip: string; active?: boolean; onClick: () => void; children: ReactNode }) {
+	return (
+		<button
+			type="button"
+			data-ly-tip={tip}
+			aria-label={tip}
+			aria-pressed={active}
+			onClick={onClick}
+			className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/[0.06] hover:text-ink ${active ? "text-ink" : "text-ink-muted"}`}
+		>
+			{children}
+		</button>
+	);
+}
+
+/** Code being written is drawn in chunks of this many lines; a finished chunk is not drawn again. */
+const CHUNK_LINES = 24;
+
+/**
+ * Code being written: characters done fading are drawn in chunks with their token colours, the ones
+ * still fading as coloured spans one by one.
+ *
+ * Cut into chunks by line, each a block-level element; a chunk that has finished fading goes to
+ * `SettledChunk`, which does not redraw while its content is unchanged. Uncut, the whole block is one
+ * inline layout: every frame adds a character and hundreds of lines, thousands of spans, are laid out
+ * again. Measured: a 300-line block written at 150 characters a second had over a third of its frames
+ * past 16ms before the cut. After it the browser lays out only the last chunk.
+ *
+ * Chunks sit directly under `pre`, each with a `code` of its own, so they line up exactly as the
+ * finished block's single `<pre><code>` does: the line height comes from `pre`'s font size. Inside
+ * `code` each line was 3px shorter, and at the moment the finished block replaced them a 300-line block
+ * grew by nearly a thousand pixels.
+ *
+ * A fading character is keyed by its index and hangs outside its token, not inside it. Colours are
+ * computed for the whole block, and when `cons` grows into `const` the token's boundaries and class
+ * change; a character inside the token would be rebuilt with it and start fading again. Outside, only
+ * its class changes and the animation carries on.
+ */
+function fading(tokens: Token[], settled: number, style: (index: number) => CSSProperties): ReactNode[] {
+	const out: ReactNode[] = [];
+	let chunk: Token[] = [];
+	let start = 0;
+	let at = 0;
+	let lines = 0;
+	const flush = () => {
+		if (chunk.length === 0) return;
+		// `at` is now this chunk's end: everything before it has finished fading, so the chunk will not change again.
+		out.push(
+			at <= settled ? (
+				<SettledChunk key={`s${start}`} tokens={chunk} />
+			) : (
+				<span key={`f${start}`} className="ly-code-chunk">
+					<code>{live(chunk, start, settled, style)}</code>
+				</span>
+			),
+		);
+		chunk = [];
+		start = at;
+		lines = 0;
+	};
+	for (const token of tokens) {
+		// A token can span lines (block comments, template strings); cut at the newlines so chunks can go by line.
+		const parts = token.text.split("\n");
+		parts.forEach((part, index) => {
+			const text = index < parts.length - 1 ? `${part}\n` : part;
+			if (!text) return;
+			chunk.push({ text, className: token.className });
+			at += Array.from(text).length;
+			if (index < parts.length - 1 && ++lines === CHUNK_LINES) flush();
+		});
+	}
+	flush();
+	return out;
+}
+
+/** A chunk with characters still fading: the faded part as text runs, the rest one span per character. */
+function live(tokens: Token[], start: number, settled: number, style: (index: number) => CSSProperties): ReactNode[] {
+	const out: ReactNode[] = [];
+	let at = start;
+	tokens.forEach((token, index) => {
+		const chars = Array.from(token.text);
+		const done = Math.max(0, Math.min(chars.length, settled - at));
+		if (done > 0) {
+			const text = chars.slice(0, done).join("");
+			out.push(token.className ? <span key={`t${index}`} className={token.className}>{text}</span> : text);
+		}
+		for (let offset = done; offset < chars.length; offset++) {
+			const char = at + offset;
+			out.push(
+				<span key={char} className={token.className ? `${token.className} ly-fade-char` : "ly-fade-char"} style={style(char)}>
+					{chars[offset]}
+				</span>,
+			);
+		}
+		at += chars.length;
+	});
+	return out;
+}
+
+const SettledChunk = memo(
+	function SettledChunk({ tokens }: { tokens: Token[] }) {
+		return (
+			<span className="ly-code-chunk">
+				<code>{tokens.map((token, index) => (token.className ? <span key={index} className={token.className}>{token.text}</span> : token.text))}</code>
+			</span>
+		);
+	},
+	(a, b) => a.tokens.length === b.tokens.length && a.tokens.every((token, index) => token.text === b.tokens[index].text && token.className === b.tokens[index].className),
+);

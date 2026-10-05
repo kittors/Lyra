@@ -1,5 +1,6 @@
 import { Tooltip } from "../overlay/Tooltip.tsx";
 import { shortcutLabel } from "../keyboard.ts";
+import type { DataAttributes } from "./Button.tsx";
 
 /**
  * A button whose label is an icon.
@@ -15,6 +16,7 @@ import { shortcutLabel } from "../keyboard.ts";
  */
 export function IconButton({
 	label,
+	ariaLabel,
 	icon,
 	onClick,
 	active,
@@ -25,9 +27,20 @@ export function IconButton({
 	tone = "default",
 	size = "md",
 	tipSide = "bottom",
+	menu,
+	expanded,
 	className = "",
-}: {
+	...data
+}: DataAttributes & {
 	label: string;
+	/**
+	 * The accessible name, when it has to say more than the tooltip.
+	 *
+	 * A row of identical buttons reads to a screen reader as the same word over and over; the name
+	 * carries which row (`归档会话「a」`) while the tooltip stays short beside the pointer that is
+	 * already on that row. Omit it and `label` is both, which is the ordinary case.
+	 */
+	ariaLabel?: string;
 	icon: React.ReactNode;
 	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** Held down / currently on, for toggles like "match case". */
@@ -53,23 +66,41 @@ export function IconButton({
 	 */
 	explainDisabled?: boolean;
 	tone?: "default" | "danger";
-	size?: "sm" | "md";
+	/**
+	 * `xs` is 20px, the height of a pane header's row and of a caption line; the corner drops to 6px
+	 * with it, as every button at that size does. `composer` follows the input box's own control
+	 * height, so its row stays one line when that changes.
+	 */
+	size?: "xs" | "sm" | "md" | "composer";
 	tipSide?: "top" | "bottom";
+	/** Opens a menu; the value is whether it is open now. Same as `Button`'s. */
+	menu?: boolean;
+	/** Shows or hides a section in place. Same as `Button`'s. */
+	expanded?: boolean;
 	className?: string;
 }) {
 	const showBadge = typeof badge === "number" && badge > 0;
 	const button = (
 		<button
+			{...data}
 			type="button"
-			aria-label={shortcutLabel(label)}
+			aria-label={ariaLabel ?? shortcutLabel(label)}
 			aria-pressed={active}
+			aria-haspopup={menu === undefined ? undefined : "menu"}
+			aria-expanded={menu ?? expanded}
 			disabled={disabled}
 			onClick={onClick}
 			// The count, readable without knowing how it is drawn — a badge in the corner here, part
 			// of a word in the wide form of the git panel's sync row.
 			data-ly-count={showBadge ? String(badge) : undefined}
-			className={`relative flex shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--ly-t-quick)] disabled:opacity-40 ${
-				size === "sm" ? "h-[22px] w-[22px]" : "h-[26px] w-[26px]"
+			className={`relative flex shrink-0 items-center justify-center transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] disabled:opacity-40 ${
+				size === "xs"
+					? "h-[20px] w-[20px] rounded-md"
+					: size === "sm"
+						? "h-[22px] w-[22px] rounded-lg"
+						: size === "composer"
+							? "ly-composer-control ly-composer-icon rounded-lg"
+							: "h-[26px] w-[26px] rounded-lg"
 			} ${
 				tone === "danger"
 					? "text-ink-faint hover:bg-danger/10 hover:text-danger active:bg-danger/15"

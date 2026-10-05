@@ -60,7 +60,7 @@ test("曾经的默认 Inter 跟着换成现在的默认", () => {
 		uiFont: '"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 	});
 	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
-	assert.match(next.uiFont, /PingFang SC/);
+	assert.match(next.uiFont, /system-ui/);
 	assert.doesNotMatch(next.uiFont, /Inter Variable|IBM Plex Sans Variable/);
 });
 
@@ -70,7 +70,7 @@ test("曾经的默认 IBM Plex 跟着换成现在的默认", () => {
 		uiFont: '"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 	});
 	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
-	assert.match(next.uiFont, /PingFang SC/);
+	assert.match(next.uiFont, /system-ui/);
 });
 
 test("自己写过的字体栈不动", () => {
@@ -98,4 +98,59 @@ test("没表过态的人跟着系统走，表过态的人不动", () => {
 	for (const chosen of ["light", "dark", "system"] as const) {
 		assert.equal({ ...DEFAULT_APPEARANCE, theme: chosen }.theme, chosen);
 	}
+});
+
+const OLD_FACTORY_FONT = '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif';
+
+test("an untouched old factory look moves to the new one as a whole", () => {
+	const next = migrateAppearance({
+		...DEFAULT_APPEARANCE,
+		uiFont: OLD_FACTORY_FONT,
+		uiFontWeight: 500,
+		fontSmoothing: true,
+		lightBackground: "#FFFFFF",
+		lightForeground: "#1A1C1F",
+		darkForeground: "#EDEDED",
+		composerLines: 1,
+		contentWidth: 640,
+	});
+	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
+	assert.equal(next.composerLines, 2);
+	assert.equal(next.contentWidth, -1, "640 was the old fixed column; 自动 follows the pane");
+	assert.equal(next.uiFontWeight, 400);
+	assert.equal(next.fontSmoothing, false);
+	assert.equal(next.lightBackground, "#F8F8F8");
+	assert.equal(next.lightForeground, "#262626");
+	assert.equal(next.darkForeground, "#D4D4D4");
+});
+
+test("500, smoothing and a white page chosen on purpose survive every later load", () => {
+	// Someone who has been through Appearance has a font that is not an old factory stack.
+	const chosen = { ...DEFAULT_APPEARANCE, uiFontWeight: 500, fontSmoothing: true, lightBackground: "#FFFFFF", composerLines: 1, contentWidth: 640 };
+	const once = migrateAppearance(chosen);
+	assert.equal(once.composerLines, 1);
+	assert.equal(once.contentWidth, 640);
+	assert.equal(once.uiFontWeight, 500);
+	assert.equal(once.fontSmoothing, true);
+	assert.equal(once.lightBackground, "#FFFFFF");
+	assert.deepEqual(migrateAppearance(once), once);
+});
+
+test("the factory migration runs once: its own output is left alone", () => {
+	const moved = migrateAppearance({ ...DEFAULT_APPEARANCE, uiFont: OLD_FACTORY_FONT, uiFontWeight: 500, fontSmoothing: true });
+	assert.deepEqual(migrateAppearance(moved), moved);
+	// And a weight changed after the move stays changed.
+	assert.equal(migrateAppearance({ ...moved, uiFontWeight: 500 }).uiFontWeight, 500);
+});
+
+test("a typed foreground is not an old default and stays", () => {
+	assert.equal(migrateAppearance({ ...DEFAULT_APPEARANCE, lightForeground: "#112233" }).lightForeground, "#112233");
+});
+
+test("the old JetBrains Mono factory code stack moves to the system monospace", () => {
+	const next = migrateAppearance({
+		...DEFAULT_APPEARANCE,
+		codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	});
+	assert.equal(next.codeFont, DEFAULT_APPEARANCE.codeFont);
 });

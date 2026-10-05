@@ -40,7 +40,7 @@ export function CopyMark({ text, side = "right" }: { text: string; side?: "left"
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), CONFIRM_MS);
 			}}
-			className={`absolute top-1.5 z-[1] grid h-6 w-6 place-items-center rounded-md text-ink-faint opacity-0 transition-[opacity,color,background-color] duration-[var(--ly-t-quick)] group-hover/copy:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 ${
+			className={`absolute top-1.5 z-[1] grid h-6 w-6 place-items-center rounded-lg text-ink-faint opacity-0 transition-[opacity,color,background-color] duration-[var(--ly-t-quick)] group-hover/copy:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 ${
 				side === "left" ? "left-1.5" : "right-1.5"
 			}`}
 		>

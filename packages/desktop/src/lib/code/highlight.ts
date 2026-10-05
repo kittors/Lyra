@@ -10,6 +10,7 @@ import { HighlightStyle, type Language, StreamLanguage, syntaxTree } from "@code
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
+import { type Tree, TreeFragment } from "@lezer/common";
 import { highlightTree, tags as t } from "@lezer/highlight";
 import { findCodeTheme } from "./themes.ts";
 
@@ -558,15 +559,73 @@ export interface Token {
  * pieces missing.
  */
 export function tokenize(code: string, language: Language, style: HighlightStyle): Token[] {
-	const tree = language.parser.parse(code);
-	const tokens: Token[] = [];
-	let at = 0;
+	return runs(code, language.parser.parse(code), style);
+}
 
-	highlightTree(tree, style, (from, to, className) => {
-		if (from > at) tokens.push({ text: code.slice(at, from), className: "" });
-		tokens.push({ text: code.slice(from, to), className });
-		at = to;
-	});
+/** A piece of code as last parsed, kept for when it grows further. */
+export interface Grown {
+	code: string;
+	language: Language;
+	style: HighlightStyle;
+	tree: Tree;
+	tokens: Token[];
+}
+
+/**
+ * `tokenize` for a code block being written: while code only grows at the end, only what grew is
+ * parsed again.
+ *
+ * While streaming a code block grows a few characters every frame. Parsing the whole block each frame
+ * costs as much as the block is long — 11ms at 600 lines, already over a frame — and by line three
+ * hundred of a reply the whole interface stuttered. Lezer's incremental parse takes the last tree back
+ * as fragments and reuses every node the change did not touch; colours are recomputed for the tail only.
+ *
+ * Anything other than growth at the end (an edit further up, a new language or theme) starts the whole
+ * block again, as `tokenize` does.
+ */
+export function tokenizeGrowing(code: string, language: Language, style: HighlightStyle, previous?: Grown): Grown {
+	if (previous && previous.code === code && previous.language === language && previous.style === style) return previous;
+	if (!previous || previous.language !== language || previous.style !== style || !code.startsWith(previous.code)) {
+		const tree = language.parser.parse(code);
+		return { code, language, style, tree, tokens: runs(code, tree, style) };
+	}
+	const end = previous.code.length;
+	const fragments = TreeFragment.applyChanges(TreeFragment.addTree(previous.tree), [{ fromA: end, toA: end, fromB: end, toB: code.length }]);
+	const tree = language.parser.parse(code, fragments);
+	/*
+	 * Colours are recomputed for the tail only: from the start of the line before the last end, keeping
+	 * everything before it.
+	 *
+	 * The extra line back leaves room for later characters changing how earlier ones read — whether a `/`
+	 * at the end of a line divides or starts a regex depends on the next line. Effects from further away
+	 * (an unclosed block comment) may colour wrong for a moment mid-stream; when the reply finishes the
+	 * whole block is recomputed by `tokenize`, so what finally stays on screen is what a full parse gives.
+	 */
+	const from = Math.max(0, code.lastIndexOf("\n", code.lastIndexOf("\n", end - 1) - 1) + 1);
+	const kept: Token[] = [];
+	let at = 0;
+	for (const token of previous.tokens) {
+		if (at >= from) break;
+		const text = at + token.text.length > from ? token.text.slice(0, from - at) : token.text;
+		kept.push(text === token.text ? token : { text, className: token.className });
+		at += text.length;
+	}
+	return { code, language, style, tree, tokens: runs(code, tree, style, from, kept) };
+}
+
+function runs(code: string, tree: Tree, style: HighlightStyle, from = 0, tokens: Token[] = []): Token[] {
+	let at = from;
+
+	highlightTree(
+		tree,
+		style,
+		(start, to, className) => {
+			if (start > at) tokens.push({ text: code.slice(at, start), className: "" });
+			tokens.push({ text: code.slice(start, to), className });
+			at = to;
+		},
+		from,
+	);
 	if (at < code.length) tokens.push({ text: code.slice(at), className: "" });
 
 	return tokens;

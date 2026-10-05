@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fadeGeometry, heldBand, HOLD_ROOM_UNBOUNDED, isPinned, pinnedDepth, type StickyRow } from "../src/features/sidebar/sticky.ts";
+import { fadeGeometry, heldBand, HOLD_ROOM_UNBOUNDED, pinnedDepth, type StickyRow } from "../src/features/sidebar/sticky.ts";
 
 const GAP = 6;
 const STRIP = 32;
@@ -68,22 +68,6 @@ test("the lowest held row wins, whatever order they arrive in", () => {
 test("a list with no headings is just the strip", () => {
 	assert.equal(pinnedDepth([strip(GAP)]), GAP + STRIP);
 	assert.equal(pinnedDepth([]), 0);
-});
-
-/*
- * The same question, asked per row rather than of the set.
- *
- * It decides two separate things and the second one is visible even when the first is not: the
- * depth above, and whether the row may draw a fill at all. A row that fills while it is still
- * travelling with the list is painting over nothing, which is invisible right up until the pane's
- * colour and the fill's stop agreeing — and then it is a grey slab on every project name.
- */
-test("a row is held once it reaches its rail, and not one pixel before", () => {
-	assert.equal(isPinned(head(RAIL)), true, "resting exactly on the rail");
-	assert.equal(isPinned(head(RAIL + 1)), false, "one pixel short, still being carried by the list");
-	assert.equal(isPinned(head(RAIL - 12)), true, "pushed up past the rail on its way out, still covering");
-	assert.equal(isPinned(strip(120)), false, "at rest, where the list happens to put it");
-	assert.equal(isPinned(strip(GAP)), true, "the strip against its own rail");
 });
 
 /*

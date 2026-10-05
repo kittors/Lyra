@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/features/sidebar/grouping.ts";
+import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
 
 type Session = Parameters<typeof listableSessions>[0][number];
 
@@ -115,6 +115,16 @@ test("a project that never had a session is unaffected by the setting", () => {
 		assert.deepEqual(pinned.map((g) => g.path), ["/pinned"], `hideEmptied=${hide}`);
 		assert.deepEqual(rest, [], `hideEmptied=${hide}`);
 	}
+});
+
+test("a project that never had a session also takes a row where the list asks, but not while searching", () => {
+	const listed = (query: string, showUnused: boolean) => {
+		const grouped = groupSessions([], projects, query, [], [], undefined, "updatedAt", new Set(), false, showUnused);
+		return { pinned: grouped.pinned.map((g) => g.path), rest: grouped.projects.map((g) => g.path) };
+	};
+	assert.deepEqual(listed("", false), { pinned: ["/pinned"], rest: [] }, "不要空项目的地方（归档视图），只有置顶的占行");
+	assert.deepEqual(listed("", true), { pinned: ["/pinned"], rest: ["/a"] }, "刚建好的项目在常规列表里要能点到");
+	assert.deepEqual(listed("登录", true).rest, [], "搜索时没有会话可匹配，不占行");
 });
 
 test("a project still holding one live session is never folded away", () => {

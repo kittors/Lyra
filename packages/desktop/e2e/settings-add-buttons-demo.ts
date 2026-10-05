@@ -134,7 +134,8 @@ try {
 	const provider = await measure("[data-ly-add-provider]");
 	check("add provider is a labeled dialog pill", provider.pill && provider.text.includes("添加供应商") && provider.height === 34 && provider.width > 80, provider);
 	const model = await measure("[data-ly-add-model]");
-	check("add model is a labeled dialog pill", model.pill && model.text.includes("添加模型") && model.height === 34 && model.width > 70, model);
+	// Beside 拉取模型 in the model group's header now, so the same 26px subtle size as it — still labeled, never an empty box.
+	check("add model is a labeled button", model.text.includes("添加模型") && model.height === 26 && model.width > 70, model);
 	await hold(1200);
 
 	await openSettings("代码托管");

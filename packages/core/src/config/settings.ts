@@ -92,8 +92,8 @@ export interface AppearanceSettings {
 	 *
 	 * 代码有它自己的 `codeFontWeight`，不跟这个走：等宽字体的字重是另一个判断（见那条注释）。
 	 *
-	 * 可选。没有这一项的老配置文件跟着新默认走，不是停在 400——界面一直偏细是要修的那个问题，
-	 * 而不是要保住的那个现状。见 `DEFAULT_APPEARANCE` 那条。
+	 * Optional. A file written before it existed follows the default, and a file still on the old
+	 * factory look is moved to the new one — see `migrateAppearance`.
 	 */
 	uiFontWeight?: number;
 	codeFontSize: number;
@@ -156,7 +156,8 @@ export interface AppearanceSettings {
 	/** 0–100. Scales the distance between surface layers and text. */
 	contrast: number;
 	/**
-	 * How wide the conversation column may get, in pixels. `0` means "as wide as the window".
+	 * How wide the conversation column may get, in pixels. `0` means "as wide as the window", `-1` is
+	 * 自动: the column follows the pane in three steps, wide where there is room (the default).
 	 *
 	 * A measure is a reading decision, not a layout constant: 640px is close to the line length
 	 * prose is easiest to read at, and it is also the width at which a wide table in a reply gets
@@ -165,18 +166,20 @@ export interface AppearanceSettings {
 	 *
 	 * Every column that is part of the conversation reads this — the transcript, the composer, the
 	 * approval card — so they cannot drift apart. Optional: a settings file written before this
-	 * existed keeps the 640 it has always rendered at.
+	 * existed follows the default.
 	 */
 	contentWidth?: number;
 	/**
-	 * 空输入框有多少行高。
+	 * How many lines tall an empty composer is.
 	 *
-	 * 输入框一直是从一行开始、随着打字往下长，这对「跑一下测试」是对的，对写一段带步骤和约束的
-	 * 需求就不是——开头那几行永远挤在一条缝里，写到第四行才看得见自己在写什么。多高算合适跟人
-	 * 写多长的东西有关，所以交给用户定。
+	 * The composer always started at one line and grew as you typed. That is right for "run the tests"
+	 * and wrong for a request with steps and constraints — its first lines are forever squeezed into a
+	 * slit, and only at the fourth can you see what you are writing. How tall is right depends on how
+	 * long a person writes, so it is theirs to set.
 	 *
-	 * 只是下限：超过这个高度照旧继续长，到窗口三分之一处停下来改为滚动。可选，老配置文件保持
-	 * 它一直以来的一行。
+	 * Only a floor: past this height it keeps growing as before, and at eight lines or a third of the
+	 * window it stops and scrolls instead. Optional; an old settings file without it gets the default
+	 * two lines.
 	 */
 	composerLines?: number;
 	pointerCursor: boolean;
@@ -193,6 +196,31 @@ export interface AppearanceSettings {
 	 * a morning's work reads as a wall of red for something that resolved itself on the retry.
 	 */
 	errorDetail?: "full" | "compact";
+	/**
+	 * The macOS main window on the system's frosted material, the sidebar showing it through.
+	 *
+	 * Optional: a file written before it existed has it on, as a fresh install does. Not the old
+	 * `translucentSidebar` (see `REMOVED_APPEARANCE`): that one was dropped because a pinned row
+	 * needed an opaque fill nothing could match on glass, and the sidebar no longer fills its pinned
+	 * rows — the list fades out before it reaches them instead.
+	 */
+	vibrancy?: boolean;
+	/**
+	 * How a turn's tool calls are laid out in the transcript.
+	 *
+	 * `collapsed` gathers the whole turn under one line that is there from the start, with every call
+	 * on a row of its own beneath it. `expanded` is the earlier layout: no turn line while it runs,
+	 * calls grouped into summary lines of bordered cards, and the turn folding away once it ends.
+	 */
+	callChain?: "expanded" | "collapsed";
+	/**
+	 * How a conversation's panels share its screen.
+	 *
+	 * `tabs` puts every open panel into one pane at the screen's right edge, one tab each, with only
+	 * the current one showing. `split` is the dock as it always was: every panel a pane of its own,
+	 * arranged by dragging.
+	 */
+	panelLayout?: "split" | "tabs";
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -208,20 +236,28 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	 */
 	theme: "system",
 	accent: "#339CFF",
-	lightBackground: "#FFFFFF",
-	lightForeground: "#1A1C1F",
-	darkBackground: "#171717",
-	darkForeground: "#EDEDED",
 	/*
-	 * Same-family Chinese UI, not a shipped Latin face in front of PingFang.
-	 *
-	 * Doubao has no public UI webfont. What reads as "豆包字体" on a Mac is PingFang drawing
-	 * both Han and Latin. `-apple-system` first would split that again (SF Pro + PingFang),
-	 * which is the mix people just asked to leave. Inter / IBM Plex stay bundled for anyone
-	 * who types them; they are no longer the factory stack.
+	 * The neutral greys ZCode draws with (its zai-light / zai-dark themes): a page one step off white,
+	 * text at neutral-800 / neutral-300 rather than near-black and near-white. Floating surfaces — menus,
+	 * the composer — are mixed from the background towards white, so an off-white page is what lets
+	 * them read as lifted at all.
 	 */
-	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
-	codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	lightBackground: "#F8F8F8",
+	lightForeground: "#262626",
+	darkBackground: "#171717",
+	darkForeground: "#D4D4D4",
+	/*
+	 * The platform's own UI and monospace stacks, as ZCode sets them: SF Pro / Segoe UI for latin,
+	 * SF Mono / Consolas for code. Han and CJK punctuation are not left to these stacks — `body` puts
+	 * `Lyra Punct` and `Lyra CJK` in front of whatever is configured here (see `base.css`).
+	 *
+	 * Inter, IBM Plex and JetBrains Mono stay bundled for anyone who picks them; they are no longer
+	 * the factory stacks. The monospace stack names a Chinese face before `monospace` because Consolas
+	 * has no Han, and code in Chinese would otherwise fall to SimSun.
+	 */
+	uiFont: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+	codeFont:
+		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
 	// Lyra's own — see `lyra-light` in `code-themes.ts`. It takes the app's background rather than
 	// bringing one, so a fresh install looks like Lyra and picking any other theme is a real choice.
 	codeLightTheme: "lyra-light",
@@ -229,20 +265,15 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
 	uiFontSize: 14,
 	/*
-	 * 500，不是 Regular。
+	 * 400, with `fontSmoothing` off.
 	 *
-	 * 界面一直是 400 画的，而在这个字体和这套渲染下它偏细：默认字体栈是 PingFang，加上 `body` 上
-	 * 那句 `-webkit-font-smoothing: antialiased`——macOS 上那是把字画细的那个开关，Mail 和系统自己
-	 * 也这么画，代价就是 Regular 在深色底上发虚。
-	 *
-	 * 换成 Medium 之后层级会挤一挤：PingFang 只到 Semibold，600 就是天花板，所以标题那两档
-	 * （+100、+200）在它上面都落到 600，正文和标题之间只剩一档而不是两档。这是认过的账，不是漏掉
-	 * 的——层级本来就不只靠字重扛：字号有七档，墨色有三级，这两样一点没动。装了可变字体的人则真能
-	 * 吃到 600 和 700。
-	 *
-	 * 嫌重的人把它调回 400 就是原来的样子，一项设置的事。
+	 * The base was 500 for a while, because 400 looked thin — but what thinned it was `antialiased`
+	 * smoothing, the switch that turns off macOS's stem darkening. With smoothing left to the system,
+	 * as ZCode leaves it, Regular is drawn at the weight the system draws it everywhere else, and the
+	 * steps above it are Tailwind's own 500 / 600 / 700: three levels on every face that has them,
+	 * where a 500 base pushed both heading steps onto PingFang's 600 ceiling.
 	 */
-	uiFontWeight: 500,
+	uiFontWeight: 400,
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
@@ -262,16 +293,20 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	inlineCodeDarkFg: "#EDEDED",
 	inlineCodeBorder: false,
 	contrast: 60,
-	// What the app has always rendered at; see `contentWidth`.
-	contentWidth: 640,
-	// 一行，也是这个输入框一直以来的样子；见 `composerLines`。
-	composerLines: 1,
+	// -1 is 自动: the column follows the pane in three steps (`CONTENT_AUTO` in desktop's content-width.ts).
+	contentWidth: -1,
+	// Two lines, 40px, the height ZCode opens its input at; see `composerLines`.
+	composerLines: 2,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
-	fontSmoothing: true,
+	callChain: "collapsed",
+	panelLayout: "tabs",
+	// Left to the system, as ZCode does; see `uiFontWeight`.
+	fontSmoothing: false,
+	vibrancy: true,
 };
 
 /**
@@ -1104,8 +1139,18 @@ const SUPERSEDED_FONTS: Record<"uiFont" | "codeFont", string[]> = {
 		'-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif',
 		'"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 		'"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+		'"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
 	],
-	codeFont: ['ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace'],
+	codeFont: [
+		'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace',
+		'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	],
+};
+
+/** Foreground colours that were once the default; same reasoning as `SUPERSEDED_FONTS`. */
+const SUPERSEDED_FOREGROUNDS: Record<"lightForeground" | "darkForeground", string[]> = {
+	lightForeground: ["#1A1C1F", "#404040"],
+	darkForeground: ["#EDEDED", "#E5E5E5"],
 };
 
 /**
@@ -1124,6 +1169,25 @@ const REMOVED_APPEARANCE = ["translucentSidebar"] as const;
 
 export function migrateAppearance(appearance: AppearanceSettings): AppearanceSettings {
 	const next = { ...appearance };
+	/*
+	 * The rest of the factory look moves only with an untouched factory font.
+	 *
+	 * 500, smoothing on, a white page, a one-line composer and a 640px column are each a choice someone could make on
+	 * purpose, so unlike the tables here they cannot be replaced wherever they appear — that would undo
+	 * the choice on every launch. A UI font still on a stack the app once shipped says nobody has been
+	 * through 外观, and then these are the old factory values too. The font is moved below, so this
+	 * cannot run twice.
+	 */
+	if (SUPERSEDED_FONTS.uiFont.includes(next.uiFont)) {
+		if (next.uiFontWeight === 500) next.uiFontWeight = DEFAULT_APPEARANCE.uiFontWeight;
+		if (next.fontSmoothing) next.fontSmoothing = DEFAULT_APPEARANCE.fontSmoothing;
+		if (next.lightBackground.toUpperCase() === "#FFFFFF") next.lightBackground = DEFAULT_APPEARANCE.lightBackground;
+		if (next.composerLines === 1) next.composerLines = DEFAULT_APPEARANCE.composerLines;
+		if (next.contentWidth === 640) next.contentWidth = DEFAULT_APPEARANCE.contentWidth;
+	}
+	for (const key of ["lightForeground", "darkForeground"] as const) {
+		if (SUPERSEDED_FOREGROUNDS[key].includes(next[key].toUpperCase())) next[key] = DEFAULT_APPEARANCE[key];
+	}
 	for (const key of ["uiFont", "codeFont"] as const) {
 		if (SUPERSEDED_FONTS[key].includes(next[key])) next[key] = DEFAULT_APPEARANCE[key];
 	}

@@ -90,7 +90,7 @@ export function Segmented<T extends string>({
 	}, [value, options]);
 
 	return (
-		<div ref={box} className="relative flex gap-0.5 rounded-full bg-card p-0.5">
+		<div ref={box} data-segmented="" className="relative flex gap-0.5 rounded-full bg-card p-0.5">
 			{/* 量到之前不画。它一出现就已经在正确的位置上，不需要一段从零滑过来的开场。 */}
 			{rail && (
 				<span

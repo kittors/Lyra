@@ -15,7 +15,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { UpdateBadge } from "../update/index.ts";
-import { activeProviderLabel } from "./grouping.ts";
+import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	const settings = useApp((s) => s.settings);
@@ -23,7 +23,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	const { compact } = useLayout();
 
 	return (
-		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 border-t border-line ${compact ? "p-3" : "p-2.5"}`}>
+		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 ${compact ? "p-3" : "p-2.5"}`}>
 			<button
 				type="button"
 				onClick={() => {
@@ -41,9 +41,6 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 					text={settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? [])}
 					className="ly-sidebar-foot-label min-w-0 flex-1 text-label text-ink"
 				/>
-				<span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line text-caption text-ink-faint">
-					?
-				</span>
 			</button>
 			<UpdateBadge compact={compact} />
 		</div>

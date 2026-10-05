@@ -270,7 +270,7 @@ function Dashboard({
 									data-off={off || undefined}
 									onClick={() => onToggleProvider(provider.id)}
 									data-ly-tip={off ? t("usage.showProvider") : t("usage.hideProvider")}
-									className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-[color,background-color,transform] duration-[var(--ly-t-quick)] hover:bg-card-hover active:scale-[0.96] ${off ? "text-ink-faint" : "text-ink-muted hover:text-ink"}`}
+									className={`flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 transition-[color,background-color,transform] duration-[var(--ly-t-quick)] hover:bg-card-hover active:scale-[0.96] ${off ? "text-ink-faint" : "text-ink-muted hover:text-ink"}`}
 								>
 									{/* 关掉时留一个空心圈：位置和颜色都还在，只是这条线现在不在图上。 */}
 									<span
@@ -466,7 +466,7 @@ function ProviderName({
 				setDraft(identity.named ? identity.label : "");
 				setEditing(true);
 			}}
-			className="flex min-w-0 flex-1 items-center rounded-md text-left transition-colors hover:text-accent"
+			className="flex min-w-0 flex-1 items-center rounded-lg text-left transition-colors hover:text-accent"
 		>
 			<span className={`min-w-0 truncate ${identity.named ? "text-ink" : "text-ink-muted"}`}>{identity.label}</span>
 		</button>

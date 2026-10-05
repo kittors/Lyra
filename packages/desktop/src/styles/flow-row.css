@@ -134,6 +134,23 @@
   margin-left: 8px;
 }
 
+/* The disclosure chevron: right after the words, turned 90° while open. */
+.ly-flow-chevron {
+  flex: none;
+  margin-left: 6px;
+  opacity: 0.8;
+  transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-flow-row[data-open] .ly-flow-chevron {
+  transform: rotate(90deg);
+}
+
+/* The expanded call-chain layout is the earlier look, which drew no chevrons. */
+:root[data-call-chain="expanded"] .ly-flow-chevron {
+  display: none;
+}
+
 /*
  * 一整轮的过程，是一块，所以行距只有一种。
  *
@@ -160,10 +177,14 @@
   margin-bottom: 0;
 }
 
-/* 折叠行到它下面第一条过程行，用的是同一个 10px——否则展开时那一行贴在过程上。 */
-[data-ly-turn-process][data-ly-turn-open] > .ly-flow-row {
-  margin-bottom: 10px;
-}
+/*
+ * From the fold row to the first process row below it is the same 10px — otherwise, opened, that row
+ * sits right against the process.
+ *
+ * The 10px is the fold body's top padding (`pt-2.5` in `TurnProcess`), not the fold row's margin. On the
+ * row it switched with `data-ly-turn-open` in one frame while the height was still animating: press fold,
+ * and the answer below jumped up 10px before it started closing. Inside the body it moves with the height.
+ */
 
 /*
  * 到答案的距离，展开和收起是同一个。

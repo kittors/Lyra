@@ -90,7 +90,7 @@ export function ToolGroup({
 				label={translate("tools.run")}
 			/>
 
-			<Collapse open={open} bodyClassName="flex flex-col gap-2.5" keepMounted>{children}</Collapse>
+			<Collapse open={open} bodyClassName="flex flex-col gap-2.5 pt-2.5" keepMounted>{children}</Collapse>
 		</div>
 	);
 }

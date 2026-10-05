@@ -13,9 +13,11 @@
 import { Archive, X } from "lucide-react";
 import { StripButton } from "./SidebarTabs.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { useLayout } from "../../app/layout.tsx";
 
 export function ArchiveToggle({ open, count, onToggle }: { open: boolean; count: number; onToggle: () => void }) {
 	const { t } = useI18n();
+	const { compact } = useLayout();
 	const label = open ? t("sidebar.exitArchive") : count > 0 ? t("sidebar.archivedCount", { count }) : t("sidebar.archived");
 
 	return (
@@ -50,7 +52,11 @@ export function ArchiveToggle({ open, count, onToggle }: { open: boolean; count:
 			 * which is the whole question a closed archive raises.
 			 */}
 			{!open && count > 0 && (
-				<span aria-hidden className="absolute top-[5px] right-[5px] h-[4px] w-[4px] rounded-full bg-ink-faint" />
+				<span
+					aria-hidden
+					// In a 24px button 5px would sit on the icon, so it goes closer to the corner.
+					className={`absolute h-[4px] w-[4px] rounded-full bg-ink-faint ${compact ? "top-[5px] right-[5px]" : "top-[2px] right-[2px]"}`}
+				/>
 			)}
 		</StripButton>
 	);

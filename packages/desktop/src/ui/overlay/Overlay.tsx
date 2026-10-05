@@ -95,7 +95,7 @@ export function Overlay({ children, onClose, align = "center", width = 460, labe
 			style={{ zIndex: 60 + depth * 20 }} onMouseDown={(event) => { if (event.target === event.currentTarget) dismiss(); }}>
 			<div ref={card} data-ly-modal role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
 				style={{ width, maxWidth: "100%" }}
-				className={`ly-dialog-surface flex max-h-[85dvh] min-h-0 flex-col overflow-hidden rounded-[22px] border border-line bg-float outline-none ${leaving ? "ly-dialog-out" : "ly-dialog-in"}`}
+				className={`ly-dialog-surface flex max-h-[85dvh] min-h-0 flex-col overflow-hidden rounded-2xl border border-line-float bg-float outline-none ${leaving ? "ly-dialog-out" : "ly-dialog-in"}`}
 				onAnimationEnd={(event) => { if (event.target !== event.currentTarget || !leaving) return; const complete = completion.current; completion.current = null; complete?.(); }}>
 				{typeof children === "function" ? children(dismiss) : children}
 			</div>

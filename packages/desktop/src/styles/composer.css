@@ -1,22 +1,44 @@
 /* ---------------------------------------------------------------------------
  * Composer
  *
- * Two shadows: a tight one that sits the field on the page, and a wide soft one that lifts it
- * off. Split by theme because a black shadow does nothing on a dark background — there the
- * depth has to come from a heavier drop plus a slightly brighter edge.
+ * The card is a 10% hairline, deepening to 15% on hover and focus; focus no longer deepens the shadow.
+ * The shadow is a single faint drop (Tailwind's shadow-xl at 5%), the same in both themes.
  * ------------------------------------------------------------------------- */
 
 .ly-composer {
+  border-color: color-mix(in srgb, var(--color-ink) 10%, transparent);
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 10px 30px -14px rgb(0 0 0 / 0.16);
+    0 20px 25px -5px rgb(0 0 0 / 0.05),
+    0 8px 10px -6px rgb(0 0 0 / 0.05);
 }
 
+.ly-composer:hover,
 .ly-composer:focus-within {
-  border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+  border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
+}
+
+/*
+ * The grey tray around the main composer: project and branch sit on the strip the tray shows above the
+ * card, and the card meets the tray's left, right and bottom edges.
+ *
+ * The shadow moves to the tray and the card casts none itself — with both casting, a dark seam appears
+ * between them. With no project strip the tray is entirely covered by the card and it looks like a single
+ * card with a shadow, like the standalone composers of the side chats.
+ */
+.ly-composer-tray {
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-ink) 3%, transparent);
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.05),
-    0 14px 36px -14px rgb(0 0 0 / 0.22);
+    0 20px 25px -5px rgb(0 0 0 / 0.05),
+    0 8px 10px -6px rgb(0 0 0 / 0.05);
+}
+
+:root.dark .ly-composer-tray {
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+}
+
+.ly-composer-tray .ly-composer {
+  box-shadow: none;
 }
 
 /*
@@ -60,19 +82,6 @@
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-:root.dark .ly-composer {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.35),
-    0 14px 34px -16px rgb(0 0 0 / 0.55);
-}
-
-:root.dark .ly-composer:focus-within {
-  border-color: color-mix(in srgb, var(--color-ink-faint) 70%, transparent);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.4),
-    0 18px 40px -16px rgb(0 0 0 / 0.65);
 }
 
 /* ---------------------------------------------------------------------------
@@ -163,7 +172,7 @@
     border-color: color-mix(in srgb, var(--color-ink) 40%, transparent);
   }
   to {
-    border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+    border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
   }
 }
 
@@ -228,12 +237,32 @@
  * `--ly-composer-out`, so a card and the messages it answers share one edge.
  * Compact windows drop to `--ly-composer-x` so 24+24 does not eat a 360px column.
  */
+/* The conversation is a card too, so its bottom pads like the panes below. */
 .ly-composer-dock {
-	padding: var(--ly-composer-in) var(--ly-composer-out) var(--ly-composer-out);
+	padding: var(--ly-composer-in) var(--ly-composer-out) calc(var(--ly-composer-out) - var(--ly-pane-chrome));
+}
+
+/*
+ * A raised fill where the field sits on a pane's own surface.
+ *
+ * `--color-float` rather than `bg-input`: the input well is one step off the page and on dark it all
+ * but vanished, which is why the field went transparent. `float` is the surface that means "above"
+ * in both themes — a clear step brighter on dark, near-white on light — and with the shadows above
+ * it is what makes the field read as sitting on the page rather than drawn into it. Scoped to the
+ * conversation and pane composers; a field placed on a card or a popover keeps that surface.
+ */
+.ly-composer-dock .ly-composer,
+.ly-composer-pad .ly-composer {
+	background: var(--color-float);
 }
 
 .ly-composer-dock[data-compact] {
 	padding-inline: var(--ly-composer-x);
+}
+
+/* On the welcome page the composer sits under the heading, and its margins come from that column. */
+.ly-composer-dock[data-center] {
+	padding: 0;
 }
 
 /*
@@ -252,7 +281,7 @@
  *
  * Those panes already sit `--ly-pane-chrome` off the window (inset + card border).
  * Padding the remainder on the bottom, not another full `--ly-composer-out`, is
- * what keeps the cards on one window line. Sides stay the full gutter so a
+ * what keeps the cards on one window line — the conversation's own card does the same above. Sides stay the full gutter so a
  * 12px pane next to a 32px conversation cannot happen again.
  */
 .ly-composer-pad {
@@ -320,4 +349,39 @@
 .ly-send-icon[data-active="true"] {
 	opacity: 1;
 	transform: scale(1);
+}
+
+/* ---------------------------------------------------------------------------
+ * The row of suggestions under the welcome page's composer
+ *
+ * A 10% outline, deepening to 15% on hover with a translucent card fill; they enter by unfolding a short
+ * way from the top, each 65ms after the one before (the delay is on the element's style). Reduced motion
+ * turns it off through motion.css's global switch.
+ * ------------------------------------------------------------------------- */
+
+@keyframes ly-draft-chip-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0);
+  }
+}
+
+.ly-draft-chip {
+  border-color: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  background: transparent;
+  transition:
+    border-color var(--ly-t-quick),
+    background-color var(--ly-t-quick);
+  animation: ly-draft-chip-in 260ms var(--ly-e-out) both;
+}
+
+.ly-draft-chip:hover {
+  border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
+  background: color-mix(in srgb, var(--color-float) 50%, transparent);
 }

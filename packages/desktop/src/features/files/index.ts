@@ -13,7 +13,7 @@ export { FilePanel } from "./FilePanel.tsx";
 export { FileTitle } from "./FileTitle.tsx";
 export { PreviewCard } from "./PreviewCard.tsx";
 export type { PreviewInfo } from "./PreviewCard.tsx";
-export { iconColour, lookFor } from "./fileIcon.tsx";
+export { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 /*
  * 「用什么打开」搬去了 `store/open-targets.ts`。
  *

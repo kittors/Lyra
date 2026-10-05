@@ -37,11 +37,13 @@ function Harness({
 	ready = true,
 	count = 40,
 	tail = "same",
+	live = true,
 }: {
 	id: string;
 	ready?: boolean;
 	count?: number;
 	tail?: string;
+	live?: boolean;
 }) {
 	const follow = useFollowBottom({
 		surfaceId: id,
@@ -49,6 +51,7 @@ function Harness({
 		count: ready ? count : 0,
 		tail,
 		ready,
+		live,
 	});
 	controls = follow;
 	return h(
@@ -82,7 +85,7 @@ function Harness({
 }
 
 /** A mounted surface at a known size, following its own end. */
-async function open(id: string, props: { count?: number; tail?: string } = {}) {
+async function open(id: string, props: { count?: number; tail?: string; live?: boolean } = {}) {
 	geometry.content = 2400;
 	geometry.view = 400;
 	const view = await mount(h(Harness, { id, ...props }));
@@ -100,6 +103,13 @@ async function arrives(view: Mounted, id: string, n: number, pixels = 300) {
 	geometry.content += pixels;
 	await view.rerender(h(Harness, { id, count: 40 + n, tail: `tail-${n}` }));
 }
+
+/**
+ * Waits for the follow-bottom glide to finish. Growth larger than a frame and no more than a screen
+ * glides to the bottom (see `CHASE_MAX` in `useFollowBottom`), so tests that only care whether it
+ * still follows wait for it before asserting a position.
+ */
+const slid = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 400)));
 
 /**
  * A scroll this hook did not write: anchoring, clamping, the tail of a fling.
@@ -146,6 +156,7 @@ test("a new surface rides its own bottom as content arrives", async () => {
 
 	for (let n = 1; n <= 4; n++) {
 		await arrives(view, "streaming", n);
+		await slid();
 		assert.equal(el.scrollTop, bottom(), `still pinned after ${n} arrivals`);
 	}
 	await view.unmount();
@@ -167,6 +178,7 @@ test("releasing the mouse elsewhere in the window does not end the follow — th
 	await movesTo(el, bottom() - 400);
 
 	await arrives(view, "elsewhere", 1);
+	await slid();
 	assert.equal(el.scrollTop, bottom(), "the click was not on this surface and decides nothing");
 	await view.unmount();
 });
@@ -185,6 +197,7 @@ test("a press inside the transcript does not end the follow", async () => {
 	await movesTo(el, bottom() - 250);
 
 	await arrives(view, "press", 1);
+	await slid();
 	assert.equal(el.scrollTop, bottom());
 	await view.unmount();
 });
@@ -238,6 +251,50 @@ test("a viewport shrinking under a composer that grew keeps following", async ()
 	await view.unmount();
 });
 
+test("一张工具卡那么大的长高缓出滑到底；超过一屏的一步到位", async () => {
+	const { view, el } = await open("sweep");
+	await arrives(view, "sweep", 1, 300);
+	await act(async () => controls.onResize(el));
+	assert.ok(el.scrollTop < bottom(), "三百像素不当场跳过去");
+	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 120)));
+	assert.ok(el.scrollTop > bottom() - 300 && el.scrollTop < bottom(), `正在滑，实际 ${el.scrollTop}/${bottom()}`);
+	await slid();
+	assert.equal(el.scrollTop, bottom(), "滑到底");
+
+	await arrives(view, "sweep", 2, 600);
+	assert.equal(el.scrollTop, bottom(), "超过一屏，滑那么远是让人等");
+	await view.unmount();
+});
+
+test("一行一行长出来的回复是滑到底的，不是一行一顿地顶上去", async () => {
+	const { view, el } = await open("line-by-line");
+	const before = el.scrollTop;
+	await arrives(view, "line-by-line", 1, 26);
+	await act(async () => controls.onResize(el));
+	assert.ok(el.scrollTop < bottom(), "长高一行不当场跳到底");
+
+	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 60)));
+	assert.ok(el.scrollTop > before && el.scrollTop < bottom(), `正在往下追，实际 ${el.scrollTop}/${bottom()}`);
+	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 400)));
+	assert.equal(el.scrollTop, bottom(), "追到底");
+
+	await arrives(view, "line-by-line", 2, 26);
+	await wheel(el, -40);
+	const left = el.scrollTop;
+	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 200)));
+	assert.equal(el.scrollTop, left, "读者往上滚了，追赶就停在那里");
+	await view.unmount();
+});
+
+test("没在输出时长高的一截一步到位——切进一个会话，末尾那张卡片晚到，不把整段历史滑上来", async () => {
+	const { view, el } = await open("at-rest", { live: false });
+	geometry.content += 150;
+	await view.rerender(h(Harness, { id: "at-rest", live: false, tail: "delivery-card" }));
+	await act(async () => controls.onResize(el));
+	assert.equal(el.scrollTop, bottom(), "晚到的卡片不是输出，不追");
+	await view.unmount();
+});
+
 // ---------------------------------------------------------------------------
 // Leaving, which only a named gesture may do
 // ---------------------------------------------------------------------------
@@ -282,6 +339,7 @@ test("a wheel inside a nested scroller is not this surface's gesture", async () 
 
 	await wheel(el, -120, inner);
 	await arrives(view, "nested", 1);
+	await slid();
 	assert.equal(el.scrollTop, bottom(), "the inner scroller kept its own gesture");
 	inner.remove();
 	await view.unmount();
@@ -308,6 +366,7 @@ test("the same keys inside a field belong to the field", async () => {
 		input.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp", bubbles: true }));
 	});
 	await arrives(view, "field", 1);
+	await slid();
 	assert.equal(el.scrollTop, bottom(), "a caret moving is not the transcript scrolling");
 	input.remove();
 	await view.unmount();
@@ -337,6 +396,7 @@ test("a hand on the thumb at the bottom is not a request to leave", async () => 
 	const { view, el } = await open("thumb-press");
 	await act(async () => controls.onUserScroll("unknown"));
 	await arrives(view, "thumb-press", 1);
+	await slid();
 	assert.equal(el.scrollTop, bottom());
 	await view.unmount();
 });
@@ -511,6 +571,7 @@ test("a reading taken while hidden neither moves nor decides anything", async ()
 	geometry.view = 400;
 
 	await arrives(view, "blink", 1);
+	await slid();
 	assert.equal(el.scrollTop, bottom(), "a pane briefly reporting nothing is not the reader leaving");
 	await view.unmount();
 });

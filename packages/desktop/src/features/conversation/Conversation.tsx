@@ -15,7 +15,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
 import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
-import { ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
+import { describeCalls, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
@@ -198,6 +198,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     surfaceId: activeSessionId,
     namespace: "transcript",
     ready: !loadingSession,
+    live: running,
     count: messages.length + commandRuns.length,
     /*
      * What "something arrived" means here.
@@ -452,6 +453,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                  * still the newest work, and nothing should glide once the turn is over.
                  */
                 live={running && Boolean(run.live)}
+                // The turn line above says what the work amounted to; here every call is its own row.
+                flat
               />
             );
             if (block.kind === "plain") return draw(block.runs[0]);
@@ -477,6 +480,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
               <Fragment key={key}>
                 <TurnProcess
                   counts={block.counts}
+                  work={describeCalls(block.runs.flatMap((run) => (run.kind === "tools" ? run.calls : [])))}
                   /*
                    * 按**回合**算，不是按块的位置算。
                    *
@@ -525,7 +529,21 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
             </div>
           )}
           {range.end === allBlocks.length && <>
-          <div className="ly-reveal" data-open={running && !answering && !compacting} aria-hidden={!running || answering || compacting}>
+          {/*
+           * When the answer starts, this line folds at once rather than through `.ly-reveal`'s collapse.
+           *
+           * The answer's first line and this line folding happen in the same moment, the height gained and
+           * the height lost roughly cancel, and the text lands where this line was. Folding slowly, the
+           * transcript pinned to the bottom was first pushed up a whole line by the new text, then drifted
+           * down frame by frame as this line shrank — it read as the text jumping up from below and
+           * knocking the line away. Unfolding (it comes back once the answer pauses) still animates.
+           */}
+          <div
+            className="ly-reveal"
+            data-open={running && !answering && !compacting}
+            aria-hidden={!running || answering || compacting}
+            style={answering ? { transition: "none" } : undefined}
+          >
             <div>
               <div>{running && !compacting && <RunningIndicator />}</div>
             </div>

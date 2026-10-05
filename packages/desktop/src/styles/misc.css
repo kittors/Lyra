@@ -55,14 +55,6 @@
 }
 
 /*
- * Frosted panel for menus.
- *
- * A flat fill reads as pasted onto the list behind it; letting that list blur through says
- * "floating above" without needing a heavier shadow. The colour is mixed from the same
- * surface token, so it follows the theme — and the fallback below keeps menus opaque where
- * backdrop-filter is unavailable, since a translucent menu over unblurred text is unreadable.
- */
-/*
  * Shared menu-row states.
  *
  * Kept as a class rather than repeated utility strings so every menu in the app highlights
@@ -77,12 +69,12 @@
 }
 
 /*
- * Menus only. List rows in the inspector keep the 6px default. The menu
- * hover is the card radius minus the inset, so the active fill follows
- * the card instead of turning into a pill inside it.
+ * Menus only. List rows in the inspector keep the 6px default.
+ *
+ * On the card rather than the scroll area: the rows pinned at the bottom (「新建项目」 and the like) sit
+ * outside the scroll area and took the 6px default, a different curve from the rows above them.
  */
-.ly-menu-scroll .ly-item,
-.ly-menu-foot .ly-item {
+.ly-menu-card .ly-item {
   border-radius: var(--radius-item);
 }
 
@@ -210,8 +202,20 @@
   transition: opacity var(--ly-t-quick) var(--ly-e-out);
 }
 
+/*
+ * The card of menus and popovers, as shadcn's dropdown / popover draw it: solid, with one soft shadow.
+ *
+ * It used to be `.ly-glass`: translucent with a 40px blur, a highlight along the top edge and a heavy 50%
+ * shadow in dark — thick and busy on a small menu. The surface was nearly opaque (92%) anyway, so the
+ * blur showed almost nothing and only the decoration was left. The shadow is Tailwind's `shadow-md`,
+ * the same in both themes.
+ */
 .ly-menu-card {
   border-radius: var(--radius-menu);
+  background: var(--color-float);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 .ly-glass,
@@ -246,10 +250,10 @@
  * transparent background rather than the page, and comes out with its tint and its shadow but no
  * blur at all, with whatever is beneath it still sharp.
  *
- * A popover escapes by rendering into `<body>`; something pinned to a card that scrolls cannot.
+ * Something portalled into `<body>` escapes that; something pinned to a card that scrolls cannot.
  * That is what this is for: the same border, shadow and shape, an opaque fill instead of a blurred
- * one. Reach for it when the surface is part of scrolling content — never for a menu, which should
- * be portalled out instead and keep the real thing.
+ * one. Reach for it when the surface is part of scrolling content. Menus and popovers use neither —
+ * see `.ly-menu-card`.
  */
 .ly-glass-solid {
   background: var(--color-float);
@@ -429,33 +433,82 @@
  */
 .ly-sidebar-fill {
   background: var(--color-sidebar);
-  /*
-   * What a pinned row in this pane is drawn on — see `.ly-pin`.
-   *
-   * The pane's own colour, exactly, which is the whole of the requirement: a held row is then
-   * invisible except for the list disappearing behind it. This pane was translucent for a while
-   * and that exactness was the thing it cost — an opaque fill over a pane showing the desktop
-   * through cannot match it, because nothing in CSS can sample what is behind a window. The
-   * sidebar is opaque again and the fill is the pane again.
-   */
-  --ly-behind: var(--color-sidebar);
 }
 
 /*
- * A row here fills only while it is actually being held.
+ * List rows fade to clear before they scroll under a pinned row.
  *
- * The fill hides the list passing underneath a pinned row, and a row travelling with the list has
- * nothing passing underneath it — so an unconditional fill is paint that covers nothing. It is
- * invisible here now that the colour matches the pane, but it is still a lie about what the row is
- * doing, and it is what made every project name a visible grey slab back when the pane was glass.
+ * Pinned rows (the tab strip, project and date headings) paint no fill in this pane. A fill was there to
+ * hide the list scrolling under them, and on macOS this pane is translucent (the window's material, see
+ * `tabs.css`): no opaque colour can match the layer showing the desktop through, and CSS cannot sample
+ * what is outside the window. So it is turned around: the list fades itself out before it reaches a
+ * pinned row, and nothing under a pinned row needs hiding. One path on every platform.
  *
- * CSS has no way to ask whether a `sticky` element is currently stuck, and `useStickyFade` is
- * already measuring exactly that on every frame for the fade — so it marks the rows it finds held
- * and this reads the mark. `sidebar/sticky.ts` has the reasoning for why that measurement is
- * allowed to be a frame late while the placement is not.
+ * The line is `--ly-held-edge`: the underside of the run of rows already pinned, measured every frame by
+ * `useStickyFade` and written to the rows in the top stretch. A row starts fading when its top is 36px
+ * from the line (`FADE_TOP`, the depth the mask softens over), reaches 0 as it touches the line, and stays
+ * 0 after. A scroll-driven animation rather than a script setting opacity per frame: it follows the scroll
+ * on the compositor and cannot be a frame late — a frame late is a line of text showing through under a
+ * pinned row.
+ *
+ * A row being dragged is `opacity-35`, which the animation would override, so its start reads
+ * `--ly-rest`. A newly created row has the `ly-drop` entrance; the two animations have to be declared
+ * together, or the later declaration replaces the earlier one outright.
  */
-.ly-sidebar-fill .ly-pin:not([data-ly-stuck]) {
-  background: transparent;
+/*
+ * Not inherited: only the elements reading it carry a value, so a change recomputes just those and not
+ * the whole subtree under them. Who it is written to: `NEAR_TOP` in `useStickyFade`.
+ */
+@property --ly-held-edge {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@keyframes ly-under-pin {
+  from {
+    opacity: var(--ly-rest, 1);
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.ly-sidebar-fill :is([data-ly-row], [data-ly-fades]) {
+  animation: ly-under-pin linear both;
+  animation-timeline: view(block calc(var(--ly-held-edge, 0px) + 36px) 0);
+  animation-range: exit 0% exit 36px;
+}
+
+.ly-sidebar-fill [data-ly-row].ly-drop {
+  animation:
+    ly-under-pin linear both,
+    ly-drop-in var(--ly-t-base) var(--ly-e-out);
+  animation-timeline: view(block calc(var(--ly-held-edge, 0px) + 36px) 0), auto;
+  animation-range: exit 0% exit 36px, normal;
+}
+
+.ly-sidebar-fill [data-ly-row][class~="opacity-35"] {
+  --ly-rest: 0.35;
+}
+
+/*
+ * A heading pushed out by the next one also has to fade before it slides under the tab strip.
+ *
+ * It is sticky, so its own position says nothing; its group's does: the group's bottom edge reaching the
+ * pinned run's underside is the moment the next heading starts pushing it. So it starts fading with the
+ * group's bottom 36px from the line and is at 0 when the push begins. A folded group is only its heading,
+ * and the same rule fades it before the top like an ordinary row.
+ */
+.ly-sidebar-fill [data-ly-band] {
+  view-timeline: --ly-band block;
+  view-timeline-inset: var(--ly-held-edge, 0) auto;
+}
+
+.ly-sidebar-fill [data-ly-band] > [data-ly-head] {
+  animation: ly-under-pin linear both;
+  animation-timeline: --ly-band;
+  animation-range: exit calc(100% - 36px) exit 100%;
 }
 
 /*
@@ -493,19 +546,26 @@
 /* Identical metrics keep the decoration and the native caret in the same place. */
 .ly-composer-text {
 	padding: var(--ly-composer-in) var(--ly-composer-x);
-	font-size: var(--text-body);
-	line-height: 1.625;
+	/*
+	 * 14px / 20px at the default size, as ZCode sets its input. A ratio rather than 20px, so 界面字号
+	 * still scales the line along with the text.
+	 */
+	font-size: var(--text-label);
+	line-height: calc(20 / 14);
 	color: var(--color-ink);
 	overflow-wrap: break-word;
 	tab-size: 8;
 }
 
 /*
- * 空框有多高，由设置说了算——外观里的「输入框默认高度」。
+ * How tall an empty box is, as the settings say — Composer height in Appearance.
  *
- * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
- * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
- * `--ly-composer-in * 2` 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
+ * Written as `min-height` rather than `rows` because the auto-height script overwrites `height` every
+ * time, and in CSS `min-height` always beats `height`: the script still computes its number from the
+ * content, and the box just never gets shorter than this line. `--ly-composer-in * 2` is the top and
+ * bottom padding together; a line is `em × 20 / 14`, the same ratio as the line height above, following
+ * the font size, so a number of lines means the same when the UI font size changes. Two lines (40px)
+ * by default.
  */
 /*
  * 标点不许挤压。
@@ -522,7 +582,7 @@
 }
 
 textarea.ly-composer-text {
-	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + var(--ly-composer-in) * 2);
+	min-height: calc(var(--ly-composer-lines, 2) * 1em * 20 / 14 + var(--ly-composer-in) * 2);
 }
 
 textarea.ly-composer-text[data-highlighted="true"] {
@@ -623,6 +683,12 @@ textarea.ly-composer-text[data-highlighted="true"] {
 
 .ly-token-body > .ly-token-bracket:last-child {
   margin-left: calc(var(--ly-token-inset) * -1);
+}
+
+/* The user's text is 14px / 24px with no tracking; Markdown inside the bubble follows it, not the reply's body. */
+.ly-user-bubble .prose-dw {
+  line-height: 24px;
+  letter-spacing: 0;
 }
 
 .ly-user-bubble .ly-attachment-token {

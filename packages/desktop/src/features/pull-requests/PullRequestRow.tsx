@@ -47,7 +47,7 @@ export const PullRequestRow = memo(function PullRequestRow({
 			onClick={() => onSelect(pr)}
 			data-active={active}
 			data-touched={touched}
-			className="ly-pr-row ly-scroll flex w-full items-center gap-2.5 rounded-[10px] px-2 py-[6px] text-left"
+			className="ly-pr-row ly-scroll flex w-full items-center gap-2.5 rounded-lg px-2 py-[6px] text-left"
 		>
 			{/*
 			 * The icon and CI's verdict as one mark: `items-center` on the row is what centres this

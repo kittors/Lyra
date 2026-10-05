@@ -143,7 +143,7 @@ function SyncControl({
 			onClick={onClick}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
-			className="flex h-[22px] shrink-0 items-center gap-1 rounded-md px-1.5 text-caption font-medium text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated disabled:opacity-40"
+			className="flex h-[22px] shrink-0 items-center gap-1 rounded-lg px-1.5 text-caption font-medium text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated disabled:opacity-40"
 		>
 			{currentIcon}
 			<span className="tabular-nums">{state.count === null ? word : `${word} ${state.count}`}</span>
@@ -798,7 +798,7 @@ export function GitPanel() {
             aria-pressed={view === entry.id}
             data-ly-tip={narrowNav ? `${t(entry.labelKey)}${entry.id === "changes" && changeCount > 0 ? ` (${changeCount})` : ""}` : undefined}
             onClick={() => setView(entry.id)}
-            className={`flex h-[26px] shrink-0 items-center gap-1.5 rounded-md text-detail transition-colors duration-[var(--ly-t-quick)] ${
+            className={`flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg text-detail transition-colors duration-[var(--ly-t-quick)] ${
               narrowNav ? "px-2" : "px-2.5"
             } ${
               view === entry.id

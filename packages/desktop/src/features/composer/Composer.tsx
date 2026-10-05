@@ -1,8 +1,9 @@
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { translate } from "../../i18n/translate.ts";
 import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
-import { Camera, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { motionReduced } from "../../ui/motion/reduced.ts";
 import { ChangeBar } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
 import { QueuedMessages } from "./QueuedMessages.tsx";
@@ -25,6 +26,7 @@ import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { ModelTrigger } from "../models/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { BranchMenu } from "../modals/index.ts";
 import { PermissionPicker } from "../modals/index.ts";
 import { ProjectPicker } from "../modals/index.ts";
@@ -53,7 +55,22 @@ import { useI18n } from "../../i18n/index.ts";
 /** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
 type Attachment = DraftAttachment;
 
-export function Composer() {
+/*
+ * How wide the welcome page's composer was when it was taken down.
+ *
+ * Going from the welcome page into a conversation, the composer looks like one and the same box, its
+ * width easing from 672 to the conversation column over 150ms ease-out. In fact the welcome page and the
+ * conversation each mount a composer of their own, so the old one leaves its width behind as it unmounts
+ * and the new one picks up from there as it mounts. Only a handover within a second counts: any later and
+ * it is not the same box moving, it is another opening.
+ */
+let handoff: { width: number; at: number } | null = null;
+const HANDOFF_WINDOW = 1000;
+
+export function Composer({ centered = false }: {
+	/** The welcome page: placed in the column under the heading, which supplies the margins — no longer the strip along the bottom edge. */
+	centered?: boolean;
+} = {}) {
 	const { t } = useI18n();
 	// This screen's project, not the focused conversation's: a split shows several at once.
 	const { workspace, scratchCwd } = useScopedWorkspace();
@@ -83,6 +100,25 @@ export function Composer() {
 	 */
 	const parked = awaitingSubAgents(useScopedSubAgents()) && running;
 	const { compact } = useLayout();
+	const column = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const el = column.current;
+		if (!el) return;
+		if (centered) {
+			return () => {
+				handoff = { width: el.getBoundingClientRect().width, at: performance.now() };
+			};
+		}
+		const from = handoff;
+		handoff = null;
+		if (!from || performance.now() - from.at > HANDOFF_WINDOW || motionReduced()) return;
+		const to = el.getBoundingClientRect().width;
+		if (Math.abs(to - from.width) < 1) return;
+		el.animate([{ maxWidth: `${from.width}px` }, { maxWidth: `${to}px` }], {
+			duration: 150,
+			easing: "cubic-bezier(0, 0, 0.2, 1)",
+		});
+	}, [centered]);
 	const draftKey = activeSessionId
 		? activeSessionId
 		: workspace
@@ -478,8 +514,8 @@ export function Composer() {
 		 * find it. It is the one thing that has to move when a keyboard slides over the window —
 		 * the transcript above it stays put and keeps its scroll position. See `--ly-keyboard`.
 		 */
-		<div className="ly-composer-dock shrink-0" data-compact={compact || undefined}>
-			<div className="mx-auto w-full max-w-[var(--ly-content)]">
+		<div className="ly-composer-dock shrink-0" data-compact={compact || undefined} data-center={centered || undefined}>
+			<div ref={column} className="mx-auto w-full max-w-[var(--ly-content)]">
 				{/*
 				 * That work has been delegated, above everything else the composer says.
 				 *
@@ -494,70 +530,6 @@ export function Composer() {
 				 * and only on the screen in front, which `ScheduledAlert` decides for itself.
 				 */}
 				<ScheduledAlert />
-				{/*
-				 * Where the turn will run, and what it has already changed.
-				 *
-				 * The chips shrink and ellipsise rather than being dropped when space runs short,
-				 * because "which project, which branch" is exactly what you need before send.
-				 *
-				 * One row, because these are the same question asked at two moments: the project
-				 * and branch are what you check before pressing send, the change counts are what
-				 * you check after. Splitting them into two strips would cost a row of height to
-				 * separate things you read together.
-				 */}
-				{showBottomPanel && (
-				<div className="flex items-center gap-0.5 overflow-hidden pb-1">
-					<Chip
-						/*
-						 * Chat, not 「无项目」.
-						 *
-						 * The old label named the state by what it lacks — a mode called "no project",
-						 * which reads as something missing rather than as something chosen. What it
-						 * actually is: a conversation with no checkout behind it. Reviewing a repository
-						 * that is not on this machine, asking something that is not about code. That is a
-						 * chat, and naming it after itself is the difference between a state and a gap.
-						 *
-						 * 「选择项目」 stays for the case where nothing has been chosen yet, which really is
-						 * an unfinished step. The picker sits behind all three.
-						 */
-						icon={chatting ? <MessageSquare size={13} strokeWidth={1.8} /> : <Folder size={13} strokeWidth={1.8} />}
-						label={workspace?.name ?? (chatting ? "Chat" : t("composer.selectProject"))}
-						onClick={(event) => {
-							/*
-							 * What this menu does happens in the live slot: a project chosen from it, or 不在项目中工作,
-							 * starts the slot's next conversation. A press on the screen puts it in the live slot
-							 * first; the keyboard reaches the chip without that press, and a project chosen from a
-							 * blank screen started 新对话 from the conversation beside it — which in a split closes
-							 * every other screen, this one included. Taking the slot the way the press does makes
-							 * the two the same.
-							 */
-							if (!projectMenu.open && activeSessionId !== useApp.getState().activeSessionId) focusScreenOf(activeSessionId);
-							projectMenu.toggle(event);
-						}}
-						active={projectMenu.open}
-					/>
-					{workspace?.branch && (
-						/*
-						 * The name stays put while a switch runs; the mark says it is running.
-						 *
-						 * Which is the whole point — see `BranchMenu`. Showing the target name early
-						 * reads well right up until git refuses, and then the chip has claimed
-						 * something that did not happen. A pulsing branch mark is honest about both
-						 * outcomes and still answers the click immediately.
-						 */
-						<Chip
-							icon={<GitBranch size={13} strokeWidth={1.8} className={switchingBranch ? "ly-pulse" : undefined} />}
-							label={workspace.branch}
-							busy={Boolean(switchingBranch)}
-							onClick={branchMenu.toggle}
-							active={branchMenu.open}
-						/>
-					)}
-					<div className="min-w-2 flex-1" />
-					<ChangeBar />
-				</div>
-				)}
-
 				<div className="relative">
 				{/*
 				 * 排着的那几条，就在输入框上面。
@@ -585,6 +557,75 @@ export function Composer() {
 				)}
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
 				<MentionMenu id={mention.id} items={mention.matches} agents={mention.agents} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
+				{/*
+				 * The tray: project and branch sit in the strip that shows above the card. See `.ly-composer-tray`
+				 * in `composer.css`.
+				 */}
+				<div className="ly-composer-tray">
+					{/*
+					 * Where the turn will run, and what it has already changed.
+					 *
+					 * The chips shrink and ellipsise rather than being dropped when space runs short,
+					 * because "which project, which branch" is exactly what you need before send.
+					 *
+					 * One row, because these are the same question asked at two moments: the project
+					 * and branch are what you check before pressing send, the change counts are what
+					 * you check after. Splitting them into two strips would cost a row of height to
+					 * separate things you read together.
+					 */}
+					{showBottomPanel && (
+					<div className="flex items-center gap-0.5 overflow-hidden p-1.5">
+						<Chip
+							/*
+							 * Chat, not 「无项目」.
+							 *
+							 * The old label named the state by what it lacks — a mode called "no project",
+							 * which reads as something missing rather than as something chosen. What it
+							 * actually is: a conversation with no checkout behind it. Reviewing a repository
+							 * that is not on this machine, asking something that is not about code. That is a
+							 * chat, and naming it after itself is the difference between a state and a gap.
+							 *
+							 * 「选择项目」 stays for the case where nothing has been chosen yet, which really is
+							 * an unfinished step. The picker sits behind all three.
+							 */
+							icon={chatting ? <MessageSquare size={16} strokeWidth={1.8} /> : <Folder size={16} strokeWidth={1.8} />}
+							label={workspace?.name ?? (chatting ? "Chat" : t("composer.selectProject"))}
+							onClick={(event) => {
+								/*
+								 * What this menu does happens in the live slot: a project chosen from it, or 不在项目中工作,
+								 * starts the slot's next conversation. A press on the screen puts it in the live slot
+								 * first; the keyboard reaches the chip without that press, and a project chosen from a
+								 * blank screen started 新对话 from the conversation beside it — which in a split closes
+								 * every other screen, this one included. Taking the slot the way the press does makes
+								 * the two the same.
+								 */
+								if (!projectMenu.open && activeSessionId !== useApp.getState().activeSessionId) focusScreenOf(activeSessionId);
+								projectMenu.toggle(event);
+							}}
+							active={projectMenu.open}
+						/>
+						{workspace?.branch && (
+							/*
+							 * The name stays put while a switch runs; the mark says it is running.
+							 *
+							 * Which is the whole point — see `BranchMenu`. Showing the target name early
+							 * reads well right up until git refuses, and then the chip has claimed
+							 * something that did not happen. A pulsing branch mark is honest about both
+							 * outcomes and still answers the click immediately.
+							 */
+							<Chip
+								icon={<GitBranch size={16} strokeWidth={1.8} className={switchingBranch ? "ly-pulse" : undefined} />}
+								label={workspace.branch}
+								busy={Boolean(switchingBranch)}
+								onClick={branchMenu.toggle}
+								active={branchMenu.open}
+							/>
+						)}
+						<div className="min-w-2 flex-1" />
+						<ChangeBar />
+					</div>
+					)}
+
 				<ComposerShell
 					fieldRef={field}
 					/*
@@ -682,25 +723,16 @@ export function Composer() {
 					}
 					left={
 						<>
-							<button
-								type="button"
-								data-ly-tip={t("composer.addAttachment")}
-								aria-label={t("composer.addAttachment")}
-								onClick={kit.picker.open}
-								className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-							>
-								<Plus size={16} strokeWidth={1.9} />
-							</button>
+							<IconButton size="composer" emphasis label={t("composer.addAttachment")} onClick={kit.picker.open} icon={<Plus size={16} strokeWidth={1.9} />} />
 							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && (
-								<button
-									type="button"
-									data-ly-tip={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
-									aria-label={t("composer.screenshot")}
+								<IconButton
+									size="composer"
+									emphasis
+									label={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
+									ariaLabel={t("composer.screenshot")}
 									onClick={() => void takeScreenshot()}
-									className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-								>
-									<Camera size={15} strokeWidth={1.9} />
-								</button>
+									icon={<Camera size={15} strokeWidth={1.9} />}
+								/>
 							)}
 							{kit.picker.input}
 
@@ -713,16 +745,16 @@ export function Composer() {
 								onClick={permissionMenu.toggle}
 								aria-haspopup="menu"
 								aria-expanded={permissionMenu.open}
-								className={`ly-composer-control flex shrink-0 items-center gap-1.5 rounded-full px-2.5 text-label transition-colors duration-[var(--ly-t-quick)] ${
+								className={`ly-composer-control flex shrink-0 items-center gap-1 rounded-lg px-2 text-label transition-colors duration-[var(--ly-t-quick)] ${
 									permissionMode === "full"
 										? // Red, not the accent: this is the one mode that hands over the machine.
 											`text-danger ${permissionMenu.open ? "bg-danger/10" : "hover:bg-danger/10"}`
 										: permissionMenu.open
 											? "bg-card-hover text-ink"
-											: "text-ink-muted hover:bg-card-hover hover:text-ink"
+											: "text-ink hover:bg-card-hover"
 								}`}
 							>
-								<CircleAlert size={13.5} strokeWidth={1.9} className="shrink-0" />
+								<CircleAlert size={16} strokeWidth={1.9} className="shrink-0" />
 								{/*
 								 * The label is the first thing to go when space runs out.
 								 *
@@ -743,8 +775,9 @@ export function Composer() {
 								 * once and leave set; the meter and the name are about the turn being composed
 								 * right now — see the ranking in `composer/fit.ts`.
 								 */}
-								<span data-ly-fit-drop="1" className="shrink-0 whitespace-nowrap">
+								<span data-ly-fit-drop="1" className="flex shrink-0 items-center gap-1 whitespace-nowrap">
 									<RollingText>{permissionLabel}</RollingText>
+									<ChevronDown size={14} className="shrink-0" aria-hidden />
 								</span>
 							</button>
 						</>
@@ -781,6 +814,7 @@ export function Composer() {
 						</>
 					}
 				/>
+				</div>
 				</div>
 			</div>
 
@@ -819,15 +853,16 @@ function Chip({
 			aria-busy={busy || undefined}
 			onClick={onClick}
 			/* Dimmed while it is being changed, so the name reads as "still this, for now". */
-			className={`ly-composer-control ly-scroll flex h-[26px] min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
+			className={`ly-composer-control ly-scroll flex min-w-0 items-center gap-1 rounded-full pr-2 pl-3 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
 				busy ? "opacity-60" : ""
-			} ${active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"}`}
+			} text-ink ${active ? "bg-card-hover" : "hover:bg-card-hover"}`}
 		>
-			<span className="shrink-0 text-ink-faint">{icon}</span>
+			<span className="shrink-0 text-ink-muted">{icon}</span>
 			{/* Keyed on the label so switching project or branch rolls the new one in. `ScrollText`
 			    cannot take `RollingText` as a child — it measures the string to decide whether the
 			    chip scrolls on hover — so the remount happens around it instead, on the same terms. */}
 			<ScrollText key={label} text={label} className={`min-w-0 ${rolls ? "ly-roll" : ""}`} />
+			<ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />
 		</button>
 	);
 }

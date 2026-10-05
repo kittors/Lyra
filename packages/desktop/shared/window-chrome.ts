@@ -32,3 +32,25 @@ export const NATIVE_HEADER_HEIGHT = 32;
 // Electron's macOS traffic lights measure 14pt, including their outline. Treating them as
 // 12pt put their centre one point below every renderer icon (verified with native captures).
 export const MAC_TRAFFIC_LIGHT_POSITION = { x: 16, y: (WINDOW_HEADER_HEIGHT - 14) / 2 };
+
+/**
+ * How far below the window's top edge the main window's top row sits.
+ *
+ * The main window's content is a set of floating cards: 2 of workspace padding, 2 of card inset and a
+ * 1px border put the inside of a card exactly 5 from the window's top (the same number as
+ * `--ly-pane-chrome`). The top row is centred in the card's 44px, so the whole row — traffic lights,
+ * sidebar toggle, every card's title bar — moves down these 5px and lines up on one line.
+ *
+ * It was tried the other way round: traffic lights left alone, the title bars inside the cards raised
+ * 5px to meet them. The cost was title-bar buttons 4px from the card's top edge with 12px either side,
+ * looking jammed against it.
+ *
+ * Session and panel windows have no cards; their title bars sit against the window's top and keep the
+ * position above.
+ */
+export const MAIN_WINDOW_ROW_OFFSET = 5;
+
+export const MAC_MAIN_TRAFFIC_LIGHT_POSITION = {
+	x: MAC_TRAFFIC_LIGHT_POSITION.x,
+	y: MAC_TRAFFIC_LIGHT_POSITION.y + MAIN_WINDOW_ROW_OFFSET,
+};

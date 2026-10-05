@@ -59,6 +59,7 @@ export function SideChat() {
 	const follow = useFollowBottom({
 		surfaceId: sessionId,
 		namespace: "sidechat",
+		live: running,
 		count: messages.length,
 		tail: tailSignature(messages, running ? "run" : ""),
 	});

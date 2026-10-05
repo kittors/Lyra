@@ -98,7 +98,7 @@ export function MessageActions({
 				 */
 				<span
 					data-ly-tip={durationTip || undefined}
-					className="inline-flex items-center rounded px-1 py-0.5 text-[11px] font-mono text-ink-faint/80 tabular-nums"
+					className="inline-flex items-center rounded px-1 py-0.5 text-caption font-mono text-ink-faint tabular-nums"
 				>
 					{durationBadge}
 				</span>
@@ -110,7 +110,7 @@ export function MessageActions({
 				onClick={() => {
 					void navigator.clipboard.writeText(text).then(() => setCopied(true));
 				}}
-				className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+				className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 			>
 				{copied ? <Check size={12.5} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12.5} strokeWidth={1.8} />}
 			</button>
