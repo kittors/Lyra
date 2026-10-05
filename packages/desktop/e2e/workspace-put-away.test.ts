@@ -70,7 +70,7 @@ async function waitFor(expression: string, what: string): Promise<void> {
 /** A real press on a sidebar entry: the sidebar answers pointer events, not synthetic clicks. */
 async function clickSidebar(label: string): Promise<void> {
 	const at = await app.evaluate<{ x: number; y: number }>(`(() => {
-		const el = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim().startsWith(${JSON.stringify(label)}) && b.checkVisibility({ visibilityProperty: true }));
+		const el = [...document.querySelectorAll('button')].find((b) => ((b.textContent || '').trim().startsWith(${JSON.stringify(label)}) || (b.getAttribute('aria-label') || '').startsWith(${JSON.stringify(label)})) && b.checkVisibility({ visibilityProperty: true }));
 		if (!el) throw new Error(${JSON.stringify(`no sidebar entry ${label}`)});
 		const r = el.getBoundingClientRect();
 		const x = r.x + r.width / 2, y = r.y + r.height / 2;
@@ -106,14 +106,17 @@ async function armFirstFrame(settled: "hidden" | "visible"): Promise<void> {
 					return;
 				}
 				const all = [...box.querySelectorAll('*')];
+				// The open conversation's title and panel buttons are the workspace's too, though they sit on the window's toolbar.
+				const toolbar = () => [...document.querySelectorAll('[data-ly-toolbar-title], [data-ly-split-tools]')].filter((el) => el.checkVisibility());
 				if (settled === 'hidden') {
-					state.found = all.filter(visible).map(name);
+					state.found = [...all.filter(visible), ...toolbar()].map(name);
 					state.done = true;
 					return;
 				}
 				const hidden = all.filter((el) => !visible(el));
+				const shown = toolbar();
 				setTimeout(() => {
-					state.found = hidden.filter((el) => el.isConnected && visible(el)).map(name);
+					state.found = [...hidden.filter((el) => el.isConnected && visible(el)), ...toolbar().filter((el) => !shown.includes(el))].map(name);
 					state.done = true;
 				}, 500);
 			};
@@ -135,8 +138,8 @@ function summary(found: string[]): string {
 }
 
 test("the first frame of 已安排 has nothing of the workspace on it", async () => {
-	// The composer and the title bar's panel buttons are what painted through before; wait for them.
-	await waitFor(`${WORKSPACE}?.querySelector('button[data-composer-send]') && ${WORKSPACE}?.querySelector('[data-ly-toolbar-button]')`, "the conversation");
+	// The composer and the panel buttons are what painted through before; wait for them. A lone screen's panel buttons are on the window's toolbar.
+	await waitFor(`${WORKSPACE}?.querySelector('button[data-composer-send]') && document.querySelector('[data-ly-split-tools] [data-ly-toolbar-button], [data-view="chat"] [data-ly-toolbar-button]')`, "the conversation");
 	await pause(800);
 
 	await armFirstFrame("hidden");

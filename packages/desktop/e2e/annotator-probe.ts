@@ -182,7 +182,7 @@ try {
 	// Flip the window to light, which changes what is under that exact spot.
 	await app.evaluate(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		await wait(1000);
 		[...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "外观")?.click();
 		await wait(900);

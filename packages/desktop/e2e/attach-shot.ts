@@ -36,7 +36,7 @@ if (process.env.DARK === "1") {
 	// --color-* token (set by applyAppearance, not by a CSS selector) at its light values.
 	await call("Runtime.evaluate", {
 		expression: `(() => {
-			document.querySelector(".ly-sidebar-foot button")?.click();
+			document.querySelector("[data-ly-open-settings]")?.click();
 			return true;
 		})()`,
 		returnByValue: true,

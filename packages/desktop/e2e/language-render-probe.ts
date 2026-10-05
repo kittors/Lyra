@@ -64,7 +64,7 @@ try {
 
 	await app.evaluate(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		await wait(1100);
 		[...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "代码格式化")?.click();
 		await wait(1200);
@@ -75,7 +75,7 @@ try {
 	if (themeName) {
 		await app.evaluate(`(async () => {
 			const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-			document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			document.querySelector("[data-ly-open-settings]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 			await wait(400);
 			[...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "外观")?.click();
 			await wait(900);

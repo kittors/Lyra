@@ -169,7 +169,7 @@ try {
 	const settings = await app.evaluate<string>(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 		const inSettings = () => [...document.querySelectorAll("button")].some((b) => (b.textContent || "").includes("返回工作区"));
-		if (!inSettings()) { document.querySelector(".ly-sidebar-foot button")?.click(); await wait(1200); }
+		if (!inSettings()) { document.querySelector("[data-ly-open-settings]")?.click(); await wait(1200); }
 		if (!inSettings()) return "设置没打开";
 		const nav = [...document.querySelectorAll("nav button")].find((b) => (b.textContent || "").trim() === "浏览器");
 		if (!nav) return "找不到浏览器设置";

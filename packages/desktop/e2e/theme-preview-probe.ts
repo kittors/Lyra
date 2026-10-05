@@ -48,7 +48,7 @@ const app = await startApp({ port: PORT, seed });
 
 try {
 	await pause(2600);
-	await app.evaluate(`(() => { const e = document.querySelector(".ly-sidebar-foot button"); if (e) e.click(); })()`);
+	await app.evaluate(`(() => { const e = document.querySelector("[data-ly-open-settings]"); if (e) e.click(); })()`);
 	await pause(1400);
 	await app.evaluate(`(() => {
 		const nav = [...document.querySelectorAll("nav button")].find((b) => /外观|Appearance/.test(b.innerText));

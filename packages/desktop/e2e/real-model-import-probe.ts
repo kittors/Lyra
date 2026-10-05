@@ -94,7 +94,7 @@ async function main() {
 	app = await startApp({ port: 9413, seed });
 	try {
 		// 设置页 → 模型设置。走真实的导航，不是直接改 store。
-		await click(".ly-sidebar-foot button");
+		await click("[data-ly-open-settings]");
 		await byText("模型设置", "nav button");
 		// 工作区那层还挂着（只是 visibility 隐藏），所以 `querySelector("h1")` 会命中它——
 		// 等一个只属于这一页的、可见的控件，才是「这一页到了」的证据。

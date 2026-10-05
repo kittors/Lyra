@@ -142,7 +142,7 @@ async function main(): Promise<void> {
 		// 开设置：左下角那个齿轮。
 		// 侧边栏最底下那一条（齿轮 + 供应商名），见 SidebarFoot。
 		const opened = await evaluate<boolean>(`(() => {
-			const foot = document.querySelector('.ly-sidebar-foot button');
+			const foot = document.querySelector('[data-ly-open-settings]');
 			if (!foot) return false;
 			foot.click();
 			return true;

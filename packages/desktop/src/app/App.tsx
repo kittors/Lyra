@@ -12,12 +12,17 @@ import { RetainedViews } from "../ui/layout/RetainedViews.tsx";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
 import { SplitWorkspace } from "../features/split/SplitWorkspace.tsx";
 import { revealInWorkspace, watchSessionWindows } from "../features/split/index.ts";
+// The component file, not the domain's front door, like `SplitWorkspace` above: through the index the
+// title bar pulls `SessionMenu` → split/index back into a cycle.
+import { ToolbarScreenTitle, ToolbarScreenTools } from "../features/split/SplitChrome.tsx";
 import { ImageViewer } from "../features/image/index.ts";
 import { InputMenu } from "../features/composer/index.ts";
 import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
-import { DragBand, WindowButtons, WindowHeader } from "./window/WindowToolbar.tsx";
+import { DragBand, WindowButtons } from "./window/WindowToolbar.tsx";
+import { useNavShortcuts, WindowFrame } from "./window/WindowFrame.tsx";
+import { watchNavHistory } from "./nav-history.ts";
 import { SessionWindow } from "./window/SessionWindow.tsx";
 import { PanelWindow } from "./window/PanelWindow.tsx";
 import { watchPanelWindows } from "../features/dock/index.ts";
@@ -224,6 +229,10 @@ function Shell() {
 	// meaning over the other, so leaving the view puts it away.
 	useEffect(() => dismissNav(), [view, dismissNav]);
 
+	// Back and forward: the history is the window's, so it is kept here, where both shells are.
+	useEffect(() => watchNavHistory(), []);
+	useNavShortcuts();
+
 	/*
 	 * Both shells stay mounted, and settings is drawn *over* the workspace rather than in place of
 	 * it. Swapping them remounted the whole conversation on the way back, and a list that has only
@@ -360,39 +369,54 @@ function PullRequestsFallback() {
  * 重排换了个方向。
  */
 function SettingsFallback() {
-	const { compact, headerBar, sidebarWidth } = useLayout();
+	const { compact, headerBar, framed, sidebarWidth } = useLayout();
 	const { t } = useI18n();
+	// Below a toolbar band there is no top row to leave for the window's corners.
+	const band = headerBar || framed;
 
-	return (
-		<div className="ly-shell relative flex h-full" role="status" aria-label={t("common.loading")}>
-			{!compact && (
-				<div className="ly-sidebar-fill flex h-full shrink-0 flex-col" style={{ width: sidebarWidth }}>
-					{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
-					<div className="px-2.5 pb-2">
-						<SkeletonBar width="96px" height={11} className="mx-2 my-[10px]" />
-					</div>
-					<div className="flex flex-col gap-[2px] px-2.5">
-						{[68, 84, 56, 92, 72, 60, 80].map((width, index) => (
-							<SkeletonBar key={index} width={`${width}px`} height={10} className="mx-2 my-[11px]" />
-						))}
-					</div>
+	const nav = (
+		<div className="ly-sidebar-fill flex h-full shrink-0 flex-col" style={framed ? undefined : { width: sidebarWidth }}>
+			{!band && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
+			<div className="px-2.5 pb-2">
+				<SkeletonBar width="96px" height={11} className="mx-2 my-[10px]" />
+			</div>
+			<div className="flex flex-col gap-[2px] px-2.5">
+				{[68, 84, 56, 92, 72, 60, 80].map((width, index) => (
+					<SkeletonBar key={index} width={`${width}px`} height={10} className="mx-2 my-[11px]" />
+				))}
+			</div>
+		</div>
+	);
+	const content = (
+		<div className={`ly-opaque flex min-w-0 flex-1 flex-col ${framed ? "ly-card-page" : ""}`}>
+			{!band && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
+			<div className={`mx-auto w-full max-w-[900px] ${compact ? "px-4" : "px-9"}`}>
+				{/* 标题、副标题、第一组卡片——每张设置页开头都是这三样。 */}
+				<div className="pt-8">
+					<SkeletonBar width="132px" height={20} />
+					<SkeletonBar width="min(420px, 70%)" height={10} className="mt-3.5" />
+					<SkeletonBar width="min(300px, 52%)" height={10} className="mt-2" />
 				</div>
-			)}
-
-			<div className="ly-opaque flex min-w-0 flex-1 flex-col">
-				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
-				<div className={`mx-auto w-full max-w-[900px] ${compact ? "px-4" : "px-9"}`}>
-					{/* 标题、副标题、第一组卡片——每张设置页开头都是这三样。 */}
-					<div className="pt-8">
-						<SkeletonBar width="132px" height={20} />
-						<SkeletonBar width="min(420px, 70%)" height={10} className="mt-3.5" />
-						<SkeletonBar width="min(300px, 52%)" height={10} className="mt-2" />
-					</div>
-					<div className="pt-7">
-						<SkeletonList count={4} label={t("common.loading")} />
-					</div>
+				<div className="pt-7">
+					<SkeletonList count={4} label={t("common.loading")} />
 				</div>
 			</div>
+		</div>
+	);
+
+	if (framed) {
+		return (
+			<div role="status" aria-label={t("common.loading")} className="h-full">
+				<WindowFrame data-ly-settings="" nav={<NavPane width={sidebarWidth} label={t("app.settingsNavigation")}>{nav}</NavPane>}>
+					{content}
+				</WindowFrame>
+			</div>
+		);
+	}
+	return (
+		<div className="ly-shell relative flex h-full" role="status" aria-label={t("common.loading")}>
+			{!compact && nav}
+			{content}
 		</div>
 	);
 }
@@ -471,9 +495,11 @@ function Workspace({ away }: { away: boolean }) {
  * as a drag region underneath — the same arrangement they had when a conversation pane framed them.
  */
 function SoloScreen({ children }: { children: React.ReactNode }) {
+	const { framed } = useLayout();
 	return (
 		<div data-ly-solo-screen className="ly-card-page relative flex min-h-0 min-w-0 flex-1 flex-col">
-			<div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />
+			{/* In the frame the window is dragged from its toolbar; a drag region inside a card would only take presses from the view's own header. */}
+			{!framed && <div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />}
 			{/*
 			 * A full 44px, not short by the 5px the card stands off the window's top. Short by that, the top
 			 * row would line up with the traffic lights, at the cost of tabs about 4px from the card's top
@@ -489,7 +515,7 @@ function SoloScreen({ children }: { children: React.ReactNode }) {
 function ChatShell({ settings }: { settings: boolean }) {
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const workspace = useApp((s) => s.workspace);
-	const { compact, navOpen, headerBar, toggleNav, dismissNav } = useLayout();
+	const { compact, navOpen, framed, toggleNav, dismissNav } = useLayout();
 	const attach = useSide((s) => s.attach);
 	const { drawn: sidebarDrawn, max: sidebarMax } = useSidebarFit();
 	const { t } = useI18n();
@@ -542,24 +568,21 @@ function ChatShell({ settings }: { settings: boolean }) {
 	);
 
 	/*
-	 * Windows 和 Linux：一条横贯的 header，其余的都在它下面。
-	 *
-	 * 这条路径里没有 `DragBand` 也没有 `WindowButtons`——header 自己就是拖拽区，侧边栏开关就在它
-	 * 上面。窗口的两端都收在这一条带子里，于是底下的面板不必再给任何一端让位，`cornerPane` 和
-	 * `insetEnd` 在这里全是 no-op。
+	 * The frame: toolbar on top, rail on the left, sidebar and screens as cards below — every desktop
+	 * platform, see `WindowFrame`. The two paths after this one are what a phone still draws.
 	 */
-	if (headerBar) {
+	if (framed) {
 		return (
-			<div data-ly-workspace-window className="ly-shell relative flex h-full flex-col overflow-hidden">
-				<WindowHeader navOpen={navOpen} compact={compact} onToggleNav={toggleNav} />
-				<div className="ly-window-body relative flex min-h-0 flex-1">
-					{nav}
-					{dock}
-				</div>
-			</div>
+			<WindowFrame data-ly-workspace-window="" nav={nav} toolbarTitle={<ToolbarScreenTitle />} toolbarEnd={<ToolbarScreenTools />}>
+				{dock}
+			</WindowFrame>
 		);
 	}
 
+	/*
+	 * A phone: no toolbar band, so the sidebar toggle floats in the corner over the first screen and
+	 * the drag region is laid down before anything that cuts a hole in it.
+	 */
 	return (
 		<div data-ly-workspace-window className="ly-shell relative flex h-full overflow-hidden">
 			{nav}

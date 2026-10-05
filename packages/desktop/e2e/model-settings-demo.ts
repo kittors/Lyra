@@ -142,7 +142,7 @@ async function shot(name: string) {
 	await writeFile(join(out, `${stamp}_${name}.png`), Buffer.from(picture.data, "base64"));
 }
 async function openModels() {
-	await clickAt(q(".ly-sidebar-foot button"));
+	await clickAt(q("[data-ly-open-settings]"));
 	await until(`Boolean(document.querySelector("nav button"))`);
 	await pause(400);
 	await clickAt(byText("nav button", "模型设置"));

@@ -83,9 +83,9 @@ async function main() {
 	const stop = await startRecording(PORT, frames);
 
 	try {
-		await d.until('document.querySelector(".ly-sidebar-foot button")', 30000);
+		await d.until('document.querySelector("[data-ly-open-settings]")', 30000);
 		await pause(800);
-		await d.mark(".ly-sidebar-foot button", "data-ly-open-settings");
+		await d.mark("[data-ly-open-settings]", "data-ly-open-settings");
 		await d.click("[data-ly-open-settings]");
 		await d.until('document.querySelector(".ly-settings-nav-pill")', 20000);
 		await pause(900);

@@ -143,8 +143,8 @@ async function main(): Promise<void> {
 	app = await startApp({ port: PORT + 1, seed: settingsSeed });
 	const d = driver(app);
 	try {
-		await d.until('document.querySelector(".ly-sidebar-foot button")', 30000);
-		await d.mark(".ly-sidebar-foot button", "data-ly-open-settings");
+		await d.until('document.querySelector("[data-ly-open-settings]")', 30000);
+		await d.mark("[data-ly-open-settings]", "data-ly-open-settings");
 		await d.click("[data-ly-open-settings]");
 		await d.until('document.querySelector("[data-ly-settings] .ly-settings-nav-pill")', 20000);
 		await pause(400);

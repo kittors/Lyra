@@ -137,9 +137,13 @@ test("every screen's title bar is handed to its dock, so it covers the transcrip
 	const paneSrc = await readFile(pane, "utf8");
 	const dockSrc = await readFile(dock, "utf8");
 	const surfaceSrc = await readFile(new URL("../src/features/dock/DockPane.tsx", import.meta.url), "utf8");
-	// Single screen too: there is no window-level title bar that panels could fall under.
-	assert.match(paneSrc, /header=\{\(room: ScreenInsets\) => <SplitChrome/);
+	// Single screen too, unless the window's toolbar draws it: that toolbar is a row of its own above
+	// every card, so the title over the conversation still never sits over a panel.
+	assert.match(paneSrc, /header=\{titled \? null : \(room: ScreenInsets\) => <SplitChrome/);
+	assert.match(paneSrc, /titled=\{framed && !screen\}/);
 	assert.doesNotMatch(paneSrc, /screen \? <SplitChrome/);
 	assert.match(surfaceSrc, /data-ly-pane-slot=\{customHeader \? "conversation"/);
-	assert.match(dockSrc, /\{header\(\{ start: cardRoom\(inset\), end: cardRoom\(insetEnd\) \}\)\}/);
+	assert.match(dockSrc, /\{header\?\.\(\{ start: cardRoom\(inset\), end: cardRoom\(insetEnd\) \}\)\}/);
+	// And the card does not keep 44px for a title bar it no longer has.
+	assert.match(dockSrc, /reserveHeader=\{!conversation \|\| header !== null\}/);
 });

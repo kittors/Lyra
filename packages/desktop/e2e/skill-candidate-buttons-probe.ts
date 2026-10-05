@@ -277,7 +277,7 @@ try {
 	 * 才是配置已经有的。SkillsSettings 只挂在后者底下，所以从市场点「技能」，切的是市场自己的
 	 * 那一排，组件一次都没上过场。
 	 */
-	check(await clickAt(".ly-sidebar-foot button"), "点开了左下角的齿轮");
+	check(await clickAt("[data-ly-open-settings]"), "点开了左下角的齿轮");
 	await pause(1_600);
 
 	check(await mark(WORDS.settingsNav, "data-probe-nav", true, true), `点到了设置页左栏的「${WORDS.settingsNav}」`);

@@ -302,10 +302,11 @@ async function main(): Promise<void> {
 			if (!(await clickRestore(win))) return ["bad", "面板窗口里找不到收回按钮"];
 			await wait(1600);
 			const back = await shot();
-			if (back.panes.terminal !== "window") return ["bad", `收回之后终端在 ${back.panes.terminal ?? "哪儿都不在"}`];
+			// There is no window-level dock since ADR-0023: a panel belongs to a screen, and the one screen is where it comes back to.
+			if (!back.panes.terminal?.startsWith("tile:")) return ["bad", `收回之后终端在 ${back.panes.terminal ?? "哪儿都不在"}`];
 			if (back.panels.length > 0) return ["bad", `收回了但面板窗口还开着：${back.panels.join(" ")}`];
 			if (back.homes.length > 0) return ["bad", `回家记录没清掉：${back.homes.join(" ")}`];
-			return ["ok", `终端回到窗口 dock，面板窗口关掉了，回家记录也清了`];
+			return ["ok", `终端回到那一屏（${back.panes.terminal}），面板窗口关掉了，回家记录也清了`];
 		});
 
 		await scene("S11", "某一屏弹出的面板，从面板窗口点「收回」，回的是那一屏", async () => {
@@ -336,15 +337,21 @@ async function main(): Promise<void> {
 		// S12 / S14：不点收回，直接把那个窗口关掉。
 		// -------------------------------------------------------------------
 
-		await scene("S12", "窗口 dock 弹出的面板，直接关掉那个窗口", async () => {
-			if (!(await clickTopBar("浏览器"))) return ["skip", "工具条上没有浏览器按钮"];
+		/*
+		 * S12 and S14 with the terminal: since 09-20 the browser has no window of its own on purpose (a
+		 * `<webview>` cannot move between documents), so trying it only ever skipped.
+		 */
+		await scene("S12", "单屏弹出的面板，直接关掉那个窗口", async () => {
+			if (!(await clickTopBar("终端"))) return ["skip", "工具条上没有终端按钮"];
 			await wait(900);
-			if (!(await popOut("browser"))) return ["skip", "浏览器面板上没有「在新窗口打开」"];
-			const win = await panelWindowOf("browser");
+			if (!(await popOut("terminal"))) return ["skip", "终端面板上没有「在新窗口打开」"];
+			const win = await panelWindowOf("terminal");
 			if (!win) return ["bad", "点了弹出，面板窗口没开出来"];
 			const before = await shot();
+			// The screen the panel came from: there is no window-level dock to name since ADR-0023.
+			const single = win.boot.panelScope ?? "";
 
-			await evaluate(`(async () => { await window.lyra.windows.closePanel({ kind: 'browser', scope: 'window' }); return true; })()`);
+			await evaluate(`(async () => { await window.lyra.windows.closePanel({ kind: 'terminal', scope: ${JSON.stringify(single)} }); return true; })()`);
 			await wait(1400);
 			const after = await shot();
 			if (after.panels.length > 0) return ["bad", `窗口没关掉：${after.panels.join(" ")}`];
@@ -352,11 +359,11 @@ async function main(): Promise<void> {
 			// 关掉是关掉，面板不该自己跑回来——但也不该留下一条永远没人清的记录。
 			const leaked = after.homes.length > 0;
 			// 再点一次按钮，面板要能重新开出来。
-			const reopened = await clickTopBar("浏览器");
+			const reopened = await clickTopBar("终端");
 			await wait(900);
 			const again = await shot();
-			const visible = kindsOf(again).includes("browser");
-			if (!reopened || !visible) return ["bad", `关掉窗口之后再点按钮，浏览器开不出来了（记录 ${after.homes.join(" ") || "空"}）`];
+			const visible = kindsOf(again).includes("terminal");
+			if (!reopened || !visible) return ["bad", `关掉窗口之后再点按钮，终端开不出来了（记录 ${after.homes.join(" ") || "空"}）`];
 			return [
 				leaked ? "bad" : "ok",
 				leaked
@@ -367,15 +374,15 @@ async function main(): Promise<void> {
 
 		await scene("S14", "某一屏弹出的面板，关掉那个窗口之后那一屏还好吗", async () => {
 			if ((await splitTo(2)) < 2) return ["skip", "没分成两屏"];
-			if (!(await clickTopBar("浏览器"))) return ["skip", "工具条上没有浏览器按钮"];
+			if (!(await clickTopBar("终端"))) return ["skip", "工具条上没有终端按钮"];
 			await wait(900);
-			const at = (await shot()).panes.browser ?? "";
-			if (!at.startsWith("tile:")) return ["skip", `浏览器没落在某一屏里，而在 ${at || "哪儿都不在"}`];
-			if (!(await popOut("browser"))) return ["skip", "那一屏的浏览器上没有「在新窗口打开」"];
-			const win = await panelWindowOf("browser");
+			const at = (await shot()).panes.terminal ?? "";
+			if (!at.startsWith("tile:")) return ["skip", `终端没落在某一屏里，而在 ${at || "哪儿都不在"}`];
+			if (!(await popOut("terminal"))) return ["skip", "那一屏的终端上没有「在新窗口打开」"];
+			const win = await panelWindowOf("terminal");
 			if (!win) return ["bad", "点了弹出，面板窗口没开出来"];
 			const scope = win.boot.panelScope ?? "";
-			await evaluate(`(async () => { await window.lyra.windows.closePanel({ kind: 'browser', scope: ${JSON.stringify(scope)} }); return true; })()`);
+			await evaluate(`(async () => { await window.lyra.windows.closePanel({ kind: 'terminal', scope: ${JSON.stringify(scope)} }); return true; })()`);
 			await wait(1400);
 			const after = await shot();
 			if (after.tiles.length !== 2) return ["bad", `关掉面板窗口之后屏数成了 ${after.tiles.length}`];
@@ -456,6 +463,8 @@ async function main(): Promise<void> {
 				const openers = [];
 				for (const b of [...document.querySelectorAll('button')]) {
 					const label = (b.getAttribute('aria-label') || '') + '|' + (b.innerText || '').trim();
+					// The terminal's own sub-tabs (终端 1, 新建终端, 关闭 终端 2) stay inside the panel; they open no other one.
+					if (/^\\|?(关闭\\s+)?终端\\s*\\d+|新建终端/.test(label)) continue;
 					if (/浏览器|终端|Git|差异|打开文件|在新窗口/.test(label)) openers.push(label.slice(0, 24));
 				}
 				return { docks: document.querySelectorAll('[data-dock-pane]').length, openers: openers, buttons: document.querySelectorAll('button').length };

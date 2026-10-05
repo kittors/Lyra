@@ -81,8 +81,10 @@ async function click(selector: string) {
 async function select(label: string, nav = false, counted = false) {
 	const match = named(label, counted ? "stripCount" : "exact", "b");
 	const matches = `b.checkVisibility({visibilityProperty:true})&&${match}`;
-	await until(`[...document.querySelectorAll('${nav ? "nav " : ""}button')].some(b=>${matches})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-pick]')?.removeAttribute('data-qa-pick');[...document.querySelectorAll('${nav ? "nav " : ""}button')].find(b=>${matches}).setAttribute('data-qa-pick','');})()`);
+	// Settings' own section list, not the window's icon rail: both are navigation, and both have a 插件.
+	const scope = nav ? "nav:not([data-ly-app-rail]) " : "";
+	await until(`[...document.querySelectorAll('${scope}button')].some(b=>${matches})`);
+	await app.evaluate(`(()=>{document.querySelector('[data-qa-pick]')?.removeAttribute('data-qa-pick');[...document.querySelectorAll('${scope}button')].find(b=>${matches}).setAttribute('data-qa-pick','');})()`);
 	await click('[data-qa-pick]');
 }
 async function shot(name: string) {

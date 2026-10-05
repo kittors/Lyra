@@ -10,6 +10,7 @@ import type { PaneBox } from "./layout.ts";
 import { paneKey } from "./pane-key.ts";
 import { focusPane } from "./actions.ts";
 import { SplitChrome } from "./SplitChrome.tsx";
+import { useLayout } from "../../app/layout.tsx";
 
 /**
  * The conversation of one screen, isolated from the tile's geometry.
@@ -28,12 +29,15 @@ const SplitScreen = memo(function SplitScreen({
 	screen,
 	inset,
 	insetEnd,
+	titled,
 }: {
 	sessionId: string | null;
 	/** More than one conversation on the window: each names itself and can be closed. */
 	screen: boolean;
 	inset: number;
 	insetEnd: number;
+	/** The window's toolbar draws this screen's title bar (one screen, in the frame), so its card has none. */
+	titled: boolean;
 }) {
 	const messages = useApp((s) => {
 		if (!sessionId || s.activeSessionId === sessionId) return s.messages.length;
@@ -77,7 +81,7 @@ const SplitScreen = memo(function SplitScreen({
 			<DockView
 				scope={paneKey(sessionId)}
 				insets={{ start: inset, end: insetEnd }}
-				header={(room: ScreenInsets) => <SplitChrome sessionId={sessionId} screen={screen} inset={room.start} insetEnd={room.end} />}
+				header={titled ? null : (room: ScreenInsets) => <SplitChrome sessionId={sessionId} screen={screen} inset={room.start} insetEnd={room.end} />}
 			>
 				{body}
 			</DockView>
@@ -102,6 +106,7 @@ export const SplitPane = memo(function SplitPane({
 }) {
 	const key = paneKey(pane.sessionId);
 	const screen = count > 1;
+	const { framed } = useLayout();
 
 	/*
 	 * Kept to its tile by `overflow-hidden` and layout containment — not paint containment.
@@ -127,12 +132,15 @@ export const SplitPane = memo(function SplitPane({
 				height: pct(pane.height),
 			}}
 			/*
-			 * Screens are told apart by the gap between their cards — each screen's panes are cards of
-			 * their own (see `DockPane`) — so the section adds no fill and no dividing line.
+			 * In the window frame the screens are regions of one surface, like the panes in them, and a
+			 * hairline on the side facing a neighbour is what tells two apart (ADR-0031). Without the
+			 * frame each screen's panes are cards and the gap between them does that instead.
 			 */
-			className="ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout contain-paint"
+			data-edge-left={framed && pane.left > 0.001 ? "" : undefined}
+			data-edge-top={framed && pane.top > 0.001 ? "" : undefined}
+			className="ly-split-screen ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout"
 		>
-			<SplitScreen sessionId={pane.sessionId} screen={screen} inset={inset} insetEnd={insetEnd} />
+			<SplitScreen sessionId={pane.sessionId} screen={screen} inset={inset} insetEnd={insetEnd} titled={framed && !screen} />
 		</section>
 	);
 });

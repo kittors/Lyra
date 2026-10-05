@@ -121,7 +121,7 @@ after(async () => {
 
 async function openPlugins(): Promise<void> {
 	await app.evaluate(`(() => {
-		const nav = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "插件");
+		const nav = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "插件" || b.getAttribute("aria-label") === "插件");
 		if (!nav) throw new Error("no plugins entry in the sidebar");
 		nav.click();
 		return true;

@@ -138,8 +138,13 @@ export function DockView({
 }: {
 	/** The conversation this screen shows — its session id, or `@draft` for the blank one. */
 	scope: string;
-	/** The conversation's own title bar, given the insets it owes the window's corners. */
-	header: (insets: ScreenInsets) => ReactNode;
+	/**
+	 * The conversation's own title bar, given the insets it owes the window's corners.
+	 *
+	 * `null` when the window's toolbar draws it instead (one screen, in the frame): the conversation's
+	 * card then starts with the transcript, and keeps only the grip it is moved by.
+	 */
+	header: ((insets: ScreenInsets) => ReactNode) | null;
 	insets?: ScreenInsets;
 	/** The transcript and composer. */
 	children: ReactNode;
@@ -415,11 +420,12 @@ export function DockView({
 								}
 								onFocus={() => usePaneDock.getState().focus(scope, kind)}
 								onLanded={landed}
+								reserveHeader={!conversation || header !== null}
 								customHeader={
 									conversation ? (
 										<>
 											{/* A card, like every pane — see `DockPane`. */}
-											{header({ start: cardRoom(inset), end: cardRoom(insetEnd) })}
+											{header?.({ start: cardRoom(inset), end: cardRoom(insetEnd) })}
 											{draggable && !maximized && (
 												<PaneGrip kind={kind} label={label} carried={moving} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />
 											)}

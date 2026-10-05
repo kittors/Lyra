@@ -70,3 +70,13 @@ test("a multiline tip that fits neither side stays inside the viewport", () => {
 		assert.ok(at.left >= 6);
 	}
 });
+
+test("beside a button in a column, centred on it, and to its left when the right has no room", () => {
+	// The icon rail: a 32px button 8px in from the window's left edge.
+	const rail = target(100, 8, 32, 32);
+	const at = tipPlacement(rail, TIP, "right", VIEW);
+	assert.ok(at.left >= 8 + 32, `starts right of the button, got ${at.left}`);
+	assert.equal(at.top + TIP.height / 2, 100 + 16, "vertically centred on it");
+	const edge = tipPlacement(target(100, VIEW.width - 40, 32), TIP, "right", VIEW);
+	assert.ok(edge.left + TIP.width <= VIEW.width - 40, `falls back to the left, got ${edge.left}`);
+});

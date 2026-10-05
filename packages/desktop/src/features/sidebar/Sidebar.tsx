@@ -26,7 +26,7 @@ import { ListMenu, type SortKey } from "./ListMenu.tsx";
 import { NavItem } from "./NavItem.tsx";
 import { SESSION_PAGE } from "./ProjectGroup.tsx";
 import { ProjectList } from "./ProjectList.tsx";
-import { SidebarFoot } from "./SidebarFoot.tsx";
+import { SidebarFoot, SidebarMottoLine } from "./SidebarFoot.tsx";
 import { SidebarHead } from "./SidebarHead.tsx";
 import { SidebarTabs, StripButton, type SidebarTab } from "./SidebarTabs.tsx";
 import { SessionCarryGhost } from "../split/index.ts";
@@ -62,7 +62,7 @@ export function Sidebar() {
 	 * behind it also has to get out of the way. Pushed, `dismissNav` does nothing and the
 	 * sidebar stays where the user put it.
 	 */
-	const { compact, headerBar, dismissNav } = useLayout();
+	const { compact, headerBar, framed, rail: railShown, dismissNav } = useLayout();
 	/*
 	 * On a phone the pane is a drawer held in one hand, and its controls move to where the thumb is:
 	 * search, 新对话 and settings leave the top and the footer for `PhoneDock` along the bottom edge.
@@ -277,7 +277,7 @@ export function Sidebar() {
 			 * `phone.css`). Beside the conversation — a phone on its side, a tablet — the button sits
 			 * in this row again, so the row stays.
 			 */}
-			{!headerBar && !(phone && compact) && <div className="h-[44px] shrink-0" />}
+			{!headerBar && !framed && !(phone && compact) && <div className="h-[44px] shrink-0" />}
 
 			<SidebarHead searching={searching} query={query} onQuery={setQuery} onToggleSearch={toggleSearch} />
 
@@ -311,7 +311,8 @@ export function Sidebar() {
 			 * says the list ended there. See `.ly-fade-y`.
 			 */}
 			<Scroller className="flex-1" contentClassName={`pb-2 ${pad}`} scrollRef={viewport}>
-				<DestinationNav onNavigate={dismissNav} />
+				{/* In the frame these are the rail's; a drawer has no rail beside it, so they stay here. */}
+				{!railShown && <DestinationNav onNavigate={dismissNav} />}
 
 				{/*
 				 * The strip, in the list and held at the top of it once you scroll.
@@ -403,6 +404,8 @@ export function Sidebar() {
 					onToggleSearch={toggleSearch}
 					onNavigate={dismissNav}
 				/>
+			) : railShown ? (
+				<SidebarMottoLine />
 			) : (
 				<SidebarFoot onNavigate={dismissNav} />
 			)}

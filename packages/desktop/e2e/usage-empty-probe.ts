@@ -57,7 +57,7 @@ const UI = `
 	const label = (element) => (element.innerText || "").replace(/\\s+/g, " ").trim();
 	const byText = (selector, text) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility({ visibilityProperty: true }) && label(el) === text);
 	const openSettings = async (name) => {
-		const foot = document.querySelector(".ly-sidebar-foot button");
+		const foot = document.querySelector("[data-ly-open-settings]");
 		if (foot) click(foot);
 		await wait(600);
 		const nav = byText("nav button", name);

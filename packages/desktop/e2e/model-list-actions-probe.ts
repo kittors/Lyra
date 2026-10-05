@@ -91,7 +91,7 @@ async function main() {
 	await pause(1400);
 
 	// 打开设置，再进「模型设置」。
-	await app.evaluate(`(()=>{const b=document.querySelector('.ly-sidebar-foot button'); if(b) b.click(); return !!b;})()`);
+	await app.evaluate(`(()=>{const b=document.querySelector('[data-ly-open-settings]'); if(b) b.click(); return !!b;})()`);
 	await pause(900);
 	await app.evaluate(`(()=>{
 		const nav = [...document.querySelectorAll('nav button')].find(b => (b.textContent || '').trim() === '模型设置');

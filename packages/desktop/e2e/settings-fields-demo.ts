@@ -124,7 +124,7 @@ try {
 	}
 	async function openSettings(label: string) {
 		if (!(await app!.evaluate(`Boolean([...document.querySelectorAll("nav button")].find((b) => /返回工作区/.test(b.textContent || "")))`))) {
-			await click(".ly-sidebar-foot button");
+			await click("[data-ly-open-settings]");
 			await until(`Boolean(document.querySelector("nav button"))`);
 			await pause(400);
 		}

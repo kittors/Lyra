@@ -126,6 +126,17 @@ async function clickTopBar(re: string): Promise<boolean> {
 	})()`);
 }
 
+/** A pane's own "open in a new window" button, found by the attribute kept for probes rather than by its label. */
+async function clickPopOut(kind: string): Promise<boolean> {
+	return evaluate<boolean>(`(() => {
+		const mark = document.querySelector('[data-ly-pop-out="${kind}"]');
+		const b = mark?.closest("button");
+		if (!b) return false;
+		b.click();
+		return true;
+	})()`);
+}
+
 async function clickTile(index: number, re: string): Promise<boolean> {
 	return evaluate<boolean>(`(() => {
 		const tile = document.querySelectorAll('[data-ly-split-pane]')[${index}];
@@ -623,14 +634,19 @@ async function main(): Promise<void> {
 		});
 
 		// ---- D 弹出与收回 ----
-		await scene("D1", "窗口 dock 的面板弹成独立窗口", async () => {
-			await clickTopBar("浏览器");
+		/*
+		 * The terminal, not the browser: since 09-20 the browser has no window of its own on purpose —
+		 * a `<webview>` cannot move between documents, so popping it out would reload the page. These two
+		 * used the browser and failed on the button that was deliberately taken away.
+		 */
+		await scene("D1", "单屏的面板弹成独立窗口", async () => {
+			await clickTopBar("终端");
 			await wait(1100);
-			await clickTopBar("在新窗口中打开");
+			await clickPopOut("terminal");
 			await wait(1900);
 			const s = await shot();
-			const gone = !s.panes["browser"];
-			const popped = s.panels.some((p) => p.startsWith("browser"));
+			const gone = !s.panes["terminal"];
+			const popped = s.panels.some((p) => p.startsWith("terminal"));
 			return [gone && popped ? "ok" : "bad", `原位腾空=${gone}，面板窗口=[${s.panels.join(",")}]`];
 		});
 
@@ -646,9 +662,9 @@ async function main(): Promise<void> {
 		});
 
 		await scene("D3", "弹出之后刷新主窗口，那条回家的路还在吗", async () => {
-			await clickTopBar("浏览器");
+			await clickTopBar("终端");
 			await wait(1100);
-			await clickTopBar("在新窗口中打开");
+			await clickPopOut("terminal");
 			await wait(1900);
 			const before = (await shot()).panels;
 			/*
@@ -737,30 +753,26 @@ async function main(): Promise<void> {
 				`刷新前 ${before.tiles.length} 屏带浏览器，刷新后 ${after.tiles.length} 屏、面板 [${kindsOf(after).join(",") || "无"}]`];
 		});
 
-		await scene("E2b", "先单屏开面板（落在窗口 dock），再分屏，再刷新", async () => {
-			/*
-			 * 这一条问的才是 E2 那个设计决策的真实形态，而 E2 自己绕开了它。
-			 *
-			 * E2 先分屏再开浏览器——分屏之后从工具条开的面板落在**那一屏**（pane dock），所以
-			 * 它量的其实是 E3。窗口 dock 在分屏下只会装着「进入分屏之前就开着的」面板，要摆出
-			 * 那个状态，顺序必须是先开后分。
-			 *
-			 * 而那正是难处所在：浏览器存在分屏之前那个会话名下，分屏把焦点交给新进来的一屏，
-			 * 刷新后 `activeSessionId` 恢复成焦点那一屏，读的是另一把钥匙。
-			 */
+		/*
+		 * Since ADR-0023 there is no window-level dock: a panel opened on the single screen belongs to
+		 * that screen's conversation. Splitting must leave it there, and a reload must bring it back
+		 * there — not to the screen that took focus, which reads another conversation's layout.
+		 */
+		await scene("E2b", "先单屏开面板（落在那一屏），再分屏，再刷新", async () => {
 			if (!(await clickTopBar("浏览器"))) return ["skip", "工具条上没有浏览器按钮"];
 			await wait(1300);
 			const single = await shot();
-			if (single.panes["browser"]?.at !== "window") return ["skip", `单屏下浏览器没落在窗口 dock，而在 ${single.panes["browser"]?.at ?? "哪儿都不在"}`];
+			const home = single.panes["browser"]?.at ?? "";
+			if (!home.startsWith("tile:")) return ["bad", `单屏下浏览器没落在那一屏，而在 ${home || "哪儿都不在"}`];
 			if ((await splitTo(2)) < 2) return ["skip", `没分成两屏：${splitWhy}`];
 			const split = await shot();
-			if (split.panes["browser"]?.at !== "window") {
-				return ["bad", `分屏之后浏览器就从窗口 dock 上走了，现在在 ${split.panes["browser"]?.at ?? "哪儿都不在"}`];
+			if (split.panes["browser"]?.at !== home) {
+				return ["bad", `分屏之后浏览器离开了原来那一屏（${home}），现在在 ${split.panes["browser"]?.at ?? "哪儿都不在"}`];
 			}
 			await reload();
 			const after = await shot();
-			return [after.panes["browser"]?.at === "window" ? "ok" : "bad",
-				`刷新前 ${split.tiles.length} 屏、浏览器在窗口 dock，刷新后 ${after.tiles.length} 屏、浏览器在 ${after.panes["browser"]?.at ?? "哪儿都不在"}（面板 [${kindsOf(after).join(",") || "无"}]，钥匙 [${after.keys.join(" ")}]）`];
+			return [after.panes["browser"]?.at === home ? "ok" : "bad",
+				`刷新前 ${split.tiles.length} 屏、浏览器在 ${home}，刷新后 ${after.tiles.length} 屏、浏览器在 ${after.panes["browser"]?.at ?? "哪儿都不在"}`];
 		});
 
 		await scene("E3", "分屏：tile 里的面板刷新后恢复", async () => {
@@ -923,9 +935,9 @@ async function main(): Promise<void> {
 
 		// ---- F 多窗口 ----
 		await scene("F1", "关掉面板窗口之后，面板回树里吗", async () => {
-			await clickTopBar("浏览器");
+			await clickTopBar("终端");
 			await wait(1100);
-			await clickTopBar("在新窗口中打开");
+			await clickPopOut("terminal");
 			await wait(1900);
 			const popped = (await shot()).panels;
 			if (!popped.length) return ["skip", "没弹出来"];
@@ -940,15 +952,15 @@ async function main(): Promise<void> {
 		});
 
 		await scene("F2", "同一种面板能不能弹出两个窗口", async () => {
-			await clickTopBar("浏览器");
+			await clickTopBar("终端");
 			await wait(1100);
-			await clickTopBar("在新窗口中打开");
+			await clickPopOut("terminal");
 			await wait(1800);
 			const once = (await shot()).panels;
-			await clickTopBar("浏览器");
+			await clickTopBar("终端");
 			await wait(1500);
 			const twice = (await shot()).panels;
-			return [twice.length <= 1 ? "ok" : "bad", `弹一次 [${once.join(",")}]，再点一次「浏览器」后 [${twice.join(",")}]`];
+			return [twice.length <= 1 ? "ok" : "bad", `弹一次 [${once.join(",")}]，再点一次「终端」后 [${twice.join(",")}]`];
 		});
 	} finally {
 		console.log(`\n════ 汇总 ════`);

@@ -347,7 +347,7 @@ try {
 	await pause(500);
 
 	// Settings: appearance, then models.
-	await d.click(".ly-sidebar-foot button").catch(() => {});
+	await d.click("[data-ly-open-settings]").catch(() => {});
 	await pause(1200);
 	await d.markByText(`/^外观$/`, "data-cmp-nav");
 	await d.click("[data-cmp-nav]").catch(() => {});

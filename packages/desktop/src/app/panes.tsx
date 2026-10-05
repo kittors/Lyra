@@ -44,7 +44,7 @@ export function NavPane({
 	maxWidth?: number;
 	children: React.ReactNode;
 }) {
-	const { compact, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds, headerBar } = useLayout();
+	const { compact, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds, headerBar, framed, toolbarHeight } = useLayout();
 	const ref = useRef<HTMLElement>(null);
 	/**
 	 * Suppresses the transition for one beat after the breakpoint moves.
@@ -88,7 +88,7 @@ export function NavPane({
 			 * over the transcript and has to cover what is under it.
 			 */
 			data-pane={compact ? "drawer" : "beside"}
-			className={`${compact ? `fixed inset-y-0 left-0 z-30 shadow-2xl shadow-black/60 ${phone ? "ly-drawer" : "right-0"}` : "h-full w-full overflow-hidden"} ${
+			className={`${compact ? `fixed inset-y-0 left-0 z-30 shadow-2xl shadow-black/60 ${phone ? "ly-drawer" : "right-0"}` : `h-full w-full overflow-hidden${framed ? " ly-nav-column" : ""}`} ${
 				snap ? "transition-none" : "transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
 			}`}
 			style={
@@ -115,7 +115,7 @@ export function NavPane({
 								 * the window. The pane's content assumes as much: it only leaves room for
 								 * the top row where there is no header (see `hasHeaderBar`).
 								 */
-								...(headerBar ? { top: NATIVE_HEADER_HEIGHT } : {}),
+								...(framed ? { top: toolbarHeight } : headerBar ? { top: NATIVE_HEADER_HEIGHT } : {}),
 							}
 					: undefined
 			}

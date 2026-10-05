@@ -303,7 +303,7 @@ async function main(): Promise<void> {
 			const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 			const inSettings = () => [...document.querySelectorAll("button")].some((b) => (b.textContent || "").includes("返回工作区"));
 			if (!inSettings()) {
-				document.querySelector(".ly-sidebar-foot button")?.click();
+				document.querySelector("[data-ly-open-settings]")?.click();
 				await wait(1400);
 			}
 			if (!inSettings()) return "设置没打开";

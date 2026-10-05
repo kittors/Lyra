@@ -32,7 +32,7 @@ async function navigate(label: string): Promise<void> {
 	const clicked = await app.evaluate<boolean>(`
 		(() => {
 			const button = [...document.querySelectorAll("button")]
-				.find((b) => b.textContent?.trim() === ${JSON.stringify(label)});
+				.find((b) => b.textContent?.trim() === ${JSON.stringify(label)} || b.getAttribute("aria-label") === ${JSON.stringify(label)});
 			if (!button) return false;
 			button.click();
 			return true;
@@ -62,7 +62,12 @@ test("插件页在自己的 chunk 里，点了会到", async () => {
 
 test("拉取请求页同样", async () => {
 	await navigate("拉取请求");
-	assert.equal(await appears("拉取请求"), true, "拉取请求页没有渲染出来");
+	/*
+	 * Words only the page draws. Its own name stopped being one when the entry became an icon on the
+	 * rail: it used to pass on the sidebar row's text alone, chunk or no chunk. A fresh profile has
+	 * no account, so the list says that.
+	 */
+	assert.equal(await appears("未添加代码托管账号"), true, "拉取请求页没有渲染出来");
 });
 
 test("已安排页同样", async () => {
@@ -83,11 +88,11 @@ test("设置也是懒加载的，打开之后它的分区名在页面上", async
 	 * 设置是四个里最大的一个——独立出来 344KB——也是最值得确认真的会到的那个。
 	 *
 	 * 它的入口在侧边栏底部，按钮上的文字是当前供应商的名字而不是「设置」，所以按图标的
-	 * 容器找：那一行是 `.ly-sidebar-foot` 里的第一个按钮。
+	 * 容器找：设置的入口带 `data-ly-open-settings`（图标栏里，窄窗口时在抽屉底部）。
 	 */
 	const opened = await app.evaluate<boolean>(`
 		(() => {
-			const button = document.querySelector(".ly-sidebar-foot button");
+			const button = document.querySelector("[data-ly-open-settings]");
 			if (!button) return false;
 			button.click();
 			return true;

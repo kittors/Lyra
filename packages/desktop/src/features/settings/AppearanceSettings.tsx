@@ -695,7 +695,7 @@ export function AppearanceSettings() {
 					detail={t("appearance.panelLayoutDetail")}
 					control={
 						<Segmented
-							value={appearance.panelLayout ?? "tabs"}
+							value={appearance.panelLayout ?? "split"}
 							onChange={(panelLayout) => patch({ panelLayout })}
 							options={[
 								{ value: "tabs", label: t("appearance.panelLayoutTabs") },

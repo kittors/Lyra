@@ -62,7 +62,7 @@ try {
 	await settle(1500);
 
 	await app.evaluate(`(() => {
-		const hit = document.querySelector(".ly-sidebar-foot button");
+		const hit = document.querySelector("[data-ly-open-settings]");
 		hit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		return Boolean(hit);
 	})()`);

@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
+import { MAIN_RAIL_WIDTH } from "../../shared/window-chrome.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { Toaster } from "../../src/features/toast/Toaster.tsx";
 import { useApp } from "../../src/store/index.ts";
@@ -33,9 +34,10 @@ afterEach(async () => {
 
 const stackLeft = () => document.querySelector<HTMLElement>("[data-ly-toaster]")?.style.left;
 
-test("in the main window the stack starts past the open sidebar", async () => {
+test("in the main window the stack starts past the icon rail and the open sidebar", async () => {
 	view = await mount(h(LayoutProvider, { children: h(Toaster) }));
-	assert.equal(stackLeft(), "280px");
+	// The rail, the panel's 1px edge, then the sidebar — see `WindowFrame`.
+	assert.equal(stackLeft(), `${MAIN_RAIL_WIDTH + 1 + 280}px`);
 });
 
 test("in a window with no sidebar — a popped-out panel, a conversation of its own — it spans the window", async () => {

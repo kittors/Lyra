@@ -126,7 +126,7 @@ try {
 	 * 关不关得掉。
 	 */
 	const aim = await app.evaluate<{ x: number; y: number } | null>(`(() => {
-		const e = document.querySelector(".ly-sidebar-foot button");
+		const e = document.querySelector("[data-ly-open-settings]");
 		if (!e) return null;
 		const r = e.getBoundingClientRect();
 		return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };

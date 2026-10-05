@@ -134,16 +134,95 @@
   overflow: hidden;
 }
 
-.ly-window-body > main::after {
+/*
+ * The frame (`WindowFrame`): the toolbar and the icon rail sit on the window's own colour, and
+ * everything below the toolbar is a card. The body under the toolbar paints nothing of its own — the
+ * shell already has; with the macOS material a second translucent coat would make the body a shade
+ * heavier than the toolbar above it, and the seam between them would show.
+ */
+.ly-framed .ly-window-body,
+:root[data-vibrancy="on"] .ly-framed .ly-window-body {
+  background: transparent;
+}
+
+/*
+ * The frame's one panel (ADR-0031): the sidebar and the content inside a single rounded edge, with a
+ * hairline between them. It sits flush against the toolbar above and the rail on the left, and stands
+ * 4px off the window's right and bottom edges, as the reference draws it.
+ *
+ * `--ly-frame-line` is resolved here, on the frame, so the hairlines inside keep this colour even where
+ * a pane recolours its own ink — the terminal and the editor take the code theme's.
+ */
+.ly-framed {
+  --ly-frame-line: color-mix(in srgb, var(--color-ink) 10%, transparent);
+}
+
+.ly-frame-panel {
+  margin: 0 4px 4px 0;
+  border: 1px solid var(--ly-frame-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-shell);
+}
+
+/*
+ * The sidebar's column: a shade off the content, and the hairline that divides the two.
+ *
+ * The hairline is drawn over the column's last pixel rather than taking one of its own. As a border it
+ * took that pixel from the list: at its narrowest the column held 239px of the 240 its tab strip is
+ * laid out for (`SIDEBAR_MIN`).
+ */
+.ly-nav-column {
+  position: relative;
+  background: color-mix(in oklab, var(--color-shell) 60%, var(--color-sidebar));
+}
+
+.ly-nav-column::after {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  width: 10px;
-  height: 10px;
+  inset: 0 0 0 auto;
+  z-index: 2;
+  width: 1px;
+  background: var(--ly-frame-line);
   pointer-events: none;
-  background: radial-gradient(circle at 100% 100%, transparent 9.5px, var(--color-sidebar) 10px);
+}
+
+.ly-nav-column .ly-sidebar-fill {
+  background: transparent;
+}
+
+/* The short rule in the toolbar on the same line as that hairline. */
+.ly-toolbar-divider {
+  background: var(--ly-frame-line);
+}
+
+/*
+ * Inside the panel nothing is a card. The content, its screens and the panes in them are regions of
+ * the panel's surface, divided by the same hairline — see the note on the card in `DockPane`.
+ */
+.ly-framed .ly-frames {
+  padding: 0;
+}
+
+.ly-framed .ly-card-page {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.ly-dock-card.ly-dock-flat {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ly-dock-card.ly-dock-flat[data-edge-left],
+.ly-split-screen[data-edge-left] {
+  border-left: 1px solid var(--ly-frame-line);
+}
+
+.ly-dock-card.ly-dock-flat[data-edge-top],
+.ly-split-screen[data-edge-top] {
+  border-top: 1px solid var(--ly-frame-line);
 }
 
 .ly-opaque {

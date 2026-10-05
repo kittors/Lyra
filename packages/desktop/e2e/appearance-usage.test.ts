@@ -289,8 +289,8 @@ test("a tab's menu closes the ones it says it will", async () => {
 
 test("the usage page reports what is in the logs", async () => {
 	const page = await ui<{ tiles: string[]; hasBars: boolean; models: string[]; heading: string | null }>(`
-		// Settings → 使用统计, the way it is reached.
-		const gear = [...document.querySelectorAll("button")].find((b) => label(b).includes("Relay") || label(b).includes("个模型"));
+		// Settings → 使用统计, the way it is reached: the settings door, on the rail or in the drawer's footer.
+		const gear = document.querySelector("[data-ly-open-settings]");
 		if (gear) { click(gear); await wait(500); }
 		const nav = [...document.querySelectorAll("button")].find((b) => label(b) === "使用统计");
 		if (!nav) throw new Error("使用统计 nav item not found");

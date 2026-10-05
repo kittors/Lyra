@@ -263,12 +263,18 @@ test("the title bars move the window, and only the grip moves the pane", async (
 	await openPane("任务");
 	await settledPanes();
 
+	/*
+	 * In the window frame the conversation's title bar is the window's toolbar (ADR-0031): the region
+	 * is set on the toolbar, and what is on it — the title included — is inside that region unless
+	 * it opts out. A conversation among several screens still has a bar of its own.
+	 */
 	const regions = await app.evaluate<Record<string, string | null>>(`(() => {
 		const region = (sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).webkitAppRegion : null; };
+		const bar = document.querySelector('[data-ly-main-toolbar]') ? '[data-ly-main-toolbar]' : '[data-dock-header="conversation"]';
 		return {
-			bar: region('[data-dock-header="conversation"]'),
+			bar: region(bar),
 			grip: region('[data-dock-grip="conversation"]'),
-			controls: region('[data-dock-header="conversation"] .no-drag'),
+			controls: region(bar + ' .no-drag'),
 		};
 	})()`);
 	assert.equal(regions.bar, "drag", "the title bar moves the window");
@@ -518,7 +524,7 @@ test("maximising a pane covers the dock, and Escape gives it back", async () => 
 	 * 它的标题、终端的标签条、连同旁边那个唯一能唤回侧边栏的按钮，全画在了三个系统按钮底下。
 	 * 只在侧边栏关着时才轮得到面板管这件事，所以这里先把它关掉。
 	 */
-	const covered = await app.evaluate<{ reserved: number; from: number | null; label: string }>(`(async()=>{
+	const covered = await app.evaluate<{ reserved: number; from: number | null; top: number | null; under: number; label: string }>(`(async()=>{
 		const toggle=()=>[...document.querySelectorAll('button')].find(e=>/侧边栏|边栏/.test(e.getAttribute('aria-label')||''));
 		const wait=()=>new Promise(r=>setTimeout(r,350));
 		const dockLeft=()=>document.querySelector('[data-dock-panes]').getBoundingClientRect().left;
@@ -527,12 +533,13 @@ test("maximising a pane covers the dock, and Escape gives it back", async () => 
 		const bar=toggle().getBoundingClientRect();
 		const header=document.querySelector('[data-dock-header="tasks"]');
 		const first=[...header.querySelectorAll('[data-dock-heading] *')].map(e=>e.getBoundingClientRect()).filter(r=>r.width>0&&r.height>0).sort((a,b)=>a.left-b.left)[0];
-		const out={reserved:Math.round(bar.right),from:first?Math.round(first.left):null,label:header.textContent.trim().slice(0,12)};
+		const out={reserved:Math.round(bar.right),from:first?Math.round(first.left):null,top:first?Math.round(first.top):null,under:Math.round(bar.bottom),label:header.textContent.trim().slice(0,12)};
 		// 量完就还回去：后面几条断言比的是侧边栏开着时量的宽度。
 		if(wasOpen){toggle().click();await wait()}
 		return out})()`);
-	assert.ok(covered.from !== null, `全屏的面板要有个标题可量：${JSON.stringify(covered)}`);
-	assert.ok(covered.from >= covered.reserved, `全屏后标题不能压在系统按钮下：${JSON.stringify(covered)}`);
+	assert.ok(covered.from !== null && covered.top !== null, `全屏的面板要有个标题可量：${JSON.stringify(covered)}`);
+	// In the window frame the system's buttons are on the toolbar and every pane is below it: clearing them from below is clearing them.
+	assert.ok(covered.from >= covered.reserved || covered.top >= covered.under, `全屏后标题不能压在系统按钮下：${JSON.stringify(covered)}`);
 
 	await app.evaluate(`(async () => {
 		window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -673,7 +680,8 @@ test("screens that are not a conversation have no panels at all, and leave the c
 	const visit = (label: string) =>
 		app.evaluate(`(async () => {
 			const want = ${JSON.stringify(label)};
-			const item = [...document.querySelectorAll("button, a")].find((el) => el.textContent.trim() === want);
+			// The places are icon buttons in the rail now; their accessible name is the word.
+			const item = [...document.querySelectorAll("button, a")].find((el) => el.textContent.trim() === want || el.getAttribute("aria-label") === want);
 			if (!item) throw new Error("no sidebar item " + want);
 			item.click();
 			await new Promise((r) => setTimeout(r, 600));

@@ -173,7 +173,7 @@ async function click(selector: string): Promise<void> {
 
 /** The visible button whose text starts with `text`. */
 async function press(text: string): Promise<void> {
-	const pick = `[...document.querySelectorAll("button")].find((e) => e.checkVisibility() && (e.textContent || "").trim().startsWith(${JSON.stringify(text)}))`;
+	const pick = `[...document.querySelectorAll("button")].find((e) => e.checkVisibility() && ((e.textContent || "").trim().startsWith(${JSON.stringify(text)}) || (e.getAttribute("aria-label") || "").startsWith(${JSON.stringify(text)})))`;
 	await until(`Boolean(${pick})`);
 	await app.evaluate(`(() => { document.querySelector("[data-qa-target]")?.removeAttribute("data-qa-target"); ${pick}.setAttribute("data-qa-target", ""); })()`);
 	await click("[data-qa-target]");
@@ -194,7 +194,8 @@ async function sendFromMain(notice: Record<string, unknown>): Promise<void> {
 	);
 }
 
-const badge = (n: number) => `[aria-label="${n} 个任务运行失败"]`;
+// The count is the end of the rail button's name (「已安排 · 1 个任务运行失败」); in a drawer it is the badge's own.
+const badge = (n: number) => `[aria-label$=" ${n} 个任务运行失败"], [aria-label="${n} 个任务运行失败"]`;
 const noBadge = `!document.querySelector('[aria-label$="个任务运行失败"]')`;
 const line = (taskId: string) => `document.querySelector('.ly-reveal[data-open="true"] [data-scheduled-alert="${taskId}"]')`;
 const text = (selector: string) => `(document.querySelector(${JSON.stringify(selector)})?.textContent || "")`;

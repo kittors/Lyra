@@ -89,7 +89,7 @@ test("切一趟主题回来，颜色一种都不能少", async () => {
 
 	await app.evaluate(`(async () => {
 		const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-		document.querySelector(".ly-sidebar-foot button")?.click();
+		document.querySelector("[data-ly-open-settings]")?.click();
 		await sleep(1200);
 		const hit = (text) => {
 			for (const el of document.querySelectorAll("button")) {

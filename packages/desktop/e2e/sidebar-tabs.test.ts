@@ -335,12 +335,26 @@ function assertStripHolds(at: Strip, where: string): void {
 	}
 }
 
+/**
+ * Whether the window has its icon rail, which is where 拉取请求, 已安排 and 插件 go when it does
+ * (ADR-0031). Then nothing in the list is above the strip: it starts at the top, and has no way to
+ * travel to it. A window too narrow for the rail puts them back in the list, above the strip.
+ */
+const destinationsOnRail = () => app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-app-rail]"))`);
+
 test("at rest the strip travels with the list and nothing is erased", async () => {
 	const at = await scrollTo(0);
-	assert.ok(at.railInList > 60, `the strip sits below the destinations, not at the top: ${JSON.stringify(at)}`);
-	assert.equal(at.inset, 0, "erasing a band of a list nobody has scrolled would delete rows");
-	assert.equal(at.fadeTop, 0, "and nothing is hidden above, so nothing softens");
 	assert.ok(at.strip, "the strip is drawn");
+	if (await destinationsOnRail()) {
+		assert.ok(Math.abs(at.railInList) < 0.5, `nothing is above the strip, so it starts at the top: ${JSON.stringify(at)}`);
+		// Already where it is held, the strip is the pinned run from the start: the band under it is the strip itself, and no row.
+		assert.ok(Math.abs(at.inset - (at.strip?.height ?? 0)) < 0.5, `the band the mask leaves to the strip is the strip: ${JSON.stringify(at)}`);
+		assert.ok(at.heads.every((head) => head.y >= at.inset - 0.5), `and no row of the list is under it: ${JSON.stringify(at)}`);
+	} else {
+		assert.ok(at.railInList > 60, `the strip sits below the destinations, not at the top: ${JSON.stringify(at)}`);
+		assert.equal(at.inset, 0, "erasing a band of a list nobody has scrolled would delete rows");
+	}
+	assert.equal(at.fadeTop, 0, "and nothing is hidden above, so nothing softens");
 });
 
 test("scrolled, the strip holds the top and the list goes under it", async () => {
@@ -431,7 +445,11 @@ test("a row fills only while it is held, so a pane at rest stays clear", async (
  * Asserted as containment rather than by reading pixels: a row is untouched by the mask exactly
  * when it lies inside the unsoftened band, and both edges of that band are on the viewport.
  */
-test("the strip is not faded on its way to the rail", async () => {
+test("the strip is not faded on its way to the rail", async (t) => {
+	if (await destinationsOnRail()) {
+		t.skip("the strip starts at the top: with the destinations on the icon rail there is nothing for it to travel past");
+		return;
+	}
 	let approaching: State | null = null;
 	// Somewhere in here it is partway up. Which offset depends on how tall the destinations above
 	// it are, so it is searched for rather than assumed.
@@ -675,13 +693,15 @@ test("switching tab starts the new list at its own top, and leaves the strip whe
 	await selectTab("projects");
 	const at = await state();
 	assert.equal(at.strip?.y, 0, `and still held after it: ${JSON.stringify(at)}`);
-	assert.ok(at.scrollTop > 0, "which costs an offset — the switch keeps one rather than zeroing it");
 
 	// And it is exactly the offset that holds the strip: read where the strip lives in the flow by
-	// going to the actual top, which is the one place the two are the same number.
+	// going to the actual top, which is the one place the two are the same number. With the
+	// destinations above the strip that costs an offset, which the switch keeps rather than zeroing;
+	// with them on the icon rail there is nothing above it, and the offset is zero.
 	const kept = at.scrollTop;
 	const top = await scrollTo(0);
 	assert.equal(kept, top.railInList, `the new list starts at its own first row: ${JSON.stringify(top)}`);
+	if (!(await destinationsOnRail())) assert.ok(kept > 0, "which costs an offset — the switch keeps one rather than zeroing it");
 });
 
 test("the archive is the same two lists over the conversations you filed away", async () => {

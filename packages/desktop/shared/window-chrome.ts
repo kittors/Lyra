@@ -34,23 +34,25 @@ export const NATIVE_HEADER_HEIGHT = 32;
 export const MAC_TRAFFIC_LIGHT_POSITION = { x: 16, y: (WINDOW_HEADER_HEIGHT - 14) / 2 };
 
 /**
- * How far below the window's top edge the main window's top row sits.
+ * The main window's toolbar on macOS: the band across the top that holds the traffic lights, back,
+ * forward, the sidebar toggle and — with one conversation on screen — its title and panel buttons.
  *
- * The main window's content is a set of floating cards: 2 of workspace padding, 2 of card inset and a
- * 1px border put the inside of a card exactly 5 from the window's top (the same number as
- * `--ly-pane-chrome`). The top row is centred in the card's 44px, so the whole row — traffic lights,
- * sidebar toggle, every card's title bar — moves down these 5px and lines up on one line.
+ * Shorter than `WINDOW_HEADER_HEIGHT` because nothing in it is a card's title bar any more: the
+ * cards start below it. 40 puts the 28px buttons 6px from each edge and the 14pt lights at y=13,
+ * close to the row the reference layout draws. Windows and Linux keep `NATIVE_HEADER_HEIGHT`, which
+ * is also the height their caption buttons are drawn at.
  *
- * It was tried the other way round: traffic lights left alone, the title bars inside the cards raised
- * 5px to meet them. The cost was title-bar buttons 4px from the card's top edge with 12px either side,
- * looking jammed against it.
- *
- * Session and panel windows have no cards; their title bars sit against the window's top and keep the
- * position above.
+ * Session and panel windows have no toolbar of this kind; their title bars keep the 44px above.
  */
-export const MAIN_WINDOW_ROW_OFFSET = 5;
+export const MAIN_TOOLBAR_HEIGHT = 40;
+
+/**
+ * The icon rail down the main window's left edge (ADR-0031). Here rather than with the rail itself so
+ * what has to stand clear of it — the toasts — can read it without reaching into `app/`.
+ */
+export const MAIN_RAIL_WIDTH = 48;
 
 export const MAC_MAIN_TRAFFIC_LIGHT_POSITION = {
 	x: MAC_TRAFFIC_LIGHT_POSITION.x,
-	y: MAC_TRAFFIC_LIGHT_POSITION.y + MAIN_WINDOW_ROW_OFFSET,
+	y: (MAIN_TOOLBAR_HEIGHT - 14) / 2,
 };

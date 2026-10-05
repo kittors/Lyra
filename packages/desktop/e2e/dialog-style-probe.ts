@@ -234,8 +234,8 @@ async function escape() {
 }
 
 try {
-	await until(`document.querySelector('.ly-sidebar-foot button')?.checkVisibility()`, "侧栏没画出来");
-	await click(".ly-sidebar-foot button");
+	await until(`document.querySelector('[data-ly-open-settings]')?.checkVisibility()`, "侧栏没画出来");
+	await click("[data-ly-open-settings]");
 	await mark("nav button", "模型设置", "data-nav-qa");
 	await until(`document.querySelector('[aria-label="编辑模型"]')`, "模型设置页没有编辑按钮");
 	await pause(500);
@@ -304,7 +304,7 @@ try {
 
 	console.log("\n[5] 添加代码托管账号");
 	await pause(400);
-	await click(".ly-sidebar-foot button");
+	await click("[data-ly-open-settings]");
 	await mark("nav button", "代码托管", "data-forge-qa");
 	await pause(600);
 	await mark("button", "添加账号", "data-forge-add-qa");

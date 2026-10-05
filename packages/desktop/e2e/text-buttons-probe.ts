@@ -208,7 +208,7 @@ try {
 	console.log("\n[2] 设置页逐屏");
 	await app.evaluate(`(async () => {
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
-		const gear = document.querySelector('.ly-sidebar-foot button');
+		const gear = document.querySelector('[data-ly-open-settings]');
 		if (gear) { gear.click(); await wait(1400); }
 		return true;
 	})()`);

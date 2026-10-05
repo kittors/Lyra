@@ -127,7 +127,7 @@ async function openSettings(drive: ReturnType<typeof driver>, label: string): Pr
 	 * 没点开。这个函数自己知道它点没点过，不用猜。
 	 */
 	if (!settingsOpened) {
-		await drive.click(".ly-sidebar-foot button");
+		await drive.click("[data-ly-open-settings]");
 		await pause(1600);
 		settingsOpened = true;
 	}

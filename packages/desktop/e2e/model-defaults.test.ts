@@ -91,7 +91,7 @@ const readFields = `(()=>{const modal=document.querySelector('[data-ly-modal]');
  * 现在是七个，见 `core/src/agents-builtin.ts`；加上「会话」那一段里的 `compact`，页面上一共八行。
  */
 test("all built-in agents can be configured before any session is created", async (t) => {
-	await click(".ly-sidebar-foot button");
+	await click("[data-ly-open-settings]");
 	await label("智能体", "nav button");
 	/*
 	 * 等数量不再变，而不是等它等于某个数。
@@ -124,7 +124,7 @@ test("all built-in agents can be configured before any session is created", asyn
 	assert.equal(saved.subAgentProfiles?.explore.modelId, "relay/gemini-3.7-flash-high");
 	await label("返回工作区");
 	await label("新对话");
-	await click(".ly-sidebar-foot button");
+	await click("[data-ly-open-settings]");
 	await label("智能体", "nav button");
 	// 回到这一页，等的还是「名单不再变」——理由同上面那处。
 	await app.evaluate(`new Promise(resolve=>{let last=-1,same=0;const timer=setInterval(()=>{const n=document.querySelectorAll('[data-agent-profile]').length;same=n===last?same+1:0;last=n;if(n>0&&same>=3){clearInterval(timer);resolve();}},80);setTimeout(()=>{clearInterval(timer);resolve();},10000);})`);

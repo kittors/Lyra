@@ -274,9 +274,10 @@ export function SplitWorkspace() {
 		usePaneDock.getState().setHost(host);
 	}, [host]);
 	const focusedId = focused ?? activeSessionId;
-	const { navOpen, headerBar, titlebar } = useLayout();
-	const cornerInset = startInset({ headerBar, navOpen, start: titlebar.start });
-	const endInset = headerBar || titlebar.end === 0 ? 0 : titlebar.end;
+	const { navOpen, headerBar, framed, titlebar } = useLayout();
+	// Under the frame's toolbar no screen holds a corner of the window; the toolbar does.
+	const cornerInset = startInset({ headerBar: headerBar || framed, navOpen, start: titlebar.start });
+	const endInset = headerBar || framed || titlebar.end === 0 ? 0 : titlebar.end;
 
 	return (
 		<div ref={viewport} data-ly-split-viewport className="relative flex min-h-0 min-w-0 flex-1 overflow-auto">

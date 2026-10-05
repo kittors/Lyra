@@ -14,8 +14,8 @@ import { kinds, leafOf, type DockNode, type PaneKind } from "./tree.ts";
 
 type PanelLayout = NonNullable<AppearanceSettings["panelLayout"]>;
 
-export const usePanelLayout = (): PanelLayout => useApp((s) => s.settings?.appearance.panelLayout ?? "tabs");
-export const panelLayout = (): PanelLayout => useApp.getState().settings?.appearance.panelLayout ?? "tabs";
+export const usePanelLayout = (): PanelLayout => useApp((s) => s.settings?.appearance.panelLayout ?? "split");
+export const panelLayout = (): PanelLayout => useApp.getState().settings?.appearance.panelLayout ?? "split";
 
 /** Tabs are in tree order: a newly opened panel lands last in the tree, so its tab comes last too. */
 export const panelsOf = (tree: DockNode): PaneKind[] => kinds(tree).filter((kind) => kind !== "conversation");

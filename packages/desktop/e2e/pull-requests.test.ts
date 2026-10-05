@@ -133,7 +133,7 @@ before(async () => {
 	})()`);
 
 	await app.evaluate(`(() => {
-		const nav = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "拉取请求");
+		const nav = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "拉取请求" || b.getAttribute("aria-label") === "拉取请求");
 		if (!nav) throw new Error("no pull request entry in the sidebar");
 		nav.click();
 		return true;

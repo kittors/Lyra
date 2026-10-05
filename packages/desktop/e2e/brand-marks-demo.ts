@@ -167,7 +167,7 @@ async function runTheme(theme: "light" | "dark") {
 		await app.evaluate("document.fonts.ready");
 		await until(`document.documentElement.classList.contains("dark") === ${theme === "dark"}`);
 
-		await clickAt(q(".ly-sidebar-foot button"));
+		await clickAt(q("[data-ly-open-settings]"));
 		await until(`Boolean(${byText("nav button", "浏览器")})`);
 		await pause(400);
 		await clickAt(byText("nav button", "浏览器"));
@@ -218,7 +218,7 @@ async function runTheme(theme: "light" | "dark") {
 		await pause(400);
 
 		if (theme === "light") {
-			await clickAt(`[...document.querySelectorAll("button, a")].find((b) => (b.textContent || "").trim() === "插件")`);
+			await clickAt(`document.querySelector("[data-ly-rail-item=plugins]") ?? [...document.querySelectorAll("button, a")].find((b) => (b.textContent || "").trim() === "插件")`);
 			const loaded = await (async () => {
 				for (let i = 0; i < 150; i++) {
 					const n = await app!.evaluate<number>(`document.querySelectorAll("main img").length`);
