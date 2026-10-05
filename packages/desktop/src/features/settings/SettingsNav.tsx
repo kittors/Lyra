@@ -60,7 +60,7 @@ export function SettingsNav({
 	}, [pill.y, pill.h]);
 
 	return (
-		<Scroller className="flex-1" contentClassName={`pb-3 ${compact ? "px-3" : "px-2.5"}`}>
+		<Scroller className="flex-1" contentClassName={`pb-3 ${compact ? "px-3" : "px-2"}`}>
 			<div
 				ref={root}
 				className="relative"
@@ -72,24 +72,21 @@ export function SettingsNav({
 				}
 			>
 				<div className="ly-settings-nav-pill" data-ready={pill.ready ? "true" : "false"} />
-				{groups.map((group) => (
-					<div key={group.labelKey} className="flex flex-col gap-[2px]">
-						<div className="px-2 pt-4 pb-1 text-detail text-ink-faint">{label(group.labelKey)}</div>
+				{/* 字号、间距、配色对齐 ZCode 设置页的侧边栏：分组标题 12px medium 最浅色，条目一律正文色。 */}
+				{groups.map((group, index) => (
+					<div key={group.labelKey} className={`flex flex-col gap-1 ${index > 0 ? "mt-4" : ""}`}>
+						<div className="px-2.5 pb-1 text-caption font-medium text-ink-faint">{label(group.labelKey)}</div>
 						{group.items.map((item) => (
 							<button
 								key={item.id}
 								aria-current={section === item.id ? "page" : undefined}
 								type="button"
 								onClick={() => onPick(item.id)}
-								className={`relative z-[1] flex w-full items-center gap-2.5 rounded-lg px-2 text-left text-label transition-colors duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${
+								className={`relative z-[1] flex w-full items-center gap-2 rounded-xl px-2.5 text-left text-label text-ink transition-colors duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${
 									compact ? "h-[40px]" : "h-[32px]"
-								} ${
-									section === item.id
-										? "text-ink"
-										: "text-ink-muted hover:bg-card-hover/60 hover:text-ink"
-								}`}
+								} ${section === item.id ? "" : "hover:bg-card-hover"}`}
 							>
-								<item.icon size={15} strokeWidth={1.8} className="shrink-0" />
+								<item.icon size={16} className="shrink-0" />
 								{label(item.labelKey)}
 							</button>
 						))}

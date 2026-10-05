@@ -1,40 +1,36 @@
 /**
- * The models one provider offers, and whether the connection works.
+ * The models one provider offers.
  *
  * Separate from the provider's own fields because they answer different questions. The fields
- * above are "how do I reach this thing"; this is "what can it do, and did it answer" — which is
- * also the order you fill them in, and the only part you come back to later.
- *
- * The test outcome lives here rather than beside the URL for the same reason: what a successful
- * test tells you is which models the endpoint reports, so it belongs next to the list you are
- * about to compare it against.
+ * above are "how do I reach this thing"; this is "what can it do" — which is also the order you
+ * fill them in, and the part you come back to later.
  */
 
-import { translate } from "../../i18n/translate.ts";
-import { Activity, Check, CircleAlert, CloudDownload, Link2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Pencil, Play, Plus, Star, Trash2, Wrench } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { ModelIcon } from "../models/index.ts";
 import { formatWindow } from "../models/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Badge } from "./controls.tsx";
+import { Card } from "./layout.tsx";
+import { Text } from "../../ui/primitives/Text.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
-import { DialogAction } from "../../ui/overlay/Dialog.tsx";
-import { useI18n } from "../../i18n/index.ts";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ProviderModels({
 	models,
 	defaultModelId,
-	testResult,
 	testing,
 	testingModelId,
 	modelTestResults,
 	fetchingModels,
 	fetchModelsError,
 	onFetchModels,
-	onTest,
 	onTestModel,
 	onEdit,
 	onRemove,
@@ -42,14 +38,13 @@ export function ProviderModels({
 }: {
 	models: ModelConfig[];
 	defaultModelId: string | null;
-	testResult: ProviderTestResult | null;
+	/** The provider's own connection test, which a fetch should not race. */
 	testing: boolean;
 	testingModelId?: string | null;
 	modelTestResults?: Record<string, ProviderTestResult>;
 	fetchingModels?: boolean;
 	fetchModelsError?: string | null;
 	onFetchModels?: () => void;
-	onTest: () => void;
 	onTestModel?: (modelId: string) => void;
 	/** `null` adds a new one. */
 	onEdit: (model: ModelConfig | null) => void;
@@ -58,85 +53,74 @@ export function ProviderModels({
 }) {
 	const { t } = useI18n();
 	return (
-		<div className="pt-6">
-			<div className="mb-2 flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<span className="text-label text-ink-muted">{t("providerModels.list")}</span>
-					{models.length > 0 && (
-						<span className="shrink-0 whitespace-nowrap rounded-md bg-card-hover px-1.5 py-0.5 text-micro font-medium text-ink-faint">
-							{models.length}
-						</span>
-					)}
-				</div>
+		<section className="pt-7">
+			{/* `SectionTitle`'s size and spacing, with room on the line for the two actions. */}
+			<div className="mb-3 flex h-7 items-center gap-1">
+				<Text as="h2" size="title" weight="semibold">{t("providerModels.list")}</Text>
+				{models.length > 0 && <span className="ml-1 text-caption text-ink-faint tabular-nums">{models.length}</span>}
+				<span className="flex-1" />
 				{/*
-				 * 两颗都带字，都不画框。
-				 *
-				 * 之前这里是一颗手写的 `<button>`（28px，和 `Button` 的两档都对不上）加一颗描边的
-				 * `GhostButton`，于是同一行上并排站着两种高度、两种轮廓的东西，而它们做的是同一类事。
-				 * `subtle` 就是为这种成排的动作留的——`Button` 里写着：不给面板画出一张格子。
-				 *
-				 * 字补回来是因为这两个图标都认不出：云朵下载和一条脉冲，猜不到是「拉取模型」和
-				 * 「测试全部」，而这一行没有别的东西提示。tooltip 只留那句图标和标题都说不完的说明。
+				 * 两颗都带字，都不画框：`subtle` 就是为这种成排的动作留的。字补上是因为云朵下载这个图标
+				 * 猜不到是「拉取模型」；tooltip 只留那句图标和标题都说不完的说明。
 				 */}
-				<div className="flex items-center gap-1">
-					{onFetchModels && (
-						<Button
-							variant="subtle"
-							size="sm"
-							onClick={onFetchModels}
-							disabled={fetchingModels || testing}
-							label={t("providerModels.fetchDetail")}
-							icon={fetchingModels
-								? <ActionSpinner size={13} className="text-accent" />
-								: <CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />}
-						>
-							{fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
-						</Button>
-					)}
+				{onFetchModels && (
 					<Button
 						variant="subtle"
 						size="sm"
-						onClick={onTest}
-						disabled={testing || !!testingModelId || fetchingModels}
-						icon={testing ? <ActionSpinner size={13} /> : <Activity size={13} strokeWidth={1.9} aria-hidden />}
+						onClick={onFetchModels}
+						disabled={fetchingModels || testing}
+						label={t("providerModels.fetchDetail")}
+						icon={fetchingModels
+							? <ActionSpinner size={13} className="text-accent" />
+							: <CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />}
 					>
-						{testing ? t("providerModels.testing") : t("providerModels.testAll")}
+						{fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
 					</Button>
-				</div>
+				)}
+				<Button variant="subtle" size="sm" onClick={() => onEdit(null)} icon={<Plus size={13.5} strokeWidth={1.9} aria-hidden />} data-ly-add-model="">
+					{t("providerModels.add")}
+				</Button>
 			</div>
 
 			{fetchModelsError && (
-				<div className="mb-2 flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-caption text-rose-500">
+				<div className="mb-2 flex items-center gap-1.5 rounded-lg bg-danger/10 px-2.5 py-1.5 text-caption text-danger">
 					<CircleAlert size={13} className="shrink-0" />
 					<span className="truncate">{fetchModelsError}</span>
 				</div>
 			)}
 
-			<div className="space-y-2">
-				{models.map((model) => (
-					<ModelRow
-						key={model.id}
-						model={model}
-						isDefault={defaultModelId === model.id}
-						testing={testingModelId === model.id}
-						testResult={modelTestResults?.[model.id]}
-						onTest={() => onTestModel?.(model.id)}
-						onEdit={() => onEdit(model)}
-						onRemove={() => onRemove(model.id)}
-						onSetDefault={() => onSetDefault(model.id)}
-					/>
-				))}
-
-				<DialogAction onClick={() => onEdit(null)} label={translate("providerModels.add")} data-ly-add-model="">
-					<Plus size={14} strokeWidth={1.9} aria-hidden />
-					{translate("providerModels.add")}
-				</DialogAction>
-			</div>
-
-			{testResult && <TestOutcome result={testResult} />}
-		</div>
+			<Card data-ly-model-list="">
+				{models.length > 0 ? (
+					models.map((model) => (
+						<ModelRow
+							key={model.id}
+							model={model}
+							isDefault={defaultModelId === model.id}
+							testing={testingModelId === model.id}
+							testResult={modelTestResults?.[model.id]}
+							onTest={() => onTestModel?.(model.id)}
+							onEdit={() => onEdit(model)}
+							onRemove={() => onRemove(model.id)}
+							onSetDefault={() => onSetDefault(model.id)}
+						/>
+					))
+				) : (
+					<p className="px-4 py-6 text-center text-label text-ink-muted">{t("providerModels.empty")}</p>
+				)}
+			</Card>
+		</section>
 	);
 }
+
+/*
+ * What a model can do, as three marks in a fixed-width column so the context sizes after it line
+ * up down the list whichever of them a row has.
+ */
+const CAPABILITIES: { has: (model: ModelConfig) => boolean; label: MessageKey; Icon: typeof Lightbulb; tone: string }[] = [
+	{ has: (m) => m.supportsThinking, label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
+	{ has: (m) => m.supportsImages, label: "modelEditor.images", Icon: Image, tone: "bg-ok/12 text-ok" },
+	{ has: (m) => m.supportsTools, label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
+];
 
 function ModelRow({
 	model,
@@ -159,125 +143,116 @@ function ModelRow({
 }) {
 	const { t } = useI18n();
 	const confirm = useConfirmer();
+	const menu = usePopover();
+	const alias = model.name && model.name !== model.modelId ? model.name : null;
 
 	return (
-		<div className="group/row flex flex-col rounded-[10px] border border-line bg-input transition-colors duration-150">
-			<div className="flex h-[46px] items-center gap-2.5 px-3.5">
-				{/* Tighter than the row's own spacing: the mark belongs to the id beside it, and at the
-				    row's 12px it read as a separate column. */}
-				<span className="flex min-w-0 flex-1 items-center gap-2">
-					<ModelIcon model={model.modelId} name={model.name} size={15} />
-					<ScrollText text={model.modelId} className="min-w-0 flex-1 font-mono text-label text-ink" />
-				</span>
+		// Ruled like `Row` on the other pages; the hover fills edge to edge, as `ListRow` does inside a card.
+		<div className="group/row border-b border-line-soft transition-colors last:border-b-0 hover:bg-card-hover">
+			<div className="flex h-12 items-center gap-3 pr-2 pl-4">
+				{/* The whole name is the way in to editing; the two buttons at the end are the only other doors. */}
+				<button type="button" onClick={onEdit} className="flex min-w-0 flex-1 items-center gap-3 text-left" data-ly-model-row={model.modelId}>
+					<span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-card">
+						<ModelIcon model={model.modelId} name={model.name} size={13} />
+					</span>
+					<ScrollText text={model.modelId} className="min-w-0 shrink font-mono text-label text-ink" />
+					{alias && <span className="min-w-0 shrink-[2] truncate text-detail text-ink-muted">{alias}</span>}
+					{isDefault && <Badge tone="accent">{t("common.default")}</Badge>}
+				</button>
 
-				{/* Single model test quick status badge if tested */}
-				{testResult && (
+				{testResult && !testing && (
 					<span
 						data-ly-tip={`${testResult.ok ? t("providerModels.testPassed") : t("providerModels.testFailed")} · ${testResult.message}`}
-						className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-caption tabular-nums transition-colors ${
-							testResult.ok ? "bg-ok/10 text-ok" : "bg-danger/10 text-danger"
-						}`}
+						className={`flex shrink-0 items-center gap-1.5 font-mono text-caption tabular-nums ${testResult.ok ? "text-ink-muted" : "text-danger"}`}
 					>
-						{testResult.ok ? (
-							<Check size={11} strokeWidth={2.4} className="shrink-0" />
-						) : (
-							<CircleAlert size={11} strokeWidth={2.4} className="shrink-0" />
-						)}
-						{testResult.latencyMs > 0 && `${testResult.latencyMs}ms`}
+						<span className={`h-1.5 w-1.5 rounded-full ${testResult.ok ? "bg-ok" : "bg-danger"}`} />
+						{testResult.ok
+							? testResult.latencyMs > 0 ? `${testResult.latencyMs}ms` : t("providerModels.testPassed")
+							: t("providerModels.testFailed")}
 					</span>
 				)}
 
-				{isDefault && <Badge tone="accent">{t("common.default")}</Badge>}
-				<span className="rounded bg-card px-1.5 py-0.5 font-mono text-caption text-ink-faint">
+				<span className="hidden w-[68px] shrink-0 justify-end gap-1 @md:flex">
+					{CAPABILITIES.filter((capability) => capability.has(model)).map(({ label, Icon, tone }) => (
+						<span key={label} role="img" aria-label={t(label)} data-ly-tip={t(label)} className={`grid h-5 w-5 place-items-center rounded-[5px] ${tone}`}>
+							<Icon size={11} strokeWidth={2} />
+						</span>
+					))}
+				</span>
+
+				<span className="grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] bg-card font-mono text-caption text-ink-muted tabular-nums">
 					{formatWindow(model.contextWindow)}
 				</span>
 
-				<button
-					type="button"
-					data-ly-tip={testing ? t("providerModels.connecting") : t("providerModels.testOne")}
-					aria-label={t("providerModels.testOne")}
-					disabled={testing}
-					onClick={onTest}
-					className={`flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-all hover:bg-card hover:text-ink active:scale-95 ${
-						testing ? "text-accent" : ""
-					}`}
-				>
-					{testing ? (
-						<ActionSpinner size={13} className="text-accent" />
-					) : (
-						<Play size={13} strokeWidth={1.9} className="ml-0.5" />
-					)}
-				</button>
-
-				<button
-					type="button"
-					data-ly-tip={t("providerModels.makeDefault")}
-					aria-label={t("providerModels.makeDefault")}
-					onClick={onSetDefault}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-ink"
-				>
-					<Link2 size={14} strokeWidth={1.8} />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={t("common.edit")}
-					aria-label={t("providerModels.editOne")}
-					onClick={onEdit}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-ink"
-				>
-					<Pencil size={14} strokeWidth={1.8} />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={t("common.delete")}
-					aria-label={t("providerModels.deleteOne")}
-					onClick={() =>
-						confirm.ask({
-							title: t("providerModels.deleteConfirm", { id: model.modelId }),
-							detail: isDefault ? t("providerModels.deleteDefaultDetail") : undefined,
-							confirmLabel: t("common.delete"),
-							onConfirm: onRemove,
-						})
-					}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-danger"
-				>
-					<Trash2 size={14} strokeWidth={1.8} />
-				</button>
+				<span className="flex shrink-0 items-center">
+					<IconButton
+						label={testing ? t("providerModels.connecting") : t("providerModels.testOne")}
+						disabled={testing}
+						explainDisabled
+						onClick={onTest}
+						className="text-ink-faint group-hover/row:text-ink-muted"
+						icon={testing ? <ActionSpinner size={13} className="text-accent" /> : <Play size={13} strokeWidth={1.9} className="ml-0.5" />}
+					/>
+					<IconButton
+						label={t("common.more")}
+						menu={menu.open}
+						onClick={menu.toggle}
+						className="text-ink-faint group-hover/row:text-ink-muted aria-expanded:bg-card-hover aria-expanded:text-ink"
+						icon={<MoreHorizontal size={15} strokeWidth={1.8} />}
+					/>
+				</span>
 			</div>
 
-			{/* If the individual test had an error, show a quiet informative line below the row */}
-			{testResult && !testResult.ok && (
-				<div className="border-t border-danger/20 bg-danger/5 px-3.5 py-1.5 text-detail text-danger">
+			{testResult && !testResult.ok && !testing && (
+				<div className="-mt-1 pr-4 pb-3 pl-[52px] text-detail break-words text-danger">
 					<span className="font-medium">{t("providerModels.connectFailed")} </span>
 					{testResult.message}
 				</div>
 			)}
 
-			{confirm.element}
-		</div>
-	);
-}
+			{menu.open && (
+				<Popover anchor={menu.anchor} onClose={menu.close} placement="bottom" align="end" width="compact" role="menu" label={model.modelId}>
+					<MenuBody>
+						<MenuItem
+							icon={<Star size={13} strokeWidth={1.8} />}
+							disabled={isDefault}
+							onClick={() => {
+								menu.close();
+								onSetDefault();
+							}}
+						>
+							{t("providerModels.makeDefault")}
+						</MenuItem>
+						<MenuItem
+							icon={<Pencil size={13} strokeWidth={1.8} />}
+							onClick={() => {
+								menu.close();
+								onEdit();
+							}}
+						>
+							{t("providerModels.editOne")}
+						</MenuItem>
+						<MenuSeparator />
+						<MenuItem
+							danger
+							icon={<Trash2 size={13} strokeWidth={1.8} />}
+							onClick={() => {
+								menu.close();
+								confirm.ask({
+									title: t("providerModels.deleteConfirm", { id: model.modelId }),
+									detail: isDefault ? t("providerModels.deleteDefaultDetail") : undefined,
+									confirmLabel: t("common.delete"),
+									onConfirm: onRemove,
+								});
+							}}
+						>
+							{t("providerModels.deleteOne")}
+						</MenuItem>
+					</MenuBody>
+				</Popover>
+			)}
 
-/**
- * The verdict, and only the verdict.
- *
- * It used to hang the endpoint's whole model list off the result behind a disclosure — 47 names
- * nobody asked for, in answer to "does this work". A connection test has one useful answer and one
- * useful number: whether it went through, and how long it took. The names of models the endpoint
- * happens to serve are a different question, and the model list above is where it is asked.
- *
- * Failure is the exception: then the message *is* the answer, because something has to be fixed and
- * only the endpoint knows what.
- */
-function TestOutcome({ result }: { result: ProviderTestResult }) {
-	return (
-		<div
-			className={`mt-3 rounded-[10px] border px-3.5 py-2.5 text-label ${
-				result.ok ? "border-ok/35 bg-ok/8 text-ok" : "border-danger/35 bg-danger/8 text-danger"
-			}`}
-		>
-			{result.message}
-			{result.latencyMs > 0 && <span className="opacity-70"> · {result.latencyMs} ms</span>}
+			{confirm.element}
 		</div>
 	);
 }

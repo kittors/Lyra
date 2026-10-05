@@ -12,15 +12,22 @@ import { Text } from "../../ui/primitives/Text.tsx";
 /** Section heading above a card group, as used by the reference settings pages. */
 export function SectionTitle({ children }: { children: React.ReactNode }) {
 	return (
-		<Text as="h2" size="title" weight="medium" className="mb-3">
+		<Text as="h2" size="title" weight="semibold" className="mb-3">
 			{children}
 		</Text>
 	);
 }
 
-/** Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by. */
+/**
+ * Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by.
+ *
+ * 卡片用 `float` 那张纸，不用 `card/40`：对齐 ZCode，它的设置卡片和弹出菜单是同一个颜色——
+ * 两个主题下都比页面亮一档的实底。`card/40` 叠在暗色页面上只比页面亮三四级灰，卡片化进了背景。
+ * 边框随之换成 `line-float`，那是给「画在自己那张纸上」的线准备的；卡片里面的线和控件怎么跟着
+ * 换，见 `overlay.css` 的 `.ly-settings-card`。
+ */
 export function Card({ children, className = "", ...rest }: React.ComponentProps<"div">) {
-	return <div {...rest} className={`overflow-hidden rounded-[12px] border border-line bg-card/40 ${className}`}>{children}</div>;
+	return <div {...rest} className={`ly-settings-card overflow-hidden rounded-[12px] border border-line-float bg-float ${className}`}>{children}</div>;
 }
 
 /** One labelled row inside a card, with the control right-aligned. */
@@ -56,7 +63,7 @@ export function Row({
 			 */}
 			<div data-settings-row className="flex flex-col gap-2 @md:flex-row @md:items-center @md:gap-4">
 				<div className="min-w-0 flex-1">
-					<Text as="div" size="body">
+					<Text as="div" size="label" weight="medium">
 						{title}
 					</Text>
 					{detail && (
