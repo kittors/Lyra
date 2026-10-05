@@ -12,6 +12,8 @@ import { useI18n } from "../../i18n/index.ts";
 import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
+import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { NoticeDot, NotificationsMenu, useNotices } from "./NotificationsMenu.tsx";
 
 export function SidebarHead({
 	searching,
@@ -26,6 +28,8 @@ export function SidebarHead({
 	onToggleSearch: () => void;
 }) {
 	const { t } = useI18n();
+	const bell = usePopover();
+	const notices = useNotices();
 	// The search moved to the dock along the bottom on a phone — see `PhoneDock`.
 	if (onPhone()) return <PhoneHead />;
 	return (
@@ -49,12 +53,21 @@ export function SidebarHead({
 						type="button"
 						data-ly-tip={t("sidebar.notifications")}
 						aria-label={t("sidebar.notifications")}
-						className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+						aria-haspopup="menu"
+						aria-expanded={bell.open}
+						data-ly-notifications-button
+						onClick={bell.toggle}
+						className={`relative flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-card-hover hover:text-ink ${
+							bell.open ? "bg-card-hover text-ink" : "text-ink-muted"
+						}`}
 					>
 						<Bell size={15} strokeWidth={1.9} />
+						<NoticeDot top={notices.top} />
 					</button>
 				</div>
 			</div>
+
+			{bell.open && <NotificationsMenu anchor={bell.anchor} notices={notices} onClose={bell.close} />}
 
 			{searching && (
 				<div className="px-3 pb-2">
@@ -81,6 +94,8 @@ export function SidebarHead({
  */
 function PhoneHead() {
 	const { t } = useI18n();
+	const bell = usePopover();
+	const notices = useNotices();
 	const settings = useApp((s) => s.settings);
 	const subtitle = settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? []);
 	return (
@@ -89,9 +104,19 @@ function PhoneHead() {
 				<div className="ly-phone-head-title">Lyra</div>
 				{subtitle && <div className="ly-phone-head-subtitle">{subtitle}</div>}
 			</div>
-			<button type="button" aria-label={t("sidebar.notifications")} className="ly-phone-head-button ly-press">
+			<button
+				type="button"
+				aria-label={t("sidebar.notifications")}
+				aria-haspopup="menu"
+				aria-expanded={bell.open}
+				data-ly-notifications-button
+				onClick={bell.toggle}
+				className="ly-phone-head-button ly-press relative"
+			>
 				<Bell size={19} strokeWidth={1.8} aria-hidden />
+				<NoticeDot top={notices.top} />
 			</button>
+			{bell.open && <NotificationsMenu anchor={bell.anchor} notices={notices} onClose={bell.close} />}
 		</div>
 	);
 }

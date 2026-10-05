@@ -157,7 +157,9 @@ export function Splitter({
 		>
 			<span
 				aria-hidden
-				className={`pointer-events-none absolute bg-line ${
+				// Drawn only under the pointer, like the dock's: the screens' own edges draw the boundary at
+				// rest, and a second line on top of the first doubled it.
+				className={`ly-splitter-line pointer-events-none absolute bg-line ${
 					row ? "inset-y-0 left-1/2 w-px -translate-x-1/2" : "inset-x-0 top-1/2 h-px -translate-y-1/2"
 				}`}
 			/>

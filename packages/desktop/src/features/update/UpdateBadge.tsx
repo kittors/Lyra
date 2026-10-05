@@ -35,7 +35,14 @@ import { useUpdate } from "./store.ts";
 import { fractionOf, labelFor, shouldShow, type Phase } from "./view.ts";
 import { UpdateDialog } from "../modals/index.ts";
 
-export function UpdateBadge({ compact = false }: { compact?: boolean }) {
+export function UpdateBadge({ compact = false, rail = false }: {
+	compact?: boolean;
+	/**
+	 * In the icon rail: a disc the size of the rail's buttons that never widens. Opening into a pill
+	 * there would run across the sidebar beside it, so the version goes to the tooltip instead.
+	 */
+	rail?: boolean;
+}) {
 	const { info, phase } = useUpdate();
 	const [open, setOpen] = useState(false);
 
@@ -59,8 +66,8 @@ export function UpdateBadge({ compact = false }: { compact?: boolean }) {
 	 * the register this belongs in: coloured, so it is visibly an announcement rather than a
 	 * control, and quiet, because nothing here is urgent.
 	 */
-	const size = compact ? 22 : 20;
-	const glyph = compact ? 12 : 11;
+	const size = rail ? 28 : compact ? 22 : 20;
+	const glyph = rail ? 13 : compact ? 12 : 11;
 
 	return (
 		<>
@@ -68,6 +75,7 @@ export function UpdateBadge({ compact = false }: { compact?: boolean }) {
 				type="button"
 				onClick={() => setOpen(true)}
 				aria-label={labelFor(phase, info.latest)}
+				{...(rail ? { "data-ly-tip": labelFor(phase, info.latest), "data-ly-tip-side": "right", "data-ly-update-rail": "" } : {})}
 				data-phase={phase.at}
 				style={{
 					height: size,
@@ -95,11 +103,13 @@ export function UpdateBadge({ compact = false }: { compact?: boolean }) {
 
 				{/* Two spans: the outer animates the width, the inner clips what does not fit yet. A grid
 				    column from 0fr to 1fr is how you animate to a width nobody measured. */}
-				<span className="ly-update-version">
-					<span>
-						<span className="pl-1.5 tabular-nums">{labelFor(phase, info.latest)}</span>
+				{!rail && (
+					<span className="ly-update-version">
+						<span>
+							<span className="pl-1.5 tabular-nums">{labelFor(phase, info.latest)}</span>
+						</span>
 					</span>
-				</span>
+				)}
 			</button>
 
 			{open && <UpdateDialog info={info} phase={phase} onClose={() => setOpen(false)} />}

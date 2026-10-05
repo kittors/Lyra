@@ -102,9 +102,19 @@ interface Box {
 export function tipPlacement(
 	target: Box,
 	tip: { width: number; height: number },
-	side: "top" | "bottom",
+	side: "top" | "bottom" | "right",
 	viewport: { width: number; height: number },
 ): { left: number; top: number } {
+	/*
+	 * Beside rather than under, for a column of buttons: a tip below one of the icon rail's buttons
+	 * lands on the next button down, which is the one the pointer is about to move to.
+	 */
+	if (side === "right") {
+		const right = target.left + target.width + GAP;
+		const left = right + tip.width < viewport.width - MARGIN ? right : Math.max(MARGIN, target.left - tip.width - GAP);
+		const middle = target.top + target.height / 2 - tip.height / 2;
+		return { left, top: Math.max(MARGIN, Math.min(middle, viewport.height - tip.height - MARGIN)) };
+	}
 	const below = target.bottom + GAP;
 	const above = target.top - tip.height - GAP;
 	const fits = side === "bottom" ? below + tip.height < viewport.height - MARGIN : above > MARGIN;
@@ -212,7 +222,8 @@ function place(el: HTMLElement) {
 	const a = el.getBoundingClientRect();
 	// Entrance transforms must not shrink the dimensions used to keep the bubble on screen.
 	const b = { width: tip.offsetWidth, height: tip.offsetHeight };
-	const at = tipPlacement(a, b, el.dataset.lyTipSide === "top" ? "top" : "bottom", {
+	const side = el.dataset.lyTipSide;
+	const at = tipPlacement(a, b, side === "top" || side === "right" ? side : "bottom", {
 		width: window.innerWidth,
 		height: window.innerHeight,
 	});

@@ -26,6 +26,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 ${compact ? "p-3" : "p-2.5"}`}>
 			<button
 				type="button"
+				data-ly-open-settings=""
 				onClick={() => {
 					setView("settings");
 					onNavigate();
@@ -43,6 +44,24 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 				/>
 			</button>
 			<UpdateBadge compact={compact} />
+		</div>
+	);
+}
+
+/**
+ * The motto, at the foot of the sidebar card, when settings and the update mark live in the rail.
+ *
+ * Kept because it is a setting of its own (个性化 › 侧边栏座右铭) that says where it is shown; with
+ * nothing typed there it is which providers are set up, as before. Not a button any more — the gear
+ * in the rail is the way to settings, and a second door to the same place reads as a different one.
+ */
+export function SidebarMottoLine() {
+	const settings = useApp((s) => s.settings);
+	const text = settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? []);
+	if (!text) return null;
+	return (
+		<div data-ly-sidebar-motto className="flex h-9 shrink-0 items-center px-4">
+			<ScrollText text={text} className="min-w-0 flex-1 text-detail text-ink-faint" />
 		</div>
 	);
 }

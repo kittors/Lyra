@@ -82,6 +82,7 @@ export function ToolbarButton({
 	label,
 	onClick,
 	active,
+	disabled,
 }: {
 	children: React.ReactNode;
 	label: string;
@@ -93,6 +94,8 @@ export function ToolbarButton({
 	 */
 	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	active?: boolean;
+	/** Back with nothing behind, for one: drawn faint, and it takes no press. */
+	disabled?: boolean;
 }) {
 	return (
 		<button
@@ -103,11 +106,12 @@ export function ToolbarButton({
 			data-ly-toolbar-button
 			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
+			disabled={disabled}
 			onClick={onClick}
 			// `transition`, not `transition-all`, which transitions `visibility` too — see `Workspace`
 			// in `app/App.tsx` for what that did.
 			className={`no-drag flex h-7 w-7 items-center justify-center rounded-lg transition duration-[var(--ly-t-quick)] ${
-				active ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
+				active ? "bg-card-hover text-ink" : "text-ink-faint enabled:hover:bg-card-hover enabled:hover:text-ink disabled:opacity-40"
 			}`}
 		>
 			{children}
