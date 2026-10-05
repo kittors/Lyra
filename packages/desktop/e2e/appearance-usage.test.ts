@@ -183,7 +183,23 @@ function ui<T>(body: string): Promise<T> {
 	return app.evaluate<T>(`(async () => { ${UI} const P = ${JSON.stringify(project)}; ${body} })()`);
 }
 
+/**
+ * Into the seeded conversation, pressed the way a hand does: the welcome page draws its composer at
+ * its own 672px (`EmptyState`) whatever the setting says, so the width is read inside a conversation.
+ */
+let inConversation = false;
+async function openSeeded(): Promise<void> {
+	if (inConversation) return;
+	await app.evaluate(`new Promise((resolve, reject) => { let n = 300; const step = () => document.querySelector('[data-ly-row="seeded"]')?.checkVisibility() ? resolve(true) : --n ? requestAnimationFrame(step) : reject(new Error('the seeded conversation is not in the sidebar')); step(); })`);
+	const at = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-ly-row="seeded"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
+	await app.evaluate(`new Promise((resolve, reject) => { let n = 300; const step = () => !document.querySelector('[data-ly-chat-surface="empty"]') && document.querySelector('textarea') ? resolve(true) : --n ? requestAnimationFrame(step) : reject(new Error('the conversation did not open')); step(); })`);
+	inConversation = true;
+}
+
 test("the conversation is drawn at the width the setting asks for", async () => {
+	await openSeeded();
 	const widths = await ui<{ standard: number; wide: number; extra: number; custom: number; fill: number; fillVar: string; window: number }>(`
 		await patchAppearance({ contentWidth: 640 });
 		const standard = measure();
@@ -212,6 +228,7 @@ test("the conversation is drawn at the width the setting asks for", async () => 
 });
 
 test("a width from a hand-edited settings file is clamped rather than obeyed", async () => {
+	await openSeeded();
 	const widths = await ui<{ tiny: number; huge: number }>(`
 		await patchAppearance({ contentWidth: 40 });
 		const tiny = measure();

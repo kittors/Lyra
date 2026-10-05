@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { act, createElement as h } from "react";
 import type { ClearRange, ClearResult, StorageUse } from "../../electron/session-cleanup.ts";
 import { StorageSettings } from "../../src/features/settings/StorageSettings.tsx";
@@ -88,6 +88,14 @@ async function settle(): Promise<void> {
 }
 
 describe("StorageCleanup", () => {
+	/*
+	 * Today is pinned to the day after the data's last day. The calendar opens on today's month: these
+	 * were written in September and press September's days, so in October the calendar opened on a
+	 * month without them and the tests went red with the calendar, not with the code.
+	 */
+	beforeEach(() => mock.timers.enable({ apis: ["Date"], now: new Date(2026, 8, 22, 12) }));
+	afterEach(() => mock.timers.reset());
+
 	it("先说清楚占了多少、有几条——要不要删是从这两个数字开始判断的", async () => {
 		const { view } = await open();
 		try {

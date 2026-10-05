@@ -50,8 +50,13 @@ async function until(condition: () => Promise<boolean>) {
 	throw new Error("Approval UI did not reach the expected visible state");
 }
 
+/*
+ * Animations on the document's clock only. The sidebar's rows fade under its pinned headings on a
+ * scroll-driven timeline (`ly-under-pin`): they are "running" for as long as the list exists and
+ * finish only if scrolled past, so waiting for them hung every step here.
+ */
 async function settle() {
-	await app.evaluate("Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
+	await app.evaluate("Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.timeline===document.timeline&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
 }
 
 async function point(target: keyof typeof targets) {

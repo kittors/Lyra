@@ -76,11 +76,14 @@ async function shot(name: string) {
 	await writeFile(join(shots, `${name}.png`), Buffer.from(capture.data, "base64"));
 }
 
+/** A model's editor, the way it is reached: its row's ⋯, then 编辑模型 among 设为默认 and 删除. */
 async function editor(modelId: string) {
 	await label("模型设置", "nav button");
-	await until(`document.querySelector('[aria-label="编辑模型"]')`);
-	await app.evaluate(`(()=>{document.querySelector('[data-edit-qa]')?.removeAttribute('data-edit-qa');const row=[...document.querySelectorAll('[class~="group/row"]')].find(e=>e.textContent.includes(${JSON.stringify(modelId)}));row.querySelector('[aria-label="编辑模型"]').setAttribute('data-edit-qa','');})()`);
+	const row = `[...document.querySelectorAll('[class~="group/row"]')].find(e=>e.textContent.includes(${JSON.stringify(modelId)}))`;
+	await until(`${row}?.querySelector('button[aria-label="更多操作"]')`);
+	await app.evaluate(`(()=>{document.querySelector('[data-edit-qa]')?.removeAttribute('data-edit-qa');${row}.querySelector('button[aria-label="更多操作"]').setAttribute('data-edit-qa','');})()`);
 	await click("[data-edit-qa]");
+	await label("编辑模型", '[role="menuitem"]');
 	await until(`document.querySelector('[data-ly-modal] input')?.value===${JSON.stringify(modelId)}`);
 }
 

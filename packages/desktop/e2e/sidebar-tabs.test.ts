@@ -120,8 +120,6 @@ interface Pinned {
 	y: number;
 	height: number;
 	text: string;
-	/** Whether the browser is currently holding it, as the row itself has been marked. */
-	stuck: boolean;
 	/**
 	 * What it is painting, as `[r, g, b, a]` off a canvas rather than as a string.
 	 *
@@ -173,7 +171,6 @@ async function state(): Promise<State> {
 				y: r.top - origin,
 				height: r.height,
 				text: clean(el),
-				stuck: el.hasAttribute("data-ly-stuck"),
 				fill: rgba(getComputedStyle(el).backgroundColor),
 			};
 		};
@@ -386,51 +383,53 @@ test("a project name is held under the strip, and the list is erased out from un
 /*
  * A heading on its way out travels up through where the strip is, and has to be hidden by it.
  *
- * The strip covers that journey with its own fill, which is why its breathing room is padding
- * rather than margin — a margin is outside the fill, and an outgoing project name surfaced in the
- * six transparent pixels above the control and slid across the top of the pane.
+ * It used to be hidden behind the strip's opaque fill. The pane is translucent on macOS now (the
+ * window's material, see `tabs.css`), and no fill can match what shows through it, so nothing pinned
+ * paints one: what goes under the pinned rows fades itself out on the way (`useStickyFade`, the
+ * `ly-under-pin` rows in `misc.css`). So the claim is about the rows, not the strip — every row whose
+ * top has passed the pinned run's underside is drawn at nothing.
  */
-test("the strip's fill covers the whole rail, so nothing surfaces above it", async () => {
-	// Scrolled first, and not incidentally: the fill only exists while the strip is being held,
-	// so asking about it at rest is asking about a row that has nothing to hide. See the test below.
+test("nothing surfaces above the strip: what goes under it has faded out on the way", async () => {
 	const at = await scrollTo(400);
-	assert.ok(at.strip?.stuck, "the strip is being held");
-	assert.equal(at.strip?.fill[3], 255, `it has an opaque fill to hide them behind (${at.strip?.fill})`);
+	assert.ok(at.strip && Math.abs(at.strip.y) < 0.5, `the strip is held at the top (${at.strip?.y})`);
 	assert.ok(
 		Math.abs((at.strip?.height ?? 0) - at.rail) < 1,
 		`and it is as tall as the rail headings stop at (${at.strip?.height} vs ${at.rail}) — any gap is a slot to show through`,
 	);
+	const under = await app.evaluate<{ text: string; top: number; opacity: number }[]>(`(() => {
+		const view = ${VIEW};
+		const origin = view.getBoundingClientRect().top;
+		const rail = Number.parseFloat(getComputedStyle(view).getPropertyValue("--ly-rail")) || 0;
+		const strip = view.querySelector("[data-ly-rail]").getBoundingClientRect();
+		// The underside of the pinned run: the strip, and a heading resting on the rail under it.
+		const held = [...view.querySelectorAll("[data-ly-head]")].map((el) => el.getBoundingClientRect()).filter((r) => Math.abs(r.top - origin - rail) < 1);
+		const edge = Math.max(strip.bottom, ...held.map((r) => r.bottom)) - origin;
+		return [...view.querySelectorAll("[data-ly-row]")]
+			.map((el) => ({ el, r: el.getBoundingClientRect() }))
+			.filter(({ r }) => r.bottom - origin > 0 && r.top - origin < edge - 1)
+			.map(({ el, r }) => ({ text: el.innerText.replace(/\\s+/g, " ").trim().slice(0, 24), top: Math.round(r.top - origin), opacity: Number(getComputedStyle(el).opacity) }));
+	})()`);
+	assert.ok(under.length > 0, "some row is on its way under the pinned rows at this offset, or this proves nothing");
+	for (const row of under) assert.ok(row.opacity < 0.05, `「${row.text}」 at ${row.top}px is under the pinned rows and still drawn (${row.opacity})`);
 });
 
 /*
- * And it exists only then.
+ * And no pinned row paints anything of its own, held or not.
  *
- * The fill is there to hide the list going under a held row. A row travelling with the list has
- * nothing going under it, and an opaque band on it is a band of the wrong colour laid across a pane
- * the desktop is supposed to show through — which is what every project name and the strip itself
- * is paint that covers nothing — and it is what put a visible grey slab on every project name back
- * when this pane was translucent.
- *
- * Both halves are asserted here because either one alone is satisfiable by doing nothing: never
- * filling breaks the test above, always filling breaks this one.
+ * A fill was there to hide the list going under a held row, and a fill is a colour: the pane's own,
+ * in the hope of being invisible. On the window's material the pane has no one colour — the desktop
+ * shows through it — so every held row was a slab of the wrong one. The list fading out from under
+ * the pinned rows (above) is what does the hiding now, and leaves them nothing to paint.
  */
-test("a row fills only while it is held, so a pane at rest stays clear", async () => {
+test("no pinned row paints a fill, held or at rest, so the pane shows through it as it is", async () => {
 	const rest = await scrollTo(0);
-	assert.equal(rest.strip?.stuck, false, "at the top of the list nothing is being held back");
-	assert.equal(rest.strip?.fill[3], 0, `and the strip paints nothing (${rest.strip?.fill})`);
-	for (const head of rest.heads) {
-		assert.equal(head.stuck, false, `「${head.text}」 travels with the list`);
-		assert.equal(head.fill[3], 0, `「${head.text}」 paints nothing (${head.fill})`);
-	}
+	assert.equal(rest.strip?.fill[3], 0, `at rest the strip paints nothing (${rest.strip?.fill})`);
+	for (const head of rest.heads) assert.equal(head.fill[3], 0, `「${head.text}」 paints nothing (${head.fill})`);
 
 	const found = await scrollUntilPinned();
 	assert.ok(found, "some scroll position holds a heading at the rail");
-	assert.ok(found.held.stuck, `「${found.held.text}」 is marked held once it reaches the rail`);
-	assert.equal(found.held.fill[3], 255, `and only then does it fill (${found.held.fill})`);
-	// The ones still coming up the list are unchanged by their neighbour being held.
-	for (const head of found.at.heads.filter((h) => h.y > found.at.rail + 2)) {
-		assert.equal(head.fill[3], 0, `「${head.text}」 is still in the list and still clear`);
-	}
+	assert.equal(found.held.fill[3], 0, `held, 「${found.held.text}」 still paints nothing (${found.held.fill})`);
+	assert.equal(found.at.strip?.fill[3], 0, `and nor does the strip above it (${found.at.strip?.fill})`);
 });
 
 /*
@@ -462,7 +461,7 @@ test("the strip is not faded on its way to the rail", async (t) => {
 
 	const strip = approaching.strip;
 	assert.ok(strip, "the strip is on the viewport");
-	assert.equal(strip.stuck, false, `it has not landed yet (${strip.y})`);
+	assert.ok(strip.y > 0.5, `it has not landed yet (${strip.y})`);
 	assert.ok(
 		approaching.holdTop <= strip.y + 0.5,
 		`the unsoftened band starts at or above it (band ${approaching.holdTop}, strip ${strip.y})`,
@@ -478,35 +477,8 @@ test("the strip is not faded on its way to the rail", async (t) => {
 
 test("landed, the band goes back to the top edge", async () => {
 	const at = await scrollTo(400);
-	assert.ok(at.strip?.stuck, "the strip is held");
+	assert.ok(at.strip && Math.abs(at.strip.y) < 0.5, `the strip is held at the top (${at.strip?.y})`);
 	assert.equal(at.holdTop, 0, "nothing above it to leave unsoftened, so the band starts at the edge");
-});
-
-/*
- * The colour it fills with, which is the pane's own and must stay that way.
- *
- * This is the assertion that would have caught the whole episode: the fill was `--color-sidebar`
- * while the pane was painting something else, and every held row was a visible grey slab. Opaque,
- * because that is what hides the list — and exactly the pane's colour, because that is what makes
- * it invisible.
- */
-test("a held row fills with the pane's own colour, opaque", async () => {
-	const at = await scrollTo(400);
-	assert.ok(at.strip?.stuck, "the strip is held");
-
-	const pane = await app.evaluate<[number, number, number, number]>(`(() => {
-		const paint = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
-		paint.fillStyle = getComputedStyle(document.querySelector(".ly-sidebar-fill")).backgroundColor;
-		paint.fillRect(0, 0, 1, 1);
-		return [...paint.getImageData(0, 0, 1, 1).data];
-	})()`);
-
-	assert.equal(at.strip.fill[3], 255, `opaque (${at.strip.fill})`);
-	assert.equal(pane[3], 255, `and so is the pane behind it (${pane})`);
-	assert.deepEqual(at.strip.fill, pane, "the same colour, so a held row shows only by what it hides");
-	for (const head of at.heads.filter((h) => h.stuck)) {
-		assert.deepEqual(head.fill, pane, `「${head.text}」 too`);
-	}
 });
 
 test("scrolling on past a project hands the rail to the next one", async () => {
@@ -578,20 +550,24 @@ test("a pinned row does not move while a real wheel scrolls the list under it", 
 });
 
 test("the strip is the size of what is written on it, not of the pane", async () => {
-	const measured = await app.evaluate<{ strip: number; tabs: number[]; content: number }>(`(() => {
+	const measured = await app.evaluate<{ strip: number; tabs: number[]; content: number; frame: number }>(`(() => {
 		const list = document.querySelector(".ly-sidebar-fill [data-ly-rail] [role='tablist']");
+		const style = getComputedStyle(list);
+		const px = (name) => Number.parseFloat(style.getPropertyValue(name)) || 0;
 		return {
 			strip: list.getBoundingClientRect().width,
 			tabs: [...list.querySelectorAll("[role='tab']")].map((el) => el.getBoundingClientRect().width),
 			content: ${VIEW}.clientWidth,
+			// The track's own padding, border and the gap between its tabs, read rather than written down.
+			frame: px("padding-left") + px("padding-right") + px("border-left-width") + px("border-right-width") + px("column-gap"),
 		};
 	})()`);
 
 	const [first, second] = measured.tabs;
-	// The 6px is the track's own padding. Anything beyond that is the strip having been stretched.
+	// Anything beyond the tabs and the track's own frame is the strip having been stretched.
 	assert.ok(
-		Math.abs(measured.strip - (first + second + 6)) < 1.5,
-		`the strip is exactly its two tabs plus its padding (${measured.strip} vs ${first + second + 6})`,
+		Math.abs(measured.strip - (first + second + measured.frame)) < 1.5,
+		`the strip is exactly its two tabs plus its padding (${measured.strip} vs ${first + second + measured.frame})`,
 	);
 	assert.ok(
 		measured.strip < measured.content - 40,

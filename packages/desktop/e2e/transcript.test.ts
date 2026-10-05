@@ -197,6 +197,17 @@ after(async () => {
 // The turn, sampled
 // ---------------------------------------------------------------------------
 
+/**
+ * The line a turn's work is told in.
+ *
+ * Under the default call chain (Settings › Appearance › Tool calls › Collapsed) the work is one folded
+ * line per stretch of process — `TurnProcess` — and the runs inside are drawn only when it is opened.
+ * That line is the one that has to stay single, grow and survive being opened. Laid out in full
+ * (Expanded) it is a run's own group line, `[data-ly-run]`, which is what these tests watched before
+ * the fold became the default.
+ */
+const LINE = "[data-ly-turn-process]";
+
 interface Frame {
 	/** How many tool-run lines are on screen. */
 	rows: number;
@@ -233,7 +244,7 @@ async function runTurn(): Promise<Frame[]> {
 		 * row that happens to read the same. A React remount produces an unmarked one.
 		 */
 		const sample = () => {
-			const runs = [...document.querySelectorAll("[data-ly-run]")];
+			const runs = [...document.querySelectorAll("${LINE}")];
 			let kept = 0;
 			for (const run of runs) {
 				if (run.dataset.lySeen) kept++;
@@ -364,7 +375,7 @@ test("opening the group survives the work still arriving", async () => {
 	const kept = await app.evaluate<{ opened: boolean; grew: boolean; stillOpen: boolean; same: boolean; line: string }>(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 		const said = (run) => (run.querySelector(":scope > button .ly-flow-summary")?.innerText ?? "").replace(/\\s+/g, " ").trim();
-		for (const old of document.querySelectorAll("[data-ly-run]")) old.dataset.lyBefore = "1";
+		for (const old of document.querySelectorAll("${LINE}")) old.dataset.lyBefore = "1";
 
 		const field = document.querySelector("main textarea");
 		const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
@@ -375,7 +386,7 @@ test("opening the group survives the work still arriving", async () => {
 		let run = null;
 		for (let i = 0; i < 200 && !run; i++) {
 			await wait(50);
-			run = [...document.querySelectorAll("[data-ly-run]")].find((r) => !r.dataset.lyBefore) ?? null;
+			run = [...document.querySelectorAll("${LINE}")].find((r) => !r.dataset.lyBefore) ?? null;
 		}
 		if (!run) throw new Error("the second turn never drew a tool row");
 		if (/读取文件/.test(said(run))) throw new Error("the second batch was already in before the row could be opened: " + said(run));
@@ -391,7 +402,7 @@ test("opening the group survives the work still arriving", async () => {
 			opened,
 			grew,
 			stillOpen: run.isConnected && expanded(),
-			same: document.querySelector("[data-ly-run]:not([data-ly-before])") === run,
+			same: document.querySelector("${LINE}:not([data-ly-before])") === run,
 			line: said(run),
 		};
 	})()`);

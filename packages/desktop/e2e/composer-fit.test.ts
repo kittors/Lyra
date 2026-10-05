@@ -251,13 +251,18 @@ test("the conversation has something for the meter to report", async () => {
 	assert.ok(row.meterWidth > 8, `and it takes real width, which is what makes hiding it a saving: ${row.meterWidth}px`);
 });
 
-test("a row with room keeps its meter and its label", async () => {
+test("a row with room keeps its meter and its label", async (t) => {
 	/*
-	 * 440px is under both of the old breakpoints — the meter went at 480 and the label at 420 — and
-	 * at this width the row has both, with the name still comfortably readable. That is the whole
+	 * 460px is under the old meter breakpoint — the meter went at 480 and the label at 420 — and at
+	 * this width the row has both, with the name still comfortably readable. That is the whole
 	 * report: things disappearing while there was plainly space for them.
+	 *
+	 * It was 440 until the model, effort and access controls each grew a chevron (the composer's
+	 * tray-and-card look): at 440 the name now has 75px with 「完全访问」 drawn, under the 88px it is
+	 * allowed to shrink to (`MIN_NAME_WIDTH`), so giving up the label there is the rule working.
 	 */
-	const row = await at(440);
+	const row = await at(460);
+	t.diagnostic(JSON.stringify(row));
 	assert.equal(row.meterShown, true, `the context meter went at ${row.shell}px with room to spare`);
 	assert.equal(row.labelShown, true, "and so did 完全访问");
 	assert.equal(row.fit, 0, "nothing was given up");

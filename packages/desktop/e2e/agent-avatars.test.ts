@@ -213,8 +213,8 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 	assert.match(bar.text, /2 个排队中/);
 	assert.equal(bar.menu, "menu", "点它是一张单子");
 
-	// 对话里那一行：同样三张脸。
-	const inline = await app.evaluate<string[]>(`[...document.querySelectorAll('main [data-ly-run] [data-avatar-stack] .ly-avatar')].map(a=>a.dataset.mood)`);
+	// 对话里那一行：同样三张脸。The turn's folded line carries them under the default call chain; a group line does when laid out in full.
+	const inline = await app.evaluate<string[]>(`[...document.querySelectorAll('main :is([data-ly-run], [data-ly-turn-process]) [data-avatar-stack] .ly-avatar')].map(a=>a.dataset.mood)`);
 	assert.deepEqual(inline, ["working", "waiting", "waiting"]);
 
 	// 等第二个开跑（闸门只放一个：第一个交了差，第二个才登记）：面板顶上那一摞里有两张不在排队的脸。
@@ -229,7 +229,8 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 	await until(`!document.querySelector('[data-sub-menu]') && document.querySelector('${header} [data-sub-title]').textContent !== ${JSON.stringify(before)}`);
 
 	// 再点对话里第一张派发卡片：面板翻回它那一页。
-	await app.evaluate(`document.querySelector('main [data-ly-run] > button')?.setAttribute('data-qa-run','')`);
+	// Open the work first: the turn's folded line, or the group line when it is laid out in full.
+	await app.evaluate(`document.querySelector('main [data-ly-turn-process] > button, main [data-ly-run] > button')?.setAttribute('data-qa-run','')`);
 	await click("[data-qa-run]");
 	await until(`[...document.querySelectorAll('main [data-ly-run] div[data-ly-avatar-host] > button')].length === 3`);
 	await app.evaluate(`document.querySelector('main [data-ly-run] div[data-ly-avatar-host] > button').setAttribute('data-qa-card','')`);
@@ -240,7 +241,7 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 	 * 都交了差：对话里那一行的三张脸眯成两道弯。输入框上方那一条随后自己收起（主智能体用完结果、
 	 * 这一轮收尾之后），所以不在它身上量——它可能已经不在了。
 	 */
-	await until(`(()=>{const m=[...document.querySelectorAll('main [data-ly-run] [data-avatar-stack] .ly-avatar')].map(a=>a.dataset.mood);return m.length===3&&m.every(x=>x==='done');})()`, STEP_MS * 10);
+	await until(`(()=>{const m=[...document.querySelectorAll('main :is([data-ly-run], [data-ly-turn-process]) [data-avatar-stack] .ly-avatar')].map(a=>a.dataset.mood);return m.length===3&&m.every(x=>x==='done');})()`, STEP_MS * 10);
 	await until(`!document.querySelector('[data-ly-subagent-bar]') || document.querySelector('[data-ly-subagent-bar]').closest('.ly-reveal')?.dataset.open === 'false'`, STEP_MS * 10);
 });
 

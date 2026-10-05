@@ -182,7 +182,10 @@ async function readInk(): Promise<Ink> {
 			// Rec. 601 luma, which is close enough for "is this ink light or dark".
 			sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
 		}
-		const paneCss = getComputedStyle(document.querySelector("main")).backgroundColor;
+		// What the orb is drawn on: the nearest thing behind it that paints; main itself is a bare, transparent column.
+		let host = canvas.parentElement;
+		while (host && ["rgba(0, 0, 0, 0)", "transparent"].includes(getComputedStyle(host).backgroundColor)) host = host.parentElement;
+		const paneCss = host ? getComputedStyle(host).backgroundColor : "white";
 		const probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
 		probe.fillStyle = paneCss;
 		probe.fillRect(0, 0, 1, 1);
@@ -274,6 +277,13 @@ test("the animation moves normally and paints a static frame with reduced motion
 			return String(hash);
 		})()`;
 
+	/*
+	 * On screen first. The scripted reply says a few words and then nothing, and while words are still
+	 * arriving the line is folded away (`useAnswering` — the answer has overtaken it); it comes back
+	 * once they stop. Folded, the orb is clipped to nothing, and the library rightly stops drawing what
+	 * nobody can see, so a still canvas there says nothing about the animation.
+	 */
+	await app.evaluate(`new Promise((resolve, reject) => { const end = performance.now() + 8000; const step = () => { const fold = document.querySelector("main [data-ly-running] canvas")?.closest(".ly-reveal"); if (fold?.dataset.open === "true" && fold.getBoundingClientRect().height > 20) resolve(true); else if (performance.now() > end) reject(new Error("the running line never unfolded")); else requestAnimationFrame(step); }; step(); })`);
 	for (const reduced of [false, true]) await withReducedMotion(reduced, async (evaluate) => {
 		await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
 		const before = await evaluate(snapshot);

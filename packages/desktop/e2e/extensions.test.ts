@@ -322,8 +322,9 @@ interface Row {
 
 async function rowFor(summary: string): Promise<Row> {
 	const row = await app.evaluate<Row | null>(`(() => {
+		// A row's words are its summary; the first span is the icon slot in a row, the words in a card.
 		const button = [...document.querySelectorAll("button")].find(
-			(b) => b.querySelector("span")?.textContent?.trim() === ${JSON.stringify(summary)},
+			(b) => (b.querySelector(".ly-flow-summary") ?? b.querySelector("span"))?.textContent?.trim() === ${JSON.stringify(summary)},
 		);
 		if (!button) return null;
 		const image = button.querySelector("img");
@@ -343,7 +344,8 @@ test("每种扩展都能在对话里用到，且行首说出它是哪一种", as
 	await waitFor(`document.body.innerText.includes("都试过了")`, "the scripted turns never finished");
 	// Keep the cold scan busy enough that row text cannot stand in for image readiness.
 	await Promise.all(Array.from({ length: 256 }, (_, i) => mkdir(join(app.home, "plugins", `scan-fixture-${i}`), { recursive: true })));
-	// Closed work groups defer their cards; inspect the controls a user actually opens.
+	// Closed work defers its cards; inspect the controls a user actually opens. The turn's folded line first, then any group inside it.
+	await app.evaluate(`document.querySelectorAll('[data-ly-turn-process] > button[aria-expanded="false"]').forEach(button=>button.click())`);
 	await app.evaluate(`document.querySelectorAll('[data-ly-run] > button[aria-expanded="false"]').forEach(button=>button.click())`);
 	await waitFor(`document.body.innerText.includes("Skill: translate")`, "opening tool work did not reveal the skill calls");
 
@@ -364,7 +366,7 @@ test("每种扩展都能在对话里用到，且行首说出它是哪一种", as
 	// Opening deferred cards starts the bundle scan; the row text can precede its loaded picture.
 	await waitFor(`(() => {
 		const row = [...document.querySelectorAll("button")].find(
-			button => button.querySelector("span")?.textContent?.trim() === "Demo: echo",
+			button => (button.querySelector(".ly-flow-summary") ?? button.querySelector("span"))?.textContent?.trim() === "Demo: echo",
 		);
 		const image = row?.querySelector("img");
 		return image?.complete && image.naturalWidth > 0;
@@ -380,6 +382,10 @@ test("每种扩展都能在对话里用到，且行首说出它是哪一种", as
 	assert.equal(plain.glyph, "lucide-cable", "手填的服务用 MCP 的符号");
 	assert.equal(plain.picture, null);
 
-	// The globe belongs to fetching a page, and now only to that.
-	assert.equal((await rowFor("Fetch https://example.com")).glyph, "lucide-globe", "web_fetch 还是地球");
+	/*
+	 * The globe belongs to fetching a page, and now only to that. A row says it in the transcript's own
+	 * words (`describeActivity`): 「抓取网页 …」 where the bordered card of the expanded layout repeats
+	 * core's "Fetch …". Skill and server rows have no such words, so they read the same either way.
+	 */
+	assert.equal((await rowFor("抓取网页 https://example.com")).glyph, "lucide-globe", "web_fetch 还是地球");
 });

@@ -94,19 +94,27 @@ test("设计 token 解析得出值，不是空字符串", async () => {
 });
 
 test("外壳有背景色，不是透明", async () => {
-	const painted = await app.evaluate<{ body: string; shell: string | null }>(`
+	const painted = await app.evaluate<{ body: string; shell: string | null; material: boolean }>(`
 		(() => {
 			const shell = document.querySelector(".ly-shell");
 			return {
 				body: getComputedStyle(document.body).backgroundColor,
 				shell: shell ? getComputedStyle(shell).backgroundColor : null,
+				material: document.documentElement.dataset.vibrancy === "on",
 			};
 		})()
 	`);
 
+	/*
+	 * On the macOS material the page is see-through on purpose: the window's frosted layer is the
+	 * background, and the shell lays a tint over it (tabs.css). There the tint is what the stylesheet
+	 * paints; an unstyled shell has none.
+	 */
+	const surface = painted.material ? painted.shell : painted.body;
 	// 未加样式的页面是透明的白。深色主题下的外壳必须画出来。
-	assert.notEqual(painted.body, "rgba(0, 0, 0, 0)", "body 没有背景色——样式表没到");
-	assert.notEqual(painted.body, "rgb(255, 255, 255)", "body 是默认白——样式表没到");
+	assert.notEqual(surface, "rgba(0, 0, 0, 0)", `${painted.material ? "外壳" : "body"} 没有背景色——样式表没到`);
+	assert.notEqual(surface, "rgb(255, 255, 255)", `${painted.material ? "外壳" : "body"} 是默认白——样式表没到`);
+	assert.ok(surface, "外壳在页面上");
 });
 
 test("布局是横排的，不是塌成一列", async () => {
