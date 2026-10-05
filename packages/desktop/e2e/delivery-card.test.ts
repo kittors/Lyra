@@ -93,9 +93,9 @@ test("real file changes produce one temporary card with internal expansion and s
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-delivery-file]').getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2}})()`);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
 		await until(`document.querySelector('[aria-label="文件变更预览"]')?.textContent.includes('export const')`); await frames();
-		const metrics = await app.evaluate<{ preview: DOMRect; row: DOMRect; card: DOMRect; overflow: number; cards: number; inset: { left: number; right: number; bottom: number }; gap: number; fill: number; codePad: number; rowFill: number }>(`(()=>{const e=document.querySelector('[aria-label="文件变更预览"]'),p=e.getBoundingClientRect(),s=e.querySelector('.ly-diff-scroll'),d=s.getBoundingClientRect(),row=document.querySelector('[data-delivery-file]').getBoundingClientRect(),view=e.querySelector('.ly-scroll-view');
+		const metrics = await app.evaluate<{ preview: DOMRect; row: DOMRect; card: DOMRect; overflow: number; cards: number; inset: { left: number; right: number; bottom: number }; gap: number; below: number; bar: number; fill: number; codePad: number; rowFill: number }>(`(()=>{const e=document.querySelector('[aria-label="文件变更预览"]'),p=e.getBoundingClientRect(),s=e.querySelector('.ly-diff-scroll'),d=s.getBoundingClientRect(),row=document.querySelector('[data-delivery-file]').getBoundingClientRect(),view=e.querySelector('.ly-scroll-view');
 			return {preview:p.toJSON(),row:row.toJSON(),card:document.querySelector('[data-turn-delivery]').getBoundingClientRect().toJSON(),overflow:Math.max(0,p.right-innerWidth),cards:document.querySelectorAll('[data-turn-delivery]').length,
-			 inset:{left:d.left-p.left,right:p.right-d.right,bottom:p.bottom-Math.min(d.bottom,p.bottom)},gap:row.top-p.bottom,
+			 inset:{left:d.left-p.left,right:p.right-d.right,bottom:p.bottom-Math.min(d.bottom,p.bottom)},gap:row.top-p.bottom,below:p.top-row.bottom,bar:document.querySelector('[data-ly-main-toolbar]')?.getBoundingClientRect().bottom??0,
 			 fill:Math.round(view.clientWidth-d.width),
 			 rowFill:(()=>{const r=s.querySelector('.ly-diff-add');return r?Math.round(d.width-r.getBoundingClientRect().width):null})(),
 			 codePad:(()=>{const c=s.querySelector('.ly-diff-add > span:last-child');return c?Math.round(parseFloat(getComputedStyle(c).paddingRight)):null})()}})()`);
@@ -112,7 +112,14 @@ test("real file changes produce one temporary card with internal expansion and s
 		 */
 		assert.ok(Math.abs(metrics.preview.width - metrics.row.width) <= 1, `预览要和文件行同宽：${JSON.stringify({ preview: metrics.preview.width, row: metrics.row.width })}`);
 		assert.ok(Math.abs(metrics.preview.x - metrics.row.x) <= 1, `预览的左边缘要对着这一行：${JSON.stringify({ preview: metrics.preview.x, row: metrics.row.x })}`);
-		assert.ok(metrics.gap >= 0 && metrics.gap <= 12, `预览要贴着这一行，而不是飘在半张卡片以外：${metrics.gap}px`);
+		/*
+		 * Above the row when there is room for it there, under it when there is not — the window's toolbar
+		 * counts as no room: a preview opening above a row in the middle of this window used to come to
+		 * rest at y=12, over the toolbar, which is the strip the window is dragged by.
+		 */
+		const attached = (metrics.gap >= 0 && metrics.gap <= 12) || (metrics.below >= 0 && metrics.below <= 12);
+		assert.ok(attached, `预览要贴着这一行，而不是飘在半张卡片以外：上方 ${metrics.gap}px，下方 ${metrics.below}px`);
+		assert.ok(metrics.preview.y >= metrics.bar, `预览不能压在窗口顶栏上：${JSON.stringify({ top: metrics.preview.y, bar: metrics.bar })}`);
 		assert.ok(metrics.preview.width <= metrics.card.width, `预览不该宽过卡片：${JSON.stringify({ preview: metrics.preview.width, card: metrics.card.width })}`);
 		/*
 		 * 代码铺满它所在的卡片，滑块浮在它上面。
@@ -243,6 +250,41 @@ test("real file changes produce one temporary card with internal expansion and s
 	t.diagnostic(JSON.stringify({ fileName, review }));
 	assert.ok(review.pane && review.diffs >= 3, "审核要打开这一轮全部文件的 diff");
 	await screenshot("delivery-turn-review");
+});
+
+/*
+ * The preview opens above its row, and was kept only from the window's edge — so for a row a little way
+ * under the toolbar it opened over the toolbar: its title, its buttons, the strip the window is dragged
+ * by. Placed so that the old rule would have put the preview's top 10px into the toolbar.
+ */
+test("a preview opening above a row near the top stops under the window's toolbar", async (t) => {
+	const preview = `document.querySelector('[aria-label="文件变更预览"]')`;
+	const hover = async () => {
+		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-delivery-file]').getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2}})()`);
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+		await until(`${preview}?.textContent.includes('export const')`); await frames();
+	};
+	const leave = async () => {
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 300 });
+		await until(`!${preview}`);
+	};
+	const bar = await app.evaluate<number>(`document.querySelector('[data-ly-main-toolbar]')?.getBoundingClientRect().bottom ?? 0`);
+	// How tall the preview is with room to spare, which decides where its row has to be.
+	await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`); await frames();
+	await hover();
+	const height = await app.evaluate<number>(`${preview}.getBoundingClientRect().height`);
+	await leave();
+	// The row's top where an above-placement kept only 12px from the window's edge reaches 10px into the toolbar.
+	const target = bar - 10 + 8 + height;
+	await app.evaluate(`(()=>{const row=document.querySelector('[data-delivery-file]'),view=row.closest('.ly-scroll-view');view.scrollTop+=row.getBoundingClientRect().top-${target};})()`); await frames();
+	const row = await app.evaluate<number>(`document.querySelector('[data-delivery-file]').getBoundingClientRect().top`);
+	await hover();
+	const box = await app.evaluate<{ top: number; bottom: number }>(`(()=>{const r=${preview}.getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()`);
+	t.diagnostic(JSON.stringify({ bar, height, target, row, box }));
+	await screenshot("delivery-preview-under-toolbar");
+	assert.ok(Math.abs(row - target) < 40, `the row is where the old rule went wrong, or this proves nothing: ${row} vs ${target}`);
+	assert.ok(box.top >= bar, `the preview spreads over the toolbar: its top at ${box.top}, the toolbar's bottom at ${bar}`);
+	await leave();
 });
 
 test("local material readers and writes reject links outside an opened project", async () => {

@@ -25,6 +25,7 @@ import type { SessionMeta } from "@lyra/core";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
+import { chromeTop } from "../../ui/overlay/keep-clear.ts";
 import { portal } from "../../ui/overlay/portal.ts";
 import { baseName } from "../../lib/paths.ts";
 import { hourStyle } from "../../lib/hour-style.ts";
@@ -171,7 +172,8 @@ export function SessionCard({
 		if (!box) return;
 		const right = anchor.right + GAP;
 		const left = right + box.width > window.innerWidth - GAP ? anchor.left - GAP - box.width : right;
-		const top = Math.min(Math.max(GAP, anchor.top - 6), window.innerHeight - box.height - GAP);
+		// Kept under the window's toolbar as well as off the bottom edge: a tall card for a low row was pushed up over it.
+		const top = Math.max(chromeTop() + GAP, Math.min(Math.max(GAP, anchor.top - 6), window.innerHeight - box.height - GAP));
 		setAt({ left: Math.max(GAP, left), top });
 	}, [anchor]);
 

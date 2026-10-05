@@ -14,7 +14,7 @@
  * easier to express in CSS than in props.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout-widths.ts";
 import { freezeMotion } from "../ui/motion/freeze.ts";
@@ -212,6 +212,17 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	const headerBar = hasHeaderBar(bridge.platform ?? "darwin", !onPhone());
 	const framed = nav && !onPhone();
 	const toolbarHeight = framed ? (headerBar ? NATIVE_HEADER_HEIGHT : MAIN_TOOLBAR_HEIGHT) : 0;
+
+	/*
+	 * The toolbar as chrome, for whatever floats over the page: popovers and hover cards stop under it
+	 * rather than spreading over it (`chromeTop` in `ui/overlay/keep-clear.ts`). On the root, read at
+	 * placement time, because a popover lives in a portal and has no layout of its own to ask.
+	 */
+	useLayoutEffect(() => {
+		const root = document.documentElement;
+		if (toolbarHeight > 0) root.style.setProperty("--ly-chrome-top", `${toolbarHeight}px`);
+		else root.style.removeProperty("--ly-chrome-top");
+	}, [toolbarHeight]);
 
 	// Crossing the breakpoint in either direction dismisses the drawer; it is a transient
 	// overlay, and carrying it across a reflow leaves it stranded over the wrong layout.
