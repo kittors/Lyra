@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { createServer, type ServerResponse } from "node:http";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
@@ -128,9 +128,14 @@ function composerFit() {
 	const placeholder = ruler.getBoundingClientRect().width;
 	ruler.remove();
 	const room = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+	const chip = probe.closest("button") as HTMLElement;
+	const chipStyle = getComputedStyle(chip);
+	const bar = chip.closest(".ly-composer-bar") as HTMLElement | null;
+	const name = (parts ? [...parts.children].find((child) => !child.hasAttribute("data-ly-model-house")) : probe.querySelector(".ly-roll-value") ?? probe) as HTMLElement;
 	return {
 		shown,
 		cut,
+		room: { name: [name.scrollWidth, name.clientWidth], chip: [chip.getBoundingClientRect().width, chipStyle.paddingLeft, chipStyle.paddingRight, chipStyle.gap], bar: bar ? [bar.getBoundingClientRect().width, getComputedStyle(bar).gap] : null },
 		effort: { text: effort.textContent?.trim() ?? "", w: effort.getBoundingClientRect().width, label: effort.getAttribute("aria-label") },
 		controls,
 		placeholder: { text: field.placeholder, needs: Math.ceil(placeholder), room: Math.floor(room) },
@@ -207,6 +212,13 @@ test("the model's name is whole wherever it fits, and never cut where it does no
 			await size(width);
 			const fit = await phone.evaluate<ReturnType<typeof composerFit>>(`(${composerFit.toString()})()`);
 			const at = `${value} at ${width}pt: ${JSON.stringify(fit)}`;
+			if (process.env.LYRA_E2E_ARTIFACTS && (value === "en" || value === "zh-CN")) {
+				// The composer as it is drawn, for looking at: the row these numbers are about.
+				const clip = await phone.evaluate<{ x: number; y: number; width: number; height: number }>(`(() => { const r = [...document.querySelectorAll("main textarea")].find((t) => t.checkVisibility()).closest(".ly-composer").getBoundingClientRect(); return { x: Math.max(0, r.x - 12), y: Math.max(0, r.y - 12), width: r.width + 24, height: r.height + 24 }; })()`);
+				const { data } = await phone.send<{ data: string }>("Page.captureScreenshot", { format: "png", clip: { ...clip, scale: 2 } });
+				await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });
+				await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, `phone-composer-${value}-${width}.png`), Buffer.from(data, "base64"));
+			}
 			t.diagnostic(at);
 			assert.equal(fit.cut, false, `the name is never cut off mid-word — ${at}`);
 			if (width >= 390) assert.equal(fit.shown, MODEL, `the whole name wherever a phone has 390pt — ${at}`);

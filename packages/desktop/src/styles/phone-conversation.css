@@ -177,12 +177,18 @@
   display: none;
 }
 
-/* The model, next, with every point the row does not need. */
+/*
+ * The model, next, with every point the row does not need.
+ *
+ * 6px each side and 6 between mark and name. With the system font Latin is drawn wider than it was
+ * in PingFang, and at 320pt `Sonnet 5` came out 62px against the 57 that 8/10 and 7 left it — cut to
+ * `Sonnet…`, which names nothing. There is no chevron here to keep room for (see `ModelTrigger`).
+ */
 [data-lyra-host="mobile"] .ly-composer-bar button:has(.ly-fit-probe) {
   order: 2;
   flex: 0 1 auto;
-  gap: 7px;
-  padding-inline: 8px 10px;
+  gap: 6px;
+  padding-inline: 6px;
   border-radius: 999px;
   font-size: var(--text-label);
 }
