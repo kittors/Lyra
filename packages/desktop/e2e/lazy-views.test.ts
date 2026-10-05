@@ -62,7 +62,12 @@ test("插件页在自己的 chunk 里，点了会到", async () => {
 
 test("拉取请求页同样", async () => {
 	await navigate("拉取请求");
-	assert.equal(await appears("拉取请求"), true, "拉取请求页没有渲染出来");
+	/*
+	 * Words only the page draws. Its own name stopped being one when the entry became an icon on the
+	 * rail: it used to pass on the sidebar row's text alone, chunk or no chunk. A fresh profile has
+	 * no account, so the list says that.
+	 */
+	assert.equal(await appears("未添加代码托管账号"), true, "拉取请求页没有渲染出来");
 });
 
 test("已安排页同样", async () => {

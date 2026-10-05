@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
+import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { startApp, type RunningApp } from "./app.ts";
 import { landsOn } from "./lands-on.ts";
 
@@ -26,13 +26,20 @@ async function click(app: RunningApp, selector: string): Promise<void> {
 }
 
 /**
+ * The conversation's terminal button. A lone screen's panel buttons are on the window's toolbar; a
+ * screen among several carries them in its own title bar.
+ */
+const TERMINAL_BUTTON = ':is([data-ly-split-tools], [data-dock-header]) button[aria-label^="终端 "]';
+
+/**
  * Every control in the window's top rows sits on its row's centre line.
  *
  * Two rows, two heights — see `shared/window-chrome.ts`. Dock pane title bars are
  * `WINDOW_HEADER_HEIGHT` on every platform, so their controls centre half of that below each
- * pane's own top. The window's own row is not one number: Windows and Linux draw a header of
- * `NATIVE_HEADER_HEIGHT` and the sidebar toggle rides on it, while macOS has no header and the
- * toggle floats in the `WINDOW_HEADER_HEIGHT` corner the traffic lights centre on.
+ * pane's own top. The window's own row is the toolbar (`WindowFrame`): `MAIN_TOOLBAR_HEIGHT` on
+ * macOS, where the traffic lights centre on it, and `NATIVE_HEADER_HEIGHT` on Windows and Linux,
+ * where it is as tall as the system's caption buttons. Everything on it — back, forward, the
+ * sidebar toggle, the open conversation's panel buttons — centres on that row.
  *
  * The header's line is measured rather than assumed. When the band became 32px this compared the
  * toggle and the caption buttons with a hard-coded 22, and a comparison with a constant only says
@@ -58,10 +65,11 @@ async function headerAlignment(app: RunningApp): Promise<void> {
 			for (const icon of pane.querySelectorAll('[data-dock-header] svg')) measure(icon, center, kind + ' svg');
 			for (const button of pane.querySelectorAll('[data-dock-header] button:not([data-dock-grip])')) measure(button, center, kind + ' ' + (button.getAttribute('aria-label') || 'button'));
 		}
-		const header = document.querySelector('[data-ly-window-header]');
+		const header = document.querySelector('[data-ly-main-toolbar]');
 		const band = header ? header.getBoundingClientRect() : null;
 		const headerCenter = band ? band.top + band.height / 2 : ${WINDOW_HEADER_HEIGHT / 2};
-		for (const button of document.querySelectorAll('button[aria-label*="侧边栏 "], button[aria-label*="设置导航 "]')) {
+		const toolbar = header ? [...header.querySelectorAll('button')] : [];
+		for (const button of new Set([...toolbar, ...document.querySelectorAll('button[aria-label*="侧边栏 "], button[aria-label*="设置导航 "]')])) {
 			const name = button.getAttribute('aria-label');
 			measure(button, headerCenter, name); measure(button.querySelector('svg'), headerCenter, name + ' svg');
 		}
@@ -73,10 +81,9 @@ async function headerAlignment(app: RunningApp): Promise<void> {
 	assert.ok(geometry.controls >= 2, `header controls are visible: ${JSON.stringify(geometry)}`);
 	// Chromium quantizes a card's 1px border at fractional DPI; allow at most half a CSS pixel.
 	assert.ok(geometry.maxError <= 0.5, `header centre-line drift: ${JSON.stringify(geometry)}`);
-	// `WindowHeader` is only ever drawn at the native height, whichever platform draws it.
-	if (geometry.headerHeight !== null) {
-		assert.ok(Math.abs(geometry.headerHeight - NATIVE_HEADER_HEIGHT) <= 0.5, `the header is ${NATIVE_HEADER_HEIGHT}px: ${JSON.stringify(geometry)}`);
-	}
+	// The toolbar is the native height wherever the system draws caption buttons into it.
+	const toolbarHeight = process.platform === "darwin" ? MAIN_TOOLBAR_HEIGHT : NATIVE_HEADER_HEIGHT;
+	assert.ok(geometry.headerHeight !== null && Math.abs(geometry.headerHeight - toolbarHeight) <= 0.5, `the toolbar is ${toolbarHeight}px: ${JSON.stringify(geometry)}`);
 	if (geometry.overlayCenter !== null) {
 		assert.ok(Math.abs(geometry.overlayCenter - geometry.headerCenter) <= 0.5, `native overlay shares the header centre line: ${JSON.stringify(geometry)}`);
 	}
@@ -116,17 +123,17 @@ for (const [scale, width, height, theme] of [
 			}>(`(() => {
 				const overlay = navigator.windowControlsOverlay;
 				const edge = overlay?.visible ? overlay.getTitlebarAreaRect().right : innerWidth;
-				const header = document.querySelector('[data-ly-window-header]');
+				const header = document.querySelector('[data-ly-main-toolbar]');
 				const input = document.querySelector('textarea').getBoundingClientRect();
-				// Caption buttons sit on the window header. Pane titles are the next row; their x
+				// Caption buttons sit on the toolbar. Pane titles are the next row; their x
 				// crossing the overlay edge is not a collision.
-				const buttons = [...(header ?? document).querySelectorAll(header ? 'button' : '[data-dock-header] button')];
+				const buttons = [...header.querySelectorAll('button')];
 				return { width: innerWidth, height: innerHeight, dpr: devicePixelRatio,
 					overflow: document.documentElement.scrollWidth - innerWidth,
 					composerVisible: input.left >= 0 && input.right <= innerWidth && input.bottom <= innerHeight && input.height > 20,
 					controlsClear: buttons.every(b => {const r = b.getBoundingClientRect();return r.right <= edge && r.left >= 0;}),
 					overlayVisible: overlay?.visible ?? false, overlayRight: edge,
-					hints: [...document.querySelectorAll('[data-dock-header] button')].map(b => b.getAttribute('aria-label') ?? '') };
+					hints: [...document.querySelectorAll('[data-dock-header] button, [data-ly-split-tools] button')].map(b => b.getAttribute('aria-label') ?? '') };
 			})()`);
 			t.diagnostic(JSON.stringify(geometry));
 			assert.equal(geometry.overflow, 0);
@@ -151,7 +158,7 @@ for (const [scale, width, height, theme] of [
 			assert.ok(focus.visible && focus.style === "solid" && focus.width >= Math.floor(2 * focus.dpr) / focus.dpr - 0.01,
 				"Tab gives the focused button a visible outline");
 
-			await click(app, '[data-dock-header] button[aria-label^="终端 "]');
+			await click(app, TERMINAL_BUTTON);
 			await app.evaluate(`new Promise((resolve, reject) => {
 				let remaining = 240; const step = () => {
 					if (document.querySelector('[data-tab]') && document.querySelector('.xterm-screen')) resolve();
@@ -205,7 +212,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 	try {
 		// CI displays can clamp the native window; compare the same layout viewport before and after.
 		await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false }); await frames(app);
-		await click(app, '[data-dock-header] button[aria-label^="终端 "]');
+		await click(app, TERMINAL_BUTTON);
 		await app.evaluate(`new Promise((resolve,reject)=>{let n=240;const step=()=>{if(document.querySelector('.xterm-screen'))resolve();else if(--n)requestAnimationFrame(step);else reject(new Error('terminal did not open'));};step();})`);
 		await frames(app);
 		await app.evaluate(`document.querySelector('.xterm-screen').setAttribute('data-qa-preserved','')`);
@@ -248,7 +255,8 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		 * and the terminal was disposed while the catalogue was up and rebuilt on the way back
 		 * (ADR-0023, point 8).
 		 */
-		await app.evaluate(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '插件' && b.checkVisibility()).setAttribute('data-qa-nav', '')`);
+		// The rail's button where there is a rail; the sidebar's row in a window too narrow for one.
+		await app.evaluate(`(document.querySelector('[data-ly-rail-item="plugins"]') ?? [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '插件' && b.checkVisibility())).setAttribute('data-qa-nav', '')`);
 		await click(app, "[data-qa-nav]"); await frames(app);
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-solo-screen]')?.checkVisibility())`), true, "the catalogue is up");
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('.xterm-screen[data-qa-preserved]'))`), true, "and the terminal behind it is the same one");
@@ -282,72 +290,102 @@ async function paintedPixels(app: RunningApp, clip: { x: number; y: number; widt
 	})()`);
 }
 
-test("a pane's toolbar icons keep their pixel column wherever the sidebar's edge falls, at 125%", async (t) => {
+test("toolbar and pane icons keep their pixel column wherever the sidebar's edge falls, at 125%", async (t) => {
 	/*
 	 * Opening or closing the sidebar walks the content area's left edge through fractional device
 	 * pixels, and with `contain: paint` on the split section each icon snapped against that section's
 	 * rounded origin: one device column left or right depending on the edge, icon by icon, which read
 	 * as the toolbar shaking for the length of the slide. Held at a series of edges here, since a
 	 * screenshot per animation frame is not something a test can ask for reliably.
+	 *
+	 * Two rows since the window frame (ADR-0031). The three that were reported shaking — terminal,
+	 * browser, panels — moved up to the window's toolbar, out of the content; the icons still inside
+	 * it are a pane's own, so a pane is opened beside the conversation and its title bar is held too.
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
 		await frames(app);
-		// The three that were reported shaking; the toolbar also holds buttons that only show on hover.
-		const toolbar = `[...document.querySelectorAll('[data-dock-header] button')].filter(b => /^(终端|浏览器|面板)/.test(b.getAttribute('aria-label') ?? '') && b.checkVisibility({ opacityProperty: true }))`;
-		const icons = await app.evaluate<{ x: number; width: number }[]>(`${toolbar}.map(b => b.getBoundingClientRect()).map(r => ({ x: r.x, width: r.width })).sort((a, b) => a.x - b.x)`);
-		assert.equal(icons.length, 3, `terminal, browser and panels are on the pane toolbar: ${JSON.stringify(icons)}`);
-		const left = Math.floor(icons[0].x) - 4, right = Math.ceil(icons.at(-1)!.x + icons.at(-1)!.width) + 4;
-		const top = await app.evaluate<number>(`Math.floor(document.querySelector('[data-dock-header] button').getBoundingClientRect().top) - 4`);
+		await click(app, ':is([data-ly-split-tools], [data-dock-header]) button[aria-label^="浏览器"]');
+		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => document.querySelector('[data-dock-header="browser"] [data-dock-actions] button') ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('the browser pane did not open')); step(); })`);
+		await frames(app, 40);
+		// The toolbar also holds buttons that only show on hover; those are not drawn, so not counted.
+		const rows = {
+			toolbar: `[...document.querySelectorAll('[data-ly-split-tools] button')].filter(b => /^(终端|浏览器|面板)/.test(b.getAttribute('aria-label') ?? '') && b.checkVisibility({ opacityProperty: true }))`,
+			pane: `[...document.querySelectorAll('[data-dock-header="browser"] [data-dock-actions] button')].filter(b => b.checkVisibility({ opacityProperty: true }))`,
+		};
 		const dpr = await app.evaluate<number>("devicePixelRatio");
+		const placed: Record<string, { icons: { x: number; width: number }[]; clip: { x: number; y: number; width: number; height: number } }> = {};
+		for (const [name, list] of Object.entries(rows)) {
+			const icons = await app.evaluate<{ x: number; y: number; width: number }[]>(`${list}.map(b => b.getBoundingClientRect()).map(r => ({ x: r.x, y: r.y, width: r.width })).sort((a, b) => a.x - b.x)`);
+			const left = Math.floor(icons[0].x) - 4, right = Math.ceil(icons.at(-1)!.x + icons.at(-1)!.width) + 4;
+			placed[name] = { icons, clip: { x: left, y: Math.floor(Math.min(...icons.map((icon) => icon.y))) - 4, width: right - left, height: 36 } };
+		}
+		assert.equal(placed.toolbar.icons.length, 3, `terminal, browser and panels are on the window's toolbar: ${JSON.stringify(placed.toolbar.icons)}`);
+		assert.ok(placed.pane.icons.length >= 2, `the browser pane's title bar has its buttons: ${JSON.stringify(placed.pane.icons)}`);
 		const edges = [0, -1, -2, -3, -5, -6, -7];
-		const rows: { edge: number; layout: number[]; painted: number[] }[] = [];
+		const samples: { edge: number; row: string; layout: number[]; painted: number[] }[] = [];
 		for (const edge of edges) {
 			await app.evaluate(`(() => { const frame = document.querySelector('aside[data-pane="beside"]').parentElement; frame.style.transition = 'none'; frame.style.marginLeft = '${edge}px'; })()`);
 			await frames(app, 4);
-			const layout = await app.evaluate<number[]>(`${toolbar}.map(b => b.getBoundingClientRect().x).sort((a, b) => a - b)`);
-			const image = await paintedPixels(app, { x: left, y: top, width: right - left, height: 36 });
-			// The ink's x-centroid inside each icon's own cell, in device pixels from the clip's edge.
-			const painted = icons.map((icon) => {
-				const from = Math.round((icon.x - left) * dpr), to = Math.round((icon.x - left + icon.width) * dpr);
-				let ink = 0, weighted = 0;
-				for (let x = from; x < to; x++) for (let y = 0; y < image.height; y++) { const v = 255 - image.gray[y * image.width + x]; ink += v; weighted += v * x; }
-				return Math.round((weighted / ink) * 100) / 100;
-			});
-			rows.push({ edge, layout, painted });
+			for (const [name, list] of Object.entries(rows)) {
+				const { icons, clip } = placed[name];
+				const layout = await app.evaluate<number[]>(`${list}.map(b => b.getBoundingClientRect().x).sort((a, b) => a - b)`);
+				const image = await paintedPixels(app, clip);
+				// The ink's x-centroid inside each icon's own cell, in device pixels from the clip's edge.
+				const painted = icons.map((icon) => {
+					const from = Math.round((icon.x - clip.x) * dpr), to = Math.round((icon.x - clip.x + icon.width) * dpr);
+					let ink = 0, weighted = 0;
+					for (let x = from; x < to; x++) for (let y = 0; y < image.height; y++) { const v = 255 - image.gray[y * image.width + x]; ink += v; weighted += v * x; }
+					return Math.round((weighted / ink) * 100) / 100;
+				});
+				samples.push({ edge, row: name, layout, painted });
+			}
 		}
 		await app.evaluate(`(() => { const frame = document.querySelector('aside[data-pane="beside"]').parentElement; frame.style.marginLeft = ''; frame.style.transition = ''; })()`);
-		t.diagnostic(JSON.stringify({ dpr, rows }));
-		for (const row of rows) assert.deepEqual(row.layout, rows[0].layout, "the icons' layout does not move with the sidebar's edge");
-		for (const [index] of icons.entries()) {
-			const columns = new Set(rows.map((row) => row.painted[index]));
-			assert.equal(columns.size, 1, `icon ${index} is painted on one column wherever the edge is: ${[...columns].join(", ")}`);
+		t.diagnostic(JSON.stringify({ dpr, samples }));
+		for (const name of Object.keys(rows)) {
+			const mine = samples.filter((sample) => sample.row === name);
+			for (const sample of mine) assert.deepEqual(sample.layout, mine[0].layout, `${name}: the icons' layout does not move with the sidebar's edge`);
+			for (const [index] of placed[name].icons.entries()) {
+				const columns = new Set(mine.map((sample) => sample.painted[index]));
+				assert.equal(columns.size, 1, `${name}: icon ${index} is painted on one column wherever the edge is: ${[...columns].join(", ")}`);
+			}
 		}
 	} finally { await app.stop(); }
 });
 
-test("the content area's corner under the window header is round, whatever is drawn in it", async (t) => {
+test("the panel's corner under the toolbar is round, whatever is drawn in it", async (t) => {
+	/*
+	 * The sidebar and the content share one panel with rounded corners (ADR-0031), and the sidebar's
+	 * fill is what lies in its top-left one. A fill that is not clipped by the panel paints that corner
+	 * square, and it is the corner right under the toolbar's own buttons.
+	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
 		await frames(app);
-		const corner = await app.evaluate<{ x: number; y: number; band: string; content: string } | null>(`(() => {
-			const main = document.querySelector('.ly-window-body > main');
-			if (!main) return null;
-			const r = main.getBoundingClientRect();
-			return { x: r.x, y: r.y, band: getComputedStyle(main.parentElement).backgroundColor, content: getComputedStyle(main.querySelector('.ly-dock') ?? main).backgroundColor };
+		const corner = await app.evaluate<{ x: number; y: number; band: number[]; content: number[]; material: boolean } | null>(`(() => {
+			const panel = document.querySelector('[data-ly-frame-panel]');
+			if (!panel) return null;
+			const r = panel.getBoundingClientRect();
+			// A computed colour can come back as oklab() or color(); a canvas reads any of them back as sRGB.
+			const rgb = (css) => { const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.fillStyle = css; g.fillRect(0, 0, 1, 1); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+			const fill = (el) => { for (; el; el = el.parentElement) { const bg = getComputedStyle(el).backgroundColor; if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg; } return 'white'; };
+			return { x: r.x, y: r.y, band: rgb(fill(panel.parentElement)), content: rgb(fill(document.elementFromPoint(r.x + 8, r.y + 8))),
+				material: document.documentElement.dataset.vibrancy === 'on' };
 		})()`);
-		if (!corner) { t.skip("macOS draws no header band, so the content area has no inner corner"); return; }
-		const rgbOf = (css: string) => css.match(/\d+/g)!.slice(0, 3).map(Number);
+		assert.ok(corner, "the window has its panel");
+		// On the macOS material the window under the corner is the system's, not a colour the page knows.
+		if (corner.material) { t.skip("the corner shows the system's material, which a screenshot does not hold"); return; }
 		const image = await paintedPixels(app, { x: corner.x, y: corner.y, width: 12, height: 12 });
 		const dpr = image.width / 12;
 		const at = (x: number, y: number) => image.rgb[Math.floor(y * dpr) * image.width + Math.floor(x * dpr)];
-		const near = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) <= 1);
+		const near = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) <= 2);
 		const outside = at(0, 0), inside = at(8, 8);
 		t.diagnostic(JSON.stringify({ corner, outside, inside }));
-		// The very corner is the band showing through; well inside the curve is the content itself.
-		assert.ok(near(outside, rgbOf(corner.band)), `the corner shows the band's colour, not the content's: ${JSON.stringify({ outside, band: corner.band })}`);
-		assert.ok(near(inside, rgbOf(corner.content)), `inside the curve is the content: ${JSON.stringify({ inside, content: corner.content })}`);
-		assert.ok(!near(rgbOf(corner.band), rgbOf(corner.content)), "band and content differ, or the corner proves nothing");
+		// The very corner is the window showing through; well inside the curve is the panel's own fill.
+		assert.ok(near(outside, corner.band), `the corner shows the window's colour, not the panel's: ${JSON.stringify({ outside, band: corner.band })}`);
+		assert.ok(near(inside, corner.content), `inside the curve is the panel's fill: ${JSON.stringify({ inside, content: corner.content })}`);
+		assert.ok(!near(corner.band, corner.content), "window and panel differ, or the corner proves nothing");
 	} finally { await app.stop(); }
 });
 
@@ -431,7 +469,7 @@ test("the settings column takes its final width at once when the navigation slid
 	const app = await startApp({ port: 9598, seed: (home) => plainProfile(home) });
 	try {
 		await frames(app);
-		await click(app, "button:has(svg.lucide-settings)");
+		await click(app, "[data-ly-open-settings]");
 		const column = `[...document.querySelectorAll('[data-ly-settings] main [class*="max-w-[900px]"]')].find(e => e.checkVisibility())`;
 		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => (${column}) ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('settings did not open')); step(); })`);
 		await frames(app, 30);

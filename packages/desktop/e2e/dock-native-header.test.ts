@@ -43,7 +43,13 @@ interface Evidence {
 
 test("rapid native fullscreen clicks keep the header sized and anchored without hitting close", async (t) => {
 	const failures: string[] = [];
-	for (const theme of ["light", "dark"]) for (const width of [1200, 1024]) {
+	/*
+	 * Two widths at which Git sits beside the conversation. Only there does full screen grow the pane
+	 * leftwards under a button that stays put. Below about 1050px with the sidebar and the rail open the
+	 * dock cannot hold both floors side by side, Git goes under the conversation, and full screen has to
+	 * bring its title bar up to the top — a second click at the same point lands in the changes list.
+	 */
+	for (const theme of ["light", "dark"]) for (const width of [1200, 1100]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)},reduceMotion:'off'}})})()`);
 		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);

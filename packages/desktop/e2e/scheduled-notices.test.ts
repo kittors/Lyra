@@ -194,7 +194,8 @@ async function sendFromMain(notice: Record<string, unknown>): Promise<void> {
 	);
 }
 
-const badge = (n: number) => `[aria-label="${n} 个任务运行失败"]`;
+// The count is the end of the rail button's name (「已安排 · 1 个任务运行失败」); in a drawer it is the badge's own.
+const badge = (n: number) => `[aria-label$=" ${n} 个任务运行失败"], [aria-label="${n} 个任务运行失败"]`;
 const noBadge = `!document.querySelector('[aria-label$="个任务运行失败"]')`;
 const line = (taskId: string) => `document.querySelector('.ly-reveal[data-open="true"] [data-scheduled-alert="${taskId}"]')`;
 const text = (selector: string) => `(document.querySelector(${JSON.stringify(selector)})?.textContent || "")`;

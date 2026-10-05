@@ -106,14 +106,17 @@ async function armFirstFrame(settled: "hidden" | "visible"): Promise<void> {
 					return;
 				}
 				const all = [...box.querySelectorAll('*')];
+				// The open conversation's title and panel buttons are the workspace's too, though they sit on the window's toolbar.
+				const toolbar = () => [...document.querySelectorAll('[data-ly-toolbar-title], [data-ly-split-tools]')].filter((el) => el.checkVisibility());
 				if (settled === 'hidden') {
-					state.found = all.filter(visible).map(name);
+					state.found = [...all.filter(visible), ...toolbar()].map(name);
 					state.done = true;
 					return;
 				}
 				const hidden = all.filter((el) => !visible(el));
+				const shown = toolbar();
 				setTimeout(() => {
-					state.found = hidden.filter((el) => el.isConnected && visible(el)).map(name);
+					state.found = [...hidden.filter((el) => el.isConnected && visible(el)), ...toolbar().filter((el) => !shown.includes(el))].map(name);
 					state.done = true;
 				}, 500);
 			};
@@ -135,8 +138,8 @@ function summary(found: string[]): string {
 }
 
 test("the first frame of 已安排 has nothing of the workspace on it", async () => {
-	// The composer and the title bar's panel buttons are what painted through before; wait for them.
-	await waitFor(`${WORKSPACE}?.querySelector('button[data-composer-send]') && ${WORKSPACE}?.querySelector('[data-ly-toolbar-button]')`, "the conversation");
+	// The composer and the panel buttons are what painted through before; wait for them. A lone screen's panel buttons are on the window's toolbar.
+	await waitFor(`${WORKSPACE}?.querySelector('button[data-composer-send]') && document.querySelector('[data-ly-split-tools] [data-ly-toolbar-button], [data-view="chat"] [data-ly-toolbar-button]')`, "the conversation");
 	await pause(800);
 
 	await armFirstFrame("hidden");
