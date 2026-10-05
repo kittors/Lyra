@@ -24,7 +24,9 @@ const RULES: { brand: Brand; test: RegExp }[] = [
 	{ brand: "deepseek", test: /deepseek/ },
 	{ brand: "claude", test: /claude|anthropic|\bopus\b|\bsonnet\b|\bhaiku\b/ },
 	{ brand: "kimi", test: /kimi|moonshot/ },
-	{ brand: "doubao", test: /doubao|豆包|skylark|ep-/ },
+	// `ep-` is a Volcengine endpoint id (`ep-20250101…`), so only at the start of a word: inside one,
+	// it is every StepFun model — `step-3` contains `ep-`, and all of them wore Doubao's mark.
+	{ brand: "doubao", test: /doubao|豆包|skylark|\bep-/ },
 	{ brand: "minimax", test: /minimax|abab/ },
 	{ brand: "stepfun", test: /stepfun|step-|阶跃/ },
 	{ brand: "baichuan", test: /baichuan|百川/ },
