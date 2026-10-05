@@ -203,6 +203,14 @@ export interface AppearanceSettings {
 	 * rows — the list fades out before it reaches them instead.
 	 */
 	vibrancy?: boolean;
+	/**
+	 * How a turn's tool calls are laid out in the transcript.
+	 *
+	 * `collapsed` gathers the whole turn under one line that is there from the start, with every call
+	 * on a row of its own beneath it. `expanded` is the earlier layout: no turn line while it runs,
+	 * calls grouped into summary lines of bordered cards, and the turn folding away once it ends.
+	 */
+	callChain?: "expanded" | "collapsed";
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -284,6 +292,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	diffMarkers: "color",
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
+	callChain: "collapsed",
 	// Left to the system, as ZCode does; see `uiFontWeight`.
 	fontSmoothing: false,
 	vibrancy: true,

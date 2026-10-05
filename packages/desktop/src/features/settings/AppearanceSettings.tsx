@@ -676,6 +676,20 @@ export function AppearanceSettings() {
 						/>
 					}
 				/>
+				<Row
+					title={t("appearance.callChain")}
+					detail={t("appearance.callChainDetail")}
+					control={
+						<Segmented
+							value={appearance.callChain ?? "collapsed"}
+							onChange={(callChain) => patch({ callChain })}
+							options={[
+								{ value: "expanded", label: t("appearance.callChainExpanded") },
+								{ value: "collapsed", label: t("appearance.callChainCollapsed") },
+							]}
+						/>
+					}
+				/>
 				{/*
 				 * macOS only. `-webkit-font-smoothing` is a hook into macOS's own text renderer;
 				 * Windows (DirectWrite/ClearType) and Linux (FreeType) ignore the property, so on

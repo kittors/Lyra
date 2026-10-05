@@ -15,7 +15,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
 import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
-import { ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
+import { describeCalls, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
@@ -453,6 +453,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                  * still the newest work, and nothing should glide once the turn is over.
                  */
                 live={running && Boolean(run.live)}
+                // The turn line above says what the work amounted to; here every call is its own row.
+                flat
               />
             );
             if (block.kind === "plain") return draw(block.runs[0]);
@@ -478,6 +480,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
               <Fragment key={key}>
                 <TurnProcess
                   counts={block.counts}
+                  work={describeCalls(block.runs.flatMap((run) => (run.kind === "tools" ? run.calls : [])))}
                   /*
                    * 按**回合**算，不是按块的位置算。
                    *

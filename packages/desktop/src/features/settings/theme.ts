@@ -368,6 +368,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 		root.dataset.vibrancy = vibrant ? "on" : "off";
 		root.style.background = vibrant ? "transparent" : "var(--color-shell)";
 	}
+	root.dataset.callChain = appearance.callChain ?? "collapsed";
 	for (const listener of applied) listener();
 }
 

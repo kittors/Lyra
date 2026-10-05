@@ -134,6 +134,23 @@
   margin-left: 8px;
 }
 
+/* The disclosure chevron: right after the words, turned 90° while open. */
+.ly-flow-chevron {
+  flex: none;
+  margin-left: 6px;
+  opacity: 0.8;
+  transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-flow-row[data-open] .ly-flow-chevron {
+  transform: rotate(90deg);
+}
+
+/* The expanded call-chain layout is the earlier look, which drew no chevrons. */
+:root[data-call-chain="expanded"] .ly-flow-chevron {
+  display: none;
+}
+
 /*
  * 一整轮的过程，是一块，所以行距只有一种。
  *
@@ -160,10 +177,13 @@
   margin-bottom: 0;
 }
 
-/* 折叠行到它下面第一条过程行，用的是同一个 10px——否则展开时那一行贴在过程上。 */
-[data-ly-turn-process][data-ly-turn-open] > .ly-flow-row {
-  margin-bottom: 10px;
-}
+/*
+ * 折叠行到它下面第一条过程行，用的是同一个 10px——否则展开时那一行贴在过程上。
+ *
+ * 这 10px 是折叠体里的上内边距（见 `TurnProcess` 的 `pt-2.5`），不是折叠行的外边距。挂在
+ * 折叠行上时它随 `data-ly-turn-open` 当帧切换，高度却还在动画：点收起，下面的答案先瞬间上提
+ * 10px 再开始收。放进折叠体，它就和高度一起伸缩。
+ */
 
 /*
  * 到答案的距离，展开和收起是同一个。

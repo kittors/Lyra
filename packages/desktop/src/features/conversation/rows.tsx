@@ -231,7 +231,7 @@ function AssistantRow({
         }
 
         const calls = segment.blocks.map((block) => ({ block, stopReason: message.stopReason }));
-        return <ToolRunGroup key={`group-${position}`} calls={calls} />;
+        return <ToolRunGroup key={`group-${position}`} calls={calls} flat />;
       })}
 
       {/*

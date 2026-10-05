@@ -639,19 +639,20 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 }
 
 /**
- * 一整轮的过程，和它最后说出口的那句话，分开。
+ * 一轮里的过程，和它说出口的话，分开。
  *
- * 一轮读下来是「想 → 做 → 说」：模型先推理，然后调命令、读文件、跑技能，全部做完了才给出真正的
- * 回答。前两步是过程——它值得看，但看过一次之后，翻回一段旧对话时四十行工具卡片挡在答案前面，
- * 就只是噪音了。所以过程可以收成一行，而那句回答永远在外面。
+ * 一轮读下来是「想 → 做 → 说」：模型推理，调命令、读文件、跑技能，中间也会停下来说几句。推理和
+ * 工具是过程——它值得看，但看过一次之后，翻回一段旧对话时四十行工具卡片挡在前面，就只是噪音了。
+ * 所以过程可以收成一行，而说出口的话永远在外面。
  *
- * 「最后那句话」的定义就是字面意思：这一轮里**最后一条带正文的助手消息**。中间那些「我先看一下
- * 配置」属于过程——它们是在解说自己正在做什么，不是结论。
+ * 收的是**连续的一段**过程，不是一整轮。中间那些「已定位到两个原因……」是模型在向人汇报，把它们
+ * 连同整轮一起收进去，收起之后就只剩最后一句，前面的汇报全看不到了。所以话把过程切成几段，
+ * 每段各有自己的那一行。
  *
  * 在 Run 这一层分，不在渲染时分：这是一条关于转录形状的规则，规则性的东西要能单独测。
  */
 export interface TurnBlock {
-	/** 一整轮的过程，收得起来。 */
+	/** 一段连续的过程，收得起来。 */
 	kind: "process" | "plain";
 	runs: Run[];
 	/** 过程里有什么，用来写那一行摘要。 */
@@ -666,11 +667,24 @@ export interface TurnBlock {
 	turn: number;
 }
 
-/** 这一条 run 是不是「过程」——相对于「最后说出口的那句话」。 */
+/** 这一条 run 是不是「过程」——相对于说出口的话。 */
 function isProcess(run: Run): boolean {
 	if (run.kind === "tools" || run.kind === "hiccup" || run.kind === "compaction") return true;
 	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
-	return run.kind === "message" && run.lead === true;
+	return run.kind === "message" && (run.lead === true || thinkingOnly(run));
+}
+
+/**
+ * A reply row that is nothing but reasoning — a reply that thought and then only called tools.
+ *
+ * It gets no `lead` (there is no prose row below it to lead into), so it used to count as an
+ * answer: drawn outside the fold and missing from the turn line's tally of thoughts. Rows with no
+ * reasoning in them stay out of this, above all the empty row that is a failure's only trace.
+ */
+function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
+	if (run.message.role !== "assistant") return false;
+	const own = run.message.content.slice(run.from ?? 0, run.upTo);
+	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
@@ -685,54 +699,32 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 
 	let at = 0;
 	while (at < list.length) {
-		if (opensBlock(list[at])) {
-			turn++;
-			plain(list[at++]);
+		const run = list[at];
+		if (opensBlock(run)) turn++;
+		if (!isProcess(run)) {
+			plain(run);
+			at++;
 			continue;
 		}
-		/*
-		 * 从这里到这一轮结束，先框出来，再决定哪一段是过程。
-		 *
-		 * 边界是下一次「人开的口」——不是下一条助手消息：一轮里助手会说很多次话。
-		 */
+		// 一段过程到下一句话（或下一次「人开的口」）为止。
 		let end = at;
-		while (end < list.length && !opensBlock(list[end])) end++;
+		while (end < list.length && isProcess(list[end])) end++;
 
 		/*
-		 * 最后一条带正文的助手消息，就是这一轮的回答。它和它后面的一切都留在外面。
-		 *
-		 * 找不到（还在跑、或者这一轮只有工具活）时，过程就一直延伸到边界——正在跑的那一轮本来就
-		 * 该全程看得见，而 `TurnProcess` 只在收起时才折叠。
+		 * 只有重连、压缩这类标记、没有一次推理或工具的一段，不值得一行「思考了一会儿」——原样摊开。
 		 */
-		let answer = end;
-		for (let n = end - 1; n >= at; n--) {
-			const run = list[n];
-			if (run.kind === "message" && run.message.role === "assistant" && !isProcess(run)) {
-				answer = n;
-				break;
-			}
-		}
-
-		/*
-		 * 过程之间夹着的助手解说（「我先看一下配置」）也归过程。
-		 *
-		 * 它们是在说自己正在做什么，不是结论——所以整段按位置原样收进去，只有计数只算真正的过程行。
-		 */
-		const body = list.slice(at, answer);
-		const process = body.filter(isProcess);
-		if (process.length > 0) {
+		const body = list.slice(at, end);
+		if (body.some((item) => item.kind === "tools" || item.kind === "message")) {
 			out.push({
 				kind: "process",
 				runs: body,
 				counts: {
-					tools: process.reduce((n, run) => n + (run.kind === "tools" ? run.calls.length : 0), 0),
-					thinking: process.filter((run) => run.kind === "message" && run.lead === true).length,
+					tools: body.reduce((n, item) => n + (item.kind === "tools" ? item.calls.length : 0), 0),
+					thinking: body.filter((item) => item.kind === "message").length,
 				},
 				turn,
 			});
-		} else for (const run of body) plain(run);
-
-		for (let n = answer; n < end; n++) plain(list[n]);
+		} else for (const item of body) plain(item);
 		at = end;
 	}
 	return out;

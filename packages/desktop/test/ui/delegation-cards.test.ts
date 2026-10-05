@@ -72,10 +72,9 @@ test("each card wears its agent's face; a queued one says so instead of spinning
 		assert.match(cards[0].textContent ?? "", /找登录入口@general/);
 		assert.equal(cards[0].querySelector(".ly-avatar")?.getAttribute("data-mood"), "working");
 		assert.match(cards[1].textContent ?? "", /审一遍鉴权@simple排队中/);
-		// `.ly-dash` 是运行中那颗转圈（`StatusSpinner`）。先确认在跑的那张确实有，否则「没有」这句是白说的。
-		assert.ok(cards[0].querySelector(".ly-dash"), "the running one does spin");
-		assert.ok(!cards[1].querySelector(".ly-dash"), "no spinner for a call that has not started");
-		assert.ok(!(cards[1].className ?? "").includes("ly-rail"), "and no running rail either");
+		// 「在跑」是摘要上那道扫光（`ly-glide`）。先确认在跑的那张确实有，否则「没有」这句是白说的。
+		assert.ok(cards[0].querySelector(".ly-glide"), "the running one glides");
+		assert.ok(!cards[1].querySelector(".ly-glide"), "no glide for a call that has not started");
 
 		const open = cards[0].querySelector<HTMLButtonElement>("button");
 		assert.match(open?.getAttribute("aria-label") ?? "", /在面板里看 @general/);

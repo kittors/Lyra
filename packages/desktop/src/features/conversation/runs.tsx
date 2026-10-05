@@ -18,6 +18,8 @@ import type { Dispatch } from "../../lib/dispatches.ts";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
 import { baseName } from "../../lib/paths.ts";
+import { describeActivity } from "../../lib/tool-kinds.ts";
+import { useCallChain } from "./call-chain.ts";
 
 /**
  * How much of a long transcript is mounted at once, and how much each "show more" adds — **in turns**.
@@ -133,7 +135,8 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
       stateKey={runs ? undefined : `tool-${block.id}`}
       toolName={block.name}
       args={block.arguments}
-      summary={run?.summary ?? block.name}
+      // Core's English summary ("Read src/a.ts") said the way the turn line says it; see `describeActivity`.
+      summary={describeActivity(run?.summary ?? block.name)}
       // 没有记录时说什么，以及为什么不能只看这条消息定没定稿：见 `tool-status.ts`。
       status={run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning)}
       result={run?.result}
@@ -154,10 +157,19 @@ const ToolRunGroup = function ToolRun({
   calls,
   live,
   runs,
+  flat,
 }: {
   calls: Call[];
   /** Whether this is the run being worked on right now — decided in `grouping.ts`, not here. */
   live?: boolean;
+  /**
+   * Draw the calls as rows of their own, with no summary line over them — in the collapsed layout.
+   *
+   * The main transcript's turn line already says what the whole turn did, so a second summary per
+   * stretch of work was a fold inside a fold — open the turn and you still saw no calls. Panels that
+   * have no turn line (sub-agents, side chat) keep the grouped form.
+   */
+  flat?: boolean;
   /** Records for a transcript outside the main session — see `LiveToolCard`. */
   runs?: Record<string, ToolRunState>;
 }) {
@@ -194,7 +206,9 @@ const ToolRunGroup = function ToolRun({
    * still going is said by the highlight gliding along it, which is the one thing a count of
    * events nobody witnessed was standing in for.
    */
-  const summary = describeRun(calls.map(({ block }) => ({ toolName: block.name, subject: subjectOf(block) })));
+  const summary = describeCalls(calls);
+  // The expanded layout (设置 › 外观 › 调用链) keeps the grouped line even where `flat` is asked for.
+  const chain = useCallChain();
   // Totals across the run, so a fold does not hide how much changed — counted from this screen's records.
   const added = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "added"), 0));
   const removed = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "removed"), 0));
@@ -206,6 +220,9 @@ const ToolRunGroup = function ToolRun({
   const cards = calls.map(({ block, stopReason }) => (
     <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} dispatch={byCall.get(block.id)} />
   ));
+
+  // `contents`, so each call sits in the surrounding column's own gap; the attribute keeps the run findable.
+  if (flat && chain === "collapsed") return <div data-ly-run={live ? "running" : "done"} className="contents">{cards}</div>;
 
   return (
     <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}
@@ -237,6 +254,11 @@ const ToolRunGroup = function ToolRun({
  */
 export const ToolRun = memo(ToolRunGroup, sameRun);
 
+
+/** What a set of calls did, in words — the same sentence a run line and a turn line use. */
+export function describeCalls(calls: Call[]): string {
+  return describeRun(calls.map(({ block }) => ({ toolName: block.name, subject: subjectOf(block) })));
+}
 
 /** The file a call is about, when it is about one — the part worth naming in a summary. */
 function subjectOf(block: Extract<AssistantContent, { type: "toolCall" }>): string | undefined {
