@@ -672,7 +672,15 @@ export interface TurnBlock {
 
 /** Whether this run is process — as opposed to what is said. */
 function isProcess(run: Run): boolean {
-	if (run.kind === "tools" || run.kind === "hiccup" || run.kind === "compaction") return true;
+	if (run.kind === "tools" || run.kind === "compaction") return true;
+	/*
+	 * A dropped connection is process once it is over — recovered, or moved to another model — and
+	 * news while it is not. Waiting, it is the countdown to the retry, and under the default call chain
+	 * the process is folded even while the turn runs: folded in with it, the turn sat silent through
+	 * the whole wait, which is when a person gives up and sends the message again by hand. Given up,
+	 * it is the turn's last word and carries its 继续; folded, it was gone the moment the turn ended.
+	 */
+	if (run.kind === "hiccup") return run.hiccup.outcome !== "waiting" && run.hiccup.outcome !== "gave_up";
 	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
 	return run.kind === "message" && (run.lead === true || thinkingOnly(run));
 }

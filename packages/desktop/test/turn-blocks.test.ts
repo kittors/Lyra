@@ -89,6 +89,14 @@ test("只有重连标记、没有推理和工具的一段不收成一行", () =>
 	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "plain", "plain", "plain"]);
 });
 
+test("断线还在等、或者已经放弃时，留在折叠外面；收了场才算过程", () => {
+	// The fold is shut while a turn runs under the default call chain, so what is inside it is unseen.
+	const drop = (outcome: string) => ({ kind: "hiccup", hiccup: { outcome } }) as unknown as Run;
+	assert.deepEqual(shape([ask("跑一下", 0), work(1), drop("waiting")]), ["plain", "process", "plain"], "等重试的倒计时要看得见");
+	assert.deepEqual(shape([ask("跑一下", 0), work(1), drop("gave_up")]), ["plain", "process", "plain"], "放弃了的那条带着「继续」");
+	assert.deepEqual(shape([ask("跑一下", 0), work(1), drop("recovered"), work(2)]), ["plain", "process"], "救回来的断线是这段活里的一件事");
+});
+
 test("一条什么都没说出来的失败回复不被收进过程", () => {
 	const failed: Run = { kind: "message", message: { role: "assistant", content: [], stopReason: "error" } as Message, index: 2, upTo: 0 };
 	const blocks = turnBlocks([ask("跑一下", 0), work(1), failed]);

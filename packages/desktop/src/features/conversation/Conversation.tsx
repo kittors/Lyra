@@ -488,6 +488,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                    * 并把正在进行的工作收起来，而那正是人盯着看的时候。录像里抓到过一次。
                    */
                   running={running && block.turn === blocks[blocks.length - 1].turn}
+                  // The stretch holding the run being worked on, by the same rule as that run's own highlight.
+                  live={running && block.runs.some((run) => run.kind === "tools" && Boolean(run.live))}
                   stateKey={key}
                   trailing={delegated.length > 0 ? <TurnFaces calls={delegated} /> : undefined}
                 >
