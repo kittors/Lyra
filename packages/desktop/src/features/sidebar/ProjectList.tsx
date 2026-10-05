@@ -12,18 +12,21 @@ import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { GroupActivity } from "./GroupActivity.tsx";
 import { ChevronRight, Plus } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
+import { onPhone } from "../../services/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
-import type { Grouped } from "./grouping.ts";
+import type { Grouped } from "../../lib/sidebar-grouping.ts";
 import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
 import { useSidebarReorder } from "./useSidebarReorder.ts";
+import { useUnfold } from "./useUnfold.ts";
 import { SidebarReorderContext } from "./reorder-context.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { CarriedPill } from "./DropIndicator.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * Fold keys for the two sections, which are not projects and have no path.
@@ -37,7 +40,6 @@ const RECENT = "§recent";
 
 export function ProjectList({
 	groups,
-	activePath,
 	collapsed,
 	onToggleCollapsed,
 	groupProps,
@@ -50,8 +52,6 @@ export function ProjectList({
 	empty,
 }: {
 	groups: Grouped;
-	/** The project the workspace is currently on, which is drawn as open. */
-	activePath: string | undefined;
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
@@ -68,6 +68,8 @@ export function ProjectList({
 	const { compact } = useLayout();
 	const reorder = useSidebarReorder(groups, sort, onReordered);
 	const [creating, setCreating] = useState(false);
+	const looseRows = useRef<HTMLDivElement>(null);
+	const unfoldLoose = useUnfold(looseRows);
 	const pinnedShut = collapsed.includes(PINNED);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0 || groups.pinned.length > 0;
 	const pinnedCount = (groups.pinnedSessions?.length ?? 0) + groups.pinned.length;
@@ -86,7 +88,7 @@ export function ProjectList({
 						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
-						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[4px]"}`}>
+						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 							{groups.pinnedSessions?.map((session) => (
 								<SessionRow
 									key={session.id}
@@ -100,7 +102,6 @@ export function ProjectList({
 							<ProjectGroup
 								key={group.path}
 								group={group}
-								active={activePath === group.path}
 								pins={!pinnedShut}
 								{...groupProps(group.path)}
 							/>
@@ -133,23 +134,21 @@ export function ProjectList({
 						 * other intent — adding one — and the list of them is where you are when
 						 * you have it.
 						 */
+						// A project is a settings entry, which a phone may not write (see phone-settings.ts).
 						action={
-							<button
-								type="button"
+							!onPhone() && <IconButton
+								size="sm"
+								label={translate("project.new")}
 								onClick={() => setCreating(true)}
-								data-ly-tip={translate("project.new")}
-								aria-label={translate("project.new")}
-								className="rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-							>
-								<Plus size={13} strokeWidth={2} aria-hidden />
-							</button>
+								icon={<Plus size={13} strokeWidth={2} aria-hidden />}
+							/>
 						}
 					>
 						{translate("projectList.projects")}
 					</SectionLabel>
 					<Collapsible open={!collapsed.includes(PROJECTS)}>
 						{groups.projects.map((group) => (
-							<ProjectGroup key={group.path} group={group} active={activePath === group.path} {...groupProps(group.path)} />
+							<ProjectGroup key={group.path} group={group} {...groupProps(group.path)} />
 						))}
 					</Collapsible>
 				</>
@@ -170,19 +169,22 @@ export function ProjectList({
 					{/* Flat rows, the same ones a project shows — the section is what differs, not the
 					    conversation. Same gap as inside a project, so the two read as one list. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
-						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[4px]"}`}>
-							{groups.loose.slice(0, looseShown).map((session) => (
-								<SessionRow
-									key={session.id}
-									session={session}
-									{...rowActions(actions, session)}
-								/>
-							))}
+						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
+							{/* 只包住行，理由见 `useUnfold`。 */}
+							<div ref={looseRows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
+								{groups.loose.slice(0, looseShown).map((session) => (
+									<SessionRow
+										key={session.id}
+										session={session}
+										{...rowActions(actions, session)}
+									/>
+								))}
+							</div>
 							<ShowMore
 								hidden={Math.max(0, groups.loose.length - looseShown)}
 								canCollapse={looseShown > SESSION_PAGE}
-								onShowMore={onLooseMore}
-								onCollapse={onLooseCollapse}
+								onShowMore={unfoldLoose.unfold(onLooseMore)}
+								onCollapse={unfoldLoose.fold(SESSION_PAGE, onLooseCollapse)}
 							/>
 						</div>
 					</Collapsible>
@@ -243,7 +245,7 @@ function SectionLabel({
 	return (
 		// Not a button around a button. The heading stays the fold's target; the action is a
 		// sibling laid over its trailing edge.
-		<div className={`group/section relative flex w-full items-center ${first ? "" : "pt-4"}`}>
+		<div data-ly-fades className={`group/section relative flex w-full items-center ${first ? "" : "pt-4"}`}>
 			<button
 				type="button"
 				data-ly-section={section}

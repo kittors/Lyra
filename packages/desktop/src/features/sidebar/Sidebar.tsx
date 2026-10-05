@@ -10,7 +10,7 @@
  * `sidebar/useStickyFade` and `sidebar/sticky.ts`.
  *
  * Only the pane itself is here. Which conversations are listed and what a row does is
- * `sidebar/useSidebarLists`; the rules underneath it are `sidebar/grouping` and `sidebar/recency`.
+ * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping` and `sidebar/recency`.
  */
 
 import { Archive, ListFilter, SquarePen } from "lucide-react";
@@ -54,7 +54,6 @@ const SORT_KEY = "ly-sidebar-sort";
 
 export function Sidebar() {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace);
 	const scratchRoots = useApp((s) => s.scratchRoots);
 	const newSession = useApp((s) => s.newSession);
 	const adoptSidebarTab = useApp((s) => s.adoptSidebarTab);
@@ -174,7 +173,7 @@ export function Sidebar() {
 	 * The strip's own box includes the space around it — see the padding below — so this is its full
 	 * height, and a heading stopping here lands flush under it with nothing transparent in between.
 	 */
-	const rail = phone ? PHONE_RAIL : 6 + (compact ? 38 : 32) + 6;
+	const rail = phone ? PHONE_RAIL : 6 + (compact ? 38 : 28) + 6;
 	useStickyFade(viewport, 0, rail);
 
 	const { archived, groups, matching, bands, actions, confirm } = useSidebarLists({
@@ -287,7 +286,7 @@ export function Sidebar() {
 			{!phone && (
 				<nav className={`flex flex-col pb-1 ${pad}`}>
 					<NavItem
-						icon={<SquarePen size={15} strokeWidth={1.8} />}
+						icon={<SquarePen size={16} />}
 						label={t("sidebar.newChat")}
 						onClick={() => {
 							void newSession();
@@ -319,17 +318,13 @@ export function Sidebar() {
 				 *
 				 * `sticky` rather than a copy placed over the pane: the list moves on the compositor,
 				 * and anything positioned from JavaScript arrives a frame after it does — which is a
-				 * row visibly wobbling by a wheel tick. The cost is `ly-pin`, an opaque fill, because
-				 * a row held over a list has to hide what passes under it. `sidebar/sticky.ts` has
-				 * the whole account.
+				 * row visibly wobbling by a wheel tick. `sidebar/sticky.ts` has the whole account.
 				 *
-				 * Padding rather than margin for the breathing room, which is the opposite of what it
-				 * wants to be and is load-bearing: a margin is outside the fill, so the six pixels
-				 * above and below the control stay transparent — and a heading being pushed out
-				 * travels up through exactly there. `z-30` puts this over the headings; the padding
-				 * is what gives it something to hide them behind.
+				 * 不铺底：这一栏在 macOS 上是半透明的，不透明的底色对不上。从它底下滚过去的行和被顶出去的
+				 * 标题都在滑进来之前自己淡没了（`.ly-sidebar-fill` 的 `ly-under-pin`），这里没有东西要挡。
+				 * 上下的留白算在它自己的高度里（`rail` 就是按这个算的），标题停在它正下方。
 				 */}
-				<div data-ly-rail className="ly-pin sticky top-0 z-30 py-1.5">
+				<div data-ly-rail className="sticky top-0 z-30 py-1.5">
 					<SidebarTabs
 						tab={tab}
 						onChange={changeTab}
@@ -362,7 +357,6 @@ export function Sidebar() {
 					{tab === "projects" ? (
 						<ProjectList
 							groups={groups}
-							activePath={workspace?.path}
 							collapsed={collapsed}
 							onToggleCollapsed={toggleCollapsed}
 							groupProps={(path) => ({

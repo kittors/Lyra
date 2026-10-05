@@ -15,25 +15,24 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ChevronRight, Folder, MoreHorizontal, SquarePen } from "lucide-react";
+import { Folder, FolderOpen, MoreHorizontal, SquarePen } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GroupActivity } from "./GroupActivity.tsx";
-import type { Group } from "./grouping.ts";
+import type { Group } from "../../lib/sidebar-grouping.ts";
 import { startProjectSession } from "../../store/project-session.ts";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ProjectHead({
 	group,
-	active,
 	collapsed,
 	onToggleCollapsed,
 }: {
 	group: Group;
-	active: boolean;
 	collapsed: boolean;
 	onToggleCollapsed: () => void;
 }) {
@@ -85,31 +84,12 @@ export function ProjectHead({
 				type="button"
 				aria-expanded={!collapsed}
 				onClick={onToggleCollapsed}
-				className={`flex w-full items-center gap-2.5 rounded-lg pr-2 pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
-					compact ? "h-[40px]" : "h-[31px]"
-				} ${active ? "font-medium text-ink" : "text-ink group-hover/row:text-ink"}`}
+				className={`flex w-full items-center gap-2 rounded-lg pr-2 pl-2.5 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] ${
+					compact ? "h-[40px]" : "h-[32px]"
+				}`}
 			>
-				{/*
-				 * The folder turns into a chevron under the pointer.
-				 *
-				 * At rest the icon says what the row is; reaching for it, it says what pressing
-				 * will do. Two marks in one place, neither of them a permanent extra control —
-				 * and the rotation carries the open/shut state without a third element.
-				 */}
-				<span className={`relative h-[15px] w-[15px] shrink-0 ${active ? "text-accent" : "text-ink-muted"}`}>
-					<Folder
-						size={15}
-						strokeWidth={1.8}
-						className="absolute inset-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0"
-					/>
-					<ChevronRight
-						size={15}
-						strokeWidth={2}
-						className={`absolute inset-0 opacity-0 transition-[opacity,transform] duration-[var(--ly-t-quick)] group-hover/row:opacity-100 ${
-							collapsed ? "" : "rotate-90"
-						}`}
-					/>
-				</span>
+				{/* 只用文件夹本身表示开合，不在悬停时换成箭头。 */}
+				<span className="shrink-0">{collapsed ? <Folder size={16} /> : <FolderOpen size={16} />}</span>
 				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
 				{/*
 				 * How many are folded away, so a shut project is not indistinguishable from an
@@ -144,25 +124,23 @@ export function ProjectHead({
 			</button>
 
 			<HoverRowReveal className="gap-0.5 rounded-r-lg">
-				<button
-					type="button"
-					data-ly-tip={translate("projectHead.newSession")}
-					aria-label={translate("projectHead.newSessionIn", { name: group.name })}
+				<IconButton
+					size="sm"
+					label={translate("projectHead.newSession")}
+					ariaLabel={translate("projectHead.newSessionIn", { name: group.name })}
 					onClick={() => void startProjectSession(group.path, collapsed ? onToggleCollapsed : undefined)}
-					className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-				>
-					<SquarePen size={13} strokeWidth={1.8} />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={translate("projectHead.actions")}
-					aria-label={translate("projectHead.actionsFor", { name: group.name })}
-					aria-haspopup="menu"
+					className="pointer-events-auto"
+					icon={<SquarePen size={13} strokeWidth={1.8} />}
+				/>
+				<IconButton
+					size="sm"
+					label={translate("projectHead.actions")}
+					ariaLabel={translate("projectHead.actionsFor", { name: group.name })}
+					menu={menu.open}
 					onClick={menu.toggle}
-					className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-				>
-					<MoreHorizontal size={13} strokeWidth={1.8} />
-				</button>
+					className="pointer-events-auto"
+					icon={<MoreHorizontal size={13} strokeWidth={1.8} />}
+				/>
 			</HoverRowReveal>
 
 			{menu.open && <ProjectMenu anchor={menu.anchor} path={group.path} name={group.name} onClose={menu.close} />}

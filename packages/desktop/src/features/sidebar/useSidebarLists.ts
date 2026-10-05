@@ -18,7 +18,7 @@ import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { openInPane } from "../split/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { groupSessions, listableSessions, type Grouped } from "./grouping.ts";
+import { emptiedProjects, groupSessions, listableSessions, type Grouped } from "../../lib/sidebar-grouping.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { bandByRecency, type RecencyBand } from "./recency.ts";
 import type { RowActions } from "./SessionRow.tsx";
@@ -69,19 +69,7 @@ export function useSidebarLists({
 		[archiveOpen, archived, listable, poolSortField],
 	);
 
-	/*
-	 * Projects whose conversations are all in the archive.
-	 *
-	 * Computed here because this is the only place that can see both halves: `pool` is what the
-	 * list shows and `archived` is what it does not, and the question — "did this project have
-	 * conversations before they were archived?" — cannot be answered from either alone.
-	 */
-	const emptied = useMemo(() => {
-		const live = new Set(listable.map((s) => s.cwd));
-		const out = new Set<string>();
-		for (const session of archived) if (!live.has(session.cwd)) out.add(session.cwd);
-		return out;
-	}, [listable, archived]);
+	const emptied = useMemo(() => emptiedProjects(listable, archived), [listable, archived]);
 
 	const groups = useMemo(
 		() =>
@@ -99,6 +87,7 @@ export function useSidebarLists({
 				 * the reader came to look at, and hiding it would empty the view they opened.
 				 */
 				!archiveOpen && (settings?.hideEmptiedProjects ?? false),
+				!archiveOpen,
 			),
 		[pool, settings, query, scratchRoots, sort, emptied, archiveOpen],
 	);
@@ -135,7 +124,7 @@ export function useSidebarLists({
 	 *
 	 * What makes that safe is `listableSessions`, which lets the conversation you have open through
 	 * whether or not it is filed. It is in the sidebar the whole time; the row simply offers to take
-	 * it out instead of offering to put it away. See `grouping.ts`.
+	 * it out instead of offering to put it away. See `lib/sidebar-grouping.ts`.
 	 */
 	const confirm = useConfirmer();
 	const open = (meta: SessionMeta) => {

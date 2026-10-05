@@ -12,7 +12,8 @@
 import { useRef } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { useReflow } from "./useReflow.ts";
-import { isScratch } from "./grouping.ts";
+import { useUnfold } from "./useUnfold.ts";
+import { isScratch } from "../../lib/sidebar-grouping.ts";
 import type { RecencyBand } from "./recency.ts";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
@@ -32,8 +33,8 @@ function BandHead({ label }: { label: string }) {
 	const { compact } = useLayout();
 	return (
 		<div
-			className={`flex items-center px-2 text-detail font-medium text-ink-faint ${
-				compact ? "h-[30px]" : "h-[24px]"
+			className={`flex items-center px-2.5 text-label font-medium text-ink-faint ${
+				compact ? "h-[30px]" : "h-[28px]"
 			}`}
 		>
 			{label}
@@ -73,43 +74,48 @@ export function ChatList({
 	 */
 	const shape = bands.map((band) => `${band.key}:${band.sessions.map((one) => one.id).join(",")}`).join("|");
 	useReflow(host, shape);
+	const rows = useRef<HTMLDivElement>(null);
+	const unfold = useUnfold(rows);
 
 	if (bands.length === 0) return <>{empty}</>;
 
 	return (
 		<div ref={host}>
-			{bands.map((band, index) => (
-				// The gap sits on the band rather than on its heading — see `BandHead`. The first
-				// band gets none: it opens the list, and a list that starts with a gap reads as
-				// something above it having failed to render.
-				<div key={band.key} className={index === 0 ? "" : "mt-3"}>
-					{/* Held at the rail for as long as this band is what you are scrolling through —
-					    see `ProjectGroup` for why being sticky inside the band is the hand-off. */}
-					<div data-ly-head className="ly-pin sticky top-[var(--ly-rail)] z-20">
-						<BandHead label={band.label} />
+			{/* 只包住各段，不含下面的展开显示按钮，理由见 `useUnfold`。 */}
+			<div ref={rows}>
+				{bands.map((band, index) => (
+					// The gap sits on the band rather than on its heading — see `BandHead`. The first
+					// band gets none: it opens the list, and a list that starts with a gap reads as
+					// something above it having failed to render.
+					<div key={band.key} data-ly-band className={index === 0 ? "" : "mt-3"}>
+						{/* Held at the rail for as long as this band is what you are scrolling through —
+						    see `ProjectGroup` for why being sticky inside the band is the hand-off. */}
+						<div data-ly-head className="sticky top-[var(--ly-rail)] z-20">
+							<BandHead label={band.label} />
+						</div>
+						<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
+							{band.sessions.map((session) => (
+								<SessionRow
+									key={session.id}
+									session={session}
+									/*
+									 * Which project, as a tip rather than as a column.
+									 *
+									 * It used to be printed on every row, and in a list of forty that is a
+									 * second column of names competing with the titles for the same width —
+									 * the titles are what you are reading, and they were the ones being
+									 * truncated to make room. Kept for the moments you actually need it: it
+									 * is one hover away, alongside the full title.
+									 */
+									project={isScratch(session.cwd, scratchRoots) ? undefined : session.projectName}
+									{...rowActions(actions, session)}
+								/>
+							))}
+						</div>
 					</div>
-					<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[4px] pt-[4px]"}`}>
-						{band.sessions.map((session) => (
-							<SessionRow
-								key={session.id}
-								session={session}
-								/*
-								 * Which project, as a tip rather than as a column.
-								 *
-								 * It used to be printed on every row, and in a list of forty that is a
-								 * second column of names competing with the titles for the same width —
-								 * the titles are what you are reading, and they were the ones being
-								 * truncated to make room. Kept for the moments you actually need it: it
-								 * is one hover away, alongside the full title.
-								 */
-								project={isScratch(session.cwd, scratchRoots) ? undefined : session.projectName}
-								{...rowActions(actions, session)}
-							/>
-						))}
-					</div>
-				</div>
-			))}
-			<ShowMore hidden={hidden} canCollapse={canCollapse} onShowMore={onShowMore} onCollapse={onCollapse} />
+				))}
+			</div>
+			<ShowMore hidden={hidden} canCollapse={canCollapse} onShowMore={unfold.unfold(onShowMore)} onCollapse={unfold.fold(CHAT_PAGE, onCollapse)} />
 		</div>
 	);
 }

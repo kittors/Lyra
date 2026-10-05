@@ -39,10 +39,9 @@ const SIDEBAR_TABS: { value: SidebarTab; labelKey: MessageKey; Icon: typeof Fold
 /**
  * The least that a tab's padding is squeezed to before the words go. Any tighter and the mark and
  * the word are pressed up against the knob's edges, which reads as crammed in rather than as a tab.
+ * 4px against the capsule's own 6/8px (`pl-1.5 pr-2`) — the same proportion as 8 against 12.
  */
-const PAD_FLOOR = 8;
-/** The track's own padding, which the knob sits inside: `p-[3px]` below. */
-const TRACK = 3;
+const PAD_FLOOR = 4;
 
 /**
  * A word's own width, whether or not it is on screen right now.
@@ -62,7 +61,8 @@ function wordWidth(label: HTMLElement | null): number {
  *
  * Shared so the two cannot drift apart, which they already had once: two buttons of two heights
  * either side of a control that is a third height reads as three unrelated things rather than one
- * row. The height is the strip's, exactly, so the row has one baseline.
+ * row. Sized at 24px — the strip's own tabs are 24px too, so the buttons line
+ * up with them rather than with the strip's outer edge.
  */
 export function StripButton({
 	label,
@@ -83,8 +83,8 @@ export function StripButton({
 			aria-label={label}
 			aria-pressed={active}
 			onClick={onClick}
-			className={`relative flex shrink-0 items-center justify-center rounded-lg transition-colors duration-[var(--ly-t-quick)] ${
-				compact ? "h-[38px] w-[38px]" : "h-[32px] w-[32px]"
+			className={`relative flex shrink-0 items-center justify-center transition-colors duration-[var(--ly-t-quick)] ${
+				compact ? "h-[38px] w-[38px] rounded-lg" : "h-[24px] w-[24px] rounded-lg"
 			} ${active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"}`}
 		>
 			{children}
@@ -110,6 +110,8 @@ export function SidebarTabs({
 }) {
 	const { compact } = useLayout();
 	const { t } = useI18n();
+	// 胶囊是 28px：2px 内边距包 24px 标签；抽屉模式保留原来的 3px 内边距，整条仍是 38px。
+	const pad = compact ? 3 : 2;
 	const row = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLDivElement>(null);
 	const beside = useRef<HTMLDivElement>(null);
@@ -155,12 +157,16 @@ export function SidebarTabs({
 			const tabs = [...listNode.querySelectorAll<HTMLElement>("[data-ly-tab]")];
 			if (tabs.length === 0) return;
 			const style = getComputedStyle(tabs[0]);
-			if (squeeze === null) full.current = Number.parseFloat(style.paddingLeft);
+			// The capsule's padding is uneven (`pl-1.5 pr-2`); the fit squeezes both sides alike, so it
+			// works from their mean — which is also what the two sides add up to between them.
+			if (squeeze === null) {
+				full.current = (Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight)) / 2;
+			}
 			const trailingWidth = beside.current
 				? beside.current.offsetWidth + Number.parseFloat(getComputedStyle(rowNode).columnGap)
 				: 0;
 			const next = fitTabs(
-				rowNode.clientWidth - trailingWidth - TRACK * 2,
+				rowNode.clientWidth - trailingWidth - pad * 2,
 				tabs.map((node) => wordWidth(node.querySelector<HTMLElement>("[data-ly-tab-label]"))),
 				(tabs[0].querySelector("svg")?.getBoundingClientRect().width ?? 0) + Number.parseFloat(style.columnGap),
 				{ full: full.current, floor: PAD_FLOOR },
@@ -179,7 +185,7 @@ export function SidebarTabs({
 		observer.observe(rowNode);
 		for (const node of listNode.querySelectorAll("[data-ly-tab]")) observer.observe(node);
 		return () => observer.disconnect();
-	}, [tab, squeeze, words, compact, labels]);
+	}, [tab, squeeze, words, compact, labels, pad]);
 
 	return (
 		/*
@@ -209,21 +215,21 @@ export function SidebarTabs({
 			 * same control was a different size in every window. Its size is a property of what is
 			 * written on it. The buttons go to the far end on their own; see `ml-auto` below.
 			 */}
-			<div ref={list} role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-full p-[3px]">
+			<div ref={list} role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-full" style={{ padding: pad }}>
 				{/*
 				 * One fill that moves, rather than a fill per tab that appears and disappears.
 				 *
 				 * Measured off the chosen tab rather than computed as half the strip. Half held while
-				 * both words were two characters; 「プロジェクト」 is three times 「会話」, and a knob
-				 * half the strip wide left the longer word running out of it and into its neighbour.
+				 * both words were two characters; "Projects" is half again "Chats", and a knob half
+				 * the strip wide left the longer word running out of it and into its neighbour.
 				 */}
 				{knob && (
 					<span
 						aria-hidden
 						// `ly-freeze`: the tabs give way as the sidebar narrows, so dragging its edge can
 						// move the knob every frame — see the freeze rule in `styles.css`.
-						className="ly-tabs-knob ly-freeze absolute inset-y-[3px] left-0 rounded-full transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
-						style={{ width: knob.width, transform: `translateX(${knob.left}px)` }}
+						className="ly-tabs-knob ly-freeze absolute left-0 rounded-full transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+						style={{ top: pad, bottom: pad, width: knob.width, transform: `translateX(${knob.left}px)` }}
 					/>
 				)}
 				{SIDEBAR_TABS.map(({ value, labelKey, Icon }) => {
@@ -242,14 +248,14 @@ export function SidebarTabs({
 							/* Each as wide as its own word. `min-w-0` for the frame between the row
 							   narrowing and the fit catching up: the word is cut short for that frame
 							   rather than running under the buttons beside the strip. */
-							className={`relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
-								compact ? "h-[32px] px-3.5 text-body" : "h-[26px] px-3 text-label"
-							} ${current ? "font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+							className={`relative z-10 flex min-w-0 items-center justify-center rounded-full font-medium transition-colors duration-[var(--ly-t-quick)] ${
+								compact ? "h-[32px] gap-1.5 px-3.5 text-body" : "h-[24px] gap-1 pr-2 pl-1.5 text-caption"
+							} ${current ? "text-ink" : "text-ink-muted hover:text-ink"}`}
 							style={squeeze === null ? undefined : { paddingInline: squeeze }}
 						>
 							{/* A step below the label's weight. The mark is there to be recognised at a
 							    glance, not read, and at the same strength it competes with the word. */}
-							<Icon size={13} strokeWidth={current ? 2 : 1.8} className="shrink-0" />
+							<Icon size={compact ? 13 : 12} strokeWidth={current ? 2 : 1.8} className="shrink-0" />
 							{/* The word is what yields when the row runs out of room; the mark beside it
 							    still says which tab this is. Hidden rather than removed, so the tab
 							    keeps its name for a screen reader, and so the word can still be
@@ -265,7 +271,7 @@ export function SidebarTabs({
 			    are one group of controls acting on the list, and the strip is the list's own
 			    switch. Even spacing read as four unrelated things in a row. */}
 			{trailing && (
-				<div ref={beside} className="ml-auto flex shrink-0 items-center gap-0.5">
+				<div ref={beside} className="ml-auto flex shrink-0 items-center gap-1">
 					{trailing}
 				</div>
 			)}

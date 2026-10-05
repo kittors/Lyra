@@ -33,16 +33,16 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 	};
 
 	return (
-		<div className="flex flex-col gap-[2px] pb-1">
+		<div className="flex flex-col gap-[4px] pb-1">
 			<NavItem
 				active={view === "pull-requests"}
-				icon={<GitPullRequest size={15} strokeWidth={1.8} />}
+				icon={<GitPullRequest size={16} />}
 				label={t("sidebar.pullRequests")}
 				onClick={go("pull-requests")}
 			/>
 			<NavItem
 				active={view === "scheduled"}
-				icon={<Clock size={15} strokeWidth={1.8} />}
+				icon={<Clock size={16} />}
 				label={t("sidebar.scheduled")}
 				onClick={go("scheduled")}
 				badge={view === "scheduled" ? 0 : failures}
@@ -58,7 +58,7 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 			 */}
 			<NavItem
 				active={view === "plugins"}
-				icon={<Blocks size={15} strokeWidth={1.8} />}
+				icon={<Blocks size={16} />}
 				label={t("sidebar.plugins")}
 				onClick={go("plugins")}
 				badge={waiting}

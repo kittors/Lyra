@@ -12,10 +12,38 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { FADE_TOP } from "../../ui/scroll/Scroller.tsx";
-import { fadeGeometry, heldBand, isPinned, type FadeGeometry, type StickyRow } from "./sticky.ts";
+import { fadeGeometry, heldBand, type FadeGeometry, type StickyRow } from "./sticky.ts";
 
-/** Marks a row the browser is currently holding at its rail. `.ly-pin` fills only while it is set. */
-const STUCK = "data-ly-stuck";
+/** 要按钉住的行的下沿淡没的元素，读 `--ly-held-edge` 的就是它们（`misc.css` 的 `ly-under-pin`）。 */
+const EDGE_READERS = "[data-ly-row], [data-ly-fades], [data-ly-band]";
+
+/*
+ * 这条线只写给顶上那一段里的元素：视口上方四分之一屏到视口一半。
+ *
+ * 从前写在滚动区上，靠继承传给每一行。可继承的变量一变，整棵列表都要重算样式，开销跟挂着的元素数
+ * 成正比——两百个项目时一次一百毫秒，二十个项目也要十毫秒，而滚过项目标题交接时几乎每帧都在变。
+ * 真正用得上这条线的只有快滑到钉住的行底下的那几行：下面的行离线还远，值旧一点也照样不透明；
+ * 滑出上沿的行已经是 0。所以变量注册成不继承，只写给这一段里的几十个元素。
+ *
+ * 上面留四分之一屏，是给往回滚、从上沿重新进来的行：`IntersectionObserver` 晚一帧才报，要赶在它们
+ * 露出来之前补上。
+ */
+const NEAR_TOP = "25% 0px -50% 0px";
+
+/*
+ * 分组比行挑得更紧：只有下沿离线不到这么远的才写。
+ *
+ * 分组身上挂着滚动时间线（标题靠它淡出），改一次要连着重算整组的子树，一次半毫秒多；收起的项目只有
+ * 一个标题高，顶上那一段能排下十来个，每帧都全写一遍就又是十几毫秒。而标题只在分组下沿离线 36px
+ * 以内才淡，再往下的分组值旧一点没有关系。多留的这一段是给一帧滚过的距离，要赶在下沿进 36px 之前写上。
+ */
+const BAND_LEAD = FADE_TOP + 48;
+
+function writeEdge(node: HTMLElement, edge: number, written: WeakMap<HTMLElement, number>): void {
+	if (written.get(node) === edge) return;
+	node.style.setProperty("--ly-held-edge", `${edge}px`);
+	written.set(node, edge);
+}
 
 /**
  * Attach to a scroll viewport. `rail` is the offset headings rest at, in pixels — the strip rests
@@ -27,6 +55,10 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	const stale = useRef(true);
 	const written = useRef<FadeGeometry>({ top: -1, inset: -1, room: -1, run: -1 });
 	const frame = useRef(0);
+	/** 顶上那一段里的读者，和每个读者身上现在写着的值。见 `NEAR_TOP`。 */
+	const near = useRef(new Set<HTMLElement>());
+	const edgeOn = useRef(new WeakMap<HTMLElement, number>());
+	const edge = useRef(0);
 
 	const measure = useCallback(() => {
 		const view = viewport.current;
@@ -74,6 +106,14 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		 */
 		const next = fadeGeometry(band);
 
+		// 还在读的阶段，量完再写，理由同上。
+		const bands: HTMLElement[] = [];
+		for (const node of near.current) {
+			if (!node.hasAttribute("data-ly-band")) continue;
+			const bottom = node.getBoundingClientRect().bottom - origin;
+			if (bottom >= 0 && bottom <= next.inset + BAND_LEAD) bands.push(node);
+		}
+
 		const last = written.current;
 		if (last.top !== next.top || last.inset !== next.inset || last.room !== next.room || last.run !== next.run) {
 			view.style.setProperty("--ly-hold-top", `${next.top}px`);
@@ -82,26 +122,13 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 			view.style.setProperty("--ly-hold-run", `${next.run}px`);
 			written.current = next;
 		}
-
 		/*
-		 * And which rows are being held, so only those draw a fill.
-		 *
-		 * The fill exists to hide the list passing underneath a held row, and a row travelling with
-		 * the list has nothing passing underneath it — so on a translucent pane it was a band of
-		 * opaque colour sitting on every project name at rest, which is what the pane is translucent
-		 * to avoid. CSS cannot ask "is this sticky element currently stuck", and this loop has just
-		 * measured exactly that.
-		 *
-		 * After the reads and after the one style write, never between them: an attribute that only
-		 * selects a background changes no geometry, so nothing below needs measuring again. Compared
-		 * before writing because this runs on every frame of every scroll and the state flips once
-		 * per row per pass.
+		 * 同一条下沿，再写一份给列表的行读：它们要按这条线在滑进钉住的行底下之前淡没。只写顶上那一段，
+		 * 见 `NEAR_TOP` 和 `BAND_LEAD`。线没变也要走一遍：分组是按位置挑的，刚滑进来的要补上。
 		 */
-		for (let i = 0; i < measured.length; i++) {
-			const node = rows.current[i].node;
-			const held = isPinned(measured[i]);
-			if (node.hasAttribute(STUCK) !== held) node.toggleAttribute(STUCK, held);
-		}
+		edge.current = next.inset;
+		for (const node of near.current) if (!node.hasAttribute("data-ly-band")) writeEdge(node, next.inset, edgeOn.current);
+		for (const node of bands) writeEdge(node, next.inset, edgeOn.current);
 	}, [viewport, gap, rail]);
 
 	const schedule = useCallback(() => {
@@ -115,6 +142,8 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	useLayoutEffect(() => {
 		const view = viewport.current;
 		if (!view) return;
+		// 这个集合本身不换，只增删成员；取一次给清理用，不在清理时再读 ref。
+		const nearby = near.current;
 		stale.current = true;
 		measure();
 
@@ -134,12 +163,51 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		watch();
 
 		/*
+		 * 新挂上的读者当场写上现在的值，不等它进了顶上那一段再补：切标签、开归档时整张列表是在顶上
+		 * 换出来的，等一帧就是一帧没按线淡的行。
+		 */
+		const readers = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					const node = entry.target as HTMLElement;
+					if (!entry.isIntersecting) {
+						near.current.delete(node);
+						continue;
+					}
+					near.current.add(node);
+					// 分组等 `measure` 按位置挑，这里一写就是每个滑进来的分组都付一次重算。
+					if (!node.hasAttribute("data-ly-band")) writeEdge(node, edge.current, edgeOn.current);
+				}
+			},
+			{ root: view, rootMargin: NEAR_TOP },
+		);
+		const within = (root: HTMLElement) => [...(root.matches(EDGE_READERS) ? [root] : []), ...root.querySelectorAll<HTMLElement>(EDGE_READERS)];
+		const adopt = (root: HTMLElement) => {
+			for (const node of within(root)) {
+				writeEdge(node, edge.current, edgeOn.current);
+				readers.observe(node);
+			}
+		};
+		const drop = (root: HTMLElement) => {
+			for (const node of within(root)) {
+				readers.unobserve(node);
+				near.current.delete(node);
+			}
+		};
+		adopt(view);
+
+		/*
 		 * Marks the cached rows stale and asks for a frame; it does not go looking for them here.
 		 * Titles type themselves out a character at a time, which is a mutation per frame per
 		 * running conversation, and re-querying the list on each one is work done many times over
-		 * to reach the same answer. The next measurement needs it once.
+		 * to reach the same answer. The next measurement needs it once. Readers that came or went are
+		 * the one thing taken from the records: typing adds text nodes, which carry none.
 		 */
-		const changes = new MutationObserver(() => {
+		const changes = new MutationObserver((records) => {
+			for (const record of records) {
+				for (const node of record.removedNodes) if (node instanceof HTMLElement) drop(node);
+				for (const node of record.addedNodes) if (node instanceof HTMLElement) adopt(node);
+			}
 			stale.current = true;
 			watch();
 			schedule();
@@ -150,6 +218,8 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 			view.removeEventListener("scroll", schedule);
 			sizes.disconnect();
 			changes.disconnect();
+			readers.disconnect();
+			nearby.clear();
 			if (frame.current) cancelAnimationFrame(frame.current);
 		};
 	}, [measure, schedule, viewport]);

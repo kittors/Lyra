@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { dropSessionDrag, paneAtPoint } from "../split/index.ts";
 import type { SortKey } from "./ListMenu.tsx";
-import type { Grouped } from "./grouping.ts";
+import type { Grouped } from "../../lib/sidebar-grouping.ts";
 import type { DraggingItem, DropTarget, SidebarReorderContextValue } from "./reorder-context.ts";
 
 const DRAG_THRESHOLD = 5;

@@ -11,7 +11,7 @@ import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { activeProviderLabel } from "./grouping.ts";
+import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarHead({
 	searching,

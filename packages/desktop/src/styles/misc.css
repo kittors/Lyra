@@ -432,33 +432,77 @@
  */
 .ly-sidebar-fill {
   background: var(--color-sidebar);
-  /*
-   * What a pinned row in this pane is drawn on — see `.ly-pin`.
-   *
-   * The pane's own colour, exactly, which is the whole of the requirement: a held row is then
-   * invisible except for the list disappearing behind it. This pane was translucent for a while
-   * and that exactness was the thing it cost — an opaque fill over a pane showing the desktop
-   * through cannot match it, because nothing in CSS can sample what is behind a window. The
-   * sidebar is opaque again and the fill is the pane again.
-   */
-  --ly-behind: var(--color-sidebar);
 }
 
 /*
- * A row here fills only while it is actually being held.
+ * 列表的行滚到钉住的行底下之前先淡到透明。
  *
- * The fill hides the list passing underneath a pinned row, and a row travelling with the list has
- * nothing passing underneath it — so an unconditional fill is paint that covers nothing. It is
- * invisible here now that the colour matches the pane, but it is still a lie about what the row is
- * doing, and it is what made every project name a visible grey slab back when the pane was glass.
+ * 钉住的行（标签栏、项目和日期标题）在这一栏里不铺底。铺底是为了挡住从底下滚过去的列表，而这一栏在
+ * macOS 上是半透明的（窗口毛玻璃，见 `tabs.css`）：不透明的底色永远对不上透出桌面的那一层，CSS
+ * 采样不到窗户外面。所以反过来，让列表在滚到钉住的行底下之前自己淡没，钉住的行底下就没有东西需要挡。
+ * 不分平台一条路径。
  *
- * CSS has no way to ask whether a `sticky` element is currently stuck, and `useStickyFade` is
- * already measuring exactly that on every frame for the fade — so it marks the rows it finds held
- * and this reads the mark. `sidebar/sticky.ts` has the reasoning for why that measurement is
- * allowed to be a frame late while the placement is not.
+ * 线是 `--ly-held-edge`：已经钉住的那一串行的下沿，`useStickyFade` 每帧量出来写给顶上那一段里的行。行的
+ * 上沿离这条线还有 36px（`FADE_TOP`，和遮罩往下柔化的深度一致）时开始淡，碰到线时正好是 0，之后
+ * 一直是 0。用滚动驱动动画而不是脚本逐帧改透明度：它跟着合成器上的滚动走，不会慢一帧——慢一帧就是
+ * 一行字从钉住的行底下透出来。
+ *
+ * 拖动中的行本来是 `opacity-35`，动画会盖掉它，所以起点读 `--ly-rest`。刚建出来的行有 `ly-drop`
+ * 的落入动画，两个动画要写在一起，否则后写的那条把前一条整个换掉。
  */
-.ly-sidebar-fill .ly-pin:not([data-ly-stuck]) {
-  background: transparent;
+/*
+ * 不继承：只有读它的元素自己身上有值，改一次只重算那几个元素，不牵动它们底下的整棵子树。
+ * 写给谁见 `useStickyFade` 的 `NEAR_TOP`。
+ */
+@property --ly-held-edge {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@keyframes ly-under-pin {
+  from {
+    opacity: var(--ly-rest, 1);
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.ly-sidebar-fill :is([data-ly-row], [data-ly-fades]) {
+  animation: ly-under-pin linear both;
+  animation-timeline: view(block calc(var(--ly-held-edge, 0px) + 36px) 0);
+  animation-range: exit 0% exit 36px;
+}
+
+.ly-sidebar-fill [data-ly-row].ly-drop {
+  animation:
+    ly-under-pin linear both,
+    ly-drop-in var(--ly-t-base) var(--ly-e-out);
+  animation-timeline: view(block calc(var(--ly-held-edge, 0px) + 36px) 0), auto;
+  animation-range: exit 0% exit 36px, normal;
+}
+
+.ly-sidebar-fill [data-ly-row][class~="opacity-35"] {
+  --ly-rest: 0.35;
+}
+
+/*
+ * 被下一个标题顶出去的标题，也得在滑到标签栏底下之前淡没。
+ *
+ * 它是 sticky 的，自己的位置不能用来判断；看它所在的那一组：组的下沿碰到钉住的那一串的下沿，就是
+ * 下一个标题开始顶它的那一刻。所以在组的下沿离那条线还有 36px 时开始淡，顶开始时正好是 0。折起来
+ * 的组只剩标题本身，同一条规则让它像普通的行一样在到顶之前淡掉。
+ */
+.ly-sidebar-fill [data-ly-band] {
+  view-timeline: --ly-band block;
+  view-timeline-inset: var(--ly-held-edge, 0) auto;
+}
+
+.ly-sidebar-fill [data-ly-band] > [data-ly-head] {
+  animation: ly-under-pin linear both;
+  animation-timeline: --ly-band;
+  animation-range: exit calc(100% - 36px) exit 100%;
 }
 
 /*
