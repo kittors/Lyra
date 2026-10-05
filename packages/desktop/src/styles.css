@@ -63,3 +63,11 @@
 
 /* Last, so it can override anything above when the interface is on a phone. */
 @import "./styles/phone.css";
+
+/*
+ * `dark:` follows the app's theme, not the system's. Tailwind's default is the
+ * `prefers-color-scheme` query, but the theme is a setting: `applyAppearance` puts `.dark` on the
+ * root, and whenever someone picks the other theme from the system's, a media-query `dark:` styles
+ * for the wrong one — a dark mark left dark on a dark page.
+ */
+@custom-variant dark (&:where(.dark, .dark *));

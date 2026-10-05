@@ -1,6 +1,11 @@
 import { Box } from "lucide-react";
 import { useId } from "react";
 
+import baichuan from "../../assets/brands/baichuan.png?inline";
+import doubao from "../../assets/brands/doubao.png?inline";
+import kimiDark from "../../assets/brands/kimi-dark.png?inline";
+import kimiLight from "../../assets/brands/kimi-light.png?inline";
+import yi from "../../assets/brands/yi.png?inline";
 import { brandOf, type Brand } from "../../lib/model-brand.ts";
 
 /**
@@ -10,8 +15,9 @@ import { brandOf, type Brand } from "../../lib/model-brand.ts";
  * `claude-opus-5` — and reading it means reading every line. A brand mark is found before any of
  * them is read, which is the point: you are almost always looking for a house, not a version.
  *
- * Every mark below is the official vector, taken from the vendor's own site or CDN — the address
- * is on the line above each one. None of it is drawn here. An approximation of somebody's logo is
+ * Every mark below is taken from the vendor's own site or CDN — the address is on the line above
+ * each one. A vector where the vendor publishes one; where it publishes only an icon file (Kimi,
+ * Doubao, Baichuan, 01.AI), that file. None of it is drawn here. An approximation of somebody's logo is
  * worse than no logo: it is recognisably wrong, and it is their trademark being got wrong.
  *
  * Colour comes from the brand where the brand has one. Where the official mark is monochrome
@@ -123,72 +129,78 @@ const MARKS: Record<Brand, { box: string; mono?: true; draw: (gradientId: string
 			</>
 		),
 	},
-	// Kimi / Moonshot AI — official logomark
+	/*
+	 * https://www.kimi.com/favicon-light.ico and favicon-dark.ico. Moonshot publishes no vector of the
+	 * K-and-dot mark (platform.kimi.com/kimi.svg is the wordmark), so these are the site's own icons,
+	 * one per theme, as its tab shows them.
+	 */
 	kimi: {
-		box: "0 0 24 24",
-		mono: true,
+		box: "0 0 48 48",
 		draw: () => (
 			<>
-				<path
-					d="M21.846 0a1.923 1.923 0 110 3.846H20.15a.226.226 0 01-.227-.226V1.923C19.923.861 20.784 0 21.846 0z"
-					fill="currentColor"
-				/>
-				<path
-					d="M11.065 11.199l7.257-7.2c.137-.136.06-.41-.116-.41H14.3a.164.164 0 00-.117.051l-7.82 7.756c-.122.12-.302.013-.302-.179V3.82c0-.127-.083-.23-.185-.23H3.186c-.103 0-.186.103-.186.23V19.77c0 .128.083.23.186.23h2.69c.103 0 .186-.102.186-.23v-3.25c0-.069.025-.135.069-.178l2.424-2.406a.158.158 0 01.205-.023l6.484 4.772a7.677 7.677 0 003.453 1.283c.108.012.2-.095.2-.23v-3.06c0-.117-.07-.212-.164-.227a5.028 5.028 0 01-2.027-.807l-5.613-4.064c-.117-.078-.132-.279-.028-.381z"
-					fill="currentColor"
-				/>
+				<image href={kimiLight} width="48" height="48" className="dark:hidden" />
+				<image href={kimiDark} width="48" height="48" className="hidden dark:inline" />
 			</>
 		),
 	},
-	// Doubao / ByteDance Volcano
+	// https://lf-flow-web-cdn.doubao.com/obj/flow-doubao/favicon/new-doubao/192x192.png — doubao.com
+	// publishes its mark only as PNG; downscaled to 64px.
 	doubao: {
-		box: "0 0 24 24",
-		draw: () => (
-			<path
-				d="M12 2.5a9.5 9.5 0 0 0-9.5 9.5c0 2.22.76 4.26 2.03 5.89L3.5 21.5l4.24-1.01A9.46 9.46 0 0 0 12 21.5a9.5 9.5 0 0 0 9.5-9.5A9.5 9.5 0 0 0 12 2.5z"
-				fill="#3B82F6"
-			/>
-		),
+		box: "0 0 64 64",
+		draw: () => <image href={doubao} width="64" height="64" />,
 	},
-	// MiniMax
+	// https://mintcdn.com/minimax-zh/1UjvBcdoC6r0UeyA/logo/light.svg — the waveform left of the wordmark
+	// in platform.minimaxi.com's header, with its gradient.
 	minimax: {
-		box: "0 0 24 24",
-		draw: () => (
-			<path
-				d="M4 6h4v12H4zm6-3h4v18h-4zm6 6h4v6h-4z"
-				fill="#EF4444"
-			/>
+		box: "0 -2.91 36.91 36.91",
+		draw: (gradientId) => (
+			<>
+				<path d="M17.5802 3.08155C17.5802 2.35036 16.987 1.75702 16.2589 1.75702C15.5309 1.75702 14.9377 2.35171 14.9377 3.08155V25.0348C14.9377 26.7337 13.5586 28.1164 11.8639 28.1164C10.1693 28.1164 8.79008 26.7337 8.79008 25.0348V10.9503C8.79008 10.2191 8.19688 9.62575 7.46886 9.62575C6.74085 9.62575 6.14765 10.2204 6.14765 10.9503V16.9201C6.14765 18.619 4.76846 20.0016 3.07381 20.0016C1.37915 20.0016 0 18.619 0 16.9201V14.7563C0 14.2711 0.392318 13.8778 0.876312 13.8778C1.36031 13.8778 1.75262 14.2711 1.75262 14.7563V16.9201C1.75262 17.6513 2.34579 18.2446 3.07381 18.2446C3.80182 18.2446 4.39502 17.6499 4.39502 16.9201V10.9503C4.39502 9.25138 5.77421 7.86874 7.46886 7.86874C9.16352 7.86874 10.5427 9.25138 10.5427 10.9503V25.0348C10.5427 25.766 11.1359 26.3593 11.8639 26.3593C12.5919 26.3593 13.1851 25.7646 13.1851 25.0348V16.4227V3.08155C13.1851 1.38265 14.5643 0 16.2589 0C17.9536 0 19.3328 1.38265 19.3328 3.08155V21.2599C19.3328 21.7451 18.9405 22.1384 18.4565 22.1384C17.9725 22.1384 17.5802 21.7451 17.5802 21.2599V3.08155ZM33.8405 7.86874C32.1458 7.86874 30.7666 9.25138 30.7666 10.9503V22.7155C30.7666 23.4467 30.1734 24.0401 29.4454 24.0401C28.7174 24.0401 28.1242 23.4454 28.1242 22.7155V3.08155C28.1242 1.38265 26.745 0 25.0504 0C23.3557 0 21.9766 1.38265 21.9766 3.08155V28.0042C21.9766 28.7354 21.3834 29.3287 20.6553 29.3287C19.9273 29.3287 19.3341 28.734 19.3341 28.0042V24.9186C19.3341 24.4334 18.9418 24.0401 18.4578 24.0401C17.9738 24.0401 17.5815 24.4334 17.5815 24.9186V28.0042C17.5815 29.7031 18.9607 31.0857 20.6553 31.0857C22.35 31.0857 23.7292 29.7031 23.7292 28.0042V3.08155C23.7292 2.35036 24.3224 1.75702 25.0504 1.75702C25.7784 1.75702 26.3716 2.35171 26.3716 3.08155V22.7155C26.3716 24.4144 27.7508 25.7971 29.4454 25.7971C31.1401 25.7971 32.5193 24.4144 32.5193 22.7155V10.9503C32.5193 10.2191 33.1125 9.62575 33.8405 9.62575C34.5685 9.62575 35.1617 10.2204 35.1617 10.9503V21.2599C35.1617 21.7451 35.554 22.1384 36.038 22.1384C36.522 22.1384 36.9143 21.7451 36.9143 21.2599V10.9503C36.9143 9.25138 35.5351 7.86874 33.8405 7.86874Z" fill={`url(#${gradientId})`} />
+				<defs>
+					<linearGradient id={gradientId} x1="0" y1="15.5" x2="36.9143" y2="15.5" gradientUnits="userSpaceOnUse">
+						<stop stopColor="#E21680" />
+						<stop offset="1" stopColor="#FF633A" />
+					</linearGradient>
+				</defs>
+			</>
 		),
 	},
-	// StepFun
+	// https://www.stepfun.com/step_favicon.svg — black steps on a white disc, which on a light page is
+	// the steps alone. The file leaves the squares at SVG's default black; the wrapper here is fill="none".
 	stepfun: {
-		box: "0 0 24 24",
+		box: "0 0 20 20",
 		draw: () => (
-			<path
-				d="M12 2L2 7l10 5 10-5-10-5zm0 9l-8-4 8 4 8-4-8 4zm0 4.5l-8-4 8 4 8-4-8 4zm0 4.5l-8-4 8 4 8-4-8 4z"
-				fill="#10B981"
-			/>
+			<>
+				<path fill="#fff" d="M10,0C4.48,0,0,4.48,0,10s4.48,10,10,10,10-4.48,10-10S15.52,0,10,0ZM7.3,16.34h-3.65v-3.65h3.65v3.65ZM11.82,16.34h-3.65v-3.65h3.65v3.65ZM11.82,11.83h-3.65v-3.66h3.65v3.66ZM11.82,7.31h-3.65v-3.65h3.65v3.65ZM16.34,7.31h-3.65v-3.66h3.65v3.66Z" />
+				<rect x="3.65" y="12.69" width="3.65" height="3.65" fill="#000" />
+				<rect x="8.17" y="12.69" width="3.65" height="3.65" fill="#000" />
+				<rect x="8.17" y="8.17" width="3.65" height="3.66" fill="#000" />
+				<rect x="8.17" y="3.66" width="3.65" height="3.65" fill="#000" />
+				<rect x="12.69" y="3.65" width="3.65" height="3.66" fill="#000" />
+			</>
 		),
 	},
-	// Baichuan
+	// https://www.baichuan-ai.com/apple-touch-icon.png — the site publishes no vector; downscaled to 64px.
 	baichuan: {
-		box: "0 0 24 24",
-		draw: () => (
-			<path
-				d="M12 2L3 7v10l9 5 9-5V7l-9-5zm0 2.8L18.5 8 12 11.6 5.5 8 12 4.8z"
-				fill="#F97316"
-			/>
-		),
+		box: "0 0 64 64",
+		draw: () => <image href={baichuan} width="64" height="64" />,
 	},
-	// 01.AI (Yi)
+	/*
+	 * https://www.lingyiwanwu.com/branding/apple-touch-icon.png — 01.AI's own icon. Its favicon.svg sets
+	 * 「01.AI」 as live text in whatever font the machine has, so the PNG is the version that looks the
+	 * same everywhere. Rounded the way a home screen rounds it, since the file is a full square.
+	 */
 	yi: {
-		box: "0 0 24 24",
-		mono: true,
-		draw: () => (
-			<path
-				d="M6 4h3v16H6zm9 0h3v16h-3z"
-				fill="currentColor"
-			/>
+		box: "0 0 64 64",
+		draw: (clipId) => (
+			<>
+				<defs>
+					<clipPath id={clipId}>
+						<rect width="64" height="64" rx="14" />
+					</clipPath>
+				</defs>
+				<image href={yi} width="64" height="64" clipPath={`url(#${clipId})`} />
+			</>
 		),
 	},
 };
@@ -229,6 +241,7 @@ export function ModelIcon({
 			xmlns="http://www.w3.org/2000/svg"
 			// Full ink for the monochrome marks; the coloured ones carry their own and inherit nothing.
 			className={`shrink-0 ${mark.mono ? "text-ink" : ""} ${className}`}
+			data-model-brand={brand}
 			aria-hidden
 		>
 			{mark.draw(gradientId)}

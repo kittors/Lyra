@@ -45,6 +45,14 @@ test("short OpenAI aliases only match as whole words", () => {
 	assert.equal(brandOf("solar-pro3"), null);
 });
 
+test("a Volcengine endpoint id is Doubao, a StepFun model that merely contains `ep-` is not", () => {
+	assert.equal(brandOf("ep-20250101123456-abcde"), "doubao");
+	assert.equal(brandOf("volc/ep-20250101123456-abcde"), "doubao");
+	assert.equal(brandOf("step-3"), "stepfun");
+	assert.equal(brandOf("step-2-16k"), "stepfun");
+	assert.equal(brandOf("stepfun/step-3"), "stepfun");
+});
+
 test("an unambiguous vendor wins over a version that looks like an alias", () => {
 	assert.equal(brandOf("deepseek-v3"), "deepseek");
 	assert.equal(brandOf("deepseek-r1-0528"), "deepseek");
