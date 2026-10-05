@@ -14,7 +14,7 @@
 import type { AppearanceSettings } from "@lyra/core";
 import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
-import { contentMeasure } from "../../lib/content-width.ts";
+import { CONTENT_AUTO, contentMeasure } from "../../lib/content-width.ts";
 import { bridge } from "../../services/index.ts";
 
 interface Rgb {
@@ -218,7 +218,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * 走变量而不是走属性，是因为 `rows` 只有 textarea 有，而这条高度还要管到浮在它上面的
 		 * 高亮镜像层；也因为改一次设置就该立刻看见，不必等下一次按键把高度重算一遍。
 		 */
-		"--ly-composer-lines": String(appearance.composerLines ?? 1),
+		"--ly-composer-lines": String(appearance.composerLines ?? 2),
 		/*
 		 * How code is set, beyond the family.
 		 *
@@ -355,6 +355,8 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
+	// Switches on the pane-width steps in `dock.css`; a fixed or full measure is the token alone.
+	root.dataset.contentWidth = (appearance.contentWidth ?? CONTENT_AUTO) === CONTENT_AUTO ? "auto" : "set";
 	/*
 	 * The material exists only in a window the preload marked (the macOS main window); here it only
 	 * follows the setting between on and off — the window's own layer is swapped by the main process

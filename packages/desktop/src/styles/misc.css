@@ -540,8 +540,12 @@
 /* Identical metrics keep the decoration and the native caret in the same place. */
 .ly-composer-text {
 	padding: var(--ly-composer-in) var(--ly-composer-x);
-	font-size: var(--text-body);
-	line-height: 1.625;
+	/*
+	 * 14px / 20px at the default size, as ZCode sets its input. A ratio rather than 20px, so 界面字号
+	 * still scales the line along with the text.
+	 */
+	font-size: var(--text-label);
+	line-height: calc(20 / 14);
 	color: var(--color-ink);
 	overflow-wrap: break-word;
 	tab-size: 8;
@@ -552,7 +556,8 @@
  *
  * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
  * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
- * `--ly-composer-in * 2` 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
+ * `--ly-composer-in * 2` 是上下 padding 的和；一行是 `em × 20 / 14`，和上面的行高同一个比例，跟着字号走，
+ * 所以调 UI 字号时行数的含义不变。默认两行（40px）。
  */
 /*
  * 标点不许挤压。
@@ -569,7 +574,7 @@
 }
 
 textarea.ly-composer-text {
-	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + var(--ly-composer-in) * 2);
+	min-height: calc(var(--ly-composer-lines, 2) * 1em * 20 / 14 + var(--ly-composer-in) * 2);
 }
 
 textarea.ly-composer-text[data-highlighted="true"] {

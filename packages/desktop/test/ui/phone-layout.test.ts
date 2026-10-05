@@ -98,7 +98,7 @@ test("the empty screen on a phone: the question in the middle, the starting poin
 		const chips = view.all(".ly-phone-suggest .ly-phone-chip");
 		assert.equal(chips.length, 4, "四个起点一个不少");
 		assert.equal(view.find(".ly-phone-hero-title .whitespace-nowrap").textContent, "aurora-notes", "项目名不在连字符处折行");
-		assert.equal(view.all(".grid").length, 0, "手机上不再是两列卡片");
+		assert.equal(view.all(".ly-draft-chip").length, 0, "手机上不再是桌面那一排起点");
 
 		await click(chips[0]);
 		assert.ok(view.find<HTMLTextAreaElement>("textarea").value.trim(), "点起点是填进输入框，不是直接发出去");
@@ -110,7 +110,7 @@ test("the empty screen on a phone: the question in the middle, the starting poin
 	const wide = await mount(h(I18nProvider, { locale: "zh-CN", children: h(LayoutProvider, null, h(EmptyState)) }));
 	try {
 		assert.equal(wide.all(".ly-phone-suggest").length, 0, "桌面端没有横滑的那一排");
-		assert.equal(wide.all(".grid button").length, 4, "桌面端仍是四张卡片");
+		assert.equal(wide.all(".ly-draft-chip").length, 4, "桌面端仍是四枚起点");
 	} finally {
 		await wide.unmount();
 	}

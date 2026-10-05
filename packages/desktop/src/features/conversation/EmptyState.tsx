@@ -3,51 +3,34 @@ import mark from "../../assets/empty-mark.png?inline";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Composer } from "../composer/index.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 import { onPhone } from "../../services/index.ts";
 
-const CARDS: { icon: typeof Telescope; tint: string; labelKey: MessageKey; promptKey: MessageKey }[] = [
-	{
-		icon: Telescope,
-		tint: "text-info",
-		labelKey: "empty.explore",
-		promptKey: "empty.explorePrompt",
-	},
-	{
-		icon: Hammer,
-		tint: "text-violet",
-		labelKey: "empty.build",
-		promptKey: "empty.buildPrompt",
-	},
-	{
-		icon: RefreshCw,
-		tint: "text-ok",
-		labelKey: "empty.review",
-		promptKey: "empty.reviewPrompt",
-	},
-	{
-		icon: Bug,
-		tint: "text-accent",
-		labelKey: "empty.fix",
-		promptKey: "empty.fixPrompt",
-	},
+/*
+ * 输入框下面那一排建议：单色图标，描边胶囊，一个接一个落下来。
+ * 之前每个图标带一种颜色，排成一行描边 chip 时四种颜色抢的是输入框的注意力。
+ */
+const PROMPTS: { icon: typeof Telescope; labelKey: MessageKey; promptKey: MessageKey }[] = [
+	{ icon: Telescope, labelKey: "empty.explore", promptKey: "empty.explorePrompt" },
+	{ icon: Hammer, labelKey: "empty.build", promptKey: "empty.buildPrompt" },
+	{ icon: RefreshCw, labelKey: "empty.review", promptKey: "empty.reviewPrompt" },
+	{ icon: Bug, labelKey: "empty.fix", promptKey: "empty.fixPrompt" },
 ];
+
+/** 吉祥物的高度（见 `EmptyMark`）加上它和标题之间的 24px，顶部留白要扣掉这一段，标题才落在那条线上。 */
+const MARK_BLOCK = { compact: 104 + 24, regular: 132 + 24 };
 
 export function EmptyState() {
 	const { t } = useI18n();
-	// The project this blank screen was opened in, even while a conversation beside it has focus.
+	const sessionId = useScopedSessionId();
 	const { workspace, scratchCwd } = useScopedWorkspace();
-	// The cards fill this screen's composer, not the one on whichever screen has focus.
-	const screen = useScopedSessionId();
 	const { compact } = useLayout();
 
 	/** No project behind this conversation, and that was the choice — see the composer's chip. */
 	const chatting = !workspace && Boolean(scratchCwd);
-	const heading = chatting
-		? t("empty.chat")
-		: t("empty.projectQuestion", { project: workspace?.name ?? t("empty.noProject") });
+	const mark = compact ? MARK_BLOCK.compact : MARK_BLOCK.regular;
 
 	if (onPhone()) {
 		/*
@@ -55,14 +38,14 @@ export function EmptyState() {
 		 * `aurora-notes` broke at its hyphen and the question read as two unrelated words.
 		 */
 		const [before, after] = chatting
-			? [heading, ""]
+			? [t("empty.chat"), ""]
 			: t("empty.projectQuestion", { project: "\u0001" }).split("\u0001");
 		const name = workspace?.name ?? t("empty.noProject");
 		return (
 			<PhoneEmpty
 				heading={
 					chatting ? (
-						heading
+						before
 					) : (
 						<>
 							{before}
@@ -76,119 +59,104 @@ export function EmptyState() {
 	}
 
 	return (
-		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col">
+		// 欢迎页这一列是 `max-w-2xl`（672px），输入框和下面的建议都读它；进了对话再按窗格宽度分档。
+		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col [--ly-content:672px]">
 			{/*
-			 * Scrolls rather than clips: at the minimum window height the mark, the heading and
-			 * two rows of cards do not all fit, and a card you cannot reach is worse than one
-			 * you have to scroll to.
+			 * Scrolls rather than clips: at the minimum window height the mark, the heading, the
+			 * composer and the suggestions do not all fit, and a control you cannot reach is worse
+			 * than one you have to scroll to.
+			 *
+			 * 布局：上面一段可压缩的留白把标题放在视口约 29% 处，下面一段 `flex-1` 吃掉剩下的高度。
+			 * 仍然是上重下轻而不是 `m-auto` 居中——输入框长高时标题不动，多出来的高度往下推。
 			 */}
 			<Scroller
 				className="flex-1"
-				contentClassName={`flex flex-col py-4 ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}
+				contentClassName={`flex flex-col items-center after:block after:min-h-4 after:w-full after:flex-1 after:content-[''] ${
+					compact ? "ly-content-gutter-compact" : "ly-content-gutter"
+				}`}
 			>
-				{/*
-				 * Top-weighted, not `m-auto`.
-				 *
-				 * Centring in the leftover scroller recentres every time the composer grows. Dropping
-				 * a file then looks like a gap opening above the input. A fixed top slack and
-				 * `mb-auto` keep the heading still while the composer takes height from below.
-				 */}
-				<div className="mx-auto mt-[min(12vh,5.5rem)] mb-auto flex w-full flex-col items-center">
-					<EmptyMark compact={compact} />
+				<div
+					aria-hidden
+					className="w-full shrink"
+					style={{ flexBasis: `max(1rem, calc(29dvh - ${mark}px))` }}
+				/>
+				<EmptyMark compact={compact} />
 
-					<h1
-						className={`mt-6 shrink-0 text-center leading-tight font-semibold tracking-tight text-balance text-ink ${
-							compact ? "text-heading" : "text-display"
-						}`}
-					>
-						{/*
-						 * A different question, not the same question with a different noun in it.
-						 *
-						 * 「要在 X 内开发什么？」 is a sentence about working inside something. Sliding the
-						 * name of the project-less mode into that slot produced 「要在 无项目 内开发什么？」
-						 * — grammatical, and meaningless: there is no inside to be in. Renaming the mode
-						 * to Chat would only have made it 「要在 Chat 内开发什么？」. When there is nowhere to
-						 * be working, the honest opening is the one that does not claim there is.
-						 */}
-						{heading}
-					</h1>
-
+				<h1
+					className={`mt-6 w-full shrink-0 text-center leading-[1.2] font-medium text-balance text-ink ${
+						compact ? "text-heading" : "text-[30px]"
+					}`}
+				>
 					{/*
-					 * Capped width, not fixed: a fluid grid meant collapsing the sidebar inflated
-					 * every card, while a hard width overflowed a narrow window.
+					 * A different question, not the same question with a different noun in it.
 					 *
-					 * The column count keys off this container rather than the window, because the
-					 * sidebar takes its width out of the same budget — at 760pt with the sidebar
-					 * open, four cards get 99px each and every label wraps to four lines. Below
-					 * 4×120px they go two by two, which keeps 2×2 symmetry for the four of them.
+					 * 「要在 X 内开发什么？」 is a sentence about working inside something. Sliding the
+					 * name of the project-less mode into that slot produced 「要在 无项目 内开发什么？」
+					 * — grammatical, and meaningless: there is no inside to be in. Renaming the mode
+					 * to Chat would only have made it 「要在 Chat 内开发什么？」. When there is nowhere to
+					 * be working, the honest opening is the one that does not claim there is.
 					 */}
-					<div
-						className={`@container w-full max-w-[var(--ly-content)] shrink-0 ${compact ? "mt-6" : "mt-9"}`}
-					>
-						<div className="grid grid-cols-4 gap-2.5 @max-[510px]:grid-cols-2">
-							{CARDS.map((card) => (
-								<button
-									key={card.labelKey}
-									type="button"
-									/*
-									 * Into the composer, not out to the agent.
-									 *
-									 * These read as suggestions and sit directly under the cursor's path
-									 * to the input, so pressing one used to start a turn — and a turn that
-									 * was not asked for costs a request, some tokens, and whatever the
-									 * agent decides to do before it can be stopped. As a draft the card is
-									 * a starting point: read it, change it, add the detail it is missing,
-									 * and send it when it says what you meant.
-									 *
-									 * Replacing, not appending. These four are alternatives — pressing a
-									 * second one means "that one instead", and stacking them produced a
-									 * message asking for an architecture tour, a new feature and a code
-									 * review at once.
-									 */
-									onClick={() =>
-										useApp.getState().setComposerDraft(t(card.promptKey), { sessionId: screen, replace: true })
-									}
-									/*
-									 * Stacked from the top, not spread to the edges.
-									 *
-									 * With `justify-between` the label was pinned to the bottom of the
-									 * card, so a one-line label sat lower than a two-line one and the
-									 * four captions started at two different heights. Ordinary flow puts
-									 * every label the same distance under its own mark; the cards are a
-									 * uniform height anyway, so what varies is the space left below.
-									 *
-									 * `transition`, not `transition-all`, which transitions `visibility`
-									 * too — see `Workspace` in `app/App.tsx` for what that did.
-									 */
-									className="group flex min-h-[72px] flex-col gap-2 rounded-[11px] border border-line bg-transparent p-3 text-left transition duration-[var(--ly-t-base)] hover:-translate-y-0.5 hover:border-ink-faint/60 hover:bg-card/60 active:translate-y-0"
-								>
-									<card.icon
-										size={17}
-										strokeWidth={1.7}
-										className={`shrink-0 ${card.tint}`}
-									/>
-									<span className="text-label leading-snug text-ink">
-										{t(card.labelKey)}
-									</span>
-								</button>
-							))}
-						</div>
+					{chatting
+						? t("empty.chat")
+						: t("empty.projectQuestion", { project: workspace?.name ?? t("empty.noProject") })}
+				</h1>
+
+				<div className="mt-11 w-full shrink-0">
+					<Composer centered />
+				</div>
+
+				{/*
+				 * 不比输入框宽，放不下就居中换行。标签收成四个字一枚，平常一行放得下；
+				 * 窄窗口里换行而不是横向滚动，滚动会把后两枚藏起来。
+				 */}
+				<div className="mt-6 w-full max-w-[var(--ly-content)] shrink-0">
+					<div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
+						{PROMPTS.map((prompt, index) => (
+							<button
+								key={prompt.labelKey}
+								type="button"
+								/*
+								 * Into the composer, not out to the agent.
+								 *
+								 * These read as suggestions and sit directly under the cursor's path
+								 * to the input, so pressing one used to start a turn — and a turn that
+								 * was not asked for costs a request, some tokens, and whatever the
+								 * agent decides to do before it can be stopped. As a draft the chip is
+								 * a starting point: read it, change it, add the detail it is missing,
+								 * and send it when it says what you meant.
+								 *
+								 * Replacing, not appending. These four are alternatives — pressing a
+								 * second one means "that one instead", and stacking them produced a
+								 * message asking for an architecture tour, a new feature and a code
+								 * review at once.
+								 */
+								onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), { sessionId, replace: true })}
+								style={{ animationDelay: `${index * 65}ms` }}
+								className="ly-draft-chip group flex h-8 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border px-3 text-left"
+							>
+								<prompt.icon
+									size={16}
+									strokeWidth={2}
+									className="shrink-0 text-ink opacity-70 transition-opacity group-hover:opacity-100"
+								/>
+								<span className="max-w-64 min-w-0 truncate text-label text-ink opacity-70 transition-opacity group-hover:opacity-100">
+									{t(prompt.labelKey)}
+								</span>
+							</button>
+						))}
 					</div>
 				</div>
 			</Scroller>
-
-			<Composer />
 		</div>
 	);
 }
 
 /**
- * The mark above the question.
+ * The illustration above the question.
  *
- * Larger than the outlined terminal glyph it replaces, because it is a picture rather than an icon:
- * at 56px the drawing reads as a smudge, and an illustration nobody can make out is worse than the
- * plain shape it was brought in to replace. Sized in points and shipped at 384px so it stays sharp
- * on a 3× display without carrying a 1254px original into the bundle.
+ * Not the boot screen's artwork: that one carries the wordmark, and "LYRA" drawn right above a
+ * heading that already says Lyra is the name twice. Shipped at 480px, 2× of the regular 200px
+ * with room to spare.
  *
  * `aria-hidden` and an empty `alt`: the heading underneath already says what this screen is for, and
  * a screen reader announcing the decoration first would put an ornament ahead of the sentence.
@@ -223,7 +191,7 @@ function EmptyMark({ compact }: { compact: boolean }) {
  */
 function PhoneEmpty({ heading }: { heading: React.ReactNode }) {
 	const { t } = useI18n();
-	// The cards fill this screen's composer, as on the desktop.
+	// The suggestions fill this screen's composer, as on the desktop.
 	const screen = useScopedSessionId();
 	return (
 		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col">
@@ -235,16 +203,16 @@ function PhoneEmpty({ heading }: { heading: React.ReactNode }) {
 			</Scroller>
 
 			<div className="ly-phone-suggest" role="group" aria-label={t("phone.suggestions")}>
-				{CARDS.map((card) => (
+				{PROMPTS.map((prompt) => (
 					<button
-						key={card.labelKey}
+						key={prompt.labelKey}
 						type="button"
-						// Into the composer, never straight to the agent — see the grid above for why.
-						onClick={() => useApp.getState().setComposerDraft(t(card.promptKey), { sessionId: screen, replace: true })}
+						// Into the composer, never straight to the agent — the desktop's row works the same way.
+						onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), { sessionId: screen, replace: true })}
 						className="ly-phone-chip ly-press"
 					>
-						<card.icon size={16} strokeWidth={1.8} aria-hidden className={`shrink-0 ${card.tint}`} />
-						<span>{t(card.labelKey)}</span>
+						<prompt.icon size={16} strokeWidth={1.8} aria-hidden className="shrink-0" />
+						<span>{t(prompt.labelKey)}</span>
 					</button>
 				))}
 			</div>

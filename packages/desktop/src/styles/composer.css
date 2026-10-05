@@ -1,22 +1,42 @@
 /* ---------------------------------------------------------------------------
  * Composer
  *
- * Two shadows: a tight one that sits the field on the page, and a wide soft one that lifts it
- * off. Split by theme because a black shadow does nothing on a dark background — there the
- * depth has to come from a heavier drop plus a slightly brighter edge.
+ * 卡片是一圈 10% 的描边，悬停和聚焦时加深到 15%，聚焦不再加重阴影。阴影只有一层很淡的
+ * 投影（Tailwind 的 shadow-xl 压到 5%），深浅两色主题同一个值，深色下不另外加重。
  * ------------------------------------------------------------------------- */
 
 .ly-composer {
+  border-color: color-mix(in srgb, var(--color-ink) 10%, transparent);
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 10px 30px -14px rgb(0 0 0 / 0.16);
+    0 20px 25px -5px rgb(0 0 0 / 0.05),
+    0 8px 10px -6px rgb(0 0 0 / 0.05);
 }
 
+.ly-composer:hover,
 .ly-composer:focus-within {
-  border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+  border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
+}
+
+/*
+ * 主输入框外面那层灰托盘：项目、分支坐在托盘露出来的那一条上，卡片贴着托盘的左右下三边。
+ *
+ * 阴影挪到托盘上，卡片自己就不再投影——两层都投，托盘和卡片之间会多出一道暗缝。没有项目那一条时
+ * 托盘整个被卡片盖住，看上去就是一张带阴影的卡片，和侧栏对话那些单独的输入框一样。
+ */
+.ly-composer-tray {
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-ink) 3%, transparent);
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.05),
-    0 14px 36px -14px rgb(0 0 0 / 0.22);
+    0 20px 25px -5px rgb(0 0 0 / 0.05),
+    0 8px 10px -6px rgb(0 0 0 / 0.05);
+}
+
+:root.dark .ly-composer-tray {
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+}
+
+.ly-composer-tray .ly-composer {
+  box-shadow: none;
 }
 
 /*
@@ -60,19 +80,6 @@
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-:root.dark .ly-composer {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.35),
-    0 14px 34px -16px rgb(0 0 0 / 0.55);
-}
-
-:root.dark .ly-composer:focus-within {
-  border-color: color-mix(in srgb, var(--color-ink-faint) 70%, transparent);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.4),
-    0 18px 40px -16px rgb(0 0 0 / 0.65);
 }
 
 /* ---------------------------------------------------------------------------
@@ -163,7 +170,7 @@
     border-color: color-mix(in srgb, var(--color-ink) 40%, transparent);
   }
   to {
-    border-color: color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
+    border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
   }
 }
 
@@ -251,6 +258,11 @@
 	padding-inline: var(--ly-composer-x);
 }
 
+/* 欢迎页上输入框排在标题下面，外边距由那一列自己给。 */
+.ly-composer-dock[data-center] {
+	padding: 0;
+}
+
 /*
  * 任务清单和子智能体那一条挨着的时候，是一摞，不是两段。
  *
@@ -335,4 +347,38 @@
 .ly-send-icon[data-active="true"] {
 	opacity: 1;
 	transform: scale(1);
+}
+
+/* ---------------------------------------------------------------------------
+ * 欢迎页输入框下面那一排建议
+ *
+ * 数值：10% 的描边，悬停加深到 15% 并铺半透明的卡片底；入场是自上而下展开的一小段，
+ * 每一枚比前一枚晚 65ms（延迟写在元素的 style 上）。减弱动效时由 motion.css 的全局开关收掉。
+ * ------------------------------------------------------------------------- */
+
+@keyframes ly-draft-chip-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0);
+  }
+}
+
+.ly-draft-chip {
+  border-color: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  background: transparent;
+  transition:
+    border-color var(--ly-t-quick),
+    background-color var(--ly-t-quick);
+  animation: ly-draft-chip-in 260ms var(--ly-e-out) both;
+}
+
+.ly-draft-chip:hover {
+  border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
+  background: color-mix(in srgb, var(--color-float) 50%, transparent);
 }

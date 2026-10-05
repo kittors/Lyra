@@ -326,8 +326,12 @@
 .ly-dock-bar {
   border-bottom: 1px solid var(--color-line-soft);
 }
+.ly-dock-pane {
+	container: ly-pane / inline-size;
+}
+
 .ly-dock-pane[data-ly-pane-slot="conversation"] {
-	container: ly-chat / inline-size;
+	container: ly-chat ly-pane / inline-size;
 }
 
 @container ly-chat (width < 360px) {
@@ -342,4 +346,26 @@
 /* Preserve text layout independently of the dock's clipping and ownership handoff. */
 html:not([data-layout="compact"]) [data-dock-content="conversation"] {
 	min-width: 420px;
+}
+
+/*
+ * How wide the conversation column (transcript and composer) is when 对话宽度 is 自动: full width in a
+ * pane narrower than 864px; `min(100% - 128px, 864px)` up to 1279px; `min(100% - 416px, 1120px)` from
+ * 1280px. A wide window gets a wide column rather than a strip down the middle, a narrow pane keeps
+ * every pixel.
+ *
+ * On the pane's direct children and inherited from there: a container query can restyle what is inside
+ * the container, never the container itself. Only under `data-content-width="auto"` — the token on
+ * `:root` is the setting otherwise, and a rule on the children would quietly win over it.
+ */
+@container ly-pane (width >= 864px) {
+	:root[data-content-width="auto"] .ly-dock-pane > * {
+		--ly-content: min(calc(100cqw - 128px), 864px);
+	}
+}
+
+@container ly-pane (width >= 1280px) {
+	:root[data-content-width="auto"] .ly-dock-pane > * {
+		--ly-content: min(calc(100cqw - 416px), 1120px);
+	}
 }

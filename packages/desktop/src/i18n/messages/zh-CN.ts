@@ -329,6 +329,7 @@ export const zhCN = {
 	"appearance.wide": "宽",
 	"appearance.extraWide": "超宽",
 	"appearance.full": "铺满",
+	"appearance.chatWidthAuto": "自动",
 	"appearance.composerLines": "输入框默认高度",
 	"appearance.composerLinesDetail": "空的输入框有几行高。写长一点的需求时，不必每次都从一行开始往下撑",
 	"appearance.codeFontSize": "代码字体大小",

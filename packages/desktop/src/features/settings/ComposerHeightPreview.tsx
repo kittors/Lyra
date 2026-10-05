@@ -27,9 +27,9 @@ export function ComposerHeightPreview({ lines }: { lines: number }) {
 		 * 阴影交给 `ly-composer`，深浅两套跟着主题走，不必在这里重写一遍——重写的那份迟早会跟真框
 		 * 走散。
 		 */
-		<div className="ly-composer mt-3 rounded-[18px] border border-line-soft bg-float transition-[border-color,box-shadow] duration-[var(--ly-t-base)]">
+		<div className="ly-composer mt-3 rounded-2xl border bg-float transition-[border-color] duration-[var(--ly-t-quick)]">
 			{/*
-			 * 与真输入框同源的排版：`.ly-composer-text` 出 padding、字号与 1.625 的行高，这里
+			 * 与真输入框同源的排版：`.ly-composer-text` 出 padding、字号与 20/14 的行高，这里
 			 * 只补上那条 `min-height` 的算式。上下 padding 读 `--ly-composer-in`，和真框同一条
 			 * 变量，改一边另一边跟着走。
 			 *
@@ -39,7 +39,7 @@ export function ComposerHeightPreview({ lines }: { lines: number }) {
 			 */}
 			<div
 				className="ly-composer-text text-ink-faint transition-[min-height] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
-				style={{ minHeight: `calc(${lines} * 1.625em + var(--ly-composer-in) * 2)` }}
+				style={{ minHeight: `calc(${lines} * 1em * 20 / 14 + var(--ly-composer-in) * 2)` }}
 			>
 				{translate("composerPreview.placeholder")}
 			</div>
@@ -54,7 +54,7 @@ export function ComposerHeightPreview({ lines }: { lines: number }) {
 				</div>
 				<div className="flex min-w-0 items-center gap-2">
 					<span className="h-2 w-16 rounded-full bg-line" />
-					<span className="flex h-7 w-7 items-center justify-center rounded-full bg-card text-ink-faint">
+					<span className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink text-shell opacity-50">
 						<ArrowUp size={14} strokeWidth={2} />
 					</span>
 				</div>

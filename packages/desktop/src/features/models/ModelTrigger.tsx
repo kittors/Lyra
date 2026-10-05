@@ -15,8 +15,9 @@
  * 会话」, which is a sentence about configuration in a place meant for writing a message.
  */
 
-import { brandOf, splitHouse } from "../../lib/model-brand.ts";
+import { ChevronDown } from "lucide-react";
 import { modelIdentity, modelTooltip } from "../../lib/model-grouping.ts";
+import { brandOf, splitHouse } from "../../lib/model-brand.ts";
 import { ROLL_VALUE, RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
 import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -75,8 +76,8 @@ export function ModelTrigger({
 				aria-label={ariaLabel}
 				aria-haspopup="menu"
 				aria-expanded={menu.open}
-				className={`ly-composer-control flex min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-colors disabled:opacity-60 ${
-					menu.open ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
+				className={`ly-composer-control flex min-w-0 items-center gap-1 rounded-lg pr-1.5 pl-2 text-label transition-colors disabled:opacity-60 ${
+					menu.open ? "bg-card-hover text-ink" : "text-ink hover:bg-card-hover"
 				}`}
 			>
 				{/* Keyed on the model, so picking a different house turns the mark over with
@@ -97,6 +98,8 @@ export function ModelTrigger({
 				) : (
 					<RollingText className="ly-fit-probe min-w-0 truncate">{name ?? t("composer.selectModel")}</RollingText>
 				)}
+				{/* Not on a phone: at 320pt the 18px it takes is the difference between "Sonnet 5" and "So…". */}
+				{!onPhone() && <ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />}
 			</button>
 			{menu.open && !disabled && <ModelMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}
 		</>

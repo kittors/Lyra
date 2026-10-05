@@ -144,6 +144,7 @@ export const ko = {
 	"appearance.wide": "넓게",
 	"appearance.extraWide": "아주 넓게",
 	"appearance.full": "가득",
+	"appearance.chatWidthAuto": "자동",
 	"appearance.composerLines": "입력창 기본 높이",
 	"appearance.composerLinesDetail": "빈 입력창의 높이를 몇 줄로 할지 정합니다. 긴 요청을 매번 한 줄부터 늘릴 필요가 없습니다",
 	"appearance.codeFontSize": "코드 글자 크기",

@@ -144,6 +144,7 @@ export const en = {
 	"appearance.wide": "Wide",
 	"appearance.extraWide": "Extra wide",
 	"appearance.full": "Full",
+	"appearance.chatWidthAuto": "Auto",
 	"appearance.composerLines": "Composer height",
 	"appearance.composerLinesDetail": "How many lines tall an empty composer is. Long prompts no longer begin life in a one-line slot",
 	"appearance.codeFontSize": "Code text size",

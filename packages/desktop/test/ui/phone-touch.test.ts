@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
 import { DEFAULT_SETTINGS, type SessionMeta } from "@lyra/core";
+import { shortRelativeTime } from "../../src/lib/relative-time.ts";
 
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { SessionRow } from "../../src/features/sidebar/SessionRow.tsx";
@@ -237,7 +238,7 @@ test("a conversation row on a phone reads its date under the title; the desktop'
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS }, sessions: [session], activity: {}, activeSessionId: null });
 	const phone = await mount(h(LayoutProvider, null, h(SessionRow, { session, onOpen: () => {}, onArchive: () => {} })));
 	try {
-		assert.equal(phone.find(".ly-row-when").textContent, "昨天");
+		assert.equal(phone.find(".ly-row-when").textContent, shortRelativeTime(new Date(session.updatedAt).toISOString()));
 		assert.ok(phone.find("[data-ly-row] button").textContent?.includes("排查首页加载慢"));
 	} finally {
 		await phone.unmount();

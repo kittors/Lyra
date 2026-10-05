@@ -156,7 +156,8 @@ export interface AppearanceSettings {
 	/** 0–100. Scales the distance between surface layers and text. */
 	contrast: number;
 	/**
-	 * How wide the conversation column may get, in pixels. `0` means "as wide as the window".
+	 * How wide the conversation column may get, in pixels. `0` means "as wide as the window", `-1` is
+	 * 自动: the column follows the pane in three steps, wide where there is room (the default).
 	 *
 	 * A measure is a reading decision, not a layout constant: 640px is close to the line length
 	 * prose is easiest to read at, and it is also the width at which a wide table in a reply gets
@@ -165,7 +166,7 @@ export interface AppearanceSettings {
 	 *
 	 * Every column that is part of the conversation reads this — the transcript, the composer, the
 	 * approval card — so they cannot drift apart. Optional: a settings file written before this
-	 * existed keeps the 640 it has always rendered at.
+	 * existed follows the default.
 	 */
 	contentWidth?: number;
 	/**
@@ -175,8 +176,8 @@ export interface AppearanceSettings {
 	 * 需求就不是——开头那几行永远挤在一条缝里，写到第四行才看得见自己在写什么。多高算合适跟人
 	 * 写多长的东西有关，所以交给用户定。
 	 *
-	 * 只是下限：超过这个高度照旧继续长，到窗口三分之一处停下来改为滚动。可选，老配置文件保持
-	 * 它一直以来的一行。
+	 * 只是下限：超过这个高度照旧继续长，长到八行或窗口三分之一处停下来改为滚动。可选，没有这一项
+	 * 的老配置文件按默认的两行。
 	 */
 	composerLines?: number;
 	pointerCursor: boolean;
@@ -274,10 +275,10 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	inlineCodeDarkFg: "#EDEDED",
 	inlineCodeBorder: false,
 	contrast: 60,
-	// What the app has always rendered at; see `contentWidth`.
-	contentWidth: 640,
-	// 一行，也是这个输入框一直以来的样子；见 `composerLines`。
-	composerLines: 1,
+	// -1 is 自动: the column follows the pane in three steps (`CONTENT_AUTO` in desktop's content-width.ts).
+	contentWidth: -1,
+	// Two lines, 40px, the height ZCode opens its input at; see `composerLines`.
+	composerLines: 2,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",
@@ -1151,15 +1152,18 @@ export function migrateAppearance(appearance: AppearanceSettings): AppearanceSet
 	/*
 	 * The rest of the factory look moves only with an untouched factory font.
 	 *
-	 * 500, smoothing on and a white page are each a choice someone could make on purpose, so unlike the
-	 * tables here they cannot be replaced wherever they appear — that would undo the choice on every
-	 * launch. A UI font still on a stack the app once shipped says nobody has been through 外观, and then
-	 * these three are the old factory values too. The font is moved below, so this cannot run twice.
+	 * 500, smoothing on, a white page, a one-line composer and a 640px column are each a choice someone could make on
+	 * purpose, so unlike the tables here they cannot be replaced wherever they appear — that would undo
+	 * the choice on every launch. A UI font still on a stack the app once shipped says nobody has been
+	 * through 外观, and then these are the old factory values too. The font is moved below, so this
+	 * cannot run twice.
 	 */
 	if (SUPERSEDED_FONTS.uiFont.includes(next.uiFont)) {
 		if (next.uiFontWeight === 500) next.uiFontWeight = DEFAULT_APPEARANCE.uiFontWeight;
 		if (next.fontSmoothing) next.fontSmoothing = DEFAULT_APPEARANCE.fontSmoothing;
 		if (next.lightBackground.toUpperCase() === "#FFFFFF") next.lightBackground = DEFAULT_APPEARANCE.lightBackground;
+		if (next.composerLines === 1) next.composerLines = DEFAULT_APPEARANCE.composerLines;
+		if (next.contentWidth === 640) next.contentWidth = DEFAULT_APPEARANCE.contentWidth;
 	}
 	for (const key of ["lightForeground", "darkForeground"] as const) {
 		if (SUPERSEDED_FOREGROUNDS[key].includes(next[key].toUpperCase())) next[key] = DEFAULT_APPEARANCE[key];

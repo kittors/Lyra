@@ -144,6 +144,7 @@ export const ja = {
 	"appearance.wide": "広い",
 	"appearance.extraWide": "さらに広い",
 	"appearance.full": "全幅",
+	"appearance.chatWidthAuto": "自動",
 	"appearance.composerLines": "入力欄の初期の高さ",
 	"appearance.composerLinesDetail": "空の入力欄が何行分の高さかを決めます。長い依頼を毎回 1 行から広げる必要がなくなります",
 	"appearance.codeFontSize": "コードの文字サイズ",

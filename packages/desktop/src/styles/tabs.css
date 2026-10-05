@@ -276,14 +276,13 @@
 
 @theme {
   /*
-   * Max width of the chat column.
+   * Max width of the chat column, for the first frame — `applyAppearance` sets it from 对话宽度.
    *
-   * Sized to fit the main column at the default window with the sidebar open, so toggling the
-   * sidebar never changes it. Applied as a max — a hard width overflowed the window and cut
-   * the send button in half once the padding was added, and it leaves the column free to
-   * shrink with a compact window instead of running off the edge.
+   * The whole column by default: 自动 starts there and the pane's container queries narrow it
+   * (`dock.css`). Applied as a max — a hard width overflowed the window and cut the send button in
+   * half once the padding was added, and it leaves the column free to shrink with a narrow pane.
    */
-  --ly-content: 640px;
+  --ly-content: 100%;
 }
 
 /*

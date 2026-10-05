@@ -9,6 +9,7 @@
  * `{ thinking }`，不给才回落到主会话），缺的只是界面和中间那几层的传递。
  */
 
+import { Brain, ChevronDown } from "lucide-react";
 import { useI18n } from "../../i18n/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { onPhone } from "../../services/index.ts";
@@ -52,12 +53,20 @@ export function EffortTrigger({
 				aria-expanded={menu.open}
 				aria-label={ariaLabel ?? t("composer.thinking", { level: label })}
 				data-ly-tip={t("composer.thinking", { level: label })}
-				className={`ly-composer-control mr-1.5 flex shrink-0 items-center rounded-md px-2 text-label transition-colors disabled:opacity-60 ${
-					menu.open ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
+				className={`ly-composer-control flex shrink-0 items-center gap-1 rounded-lg px-1.5 text-label transition-colors disabled:opacity-60 ${
+					menu.open ? "bg-card-hover text-ink" : "text-ink hover:bg-card-hover"
 				}`}
 			>
 				{/* A phone draws the level rather than naming it, so the row is as wide in every language. */}
-				{onPhone() ? <EffortMeter level={level} model={model} /> : <RollingText>{label}</RollingText>}
+				{onPhone() ? (
+					<EffortMeter level={level} model={model} />
+				) : (
+					<>
+						<Brain size={16} className="shrink-0" aria-hidden />
+						<RollingText>{label}</RollingText>
+						<ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />
+					</>
+				)}
 			</button>
 			{menu.open && !disabled && <EffortMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}
 		</>

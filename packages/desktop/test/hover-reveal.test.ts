@@ -75,6 +75,11 @@ test("every hover-revealed control in the tree is covered by the rule", async ()
 	for await (const entry of glob("**/*.tsx", { cwd: root })) files.push(entry);
 	assert.ok(files.length > 40, `渲染进程的组件应当被扫到，实际只找到 ${files.length} 个`);
 
+	/*
+	 * Read, not silenced. The desktop empty state's suggestion chips sit at 70% and brighten on
+	 * hover — dimmed, not hidden — and a phone never draws them: it has its own empty state.
+	 */
+	const outOfReach = new Set(["features/conversation/EmptyState.tsx"]);
 	const missed: string[] = [];
 	let found = 0;
 	for (const file of files) {
@@ -87,7 +92,7 @@ test("every hover-revealed control in the tree is covered by the rule", async ()
 			const start = source.lastIndexOf('"', match.index) + 1;
 			const alt = source.lastIndexOf("`", match.index) + 1;
 			const line = source.slice(Math.max(start, alt), match.index + match[0].length);
-			if (!revealed(line)) missed.push(`${file}: ${line.slice(-70)}`);
+			if (!revealed(line) && !outOfReach.has(file)) missed.push(`${file}: ${line.slice(-70)}`);
 		}
 	}
 

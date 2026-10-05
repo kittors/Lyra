@@ -144,6 +144,7 @@ export const ru = {
 	"appearance.wide": "Широко",
 	"appearance.extraWide": "Очень широко",
 	"appearance.full": "На всю ширину",
+	"appearance.chatWidthAuto": "Авто",
 	"appearance.composerLines": "Высота поля ввода",
 	"appearance.composerLinesDetail": "Сколько строк занимает пустое поле ввода. Длинные запросы больше не начинаются с одной строки",
 	"appearance.codeFontSize": "Размер текста кода",

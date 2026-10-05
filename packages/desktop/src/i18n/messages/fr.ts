@@ -144,6 +144,7 @@ export const fr = {
 	"appearance.wide": "Large",
 	"appearance.extraWide": "Très large",
 	"appearance.full": "Pleine largeur",
+	"appearance.chatWidthAuto": "Auto",
 	"appearance.composerLines": "Hauteur du champ de saisie",
 	"appearance.composerLinesDetail": "La hauteur en lignes d'un champ vide. Les longues demandes ne commencent plus dans une fente d'une ligne",
 	"appearance.codeFontSize": "Taille du texte de code",

@@ -144,6 +144,7 @@ export const zhTW = {
 	"appearance.wide": "寬",
 	"appearance.extraWide": "超寬",
 	"appearance.full": "鋪滿",
+	"appearance.chatWidthAuto": "自動",
 	"appearance.composerLines": "輸入框預設高度",
 	"appearance.composerLinesDetail": "空的輸入框有幾行高。寫長一點的需求時，不必每次都從一行開始往下撐",
 	"appearance.codeFontSize": "程式碼字級",

@@ -111,8 +111,12 @@ test("an untouched old factory look moves to the new one as a whole", () => {
 		lightBackground: "#FFFFFF",
 		lightForeground: "#1A1C1F",
 		darkForeground: "#EDEDED",
+		composerLines: 1,
+		contentWidth: 640,
 	});
 	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
+	assert.equal(next.composerLines, 2);
+	assert.equal(next.contentWidth, -1, "640 was the old fixed column; 自动 follows the pane");
 	assert.equal(next.uiFontWeight, 400);
 	assert.equal(next.fontSmoothing, false);
 	assert.equal(next.lightBackground, "#F8F8F8");
@@ -122,8 +126,10 @@ test("an untouched old factory look moves to the new one as a whole", () => {
 
 test("500, smoothing and a white page chosen on purpose survive every later load", () => {
 	// Someone who has been through 外观 has a font that is not an old factory stack.
-	const chosen = { ...DEFAULT_APPEARANCE, uiFontWeight: 500, fontSmoothing: true, lightBackground: "#FFFFFF" };
+	const chosen = { ...DEFAULT_APPEARANCE, uiFontWeight: 500, fontSmoothing: true, lightBackground: "#FFFFFF", composerLines: 1, contentWidth: 640 };
 	const once = migrateAppearance(chosen);
+	assert.equal(once.composerLines, 1);
+	assert.equal(once.contentWidth, 640);
 	assert.equal(once.uiFontWeight, 500);
 	assert.equal(once.fontSmoothing, true);
 	assert.equal(once.lightBackground, "#FFFFFF");
