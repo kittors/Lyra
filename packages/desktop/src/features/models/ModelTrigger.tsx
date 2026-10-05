@@ -58,7 +58,7 @@ export function ModelTrigger({
 	/*
 	 * On a phone the name comes in two parts, so the house's word can be the part that goes.
 	 *
-	 * At 320pt the row has about 67pt for a name, and `Claude Sonnet 5` wants 118: cut from the end
+	 * At 320pt the row has about 64pt for a name, and `Claude Sonnet 5` wants 118: cut from the end
 	 * it read `Claude So…`, which could be any of three models. The mark in front already says
 	 * Claude, so there the name drops that word and reads `Sonnet 5` whole; wherever the full name
 	 * fits it is shown as it is. Which of the two happens is decided by the layout rather than by a

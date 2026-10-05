@@ -109,6 +109,21 @@ export function placeBeside(
  * learns about it without learning what a phone is. Absent everywhere but on a phone, where they
  * are all zero and every caller behaves as it always did.
  */
+/**
+ * How much of the window's top belongs to the window's own toolbar (`--ly-chrome-top`, set by the
+ * layout while there is one — see `framed` in `app/layout.tsx`). Zero on a phone and in a window
+ * with no toolbar.
+ *
+ * Floating surfaces stop under it. They used to be kept only from the window's edge, so a preview
+ * opening upwards from a row near the top of the conversation spread over the toolbar: its title,
+ * its buttons and, on macOS, the strip the window is dragged by.
+ */
+export function chromeTop(): number {
+	if (typeof document === "undefined" || !document.documentElement) return 0;
+	const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ly-chrome-top"));
+	return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 export function safeInsets(): Rect {
 	if (typeof document === "undefined" || !document.documentElement) return { top: 0, bottom: 0, left: 0, right: 0 };
 	const style = getComputedStyle(document.documentElement);

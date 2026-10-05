@@ -193,6 +193,8 @@ interface Frame {
 	running: boolean;
 	/** What the run rows read, so a failure names the work rather than a row number. */
 	says: string[];
+	/** What each turn's folded line reads. */
+	folded: string[];
 }
 
 /**
@@ -211,6 +213,8 @@ const SAMPLE = `(() => {
 		running: Boolean(document.querySelector('main [aria-label="停止"]')),
 		// The summary by its class: the button's first span is the icon slot, which reads as nothing.
 		says: rows.map((row) => (row.querySelector(":scope > button .ly-flow-summary")?.innerText ?? "").trim()),
+		// And the turn's own line, which under the default call chain is all there is of the work until it is opened.
+		folded: [...document.querySelectorAll("main [data-ly-turn-process] > button .ly-flow-summary")].map((line) => line.innerText.trim()),
 	};
 })()`;
 
@@ -254,7 +258,7 @@ function whileRunning(frames: Frame[]): Frame[] {
 function story(frames: Frame[]): string {
 	const out: string[] = [];
 	for (const frame of frames) {
-		const line = `${frame.running ? "running" : "idle   "} | ${frame.marks.join(",") || "—"} | fold=${frame.folds.join(",") || "—"} | glides=${frame.glides} | ${frame.says.join(" / ")}`;
+		const line = `${frame.running ? "running" : "idle   "} | ${frame.marks.join(",") || "—"} | fold=${frame.folds.join(",") || "—"} | glides=${frame.glides} | ${frame.says.join(" / ")} | line=${frame.folded.join(" / ")}`;
 		if (line !== out[out.length - 1]) out.push(line);
 	}
 	return out.join("\n  ");
@@ -291,11 +295,15 @@ test("a turn doing tool work glides on the run it is doing", async () => {
 	const live = whileRunning(working);
 	assert.ok(live.length > 3, `the turn never ran (${working.length} samples)\n  ${story(working)}`);
 
-	const lit = live.filter((frame) => frame.marks.includes("running"));
-	assert.ok(lit.length > 0, `nothing ever glided while the turn worked:\n  ${story(working)}`);
+	/*
+	 * Under the default call chain the work is one folded line and its rows are not drawn until it is
+	 * opened, so the line is what has to glide; laid out in full, it is the run's own row.
+	 */
+	const lit = live.filter((frame) => frame.marks.includes("running") || frame.folds.includes("running"));
+	assert.ok(lit.length > 0, `nothing was ever marked as the work going on:\n  ${story(working)}`);
 	assert.ok(
 		lit.some((frame) => frame.glides === 1),
-		`the run was marked running but the line never carried the animation:\n  ${story(working)}`,
+		`the work was marked running but its line never carried the animation:\n  ${story(working)}`,
 	);
 
 	// Never two at once, at any point.
@@ -361,9 +369,10 @@ test("the answer arrives and the work above it is still marked done", () => {
 	assert.equal(settled.running, false);
 	assert.deepEqual(settled.marks.filter((mark) => mark !== "done"), [], `\n  ${story(talking)}`);
 	assert.equal(settled.glides, 0, `\n  ${story(talking)}`);
-	// And the line still says what it said — the fix must not have emptied it.
+	// And the line still says what it said — the fix must not have emptied it. Folded, that is the turn's line.
+	const lines = [...settled.says, ...settled.folded];
 	assert.ok(
-		settled.says.some((line) => line.includes("读取文件") || line.includes("列出目录") || line.includes("查找文件")),
-		`the run's summary is gone: ${JSON.stringify(settled.says)}`,
+		lines.some((line) => line.includes("读取文件") || line.includes("列出目录") || line.includes("查找文件")),
+		`the run's summary is gone: ${JSON.stringify(lines)}`,
 	);
 });

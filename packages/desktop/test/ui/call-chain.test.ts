@@ -76,3 +76,13 @@ test("collapsed: the same running turn has its line from the start, folded", asy
 		assert.equal(view.find("button[aria-expanded]").getAttribute("aria-expanded"), "false");
 	} finally { await view.unmount(); }
 });
+
+test("collapsed: the line glides while its stretch is the work being done, and only then", async () => {
+	layout("collapsed");
+	const view = await mount(h(TurnProcess, { counts: { tools: 2, thinking: 0 }, running: true, live: true, children: inside }));
+	try {
+		assert.equal(view.all("button .ly-glide").length, 1, "folded, the line is all there is of the work, so it says the work is going");
+		await view.rerender(h(TurnProcess, { counts: { tools: 2, thinking: 0 }, running: true, live: false, children: inside }));
+		assert.equal(view.all("button .ly-glide").length, 0, "the turn goes on to write its answer, and this stretch is finished");
+	} finally { await view.unmount(); }
+});

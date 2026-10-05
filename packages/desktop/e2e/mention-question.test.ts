@@ -64,12 +64,16 @@ async function until(condition: string | (() => Promise<boolean>)) {
 	}
 	throw new Error("The visible condition did not settle within 15 seconds");
 }
+/*
+ * "Settled" counts animations on the document's clock only: the sidebar's rows fade under its pinned
+ * headings on a scroll-driven timeline (`ly-under-pin`), "running" for as long as the list exists.
+ */
 async function click(target: keyof typeof clickTargets) {
 	await until(async () => {
 		// The fixture selects a complete constant script, never inserts data into JavaScript.
 		if (!await app.evaluate(clickTargets[target])) return false;
 		await app.evaluate("globalThis.__lyraMentionTarget.scrollIntoView({block:'nearest',behavior:'instant'})");
-		return app.evaluate("(()=>{const e=globalThis.__lyraMentionTarget,r=e.getBoundingClientRect();return !document.getAnimations().some(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity) && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()");
+		return app.evaluate("(()=>{const e=globalThis.__lyraMentionTarget,r=e.getBoundingClientRect();return !document.getAnimations().some(a=>a.playState==='running'&&a.timeline===document.timeline&&a.effect?.getTiming().iterations!==Infinity) && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()");
 	});
 	const at = await app.evaluate<{ x: number; y: number }>("(()=>{const r=globalThis.__lyraMentionTarget.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
@@ -101,7 +105,7 @@ async function shot(name: string) {
 	await new Promise(resolve => setTimeout(resolve, 1000));
 	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
-	await app.evaluate(`Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))`);
+	await app.evaluate(`Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.timeline===document.timeline&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))`);
 	const { data } = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(data, "base64"));
 }

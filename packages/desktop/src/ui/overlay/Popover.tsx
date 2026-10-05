@@ -24,7 +24,7 @@ import {
 
 import { OverlayDepth } from "./Overlay.tsx";
 import { claimHoverSuppression } from "./hover-layers.ts";
-import { heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
+import { chromeTop, heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
 import { portal } from "./portal.ts";
 
@@ -163,12 +163,13 @@ const MARGIN = 12;
  * How far from each window edge a popover must stay: the margin, or clear of the host's chrome.
  *
  * On a phone the page runs under the status bar and the home indicator, so twelve pixels from the
- * top edge is under the Dynamic Island. Everywhere else the insets are zero and this is `MARGIN`.
+ * top edge is under the Dynamic Island. In the desktop window the top is the toolbar's (see
+ * `chromeTop`). Everywhere else the insets are zero and this is `MARGIN`.
  */
 function edges(): { top: number; bottom: number; left: number; right: number } {
 	const inset = safeInsets();
 	return {
-		top: Math.max(MARGIN, inset.top + GAP),
+		top: Math.max(MARGIN, inset.top + GAP, chromeTop() + GAP),
 		bottom: Math.max(MARGIN, inset.bottom + GAP),
 		left: MARGIN + inset.left,
 		right: MARGIN + inset.right,

@@ -160,6 +160,8 @@ const UI = `
 	};
 	const click = (element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 	const byText = (selector, text) => [...document.querySelectorAll(selector)].find((element) => element.checkVisibility({ visibilityProperty: true }) && named(element, text));
+	// A provider in 模型设置's list: its row also draws the name's initial as an avatar, so the row's text is not the name alone.
+	const provider = (name) => [...document.querySelectorAll("button")].find((element) => element.checkVisibility({ visibilityProperty: true }) && [...element.querySelectorAll("*")].some((part) => part instanceof HTMLElement && part.childElementCount === 0 && label(part) === name));
 	const heatmap = () => {
 		const scroller = [...document.querySelectorAll("div")].find((d) => d.className.includes("justify-content:safe_center"));
 		if (!scroller) throw new Error("heatmap scroller not found");
@@ -742,7 +744,7 @@ test("the model editor synchronises offline catalogue values and offers upstream
 	const values = await ui<{ context: string; output: string; input: string; outputPrice: string; cacheRead: string; cacheWrite: string; source: string; manualSource: string; relayMatched: boolean }>(`
 		click(byText("nav button", "模型设置"));
 		await wait(300);
-		click(byText("button", "OpenAI 官方"));
+		click(provider("OpenAI 官方"));
 		await wait(200);
 		click(byText("button", "添加模型"));
 		await wait(200);
@@ -769,7 +771,7 @@ test("the model editor synchronises offline catalogue values and offers upstream
 		const manualSource = [...document.querySelectorAll("p")].find((element) => label(element).includes("当前使用手动价格"))?.innerText || "";
 		click(byText("button", "取消"));
 		await wait(150);
-		click(byText("button", "Relay"));
+		click(provider("Relay"));
 		await wait(150);
 		click(byText("button", "添加模型"));
 		await wait(150);

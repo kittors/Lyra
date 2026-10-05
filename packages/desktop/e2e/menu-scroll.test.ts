@@ -58,9 +58,23 @@ test("menu thumbs stay inside their rounded surfaces in both themes and narrow w
 		await openMenu();
 		for (const top of [0, 100000]) {
 			await app.evaluate(`${view}.scrollTop=${top}`); await frames();
-			const metrics = await app.evaluate<{top:number;bottom:number;right:number;gap:number;left:number;panelRight:number}>(`(()=>{const m=document.querySelector('.ly-command-menu'),r=m.getBoundingClientRect(),thumb=m.querySelector('.ly-thumb').getBoundingClientRect(),row=m.querySelector('[role="option"]').getBoundingClientRect();return {top:thumb.top-r.top,bottom:r.bottom-thumb.bottom,right:r.right-thumb.right,gap:thumb.left-row.right,left:r.left,panelRight:r.right}})()`);
+			const metrics = await app.evaluate<{top:number;bottom:number;right:number;gap:number;left:number;panelRight:number;inset:number;radius:number;thumbWidth:number;thumbRadius:number}>(`(()=>{const m=document.querySelector('.ly-command-menu'),r=m.getBoundingClientRect(),el=m.querySelector('.ly-thumb'),thumb=el.getBoundingClientRect(),row=m.querySelector('[role="option"]').getBoundingClientRect();return {top:thumb.top-r.top,bottom:r.bottom-thumb.bottom,right:r.right-thumb.right,gap:thumb.left-row.right,left:r.left,panelRight:r.right,inset:parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ly-menu-inset')),radius:parseFloat(getComputedStyle(m).borderTopRightRadius),thumbWidth:thumb.width,thumbRadius:parseFloat(getComputedStyle(el).borderTopRightRadius)||0}})()`);
 			t.diagnostic(JSON.stringify({theme,width,...metrics}));
-			assert.ok(metrics.top >= 6 && metrics.bottom >= 6 && metrics.right >= 6 && metrics.gap >= 4, JSON.stringify(metrics));
+			/*
+			 * Inside the surface by the menu's own inset at least, and clear of its rounded corners. The
+			 * inset is the menus' one gutter (`--ly-menu-inset`): it was 6px, and the tighter menus took it
+			 * to 4, so a fixed 6 here asserted the old look rather than containment.
+			 *
+			 * The corner is the real question. The thumb is a rounded bar, so what has to stay inside the
+			 * surface's arc (past its 1px edge) is the bar's own end cap, not the corner of its box.
+			 */
+			const cap = Math.min(metrics.thumbRadius, metrics.thumbWidth / 2);
+			const inside = (side: number, end: number) => {
+				const dx = metrics.radius - (side + cap), dy = metrics.radius - (end + cap);
+				return dx <= 0 || dy <= 0 || Math.hypot(dx, dy) + cap <= metrics.radius - 1;
+			};
+			assert.ok(metrics.top >= metrics.inset && metrics.bottom >= metrics.inset && metrics.right >= metrics.inset && metrics.gap >= 4, JSON.stringify(metrics));
+			assert.ok(inside(metrics.right, metrics.top) && inside(metrics.right, metrics.bottom), `the thumb stays inside the rounded corners: ${JSON.stringify(metrics)}`);
 			assert.ok(metrics.left >= 0 && metrics.panelRight <= width);
 		}
 		if (process.env.LYRA_E2E_ARTIFACTS) {

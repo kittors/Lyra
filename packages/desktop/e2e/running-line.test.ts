@@ -224,7 +224,8 @@ const READ_CLAIM = `(() => {
 		line: shown,
 		stopButton: Boolean(document.querySelector('main button[aria-label="停止"]')),
 		prose: text.includes(${JSON.stringify(PROSE)}),
-		toolCard: Boolean(document.querySelector("main [data-ly-run]")),
+		// Its run, or — under the default call chain, where the runs are drawn only once it is opened — the turn's folded line.
+		toolCard: Boolean(document.querySelector("main [data-ly-run], main [data-ly-turn-process]")),
 		mounted: Boolean(line),
 		foldHeight: fold ? Math.round(fold.getBoundingClientRect().height) : -1,
 	};

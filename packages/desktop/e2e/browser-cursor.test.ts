@@ -111,7 +111,14 @@ test("pointer stays 24 CSS pixels and aligns with real targets across zoom, view
 		await drive([{name:"browser_viewport",input:{width:1440,height:900,zoom}}, {name:"browser_act",input:{action:"hover",selector:"#target"}}]);
 		await app.evaluate(`Promise.all(document.querySelector('[data-browser-cursor]').getAnimations({subtree:true}).map(a=>a.finished))`);
 		const result = await app.evaluate<{error:number;width:number;height:number}>(`(async()=>{const state=await window.lyra.browser.state(),tab=state.tabs.find(t=>t.id===state.activeId),page=document.querySelector('[data-browser-page="'+tab.id+'"]'),r=page.getBoundingClientRect();const point=await page.executeJavaScript("(()=>{const r=document.querySelector('#target').getBoundingClientRect();return {x:(Math.max(0,r.left)+Math.min(innerWidth,r.right))/2,y:(Math.max(0,r.top)+Math.min(innerHeight,r.bottom))/2}})()");const cursor=document.querySelector('[data-browser-cursor="'+tab.id+'"]'),c=cursor.getBoundingClientRect(),svg=cursor.querySelector('svg').getBoundingClientRect(),scale=tab.zoom*Math.min(1,r.width/tab.viewport.width,r.height/tab.viewport.height);return {error:Math.hypot(c.x-r.x-point.x*scale,c.y-r.y-point.y*scale),width:svg.width,height:svg.height}})()`);
-		assert.ok(result.error < 2, JSON.stringify(result)); assert.equal(result.width,24); assert.equal(result.height,24); measurements.push({zoom,...result});
+		/*
+		 * 24 to within float noise. The mark is scaled about its tip (`scale(±1, ±1)` from 4px 4px) inside a
+		 * box moved by fractional pixels, and the rect of that comes back as 24.000015 — 2⁻¹⁶ over. What
+		 * this guards against is the page's zoom reaching the mark: 12px or 48px, not a sixty-thousandth.
+		 */
+		assert.ok(result.error < 2, JSON.stringify(result));
+		assert.ok(Math.abs(result.width - 24) < 0.01 && Math.abs(result.height - 24) < 0.01, JSON.stringify(result));
+		measurements.push({zoom,...result});
 	}
 	t.diagnostic(JSON.stringify(measurements));
 	await pixels("cursor-desktop-viewport");
