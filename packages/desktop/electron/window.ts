@@ -158,9 +158,39 @@ function resolvedBackground(): string {
 	return bootTheme().background;
 }
 
+/**
+ * The main window on macOS can sit on the system's frosted material (`under-window`).
+ *
+ * The main window only: session and panel windows are an opaque card from edge to edge, so the
+ * material would never show — except as the strip a fast resize exposes, which would change from the
+ * background colour to the material. Windows has its own acrylic and Linux has none; macOS only. The
+ * renderer's half (a translucent window base, a transparent sidebar) hangs off `data-vibrancy`, see
+ * `tabs.css`.
+ */
+function canVibrate(role: AppWindowRole): boolean {
+	return process.platform === "darwin" && role === "primary";
+}
+
+/** Of the windows that can, whether this one does: the appearance setting, on unless turned off. */
+function isVibrant(role: AppWindowRole): boolean {
+	return canVibrate(role) && readSettings()?.appearance?.vibrancy !== false;
+}
+
+/** Whether a window has the material now, so a settings save does not rebuild the effect view. */
+const vibrancyApplied = new WeakMap<BrowserWindow, boolean>();
+
 export function applyNativeAppearance(): void {
 	const theme = readSettings()?.appearance?.theme ?? "system";
 	nativeTheme.themeSource = theme === "light" || theme === "dark" ? theme : "system";
+	// Turning the material on or off in 外观 takes effect on the open main window, without a reopen.
+	// The page's half follows in `applyAppearance`.
+	const win = getPrimaryWindow();
+	if (!win || !canVibrate("primary")) return;
+	const vibrant = isVibrant("primary");
+	if (vibrancyApplied.get(win) === vibrant) return;
+	vibrancyApplied.set(win, vibrant);
+	win.setVibrancy(vibrant ? "under-window" : null);
+	win.setBackgroundColor(vibrant ? "#00000000" : resolvedBackground());
 }
 
 function bootTheme(): { dark: boolean; background: string; foreground: string; accent: string } {
@@ -332,6 +362,7 @@ function buildAppWindow(options: {
 	const origin = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
 	const sessionBox = options.role === "aux" || options.role === "panel" ? sessionWindowBounds(origin) : null;
 	const windowId = options.role === "primary" ? "primary" : crypto.randomUUID();
+	const vibrant = isVibrant(options.role);
 	const win = new BrowserWindow({
 		/*
 		 * The icon, for the layouts that read it from the window.
@@ -366,7 +397,15 @@ function buildAppWindow(options: {
 		 * Hard-coded dark, it flashed a black frame on every drag under a light theme. Seeded
 		 * from the saved appearance here, and kept in step by `window:theme` afterwards.
 		 */
-		backgroundColor: resolvedBackground(),
+		// Under the material the backing has to be clear: an opaque one would sit on top of it.
+		backgroundColor: vibrant ? "#00000000" : resolvedBackground(),
+		...(vibrant ? { vibrancy: "under-window" as const } : {}),
+		/*
+		 * Otherwise the material follows focus and turns into a flat grey whenever another app is in
+		 * front. Given whenever the window can have it, on or not: the effect view `setVibrancy` builds
+		 * when it is turned on later keeps this state.
+		 */
+		...(canVibrate(options.role) ? { visualEffectState: "active" as const } : {}),
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
 		trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
@@ -417,7 +456,9 @@ function buildAppWindow(options: {
 			backgroundThrottling: false,
 			// Read by the preload before the first frame, so the app never opens in the wrong theme.
 			additionalArguments: [
-				`--ly-boot=${encodeURIComponent(JSON.stringify(bootTheme()))}`,
+				// Only a window that can have the material carries `vibrancy` (on / off), so the page
+				// knows whether this window has the setting at all.
+				`--ly-boot=${encodeURIComponent(JSON.stringify({ ...bootTheme(), ...(canVibrate(options.role) ? { vibrancy: vibrant ? "on" : "off" } : {}) }))}`,
 				`--ly-window=${windowId}`,
 				...(options.role === "aux" ? ["--ly-kind=session"] : []),
 				...(options.role === "panel" ? ["--ly-kind=panel"] : []),
@@ -429,6 +470,7 @@ function buildAppWindow(options: {
 	});
 
 	appWindows.add(win);
+	vibrancyApplied.set(win, vibrant);
 	windowMeta.set(win, {
 		id: windowId,
 		role: options.role,
@@ -615,7 +657,8 @@ export function registerWindowIpc(): void {
 		 * This is the surface a fast resize exposes before the renderer has reflowed, so it has
 		 * to track the theme — otherwise dragging an edge flashes the old palette's background.
 		 */
-		window.setBackgroundColor(colors.color);
+		// A window on the material keeps a clear backing; the theme colour would cover the material.
+		if (!isVibrant(windowMeta.get(window)?.role ?? "aux")) window.setBackgroundColor(colors.color);
 		/*
 		 * Only Windows and Linux have a system-drawn title strip — macOS keeps its own lights
 		 * outside the page — and Electron throws if the window was not created with an overlay,

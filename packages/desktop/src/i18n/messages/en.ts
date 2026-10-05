@@ -157,6 +157,8 @@ export const en = {
 	"appearance.complete": "In full",
 	"appearance.fontSmoothing": "Font smoothing",
 	"appearance.fontSmoothingDetail": "Use the native macOS antialiasing",
+	"appearance.vibrancy": "Translucent sidebar",
+	"appearance.vibrancyDetail": "Let the macOS window material show through the main window's sidebar",
 	"appearance.resetDefaults": "Restore defaults",
 	"appearance.resetDefaultsDetail": "Put every appearance setting back the way it shipped",
 	"common.always": "Always",

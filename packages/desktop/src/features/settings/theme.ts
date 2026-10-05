@@ -355,6 +355,17 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
+	/*
+	 * The material exists only in a window the preload marked (the macOS main window); here it only
+	 * follows the setting between on and off — the window's own layer is swapped by the main process
+	 * when the setting changes. Off, `<html>` goes back to the theme colour; on, it has to be clear, or
+	 * a solid layer sits over the material.
+	 */
+	if (root.dataset.vibrancy) {
+		const vibrant = appearance.vibrancy !== false;
+		root.dataset.vibrancy = vibrant ? "on" : "off";
+		root.style.background = vibrant ? "transparent" : "var(--color-shell)";
+	}
 	for (const listener of applied) listener();
 }
 

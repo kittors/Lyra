@@ -157,6 +157,8 @@ export const zhTW = {
 	"appearance.complete": "完整",
 	"appearance.fontSmoothing": "字型平滑",
 	"appearance.fontSmoothingDetail": "使用 macOS 原生字型反鋸齒",
+	"appearance.vibrancy": "毛玻璃側邊欄",
+	"appearance.vibrancyDetail": "主視窗的側邊欄透出 macOS 的視窗材質",
 	"appearance.resetDefaults": "還原預設",
 	"appearance.resetDefaultsDetail": "把外觀設定還原為出廠設定",
 	"common.always": "總是",

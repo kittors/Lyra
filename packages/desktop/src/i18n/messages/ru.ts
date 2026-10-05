@@ -157,6 +157,8 @@ export const ru = {
 	"appearance.complete": "Полностью",
 	"appearance.fontSmoothing": "Сглаживание шрифтов",
 	"appearance.fontSmoothingDetail": "Использовать системное сглаживание macOS",
+	"appearance.vibrancy": "Полупрозрачная боковая панель",
+	"appearance.vibrancyDetail": "Боковая панель главного окна пропускает материал окна macOS",
 	"appearance.resetDefaults": "Вернуть значения по умолчанию",
 	"appearance.resetDefaultsDetail": "Вернуть все настройки оформления к исходным",
 	"common.always": "Всегда",

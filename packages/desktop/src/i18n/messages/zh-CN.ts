@@ -342,6 +342,8 @@ export const zhCN = {
 	"appearance.complete": "完整",
 	"appearance.fontSmoothing": "字体平滑",
 	"appearance.fontSmoothingDetail": "使用 macOS 原生字体抗锯齿",
+	"appearance.vibrancy": "毛玻璃侧边栏",
+	"appearance.vibrancyDetail": "主窗口的侧边栏透出 macOS 的窗口材质",
 	"appearance.resetDefaults": "恢复默认",
 	"appearance.resetDefaultsDetail": "把外观设置还原为出厂配置",
 	"common.always": "总是",

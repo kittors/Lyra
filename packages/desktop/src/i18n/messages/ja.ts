@@ -157,6 +157,8 @@ export const ja = {
 	"appearance.complete": "全文",
 	"appearance.fontSmoothing": "フォントのスムージング",
 	"appearance.fontSmoothingDetail": "macOS 本来のアンチエイリアスを使います",
+	"appearance.vibrancy": "すりガラスのサイドバー",
+	"appearance.vibrancyDetail": "メインウインドウのサイドバーに macOS のウインドウ素材を透かして表示します",
 	"appearance.resetDefaults": "既定値に戻す",
 	"appearance.resetDefaultsDetail": "外観の設定をすべて初期状態に戻します",
 	"common.always": "常に",

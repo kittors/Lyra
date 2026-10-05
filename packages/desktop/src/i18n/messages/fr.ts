@@ -157,6 +157,8 @@ export const fr = {
 	"appearance.complete": "En entier",
 	"appearance.fontSmoothing": "Lissage des polices",
 	"appearance.fontSmoothingDetail": "Utiliser l'anticrénelage natif de macOS",
+	"appearance.vibrancy": "Barre latérale translucide",
+	"appearance.vibrancyDetail": "Laisser transparaître le matériau de fenêtre de macOS dans la barre latérale de la fenêtre principale",
 	"appearance.resetDefaults": "Rétablir les valeurs par défaut",
 	"appearance.resetDefaultsDetail": "Remettre tous les réglages d'apparence à leur état d'origine",
 	"common.always": "Toujours",

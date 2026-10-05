@@ -15,7 +15,7 @@ function paintBootTheme(): void {
 	const flag = process.argv.find((arg) => arg.startsWith("--ly-boot="));
 	if (!flag) return;
 
-	let boot: { dark: boolean; background: string; foreground: string; accent: string };
+	let boot: { dark: boolean; background: string; foreground: string; accent: string; vibrancy?: "on" | "off" };
 	try {
 		boot = JSON.parse(decodeURIComponent(flag.slice("--ly-boot=".length)));
 	} catch {
@@ -37,7 +37,15 @@ function paintBootTheme(): void {
 		 * Painted directly as well, not only as a token: the stylesheet that turns `--color-shell`
 		 * into a background is itself a load away, and until it lands the page is default white.
 		 */
-		root.style.background = boot.background;
+		root.style.background = boot.vibrancy === "on" ? "transparent" : boot.background;
+		/*
+		 * A window on the material: every layer of the page has to let the light through — the
+		 * material is drawn by the window, not by the page. The stylesheet turns `body` and the window
+		 * base transparent or translucent on `on` (see `tabs.css`). `off` is a window that could but
+		 * has it turned off; the mark stays so `applyAppearance` knows this window can follow the
+		 * setting.
+		 */
+		if (boot.vibrancy) root.dataset.vibrancy = boot.vibrancy;
 		// Left behind so "did the theme land before the first paint?" stays answerable later.
 		root.dataset.bootThemeMs = String(Math.round(performance.now()));
 	};

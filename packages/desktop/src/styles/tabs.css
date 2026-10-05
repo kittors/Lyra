@@ -83,6 +83,41 @@
   background: var(--color-sidebar);
 }
 
+/*
+ * The macOS main window on its frosted material: the window base is a translucent wash over the
+ * system material, the sidebar paints no fill of its own, and it shows through together with the
+ * gaps between the cards. Light takes the background at 70%, dark the float colour at 60% — tokens
+ * that follow 外观, not fixed colours.
+ *
+ * The mark is set by the preload on the main process's decision (`isVibrant` in `electron/window.ts`).
+ * A window without the material never has it, these rules do nothing there, and the base stays the
+ * opaque sidebar colour above.
+ */
+:root[data-vibrancy="on"] {
+  --ly-window-tint: color-mix(in oklab, var(--color-shell) 70%, transparent);
+}
+
+:root.dark[data-vibrancy="on"] {
+  --ly-window-tint: color-mix(in oklab, var(--color-float) 60%, transparent);
+}
+
+:root[data-vibrancy="on"] body {
+  background: transparent;
+}
+
+:root[data-vibrancy="on"] :is(.ly-window-body, [data-ly-workspace-window], [data-ly-settings]) {
+  background: var(--ly-window-tint);
+}
+
+:root[data-vibrancy="on"] .ly-sidebar-fill {
+  background: transparent;
+}
+
+/* The drawer lies over the transcript; clear, it would be two layers of text. It keeps the opaque colour. */
+:root[data-vibrancy="on"] [data-pane="drawer"] .ly-sidebar-fill {
+  background: var(--color-sidebar);
+}
+
 .ly-frames {
   padding: var(--ly-frame-pad);
 }

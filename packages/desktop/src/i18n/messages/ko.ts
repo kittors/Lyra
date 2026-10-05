@@ -157,6 +157,8 @@ export const ko = {
 	"appearance.complete": "전체",
 	"appearance.fontSmoothing": "글꼴 부드럽게",
 	"appearance.fontSmoothingDetail": "macOS 기본 앤티앨리어싱을 사용합니다",
+	"appearance.vibrancy": "반투명 사이드바",
+	"appearance.vibrancyDetail": "메인 창의 사이드바에 macOS 창 재질이 비쳐 보입니다",
 	"appearance.resetDefaults": "기본값 복원",
 	"appearance.resetDefaultsDetail": "모양 설정을 모두 처음 상태로 되돌립니다",
 	"common.always": "항상",

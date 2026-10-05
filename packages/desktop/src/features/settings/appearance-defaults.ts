@@ -65,4 +65,5 @@ export const FACTORY_APPEARANCE: Appearance = {
 	diffMarkers: "color",
 	errorDetail: "compact",
 	fontSmoothing: false,
+	vibrancy: true,
 };

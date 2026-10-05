@@ -193,6 +193,15 @@ export interface AppearanceSettings {
 	 * a morning's work reads as a wall of red for something that resolved itself on the retry.
 	 */
 	errorDetail?: "full" | "compact";
+	/**
+	 * The macOS main window on the system's frosted material, the sidebar showing it through.
+	 *
+	 * Optional: a file written before it existed has it on, as a fresh install does. Not the old
+	 * `translucentSidebar` (see `REMOVED_APPEARANCE`): that one was dropped because a pinned row
+	 * needed an opaque fill nothing could match on glass, and the sidebar no longer fills its pinned
+	 * rows — the list fades out before it reaches them instead.
+	 */
+	vibrancy?: boolean;
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -276,6 +285,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	errorDetail: "compact",
 	// Left to the system, as ZCode does; see `uiFontWeight`.
 	fontSmoothing: false,
+	vibrancy: true,
 };
 
 /**

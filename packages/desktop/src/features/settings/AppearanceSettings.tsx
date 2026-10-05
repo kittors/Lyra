@@ -686,6 +686,14 @@ export function AppearanceSettings() {
 						control={<Toggle checked={appearance.fontSmoothing} onChange={(fontSmoothing) => patch({ fontSmoothing })} />}
 					/>
 				)}
+				{/* macOS only, for the same reason: the material is the system's, see `electron/window.ts`. */}
+				{(bridge.platform ?? "darwin") === "darwin" && (
+					<Row
+						title={t("appearance.vibrancy")}
+						detail={t("appearance.vibrancyDetail")}
+						control={<Toggle checked={appearance.vibrancy !== false} onChange={(vibrancy) => patch({ vibrancy })} />}
+					/>
+				)}
 				<Row
 					title={t("appearance.resetDefaults")}
 					detail={t("appearance.resetDefaultsDetail")}
