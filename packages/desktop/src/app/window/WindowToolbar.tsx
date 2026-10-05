@@ -236,7 +236,7 @@ export function WindowButtons({
 			 * Windows and Linux — where this used to sit 78px in anyway, out of line with the marks
 			 * directly below it and adrift from the edge. `useTitlebar` is the whole rule.
 			 */
-			// 和红绿灯同一条线：主窗口的顶行在卡片里，低 `MAIN_WINDOW_ROW_OFFSET`。
+			// On the traffic lights' line: the main window's top row is inside the card, `MAIN_WINDOW_ROW_OFFSET` lower.
 			style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}
 		>
 			<WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />

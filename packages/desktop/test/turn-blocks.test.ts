@@ -28,7 +28,7 @@ const think = (index: number): Run => ({
 	lead: true,
 });
 
-/** 一条只想了、然后只调了工具的回复：它没有正文行可以「领」，所以不带 `lead`。 */
+/** A reply that only thought and then only called tools: it has no body row to lead, so it carries no `lead`. */
 const thinkingOnly = (index: number): Run => ({
 	kind: "message",
 	message: { role: "assistant", content: [{ type: "thinking", thinking: "再想想" }, { type: "toolCall", id: "t", name: "read", arguments: {} }], stopReason: "toolUse" } as Message,
@@ -62,7 +62,7 @@ test("一轮里，过程收成一块，最后那句话留在外面", () => {
 });
 
 test("中间说的话留在外面，把过程切成两段", () => {
-	// 「我先看一下配置」是在向人汇报，收进过程里，收起之后就看不到了。
+	// 「我先看一下配置」 is a report to a person; folded into the process, it would vanish once collapsed.
 	const blocks = turnBlocks([ask("改一下", 0), think(1), say("我先看一下配置。", 2), work(1), say("改好了。", 4)]);
 	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain", "process", "plain"]);
 	assert.deepEqual(blocks[1].counts, { tools: 0, thinking: 1 });

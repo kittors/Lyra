@@ -53,7 +53,7 @@ test("opening it renders the contents, closing it takes them back out", async ()
 });
 
 test("the turn that is still running starts folded too, and can be opened", async () => {
-	// 默认不展开：跑的时候那一行的计数已经在说正在做什么，话留在折叠外面。
+	// Not expanded by default: while it runs, the line's counts already say what is happening, and what is said stays outside the fold.
 	const view = await mount(h(TurnProcess, { counts: COUNTS, running: true, children: inside }));
 	try {
 		const toggle = view.find<HTMLButtonElement>("button[aria-expanded]");

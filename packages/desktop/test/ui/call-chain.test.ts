@@ -1,8 +1,9 @@
 /**
- * 设置 › 外观 › 调用链：两种排法各自说的是不是它们自己的那一套。
+ * Settings › Appearance › Tool calls: whether each layout says what belongs to it.
  *
- * 折叠（默认）：一轮从一开始就有那一行，默认收着；每次调用各占一行，没有工具组那一层。
- * 展开：原来的样子——跑的时候没有那一行、跑完自己收起，调用收成工具组，组里是带框的卡片。
+ * Collapsed (the default): a turn has its line from the start, folded by default; each call takes a
+ * row of its own, with no tool-group layer. Expanded: the earlier look — no line while running, folding
+ * by itself when done, calls gathered into tool groups of bordered cards.
  */
 
 import assert from "node:assert/strict";

@@ -37,7 +37,7 @@ export function usePaneOnScreen(kind: PaneKind): boolean {
 			return false;
 		}
 	}
-	// 标签页排法下后台标签开着、却不在屏上。
+	// In the tabs layout a background tab is open but not on screen.
 	if (tabbed && !compact && kind !== "conversation" && activeTab(tree, tab) !== kind) return false;
 	return paneVisible(kind, { present: kinds(tree), maximized: tabbed ? null : (maximized?.panes ?? null), compact, focused });
 }

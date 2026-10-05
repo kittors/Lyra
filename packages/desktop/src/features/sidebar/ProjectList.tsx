@@ -170,7 +170,7 @@ export function ProjectList({
 					    conversation. Same gap as inside a project, so the two read as one list. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-							{/* 只包住行，理由见 `useUnfold`。 */}
+							{/* Wraps only the rows; `useUnfold` says why. */}
 							<div ref={looseRows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 								{groups.loose.slice(0, looseShown).map((session) => (
 									<SessionRow
@@ -222,9 +222,10 @@ function SectionLabel({
 }: {
 	children: React.ReactNode;
 	/**
-	 * 列表里的第一个分区，不留上间距。
+	 * The first section in the list, which gets no top spacing.
 	 *
-	 * `pt-4` 是分区之间的间隔；列表顶上和标签栏之间的间距由 `Sidebar` 的列表容器统一给。
+	 * `pt-4` is the gap between sections; the space between the top of the list and the tab strip is
+	 * given once, by `Sidebar`'s list container.
 	 */
 	first?: boolean;
 	section: "pinned" | "projects" | "recent";

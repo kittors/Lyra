@@ -18,7 +18,7 @@ import { useFade } from "./FadeText.tsx";
  */
 const SHELL = new Set(["bash", "sh", "zsh", "shell", "console", "terminal"]);
 
-/** 围栏语言名到扩展名，只为给标题栏挑一个和文件树同款的图标；不在表里的按原样当扩展名。 */
+/** Fence language names to file extensions, only to pick the title bar the same icon the file tree uses; anything not listed is taken as the extension itself. */
 const LANG_EXTENSION: Record<string, string> = {
 	typescript: "ts",
 	javascript: "js",
@@ -93,7 +93,7 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 	 */
 	const generation = useSyncExternalStore(onHighlightChange, highlightGeneration, highlightGeneration);
 
-	/** 正在输出时上一次的解析结果，下一帧只解析长出来的那一截，见 `tokenizeGrowing`。 */
+	/** The last parse while the block is being written; the next frame parses only what grew, see `tokenizeGrowing`. */
 	const grown = useRef<Grown | undefined>(undefined);
 
 	const tokens = useMemo(() => {
@@ -127,7 +127,7 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 		// oxlint-disable-next-line exhaustive-deps -- `generation` 不出现在函数体里，它就是「重算」的信号
 	}, [code, language, generation, fade]);
 
-	// 正在输出的代码块，新来的字和正文一样淡入，见 `FadeText`。不在输出的块不记出现时刻。
+	// A code block being written fades new characters in like the body text, see `FadeText`. A finished block records no appearance times.
 	const { settled, style } = useFade(fade ? Array.from(code).length : 0);
 
 	return (
@@ -139,7 +139,7 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 					<CodeAction
 						tip={translate("codeBlock.runInTerminal")}
 						onClick={() => {
-							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
+							// Call up a terminal to take this command. One that already exists is focused rather than another opened.
 							const at = openScopedPanel("terminal", undefined, screen ?? undefined);
 							// For that terminal, wherever the request landed: a command nobody's terminal takes is lost.
 							useSide.getState().runInTerminal(commandFrom(code), at);
@@ -200,23 +200,28 @@ function CodeAction({ tip, active, onClick, children }: { tip: string; active?: 
 	);
 }
 
-/** 正在输出的代码按这么多行一段画；写完的段不再重画。 */
+/** Code being written is drawn in chunks of this many lines; a finished chunk is not drawn again. */
 const CHUNK_LINES = 24;
 
 /**
- * 正在输出的代码：淡完的字按 token 配色成段画，还在淡的字一个一个画成带配色的 span。
+ * Code being written: characters done fading are drawn in chunks with their token colours, the ones
+ * still fading as coloured spans one by one.
  *
- * 按行切成段，每段是一个块级元素，整段都淡完了就交给 `SettledChunk`，内容不变它就不重画。不切的话
- * 整块代码是同一个行内排版：每帧长一个字，几百行、几千个 span 全部重排一遍。量过：300 行的块按
- * 每秒 150 字输出，切段之前三分之一以上的帧超过 16ms。切开之后浏览器只重排最后一段。
+ * Cut into chunks by line, each a block-level element; a chunk that has finished fading goes to
+ * `SettledChunk`, which does not redraw while its content is unchanged. Uncut, the whole block is one
+ * inline layout: every frame adds a character and hundreds of lines, thousands of spans, are laid out
+ * again. Measured: a 300-line block written at 150 characters a second had over a third of its frames
+ * past 16ms before the cut. After it the browser lays out only the last chunk.
  *
- * 段放在 `pre` 底下、每段自己再套一个 `code`，和写完之后整块的 `<pre><code>` 一行一行排得一样：
- * 行高由 `pre` 的字号撑着。段放进 `code` 里面的话，每行矮 3px，写完换回整块那一刻，三百行的块
- * 一下子长高近一千像素。
+ * Chunks sit directly under `pre`, each with a `code` of its own, so they line up exactly as the
+ * finished block's single `<pre><code>` does: the line height comes from `pre`'s font size. Inside
+ * `code` each line was 3px shorter, and at the moment the finished block replaced them a 300-line block
+ * grew by nearly a thousand pixels.
  *
- * 还在淡的字按字的序号作 key，挂在 token 外面而不是里面。配色是整块重算的，`cons` 长成 `const`
- * 时 token 的边界和类名都会变；字挂在 token 里的话会跟着 token 被重建，淡入从头再来。挂在外面，
- * 变的只是它的类名，动画不受影响。
+ * A fading character is keyed by its index and hangs outside its token, not inside it. Colours are
+ * computed for the whole block, and when `cons` grows into `const` the token's boundaries and class
+ * change; a character inside the token would be rebuilt with it and start fading again. Outside, only
+ * its class changes and the animation carries on.
  */
 function fading(tokens: Token[], settled: number, style: (index: number) => CSSProperties): ReactNode[] {
 	const out: ReactNode[] = [];
@@ -226,7 +231,7 @@ function fading(tokens: Token[], settled: number, style: (index: number) => CSSP
 	let lines = 0;
 	const flush = () => {
 		if (chunk.length === 0) return;
-		// `at` 这时是这一段的末尾：它之前的字都淡完了，这一段就不会再变。
+		// `at` is now this chunk's end: everything before it has finished fading, so the chunk will not change again.
 		out.push(
 			at <= settled ? (
 				<SettledChunk key={`s${start}`} tokens={chunk} />
@@ -241,7 +246,7 @@ function fading(tokens: Token[], settled: number, style: (index: number) => CSSP
 		lines = 0;
 	};
 	for (const token of tokens) {
-		// 一个 token 可以跨行（块注释、模板字符串），在换行处切开，段才能按行分。
+		// A token can span lines (block comments, template strings); cut at the newlines so chunks can go by line.
 		const parts = token.text.split("\n");
 		parts.forEach((part, index) => {
 			const text = index < parts.length - 1 ? `${part}\n` : part;
@@ -255,7 +260,7 @@ function fading(tokens: Token[], settled: number, style: (index: number) => CSSP
 	return out;
 }
 
-/** 一段里还有字在淡：淡完的部分成段，其余一个字一个 span。 */
+/** A chunk with characters still fading: the faded part as text runs, the rest one span per character. */
 function live(tokens: Token[], start: number, settled: number, style: (index: number) => CSSProperties): ReactNode[] {
 	const out: ReactNode[] = [];
 	let at = start;

@@ -110,7 +110,7 @@ export function SidebarTabs({
 }) {
 	const { compact } = useLayout();
 	const { t } = useI18n();
-	// 胶囊是 28px：2px 内边距包 24px 标签；抽屉模式保留原来的 3px 内边距，整条仍是 38px。
+	// The pill is 28px: 2px of padding around 24px tabs. Drawer mode keeps the old 3px padding, and the strip there is still 38px.
 	const pad = compact ? 3 : 2;
 	const row = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLDivElement>(null);

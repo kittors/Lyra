@@ -72,7 +72,7 @@ export function SettingsNav({
 				}
 			>
 				<div className="ly-settings-nav-pill" data-ready={pill.ready ? "true" : "false"} />
-				{/* 字号、间距、配色对齐 ZCode 设置页的侧边栏：分组标题 12px medium 最浅色，条目一律正文色。 */}
+				{/* Size, spacing and colour follow the sidebar of ZCode's settings page: group titles 12px medium in the faintest ink, every item in body ink. */}
 				{groups.map((group, index) => (
 					<div key={group.labelKey} className={`flex flex-col gap-1 ${index > 0 ? "mt-4" : ""}`}>
 						<div className="px-2.5 pb-1 text-caption font-medium text-ink-faint">{label(group.labelKey)}</div>

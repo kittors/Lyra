@@ -14,28 +14,36 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { FADE_TOP } from "../../ui/scroll/Scroller.tsx";
 import { fadeGeometry, heldBand, type FadeGeometry, type StickyRow } from "./sticky.ts";
 
-/** 要按钉住的行的下沿淡没的元素，读 `--ly-held-edge` 的就是它们（`misc.css` 的 `ly-under-pin`）。 */
+/** Elements that fade out against the pinned rows' underside — the readers of `--ly-held-edge` (`ly-under-pin` in `misc.css`). */
 const EDGE_READERS = "[data-ly-row], [data-ly-fades], [data-ly-band]";
 
 /*
- * 这条线只写给顶上那一段里的元素：视口上方四分之一屏到视口一半。
+ * The line is written only to the elements in the top stretch: a quarter screen above the viewport down
+ * to its middle.
  *
- * 从前写在滚动区上，靠继承传给每一行。可继承的变量一变，整棵列表都要重算样式，开销跟挂着的元素数
- * 成正比——两百个项目时一次一百毫秒，二十个项目也要十毫秒，而滚过项目标题交接时几乎每帧都在变。
- * 真正用得上这条线的只有快滑到钉住的行底下的那几行：下面的行离线还远，值旧一点也照样不透明；
- * 滑出上沿的行已经是 0。所以变量注册成不继承，只写给这一段里的几十个元素。
+ * It used to be set on the scroller and inherited by every row. When an inherited variable changes, the
+ * whole list's styles are recomputed, at a cost that grows with the number of mounted elements — 100ms
+ * at two hundred projects, still 10ms at twenty — and while scrolling past a project heading's handover
+ * it changes nearly every frame. Only the few rows about to slide under a pinned row actually need the
+ * line: rows further down are far from it and stay opaque with a stale value; rows past the top edge
+ * are already at 0. So the variable is registered as not inherited and written to the few dozen
+ * elements in this stretch.
  *
- * 上面留四分之一屏，是给往回滚、从上沿重新进来的行：`IntersectionObserver` 晚一帧才报，要赶在它们
- * 露出来之前补上。
+ * The quarter screen above is for rows coming back in at the top on a scroll back up:
+ * `IntersectionObserver` reports a frame late, and they have to be written before they show.
  */
 const NEAR_TOP = "25% 0px -50% 0px";
 
 /*
- * 分组比行挑得更紧：只有下沿离线不到这么远的才写。
+ * Groups are chosen more tightly than rows: only those whose bottom edge is within this distance of the
+ * line are written.
  *
- * 分组身上挂着滚动时间线（标题靠它淡出），改一次要连着重算整组的子树，一次半毫秒多；收起的项目只有
- * 一个标题高，顶上那一段能排下十来个，每帧都全写一遍就又是十几毫秒。而标题只在分组下沿离线 36px
- * 以内才淡，再往下的分组值旧一点没有关系。多留的这一段是给一帧滚过的距离，要赶在下沿进 36px 之前写上。
+ * A group carries a scroll timeline (its heading fades out by it), and each write recomputes the group's
+ * whole subtree, over half a millisecond a time; collapsed projects are one heading tall, a dozen of
+ * them fit in the top stretch, and writing them all every frame was ten-odd milliseconds again. A heading
+ * only fades within 36px of its group's bottom edge reaching the line, so groups further down are fine
+ * with a stale value. The extra stretch is for the distance one frame can scroll: they must be written
+ * before their bottom edge comes within 36px.
  */
 const BAND_LEAD = FADE_TOP + 48;
 
@@ -55,7 +63,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	const stale = useRef(true);
 	const written = useRef<FadeGeometry>({ top: -1, inset: -1, room: -1, run: -1 });
 	const frame = useRef(0);
-	/** 顶上那一段里的读者，和每个读者身上现在写着的值。见 `NEAR_TOP`。 */
+	/** The readers in the top stretch, and the value currently written on each. See `NEAR_TOP`. */
 	const near = useRef(new Set<HTMLElement>());
 	const edgeOn = useRef(new WeakMap<HTMLElement, number>());
 	const edge = useRef(0);
@@ -106,7 +114,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		 */
 		const next = fadeGeometry(band);
 
-		// 还在读的阶段，量完再写，理由同上。
+		// Still in the reading phase: measure first, write after, for the reason above.
 		const bands: HTMLElement[] = [];
 		for (const node of near.current) {
 			if (!node.hasAttribute("data-ly-band")) continue;
@@ -123,8 +131,9 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 			written.current = next;
 		}
 		/*
-		 * 同一条下沿，再写一份给列表的行读：它们要按这条线在滑进钉住的行底下之前淡没。只写顶上那一段，
-		 * 见 `NEAR_TOP` 和 `BAND_LEAD`。线没变也要走一遍：分组是按位置挑的，刚滑进来的要补上。
+		 * The same underside again, for the list's rows: they fade out against it before sliding under a
+		 * pinned row. Written only to the top stretch — see `NEAR_TOP` and `BAND_LEAD`. Done even when the
+		 * line has not moved: groups are chosen by position, and one that has just slid in needs it.
 		 */
 		edge.current = next.inset;
 		for (const node of near.current) if (!node.hasAttribute("data-ly-band")) writeEdge(node, next.inset, edgeOn.current);
@@ -142,7 +151,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	useLayoutEffect(() => {
 		const view = viewport.current;
 		if (!view) return;
-		// 这个集合本身不换，只增删成员；取一次给清理用，不在清理时再读 ref。
+		// The set itself is never replaced, only its members change; taken once for the cleanup rather than read from the ref there.
 		const nearby = near.current;
 		stale.current = true;
 		measure();
@@ -163,8 +172,9 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		watch();
 
 		/*
-		 * 新挂上的读者当场写上现在的值，不等它进了顶上那一段再补：切标签、开归档时整张列表是在顶上
-		 * 换出来的，等一帧就是一帧没按线淡的行。
+		 * A reader that has just mounted gets the current value at once rather than when it reaches the top
+		 * stretch: switching tabs or opening the archive swaps the whole list in at the top, and one frame of
+		 * waiting is one frame of rows not faded against the line.
 		 */
 		const readers = new IntersectionObserver(
 			(entries) => {
@@ -175,7 +185,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 						continue;
 					}
 					near.current.add(node);
-					// 分组等 `measure` 按位置挑，这里一写就是每个滑进来的分组都付一次重算。
+					// Groups wait for `measure` to choose them by position; writing here would make every group that slides in pay a recompute.
 					if (!node.hasAttribute("data-ly-band")) writeEdge(node, edge.current, edgeOn.current);
 				}
 			},

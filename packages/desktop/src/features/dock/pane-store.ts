@@ -75,9 +75,9 @@ interface PaneDockState {
 	focused: Record<string, PaneKind>;
 	/** A pair's split while full screen has it on the *other* axis from its dock. */
 	crossRatio: Record<string, number>;
-	/** 标签页排法下，每一屏最后看的那个面板。见 `tabs.ts`。 */
+	/** In the tabs layout, the panel each screen last looked at. See `tabs.ts`. */
 	tab: Record<string, PaneKind>;
-	/** 标签页排法下右侧那一栏占多宽，全窗口一份。 */
+	/** In the tabs layout, how wide the right-hand column is; one value for the whole window. */
 	tabShare: number;
 	drag: ScopedDrag | null;
 	/**
@@ -361,7 +361,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			const state = get();
 			const tree = state.tree(scope);
 			if (!has(tree, kind)) return;
-			// 关掉的是当前标签，就落到它右边那个，没有再往左——和浏览器关标签一样。
+			// Closing the current tab lands on the one to its right, failing that the left — as a browser does.
 			if (state.tab[scope] === kind) {
 				const panels = panelsOf(tree);
 				const at = panels.indexOf(kind);

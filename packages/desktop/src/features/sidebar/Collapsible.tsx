@@ -24,11 +24,14 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 	 *
 	 * An open section has nothing to clip, so it does not need to.
 	 *
-	 * 裁剪用 `overflow: clip` 而不是 `hidden`。`hidden` 会让这一层成为里面吸顶行的参照容器：展开动画
-	 * 期间项目行要离这一层顶部 `--ly-rail` 那么远，被推到自己分组的底部，压在会话行上，动画结束解除
-	 * 裁剪才跳回原位。`clip` 只裁不滚，吸顶仍然以侧边栏为参照。
+	 * Clipped with `overflow: clip`, not `hidden`. `hidden` makes this layer the reference box for the
+	 * sticky rows inside: during the unfold animation a project row wants to stay `--ly-rail` from this
+	 * layer's top, gets pushed to the bottom of its own group on top of the session rows, and jumps back
+	 * only when the clipping is lifted at the end. `clip` clips without scrolling, so sticky rows still
+	 * take the sidebar as their reference.
 	 *
-	 * 代价是它不算滚动容器，网格子项的最小高度回到内容高度，`0fr` 压不下去，所以要显式 `min-h-0`。
+	 * The cost is that it is not a scroll container: the grid child's minimum height falls back to its
+	 * content height and `0fr` cannot squeeze it, hence the explicit `min-h-0`.
 	 */
 	const [clipped, setClipped] = useState(!open);
 	useEffect(() => {

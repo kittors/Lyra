@@ -71,8 +71,8 @@
 /*
  * Menus only. List rows in the inspector keep the 6px default.
  *
- * 挂在卡片上而不是滚动区上：钉在底部的那几行（「新建项目」之类）不在滚动区里，
- * 之前拿的是 6px 的默认值，和上面列表里的行不是一个弧度。
+ * On the card rather than the scroll area: the rows pinned at the bottom (「新建项目」 and the like) sit
+ * outside the scroll area and took the 6px default, a different curve from the rows above them.
  */
 .ly-menu-card .ly-item {
   border-radius: var(--radius-item);
@@ -203,11 +203,12 @@
 }
 
 /*
- * 菜单和浮层的卡片：照 shadcn 的 dropdown / popover，实底、一层淡阴影。
+ * The card of menus and popovers, as shadcn's dropdown / popover draw it: solid, with one soft shadow.
  *
- * 之前用 `.ly-glass`：半透明加 40px 模糊、顶边一道内高光、深色下 50% 的重阴影，放在一张小菜单上
- * 显得又厚又花。浮层本来就几乎不透明（92%），模糊透不出什么东西，只剩那些装饰。阴影是 Tailwind
- * 的 `shadow-md`，深浅主题同一组。
+ * It used to be `.ly-glass`: translucent with a 40px blur, a highlight along the top edge and a heavy 50%
+ * shadow in dark — thick and busy on a small menu. The surface was nearly opaque (92%) anyway, so the
+ * blur showed almost nothing and only the decoration was left. The shadow is Tailwind's `shadow-md`,
+ * the same in both themes.
  */
 .ly-menu-card {
   border-radius: var(--radius-menu);
@@ -435,24 +436,28 @@
 }
 
 /*
- * 列表的行滚到钉住的行底下之前先淡到透明。
+ * List rows fade to clear before they scroll under a pinned row.
  *
- * 钉住的行（标签栏、项目和日期标题）在这一栏里不铺底。铺底是为了挡住从底下滚过去的列表，而这一栏在
- * macOS 上是半透明的（窗口毛玻璃，见 `tabs.css`）：不透明的底色永远对不上透出桌面的那一层，CSS
- * 采样不到窗户外面。所以反过来，让列表在滚到钉住的行底下之前自己淡没，钉住的行底下就没有东西需要挡。
- * 不分平台一条路径。
+ * Pinned rows (the tab strip, project and date headings) paint no fill in this pane. A fill was there to
+ * hide the list scrolling under them, and on macOS this pane is translucent (the window's material, see
+ * `tabs.css`): no opaque colour can match the layer showing the desktop through, and CSS cannot sample
+ * what is outside the window. So it is turned around: the list fades itself out before it reaches a
+ * pinned row, and nothing under a pinned row needs hiding. One path on every platform.
  *
- * 线是 `--ly-held-edge`：已经钉住的那一串行的下沿，`useStickyFade` 每帧量出来写给顶上那一段里的行。行的
- * 上沿离这条线还有 36px（`FADE_TOP`，和遮罩往下柔化的深度一致）时开始淡，碰到线时正好是 0，之后
- * 一直是 0。用滚动驱动动画而不是脚本逐帧改透明度：它跟着合成器上的滚动走，不会慢一帧——慢一帧就是
- * 一行字从钉住的行底下透出来。
+ * The line is `--ly-held-edge`: the underside of the run of rows already pinned, measured every frame by
+ * `useStickyFade` and written to the rows in the top stretch. A row starts fading when its top is 36px
+ * from the line (`FADE_TOP`, the depth the mask softens over), reaches 0 as it touches the line, and stays
+ * 0 after. A scroll-driven animation rather than a script setting opacity per frame: it follows the scroll
+ * on the compositor and cannot be a frame late — a frame late is a line of text showing through under a
+ * pinned row.
  *
- * 拖动中的行本来是 `opacity-35`，动画会盖掉它，所以起点读 `--ly-rest`。刚建出来的行有 `ly-drop`
- * 的落入动画，两个动画要写在一起，否则后写的那条把前一条整个换掉。
+ * A row being dragged is `opacity-35`, which the animation would override, so its start reads
+ * `--ly-rest`. A newly created row has the `ly-drop` entrance; the two animations have to be declared
+ * together, or the later declaration replaces the earlier one outright.
  */
 /*
- * 不继承：只有读它的元素自己身上有值，改一次只重算那几个元素，不牵动它们底下的整棵子树。
- * 写给谁见 `useStickyFade` 的 `NEAR_TOP`。
+ * Not inherited: only the elements reading it carry a value, so a change recomputes just those and not
+ * the whole subtree under them. Who it is written to: `NEAR_TOP` in `useStickyFade`.
  */
 @property --ly-held-edge {
   syntax: "<length>";
@@ -488,11 +493,12 @@
 }
 
 /*
- * 被下一个标题顶出去的标题，也得在滑到标签栏底下之前淡没。
+ * A heading pushed out by the next one also has to fade before it slides under the tab strip.
  *
- * 它是 sticky 的，自己的位置不能用来判断；看它所在的那一组：组的下沿碰到钉住的那一串的下沿，就是
- * 下一个标题开始顶它的那一刻。所以在组的下沿离那条线还有 36px 时开始淡，顶开始时正好是 0。折起来
- * 的组只剩标题本身，同一条规则让它像普通的行一样在到顶之前淡掉。
+ * It is sticky, so its own position says nothing; its group's does: the group's bottom edge reaching the
+ * pinned run's underside is the moment the next heading starts pushing it. So it starts fading with the
+ * group's bottom 36px from the line and is at 0 when the push begins. A folded group is only its heading,
+ * and the same rule fades it before the top like an ordinary row.
  */
 .ly-sidebar-fill [data-ly-band] {
   view-timeline: --ly-band block;
@@ -552,12 +558,14 @@
 }
 
 /*
- * 空框有多高，由设置说了算——外观里的「输入框默认高度」。
+ * How tall an empty box is, as the settings say — Composer height in Appearance.
  *
- * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
- * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
- * `--ly-composer-in * 2` 是上下 padding 的和；一行是 `em × 20 / 14`，和上面的行高同一个比例，跟着字号走，
- * 所以调 UI 字号时行数的含义不变。默认两行（40px）。
+ * Written as `min-height` rather than `rows` because the auto-height script overwrites `height` every
+ * time, and in CSS `min-height` always beats `height`: the script still computes its number from the
+ * content, and the box just never gets shorter than this line. `--ly-composer-in * 2` is the top and
+ * bottom padding together; a line is `em × 20 / 14`, the same ratio as the line height above, following
+ * the font size, so a number of lines means the same when the UI font size changes. Two lines (40px)
+ * by default.
  */
 /*
  * 标点不许挤压。

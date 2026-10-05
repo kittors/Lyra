@@ -207,7 +207,7 @@ const ToolRunGroup = function ToolRun({
    * events nobody witnessed was standing in for.
    */
   const summary = describeCalls(calls);
-  // The expanded layout (设置 › 外观 › 调用链) keeps the grouped line even where `flat` is asked for.
+  // The expanded layout (Settings › Appearance › Tool calls) keeps the grouped line even where `flat` is asked for.
   const chain = useCallChain();
   // Totals across the run, so a fold does not hide how much changed — counted from this screen's records.
   const added = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "added"), 0));

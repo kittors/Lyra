@@ -172,8 +172,10 @@ function AssistantRow({
   // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
   const running = useScopedRunning();
   /*
-   * 这条回复是不是看着它写完的：挂上的时候还在写。只有这种，底下那行操作在写完时展开出来——
-   * 一下子多出一行，贴着底部的转录会整段往上跳。打开一段历史时它们本来就在，不演。
+   * Whether this reply was watched being written: it was still being written when it mounted. Only then
+   * does the row of actions under it open out when it finishes — appearing at once, it would make the
+   * transcript pinned to the bottom jump up a whole row. Opening a stored conversation, they are already
+   * there and nothing plays.
    */
   const [watched] = useState(() => message.stopReason === "pending");
 

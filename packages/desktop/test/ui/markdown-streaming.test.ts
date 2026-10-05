@@ -1,8 +1,10 @@
 /**
- * 正在输出的回复怎么画——见 `useSmoothText` 和 `stream-tail.ts`。
+ * How a reply that is still being written is drawn — see `useSmoothText` and `stream-tail.ts`.
  *
- * 钉住这几件事：一次倒进来一大段时是一点点放出来的，不是整段蹦出来；新字淡入；写完之后剩下的字
- * 照常放完、淡完，再换回原文——不在结束那一刻整段实着蹦出来；写到一半的加粗画成加粗，不露出星号。
+ * Pinned here: a big chunk arriving at once is let out a little at a time rather than popping in whole;
+ * new characters fade in; after the reply ends the remaining characters still play out and fade before
+ * the original text is swapped back in, rather than the whole block popping in solid the moment it ends;
+ * and half-written bold is drawn bold, with no asterisks showing.
  */
 
 import assert from "node:assert/strict";
@@ -60,8 +62,9 @@ test("写到一半的加粗画成加粗；写完之后画的是原文", async ()
 
 test("主会话里正在输出的那段正文按流式来画", async () => {
 	/*
-	 * 接线本身要守：主会话这一行曾经拿「最新的一段推理」那个标记来判断，而正文行从来拿不到它，
-	 * 于是流式画法在主会话里一次都没开过，单测却全绿。
+	 * The wiring itself needs guarding: the main session's row once decided by the "latest stretch of
+	 * reasoning" marker, which body rows never get, so the streaming rendering never once switched on in
+	 * the main session while the unit tests were all green.
 	 */
 	const message: AssistantMessage = {
 		role: "assistant",

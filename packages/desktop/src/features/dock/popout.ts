@@ -327,7 +327,7 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
 	const dock = usePaneDock.getState();
 	const tree = dock.tree(scope);
 	if (has(tree, kind)) {
-		// 标签页排法下，开着但在后台的标签也是「想看它」：切过去，不关。
+		// In the tabs layout, a tab that is open but in the background is also a "show me this": switch to it, do not close it.
 		const behind = options.compact ? dock.focused[scope] !== kind : panelLayout() === "tabs" && activeTab(tree, dock.tab[scope]) !== kind;
 		if (behind) dock.focus(scope, kind);
 		else dock.close(scope, kind);

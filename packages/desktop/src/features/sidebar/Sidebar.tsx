@@ -320,9 +320,11 @@ export function Sidebar() {
 				 * and anything positioned from JavaScript arrives a frame after it does — which is a
 				 * row visibly wobbling by a wheel tick. `sidebar/sticky.ts` has the whole account.
 				 *
-				 * 不铺底：这一栏在 macOS 上是半透明的，不透明的底色对不上。从它底下滚过去的行和被顶出去的
-				 * 标题都在滑进来之前自己淡没了（`.ly-sidebar-fill` 的 `ly-under-pin`），这里没有东西要挡。
-				 * 上下的留白算在它自己的高度里（`rail` 就是按这个算的），标题停在它正下方。
+				 * No background: on macOS this column is translucent, and an opaque fill would not match it.
+				 * Rows scrolling under it and headings pushed out from under it fade out by themselves before
+				 * they slide beneath it (`ly-under-pin` on `.ly-sidebar-fill`), so there is nothing here to
+				 * cover. The space above and below counts in its own height (`rail` is measured that way), and
+				 * a heading stops directly beneath it.
 				 */}
 				<div data-ly-rail className="sticky top-0 z-30 py-1.5">
 					<SidebarTabs
@@ -350,8 +352,9 @@ export function Sidebar() {
 				 * they are different lists. The animation is what says so; without it the rows simply
 				 * become other rows, which at a glance reads as the sidebar having reordered itself.
 				 *
-				 * `pt-3` 是标签栏和列表之间的间距，由这里统一给，两个列表的第一个标题都不再自带上间距——
-				 * 各自带的时候，项目列表比聊天列表远 16px，切换标签时标题上下跳。
+				 * `pt-3` is the space between the tab strip and the list, given here once; neither list's first
+				 * heading carries top spacing of its own any more — when each did, the project list sat 16px
+				 * further down than the chat list and the heading jumped when switching tabs.
 				 */}
 				<div key={`${archiveOpen ? "archive" : "live"}-${tab}`} className="ly-enter pt-3">
 					{tab === "projects" ? (

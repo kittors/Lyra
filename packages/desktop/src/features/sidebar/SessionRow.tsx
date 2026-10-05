@@ -259,8 +259,9 @@ export function SessionRow({
 					<>
 						<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
 						{/*
-						 * 最后活动距今多久，占的是悬停按钮落下的那一角：按钮出来时它让位，两者从不同时出现。
-						 * 不管列表按哪个时间排，这里都是 updatedAt——扫一眼要回答的是「这条多久没动了」。
+						 * How long since the last activity, in the corner the hover buttons drop into: it makes way
+						 * when they come out, and the two never show at once. Whatever time the list is sorted by,
+						 * this is updatedAt — what a glance has to answer is "how long has this sat untouched".
 						 */}
 						<TimeAgo
 							iso={new Date(session.updatedAt).toISOString()}

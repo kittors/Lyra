@@ -12,9 +12,10 @@
  * one, correct on both by construction — and the knob is `--color-shell`, the colour of the panel
  * beside the sidebar.
  *
- * 滑块曾经是 `--color-float`。深色下它约是底色往前景混 10%，而底槽（侧边栏再叠 7% 前景）约 11%，
- * 两者几乎同亮，选中项只能靠阴影分辨。换成右侧面板色后，深色下是比底槽暗一截的块，浅色下是灰槽
- * 里的一块白，两个主题都分得开。
+ * The knob used to be `--color-float`. On dark that is the background mixed about 10% towards the
+ * foreground, and the track (the sidebar with another 7% of foreground) about 11% — nearly the same, so
+ * the selected tab could only be told by its shadow. As the panel's colour it is a block a step darker
+ * than the track on dark and a white piece in a grey track on light: apart on both.
  * ------------------------------------------------------------------------- */
 
 .ly-tabs {
@@ -65,16 +66,18 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 窗口里浮着的面板
+ * Panels floating in the window
  *
- * 窗口底层取侧边栏那一档，内容区的每一块——对话、终端和其他面板、插件这类独立页面、设置页——各是
- * 一张卡片：离窗口边和彼此各让出一点，收满圆角，描一圈前景 10% 的细线。于是它们读起来是放在窗口
- * 里的几块面板，而不是贴着窗口边被切出来的几块。之前内容区贴满窗口，和侧边栏之间只有一次色阶，
- * 看不出层次。
+ * The window's base takes the sidebar's shade, and every piece of the content area — the conversation,
+ * the terminal and other panels, standalone pages such as plugins, the settings page — is a card: set
+ * back a little from the window's edge and from each other, fully rounded, with a hairline of 10%
+ * foreground. So they read as panels resting in the window rather than pieces cut out against its edges.
+ * The content area used to fill the window, one step of shade from the sidebar, with no sense of layers.
  *
- * dock 里的卡片是 `.ly-dock-card`（见 `dock.css` 和 `DockPane`）；这里是不走 dock 的那几页。
- * 间距对齐 ZCode：卡片和卡片之间、卡片和窗口边之间都是 4px。dock 里是每张卡片各让 2px
- * （`PANE_INSET`）加上工作区自己的 2px 内边距（`.ly-frames`）；独立页面直接让出 4px。
+ * Cards in the dock are `.ly-dock-card` (see `dock.css` and `DockPane`); these are the pages that do
+ * not go through the dock. The spacing is ZCode's: 4px between cards and between a card and the window.
+ * In the dock that is each card's own 2px (`PANE_INSET`) plus the workspace's 2px padding
+ * (`.ly-frames`); standalone pages are set back 4px directly.
  * ------------------------------------------------------------------------- */
 
 .ly-window-body,
@@ -127,7 +130,7 @@
   border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
   border-radius: var(--radius-panel);
   background: var(--color-shell);
-  /* 圆角要真的裁得住：里面的滚动区和整列的底色都是方角。菜单和提示走 portal，不受影响。 */
+  /* The corners have to actually clip: the scroll area inside and the column's background are square. Menus and tips go through a portal and are unaffected. */
   overflow: hidden;
 }
 

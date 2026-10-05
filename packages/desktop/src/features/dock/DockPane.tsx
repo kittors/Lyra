@@ -208,8 +208,9 @@ export function DockPane({
 				carried ? "ly-dock-pane-carried" : kind !== "conversation" ? "z-10" : "z-0"
 			} ${landing ? "ly-dock-pane-landing" : ""}`}
 			/*
-			 * 标题栏就放在卡片里面，在卡片顶上那 44px 里居中，不往上提去够窗口顶线。顶行统一低
-			 * `MAIN_WINDOW_ROW_OFFSET`，红绿灯跟着挪下来，所以仍然对在一条线上。
+			 * The title bar sits inside the card, centred in the card's top 44px, not raised to reach the
+			 * window's top line. The whole top row is `MAIN_WINDOW_ROW_OFFSET` lower and the traffic lights
+			 * move down with it, so they still line up.
 			 */
 			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: edge, background: "transparent" }}>
 				{customHeader ?? <PaneHeader

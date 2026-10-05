@@ -214,18 +214,19 @@ export function DockView({
 	 * pane in a row covered rather than reflowed; it never evicts a pane.
 	 */
 	/*
-	 * 标签页排法：画的是「对话 + 当前标签」这棵两格的树，其余面板借当前标签的位置、隐藏着挂在那儿。
-	 * 存的树不动，见 `tabs.ts`。
+	 * The tabs layout draws a two-cell tree, the conversation plus the current tab; every other panel
+	 * borrows the current tab's cell and stays mounted there, hidden. The stored tree is untouched — see
+	 * `tabs.ts`.
 	 */
 	const panels = tabbed ? panelsOf(tree) : [];
 	const tab = tabbed ? activeTab(tree, rememberedTab) : null;
 	const shown = tabbed ? tabbedTree(tab, tabShare) : tree;
-	/** 一个标签借谁的格子画：标签页排法下所有面板都在当前标签那一格。 */
+	/** Whose cell a tab is drawn in: in the tabs layout every panel is in the current tab's. */
 	const slotOf = (kind: PaneKind): PaneKind => (tab && panels.includes(kind) ? tab : kind);
 	const fitted = compact || !size ? shown : fitTree(shown, size, paneFloor);
 	const laid = layoutPanes(fitted);
 
-	// 标签页排法下全屏的是整栏，不是某一个标签：切标签不该退出全屏。
+	// In the tabs layout it is the whole column that goes full screen, not one tab: switching tabs must not leave full screen.
 	const tabsMaximized = tabbed && tab && maximized?.panes.some((kind) => kind !== "conversation") ? { ...maximized, panes: [tab] } : null;
 	const focus = compact ? null : tabbed ? tabsMaximized : maximized;
 	const stacked = Boolean(focus && focus.panes.length === 2 && (!size || size.width < PANEL_MIN_WIDTH_PX * 2));
@@ -269,7 +270,7 @@ export function DockView({
 	 */
 	const applyShare = (share: number, handle: SplitterBox) => {
 		const dock = usePaneDock.getState();
-		// 那条分隔线的近侧是对话，标签栏拿剩下的。
+		// The conversation is on the near side of that divider; the tab column takes the rest.
 		if (tabbed) dock.setTabShare(1 - share);
 		else if (dock.maximized[scope]) dock.setMaximizedRatio(scope, share);
 		else dock.setShare(scope, handle.path, handle.index, share);
@@ -286,7 +287,7 @@ export function DockView({
 	 * shows them without a reload. Assigned during render and idempotent.
 	 */
 	const order = useRef<PaneKind[]>(["conversation", "browser"]);
-	// 标签页排法下后台标签不在画的树里，但仍要挂着——它们就是被隐藏的那些 pane。
+	// In the tabs layout the background tabs are not in the drawn tree, yet they stay mounted — they are the hidden panes.
 	const present = tabbed ? kinds(tree) : laid.map((box) => box.kind);
 	// A carried pane has been lifted out of the tree and is still the thing in your hand.
 	const live = carried && !present.includes(carried.kind) ? [...present, carried.kind] : present;
@@ -304,7 +305,7 @@ export function DockView({
 		const def = definitions.find((entry) => entry.kind === kind);
 		return { kind, label: def ? translate(def.label) : kind, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined };
 	});
-	// 和顶栏「⋮」菜单同一个口径：开不了的、不在菜单里列的都不给。
+	// The same rule as the title bar's ⋮ menu: nothing that cannot be opened, nothing that menu does not list.
 	const addable: AddablePanel[] = tabbed
 		? definitions
 				.filter((def) => !def.unavailable && def.listed !== false && !panels.includes(def.kind))
@@ -405,7 +406,7 @@ export function DockView({
 												}
 											: () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind)
 								}
-								// 标签页排法下关闭在标签自己身上，标题栏不再放第二个。
+								// In the tabs layout the close button is on the tab itself; the title bar does not get a second one.
 								onClose={conversation || tabbed ? undefined : () => usePaneDock.getState().close(scope, kind)}
 								onPopOut={
 									conversation || detachOf(kind) === "none"
@@ -430,8 +431,10 @@ export function DockView({
 									children
 								) : (
 									/*
-									 * 两种排法同一个结构：切换排法时面板正文的位置不变，终端和浏览器才不会被重建。
-									 * 标签页排法下标题栏让给了标签条，面板自己的标题控件（终端的子标签、文件名）挪到它下面一行。
+									 * One structure for both layouts: switching layout leaves the panel body where it is, so the
+									 * terminal and the browser are not rebuilt. In the tabs layout the title bar gives way to the
+									 * tab strip, and the panel's own title controls (the terminal's sub-tabs, a file name) move to
+									 * a row beneath it.
 									 */
 									<>
 										{tabbed && panelHeader && (

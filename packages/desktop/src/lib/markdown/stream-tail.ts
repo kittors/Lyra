@@ -1,36 +1,39 @@
 /**
- * 流式输出写到一半的最后一段，先把没收口的标记补上。
+ * The last paragraph of a reply still being written, with its unclosed markers closed first.
  *
- * 一段回复是一个字一个字进来的，而 markdown 的标记要等收口才成立。不补的话，读的人会看到：
+ * A reply arrives a few characters at a time, and a Markdown marker only means something once it is
+ * closed. Left alone, the reader sees:
  *
- * - `这是 **加粗` 先原样露出两个星号，写完 `**` 才一下子变粗；
- * - `[文档](https://exa` 先露出 `[文档](`，后面半截地址还被当成裸链接画成蓝字；
- * - 表格先是一行带竖线的正文，分隔行写完才突然变成表格。
+ * - `这是 **加粗` show its two asterisks as typed, then turn bold the moment `**` arrives;
+ * - `[文档](https://exa` show `[文档](`, with the half-written address drawn blue as a bare link;
+ * - a table be a line of text with pipes in it until the separator row is written, then turn into one.
  *
- * 每一种都是「先错一下再跳对」。这里只改**最后一段**的显示用文本，规则照着 `inline.ts` 和
- * `blocks.ts` 的匹配来；写完之后画的是原文，这里不再参与。
+ * Each is "wrong for a moment, then jumps to right". Only the display text of the **last paragraph**
+ * is changed here, following the matching in `inline.ts` and `blocks.ts`; once the reply is complete
+ * the original text is drawn and this takes no part.
  *
- * **屏幕上的字只增不减。** 这是整个文件的准绳。强调补上收口是安全的：补与不补，字都是那些字。
- * 代码跨度和链接不行——补上收口的行内代码，路径每进一个字就在「代码」和「只显示文件名的文件
- * 卡片」之间来回切（`src/a.ts` 是文件，`src/a.ts:` 不是），实测就是一直在闪。所以这两种写完
- * 之前先不画，写完一次出来。
+ * **Characters on screen only ever increase.** That is the rule this whole file answers to. Closing an
+ * emphasis early is safe: closed or not, the characters are the same characters. Code spans and links
+ * are not — an inline code closed early flips, with every character of a path, between "code" and "a
+ * file chip showing only the name" (`src/a.ts` is a file, `src/a.ts:` is not), which measured as
+ * constant flicker. So those two are not drawn until they are written, and then appear once.
  *
- * 不补的：行内公式。`$` 也是货币符号，`花了 $5` 后面永远不会有收口，补上反而会把它画成公式。
- * 半截公式先原样露着，等它自己收口。
+ * Not closed: inline math. `$` is also a currency sign — `花了 $5` will never be closed, and closing it
+ * would draw it as math. A half-written formula stays as written until it closes itself.
  */
 
 const FENCE_OPEN = /^\s*(\x60{3,}|~{3,})(\S*)\s*$/;
 const TABLE_SEPARATOR = /^\s*\|?[\s:|-]+\|[\s:|-]*$/;
-/** 只写出了块标记、还没有内容的一行：`#`、`-`、`1.`、`>`。 */
+/** A line that is only a block marker so far, with nothing after it: `#`, `-`, `1.`, `>`. */
 const BARE_MARKER = /^\s*(#{1,6}|[-*+]|\d+[.)]|>)\s*$/;
 /**
- * 没写完的代码跨度、链接最多先藏这么多字。
+ * How many characters an unfinished code span or link may be held back for.
  *
- * 一个落单的 `` ` `` 或 `[`（`区间 [0, 1)`）永远等不到收口，不设上限的话它后面整段都会一直藏到
- * 段落结束。真实的行内代码和链接文字都比这短。
+ * A lone `` ` `` or `[` (`区间 [0, 1)`) never gets its closer, and without a cap everything after it
+ * would stay hidden to the end of the paragraph. Real inline code and link text are shorter than this.
  */
 const HOLD = 120;
-/** 一行内容自成一个行内单元的开头：列表项和标题。 */
+/** Where a line starts an inline unit of its own: list items and headings. */
 const UNIT_START = /^\s*(?:[-*+]\s|\d+[.)]\s|#{1,6}\s)/;
 
 export function completeTail(source: string): string {
@@ -38,10 +41,11 @@ export function completeTail(source: string): string {
 	const last = lines.length - 1;
 
 	/*
-	 * 最后一段从哪一行开始，以及是不是停在还没收口的代码围栏或公式块里。
+	 * Where the last paragraph starts, and whether it stops inside an unclosed code fence or math block.
 	 *
-	 * 停在围栏里就什么都不做：里面的字不是 markdown，而没收口的围栏 `blocks.ts` 本来就会画到结尾。
-	 * 最后一行是空行不算段落结束——那只是刚进来一个换行。
+	 * Inside a fence the text is left alone: it is not Markdown, and `blocks.ts` already draws an
+	 * unclosed fence to the end. A blank last line does not end a paragraph — it is only a newline that
+	 * has just arrived.
 	 */
 	let fence: RegExp | null = null;
 	let fenceAt = -1;
@@ -77,11 +81,11 @@ export function completeTail(source: string): string {
 		if (!line.trim() && i < last) start = i + 1;
 	}
 	/*
-	 * 停在围栏里时只管最后一行，里面的代码原样：
+	 * Stopped inside a fence, only the last line is touched; the code is left as it is:
 	 *
-	 * - 还在写的开头行：语言名写到一半，代码块标题会从 `t` 变成 `ts`；
-	 * - 写到一半的收尾行：两个反引号会先作为代码的最后一行露出来；
-	 * - 刚进来的换行：代码末尾先多出一个空行，收尾之后又没了。
+	 * - an opening line still being typed: half a language name, so the block's title goes `t` → `ts`;
+	 * - a closing line half written: two backticks show as the code's last line first;
+	 * - a newline just arrived: the code ends in an empty line that disappears once it closes.
 	 */
 	if (fence) {
 		if (fenceAt === last) return [...lines.slice(0, last), ""].join("\n");
@@ -92,12 +96,12 @@ export function completeTail(source: string): string {
 
 	const tail = lines.slice(start);
 
-	// 只敲出了一个块标记的最后一行，画出来是一个孤零零的 `#` 或一个空圆点。
+	// A last line that is only a block marker draws as a lone `#` or an empty bullet.
 	if (BARE_MARKER.test(tail[tail.length - 1])) tail[tail.length - 1] = "";
 
 	holdTableHeader(tail);
 
-	// 行内标记不跨列表项和标题，只看最后一个单元。
+	// Inline markers do not span list items or headings, so only the last unit is looked at.
 	let unit = 0;
 	for (let i = tail.length - 1; i > 0; i--) {
 		if (UNIT_START.test(tail[i]) || (tail[i].includes("|") && tail[i - 1].includes("|"))) {
@@ -111,11 +115,12 @@ export function completeTail(source: string): string {
 }
 
 /**
- * 表头已经写了、分隔行还没写完的时候，先不画这张表。
+ * A table whose header is written and whose separator row is not is not drawn yet.
  *
- * `blocks.ts` 要看到完整的分隔行才认表格，在那之前表头只是一行带竖线的正文，接在上一段后面。
- * 只认以 `|` 开头、上一行不是表格的行，免得把一句提到竖线的话也藏起来——而即使藏错了，下一行
- * 一进来它就回来了。
+ * `blocks.ts` only recognises a table once its separator row is complete; before that the header is a
+ * line of text with pipes, run on from the paragraph above. Only a line starting with `|` after a line
+ * that is not part of a table counts, so a sentence that merely mentions a pipe is not hidden — and if
+ * one is, it comes back as soon as the next line arrives.
  */
 function holdTableHeader(tail: string[]): void {
 	let end = tail.length - 1;
@@ -130,10 +135,10 @@ function holdTableHeader(tail: string[]): void {
 }
 
 /**
- * 一个行内单元里没收口的代码、链接和强调，按 `inline.ts` 的规则补上或先藏起来。
+ * Unclosed code, links and emphasis in one inline unit, closed or held back by `inline.ts`'s rules.
  *
- * 强调补上收口；代码跨度和链接藏到写完（理由见文件开头）；只写出了开头标记、后面还一个字都没有
- * 的，先不画。
+ * Emphasis is closed; code spans and links are held until written (see the top of the file); a marker
+ * with not one character after it yet is not drawn.
  */
 function closeInline(text: string): string {
 	const open: { fence: string; at: number }[] = [];
@@ -156,7 +161,7 @@ function closeInline(text: string): string {
 				i = close + width;
 				continue;
 			}
-			// 代码跨度没收口：写完之前不画。太长或跨了行的是个落单的反引号，照原样。
+			// An unclosed code span: not drawn until written. Too long or across a line, it is a lone backtick, left as is.
 			const rest = text.slice(i + width);
 			if (rest.length <= HOLD && !rest.includes("\n")) {
 				end = i;
@@ -179,12 +184,12 @@ function closeInline(text: string): string {
 				continue;
 			}
 			if (link.state === "href") {
-				// 地址还在写：链接先只剩下它的字，图片先什么都不留。
+				// The address is still being written: a link keeps only its text for now, an image nothing.
 				end = i;
 				suffix = char === "!" ? "" : link.label;
 				break;
 			}
-			// 方括号还没收口，或者刚收口、还看不出后面跟不跟地址：先不画，免得方括号露出来再消失。
+			// Bracket not closed, or just closed with no telling yet whether an address follows: not drawn, so it cannot show and then vanish.
 			if (link.state === "open" && text.length - from <= HOLD && !text.slice(from).includes("\n")) {
 				end = i;
 				break;
@@ -204,16 +209,17 @@ function closeInline(text: string): string {
 				i += fence.length;
 				continue;
 			}
-			// 刚敲出来、后面还没有字的一串标记。
+			// A run of markers just typed, with nothing after it yet.
 			if (!text.slice(i + width).trim()) {
 				end = i;
 				break scan;
 			}
 			const after = text[i + fence.length];
 			/*
-			 * 单个 `*` / `_` 前面贴着英文字母或数字时不当开头：`a*b` 多半是乘号，`snake_case` 是名字。
-			 * 补上收口会把它们在输出途中画成斜体，写完又变回来——正是这里要消掉的那种跳。
-			 * 中文不受此限：「每帧都会*整条*」前面贴着的就是字，`inline.ts` 也把它画成斜体。
+			 * A single `*` / `_` right after a Latin letter or digit opens nothing: `a*b` is most likely a
+			 * multiplication and `snake_case` a name. Closing it would draw it italic while the reply streams
+			 * and turn it back afterwards — exactly the jump this file removes. Chinese is not held to this:
+			 * in 「每帧都会*整条*」 the character before it is a word, and `inline.ts` draws it italic too.
 			 */
 			const glued = fence.length === 1 && before !== undefined && /[A-Za-z0-9]/.test(before);
 			if (char !== "~" || fence.length === 2) {
@@ -250,7 +256,7 @@ function runOf(text: string, at: number, char: string): number {
 	return width;
 }
 
-/** 恰好 `width` 个 `char` 的一串从哪里开始；更长的一串不算，和 `inline.ts` 的代码跨度一样。 */
+/** Where a run of exactly `width` `char`s starts; a longer run does not count, as with `inline.ts`'s code spans. */
 function findRun(text: string, from: number, char: string, width: number): number {
 	for (let at = from; at < text.length; at++) {
 		if (text[at] !== char) continue;
@@ -261,7 +267,7 @@ function findRun(text: string, from: number, char: string, width: number): numbe
 	return -1;
 }
 
-/** 从 `$` 开始的公式在哪里结束；不是公式时为 `null`。规则同 `inline.ts` 的 `matchMath`。 */
+/** Where a formula starting at `$` ends, or `null` if it is not one. The rules of `inline.ts`'s `matchMath`. */
 function mathEnd(text: string, start: number): number | null {
 	const display = text[start + 1] === "$";
 	const fence = display ? "$$" : "$";
@@ -282,9 +288,10 @@ function mathEnd(text: string, start: number): number | null {
 }
 
 /**
- * `[label](href)` 写到了哪一步。
+ * How far `[label](href)` has been written.
  *
- * `open`：方括号还没收口，或者刚收口、后面还没有字——都还可能是链接。`none`：已经看得出不是。
+ * `open`: the bracket is not closed, or only just closed with nothing after it — it may still be a link.
+ * `none`: it can already be seen not to be one.
  */
 function scanLink(
 	text: string,

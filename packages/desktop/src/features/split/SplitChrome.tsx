@@ -5,8 +5,9 @@
  * headers at full height. It holds the tools of *this* conversation: terminal, browser, Git and the
  * overflow open and close panels in this screen, and their pressed state is this screen's.
  *
- * 每一屏都报出自己的会话名，单屏也一样，照 ZCode：文件夹图标、标题、「…」，「…」就是侧边栏右键
- * 的那份会话菜单。只有多屏时才能关掉某一屏，面板菜单里也才有挪动它们的项。
+ * Every screen names its conversation, a single screen included, after ZCode: a folder icon, the title
+ * and a "…", which is the same session menu as a right-click in the sidebar. Only with several screens
+ * can one of them be closed, and only then does the panel menu have entries for moving them.
  */
 
 import { Folder, MoreHorizontal, X } from "lucide-react";
@@ -47,9 +48,9 @@ export function SplitChrome({
 	);
 	const deleteSession = useApp((s) => s.deleteSession);
 	const menu = usePopover();
-	// 删除确认挂在这里而不是菜单里：菜单点完就卸载了，见 `SessionMenu` 的 `onRequestDelete`。
+	// The delete confirmation hangs here rather than in the menu: the menu unmounts once clicked. See `onRequestDelete` on `SessionMenu`.
 	const confirm = useConfirmer();
-	// 单屏的空白新对话还没有会话可名，不写「未命名」；多屏时每一格都得报上名字。
+	// A blank new conversation on a single screen has no session to name yet, so no "Untitled"; with several screens each one must say whose it is.
 	const title = meta || screen ? sessionTitle(meta?.title) : "";
 	return (
 		<header

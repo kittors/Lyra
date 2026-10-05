@@ -83,9 +83,9 @@
    * left edge than the right. 999 was the other language, and it read as two
    * menus glued together.
    *
-   * 数值：卡 `rounded-lg` 8px、行
-   * `rounded-md` 6px、4px 的内衬；32px 的行约等于 14px 字号下 `py-1` 加 relaxed 行高撑出来的
-   * 31px。之前卡 12 / 行 8，一张小菜单圆得发软。
+   * The numbers: an 8px (`rounded-lg`) card, 6px (`rounded-md`) rows and a 4px inset; a 32px row is about
+   * the 31px that `py-1` and relaxed leading make at 14px. It was a 12 / 8 card and row before, and a
+   * small menu came out soft as a bubble.
    */
   --radius-menu: 8px;
   --ly-menu-inset: 4px;

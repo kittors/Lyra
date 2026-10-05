@@ -37,13 +37,15 @@ export function parseMarkdown(source: string): Block[] {
 }
 
 /**
- * 顶层的块，连同各自是从哪段原文来的。
+ * The top-level blocks, each with the source it came from.
  *
- * 给 `Markdown` 按块记忆用：流式输出时每一帧都整条重新解析（解析很便宜，64 KB 一次不到 1 ms），
- * 贵的是把前面几十个没变的块再画一遍。原文没变的块，画出来就不会变，比一下字符串就够了。
+ * For `Markdown` to remember per block: while streaming the whole message is parsed again every frame
+ * (parsing is cheap, under 1ms for 64KB); what costs is drawing dozens of unchanged blocks before it
+ * again. A block whose source has not changed draws the same, so comparing the strings is enough.
  *
- * 原文从这一块的第一行切到下一块的第一行，块后面的空行算在它身上——一块只会在后面补上空行时多画
- * 一次，不会画错。
+ * The source runs from the block's first line to the next block's first line, so blank lines after a
+ * block count as part of it — a block is redrawn once more when a blank line is added after it, never
+ * drawn wrong.
  */
 export function parseMarkdownChunks(source: string): { block: Block; raw: string }[] {
 	const lines = source.replace(/\r\n/g, "\n").split("\n");

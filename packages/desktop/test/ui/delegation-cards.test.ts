@@ -72,7 +72,7 @@ test("each card wears its agent's face; a queued one says so instead of spinning
 		assert.match(cards[0].textContent ?? "", /找登录入口@general/);
 		assert.equal(cards[0].querySelector(".ly-avatar")?.getAttribute("data-mood"), "working");
 		assert.match(cards[1].textContent ?? "", /审一遍鉴权@simple排队中/);
-		// 「在跑」是摘要上那道扫光（`ly-glide`）。先确认在跑的那张确实有，否则「没有」这句是白说的。
+		// "Running" is the sweep of light across the summary (`ly-glide`). First confirm the running card really has it, or the "has none" below proves nothing.
 		assert.ok(cards[0].querySelector(".ly-glide"), "the running one glides");
 		assert.ok(!cards[1].querySelector(".ly-glide"), "no glide for a call that has not started");
 

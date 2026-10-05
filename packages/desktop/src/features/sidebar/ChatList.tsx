@@ -81,7 +81,7 @@ export function ChatList({
 
 	return (
 		<div ref={host}>
-			{/* 只包住各段，不含下面的展开显示按钮，理由见 `useUnfold`。 */}
+			{/* Wraps only the bands, not the show-more button below; `useUnfold` says why. */}
 			<div ref={rows}>
 				{bands.map((band, index) => (
 					// The gap sits on the band rather than on its heading — see `BandHead`. The first

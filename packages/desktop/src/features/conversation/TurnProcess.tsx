@@ -1,15 +1,19 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 /**
- * 一段过程，收成一行。一轮里模型中途说的话把过程切成几段，话留在外面（见 `turnBlocks`）。
+ * A stretch of process, folded into one line. What the model says partway through a turn cuts the
+ * process into stretches, and what is said stays outside (see `turnBlocks`).
  *
- * 一轮读下来是「想 → 做 → 说」。过程值得看一次——正在跑的时候你就想看着它——但看过之后，翻回
- * 一段旧对话时四十行工具卡片挡在答案前面就只是噪音了。所以这一行是过程的开关。
+ * A turn reads "think → do → say". The process is worth seeing once — while it runs you want to watch
+ * it — but after that, forty tool cards in front of the answer in an old conversation are only noise.
+ * So this line is the process's switch.
  *
- * 收起时它必须说清楚里面是什么，否则就是把东西藏起来而已。说的是名词不是事件：「思考 3 次 ·
- * 读取文件 5 个、执行命令」，而不是「12 个步骤」——没人见过那 12 个步骤。全是思考、一个工具都没调
- * 时它说「思考了一会儿」，因为那时候确实没有别的可说。
+ * Folded, it has to say what is inside, or it is merely hiding things. It speaks in nouns, not events:
+ * 「思考 3 次 · 读取文件 5 个、执行命令」, not 「12 个步骤」 — nobody has seen those twelve steps. When it
+ * is all reasoning and not one tool was called, it says 「思考了一会儿」, because then there really is
+ * nothing else to say.
  *
- * 行的骨架和思考行、工具行是同一个（见 `FlowRow`），里面的过程挂在左边一条竖线下面。
+ * The row has the same skeleton as the reasoning and tool rows (see `FlowRow`); the process inside hangs
+ * under a vertical line on the left.
  */
 
 import { Layers } from "lucide-react";
@@ -32,7 +36,7 @@ export function TurnProcess({
 	work?: string;
 	/** 收起那一行的行尾：这一轮派出去的子智能体的脸。 */
 	trailing?: React.ReactNode;
-	/** 正在跑的那一轮。「展开」排法下它全程摊开、没有那一行；「折叠」排法下只影响标记。 */
+	/** The turn that is running. Under "Expanded" it is laid open the whole way, with no line; under "Collapsed" it only changes the marker. */
 	running: boolean;
 	stateKey?: string;
 	children: React.ReactNode;
@@ -98,7 +102,7 @@ function countsOnly(counts: { tools: number; thinking: number }): string {
 	return parts.length > 0 ? parts.join(translate("turnProcess.separator")) : translate("turnProcess.thoughtOnly");
 }
 
-/** 里面有什么，用名词说。 */
+/** What is inside, said in nouns. */
 function summarize(counts: { tools: number; thinking: number }, work?: string): string {
 	const parts: string[] = [];
 	if (counts.thinking > 0) parts.push(translate("turnProcess.thinking", { n: counts.thinking }));

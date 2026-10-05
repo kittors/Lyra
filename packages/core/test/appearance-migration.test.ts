@@ -125,7 +125,7 @@ test("an untouched old factory look moves to the new one as a whole", () => {
 });
 
 test("500, smoothing and a white page chosen on purpose survive every later load", () => {
-	// Someone who has been through 外观 has a font that is not an old factory stack.
+	// Someone who has been through Appearance has a font that is not an old factory stack.
 	const chosen = { ...DEFAULT_APPEARANCE, uiFontWeight: 500, fontSmoothing: true, lightBackground: "#FFFFFF", composerLines: 1, contentWidth: 640 };
 	const once = migrateAppearance(chosen);
 	assert.equal(once.composerLines, 1);

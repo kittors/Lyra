@@ -98,7 +98,7 @@ export function ProjectGroup({
 				{/* The gap lives here rather than on the outer column, or a folded project would keep
 				    the space between rows it no longer has. */}
 				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
-					{/* 只包住行：展开显示按钮在外面，展开收起时才跟着下沿走（见 `useUnfold`）。 */}
+					{/* Wraps only the rows: the show-more button stays outside, so it rides the bottom edge while unfolding and folding (see `useUnfold`). */}
 					<div ref={rows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 						{visible.map((session) => (
 							<SessionRow

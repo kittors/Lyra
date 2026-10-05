@@ -54,7 +54,7 @@ export function ArchiveToggle({ open, count, onToggle }: { open: boolean; count:
 			{!open && count > 0 && (
 				<span
 					aria-hidden
-					// 24px 的按钮里 5px 会压到图标上，贴近角落放。
+					// In a 24px button 5px would sit on the icon, so it goes closer to the corner.
 					className={`absolute h-[4px] w-[4px] rounded-full bg-ink-faint ${compact ? "top-[5px] right-[5px]" : "top-[2px] right-[2px]"}`}
 				/>
 			)}

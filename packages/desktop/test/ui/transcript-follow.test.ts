@@ -105,8 +105,9 @@ async function arrives(view: Mounted, id: string, n: number, pixels = 300) {
 }
 
 /**
- * 等跟随底部的滑动走完。比一帧大、不超过一屏的长高是滑到底的（见 `useFollowBottom` 的 `CHASE_MAX`），
- * 只关心「还跟不跟」的测试在断言位置之前等它一下。
+ * Waits for the follow-bottom glide to finish. Growth larger than a frame and no more than a screen
+ * glides to the bottom (see `CHASE_MAX` in `useFollowBottom`), so tests that only care whether it
+ * still follows wait for it before asserting a position.
  */
 const slid = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 400)));
 

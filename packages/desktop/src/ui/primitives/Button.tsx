@@ -140,7 +140,7 @@ export function Button({
 			aria-label={ariaLabel ?? (bare ? label : undefined)}
 			data-variant={variant}
 			className={[
-				// 按钮圆角全应用两档：约 22px 及以上 8px，20px 及以下的小图标按钮 6px。
+				// Button radii come in two tiers app-wide: 8px from about 22px tall up, 6px for small icon buttons of 20px and under.
 				"flex shrink-0 cursor-pointer items-center whitespace-nowrap",
 				"transition-[background-color,border-color,opacity] duration-[var(--ly-t-quick)]",
 				HEIGHT[size],

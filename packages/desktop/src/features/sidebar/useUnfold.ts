@@ -1,12 +1,16 @@
 /**
- * 展开显示和收起时，列表高度过渡到新高度，而不是行一下子冒出来或消失。
+ * On 「展开显示」 and 「收起」 the list's height transitions to its new height, rather than rows popping
+ * in or vanishing at once.
  *
- * 展开：按下时量一次高度，新行挂上之后再量一次，两者之间用 Web Animations 过渡，新行从上往下被露出来。
- * 收起：行不能先卸——卸了就没有内容可以收。所以先把高度收到第 `keep` 行的下沿，播完再真正收起。
- * 两种都只由按下触发，新建会话、搜索过滤这类行数变化照旧直接出现。
+ * Unfolding: the height is measured on the press and again once the new rows are mounted, and a Web
+ * Animation runs between the two, so the new rows are revealed from the top down. Folding: the rows
+ * cannot go first — gone, there would be nothing to fold. So the height closes to the bottom of row
+ * `keep` first and the list really folds once that has played. Both are started only by the press;
+ * other changes in the row count, a new session or a search filtering, still appear directly.
  *
- * `ref` 只包住行，不包「展开显示」按钮：按钮在外面才能贴着下沿一起走，包在里面会在动画期间被裁掉。
- * 动画期间用 `overflow: clip` 而不是 `hidden`，理由见 `Collapsible`：`hidden` 会截断里面的吸顶标题。
+ * `ref` wraps only the rows, not the 「展开显示」 button: outside, the button can ride the bottom edge;
+ * inside, it would be clipped during the animation. The animation uses `overflow: clip` rather than
+ * `hidden` for the reason in `Collapsible`: `hidden` cuts off the sticky headings inside.
  */
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
@@ -18,7 +22,7 @@ export function useUnfold(ref: RefObject<HTMLElement | null>) {
 	const from = useRef<number | null>(null);
 	const running = useRef<{ el: HTMLElement; animation: Animation } | null>(null);
 
-	// 停掉正在播的一段（不触发它结束时的收起），高度回到内容自己的高度。
+	// Stop the animation in progress (without the fold it would end with); the height goes back to the content's own.
 	const stop = () => {
 		const current = running.current;
 		if (!current) return;
@@ -29,7 +33,7 @@ export function useUnfold(ref: RefObject<HTMLElement | null>) {
 
 	const play = (el: HTMLElement, start: number, end: number, done?: () => void) => {
 		el.style.overflow = "clip";
-		// 停在终点，直到收起真正提交：否则播完到提交之间会有一帧回到全部行的高度。
+		// Hold at the end until the fold is really committed: otherwise there is a frame at the full rows' height between the two.
 		const animation = el.animate([{ height: `${start}px` }, { height: `${end}px` }], {
 			duration: DURATION.slow,
 			easing: EASING.out,
@@ -49,19 +53,19 @@ export function useUnfold(ref: RefObject<HTMLElement | null>) {
 		from.current = null;
 		if (!el || start === null) return;
 
-		// 连按时上一段还在播：起点已经按播放中的高度量好，先停掉它，量到的才是真正的终点。
+		// Pressed again while the last one plays: its start was measured from the height mid-animation, so stop it first and the end measured is the real one.
 		stop();
 		const end = el.offsetHeight;
 		if (end > start) play(el, start, end);
 	});
 
 	return {
-		/** 包住「展开显示」的回调：先记下当前高度，再让列表变长。 */
+		/** Wraps the 「展开显示」 callback: note the current height first, then let the list grow. */
 		unfold: (reveal: () => void) => () => {
 			from.current = motionReduced() ? null : (ref.current?.offsetHeight ?? null);
 			reveal();
 		},
-		/** 包住「收起」的回调：先收到只剩前 `keep` 行的高度，播完再收起。 */
+		/** Wraps the 「收起」 callback: close to the height of the first `keep` rows, fold once that has played. */
 		fold: (keep: number, collapse: () => void) => () => {
 			const el = ref.current;
 			const last = el?.querySelectorAll<HTMLElement>("[data-ly-row]")[keep - 1];

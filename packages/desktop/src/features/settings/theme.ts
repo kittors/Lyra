@@ -198,9 +198,11 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
 		/*
-		 * 界面的基准字重。层级比它重一档、两档，那几档在 `tokens.css` 里从这个数推出来。
+		 * The interface's base weight. The steps one and two heavier are derived from this number in
+		 * `tokens.css`.
 		 *
-		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，跟着默认的 400 走。
+		 * The same fallback reasoning as the font size: this setting came later, settings files written
+		 * before it do not have it, and they follow the default 400.
 		 */
 		"--ly-ui-weight": String(windowsType ? Math.max(400, uiWeight - 100) : uiWeight),
 		"--ly-code-size": `${appearance.codeFontSize}px`,

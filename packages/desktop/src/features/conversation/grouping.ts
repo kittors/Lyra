@@ -639,20 +639,23 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 }
 
 /**
- * 一轮里的过程，和它说出口的话，分开。
+ * A turn's process, kept apart from what it says.
  *
- * 一轮读下来是「想 → 做 → 说」：模型推理，调命令、读文件、跑技能，中间也会停下来说几句。推理和
- * 工具是过程——它值得看，但看过一次之后，翻回一段旧对话时四十行工具卡片挡在前面，就只是噪音了。
- * 所以过程可以收成一行，而说出口的话永远在外面。
+ * A turn reads "think → do → say": the model reasons, runs commands, reads files, uses skills, and stops
+ * to say something along the way. Reasoning and tools are the process — worth seeing, but once seen,
+ * forty tool cards in front of an old conversation are only noise. So the process can fold into one
+ * line, while what is said always stays outside.
  *
- * 收的是**连续的一段**过程，不是一整轮。中间那些「已定位到两个原因……」是模型在向人汇报，把它们
- * 连同整轮一起收进去，收起之后就只剩最后一句，前面的汇报全看不到了。所以话把过程切成几段，
- * 每段各有自己的那一行。
+ * What folds is **one continuous stretch** of process, not the whole turn. The 「已定位到两个原因……」
+ * along the way are the model reporting to a person; folded in with the whole turn, only the last
+ * sentence would stay visible and every report before it would be hidden. So what is said cuts the
+ * process into stretches, each with a line of its own.
  *
- * 在 Run 这一层分，不在渲染时分：这是一条关于转录形状的规则，规则性的东西要能单独测。
+ * Split at the level of runs, not while rendering: it is a rule about the transcript's shape, and rules
+ * need to be testable on their own.
  */
 export interface TurnBlock {
-	/** 一段连续的过程，收得起来。 */
+	/** One continuous stretch of process, which can fold. */
 	kind: "process" | "plain";
 	runs: Run[];
 	/** 过程里有什么，用来写那一行摘要。 */
@@ -667,7 +670,7 @@ export interface TurnBlock {
 	turn: number;
 }
 
-/** 这一条 run 是不是「过程」——相对于说出口的话。 */
+/** Whether this run is process — as opposed to what is said. */
 function isProcess(run: Run): boolean {
 	if (run.kind === "tools" || run.kind === "hiccup" || run.kind === "compaction") return true;
 	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
@@ -706,12 +709,13 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 			at++;
 			continue;
 		}
-		// 一段过程到下一句话（或下一次「人开的口」）为止。
+		// A stretch of process runs until the next thing said (or the next time a person speaks).
 		let end = at;
 		while (end < list.length && isProcess(list[end])) end++;
 
 		/*
-		 * 只有重连、压缩这类标记、没有一次推理或工具的一段，不值得一行「思考了一会儿」——原样摊开。
+		 * A stretch with only markers such as a reconnect or a compaction, and not one reasoning step or tool,
+		 * is not worth a "thought for a while" line — it is laid out as it is.
 		 */
 		const body = list.slice(at, end);
 		if (body.some((item) => item.kind === "tools" || item.kind === "message")) {

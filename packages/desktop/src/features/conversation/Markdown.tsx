@@ -97,11 +97,12 @@ export const Markdown = memo(function Markdown({
 	/** A bounded, non-interactive excerpt without code tools or image loading. */
 	preview?: boolean;
 	/**
-	 * 这段字还在一个字一个字地进来。
+	 * This text is still arriving a few characters at a time.
 	 *
-	 * 开着时做三件事：出字按平滑的节奏走（见 `useSmoothText`），新字淡入（见 `FadeText`），最后
-	 * 一段没写完的标记先补上（见 `completeTail`）。只由画正在输出的那条回复的地方打开；关掉之后
-	 * 先把剩下的字放完、淡完，再画原文本身。
+	 * On, it does three things: lets the characters out at an even pace (see `useSmoothText`), fades new
+	 * ones in (see `FadeText`), and closes the unfinished markers of the last paragraph first (see
+	 * `completeTail`). Only the place drawing the reply being written turns it on; turned off, the
+	 * remaining characters are let out and faded first, and only then is the original text drawn.
 	 */
 	streaming?: boolean;
 }) {
@@ -125,7 +126,7 @@ export const Markdown = memo(function Markdown({
 	 * 这只省掉**重复**的那些次。第一次仍然要老老实实解析一遍，那一次的成本由 `CodeBlock` 的高亮
 	 * 上限和下面的块数上限管。
 	 */
-	// 写完之后还要演完：没放出来的字放完、最后一个字淡完，`active` 才落下。见 `useSmoothText`。
+	// Finished writing still has to finish showing: `active` drops only when the rest is let out and the last character has faded. See `useSmoothText`.
 	const { text: shown, active } = useSmoothText(text, streaming);
 	const clean = useMemo(() => (active ? completeTail(stripEmoji(shown)) : stripEmoji(shown)), [shown, active]);
 
@@ -142,7 +143,7 @@ export const Markdown = memo(function Markdown({
 	// Memoised because a new object here re-renders every picture in the document on every keystroke
 	// of a streaming reply — which for a remote one means dropping and re-requesting it.
 	const doc = useMemo(() => ({ baseDir, remoteImages, preview }), [baseDir, remoteImages, preview]);
-	// 减弱动效时 `active` 不会亮起：淡入的时长会被压成零，可还没轮到的字仍要等 `animation-delay`。
+	// With reduced motion `active` never turns on: the fade's duration is squashed to zero, but characters not yet due would still wait out `animation-delay`.
 	const fade = active;
 	const blocks = useMemo(
 		() =>
@@ -160,13 +161,15 @@ export const Markdown = memo(function Markdown({
 });
 
 /**
- * 一个顶层块，原文没变就不重画。
+ * One top-level block, not redrawn while its source is unchanged.
  *
- * 流式输出时整条消息每帧都要重新解析，这本身不贵；贵的是随后把前面所有块——每个链接、每张表、
- * 每个代码块——再对一遍。原文相同的块画出来必然相同，所以只比原文：一条长回复写到后面，每帧重画的
- * 只有正在写的那一块。
+ * While streaming the whole message is parsed again every frame, which is cheap in itself; what costs
+ * is going over every block before it again afterwards — every link, every table, every code block. A
+ * block with the same source draws the same, so only the source is compared: far into a long reply, the
+ * only block redrawn each frame is the one being written.
  *
- * `fade` 在整条回复写完时一起关掉，所有块各重画一次，淡入用的 span 换回纯文本。
+ * `fade` turns off for every block together when the reply is finished, each redraws once, and the
+ * fading spans turn back into plain text.
  */
 const BlockView = memo(
 	function BlockView({ block, preview, fade }: { block: Block; raw: string; preview: boolean; fade: boolean }) {
@@ -179,7 +182,7 @@ function renderBlocks(source: string, preview = false, fade = false): ReactNode 
 	return parseMarkdown(source).map((block, index) => <Fragment key={index}>{renderBlock(block, preview, fade)}</Fragment>);
 }
 
-/** `fade`：这块字还在输出，新字淡入。见 `FadeText`。 */
+/** `fade`: this block is still being written, and new characters fade in. See `FadeText`. */
 function renderBlock(block: Block, preview = false, fade = false): ReactNode {
 	switch (block.kind) {
 		case "heading": {
@@ -322,7 +325,7 @@ function inline(text: string, fade = false): ReactNode[] {
 	return renderTokens(parseInline(text), fade);
 }
 
-/** 表格拿到的是一个函数；给它一个固定的，免得每次重画都是新的身份。 */
+/** The table is handed a function; give it a fixed one so it is not a new identity on every redraw. */
 const fadingInline = (text: string) => inline(text, true);
 
 function renderTokens(tokens: Inline[], fade = false): ReactNode[] {
@@ -335,8 +338,9 @@ function renderToken(token: Inline, fade: boolean): ReactNode {
 			return fade ? <FadeText text={token.text} /> : token.text;
 		case "code":
 			/*
-			 * 行内代码写完才出现（见 `completeTail`），整枚一起淡入。`ly-fade-char` 的动画只在挂上时跑
-			 * 一次，之后这枚代码跟着重画也不会再从头淡一遍。
+			 * Inline code appears only once it is written (see `completeTail`) and fades in as a whole. The
+			 * `ly-fade-char` animation runs once, when it mounts; redraws of this code afterwards do not
+			 * start the fade again.
 			 */
 			return <code className={`[box-decoration-break:clone] [-webkit-box-decoration-break:clone]${fade ? " ly-fade-char" : ""}`}>{token.text}</code>;
 		case "break":

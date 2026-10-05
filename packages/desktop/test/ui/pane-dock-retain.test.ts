@@ -12,7 +12,7 @@ import { mount, press } from "../helpers/mount.ts";
 import { DEFAULT_SETTINGS } from "@lyra/core";
 import { useApp } from "../../src/store/index.ts";
 
-// 拖动面板只在分栏排法下有，标签页排法没有抓手。
+// Dragging panels exists only in the split layout; the tabs layout has no grip.
 useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "split" } } });
 
 /** One screen, the way `SplitPane` draws it: the conversation's own title bar, then its body. */

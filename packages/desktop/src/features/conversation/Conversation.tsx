@@ -530,11 +530,13 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
           )}
           {range.end === allBlocks.length && <>
           {/*
-           * 回答开始时这一行立刻收起，不走 `.ly-reveal` 的收拢过渡。
+           * When the answer starts, this line folds at once rather than through `.ly-reveal`'s collapse.
            *
-           * 回答的第一行字和这一行收起发生在同一刻，高度一增一减差不多抵掉，字就落在这一行原来的
-           * 位置。慢慢收的话，贴着底部的转录先被新的一行整段顶上去，再随着这一行变矮一帧帧往下漂，
-           * 读起来是字从底下蹦上来、把它顶走了。展开（回答停住之后它回来）照旧是动画。
+           * The answer's first line and this line folding happen in the same moment, the height gained and
+           * the height lost roughly cancel, and the text lands where this line was. Folding slowly, the
+           * transcript pinned to the bottom was first pushed up a whole line by the new text, then drifted
+           * down frame by frame as this line shrank — it read as the text jumping up from below and
+           * knocking the line away. Unfolding (it comes back once the answer pauses) still animates.
            */}
           <div
             className="ly-reveal"

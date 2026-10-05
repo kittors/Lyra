@@ -1,30 +1,35 @@
 /**
- * 正在输出的一段字，新来的字淡入，而不是一个个蹦出来。
+ * Text being written, with new characters fading in rather than popping in one by one.
  *
- * 只有平滑出字（`useSmoothText`）时，字是匀速了，可每个字仍然是从无到有硬切出来的——看上去就是
- * 在「吐字」。这里给每个新字一个出现的时刻，从透明淡到实色；同一批到达的字错开一点，铺满到下一批
- * 到来之前，于是看到的是一条连续流动的淡入，而不是一格一格的跳。思路来自 streamdown 的
- * `StreamTail`。
+ * With only the even letting-out (`useSmoothText`), the characters arrive at a steady rate, but each still
+ * cuts in from nothing to solid — it looks like text being spat out. This gives each new character a
+ * moment to appear and fades it from clear to solid; characters of one batch are staggered a little,
+ * spread out until the next batch is due, so what you see is one continuous flowing fade rather than
+ * step after step. The idea is streamdown's `StreamTail`.
  *
- * **只有还在淡的字才是 `<span>`。** 淡完的字并回前面的纯文本，否则一条长回复会攒下几千个 span。
- * span 按字的序号作 key：前面的字并回纯文本时，后面的 span 不会被重建，动画也就不会从头再来。
+ * **Only characters still fading are a `<span>`.** Faded ones merge back into the plain text before
+ * them, or a long reply would collect thousands of spans. A span's key is its character index: when the
+ * characters before it merge back, the spans after it are not rebuilt, so their animations do not
+ * restart.
  *
- * **出现时刻记在这个实例身上，不按整块统一编号。** 按渲染顺序给整块数字编号，在 StrictMode 的
- * 双重渲染下会数两遍；而流式输出时只有最后一段字在长，前面的实例原样留着，各记各的就够了。
+ * **Appearance times live on this instance, not numbered across the whole block.** Numbering the whole
+ * block in render order counts twice under StrictMode's double render; and while streaming only the last
+ * piece of text grows while the instances before it stay as they are, so each keeping its own is enough.
  */
 
 import { type CSSProperties, useRef } from "react";
 
-/** 一个字淡入要多久。和 `markdown.css` 里 `.ly-fade-char` 的时长是同一个数，改一处要跟着改另一处。 */
+/** How long one character takes to fade in. The same number as `.ly-fade-char`'s duration in `markdown.css`; change one, change the other. */
 export const FADE = 180;
-/** 相邻两个字最多错开多久。再慢，字就追不上屏幕上正在放出来的速度了。 */
+/** The most two neighbouring characters are staggered by. Any slower and the fade falls behind the rate characters are being let out at. */
 const MAX_PACE = 18;
-/** 两批字之间的间隔按这个范围算：太短没意义，太长（上游停过一阵）不该让下一批慢慢挤出来。 */
+/** The gap between two batches is taken within this range: too short means nothing, too long (upstream paused) should not make the next batch crawl out. */
 const MIN_GAP = 16;
 const MAX_GAP = 160;
 /**
- * 刚挂上的一段字铺开多久。它没有「上一批」可比；整句一次到达的短回复就是这种，铺开一点，读起来
- * 是从左到右淡进来，而不是整句同时浮现。
+ * How long a newly mounted piece of text is spread over. It has no previous batch to compare with; a short
+ * reply that arrives as one sentence is this case, and spreading it a little reads as a fade from left to
+ * right rather than the whole sentence surfacing at once.
  */
 const FIRST_GAP = 120;
 
@@ -45,10 +50,12 @@ export function FadeText({ text }: { text: string }) {
 }
 
 /**
- * 一段正在长的字里，每个字什么时候出现：`settled` 之前的已经淡完，画成纯文本；之后的每个字按
- * `style(序号)` 画成淡入的 span，序号就是 key。`length` 按码点数（`Array.from`），不按 UTF-16。
+ * When each character of a growing piece of text appears: those before `settled` have finished fading
+ * and draw as plain text; each one after draws as a fading span styled by `style(index)`, keyed by that
+ * index. `length` counts code points (`Array.from`), not UTF-16 units.
  *
- * 代码块也用它：配色切出来的 token 边界随着字长出来会变，但每个字的序号不变，出现时刻就不会乱。
+ * Code blocks use it too: the token boundaries highlighting cuts shift as characters grow in, but each
+ * character's index does not, so its appearance time stays put.
  */
 export function useFade(length: number): { settled: number; style: (index: number) => CSSProperties } {
 	const state = useRef<{ births: number[]; last: number; styles: Map<number, CSSProperties> } | null>(null);
@@ -61,8 +68,9 @@ export function useFade(length: number): { settled: number; style: (index: numbe
 	const fresh = length - births.length;
 	if (fresh > 0) {
 		/*
-		 * 这一批字错开出现，铺满到大约下一批该来的时候：间隔取上一批到这一批的实际间隔。
-		 * 刚挂上的实例没有上一批，按 `FIRST_GAP` 铺开。
+		 * This batch is staggered to fill roughly the time until the next one is due: the gap is the actual
+		 * interval between the last batch and this one. A newly mounted instance has no last batch and
+		 * spreads over `FIRST_GAP`.
 		 */
 		const gap = here.last ? Math.min(MAX_GAP, Math.max(MIN_GAP, now - here.last)) : FIRST_GAP;
 		const pace = Math.min(MAX_PACE, gap / fresh);
@@ -74,7 +82,7 @@ export function useFade(length: number): { settled: number; style: (index: numbe
 		here.last = now;
 	}
 
-	// 出现时刻是递增的，所以淡完的字总是连成开头那一段。
+	// Appearance times only increase, so the faded characters are always one run at the start.
 	let settled = 0;
 	while (settled < length && now - births[settled] >= FADE) settled++;
 	for (const key of here.styles.keys()) if (key < settled) here.styles.delete(key);
@@ -82,7 +90,7 @@ export function useFade(length: number): { settled: number; style: (index: numbe
 	return {
 		settled,
 		style: (index) => {
-			// 第一次画出来时定下，之后不再改：改 `animation-delay` 会让正在淡的字跳一下。
+			// Fixed the first time it is drawn and never changed: changing `animation-delay` makes a fading character jump.
 			let style = here.styles.get(index);
 			if (!style) {
 				style = { animationDelay: `${Math.round(births[index] - now)}ms` };

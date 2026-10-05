@@ -68,14 +68,15 @@
 }
 
 /*
- * 一条看着它写完的回复，底下那行操作是长出来的，不是一下子多出来的。
+ * Under a reply watched as it was written, the row of actions grows in rather than appearing at once.
  *
- * 这一行平时透明（悬停才显出来），可它从写完的那一刻起就占着高度。转录贴着底部，一下子多出一行，
- * 上面的整段回复就往上跳一截——字刚淡进来，紧接着就被顶上去。从零长到它自己的高度，底部跟随会
- * 一帧帧跟着，整段是平平地挪上去。
+ * The row is clear at rest (it shows on hover), but it takes up height from the moment the reply
+ * finishes. With the transcript pinned to the bottom, a row appearing at once jumped the whole reply
+ * above it up — the text had just faded in and was shoved straight up. Growing from zero to its own
+ * height, follow-bottom keeps pace frame by frame and the reply moves up evenly.
  *
- * 只写 `from`：终点就是这一行本来的高度和外边距，不用在这里再写一遍。`margin-top` 从负的行间距
- * 起步，是把回复这一列的 `gap-2.5` 也一起收进来——不然那 10px 仍然是一下子冒出来的。
+ * Only `from` is written: the end is the row's own height and margin. `margin-top` starts from minus the
+ * gap so the reply column's `gap-2.5` comes in with it — otherwise those 10px would still appear at once.
  */
 @keyframes ly-actions-in {
   from {
@@ -322,7 +323,7 @@
 	padding: 0 16px;
 	border-radius: var(--radius-field);
 	font-size: var(--text-label);
-	/* 中文可在任意字间断行，放进 flex 行会被挤成竖排；不换行后 min-content 即整段文字，flex 压不动它。 */
+	/* Chinese breaks between any two characters, so a flex row squeezes it into a column; unwrapped, min-content is the whole label and flex cannot shrink it. */
 	white-space: nowrap;
 	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
 }
@@ -361,15 +362,17 @@ div.ly-field {
 }
 
 /*
- * 设置卡片和对话框里的线和控件。
+ * Lines and controls in settings cards and dialogs.
  *
- * 两者都是 `float` 那张纸，比页面亮一档；而 `line` / `line-soft` 是从页面底色往前景走出来的，
- * 画在这张纸上反而比纸暗——分隔线成了一道暗槽，滑块的轨道、关着的开关几乎看不见。和
- * `--color-line-float` 同一个道理，所以在这张纸这一层把两条线换成那一套：`line` 就是它，
- * `line-soft` 取它的三分之二，和页面上两条线的比例一样。
+ * Both are on the `float` sheet, a step lighter than the page; `line` / `line-soft` are mixed from the
+ * page's background towards the foreground, so on this sheet they come out darker than the sheet — a
+ * divider becomes a dark groove, a slider's track and an off switch nearly vanish. The reasoning of
+ * `--color-line-float`, so on this sheet the two lines are swapped for that set: `line` is it, and
+ * `line-soft` two thirds of it, the ratio between the two lines on the page.
  *
- * 控件和卡片同底，靠一圈细线立住，而不是垫一块比卡片暗的底。线用 inset 阴影画，
- * 不占尺寸，行高和控件的中线都不动。只改底和线，出错时的红底仍然由下面那条规则给。
+ * Controls share the card's background and stand on a hairline rather than on a patch darker than the
+ * card. The line is an inset shadow, which takes no space, so row heights and control midlines do not
+ * move. Only the fill and the line change; the red of an error still comes from the rule below.
  */
 :is(.ly-settings-card, [data-ly-modal]) {
 	--color-line: var(--color-line-float);
@@ -391,12 +394,13 @@ div.ly-field {
 }
 
 /*
- * 设置页和对话框里的控件和按钮收成 8px 的小圆角。
+ * Controls and buttons in the settings page and dialogs take the small 8px corner.
  *
- * 只在这两处：别处（输入区、侧栏）的控件仍是 `--radius-field` 的胶囊，所以不改那个 token，
- * 在这里覆盖。设置页按整页算而不是只算卡片：页头的「新建」、卡片外的搜索框也在这一页上，
- * 只收卡片里的，它们就成了同一页上唯一的胶囊。
- * 分段选择里滑动的底和每一格比外框小一圈内边距（2px），是 6px，内外两道圆弧才同心。
+ * Only in these two: controls elsewhere (the composer, the sidebar) remain `--radius-field` pills, so
+ * that token is left alone and overridden here. The settings page counts as a whole, not just its cards:
+ * the header's 「新建」 and a search box outside a card are on the same page, and with only the cards
+ * changed they would be the one pill left on it. A segmented control's sliding fill and segments sit one
+ * inset (2px) inside the frame, at 6px, so the inner and outer curves are concentric.
  */
 :is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell) {
 	border-radius: 8px;

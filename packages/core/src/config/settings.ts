@@ -170,14 +170,16 @@ export interface AppearanceSettings {
 	 */
 	contentWidth?: number;
 	/**
-	 * 空输入框有多少行高。
+	 * How many lines tall an empty composer is.
 	 *
-	 * 输入框一直是从一行开始、随着打字往下长，这对「跑一下测试」是对的，对写一段带步骤和约束的
-	 * 需求就不是——开头那几行永远挤在一条缝里，写到第四行才看得见自己在写什么。多高算合适跟人
-	 * 写多长的东西有关，所以交给用户定。
+	 * The composer always started at one line and grew as you typed. That is right for "run the tests"
+	 * and wrong for a request with steps and constraints — its first lines are forever squeezed into a
+	 * slit, and only at the fourth can you see what you are writing. How tall is right depends on how
+	 * long a person writes, so it is theirs to set.
 	 *
-	 * 只是下限：超过这个高度照旧继续长，长到八行或窗口三分之一处停下来改为滚动。可选，没有这一项
-	 * 的老配置文件按默认的两行。
+	 * Only a floor: past this height it keeps growing as before, and at eight lines or a third of the
+	 * window it stops and scrolls instead. Optional; an old settings file without it gets the default
+	 * two lines.
 	 */
 	composerLines?: number;
 	pointerCursor: boolean;

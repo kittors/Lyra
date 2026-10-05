@@ -106,8 +106,9 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
  * 循环通过 ref 读 `runs`，不通过依赖。依赖文本的 effect 会在每个 token 被拆掉重建，而重建正是丢帧、
  * 让行首反复弹回去的地方。
  *
- * 新写的字和正文一样淡入（见 `FadeText`），也是直接在 DOM 上做：新字各是一个淡入的 span，淡完就并回
- * 开头那段纯文本，行里始终只有正在淡的那几个 span。
+ * New characters fade in like the reply's body (see `FadeText`), also directly in the DOM: each new
+ * character is a fading span, merged back into the plain text at the start once it has faded, so the
+ * line only ever holds the few spans still fading.
  */
 function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement | null>): void {
 	const state = useRef({ runs, total: 0, shown: 0 });
@@ -149,7 +150,7 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 					}
 				}
 			}
-			// 淡完的字并回纯文本。没有新字的帧也要做，不然最后几个字一直是 span。
+			// Faded characters merge back into the plain text. Done on frames with nothing new too, or the last few stay spans.
 			while (fading.length > 0 && now - fading[0].born >= FADE) {
 				const { span: done } = fading.shift()!;
 				const head = done.parentElement?.firstChild;
@@ -167,8 +168,9 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 const TEXT_NODE = 3;
 
 /**
- * 把这一行写成 `next`。接着上一句往后写的，只把多出来的字追加成淡入的 span，在这一帧的时长里错开；
- * 换了一句就清空重写。开头放一个文本节点，淡完的字并到它里面。
+ * Write the line as `next`. Continuing the same sentence, only the new characters are appended, as fading
+ * spans staggered across this frame's duration; a new sentence clears the line and writes it afresh. A
+ * text node at the start takes the characters that have finished fading.
  */
 function write(element: HTMLSpanElement, next: string, now: number, frame: number, fading: { span: HTMLSpanElement; born: number }[]): void {
 	const current = element.textContent ?? "";

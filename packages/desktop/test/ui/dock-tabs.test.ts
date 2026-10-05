@@ -27,7 +27,7 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 	try {
 		await act(() => { usePaneDock.getState().open(scope, "terminal"); });
 		const terminal = view.find("[data-test-terminal]");
-		// 「+」里只列还没开的面板，点一下开成新标签；开过的不再列。
+		// The "+" lists only panels not open yet; one click opens it as a new tab, and once open it is no longer listed.
 		await click(pane("terminal").querySelector(`button[aria-label="${translate("pane.addTab")}"]`)!);
 		const items = [...document.querySelectorAll('[role="menuitem"]')] as HTMLElement[];
 		const offered = items.map((item) => item.textContent ?? "");
@@ -37,25 +37,25 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 		await click(browserItem);
 		assert.equal(usePaneDock.getState().tab[scope], "browser");
 
-		// 两个面板占同一格，在对话右边，只有新开的那个看得见。
+		// Two panels share one cell, to the right of the conversation, and only the newly opened one is visible.
 		assert.equal(pane("terminal").style.left, pane("browser").style.left);
 		assert.equal(pane("browser").style.width, "40.000000%");
 		assert.equal(pane("browser").inert, false);
 		assert.equal(pane("terminal").inert, true);
 		assert.equal(view.all("[data-dock-grip]").length, 0, "the tabs layout has nothing to drag");
 
-		// 点标签切过去，终端的 DOM 还是原来那一个。
+		// Clicking a tab switches to it, and the terminal's DOM is still the same one.
 		await click(pane("browser").querySelector('[data-panel-tab="terminal"] [role="tab"]')!);
 		assert.equal(pane("terminal").inert, false);
 		assert.equal(pane("browser").inert, true);
 		assert.ok(view.find("[data-test-terminal]") === terminal, "switching tabs remounted the panel");
 
-		// 工具栏按钮按到后台标签是切过去，按到当前标签才是关。
+		// A toolbar button pressed for a background tab switches to it; only for the current tab does it close.
 		await act(() => { toggleScopedPanel(scope, "browser"); });
 		assert.equal(pane("browser").inert, false);
 		await act(() => { toggleScopedPanel(scope, "browser"); });
 		assert.equal(view.all('[data-dock-pane="browser"] [data-panel-tab="browser"]').length, 0);
-		// 关掉当前标签，落到剩下的那个上。
+		// Closing the current tab lands on the one that is left.
 		assert.equal(pane("terminal").inert, false);
 	} finally {
 		await view.unmount();

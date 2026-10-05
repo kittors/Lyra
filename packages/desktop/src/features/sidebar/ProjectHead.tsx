@@ -88,7 +88,7 @@ export function ProjectHead({
 					compact ? "h-[40px]" : "h-[32px]"
 				}`}
 			>
-				{/* 只用文件夹本身表示开合，不在悬停时换成箭头。 */}
+				{/* Open or shut is told by the folder alone; it does not turn into a chevron on hover. */}
 				<span className="shrink-0">{collapsed ? <Folder size={16} /> : <FolderOpen size={16} />}</span>
 				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
 				{/*

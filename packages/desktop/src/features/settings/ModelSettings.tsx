@@ -65,7 +65,7 @@ export function ModelSettings() {
 						className="aria-expanded:bg-card-hover aria-expanded:text-ink"
 						icon={<MoreHorizontal size={16} strokeWidth={1.8} />}
 					/>
-					{/* 添加供应商放在页面右上角：列表底部那颗会被一长串供应商挤出视野。 */}
+					{/* Add provider sits at the page's top right: one at the bottom of the list gets pushed out of view by a long list of providers. */}
 					<DialogAction tone="primary" onClick={() => void p.add()} data-ly-add-provider="">
 						<Plus size={14} strokeWidth={2} aria-hidden />
 						{t("modelSettings.addProvider")}

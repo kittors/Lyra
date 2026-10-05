@@ -1,8 +1,8 @@
 /* ---------------------------------------------------------------------------
  * Composer
  *
- * 卡片是一圈 10% 的描边，悬停和聚焦时加深到 15%，聚焦不再加重阴影。阴影只有一层很淡的
- * 投影（Tailwind 的 shadow-xl 压到 5%），深浅两色主题同一个值，深色下不另外加重。
+ * The card is a 10% hairline, deepening to 15% on hover and focus; focus no longer deepens the shadow.
+ * The shadow is a single faint drop (Tailwind's shadow-xl at 5%), the same in both themes.
  * ------------------------------------------------------------------------- */
 
 .ly-composer {
@@ -18,10 +18,12 @@
 }
 
 /*
- * 主输入框外面那层灰托盘：项目、分支坐在托盘露出来的那一条上，卡片贴着托盘的左右下三边。
+ * The grey tray around the main composer: project and branch sit on the strip the tray shows above the
+ * card, and the card meets the tray's left, right and bottom edges.
  *
- * 阴影挪到托盘上，卡片自己就不再投影——两层都投，托盘和卡片之间会多出一道暗缝。没有项目那一条时
- * 托盘整个被卡片盖住，看上去就是一张带阴影的卡片，和侧栏对话那些单独的输入框一样。
+ * The shadow moves to the tray and the card casts none itself — with both casting, a dark seam appears
+ * between them. With no project strip the tray is entirely covered by the card and it looks like a single
+ * card with a shadow, like the standalone composers of the side chats.
  */
 .ly-composer-tray {
   border-radius: 16px;
@@ -258,7 +260,7 @@
 	padding-inline: var(--ly-composer-x);
 }
 
-/* 欢迎页上输入框排在标题下面，外边距由那一列自己给。 */
+/* On the welcome page the composer sits under the heading, and its margins come from that column. */
 .ly-composer-dock[data-center] {
 	padding: 0;
 }
@@ -350,10 +352,11 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 欢迎页输入框下面那一排建议
+ * The row of suggestions under the welcome page's composer
  *
- * 数值：10% 的描边，悬停加深到 15% 并铺半透明的卡片底；入场是自上而下展开的一小段，
- * 每一枚比前一枚晚 65ms（延迟写在元素的 style 上）。减弱动效时由 motion.css 的全局开关收掉。
+ * A 10% outline, deepening to 15% on hover with a translucent card fill; they enter by unfolding a short
+ * way from the top, each 65ms after the one before (the delay is on the element's style). Reduced motion
+ * turns it off through motion.css's global switch.
  * ------------------------------------------------------------------------- */
 
 @keyframes ly-draft-chip-in {

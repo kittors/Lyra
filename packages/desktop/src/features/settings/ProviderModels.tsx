@@ -60,8 +60,9 @@ export function ProviderModels({
 				{models.length > 0 && <span className="ml-1 text-caption text-ink-faint tabular-nums">{models.length}</span>}
 				<span className="flex-1" />
 				{/*
-				 * 两颗都带字，都不画框：`subtle` 就是为这种成排的动作留的。字补上是因为云朵下载这个图标
-				 * 猜不到是「拉取模型」；tooltip 只留那句图标和标题都说不完的说明。
+				 * Both carry words and neither draws a frame: `subtle` exists for a row of actions like this.
+				 * The words are there because nobody guesses that a cloud-download icon means "fetch models";
+				 * the tooltip keeps only the explanation that the icon and the label together cannot give.
 				 */}
 				{onFetchModels && (
 					<Button

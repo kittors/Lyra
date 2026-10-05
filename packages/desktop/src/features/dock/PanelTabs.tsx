@@ -1,10 +1,12 @@
 /**
- * 标签页排法下，右侧那一栏顶上的标签条：每个开着的面板一个标签。
+ * The tab strip along the top of the right-hand column in the tabs layout: one tab per open panel.
  *
- * 每个面板的 pane 各画一份，只有当前那个看得见——后台标签的 pane 是隐藏着的，它们的标签条也跟着
- * 隐藏。于是标签条不用自己挂在哪儿，切标签也就是换一个 pane 显示。
+ * Every panel's pane draws a copy of its own, and only the current one is visible — background tabs'
+ * panes are hidden, and their strips with them. So the strip needs no home of its own, and switching
+ * tabs is just showing another pane.
  *
- * 和终端的子标签用同一个 `ClosableTab` 与 `Sideways`：同一种东西在同一个窗口里只长一个样子。
+ * Built from the same `ClosableTab` and `Sideways` as the terminal's sub-tabs: one kind of thing has
+ * one look within a window.
  */
 
 import { Plus } from "lucide-react";
@@ -23,7 +25,7 @@ export interface PanelTab {
 	icon?: ReactNode;
 }
 
-/** 「+」菜单里的一项：能开、还没开的面板。 */
+/** An entry in the "+" menu: a panel that can be opened and is not open yet. */
 export interface AddablePanel extends PanelTab {
 	shortcut: string;
 }
@@ -37,20 +39,20 @@ export function PanelTabs({
 	scope: string;
 	tabs: PanelTab[];
 	addable: AddablePanel[];
-	/** 这一份标签条所在的 pane，也就是它显示出来时的当前标签。 */
+	/** The pane this copy of the strip lives in — the current tab whenever this copy is showing. */
 	current: PaneKind;
 }) {
 	const strip = useRef<HTMLDivElement>(null);
 	const menu = usePopover();
 
-	// 新开的标签排在最后，可能在右边界外面；让当前那个待在视野里。
+	// A new tab goes last and may be past the right edge; keep the current one in view.
 	useEffect(() => {
 		strip.current?.querySelector(`[data-panel-tab="${current}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 	}, [current, tabs.length]);
 
 	return (
 		<div className="no-drag flex min-w-0 flex-1 items-center gap-0.5">
-			{/* 不占满：「+」紧跟在最后一个标签后面，标签多到放不下时条被压窄，「+」停在右端。 */}
+			{/* Not full width: "+" follows the last tab; when the tabs no longer fit the strip narrows and "+" stays at the right end. */}
 			<Sideways
 				trackRef={strip}
 				role="tablist"
@@ -74,7 +76,7 @@ export function PanelTabs({
 				))}
 			</Sideways>
 
-			{/* 在滚动条外面：「再开一个」不能是那个被滚出视野的东西。全都开着时没有可加的，就不画。 */}
+			{/* Outside the scroller: "open another" must not be the thing scrolled out of view. With everything open there is nothing to add, so it is not drawn. */}
 			{addable.length > 0 && (
 				<IconButton size="sm" label={translate("pane.addTab")} onClick={menu.toggle} icon={<Plus size={13} strokeWidth={2} />} />
 			)}

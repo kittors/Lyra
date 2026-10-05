@@ -670,7 +670,7 @@ export function Popover({
 				 * unless a `no-drag` one is laid over it: the items there were drawn and unpressable.
 				 * The hole goes when the popover does, so the strip drags again once it closes.
 				 */
-				// `line-float` 而不是 `line`：`line` 是按页面算的，画在比页面亮的浮层上是一圈暗边。
+				// `line-float`, not `line`: `line` is set against the page, and on a layer brighter than the page it draws a dark rim.
 				className={`ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line-float ${
 					leaving ? "ly-pop-out" : placed ? "ly-pop-in" : ""
 				} ${className}`}

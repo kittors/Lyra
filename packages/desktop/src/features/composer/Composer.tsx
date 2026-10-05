@@ -56,17 +56,19 @@ import { useI18n } from "../../i18n/index.ts";
 type Attachment = DraftAttachment;
 
 /*
- * 欢迎页的输入框刚被换下时有多宽。
+ * How wide the welcome page's composer was when it was taken down.
  *
- * 从欢迎页进入对话，输入框看上去是同一个，宽度用 150ms ease-out 从 672 过渡到对话那一栏。
- * 实际上欢迎页和对话各挂各的输入框，所以由旧的那个在卸载时留下宽度，新的那个挂上时接着往下画。
- * 只认一秒以内的交接：隔久了就不是「同一个框换了位置」，而是另一次打开。
+ * Going from the welcome page into a conversation, the composer looks like one and the same box, its
+ * width easing from 672 to the conversation column over 150ms ease-out. In fact the welcome page and the
+ * conversation each mount a composer of their own, so the old one leaves its width behind as it unmounts
+ * and the new one picks up from there as it mounts. Only a handover within a second counts: any later and
+ * it is not the same box moving, it is another opening.
  */
 let handoff: { width: number; at: number } | null = null;
 const HANDOFF_WINDOW = 1000;
 
 export function Composer({ centered = false }: {
-	/** 欢迎页：排在标题下面那一列里，外边距由那一列给，不再是贴着底边的那一条。 */
+	/** The welcome page: placed in the column under the heading, which supplies the margins — no longer the strip along the bottom edge. */
 	centered?: boolean;
 } = {}) {
 	const { t } = useI18n();
@@ -556,7 +558,8 @@ export function Composer({ centered = false }: {
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
 				<MentionMenu id={mention.id} items={mention.matches} agents={mention.agents} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
 				{/*
-				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
+				 * The tray: project and branch sit in the strip that shows above the card. See `.ly-composer-tray`
+				 * in `composer.css`.
 				 */}
 				<div className="ly-composer-tray">
 					{/*

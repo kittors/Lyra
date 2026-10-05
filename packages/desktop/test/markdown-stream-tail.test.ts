@@ -1,8 +1,9 @@
 /**
- * 流式输出写到一半时画什么——见 `stream-tail.ts`。
+ * What to draw while a reply is half written — see `stream-tail.ts`.
  *
- * 每一条都是「先错一下再跳对」的一种：半截的标记原样露出来，写完才变成它该是的样子。这里钉住的是
- * 补完之后 `inline.ts` / `blocks.ts` 认出来的东西，而不是补出来的字符串长什么样。
+ * Each case is one kind of "wrong for a moment, then jumps to right": a half-written marker shows as
+ * typed and only becomes what it should be once complete. What is pinned here is what `inline.ts` /
+ * `blocks.ts` recognise after completion, not what the completed string looks like.
  */
 
 import assert from "node:assert/strict";
@@ -29,7 +30,7 @@ test("只敲出开头标记、后面还没有字的，先不画", () => {
 });
 
 test("没收口的代码跨度写完之前不画，里面的星号不算强调", () => {
-	// 补上收口的话，路径每进一个字就在代码和文件卡片之间切一次——实测就是一直在闪。
+	// Closed early, the path would flip between code and a file chip with every character typed — measured, it flickered nonstop.
 	assert.equal(completeTail("用 `a*b"), "用 ");
 	assert.equal(completeTail("看 `src/features/a.ts:"), "看 ");
 	assert.equal(completeTail("**看 `x"), "**看** ");

@@ -34,16 +34,19 @@ export const NATIVE_HEADER_HEIGHT = 32;
 export const MAC_TRAFFIC_LIGHT_POSITION = { x: 16, y: (WINDOW_HEADER_HEIGHT - 14) / 2 };
 
 /**
- * 主窗口里，顶行比窗口顶边低多少。
+ * How far below the window's top edge the main window's top row sits.
  *
- * 主窗口的内容区是一张张浮起的卡片：工作区内边距 2、卡片内缩 2、描边 1，卡片里面离窗口顶正好 5
- * （和 `--ly-pane-chrome` 同一个数）。顶行在卡片里的 44px 居中，于是整条顶行——红绿灯、侧边栏
- * 开关、每张卡片的标题栏——都往下挪这 5px，对在同一条线上。
+ * The main window's content is a set of floating cards: 2 of workspace padding, 2 of card inset and a
+ * 1px border put the inside of a card exactly 5 from the window's top (the same number as
+ * `--ly-pane-chrome`). The top row is centred in the card's 44px, so the whole row — traffic lights,
+ * sidebar toggle, every card's title bar — moves down these 5px and lines up on one line.
  *
- * 反过来做过：红绿灯不动，卡片里的标题栏往上提 5px 去够它。代价是标题栏里的按钮离卡片顶边只剩
- * 4px、左右却有 12px，看着顶在边上。
+ * It was tried the other way round: traffic lights left alone, the title bars inside the cards raised
+ * 5px to meet them. The cost was title-bar buttons 4px from the card's top edge with 12px either side,
+ * looking jammed against it.
  *
- * 会话窗口和面板窗口没有卡片，标题栏贴着窗口顶，仍然用上面那个位置。
+ * Session and panel windows have no cards; their title bars sit against the window's top and keep the
+ * position above.
  */
 export const MAIN_WINDOW_ROW_OFFSET = 5;
 

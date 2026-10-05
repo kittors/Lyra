@@ -277,14 +277,17 @@ function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "se
 }
 
 /*
- * 下面三个和 `SettingsFallback` 同一个道理：骨架照着各自视图的外壳摆。
+ * The three below follow the reasoning of `SettingsFallback`: each skeleton is laid out like its view's
+ * own shell.
  *
- * 原先三个视图共用一个裸的 `SkeletonList`/`SkeletonGrid`，那两个是给设置页内部用的，自己不带边距，
- * 默认外面已经有一层内容栏。直接放进 `SoloScreen` 就贴着卡片两边铺满，内容一到，边距、居中宽度和
- * 标题一起冒出来，整页重排一次。边距和宽度要跟着视图本身改。
+ * The three views used to share a bare `SkeletonList`/`SkeletonGrid`, made for inside the settings page:
+ * they carry no margins of their own and assume a content column around them. Dropped straight into
+ * `SoloScreen` they ran edge to edge across the card, and when the content arrived the margins, the
+ * centred width and the heading all appeared at once and the whole page reflowed. Margins and width have
+ * to follow the view itself.
  */
 
-/** `ScheduledView`：880px 居中、px-8，标题和说明在列表上面。 */
+/** `ScheduledView`: centred at 880px, px-8, with the heading and description above the list. */
 function ScheduledFallback() {
 	const { compact } = useLayout();
 	const { t } = useI18n();
@@ -299,12 +302,12 @@ function ScheduledFallback() {
 	);
 }
 
-/** `PluginsView`：顶上 44px 的 tab 条，下面 px-6 里收在 860px 的标题和卡片网格。 */
+/** `PluginsView`: a 44px tab strip on top, then a heading and card grid kept to 860px inside px-6. */
 function PluginsFallback() {
 	const { t } = useI18n();
 	return (
 		<div className="px-6">
-			{/* `@container`，网格的两列才会按这一栏的宽度切换，和真实页面一样。 */}
+			{/* `@container`, so the grid's two columns switch on this column's width, as on the real page. */}
 			<div className="@container mx-auto w-full max-w-[860px]">
 				<SkeletonBar width="96px" height={24} className="mt-6" />
 				<SkeletonBar width="min(360px, 60%)" height={10} className="mt-3.5" />
@@ -315,10 +318,11 @@ function PluginsFallback() {
 }
 
 /**
- * `PullRequestsView`：左边一根 300px 的列表栏，右边是详情。
+ * `PullRequestsView`: a 300px list column on the left, the detail on the right.
  *
- * 列表栏往上顶进窗口顶条（`-mt-11`），分隔线才和真实页面一样从顶到底；顶条那 44px 留空，筛选按钮
- * 会给红绿灯让位，这里画上去反而压在红绿灯上。
+ * The list column reaches up into the window's top strip (`-mt-11`) so its divider runs top to bottom as
+ * on the real page; the strip's 44px is left empty — the filter buttons there make way for the traffic
+ * lights, and drawn here they would sit on top of them.
  */
 function PullRequestsFallback() {
 	const { t } = useI18n();
@@ -471,9 +475,10 @@ function SoloScreen({ children }: { children: React.ReactNode }) {
 		<div data-ly-solo-screen className="ly-card-page relative flex min-h-0 min-w-0 flex-1 flex-col">
 			<div aria-hidden className="drag-region absolute inset-x-0 top-0 z-[1]" style={{ height: WINDOW_HEADER_HEIGHT }} />
 			{/*
-			 * 满 44px，不扣卡片离窗口顶的那 5px。扣掉能让顶行和红绿灯压在一条线上，代价是 tab 离卡片
-			 * 顶边只剩 4px 左右、左右却有 12px，看着顶在边上。卡片已经浮起来了，行在卡片里居中比和
-			 * 窗口顶线对齐更要紧。
+			 * A full 44px, not short by the 5px the card stands off the window's top. Short by that, the top
+			 * row would line up with the traffic lights, at the cost of tabs about 4px from the card's top
+			 * edge with 12px either side, jammed against it. The card floats now; the row centred in the
+			 * card matters more than lining up with the window's top line.
 			 */}
 			<div aria-hidden className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>

@@ -178,11 +178,12 @@
 }
 
 /*
- * 折叠行到它下面第一条过程行，用的是同一个 10px——否则展开时那一行贴在过程上。
+ * From the fold row to the first process row below it is the same 10px — otherwise, opened, that row
+ * sits right against the process.
  *
- * 这 10px 是折叠体里的上内边距（见 `TurnProcess` 的 `pt-2.5`），不是折叠行的外边距。挂在
- * 折叠行上时它随 `data-ly-turn-open` 当帧切换，高度却还在动画：点收起，下面的答案先瞬间上提
- * 10px 再开始收。放进折叠体，它就和高度一起伸缩。
+ * The 10px is the fold body's top padding (`pt-2.5` in `TurnProcess`), not the fold row's margin. On the
+ * row it switched with `data-ly-turn-open` in one frame while the height was still animating: press fold,
+ * and the answer below jumped up 10px before it started closing. Inside the body it moves with the height.
  */
 
 /*

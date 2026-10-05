@@ -9,8 +9,9 @@ import { useI18n, type MessageKey } from "../../i18n/index.ts";
 import { onPhone } from "../../services/index.ts";
 
 /*
- * 输入框下面那一排建议：单色图标，描边胶囊，一个接一个落下来。
- * 之前每个图标带一种颜色，排成一行描边 chip 时四种颜色抢的是输入框的注意力。
+ * The row of suggestions under the composer: monochrome icons, outlined pills, dropping in one after
+ * another. Each icon used to have a colour of its own, and in a row of outlined chips four colours
+ * competed with the composer for attention.
  */
 const PROMPTS: { icon: typeof Telescope; labelKey: MessageKey; promptKey: MessageKey }[] = [
 	{ icon: Telescope, labelKey: "empty.explore", promptKey: "empty.explorePrompt" },
@@ -19,7 +20,7 @@ const PROMPTS: { icon: typeof Telescope; labelKey: MessageKey; promptKey: Messag
 	{ icon: Bug, labelKey: "empty.fix", promptKey: "empty.fixPrompt" },
 ];
 
-/** 吉祥物的高度（见 `EmptyMark`）加上它和标题之间的 24px，顶部留白要扣掉这一段，标题才落在那条线上。 */
+/** The mascot's height (see `EmptyMark`) plus the 24px between it and the heading; the space above is short by this much so the heading lands on its line. */
 const MARK_BLOCK = { compact: 104 + 24, regular: 132 + 24 };
 
 export function EmptyState() {
@@ -59,15 +60,16 @@ export function EmptyState() {
 	}
 
 	return (
-		// 欢迎页这一列是 `max-w-2xl`（672px），输入框和下面的建议都读它；进了对话再按窗格宽度分档。
+		// The welcome page's column is `max-w-2xl` (672px), and the composer and suggestions read it; in a conversation the width follows the pane's steps.
 		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col [--ly-content:672px]">
 			{/*
 			 * Scrolls rather than clips: at the minimum window height the mark, the heading, the
 			 * composer and the suggestions do not all fit, and a control you cannot reach is worse
 			 * than one you have to scroll to.
 			 *
-			 * 布局：上面一段可压缩的留白把标题放在视口约 29% 处，下面一段 `flex-1` 吃掉剩下的高度。
-			 * 仍然是上重下轻而不是 `m-auto` 居中——输入框长高时标题不动，多出来的高度往下推。
+			 * The layout: a shrinkable space above puts the heading at about 29% of the viewport, and a
+			 * `flex-1` space below takes the rest. Still top-weighted rather than `m-auto` centred — when the
+			 * composer grows the heading stays put and the extra height pushes downwards.
 			 */}
 			<Scroller
 				className="flex-1"
@@ -106,8 +108,9 @@ export function EmptyState() {
 				</div>
 
 				{/*
-				 * 不比输入框宽，放不下就居中换行。标签收成四个字一枚，平常一行放得下；
-				 * 窄窗口里换行而不是横向滚动，滚动会把后两枚藏起来。
+				 * No wider than the composer, wrapping centred when they do not fit. The labels are cut to four
+				 * characters each, so normally one row holds them; a narrow window wraps rather than scrolling
+				 * sideways, which would hide the last two.
 				 */}
 				<div className="mt-6 w-full max-w-[var(--ly-content)] shrink-0">
 					<div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">

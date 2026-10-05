@@ -1,35 +1,41 @@
 /**
- * 正在输出的回复，按匀速把字放出来，而不是来多少画多少。
+ * A reply being written, let out at an even rate rather than drawn as fast as it arrives.
  *
- * 字到达的节奏是服务商的：有的每个 token 一帧，有的攒几百毫秒一次倒出一两百字。后一种画出来是
- * 一顿一顿的——停住，整句蹦出来，再停住。`ThinkingBlock` 的流水行为同一件事写过 `useTyped`，
- * 这里是正文版，差别在速度的上限：正文要跟得上一个每秒上千字的模型，所以没有封顶，落后多少由
- * `CATCH_UP` 管。
+ * The rhythm characters arrive in belongs to the provider: some send a token a frame, some save up a
+ * few hundred milliseconds and pour out a couple of hundred characters at once. The latter draws in
+ * jolts — a pause, a whole sentence at once, another pause. `ThinkingBlock`'s running line solves the
+ * same thing with `useTyped`; this is the version for the reply body, and the difference is the speed
+ * ceiling: the body has to keep up with a model writing a thousand characters a second, so there is
+ * none, and how far it may lag is `CATCH_UP`'s to say.
  *
- * 速度取两者中较大的：
+ * The rate is the larger of two:
  *
- * - 最近的到达速率（平滑过的），让一批批进来的字匀成一条线，而不是每批先快后慢；
- * - 积压量 / `CATCH_UP`，保证无论上游多快，屏幕上最多落后约这么久。
+ * - the recent arrival rate (smoothed), which evens batch after batch into one line instead of each
+ *   batch starting fast and slowing down;
+ * - the backlog / `CATCH_UP`, so however fast upstream is, the screen is never more than about that far
+ *   behind.
  *
- * **写完不等于演完。** `live` 变成 false 时，还没放出来的字照常放完，最后一个字淡完之后才交出
- * `active: false`，调用方这时才换回原文。短回复尤其要这样：一句话往往整句到达、紧接着就结束，
- * 从前在结束那一刻直接给全文、掐掉淡入，字是实着蹦出来的。
+ * **Finished writing is not finished showing.** When `live` turns false the characters not yet let out
+ * still are, and `active: false` is given only once the last one has faded in — only then does the
+ * caller switch back to the original text. A short reply needs this most: a sentence often arrives
+ * whole and ends right after, and handing over the full text at that moment cut the fade, so the
+ * characters popped in solid.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 
-/** 积压的字要在大约这么多秒内放完；也就是稳定输出时屏幕落后模型的时间。 */
+/** The backlog is let out over roughly this many seconds — which is how far the screen trails the model in steady output. */
 const CATCH_UP = 0.15;
-/** 积压很少时的最低速度（字/秒），免得最后几个字拖着出来。 */
+/** The minimum rate (characters per second) when the backlog is small, so the last few do not drag out. */
 const FLOOR = 60;
-/** 到达速率的上限（字/秒）。一次倒进来一大段时，瞬时速率高得没有意义，别让它把平滑冲掉。 */
+/** A cap on the arrival rate (characters per second). A large block poured in at once has a meaningless momentary rate; it must not wash out the smoothing. */
 const RATE_CAP = 1000;
-/** 一次进来这么多字就不是在「输出」了（重连、补发），直接给全文。 */
+/** This many characters at once is not output any more (a reconnect, a resend): the full text is given at once. */
 const JUMP = 2000;
 /**
- * 最后一个字放出来之后，还要等多久才算演完：它的出现时刻最多排在放出来之后 160ms，再淡 180ms
- * （见 `FadeText`），留一点余量。
+ * How long after the last character is let out the showing counts as over: its appearance is scheduled at
+ * most 160ms after it is let out, then fades for 180ms (see `FadeText`), plus a little room.
  */
 const LINGER = 400;
 
@@ -52,7 +58,7 @@ export function useSmoothText(text: string, live: boolean): { text: string; acti
 			}, LINGER);
 		};
 
-		// 没在演、不是往后接着写、或者一次来得太多：直接给全文。
+		// Not showing, not a continuation of what was there, or too much at once: the full text.
 		if (!motion || !text.startsWith(here.target) || text.length - here.target.length > JUMP || (!live && !here.active)) {
 			cancelAnimationFrame(here.frame);
 			here.frame = 0;
@@ -73,7 +79,7 @@ export function useSmoothText(text: string, live: boolean): { text: string; acti
 
 		if (text !== here.target) {
 			const added = text.length - here.target.length;
-			// 第一批没有「上一批」可比，只能靠积压量那一项。
+			// The first batch has no previous one to compare with, so only the backlog term applies.
 			if (here.arrived) {
 				const instant = Math.min(RATE_CAP, added / Math.max(0.016, (now - here.arrived) / 1000));
 				here.rate = here.rate * 0.7 + instant * 0.3;
@@ -90,7 +96,7 @@ export function useSmoothText(text: string, live: boolean): { text: string; acti
 		here.last = now;
 		const step = (time: number) => {
 			const current = state.current;
-			// 夹住，免得切到后台的窗口回来时把缺席的那段时间一帧花完。
+			// Clamped, so a window back from the background does not spend its whole absence in one frame.
 			const delta = Math.min(0.1, Math.max(0, (time - current.last) / 1000));
 			current.last = time;
 			const backlog = current.target.length - current.position;
@@ -101,7 +107,7 @@ export function useSmoothText(text: string, live: boolean): { text: string; acti
 			}
 			current.position = Math.min(current.target.length, current.position + Math.max(FLOOR, current.rate, backlog / CATCH_UP) * delta);
 			let cut = Math.floor(current.position);
-			// 不切在一个代理对中间，否则 emoji 会先露出半个乱码。
+			// Never cut inside a surrogate pair, or an emoji shows half of itself as garbage first.
 			const code = current.target.charCodeAt(cut);
 			if (code >= 0xdc00 && code <= 0xdfff) cut++;
 			setShown(current.target.slice(0, cut));

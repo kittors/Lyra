@@ -562,7 +562,7 @@ export function tokenize(code: string, language: Language, style: HighlightStyle
 	return runs(code, language.parser.parse(code), style);
 }
 
-/** 一段代码解析过的样子，留给它接着长的时候用。 */
+/** A piece of code as last parsed, kept for when it grows further. */
 export interface Grown {
 	code: string;
 	language: Language;
@@ -572,13 +572,16 @@ export interface Grown {
 }
 
 /**
- * 正在输出的代码块用的 `tokenize`：代码只在后面接着长时，只重新解析长出来的那一截。
+ * `tokenize` for a code block being written: while code only grows at the end, only what grew is
+ * parsed again.
  *
- * 流式输出时代码块每帧都长几个字。每帧整块重新解析，耗时跟着块长走——600 行一次 11ms，已经超过
- * 一帧；一条回复里写到第三百行时整个界面一卡一卡。Lezer 的增量解析把上一次的树当作碎片交回去，
- * 没被改动碰到的节点原样复用；配色也只重算尾巴。
+ * While streaming a code block grows a few characters every frame. Parsing the whole block each frame
+ * costs as much as the block is long — 11ms at 600 lines, already over a frame — and by line three
+ * hundred of a reply the whole interface stuttered. Lezer's incremental parse takes the last tree back
+ * as fragments and reuses every node the change did not touch; colours are recomputed for the tail only.
  *
- * 不是接着长（改了前面、换了语言或主题）就整块重来，和 `tokenize` 一样。
+ * Anything other than growth at the end (an edit further up, a new language or theme) starts the whole
+ * block again, as `tokenize` does.
  */
 export function tokenizeGrowing(code: string, language: Language, style: HighlightStyle, previous?: Grown): Grown {
 	if (previous && previous.code === code && previous.language === language && previous.style === style) return previous;
@@ -590,11 +593,13 @@ export function tokenizeGrowing(code: string, language: Language, style: Highlig
 	const fragments = TreeFragment.applyChanges(TreeFragment.addTree(previous.tree), [{ fromA: end, toA: end, fromB: end, toB: code.length }]);
 	const tree = language.parser.parse(code, fragments);
 	/*
-	 * 配色也只重算尾巴：从上一次末尾的前一行开头算起，前面的沿用。
+	 * Colours are recomputed for the tail only: from the start of the line before the last end, keeping
+	 * everything before it.
 	 *
-	 * 往回多退一行，是给「后面的字改变了前面的读法」留的余地——一行末尾的 `/` 是除号还是正则的
-	 * 开头，要看下一行。更远的影响（一个没收口的块注释）在输出中途可能暂时配错，写完那一刻整块
-	 * 按 `tokenize` 重算一遍，屏幕上最终的样子和从头解析的一样。
+	 * The extra line back leaves room for later characters changing how earlier ones read — whether a `/`
+	 * at the end of a line divides or starts a regex depends on the next line. Effects from further away
+	 * (an unclosed block comment) may colour wrong for a moment mid-stream; when the reply finishes the
+	 * whole block is recomputed by `tokenize`, so what finally stays on screen is what a full parse gives.
 	 */
 	const from = Math.max(0, code.lastIndexOf("\n", code.lastIndexOf("\n", end - 1) - 1) + 1);
 	const kept: Token[] = [];

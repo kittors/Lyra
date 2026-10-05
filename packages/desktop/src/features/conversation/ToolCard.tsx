@@ -164,7 +164,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	);
 
 	if (chain === "expanded") {
-		// The earlier layout (设置 › 外观 › 调用链 › 展开): a bordered card with a spinner and a tick.
+		// The earlier layout (Settings › Appearance › Tool calls › Expanded): a bordered card with a spinner and a tick.
 		return (
 			<div
 				data-ly-avatar-host={mark ? "" : undefined}
