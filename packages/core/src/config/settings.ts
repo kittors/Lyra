@@ -303,7 +303,12 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
 	callChain: "collapsed",
-	panelLayout: "tabs",
+	/*
+	 * Split, not tabs. In the tabs layout a panel cannot be dragged to another side of the
+	 * conversation — the dock's grip and drop zones only exist between separate panes — and that is
+	 * the first thing people reach for with a terminal or a page. Tabs stay one choice away in 外观.
+	 */
+	panelLayout: "split",
 	// Left to the system, as ZCode does; see `uiFontWeight`.
 	fontSmoothing: false,
 	vibrancy: true,
