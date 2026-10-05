@@ -10,6 +10,7 @@ import { HighlightStyle, type Language, StreamLanguage, syntaxTree } from "@code
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
+import { type Tree, TreeFragment } from "@lezer/common";
 import { highlightTree, tags as t } from "@lezer/highlight";
 import { findCodeTheme } from "./themes.ts";
 
@@ -558,15 +559,68 @@ export interface Token {
  * pieces missing.
  */
 export function tokenize(code: string, language: Language, style: HighlightStyle): Token[] {
-	const tree = language.parser.parse(code);
-	const tokens: Token[] = [];
-	let at = 0;
+	return runs(code, language.parser.parse(code), style);
+}
 
-	highlightTree(tree, style, (from, to, className) => {
-		if (from > at) tokens.push({ text: code.slice(at, from), className: "" });
-		tokens.push({ text: code.slice(from, to), className });
-		at = to;
-	});
+/** 一段代码解析过的样子，留给它接着长的时候用。 */
+export interface Grown {
+	code: string;
+	language: Language;
+	style: HighlightStyle;
+	tree: Tree;
+	tokens: Token[];
+}
+
+/**
+ * 正在输出的代码块用的 `tokenize`：代码只在后面接着长时，只重新解析长出来的那一截。
+ *
+ * 流式输出时代码块每帧都长几个字。每帧整块重新解析，耗时跟着块长走——600 行一次 11ms，已经超过
+ * 一帧；一条回复里写到第三百行时整个界面一卡一卡。Lezer 的增量解析把上一次的树当作碎片交回去，
+ * 没被改动碰到的节点原样复用；配色也只重算尾巴。
+ *
+ * 不是接着长（改了前面、换了语言或主题）就整块重来，和 `tokenize` 一样。
+ */
+export function tokenizeGrowing(code: string, language: Language, style: HighlightStyle, previous?: Grown): Grown {
+	if (previous && previous.code === code && previous.language === language && previous.style === style) return previous;
+	if (!previous || previous.language !== language || previous.style !== style || !code.startsWith(previous.code)) {
+		const tree = language.parser.parse(code);
+		return { code, language, style, tree, tokens: runs(code, tree, style) };
+	}
+	const end = previous.code.length;
+	const fragments = TreeFragment.applyChanges(TreeFragment.addTree(previous.tree), [{ fromA: end, toA: end, fromB: end, toB: code.length }]);
+	const tree = language.parser.parse(code, fragments);
+	/*
+	 * 配色也只重算尾巴：从上一次末尾的前一行开头算起，前面的沿用。
+	 *
+	 * 往回多退一行，是给「后面的字改变了前面的读法」留的余地——一行末尾的 `/` 是除号还是正则的
+	 * 开头，要看下一行。更远的影响（一个没收口的块注释）在输出中途可能暂时配错，写完那一刻整块
+	 * 按 `tokenize` 重算一遍，屏幕上最终的样子和从头解析的一样。
+	 */
+	const from = Math.max(0, code.lastIndexOf("\n", code.lastIndexOf("\n", end - 1) - 1) + 1);
+	const kept: Token[] = [];
+	let at = 0;
+	for (const token of previous.tokens) {
+		if (at >= from) break;
+		const text = at + token.text.length > from ? token.text.slice(0, from - at) : token.text;
+		kept.push(text === token.text ? token : { text, className: token.className });
+		at += text.length;
+	}
+	return { code, language, style, tree, tokens: runs(code, tree, style, from, kept) };
+}
+
+function runs(code: string, tree: Tree, style: HighlightStyle, from = 0, tokens: Token[] = []): Token[] {
+	let at = from;
+
+	highlightTree(
+		tree,
+		style,
+		(start, to, className) => {
+			if (start > at) tokens.push({ text: code.slice(at, start), className: "" });
+			tokens.push({ text: code.slice(start, to), className });
+			at = to;
+		},
+		from,
+	);
 	if (at < code.length) tokens.push({ text: code.slice(at), className: "" });
 
 	return tokens;

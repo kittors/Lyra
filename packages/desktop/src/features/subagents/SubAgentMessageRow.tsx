@@ -112,7 +112,11 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 									if (run.index === lastReply && echo?.includes(block.text.trim())) return null;
 									return (
 										<div key={at} className="min-w-0 max-w-full overflow-hidden">
-											<Markdown text={block.text} className="min-w-0 max-w-full break-words" />
+											<Markdown
+												text={block.text}
+												className="min-w-0 max-w-full break-words"
+												streaming={message.stopReason === "pending" && at === message.content.length - 1}
+											/>
 										</div>
 									);
 								}

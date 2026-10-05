@@ -3,6 +3,7 @@ import { translate } from "../../i18n/translate.ts";
 import { Brain } from "lucide-react";
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 
+import { FADE } from "./FadeText.tsx";
 import { FlowRow } from "./FlowRow.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { motionReduced } from "../../ui/motion/reduced.ts";
@@ -91,7 +92,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 				{...(redacted ? {} : { onToggle: () => { setOpen((v) => !v); } })}
 				label={translate("thinking.process")}
 			/>
-			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3" keepMounted><Markdown text={text} className="text-label text-ink-muted" /></Collapse>
+			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3" keepMounted><Markdown text={text} streaming={typing && open} className="text-label text-ink-faint" /></Collapse>
 		</div>
 	);
 }
@@ -104,6 +105,9 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
  *
  * 循环通过 ref 读 `runs`，不通过依赖。依赖文本的 effect 会在每个 token 被拆掉重建，而重建正是丢帧、
  * 让行首反复弹回去的地方。
+ *
+ * 新写的字和正文一样淡入（见 `FadeText`），也是直接在 DOM 上做：新字各是一个淡入的 span，淡完就并回
+ * 开头那段纯文本，行里始终只有正在淡的那几个 span。
  */
 function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement | null>): void {
 	const state = useRef({ runs, total: 0, shown: 0 });
@@ -114,6 +118,7 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 		if (!live) return;
 		let raf = 0;
 		let last = performance.now();
+		const fading: { span: HTMLSpanElement; born: number }[] = [];
 		const step = (now: number) => {
 			// 夹住，免得一个切到后台的窗口回来时把缺席的那段时间一帧花完。
 			const delta = Math.min(0.1, Math.max(0, (now - last) / 1000));
@@ -127,7 +132,7 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 				const next = revealed(here.runs, here.shown);
 				const element = span.current;
 				if (element && element.textContent !== next) {
-					element.textContent = next;
+					write(element, next, now, delta * 1000, fading);
 					/*
 					 * 这一句现在有没有超出行宽——超出了才给两头加渐隐。
 					 *
@@ -144,11 +149,45 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 					}
 				}
 			}
+			// 淡完的字并回纯文本。没有新字的帧也要做，不然最后几个字一直是 span。
+			while (fading.length > 0 && now - fading[0].born >= FADE) {
+				const { span: done } = fading.shift()!;
+				const head = done.parentElement?.firstChild;
+				if (head?.nodeType === TEXT_NODE) head.nodeValue += done.textContent ?? "";
+				done.remove();
+			}
 			raf = requestAnimationFrame(step);
 		};
 		raf = requestAnimationFrame(step);
 		return () => cancelAnimationFrame(raf);
 	}, [live, span]);
+}
+
+/** `Node.TEXT_NODE`。 */
+const TEXT_NODE = 3;
+
+/**
+ * 把这一行写成 `next`。接着上一句往后写的，只把多出来的字追加成淡入的 span，在这一帧的时长里错开；
+ * 换了一句就清空重写。开头放一个文本节点，淡完的字并到它里面。
+ */
+function write(element: HTMLSpanElement, next: string, now: number, frame: number, fading: { span: HTMLSpanElement; born: number }[]): void {
+	const current = element.textContent ?? "";
+	const from = next.startsWith(current) ? current.length : 0;
+	if (from === 0) {
+		element.textContent = "";
+		fading.length = 0;
+	}
+	if (element.firstChild?.nodeType !== TEXT_NODE) element.prepend(document.createTextNode(""));
+	const fresh = Array.from(next.slice(from));
+	fresh.forEach((char, index) => {
+		const born = now + (index * frame) / fresh.length;
+		const span = document.createElement("span");
+		span.className = "ly-fade-char";
+		span.style.animationDelay = `${Math.round(born - now)}ms`;
+		span.textContent = char;
+		element.append(span);
+		fading.push({ span, born });
+	});
 }
 
 /**

@@ -7,7 +7,7 @@
  * person said, and showing it where a person's messages go is a lie about who is talking.
  */
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { AssistantMessage, Message } from "@lyra/core";
 import { TurnDeliveryCard } from "./TurnDelivery.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -171,6 +171,11 @@ function AssistantRow({
 }) {
   // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
   const running = useScopedRunning();
+  /*
+   * 这条回复是不是看着它写完的：挂上的时候还在写。只有这种，底下那行操作在写完时展开出来——
+   * 一下子多出一行，贴着底部的转录会整段往上跳。打开一段历史时它们本来就在，不演。
+   */
+  const [watched] = useState(() => message.stopReason === "pending");
 
   const own = message.content.slice(from, upTo);
 
@@ -218,7 +223,7 @@ function AssistantRow({
           if (block.type === "text") {
             return block.text ? (
               <div key={at}>
-                <Markdown text={block.text} />
+                <Markdown text={block.text} streaming={message.stopReason === "pending" && at === message.content.length - 1} />
               </div>
             ) : null;
           }
@@ -253,6 +258,7 @@ function AssistantRow({
       {!lead && settled(message.stopReason) && !continued && <TurnDeliveryCard timestamp={message.timestamp} />}
       {!lead && settled(message.stopReason) && !continued && text.trim() && (
         <MessageActions
+          className={watched ? "ly-actions-in" : undefined}
           timestamp={message.timestamp}
           text={text}
           durationMs={turnStats?.durationMs ?? message.durationMs}

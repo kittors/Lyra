@@ -39,6 +39,36 @@ const GLIDE_MS = 420;
  * 按住。滚一下就作废，所以宁可稍长。
  */
 const HOLD_MS = 900;
+/**
+ * 贴着底部时，内容长高了多少以内是「追过去」而不是「一步到位」。
+ *
+ * 回复写到底部时，每起一行转录长高一行（二十几像素）。从前每一次都当场把位置写到底，于是整段
+ * 回复一顿一顿地往上顶，一行一顿。这么小的一截改成追：滑过去而不是跳过去，一行接一行连成一条平稳的
+ * 上移，新的那行字也正在淡入，两者合在一起才是一条流。
+ *
+ * 更大的一块（一张工具卡、一段展开的输出）不用弹簧，按 `SWEEP_MS` 缓出滑过去：弹簧从静止起步，
+ * 几百像素要追近半秒。超过一屏的（打开会话、一次倒进来一大篇）仍然一步到位，滑那么远是让人等。
+ */
+const CHASE_MAX = 200;
+/** 比 `CHASE_MAX` 大、不超过一屏的长高，滑过去用多久。 */
+const SWEEP_MS = 240;
+/**
+ * 追的快慢：一个临界阻尼的弹簧，这是它的角频率（每毫秒）。
+ *
+ * 不用「每帧缩掉剩下距离的一截」那种缓动：那样每起一行，速度从零一下跳到最大再慢慢降下来，一行
+ * 一涌，量出来是每行开头一帧 7px、随后 3、2、1。弹簧带着速度走，上一行还没停稳下一行就来了，
+ * 速度接着用，连起来是一条匀速的上移。
+ *
+ * 稳定输出时落后底部约 `2 × 速度 / ω`。慢的时候这点落后正好让每一行滑得软；快的时候固定的 ω 会
+ * 越落越远——每秒上千字时量到最后一行被输入框压住近 30px。所以 ω 随最近的输出速度抬高，让落后
+ * 保持在 `CHASE_LAG` 上下。速度取的是内容长高的速度，不是弹簧自己的速度：拿自己的速度定刚度会
+ * 互相推高，一块大的长高第一帧就冲出去几百像素。
+ */
+const CHASE_OMEGA = 1 / 45;
+/** 输出快时允许落后底部多少像素。转录底下本来留着十几像素的空白，落后在这以内，字不会被挡。 */
+const CHASE_LAG = 12;
+/** 输出速度按多长的时间窗来估。 */
+const FLOW_TAU = 400;
 
 export interface FollowBottom {
 	/** Hand to `Scroller`'s `scrollRef`. */
@@ -105,6 +135,7 @@ export function useFollowBottom({
 	tail,
 	namespace,
 	ready = true,
+	live,
 }: {
 	/** Which conversation, side chat or delegate this is. `null` while there is nothing to show. */
 	surfaceId: string | null;
@@ -116,6 +147,12 @@ export function useFollowBottom({
 	namespace: string;
 	/** A restored offset is meaningful only after this surface's content has arrived. */
 	ready?: boolean;
+	/**
+	 * Whether this transcript is being written right now. Only then is growth output, and only
+	 * output is chased: at rest it is a card or an image landing late — the delivery card fetches
+	 * its files after mount — and sliding for that drags the whole history up from below.
+	 */
+	live: boolean;
 }): FollowBottom {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	/*
@@ -157,10 +194,20 @@ export function useFollowBottom({
 	const written = useRef<number | null>(null);
 	const lastTop = useRef(0);
 	const glide = useRef(0);
+	/** 贴底追赶的那一帧，和上一次送到底时内容与视口的高度——分辨「内容长高了一小截」要用。 */
+	const chase = useRef(0);
+	const size = useRef({ content: 0, view: 0 });
+	/** 最近小幅长高的总量，按 `FLOW_TAU` 衰减；除以 `FLOW_TAU` 就是输出速度（像素/毫秒）。 */
+	const flow = useRef({ amount: 0, at: 0 });
+	/** 正在进行的一次缓出滑动：从哪儿、什么时候开始。终点是实时的底部。 */
+	const sweep = useRef<{ from: number; at: number } | null>(null);
 	const restoredSurface = useRef<string | null | undefined>(undefined);
 	const selectedSurface = useRef<string | null | undefined>(undefined);
 	const restore = useRef<FollowSnapshot | undefined>(undefined);
 	const clearWritten = useRef(0);
+	/** Read by `pin`, which is memoised and must not be rebuilt on every token. */
+	const writing = useRef(live);
+	writing.current = live;
 
 	/**
 	 * 手指上一次的位置，给 touchmove 定方向用。
@@ -242,6 +289,95 @@ export function useFollowBottom({
 		// button would be offering to do what is already happening.
 		setAway(state.current === "detached" && isAway(reading));
 	}, []);
+
+	/**
+	 * 跟随底部时把位置送到底：小幅长高用弹簧追，大一些的缓出滑过去，其余一步到位——见 `CHASE_MAX`。
+	 *
+	 * 两个入口共用它：内容签名变了（布局 effect）和尺寸变了（`onResize`），流式输出时两者每帧
+	 * 都会来，所以「已经在追」本身就是继续追的理由，第二个入口不能把它打断成一步到位。
+	 *
+	 * 视口变了不追：输入框长高两行时，最后一行要立刻跟着让出来，不然会被输入框挡住一阵。
+	 */
+	const pin = useCallback(
+		(el: HTMLDivElement) => {
+			const reading = read(el);
+			const grew = reading.scrollHeight - size.current.content;
+			const known = size.current.content > 0;
+			const sameView = reading.clientHeight === size.current.view;
+			size.current = { content: reading.scrollHeight, view: reading.clientHeight };
+			const now = performance.now();
+			flow.current = {
+				amount: flow.current.amount * Math.exp(-(now - flow.current.at) / FLOW_TAU) + (grew > 0 && grew <= CHASE_MAX ? grew : 0),
+				at: now,
+			};
+			const target = targetScrollTop("following", reading);
+			if (target === null) return;
+
+			const moving = chase.current !== 0;
+			const slide =
+				writing.current && known && sameView && grew >= 0 && grew <= reading.clientHeight && target > reading.scrollTop && (moving || grew > 0) && !motionReduced();
+			if (!slide) {
+				cancelAnimationFrame(chase.current);
+				chase.current = 0;
+				sweep.current = null;
+				write(el, target);
+				return;
+			}
+			if (grew > CHASE_MAX) sweep.current = { from: reading.scrollTop, at: now };
+			if (moving) return;
+
+			// 位置自己记一份小数：浏览器会把 `scrollTop` 取整到物理像素，每帧挪不到半个像素的那几帧
+			// 读回来原地不动，拿读回来的值接着算就永远差那一点。
+			let position = reading.scrollTop;
+			let velocity = 0;
+			let last = 0;
+			const step = (now: number) => {
+				chase.current = 0;
+				// 读者滚开了、按住了东西、或者换了会话：不追了。
+				if (state.current !== "following" || anchor.current || !el.isConnected) {
+					sweep.current = null;
+					return;
+				}
+				const here = read(el);
+				if (isDegenerate(here)) return;
+				// 别人挪过（浏览器夹住、原生锚定），以实际位置为准。
+				if (Math.abs(here.scrollTop - position) > 1) position = here.scrollTop;
+				// 第一帧没有上一帧可比，按一帧算；切到后台回来的那一帧夹住，不一步跳完。
+				const dt = last ? Math.min(50, Math.max(0, now - last)) : 16;
+				last = now;
+				const end = visualBottom(here);
+				let next: number;
+				const sliding = sweep.current;
+				if (sliding) {
+					// 三次缓出，和回到底部那一段同一条曲线；结束时速度是零，接回弹簧不会顿。
+					const progress = Math.min(1, (now - sliding.at) / SWEEP_MS);
+					next = (sliding.from - end) * (1 - progress) ** 3;
+					velocity = 0;
+					if (progress >= 1) sweep.current = null;
+				} else {
+					const rate = (flow.current.amount * Math.exp(-(now - flow.current.at) / FLOW_TAU)) / FLOW_TAU;
+					const omega = Math.max(CHASE_OMEGA, (2 * rate) / CHASE_LAG);
+					// 临界阻尼弹簧的精确解，步长再大也不会冲过头或者发散。
+					const offset = position - end;
+					const decay = Math.exp(-omega * dt);
+					const pull = velocity + omega * offset;
+					next = (offset + pull * dt) * decay;
+					velocity = (velocity - omega * pull * dt) * decay;
+				}
+				if (next >= -0.5) {
+					// 多写一个像素让浏览器夹到真正的底，理由见 `targetScrollTop`。
+					write(el, end + 1);
+					publish(read(el));
+					return;
+				}
+				position = end + next;
+				write(el, position);
+				chase.current = requestAnimationFrame(step);
+			};
+			chase.current = requestAnimationFrame(step);
+		},
+		[write, publish],
+	);
 
 	// ---------------------------------------------------------------------------
 	// The reader's intention
@@ -403,11 +539,10 @@ export function useFollowBottom({
 				publish(read(el));
 				return;
 			}
-			const target = targetScrollTop(state.current, reading);
-			if (target !== null) write(el, target);
+			if (state.current === "following") pin(el);
 			publish(read(el));
 		},
-		[publish, write, ready, surfaceId, settle],
+		[publish, write, ready, surfaceId, settle, pin],
 	);
 
 	/**
@@ -481,6 +616,7 @@ export function useFollowBottom({
 
 	useEffect(() => () => {
 		cancelAnimationFrame(glide.current);
+		cancelAnimationFrame(chase.current);
 		cancelAnimationFrame(clearWritten.current);
 	}, []);
 
@@ -530,6 +666,10 @@ export function useFollowBottom({
 	 */
 	useLayoutEffect(() => {
 		cancelAnimationFrame(glide.current);
+		cancelAnimationFrame(chase.current);
+		chase.current = 0;
+		sweep.current = null;
+		size.current = { content: 0, view: 0 };
 		cancelAnimationFrame(clearWritten.current);
 		written.current = null;
 		touchY.current = 0;
@@ -546,6 +686,8 @@ export function useFollowBottom({
 			// A glide belongs to the outgoing surface. Its intention is saved below, while its frames
 			// must stop before the incoming surface reuses the same state and element refs.
 			cancelAnimationFrame(glide.current);
+			cancelAnimationFrame(chase.current);
+			chase.current = 0;
 			/*
 			 * The position comes from `lastTop`, not from the element.
 			 *
@@ -592,8 +734,7 @@ export function useFollowBottom({
 		}
 
 		if (state.current === "following") {
-			const target = targetScrollTop("following", reading);
-			if (target !== null) write(el, target);
+			pin(el);
 			seen.current = current.current;
 			setUnread(0);
 
@@ -601,7 +742,7 @@ export function useFollowBottom({
 			setUnread(unreadSince(seen.current, current.current));
 		}
 		publish(read(el));
-	}, [count, tail, publish, write, ready, surfaceId]);
+	}, [count, tail, publish, write, ready, surfaceId, pin]);
 
 	const detach = useCallback(() => {
 		cancelAnimationFrame(glide.current);

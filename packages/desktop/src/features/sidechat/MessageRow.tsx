@@ -169,7 +169,7 @@ function AssistantRow({ message, live }: { message: AssistantMessage; live?: boo
 					return block.text ? (
 						// The same rhythm as the main transcript — see `rows.tsx`.
 						<div key={index}>
-							<Markdown text={block.text} />
+							<Markdown text={block.text} streaming={message.stopReason === "pending" && index === message.content.length - 1} />
 						</div>
 					) : null;
 				}

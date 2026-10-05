@@ -198,6 +198,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     surfaceId: activeSessionId,
     namespace: "transcript",
     ready: !loadingSession,
+    live: running,
     count: messages.length + commandRuns.length,
     /*
      * What "something arrived" means here.
@@ -525,7 +526,19 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
             </div>
           )}
           {range.end === allBlocks.length && <>
-          <div className="ly-reveal" data-open={running && !answering && !compacting} aria-hidden={!running || answering || compacting}>
+          {/*
+           * 回答开始时这一行立刻收起，不走 `.ly-reveal` 的收拢过渡。
+           *
+           * 回答的第一行字和这一行收起发生在同一刻，高度一增一减差不多抵掉，字就落在这一行原来的
+           * 位置。慢慢收的话，贴着底部的转录先被新的一行整段顶上去，再随着这一行变矮一帧帧往下漂，
+           * 读起来是字从底下蹦上来、把它顶走了。展开（回答停住之后它回来）照旧是动画。
+           */}
+          <div
+            className="ly-reveal"
+            data-open={running && !answering && !compacting}
+            aria-hidden={!running || answering || compacting}
+            style={answering ? { transition: "none" } : undefined}
+          >
             <div>
               <div>{running && !compacting && <RunningIndicator />}</div>
             </div>

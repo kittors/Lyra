@@ -36,9 +36,30 @@ export function parseMarkdown(source: string): Block[] {
 	return parseBlocks(source.replace(/\r\n/g, "\n").split("\n"));
 }
 
-function parseBlocks(lines: string[]): Block[] {
+/**
+ * 顶层的块，连同各自是从哪段原文来的。
+ *
+ * 给 `Markdown` 按块记忆用：流式输出时每一帧都整条重新解析（解析很便宜，64 KB 一次不到 1 ms），
+ * 贵的是把前面几十个没变的块再画一遍。原文没变的块，画出来就不会变，比一下字符串就够了。
+ *
+ * 原文从这一块的第一行切到下一块的第一行，块后面的空行算在它身上——一块只会在后面补上空行时多画
+ * 一次，不会画错。
+ */
+export function parseMarkdownChunks(source: string): { block: Block; raw: string }[] {
+	const lines = source.replace(/\r\n/g, "\n").split("\n");
+	const starts: number[] = [];
+	const blocks = parseBlocks(lines, starts);
+	return blocks.map((block, index) => ({ block, raw: lines.slice(starts[index], starts[index + 1] ?? lines.length).join("\n") }));
+}
+
+function parseBlocks(lines: string[], starts?: number[]): Block[] {
 	const blocks: Block[] = [];
 	let i = 0;
+	let at = 0;
+	const push = (block: Block) => {
+		blocks.push(block);
+		starts?.push(at);
+	};
 
 	while (i < lines.length) {
 		const line = lines[i];
@@ -47,6 +68,7 @@ function parseBlocks(lines: string[]): Block[] {
 			i++;
 			continue;
 		}
+		at = i;
 
 		/*
 		 * Fenced code, with either fence character.
@@ -63,7 +85,7 @@ function parseBlocks(lines: string[]): Block[] {
 			while (i < lines.length && !new RegExp(`^\\s*${marker === "`" ? "```" : "~~~"}+\\s*$`).test(lines[i]))
 				code.push(lines[i++]);
 			i++;
-			blocks.push({ kind: "code", lang, code: code.join("\n") });
+			push({ kind: "code", lang, code: code.join("\n") });
 			continue;
 		}
 
@@ -76,7 +98,7 @@ function parseBlocks(lines: string[]): Block[] {
 		if (/^\s*\$\$/.test(line)) {
 			const single = /^\s*\$\$(.+?)\$\$\s*$/.exec(line);
 			if (single) {
-				blocks.push({ kind: "math", tex: single[1].trim() });
+				push({ kind: "math", tex: single[1].trim() });
 				i++;
 				continue;
 			}
@@ -84,7 +106,7 @@ function parseBlocks(lines: string[]): Block[] {
 			i++;
 			while (i < lines.length && !/\$\$\s*$/.test(lines[i])) tex.push(lines[i++]);
 			if (i < lines.length) tex.push(lines[i++].replace(/\$\$\s*$/, ""));
-			blocks.push({ kind: "math", tex: tex.join("\n").trim() });
+			push({ kind: "math", tex: tex.join("\n").trim() });
 			continue;
 		}
 
@@ -96,7 +118,7 @@ function parseBlocks(lines: string[]): Block[] {
 		 */
 		if (/^\s*<details[\s>]/i.test(line)) {
 			const { block, next } = parseDetails(lines, i);
-			blocks.push(block);
+			push(block);
 			i = next;
 			continue;
 		}
@@ -114,20 +136,20 @@ function parseBlocks(lines: string[]): Block[] {
 		 */
 		if (htmlBlockAt(line)) {
 			const { block, next } = parseHtmlBlock(lines, i);
-			blocks.push(block);
+			push(block);
 			i = next;
 			continue;
 		}
 
 		const heading = /^(#{1,6})\s+(.*)$/.exec(line);
 		if (heading) {
-			blocks.push({ kind: "heading", level: heading[1].length, text: heading[2].trim() });
+			push({ kind: "heading", level: heading[1].length, text: heading[2].trim() });
 			i++;
 			continue;
 		}
 
 		if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
-			blocks.push({ kind: "rule" });
+			push({ kind: "rule" });
 			i++;
 			continue;
 		}
@@ -135,7 +157,7 @@ function parseBlocks(lines: string[]): Block[] {
 		if (/^\s*>\s?/.test(line)) {
 			const quoted: string[] = [];
 			while (i < lines.length && /^\s*>\s?/.test(lines[i])) quoted.push(lines[i++].replace(/^\s*>\s?/, ""));
-			blocks.push({ kind: "quote", text: quoted.join("\n") });
+			push({ kind: "quote", text: quoted.join("\n") });
 			continue;
 		}
 
@@ -145,13 +167,13 @@ function parseBlocks(lines: string[]): Block[] {
 			i += 2;
 			const rows: string[][] = [];
 			while (i < lines.length && lines[i].includes("|") && lines[i].trim()) rows.push(splitRow(lines[i++]));
-			blocks.push({ kind: "table", header, rows, align });
+			push({ kind: "table", header, rows, align });
 			continue;
 		}
 
 		if (isListLine(line)) {
 			const { list, next } = parseList(lines, i, indentOf(line));
-			blocks.push(list);
+			push(list);
 			i = next;
 			continue;
 		}
@@ -166,7 +188,7 @@ function parseBlocks(lines: string[]): Block[] {
 		const paragraph: string[] = [];
 		while (i < lines.length && lines[i].trim() && !isBlockStart(lines[i]) && !isTableStart(lines, i))
 			paragraph.push(lines[i++]);
-		if (paragraph.length > 0) blocks.push({ kind: "paragraph", text: paragraph.join("\n") });
+		if (paragraph.length > 0) push({ kind: "paragraph", text: paragraph.join("\n") });
 		else i++;
 	}
 

@@ -11,7 +11,7 @@ import { translate } from "../../i18n/translate.ts";
 import { ChevronRight } from "lucide-react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
-import { iconColour, lookFor } from "./fileIcon.tsx";
+import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { NameEditor } from "./NameEditor.tsx";
 

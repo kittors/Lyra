@@ -68,6 +68,27 @@
 }
 
 /*
+ * 一条看着它写完的回复，底下那行操作是长出来的，不是一下子多出来的。
+ *
+ * 这一行平时透明（悬停才显出来），可它从写完的那一刻起就占着高度。转录贴着底部，一下子多出一行，
+ * 上面的整段回复就往上跳一截——字刚淡进来，紧接着就被顶上去。从零长到它自己的高度，底部跟随会
+ * 一帧帧跟着，整段是平平地挪上去。
+ *
+ * 只写 `from`：终点就是这一行本来的高度和外边距，不用在这里再写一遍。`margin-top` 从负的行间距
+ * 起步，是把回复这一列的 `gap-2.5` 也一起收进来——不然那 10px 仍然是一下子冒出来的。
+ */
+@keyframes ly-actions-in {
+  from {
+    height: 0;
+    margin-top: -0.625rem;
+  }
+}
+
+.ly-actions-in {
+  animation: ly-actions-in var(--ly-t-base) var(--ly-e-out);
+}
+
+/*
  * A row arriving at the top of a list, rather than simply being there.
  *
  * The opposite direction to `ly-enter`, and for the opposite reason. A message enters at the

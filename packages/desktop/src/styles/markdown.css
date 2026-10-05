@@ -209,6 +209,51 @@
     word-break: normal;
   }
 
+  /*
+   * 围栏代码块：标题栏（图标、语言、运行 / 换行 / 复制）和代码同在一个框里。
+   *
+   * 框画在外层，里面的 `pre` 把自己那套底色、描边、圆角撤掉，否则标题栏和代码是两块拼起来的。
+   * 按钮常驻：它们一块只出现一次，不像文件链接那样满页重复。
+   */
+  .prose-dw .ly-code-block {
+    background: var(--ly-code-bg, var(--color-card));
+    color: var(--ly-code-fg, var(--color-ink));
+    border: 1px solid color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 12%, transparent);
+    border-radius: 10px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .prose-dw .ly-code-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 0 14px;
+    font-family: var(--ly-code-font, var(--font-mono));
+    font-size: var(--text-code);
+    line-height: 24px;
+    color: color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 80%, transparent);
+    user-select: none;
+  }
+
+  .prose-dw .ly-code-block > pre {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 6px 14px 12px;
+  }
+
+  /* 正在输出的代码块里的一段，见 `CodeBlock` 的 `fading`：块级，浏览器才能只重排正在长的那一段。 */
+  .prose-dw .ly-code-chunk {
+    display: block;
+  }
+
+  .prose-dw .ly-code-block[data-wrap] pre code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .prose-dw code {
     /* Same reasoning as `body`: punctuation, then Han, then the mono face. */
 	font-family: var(--ly-punct-font, "Lyra Punct"), var(--ly-script-font, "Lyra CJK"),
@@ -888,4 +933,23 @@
 	content-visibility: auto;
 	contain-intrinsic-size: auto 9000px;
 	margin: 0;
+}
+
+/*
+ * 正在输出的字淡入——见 `FadeText.tsx`。
+ *
+ * 时长和那边的 `FADE` 是同一个数，改一处要跟着改另一处：那边按它判断一个字什么时候淡完、可以并回
+ * 纯文本。`both` 让还没轮到的字（`animation-delay` 为正）先保持透明，而不是先实着闪一下再淡入。
+ */
+@keyframes ly-stream-fade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.ly-fade-char {
+	animation: ly-stream-fade 180ms cubic-bezier(0.33, 0, 0.67, 1) both;
 }
