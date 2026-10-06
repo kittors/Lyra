@@ -25,6 +25,7 @@ import type { AssistantMessage, Message, Usage } from "../types.ts";
 import { emptyUsage } from "../types.ts";
 import { applyRecord, persistedPayload, recordKind } from "./apply-record.ts";
 import { beforeSessionDbClose, closeSessionDb, sessionDb, transaction } from "./db.ts";
+import { removeLegacyFiles } from "./legacy-files.ts";
 import { importLegacySessions } from "./legacy-jsonl.ts";
 import { assemblePartial, flushPendingPartials, type PartialPiece, type PartialSink } from "./partial.ts";
 import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
@@ -400,7 +401,8 @@ export class SessionStore implements SessionStorage, PartialSink {
 	}
 
 	/**
-	 * Delete sessions, their records and anything streaming for them — not what they spent.
+	 * Delete sessions, their records and anything streaming for them — not what they spent — and what
+	 * the JSONL store kept of them (`removeLegacyFiles`).
 	 *
 	 * Space is handed back to the file system straight after. Without it SQLite only marks the pages
 	 * free, and clearing a range in settings would free nothing anyone could see.
@@ -426,6 +428,7 @@ export class SessionStore implements SessionStorage, PartialSink {
 		 */
 		db.exec("PRAGMA incremental_vacuum");
 		db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+		await removeLegacyFiles(this.root, targets.map((target) => target.id));
 	}
 
 	/**

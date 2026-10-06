@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mock, test } from "node:test";
@@ -94,17 +94,57 @@ test("an old log comes over whole: messages, the name given, the archive, what w
 	});
 });
 
-test("imported once: a conversation deleted afterwards is not brought back by its old file", async () => {
+test("imported once: a log that turns up afterwards is not read", async () => {
 	await withHome(async (root) => {
 		const id = "22222222-2222-4222-8222-222222222222";
-		const path = await writeLog(root, id, [line({ seq: 1, ts: 1000, type: "meta", meta: meta(id, 1000) }), line({ seq: 2, ts: 2000, type: "message", message: user("x", 2000) })]);
+		await writeLog(root, id, [line({ seq: 1, ts: 1000, type: "meta", meta: meta(id, 1000) }), line({ seq: 2, ts: 2000, type: "message", message: user("x", 2000) })]);
 		const store = new SessionStore(root);
 		assert.equal((await store.listSessions()).length, 1);
-		await store.delete(PROJECT, id);
 		store.close();
 
-		assert.ok(existsSync(path), "the file stays, as a backup");
-		assert.deepEqual(await new SessionStore(root).listSessions(), [], "and is not read again");
+		// An old Lyra run against the same home after the import: what it writes stays out.
+		const late = "22222222-2222-4222-8222-222222222223";
+		await writeLog(root, late, [line({ seq: 1, ts: 3000, type: "meta", meta: meta(late, 3000) })]);
+		assert.deepEqual((await new SessionStore(root).listSessions()).map((session) => session.id), [id]);
+	});
+});
+
+test("deleting a session deletes what the JSONL store kept of it, and a database made afresh does not bring it back", async () => {
+	await withHome(async (root) => {
+		const kept = "eeeeeeee-0000-4000-8000-000000000001";
+		const doomed = "eeeeeeee-0000-4000-8000-000000000002";
+		const keptLog = await writeLog(root, kept, [line({ seq: 1, ts: 1000, type: "meta", meta: meta(kept, 1000) }), line({ seq: 2, ts: 1500, type: "message", message: user("stays", 1500) })]);
+		const doomedLog = await writeLog(root, doomed, [line({ seq: 1, ts: 1000, type: "meta", meta: meta(doomed, 1000) }), line({ seq: 2, ts: 1600, type: "message", message: user("goes", 1600) })]);
+		await writeFile(join(root, "index.json"), JSON.stringify([meta(doomed, 1600), meta(kept, 1500)]));
+		let store = new SessionStore(root);
+		const [, second] = await store.listSessions();
+		assert.equal(second?.id, kept);
+		// Moved since the import: its log is still under the project it came from.
+		await store.move(PROJECT, doomed, "/tmp/elsewhere", "elsewhere");
+		await store.delete(projectIdFor("/tmp/elsewhere"), doomed);
+
+		assert.ok(!existsSync(doomedLog), "its log went with it");
+		assert.ok(existsSync(keptLog), "nobody else's did");
+		const index = JSON.parse(await readFile(join(root, "index.json"), "utf8")) as { id: string; title: string }[];
+		assert.deepEqual(index.map((entry) => entry.id), [kept], "and its entry, title and all, is out of the old index");
+
+		// The database moved aside, as after it would not open: the old files are imported again.
+		store.close();
+		for (const suffix of ["", "-wal", "-shm"]) await rm(join(root, `sessions.db${suffix}`), { force: true });
+		store = new SessionStore(root);
+		assert.deepEqual((await store.listSessions()).map((session) => session.id), [kept]);
+	});
+});
+
+test("the display caches go once the logs are in; the logs stay", async () => {
+	await withHome(async (root) => {
+		const id = "ffffffff-0000-4000-8000-000000000001";
+		const log = await writeLog(root, id, [line({ seq: 1, ts: 1000, type: "meta", meta: meta(id, 1000) })]);
+		const cache = join(root, PROJECT, `${id}.display.json`);
+		await writeFile(cache, JSON.stringify({ v: 2, seq: 1 }));
+		await new SessionStore(root).listSessions();
+		assert.ok(!existsSync(cache));
+		assert.ok(existsSync(log));
 	});
 });
 
