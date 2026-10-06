@@ -1,24 +1,22 @@
 /**
  * What was actually spent, by day and by model.
  *
- * The session index already carries a total per conversation, and that is the wrong shape for
- * every question worth asking: it is stamped with `updatedAt`, so a refactor spread over three
- * days lands entirely on the third, and it has no idea which model did the spending — which is
- * the one thing you want to know when four relays are configured and one of them is expensive.
+ * The session list carries a total per conversation, and that is the wrong shape for every question
+ * worth asking: it is stamped with `updatedAt`, so a refactor spread over three days lands entirely
+ * on the third, and it has no idea which model did the spending — which is the one thing you want to
+ * know when four relays are configured and one of them is expensive.
  *
- * So the logs themselves are read. They are append-only, which makes that cheap to keep doing:
- * a file whose size has grown is read from where the last scan stopped rather than from the top,
- * and one that has not changed at all is not opened. First pass over a real home here — 264MB
- * across 185 conversations — takes a couple of seconds; every pass after it is a few kilobytes.
+ * So every billed call is read, from the `spend` table the session store writes beside each reply
+ * (ADR-0032). It only grows, which keeps this cheap to keep doing: the last scan's figures are cached
+ * with the last row it read, and each scan after it reads only the rows since. Deleting a
+ * conversation leaves its rows there — what was spent stays spent.
  */
 
-import { createReadStream } from "node:fs";
-import { readdir, stat, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
-import { lyraHome, type ProviderConfig } from "@lyra/core";
+import { lyraHome, SessionStore, type ProviderConfig, type SessionStorage, type SpendRow } from "@lyra/core";
 import { freshTokens } from "@lyra/core/tokens";
-import { readUsageCache, USAGE_CACHE_VERSION, type UsageFileEntry, type UsageFiles } from "./usage-cache.ts";
+import { readUsageCache, USAGE_CACHE_VERSION } from "./usage-cache.ts";
 import { priceUsage, usagePricingKey, type TokenUsage } from "./usage-pricing.ts";
 import type { UsageBucket, UsageDay, UsageScan } from "./usage-types.ts";
 
@@ -41,12 +39,9 @@ function numberAt(record: Record<string, unknown> | null, key: string): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function emptyEntry(mtimeMs: number, size: number): UsageFileEntry {
-	return { mtimeMs, size, buckets: [], days: {} };
-}
-
-function bucketFor(entry: UsageFileEntry, day: string, key: string, provider: string, model: string): UsageBucket {
-	const found = entry.buckets.find((each) => each.day === day && each.key === key);
+function bucketFor(buckets: Map<string, UsageBucket>, day: string, key: string, provider: string, model: string): UsageBucket {
+	const id = `${day}\u0000${key}`;
+	const found = buckets.get(id);
 	if (found) return found;
 	const fresh: UsageBucket = {
 		day,
@@ -72,232 +67,100 @@ function bucketFor(entry: UsageFileEntry, day: string, key: string, provider: st
 		unpricedTokens: 0,
 		replies: 0,
 	};
-	entry.buckets.push(fresh);
+	buckets.set(id, fresh);
 	return fresh;
 }
 
 /**
- * Read one log, from `entry.size` onwards.
+ * One billed call, into its day's bucket for its model.
  *
- * Records are whole lines appended atomically, so the previous size is always a line boundary —
- * but a line that fails to parse is skipped rather than thrown on, because a log truncated by a
- * crash mid-write is a thing that happens and losing one turn's numbers is not worth losing the
- * page over.
+ * Three sources, all of them money spent: the main agent's replies, a sub-agent's (they are
+ * `subagent_message` events in the log, which the scan of the log files once missed — a sub-agent
+ * had spent 40% more than the main agent in one of the user's sessions), and calls beside the
+ * conversation such as a title or a side chat. The spend table holds all three alike.
  */
-async function readLog(path: string, entry: UsageFileEntry, size: number, providers: ProviderConfig[]): Promise<void> {
-	const from = entry.size;
-	if (size <= from) return;
-
-	const stream = createReadStream(path, { encoding: "utf8", start: from });
-	const lines = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
-	try {
-		for await (const line of lines) {
-			/*
-			 * Cheaper than parsing: most records in a busy log are events, not messages.
-			 *
-			 * 子 Agent 的消息是这条快速通道的例外——它落盘成 `type: "event"` 里的 `subagent_message`，
-			 * 所以按 `"type":"message"` 筛会把它连同别的 event 一起跳过。这一行**在 `JSON.parse` 之前**，
-			 * 于是下面认得再准也够不着：改完扫描逻辑之后打点量过，`event` 记录命中 0 条。
-			 *
-			 * 只放行这一种 event，别的照旧跳过——这条通道的价值就在于不去解析那些跟花销无关的行。
-			 */
-			if (
-				!line.includes('"type":"message"') &&
-				!line.includes('"type":"usage"') &&
-				!line.includes('"subagent_message"')
-			)
-				continue;
-			let parsed: unknown;
-			try {
-				parsed = JSON.parse(line);
-			} catch {
-				continue;
-			}
-			const record = asRecord(parsed);
-			if (!record) continue;
-			/*
-			 * 三个来源，都是花出去的钱。
-			 *
-			 * `usage` 是辅助调用（自动起标题那种），它有花销但不算一条对话消息。`message` 是主 Agent 自己
-			 * 说的话。第三个是**子 Agent**——它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前
-			 * 这里够不着，于是一整个委派的用量在用量页上不存在。实测漏掉的量不小：用户的一个会话里子 Agent
-			 * 比主 Agent 还多烧 40%，统计里少了 58%。
-			 *
-			 * 和辅助调用一样按 `auxiliary` 处理，因为它们在「是不是一条对话消息」这件事上是同一类：算钱，
-			 * 不算条数。子 Agent 的往返是委派内部的事，混进日活消息数会让一次委派看起来像聊了几十轮。
-			 */
-			const subagent =
-				record.type === "event" && asRecord(record.event)?.type === "subagent_message"
-					? asRecord(asRecord(record.event)?.message)
-					: null;
-			const auxiliary = record.type === "usage" || subagent !== null;
-			const message =
-				record.type === "usage"
-					? { role: "assistant", timestamp: record.ts, provider: record.providerId, model: record.modelId, usage: record.usage }
-					: (subagent ?? (record.type === "message" ? asRecord(record.message) : null));
-			if (!message) continue;
-
-			const at = typeof message.timestamp === "number" ? message.timestamp : 0;
-			if (!at) continue;
-			const day = dayKey(at);
-			entry.days[day] = (entry.days[day] ?? 0) + (auxiliary ? 0 : 1);
-
-			if (message.role !== "assistant") continue;
-			const usage = asRecord(message.usage);
-			const provider = String(message.provider ?? "unknown");
-			const model = String(message.model ?? "unknown");
-			const bucket = bucketFor(entry, day, `${provider}/${model}`, provider, model);
-			const tokens: TokenUsage = {
-				input: numberAt(usage, "input"),
-				output: numberAt(usage, "output"),
-				cacheRead: numberAt(usage, "cacheRead"),
-				cacheWrite: numberAt(usage, "cacheWrite"),
-			};
-			const priced = priceUsage(tokens, usage, providers, provider, model);
-			// Fresh tokens, matching what the page reports as its total — these figures are shown as
-			// percentages *of* that total, and counting cache reads in one but not the other would
-			// put 「未计价」 over 100%.
-			const tokenTotal = freshTokens(tokens);
-			bucket.input += tokens.input;
-			bucket.output += tokens.output;
-			bucket.cacheRead += tokens.cacheRead;
-			bucket.cacheWrite += tokens.cacheWrite;
-			bucket.reasoning += numberAt(usage, "reasoning");
-			bucket.cost += priced.cost.total;
-			bucket.inputCost += priced.cost.input;
-			bucket.outputCost += priced.cost.output;
-			bucket.cacheReadCost += priced.cost.cacheRead;
-			bucket.cacheWriteCost += priced.cost.cacheWrite;
-			bucket.rawCost += priced.rawCost;
-			bucket.cacheSavings += priced.cacheSavings;
-			if (priced.source === "provider") bucket.providerPricedTokens += tokenTotal;
-			else if (priced.source === "catalog") bucket.catalogPricedTokens += tokenTotal;
-			else if (priced.source === "manual") bucket.manualPricedTokens += tokenTotal;
-			else if (priced.source === "recorded") bucket.recordedPricedTokens += tokenTotal;
-			else bucket.unpricedTokens += tokenTotal;
-			bucket.replies += 1;
-		}
-	} finally {
-		lines.close();
-		stream.close();
-	}
-	entry.size = size;
-}
-
-/**
- * Every session log under `~/.lyra/sessions`, as `projectId/session.jsonl`.
- *
- * **`~/.lyra/sidechats` 不在这里，而且不该加进来。** 那个目录看着像一整块没人统计的花销——本机
- * 上是 241 条助手消息、3.7M 输入 token——但侧边聊天每说一句都会往它所属的主对话日志里补一条
- * `type: "usage"` 的记录（`source: "side-chat"`，上面 `readLog` 认得它）。两边逐条对过：13 个
- * 会话里条数和 token 一个不差。把快照也扫进来就是把这 222 条算两遍。
- *
- * 对不上的只有 2026-09-15 那条机制上线之前的 19 条，合计三万 token。补它们要去重，而去重的依据
- * 只有时间戳和 token 数——为一次性的三万 token 冒双重计价的险，不划算。
- */
-async function logPaths(root: string): Promise<string[]> {
-	const out: string[] = [];
-	const projects = await readdir(root, { withFileTypes: true }).catch(() => []);
-	for (const project of projects) {
-		if (!project.isDirectory()) continue;
-		const files = await readdir(join(root, project.name)).catch(() => []);
-		for (const file of files) {
-			if (file.endsWith(".jsonl")) out.push(join(project.name, file));
-		}
-	}
-	return out;
+function addCall(buckets: Map<string, UsageBucket>, row: SpendRow, providers: ProviderConfig[]): void {
+	const call = row.call;
+	if (row.kind !== "call" || !call) return;
+	const at = typeof call.timestamp === "number" && call.timestamp > 0 ? call.timestamp : row.ts;
+	const usage = asRecord(call.usage);
+	const provider = String(call.provider ?? row.provider ?? "unknown");
+	const model = String(call.model ?? row.model ?? "unknown");
+	const bucket = bucketFor(buckets, dayKey(at), `${provider}/${model}`, provider, model);
+	const tokens: TokenUsage = {
+		input: numberAt(usage, "input"),
+		output: numberAt(usage, "output"),
+		cacheRead: numberAt(usage, "cacheRead"),
+		cacheWrite: numberAt(usage, "cacheWrite"),
+	};
+	const priced = priceUsage(tokens, usage, providers, provider, model);
+	// Fresh tokens, matching what the page reports as its total — these figures are shown as
+	// percentages *of* that total, and counting cache reads in one but not the other would put
+	// 「未计价」 over 100%.
+	const tokenTotal = freshTokens(tokens);
+	bucket.input += tokens.input;
+	bucket.output += tokens.output;
+	bucket.cacheRead += tokens.cacheRead;
+	bucket.cacheWrite += tokens.cacheWrite;
+	bucket.reasoning += numberAt(usage, "reasoning");
+	bucket.cost += priced.cost.total;
+	bucket.inputCost += priced.cost.input;
+	bucket.outputCost += priced.cost.output;
+	bucket.cacheReadCost += priced.cost.cacheRead;
+	bucket.cacheWriteCost += priced.cost.cacheWrite;
+	bucket.rawCost += priced.rawCost;
+	bucket.cacheSavings += priced.cacheSavings;
+	if (priced.source === "provider") bucket.providerPricedTokens += tokenTotal;
+	else if (priced.source === "catalog") bucket.catalogPricedTokens += tokenTotal;
+	else if (priced.source === "manual") bucket.manualPricedTokens += tokenTotal;
+	else if (priced.source === "recorded") bucket.recordedPricedTokens += tokenTotal;
+	else bucket.unpricedTokens += tokenTotal;
+	bucket.replies += 1;
 }
 
 /**
  * Everything spent, by day and by model.
  *
- * The cache is an optimisation and never a source of truth: a file whose mtime or size disagrees
- * with what was recorded is re-read from scratch — including one that shrank, which means it was
- * rewritten rather than appended to and nothing about the old numbers can be trusted.
+ * The cache is an optimisation and never a source of truth: one written under other prices, or for
+ * another database, is dropped and the table read from its first row.
+ *
+ * **`~/.lyra/sidechats` is not read, and should not be.** A side chat adds a `usage` record
+ * (`source: "side-chat"`) to the conversation it belongs to for every reply, so its spend is already
+ * in the table; reading the side chats' own snapshots as well counted the same replies twice.
  */
-export async function scanUsage(home = lyraHome(), providers: ProviderConfig[] = []): Promise<UsageScan> {
+export async function scanUsage(
+	home = lyraHome(),
+	providers: ProviderConfig[] = [],
+	store: Pick<SessionStorage, "readSpend" | "storeId" | "activeDays"> = new SessionStore(join(home, "sessions")),
+): Promise<UsageScan> {
 	const started = Date.now();
-	const root = join(home, "sessions");
 	const cachePath = join(home, "usage-cache.json");
-	const currentPricingKey = usagePricingKey(providers);
-	const cache = await readUsageCache(cachePath, currentPricingKey);
-
-	const next: UsageFiles = {};
-	const days = new Map<string, UsageDay>();
-	const totals = new Map<string, UsageBucket>();
+	const pricingKey = usagePricingKey(providers);
+	const storeId = (await store.storeId?.()) ?? "";
+	const cache = await readUsageCache(cachePath, pricingKey, storeId);
+	const buckets = new Map(cache.buckets.map((bucket) => [`${bucket.day}\u0000${bucket.key}`, { ...bucket }]));
+	let after = cache.after;
 	let scanned = 0;
-	let cached = 0;
-
-	for (const relative of await logPaths(root)) {
-		const path = join(root, relative);
-		const info = await stat(path).catch(() => null);
-		if (!info) continue;
-
-		const known = cache[relative];
-		/*
-		 * Three cases, and the middle one is the whole reason this is fast.
-		 *
-		 * Untouched: not opened at all. Grown: read from where the last pass stopped, because the
-		 * log is append-only and the previous size is a line boundary. Anything else — smaller,
-		 * or the same size under a different mtime — means it was rewritten rather than appended
-		 * to, and nothing recorded about it can be trusted, so it is read from the top.
-		 */
-		const untouched = known !== undefined && known.mtimeMs === info.mtimeMs && known.size === info.size;
-		const grown = known !== undefined && !untouched && info.size > known.size;
-		const entry = untouched || grown ? { ...known, buckets: known.buckets.map((b) => ({ ...b })), days: { ...known.days } } : emptyEntry(info.mtimeMs, 0);
-
-		if (untouched) cached += 1;
-		else {
-			await readLog(path, entry, info.size, providers);
+	while (store.readSpend) {
+		const rows = await store.readSpend(after);
+		if (rows.length === 0) break;
+		for (const row of rows) {
+			after = row.id;
+			addCall(buckets, row, providers);
 			scanned += 1;
 		}
-		entry.mtimeMs = info.mtimeMs;
-		entry.size = info.size;
-		next[relative] = entry;
-
-		for (const [day, messages] of Object.entries(entry.days)) {
-			const seen = days.get(day) ?? { day, sessions: 0, messages: 0 };
-			// One log is one conversation, so its presence on a day is one active conversation.
-			seen.sessions += 1;
-			seen.messages += messages;
-			days.set(day, seen);
-		}
-		for (const bucket of entry.buckets) {
-			const id = `${bucket.day}\u0000${bucket.key}`;
-			const seen = totals.get(id);
-			if (!seen) {
-				totals.set(id, { ...bucket });
-				continue;
-			}
-			seen.input += bucket.input;
-			seen.output += bucket.output;
-			seen.cacheRead += bucket.cacheRead;
-			seen.cacheWrite += bucket.cacheWrite;
-			seen.reasoning += bucket.reasoning;
-			seen.cost += bucket.cost;
-			seen.inputCost += bucket.inputCost;
-			seen.outputCost += bucket.outputCost;
-			seen.cacheReadCost += bucket.cacheReadCost;
-			seen.cacheWriteCost += bucket.cacheWriteCost;
-			seen.rawCost += bucket.rawCost;
-			seen.cacheSavings += bucket.cacheSavings;
-			seen.providerPricedTokens += bucket.providerPricedTokens;
-			seen.catalogPricedTokens += bucket.catalogPricedTokens;
-			seen.manualPricedTokens += bucket.manualPricedTokens;
-			seen.recordedPricedTokens += bucket.recordedPricedTokens;
-			seen.unpricedTokens += bucket.unpricedTokens;
-			seen.replies += bucket.replies;
-		}
 	}
+	const days: UsageDay[] = ((await store.activeDays?.()) ?? []).map((day) => ({ day: day.day, sessions: Number(day.sessions), messages: Number(day.messages) }));
+	const sorted = [...buckets.values()].sort((a, b) => a.day.localeCompare(b.day) || a.key.localeCompare(b.key));
 
-	// Best effort: a cache that cannot be written costs a re-scan, which is not worth failing over.
-	await writeFile(cachePath, JSON.stringify({ version: USAGE_CACHE_VERSION, pricingKey: currentPricingKey, files: next }), "utf8").catch(() => {});
+	// Best effort: a cache that cannot be written costs a re-read, which is not worth failing over.
+	await writeFile(cachePath, JSON.stringify({ version: USAGE_CACHE_VERSION, pricingKey, storeId, after, buckets: sorted }), "utf8").catch(() => {});
 
 	return {
-		days: [...days.values()].sort((a, b) => a.day.localeCompare(b.day)),
-		buckets: [...totals.values()].sort((a, b) => a.day.localeCompare(b.day)),
+		days,
+		buckets: sorted,
 		scanned,
-		cached,
+		cached: cache.after > 0 ? 1 : 0,
 		tookMs: Date.now() - started,
 	};
 }

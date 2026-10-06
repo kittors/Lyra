@@ -42,7 +42,7 @@ export interface UsageDay {
 export interface UsageScan {
 	days: UsageDay[];
 	buckets: UsageBucket[];
-	/** How many logs were read this time, and how many were answered from the cache. */
+	/** How many spend rows were read this time, and whether the figures built on a cached scan (1) or started over (0). */
 	scanned: number;
 	cached: number;
 	tookMs: number;

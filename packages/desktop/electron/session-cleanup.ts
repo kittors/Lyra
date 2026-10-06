@@ -1,18 +1,16 @@
 /**
- * 会话记录占了多少地方，以及怎么把一段时间的删掉。
+ * How much room the conversations take, and how to delete a stretch of them.
  *
- * 用量页上的每一个数字都是现算的——扫一遍 `~/.lyra/sessions` 下的日志，把里面的 token 加起来。
- * 所以「清除统计数据」没有一个单独的东西可以清：**要让那些数字消失，只能删掉产生它们的会话**，
- * 而那些会话就是聊天记录本身。这个模块存在的第一个理由，就是把这件事说清楚，而不是让一个叫
- * 「清除统计」的按钮悄悄删掉半年的对话。
+ * What is deleted is whole conversations, never some of their messages. A conversation is spread
+ * over every day it was active, and cutting the middle days out of it leaves a transcript that no
+ * longer reads. So a range selects by last activity: a conversation started in August and written
+ * to yesterday belongs to yesterday.
  *
- * 删除的单位是一整条会话，不是某几条消息。一条会话的用量摊在它活跃的每一天上，按天把中间几段
- * 剜掉，留下的是一份读不通的对话和一份仍然对不上的账——两样都不值得要。所以时间范围筛的是
- * 「最后活动时间」：一条八月建、昨天还在写的会话，属于昨天。
+ * What it spent is not deleted with it. The usage page reads the `spend` table, which deleting a
+ * conversation does not touch (ADR-0032): clearing old conversations to free room no longer quietly
+ * rewrites what the page says was spent.
  */
 
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { lyraHome, removeSessionArtifacts, type SessionMeta, type SessionStorage } from "@lyra/core";
 
 /** 本地日期键，和用量页、扫描器用的是同一个口径——不是 ISO/UTC。 */
@@ -77,46 +75,25 @@ export function withinRange(meta: Pick<SessionMeta, "updatedAt">, range: ClearRa
 	return true;
 }
 
-/** 一条会话的日志有多大。读不到就当 0——它可能刚被别处删掉，不值得让整张表算不出来。 */
-async function sizeOf(home: string, meta: Pick<SessionMeta, "projectId" | "id">): Promise<number> {
-	const info = await stat(join(home, "sessions", meta.projectId, `${meta.id}.jsonl`)).catch(() => null);
-	return info?.size ?? 0;
-}
-
 /**
- * 会话日志一共占多少。
+ * How much room the conversations take, spread over the day each was last active.
  *
- * 数的是 `sessions/` 下的 `.jsonl`，不是整个 `~/.lyra`——因为这正是下面那个删除动作能收回来的
- * 部分。索引、缓存、插件目录都不归它管，把它们算进来会让「删了却没少多少」变成常态。
- *
- * 走目录而不是走索引：一个索引里没有的孤儿日志照样占着盘，而它恰恰是最该被数出来的那种。
+ * Counted as each session's records — what deleting it gives back — rather than as the database
+ * file, which also holds what is streaming and what was spent, and keeps some free pages for the
+ * next writes.
  */
-export async function storageUse(store: SessionStorage, home = lyraHome()): Promise<StorageUse> {
-	const root = join(home, "sessions");
-	let bytes = 0;
-	for (const project of await readdir(root, { withFileTypes: true }).catch(() => [])) {
-		if (!project.isDirectory()) continue;
-		for (const file of await readdir(join(root, project.name)).catch(() => [])) {
-			if (!file.endsWith(".jsonl")) continue;
-			const info = await stat(join(root, project.name, file)).catch(() => null);
-			bytes += info?.size ?? 0;
-		}
-	}
-
+export async function storageUse(store: SessionStorage, _home = lyraHome()): Promise<StorageUse> {
+	const sizes = (await store.sizes?.()) ?? {};
 	const sessions = await store.listSessions();
-	/*
-	 * 每条会话量一次自己的日志，摊到它最后活动的那一天上。
-	 *
-	 * 总数那个 `bytes` 走目录（孤儿日志也占盘，也该数出来），这里走索引——按天分组问的是「删掉
-	 * 这一段会少多少」，而只有索引里的会话才会被删。两个数字对不上的那部分正是孤儿，它不属于
-	 * 任何一天。
-	 */
 	const byDay = new Map<string, StorageDay>();
+	let bytes = 0;
 	for (const meta of sessions) {
 		const day = dayKey(meta.updatedAt);
 		const seen = byDay.get(day) ?? { day, sessions: 0, bytes: 0 };
+		const size = sizes[meta.id] ?? 0;
 		seen.sessions += 1;
-		seen.bytes += await sizeOf(home, meta);
+		seen.bytes += size;
+		bytes += size;
 		byDay.set(day, seen);
 	}
 	const days = [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
@@ -130,13 +107,11 @@ export async function storageUse(store: SessionStorage, home = lyraHome()): Prom
 }
 
 /**
- * 把这一段里的会话删掉，连同它们写在项目外的东西。
+ * Delete the conversations in a range, with what they keep outside the database.
  *
- * 正在跑的会话跳过，不打断。删一条正在执行工具调用的会话，省下的那几兆远不如它正在写的东西
- * 值钱——而且它下一次落盘又会把文件建回来，于是「删干净了」是假的。跳过几条要在结果里报出来，
- * 不能让它们无声地留下。
- *
- * 先量大小再删：`deleteMany` 之后文件就不在了，那时候再 stat 得到的是 0，释放量会报成一片零。
+ * Running ones are skipped, not interrupted: the few megabytes a conversation in the middle of a
+ * tool call would free are worth much less than what it is writing. How many were skipped is
+ * reported, so they are not left behind in silence.
  */
 export async function clearSessions(
 	store: SessionStorage,
@@ -149,7 +124,9 @@ export async function clearSessions(
 	const targets = matched.filter((meta) => !isRunning(meta.id));
 	if (targets.length === 0) return { removed: 0, freed: 0, skipped: matched.length };
 
-	const freed = (await Promise.all(targets.map((meta) => sizeOf(home, meta)))).reduce((sum, size) => sum + size, 0);
+	// Measured before deleting: afterwards there is nothing left to measure.
+	const sizes = (await store.sizes?.()) ?? {};
+	const freed = targets.reduce((sum, meta) => sum + (sizes[meta.id] ?? 0), 0);
 	await store.deleteMany(targets.map((meta) => ({ projectId: meta.projectId, id: meta.id })));
 	await Promise.all(targets.map((meta) => removeSessionArtifacts(home, meta.id).catch(() => {})));
 

@@ -24,9 +24,8 @@
  *   pnpm audit:sessions --json > /tmp/before.json
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { lyraHome, SessionStore } from "../packages/core/src/session/store.ts";
 import { RepetitionWatch, REPEAT_WARN, REPEAT_STOP } from "../packages/core/src/agent/repetition.ts";
 import { pruneToolResults, PRUNE_THRESHOLD_CHARS } from "../packages/core/src/runtime/prune.ts";
 import type { Message } from "../packages/core/src/types.ts";
@@ -36,7 +35,8 @@ const CHARS_PER_TOKEN = 3.5;
 /** 进入「单条最贵」榜的门槛，低于这个的条目太多且都不值得看。 */
 const BIG_RESULT_CHARS = 2000;
 
-const ROOT = join(homedir(), ".lyra", "sessions");
+// `LYRA_HOME` like the app, so a copy can be audited without touching the real one.
+const ROOT = join(lyraHome(), "sessions");
 const asJson = process.argv.includes("--json");
 
 interface Call {
@@ -77,26 +77,22 @@ interface Session {
 	fileEdits: Map<string, number>;
 }
 
-function loadSessions(): Session[] {
+/** Every session in the database, read the way the log files were (ADR-0032: they are imported into it). */
+async function loadSessions(): Promise<Session[]> {
 	const out: Session[] = [];
-	let dirs: string[];
+	const store = new SessionStore(ROOT);
+	let metas: Awaited<ReturnType<SessionStore["listSessions"]>>;
 	try {
-		dirs = readdirSync(ROOT);
+		metas = await store.listSessions();
 	} catch {
 		console.error(`读不到 ${ROOT} —— 这台机器上还没有会话记录。`);
 		process.exit(1);
 	}
-	for (const dir of dirs) {
-		const path = join(ROOT, dir);
-		if (!statSync(path).isDirectory()) continue;
-		for (const file of readdirSync(path)) {
-			if (!file.endsWith(".jsonl")) continue;
-			let lines: string[];
-			try {
-				lines = readFileSync(join(path, file), "utf8").split("\n").filter(Boolean);
-			} catch {
-				continue;
-			}
+	{
+		for (const meta of metas) {
+			const file = meta.id;
+			const lines: unknown[] = [];
+			for await (const record of store.read(meta.projectId, meta.id)) lines.push(record);
 			const calls: Call[] = [];
 			const results = new Map<string, Message>();
 			const stops: string[] = [];
@@ -107,12 +103,7 @@ function loadSessions(): Session[] {
 			const fileEdits = new Map<string, number>();
 			let round = 0;
 			for (const line of lines) {
-				let entry: { type?: string; message?: Record<string, unknown>; event?: { type?: string; reason?: string } };
-				try {
-					entry = JSON.parse(line);
-				} catch {
-					continue;
-				}
+				const entry = line as { type?: string; message?: Record<string, unknown>; event?: { type?: string; reason?: string } };
 				if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
 				if (entry.type !== "message") continue;
 				const message = entry.message;
@@ -187,7 +178,7 @@ const tk = (chars: number) => Math.round(chars / CHARS_PER_TOKEN);
 const pad = (value: string | number, width: number) => String(value).padStart(width);
 const share = (a: number, b: number) => (b ? `${((a / b) * 100).toFixed(1)}%` : "—");
 
-const sessions = loadSessions();
+const sessions = await loadSessions();
 
 // ---------------------------------------------------------------------------
 // 1&2. 每个工具的一次性体积，以及它真正的代价：体积 × 之后还要被重发的轮数

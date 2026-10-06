@@ -320,7 +320,7 @@ export const en = {
 	"cleanup.prevMonth": "Previous month",
 	"cleanup.nextMonth": "Next month",
 	"cleanup.title": "Data and storage",
-	"cleanup.intro": { one: "Session records take {size} across {n} conversation. The usage figures are read from them.", other: "Session records take {size} across {n} conversations. The usage figures are read from them." },
+	"cleanup.intro": { one: "Session records take {size} across {n} conversation. Deleting them leaves what they spent in the usage figures.", other: "Session records take {size} across {n} conversations. Deleting them leaves what they spent in the usage figures." },
 	"cleanup.clear": "Clear",
 	"cleanup.clearing": "Clearing…",
 	"cleanup.range": "Date range",

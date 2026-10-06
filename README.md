@@ -149,13 +149,13 @@ Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change 
 | --- | --- |
 | `~/.lyra/settings.json` | providers, models, MCP, permission mode |
 | `~/.lyra/credentials.json` | API keys, encrypted. The key material is `~/.lyra/vault.key` |
-| `~/.lyra/sessions/` | session logs (JSONL, one record per line) |
+| `~/.lyra/sessions/sessions.db` | every conversation and what it spent (SQLite) |
 | `~/.lyra/skills/`, `plugins/`, `rules/`, `commands/` | user-level skills, plugins, rules, slash commands |
 | `~/.lyra/memory.json` | what the `learn` tool wrote down |
 | `<project>/.lyra/skills/`, `agents/`, `commands/`, `plugins/` | the same set at project level, preferred over user-level |
 | `<project>/LYRA.md`, `AGENTS.md`, `CLAUDE.md` | project instructions, first file that exists in that order |
 
-Moving machines is a copy of `~/.lyra`. Copy `credentials.json` and `vault.key` together, or the keys will not open.
+Moving machines is a copy of `~/.lyra`, made with the app closed. Copy `credentials.json` and `vault.key` together, or the keys will not open. Do not keep `~/.lyra` in a folder that iCloud, Dropbox or OneDrive syncs while the app runs: the session database is written through a `-wal` file beside it, and a sync client that copies one without the other leaves a database that will not open.
 
 ## Extensions
 
@@ -260,15 +260,17 @@ Three modes, switched from the lower-left of the composer:
 
 "Always allow" entries are stored in `settings.json` under `alwaysAllow`.
 
-## Session log format
+## Session storage
 
-Each session is an append-only JSONL file. Every record has a monotonically increasing `seq`:
+Sessions live in one SQLite database. Each session is an append-only list of records, and every record has a monotonically increasing `seq`:
 
 ```json
 {"seq":3,"ts":1786230000000,"type":"message","message":{"role":"user",...}}
 ```
 
-The phone pulls a delta with `?since=N`. Concurrent tool results get their `seq` from a write queue in the store, so numbers never collide. A collision would drop messages on the phone with no error (`packages/core/test/store.test.ts` covers that regression).
+The phone pulls a delta with `?since=N`. Each record is numbered inside the write transaction that stores it, so concurrent tool results never share a number. A collision would drop messages on the phone with no error (`packages/core/test/store.test.ts` covers that regression). A reply is written while it streams, so a crash keeps what had arrived. Deleting a conversation does not take what it spent off the usage page. `pnpm dump:session <id>` prints a session's records one per line, in the shape above.
+
+Versions before the database kept one JSONL file per session under `~/.lyra/sessions/<project>/`. The first launch of a version with the database imports them, numbering kept, and leaves the files where they were. Why it is built this way: [ADR-0032](docs/adr/0032-sessions-in-sqlite.md).
 
 ## Development
 

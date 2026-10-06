@@ -1,138 +1,40 @@
 /**
- * Session storage.
+ * Session storage: one SQLite database, `sessions/sessions.db` (ADR-0032).
  *
- * Sessions are append-only JSONL logs. Every record carries a monotonic `seq`, which is what
- * makes cross-device sync cheap: a client that has seen up to seq N asks for everything after
- * N and replays it. Nothing is ever rewritten in place, so a phone reconnecting mid-turn
- * cannot miss or duplicate events.
+ * Every session is an append-only list of records with a monotonic `seq`, and a row in `sessions`
+ * holding its current meta. The two are written in the same transaction, so the list the sidebar
+ * reads can never disagree with the records it summarises — which is what the JSONL files and their
+ * separately rewritten `index.json` spent most of this module working around: per-session write
+ * queues, an index queue, rebuilds, and the races between all three.
+ *
+ * Nothing is rewritten in place. An edit is a `truncate` record, a rename a `title` record; a reader
+ * that has seen up to seq N asks for what came after N and replays it. The logs sessions were kept
+ * in before are imported the first time the database is opened (`legacy-jsonl.ts`).
+ *
+ * The methods still take a `projectId` beside the session id, as the JSONL store did, because every
+ * caller passes one. The database does not need it: a session id is a UUID, and moving a session to
+ * another project is a record, not a different file.
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, uptime } from "node:os";
 import { basename, join } from "node:path";
-import { createInterface } from "node:readline";
-import type { AgentEvent, CommandRun } from "../agent/events.ts";
-import type { Message, ThinkingLevel, Usage } from "../types.ts";
-import type { SessionStorage } from "./storage.ts";
-import { addUsage, emptyUsage } from "../types.ts";
-import { writeFileAtomic } from "../utils/atomic-write.ts";
+import type { DatabaseSync } from "node:sqlite";
+import type { CommandRun } from "../agent/events.ts";
+import type { AssistantMessage, Message, Usage } from "../types.ts";
+import { emptyUsage } from "../types.ts";
+import { applyRecord, persistedPayload, recordKind } from "./apply-record.ts";
+import { beforeSessionDbClose, closeSessionDb, sessionDb, transaction } from "./db.ts";
+import { importLegacySessions } from "./legacy-jsonl.ts";
+import { assemblePartial, flushPendingPartials, type PartialPiece, type PartialSink } from "./partial.ts";
 import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
-import { readRecordChanges, type SessionReadCursor, type SessionRecordChanges } from "./read-changes.ts";
+import type { SessionReadCursor, SessionRecordChanges } from "./read-changes.ts";
+import { REPLAY_KINDS, replayRecords } from "./replay-records.ts";
+import { auxiliaryCall, spendOf, type SpendEntry, type SpendRow } from "./spend.ts";
+import type { ActiveDay, SessionStorage } from "./storage.ts";
+import type { Boundary, SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts";
 
-export interface SessionMeta {
-	id: string;
-	title: string;
-	cwd: string;
-	projectId: string;
-	projectName: string;
-	createdAt: number;
-	updatedAt: number;
-	modelId: string;
-	messageCount: number;
-	usage: Usage;
-	archived?: boolean;
-	/** A submitted opening message is durable before its runtime is initialized. */
-	pendingPrompt?: boolean;
-	/** Desktop workspace preparation is deferred until execution, never transcript reading. */
-	workspaceSetup?: "worktree";
-	/**
-	 * How many messages were already written when the model was last changed mid-conversation.
-	 *
-	 * Everything before this index was produced by a different model, and carries that provider's
-	 * opaque handles — an Anthropic thinking signature, a Responses reasoning item id, an encrypted
-	 * payload. They are only meaningful to the provider that issued them; replayed to another they
-	 * are rejected, not ignored. See `stripStaleHandles`.
-	 *
-	 * Absent on a session whose model never changed, which is the ordinary case and behaves exactly
-	 * as before.
-	 */
-	modelSwitchedAt?: number;
-	/**
-	 * How hard this conversation asks the model to think.
-	 *
-	 * Per session because that is the unit the decision belongs to: one conversation is a long
-	 * refactor worth paying `high` for and the next is "what does this flag do". Held globally,
-	 * turning one up turned all of them up — including the ones already running somewhere else,
-	 * which is a bill nobody agreed to.
-	 *
-	 * Written when the session is created, with the app default of that moment (`create`). It used
-	 * to stay absent until someone changed it inside the conversation, so that a session nobody had
-	 * an opinion about would follow the default as it moved. Seen from the window there is no such
-	 * session: the level picked in a new chat before its first message is an opinion about that
-	 * chat, yet it can only land on the app default — there is no session to hold it yet — and the
-	 * session was then created without it. Picking a level in the next new chat moved the first one
-	 * along, in its label and in what its turns actually asked for (reported against 0.9.19). The
-	 * default is where new conversations start, not a dial for the ones already under way.
-	 *
-	 * Absent now only on sessions written before that, and after `setThinking(null)`; both mean
-	 * "whatever the settings say".
-	 */
-	thinking?: ThinkingLevel;
-	/**
-	 * Someone typed this title, so nothing else gets to replace it.
-	 *
-	 * The first prompt names the conversation after itself, which is the right default for the
-	 * conversations nobody names — and wrong for every one somebody did. Naming a session before
-	 * asking anything is the ordinary way to use it, and the automatic title landed on top of the
-	 * name a moment later: the rename looked like it had worked, right up until the first message.
-	 */
-	titleSetByUser?: boolean;
-	/** Highest sequence number written. Sync clients compare against this. */
-	seq: number;
-}
-
-export type SessionRecord =
-	| { seq: number; ts: number; type: "meta"; meta: SessionMeta }
-	| { seq: number; ts: number; type: "message"; message: Message }
-	| { seq: number; ts: number; type: "event"; event: AgentEvent }
-	| { seq: number; ts: number; type: "title"; title: string; source?: "user" | "auto" }
-	| { seq: number; ts: number; type: "usage"; source: "title-summary" | "side-chat" | (string & {}); providerId: string; modelId: string; usage: Usage }
-	/**
-	 * Its own record type rather than a `meta` write: archiving must not touch `updatedAt`,
-	 * and a `meta` record always refreshes it. Sending it through the log also means a phone
-	 * syncing with `?since=N` learns the session was archived, same as any other change.
-	 */
-	| { seq: number; ts: number; type: "archive"; archived: boolean }
-	/**
-	 * 换了项目归属：`cwd`、`projectId`、`projectName` 三个一起变。
-	 *
-	 * 自成一条记录而不是写成 `meta`，和 `archive` 同一个道理：把一段对话归到别的项目下不是一次
-	 * 活动，`updatedAt` 不该跟着跳——否则一条半年没动过的会话，只因为被整理了一下就窜到列表最
-	 * 前面。走日志也让用 `?since=N` 同步的客户端知道它挪了窝，而这恰恰是它下次该去哪个目录找
-	 * 这个文件的依据：日志按 `projectId` 分目录存，换项目就是换目录。
-	 */
-	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string }
-	/**
-	 * Everything after `afterSeq` is void.
-	 *
-	 * Editing a message rewrites history — the reply it drew, and everything that followed,
-	 * no longer follows from what was said. Recorded rather than achieved by rewriting the
-	 * file, so the log stays append-only and a client syncing with `?since=N` finds out the
-	 * same way it finds out about anything else.
-	 */
-	| { seq: number; ts: number; type: "truncate"; afterSeq: number };
-
-/**
- * Where the model's view of a session begins, once history has been summarised.
- *
- * `keptFrom` indexes into the restored message list; `summary` stands in for everything before it,
- * and is empty when that history was dropped rather than condensed — which is a different thing to
- * tell the model, and so a difference worth storing.
- */
-export interface Boundary {
-	/** Stable rewrite time; retained replies describe the old request until a newer reply arrives. */
-	at?: number;
-	summary: string;
-	keptFrom: number;
-}
-
-/** `Omit` over a union collapses it into one shape; distribute so each variant keeps its own fields. */
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
-
-/** A record as supplied by callers, before the store stamps `seq` and `ts`. */
-export type SessionRecordInput = DistributiveOmit<SessionRecord, "seq" | "ts">;
+export type { Boundary, SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts";
 
 export function lyraHome(): string {
 	return process.env.LYRA_HOME || join(homedir(), ".lyra");
@@ -142,132 +44,136 @@ export function projectIdFor(cwd: string): string {
 	return createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 }
 
-/** A stripped image with no file name is the blank tile. Do not reuse that cache. */
-function displayImagesReady(messages: Message[]): boolean {
-	for (const message of messages) {
-		if (message.role !== "user" && message.role !== "toolResult") continue;
-		for (const part of message.content) {
-			if (part.type === "image" && !part.data && !part.media) return false;
-		}
+/** Records per query when streaming a session out: bounded memory, and no statement held open across an `await`. */
+const READ_PAGE = 500;
+/** Spend rows per `readSpend`. The table only grows, and a reader starting from 0 would otherwise take all of it at once. */
+const SPEND_PAGE = 5_000;
+
+/** Streams this process is writing right now: token to the database it writes into. See `settlePartial`. */
+const liveStreams = new Map<string, string>();
+
+/** The import of the old JSONL logs, once per database file and process. */
+const imports = new Map<string, Promise<void>>();
+/** Files whose import has finished, so a write can begin without waiting a tick for it — see `appendPartial`. */
+const imported = new Set<string>();
+
+// A normal quit mid-stream writes out the last batch before the connection closes.
+beforeSessionDbClose(flushPendingPartials);
+
+/** When this machine last booted, in ms. Nothing written before it can have a live writer. */
+function bootedAt(): number {
+	return Date.now() - uptime() * 1000;
+}
+
+/**
+ * Whether whoever wrote a row is still there to finish it: this process's own writers by what it
+ * remembers, another's by its pid — unless the row predates this boot, when the pid may be anyone's.
+ */
+function writerAlive(row: { owner_pid: number; updated_at: number }, mine: () => boolean): boolean {
+	if (row.owner_pid === process.pid) return mine();
+	// A few seconds of slack: `uptime` is rounded, and a row written just after boot is live.
+	if (row.updated_at < bootedAt() - 5_000) return false;
+	return processAlive(row.owner_pid);
+}
+
+function processAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		// EPERM: it exists, it just is not ours to signal.
+		return (error as NodeJS.ErrnoException).code === "EPERM";
 	}
-	return true;
 }
 
-/** The order the sidebar lists sessions in: last used first. */
-function byRecent(a: SessionMeta, b: SessionMeta): number {
-	return b.updatedAt - a.updatedAt;
+/**
+ * What `load` reports as the session's spend: the replayed total, except when it comes out empty
+ * over a meta that says otherwise — a session whose replies carried no usage keeps what its meta
+ * accumulated.
+ */
+function settledUsage(meta: Usage, replayed: Usage): Usage {
+	return replayed.total > 0 || meta.total === 0 ? replayed : meta;
 }
 
-export class SessionStore implements SessionStorage {
+export type LoadedSession = {
+	meta: SessionMeta;
+	messages: Message[];
+	entries: { seq: number; message: Message }[];
+	compactions: number[];
+	commandRuns?: CommandRun[];
+	compaction: Boundary | null;
+};
+
+export class SessionStore implements SessionStorage, PartialSink {
+	/** The directory the database lives in, and the old JSONL logs before it. */
 	readonly root: string;
-	/**
-	 * Serializes appends per session and holds the authoritative meta.
-	 *
-	 * Parallel tool calls each persist their own result, and they all start from the same
-	 * `meta` snapshot the caller happens to be holding. Without this, three concurrent
-	 * appends all computed `seq = meta.seq + 1` and wrote three records with the same
-	 * sequence number — a client syncing with `?since=N` would then silently skip two of
-	 * them. The queue makes "read latest seq, increment, write" atomic per session.
-	 */
-	private writeQueues = new Map<string, Promise<SessionMeta>>();
-	private latestMeta = new Map<string, SessionMeta>();
-	/**
-	 * Serializes mutations to `index.json`.
-	 *
-	 * Writing the index is write-to-temp-then-rename. On Windows, renaming over an existing file
-	 * while another handle is touching it fails with EPERM or EBUSY. Serializing index mutations
-	 * ensures atomic updates do not collide during concurrent session creation or archiving.
-	 */
-	private indexQueue: Promise<unknown> = Promise.resolve();
+	/** The database file. */
+	readonly path: string;
 
 	constructor(root = join(lyraHome(), "sessions")) {
 		this.root = root;
+		this.path = join(root, "sessions.db");
 	}
 
-	private keyFor(meta: Pick<SessionMeta, "projectId" | "id">): string {
-		return `${meta.projectId}/${meta.id}`;
+	private get db(): DatabaseSync {
+		return sessionDb(this.path);
 	}
 
-	private dirFor(projectId: string): string {
-		return join(this.root, projectId);
-	}
-
-	private fileFor(projectId: string, sessionId: string): string {
-		return join(this.dirFor(projectId), `${sessionId}.jsonl`);
-	}
-
-	private displayCacheFor(projectId: string, sessionId: string): string {
-		return join(this.dirFor(projectId), `${sessionId}.display.json`);
-	}
-
-	private async expectedSeq(projectId: string, sessionId: string): Promise<number | null> {
-		const remembered = this.latestMeta.get(`${projectId}/${sessionId}`);
-		if (remembered) return remembered.seq;
-		const listed = await this.listSessions();
-		return listed.find((session) => session.projectId === projectId && session.id === sessionId)?.seq ?? null;
-	}
-
-	private async readDisplayCache(projectId: string, sessionId: string) {
-		const expected = await this.expectedSeq(projectId, sessionId);
-		if (expected == null) return null;
-		const raw = await readFile(this.displayCacheFor(projectId, sessionId), "utf8").catch(() => null);
-		if (!raw) return null;
-		try {
-			const parsed = JSON.parse(raw) as {
-				v?: number;
-				seq?: number;
-				meta: SessionMeta;
-				messages: Message[];
-				entries: { seq: number; message: Message }[];
-				compactions: number[];
-				commandRuns?: CommandRun[];
-				compaction: Boundary | null;
-			};
-			if (parsed.v !== 2 || parsed.seq !== expected || !parsed.meta || !Array.isArray(parsed.messages)) return null;
-			if (!displayImagesReady(parsed.messages)) return null;
-			return parsed;
-		} catch {
-			return null;
+	/**
+	 * The database, with the old logs brought in first.
+	 *
+	 * Every public method goes through here. The import reads files, so it cannot happen inside the
+	 * synchronous open; doing it before the first read or write is what keeps a session written
+	 * before the import from racing one coming in from its log.
+	 */
+	private async ready(): Promise<DatabaseSync> {
+		const db = this.db;
+		let pending = imports.get(this.path);
+		if (!pending) {
+			pending = importLegacySessions(db, this.root).then(
+				() => {
+					imported.add(this.path);
+				},
+				(error: unknown) => {
+					// Tried again by the next caller rather than remembered as failed for the life of the process.
+					imports.delete(this.path);
+					throw error;
+				},
+			);
+			imports.set(this.path, pending);
 		}
+		await pending;
+		return db;
 	}
 
-	private async writeDisplayCache(
-		projectId: string,
-		sessionId: string,
-		loaded: {
-			meta: SessionMeta;
-			messages: Message[];
-			entries: { seq: number; message: Message }[];
-			compactions: number[];
-			commandRuns?: CommandRun[];
-			compaction: Boundary | null;
-		},
-	): Promise<void> {
-		// Best-effort: a cache that is not written is rebuilt from the log next time.
-		try {
-			await mkdir(this.dirFor(projectId), { recursive: true });
-			await writeFileAtomic(this.displayCacheFor(projectId, sessionId), JSON.stringify({ v: 2, seq: loaded.meta.seq, ...loaded }));
-		} catch {
-			// Nothing to clean up: the helper removes its own temporary file.
-		}
+	/**
+	 * Close this process's connection. Tests call it before removing the directory; Windows will not
+	 * delete an open file.
+	 *
+	 * What was streaming into it ends here too. Left marked live, a stream cut off by the close was
+	 * never recovered by a store reopened in this process: its pid is this one, still running.
+	 */
+	close(): void {
+		for (const [token, path] of liveStreams) if (path === this.path) liveStreams.delete(token);
+		imports.delete(this.path);
+		imported.delete(this.path);
+		closeSessionDb(this.path);
+	}
+
+	private metaOf(sessionId: string): SessionMeta | null {
+		const row = this.db.prepare("SELECT meta FROM sessions WHERE id = ?").get(sessionId) as { meta: string } | undefined;
+		return row ? (JSON.parse(row.meta) as SessionMeta) : null;
 	}
 
 	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking"> = {}): Promise<SessionMeta> {
-		const projectId = projectIdFor(cwd);
-		/*
-		 * One reading of the clock for the whole creation.
-		 *
-		 * It was read for `createdAt`, again for `updatedAt`, and again inside the append — so the
-		 * meta record on disk said one time and the index another whenever the calls straddled a
-		 * millisecond. A rebuilt index then disagreed with the one it replaced, and a session moved
-		 * or archived afterwards carried the wrong `updatedAt` into the list.
-		 */
+		const db = await this.ready();
+		// One reading of the clock for the whole creation, so `createdAt`, `updatedAt` and the first record agree.
 		const now = Date.now();
 		const meta: SessionMeta = {
 			id: randomUUID(),
 			title,
 			cwd,
-			projectId,
+			projectId: projectIdFor(cwd),
 			projectName: basename(cwd) || cwd,
 			createdAt: now,
 			updatedAt: now,
@@ -277,258 +183,156 @@ export class SessionStore implements SessionStorage {
 			usage: emptyUsage(),
 			seq: 0,
 		};
-		await mkdir(this.dirFor(projectId), { recursive: true });
-		await this.appendExclusive(meta, { type: "meta", meta }, now);
-		return meta;
-	}
-
-	/** Append one record and return the updated meta, with `seq` advanced. */
-	async append(meta: SessionMeta, payload: SessionRecordInput): Promise<SessionMeta> {
-		const key = this.keyFor(meta);
-		const previous = this.writeQueues.get(key);
-		// A failed append must not poison the queue for later writes.
-		const next = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(() =>
-			this.appendExclusive(meta, payload),
-		);
-		this.writeQueues.set(key, next);
-		return next;
+		return transaction(db, () => {
+			db.prepare("INSERT INTO sessions (id, project_id, seq, created_at, updated_at, archived, message_count, meta) VALUES (?, ?, 0, ?, ?, 0, 0, ?)")
+				.run(meta.id, meta.projectId, now, now, JSON.stringify(meta));
+			return this.write(meta.id, { type: "meta", meta }, false, now) ?? meta;
+		});
 	}
 
 	/**
-	 * `now` is both the record's `ts` and, for anything but filing it away, the session's new
-	 * `updatedAt` — one reading, so that `load` can rebuild the second from the first exactly.
+	 * Append one record and return the meta it produced.
+	 *
+	 * `copy` marks history that already happened in another session (a fork): it is written like
+	 * anything else, but its replies were paid for once, where they were first given. `stream` is the
+	 * streamed copy a reply settles; see `partial.ts`.
+	 *
+	 * Null when the session no longer exists: a write can still be on its way when the session is
+	 * deleted, and it must neither bring it back nor be reported as committed — the window would put
+	 * the deleted conversation back in the sidebar. What it spent is still kept: the call was made and
+	 * billed, and deleting a conversation does not unspend its money.
 	 */
-	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput, now = Date.now()): Promise<SessionMeta> {
-		const key = this.keyFor(meta);
-		// Callers may hold a stale snapshot; the store's own copy is the source of truth.
-		const base = this.latestMeta.get(key) ?? meta;
-		if (payload.type === "title" && payload.source === "auto" && base.titleSetByUser) return base;
-		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: now };
-
-		/*
-		 * 子 Agent 烧的 token 也是这个会话烧的。
-		 *
-		 * 它的消息落盘成 `type: "event"` 里的 `subagent_message`，不是 `type: "message"`，所以下面那条
-		 * 按定义够不着——于是一整个委派的用量从来没进过会话统计。实测代价（2026-09-11，用户的两个会话）：
-		 *
-		 *     会话 A  主 Agent 发出 1,155,989   子 Agent 发出 1,623,591   统计漏掉 58.4%
-		 *     会话 B  主 Agent 发出 2,506,233   子 Agent 发出 1,543,053   统计漏掉 38.1%
-		 *
-		 * 第一个会话里子 Agent 比主 Agent 还多烧 40%，而卡片上的数字只有主 Agent 那一半。按 token 判断
-		 * 一次对话花了多少，这个数直接误导。
-		 *
-		 * **只算助手消息**，和主 Agent 那条一个道理：一条助手消息 = 一次请求，用量记在它身上，工具结果和
-		 * 用户消息都不带用量，算进来只会重复。
-		 *
-		 * `messageCount` **不加**：那个数是给人看「这段对话有多长」的，而子 Agent 的往返是委派内部的事，
-		 * 混进来会让一次委派看起来像聊了几十轮。用量是成本、条数是篇幅，两件事。
-		 */
-		if (payload.type === "event" && payload.event.type === "subagent_message" && payload.event.message.role === "assistant") {
-			next.usage = addUsage(base.usage, payload.event.message.usage);
-		}
-
-		if (payload.type === "message") {
-			next.messageCount = base.messageCount + 1;
-			if (payload.message.role === "assistant") next.usage = addUsage(base.usage, payload.message.usage);
-		}
-		if (payload.type === "title") {
-			next.title = payload.title;
-			if (payload.source === "user") next.titleSetByUser = true;
-		}
-		if (payload.type === "usage") next.usage = addUsage(base.usage, payload.usage);
-		if (payload.type === "archive") {
-			next.archived = payload.archived;
-			// Filing something away is not activity; the list stays sorted by last real use.
-			next.updatedAt = base.updatedAt;
-		}
-		if (payload.type === "move") {
-			// 同 `archive`：换个归属不是一次活动。
-			next.updatedAt = base.updatedAt;
-			const movePayload = payload as { cwd?: string; projectId?: string; projectName?: string };
-			if (movePayload.cwd !== undefined) next.cwd = movePayload.cwd;
-			if (movePayload.projectId !== undefined) next.projectId = movePayload.projectId;
-			if (movePayload.projectName !== undefined) next.projectName = movePayload.projectName;
-		}
-		if (payload.type === "meta") {
-			// A meta record carries caller-side changes such as the selected model.
-			Object.assign(next, payload.meta, { seq: next.seq, updatedAt: next.updatedAt, usage: payload.meta.usage ?? next.usage });
-			// A model/settings snapshot cannot undo an explicit name chosen while it was in flight.
-			if (base.titleSetByUser) { next.title = base.title; next.titleSetByUser = true; }
-		}
-
-		const persisted = payload.type === "meta" && base.titleSetByUser
-			? { ...payload, meta: { ...payload.meta, title: next.title, titleSetByUser: true } }
-			: payload;
-		const record: SessionRecord = { seq: next.seq, ts: now, ...parkRecordPayload(persisted) };
-		await mkdir(this.dirFor(meta.projectId), { recursive: true });
-		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
-		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
-		this.latestMeta.set(key, next);
-		await this.writeIndex(next);
-		return next;
+	async append(meta: Pick<SessionMeta, "id">, payload: SessionRecordInput, options: { copy?: boolean; stream?: string } = {}): Promise<SessionMeta | null> {
+		const db = await this.ready();
+		// Images go to files here, outside the transaction.
+		const parked = parkRecordPayload(payload);
+		return transaction(db, () => this.write(meta.id, parked, options.copy ?? false, Date.now(), options.stream));
 	}
 
-	/** Read the appended tail without rescanning the committed prefix. */
-	readChanges(projectId: string, sessionId: string, cursor?: SessionReadCursor): Promise<SessionRecordChanges<SessionRecord>> {
-		return readRecordChanges(this.fileFor(projectId, sessionId), cursor);
+	/** The one place a record is written: the record, the meta row, the spend, all or nothing. */
+	private write(sessionId: string, payload: SessionRecordInput, copy: boolean, now = Date.now(), stream?: string): SessionMeta | null {
+		const db = this.db;
+		return transaction(db, () => {
+			// Read under the write lock: whatever a caller holds may be stale, and another process may be writing too.
+			const base = this.metaOf(sessionId);
+			if (!base) {
+				if (!copy) for (const entry of spendOf(payload, now)) this.insertSpend(sessionId, entry, now);
+				return null;
+			}
+			const next = applyRecord(base, payload, now);
+			if (next === base) return base;
+			const record = { seq: next.seq, ts: now, ...persistedPayload(base, payload, next) };
+			db.prepare("INSERT INTO records (session_id, seq, ts, kind, body) VALUES (?, ?, ?, ?, ?)")
+				.run(sessionId, next.seq, now, recordKind(payload), JSON.stringify(record));
+			db.prepare("UPDATE sessions SET project_id = ?, seq = ?, updated_at = ?, archived = ?, message_count = ?, meta = ? WHERE id = ?")
+				.run(next.projectId, next.seq, next.updatedAt, next.archived ? 1 : 0, next.messageCount, JSON.stringify(next), sessionId);
+			if (!copy) for (const entry of spendOf(payload, now)) this.insertSpend(sessionId, entry, now);
+			// The reply is in; what was kept of it while it streamed has done its job. Only its own: a
+			// stream begun since belongs to whoever took over.
+			if (payload.type === "message" && payload.message?.role === "assistant" && stream !== undefined) this.clearPartial(sessionId, stream);
+			return next;
+		});
+	}
+
+	private insertSpend(sessionId: string | null, entry: SpendEntry, now: number): void {
+		this.db.prepare("INSERT INTO spend (session_id, stream, kind, ts, source, provider, model, call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+			// A reply built without a provider or model (tests, synthetic messages) has undefined there, which SQLite will not bind.
+			.run(sessionId, entry.stream ?? null, entry.kind, now, entry.source ?? null, entry.provider ?? null, entry.model ?? null, entry.call ? JSON.stringify(entry.call) : null);
+	}
+
+	/** One session's meta, or null. */
+	async get(sessionId: string): Promise<SessionMeta | null> {
+		await this.ready();
+		return this.metaOf(sessionId);
+	}
+
+	async listSessions(): Promise<SessionMeta[]> {
+		const db = await this.ready();
+		// Ties go to whichever came in first: the JSONL store's index broke them the same way, and the import keeps its order.
+		const rows = db.prepare("SELECT meta FROM sessions ORDER BY updated_at DESC, rowid").all() as { meta: string }[];
+		return rows.map((row) => JSON.parse(row.meta) as SessionMeta);
+	}
+
+	/**
+	 * The list, as `listSessions` reads it. The JSONL store kept an `index.json` that could go missing
+	 * or stale and had to be rebuilt by reading every log; the `sessions` table is written with each
+	 * record, so there is nothing left to rebuild.
+	 */
+	rebuildIndex(): Promise<SessionMeta[]> {
+		return this.listSessions();
 	}
 
 	/** Stream records, optionally only those newer than `sinceSeq`. */
-	async *read(
-		projectId: string,
-		sessionId: string,
-		sinceSeq = 0,
-		options?: { display?: boolean },
-	): AsyncGenerator<SessionRecord> {
-		const file = this.fileFor(projectId, sessionId);
-		if (!(await stat(file).catch(() => null))) return;
+	async *read(_projectId: string, sessionId: string, sinceSeq = 0, options?: { display?: boolean }): AsyncGenerator<SessionRecord> {
+		await this.ready();
+		yield* this.records(sessionId, sinceSeq, options?.display ?? false);
+	}
 
-		const rl = createInterface({ input: createReadStream(file, "utf8"), crlfDelay: Infinity });
-		try {
-			for await (const line of rl) {
-				if (!line.trim()) continue;
-				let record: SessionRecord;
-				try {
-					record = JSON.parse(options?.display ? materializeJsonlLine(line) : line);
-				} catch {
-					// A crash mid-append can leave a partial final line; skip it rather than failing the load.
-					continue;
-				}
-				/*
-				 * A line that parses but is not a record — `null`, a bare number, an array.
-				 *
-				 * Damage does not always make a line unparseable: a write cut short at the wrong byte, or
-				 * a file an external tool has been through, can leave something `JSON.parse` accepts and
-				 * nothing here can use. Reading `record.seq` off it threw, and the throw came out of the
-				 * IPC handler, so one such line made the whole session refuse to open — a much worse
-				 * outcome than the missing record it stands for.
-				 */
-				if (typeof record !== "object" || record === null) continue;
-				if (record.seq > sinceSeq) yield record;
+	/** The records after `sinceSeq`, a page at a time; what `read` and `readChanges` both hand out. */
+	private *records(sessionId: string, sinceSeq: number, display: boolean): Generator<SessionRecord> {
+		this.settlePartial(sessionId);
+		const page = this.db.prepare("SELECT seq, body FROM records WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?");
+		let after = sinceSeq;
+		while (true) {
+			const rows = page.all(sessionId, after, READ_PAGE) as { seq: number; body: string }[];
+			for (const row of rows) {
+				after = row.seq;
+				yield JSON.parse(display ? materializeJsonlLine(row.body) : row.body) as SessionRecord;
 			}
-		} finally {
-			rl.close();
+			if (rows.length < READ_PAGE) return;
 		}
 	}
 
 	/**
-	 * Every message in the log, in order — and nothing that is not one.
+	 * What came after `cursor`, for a reader that keeps the records it has seen (`trajectory/changes.ts`).
 	 *
-	 * The guard on `record.message` is the whole of a crash that reached people. A record saying it
-	 * is a message but carrying none — `{"type":"message"}`, which is what `JSON.stringify` writes
-	 * when the message is `undefined` — used to be pushed through as-is, leaving a hole in the array.
-	 * Nothing here reads the messages, so the hole travelled the length of the app in silence: into
-	 * the live session, out through `snapshot`, across the IPC boundary, and into the window, where
-	 * the first pass over the transcript hit `undefined.role` and took the whole interface down.
-	 *
-	 * It only ever showed up on a session that was *running*, which is what made it look like a bug
-	 * about long tasks. A session sitting idle is read by `load` below, and `load` totals the usage —
-	 * so it touched `.role` itself and threw in the main process, where the renderer catches it and
-	 * shows a failed-to-read notice instead. Same broken file, two completely different symptoms,
-	 * decided by nothing more than which of these two functions did the reading.
-	 *
-	 * Dropping the record is right: it has no message in it. Whatever was meant to be there is gone
-	 * either way, and one lost message reads better than a session that cannot be opened at all.
+	 * The cursor is the last `seq` read. History is never rewritten — a truncate is a record of its
+	 * own — so the only reason to start again is that the cursor came from somewhere else: another
+	 * database, or another session.
 	 */
-	async messages(projectId: string, sessionId: string): Promise<Message[]> {
+	async readChanges(_projectId: string, sessionId: string, cursor?: SessionReadCursor): Promise<SessionRecordChanges<SessionRecord>> {
+		// A session that is gone is its own identity, so a reader holding its records is told to drop them.
+		const identity = (await this.get(sessionId)) ? `${await this.storeId()}:${sessionId}` : "missing";
+		const reset = !cursor || cursor.identity !== identity;
+		const after = reset ? 0 : cursor.offset;
+		const records = [...this.records(sessionId, after, false)];
+		const last = records.at(-1)?.seq ?? after;
+		return { cursor: { identity, version: `${identity}:${last}`, size: last, offset: last }, reset, records };
+	}
+
+	/**
+	 * Every message ever committed, in order — truncated ones included.
+	 *
+	 * This is "what was said", for `recall` and the memory pass; `load` is "what the conversation is
+	 * now". A record saying it is a message but carrying none is dropped: see `replayRecords`.
+	 */
+	async messages(_projectId: string, sessionId: string): Promise<Message[]> {
+		const db = await this.ready();
+		this.settlePartial(sessionId);
+		const rows = db.prepare("SELECT body FROM records WHERE session_id = ? AND kind = 'message' ORDER BY seq").all(sessionId) as { body: string }[];
 		const out: Message[] = [];
-		for await (const record of this.read(projectId, sessionId)) {
-			if (record.type === "message" && record.message) out.push(record.message);
+		for (const row of rows) {
+			const record = JSON.parse(row.body) as { message?: Message };
+			if (record.message) out.push(record.message);
 		}
 		return out;
 	}
 
-	async load(
-		projectId: string,
-		sessionId: string,
-		options?: { display?: boolean },
-	): Promise<{
-		meta: SessionMeta;
-		messages: Message[];
-		entries: { seq: number; message: Message }[];
-		compactions: number[];
-		commandRuns?: CommandRun[];
-		compaction: Boundary | null;
-	} | null> {
-		if (options?.display) {
-			const cached = await this.readDisplayCache(projectId, sessionId);
-			if (cached) return cached;
-		}
-		let meta: SessionMeta | null = null;
-		// Kept with their sequence numbers so a truncate record can drop the right tail.
-		let entries: { seq: number; message: Message }[] = [];
-		let auxiliaryUsage = emptyUsage();
-		/*
-		 * Where history was summarised, as positions in the transcript.
-		 *
-		 * Recorded at load rather than derived, because there is nothing in the messages themselves
-		 * to show it happened: the log keeps every original message either way. The window draws a
-		 * divider at each of these.
-		 */
-		const compactions: number[] = [];
-		const commandRuns = new Map<string, { seq: number; run: CommandRun }>();
-		let subagentEntries: { seq: number; usage: Usage }[] = [];
-		/*
-		 * And the newest of them in full, which is what the *model* is given.
-		 *
-		 * The transcript and the model's view diverge at this point, on purpose — the reader scrolls
-		 * back through everything, the model is handed the summary and what followed it. Only the
-		 * latest boundary matters: each compaction summarises the one before it, so the newest is
-		 * the only one still standing for anything.
-		 */
-		let compaction: Boundary | null = null;
-		for await (const record of this.read(projectId, sessionId, 0, options)) {
-			if (record.type === "meta") meta = record.meta;
-			else if (record.type === "event" && record.event.type === "command_status") {
-				const run = record.event.command;
-				commandRuns.set(run.id, { seq: record.seq, run: run.status === "running" ? { ...run, status: "cancelled", detail: "压缩中断，未完成的操作没有自动重试。" } : run });
-			}
-			else if (record.type === "event" && record.event.type === "compacted") {
-				compactions.push(entries.length);
-				/*
-				 * `kept` is absent on records written before compaction was stored, and on pruning
-				 * passes that moved no boundary. Both mean the same thing here: no boundary to
-				 * restore, so the session opens on its full history and compacts again if it has to.
-				 */
-				const { summary, kept } = record.event;
-				if (kept !== undefined) {
-					compaction = { at: record.ts, summary: summary ?? "", keptFrom: Math.max(0, entries.length - kept) };
-				}
-			// A message record with no message in it leaves a hole in the transcript; see `messages` above.
-			} else if (record.type === "event" && record.event.type === "subagent_message" && record.event.message.role === "assistant") {
-				subagentEntries.push({ seq: record.seq, usage: record.event.message.usage });
-			} else if (record.type === "message") { if (record.message) entries.push({ seq: record.seq, message: record.message }); }
-			else if (record.type === "title" && meta) {
-				if (record.source !== "auto" || !meta.titleSetByUser) meta.title = record.title;
-				if (record.source === "user") meta.titleSetByUser = true;
-			}
-			else if (record.type === "usage") auxiliaryUsage = addUsage(auxiliaryUsage, record.usage);
-			else if (record.type === "archive" && meta) meta.archived = record.archived;
-			else if (record.type === "move" && meta) {
-				meta.cwd = record.cwd;
-				meta.projectId = record.projectId;
-				meta.projectName = record.projectName;
-			}
-			else if (record.type === "truncate") {
-				entries = entries.filter((e) => e.seq <= record.afterSeq);
-				subagentEntries = subagentEntries.filter((e) => e.seq <= record.afterSeq);
-				for (const [id, entry] of commandRuns) if (entry.seq > record.afterSeq) commandRuns.delete(id);
-				while (compactions.length && compactions[compactions.length - 1] > entries.length) compactions.pop();
-				// A rewind past the boundary retires it: the tail it was paired with is gone.
-				if (compaction && compaction.keptFrom > entries.length) compaction = null;
-			}
-			if (meta) {
-				meta.seq = record.seq;
-				/*
-				 * `updatedAt` the way `appendExclusive` set it: every record is activity except filing
-				 * the session away. Taken from the last meta record instead, a rebuilt index dated a
-				 * session by when it was created or its model last changed, not by when it was used.
-				 */
-				if (record.type !== "archive" && record.type !== "move" && typeof record.ts === "number") meta.updatedAt = record.ts;
-			}
-		}
+	/** Only the kinds the transcript is built from; a turn's prompts and requests are never parsed here. */
+	private replay(sessionId: string, display: boolean) {
+		const marks = REPLAY_KINDS.map(() => "?").join(", ");
+		const rows = this.db.prepare(`SELECT body FROM records WHERE session_id = ? AND kind IN (${marks}) ORDER BY seq`).all(sessionId, ...REPLAY_KINDS) as { body: string }[];
+		return replayRecords(rows.map((row) => JSON.parse(display ? materializeJsonlLine(row.body) : row.body) as SessionRecord));
+	}
+
+	async load(_projectId: string, sessionId: string, options?: { display?: boolean }): Promise<LoadedSession | null> {
+		await this.ready();
+		this.settlePartial(sessionId);
+		const meta = this.metaOf(sessionId);
 		if (!meta) return null;
-		let messages = entries.map((e) => e.message);
+		const replayed = this.replay(sessionId, options?.display ?? false);
+		let entries = replayed.entries;
+		let messages = entries.map((entry) => entry.message);
 		if (!options?.display) {
 			const hydrated = await rehydrateMessages(messages);
 			if (hydrated !== messages) {
@@ -537,259 +341,58 @@ export class SessionStore implements SessionStorage {
 			}
 		}
 		meta.messageCount = messages.length;
-		// Re-accumulate usage across assistant messages and sub-agent assistant turns
-		let totalUsage = auxiliaryUsage;
-		for (const entry of subagentEntries) {
-			if (entry.usage) totalUsage = addUsage(totalUsage, entry.usage);
-		}
-		for (const msg of messages) {
-			if (msg.role === "assistant" && msg.usage) {
-				totalUsage = addUsage(totalUsage, msg.usage);
-			}
-		}
-		if (totalUsage.total > 0 || meta.usage.total === 0) {
-			meta.usage = totalUsage;
-		}
-		/*
-		 * Seed the append queue's view so a reopened session keeps numbering where it left off —
-		 * unless an append has moved it past what this read saw.
-		 *
-		 * The file is read first and the view set afterwards, and an append can land in between.
-		 * Putting the older meta back then made the next append reuse a sequence number, which a
-		 * client syncing with `?since=N` skips. At the same `seq` the log wins: it is where counts
-		 * such as `messageCount` are right again after a truncation.
-		 */
-		const key = this.keyFor(meta);
-		const cached = this.latestMeta.get(key);
-		if (!cached || meta.seq >= cached.seq) this.latestMeta.set(key, meta);
-		const loaded = {
-			meta,
-			messages,
-			entries,
-			compactions,
-			compaction,
-			commandRuns: [...commandRuns.values()].map((entry) => entry.run),
-		};
-		if (options?.display) await this.writeDisplayCache(projectId, sessionId, loaded);
-		return loaded;
-	}
-
-	// -------------------------------------------------------------------------
-	// Index: a single file listing every session, so the sidebar loads without
-	// opening every JSONL log.
-	// -------------------------------------------------------------------------
-
-	private get indexPath(): string {
-		return join(this.root, "index.json");
-	}
-
-	async listSessions(): Promise<SessionMeta[]> {
-		// Nothing to read is the usual case at first launch, for several callers at once: the first
-		// rebuilds, and the rest find what it wrote.
-		return (await this.readIndex()) ?? this.rebuild((current) => current ?? this.scan());
-	}
-
-	/** The index as written, or null when there is none to read — missing, or not an index. */
-	private async readIndex(): Promise<SessionMeta[] | null> {
-		const raw = await readFile(this.indexPath, "utf8").catch(() => null);
-		if (!raw) return null;
-		try {
-			const parsed = JSON.parse(raw) as SessionMeta[];
-			return Array.isArray(parsed) ? parsed.sort(byRecent) : null;
-		} catch {
-			return null;
-		}
-	}
-
-	/**
-	 * Replace the index with what `change` makes of it: one change at a time, whole or not at all.
-	 *
-	 * Every write to the index goes through here. Deleting used to read it and write it back on its
-	 * own schedule, beside a queue it never joined: a session deleted while another one was being
-	 * written came back to the sidebar with its log gone, or took that other session's update with
-	 * it. Rebuilding did the same, whenever the index went missing.
-	 *
-	 * `current` is null when there is no index to change, and the change decides what to start from
-	 * — `scan`, usually. The queue never calls `listSessions` for it, because that rebuilds through
-	 * this same queue and would wait on itself.
-	 */
-	private updateIndex(change: (current: SessionMeta[] | null) => SessionMeta[] | Promise<SessionMeta[]>): Promise<SessionMeta[]> {
-		const task = this.indexQueue.catch(() => undefined).then(async () => {
-			const next = (await change(await this.readIndex())).sort(byRecent);
-			await mkdir(this.root, { recursive: true });
-			/*
-			 * Write-then-rename so a crash cannot leave a truncated index.
-			 *
-			 * Through the shared helper, whose temporary name is unique per write: two conversations
-			 * created at once — which the desktop does whenever a window restores several — shared
-			 * `index.json.<pid>.tmp`, and the first rename took the file out from under the second
-			 * (`ENOENT`), leaving that session out of the index. It also waits out the moment a
-			 * scanner holds the file open on Windows. See `utils/atomic-write.ts`.
-			 */
-			await writeFileAtomic(this.indexPath, JSON.stringify(next, null, 2));
-			return next;
-		});
-		this.indexQueue = task;
-		return task;
-	}
-
-	private async writeIndex(meta: SessionMeta): Promise<void> {
-		await this.updateIndex(async (current) => [meta, ...(current ?? (await this.scan())).filter((s) => s.id !== meta.id)]);
-	}
-
-	/** Reconstruct the index by scanning every session log. Used when the index is missing or corrupt. */
-	rebuildIndex(): Promise<SessionMeta[]> {
-		return this.rebuild(() => this.scan());
-	}
-
-	/**
-	 * `updateIndex`, answering with the list even when it cannot be written down: it is right
-	 * either way, and the next change tries the write again. Only for rebuilding, where somebody is
-	 * waiting on the list rather than on the write.
-	 */
-	private async rebuild(change: (current: SessionMeta[] | null) => SessionMeta[] | Promise<SessionMeta[]>): Promise<SessionMeta[]> {
-		let found: SessionMeta[] = [];
-		try {
-			return await this.updateIndex(async (current) => (found = await change(current)));
-		} catch {
-			return found;
-		}
-	}
-
-	/** Every session, as its log tells it. */
-	private async scan(): Promise<SessionMeta[]> {
-		const metas: SessionMeta[] = [];
-		const projects = await readdir(this.root, { withFileTypes: true }).catch(() => []);
-		for (const project of projects) {
-			if (!project.isDirectory()) continue;
-			const files = await readdir(join(this.root, project.name)).catch(() => []);
-			for (const file of files) {
-				if (!file.endsWith(".jsonl")) continue;
-				const loaded = await this.load(project.name, file.replace(/\.jsonl$/, "")).catch(() => null);
-				if (loaded) metas.push(loaded.meta);
-			}
-		}
-		return metas.sort(byRecent);
+		meta.usage = settledUsage(meta.usage, replayed.usage);
+		return { meta, messages, entries, compactions: replayed.compactions, compaction: replayed.compaction, commandRuns: replayed.commandRuns };
 	}
 
 	/**
 	 * Drop a message and everything after it.
 	 *
-	 * Returns the messages that survive, so the caller can reset its own in-memory copy to
-	 * match without re-reading the log. Null when the index is out of range — a stale UI can
-	 * ask to edit a message that has since been truncated by another client.
+	 * Returns the messages that survive, so the caller can reset its own in-memory copy to match
+	 * without re-reading. Null when the index is out of range — a stale UI can ask to edit a message
+	 * that has since been truncated by another client.
 	 */
-	async truncateFrom(
-		projectId: string,
-		sessionId: string,
-		messageIndex: number,
-	): Promise<{ meta: SessionMeta; messages: Message[] } | null> {
-		const loaded = await this.load(projectId, sessionId);
-		if (!loaded || !Number.isInteger(messageIndex) || messageIndex < 0 || messageIndex >= loaded.messages.length) return null;
+	async truncateFrom(_projectId: string, sessionId: string, messageIndex: number): Promise<{ meta: SessionMeta; messages: Message[] } | null> {
+		const db = await this.ready();
+		// The transcript is read under the write lock too: another process appending between the read and the cut would move the cut.
+		const cut = transaction(db, () => {
+			const { entries } = this.replay(sessionId, false);
+			if (!Number.isInteger(messageIndex) || messageIndex < 0 || messageIndex >= entries.length) return null;
+			// Never cut inside a tool-call turn: a cut on a tool result moves back past the call that produced it.
+			let target = messageIndex;
+			while (target > 0 && entries[target]?.message.role === "toolResult") target -= 1;
+			// The seq to keep is the one just before the record carrying the doomed message.
+			const truncated = this.write(sessionId, { type: "truncate", afterSeq: entries[target].seq - 1 }, false);
+			if (!truncated) return null;
+			const usage = settledUsage(truncated.usage, this.replay(sessionId, false).usage);
+			// The meta row tracks message count; a truncate is the one write that lowers it.
+			const corrected = this.write(sessionId, { type: "meta", meta: { ...truncated, messageCount: target, usage } }, false) ?? truncated;
+			return { meta: { ...corrected, messageCount: target, usage }, kept: entries.slice(0, target).map((entry) => entry.message) };
+		});
+		if (!cut) return null;
+		return { meta: cut.meta, messages: await rehydrateMessages(cut.kept) };
+	}
 
-		/*
-		 * Turn atomicity: never cut inside a tool-call turn.
-		 * If messageIndex points to a toolResult, snap back past the assistant
-		 * turn that triggered it so calls and results are never torn apart.
-		 */
-		let targetIndex = messageIndex;
-		while (targetIndex > 0 && loaded.messages[targetIndex]?.role === "toolResult") {
-			targetIndex -= 1;
-		}
-
-		// The seq to keep is the one just before the record carrying the doomed message.
-		const cutoff = loaded.entries[targetIndex].seq - 1;
-
-		const meta = await this.append(loaded.meta, { type: "truncate", afterSeq: cutoff });
-		const messages = loaded.messages.slice(0, targetIndex);
-		const surviving = await this.load(projectId, sessionId);
-		const survivingUsage = surviving?.meta.usage ?? loaded.meta.usage;
-		// The index tracks message count; a truncate is the one write that lowers it.
-		const corrected = await this.append(meta, { type: "meta", meta: { ...meta, messageCount: messages.length, usage: survivingUsage } });
-		return { meta: { ...corrected, messageCount: messages.length, usage: survivingUsage }, messages };
+	/** Null when there is no such session — a stale sidebar can ask about one already deleted. */
+	async setArchived(_projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta | null> {
+		await this.ready();
+		if (!this.metaOf(sessionId)) return null;
+		return this.write(sessionId, { type: "archive", archived }, false);
 	}
 
 	/**
-	 * Move a session in or out of the archive.
+	 * File a session under another project. Null when there is no such session.
 	 *
-	 * Returns null when the session is not in the index — a stale sidebar can ask about one
-	 * that has since been deleted, and that is not worth throwing over.
+	 * Already there is not nothing: a renamed project keeps its id and changes its name, and that
+	 * still has to be written. Only when neither changed is there nothing to record.
 	 */
-	async setArchived(projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta | null> {
-		const current = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId);
-		if (!current) return null;
-		return this.append(current, { type: "archive", archived });
-	}
-
-	/**
-	 * 把一条会话搬到另一个项目下。
-	 *
-	 * 搬的是**文件**，不只是几个字段：日志按 `projectId` 分目录存（`sessions/<projectId>/<id>.jsonl`），
-	 * 而 `projectId` 是 cwd 的哈希——换项目就是换目录。只改 meta 不挪文件的话，下一次
-	 * `load(新projectId, id)` 什么都找不到，那条对话就等于凭空消失了。
-	 *
-	 * 顺序是**先挪文件、再写记录**。`rename` 在同一个文件系统里是一步到位的，追加不是：挪成功而
-	 * 记录没写成，把文件挪回去就回到了原样；反过来先写记录，中途断电留下的是一条自称在新项目、
-	 * 文件却还躺在旧目录里的会话——那要靠 `rebuildIndex` 全盘重扫才捞得回来。
-	 *
-	 * 返回 null 表示索引里没有这条会话。一个还没刷新的侧边栏可以对着一条已经被删掉的会话点「移动
-	 * 到」，那不值得抛异常。
-	 */
-	async move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null> {
-		const current = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId);
-		if (!current) return null;
-		// 调用方手里的那份可能是旧的；store 自己记的才是权威，`seq` 尤其。
-		const base = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId) ?? current;
-		const nextProjectId = projectIdFor(cwd);
-
-		/*
-		 * 已经在那个项目里了：不动文件，但该写的记录照写。
-		 *
-		 * 项目被重命名过的时候就是这一支——目录不变，`projectName` 变了。两样都没变才是真的无事
-		 * 可做，此时连一条空记录都不该留。
-		 */
-		if (nextProjectId === base.projectId) {
-			if (base.cwd === cwd && base.projectName === projectName) return base;
-			return this.append(base, { type: "move", cwd, projectId: nextProjectId, projectName });
-		}
-
-		/*
-		 * 等旧钥匙上排着的写入走完再动手。
-		 *
-		 * 写队列和 `latestMeta` 都按 `projectId/id` 索引，而下面要把钥匙换成新的。此刻还在路上的
-		 * 那一次追加认的是旧钥匙、写的是旧路径——文件已经不在那儿了，它会在旧目录里重新长出一个
-		 * 只有一条记录的残片。
-		 */
-		await this.writeQueues.get(this.keyFor(base))?.catch(() => undefined);
-
-		const from = this.fileFor(base.projectId, sessionId);
-		const to = this.fileFor(nextProjectId, sessionId);
-		await mkdir(this.dirFor(nextProjectId), { recursive: true });
-		/*
-		 * 目标目录里已经有同名文件——不覆盖。
-		 *
-		 * id 是 UUID，正常情况下撞不上；撞上的是手工拷贝过 profile 的机器，而那一次覆盖会把另一条
-		 * 对话整个抹掉，连日志都不剩。宁可这一步失败。
-		 */
-		if (await stat(to).catch(() => null)) throw new Error(`目标项目下已存在同名会话文件：${to}`);
-
-		await rename(from, to);
-		const moved: SessionMeta = { ...base, cwd, projectId: nextProjectId, projectName };
-		try {
-			// 钥匙跟着文件搬。放进去的必须带上新的 projectId，但保留 base.updatedAt 和 seq
-			this.latestMeta.delete(this.keyFor(base));
-			this.latestMeta.set(this.keyFor(moved), { ...base, cwd, projectId: nextProjectId, projectName });
-			const result = await this.append(moved, { type: "move", cwd, projectId: nextProjectId, projectName });
-			// 显示缓存是按旧路径命名的，跟着旧目录留在那儿就是个孤儿。
-			await unlink(this.displayCacheFor(base.projectId, sessionId)).catch(() => undefined);
-			return result;
-		} catch (cause) {
-			// 记录没写成，文件挪回去——对外就当这次移动从没发生过。
-			await rename(to, from).catch(() => undefined);
-			this.latestMeta.delete(this.keyFor(moved));
-			this.latestMeta.set(this.keyFor(base), base);
-			throw cause;
-		}
+	async move(_projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null> {
+		await this.ready();
+		const base = this.metaOf(sessionId);
+		if (!base) return null;
+		const projectId = projectIdFor(cwd);
+		if (projectId === base.projectId && base.cwd === cwd && base.projectName === projectName) return base;
+		return this.write(sessionId, { type: "move", cwd, projectId, projectName }, false);
 	}
 
 	async delete(projectId: string, sessionId: string): Promise<void> {
@@ -797,41 +400,192 @@ export class SessionStore implements SessionStorage {
 	}
 
 	/**
-	 * Drop sessions that were created but never used.
+	 * Delete sessions, their records and anything streaming for them — not what they spent.
 	 *
-	 * A session with no messages holds nothing — no transcript, no usage, not even a title.
-	 * They accumulate from any path that reserves a session up front and then does not send
-	 * anything: a scheduled task that failed to start, a client that navigated away. Run at
-	 * launch, this keeps that debris from filling the sidebar.
-	 *
-	 * `minAgeMs` protects sessions that were only just created: another client may be mid-way
-	 * through its own "new session, about to send" sequence, and deleting that out from under
-	 * it would break a live conversation before it starts.
+	 * Space is handed back to the file system straight after. Without it SQLite only marks the pages
+	 * free, and clearing a range in settings would free nothing anyone could see.
 	 */
-	async pruneEmpty(minAgeMs = 5 * 60_000): Promise<number> {
-		const cutoff = Date.now() - minAgeMs;
-		const empty = (await this.listSessions()).filter((s) => s.messageCount === 0 && s.createdAt < cutoff);
-		if (empty.length === 0) return 0;
-		await this.deleteMany(empty.map((s) => ({ projectId: s.projectId, id: s.id })));
-		return empty.length;
+	async deleteMany(targets: { projectId: string; id: string }[]): Promise<void> {
+		if (targets.length === 0) return;
+		const db = await this.ready();
+		const streams = transaction(db, () => {
+			const tokens = db.prepare("SELECT token FROM partials WHERE session_id = ?");
+			const remove = db.prepare("DELETE FROM sessions WHERE id = ?");
+			return targets.flatMap(({ id }) => {
+				const found = (tokens.all(id) as { token: string }[]).map((row) => row.token);
+				remove.run(id);
+				return found;
+			});
+		});
+		for (const token of streams) liveStreams.delete(token);
+		/*
+		 * In one go: measured on the fork this came from, 0.5s for 320MB and 1.7s for 1GB. In steps
+		 * with the event loop let in between, the longest pause was still 150–670ms and the whole took
+		 * three times as long. The vacuum moves pages through the WAL, so the checkpoint after it is
+		 * what makes the space come back when the person pressed delete.
+		 */
+		db.exec("PRAGMA incremental_vacuum");
+		db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
 	}
 
-	/** Delete several sessions with a single index rewrite, for "empty the archive". */
-	async deleteMany(targets: { projectId: string; id: string }[]): Promise<void> {
-		await Promise.all(
-			targets.map(async (target) => {
-				const key = this.keyFor(target);
-				// A write already on its way lands first, rather than recreating the log once it is gone
-				// and putting the session back in the index — the same wait `move` makes.
-				await this.writeQueues.get(key)?.catch(() => undefined);
-				this.writeQueues.delete(key);
-				this.latestMeta.delete(key);
-				await unlink(this.fileFor(target.projectId, target.id)).catch(() => {});
-				// A snapshot of the whole transcript, and nothing reads it once the log is gone.
-				await unlink(this.displayCacheFor(target.projectId, target.id)).catch(() => {});
-			}),
-		);
-		const gone = new Set(targets.map((t) => t.id));
-		await this.updateIndex(async (current) => (current ?? (await this.scan())).filter((s) => !gone.has(s.id)));
+	/**
+	 * Drop sessions that were created but never used.
+	 *
+	 * A session with no messages holds nothing. They accumulate from any path that reserves a session
+	 * up front and then sends nothing: a scheduled task that failed to start, a client that navigated
+	 * away. `minAgeMs` protects one another client is about to send its first message to.
+	 */
+	async pruneEmpty(minAgeMs = 5 * 60_000): Promise<number> {
+		const db = await this.ready();
+		const rows = db.prepare("SELECT id, project_id FROM sessions WHERE message_count = 0 AND created_at < ?").all(Date.now() - minAgeMs) as { id: string; project_id: string }[];
+		await this.deleteMany(rows.map((row) => ({ projectId: row.project_id, id: row.id })));
+		return rows.length;
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// A reply while it streams. See `partial.ts`.
+	// ---------------------------------------------------------------------------------------------
+
+	/** Takes the place over from any stream before it, whose token from then on matches nothing. */
+	async beginPartial(sessionId: string, token: string, head: AssistantMessage): Promise<void> {
+		const db = await this.ready();
+		const { replaced, started } = transaction(db, () => {
+			const before = db.prepare("SELECT token FROM partials WHERE session_id = ? AND stream = 'main'").get(sessionId) as { token: string } | undefined;
+			db.prepare("DELETE FROM partials WHERE session_id = ? AND stream = 'main'").run(sessionId);
+			const inserted = db.prepare("INSERT INTO partials (session_id, stream, token, head, owner_pid, updated_at) SELECT id, 'main', ?, ?, ?, ? FROM sessions WHERE id = ?")
+				.run(token, JSON.stringify(head), process.pid, Date.now(), sessionId).changes;
+			return { replaced: before?.token, started: Number(inserted) > 0 };
+		});
+		if (replaced) liveStreams.delete(replaced);
+		// A session deleted in the meantime gets no stream, and nothing here should claim one.
+		if (started) liveStreams.set(token, this.path);
+	}
+
+	async appendPartial(sessionId: string, token: string, pieces: PartialPiece[]): Promise<void> {
+		/*
+		 * Synchronous once the database is open, with no `await` before the write: at a normal quit the
+		 * last batch is written from an `exit` handler (`flushPendingPartials`), where nothing after an
+		 * `await` ever runs.
+		 */
+		const db = imported.has(this.path) ? this.db : await this.ready();
+		transaction(db, () => {
+			// Nothing to extend once the reply was committed, thrown away, or taken over by a newer stream.
+			const known = db.prepare("SELECT COALESCE((SELECT MAX(n) FROM partial_chunks WHERE session_id = ? AND stream = 'main'), 0) AS n, EXISTS (SELECT 1 FROM partials WHERE session_id = ? AND stream = 'main' AND token = ?) AS open")
+				.get(sessionId, sessionId, token) as { n: number; open: number };
+			if (!known.open) return;
+			db.prepare("INSERT INTO partial_chunks (session_id, stream, n, body) VALUES (?, 'main', ?, ?)").run(sessionId, known.n + 1, JSON.stringify(pieces));
+			db.prepare("UPDATE partials SET updated_at = ? WHERE session_id = ? AND stream = 'main'").run(Date.now(), sessionId);
+		});
+	}
+
+	async dropPartial(sessionId: string, token: string): Promise<void> {
+		const db = await this.ready();
+		transaction(db, () => this.clearPartial(sessionId, token));
+	}
+
+	private clearPartial(sessionId: string, token: string): void {
+		this.db.prepare("DELETE FROM partials WHERE session_id = ? AND stream = 'main' AND token = ?").run(sessionId, token);
+		liveStreams.delete(token);
+	}
+
+	/**
+	 * Commit what a dead writer left behind, as the reply it would have been had someone pressed stop.
+	 *
+	 * A stream is dead when it is this process's and nothing here is writing it any more, when it was
+	 * last written before this machine booted, or when the process that wrote it is gone. The boot
+	 * check comes before the pid: after a power cut — the case this exists for — the old pid may well
+	 * belong to some other process. Checked and committed in one transaction, so two processes
+	 * opening the same session cannot both commit it.
+	 *
+	 * Stamped with when it was last written, not now: a reply cut off on Monday and opened on
+	 * Wednesday happened on Monday. Never earlier than the meta, which only moves forward.
+	 */
+	private settlePartial(sessionId: string): void {
+		const db = this.db;
+		type Row = { token: string; head: string; owner_pid: number; updated_at: number };
+		const probe = db.prepare("SELECT token, head, owner_pid, updated_at FROM partials WHERE session_id = ? AND stream = 'main'");
+		const alive = (row: Row) => writerAlive(row, () => liveStreams.has(row.token));
+		const found = probe.get(sessionId) as Row | undefined;
+		if (!found || alive(found)) return;
+		transaction(db, () => {
+			const row = probe.get(sessionId) as Row | undefined;
+			if (!row || alive(row)) return;
+			const chunks = db.prepare("SELECT body FROM partial_chunks WHERE session_id = ? AND stream = 'main' ORDER BY n").all(sessionId) as { body: string }[];
+			const message = assemblePartial(JSON.parse(row.head) as AssistantMessage, chunks.map((chunk) => JSON.parse(chunk.body) as PartialPiece[]));
+			if (!message) return this.clearPartial(sessionId, row.token);
+			this.write(sessionId, { type: "message", message }, false, Math.max(row.updated_at, this.metaOf(sessionId)?.updatedAt ?? 0), row.token);
+		});
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Spend and space, for the settings pages.
+	// ---------------------------------------------------------------------------------------------
+
+	/** A model call that belongs to no conversation, such as the project memory pass. */
+	async recordUsage(spent: { source: string; providerId: string; modelId: string; usage: Usage }): Promise<void> {
+		const db = await this.ready();
+		const now = Date.now();
+		transaction(db, () => this.insertSpend(null, auxiliaryCall(spent, now), now));
+	}
+
+	/** The database's own name, made once; a cursor from another file is not one into this. */
+	async storeId(): Promise<string> {
+		const db = await this.ready();
+		return (db.prepare("SELECT value FROM info WHERE key = 'id'").get() as { value: string }).value;
+	}
+
+	async readSpend(afterId = 0): Promise<SpendRow[]> {
+		const db = await this.ready();
+		const rows = db.prepare("SELECT id, session_id, stream, kind, ts, source, provider, model, call FROM spend WHERE id > ? ORDER BY id LIMIT ?").all(afterId, SPEND_PAGE) as {
+			id: number;
+			session_id: string | null;
+			stream: string | null;
+			kind: SpendRow["kind"];
+			ts: number;
+			source: string | null;
+			provider: string | null;
+			model: string | null;
+			call: string | null;
+		}[];
+		return rows.map((row) => ({
+			id: row.id,
+			sessionId: row.session_id,
+			stream: row.stream,
+			kind: row.kind,
+			ts: row.ts,
+			source: row.source,
+			provider: row.provider,
+			model: row.model,
+			call: row.call ? JSON.parse(row.call) : null,
+		}));
+	}
+
+	/**
+	 * Per local day, how many conversations did anything and how many messages were written.
+	 *
+	 * A sub-agent reply or a side call makes the conversation active that day without being one of
+	 * its messages. Deleted conversations are gone from here — this is activity, not spend.
+	 *
+	 * Dated by when a record was written, not by the message's own timestamp, which only the body
+	 * holds: a reply streamed across midnight counts on the day it finished, while its tokens stay on
+	 * the day it started. Reading the timestamp out of every body cost 11x on a real 15 MB history
+	 * (32 ms against 2.9 ms, growing with it) to move 1 message in 3,933.
+	 */
+	async activeDays(): Promise<ActiveDay[]> {
+		const db = await this.ready();
+		return db.prepare(`
+			SELECT date(ts / 1000, 'unixepoch', 'localtime') AS day,
+				COUNT(DISTINCT session_id) AS sessions,
+				SUM(kind = 'message') AS messages
+			FROM records WHERE kind IN ('message', 'usage', 'subagent_message')
+			GROUP BY day ORDER BY day
+		`).all() as unknown as ActiveDay[];
+	}
+
+	/** Bytes of records per session: what deleting it gives back. */
+	async sizes(): Promise<Record<string, number>> {
+		const db = await this.ready();
+		const rows = db.prepare("SELECT session_id, SUM(length(CAST(body AS BLOB))) AS bytes FROM records GROUP BY session_id").all() as { session_id: string; bytes: number }[];
+		return Object.fromEntries(rows.map((row) => [row.session_id, row.bytes]));
 	}
 }

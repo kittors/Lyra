@@ -1,22 +1,19 @@
 /** Read-only production-policy replay, not a prediction of future invoices or cache hits. */
-import { readdir } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { SessionStore } from "../packages/core/src/session/store.ts";
+import { lyraHome, SessionStore } from "../packages/core/src/session/store.ts";
 import { AgedToolPruner } from "../packages/core/src/runtime/aged-prune.ts";
 import { dropStaleResults } from "../packages/core/src/runtime/stale-results.ts";
 import { boundedGrepLines } from "../packages/core/src/tools/grep.ts";
 import type { Message } from "../packages/core/src/types.ts";
 
-const root = join(homedir(), ".lyra", "sessions");
+// `LYRA_HOME` like the app, so a copy can be audited without touching the real one.
+const root = join(lyraHome(), "sessions");
 const store = new SessionStore(root);
 const chars = (messages: Message[]) => messages.reduce((sum, message) => sum + (message.role === "toolResult" ? message.content.reduce((n, part) => n + (part.type === "text" ? part.text.length : 0), 0) : 0), 0);
 let sessions = 0, requests = 0, before = 0, afterAge = 0, afterStale = 0, afterGrep = 0, combined = 0, rewrites = 0, maxGrepBefore = 0, maxGrepAfter = 0;
-for (const project of await readdir(root, { withFileTypes: true })) {
-	if (!project.isDirectory()) continue;
-	for (const file of await readdir(join(root, project.name))) {
-		if (!file.endsWith(".jsonl")) continue;
-		const original = await store.messages(project.name, file.slice(0, -6));
+for (const meta of await store.listSessions()) {
+	{
+		const original = await store.messages(meta.projectId, meta.id);
 		const history: Message[] = [], bounded: Message[] = [];
 		const age = new AgedToolPruner(), both = new AgedToolPruner();
 		let previousAt: number | undefined;

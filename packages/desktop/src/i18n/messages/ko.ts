@@ -320,7 +320,7 @@ export const ko = {
 	"cleanup.prevMonth": "이전 달",
 	"cleanup.nextMonth": "다음 달",
 	"cleanup.title": "데이터와 저장 공간",
-	"cleanup.intro": "세션 기록이 {size}, 대화 {n}개를 차지합니다. 사용 통계는 이 기록에서 계산됩니다.",
+	"cleanup.intro": "세션 기록이 {size}, 대화 {n}개를 차지합니다. 대화를 삭제해도 사용 통계의 지출은 그대로 남습니다.",
 	"cleanup.clear": "지우기",
 	"cleanup.clearing": "지우는 중…",
 	"cleanup.range": "기간",

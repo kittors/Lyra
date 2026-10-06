@@ -46,9 +46,10 @@ export async function forkSession(
 	 * from the one before.
 	 */
 	const switchedAt = source.modelSwitchedAt === undefined ? 0 : Math.min(source.modelSwitchedAt, history.messages);
-	if (switchedAt > 0) meta = await store.append(meta, { type: "meta", meta: { ...meta, modelSwitchedAt: switchedAt } });
+	if (switchedAt > 0) meta = (await store.append(meta, { type: "meta", meta: { ...meta, modelSwitchedAt: switchedAt } })) ?? meta;
 	for (const item of history.items) {
-		meta = await store.append(meta, "message" in item ? { type: "message", message: item.message } : { type: "event", event: item.compacted });
+		// A copy: these replies were paid for once, in the session they were first given in.
+		meta = (await store.append(meta, "message" in item ? { type: "message", message: item.message } : { type: "event", event: item.compacted }, { copy: true })) ?? meta;
 	}
 	return { meta, messages: history.messages };
 }

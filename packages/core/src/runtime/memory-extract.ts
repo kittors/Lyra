@@ -19,7 +19,7 @@
  *   is how you get half of each.
  */
 
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
 import type { streamAssistant } from "../ai/index.ts";
@@ -399,24 +399,25 @@ export async function readExtractedMemory(cwd: string): Promise<string> {
 	return body.join("\n").trim();
 }
 
-/** Sessions on disk that are worth a pass, newest first. */
+/**
+ * This project's sessions that are worth a pass, newest first.
+ *
+ * Age is read off the list before any transcript is: most sessions are too new or too old, and
+ * reading one is what costs. Length is counted from the messages themselves, the way the pass will
+ * see them.
+ */
 export async function findCandidates(
-	sessionsRoot: string,
+	sessions: { id: string; projectId: string; updatedAt: number }[],
 	projectId: string,
 	load: (id: string) => Promise<Message[]>,
 	now = Date.now(),
 ): Promise<ExtractionCandidate[]> {
-	const dir = join(sessionsRoot, projectId);
-	const files = await readdir(dir).catch(() => []);
 	const found: ExtractionCandidate[] = [];
-
-	for (const file of files.filter((f) => f.endsWith(".jsonl"))) {
-		const info = await stat(join(dir, file)).catch(() => null);
-		if (!info) continue;
-		const messages = await load(file.replace(/\.jsonl$/, "")).catch(() => []);
-		if (!isCandidate({ updatedAt: info.mtimeMs, messageCount: messages.length }, now)) continue;
-		found.push({ id: file.replace(/\.jsonl$/, ""), updatedAt: info.mtimeMs, messages });
+	for (const session of sessions) {
+		if (session.projectId !== projectId || !isCandidate({ updatedAt: session.updatedAt, messageCount: Number.POSITIVE_INFINITY }, now)) continue;
+		const messages = await load(session.id).catch(() => []);
+		if (!isCandidate({ updatedAt: session.updatedAt, messageCount: messages.length }, now)) continue;
+		found.push({ id: session.id, updatedAt: session.updatedAt, messages });
 	}
-
 	return found.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_SESSIONS);
 }

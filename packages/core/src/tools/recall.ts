@@ -17,11 +17,8 @@
  * matched. This answers in messages, trimmed, oldest first.
  */
 
-import { createReadStream } from "node:fs";
-import { createInterface } from "node:readline";
-import { join } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
-import { lyraHome, projectIdFor } from "../session/store.ts";
+import { projectIdFor, SessionStore } from "../session/store.ts";
 import type { Message, Tool, ToolResult } from "../types.ts";
 
 /** How many matching messages to answer with when the caller does not say. */
@@ -80,11 +77,9 @@ export const recallTool: Tool<RecallArgs> = {
 
 		const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(args.limit ?? DEFAULT_LIMIT)));
 		const offset = Math.max(0, Math.floor(args.offset ?? 0));
-		const path = join(lyraHome(), "sessions", projectIdFor(ctx.cwd), `${ctx.sessionId}.jsonl`);
-
 		let hits: { index: number; message: Message }[];
 		try {
-			hits = await search(path, terms, ctx.signal);
+			hits = await search(ctx.cwd, ctx.sessionId, terms, ctx.signal);
 		} catch {
 			return errorResult("This session has no transcript on disk yet, so there is nothing to recall.");
 		}
@@ -163,43 +158,28 @@ export const recallTool: Tool<RecallArgs> = {
  * that is the entire reason this tool exists — and loading it to search it would spend more memory
  * than the context window it is trying to protect.
  */
-async function search(path: string, terms: string[], signal?: AbortSignal): Promise<{ index: number; message: Message }[]> {
-	const stream = createReadStream(path, { encoding: "utf8" });
-	const lines = createInterface({ input: stream, crlfDelay: Infinity });
+/**
+ * Every message this session ever committed — truncated ones included, the way the log has them —
+ * with the ones matching every term.
+ */
+async function search(cwd: string, sessionId: string, terms: string[], signal?: AbortSignal): Promise<{ index: number; message: Message }[]> {
+	const store = new SessionStore();
+	// A session not written down yet has nothing to search, which is not the same as no match.
+	if (!(await store.get(sessionId))) throw new Error("no such session");
+	const messages = await store.messages(projectIdFor(cwd), sessionId);
 	const hits: { index: number; message: Message }[] = [];
-	let index = 0;
-
-	try {
-		for await (const line of lines) {
-			if (signal?.aborted) break;
-			if (!line) continue;
-
-			let record: { type?: string; message?: Message };
-			try {
-				record = JSON.parse(line);
-			} catch {
-				// A half-written final line is normal on a session that is still running.
-				continue;
-			}
-			if (record.type !== "message" || !record.message) continue;
-
-			const message = record.message;
-			/*
-			 * The position is counted before the echo check, not after.
-			 *
-			 * `index` is what the answer labels each match with, and a label is only useful if it
-			 * means the same thing every time it is printed. Advancing it only for searchable
-			 * messages would renumber the whole transcript the moment this filter changed.
-			 */
-			const position = index++;
-			if (isOwnEcho(message)) continue;
-
-			const text = searchableText(message).toLowerCase();
-			if (terms.every((term) => text.includes(term))) hits.push({ index: position, message });
-		}
-	} finally {
-		lines.close();
-		stream.destroy();
+	for (const [position, message] of messages.entries()) {
+		if (signal?.aborted) break;
+		/*
+		 * The position is counted before the echo check, not after.
+		 *
+		 * `index` is what the answer labels each match with, and a label is only useful if it means
+		 * the same thing every time it is printed. Advancing it only for searchable messages would
+		 * renumber the whole transcript the moment this filter changed.
+		 */
+		if (isOwnEcho(message)) continue;
+		const text = searchableText(message).toLowerCase();
+		if (terms.every((term) => text.includes(term))) hits.push({ index: position, message });
 	}
 	return hits;
 }
