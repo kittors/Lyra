@@ -2,9 +2,10 @@
  * The JSONL logs sessions were kept in before the database, imported into it once (ADR-0032).
  *
  * Lyra had shipped with them: every conversation anybody has is in one of these files, so the move
- * to SQLite carries them over rather than starting empty. The files are left where they were — a
- * backup, never read again once imported (an `info` row says so) — because a re-import after the
- * fact would bring back every session deleted since.
+ * to SQLite carries them over rather than starting empty. The logs are left where they were — a
+ * backup, never read again once imported (an `info` row says so), because a re-import after the fact
+ * would bring back every session deleted since — and go with their session when it is deleted. The
+ * display caches beside them are removed once the import is done (`legacy-files.ts`).
  *
  * Each log is read whole, outside any transaction (no file I/O inside one, see `db.ts`), and then
  * written in one transaction of its own: a session is either all there or not at all, and a process
@@ -12,12 +13,11 @@
  */
 
 import { createReadStream } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { DatabaseSync } from "node:sqlite";
 import { applyRecord, recordKind } from "./apply-record.ts";
 import { infoOf, setInfo, transaction } from "./db.ts";
+import { legacyLogs, readLegacyIndex, removeDisplayCaches, type LegacyLog } from "./legacy-files.ts";
 import { replayRecords } from "./replay-records.ts";
 import { spendOf, type SpendEntry } from "./spend.ts";
 import { emptyUsage, type Usage } from "../types.ts";
@@ -25,24 +25,6 @@ import type { SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts"
 
 /** Set once every log under the root has been imported; from then on the files are only a backup. */
 const LEGACY_IMPORTED = "legacy_jsonl_imported";
-
-interface LegacyLog {
-	projectId: string;
-	id: string;
-	path: string;
-}
-
-/** Every session log under `root`, as `<projectId>/<id>.jsonl`. */
-async function legacyLogs(root: string): Promise<LegacyLog[]> {
-	const out: LegacyLog[] = [];
-	for (const project of await readdir(root, { withFileTypes: true }).catch(() => [])) {
-		if (!project.isDirectory()) continue;
-		for (const file of await readdir(join(root, project.name)).catch(() => [])) {
-			if (file.endsWith(".jsonl")) out.push({ projectId: project.name, id: file.slice(0, -".jsonl".length), path: join(root, project.name, file) });
-		}
-	}
-	return out;
-}
 
 /**
  * The records of one log, in the order written.
@@ -68,22 +50,6 @@ async function readLegacyLog(path: string): Promise<SessionRecord[]> {
 		lines.close();
 	}
 	return out;
-}
-
-/**
- * What the JSONL store's sidebar listed: its `index.json`, in order. Null when there is none to read
- * — missing or damaged — in which case the JSONL store rebuilt it from every log, and so does this.
- */
-async function readLegacyIndex(root: string): Promise<SessionMeta[] | null> {
-	const raw = await readFile(join(root, "index.json"), "utf8").catch(() => null);
-	if (raw === null) return null;
-	try {
-		const parsed: unknown = JSON.parse(raw);
-		if (!Array.isArray(parsed)) return null;
-		return parsed.filter((entry): entry is SessionMeta => typeof entry === "object" && entry !== null && typeof (entry as { id?: unknown }).id === "string");
-	} catch {
-		return null;
-	}
 }
 
 /** One session to bring over: where its records are, and what the index said of it. */
@@ -297,6 +263,8 @@ export async function importLegacySessions(db: DatabaseSync, root: string): Prom
 		else if (log) spendOnly(log, records);
 	}
 	for (const log of spentOnly) spendOnly(log, await readLegacyLog(log.path).catch(() => []));
+	// Before the flag: a process that dies in between removes them on the next launch instead.
+	await removeDisplayCaches(root);
 	transaction(db, () => setInfo(db, LEGACY_IMPORTED, JSON.stringify({ at: Date.now(), sessions: imported })));
 	return imported;
 }

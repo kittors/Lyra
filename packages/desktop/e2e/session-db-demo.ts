@@ -6,11 +6,12 @@
  * measured `check()` in the terminal.
  *
  *   1. A profile the JSONL store left behind. Its conversations are in the sidebar — the ones its
- *      `index.json` listed, in its order — and a log the index did not name is not. One is deleted,
- *      and the usage page is read before and after.
- *   2. Restarted: the deleted conversation stays deleted though its old log is still on disk, and
- *      what it spent is still counted. Then a reply starts streaming and the main process is killed
- *      half-way through it — SIGKILL, so nothing gets to flush on the way out.
+ *      `index.json` listed, in its order — a log the index did not name is not, and the display
+ *      caches are gone while the logs stay. One is deleted, its old log and index entry with it, and
+ *      the usage page is read before and after.
+ *   2. Restarted: the deleted conversation stays deleted, and what it spent is still counted. Then a
+ *      reply starts streaming and the main process is killed half-way through it — SIGKILL, so
+ *      nothing gets to flush on the way out.
  *   3. After the kill: the reply is there as far as it had got, with the message that asked for it.
  *
  * Usage: node --experimental-strip-types e2e/session-db-demo.ts (after `pnpm build`).
@@ -18,7 +19,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -96,6 +97,9 @@ const model = createServer((req, res) => {
 
 let project = "";
 const logPath = (home: string, one: Legacy) => join(home, "sessions", projectIdFor(project), `${one.id}.jsonl`);
+const cachePath = (home: string, one: Legacy) => join(home, "sessions", projectIdFor(project), `${one.id}.display.json`);
+/** The ids the JSONL store's index still lists. */
+const indexed = async (home: string) => (JSON.parse(await readFile(join(home, "sessions", "index.json"), "utf8")) as { id: string }[]).map((entry) => entry.id);
 
 async function seed(home: string, modelPort: number): Promise<void> {
 	project = join(home, "project");
@@ -118,6 +122,8 @@ async function seed(home: string, modelPort: number): Promise<void> {
 			{ seq: 3, ts: answered, type: "message", message: { role: "assistant", content: [{ type: "text", text: one.answer }], api: "anthropic-messages", provider: "local", model: "scripted", stopReason: "stop", usage, timestamp: answered } },
 		];
 		await writeFile(logPath(home, one), `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
+		// What the JSONL store left beside a log it had opened: the whole transcript again.
+		await writeFile(cachePath(home, one), JSON.stringify({ v: 2, seq: 3, meta }));
 		if (one.listed) listed.push(meta);
 	}
 	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(listed));
@@ -293,11 +299,13 @@ async function main(): Promise<void> {
 		);
 		check("索引里没有的孤儿日志没有变成会话", !rows.includes(ORPHAN.id), `侧栏里有没有 ${short(ORPHAN.id)}：${rows.includes(ORPHAN.id)}`);
 		const onDisk = [KEEP, DOOMED, ORPHAN].map((one) => existsSync(logPath(home, one)));
+		const caches = [KEEP, DOOMED, ORPHAN].map((one) => existsSync(cachePath(home, one)));
 		check(
-			"会话库建好了，三份旧日志原样留在盘上",
+			"会话库建好了，三份旧日志原样留在盘上当备份",
 			existsSync(join(home, "sessions", "sessions.db")) && onDisk.every(Boolean),
 			`sessions.db：${existsSync(join(home, "sessions", "sessions.db"))}；旧日志：${JSON.stringify(onDisk)}`,
 		);
+		check("旧版的展示缓存导入后删掉了", caches.every((left) => !left), `还在的展示缓存：${JSON.stringify(caches)}`);
 		await shot("01_升级后的侧栏");
 
 		await click(`[data-ly-row="${KEEP.id}"]`);
@@ -340,6 +348,12 @@ async function main(): Promise<void> {
 			`输入 ${before.input} → ${afterDelete.input}，费用 $${before.cost.toFixed(4)} → $${afterDelete.cost.toFixed(4)}`,
 		);
 		check("它不再算今天的活跃会话", afterDelete.activeToday === before.activeToday - 1, `今天活跃 ${before.activeToday} → ${afterDelete.activeToday}`);
+		const index = await indexed(home);
+		check(
+			"它的旧日志和旧索引里那一条也一起删了，别的会话的不动",
+			!existsSync(logPath(home, DOOMED)) && !index.includes(DOOMED.id) && existsSync(logPath(home, KEEP)) && index.includes(KEEP.id),
+			`它的旧日志还在：${existsSync(logPath(home, DOOMED))}；旧索引里还有它：${index.includes(DOOMED.id)}；老对话的旧日志还在：${existsSync(logPath(home, KEEP))}`,
+		);
 
 		// ---- 2. restarted; then a reply cut off ---------------------------------------------------
 		await stop();
@@ -351,9 +365,9 @@ async function main(): Promise<void> {
 		await pause(1500);
 		const restarted = await rowOrder();
 		check(
-			"重启之后，删掉的对话没有从它留在盘上的旧日志里回来",
-			!restarted.includes(DOOMED.id) && existsSync(logPath(home, DOOMED)),
-			`侧栏：${JSON.stringify(restarted.map(short))}；它的旧日志还在盘上：${existsSync(logPath(home, DOOMED))}`,
+			"重启之后，删掉的对话没有回来",
+			!restarted.includes(DOOMED.id),
+			`侧栏：${JSON.stringify(restarted.map(short))}`,
 		);
 		const afterRestart = await usage();
 		check(

@@ -270,7 +270,7 @@ Sessions live in one SQLite database. Each session is an append-only list of rec
 
 The phone pulls a delta with `?since=N`. Each record is numbered inside the write transaction that stores it, so concurrent tool results never share a number. A collision would drop messages on the phone with no error (`packages/core/test/store.test.ts` covers that regression). A reply is written while it streams, so a crash keeps what had arrived. Deleting a conversation does not take what it spent off the usage page. `pnpm dump:session <id>` prints a session's records one per line, in the shape above.
 
-Versions before the database kept one JSONL file per session under `~/.lyra/sessions/<project>/`. The first launch of a version with the database imports them, numbering kept, and leaves the files where they were. Why it is built this way: [ADR-0032](docs/adr/0032-sessions-in-sqlite.md).
+Versions before the database kept one JSONL file per session under `~/.lyra/sessions/<project>/`. The first launch of a version with the database imports them, numbering kept, and leaves the logs where they were as a backup; deleting a conversation deletes its old log too, and the old display caches are removed. Why it is built this way: [ADR-0032](docs/adr/0032-sessions-in-sqlite.md).
 
 ## Development
 
