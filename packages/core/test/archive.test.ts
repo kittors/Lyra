@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import { SessionStore } from "../src/session/store.ts";
 
 test("archiving does not reorder the list", async () => {
@@ -87,13 +87,11 @@ test("pruneEmpty drops unused sessions but spares recent and used ones", async (
 			type: "message",
 			message: { role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 },
 		});
-		const stale = await store.create("/tmp/b", "m");
+		// Made an hour ago, past the guard window, without touching the other two.
+		mock.timers.enable({ apis: ["Date"], now: Date.now() - 60 * 60_000 });
+		await store.create("/tmp/b", "m");
+		mock.timers.reset();
 		const fresh = await store.create("/tmp/c", "m");
-
-		// Age `stale` past the guard window without touching the other two.
-		const index = JSON.parse(await readFile(join(root, "index.json"), "utf8")) as { id: string; createdAt: number }[];
-		for (const entry of index) if (entry.id === stale.id) entry.createdAt = Date.now() - 60 * 60_000;
-		await writeFile(join(root, "index.json"), JSON.stringify(index), "utf8");
 
 		assert.equal(await store.pruneEmpty(), 1, "only the aged empty session goes");
 		const left = (await store.listSessions()).map((s) => s.id).sort();

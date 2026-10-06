@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -44,9 +44,10 @@ test("append parks large images so the log line stays small; display load does n
 	await store.append(meta, { type: "message", message });
 	assert.equal(message.content[0]?.type === "image" ? message.content[0].data : "", data, "live message keeps pixels");
 
-	const raw = await readFile(join(root, "sessions", meta.projectId, `${meta.id}.jsonl`), "utf8");
-	const lines = raw.trim().split("\n");
-	const written = JSON.parse(lines[lines.length - 1] ?? "{}") as {
+	// The record as stored, read back without the display rewrite.
+	const records = [];
+	for await (const record of store.read(meta.projectId, meta.id)) records.push(record);
+	const written = records.at(-1) as unknown as {
 		message: { content: Array<{ data: string; media?: string }> };
 	};
 	assert.equal(written.message.content[0]?.data, "");

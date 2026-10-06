@@ -320,7 +320,7 @@ export const zhTW = {
 	"cleanup.prevMonth": "上個月",
 	"cleanup.nextMonth": "下個月",
 	"cleanup.title": "資料與儲存",
-	"cleanup.intro": "會話記錄占 {size}，共 {n} 條會話。用量統計就是從這些記錄算出來的。",
+	"cleanup.intro": "會話記錄占 {size}，共 {n} 條會話。刪掉會話，用量統計裡花掉的錢不會跟著消失。",
 	"cleanup.clear": "清除",
 	"cleanup.clearing": "正在清除…",
 	"cleanup.range": "時間範圍",

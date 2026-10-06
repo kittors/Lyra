@@ -1,11 +1,12 @@
 import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
+import { app, BrowserWindow, dialog, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	createContext,
 	lyraHome,
 	migratePreviousHome,
+	SessionDbUnavailable,
 	loadCapabilityPlugins,
 	loadPlugins,
 	DEFAULT_PLUGINS,
@@ -119,7 +120,7 @@ import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
-import { nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
+import { nativeText, nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
 import { lazyPty } from "./pty-loader.ts";
 
 /*
@@ -477,6 +478,21 @@ app.whenReady().then(async () => {
 	if (migration.error) console.warn(`[lyra] 旧目录迁移失败：${migration.error}`);
 
 	await mkdir(lyraHome(), { recursive: true });
+
+	/*
+	 * Open the session database before any window, and bring the old JSONL logs into it on the
+	 * first run after the move (ADR-0032). A database that will not open is said out loud, with
+	 * where it is, and the app quits: the window would otherwise sit loading forever, and making a
+	 * fresh one in its place would put an empty sidebar where every conversation was.
+	 */
+	try {
+		await store.listSessions();
+	} catch (error) {
+		if (!(error instanceof SessionDbUnavailable)) throw error;
+		dialog.showErrorBox(nativeText("sessions.dbTitle"), nativeText("sessions.dbUnavailable", { path: error.path, reason: error.reason }));
+		app.exit(1);
+		return;
+	}
 
 	/*
 	 * Before the sweep below gets to them.

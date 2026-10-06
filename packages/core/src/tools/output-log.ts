@@ -3,7 +3,7 @@ import { mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import { finished } from "node:stream/promises";
 
-/** Spool full command output to the session scratch directory, outside model context and JSONL. */
+/** Spool full command output to the session scratch directory, outside model context and the session records. */
 export async function createOutputLog(scratchDir: string | undefined) {
 	if (!scratchDir) return undefined;
 	const directory = join(scratchDir, "tool-output");

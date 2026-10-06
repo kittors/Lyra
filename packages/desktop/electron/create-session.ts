@@ -38,13 +38,13 @@ export async function createStoredSession(
 				},
 			]
 		: [];
-	for (const message of messages) meta = await store.append(meta, { type: "message", message });
+	for (const message of messages) meta = (await store.append(meta, { type: "message", message })) ?? meta;
 	if (initial || settings.worktrees?.autoCreateOnNewSession) {
-		meta = await store.append(meta, { type: "meta", meta: {
+		meta = (await store.append(meta, { type: "meta", meta: {
 			...meta,
 			...(initial ? { pendingPrompt: true } : {}),
 			...(settings.worktrees?.autoCreateOnNewSession ? { workspaceSetup: "worktree" } : {}),
-		} });
+		} })) ?? meta;
 	}
 	return { meta, messages, running: Boolean(initial), pendingApprovals: [] };
 }

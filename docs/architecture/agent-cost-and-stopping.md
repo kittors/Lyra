@@ -120,7 +120,7 @@
 | 2 | 单条最贵的结果 | 281M token·轮 | **≤20M** | audit 第 2 节 |
 | 3 | grep 平均每次 | 3,010 token | **≤1,500** | audit 第 1 节 |
 | 4 | 任何工具的单条结果 | grep 无上限（实测最高 495K token） | **都有字符闸门** | audit 第 2 节榜首 |
-| 5 | 终止可归因 | 原 audit 漏读 runtime 结束事件（已纠正） | **100% 可从 jsonl 读出原因** | audit 第 6 节 |
+| 5 | 终止可归因 | 原 audit 漏读 runtime 结束事件（已纠正） | **100% 可从会话记录读出原因** | audit 第 6 节 |
 | 6 | **用户挫败率** | 1.9%（822 条发言里 16 条在说「上一轮没做好」） | **不上升**（守卫线） | audit 第 9 节 |
 | 7 | **代码单文件高频抖动均值** | 顺利组 4.4 次 vs 挫败组 7.4 次 | **不上升**（纯观测） | audit 第 9 节 |
 | 8 | 并行度 | 1.06 调用/轮，并行率 3.1% | **≥2.0 调用/轮** | audit 第 7 节 |
@@ -158,8 +158,9 @@ pnpm audit:sessions          # 人读的报告
 pnpm audit:sessions --json   # 机读，用于前后对照
 ```
 
-会话数据在 `~/.lyra/sessions/<projectId>/<sessionId>.jsonl`，每行一个事件，
-`{type:"message", message:{role, content, ...}}` 是主要形态。工具调用在 assistant 消息的
+会话数据在 `~/.lyra/sessions/sessions.db` 的 `records` 表，一行一条记录（`pnpm dump:session <id>`
+倒出来就是以前的 `.jsonl` 形状），`{type:"message", message:{role, content, ...}}` 是主要形态。
+目录还没被带数据库的版本打开过时，脚本和应用第一次启动一样，先把旧的 `.jsonl` 导入进库（ADR-0032）。工具调用在 assistant 消息的
 `content[]` 里（`type:"toolCall"`，带 `id`），结果是单独一行 `role:"toolResult"`，
 **靠 `toolCallId` 配对，不要靠数组下标**——两边数量经常对不上。
 
@@ -816,7 +817,7 @@ node --experimental-strip-types --test packages/core/test/prune-e2e.test.ts
 |---|---|---|
 | 白花 token | audit 前后对照 | 携带成本下降幅度 ≥ 预期的一半；三大工具占比结构无异常变化 |
 | 完成质量差 | 拿一个真实的复杂任务跑完整流程 | 模型没有因为信息被裁而反复重读同一个文件（audit 第 3 节的「一字不差」占比不应上升） |
-| 突然停止 | 新会话的终止记录 | 每一次终止都能从 jsonl 里读出结构化原因（C1） |
+| 突然停止 | 新会话的终止记录 | 每一次终止都能从会话记录里读出结构化原因（C1） |
 
 ### 全量门禁
 

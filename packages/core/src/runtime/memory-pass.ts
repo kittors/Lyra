@@ -24,7 +24,7 @@ import { agentProfile, resolveModelRef } from "../config/model-roles.ts";
 import { resolveModel } from "../config/settings.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import { streamAssistant as realStream } from "../ai/index.ts";
-import { lyraHome, projectIdFor } from "../session/store.ts";
+import { projectIdFor } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
 import type { ModelConfig, ProviderConfig } from "../types.ts";
 import { extractMemory, findCandidates, type ExtractionResult } from "./memory-extract.ts";
@@ -113,7 +113,7 @@ export async function runMemoryPass(options: PassOptions): Promise<ExtractionRes
 
 	const projectId = projectIdFor(options.cwd);
 	const candidates = await findCandidates(
-		join(lyraHome(), "sessions"),
+		await options.storage.listSessions(),
 		projectId,
 		(id) => options.storage.messages(projectId, id),
 		now,

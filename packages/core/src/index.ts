@@ -47,7 +47,9 @@ export { duckDuckGoProvider, DUCKDUCKGO_PROVIDER_ID } from "./search/duckduckgo.
 export { instantAnswerProvider, INSTANT_PROVIDER_ID } from "./search/instant.ts";
 export { keyedSearchProvider, BRAVE_PROVIDER_ID, EXA_PROVIDER_ID, TAVILY_PROVIDER_ID } from "./search/keyed.ts";
 export { approvalPolicy, useApprovalPolicy } from "./runtime/approval-policy.ts";
-export type { SessionStorage } from "./session/storage.ts";
+export type { ActiveDay, SessionStorage } from "./session/storage.ts";
+export { SessionDbUnavailable } from "./session/db.ts";
+export type { SpendRow } from "./session/spend.ts";
 export {
 	countBySource,
 	filterTrajectory,

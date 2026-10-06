@@ -3,36 +3,39 @@
 import { readFile } from "node:fs/promises";
 import type { UsageBucket } from "./usage-types.ts";
 
-export interface UsageFileEntry {
-	mtimeMs: number;
-	size: number;
+/**
+ * Where the last scan stopped in the spend table, and what it had added up to by then.
+ *
+ * `storeId` names the database the cursor belongs to: one recreated or restored from a backup
+ * numbers its rows afresh, and a cursor from the old one would skip everything new.
+ */
+export interface UsageCursor {
+	storeId: string;
+	after: number;
 	buckets: UsageBucket[];
-	days: Record<string, number>;
 }
 
-export type UsageFiles = Record<string, UsageFileEntry>;
-
-interface UsageCache {
+interface UsageCache extends UsageCursor {
 	version: typeof USAGE_CACHE_VERSION;
 	pricingKey: string;
-	files: UsageFiles;
 }
 
 /**
- * 缓存的格式版本。**改了「扫什么」就要加一。**
+ * The cache's format version. **Anything that changes what is read from a spend row bumps it.**
  *
- * 这张缓存按「文件的 mtime + size 没变就不重读」工作，快是快在这里，代价是它记的是**上一版扫描器的
- * 结论**。所以凡是改变了从一行日志里读出什么的改动，都必须在这里加一，否则老用户的数字永远停在旧口径
- * 上——文件不再增长，缓存就再也不会被重算。
+ * The cache holds the previous scanner's conclusions, and is only ever added to from where it
+ * stopped — so a change to how a row is counted that does not bump this leaves everyone who already
+ * has a cache on the old figures for good.
  *
- * 3: 计价 token 从每个桶都算，改成只算新鲜 token。
- * 4: 子 Agent 的用量开始算进来（它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前够不着）。
- *    这一版的漏算不小：用户的一个会话里子 Agent 比主 Agent 还多烧 40%。
+ * 3: priced tokens counted from fresh tokens only, not every bucket.
+ * 4: sub-agent spend counted (its messages are `subagent_message` events, which the log scan missed).
+ * 5: sessions moved into SQLite (ADR-0032): spend is read from the `spend` table by row id, and the
+ *    cache records the last row read rather than a size per log file.
  *
- * 上面那个 `version: 2` 曾经和这里的 3 对不上——接口写死一个字面量、常量另写一个，两边谁也不管谁。
- * 现在接口直接引常量，只能一起改。
+ * The interface reads the constant rather than repeating a literal: a `version: 2` once sat beside
+ * a constant of 3, and neither noticed the other.
  */
-export const USAGE_CACHE_VERSION = 4 as const;
+export const USAGE_CACHE_VERSION = 5 as const;
 
 const BUCKET_NUMBERS: (keyof UsageBucket)[] = [
 	"input", "output", "cacheRead", "cacheWrite", "reasoning", "cost", "inputCost", "outputCost",
@@ -53,25 +56,19 @@ function isUsageBucket(value: unknown): value is UsageBucket {
 	});
 }
 
-function isFileEntry(value: unknown): value is UsageFileEntry {
-	const entry = asRecord(value);
-	if (!entry || typeof entry.mtimeMs !== "number" || typeof entry.size !== "number" || !Array.isArray(entry.buckets)) return false;
-	const days = asRecord(entry.days);
-	return Boolean(days) && Object.values(days ?? {}).every((count) => typeof count === "number") && entry.buckets.every(isUsageBucket);
-}
-
-function isUsageCache(value: unknown, expectedPricingKey: string): value is UsageCache {
+function isUsageCache(value: unknown, expectedPricingKey: string, storeId: string): value is UsageCache {
 	const cache = asRecord(value);
-	if (!cache || cache.version !== USAGE_CACHE_VERSION || cache.pricingKey !== expectedPricingKey) return false;
-	const files = asRecord(cache.files);
-	return Boolean(files) && Object.values(files ?? {}).every(isFileEntry);
+	if (!cache || cache.version !== USAGE_CACHE_VERSION || cache.pricingKey !== expectedPricingKey || cache.storeId !== storeId) return false;
+	return typeof cache.after === "number" && Number.isInteger(cache.after) && Array.isArray(cache.buckets) && cache.buckets.every(isUsageBucket);
 }
 
-export async function readUsageCache(path: string, expectedPricingKey: string): Promise<UsageFiles> {
+/** The cursor to read on from, or the start when there is none worth trusting: other prices, another database. */
+export async function readUsageCache(path: string, expectedPricingKey: string, storeId: string): Promise<UsageCursor> {
 	try {
 		const parsed: unknown = JSON.parse(await readFile(path, "utf8"));
-		return isUsageCache(parsed, expectedPricingKey) ? parsed.files : {};
+		if (isUsageCache(parsed, expectedPricingKey, storeId)) return { storeId, after: parsed.after, buckets: parsed.buckets };
 	} catch {
-		return {};
+		// Missing or unreadable: read from the start.
 	}
+	return { storeId, after: 0, buckets: [] };
 }

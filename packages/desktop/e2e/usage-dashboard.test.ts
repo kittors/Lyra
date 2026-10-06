@@ -95,7 +95,15 @@ async function seed(home: string): Promise<void> {
 	for (let session = 0; session < 40; session++) {
 		const projectId = `usage${session}`.padEnd(16, "0");
 		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		const lines: string[] = [];
+		/*
+		 * A meta record first, as every log Lyra wrote has: one without it is no session, and the
+		 * database keeps only what it spent (ADR-0032) — the per-day activity this page draws comes
+		 * from sessions' records.
+		 */
+		const opened = Date.now() - 29 * day;
+		const empty = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+		const meta = { id: `session-${session}`, title: `用量 ${session}`, cwd: root, projectId, projectName: "project", createdAt: opened, updatedAt: opened, modelId: "relay/gemini-3-0", messageCount: 0, usage: empty, seq: 0 };
+		const lines: string[] = [`${JSON.stringify({ seq: 1, ts: opened, type: "meta", meta })}\n`];
 		for (let daysAgo = 29; daysAgo >= 10; daysAgo--) {
 			const at = Date.now() - daysAgo * day;
 			for (let turn = 0; turn < 90; turn++) {

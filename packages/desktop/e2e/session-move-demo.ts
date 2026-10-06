@@ -12,13 +12,14 @@
  *   二、盯住它。镜头不动，停六秒——原来的毛病就发生在这六秒里的第一秒。
  *   三、重启。旧实现在这一步是必然回弹的（内存没了，磁盘上从来就是旧的），所以这一段才是结论。
  *
- * 断言另走一路打在终端上：DOM 里它在哪个分组、磁盘上那个 jsonl 躺在哪个目录。视频回答「看起来
+ * 断言另走一路打在终端上：DOM 里它在哪个分组、会话库里它记在哪个项目下。视频回答「看起来
  * 对不对」，终端回答「量出来是多少」。
  */
 
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { projectIdFor, SessionStore } from "@lyra/core";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
@@ -122,17 +123,15 @@ function groupOf(sessionId: string): Promise<string | null> {
 	})()`);
 }
 
-/** 磁盘上那个 jsonl 此刻躺在哪个目录——`sessions/<projectId>/`。 */
+/** The project the session database files this session under (ADR-0032), read beside the running app. */
 async function onDisk(home: string, sessionId: string): Promise<string[]> {
-	const root = join(home, "sessions");
-	const dirs = await readdir(root, { withFileTypes: true }).catch(() => []);
-	const found: string[] = [];
-	for (const dir of dirs) {
-		if (!dir.isDirectory()) continue;
-		const files = await readdir(join(root, dir.name)).catch((): string[] => []);
-		if (files.includes(`${sessionId}.jsonl`)) found.push(dir.name);
+	const db = new DatabaseSync(join(home, "sessions", "sessions.db"), { readOnly: true });
+	try {
+		const row = db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(sessionId) as { project_id: string } | undefined;
+		return row ? [row.project_id] : [];
+	} finally {
+		db.close();
 	}
-	return found;
 }
 
 let sessionId = "";
@@ -147,17 +146,18 @@ async function seed(home: string): Promise<void> {
 	fromCwd = from;
 	toCwd = to;
 
-	// 真的用 store 建，这样 index.json 和 jsonl 都是应用自己写出来的那种。
+	// 真的用 store 建，这样会话库里的记录就是应用自己写出来的那种。
 	const store = new SessionStore(join(home, "sessions"));
 	const meta = await store.create(from, "fake/model", "要搬家的那条对话");
 	sessionId = meta.id;
 	let latest = meta;
 	for (const text of ["这条对话原本属于「设计稿」。", "待会儿把它搬到「插件开发」下面。"]) {
-		latest = await store.append(latest, {
+		latest = (await store.append(latest, {
 			type: "message",
 			message: { role: "user", content: [{ type: "text", text }], timestamp: Date.now() },
-		});
+		})) ?? latest;
 	}
+	store.close();
 
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860 }));
 	await writeFile(
@@ -202,9 +202,9 @@ async function main() {
 		const before = await groupOf(sessionId);
 		const beforeDirs = await onDisk(home, sessionId);
 		check(
-			"出发点：对话在「设计稿」底下，日志也在它的目录里",
+			"出发点：对话在「设计稿」底下，库里也记在它名下",
 			before === FROM.name && beforeDirs.length === 1 && beforeDirs[0] === projectIdFor(fromCwd),
-			`画面上的分组：${before}；磁盘上的目录：${JSON.stringify(beforeDirs)}`,
+			`画面上的分组：${before}；库里记的项目：${JSON.stringify(beforeDirs)}`,
 		);
 
 		// ---- 一、搬过去 ------------------------------------------------------------
@@ -255,9 +255,9 @@ async function main() {
 
 		const movedDirs = await onDisk(home, sessionId);
 		check(
-			"日志文件真的搬进了新项目的目录",
+			"库里真的改记到了新项目名下",
 			movedDirs.length === 1 && movedDirs[0] === projectIdFor(toCwd),
-			`磁盘上的目录：${JSON.stringify(movedDirs)}（新项目应当是 ${projectIdFor(toCwd)}）`,
+			`库里记的项目：${JSON.stringify(movedDirs)}（新项目应当是 ${projectIdFor(toCwd)}）`,
 		);
 
 		// ---- 三、重启 --------------------------------------------------------------
@@ -278,9 +278,9 @@ async function main() {
 
 		const restartDirs = await onDisk(home, sessionId);
 		check(
-			"重启之后日志也还在新目录里，没有留下一份旧的",
+			"重启之后库里也还记在新项目名下",
 			restartDirs.length === 1 && restartDirs[0] === projectIdFor(toCwd),
-			`磁盘上的目录：${JSON.stringify(restartDirs)}`,
+			`库里记的项目：${JSON.stringify(restartDirs)}`,
 		);
 		// 收尾也让指针动一动，理由同上：不动就没有帧，最后一段会一闪而过。
 		const ending = await point(`[data-ly-project="${TO.name}"]`);

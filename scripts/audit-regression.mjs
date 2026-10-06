@@ -131,6 +131,11 @@ const CHECKS = [
 		run: ["pnpm", ["lint"]],
 	},
 	{
+		id: "CORE-session-db",
+		what: "流到一半被杀的回复丢失、删会话把花销一起删掉、分叉重复计费、删掉的会话被迟到的写入带回侧栏、旧日志导入丢记录或带回删过的会话",
+		run: ["node", ["--experimental-strip-types", "--import", "./packages/core/test/setup.ts", "--test", "packages/core/test/session-db.test.ts", "packages/core/test/session-index-race.test.ts", "packages/core/test/session-legacy-import.test.ts"]],
+	},
+	{
 		id: "knip",
 		what: "191 个未用导出，而 CI 里那条检查永远不会红",
 		run: ["pnpm", ["knip"]],

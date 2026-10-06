@@ -320,7 +320,7 @@ export const fr = {
 	"cleanup.prevMonth": "Mois précédent",
 	"cleanup.nextMonth": "Mois suivant",
 	"cleanup.title": "Données et stockage",
-	"cleanup.intro": { one: "Les sessions occupent {size} pour {n} conversation. Les statistiques en sont issues.", other: "Les sessions occupent {size} pour {n} conversations. Les statistiques en sont issues." },
+	"cleanup.intro": { one: "Les sessions occupent {size} pour {n} conversation. Les supprimer ne retire pas leur coût des statistiques.", other: "Les sessions occupent {size} pour {n} conversations. Les supprimer ne retire pas leur coût des statistiques." },
 	"cleanup.clear": "Effacer",
 	"cleanup.clearing": "Effacement…",
 	"cleanup.range": "Période",

@@ -13,6 +13,7 @@
 import type { AgentEvent, AgentEventSink, CommandRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
+import { PartialWriter, type PartialSink } from "../session/partial.ts";
 import type { Message } from "../types.ts";
 
 /**
@@ -81,6 +82,11 @@ export class SessionLog {
 
 	private readonly store: SessionStorage;
 	private readonly sink: AgentEventSink;
+	/**
+	 * The reply streaming right now, written as it arrives so a crash does not take all of it (see
+	 * `session/partial.ts`). Null for a store that cannot keep one.
+	 */
+	private readonly partial: PartialWriter | null;
 
 	// Assigned here rather than as parameter properties: Node's type stripping runs the source
 	// as-is and cannot rewrite a constructor parameter into a field.
@@ -88,6 +94,8 @@ export class SessionLog {
 		this.store = store;
 		this.sink = sink;
 		if (meta) this.meta = meta;
+		const partials = store.beginPartial && store.appendPartial && store.dropPartial ? (store as PartialSink) : null;
+		this.partial = partials ? new PartialWriter(partials, () => this.meta.id) : null;
 	}
 
 	/** Append a message to the transcript and the log exactly once. */
@@ -95,7 +103,26 @@ export class SessionLog {
 		if (this.committed.has(message)) return;
 		this.committed.add(message);
 		this.messages.push(message);
-		this.meta = await this.store.append(this.meta, { type: "message", message });
+		try {
+			// A reply settles this writer's stream, and only that one.
+			const stream = message.role === "assistant" ? (this.partial?.stream ?? undefined) : undefined;
+			// A session deleted under a running turn takes nothing more; the last meta known stays.
+			this.meta = (await this.store.append(this.meta, { type: "message", message }, stream ? { stream } : undefined)) ?? this.meta;
+		} catch (error) {
+			/*
+			 * A reply that did not get written is not in the transcript either, and its stream stays as
+			 * it was: still saving what is waiting, still there for `settleOrphan` to commit as a stopped
+			 * reply, and still on disk if the process dies first.
+			 */
+			if (message.role === "assistant") {
+				this.committed.delete(message);
+				const at = this.messages.lastIndexOf(message);
+				if (at >= 0) this.messages.splice(at, 1);
+			}
+			throw error;
+		}
+		// The store dropped the streamed copy in the same transaction that wrote the reply.
+		if (message.role === "assistant") this.partial?.settle();
 	}
 
 	/**
@@ -105,6 +132,9 @@ export class SessionLog {
 	 * none of it can be recovered from the messages alone, so it is written as it happens.
 	 */
 	async emit(event: AgentEvent): Promise<void> {
+		// Some messages are committed first and announced after; those have nothing left to stream.
+		if (event.type === "message_start" && event.message.role === "assistant" && this.meta && !this.committed.has(event.message)) await this.partial?.begin(event.message);
+		if (event.type === "message_update" && this.meta) await this.partial?.update(event.message);
 		if (event.type === "subagent_message") {
 			let seen = this.nestedCommitted.get(event.id);
 			if (!seen) { seen = new WeakSet(); this.nestedCommitted.set(event.id, seen); }
@@ -116,9 +146,24 @@ export class SessionLog {
 			if (at < 0) this.commandRuns.push(event.command); else this.commandRuns[at] = event.command;
 		}
 		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
-			this.meta = await this.store.append(this.meta, { type: "event", event });
+			this.meta = (await this.store.append(this.meta, { type: "event", event })) ?? this.meta;
 		}
 		await this.sink(event);
+	}
+
+	/**
+	 * A reply still streaming when its turn ended: the turn threw before `message_end`.
+	 *
+	 * Committed as the reply a stop would have produced and announced like any other, so the
+	 * transcript, the window and the store stay one-to-one. Left alone, this process kept the stream
+	 * marked as live — no read would recover it — and the next turn's `beginPartial` deleted it.
+	 */
+	async settleOrphan(): Promise<void> {
+		if (!this.partial?.streaming) return;
+		const reply = this.partial.stopped();
+		if (!reply) return this.partial.discard();
+		await this.commit(reply);
+		await this.emit({ type: "message_end", message: reply });
 	}
 
 	/**
@@ -144,7 +189,8 @@ export class SessionLog {
 	 * The returned meta replaces the one held here, because appending is what advances it.
 	 */
 	async append(record: SessionRecordInput): Promise<void> {
-		this.meta = await this.store.append(this.meta, record);
+		// A session deleted under a running turn returns none, and the last meta known stays.
+		this.meta = (await this.store.append(this.meta, record)) ?? this.meta;
 	}
 
 	/**

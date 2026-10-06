@@ -47,13 +47,12 @@ export function registerUsageIpc({ store: readStore }: UsageIpcDeps): void {
 			return Boolean(live && (live.running || live.subAgents.list().some((one) => one.status === "running" || one.status === "queued")));
 		});
 		/*
-		 * 丢掉在飞的那次扫描。
+		 * Drop the scan in flight.
 		 *
-		 * 磁盘上的缓存不用管：汇总走的是 `logPaths` 实际列出来的文件，删掉的那些不在里面，它们在
-		 * 缓存里的桶既不会被加进总数，也会在下一次写缓存时自然消失。
-		 *
-		 * 要管的是这个内存里的 promise：它可能在删除**开始之前**就已经出发，读的是那份还完整的
-		 * 文件列表。留着它，删完之后点刷新拿回的是删除前的数字——看起来像什么都没发生。
+		 * What was spent does not change — the `spend` table outlives the sessions it came from — but
+		 * the per-day activity does: it is counted from the records just deleted. A scan that set out
+		 * before the deletion would hand back the old counts on the next refresh, as if nothing had
+		 * happened.
 		 */
 		inFlight = null;
 		return result;

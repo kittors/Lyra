@@ -1006,7 +1006,9 @@ export class AgentSession {
 			});
 			await this.activeTurn;
 		} finally {
-			this.activeTurn = null;
+			// A reply cut off mid-stream by a turn that threw goes in as a stopped one. Whatever the
+			// turn's own error was, it is the one that propagates.
+			await this.log.settleOrphan().catch(() => {});
 			this.activeTurn = null;
 			this.controller = null;
 			// 收尾也做完了，两样都归位：绳子没了主人，这一格也不再是「还没放手」。

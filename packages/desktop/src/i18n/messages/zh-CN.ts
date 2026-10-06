@@ -505,7 +505,7 @@ export const zhCN = {
 	"cleanup.prevMonth": "上个月",
 	"cleanup.nextMonth": "下个月",
 	"cleanup.title": "数据与存储",
-	"cleanup.intro": "会话记录占 {size}，共 {n} 条会话。用量统计就是从这些记录里算出来的。",
+	"cleanup.intro": "会话记录占 {size}，共 {n} 条会话。删掉会话，用量统计里花掉的钱不会跟着消失。",
 	"cleanup.clear": "清除",
 	"cleanup.clearing": "正在清除…",
 	"cleanup.range": "时间范围",

@@ -11,8 +11,12 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 		},
 		async append(...args) {
 			const meta = await store.append(...args);
-			// Token updates already travel over the agent stream; only directory changes need a push.
-			if (args[1].type !== "event") changed({ id: meta.id, projectId: meta.projectId, meta });
+			/*
+			 * Token updates already travel over the agent stream; only directory changes need a push.
+			 * Null is a write that landed after its session was deleted: telling the window about it
+			 * would put the deleted conversation back in the sidebar.
+			 */
+			if (meta && args[1].type !== "event") changed({ id: meta.id, projectId: meta.projectId, meta });
 			return meta;
 		},
 		async setArchived(...args) {
@@ -45,6 +49,16 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 		},
 		read: (...args) => store.read(...args),
 		readChanges: store.readChanges?.bind(store),
+		get: store.get?.bind(store),
+		// The streamed copy of a reply in progress; nothing in the window follows it.
+		beginPartial: store.beginPartial?.bind(store),
+		appendPartial: store.appendPartial?.bind(store),
+		dropPartial: store.dropPartial?.bind(store),
+		recordUsage: store.recordUsage?.bind(store),
+		readSpend: store.readSpend?.bind(store),
+		storeId: store.storeId?.bind(store),
+		activeDays: store.activeDays?.bind(store),
+		sizes: store.sizes?.bind(store),
 		messages: (...args) => store.messages(...args),
 		load: (...args) => store.load(...args),
 		listSessions: () => store.listSessions(),

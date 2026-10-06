@@ -23,3 +23,23 @@
 for (const key of Object.keys(process.env)) {
 	if (key.startsWith("GIT_")) delete process.env[key];
 }
+
+/*
+ * Removing a temporary home closes the session database inside it first — the same guard as
+ * `packages/core/test/setup.ts`: Windows will not delete a file that is open.
+ */
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { closeSessionDbsUnder } from "../../core/src/session/db.ts";
+
+const rm = fs.promises.rm;
+fs.promises.rm = ((path, options) => {
+	closeSessionDbsUnder(String(path));
+	return rm(path, options);
+}) as typeof rm;
+const rmSync = fs.rmSync;
+fs.rmSync = ((path, options) => {
+	closeSessionDbsUnder(String(path));
+	rmSync(path, options);
+}) as typeof rmSync;
+syncBuiltinESMExports();

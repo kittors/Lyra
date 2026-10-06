@@ -178,14 +178,17 @@ pnpm dev:mobile
 | --- | --- |
 | `~/.lyra/settings.json` | 供应商、模型、MCP、权限模式 |
 | `~/.lyra/credentials.json` | API Key，加密存放；密钥本体在 `~/.lyra/vault.key` |
-| `~/.lyra/sessions/` | 会话日志（JSONL，一行一条记录） |
+| `~/.lyra/sessions/sessions.db` | 所有会话和它们花掉的钱（SQLite） |
 | `~/.lyra/skills/`、`plugins/`、`rules/`、`commands/` | 用户级的技能、插件、规则、斜杠命令 |
 | `~/.lyra/memory.json` | `learn` 工具记下来的东西 |
 | `<项目>/.lyra/skills/`、`agents/`、`commands/`、`plugins/` | 项目级的同一套，优先级高于用户级 |
 | `<项目>/LYRA.md`、`AGENTS.md`、`CLAUDE.md` | 项目指令，按此优先级取第一个存在的 |
 
-换机器只需要拷 `~/.lyra`。拷之前想清楚 `credentials.json` 和 `vault.key` 要不要一起走。两个都在
+换机器只需要拷 `~/.lyra`，拷之前先退出应用。拷之前想清楚 `credentials.json` 和 `vault.key` 要不要一起走。两个都在
 才解得开，只拷一个等于把 Key 丢了。
+
+应用开着的时候，不要把 `~/.lyra` 放在 iCloud、Dropbox、OneDrive 这类同步盘里。会话库写入时旁边有一个 `-wal`
+文件，同步程序只拷走其中一个，拷过去的库就打不开了。
 
 ## 扩展与机制
 
@@ -293,15 +296,17 @@ Current working directory: …
 
 「始终允许」的对象会记进 `settings.json` 的 `alwaysAllow`。
 
-## 会话日志格式
+## 会话存储
 
-每个会话是一个 append-only 的 JSONL 文件，每条记录带单调递增的 `seq`：
+会话存在一个 SQLite 库里。每个会话是一串只追加的记录，每条记录带单调递增的 `seq`：
 
 ```json
 {"seq":3,"ts":1786230000000,"type":"message","message":{"role":"user",...}}
 ```
 
-移动端按 `?since=N` 拉增量。并发的工具结果通过存储层的写队列串行分配 `seq`，不会出现重号。否则手机同步时会静默丢消息（`packages/core/test/store.test.ts` 覆盖了这个回归）。
+移动端按 `?since=N` 拉增量。每条记录的 `seq` 在写入它的那个事务里分配，并发的工具结果不会出现重号。否则手机同步时会静默丢消息（`packages/core/test/store.test.ts` 覆盖了这个回归）。回复在流式输出的过程中就在落盘，进程崩了也留得下已经收到的部分。删掉一条会话，它花掉的钱仍然算在用量页里。`pnpm dump:session <id>` 把一条会话的记录按上面的形状一行一条打印出来。
+
+换库之前的版本把每个会话存成 `~/.lyra/sessions/<项目>/` 下的一个 JSONL 文件。装上带数据库的版本后第一次启动，会把它们导入进来，`seq` 原样保留，原文件留在原地不动。为什么这样设计见 [ADR-0032](docs/adr/0032-sessions-in-sqlite.md)。
 
 ## 开发
 

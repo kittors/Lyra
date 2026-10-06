@@ -9,7 +9,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -115,14 +115,9 @@ test("没有可用模型是单独一种原因", () => {
 // 真的跑一遍
 // ---------------------------------------------------------------------------
 
-/** 一个够老、够长、能成为候选的会话，写进 `LYRA_HOME/sessions/<projectId>/`。 */
+/** A session old enough and long enough to be a candidate, in the store the pass reads. */
 async function seedSession(cwd: string, id: string, lines: string[], ageMs: number): Promise<void> {
-	const dir = join(home, "sessions", projectIdFor(cwd));
-	await mkdir(dir, { recursive: true });
-	const path = join(dir, `${id}.jsonl`);
-	await writeFile(path, "", "utf8");
-	const when = new Date(Date.now() - ageMs);
-	await utimes(path, when, when);
+	listed.push({ id, projectId: projectIdFor(cwd), updatedAt: Date.now() - ageMs });
 	seeded.set(`${projectIdFor(cwd)}/${id}`, lines.map((text, i) => ({
 		role: i % 2 === 0 ? "user" : "assistant",
 		content: [{ type: "text", text }],
@@ -131,7 +126,9 @@ async function seedSession(cwd: string, id: string, lines: string[], ageMs: numb
 }
 
 const seeded = new Map<string, Message[]>();
+const listed: { id: string; projectId: string; updatedAt: number }[] = [];
 const STORAGE = {
+	listSessions: async () => listed,
 	messages: async (projectId: string, sessionId: string) => seeded.get(`${projectId}/${sessionId}`) ?? [],
 } as unknown as SessionStorage;
 

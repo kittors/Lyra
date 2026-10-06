@@ -48,11 +48,10 @@
 不能再点亮。`pendingSessionId` 清掉的同一拍就把叶子换掉，否则旧行会闪一下激活底。
 
 每一次按下先亮行，同一拍替换分屏叶子和转录。大图是文件，不是会话正文：新写入
-和第一次展示旧日志都把像素停到 `session-media`，jsonl 与 IPC 只留 `media` 指针。
+和展示从旧 JSONL 导入的记录都把像素停到 `session-media`，会话库与 IPC 只留 `media` 指针。
 窗口用普通 `<img src="ly-media://m/…" loading="lazy">`，由浏览器按视口取图。
-同一序号的展示结果缓存在 `{session}.display.json`，再点不再扫那行 20 MB。
 已打开过的会话留在 `RetainedViews` 里。分屏格子按树路径挂载。磁盘上序号没变时
-不再把整份 jsonl 克隆进渲染进程。连点不再空等 360ms。磁盘读取仍然合并成最后
+不再把整份转录克隆进渲染进程。连点不再空等 360ms。磁盘读取仍然合并成最后
 那个 id。较新的点击用 `selectionEpoch` 作废还没提交的那一次。
 
 ## 两种缓存

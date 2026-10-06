@@ -13,10 +13,10 @@
  */
 
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
@@ -31,9 +31,22 @@ let app: RunningApp;
 let model: Server;
 let modelRequests = 0;
 
-/** Where the session store keeps a project's sessions: `core/session/store.ts`, `projectIdFor`. */
-function projectId(cwd: string): string {
-	return createHash("sha256").update(cwd).digest("hex").slice(0, 16);
+/**
+ * Hold the session database's write lock, as another program with it open would — a sync client, a
+ * backup in progress. Creating a session waits out the app's busy timeout and gives up, which is how
+ * a task comes to be unable to start; once released, everything writes as before.
+ *
+ * Sessions used to be a folder per project, and a file put where Beta's folder would go made only
+ * Beta fail. One database has no per-project place to break (ADR-0032), so the failure is held for
+ * just as long as Beta is being started.
+ */
+function holdSessions(home: string): () => void {
+	const db = new DatabaseSync(join(home, "sessions", "sessions.db"), { timeout: 2_000 });
+	db.exec("BEGIN IMMEDIATE");
+	return () => {
+		db.exec("ROLLBACK");
+		db.close();
+	};
 }
 
 function reply(res: ServerResponse, text: string): void {
@@ -67,13 +80,6 @@ async function seed(home: string): Promise<void> {
 	const blocked = join(home, "blocked");
 	await mkdir(project, { recursive: true });
 	await mkdir(blocked, { recursive: true });
-	/*
-	 * `blocked`'s sessions would be kept in a folder named after its path. A file in that place
-	 * makes creating one fail the way a full or read-only disk would — `mkdir` refuses — and the
-	 * scheduler reports that the task could not start. Only that project's; the other runs normally.
-	 */
-	await mkdir(join(home, "sessions"), { recursive: true });
-	await writeFile(join(home, "sessions", projectId(blocked)), "not a folder");
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));
 	// Both have just run, so neither is due until its ▶ is pressed.
 	const ran = Date.now();
@@ -250,16 +256,21 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	assert.ok(alphaSession, "a started run names its session");
 	assert.equal(await app.evaluate<string>(`window.lyra.settings.get().then((s) => s.scheduledTasks.find((t) => t.id === "alpha").lastSessionId)`), alphaSession);
 
-	// ── Beta cannot start: its sessions have nowhere to go. ──
-	await click('[data-scheduled-task="beta"] button[data-ly-tip="立即运行一次"]');
-	await until(`document.querySelector('[data-scheduled-task="beta"] [data-scheduled-error]')`);
+	// ── Beta cannot start: something else holds the session database. ──
+	let release = holdSessions(app.home);
+	try {
+		await click('[data-scheduled-task="beta"] button[data-ly-tip="立即运行一次"]');
+		await until(`document.querySelector('[data-scheduled-task="beta"] [data-scheduled-error]')`);
+	} finally {
+		release();
+	}
 	const reason = await app.evaluate<string>(text('[data-scheduled-task="beta"] [data-scheduled-error]'));
-	assert.match(reason, /^失败：.*EEXIST/, reason);
+	assert.match(reason, /^失败：.*database is locked/, reason);
 	const refused = (await app.evaluate<{ taskId: string; kind: string; message: string; sessionId?: string }[]>(`window.__notices`)).at(-1);
 	assert.equal(refused?.taskId, "beta");
 	assert.equal(refused?.kind, "cannotStart");
 	assert.equal(refused?.sessionId, undefined);
-	assert.match(refused?.message ?? "", /^已安排任务「Beta」无法启动：.*EEXIST/);
+	assert.match(refused?.message ?? "", /^已安排任务「Beta」无法启动：.*database is locked/);
 	// On the schedule it is the card that says it; nothing is left counted as unseen.
 	await frames(5);
 	assert.ok(await app.evaluate<boolean>(noBadge), "the sidebar counts a failure that is on screen");
@@ -268,8 +279,13 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	// ── In a conversation: Beta again, and this time nobody is looking at its card. ──
 	await press("新对话");
 	await until(`document.querySelector("textarea")?.checkVisibility()`);
-	await app.evaluate(`window.lyra.scheduler.runNow("beta")`);
-	await until(`${line("beta")}?.checkVisibility()`);
+	release = holdSessions(app.home);
+	try {
+		await app.evaluate(`window.lyra.scheduler.runNow("beta")`);
+		await until(`${line("beta")}?.checkVisibility()`);
+	} finally {
+		release();
+	}
 	assert.match(await app.evaluate<string>(`${line("beta")}.textContent`), /已安排任务「Beta」无法启动/);
 	await until(`document.querySelector(${JSON.stringify(badge(1))})`);
 	/*

@@ -320,7 +320,7 @@ export const ja = {
 	"cleanup.prevMonth": "前の月",
 	"cleanup.nextMonth": "次の月",
 	"cleanup.title": "データとストレージ",
-	"cleanup.intro": "セッション記録が {size}、会話 {n} 件を占めています。使用統計はこの記録から計算されます。",
+	"cleanup.intro": "セッション記録が {size}、会話 {n} 件を占めています。会話を削除しても、使用統計の支出はそのまま残ります。",
 	"cleanup.clear": "消去",
 	"cleanup.clearing": "消去中…",
 	"cleanup.range": "期間",
