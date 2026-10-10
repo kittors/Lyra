@@ -83,6 +83,7 @@ test("every hover-revealed control in the tree is covered by the rule", async ()
 	const missed: string[] = [];
 	let found = 0;
 	for (const file of files) {
+		const normalized = file.replaceAll("\\", "/");
 		const source = await readFile(root + file, "utf8");
 		// Every class string that reveals something on hover — including the ones that reveal it
 		// only partly (`opacity-60`), which are just as invisible when there is no pointer.
@@ -92,7 +93,7 @@ test("every hover-revealed control in the tree is covered by the rule", async ()
 			const start = source.lastIndexOf('"', match.index) + 1;
 			const alt = source.lastIndexOf("`", match.index) + 1;
 			const line = source.slice(Math.max(start, alt), match.index + match[0].length);
-			if (!revealed(line) && !outOfReach.has(file)) missed.push(`${file}: ${line.slice(-70)}`);
+			if (!revealed(line) && !outOfReach.has(normalized)) missed.push(`${file}: ${line.slice(-70)}`);
 		}
 	}
 
