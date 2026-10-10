@@ -5,6 +5,219 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.23](https://github.com/kittors/Lyra/releases/tag/v0.9.23) - 2026-10-10
+<!-- lyra:notes en -->
+
+### Features
+
+- **Conversations backed by SQLite storage.** Conversation persistence has transitioned from fragmented JSONL files and a rewrite-heavy index to a unified SQLite database. Interrupted streaming replies survive crashes without message loss, write queues and indexing races are eliminated, and deleting chats no longer discards spending totals. Existing historical sessions import smoothly on first startup with legacy records safely preserved.
+
+- **Redesigned modern workspace frame.** The workspace window layout has been overhauled with a dedicated top bar and icon strip, merging the sidebar and main workspace into a coherent surface. On macOS, native vibrancy glass shines through the window frame (configurable in Appearance).
+
+- **Polished conversation interface and streaming.** Streamed assistant responses now animate smoothly, pin and auto-scroll cleanly without trailing cards popping the scroll position, and tool calls collapse into a concise single-row summary. Typography, padding, message bubbles, and file links have been systematically tightened.
+
+- **Centered welcome screen with adaptive layout.** The welcome view centers the input card right below the mascot with quick prompt capsules. Chat column width now adapts automatically to window panes (scaling from compact views to 1120px wide workspaces).
+
+- **Refined settings and models view.** Model configuration is reorganized into clean provider cards with inline latency and capability test badges. Control radii and paddings across settings pages are unified to 8px.
+
+### Improvements & Fixes
+
+- **Thorough legacy data cleanup on deletion.** Deleting a conversation now cleanly purges its historical `.jsonl` log files and display caches across all project folders, preventing deleted chats from resurfacing after database resets.
+
+- **Panel window docking and split flexibility.** The auxiliary dock panel defaults back to split layout with multi-tab support, allowing terminals and browser tabs to dock cleanly beside conversations.
+
+- **Popup layering and window header alignment.** Previews and modal overlays no longer clip over the native window title bar, notice toasts center properly in full-screen pane mode, and window title bars no longer jump 1px when maximized.
+
+- **Accurate provider branding and theme switching.** Search engines, code hosts, and AI model icons now use official source vectors. Dark theme accurately honors the in-app setting rather than falling back to OS appearance, and StepFun models display their dedicated icon.
+
+- **Windows path normalization in CI tests.** Resolved test path normalization across Windows platforms, ensuring hover-reveal and styling suites pass cleanly on all runners.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **会话全面升级为 SQLite 存储**。底层存储告别过去分散的 JSONL 文件与整份重写的 index.json，改由单个 SQLite 数据库事务化持久化。流式回复即使中途异常崩溃也不再丢失文字，彻底消除了写队列和索引并发竞态；删除会话不再冲掉历史花销统计。原有旧会话在初次打开时无缝迁移导入，旧文件完整保留作备份。
+
+- **全新工作区外框与界面布局**。主窗口重新组织为顶栏与图标栏联动结构，侧边栏与主内容区合成连贯面板。macOS 窗口铺设系统毛玻璃材质，侧栏自然透出窗口质感（外观设置中可按需开关）。
+
+- **流式输出平滑滚动与对话视觉收敛**。流式回复出字更加平滑自然，到底部时匀速上移，迟到的卡片不再猛然把历史消息顶上去；单轮多个工具调用默认折叠为单行精简摘要。对话气泡、正文排版、Markdown 标题与文件链接色均经过系统化收敛。
+
+- **居中自适应欢迎页与托盘输入框**。欢迎页吉祥物、大标题与托盘输入框居中排列，下方配有平滑落下的提示词胶囊；对话栏宽度新增「自动」自适应档位，大屏下最高展开至 1120px，窄屏下自然铺满。
+
+- **设置页与模型配置梳理**。模型设置全面重构为服务商列表加分组卡片视图，连通性测试结果直接反馈在按钮上；全应用按钮圆角统一为两档，设置页控件规整收敛为 8px。
+
+### 优化与修复
+
+- **会话删除连同旧日志彻底清理**。删掉会话后同步清理旧版 `.jsonl` 日志文件与 `index.json` 索引记录，并清空历史展示缓存，避免重新导入时删过的会话再度出现。
+
+- **工作区面板恢复分栏与多标签支持**。面板默认收进对话右侧多标签栏，终端、浏览器可自由分栏停靠在对话另一侧。
+
+- **弹出层与顶栏层级修复**。文件改动预览等浮层不再遮盖窗口顶栏；窗格全屏时标题不再跳动 1px；通知 Toast 居中对齐窗口内容。
+
+- **服务商图标与深色主题纠正**。搜索引擎、代码托管与模型图标全部替换为各家官网发布的原件矢量图；阶跃星辰模型不再误显为豆包图标；深色样式严格遵循应用内的主题选择，不再跟随系统被动切回。
+
+- **Windows 平台测试路径兼容**。规范化 Windows 平台下文件扫描的反斜杠路径，确保全平台自动化测试稳定通过。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **工作階段全面升級為 SQLite 儲存**。底層儲存告別過去分散的 JSONL 檔案與整份重寫的 index.json，改由單個 SQLite 資料庫事務化持久化。串流回覆即使中途異常崩潰也不再遺失文字，徹底消除了寫入佇列和索引並行競態；刪除工作階段不再沖掉歷史花費統計。原有舊工作階段在初次開啟時無縫遷移匯入，舊檔案完整保留作備份。
+
+- **全新工作區外框與介面版面配置**。主視窗重新組織為頂端列與圖示列連動結構，側邊欄與主內容區合成連貫面板。macOS 視窗鋪設系統毛玻璃材質，側欄自然透出視窗質感（外觀設定中可按需開關）。
+
+- **串流輸出平滑捲動與對話視覺收斂**。串流回覆出字更加平滑自然，到底部時勻速上移，遲到的卡片不再猛然把歷史訊息頂上去；單輪多個工具呼叫預設摺疊為單行精簡摘要。對話氣泡、內文排版、Markdown 標題與檔案連結色均經過系統化收斂。
+
+- **置中自適應歡迎頁與托盤輸入框**。歡迎頁吉祥物、大標題與托盤輸入框置中排列，下方配有平滑落下的提示詞膠囊；對話欄寬度新增「自動」自適應檔位，大螢幕下最高展開至 1120px，窄螢幕下自然鋪滿。
+
+- **設定頁與模型設定梳理**。模型設定全面重構為服務商列表加分組卡片檢視，連線測試結果直接回饋在按鈕上；全應用程式按鈕圓角統一為兩檔，設定頁控制項規整收斂為 8px。
+
+### 最佳化與修復
+
+- **工作階段刪除連同舊記錄徹底清理**。刪除工作階段後同步清理舊版 `.jsonl` 記錄檔與 `index.json` 索引記錄，並清空歷史展示快取，避免重新匯入時刪過的工作階段再度出現。
+
+- **工作區面板恢復分欄與多分頁支援**。面板預設收進對話右側多分頁列，終端機、瀏覽器可自由分欄停靠在對話另一側。
+
+- **彈出層與頂端列層級修復**。檔案變更預覽等浮動層不再遮蓋視窗頂端列；窗格全螢幕時標題不再跳動 1px；通知 Toast 置中對齊視窗內容。
+
+- **服務商圖示與深色主題糾正**。搜尋引擎、程式碼代管與模型圖示全部替換為各家官網發布的原件向量圖；階躍星辰模型不再誤顯為豆包圖示；深色樣式嚴格遵循應用程式內的主題選擇，不再跟隨系統被動切回。
+
+- **Windows 平台測試路徑相容**。規範化 Windows 平台下檔案掃描的反斜線路徑，確保全平台自動化測試穩定通過。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **SQLite による会話ストレージの刷新**。従来の断片化された JSONL ファイルと index.json の全体書き換えから、単一の SQLite データベースによるトランザクション管理へ移行しました。ストリーミング応答の途中で異常終了してもテキストが失われず、書き込みキューや競合が解消されました。会話を削除しても利用料金の合計が消えません。既存の履歴は初回起動時に安全に移行されます。
+
+- **新設計のワークスペースフレーム**。メインウィンドウが専用のトップバーとアイコンバーによる構成へ一新され、サイドバーとコンテンツがシームレスな単一パネルに統合されました。macOS ではシステム標準のすりガラス効果が適用されます（外観設定でオフ可能）。
+
+- **ストリーミング応答の滑らかな表示と視覚的な改善**。文字出力が滑らかになり、最下部スクロール時に自然に押し上げられ、遅れて届いたカードで履歴が跳ね上がる現象を抑えました。ツール呼び出しはデフォルトで1行の概要に折りたたまれます。
+
+- **中央配置のウェルカム画面と自動幅調整**。マスコットとトレイ型入力欄が中央に配置され、プロンプトカプセルが並びます。会話欄の幅に「自動」が追加され、最大 1120px までウィンドウ幅に合わせて自動調整されます。
+
+- **設定画面とモデル設定の整理**。モデル設定がプロバイダー一覧とグループカード形式に再構成され、接続テストの結果がボタン上に直接表示されます。角丸や余白が 8px 基準に統一されました。
+
+### 改善と修正
+
+- **削除時の過去ログ完全クリーンアップ**。会話削除時に過去の `.jsonl` ログやインデックス、表示キャッシュを確実に消去し、再インポート時に削除済み会話が復活する問題を防ぎました。
+
+- **ドックパネルの分割表示とマルチタブ対応**。パネルがマルチタブ形式で会話の右側に収まり、ターミナルやブラウザーを会話の横に自由に並べて配置できるようになりました。
+
+- **レイヤー重なりとヘッダー表示の修正**。ファイル変更プレビューなどのポップアップがウィンドウのトップバーに重ならなくなり、全画面表示時のタイトルの 1px のズレやトーストのセンタリングを修正しました。
+
+- **公式ロゴの適用とダークテーマの同期**。検索エンジンやモデルのアイコンを各社公式のベクターデータに更新しました。ダークテーマが OS ではなくアプリ内の設定に従うよう修正されました。
+
+- **Windows 向けテストパスの正規化**。Windows 環境でのファイルパス正規化に対応し、全プラットフォームでのテスト通過を保証しました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **대화 저장소 SQLite 전환**。기존의 분산된 JSONL 파일과 index.json 전체 재작성 방식에서 단일 SQLite 데이터베이스 기반으로 전환되었습니다. 스트리밍 응답 도중 갑작스럽게 프로세스가 종료되어도 대화가 유실되지 않으며, 대화를 삭제해도 누적 사용 금액이 함께 지워지지 않습니다. 기존 대화 기록은 최초 실행 시 안전하게 자동 마이그레이션됩니다.
+
+- **워크스페이스 프레임 및 레이아웃 개편**。상단 바와 아이콘 바가 결합된 구조로 개편되어 사이드바와 콘텐츠 영역이 일관된 단일 패널로 정돈되었습니다. macOS 환경에서는 시스템 블러 효과가 창 틀에 자연스럽게 적용됩니다(모양 설정에서 해제 가능).
+
+- **스트리밍 출력 부드러운 스크롤 및 대화 화면 다듬기**。스트리밍 답변 텍스트 출력이 부드러워졌으며, 스크롤 최하단 도달 시 자연스럽게 위로 이동하여 뒤늦게 렌더링된 카드로 인해 화면이 튀는 현상을 방지했습니다. 여러 도구 호출은 기본 한 줄 요약으로 깔끔하게 접힙니다.
+
+- **중앙 정렬 시작 화면 및 대화 너비 자동 맞춤**。시작 화면의 마스코트와 트레이형 입력창이 중앙에 정렬되고 추천 프롬프트 캡슐이 배치됩니다. 대화 너비에 "자동" 설정이 추가되어 최대 1120px까지 창 크기에 맞게 조절됩니다.
+
+- **설정 및 모델 설정 화면 정리**。모델 설정이 공급자 목록 및 그룹 카드 뷰로 전면 개편되어 연결 테스트 결과가 버튼 위에 바로 표시됩니다. 전체 설정 요소의 라운딩과 여백이 8px로 통일되었습니다.
+
+### 개선 및 수정
+
+- **대화 삭제 시 레거시 로그 완전 정리**。대화를 지울 때 구버전 `.jsonl` 로그 파일과 인덱스, 뷰 캐시까지 깔끔하게 제거하여 데이터베이스 재구성 시 삭제된 대화가 다시 복원되지 않도록 수정했습니다.
+
+- **작업 공간 패널 분할 복원 및 멀티 탭 지원**。패널이 대화창 우측 다중 탭으로 정돈되어 터미널과 브라우저를 대화 옆에 분할하여 배치할 수 있습니다.
+
+- **팝업 레이어 및 상단 바 정렬 오류 해결**。파일 변경 미리보기 등의 오버레이가 창 상단 바를 가리지 않으며, 창 최대화 시 타이틀이 1px 튀던 문제와 토스트 중앙 정렬을 바로잡았습니다.
+
+- **공식 브랜드 아이콘 반영 및 다크 모드 수정**。검색 엔진 및 모델 아이콘을 각 서비스의 공식 벡터 이미지로 교체했습니다. 다크 테마가 OS 테마와 무관하게 앱 설정에 따라 정확히 유지됩니다.
+
+- **Windows 환경 경로 호환성 개선**。Windows 플랫폼에서 역슬래시 파일 경로를 정규화하여 모든 테스트가 정상 통과하도록 처리했습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Fonctionnalités
+
+- **Persistance des conversations sous SQLite.** Le stockage abandonne les multiples fichiers JSONL et les réécritures complètes d'index au profit d'une base de données SQLite transactionnelle. Les réponses en cours de streaming résistent aux plantages inattendus, et la suppression d'une conversation ne supprime plus l'historique des dépenses cumulées. Les anciennes sessions sont importées en toute sécurité au premier démarrage.
+
+- **Cadre d'espace de travail modernisé.** La fenêtre principale intègre une barre supérieure dédiée et un ruban d'icônes, unifiant la barre latérale et la zone principale en un seul panneau fluide. Sous macOS, l'effet de flou natif sublime le contour de la fenêtre (désactivable dans les réglages d'apparence).
+
+- **Défilement fluide du texte et interface resserrée.** L'apparition du texte en continu gagne en fluidité, l'auto-défilement vers le bas s'effectue sans à-coups et l'exécution d'outils successifs est condensée par défaut sur une seule ligne. Les bulles, les titres et les liens de fichiers ont été visuellement harmonisés.
+
+- **Écran d'accueil centré et largeur adaptative.** L'écran d'accueil présente la mascotte et la zone de saisie centrées avec des capsules de suggestions. La largeur de la conversation s'ajuste désormais automatiquement à la taille de la fenêtre (jusqu'à 1120 px).
+
+- **Refonte des paramètres et des modèles.** La configuration des modèles est réorganisée sous forme de cartes claires par fournisseur, affichant les tests de latence directement sur les boutons. Les arrondis et marges sont alignés sur 8 px.
+
+### Améliorations et corrections
+
+- **Nettoyage complet des anciens fichiers lors de la suppression.** Supprimer une conversation efface désormais ses fichiers de journalisation `.jsonl` et ses caches d'affichage résiduels dans tous les dossiers de projet, évitant que des échanges effacés ne réapparaissent lors d'une restauration.
+
+- **Flexibilité du panneau latéral et onglets.** Le panneau secondaire se loge à nouveau à droite de la conversation sous forme d'onglets multiples, permettant d'afficher terminaux et navigateurs côte à côte avec la discussion.
+
+- **Superposition des fenêtres et en-têtes.** Les fenêtres de prévisualisation ne recouvrent plus la barre de titre native, les notifications s'affichent au centre exact et le décalage de 1 px lors du passage en plein écran a été éliminé.
+
+- **Icônes vectorielles officielles et thème sombre.** Les moteurs de recherche et modèles adoptent leurs logos vectoriels d'origine. Le thème sombre respecte fidèlement les préférences de l'application sans dépendre du système d'exploitation.
+
+- **Normalisation des chemins sous Windows.** Les séparateurs de chemins dans les suites de tests automatisées sont uniformisés pour garantir une validation intégrale sous Windows.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новые возможности
+
+- **Хранение бесед в базе данных SQLite.** Хранилище переведено с разрозненных файлов JSONL и перезаписываемого index.json на транзакционную базу данных SQLite. Потоковые ответы ассистента больше не теряются при аварийном завершении, а удаление беседы не сбрасывает общую статистику расходов. Ранее созданные беседы автоматически переносятся при первом запуске.
+
+- **Обновлённое обрамление рабочей области.** Интерфейс окна переработан с верхней панелью и вертикальной полосой значков, объединяя боковую панель и контент в цельную поверхность. На macOS задействован системный эффект матового стекла (отключается в настройках оформления).
+
+- **Плавный вывод текста и компактные вызовы инструментов.** Потоковый вывод сообщений стал плавным, автопрокрутка к нижнему краю работает без рывков, а цепочки вызовов инструментов по умолчанию свернуты в одну строку. Стили сообщений, заголовки и ссылки приведены к единому стандарту.
+
+- **Центрированный экран приветствия и адаптивная ширина.** Стартовый экран центрирует маскот и поле ввода, дополняя их капсулами быстрых подсказок. Добавлен «Автоматический» режим ширины беседы, динамически подстраивающийся под размеры окна (до 1120px).
+
+- **Улучшенные настройки и профили моделей.** Меню моделей преобразовано в удобный список провайдеров с карточками, а статус проверки подключения отображается прямо на кнопках. Скругления элементов интерфейса унифицированы до 8px.
+
+### Улучшения и исправления
+
+- **Полная очистка устаревших файлов при удалении.** Удаление беседы теперь очищает старые файлы `.jsonl`, индексные записи и кэш во всех каталогах проектов, исключая возврат удалённых бесед при переиндексации.
+
+- **Многовкладочная панель и разделение экранов.** Вспомогательная панель снова аккуратно сворачивается в правую колонку с вкладками, позволяя размещать терминалы и веб-страницы рядом с диалогом.
+
+- **Исправление слоев и заголовков окон.** Всплывающие окна предпросмотра файлов больше не перекрывают верхнюю панель окна, устранён сдвиг заголовка на 1px в полноэкранном режиме, а уведомления центрируются строго по окну.
+
+- **Официальные значки провайдеров и темная тема.** Иконки поисковых систем, сервисов и моделей заменены на официальные векторные оригиналы. Тёмная тема теперь строго следует выбору в приложении и не переключается от системных настроек.
+
+- **Нормализация путей Windows в автотестах.** Унифицированы обратные слэши при поиске компонентов в тестах для надёжного прохождения на платформе Windows.
+
+</details>
+
 ## [0.9.22](https://github.com/kittors/Lyra/releases/tag/v0.9.22) - 2026-09-29
 <!-- lyra:notes en -->
 
