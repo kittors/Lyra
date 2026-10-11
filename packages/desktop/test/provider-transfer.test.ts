@@ -254,3 +254,16 @@ test("没被占用的名字原样返回，占用了才编号", () => {
 	// 前后空格不算另一个名字：列表里看着一样，就是一样。
 	assert.equal(uniqueProviderName([" Relay "], "Relay"), "Relay 2");
 });
+
+test("a model switched to drawing, or away from it, stays switched across an export", () => {
+	// Stored only where it disagrees with the name, so both directions have to survive the trip.
+	const artist = model("relay", "house-artist", { imageOutput: true });
+	const notReally = model("relay", "notes-image-v2", { imageOutput: false });
+	const parsed = roundTrip([provider("relay", { models: [artist, notReally] })]);
+	assert.deepEqual(parsed.bundle.providers[0].models, [artist, notReally]);
+});
+
+test("a default model chosen for an import is one that can hold a conversation", () => {
+	const result = applyImport([], [provider("art", { models: [model("art", "gpt-image-1"), model("art", "gpt-5")] })], null);
+	assert.equal(result.defaultModelId, "art/gpt-5", "not the image model listed first");
+});

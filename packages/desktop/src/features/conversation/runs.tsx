@@ -257,7 +257,13 @@ export const ToolRun = memo(ToolRunGroup, sameRun);
 
 /** What a set of calls did, in words — the same sentence a run line and a turn line use. */
 export function describeCalls(calls: Call[]): string {
-  return describeRun(calls.map(({ block }) => ({ toolName: block.name, subject: subjectOf(block) })));
+  return describeRun(calls.map(({ block }) => ({ toolName: kindOf(block), subject: subjectOf(block) })));
+}
+
+/** `image_generate` with pictures going in is an edit, and reads as one (`tools.imageEdit`). */
+function kindOf(block: Extract<AssistantContent, { type: "toolCall" }>): string {
+  const images = (block.arguments as { images?: unknown } | undefined)?.images;
+  return block.name === "image_generate" && Array.isArray(images) && images.length > 0 ? "image_edit" : block.name;
 }
 
 /** The file a call is about, when it is about one — the part worth naming in a summary. */

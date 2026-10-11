@@ -78,6 +78,9 @@ const KIND: Record<string, MessageKey> = {
 	ask_user: "tools.askUser",
 	// 侧边聊天翻主对话用的那一个——它的工具组从前一律读作「使用工具 3 个」。
 	read_main_chat: "tools.readMainChat",
+	image_generate: "tools.image",
+	// Not a tool of its own: `image_generate` with pictures going in, told apart by its summary below.
+	image_edit: "tools.imageEdit",
 };
 
 /**
@@ -87,6 +90,9 @@ const KIND: Record<string, MessageKey> = {
  * 原样留着——它们本来就是人写的话。
  */
 const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
+	// Ahead of `Edit`, which would otherwise read "Edit image a red boat" as a file called "image a…".
+	[/^Edit image ?(.*)$/, "image_edit", (m) => m[1]],
+	[/^Image ?(.*)$/, "image_generate", (m) => m[1]],
 	[/^Read (.+)$/, "read", (m) => baseName(m[1])],
 	[/^Write (.+)$/, "write", (m) => baseName(m[1])],
 	[/^Edit (.+)$/, "edit", (m) => baseName(m[1])],

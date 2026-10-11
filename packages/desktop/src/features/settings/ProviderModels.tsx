@@ -6,7 +6,9 @@
  * fill them in, and the part you come back to later.
  */
 
-import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Pencil, Play, Plus, Star, Trash2, Wrench } from "lucide-react";
+import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Palette, Pencil, Play, Plus, Star, Trash2, Wrench } from "lucide-react";
+import { isImageModel } from "@lyra/core/image-models";
+import { useApp } from "../../store/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -52,6 +54,16 @@ export function ProviderModels({
 	onSetDefault: (modelId: string) => void;
 }) {
 	const { t } = useI18n();
+	/*
+	 * An image model's "default" is a different setting from a chat model's: the model `image_generate`
+	 * draws with. A pointer and nothing else, so it is written straight away rather than with the
+	 * provider being edited — a model not saved yet is simply not found, and the first one is used.
+	 */
+	const imageModelId = useApp((state) => state.settings?.imageModelId ?? null);
+	const setDefaultImage = (modelId: string) => {
+		const current = useApp.getState().settings;
+		if (current) void useApp.getState().saveSettings({ ...current, imageModelId: modelId });
+	};
 	return (
 		<section className="pt-7">
 			{/* `SectionTitle`'s size and spacing, with room on the line for the two actions. */}
@@ -96,13 +108,13 @@ export function ProviderModels({
 						<ModelRow
 							key={model.id}
 							model={model}
-							isDefault={defaultModelId === model.id}
+							isDefault={isImageModel(model) ? imageModelId === model.id : defaultModelId === model.id}
 							testing={testingModelId === model.id}
 							testResult={modelTestResults?.[model.id]}
 							onTest={() => onTestModel?.(model.id)}
 							onEdit={() => onEdit(model)}
 							onRemove={() => onRemove(model.id)}
-							onSetDefault={() => onSetDefault(model.id)}
+							onSetDefault={() => (isImageModel(model) ? setDefaultImage(model.id) : onSetDefault(model.id))}
 						/>
 					))
 				) : (
@@ -118,9 +130,11 @@ export function ProviderModels({
  * up down the list whichever of them a row has.
  */
 const CAPABILITIES: { has: (model: ModelConfig) => boolean; label: MessageKey; Icon: typeof Lightbulb; tone: string }[] = [
-	{ has: (m) => m.supportsThinking, label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
+	// First, because it changes what the row is: a model that draws is not offered for conversations.
+	{ has: (m) => isImageModel(m), label: "modelEditor.imageOutput", Icon: Palette, tone: "bg-accent/12 text-accent" },
+	{ has: (m) => m.supportsThinking && !isImageModel(m), label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
 	{ has: (m) => m.supportsImages, label: "modelEditor.images", Icon: Image, tone: "bg-ok/12 text-ok" },
-	{ has: (m) => m.supportsTools, label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
+	{ has: (m) => m.supportsTools && !isImageModel(m), label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
 ];
 
 function ModelRow({
@@ -181,13 +195,14 @@ function ModelRow({
 					))}
 				</span>
 
-				<span className="grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] bg-card font-mono text-caption text-ink-muted tabular-nums">
-					{formatWindow(model.contextWindow)}
+				<span className={`grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] font-mono text-caption text-ink-muted tabular-nums ${isImageModel(model) ? "" : "bg-card"}`}>
+					{/* Held empty for a model that draws: a context window is not a thing it has, and the column keeps the rows aligned. */}
+					{isImageModel(model) ? "" : formatWindow(model.contextWindow)}
 				</span>
 
 				<span className="flex shrink-0 items-center">
 					<IconButton
-						label={testing ? t("providerModels.connecting") : t("providerModels.testOne")}
+						label={testing ? t("providerModels.connecting") : isImageModel(model) ? t("providerModels.testDraw") : t("providerModels.testOne")}
 						disabled={testing}
 						explainDisabled
 						onClick={onTest}
@@ -222,7 +237,7 @@ function ModelRow({
 								onSetDefault();
 							}}
 						>
-							{t("providerModels.makeDefault")}
+							{isImageModel(model) ? t("providerModels.makeDefaultImage") : t("providerModels.makeDefault")}
 						</MenuItem>
 						<MenuItem
 							icon={<Pencil size={13} strokeWidth={1.8} />}

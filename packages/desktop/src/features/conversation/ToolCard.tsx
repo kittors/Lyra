@@ -12,6 +12,7 @@ import {
 	FileText,
 	FolderTree,
 	Globe,
+	Image as ImageIcon,
 	ListTodo,
 	Search,
 	Sparkles,
@@ -46,6 +47,7 @@ const ICONS: Record<string, typeof FileText> = {
 	task: Users,
 	skill: Sparkles,
 	web_fetch: Globe,
+	image_generate: ImageIcon,
 };
 
 interface ToolCardProps {

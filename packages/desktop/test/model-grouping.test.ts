@@ -226,3 +226,21 @@ describe("toggleFavourite", () => {
 		assert.deepEqual(before, ["a"]);
 	});
 });
+
+describe("image models", () => {
+	const providers = [
+		provider("relay", "中转站", [model("relay", "gemini-3.8-flash-high", "gemini-3.8-flash-high"), model("relay", "gemini-3.1-flash-image", "gemini-3.1-flash-image")]),
+		provider("art", "画室", [model("art", "house-artist", "House Artist", { imageOutput: true })]),
+	];
+
+	it("are left out of every chat picker — a provider of nothing but image models disappears from it", () => {
+		const groups = groupModels(providers);
+		assert.deepEqual(groups.map((group) => group.provider.id), ["relay"]);
+		assert.deepEqual(groups[0].models.map((row) => row.modelId), ["gemini-3.8-flash-high"]);
+	});
+
+	it("are the only thing the image picker offers, recognised by name or by the stored switch", () => {
+		const groups = groupModels(providers, "image");
+		assert.deepEqual(flattenGroups(groups).map((row) => row.model.id), ["relay/gemini-3.1-flash-image", "art/house-artist"]);
+	});
+});

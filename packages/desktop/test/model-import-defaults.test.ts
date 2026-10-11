@@ -61,3 +61,11 @@ test("弹窗上那行字和导入写进去的是同一个数", () => {
 	// 它曾经是一个写死的 "200K"，跟导入毫无关系——两边一起变，才不会再次各说各话。
 	assert.equal(defaultWindowLabel(), `${Math.round(DEFAULT_CONTEXT_WINDOW / 1000)}K`);
 });
+
+test("生图模型导进来不带「思考」和「工具」：它只会画", () => {
+	const imported = importedModel(relay, "gemini-3.1-flash-image");
+	assert.equal(imported.supportsThinking, false);
+	assert.equal(imported.supportsTools, false);
+	assert.equal(imported.supportsImages, true, "改图要把图送进去");
+	assert.equal(imported.imageOutput, undefined, "名字已经说明了它是生图模型，不必另存一个开关");
+});

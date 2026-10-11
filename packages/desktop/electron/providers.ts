@@ -6,7 +6,7 @@
  */
 
 import type { ProviderTestResult, SyncStatus } from "./ipc-types.ts";
-import { streamAssistant, type AssistantMessage, type Settings, type StreamEvent, type ThinkingLevel } from "@lyra/core";
+import { generateImages, imageDimensions, isImageModel, streamAssistant, type AssistantMessage, type ModelConfig, type Settings, type StreamEvent, type ThinkingLevel } from "@lyra/core";
 import { getSettings } from "./app-settings.ts";
 import { nativeText } from "./i18n.ts";
 
@@ -98,6 +98,7 @@ export async function testProvider(
 			: { ok: false, latencyMs: Date.now() - started, message: nativeText("provider.needModel") };
 	}
 
+	if (isImageModel(model)) return drawOnce(provider, model);
 	const reply = await firstToken(provider, model, thinking);
 	return reply.ok
 		? { ok: true, latencyMs: reply.latencyMs, message: nativeText("provider.responded", { model: model.name || model.modelId }), models }
@@ -204,5 +205,35 @@ export async function fetchEndpointModels(
 			models: [],
 			error: error instanceof Error ? error.message : String(error),
 		};
+	}
+}
+
+/** How long the test drawing may take; a picture is slower than a first token. */
+const DRAW_TIMEOUT_MS = 180_000;
+
+/**
+ * The same question for a model that draws: draw one small picture.
+ *
+ * A chat request is the wrong test here — the relays refuse an image model on chat outright — and the
+ * Images API has no free way to ask "would this work". So it is one real, cheap drawing; the button
+ * says so in its tooltip, and nothing is kept.
+ */
+async function drawOnce(provider: Provider, model: ModelConfig): Promise<ProviderTestResult> {
+	const started = Date.now();
+	try {
+		const result = await generateImages(
+			provider,
+			model,
+			{ prompt: "A single small red dot on a plain white background.", quality: "low" },
+			{ retryAttempts: 1, signal: AbortSignal.timeout(DRAW_TIMEOUT_MS) },
+		);
+		const bytes = Buffer.from(result.images[0]?.data ?? "", "base64");
+		const dims = imageDimensions(bytes);
+		const size = dims ? `${dims.width}×${dims.height}` : `${Math.round(bytes.length / 1024)} KB`;
+		return { ok: true, latencyMs: Date.now() - started, message: nativeText("provider.drew", { model: model.name || model.modelId, size }) };
+	} catch (error) {
+		const failure = error as { failure?: { summary?: string; detail?: string } };
+		const message = failure.failure ? [failure.failure.summary, failure.failure.detail?.slice(0, 300)].filter(Boolean).join(" · ") : error instanceof Error ? error.message : String(error);
+		return { ok: false, latencyMs: Date.now() - started, message };
 	}
 }
