@@ -46,12 +46,16 @@ function useNow(active: boolean): number {
 	return active ? now : Date.now();
 }
 
-/** The file a picture is saved under: the app's name and when it was drawn, not a content hash. */
-function save(src: string, mimeType: string, at: number): void {
-	const stamp = new Date(at).toISOString().slice(0, 19).replace(/[:T]/g, "-");
+/**
+ * Save the picture as it was drawn, bytes untouched.
+ *
+ * The link's own `download` name would be ignored — the media URL is not this page's origin — so the
+ * readable name is given by the main process when the download starts (`electron/media-downloads.ts`).
+ */
+function save(src: string): void {
 	const link = document.createElement("a");
 	link.href = src;
-	link.download = `lyra-image-${stamp}.${mimeType.includes("jpeg") ? "jpg" : mimeType.includes("webp") ? "webp" : "png"}`;
+	link.download = "";
 	link.click();
 }
 
@@ -137,7 +141,7 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 										}
 									: undefined
 							}
-							onDownload={picture ? () => save(sources[index].src, picture.mimeType, (details?.startedAt ?? Date.now()) + (details?.durationMs ?? 0)) : undefined}
+							onDownload={picture ? () => save(sources[index].src) : undefined}
 						/>
 					);
 				})}

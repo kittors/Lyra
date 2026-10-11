@@ -99,6 +99,7 @@ import {
 } from "./window.ts";
 import { registerWindowsIpc } from "./ipc/windows.ts";
 import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
+import { nameMediaDownloads } from "./media-downloads.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
@@ -673,6 +674,8 @@ function bindScreenshotShortcut(): void {
 			return images[ref.imageIndex] ?? null;
 		},
 	});
+	// A picture saved from the conversation is offered under a readable name, not its hash.
+	nameMediaDownloads();
 	// Clear out sessions that were reserved and never used — including any left over from
 	// when clicking "新对话" created one up front.
 	const pruned = await store.pruneEmpty().catch(() => 0);
