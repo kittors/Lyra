@@ -62,7 +62,7 @@
 		"@lyra/contract": "workspace:*",
 		"@lyra/core": "workspace:*",
 		"@lyra/registry-shared": "workspace:*",
-		"@modelcontextprotocol/sdk": "1.30.0",
+		"@modelcontextprotocol/sdk": "1.32.1",
 		"@prettier/plugin-php": "^0.25.0",
 		"@prettier/plugin-xml": "^3.4.2",
 		"@scalar/swift-fmt": "^0.2.0",

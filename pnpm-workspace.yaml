@@ -41,6 +41,30 @@ overrides:
   decode-uri-component: ">=0.4.3"
   lodash-es: ">=4.17.24"
 
+# Advisories with no fixed release to move to, ignored one ID at a time.
+#
+# For both, the newest published version is the vulnerable one: GitHub lists no patched version,
+# and the `>=x.y.z` that `pnpm audit` prints is only the complement of the affected range. Neither a
+# lockfile refresh nor an override has anything to move to; the alternative is dropping Expo or the
+# Clojure formatter.
+#
+# Neither is loaded by anything that runs on a user's machine:
+# - GHSA-86w9-cpqp-85rv, node-forge <=1.4.0, accepts forged RSA PKCS#1 v1.5 signatures. Only under
+#   `@expo/cli`, the mobile build and dev-server tool. The app bundle does not contain it, and the
+#   app signs no updates.
+# - GHSA-vfj7-8cjw-p6xm, braces <=3.0.3, stack exhaustion on deeply nested brace patterns. Under
+#   metro, which expands globs from this repository's own config, and under the command-line entry
+#   of `zprint-clj`. The desktop app imports zprint's library entry, which never loads fast-glob,
+#   micromatch or braces.
+#
+# An ID hides that one advisory and nothing else: a new one against the same package still fails
+# the audit. Drop an entry once a fixed release exists — `pnpm view node-forge version` past 1.4.0,
+# `pnpm view braces version` past 3.0.3.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-86w9-cpqp-85rv
+    - GHSA-vfj7-8cjw-p6xm
+
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20260818.1'
   - '@expo/cli@57.0.21'

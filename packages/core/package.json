@@ -34,7 +34,7 @@
 	},
 	"dependencies": {
 		"@lyra/registry-shared": "workspace:*",
-		"@modelcontextprotocol/sdk": "1.30.0",
+		"@modelcontextprotocol/sdk": "1.32.1",
 		"fflate": "^0.8.3",
 		"unpdf": "^1.8.1",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
