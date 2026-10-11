@@ -21,6 +21,8 @@ import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
+import { imageModelRows } from "../images/models.ts";
+import { IMAGE_TOOL_NAME } from "../images/types.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
@@ -304,10 +306,16 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	 */
 	const delegation = delegationDecision(input);
 	can.state.set(DELEGATION_KEY, delegation);
+	/*
+	 * `image_generate` only once there is something to draw with. Every call is billed to a provider the
+	 * user configured, and a tool that can only answer "no image model" costs a turn to find that out.
+	 */
+	const drawing = imageModelRows(settings.providers).length > 0;
 	const tools = can.tools.filter(
 		(tool) =>
 			(tool.name !== "learn" || memoryEnabled) &&
-			(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0),
+			(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0) &&
+			(tool.name !== IMAGE_TOOL_NAME || drawing),
 	);
 
 	/*

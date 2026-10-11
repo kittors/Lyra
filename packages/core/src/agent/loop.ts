@@ -87,6 +87,8 @@ export interface AgentRunConfig {
 	projectRoots?: ToolContext["projectRoots"];
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
+	/** Passed through to the tools; see `ToolContext.images`. */
+	images?: ToolContext["images"];
 	spawnSubAgent?: ToolContext["spawnSubAgent"];
 	/** 这段对话的缓存键，每个请求都带上——见 `RequestOptions.cacheKey`。 */
 	cacheKey?: string;

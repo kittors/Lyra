@@ -69,6 +69,14 @@ export interface ModelConfig {
 	supportsThinking: boolean;
 	supportsImages: boolean;
 	supportsTools: boolean;
+	/**
+	 * Draws images rather than writing replies.
+	 *
+	 * Absent means "judge by the name" (`isImageModel` in `images/models.ts`), which is what every
+	 * model stored before this existed gets. An image model is left out of the chat pickers and offered
+	 * to the `image_generate` tool instead.
+	 */
+	imageOutput?: boolean;
 	pricing?: ModelPricing;
 	/** Explicit upstream identity for opaque relay aliases; never changes the wire modelId. */
 	catalogRef?: { providerId: string; modelId: string };

@@ -87,7 +87,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|rules/condition|runtime/delegation)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|rules/condition|runtime/delegation|images/models)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

@@ -516,6 +516,13 @@ export interface Settings {
 	/** Default for new side chats; null follows the main conversation. */
 	sideChatModelId?: string | null;
 	/**
+	 * The image model `image_generate` draws with unless the conversation names another.
+	 *
+	 * Null or unset means the first image model configured — so adding one is all it takes to start
+	 * drawing, and this only matters to someone with several.
+	 */
+	imageModelId?: string | null;
+	/**
 	 * Models pinned to the top of the picker, in the order they were starred.
 	 *
 	 * A relay can serve thirty models and most people use three. Ordering the list by anything

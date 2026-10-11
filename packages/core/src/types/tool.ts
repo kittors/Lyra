@@ -6,6 +6,7 @@
  * one context object rather than through imports, which is what lets a host substitute any of it.
  */
 
+import type { ImageHost } from "../images/types.ts";
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
@@ -156,6 +157,14 @@ export interface ToolContext {
 		files: { path: string; content: string }[];
 		entry?: string;
 	}) => Promise<{ id: string; sessionId: string; title: string; entry: string; dir: string }>;
+	/**
+	 * Draw with one of the user's image models; see `images/types.ts`.
+	 *
+	 * Provided by the host for the same reason as `writePreview`: which models exist and which one is
+	 * the default are settings, which a tool does not see. Absent when none is configured — and then
+	 * `image_generate` is not offered at all.
+	 */
+	images?: ImageHost;
 	logger?: Logger;
 }
 
