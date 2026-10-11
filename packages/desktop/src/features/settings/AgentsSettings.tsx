@@ -14,6 +14,7 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { InlineSelect } from "./controls.tsx";
 import { ModelSelect } from "../models/index.ts";
 import { AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
+import { ImageModelRow, SessionControl, SessionMark } from "./SessionRows.tsx";
 import { useAgentDefinitions } from "./useAgentDefinitions.ts";
 import type { AgentDefinitionRecord } from "@lyra/core";
 import { Popover, MenuBody, MenuItem, MenuSeparator, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -152,6 +153,7 @@ export function AgentsSettings() {
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, sideChatModelId: modelId || null }); }} />
 						</SessionControl>
 					</div>
+					<ImageModelRow settings={settings} disabled={saving} onChange={(imageModelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, imageModelId }); }} />
 				</Section>
 			)}
 		</div>
@@ -170,23 +172,6 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 			<div className="@container rounded-[14px] border border-line bg-card/40 p-1.5">{children}</div>
 		</section>
 	);
-}
-
-/**
- * 会话那两行的下拉，和上面智能体那一列模型对齐：宽的时候后面空出思考等级和 ⋯ 那么宽（124 + 32
- * 加两道间距），窄的时候和智能体那几行一样掉到名字下面。
- */
-function SessionControl({ children }: { children: React.ReactNode }) {
-	return (
-		<div className="flex w-full min-w-0 items-center pl-[46px] @xl:w-auto @xl:shrink-0 @xl:pl-0 @xl:pr-[164px]">
-			<div className="min-w-0 flex-1 @xl:w-[196px] @xl:flex-none [&>button]:w-full [&>button]:max-w-none">{children}</div>
-		</div>
-	);
-}
-
-/** 会话那两行没有脸，用一枚圆底的记号占住头像那一列，文字才和上面的名字对齐。 */
-function SessionMark({ icon }: { icon: React.ReactNode }) {
-	return <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-card text-ink-muted">{icon}</span>;
 }
 
 const EMPTY_FACES: Avatar[] = [

@@ -42,6 +42,9 @@ import {
 } from "./delegation.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
+import { imageHost } from "../images/host.ts";
+import { imageModelRows } from "../images/models.ts";
+import { IMAGE_TOOL_NAME } from "../images/types.ts";
 import { writePreview } from "./previews.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -253,8 +256,9 @@ export async function runSubAgent(
 	 * 只看 policy 不看等级：`off` 是用户钉死的档，跟这个子代理自己用什么推理等级跑无关。
 	 */
 	const delegationOff = normalizeDelegationPolicy((options.getSettings?.() ?? options.settings).subAgentDelegation) === "off";
-	const withoutTask =
-		maySpawn && deepEnough && !delegationOff ? fromSession : fromSession.filter((tool) => tool.name !== "task");
+	const withoutTask = (maySpawn && deepEnough && !delegationOff ? fromSession : fromSession.filter((tool) => tool.name !== "task"))
+		// The same rule as the session's: no image model, no drawing tool (`session-turn.ts`).
+		.filter((tool) => tool.name !== IMAGE_TOOL_NAME || imageModelRows(options.settings.providers).length > 0);
 
 	/*
 	 * A declared output shape turns the reply into an object.
@@ -678,6 +682,13 @@ export async function runSubAgent(
 				 * finishes, the page would outlive nothing and be found by no one.
 				 */
 				writePreview: (input) => writePreview(lyraHome(), { ...input, sessionId: options.sessionId }),
+				// Its own pictures only: a delegated run sees the brief it was given, not the attachments upstream.
+				images: imageHost({
+					providers: options.settings.providers,
+					preferred: options.settings.imageModelId,
+					messages: [],
+					state: subState,
+				}),
 				// Inherited, so a host that replaced the provider call replaced it for the whole
 				// tree — a sub-agent quietly dialling out would defeat the point of overriding it.
 				streamFn: options.streamFn,

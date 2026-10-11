@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ResolvedUiLocale } from "../src/i18n/messages/index.ts";
 import { setActiveLocale } from "../src/i18n/translate.ts";
-import { describeRun } from "../src/lib/tool-kinds.ts";
+import { describeActivity, describeRun } from "../src/lib/tool-kinds.ts";
 
 const MERGE = [
 	{ toolName: "read", subject: "merge.ts" },
@@ -53,4 +53,17 @@ test("Traditional Chinese does not end the line with 「和」", () => {
 test("French and Russian take the Latin comma too", () => {
 	assert.equal(describedIn("fr", MERGE), "Fichiers lus merge.ts, Fichiers créés merge.test.ts");
 	assert.equal(describedIn("ru", MERGE), "Чтение файлов merge.ts, Создание файлов merge.test.ts");
+});
+
+test("a drawing reads as one, and a drawing from pictures reads as an edit", () => {
+	setActiveLocale("zh-CN");
+	assert.equal(describeActivity("Image A red paper boat"), "生成图片 A red paper boat");
+	assert.equal(describeActivity("Edit image Turn it into night"), "编辑图片 Turn it into night", "not a file called 「image Turn it…」");
+	assert.equal(describeRun([{ toolName: "image_generate" }, { toolName: "image_generate" }]), "生成图片 2 个");
+	setActiveLocale("en");
+	try {
+		assert.equal(describeActivity("Edit image Turn it into night"), "Edit image Turn it into night");
+	} finally {
+		setActiveLocale("zh-CN");
+	}
 });

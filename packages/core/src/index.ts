@@ -78,6 +78,10 @@ export { loadCapabilityPlugins, type LoadedCapabilityPlugins } from "./plugins/c
 export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/index.ts";
 export type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
+export { imageDimensions } from "./images/dimensions.ts";
+export { generateImages } from "./images/generate.ts";
+export { imageModelRows, isImageModel, isImageModelId, resolveImageModel } from "./images/models.ts";
+export type { ImageGenerationDetails, ImageRequest, ImageResult } from "./images/types.ts";
 export { runAgent, type AgentRunConfig, type AgentRunResult } from "./agent/loop.ts";
 export { errorResult, textResult } from "./agent/tool-run.ts";
 export { runTurn, useAgentLoop, type AgentLoop } from "./agent/runner.ts";

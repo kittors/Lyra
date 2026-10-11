@@ -10,6 +10,7 @@ import { RuleSuggestion } from "./RuleSuggestion.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
 import { BrowserCards } from "./BrowserCard.tsx";
+import { ImageGenerationCards } from "./ImageGenerationCard.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
@@ -474,6 +475,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
              * 在「打开页面」那段工作底下，跑完之后还在那一行底下，位置不动。
              */
             const pages = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "browser_open").map(({ block: call }) => call.id) : []));
+            // Pictures drawn in this stretch go outside the process block too: they are the turn's answer, not how it got there.
+            const drawings = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call) : []));
             // 这一轮派出去的子智能体。收起之后「调用工具 N 个」那一行尾巴上还挂着它们的脸。
             const delegated = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "task").map(({ block: call }) => call) : []));
             return (
@@ -496,6 +499,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                   {block.runs.map(draw)}
                 </TurnProcess>
                 {pages.length > 0 && <BrowserCards calls={pages} />}
+                {drawings.length > 0 && <ImageGenerationCards calls={drawings} />}
               </Fragment>
             );
           })}

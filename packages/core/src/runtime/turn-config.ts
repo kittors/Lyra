@@ -31,6 +31,7 @@ import { lyraHome } from "../session/store.ts";
 import { compactWith } from "./compaction.ts";
 import type { ArtifactSink } from "./prune.ts";
 import { textTokens, toolTokens } from "./context.ts";
+import { imageHost } from "../images/host.ts";
 import { writePreview } from "./previews.ts";
 import { runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -140,6 +141,16 @@ export function buildTurnConfig(
 			 */
 			writePreview: (input) =>
 				writePreview(lyraHome(), { ...input, sessionId: deps.sessionId }),
+			/*
+			 * From this turn's settings, like the tool list it decides (`session-turn.ts`): an image model
+			 * added halfway through a turn arrives with the next one, together with the tool.
+			 */
+			images: imageHost({
+				providers: deps.settings.providers,
+				preferred: deps.settings.imageModelId,
+				messages: turn.messages,
+				state: deps.state,
+			}),
 			requestApproval: (request) => deps.requestApproval(request),
 			/*
 			 * What this turn's commands may change, derived from the permission mode.

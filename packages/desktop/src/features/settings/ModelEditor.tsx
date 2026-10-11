@@ -1,4 +1,5 @@
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
+import { isImageModel, isImageModelId } from "@lyra/core/image-models";
 import { catalogModelFor, catalogPricing, withCatalogDefaults, type CatalogMatch } from "@lyra/core/model-catalog";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "lucide-react";
@@ -50,6 +51,14 @@ export function ModelEditor({
 	const [supportsThinking, setSupportsThinking] = useState(model?.supportsThinking ?? true);
 	const [supportsImages, setSupportsImages] = useState(model?.supportsImages ?? true);
 	const [supportsTools, setSupportsTools] = useState(model?.supportsTools ?? true);
+	/*
+	 * Whether this model draws. Follows the id until somebody flips it: `gemini-3.1-flash-image` is an
+	 * image model by name, and a house's own name for one (`house-artist`) is not — that is what the
+	 * switch is for. Stored only when it disagrees with the name, so a model nobody overrode keeps
+	 * following the rule as the rule improves.
+	 */
+	const [imageOutput, setImageOutput] = useState(model ? isImageModel(model) : false);
+	const [imageTouched, setImageTouched] = useState(model?.imageOutput !== undefined);
 	const [priceIn, setPriceIn] = useState(String(initialPricing?.input ?? ""));
 	const [priceOut, setPriceOut] = useState(String(initialPricing?.output ?? ""));
 	const [priceCacheRead, setPriceCacheRead] = useState(String(initialPricing?.cacheRead ?? ""));
@@ -100,6 +109,7 @@ export function ModelEditor({
 	function changeModelId(value: string) {
 		setModelId(value);
 		setCatalogRef(undefined);
+		if (!imageTouched) setImageOutput(isImageModelId(value));
 		const found = catalogModelFor(provider, value);
 		if (found) applyCatalog(found);
 		else {
@@ -119,7 +129,7 @@ export function ModelEditor({
 		if (!valid) return;
 		const [parsedIn, parsedOut, parsedCacheRead, parsedCacheWrite] = prices;
 		const cataloguePricing = pricingSource === "catalog" && catalog ? catalogPricing(catalog.provider.id, catalog.model) : null;
-		onSave({
+		const next: ModelConfig = {
 			...model,
 			id: `${provider.id}/${trimmedId}`,
 			providerId: provider.id,
@@ -143,7 +153,11 @@ export function ModelEditor({
 						source: cataloguePricing ? "catalog" : "manual",
 					}
 					: undefined,
-		});
+		};
+		// Kept only where it disagrees with the name; agreeing again removes an override saved earlier.
+		if (imageOutput === isImageModelId(trimmedId)) delete next.imageOutput;
+		else next.imageOutput = imageOutput;
+		onSave(next);
 	}
 
 	return (
@@ -175,14 +189,15 @@ export function ModelEditor({
 
 						<ModelCatalog match={catalog} onApply={applyCatalog} />
 
-						<div className="grid grid-cols-2 gap-3">
+						{/* A model that draws has no context window or output cap worth setting; hidden, not cleared. */}
+						{!imageOutput && <div className="grid grid-cols-2 gap-3">
 							<Field label={t("modelEditor.context")}>
 								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) changeMetadata(setContextWindow, value); }} mono inputMode="numeric" />
 							</Field>
 							<Field label={t("modelEditor.maxOutput")}>
 								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) changeMetadata(setMaxOutput, value); }} mono inputMode="numeric" />
 							</Field>
-						</div>
+						</div>}
 
 						<div className="grid grid-cols-2 gap-3">
 							<Field label={t("modelEditor.inputPrice")}>
@@ -208,9 +223,18 @@ export function ModelEditor({
 
 						{!catalog && <p className="text-detail text-ink-muted">{t("modelEditor.unverified")}</p>}
 						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
-							<Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={(value) => changeMetadata(setSupportsThinking, value)} />
+							<Capability
+								label={t("modelEditor.imageOutput")}
+								hint={t("modelEditor.imageOutputDetail")}
+								checked={imageOutput}
+								onChange={(value) => {
+									setImageTouched(true);
+									setImageOutput(value);
+								}}
+							/>
+							{!imageOutput && <Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={(value) => changeMetadata(setSupportsThinking, value)} />}
 							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={(value) => changeMetadata(setSupportsImages, value)} />
-							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />
+							{!imageOutput && <Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />}
 						</div>
 					</div>
 				</DialogFrame>
@@ -219,10 +243,13 @@ export function ModelEditor({
 	);
 }
 
-function Capability({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function Capability({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }) {
 	return (
-		<label className="flex items-center justify-between">
-			<span className="text-label text-ink">{label}</span>
+		<label className="flex items-center justify-between gap-4">
+			<span className="min-w-0">
+				<span className="block text-label text-ink">{label}</span>
+				{hint && <span className="mt-0.5 block text-detail text-ink-faint">{hint}</span>}
+			</span>
 			<Toggle checked={checked} onChange={onChange} />
 		</label>
 	);

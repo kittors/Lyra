@@ -1,0 +1,47 @@
+/* ---------------------------------------------------------------------------
+ * Drawn pictures in the conversation (`conversation/ImageFrame.tsx`).
+ * ------------------------------------------------------------------------- */
+
+/*
+ * A picture arriving: from soft to sharp rather than from nothing.
+ *
+ * The dots it replaces already had the picture's shape, so a picture that resolves out of them reads
+ * as the same thing finishing rather than a different thing appearing. The dots fade out from under
+ * it on their own.
+ */
+@keyframes ly-image-reveal {
+  from {
+    opacity: 0;
+    filter: blur(14px) saturate(0.7);
+    transform: scale(1.025);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+.ly-image-reveal {
+  animation: ly-image-reveal 650ms var(--ly-e-out) both;
+}
+
+/*
+ * The buttons on a drawn picture: glass over whatever the picture is, so they read on a white sticker
+ * and on a night sky alike. No border and no shadow — the glass is the edge.
+ */
+.ly-image-action {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  color: rgb(255 255 255 / 0.96);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-image-action:hover {
+  background: rgb(0 0 0 / 0.58);
+}

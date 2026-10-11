@@ -54,6 +54,12 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			return `Skill: ${str("name") ?? ""}`.trim() || "Skill";
 		case "web_fetch":
 			return `Fetch ${str("url") ?? ""}`.trim() || "Fetch URL";
+		case "image_generate": {
+			// The same words core's `summarize` uses, so a reopened conversation reads like a live one.
+			const prompt = (str("prompt") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+			const edit = Array.isArray(args.images) && args.images.length > 0;
+			return `${edit ? "Edit image" : "Image"} ${prompt}`.trim();
+		}
 		default:
 			// MCP tools are named mcp__<server>__<tool>; show the readable half.
 			if (name.startsWith("mcp__")) {

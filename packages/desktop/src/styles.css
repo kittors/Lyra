@@ -60,6 +60,7 @@
 @import "./styles/pull-requests.css";
 @import "./styles/trajectory.css";
 @import "./styles/avatar.css";
+@import "./styles/image-gen.css";
 
 /* Last, so it can override anything above when the interface is on a phone. */
 @import "./styles/phone.css";

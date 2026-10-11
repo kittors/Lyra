@@ -12,6 +12,7 @@
 
 import { translate } from "../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig, Settings } from "@lyra/core";
+import { isImageModel } from "@lyra/core/image-models";
 
 export interface ModelGroup {
 	provider: ProviderConfig;
@@ -32,10 +33,17 @@ export interface ModelRow {
  * more than the row it saves. A provider with no models is left out — a heading over nothing is a
  * heading that reads as a failed load.
  */
-export function groupModels(providers: ProviderConfig[] | undefined): ModelGroup[] {
+export function groupModels(providers: ProviderConfig[] | undefined, kind: "chat" | "image" = "chat"): ModelGroup[] {
+	/*
+	 * Chat pickers leave image models out, and the image picker keeps only them. A model that draws
+	 * cannot hold a conversation — picked for one, every turn fails on the first request — and one
+	 * that cannot draw offered to `image_generate` fails on every picture.
+	 */
+	const wanted = (model: ModelConfig) => isImageModel(model) === (kind === "image");
 	return (providers ?? [])
-		.filter((provider) => provider.enabled && provider.models.length > 0)
-		.map((provider) => ({ provider, models: provider.models }));
+		.filter((provider) => provider.enabled)
+		.map((provider) => ({ provider, models: provider.models.filter(wanted) }))
+		.filter((group) => group.models.length > 0);
 }
 
 /** Every row, in drawing order — what the number keys count through. */
