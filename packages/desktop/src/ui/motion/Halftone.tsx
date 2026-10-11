@@ -76,7 +76,9 @@ export function Halftone({ className = "" }: { className?: string }) {
 		const element = canvas.current;
 		const context = element?.getContext("2d");
 		if (!element || !context) return;
-		const born = performance.now();
+		// Each field starts somewhere of its own along the blobs' paths: two pictures drawn side by side
+		// would otherwise be the same pattern, moving in lockstep.
+		const born = performance.now() - Math.random() * 60_000;
 		const still = motionReduced();
 		let size = { width: 0, height: 0 };
 		let frame = 0;

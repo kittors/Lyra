@@ -12,18 +12,15 @@
  *   node --experimental-strip-types e2e/image-generation-demo.ts   # records into ~/Desktop/Lyra生图测试
  */
 
-import { createServer, type IncomingMessage } from "node:http";
-import { readdir, readFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
+import { boatPictures, relaySettings, startFakeImageRelay, type Scene } from "./fake-image-relay.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 const PORT = 9441;
 const OUT = join(homedir(), "Desktop", "Lyra生图测试");
-/** Two flat illustrations standing in for what the model draws: a boat by day, and the same boat at night. */
-const ART = join(dirname(fileURLToPath(import.meta.url)), "assets");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 /** How long the fake model takes to draw; long enough to watch the dots and the percentage move. */
 const DRAW_MS = Number(process.env.LYRA_PROBE_DRAW_MS ?? 7000);
@@ -34,95 +31,11 @@ function check(name: string, ok: boolean, detail: string) {
 	console.log(`${ok ? "✅" : "❌"} ${name}\n     ${detail}`);
 }
 
-interface Seen {
-	path: string;
-	body: Record<string, unknown>;
-}
-const seen: Seen[] = [];
-
-async function bodyOf(req: IncomingMessage): Promise<Record<string, unknown>> {
-	const chunks: Buffer[] = [];
-	for await (const chunk of req) chunks.push(chunk as Buffer);
-	try {
-		return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-	} catch {
-		return {};
-	}
-}
-
-type ChatMessage = { role: string; content?: unknown; tool_call_id?: string };
-
-/** The last thing a person said, skipping the `<env>` block the runtime appends to every turn. */
-function lastWords(messages: ChatMessage[]): { text: string; index: number } {
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages[index];
-		if (message.role !== "user") continue;
-		const parts = Array.isArray(message.content) ? (message.content as { type: string; text?: string }[]) : [{ type: "text", text: String(message.content ?? "") }];
-		const text = parts.filter((part) => part.type === "text" && part.text && !part.text.trimStart().startsWith("<env>")).map((part) => part.text).join(" ");
-		if (text.trim()) return { text, index };
-	}
-	return { text: "", index: -1 };
-}
-
-/** The three scenes the conversation walks through, keyed by what the person says. */
-const SCENES = [
+const SCENES: Scene[] = [
 	{ cue: "纸船", call: "call_draw_boat", args: { prompt: "A red origami paper boat floating on calm blue water at midday, soft sunlight, gentle hills on the horizon, flat illustration", aspect_ratio: "16:9" }, reply: "画好了：一只停在平静水面上的红色纸船。" },
 	{ cue: "夜晚", call: "call_edit_night", args: { prompt: "Turn the scene into a starry night with a full moon; keep the boat, its colours and the composition the same", images: ["#1"], aspect_ratio: "16:9" }, reply: "改成夜晚了，纸船和构图保持不变。" },
 	{ cue: "正方形", call: "call_draw_square", args: { prompt: "The same red paper boat, square composition", aspect_ratio: "1:1" }, reply: "这次没画出来：生图模型的额度用完了，大约两个小时后恢复。" },
 ];
-
-function relay(art: { day: string; night: string }) {
-	return createServer(async (req, res) => {
-		const path = (req.url ?? "").replace(/\?.*$/, "");
-		const body = await bodyOf(req);
-		seen.push({ path, body });
-		const json = (status: number, value: unknown) => {
-			res.writeHead(status, { "content-type": "application/json" });
-			res.end(JSON.stringify(value));
-		};
-		if (path.endsWith("/images/generations") || path.endsWith("/images/edits")) {
-			if (body.aspect_ratio === "1:1") {
-				// Antigravity's own words for a spent quota, as the relay passes them on.
-				return json(429, { error: { message: JSON.stringify({ error: { code: 429, message: "You have exhausted your capacity on this model. Your quota will reset after 1h52m45s.", status: "RESOURCE_EXHAUSTED" } }), type: "invalid_request_error" } });
-			}
-			await pause(DRAW_MS);
-			const picture = path.endsWith("/edits") ? art.night : art.day;
-			return json(200, { created: Math.floor(Date.now() / 1000), data: [{ b64_json: picture }], output_format: "jpeg", size: "1408x792", usage: { input_tokens: 37, output_tokens: 1290, total_tokens: 1327 } });
-		}
-		if (!path.endsWith("/chat/completions")) return json(404, { error: { message: `not here: ${path}` } });
-
-		res.writeHead(200, { "content-type": "text/event-stream" });
-		const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-		const finish = (reason: string) => {
-			send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: reason }] });
-			send({ id: "c", object: "chat.completion.chunk", choices: [], usage: { prompt_tokens: 40, completion_tokens: 12, total_tokens: 52 } });
-			res.end("data: [DONE]\n\n");
-		};
-		const tools = Array.isArray(body.tools) ? (body.tools as { function?: { name?: string } }[]) : [];
-		const text = async (words: string) => {
-			for (const piece of words.match(/.{1,3}/gu) ?? []) {
-				send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { content: piece }, finish_reason: null }] });
-				await pause(45);
-			}
-			finish("stop");
-		};
-		// The title request has no tools.
-		if (tools.length === 0) return text("画一只红色纸船");
-		const messages = (body.messages ?? []) as ChatMessage[];
-		const words = lastWords(messages);
-		const scene = SCENES.find((each) => words.text.includes(each.cue)) ?? SCENES[0];
-		const answered = messages.slice(words.index + 1).some((message) => message.role === "tool");
-		if (answered) return text(scene.reply);
-		await pause(400);
-		send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: scene.call, type: "function", function: { name: "image_generate", arguments: "" } }] }, finish_reason: null }] });
-		const args = JSON.stringify(scene.args);
-		for (let at = 0; at < args.length; at += 24) {
-			send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: args.slice(at, at + 24) } }] }, finish_reason: null }] });
-			await pause(20);
-		}
-		finish("tool_calls");
-	});
-}
 
 let app: RunningApp;
 
@@ -166,11 +79,8 @@ interface CardFrame {
 
 async function main() {
 	await mkdir(OUT, { recursive: true });
-	const art = { day: (await readFile(join(ART, "image-gen-day.jpg"))).toString("base64"), night: (await readFile(join(ART, "image-gen-night.jpg"))).toString("base64") };
-	const endpoint = relay(art);
-	await new Promise<void>((resolve) => endpoint.listen(0, "127.0.0.1", resolve));
-	const address = endpoint.address();
-	if (!address || typeof address === "string") throw new Error("the fake relay got no port");
+	const relay = await startFakeImageRelay({ scenes: SCENES, art: await boatPictures(), drawMs: DRAW_MS });
+	const seen = relay.seen;
 
 	app = await startApp({
 		port: PORT,
@@ -178,45 +88,7 @@ async function main() {
 			const cwd = join(home, "project");
 			await mkdir(cwd, { recursive: true });
 			await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860, x: 0, y: 0 }));
-			const model = (modelId: string, extra: Record<string, unknown> = {}) => ({
-				id: `relay/${modelId}`,
-				providerId: "relay",
-				modelId,
-				name: modelId,
-				contextWindow: 200000,
-				maxOutputTokens: 8192,
-				supportsThinking: false,
-				supportsImages: true,
-				supportsTools: true,
-				...extra,
-			});
-			await writeFile(
-				join(home, "settings.json"),
-				JSON.stringify({
-					uiLocale: "zh-CN",
-					permissionMode: "full",
-					projectMemory: false,
-					thinking: "off",
-					autoSummarizeTitle: false,
-					mcpServers: [],
-					hooks: [],
-					sync: { enabled: false },
-					appearance: { theme: "light" },
-					projects: [{ path: cwd, name: "生图演示", pinned: true, lastOpenedAt: Date.now() }],
-					defaultModelId: "relay/gemini-3.8-flash-high",
-					providers: [
-						{
-							id: "relay",
-							name: "中转站",
-							api: "openai-chat-completions",
-							baseUrl: `http://127.0.0.1:${address.port}`,
-							apiKey: "probe-key",
-							enabled: true,
-							models: [model("gemini-3.8-flash-high"), model("gemini-3.1-flash-image", { supportsTools: false })],
-						},
-					],
-				}),
-			);
+			await writeFile(join(home, "settings.json"), relaySettings(relay.port, cwd));
 		},
 	});
 
@@ -393,7 +265,7 @@ async function main() {
 		const home = app.home;
 		await app.stop();
 		await rm(home, { recursive: true, force: true });
-		endpoint.close();
+		relay.close();
 		if (frames.length > 0) {
 			const video = join(OUT, `${stamp}_对话里生图_${passed}of${results.length}.mp4`);
 			await encode(frames, video);
