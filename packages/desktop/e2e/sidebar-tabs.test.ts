@@ -414,6 +414,71 @@ test("nothing surfaces above the strip: what goes under it has faded out on the 
 });
 
 /*
+ * The same, on every frame of a fling rather than where it stops.
+ *
+ * At rest every row has long since been told where the pinned rows end, so the test above held even
+ * while that line was only written to the rows near the top, a frame after they got there. A fling is
+ * when that frame matters: a row, or a heading being pushed out, travels from below the written stretch
+ * to under the strip within two frames and arrives with a stale line — on a real sidebar at 5200px/s,
+ * 27 of 364 frames drew one whole across the tab strip. The line is fixed by structure now
+ * (`writeBandEdge` in `useStickyFade`), and this is the frame-by-frame claim.
+ */
+test("a fast fling never draws a row or a pushed-out heading across the pinned rows", async () => {
+	await scrollTo(0);
+	await app.evaluate(`(() => {
+		const view = ${VIEW};
+		const out = { frames: 0, leaks: [], stop: false };
+		window.__fling = out;
+		const tick = () => {
+			out.frames++;
+			const origin = view.getBoundingClientRect().top;
+			const rail = Number.parseFloat(getComputedStyle(view).getPropertyValue("--ly-rail")) || 0;
+			const heads = [...view.querySelectorAll("[data-ly-head]")];
+			let cover = view.querySelector("[data-ly-rail]").getBoundingClientRect().bottom;
+			for (const head of heads) {
+				const r = head.getBoundingClientRect();
+				if (Math.abs(r.top - origin - rail) < 1.5) cover = Math.max(cover, r.bottom);
+			}
+			for (const el of view.querySelectorAll("[data-ly-row], [data-ly-fades]")) {
+				const r = el.getBoundingClientRect();
+				if (r.bottom <= origin || r.top >= cover - 0.5) continue;
+				const opacity = Number(getComputedStyle(el).opacity);
+				if (opacity > 0.08) out.leaks.push({ frame: out.frames, top: Math.round(r.top - origin), opacity, text: el.textContent.slice(0, 20) });
+			}
+			for (const head of heads) {
+				const r = head.getBoundingClientRect();
+				if (r.top - origin >= rail - 1.5 || r.bottom <= origin) continue;
+				const opacity = Number(getComputedStyle(head).opacity);
+				if (opacity > 0.08) out.leaks.push({ frame: out.frames, top: Math.round(r.top - origin), opacity, text: "heading " + head.textContent.slice(0, 20) });
+			}
+			if (!out.stop) requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+		return true;
+	})()`);
+	const centre = await app.evaluate<{ x: number; y: number }>(
+		`(() => { const r = ${VIEW}.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`,
+	);
+	// One continuous gesture each way, at the speed of a trackpad flick; a train of separate wheel
+	// events is a new gesture per tick and arrives far gentler than this.
+	for (let round = 0; round < 3; round++) {
+		for (const direction of [1, -1]) {
+			await app.send("Input.synthesizeScrollGesture", { x: centre.x, y: centre.y, yDistance: -direction * 1400, speed: 5200, gestureSourceType: "mouse" });
+		}
+	}
+	const seen = await app.evaluate<{ frames: number; leaks: { frame: number; top: number; opacity: number; text: string }[] }>(
+		`(() => { window.__fling.stop = true; return { frames: window.__fling.frames, leaks: window.__fling.leaks }; })()`,
+	);
+	await scrollTo(0);
+	assert.ok(seen.frames > 60, `the fling was watched frame by frame (${seen.frames} frames)`);
+	assert.equal(
+		seen.leaks.length,
+		0,
+		`${seen.leaks.length} drawings across the pinned rows in ${seen.frames} frames, first: ${JSON.stringify(seen.leaks.slice(0, 3))}`,
+	);
+});
+
+/*
  * And no pinned row paints anything of its own, held or not.
  *
  * A fill was there to hide the list going under a held row, and a fill is a colour: the pane's own,

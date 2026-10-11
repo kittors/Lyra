@@ -10,13 +10,15 @@
  * of their own and the translucent pane stayed translucent. It worked and it was wrong: the list
  * scrolls on the compositor and the placement ran on the main thread, so every pinned row sat one
  * wheel tick behind the list — measured at 14px of wobble on a trackpad. Pinned rows stay inside
- * the scroller now, and this number is all that is left: the mask softens below it, and the list
- * rows fade out against it before they slide under a pinned row (`ly-under-pin`), since the pinned
- * rows have no fill to hide them — the pane is translucent on macOS.
+ * the scroller now, and this number is all that is left: the mask softens below it. The list rows
+ * also fade out before they slide under a pinned row (`ly-under-pin`), since the pinned rows have no
+ * fill to hide them — the pane is translucent on macOS — but not against this number: their line is
+ * fixed by which group they sit in (`writeBandEdge` in `useStickyFade`).
  *
  * Being a frame late here costs nothing, which is the point of the split: the rows are placed by
  * CSS and cannot lag, and a fade whose start is a few pixels stale is a gradient in a slightly
- * different place — not a row that jumps.
+ * different place — not a row that jumps. A row's own fade being late was not harmless, and is why
+ * that line stopped being measured: a stale one drew whole rows across the tab strip on a fling.
  */
 
 /** A pinned row, measured from the top of the scroll viewport. */

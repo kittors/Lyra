@@ -164,6 +164,12 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/audit-fixes-demo.ts", "/tmp/regression-tools"]],
 	},
+	{
+		id: "SIDEBAR-fling",
+		what: "侧栏快甩时会话行和被推出的项目名整行画在标签条上下",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "--test-name-pattern=fast fling", "packages/desktop/e2e/sidebar-tabs.test.ts"]],
+	},
 ];
 
 const pass = [];

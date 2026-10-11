@@ -444,27 +444,20 @@
  * what is outside the window. So it is turned around: the list fades itself out before it reaches a
  * pinned row, and nothing under a pinned row needs hiding. One path on every platform.
  *
- * The line is `--ly-held-edge`: the underside of the run of rows already pinned, measured every frame by
- * `useStickyFade` and written to the rows in the top stretch. A row starts fading when its top is 36px
- * from the line (`FADE_TOP`, the depth the mask softens over), reaches 0 as it touches the line, and stays
- * 0 after. A scroll-driven animation rather than a script setting opacity per frame: it follows the scroll
- * on the compositor and cannot be a frame late — a frame late is a line of text showing through under a
- * pinned row.
+ * The line is fixed by where a row sits. Inside a group (`data-ly-band`) it is the underside of that
+ * group's heading once held, `--ly-band-edge`, which `useStickyFade` writes on the group when it measures
+ * the heading; outside every group only the strip is above, so it is the rail. It is not measured per
+ * frame: a measured line reaches a row that a fling has just carried to the top a frame or two late, and
+ * a stale line is a row drawn whole across the tab strip (`writeBandEdge` has the numbers). A row starts
+ * fading when its top is 36px from the line (`FADE_TOP`, the depth the mask softens over), reaches 0 as it
+ * touches the line, and stays 0 after. A scroll-driven animation rather than a script setting opacity per
+ * frame: it follows the scroll on the compositor and cannot be a frame late — a frame late is a line of
+ * text showing through under a pinned row.
  *
  * A row being dragged is `opacity-35`, which the animation would override, so its start reads
  * `--ly-rest`. A newly created row has the `ly-drop` entrance; the two animations have to be declared
  * together, or the later declaration replaces the earlier one outright.
  */
-/*
- * Not inherited: only the elements reading it carry a value, so a change recomputes just those and not
- * the whole subtree under them. Who it is written to: `NEAR_TOP` in `useStickyFade`.
- */
-@property --ly-held-edge {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
 @keyframes ly-under-pin {
   from {
     opacity: var(--ly-rest, 1);
@@ -476,7 +469,7 @@
 
 .ly-sidebar-fill :is([data-ly-row], [data-ly-fades]) {
   animation: ly-under-pin linear both;
-  animation-timeline: view(block calc(var(--ly-held-edge, 0px) + 36px) 0);
+  animation-timeline: view(block calc(var(--ly-band-edge, var(--ly-rail, 0px)) + 36px) 0);
   animation-range: exit 0% exit 36px;
 }
 
@@ -484,7 +477,7 @@
   animation:
     ly-under-pin linear both,
     ly-drop-in var(--ly-t-base) var(--ly-e-out);
-  animation-timeline: view(block calc(var(--ly-held-edge, 0px) + 36px) 0), auto;
+  animation-timeline: view(block calc(var(--ly-band-edge, var(--ly-rail, 0px)) + 36px) 0), auto;
   animation-range: exit 0% exit 36px, normal;
 }
 
@@ -496,13 +489,13 @@
  * A heading pushed out by the next one also has to fade before it slides under the tab strip.
  *
  * It is sticky, so its own position says nothing; its group's does: the group's bottom edge reaching the
- * pinned run's underside is the moment the next heading starts pushing it. So it starts fading with the
- * group's bottom 36px from the line and is at 0 when the push begins. A folded group is only its heading,
- * and the same rule fades it before the top like an ordinary row.
+ * heading's held underside (`--ly-band-edge`) is the moment the next heading starts pushing it. So it
+ * starts fading with the group's bottom 36px from that line and is at 0 when the push begins. A folded
+ * group is only its heading, and the same rule fades it before the top like an ordinary row.
  */
 .ly-sidebar-fill [data-ly-band] {
   view-timeline: --ly-band block;
-  view-timeline-inset: var(--ly-held-edge, 0) auto;
+  view-timeline-inset: var(--ly-band-edge, var(--ly-rail, 0)) auto;
 }
 
 .ly-sidebar-fill [data-ly-band] > [data-ly-head] {
