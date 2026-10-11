@@ -154,17 +154,40 @@ test("element inspection blocks page clicks and sends a real screenshot with DOM
 
 test("region selection captures the dragged bounds and native DevTools is available", async (t) => {
 	await menu("框选区域");
-	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__lyra_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
-	await app.evaluate(`new Promise(resolve=>{let before='',same=0;const f=()=>{const now=JSON.stringify(document.querySelector('webview').getBoundingClientRect());same=now===before?same+1:0;before=now;if(same>=3)resolve();else requestAnimationFrame(f);};f();})`);
-	const area = await app.evaluate<{x:number;y:number;scale:number}>(`(async()=>{const r=document.querySelector('webview').getBoundingClientRect();return {x:r.x,y:r.y,scale:Math.min(1,r.width/390,r.height/844)}})()`);
-	const start = {x:area.x+22*area.scale,y:area.y+22*area.scale}, end = {x:area.x+342*area.scale,y:area.y+212*area.scale};
+	// The tab on show, not the first <webview> in the document: every open tab keeps its own.
+	const page = `[...document.querySelectorAll('webview')].find(p=>getComputedStyle(p).visibility==='visible')`;
+	await app.evaluate(`${page}.executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__lyra_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
+	await app.evaluate(`new Promise(resolve=>{let before='',same=0;const f=()=>{const now=JSON.stringify(${page}.getBoundingClientRect());same=now===before?same+1:0;before=now;if(same>=3)resolve();else requestAnimationFrame(f);};f();})`);
+	/*
+	 * A band across the page, chosen in the page's own pixels and pressed where the page is drawn.
+	 *
+	 * Clear of the page's left edge: a pane can sit against the sidebar, whose resize strip hangs 8px
+	 * over its neighbour (`ResizeHandle`), and a press there drags the sidebar instead. In a 1024px
+	 * window the browser stacks under the conversation and this 390px page is drawn at under a quarter
+	 * of its size, so 22 page pixels in from the edge were 5 on screen — inside that strip.
+	 */
+	const drag = await app.evaluate<{start:{x:number;y:number};end:{x:number;y:number};scale:number;dpr:number}>(`(async()=>{
+		const el=${page},r=el.getBoundingClientRect(),state=await window.lyra.browser.state(),tab=state.tabs.find(t=>t.id===state.activeId);
+		const scale=(tab.viewport?Math.min(1,r.width/tab.viewport.width,r.height/tab.viewport.height):1)*tab.zoom;
+		const start={x:r.x+70*scale,y:r.y+22*scale},end={x:r.x+350*scale,y:r.y+212*scale};
+		for(const {x,y} of [start,end]){${landsOn("the visible webview")}}
+		return {start,end,scale,dpr:devicePixelRatio};
+	})()`);
+	const { start, end } = drag;
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...start});
 	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",buttons:1,clickCount:1,...start});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",button:"left",buttons:1,...end});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...end});
 	await until(`document.querySelector('[data-browser-selection] img')?.naturalWidth > 0`);
 	const size=await app.evaluate<{width:number;height:number}>(`(()=>{const i=document.querySelector('[data-browser-selection] img');return {width:i.naturalWidth,height:i.naturalHeight}})()`);
-	assert.ok(size.width > size.height && size.height > 50);t.diagnostic(JSON.stringify({region:size,scale:area.scale}));
+	/*
+	 * The picture is the band that was dragged: its size on screen, in the window's device pixels.
+	 * It used to be `height > 50`, a floor that only held while the page was drawn near full size —
+	 * and one that a capture ignoring the page's scale altogether would still have cleared.
+	 */
+	const expected = { width: (end.x - start.x) * drag.dpr, height: (end.y - start.y) * drag.dpr };
+	t.diagnostic(JSON.stringify({ region: size, expected, scale: drag.scale }));
+	assert.ok(Math.abs(size.width - expected.width) <= 2 * drag.dpr && Math.abs(size.height - expected.height) <= 2 * drag.dpr, JSON.stringify({ size, expected }));
 	await app.evaluate(`document.querySelector('[aria-label="取消选择"]').click()`);
 	await menu("开发者工具");
 	let target: {id:string;url:string} | undefined;

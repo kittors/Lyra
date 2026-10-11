@@ -85,11 +85,15 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 		if (evidence.clicks.length !== 8 || evidence.clicks.some((label, i) => label !== (i % 2 ? "退出全屏：Git" : "全屏：Git"))) failures.push(`${theme}/${width}: a native click missed its fullscreen control`);
 		if (xRange > 0.5 || visible.some((frame) => Math.abs(frame.width - 20) > 0.5 || Math.abs(frame.height - 20) > 0.5 || Math.abs(frame.rightGap - (visible[0]?.rightGap ?? 0)) > 0.5)) failures.push(`${theme}/${width}: header geometry drifted while its right boundary stayed fixed`);
 		if (headingRange > 0.5 || visible.some((frame) => frame.cardGap < 0)) failures.push(`${theme}/${width}: title left its visual card during reversal`);
-		const headerPad = await app.evaluate<number>(`(()=>{const h=document.querySelector('[data-ly-window-header]');return h?parseFloat(getComputedStyle(h).paddingRight):0;})()`);
-		// Caption buttons live on the window header. A pane that still sits on that row must
-		// reserve them itself; once the header exists, 6px pane padding is correct.
-		if (/Win/.test(evidence.nativePlatform) && headerPad <= 6 && !(visible[0] && visible[0].paddingEnd > 6)) {
-			failures.push(`${theme}/${width}: Windows titlebar controls were not reserved`);
+		/*
+		 * Caption buttons live on the window's toolbar (`WindowFrame`), which keeps their width clear at
+		 * its end. A pane whose title bar still reached up into that row would have to reserve them
+		 * itself; one that starts below it is right to keep its 6px.
+		 */
+		const caption = await app.evaluate<{ pad: number; bottom: number; paneTop: number }>(`(()=>{const h=document.querySelector('[data-ly-main-toolbar]'),r=h?.getBoundingClientRect();return {pad:h?parseFloat(getComputedStyle(h).paddingRight):0,bottom:r?r.bottom:0,paneTop:document.querySelector('${pane} [data-dock-header]').getBoundingClientRect().top};})()`);
+		const onCaptionRow = caption.paneTop < caption.bottom - 0.5;
+		if (/Win/.test(evidence.nativePlatform) && (caption.pad <= 6 || onCaptionRow) && !(visible[0] && visible[0].paddingEnd > 6)) {
+			failures.push(`${theme}/${width}: Windows titlebar controls were not reserved ${JSON.stringify(caption)}`);
 		}
 		if (process.env.LYRA_E2E_ARTIFACTS) {
 			await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });

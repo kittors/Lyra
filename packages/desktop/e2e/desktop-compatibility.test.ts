@@ -359,6 +359,12 @@ test("the panel's corner under the toolbar is round, whatever is drawn in it", a
 	 * The sidebar and the content share one panel with rounded corners (ADR-0031), and the sidebar's
 	 * fill is what lies in its top-left one. A fill that is not clipped by the panel paints that corner
 	 * square, and it is the corner right under the toolbar's own buttons.
+	 *
+	 * Whatever is drawn there is painted a mid grey before it is read. Its own colour lies between the
+	 * window's shade and the content's (`.ly-nav-column`), on the light theme two levels off the window
+	 * itself, where a square corner and a round one read the same. And the corner is read two pixels in
+	 * as well as at the very edge. The panel draws its own 1px border, so the edge pixel is never the
+	 * fill's: an unclipped fill starts on the second one.
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
@@ -369,21 +375,25 @@ test("the panel's corner under the toolbar is round, whatever is drawn in it", a
 			const r = panel.getBoundingClientRect();
 			// A computed colour can come back as oklab() or color(); a canvas reads any of them back as sRGB.
 			const rgb = (css) => { const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.fillStyle = css; g.fillRect(0, 0, 1, 1); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3); };
-			const fill = (el) => { for (; el; el = el.parentElement) { const bg = getComputedStyle(el).backgroundColor; if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg; } return 'white'; };
+			const filled = (el) => { for (; el; el = el.parentElement) { const bg = getComputedStyle(el).backgroundColor; if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return el; } return null; };
+			const fill = (el) => { const owner = filled(el); return owner ? getComputedStyle(owner).backgroundColor : 'white'; };
+			const drawn = filled(document.elementFromPoint(r.x + 8, r.y + 8));
+			if (drawn && panel.contains(drawn)) drawn.style.backgroundColor = 'rgb(128, 128, 128)';
 			return { x: r.x, y: r.y, band: rgb(fill(panel.parentElement)), content: rgb(fill(document.elementFromPoint(r.x + 8, r.y + 8))),
 				material: document.documentElement.dataset.vibrancy === 'on' };
 		})()`);
 		assert.ok(corner, "the window has its panel");
 		// On the macOS material the window under the corner is the system's, not a colour the page knows.
 		if (corner.material) { t.skip("the corner shows the system's material, which a screenshot does not hold"); return; }
+		await frames(app, 4);
 		const image = await paintedPixels(app, { x: corner.x, y: corner.y, width: 12, height: 12 });
 		const dpr = image.width / 12;
 		const at = (x: number, y: number) => image.rgb[Math.floor(y * dpr) * image.width + Math.floor(x * dpr)];
 		const near = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) <= 2);
-		const outside = at(0, 0), inside = at(8, 8);
-		t.diagnostic(JSON.stringify({ corner, outside, inside }));
-		// The very corner is the window showing through; well inside the curve is the panel's own fill.
-		assert.ok(near(outside, corner.band), `the corner shows the window's colour, not the panel's: ${JSON.stringify({ outside, band: corner.band })}`);
+		const edge = at(0, 0), outside = at(2, 2), inside = at(8, 8);
+		t.diagnostic(JSON.stringify({ corner, edge, outside, inside }));
+		// Outside the curve is the window showing through; well inside it is what the panel holds.
+		assert.ok(near(edge, corner.band) && near(outside, corner.band), `the corner shows the window's colour, not the panel's: ${JSON.stringify({ edge, outside, band: corner.band })}`);
 		assert.ok(near(inside, corner.content), `inside the curve is the panel's fill: ${JSON.stringify({ inside, content: corner.content })}`);
 		assert.ok(!near(corner.band, corner.content), "window and panel differ, or the corner proves nothing");
 	} finally { await app.stop(); }

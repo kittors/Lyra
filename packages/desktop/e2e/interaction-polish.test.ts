@@ -132,7 +132,9 @@ test("Git uses Index counts, colours added C# syntax, aligns checkout branches a
 	const colors = await app.evaluate<{ token: string; color: string }[]>(`[...document.querySelectorAll('.ly-diff-add span[class^="ͼ"]')].map(e=>({token:e.textContent,color:getComputedStyle(e).color}))`);
 	assert.ok(new Set(colors.map((entry) => entry.color)).size >= 3, JSON.stringify(colors));
 	await shot("git-csharp");
-	await click('[data-dock-pane="review"] [data-ly-tip="分支"]');
+	// By name: the view tabs only carry a tip while the row is too narrow for their words (`narrowNav`),
+	// and a window too narrow for Git beside the conversation stacks it full width underneath.
+	await click('[data-dock-pane="review"] button[aria-pressed][aria-label="分支"]');
 	await until(`document.querySelector('[data-view="branches"]')?.textContent.includes('second-checkout')`);
 	const aligned = await app.evaluate<number[]>(`[...document.querySelectorAll('[data-view="branches"] button[data-ly-tip]')].filter(b=>b.dataset.lyTip.includes('project')||b.dataset.lyTip.includes('second-checkout')).map(b=>b.lastElementChild.getBoundingClientRect().right)`);
 	assert.equal(aligned.length, 2); assert.ok(Math.abs(aligned[0] - aligned[1]) < 1, JSON.stringify(aligned));
