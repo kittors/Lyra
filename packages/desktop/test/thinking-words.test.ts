@@ -155,3 +155,7 @@ test("a step that has gone on too long says so, whatever it is doing", () => {
 		assert.equal(phrase, "Still at it", `${state} acknowledges the wait rather than repeating itself`);
 	}
 });
+
+test("drawing a picture is making something new, like writing", () => {
+	assert.equal(moodFor("image_generate", "Image a red paper boat"), "composing");
+});
