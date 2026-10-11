@@ -119,7 +119,6 @@ async function main() {
 		await until(`document.querySelector('[data-ly-image-card="drawing"] canvas')`, 30000);
 		await pause(1800);
 		await shot("01_生成中_点阵与进度");
-		const early = await app.evaluate<CardFrame[]>(`window.__card.frames.slice()`);
 		await pause(2500);
 		await shot("02_生成中_进度更新");
 		await until(`document.querySelector('[data-ly-image-card="done"] img')?.naturalWidth > 0`, 60000);
@@ -141,7 +140,6 @@ async function main() {
 		check("完成后那一行写的是模型和尺寸", /gemini-3\.1-flash-image · 1408×792/.test(done.at(-1)?.caption ?? ""), done.at(-1)?.caption ?? "");
 		const generation = seen.find((s) => s.path.endsWith("/images/generations"));
 		check("请求按 relay 的写法带比例", generation?.body.aspect_ratio === "16:9" && generation.body.response_format === "b64_json" && !("size" in (generation.body ?? {})), JSON.stringify(generation?.body ?? {}).slice(0, 220));
-		void early;
 		await settled(60000);
 
 		const toolRow = await app.evaluate<string>(`([...document.querySelectorAll('main [data-ly-run], main button')].map((e) => e.textContent).find((t) => /生成图片/.test(t)) || '').slice(0, 80)`);
