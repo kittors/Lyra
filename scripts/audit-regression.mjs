@@ -165,6 +165,12 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/audit-fixes-demo.ts", "/tmp/regression-tools"]],
 	},
 	{
+		id: "IMAGE-draw",
+		what: "对话里画图：点阵按比例占位、图落地框不变、#1 改图、额度用完直说、生图模型不进对话列表",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/image-generation-demo.ts"]],
+	},
+	{
 		id: "SIDEBAR-fling",
 		what: "侧栏快甩时会话行和被推出的项目名整行画在标签条上下",
 		window: true,
