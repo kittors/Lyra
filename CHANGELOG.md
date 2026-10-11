@@ -5,6 +5,163 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.24](https://github.com/kittors/Lyra/releases/tag/v0.9.24) - 2026-10-11
+<!-- lyra:notes en -->
+
+### Features
+
+- **Conversations can draw and edit pictures.** If one of your models makes images — `gpt-image-*`, `dall-e-3`, `imagen-*`, Gemini's `*-image` models, FLUX, Seedream and the like — say "draw…" or "turn this one into a night scene" in any conversation and the conversation model hands the job to it. Until the picture arrives, its place is held at the final shape by a field of drifting dots, with the current step above it ("Making the first draft", "Setting the scene") and a percentage in the corner. No image endpoint reports progress, so the percentage is an estimate from how long that model usually takes, and it waits at 96% until the picture is really there; nothing below it moves when it lands. Ask for several and up to four are drawn side by side; if one fails, you still get the others.
+
+- **Edit and Download on every picture.** Hover a picture: Edit opens it in the annotation tool — circle what should change, save, and the marked-up copy is on the clipboard, ready to paste back with your instructions. Download saves the original file, and the save dialog offers `lyra-image-2026-10-11-21-58-03.png` as its name instead of a hash. To change a picture, paste it into the composer or simply refer to one already in the conversation: the newest is `#1`, the one before it `#2`.
+
+- **Image models in settings.** Models whose names say they draw are recognised automatically; for a name that doesn't (say, `house-artist`), turn on the new Image model switch in the model editor. Image models no longer show up among conversation models. Pick the default in Settings › Subagents › Session › Image model, or with Make default image model in a provider's model list; with several and none picked, the first one is used. The test button on an image model now draws one small picture, which is billed — answering a chat ping says nothing about whether a model can draw. Many relays leave image models out of `/v1/models`, so add them by hand once.
+
+- **OpenAI's Images API, and relays that put the picture in the chat reply.** Lyra tries `/v1/images/generations` and `/v1/images/edits` first, falls back to Chat Completions with the picture inside the message (the OpenRouter shape), and remembers which one each provider answered. Verified end to end against a relay serving Gemini: `gemini-3.8-flash-high` ran the conversation and `gemini-3.1-flash-image` sent back a 1376×768 picture.
+
+- **When a drawing fails, the card says why.** A spent quota names the model and when it comes back ("Resets in about 1h 53m") and is not retried. A key the relay won't let near the model (403 `model_not_allowed`) is called out as such, with what to change: allow the model for that key in the relay's console, or switch to the address of a group that includes it, such as `https://your-relay/group1`. Network hiccups get two more tries at most; every drawing is a billed call, so the card reports instead of spinning.
+
+### Improvements & Fixes
+
+- **Flinging the sidebar drew chat rows over the Projects / Chats tabs.** A fast trackpad fling could carry a row from the bottom to the top in two frames, arriving with a stale fade line, so for one frame it was painted at full strength across the tab strip — that was the spill under New chat. The line now depends only on which group a row is in, and is rewritten when a heading's height changes, never during the scroll. On real data at 5200 px/s, frames with a row across the tabs went from 27 of 364 to 0.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **对话里能画图、改图了。** 你配的模型里只要有会画图的——`gpt-image-*`、`dall-e-3`、`imagen-*`、Gemini 的 `*-image`、FLUX、Seedream 之类——在任何对话里说「画一张……」「把这张改成夜景」，对话模型就会把活交给它。图出来之前，它的位置已经按最终的比例占好，是一片缓缓流动的点阵，上方一行写着画到哪一步（「勾勒初稿」「铺陈画面」），右下角是百分比。没有哪个生图接口会报进度，百分比是按这个模型平常要画多久估的，图没到就停在 96% 等着；图落下来时，下面的内容一动不动。一次要几张就并排画几张，最多四张，其中一张失败不影响其余的。
+
+- **每张图都能编辑、下载。** 鼠标停在图上：「编辑」在标注工具里打开它，圈出要改的地方、保存，标注过的图就在剪贴板里，贴回输入框再说怎么改；「下载」存的是原文件，保存框里给的名字是 `lyra-image-2026-10-11-21-58-03.png`，不再是一串哈希。要改一张图，把它贴进输入框，或者直接说对话里的那张——最新的一张是 `#1`，再往前是 `#2`。
+
+- **设置里的生图模型。** 名字看得出会画图的自动认出来；看不出来的（比如 `house-artist`），在模型编辑里打开新加的「生图模型」开关。生图模型不再混在对话模型的列表里。默认用哪一个，在 设置 › 智能体 › 会话 › 生图模型 里选，或在服务商的模型列表里点「设为默认生图模型」；有好几个又没选时用第一个。生图模型那一行的测试按钮现在会真画一张小图（会计费）——能回一句聊天，不代表能画图。很多中转的 `/v1/models` 不列生图模型，需要手动加一次。
+
+- **OpenAI 的 Images 接口，和把图放在聊天回复里的中转，都能用。** 先走 `/v1/images/generations` 和 `/v1/images/edits`，走不通就改用 Chat Completions、从回复消息里取图（OpenRouter 的格式），并记住每个服务商答的是哪一种。拿一个转发 Gemini 的中转从头到尾实测过：`gemini-3.8-flash-high` 主持对话，`gemini-3.1-flash-image` 画回一张 1376×768 的图。
+
+- **画失败时，卡片上说清楚原因。** 额度用完会写明是哪个模型、大约多久恢复（「约 1h 53m 后恢复」），不会再重试。中转不让这把密钥用这个模型时（403 `model_not_allowed`）直接说出来，并告诉你改哪里：到中转后台给密钥开放这个模型，或者把地址换成包含它的分组，比如 `https://你的中转/group1`。网络抖动最多再试两次；每画一张都是一次计费的调用，等不到就报出来，不会一直转圈。
+
+### 优化与修复
+
+- **侧栏快速甩动时，会话行会画到「项目 / 聊天」标签上。** 触控板一甩，一行两帧之内就能从底部冲到顶部，带着过时的淡出线到达，于是有一帧整行不透明地压在标签条上——「新对话」下面看到的溢出就是它。现在这条线只取决于行在哪个分组里，标题高度变了才重写，滚动过程中不再改它。用真实数据以 5200 px/s 甩动，有行压在标签上的帧从 364 帧里的 27 帧降到 0。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **對話裡能畫圖、改圖了。** 你設定的模型裡只要有會畫圖的——`gpt-image-*`、`dall-e-3`、`imagen-*`、Gemini 的 `*-image`、FLUX、Seedream 之類——在任何對話裡說「畫一張……」「把這張改成夜景」，對話模型就會把工作交給它。圖出來之前，它的位置已經依最終比例佔好，是一片緩緩流動的點陣，上方一行寫著畫到哪一步（「勾勒初稿」「鋪陳畫面」），右下角是百分比。沒有任何生圖介面會回報進度，百分比是依這個模型平常要畫多久估算的，圖還沒到就停在 96% 等著；圖落下來時，下方的內容不會移動。一次要幾張就並排畫幾張，最多四張，其中一張失敗不影響其他張。
+
+- **每張圖都能編輯、下載。** 滑鼠停在圖上：「編輯」會在標註工具裡開啟它，圈出要改的地方、儲存，標註過的圖就在剪貼簿裡，貼回輸入框再說要怎麼改；「下載」存的是原始檔案，儲存視窗裡預填的檔名是 `lyra-image-2026-10-11-21-58-03.png`，不再是一串雜湊值。要改一張圖，把它貼進輸入框，或直接說對話裡的那張——最新的一張是 `#1`，再往前是 `#2`。
+
+- **設定裡的生圖模型。** 名稱看得出會畫圖的會自動辨識；看不出來的（例如 `house-artist`），在模型編輯裡開啟新增的「生圖模型」開關。生圖模型不再混在對話模型的清單裡。預設用哪一個，在 設定 › 子智能體 › 工作階段 › 生圖模型 裡選，或在服務商的模型清單裡點「設為預設生圖模型」；有好幾個又沒選時用第一個。生圖模型那一列的測試按鈕現在會真的畫一張小圖（會計費）——能回一句聊天，不代表能畫圖。很多中轉的 `/v1/models` 不列出生圖模型，需要手動加一次。
+
+- **OpenAI 的 Images 介面，和把圖放在聊天回覆裡的中轉，都能用。** 先走 `/v1/images/generations` 與 `/v1/images/edits`，走不通就改用 Chat Completions、從回覆訊息裡取圖（OpenRouter 的格式），並記住每個服務商回應的是哪一種。以一個轉發 Gemini 的中轉從頭到尾實測過：`gemini-3.8-flash-high` 主持對話，`gemini-3.1-flash-image` 畫回一張 1376×768 的圖。
+
+- **畫失敗時，卡片上會說清楚原因。** 額度用完會寫明是哪個模型、大約多久後恢復（「約 1h 53m 後恢復」），不會再重試。中轉不讓這把金鑰使用這個模型時（403 `model_not_allowed`）會直接說出來，並告訴你要改哪裡：到中轉後台為金鑰開放這個模型，或把位址換成包含它的分組，例如 `https://你的中轉/group1`。網路不穩最多再試兩次；每畫一張都是一次計費的呼叫，等不到就回報，不會一直轉圈。
+
+### 最佳化與修復
+
+- **側邊欄快速甩動時，對話列會畫到「專案 / 聊天」分頁上。** 觸控板一甩，一列在兩幀之內就能從底部衝到頂端，帶著過時的淡出線抵達，於是有一幀整列不透明地壓在分頁列上——「新對話」下方看到的溢出就是它。現在這條線只取決於列在哪個分組裡，標題高度變了才重寫，捲動過程中不再改動。以真實資料、5200 px/s 甩動，有列壓在分頁上的幀數從 364 幀中的 27 幀降到 0。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **会話の中で画像を描き、直せるようになりました。** 設定したモデルに画像を描けるもの（`gpt-image-*`、`dall-e-3`、`imagen-*`、Gemini の `*-image`、FLUX、Seedream など）があれば、どの会話でも「〜を描いて」「これを夜の景色にして」と頼むだけで、会話中のモデルがその仕事を任せます。画像が届くまで、その場所は完成時の縦横比のまま、ゆっくり流れるドットで埋まります。上には今の段階（「下描きを作成中」「構図を組み立て中」）、右下には進み具合のパーセント。進捗を返す画像 API はないので、この数字はそのモデルがふだんかかる時間からの見積もりで、画像が実際に届くまでは 96% で止まって待ちます。届いたときに下の内容がずれることはありません。何枚か頼めば最大 4 枚まで横に並べて描き、1 枚が失敗しても残りは届きます。
+
+- **どの画像にも「編集」と「ダウンロード」。** 画像にポインターを合わせると出てきます。「編集」は注釈ツールでその画像を開きます。直したい所を囲んで保存すると注釈入りの画像がクリップボードに入るので、入力欄に貼って指示を添えてください。「ダウンロード」は元のファイルを保存します。保存ダイアログに出る名前は、ハッシュ文字列ではなく `lyra-image-2026-10-11-21-58-03.png` のような日時入りのものです。画像を直すときは入力欄に貼るか、会話にある画像をそのまま指してください。いちばん新しいものが `#1`、その前が `#2` です。
+
+- **設定での画像生成モデル。** 名前から画像生成用と分かるモデルは自動で認識します。分からないもの（たとえば `house-artist`）は、モデル編集に加わった「画像生成モデル」スイッチをオンにしてください。画像生成モデルは会話用モデルの一覧に出なくなりました。既定のモデルは 設定 › サブエージェント › セッション › 画像生成モデル で選ぶか、プロバイダーのモデル一覧で「既定の画像生成モデルにする」を押します。複数あって未選択なら最初のものを使います。画像生成モデルの行のテストボタンは、実際に小さな画像を 1 枚描くようになりました（課金されます）。チャットに返事ができても、描けるとは限らないからです。多くの中継サーバーは `/v1/models` に画像生成モデルを載せていないので、一度だけ手で追加してください。
+
+- **OpenAI の Images API にも、チャットの返答に画像を入れて返す中継サーバーにも対応。** まず `/v1/images/generations` と `/v1/images/edits` を試し、通らなければ Chat Completions の返答メッセージから画像を取り出し（OpenRouter の形式）、プロバイダーごとにどちらで応えたかを覚えます。Gemini を中継するサーバーで最初から最後まで確かめました。会話を `gemini-3.8-flash-high` が進め、`gemini-3.1-flash-image` が 1376×768 の画像を返しています。
+
+- **描けなかったときは、カードに理由が出ます。** 利用枠を使い切った場合は、どのモデルか、いつごろ回復するか（「約 1h 53m 後に回復します」）を示し、再試行はしません。中継サーバーがそのキーにモデルを許していない場合（403 `model_not_allowed`）もそう伝え、直す場所を示します。管理画面でそのキーにモデルを許可するか、モデルを含むグループのアドレス（例：`https://your-relay/group1`）に切り替えてください。通信の揺らぎは最大 2 回まで再試行します。1 枚ごとに課金される呼び出しなので、待ち続けずに結果を伝えます。
+
+### 改善と修正
+
+- **サイドバーを勢いよくスクロールすると、会話の行が「プロジェクト / 会話」タブの上に描かれていました。** トラックパッドで弾くと 1 行が 2 フレームで下から上まで移動し、古いフェード位置のまま到着するため、1 フレームだけタブの上に不透明なまま描かれていました。「新しい会話」の下に見えていたはみ出しはこれです。今はフェード位置が行の属するグループだけで決まり、見出しの高さが変わったときにだけ書き直して、スクロール中は触りません。実データを 5200 px/s で弾いたとき、タブに行が重なったフレームは 364 中 27 から 0 になりました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새로운 기능
+
+- **대화에서 이미지를 그리고 고칠 수 있습니다.** 설정한 모델 가운데 그림을 그리는 모델(`gpt-image-*`, `dall-e-3`, `imagen-*`, Gemini의 `*-image`, FLUX, Seedream 등)이 있으면, 어느 대화에서든 "…를 그려 줘", "이걸 밤 풍경으로 바꿔 줘"라고 말하기만 하면 대화 중인 모델이 그 일을 맡깁니다. 그림이 오기 전까지 그 자리는 완성될 비율 그대로, 천천히 흐르는 점 무늬가 채웁니다. 위에는 지금 단계("초안을 그리는 중", "장면을 구성하는 중"), 오른쪽 아래에는 퍼센트가 나옵니다. 진행률을 알려 주는 이미지 API는 없어서 이 숫자는 그 모델이 평소 걸리는 시간으로 어림한 값이고, 그림이 실제로 도착하기 전까지는 96%에서 기다립니다. 그림이 들어와도 아래 내용은 움직이지 않습니다. 여러 장을 부탁하면 최대 네 장까지 나란히 그리고, 한 장이 실패해도 나머지는 받습니다.
+
+- **모든 그림에 "편집"과 "다운로드".** 그림 위에 포인터를 올리면 나타납니다. "편집"은 주석 도구에서 그 그림을 엽니다. 고칠 곳을 표시하고 저장하면 표시한 그림이 클립보드에 들어가니, 입력창에 붙여 넣고 어떻게 고칠지 적으면 됩니다. "다운로드"는 원본 파일을 저장하는데, 저장 창에 나오는 이름이 해시 문자열이 아니라 `lyra-image-2026-10-11-21-58-03.png`처럼 날짜와 시간이 든 이름입니다. 그림을 고치려면 입력창에 붙여 넣거나, 대화에 있는 그림을 그대로 가리키면 됩니다. 가장 최근 그림이 `#1`, 그 앞이 `#2`입니다.
+
+- **설정의 이미지 생성 모델.** 이름만 봐도 그림을 그리는 모델은 자동으로 알아봅니다. 이름으로 알 수 없는 모델(예: `house-artist`)은 모델 편집에 새로 생긴 "이미지 생성 모델" 스위치를 켜 주세요. 이미지 생성 모델은 이제 대화 모델 목록에 나오지 않습니다. 기본 모델은 설정 › 하위 에이전트 › 세션 › 이미지 생성 모델에서 고르거나, 제공업체의 모델 목록에서 "기본 이미지 생성 모델로 설정"을 누르면 됩니다. 여러 개가 있는데 고르지 않았다면 첫 번째를 씁니다. 이미지 생성 모델 행의 테스트 버튼은 이제 작은 그림 한 장을 실제로 그립니다(요금 발생). 채팅에 답할 수 있다고 해서 그림을 그릴 수 있는 것은 아니기 때문입니다. 많은 중계 서버가 `/v1/models`에 이미지 생성 모델을 싣지 않으니 한 번은 직접 추가해 주세요.
+
+- **OpenAI의 Images API도, 채팅 응답에 그림을 담아 돌려주는 중계 서버도 쓸 수 있습니다.** 먼저 `/v1/images/generations`와 `/v1/images/edits`를 시도하고, 통하지 않으면 Chat Completions 응답 메시지에서 그림을 꺼내며(OpenRouter 형식), 제공업체마다 어느 쪽으로 답했는지 기억합니다. Gemini를 중계하는 서버로 처음부터 끝까지 확인했습니다. 대화는 `gemini-3.8-flash-high`가 이끌고, `gemini-3.1-flash-image`가 1376×768 그림을 돌려주었습니다.
+
+- **그리지 못했을 때는 카드에 이유가 나옵니다.** 사용 한도를 다 쓴 경우에는 어느 모델인지, 대략 언제 다시 쓸 수 있는지("약 1h 53m 후에 다시 쓸 수 있습니다")를 보여 주고 재시도하지 않습니다. 중계 서버가 그 키로 해당 모델을 쓰지 못하게 막은 경우(403 `model_not_allowed`)에도 그렇게 알려 주고, 고칠 곳을 안내합니다. 중계 서버 관리 화면에서 그 키에 모델을 열어 주거나, 모델이 들어 있는 그룹 주소(예: `https://your-relay/group1`)로 바꾸면 됩니다. 네트워크가 불안정하면 최대 두 번 더 시도합니다. 한 장마다 요금이 붙는 호출이라, 끝없이 기다리지 않고 결과를 알립니다.
+
+### 개선 및 수정
+
+- **사이드바를 빠르게 튕겨 스크롤하면 대화 행이 "프로젝트 / 대화" 탭 위에 그려졌습니다.** 트랙패드로 튕기면 한 행이 두 프레임 만에 아래에서 맨 위까지 올라오는데, 오래된 페이드 위치를 가진 채 도착해서 한 프레임 동안 탭 위에 불투명하게 그려졌습니다. "새 대화" 아래로 보이던 넘침이 바로 이것입니다. 이제 이 위치는 행이 어느 그룹에 있는지로만 정해지고, 제목 높이가 바뀔 때만 다시 쓰며 스크롤 중에는 건드리지 않습니다. 실제 데이터를 5200 px/s로 튕겼을 때, 탭 위에 행이 겹친 프레임이 364개 중 27개에서 0개가 되었습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Fonctionnalités
+
+- **Les conversations savent dessiner et retoucher des images.** Si l’un de vos modèles produit des images — `gpt-image-*`, `dall-e-3`, `imagen-*`, les modèles `*-image` de Gemini, FLUX, Seedream… —, dites « dessine… » ou « passe celle-ci en scène de nuit » dans n’importe quelle conversation, et le modèle de la conversation lui confie le travail. En attendant l’image, sa place est déjà réservée au bon format par une trame de points qui ondule, avec l’étape en cours au-dessus (« Premier jet », « Mise en place de la scène ») et un pourcentage dans le coin. Aucune API d’images ne renvoie d’avancement : le pourcentage est une estimation d’après la durée habituelle de ce modèle, et il patiente à 96 % tant que l’image n’est pas là. Rien ne bouge en dessous quand elle apparaît. Demandez-en plusieurs : jusqu’à quatre sont dessinées côte à côte, et si l’une échoue, vous recevez quand même les autres.
+
+- **Modifier et Télécharger sur chaque image.** Au survol d’une image, Modifier l’ouvre dans l’outil d’annotation : entourez ce qui doit changer, enregistrez, et la copie annotée est dans le presse-papiers, prête à être collée avec vos consignes. Télécharger enregistre le fichier d’origine, et la fenêtre d’enregistrement propose un nom comme `lyra-image-2026-10-11-21-58-03.png` au lieu d’une empreinte. Pour retoucher une image, collez-la dans la zone de saisie ou désignez simplement celle qui est déjà dans la conversation : la plus récente est `#1`, la précédente `#2`.
+
+- **Les modèles d’image dans les réglages.** Un modèle dont le nom dit qu’il dessine est reconnu tout seul ; pour un nom qui ne le dit pas (`house-artist`, par exemple), activez le nouvel interrupteur Modèle d’image dans l’éditeur du modèle. Les modèles d’image n’apparaissent plus parmi les modèles de conversation. Choisissez celui par défaut dans Réglages › Sous-agents › Session › Modèle d’image, ou avec « Définir comme modèle d’image par défaut » dans la liste d’un fournisseur ; s’il y en a plusieurs et qu’aucun n’est choisi, c’est le premier qui sert. Le bouton de test d’un modèle d’image dessine désormais une petite image, et c’est facturé : répondre à un message de test ne prouve pas qu’un modèle sait dessiner. Beaucoup de relais omettent les modèles d’image dans `/v1/models` ; ajoutez-les une fois à la main.
+
+- **L’API Images d’OpenAI, et les relais qui glissent l’image dans la réponse de chat.** Lyra essaie d’abord `/v1/images/generations` et `/v1/images/edits`, se rabat sinon sur Chat Completions en lisant l’image dans le message (le format d’OpenRouter), et retient ce que chaque fournisseur a accepté. Vérifié de bout en bout sur un relais qui sert Gemini : `gemini-3.8-flash-high` menait la conversation, `gemini-3.1-flash-image` a renvoyé une image de 1376×768.
+
+- **Quand une image échoue, la carte dit pourquoi.** Un quota épuisé est signalé avec le nom du modèle et le moment où il revient (« Rétabli dans environ 1h 53m »), sans nouvel essai. Une clé que le relais n’autorise pas sur ce modèle (403 `model_not_allowed`) est désignée comme telle, avec ce qu’il faut changer : autoriser le modèle pour cette clé dans la console du relais, ou passer à l’adresse d’un groupe qui l’inclut, par exemple `https://votre-relais/group1`. Les coupures réseau ont droit à deux nouvelles tentatives au plus ; chaque image est un appel facturé, alors la carte rend compte au lieu de tourner indéfiniment.
+
+### Améliorations et corrections
+
+- **Un défilement rapide de la barre latérale faisait passer des lignes par-dessus les onglets Projets / Discussions.** Lancée d’un coup sur le pavé tactile, une ligne pouvait remonter du bas jusqu’en haut en deux rafraîchissements et arriver avec une limite de fondu périmée : le temps d’un rafraîchissement, elle était peinte en plein sur la bande des onglets — c’est le débordement visible sous Nouvelle discussion. Cette limite ne dépend plus que du groupe de la ligne ; elle n’est réécrite que lorsque la hauteur d’un titre change, jamais pendant le défilement. Sur des données réelles, à 5200 px/s, les rafraîchissements où une ligne recouvrait les onglets sont passés de 27 sur 364 à 0.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новые возможности
+
+- **В беседе можно рисовать и править картинки.** Если среди ваших моделей есть рисующая — `gpt-image-*`, `dall-e-3`, `imagen-*`, модели Gemini `*-image`, FLUX, Seedream и подобные, — скажите в любой беседе «нарисуй…» или «сделай эту картинку ночной», и модель беседы передаст работу ей. Пока картинки нет, её место уже занято в нужных пропорциях полем медленно плывущих точек: сверху — текущий этап («Первый набросок», «Выстраиваю сцену»), в углу — проценты. Ни один API изображений не сообщает о ходе работы, поэтому проценты — оценка по тому, сколько эта модель обычно рисует, и до прихода картинки они останавливаются на 96 %. Когда картинка появляется, ничего под ней не сдвигается. Можно попросить несколько: до четырёх рисуются рядом, и если одна не получится, остальные всё равно придут.
+
+- **«Изменить» и «Скачать» на каждой картинке.** Наведите указатель на картинку. «Изменить» открывает её в инструменте разметки: обведите, что нужно поменять, сохраните — размеченная копия окажется в буфере обмена, вставьте её в поле ввода и напишите, что сделать. «Скачать» сохраняет исходный файл, и окно сохранения предлагает имя вроде `lyra-image-2026-10-11-21-58-03.png`, а не хеш. Чтобы поправить картинку, вставьте её в поле ввода или просто сошлитесь на ту, что уже есть в беседе: самая новая — `#1`, предыдущая — `#2`.
+
+- **Модели изображений в настройках.** Модели, по имени которых видно, что они рисуют, распознаются сами; если по имени не понять (например, `house-artist`), включите новый переключатель «Модель изображений» в редакторе модели. Модели изображений больше не появляются среди моделей для бесед. Модель по умолчанию выбирается в Настройки › Субагенты › Сессия › Модель изображений или кнопкой «Сделать моделью изображений по умолчанию» в списке моделей поставщика; если их несколько и ни одна не выбрана, берётся первая. Кнопка проверки у модели изображений теперь рисует одну небольшую картинку, и это платно: ответ на тестовое сообщение ничего не говорит о том, умеет ли модель рисовать. Многие ретрансляторы не показывают модели изображений в `/v1/models`, поэтому один раз добавьте их вручную.
+
+- **Работает и с Images API от OpenAI, и с ретрансляторами, которые кладут картинку в ответ чата.** Сначала Lyra пробует `/v1/images/generations` и `/v1/images/edits`, при неудаче переходит на Chat Completions и берёт картинку из сообщения (формат OpenRouter), а потом запоминает, какой путь сработал у каждого поставщика. Проверено от начала до конца на ретрансляторе с Gemini: беседу вела `gemini-3.8-flash-high`, а `gemini-3.1-flash-image` вернула картинку 1376×768.
+
+- **Если картинка не получилась, карточка объясняет почему.** При исчерпанной квоте видно, какая это модель и когда квота восстановится («Восстановится примерно через 1h 53m»); повторных попыток нет. Если ретранслятор не пускает этот ключ к модели (403 `model_not_allowed`), так и написано, вместе с тем, что поменять: разрешить модель для ключа в консоли ретранслятора или перейти на адрес группы, в которую она входит, например `https://ваш-ретранслятор/group1`. При сетевых сбоях — не больше двух повторов: каждая картинка оплачивается, поэтому карточка сообщает результат, а не крутится бесконечно.
+
+### Улучшения и исправления
+
+- **При быстрой прокрутке боковой панели строки бесед рисовались поверх вкладок «Проекты / Беседы».** От резкого жеста на трекпаде строка за два кадра проходила снизу доверху и приходила со старой границей затухания, поэтому один кадр она была нарисована непрозрачной прямо на полосе вкладок — именно это и выглядело как содержимое, вылезающее под «Новой беседой». Теперь граница зависит только от того, в какой группе строка, и переписывается лишь при изменении высоты заголовка, но не во время прокрутки. На реальных данных при 5200 px/s кадров со строкой поверх вкладок было 27 из 364, стало 0.
+
+</details>
+
 ## [0.9.23](https://github.com/kittors/Lyra/releases/tag/v0.9.23) - 2026-10-10
 <!-- lyra:notes en -->
 
