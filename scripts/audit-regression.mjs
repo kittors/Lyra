@@ -141,6 +141,11 @@ const CHECKS = [
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popover-first-frame.test.ts"]],
 	},
 	{
+		id: "PREVIEW-fold",
+		what: "preview 做的页面跟着过程一起收进折叠，一轮跑完只剩「思考 1 次 · 生成预览」一行，要点开思考才看得到页面",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/preview-fold.test.ts", "test/turn-blocks.test.ts"]],
+	},
+	{
 		id: "knip",
 		what: "191 个未用导出，而 CI 里那条检查永远不会红",
 		run: ["pnpm", ["knip"]],
@@ -186,6 +191,12 @@ const CHECKS = [
 		what: "跑起来的桌面端里，十五个项目的菜单连开五次，每次第一帧就在按钮下方、之后不再挪",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/popover-first-frame-probe.ts", "回归", "/tmp/regression-popover"]],
+	},
+	{
+		id: "PREVIEW-fold-window",
+		what: "跑起来的桌面端里，实时一轮、重新打开、「展开」排法三种情况下，预览页面都在折叠行外面，折叠里只剩一行「生成预览 <标题>」",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/preview-outside-fold-probe.ts", "live,stored,expanded", "after"]],
 	},
 ];
 

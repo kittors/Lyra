@@ -698,6 +698,23 @@ function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
 	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
+/**
+ * Every call drawn inside a stretch of process, in the order it was made.
+ *
+ * What a call leaves for the person — a picture, a page, a browser tab — is drawn after the fold
+ * rather than in it (`Conversation.tsx`), and this is where those are found. Not only in the tool
+ * runs: a reply that goes back to reasoning after a call keeps that call in its own row (see
+ * `beforeTrailingCalls`), and that row is process too (`thinkingOnly`). A call there folds away like
+ * the rest, so leaving it out of this list would leave its page drawn nowhere at all.
+ */
+export function foldedCalls(runs: Run[]): ToolCallBlock[] {
+	return runs.flatMap((run) => {
+		if (run.kind === "tools") return run.calls.map(({ block }) => block);
+		if (run.kind !== "message" || run.message.role !== "assistant") return [];
+		return run.message.content.slice(run.from ?? 0, run.upTo).filter((block): block is ToolCallBlock => block.type === "toolCall");
+	});
+}
+
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
 function opensBlock(run: Run): boolean {
 	return run.kind === "command" || (run.kind === "message" && run.message.role === "user");

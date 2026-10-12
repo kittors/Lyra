@@ -14,9 +14,9 @@ import { ImageGenerationCards } from "./ImageGenerationCard.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
+import { foldedCalls, isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
-import { describeCalls, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
+import { describeCalls, InFold, PreviewCards, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
@@ -474,11 +474,14 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
              * 在对话里仅有的痕迹（面板不再自己弹出来，见 `BrowserCard`）。紧跟在这一段后面，跑的时候就
              * 在「打开页面」那段工作底下，跑完之后还在那一行底下，位置不动。
              */
-            const pages = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "browser_open").map(({ block: call }) => call.id) : []));
+            const inside = foldedCalls(block.runs);
+            const pages = inside.filter((call) => call.name === "browser_open").map((call) => call.id);
             // Pictures drawn in this stretch go outside the process block too: they are the turn's answer, not how it got there.
-            const drawings = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call) : []));
+            const drawings = inside.filter((call) => call.name === "image_generate");
+            // And so do pages made with `preview` — inside, folded, they were gone until the reasoning was opened. See `InFold`.
+            const previews = inside.filter((call) => call.name === "preview");
             // 这一轮派出去的子智能体。收起之后「调用工具 N 个」那一行尾巴上还挂着它们的脸。
-            const delegated = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "task").map(({ block: call }) => call) : []));
+            const delegated = inside.filter((call) => call.name === "task");
             return (
               <Fragment key={key}>
                 <TurnProcess
@@ -496,10 +499,11 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                   stateKey={key}
                   trailing={delegated.length > 0 ? <TurnFaces calls={delegated} /> : undefined}
                 >
-                  {block.runs.map(draw)}
+                  <InFold.Provider value>{block.runs.map(draw)}</InFold.Provider>
                 </TurnProcess>
                 {pages.length > 0 && <BrowserCards calls={pages} />}
                 {drawings.length > 0 && <ImageGenerationCards calls={drawings} />}
+                {previews.length > 0 && <PreviewCards calls={previews} />}
               </Fragment>
             );
           })}

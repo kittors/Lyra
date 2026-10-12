@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@lyra/core";
 
-import { turnBlocks, type Run } from "../src/features/conversation/grouping.ts";
+import { foldedCalls, runs, turnBlocks, type Run } from "../src/features/conversation/grouping.ts";
 
 const ask = (text: string, index: number): Run => ({
 	kind: "message",
@@ -197,4 +197,53 @@ test("the transcript window pages by block, not by run", async () => {
 	assert.match(source, /allBlocks\.slice\(range\.start, range\.end\)/, "切的要是块");
 	assert.ok(!/allRuns\.slice\(range/.test(source), "切 Run 就是那个「点了没反应」的写法");
 	assert.match(source, /turnBlocks\(allRuns\)/, "要先分块再开窗，顺序反过来等于没改");
+});
+
+/*
+ * What stays outside a folded stretch (pictures, browser cards, preview pages) is found among the
+ * calls inside it, and none may be missed.
+ *
+ * A missed one fails silently: inside the fold it is only a row, nothing draws its page outside, so
+ * it is on screen nowhere. The easy one to miss is a reply that called and then went back to
+ * reasoning — that call is not in a tool run but in the reply's own row, which is process too.
+ */
+test("折叠里的调用按发生的顺序全找得到，包括留在回复那一行里的", () => {
+	const at = (n: number) => 1_000 + n;
+	const call = (id: string, name: string) => ({ type: "toolCall" as const, id, name, arguments: {} });
+	const reply = (content: unknown[], stopReason: string, n: number) => ({ role: "assistant", content, stopReason, timestamp: at(n) }) as Message;
+	const result = (id: string, name: string, n: number) => ({ role: "toolResult", toolCallId: id, toolName: name, content: [], isError: false, timestamp: at(n) }) as Message;
+	const messages = [
+		{ role: "user", content: [{ type: "text", text: "给我画一个可爱的小狗。" }], timestamp: at(0) } as Message,
+		// Calls a preview, goes back to reasoning, then reads: the preview stays in the reply's own row.
+		reply([{ type: "thinking", thinking: "先想想" }, call("p1", "preview"), { type: "thinking", thinking: "再看看" }, call("r1", "read")], "toolUse", 1),
+		result("p1", "preview", 2),
+		result("r1", "read", 3),
+		reply([call("p2", "preview")], "toolUse", 4),
+		result("p2", "preview", 5),
+		reply([{ type: "text", text: "画好了。" }], "stop", 6),
+	];
+
+	const process = turnBlocks(runs(messages)).filter((block) => block.kind === "process");
+	assert.equal(process.length, 1, "一问一答之间只有一段过程");
+	assert.ok(
+		process[0].runs.some((run) => run.kind === "message" && run.message.content.slice(run.from ?? 0, run.upTo).some((block) => block.type === "toolCall")),
+		"前提：有一次调用留在了回复自己的行里，而那一行在过程里",
+	);
+	assert.deepEqual(foldedCalls(process[0].runs).map((block) => block.id), ["p1", "r1", "p2"]);
+});
+
+/*
+ * Inside a fold a preview is only a row (`InFold`), and the fold's owner draws the page after it.
+ * Both halves live only in the component, so they are pinned on its source.
+ *
+ * Without the first the page folds away again; without the second it is worse — a row inside, nothing
+ * outside, and the page drawn nowhere.
+ */
+test("过程块里的东西知道自己在折叠里，预览页面画在折叠后面", async () => {
+	const { readFile } = await import("node:fs/promises");
+	const source = await readFile(new URL("../src/features/conversation/Conversation.tsx", import.meta.url), "utf8");
+
+	assert.match(source, /<InFold\.Provider value>\{block\.runs\.map\(draw\)\}<\/InFold\.Provider>\s*<\/TurnProcess>/, "过程块里画的每一样都要在 InFold 里");
+	assert.match(source, /<\/TurnProcess>[\s\S]{0,400}<PreviewCards calls=\{previews\} \/>/, "页面要紧跟在过程块后面画");
+	assert.match(source, /const inside = foldedCalls\(block\.runs\)/, "外面画什么，要从折叠里的全部调用里找");
 });
