@@ -2306,6 +2306,8 @@ export const fr = {
 	"annotate.saveOver": "Enregistrer par-dessus l'original",
 	"annotate.saveCopyTip": "Exporter une copie annotée",
 	"annotate.saveCopy": "Enregistrer une copie",
+	"annotate.doneTip": "Ajouter au champ de saisie pour demander une nouvelle version",
+	"annotate.attachmentName": "annotated.png",
 	"annotate.textBackground": "Fond du texte : {label}",
 	"annotate.sizeIs": "{what} : {label}",
 	"browser.tabs": "Onglets du navigateur",

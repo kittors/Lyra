@@ -103,6 +103,21 @@ test("a picture in the workspace goes in by path; something that is not a pictur
 	assert.match(refused.content[0].type === "text" ? refused.content[0].text : "", /not a PNG, JPEG or WebP/);
 });
 
+test("an edit with no shape asked for tells the window the shape of the picture it starts from", async () => {
+	// 300×100 in the header, which is all the window needs to hold the place at the right shape.
+	const wide = Buffer.from(PNG, "base64");
+	wide.writeUInt32BE(300, 16);
+	wide.writeUInt32BE(100, 20);
+	await writeFile(join(workspace, "wide.png"), wide);
+	const progress: ToolResult[] = [];
+	await imageTool.execute({ prompt: "make it night", images: ["wide.png"] }, context(fakeHost(drawn), progress));
+	assert.equal((progress[0].details as ImageGenerationDetails).shapeHint, 3);
+
+	const asked: ToolResult[] = [];
+	await imageTool.execute({ prompt: "make it night", images: ["wide.png"], aspect_ratio: "1:1" }, context(fakeHost(drawn), asked));
+	assert.equal((asked[0].details as ImageGenerationDetails).shapeHint, undefined, "a shape asked for is the shape");
+});
+
 test("an earlier drawing can be passed back by the path the model was given", async () => {
 	const ctx = context(fakeHost(drawn));
 	const first = await imageTool.execute({ prompt: "a boat" }, ctx);

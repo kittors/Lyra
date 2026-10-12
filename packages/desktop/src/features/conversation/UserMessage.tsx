@@ -4,13 +4,13 @@ import type {
   UserMessage as UserMessageType,
 } from "@lyra/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Split, Undo2 } from "lucide-react";
-import { openFromEvent, openViewer } from "../image/index.ts";
+import { attachToComposer, openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 import { baseName } from "../../lib/paths.ts";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BubbleText } from "./BubbleText.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
@@ -195,15 +195,20 @@ export function UserMessage({
 	const lastUser = useScopedFromMessages(lastUserMessageIndex);
 	const confirm = useConfirmer();
   const attachmentActions = useAttachmentActions();
+  /** This message's own element: a split can show another screen's message under the same index. */
+  const root = useRef<HTMLDivElement>(null);
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
   const previewImage = (src: string, originRect?: DOMRect) => {
     const pictures = files.filter((file) => file.kind === "image" && (file.full || file.src));
     const imgIndex = pictures.findIndex((file) => file.full === src || file.src === src);
     if (imgIndex < 0) return;
-    const tile = document.querySelectorAll<HTMLElement>(`[data-question-index="${index}"] .ly-attachment-body`)[imgIndex] ?? null;
+    // Inside this message only. Looked up across the document, a split with two conversations open
+    // found the other screen's tile first: the picture flew out of — and hid — a thumbnail over there.
+    const tile = root.current?.querySelectorAll<HTMLElement>(".ly-attachment-body")[imgIndex] ?? null;
     const origin = originRect ?? tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
     openViewer(
-      pictures.map((file) => ({ src: file.full ?? file.src! })),
+      // Marked up and 完成: back into this conversation's composer, to send on with the marks.
+      pictures.map((file) => ({ src: file.full ?? file.src!, onAttach: attachToComposer(sessionId) })),
       imgIndex,
       origin,
       tile,
@@ -374,7 +379,7 @@ export function UserMessage({
 
   if (editing) {
     return (
-      <div data-question-index={index} className="ly-enter flex justify-end">
+      <div ref={root} data-question-index={index} className="ly-enter flex justify-end">
         <MessageEditor
           value={draft}
           onChange={setDraft}
@@ -389,7 +394,7 @@ export function UserMessage({
   }
 
   return (
-    <div data-question-index={index} className="group/msg ly-enter flex flex-col items-end">
+    <div ref={root} data-question-index={index} className="group/msg ly-enter flex flex-col items-end">
       {/*
        * Always visible, not folded into the hover row below.
        *
@@ -434,7 +439,7 @@ export function UserMessage({
             onOpen={(index, event) =>
               openFromEvent(
                 event,
-                shown.map((file) => ({ src: file.full ?? file.src! })),
+                shown.map((file) => ({ src: file.full ?? file.src!, onAttach: attachToComposer(sessionId) })),
                 index,
               )
             }

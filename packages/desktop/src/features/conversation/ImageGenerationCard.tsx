@@ -13,11 +13,11 @@ import { ImageOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ImageGenerationDetails, ToolCallContent } from "@lyra/core";
 import { sessionMediaUrl } from "../../../shared/session-image.ts";
-import { useScopedFromToolRuns } from "../../app/session-scope.tsx";
+import { useScopedFromToolRuns, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { expectedMs, progressAt, stageAt } from "../../lib/image-progress.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
-import { openFromEvent, openViewer } from "../image/index.ts";
+import { attachToComposer, openViewer } from "../image/index.ts";
 import { ImageFrame } from "./ImageFrame.tsx";
 import { stoppedByUser } from "./tool-status.ts";
 
@@ -72,6 +72,8 @@ export function ImageGenerationCards({ calls }: { calls: ToolCallContent[] }) {
 function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 	const { t } = useI18n();
 	const run = useScopedFromToolRuns((toolRuns) => toolRuns[call.id]);
+	// This screen's conversation: 完成 on a marked-up picture puts it in this composer, not the focused one.
+	const sessionId = useScopedSessionId();
 	const live = run?.status === "running";
 	// Seen drawing while mounted: the picture's arrival is played. A reopened conversation's is not.
 	const watched = useRef(false);
@@ -89,7 +91,8 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 
 	const args = call.arguments;
 	const count = known ? details.count : Math.max(1, Math.min(4, Math.round(Number(args.count) || 1)));
-	const asked = ratioOf(known ? details.aspectRatio : args.aspect_ratio);
+	// Asked for, or — for an edit left to keep its input's shape — that shape: what the place is held at.
+	const asked = ratioOf(known ? details.aspectRatio : args.aspect_ratio) ?? (known ? details.shapeHint : undefined);
 	const pictures = !live && known ? (details.images ?? []) : [];
 	const slots = live ? count : pictures.length;
 	const columns = slots > 1 ? 2 : 1;
@@ -109,7 +112,7 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 		caption = `${details?.model.name ?? ""}${size}${missing > 0 ? ` · ${t("imageGen.partial", { n: missing })}` : ""}`;
 	}
 
-	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt }));
+	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt, onAttach: attachToComposer(sessionId) }));
 	const frameOf = (event: React.MouseEvent<HTMLElement>) => event.currentTarget.closest<HTMLElement>("[data-ly-image-frame]");
 
 	return (
@@ -132,7 +135,12 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 							reveal={watched.current && !live}
 							// One reading for the whole card, in the last frame's corner.
 							percent={index === slots - 1 && (live || watched.current) ? (live ? (percent ?? 0) : 100) : null}
-							onOpen={picture ? (event) => openFromEvent(event, sources, index) : undefined}
+							// The frame, not the button inside it: the frame is what has the corners, and the hover
+							// buttons beside the picture go with it while it is out.
+							onOpen={picture ? (event) => {
+								const frame = frameOf(event);
+								openViewer(sources, index, frame?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect(), frame ?? event.currentTarget);
+							} : undefined}
 							onEdit={
 								picture
 									? (event) => {

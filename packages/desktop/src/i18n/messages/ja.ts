@@ -2306,6 +2306,8 @@ export const ja = {
 	"annotate.saveOver": "元の画像に上書き保存",
 	"annotate.saveCopyTip": "注釈つきの複製を書き出す",
 	"annotate.saveCopy": "複製を保存",
+	"annotate.doneTip": "入力欄に入れて描き直しを頼む",
+	"annotate.attachmentName": "annotated.png",
 	"annotate.textBackground": "文字の背景：{label}",
 	"annotate.sizeIs": "{what}：{label}",
 	"browser.tabs": "ブラウザのタブ",
