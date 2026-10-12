@@ -90,8 +90,9 @@ async function editor(modelId: string) {
 const readFields = `(()=>{const modal=document.querySelector('[data-ly-modal]');const read=t=>[...modal.querySelectorAll('label')].find(e=>e.textContent.startsWith(t)).querySelector('input').value;return {id:read('模型 ID'),context:read('上下文窗口'),output:read('最大输出'),input:read('输入价格'),priceOut:read('输出价格'),cache:read('缓存命中价格'),toggles:[...modal.querySelectorAll('[role="switch"]')].map(e=>e.getAttribute('aria-checked')),text:modal.innerText};})()`;
 
 /*
- * 从前是五个。`RENAMED_AGENTS` 那次把 `fast`/`deep` 换名成 `simple`/`reason` 并列进内置名单，
- * 现在是七个，见 `core/src/agents-builtin.ts`；加上「会话」那一段里的 `compact`，页面上一共八行。
+ * Seven built-in agents (`core/src/agents-builtin.ts`; the old `fast`/`deep` are `simple`/`reason`),
+ * then the 「会话」 section's two rows that are not agents: `compact`, and since image generation
+ * `image`, the model `image_generate` draws with. Nine rows.
  */
 test("all built-in agents can be configured before any session is created", async (t) => {
 	await click("[data-ly-open-settings]");
@@ -105,19 +106,21 @@ test("all built-in agents can be configured before any session is created", asyn
 	 */
 	await app.evaluate(`new Promise(resolve=>{let last=-1,same=0;const timer=setInterval(()=>{const n=document.querySelectorAll('[data-agent-profile]').length;same=n===last?same+1:0;last=n;if(n>0&&same>=3){clearInterval(timer);resolve();}},80);setTimeout(()=>{clearInterval(timer);resolve();},10000);})`);
 	const visible = await app.evaluate<{ names: string[]; controls: number; overflow: number }>(`({names:[...document.querySelectorAll('[data-agent-profile]')].map(e=>e.getAttribute('data-agent-profile')),controls:document.querySelectorAll('[data-agent-profile] fieldset').length,overflow:document.documentElement.scrollWidth-window.innerWidth})`);
-	assert.deepEqual(visible.names, ["general", "explore", "review", "verify", "plan", "simple", "reason", "compact"]);
+	assert.deepEqual(visible.names, ["general", "explore", "review", "verify", "plan", "simple", "reason", "compact", "image"]);
 	/*
-	 * 八行，七组 fieldset。
+	 * Nine rows, seven fieldsets.
 	 *
-	 * 前七个是内置智能体，每个带一整组运行配置。`compact` 排在「会话」那一段里，是这次会话的
-	 * 压缩模型而不是一个可派活的智能体，控件只有一个模型选择，不套 fieldset——数量对不上不是
-	 * 缺了控件，是这一行本来就是另一回事。
+	 * Each built-in agent carries a whole set of run settings. `compact` and `image` are the models
+	 * compaction and drawing use, not agents work is handed to: a single model choice and no fieldset,
+	 * so the count falling short is not a missing control.
 	 */
 	assert.equal(visible.controls, 7);
-	assert.ok(
-		await app.evaluate(`Boolean(document.querySelector('[data-agent-profile="compact"] button[aria-label]'))`),
-		"compact 那一行也要能选模型，只是控件形状不同",
-	);
+	for (const row of ["compact", "image"]) {
+		assert.ok(
+			await app.evaluate(`Boolean(document.querySelector('[data-agent-profile="${row}"] button[aria-label]'))`),
+			`${row} 那一行也要能选模型，只是控件形状不同`,
+		);
+	}
 	assert.equal(visible.overflow, 0);
 	await click('[aria-label="explore 模型"]');
 	await until(`document.querySelector('[data-model="relay/gemini-3.7-flash-high"] button')`);
@@ -131,7 +134,7 @@ test("all built-in agents can be configured before any session is created", asyn
 	await label("智能体", "nav button");
 	// 回到这一页，等的还是「名单不再变」——理由同上面那处。
 	await app.evaluate(`new Promise(resolve=>{let last=-1,same=0;const timer=setInterval(()=>{const n=document.querySelectorAll('[data-agent-profile]').length;same=n===last?same+1:0;last=n;if(n>0&&same>=3){clearInterval(timer);resolve();}},80);setTimeout(()=>{clearInterval(timer);resolve();},10000);})`);
-	assert.equal(await app.evaluate(`document.querySelectorAll('[data-agent-profile]').length`), 8);
+	assert.equal(await app.evaluate(`document.querySelectorAll('[data-agent-profile]').length`), 9);
 	await until(`document.querySelector('[aria-label="explore 模型"]').textContent.includes('gemini-3.7-flash-high')`);
 	t.diagnostic(JSON.stringify(visible)); await shot("builtin-agents");
 });
