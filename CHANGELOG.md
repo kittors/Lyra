@@ -5,6 +5,219 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.26](https://github.com/kittors/Lyra/releases/tag/v0.9.26) - 2026-10-12
+<!-- lyra:notes en -->
+
+### New features
+
+- **Mark up a picture, press Done, and ask for it to be redrawn.** After annotating a picture in a conversation — one Lyra drew, or one you sent — Done puts the marked-up copy into that conversation's message box, with the cursor after it. Say what to change and send it: the image model redraws from your copy, marks and all. The button used to export a copy instead, and for a drawn picture even that did nothing.
+- **Fetch models can remove models too, and add ones the provider does not list.** The dialog only imported: models already added were greyed out and could not be unticked, a name missing from the provider's list could not be added — many relays leave image models out of /v1/models — and once everything listed was added, Cancel was the only button left. A tick now means "in the list after Apply": untick an added model to remove it, type a name that is not listed and press Enter to add it, and search by vendor (google finds gemini). The footer counts what will be added and removed. Two fixes on the way: switching providers while a fetch was running imported the first provider's models into the second, and an image model could become the default chat model.
+
+### Improvements & Fixes
+
+- **Edit on a picture no longer blows it up first.** From the second time on, the picture opened at about four times the size of its thumbnail — larger than the window — and then shrank into place, after a flat white box flashed for a frame. It now grows out of the thumbnail. Closing it lands back on the thumbnail solid, instead of sitting there washed out for several frames and then snapping to full colour. The dark backdrop fades in rather than appearing at once.
+- **Saving an annotated copy of a drawn picture works.** Pressing the save button did nothing at all.
+- **A picture handed to the message box stays in the message when you type.** The region picked in the browser panel was dropped from the message as soon as you typed a word after it; the same happened to a marked-up picture.
+- **"#1" is the picture you attached most recently.** Once Lyra had drawn something, asking it to redo a picture you attached afterwards made it work on its own older drawing instead.
+- **A page made with preview stays in the conversation.** It was drawn inside the collapsed thinking section, so once that folded the page was gone until you opened it again. The fold now keeps a single line, "Built previews" and the page's title, and the page sits below it.
+- **Preview cards take the height of their page.** On a busy machine a card could get stuck at 440px tall — and be remembered at that height — or shrink past the page and bounce back; Run it again left the card blank.
+- **Editing a wide picture keeps its shape while it draws.** The placeholder was a square and jumped to 16:9 when the picture arrived, moving everything below it.
+- **The percentage on a picture being drawn is readable.** When two pictures were drawn at once, the corner badge sat on the densest part of the dot pattern and "50%" blended into it; it now has a solid background.
+- **Large images in the file pane open at the fitted size.** They were drawn at 100% — a 1408px picture in a 275px pane — and then shrank.
+- **Sending a message with pictures no longer makes the message box jump.** The row of pictures above it vanished in one frame and the box dropped by 76px; it now folds away.
+- **Menus close with their animation however they are closed.** Pressing the button again, choosing an item, or moving off a file in the File changes card made them vanish in a single frame; on a phone the closing was cut off halfway.
+- **Dialogs close with their animation when a button is pressed** — Cancel, Save, Commit — and closing one while it is still opening no longer flashes it back to full opacity first.
+- **The progress line at the bottom of a turn folds away when the turn ends without a reply** — stopped, failed, or only tool calls — instead of disappearing and pulling the conversation up by a line.
+- **The screenshot magnifier shows the picture from its first frame**, with no empty black box, and no longer trails the pointer by a frame.
+- **A conversation title changed twice in quick succession no longer flashes back to the old one.**
+- **The size and colour bubble above the annotation toolbar opens where it stays.** For its first 220ms it sat half its own width to the right, pointing at the wrong button.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **标注完按「完成」，接着让它照着改。** 对话里的图——Lyra 画的，或者你发过的——标注完按「完成」，带标注的副本会放进这个对话的输入框，光标停在它后面。说一句要怎么改、发出去，生图模型就拿这张带标注的图重画。这个按钮以前只是导出副本，而且对画出来的图连导出都没反应。
+- **「拉取模型」能删也能加了。** 以前弹窗只会导入：已添加的模型是灰的、取消不了，接口没列出的名字加不进来（很多中转的 /v1/models 不列生图模型），列出的都加过之后就只剩一个「取消」。现在勾选表示「应用之后它在不在列表里」：取消已添加的就是移除；在搜索框里敲一个没列出的名字、回车就加进来；按厂商也能搜到（搜 google 能找到 gemini）。页脚分开写新增几个、移除几个。顺带修了两处：拉取途中换了供应商，前一个的模型会被导进后一个；生图模型会被设成对话的默认模型。
+
+### 优化与修复
+
+- **点图片上的「编辑」，不再先放大再缩小。** 从第二次起，图会先放大到缩略图的四倍左右、比窗口还大，再缩回去；在那之前还会闪一帧扁扁的白框。现在图从缩略图里长出来。关闭时实心落回缩略图，不再发白地停几帧、最后一下突然变实。背后的暗色遮罩也改成淡入，不再一下子全黑。
+- **画出来的图，标注后能保存了。** 以前点保存什么都不发生。
+- **放进输入框的图，打字之后还在。** 在浏览器面板里框选的页面区域，只要在后面打一个字，发出去的消息里就没有这张图了；标注后放进来的图也一样。
+- **「#1」指的是你最近附上的那张图。** Lyra 画过一张图之后，你再附一张图让它照着改，它改的却是自己之前画的那张。
+- **用 preview 做出来的页面留在对话里。** 以前页面画在「思考」那个折叠里，折叠一收起，页面就看不见了，得再点开。现在折叠里只留一行「生成预览 <标题>」，页面在它下面。
+- **预览卡片跟着页面的高度走。** 电脑忙的时候，卡片会锁死在 440px 高、还被记下来；或者先缩过头再弹回来；点「重新运行」后卡片一直是空白的。
+- **编辑一张宽图时，画的过程中就是它该有的形状。** 以前占位是个方块，图到了突然变成 16:9，下面的内容跟着跳。
+- **画图时角上的百分比看得清了。** 一次画两张时，角标正好压在点阵最密的地方，「50%」和点子混在一起读不出来；现在角标有实底。
+- **文件面板里的大图，打开就是适配后的大小。** 以前先按 100% 画出来——1408px 的图塞在 275px 宽的面板里——再缩小。
+- **带图发消息时，输入框不再往下跳。** 输入框上方那排图一帧消失，输入框跟着掉 76px；现在是收起来的。
+- **菜单不管怎么关，都有收起的过程。** 再点一次按钮、点菜单项、从交付卡片的预览上移开，以前都是一帧消失；手机上收起播到一半就被截掉。
+- **对话框点按钮关闭也有退场**——取消、保存、提交都是；对话框还在弹出时就关掉，也不再先闪回不透明再淡出。
+- **一轮没有回复就结束时（被停止、出错、只调了工具），对话底部那行进度会收起来**，不再一下子消失、把对话往上拽一行。
+- **截图放大镜第一帧就有画面**，不再先出现一个空的黑框，也不再比鼠标晚一帧。
+- **会话标题短时间内改了两次，不再先闪回旧标题。**
+- **标注工具条上方的粗细和颜色气泡，一出现就在该在的位置。** 以前前 220ms 偏右半个身位，尖角指着别的按钮。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **標註完按「完成」，接著請它照著改。** 對話裡的圖片——Lyra 畫的，或你傳過的——標註完按「完成」，帶標註的副本會放進這個對話的輸入框，游標停在它後面。說一句要怎麼改、送出，生圖模型就拿這張帶標註的圖重畫。這個按鈕以前只是匯出副本，而且對畫出來的圖連匯出都沒有反應。
+- **「拉取模型」可以刪也可以加了。** 以前彈窗只會匯入：已加入的模型是灰的、無法取消，介面沒列出的名稱加不進來（很多中轉的 /v1/models 不列生圖模型），列出的都加過之後就只剩一個「取消」。現在勾選代表「套用之後它在不在清單裡」：取消已加入的就是移除；在搜尋框輸入一個沒列出的名稱、按 Enter 就加進來；也能依廠商搜尋（搜 google 會找到 gemini）。頁尾分開寫新增幾個、移除幾個。順帶修了兩處：拉取途中切換供應商，前一個的模型會被匯入後一個；生圖模型會被設成對話的預設模型。
+
+### 最佳化與修復
+
+- **按圖片上的「編輯」，不再先放大再縮小。** 從第二次開始，圖會先放大到縮圖的四倍左右、比視窗還大，再縮回去；在那之前還會閃一個扁扁的白框。現在圖從縮圖裡長出來。關閉時實心落回縮圖，不再泛白地停好幾個影格、最後突然變實。後面的深色遮罩也改成淡入，不再一下子全暗。
+- **畫出來的圖，標註後可以儲存了。** 以前按儲存什麼都不會發生。
+- **放進輸入框的圖，打字之後還在。** 在瀏覽器面板框選的頁面區域，只要在後面打一個字，送出的訊息裡就沒有這張圖了；標註後放進來的圖也一樣。
+- **「#1」指的是你最近附上的那張圖。** Lyra 畫過一張圖之後，你再附一張圖請它照著改，它改的卻是自己之前畫的那張。
+- **用 preview 做出來的頁面留在對話裡。** 以前頁面畫在「思考」那個摺疊裡，摺疊一收起，頁面就看不到了，得再點開。現在摺疊裡只留一行「產生預覽 <標題>」，頁面在它下方。
+- **預覽卡片會跟著頁面的高度。** 電腦忙的時候，卡片會卡在 440px 高、還被記住；或先縮過頭再彈回來；按「重新執行」後卡片一直是空白的。
+- **編輯一張寬圖時，繪製過程中就是它該有的形狀。** 以前佔位是個正方形，圖到了突然變成 16:9，下方的內容跟著跳動。
+- **畫圖時角落的百分比看得清楚了。** 一次畫兩張時，角標正好壓在點陣最密的地方，「50%」和點混在一起看不出來；現在角標有實心底色。
+- **檔案面板裡的大圖，打開就是符合面板的大小。** 以前會先以 100% 畫出來——1408px 的圖塞在 275px 寬的面板裡——再縮小。
+- **附圖傳送訊息時，輸入框不再往下跳。** 輸入框上方那排圖一個影格就消失，輸入框跟著掉 76px；現在是收合起來的。
+- **選單不論怎麼關閉，都有收合的過程。** 再按一次按鈕、點選單項目、從「檔案變更」卡片的預覽上移開，以前都是一個影格就消失；手機上收合播到一半就被截斷。
+- **對話框按按鈕關閉時也有退場**——取消、儲存、提交都是；對話框還在彈出時就關閉，也不再先閃回不透明再淡出。
+- **一輪沒有回覆就結束時（被停止、出錯、只呼叫了工具），對話底部那行進度會收合起來**，不再一下子消失、把對話往上拉一行。
+- **截圖放大鏡第一個影格就有畫面**，不再先出現空的黑框，也不再比滑鼠慢一個影格。
+- **對話標題在短時間內改了兩次，不再先閃回舊標題。**
+- **標註工具列上方的粗細與顏色泡泡，一出現就在該在的位置。** 以前前 220ms 會偏右半個身位，尖角指著別的按鈕。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **注釈をつけて「完了」を押せば、そのまま描き直しを頼めます。** 会話の中の画像（Lyra が描いたもの、または自分で送ったもの）に注釈をつけて「完了」を押すと、注釈つきの複製がその会話の入力欄に入り、カーソルはその後ろに置かれます。どう変えたいかを書いて送れば、画像モデルがその複製を注釈ごと読んで描き直します。これまでこのボタンは複製を書き出すだけで、描いた画像ではそれすら何も起きませんでした。
+- **「モデルを取得」で削除も追加もできるようになりました。** これまでのダイアログは取り込むだけで、追加済みのモデルはグレーで外せず、一覧に出ない名前（多くの中継は /v1/models に画像モデルを載せません）は追加できず、載っているものを全部追加すると押せるのは「キャンセル」だけでした。今はチェックが「適用後に一覧に残るか」を表します。追加済みのチェックを外せば削除、一覧にない名前を検索欄に入力して Enter で追加、ベンダー名でも検索できます（google で gemini が見つかります）。フッターには追加と削除の数が別々に出ます。あわせて、取得中にプロバイダーを切り替えると前のプロバイダーのモデルが後のほうに取り込まれていたこと、画像モデルが会話の既定モデルになってしまうことも直しました。
+
+### 改善と修正
+
+- **画像の「編集」で、いったん大きくなってから縮むことがなくなりました。** 2 回目以降は、サムネイルの約 4 倍、ウィンドウより大きく表示されてから縮んでいました。その前には平たい白い枠が 1 フレームだけ見えていました。今はサムネイルからそのまま大きくなります。閉じるときもサムネイルの上にくっきり戻り、白っぽく褪せたまま数フレーム止まってから急に元の色に戻ることはありません。背景の暗い幕もフェードインするようになりました。
+- **描いた画像に注釈をつけて保存できるようになりました。** これまでは保存を押しても何も起きませんでした。
+- **入力欄に入れた画像は、文字を打っても消えません。** ブラウザパネルで選んだページの一部は、その後ろに一文字打った時点で、送るメッセージから外れていました。注釈をつけて入れた画像も同じでした。
+- **「#1」は最後に添付した画像を指すようになりました。** Lyra が一度画像を描いたあとは、あとから添付した画像の描き直しを頼んでも、以前に自分で描いた画像のほうを直していました。
+- **preview で作ったページが会話の中に残るようになりました。** これまでは折りたたまれた「思考」の中に描かれていたため、折りたたむとページも見えなくなり、開き直す必要がありました。今は折りたたみの中に「プレビューを生成」とページのタイトルの 1 行だけが残り、ページはその下に表示されます。
+- **プレビューのカードがページの高さに合うようになりました。** マシンが忙しいと、カードが 440px の高さで固まってそのまま記憶されたり、いったん縮みすぎてから戻ったりしていました。「もう一度実行」を押すとカードが空白のままになる問題も直しました。
+- **横長の画像を編集するとき、描いている途中から仕上がりと同じ形で表示されます。** これまでは正方形で場所を取り、画像が届いた瞬間に 16:9 に変わって、下の内容もずれていました。
+- **描画中の画像の隅に出るパーセンテージが読めるようになりました。** 2 枚同時に描くと、隅のバッジがドット模様のいちばん密な部分に重なり、「50%」が点に紛れて読めませんでした。今はバッジに不透明な下地があります。
+- **ファイルパネルで大きな画像を開くと、最初からパネルに収まる大きさで表示されます。** これまでは 100% で描かれ（幅 275px のパネルに 1408px の画像）、そこから縮んでいました。
+- **画像つきでメッセージを送っても、入力欄が跳ねなくなりました。** 入力欄の上の画像の列が 1 フレームで消え、入力欄が 76px 下がっていました。今は折りたたまれて消えます。
+- **メニューはどの閉じ方でも閉じるアニメーションが最後まで再生されます。** ボタンをもう一度押す、項目を選ぶ、「ファイルの変更」カードのプレビューからポインタを外す、のいずれも 1 フレームで消えていました。スマートフォンでは途中で打ち切られていました。
+- **ダイアログをボタンで閉じたときにも退場アニメーションが再生されます**（キャンセル、保存、コミットなど）。開いている途中で閉じても、いったん不透明に戻ってから消えることはありません。
+- **返答のないまま終わったターン（停止、エラー、ツール呼び出しだけ）で、会話の下にある進行状況の行が折りたたまれて消えます。** これまでは一瞬で消え、会話が 1 行ぶん上に引っぱられていました。
+- **スクリーンショットの拡大鏡は最初のフレームから画像を表示します。** 空の黒い枠が出ることも、ポインタより 1 フレーム遅れることもありません。
+- **会話のタイトルが短い間に 2 回変わっても、古いタイトルが一瞬戻ることはありません。**
+- **注釈ツールバーの上に出る太さと色の吹き出しが、最初から正しい位置に出ます。** これまでは最初の 220ms、自分の幅の半分だけ右にずれて、別のボタンを指していました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새 기능
+
+- **주석을 달고 '완료'를 누르면 바로 다시 그려 달라고 할 수 있습니다.** 대화 속 이미지(Lyra가 그린 것이든 직접 보낸 것이든)에 주석을 달고 '완료'를 누르면, 주석이 들어간 사본이 그 대화의 입력창에 들어가고 커서는 그 뒤에 놓입니다. 어떻게 바꿀지 적어 보내면 이미지 모델이 주석까지 포함한 사본을 보고 다시 그립니다. 이 버튼은 원래 사본을 내보내기만 했고, 그린 이미지에서는 그마저도 아무 일도 일어나지 않았습니다.
+- **'모델 가져오기'에서 삭제와 추가가 모두 됩니다.** 전에는 가져오기만 할 수 있어서, 이미 추가한 모델은 회색으로 표시되어 해제할 수 없었고, 목록에 없는 이름(많은 중계 서버가 /v1/models에 이미지 모델을 넣지 않습니다)은 추가할 수 없었으며, 목록의 모델을 모두 추가하고 나면 누를 수 있는 건 '취소'뿐이었습니다. 이제 체크는 '적용 후 목록에 있는지'를 뜻합니다. 추가한 모델의 체크를 풀면 삭제되고, 목록에 없는 이름을 검색창에 입력하고 Enter를 누르면 추가되며, 제조사 이름으로도 검색됩니다(google로 gemini가 나옵니다). 아래쪽에는 추가와 삭제 개수가 따로 표시됩니다. 가져오는 도중 공급자를 바꾸면 이전 공급자의 모델이 새 공급자에 들어가던 문제와, 이미지 모델이 대화의 기본 모델로 설정되던 문제도 함께 고쳤습니다.
+
+### 개선 및 수정
+
+- **이미지의 '편집'을 눌러도 먼저 커졌다가 줄어들지 않습니다.** 두 번째부터는 이미지가 썸네일의 약 4배, 창보다 크게 열렸다가 제자리로 줄어들었고, 그 전에는 납작한 흰 상자가 한 프레임 보였습니다. 이제 썸네일에서 그대로 커집니다. 닫을 때도 썸네일 위로 선명하게 돌아가며, 바랜 채 몇 프레임 머물다가 갑자기 원래 색으로 바뀌지 않습니다. 뒤의 어두운 배경도 한 번에 나타나지 않고 서서히 나타납니다.
+- **그린 이미지에 주석을 단 뒤 저장할 수 있습니다.** 전에는 저장을 눌러도 아무 일도 일어나지 않았습니다.
+- **입력창에 넣은 이미지는 글자를 입력해도 사라지지 않습니다.** 브라우저 패널에서 고른 페이지 영역은 그 뒤에 한 글자만 입력해도 보내는 메시지에서 빠졌습니다. 주석을 달아 넣은 이미지도 마찬가지였습니다.
+- **'#1'은 가장 최근에 첨부한 이미지를 가리킵니다.** Lyra가 한 번 이미지를 그린 뒤에는, 나중에 첨부한 이미지를 다시 그려 달라고 해도 예전에 자기가 그린 이미지를 고쳤습니다.
+- **preview로 만든 페이지가 대화 안에 남습니다.** 전에는 접힌 '생각' 영역 안에 그려져서, 접히면 페이지도 보이지 않아 다시 펼쳐야 했습니다. 이제 접힌 영역에는 '미리보기 생성'과 페이지 제목 한 줄만 남고, 페이지는 그 아래에 있습니다.
+- **미리보기 카드가 페이지 높이에 맞춰집니다.** 컴퓨터가 바쁠 때 카드가 440px 높이에 고정된 채 그 높이로 기억되거나, 먼저 지나치게 줄었다가 다시 늘어났습니다. '다시 실행'을 누르면 카드가 계속 비어 있던 문제도 고쳤습니다.
+- **가로로 긴 이미지를 편집하면, 그리는 동안에도 완성본과 같은 모양으로 보입니다.** 전에는 정사각형으로 자리를 잡았다가 이미지가 도착하는 순간 16:9로 바뀌면서 아래 내용까지 움직였습니다.
+- **그리는 중인 이미지 모서리의 퍼센트가 잘 보입니다.** 두 장을 한꺼번에 그리면 모서리 배지가 점 무늬가 가장 빽빽한 곳에 겹쳐 '50%'가 점들과 섞여 읽히지 않았습니다. 이제 배지에 불투명한 바탕이 있습니다.
+- **파일 패널에서 큰 이미지를 열면 처음부터 패널에 맞는 크기로 보입니다.** 전에는 100%로 그려졌다가(너비 275px 패널에 1408px 이미지) 줄어들었습니다.
+- **이미지를 첨부해 메시지를 보내도 입력창이 튀지 않습니다.** 입력창 위의 이미지 줄이 한 프레임 만에 사라지면서 입력창이 76px 내려앉았는데, 이제 접히면서 사라집니다.
+- **메뉴는 어떻게 닫든 닫히는 애니메이션이 끝까지 재생됩니다.** 버튼을 다시 누르거나, 항목을 고르거나, '파일 변경' 카드의 미리보기에서 포인터를 떼면 한 프레임 만에 사라졌고, 휴대폰에서는 중간에 잘렸습니다.
+- **대화상자를 버튼으로 닫을 때도 사라지는 애니메이션이 재생됩니다**(취소, 저장, 커밋 등). 열리는 도중에 닫아도 먼저 불투명하게 돌아갔다가 사라지지 않습니다.
+- **답변 없이 끝난 턴(중지, 오류, 도구 호출만 있는 경우)에서는 대화 아래의 진행 상황 줄이 접히며 사라집니다.** 전에는 한순간에 사라지면서 대화가 한 줄만큼 위로 당겨졌습니다.
+- **스크린샷 돋보기는 첫 프레임부터 화면을 보여 줍니다.** 빈 검은 상자가 나오지 않고, 포인터보다 한 프레임 늦지도 않습니다.
+- **대화 제목이 짧은 시간에 두 번 바뀌어도 예전 제목이 잠깐 돌아오지 않습니다.**
+- **주석 도구 막대 위의 굵기·색 말풍선이 처음부터 제자리에 나타납니다.** 전에는 처음 220ms 동안 자기 너비의 절반만큼 오른쪽으로 치우쳐 다른 버튼을 가리켰습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Annotez une image, appuyez sur Terminé, et demandez-en une nouvelle version.** Une fois une image de la conversation annotée — dessinée par Lyra ou envoyée par vous —, Terminé place la copie annotée dans le champ de saisie de cette conversation, le curseur juste après. Écrivez ce qu’il faut changer et envoyez : le modèle d’images redessine à partir de votre copie, annotations comprises. Le bouton se contentait d’exporter une copie, et pour une image dessinée, il ne faisait même rien.
+- **« Récupérer les modèles » permet aussi d’en retirer, et d’en ajouter qui ne sont pas listés.** La boîte ne faisait qu’importer : les modèles déjà ajoutés étaient grisés et impossibles à décocher, un nom absent de la liste du fournisseur ne pouvait pas être ajouté — beaucoup de relais n’y mettent pas les modèles d’images —, et une fois tout ajouté il ne restait qu’« Annuler ». Une case cochée signifie désormais « dans la liste après Appliquer » : décocher un modèle ajouté le retire, taper un nom non listé puis Entrée l’ajoute, et la recherche trouve aussi par fournisseur (google trouve gemini). Le pied de la boîte compte séparément les ajouts et les retraits. Deux corrections au passage : changer de fournisseur pendant une récupération importait les modèles du premier dans le second, et un modèle d’images pouvait devenir le modèle de conversation par défaut.
+
+### Améliorations et corrections
+
+- **Modifier une image ne la fait plus d’abord grossir.** À partir de la deuxième fois, l’image s’ouvrait à environ quatre fois la taille de sa vignette — plus grande que la fenêtre — avant de rétrécir, précédée d’un rectangle blanc et plat pendant une image. Elle grandit désormais depuis la vignette. À la fermeture, elle revient se poser sur la vignette sans pâlir, au lieu d’y rester délavée plusieurs images puis de reprendre ses couleurs d’un coup. Le fond sombre apparaît en fondu au lieu de tomber d’un bloc.
+- **Une image dessinée peut être enregistrée après annotation.** Le bouton d’enregistrement ne faisait rien.
+- **Une image placée dans le champ de saisie y reste quand vous tapez.** La zone de page choisie dans le panneau Navigateur disparaissait du message dès qu’on tapait un mot après elle ; même chose pour une image annotée.
+- **« #1 » désigne l’image que vous avez jointe en dernier.** Une fois qu’il avait dessiné quelque chose, Lyra retravaillait son ancien dessin quand on lui demandait de refaire une image jointe ensuite.
+- **Une page créée avec preview reste dans la conversation.** Elle était dessinée dans la section de réflexion repliée : une fois celle-ci refermée, la page disparaissait jusqu’à ce qu’on la rouvre. La section ne garde plus qu’une ligne, « Aperçus générés » suivi du titre de la page, et la page s’affiche en dessous.
+- **Les cartes d’aperçu prennent la hauteur de leur page.** Sur une machine chargée, une carte pouvait rester bloquée à 440 px — et être mémorisée ainsi — ou rétrécir au-delà de la page puis rebondir ; Relancer laissait la carte vide.
+- **Une image large garde sa forme pendant qu’elle se dessine.** L’emplacement était carré et passait brusquement en 16:9 à l’arrivée de l’image, décalant tout ce qui suivait.
+- **Le pourcentage affiché sur une image en cours de dessin est lisible.** Quand deux images étaient dessinées à la fois, le badge du coin tombait sur la partie la plus dense des points et « 50 % » s’y noyait ; il a maintenant un fond opaque.
+- **Les grandes images du panneau Fichiers s’ouvrent à la taille ajustée.** Elles étaient dessinées à 100 % — une image de 1 408 px dans un panneau de 275 px — puis rétrécissaient.
+- **Envoyer un message avec des images ne fait plus sauter le champ de saisie.** La rangée d’images au-dessus disparaissait en une image et le champ descendait de 76 px ; elle se replie maintenant.
+- **Les menus se referment avec leur animation, quelle que soit la façon de les fermer.** Appuyer à nouveau sur le bouton, choisir un élément ou quitter l’aperçu de la carte « Modifications de fichiers » les faisait disparaître en une image ; sur téléphone, la fermeture était coupée à mi-chemin.
+- **Les boîtes de dialogue se ferment avec leur animation quand on appuie sur un bouton** — Annuler, Enregistrer, Valider — et en fermer une encore en train de s’ouvrir ne la fait plus redevenir opaque d’abord.
+- **La ligne d’avancement sous un tour se replie quand il se termine sans réponse** — arrêté, en erreur ou fait seulement d’appels d’outils —, au lieu de disparaître et de faire remonter la conversation d’une ligne.
+- **La loupe de capture d’écran affiche l’image dès sa première image**, sans cadre noir vide, et ne suit plus le pointeur avec une image de retard.
+- **Un titre de conversation modifié deux fois de suite ne réaffiche plus brièvement l’ancien.**
+- **La bulle d’épaisseur et de couleur au-dessus de la barre d’annotation s’ouvre directement à sa place.** Pendant ses 220 premières ms, elle était décalée vers la droite de la moitié de sa largeur et pointait vers le mauvais bouton.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **Разметьте картинку, нажмите «Готово» — и попросите перерисовать.** Когда картинка из разговора размечена — нарисованная Lyra или отправленная вами, — «Готово» кладёт копию с разметкой в поле ввода этого разговора, курсор стоит сразу за ней. Напишите, что изменить, и отправьте: модель изображений перерисует по вашей копии вместе с пометками. Раньше эта кнопка только выгружала копию, а для нарисованной картинки не делала даже этого.
+- **В «Получить модели» можно и удалять модели, и добавлять те, которых нет в списке.** Окно умело только импортировать: уже добавленные модели были серыми и не снимались, имя, которого нет в списке провайдера, добавить было нельзя — многие ретрансляторы не включают туда модели изображений, — а когда всё из списка было добавлено, оставалась одна кнопка «Отмена». Теперь отметка означает «будет в списке после применения»: снимите её с добавленной модели — она удалится; введите в поиск имя, которого нет в списке, и нажмите Enter — она добавится; искать можно и по производителю (google находит gemini). Внизу отдельно видно, сколько добавится и сколько удалится. Заодно исправлены два случая: смена провайдера во время загрузки списка импортировала модели первого провайдера во второй, а модель изображений могла стать моделью разговора по умолчанию.
+
+### Улучшения и исправления
+
+- **«Изменить» на картинке больше не раздувает её сначала.** Начиная со второго раза картинка открывалась примерно в четыре раза больше миниатюры — больше окна — и потом сжималась на место, а перед этим на кадр мелькал плоский белый прямоугольник. Теперь она вырастает из миниатюры. При закрытии она возвращается на миниатюру плотной, а не стоит на ней несколько кадров выцветшей, чтобы потом резко стать яркой. Тёмная подложка появляется плавно, а не сразу.
+- **Нарисованную картинку после разметки можно сохранить.** Кнопка сохранения ничего не делала.
+- **Картинка, положенная в поле ввода, остаётся в сообщении, когда вы печатаете.** Выбранный в панели «Браузер» фрагмент страницы пропадал из сообщения, стоило напечатать после него хоть слово; то же было с размеченной картинкой.
+- **«#1» — это картинка, которую вы приложили последней.** После того как Lyra что-то нарисовала, просьба переделать приложенную позже картинку заставляла её переделывать собственный старый рисунок.
+- **Страница, созданная через preview, остаётся в разговоре.** Раньше она рисовалась внутри свёрнутого блока размышлений: стоило блоку свернуться, и страница пропадала, пока его снова не раскроешь. Теперь в блоке остаётся одна строка — «Создание предпросмотра» и название страницы, — а сама страница стоит под ней.
+- **Карточки предпросмотра подстраиваются под высоту страницы.** На загруженной машине карточка могла застрять на 440 px — и запомниться такой — или сначала сжаться меньше страницы и отскочить обратно; после «Выполнить снова» карточка оставалась пустой.
+- **Широкая картинка сохраняет свою форму, пока рисуется.** Место под неё было квадратным и при появлении картинки резко становилось 16:9, сдвигая всё, что ниже.
+- **Процент на рисующейся картинке читается.** Когда рисовались две картинки сразу, значок в углу ложился на самую плотную часть точечного узора, и «50%» сливалось с точками; теперь у значка непрозрачный фон.
+- **Большие картинки в панели «Файлы» сразу открываются вписанными.** Раньше они рисовались в 100 % — картинка в 1408 px в панели шириной 275 px — и только потом уменьшались.
+- **Отправка сообщения с картинками больше не дёргает поле ввода.** Ряд картинок над полем исчезал за один кадр, и поле опускалось на 76 px; теперь ряд сворачивается.
+- **Меню закрываются с анимацией, как бы их ни закрыли.** Повторное нажатие на кнопку, выбор пункта или уход с предпросмотра в карточке «Изменения файлов» убирали их за один кадр; на телефоне закрытие обрывалось на середине.
+- **Диалоги закрываются с анимацией и при нажатии на кнопку** — «Отмена», «Сохранить», «Коммит», — а закрытый ещё во время появления диалог больше не становится сначала снова непрозрачным.
+- **Строка с ходом работы внизу разговора сворачивается, когда ход заканчивается без ответа** — остановлен, завершился ошибкой или состоял только из вызовов инструментов, — а не исчезает, подтягивая разговор на строку вверх.
+- **Лупа при снимке экрана показывает изображение с первого кадра**, без пустой чёрной рамки, и больше не отстаёт от указателя на кадр.
+- **Название разговора, изменённое дважды подряд, больше не мелькает старым вариантом.**
+- **Пузырь толщины и цвета над панелью разметки сразу появляется на своём месте.** Первые 220 мс он был сдвинут вправо на половину своей ширины и указывал не на ту кнопку.
+
+</details>
+
 ## [0.9.25](https://github.com/kittors/Lyra/releases/tag/v0.9.25) - 2026-10-12
 <!-- lyra:notes en -->
 
