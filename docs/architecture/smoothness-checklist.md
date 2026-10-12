@@ -222,6 +222,18 @@ aria、name，所以按这些在文档里查东西的代码找不到它；减少
 不留克隆。Esc 和点外面那条的收尾从固定 120ms 定时器改成等退场自己的 `animationend`——手机上
 退场是 150ms，定时器在半透明时就把它卸了。
 
+对话框（`Overlay`）同样修了（`e2e/dialog-exit-probe.ts`，新建项目弹窗）：
+
+| 关法 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 点「取消」 | 第一帧就没了 | 7 帧中间态，最后 0.00 |
+| 入场 180ms 内按 Esc | 关时 0.36，下一帧**跳回 1.00** 再淡 | 从 0.40 一路降到 0 |
+
+按钮关不出退场，是因为它们直接调 `onClose`：`Dialog` 的 `actions`/`children` 现在可以写成
+`dismiss` 的函数，`UpdateDialog`、`ProjectDialog`、`CommitPushDialog` 的关闭按钮都改走它
+（其余弹窗本来就走）。往回跳是因为 `ly-dialog-out`/`ly-scrim-out` 写了显式 `from`：去掉之后，
+`Overlay` 在 dismiss 那一刻把卡片和遮罩当前画出来的 opacity/transform 写成内联样式，退场从那里起步。
+
 **差距**：无。
 
 ---

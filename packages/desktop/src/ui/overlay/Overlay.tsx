@@ -3,7 +3,22 @@ import { dismissHoverLayers } from "./hover-layers.ts";
 import { portal } from "./portal.ts";
 
 export const OverlayDepth = createContext(0);
-type Dismiss = (after?: () => void) => void;
+/** Play the exit, then run `after` — or `onClose` when there is nothing else to do. */
+export type Dismiss = (after?: () => void) => void;
+
+/**
+ * Where an element is drawn this frame, as a style to start its exit from.
+ *
+ * The exits have no `from`: they begin at the element's own style, and this makes that style the
+ * frame on screen. With a fixed `from`, a dialog closed inside its 180ms entrance jumped back to
+ * fully opaque and settled before fading — and on a phone the sheet snapped to the top of its rise
+ * before sliding back down.
+ */
+function drawnNow(element: HTMLElement | null): React.CSSProperties {
+	if (!element) return {};
+	const now = getComputedStyle(element);
+	return { opacity: now.opacity, transform: now.transform === "none" ? undefined : now.transform };
+}
 
 /** One lifecycle for Escape, backdrop, cancel and completion, including nested dialogs. */
 export function Overlay({ children, onClose, align = "center", width = 460, label, returnFocus }: {
@@ -17,15 +32,18 @@ export function Overlay({ children, onClose, align = "center", width = 460, labe
 	const depth = useContext(OverlayDepth) + 1;
 	const id = useId();
 	const card = useRef<HTMLDivElement>(null);
+	const scrim = useRef<HTMLDivElement>(null);
 	const callback = useRef(onClose);
 	callback.current = onClose;
 	const dismissed = useRef(false);
 	const completion = useRef<(() => void) | null>(null);
 	const [leaving, setLeaving] = useState(false);
+	const [exitFrom, setExitFrom] = useState<{ scrim: React.CSSProperties; card: React.CSSProperties }>({ scrim: {}, card: {} });
 	const dismiss = useCallback<Dismiss>((after) => {
 		if (dismissed.current) return;
 		dismissed.current = true;
 		completion.current = after ?? (() => callback.current());
+		setExitFrom({ scrim: drawnNow(scrim.current), card: drawnNow(card.current) });
 		setLeaving(true);
 	}, []);
 	/*
@@ -91,10 +109,10 @@ export function Overlay({ children, onClose, align = "center", width = 460, labe
 		 * click on it — or on the scrim it put over everything — as a click elsewhere. See the
 		 * press-outside test in `Popover`.
 		 */}
-		<div data-ly-overlay={depth} className={`fixed inset-0 flex justify-center p-4 sm:p-8 ${align === "center" ? "items-center" : "items-end pb-[120px]"} ${leaving ? "ly-scrim-out" : "ly-scrim-in"}`}
-			style={{ zIndex: 60 + depth * 20 }} onMouseDown={(event) => { if (event.target === event.currentTarget) dismiss(); }}>
+		<div ref={scrim} data-ly-overlay={depth} className={`fixed inset-0 flex justify-center p-4 sm:p-8 ${align === "center" ? "items-center" : "items-end pb-[120px]"} ${leaving ? "ly-scrim-out" : "ly-scrim-in"}`}
+			style={{ zIndex: 60 + depth * 20, ...exitFrom.scrim }} onMouseDown={(event) => { if (event.target === event.currentTarget) dismiss(); }}>
 			<div ref={card} data-ly-modal role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
-				style={{ width, maxWidth: "100%" }}
+				style={{ width, maxWidth: "100%", ...exitFrom.card }}
 				className={`ly-dialog-surface flex max-h-[85dvh] min-h-0 flex-col overflow-hidden rounded-2xl border border-line-float bg-float outline-none ${leaving ? "ly-dialog-out" : "ly-dialog-in"}`}
 				onAnimationEnd={(event) => { if (event.target !== event.currentTarget || !leaving) return; const complete = completion.current; completion.current = null; complete?.(); }}>
 				{typeof children === "function" ? children(dismiss) : children}
