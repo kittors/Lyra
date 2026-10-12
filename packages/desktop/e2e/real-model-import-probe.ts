@@ -146,7 +146,7 @@ async function main() {
 		);
 
 		// ---- 问题 5 下半：导入，然后跨一次存盘再看 ----------------------------------
-		await app.evaluate(`(()=>{document.querySelector('[data-import-qa]')?.removeAttribute('data-import-qa');[...document.querySelectorAll('[data-ly-modal] button')].find((b)=>/导入所选/.test(b.innerText)).setAttribute('data-import-qa','');})()`);
+		await app.evaluate(`(()=>{document.querySelector('[data-import-qa]')?.removeAttribute('data-import-qa');[...document.querySelectorAll('[data-ly-modal] button')].find((b)=>/^(添加|应用)/.test(b.innerText.trim())).setAttribute('data-import-qa','');})()`);
 		await click("[data-import-qa]");
 		await app.evaluate(`(${WAIT})(3000)`);
 		const imported = await app.evaluate<{ count: number; windows: number[]; outputs: number[]; sources: string[] }>(`(async () => {
