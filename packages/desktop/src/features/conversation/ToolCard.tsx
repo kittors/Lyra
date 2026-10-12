@@ -1,6 +1,7 @@
 import type { DiffHunk, ToolResult } from "@lyra/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
+	AppWindow,
 	ArrowUpRight,
 	Ban,
 	Cable,
@@ -48,6 +49,8 @@ const ICONS: Record<string, typeof FileText> = {
 	skill: Sparkles,
 	web_fetch: Globe,
 	image_generate: ImageIcon,
+	// A row only inside a fold, or when no page was made — otherwise the page stands in for the call.
+	preview: AppWindow,
 };
 
 interface ToolCardProps {

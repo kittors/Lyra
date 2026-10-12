@@ -29,7 +29,7 @@ const MAX_HEIGHT = 720;
 const DEFAULT_HEIGHT = 440;
 /** A page whose height depends on its own height would otherwise resize forever. */
 const MAX_ADJUSTMENTS = 8;
-/** If the reporter never runs — blocked, broken, or a page with no head — stop waiting. */
+/** If the reporter never runs — blocked, broken, or a page with no head — stop waiting. Counted from the page's load. */
 const PROBE_TIMEOUT_MS = 1500;
 /** How long to keep collecting measurements before committing to one. */
 const PROBE_SETTLE_MS = 400;
@@ -91,6 +91,8 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	const [nonce, setNonce] = useState(0);
 	const [tall, setTall] = useState(false);
 	const [ready, setReady] = useState(false);
+	/** Loaded, and nothing heard for a while: shown at the default height, still listening. */
+	const [gaveUp, setGaveUp] = useState(false);
 	/** The page wants more room than a card in a transcript is allowed to take. */
 	const [overflowing, setOverflowing] = useState(false);
 	const frame = useRef<HTMLIFrameElement>(null);
@@ -129,12 +131,6 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	 * A page whose height genuinely depends on its height settles at the cap rather than running.
 	 */
 	useEffect(() => {
-		const state = survey.current;
-		function commit(height: number) {
-			state.settled = true;
-			setMeasured(height);
-			rememberHeight(preview, height);
-		}
 		function note(asked: number) {
 			if (asked > MAX_HEIGHT + 8) setOverflowing(true);
 		}
@@ -144,6 +140,15 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			const asked = (event.data as { __dwPreviewHeight?: unknown })?.__dwPreviewHeight;
 			if (typeof asked !== "number" || !Number.isFinite(asked)) return;
 
+			/*
+			 * Read when the message comes, not when this effect ran.
+			 *
+			 * 「重新运行」 starts a fresh survey by replacing the object, and that does not run this effect
+			 * again. Held from here, the old, settled survey took the new page's first report for a
+			 * late one — taller only — while the card had just been reset to unmeasured, and the rerun
+			 * left an empty frame that never filled.
+			 */
+			const state = survey.current;
 			if (!state.settled) {
 				/*
 				 * Keep listening for a moment before deciding.
@@ -157,6 +162,9 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				state.tallest = Math.max(state.tallest, asked);
 				note(asked);
 				state.timer ??= setTimeout(() => {
+					state.settled = true;
+					// A rerun since then started another survey, and this answer is about a page that is gone.
+					if (survey.current !== state) return;
 					/*
 					 * Too small to be a measurement of anything.
 					 *
@@ -164,7 +172,9 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					 * and what comes back is the sum of a few collapsed boxes. Better to give it
 					 * the default and let it fill that than to squeeze it into its own collapse.
 					 */
-					commit(state.tallest < MEANINGFUL_HEIGHT ? DEFAULT_HEIGHT : clamp(state.tallest));
+					const height = state.tallest < MEANINGFUL_HEIGHT ? DEFAULT_HEIGHT : clamp(state.tallest);
+					setMeasured(height);
+					rememberHeight(preview, height);
 				}, PROBE_SETTLE_MS);
 				return;
 			}
@@ -186,20 +196,33 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			});
 		}
 		window.addEventListener("message", onMessage);
-		// Nothing arrived, so nothing is coming; settle on something sensible rather than waiting.
-		const giveUp = setTimeout(() => {
-			if (!state.settled) commit(DEFAULT_HEIGHT);
-		}, PROBE_TIMEOUT_MS);
-		return () => {
-			window.removeEventListener("message", onMessage);
-			clearTimeout(giveUp);
-		};
+		return () => window.removeEventListener("message", onMessage);
 	}, [preview]);
+
+	/*
+	 * Loaded, and nothing heard for a while: show the page at the default height, and keep listening.
+	 *
+	 * Counted from the load, not from the mount. The frame runs in a process of its own, and on a
+	 * busy machine starting it took longer than the whole wait: the clock ran out before the page
+	 * existed, the default was committed as if measured — settled and remembered — and the real
+	 * height that came a moment later could only ever make the card taller. Those previews stayed
+	 * at 440. Nor is the default a measurement now: it is not remembered, and the first report that
+	 * does arrive is still taken as the first, free to make the card shorter.
+	 */
+	useEffect(() => {
+		if (!ready) return;
+		const state = survey.current;
+		const giveUp = setTimeout(() => {
+			// A report in hand settles within PROBE_SETTLE_MS; showing the default first would only add a jump.
+			if (!state.settled && state.timer === null) setGaveUp(true);
+		}, PROBE_TIMEOUT_MS);
+		return () => clearTimeout(giveUp);
+	}, [ready]);
 
 	// Asking for more space is a decision the page does not get to overrule.
 	const height = tall ? MAX_HEIGHT : (measured ?? DEFAULT_HEIGHT);
-	// Held back until it has been measured, so the probe height is never a frame anyone sees.
-	const visible = ready && measured !== null;
+	// Held back until it has been measured, or until it is clear nothing is coming, so the probe height is never a frame anyone sees.
+	const visible = ready && (measured !== null || gaveUp);
 
 	return (
 		<div
@@ -210,8 +233,14 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			 * The probe works by observing the page at a deliberately small height, and an animated
 			 * height is not at that height yet — it is somewhere on the way there. The page loaded
 			 * mid-transition and reported the height it happened to see, which was the old one.
+			 *
+			 * And the height is the page's, the border on top of it (`box-content`). Inside the
+			 * border, the 2px of slack the page adds to what it asks for went to the border, and a
+			 * page sized to exactly its own height sat exactly at the frame's edge — where filling
+			 * the frame and merely fitting it look the same to the measurement, and a `height: 360px`
+			 * page reopened at its remembered height measured 256 and dipped before coming back.
 			 */
-			className={`ly-enter relative my-2.5 overflow-hidden rounded-[12px] border border-line-soft ${
+			className={`ly-enter relative my-2.5 box-content overflow-hidden rounded-[12px] border border-line-soft ${
 				measured === null ? "" : "transition-[height] duration-[var(--ly-t-slow)]"
 			}`}
 		>
@@ -301,6 +330,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 						survey.current = { settled: false, tallest: 0, adjustments: 0, timer: null };
 						setOverflowing(false);
 						setReady(false);
+						setGaveUp(false);
 						setMeasured(null);
 						setNonce((value) => value + 1);
 					}}

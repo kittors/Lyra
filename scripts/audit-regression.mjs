@@ -11,6 +11,8 @@
  * 用法：
  *   node scripts/audit-regression.mjs          单测与门禁，约一分钟，不弹窗口
  *   node scripts/audit-regression.mjs --window  再加上要真窗口的那几条（会抢焦点几分钟）
+ *   node scripts/audit-regression.mjs --window --only=PREVIEW-fold-window,PREVIEW-height-window
+ *                                              只跑点名的那几条——验一处修复，不必让每个探针都抢一遍焦点
  *
  * 真窗口那几条默认不跑，理由是它们会把窗口摆到屏幕上抢焦点，而其中依赖真实指针位置的探针在
  * 人正在用电脑时结果不可信（`screenshot-probe` 实测在 1 到 11 个问题之间跳，基线同样跳）。
@@ -22,6 +24,7 @@ import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const withWindow = process.argv.includes("--window");
+const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",");
 
 /**
  * 一条修复，和证明它还在的那个东西。
@@ -141,6 +144,16 @@ const CHECKS = [
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popover-first-frame.test.ts"]],
 	},
 	{
+		id: "PREVIEW-fold",
+		what: "preview 做的页面跟着过程一起收进折叠，一轮跑完只剩「思考 1 次 · 生成预览」一行，要点开思考才看得到页面",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/preview-fold.test.ts", "test/turn-blocks.test.ts"]],
+	},
+	{
+		id: "PREVIEW-height",
+		what: "预览卡片在机器忙时锁死在 440：等待从挂上算起，超时把默认值当成量好的高度记下来，之后只许变高；固定高度的页面先报 256 再报 362，卡片缩过头又长回来，重开也弹一下；「重新运行」之后卡片永远空白",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/preview-height.test.ts", "test/preview-height-reporter.test.ts"]],
+	},
+	{
 		id: "knip",
 		what: "191 个未用导出，而 CI 里那条检查永远不会红",
 		run: ["pnpm", ["knip"]],
@@ -202,6 +215,18 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/popover-first-frame-probe.ts", "回归", "/tmp/regression-popover"]],
 	},
+	{
+		id: "PREVIEW-fold-window",
+		what: "跑起来的桌面端里，实时一轮、重新打开、「展开」排法三种情况下，预览页面都在折叠行外面，折叠里只剩一行「生成预览 <标题>」，卡片逐帧只朝一个方向收到页面的高度",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/preview-outside-fold-probe.ts", "live,stored,expanded", "after"]],
+	},
+	{
+		id: "PREVIEW-height-window",
+		what: "跑起来的桌面端里，页面晚两秒才报高度，卡片照样跟着页面而不是锁在 440；重新载入后卡片停在记下的高度，一帧不动",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/preview-outside-fold-probe.ts", "slow,reopen", "after"]],
+	},
 ];
 
 const pass = [];
@@ -221,6 +246,7 @@ const skipped = [	{
 ];
 
 for (const check of CHECKS) {
+	if (only && !only.includes(check.id)) continue;
 	if (check.window && !withWindow) {
 		skipped.push(check);
 		continue;

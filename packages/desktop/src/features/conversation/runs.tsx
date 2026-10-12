@@ -5,7 +5,7 @@
  * subscribes to its own tool run and a group that reads the totals across one.
  */
 
-import { memo } from "react";
+import { createContext, memo, useContext } from "react";
 import type { AssistantContent, AssistantMessage } from "@lyra/core";
 import { PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
@@ -41,6 +41,31 @@ export const WINDOW_TURNS = 20;
 export type Segment =
   | { kind: "block"; block: AssistantContent; index: number }
   | { kind: "tools"; blocks: Extract<AssistantContent, { type: "toolCall" }>[] };
+
+/**
+ * Whether the calls drawn here sit inside something that folds: a turn's process line, a run's group line.
+ *
+ * A preview drawn in place folded away with the work that made it — a turn ended as
+ * 「思考 1 次 · 生成预览」 and the page was gone until you opened the reasoning. So inside a fold a
+ * preview is only a row, and whoever owns the fold draws the page after it (`PreviewCards`).
+ */
+export const InFold = createContext(false);
+
+function previewOf(run?: ToolRunState): PreviewInfo | undefined {
+  return (run?.result?.details as { preview?: PreviewInfo } | undefined)?.preview;
+}
+
+/** The pages these preview calls made, for drawing after the fold they sit in. A call with no page yet draws nothing. */
+export function PreviewCards({ calls, runs }: { calls: Extract<AssistantContent, { type: "toolCall" }>[]; runs?: Record<string, ToolRunState> }) {
+  return <>{calls.map((call) => <FoldedPreview key={call.id} call={call} runs={runs} />)}</>;
+}
+
+function FoldedPreview({ call, runs }: { call: Extract<AssistantContent, { type: "toolCall" }>; runs?: Record<string, ToolRunState> }) {
+  // This screen's record, or the one handed in for a transcript outside the main session — as in `LiveToolCard`.
+  const stored = useScopedFromToolRuns((toolRuns) => toolRuns[call.id]);
+  const preview = previewOf(runs ? runs[call.id] : stored);
+  return preview ? <PreviewCard preview={preview} /> : null;
+}
 
 /**
  * Split a reply into runs of tool calls and everything else.
@@ -127,16 +152,20 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
    *
    * The card would say "预览已生成" above the thing itself, which is a caption nobody needs —
    * the page is right there, and it is the result.
+   *
+   * Except inside a fold, where the page would fold away with the process: there the fold's owner
+   * draws it after the fold, and this stays a row saying what the call made. See `InFold`.
    */
-  const preview = (run?.result?.details as { preview?: PreviewInfo } | undefined)?.preview;
-  if (preview) return <PreviewCard preview={preview} />;
+  const folded = useContext(InFold);
+  const preview = previewOf(run);
+  if (preview && !folded) return <PreviewCard preview={preview} />;
   return (
     <ToolCard
       stateKey={runs ? undefined : `tool-${block.id}`}
       toolName={block.name}
       args={block.arguments}
       // Core's English summary ("Read src/a.ts") said the way the turn line says it; see `describeActivity`.
-      summary={describeActivity(run?.summary ?? block.name)}
+      summary={block.name === "preview" ? previewRow(block, preview) : describeActivity(run?.summary ?? block.name)}
       // 没有记录时说什么，以及为什么不能只看这条消息定没定稿：见 `tool-status.ts`。
       status={run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning)}
       result={run?.result}
@@ -209,6 +238,7 @@ const ToolRunGroup = function ToolRun({
   const summary = describeCalls(calls);
   // The expanded layout (Settings › Appearance › Tool calls) keeps the grouped line even where `flat` is asked for.
   const chain = useCallChain();
+  const folded = useContext(InFold);
   // Totals across the run, so a fold does not hide how much changed — counted from this screen's records.
   const added = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "added"), 0));
   const removed = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "removed"), 0));
@@ -224,11 +254,20 @@ const ToolRunGroup = function ToolRun({
   // `contents`, so each call sits in the surrounding column's own gap; the attribute keeps the run findable.
   if (flat && chain === "collapsed") return <div data-ly-run={live ? "running" : "done"} className="contents">{cards}</div>;
 
+  /*
+   * The group line folds too, and starts folded — a page behind it is as hidden as one behind a turn
+   * line, and the sub-agent panel draws every run this way. So the page goes after the line, unless
+   * the whole run is already inside a fold, whose owner draws it after that one.
+   */
+  const previews = folded ? [] : calls.filter(({ block }) => block.name === "preview").map(({ block }) => block);
   return (
-    <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}
-      extra={dispatches.length > 0 ? <DispatchFaces dispatches={dispatches} /> : undefined}>
-      {cards}
-    </ToolGroup>
+    <>
+      <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}
+        extra={dispatches.length > 0 ? <DispatchFaces dispatches={dispatches} /> : undefined}>
+        <InFold.Provider value>{cards}</InFold.Provider>
+      </ToolGroup>
+      {previews.length > 0 && <PreviewCards calls={previews} runs={runs} />}
+    </>
   );
 }
 /**
@@ -264,6 +303,18 @@ export function describeCalls(calls: Call[]): string {
 function kindOf(block: Extract<AssistantContent, { type: "toolCall" }>): string {
   const images = (block.arguments as { images?: unknown } | undefined)?.images;
   return block.name === "image_generate" && Array.isArray(images) && images.length > 0 ? "image_edit" : block.name;
+}
+
+/**
+ * 「生成预览 柴柴小布丁」: the row a preview leaves inside a fold.
+ *
+ * Core's summary for the call is the bare title, and a reopened conversation rebuilds it as the
+ * tool's name — so read as an activity the row said 「柴柴小布丁」 live and 「preview」 after a restart.
+ */
+function previewRow(block: Extract<AssistantContent, { type: "toolCall" }>, preview?: PreviewInfo): string {
+  const asked = (block.arguments as { title?: unknown } | undefined)?.title;
+  const title = preview?.title ?? (typeof asked === "string" ? asked.trim() : "");
+  return describeRun([{ toolName: "preview", subject: title || undefined }]);
 }
 
 /** The file a call is about, when it is about one — the part worth naming in a summary. */
