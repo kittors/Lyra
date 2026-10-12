@@ -316,6 +316,18 @@ async function main() {
 		judgeReturn("Esc 关掉", escClose, thumb, chrome);
 		await pause(800);
 
+		console.log("\n④b 标注中开、关，连做五轮");
+		let early = 0;
+		for (let round = 0; round < 5; round++) {
+			await sample(pressEdit, 700);
+			const back = await sample(pressBackdrop, 700);
+			const open = back.frames.filter((f) => f.vw !== undefined);
+			const last = open[open.length - 1];
+			if (!last || Math.abs(last.vw! - thumb.width) > 3) early++;
+			await pause(300);
+		}
+		check("五轮里每一次都落回缩略图上才收起", early === 0, `${early} 轮没落到位就收了`);
+
 		console.log("\n⑤ 点图片：预览");
 		const viewOpen = await sample(async () => {
 			await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: thumb.x + thumb.width / 2, y: thumb.y + thumb.height / 2 });
@@ -402,24 +414,14 @@ async function main() {
 			await pause(800);
 		}
 
-		console.log("\n⑨ 标注中开、关，连做五轮");
-		let early = 0;
-		for (let round = 0; round < 5; round++) {
-			await sample(pressEdit, 700);
-			const back = await sample(pressBackdrop, 700);
-			const open = back.frames.filter((f) => f.vw !== undefined);
-			const last = open[open.length - 1];
-			if (!last || Math.abs(last.vw! - thumb.width) > 3) early++;
-			await pause(300);
-		}
-		check("五轮里每一次都落回缩略图上才收起", early === 0, `${early} 轮没落到位就收了`);
-
-		console.log("\n⑩ 十倍慢放，拍「编辑」打开的几个瞬间");
+		console.log("\n⑨ 十倍慢放，拍「编辑」打开的几个瞬间");
 		await app.send("Animation.enable");
 		await app.send("Animation.setPlaybackRate", { playbackRate: 0.1 });
-		await hover('[data-ly-image-frame="done"]');
+		// The newest picture: after the redraw the conversation has scrolled to it, and the first is out of view.
+		await app.evaluate(`(() => { document.querySelector('[data-probe-last]')?.removeAttribute('data-probe-last'); [...document.querySelectorAll('[data-ly-image-frame="done"]')].pop().setAttribute('data-probe-last', ''); })()`);
+		await hover('[data-probe-last]');
 		await pause(500);
-		await app.evaluate(`document.querySelector('[data-ly-image-frame="done"] .ly-image-action[aria-label="编辑"]').setAttribute('data-probe-edit', '')`);
+		await app.evaluate(`document.querySelector('[data-probe-last] .ly-image-action[aria-label="编辑"]').setAttribute('data-probe-edit', '')`);
 		const t0 = Date.now();
 		await click("[data-probe-edit]");
 		for (const at of [30, 400, 900, 1600, 2700]) {
@@ -432,6 +434,9 @@ async function main() {
 		await pause(300);
 		await key("Escape", 27);
 		await pause(800);
+	} catch (error) {
+		// A probe that dies halfway must not print a tidy "n/n 通过" for the half it got through.
+		check("探针完整跑完", false, error instanceof Error ? error.message : String(error));
 	} finally {
 		const passed = results.filter((r) => r.ok).length;
 		console.log(`\n${passed}/${results.length} 通过`);
