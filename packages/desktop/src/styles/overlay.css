@@ -32,10 +32,12 @@
   }
 }
 
+/*
+ * The exits name only where they end. They start from the element's own style, which `Overlay`
+ * sets to the frame on screen when it is dismissed — so a dialog closed while still arriving goes
+ * back from where it got to, instead of first jumping to fully opaque.
+ */
 @keyframes ly-scrim-out {
-  from {
-    opacity: 1;
-  }
   to {
     opacity: 0;
   }
@@ -53,10 +55,6 @@
 }
 
 @keyframes ly-dialog-out {
-  from {
-    opacity: 1;
-    transform: none;
-  }
   to {
     opacity: 0;
     transform: translateY(6px) scale(0.985);

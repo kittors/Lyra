@@ -13,7 +13,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { shortcutLabel } from "../../ui/keyboard.ts";
 import type { Point } from "./screenshot-geometry.ts";
 
@@ -57,7 +57,15 @@ export function ScreenshotLoupe({
 }) {
 	const glass = useRef<HTMLCanvasElement | null>(null);
 
-	useEffect(() => {
+	/*
+	 * Drawn before the frame is painted, in the same commit that moves the box.
+	 *
+	 * After paint (`useEffect`), the first frame of the loupe was an empty black square, and every
+	 * pointer move painted the box at its new place around the old pixels — the reading under the
+	 * crosshair one frame behind the crosshair. A pointer move is not a discrete event, so React does
+	 * not flush passive effects before painting it.
+	 */
+	useLayoutEffect(() => {
 		const el = glass.current;
 		const ctx = el?.getContext("2d", { colorSpace });
 		if (!el || !ctx || !source) return;

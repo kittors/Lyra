@@ -9,7 +9,7 @@
 
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 
-import { Overlay } from "./Overlay.tsx";
+import { Overlay, type Dismiss } from "./Overlay.tsx";
 import { Scroller } from "../scroll/Scroller.tsx";
 
 /**
@@ -147,21 +147,37 @@ export function DialogFrame({
 	);
 }
 
+/**
+ * `Overlay` with `DialogFrame` inside.
+ *
+ * `actions` and `children` can be functions of `dismiss`, and a button that closes the dialog should
+ * take it: `dismiss()` plays the exit and then runs `onClose`, `dismiss(after)` runs `after` instead.
+ * Calling `onClose` straight from a button unmounts the dialog in that frame — only Escape and the
+ * scrim used to leave the way they came in.
+ */
 export function Dialog({
 	onClose,
 	width = 480,
 	label,
 	returnFocus,
+	actions,
+	children,
 	...frame
 }: {
 	onClose: () => void;
 	width?: number;
 	label?: string;
 	returnFocus?: HTMLElement;
-} & Parameters<typeof DialogFrame>[0]) {
+	actions: ReactNode | ((dismiss: Dismiss) => ReactNode);
+	children?: ReactNode | ((dismiss: Dismiss) => ReactNode);
+} & Omit<Parameters<typeof DialogFrame>[0], "actions" | "children">) {
 	return (
 		<Overlay onClose={onClose} width={width} label={label} returnFocus={returnFocus}>
-			<DialogFrame {...frame} />
+			{(dismiss) => (
+				<DialogFrame {...frame} actions={typeof actions === "function" ? actions(dismiss) : actions}>
+					{typeof children === "function" ? children(dismiss) : children}
+				</DialogFrame>
+			)}
 		</Overlay>
 	);
 }

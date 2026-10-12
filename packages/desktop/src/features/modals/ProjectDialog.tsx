@@ -19,6 +19,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { baseName } from "../../lib/paths.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Dialog, DialogAction } from "../../ui/overlay/Dialog.tsx";
+import type { Dismiss } from "../../ui/overlay/Overlay.tsx";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 
@@ -140,11 +141,14 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 		setFolders((current) => [...current, picked.path]);
 	}
 
-	function submit() {
+	/** Saved on the way out rather than under a dialog still on screen — see the completion note in `Overlay`. */
+	function submit(dismiss: Dismiss) {
 		if (folders.length === 0) return;
-		if (editing) void updateProject(project.path, { name, folders });
-		else void createProject(name, folders);
-		onClose();
+		dismiss(() => {
+			if (editing) void updateProject(project.path, { name, folders });
+			else void createProject(name, folders);
+			onClose();
+		});
 	}
 
 	/*
@@ -163,21 +167,23 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 				label={t("projectMenu.removeConfirm", { name: project.name })}
 				title={t("projectMenu.removeConfirm", { name: project.name })}
 				detail={t("projectMenu.removeDetail")}
-				actions={
+				actions={(dismiss) => (
 					<>
 						<div className="flex-1" />
 						<DialogAction onClick={() => setConfirmingRemove(false)}>{t("common.cancel")}</DialogAction>
 						<DialogAction
 							tone="danger"
-							onClick={() => {
-								void removeProject(project.path);
-								onClose();
-							}}
+							onClick={() =>
+								dismiss(() => {
+									void removeProject(project.path);
+									onClose();
+								})
+							}
 						>
 							{t("common.remove")}
 						</DialogAction>
 					</>
-				}
+				)}
 			/>
 		);
 	}
@@ -188,7 +194,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 			width={PROJECT_DIALOG_WIDTH}
 			label={editing ? t("project.edit") : t("project.create")}
 			title={editing ? t("project.edit") : t("project.create")}
-			actions={
+			actions={(dismiss) => (
 				<>
 					{editing && (
 						<DialogAction tone="danger" onClick={() => setConfirmingRemove(true)}>
@@ -196,46 +202,48 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 						</DialogAction>
 					)}
 					<div className="flex-1" />
-					<DialogAction onClick={onClose}>{t("common.cancel")}</DialogAction>
-					<DialogAction tone="primary" disabled={folders.length === 0} onClick={submit}>
+					<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
+					<DialogAction tone="primary" disabled={folders.length === 0} onClick={() => submit(dismiss)}>
 						{editing ? t("common.save") : t("project.create")}
 					</DialogAction>
 				</>
-			}
+			)}
 		>
 			{/*
 			 * A form, so Enter submits from the name field — which is the only field, and the last
 			 * thing most people will touch before pressing 创建.
 			 */}
-			<form
-				data-ly-project-dialog={editing ? "edit" : "create"}
-				onSubmit={(event) => {
-					event.preventDefault();
-					submit();
-				}}
-			>
-				<div className="ly-field mb-5 gap-2.5">
-					<Folder size={15} strokeWidth={1.8} className="shrink-0 text-ink-muted" aria-hidden />
-					<Input
-						autoFocus
-						value={name}
-						onChange={(event) => setName(event.target.value)}
-						placeholder={t("project.namePlaceholder")}
-						aria-label={t("project.namePlaceholder")}
-						className="min-w-0 flex-1 bg-transparent text-label text-ink outline-none placeholder:text-ink-faint"
-					/>
-				</div>
+			{(dismiss) => (
+				<form
+					data-ly-project-dialog={editing ? "edit" : "create"}
+					onSubmit={(event) => {
+						event.preventDefault();
+						submit(dismiss);
+					}}
+				>
+					<div className="ly-field mb-5 gap-2.5">
+						<Folder size={15} strokeWidth={1.8} className="shrink-0 text-ink-muted" aria-hidden />
+						<Input
+							autoFocus
+							value={name}
+							onChange={(event) => setName(event.target.value)}
+							placeholder={t("project.namePlaceholder")}
+							aria-label={t("project.namePlaceholder")}
+							className="min-w-0 flex-1 bg-transparent text-label text-ink outline-none placeholder:text-ink-faint"
+						/>
+					</div>
 
-				<SourceFolders
-					folders={folders}
-					lockFirst={editing}
-					onAdd={() => void addFolder()}
-					onRemove={(folder) => setFolders((current) => current.filter((entry) => entry !== folder))}
-				/>
-				{/* Submits the form without being reachable: the visible submit is in the actions row,
-				    which `DialogFrame` renders outside this form. */}
-				<button type="submit" className="hidden" tabIndex={-1} aria-hidden />
-			</form>
+					<SourceFolders
+						folders={folders}
+						lockFirst={editing}
+						onAdd={() => void addFolder()}
+						onRemove={(folder) => setFolders((current) => current.filter((entry) => entry !== folder))}
+					/>
+					{/* Submits the form without being reachable: the visible submit is in the actions row,
+					    which `DialogFrame` renders outside this form. */}
+					<button type="submit" className="hidden" tabIndex={-1} aria-hidden />
+				</form>
+			)}
 		</Dialog>
 	);
 }
