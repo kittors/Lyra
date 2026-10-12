@@ -159,8 +159,10 @@ async function withTouchViewport(run: () => Promise<void>) {
 test("release preview and edit share a stable dialog and content height", async (t) => {
 	await click('[data-ly-row="qa-long"] > button');
 	await click('button[aria-label^="Git "]');
-	await until(`document.querySelector('[data-dock-pane="review"] [data-ly-tip="流水线"]')`);
-	await click('[data-dock-pane="review"] [data-ly-tip="流水线"]');
+	// By name, not by tip: the tab only has one while Git is too narrow to spell it out (`narrowNav`).
+	const pipelines = '[data-dock-pane="review"] button[aria-pressed][aria-label="流水线"]';
+	await until(`document.querySelector('${pipelines}')`);
+	await click(pipelines);
 	await until(`document.querySelector('[aria-label="打开发版中心"]')`);
 	await click('[aria-label="打开发版中心"]');
 	await until(`document.querySelector('[role="dialog"] textarea') || document.querySelector('[role="dialog"] [aria-label="编辑更新日志"]')`);

@@ -304,7 +304,11 @@ test("trajectory controls fit both themes and narrow panes; a brush stays local 
 			await clickControl('[aria-label="返回记录"]');
 			await timeline();
 			await shot(`trajectory-timeline-${theme}-${width}`);
-			await escape();
+			/*
+			 * No Escape here. It closed the time overview back when that was a popover. Inline, all that is
+			 * left for it is the full screen `timeline()` or `clickEntry()` may have opened, and undoing that
+			 * put the next width's record beside a ledger the expanded overview had squeezed to a strip.
+			 */
 		}
 	}
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
