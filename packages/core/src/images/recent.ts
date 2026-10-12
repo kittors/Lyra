@@ -32,10 +32,20 @@ function picturesOf(message: Message): ImagePointer[] {
 	return found;
 }
 
-/** Every picture, newest first, without loading any of them. Duplicates of one file count once. */
+/**
+ * Every picture, newest first, without loading any of them. Duplicates of one file count once.
+ *
+ * "Drawn this turn" means not in the transcript yet, and that is enforced here rather than trusted.
+ * The list lives in the session's scratch state and is never emptied between turns, so a picture
+ * drawn three turns ago stayed ahead of everything after it — a picture the user had just attached
+ * and asked to have redrawn was `#2`, and the model was handed the old drawing instead. Once a
+ * drawing is in the transcript it is ordered by where it is, like any other picture.
+ */
 export function conversationPictures(messages: readonly Message[], drawnThisTurn: readonly ImagePointer[] = []): ImagePointer[] {
-	const all = [...drawnThisTurn];
-	for (let index = messages.length - 1; index >= 0; index--) all.push(...picturesOf(messages[index]));
+	const transcript: ImagePointer[] = [];
+	for (let index = messages.length - 1; index >= 0; index--) transcript.push(...picturesOf(messages[index]));
+	const recorded = new Set(transcript.map((picture) => picture.media).filter(Boolean));
+	const all = [...drawnThisTurn.filter((picture) => !picture.media || !recorded.has(picture.media)), ...transcript];
 	const seen = new Set<string>();
 	return all.filter((picture) => {
 		if (!picture.media) return true;
