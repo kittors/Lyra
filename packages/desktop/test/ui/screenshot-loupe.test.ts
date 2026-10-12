@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createElement as h } from "react";
+import { createElement as h, Fragment, useLayoutEffect } from "react";
 
 import { ScreenshotLoupe } from "../../src/features/image/ScreenshotLoupe.tsx";
 import { withKeyboard } from "../helpers/keyboard.ts";
@@ -39,6 +39,40 @@ test("Mac 上仍是 ⌘C", async () => {
 	const view = await mount(loupe());
 	try {
 		assert.ok(view.text().includes("按 ⌘C 复制色值"), view.text());
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("the glass is drawn in the commit that places it, not a frame later", async (t) => {
+	/*
+	 * Before paint is the point: drawn after it (a passive effect), the loupe's first frame was an
+	 * empty black square and every pointer move showed the old pixels in the new box. A layout effect
+	 * placed after the loupe runs after the loupe's own layout effects and before any passive one, so
+	 * whether the glass has been drawn by then is exactly whether it was drawn before paint.
+	 */
+	const draws: number[] = [];
+	const proto = window.HTMLCanvasElement.prototype as unknown as { getContext: unknown };
+	const real = proto.getContext;
+	proto.getContext = function () {
+		return { imageSmoothingEnabled: true, clearRect() {}, drawImage() { draws.push(Date.now()); } };
+	};
+	t.after(() => {
+		proto.getContext = real;
+	});
+	let drawnBeforePaint: boolean | null = null;
+	function After() {
+		useLayoutEffect(() => {
+			drawnBeforePaint = draws.length > 0;
+		}, []);
+		return null;
+	}
+	const source = document.createElement("canvas");
+	const view = await mount(
+		h(Fragment, null, h(ScreenshotLoupe, { source: source as unknown as HTMLCanvasElement, at: { x: 40, y: 40 }, scale: 2, viewport: { width: 800, height: 600 }, reading: null, copied: false }), h(After)),
+	);
+	try {
+		assert.equal(drawnBeforePaint, true, "the first frame of the loupe would be an empty square");
 	} finally {
 		await view.unmount();
 	}
