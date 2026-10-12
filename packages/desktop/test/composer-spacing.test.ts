@@ -27,7 +27,8 @@ test("composer attachments, text and toolbar share --ly-composer-in", async () =
 	assert.match(geometry, /export const PANE_INSET = 2/);
 	assert.match(composer, /\.ly-composer-attachments[\s\S]*gap:\s*var\(--ly-composer-in\)/);
 	assert.match(composer, /\.ly-composer-attachments[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-x\) 0/);
-	assert.match(composer, /\.ly-reveal:not\(\[data-open="true"\]\) \.ly-composer-attachments[\s\S]*padding-block:\s*0/);
+	// Shut, the tray's padding is clipped away with its rows, not dropped by a rule in one frame.
+	assert.doesNotMatch(composer, /\.ly-reveal:not\(\[data-open="true"\]\) \.ly-composer-attachments[\s\S]*?padding-block:\s*0/);
 	assert.match(composer, /\.ly-composer-bar[\s\S]*padding:\s*0 var\(--ly-composer-x\) var\(--ly-composer-in\)/);
 	assert.match(composer, /\.ly-composer-dock[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
 	assert.match(composer, /\.ly-composer-pad[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
@@ -55,8 +56,9 @@ test("pane composers use the shared pad, not a one-off gutter", async () => {
 		assert.doesNotMatch(source, /pb-\[15px\]/);
 		assert.doesNotMatch(source, /ly-composer-pad[^>]*(?:pt-2|pb-\[|px-3)/);
 	}
-	assert.match(side, /ly-composer-attachments/);
-	assert.match(sub, /ly-composer-attachments/);
+	// One element between the tray's collapsing child and the padded row — see composer.css.
+	assert.match(side, /<div><div className="ly-composer-attachments">/);
+	assert.match(sub, /<div><div className="ly-composer-attachments">/);
 	assert.doesNotMatch(side, /px-3\.5 pt-3/);
 	assert.doesNotMatch(sub, /px-3\.5 pt-3/);
 	assert.match(conversation, /ly-content-gutter/);

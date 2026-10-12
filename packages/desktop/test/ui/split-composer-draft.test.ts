@@ -27,7 +27,7 @@ import "../../src/features/split/SplitWorkspace.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
 import { zhCN } from "../../src/i18n/messages/zh-CN.ts";
 import { useApp, type AppState } from "../../src/store/index.ts";
-import { click, mount, type Mounted } from "../helpers/mount.ts";
+import { click, fire, mount, type Mounted } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
@@ -142,4 +142,34 @@ test("a draft for a conversation off the live slot lands in its screen and puts 
 	assert.equal(useApp.getState().activeSessionId, "b");
 	assert.equal(useSplit.getState().focused, "b");
 	assert.deepEqual(useApp.getState().messages, bMessages, "beta came back with its own transcript");
+});
+
+/** Types at the end of a screen's composer the way a key does: through the value setter and an input event. */
+async function typeInto(key: "blank" | "b", words: string): Promise<void> {
+	const field = view!.find<HTMLTextAreaElement>(`[data-screen="${key}"] textarea`);
+	Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, `${field.value}${words}`);
+	await fire(field, new Event("input", { bubbles: true }));
+	await act(async () => {});
+}
+
+const picture = { id: "marked", name: "标注图.png", mimeType: "image/png", kind: "image", isText: false, data: "iVBORw0KGgo=" };
+
+test("a picture handed to a composer gets its mark in the sentence, and survives the next key", async () => {
+	// What 完成 in the image viewer does with a marked-up picture: the next thing typed is what to change.
+	view = await mount(only("b"));
+	await act(async () => useApp.getState().setComposerDraft("", { sessionId: "b", attachments: [picture] }));
+	await act(async () => {});
+	assert.ok(fieldOf("b").includes("【标注图.png】"), `no mark for the picture in ${JSON.stringify(fieldOf("b"))}`);
+	await typeInto("b", "照这个改");
+	assert.equal(view.all('[data-screen="b"] [data-ly-attachment]').length, 1, "typing a word unloaded the picture it was about");
+	assert.equal(useApp.getState().drafts.b?.attachments?.length, 1);
+});
+
+test("a region picked in the browser keeps its picture once something is typed after it", async () => {
+	view = await mount(only("b"));
+	await act(async () => useApp.setState({ browserAttachment: { text: "把这个按钮改成蓝色", dataUrl: "data:image/png;base64,iVBORw0KGgo=", draftKey: "b" } }));
+	await act(async () => {});
+	await typeInto("b", "，圆角也大一点");
+	assert.equal(view.all('[data-screen="b"] [data-ly-attachment]').length, 1, "the region's screenshot was unloaded by the first key");
+	assert.ok(fieldOf("b").startsWith("把这个按钮改成蓝色"), fieldOf("b"));
 });

@@ -217,14 +217,14 @@
 }
 
 /*
- * The main composer keeps this node mounted so attachments can grow in.
- * A closed `0fr` reveal still inherits the 12+12 padding, and that leftover
- * is the 24px that made the main card taller than the side and sub-agent
- * fields. Strip the block padding while the tray is shut.
+ * The tray's padding lives one element inside the part that collapses.
+ *
+ * As the collapsing child itself, a shut `0fr` tray still kept its padding — the 24px that once made
+ * the main card taller than the side and sub-agent fields — and it was removed with a rule on the
+ * shut state, at once, so every close dropped the field by that much in a single frame. Wrapped,
+ * the padding is clipped away with the rows. See the trays in `Composer`, `SideComposer` and
+ * `SubAgentPanel`.
  */
-.ly-reveal:not([data-open="true"]) .ly-composer-attachments {
-	padding-block: 0;
-}
 
 .ly-composer-bar {
 	padding: 0 var(--ly-composer-x) var(--ly-composer-in);

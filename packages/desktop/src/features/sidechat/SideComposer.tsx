@@ -211,7 +211,7 @@ export function SideComposer({
 					 * 文件，输入框上沿平白高出一道空的内衬。
 					 */
 					<div className="ly-reveal" data-open={kit.strip.length > 0 ? "true" : "false"}>
-						<div className="ly-composer-attachments">{kit.stripNode}</div>
+						<div><div className="ly-composer-attachments">{kit.stripNode}</div></div>
 					</div>
 				}
 				left={

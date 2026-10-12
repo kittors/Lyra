@@ -14,7 +14,7 @@
  * `ensureThere` 那段。所以「打开」由调用方给；不给的话，点标记就只做预览和「在访达中显示」。
  */
 
-import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
@@ -169,10 +169,25 @@ export function useComposerAttachments<T extends DraftAttachment>({
 	 * nothing when there is nothing in flight, and the phone's stylesheet opens the tray around it
 	 * while there is (`.ly-reveal:has(.ly-phone-uploads)`), so no composer has to know about uploads.
 	 */
+	/*
+	 * The row as it last had pictures in it, drawn again while the tray closes.
+	 *
+	 * Sending, or removing the last picture, emptied the row and shut the tray in the same commit, so
+	 * the tray's closing had nothing left to close: it vanished in one frame and the field's top edge
+	 * dropped 76px. The pictures that were there now leave with it — inert, since they are no longer
+	 * the composer's — and stay hidden in the shut tray until there is a new row to show.
+	 */
+	const lastStrip = useRef<StripFile[]>([]);
+	useLayoutEffect(() => {
+		if (strip.length > 0) lastStrip.current = strip;
+	});
+	const leaving = strip.length === 0 && lastStrip.current.length > 0;
+	const shownStrip = leaving ? lastStrip.current : strip;
+
 	const images =
-		strip.length > 0 ? (
+		shownStrip.length > 0 ? (
 			<AttachmentStrip
-				files={strip}
+				files={shownStrip}
 				/*
 				 * 独占一行，多了横着滚。这一块地方是拿来打字的：一排附件换到第三行时，被挤出屏幕的是
 				 * 输入框自己。
@@ -204,7 +219,12 @@ export function useComposerAttachments<T extends DraftAttachment>({
 		) : null;
 	const stripNode = (
 		<>
-			{images}
+			{/* Always wrapped while there is a row, so the row is not remounted — and scrolled back — as it leaves. */}
+			{images && (
+				<div inert={leaving} aria-hidden={leaving || undefined}>
+					{images}
+				</div>
+			)}
 			<PhoneUploads owner={owner} />
 		</>
 	);
