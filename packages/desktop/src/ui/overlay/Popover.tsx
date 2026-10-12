@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import { OverlayDepth } from "./Overlay.tsx";
+import { leaveAfterimage } from "./afterimage.ts";
 import { claimHoverSuppression } from "./hover-layers.ts";
 import { chromeTop, heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
@@ -160,6 +161,15 @@ const GAP = 8;
 const MARGIN = 12;
 
 /**
+ * How long an exit may take before the popover closes without its `animationend`.
+ *
+ * The exit's own end is what closes it — the phone's runs 150ms against the desktop's 120, and a
+ * fixed 120ms timer cut the phone's off at half opacity. This only catches the case where the event
+ * never comes, a window hidden before the frame was painted, so it sits well past the longest exit.
+ */
+const EXIT_FALLBACK_MS = 600;
+
+/**
  * How far from each window edge a popover must stay: the margin, or clear of the host's chrome.
  *
  * On a phone the page runs under the status bar and the home indicator, so twelve pixels from the
@@ -285,7 +295,16 @@ export function Popover({
 	 */
 	const [placed, setPlaced] = useState(false);
 	const closed = useRef(false);
-	const exitTimer = useRef<number | undefined>(undefined);
+	/** The exit has played to the end here, so an unmount after it has nothing left to show. */
+	const exited = useRef(false);
+	const exitTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+	const finish = useCallback(() => {
+		if (exited.current) return;
+		exited.current = true;
+		clearTimeout(exitTimer.current);
+		onClose();
+	}, [onClose]);
 
 	// Dismissal always runs the exit first. Guarded so a click and an Escape in quick
 	// succession cannot schedule two unmounts.
@@ -293,25 +312,49 @@ export function Popover({
 		if (closed.current) return;
 		closed.current = true;
 		setLeaving(true);
-		exitTimer.current = window.setTimeout(onClose, 120);
-	}, [onClose]);
+		exitTimer.current = setTimeout(finish, EXIT_FALLBACK_MS);
+	}, [finish]);
+	const dismissRef = useRef(dismiss);
+	dismissRef.current = dismiss;
+
+	/*
+	 * Nothing will play — a DOM that does not animate, or a card that is not rendered — so there is
+	 * no exit to wait for. Asked of the card itself: `getAnimations` flushes style, so in a browser the
+	 * exit the class just started is already in the list.
+	 */
+	useLayoutEffect(() => {
+		if (!leaving) return;
+		const card = ref.current;
+		if (!card || typeof card.getAnimations !== "function" || card.getAnimations().length === 0) finish();
+	}, [leaving, finish]);
 
 	/*
 	 * A new anchor means this popover was re-opened; cancel any exit already in flight.
 	 *
 	 * Right-clicking while a menu is open fires `mousedown` before `contextmenu`. The
 	 * mousedown lands outside the menu and starts the exit; the contextmenu then re-anchors
-	 * it — and 120ms later the stale timer closed the menu that had just opened. It looked
+	 * it — and an exit that went on to finish closed the menu that had just opened. It looked
 	 * like right-click did nothing.
 	 */
 	useEffect(() => {
 		closed.current = false;
+		exited.current = false;
 		setLeaving(false);
-		window.clearTimeout(exitTimer.current);
+		clearTimeout(exitTimer.current);
 	}, [anchor]);
 
 	// A pending exit must not outlive the component either.
-	useEffect(() => () => window.clearTimeout(exitTimer.current), []);
+	useEffect(() => () => clearTimeout(exitTimer.current), []);
+
+	/*
+	 * Closed by its caller rather than by itself — the trigger pressed again, a row chosen, a hover
+	 * preview left — the popover is simply unmounted, and used to vanish in that frame. It leaves a
+	 * copy behind to play the exit instead; see `afterimage.ts`. A layout cleanup, because those run
+	 * before React detaches the element: the copy is taken of what is on screen.
+	 */
+	useLayoutEffect(() => () => {
+		if (!exited.current) leaveAfterimage(ref.current);
+	}, []);
 
 	/*
 	 * One menu at a time, except for the menus this one is inside.
@@ -356,6 +399,15 @@ export function Popover({
 		if (!anchor || !element) return;
 
 		const measure = () => {
+			/*
+			 * The anchor has left the document — its row deleted, its view replaced. A detached element
+			 * measures 0×0 at the window's origin, and placing from that threw the card into the top-left
+			 * corner. There is nothing left for it to point at, so it goes, from where it is.
+			 */
+			if (anchor instanceof HTMLElement && !anchor.isConnected) {
+				dismissRef.current();
+				return;
+			}
 			const a = rectOf(anchor);
 			if (!a) return;
 			const edge = edges();
@@ -666,6 +718,10 @@ export function Popover({
 				data-ly-popover={self.depth}
 				onMouseEnter={onMouseEnter}
 				onMouseLeave={onMouseLeave}
+				// The exit's own end, on the card itself — not the entrance, and not something inside that animates.
+				onAnimationEnd={(event) => {
+					if (closed.current && event.target === event.currentTarget && event.animationName.endsWith("pop-out")) finish();
+				}}
 				style={{ ...style, zIndex: 60 + overlayDepth * 20 + (overlayDepth ? 10 : 0) }}
 				/*
 				 * Above everything, including the side panel.
