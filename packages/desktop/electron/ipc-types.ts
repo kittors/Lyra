@@ -558,6 +558,14 @@ export interface LyraApi {
 		 */
 		bytes(path: string): Promise<Uint8Array | null>;
 		/**
+		 * A `ly-media:` picture as a `data:` URL, for drawing into a canvas that is read back.
+		 *
+		 * An `<img>` from that scheme draws fine and taints the canvas it is drawn into — the scheme
+		 * is standard, so the page treats it as another origin — and `toDataURL` then throws. Null
+		 * for anything that is not a picture the scheme itself would serve, or past the size cap.
+		 */
+		mediaDataUrl(url: string): Promise<string | null>;
+		/**
 		 * 一份文档里的字，抽给模型读——PDF、Word、Excel、PowerPoint，以及压缩包的清单。
 		 *
 		 * 收字节不收路径：服务的是输入框里拖进来的文件，那些是浏览器的 `File`，本来就没有磁盘路径。

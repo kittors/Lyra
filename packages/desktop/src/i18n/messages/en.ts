@@ -2306,6 +2306,8 @@ export const en = {
 	"annotate.saveOver": "Save over the original",
 	"annotate.saveCopyTip": "Export an annotated copy",
 	"annotate.saveCopy": "Save a copy",
+	"annotate.doneTip": "Add to the composer to ask for a redraw",
+	"annotate.attachmentName": "annotated.png",
 	"annotate.textBackground": "Text background: {label}",
 	"annotate.sizeIs": "{what}: {label}",
 	"browser.tabs": "Browser tabs",

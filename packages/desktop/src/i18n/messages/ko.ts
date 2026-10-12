@@ -2306,6 +2306,8 @@ export const ko = {
 	"annotate.saveOver": "원본에 덮어 저장",
 	"annotate.saveCopyTip": "주석이 달린 사본 내보내기",
 	"annotate.saveCopy": "사본 저장",
+	"annotate.doneTip": "입력창에 넣고 다시 그려 달라고 하기",
+	"annotate.attachmentName": "annotated.png",
 	"annotate.textBackground": "글자 배경: {label}",
 	"annotate.sizeIs": "{what}: {label}",
 	"browser.tabs": "브라우저 탭",

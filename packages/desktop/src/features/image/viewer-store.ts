@@ -22,10 +22,15 @@ export interface ViewerImage {
 	/**
 	 * Called when an annotated copy is saved, if this image can accept one.
 	 *
-	 * Absent means the image is a record of something already sent and cannot be edited in place;
-	 * the viewer then offers to attach the annotated copy to the composer instead.
+	 * Absent means the image is a record of something already sent and cannot be edited in place.
 	 */
 	onReplace?: (dataUrl: string) => void;
+	/**
+	 * Where a marked-up copy of a picture that cannot be replaced goes when 完成 is pressed — the
+	 * composer of the conversation it is in, by way of `attachToComposer`. Absent, the copy goes to
+	 * the clipboard instead.
+	 */
+	onAttach?: (dataUrl: string) => void;
 }
 
 export interface ViewerState {

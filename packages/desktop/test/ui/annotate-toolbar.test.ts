@@ -177,3 +177,27 @@ test("Mac 上 ⌘Y 不是重做：那里重做只有 ⇧⌘Z", async () => {
 	});
 	assert.deepEqual(counts, { undo: 0, redo: 1 });
 });
+
+test("a copy handed on is confirmed with a tick, not offered as a download", async () => {
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	let handed = 0;
+	function Toolbar() {
+		return createElement(AnnotateToolbar, {
+			annotator: useAnnotator(null), canReplace: false, delivers: true, requireDirty: false,
+			onCancel: () => {}, onSave: () => { handed++; },
+		});
+	}
+	try {
+		await act(async () => root.render(createElement(Toolbar)));
+		assert.ok(!host.querySelector("button:has(.lucide-download)"), "完成 for a picture in a conversation promised a download");
+		const done = host.querySelector<HTMLButtonElement>("button:has(.lucide-check)");
+		assert.ok(done);
+		await act(async () => done.click());
+		assert.equal(handed, 1);
+	} finally {
+		await act(async () => root.unmount());
+		host.remove();
+	}
+});

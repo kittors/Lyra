@@ -5,17 +5,20 @@
  *
  * The outer one is the flight. It is FLIP and it has to be, because the two states have different
  * sizes and there is no single property that gets from one to the other honestly. The final layout
- * is computed first — centred, contained within the window — and then the *first* frame is expressed
- * as a transform that lands the image exactly on the thumbnail it came from. One frame later the
- * transform is removed and the browser interpolates. Nothing is ever laid out at an intermediate
- * size, so a large picture costs the same as a small one and neither reflows on the way.
+ * is measured first — centred, contained within the window — and the flight is an animation from
+ * the thumbnail (see `flight.ts`) to that box. Nothing is ever laid out at an intermediate size, so
+ * a large picture costs the same as a small one and neither reflows on the way.
  *
- * The inner one is zoom and pan. It is a separate element because FLIP writes `style.transform`
- * directly and the two would otherwise overwrite each other. Keeping them apart also means the FLIP
- * measurement is of the settled layout box, which a child's transform does not affect — so zooming
- * in and then closing still flies back to the right thumbnail.
+ * The inner one is zoom and pan. It is a separate element so the two never overwrite each other,
+ * and so the flight measures the settled layout box, which a child's transform does not affect —
+ * zooming in and then closing still flies back to the right thumbnail.
  *
- * Closing runs the same path backwards, and only unmounts when it finishes — an overlay that
+ * The box is always the `<img>`'s. The annotation canvas is a layer over it, never a replacement:
+ * when it replaced the picture, the box measured for the flight was whichever of the two happened
+ * to be mounted — and an undecoded canvas is 300×150, so 编辑 on a generated picture started the
+ * flight at 2.8× the thumbnail and shrank it into place. See docs/architecture/image-viewer.md.
+ *
+ * Closing runs the same path backwards, and only unmounts when it lands — an overlay that
  * disappears on the click and animates nothing is the thing this replaced.
  */
 
@@ -28,6 +31,7 @@ import { clampZoom, wheelZoomFactor, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type
 import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas, STAGE_FIT } from "./AnnotateCanvas.tsx";
 import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
+import { atRest, atThumbnail, paintedBox, type Box, type FlightKeyframe, type Thumb } from "./flight.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { EASING } from "../../ui/motion/tokens.ts";
@@ -56,8 +60,11 @@ const DURATION = 260;
  */
 const EASE = EASING.out;
 
-/** The flight's transition, as a string: FLIP has to restore this exact value after suppressing it. */
-const FLIGHT = `transform ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`;
+/** The zoom layer's transition, so un-zooming on the way out travels with the flight. */
+const FLIGHT = `transform ${DURATION}ms ${EASE}`;
+
+/** The backdrop and the controls: on the flight's clock, and faded in from nothing on arrival. */
+const FADE = `opacity ${DURATION}ms ${EASE}`;
 
 const CENTRED: Point = { x: 0, y: 0 };
 
@@ -83,6 +90,11 @@ export function ImageViewer() {
 	const origin = useRef<DOMRect | null>(null);
 	/** The thumbnail this came from, hidden while the picture is out of it. */
 	const source = useRef<HTMLElement | null>(null);
+	/** The store's state as of the last commit, for a way back that lands after something else opened. */
+	const latest = useRef(state);
+	useLayoutEffect(() => {
+		latest.current = state;
+	});
 
 	// Held across the closing animation, so the image does not vanish before it has shrunk.
 	const [held, setHeld] = useState<ReturnType<typeof useViewer>>(null);
@@ -133,9 +145,13 @@ export function ImageViewer() {
 	 *
 	 * So: after the flight. By the time anyone has read the picture and reached for 标注 it is long
 	 * ready, and nothing competes with the animation.
+	 *
+	 * Opening straight into 编辑 waits too. It used to decode at once, and that is what let the
+	 * undecoded canvas be measured mid-flight. The canvas is only a layer over the picture now, kept
+	 * hidden until it has something to show, so waiting costs nothing that can be seen.
 	 */
 	const [decodable, setDecodable] = useState(false);
-	const annotator = useAnnotator(decodable || editing ? (image?.src ?? "") : "");
+	const annotator = useAnnotator(decodable ? (image?.src ?? "") : "");
 
 	const resetView = useCallback(() => setView({ zoom: 1, offset: CENTRED }), []);
 
@@ -222,58 +238,29 @@ export function ImageViewer() {
 	}, [state, leaving]);
 
 	/*
-	 * The flight, driven straight at the DOM rather than through React.
+	 * The flight out, as a Web Animation rather than a transition.
 	 *
-	 * FLIP measures the *final* layout and then expresses the start as a transform away from it. The
-	 * measurement therefore has to happen on a frame where no transform is applied — and that is
-	 * exactly what a rendered `transform` in JSX cannot guarantee, because the next render measures
-	 * an element that is already transformed. Doing that produced a scale of 1 on the second pass
-	 * (the box had shrunk to match the thumbnail, so they agreed) and the picture stayed thumbnail
-	 * sized for ever, which is the bug this replaced.
+	 * A transition needs its start written, a reflow forced, and its end written, in that order and
+	 * nowhere else — and the measurement has to land on a frame where the box is settled. Both of
+	 * those were lost at different times: clearing the inline transition once made the picture
+	 * arrive with no flight at all, and measuring after 编辑 had swapped the picture for an undecoded
+	 * canvas started the flight at 2.8× the thumbnail. `animate()` takes both ends at once, needs no
+	 * reflow, and leaves nothing behind on the element when it finishes.
 	 *
-	 * Setting `style.transform` here instead means the element is only ever measured in its settled
-	 * state. Reading `offsetWidth` between the two writes forces the browser to accept the start
-	 * position as a real style before the transition to the end position begins; without it the two
-	 * writes coalesce and nothing animates.
+	 * Keyed on `state`, and only for a state that came with an origin: that is an arrival from a
+	 * thumbnail. A step to the next picture has none and is the slide's business, not a flight; it
+	 * used to re-run this with the first thumbnail still on file and fly the new picture out of it.
 	 */
 	useLayoutEffect(() => {
 		const el = figure.current;
-		const from = origin.current;
-		if (!el || !shown || leaving) return;
-		if (!from) {
-			// Arrived without a source rectangle — an arrow key rather than a click. Nothing to fly
-			// from, so it simply appears.
-			el.style.transform = "";
-			el.style.transition = FLIGHT;
-			return;
-		}
+		if (!el || !state?.origin) return;
+		// A way back still holding the last picture on its thumbnail would outlast this flight.
+		for (const running of el.getAnimations()) running.cancel();
+		const thumb = thumbOf(source.current, state.origin);
 		const to = el.getBoundingClientRect();
-		if (to.width === 0 || to.height === 0) return;
-
-		el.style.transition = "none";
-		el.style.transform = atThumbnail(from, to);
-		/*
-		 * Not quite from nothing, and not quite from solid.
-		 *
-		 * A single scale means the picture starts out filling the thumbnail's square the way the
-		 * thumbnail's own `cover` crop does — which also means the parts the crop cuts off are
-		 * hanging outside it on the first frame. Coming up from mostly-transparent covers that, and
-		 * it gives the arrival somewhere to travel *from* other than pure geometry.
-		 */
-		el.style.opacity = "0.4";
-		void el.offsetWidth;
-		/*
-		 * The value, not the empty string.
-		 *
-		 * This used to clear the inline property and let a class supply the transition. Moving the
-		 * transition inline — to put it on the app's own curve — made that clear the only
-		 * declaration there was, so the picture arrived at full size on the very first frame: no
-		 * flight at all, and nothing in the styles to suggest why.
-		 */
-		el.style.transition = FLIGHT;
-		el.style.transform = "";
-		el.style.opacity = "1";
-	}, [shown, leaving]);
+		if (!thumb || to.width === 0 || to.height === 0) return;
+		el.animate([atThumbnail(thumb, to), atRest(restingRadius(el))], { duration: DURATION, easing: EASE });
+	}, [state]);
 
 	/**
 	 * Step to the next picture, as one movement with both pictures in it.
@@ -321,9 +308,21 @@ export function ImageViewer() {
 
 	useEffect(() => () => window.clearTimeout(sliding.current), []);
 
+	/*
+	 * The way back.
+	 *
+	 * The mode is left alone until it has landed. Leaving 标注 first, as this used to, unmounted the
+	 * toolbar on the click and put the viewer's own buttons up in the corner for the length of the
+	 * fade — one bar vanishing and three buttons appearing, on the way *out*. Everything that is not
+	 * the picture fades together instead, and the picture keeps whatever it was showing.
+	 *
+	 * It stays solid all the way down. It used to fade to 0.35 to match the 0.4 the flight out
+	 * started from, and on a light conversation that read as a washed-out copy parked on the
+	 * thumbnail for the last several frames, then a snap to solid when the thumbnail came back. The
+	 * clip in `atThumbnail` makes the last frame the thumbnail exactly, so there is nothing to hide.
+	 */
 	const dismiss = useCallback(() => {
 		if (leaving) return;
-		setEditing(false);
 		setLeaving(true);
 		// Only the current picture flies home to its thumbnail; one still sliding past has no
 		// thumbnail of its own to fly to and simply goes.
@@ -333,35 +332,41 @@ export function ImageViewer() {
 		// than flying from a size the layout box knows nothing about.
 		resetView();
 
-		const el = figure.current;
-		const from = origin.current;
-		if (el && from) {
-			const to = el.getBoundingClientRect();
-			if (to.width > 0) el.style.transform = atThumbnail(from, to);
-			/*
-			 * Fades a little, never out.
-			 *
-			 * This used to go to zero over exactly the time the shrink takes, so the picture was
-			 * invisible about halfway back and the last half of the journey — the half where it
-			 * actually arrives on the thumbnail — played to nobody. What it looked like was the
-			 * picture blinking out, which is precisely the "sudden" being complained about.
-			 *
-			 * It stays visible all the way down instead, and lands on the thumbnail at the moment
-			 * the thumbnail comes back. The mirror of the 0.4 the flight out starts from.
-			 */
-			el.style.opacity = "0.35";
-		}
-
-		window.setTimeout(() => {
+		const leavingState = latest.current;
+		let landed = false;
+		const land = () => {
+			if (landed) return;
+			landed = true;
+			// Something else was opened while this one was on its way home; that one stays.
+			if (latest.current && latest.current !== leavingState) return;
 			setHeld(null);
+			setLeaving(false);
+			setEditing(false);
 			origin.current = null;
-			if (el) {
-				el.style.transform = "";
-				el.style.opacity = "";
-				el.style.transition = FLIGHT;
-			}
 			closeViewer();
-		}, DURATION);
+		};
+
+		const el = figure.current;
+		const thumb = thumbOf(source.current, origin.current);
+		if (el && thumb) {
+			/*
+			 * From wherever it is now. Closed while still arriving, the picture turns round where it
+			 * is rather than first jumping to the middle: the running flight is read, then dropped.
+			 */
+			const now = getComputedStyle(el);
+			const from: FlightKeyframe = {
+				transform: now.transform,
+				clipPath: now.clipPath === "none" ? atRest(restingRadius(el)).clipPath : now.clipPath,
+			};
+			for (const running of el.getAnimations()) running.cancel();
+			const to = el.getBoundingClientRect();
+			if (to.width > 0 && to.height > 0) {
+				const back = el.animate([from, atThumbnail(thumb, to)], { duration: DURATION, easing: EASE, fill: "forwards" });
+				back.onfinish = land;
+			}
+		}
+		// The animation's own end is the signal; this only covers one that never runs at all.
+		window.setTimeout(land, DURATION + 120);
 	}, [leaving, resetView]);
 
 	/**
@@ -503,8 +508,16 @@ export function ImageViewer() {
 				aria-label={t("viewer.close")}
 				tabIndex={-1}
 				onClick={dismiss}
-				className="absolute inset-0 cursor-default bg-black/72"
-				style={{ opacity: open ? 1 : 0, transition: `opacity ${DURATION}ms ${EASE}` }}
+				/*
+				 * Opacity as a class, with a starting style, rather than inline.
+				 *
+				 * Inline it was `1` from the backdrop's very first frame, so the window went 72% dark on
+				 * the click while the way out faded — a transition only runs from a value that was
+				 * painted, and a freshly mounted element has none. `starting:` gives it one, and an
+				 * inline opacity would outrank it.
+				 */
+				className={`absolute inset-0 cursor-default bg-black/72 starting:opacity-0 ${open ? "opacity-100" : "opacity-0"}`}
+				style={{ transition: FADE }}
 			/>
 
 			{/*
@@ -542,7 +555,6 @@ export function ImageViewer() {
 				className="relative"
 				style={{
 					transformOrigin: "center",
-					transition: FLIGHT,
 					/*
 					 * Its own compositor layer, for the whole time it is on screen.
 					 *
@@ -551,7 +563,7 @@ export function ImageViewer() {
 					 * first few frames to do so — which is exactly where the judder was. Declared
 					 * rather than switched, because this element only exists while the viewer is open.
 					 */
-					willChange: "transform, opacity",
+					willChange: "transform",
 				}}
 			>
 				<div
@@ -560,7 +572,7 @@ export function ImageViewer() {
 					onPointerUp={endPan}
 					onPointerCancel={endPan}
 					onDoubleClick={() => (zoom === 1 ? zoomTo(2) : resetView())}
-					className={canPan ? (panning ? "cursor-grabbing" : "cursor-grab") : undefined}
+					className={`relative ${canPan ? (panning ? "cursor-grabbing" : "cursor-grab") : ""}`}
 					style={{
 						/*
 						 * Pan, zoom and the arrival, in one transform.
@@ -580,31 +592,41 @@ export function ImageViewer() {
 						willChange: "transform",
 					}}
 				>
-					{editing ? (
-						<AnnotateCanvas annotator={annotator} zoom={zoom} />
-					) : (
-						<img
-							src={image.src}
-							alt={image.alt ?? ""}
-							draggable={false}
-							/*
-							 * The same fit as the canvas, from the same constant. These two used to differ
-							 * — 86vh for the picture, 74vh once the toolbar was laid out under it — so
-							 * pressing 标注 visibly shrank the image before anything had been drawn.
-							 *
-							 * No shadow. A black one on a 72%-black backdrop does not read as depth; it
-							 * reads as a second, blurry border a few pixels outside the first.
-							 */
-							className={`${STAGE_FIT} block rounded-xl object-contain`}
-						/>
+					<img
+						src={image.src}
+						alt={image.alt ?? ""}
+						draggable={false}
+						/*
+						 * Always here, in both modes: this is what the box is. See the header.
+						 *
+						 * No shadow. A black one on a 72%-black backdrop does not read as depth; it
+						 * reads as a second, blurry border a few pixels outside the first.
+						 */
+						className={`${STAGE_FIT} block rounded-xl object-contain`}
+					/>
+					{/*
+					 * The marks, on a layer exactly over the picture.
+					 *
+					 * Sized by the picture beneath rather than by its own bitmap, so it can never move
+					 * the box; hidden until the bitmap is decoded and drawn, because before that the
+					 * canvas is 300×150 of nothing; and faded with the rest on the way out, so a
+					 * picture abandoned mid-annotation lands on its thumbnail as the thumbnail.
+					 */}
+					{editing && (
+						<div
+							className="absolute inset-0"
+							style={{ visibility: annotator.ready ? "visible" : "hidden", opacity: leaving ? 0 : 1, transition: FADE }}
+						>
+							<AnnotateCanvas annotator={annotator} zoom={zoom} className="w-full rounded-xl" />
+						</div>
 					)}
 				</div>
 			</div>
 
-			{/* Controls fade in after the image has arrived, so nothing competes with the flight. */}
+			{/* Controls fade in with the backdrop, from nothing — see the backdrop for why it is a class. */}
 			<div
-				className="pointer-events-none absolute inset-0"
-				style={{ opacity: open ? 1 : 0, transition: `opacity ${DURATION}ms ${EASE}` }}
+				className={`pointer-events-none absolute inset-0 starting:opacity-0 ${open ? "opacity-100" : "opacity-0"}`}
+				style={{ transition: FADE }}
 			>
 				{!editing && (
 					<div
@@ -681,27 +703,38 @@ export function ImageViewer() {
 				<AnnotateToolbar
 					annotator={annotator}
 					canReplace={Boolean(image.onReplace)}
+					delivers={!image.onReplace && Boolean(image.onAttach)}
+					/*
+					 * Handing the picture on unmarked is a real request — "make another like this one" — but
+					 * not before the canvas has the picture in it: an undecoded canvas reads back as a blank
+					 * 300×150 PNG. Not ready, and so not dirty either, the button waits like any other.
+					 */
+					requireDirty={Boolean(image.onReplace) || !image.onAttach || !annotator.ready}
+					// Out with everything else on the way back; the bar fades itself in on arrival.
+					style={leaving ? { opacity: 0, pointerEvents: "none" } : undefined}
 					onCancel={() => setEditing(false)}
 					onSave={() => {
 						/*
-						 * Replace where that is possible, save a copy where it is not.
+						 * Replace where that is possible, hand on where that is wanted, copy otherwise.
 						 *
 						 * An image already sent is part of the record and rewriting it in place would
-						 * change what was said. So the marked-up copy goes to the clipboard: the next
-						 * thing anyone does with an annotated screenshot is paste it somewhere, and a
-						 * file in the downloads folder is that same errand with two more steps. 另存为
-						 * is still there for when a file is what you actually wanted.
+						 * change what was said. A picture in a conversation goes to that conversation's
+						 * composer, because the next thing anyone does with a marked-up drawing is ask
+						 * for it to be drawn again with the marks taken into account — `image_generate`
+						 * reads the newest picture in the conversation as `#1`. Anything else goes to
+						 * the clipboard, the commonest next step for an annotated screenshot.
 						 */
 						const save = () => {
 							const dataUrl = annotator.render();
 							if (!dataUrl) return;
 							if (image.onReplace) {
 								image.onReplace(dataUrl);
+								void toClipboard(dataUrl);
+							} else if (image.onAttach) {
+								image.onAttach(dataUrl);
+							} else {
+								void toClipboard(dataUrl);
 							}
-							// Always copy marked-up result to clipboard on save if it's not a pure in-place replacement
-							// or if user wants clipboard integration
-							void toClipboard(dataUrl);
-							setEditing(false);
 							dismiss();
 						};
 						/*
@@ -786,25 +819,43 @@ function decode(dataUrl: string): Blob {
 }
 
 /**
- * The transform that puts the full-size picture back on its thumbnail.
+ * The thumbnail as it is on screen now: the part of it the picture is painted in, and its corners.
  *
- * **One scale, not two.** The obvious FLIP writes `scale(from.width / to.width, from.height /
- * to.height)`, and that is right only when the two boxes have the same proportions. These do not:
- * a thumbnail is a 64px square showing a `cover` crop, and the picture it stands for is usually
- * wide. Those two ratios differ by half, so the first frame of every flight was the image squashed
- * to the thumbnail's shape — and the animation's job became un-distorting it. That is the stiffness:
- * the picture appeared to be stretched into place rather than to travel.
+ * Read from the element rather than taken from the rectangle recorded at the click, because the way
+ * back can be minutes later — a reply streaming in underneath scrolls the conversation, and a picture
+ * flying home to where its thumbnail *used* to be lands on whatever is there now. The recorded
+ * rectangle is only the fallback for a thumbnail that is gone.
  *
- * One ratio keeps it the shape it actually is for the whole flight, and `max` is the one to use —
- * it matches the `cover` the thumbnail is drawn with, so the picture starts out filling that square
- * exactly as the thumbnail does, rather than sitting inside it with margins the thumbnail has not
- * got.
+ * The picture inside rather than the element that was clicked: a trace's image sits in a button as
+ * wide as the panel, and flying out of the button started the picture wider than anything that had
+ * been on screen.
  */
-function atThumbnail(from: DOMRect, to: DOMRect): string {
-	const dx = from.left + from.width / 2 - (to.left + to.width / 2);
-	const dy = from.top + from.height / 2 - (to.top + to.height / 2);
-	const scale = Math.max(from.width / to.width, from.height / to.height, 0.01);
-	return `translate(${dx}px, ${dy}px) scale(${scale})`;
+function thumbOf(element: HTMLElement | null, recorded: DOMRect | null): Thumb | null {
+	if (element?.isConnected) {
+		const frame = element.getBoundingClientRect();
+		const img = element instanceof HTMLImageElement ? element : element.querySelector("img");
+		let box: Box = frame;
+		let radius = parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
+		if (img) {
+			const style = getComputedStyle(img);
+			box = intersect(paintedBox(img.getBoundingClientRect(), { width: img.naturalWidth, height: img.naturalHeight }, style.objectFit), frame);
+			radius = Math.max(radius, parseFloat(style.borderTopLeftRadius) || 0);
+		}
+		if (box.width > 0 && box.height > 0) return { box, radius };
+	}
+	return recorded && recorded.width > 0 && recorded.height > 0 ? { box: recorded, radius: 0 } : null;
+}
+
+/** The corners the picture has at rest in the viewer — the `<img>`'s own, which the flight ends on. */
+function restingRadius(figure: HTMLElement): number {
+	const img = figure.querySelector("img");
+	return img ? parseFloat(getComputedStyle(img).borderTopLeftRadius) || 0 : 0;
+}
+
+function intersect(a: Box, b: Box): Box {
+	const x = Math.max(a.x, b.x);
+	const y = Math.max(a.y, b.y);
+	return { x, y, width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x), height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y) };
 }
 
 /** A `data:` URL is already the file; an anchor is the whole of "save as" for one. */

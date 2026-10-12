@@ -205,12 +205,6 @@ export function Composer({ centered = false }: {
 	 */
 	const draft = useApp((s) => s.composerDraft);
 	const browserAttachment = useApp((s) => s.browserAttachment);
-	useEffect(() => {
-		if (!browserAttachment || browserAttachment.draftKey !== draftKey) return;
-		setText((current) => current.trim() ? `${current.trimEnd()}\n\n${browserAttachment.text}` : browserAttachment.text);
-		setAttachments((current) => [...current, { id: crypto.randomUUID(), name: translate("composer.regionShot"), mimeType: "image/png", isText: false, data: browserAttachment.dataUrl.split(",")[1] }]);
-		useApp.setState({ browserAttachment: null });
-	}, [browserAttachment, draftKey]);
 	const field = useRef<HTMLTextAreaElement>(null);
 	/*
 	 * 正文里那些标记的一生，都在这里面。
@@ -232,6 +226,21 @@ export function Composer({ centered = false }: {
 		},
 	});
 	const { marks } = kit;
+	const { attach } = marks;
+	/*
+	 * A region of a page, picked in the browser panel, with what was said about it.
+	 *
+	 * Taken in through `attach` — the way a dropped or pasted picture comes in — so it gets its mark
+	 * in the sentence. Appended straight onto the list it had none, and the first key pressed after
+	 * it reconciled the marks against the text and unloaded it as an orphan: the picture was on screen
+	 * until you typed a word, and then it was gone from the message.
+	 */
+	useEffect(() => {
+		if (!browserAttachment || browserAttachment.draftKey !== draftKey) return;
+		setText((current) => current.trim() ? `${current.trimEnd()}\n\n${browserAttachment.text}` : browserAttachment.text);
+		attach([{ id: crypto.randomUUID(), name: translate("composer.regionShot"), mimeType: "image/png", isText: false, data: browserAttachment.dataUrl.split(",")[1] }], Number.MAX_SAFE_INTEGER);
+		useApp.setState({ browserAttachment: null });
+	}, [browserAttachment, draftKey, attach]);
 	/*
 	 * 往回翻自己说过的话。
 	 *
@@ -266,7 +275,8 @@ export function Composer({ centered = false }: {
 				draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
 			);
 		}
-		if (files.length) setAttachments((current) => [...current, ...files as Attachment[]]);
+		// With their marks, like the browser's region above — a file with no mark is unloaded on the next key.
+		if (files.length) attach(files as Attachment[], Number.MAX_SAFE_INTEGER);
 		if (refs.length) {
 			setSessionRefs((current) => [...new Map([...current, ...refs].map((ref) => [ref.id, ref])).values()]);
 		}
@@ -295,7 +305,7 @@ export function Composer({ centered = false }: {
 		void shell.offsetWidth;
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
-	}, [draft, activeSessionId]);
+	}, [draft, activeSessionId, attach]);
 
 
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";
@@ -711,13 +721,15 @@ export function Composer({ centered = false }: {
 						 * 高出 12px，里面什么都没有。
 						 */
 						<div className="ly-reveal" data-open={kit.strip.length > 0 || sessionRefs.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
-							<div className="ly-composer-attachments">
-								{sessionRefs.length > 0 && (
-									<div className="flex flex-wrap gap-2">
-										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
-									</div>
-								)}
-								{kit.stripNode}
+							<div>
+								<div className="ly-composer-attachments">
+									{sessionRefs.length > 0 && (
+										<div className="flex flex-wrap gap-2">
+											{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
+										</div>
+									)}
+									{kit.stripNode}
+								</div>
 							</div>
 						</div>
 					}

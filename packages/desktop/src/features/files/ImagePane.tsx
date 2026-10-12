@@ -30,25 +30,40 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 	const [offset, setOffset] = useState({ x: 0, y: 0 });
 	const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
 	const [fitted, setFitted] = useState(1);
+	/**
+	 * Whether the picture has been painted at its fitted size yet. Until it has, nothing animates.
+	 *
+	 * Fit used to be worked out in an effect, after the paint: a large screenshot was drawn at 100%
+	 * for a frame and then *played* down to fit by the 90ms transition — the picture opened by
+	 * shrinking, every time. Now the fit is known in the same commit the picture becomes visible,
+	 * and the transition is only switched on once that frame is on screen.
+	 */
+	const [settled, setSettled] = useState(false);
 
 	// A different file starts over, rather than inheriting the last one's zoom.
 	useEffect(() => {
 		setScale(null);
 		setOffset({ x: 0, y: 0 });
 		setNatural(null);
+		setSettled(false);
 	}, [src]);
 
-	/** What "fit" currently means, in the same units as an explicit zoom. */
-	const measureFit = useCallback(() => {
+	/** What "fit" means for a picture of this size in the pane as it is now, in the units of a zoom. */
+	const fitFor = useCallback((size: { width: number; height: number } | null) => {
 		const box = viewport.current?.getBoundingClientRect();
-		if (!box || !natural) return 1;
+		if (!box || !size) return 1;
 		// Never enlarge to fit: a 16px icon blown up to fill the pane is not what fitting means.
-		return Math.min(1, (box.width - 24) / natural.width, (box.height - 24) / natural.height);
-	}, [natural]);
+		return Math.min(1, (box.width - 24) / size.width, (box.height - 24) / size.height);
+	}, []);
 
+	// The pane can be dragged narrower or wider; "fit" follows it.
 	useEffect(() => {
-		setFitted(measureFit());
-	}, [measureFit]);
+		const element = viewport.current;
+		if (!element || !natural) return;
+		const observer = new ResizeObserver(() => setFitted(fitFor(natural)));
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, [natural, fitFor]);
 
 	const effective = scale ?? fitted;
 
@@ -135,7 +150,10 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 					draggable={false}
 					onLoad={(event) => {
 						const element = event.currentTarget;
-						setNatural({ width: element.naturalWidth, height: element.naturalHeight });
+						const size = { width: element.naturalWidth, height: element.naturalHeight };
+						setNatural(size);
+						setFitted(fitFor(size));
+						requestAnimationFrame(() => requestAnimationFrame(() => setSettled(true)));
 					}}
 					className="absolute top-1/2 left-1/2 max-w-none origin-center select-none"
 					style={{
@@ -143,7 +161,9 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 						// Nearest-neighbour once past 3×: at that point the interesting question is
 						// which pixel is which, and smoothing is actively in the way.
 						imageRendering: effective >= 3 ? "pixelated" : "auto",
-						transition: drag.current ? "none" : "transform 90ms linear",
+						// Hidden until its size is known — see `settled`.
+						visibility: natural ? "visible" : "hidden",
+						transition: drag.current || !settled ? "none" : "transform 90ms linear",
 					}}
 				/>
 			</div>

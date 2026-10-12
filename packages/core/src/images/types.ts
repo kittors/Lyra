@@ -98,6 +98,15 @@ export interface ImageGenerationDetails {
 	count: number;
 	/** Pictures went in: this was an edit. */
 	edit: boolean;
+	/**
+	 * The shape the picture will most likely come back in, when none was asked for: an edit keeps
+	 * the shape of the picture it starts from. Width over height.
+	 *
+	 * For the window, which holds the place while it draws. Without it the place was a square, and an
+	 * edit of a wide picture landed as a 420px square snapping to 420×236 — the card, and everything
+	 * under it in the conversation, jumping on the very frame the picture arrived.
+	 */
+	shapeHint?: number;
 	startedAt: number;
 	durationMs?: number;
 	images?: { media: string; mimeType: string; width?: number; height?: number }[];

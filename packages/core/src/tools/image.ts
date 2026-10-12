@@ -186,6 +186,7 @@ export const imageTool: Tool<ImageArgs> = {
 			quality,
 			count,
 			edit: inputs.length > 0,
+			...(ratio ? {} : { shapeHint: shapeOf(inputs[0]) }),
 			startedAt,
 		};
 		ctx.onProgress?.({ content: [], details: base });
@@ -241,3 +242,10 @@ export const imageTool: Tool<ImageArgs> = {
 		};
 	},
 };
+
+/** Width over height of a picture going in, read from its header; undefined when there is none or it cannot be read. */
+function shapeOf(input: ImageInput | undefined): number | undefined {
+	if (!input) return undefined;
+	const size = imageDimensions(Buffer.from(input.data, "base64"));
+	return size && size.width > 0 && size.height > 0 ? size.width / size.height : undefined;
+}

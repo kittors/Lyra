@@ -2491,6 +2491,8 @@ export const zhCN = {
 	"annotate.saveOver": "保存并替换原图",
 	"annotate.saveCopyTip": "导出一份带标注的副本",
 	"annotate.saveCopy": "保存副本",
+	"annotate.doneTip": "放进输入框，让它照着改",
+	"annotate.attachmentName": "标注图.png",
 	"annotate.textBackground": "文字底色 {label}",
 	"annotate.sizeIs": "{what} {label}",
 	"browser.tabs": "浏览器标签",

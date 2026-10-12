@@ -498,7 +498,7 @@ function Steer({ agent, sessionId, openFile }: { agent: SubAgentSummary; session
 				attachments={
 					/* 和主输入框同一排：只有图片，文件在句子里那枚标记上；没有图就不撑开。 */
 					<div className="ly-reveal" data-open={kit.strip.length > 0 ? "true" : "false"}>
-						<div className="ly-composer-attachments">{kit.stripNode}</div>
+						<div><div className="ly-composer-attachments">{kit.stripNode}</div></div>
 					</div>
 				}
 				left={

@@ -2306,6 +2306,8 @@ export const zhTW = {
 	"annotate.saveOver": "儲存並取代原圖",
 	"annotate.saveCopyTip": "匯出一份帶標註的副本",
 	"annotate.saveCopy": "儲存副本",
+	"annotate.doneTip": "放進輸入框，讓它照著改",
+	"annotate.attachmentName": "標註圖.png",
 	"annotate.textBackground": "文字底色 {label}",
 	"annotate.sizeIs": "{what} {label}",
 	"browser.tabs": "瀏覽器標籤",

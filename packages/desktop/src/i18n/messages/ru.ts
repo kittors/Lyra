@@ -2306,6 +2306,8 @@ export const ru = {
 	"annotate.saveOver": "Сохранить поверх оригинала",
 	"annotate.saveCopyTip": "Выгрузить копию с разметкой",
 	"annotate.saveCopy": "Сохранить копию",
+	"annotate.doneTip": "Добавить в поле ввода, чтобы попросить перерисовать",
+	"annotate.attachmentName": "annotated.png",
 	"annotate.textBackground": "Фон текста: {label}",
 	"annotate.sizeIs": "{what}: {label}",
 	"browser.tabs": "Вкладки браузера",

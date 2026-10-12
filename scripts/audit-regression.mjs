@@ -146,6 +146,21 @@ const CHECKS = [
 		run: ["pnpm", ["knip"]],
 	},
 	{
+		id: "VIEWER-flight",
+		what: "点「编辑」图先放大到缩略图的四倍再缩回去；飞回缩略图时发白停几帧再突然变实",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--test", "--import", "./test/setup.ts", "--experimental-strip-types", "test/image-flight.test.ts"]],
+	},
+	{
+		id: "VIEWER-redo",
+		what: "标注完点「完成」进不了输入框；进去了一打字就被删；照着改时模型拿到的是之前画的那张",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/image-recent.test.ts", "packages/core/test/image-tool.test.ts"]],
+	},
+	{
+		id: "VIEWER-redo-ui",
+		what: "投递到输入框的图（标注图、浏览器区域截图）在句子里没有标记，打第一个字就被当孤儿卸掉",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/split-composer-draft.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,
@@ -191,7 +206,19 @@ const CHECKS = [
 
 const pass = [];
 const fail = [];
-const skipped = [];
+const skipped = [	{
+		id: "VIEWER-flight-window",
+		what: "跑起来的桌面端里：编辑/预览从缩略图大小起飞、不放大再缩；关闭实心落地；完成进输入框；照着改带上标注图；附件托盘收起有过程",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/viewer-flight-probe.ts", "--tag=回归"]],
+	},
+	{
+		id: "PANE-image-fit-window",
+		what: "文件面板打开大图，先按 100% 画出来再缩到适配",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/image-pane-fit-probe.ts", "--tag=回归"]],
+	},
+];
 
 for (const check of CHECKS) {
 	if (check.window && !withWindow) {
