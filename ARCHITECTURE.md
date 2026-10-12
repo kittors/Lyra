@@ -16,6 +16,7 @@ Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，�
 | `mobile` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView | 不依赖 `core`（Metro 没有 `node:`） |
 | `relay` | 中转服务。单文件，零依赖，两端都连不上对方时让它们碰头 | 谁也不依赖 |
 | `registry-shared` | 插件市场的契约：索引能说什么、API 答什么 | 谁也不依赖 |
+| `contract` | 渲染进程与主进程之间那条线：223 个方法写在一处，主进程按它注册、preload 按它生成 | 谁也不依赖 |
 | `agent-cli` | 在 CI 里审 PR、分 issue 的那个 agent，跑的是同一个 `AgentSession` | `core` |
 
 ## 两个宿主，一份界面
@@ -50,6 +51,7 @@ src/
 ├── lib/          纯逻辑：没有 React，没有主进程，不需要 DOM 就能测
 ├── services/     跟主进程说话的唯一出口
 ├── store/        跨域共享的状态；只有一个域用的留在那个域里
+├── i18n/         界面文案：`messages/` 下七种语言各一个文件
 ├── styles/       样式，一个主题一个文件
 ├── mobile/       只在手机宿主下生效的适配：键盘避让、抽屉手势
 └── assets/
@@ -112,10 +114,10 @@ CI 里都是必过项：
 | --- | --- |
 | 加一个 IPC | `packages/contract/src/methods.ts` 登记（含手机能不能用及为什么）→ `electron/ipc/<域>.ts` 注册 → `electron/preload.ts` 暴露；契约的测试会检查三处一致 |
 | 加一个内置工具 | `core/src/tools/`，经 `useToolRegistry` 那条缝 |
-| 加一个右侧面板 | `src/panels/registry.ts` 注册一条记录 |
+| 加一个面板 | `src/features/dock/panels/registry.ts` 注册一条记录 |
 | 维护模型价格、能力和中转别名 | `core/src/model-catalog.ts` 与 `scripts/update-model-catalog.mjs`；`pnpm catalog:update` 更新离线数据 |
 | 默认子智能体定义 | `core/src/agents-builtin.ts`；运行时与设置页共用，浏览器从 `@lyra/core/agents-builtin` 导入 |
-| 改设计 token | `src/styles.css` 的 `@theme` 段 |
+| 改设计 token | `src/styles/tokens.css` 的 `@theme` 段 |
 | 加一个基础组件 | `src/ui/<组>/`，配一条 `test/ui/` 的测试 |
 | 加一个功能 | `src/features/<域>/`；跨域只经对方的 index |
 | 调主进程 | `import { bridge } from "@/services"`；手机上能不能用问 `available()` |
@@ -125,7 +127,7 @@ CI 里都是必过项：
 ## 检查
 
 ```bash
-pnpm check   # lint + typecheck + test
+pnpm check   # lint + links + style + i18n + typecheck + arch + test
 pnpm arch    # 依赖方向
 pnpm test:e2e  # 真实 Electron 窗口
 ```

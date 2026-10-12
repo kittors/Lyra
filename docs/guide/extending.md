@@ -6,8 +6,11 @@
 | --- | --- | --- |
 | 技能 | 一段写给模型的说明，用到时才注入 | `.lyra/skills/<名>/SKILL.md` |
 | 插件 | 一组技能的打包 | 装到 `~/.lyra/plugins/` |
-| MCP 服务 | 一个提供工具的外部进程 | 设置 › MCP |
+| MCP 服务 | 一个提供工具的外部进程 | 设置 › 插件 › MCP |
 | 子智能体 | 一个有独立上下文的下属 | `.lyra/agents/<名>.md` |
+
+规则（`.lyra/rules/`）、斜杠命令（`.lyra/commands/`）和扩展（`.lyra/extensions/`）在「设置 → 插件」「设置 → 命令」里管；
+钩子见[内置能力](capabilities.md)。
 
 ## 技能
 
@@ -30,8 +33,8 @@ description: 从提交记录整理一份更新说明。要写 release notes 或�
 
 | frontmatter 字段 | 作用 |
 | --- | --- |
-| `name` | 小写、短横线分隔。必填，也是 slash 命令的名字 |
-| `description` | 什么时候该用它。最多 1024 字 |
+| `name` | 小写、短横线分隔。省略则取目录名。也是 slash 命令的名字 |
+| `description` | 什么时候该用它。必填，缺了这个技能不加载；最多 1024 字，少于 40 字会提示写得太短 |
 | `allowed-tools` | 只让这个技能用列出的工具：列表 `[read, grep]`，或用逗号、空格隔开的一串 `read, grep`。省略就是不限制 |
 | `disable-model-invocation` | 设为 true 则模型看不到它，只能由用户从命令菜单调用 |
 
@@ -46,7 +49,7 @@ description: 从提交记录整理一份更新说明。要写 release notes 或�
 模型这一点。
 
 **优先级，具体的赢**：项目里 `.lyra/skills/` 的散装技能 → 用户级 `~/.lyra/skills/` → 插件带
-的 → 代码注册的。同名时前者覆盖后者，所以在插件旁边放一个同名目录就是覆盖它的方式。
+的 → 项目里 `.claude/skills/` → `.agents/skills/` → 代码注册的。同名时前者覆盖后者，所以在插件旁边放一个同名目录就是覆盖它的方式。
 
 ## 插件
 
@@ -71,7 +74,10 @@ my-plugin/
 
 三种传输：stdio、Streamable HTTP、SSE。工具以 `mcp__<服务>__<工具>` 注入，不会和内置工具撞名。
 
-在设置 › MCP 里配，或者装一个只带 `.mcp.json` 的包。
+在设置 › 插件 › MCP 里配，或者装一个只带 `.mcp.json` 的包。
+
+远程（Streamable HTTP、SSE）服务只跟随同源重定向：地址如果跳到别的域名或端口就连不上，报错里写着跳去了哪儿，
+把地址改成那个即可。这样你写在 headers 里的令牌不会被带到另一个源。
 
 ## 子智能体
 
@@ -96,7 +102,7 @@ model: deepseek-v4-flash
 | `name` | 省略则取文件名。`subagent_type` 用的就是它 |
 | `description` | 主模型据此决定派给谁 |
 | `tools` | 数组则限定，省略则全部可用 |
-| `model` | 指定模型，省略则用当前会话的 |
+| `model` | 指定模型，也可以写 `@fast`、`@deep` 这类角色；省略则用当前会话的 |
 | `max-turns` | 每跑多少轮停下来看一眼，省略则 60。是检查点，不是上限，见下 |
 | `avatar` | 它的脸：`形状-颜色`，如 `cloud-violet`。省略则按名字算一张，和名单里别人的不重复 |
 

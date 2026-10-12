@@ -107,7 +107,7 @@ pnpm install
 
 ```bash
 pnpm lint        # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck   # 7 个包
+pnpm typecheck   # relay 以外的每个包（relay 是纯 JS）
 pnpm test        # 单元测试，含组件测试
 node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑一遍
 pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
@@ -286,7 +286,7 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 
 ## 目录
 
-先看 [ARCHITECTURE.md](ARCHITECTURE.md)——包与包的关系、五条边界规则、以及「要做某件事去哪」。
+先看 [ARCHITECTURE.md](ARCHITECTURE.md)——包与包的关系、边界规则、以及「要做某件事去哪」。
 
 | 路径 | 是什么 |
 | --- | --- |

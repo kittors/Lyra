@@ -12,7 +12,7 @@
   <strong>English</strong> · <a href="./README.zh-CN.md">中文</a>
 </p>
 
-A standalone agent with its own model settings. The desktop app is Electron, the phone app is React Native, and they share one session log.
+A standalone agent with its own model settings. The desktop app is Electron, the phone app is React Native, and the phone works on the same sessions as the computer.
 
 This is not a shell around Claude Code or Codex. The agent loop, tools, skills, and MCP are implemented here. You bring the models, plugins, and skills.
 
@@ -35,7 +35,7 @@ If you are not sure which architecture you have: on macOS look at the chip line 
 
 AppImage or deb, not both. AppImage needs no installer: `chmod +x` and run it on any distribution. The `.deb` is for Debian and Ubuntu: `sudo apt install ./Lyra-<version>-amd64.deb`.
 
-Four other files are usually not what you want. The two `.zip` files are for in-app updates on macOS (they replace the app in place, so you do not drag it again). `Lyra-<version>.exe` is a combined Windows installer for x64 and arm64, about 230 MB; the per-arch installers are about 110 MB each, so use those if you know the architecture. `SHA256SUMS` is the digest list. After install, the app checks for updates and only installs a file whose digest matches. If the list is missing, it refuses to install.
+Four other files are usually not what you want. The two `.zip` files are for in-app updates on macOS (they replace the app in place, so you do not drag it again). `Lyra-<version>.exe` is a combined Windows installer for x64 and arm64, about 350 MB; the per-arch installers are about 175 MB each, so use those if you know the architecture. `SHA256SUMS` is the digest list. After install, the app checks for updates and only installs a file whose digest matches. If the list is missing, it refuses to install.
 
 ## First launch
 
@@ -74,9 +74,9 @@ The Windows installer is also unsigned. The first run hits SmartScreen: "Windows
 
 If the wizard finishes, "Run Lyra" is checked, and you get "missing shortcut / Windows is looking for Lyra.exe" (or the Start menu and desktop icons do the same), `Lyra.exe` did not stay in the install folder. The usual cause is Microsoft Defender quarantining a large unsigned binary. Check Windows Security → Virus & threat protection → Protection history, allow the entry, and run the installer again.
 
-In-app updates take the same path. Defender also stops the file being written under `%APPDATA%\\@lyra\\desktop\\updates`, which shows up as a failed download near the end. Add that folder as an exclusion, allow Lyra in Protection history, and retry. The bytes already down are kept.
+In-app updates take the same path. Defender also stops the file being written under `%APPDATA%\@lyra\desktop\updates`, which shows up as a failed download near the end. Add that folder as an exclusion, allow Lyra in Protection history, and retry. The bytes already down are kept.
 
-The installed app is always named `Lyra.exe` and is a couple of hundred MB. If the install folder also has `Lyra-<version>-<arch>.exe`, about 100 MB, that is the installer itself, not the app. That happens when the destination folder is the folder the installer was downloaded into. `Uninstall Lyra.exe` is a few hundred KB and only uninstalls. Neither of those launches the app.
+The installed app is always named `Lyra.exe` and is a couple of hundred MB. If the install folder also has `Lyra-<version>-<arch>.exe`, about 175 MB, that is the installer itself, not the app. That happens when the destination folder is the folder the installer was downloaded into. `Uninstall Lyra.exe` is a few hundred KB and only uninstalls. Neither of those launches the app.
 
 ### Installing on a phone
 
@@ -89,27 +89,33 @@ The phone app is a shell. It talks to Lyra on your computer. Sessions, models, a
 
 ## Add a model first
 
-Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents.
+Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model, by hand or with Fetch models; the test button on each model's row checks that it answers. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents. Image models usually have to be added by hand, because many relays leave them out of `/v1/models`.
 
 ## What it does
 
 - **Your models.** Any number of providers, any number of models on each, over **Responses** (`/v1/responses`), **Anthropic Messages** (`/v1/messages`) or **Chat Completions** (`/v1/chat/completions`).
-- **20 built-in tools**, in the groups the code uses:
+- **21 built-in tools**, in the groups the code uses:
   - Files and code: `read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - Commands: `bash` `bash_output`
   - Session and memory: `todo_write` `task` `skill` `rule` `recall` `learn` `ask_user`
-  - Network and preview: `web_fetch` `web_search` `preview`
+  - Network, preview and pictures: `web_fetch` `web_search` `preview` `image_generate` (offered to the model only once an image model is configured)
+
+  On the desktop, five `browser_*` tools drive the browser pane as well.
 - **Skills.** `SKILL.md` plus YAML frontmatter. Only the name and description enter the system prompt. The body is injected when the model calls `skill`, so dozens of skills do not burn the context window.
 - **MCP.** stdio, Streamable HTTP, and SSE. Tools are named `mcp__<server>__<tool>`, so they never collide with built-ins.
-- **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.lyra/agents/*.md`.
+- **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more in `.lyra/agents/*.md` or `~/.lyra/agents/*.md`, or from Settings → Subagents.
 - **Side chat.** A temporary conversation beside the current session. It can read the main chat. It writes nothing into it. Work that needs tools is queued on the main session.
-- **Right-hand dock.** Nine panes, all open at once if you want: Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace, Browser. The file pane is a syntax-highlighted editor. The terminal is a real pty.
-- **Split workspace.** Keep up to four conversations side-by-side in one window. Each conversation slot owns its tools dock (at least 420 px for chat, 300 px for tools), and panels render squeezed rather than unexpectedly detaching into floating windows when narrow.
-- **Centered Git commit modal & branch workflows.** Commit changes through a focused dialog styled after the composer with matching border radius, breathing room, and in-place branch switching/creation. Changes support toggling between flat list and hierarchical tree view with persistent preference.
-- **Replies render what the model wrote.** User bubbles and assistant text render clean Markdown. A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. Side chat separates model-bound attachment payloads from display bubbles and edit inputs.
-- **Built-in formatters.** Saving a file can run Prettier, or the language's own formatter shipped in the app (Go, Rust/Python via Ruff, C/C++, Dart, Swift, PHP, and others). You do not have to install those toolchains first.
-- **Keep the computer awake while a task runs.** A switch in General settings. Closing the lid still sleeps.
-- **Mobile sync.** The phone replays the same session log: watch a turn, approve actions, keep asking. Three paths: LAN when you share a Wi-Fi, your own domain and TLS, or both ends dial out to the relay.
+- **Window.** A toolbar runs across the top: back and forward (⌘[ and ⌘], Alt+← and Alt+→ on Windows and Linux, or the mouse's side buttons), the sidebar toggle, the open conversation's title with its … menu, and at the far end Terminal, Browser and Git buttons beside a ⋮ Panels menu that lists every panel. A rail of icons down the left goes to Conversations, Pull requests, Scheduled, Plugins and Settings; in a window narrow enough for the sidebar to become a drawer, they move into the drawer. The sidebar and the conversation share one rounded panel. On macOS the sidebar shows the window's frosted material; Settings → Appearance → Translucent sidebar turns it off.
+- **Panels.** Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace and Browser, as many open as you like. Each is a pane of its own beside the conversation, and you can drag it to any side; Settings → Appearance → Panels → Tabs puts them in one pane on the right instead. The file pane is a syntax-highlighted editor. The terminal is a real pty.
+- **Split view.** Up to four conversations side by side in one window, each with its own panels. A conversation is never drawn narrower than 420 px or a panel narrower than 300 px; when the window is too narrow, panels are squeezed instead of being moved out.
+- **Git.** Changes as a flat list or a tree (remembered), history, branches and CI pipelines. Commit opens a dialog: leave the message empty and the current model writes one into the field first; pick the branch to commit to, or name a new one, which is only created when you commit; Commit and push does both.
+- **Replies render what the model wrote.** Markdown in your messages and in replies; a `mermaid` fence becomes a diagram; a path to a local file becomes a chip with the file name and the full path on hover. Right-click a file — a link in a reply, a row in the edited-files card, a file's header in File changes — to open it in Lyra, in your editor or another app, show it in Finder or Explorer, or copy its full or relative path. A 12 MB message opens and scrolls without freezing the window.
+- **Fork from a message.** Fork from here, on any message you sent, starts a new conversation with everything before it and puts that message — images, attachments and references included — back in the composer to edit. The original is left as it was. It works while a turn is still running.
+- **Pictures.** Add an image model — `gpt-image-*`, `dall-e-3`, `imagen-*`, Gemini's `*-image`, FLUX, Seedream and others are recognised by name — and ask for a picture in any conversation. The conversation model hands the job to `image_generate`, and the picture appears in place, up to four side by side. Paste a picture, or refer to one already in the conversation (`#1` is the newest), to have it changed. Hover a picture for Edit and Download. See [Generating images](docs/guide/image-generation.md) (in Chinese).
+- **Pull requests, schedules and plugins.** From the rail: review pull requests from the code hosts you connect in Settings → Code hosting; run a prompt in a project every N minutes or at a time each day; browse the plugin market and install plugins or MCP servers.
+- **Built-in formatters.** ⇧⌘F (Shift+Alt+F) formats the open file, and Settings → Code formatting can do it on every save (off by default). Prettier handles the web languages; the official formatters for Python (ruff), Go (gofmt), C, C++, C# and Java (clang-format), Swift, Dart, PHP, Lua and a few more ship inside the app, so nothing needs installing. Rust, Kotlin, Ruby and some others still use the tool installed on the machine, such as rustfmt.
+- **Keep the computer awake.** A switch in Settings → General: while Lyra is open, the display does not sleep and the machine does not idle to sleep, so a long task can run overnight. Closing the lid still sleeps.
+- **Mobile sync.** The phone shows the same sessions, record by record: watch a turn, approve actions, keep asking. Three paths: LAN when you share a Wi-Fi, your own domain and TLS, or both ends dial out to the relay.
 
 ## Layout
 
@@ -118,13 +124,13 @@ packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
   mobile/            Expo / React Native app
-  contract/          the line between the two processes; 215 methods in one place
-  relay/             public relay for when the phone is not on the same LAN. one file, no dependencies
-  agent-cli/         command-line entry
+  contract/          the line between the two processes; 223 methods in one place
+  relay/             a relay you run on a public host, for when the phone and the computer cannot reach each other. one file, no dependencies; Lyra does not run one for you
+  agent-cli/         the agent that reviews pull requests and triages issues in this repository's CI, on the same AgentSession
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
 ```
 
-`core` is platform-neutral. The desktop main process and the sync service share one `AgentSession`, so the phone and the computer do not drift. Five rules govern which package may import which. `pnpm arch` enforces them. See [ARCHITECTURE.md](ARCHITECTURE.md).
+`core` is platform-neutral. The desktop main process and the sync service share one `AgentSession`, so the phone and the computer do not drift. The rules on which code may import which are listed in [ARCHITECTURE.md](ARCHITECTURE.md); `pnpm arch` and `pnpm lint` enforce them.
 
 ## Run from source
 
@@ -150,10 +156,15 @@ Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change 
 | `~/.lyra/settings.json` | providers, models, MCP, permission mode |
 | `~/.lyra/credentials.json` | API keys, encrypted. The key material is `~/.lyra/vault.key` |
 | `~/.lyra/sessions/sessions.db` | every conversation and what it spent (SQLite) |
-| `~/.lyra/skills/`, `plugins/`, `rules/`, `commands/` | user-level skills, plugins, rules, slash commands |
-| `~/.lyra/memory.json` | what the `learn` tool wrote down |
-| `<project>/.lyra/skills/`, `agents/`, `commands/`, `plugins/` | the same set at project level, preferred over user-level |
-| `<project>/LYRA.md`, `AGENTS.md`, `CLAUDE.md` | project instructions, first file that exists in that order |
+| `~/.lyra/skills/`, `agents/`, `commands/`, `rules/`, `plugins/` | user-level skills, sub-agents, slash commands, rules, plugins |
+| `~/.lyra/memory.json` | your personal memory, managed in Settings → Personalization |
+| `~/.lyra/projects/<id>/memory/` | what one project taught it: `learned.md` from the `learn` tool, `MEMORY.md` from the optional background pass |
+| `~/.lyra/session-media/` | pictures pasted into or drawn in a conversation |
+| `<project>/.lyra/skills/`, `agents/`, `commands/`, `rules/`, `plugins/` | the same set at project level, preferred over user-level |
+| `<project>/.lyra/prompts/identity.md`, `guidelines.md` | replace the prompt's identity line and built-in guidelines for this project |
+| `<project>/LYRA.md`, `AGENTS.md`, `CLAUDE.md` | project instructions: in each folder from the working directory up to the repository root, the first of these that exists; the nearer folder comes later and wins on conflicts |
+
+Lyra also reads Claude Code's `.claude/skills` and `.claude/commands`, `.agents/`, and the rule folders of Cursor, Windsurf, Cline and Copilot.
 
 Moving machines is a copy of `~/.lyra`, made with the app closed. Copy `credentials.json` and `vault.key` together, or the keys will not open. Do not keep `~/.lyra` in a folder that iCloud, Dropbox or OneDrive syncs while the app runs: the session database is written through a `-wal` file beside it, and a sync client that copies one without the other leaves a database that will not open.
 
@@ -161,36 +172,50 @@ Moving machines is a copy of `~/.lyra`, made with the app closed. Copy `credenti
 
 How plugins, skills, MCP, and sub-agents are laid out, and how the browser, the index, hooks, and mobile sync work:
 
-- [Extending Lyra](docs/guide/extending.md): plugin directories, `SKILL.md`, MCP servers, sub-agent definitions
-- [Built-in capabilities](docs/guide/capabilities.md): the browser and its boundary, the index, hooks, the three mobile-sync paths
-- [Architecture](ARCHITECTURE.md): package graph, the five boundary rules, decision records
+- [Extending Lyra](docs/guide/extending.md) (in Chinese): plugin directories, `SKILL.md`, MCP servers, sub-agent definitions
+- [Built-in capabilities](docs/guide/capabilities.md) (in Chinese): questions and `@` references, sub-agents and delegation, the browser and its boundary, the index, hooks, the three mobile-sync paths
+- [All guides](docs/guide/README.md) (in Chinese), including [Generating images](docs/guide/image-generation.md)
+- [Architecture](ARCHITECTURE.md): package graph, the boundary rules, decision records
 
-A plugin is a bundle of skills. It does not contain MCP servers. A directory that only has `.mcp.json` is an MCP server, not a plugin. The catalog lists them separately. Installing an MCP server writes its declaration into Settings → MCP, which is the one place on the machine for every MCP server, whether you typed it or installed it.
+A plugin is a bundle of skills. It does not contain MCP servers. A directory that only has `.mcp.json` is an MCP server, not a plugin. The catalog lists them separately. Installing an MCP server writes its declaration into Settings → Plugins → MCP, which is the one place on the machine for every MCP server, whether you typed it or installed it.
+
+Remote MCP servers only follow redirects to the same origin. An address that redirects to another host or port fails to connect, and the error names where it was sent; use that address instead. A token in the server's headers is never carried to another origin.
 
 ## Appearance
 
-Every control under Settings → Appearance actually changes the UI, by overriding CSS variables:
+Every control under Settings → Appearance takes effect as soon as you change it:
 
 - Theme: system / light / dark, with a preview. Light is a full theme, not a fallback.
-- Three colors are exposed (accent, background, foreground). The rest of the scale is derived from the contrast slider, so any background still has readable text and visible borders.
-- UI font / code font / UI size / code size / translucent sidebar / pointer cursor / font smoothing
-- Reduce motion: system / on / off
-- Diff marks: color or `+/-` (for color-vision deficiency)
+- Three colors per theme (accent, background, foreground), plus presets. The rest of the scale is derived from the contrast slider, so any background still has readable text and visible borders.
+- Code: light and dark syntax themes, inline code colors, code font, size, weight, line height and letter spacing.
+- UI font, size and weight; pointer cursor.
+- Conversation width: Auto (the default; follows the pane, up to 1120 px), Standard, Wide, Extra wide, Full, or a number.
+- Composer height, and whether a failed turn shows one line or the whole error.
+- Tool calls: Collapsed (the default) or Expanded. Panels: Split (the default) or Tabs.
+- Reduce motion: system / on / off.
+- Diff marks: color or `+/-` (for color-vision deficiency).
+- macOS only: font smoothing, and the translucent sidebar (on by default).
 
 ## System prompt
 
 The structure follows [pi](https://github.com/earendil-works/pi):
 
 ```
-identity (one sentence)
-Available tools:      one-line snippet per tool
-Guidelines:           base rules plus each loaded tool's own rules
-Boundaries:           lines that must not be crossed
-Environment:          platform, whether this is a git repo, date, model
-<available_skills>    name / description / directory, no body
-<available_subagents> name / description / tools
-<project_context>     AGENTS.md and the other project files, wrapped in XML
+identity (one sentence; .lyra/prompts/identity.md replaces it)
+Available tools:            one-line snippet per tool
+Guidelines:                 base rules (.lyra/prompts/guidelines.md replaces them) plus each loaded tool's own rules
+Boundaries:                 lines that must not be crossed
+Environment:                platform, shell, whether this is a git repo, model
+tone, <global_user_instructions>   from Settings → Personalization, when set
+<user_memory>               what you asked it to remember
+<project_memory>            what this project taught it
+<available_skills>          name / description / directory, no body
+<rules> / <rulebook>        rules that always apply, and the list of the others
+<available_subagents>       name / description / tools, how eagerly to delegate, how many at once
+<project_context>           AGENTS.md and the other project files, wrapped in XML
 Current working directory: …
+Scratch directory: …        where throwaway files go; removed with the conversation
+## Addresses                session://, skill://, artifact:// and the other addresses `read` accepts
 ```
 
 What matters:
@@ -200,28 +225,30 @@ What matters:
 - Skills list name, description, and directory. The body arrives when the model calls `skill`.
 - The sub-agent list is required. Without it the model does not know the values of `subagent_type`, and a request for `explore` falls back to `general` (measured).
 - `<` and `&` in a skill description are escaped, so a hostile `description` cannot close an XML tag and inject instructions.
+- Today's date is not in it. It travels in a short `<env>` note after the last message, so a new day does not throw away the cached prefix.
 
 `packages/core/test/system-prompt.test.ts` covers each of those.
 
 ## Panes
 
-The right-hand dock is a tab strip. Nine panes can stay open:
+Panels open beside the conversation. Terminal, Browser and Git have their own buttons at the right end of the window's toolbar (with several conversations on screen, in each one's title bar); the ⋮ Panels menu lists every panel with its shortcut. By default each panel is a pane of its own that you arrange by dragging; Settings → Appearance → Panels → Tabs puts them in one pane on the right, one tab each. On Windows and Linux, ⌘ is Ctrl:
 
 | Pane | Shortcut | What it is |
 | --- | --- | --- |
 | Files | ⌘P | File tree. Clicking a file opens File contents |
 | File contents | ⌥⌘P | Syntax-highlighted editor. The title is the file name, not "File contents" |
 | Terminal | ⌃` | A real pty, not echoed commands |
-| Git | ⌘⇧R | Workspace diff (flat or tree view), centered commit modal with branch switching & creation |
+| Git | ⌘⇧R | Workspace changes (flat or tree), history, branches, pipelines; commit and push from a dialog |
 | Side chat | ⌥⌘S | See above |
 | Sub-agents | ⌥⌘A | What each `task` worker is doing |
 | Tasks | ⌘J | The current todo list |
 | Trace | ⌘L | What this turn actually sent the model: tools, skills, injected context |
 | Browser | ⌘T | Built-in browser. Boundary in [Built-in capabilities](docs/guide/capabilities.md) |
 
-- **Width is draggable.** Sidebar and pane edges drag, double-click restores the default, arrow keys nudge. Widths persist.
-- **Split layout & screen capacity.** A window can host up to four tiled conversations side-by-side. Each conversation slot owns its tools dock (at least 420 px for chat and 300 px for panels). If the workspace becomes narrow, panels are drawn squeezed rather than unexpectedly detaching into orphaned windows.
-- **Full screen.** A pane can fill the conversation column. Files then becomes tree on the left and file on the right. If the sidebar is collapsed, the window buttons move into the tab strip instead of floating on the pane.
+A tenth, **File changes**, is opened from the edited-files card rather than the menu. It shows what this turn wrote, not the working tree, and can be popped out into its own window.
+
+- **Width is draggable.** Drag the sidebar edge or the line between two panes; arrow keys nudge (Shift for bigger steps). Double-click the sidebar edge to restore its width, or the line between two panes to split the space evenly. Widths persist.
+- **Full screen.** A pane can fill its conversation's screen; Esc brings it back. Files then becomes the tree on the left and the file on the right.
 - **Editor.** Syntax highlight, wrap toggle (off by default), both scrollbars. The scrollbars paint over the content and take no width.
 
 ## Context use
@@ -233,22 +260,21 @@ Context window           12.5k / 128.0k (10%)
 ■ Messages                8.6k    6.7%
 ■ Built-in tools          2.5k    2.0%
 ■ System prompt           1.5k    1.2%
-□ Remaining             115.5k   90.2%
+□ Room left             115.5k   90.2%
 ```
 
-A single total only says you are running out. The breakdown says what to do: start a new chat, turn off an MCP server, or delete a `CLAUDE.md` nobody is reading. The numbers come from the last reply's real usage, not an estimate. Past 80% the ring turns red, because the runtime starts summarizing the oldest messages around that point.
+A single total only says you are running out. The breakdown says what to do: start a new chat, turn off an MCP server, or delete a `CLAUDE.md` nobody is reading. The total comes from the last reply's real usage; what was said since, and the split between segments, are estimated. Before the first reply, or right after a summary, the whole figure is an estimate and says so. Past 80% the ring turns red, because the runtime starts summarizing the oldest messages around that point. At the bottom, Memory files lists each instruction file and the project memory with what it costs; click one to open it.
 
 ## Motion
 
-Anything that changes on screen has a matching motion, 140 to 260ms, gated by `prefers-reduced-motion`.
+Anything that changes on screen has a matching motion: 150, 220 or 340 ms, and none when the system asks for reduced motion or Settings → Appearance → Reduce motion is on.
 
-- **Sidebar.** `margin-left` slides from 0 to the negative of the current width, with a fade. The collapse control stays at the top-left of the window (to the right of the traffic lights) and does not travel with the sidebar. The fill inside the icon is the current state. ⌘B toggles.
-- **Tool running.** The card border turns blue, the icon pulses, a stopwatch and spinner sit on the right, a progress rail travels along the bottom.
-- **Tool done.** The status icon and `+N −M` counts pop in with a short overshoot.
-- **Waiting on the model.** A thin arc sweeps a faint track, with elapsed time and token count beside it. Monochrome, because the reply sits next to it. In queued or multi-turn chats, status indicators attach accurately to the latest user bubble.
-- **Approval sheet.** Slides up from the composer.
-- **Message actions & Markdown rendering.** User bubbles render full Markdown with inline code and tables. Internal attachment markers intended for models are filtered out from side-chat bubbles and edit drafts. Time and copy appear only while the pointer is on that message, without changing the line height.
-- **Buttons.** Hover changes color, press is `scale(0.9)`. Suggestion cards lift 2px on hover.
+- **Sidebar.** `margin-left` slides from 0 to the negative of the current width, with a fade. The toggle sits in the window's toolbar after back and forward and does not travel with the sidebar. The fill inside its icon is the current state; while the sidebar is hidden, a dot on it says a conversation is waiting, failed or finished. ⌘B (Ctrl+B) toggles.
+- **Tool calls.** By default a turn's calls sit under one line, one row per call. A running row has a light sweeping across its words and a seconds count; a finished one goes quiet; a failed or stopped one keeps its mark; `+N −M` pops in with a short overshoot. Settings → Appearance → Tool calls → Expanded brings back the bordered cards: a blue border, a pulsing icon, a spinner, a rail along the bottom, and a tick when done.
+- **Waiting on the model.** A small orb whose pattern follows what the agent is doing — thinking, reading, writing, editing, running a command, searching, testing, fetching, planning — beside a short phrase that changes every few seconds, the elapsed time, the token count and an estimated tokens per second. It sits under your latest message.
+- **Approvals and questions.** The card sits directly above the composer and takes its own height, so the conversation scrolls above it instead of hiding behind it.
+- **Message actions.** Time and copy, and on your own messages undo, edit and resend, and Fork from here, appear only while the pointer is on that message, without changing the line height.
+- **Buttons.** Hover and press change the background; tab strips shrink slightly when pressed. The suggestions under the welcome page's composer unfold one after another, and their outline darkens on hover.
 
 ## Permissions
 
@@ -277,16 +303,16 @@ Versions before the database kept one JSONL file per session under `~/.lyra/sess
 After a change, run the lot:
 
 ```bash
-pnpm check     # lint + style + i18n + typecheck + arch + test
+pnpm check     # lint + links + style + i18n + typecheck + arch + test
 ```
 
 Or one piece:
 
 ```bash
 pnpm lint          # oxlint, --deny-warnings: a warning is a failure
-pnpm typecheck     # 7 packages
+pnpm typecheck     # 6 packages (relay is plain JavaScript)
 pnpm test          # unit tests, including component tests. node:test, not vitest or jest
-pnpm arch          # dependency direction, a couple of seconds
+pnpm arch          # dependency direction, a few seconds
 pnpm package       # this machine's installer. the only place besides a release that runs electron-builder
 ```
 

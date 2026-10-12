@@ -22,7 +22,7 @@ Windows 上的真实窗口（`windows-ui`）只在 CI 里跑。要临时跳过�
 | `pnpm check` | lint、链接、style、i18n、typecheck、arch、test |
 | `pnpm lint` | oxlint，`--deny-warnings`，所以警告等同于失败 |
 | `pnpm lint:fix` | 能自动修的修掉 |
-| `pnpm typecheck` | 三个包一起 |
+| `pnpm typecheck` | 六个包一起（relay 是纯 JS，没有类型检查） |
 | `pnpm test` | 单元测试，含组件测试 |
 | `pnpm --filter @lyra/desktop test:ui` | 只跑组件测试（happy-dom，不到一秒） |
 | `pnpm release:rehearse` | 触发 Release dry run 并等到绿；红了就停 |
@@ -90,9 +90,13 @@ pnpm test:e2e
 ## 项目结构
 
 ```
-packages/core      Agent 运行时：循环、工具、技能、会话日志、插件内核。平台无关。
-packages/desktop   Electron 应用。electron/ 是主进程，src/ 是渲染进程。
-packages/mobile    React Native / Expo 应用，通过局域网同步连桌面端。
+packages/core             Agent 运行时：循环、工具、技能、会话存储、插件内核。平台无关。
+packages/desktop          Electron 应用。electron/ 是主进程，src/ 是渲染进程。
+packages/mobile           React Native / Expo 应用，承载桌面端界面，经同步服务连桌面端。
+packages/contract         渲染进程与主进程之间那条线，方法都登记在一处。
+packages/relay            中转服务：手机和电脑谁也连不上谁时让它们碰头。单文件，零依赖。
+packages/agent-cli        在本仓库 CI 里审 PR、分 issue 的 agent。
+packages/registry-shared  插件市场的索引格式，桌面端与市场服务共用。
 .github/           CI、模板、仓库 agent
 ```
 
